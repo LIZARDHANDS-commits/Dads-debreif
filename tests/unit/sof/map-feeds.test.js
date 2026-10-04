@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the radar feed: time and picture, age from the layer's own time, stale after 20 minutes, RainViewer backup
+//   after two ECCC failures, and request discipline.
+// Serves: SOF-R15, SOF-R2.
+// Expected values: captured replies served by a fake fetch on a virtual clock; the 6 minute refresh and 20 minute
+//   stale limit are design choices from the SOF spec.
 
 // Tests for src/modules/sof/map-feeds.js: the radar feed's time and picture, its age from the
 // layer's own time, stale after 20 minutes, the RainViewer backup after two ECCC failures (and

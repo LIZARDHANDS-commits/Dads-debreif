@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: saving and reopening a debrief file brings back tracks, DFP markers and settings; damaged or hostile files are refused in one plain message; size limit.
+// Serves: DB-R17, DB-R25, ALL-R17.
+// Expected values: the round trip is compared with what was saved; Dad's recorded example tracks; the size limit (189 MiB) is a design choice.
 
 // The debrief file (R17, #25): save and reopen exactly, and treat an opened
 // file as untrusted (SPEC-flight-data, Security).

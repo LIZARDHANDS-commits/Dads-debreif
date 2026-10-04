@@ -1,14 +1,16 @@
 > **Note (reset, 4 Oct 2026):** this is the spec as it stood before the reset, moved here unchanged. It is refreshed against this module's new `requirements.md` and `decisions.md` when the module's work resumes. Where it disagrees with them, they win. Lines saying the code must give "the same answer V6 gives" or must match V6 are replaced: flight math is checked against the manuals and standard aerodynamics (ALL-R22, Patrick's answer Q-ALL-4).
+>
+> **Replaced old decisions:** this spec still cites D10, D29, D34, D59, D60, D63, D72, D89, D112, which are no longer in force. The "Replaced old decisions" section of `../../DECISIONS.md`, `../sof/decisions.md`, `../turn-fight/decisions.md` and `../turn-sim/decisions.md` says what took each one's place.
 
 # Shared parts spec
 
-This module's spec is made of 6 old specs, one section each: `specs/SPEC-core.md`, `specs/SPEC-shell.md`, `specs/SPEC-storage.md`, `specs/SPEC-ui-kit.md`, `specs/SPEC-wx.md`, `specs/SPEC-airfields.md`.
+This module's spec is made of 6 old specs, one section each: `archive/specs/SPEC-core.md`, `archive/specs/SPEC-shell.md`, `archive/specs/SPEC-storage.md`, `archive/specs/SPEC-ui-kit.md`, `archive/specs/SPEC-wx.md`, `archive/specs/SPEC-airfields.md`.
 
-## From `specs/SPEC-core.md`
+## From `archive/specs/SPEC-core.md`
 
 ## Spec: `core`, the shared flight math
 
-Status: **approved by Patrick on 2026-09-30** ("spec-core approved", in the Flight math core thread). Changes go through a pull request. Module id `core` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Status: **approved by Patrick on 2026-09-30** ("spec-core approved", in the Flight math core thread). Changes go through a pull request. Module id `core` in [`archive/SPEC.md`](../../../archive/SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
 ### Objective
 
@@ -131,7 +133,7 @@ V6 has no wind, so there is nothing to pin: this is new, checked against known a
 
 ### API, fifth PR: T-6A performance (shared by the Turn Fight, Traffic and Turn Sim)
 
-**Decided by Patrick on 2026-09-30 (06:58Z, "Yess hared model"):** one T-6A performance model in `core`, which every module reads. Each module keeps its own flying: the Turn Fight its moves (Energy mode, D112, SPEC-turn-fight), the Traffic Sim its pattern at the SMM speeds and its engine-out glide (SPEC-traffic), and the Turn Sim its V6 formation turns. Nothing a module shows today changes because of this: the model only puts the numbers in one place and checks them against each other. It is built test-first (tasks 14 to 17 in `tasks/flight-math/todo.md`) when Patrick's build order reaches it; until he picks, that is the Turn Fight's turn, before the Traffic build needs it. V6 has none of this, so there is nothing to pin; it is checked against the T-6A's own charts.
+**Decided by Patrick on 2026-09-30 (06:58Z, "Yess hared model"):** one T-6A performance model in `core`, which every module reads. Each module keeps its own flying: the Turn Fight its moves (Energy mode, D112, SPEC-turn-fight), the Traffic Sim its pattern at the SMM speeds and its engine-out glide (SPEC-traffic), and the Turn Sim its V6 formation turns. Nothing a module shows today changes because of this: the model only puts the numbers in one place and checks them against each other. It is built test-first (tasks 14 to 17 in `archive/tasks/flight-math/todo.md`) when Patrick's build order reaches it; until he picks, that is the Turn Fight's turn, before the Traffic build needs it. V6 has none of this, so there is nothing to pin; it is checked against the T-6A's own charts.
 
 | Function or data | What it gives | First used by |
 |---|---|---|
@@ -157,7 +159,7 @@ V6 has no wind, so there is nothing to pin: this is new, checked against known a
 | `shakerG(kias, { stallKias, marginKt, maxG })` | The G a pull in the shaker gives: (KIAS ÷ 93)², 1 G at 93 KIAS, at most the V-n 7 G unless told. With no margin it is the stall line | Turn Fight |
 | `splitST6A(kias, altFt, options)` | The SMM's split S (14.16 para 41) flown by `stepPointMass` at full power: 20° nose up, roll inverted at 0.5 G, pull through in the shaker until level, up to 5 G (Patrick's cap, 09:27Z; the SMM's Table 14.1 gives about 4 G). Every number above is an option, and so is the roll's side (right unless told). Returns the height lost from the entry altitude and from the top, the exit speed, the most G, the time, the heading change and whether it finished. From 110 KIAS at 10,000 ft: 1,688 ft below the entry, 1,976 ft below the top, 206 KIAS out. Below the shaker speed (93 KIAS) the nose can't come up, so it rolls at once and loses about 300 ft more from the entry. 1 to 316 KIAS, or it throws | Turn Fight's hard-deck check and forced split S |
 | `stepPointMass(state, { g, bankRad }, dtSec, excessFn)` (`point-mass.js`) | One fourth-order Runge-Kutta step of a point with speed, flight-path direction and bank, on the velocity vector (so it passes straight up or down) | Turn Fight; the zoom cross-check |
-| `t6a-turn-charts.js` | The sustained turn rate chart's points (Figure 4-10-1: each altitude line's top at the stall limit, its 150 and 200 KIAS crossings and its zero; sea level to 31,000 ft), read off by eye, with the chart and reading notes, and the fitted constants (`T6A_FIT`). `tests/golden/checks/t6a-fit.mjs` refits them | the fit and its tests |
+| `t6a-turn-charts.js` | The sustained turn rate chart's points (Figure 4-10-1: each altitude line's top at the stall limit, its 150 and 200 KIAS crossings and its zero; sea level to 31,000 ft), read off by eye, with the chart and reading notes, and the fitted constants (`T6A_FIT`). `archive/tests/golden/checks/t6a-fit.mjs` refits them | the fit and its tests |
 
 Sources, by page reference only (the charts and manuals stay in the project files, not the repo): the T-6A V-n diagram and sustained turn rate and radius charts (maximum power, clean, standard day); the T-6A max glide chart (Patrick's upload, 06:33Z) and SMM 13.5 para 7; the flight manual's zoom, NFM Fig 3-4, p.3-12. The motion, the fit and the chart checks are as SPEC-turn-fight describes them ("The model (T-6A, point mass)" and "Checks against the charts"); those words move here when that spec points to this section.
 
@@ -185,7 +187,7 @@ Sources, by page reference only (the charts and manuals stay in the project file
 
 ### Things `core` will flag, not choose
 
-- **Two tennis-ball solvers disagreed** (issue #19). **Decided by Patrick on 2026-09-30 (D62, D63):** one solver, `tennisBall`. It is the debrief's, pinned to V6 in PR 2, and then changed one answer at a time in PR 3. The ball carries the shooter's whole velocity, climb included. The target flies its recorded path, climb included. The cone is ±3° for a width of 6, and INTERCEPT needs the target in the cone; Patrick confirmed both on 2026-09-30 (D77). The golden test still matches V6 when given V6's straight, level target path and no climb, apart from the cone rule. [`tasks/flight-math/tennis-ball.md`](../tasks/flight-math/tennis-ball.md) keeps the comparison that led here.
+- **Two tennis-ball solvers disagreed** (issue #19). **Decided by Patrick on 2026-09-30 (D62, D63):** one solver, `tennisBall`. It is the debrief's, pinned to V6 in PR 2, and then changed one answer at a time in PR 3. The ball carries the shooter's whole velocity, climb included. The target flies its recorded path, climb included. The cone is ±3° for a width of 6, and INTERCEPT needs the target in the cone; Patrick confirmed both on 2026-09-30 (D77). The golden test still matches V6 when given V6's straight, level target path and no climb, apart from the cone rule. [`archive/tasks/flight-math/tennis-ball.md`](../../../archive/tasks/flight-math/tennis-ball.md) keeps the comparison that led here.
 - **#3 judged by two standards at once** (#21, Q39): with spread and offset both on, V6 judges #3's fore/aft by both, so #3 is never "ON PARAMETERS" and can read "FORE / FORE" or "AFT / FORE". **Decided by Patrick on 2026-09-30 (D78):** when the offset standard is on, it alone judges #3's fore/aft, and the spread standard judges #3's interval. PR 3 pinned V6's labels; the change landed as its own commit. The golden test proves that the result is V6's `classifyKmlError` with the spread's fore/aft tolerance set too large to fire, for #3 with both standards on, and exactly V6 everywhere else. Turn Sim needed no change, since each of its formations judges #3 by one standard. Kept from V6: an aircraft no standard checks still reads "ON PARAMETERS".
 - **The SMM's standards** (Patrick, 2026-09-30 05:37Z, from the manuals' Q7-Q9; SMM 16.18 para 49, 16.41 para 109; Gen Book p.12). A new preset, `DEFAULT_STANDARDS`, is what `app.standards` starts with; `V6_STANDARDS` stays V6's and the golden tests still pin every V6 check. Each change landed as its own commit after the pin:
   - **D116, sweep:** a spread standard with `sweepMinDeg`/`sweepMaxDeg` (default 0 and 10) replaces V6's ± `foreAftTolFt` of the 3/9 line with the SMM's 0-10° of sweep behind it. Less is FORE, more is AFT. The angle is measured from the aircraft the interval is measured from, so #4 flying off #3 (SMM 16.42 para 116) is swept from #3. Positions report `sweepDeg` (+ aft). With the offset standard on, #3's fore/aft is still the offset standard's (D78). The Turn Sim uses the same check when given the new standards (D89).
@@ -233,7 +235,7 @@ export function headingCrossAngleDeg(h1, h2) {
 2. **Exact match by default.** A tolerance is allowed only where V6 itself has two copies that disagree, and the test says why.
 3. **Unit tests** (`tests/unit/core/`) check meaning against known answers: a minute of latitude is a nautical mile, 3 o'clock is on the right, Moose Jaw stays UTC-6 across both clock changes while Denver moves (R10).
 4. **The tests must catch a broken port.** Before each PR, a mutation check breaks the ports on purpose, one change at a time (a constant nudged, a sign flipped, a boundary moved). With the T-6A model (PR 5) and `turnSimG` (Task 12), 205 of 210 changes turn a test red; all 49 in the T-6A files and all 13 for `turnSimG` are caught. The other five are equivalent: `absAngleDeg(h1 - h2)` for `(h2 - h1)`; 0.3048 for 1/3.28084 inside the tile-zoom rounding; and two guards kept from V6 that no input can reach (`emPoint`'s density floor of 0.15, since the ratio never falls below 0.297, and `gFromTrack`'s floor of 0.8 G, since its G is never below 1); and `wind.js`'s `<` for `<=` where the crosswind equals the airspeed, since a crosswind exactly equal to the airspeed leaves no headway either way. Line coverage of `src/core` is 100%.
-5. **Same answers in a browser.** Each PR also loads `src/core` in Chromium as plain ES modules and compares about 14,700 results with Node's, failing on anything beyond the last digits. Time and Intl results match exactly. 248 results that use `sin`, `cos`, `atan2` or `Math.pow` differ in the last digits (at most 3.2e-15 relative), because JavaScript engines may round these functions differently. The golden tests run V6 and `core` in the same engine, so they compare exactly. Any comparison with numbers recorded in a browser (such as `tests/golden/v6-baseline.json`) must allow at least 1e-12 relative. That tolerance is far below anything shown on screen, and it is the "stated tolerance" R9 asks for.
+5. **Same answers in a browser.** Each PR also loads `src/core` in Chromium as plain ES modules and compares about 14,700 results with Node's, failing on anything beyond the last digits. Time and Intl results match exactly. 248 results that use `sin`, `cos`, `atan2` or `Math.pow` differ in the last digits (at most 3.2e-15 relative), because JavaScript engines may round these functions differently. The golden tests run V6 and `core` in the same engine, so they compare exactly. Any comparison with numbers recorded in a browser (such as `archive/tests/golden/v6-baseline.json`) must allow at least 1e-12 relative. That tolerance is far below anything shown on screen, and it is the "stated tolerance" R9 asks for.
 
 ### Boundaries
 
@@ -250,18 +252,18 @@ export function headingCrossAngleDeg(h1, h2) {
 
 ### Plan
 
-The tasks, checkpoints and risks are in [`tasks/flight-math/plan.md`](../tasks/flight-math/plan.md) and [`todo.md`](../tasks/flight-math/todo.md).
+The tasks, checkpoints and risks are in [`archive/tasks/flight-math/plan.md`](../../../archive/tasks/flight-math/plan.md) and [`todo.md`](../../../archive/tasks/flight-math/todo.md).
 
 ### Open questions
 
 1. Guard against infinite input inside `core`, or only at the screen (see above)? The default is at the screen only.
 
 
-## From `specs/SPEC-shell.md`
+## From `archive/specs/SPEC-shell.md`
 
 ## Spec: shell
 
-Module id `shell` in the approved map (`SPEC.md`). Build step 1.
+Module id `shell` in the approved map (`archive/SPEC.md`). Build step 1.
 
 ### Objective
 
@@ -386,22 +388,22 @@ Browser (`tests/e2e/`, Playwright, every test fails on any console error, R7, an
 - Storage blocked: the app opens and says settings won't be saved.
 - Offline (R6): after one visit, with the network off, a reload shows the home screen and About. A new build shows the new-version bar, and Reload switches to it and removes the old copy.
 - Size (R5): the build fails if the home screen needs more than 3 MB, or card videos total more than 3 MB (R15).
-- Screenshots (D142, `tests/e2e/visual.spec.js`): Chromium only, on Linux, at 1440 x 900, to catch a change that moves or covers something by accident. Covers home, About, the Settings dialog, and the Debrief Viewer empty and with the example flight. The clock is frozen at noon Zulu, card videos stay still pictures (reduced motion), other sites are answered with an empty reply (satellite tiles with a plain square), fonts are pinned to Liberation Sans and Mono, and the footer's "Updated" line is masked. A picture may differ by up to 1% of its pixels (`playwright.config.js`). References are in `tests/e2e/__screenshots__/visual.spec.js/`; change them with `npx playwright test tests/e2e/visual.spec.js --update-snapshots=all` (plain `--update-snapshots` rewrites only pictures that fail, so a small change within the 1% would keep an old picture) only in a PR that means to change the look, and look at the new pictures before committing. A module adds its own screen to this file when it is hooked in.
+- Screenshots (D142, `archive/tests/e2e/visual.spec.js`): Chromium only, on Linux, at 1440 x 900, to catch a change that moves or covers something by accident. Covers home, About, the Settings dialog, and the Debrief Viewer empty and with the example flight. The clock is frozen at noon Zulu, card videos stay still pictures (reduced motion), other sites are answered with an empty reply (satellite tiles with a plain square), fonts are pinned to Liberation Sans and Mono, and the footer's "Updated" line is masked. A picture may differ by up to 1% of its pixels (`playwright.config.js`). References are in `archive/tests/e2e/__screenshots__/visual.spec.js`; change them with `npx playwright test tests/e2e/visual.spec.js --update-snapshots=all` (plain `--update-snapshots` rewrites only pictures that fail, so a small change within the 1% would keep an old picture) only in a PR that means to change the look, and look at the new pictures before committing. A module adds its own screen to this file when it is hooked in.
 
 ### Sign-off checklist (R21)
 
-`docs/checklists/shell.md`: a short list anyone can run in a browser: open the link, open About, change the time order and reload, Report a problem opens the form, install it, reload it offline.
+`archive/docs/checklists/shell.md`: a short list anyone can run in a browser: open the link, open About, change the time order and reload, Report a problem opens the form, install it, reload it offline.
 
 ### Out of scope for step 1
 
 Module content, saving a debrief to a file (step 2 with `flight-data`).
 
 
-## From `specs/SPEC-storage.md`
+## From `archive/specs/SPEC-storage.md`
 
 ## Spec: storage
 
-Module id `storage` in the approved map (`SPEC.md`). Build step 1.
+Module id `storage` in the approved map (`archive/SPEC.md`). Build step 1.
 
 ### Objective
 
@@ -474,11 +476,11 @@ const dropped = await readTextFiles(event.dataTransfer.files, { maxBytes }); // 
 - In the browser, blocking storage (Playwright: a context where `localStorage` throws) still opens the app with no errors (R7), and the settings screen says settings won't be saved.
 
 
-## From `specs/SPEC-ui-kit.md`
+## From `archive/specs/SPEC-ui-kit.md`
 
 ## Spec: ui-kit
 
-Module id `ui-kit` in the approved map (`SPEC.md`). Build step 1, extended as modules need it.
+Module id `ui-kit` in the approved map (`archive/SPEC.md`). Build step 1, extended as modules need it.
 
 ### Objective
 
@@ -579,7 +581,7 @@ chart.dispose();
 
 ### Map layers: satellite tiles and VNC charts (from the debrief)
 
-The debrief built these two layers and kept them free of debrief state so they could be shared. Modules never import each other (`SPEC.md`), so they move into ui-kit. The tile loader has moved already, ahead of the Traffic Sim's satellite task (Traffic task 8). The VNC layer moves at the SOF's base map (SOF task 6). Each move changes where the code lives and nothing it does: every number stays as the debrief has it, and `tests/golden/debrief-vnc.test.js` still pins the VNC warp to V6.
+The debrief built these two layers and kept them free of debrief state so they could be shared. Modules never import each other (`archive/SPEC.md`), so they move into ui-kit. The tile loader has moved already, ahead of the Traffic Sim's satellite task (Traffic task 8). The VNC layer moves at the SOF's base map (SOF task 6). Each move changes where the code lives and nothing it does: every number stays as the debrief has it, and `archive/tests/golden/debrief-vnc.test.js` still pins the VNC warp to V6.
 
 `src/ui-kit/map-tiles.js` (moved from the debrief) draws web map tiles under a flat map in local feet.
 
@@ -623,7 +625,7 @@ charts.dispose();
 - It moves `vnc.js` to `src/ui-kit/vnc.js`, with `git mv` so the history follows. The debrief's imports point at the new file.
 - It moves the chart images from `public/media/debrief/` to `public/media/charts/`, changes `VNC_FILES` to match, and changes the service worker's skip rule (`tools/service-worker.mjs`) from `media/debrief/` to `media/charts/`.
 - It moves `tests/unit/debrief/vnc.test.js` to `tests/unit/ui-kit/vnc.test.js`. The golden test keeps its name and changes only its import (a one-line change in core's folder, agreed with the flight math core thread).
-- It updates the debrief's README and SPEC-debrief's file tree, the ui-kit README, and `SPEC.md`'s structure.
+- It updates the debrief's README and SPEC-debrief's file tree, the ui-kit README, and `archive/SPEC.md`'s structure.
 - It is done when `npm test` and the debrief's browser tests pass unchanged, including "VNC charts: off at first, fetched only when chosen".
 - It lands with the SOF's task 6, which needs the VNC layer.
 
@@ -729,11 +731,11 @@ menu.body;                                   // the container the sections live 
 - The tests above pass, and the shell's browser tests (overlap scan and module switching) pass using these pieces.
 
 
-## From `specs/SPEC-wx.md`
+## From `archive/specs/SPEC-wx.md`
 
 ## Spec: `wx`, weather parsing and limit checks
 
-Status: **approved by Patrick on 2026-09-30**; the Q30 alternate rules (D60) approved 2026-09-30. Module id `wx` in [`SPEC.md`](../SPEC.md). Requirements: R13 (SOF), R16 (home airfield and alternates are a setting), R7 (no browser errors), R9 (numbers match V6 unless a logged decision says otherwise).
+Status: **approved by Patrick on 2026-09-30**; the Q30 alternate rules (D60) approved 2026-09-30. Module id `wx` in [`archive/SPEC.md`](../../../archive/SPEC.md). Requirements: R13 (SOF), R16 (home airfield and alternates are a setting), R7 (no browser errors), R9 (numbers match V6 unless a logged decision says otherwise).
 
 ### Objective
 
@@ -928,11 +930,11 @@ Logged as Q27 (WX-1) to Q30 (WX-4). Patrick answered all four on 2026-09-30.
 - **WX-5 / Q40, answered (D79).** Military alternates follow the same rules as the SOF's civil rules, with no exceptions. The GNSS-only visual descent rule is D80, under "Alternates".
 
 
-## From `specs/SPEC-airfields.md`
+## From `archive/specs/SPEC-airfields.md`
 
 ## Spec: `airfields`, the home field and its alternates
 
-Status: **approved by Patrick on 2026-09-30** ("approve", in the Airfields thread). Changes go through a pull request. Module id `airfields` in [`SPEC.md`](../SPEC.md). Requirements: R16 (home airfield and alternates are a setting), R10 (one Zulu/local switch, local is the home field's zone), R13 (SOF), R22 (essentials first). Decisions: the home airfield is a setting usable anywhere, default CYMJ (Patrick, 2026-09-29), D60 and D70 to D73 (Q30 alternate rules), D79 (military alternate rules are the same as these civil rules) and D80 (visual descent from the MEA), both Patrick's answers of 2026-09-30. Decision, requirement and question numbers refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Status: **approved by Patrick on 2026-09-30** ("approve", in the Airfields thread). Changes go through a pull request. Module id `airfields` in [`archive/SPEC.md`](../../../archive/SPEC.md). Requirements: R16 (home airfield and alternates are a setting), R10 (one Zulu/local switch, local is the home field's zone), R13 (SOF), R22 (essentials first). Decisions: the home airfield is a setting usable anywhere, default CYMJ (Patrick, 2026-09-29), D60 and D70 to D73 (Q30 alternate rules), D79 (military alternate rules are the same as these civil rules) and D80 (visual descent from the MEA), both Patrick's answers of 2026-09-30. Decision, requirement and question numbers refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
 ### Objective
 
@@ -1108,7 +1110,7 @@ From `.claude/skills/` (which one when: `.claude/skills/README.md`). Each PR lis
 | Step | Skill | What it means here |
 |---|---|---|
 | This spec | spec-driven-development | Nothing is built until Patrick approves it. |
-| Plan | planning-and-task-breakdown | `tasks/airfields/plan.md` and `todo.md`: small, ordered tasks, each with its own tests. |
+| Plan | planning-and-task-breakdown | `archive/tasks/airfields/plan.md` and `todo.md`: small, ordered tasks, each with its own tests. |
 | Build | incremental-implementation | One working, committed slice at a time: catalog and distance, then minima, then the setting, then the panel. |
 | Build | test-driven-development | A failing test first for every minima row, trade-off, rounding case, distance and dropped bad value, each citing its CAP GEN rule. The window logic stays in `wx`, which already tests it. |
 | The Settings panel | frontend-ui-engineering, with `.claude/references/accessibility-checklist.md` | Labelled inputs, keyboard access, errors in words, essentials first (R22). |

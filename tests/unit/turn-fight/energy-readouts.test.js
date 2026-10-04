@@ -1,15 +1,9 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the Energy Result card words: speed, altitude, G, the move chosen, flags (OVER G, STALL), first
+//   nose-on, winner or "No winner", altitude summary and table, kill and collision rows.
+// Serves: TF-R16, TF-R17, TF-R9, TF-R4.
+// Expected values: known answers from the engine's own fight, typed in (circular); the kill and collision
+//   strings are built from hand-made state, not flown; the example string at 220 KIAS is the old spec's.
 
-// OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
 // Energy mode's readouts (SPEC-turn-fight, "Energy mode", "The screen"): known answers from the engine's own fight.
 import test from 'node:test';
 import assert from 'node:assert/strict';

@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the file helper saves text under a safe name with the right contents, leaves no link behind, opens chosen files and refuses an oversize one in plain words.
+// Serves: ALL-R17, ALL-R13.
+// Expected values: design choice: file names, contents, size limit and message wording typed in the test and its test page (tests/e2e/pages/file.html).
 
 // Browser tests for src/storage/file.js (SPEC-storage), on a test page that
 // loads it straight from src/.

@@ -1,13 +1,9 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the traffic relay: query numbers validated, only GET /traffic answered, reply trimmed and nearest first,
+//   hostile text never passed on, size and redirect limits, cache, origins.
+// Serves: SOF-R17 (the live-traffic relay is on the future list, SOF-Q9; this file leaves when the relay is
+//   archived).
+// Expected values: a real adsb.lol reply trimmed to five aircraft (captured 2026-09-30); limits (1000 aircraft, 1 MB,
+//   5 s cache) are design constants from the relay.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

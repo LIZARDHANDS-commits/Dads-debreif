@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the axe accessibility scan (WCAG 2.1 A and AA) finds no violations on home, About, Settings and each module screen.
+// Serves: ALL-R11.
+// Expected values: the axe rule set itself (rule tags set in tests/e2e/fixtures.js); the test types in no numbers of its own.
 
 // Accessibility checks (axe, WCAG 2.1 A and AA, Q-T3 decided; the rule tags are set in fixtures.js) on each screen (ALL-R11, D142).
 // Each module route is added here as it is hooked into the registry.

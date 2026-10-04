@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the built-in example flight is Dad's four tracks with their nicknames, fetched only when asked, all four or nothing.
+// Serves: DB-R1.
+// Expected values: real recorded data (the four example tracks in original/assets); the nicknames are typed in.
 
 // The example flight (D22, R5): V6's four tracks with their nicknames,
 // fetched only when asked for.

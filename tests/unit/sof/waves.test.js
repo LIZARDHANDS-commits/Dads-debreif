@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: wave times, the home call and alternate calls, DST-change days, evening waves, and the alternate-minima
+//   rules.
+// Serves: SOF-R10, SOF-R11, SOF-R12, SOF-R21.
+// Expected values: wave times worked out in the test from what a wall clock in the home zone reads (Moose Jaw is
+//   UTC-6 all year); decisions D59 and D95; wx comparisons are wiring checks.
 
 // Tests for src/modules/sof/waves.js: wave times, home call, alternate calls.
 // Wave times are checked against what a wall clock in the home zone reads (SOF-R10, SOF-R21), not against any old formula.

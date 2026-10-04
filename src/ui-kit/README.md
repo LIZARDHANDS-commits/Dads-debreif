@@ -1,6 +1,6 @@
 # ui-kit
 
-The shared look and building blocks (spec: `specs/SPEC-ui-kit.md`).
+The shared look and building blocks (spec: `docs/modules/shared/spec.md`).
 
 - `tokens.css`: every colour, space and font size. **To change a colour everywhere,** change it here.
 - `base.css`: page-wide styles for text, buttons, focus outlines and panels.

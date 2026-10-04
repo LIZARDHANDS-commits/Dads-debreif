@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the SOF's own settings, their defaults, and how the alternate trigger choice and the two limit numbers stay
+//   in step.
+// Serves: SOF-R11, SOF-R16, SOF-R18.
+// Expected values: hand-written; defaults (Local (MTCA) 2000/3, banner on, lightning 20 NM) are design choices,
+//   decisions D59 and D111.
 
 // Tests for src/modules/sof/settings-model.js: the SOF's own settings, their
 // defaults, and how the alternate trigger choice and the two limit numbers

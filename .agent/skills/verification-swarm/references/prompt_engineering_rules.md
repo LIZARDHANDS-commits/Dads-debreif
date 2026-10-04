@@ -33,7 +33,7 @@ To prevent human review fatigue while preserving every confirmed defect:
 2. **Re-Grade Severity (P1–P4):** Re-classify into P1 (Blocker), P2 (Major), P3 (Minor), or P4 (Cosmetic).
    * **P3/P4 Deflated Items:** Automatically batched into the Maintenance Backlog (no human debate needed) — **unless the project's gate requires every flag to be adjudicated**, in which case the project rule wins and they join the human queue, ranked last.
    * **P1/P2 Genuine Disputes:** The only items escalated for human adjudication by Patrick.
-3. **The Code Reproduction Gate:** If an examiner claims a code/runtime defect is **P1 or P2**, it MUST include an executable reproduction command (`repro_command`). Claims lacking an executable repro that fails on disk are auto-demoted to P3. (See [Adversarial Deflation Playbook](./references/adversarial_deflation_playbook.md)).
+3. **The Code Reproduction Gate:** If an examiner claims a code/runtime defect is **P1 or P2**, it MUST include an executable reproduction command (`repro_command`). Claims lacking an executable repro that fails on disk are auto-demoted to P3. (See [Adversarial Deflation Playbook](./adversarial_deflation_playbook.md)).
 
 ### 1.4 The File-Per-Agent Rule & Finding Schema
 Include in every swarm prompt:
@@ -42,7 +42,7 @@ Include in every swarm prompt:
 > A report that isn't a file didn't happen."
 
 **Enforce the Standard Hybrid Finding Block:**
-Examiners must format every distinct finding using a fenced YAML metadata block (`id`, `target`, `source_citation`, `severity`, `category`, `repro_command`) followed by neutral observation, expectation, and evidence sections. Reports lacking this structure degrade downstream synthesis. (See [Finding Schema Template](./references/finding_schema_template.md)).
+Examiners must format every distinct finding using a fenced YAML metadata block (`id`, `target`, `source_citation`, `severity`, `category`, `repro_command`) followed by neutral observation, expectation, and evidence sections. Reports lacking this structure degrade downstream synthesis. (See [Finding Schema Template](./finding_schema_template.md)).
 
 ### 1.5 The Citation Contract & Witness Hierarchy
 Require agents to cite their sources at two levels:
@@ -64,7 +64,7 @@ Claims that cannot cite both levels are dropped.
   state files, logs): once snapshots are archived, a bare filename matches several files.
 
 #### The 4-Tier Witness Hierarchy:
-Grade all claims by the strength of their witness (See [Evidence Witness Hierarchy](./references/evidence_witness_hierarchy.md)):
+Grade all claims by the strength of their witness (See [Evidence Witness Hierarchy](./evidence_witness_hierarchy.md)):
 * **Level 0 (Self-Report):** *"I verified X"* $\rightarrow$ **Dismissed.**
 * **Level 1 (Derivative):** Citations to other agent summaries $\rightarrow$ **Untrusted without re-derivation.**
 * **Level 2 (Execution):** Command stdout, pytest logs, non-zero exits $\rightarrow$ **Supportive.**

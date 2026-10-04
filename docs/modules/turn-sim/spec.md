@@ -1,4 +1,6 @@
 > **Note (reset, 4 Oct 2026):** this is the spec as it stood before the reset, moved here unchanged. It is refreshed against this module's new `requirements.md` and `decisions.md` when the module's work resumes. Where it disagrees with them, they win. Lines saying the code must give "the same answer V6 gives" or must match V6 are replaced: flight math is checked against the manuals and standard aerodynamics (ALL-R22, Patrick's answer Q-ALL-4).
+>
+> **Replaced old decisions:** this spec still cites D6, D10, D87, D112, which are no longer in force. The "Replaced old decisions" section of `../../DECISIONS.md`, `../turn-fight/decisions.md` and `decisions.md` says what took each one's place.
 
 # Turn Sim spec
 
@@ -6,9 +8,9 @@ Moved from `specs/SPEC-turn-sim.md`.
 
 # Spec: `turn-sim`, the Formation Turn Sim
 
-Status: **approved by Patrick on 2026-09-30** ("Spec turn sim approved", in the Turn Sim spec thread). Patrick answered Q41 to Q47 the same day (see "Answered questions"), and this spec follows his answers. At 06:40Z he added eight formation items from the SMM (see "SMM formation additions"). Changes go through a pull request. Module id `turn-sim` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102. The questions this spec raised were TS1 to TS7, logged in the plan doc as Q41 to Q47.
+Status: **approved by Patrick on 2026-09-30** ("Spec turn sim approved", in the Turn Sim spec thread). Patrick answered Q41 to Q47 the same day (see "Answered questions"), and this spec follows his answers. At 06:40Z he added eight formation items from the SMM (see "SMM formation additions"). Changes go through a pull request. Module id `turn-sim` in [`archive/SPEC.md`](../../../archive/SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102. The questions this spec raised were TS1 to TS7, logged in the plan doc as Q41 to Q47.
 
-Building starts after the debrief screen, when the coordinator says it's the Turn Sim's turn. Until then this spec and the task plan in [`tasks/turn-sim/`](../tasks/turn-sim/) are the work.
+Building starts after the debrief screen, when the coordinator says it's the Turn Sim's turn. Until then this spec and the task plan in [`tasks/turn-sim/`](../../../tasks/turn-sim/) are the work.
 
 ## Objective
 
@@ -163,7 +165,7 @@ Changes that don't change a number V6's Step button shows:
 - **Wide and tight position errors are measured from Lead** (D42): "Wide 1,000 ft" moves a wingman 1,000 ft further out on whichever side it flies. V6 moved every aircraft along one fixed direction, so on one side "wide" came in tighter (#15).
 - The turn circles use the same G as the flying (with D74 they can no longer disagree).
 - **Spacing graph, Solver and Correction model** (Q41, Patrick): V6 hid all three. They come back, each behind its own checkbox, off by default (R22). The graph draws each metric in its own colour with a legend (V6 drew all four in white) and only while open. The solver's sweep is pinned to V6 and runs only when asked, not every frame.
-  Where the Solver and the Spacing graph differ from V6 (each has a test in `tests/golden/turn-sim-solver.test.js` or `turn-sim-series.test.js`):
+  Where the Solver and the Spacing graph differ from V6 (each has a test in `archive/tests/golden/turn-sim-solver.test.js` or `turn-sim-series.test.js`):
   - **Auto timing:** the port works the auto step out afresh for every trial. V6's sweep never recomputed it and read stale page state, so under Timing = auto V6's answer meant nothing. Solving for the delay under auto gives 60 identical trials (the delay is not used); solving for the spacing flies each trial as a run at that spacing with its own auto step. Logged for Patrick.
   - **Scored at the Duration:** as in V6, each trial is scored by its spacing at the end of the Duration (Lead to #2 in a two-ship, Lead to #3 otherwise), not at the turn's rollout. The port's `readout` says so ("scored at Duration (N s)"); V6's own string, which said only "Error", is kept in `valueText`, `unit` and `errText` and pinned by the golden.
   - **No 2,000-row cap:** V6 dropped the oldest history row past 2,000 (100 s of run), so a long run's graph lost its start. The port keeps every row and the graph shows the whole run.
@@ -231,7 +233,7 @@ Needed from the Flight math core thread:
 
 - **SPEC-core Task 12 (D74):** the Turn Sim's G correction (V6 line 1583) as a `core` function, pinned to V6's order first (limit, then correct, NaN below 1 G), then with the 1.01 floor after the correction as its own commit. The engine calls it in step 2 above. It's needed before engine task 7 (see the todo).
 
-Nothing else. The rest of the Turn Sim math (slots, planning, cues, rear check, integrator) is used only here, so it stays in `src/modules/turn-sim/engine/`, pinned by this module's golden tests the same way `core` is pinned (`tests/golden/v6-source.js`, read-only). If the Flight math core thread would rather hold any of it, it moves before it's written.
+Nothing else. The rest of the Turn Sim math (slots, planning, cues, rear check, integrator) is used only here, so it stays in `src/modules/turn-sim/engine/`, pinned by this module's golden tests the same way `core` is pinned (`archive/tests/golden/v6-source.js`, read-only). If the Flight math core thread would rather hold any of it, it moves before it's written.
 
 ## Module structure
 
@@ -290,7 +292,7 @@ export function autoDelayStepSec(spacingFt, speedFtps, turnRad) {
 
 ## Testing strategy
 
-1. **Golden first (D10, R9).** Before any engine function is written, a golden test runs V6's own function, cut out of `original/shell.html` by `tests/golden/v6-source.js` with a small fake of the page's boxes (`$`) as its prelude, next to the port. Then whole runs: every formation × turn × direction × timing at V6's defaults and a set of seeded settings, stepped at 0.05 s, compared position by position each second. Exact match, no tolerance.
+1. **Golden first (D10, R9).** Before any engine function is written, a golden test runs V6's own function, cut out of `original/shell.html` by `archive/tests/golden/v6-source.js` with a small fake of the page's boxes (`$`) as its prelude, next to the port. Then whole runs: every formation × turn × direction × timing at V6's defaults and a set of seeded settings, stepped at 0.05 s, compared position by position each second. Exact match, no tolerance.
 2. **Each decision is its own commit** that changes the pinned value on purpose and names its D#: D41 (toward/away), D42 (wide/tight), D43 (auto order), D44 (auto step), D45 (compass heading), D48 (#2's side), D74 (G floor, in `core`). A test states each: for example, auto timing at the defaults rolls out line abreast at 6,000 ft, within a tolerance the test states and explains.
 3. **Unit tests** (`tests/unit/turn-sim/`): settings (defaults, bad values refused, versioned, profile round trip keeps everything), readouts (two-ship has no NaN), history by time, a setup change resets the run, a new leg resets the rear check and breadcrumbs, the clock tolerance is used.
 4. **Cross-check with V6 in a browser.** `pf/flight-math-check/turnsim.js` already drives V6's real Turn Sim in Playwright; its numbers (presets, wide/tight, toward/away, auto timing) are copied into the golden tests as a second check.

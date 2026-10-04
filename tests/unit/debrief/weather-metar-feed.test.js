@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the METAR fetches: nothing until asked, once per airfield, failures say so, closing the flight aborts
+//   quietly, and a spaced second call for specials.
+// Serves: DB-R18.
+// Expected values: hand-typed IEM-shaped replies with a fake fetch and fake timers; the one-second spacing is a
+//   request-spacing design choice, not a flight time.
 
 // The METAR fetches (SPEC-debrief: Weather at the time of the flight, R5):
 // once per airfield per flight, only when asked, stopped when the flight goes.

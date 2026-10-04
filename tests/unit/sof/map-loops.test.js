@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the near-home lightning reading and the request loops: asks again at fixed intervals, hang timeout, size
+//   cap, fade, and stops when off or on unmount.
+// Serves: SOF-R16, SOF-R2; the traffic-layer tests serve SOF-R17 (on the future list, SOF-Q9).
+// Expected values: virtual clock and fake fetch with fixtures traffic-relay-reply.json and geomet-caps-
+//   Lightning_2.5km_Density.xml; intervals are design choices.
 
 // Tests for src/modules/sof/map-loops.js: the near-home lightning reading (a fixed box, decoded
 // into lightning.js's samples, null when the picture fails) and the traffic layer's loop (request

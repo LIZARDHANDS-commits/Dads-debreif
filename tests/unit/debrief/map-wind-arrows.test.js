@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: wind arrows on the 2D map: start at their point, end downwind, move with pan and zoom, carry text labels,
+//   skip bad values, calm is a ring.
+// Serves: DB-R18, DB-R14.
+// Expected values: positions worked out by hand in the test; the arrow end point uses the code's own arrowVector (a
+//   wiring check); fake canvas.
 
 // Drawing the wind arrows on the 2D map (task 12e-2): each arrow starts where
 // its point is on the screen, so it moves with pan and zoom, points downwind,

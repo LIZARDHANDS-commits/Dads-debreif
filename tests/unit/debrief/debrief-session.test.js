@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: what a saved debrief carries (tracks, DFPs, standards, time, weather), that it opens the same, and that bad
+//   or hostile values are dropped with a line of words.
+// Serves: DB-R17, DB-R25, DB-R16.
+// Expected values: typed-in rule shapes and file name; round trips of the tool's own output; the recorded example
+//   flight; size limits are design choices.
 
 // What a saved debrief carries besides the tracks (R17): DFPs, standards, time.
 import test from 'node:test';

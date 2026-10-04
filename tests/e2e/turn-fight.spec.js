@@ -1,14 +1,7 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
-
+// Checks: the Turn Fight in a real browser: settings, Play, merge, Energy fight, stall flag, tick boxes, reset, 3D offline, accessibility, layout.
+// Serves: TF-R1, TF-R11, TF-R13, TF-R16, TF-R20, TF-R22, TF-R24.
+// Expected values: screen text typed in from the spec; many numbers are the engine's own output (flagged in the test register, to be reworked);
+//   SMM pages cited in the test: 12.2 paras 6 and 9, 16 para 40b, 14.5 para 10.
 // Browser tests for the Turn Fight (SPEC-turn-fight, Testing strategy 4): every
 // control does something (R3), nothing overlaps at 1366 × 768 and 1920 × 1080
 // (R2), closing the module leaves no frames or timers running (R4), and no

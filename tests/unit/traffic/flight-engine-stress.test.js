@@ -1,13 +1,10 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the engine under stress: centreline tracking in 0 to 30 kt crosswind, intercepts from 5,000 ft off
+//   track, no bank at or below stall speed, bank under the accelerated-stall limit, gear/flaps clean above 147
+//   kt, roll rate.
+// Serves: TR-R5, TR-R15, ALL-R20, ALL-R21.
+// Expected values: stall bank limit worked out in the test (standard aerodynamics, stall 86 kt = Patrick's
+//   ruling SH-25); 147 kt is SMM 4.6 para 9; the 45 and 90 deg/s caps and the intercept overshoots are the
+//   engine's own, no source yet.
 
 // Empirical Stress Test Suite for Milestone M1 (Core Flight Engine)
 // Role: EMPIRICAL CHALLENGER (critic, specialist)

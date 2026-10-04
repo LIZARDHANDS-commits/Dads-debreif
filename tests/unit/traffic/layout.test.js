@@ -1,13 +1,9 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the Traffic screen's structure (fake page, not pixels): three columns, routes list with colour and
+//   line style, picking a route, collapsible side columns, hint, photo credit, 3D box and camera buttons, names
+//   as text not HTML.
+// Serves: TR-R3, TR-R22, TR-R23, TR-R29.
+// Expected values: design choices: labels, order and slot names typed in from the old spec; the "no avoiding
+//   action" note (:77) matches today's screen and changes when TR-R18 is built.
 
 // The Traffic Sim's screen (specs/SPEC-traffic.md: The screen, R2, R22): three
 // columns, the bar above the map, each side column collapsible with a real

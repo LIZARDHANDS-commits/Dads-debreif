@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the METAR archive address, reading its reply, the line in force at a moment (decoded, with age), SPECI
+//   taking over only from its own time.
+// Serves: DB-R18.
+// Expected values: hand-typed sample reply and exact output words; archive host mesonet.agron.iastate.edu (design
+//   choice); a later report is never used.
 
 // The METAR line on the replay (SPEC-debrief: Weather at the time of the
 // flight): the archive address, reading its reply, and the line at a moment.

@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the ADS-B Exchange view's address is built from numbers only, and its zoom matches the map's.
+// Serves: SOF-R17, SOF-R24.
+// Expected values: hand-written expectations from the SOF spec section on the ADS-B Exchange view (design choice).
 
 // Tests for src/modules/sof/adsbx.js: the ADS-B Exchange view's address is built from numbers only,
 // and the zoom matches the map's (SPEC-sof, ADS-B Exchange view, Security).

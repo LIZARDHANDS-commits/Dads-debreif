@@ -1,6 +1,6 @@
 # core: the shared flight math
 
-The small functions behind every number the tool shows: units, angles and headings, map projection and time. Every other module uses these instead of keeping its own copy. The spec is [`specs/SPEC-core.md`](../../specs/SPEC-core.md).
+The small functions behind every number the tool shows: units, angles and headings, map projection and time. Every other module uses these instead of keeping its own copy. The spec is [`docs/modules/shared/spec.md`](../../docs/modules/shared/spec.md).
 
 | File | What's in it |
 |---|---|
@@ -23,8 +23,8 @@ Inside the code, a heading is an angle in radians: 0 points east, angles grow co
 ## Changing something
 
 - **A constant** (for example feet per nautical mile) lives in `units.js`, once.
-- **Any number the tool shows** must stay what V6 shows. Each function names the V6 line it came from, and `tests/golden/` runs that V6 line next to it. To change a number on purpose, update the function and its golden test in the same change, and log the decision in the plan doc first (CLAUDE.md, R9).
-- **A fix Dad approved** lands as its own commit after the port that pins V6's number, and its golden test states exactly how the new number differs from V6's (the EM turn rate, D39, is the example).
+- **Any number the tool shows** comes from a manual page, standard aerodynamics or Patrick's ruling, never from V6 (`AGENTS.md`, `docs/TESTING.md`). Each function names the V6 line it started from, as history. To change a number on purpose, record the decision in the module's `decisions.md` first, and change its test in the same change.
+- **A changed number** lands as its own commit, with its source beside it.
 - **Inputs must be finite numbers.** Like V6, the angle-wrapping loops never finish if they're given infinity, and crawl on huge values. Screens must check what people type before it reaches these functions.
 
 ## Tests
@@ -33,4 +33,4 @@ Inside the code, a heading is an angle in radians: 0 points east, angles grow co
 node --test "tests/**/*.test.js"
 ```
 
-`tests/golden/` compares each function with V6's own; `tests/unit/core/` checks what the numbers mean against known answers.
+`tests/unit/core/` checks what the numbers mean against known answers.

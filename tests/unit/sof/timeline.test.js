@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the 24-hour timeline as data: every real and hand-written TAF is compared with wx's own answer, plus 23 and
+//   25 hour days at clock changes.
+// Serves: SOF-R13.
+// Expected values: wx's tafTimeline on purpose (a wiring check); real and hand-written TAFs from tests/fixtures;
+//   clock-change days from the zone data; margins 1e-4, 1e-12.
 
 // Tests for src/modules/sof/timeline.js: the 24-hour timeline as data. No canvas,
 // no page. The pieces must be wx's tafTimeline, so every real and hand-written

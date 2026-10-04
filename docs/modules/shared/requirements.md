@@ -6,4 +6,4 @@ The shared parts (flight core, app frame and home screen, weather, airfields, st
 
 Moved from files that are being archived (file register, section 5). They were rules in those files, not new requirements.
 
-- Colour is never the only signal: every coloured state also has a word or a symbol (from `tasks/debrief/plan.md:48`; it serves ALL-R11).
+- Colour is never the only signal: every coloured state also has a word or a symbol (from `archive/tasks/debrief/plan.md:48`; it serves ALL-R11).

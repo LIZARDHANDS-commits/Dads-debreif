@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: after visiting every page and coming home nothing keeps running; Tab, the skip link and focus on opening a page work; still pictures set motion to zero.
+// Serves: ALL-R12, ALL-R11.
+// Expected values: design choice: the page compares its own counts (listeners, frames, timers) before and after, so it can fail; other values typed in.
 
 // R4: after visiting every page, nothing from the pages you left keeps running.
 import { test, expect } from './fixtures.js';

@@ -51,7 +51,7 @@ Built on TF-R1 to TF-R25, ratified by Patrick on 4 Oct 02:01Z (`pf/reset/1-requi
 | TF-R23 Stops cleanly; nothing runs after leaving | The 10-minute stop ends the run with a plain message (F6); after leaving no timer or listener is left | Each change | Play at 4× for a long time |
 | TF-R24 Keyboard | Space plays or pauses and Home resets, never while typing; Tab reaches every control | Each change | |
 
-**At Turn Fight sign-off:** the whole Turn Fight browser file, F4 and F5 over many seeds, the hands-on checklist above and `docs/checklists/turn-fight.md` rewritten for the ratified requirements (it still says 2 NM, 4 G and Energy off), and one look in real Safari at the 3D view.
+**At Turn Fight sign-off:** the whole Turn Fight browser file, F4 and F5 over many seeds, the hands-on checklist above and `archive/docs/checklists/turn-fight.md` rewritten for the ratified requirements (it still says 2 NM, 4 G and Energy off), and one look in real Safari at the 3D view.
 
 
 ## Sign-off checklist
@@ -70,7 +70,7 @@ Anyone can run it, in the real app, from the module's default start, on a laptop
 
 > The old checklist below was written before the reset. It is refreshed against the requirements above when the module's work resumes: lines that test V6 numbers or exact times are rewritten or dropped.
 
-### Carried over from `docs/checklists/turn-fight.md`
+### Carried over from `archive/docs/checklists/turn-fight.md`
 
 #### Sign-off checklist: the Turn Fight
 

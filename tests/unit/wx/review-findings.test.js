@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: regression cases from a code review: unknown cloud base is unknown, a TAF with no cloud group is incomplete, "11/2SM" is 1 1/2, cancelled TAF, FM out of order.
+// Serves: SOF-R9, SOF-R6.
+// Expected values: hand-written reports; the expected status follows the "unknown is never good" rule (docs/modules/sof/testing.md, S2).
 
 // Regression tests for the code-review-and-quality pass on PR #53. Each case is a
 // report that made a below-limits or unreadable forecast come out as 'meets', or threw.

@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: implausible TEMPO, BECMG or PROB periods are a problem and never "meets"; CAVOK mixed with other conditions is unread; unusable minima read Incomplete.
+// Serves: SOF-R9, SOF-R6, SOF-R12.
+// Expected values: hand-written reports; findings from the verification thread (verification/wx.md) under the "unknown is never good" rule (SOF-R6).
 
 // Regression tests for the verification thread's weather findings (verification/wx.md,
 // 2026-09-30). Each is a report that read 'meets' or a clean chip when it could not be read.

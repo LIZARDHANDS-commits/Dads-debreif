@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: dropping fixes no aircraft could have flown: jumps, over 450 kt, height out of range, off the globe, fewer than 2 good fixes.
+// Serves: DB-R4.
+// Expected values: synthetic tracks worked out in the test; the limits are design choices (C3, C4, D32); the counts on Dad's four recorded tracks are the code's own output (register, T3).
 
 // Dropping fixes no aircraft could have flown (C3, D32, SPEC-flight-data.md Data quality).
 import test from 'node:test';

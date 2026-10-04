@@ -1,13 +1,7 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the Debrief Viewer in a real browser: example flight and file loading, playback, layers, standards, DFPs, save and open, weather, 2D/3D, offline, layout.
+// Serves: DB-R1, DB-R3, DB-R12, DB-R17, DB-R18, DB-R22, DB-R25, DB-R26.
+// Expected values: screen text and behaviours typed in from the spec; the recorded example flight; outside services answered by hand-made stubs.
+//   A few defaults are still labelled as V6 values and are to be re-sourced to the spec (test register, T3).
 
 // Browser tests for the Debrief Viewer (SPEC-debrief: Testing strategy).
 import { readFileSync } from 'node:fs';

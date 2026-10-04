@@ -1,25 +1,10 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
-
-// ╔══════════════════════════════════════════════════════════════════════╗
-// ║  OPERATOR WARNING — READ BEFORE DEBUGGING TEST FAILURES            ║
-// ║                                                                    ║
-// ║  These tests use PILOT-DOMAIN TOLERANCES (±10 kt, ±100 ft, ±5°).  ║
-// ║  If a test fails repeatedly, DO NOT tweak the physics engine to    ║
-// ║  make it pass. Instead:                                            ║
-// ║    1. Ask the operator what to do.                                 ║
-// ║    2. The test tolerance may need widening, OR                     ║
-// ║    3. There may be a genuine flight behavior bug.                  ║
-// ║  Never force physics to match a test value.                        ║
-// ╚══════════════════════════════════════════════════════════════════════╝
+// Checks: every Traffic setting opens at its listed default (wind calm, 2D, conflict limits 200 and 500 ft,
+//   final spacing 3,000 ft, runway 29L and so on) and every number box has its stated minimum and maximum.
+// Serves: TR-R27 (the "11R coming soon" row at :235 goes against TR-R28; the 3,000 ft spacing against TR-R18's
+//   2,000 ft).
+// Expected values: typed in row by row from the old Traffic spec Defaults table (now in archive); design
+//   choices, no manual page; the table's own origin (V6 or manual) is not stated, so they move with each default
+//   change.
 
 // The Traffic Sim's starting values, pinned row by row to the Defaults table in
 // specs/SPEC-traffic.md ("Every setting starts filled in"), and its number-box limits.

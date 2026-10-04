@@ -1,25 +1,10 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
-
-// ╔══════════════════════════════════════════════════════════════════════╗
-// ║  OPERATOR WARNING — READ BEFORE DEBUGGING TEST FAILURES            ║
-// ║                                                                    ║
-// ║  These tests use PILOT-DOMAIN TOLERANCES (±10 kt, ±100 ft, ±5°).  ║
-// ║  If a test fails repeatedly, DO NOT tweak the physics engine to    ║
-// ║  make it pass. Instead:                                            ║
-// ║    1. Ask the operator what to do.                                 ║
-// ║    2. The test tolerance may need widening, OR                     ║
-// ║    3. There may be a genuine flight behavior bug.                  ║
-// ║  Never force physics to match a test value.                        ║
-// ╚══════════════════════════════════════════════════════════════════════╝
+// Checks: one CT-156 round the built-in pattern in calm and in wind: perch moves upwind, break at 60 degrees
+//   bank bleeds 220 toward 140 kt, 45 deg/s roll limit, drift, snapshot restore, spawn presets, breakout and
+//   go-around.
+// Serves: TR-R5, TR-R7, TR-R8, TR-R9, TR-R10, TR-R13, TR-R19, TR-R34.
+// Expected values: drift = wind x turn time worked out in the test; speeds, bank and 3 degrees via traffic
+//   spec 3 (SMM); perch compared with the data file (the code's own); about 14 checks read fixed seconds with
+//   bands widened to pass.
 
 // Tests for the high-fidelity Cartesian vector flight model and wind-adaptive pattern
 // architecture (wind_adaptive_aerodynamic_flight_plan.md, D370, D371, D382, D389).

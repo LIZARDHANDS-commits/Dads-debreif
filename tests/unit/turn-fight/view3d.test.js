@@ -1,15 +1,9 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the 3D view's plain values: level-turn bank, heading and pitch into scene axes, trails, camera fit
+//   and chase, start and stop with WebGL fallbacks and context loss, tactical plumb lines and contact discs.
+// Serves: TF-R18, TF-R1, TF-R8.
+// Expected values: bank acos(1/G) worked out in the test (60 degrees at 2 G, 75.5 at 4 G); camera and limits
+//   are design choices; one fit check runs to T+240 s.
 
-// OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
 // The Turn Fight's 3D view, the parts that are plain values (SPEC-turn-fight, "2D and 3D views"): the attitude
 // it draws (bank from G, heading and pitch into the scene's axes), the trail conversion, the camera choices, and
 // how the view starts and stops. three runs in Node without WebGL, so the real three.js checks the axes; the

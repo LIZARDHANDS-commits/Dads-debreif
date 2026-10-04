@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the top-down view's scale and grid, colours, trails, B and R letters, MERGE mark, first nose-on line
+//   (BOTH on a tie) and data tags, on a recording canvas.
+// Serves: TF-R15, TF-R19, TF-R8.
+// Expected values: design choices written in the old spec "The drawing": colours #58a6ff, #ff6b6b and #ffcc66,
+//   3,000 ft minimum reach and 42 % scale; not manual numbers.
 
 // The top-down view's scale and grid maths, and what it draws (SPEC-turn-fight,
 // "The drawing", TF-R15). The colours, the minimum reach and the 42 % scale are design choices written in that spec section, not manual numbers.

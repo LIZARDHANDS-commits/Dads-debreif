@@ -1,13 +1,7 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: in 3D, a ship in a GPS gap shows only its number and "GPS gap", never bank, pitch or height; ships with GPS
+//   show bank and pitch text.
+// Serves: DB-R4, DB-R23.
+// Expected values: typed-in label text, for example 'bank 40° L, pitch +8°' (design choice for the wording).
 
 // The 3D view's flat labels for a ship in a GPS gap (D32): its number and
 // "GPS gap", never a bank, pitch or height, since the position there is a guess.

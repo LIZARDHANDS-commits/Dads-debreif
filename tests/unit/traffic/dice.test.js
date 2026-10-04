@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the seeded random numbers: same seed same numbers, always from 0 up to 1, evenly spread over 100,000
+//   rolls, a 20 % chance comes up about a fifth of the time, and the state can be saved and put back.
+// Serves: TR-R21 (same setup, same history on replay).
+// Expected values: uniform-spread arithmetic; the count bands (9,700 to 10,300 a tenth) are fixed to seeds
+//   2024 and 99.
 
 // The seeded dice: the same numbers for the same seed, in [0, 1), evenly spread,
 // and a state that can be saved and put back.

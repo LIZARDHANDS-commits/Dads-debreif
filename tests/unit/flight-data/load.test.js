@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: loading a whole flight all or nothing: four example tracks load and are cleaned, one bad file stops everything and is named, duplicate slots and a fifth file refused.
+// Serves: DB-R1, DB-R2.
+// Expected values: Dad's four recorded example tracks; limits are design choices; the dropped counts for #2 are the code's own output, duplicated in clean.test.js (register, T3).
 
 // Loading a whole flight at once, all or nothing (C9).
 import test from 'node:test';

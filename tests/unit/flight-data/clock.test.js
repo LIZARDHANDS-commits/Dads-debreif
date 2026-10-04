@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the playback clock: time advances by real time times speed (0.25x to 16x), one long frame is capped, stops at the end, seek, step, reset.
+// Serves: DB-R12.
+// Expected values: arithmetic worked out in the test, with time fed in as numbers; the speed list is a design choice.
 
 // The one playback clock for every view (#24, R12, SPEC-flight-data "The playback clock").
 import test from 'node:test';

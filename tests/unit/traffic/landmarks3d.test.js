@@ -1,8 +1,10 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test fails repeatedly (2x test fail): DO NOT tweak flight physics to
-// force it to pass. STOP, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS.
-// ============================================================================
+// Checks: the four Moose Jaw landmarks (each with a source, south-east of the field within 6 NM, Window Farm
+//   near the 29L centreline), mesh build and freeing, windsock direction and fullness by wind speed, Highway 2
+//   near two points.
+// Serves: TR-R23, ALL-R12.
+// Expected values: windsock direction worked out in the test (wind from + 180); landmark positions come from
+//   the code's data citing EFIG pages and a Patrick pin, the test only checks the source text; the wide bands
+//   are the author's own.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';

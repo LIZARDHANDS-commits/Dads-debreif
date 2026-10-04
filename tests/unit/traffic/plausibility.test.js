@@ -1,25 +1,9 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
-
-// ╔══════════════════════════════════════════════════════════════════════╗
-// ║  OPERATOR WARNING — READ BEFORE DEBUGGING TEST FAILURES            ║
-// ║                                                                    ║
-// ║  These tests use PILOT-DOMAIN TOLERANCES (±10 kt, ±100 ft, ±5°).  ║
-// ║  If a test fails repeatedly, DO NOT tweak the physics engine to    ║
-// ║  make it pass. Instead:                                            ║
-// ║    1. Ask the operator what to do.                                 ║
-// ║    2. The test tolerance may need widening, OR                     ║
-// ║    3. There may be a genuine flight behavior bug.                  ║
-// ║  Never force physics to match a test value.                        ║
-// ╚══════════════════════════════════════════════════════════════════════╝
+// Checks: shape checks on the built-in setup: no leg over 15 degrees, final turn loses height evenly,
+//   straight-in about 240 ft up at 3/4 NM, break about 2,000 ft past the threshold, no join jumps, no corner
+//   over available G, spacing on final.
+// Serves: TR-R4, TR-R7, TR-R9, TR-R11, TR-R15, TR-R18, ALL-R20.
+// Expected values: 240 ft at the window is SMM 4.7 para 12 / EFIG p.397; other bands typed in, and the names
+//   and asserts disagree ("plus or minus 20 ft" asserts 100); spacing uses 3,000 ft where TR-R18 says 2,000 ft.
 
 // Plausibility guards on the built-in Moose Jaw setup (verification batch 6,
 // 2026-09-30, ratified under Pilot Domain Tolerances).

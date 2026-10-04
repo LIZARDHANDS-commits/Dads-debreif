@@ -1,15 +1,9 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the Turn Fight's remembered settings: opening values, ranges, labels, reset, start geometry,
+//   out-of-range saved values put back, and the five tactical presets.
+// Serves: TF-R14, TF-R11, TF-R12, TF-R1.
+// Expected values: defaults typed in (2-circle, 1.2 NM, 220 KTAS, 5 G, ATA 5 degrees) as TF-R14; ranges are
+//   the old spec's; presets are hand-typed with no source; header and names still say "V6's defaults".
 
-// OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
 // The Turn Fight's remembered settings (SPEC-turn-fight, "The screen", "Number boxes"):
 // V6's defaults, the ranges, and what comes back from browser storage.
 import test from 'node:test';

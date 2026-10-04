@@ -1,13 +1,9 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the 3D extra viewpoints (Top-down, Tower, Cockpit, Padlock) give finite numbers and look the right
+//   way, and the camera bar's Camera menu, Follow menu and High/Performance switch call back as wired.
+// Serves: TR-R23.
+// Expected values: compass bearings worked out in the test with atan2 for a made-up left downwind aircraft;
+//   the 10 degree margin is the file's own (shared table is 5), no reason written; menu words typed in (design
+//   choice).
 
 // The 3D view's extra viewpoints (camera-views.js) and its little bar (camera-bar.js): every view gives finite
 // numbers and looks roughly the right way (within 10 degrees), and the bar's menus and switch call back as wired.

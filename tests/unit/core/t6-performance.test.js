@@ -1,13 +1,7 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the T-6A performance model: V-n limits, stall line, IAS and TAS, Mmo and top speed, sustained turn charts, max glide, energy height.
+// Serves: ALL-R20, ALL-R22, ALL-R28.
+// Expected values: the flight manual pages cited in the test (NFM Fig 5-3 p.5-9, Fig 3-4, Fig 4-10-1, p.1-52) and standard atmosphere formulas; the 86 stall constant is Patrick's default;
+//   a few checks still pin the model's own output (test register, T2 and T3).
 
 // The shared T-6A performance model (SPEC-core, "API, fifth PR"), against the
 // T-6A's own charts and manuals. V6 has none of this, so every check here is a

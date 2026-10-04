@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: heading and compass conversions, relative bearing, aspect angle and heading crossing angle on simple geometry.
+// Serves: ALL-R23.
+// Expected values: geometry of the one heading convention (SPEC-core R9) worked out in the test; the 1e-9 closeness is arithmetic, not a flying margin.
 
 // The one heading convention (SPEC-core, R9): math radians, 0 = east,
 // counter-clockwise positive, +y north. These pin its meaning.

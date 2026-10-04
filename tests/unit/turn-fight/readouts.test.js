@@ -1,15 +1,9 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the Simple fight's Result card lines: turn rate, radius, 360 degree time, range, ATA, AA and HCA
+//   rows, first nose-on wording, rounding and data tags. Climb and dive cases retire with TF-R22.
+// Serves: TF-R16, TF-R3, TF-R12.
+// Expected values: standard aerodynamics worked out in the test (5 G at 220 KTAS: 24.3 deg/s, 875 ft, 360
+//   degrees in 14.8 s); rounding as TF-R16; tie and 3D wording are Patrick's Q48 and Q51.
 
-// OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
 // The Turn Fight's readout lines (SPEC-turn-fight, "Readouts", TF-R16): the numbers, rounded as the spec says, as text.
 // Expected turn rates and radii are worked out here from standard aerodynamics (F1), not copied from the code or from V6.
 import test from 'node:test';

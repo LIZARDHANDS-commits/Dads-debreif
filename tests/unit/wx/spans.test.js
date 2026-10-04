@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: word positions: each wind, visibility, cloud layer, weather item, TAF group, hit and reason says where its words sit in the raw report.
+// Serves: SOF-R7.
+// Expected values: slices of the raw report compared with the expected word; self-evident.
 
 // Word positions for the SOF banner: every group, condition item, reason and hit
 // says where its words are in the raw report, as { start, end } character offsets.

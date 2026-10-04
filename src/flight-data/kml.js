@@ -1,10 +1,8 @@
 // Reads a ForeFlight KML track log into a list of fixes (V6 parseKmlText,
 // original/shell.html line 2318).
 //
-// This is V6's reader: tests/golden/flight-data-kml.test.js checks that it
-// returns exactly V6's points for the example tracks and the fixtures, apart
-// from the changes decided in specs/SPEC-flight-data.md, each of which the test
-// names and checks:
+// This started as V6's reader. It differs from V6 by the changes decided in
+// the flight-data spec (now in docs/modules/debrief/spec.md):
 // - C1: a blank recorded value is missing, not 0.
 // - C2: the recorded bank column is read too (V6 never read it).
 // - C5: every position needs its own readable time. V6 fell back to the

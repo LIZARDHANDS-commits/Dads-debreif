@@ -1,6 +1,6 @@
 # Debrief Viewer
 
-Load up to four ForeFlight tracks (or the example flight), see them on the map and play them back. The spec is [`specs/SPEC-debrief.md`](../../../specs/SPEC-debrief.md); the build plan and task list are in [`tasks/debrief/`](../../../tasks/debrief/).
+Load up to four ForeFlight tracks (or the example flight), see them on the map and play them back. The spec is [`docs/modules/debrief/spec.md`](../../../docs/modules/debrief/spec.md); the plan is [`docs/modules/debrief/plan.md`](../../../docs/modules/debrief/plan.md).
 
 | File | What's in it |
 |---|---|
@@ -14,7 +14,7 @@ Load up to four ForeFlight tracks (or the example flight), see them on the map a
 | `map2d/layers.js` | Each layer's drawing: grid, 3/9 lines, fighting-wing cone, tracks with their trail mode, spacing lines, DFP flags, safety bubbles, clock marks, and the ships (T-6 silhouettes) with their labels. |
 | `map2d/geometry.js` | Where the layers go, in map feet, tested in Node against V6's numbers: trail parts, spacing pairs, 3/9 line ends, the cone's outline. |
 | `map2d/overlays.js` | The built-in routes: placed on the map (the flight's, or Moose Jaw's with no flight) and drawn dashed under the tracks. |
-| `data/routes.js` | V6's 19 built-in routes as points, checked against V6's KML by `tests/golden/debrief-routes.test.js`. |
+| `data/routes.js` | V6's 19 built-in routes as points, taken from V6's KML. |
 | (ui-kit) `map-tiles.js` | The satellite imagery under the map (Esri World Imagery) is not in this folder. The debrief uses the ui-kit's `map-tiles.js`, which `map2d/view.js` and `layout.js` import. |
 | `map2d/vnc.js` | The VNC charts: bounds and warp pinned to V6, and the layer that fetches each chart when first shown and warps it once per alignment. |
 | `view3d/scene.js` | The 3D view's projection, depth order and attitude, pinned to V6. |
@@ -56,10 +56,10 @@ Load up to four ForeFlight tracks (or the example flight), see them on the map a
 ## Tests
 
 ```
-npm test                                   # tests/unit/debrief, tests/golden/debrief-*
+npm test                                   # tests/unit/debrief
 npm run build && npx playwright test tests/e2e/debrief.spec.js
 ```
 
 The browser tests cover the spec's list: loading and status (R11), one clock for 2D and 3D (R12), nothing overlapping at 1366 × 768 and 1920 × 1080 with every panel open (R2), every control doing something with a flight loaded (R3), leaving with nothing left running (R4), offline after one visit (R6), save and reopen (R17), standards kept and reset (R18), the layout remembered (R22) and hostile files shown only as text.
 
-The hand check before sign-off is [docs/checklists/debrief.md](../../../docs/checklists/debrief.md) (R21), run on the live link.
+The hand check before sign-off is [docs/checklists/debrief.md](../../../archive/docs/checklists/debrief.md) (R21), run on the live link.

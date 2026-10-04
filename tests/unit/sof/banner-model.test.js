@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: what the caution banner says and does, in words: the lines, acknowledging, and which day an acknowledgement
+//   belongs to.
+// Serves: SOF-R8.
+// Expected values: hand-written expectations; the cautions come from cautions.js and the TAF from
+//   tests/fixtures/sof/reports.js; the wording is a design choice.
 
 // Tests for src/modules/sof/banner-model.js: what the caution banner says and does,
 // decided without a page (SPEC-sof, "Caution banner", task 3). cautions.js decides which

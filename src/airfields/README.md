@@ -1,6 +1,6 @@
 # airfields: the home field and its alternates
 
-The home airfield (default CYMJ) and the alternates list (default CYQR, CYYN, CYXE), and what each alternate needs for the weather check. Spec: [`specs/SPEC-airfields.md`](../../specs/SPEC-airfields.md).
+The home airfield (default CYMJ) and the alternates list (default CYQR, CYYN, CYXE), and what each alternate needs for the weather check. Spec: [`docs/modules/shared/spec.md`](../../docs/modules/shared/spec.md).
 
 | File | What it does |
 |---|---|

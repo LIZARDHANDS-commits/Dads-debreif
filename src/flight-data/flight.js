@@ -1,9 +1,9 @@
 // One flight: up to four tracks on one flat map and one playback window, and
 // what each aircraft was doing at any moment.
 //
-// Ported unchanged from V6's debrief (original/shell.html): tests/golden/
-// flight-data-flight.test.js runs V6's own functions next to these. The changes
-// decided in specs/SPEC-flight-data.md land one at a time, each named where it is.
+// Ported from V6's debrief (original/shell.html). The changes decided in the
+// flight-data spec (now in docs/modules/debrief/spec.md) land one at a time,
+// each named where it is.
 import { makeLocalRef, latLonToLocalFt } from '../core/geo.js';
 import { FT_PER_M, FTPS_TO_KT } from '../core/units.js';
 import { radToDeg, wrapDeg180 } from '../core/angles.js';

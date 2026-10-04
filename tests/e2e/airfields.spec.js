@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the Airfields settings section in a real browser: default home and alternates, minima by approach type, bad numbers refused, alternates added and removed.
+// Serves: ALL-R16, SOF-R22.
+// Expected values: typed in by the test (CYMJ position and 1,892 ft elevation, 119 NM to CYXE, "600-2"); no manual page cited yet, so treat as estimates until sourced.
 
 // Browser tests for the Airfields settings section (SPEC-airfields, R22), on a
 // test page that loads src/ as plain modules.

@@ -55,6 +55,6 @@ The modules are `debrief`, `sof`, `traffic`, `turn-fight`, `turn-sim` and `share
 
 The docs written in the October 2026 reset cite their sources as `path:line`:
 
-- A plain path is a repo file as it stood at the reset (commit `fd0212c`). Many of those old files are now in `archive/`; the map in `archive/README.md` gives each one's new place.
-- A path starting `pf/` is in the project's shared files (the reset's records, which move to `pf/archive/2026-10-reset/` when the reset ends). Not in the repo.
+- A plain path is a repo file as it stood at the reset (commit `fd0212c`). Paths to files that later moved (most to `archive/`) were updated to the new place in the links clean-up; line numbers are as the file stood at the reset. The map in `archive/README.md` gives each moved file's new place.
+- A path starting `pf/` is in the project's shared files (the reset's records, which move to `pf/archive/2026-10-reset/` when the reset ends, so `pf/reset/X` then reads `pf/archive/2026-10-reset/X`). Not in the repo.
 - `v6/sof.html` and `v6/traffic.html` are the SOF and Traffic pages inside Dad's V6 file, as `tools/extract_subapps.py` decodes them.

@@ -1,13 +1,7 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: each caution carries where in the report its words are, and each banner line shows those words.
+// Serves: SOF-R7.
+// Expected values: hand-written; the positions are wx's on purpose (a wiring check); METAR and TAF from
+//   tests/fixtures/sof/reports.js.
 
 // Tests for the marked report words on the caution banner (SPEC-sof, "Caution banner", task 3):
 // each caution carries where in the report its words are, and each banner line shows those words.

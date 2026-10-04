@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the fixed box read around home and decoding ECCC's lightning density picture into samples, recolouring, and
+//   the cost cap for hostile pictures.
+// Serves: SOF-R16.
+// Expected values: pictures made up in the test; geometry worked out from a formula (margins 0.01 to 0.02 km a pixel,
+//   1.5 NM); the cost cap is counted, not timed.
 
 // Tests for src/modules/sof/map-lightning.js: the fixed box read around home and the decoding
 // of ECCC's lightning density picture into lightning.js's samples (SPEC-sof, SOF-3).

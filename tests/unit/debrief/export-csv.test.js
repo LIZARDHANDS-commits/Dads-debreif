@@ -1,13 +1,9 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the CSV export: one row per second, ships side by side, same numbers as the readouts, GPS gaps flagged,
+//   safe cells, CRLF lines, blank where unknown.
+// Serves: DB-R17, DB-R4, DB-R8 (the est. IAS wind test).
+// Expected values: tracks built in the test flying east at about 200 kt (102.9 m/s); 2,500 m = 8,202 ft; CSV compared
+//   with readoutsAt (same code, a wiring check); the wind change is worked out from standard aerodynamics (ISA
+//   density at 8,202 ft), margin 18 to 24 kt.
 
 // The CSV export (SPEC-debrief: CSV export, #28): one row per second, ships
 // side by side, the same numbers the readouts show, sources and gap flags.

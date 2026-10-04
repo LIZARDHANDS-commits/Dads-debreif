@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: what each airfield card says: report age, stale, below limits, and alternate minima, decided without a
+//   page.
+// Serves: SOF-R4, SOF-R5, SOF-R6, SOF-R12.
+// Expected values: hand-written METARs and TAFs and real captures in tests/fixtures/sof/reports.js; decisions D67 and
+//   D80; one check compares the model with wx.
 
 // Tests for src/modules/sof/cards.js: what each airfield card says, decided
 // without a page. Reports come from the real captures and hand-written METARs

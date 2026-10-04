@@ -1,13 +1,10 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the engine's maths on the break slow-down (220 down to about 140 kt), the final-turn descent from
+//   3,500 to 2,700 ft, the 3 degree path to the threshold, and that no step size or random input makes a value
+//   blow up.
+// Serves: TR-R7, TR-R9, TR-R10, TR-R15.
+// Expected values: 220 and 140 kt, 2,700 ft and 3 degrees from traffic spec 3.1 and 3.3 (SMM 4.14 para 32,
+//   4.17 para 39, 4.5 para 8); the break curve and cubic descent restate the engine's own formulas (0.452 is
+//   picked so the end speed is 140 kt).
 
 // Empirical Challenge Harness for Milestone M1 Core Flight Engine
 // Role: EMPIRICAL CHALLENGER (critic, specialist)

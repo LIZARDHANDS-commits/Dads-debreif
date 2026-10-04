@@ -1,7 +1,7 @@
 // The 3D view's geometry: camera projection, formation centre, aircraft attitude
 // and the low-poly T-6's corner points. Pure functions, no page access, so they
-// run in Node. tests/golden/debrief-3d.test.js pins them to V6 and says
-// exactly where the approved fixes (D40, D47, #14, #27) differ from it.
+// run in Node. They started from V6's; the approved fixes (D40, D47, #14, #27)
+// differ from it.
 //
 // World frame as everywhere in the debrief: x east, y north, in feet; altitude
 // in feet. Headings are math angles in radians (0 = east, D35).

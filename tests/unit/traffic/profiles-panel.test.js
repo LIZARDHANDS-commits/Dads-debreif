@@ -1,13 +1,9 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the Scenarios and notes panel: closed at first, built-ins first and read-only, Save over a name,
+//   Load and Delete ask first, blocked storage says so, unreadable setups counted and removable, focus placed
+//   well, names as text.
+// Serves: TR-R25, ALL-R11, ALL-R13.
+// Expected values: screen wording typed in (design choice); no flight numbers. The header still says "Profiles
+//   and notes".
 
 // "Profiles and notes" (task 7, #48) in Node, on the stand-in page: closed at first, built-ins first and
 // read-only, Save over a name / Load / Delete ask first, Load fills in the name, a browser that won't keep

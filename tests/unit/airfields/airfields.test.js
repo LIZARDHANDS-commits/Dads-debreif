@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the airfield setup store: default home and alternates, minima by approach type, corrupt saves fall back, home never an alternate, at most six alternates.
+// Serves: ALL-R16, SOF-R12, SOF-R22.
+// Expected values: distances (35 and 119 NM) worked out by great circle in the test; the default alternates and minima are design choices (SOF-R12), no manual page yet.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

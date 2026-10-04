@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: weather word reading: letter case, trailing =, remarks, half-mile forms, metres per second to knots, merging change groups, visibility formatting.
+// Serves: SOF-R9.
+// Expected values: hand-written METAR and TAF strings in the standard form; unit conversions are standard (800 m = 800 / 1609.344 SM).
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

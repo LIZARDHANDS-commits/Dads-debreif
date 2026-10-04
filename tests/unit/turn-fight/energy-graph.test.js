@@ -1,15 +1,9 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the Energy height-against-time graph: its data (time, both jets, hard deck), axes and options, uPlot
+//   loaded only when the graph starts, drawing, resizing, stopping and freeing.
+// Serves: TF-R17, ALL-R9, ALL-R12.
+// Expected values: design choices typed in (colours, dashed deck, axis rules); the load rule is decision D137;
+//   one check scans the source text. No flight numbers.
 
-// OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
 // The Energy side view's graph (SPEC-turn-fight, "Energy mode"; SPEC.md, uPlot D137): its data, its options, and that
 // uPlot is only ever fetched by import() when the graph starts, and freed when it stops.
 import test from 'node:test';

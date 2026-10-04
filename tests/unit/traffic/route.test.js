@@ -1,29 +1,13 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: route maths: turn radius (90 degrees at 120 kt and 2 G is 736 ft), where a turn starts and the 45 %
+//   tightening, route lengths, path cache, leg distances, builders for new patterns, entries and splits, and the
+//   PFL track.
+// Serves: TR-R9, TR-R14, TR-R3, TR-R4.
+// Expected values: radius v^2/(g tan bank) and lead turn R tan(d/2) worked out (standard geometry); Pattern 1
+//   lap 156,924 ft is V6's number, plus "as V6 does" and V6 palette checks typed in; builder heights and speeds
+//   are the code's own.
 
-// ╔══════════════════════════════════════════════════════════════════════╗
-// ║  OPERATOR WARNING — READ BEFORE DEBUGGING TEST FAILURES            ║
-// ║                                                                    ║
-// ║  These tests use PILOT-DOMAIN TOLERANCES (±10 kt, ±100 ft, ±5°).  ║
-// ║  If a test fails repeatedly, DO NOT tweak the physics engine to    ║
-// ║  make it pass. Instead:                                            ║
-// ║    1. Ask the operator what to do.                                 ║
-// ║    2. The test tolerance may need widening, OR                     ║
-// ║    3. There may be a genuine flight behavior bug.                  ║
-// ║  Never force physics to match a test value.                        ║
-// ╚══════════════════════════════════════════════════════════════════════╝
-
-// What route.js means, in plain numbers (the golden test tests/golden/traffic-route.test.js
-// pins it to V6): turn radius, where a turn starts, lengths, positions, headings,
-// the cache, the leg table and the three builders.
+// What route.js means, in plain numbers: turn radius, where a turn starts, lengths,
+// positions, headings, the cache, the leg table and the three builders.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

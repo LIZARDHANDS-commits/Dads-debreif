@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the 3D model turns by roll, then pitch, then heading, and puts the nose, wing tip and fin where the
+//   reference geometry says.
+// Serves: DB-R15 (the 3D view shows each aircraft's real attitude).
+// Expected values: body points typed in; the reference is the shared t6Points geometry (repo code), over 240
+//   attitudes; numerical margins 1e-12 to 1e-9 (design choice).
 
 // The 3D model's attitude is pinned to the reference geometry (auditor #169):
 // scene.js attitudeEuler, applied by three.js as the model's rotation, must put

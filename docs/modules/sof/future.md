@@ -1,16 +1,16 @@
 # SOF: future ideas
 
-Ideas for the SOF that are not being built. An idea moves into `plan.md` only with Patrick's yes (TQ-1), and a new idea goes on this list the same day it is asked for. "Feature Ideas" numbers are from the researched list of 54 ideas, kept at https://claude.ai/artifact/6PMvFiKigB29hBvVSoJ2op (`pf/reset/2-inventory/agents/sources/feature-ideas.md:10`). "FF" numbers are from the old plan's future-features list (`docs/records/future-ideas.md:5`). Idea 8, crosswind per runway, is not listed below because it is now in the plan (SOF-R27, `plan.md` Step 3); its other half, a limits matrix by activity, is the open question SOF-Q14 in `plan.md` Step 4.
+Ideas for the SOF that are not being built. An idea moves into `plan.md` only with Patrick's yes (TQ-1), and a new idea goes on this list the same day it is asked for. "Feature Ideas" numbers are from the researched list of 54 ideas, kept at https://claude.ai/artifact/6PMvFiKigB29hBvVSoJ2op (`pf/reset/2-inventory/agents/sources/feature-ideas.md:10`). "FF" numbers are from the old plan's future-features list (`archive/docs/records/future-ideas.md:5`). Idea 8, crosswind per runway, is not listed below because it is now in the plan (SOF-R27, `plan.md` Step 3); its other half, a limits matrix by activity, is the open question SOF-Q14 in `plan.md` Step 4.
 
 ## Decided for the future list by Patrick (4 Oct)
 
 - Large text for a desk screen across the room, the NATO colour chart, and the "Runway view" and "Lightning map" links: left out of the essentials-now list (`pf/reset/1-requirements/questions.md:65`).
-- Live traffic on our own map through a small relay (a Cloudflare worker, code already in `relay/`): the ADS-B Exchange switch stays; the relay layer waits for an account Patrick owns; it was queued as PPQ-12 (`pf/reset/1-requirements/questions.md:72`, `docs/records/verification/swarm/POST_PROTOTYPE_QUEUE.md:56`, `HANDOVER.md:112`).
+- Live traffic on our own map through a small relay (a Cloudflare worker, code already in `relay/`): the ADS-B Exchange switch stays; the relay layer waits for an account Patrick owns; it was queued as PPQ-12 (`pf/reset/1-requirements/questions.md:72`, `archive/docs/records/verification/swarm/POST_PROTOTYPE_QUEUE.md:56`, `archive/HANDOVER.md:112`).
 - NOTAMs on the SOF's detail pages: they need the relay too, so they wait (`pf/reset/1-requirements/questions.md:79`).
 - A beep when a new caution appears (`pf/reset/1-requirements/questions.md:67`).
-- The 12-hour all-day soak run (PPQ-13): deferred; it breaks the "no heavy runs" rule (`docs/records/verification/swarm/POST_PROTOTYPE_QUEUE.md:57`, `pf/reset/1-requirements/scope-and-ideas.md:68`).
-- Keep the radar and lightning pictures all day so a later debrief can use them (old FF37). It needs somewhere to store them and has not been proposed to Patrick yet; it would also remove the 3-hour weather limit in the Debrief's DB-R18 (`docs/records/future-ideas.md:11`, `pf/reset/2-inventory/agents/sources/plan-doc-future-features.md:40`).
-- SIGMETs, PIREPs and the Prairies forecast chart on the SOF, through the same relay (old FF26) (`docs/records/future-ideas.md:10`).
+- The 12-hour all-day soak run (PPQ-13): deferred; it breaks the "no heavy runs" rule (`archive/docs/records/verification/swarm/POST_PROTOTYPE_QUEUE.md:57`, `pf/reset/1-requirements/scope-and-ideas.md:68`).
+- Keep the radar and lightning pictures all day so a later debrief can use them (old FF37). It needs somewhere to store them and has not been proposed to Patrick yet; it would also remove the 3-hour weather limit in the Debrief's DB-R18 (`archive/docs/records/future-ideas.md:11`, `pf/reset/2-inventory/agents/sources/plan-doc-future-features.md:40`).
+- SIGMETs, PIREPs and the Prairies forecast chart on the SOF, through the same relay (old FF26) (`archive/docs/records/future-ideas.md:10`).
 
 ## Feature Ideas for the SOF
 
@@ -33,5 +33,5 @@ Ideas for the SOF that are not being built. An idea moves into `plan.md` only wi
 - Per-activity weather limits from the Gen Book (low level, formation, chase, advanced formation, a wx check flight) as optional checks: the question is SOF-Q14, in `plan.md` Step 4 (`pf/reset/1-requirements/questions.md:77`).
 - Take-off minima and "to file" minima (Gen Book p.7); alternate rules when no forecast exists, radar-only or GNSS-only destination triggers, and flights over 3 hours (`pf/reset/1-requirements/scope-and-ideas.md:87`, `pf/reset/1-requirements/scope-and-ideas.md:88`).
 - A real "SOF attention" badge on the home card, only if Patrick wants it; V6's was fake and always flashing (`pf/reset/1-requirements/scope-and-ideas.md:89`).
-- An information-only lightning line at 50 NM (NFM Sec VII p. 7-4); moving the VNC chart layer into the screen kit; further map extras (`docs/records/future-ideas.md:13`).
+- An information-only lightning line at 50 NM (NFM Sec VII p. 7-4); moving the VNC chart layer into the screen kit; further map extras (`archive/docs/records/future-ideas.md:13`).
 - A favoured runway with headwind and crosswind on the NATO colour hover card (V6-A had it): the question for Dad is SOF-Q12, in `plan.md` Step 4 (`pf/reset/1-requirements/questions.md:75`).

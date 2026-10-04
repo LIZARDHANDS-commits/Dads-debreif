@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the map layers' places: trails broken at GPS gaps, spacing lines in feet, the 3/9 line, the fighting-wing
+//   cone, and a route in map feet.
+// Serves: DB-R14, DB-R4.
+// Expected values: worked out in the test from each layer's definition; the cone (500 to 1,000 ft, 30 to 60 degrees)
+//   is EFIG p.391; margin 1e-6 numerical.
 
 // The map layers' places, checked against what each layer is defined to be, worked out in the test (DB-R14).
 import test from 'node:test';

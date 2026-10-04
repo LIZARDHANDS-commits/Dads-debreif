@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: home is light (3 MB or less), card videos load only when shown and allowed, reduced motion loads none, and leaving home stops them.
+// Serves: ALL-R9, ALL-R3.
+// Expected values: design choice: the 3,000,000-byte home budget (the same number as tools/check-size.mjs); viewport sizes typed in.
 
 // R5, R15, #41: the home screen is light, and card videos load only when shown and allowed.
 import { test, expect } from './fixtures.js';

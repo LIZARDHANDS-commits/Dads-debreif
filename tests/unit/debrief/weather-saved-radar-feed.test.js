@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: fetching ECCC radar and lightning for the saved layer: only when asked, the right frames, bad replies
+//   counted, failure messages, cancel, size thinning.
+// Serves: none named yet (saved radar is on the future list, DB-Q19; this file leaves when that code is archived).
+// Expected values: a fake ECCC with typed-in capability lists and frame times; hand-made PNGs from
+//   tests/fixtures/debrief used only as bytes; the words checked are design choices.
 
 // The saved radar's fetch (SPEC-debrief: Saved radar and lightning): only when
 // asked, every frame covering the flight, what it does with a reply that isn't

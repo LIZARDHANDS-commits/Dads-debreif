@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the SOF map in a real browser: satellite picture, airfield dots, Home and zoom, Layers, radar age and STALE, lightning caution, ADS-B Exchange, cleanup on leaving.
+// Serves: SOF-R14, SOF-R15, SOF-R16, SOF-R17, SOF-R28, SOF-R5.
+// Expected values: every outside reply is served from fixtures (sof-map-feeds.js) on a fixed clock; the age limits are rules on that fake clock, a design choice.
 
 // Browser tests for the SOF map, tasks 6 and 7 (SPEC-sof: Map, Layers menu, Lightning, ADS-B Exchange view, Traffic layer,
 // Testing strategy). To go in tests/e2e/sof-map.spec.js, with sof-map-feeds.js beside it. Every address the map asks

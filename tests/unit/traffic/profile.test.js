@@ -1,13 +1,10 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the built-in setups are valid, setups read back from the browser are checked and refused in plain
+//   words (names, counts, ranges, links, types, seeds), hostile text stays text, and how the first setup to open
+//   is chosen.
+// Serves: TR-R25, TR-R19, ALL-R13.
+// Expected values: limits from the old spec (30 routes, 100 points, 200 aircraft, 40-character name), design
+//   choices; the V6 setup (playback 8) and "V6's generic pattern" are pinned to V6's data, no other source yet
+//   (TR-R2 moves them).
 
 // Profiles (specs/SPEC-traffic.md: Profiles and notes, Security; task 7, bug #48). A profile read back
 // from this browser's storage is untrusted: these tests hold it to the spec's checks and to plain-words
