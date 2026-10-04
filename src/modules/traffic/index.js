@@ -10,9 +10,7 @@ import { h } from '../../ui-kit/dom.js';
 import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { DEFAULTS, ALLOWED } from './defaults.js';
-import { BUILT_IN, captureProfile, nextProfileName, profileSettingDefaults, startingProfile } from './profile.js';
-import { createProfileStore } from './profile-store.js';
-import { createProfilesPanel } from './profiles-panel.js';
+import { BUILT_IN, profileSettingDefaults, startingProfile } from './profile.js';
 import { createSim } from './sim.js';
 import { clockText } from './readouts.js';
 import { createClock, TEN_SECONDS_STEPS } from './clock.js';
@@ -28,22 +26,20 @@ import { straightInDelaySec } from './scenario-timing.js';
 import { applyToSetup, memoryStore, pauseOnThrow } from './glue.js';
 
 const STYLESHEET = new URL('./traffic.css', import.meta.url).href;
-const PROFILES_STYLESHEET = new URL('./profiles.css', import.meta.url).href;
 
 function mount(root, app) {
   const stylesheet = h('link', { rel: 'stylesheet', href: STYLESHEET });
-  const profilesStylesheet = h('link', { rel: 'stylesheet', href: PROFILES_STYLESHEET });
-  document.head.append(stylesheet, profilesStylesheet);
+  document.head.append(stylesheet);
 
   const settings = createSettings(memoryStore(), DEFAULTS, { allowed: ALLOWED });
   const controls = createControls(settings);
 
-  // What opens: the last profile used, else the built-in Moose Jaw (V6's generic pattern at another home field).
-  // A profile is copied, never used as it is: the person edits the copy, and the saved one stays as saved.
-  const profileStore = createProfileStore(app.storage);
-  const start = startingProfile({ last: profileStore.lastUsed(), saved: profileStore.list().profiles, home: app.airfields?.home() });
-  let place = start.place; // what the map's hint calls the setup ("Moose Jaw"), empty for one of the person's own
-  let airfield = start.profile.airfield; // where the setup is, saved with it
+  // What opens: the built-in Moose Jaw (V6's generic pattern at another home field), copied so nothing edits it.
+  // "Scenarios and notes", with its saved profiles, came off the screen (Patrick, 4 Oct: a drop-down of the
+  // ready-made scenarios is enough), so a profile saved earlier is no longer opened: nothing on screen could
+  // leave it. profiles-panel.js and profile-store.js stay until Patrick says (Traffic future list).
+  const start = startingProfile({ last: null, saved: [], home: app.airfields?.home() });
+  const place = start.place; // what the map's hint calls the setup ("Moose Jaw")
   settings.update({ ...profileSettingDefaults(), ...start.profile.settings });
   const setup = /** @type {any} */ ({ version: 1, name: start.profile.name, anchor: structuredClone(start.profile.anchor), routes: structuredClone(start.profile.routes), aircraft: structuredClone(start.profile.aircraft) });
   applyToSetup(setup, settings.get());
@@ -96,15 +92,7 @@ function mount(root, app) {
   // "Reset photo alignment" goes back to the setup's own trim and offsets (V6's photo block, T8).
   const photo = setup.view?.photo ?? {};
   const photoHome = { photoTrim: photo.trim ?? DEFAULTS.photoTrim, photoEastFt: photo.offsetEastFt ?? DEFAULTS.photoEastFt, photoNorthFt: photo.offsetNorthFt ?? DEFAULTS.photoNorthFt };
-  // Profiles and notes: a closed section at the top of the left column, so it is in the first screen when opened (profiles-panel.js, profile.js).
-  const profilesPanel = createProfilesPanel({
-    store: profileStore,
-    current: { name: start.entry?.kind === 'saved' ? start.profile.name : nextProfileName(profileStore.list().profiles.map((p) => p.name)), notes: start.profile.notes },
-    capture: (name, notes) => captureProfile({ name, airfield, notes, setup, aircraft: sim.aircraftSpecs(), seed: sim.seed, settings: settings.get() }),
-    load: (profile, entry) => loadProfile(profile, entry),
-  });
-  ui.slots.profiles.append(profilesPanel.element);
-  // Scenarios and the wind dial at the top of the Setup column (Patrick, 4 Oct 11:05Z).
+  // The Scenario drop-down and the wind dial at the top of the Setup column (Patrick, 4 Oct 11:05Z).
   const setupPanel = createSetupPanel({ controls, settings, onScenario: (id) => loadScenario(id) });
   ui.slots.setup.append(setupPanel.element);
   if (opensBusy) setupPanel.setActive('busy');
@@ -217,31 +205,6 @@ function mount(root, app) {
     sim.forgetHistory(); // a route added, deleted or re-linked changes the run: going back flies the new setup from 0
     showRoutes();
     aircraftPanel.routesChanged();
-    changed();
-  }
-
-  /**
-   * Puts a profile on the screen (Load, or the built-in setup): its routes, aircraft, dice seed and settings,
-   * paused at 0:00. The profile is copied, so editing it leaves the saved one alone.
-   */
-  function loadProfile(profile, entry) {
-    cancelReplay();
-    stopFrames?.();
-    stopFrames = null;
-    setup.name = profile.name;
-    setup.anchor = structuredClone(profile.anchor);
-    setup.routes = structuredClone(profile.routes);
-    setup.aircraft = structuredClone(profile.aircraft);
-    sim.rebuild({ seed: profile.seed });
-    clock.reset();
-    airfield = profile.airfield;
-    place = entry?.kind === 'built-in' ? 'Moose Jaw' : '';
-    selectedRouteId = null;
-    setupPanel.setActive(null);
-    settings.update({ ...profileSettingDefaults(), ...profile.settings }); // the subscriber below copies them into the setup
-    showRoutes();
-    aircraftPanel.routesChanged();
-    map.fit();
     changed();
   }
 
@@ -428,7 +391,6 @@ function mount(root, app) {
     view3d.dispose(); // three.js, the renderer and everything drawn with it
     map.dispose();
     stylesheet.remove();
-    profilesStylesheet.remove();
   };
 }
 

@@ -61,6 +61,8 @@ The two copies of the queue name some rows differently; both names are given. Pa
 
 ## Feature Ideas for the Traffic Sim
 
+- **Saved scenarios with notes** (off the screen since DADS v2.10.32, Patrick, 4 Oct: "I don't think we need scenarios and notes, just a drop down for pre-made scenarios"). What it did: saved the whole setup (routes, aircraft, dice seed, settings and a notes box) by name in the browser, loaded or deleted one after asking, refused damaged or unsafe saved data, said so when the browser would not keep it, and opened on the last setup used. The code is still in `src/modules/traffic/profiles-panel.js`, `profile-store.js` and `profiles.css`, with its unit tests; bring it back as a "More" item, or delete it, when Patrick says. A file export to send a scenario to Dad is TR-Q22.
+
 - **Overhead break explorable**: break interval, bank and G against downwind spacing, plus a puzzle about where number two is when the lead rolls out; extends the Traffic Sim (Feature Ideas idea 27; value medium, effort small; flight math, so it needs a check first; `pf/reset/2-inventory/agents/sources/feature-ideas.md:29`)
 - A parachute animation when a PFL aircraft ejects (today a red ✕ marks the spot) (listed 4 Oct, after the 3D ground photo work, #317).
 - **3D speed:** Performance graphics cut the ground photos to 2,048 px; the sharpest (zoom 18) photo layer loads only when the camera is low near the field; and a frame-time readout to see what the 3D view costs (listed 4 Oct, after #317).

@@ -1,4 +1,5 @@
-// The top of the left "Setup" column (Patrick, 4 Oct 11:05Z): ready-made scenario buttons, and the wind
+// The top of the left "Setup" column (Patrick, 4 Oct 11:05Z): the ready-made scenarios in one "Scenario" drop-down
+// showing the one loaded (Patrick, 4 Oct: it replaced six buttons and the "Scenarios and notes" section), and the wind
 // as a dial (click or drag round for the direction it blows from) with a bar under it for the strength.
 //
 // A scenario is only a list of aircraft starts on the setup's own routes ({ id, type, routeId, startIndex,
@@ -43,13 +44,16 @@ const at = (routeId, startPoint, startsAtSec = 0) => ({ routeId, startIndex: sta
  * 'moose-jaw' is the built-in setup's own aircraft, and 'random' is made by randomStarts.
  */
 export const SCENARIOS = Object.freeze([
-  { id: 'busy', label: 'Busy circuit', about: 'Ten aircraft: seven at random points of the overhead break, a PFL gliding in from the area to High Key, and a straight-in timed to meet an aircraft in its final turn. Press again for a new picture.' },
+  { id: 'busy', label: 'Busy circuit', about: 'Ten aircraft: seven at random points of the overhead break, a PFL gliding in from the area to High Key, and a straight-in timed to meet an aircraft in its final turn.' },
   { id: 'moose-jaw', label: 'Moose Jaw day', about: 'The seven aircraft the tool opens with, joining over 15 minutes.' },
   { id: 'one', label: 'One aircraft', about: 'One aircraft on the overhead break from the runway: watch one circuit, or press PFL.', starts: [at('PAT1', 1)] },
   { id: 'circuit', label: 'Full circuit', about: 'Four aircraft round the overhead break at once: departure end, crosswind, initial and short final.', starts: [at('PAT1', 2), at('PAT1', 5), at('PAT1', 9), at('PAT1', 13)] },
   { id: 'joining', label: 'Joining traffic', about: 'Two in the circuit and three joining on the OHB Rejoin and the SI Rejoin close together.', starts: [at('PAT1', 5), at('PAT1', 9), at('ENT1', 1), at('ENT2', 1, 30), at('ENT1', 1, 90)] }, // join times: a teaching picture (estimate)
-  { id: 'random', label: 'Random', about: 'Five aircraft at random points on the routes. Press again for a new picture.' },
+  { id: 'random', label: 'Random', about: 'Five aircraft at random points on the routes.' },
 ]);
+
+/** The scenarios that make a new picture each time they load; the drop-down gives them a "New picture" button. */
+export const RESHUFFLED = Object.freeze(['busy', 'random']);
 
 /**
  * Five starts at random points of the routes (patterns and entries, not splits), at least RANDOM_SPACING_FT
@@ -140,31 +144,29 @@ const DIAL_PX = 132;
 
 /**
  * controls: the module's createControls (the strength bar is its slider). settings: { get, update, subscribe }.
- * onScenario(id): a scenario button was pressed.
+ * onScenario(id): a scenario was chosen in the drop-down, or New picture was pressed (the same id again).
  * @param {{ controls: any, settings: any, onScenario?: (id: string) => void }} options
  */
 export function createSetupPanel({ controls, settings, onScenario }) {
-  // Scenarios: one Tab stop, the arrow keys move along the row (a toolbar).
-  const buttons = SCENARIOS.map((s, i) => h('button', {
-    type: 'button',
-    class: 'button setup-scenario',
-    title: s.about,
-    'aria-pressed': 'false',
-    tabIndex: i === 0 ? 0 : -1,
-    dataset: { scenario: s.id },
-    onclick: () => onScenario?.(s.id),
-  }, s.label));
-  const row = h('div', { class: 'setup-scenarios', role: 'toolbar', 'aria-label': 'Scenarios' }, buttons);
-  row.addEventListener('keydown', (e) => {
-    const i = buttons.indexOf(/** @type {any} */ (e.target));
-    if (i < 0) return;
-    const next = { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: buttons.length - 1 }[e.key];
-    if (next === undefined) return;
-    e.preventDefault();
-    const to = (next + buttons.length) % buttons.length;
-    for (const [k, b] of buttons.entries()) b.tabIndex = k === to ? 0 : -1;
-    buttons[to].focus();
-  });
+  // Scenario: one drop-down showing the scenario loaded, a line under it saying what it is, and New picture for the
+  // two that come out different each time (choosing the same item again in a drop-down does nothing).
+  const pickId = `traffic-scenario-${Math.random().toString(36).slice(2, 8)}`;
+  const none = h('option', { value: '', disabled: true, hidden: true }, 'Choose a scenario');
+  const pick = h('select', { id: pickId, class: 'setup-scenario-pick', onchange: () => { if (pick.value) onScenario?.(pick.value); } },
+    none, SCENARIOS.map((s) => h('option', { value: s.id }, s.label)));
+  const about = h('p', { class: 'setup-scenario-about' });
+  const again = h('button', { type: 'button', class: 'button setup-scenario-again', hidden: true, onclick: () => { if (pick.value) onScenario?.(pick.value); } }, 'New picture');
+  const row = h('div', { class: 'setup-scenario' },
+    h('div', { class: 'setup-scenario-row' }, h('label', { for: pickId }, 'Scenario:'), pick, again),
+    about);
+  const showScenario = (id) => {
+    const scenario = SCENARIOS.find((s) => s.id === id);
+    pick.value = scenario ? scenario.id : '';
+    about.textContent = scenario ? scenario.about : '';
+    about.hidden = !scenario;
+    again.hidden = !RESHUFFLED.includes(scenario?.id);
+  };
+  showScenario(null);
 
   // The wind dial: a compass card with the runway on it and an arrow from where the wind blows.
   const canvas = h('canvas', { class: 'setup-wind-dial', width: DIAL_PX, height: DIAL_PX, 'aria-hidden': 'true' });
@@ -212,7 +214,7 @@ export function createSetupPanel({ controls, settings, onScenario }) {
     h('p', { class: 'traffic-subtitle' }, 'Wind'),
     h('div', { class: 'setup-wind-row' }, dial, h('div', { class: 'setup-wind-side' }, strength, components)),
   );
-  const element = h('div', { class: 'setup-panel' }, h('p', { class: 'traffic-subtitle' }, 'Scenarios'), row, wind);
+  const element = h('div', { class: 'setup-panel' }, row, wind);
 
   function token(name, fallback) {
     try {
@@ -273,9 +275,9 @@ export function createSetupPanel({ controls, settings, onScenario }) {
 
   return {
     element,
-    /** Marks the scenario on screen (its button pressed), or none. */
+    /** Shows the scenario loaded in the drop-down, or none ("Choose a scenario"). */
     setActive(id) {
-      for (const b of buttons) b.setAttribute('aria-pressed', String(b.dataset.scenario === id));
+      showScenario(id);
     },
     dispose() { stopSettings?.(); },
   };

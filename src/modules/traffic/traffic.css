@@ -38,26 +38,42 @@
   margin-top: var(--space-3);
 }
 
-/* Setup (Patrick, 4 Oct 11:05Z): the scenario buttons, then the wind dial with its strength bar beside it. */
+/* Setup (Patrick, 4 Oct 11:05Z): the Scenario drop-down, then the wind dial with its strength bar beside it. */
 [data-module='traffic'] .setup-panel {
   display: grid;
   gap: var(--space-2);
 }
 
-[data-module='traffic'] .setup-scenarios {
-  display: flex;
-  flex-wrap: wrap;
+[data-module='traffic'] .setup-scenario {
+  display: grid;
   gap: var(--space-1);
 }
 
-[data-module='traffic'] .setup-scenario {
+[data-module='traffic'] .setup-scenario-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+[data-module='traffic'] .setup-scenario-row label {
+  font-weight: 700;
+}
+
+[data-module='traffic'] .setup-scenario-pick {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+[data-module='traffic'] .setup-scenario-again {
   padding: var(--space-1) var(--space-2);
   font-size: var(--text-sm);
 }
 
-[data-module='traffic'] .setup-scenario[aria-pressed='true'] {
-  border-color: var(--accent);
-  background: var(--bg-sunken);
+[data-module='traffic'] .setup-scenario-about {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }
 
 [data-module='traffic'] .setup-wind {
