@@ -42,15 +42,20 @@ test('sim.command engine_fail above 150 KIAS climbs first (zoom), then glides do
 
   assert.equal(sim.command('A1', 'engine_fail'), true);
 
-  sim.stepTo(70);
-  const acZoom = sim.state().aircraft.find((a) => a.id === 'A1');
-  assert.equal(acZoom.engineFailed, true);
-  assert.ok(acZoom.alt > acBefore.alt, `the zoom climbs: ${acZoom.alt} ft after ${acBefore.alt} ft`);
-  assert.ok(acZoom.kt < acBefore.kt, 'the zoom trades speed for the height');
-
-  sim.stepTo(90);
-  const acGlide = sim.state().aircraft.find((a) => a.id === 'A1');
-  assert.ok(acGlide.status === 'ejected' || acGlide.alt < acZoom.alt, `then it glides down (${acGlide.alt} ft)`);
+  // Follow the zoom second by second until the PFL ends (a touch-and-go or an eject) or 60 s pass:
+  // the top of the climb must be above the start and slower than it.
+  let top = acBefore;
+  let last = acBefore;
+  for (let t = 61; t <= 120; t += 1) {
+    sim.stepTo(t);
+    last = sim.state().aircraft.find((a) => a.id === 'A1');
+    if (!last.engineFailed) break;
+    if (last.alt > top.alt) top = last;
+  }
+  assert.ok(top.alt > acBefore.alt, `the zoom climbs: ${top.alt} ft after ${acBefore.alt} ft`);
+  assert.ok(top.kt < acBefore.kt, 'the zoom trades speed for the height');
+  // Then it glides down, or it can't make the runway and ejects (TR-53: below Low Key height it ejects at once).
+  assert.ok(last.status === 'ejected' || last.alt < top.alt, `then it glides down or ejects (${last.alt} ft, ${last.status})`);
 });
 
 test('sim.command engine_fail at or below 150 KIAS holds height while it slows, then glides down', () => {
