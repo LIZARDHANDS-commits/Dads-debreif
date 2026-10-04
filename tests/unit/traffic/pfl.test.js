@@ -66,13 +66,15 @@ test('PFL: from each failure point with the height for it, it glides to the runw
   }
 });
 
-test('PFL: on profile at High Key or Low Key, it touches down in the first third of the runway (spec 4.5 item 13)', () => {
+test('PFL: on profile at High Key or Low Key, or high at High Key, it touches down in the first third of the runway (spec 4.5 items 7, 13)', () => {
   const geo = pflGeometry();
   const lowKey = geo.at(180);
   // SMM key heights: High Key 5,000 ft, Low Key 3,700 ft MSL.
   const keys = {
     'High Key, 5,000 ft': { ...THRESHOLD_29L, alt: 5000, kias: 125, headingDeg: 298 },
     'Low Key, 3,700 ft': { x: lowKey.x, y: lowKey.y, alt: 3700, kias: 120, headingDeg: 118 },
+    // 600 ft high at High Key: all the drag out early, then the circle widened before Final Key (Patrick 10:10Z).
+    'High Key, 5,600 ft': { ...THRESHOLD_29L, alt: 5600, kias: 125, headingDeg: 298 },
   };
   for (const wind of WINDS) {
     for (const [name, start] of Object.entries(keys)) {
