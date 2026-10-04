@@ -21,7 +21,8 @@ import { ERROR_DEFAULTS, ERROR_ALLOWED, errorCardLines } from './live/errors.js'
 import { FOUR_SHIP_KEYS, fourShipLine } from './live/four-ship.js';
 import { cardForFour } from './live/four-ship-card.js';
 import { G_WARM } from './live/g-warm.js';
-import { rejoinReadout } from './live/transitions.js';
+import { rejoinReadout, FW2, checkFwShape } from './live/transitions.js';
+import { FW4 } from './live/four-ship-slots.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS } from './live/formation-turns.js';
 import { createChangeUi } from './transitions-panel.js';
 import { createFluidUi } from './fluid-panel.js';
@@ -64,7 +65,24 @@ function layoutStore(storage) {
   return { get: (_name, fallback) => storage.get('layout', fallback), set: (_name, value) => storage.set('layout', value) };
 }
 
-const SETUP_DEFAULTS = Object.freeze({ ships: LIVE_DEFAULTS.ships, check45: LIVE_DEFAULTS.check45, spacingFt: LIVE_DEFAULTS.spacingFt, wingSide: LIVE_DEFAULTS.wingSide, ...ERROR_DEFAULTS });
+/** Fighting wing desired spacing and sweep (TS-58, Patrick 21:25Z): today's places are the defaults (FW2, FW4). */
+const FW_DEFAULTS = Object.freeze({
+  fwRangeFt: FW2.rangeFt,
+  fwSweepDeg: FW2.sweepDeg,
+  fw4RangeFt: FW4.rangeFt,
+  fw4SweepDeg: FW4.twoDeg,
+  fw4OtherRangeFt: FW4.rangeFt,
+  fw4OtherDeg: FW4.otherDeg,
+});
+const SETUP_DEFAULTS = Object.freeze({ ships: LIVE_DEFAULTS.ships, check45: LIVE_DEFAULTS.check45, spacingFt: LIVE_DEFAULTS.spacingFt, wingSide: LIVE_DEFAULTS.wingSide, ...FW_DEFAULTS, ...ERROR_DEFAULTS });
+
+/** The flags for fighting wing places outside the SMM band (SMM 12.29 para 69), for the ships flown: flown anyway, never refused. */
+function fwFlags(values) {
+  const pairs = values.ships === 4
+    ? [checkFwShape(values.fw4RangeFt, values.fw4SweepDeg, '#2'), checkFwShape(values.fw4OtherRangeFt, values.fw4OtherDeg, '#3 and #4')]
+    : [checkFwShape(values.fwRangeFt, values.fwSweepDeg, '#2')];
+  return pairs.map((c) => (c.ok ? c.flag : c.reason)).filter(Boolean).join(' ');
+}
 
 const ftText = (n) => `${Math.round(n).toLocaleString('en-CA')} ft`;
 const bankText = (deg) => (Math.abs(deg) < 0.5 ? 'wings level' : `bank ${Math.round(Math.abs(deg))}° ${deg > 0 ? 'L' : 'R'}`);
@@ -389,6 +407,7 @@ function mount(root, app) {
     ui.setFixTools(values.errResponse !== 'reference');
     ui.setSide(values.wingSide);
     ui.setSpacingFlag(checkSpacing(values.spacingFt).flag);
+    ui.setFwFlag(fwFlags(values));
     resetRun();
   });
   let autoFitWas = layout.get().autoFit;
@@ -427,6 +446,7 @@ function mount(root, app) {
   ui.setFixTools(setup.get().errResponse !== 'reference');
   ui.setSide(setup.get().wingSide);
   ui.setSpacingFlag(checkSpacing(setup.get().spacingFt).flag);
+  ui.setFwFlag(fwFlags(setup.get()));
   ui.applyLayout(layout.get());
   showFit();
   refresh();

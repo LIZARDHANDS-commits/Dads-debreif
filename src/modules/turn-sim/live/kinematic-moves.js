@@ -18,7 +18,7 @@ import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
 import { relativeTo, turnSeg, wholeDegree, DEG } from './manoeuvres.js';
-import { recordFlight, slotFor, KIAS_LAB, KIAS_OUTSIDE_LAB, SLOW_DOWN_KTPS, speedSeg, REJOIN, classifyPair, describe, FORMATIONS } from './transitions.js';
+import { recordFlight, slotFor, fwShapeNow, KIAS_LAB, KIAS_OUTSIDE_LAB, SLOW_DOWN_KTPS, speedSeg, REJOIN, classifyPair, describe, FORMATIONS } from './transitions.js';
 import { makeTrack, seedTrack, posesFrom, settleLast, followInto, rollStarts, relPath, timeLaw, slotInWorld, poseOf, laggedBank } from './kinematic.js';
 
 const dt = STEP_SEC;
@@ -77,6 +77,7 @@ export function routePoints(from, s, to, sTo, cur, spacingFt) {
   const astern = slot('astern', 0);
   const behindY = astern.fwd - 12; // 12 ft further back than line astern: under Lead's tail (the 2-ship's crossing, transitions.js)
   const low = astern.up - 4;
+  const fwBack = -fwShapeNow().rangeFt; // fighting wing flows across this far behind Lead: the spacing setting (750 ft by default)
   const pts = [cur];
   let at = from;
   let side = s;
@@ -94,7 +95,7 @@ export function routePoints(from, s, to, sTo, cur, spacingFt) {
     at = 'fw';
   }
   if (to === 'lab') {
-    if (at === 'fw' && side !== sTo) pts.push({ fwd: -750, left: side * 300, up: -60, plane: 0 }, { fwd: -750, left: 0, up: -60, plane: 0 }, { fwd: -750, left: sTo * 300, up: -60, plane: 0 });
+    if (at === 'fw' && side !== sTo) pts.push({ fwd: fwBack, left: side * 300, up: -60, plane: 0 }, { fwd: fwBack, left: 0, up: -60, plane: 0 }, { fwd: fwBack, left: sTo * 300, up: -60, plane: 0 });
     else if (at !== 'fw') {
       if (side !== sTo || at === 'astern') crossClose('astern');
       pts.push({ fwd: cur.fwd - 60, left: sTo * 80, up: cur.up - 15, plane: 0.5 }, { fwd: -300, left: sTo * 500, up: -40, plane: 0 });
@@ -105,7 +106,7 @@ export function routePoints(from, s, to, sTo, cur, spacingFt) {
   if (to === 'fw') {
     if (at === 'fw') {
       // flow to the other side behind Lead (SMM 12.29 para 69)
-      pts.push({ fwd: -750, left: side * 300, up: -60, plane: 0 }, { fwd: -750, left: 0, up: -60, plane: 0 }, { fwd: -750, left: sTo * 300, up: -60, plane: 0 });
+      pts.push({ fwd: fwBack, left: side * 300, up: -60, plane: 0 }, { fwd: fwBack, left: 0, up: -60, plane: 0 }, { fwd: fwBack, left: sTo * 300, up: -60, plane: 0 });
     } else {
       if (side !== sTo) crossClose('echelon');
       // drop back first, then sweep out (SMM 16.32 para 92; 16.38 para 105)
