@@ -5,7 +5,7 @@ import { KT_TO_FTPS, G_FTPS2 } from '../../../core/units.js';
 import { wrapPi, degToRad, radToDeg } from '../../../core/angles.js';
 import { T6A_LIMITS, stallLimitG, tasToIasKt, t6aExcessFn, thrustPerWeight, dragPerWeight, energyHeightFt } from '../../../core/t6-performance.js';
 import { stepPointMass, pointMassState, pointMassFlight } from '../../../core/point-mass.js';
-import { rollToward, isaDensityRatio } from '../../../core/flight-math.js';
+import { rollToward } from '../../../core/flight-math.js';
 import { MPT_WITHIN_KT, TUNING, shakerG, round, belowStallText } from './setup.js';
 import { scale, unit, clamp, velOf, physicalBankDeg } from './frame.js';
 import { controlFor, isRolling } from './moves/index.js';
@@ -76,7 +76,8 @@ function gText(g, other) {
  */
 function tumbleExcess(ktas, altFt) {
   const v = ktas * KT_TO_FTPS;
-  return -(0.00052 * isaDensityRatio(altFt) * v * v) / G_FTPS2;
+  const sqrtSigma = tasToIasKt(1, altFt); // core's IAS from TAS gives the square root of the density ratio
+  return -(0.00052 * sqrtSigma * sqrtSigma * v * v) / G_FTPS2;
 }
 
 /** The point-mass state's speed, heading and climb, in pointMassState's terms. */

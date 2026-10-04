@@ -69,6 +69,8 @@ export const CHECK_SETTINGS = Object.freeze([
   ['leadSec', 'Lead point (s ahead)', 'Where a Lead pursuit aims, ahead of the other aircraft.'],
   ['lagSec', 'Lag point (s behind)', 'Where a Lag pursuit aims, behind the other aircraft.'],
   ['rollRateDegPerSec', 'Roll rate (°/s)', 'How fast the bank changes.'],
+  ['gOnsetGPerSec', 'G onset (G/s)', 'How fast the pilot builds or eases the G. Estimate: Patrick\'s brisk choice (4 Oct 2026). 0 turns it off.'],
+  ['rollAccelDegPerSec2', 'Roll acceleration (°/s²)', 'How fast the roll rate builds and dies away: 360 reaches 90°/s in 0.25 s. Estimate: Patrick\'s brisk choice (4 Oct 2026). 0 turns it off.'],
   ['pitchBackBank160Deg', 'Pitch back bank at 160 KIAS (°)', 'More bank when slower (EFIG p.441).'],
   ['pitchBackBank220Deg', 'Pitch back bank at 220 KIAS (°)', 'Less bank when faster, in a line from the 160 KIAS bank.'],
   ['immelmannAboveKias', 'Auto: Immelmann or pitch back above (KIAS)', 'Above this, Auto races the Immelmann against the pitch back.'],
@@ -94,7 +96,7 @@ export function createLayout({ settings, controls, on }) {
   };
 
   // ── Fight setup column ──────────────────────────────────────────────
-  const versionBadge = h('div', { class: 'tf-version-badge' }, 'TURN FIGHT v2.6', h('span', { class: 'tf-version-sub' }, '• Tactical AI & Harvard 5.0 G'));
+  const versionBadge = h('div', { class: 'tf-version-badge' }, 'TURN FIGHT v2.7', h('span', { class: 'tf-version-sub' }, '• Tactical AI & Harvard 5.0 G'));
   const intro = h('p', { class: 'tf-intro' }, versionBadge, h('br'), 'Two aircraft start apart and turn, at the pass or at once: who gets their nose on the other first?');
   const presetSelect = h(
     'select',
@@ -274,7 +276,7 @@ export function createLayout({ settings, controls, on }) {
   const resetButton = h('button', { type: 'button', class: 'button', onclick: () => on.reset() }, 'Reset');
   const timeText = h('span', { class: 'tf-pill tf-time' }, 'T+0.0');
   const phaseText = h('span', { class: 'tf-pill tf-phase' }, 'HEAD-TO-HEAD');
-  const versionPill = h('span', { class: 'tf-pill tf-version-pill', title: 'Turn Fight v2.6: 3D BFM AI & Harvard II 5.0 G' }, 'v2.6 · BFM AI');
+  const versionPill = h('span', { class: 'tf-pill tf-version-pill', title: 'Turn Fight v2.7: 3D BFM AI & Harvard II 5.0 G' }, 'v2.7 · BFM AI');
   const toolbar = h(
     'div',
     { class: 'tf-toolbar' },
