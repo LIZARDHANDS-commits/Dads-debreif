@@ -189,7 +189,7 @@ function slotVelocity(leadRec, slotAt, k) {
  * long enough that the change in the slot's speed the roll makes (a slot out to the side of a turning Lead moves faster
  * or slower than he does) is taken up at no more than followAccelKtps. Returns [{ k, blendSec }].
  */
-function rollEvents(leadRec, slotAt, from, horizon, baseSec) {
+export function rollEvents(leadRec, slotAt, from, horizon, baseSec) {
   const out = [];
   for (const k of rollStarts(leadRec, horizon).filter((x) => x > from)) {
     let e = k + 1;
@@ -212,7 +212,7 @@ const BLEND_PEAK = 5.8;
 const KT_FTPS = 1.6878;
 
 /** The last step a list of roll events still blends at. */
-const eventsEnd = (events) => events.reduce((m, e) => Math.max(m, e.k + Math.ceil(e.blendSec / dt)), 0);
+export const eventsEnd = (events) => events.reduce((m, e) => Math.max(m, e.k + Math.ceil(e.blendSec / dt)), 0);
 
 /** Lead's segments for a change: a speed change to the target formation's speed, at the start (full power up, 1.5 kt/s down). */
 function leadSpeed(lead, kias, blockFt, withNext = false) {

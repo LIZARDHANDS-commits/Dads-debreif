@@ -42,7 +42,8 @@ export function cardForFour(state, wingSide) {
     const rel = relativeTo(ref, a);
     const across = Math.abs(rel.left);
     const sweepDeg = Math.atan2(-rel.fwd, Math.max(across, 1)) * 180 / Math.PI;
-    return `${a.name} off ${ref.name}: ${ftText(across)} abeam, sweep ${Math.abs(sweepDeg).toFixed(0)}° ${sweepDeg >= 0 ? 'behind' : 'ahead'}`;
+    // Sweep the manual's way: back from the wing line of the aircraft flown off, 0° abeam (SMM 12.29 para 69, Fig 12.19)
+    return `${a.name} off ${ref.name}: ${ftText(across)} abeam, sweep ${Math.abs(sweepDeg).toFixed(0)}° ${sweepDeg >= 0 ? 'back from' : 'ahead of'} ${ref.name}'s wing line`;
   });
   nowLines.push(`Heights above Lead: ${state.aircraft.filter((a) => a.ref != null).map((a) => `${a.name} ${signedFt(a.altAboveFt - lead.altAboveFt)}`).join(', ')} ft`);
 

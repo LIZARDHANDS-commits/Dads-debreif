@@ -21,11 +21,17 @@ const GRID_STEP_FT = 5000;
 const GRID_CELLS = 40;
 const ALT_SCALE = 1;
 
-/** Camera limits: the pitch is above the horizon (5 to 80 degrees) and zoom is pixels per 1,000 ft. */
-export const CAMERA_LIMITS = Object.freeze({ pitch: [5, 80], zoom: [0.5, 400] });
+/**
+ * Camera limits: the pitch is above the horizon (5 to 80 degrees) and zoom is pixels per 1,000 ft. Zoomed right in, a
+ * close formation shows at its real size (about 8 px a foot, a 120 ft picture across a 1,000 px screen, as the 2D view's
+ * closest), so an echelon's step down and its bearing line can be seen (SMM 12.4 Figs 12.3-12.4; spec section 10.2).
+ */
+export const CAMERA_LIMITS = Object.freeze({ pitch: [5, 80], zoom: [0.5, 8000] });
 export const CAMERA_START_PITCH_DEG = 35;
 const ORBIT_DEG_PER_PX = Object.freeze({ yaw: 0.4, pitch: 0.25 });
 const WHEEL_ZOOM = Object.freeze({ in: 1.12, out: 0.89 });
+/** How far the fit-all zoom moves toward the zoom it wants, each frame (the 2D view's ease). */
+const FIT_ZOOM_EASE = 0.08;
 
 /** Real length of a T-6 (feet). A zoomed-out aircraft is drawn bigger than that, so it can still be seen. */
 export const T6_LENGTH_FT = 33.4;
@@ -117,11 +123,12 @@ export function fitCamera(bounds, size, leadHeadingRad) {
  * timers: the module's scheduler scope (frame). source: {
  *   state(): the engine's live state; trails(): { trail }; layers(): { followLead };
  *   focus?(): { x, y } to keep in the middle (the live screen follows the formation);
+ *   fitBounds?(): bounds { minX, minY, maxX, maxY } (feet) the zoom keeps in the picture, or null to leave the zoom alone;
  *   paint(): 'harvard' or 'ship'; bankSigns(): { id: +1 or -1 }; colors: { id: '#rrggbb' } }.
- * onUserMove(): the person orbited or zoomed. win: for tests.
+ * onUserMove(kind): the person orbited ('orbit') or zoomed ('zoom'). win: for tests.
  * Returns { show, hide, requestDraw, fit, dispose, stats }.
  */
-export function createView3d(canvas, { timers, source, onUserMove = () => {}, win = globalThis }) {
+export function createView3d(canvas, { timers, source, onUserMove = (_kind) => {}, win = globalThis }) {
   let THREE = null;
   let gl = null; // { renderer, scene, camera, sky, grid, planes: Map, trails: Map }
   let visible = false;
@@ -195,6 +202,13 @@ export function createView3d(canvas, { timers, source, onUserMove = () => {}, wi
       center = fitted.center;
       cam = fitted.camera;
       waitingFit = null;
+    }
+    // The fit-all camera (spec section 10.3): the zoom eases toward the one that keeps `fitBounds` in the picture, as the
+    // 2D view's does; the yaw and pitch stay the person's. Nothing moves while they drag.
+    const keep = !dragging && source.fitBounds?.();
+    if (keep) {
+      const want = fitCamera(keep, box, 0).camera.zoom;
+      cam = { ...cam, zoom: cam.zoom + (want - cam.zoom) * FIT_ZOOM_EASE };
     }
     const state = source.state();
     const lead = state.aircraft.find((a) => a.id === 1);
@@ -277,7 +291,7 @@ export function createView3d(canvas, { timers, source, onUserMove = () => {}, wi
   };
   const zoomTo = (deltaY) => {
     cam = zoomBy(cam, deltaY);
-    onUserMove();
+    onUserMove('zoom');
     requestDraw();
   };
   const hands = [
@@ -292,7 +306,7 @@ export function createView3d(canvas, { timers, source, onUserMove = () => {}, wi
       dragging.camera = orbit(dragging.camera, e.clientX - dragging.x, e.clientY - dragging.y);
       dragging.x = e.clientX;
       dragging.y = e.clientY;
-      onUserMove();
+      onUserMove('orbit');
       requestDraw();
     }],
     ['pointerup', endDrag],

@@ -17,7 +17,7 @@ import { G_WARM, planGWarm } from './g-warm.js';
 import { classifyFour, judgeFourFormation, FOUR_FORMATIONS } from './four-ship-slots.js';
 import { planChangeFour } from './four-ship-moves.js';
 import { planHotRejoinChange } from './kinematic-moves.js';
-import { FW_TURN_KEYS, planFwTurn } from './formation-turns.js';
+import { FW_TURN_KEYS, TURN_FORMATIONS, planFormationTurn } from './formation-turns.js';
 
 /**
  * The first version's fixed numbers. Speeds name their kind (rule book): kias is
@@ -191,10 +191,12 @@ export function createFormation(options = {}) {
   function start(key, dir) {
     const m = MANOEUVRES[key] ?? G_WARM;
     const four = state.aircraft.length > 2;
-    // In fighting wing the 2-ship's turn buttons turn the formation (TS-55): Lead turns, #2 keeps in the band.
-    const fwTurn = !four && whereNow().key === 'fw' && FW_TURN_KEYS.includes(key);
-    const plan = fwTurn
-      ? planFwTurn(state.aircraft, key, dir, state.tSec, { blockFt: opts.blockFt })
+    // In fighting wing and the close formations the turn buttons turn the formation (TS-55, spec section 10.2): Lead turns,
+    // the wingmen keep their places (the fighting wing band, or their place in Lead's wing plane).
+    const where = whereNow();
+    const turnIn = FW_TURN_KEYS.includes(key) && TURN_FORMATIONS[four ? 4 : 2].includes(where.key) ? { key: where.key, side: where.side } : null;
+    const plan = turnIn
+      ? planFormationTurn(state.aircraft, turnIn, key, dir, state.tSec, { blockFt: opts.blockFt })
       : key === G_WARM.key
       ? planGWarm(state.aircraft, state.tSec)
       : four
@@ -223,8 +225,9 @@ export function createFormation(options = {}) {
       label: labelFor(key, dir),
       note: plan.note,
       firstId: plan.firstId ?? null,
-      shape: fwTurn ? 'formation' : m.kind === 'together' && m.turnDeg > 30 && m.turnDeg < 180 ? 'trail' : 'abreast',
-      fwTurn,
+      shape: turnIn ? 'formation' : m.kind === 'together' && m.turnDeg > 30 && m.turnDeg < 180 ? 'trail' : 'abreast',
+      formationTurn: turnIn,
+      flag: plan.flag ?? null,
       startSec: state.tSec,
       endSec,
       errorRun: plan.errorRun ?? null,
@@ -309,10 +312,12 @@ export function createFormation(options = {}) {
       const g = state.current.gWarm;
       state.spacingFt = g.spacingAfter;
       state.judged = { label: state.current.label, ...judgeFour(state.aircraft, state.spacingFt, 'abreast', judgePair), gFlown: gFlownWords(g) };
-    } else if (state.current.fwTurn) {
-      // A turn in fighting wing ends judged against the fighting wing band (spec section 10 table).
-      const j = judgeFormation('fw', lead, wing, state.spacingFt);
-      state.judged = { label: state.current.label, shape: 'formation', labels: j.inBand ? ['IN POSITION'] : j.labels, text: j.text, tone: j.tone };
+    } else if (state.current.formationTurn) {
+      // A turn in fighting wing or a close formation ends judged against that formation (spec section 10 table; the four, link by link).
+      const ft = state.current.formationTurn;
+      const four = state.aircraft.length > 2;
+      const j = four ? judgeFourFormation(ft.key, state.aircraft, ft.side, { spacingFt: state.spacingFt }) : judgeFormation(ft.key, lead, wing, state.spacingFt);
+      state.judged = { label: state.current.label, shape: 'formation', labels: j.inBand ? ['IN POSITION'] : j.labels, text: j.text, tone: j.tone, ...(four ? { ships: j.ships } : {}) };
     } else {
       state.judged = { label: state.current.label, ...(state.aircraft.length > 2 ? judgeFour(state.aircraft, state.spacingFt, state.current.shape, judgePair) : judgePair(lead, wing, state.spacingFt, state.current.shape)) };
       if (state.current.errorRun) state.errorOutcome = outcomeOf(state.current.errorRun, lead, wing, state.current.label);
@@ -336,12 +341,12 @@ export function createFormation(options = {}) {
   /** Why a manoeuvre can't be flown from where the formation is now, or null (spec sections 8 and 10: line abreast only). */
   function refuseMove(key, dir) {
     const where = whereNow().key;
-    if (state.aircraft.length > 2) {
-      if (key === G_WARM.key) return where === 'spread4' ? null : 'G-warm starts from Spread 4; change to Spread 4 first.';
-      return MOVES_FROM_FOUR.includes(where) ? null : `${labelFor(key, dir)} flies in Spread 4 only; change to Spread 4 first.`;
-    }
-    if (where === 'fw' && FW_TURN_KEYS.includes(key)) return null; // the turns fly in fighting wing too (TS-55)
-    return MOVES_FROM.includes(where) ? null : `${labelFor(key, dir)} flies in line abreast${FW_TURN_KEYS.includes(key) ? ' or fighting wing' : ''} only; change formation first.`;
+    const four = state.aircraft.length > 2;
+    if (four && key === G_WARM.key) return where === 'spread4' ? null : 'G-warm starts from Spread 4; change to Spread 4 first.';
+    // The turns fly in fighting wing (TS-55) and the close formations too (spec section 10.2).
+    if (FW_TURN_KEYS.includes(key) && TURN_FORMATIONS[four ? 4 : 2].includes(where)) return null;
+    if (four) return MOVES_FROM_FOUR.includes(where) ? null : `${labelFor(key, dir)} flies in Spread 4 only; change to Spread 4 first.`;
+    return MOVES_FROM.includes(where) ? null : `${labelFor(key, dir)} flies in line abreast only; change formation first.`;
   }
 
   build();
@@ -367,7 +372,7 @@ export function createFormation(options = {}) {
       if (key === G_WARM.key && !four) throw new Error('G-warm is a four-ship manoeuvre for now (it starts from Spread 4)');
       if (!MANOEUVRES[key] && key !== G_WARM.key) throw new Error(`No manoeuvre called ${key}`);
       if (four && !FOUR_SHIP_KEYS.includes(key) && key !== G_WARM.key) throw new Error(`${key} is not a four-ship manoeuvre`);
-      // The manoeuvres are line abreast manoeuvres (spec sections 8 and 10): in a close formation or fighting wing they are not flown.
+      // The manoeuvres are line abreast manoeuvres (spec sections 8 and 10); the turn buttons also fly in fighting wing and the close formations (10.2).
       if (!state.current) {
         const why = refuseMove(key, dir);
         if (why) {

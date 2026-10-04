@@ -67,8 +67,9 @@ export function plannedBounds(run, maxSteps = 12100) {
  *   state(): the engine's state; trails(): { trail: { id: [[t, x, y], …] }, marks: { id: […] } };
  *   layers(): the remembered layer settings; settings(): the Turn Sim settings;
  *   labels(): { id: { text, tone } } for the error labels.
- *   follow(): { x, y, spanFt } to keep centred and in view, or null (the live screen's camera);
+ *   follow(): { x, y, spanXFt, spanYFt, zoom, snap } to keep centred and in view, or null to leave the camera where the person put it (the live screen's camera);
  *   planned(): { id: [[t, x, y, …], …] }, paths still to fly, drawn dashed when layers().planned is on.
+ *   tags?(): { id: { title, detail } }, the info tags (tags.js), drawn when layers().tags is on.
  */
 export function createTurnSimView(canvas, { timers, source, onUserMove }) {
   let needsFit = null; // bounds to fit at the next draw, once the canvas has its real size
@@ -100,6 +101,7 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
       drawGrid(ctx, map);
       if (Number.isFinite(settings.moaBoundaryNm)) drawMoa(ctx, map, settings.moaBoundaryNm);
       if (layers.lead39 && lead) drawLead39(ctx, map, lead);
+      if (layers.lead75 && lead) drawLead75(ctx, map, lead);
       const { trail, marks } = source.trails();
       if (layers.tracks !== false) drawTrails(ctx, map, trail);
       if (layers.planned && source.planned) drawPlanned(ctx, map, source.planned(), state.tSec);
@@ -112,7 +114,9 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
         else drawTurnCircles(ctx, map, state, settings);
       }
       if (layers.clockMarks) for (const a of state.aircraft) drawClockMarks(ctx, map, a);
-      for (const a of state.aircraft) drawAircraft(ctx, map, a);
+      const tags = layers.tags ? source.tags?.() : null;
+      for (const a of state.aircraft) drawAircraft(ctx, map, a, !tags);
+      if (tags) drawTags(ctx, map, state, tags);
       if (layers.errorLabels) drawErrorLabels(ctx, map, state, source.labels());
     },
   });
@@ -136,15 +140,16 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
 }
 
 /**
- * The live screen's camera: centred on the formation, and zoomed so a square
- * spanFt across fits the shorter side of the picture. The zoom eases toward that,
- * unless the person has zoomed themselves (follow.zoom false).
+ * The live screen's camera: centred on (x, y), and zoomed so a box spanXFt by
+ * spanYFt fits the picture (or a square spanFt across fits its shorter side). The
+ * zoom eases toward that, or jumps to it when snap; follow.zoom false keeps the
+ * zoom as it is.
  */
-function followFormation(map, { x, y, spanFt, zoom = true, snap = false }) {
+function followFormation(map, { x, y, spanFt = 0, spanXFt = spanFt, spanYFt = spanFt, zoom = true, snap = false }) {
   const { width, height } = map.size;
   let scale = map.view.scale;
-  if (zoom && width > 0 && height > 0 && spanFt > 0) {
-    const want = Math.min(width, height) / spanFt;
+  if (zoom && width > 0 && height > 0 && spanXFt > 0 && spanYFt > 0) {
+    const want = Math.min(width / spanXFt, height / spanYFt);
     scale = snap ? want : scale + (want - scale) * FOLLOW_ZOOM_EASE;
   }
   if (x !== map.view.cx || y !== map.view.cy || scale !== map.view.scale) map.setView({ cx: x, cy: y, scale });
@@ -217,6 +222,35 @@ function drawLead39(ctx, map, lead) {
   ctx.stroke();
   ctx.restore();
   text(ctx, 'Lead 3/9', cx - 16, cy - 26, '#b9d8f5', 11, 'right'); // above the line, off the circle labels below
+}
+
+/**
+ * Lead's 7 and 5 o'clock lines: from Lead out past his tail, 30° either side of it (each clock hour is 30°), so 60° of
+ * sweep back from his 3/9 line, the back edge of the fighting wing cone (SMM 12.29 para 69, Fig 12.19). Dashed, as the 3/9 line.
+ */
+function drawLead75(ctx, map, lead) {
+  const len = Math.max(map.size.width, map.size.height) / map.view.scale * 0.75;
+  const [cx, cy] = map.worldToScreen(lead.xFt, lead.yFt);
+  // Left of the tail is +, so 7 o'clock is the tail +30° and 5 o'clock the tail -30°.
+  const lines = [{ clock: '5', h: lead.headingRad + Math.PI - Math.PI / 6 }, { clock: '7', h: lead.headingRad + Math.PI + Math.PI / 6 }];
+  ctx.save();
+  ctx.strokeStyle = '#58a6ff';
+  ctx.globalAlpha = 0.6;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 6]);
+  for (const { h } of lines) {
+    const [ex, ey] = map.worldToScreen(lead.xFt + Math.cos(h) * len, lead.yFt + Math.sin(h) * len);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+  }
+  ctx.restore();
+  const labelAt = 140 / map.view.scale; // 140 px out along each line, clear of the 3/9 label
+  for (const { clock, h } of lines) {
+    const [lx, ly] = map.worldToScreen(lead.xFt + Math.cos(h) * labelAt, lead.yFt + Math.sin(h) * labelAt);
+    text(ctx, `Lead ${clock}`, lx + 6, ly, '#b9d8f5', 11);
+  }
 }
 
 function drawTrails(ctx, map, trail) {
@@ -431,7 +465,7 @@ function drawClockMarks(ctx, map, a) {
 }
 
 /** The aircraft: a nose-up arrow turned to its heading, with its number. #4 is white with a dark outline (#29). */
-function drawAircraft(ctx, map, a) {
+function drawAircraft(ctx, map, a, named = true) {
   const [x, y] = map.worldToScreen(a.xFt, a.yFt);
   const s = 15;
   ctx.save();
@@ -449,7 +483,38 @@ function drawAircraft(ctx, map, a) {
   ctx.stroke();
   ctx.fill();
   ctx.restore();
-  text(ctx, a.name ?? `#${a.id}`, x + 12, y - 10, '#ffffff', 12);
+  if (named) text(ctx, a.name ?? `#${a.id}`, x + 12, y - 10, '#ffffff', 12);
+}
+
+/**
+ * The info tags (tags.js): beside each aircraft a dark box with a border in its colour, the title in white and the detail
+ * in its colour, 10 px text, as Fight Sim draws them (turn-fight view.js, copied, not imported).
+ */
+function drawTags(ctx, map, state, tags) {
+  ctx.save();
+  ctx.font = `10px ${FONT}`;
+  for (const a of state.aircraft) {
+    const tag = tags[a.id];
+    if (!tag) continue;
+    const colour = SHIP_COLORS[a.id] ?? '#d9e6f2';
+    const [x, y] = map.worldToScreen(a.xFt, a.yFt);
+    const pad = 4;
+    const w = Math.max(ctx.measureText(tag.title).width, ctx.measureText(tag.detail).width) + 2 * pad;
+    const h = 26;
+    const tx = x + 14 + w > map.size.width ? x - 14 - w : x + 14; // on the left when the right would run off the picture
+    const ty = y - 8;
+    ctx.fillStyle = 'rgba(10, 18, 28, 0.85)';
+    ctx.fillRect(tx, ty, w, h);
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(tx, ty, w, h);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(tag.title, tx + pad, ty + 11);
+    ctx.fillStyle = colour;
+    ctx.fillText(tag.detail, tx + pad, ty + 22);
+  }
+  ctx.restore();
 }
 
 /** Each wingman's label in words, beside it (V6 drawErrorLabels, line 1947). */

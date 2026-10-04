@@ -199,3 +199,59 @@ test('2-ship close station changes: no wings overlap, the crossing is below and 
     if (to === 'echelon') assert.ok(stoppedBehind, `${what}: stopped behind the new slot before moving up`);
   }
 });
+
+/**
+ * Checks for a turn in a close formation (SMM 12.19 paras 41-43, Fig 12.11): each wingman rolls with Lead (his bank within
+ * the shared ±5° of Lead's), and once Lead has held his bank long enough for the wingman to settle in his wing plane (5 s:
+ * the 3 s plane lag of TS-55, an estimate, plus 2 s), a wingman out to the side by more than a wingspan is stepped up on
+ * the outside of the turn and down on the inside. Bank is left wing down positive and left is +, so the inside is the side
+ * with the bank's sign.
+ */
+function steppedInPlane(what) {
+  let heldSec = 0;
+  return (_b, after, t) => {
+    const lead = after[0];
+    heldSec = Math.abs(lead.bankDeg) >= 25 && Math.abs(lead.rollRateDps) < 0.5 ? heldSec + STEP_SEC : 0;
+    for (const w of after.slice(1)) {
+      assert.ok(Math.abs(w.bankDeg - lead.bankDeg) <= 5, `${what} at ${t.toFixed(1)} s: ${w.name} not rolling with Lead (${w.bankDeg.toFixed(0)}° against ${lead.bankDeg.toFixed(0)}°)`);
+      const l = link(lead, w);
+      if (heldSec >= 5 && l.across > WINGSPAN_FT) {
+        const inside = Math.sign(l.rel.left) === Math.sign(lead.bankDeg);
+        const up = w.altAboveFt - lead.altAboveFt;
+        assert.ok(inside ? up < 0 : up > 0, `${what} at ${t.toFixed(1)} s: ${w.name} should be stepped ${inside ? 'down (inside)' : 'up (outside)'}, is ${up.toFixed(0)} ft`);
+      }
+    }
+  };
+}
+
+// Route: 1 to 3 wingspans out, about level with Lead's wing line (SMM 12.6 para 15), the ±10 ft close margin.
+const inRoute = (l) => l.across >= WINGSPAN_FT - 10 && l.across <= 3 * WINGSPAN_FT + 10 && Math.abs(l.rel.fwd) <= 75 && l.down > -10;
+
+test('2-ship close formations turn with Lead: #2 rolls with him, stepped up on the outside and down on the inside, and ends where he started', () => {
+  // Patrick 18:11Z: "do turns in any of these formations"; spec section 10.2.
+  const cases = [['echelon', {}], ['echelon', { side: 'left' }], ['route', {}], ['astern', {}]];
+  for (const [form, opts] of cases) {
+    for (const [key, dir] of [['hook', 1], ['delayed90', -1]]) {
+      const f = createFormation();
+      f.change(form, opts);
+      fly(f, `to ${form}`);
+      const startSide = Math.sign(link(f.state.aircraft[0], f.state.aircraft[1]).rel.left);
+      const what = `${form}${opts.side ? ' left' : ''}, ${key} ${dir > 0 ? 'left' : 'right'}`;
+      assert.equal(f.press(key, dir), 'started', `${what}: ${f.state.refusal ?? ''}`);
+      const stepped = steppedInPlane(what);
+      fly(f, what, (b, a, t) => {
+        stepped(b, a, t);
+        const l = link(a[0], a[1]);
+        // In a bank the step is along Lead's tilted wing line (SMM 12.5 para 12), so the level "across" shrinks by the
+        // cosine of the bank while the height difference grows: measure the gap in 3D, as four-ship-changes.test.js does.
+        const apartFt = Math.hypot(l.rel.fwd, l.rel.left, l.down);
+        assert.ok(apartFt > WINGSPAN_FT, `${what} at ${t.toFixed(1)} s: within a wingspan (${apartFt.toFixed(0)} ft)`);
+        // 40 ft/s is a gentle climb or descent (an estimate, as in four-ship-changes.test.js)
+        assert.ok(Math.abs(a[1].altAboveFt - b[1].altAboveFt) <= 40 * STEP_SEC, `${what} at ${t.toFixed(1)} s: #2 jumped in height`);
+      });
+      const l = link(f.state.aircraft[0], f.state.aircraft[1]);
+      const ends = form === 'astern' ? inAstern(l) : (form === 'route' ? inRoute(l) : inEchelon(l)) && Math.sign(l.rel.left) === startSide;
+      assert.ok(ends, `${what} ends in ${form} on the same side`);
+    }
+  }
+});

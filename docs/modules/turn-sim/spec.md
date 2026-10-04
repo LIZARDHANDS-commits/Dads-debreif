@@ -47,10 +47,10 @@ Not in the first version (later, in this order unless Patrick reorders): G-warm,
 Picture: `turn-sim-review/first-version/screen-mockup.png` in the project files. V6's: `archive/2026-10-reset/1-requirements/agents/shots/turn-sim/v6-default.png` in the project files.
 
 **On the screen**
-- Top bar: Play/Pause, Reset, playback speed (0.25× to 4×), time, 2D/3D, Layers.
+- Top bar: Play/Pause, Reset, playback speed (0.25× to 4×), time, Fit (only while the camera is paused or its fit is off, section 10.2), 2D/3D, Layers.
 - Left: the manoeuvre buttons (section 3), then Setup with three boxes: Formation (2-ship, the default, or 4-ship, section 8), Spacing (default 6,000 ft, the briefs' wide side; 4,000 to 6,000 is the SMM band) and "#2 on Lead's" Right or Left (default Right). Below them, one fixed line: "220 KIAS · 8,000 ft · 3 G turns (71° bank) · still air · roll 90°/s".
-- Centre: the picture. The camera follows the middle of the pair and eases its zoom to keep both in view with a turn circle's room each side (it stops zooming for you once you zoom yourself, until Reset). Ground tracks for the whole flight, a 1 NM ground grid, Lead's 3/9 line, and both aircraft's planned paths drawn dashed while a manoeuvre is flown.
-- Layers (closed menu): ground tracks (on), 3/9 line (on), planned path (on), turn circles (off), 3D paint.
+- Centre: the picture. The camera fits every aircraft with about 15% spare on each side and eases its zoom as they move; a pan or zoom pauses it until Fit or Reset (section 10.2). Ground tracks for the whole flight, a 1 NM ground grid, an info tag beside each aircraft, and the planned paths drawn dashed while a manoeuvre is flown.
+- Layers (closed menu): ground tracks (on), Lead 3/9 line (off), Lead 7 and 5 o'clock lines (off), planned path (on), turn circles (off), info tags (on), fit all aircraft (on), 3D paint. Before V2.16 the 3/9 line was on.
 - Right, the Formation card: what is being flown and who goes first; spacing, sweep and height difference now; the last roll-out judged (on spacing, wide, tight, fore, aft, with the numbers), judged only after roll-out; each aircraft's KIAS, heading, bank and G.
 - Start: Lead flying 000 at 220 KIAS, #2 abeam on the right at 6,000 ft, paused at t = 0. Press Play or any button to start.
 - Keys: Space plays or pauses, Home resets (only while the Turn Sim is open and not typing).
@@ -105,7 +105,7 @@ Patrick, 4 Oct 10:51Z: "an option to transition to a 4 ship and do all the four 
 
 A delayed turn pressed when the four are not abreast (after a check or an in-place turn) is flown without the check turn and still rolls each aircraft out abeam of the one before it in the order (the earliest to turn goes first).
 
-**The screen.** Only the buttons the formation has show (the shackle and cross turn are hidden in the 4-ship), and a second fixed line under Setup gives the stack. The camera follows the middle of all four, zooming to keep the four in view. The Formation card has a line for each wingman against the aircraft it flies off (#2 and #3 off Lead, #4 off #3), the heights above Lead, and the last roll-out judged for each wingman in words and numbers, by the 2-ship's rule (ON SPACING, TIGHT, WIDE, FORE, AFT; IN TRAIL after an in-place turn). 3D shows all four on their stack.
+**The screen.** Only the buttons the formation has show (the shackle and cross turn are hidden in the 4-ship), and a second fixed line under Setup gives the stack. The camera fits all four (section 10.2). The Formation card has a line for each wingman against the aircraft it flies off (#2 and #3 off Lead, #4 off #3), the heights above Lead, and the last roll-out judged for each wingman in words and numbers, by the 2-ship's rule (ON SPACING, TIGHT, WIDE, FORE, AFT; IN TRAIL after an in-place turn). 3D shows all four on their stack.
 
 **When things go wrong.** The shackle and cross turn are refused in the 4-ship (a press throws; the screen has no button). A Spacing outside the SMM band is flown and flagged, as in section 5. Lead, #2, #3 and #4 are always the same ids, so the card, the colours (white with an outline for #4) and the tracks match the 2-ship.
 
@@ -244,7 +244,7 @@ Code: `src/modules/turn-sim/live/errors.js` (the offsets, the two modes, the Fix
 
 **Screen.**
 - **Formation card:** shows "Now:" and "Flying:". During a rejoin it adds range, closure, Lead's clock position, ON LINE, HOT or COLD (hot and cold at 60° and 30°, estimates), and height against Lead. After each change, the card judges the new formation against the table above.
-- **Camera:** zooms in by itself when the pair is closer than about 1,000 ft and back out when they open up.
+- **Camera:** ~~zooms in by itself when the pair is closer than about 1,000 ft~~ replaced in V2.16 by the fit-all camera (section 10.2).
 
 **Flags, never walls.**
 - Lead above 4 G in fighting wing or fluid manoeuvring, and above 3 G in close formation (2 CFFTS Orders B2 ch 8; Gen Book p.11).
@@ -273,7 +273,7 @@ No time gates. A generous limit of 3 minutes per change catches a planner that n
 - **The from-to routes** (design section 4): station changes between echelon, route and line astern by slides of about 5 kt (8 ft/s, estimate) crossing behind and below Lead; drop back and sweep out to fighting wing at about 12 ft/s; close through route from fighting wing at a 10-20 KIAS overtake, slowing to about 5 kt at route; entry to line abreast with Lead accelerating to 220 KIAS at full power while #2 turns away to open out; from line abreast a rejoin to fighting wing first, flown straight through it for the hot turning rejoin to echelon. A change of side (the Side switch) is made behind Lead in the formation the pair is in, never across his nose.
 - **The turning rejoin.** Lead slows to 200 KIAS, pauses until #2 has closed to about 2,000 ft ("Lead will pause, allow No. 2 to establish closure", AFM8 brief p.19), then turns 30° into #2 at 30° bank (SMM 12.24 para 54). #2's bank is capped at 60° (estimate); its overtake is 15 KIAS (EFIG p.374). The planner takes the first turn that keeps the overshoot lane (inside 1,000 ft #2 never more than 100 ft ahead of Lead's 3/9 line, and below Lead inside 2,000 ft); if none does, Lead holds straight and #2 flies the straight-ahead rejoin (SMM 12.26 paras 62-63). The rejoin choice under More is "Turning, Lead turns into #2" (the default) or "Straight ahead". Turning away, in-place turns, hot and cold line choices and an overtake box are not built (`future.md`).
 - **The slots** (where the planner sends #2, all estimates inside the table's bands): fighting wing 750 ft at 45° sweep, 60 ft below Lead; route 2 wingspans (67 ft) out, 25 ft back, 5 ft low; echelon 45 ft out, 25 ft back, 5 ft down; line astern 43 ft centre to centre (10 ft nose to tail), 8 ft low; line abreast the Setup spacing.
-- **The card.** "Now:" (the formation the pair is in, read from where #2 really is), the existing "Flying:" line (for a change, "Line abreast right to Echelon right (hot turning rejoin)"), the rejoin block during a rejoin from line abreast (range, closure, Lead's clock position and ON LINE / HOT / COLD at 60° and 30°, #2's height against Lead), the flags (Lead's G over 4 in fighting wing and over 3 in close formation; #2 at or above Lead's height inside 2,000 ft; #2 at the 60° bank cap), and, once the change ends, the judgement against the table above. During a rejoin the picture draws a dashed range ring around Lead and a closure arrow on #2. The camera zooms in by itself under about 1,000 ft apart (down to a 250 ft picture) and back out when they open up.
+- **The card.** "Now:" (the formation the pair is in, read from where #2 really is), the existing "Flying:" line (for a change, "Line abreast right to Echelon right (hot turning rejoin)"), the rejoin block during a rejoin from line abreast (range, closure, Lead's clock position and ON LINE / HOT / COLD at 60° and 30°, #2's height against Lead), the flags (Lead's G over 4 in fighting wing and over 3 in close formation; #2 at or above Lead's height inside 2,000 ft; #2 at the 60° bank cap), and, once the change ends, the judgement against the table above. During a rejoin the picture draws a dashed range ring around Lead and a closure arrow on #2. The camera keeps every aircraft in view (section 10.2; before V2.16 it zoomed in by itself under about 1,000 ft apart).
 - **When it cannot be planned.** Nothing changes; the card says why in one line ("No safe rejoin from here: ..."), for example when the plan would take more than 3 minutes or ends outside the band. A press while a change is flying is queued, as the manoeuvres are (TS-45). A pair that fits no formation (in trail, mid-turn) is planned as a straight-ahead rejoin from where #2 is. Training errors are not applied to a change.
 - **Speed.** Lead's speed changes use `{ kind: 'speed', toKias, rateKtps }` segments; until the shared one in `live/flight.js` is swapped in, `flyStep` in `live/transitions.js` flies them itself (marked TEMPORARY there).
 - **Checks.** `tests/unit/turn-sim/transitions.test.js` (a handful, no time gates): every from-to pair ends in the target's band at 200 KIAS (220 in line abreast); smooth hand-overs through speed changes; #2 below Lead and in the overshoot lane in a rejoin, bank inside the caps; the queue.
@@ -308,10 +308,10 @@ Patrick's rulings of 4 Oct, 18:00Z to 19:26Z. Each is listed in the project file
   - The 4-ship drops back, then moves out, so no one cuts across the wingman beside him.
   - SMM 16.32 para 92 says "slowly"; Patrick's ruling wins.
 - **Fighting wing to echelon, route or line astern** (19:04Z): a straight-ahead rejoin (SMM 12.26 paras 62-63, Fig 12.17; EFIG p.371).
-  - Line up on Lead's six, 750 ft back and 20 ft below the wake.
+  - Line up on Lead's six, about 1,000 ft back (750 ft until V2.16; SMM Fig 12.17 and Patrick's card of 19:54Z) and 20 ft below the wake.
   - Close at about 21 KIAS overtake.
   - At about 500 ft, take a small vector toward the echelon side, aiming slightly away. Slow and stabilise in route, then move up the wing-tip line into echelon.
-  - In the 4-ship each wingman rejoins on the one ahead of him in echelon. #3 and #4 start once the one ahead has reached his vector point. This replaces the route through finger.
+  - In the 4-ship each wingman rejoins on the one ahead of him in echelon. #3 and #4 start once the one ahead has reached his vector point, and from V2.16 each waits lined up at 1,000 ft until the one ahead is stable in position (SMM 16.34 para 95; AFM7 brief p.21). This replaces the route through finger.
 - **2-ship close station changes** (19:26Z; SMM 12.20 paras 44-47, Figs 12.12-12.13).
   - Echelon to echelon:
     - back and down into the corner, with the nose at least 10 ft behind Lead's tail (12 ft more is used, an estimate) and at line astern's height, below the prop wash; then a real stop, held 2 s;
@@ -323,9 +323,7 @@ Patrick's rulings of 4 Oct, 18:00Z to 19:26Z. Each is listed in the project file
 
 **Not in this step:**
 - off-standard hot rejoin starts (next, with the Errors panel and Fix tools);
-- turns in the other formations;
-- the 4-ship station changes as SMM 16.32-16.33 and the AFM7/AFM8 pictures;
-- 3D echelon, the fit-all camera and the info tags.
+- turns in the other formations, the 4-ship station changes, 3D echelon, the fit-all camera and the info tags: built in V2.16, section 10.2.
 
 **Checks (light).** `tests/unit/turn-sim/formation-moves.test.js` checks that each move:
 - ends in the formation pressed;
@@ -335,6 +333,65 @@ Patrick's rulings of 4 Oct, 18:00Z to 19:26Z. Each is listed in the project file
 - keeps wings from overlapping in the station changes.
 
 The quick sweep has one generous limit, with its reason beside it. No values are pinned.
+
+### 10.2 Turns in every formation, 4-ship station changes and the screen pieces (V2.16, TS-56, built 4 Oct, not yet in Patrick's sign-off)
+
+The rest of Patrick's 4 Oct rulings (18:00Z to 19:54Z), from the screen-piece brief. Numbers with no manual or ruling behind them are estimates. Pictures from the check runs are in the project files at `turn-sim-review/screens/` (`v216-*.png`).
+
+**What changes on screen.**
+- The turn buttons now work in every formation, not only line abreast and fighting wing: in the 2-ship in echelon, route and line astern; in the 4-ship in fighting wing, finger, echelon, box, line astern and route. Shackle, Cross turn and G-warm stay line abreast moves and are greyed elsewhere.
+- A **Fit** button appears beside the View switch while the camera is paused or its fit is off.
+- Each aircraft has an **info tag** beside it in 2D. The plain name label is not drawn while the tags are on.
+- Layers gains **Lead 7 and 5 o'clock lines** (off), **Info tags** (on) and **Fit all aircraft** (on). The **Lead 3/9 line** is now off by default. A layout saved before V2.16 keeps every other choice.
+- The card's Now lines say sweep "back from Lead's wing line" (or #2's or #3's in the 4-ship).
+- Nothing else moves or disappears.
+
+**How each piece flies or works.**
+- **Straight-ahead rejoin line-up at 1,000 ft** (Patrick's card, 19:54Z; SMM Fig 12.17 point 1). The line-up behind the aircraft rejoined on moves from 750 ft to 1,000 ft. In the 4-ship each wingman holds at his line-up point until the one ahead is stable in position, then closes (SMM 16.34 para 95; AFM7 brief p.21).
+- **4-ship turning rejoin to finger** (SMM 16.34 para 96; AFM7 brief p.21).
+  - Lead turns into the others at 30° of bank. #2 joins inside the turn.
+  - #3 and #4 take #2's cut-off line and close to a wait point behind and slightly below Lead: #3 150 ft back and 20 ft low, #4 300 ft back and 30 ft low (estimates).
+  - #3 crosses about two aircraft lengths behind and slightly lower than Lead only once #2 is stable, to echelon on the outer wing. #4 crosses only once #3 is stable.
+- **Turns in the close formations** (SMM 12.19 paras 41-43, Fig 12.11; 16.36 paras 99-102).
+  - Lead flies the button's turn: 45° of bank (1.4 G, an estimate inside the 3 G close-formation limit of 2 CFFTS Orders B2 ch 8 p.97); 30° for the check turn and for the 4-ship's echelon (the Orders' stepped turns away at 30°).
+  - Each wingman keeps his place in Lead's wing plane: stepped up on the outside of the turn, stepped down on the inside, and rolls with Lead at Lead's own roll rate. Line astern stays under the tail of the one ahead.
+  - His path is a kinematic line planned at the press (TS-55). His place follows Lead's bank 3 s behind (an estimate, KINEMATIC.planeLagSec), and each roll of Lead is blended in gently, so speed changes stay under about 2.5 kt/s and height changes under about 20 ft/s.
+  - In the 4-ship, #4 flies through #3 (SMM 16.37 para 103). #3 is in Lead's plane, so every wingman's place is worked out in Lead's plane.
+  - A turn into a 4-ship echelon is flown and flagged: the Orders and SMM 16.36 para 101 normally turn echelon away only.
+- **Turns in 4-ship fighting wing** (AFM7 brief p.14 item 5): each wingman flies the fighting wing goal off the aircraft ahead of him (#2 off Lead, #3 off #2, #4 off #3), planned in that order. In the bigger turns each collapses toward the six of the one ahead and stays clear of him ("No. 3 must ensure clear of No. 2").
+- **4-ship station changes, the 2-ship's technique** (SMM 12.20 paras 44-45; 16.32 paras 86-91, 16.33 para 93; AFM7 brief pp.19-20). Each wingman moves back and down into the corner and stops (held 2 s), crosses at a steady rate to directly behind his new place and stops, then moves forward and up at about 5 ft/s.
+  - **Finger to echelon on #3's side** (para 87; AFM7 p.19 item 1): #3, with #4 on his wing, moves out, back and slightly down to make room (15 ft out, 25 ft back and 5 ft down beyond his echelon place, estimates) while #2 drops into the corner. #2 crosses behind and below Lead and moves up into echelon. Then #3 and #4 regain normal spacing.
+  - **Finger to echelon on #2's side, and echelon back to finger** (para 88; AFM7 p.19 item 2): #3 and #4 move back and down into a column behind #2 and Lead, #4 behind and below #3, and cross together. #4 leaves the column only once #3 is across, then moves out and up to echelon on #3.
+  - **Echelon to finger with #2 changing sides**: #2 crosses first, then #3 and #4 move in. The manuals give no picture of this one (an estimate).
+  - **Finger to box** (para 91; AFM7 p.20): #4 moves back and down behind #3, across to behind Lead, stabilises in a loose line astern, then moves up into line astern. Back is the same way reversed (an estimate).
+  - **Finger to line astern** (paras 86, 89): #2 and #3 move back together, #3 further. #2 crosses behind Lead into line astern. Only then does #3 move across behind #2, and #4 moves into line astern on #3 as he does. Back (para 90): #2 out and up first, then #3, then #4.
+  - **Finger to finger** is the one change not authorised (para 93). A press of the other finger flies through echelon, and the Flying line says so.
+- **3D close formations** (SMM 12.4 Figs 12.3-12.4; 12.19 Fig 12.11): the 3D camera now zooms in to about 8 px a foot, so a close formation is drawn at its real size. Before, each aircraft was blown up to 40 px and the two overlapped. Echelon shows wings matched to Lead, #2 stepped down along the bearing line, and in a turn both banked in Lead's plane.
+- **Fit-all camera** (replaces the "zoom in under about 1,000 ft" rule of section 10).
+  - The camera keeps every aircraft in the picture with about 15% of it spare on each side, and never tighter than 150 ft across (estimates). The zoom eases as they move.
+  - A pan or zoom in 2D, or a zoom in 3D, pauses it, and the picture stays where the person put it. Turning the 3D view round does not pause it.
+  - Fit brings it back at once. Reset brings it back too.
+  - With **Fit all aircraft** off, the camera stays centred on the formation at the person's zoom, and Fit fits once.
+  - In 3D the zoom and the centre follow the fit; the yaw and pitch stay the person's.
+- **Lead's 7 and 5 o'clock lines**: dashed lines from Lead out past his tail, 30° either side of it, so 60° of sweep back from his 3/9 line, the back edge of the fighting wing cone (SMM 12.29 para 69, Fig 12.19). 2D only, greyed in 3D, as the 3/9 line.
+- **Info tags**: Fight Sim's look (a dark box, a border in the aircraft's colour, 10 px text, the title in white and the detail in the aircraft's colour). 2D only.
+  - Title: the aircraft and what the formation is doing: Rejoining, Station change, Turning, or the formation it is in (Fighting wing, Echelon, Finger and so on).
+  - Lead's detail: KIAS and bank.
+  - A wingman's detail, judged against the aircraft he flies off in the formation being flown (or flown to, during a change):
+    - fighting wing: the cone, 500-1,000 ft and 30-60° of sweep from the wing line (SMM 12.29 para 69, Fig 12.19). Inside 500 ft TIGHT, past 1,000 ft STRETCHED, outside the sweep OUT OF CONE, otherwise IN POSITION, with the range and sweep. No margin is added: the tag shows the band itself.
+    - close formations: the roll-out judgement's in-position test (the section 10 table). Too close is TIGHT, too far is STRETCHED, and any other miss shows the judgement's own word (HIGH, LOW, OFF LINE).
+    - line abreast and the wide 4-ship formations: the distance abeam only.
+- **Sweep, the manual's way**: measured back from the wing line of the aircraft flown off, 0° abeam (Fig 12.19). The 4-ship fighting wing places are unchanged: #2 45°, #3 and #4 30°, 650 ft, #3 and #4 on the side opposite #2 (SMM 16.38 para 104; AFM7 brief p.14; Patrick 11:44Z). The 30° matches Fig 16.29's picture. Para 104's text says "a 60 degree sweep": that question is with Patrick.
+
+**Settings and their defaults.** Fit all aircraft: on. Info tags: on. Lead 3/9 line: off. Lead 7 and 5 o'clock lines: off. All are in the Layers menu; the Fit button is the only new thing outside it, and it shows only while the camera is paused or off.
+
+**Not in this step:** off-standard hot rejoin starts; the info tags, the 3/9 line and the 7/5 lines in 3D; flat 4-ship echelon turns at up to 60° (the Orders' other echelon turn); a turn pressed during a change.
+
+**Checks (light).**
+- `formation-moves.test.js`: 2-ship close formation turns; #2 rolls with Lead, is stepped up on the outside and down on the inside once Lead holds his bank, and ends where he started.
+- `four-ship-changes.test.js`: the turn buttons in every 4-ship formation, with the same checks link by link; #2 crosses to echelon only once #3 has made room; in finger to line astern #3 moves across only once #2 is in.
+- `tags.test.js`: the fighting wing tag's states against the cone, and sweep measured from the wing line.
+- The camera, the lines, the tags on screen and the 3D picture are checked by eye in a browser run (sign-off).
 
 ---
 

@@ -82,7 +82,15 @@ The three lists below are kept from the review's brief as references. Nothing in
   - **SMM station changes, 2-ship:** back and down into the corner, across at a steady speed, then forward and up, with real stops.
   - Checks in `tests/unit/turn-sim/formation-moves.test.js`.
 - [ ] Patrick flies them in the real app (the "TS-55" checklist in `testing.md`).
-- [ ] Next, from the same rulings: hot rejoin off-standard starts (wide, close, ahead, high, tight, fast), turns in the other formations, the 4-ship station changes as SMM 16.32-16.33 and the AFM7/AFM8 pictures, 3D echelon, the fit-all camera, and the info tags.
+- [x] The rest of the same rulings (V2.16, `spec.md` section 10.2, TS-56):
+  - **Straight-ahead rejoin** lines up about 1,000 ft behind; in the 4-ship each waits there until the one ahead is stable.
+  - **4-ship turning rejoin to finger:** #3 crosses only once #2 is stable, #4 only once #3 is (SMM 16.34 para 96).
+  - **Turns in every formation,** 2-ship and 4-ship: close formations in Lead's wing plane, stepped up outside and down inside; 4-ship fighting wing collapses toward the six of the one ahead.
+  - **4-ship station changes** with the 2-ship's technique and the AFM7 pictures; finger to finger goes through echelon.
+  - **3D close formations** at real size; **fit-all camera** with Fit; **Lead's 3/9 and 7/5 o'clock lines** (off); **info tags** (on); sweep shown from the wing line.
+  - Checks in `formation-moves.test.js`, `four-ship-changes.test.js` and `tags.test.js`.
+- [ ] Patrick flies them in the real app (the "TS-56" checklist in `testing.md`).
+- [ ] Next, from the same rulings: hot rejoin off-standard starts (wide, close, ahead, high, tight, fast).
 - [ ] Next for formations, each with its own short spec and Patrick's yes: live fighting wing and fluid manoeuvring (the Fluid button is greyed until then; the second four-ship piece), manoeuvring in the offset box and Fluid 4, Overshoot and rejoin mistakes (`future.md`).
 
 ## Step 5. Sign-off

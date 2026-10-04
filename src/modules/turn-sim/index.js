@@ -15,17 +15,18 @@
 import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { STEP_SEC } from './live/flight.js';
-import { MANOEUVRES, relativeTo, turnRadiusAt } from './live/manoeuvres.js';
+import { MANOEUVRES, relativeTo } from './live/manoeuvres.js';
 import { createFormation, LIVE_DEFAULTS, checkSpacing, compassDeg, fixedLine, intoOrAway, labelFor } from './live/formation.js';
 import { ERROR_DEFAULTS, ERROR_ALLOWED, errorCardLines } from './live/errors.js';
 import { FOUR_SHIP_KEYS, fourShipLine } from './live/four-ship.js';
 import { cardForFour } from './live/four-ship-card.js';
 import { G_WARM } from './live/g-warm.js';
 import { rejoinReadout } from './live/transitions.js';
-import { FW_TURN_KEYS } from './live/formation-turns.js';
+import { FW_TURN_KEYS, TURN_FORMATIONS } from './live/formation-turns.js';
 import { createChangeUi } from './transitions-panel.js';
-import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, LAYOUT_VERSION, SHIP_COLORS } from './layout.js';
+import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, LAYOUT_VERSION, SHIP_COLORS, migrateLayout } from './layout.js';
 import { createTurnSimView } from './view.js';
+import { tagLines } from './tags.js';
 import { createView3d } from './view3d.js';
 
 const STYLESHEET = new URL('./turn-sim.css', import.meta.url).href;
@@ -34,12 +35,12 @@ const STYLESHEET = new URL('./turn-sim.css', import.meta.url).href;
 const MAX_STEPS_PER_FRAME = 40;
 /** The card updates at most this often while playing. */
 const READOUT_MS = 100;
-/** The follow camera keeps this much room around the pair: a turn circle and a bit more, each side. */
-const FOLLOW_MARGIN_FT = 1500;
-/** Closer than this the camera zooms in by itself, so the close formations can be seen (spec section 10). */
-const CLOSE_ZOOM_FT = 1000;
-/** The tightest picture the auto-zoom asks for, feet across: an echelon is about 45 ft apart. */
-const CLOSE_SPAN_MIN_FT = 250;
+/**
+ * The fit-all camera (spec section 10.3, TS-56): every aircraft in the picture with about 15% of it spare on each side,
+ * and never tighter than 150 ft across, so a close formation shows whole at about its real size (an echelon is about 45 ft
+ * apart). Both are estimates.
+ */
+const FIT = Object.freeze({ marginShare: 0.15, minSpanFt: 150 });
 
 /** The buttons, in screen order (spec section 3). */
 const BUTTONS = ['delayed90', 'delayed45', 'check', 'inPlace90', 'hook', 'shackle', 'crossTurn'].map((key) => ({
@@ -99,7 +100,8 @@ function cardFor(state, wingSide) {
     queued: state.queued?.label ?? null,
     nowLines: [
       `Spacing ${ftText(Math.hypot(rel.fwd, rel.left))} (${ftText(across)} abeam)`,
-      `Sweep ${Math.abs(sweepDeg).toFixed(0)}° ${sweepDeg >= 0 ? 'behind' : 'ahead'}`,
+      // Sweep the manual's way: back from Lead's wing line, 0° abeam (SMM 12.29 para 69, Fig 12.19)
+      `Sweep ${Math.abs(sweepDeg).toFixed(0)}° ${sweepDeg >= 0 ? 'back from' : 'ahead of'} Lead's wing line`,
       `#2 is ${ftText(Math.abs(wing.altAboveFt - lead.altAboveFt))} ${wing.altAboveFt >= lead.altAboveFt ? 'above' : 'below'} Lead`,
     ],
     judged,
@@ -119,7 +121,7 @@ function mount(root, app) {
   document.head.append(stylesheet);
 
   const setup = createSettings(memoryStore(), SETUP_DEFAULTS, { allowed: { wingSide: ['right', 'left'], ships: [2, 4], ...ERROR_ALLOWED } });
-  const layout = createSettings(layoutStore(app.storage), LAYOUT_DEFAULTS, { allowed: LAYOUT_ALLOWED, version: LAYOUT_VERSION });
+  const layout = createSettings(layoutStore(app.storage), LAYOUT_DEFAULTS, { allowed: LAYOUT_ALLOWED, version: LAYOUT_VERSION, migrate: migrateLayout });
   const setupControls = createControls(setup);
   const layoutControls = createControls(layout);
 
@@ -134,42 +136,48 @@ function mount(root, app) {
   let speed = 1;
   let owed = 0; // sim seconds waiting to be turned into fixed steps
   let stopFrames = null;
-  let userZoomed = false; // the person zoomed the 2D picture, so the camera stops zooming for them
-  let snapNext = true; // the next 2D frame takes the follow zoom at once (after a reset)
+  let cameraPaused = false; // the person panned or zoomed, so the fit-all camera leaves the picture to them until Fit
+  let snapNext = true; // the next 2D frame takes the fit at once (after a reset or Fit)
   let wantView = '2d';
 
-  const centre = () => {
-    const n = state.aircraft.length;
+  /** The box every aircraft is in, grown by the fit's margin: its middle and its size each way (feet). */
+  const fitBox = () => {
+    const xs = state.aircraft.map((a) => a.xFt);
+    const ys = state.aircraft.map((a) => a.yFt);
+    const grow = 1 / (1 - 2 * FIT.marginShare);
+    const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
     return {
-      x: state.aircraft.reduce((s, a) => s + a.xFt, 0) / n,
-      y: state.aircraft.reduce((s, a) => s + a.yFt, 0) / n,
+      x: (minX + maxX) / 2,
+      y: (minY + maxY) / 2,
+      spanXFt: Math.max(FIT.minSpanFt, (maxX - minX) * grow),
+      spanYFt: Math.max(FIT.minSpanFt, (maxY - minY) * grow),
     };
   };
-  /** How much ground the camera keeps in view: both aircraft, with room for a turn circle each side. */
-  const spanFt = () => {
-    // Close together (a close formation, or the last part of a rejoin): zoom in so the pair can be seen, and back out when they open up.
-    // The four zoom in the same way on their widest pair (a close 4-ship formation, spec section 8).
-    let apart = 0;
-    for (const a of state.aircraft) for (const b of state.aircraft) apart = Math.max(apart, Math.hypot(a.xFt - b.xFt, a.yFt - b.yFt));
-    if (apart < CLOSE_ZOOM_FT) return Math.max(CLOSE_SPAN_MIN_FT, 4 * apart + 200);
-    const c = centre();
-    let reach = 0;
-    for (const a of state.aircraft) reach = Math.max(reach, Math.hypot(a.xFt - c.x, a.yFt - c.y));
-    return 2 * (Math.max(reach, state.spacingFt / 2) + turnRadiusAt(state.aircraft[0].tasFtps) + FOLLOW_MARGIN_FT);
+  const fitBounds = () => {
+    const b = fitBox();
+    return { minX: b.x - b.spanXFt / 2, maxX: b.x + b.spanXFt / 2, minY: b.y - b.spanYFt / 2, maxY: b.y + b.spanYFt / 2 };
   };
-  /** The 2D camera: the middle of the pair, zoomed to spanFt (eased, or at once after a reset). */
+  /**
+   * The 2D camera: with Fit all aircraft on, centred on them and zoomed to fit them (eased, or at once after a reset or a
+   * Fit press); off, it stays centred on them at the person's zoom. A pan or zoom pauses it (null: the camera stays put).
+   */
   const follow = () => {
+    if (cameraPaused) return null;
     const snap = snapNext;
     snapNext = false;
-    return { ...centre(), spanFt: spanFt(), zoom: !userZoomed, snap };
+    return { ...fitBox(), zoom: layout.get().autoFit || snap, snap };
+  };
+  const showFit = () => ui.setFitShown(cameraPaused || !layout.get().autoFit);
+  const pauseCamera = () => {
+    if (cameraPaused) return;
+    cameraPaused = true;
+    showFit();
   };
 
   // ---- the pictures -------------------------------------------------------------------
   const view = createTurnSimView(ui.canvas, {
     timers: app.scheduler,
-    onUserMove: () => {
-      userZoomed = true;
-    },
+    onUserMove: pauseCamera,
     source: {
       state: () => state,
       trails: () => ({ trail: state.tracks, marks: {} }),
@@ -178,6 +186,7 @@ function mount(root, app) {
       labels: () => ({}),
       follow,
       planned: () => state.planned,
+      tags: () => tagLines(state, formation.where()),
       rejoin: () => {
         if (!state.current?.change?.rejoining || state.aircraft.length !== 2) return null;
         const r = rejoinReadout(state.aircraft[0], state.aircraft[1]);
@@ -188,11 +197,18 @@ function mount(root, app) {
   // three.js loads only when 3D is first switched on.
   const view3d = createView3d(ui.canvas3d, {
     timers: app.scheduler,
+    onUserMove: (kind) => {
+      if (kind === 'zoom') pauseCamera(); // turning the 3D view round keeps the fit; zooming takes it over
+    },
     source: {
       state: () => state,
       trails: () => ({ trail: state.tracks }),
       layers: () => layout.get(),
-      focus: centre,
+      focus: () => {
+        const b = fitBox();
+        return { x: b.x, y: b.y };
+      },
+      fitBounds: () => (cameraPaused || !layout.get().autoFit ? null : fitBounds()),
       paint: () => layout.get().paint,
       bankSigns: () => ({}), // the live bank is already signed (left positive)
       colors: SHIP_COLORS,
@@ -204,9 +220,16 @@ function mount(root, app) {
   const redraw = () => (shown === '3d' ? view3d.requestDraw() : view.requestDraw());
 
   function fit3d() {
-    const c = centre();
-    const half = spanFt() / 2;
-    view3d.fit({ minX: c.x - half, minY: c.y - half, maxX: c.x + half, maxY: c.y + half }, state.aircraft[0].headingRad); // behind Lead
+    view3d.fit(fitBounds(), state.aircraft[0].headingRad); // behind Lead
+  }
+
+  /** Fit: the fit-all camera again, at once (with Fit all aircraft off, a single fit). */
+  function fitNow() {
+    cameraPaused = false;
+    snapNext = true;
+    if (shown === '3d') fit3d();
+    showFit();
+    redraw();
   }
 
   async function applyView(want) {
@@ -250,16 +273,18 @@ function mount(root, app) {
     const whereAll = formation.where();
     changeUi.update(state, whereAll);
     changeUi.renderCard(state, whereAll);
-    if (state.aircraft.length === 2) {
-      const where = whereAll;
-      // The manoeuvres are line abreast moves; in fighting wing the turn buttons turn the formation (TS-55).
-      if (where.key === 'fw') ui.setMovesEnabled(true, (key) => FW_TURN_KEYS.includes(key));
-      else ui.setMovesEnabled(!['echelon', 'route', 'astern'].includes(where.key));
+    const ships = state.aircraft.length > 2 ? 4 : 2;
+    if (TURN_FORMATIONS[ships].includes(whereAll.key)) {
+      // In fighting wing and the close formations the turn buttons turn the formation (TS-55, spec section 10.2); the
+      // shackle, the cross turn and G-warm stay line abreast moves.
+      ui.setMovesEnabled(true, (key) => FW_TURN_KEYS.includes(key));
+    } else if (ships === 2) {
+      ui.setMovesEnabled(true);
     } else {
       // The four's manoeuvres fly from Spread 4 (or a column after an in-place turn); G-warm from Spread 4 only.
       const where = whereAll.key;
       const lineAbreast = where === 'spread4' || where === 'other';
-      ui.setMovesEnabled(lineAbreast, (key) => key !== G_WARM.key || where === 'spread4', 'These manoeuvres fly in Spread 4. Change to Spread 4 first.');
+      ui.setMovesEnabled(lineAbreast, (key) => key !== G_WARM.key || where === 'spread4', 'These manoeuvres fly in Spread 4, fighting wing and the close formations. Change formation first.');
     }
   }
   function queueCard() {
@@ -308,8 +333,9 @@ function mount(root, app) {
     pause();
     formation.reset({ ...setup.get() });
     owed = 0;
-    userZoomed = false;
+    cameraPaused = false;
     snapNext = true;
+    showFit();
     if (shown === '3d') fit3d();
     refresh();
   }
@@ -333,6 +359,7 @@ function mount(root, app) {
   changeUi.onSideChanged(renderCard);
   ui.onPlayPause(() => (playing ? pause() : play()));
   ui.onResetRun(resetRun);
+  ui.onFit(fitNow);
   ui.onSpeed((x) => {
     speed = x; // changes steps per frame only; it doesn't stop the run
   });
@@ -345,8 +372,14 @@ function mount(root, app) {
     ui.setSpacingFlag(checkSpacing(values.spacingFt).flag);
     resetRun();
   });
+  let autoFitWas = layout.get().autoFit;
   const stopLayout = layout.subscribe((values) => {
     ui.applyLayout(values);
+    if (values.autoFit !== autoFitWas) {
+      autoFitWas = values.autoFit;
+      if (values.autoFit) fitNow(); // switched back on: fit again now
+      showFit();
+    }
     if (values.view !== wantView) {
       wantView = values.view;
       applyView(wantView);
@@ -376,6 +409,7 @@ function mount(root, app) {
   ui.setSide(setup.get().wingSide);
   ui.setSpacingFlag(checkSpacing(setup.get().spacingFt).flag);
   ui.applyLayout(layout.get());
+  showFit();
   refresh();
   if (layout.get().view === '3d') {
     wantView = '3d'; // remembered from last time: three.js loads now, as it would on a switch
