@@ -122,7 +122,7 @@ function mount(root, app) {
       time: () => sim.t,
     },
     onLost: () => noteAndReturnTo2d('3D stopped: the graphics were reset. Switch 3D on to start it again.'),
-    onFacing: (yawDeg, tiltDeg) => { if (shown === '3d') setupPanel.setFacing(yawDeg, tiltDeg); }, // the wind dial matches the 3D view
+    onFacing: (yawDeg) => { if (shown === '3d') setupPanel.setFacing(yawDeg); }, // the wind dial turns with the 3D view
   });
   let shown = '2d'; // the picture on screen; the View setting is what the person asked for
   let wantView = '2d';
@@ -165,8 +165,7 @@ function mount(root, app) {
     ui.setNote3d('');
     shown = '3d';
     ui.setView('3d');
-    const { yawDeg, tiltDeg } = view3d.facing();
-    setupPanel.setFacing(yawDeg, tiltDeg);
+    setupPanel.setFacing(view3d.facing().yawDeg);
     for (const key of LAYERS_2D_ONLY) controls.setDisabled(key, true);
     view3d.requestDraw();
   }

@@ -102,7 +102,7 @@ Screen changes only: nothing in `src/core`, and no default, range or flying beha
 - [x] Merged with main (behaviour tags TR-60, Randomize behaviour TR-59, spacing on final TR-58); the magnetic-wind decision is TR-61; How often hides while Randomize is off. DADS v2.10.38 to v2.10.39.
 - [x] The default wind is 260°M at 15 kt, held as 269°T (Patrick, 4 Oct: "260 magnetic is fine"; was 260°T). The Busy circuit's straight-in is timed again for it at start-up, as for any wind other than 260°T. DADS v2.10.37.
 - [x] The wind dial moves in 5° steps, magnetic, dragged or with the arrow keys; Shift with an arrow key gives 1° (Patrick, 4 Oct). DADS v2.10.36.
-- [x] The dial's runway lines up exactly with the runway on the ground in 3D: each direction is drawn as the tilted camera shows it, so a steep tilt squashes the dial's compass (Patrick, 4 Oct). DADS v2.10.35. Needs the magnetic variation at Moose Jaw from a source or Patrick's ruling (today the code assumes about 8° East with no page: TR-7 reads 29 as 298° true). The wind setting stays in true underneath, so the flying does not change.
+- [x] The dial turns with the 3D camera so it is oriented as the screen is, and stays round however the camera tilts (Patrick, 4 Oct: it "doesn't need to change aspect ratio as the camera pans up and down"; v2.10.35 had squashed it with the tilt). DADS v2.10.45. Needs the magnetic variation at Moose Jaw from a source or Patrick's ruling (today the code assumes about 8° East with no page: TR-7 reads 29 as 298° true). The wind setting stays in true underneath, so the flying does not change.
 
 ## Step 6. Check the camera, graphics and scenery work against the code
 

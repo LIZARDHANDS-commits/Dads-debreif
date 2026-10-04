@@ -124,11 +124,11 @@ export function busyStarts(routes, seed) {
 
 /**
  * The wind setting (from, degrees true, 1-360) for a point on the dial, dx right and dy down from its centre:
- * the turn and squash the dial is drawn with (facing: { yawDeg, squash }, see draw) are undone, and the bearing
+ * the turn the dial is drawn with (yawDeg, the bearing up the screen; see draw) is undone, and the bearing
  * lands on a DIAL_STEP_DEG step magnetic (Patrick, 4 Oct: magnetic, 5° steps).
  */
-export function dialWindFrom(dx, dy, facing = { yawDeg: 0, squash: 1 }, step = DIAL_STEP_DEG) {
-  const trueDeg = facing.yawDeg + (Math.atan2(dx, -dy / facing.squash) * 180) / Math.PI;
+export function dialWindFrom(dx, dy, yawDeg = 0, step = DIAL_STEP_DEG) {
+  const trueDeg = yawDeg + (Math.atan2(dx, -dy) * 180) / Math.PI;
   return magneticToTrue(Math.round(trueToMagnetic(trueDeg) / step) * step);
 }
 
@@ -189,11 +189,11 @@ export function createSetupPanel({ controls, settings, onScenario }) {
     const d = ((Math.round(deg) % 360) + 360) % 360;
     settings.update({ windFromDeg: d === 0 ? 360 : d });
   };
-  // The bearing under the pointer, undoing the dial's turn and squash (see draw), set in DIAL_STEP_DEG steps magnetic.
+  // The bearing under the pointer, undoing the dial's turn (see draw), set in DIAL_STEP_DEG steps magnetic.
   const fromPointer = (e) => {
     const box = canvas.getBoundingClientRect?.();
     if (!box || !box.width) return;
-    setFrom(dialWindFrom(e.clientX - (box.left + box.width / 2), e.clientY - (box.top + box.height / 2), facing));
+    setFrom(dialWindFrom(e.clientX - (box.left + box.width / 2), e.clientY - (box.top + box.height / 2), yawDeg));
   };
   let dragging = false;
   dial.addEventListener('pointerdown', (e) => {
@@ -245,15 +245,11 @@ export function createSetupPanel({ controls, settings, onScenario }) {
     ctx.clearRect(0, 0, DIAL_PX, DIAL_PX);
     const c = DIAL_PX / 2, r = c - 14;
     const text = token('--text', '#e5edf5'), muted = token('--text-muted', '#8aa0b4'), accent = token('--accent', '#38bdf8'), card = token('--bg-sunken', '#0b1620');
-    // Each direction is drawn the way it runs on the screen (Patrick, 4 Oct: the runway lines up with the one on the
-    // ground). The 3D view looks down at a tilt, so across the screen is kept and up the screen is shortened by
-    // squash (the cosine of the tilt): a ground bearing b shows along (sin(b - yaw), squash * cos(b - yaw)).
-    // In 2D yaw is 0 and squash 1, a plain north-up compass.
+    // Turned so the bearing up the screen is at the top (yawDeg: the 3D camera's, 0 in 2D), and always round: it
+    // turns with the camera but keeps its shape however far the camera tilts (Patrick, 4 Oct).
     const polar = (deg, radius) => {
-      const a = ((deg - facing.yawDeg) * Math.PI) / 180;
-      const x = Math.sin(a), y = facing.squash * Math.cos(a);
-      const n = Math.hypot(x, y) || 1;
-      return [c + (radius * x) / n, c - (radius * y) / n];
+      const a = ((deg - yawDeg) * Math.PI) / 180;
+      return [c + radius * Math.sin(a), c - radius * Math.cos(a)];
     };
     ctx.fillStyle = card;
     ctx.beginPath(); ctx.arc(c, c, r, 0, Math.PI * 2); ctx.fill();
@@ -294,23 +290,17 @@ export function createSetupPanel({ controls, settings, onScenario }) {
     if (components.textContent !== words) components.textContent = words;
     draw(values);
   }
-  // How the picture shows the ground: yawDeg, the bearing up the screen; squash, how much a tilted 3D camera shortens
-  // distances up the screen (1 straight down; never below 0.2, so the dial stays readable when looking level).
-  let facing = { yawDeg: 0, squash: 1 };
+  let yawDeg = 0; // the bearing up the screen: the dial is turned so it is at the top
   show(settings.get());
   const stopSettings = settings.subscribe(show);
 
   return {
     element,
-    /**
-     * Draws the dial as the picture shows the ground: `yawDeg` is the bearing up the screen, `tiltDeg` how far the
-     * 3D camera is tilted from straight down (0 for the 2D map). (0, 0) is a north-up compass.
-     */
-    setFacing(yawDeg, tiltDeg = 0) {
-      const yaw = ((Math.round(Number(yawDeg) || 0) % 360) + 360) % 360;
-      const squash = Math.max(0.2, Math.cos(((Number(tiltDeg) || 0) * Math.PI) / 180));
-      if (yaw === facing.yawDeg && Math.abs(squash - facing.squash) < 0.005) return;
-      facing = { yawDeg: yaw, squash };
+    /** Turns the dial so `deg`, the bearing up the screen (the 3D camera's, 0 for the 2D map), is at its top. */
+    setFacing(deg) {
+      const next = ((Math.round(Number(deg) || 0) % 360) + 360) % 360;
+      if (next === yawDeg) return;
+      yawDeg = next;
       draw(settings.get());
     },
     /** Shows the scenario loaded in the drop-down, or none ("Choose a scenario"). */

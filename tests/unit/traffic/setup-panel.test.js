@@ -88,12 +88,11 @@ test('Setup: the dial reads magnetic compass bearings in 5° steps (north up, ea
   assert.equal(dialWindFrom(...at(203)), 204, '203° on the dial is 194°M, which lands on 195°M: 204°T');
 });
 
-test('Setup: a dial turned and tilted with the 3D view reads the bearing under the pointer as the screen shows it', () => {
+test('Setup: a dial turned with the 3D view reads the bearing under the pointer as the turned dial shows it', () => {
   // Facing east (090°T up the screen), straight down: up the dial is 090°T, 081°M, which lands on 080°M.
-  assert.equal(dialWindFrom(0, -50, { yawDeg: 90, squash: 1 }), 89);
-  // Tilted so up the screen is shortened to half: a point up and to the right at 45° on the dial is a ground
-  // bearing of atan2(1, 1 / 0.5) = 26.6° right of up, so 027°T, 018°M, which lands on 020°M: 029°T.
-  assert.equal(dialWindFrom(50, -50, { yawDeg: 0, squash: 0.5 }), 29);
+  assert.equal(dialWindFrom(0, -50, 90), 89);
+  // Facing west (270°T up the screen): a point to the right on the dial is north, 360°T, 351°M, which lands on 350°M: 359°T.
+  assert.equal(dialWindFrom(50, 0, 270), 359);
 });
 
 test('Setup: the runway wind line gives head and cross wind as a pilot works them out for 29L (298°T)', () => {
