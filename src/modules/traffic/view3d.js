@@ -303,11 +303,14 @@ export function routeSignature(route) {
 // A pattern is a closed loop, entries and splits open lines. Entries are dashed and splits dotted, as on the 2D map.
 const DASH_FT = Object.freeze({ entry: [500, 350], split: [120, 380] });
 /**
- * How wide the routes are drawn in 3D, in pixels, the same as on the 2D map (patterns 3, the rest 2.5), with a dark
- * edge either side so they stand out on the photo (Patrick, 4 Oct 10:55Z: more contrast). Plain WebGL lines are
- * always 1 px, so these use three's own wide lines; without them the routes fall back to the thin lines.
+ * How wide and how solid the routes are drawn in 3D, in pixels and 0-1, with a thin dark edge either side so they
+ * stand out on the photo (Patrick, 4 Oct 10:55Z: more contrast). Patrick, 17:50Z: the first wide lines (3 px with a
+ * 2.5 px solid edge) were too thick and opaque, "somewhere in the middle" of those and the old 1 px lines; these
+ * are that middle. Plain WebGL lines are always 1 px, so these use three's own wide lines; without them the routes
+ * fall back to the thin lines.
  */
-const ROUTE_LINE_PX = Object.freeze({ pattern: 3, other: 2.5, edge: 2.5 });
+const ROUTE_LINE_PX = Object.freeze({ pattern: 2, other: 1.5, edge: 1 });
+const ROUTE_LINE_OPACITY = Object.freeze({ line: 0.75, edge: 0.45 });
 const ROUTE_EDGE_COLOR = '#0b1620';
 /** The PFL circle on the 3D ground (layer "PFL ground circle"), drawn as on the map: pink circle, red spoke to Low Key. */
 const PFL_CIRCLE_COLOR = '#ff9bce';
@@ -487,10 +490,11 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
             geometry.dispose(); // the wide line keeps its own copy of the points
             const closed = route.kind === 'pattern';
             const widthPx = closed ? ROUTE_LINE_PX.pattern : ROUTE_LINE_PX.other;
-            // Both opaque, the edge drawn first: a see-through edge would be drawn after (and over) the colour.
-            const edge = wideLine(route.path, closed, { color: ROUTE_EDGE_COLOR, linewidth: widthPx + 2 * ROUTE_LINE_PX.edge }, 1);
+            // Both see-through, the edge drawn first (render order goes before three's sorting of see-through lines).
+            const seeThrough = (opacity) => ({ transparent: true, opacity, depthWrite: false });
+            const edge = wideLine(route.path, closed, { color: ROUTE_EDGE_COLOR, linewidth: widthPx + 2 * ROUTE_LINE_PX.edge, ...seeThrough(ROUTE_LINE_OPACITY.edge) }, 1);
             // Pulled a hair toward the eye, so the colour never flickers with the edge at the same depth.
-            const line = wideLine(route.path, closed, { color: route.color, linewidth: widthPx, dash, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }, 2);
+            const line = wideLine(route.path, closed, { color: route.color, linewidth: widthPx, dash, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, ...seeThrough(ROUTE_LINE_OPACITY.line) }, 2);
             routeLines.set(route.id, { line, sig, edge });
           } else {
             const material = dash
