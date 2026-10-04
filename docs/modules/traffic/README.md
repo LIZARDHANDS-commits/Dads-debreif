@@ -8,7 +8,7 @@ Built; the sign-off box is still open. The PFL review (promised in TR-R14) comes
 
 ## What is next
 
-The plan's steps, in order: Step 1: The PFL review (TR-R14) and what waits on it; Step 2: Refresh spec.md against the new requirements; Step 3: Fix the real faults found at the reset pin; Step 4: Build what the ratified requirements ask for and the screen lacks; Step 5: Check the camera, graphics and scenery work against the code; Step 6: Review the route.js split (a review, not the split itself); Step 7: Sign-off. Only what is in `plan.md` gets built.
+The plan's steps, in order: Step 1: The PFL review (TR-R14) and what waits on it; Step 2: Refactor the flying layer; Step 3: Refresh spec.md against the new requirements; Step 4: Fix the real faults found at the reset pin; Step 5: Build what the ratified requirements ask for and the screen lacks; Step 6: Check the camera, graphics and scenery work against the code; Step 7: Sign-off. Only what is in `plan.md` gets built.
 
 ## The files
 
