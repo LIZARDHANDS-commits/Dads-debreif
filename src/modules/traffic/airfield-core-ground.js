@@ -6,6 +6,7 @@
 
 import { createTileLayer, ESRI_IMAGERY, tilesFor } from '../../ui-kit/map-tiles.js';
 import { makeLocalRef, latLonToLocalFt, localFtToLatLon, lonLatToTile } from '../../core/geo.js';
+import { THRESHOLD_DATA_ELEV_FT } from './airfield.js';
 
 /**
  * Authoritative Moose Jaw aerodrome core bounding box in local feet.
@@ -450,7 +451,7 @@ export function paintCoreAirfieldVector(ctx, { width = 2048, height = 2048, boun
  *   dispose: () => void
  * }}
  */
-export function createCoreGroundMesh(THREE, { floor = 1880, anchor, timers, source = ESRI_IMAGERY, makeCanvas, makeImage } = {}) {
+export function createCoreGroundMesh(THREE, { floor = THRESHOLD_DATA_ELEV_FT, anchor, timers, source = ESRI_IMAGERY, makeCanvas, makeImage } = {}) {
   const width = 2048;
   const height = 2048;
 

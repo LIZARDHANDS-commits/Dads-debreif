@@ -4,6 +4,7 @@
 // Every geometry and material is freed by disposeLandmarks (D411). Trees are one InstancedMesh (one draw call).
 
 import { makeLocalRef, latLonToLocalFt } from '../../core/geo.js';
+import { THRESHOLD_DATA_ELEV_FT } from './airfield.js';
 
 const ARP = makeLocalRef(50.3303, -105.5592);
 const at = (lat, lon) => latLonToLocalFt(ARP, lat, lon);
@@ -151,7 +152,7 @@ const BUILDERS = { feedlot: createWindowFarm, museum: createSukanen, wrecker: cr
  * @param {any} THREE
  * @param {{ floor?: number }} [options]
  */
-export function createLandmarks(THREE, { floor = 1880 } = {}) {
+export function createLandmarks(THREE, { floor = THRESHOLD_DATA_ELEV_FT } = {}) {
   const root = new THREE.Group();
   root.name = 'circuit-landmarks';
   const lam = (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.8, metalness: 0.05 });
@@ -184,7 +185,7 @@ export const HWY2_POINTS = Object.freeze([
 export const HWY2_WIDTH_FT = 40;
 
 /** A flat ribbon along `points`, 1 ft above the floor and polygon-offset so it never z-fights the photo. */
-export function createHighway(THREE, points, floor = 1880, width = HWY2_WIDTH_FT) {
+export function createHighway(THREE, points, floor = THRESHOLD_DATA_ELEV_FT, width = HWY2_WIDTH_FT) {
   const pos = [];
   const idx = [];
   points.forEach(([x, y], i) => {
@@ -237,7 +238,7 @@ export function sockHeadingDeg(windFromDeg) {
  * @param {any} THREE
  * @param {{ floor?: number }} [options]
  */
-export function createWindsocks(THREE, { floor = 1880 } = {}) {
+export function createWindsocks(THREE, { floor = THRESHOLD_DATA_ELEV_FT } = {}) {
   const root = new THREE.Group();
   root.name = 'windsocks';
   const orange = new THREE.MeshStandardMaterial({ color: '#f26a1b', roughness: 0.8, side: THREE.DoubleSide });

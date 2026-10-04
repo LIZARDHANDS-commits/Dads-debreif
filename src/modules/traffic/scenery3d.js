@@ -14,7 +14,9 @@
 // Textures and sprites need a canvas, so they exist only in a browser; with no document (the Node
 // tests) every building falls back to plain colours and no sprites are made.
 
-export const DEFAULT_FLOOR_FT = 1880;
+import { RUNWAY_29L_HDG_DEG, THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
+
+export const DEFAULT_FLOOR_FT = THRESHOLD_DATA_ELEV_FT;
 
 export const CYMJ_ARP = Object.freeze({
   lat: 50.3303,
@@ -22,9 +24,9 @@ export const CYMJ_ARP = Object.freeze({
 });
 
 export const CYMJ_RUNWAY_29L = Object.freeze({
-  headingDeg: 298,
-  threshold: Object.freeze({ x: 3104, y: -3194 }),
-  departure: Object.freeze({ x: -4066, y: 680 }),
+  headingDeg: RUNWAY_29L_HDG_DEG,
+  threshold: THRESHOLD_29L,
+  departure: DEPARTURE_END_29L,
 });
 
 export const CYMJ_APRON_BOUNDS = Object.freeze({

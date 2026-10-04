@@ -4,11 +4,11 @@ This folder is the traffic pattern sim: aircraft fly the Moose Jaw circuits and 
 
 ## Where it stands
 
-Built; the sign-off box is still open. As of 4 Oct 2026 (DADS v2.10.27) the flying layer is refactored: every aircraft is flown once by a simulated pilot from where it is, and one path follower moves it (spec sections 1 and 1a). The PFL is rebuilt on it (spec 4.5), and so are the closed pattern, High Key from anywhere, the go-around, touch-and-go and the breakout; automatic deconfliction is on (spec 4.12). The old physics engine and its tests are gone. Added since v2.10.17: the Busy circuit is the opening picture, wind 260/15 (spec 7.3); a gliding PFL pays height for a bank away (TR-55); the move-over adds power, levels at 2,100 ft and goes around (TR-56); each aircraft row shows ground speed and crab and has a Remove button; the spawner offers the Harvard only and Runway 11R is hidden; Spawn a conflict adds an aircraft timed to meet the selected one; the aircraft list folds behind a "More" button; and a gliding PFL no longer slows the sim. None of this has been seen in the real app yet; that is on Patrick's waiting list.
+Built; the sign-off box is still open. As of 4 Oct 2026 (DADS v2.10.29) the flying layer is refactored: every aircraft is flown once by a simulated pilot from where it is, and one path follower moves it (spec sections 1 and 1a). The PFL is rebuilt on it (spec 4.5), and so are the closed pattern, High Key from anywhere, the go-around, touch-and-go and the breakout; automatic deconfliction is on (spec 4.12). The old physics engine and its tests are gone. Added since v2.10.17: the Busy circuit is the opening picture, wind 260/15 (spec 7.3); a gliding PFL pays height for a bank away (TR-55); the move-over adds power, levels at 2,100 ft, holds 120 KIAS to the overshoot and goes around (TR-56); each aircraft row shows ground speed and crab and has a Remove button; the spawner offers the Harvard only and Runway 11R is hidden; Spawn a conflict adds an aircraft timed to meet the selected one; the aircraft list folds behind a "More" button; a gliding PFL no longer slows the sim; and the clean-up deleted 47 settings and the CSS nothing used, archived the unread cross-check list, and moved the Moose Jaw numbers into `airfield.js`. None of this has been seen in the real app yet; that is on Patrick's waiting list.
 
 ## What is next
 
-Step 2's refactor is built except PR 5 (clean-up). The plan's steps, in order: Step 1: The PFL review (TR-R14) and what waits on it (one estimate left, the T/O flap glide row); Step 2: Refactor the flying layer; Step 3: Refresh spec.md against the new requirements; Step 4: Fix the real faults found at the reset pin; Step 5: Build what the ratified requirements ask for and the screen lacks; Step 6: Check the camera, graphics and scenery work against the code; Step 7: Sign-off. Only what is in `plan.md` gets built.
+Step 2's refactor is done, its clean-up included (DADS v2.10.29). Next are Step 4's screen faults (Patrick, 4 Oct 19:52Z). The plan's steps, in order: Step 1: The PFL review (TR-R14) and what waits on it (one estimate left, the T/O flap glide row); Step 2: Refactor the flying layer; Step 3: Refresh spec.md against the new requirements; Step 4: Fix the real faults found at the reset pin; Step 5: Build what the ratified requirements ask for and the screen lacks; Step 6: Check the camera, graphics and scenery work against the code; Step 7: Sign-off. Only what is in `plan.md` gets built.
 
 ## The files
 
@@ -27,9 +27,7 @@ Each has a working answer that the tool uses until it is settled.
 
 ### Waiting on Patrick now (also on the list in `../../PLAN.md`)
 
-- **See Traffic on screen at DADS v2.10.27** from the default start (the Busy circuit): the PFL, the closed pattern, High Key from anywhere, the go-around, the breakout, the deconfliction and the move-over, Spawn a conflict and the "More" button, calm and in a strong wind (spec 1a "Check on screen").
-- **Move-over speed:** the busy circuit's straight-in passes the runways at about 220 KIAS at 200 ft AGL while it moves over (flagged 4 Oct, not ruled). Is that acceptable, or should it slow?
-- **What next:** the clean-up (Step 2, PR 5) or the screen faults (Step 4); his card is open in the Traffic thread.
+- **See Traffic on screen at DADS v2.10.29** from the default start (the Busy circuit): the PFL, the closed pattern, High Key from anywhere, the go-around, the breakout, the deconfliction and the move-over, Spawn a conflict and the "More" button, calm and in a strong wind (spec 1a "Check on screen").
 - The PFL review items (D436, D438 to D440) were settled on Patrick's cards C2 to C7 (4 Oct 06:28Z to 06:35Z).
 
 ### Settled when this module's work resumes
