@@ -26,7 +26,11 @@ async function tagControls(page) {
   );
 }
 
-for (const route of ROUTES) {
+// Traffic is left out of this walk on Patrick's word (4 Oct 06:54Z: "Just delete those shitty tests"); its
+// faults are on docs/modules/traffic/future.md.
+const CHECKED_ROUTES = ROUTES.filter((route) => route !== '#/traffic');
+
+for (const route of CHECKED_ROUTES) {
   test(`every control on ${route} does something`, async ({ page }) => {
     // Each click starts from a fresh page, so nothing remembered from the last
     // one (a collapsed panel, say) moves the controls around.
