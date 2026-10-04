@@ -32,6 +32,29 @@ export const PILOT_SPAWN_PRESETS = Object.freeze([
   { id: 'rejoinStraight', label: 'Rejoin Straight-In Line (SI Rejoin, 2,700 ft, 140 kt)', routeId: 'ENT2', point: 1 },
 ]);
 
+/**
+ * The spots offered for a route, when not every point of it (Patrick, 4 Oct: for the overhead break only "Initial",
+ * "In the break", "Downwind" and "Perch"; Base waits until its start is settled). `point` counts from 1 on the
+ * built-in Moose Jaw Overhead break: 9 Final Entry (the run-in), 10 Break, 11 Break exit (the inner downwind,
+ * 140 kt), 12 Perch. The same spots the code's Initial and Inner Downwind presets use.
+ */
+export const SPOT_CHOICES = Object.freeze({
+  PAT1: Object.freeze([
+    { label: 'Initial', point: 9 },
+    { label: 'In the break', point: 10 },
+    { label: 'Downwind', point: 11 },
+    { label: 'Perch', point: 12 },
+  ]),
+});
+
+/** The spots for a route: its SPOT_CHOICES (those it has), or every point by its own name. [{ label, point }] */
+export function spotChoices(route) {
+  const count = route?.points?.length ?? 0;
+  const chosen = SPOT_CHOICES[route?.id]?.filter((c) => c.point <= count);
+  if (chosen?.length) return chosen.map((c) => ({ ...c }));
+  return Array.from({ length: count }, (_, i) => ({ label: route.points[i].label || route.points[i].tag || `Point ${i + 1}`, point: i + 1 }));
+}
+
 /** The Route list's last choice: an aircraft gliding in from the training area with the engine out (Patrick, 4 Oct). */
 export const PFL_FROM_AREA = 'pfl-area';
 
@@ -168,15 +191,15 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
   function fillSpots() {
     clear(spots);
     const route = currentRoute();
-    for (let i = 0; i < (route?.points?.length ?? 0); i++) {
-      const spot = spotOf(route, i);
+    for (const choice of spotChoices(route)) {
+      const spot = spotOf(route, choice.point - 1);
       const button = h('button', {
         type: 'button',
         class: 'button spawn-spot',
-        dataset: { point: String(i + 1) },
+        dataset: { point: String(choice.point) },
         title: `${spot.label}: ${feet(spot.alt)} ft, ${spot.kt} kt`,
-        onclick: () => spawnAt(i + 1),
-      }, spot.label);
+        onclick: () => spawnAt(choice.point),
+      }, choice.label);
       guardButton(button, ['spawnDelayS']);
       spots.appendChild(button);
     }

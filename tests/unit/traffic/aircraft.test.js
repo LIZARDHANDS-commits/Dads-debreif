@@ -128,12 +128,17 @@ test('the spawner shows Type and Route, a button for each spot of the route, and
   assert.equal(buttonNamed(spawner, '+ Spawn'), undefined, 'a spot press replaces + Spawn');
 });
 
-test('choosing a route shows its spots: the overhead break has thirteen, the closed pattern start says so', () => {
-  const { spawner } = setup();
+test('the overhead break offers only Initial, In the break, Downwind and Perch (Patrick, 4 Oct), at spots the route already has', () => {
+  const { spawner, sim, settings } = setup();
   chooseRoute(spawner, 'PAT1');
-  assert.equal(spotButtons(spawner).length, 13);
-  assert.ok(spot(spawner, 'Final Entry'));
-  assert.equal(spot(spawner, 'Departure End (Closed Pattern)').getAttribute('title'), 'Departure End (Closed Pattern): 2,400 ft, 140 kt');
+  assert.deepEqual(spotButtons(spawner).map(words), ['Initial', 'In the break', 'Downwind', 'Perch']);
+  assert.deepEqual(spotButtons(spawner).map((b) => b.getAttribute('title')), ['Final Entry: 3,500 ft, 220 kt', 'Break: 3,500 ft, 220 kt', 'Break exit: 3,500 ft, 140 kt', 'Perch: 3,500 ft, 120 kt']);
+  spot(spawner, 'Perch').dispatch('click');
+  const added = sim.state().aircraft.at(-1);
+  assert.equal(added.routeId, 'PAT1');
+  assert.equal(settings.get().spawnStartPoint, 12, 'the Perch is the twelfth spot of the route');
+  chooseRoute(spawner, 'ENT2');
+  assert.equal(spotButtons(spawner).length, 6, 'the SI Rejoin keeps every spot');
 });
 
 test('pressing a spot adds an aircraft there, names it, and tells the screen', () => {
