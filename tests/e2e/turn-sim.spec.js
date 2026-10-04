@@ -884,7 +884,7 @@ test('opens from its card on the home screen', async ({ page }) => {
   await openRoute(page, '#/');
   await page.locator('a.card[href="#/turn-sim"]').click();
   await page.waitForFunction(() => window.__ooda.stats().mounted === 'turn-sim');
-  await expect(page).toHaveTitle("Formation Turn Sim · DAD's OODA LOOP");
+  await expect(page).toHaveTitle("Pat's Formation Simulator · DAD's OODA LOOP");
   await expect(playButton(page)).toBeVisible();
   await expect.poll(() => pixelsNear(page, [0, 102, 255])).toBeGreaterThan(20);
 });
