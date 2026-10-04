@@ -97,7 +97,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   const spacingFlag = h('p', { class: 'ts-warning', role: 'status', hidden: true });
   const fourLine = h('p', { class: 'ts-fixed', hidden: true });
   // The 4-ship delayed 45 with or without its check turn (Patrick, 4 Oct 11:28Z); shown only in the 4-ship.
-  const check45Field = h('div', { class: 'ts-field', hidden: true }, setupControls.checkbox('check45', { label: '4-ship Delayed 45 with the check turn (SMM Fig 16.34)' }));
+  const check45Field = h('div', { class: 'ts-check', hidden: true }, setupControls.checkbox('check45', { label: 'Delayed 45 with the check turn (SMM Fig 16.34)' }));
   const setup = h('section', { class: 'ts-setup', 'aria-labelledby': 'ts-setup-title' },
     h('h3', { class: 'ts-group-title', id: 'ts-setup-title' }, 'Setup'),
     h('div', { class: 'ts-field' }, setupControls.choice('ships', { label: 'Formation', options: [{ value: 2, label: '2-ship' }, { value: 4, label: '4-ship' }] })),

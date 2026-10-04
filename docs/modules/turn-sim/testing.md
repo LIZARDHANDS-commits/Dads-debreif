@@ -41,7 +41,7 @@ The 4-ship's checks are in `tests/unit/turn-sim/four-ship.test.js`, with the 2-s
 1. Four aircraft side by side facing 000, #4 #3 Lead #2 from left to right, 6,000 ft apart, on a stack (the Formation card shows #2 +300, #3 -300, #4 -600 against Lead); the shackle and cross turn buttons are gone.
 2. Delayed 90 right: they turn one after another from the outside in (#4, #3, Lead, #2 with #2 on the right) and roll out abreast, sides swapped, one spacing apart. Left turns go the other way round.
 3. Delayed 45 right: the outside aircraft turns 45 first; each other aircraft checks a little back toward it, then turns; all roll out abreast on the new heading, the first to check a little tight.
-3b. Clear "4-ship Delayed 45 with the check turn" under Setup and fly Delayed 45 again: nobody checks away; they turn one after another and roll out abreast at one spacing.
+3b. Clear "Delayed 45 with the check turn" under Setup and fly Delayed 45 again: nobody checks away; they turn one after another and roll out abreast at one spacing.
 4. Check 20 keeps the line turned 20°; in place 90 ends as a column of four; the hook comes back the other way abreast.
 5. Nothing jumps; the camera keeps all four in view; ground tracks and dashed planned paths show for all four; 3D shows all four at their heights.
 6. Switch back to 2-ship: it starts again from the 2-ship's default start. Switch to 4-ship again: back to the 4-ship's default start.
