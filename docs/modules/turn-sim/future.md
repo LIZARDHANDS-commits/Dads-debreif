@@ -21,7 +21,7 @@ Patrick, 4 Oct (review thread): he wants all of V6's features eventually, added 
 
 - The 4-ship (4312 reading #4 #3 #1 #2 from behind, TS-44; 2134) and the offset box, each wingman flying off its reference aircraft.
 - Plan mode on the same core: pick a start and a manoeuvre, press Play (TS-R1).
-- Errors and faults (TS-R8): late or early, more or less G, wide, tight, fore or aft; one-click faults (TS-Q16); the hook's G adjustment at the 90° point and the wingman's roll-out fixes come with them (TS-48).
+- Errors and faults (TS-R8): the first layer is built (TS-52: late or early, wide, tight, fore or aft, high or low; carried or fixed). Still here: more or less G as an error; one-click faults (TS-Q16); the wingman's roll-out fix with a speed and heading change (the lever for fore/aft errors the planned turn cannot take out at constant speed, which needs Patrick's yes against TS-38); injecting an error between presses (during a flying manoeuvre or in line abreast); hiding the error until after the roll-out so it can be spotted; errors for the 4-ship.
 - Pressing a button mid-turn and re-planning from the banked state (the first version queues it, TS-45).
 - The clock cue drawn as a picture (where the other aircraft is at the turn point), and a Clock cue timing option (TS-R7, TS-40).
 - An angle box for the check turn (5 to 30°; the first version flies 20°, TS-46).

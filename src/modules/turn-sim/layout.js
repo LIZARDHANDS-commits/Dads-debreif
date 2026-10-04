@@ -7,6 +7,7 @@ import { h, clear } from '../../ui-kit/dom.js';
 import { createPanel } from '../../ui-kit/panel.js';
 import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
+import { ERROR_FIELDS, RESPONSE_OPTIONS } from './live/errors.js';
 
 /**
  * What the screen remembers in this browser: which columns are open, which
@@ -93,6 +94,19 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   );
   movesPanel.body.append(setup);
 
+  // ---- Errors (training): closed, and every error starts at None (TS-52) ----
+  const errorsSection = h('details', { class: 'ts-errors' },
+    h('summary', {}, 'Errors (training)'),
+    h('p', { class: 'ts-hint' }, 'Start #2 out of position or rolling in off time, then see him carry the error or fix it. Reset puts it back.'),
+    ...ERROR_FIELDS.map((f) => h('div', { class: 'ts-field ts-error-row' },
+      setupControls.select(f.key, { label: f.label, options: f.options }),
+      setupControls.number(f.amountKey, { label: 'Amount', unit: f.unit, min: f.min, max: f.max, step: f.step }))),
+    h('div', { class: 'ts-field' }, setupControls.select('errResponse', { label: '#2 then', options: RESPONSE_OPTIONS })),
+    h('div', { class: 'ts-field' }, setupControls.checkbox('errRandom', { label: 'One random error at every Reset (replaces the choices above)' })),
+    h('p', { class: 'ts-hint' }, 'Fix it: #2 rolls in earlier or later and changes his bank, as far as he can at constant speed. Normal reference: he flies the standard turn and the error shows at the end.'),
+  );
+  movesPanel.body.append(errorsSection);
+
   // ---- Stage: the playback bar and Layers above the picture -----------------
   const playGlyph = h('span', { 'aria-hidden': 'true' }, '▶');
   const playLabel = h('span', {}, 'Play');
@@ -151,12 +165,14 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   // ---- Formation card -----------------------------------------------------------
   const flying = h('p', { class: 'ts-line ts-flying' });
   const flyingNote = h('p', { class: 'ts-line ts-turn' });
+  const errorSet = h('p', { class: 'ts-line ts-error-set', hidden: true });
+  const errorOutcome = h('p', { class: 'ts-line ts-judged ts-error-outcome', 'aria-live': 'polite', hidden: true });
   const now = h('ul', { class: 'ts-lines', 'aria-label': 'The pair now' });
   const judged = h('p', { class: 'ts-line ts-judged', 'aria-live': 'polite' });
   const ships = h('ul', { class: 'ts-card', 'aria-label': 'Each aircraft' });
   const formationPanel = createPanel({ title: 'Formation', onToggle: (c) => layout.update({ formationColumn: !c }) });
   formationPanel.body.append(
-    flying, flyingNote,
+    flying, flyingNote, errorSet, errorOutcome,
     h('h3', { class: 'ts-group-title' }, 'Now'), now,
     h('h3', { class: 'ts-group-title' }, 'Last roll-out'), judged,
     h('h3', { class: 'ts-group-title' }, 'Each aircraft'), ships,
@@ -182,6 +198,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   applyLayout(layout.get());
 
   let lastJudged = null;
+  let lastOutcome = null;
 
   return {
     element,
@@ -220,7 +237,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     },
     /**
      * The Formation card. r: { flying, note, queued, nowLines: [text], judged: { text, tone } | null,
-     * ships: [{ id, name, text }] }.
+     * errors: { set, outcome: { text, tone } | null } | null, ships: [{ id, name, text }] }.
      */
     renderCard(r) {
       flying.textContent = r.flying;
@@ -237,6 +254,16 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
         judged.textContent = judgedText;
         judged.className = `ts-line ts-judged tone-${r.judged?.tone ?? 'none'}`;
       }
+      // The training error, when one is set: what it is, then (once, after the roll-out) whether #2 carried or fixed it.
+      errorSet.textContent = r.errors?.set ?? '';
+      errorSet.hidden = !r.errors;
+      const outcomeText = r.errors?.outcome?.text ?? '';
+      if (outcomeText !== lastOutcome) {
+        lastOutcome = outcomeText;
+        errorOutcome.textContent = outcomeText;
+        errorOutcome.className = `ts-line ts-judged ts-error-outcome tone-${r.errors?.outcome?.tone ?? 'none'}`;
+      }
+      errorOutcome.hidden = !outcomeText;
       clear(ships);
       for (const s of r.ships) ships.append(h('li', {}, swatch(s.id), h('strong', {}, s.name), ' ', h('span', {}, s.text)));
     },

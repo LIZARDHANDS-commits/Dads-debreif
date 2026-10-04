@@ -42,7 +42,7 @@ const wholeDegree = (rad) => wrapPi(Math.round(rad / DEG) * DEG);
 const unit = (h) => ({ x: Math.cos(h), y: Math.sin(h) });
 const dot = (a, b) => a.x * b.x + a.y * b.y;
 /** Rounds a time to the fixed step, so two aircraft flying the same turn at different times fly exact copies of it. */
-const onStep = (sec) => Math.max(0, Math.round(sec / STEP_SEC)) * STEP_SEC;
+export const onStep = (sec) => Math.max(0, Math.round(sec / STEP_SEC)) * STEP_SEC;
 
 /** Where `b` is from `a` in a's frame: { fwd, left } in feet. */
 export function relativeTo(a, b) {
@@ -127,7 +127,7 @@ function together(pair, m, dir) {
 }
 
 /** The wingman's height for a crossing turn: up (or down) by the miss before the cross, back to Lead's height after. */
-function missProfile(t0, crossSec, endSec, sign = 1) {
+export function missProfile(t0, crossSec, endSec, sign = 1) {
   const up = Math.max(crossSec - 1, t0 + 2);
   const down = Math.min(crossSec + 1, endSec - 2);
   return [

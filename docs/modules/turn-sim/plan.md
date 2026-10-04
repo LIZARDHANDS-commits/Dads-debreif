@@ -64,7 +64,7 @@ The three lists below are kept from the review's brief as references. Nothing in
 ## Step 4. Next, one at a time on the same core
 
 - [ ] In this order unless Patrick reorders: G-warm, entry to line abreast, rejoins (turning rejoin first, then fighting wing and fluid manoeuvring, TS-Q20), other formations, the 4-ship (TS-44's 4312 order), then the V6 features on `future.md`. Each gets its own short spec and Patrick's yes before it is built; the four-ship G-warm picture is checked with him first.
-- [ ] The error-practice layer (TS-R8), with questions D and E.
+- [x] The error-practice layer (TS-R8), first version built 4 Oct as training errors (TS-52, `spec.md` section 8): position and timing errors, "Turn at normal reference" or "Fix it", behind a closed section, default off. Patrick to fly it and answer the questions in `README.md` (questions D and E are folded into them). Still to come: the roll-out fix (speed and heading), a G error, injecting an error between presses (`future.md`).
 
 ## Step 5. Sign-off
 

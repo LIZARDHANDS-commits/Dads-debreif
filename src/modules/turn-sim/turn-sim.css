@@ -200,6 +200,33 @@
   margin-top: 0;
 }
 
+/* Errors (training): a closed section under Setup; each row is a choice and its amount. */
+[data-module='turn-sim'] .ts-errors {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+[data-module='turn-sim'] .ts-errors > summary {
+  cursor: pointer;
+  color: var(--accent-strong);
+  font-size: var(--text-sm);
+  letter-spacing: 0.02em;
+}
+
+[data-module='turn-sim'] .ts-errors > .ts-hint {
+  margin: var(--space-2) 0;
+}
+
+[data-module='turn-sim'] .ts-error-row {
+  margin-bottom: var(--space-3);
+}
+
+[data-module='turn-sim'] .ts-error-set {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
 [data-module='turn-sim'] .ts-fixed {
   margin: var(--space-2) 0 0;
   font-size: var(--text-sm);

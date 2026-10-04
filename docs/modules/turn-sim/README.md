@@ -31,6 +31,7 @@ Each has a working answer that the tool uses until it is settled.
 - **Retire the plan-mode code and its tests?** (`plan.md` Step 3).
 - **The low block height** for the IAS-to-TAS conversion (8,000 ft is an estimate, TS-38), and whether the wingman passes above (the working answer) or below in the crossing turns (TS-42).
 - **The hook's G change** at the 90° point is not flown when on speed and spacing (TS-48); confirm.
+- **Training errors (TS-52, built 4 Oct, behind "Errors (training)")**: fly them (`testing.md`, "Sign-off checklist, training errors"); confirm which way "sucked" and "acute" go (working reading: sucked = ahead, acute = behind); confirm "Fix it" as the default response; the fix may use bank 50 to 75° (estimate) and a roll-in delay but not a speed change (TS-38): a speed lever is your call. The settings proposal is in the project files (`turn-sim-review/errors/settings-proposal.md`).
 - **The two PC-only reports** (Turn Sim and Turn Fight architecture reports): where in the repo their content lands (`pf/reset/2-inventory/file-register.md:194`).
 
 ### Deferred to the Turn Sim review

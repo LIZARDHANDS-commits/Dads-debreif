@@ -17,6 +17,7 @@ import { createControls } from '../../ui-kit/controls.js';
 import { STEP_SEC } from './live/flight.js';
 import { MANOEUVRES, relativeTo, turnRadiusAt } from './live/manoeuvres.js';
 import { createFormation, LIVE_DEFAULTS, checkSpacing, compassDeg, fixedLine, intoOrAway, labelFor } from './live/formation.js';
+import { ERROR_DEFAULTS, ERROR_ALLOWED, errorCardLines } from './live/errors.js';
 import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, LAYOUT_VERSION, SHIP_COLORS } from './layout.js';
 import { createTurnSimView } from './view.js';
 import { createView3d } from './view3d.js';
@@ -44,7 +45,7 @@ function layoutStore(storage) {
   return { get: (_name, fallback) => storage.get('layout', fallback), set: (_name, value) => storage.set('layout', value) };
 }
 
-const SETUP_DEFAULTS = Object.freeze({ spacingFt: LIVE_DEFAULTS.spacingFt, wingSide: LIVE_DEFAULTS.wingSide });
+const SETUP_DEFAULTS = Object.freeze({ spacingFt: LIVE_DEFAULTS.spacingFt, wingSide: LIVE_DEFAULTS.wingSide, ...ERROR_DEFAULTS });
 
 const ftText = (n) => `${Math.round(n).toLocaleString('en-CA')} ft`;
 const bankText = (deg) => (Math.abs(deg) < 0.5 ? 'wings level' : `bank ${Math.round(Math.abs(deg))}° ${deg > 0 ? 'L' : 'R'}`);
@@ -81,6 +82,7 @@ function cardFor(state, wingSide) {
       `#2 is ${ftText(Math.abs(wing.altAboveFt - lead.altAboveFt))} ${wing.altAboveFt >= lead.altAboveFt ? 'above' : 'below'} Lead`,
     ],
     judged,
+    errors: errorCardLines(state),
     ships: state.aircraft.map((a) => ({
       id: a.id,
       name: a.name,
@@ -95,7 +97,7 @@ function mount(root, app) {
   stylesheet.href = STYLESHEET;
   document.head.append(stylesheet);
 
-  const setup = createSettings(memoryStore(), SETUP_DEFAULTS, { allowed: { wingSide: ['right', 'left'] } });
+  const setup = createSettings(memoryStore(), SETUP_DEFAULTS, { allowed: { wingSide: ['right', 'left'], ...ERROR_ALLOWED } });
   const layout = createSettings(layoutStore(app.storage), LAYOUT_DEFAULTS, { allowed: LAYOUT_ALLOWED, version: LAYOUT_VERSION });
   const setupControls = createControls(setup);
   const layoutControls = createControls(layout);

@@ -72,11 +72,36 @@ Picture: `turn-sim-review/first-version/screen-mockup.png` in the project files.
 - Each manoeuvre is one small path-builder in `src/modules/turn-sim/live/manoeuvres.js`; a new button is a new builder.
 - The V6 feature list is on `future.md`.
 
-Code: `src/modules/turn-sim/live/flight.js` (one aircraft, one step), `live/manoeuvres.js` (the builders), `live/formation.js` (the pair, presses, tracks, judging), `index.js` (the mount), `layout.js` (the screen), `view.js` and `view3d.js` (the pictures). Shared math only from `src/core/` (`easeRoll`, `turnRateFromBankRadPerSec`, `gFromBankDeg`, `bankDegFromG`, `turnRadiusFromBankFt`, `pitchDegFromClimb`, `iasToTasKt`, `wrapPi`).
+Code: `src/modules/turn-sim/live/flight.js` (one aircraft, one step), `live/manoeuvres.js` (the builders), `live/formation.js` (the pair, presses, tracks, judging), `live/errors.js` (training errors, section 8), `index.js` (the mount), `layout.js` (the screen), `view.js` and `view3d.js` (the pictures). Shared math only from `src/core/` (`easeRoll`, `turnRateFromBankRadPerSec`, `gFromBankDeg`, `bankDegFromG`, `turnRadiusFromBankFt`, `pitchDegFromClimb`, `iasToTasKt`, `wrapPi`).
 
 ## 7. Checks (light, per the rule book)
 
 Pilot-recognisable end pictures only (`tests/unit/turn-sim/live.test.js`): each button, both directions and with #2 on either side, ends in the picture in section 3 (who is where, which way they face, spacing within ±100 ft of the start, heading within ±5°); bank never passes the manoeuvre's bank by more than half a degree and G stays at 3; the shackle and cross turn keep at least 300 ft vertical at the cross; every hand-over is smooth (F12: no jump in position, track, bank or pitch, roll rate within 90°/s, its build-up within 360°/s², pitch rate never stepping by more than 0.5°/s, about 0.1 G); a press while flying is queued. No time gates. CI on the pull request is the one check. Sign-off: Patrick flies every button in the real app from the default start.
+
+## 8. Training errors (TS-52, added 4 Oct, not yet in Patrick's sign-off)
+
+A training aid, behind a closed "Errors (training)" section in the Manoeuvres panel. Default off: with every error "none" the screen and the flying are exactly as in sections 1 to 7.
+
+| Setting | Default | Range | What it does | Source |
+|---|---|---|---|---|
+| Fore/aft | none | ahead, behind; amount 100 to 3,000 ft (default 1,200) | #2 starts that far ahead of ("sucked") or behind ("acute") the SMM slot, along Lead's heading. The working reading of those two words is Patrick's to confirm. | SMM 12.18 para 39 (station-keeping terms), 16.18 para 49 (bands); amount: estimate |
+| Spacing | none | wide, tight; amount 100 to 3,000 ft (default 1,500) | #2 starts that far wider or closer than the Spacing box. | SMM 16.18 para 49, 16.19 para 54 NOTE; amount: estimate |
+| Height | none | high, low; amount 100 to 2,000 ft (default 500) | #2 starts that far above or below Lead. | SMM 16.13 para 31; amount: estimate |
+| Timing | none | late, early; amount 0.5 to 10 s (default 2) | #2's first roll-in goes that late or that early. Early beyond the button press makes Lead wait, so the press time is not moved. | SMM 16.19 paras 58, 62; amount: estimate |
+| Response | Fix it | Turn at normal reference, Fix it | See below. | Patrick 4 Oct 10:51Z |
+| Random error | off | on, off | At Reset, picks one error of a random kind, a random way and a random size (fore/aft 500 to 2,500 ft, spacing 1,000 to 2,500 ft, height 300 to 1,000 ft, timing 2 to 6 s). The card says which. | Patrick 10:51Z (training aid); ranges: estimates |
+
+**Turn at normal reference.** #2 flies the standard manoeuvre, standard timing and bank, from where he is. The error is carried through: the end picture is the SMM picture plus the start offset, turned with Lead's heading change. (SMM 16.19 para 52 NOTE: the wingman who does not adjust keeps the error.)
+
+**Fix it.** #2's plan is computed at the button press, as for every other manoeuvre, to end in the SMM picture. The levers are only what the aircraft can do at constant speed (TS-38): a delay before the roll-in (at most 30 s), the shackle's reversal time (plus or minus 20 s), bank on each half of the turn (50 to 75°, which is 1.6 to 3.9 G; above 3 G is flagged, not walled), and for height a smooth climb or descent (at most 60 ft/s, no step in climb rate). "Closer, turn early; wider, delay" is SMM 16.19 para 54 NOTE; "adjust the G or the anticipated heading" is para 52 NOTE; check turn gains LAB, para 58; shackle reversal timing, para 62; cross turn, para 64. The limits are estimates. A single turn is solved as two half-turns, so the bank can change at the 90° point (TS-48), with the bank change rolled smoothly (F12).
+
+**When the error is too big to fix.** Position along Lead's line (fore/aft) cannot be fully taken out at constant speed in the check turn, the Delayed 45 and the shackle; the lever there is a speed change, which TS-38 forbids. The planner flies the nearest it can, the Formation card says "fixed part of it" and gives the distance left. Nothing is clipped or snapped.
+
+**On the card.** The Formation card gains two lines: which errors are set and the mode, and, after roll-out, what happened ("#2 fixed it and ended in position", "#2 fixed part of it and ended 340 ft behind", or "#2 turned at the normal reference, so the error carried through"), plus any flag (G above 3, 3-D separation under 300 ft at the cross).
+
+**Failure and stale data.** A bad or missing error value is treated as "none" or the default amount; an unreachable fix is flown as near as possible and reported, never hidden. No outside data is used.
+
+Code: `src/modules/turn-sim/live/errors.js` (the offsets, the two modes, the card text); small hooks in `live/formation.js` (build, start, finish), `layout.js` (the Errors section and card lines) and `index.js` (settings and `cardFor`).
 
 ---
 
