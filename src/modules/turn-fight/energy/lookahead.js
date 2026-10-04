@@ -101,7 +101,7 @@ function noseOnSec(from, who, move, kias, cutSec) {
  */
 export function immelmannTopKias(p, ac, other, kias) {
   const sim = structuredClone(ac);
-  const alone = { setup: p };
+  const alone = { setup: { ...p, collisionAvoidance: false } }; // alone: no other aircraft to break away from
   startMove(alone, sim, 'immelmann', '', kias);
   sim.ctl.prevKias = sim.kias; sim.ctl.kiasRateEff = 0;
   let low = sim.kias;

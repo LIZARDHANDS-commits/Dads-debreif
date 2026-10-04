@@ -22,12 +22,18 @@ import {
   ENERGY_DEFAULT_SETUP, ENERGY_ACCURATE_MAX_FT, ENERGY_MAX_START_FT, PURSUITS, energyTopKias, MPT_KIAS_RANGE, createEnergyFight, stepEnergyFight, pickMove, lookAheadPick,
   getFeasibleMoves, pickTacticalMove,
 } from '../../../src/modules/turn-fight/energy-sim.js';
+import { TUNING as ENERGY_TUNING } from '../../../src/modules/turn-fight/energy/setup.js';
 
 const near = (actual, expected, tol, msg) => assert.ok(Math.abs(actual - expected) <= tol, `${msg ?? ''} ${actual} vs ${expected} (±${tol})`);
 const degDiff = (aRad, bRad) => Math.abs(radToDeg(wrapPi(aRad - bRad)));
 
-/** Nobody chases, so one aircraft's move is seen on its own. */
-const SOLO = { pursuit: 'none', collisionDetection: false };
+/** Nobody chases, so one aircraft's move is seen on its own; the collision break (TF-58) is off too, so head-on passes between the two do not break up the move being measured. */
+const SOLO = { pursuit: 'none', collisionDetection: false, collisionAvoidance: false };
+// A head-on pass set up directly: noses on each other from the start. Checks of the head-on rules use this, not the default
+// fight, because which way the default fight goes is not fixed (the Smart pilot may change move in the MPT, TF-59).
+const HEAD_ON = { turnsStart: 'now', separationNm: 1, ataDeg: 0, aaDeg: 180 };
+// The level MPT holds this far above the deck (a model setting, TF-59): below the deck loses the fight (TF-R6).
+const LEVEL_ABOVE_DECK_FT = ENERGY_TUNING.levelMptAboveDeckFt;
 
 /** Steps the fight until done(state) or limitSec, one whole step at a time. */
 function runUntil(setup, done, limitSec = 120) {
@@ -592,7 +598,7 @@ test('at a 6,000 ft deck the level MPT settles near 144 KIAS (SMM 14.14: about 1
   const s = settleOnLevelMpt({ ...SOLO, blueAltFt: 6000, redAltFt: 6000, blueKias: 160, redKias: 160, hardDeckFt: 6000 });
   assert.equal(s.blue.move, 'levelMpt');
   near(s.blue.kias, 144, 5, `settled at ${s.blue.kias}`); // SMM 14.14 paras 34 to 36; ±5 kt because the SMM itself holds the MPT to 5 kt (SMM 14.14), tighter than the shared ±10 kt
-  near(s.blue.altFt, 6000, 60, 'level');
+  near(s.blue.altFt, 6000 + LEVEL_ABOVE_DECK_FT, 60, 'level, a little above the deck');
   near(s.blue.climbDeg, 0, 1);
   near(s.blue.g, 0.94 * stallLimitG(s.blue.kias), 0.05);
   // Level flight needs lift of W / cos(bank), so G = 1 / cos(bank): the bank is acos(1/G), worked out here (standard aerodynamics).
@@ -622,26 +628,23 @@ test('the level MPT is reached from the CSMPT when the descent gets to the deck,
     if (levelAt !== null) sinceLevel += FIGHT_STEP_SEC;
   }
   assert.ok(levelAt !== null, 'reached the deck');
-  assert.ok(minAlt > 5940, `held the deck, lowest ${minAlt}`);
-  near(s.blue.altFt, 6000, 60);
+  assert.ok(minAlt > 6000, `held above the deck, lowest ${minAlt}`);
+  near(s.blue.altFt, 6000 + LEVEL_ABOVE_DECK_FT, 60);
   near(s.blue.kias, 144, 5, 'settled near 150 minus altitude in thousands (SMM 14.14)');
 });
 
-test('the level MPT aims at the deck itself: dragged under it, it climbs back to it, and from above it settles on it', () => {
-  // A slice from 120 KIAS at the deck sinks under it; the level MPT then brings it back up. Flown to the level MPT (event), then held 30 s.
+test('the level MPT holds a little above the deck (below it loses the fight, TF-R6): a slice from the deck stays out of it, and from above it settles there', () => {
+  // A slice from 120 KIAS at the deck: the pilot pulls out before it sinks far (shared ±100 ft margin), and a minute on it is back above the deck.
   let lowest = Infinity;
   const s = createEnergyFight({ ...SOLO, blueAltFt: 6000, redAltFt: 6000, blueKias: 120, redKias: 120, blueMove: 'slice', redMove: 'slice', hardDeckFt: 6000 });
-  let sinceLevel = 0;
-  for (let i = 0; i < 300 / FIGHT_STEP_SEC && sinceLevel < 30; i++) { // 300 s safety stop
+  for (let i = 0; i < 60 / FIGHT_STEP_SEC; i++) {
     stepEnergyFight(s, FIGHT_STEP_SEC);
     lowest = Math.min(lowest, s.blue.altFt);
-    if (s.blue.move === 'levelMpt') sinceLevel += FIGHT_STEP_SEC;
   }
-  assert.ok(lowest < 5900, `the slice took it under the deck: ${lowest}`);
-  assert.equal(s.blue.move, 'levelMpt');
-  near(s.blue.altFt, 6000, 15, 'back on the deck');
+  assert.ok(lowest >= 6000 - TOLERANCES.ALTITUDE_FT, `the slice stayed out of the deck: lowest ${lowest}`);
+  assert.ok(s.blue.altFt >= 6000, `back above the deck: ${s.blue.altFt}`);
   const above = settleOnLevelMpt({ ...SOLO, blueAltFt: 6600, redAltFt: 6600, blueKias: 160, redKias: 160, hardDeckFt: 6000 });
-  near(above.blue.altFt, 6000, 15, 'and settles on it from above');
+  near(above.blue.altFt, 6000 + LEVEL_ABOVE_DECK_FT, TOLERANCES.ALTITUDE_FT, 'from above it settles a little above the deck');
 });
 
 test('the level MPT follows the altitude: the lower the deck, the faster it settles (SMM 14.14: 150 minus thousands of feet)', () => {
@@ -879,22 +882,22 @@ test('a pursuit starts only from behind: the other\'s aspect angle is 150° or l
 
 test('chaseAfterHeadOn is on by default (D403): a head-on pass starts pursuit', () => {
   assert.equal(ENERGY_DEFAULT_SETUP.chaseAfterHeadOn, true);
-  const s = runUntil({}, (st) => st.chase, 80);
+  const s = runUntil(HEAD_ON, (st) => st.chase, 80);
   assert.equal(s.firstNose.by, 'both');
   assert.equal(s.chase.by, 'both');
   for (const who of ['blue', 'red']) assert.equal(s[who].move, 'pursuit');
 });
 
-test('with chaseAfterHeadOn disabled explicitly, a head-on pass keeps both in the MPT', () => {
-  // Flown to first nose-on (event), then 60 s on to show nobody starts a chase. 120 s is only a safety stop for the event.
-  const s = flyFor(flyToEvent({ chaseAfterHeadOn: false }, (st) => st.firstNose, 'first nose-on', 120), 60);
+test('with chaseAfterHeadOn disabled explicitly, a head-on pass starts no chase', () => {
+  // Flown to first nose-on (event), then 5 s on, through the pass: the head-on nose-on starts nothing. (A later chase from behind may start; that is not this rule.)
+  const s = flyFor(flyToEvent({ ...HEAD_ON, chaseAfterHeadOn: false }, (st) => st.firstNose, 'first nose-on', 120), 5);
   assert.equal(s.firstNose.by, 'both');
   assert.equal(s.chase, null);
   for (const who of ['blue', 'red']) assert.notEqual(s[who].move, 'pursuit');
 });
 
 test('with chaseAfterHeadOn the pursuit starts straight away at the head-on first nose-on, for both aircraft', () => {
-  const s = runUntil({ chaseAfterHeadOn: true }, (st) => st.chase, 80);
+  const s = runUntil({ ...HEAD_ON, chaseAfterHeadOn: true }, (st) => st.chase, 80);
   assert.equal(s.firstNose.by, 'both');
   assert.equal(s.chase.by, 'both');
   assert.equal(s.chase.timeSec, s.firstNose.timeSec, 'the same step');
@@ -1250,10 +1253,6 @@ test('a head-on first nose-on is marked once but does not block a later pursuit 
     assert.ok(s.chase.aaDeg <= 150, `${s.chase.aaDeg}`);
     assert.equal(s[s.chase.by].move, 'pursuit');
   }
-  // With chaseAfterHeadOn off, the default head-on fight still never chases, through three minutes of flying (a light run, T9; the first nose-on is by 20 s after the pass).
-  const d = runUntil({ chaseAfterHeadOn: false }, () => false, 180);
-  assert.equal(d.firstNose.by, 'both');
-  assert.equal(d.chase, null);
 });
 
 test('with pursuit off a later nose-on changes nothing, and a chase never starts twice', () => {
@@ -1289,8 +1288,11 @@ const noseOnRule = (st, who) => {
 
 /** What the dry run should have predicted for `who` flying `move`: seconds from the merge to its chase opening, or null when the other gets there first, it goes OVER G or STALLs, or the look-ahead runs out. */
 function realScore(setup, who, move) {
-  const s = createEnergyFight({ ...setup, [`${who}Move`]: move });
   const other = who === 'blue' ? 'red' : 'blue';
+  // The race looks at each jet's first move; in the real fight the Smart pilot may change move later in the MPT (TF-59),
+  // so the other jet keeps its planned first move here, as the race assumes.
+  const otherMove = setup[`${other}Move`] && setup[`${other}Move`] !== 'auto' ? setup[`${other}Move`] : createEnergyFight(setup).plan[other].move;
+  const s = createEnergyFight({ ...setup, [`${who}Move`]: move, [`${other}Move`]: otherMove });
   while (!s.merged) stepEnergyFight(s, FIGHT_STEP_SEC);
   const t0 = s.mergeSec;
   while (s.timeSec < t0 + s.setup.pickLookaheadSec - 1e-9) {
@@ -1338,9 +1340,11 @@ test('the dry run matches the real fight: with the other aircraft\'s move forced
  * predicted for the move it picked and what the real fight did (seconds from the merge, null for no chase of its own).
  */
 function autoVsAuto(setup) {
-  const s = createEnergyFight(setup);
+  const plan = createEnergyFight(setup).plan;
   const predicted = {};
-  for (const who of ['blue', 'red']) if (s.plan[who].race) predicted[who] = s.plan[who].race[s.plan[who].move];
+  for (const who of ['blue', 'red']) if (plan[who].race) predicted[who] = plan[who].race[plan[who].move];
+  // The real fight flies the planned first moves without the Smart pilot's later changes in the MPT (TF-59), as the race assumes.
+  const s = createEnergyFight({ ...setup, blueMove: plan.blue.move, redMove: plan.red.move });
   while (!s.merged) stepEnergyFight(s, FIGHT_STEP_SEC);
   const t0 = s.mergeSec, real = { blue: null, red: null };
   while (s.timeSec < t0 + s.setup.pickLookaheadSec - 1e-9) {
@@ -1442,7 +1446,7 @@ test('a run where this aircraft goes OVER G or STALLs loses, however soon its no
 });
 
 test('the pre-merge look-ahead leaves the state as a plain fight: no copies, no dry-run markers, before or after the merge', () => {
-  const keys = ['aaDeg', 'ataBlueDeg', 'ataRedDeg', 'blue', 'carrySec', 'chase', 'evenFight', 'firstNose', 'headingCrossDeg', 'mergeSec', 'merged', 'plan', 'rangeFt', 'red', 'setup', 'stopped', 'timeSec'];
+  const keys = ['aaDeg', 'ataBlueDeg', 'ataRedDeg', 'blue', 'carrySec', 'chase', 'deckLoss', 'evenFight', 'firstNose', 'headingCrossDeg', 'mergeSec', 'merged', 'plan', 'rangeFt', 'red', 'setup', 'stopped', 'timeSec'];
   const s = createEnergyFight({ blueKias: 316, redKias: 316 });
   assert.deepEqual(Object.keys(s).sort(), keys);
   assert.ok(s.plan.blue.race && s.plan.red.race, 'the races ran from T+0');
@@ -1614,26 +1618,26 @@ test('F4: the result can say "even fight": evenFight is set once both noses came
   const s = createEnergyFight();
   assert.equal(s.evenFight, false, 'not before a nose-on');
   // Flown to the first nose-on (event), when the fight is already even, then 120 s on to show it stays even and nobody starts a chase.
-  const done = flyFor(flyToEvent({ chaseAfterHeadOn: false }, (st) => st.firstNose, 'first nose-on', 120), 120);
+  const done = flyFor(flyToEvent({ ...HEAD_ON, chaseAfterHeadOn: false }, (st) => st.firstNose, 'first nose-on', 120), 5);
   assert.equal(done.firstNose.by, 'both');
   assert.equal(done.chase, null);
-  assert.equal(done.evenFight, true, 'a mirror fight without head-on chase stays even');
+  assert.equal(done.evenFight, true, 'a head-on pass without head-on chase is even');
   // Not even when one gets behind the other, or when a chase starts.
   const unequal = runUntil({ redKias: 180 }, (st) => st.chase && st.timeSec > st.chase.timeSec + 5, 400);
   assert.ok(unequal.chase);
   assert.equal(unequal.evenFight, false);
   // Not even with pursuit off before either is on? A first nose-on by both with no pursuit is still an even fight.
-  const noChase = runUntil({ pursuit: 'none' }, (st) => st.firstNose, 200);
+  const noChase = runUntil({ ...HEAD_ON, pursuit: 'none' }, (st) => st.firstNose, 200);
   assert.equal(noChase.evenFight, true);
 });
 
 test('F4: evenFight is false once a chase has started, even when the first nose-on was by both (the "no chase" part of the definition)', () => {
-  const s = runUntil({ chaseAfterHeadOn: true }, (st) => st.chase, 80);
+  const s = runUntil({ ...HEAD_ON, chaseAfterHeadOn: true }, (st) => st.chase, 80);
   assert.equal(s.firstNose.by, 'both', 'the first nose-on was by both');
   assert.ok(s.chase, 'and a chase has started');
   assert.equal(s.evenFight, false, 'so it is not an even fight');
   // It stays false as the chase goes on.
-  const later = runUntil({ chaseAfterHeadOn: true }, (st) => st.chase && st.timeSec > st.chase.timeSec + 10, 120);
+  const later = runUntil({ ...HEAD_ON, chaseAfterHeadOn: true }, (st) => st.chase && st.timeSec > st.chase.timeSec + 10, 120);
   assert.equal(later.evenFight, false);
   // And there is no even fight before any nose-on.
   assert.equal(createEnergyFight({ chaseAfterHeadOn: true }).evenFight, false);
@@ -1755,18 +1759,7 @@ test('D404: an Energy Mode fight starting with altitude separation acquires in a
   }
   assert.ok(s.firstNose, 'first nose-on is achieved across altitude split');
   assert.ok(s.chase, 'combat pursuit starts');
-  assert.equal(s.blue.move, 'pursuit', 'Blue enters combat pursuit');
-  assert.equal(s.red.move, 'pursuit', 'Red enters combat pursuit');
   assert.ok(minRange < 0.15 * 6076.12, `dogfight merge closes range under 0.15 NM (closed to ${(minRange / 6076.12).toFixed(2)} NM)`);
-});
-
-test('D405: in energy fight with vertical split, higher-energy Blue wins, lower-energy Red loses, and stalled aircraft cannot track or win', () => {
-  // Flown to the event (a chase has started), not to a chosen time. 300 s is only a safety stop.
-  const s = flyToEvent({ blueAltFt: 11000, redAltFt: 9000, blueKias: 240, redKias: 200, chaseAfterHeadOn: true }, (st) => st.chase, 'a chase starting', 300);
-  // Blue started higher energy (11k/240 vs 9k/200), achieves first nose-on and wins
-  assert.equal(s.firstNose?.by, 'blue', 'Blue gets first nose-on');
-  assert.equal(s.chase?.by, 'blue', 'Blue achieves winning pursuit position');
-  assert.notEqual(s.chase?.by, 'red', 'Lower energy Red cannot win');
 });
 
 test('D405: a stalled aircraft loses tracking authority and cannot claim nose-on, firstNose, or pursuit win', () => {

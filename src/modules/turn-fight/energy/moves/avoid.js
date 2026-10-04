@@ -16,7 +16,11 @@ const BREAK = Object.freeze({ soonSec: 4, missFt: 300, nearFt: 600, releaseFt: 1
 export function avoidCollision(ctx, cmd) {
   const { ac, other, p, f, kias, shaker } = ctx;
   if (p.collisionAvoidance === false || ac.ctl.mode === 'pursuit' || ac.ctl.mode === 'climbOut' || ac.stall || ac.tumble || !other?.pm || other.tumble) return cmd;
-  ac.deconflicting = dangerGate(ac.deconflicting, computeTcpa(ac, other), BREAK);
+  const cpa = computeTcpa(ac, other);
+  // At the closest point itself there is nothing left to dodge; without this a rounding error of 1e-18 s reads as closing
+  // and a dry run would break where the real fight does not.
+  if (cpa.closing && cpa.tcpaSec < 1e-6) cpa.closing = false;
+  ac.deconflicting = dangerGate(ac.deconflicting, cpa, BREAK);
   if (!ac.deconflicting) return cmd;
 
   const vHat = unit(velOf(ac.pm));

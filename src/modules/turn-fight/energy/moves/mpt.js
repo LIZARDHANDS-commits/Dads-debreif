@@ -6,7 +6,7 @@ import { T6A_LIMITS, iasToTasKt, t6aExcessFn } from '../../../../core/t6-perform
 import { dampedClimbG } from '../../../../core/flight-math.js';
 import { MPT_WITHIN_KT, MPT_BANK_MIN_DEG, MPT_BANK_MAX_DEG, TUNING, MOVE_LABELS, round, feet } from '../setup.js';
 import { clamp } from '../frame.js';
-import { pullCmdG, physicalBankCommand, willRoll } from './common.js';
+import { pullCmdG, physicalBankCommand, willRoll, deckDropFt } from './common.js';
 
 /**
  * The bank that steers the speed to the MPT speed: how fast the speed should
@@ -42,7 +42,8 @@ export function controlMpt(ctx) {
   if (!c.level) {
     const verticalSpeed = vFtps * Math.sin(climb);
     const levelFt = p.hardDeckFt + TUNING.levelMptAboveDeckFt; // a little above the deck: below it loses the fight (TF-R6)
-    if (f.altFt + verticalSpeed * TUNING.levelLeadSec <= levelFt) {
+    // The level-off starts in time: a few seconds ahead, or sooner when the pull-out from a steep dive needs more height.
+    if (f.altFt + verticalSpeed * TUNING.levelLeadSec <= levelFt || (climb < 0 && f.altFt - deckDropFt(ctx, Math.max(ctx.shaker - 1, 0.5)) <= levelFt)) {
       c.level = true;
       c.levelAltFt = levelFt;
       ac.move = 'levelMpt'; ac.moveLabel = MOVE_LABELS.levelMpt;

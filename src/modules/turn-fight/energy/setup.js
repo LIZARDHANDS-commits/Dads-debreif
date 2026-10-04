@@ -158,6 +158,7 @@ export const TUNING = Object.freeze({
   vmoMarginKias: 40,          // model setting: a chaser starts keeping its nose up this far under the top speed at its height (VMO, or true Mach 0.67 in the model's IAS above about 17,570 ft; energyTopKias)
   vmoLeadSec: 3,              // model setting: and looks this many seconds ahead at its speed
   vmoClimbPerKt: 0.02,        // model setting: nose-up path (sine) asked for per knot over that speed
+  deckGuardAboveFt: 100,      // model setting (estimate): every move but the chase pulls out of a dive that would bottom out less than this above the deck
   deckPullOutFactor: 1.3,     // model setting: a chaser's pull-out from a dive is worked out at this times the plain circle, for the speed it gains
   dryRunMaxSec: 40,           // model setting: the Immelmann dry run gives up after this long
 });

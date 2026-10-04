@@ -204,8 +204,8 @@ function endLostChase(ac, other, d) {
 }
 
 /**
- * The pilot's look at a new move while it flies the MPT: every 3.5 s, after a 4 s lock-out, above the deck
- * margin and not stalled or OVER G, it runs the look-ahead and takes any move but the MPT. Runs before the MPT's
+ * The pilot's look at a new move while it flies the MPT: every 3.5 s, after a 4 s lock-out, once the MPT has found
+ * its speed, above the deck margin and not stalled or OVER G, it runs the look-ahead and takes any move but the MPT. Runs before the MPT's
  * controller, so a new move flies from this same step. Not in a dry run, and not before the pass.
  */
 export function reconsiderInMpt(ctx) {
@@ -220,7 +220,8 @@ export function reconsiderInMpt(ctx) {
       // The Smart pilot looks again in the MPT with the look-ahead (TF-59), only when a chase is possible and the fight is not decided.
       if (isSmart(forced) && p.pursuit !== 'none' && !state.deckLoss) {
         const altMargin = ((ac.altFt ?? f.altFt) - p.hardDeckFt) > (p.deckMarginFt ?? 1000);
-        if (altMargin && !ac.stall && !ac.overG) {
+        // Only once settled in the MPT (its speed found): a pilot does not start a new move halfway through recovering from the last.
+        if (altMargin && !c.capture && !ac.stall && !ac.overG) {
           const best = pickTacticalMove(state, ac.who, p.tacticalLookaheadSec ?? 20);
           if (best && best.move !== 'mpt' && best.move !== 'levelMpt') {
             startMove(state, ac, best.move, best.why, kias);

@@ -53,8 +53,9 @@ test('the three groups of Energy settings cover every Energy key once', () => {
   assert.ok(ENERGY_CHECK_KEYS.length > 0, 'the model settings have a group');
   for (const key of ENERGY_KEYS) assert.ok(key in DEFAULTS, key);
   // The moves and pursuits the boxes offer are the engine's.
-  assert.deepEqual(ALLOWED.blueMove, [...ENERGY_MOVES]);
-  assert.deepEqual(ALLOWED.redMove, [...ENERGY_MOVES]);
+  // 'tactical' is Smart's old name: the engine still takes it, the boxes do not offer it (TF-59).
+  assert.deepEqual(ALLOWED.blueMove, ENERGY_MOVES.filter((m) => m !== 'tactical'));
+  assert.deepEqual(ALLOWED.redMove, ENERGY_MOVES.filter((m) => m !== 'tactical'));
   assert.deepEqual(ALLOWED.pursuit, [...PURSUITS]);
 });
 
