@@ -304,7 +304,7 @@ See 1a, items 15-19 (Patrick, 09:56Z, 4 Oct 2026). Touch-and-go is item 21 and H
 
 ### 4.12 Automatic deconfliction (Patrick, 4 Oct 09:40Z to 11:54Z)
 
-Design and Patrick's nine answers: project files, `traffic-deconfliction/design.md`. Code: `deconflict.js` (decides), `closest-approach.js` (the maths, moving to `src/core` after Turn Fight PR 3), `sim.js` (starts the moves). Setting: Traffic settings > Conflict limits > **Automatic deconfliction**, off at the start for now (a provisional overnight call, TR-49).
+Design and Patrick's nine answers: project files, `traffic-deconfliction/design.md`. Code: `deconflict.js` (decides), `closest-approach.js` (the maths, moving to `src/core` after Turn Fight PR 3), `sim.js` (starts the moves). Setting: Traffic settings > Conflict limits > **Automatic deconfliction**, off at the start for now (a provisional overnight call, TR-50).
 
 1. Every 0.5 s, from all the aircraft as they were before anyone moved, each aircraft's position is predicted every second for 15 s: along the path it is following, at today's ground speed, or straight on when it flies free.
 2. Nothing happens unless a pair would get inside the caution distance (500 ft and 500 ft, TR-Q11) within 15 s (Q2).
