@@ -167,7 +167,7 @@ Approved 4 Oct 2026 (Traffic refactor PR 2). Items 10-14 cover both the circuit 
     - The bank does not change for wind. The wind shapes the ground track ("Do not vary the angle of bank during the overhead break to compensate for a crosswind", SMM 4.18 para 42).
     - Speed bleeds off from 220 to about 140 KIAS over the turn, on today's curve (Patrick, 08:43Z). An idle-drag model replaces it only once it includes the prop's drag at idle and still gives about 140.
 12. **One break point that moves with the headwind.** The break starts 2,000 ft past the threshold in a 10 kt headwind (SMM 4.17 para 39). It moves later in more headwind and earlier in less (SMM 4.18 para 42).
-    - *Working answer, see question B:* it moves by (headwind − 10 kt) × the time the break turn takes, so the aircraft rolls out at the same ground point in any headwind.
+    - It moves by (headwind − 10 kt) × the time the break turn takes, so the aircraft rolls out at the same ground point in any headwind (Patrick, 08:48Z, "Same rollout spot").
     - That is about 1,700 ft past the threshold in calm air and about 2,300 ft in 20 kt (estimate from a turn of about 18 s).
     - It replaces today's two points: 2,000 ft in calm air, and V6's 3,818 ft point in any wind at all (route.js:609, :745).
 13. **Final turn.** It is a continuous descending turn from the perch to the window, up to 45° bank (SMM 4.19 paras 43-48).
