@@ -30,6 +30,7 @@ import { ktToFtps } from '../../core/units.js';
 import { createDice } from './dice.js';
 import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt } from './route.js';
 import { tickAircraft, initMode } from './tick-aircraft.js';
+import { startJoin } from './path-follower.js';
 import { makePflFromArea } from './nav-plans.js';
 import { startPflFlight } from './pfl.js';
 import { buildFullHighKeyRail, HIGH_KEY_PT } from './high-key.js';
@@ -75,6 +76,9 @@ const MOST_STEPS_AT_ONCE = 1e7;
 
 /** A snapshot every 10 s of sim time (200 steps). */
 const SNAPSHOT_EVERY_STEPS = 200;
+
+/** An entry hands over to its pattern where it passes closest to it, if within this, ft (an estimate). */
+const JOIN_NEAR_FT = 300;
 
 /**
  * The most snapshots kept. An hour is 361; past this many the run keeps every other one
@@ -290,11 +294,36 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           a.routeId = split.id;
           a.distFt = 0;
           a.phase = 'route';
-          const startP = whereIs(a, split);
-          if (Number.isFinite(a.x)) a.joinOffset = { x: a.x - startP.x, y: a.y - startP.y };
+          if (Number.isFinite(a.x)) startJoin(a, split, 0, { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 }, routeOptions());
         }
       }
     }
+  }
+
+  /**
+   * An entry that merges part-way round its pattern hands over on its last leg where it passes closest
+   * to the pattern's path, before the pattern rounds the corner at the merge point. Waiting for the
+   * entry's last point would put the aircraft into the pattern mid-turn, well off its track (Patrick,
+   * 4 Oct 09:21Z: the vector lines up with the track at the hand-over); startJoin then carries the
+   * aircraft's own track and speed smoothly onto the pattern's. Returns true when it handed over.
+   */
+  function joinWhenAligned(a, route, opt) {
+    if (route.kind !== 'entry' || !(+route.mergeIndex > 0) || route.points.length < 2) return false;
+    const target = routeById(route.attachTo);
+    if (!target || target.kind !== 'pattern') return false;
+    if (a.distFt < pointDistFt(route, route.points.length - 2, opt)) { delete a._mergeGapFt; return false; }
+    const here = { x: a.x ?? whereIs(a, route).x, y: a.y ?? whereIs(a, route).y };
+    const d = closestDistFt(target, here, opt);
+    const p = posOnRoute(target, d, opt);
+    const gapFt = Math.hypot(here.x - p.x, here.y - p.y);
+    const lastGapFt = a._mergeGapFt;
+    a._mergeGapFt = gapFt;
+    if (gapFt > JOIN_NEAR_FT || !(gapFt > lastGapFt)) return false; // still closing, or not near yet
+    delete a._mergeGapFt;
+    a.routeId = target.id;
+    startJoin(a, target, d, { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 }, opt);
+    a.phase = p.phase || 'initial';
+    return true;
   }
 
   /** The end of an entry or split: join the pattern it is linked to, or finish (V6 `handleRouteEnd`, line 365). */
@@ -313,10 +342,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       const mergeIndex = Math.max(0, Math.min(+route.mergeIndex || 0, target.points.length - 1));
       const curPos = { x: a.x ?? whereIs(a, route).x, y: a.y ?? whereIs(a, route).y };
       a.routeId = target.id;
-      a.distFt = closestDistFt(target, curPos, routeOptions()) + Math.max(0, overshootFt);
+      // The pattern's path passes close to, not exactly through, the entry's end: join it smoothly (spec item 13a).
+      startJoin(a, target, closestDistFt(target, curPos, routeOptions()) + Math.max(0, overshootFt), { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 }, routeOptions());
       const nextP = whereIs(a, target);
-      // The pattern's path passes close to, not exactly through, the entry's end: close the gap smoothly (spec item 13a).
-      a.joinOffset = { x: curPos.x - nextP.x, y: curPos.y - nextP.y };
       a.phase = nextP.phase || (target.kind === 'pattern' ? 'initial' : 'route');
       // TR-08: a straight-in joining at the threshold (first point) evaluates landing intent
       if (mergeIndex === 0) {
@@ -355,10 +383,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       const d0 = pointDistFt(pat, 0, opt), d1 = pointDistFt(pat, 1, opt);
       const legFt = Math.hypot(p1.x - p0.x, p1.y - p0.y) || 1;
       const along = ((a.x - p0.x) * (p1.x - p0.x) + (a.y - p0.y) * (p1.y - p0.y)) / legFt;
-      a.distFt = d0 + Math.max(0, Math.min(along, d1 - d0));
-      const np = whereIs(a, pat);
-      // The circuit's climb-out passes close to, not exactly through, the touchdown point: close the gap smoothly.
-      a.joinOffset = { x: a.x - np.x, y: a.y - np.y };
+      // The circuit's climb-out passes close to, not exactly through, the touchdown point: join it smoothly.
+      startJoin(a, pat, d0 + Math.max(0, Math.min(along, d1 - d0)), { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 }, opt);
       a.mode = 'RAIL';
       a.phase = 'touch_and_go';
       a.command = null;
@@ -399,6 +425,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         }
         if (a.active && len && a.distFt >= len && !isClosedRoute(route)) {
           handleRouteEnd(a, a.distFt - len);
+        } else if (a.active) {
+          joinWhenAligned(a, route, opt);
         }
       }
 

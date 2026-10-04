@@ -24,7 +24,7 @@ import { posOnRoute, closestDistFt, routeLengthFt, pointDistFt, isClosedRoute, D
 import { stepBreakout } from './breakout.js';
 import { stepHighKey } from './high-key.js';
 import { PFL_AIRFIELD } from './pfl-solver.js';
-import { followRoute } from './path-follower.js';
+import { followRoute, startJoin } from './path-follower.js';
 import { startPflFlight, PFL_ROUTE_OPTIONS } from './pfl.js';
 export { stepBreakout } from './breakout.js';
 export { stepHighKey } from './high-key.js';
@@ -295,9 +295,8 @@ export function stepClosedPattern(a, route = null, env = null, stepDt = 0.05, ro
   a._cpLastHdg = a.headingDeg ?? 0;
   if ((a._cpTurnedDeg ?? 0) > 360) {
     a.mode = 'RAIL';
-    a.distFt = closestDistFt(patRoute, { x: a.x ?? 0, y: a.y ?? 0 }, routeOptions);
+    startJoin(a, patRoute, closestDistFt(patRoute, { x: a.x ?? 0, y: a.y ?? 0 }, routeOptions), env, routeOptions);
     const joinPos = posOnRoute(patRoute, a.distFt, routeOptions);
-    a.joinOffset = { x: (a.x ?? joinPos.x) - joinPos.x, y: (a.y ?? joinPos.y) - joinPos.y };
     if (joinPos.phase) a.phase = joinPos.phase;
     a.command = null;
     delete a._cpTurnedDeg;
@@ -329,10 +328,8 @@ export function stepClosedPattern(a, route = null, env = null, stepDt = 0.05, ro
       const isDownwindLeg = railDist >= p10Dist + 50 && railDist <= p11Dist + 100;
       if ((distToRail <= 40 && isDownwindLeg) || distToPerchStart < 600) {
         a.mode = 'RAIL';
-        a.distFt = Math.max(p10Dist + 100, Math.min(p11Dist, railDist));
-        // The aircraft is a little off the rail here: close the gap smoothly instead of snapping (spec item 13a).
-        const capturePos = posOnRoute(patRoute, a.distFt, routeOptions);
-        a.joinOffset = { x: (a.x ?? capturePos.x) - capturePos.x, y: (a.y ?? capturePos.y) - capturePos.y };
+        // The aircraft is a little off the rail here: join it smoothly instead of snapping (spec item 13a).
+        startJoin(a, patRoute, Math.max(p10Dist + 100, Math.min(p11Dist, railDist)), env, routeOptions);
         a.phase = 'downwind';
         a.command = null;
         delete a._cpTurnedDeg;
