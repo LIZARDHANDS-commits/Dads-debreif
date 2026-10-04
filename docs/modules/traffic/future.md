@@ -12,6 +12,16 @@ Ideas for the Traffic Sim that are not being built. An idea moves into `plan.md`
 - A "Copy setup as text" helper for the routes, promised with the route redraw in `plan.md` Step 5 and lost; it was one of the small lost promises (`pf/reset/0-lessons/lessons.md:146`, `pf/reset/0-lessons/lessons.md:118`).
 - Patrick's gear-and-flaps drag idea for the forced landing is not listed here: it is in `plan.md` Step 1 (the PFL review), which is its single home.
 
+## Asked for by Patrick, waiting for his yes to move into the plan
+
+- Automatic deconfliction (Patrick, 4 Oct 09:40Z). Only when a conflict is close to happening, never far out:
+  - an aircraft that gets too close to another flinches (as in the turn-fight sim), then goes into a breakout;
+  - right-of-way rules: an aircraft that would perch and fly into a straight-in breaks out instead;
+  - a straight-in that has to go around, or one that someone perches on by accident, goes between the runways;
+  - a PFL coming in while an overhead aircraft reaches initial, where they would conflict: the fly-through (as the orders say), then a rejoin on downwind (to be checked with Patrick which aircraft flies through);
+  - traffic rejoining on an entry that would conflict breaks out and rejoins.
+  It overlaps PPQ-03 (automated SMM rules) and PPQ-04 (fly-through) below, and FF25. The rules need their Flying Orders and SMM pages before it is specced.
+
 ## The old Phase 2 queue for Traffic (PPQ-01 to PPQ-08)
 
 The two copies of the queue name some rows differently; both names are given. Parts of PPQ-01, 02 and 05 are already built in the circuit and forced-landing work (the queue itself says so), and TR-R14, TR-R31 and TR-R32 now cover what the first version must do; what is listed here is only the part that is left (`archive/docs/records/verification/swarm/POST_PROTOTYPE_QUEUE.md:45`, `archive/docs/REMEDIATION_ROADMAP.md:399`).
