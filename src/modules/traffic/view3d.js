@@ -419,6 +419,10 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     side: THREE.DoubleSide,
   });
   const photoMesh = new THREE.Mesh(photoGeometry, photoMaterial);
+  // The ground photos are see-through, so they draw in a fixed order, coarsest first and sharpest on top;
+  // left to sort by distance from the camera they swap, and a coarser one could hide a sharper one (Patrick 18:59Z).
+  // Negative, so everything else, the route lines included, still draws over the ground.
+  photoMesh.renderOrder = -4;
   photoMesh.visible = false;
   root.add(photoMesh);
 
@@ -426,6 +430,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   const midGeometry = new THREE.PlaneGeometry(MID_SPAN_FT, MID_SPAN_FT);
   const midMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.97, depthWrite: false, fog: false, side: THREE.DoubleSide });
   const midMesh = new THREE.Mesh(midGeometry, midMaterial);
+  midMesh.renderOrder = -3;
   midMesh.visible = false;
   root.add(midMesh);
 
@@ -433,6 +438,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   const tightGeometry = new THREE.PlaneGeometry(TIGHT_SPAN_FT, TIGHT_SPAN_FT);
   const tightMaterial = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide });
   const tightMesh = new THREE.Mesh(tightGeometry, tightMaterial);
+  tightMesh.renderOrder = -1;
   tightMesh.visible = false;
   root.add(tightMesh);
 
@@ -446,6 +452,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     side: THREE.DoubleSide,
   });
   const coreMesh = new THREE.Mesh(coreGeometry, coreMaterial);
+  coreMesh.renderOrder = -2;
   coreMesh.visible = false;
   coreMesh.position.set(AIRFIELD_CORE_BOUNDS_FT.centerX, AIRFIELD_CORE_BOUNDS_FT.centerY, 0);
   root.add(coreMesh);
