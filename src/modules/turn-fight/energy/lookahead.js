@@ -5,7 +5,7 @@
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { T6A_LIMITS, splitST6A, tasToIasKt, energyHeightFt } from '../../../core/t6-performance.js';
 import { FIGHT_STEP_SEC, FIGHT_MAX_SEC } from '../sim.js';
-import { ENERGY_DEFAULT_SETUP, TUNING, MOVE_LABELS } from './setup.js';
+import { ENERGY_DEFAULT_SETUP, TUNING, MOVE_LABELS, energyTopKias } from './setup.js';
 import { len, velOf, readPair } from './frame.js';
 import { stepAircraft } from './aircraft.js';
 import { startMove } from './moves/index.js';
@@ -190,7 +190,7 @@ export function getFeasibleMoves(ac, other = null, setup = ENERGY_DEFAULT_SETUP)
  * @param {any} state - Fight state
  * @param {any} who - 'blue', 'red', or aircraft object
  * @param {number} [lookaheadSec] - Lookahead horizon in seconds (default 20 s)
- * @returns {{ move: string, why: string, winSec: number|null, deltaAdv: number }}
+ * @returns {{ move: string, why: string, winSec: number|null, deltaAdv: number, valid: boolean }}
  */
 export function pickTacticalMove(state, who, lookaheadSec = (state.setup?.tacticalLookaheadSec ?? 20)) {
   const whoName = typeof who === 'string' ? who : (who?.who ?? 'blue');
@@ -206,6 +206,7 @@ export function pickTacticalMove(state, who, lookaheadSec = (state.setup?.tactic
       why: 'Smart: MPT baseline',
       winSec: null,
       deltaAdv: 0,
+      valid: true,
     };
   }
 
@@ -246,7 +247,8 @@ export function pickTacticalMove(state, who, lookaheadSec = (state.setup?.tactic
         stepOnce(sim);
         if (sim.timeSec >= FIGHT_MAX_SEC - 1e-6) sim.stopped = true;
 
-        if (me.stall || me.overG) {
+        // A run that STALLs, goes OVER G or passes the top speed for its height is not a move a pilot would choose.
+        if (me.stall || me.overG || me.kias > energyTopKias(me.altFt)) {
           valid = false;
           break;
         }
@@ -341,5 +343,6 @@ export function pickTacticalMove(state, who, lookaheadSec = (state.setup?.tactic
     why,
     winSec: best.winSec,
     deltaAdv: best.deltaAdv,
+    valid: best.valid,
   };
 }
