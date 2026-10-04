@@ -83,6 +83,16 @@ function errorCard(entry) {
   );
 }
 
+/** The Traffic Sim's own name in the top-left corner (Patrick, 4 Oct 10:09Z). */
+const TRAFFIC_BRAND = "Pat's CYMJ Traffic & Pattern Simulator";
+
+/** Sets the name in the top-left brand link, keeping its version badge. */
+function brandName(name) {
+  const brand = document.querySelector('a.brand');
+  const text = brand?.firstChild;
+  if (text && text.nodeType === Node.TEXT_NODE) text.textContent = `${name} `;
+}
+
 let firstShow = true;
 
 async function show(hash) {
@@ -91,6 +101,7 @@ async function show(hash) {
 
   /** @type {HTMLAnchorElement} */ ($('report-problem')).href = reportUrl({ page: entry.title, version });
   document.title = entry === pages.home ? "DAD's OODA LOOP" : `${entry.title} · DAD's OODA LOOP`;
+  brandName(entry.id === 'traffic' ? TRAFFIC_BRAND : "DAD's OODA LOOP");
   statusLine.hidden = true;
   try {
     await host.open(entry);

@@ -148,6 +148,9 @@ export const DEFAULTS = Object.freeze({
   closedPatternBankDeg: 50,
   closedPatternPitchDeg: 10,
 
+  // Aircraft size on the map: 1 = realistic, the real length with a smallest size so it can be seen (Patrick, 4 Oct 10:06Z).
+  aircraftScale: 1,
+
   // Set up a conflict: the first two aircraft in the list (or two new CT-156s
   // on Random), the first crossing on its list, 1 minute from now, arriving at
   // the same moment; rules left as they are until you pick "switch them off".
@@ -210,6 +213,7 @@ export const LIMITS = Object.freeze({
   sharePct: Object.freeze([0, 100]),
   closedPatternBankDeg: Object.freeze([30, 60]),
   closedPatternPitchDeg: Object.freeze([5, 25]),
+  aircraftScale: Object.freeze([1, 6]),
   // Not in the spec's list; V6's own ranges where it had them.
   photoOpacityPct: Object.freeze([5, 100]),
   photoTrim: Object.freeze([0.8, 1.2]),

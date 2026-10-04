@@ -33,6 +33,40 @@ Patrick approved this wording on 4 Oct 2026 (08:45Z). It replaces the old sectio
 8. **Speeds name their kind.** True airspeed is worked out from indicated airspeed and height everywhere. Indicated airspeed is no longer used as true airspeed in calm air. Track goes where track is meant, heading where heading is meant.
 9. **What you see is what is flown.** The 2D and 3D views draw the sim's own heading, bank and pitch. The 3D view stops working out its own bank from heading change (view3d.js:98-134). If a little drawn smoothing is still needed after this, it smooths only the picture; the flown numbers stay exact (Patrick, 08:01Z).
 
+
+## 1a. Manoeuvres and rejoins (approved 4 Oct 2026, Traffic refactor PR 4)
+
+Patrick approved this wording on 4 Oct 2026 (09:56Z). It replaces the old 4.9-4.11 text and adds touch-and-go and High Key from anywhere.
+
+### One climbing turn for every rejoin
+
+15. **One controller.** The closed pattern, High Key from anywhere, the go-around and the breakout all use today's closed-pattern climbing turn as one controller. The 1 s slide back onto the path, the pre-drawn High Key path and the extra phase machines go.
+16. **The climbing turn.**
+    - Bank comes from the setting, 45-60° (default 50°). It can roll up to 90° to stop the climb smoothly and turn toward the target (TR-R33).
+    - The climb is at full power and 140 KIAS. The climb rate comes from excess thrust at the turn's real G (`excessThrustPerWeight`), so it climbs less while turning harder.
+    - Pitch comes from the climb (spec item 6) and is shown.
+17. **Aim at where it joins, not at a point.** The turn aims at the place where it will meet its next path:
+    - closed pattern: the inner downwind line of today's built circuit, then the circuit's own perch and final turn;
+    - High Key: the 1/8 NM run-in (760 ft) to High Key;
+    - breakout: the ENT1 line at pattern height, at least 1 NM out (TR-R34).
+18. **Hand over only once on the path.** Control passes to the next path only when the aircraft is on it, with the same place, track, bank and pitch (item 13a). No snap and no slide.
+    - Today the snap is 31-69 ft and the go-around slide is about 4 NM in 1 s (measured 4 Oct).
+
+### Each manoeuvre
+
+19. **Closed pattern (4.11).** Pull-up at or after the upwind end of the runway (WFO art 402). One continuous climbing turn to the inner downwind, levelling at 3,500 ft, then the circuit's own perch and final turn (TR-R33).
+20. **Go-around (4.10).** Full power, straight ahead on the runway track. It levels at 2,500 ft until it crosses the upwind end of the runway, speeding up there, then trades that speed for height after it crosses (Patrick, 09:14Z). Then it flies the same climb-out as a take-off (item 10): climb at 180 KIAS to 3,500, accelerate to 220, crosswind turn at 220 onto the outer pattern (Patrick's card "Like a take-off", 09:18Z).
+21. **Touch-and-go.** It touches down and rolls on the runway from where it landed, then flies the take-off climb-out (item 10). It no longer jumps back to the threshold. The ground roll uses lift-off at 85 KIAS (today's take-off number, an estimate until checked).
+22. **Breakout (4.9).** An immediate climbing turn to 4,500 ft, staying 2 NM south of the pattern and clear of the rejoin lines, then rejoining on the ENT1 line at pattern height at least 1 NM out (TR-R34). Its bank and climb come from the same controller (item 16), not the old fixed 30-45° and 1,500-2,000 ft/min.
+23. **High Key from anywhere.** Press High Key anywhere: the aircraft flies the climbing turn onto the 1/8 NM run-in, climbs at full power, and arrives at High Key on the line. From there the PFL (PR 3) takes over.
+
+### Check on screen, at calm and in a strong wind
+
+- Closed pattern from the runway, go-around from short final, touch-and-go, breakout from downwind, and High Key from downwind and from initial.
+- Each one climbs, turns, levels and joins with no jump, slide or snap.
+- Bank stays within the setting except to stop the climb.
+- Every aircraft that rejoins lands on the runway.
+
 ---
 
 ## 2. Architecture
@@ -257,13 +291,13 @@ Approved 4 Oct 2026 08:54Z (Traffic refactor PR 3). Replaces the old 4.5 PFL_HIG
 See 4.1, item 10: at full power on runway heading, 5-7° nose up to 180 KIAS, 180 KIAS climb to 3,500 ft, accelerate to 220, crosswind turn once 220 is reached (Patrick, 08:11Z and 08:15Z, 4 Oct 2026; SMM 3.11, SMM 3.14 para 35, SMM 18.4 para 13).
 
 ### 4.9 BREAKOUT — Circuit Breakout
-KIN model. Immediate climbing turn (30–45° bank, 1,500–2,000 fpm) to 4,500 ft MSL (Updated per Patrick's approval, 2026-10-02). Steers toward breakout point 2.0 NM south of outer pattern center. Re-enters via ENT_OHB or ENT_SI.
+See 1a, items 15-18 and 22 (Patrick, 09:56Z, 4 Oct 2026).
 
 ### 4.10 GO_AROUND — Wave-off Climbout
-KIN model. Full power, climb straight ahead on 298° to 2,500 ft, level accel to departure end, zoom to 3,500 ft / 180 KIAS, accelerate to 220, crosswind turn to rejoin PAT_INNER downwind.
+See 1a, items 15-18 and 20 (Patrick, 09:56Z, 4 Oct 2026).
 
 ### 4.11 CLOSED_PATTERN — Closed Pattern Command
-Closed Pattern — aircraft enters PHYSICS mode, climbs to 3,500 ft in a 45° bank left turn, tracks toward the wind-corrected break rollout position. On completion, blends onto rails and joins the downwind leg.
+See 1a, items 15-19 (Patrick, 09:56Z, 4 Oct 2026). Touch-and-go is item 21 and High Key from anywhere is item 23.
 
 ---
 

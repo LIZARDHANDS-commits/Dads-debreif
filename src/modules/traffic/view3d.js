@@ -165,9 +165,9 @@ export function applyPose(mesh, pose, lengthFt) {
   mesh.rotation.set(-pose.bankRad, -pose.pitchRad, hdgRadOf(pose.headingDeg));
 }
 
-/** Feet an aircraft is drawn at, at a zoom (pixels to 1,000 ft): its real length, or MIN_PLANE_PX if that is smaller on screen. */
-export function planeLengthFt(zoom) {
-  return Math.max(T6_LENGTH_FT, MIN_PLANE_PX / (zoom / 1000));
+/** Feet an aircraft is drawn at, at a zoom (pixels to 1,000 ft): its real length, or MIN_PLANE_PX if that is smaller on screen, times the Aircraft size setting (1 = realistic). */
+export function planeLengthFt(zoom, scale = 1) {
+  return Math.max(T6_LENGTH_FT, MIN_PLANE_PX / (zoom / 1000)) * (Number(scale) > 0 ? Number(scale) : 1);
 }
 
 /** The CT-156 and CT-157 are the shared T-6; every other type (CT-102B, CT-102, CT-114, CT-155, CF-188) is a stand-in shape until it has its own model. */
@@ -510,7 +510,7 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
   function syncAircraft(scene, options) {
     const flying = scene.aircraft.filter(isFlying);
     const levels = conflictLevels(scene.conflicts ?? []);
-    const lengthFt = planeLengthFt(options.zoom);
+    const lengthFt = planeLengthFt(options.zoom, options.aircraftScale);
     const present = new Set();
     const wantRings = options.layerCautionRings !== false;
     const wantHeightLines = options.layerHeightLines !== false;
@@ -1289,6 +1289,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
       graphicsQuality: options.graphicsQuality,
       layerCautionRings: options.layerCautionRings,
       cautionLatFt: options.cautionLatFt,
+      aircraftScale: options.aircraftScale,
       zoom: shown.zoom, groundFt: floor, time: source.time(),
       fullModels: options.fullModels ?? true,
       layerHeightLines: options.layerHeightLines ?? heightLines,

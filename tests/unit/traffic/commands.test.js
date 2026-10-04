@@ -100,11 +100,19 @@ test('sim.command go_around aborts landing and initiates Departure End climb-out
   assert.equal(ac.command, 'go_around');
   assert.equal(ac.phase, 'go_around');
 
-  // Multi-phase climbout reaches 2,500 ft and accelerates under full power
-  sim.stepTo(45);
-  const acClimb = sim.state().aircraft.find((a) => a.id === 'A1');
-  assert.ok(acClimb.alt > 2500, 'climbs past 2500 ft');
-  assert.ok(acClimb.kt >= 135, 'accelerates under full power');
+  // Followed by shape, not at a fixed second (Patrick's card, 10:15Z): on the way to the crosswind turn it
+  // climbs past 2,500 ft (levelling there until past the upwind end, 09:14Z) and accelerates under full power.
+  let highest = 0, fastest = 0, turnedCrosswind = false;
+  while (sim.t < 300 && !turnedCrosswind) {
+    sim.stepTo(sim.t + 0.5);
+    const acClimb = sim.state().aircraft.find((a) => a.id === 'A1');
+    highest = Math.max(highest, acClimb.alt);
+    fastest = Math.max(fastest, acClimb.kt);
+    turnedCrosswind = acClimb.phase === 'crosswind';
+  }
+  assert.ok(turnedCrosswind, 'turns crosswind');
+  assert.ok(highest > 2500, 'climbs past 2500 ft');
+  assert.ok(fastest >= 135, 'accelerates under full power');
 });
 
 
@@ -239,7 +247,7 @@ test('sim.command climb_high_key maintains RAIL mode, approach power, cuts engin
 
   let ac = sim.state().aircraft.find((a) => a.id === id);
   assert.equal(ac.mode, 'RAIL', 'Must be in RAIL mode, never PHYSICS mode');
-  assert.ok(ac.pflRail, 'Must have pflRail attached');
+  assert.ok(ac.highKeyFlight, 'Must be flying the planned climb to High Key');
   assert.equal(ac.engineFailed, false, 'Engine must remain powered during climb approach');
 
   // Step until crossing High Key

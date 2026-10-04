@@ -626,6 +626,22 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
     return a;
   }
 
+  // ── High Key: the flown climb onto the run-in, on the path follower (Traffic spec 1a item 23) ──
+  // At High Key the power comes off and the same glide as a PFL follows, as practice (TR-R31).
+  if (a.highKeyFlight) {
+    const hk = a.highKeyFlight;
+    const p = followRoute(a, hk.route, env, stepDt, PFL_ROUTE_OPTIONS);
+    a.phase = hk.route.points[Math.min(p.seg ?? 0, hk.route.points.length - 1)]?.phase ?? 'climb_high_key';
+    if (a.distFt >= routeLengthFt(hk.route, PFL_ROUTE_OPTIONS) - 0.5) {
+      delete a.highKeyFlight;
+      a.tag = 'high_key';
+      startPflFlight(a, env, { practice: true, settings: hk.settings });
+      a.routeId = 'PFL_HIGH_KEY';
+      a.command = 'climb_high_key';
+    }
+    return a;
+  }
+
   // ── PFL: the flown glide, on the path follower (Traffic spec 4.5; refactor PR 3) ──
   if (a.pflFlight) {
     const fl = a.pflFlight;
