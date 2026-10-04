@@ -24,6 +24,7 @@ import { G_WARM } from './live/g-warm.js';
 import { rejoinReadout } from './live/transitions.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS } from './live/formation-turns.js';
 import { createChangeUi } from './transitions-panel.js';
+import { createFluidUi } from './fluid-panel.js';
 import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, LAYOUT_VERSION, SHIP_COLORS, migrateLayout } from './layout.js';
 import { createTurnSimView } from './view.js';
 import { tagLines } from './tags.js';
@@ -76,7 +77,9 @@ function cardFor(state, wingSide) {
   const sweepDeg = Math.atan2(-rel.fwd, Math.max(across, 1)) * 180 / Math.PI;
   const c = state.current;
   let flying = `Flying straight on ${String(compassDeg(lead.headingRad)).padStart(3, '0')}, waiting for a button.`;
-  if (c?.change) {
+  if (c?.fluid) {
+    flying = `Flying: fluid manoeuvring, ${state.fluid?.session.now().label ?? 'ending'}`;
+  } else if (c?.change) {
     flying = `Flying: ${c.change.flying}`;
   } else if (c) {
     const sided = MANOEUVRES[c.key].sided;
@@ -96,7 +99,8 @@ function cardFor(state, wingSide) {
   }
   return {
     flying,
-    note: c?.note ?? null,
+    // Fluid manoeuvring's note describes the entry, so it shows only while the entry is flown.
+    note: c?.fluid && state.fluid?.session.now().key !== 'entry' ? null : c?.note ?? null,
     queued: state.queued?.label ?? null,
     nowLines: [
       `Spacing ${ftText(Math.hypot(rel.fwd, rel.left))} (${ftText(across)} abeam)`,
@@ -128,7 +132,12 @@ function mount(root, app) {
   const formation = createFormation({ ...setup.get() });
   const state = formation.state; // one live object, updated in place
 
-  const changeUi = createChangeUi({ onChange: (to, options) => pressChange(to, options) });
+  const fluidUi = createFluidUi({
+    onPress: (key, dir) => pressFluid(key, dir),
+    onSettings: (next) => formation.setFluid(next),
+    settings: { rangeFt: LIVE_DEFAULTS.fluidRangeFt, bank: LIVE_DEFAULTS.fluidBank },
+  });
+  const changeUi = createChangeUi({ onChange: (to, options) => pressChange(to, options), fluidUi });
   const ui = createLayout({ buttons: BUTTONS, setupControls, layout, layoutControls, listen: app.listen, fixedLine: fixedLine(LIVE_DEFAULTS), changeUi });
   root.append(ui.element);
 
@@ -274,7 +283,9 @@ function mount(root, app) {
     changeUi.update(state, whereAll);
     changeUi.renderCard(state, whereAll);
     const ships = state.aircraft.length > 2 ? 4 : 2;
-    if (TURN_FORMATIONS[ships].includes(whereAll.key)) {
+    if (whereAll.key === 'fluid') {
+      ui.setMovesEnabled(false, undefined, 'In fluid manoeuvring Lead flies the fluid buttons under Change formation; Terminate first.');
+    } else if (TURN_FORMATIONS[ships].includes(whereAll.key)) {
       // In fighting wing and the close formations the turn buttons turn the formation (TS-55, spec section 10.2); the
       // shackle, the cross turn and G-warm stay line abreast moves.
       ui.setMovesEnabled(true, (key) => FW_TURN_KEYS.includes(key));
@@ -351,6 +362,14 @@ function mount(root, app) {
   function pressChange(to, options) {
     const how = formation.change(to, options);
     if (how === 'queued') app.status(`${state.queued.label} is next.`);
+    if (how !== 'refused') play();
+    refresh();
+  }
+
+  /** A Lead button in fluid manoeuvring (spec section 10.3): flown at once, or after the entry if it is still flown. */
+  function pressFluid(key, dir) {
+    const how = formation.pressFluid(key, dir);
+    if (how === 'queued') app.status(`${state.fluid.session.queued?.label ?? 'That'} is next, after the entry.`);
     if (how !== 'refused') play();
     refresh();
   }

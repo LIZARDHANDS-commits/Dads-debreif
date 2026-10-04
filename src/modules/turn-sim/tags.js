@@ -16,6 +16,7 @@ import './live/formation.js';
 import { relativeTo, DEG } from './live/manoeuvres.js';
 import { judgeFormation, FORMATIONS } from './live/transitions.js';
 import { FOUR_FORMATIONS, fourSlots } from './live/four-ship-slots.js';
+import { pursuitWord } from './fluid-panel.js';
 
 /** The fighting wing cone (SMM 12.29 para 69, Fig 12.19): feet from the aircraft flown off, and sweep back from its wing line. */
 export const FW_CONE = Object.freeze({ minFt: 500, maxFt: 1000, minSweepDeg: 30, maxSweepDeg: 60 });
@@ -33,6 +34,26 @@ export function fwState(ref, wing) {
   const c = FW_CONE;
   const state = rangeFt < c.minFt ? 'TIGHT' : rangeFt > c.maxFt ? 'STRETCHED' : sweepDeg < c.minSweepDeg || sweepDeg > c.maxSweepDeg ? 'OUT OF CONE' : 'IN POSITION';
   return { state, rangeFt, sweepDeg };
+}
+
+/**
+ * Fluid manoeuvring's tags (spec section 10.3, TS-57): Lead with the manoeuvre and its phase; #2 with his pursuit (LAG,
+ * PURE, LEAD), where he sits (IN POSITION, TIGHT inside 500 ft, STRETCHED past 1,000 ft, OUT OF CONE past 30° of aspect),
+ * the range and the aspect (0 at Lead's tail).
+ */
+function fluidTags(state) {
+  const f = state.fluid;
+  const now = f.session.now();
+  const r = f.readouts;
+  const [lead, wing] = state.aircraft;
+  const out = {
+    [lead.id]: { title: `${lead.name ?? 'Lead'} · ${now.label}`, detail: `${now.phase}, ${Math.round(lead.kias)} KIAS` },
+  };
+  out[wing.id] = {
+    title: `${wing.name ?? '#2'} · ${pursuitWord(now.wingCue)}`,
+    detail: r ? `${r.state} · ${ft(r.rangeFt)}, aspect ${Math.round(r.aspectDeg)}°` : '',
+  };
+  return out;
 }
 
 /** A close formation's in-position test turned into one state word, for the 2-ship key (echelon, route, astern). */
@@ -68,6 +89,7 @@ function doing(state, whereKey, four) {
  * where: formation.where() ({ key, side }). During a change each wingman is judged against the formation being flown to.
  */
 export function tagLines(state, where) {
+  if (state.fluid) return fluidTags(state);
   const four = state.aircraft.length > 2;
   const by = new Map(state.aircraft.map((a) => [a.id, a]));
   const lead = by.get(1);

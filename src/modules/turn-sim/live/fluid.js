@@ -185,6 +185,8 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
     get k() { return kNow; },
     get done() { return ended !== null && kNow >= ended; },
     get queued() { return queued; },
+    /** The distance set (ft, straight line). */
+    get rangeFt() { return rangeFt; },
     /** Settings that may change while flying: the distance (eased in, WING.rangeSec) and the level turn bank (next press). */
     setRange(ft) { rangeFt = ft; },
     setBank(value) { bankValue = value; },
@@ -254,13 +256,6 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
         pts[2].push([x.t, p.x, p.y, p.z]);
       }
       return pts;
-    },
-    /** The bounds of what is being flown (the fit-all camera keeps the fluid picture in view, spec section 10.3). */
-    pictureBounds() {
-      const p = this.planned();
-      const xs = [...p[1], ...p[2]].map((q) => q[1]);
-      const ys = [...p[1], ...p[2]].map((q) => q[2]);
-      return xs.length ? { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) } : null;
     },
   };
 }
