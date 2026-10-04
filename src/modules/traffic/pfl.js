@@ -83,7 +83,7 @@ export const PFL = Object.freeze({
   /** When low, the look-ahead grows by this many feet per foot of deficit, so the path cuts inside the circle. An estimate. */
   cutFtPerFtLow: 8,
   maxLookaheadFt: 6000,
-  /** High by more than this even with all the drag out, it widens the circle before Final Key (Patrick 10:10Z). An estimate. */
+  /** A pattern PFL high by more than this even with all the drag out widens the circle before Final Key (Patrick 10:10Z, 17:10Z). An estimate. */
   widenAboveFt: 100,
   /** Widest it goes outside the circle when widening. An estimate. */
   maxWidenFt: 6000,
@@ -580,6 +580,8 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
   const turnRadiusFt = zooming ? zoomRadius((start.kias + PFL.glideCleanKias) / 2) : DIRECT_TURN_RADIUS_FT;
   const minTurnRadiusFt = zooming ? zoomRadius(PFL.glideCleanKias) : DIRECT_TURN_RADIUS_FT;
   let plan = chooseJoin(geo, s, avail, start.headingDeg, wind, { turnRadiusFt, minTurnRadiusFt });
+  // A pattern PFL: the PFL button pressed in the circuit, not one gliding from High Key. Only it may widen (TR-48).
+  const patternPfl = !practice && plan.kind !== 'highKey';
   let path = plan.path;
   let seg = 0;
   let state = zooming ? 'zoom' : 'slow';
@@ -721,9 +723,10 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
         // Landing flap as soon as it still touches down in the first 1,000 ft: closer is better (Patrick 09:56Z).
         if (s.alt - ground - neededFt(path, seg, proj.pt, s.alt, 3, wind, false, tdKey) >= 0) cfg = 3;
       }
-      // High with all the drag out: widen the circle from here to Final Key, which stays where it is (Patrick 10:10Z).
+      // A pattern PFL high with all the drag out, with no other way to lose it: widen the circle from here to Final Key,
+      // which stays where it is (Patrick 10:10Z, 17:10Z). From High Key the height comes off before High Key instead (TR-43).
       const thNow = path[seg]?.theta;
-      if (n % 50 === 0 && plan.kind !== 'direct' && thNow !== undefined && thNow < PFL.lastJoinDeg - PFL.joinStepDeg) {
+      if (patternPfl && n % 50 === 0 && plan.kind !== 'direct' && thNow !== undefined && thNow < PFL.lastJoinDeg - PFL.joinStepDeg) {
         const high = s.alt - ground - neededFt(path, seg, proj.pt, s.alt, 3, wind, false, tdKey);
         if (high > PFL.widenAboveFt) {
           const wide = widenPath(geo, path, seg, s, s.alt, wind, tdKey);

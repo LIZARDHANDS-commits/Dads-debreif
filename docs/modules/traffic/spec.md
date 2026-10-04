@@ -257,7 +257,7 @@ One runway for now: every PFL flies to 29L, and one that makes the runway ends i
    | At or past a step's planned point, and no more than 50 ft low | Takes that step: gear, then T/O flap |
    | Before a step's planned point, with the step's cost plus a buffer to spare | Takes the next step early |
    | With landing flap it still reaches the first 1,000 ft | Takes the landing flap |
-   | Still high with everything out (more than 100 ft, an estimate) | Widens the circle from where it is to Final Key; Final Key itself stays where it is, never extended (Patrick 10:10Z; SMM) |
+   | Still high with everything out (more than 100 ft, an estimate) | A pattern PFL (the PFL button pressed in the circuit), with no other way to lose the height, widens the circle from where it is to Final Key; Final Key itself stays where it is, never extended. A PFL from High Key or from the area doesn't widen; it loses extra height before High Key (TR-43) (Patrick 10:10Z, 17:10Z; SMM; TR-48) |
    | About zero | Holds configuration |
    | Below zero | Delays drag; cuts toward the next key |
    | Can't reach the aim point even clean | Leaves the circle, direct to the threshold |
@@ -285,7 +285,7 @@ One runway for now: every PFL flies to 29L, and one that makes the runway ends i
 | Drag buffer | Next step's cost + 100 ft, for a step before its planned point | **Estimate** (`pfl-energy-logic.md`) |
 | On profile | Down to 50 ft low still counts as on profile: a planned step is taken | **Estimate** |
 | Touchdown point | Aim a third down until landing flap, then the first 1,000 ft | SMM 13.9 para 18; Patrick 09:49Z, 09:56Z |
-| Widen when high | More than 100 ft high with all drag out: widen before Final Key, up to 6,000 ft outside the circle | Patrick 10:10Z; 100 ft and 6,000 ft are **estimates** |
+| Widen when high | Pattern PFLs only: more than 100 ft high with all drag out: widen before Final Key, up to 6,000 ft outside the circle | Patrick 10:10Z, 17:10Z; 100 ft and 6,000 ft are **estimates** |
 | Start of the glide | Holds the bank it has for 1 s, then turns for the join, so the hand-over has no step in turn rate | **Estimate** (reaction time); Patrick 09:21Z, no snap at hand-overs |
 | Zoom | 2 G, push through 140, capture 125; only above 150 KIAS | EFIG p.408; Patrick 4440, 06:35Z |
 
