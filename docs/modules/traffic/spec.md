@@ -409,7 +409,7 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 Every setting starts filled in so the first look is clean and intuitive:
 - Playback speed: 8×
 - 2D or 3D: 2D. 3D opens over the field: from north of the field looking south-south-east, low over the base, with the runways in the lower half and the circuit beyond (Patrick, 4 Oct 2026 10:17Z, from his screenshot). Fit still frames every route.
-- Wind: 260°T at 15 kt (Patrick, 4 Oct 18:47Z; was calm)
+- Wind: 260°M at 15 kt, held as 269°T (Patrick, 4 Oct 18:47Z, was calm; magnetic from 4 Oct, TR-58, was 260°T)
 - Aircraft: the Busy circuit scenario (7.2), unless a saved setup is open
 - Default aircraft type: CT-156 Harvard II (paint: `harvard`)
 - Pattern: PAT_INNER (Runway 29L, left-hand, 3,500 ft MSL)

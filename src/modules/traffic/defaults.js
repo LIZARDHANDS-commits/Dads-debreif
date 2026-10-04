@@ -32,8 +32,9 @@ export const DEFAULTS = Object.freeze({
   // 3D graphics quality: 'high' (sharp 4-tier satellite and up to 24 full Harvards) or 'low' (performance).
   graphicsQuality: 'low', // Performance by default (Patrick, 3D upgrade); High is one click in the 3D bar or Traffic settings
 
-  // Wind: 260°T at 15 kt, the opening picture's wind (Patrick, 4 Oct 18:47Z; was calm).
-  windFromDeg: 260,
+  // Wind: 260°M at 15 kt, the opening picture's wind (Patrick, 4 Oct 18:47Z; was calm). Set in true: 269°T with
+  // Moose Jaw's 9° East (TR-58). Patrick, 4 Oct: "260 magnetic is fine" (it was 260°T, which reads 251°M).
+  windFromDeg: 269,
   windKt: 15,
 
   // Layers: trails, height and speed labels, route points, conflict bubbles,
