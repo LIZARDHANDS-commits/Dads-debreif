@@ -19,7 +19,7 @@ import { limitG, turnRadiusFt, bankDegFromG, gFromBankDeg, turnRateFromBankRadPe
 import { unitVectorFromCompassDeg, compassDegFromVector } from '../../core/angles.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
 import { windTriangle, windVectorFtps } from '../../core/wind.js';
-import { RUNWAY_29L_HDG_DEG, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT, PFL_CIRCLE_RADIUS_FT } from './airfield.js';
+import { RUNWAY_29L_HDG_DEG, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT, PFL_CIRCLE_RADIUS_FT, PATTERN_ALT_FT, PFL_KEY_ALT_FT } from './airfield.js';
 import { buildCircuit } from './circuit.js';
 
 /**
@@ -230,7 +230,7 @@ function buildRoundedPoints(route, options) {
       let totalD = 0;
       for (let k = firstIdx; k < lastIdx; k++) totalD += dist(out[k], out[k + 1]);
       let runD = 0;
-      const startAlt = 3500, endAlt = 2119;
+      const startAlt = PATTERN_ALT_FT, endAlt = 2119;
       out[firstIdx].alt = startAlt;
       for (let k = firstIdx; k < lastIdx; k++) {
         runD += dist(out[k], out[k + 1]);
@@ -535,7 +535,7 @@ export function computeWindPerch(route, windFromDeg = 360, windKt = 0, options =
 
   const opt = /** @type {Record<string, any>} */ (options);
   const iasKt = opt.finalTurnKt ?? 120;
-  const altFt = opt.finalTurnAltFt ?? (nominal.alt ?? 3500);
+  const altFt = opt.finalTurnAltFt ?? (nominal.alt ?? PATTERN_ALT_FT);
   const bankDeg = opt.finalTurnBankDeg ?? 35;
   const tasKt = iasToTasKt(iasKt, altFt);
   const tasFtps = ktToFtps(tasKt);
@@ -547,7 +547,7 @@ export function computeWindPerch(route, windFromDeg = 360, windKt = 0, options =
     return {
       x: nominal.x,
       y: nominal.y,
-      alt: nominal.alt ?? 3500,
+      alt: nominal.alt ?? PATTERN_ALT_FT,
       calmX: nominal.x,
       calmY: nominal.y,
       shiftX: 0,
@@ -568,7 +568,7 @@ export function computeWindPerch(route, windFromDeg = 360, windKt = 0, options =
   return {
     x: nominal.x + shiftX,
     y: nominal.y + shiftY,
-    alt: nominal.alt ?? 3500,
+    alt: nominal.alt ?? PATTERN_ALT_FT,
     calmX: nominal.x,
     calmY: nominal.y,
     shiftX,
@@ -760,9 +760,9 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
     // High Key (5,000') -> Low Key (3,700') at u=0.5 -> Base Key (2,900') at u=0.75 -> Threshold (1,892') at u=1.0
     let alt;
     if (u <= 0.5) {
-      alt = Math.round(5000 - (5000 - 3700) * (u / 0.5));
+      alt = Math.round(PFL_KEY_ALT_FT.highKey - (PFL_KEY_ALT_FT.highKey - PFL_KEY_ALT_FT.lowKey) * (u / 0.5));
     } else if (u <= 0.75) {
-      alt = Math.round(3700 - (3700 - 2900) * ((u - 0.5) / 0.25));
+      alt = Math.round(PFL_KEY_ALT_FT.lowKey - (PFL_KEY_ALT_FT.lowKey - 2900) * ((u - 0.5) / 0.25));
     } else {
       alt = Math.round(2900 - (2900 - FIELD_ELEV_FT) * ((u - 0.75) / 0.25));
     }

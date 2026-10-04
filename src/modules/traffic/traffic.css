@@ -186,36 +186,6 @@
   overflow-wrap: anywhere;
 }
 
-/* The selected route's point table appears under the list, and closes with its ✕. */
-[data-module='traffic'] .point-table-section {
-  margin-top: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--border);
-}
-
-[data-module='traffic'] .point-table-section[hidden] {
-  display: none;
-}
-
-[data-module='traffic'] .point-table-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  margin-bottom: var(--space-2);
-}
-
-[data-module='traffic'] .point-table-title {
-  margin: 0;
-  font-size: var(--text-md);
-  overflow-wrap: anywhere;
-}
-
-[data-module='traffic'] .point-table-close {
-  min-width: 2.25rem;
-  padding-inline: var(--space-2);
-}
-
 /* Stage: the bar, the map, the note. */
 [data-module='traffic'] .traffic-stage {
   display: flex;
@@ -581,10 +551,6 @@
   font-weight: 600;
 }
 
-[data-module='traffic'] .traffic-spawn-preset {
-  width: 100%;
-}
-
 [data-module='traffic'] .aircraft,
 [data-module='traffic'] .conflicts {
   margin-top: var(--space-4);
@@ -894,145 +860,6 @@
 [data-module='traffic'] .settings-item:hover .settings-hint,
 [data-module='traffic'] .settings-item:focus-within .settings-hint {
   display: block;
-}
-
-/* The left column's route editor: the name, where the route joins, the points, and the
-   leg distances. Each point is two short lines so the column stays narrow. */
-[data-module='traffic'] .route-editor .control {
-  margin: 0;
-}
-
-[data-module='traffic'] .editor-name {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-2);
-}
-
-[data-module='traffic'] .editor-name input,
-[data-module='traffic'] .editor-link select,
-[data-module='traffic'] .point-label {
-  min-width: 0;
-  width: 100%;
-  min-height: 2.25rem;
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  background: var(--bg-sunken);
-  box-sizing: border-box;
-}
-
-[data-module='traffic'] .editor-link {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: var(--space-1) var(--space-2);
-  margin-bottom: var(--space-2);
-  font-size: var(--text-sm);
-}
-
-[data-module='traffic'] .point-list {
-  margin: 0 0 var(--space-2);
-  padding: 0;
-  list-style: none;
-}
-
-[data-module='traffic'] .point-row {
-  padding: var(--space-2);
-  border: 1px solid var(--border);
-  border-left-width: 3px;
-  border-radius: var(--radius);
-  margin-bottom: var(--space-1);
-}
-
-[data-module='traffic'] .point-row.is-selected {
-  border-color: var(--accent);
-  background: var(--bg-raised);
-}
-
-[data-module='traffic'] .point-line {
-  display: grid;
-  grid-template-columns: 1.75rem minmax(0, 1fr);
-  align-items: center;
-  gap: var(--space-1);
-}
-
-[data-module='traffic'] .point-number {
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
-[data-module='traffic'] .point-values {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--space-1);
-  margin-top: var(--space-1);
-}
-
-[data-module='traffic'] .point-values .control {
-  display: grid;
-  align-content: start;
-  gap: var(--space-1);
-  min-width: 0;
-  font-size: var(--text-sm);
-}
-
-[data-module='traffic'] .point-values .control > label {
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-[data-module='traffic'] .point-values input {
-  min-width: 0;
-  width: 100%;
-}
-
-[data-module='traffic'] .point-values .control-unit {
-  display: none;
-}
-
-[data-module='traffic'] .point-values .control-message {
-  grid-column: 1 / -1;
-  font-size: var(--text-sm);
-}
-
-[data-module='traffic'] .point-data {
-  margin: var(--space-1) 0 0;
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-}
-
-[data-module='traffic'] .point-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-bottom: var(--space-2);
-}
-
-[data-module='traffic'] .editor-message {
-  margin: var(--space-2) 0 0;
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-}
-
-[data-module='traffic'] .editor-message:empty {
-  display: none;
-}
-
-[data-module='traffic'] .leg-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: var(--text-sm);
-  font-variant-numeric: tabular-nums;
-}
-
-[data-module='traffic'] .leg-name {
-  display: inline-block;
-  min-width: 3.5rem;
-  color: var(--text-muted);
 }
 
 /* A control that is turned off fades its box and label only: fading the unit beside it as well
