@@ -5,14 +5,15 @@
 // Serves: TR-R14, TR-R30, TR-R35.
 // Expected values: end results only (on the runway, ejected, back in the circuit); clean glide 2 NM per 1,000 ft
 //   (T-6A max glide chart; SMM 13.5 para 7); start points are the circuit's own points and spec 4.5's keys; the
-//   step limit and the 10 minute safety stop have their reasons beside them.
+//   step limit and the 10 minute safety stop have their reasons beside them; touchdown in the first third of the
+//   runway (Patrick 4 Oct 09:49Z).
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import { createSim, STEP_SEC } from '../../../src/modules/traffic/sim.js';
-import { flyPfl } from '../../../src/modules/traffic/pfl.js';
+import { flyPfl, pflGeometry } from '../../../src/modules/traffic/pfl.js';
 import { THRESHOLD_29L, DEPARTURE_END_29L, RUNWAY_29L_HDG_DEG, FIELD_ELEV_FT } from '../../../src/modules/traffic/airfield.js';
 
 const MOOSE_JAW = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw.json', import.meta.url), 'utf8'));
@@ -61,6 +62,25 @@ test('PFL: from each failure point with the height for it, it glides to the runw
       assert.equal(r.outcome, 'landed', `${name}, ${wind.windKt} kt from ${wind.windFromDeg}: ${r.outcome}`);
       assert.ok(onRunway(last), `${name}, ${wind.windKt} kt from ${wind.windFromDeg}: touched down off the runway`);
       for (const p of r.points) assert.ok([p.x, p.y, p.alt, p.kt].every(Number.isFinite), `${name}: a number is not finite`);
+    }
+  }
+});
+
+test('PFL: on profile at High Key or Low Key, or high at High Key, it touches down in the first third of the runway (spec 4.5 items 7, 13)', () => {
+  const geo = pflGeometry();
+  const lowKey = geo.at(180);
+  // SMM key heights: High Key 5,000 ft, Low Key 3,700 ft MSL.
+  const keys = {
+    'High Key, 5,000 ft': { ...THRESHOLD_29L, alt: 5000, kias: 125, headingDeg: 298 },
+    'Low Key, 3,700 ft': { x: lowKey.x, y: lowKey.y, alt: 3700, kias: 120, headingDeg: 118 },
+    // 600 ft high at High Key: all the drag out early, then the circle widened before Final Key (Patrick 10:10Z).
+    'High Key, 5,600 ft': { ...THRESHOLD_29L, alt: 5600, kias: 125, headingDeg: 298 },
+  };
+  for (const wind of WINDS) {
+    for (const [name, start] of Object.entries(keys)) {
+      const r = flyPfl(start, wind);
+      assert.equal(r.outcome, 'landed', `${name}, ${wind.windKt} kt from ${wind.windFromDeg}: ${r.outcome}`);
+      assert.ok(r.touchdown.alongFt <= geo.lenFt / 3, `${name}, ${wind.windKt} kt from ${wind.windFromDeg}: touched down ${Math.round(r.touchdown.alongFt)} ft down the runway`);
     }
   }
 });
