@@ -96,11 +96,14 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   // ---- Setup: spacing and #2's side ---------------------------------------
   const spacingFlag = h('p', { class: 'ts-warning', role: 'status', hidden: true });
   const fourLine = h('p', { class: 'ts-fixed', hidden: true });
+  // The 4-ship delayed 45 with or without its check turn (Patrick, 4 Oct 11:28Z); shown only in the 4-ship.
+  const check45Field = h('div', { class: 'ts-field', hidden: true }, setupControls.checkbox('check45', { label: '4-ship Delayed 45 with the check turn (SMM Fig 16.34)' }));
   const setup = h('section', { class: 'ts-setup', 'aria-labelledby': 'ts-setup-title' },
     h('h3', { class: 'ts-group-title', id: 'ts-setup-title' }, 'Setup'),
     h('div', { class: 'ts-field' }, setupControls.choice('ships', { label: 'Formation', options: [{ value: 2, label: '2-ship' }, { value: 4, label: '4-ship' }] })),
     h('div', { class: 'ts-field' }, setupControls.number('spacingFt', { label: 'Spacing', unit: 'ft', min: 1000, max: 20000, step: 100 })),
     spacingFlag,
+    check45Field,
     h('div', { class: 'ts-field' }, setupControls.choice('wingSide', { label: '#2 on Lead\'s', options: [{ value: 'right', label: 'Right' }, { value: 'left', label: 'Left' }] })),
     h('p', { class: 'ts-hint' }, 'Changing these starts again from the beginning.'),
     h('p', { class: 'ts-fixed' }, fixedLine),
@@ -241,6 +244,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       movesHint.textContent = ships === 4 ? FOUR_HINT : PAIR_HINT;
       fourLine.textContent = ships === 4 ? line : '';
       fourLine.hidden = ships !== 4;
+      check45Field.hidden = ships !== 4;
       errorsSection.hidden = ships === 4; // training errors are 2-ship only for now (TS-52)
     },
     /** The flag under Spacing (outside the SMM band), or null. */

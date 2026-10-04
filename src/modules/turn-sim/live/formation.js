@@ -24,6 +24,7 @@ export const LIVE_DEFAULTS = Object.freeze({
   blockFt: 8000, // estimate until Patrick gives the low block height
   headingDeg: 0, // Lead flies 000 at the start
   ships: /** @type {2 | 4} */ (2), // 2-ship (the default) or 4-ship (Spread 4, live/four-ship.js)
+  check45: true, // the 4-ship delayed 45 flies its check turn (AFM8 brief p.18, SMM Fig 16.34); off: a plain chain (Patrick, 4 Oct 11:28Z)
 });
 
 /** Spacing the sim will fly at all; outside it a typed value is refused (spec section 5). */
@@ -181,7 +182,7 @@ export function createFormation(options = {}) {
     const m = MANOEUVRES[key];
     const four = state.aircraft.length > 2;
     const plan = four
-      ? planFour(state.aircraft, key, dir, state.tSec)
+      ? planFour(state.aircraft, key, dir, state.tSec, { check45: opts.check45 !== false })
       : state.errors
         ? planWithErrors(state.aircraft, key, dir, state.tSec, state.errors, state.slot)
         : planManoeuvre(state.aircraft, key, dir, state.tSec);

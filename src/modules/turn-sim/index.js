@@ -52,7 +52,7 @@ function layoutStore(storage) {
   return { get: (_name, fallback) => storage.get('layout', fallback), set: (_name, value) => storage.set('layout', value) };
 }
 
-const SETUP_DEFAULTS = Object.freeze({ ships: LIVE_DEFAULTS.ships, spacingFt: LIVE_DEFAULTS.spacingFt, wingSide: LIVE_DEFAULTS.wingSide, ...ERROR_DEFAULTS });
+const SETUP_DEFAULTS = Object.freeze({ ships: LIVE_DEFAULTS.ships, check45: LIVE_DEFAULTS.check45, spacingFt: LIVE_DEFAULTS.spacingFt, wingSide: LIVE_DEFAULTS.wingSide, ...ERROR_DEFAULTS });
 
 const ftText = (n) => `${Math.round(n).toLocaleString('en-CA')} ft`;
 const bankText = (deg) => (Math.abs(deg) < 0.5 ? 'wings level' : `bank ${Math.round(Math.abs(deg))}° ${deg > 0 ? 'L' : 'R'}`);
