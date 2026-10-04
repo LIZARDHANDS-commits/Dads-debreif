@@ -21,8 +21,12 @@ const GRID_STEP_FT = 5000;
 const GRID_CELLS = 40;
 const ALT_SCALE = 1;
 
-/** Camera limits: the pitch is above the horizon (5 to 80 degrees) and zoom is pixels per 1,000 ft. */
-export const CAMERA_LIMITS = Object.freeze({ pitch: [5, 80], zoom: [0.5, 400] });
+/**
+ * Camera limits: the pitch is above the horizon (5 to 80 degrees) and zoom is pixels per 1,000 ft. Zoomed right in, a
+ * close formation shows at its real size (about 8 px a foot, a 120 ft picture across a 1,000 px screen, as the 2D view's
+ * closest), so an echelon's step down and its bearing line can be seen (SMM 12.4 Figs 12.3-12.4; spec section 10.2).
+ */
+export const CAMERA_LIMITS = Object.freeze({ pitch: [5, 80], zoom: [0.5, 8000] });
 export const CAMERA_START_PITCH_DEG = 35;
 const ORBIT_DEG_PER_PX = Object.freeze({ yaw: 0.4, pitch: 0.25 });
 const WHEEL_ZOOM = Object.freeze({ in: 1.12, out: 0.89 });
