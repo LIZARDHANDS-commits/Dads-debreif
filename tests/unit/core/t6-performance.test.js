@@ -307,6 +307,7 @@ test('the max glide chart, by configuration', () => {
     {
       clean: [125, 2.0, 1350, 'feathered', 0],
       gearDown: [105, 1.5, 1500, 'feathered', 20],
+      flapsTakeoff: [110, 1.3, 1816, 'feathered', 50],
       landing: [95, 1.1, 1850, 'feathered', 80],
       windmilling: [110, 1.0, 2350, 'windmilling', 0],
     });
@@ -318,7 +319,7 @@ test('glide sink rate: true airspeed ÷ the glide ratio, so it grows with height
   near(glideSinkFpm('clean', 125, 0), 125 * KT_TO_FTPS * 60 / (2 * FT_PER_NM / 1000), 1e-9, 'clean at sea level');
   near(glideSinkFpm('clean', 125, 0), 1042, 1, 'about 1,040 ft/min at sea level');
   assert.ok(glideSinkFpm('clean', 125, 10000) > glideSinkFpm('clean', 125, 0), 'faster sink higher up');
-  assert.throws(() => glideSinkFpm('Clean', 125, 0), { name: 'RangeError', message: /clean, gearDown, landing, windmilling/ });
+  assert.throws(() => glideSinkFpm('Clean', 125, 0), { name: 'RangeError', message: /clean, gearDown, flapsTakeoff, landing, windmilling/ });
   near(glideSinkFpm('gearDown', 120, 3500), iasToTasKt(120, 3500) * KT_TO_FTPS * 60 / (1.5 * FT_PER_NM / 1000), 1e-9, 'the SMM\'s 120 KIAS gear down');
   // The chart's own sink rates are the same sums at about 16,000 ft, all four rows alike.
   for (const [config, c] of Object.entries(T6A_GLIDE)) {

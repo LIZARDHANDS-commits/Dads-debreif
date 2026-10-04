@@ -155,6 +155,7 @@ export function calcZoomApex(aircraft, env = null, options = {}) {
  *   joinIndex: number,
  *   track: Array<Object>,
  *   energyMargin: number,
+ *   dragSchedule?: { margin: number, earlyFlapsTo: boolean, earlyFlapsLdg: boolean, delayFlaps: boolean, profile: string },
  *   surplusOrbit: boolean,
  *   crashPoint: Object | null
  * }}
@@ -230,76 +231,91 @@ export function solvePflTangent(apex, env = null, options = {}) {
   }
 
   // ── 2. DOWNWIND / LOW KEY EVALUATION (NOMINAL 35° BANK) ─────────────────────
-  // Low Key requires arrival altitude >= 3,650 ft MSL
+  // Low Key nominal is 3,700 ft MSL. Safe arrival gate is >= 3,300 ft MSL (SMM Ch 13: 1,400 ft AGL).
   const lowKeyPt = track35.find((p) => p.tag === 'low_key') || track35.find((p) => p.phase === 'pfl_low_key') || track35[198];
+  const lowKeyIdx = track35.indexOf(lowKeyPt);
   const arrAltLk = calcCleanGlideArrival(apex, lowKeyPt, env);
 
-  if (arrAltLk >= 3650) {
-    const lowKeyCandidates = [];
-    for (let i = 0; i < track35.length; i++) {
-      const p = track35[i];
-      if (p.phase === 'pfl_low_key' || p.tag === 'low_key') {
-        const arrAlt = calcCleanGlideArrival(apex, p, env);
-        const margin = arrAlt - p.alt;
-        if (margin >= -50) { // within pilot tolerance
-          const trackToPt = wrapDeg360(Math.atan2(p.x - apex.x, p.y - apex.y) * 180 / Math.PI);
-          const hdgDiff = Math.abs(wrapDeg180(trackToPt - p.headingDeg));
-          lowKeyCandidates.push({ index: i, point: p, margin, hdgDiff, arrAlt });
-        }
-      }
-    }
+  // In CYMJ runway 29L coordinates, downwind heading is ~118° (southeast, y decreasing).
+  // Past Low Key is when aircraft y is south of Low Key:
+  const isPastLowKey = apex.y < (lowKeyPt.y - 300);
 
-    if (lowKeyCandidates.length > 0) {
-      // Sort by best tangent alignment (minimal heading delta)
-      lowKeyCandidates.sort((a, b) => a.hdgDiff - b.hdgDiff);
-      const best = lowKeyCandidates[0];
-      return {
-        classification: 'low_key',
-        bankDeg: 35,
-        joinPoint: best.point,
-        joinIndex: best.index,
-        track: track35,
-        energyMargin: best.margin,
-        surplusOrbit: false,
-        crashPoint: null,
-      };
-    }
+  if (arrAltLk >= 3300 && !isPastLowKey) {
+    const margin = arrAltLk - lowKeyPt.alt;
+    const dragSchedule = {
+      margin,
+      earlyFlapsTo: margin > 150,
+      earlyFlapsLdg: margin > 400,
+      delayFlaps: margin < -100,
+      profile: margin > 400 ? 'high_energy' : (margin > 150 ? 'moderate_energy' : (margin < -100 ? 'low_energy' : 'nominal')),
+    };
+
+    return {
+      classification: 'low_key',
+      bankDeg: 35,
+      joinPoint: lowKeyPt,
+      joinIndex: lowKeyIdx >= 0 ? lowKeyIdx : 198,
+      track: track35,
+      energyMargin: margin,
+      dragSchedule,
+      surplusOrbit: false,
+      crashPoint: null,
+    };
   }
 
   // ── 3. BASE KEY / CORNER CUTTING CHECK (SMM Ch 13 Doctrine) ────────────────
-  // If approaching downwind low (2,800 to 3,650 ft MSL), pilot tightens the final
-  // turn arc to 40°–45° bank, cutting the corner and shortening track by ~1,500–1,870 ft.
+  // If approaching low on energy (arrAltLk < 3500) or already past Low Key,
+  // pilot tightens final turn arc to 40°–45° bank, cutting the corner to shorten track.
   const track45 = generatePflTrack(route, windFromDeg, windKt, /** @type {any} */ ({ bankDeg: 45 }));
-  const isLowEnergyCornerCut = arrAltLk < 3650 && apex.alt >= 2800;
-
+  const isLowEnergyCornerCut = arrAltLk < 3500 && apex.alt >= 2700;
   const chosenTrack = isLowEnergyCornerCut ? track45 : track35;
   const chosenBank = isLowEnergyCornerCut ? 45 : 35;
 
-  const baseKeyCandidates = [];
+  const baseCandidates = [];
   for (let i = 0; i < chosenTrack.length; i++) {
     const p = chosenTrack[i];
-    // Base Key turn is centered around ~2,900 ft MSL (turn entry to mid-turn, before final rollout)
-    if (p.phase === 'pfl_base_key' && p.alt >= 2700 && p.alt <= 3600) {
+    if (p.phase === 'pfl_base_key' || p.tag === 'base_key') {
       const arrAlt = calcCleanGlideArrival(apex, p, env);
       const margin = arrAlt - p.alt;
+      // Invariant: Cutting the corner intercepts the turn where arrival altitude matches rail altitude (within ±50 ft)
       if (margin >= -50) {
-        const trackToPt = wrapDeg360(Math.atan2(p.x - apex.x, p.y - apex.y) * 180 / Math.PI);
-        const hdgDiff = Math.abs(wrapDeg180(trackToPt - p.headingDeg));
-        baseKeyCandidates.push({ index: i, point: p, margin, hdgDiff, arrAlt });
+        const remainingDistFt = Math.hypot(TH.x - p.x, TH.y - p.y);
+        const reqAlt = PFL_AIRFIELD.thresholdAlt + (remainingDistFt / (1.5 * FT_PER_NM / 1000));
+        if (arrAlt >= (reqAlt - 150)) {
+          const d = Math.hypot(p.x - apex.x, p.y - apex.y);
+          const brg = wrapDeg360(Math.atan2(p.x - apex.x, p.y - apex.y) * 180 / Math.PI);
+          const dHdgBrg = Math.abs(wrapDeg180(brg - apex.headingDeg));
+          const dHdgTrk = Math.abs(wrapDeg180(p.headingDeg - brg));
+
+          // Penalize points behind aircraft or requiring sharp >90° reversal
+          const behindPenalty = dHdgBrg > 90 ? 10000 : 0;
+          const cost = d + 800 * (dHdgBrg / 90) + 800 * (dHdgTrk / 90) + behindPenalty;
+          baseCandidates.push({ index: i, point: p, margin, d, cost, arrAlt });
+        }
       }
     }
   }
 
-  if (baseKeyCandidates.length > 0) {
-    baseKeyCandidates.sort((a, b) => a.hdgDiff - b.hdgDiff);
-    const best = baseKeyCandidates[0];
+  if (baseCandidates.length > 0) {
+    baseCandidates.sort((a, b) => a.cost - b.cost);
+    const best = baseCandidates[0];
+    const margin = best.margin;
+    const dragSchedule = {
+      margin,
+      earlyFlapsTo: margin > 150,
+      earlyFlapsLdg: margin > 400,
+      delayFlaps: margin < -100,
+      profile: margin > 400 ? 'high_energy' : (margin > 150 ? 'moderate_energy' : (margin < -100 ? 'low_energy' : 'nominal')),
+    };
+
     return {
       classification: 'base_key',
       bankDeg: chosenBank,
       joinPoint: best.point,
       joinIndex: best.index,
       track: chosenTrack,
-      energyMargin: best.margin,
+      energyMargin: margin,
+      dragSchedule,
       surplusOrbit: false,
       crashPoint: null,
     };

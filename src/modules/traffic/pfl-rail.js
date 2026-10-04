@@ -19,19 +19,43 @@ function wrapDeg360(deg) {
 }
 
 /**
- * Enforces the strict SMM Ch 13 configuration schedule by altitude:
- * - Alt > 3,700 ft MSL: Clean
- * - 2,900 ft < Alt <= 3,700 ft MSL: Gear Down
- * - 2,120 ft < Alt <= 2,900 ft MSL: Flaps TO
- * - Alt <= 2,120 ft MSL (or final approach): Flaps LDG
+ * Enforces SMM Ch 13 & EFIG Ch 13 configuration schedule with multi-variable early drag:
+ * - Clean: Glide to High Key (Alt > 3,700 ft MSL unless high energy)
+ * - Gear Down: High Key (nominal Alt <= 3,700 ft MSL)
+ * - Flaps TO: Low Key to Base Key (nominal 2,900 ft, or earlier at Low Key if surplus energy)
+ * - Flaps LDG: Final approach (nominal <= 2,120 ft, or earlier at Base Key if high surplus energy)
  *
  * @param {number} alt - Altitude MSL in feet
  * @param {string} [phase] - Flight phase
+ * @param {Object} [dragSchedule] - Dynamic drag schedule { earlyFlapsTo, earlyFlapsLdg, delayFlaps }
  * @returns {'Clean' | 'Gear Down' | 'Flaps TO' | 'Flaps LDG'}
  */
-export function getPflConfig(alt, phase = '') {
+export function getPflConfig(alt, phase = '', dragSchedule = null) {
   if (phase === 'crash_short' || phase === 'pfl_zoom') return 'Clean';
+
+  // Above 3,700 ft MSL, Harvard II glides clean to High Key / Low Key (SMM Ch 13)
   if (alt > 3700) return 'Clean';
+
+  if (dragSchedule?.earlyFlapsLdg) {
+    // Severe surplus energy: Advance Flaps TO at Low Key (<= 3,700 ft), Flaps LDG at Base Key (nominal 2,900 ft)
+    if (alt > 2900) return 'Flaps TO';
+    return 'Flaps LDG';
+  }
+
+  if (dragSchedule?.earlyFlapsTo) {
+    // Moderate surplus energy: Advance Flaps TO at Low Key (<= 3,700 ft), Flaps LDG at Final Key (2,120 ft)
+    if (alt > 2120) return 'Flaps TO';
+    return 'Flaps LDG';
+  }
+
+  if (dragSchedule?.delayFlaps) {
+    // Deficit energy: Delay drag deployment to preserve energy
+    if (alt > 3000) return 'Clean';
+    if (alt > 2092) return 'Gear Down';
+    return 'Flaps TO';
+  }
+
+  // Nominal SMM standard schedule
   if (alt > 2900) return 'Gear Down';
   if (alt > 2120) return 'Flaps TO';
   return 'Flaps LDG';
@@ -45,7 +69,7 @@ export function getPflConfig(alt, phase = '') {
  * @param {number} [maxStepFt=20] - Maximum allowable distance between consecutive points
  * @returns {Array<Object>} Densified continuous waypoints
  */
-export function densifyRail(points, maxStepFt = 20) {
+export function densifyRail(points, maxStepFt = 20, dragSchedule = null) {
   if (!points || points.length <= 1) return points ? [...points] : [];
   const out = [points[0]];
 
@@ -66,7 +90,7 @@ export function densifyRail(points, maxStepFt = 20) {
         const g = (a.g ?? 1) + ((b.g ?? 1) - (a.g ?? 1)) * u;
         const phase = u < 0.5 ? a.phase : b.phase;
         const tag = s === steps ? b.tag : undefined;
-        const config = getPflConfig(alt, phase);
+        const config = getPflConfig(alt, phase, dragSchedule);
 
         out.push({
           x: a.x + (b.x - a.x) * u,
@@ -87,7 +111,7 @@ export function densifyRail(points, maxStepFt = 20) {
       out.push({
         ...b,
         kias: b.kt ?? b.kias ?? 120,
-        config: getPflConfig(b.alt ?? 3500, b.phase),
+        config: getPflConfig(b.alt ?? 3500, b.phase, dragSchedule),
         mode: 'rails',
       });
     }
@@ -287,6 +311,7 @@ export function buildPflRail(aircraft, env = null, options = {}) {
     const joinPt = solution.joinPoint;
     const apexPt = rawWaypoints[rawWaypoints.length - 1];
     const distToJoin = Math.hypot(joinPt.x - apexPt.x, joinPt.y - apexPt.y);
+    const recoveryStartIndex = rawWaypoints.length - 1;
 
     if (distToJoin > 50) {
       const trackDeg = wrapDeg360(Math.atan2(joinPt.x - apexPt.x, joinPt.y - apexPt.y) * 180 / Math.PI);
@@ -321,7 +346,7 @@ export function buildPflRail(aircraft, env = null, options = {}) {
 
         const isHkTangent = solution.classification === 'high_key';
         const phase = isHkTangent ? 'pfl_high_key' : 'pfl_tangent';
-        const config = getPflConfig(alt, phase);
+        const config = getPflConfig(alt, phase, solution.dragSchedule);
 
         rawWaypoints.push({
           x,
@@ -346,7 +371,7 @@ export function buildPflRail(aircraft, env = null, options = {}) {
 
     for (let i = startIndex; i < spiral.length; i++) {
       const sp = spiral[i];
-      const config = getPflConfig(sp.alt, sp.phase);
+      const config = getPflConfig(sp.alt, sp.phase, solution.dragSchedule);
       rawWaypoints.push({
         x: sp.x,
         y: sp.y,
@@ -362,10 +387,29 @@ export function buildPflRail(aircraft, env = null, options = {}) {
         mode: 'rails',
       });
     }
+
+    // Continuous vertical profile scaling for surplus energy recovery (SMM Ch 13 doctrine)
+    if (solution.classification !== 'high_key' && solution.energyMargin > 50) {
+      let cumDist = 0;
+      const dists = [0];
+      for (let k = recoveryStartIndex + 1; k < rawWaypoints.length; k++) {
+        cumDist += Math.hypot(rawWaypoints[k].x - rawWaypoints[k - 1].x, rawWaypoints[k].y - rawWaypoints[k - 1].y);
+        dists.push(cumDist);
+      }
+      const totalDist = cumDist;
+      if (totalDist > 0) {
+        for (let k = recoveryStartIndex; k < rawWaypoints.length; k++) {
+          const u = dists[k - recoveryStartIndex] / totalDist;
+          const alt = apexPt.alt - (apexPt.alt - PFL_AIRFIELD.thresholdAlt) * u;
+          rawWaypoints[k].alt = Math.round(alt * 10) / 10;
+          rawWaypoints[k].config = getPflConfig(alt, rawWaypoints[k].phase, solution.dragSchedule);
+        }
+      }
+    }
   }
 
   // ── 4. DENSIFICATION & ZERO SNAP VERIFICATION ──────────────────────────────
-  const finalWaypoints = /** @type {any} */ (densifyRail(rawWaypoints, maxStepFt));
+  const finalWaypoints = /** @type {any} */ (densifyRail(rawWaypoints, maxStepFt, solution.dragSchedule));
 
   let cumDist = 0;
   if (finalWaypoints.length > 0) {
@@ -390,6 +434,7 @@ export function buildPflRail(aircraft, env = null, options = {}) {
   finalWaypoints.classification = solution.classification;
   finalWaypoints.bankDeg = solution.bankDeg;
   finalWaypoints.energyMargin = solution.energyMargin;
+  finalWaypoints.dragSchedule = solution.dragSchedule;
   finalWaypoints.surplusOrbit = solution.surplusOrbit;
   finalWaypoints.joinPoint = solution.joinPoint;
   finalWaypoints.crashPoint = solution.crashPoint;
