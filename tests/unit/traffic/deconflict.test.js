@@ -200,3 +200,20 @@ test('a PFL banks away and comes back onto its path with no jump', () => {
   assert.ok(Math.abs(most - EVADE.flinchFt) <= 10, 'out about 500 ft');
   assert.ok(Math.abs(a.x) < 1 && !a.sideStep, 'back on its path');
 });
+
+test('a gliding PFL pays for its bank away in height: a little lower than its path, never higher (TR-55)', () => {
+  const route = { id: 'R', kind: 'flown', points: [{ x: 0, y: 0, alt: 5000, kt: 125 }, { x: 0, y: 60000, alt: 2000, kt: 125 }] };
+  const a = { distFt: 0, x: 0, y: 0, alt: 5000, iasKt: 125, headingDeg: 0, bankDeg: 0 };
+  followRoute(a, route, null, 0.05);
+  startSideStep(a, 90, EVADE.flinchFt, EVADE.bankAwayOutSec, EVADE.bankAwayBackSec);
+  let below = 0;
+  for (let t = 0; t < EVADE.bankAwayOutSec + EVADE.bankAwayBackSec - 0.05; t += 0.05) {
+    a.sideStep.glideConfig = 'clean';
+    followRoute(a, route, null, 0.05);
+    const pathAlt = 5000 - 3000 * a.distFt / 60000;
+    assert.ok(a.alt <= pathAlt + 0.5, 'never above its glide path');
+    below = pathAlt - a.alt;
+  }
+  // Standard aerodynamics on core's glide drag: tens of feet for a 500 ft bank away (the PFL thread's estimate is about 45 ft).
+  assert.ok(below > 10 && below < 100, `a bank away costs some height (${below.toFixed(0)} ft)`);
+});

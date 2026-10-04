@@ -4,7 +4,7 @@
 
 import { routeLengthFt, DEFAULT_ROUTE_OPTIONS } from './route.js';
 import { followRoute } from './path-follower.js';
-import { startPflFlight, PFL_ROUTE_OPTIONS } from './pfl.js';
+import { startPflFlight, PFL_ROUTE_OPTIONS, PFL_CONFIGS, PFL_CONFIG_LABELS } from './pfl.js';
 
 /**
  * One simulation step for an aircraft: every aircraft rides a path on the path follower (Traffic plan,
@@ -56,6 +56,8 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
   // ── PFL: the flown glide, on the path follower (Traffic spec 4.5; refactor PR 3) ──
   if (a.pflFlight) {
     const fl = a.pflFlight;
+    // A bank away glides in the configuration it is in, so the follower charges its height (TR-55).
+    if (a.sideStep) a.sideStep.glideConfig = PFL_CONFIGS[Math.max(0, PFL_CONFIG_LABELS.indexOf(a.config))];
     const p = followRoute(a, fl.route, env, stepDt, PFL_ROUTE_OPTIONS);
     const pt = fl.route.points[Math.min(p.seg ?? 0, fl.route.points.length - 1)];
     a.phase = pt?.phase ?? 'pfl';

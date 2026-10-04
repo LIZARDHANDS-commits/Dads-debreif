@@ -332,7 +332,7 @@ Design and Patrick's nine answers: project files, `traffic-deconfliction/design.
 6. A tag beside the aircraft says what it is doing, like the PFL tag: `[GIVING WAY: break out]`, `[GIVING WAY: fly-through]`, `[GIVING WAY: go-around]`, `[GIVING WAY: move over]`, `[EVASIVE: flinch]`, `[EVASIVE: bank away]`.
 7. **When data fails:** an aircraft with a non-finite position, height, track or speed is left out of the check for that tick, never an error, and every other pair is still checked. A red that still appears is the honest sign it could not clear it. A rewind replays the same decisions (no dice, the tag is part of the aircraft's saved state).
 8. **Speeds:** predictions use ground speed; the moves fly their own indicated speeds.
-9. **Known limits:** a PFL's bank away moves it off its path without changing its glide (the height and speed stay the planned ones); the flinch, the climb ahead and the breakout after them are all flown paths, so the deconfliction predicts them along the path they will fly (the breakout since 4 Oct, `breakout.js` `buildBreakout`).
+9. **Known limits:** a PFL's bank away costs height (TR-55): the path follower charges the extra G's drag and the extra ground at the glide ratio (about 40 ft for the 500 ft bank away, a calculation), and when it is back on its glide the PFL re-plans from where it really is; its speed stays the planned one. The flinch, the climb ahead and the breakout after them are all flown paths, so the deconfliction predicts them along the path they will fly (the breakout since 4 Oct, `breakout.js` `buildBreakout`).
 
 ---
 
