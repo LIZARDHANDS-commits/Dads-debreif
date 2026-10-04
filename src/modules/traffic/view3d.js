@@ -18,6 +18,7 @@ import {
 } from '../../ui-kit/three-aircraft.js';
 import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT } from '../../ui-kit/ct156-model.js';
 import { KT_TO_FTPS, G_FTPS2 } from '../../core/units.js';
+import { T6_LENGTH_FT } from './types.js';
 import { paletteFrom, conflictLevels, isFlying, aircraftColor, heightSpeedText, LEVEL_MARKS, MIN_RING_PX, photoAlignment, photoView } from './map2d.js';
 import { createTileLayer, ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { makeLocalRef, latLonToLocalFt } from '../../core/geo.js';
@@ -54,8 +55,8 @@ export const PRESET_PITCH_DEG = Object.freeze({ fit: 45, high: 20, low: 72 });
 const CHASE_SPAN_FT = 3000;
 const CHASE_LERP = 0.15; // how fast the chase camera swings behind a turning aircraft, a share of the gap each frame
 
-/** Real length of a T-6 in feet. A zoomed-out aircraft is drawn bigger, so it can still be seen. */
-export const T6_LENGTH_FT = 33.4;
+/** Real length of a T-6 in feet (kept in types.js). A zoomed-out aircraft is drawn bigger, so it can still be seen. */
+export { T6_LENGTH_FT };
 /** The length an aircraft is drawn at least, on screen, in pixels. */
 export const MIN_PLANE_PX = 44;
 
