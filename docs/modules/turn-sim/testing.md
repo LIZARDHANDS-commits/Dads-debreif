@@ -179,6 +179,51 @@ Not run locally before the pull request beyond the touched files once (CI is the
 8. Nothing jumps or snaps at 0.25x.
 9. Say if the estimates in TS-56 look right, and which 4-ship fighting wing sweep you want for #3 and #4.
 
+## Fluid manoeuvring, the simplified baseline (TS-57, `spec.md` section 10.3)
+
+Patrick's 11:50Z rule again: test only that it flies right. No wording, seconds, counts or one-off values are pinned.
+
+| What | Check | Source of the expected value |
+|---|---|---|
+| Entry from fighting wing only | Fluid manoeuvring is refused from the default line abreast start and in the 4-ship, and starts from fighting wing | Patrick 21:44Z |
+| #2 in the cone | Through a level turn and a reversal, once the entry is flown, #2 stays 500-1,000 ft from Lead, within the shared ±100 ft of the 600 ft set, and within 30° (+5°) of Lead's tail | SMM 16.17 para 42; Patrick 19:20Z rows 2-4 |
+| Lead's level turn is level | Lead's height stays within the shared ±100 ft | AFM7 brief p.17 (level turns) |
+| No jumps | Nobody rolls faster than 90°/s; no one's G changes by more than the shared 0.5 G in a step | TS-37, TS-47 |
+| Terminate | Ends with the pair in fighting wing, inside its band | Patrick 19:20Z row 7; SMM 12.29 para 69 |
+| Refusals | A reversal from wings level is refused; a distance outside 500-1,000 ft is refused | Patrick's list; SMM 16.17 para 42 |
+
+Not tested:
+- the screen: the Fluid button greying, Lead's buttons, the settings, the card lines, the flags and the tags. Checked by eye in a browser run against `npx vite` (pictures in the project files at `turn-sim-review/screens/v217-*.png`), for sign-off;
+- the flags firing (bubble, G, aspect and HCA, hard deck): the baseline's turns don't reach them from the default start; they are worded in `live/fluid.js` and seen only by reading the code;
+- the 70/3 and 30° banks and a distance change while flying: scratch runs only.
+
+Not run locally before the pull request beyond the touched file once (CI is the one check).
+
+**Sign-off checklist, TS-57** (draft, for Patrick to put in his own words). Open the Formation Simulator fresh, with the version shown on screen (V2.17), 2D:
+1. Fluid manoeuvring is greyed in line abreast ("From fighting wing only"). Press Fighting wing and wait: it lights up.
+2. Press Fluid manoeuvring: Lead turns away from #2 at 30°, then rolls to 60° at MAX; #2 moves from his fighting wing slot into the cone behind Lead.
+3. Press Level turn R, then Reversal, then Wings level, then a level turn again. #2's tag reads IN POSITION with the range near 600 ft and the aspect inside 30°; his pursuit word changes (LAG into a turn toward him, LEAD away, then PURE).
+4. Fluid settings: try Gentle 30° and Steep 70/3, and a distance of 800 ft (it eases out to it). Live is greyed.
+5. Press Terminate: Lead flies a gentle 30° turn at 200 KIAS and rolls out; #2 goes back to his fighting wing slot; the card judges fighting wing.
+6. Nothing jumps or snaps at 0.25x; the other buttons are greyed while fluid manoeuvring runs.
+7. Say if the estimates in TS-57 look right, and where #2 should sit in a turn away from him (see the question in the report: he can end up close to Lead's tail).
+
+## Fighting wing desired spacing and sweep as settings (TS-58, `spec.md` section 10.4)
+
+| What | Check | Source of the expected value |
+|---|---|---|
+| #2 goes where the setting says | 2-ship set to a spacing and sweep inside the band: after Fighting wing, #2 is within the shared ±100 ft and ±5° of them, sweep measured from Lead's wing line | Patrick 21:25Z; SMM 12.29 para 69, Fig 12.19 |
+| Flagged, never walled | A spacing past 1,000 ft is flown there (±100 ft), and the roll-out judgement flags it | Rule book (published limits are flags); SMM 12.29 para 69 |
+| The 4-ship's own pairs | #3 and #4 settle at their own spacing and sweep off the one ahead (shared margins); #2 at the 4-ship default | Patrick 21:25Z; Patrick 11:44Z (FW4) |
+| The flag and the refusal | A place inside the SMM band has no flag; outside it has one; far outside what the sim flies it is refused | SMM 12.29 para 69 |
+
+Not tested: the More section on screen (seen in a browser run, `turn-sim-review/screens/v217-fw-settings-*.png`); a sweep setting through a fighting wing side swap or turn; Fluid 4 with a changed #2 pair.
+
+**Sign-off checklist, TS-58** (draft, for Patrick to put in his own words), V2.17, 2D:
+1. Setup, "More: fighting wing spacing and sweep": the 2-ship shows #2's spacing 750 ft and sweep 45°; switch to the 4-ship and it shows #2 650 ft and 45°, #3 and #4 650 ft and 30°.
+2. Type 1,100 ft: a line says it is outside the SMM band and is flown anyway. Press Fighting wing: #2 settles about 1,100 ft out and the card flags it.
+3. In the 4-ship set #3 and #4's sweep to 60° and press Fighting wing: #3 and #4 sit further back.
+
 ## Turn Sim rules on top of the whole-tool rules
 
 - **FM1. The end picture is the test (TS-R3 to TS-R5).** For each turn, both ways, in each formation, check who is where and which way they face once every aircraft has rolled out, against the SMM figure's page reference (Figs 16.15 to 16.21 and 16.30 to 16.36). The checks are positions relative to Lead and spacing against the set spacing. Each has a stated margin and its reason. How long the turn took is never checked (T2).
@@ -398,6 +443,8 @@ From the ratified test register (`pf/reset/5-testing/test-register.md`, Part B).
 | `tests/unit/turn-sim/errors.test.js` | New, keep (TS-52, training errors) | TS-R8, TS-47, F12: errors off changes nothing; each error carried at normal reference; Fix it never worse and closer where there is room; flight limits and smooth hand-overs hold; expected values from the SMM pictures and geometry | | Each change |
 | `tests/unit/turn-sim/live.test.js` | New, keep (first version) | FM1, FM6, FM8, TS-R4, TS-R5, TS-R11, TS-47: end pictures, 300 ft at the cross, smooth hand-overs; expected values worked out in the test from the SMM pictures and the shared margins | | Each change |
 | `tests/unit/turn-sim/formation-moves.test.js` | New, keep (TS-55, V2.15) | FM1, TS-47, Patrick 11:50Z: the hot turning rejoin, fighting wing turns, the quick sweep to fighting wing, the straight-ahead rejoin to echelon (2-ship and 4-ship), coming off the stack and the SMM station changes end in the formation pressed with no snaps, below Lead and under the caps. Expected values come from the SMM, EFIG and Patrick's rulings; one generous limit (30 s), with its reason | | Each change |
+| `tests/unit/turn-sim/fluid.test.js` | New, keep (TS-57, V2.17) | FM1, Patrick 11:50Z: fluid manoeuvring starts only from fighting wing; #2 in the 500-1,000 ft band and the 30° cone at the distance set (shared margins); Lead level; no jumps; Terminate ends in fighting wing | | Each change |
+| `tests/unit/turn-sim/fw-shape.test.js` | New, keep (TS-58, V2.17) | Patrick 21:25Z: #2, #3 and #4 settle at the fighting wing spacing and sweep set (shared margins); outside the SMM band flown and flagged, never walled | | Each change |
 | `tests/unit/turn-sim/tags.test.js` | New, keep (TS-56, V2.16) | FM1, Patrick 11:50Z: the info tag's fighting wing states against the cone written out from SMM 12.29 para 69 and Fig 12.19, and sweep measured from the wing line | | Each change |
 | `tests/unit/turn-sim/four-ship.test.js` | New, keep (4-ship, V2.7) | FM1, FM6, TS-47, TS-50: the start picture and stack, end pictures of every 4-ship button, who turns first and the wait, the check turn, bank and G, 300 ft separation with the stack held, smooth hand-overs for all four; expected values from the briefs, SMM and the shared margins; one horizontal-only figure is an estimate and says so | | Each change |
 | `tests/e2e/turn-sim.spec.js` | Follows the Turn Sim review (if kept: keep, with changes) | 46 of 46 pass at `6283f38`. Changes: the typed defaults include "time delay, 16 s" and 220 KTAS (`:155-160`), which TS-R7 and TS-R6 change; "Close pass: 894 ft", "954 ft", 36.7 s and 1.0 s (`:719`, `:859`, `:731-736`) are the engine's own (T3); real-time waits (`:184`, `:431`, `:433`) wait for an event instead (T2); the layout check runs at 1366 and 1920 wide (`:93`), and TS-R20 asks for 1280; stale "skipped" comments (`:15-16`, `:881`) go | Carries over: the whole-tool per-change checks for any build (smoke, layout with every panel open, keys, leaving, 3D loads only when asked). New: the still-air line (TS-R10); live mode (TS-R1) when built | Smoke, layout, buttons, leaving and offline parts each change; the whole file at sign-off |

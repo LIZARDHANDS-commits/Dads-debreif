@@ -53,6 +53,49 @@ export const REJOIN = Object.freeze({
   turnAnglesDeg: [30, 45, 20, 60], // how far Lead turns into #2 once it has closed; estimates (a gentle turn, AFM8 brief p.19); the planner takes the first that keeps the overshoot lane
   turnAtRangeFt: [2000, 1500, 2500], // Lead turns when #2 has closed to this range; estimates
 });
+/**
+ * Fighting wing's desired place for the 2-ship: 750 ft at 45° of sweep, measured back from Lead's wing line (SMM 12.29
+ * para 69, Fig 12.19). The default is the middle of the SMM's 500-1,000 ft and 30-60° band, an estimate. It is a setting
+ * (Patrick 21:25Z, TS-58): setFwShape changes it, and slotFor('fw') reads it.
+ */
+export const FW2 = Object.freeze({ rangeFt: 750, sweepDeg: 45 });
+/** SMM 12.29 para 69's band: a desired place outside it is flown and flagged, never refused. */
+export const FW_BAND = Object.freeze({ rangeFt: Object.freeze([500, 1000]), sweepDeg: Object.freeze([30, 60]) });
+/**
+ * What the sim will fly at all: 50 ft and 5° inside the region where the pair is still recognised as fighting wing
+ * (classifyPair: 400-1,300 ft, 20-70°), so the fighting wing buttons keep working. Estimates, not manual limits.
+ */
+export const FW_LIMITS = Object.freeze({ rangeFt: Object.freeze([450, 1250]), sweepDeg: Object.freeze([25, 65]) });
+let fwShape = { ...FW2 };
+
+/** Sets the 2-ship's desired fighting wing place ({ rangeFt, sweepDeg }; a missing value takes the default). */
+export function setFwShape({ rangeFt = FW2.rangeFt, sweepDeg = FW2.sweepDeg } = {}) {
+  fwShape = { rangeFt, sweepDeg };
+}
+
+/** The 2-ship's desired fighting wing place now: { rangeFt, sweepDeg }. */
+export function fwShapeNow() {
+  return { ...fwShape };
+}
+
+/**
+ * Checks a desired fighting wing place: { ok: false, reason } outside what the sim flies (FW_LIMITS), else
+ * { ok: true, flag } where flag says it is outside the SMM band (SMM 12.29 para 69) and flown anyway, or is null.
+ * `who` names the aircraft in the words ("#2", "#3 and #4").
+ */
+export function checkFwShape(rangeFt, sweepDeg, who = '#2') {
+  const r = Number(rangeFt);
+  const d = Number(sweepDeg);
+  const [rMin, rMax] = FW_LIMITS.rangeFt;
+  const [dMin, dMax] = FW_LIMITS.sweepDeg;
+  if (!Number.isFinite(r) || r < rMin || r > rMax) return { ok: false, reason: `${who}'s fighting wing spacing must be ${rMin}-${rMax.toLocaleString('en-CA')} ft.` };
+  if (!Number.isFinite(d) || d < dMin || d > dMax) return { ok: false, reason: `${who}'s fighting wing sweep must be ${dMin}-${dMax}°.` };
+  const outside = [];
+  if (r < FW_BAND.rangeFt[0] || r > FW_BAND.rangeFt[1]) outside.push(`spacing ${r.toLocaleString('en-CA')} ft (500-1,000)`);
+  if (d < FW_BAND.sweepDeg[0] || d > FW_BAND.sweepDeg[1]) outside.push(`sweep ${d}° (30-60°)`);
+  return { ok: true, flag: outside.length ? `${who}: ${outside.join(' and ')} is outside the SMM's fighting wing band (SMM 12.29 para 69); flown anyway.` : null };
+}
+
 /** The overshoot lane: inside 1,000 ft #2 stays behind Lead's 3/9 line, within the shared 100 ft margin (design section 10). */
 const LANE_MARGIN_FT = 100;
 /** A generous cap on how long one change may take (the spec's 3 minutes, an estimate): it only catches a planner that never finishes. */
@@ -74,8 +117,8 @@ export const FORMATIONS = Object.freeze({
 export function slotFor(key, s, spacingFt = 6000) {
   switch (key) {
     case 'lab': return { fwd: 0, left: s * spacingFt, alt: 0 };
-    // 750 ft at 45° sweep: the middle of 500-1,000 ft and 30-60° (SMM 12.29 para 69), an estimate of the default; 60 ft below is an estimate too
-    case 'fw': return { fwd: -750 * Math.sin(45 * DEG), left: s * 750 * Math.cos(45 * DEG), alt: -60 };
+    // the desired place setting (FW2's 750 ft at 45° by default, SMM 12.29 para 69); 60 ft below is an estimate
+    case 'fw': return { fwd: -fwShape.rangeFt * Math.sin(fwShape.sweepDeg * DEG), left: s * fwShape.rangeFt * Math.cos(fwShape.sweepDeg * DEG), alt: -60 };
     // about 45 ft out, 25 ft back, 5 ft down: estimates, the manual gives sight references (SMM 12.4 paras 11-12)
     case 'echelon': return { fwd: -25, left: s * 45, alt: -5 };
     // two wingspans out on the wing-tip line, the middle of 1 to 3 (SMM 12.6 para 15), level or slightly low
@@ -584,10 +627,12 @@ function legsFor(from, s, to, sTo, spacingFt) {
   const closeTarget = to === 'echelon' || to === 'route';
   if (at !== 'astern' && to !== 'astern' && side !== sTo && !(at === 'fw' && closeTarget)) {
     if (at === 'fw') {
-      // drop back to 750 ft astern, flow across behind Lead, then to the other side's slot; 30 ft/s across is an estimate
+      // drop back to the fighting wing spacing astern (750 ft by default), flow across behind Lead, then to the other side's
+      // slot; 30 ft/s across is an estimate
       const flow = { latRate: 30, vrel0: 32, advanceTol: 25 };
       const fw = slot('fw', side);
-      phases.push(dropBack({ ...fw, fwd: -750 }, flow), dropBack({ fwd: -750, left: 0, alt: fw.alt }, flow), dropBack({ ...slot('fw', sTo), fwd: -750 }, flow));
+      const back = -fwShape.rangeFt;
+      phases.push(dropBack({ ...fw, fwd: back }, flow), dropBack({ fwd: back, left: 0, alt: fw.alt }, flow), dropBack({ ...slot('fw', sTo), fwd: back }, flow));
       if (to !== 'fw') phases.push(dropBack(slot('fw', sTo), { advanceTol: 25 }));
       side = sTo;
     } else {
