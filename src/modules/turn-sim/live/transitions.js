@@ -487,6 +487,36 @@ export const rejoinTo = (slot, over = {}) => phase(slot, { fwdRate: Infinity, la
 /** Entry to line abreast (SMM 16.18 para 51): #2 turns away 20-40° to open out while Lead holds 220 KIAS. */
 export const openOut = (slot, over = {}) => phase(slot, { fwdRate: 40, latRate: 150, vrel0: 40, kcap: 0.1, d0: 300, vrelMax: 220, decel: 2, bankCapDeg: 45, overtakeKias: 25, undertakeKias: 15, advanceTol: 30, finalTol: 25, ...over });
 
+/** The straight-ahead rejoin's places in feet, in the frame of the aircraft rejoined on (estimates, see straightAhead). */
+export const STRAIGHT_AHEAD = {
+  sixFt: -750, // line up on the six at the default fighting wing range, inside Fig 12.17's 1,000 ft (estimate)
+  belowWakeFt: -20, // "fly just below lead's wake" (EFIG p.371); 20 ft is an estimate
+  closeTowardFt: -150, // the closing leg's aim, ahead on the six line, so the closure holds until the vector point (estimate)
+  vectorAtFt: 500, // "at approximately 500 ft" the small vector toward the echelon side (Fig 12.17, point 2; SMM 12.26 para 63)
+};
+
+/**
+ * A straight-ahead rejoin from fighting wing to route (SMM 12.26 paras 62-63, Fig 12.17; EFIG p.371): line up on the six of the
+ * aircraft rejoined on, just below its wake; close with 20-30 KIAS overtake (EFIG p.371); from about 500 ft behind (Fig 12.17,
+ * point 2) take a small vector to the side wanted, which aims slightly away from it, reduce the overtake and stabilise in route
+ * (point 3). The caller then moves up the wing-tip line to echelon (point 4). at(fwd, left, alt) turns a place in the frame of
+ * the aircraft rejoined on into a phase slot; route is the route slot itself; over (e.g. { track }) goes on every phase.
+ * @param {(fwd: number, left: number, alt: number) => { fwd: number, left: number, alt: number }} at
+ * @param {{ fwd: number, left: number, alt: number }} route
+ * @param {{ endInRoute?: boolean, track?: number }} [options]
+ */
+export function straightAhead(at, route, { endInRoute = false, ...over } = {}) {
+  const A = STRAIGHT_AHEAD;
+  const quick = { fwdRate: Infinity, latRate: Infinity, decel: 2, undertakeKias: 15, ...over };
+  return [
+    phase(at(A.sixFt, 0, A.belowWakeFt), { ...quick, vrel0: 20, kcap: 0.05, d0: 50, vrelMax: 100, bankCapDeg: 30, overtakeKias: 15, advanceTol: 60 }),
+    // close along the six line at about 21 KIAS overtake, inside EFIG p.371's 20-30, until the vector point
+    phase(at(A.closeTowardFt, 0, A.belowWakeFt), { ...quick, vrel0: 36, kcap: 0, vrelMax: 50, decel: 3, bankCapDeg: 20, overtakeKias: 30, advanceTol: A.vectorAtFt + A.closeTowardFt }),
+    // then route, closing level or slightly low (SMM 16.15 para 38) and slowing as it comes in
+    closeThrough(endInRoute ? route : { ...route, alt: route.alt - 25 }, { overtakeKias: 30, vrel0: 6, kcap: 0.04, decel: 1, advanceTol: 6, ...(endInRoute ? { finalTol: 1.5 } : {}), ...over }),
+  ];
+}
+
 /**
  * The legs from one formation to another, as a list of phases, with #2 on side s now and sTo to end
  * (+1 left, -1 right). The route (design section 4): from line abreast (or a picture that fits nothing) it is a
@@ -541,19 +571,11 @@ function legsFor(from, s, to, sTo, spacingFt) {
     }
   } else {
     if (at === 'fw') {
-      // close through route (SMM 16.15 para 38; AFM7 p.18), level or slightly low, then on to the target
-      const route = slot('route', side);
+      // The straight-ahead rejoin (Patrick 19:04Z, TS-55; SMM 12.26 paras 62-63 and Fig 12.17; EFIG p.371), on the side wanted.
+      if (to !== 'astern') side = sTo;
+      phases.push(...straightAhead((fwd, left, alt) => ({ fwd, left, alt }), slot('route', side), { endInRoute: to === 'route' }));
       at = 'route';
-      if (side !== sTo) {
-        phases.push(closeThrough({ ...route, alt: -30 }, { advanceTol: 6 }));
-        crossClose();
-        if (to === 'route') return phases;
-      } else if (to === 'route') {
-        phases.push(closeThrough(route, { finalTol: 1.5 }));
-        return phases;
-      } else {
-        phases.push(closeThrough({ ...route, alt: -30 }, { advanceTol: 6 }));
-      }
+      if (to === 'route') return phases;
     }
     if (to === 'astern') {
       const astern = slot('astern', 0);
@@ -576,7 +598,7 @@ export function describe(from, to, rejoinKind) {
   }
   if (to === 'lab') return 'entry to line abreast, Lead speeds up to 220 KIAS';
   if (to === 'fw') return from === 'fw' ? 'flow to the other side behind Lead' : 'drop back and sweep out, expeditious';
-  if (from === 'fw') return 'close through route';
+  if (from === 'fw') return 'straight-ahead rejoin';
   return 'station change';
 }
 
