@@ -175,7 +175,12 @@ function checkAircraft(raw, routes) {
     if (!route) refuse(`${a.id} starts on a route that is not there`);
     if (!isInt(a.startIndex) || a.startIndex < 0 || a.startIndex >= route.points.length) refuse(`${a.id} starts at a point ${route.name} does not have`);
     if (!inRange(a.startsAtSec, LIMITS.spawnDelayS)) refuse(`${a.id} starts at a time outside 0 to ${feet(LIMITS.spawnDelayS[1])} s`);
-    out.push({ id: a.id, type: a.type, routeId: a.routeId, startIndex: a.startIndex, startsAtSec: a.startsAtSec });
+    // An engine-out start in the training area (the PFL from the area, Traffic spec 5.2): radial °T, NM and ft MSL in the spawner's ranges.
+    const area = a.area;
+    if (area !== undefined && (!plain(area) || !inRange(area.radialDeg, [0, 360]) || !inRange(area.distNm, [1, 30]) || !inRange(area.altFt, [3000, 15000]))) {
+      refuse(`${a.id} starts in the training area at a radial, distance or height outside 0-360°, 1-30 NM and 3,000-15,000 ft`);
+    }
+    out.push({ id: a.id, type: a.type, routeId: a.routeId, startIndex: a.startIndex, startsAtSec: a.startsAtSec, ...(area ? { area: { radialDeg: area.radialDeg, distNm: area.distNm, altFt: area.altFt } } : {}) });
   }
   return out;
 }

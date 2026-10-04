@@ -397,7 +397,7 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 
 ### 7.2 Progressive Disclosure (R22)
 - **Playback bar**: Play/Pause, Rewind, −10 s, +10 s, Reset, speed (0.25× to 8×), clock, status, 2D/3D toggle, Fit, Layers.
-- **Setup column** (the left column, Patrick, 4 Oct 11:05Z): Scenarios buttons (Moose Jaw day, One aircraft, Full circuit, Joining traffic, Random; each replaces the aircraft, paused at 0:00, and keeps the routes, wind and settings), then Wind: a dial for the direction it blows from (°T, drag in 10° steps, arrow keys) and a strength bar (kt), with a line giving 29L's head and cross wind. Scenarios and notes and the routes list follow.
+- **Setup column** (the left column, Patrick, 4 Oct 11:05Z): Scenarios buttons (Busy circuit, Moose Jaw day, One aircraft, Full circuit, Joining traffic, Random; each replaces the aircraft, paused at 0:00, and keeps the routes, wind and settings). **Busy circuit** is the opening picture (Patrick, 4 Oct 18:36Z and 18:47Z): ten aircraft, seven at random points of Pattern 1 at least 1 NM apart, one entering the overhead, a PFL from the area (120°, 6 NM, 8,000 ft, an estimate that joins at High Key in winds up to 25 kt) and a straight-in on ENT2 timed so it meets the overhead aircraft in its final turn. The timing is measured by flying the two alone (30 s at 260°/15 kt, found again for any other wind); the deconfliction then moves the straight-in over toward the inner runway and goes around (4.12). Pressing it again gives a new picture., then Wind: a dial for the direction it blows from (°T, drag in 10° steps, arrow keys) and a strength bar (kt), with a line giving 29L's head and cross wind. Scenarios and notes and the routes list follow.
 - **Layers menu**: trails, altitude/speed labels, waypoint points, leg distances, conflict bubbles, caution rings, satellite photo. Under More: opacity, grid order, photo alignment.
 - **Routes list**: one line per route with color, kind, and link; "+ New route" dropdown.
 - **Selected route**: name, point table (number, label, alt, speed phase, bank/G).
@@ -410,7 +410,8 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 Every setting starts filled in so the first look is clean and intuitive:
 - Playback speed: 8×
 - 2D or 3D: 2D. 3D opens over the field: from north of the field looking south-south-east, low over the base, with the runways in the lower half and the circuit beyond (Patrick, 4 Oct 2026 10:17Z, from his screenshot). Fit still frames every route.
-- Wind: calm (360°T at 0 kt)
+- Wind: 260°T at 15 kt (Patrick, 4 Oct 18:47Z; was calm)
+- Aircraft: the Busy circuit scenario (7.2), unless a saved setup is open
 - Default aircraft type: CT-156 Harvard II (paint: `harvard`)
 - Pattern: PAT_INNER (Runway 29L, left-hand, 3,500 ft MSL)
 - Conflict limits: 200 ft lateral, 200 ft vertical (caution: 500 ft / 500 ft)
