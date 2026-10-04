@@ -239,11 +239,11 @@ The simple fight never changes speed, so it can't show this. Energy mode shows h
   - For Blue and Red: **merge speed** in KIAS (default 220), from 40 up to the top speed at that aircraft's start height, `energyTopKias` (the engine's own limit; see Limits): 316 KIAS (VMO) up to 17,570 ft, then true Mach 0.67 in the model's own indicated speed: 300 KIAS at 20,000 ft and 269 KIAS at 25,000 ft. The engine compares the model's own speed with VMO and with true Mach 0.67. The NFM's KIAS line (Fig 4-1-2, p. 5-9; core's `maxKiasT6A`: 309 at 20,000 ft, 279 at 25,000 ft) is not used here, because the model's IAS has no compressibility (see Limits). The height is checked first, so a speed over the limit is refused with a message that names the limit at that height, for example "Blue's merge speed is above the T-6A's limit at 25,000 ft (269 KIAS in the model, Mach 0.67; the NFM's 279 is the same Mach on the gauge)", or "(316 KIAS, VMO)" below the crossover, even for 317 or 400 KIAS. A speed under 40 says "from 40 to" the limit at that height. Where Mach governs, the limit is rounded down to the whole knot the message shows, so a merge at the limit never flies over Mach 0.67; the label says VMO only when the limit really is 316. The message names the model's figure and, because a pilot knows the NFM's, the NFM's number (core's `maxKiasT6A`, rounded) for the same Mach; between 17,570 and 18,879 ft the NFM's line is still VMO, so it is not quoted there.
   - Beside each aircraft, the move the model chose and why, for example "Pitch back: 220 KIAS, SMM entry 160 to 220", then "MPT 160 KIAS" once it's there.
 - **More energy settings**, the Energy section of Turn Fight settings:
-  - **Move** for each aircraft: Auto (default), or force one of the moves below (Immelmann, Pitch back, Slice, Split S or MPT) to compare them.
+  - **Move** for each aircraft: Smart (default; step 5), or a set move (Immelmann, Pitch back, Slice, Split S or MPT) flown from the pass whatever the speed, then into the MPT, to compare them. Auto and Tactical AI are now the one Smart pilot (TF-59); a saved 'tactical' setting opens as Smart.
   - **MPT speed**, default 160 KIAS (SMM 14.3 para 6), from 125 to 175 KIAS: above that the level MPT sinks under the deck (at 175 it stays within 20 ft of it); below 125 the MPT's 60° bank floor meets the stick shaker, so it could not hold a slower speed. Both ends are held within 1.5 kt.
-  - **Hard deck**, default 6,000 ft MSL. That is 3,000 ft AGL in the Moose Jaw areas, which lie over the Coteau and Dirt Hills (SMM 14.6 para 16). The user can set it; it's where the model changes to the level MPT (step 3).
+  - **Hard deck**, default 6,000 ft MSL. That is 3,000 ft AGL in the Moose Jaw areas, which lie over the Coteau and Dirt Hills (SMM 14.6 para 16). The user can set it. The level MPT holds 300 ft above it (step 3), and going below it after the pass loses the fight (step 5, TF-R6).
   - **Pursuit** for the aircraft that gets its nose on first: Pure (default), Lead or Lag (see step 4).
-  - **Chase after a head-on pass**, off by default (pending Patrick's word): with it on, a head-on first nose-on starts the pursuit too (see step 4).
+  - **Chase after a head-on pass**, on by default (D403; TF-Q5's working answer): with it on, a head-on first nose-on starts the pursuit too (see step 4).
   - **Model settings for checking**, its own section at the bottom of Turn Fight settings, with its own "Reset to defaults" button: the numbers no manual gives, which Dad checks. A student never needs to open this.
     - Stall speed, default 86 KIAS.
     - Shaker, default 94 % of the stall-line G.
@@ -264,7 +264,9 @@ The simple fight never changes speed, so it can't show this. Energy mode shows h
   - **STALL** when the pull needs more lift than the wing has at that speed (above the stall line, 18 units AOA), or the speed falls below the 1 G stall speed, for example at the top of an Immelmann entered too slow, or a merge speed under it (STALL shows from the start, before the pass). A stall costs the turn (Patrick, 2026-09-30; SMM 14.14 para 32: a high-speed stall stops the turn): while the flag is on, the G drops to 1 G, so the turn rate all but stops, until the pilot eases back to the shaker, 1 s later by default.
   - Nothing else is flagged: no deck, top-speed or entry-speed warnings.
 
-### How the model flies (Auto)
+### How the model flies (the Smart pilot)
+
+The Smart pilot (TF-59) takes its first move from the SMM table in step 1 (what used to be called Auto), and in the MPT looks ahead for a better move (step 5).
 
 Every move is at full power (100 % torque), and the aircraft turns toward the other aircraft, from the fight type (1-circle or 2-circle), as in the simple fight. "Pull to the shaker" means pulling to 17 units AOA, just under the 18-unit stall (SMM 14.14 para 33). The model takes the shaker as 94 % of the stall-line G at the current speed (17 ÷ 18), at most 7 G. Bank changes at the roll rate, never instantly.
 
@@ -289,7 +291,7 @@ The bands overlap in the SMM (the Immelmann is 200 to 250 and the pitch back 160
 
 **3. Hold the MPT.** There are two, from SMM 14.14:
 - **Above the hard deck: the constant-speed MPT** (CSMPT, para 37), the two-circle rate fight. It holds 160 KIAS and gives up height to do it. 70 to 75° bank, pulled to the shaker, with bank used to hold the speed. Speed rising: less bank, nose higher. Speed falling: more bank, nose lower (EFIG p.430, SMM 14.4 para 8). The model has no fixed start bank: its speed-hold law sets the bank, kept within 60 to 85°, to hold 160 ± 5 KIAS; steady at 160 KIAS it settles at 72 to 73°.
-- **At the hard deck: the level MPT** (paras 34 to 36). When the aircraft gets down to the deck, the pilot raises the nose to level and holds it there by bank, not pitch, in the shaker at full power. The bank is about 69° (the chart bank, D143; the SMM's rule of thumb is 70 to 75°). The model doesn't aim for a speed here: the speed settles wherever thrust meets drag. The SMM says that is about 150 KIAS minus the altitude in thousands of feet, 144 KIAS at a 6,000 ft deck, and the model must match it (see Checks).
+- **At the hard deck: the level MPT** (paras 34 to 36). When the aircraft gets down to 300 ft above the deck (an estimate and model setting, TF-59: below the deck loses the fight, so the model does not sit on it), the pilot raises the nose to level and holds it there by bank, not pitch, in the shaker at full power. The bank is about 69° (the chart bank, D143; the SMM's rule of thumb is 70 to 75°). The model doesn't aim for a speed here: the speed settles wherever thrust meets drag. The SMM says that is about 150 KIAS minus the altitude in thousands of feet, 144 KIAS at a 6,000 ft deck, and the model must match it (see Checks).
 
 **4. Pursuit after first nose-on.** The first aircraft to get its nose within 5° of the other, with the other's aspect angle 150° or less (from behind, not a head-on pass), stops its MPT and chases, in the pursuit picked under More energy settings (SMM 12.30 and 16.16). A head-on first nose-on is still marked as first nose-on but starts no chase, unless Chase after a head-on pass is on:
 - **Pure:** nose on the other aircraft.
@@ -297,6 +299,14 @@ The bands overlap in the SMM (the Immelmann is 200 to 250 and the pitch back 160
 - **Lag:** nose on where it was 1 s ago, to stop closing too fast and overshooting.
 
 The chaser only pulls what a T-6 can: its G is capped at the shaker, and at +7 G. If the pursuit needs more than that, the chaser falls behind the curve and the result card says so. The other aircraft keeps its MPT. Choosing the pursuit for itself (lag when closing fast, lead when in guns range) is a later feature (Patrick, 2026-09-30).
+
+**5. The Smart pilot, the end of a chase, collisions and the hard deck** (TF-57 PR 3; TF-58, TF-59, TF-R6). The pilot flies to win; the MPT is a move it uses when it wins, not a goal.
+- **Looking again in the MPT.** Every 3.5 s in the MPT, once the MPT has found its speed, more than the deck margin above the deck and not stalled or OVER G, the Smart pilot flies each move it could change to (Immelmann, pitch back, slice, split S, yo-yos, MPT) 20 s ahead in a copy of the fight and takes the one that wins soonest, or else the best position. It does not look again when pursuit is set to none (nobody can win) or once the fight is lost below the deck. A set move never looks again.
+- **A chase can end.** When the chaser's nose has stayed more than 90° off the other for 2 s, it goes back to the MPT and picks again; a new nose-on starts a new chase.
+- **Collisions.** Every move but the chase breaks away from a close collision: the closest point within 4 s and under 300 ft, or closing inside 600 ft, held until the range opens past 1,000 ft (core's closest-approach maths, ALL-27). The pilot pulls the lift away from the other at what the wing gives, never down near the deck. The chase keeps its own 85 ft offset.
+- **Below the hard deck loses the fight** (TF-R6, Patrick 4 Oct). After the pass, the first jet below the deck loses: the other wins (both below in one step: no winner), the gun no longer scores, and the result card says who went below and when. The loser rolls wings level and climbs at about 20° to 500 ft above the deck, then flies level. The look-aheads count going under the deck as a loss. The deck is still a reference, not a wall: the physics decides where the jet goes.
+- **Deck guard.** Every move but the chase (which has its own) pulls out of a dive that would bottom out less than 100 ft above the deck: the height lost rolling upright first, then the pull-out circle at the G the wing gives at the speed the dive will reach. The pilot rolls the lift to the vertical and pulls until the nose is back on the horizon.
+- Every number in this step (3.5 s, 20 s, 90°, 2 s, 4 s, 300 ft, 600 ft, 1,000 ft, 20°, 500 ft, 100 ft) is an estimate and a model setting.
 
 **Forced moves** (from More energy settings) fly the same way from the merge whatever the speed. The move still exits into the MPT, so a split S at 220 KIAS shows what it costs.
 
@@ -449,7 +459,7 @@ security-and-hardening doesn't apply: the Turn Fight opens no files and fetches 
 2. **Tactical 3D Suite (D392).** Unit and E2E tests verify vertical dashed plumb lines and ground-shadow contact discs tracking to the reference floor (terrain grid in Simple Mode, Hard Deck in Energy Mode, plunging to 0 MSL on breach).
 3. **Unit tests** check aerodynamic physics: 220 KTAS at 4 G turns at 19.2°/s on a 1,106 ft radius; MPT speed range 125–175 KIAS; Mach 0.67 corner speed (269 KIAS at 25,000 ft); Immelmann 5.0 G pull to shaker (D393); prohibition of Immelmann $\le 140$ KIAS (D381); 10° elevation capture cone for vertical nose-on (D386).
 4. **Browser tests** (Playwright): 67 automated E2E tests validating controls, 2D/3D views, Energy Mode uPlot profiles, axe accessibility, and keyboard navigation.
-5. **Energy mode** flies the T-6A point-mass model, reaching and holding the 160 KIAS MPT from 125–175 KIAS, with full hard-deck containment and stall protection.
+5. **Energy mode** flies the T-6A point-mass model; the MPT, flown as a set move, reaches and holds its speed from 125–175 KIAS; the AI stays above the hard deck by choice, and stall protection holds. Checks of a rule set the rule up directly (a forced move, a head-on pass), never one story of the default fight, which the Smart pilot may fly differently from one change to the next.
 6. **Sign-off checklist** (R21, Gate 2), run by Patrick against `archive/docs/checklists/turn-fight.md`.
 
 ## Boundaries
@@ -462,7 +472,7 @@ security-and-hardening doesn't apply: the Turn Fight opens no files and fetches 
 - All 504 unit tests and 67 Playwright E2E tests pass 100% green within pilot domain tolerances (D371).
 - A student can set up, play and read a fight with only the default controls showing (R22).
 - Every control does something, nothing overlaps, and nothing runs after the module closes (R2, R3, R4).
-- Energy mode meets its chart checks: from merge speeds between 125 and 250 KIAS, Auto reaches and holds the 160 KIAS max-performance turn per SMM standards.
+- Energy mode meets its chart checks: the MPT, flown as a set move, reaches and holds the 160 KIAS max-performance turn per SMM standards, and the AI keeps above the deck and under the top speed.
 - Tactical 3D Suite (D392) provides instant visual vertical grounding.
 - Patrick signs off the checklist (R21, Gate 2).
 

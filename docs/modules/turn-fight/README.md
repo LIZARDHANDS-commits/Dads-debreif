@@ -6,6 +6,8 @@ This folder is the turn fight: two aircraft manoeuvring against each other, with
 
 Built much further than the old file; the roadmap calls it ready for Patrick, and the reset found gaps between what Patrick decided and what is built (top-speed and hard-deck flags, pull G on screen, extra-stats panel) (`archive/HANDOVER.md:90`, `pf/reset/4-decisions/partb-turnfight.md:15`).
 
+Energy pilot (4 Oct): TF-57 PR 1 and 2 merged, and PR 3 merged as #297 (v2.11): one Smart pilot (TF-59), below the deck loses and climbs out (TF-R6), a deck guard and a collision break in every move, and a chase that can end (TF-58). Not yet seen on screen by Patrick.
+
 ## What is next
 
 The plan's steps, in order: Step 1: Refresh spec.md against the new requirements; Step 1b: Refactor the pilot layer (TF-57); Step 2: Build the gaps between decided and built; Step 3: Check the possible faults from the reset's browser run; Step 4: Settle the open screen questions when work resumes; Step 5: Sign-off. Only what is in `plan.md` gets built.
