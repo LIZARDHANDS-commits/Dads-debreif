@@ -60,9 +60,8 @@ export function spotChoices(route) {
 
 /**
  * Routes whose start is chosen by distance back along the line instead of by spot buttons (Patrick, 4 Oct: the
- * OHB Rejoin, "how many miles back on the rejoin line"). Until the engine can start partway along a leg (whole
- * miles wait for Patrick's yes on that flying change), the choices are the line's own spots, by how far back
- * from the merge they are along the line.
+ * OHB Rejoin, "how many miles back on the rejoin line", in whole miles; the engine starts it partway along a
+ * leg, sim.spawn backFt, approved by Patrick 4 Oct).
  */
 export const MILES_BACK_ROUTES = Object.freeze(['ENT1']);
 
@@ -217,8 +216,10 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     const route = currentRoute();
     if (MILES_BACK_ROUTES.includes(route?.id)) {
       const pickId = 'traffic-spawn-miles-back';
-      const pick = h('select', { id: pickId }, milesBack(route).map(({ point, nm }) => h('option', { value: String(point) }, `${nm.toFixed(1)} NM back`)));
-      const go = h('button', { type: 'button', class: 'button primary spawn-spot', onclick: () => spawnAt(Number(pick.value)) }, '+ Spawn');
+      const most = Math.max(1, Math.floor(milesBack(route)[0]?.nm ?? 1)); // whole miles, up to the line's length
+      const pick = h('select', { id: pickId }, Array.from({ length: most }, (_, i) => h('option', { value: String(i + 1) }, `${i + 1} NM back`)));
+      pick.value = String(most); // the farthest, about where the old Entry Start was
+      const go = h('button', { type: 'button', class: 'button primary spawn-spot', onclick: () => spawnBack(Number(pick.value)) }, '+ Spawn');
       guardButton(go, ['spawnDelayS']);
       spots.appendChild(h('div', { class: 'control control-select spawn-miles' }, h('label', { for: pickId }, 'Miles back on the rejoin line'), pick));
       spots.appendChild(go);
@@ -240,9 +241,10 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
   }
 
   // The spawner keeps its own choice of route: picking a route on the left doesn't change it (#45).
-  function spawn(pair) {
+  function spawn(pair, extra = {}) {
     const asked = spawnSpec(settings.get(), flownRoutes());
     if (asked.problem) return say(asked.problem);
+    asked.spec = { ...asked.spec, ...extra };
     const second = pair ? pairSpec(asked.spec, settings.get()) : null;
     if (second?.problem) return say(second.problem);
     // A saved profile holds MOST_AIRCRAFT at most (PR-04): stop here, in the same words Save would use.
@@ -257,6 +259,13 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       say(engineProblem(err));
     }
     onChange();
+  }
+
+  /** + Spawn on a miles-back route: an aircraft (or a pair) `nm` back from the route's end along the line. */
+  function spawnBack(nm) {
+    if (pairBox.checked && controls.invalid().includes('pairGapS')) return say('Nothing was added: fix the Pair gap box first.');
+    settings.update({ spawnStartPoint: 1 });
+    spawn(pairBox.checked, { backFt: nm * FT_PER_NM });
   }
 
   /** A spot was pressed: an aircraft (or a pair, from Advanced settings) at that spot of the chosen route. */

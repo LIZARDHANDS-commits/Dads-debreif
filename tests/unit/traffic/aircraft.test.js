@@ -121,9 +121,10 @@ test('the spawner shows Type and Route, a button for each spot of the route, and
   assert.equal(inputFor(spawner, 'Type').value, '0', 'CT-156 is the first in the list');
   assert.equal(inputFor(spawner, 'Route').value, 'ENT1');
   assert.equal(inputFor(spawner, 'Delay').value, '0');
-  // The OHB Rejoin starts by distance back along the line (Patrick, 4 Oct), measured along its legs from the Merge:
-  // 1.6 NM to the Entry Gate, 5.2 NM to the Entry Mid, 9.2 NM to the Entry Start (the route file's points).
-  assert.deepEqual(tagged(inputFor(spawner, 'Miles back on the rejoin line'), 'OPTION').map(words), ['9.2 NM back', '5.2 NM back', '1.6 NM back']);
+  // The OHB Rejoin starts by whole miles back along the line (Patrick, 4 Oct), up to its 9.2 NM length; 9 at first.
+  const miles = inputFor(spawner, 'Miles back on the rejoin line');
+  assert.deepEqual(tagged(miles, 'OPTION').map(words), ['1 NM back', '2 NM back', '3 NM back', '4 NM back', '5 NM back', '6 NM back', '7 NM back', '8 NM back', '9 NM back']);
+  assert.equal(miles.value, '9');
   assert.equal(words(withClass(spawner, 'spawn-spots-hint')[0]), 'Choose how far back, then + Spawn adds an aircraft there now.');
   assert.equal(words(all(withClass(spawner, 'spawner-advanced')[0], (n) => n.tagName === 'SUMMARY')[0]), 'Advanced settings');
   chooseRoute(spawner, 'ENT2');
@@ -147,14 +148,18 @@ test('the overhead break offers only Initial, In the break, Downwind and Perch (
 });
 
 test('on the OHB Rejoin, + Spawn adds an aircraft the chosen distance back, names it, and tells the screen', () => {
-  const { spawner, sim, changes, settings } = setup();
+  const { spawner, sim, changes } = setup();
   const miles = inputFor(spawner, 'Miles back on the rejoin line');
-  miles.value = '3'; // 1.6 NM back: the Entry Gate, the third spot
+  miles.value = '2';
   spot(spawner, '+ Spawn').dispatch('click');
   assert.equal(sim.state().aircraft.length, 8);
   const added = sim.state().aircraft.at(-1);
   assert.deepEqual([added.id, added.type, added.routeId], ['A8', 'CT-156', 'ENT1']);
-  assert.equal(settings.get().spawnStartPoint, 3, 'the third spot');
+  // 2 NM back from the Merge on the rejoin line (it is nearly straight), at the line's 3,500 ft and 220 kt.
+  const merge = MOOSE_JAW.routes.find((r) => r.id === 'ENT1').points.at(-1);
+  const nm = Math.hypot(added.x - merge.x, added.y - merge.y) / 6076.12;
+  assert.ok(Math.abs(nm - 2) <= 0.1, `${nm.toFixed(2)} NM back`);
+  assert.ok(Math.abs(added.alt - 3500) <= 100 && Math.abs((added.kt ?? added.iasKt) - 220) <= 10, `${added.alt} ft, ${added.kt} kt`);
   assert.equal(words(withClass(spawner, 'spawn-message')[0]), 'Added A8.');
   assert.deepEqual(changes, [8]);
 });
