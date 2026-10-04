@@ -473,7 +473,7 @@ export function createFormation(options = {}) {
      */
     where: () => (state.fluid ? { key: 'fluid', side: state.lastSide } : state.aircraft.length > 2 ? classifyFour(state.aircraft) : classifyPair(state.aircraft[0], state.aircraft[1])),
     /**
-     * A Lead button in fluid manoeuvring (fluid-lead.js FLUID_MOVES: levelTurn, wingsLevel, reversal, terminate); dir +1
+     * A Lead button in fluid manoeuvring (fluid-lead.js FLUID_MOVES: levelTurn, wingsLevel, reversal, climb, descend, loop, terminate); dir +1
      * left, -1 right. Returns 'started', 'queued' (the entry is still flown) or 'refused' (state.refusal says why).
      */
     pressFluid(key, dir = 1) {

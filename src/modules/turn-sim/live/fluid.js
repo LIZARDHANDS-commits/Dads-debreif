@@ -13,7 +13,7 @@ import { shakerG } from '../../../core/t6-performance.js';
 import { FTPS_TO_KT, G_FTPS2 } from '../../../core/units.js';
 import { applyPose } from './kinematic.js';
 import { len3, sub3, poseOf3d, rollRateDps, unit3, dot3 } from './attitude.js';
-import { LEAD, FLUID_MOVES, leadStateOf, stepLead, levelTurn, wingsLevel, hold, reversal, entry, terminate } from './fluid-lead.js';
+import { LEAD, FLUID_MOVES, leadStateOf, stepLead, levelTurn, wingsLevel, hold, reversal, entry, terminate, climbOrDescend, loop } from './fluid-lead.js';
 import { startWing, nextWing, rawWingPoint, smoothPoint, wingPose, levelUpOf, WING } from './fluid-wing.js';
 
 const dt = STEP_SEC;
@@ -127,8 +127,12 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       }
       next = ctl.init(st, { wingSide: w.side });
     }
+    // Entry and exit speeds of a manoeuvre that has them (the loop): the step and KIAS where it starts and ends.
+    if (r.entryKias !== undefined && e.man.entryK === undefined) Object.assign(e.man, { entryKias: r.entryKias, entryK: kMax + 1 });
+    if (r.exitKias !== undefined && e.man.exitK === undefined) Object.assign(e.man, { exitKias: r.exitKias, exitK: kMax + 1 });
+    const lastMan = r.done ? e.man : e.lastMan;
     kMax += 1;
-    entries.set(kMax, toEntry(kMax, st, w, { ctl, mem: next, queue, man, phase: r.phase, cue: r.cue, end }));
+    entries.set(kMax, toEntry(kMax, st, w, { ctl, mem: next, queue, man, phase: r.phase, cue: r.cue, end, askBank: r.bank, lastMan }));
   }
 
   /** Re-plan from step j: everything Lead flies after it is worked out again, starting with the controller ctl. */
@@ -166,6 +170,10 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
     switch (key) {
       case 'levelTurn': return [levelTurn(dir, bank)];
       case 'wingsLevel': return [wingsLevel()];
+      // A pitch change only: the bank Lead is asking for now is kept (point-mass convention).
+      case 'climb': return [climbOrDescend(1, at.askBank ?? st.bank)];
+      case 'descend': return [climbOrDescend(-1, at.askBank ?? st.bank)];
+      case 'loop': return [loop()];
       case 'reversal':
         if (Math.abs(tsBank) < 10) return { reason: 'Reversal needs a turn to reverse: press a level turn first.' };
         return [reversal(tsBank, Math.max(bank, Math.abs(tsBank) > 5 ? Math.min(Math.abs(tsBank), LEAD.levelBanks.steep) : bank))];
@@ -197,21 +205,21 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
     press(key, dir = 1) {
       const now = E(kNow);
       if (ended !== null || now.man.key === 'terminate' || entries.get(kMax).man.key === 'terminate') return { refused: 'Terminate is being flown; fluid manoeuvring is ending.' };
-      const ctls = controllersFor(key, dir, now);
+      const curMan = now.man;
+      const interruptible = (curMan.key === 'hold' || (FLUID_MOVES[curMan.key]?.interruptible ?? false)) && now.ctl.interruptible !== false;
+      // Started now, or once the manoeuvre being flown has finished (its last step); the controllers are worked out from
+      // where Lead will be then.
+      let j = kNow;
+      if (!interruptible) while (j - kNow < WAIT_LIMIT_STEPS && E(j + 1).man.id === curMan.id) j++;
+      const ctls = controllersFor(key, dir, E(j));
       if (ctls.reason) return { refused: ctls.reason };
       const man = { id: manId++, key, label: label(key, dir) };
       const [first, ...rest] = ctls;
-      const curMan = now.man;
-      const interruptible = curMan.key === 'hold' || (FLUID_MOVES[curMan.key]?.interruptible ?? false);
-      if (interruptible && now.ctl.interruptible !== false) {
-        replanFrom(kNow, first, rest, man);
+      replanFrom(j, first, rest, man);
+      if (interruptible) {
         queued = null;
         return 'started';
       }
-      // Wait for the manoeuvre being flown to finish (its last step), then start this one there.
-      let j = kNow;
-      while (j - kNow < WAIT_LIMIT_STEPS && E(j + 1).man.id === curMan.id) j++;
-      replanFrom(j, first, rest, man);
       queued = { key, label: man.label, startK: j };
       return 'queued';
     },
@@ -235,11 +243,24 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       lead.turning = !this.done;
       wing.turning = !this.done;
     },
-    /** What is flown now: { key, label, phase, manId, wingCue ('lag' | 'pure' | 'lead' | 'entry' | 'back to fighting wing'), behindSec }. */
+    /**
+     * What is flown now: { key, label, phase, manId, wingCue ('lag' | 'pure' | 'lead' | 'entry' | 'back to fighting wing'),
+     * behindSec, speeds }. speeds: for the loop being flown, or the last one while Lead flies straight on after it,
+     * { label, entryKias, exitKias (null until flown), book: { entryKias, exitKias, source } }; else null.
+     */
     now() {
       const e = E(kNow);
       const r = R(kNow);
+      const m = e.man.entryK !== undefined || FLUID_MOVES[e.man.key]?.speeds ? e.man : e.man.key === 'hold' ? e.lastMan : null;
+      const book = m ? FLUID_MOVES[m.key]?.speeds : null;
+      const speeds = book ? {
+        label: m.label,
+        entryKias: m.entryK !== undefined && kNow >= m.entryK ? m.entryKias : null,
+        exitKias: m.exitK !== undefined && kNow >= m.exitK ? m.exitKias : null,
+        book,
+      } : null;
       return {
+        speeds,
         key: e.man.key, label: e.man.label, phase: e.phase, manId: e.man.id,
         wingCue: r.blend < 0.5 ? (e.man.key === 'terminate' || e.man.key === 'steady' ? 'back to fighting wing' : 'entry') : r.cue,
         behindSec: r.behindSec,

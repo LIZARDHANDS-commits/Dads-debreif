@@ -12,7 +12,9 @@
 //  - #2 stays 500 to 1,000 ft from Lead (SMM 16.17 para 42), inside the 60° cone, 30° either side of Lead's tail
 //    (Patrick's pick 19:20Z row 2), at the distance set (600 ft, Patrick's pick row 3) within the shared ±100 ft;
 //  - Lead's level turn is level (shared ±100 ft); nobody rolls faster than 90°/s (TS-37) and G never jumps;
-//  - Terminate ends with the pair in fighting wing (Patrick's pick row 7).
+//  - Terminate ends with the pair in fighting wing (Patrick's pick row 7);
+//  - climb and descend (V2.18): Lead climbs or descends and levels off, #2 follows in the cone, G stays positive;
+//  - the loop (V2.18): over the top and back to level on Lead's heading at about 230 KIAS (SMM 7.5, Table 7.1), #2 in the cone.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createFormation } from '../../../src/modules/turn-sim/live/formation.js';
@@ -92,6 +94,21 @@ test('a level turn and a reversal: Lead stays level and #2 stays in the cone at 
   assert.deepEqual(failures.slice(0, 5), []);
 });
 
+test('in a steady level turn, into #2 or away from him, #2 holds 15° off Lead\'s current tail', () => {
+  // Patrick 22:28Z ("lets go with hold 15"): 15° off Lead's current tail line on #2's side; shared ±5° margin. A turn
+  // is steady after about 15 s (the roll-in and #2's catch-up of a few seconds; a generous limit).
+  const HOLD_DEG = 15;
+  const f = inFightingWing();
+  f.change('fluid');
+  fly(f, 30);
+  for (const dir of [-1, 1]) {
+    f.pressFluid('levelTurn', dir);
+    fly(f, 20);
+    const r = f.state.fluid.readouts;
+    assert.ok(Math.abs(r.aspectDeg - HOLD_DEG) <= TOLERANCES.ANGLE_DEG, `turn ${dir > 0 ? 'left' : 'right'}: aspect ${r.aspectDeg.toFixed(1)}°`);
+  }
+});
+
 test('Terminate brings the pair back to fighting wing', () => {
   const f = inFightingWing();
   f.change('fluid');
@@ -117,4 +134,79 @@ test('a reversal needs a turn to reverse, and a distance outside 500-1,000 ft is
   assert.equal(checkFluidRange(400).ok, false);
   assert.equal(checkFluidRange(1200).ok, false);
   assert.equal(checkFluidRange(750).ok, true);
+});
+
+test('climb and descend: Lead pitches up or down and levels off, #2 follows him in the cone at the distance set, G stays positive', () => {
+  // Patrick's list and design 5.1 (Lead's climb and descend); #2 follows Lead's plane of motion (SMM 16.16 para 39c);
+  // Lead keeps positive G (2 CFFTS Orders B2 ch 8 para 1a).
+  const f = inFightingWing();
+  f.change('fluid');
+  const failures = [];
+  const watch = inTheCone(failures);
+  const positive = (ff) => {
+    for (const a of ff.state.aircraft) if (a.g <= 0) failures.push(`${a.name} at ${a.g.toFixed(2)} G`);
+  };
+  fly(f, 30, watch);
+  f.pressFluid('wingsLevel');
+  fly(f, 10, watch);
+  const lead = f.state.aircraft[0];
+  const alt0 = lead.altAboveFt;
+  assert.equal(f.pressFluid('climb'), 'started');
+  fly(f, 60, (ff, before) => { // a generous minute to climb and level off
+    watch(ff, before);
+    positive(ff);
+  });
+  assert.ok(lead.altAboveFt > alt0 + 1000, `Lead climbed (${Math.round(lead.altAboveFt - alt0)} ft)`);
+  assert.ok(Math.abs(lead.climbFtps) < 5, `Lead levelled off (${lead.climbFtps.toFixed(1)} ft/s)`);
+  const alt1 = lead.altAboveFt;
+  assert.equal(f.pressFluid('descend'), 'started');
+  fly(f, 60, (ff, before) => {
+    watch(ff, before);
+    positive(ff);
+  });
+  assert.ok(lead.altAboveFt < alt1 - 1000, `Lead descended (${Math.round(lead.altAboveFt - alt1)} ft)`);
+  assert.ok(Math.abs(lead.climbFtps) < 5, `Lead levelled off (${lead.climbFtps.toFixed(1)} ft/s)`);
+  assert.deepEqual(failures.slice(0, 5), []);
+});
+
+test('the loop: Lead goes over the top and back to level on his heading at about 230 KIAS; #2 stays in the cone, G positive, no jumps', () => {
+  // SMM 7.5 paras 10-13 and Fig 7.2: entry and exit 230 KIAS (Table 7.1), wings level, the track kept on the reference
+  // line; EFIG p.171: about 100-120 KIAS over the top. Margins: the shared ±10 kt and ±5°. #2: SMM 16.17 para 42 (500 to
+  // 1,000 ft, the cone) at the distance set; G kept positive (2 CFFTS Orders B2 ch 8 para 1a, for Lead).
+  const f = inFightingWing();
+  f.change('fluid');
+  const failures = [];
+  const watch = inTheCone(failures);
+  fly(f, 30, watch);
+  const lead = f.state.aircraft[0];
+  f.pressFluid('wingsLevel');
+  fly(f, 5, watch);
+  const h0 = lead.headingRad;
+  const alt0 = lead.altAboveFt;
+  assert.notEqual(f.pressFluid('loop'), 'refused');
+  let top = -Infinity;
+  let slowest = Infinity;
+  let inverted = false;
+  let speeds = null;
+  fly(f, 120, (ff, before) => { // a generous 2 minutes: the speed set-up and a loop of about half a minute
+    watch(ff, before);
+    for (const a of ff.state.aircraft) if (a.g <= 0) failures.push(`${a.name} at ${a.g.toFixed(2)} G`);
+    const now = ff.state.fluid.session.now();
+    if (now.key === 'loop') {
+      top = Math.max(top, lead.altAboveFt);
+      slowest = Math.min(slowest, lead.kias);
+      if (Math.abs(lead.bankDeg) > 150) inverted = true;
+    }
+    if (now.speeds?.exitKias != null) speeds = now.speeds;
+  });
+  assert.ok(inverted, 'Lead went over the top inverted');
+  assert.ok(top > alt0 + 1000, `Lead went up (${Math.round(top - alt0)} ft)`);
+  assert.ok(speeds, 'the loop finished with its entry and exit speeds');
+  assert.ok(Math.abs(speeds.entryKias - 230) <= TOLERANCES.AIRSPEED_KT, `entry ${Math.round(speeds.entryKias)} KIAS`);
+  assert.ok(Math.abs(speeds.exitKias - 230) <= TOLERANCES.AIRSPEED_KT, `exit ${Math.round(speeds.exitKias)} KIAS`);
+  assert.ok(slowest >= 100 - TOLERANCES.AIRSPEED_KT && slowest <= 120 + TOLERANCES.AIRSPEED_KT, `${Math.round(slowest)} KIAS over the top`);
+  const dh = Math.abs(Math.atan2(Math.sin(lead.headingRad - h0), Math.cos(lead.headingRad - h0))) / (Math.PI / 180);
+  assert.ok(dh <= TOLERANCES.ANGLE_DEG, `Lead back on his heading (${dh.toFixed(1)}° off)`);
+  assert.ok(Math.abs(lead.bankDeg) < TOLERANCES.ANGLE_DEG, 'Lead wings level after the loop');
+  assert.deepEqual(failures.slice(0, 5), []);
 });
