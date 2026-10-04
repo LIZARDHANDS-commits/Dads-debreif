@@ -28,7 +28,7 @@ Ideas for the Traffic Sim that are not being built. An idea moves into `plan.md`
 - An Aircraft size slider under settings, starting at "Realistic" (10:06Z; #259).
 - The sim's name in the top left: "Pat's CYMJ Traffic & Pattern Simulator" (10:09Z; #259).
 - A test that every manoeuvre's transitions are smooth (10:05Z; six limits approved 10:18Z; `smooth-transitions.test.js`).
-- His oblique view over the field as the opening 3D view (10:17Z). Adding it to the Camera menu waits on his card.
+- His oblique view over the field as the opening 3D view (10:17Z; #267), and "Over the field" first in the Camera menu (his card, 10:53Z).
 
 ## The old Phase 2 queue for Traffic (PPQ-01 to PPQ-08)
 

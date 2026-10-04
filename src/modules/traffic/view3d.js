@@ -914,7 +914,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
   let follow = null; // { id, autoYaw }: the chase camera
   let chasePending = false; // Low chase was asked for with nothing flying: it starts on the first aircraft that does
   let heightLines = true; // height plumb lines and ground shadows
-  let viewMode = 'fit'; // the Camera menu's choice: fit, high, top, tower, low (Chase), cockpit or padlock
+  let viewMode = 'field'; // the Camera menu's choice: field (Over the field), fit, high, top, tower, low (Chase), cockpit or padlock
   let noteText = ''; // a short word in the 3D bar, such as why Cockpit fell back to Fit
   let cameraBar = null; // the 3D bar (camera-bar.js), made with the canvas and freed with it
   let coreCanvas = null;
