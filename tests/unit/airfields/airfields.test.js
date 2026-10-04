@@ -1,3 +1,14 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createStore } from '../../../src/storage/store.js';
@@ -23,16 +34,36 @@ const withSaved = (setup) => {
   return fresh(backend);
 };
 
-test("defaults are V6's: home CYMJ (Moose Jaw, UTC-6), alternates CYQR, CYYN, CYXE at 600-2", () => {
+test('defaults: home CYMJ (Moose Jaw, UTC-6), alternates CYQR, CYYN, CYXE', () => {
   const a = fresh();
   const home = a.home();
   assert.deepEqual([home.icao, home.name, home.timeZone, home.elevationFt], ['CYMJ', 'Moose Jaw', 'America/Regina', 1892]);
   assert.deepEqual(a.alternates().map((f) => f.icao), ['CYQR', 'CYYN', 'CYXE']);
   assert.deepEqual(a.stations(), ['CYMJ', 'CYQR', 'CYYN', 'CYXE']);
+});
+
+// SOF-R12 (Patrick, SOF-Q3, 4 Oct 00:48Z): the usual alternates come with their approaches and published landing minima
+// filled in, and the date they were checked. The test checks they are filled in and dated, not what the minima are:
+// the real numbers come from the published approach charts and are Patrick's and Dad's to enter. The name
+// "checkedOn" is a placeholder until the SOF build task settles it.
+test('SOF-R12: the usual alternates open with their approach and landing minima filled in, and dated', { todo: "SOF plan step 3: not built yet. Remove this mark when it is built (Patrick's card, 4 Oct)" }, () => {
+  const a = fresh();
   for (const icao of ['CYQR', 'CYYN', 'CYXE']) {
-    assert.deepEqual(a.checkOptions(icao).minima, [{ ceilingFt: 600, visSm: 2 }]);
-    assert.equal(a.checkOptions(icao).minimaChecked, false);
+    const field = a.alternates().find((f) => f.icao === icao);
+    assert.notEqual(field.approach, 'not-set', `${icao} has an approach type`);
+    const o = a.checkOptions(icao);
+    assert.equal(o.minimaChecked, true, `${icao} minima are checked, not a fallback`);
+    assert.ok(Number.isFinite(o.landingMinima?.ceilingFt) && Number.isFinite(o.landingMinima?.visSm), `${icao} has published landing minima`);
+    assert.match(String(field.checkedOn), /^\d{4}-\d{2}-\d{2}$/, `${icao} says when it was checked`);
   }
+});
+
+test('SOF-R12: an alternate with nothing filled in reads Incomplete, never "meets"', { todo: "SOF plan step 3: not built yet. Remove this mark when it is built (Patrick's card, 4 Oct)" }, () => {
+  const a = fresh();
+  a.update({ alternates: ['CZZZ'], fields: { CZZZ: { name: 'Nowhere' } } });
+  const good = parseTaf('TAF CYXE 291120Z 2912/3012 27010KT P6SM SCT040', { now: NOW });
+  const r = assessAlternate(good, { from: at(29, 17), to: at(29, 19) }, a.checkOptions('CZZZ'));
+  assert.equal(r.status, 'incomplete');
 });
 
 test('checkOptions carries landing minima, GNSS flags and distance from home', () => {

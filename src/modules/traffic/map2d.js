@@ -23,6 +23,7 @@
 import { createCanvasView } from '../../ui-kit/canvas-view.js';
 import { createTileLayer, ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { makeLocalRef, localFtToLatLon, latLonToLocalFt } from '../../core/geo.js';
+import { TYPE_COLORS as FLEET_COLORS } from './types.js';
 
 export const MAP_MIN_SPAN_FT = 300;
 export const MAP_MAX_SPAN_FT = 200_000;
@@ -31,8 +32,15 @@ const FIT_PADDING_PX = 60; // room round the routes for the labels beside the ai
 const HOME_SETUP = 'Moose Jaw';
 export const HINT_TEXT = `Press Play to watch the ${HOME_SETUP} traffic.`;
 
-/** V6's aircraft colours (line 139); an aircraft can bring its own. Every aircraft also carries its callsign. */
-export const TYPE_COLORS = Object.freeze({ 'CT-157': '#a5d6ff', 'CT-156': '#7ee787', 'CT-102': '#ffcc66', 'CT-114': '#ff6b6b' });
+/** V6's aircraft colours with full 15 Wing fleet support (CT-102B, CT-155, CF-188); an aircraft can bring its own. */
+export const TYPE_COLORS = Object.freeze(
+  Object.create(FLEET_COLORS, Object.getOwnPropertyDescriptors({
+    'CT-157': '#a5d6ff',
+    'CT-156': '#7ee787',
+    'CT-102': '#ffcc66',
+    'CT-114': '#ff6b6b',
+  }))
+);
 const FALLBACK_COLOR = '#c7d8e7';
 
 /** The words that go with the colours, so colour is never the only signal. */
@@ -251,7 +259,170 @@ export function conflictLevels(conflicts) {
 }
 
 export const isFlying = (ac) => ac.status === 'flying';
-export const aircraftColor = (ac) => ac.color ?? TYPE_COLORS[ac.type] ?? FALLBACK_COLOR;
+export const aircraftColor = (ac) => ac.color ?? TYPE_COLORS[ac.type] ?? FLEET_COLORS[ac.type] ?? FALLBACK_COLOR;
+
+/**
+ * Calculates 2D dynamic glide footprint ring in local feet.
+ * CYMJ Moose Jaw field elevation: 1,892 ft MSL.
+ * Clean glide ratio: 2.0 NM / 1,000 ft (12,152.24 ft / 1,000 ft).
+ * Sink rate: 1,350 fpm (22.5 ft/s).
+ *
+ * @param {{ x?: number, y?: number, alt?: number }} a
+ * @param {number} [windFromDeg=360]
+ * @param {number} [windKt=0]
+ * @returns {{ cx: number, cy: number, rGlide: number, tGlide: number, altDiff: number, driftFt: number, wxFtps: number, wyFtps: number }}
+ */
+export function calculateGlideFootprint(a, windFromDeg = 360, windKt = 0) {
+  const alt = Number.isFinite(a?.alt) ? /** @type {number} */ (a.alt) : 1892;
+  const altDiff = Math.max(0, alt - 1892);
+  const rGlide = (altDiff / 1000) * 2.0 * 6076.12;
+  const tGlide = altDiff / (1350 / 60);
+
+  const fromDeg = Number.isFinite(windFromDeg) ? windFromDeg : 360;
+  const kt = Number.isFinite(windKt) && windKt > 0 ? windKt : 0;
+  const blowToRad = (((fromDeg % 360) + 180) * Math.PI) / 180;
+  const wxFtps = (kt * 1.68781) * Math.sin(blowToRad);
+  const wyFtps = (kt * 1.68781) * Math.cos(blowToRad);
+
+  const ax = Number.isFinite(a?.x) ? /** @type {number} */ (a.x) : 0;
+  const ay = Number.isFinite(a?.y) ? /** @type {number} */ (a.y) : 0;
+  const cx = ax;
+  const cy = ay;
+  const driftFt = Math.hypot(wxFtps * tGlide, wyFtps * tGlide);
+
+  return { cx, cy, rGlide, tGlide, altDiff, driftFt, wxFtps, wyFtps };
+}
+
+/**
+ * Checks if an aircraft has engine failure or PFL active.
+ *
+ * @param {any} a
+ * @returns {boolean}
+ */
+export function isPflActive(a) {
+  if (!a) return false;
+  if (a.engineFailed === true) return true;
+  if (typeof a.phase === 'string' && (a.phase.startsWith('pfl') || a.phase === 'crash_short' || a.phase === 'crashed')) return true;
+  if (a.command === 'pfl_current' || a.command === 'engine_fail' || a.command === 'climb_high_key' || a.command === 'climb_low_key') return true;
+  if (a.pflActive === true) return true;
+  return false;
+}
+
+/**
+ * Determines if the dynamic glide footprint ring should be rendered for an aircraft.
+ *
+ * @param {any} a
+ * @param {string|null} [selectedAircraftId=null]
+ * @returns {boolean}
+ */
+export function shouldShowGlideFootprint(a, selectedAircraftId = null) {
+  if (!a) return false;
+  if (isPflActive(a)) return true;
+  if (selectedAircraftId && a.id === selectedAircraftId && (a.command?.startsWith('pfl') || a.engineFailed)) return true;
+  return false;
+}
+
+/**
+ * Determines tactical PFL status badge for an aircraft in PFL recovery.
+ * Returns null if not in PFL recovery.
+ *
+ * Badges:
+ * - `[CRASH SHORT]` (unrecoverable / below glide slope / crashed)
+ * - `[PFL: ZOOM]` (during zoom climb/decel)
+ * - `[PFL: HIGH KEY]` (joining High Key or orbit)
+ * - `[PFL: LOW KEY]` (joining Low Key downwind)
+ * - `[PFL: BASE KEY]` (joining Base Key)
+ * - `[PFL: DIRECT]` (gliding direct to threshold)
+ *
+ * @param {any} ac
+ * @returns {string|null}
+ */
+export function getPflBadge(ac) {
+  if (!ac) return null;
+  const active = ac.engineFailed === true ||
+    ac.command === 'pfl_current' ||
+    ac.command === 'engine_fail' ||
+    ac.command === 'climb_high_key' ||
+    ac.command === 'climb_low_key' ||
+    ac.pflActive === true ||
+    (typeof ac.phase === 'string' && (
+      ac.phase.startsWith('pfl') ||
+      ac.phase.includes('high_key') ||
+      ac.phase.includes('low_key') ||
+      ac.phase.includes('base_key') ||
+      ac.phase.includes('crash')
+    ));
+
+  if (!active) return null;
+
+  const phase = (ac.phase || '').toLowerCase();
+  const status = (ac.status || '').toLowerCase();
+
+  // 1. Crash short / unrecoverable
+  if (status === 'crashed' || phase === 'crash_short' || phase === 'pfl_crash' || phase === 'crashed') {
+    return '[CRASH SHORT]';
+  }
+
+  // 2. Zoom climb / decel
+  if (phase === 'pfl_zoom' || phase === 'zoom' || phase === 'pfl_decel') {
+    return '[PFL: ZOOM]';
+  }
+
+  // 3. High Key or Orbit
+  if (
+    phase === 'pfl_high_key' ||
+    phase === 'high_key' ||
+    phase === 'high_key_run_in' ||
+    phase === 'pfl_orbit' ||
+    phase === 'orbit' ||
+    phase === 'pfl_inbound' ||
+    ac.command === 'climb_high_key'
+  ) {
+    return '[PFL: HIGH KEY]';
+  }
+
+  // 4. Low Key
+  if (phase === 'pfl_low_key' || phase === 'low_key' || ac.command === 'climb_low_key') {
+    return '[PFL: LOW KEY]';
+  }
+
+  // 5. Base Key
+  if (phase === 'pfl_base_key' || phase === 'base_key') {
+    return '[PFL: BASE KEY]';
+  }
+
+  // 6. Direct to threshold
+  if (
+    phase === 'pfl_direct' ||
+    phase === 'direct_threshold' ||
+    phase === 'pfl_direct_threshold' ||
+    phase === 'pfl_final' ||
+    phase === 'direct'
+  ) {
+    return '[PFL: DIRECT]';
+  }
+
+  // Fallback heuristic based on altitude / speed if phase is generic ('pfl' or not yet refined)
+  const alt = ac.altFt ?? ac.alt ?? 3500;
+  const kt = ac.kt ?? 120;
+  if (alt <= 1892 && (status === 'crashed' || status === 'landed')) {
+    return '[CRASH SHORT]';
+  }
+  if (kt > 150) {
+    return '[PFL: ZOOM]';
+  }
+  if (alt >= 4500) {
+    return '[PFL: HIGH KEY]';
+  }
+  if (alt >= 3400) {
+    return '[PFL: LOW KEY]';
+  }
+  if (alt >= 2700) {
+    return '[PFL: BASE KEY]';
+  }
+  return '[PFL: DIRECT]';
+}
+
 
 // ---------------------------------------------------------------------------
 // The satellite photo (specs/SPEC-traffic.md: Layers, the Photo section of the settings menu)
@@ -421,6 +592,9 @@ export function drawScene(ctx, map, scene, settings, palette, layers = {}) {
       ctx.restore();
     }
   }
+  if (settings.layerPflCircle) {
+    drawPflGroundCircle(ctx, settings, palette, at, pxPerFt, text, circle);
+  }
   if (settings.layerLegDistances) {
     for (const leg of legsToLabel(routes, scene.legs)) {
       const [x, y] = at(leg);
@@ -492,6 +666,42 @@ export function drawScene(ctx, map, scene, settings, palette, layers = {}) {
     }
   }
 
+  // Dynamic Glide Footprint Ring (SMM Ch 13 / PFL forced landing recovery)
+  const windFromDeg = settings.windFromDeg ?? scene.windFromDeg ?? 360;
+  const windKt = settings.windKt ?? scene.windKt ?? 0;
+  for (const ac of flying) {
+    if (shouldShowGlideFootprint(ac, scene.selectedAircraftId ?? null)) {
+      const footprint = calculateGlideFootprint(ac, windFromDeg, windKt);
+      if (footprint.rGlide > 0) {
+        const [scx, scy] = map.worldToScreen(footprint.cx, footprint.cy);
+        const rPx = footprint.rGlide * pxPerFt;
+        if (rPx > 1) {
+          ctx.save();
+          ctx.globalAlpha = 0.55;
+          ctx.beginPath();
+          ctx.arc(scx, scy, rPx, 0, Math.PI * 2);
+          ctx.setLineDash([4, 4]);
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+
+          // Shifted center crosshair indicating wind-drifted glide center
+          ctx.beginPath();
+          ctx.moveTo(scx - 4, scy);
+          ctx.lineTo(scx + 4, scy);
+          ctx.moveTo(scx, scy - 4);
+          ctx.lineTo(scx, scy + 4);
+          ctx.stroke();
+
+          // Tactical HUD range label
+          const nmRange = (footprint.rGlide / 6076.12).toFixed(1);
+          text(`PFL GLIDE (${nmRange} NM)`, scx, scy - rPx - 4, '#38bdf8', { size: 10, bold: true, align: 'center', anchor: scx });
+          ctx.restore();
+        }
+      }
+    }
+  }
+
   // Aircraft: the symbol along its heading, its callsign, height and speed, and the word for any conflict.
   for (const ac of flying) {
     const [x, y] = at(ac);
@@ -508,6 +718,11 @@ export function drawScene(ctx, map, scene, settings, palette, layers = {}) {
     if (settings.layerLabels) text(heightSpeedText(ac), x + 12, y + 7, palette.text, { anchor: x });
     const level = levels.get(ac.id);
     if (level) text(LEVEL_MARKS[level], x + 12, y + 21, level === 'conflict' ? palette.bad : palette.caution, { bold: true, anchor: x });
+    const pflBadge = getPflBadge(ac);
+    if (pflBadge) {
+      const badgeY = level ? y + 33 : (settings.layerLabels ? y + 21 : y + 7);
+      text(pflBadge, x + 12, badgeY, pflBadge === '[CRASH SHORT]' ? palette.bad : '#38bdf8', { size: 10, bold: true, anchor: x });
+    }
   }
 
   drawWind(ctx, map, settings, palette, text);
@@ -569,6 +784,111 @@ function drawWind(ctx, map, settings, palette, text) {
   ctx.fillStyle = palette.text;
   ctx.fill();
   text(words, width - 50, 34, palette.text, { size: 13, bold: true, align: 'right' });
+}
+
+// Draws the 1/2 NM radius (1 NM diameter) PFL circle on the ground for Runway 29L.
+export function drawPflGroundCircle(ctx, settings, palette, at, pxPerFt, text, circle) {
+  const th = { x: 3104, y: -3194 }; // Threshold Runway 29L
+  const radiusFt = 3038.06; // 0.5 NM radius (1.0 NM diameter = 6076 ft)
+
+  // 90° LEFT of Runway 29L (298° - 90° = 208° True, South-Southwest)
+  const rad208 = (208 * Math.PI) / 180;
+  const nLeftX = Math.sin(rad208); // -0.469472 (West)
+  const nLeftY = Math.cos(rad208); // -0.882948 (South)
+
+  // Center of circle: 0.5 NM at 208° from threshold
+  const cxFt = th.x + radiusFt * nLeftX; // 1677.7 ft
+  const cyFt = th.y + radiusFt * nLeftY; // -5876.4 ft
+  const [cx, cy] = at({ x: cxFt, y: cyFt });
+  const rPx = radiusFt * pxPerFt;
+
+  // Key coordinate points on the authentic 360° circle
+  const lkPt = { x: th.x + 2 * radiusFt * nLeftX, y: th.y + 2 * radiusFt * nLeftY }; // Low Key: (252, -8559)
+  // Base Key at 270° around circle (bearing 118° from center):
+  const rad118 = (118 * Math.PI) / 180;
+  const bkPt = { x: cxFt + radiusFt * Math.sin(rad118), y: cyFt + radiusFt * Math.cos(rad118) }; // Base Key: (4360, -7303)
+
+  // 1. PFL ground circle (0.5 NM radius / 1.0 NM diameter)
+  ctx.save();
+  ctx.fillStyle = 'rgba(255, 155, 206, 0.08)';
+  circle(cx, cy, rPx);
+  ctx.fill();
+
+  ctx.setLineDash([8, 6]);
+  ctx.strokeStyle = '#ff9bce';
+  ctx.lineWidth = 2.5;
+  circle(cx, cy, rPx);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Center mark and title
+  circle(cx, cy, 3);
+  ctx.fillStyle = '#ff9bce';
+  ctx.fill();
+  text('PFL Circle (0.5 NM Radius / 1.0 NM Dia)', cx, cy - 8, '#ff9bce', { size: 11, bold: true, align: 'center' });
+  ctx.restore();
+
+  // 2. Reference Spoke: 1.0 NM (90° Left of Runway Threshold)
+  const [thX, thY] = at(th);
+  const [lkX, lkY] = at(lkPt);
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(thX, thY);
+  ctx.lineTo(lkX, lkY);
+  ctx.strokeStyle = '#ff6b6b';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  const midSpokeX = (thX + lkX) / 2;
+  const midSpokeY = (thY + lkY) / 2;
+  text('1.0 NM (90° Left)', midSpokeX - 12, midSpokeY, '#ff6b6b', { size: 10, bold: true, align: 'right' });
+  ctx.restore();
+
+  // 3. Key Points on the PFL pattern
+  if (settings.layerPoints !== false) {
+    // High Key (0° of turn, over threshold at 5,000 ft MSL)
+    ctx.save();
+    circle(thX, thY, 5);
+    ctx.fillStyle = '#ff9bce';
+    ctx.fill();
+    ctx.strokeStyle = palette.halo;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    text('HIGH KEY (5,000\' MSL)', thX + 10, thY - 5, '#ff9bce', { size: 11, bold: true, anchor: thX });
+    text('Over Threshold / Clean 125 kt', thX + 10, thY + 9, palette.muted, { size: 9, anchor: thX });
+    ctx.restore();
+
+    // Low Key (180° around circle, 1 NM 90° left of threshold at 3,700 ft MSL)
+    // Red oval matching the section line road
+    ctx.save();
+    ctx.strokeStyle = '#ff6b6b';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.ellipse(lkX, lkY, 14, 8, Math.PI / 12, 0, Math.PI * 2);
+    ctx.stroke();
+    circle(lkX, lkY, 4);
+    ctx.fillStyle = '#ff6b6b';
+    ctx.fill();
+    text('LOW KEY (3,700\' MSL)', lkX + 18, lkY - 5, '#ff6b6b', { size: 11, bold: true, anchor: lkX });
+    text('1.0 NM 90° Left / Gear Down 120 kt', lkX + 18, lkY + 9, palette.muted, { size: 9, anchor: lkX });
+    ctx.restore();
+
+    // Base Key (270° around circle, in the quarter-section field at 2,900 ft MSL)
+    // Blue marker matching Patrick's blue scribble
+    const [bkX, bkY] = at(bkPt);
+    ctx.save();
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2.5;
+    circle(bkX, bkY, 6.5);
+    ctx.stroke();
+    circle(bkX, bkY, 3.5);
+    ctx.fillStyle = '#38bdf8';
+    ctx.fill();
+    text('BASE KEY (2,900\' MSL)', bkX + 12, bkY - 5, '#38bdf8', { size: 11, bold: true, anchor: bkX });
+    text('Flaps TO/LDG / 120 kt', bkX + 12, bkY + 9, palette.muted, { size: 9, anchor: bkX });
+    ctx.restore();
+  }
 }
 
 // ---------------------------------------------------------------------------

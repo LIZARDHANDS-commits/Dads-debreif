@@ -1,3 +1,14 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
 // The hook turn as the SMM flies it (16.19 para 60, Figure 16.19; para 112a for the offset box; para 121 for spread 4):
 // both turn the same way through 180 degrees together at 3 G and roll out in LAB on the reciprocal heading. V6's hook was 90
 // degrees (an in-place turn under another name, same as In-place 90 in every run).

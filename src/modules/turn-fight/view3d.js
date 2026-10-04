@@ -18,7 +18,7 @@
 // nothing here does camera maths beyond choosing yaw, pitch, zoom and centre.
 // Units: feet, radians in the fight; degrees for the camera (as matchProjection
 // has it, where pitch 0 looks straight down and 90 looks along the ground).
-import { wrapPi, headingRad } from '../../core/angles.js';
+import { wrapPi, headingRad, degToRad } from '../../core/angles.js';
 import {
   loadThree, matchProjection, worldToScreen, altToZ, addLights, addSky, webglSupported,
 } from '../../ui-kit/three-aircraft.js';
@@ -28,6 +28,7 @@ import { FIGHT_MAX_SEC } from './sim.js';
 import { TRAIL_INTERVAL_SEC } from './trails.js';
 import { MIN_REACH_FT } from './view.js';
 import { passMarkWord } from './geometry.js';
+import { aircraftTagLines } from './readouts.js';
 
 /** The fight's heights go in as they are: no height scale in 3D (the 2D side view's scale is for that view only). */
 export const ALT_SCALE = 1;
@@ -64,6 +65,9 @@ const GRID_CELLS = 100;
 /** The marks' size on screen, in pixels. */
 const MERGE_MARK_PX = 7;
 const DASH_PX = [7, 5];
+
+/** Energy mode's hard deck: a flat, see-through plane at the deck's height, the colour of the first nose-on line, so it does not hide the aircraft or their trails. */
+export const DECK_OPACITY = 0.16;
 
 const VIEW_LABELS = Object.freeze({ overhead: 'Overhead', blue: 'Chase Blue', red: 'Chase Red' });
 /** The three one-click views, in the order of their buttons: { id: { label } }. */
@@ -116,10 +120,22 @@ export function turnDirection(fight, who, last = 0) {
  * Where and how one aircraft is drawn, from the fight's state alone: its place (feet, the height through
  * altToZ), heading (radians from east, counter-clockwise), pitch (only with Climb and dive on) and bank
  * (positive for a left turn). In the simple fight the bank is the level-turn bank for the fight's own
- * (limited) G: acos(1 / G), toward `direction` (turnDirection). Energy mode will bring its own bank.
+ * (limited) G: acos(1 / G), toward `direction` (turnDirection). In Energy mode (`fight.energy`) the bank is the
+ * aircraft's own, from the energy state (`bankDeg`, from the real horizon toward the turn, so it goes past 90° over the
+ * top of a loop), toward the way it is turning (`turnDir`, 0 before the turns start), and the pitch is its climb angle.
  */
 export function aircraftPose(fight, who, direction) {
   const a = fight[who];
+  if (fight.energy) {
+    return {
+      x: a.xFt,
+      y: a.yFt,
+      z: altToZ(a.zFt, ALT_SCALE),
+      headingRad: a.headingRad,
+      pitchRad: degToRad(a.climbDeg),
+      bankRad: a.tumble ? a.bankRad : (a.turnDir || 0) * degToRad(a.bankDeg),
+    };
+  }
   return {
     x: a.xFt,
     y: a.yFt,
@@ -187,6 +203,35 @@ export function heightAtTime(points, timeSec) {
   const a = points[lo];
   const b = points[hi];
   return a.zFt + ((b.zFt - a.zFt) * (timeSec - a.timeSec)) / (b.timeSec - a.timeSec);
+}
+
+/**
+ * Computes the reference floor height (feet) for tactical plumb lines and ground shadows (D401).
+ * Simple Mode: terrain grid level below lowest height flown.
+ * Energy Mode: Hard Deck plane (hardDeckFt). If the aircraft breaches the hard deck, floor plunges to 0 ft MSL.
+ */
+export function computeFloorZ(fight, bounds, altFt = null) {
+  if (fight?.energy) {
+    const deck = fight.setup?.hardDeckFt ?? 6000;
+    if (altFt !== null && altFt < deck) {
+      return 0; // Plunge to sea level if hard deck is breached
+    }
+    return deck;
+  }
+  const minZ = bounds?.minZ ?? 0;
+  const maxZ = bounds?.maxZ ?? 0;
+  return -(GROUND_BELOW_FT + Math.max(Math.abs(minZ), Math.abs(maxZ)));
+}
+
+/**
+ * Computes the 2-point vertical line coordinates [x, y, z_aircraft, x, y, z_floor] for a plumb line (D401).
+ */
+export function computePlumbGeometry(pose, floorZ) {
+  const zFloor = altToZ(floorZ, ALT_SCALE);
+  return new Float32Array([
+    pose.x, pose.y, pose.z,
+    pose.x, pose.y, zFloor,
+  ]);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -272,15 +317,46 @@ export function cameraForButton(name) {
  */
 export function cameraFor(cam, { bounds, fight, size }) {
   if (cam.mode === 'blue' || cam.mode === 'red') {
-    const a = fight[cam.mode];
+    const a = fight?.[cam.mode];
+    if (a) {
+      return {
+        center: { x: a.xFt, y: a.yFt, z: a.zFt },
+        camera: { yawDeg: wrapDeg(yawBehind(a.headingRad) + cam.yawDeg), pitchDeg: cam.pitchDeg, zoom: cam.zoom, altScale: ALT_SCALE },
+      };
+    }
+  }
+  if (fight?.blue && fight?.red) {
+    const center = {
+      x: (fight.blue.xFt + fight.red.xFt) / 2,
+      y: (fight.blue.yFt + fight.red.yFt) / 2,
+      z: (fight.blue.zFt + fight.red.zFt) / 2,
+    };
+    let zoom = cam.zoom;
+    if (cam.zoomAuto) {
+      const dx = fight.blue.xFt - fight.red.xFt;
+      const dy = fight.blue.yFt - fight.red.yFt;
+      const dz = fight.blue.zFt - fight.red.zFt;
+      const spanFt = Math.max(3000, Math.hypot(dx, dy, dz) * 1.6);
+      const boxMin = size ? Math.min(size.width, size.height) : 600;
+      zoom = clamp((boxMin * 0.75) / (spanFt / 1000), CAMERA_LIMITS.zoom);
+    }
     return {
-      center: { x: a.xFt, y: a.yFt, z: a.zFt },
-      camera: { yawDeg: wrapDeg(yawBehind(a.headingRad) + cam.yawDeg), pitchDeg: cam.pitchDeg, zoom: cam.zoom, altScale: ALT_SCALE },
+      center,
+      camera: { yawDeg: cam.yawDeg, pitchDeg: cam.pitchDeg, zoom, altScale: ALT_SCALE },
     };
   }
   return {
-    center: { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2, z: (bounds.minZ + bounds.maxZ) / 2 },
-    camera: { yawDeg: cam.yawDeg, pitchDeg: cam.pitchDeg, zoom: cam.zoomAuto ? fitZoom(bounds, size) : cam.zoom, altScale: ALT_SCALE },
+    center: {
+      x: bounds ? (bounds.minX + bounds.maxX) / 2 : 0,
+      y: bounds ? (bounds.minY + bounds.maxY) / 2 : 0,
+      z: bounds ? (bounds.minZ + bounds.maxZ) / 2 : 0,
+    },
+    camera: {
+      yawDeg: cam.yawDeg,
+      pitchDeg: cam.pitchDeg,
+      zoom: cam.zoomAuto && bounds && size ? fitZoom(bounds, size) : cam.zoom,
+      altScale: ALT_SCALE,
+    },
   };
 }
 
@@ -297,7 +373,7 @@ export function cameraFor(cam, { bounds, fight, size }) {
  *   was reset). By then the view has freed everything and stopped drawing, so the screen only has to show 2D.
  * win: for tests. Returns { start, stop, requestDraw, setView, stats, dispose }.
  */
-export function createView3d(host, { timers, run, paint, onLost = () => {}, load = loadThree, win = globalThis }) {
+export function createView3d(host, { timers, run, paint, options = () => ({}), onLost = () => {}, load = loadThree, win = globalThis }) {
   const doc = host.ownerDocument;
   let THREE = null;
   let gl = null; // the scene and everything that holds GPU resources, only between start() and stop()
@@ -385,6 +461,15 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
     const mark = new THREE.LineSegments(crossGeometry, new THREE.LineBasicMaterial({ color: COLORS.nose, fog: false }));
     scene.add(mark);
 
+    // Energy mode's hard deck: one big flat see-through plane (X-Y, at the deck's height), shown only in Energy mode.
+    const deck = new THREE.Mesh(
+      new THREE.PlaneGeometry(GRID_STEP_FT * GRID_CELLS, GRID_STEP_FT * GRID_CELLS),
+      new THREE.MeshBasicMaterial({ color: COLORS.nose, transparent: true, opacity: DECK_OPACITY, side: THREE.DoubleSide, depthWrite: false, fog: false }),
+    );
+    deck.name = 'hard-deck';
+    deck.visible = false;
+    scene.add(deck);
+
     // The trails, as lines over a buffer big enough for a whole fight.
     const lines = {};
     for (const who of SHIPS) {
@@ -397,15 +482,96 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
       lines[who] = line;
     }
 
+    // D401: Tactical 3D Suite - Plumb lines and ground-shadow contact discs
+    const plumbLines = {};
+    const shadowDiscs = {};
+    for (const who of SHIPS) {
+      const plumbGeom = new THREE.BufferGeometry();
+      plumbGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+      const plumbMat = new THREE.LineDashedMaterial({
+        color: COLORS[who],
+        dashSize: 20,
+        gapSize: 15,
+        transparent: true,
+        opacity: 0.65,
+        fog: false,
+      });
+      const plumbLine = new THREE.Line(plumbGeom, plumbMat);
+      plumbLine.frustumCulled = false;
+      scene.add(plumbLine);
+      plumbLines[who] = plumbLine;
+
+      const discGeom = new THREE.RingGeometry(0, 35, 32);
+      const discMat = new THREE.MeshBasicMaterial({
+        color: COLORS[who],
+        transparent: true,
+        opacity: 0.35,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        fog: false,
+      });
+      const disc = new THREE.Mesh(discGeom, discMat);
+      disc.frustumCulled = false;
+      scene.add(disc);
+      shadowDiscs[who] = disc;
+    }
+
+    // Tactical 3D Suite - Lift vectors (100 ft along local +Z axis normal to wings in G-pull direction)
+    const liftVectors = {};
+    for (const who of SHIPS) {
+      const liftGeom = new THREE.BufferGeometry();
+      const liftPts = new Float32Array([
+        0, 0, 0,        0, 0, 100,
+        0, 0, 100,     -5, 0, 85,
+        0, 0, 100,      5, 0, 85,
+        0, 0, 100,      0, -5, 85,
+        0, 0, 100,      0, 5, 85,
+      ]);
+      liftGeom.setAttribute('position', new THREE.BufferAttribute(liftPts, 3));
+      const liftMat = new THREE.LineBasicMaterial({
+        color: COLORS[who],
+        transparent: true,
+        opacity: 0.85,
+        fog: false,
+      });
+      const liftVector = new THREE.LineSegments(liftGeom, liftMat);
+      liftVector.frustumCulled = false;
+      scene.add(liftVector);
+      liftVectors[who] = liftVector;
+    }
+
+    // Tactical 3D Suite - 15° WEZ aiming cone wireframe
+    const wezHeight = 2500;
+    const wezRadius = Math.tan(degToRad(15)) * wezHeight;
+    const wezGeom = new THREE.ConeGeometry(wezRadius, wezHeight, 16, 1, true);
+    wezGeom.translate(0, -wezHeight / 2, 0);
+    wezGeom.rotateZ(Math.PI / 2);
+    const wezMat = new THREE.MeshBasicMaterial({
+      color: COLORS.nose,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.45,
+      fog: false,
+    });
+    const wezCone = new THREE.Mesh(wezGeom, wezMat);
+    wezCone.name = 'wez-cone';
+    wezCone.frustumCulled = false;
+    wezCone.visible = false;
+    scene.add(wezCone);
+    scene.wezCone = wezCone;
+    scene.liftVectors = liftVectors;
+
     const labels = {
-      blue: label(LETTERS.blue, 'tf-3d-label-blue'),
-      red: label(LETTERS.red, 'tf-3d-label-red'),
+      blue: label(LETTERS.blue, 'tf-3d-label-blue blue'),
+      red: label(LETTERS.red, 'tf-3d-label-red red'),
       merge: label('MERGE', 'tf-3d-label-nose'),
       firstNose: label('', 'tf-3d-first-nose'),
+      deck: label('HARD DECK', 'tf-3d-label-deck'),
     };
-    host.replaceChildren(canvas, labels.blue, labels.red, labels.merge, labels.firstNose);
+    host.replaceChildren(canvas, labels.blue, labels.red, labels.merge, labels.firstNose, labels.deck);
     gl = {
-      canvas, renderer, scene, camera, sky, grid, mark, lines, labels,
+      canvas, renderer, scene, camera, sky, grid, mark, deck, lines, plumbLines, shadowDiscs, labels,
+      liftVectors, wezCone,
       planes: {}, paint: null, nose: null, noseFor: null, ratio: 0, width: 0, height: 0,
       data: null, // what has been read from the current run: its trails, bounds, and how much of each is written
       directions: { blue: 0, red: 0 },
@@ -459,7 +625,9 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
     }
     gl.noseFor = fight.firstNose;
     if (!fight.firstNose) return;
-    const { from, to, by, timeSec } = fight.firstNose;
+    // The simple fight names one aircraft (with `both` set for a tie); the Energy engine's `by` can be 'both', which is Blue's line to Red.
+    const { from, to, timeSec } = fight.firstNose;
+    const by = fight.firstNose.by === 'red' ? 'red' : 'blue';
     const other = by === 'blue' ? 'red' : 'blue';
     const geometry = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(from.xFt, from.yFt, altToZ(heightAtTime(trails[by], timeSec), ALT_SCALE)),
@@ -497,14 +665,84 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
       mesh.position.set(pose.x, pose.y, pose.z);
       mesh.scale.setScalar(lengthFt / CT156_UNIT_LENGTH);
       applyAttitude(mesh, pose);
+
+      // Tactical 3D Suite - Lift vector (100 ft along local +Z axis normal to wings in G-pull direction)
+      const lift = gl.liftVectors[who];
+      lift.position.set(pose.x, pose.y, pose.z);
+      applyAttitude(lift, pose);
+
+      // D401: Tactical 3D Suite - Plumb lines and ground-shadow contact discs
+      const floorZ = computeFloorZ(fight, bounds, fight[who].zFt);
+      const plumbData = computePlumbGeometry(pose, floorZ);
+      const plumbAttr = gl.plumbLines[who].geometry.attributes.position;
+      plumbAttr.array.set(plumbData);
+      plumbAttr.needsUpdate = true;
+      gl.plumbLines[who].computeLineDistances();
+
+      const zFloor = altToZ(floorZ, ALT_SCALE);
+      gl.shadowDiscs[who].position.set(pose.x, pose.y, zFloor + 1.0);
     }
 
-    const groundZ = -(GROUND_BELOW_FT + Math.max(Math.abs(bounds.minZ), Math.abs(bounds.maxZ)));
-    gl.grid.position.set(
-      Math.round(view.center.x / GRID_STEP_FT) * GRID_STEP_FT,
-      Math.round(view.center.y / GRID_STEP_FT) * GRID_STEP_FT,
-      altToZ(groundZ, ALT_SCALE),
-    );
+    // Tactical 3D Suite: WEZ aiming cone display
+    let trackingWho = null;
+    let bestTrackSec = 0;
+    for (const who of SHIPS) {
+      const target = who === 'blue' ? 'red' : 'blue';
+      const ac = fight[who];
+      const tgt = fight[target];
+      if (!ac || !tgt) continue;
+
+      const trackSec = ac.ctl?.wezTrackSec || fight.engine?.[who]?.ctl?.wezTrackSec || 0;
+      let inWez = trackSec > 0;
+
+      if (!inWez) {
+        const dx = tgt.xFt - ac.xFt;
+        const dy = tgt.yFt - ac.yFt;
+        const dz = (tgt.zFt ?? 0) - (ac.zFt ?? 0);
+        const rangeFt = Math.hypot(dx, dy, dz);
+        if (rangeFt > 0 && rangeFt < 3000) {
+          const pitchRad = fight.energy
+            ? degToRad(ac.climbDeg || 0)
+            : (fight.setup?.vertical ? (ac.pitchRad || 0) : 0);
+          const nx = Math.cos(pitchRad) * Math.cos(ac.headingRad);
+          const ny = Math.cos(pitchRad) * Math.sin(ac.headingRad);
+          const nz = Math.sin(pitchRad);
+          const cosAngle = Math.max(-1, Math.min(1, (nx * dx + ny * dy + nz * dz) / rangeFt));
+          const ataDeg = (Math.acos(cosAngle) * 180) / Math.PI;
+          if (ataDeg <= 15.0) {
+            inWez = true;
+          }
+        }
+      }
+
+      if (inWez) {
+        if (!trackingWho || trackSec > bestTrackSec) {
+          trackingWho = who;
+          bestTrackSec = trackSec;
+        }
+      }
+    }
+
+    if (trackingWho && gl.wezCone) {
+      const pose = aircraftPose(fight, trackingWho, gl.directions[trackingWho]);
+      gl.wezCone.position.set(pose.x, pose.y, pose.z);
+      applyAttitude(gl.wezCone, pose);
+      if (gl.wezCone.material?.color) {
+        gl.wezCone.material.color.set(COLORS[trackingWho] || COLORS.nose);
+      }
+      gl.wezCone.visible = true;
+    } else if (gl.wezCone) {
+      gl.wezCone.visible = false;
+    }
+
+    // Energy heights are altitudes above sea level (the hard deck is one), so the ground grid sits at sea level and the
+    // deck plane at its own height over the same square; the simple fight's grid keeps its place below the lowest height.
+    const groundZ = fight.energy ? 0 : -(GROUND_BELOW_FT + Math.max(Math.abs(bounds.minZ), Math.abs(bounds.maxZ)));
+    const gridX = Math.round(view.center.x / GRID_STEP_FT) * GRID_STEP_FT;
+    const gridY = Math.round(view.center.y / GRID_STEP_FT) * GRID_STEP_FT;
+    gl.grid.position.set(gridX, gridY, altToZ(groundZ, ALT_SCALE));
+    gl.deck.visible = fight.energy === true;
+    if (gl.deck.visible) gl.deck.position.set(gridX, gridY, altToZ(fight.setup.hardDeckFt, ALT_SCALE));
     gl.mark.scale.setScalar(MERGE_MARK_PX / pxPerFt);
     gl.mark.visible = showsMergeMark(fight);
     if (gl.nose) {
@@ -520,14 +758,54 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
       const s = worldToScreen(THREE, camera, point, box.width, box.height);
       el.style.transform = `translate(${Math.round(s.x + dx)}px, ${Math.round(s.y + dy)}px)`;
     };
-    at({ x: fight.blue.xFt, y: fight.blue.yFt, z: altToZ(fight.blue.zFt, ALT_SCALE) }, -22, -26, gl.labels.blue);
-    at({ x: fight.red.xFt, y: fight.red.yFt, z: altToZ(fight.red.zFt, ALT_SCALE) }, 12, -26, gl.labels.red);
+    const showDataTags = Boolean(options?.()?.dataTags);
+    const updateLabel = (el, letter, who) => {
+      if (!showDataTags) {
+        if (el.dataset.tagged) {
+          delete el.dataset.tagged;
+          delete el.dataset.tagText;
+          el.textContent = letter;
+        } else if (el.textContent !== letter) {
+          el.textContent = letter;
+        }
+        return;
+      }
+      const tag = aircraftTagLines(fight, fight[who], who);
+      const text = `${letter}|${tag.title}|${tag.detail}`;
+      if (el.dataset.tagText !== text) {
+        el.dataset.tagged = 'true';
+        el.dataset.tagText = text;
+        el.textContent = '';
+        const ship = doc.createElement('span');
+        ship.className = 'tf-3d-ship';
+        ship.textContent = letter;
+        const boxEl = doc.createElement('span');
+        boxEl.className = 'tf-3d-tag-body';
+        const titleSpan = doc.createElement('span');
+        titleSpan.className = 'tf-3d-tag-title';
+        titleSpan.textContent = tag.title;
+        const detailSpan = doc.createElement('span');
+        detailSpan.className = 'tf-3d-tag-detail';
+        detailSpan.textContent = tag.detail;
+        boxEl.append(titleSpan, detailSpan);
+        el.append(ship, boxEl);
+      }
+    };
+    updateLabel(gl.labels.blue, LETTERS.blue, 'blue');
+    updateLabel(gl.labels.red, LETTERS.red, 'red');
+
+    at({ x: fight.blue.xFt, y: fight.blue.yFt, z: altToZ(fight.blue.zFt, ALT_SCALE) }, showDataTags ? -60 : -22, showDataTags ? -45 : -26, gl.labels.blue);
+    at({ x: fight.red.xFt, y: fight.red.yFt, z: altToZ(fight.red.zFt, ALT_SCALE) }, showDataTags ? 40 : 12, showDataTags ? -45 : -26, gl.labels.red);
     gl.labels.merge.style.display = showsMergeMark(fight) ? '' : 'none';
+
     const markWord = passMarkWord(fight);
     if (gl.labels.merge.textContent !== markWord) gl.labels.merge.textContent = markWord;
     at({ x: 0, y: 0, z: 0 }, 8, 22, gl.labels.merge);
     const noseText = firstNoseText(fight.firstNose);
     if (gl.labels.firstNose.textContent !== noseText) gl.labels.firstNose.textContent = noseText;
+    // The deck's name floats over the plane beside the middle of the fight, at the deck's height.
+    gl.labels.deck.style.display = gl.deck.visible ? '' : 'none';
+    if (gl.deck.visible) at({ x: view.center.x, y: view.center.y, z: altToZ(fight.setup.hardDeckFt, ALT_SCALE) }, 8, 8, gl.labels.deck);
 
     drawn++;
     host.dataset.draws = String(drawn);
@@ -562,8 +840,26 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
       line.geometry.dispose();
       line.material.dispose();
     }
+    for (const line of Object.values(scene.plumbLines)) {
+      line.geometry.dispose();
+      line.material.dispose();
+    }
+    for (const disc of Object.values(scene.shadowDiscs)) {
+      disc.geometry.dispose();
+      disc.material.dispose();
+    }
+    for (const lv of Object.values(scene.liftVectors || {})) {
+      lv.geometry.dispose();
+      lv.material.dispose();
+    }
+    if (scene.wezCone) {
+      scene.wezCone.geometry.dispose();
+      scene.wezCone.material.dispose();
+    }
     scene.mark.geometry.dispose();
     scene.mark.material.dispose();
+    scene.deck.geometry.dispose();
+    scene.deck.material.dispose();
     scene.grid.geometry.dispose();
     scene.grid.material.dispose();
     if (scene.nose) {

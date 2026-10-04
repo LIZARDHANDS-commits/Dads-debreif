@@ -1,3 +1,14 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
 // Profiles (specs/SPEC-traffic.md: Profiles and notes, Security; task 7, bug #48). A profile read back
 // from this browser's storage is untrusted: these tests hold it to the spec's checks and to plain-words
 // refusals, and hold the built-in setups to being valid profiles themselves.
@@ -50,7 +61,7 @@ test('each built-in profile has its data file\'s routes, aircraft and anchor exa
     assert.equal(entry.profile.seed, 1);
     assert.equal(entry.profile.notes, '');
     const s = entry.profile.settings;
-    assert.equal(s.speed, 8);
+    assert.equal(s.speed, entry.id === 'moose-jaw-v6' ? 8 : 1);
     assert.equal(s.layerPhoto, true);
     assert.equal(s.photoTrim, 1.2);
     assert.equal(s.photoOpacityPct, 100);
@@ -245,11 +256,11 @@ test('links: an entry or split must join a pattern that is there, at a point tha
   [raw, r] = entry();
   r.attachTo = 5;
   refused(raw, /joins something that is not a route/);
-  const split = good();
+  const split = clone(BUILT_IN[1].profile);
   const s = split.routes.find((x) => x.kind === 'split');
   s.sourceRoute = 'NOPE';
   refused(split, /joins a route that is not there/);
-  const odds = good();
+  const odds = clone(BUILT_IN[1].profile);
   odds.routes.find((x) => x.kind === 'split').splitOdds = 2;
   refused(odds, /splitOdds that is not from 0 to 1/);
   // A route that has been left "Not linked" (an empty link) is fine.

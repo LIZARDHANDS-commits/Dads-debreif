@@ -11,6 +11,7 @@
 import { FT_PER_NM } from '../../core/units.js';
 import { toScreen, visibleBounds, fitBounds, createCanvasSurface } from '../../ui-kit/canvas-view.js';
 import { startGeometry, passMarkWord } from './geometry.js';
+import { aircraftTagLines } from './readouts.js';
 
 /** V6's picture colours. The same three are in turn-fight.css for the page. */
 export const COLORS = Object.freeze({
@@ -109,10 +110,11 @@ function drawTrail(ctx, points, colour, project, now) {
  * playback.js) in a box of `size` CSS pixels. The canvas is cleared already;
  * its CSS background is var(--bg-raised), V6's dark stage.
  */
-export function drawTopDown(ctx, size, run) {
+export function drawTopDown(ctx, size, run, options = {}) {
   if (!(size.width > 0 && size.height > 0)) return;
   const { fight, trails } = run;
   const { blue, red } = fight;
+  const showDataTags = Boolean(options.dataTags);
   const view = topDownView(size, {
     separationNm: fight.setup.separationNm,
     extentFt: trails.extent.maxAbsFt,
@@ -166,7 +168,7 @@ export function drawTopDown(ctx, size, run) {
 
   // The aircraft, each with its letter beside it (Blue to the left, Red to the
   // right, so they stay readable when they are on top of each other at the merge).
-  for (const [p, colour, letter, side] of [[blue, COLORS.blue, 'B', -1], [red, COLORS.red, 'R', 1]]) {
+  for (const [p, colour, letter, who, side] of [[blue, COLORS.blue, 'B', 'blue', -1], [red, COLORS.red, 'R', 'red', 1]]) {
     const at = project(p);
     drawArrowhead(ctx, at, p.headingRad, colour);
     ctx.save();
@@ -174,6 +176,36 @@ export function drawTopDown(ctx, size, run) {
     ctx.font = 'bold 12px system-ui, sans-serif';
     ctx.textAlign = side < 0 ? 'right' : 'left';
     ctx.fillText(letter, at[0] + side * 14, at[1] - 12);
+
+    if (showDataTags) {
+      const tag = aircraftTagLines(fight, p, who);
+      ctx.font = '10px system-ui, sans-serif';
+      const w1 = ctx.measureText ? (ctx.measureText(tag.title)?.width || 80) : 80;
+      const w2 = ctx.measureText ? (ctx.measureText(tag.detail)?.width || 80) : 80;
+      const maxW = Math.max(w1, w2);
+
+      const tagH = 26;
+      const tagPad = 4;
+      const tagW = maxW + tagPad * 2;
+      const tagX = side < 0 ? at[0] - 14 - tagW : at[0] + 14;
+      const tagY = at[1] - 8;
+
+      // Dark translucent backdrop
+      ctx.fillStyle = 'rgba(10, 18, 28, 0.85)';
+      ctx.fillRect(tagX, tagY, tagW, tagH);
+
+      // Border in aircraft color
+      ctx.strokeStyle = colour;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(tagX, tagY, tagW, tagH);
+
+      // Lines of text
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(tag.title, tagX + tagPad, tagY + 11);
+      ctx.fillStyle = colour;
+      ctx.fillText(tag.detail, tagX + tagPad, tagY + 22);
+    }
     ctx.restore();
   }
 
@@ -202,11 +234,11 @@ export function drawTopDown(ctx, size, run) {
  * `timers` is the module's scheduler scope. Call requestDraw() whenever the
  * fight moves or a setting changes; dispose() when the module closes.
  */
-export function createTopDownView(canvas, { timers, run }) {
+export function createTopDownView(canvas, { timers, run, options = () => ({}) }) {
   return createCanvasSurface(canvas, {
     timers,
     label: 'Top-down view of the fight. Blue (B) and Red (R) fly toward each other and turn at the MERGE or PASS mark, or at once; the tables beside it give the numbers.',
-    draw: (ctx, surface) => drawTopDown(ctx, surface.size, run()),
+    draw: (ctx, surface) => drawTopDown(ctx, surface.size, run(), options()),
   });
 }
 

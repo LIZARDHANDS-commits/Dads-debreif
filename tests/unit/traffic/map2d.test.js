@@ -1,3 +1,26 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
+// ╔══════════════════════════════════════════════════════════════════════╗
+// ║  OPERATOR WARNING — READ BEFORE DEBUGGING TEST FAILURES            ║
+// ║                                                                    ║
+// ║  These tests use PILOT-DOMAIN TOLERANCES (±10 kt, ±100 ft, ±5°).  ║
+// ║  If a test fails repeatedly, DO NOT tweak the physics engine to    ║
+// ║  make it pass. Instead:                                            ║
+// ║    1. Ask the operator what to do.                                 ║
+// ║    2. The test tolerance may need widening, OR                     ║
+// ║    3. There may be a genuine flight behavior bug.                  ║
+// ║  Never force physics to match a test value.                        ║
+// ╚══════════════════════════════════════════════════════════════════════╝
+
 // The Traffic Sim's 2D map (specs/SPEC-traffic.md: The screen). The wording and
 // projection are pure and tested directly; the drawing is checked against a
 // recording stand-in for the canvas, so what's drawn (and what's written next to
@@ -14,6 +37,7 @@ import {
   sceneBounds, focusBounds, gridStepFt, gridLines, gridLabel, routeStyle, labelAnchor, legLabels, legsToLabel,
   turnedShape, aircraftSymbol, conflictLevels, markRadiiPx, MIN_BUBBLE_PX, MIN_RING_PX, isFlying, aircraftColor, drawScene, createMap2d,
   PHOTO_OFFLINE_TEXT, photoAlignment, photoToWorld, worldToPhoto, photoView, photoCaption,
+  calculateGlideFootprint, isPflActive, shouldShowGlideFootprint, getPflBadge,
 } from '../../../src/modules/traffic/map2d.js';
 import { makeLocalRef, localFtToLatLon, latLonToLocalFt } from '../../../src/core/geo.js';
 import { ESRI_IMAGERY } from '../../../src/ui-kit/map-tiles.js';
@@ -854,3 +878,108 @@ test('the focus box is the first showing pattern and the flying aircraft near it
   const path = { kind: 'pattern', points: [{ x: 0, y: 0 }], path: [{ x: -20, y: -30 }, { x: 40, y: 60 }] };
   assert.deepEqual(focusBounds([path]), { minX: -20, minY: -30, maxX: 40, maxY: 60 }, 'the drawn path where a route has one');
 });
+
+// ---------------------------------------------------------------------------
+// PFL 2D Dynamic Glide Footprint & Tactical UI Badges (Task 4)
+
+test('calculateGlideFootprint computes clean glide radius and wind drift displacement downwind', () => {
+  // Calm wind at 5,000 ft MSL (Moose Jaw elevation 1,892 ft)
+  // altDiff = 5000 - 1892 = 3108 ft
+  // expected radius = (3108 / 1000) * 2.0 NM * 6076.12 ft/NM = 37769.16 ft
+  // expected tGlide = 3108 / (1350 / 60) = 138.133 s
+  const ac = { x: 1000, y: 2000, alt: 5000 };
+  const calm = calculateGlideFootprint(ac, 360, 0);
+  near(calm.altDiff, 3108, 0.01);
+  near(calm.rGlide, 37769.16, 0.1);
+  near(calm.tGlide, 138.133, 0.01);
+  near(calm.cx, 1000, 0.01);
+  near(calm.cy, 2000, 0.01);
+  near(calm.driftFt, 0, 0.01);
+
+  // Ground level or below ground (alt <= 1892 ft)
+  const ground = calculateGlideFootprint({ x: 0, y: 0, alt: 1892 }, 360, 20);
+  assert.equal(ground.altDiff, 0);
+  assert.equal(ground.rGlide, 0);
+  assert.equal(ground.tGlide, 0);
+  assert.equal(ground.cx, 0);
+  assert.equal(ground.cy, 0);
+
+  // With wind: circle remains centered on aircraft, driftFt indicates downwind drift
+  const northWind = calculateGlideFootprint(ac, 360, 20);
+  near(northWind.cx, 1000, 0.01);
+  near(northWind.cy, 2000, 0.01);
+  near(northWind.driftFt, 4662.8, 1.0);
+});
+
+test('shouldShowGlideFootprint activates for engine failure, PFL phases, commands, or active selection', () => {
+  assert.ok(shouldShowGlideFootprint({ engineFailed: true }));
+  assert.ok(shouldShowGlideFootprint({ phase: 'pfl_high_key' }));
+  assert.ok(shouldShowGlideFootprint({ phase: 'pfl_zoom' }));
+  assert.ok(shouldShowGlideFootprint({ phase: 'pfl_low_key' }));
+  assert.ok(shouldShowGlideFootprint({ phase: 'pfl_direct' }));
+  assert.ok(shouldShowGlideFootprint({ phase: 'crash_short' }));
+  assert.ok(shouldShowGlideFootprint({ command: 'pfl_current' }));
+  assert.ok(shouldShowGlideFootprint({ command: 'engine_fail' }));
+  assert.ok(shouldShowGlideFootprint({ pflActive: true }));
+  assert.ok(shouldShowGlideFootprint({ id: 'A1', engineFailed: true }, 'A1'));
+
+  assert.ok(!shouldShowGlideFootprint(null));
+  assert.ok(!shouldShowGlideFootprint({ status: 'flying', alt: 2500, phase: 'downwind' }));
+});
+
+test('getPflBadge returns exact tactical badges for all 6 PFL recovery phases', () => {
+  // 1. Zoom climb/decel
+  assert.equal(getPflBadge({ engineFailed: true, phase: 'pfl_zoom' }), '[PFL: ZOOM]');
+  assert.equal(getPflBadge({ command: 'pfl_current', phase: 'pfl_decel' }), '[PFL: ZOOM]');
+
+  // 2. High Key or Orbit
+  assert.equal(getPflBadge({ engineFailed: true, phase: 'pfl_high_key' }), '[PFL: HIGH KEY]');
+  assert.equal(getPflBadge({ engineFailed: true, phase: 'pfl_orbit' }), '[PFL: HIGH KEY]');
+  assert.equal(getPflBadge({ engineFailed: true, phase: 'pfl_inbound' }), '[PFL: HIGH KEY]');
+  assert.equal(getPflBadge({ command: 'climb_high_key' }), '[PFL: HIGH KEY]');
+
+  // 3. Low Key downwind
+  assert.equal(getPflBadge({ engineFailed: true, phase: 'pfl_low_key' }), '[PFL: LOW KEY]');
+  assert.equal(getPflBadge({ command: 'climb_low_key' }), '[PFL: LOW KEY]');
+
+  // 4. Base Key
+  assert.equal(getPflBadge({ engineFailed: true, phase: 'pfl_base_key' }), '[PFL: BASE KEY]');
+
+  // 5. Direct to threshold
+  assert.equal(getPflBadge({ engineFailed: true, phase: 'pfl_direct' }), '[PFL: DIRECT]');
+  assert.equal(getPflBadge({ engineFailed: true, phase: 'direct_threshold' }), '[PFL: DIRECT]');
+  assert.equal(getPflBadge({ engineFailed: true, phase: 'pfl_final' }), '[PFL: DIRECT]');
+
+  // 6. Crash short / unrecoverable
+  assert.equal(getPflBadge({ engineFailed: true, phase: 'crash_short' }), '[CRASH SHORT]');
+  assert.equal(getPflBadge({ engineFailed: true, status: 'crashed' }), '[CRASH SHORT]');
+
+  // Not in PFL
+  assert.equal(getPflBadge(null), null);
+  assert.equal(getPflBadge({ status: 'flying', phase: 'downwind' }), null);
+});
+
+test('drawScene renders dotted glide footprint ring and PFL badge when aircraft is in PFL recovery', () => {
+  const pflAc = { id: 'A1', type: 'CT-156', routeId: 'p1', x: 0, y: 1000, alt: 3500, kt: 120, headingDeg: 90, status: 'flying', engineFailed: true, phase: 'pfl_high_key' };
+  const rec = draw({ aircraft: [pflAc], conflicts: [] });
+  const written = rec.written();
+  assert.ok(written.includes('[PFL: HIGH KEY]'), 'draws tactical status badge on map');
+
+  // Verify dotted circle stroke in cyan (#38bdf8)
+  const dashes = rec.named('setLineDash').map((c) => JSON.stringify(c.args[0]));
+  assert.ok(dashes.includes('[4,4]'), 'tactical dotted line dash set');
+  const strokes = rec.named('stroke').map((c) => c.strokeStyle);
+  assert.ok(strokes.includes('#38bdf8'), 'glide footprint ring drawn in tactical cyan');
+  assert.ok(written.some((w) => w.startsWith('PFL GLIDE')), 'draws range label for glide footprint');
+});
+
+test('drawPflGroundCircle renders 0.5 NM radius circle and key points on ground', () => {
+  const rec = draw({}, { layerPflCircle: true });
+  const written = rec.written();
+  assert.ok(written.some((w) => w.includes('PFL Circle')), 'draws circle title');
+  assert.ok(written.some((w) => w.includes('HIGH KEY')), 'marks High Key');
+  assert.ok(written.some((w) => w.includes('LOW KEY')), 'marks Low Key');
+  assert.ok(written.some((w) => w.includes('BASE KEY')), 'marks Base Key');
+  assert.ok(written.some((w) => w.includes('1.0 NM (90° Left)')), 'marks 90 deg left reference spoke');
+});
+

@@ -1,3 +1,14 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
 // The Traffic Sim's playback bar (specs/SPEC-traffic.md: The screen, R22, R3):
 // every control calls what it is given, the state it is told shows, and a
 // control for a feature that isn't there yet is left out.
@@ -7,9 +18,9 @@ import { installFakeDom } from './fake-dom-extras.js';
 import { h } from '../../../src/ui-kit/dom.js';
 import { createControls } from '../../../src/ui-kit/controls.js';
 import { createSettings } from '../../../src/storage/settings.js';
-import { DEFAULTS, LIMITS } from '../../../src/modules/traffic/defaults.js';
+import { DEFAULTS, LIMITS, RUNWAYS, DEFAULT_RUNWAY } from '../../../src/modules/traffic/defaults.js';
 import {
-  LAYER_ITEMS, STATUS_TEXT, layerItems, speedLabel, createMenu, createPlaybackBar,
+  LAYER_ITEMS, LAYER_PRESETS, LAYER_PRESET_ITEMS, STATUS_TEXT, layerItems, speedLabel, createMenu, createPlaybackBar,
 } from '../../../src/modules/traffic/playback-bar.js';
 
 installFakeDom();
@@ -46,12 +57,14 @@ function setup(options = {}) {
     speed: (x) => calls.push(['speed', x]),
     rewind: () => calls.push('rewind'),
     step: (s) => calls.push(['step', s]),
+    runwayChange: (r) => calls.push(['runwayChange', r]),
     ...options.on,
   };
   const controls = options.controls ?? stubControls();
   const listeners = [];
   const listen = (target, type, fn) => listeners.push({ target, type, fn });
-  const bar = createPlaybackBar({ controls, on, available: options.available, listen });
+  const settings = options.settings;
+  const bar = createPlaybackBar({ controls, settings, on, available: options.available, listen });
   return { bar, calls, controls, listeners };
 }
 
@@ -173,14 +186,72 @@ test('the wind boxes are wind direction (°T) and speed (kt), with the spec\'s l
   assert.deepEqual([from.min, from.max], [...LIMITS.windFromDeg]);
 });
 
-test('the Layers menu lists every layer that has a feature behind it, each bound to its own setting', () => {
+test('the Layers menu offers the 3 master presets in order, with Standard Training as default', () => {
+  const { bar } = setup();
+  const body = all(bar.element, (n) => n.getAttribute?.('class')?.split(' ').includes('traffic-menu-body'))[0];
+  const presets = tagged(body, 'BUTTON').filter((b) => b.getAttribute('data-preset'));
+  assert.deepEqual(presets.map((b) => b.getAttribute('data-preset')), [
+    'cleanOperational', 'standardTraining', 'fullTelemetry',
+  ]);
+  assert.deepEqual(presets.map((b) => words(b)), [
+    'Clean Operational', 'Standard Training', 'Full Telemetry',
+  ]);
+  const active = presets.find((b) => b.getAttribute('aria-pressed') === 'true');
+  assert.equal(active?.getAttribute('data-preset'), 'standardTraining');
+});
+
+test('the 3 master presets define the required layer states', () => {
+  // Clean Operational
+  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerPhoto, true);
+  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerLabels, true);
+  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerWindTrack, true);
+  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerTrails, false);
+  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerPoints, false);
+  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerCautionRings, false);
+  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerLegDistances, false);
+  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerTurnData, false);
+  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerBubbles, false);
+  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerHeightLines, false);
+  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerSmmReference, false);
+  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerEngineReach, false);
+
+  // Standard Training (Default)
+  assert.equal(LAYER_PRESETS.standardTraining.layers.layerPhoto, true);
+  assert.equal(LAYER_PRESETS.standardTraining.layers.layerLabels, true);
+  assert.equal(LAYER_PRESETS.standardTraining.layers.layerTrails, true);
+  assert.equal(LAYER_PRESETS.standardTraining.layers.layerPoints, true);
+  assert.equal(LAYER_PRESETS.standardTraining.layers.layerCautionRings, true);
+  assert.equal(LAYER_PRESETS.standardTraining.layers.layerWindTrack, true);
+  assert.equal(LAYER_PRESETS.standardTraining.layers.layerSmmReference, true);
+  assert.equal(LAYER_PRESETS.standardTraining.layers.layerLegDistances, false);
+  assert.equal(LAYER_PRESETS.standardTraining.layers.layerTurnData, false);
+  assert.equal(LAYER_PRESETS.standardTraining.layers.layerBubbles, false);
+  assert.equal(LAYER_PRESETS.standardTraining.layers.layerHeightLines, false);
+  assert.equal(LAYER_PRESETS.standardTraining.layers.layerEngineReach, false);
+
+  // Full Telemetry
+  assert.equal(LAYER_PRESETS.fullTelemetry.layers.layerPhoto, true);
+  assert.equal(LAYER_PRESETS.fullTelemetry.layers.layerLabels, true);
+  assert.equal(LAYER_PRESETS.fullTelemetry.layers.layerTrails, true);
+  assert.equal(LAYER_PRESETS.fullTelemetry.layers.layerPoints, true);
+  assert.equal(LAYER_PRESETS.fullTelemetry.layers.layerCautionRings, true);
+  assert.equal(LAYER_PRESETS.fullTelemetry.layers.layerWindTrack, true);
+  assert.equal(LAYER_PRESETS.fullTelemetry.layers.layerSmmReference, true);
+  assert.equal(LAYER_PRESETS.fullTelemetry.layers.layerLegDistances, true);
+  assert.equal(LAYER_PRESETS.fullTelemetry.layers.layerTurnData, true);
+  assert.equal(LAYER_PRESETS.fullTelemetry.layers.layerBubbles, true);
+  assert.equal(LAYER_PRESETS.fullTelemetry.layers.layerHeightLines, true);
+  assert.equal(LAYER_PRESETS.fullTelemetry.layers.layerEngineReach, true);
+});
+
+test('the Layers menu binds the underlying layer settings for available features', () => {
   const { controls } = setup();
   const layers = controls.asked.filter((a) => a.kind === 'checkbox');
   assert.deepEqual(layers.map((l) => l.key), [
-    'layerTrails', 'layerLabels', 'layerPoints', 'layerLegDistances', 'layerTurnData', 'layerBubbles', 'layerCautionRings',
+    'layerTrails', 'layerLabels', 'layerPoints', 'layerLegDistances', 'layerTurnData', 'layerBubbles', 'layerCautionRings', 'layerPflCircle',
   ]);
   assert.deepEqual(layers.map((l) => l.label), [
-    'Trails', 'Height and speed labels', 'Route points', 'Leg distances', 'Turn data (radius and bank)', 'Conflict bubbles', 'Caution rings',
+    'Trails', 'Height and speed labels', 'Route points', 'Leg distances', 'Turn data (radius and bank)', 'Conflict bubbles', 'Caution rings', 'PFL ground circle',
   ]);
 });
 
@@ -268,11 +339,11 @@ test('two menus have their own ids', () => {
 // ---------------------------------------------------------------------------
 // With the real ui-kit controls: what typing in the boxes does
 
-function withRealControls() {
+function withRealControls(options = {}) {
   const kept = new Map();
   const store = { get: (k, fallback) => (kept.has(k) ? kept.get(k) : fallback), set: (k, v) => kept.set(k, v) };
   const settings = createSettings(store, DEFAULTS);
-  return { settings, ...setup({ controls: createControls(settings), available: { wind: true } }) };
+  return { settings, ...setup({ settings, controls: createControls(settings), available: { wind: true, ...options.available }, ...options }) };
 }
 
 const numberBoxes = (bar) => tagged(bar.element, 'INPUT').filter((i) => i.getAttribute('type') === 'number');
@@ -300,19 +371,78 @@ test('the wind boxes start calm, take a good wind into the settings, and refuse 
   assert.match(messages(bar)[1].textContent, /Enter a number from 0 to 60/);
 });
 
-test('a layer checkbox in the menu writes its setting, and follows the setting when something else changes it', () => {
-  const { bar, settings } = withRealControls();
-  const boxes = tagged(bar.element, 'INPUT').filter((i) => i.getAttribute('type') === 'checkbox');
-  assert.equal(boxes.length, 7);
-  const trails = boxes[0];
-  assert.equal(trails.checked, true);
-  trails.checked = false;
-  trails.dispatch('change');
+test('selecting a layer preset updates the settings to match that preset', () => {
+  const { bar, settings } = withRealControls({ available: { wind: true, photo: true, windTrack: true, view3d: true, reach: true } });
+
+  // Initially DEFAULTS are loaded
+  assert.equal(settings.get().layerTrails, true);
+  assert.equal(settings.get().layerLabels, true);
+  assert.equal(settings.get().layerPoints, true);
+  assert.equal(settings.get().layerCautionRings, true);
+  assert.equal(settings.get().layerPhoto, true);
+  assert.equal(settings.get().layerWindTrack, true);
+  assert.equal(settings.get().layerSmmReference, true);
+  assert.equal(settings.get().layerLegDistances, false);
+  assert.equal(settings.get().layerTurnData, false);
+  assert.equal(settings.get().layerBubbles, DEFAULTS.layerBubbles);
+
+  // Switch to Clean Operational: activates Photo, Labels, Wind Track; all other layers false
+  press(bar.element, 'Clean Operational');
+  assert.equal(settings.get().layerPhoto, true);
+  assert.equal(settings.get().layerLabels, true);
+  assert.equal(settings.get().layerWindTrack, true);
   assert.equal(settings.get().layerTrails, false);
-  settings.update({ layerTrails: true });
-  assert.equal(trails.checked, true);
-  // Leg distances and turn data start off, as the spec says.
-  assert.deepEqual([boxes[3].checked, boxes[4].checked], [false, false]);
+  assert.equal(settings.get().layerPoints, false);
+  assert.equal(settings.get().layerCautionRings, false);
+  assert.equal(settings.get().layerSmmReference, false);
+  assert.equal(settings.get().layerLegDistances, false);
+  assert.equal(settings.get().layerTurnData, false);
+  assert.equal(settings.get().layerBubbles, false);
+  assert.equal(settings.get().layerHeightLines, false);
+  assert.equal(settings.get().layerEngineReach, false);
+
+  // Switch to Full Telemetry: activates all layers including Leg Distances, Turn Data, Height Lines, Conflict Bubbles
+  press(bar.element, 'Full Telemetry');
+  assert.equal(settings.get().layerPhoto, true);
+  assert.equal(settings.get().layerLabels, true);
+  assert.equal(settings.get().layerWindTrack, true);
+  assert.equal(settings.get().layerTrails, true);
+  assert.equal(settings.get().layerPoints, true);
+  assert.equal(settings.get().layerCautionRings, true);
+  assert.equal(settings.get().layerSmmReference, true);
+  assert.equal(settings.get().layerLegDistances, true);
+  assert.equal(settings.get().layerTurnData, true);
+  assert.equal(settings.get().layerBubbles, true);
+  assert.equal(settings.get().layerHeightLines, true);
+  assert.equal(settings.get().layerEngineReach, true);
+
+  // Switch back to Standard Training
+  press(bar.element, 'Standard Training');
+  assert.equal(settings.get().layerPhoto, true);
+  assert.equal(settings.get().layerLabels, true);
+  assert.equal(settings.get().layerWindTrack, true);
+  assert.equal(settings.get().layerTrails, true);
+  assert.equal(settings.get().layerPoints, true);
+  assert.equal(settings.get().layerCautionRings, true);
+  assert.equal(settings.get().layerSmmReference, true);
+  assert.equal(settings.get().layerLegDistances, false);
+  assert.equal(settings.get().layerTurnData, false);
+  assert.equal(settings.get().layerBubbles, false);
+  assert.equal(settings.get().layerHeightLines, false);
+  assert.equal(settings.get().layerEngineReach, false);
+});
+
+test('preset buttons reflect the active preset state and update on preset change', () => {
+  const { bar } = withRealControls({ available: { wind: true, photo: true, windTrack: true, view3d: true, reach: true } });
+  const getPressed = () => tagged(bar.element, 'BUTTON').find((b) => b.getAttribute('data-preset') && b.getAttribute('aria-pressed') === 'true');
+
+  assert.equal(getPressed()?.getAttribute('data-preset'), 'standardTraining');
+  press(bar.element, 'Clean Operational');
+  assert.equal(getPressed()?.getAttribute('data-preset'), 'cleanOperational');
+  press(bar.element, 'Full Telemetry');
+  assert.equal(getPressed()?.getAttribute('data-preset'), 'fullTelemetry');
+  press(bar.element, 'Standard Training');
+  assert.equal(getPressed()?.getAttribute('data-preset'), 'standardTraining');
 });
 
 test('a note replaces the status words while it is set ("Replaying…"), and clearing it brings the mode back', () => {
@@ -327,4 +457,46 @@ test('a note replaces the status words while it is set ("Replaying…"), and cle
   assert.equal(status(), 'Paused');
   bar.setState({ note: '' });
   assert.equal(status(), 'Paused');
+});
+
+test('runway selector renders with Runway 29L (Active) selected by default, and Runway 11R (Coming soon) disabled', () => {
+  const { bar } = setup();
+  const select = all(bar.element, (n) => n.getAttribute?.('aria-label') === 'Active runway')[0];
+  assert.ok(select, 'Active runway select element is rendered');
+  assert.equal(select.value, '29L');
+
+  const options = tagged(select, 'OPTION');
+  assert.equal(options.length, 2);
+
+  const opt29L = options.find((o) => o.value === '29L');
+  assert.ok(opt29L);
+  assert.equal(words(opt29L), 'Runway 29L (Active)');
+  assert.equal(opt29L.disabled, false);
+
+  const opt11R = options.find((o) => o.value === '11R');
+  assert.ok(opt11R);
+  assert.equal(words(opt11R), 'Runway 11R (Coming soon)');
+  assert.equal(opt11R.disabled, true);
+});
+
+test('selecting or changing runway triggers on.runwayChange and updates settings', () => {
+  let changedRunway = null;
+  const { bar, settings } = withRealControls({
+    on: {
+      runwayChange: (val) => {
+        changedRunway = val;
+      },
+    },
+  });
+
+  const select = all(bar.element, (n) => n.getAttribute?.('aria-label') === 'Active runway')[0];
+  assert.ok(select);
+  assert.equal(select.value, '29L');
+  assert.equal(settings.get().runway, '29L');
+
+  select.value = '11R';
+  select.dispatch('change');
+
+  assert.equal(changedRunway, '11R');
+  assert.equal(settings.get().runway, '11R');
 });

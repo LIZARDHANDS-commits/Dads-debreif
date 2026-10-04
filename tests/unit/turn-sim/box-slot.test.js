@@ -1,3 +1,14 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
 // The offset box's default rear timing (audit R1): each rear aircraft's delay is solved so it ends boxAftFt behind the front
 // element in its box slot (#3 between Lead and #2, #4 outside #2), in both turn directions. The fixed 12.5 s rear delay
 // ('rearDelay') left the box collapsed in a turn toward #2's side (right Delayed 90: #3 1,141 ft aft, #4 583 ft aft between

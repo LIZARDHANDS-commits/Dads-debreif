@@ -36,6 +36,7 @@ export function applyToSetup(setup, values) {
     flyRoundedTurns: values.flyRoundedTurns === true,
     radiusFromG: values.radiusFromG === true,
     manualRadiusFt: within(values.manualRadiusFt, LIMITS.manualRadiusFt, DEFAULTS.manualRadiusFt),
+    trueArcs: setup.routeOptions?.trueArcs !== false, // SMM true arcs: the standard overhead break and final turn, with or without wind
   };
   if (values.windFromDeg !== undefined) setup.windFromDeg = within(values.windFromDeg, LIMITS.windFromDeg, DEFAULTS.windFromDeg);
   if (values.windKt !== undefined) setup.windKt = within(values.windKt, LIMITS.windKt, DEFAULTS.windKt);

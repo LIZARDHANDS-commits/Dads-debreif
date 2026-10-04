@@ -57,126 +57,21 @@
         {"label":"Glide path","x":16828.198874717906,"y":-10707.652572696003,"alt":2700,"kt":110,"g":1.4142},
         {"label":"Merge","x":3103.8439577663717,"y":-3193.9285714285716,"alt":1880,"kt":100,"g":2}
       ]
-    },
-    {
-      "id": "SPL1",
-      "name": "Split 1",
-      "kind": "split",
-      "visible": true,
-      "color": "#ffcc66",
-      "attachTo": "PAT1",
-      "mergeIndex": 0,
-      "sourceRoute": "PAT1",
-      "sourceIndex": 5,
-      "splitOdds": 0.5,
-      "points": [
-        {"label":"Split Start","x":-10973.734781736144,"y":-12100.394012033474,"alt":3500,"kt":220,"g":2},
-        {"label":"Split Mid","x":-3232.7993582172476,"y":-16591.915104743,"alt":2700,"kt":220,"g":2},
-        {"label":"Base turn","x":21427.20064178275,"y":-30871.915104743,"alt":2700,"kt":140,"g":1.4142},
-        {"label":"Base","x":26407.20064178275,"y":-22171.915104743,"alt":2700,"kt":120,"g":1.4142},
-        {"label":"Final","x":25087.20064178275,"y":-15151.915104742999,"alt":2700,"kt":120,"g":1.4142},
-        {"label":"Glide path","x":14095.52229977456,"y":-9172.921838085786,"alt":2536,"kt":110,"g":2},
-        {"label":"Merge","x":3103.8439577663717,"y":-3193.9285714285716,"alt":1880,"kt":100,"g":2}
-      ]
-    },
-    {
-      "id": "SPL2",
-      "name": "Split 2",
-      "kind": "split",
-      "visible": true,
-      "color": "#56d4dd",
-      "attachTo": "PAT1",
-      "mergeIndex": 7,
-      "sourceRoute": "PAT1",
-      "sourceIndex": 11,
-      "splitOdds": 0.5,
-      "points": [
-        {"label":"Split Start","x":5977.591820600564,"y":-9614.38272803926,"alt":3500,"kt":120,"g":1},
-        {"label":"Split Mid","x":13147.200641782752,"y":-13231.915104742999,"alt":4000,"kt":150,"g":2},
-        {"label":"Outbound","x":-15652.799358217248,"y":-38011.915104743,"alt":4500,"kt":220,"g":2},
-        {"label":"Rejoin leg","x":2047.2006417827524,"y":-50911.915104743,"alt":3500,"kt":220,"g":2},
-        {"label":"Merge","x":21702.183183705154,"y":-19342.841274735503,"alt":3500,"kt":220,"g":2}
-      ]
-    },
-    {
-      "id": "ENT3",
-      "name": "Entry 3",
-      "kind": "entry",
-      "visible": true,
-      "color": "#ff6b6b",
-      "attachTo": "PAT1",
-      "mergeIndex": 4,
-      "points": [
-        {"label":"Entry Start","x":-84418.51364393154,"y":34290.22775239985,"alt":3500,"kt":220,"g":2},
-        {"label":"Entry Mid","x":-56618.51364393154,"y":15990.227752399845,"alt":3500,"kt":220,"g":2},
-        {"label":"Entry Gate","x":-42018.51364393154,"y":6690.2277523998455,"alt":3500,"kt":220,"g":2},
-        {"label":"Merge","x":-27390.458859597227,"y":-1210.9378836613132,"alt":3500,"kt":220,"g":2}
-      ]
-    },
-    {
-      "id": "SPL3",
-      "name": "Split 3",
-      "kind": "split",
-      "visible": true,
-      "color": "#d29922",
-      "attachTo": "PAT1",
-      "mergeIndex": 10,
-      "sourceRoute": "PAT1",
-      "sourceIndex": 1,
-      "splitOdds": 0.5,
-      "points": [
-        {"label":"Split Start","x":-4066.0320320476767,"y":680.5608180490494,"alt":2500,"kt":140,"g":2},
-        {"label":"Split Mid","x":-8206.24091665881,"y":-764.7722476001545,"alt":3500,"kt":150,"g":2},
-        {"label":"Merge","x":-2694.2828253984367,"y":-4241.239230254692,"alt":3500,"kt":140,"g":1}
-      ]
-    },
-    {
-      "id": "ENT4",
-      "name": "Entry 4",
-      "kind": "entry",
-      "visible": true,
-      "color": "#ff9bce",
-      "attachTo": "PAT1",
-      "mergeIndex": 0,
-      "points": [
-        {"label":"Entry Start","x":3025.3513376342107,"y":-3159.113131779915,"alt":5000,"kt":120,"g":1},
-        {"label":"Entry Mid","x":-2433.248365016697,"y":-4082.808193065109,"alt":4200,"kt":120,"g":1},
-        {"label":"Entry Gate","x":-1106.9608835053348,"y":-10143.61900387592,"alt":3700,"kt":120,"g":1},
-        {"label":"Merge","x":4983.418301649969,"y":-7399.474859731776,"alt":2500,"kt":120,"g":1},
-        {"label":"Threshold","x":3103.8439577663717,"y":-3193.9285714285716,"alt":1880,"kt":100,"g":1}
-      ]
-    },
-    {
-      "id": "SPL4",
-      "name": "Split 4",
-      "kind": "split",
-      "visible": true,
-      "color": "#a5d6ff",
-      "attachTo": "PAT1",
-      "mergeIndex": 0,
-      "sourceRoute": "PAT1",
-      "sourceIndex": 5,
-      "splitOdds": 0.5,
-      "points": [
-        {"label":"Split Start","x":-10973.734781736144,"y":-12100.394012033474,"alt":3500,"kt":220,"g":2},
-        {"label":"Split Mid","x":5530.538158852032,"y":-11085.114471830646,"alt":4500,"kt":150,"g":1},
-        {"label":"Merge","x":3103.8439577663717,"y":-3193.9285714285716,"alt":1880,"kt":100,"g":1}
-      ]
     }
   ],
   "aircraft": [
-    {"id":"A1","type":"CT-157","routeId":"PAT1","startIndex":0,"startsAtSec":12},
+    {"id":"A1","type":"CT-156","routeId":"PAT1","startIndex":0,"startsAtSec":12},
     {"id":"A2","type":"CT-156","routeId":"PAT1","startIndex":0,"startsAtSec":137},
-    {"id":"A3","type":"CT-156","routeId":"SPL4","startIndex":0,"startsAtSec":177},
-    {"id":"A4","type":"CT-156","routeId":"ENT4","startIndex":0,"startsAtSec":592},
-    {"id":"A5","type":"CT-156","routeId":"ENT3","startIndex":0,"startsAtSec":856},
+    {"id":"A3","type":"CT-156","routeId":"PAT1","startIndex":0,"startsAtSec":177},
+    {"id":"A4","type":"CT-156","routeId":"PAT1","startIndex":0,"startsAtSec":592},
+    {"id":"A5","type":"CT-156","routeId":"ENT1","startIndex":0,"startsAtSec":856},
     {"id":"A6","type":"CT-156","routeId":"ENT2","startIndex":0,"startsAtSec":884},
     {"id":"A7","type":"CT-156","routeId":"ENT1","startIndex":0,"startsAtSec":902}
   ],
   "routeOptions": {"flyRoundedTurns":true,"radiusFromG":true,"manualRadiusFt":1800,"trueArcs":true},
   "conflictLimits": {"latFt":200,"vertFt":200,"cautionLatFt":500,"cautionVertFt":500},
   "view": {
-    "playbackSpeed": 8,
+    "playbackSpeed": 1,
     "zoom": 0.95,
     "showTrails": true,
     "showLabels": true,

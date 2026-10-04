@@ -1,3 +1,14 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseMetar } from '../../../src/wx/metar.js';
@@ -62,7 +73,9 @@ test('issue #3: M1/4SM FG BKN002CB is below every limit and raises fog', () => {
   assert.equal(c.reasons[1], 'VIS <1/4 SM < 3 SM');
 });
 
-test('M and P visibility against a limit match V6 (0.24 and 6.01)', () => {
+// Source: how a METAR is coded. M1/4SM means "less than 1/4 SM" and P6SM means "more than 6 SM", so M1/4SM is
+// below a 1/4 SM limit and P6SM is never below a 6 SM limit (standard METAR coding; no page reference recorded).
+test('M and P visibility against a limit: M means less than, P means more than', () => {
   const v = (sm, qualifier, limit) => visibilityBelow({ sm, qualifier }, limit);
   assert.equal(v(0.25, 'less', 0.25), true);
   assert.equal(v(0.25, null, 0.25), false);
@@ -140,7 +153,10 @@ test('unknown visibility is reported as unknown, not as within limits', () => {
   assert.equal(c.level, 'unknown');
 });
 
-test('NATO colour state: V6 thresholds, with M1/4SM and CB layers now read', () => {
+// Source: the NATO colour-state table as the SOF carries it (RED below 200 ft or 800 m, AMB 300/1600, YLO2 500/2500,
+// YLO1 700/3700, GRN 1500/5000, WHT 2500/8000). No manual page is recorded for the thresholds, so they are
+// unsourced until Patrick or Dad names the page. Each case below is checked against that table by hand.
+test('NATO colour state: each report lands in its row of the colour table; M1/4SM and CB layers are read', () => {
   assert.equal(natoColour(cond(METAR.quarterMileFog)), 'RED');
   assert.equal(natoColour(cond(METAR.typical)), 'BLU');
   assert.equal(natoColour(cond(METAR.mixedFraction)), 'YLO2'); // 400 ft cloud, 2414 m
@@ -148,7 +164,9 @@ test('NATO colour state: V6 thresholds, with M1/4SM and CB layers now read', () 
   assert.equal(natoColour(cond(METAR.towering)), 'BLU'); // FEW does not count
 });
 
-test('flight category: V6 thresholds', () => {
+// Source: the standard flight-category definitions (LIFR below 500 ft or 1 SM, IFR below 1000 ft or 3 SM,
+// MVFR 3000 ft or 5 SM and below, else VFR); no page reference recorded.
+test('flight category: each report lands in its standard category', () => {
   assert.equal(flightCategory(cond(METAR.typical)), 'VFR');
   assert.equal(flightCategory(cond(METAR.belowBoth)), 'IFR');
   assert.equal(flightCategory(cond(METAR.onLimits)), 'MVFR');

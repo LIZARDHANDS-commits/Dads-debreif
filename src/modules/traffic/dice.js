@@ -6,6 +6,11 @@
 //
 // The generator is mulberry32: small, fast, and the same numbers on every machine.
 // Nothing here reads the clock or Math.random.
+//
+// NOTE (Stream D - Deterministic Doctrine): Dynamic tactical decisions (such as landing vs
+// touch-and-go vs go-around) are now evaluated deterministically via aircraft.intent
+// ('touch_and_go', 'full_stop', 'go_around'). createDice is retained for backward
+// compatibility, splits, and snapshot state preservation.
 
 /**
  * A pair of dice for a seed: call it for a number from 0 up to (not including) 1.

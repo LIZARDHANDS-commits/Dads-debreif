@@ -15,8 +15,8 @@ import { createPanel } from '../../ui-kit/panel.js';
 import { createProfileStore } from './profile-store.js';
 import { BUILT_IN, NAME_MAX, NOTES_MAX, cleanName, isBuiltInName, nextProfileName } from './profile.js';
 
-export const TITLE = 'Profiles and notes';
-export const NOT_KEPT = "Profiles won't be saved in this browser: they are kept only until this page is closed.";
+export const TITLE = 'Scenarios and notes';
+export const NOT_KEPT = "Scenarios won't be saved in this browser: they are kept only until this page is closed.";
 
 const KEPT_FOR_NOW = "this browser wouldn't keep it (its storage is blocked or full), so it is held only until this page is closed";
 
@@ -193,8 +193,8 @@ export function createProfilesPanel({ store, capture, load, current = {} }) {
 
   panel.body.append(
     h('div', { class: 'profiles' },
-      h('div', { class: 'profiles-field' }, h('label', { for: nameId }, 'Profile name'), nameInput),
-      h('div', { class: 'profiles-field' }, h('label', { for: listId }, 'Profiles'), list),
+      h('div', { class: 'profiles-field' }, h('label', { for: nameId }, 'Scenario name'), nameInput),
+      h('div', { class: 'profiles-field' }, h('label', { for: listId }, 'Scenarios'), list),
       h('div', { class: 'profiles-buttons' }, saveButton, loadButton, deleteButton),
       confirmBox,
       message,

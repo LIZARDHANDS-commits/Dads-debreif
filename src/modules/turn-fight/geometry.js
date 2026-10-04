@@ -150,7 +150,7 @@ export function turnNote(setup) {
   return setup.chase ? `${line} (until first nose-on; then each chases the other)` : line;
 }
 
-/** The jets pass closer than this (nautical miles, level) and the mark is V6's MERGE; farther, it is a PASS (TF3-5). */
+/** The jets pass closer than this (nautical miles, level) and the mark is MERGE; farther, it is a PASS (TF3-5). */
 export const MERGE_WORD_MAX_NM = 0.25;
 
 /**

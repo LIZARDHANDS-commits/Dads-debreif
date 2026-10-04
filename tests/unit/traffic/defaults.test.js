@@ -1,9 +1,32 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
+// ╔══════════════════════════════════════════════════════════════════════╗
+// ║  OPERATOR WARNING — READ BEFORE DEBUGGING TEST FAILURES            ║
+// ║                                                                    ║
+// ║  These tests use PILOT-DOMAIN TOLERANCES (±10 kt, ±100 ft, ±5°).  ║
+// ║  If a test fails repeatedly, DO NOT tweak the physics engine to    ║
+// ║  make it pass. Instead:                                            ║
+// ║    1. Ask the operator what to do.                                 ║
+// ║    2. The test tolerance may need widening, OR                     ║
+// ║    3. There may be a genuine flight behavior bug.                  ║
+// ║  Never force physics to match a test value.                        ║
+// ╚══════════════════════════════════════════════════════════════════════╝
+
 // The Traffic Sim's starting values, pinned row by row to the Defaults table in
 // specs/SPEC-traffic.md ("Every setting starts filled in"), and its number-box limits.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../../src/ui-kit/controls.js';
-import { ALLOWED, DEFAULTS, LIMITS, SPEEDS } from '../../../src/modules/traffic/defaults.js';
+import { ALLOWED, DEFAULTS, LIMITS, SPEEDS, RUNWAYS, DEFAULT_RUNWAY } from '../../../src/modules/traffic/defaults.js';
 import { createSettings } from '../../../src/storage/settings.js';
 
 // Checks a group of settings against the values the table gives for them.
@@ -31,8 +54,8 @@ test('the shared settings store accepts the defaults and every key can be change
   }
 });
 
-test('row: playback speed starts at 8×, one of the speeds on offer (0.25× to 8×)', () => {
-  row({ speed: 8 });
+test('row: playback speed starts at 1×, one of the speeds on offer (0.25× to 8×)', () => {
+  row({ speed: 1 });
   assert.deepEqual([...SPEEDS], [0.25, 0.5, 1, 2, 4, 8]);
   assert.ok(SPEEDS.includes(DEFAULTS.speed));
 });
@@ -207,4 +230,15 @@ test('the 2D | 3D setting is the ui-kit\'s shared one: it starts at VIEW_DEFAULT
   assert.equal(settings.get().view, '3d');
   settings.update({ view: 'sideways' });
   assert.equal(settings.get().view, '3d', 'anything else is refused');
+});
+
+test('RUNWAYS defines 29L as active and 11R as coming soon/disabled', () => {
+  assert.ok(Object.isFrozen(RUNWAYS));
+  assert.equal(DEFAULT_RUNWAY, '29L');
+  assert.equal(DEFAULTS.runway, '29L');
+  assert.equal(RUNWAYS.length, 2);
+  assert.equal(RUNWAYS[0].id, '29L');
+  assert.equal(RUNWAYS[0].active, true);
+  assert.equal(RUNWAYS[1].id, '11R');
+  assert.equal(RUNWAYS[1].disabled, true);
 });

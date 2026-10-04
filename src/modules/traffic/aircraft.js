@@ -10,6 +10,7 @@ import { TYPE_COLORS } from './sim.js';
 import { aircraftRows, conflictLines, noConflictsText } from './readouts.js';
 import { LIMITS } from './defaults.js';
 import { MOST_AIRCRAFT } from './profile.js';
+import { getPflBadge } from './map2d.js';
 
 /** The spawner's number boxes as the person sees them, by setting (for the line that names the box to fix). */
 const BOX_NAMES = Object.freeze({ spawnStartPoint: 'Start at point', spawnDelayS: 'Delay', pairGapS: 'Pair gap' });
@@ -19,11 +20,12 @@ export { SPAWN_TYPES };
 
 export const PILOT_SPAWN_PRESETS = Object.freeze([
   { id: 'custom', label: 'Preset: (Custom point)', routeId: '', point: 1 },
+  { id: 'closed', label: 'Preset Point - Closed Pattern (2,400 ft, 140 kt)', routeId: 'PAT1', point: 2 },
   { id: 'initial', label: 'Initial (3,500 ft, 220 kt, Run-in)', routeId: 'PAT1', point: 9 },
-  { id: 'downwind', label: 'Downwind (3,500 ft, 140 kt, Mid-pattern)', routeId: 'PAT1', point: 6 },
+  { id: 'downwind', label: 'Inner Downwind (3,500 ft, 140 kt)', routeId: 'PAT1', point: 11 },
   { id: 'perch', label: 'Perch (3,500 ft, 120 kt, Final turn)', routeId: 'PAT1', point: 12 },
   { id: 'final2m', label: '2-Mile Final (2,700 ft, 120 kt, Straight-in)', routeId: 'ENT2', point: 4 },
-  { id: 'final1m', label: '1-Mile Final (2,120 ft, 110 kt, Short final)', routeId: 'PAT1', point: 13 },
+  { id: 'final1m', label: '1-Mile Final (2,120 ft, 100 kt, Short final)', routeId: 'PAT1', point: 13 },
   { id: 'takeoff', label: 'Takeoff (RWY 29L Threshold, 100 kt)', routeId: 'PAT1', point: 1 },
   { id: 'rejoin45', label: 'Rejoin 45° Line (Entry 1, 3,500 ft, 220 kt)', routeId: 'ENT1', point: 1 },
   { id: 'rejoinStraight', label: 'Rejoin Straight-In Line (Entry 2, 2,700 ft, 140 kt)', routeId: 'ENT2', point: 1 },
@@ -37,7 +39,9 @@ const LIST_EVERY_MS = 100;
 
 /** The route the spawner starts on: the first entry, or the first pattern when there is none (the spec's Defaults table). */
 export function defaultSpawnRouteId(routes) {
-  return (routes.find((r) => r.kind === 'entry') ?? routes.find((r) => r.kind === 'pattern') ?? routes[0])?.id ?? '';
+  const visible = routes.filter((r) => r?.kind !== 'split');
+  const pool = visible.length > 0 ? visible : routes;
+  return (pool.find((r) => r?.kind === 'entry') ?? pool.find((r) => r?.kind === 'pattern') ?? pool[0])?.id ?? '';
 }
 
 /** The route the spawner's setting names, or the default when that route isn't there. */
@@ -84,29 +88,66 @@ export function detailText(row) {
  * timers: the module's scheduler (`after`), so a pending line is cancelled when the module closes.
  * sim, setup: the engine's sim and the setup it flies. onChange(): called after the run changed
  * (an aircraft was added or cleared), so the screen can redraw.
+ * onSelectAircraft: optional callback called when an aircraft row is clicked.
  * Returns { elements: { spawner, aircraft, conflicts }, update(state, { playing, now }), routesChanged() }.
  */
-export function createAircraftPanel({ controls, timers, settings, sim, setup, onChange }) {
+export function createAircraftPanel({ controls, timers, settings, sim, setup, onChange, onSelectAircraft = null }) {
   // ---- the spawner ----------------------------------------------------------
   const message = h('p', { class: 'spawn-message', role: 'status' });
   const say = (text) => {
     if (message.textContent !== text) message.textContent = text;
   };
 
+  const pointSelect = h('select', {
+    id: 'traffic-spawn-start-point',
+    onchange: () => {
+      const val = parseInt(pointSelect.value, 10) || 1;
+      settings.update({ spawnStartPoint: val });
+    },
+  });
+
+  const fillStartPoints = () => {
+    clear(pointSelect);
+    const validRoutes = setup.routes.filter((r) => r && r.kind !== 'split');
+    const routesToUse = validRoutes.length > 0 ? validRoutes : setup.routes;
+    const routeId = spawnRouteId(settings.get().spawnRoute, routesToUse);
+    const route = routesToUse.find((r) => r.id === routeId);
+    const pts = route?.points ?? [];
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      const idx = i + 1;
+      const isClosed = route?.id === 'PAT1' && i === 1;
+      const label = p.label || p.tag || `Point ${idx}`;
+      const extra = isClosed ? ' (Closed Pattern)' : '';
+      const alt = isClosed ? 2400 : (p.alt ?? 2500);
+      const kt = isClosed ? 140 : (p.kt ?? 120);
+      pointSelect.appendChild(h('option', { value: String(idx) }, `${idx}: ${label}${extra} (${alt} ft, ${kt} kt)`));
+    }
+    const current = settings.get().spawnStartPoint ?? 1;
+    pointSelect.value = String(current);
+  };
+
   const routeSelect = h('select', {
     id: 'traffic-spawn-route',
-    onchange: () => settings.update({ spawnRoute: routeSelect.value }),
+    onchange: () => {
+      settings.update({ spawnRoute: routeSelect.value, spawnStartPoint: 1 });
+      fillStartPoints();
+    },
   });
   const fillRoutes = () => {
     clear(routeSelect);
-    for (const route of setup.routes) routeSelect.appendChild(h('option', { value: route.id }, route.name));
-    routeSelect.value = spawnRouteId(settings.get().spawnRoute, setup.routes);
+    const visibleRoutes = setup.routes.filter((r) => r && r.kind !== 'split');
+    for (const route of visibleRoutes) routeSelect.appendChild(h('option', { value: route.id }, route.name));
+    routeSelect.value = spawnRouteId(settings.get().spawnRoute, visibleRoutes.length > 0 ? visibleRoutes : setup.routes);
   };
   fillRoutes();
+  fillStartPoints();
 
   // The spawner keeps its own choice of route: picking a route on the left doesn't change it (#45).
   function spawn(pair) {
-    const asked = spawnSpec(settings.get(), setup.routes);
+    const validRoutes = setup.routes.filter((r) => r && r.kind !== 'split');
+    const routesToUse = validRoutes.length > 0 ? validRoutes : setup.routes;
+    const asked = spawnSpec(settings.get(), routesToUse);
     if (asked.problem) return say(asked.problem);
     const second = pair ? pairSpec(asked.spec, settings.get()) : null;
     if (second?.problem) return say(second.problem);
@@ -130,32 +171,81 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     onChange();
   }
 
-  const presetSelect = h('select', {
-    id: 'traffic-spawn-preset',
-    class: 'traffic-spawn-preset',
-    onchange: () => {
-      const chosen = PILOT_SPAWN_PRESETS.find((p) => p.id === presetSelect.value);
-      if (chosen && chosen.routeId) {
-        settings.update({ spawnRoute: chosen.routeId, spawnStartPoint: chosen.point });
-        routeSelect.value = chosen.routeId;
-      }
-    },
-  });
-  for (const preset of PILOT_SPAWN_PRESETS) presetSelect.appendChild(h('option', { value: preset.id }, preset.label));
-
   const callsignBadge = h('span', { class: 'traffic-callsign-badge' }, sim.nextCallsign ? `Next: ${sim.nextCallsign()}` : '');
+
+  const pointCaption = h('div', { class: 'spawner-point-caption', 'aria-live': 'polite' });
+  const updatePointCaption = (vals = settings.get()) => {
+    const validRoutes = setup.routes.filter((r) => r && r.kind !== 'split');
+    const routesToUse = validRoutes.length > 0 ? validRoutes : setup.routes;
+    const routeId = spawnRouteId(vals.spawnRoute, routesToUse);
+    const route = routesToUse.find((r) => r.id === routeId);
+    const ptIdx = (vals.spawnStartPoint ?? 1) - 1;
+    const pt = route?.points?.[ptIdx];
+    if (pt) {
+      const isClosed = route.id === 'PAT1' && ptIdx === 1;
+      const label = pt.label || `Point ${ptIdx + 1}`;
+      const extra = isClosed ? ' (Closed Pattern)' : '';
+      const alt = isClosed ? 2400 : (pt.alt ?? 2500);
+      const kt = isClosed ? 140 : (pt.kt ?? 120);
+      pointCaption.textContent = `↳ ${label}${extra}: ${alt} ft, ${kt} kt`;
+    } else {
+      pointCaption.textContent = '';
+    }
+    if (vals?.spawnStartPoint !== undefined && pointSelect.value !== String(vals.spawnStartPoint)) {
+      pointSelect.value = String(vals.spawnStartPoint);
+    }
+  };
+  settings.subscribe?.(updatePointCaption);
+  updatePointCaption();
 
   const pairLabel = () => `+ Pair, ${settings.get().pairGapS} s apart`;
   const pairButton = h('button', { type: 'button', class: 'button', onclick: () => spawn(true) }, pairLabel());
   const spawnButton = h('button', { type: 'button', class: 'button primary', onclick: () => spawn(false) }, '+ Spawn');
+
+  // PFL From Area: an aircraft already gliding with the engine out, somewhere in the training area. Closed until asked for.
+  const pflBox = (id, label, unit, value, min, max) => {
+    const input = h('input', { id, type: 'number', value: String(value), min: String(min), max: String(max), step: '1', inputmode: 'numeric' });
+    return { input, element: h('div', { class: 'control control-number' }, h('label', { for: id }, `${label} (${unit})`), input) };
+  };
+  const pflRadial = pflBox('traffic-pfl-radial', 'Radial', '°T', 180, 0, 360);
+  const pflDist = pflBox('traffic-pfl-dist', 'Distance', 'NM', 5, 1, 30);
+  const pflAlt = pflBox('traffic-pfl-alt', 'Altitude', 'ft MSL', 7500, 3000, 15000);
+  const spawnPfl = () => {
+    const [radialDeg, distNm, altFt] = [pflRadial, pflDist, pflAlt].map((b) => Number(b.input.value));
+    if (![radialDeg, distNm, altFt].every(Number.isFinite)) return say('PFL From Area: radial, distance and altitude must be numbers.');
+    if (sim.state().aircraft.length + 1 > MOST_AIRCRAFT) return say(`Nothing was added: the most is ${MOST_AIRCRAFT} aircraft. Clear finished aircraft or remove some first.`);
+    try {
+      const id = sim.spawnPflFromArea({ type: settings.get().spawnType, radialDeg, distNm, altFt });
+      say(`Added ${id}: engine out, inbound to High Key.`);
+    } catch (err) {
+      if (!(err instanceof RangeError)) console.error('Adding a PFL aircraft failed:', err);
+      say(engineProblem(err));
+    }
+    onChange();
+  };
+  const pflPanel = h(
+    'details',
+    { class: 'spawner-pfl' },
+    h('summary', {}, 'PFL From Area'),
+    pflRadial.element,
+    pflDist.element,
+    pflAlt.element,
+    h('button', { type: 'button', class: 'button danger', onclick: spawnPfl }, '+ Spawn PFL'),
+  );
+  const startPointControl = h(
+    'div',
+    { class: 'control control-select' },
+    h('label', { for: pointSelect.id }, 'Start at point'),
+    pointSelect,
+  );
   const spawner = h(
     'section',
     { class: 'spawner', 'aria-label': 'Spawn aircraft' },
     h('div', { class: 'spawner-head' }, h('h3', { class: 'traffic-subtitle' }, 'Spawn'), callsignBadge),
-    h('div', { class: 'control control-select' }, h('label', { for: presetSelect.id }, 'Preset point'), presetSelect),
     controls.select('spawnType', { label: 'Type', options: SPAWN_TYPES.map((type) => [type, type]) }),
     h('div', { class: 'control control-select' }, h('label', { for: routeSelect.id }, 'Route'), routeSelect),
-    controls.number('spawnStartPoint', { label: 'Start at point', min: 1, max: MOST_POINTS, step: 1 }),
+    startPointControl,
+    pointCaption,
     controls.number('spawnDelayS', { label: 'Delay', unit: 's', min: LIMITS.spawnDelayS[0], max: LIMITS.spawnDelayS[1], step: 1 }),
     h(
       'div',
@@ -164,6 +254,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       pairButton,
       h('button', { type: 'button', class: 'button', onclick: clearFinished }, 'Clear finished'),
     ),
+    pflPanel,
     message,
   );
 
@@ -194,11 +285,64 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
 
   let shown = { list: '', conflicts: '' };
   let last = -Infinity;
+  let selectedAircraftId = null;
+
+  function setSelected(id) {
+    selectedAircraftId = id;
+    for (const li of (listBody.children || listBody.childNodes || [])) {
+      const isTarget = li.dataset?.aircraftId === id;
+      li.classList?.toggle?.('is-selected', isTarget);
+      const classes = (li.getAttribute?.('class') || '').split(' ').filter((c) => c && c !== 'is-selected');
+      if (isTarget) classes.push('is-selected');
+      li.setAttribute?.('class', classes.join(' '));
+    }
+  }
+
+  function findChildWithClass(parent, cls) {
+    if (parent.querySelector) {
+      const el = parent.querySelector('.' + cls);
+      if (el) return el;
+    }
+    for (const child of (parent.childNodes || [])) {
+      const c = child.getAttribute?.('class') || child.className || '';
+      if (c.split(' ').includes(cls)) return child;
+      const found = findChildWithClass(child, cls);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  const makeActionButton = (label, title, actionFn, isActive = false, extraClass = '', disabled = false) => {
+    let lastTime = 0;
+    const trigger = (e) => {
+      if (e && e.button !== undefined && e.button !== 0) return;
+      e?.stopPropagation?.();
+      const now = Date.now();
+      if (now - lastTime < 250) return;
+      lastTime = now;
+      actionFn(e);
+    };
+    return h(
+      'button',
+      {
+        type: 'button',
+        class: `button-tiny${extraClass ? ' ' + extraClass : ''}${isActive ? ' is-active' : ''}${disabled ? ' disabled' : ''}`,
+        disabled,
+        title,
+        onpointerdown: trigger,
+        onclick: trigger,
+      },
+      label,
+    );
+  };
 
   /** Writes the state into the list and the conflicts, changing only what is different. */
   function write(state) {
     const rows = aircraftRows(state, setup);
-    const listKey = JSON.stringify(rows.map((r) => [r.id, r.type, r.routeName, detailText(r), r.color]));
+    const listKey = JSON.stringify([
+      selectedAircraftId,
+      rows.map((r) => [r.id, r.type, r.routeName, r.status, r.color, getPflBadge(r), r.command, r.engineFailed]),
+    ]);
     if (listKey !== shown.list) {
       shown.list = listKey;
       clear(listBody);
@@ -209,17 +353,177 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       for (const row of rows) {
         const swatch = h('span', { class: 'aircraft-swatch', 'aria-hidden': 'true' });
         swatch.style.setProperty('--ac', row.color);
+        const pflBadge = getPflBadge(row);
+        const nameChildren = [swatch, h('strong', {}, row.id), ` ${row.type} on ${row.routeName}`];
+        if (pflBadge) {
+          const badgeClass = pflBadge === '[CRASH SHORT]' ? 'pfl-badge badge-crash' : 'pfl-badge';
+          nameChildren.push(h('span', { class: badgeClass }, pflBadge));
+        }
+        const children = [
+          h('span', { class: 'aircraft-name' }, ...nameChildren),
+          ' ',
+          h('span', { class: 'aircraft-detail' }, detailText(row)),
+        ];
+        if (row.status === 'flying') {
+          const breakoutBtn = makeActionButton(
+            'Breakout',
+            'Breakout: climb immediately to 3,500 ft, vector south to breakout point, and rejoin via entry gate',
+            () => {
+              sim.command(row.id, 'breakout');
+              onChange?.();
+            },
+            row.command === 'breakout',
+          );
+          const closedBankSelect = h(
+            'select',
+            {
+              class: 'aircraft-closed-bank-select',
+              'aria-label': `Closed pattern bank angle for ${row.id}`,
+              onchange: (e) => {
+                e?.stopPropagation?.();
+              },
+            },
+            h('option', { value: '45' }, '45°'),
+            h('option', { value: '50' }, '50°'),
+            h('option', { value: '60' }, '60°'),
+          );
+          closedBankSelect.value = String(row.closedPatternBankDeg || settings.get().closedPatternBankDeg || 50);
+
+          const closedPatternBtn = makeActionButton(
+            'Closed Pattern',
+            'Closed Pattern: climb to 3,500 ft, 140 kt, selected bank turn into downwind',
+            () => {
+              const bankDeg = Number(closedBankSelect.value) || 50;
+              const pitchDeg = Number(row.closedPatternPitchDeg ?? settings.get().closedPatternPitchDeg ?? 10);
+              sim.command(row.id, 'closed_pattern', { bankDeg, pitchDeg });
+              onChange?.();
+            },
+            row.command === 'closed_pattern',
+          );
+          const highKeyBtn = makeActionButton(
+            'High Key',
+            'High Key: fly over threshold facing down the runway at 5,000 ft, then glide PFL profile',
+            () => {
+              sim.command(row.id, 'climb_high_key');
+              onChange?.();
+            },
+            row.command === 'climb_high_key' || row.command === 'climb_low_key',
+          );
+          const pflBtn = makeActionButton(
+            'PFL',
+            'PFL (Current Position): simulate engine failure, zoom climb if >130 kt, glide 125 kt to intercept PFL profile',
+            () => {
+              sim.command(row.id, 'pfl_current');
+              onChange?.();
+            },
+            row.command === 'pfl_current' || row.engineFailed,
+            'danger',
+          );
+          // Go-around only works after the window (when slowing to 100 knots)
+          const canGoAround = row.phase === 'final' || row.phase === 'short_final' ||
+            (row.leg >= 13) || (row.altFt <= 2200 && row.kt <= 110);
+          const goAroundBtn = makeActionButton(
+            'Go-around',
+            canGoAround
+              ? 'Go-around: abort landing, climb to 2,500 ft, accelerate to 220 kt and re-enter pattern'
+              : 'Go-around available only on final approach after the window (slowing to 100 kt)',
+            () => {
+              if (!canGoAround) return;
+              sim.command(row.id, 'go_around');
+              onChange?.();
+            },
+            row.command === 'go_around',
+            '',
+            !canGoAround,
+          );
+          const intentSelect = h(
+            'select',
+            {
+              class: 'aircraft-intent-select',
+              'aria-label': `Landing behaviour for ${row.id}`,
+              onclick: (e) => {
+                e?.stopPropagation?.();
+              },
+              onchange: (e) => {
+                e?.stopPropagation?.();
+                const target = e.target;
+                if (target && target.value) {
+                  sim.setIntent?.(row.id, target.value);
+                  onChange?.();
+                }
+              },
+            },
+            h('option', { value: 'touch_and_go' }, 'Touch & Go'),
+            h('option', { value: 'full_stop' }, 'Full Stop'),
+            h('option', { value: 'go_around' }, 'Go-around'),
+          );
+          intentSelect.value = row.intent || 'touch_and_go';
+          const intentWrap = h(
+            'label',
+            {
+              class: 'aircraft-intent-wrap',
+              onclick: (e) => {
+                e?.stopPropagation?.();
+              },
+            },
+            'Landing: ',
+            intentSelect,
+          );
+
+          children.push(
+            h(
+              'div',
+              {
+                class: 'aircraft-actions',
+                onclick: (e) => {
+                  e?.stopPropagation?.();
+                },
+              },
+              breakoutBtn,
+              closedPatternBtn,
+              closedBankSelect,
+              highKeyBtn,
+              pflBtn,
+              goAroundBtn,
+              intentWrap,
+            ),
+          );
+        }
+        const isSelected = selectedAircraftId === row.id;
         listBody.appendChild(
           h(
             'li',
-            { class: `aircraft-row status-${row.status}`, dataset: { aircraftId: row.id } },
-            h('span', { class: 'aircraft-name' }, swatch, h('strong', {}, row.id), ` ${row.type} on ${row.routeName}`),
-            ' ',
-            h('span', { class: 'aircraft-detail' }, detailText(row)),
+            {
+              class: `aircraft-row status-${row.status}${row.engineFailed ? ' has-engine-fail' : ''}${isSelected ? ' is-selected' : ''}`,
+              dataset: { aircraftId: row.id },
+              onpointerdown: (e) => {
+                if (e?.target && (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT')) return;
+                setSelected(row.id);
+                onSelectAircraft?.(row.id);
+              },
+              onclick: (e) => {
+                if (e?.target && (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT')) return;
+                setSelected(row.id);
+                onSelectAircraft?.(row.id);
+              },
+            },
+            ...children,
           ),
         );
       }
       emptyNote.hidden = rows.length > 0;
+    } else {
+      // In-place update: altitude and speed numbers update smoothly without destroying button DOM
+      const lis = listBody.childNodes || listBody.children || [];
+      for (let i = 0; i < rows.length; i++) {
+        const li = lis[i];
+        if (!li) continue;
+        const detailSpan = findChildWithClass(li, 'aircraft-detail');
+        if (detailSpan) {
+          const txt = detailText(rows[i]);
+          if (detailSpan.textContent !== txt) detailSpan.textContent = txt;
+        }
+      }
     }
     const lines = conflictLines(state);
     const conflictKey = JSON.stringify(lines.map((l) => l.text));
@@ -247,6 +551,10 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     /** The routes changed (one was made, renamed or removed): the spawner's route list follows. */
     routesChanged() {
       fillRoutes();
+      fillStartPoints();
+      updatePointCaption();
     },
+    selectAircraft: setSelected,
+    selectedAircraft: () => selectedAircraftId,
   };
 }

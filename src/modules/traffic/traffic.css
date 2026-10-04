@@ -234,6 +234,37 @@
   display: none;
 }
 
+/* The 3D bar (camera-bar.js): Camera and Follow menus, the High | Performance switch and a short note. */
+[data-module='traffic'] .traffic-3d-bar {
+  position: absolute;
+  z-index: 2;
+  bottom: var(--space-2);
+  left: var(--space-2);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  max-width: calc(100% - var(--space-4));
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface, rgba(13, 17, 23, 0.85));
+}
+
+[data-module='traffic'] .traffic-3d-quality {
+  display: inline-flex;
+  gap: 2px;
+}
+
+[data-module='traffic'] .traffic-3d-quality button[aria-pressed='true'] {
+  font-weight: 700;
+  outline: 2px solid currentColor;
+}
+
+[data-module='traffic'] .traffic-3d-note:empty {
+  display: none;
+}
+
 [data-module='traffic'] .traffic-note3d {
   position: absolute;
   z-index: 2;
@@ -315,6 +346,17 @@
   border-radius: var(--radius);
   background: var(--bg-sunken);
   font-size: var(--text-md);
+}
+
+[data-module='traffic'] .bar-runway {
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 500;
 }
 
 [data-module='traffic'] .bar-clock {
@@ -413,6 +455,16 @@
   grid-column: 1 / -1;
 }
 
+[data-module='traffic'] .spawner-point-caption {
+  font-size: var(--text-xs, 0.75rem);
+  color: var(--accent);
+  margin-top: calc(-1 * var(--space-1));
+  margin-bottom: var(--space-2);
+  padding-left: var(--space-1);
+  font-family: var(--font-mono, monospace);
+  line-height: 1.3;
+}
+
 [data-module='traffic'] .spawn-buttons {
   display: flex;
   flex-wrap: wrap;
@@ -491,6 +543,28 @@
   gap: var(--space-1);
 }
 
+[data-module='traffic'] .pfl-badge {
+  display: inline-block;
+  padding: 0.1rem 0.35rem;
+  margin-left: 0.35rem;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.03em;
+  border-radius: 3px;
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  color: #38bdf8;
+  white-space: nowrap;
+}
+
+[data-module='traffic'] .pfl-badge.badge-crash {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: var(--bad, #ef4444);
+  color: var(--bad, #ef4444);
+}
+
 [data-module='traffic'] .aircraft-actions {
   display: flex;
   flex-wrap: wrap;
@@ -516,6 +590,20 @@
   border-color: var(--border-strong);
 }
 
+[data-module='traffic'] .button-tiny.is-active {
+  background: var(--brand, #58a6ff);
+  color: #fff;
+  border-color: var(--brand, #58a6ff);
+}
+
+[data-module='traffic'] .button-tiny:disabled,
+[data-module='traffic'] .button-tiny.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+  border-color: var(--border-subtle, rgba(255, 255, 255, 0.1));
+}
+
 [data-module='traffic'] .button-tiny.danger {
   color: var(--bad, #ef4444);
   border-color: rgba(239, 68, 68, 0.4);
@@ -525,6 +613,27 @@
   background: var(--bad, #ef4444);
   color: #fff;
   border-color: var(--bad, #ef4444);
+}
+
+[data-module='traffic'] .aircraft-intent-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-left: 0.25rem;
+}
+
+[data-module='traffic'] .aircraft-intent-select {
+  padding: 0.1rem 0.3rem;
+  font-size: 0.72rem;
+  line-height: 1.1;
+  min-height: 0;
+  border-radius: 3px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
 }
 
 [data-module='traffic'] .aircraft-swatch {
@@ -844,6 +953,24 @@
 
 [data-module='traffic'] .control:has(:disabled) > :is(input, select, label) {
   opacity: 0.5;
+}
+
+/* Traffic Sim version badge in playback bar */
+[data-module='traffic'] .traffic-version-badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono, monospace);
+  font-size: var(--text-xs, 0.75rem);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: var(--radius, 4px);
+  background: rgba(88, 166, 255, 0.15);
+  border: 1px solid rgba(88, 166, 255, 0.4);
+  color: #58a6ff;
+  user-select: none;
+  white-space: nowrap;
+  margin-left: auto;
 }
 
 /* Narrow screens: one column, the map and its bar first, then the routes and the aircraft, so the

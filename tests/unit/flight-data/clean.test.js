@@ -1,19 +1,32 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
 // Dropping fixes no aircraft could have flown (C3, D32, SPEC-flight-data.md Data quality).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { readKml } from '../../../src/flight-data/kml.js';
-import { cleanTrack } from '../../../src/flight-data/clean.js';
+import { cleanTrack, MIN_ALT_M, MAX_ALT_M, MAX_GROUND_SPEED_KT, GAP_S } from '../../../src/flight-data/clean.js';
 import { makeLocalRef, latLonToLocalFt } from '../../../src/core/geo.js';
 import { FTPS_TO_KT } from '../../../src/core/units.js';
 
-const PATRICK = '/mnt/project-files/uploads/hearth/96e8c7f1-ef09-4848-ae5b-6014cbc26335';
+// Dad's four real tracks, in the repo (real recorded data, used as input). The expected values are not the
+// code's own counts: they are whole-flight rules that must hold for any track, checked on real data.
+// The cut-offs are the Debrief's own (D5): ground speed over 450 kt, altitude outside -500 to 20,000 m, and
+// more than 5 s between good fixes are not flight. They are the Debrief's choices, not a manual's limits.
 const TRACKS = {
-  '#1': { file: new URL('../../../original/assets/585aab2601b787ed.kml', import.meta.url), dropped: { altitude: 0, position: 0, jump: 1 }, fastestKt: 426.5, gaps: 12 },
-  '#2': { file: new URL('../../../original/assets/3ee2a7e81a74880c.kml', import.meta.url), dropped: { altitude: 1, position: 0, jump: 23 }, fastestKt: 445.0, gaps: 25 },
-  '#3': { file: new URL('../../../original/assets/3085ab3861e2bae6.kml', import.meta.url), dropped: { altitude: 0, position: 0, jump: 0 }, fastestKt: 381.7, gaps: 9 },
-  '#4': { file: new URL('../../../original/assets/46e14716b39044c4.kml', import.meta.url), dropped: { altitude: 0, position: 0, jump: 0 }, fastestKt: 403.7, gaps: 6 },
-  "Patrick's": { file: PATRICK, dropped: { altitude: 21, position: 0, jump: 0 }, fastestKt: 438.9, gaps: 6, longestGapS: 39 },
+  '#1': new URL('../../../original/assets/585aab2601b787ed.kml', import.meta.url),
+  '#2': new URL('../../../original/assets/3ee2a7e81a74880c.kml', import.meta.url),
+  '#3': new URL('../../../original/assets/3085ab3861e2bae6.kml', import.meta.url),
+  '#4': new URL('../../../original/assets/46e14716b39044c4.kml', import.meta.url),
 };
 
 /** The fastest ground speed between consecutive fixes, measured over at least 1 s. */
@@ -28,23 +41,37 @@ function fastestKt(fixes) {
   return most;
 }
 
-for (const [label, want] of Object.entries(TRACKS)) {
-  const available = typeof want.file !== 'string' || existsSync(want.file);
-  test(`the real ${label} track loses only impossible fixes`, { skip: available ? false : 'track not on this computer' }, () => {
-    const raw = readKml(readFileSync(want.file, 'utf8'), label);
+for (const [label, file] of Object.entries(TRACKS)) {
+  test(`the real ${label} track: no kept fix is a jump or off the scale, and nothing else is lost`, () => {
+    const raw = readKml(readFileSync(file, 'utf8'), label);
     const clean = cleanTrack(raw);
-    assert.deepEqual(clean.dropped, want.dropped);
-    assert.equal(clean.fixes.length, raw.fixes.length - want.dropped.altitude - want.dropped.jump);
-    assert.ok(clean.fixes.every(f => f.altM > -1000), 'no −100,000 m fix is left');
-    assert.equal(Math.round(fastestKt(clean.fixes) * 10) / 10, want.fastestKt);
-    assert.equal(clean.gaps.length, want.gaps);
-    if (want.longestGapS) assert.equal(Math.max(...clean.gaps.map(g => g.toT - g.fromT)), want.longestGapS);
-    // Kept fixes are the reader's own, unchanged and in order.
+    // Nothing kept implies a speed over the Debrief's cut-off. The cleaner and this check use two flat-map
+    // projections that differ by a fraction of a percent, so allow 1 %.
+    assert.ok(fastestKt(clean.fixes) <= MAX_GROUND_SPEED_KT * 1.01, `fastest kept speed ${fastestKt(clean.fixes).toFixed(1)} kt`);
+    // Every kept fix is on the globe and inside the Debrief's altitude range (no -100,000 m "no altitude" value is left).
+    for (const f of clean.fixes) {
+      assert.ok(Math.abs(f.lat) <= 90 && Math.abs(f.lon) <= 180, 'on the globe');
+      assert.ok(f.altM >= MIN_ALT_M && f.altM <= MAX_ALT_M, `altitude ${f.altM} m`);
+    }
+    // Kept fixes are the reader's own, unchanged and in order, and the counts add up: kept plus dropped is everything read.
     let k = 0;
     for (const f of clean.fixes) {
       while (raw.fixes[k] !== f) k++;
       assert.ok(k < raw.fixes.length);
     }
+    const d = clean.dropped;
+    assert.equal(clean.fixes.length + d.altitude + d.position + d.jump, raw.fixes.length);
+    // Only impossible fixes are lost: each fix that was dropped for altitude or position really is off the scale,
+    // and the rest of what was dropped is exactly the jumps.
+    const kept = new Set(clean.fixes);
+    const lost = raw.fixes.filter(f => !kept.has(f));
+    const offScale = lost.filter(f => !(Math.abs(f.lat) <= 90 && Math.abs(f.lon) <= 180) || !(f.altM >= MIN_ALT_M && f.altM <= MAX_ALT_M));
+    assert.equal(offScale.length, d.altitude + d.position);
+    assert.equal(lost.length - offScale.length, d.jump);
+    // A gap is more than 5 s between good fixes, and every such stretch is reported.
+    const gaps = [];
+    for (let i = 1; i < clean.fixes.length; i++) if (clean.fixes[i].t - clean.fixes[i - 1].t > GAP_S) gaps.push({ fromT: clean.fixes[i - 1].t, toT: clean.fixes[i].t });
+    assert.deepEqual(clean.gaps, gaps);
   });
 }
 

@@ -1,3 +1,26 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
+// ╔══════════════════════════════════════════════════════════════════════╗
+// ║  OPERATOR WARNING — READ BEFORE DEBUGGING TEST FAILURES            ║
+// ║                                                                    ║
+// ║  These tests use PILOT-DOMAIN TOLERANCES (±10 kt, ±100 ft, ±5°).  ║
+// ║  If a test fails repeatedly, DO NOT tweak the physics engine to    ║
+// ║  make it pass. Instead:                                            ║
+// ║    1. Ask the operator what to do.                                 ║
+// ║    2. The test tolerance may need widening, OR                     ║
+// ║    3. There may be a genuine flight behavior bug.                  ║
+// ║  Never force physics to match a test value.                        ║
+// ╚══════════════════════════════════════════════════════════════════════╝
+
 // What the screen hands the map (src/modules/traffic/scene.js): the routes with their
 // drawn path and turn data, the leg lengths with their middles, and the routes list rows.
 // It reads the engine's setup and state and changes nothing.
@@ -16,7 +39,7 @@ test('the routes list says where each entry and split joins, by point number cou
   const setup = fresh();
   assert.equal(routeLink(byId(setup, 'PAT1'), setup.routes), '');
   assert.equal(routeLink(byId(setup, 'ENT1'), setup.routes), '→ Pattern 1 P8');
-  assert.equal(routeLink(byId(setup, 'SPL1'), setup.routes), 'P6 → P1');
+  assert.equal(routeLink(byId(setup, 'ENT2'), setup.routes), '→ Pattern 1 P1');
   const orphan = { ...byId(setup, 'ENT1'), attachTo: 'GONE' };
   assert.equal(routeLink(orphan, setup.routes), 'Not linked');
 });
@@ -30,7 +53,8 @@ test('one row per route for the routes list: id, name, kind, colour and link', (
 
 test('decision points are the first point of a pattern and every point a split leaves from', () => {
   const setup = fresh();
-  assert.deepEqual([...decisionPoints(byId(setup, 'PAT1'), setup.routes)].sort((a, b) => a - b), [0, 1, 5, 11]);
+  assert.deepEqual([...decisionPoints(byId(setup, 'PAT1'), setup.routes)], [0]);
+  assert.deepEqual([...decisionPoints(byId(setup, 'PAT1'), [{ kind: 'split', sourceRoute: 'PAT1', sourceIndex: 5 }])], [0, 5]);
   assert.equal(decisionPoints(byId(setup, 'ENT1'), setup.routes).size, 0);
 });
 
@@ -111,7 +135,7 @@ test('decision points are marked on the points the map draws as diamonds', () =>
   const setup = fresh();
   const scene = buildScene({ setup, state: createSim(setup).state(), selectedRouteId: null, trailOf: () => [] });
   const pattern = scene.routes[0];
-  assert.deepEqual(pattern.points.map((p, i) => (p.decision ? i : null)).filter((i) => i !== null), [0, 1, 5, 11]);
+  assert.deepEqual(pattern.points.map((p, i) => (p.decision ? i : null)).filter((i) => i !== null), [0]);
 });
 
 test('building the scene changes nothing in the setup', () => {

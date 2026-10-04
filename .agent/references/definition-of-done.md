@@ -22,7 +22,7 @@ Apply this to every change before declaring it done.
 - [ ] All acceptance criteria for the task are met
 - [ ] Code runs and behaves as intended, verified at runtime, not just compiled or typechecked
 - [ ] New behavior is covered by tests that fail without the change and pass with it
-- [ ] Existing tests still pass; no regressions introduced
+- [ ] Existing tests still pass, or any failure is named in the PR with its cause; no test is skipped or disabled to get green (`docs/TESTING.md`)
 - [ ] Edge cases and error paths are handled, not just the happy path
 
 ### Quality
@@ -30,7 +30,7 @@ Apply this to every change before declaring it done.
 - [ ] No duplicated business logic
 - [ ] No dead code, debug output, or commented-out blocks left behind
 - [ ] Changes are scoped to the task; no unrelated refactors snuck in
-- [ ] Linting and formatting pass
+- [ ] Type check passes (`npm run typecheck`); the repo has no linter or formatter
 
 The depth behind these items lives in `code-review-and-quality` (the five-axis review) and `code-simplification` (reducing complexity without changing behavior).
 

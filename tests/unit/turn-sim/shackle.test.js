@@ -1,3 +1,14 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
 // The shackle as the SMM flies it (16.19 paras 61 and 62; a two-ship turn): both aircraft turn about 45 degrees INTO each other at once,
 // cross, and reverse back to the original heading, timed to arrive in LAB on swapped sides. V6 turned every wingman away
 // (its "right" vector is the map's left), so nobody crossed; the V6 flight is in git history (commit 63fffa8 and before).

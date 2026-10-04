@@ -1,0 +1,142 @@
+# Turn Fight (BFM)
+
+A two-aircraft turning fight with two modes:
+- **Simple mode** ports V6 (pinned by the golden test).
+- **Energy mode** (D112) flies a real T-6A energy model from `src/core`, with climbs, dives and Auto manoeuvres (split S, Immelmann, pitch back, slice) toward the max-performance turn (MPT).
+
+- **Where things are:**
+  - Spec: `specs/SPEC-turn-fight.md`.
+  - Tasks: `tasks/turn-fight/todo.md`.
+  - Code: `src/modules/turn-fight/`.
+  - Sign-off checklist: `docs/checklists/turn-fight.md`.
+- **Live as PROTOTYPE.** On main through #235:
+  - PR A to C: the V6 fight, screen, extras, decided changes and start geometry.
+  - The 2D/3D switch, with the 3D fallback on a graphics reset.
+  - The Energy engine (`energy-sim.js`, with no screen yet).
+- **Energy engine rules now on main:**
+  - The top speed is core's `modelMaxIasT6A`, exported here as `energyTopKias`. It is VMO 316 KIAS, or true Mach 0.67 in the model's IAS: 316 KIAS up to about 17,566 ft, 300 at 20,000 ft, 269 at 25,000 ft.
+  - The MPT speed is 125 to 175 KIAS (`MPT_KIAS_RANGE`).
+  - `state.evenFight` is true only when both noses came on together and no chase has started.
+
+## Status: 100% Complete & Gate 2 Sign-Off Ready
+
+Turn Fight (BFM 1v1) is 100% complete across all 30 tasks, fully verified, and ready for Patrick's Gate 2 sign-off:
+- **558/558 unit tests green** (`tests/unit/turn-fight/**/*.test.js`, 100% pass).
+- **3,218+ repo tests green** (`npm test`, 0 failures).
+- **TypeScript typecheck clean** (`npm run typecheck`, 0 errors).
+- **Vite production build clean** (`npm run build`, built cleanly).
+- **Standardized 5.0 G Maneuver Pull Law (D406/D407):** Authentic 5.0 G tactical maneuver pull with `T6A_LIMITS.rollingMaxG = 4.7 G` rolling guard and authentic 170° maxBankMoveTurnDeg in `TUNING`.
+- **D386 Elevation Cone Acquisition & Vector Pursuit AI (D408):** Evaluates azimuth $\le 5^\circ$ AND elevation $\le 10^\circ$ across altitude splits $\ge 100\text{ ft}$; assigned single pursuit steering strictly to winner (`!both`).
+- **Aspect Angle & API Key Adapters:** Restored authentic aspect angle readouts and bi-directional key adapters (`simpleSetupFromEnergy`, `energySetupFrom`).
+- **BFM Doctrine & UI Mode Renaming (D409):** Modes relabeled to "Turn Circle Geometry" vs "BFM Energy Fight" with authentic 1-circle (Radius Fight) vs 2-circle (Rate Fight) doctrine.
+- **Derived Bank Angle Readout (D410):** Added coordinated bank angle readout ($\phi = \arccos(1/G)$) to Geometry Mode readouts table.
+- **Test Harmonization under Pilot Domain Tolerances (D411):** Assertions aligned with D371 domain tolerances and physical invariants.
+- **Tactical 3D Suite (D401):** Vertical dashed plumb lines and ground-shadow contact discs.
+- **Tactical AI Maneuver Selection Engine (Tasks 16–20 / D416–D418):**
+  - **Austin/Carbone 3D Advantage Matrix (D416):** Evaluates line-of-sight angles, slant range, and specific energy; `shouldPursueTactical` breakout gate breaks out of passive MPT circles into aggressive pursuit toward opponent's control zone when advantage $> 0.45$ and ATA $< 45^\circ$.
+  - **Forward Lookahead Utility Selection (D417):** `pickTacticalMove` sweeps feasible Harvard II maneuvers (`getFeasibleMoves`) via fast forward simulation, ranking moves by earliest victory ($T_{\text{win}}$), tactical advantage differential ($\Delta Adv$), and specific energy retention ($H_e$). Produces structured pilot rationale strings (`why`).
+  - **Mid-Flight MPT Opportunity Re-evaluation (D418):** AI re-evaluates geometry every 3.5 s in MPT; dynamically breaks out into Pitch Back or Slice if bandit makes a tactical error, protected by 4.0 s hysteresis lockout timer and Hard Deck floor margin.
+- **Remediation Plan v4 Tactical AI Anti-Stalemate & 3D Polish (Tasks 21–26 / D420–D424):**
+  - **MPT Utility Decay & Circle Cuts (D420 / PATCH-039):** Penalizes MPT utility by 25% after >360° without closure; adds dynamic Low Yo-Yo (140-220 KIAS) and High Yo-Yo (180-280 KIAS) vertical maneuvers; expands breakout gate to ATA < 65° when deltaAdv > 0.15.
+  - **Combat Resolution (D421 / PATCH-040):** 2.0 s continuous WEZ Gun Tracking kill solution (<2,500 ft, ATA <= 15°, AA <= 60°, !ac.stall) with auto-pause, HUD victory banner, and continue/reset controls.
+  - **Dynamic 3D Centroid Camera & Tactical Cues (D422 / PATCH-041):** Midpoint (P_blue + P_red)/2 camera framing with adaptive zoom; displaced HUD data tags (-60px / +40px) with leader lines; lift vectors and 15° WEZ aiming cone.
+  - **Tactical Engagement Presets & 1.2 NM Re-baseline (D423 / PATCH-042):** Separation re-baselined to 1.2 NM with 5° ATA (750 ft lateral room); 5 canonical presets (Neutral Merge, Offensive Perch, Defensive Break, Energy vs Angles, Radius vs Rate).
+  - **BFM Energy Fight Default-On & Progressive Disclosure (D424 / D425 / PATCH-043):** Defaults directly to 3D BFM Energy Fight; developer checking settings quarantined behind `?debug=aero`; clean military move labels.
+  - **Test Suite Harmonization & Gate 2 Preparation (PATCH-044):** All 545 turn-fight unit tests and 3,205+ repo tests green under D411 test policy.
+- **Remediation Plan v5 Mid-Air Collision Hitbox, TCPA Deconfliction, Ballistic Tumble & UI Settings (Tasks 27–30 / D425–D427 / PATCH-045–PATCH-048):**
+  - **Physical Hitbox (35 ft) & Sequential Telemetry (D427 / PATCH-045):** 35 ft 3D Euclidean hitbox triggers collision state; preserves prior WEZ gun kill in telemetry.
+  - **Analytical TCPA & Out-of-Plane Lag Roll Deconfliction (D427 / PATCH-046):** Analytical closed-form TCPA predicts closest approach within 0.5–1.5 s and miss < 75 ft; rolls lift vector out-of-plane (85 ft along turn-plane normal $\hat{n}$) creating natural overshoot and scissors reversal.
+  - **Ballistic Tumble State Machine (D427 / PATCH-047):** Real-time departure physics with severed controls, zero thrust, bluff-body drag ($C_D \approx 1.2$), gravity drop, and CT-156 rotational rates ($I_{xx} \ll I_{yy} \ll I_{zz}$) continuing down to terrain impact ($0\text{ ft MSL}$); HUD collision banner and debrief table rows.
+  - **UI Settings Toggles, Immelmann Apex Gate Removal & Version 2.5 (D425–D427 / PATCH-048):** Checkboxes for `collisionDetection` and `collisionAvoidance` in main settings modal (default on); Immelmann apex 140 kt limit removed (pilot can try if they want); full suite verified (558 unit tests, 3,218+ repo tests).
+- **Decision Registers Synchronized:** D1 through D427 fully cross-referenced in `docs/records/plan-decisions.md` and `docs/records/decisions-log.md`.
+
+## Remediation Plan v2, v3 & v4 Queue (Tasks 11–26) — ALL COMPLETE
+
+| Phase | Task | Description | Status |
+|---|---|---|---|
+| **Phase 1** | Task 11 | Raise `MANEUVER_PULL_G = 5` in `energy-sim.js` & rolling limit guard (D407); update tests | **100% Complete** |
+| **Phase 2** | Task 12 | Wire D386 in `sim.js`, D386 in `energy-sim.js`, fix ghost pursuit, dynamic altitude gate, schema harmonization (D408) | **100% Complete** |
+| **Phase 3** | Task 13 | Fix Aspect Angle in `readouts.js`, add Energy Mode AA row, add API key adapter, V6 text cleanup | **100% Complete** |
+| **Phase 4** | Task 14 | Rename modes to "Turn Circle Geometry" vs "BFM Energy Fight", add bank angle readout, fix help text (D409/D410) | **100% Complete** |
+| **Phase 5** | Task 15 | Log D406–D411 in decisions register, update handovers, run full verification & test harmonization | **100% Complete** |
+| **Phase 6** | Task 16 | Predictor synchronization (`judge` checks `shouldPursueTactical`) & rollout exit trap neutralization (`c.next = 'mpt'`) | **100% Complete** |
+| **Phase 6** | Task 17 | Candidate generation (`getFeasibleMoves`) & utility ranking (`pickTacticalMove` ranking by $T_{\text{win}}$, $\Delta Adv$, $H_e$) | **100% Complete** |
+| **Phase 6** | Task 18 | UI integration: 'tactical' in move dropdowns, lookahead slider (10–45 s), tactical readout rationale | **100% Complete** |
+| **Phase 6** | Task 19 | Mid-flight opportunity re-evaluation in `controlMpt` (3.5 s cadence, 4.0 s lockout timer, Hard Deck margin) | **100% Complete** |
+| **Phase 6** | Task 20 | Dedicated unit tests (`energy-tactical.test.js`), test harmonization, documentation sync | **100% Complete** |
+| **Phase 7** | Task 21 | MPT utility decay & circle cuts (Low/High Yo-Yos) (D420 / PATCH-039) | **100% Complete** |
+| **Phase 7** | Task 22 | Combat resolution: 2.0s continuous WEZ gun kill & auto-pause (D421 / PATCH-040) | **100% Complete** |
+| **Phase 7** | Task 23 | Dynamic 3D centroid camera & tactical cues (D422 / PATCH-041) | **100% Complete** |
+| **Phase 7** | Task 24 | Tactical engagement presets & 1.2 NM re-baseline (D423 / PATCH-042) | **100% Complete** |
+| **Phase 7** | Task 25 | BFM Energy Fight default-on & progressive disclosure architecture (D424 / PATCH-043) | **100% Complete** |
+| **Phase 7** | Task 26 | Test harmonization under D411, full regression verification & Gate 2 preparation (PATCH-044) | **100% Complete** |
+| **Phase 8** | Task 27 | Physical Hitbox (35 ft) & sequential combat telemetry (D427 / PATCH-045) | **100% Complete** |
+| **Phase 8** | Task 28 | Analytical TCPA predictive deconfliction & out-of-plane lag roll (D427 / PATCH-046) | **100% Complete** |
+| **Phase 8** | Task 29 | Post-collision ballistic tumble physics down to terrain impact & HUD banner (D427 / PATCH-047) | **100% Complete** |
+| **Phase 8** | Task 30 | UI settings toggles, Immelmann 140 kt apex gate removal, D379 supersession & Gate 2 sign-off (D425–D427 / PATCH-048) | **100% Complete** |
+
+## Implemented Work (PATCH-024 through PATCH-048)
+
+| What | Where | State |
+|---|---|---|
+| Energy screen (PR D, task 10's screen half) | Merged and integrated with engine on main | 100% complete. Error catch narrowed to engine setup errors; unit tests verify RangeError containment. All 19 Energy E2E tests passing green. |
+| Tactical 3D Suite (D401) | `src/modules/turn-fight/view3d.js` | 100% complete. `computeFloorZ` and `computePlumbGeometry` tested and verified in 2D/3D. |
+| Immelmann G-Law (D402/D406) | `src/modules/turn-fight/energy-sim.js` | 5.0 G pull to shaker line via `pullCmdG(ctx)` standardized across vertical moves. |
+| Active Combat Pursuit (D403) | `src/modules/turn-fight/energy-sim.js` | 100% complete. `chaseAfterHeadOn` defaulted to true; fighters dogfight across re-merge. |
+| 3D Merge Azimuth Acquisition (D404) | `src/modules/turn-fight/energy-sim.js` | 100% complete. Azimuth tracking across vertical splits initiates 3D combat pursuit; both aircraft actively engage. |
+| Pilot Stall Authority Loss (D405) | `src/modules/turn-fight/energy-sim.js` | 100% complete. Stalled aircraft freeze bank; azimuth trigger post-merge only; high-energy Blue wins. |
+| MPT Range & Aerodynamic Limits | `state.js`, `energy-sim.js` | 100% complete. 125 to 175 KIAS MPT range; Mach 0.67 corner speed (269 KIAS at 25,000 ft). |
+| Standard Defaults (D384) | `state.js`, `layout.js` | 100% complete. "Reset to Standard Defaults" loading SMM 3.0 G standards. |
+| Neutral Head-on (D368/D372) | `layout.js`, `tests/e2e/` | 100% complete. Relabeled from legacy V6 text. |
+| Standardized 5.0 G Pull Law (D406/D407) | `src/modules/turn-fight/energy-sim.js` | 100% complete. 5.0 G pull standardized across vertical moves with 4.7 G rolling guard. |
+| D386 Elevation Cone & Pursuit (D408) | `src/modules/turn-fight/energy-sim.js` | 100% complete. Azimuth <= 5° & elevation <= 10° cone; winner-only single pursuit steering. |
+| BFM Doctrine UI & Mode Renaming (D409) | `src/modules/turn-fight/layout.js` | 100% complete. "Turn Circle Geometry" vs "BFM Energy Fight" and authentic BFM doctrine. |
+| Derived Bank Angle Readout (D410) | `src/modules/turn-fight/readouts.js` | 100% complete. Coordinated bank angle row (phi = arccos(1/G)) in Geometry Mode table. |
+| Pilot Domain Test Harmonization (D411) | `tests/unit/turn-fight/energy-sim.test.js` | 100% complete. Brittle assertions harmonized with D371 domain tolerances and invariants. |
+| Tactical AI Maneuver Selection Engine (D416–D418 / PATCH-029) | `src/modules/turn-fight/energy-sim.js`, `state.js`, `layout.js`, `readouts.js` | 100% complete. Austin/Carbone advantage matrix, lookahead utility ranking, MPT dynamic breakout, dedicated test suite. |
+| Continuous Blended Tactical Pursuit (D419 / PATCH-030) | `src/modules/turn-fight/energy-sim.js`, `layout.js`, `tests/unit/turn-fight/energy-tactical.test.js` | 100% complete. Continuous convex combination of Control Zone lag, pure tracking, and muzzle lead; human telemetry labels (`ac.why`). |
+| MPT Utility Decay & Circle Cuts (D420 / PATCH-039) | `src/modules/turn-fight/energy-sim.js` | 100% complete. Low Yo-Yo (140-220 KIAS) and High Yo-Yo (180-280 KIAS) circle-cuts; 25% MPT penalty after 360° turn. |
+| WEZ Gun Kill & Auto-Pause (D421 / PATCH-040) | `energy-sim.js`, `layout.js`, `index.js`, `readouts.js` | 100% complete. 2.0 s continuous WEZ gun tracking kill solution with HUD banner and auto-pause. |
+| Dynamic 3D Centroid Camera (D422 / PATCH-041) | `src/modules/turn-fight/view3d.js`, `turn-fight.css` | 100% complete. Camera tracks (P_blue + P_red)/2 with adaptive zoom; displaced HUD data tags with leader lines; lift vectors and 15° cone. |
+| Tactical Engagement Presets (D423 / PATCH-042) | `state.js`, `layout.js`, `index.js` | 100% complete. 1.2 NM start separation and 5° ATA re-baseline; 5 canonical presets. |
+| BFM Energy Fight Default & Progressive Disclosure (D424/D425 / PATCH-043) | `state.js`, `layout.js` | 100% complete. Defaults directly to 3D BFM Energy Fight; checking settings quarantined behind ?debug=aero. |
+| Immelmann Apex 140 kt Limit Removal (D426 / PATCH-044) | `src/modules/turn-fight/energy-sim.js` | 100% complete. Immelmann apex speed gate removed per Patrick's directive ("let it try if it wants"). |
+| Physical 35 ft Hitbox & Sequential Telemetry (D427 / PATCH-045) | `src/modules/turn-fight/energy-sim.js` | 100% complete. 35 ft 3D Euclidean hitbox triggers collision state; preserves gun kills in telemetry. |
+| Analytical TCPA Predictive Deconfliction (D427 / PATCH-046) | `src/modules/turn-fight/energy-sim.js` | 100% complete. Vector TCPA (0.5-1.5 s, <75 ft) triggers 85 ft out-of-plane lag roll along turn-plane normal. |
+| Ballistic Tumble State Machine (D427 / PATCH-047) | `energy-sim.js`, `layout.js`, `energy-readouts.js` | 100% complete. Post-collision bluff-body drag, gravity drop, rotational tumble down to 0 ft MSL terrain impact. |
+| UI Settings Toggles & Gate 2 Verification (D425–D427 / PATCH-048) | `state.js`, `layout.js`, `index.html` | 100% complete. Checkboxes for collisionDetection and collisionAvoidance; version 2.5; 558 unit tests green. |
+
+Known limit: OVER G cannot be triggered from the screen in Auto mode, because Auto never pulls past +7 G and no forced move does. The flag and its words are built, unit-tested, and verified in E2E.
+
+
+## Small fixes left from the last check (#219 re-check)
+
+These are worth doing:
+- **Time label.** More detail's "Time since the pass" counts from T+0 when the turns start at once or there is no pass. Label that row "Time since the turns started" in those cases, and add a readouts unit test.
+- **Checklist wording** (`docs/checklists/turn-fight.md`):
+  - The trails are blue and red, not yellow.
+  - With Climb and dive, the side view shows Blue rising and Red falling only *after the pass*.
+  - After a graphics reset, View stays 2D, even after a reload, until you choose 3D again.
+- **Greyed height box.** With Climb and dive off, Red's height box is greyed but still shows a number. This is optional.
+
+Cut under the Streamlined build (3D is a bonus): the other 3D fallback items. These are focus after a reset, the restored-context listener, canvas clean-up, the note's wording, and a console recipe for testers. They go on the future features list if wanted.
+
+## Settled calls
+
+- Stall 86 kt (Patrick, D158; V-n diagram). Zoom weight 5,800 lb (D159).
+- The level MPT keeps the turn-chart bank (about 69°); the SMM's 75° is in the help text (D143).
+- The split S pulls up to 5.0 G at the shaker (D144). Above 220 KIAS, Auto picks an Immelmann or a pitch back by a short look-ahead, whichever gets there faster (D145).
+- Slice vs Split S below 140 KIAS settled by Patrick (D381): Immelmann is strictly forbidden at or below 140 KIAS; aircraft flies Split S if deck margin allows, else a descending slice turn, or level MPT if nearing the hard deck. Lowest Immelmann entry/top speed settled at 140 KIAS (D381).
+- 5.0 G tactical maneuver pull law & 4.7 G rolling G limit ratified (D407).
+- Only OVER G and STALL are flagged. Pursuit is Pure by default in engine baseline (D132); chaseAfterHeadOn defaulted to true (D403); Tactical (Dynamic) pursuit smoothly blends Lag -> Pure -> Lead with human telemetry labels (D419).
+- Every manual KIAS (VMO, stall, charts) is compared with the model's IAS, which has no compressibility (D273). The Mach limit alone is checked as true Mach 0.67 (review rows D345, D347, D349 and D350).
+
+## Open
+
+- Questions for Dad regarding advanced Phase 2/3 BFM tactical AI (Items 10–13 in `docs/records/dads-questions.md`):
+  - Pitch Back minimum heading turn before level unload (90°, 120°, or 140°);
+  - MPT role in Harvard II BFM syllabus: tactical tracking vs 2-circle rate tool;
+  - Pursuit commitment angular window (ATA threshold);
+  - Pursuit energy floor / G-unload threshold to regain corner speed.
+- Future: 25k ft service ceiling limiter (FF45), unified point-mass engine (FF47). [FF42 delivered via D419].
+

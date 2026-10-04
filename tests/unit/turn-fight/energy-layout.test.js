@@ -1,0 +1,138 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
+// OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
+// The Energy screen's words and lists (SPEC-turn-fight, "The screen", "More energy settings", "Model settings for
+// checking", "Start geometry and altitudes"): the hints, the note beside a high start altitude, and the About lines on the
+// MPT bank, each held to the engine and the spec. The screen itself is checked in the browser (tests/e2e/turn-fight.spec.js).
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createEnergyFight, stepEnergyFight, ENERGY_ACCURATE_MAX_FT, ENERGY_MOVES, MOVE_LABELS } from '../../../src/modules/turn-fight/energy-sim.js';
+import { ALTITUDE_NOTE, ENERGY_ABOUT, CHECK_SETTINGS, rangeHint } from '../../../src/modules/turn-fight/layout.js';
+import { ENERGY_CHECK_KEYS, RANGES, DEFAULTS, ALLOWED } from '../../../src/modules/turn-fight/state.js';
+import { TOLERANCES, assertNear } from '../../helpers/tolerances.js';
+
+test('the note beside a start altitude above 15,000 ft is the spec\'s, in one note: the low turn rate, and SMM 14.5 para 10', () => {
+  assert.equal(ENERGY_ACCURATE_MAX_FT, 15000);
+  assert.match(ALTITUDE_NOTE, /^Above 15,000 ft the model's sustained turn rate reads low/);
+  assert.match(ALTITUDE_NOTE, /up to 28 % low at 20,000 ft and above near 200 KIAS/);
+  assert.match(ALTITUDE_NOTE, /within 0\.65°\/s at 15,000 ft and below/);
+  assert.match(ALTITUDE_NOTE, /The SMM recommends aerobatics below 16,000 ft MSL \(SMM 14\.5 para 10\)\.$/);
+  assert.equal(ALTITUDE_NOTE.split('. ').length, 2, 'one note of two sentences, not two warnings');
+});
+
+test('Model settings for checking lists every box the spec lists, once each, in the engine\'s check keys', () => {
+  assert.deepEqual([...CHECK_SETTINGS.map(([key]) => key)].sort(), [...ENERGY_CHECK_KEYS].sort());
+  for (const [key, label, hint] of CHECK_SETTINGS) {
+    assert.ok(key in RANGES, `${key} has a range`);
+    assert.ok(label.length > 3 && hint.length > 10, key);
+  }
+  // The spec's wording for the boxes (SPEC-turn-fight, "Model settings for checking").
+  const labels = CHECK_SETTINGS.map(([, label]) => label).join(' | ');
+  for (const words of ['Stall speed', 'Shaker', 'How long a stall lasts', 'Mid-range throttle', 'Lead point', 'Lag point', 'Roll rate', 'Pitch back bank at 160', 'Pitch back bank at 220',
+    'Immelmann or pitch back above', 'split S below', 'Immelmann off-nose angle', 'Lowest Immelmann top speed', 'Look-ahead', 'Deck margin']) {
+    assert.ok(labels.includes(words), words);
+  }
+});
+
+test('every hint gives the range and the engine\'s default, from the same numbers the box uses', () => {
+  assert.equal(rangeHint('mptKias'), '125 to 175 KIAS, default 160 KIAS.');
+  assert.equal(rangeHint('hardDeckFt'), '0 to 25,000 ft, default 6,000 ft.');
+  assert.equal(rangeHint('shakerPct'), '50 to 100%, default 94%.');
+  assert.equal(rangeHint('immelmannOffNoseDeg'), '0 to 180°, default 120°.');
+  assert.equal(rangeHint('pickLookaheadSec'), '0 to 120 s, default 60 s.');
+  assert.equal(rangeHint('deckMarginFt'), '0 to 10,000 ft, default 1,000 ft.');
+  for (const key of ENERGY_CHECK_KEYS) {
+    const { min, max } = RANGES[key];
+    const hint = rangeHint(key);
+    assert.ok(hint.includes(min.toLocaleString('en-US')) && hint.includes(max.toLocaleString('en-US')) && hint.includes(DEFAULTS[key].toLocaleString('en-US')), `${key}: ${hint}`);
+  }
+});
+
+// The model's MPT banks are recorded against the SMM's, not tuned to it (F2, T7): the SMM gives about 75° for the level MPT
+// (SMM 14.14); the model settles near 69° at the deck and 72° in the constant-speed MPT. The gap goes to Patrick and Dad.
+// Both MPTs are found by event (the jet reaches and holds the turn), never by a clock value (T2, F6).
+const STOP_SEC = 300; // safety stop only: the MPT is usually reached within about 60 s; reaching the stop fails as "never happened" (Q-T13)
+const holdFor = (state, sec) => { for (let i = 0; i < sec / 0.02; i++) stepEnergyFight(state, 0.02); };
+function flyUntil(fight, done) {
+  for (let i = 0; i < STOP_SEC / 0.02 && !done(fight); i++) stepEnergyFight(fight, 0.02);
+  assert.ok(done(fight), `the event never happened within the ${STOP_SEC} s safety stop`);
+}
+const bankInAbout = (about, pattern) => Number(about.match(pattern)[1]);
+
+test('the level MPT at the deck is reached and held as a steady turn, and the About text on its bank matches the model (about 69° against the SMM\'s 75°)', () => {
+  const about = ENERGY_ABOUT.find((line) => line.startsWith('MPT bank'));
+  assert.ok(about);
+  assert.match(about, /about 75° for the level MPT/);
+  assert.match(about, /70 to 75° for the constant-speed MPT/);
+  assert.match(about, /about 69° at the deck/);
+  const level = createEnergyFight({ hardDeckFt: 6000, blueAltFt: 6500, redAltFt: 6500, blueKias: 160, redKias: 160, pursuit: 'none' });
+  flyUntil(level, (s) => s.blue.move === 'levelMpt'); // event: the jet has sunk to the deck and turned to the level MPT
+  holdFor(level, 60); // let the speed settle onto the level MPT
+  const settled = { kias: level.blue.kias, alt: level.blue.altFt, bank: level.blue.bankDeg };
+  holdFor(level, 20);
+  assert.equal(level.blue.move, 'levelMpt', 'it stays in the level MPT');
+  // Held: speed, height and bank stay put over the next 20 s (shared margins: ±10 kt, ±100 ft, ±5°).
+  assertNear(level.blue.kias, settled.kias, TOLERANCES.AIRSPEED_KT, 'level MPT speed holds');
+  assertNear(level.blue.altFt, settled.alt, TOLERANCES.ALTITUDE_FT, 'level MPT height holds');
+  assertNear(level.blue.bankDeg, settled.bank, TOLERANCES.ANGLE_DEG, 'level MPT bank holds');
+  assert.ok(level.blue.altFt >= 6000 - TOLERANCES.ALTITUDE_FT, 'it is held at the deck, not below it (hard deck 6,000 ft)');
+  // Near the MPT speed, SMM 14.3 para 6 (about 160 KIAS). A level turn at the deck sits below the constant-speed 160, so allow 20 kt.
+  assertNear(level.blue.kias, 160, 20, 'level MPT speed near the SMM\'s 160 KIAS');
+  // The text agrees with the model it describes, within the shared ±5° margin.
+  assertNear(level.blue.bankDeg, bankInAbout(about, /about (\d+)° at the deck/), TOLERANCES.ANGLE_DEG, 'About bank at the deck');
+});
+
+test('the constant-speed MPT is reached and held near 160 KIAS and the About text on its bank matches the model (about 72°, within the SMM\'s 70 to 75°)', () => {
+  const about = ENERGY_ABOUT.find((line) => line.startsWith('MPT bank'));
+  assert.ok(about);
+  assert.match(about, /about 72° in the constant-speed MPT/);
+  const cs = createEnergyFight({ pursuit: 'none' });
+  // Event: in the MPT, banked up (not the level run-in before the turn) and within the SMM's 5 kt of 160 KIAS (SMM 14.14).
+  flyUntil(cs, (s) => s.blue.move === 'mpt' && s.blue.bankDeg > 60 && Math.abs(s.blue.kias - 160) <= 5);
+  holdFor(cs, 20);
+  assert.equal(cs.blue.move, 'mpt', 'it stays in the constant-speed MPT');
+  assertNear(cs.blue.kias, 160, 5, 'constant-speed MPT held within 5 kt of 160 KIAS (SMM 14.14)');
+  // The SMM gives 70 to 75° for this MPT (SMM 14.14); the shared ±5° margin on the band's ends is the check.
+  assert.ok(cs.blue.bankDeg >= 70 - TOLERANCES.ANGLE_DEG && cs.blue.bankDeg <= 75 + TOLERANCES.ANGLE_DEG, `constant-speed MPT bank ${cs.blue.bankDeg}`);
+  assertNear(cs.blue.bankDeg, bankInAbout(about, /about (\d+)° in the constant-speed MPT/), TOLERANCES.ANGLE_DEG, 'About bank in the constant-speed MPT');
+});
+
+test('the About and hint text quote no manual: numbers and page references only', () => {
+  const all = [...ENERGY_ABOUT, ALTITUDE_NOTE, ...CHECK_SETTINGS.map(([, , hint]) => hint)].join(' ');
+  assert.ok(!/["“”]/.test(all), 'no quotation marks in the help text');
+  for (const ref of all.match(/SMM[\d .a-z]*/g) ?? []) assert.match(ref, /SMM(\s+\d+(\.\d+)?)?(\s+paras?\s+\d+( to \d+| and \d+)?)?/, ref);
+});
+
+test('Task 18: tactical move is selectable and tacticalLookaheadSec exists in defaults and settings', () => {
+  assert.ok(ENERGY_MOVES.includes('tactical'), 'tactical is in ENERGY_MOVES');
+  assert.ok(ALLOWED.blueMove.includes('tactical'), 'tactical is in ALLOWED.blueMove');
+  assert.ok(ALLOWED.redMove.includes('tactical'), 'tactical is in ALLOWED.redMove');
+  assert.equal(MOVE_LABELS.tactical, 'Tactical AI');
+
+  assert.equal(DEFAULTS.tacticalLookaheadSec, 20);
+  assert.ok('tacticalLookaheadSec' in RANGES);
+  assert.equal(RANGES.tacticalLookaheadSec.min, 10);
+  assert.equal(RANGES.tacticalLookaheadSec.max, 45);
+  assert.equal(RANGES.tacticalLookaheadSec.default, 20);
+  assert.ok(ENERGY_CHECK_KEYS.includes('tacticalLookaheadSec'));
+
+  const checkItem = CHECK_SETTINGS.find(([k]) => k === 'tacticalLookaheadSec');
+  assert.ok(checkItem, 'tacticalLookaheadSec is in CHECK_SETTINGS');
+  assert.equal(checkItem[1], 'Tactical AI lookahead (s)');
+
+  // Verifying tactical can be selected and runs in createEnergyFight
+  const fight = createEnergyFight({ blueMove: 'tactical', redMove: 'tactical' });
+  assert.equal(fight.setup.blueMove, 'tactical');
+  assert.equal(fight.setup.redMove, 'tactical');
+  assert.ok(fight.blue.move, 'Blue selected a move');
+  assert.ok(fight.blue.why.startsWith('Tactical AI:'), 'Blue why text starts with Tactical AI');
+});

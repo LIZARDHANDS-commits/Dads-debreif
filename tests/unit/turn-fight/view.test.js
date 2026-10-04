@@ -1,5 +1,16 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
 // The top-down view's scale and grid maths, and what it draws (SPEC-turn-fight,
-// "The drawing"). The maths is V6's `draw` (original/shell.html, line 4287).
+// "The drawing", TF-R15). The colours, the minimum reach and the 42 % scale are design choices written in that spec section, not manual numbers.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -14,7 +25,7 @@ import {
 const near = (a, b, tol = 1e-9) => assert.ok(Math.abs(a - b) <= tol, `${a} vs ${b}`);
 const play = (run, sec) => { for (let t = 0; t < sec - 1e-9; t += 0.02) advanceRun(run, 0.02); return run; };
 
-test('V6\'s colours: Blue #58a6ff, Red #ff6b6b, first nose-on line #ffcc66', () => {
+test('the spec\'s three colours (design choice, SPEC-turn-fight "The drawing"): Blue #58a6ff, Red #ff6b6b, first nose-on line #ffcc66', () => {
   assert.equal(COLORS.blue, '#58a6ff');
   assert.equal(COLORS.red, '#ff6b6b');
   assert.equal(COLORS.nose, '#ffcc66');
@@ -27,10 +38,10 @@ test('the screen\'s stylesheet uses the same three colours as the canvas', () =>
   assert.match(css, new RegExp(`--tf-nose:\\s*${COLORS.nose}`, 'i'));
 });
 
-test('the view reaches at least half the start separation, and never less than 3,000 ft (V6 `mx`)', () => {
+test('the view reaches at least half the start separation, and never less than 3,000 ft (the spec\'s minimum reach, a design choice)', () => {
   assert.equal(MIN_REACH_FT, 3000);
   assert.equal(viewReachFt({ separationNm: 2, extentFt: 0 }), 2 * FT_PER_NM / 2);
-  assert.equal(viewReachFt({ separationNm: 0.5, extentFt: 0 }), 3000); // 1,519 ft would be tighter than V6 allows
+  assert.equal(viewReachFt({ separationNm: 0.5, extentFt: 0 }), 3000); // half of 0.5 NM is 1,519 ft, tighter than the spec's 3,000 ft minimum
   assert.equal(viewReachFt({ separationNm: 2, extentFt: 0 }) > 3000, true);
 });
 
@@ -40,7 +51,7 @@ test('the view zooms out as the fight spreads, to keep every trail point and air
   assert.equal(viewReachFt({ separationNm: 2, extentFt: 9000, aircraft: [{ xFt: 100, yFt: 100 }] }), 9000);
 });
 
-test('scale: 42% of the shorter side from the centre to the reach, with the centre at the middle (V6 `k`)', () => {
+test('scale: 42% of the shorter side from the centre to the reach, with the centre at the middle (the spec\'s scale, a design choice)', () => {
   const size = { width: 1000, height: 500 };
   const view = topDownView(size, { separationNm: 2, extentFt: 0 });
   near(view.scale, (500 * 0.42) / (2 * FT_PER_NM / 2));
@@ -71,7 +82,7 @@ test('the grid is 1 NM while that is readable, then 2, 5, 10 NM and so on, so it
   assert.equal(gridSpacingNm(ftPerPx(0.001)), 1000);
 });
 
-test('the grid fills the whole box at any zoom, through the merge point (V6 drew only ±4 NM)', () => {
+test('the grid fills the whole box at any zoom, through the merge point (the spec: the grid fills the box, not just ±4 NM)', () => {
   const size = { width: 900, height: 600 };
   for (const extentFt of [0, 20000, 100000, 400000]) {
     const view = topDownView(size, { separationNm: 2, extentFt });
@@ -85,7 +96,7 @@ test('the grid fills the whole box at any zoom, through the merge point (V6 drew
   }
   const zoomedOut = gridLines(size, topDownView(size, { separationNm: 2, extentFt: 100000 }));
   assert.equal(zoomedOut.spacingNm, 1);
-  assert.ok(zoomedOut.xs.length > 9, 'more than V6\'s nine lines');
+  assert.ok(zoomedOut.xs.length > 9, 'more than the nine lines of a ±4 NM grid');
   assert.ok(gridLines(size, topDownView(size, { separationNm: 2, extentFt: 400000 })).spacingNm > 1);
 });
 
@@ -112,6 +123,17 @@ test('drawing shows B and R on the arrowheads and the MERGE mark, and no first n
   assert.ok(!texts(ctx).some((t) => t.startsWith('FIRST NOSE')));
   assert.ok(!ctx.calls.some((c) => c.fn === 'setLineDash' && c.args[0].length));
 });
+
+test('drawing with dataTags option shows airspeed, G-load and maneuver labels beside B and R', () => {
+  const run = createRun({ blueKt: 240, blueG: 4.8 });
+  const ctx = recorder();
+  drawTopDown(ctx, { width: 800, height: 500 }, run, { dataTags: true });
+  const t = texts(ctx);
+  assert.ok(t.includes('B') && t.includes('R'));
+  assert.ok(t.includes('240 KTAS · 4.8 G'));
+  assert.ok(t.includes('Straight'));
+});
+
 
 test('Q48: a tie labels the first nose-on line BOTH', () => {
   const run = play(createRun({}), 40);
@@ -167,7 +189,7 @@ test('R28: the MERGE mark shows only when the jets pass each other at the centre
   assert.deepEqual(marked({ startAaDeg: 90 }), ['PASS'], 'a crossing start passes at the centre, 1.4 NM apart (TF3-5)');
   assert.deepEqual(marked({ startAaDeg: 90, turnsAt: 'once' }), [], 'the turns start at T+0, no pass');
   assert.deepEqual(marked({ startAaDeg: 0, redKt: 300 }), [], 'the range is opening from the start');
-  assert.deepEqual(marked({}), ['MERGE'], 'head-on, as V6');
+  assert.deepEqual(marked({}), ['MERGE'], 'head-on, the jets meet');
 });
 
 const PICTURE_SIZE = { width: 240, height: 140 };

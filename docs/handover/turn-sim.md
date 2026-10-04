@@ -1,5 +1,11 @@
 # Turn Sim (formation turns)
 
+> [!IMPORTANT]
+> **Operational Finding & Architectural Directive (Patrick, 03 Oct 2026):**  
+> Turn Sim requires a **full architectural overhaul and assessment** before further feature development or sign-off.  
+> The simulated aircraft currently do **not** behave according to authentic 15 Wing SMM doctrine (for example, after a Delayed 45 maneuver, all aircraft erroneously end up in a row / trail rather than maintaining authentic line abreast geometry).  
+> Do not attempt quick-fix band-aids on individual maneuvers on top of legacy V6 heuristics; the module needs a systematic root-and-branch architectural overhaul of its turn sequencing, trajectory solver, and wingman tracking mechanics against SMM Chapter 16. Detailed technical breakdown is documented in [`.agents/turn-sim-architecture-and-bloat-report.md`](../../.agents/turn-sim-architecture-and-bloat-report.md).
+
 Two-ship and four-ship formation turns from the SMM (line abreast delayed 90 and 45, hook, in-place, shackle, cross turn, offset box, spread 4), with spacing and sweep checks.
 
 - Spec: `specs/SPEC-turn-sim.md`. Tasks: `tasks/turn-sim/`. Code: `src/modules/turn-sim/` (Turn-Sim-only math in `engine/`).

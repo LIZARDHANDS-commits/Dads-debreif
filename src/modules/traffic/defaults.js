@@ -12,15 +12,26 @@
 import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 
+export const RUNWAYS = Object.freeze([
+  { id: '29L', label: 'Runway 29L (Active)', headingDeg: 298, active: true },
+  { id: '11R', label: 'Runway 11R (Coming soon)', headingDeg: 118, disabled: true },
+]);
+export const DEFAULT_RUNWAY = '29L';
+
 export const DEFAULTS = Object.freeze({
-  // Playback speed: 8×, as V6's built-in setup.
-  speed: 8,
+  // Active runway: CYMJ Moose Jaw Runway 29L (298°T, left-hand circuits).
+  runway: DEFAULT_RUNWAY,
+
+  // Playback speed: 1× (1x real-time speed, rebaselined from 8x).
+  speed: 1,
 
   // 2D or 3D: 2D (the ui-kit's shared default); the 3D camera starts at Fit.
   view: VIEW_DEFAULT,
   camera3d: 'fit',
   // The 3D aircraft's paint: the Harvard scheme (the ui-kit's PAINT_DEFAULT), or plain ship colours.
   paint: PAINT_DEFAULT,
+  // 3D graphics quality: 'high' (sharp 4-tier satellite and up to 24 full Harvards) or 'low' (performance).
+  graphicsQuality: 'low', // Performance by default (Patrick, 3D upgrade); High is one click in the 3D bar or Traffic settings
 
   // Wind: calm, 360°T at 0 kt.
   windFromDeg: 360,
@@ -38,6 +49,7 @@ export const DEFAULTS = Object.freeze({
   layerPhoto: true,
   layerWindTrack: true,
   layerSmmReference: true,
+  layerPflCircle: true,
   layerLegDistances: false,
   layerTurnData: false,
   layerEngineReach: false,
@@ -132,6 +144,10 @@ export const DEFAULTS = Object.freeze({
   ruleBreakAtDepartureEnd: true,
   ruleClosedPattern: true,
 
+  // Closed pattern maneuver: default 50° bank (selectable 45, 50, 60), 10° pitch climb.
+  closedPatternBankDeg: 50,
+  closedPatternPitchDeg: 10,
+
   // Set up a conflict: the first two aircraft in the list (or two new CT-156s
   // on Random), the first crossing on its list, 1 minute from now, arriving at
   // the same moment; rules left as they are until you pick "switch them off".
@@ -163,7 +179,12 @@ export const DEFAULTS = Object.freeze({
 
 // The values a setting may hold besides its type, for createSettings(store, DEFAULTS, { allowed: ALLOWED }).
 // The 2D | 3D switch is the ui-kit's shared one, so its values come from there; so are the paints.
-export const ALLOWED = /** @type {Record<string, any[]>} */ (/** @type {unknown} */ (Object.freeze({ view: VIEW_ALLOWED, paint: PAINT_OPTIONS.map((o) => o.value) })));
+export const ALLOWED = /** @type {Record<string, any[]>} */ (/** @type {unknown} */ (Object.freeze({
+  view: VIEW_ALLOWED,
+  paint: PAINT_OPTIONS.map((o) => o.value),
+  graphicsQuality: ['high', 'low'],
+  closedPatternBankDeg: [45, 50, 60],
+})));
 
 // The playback speeds on offer (the spec's "0.25× to 8×"), and the speed the
 // bar starts at.
@@ -187,6 +208,8 @@ export const LIMITS = Object.freeze({
   pointKias: Object.freeze([40, 400]),
   pointG: Object.freeze([1, 9]),
   sharePct: Object.freeze([0, 100]),
+  closedPatternBankDeg: Object.freeze([30, 60]),
+  closedPatternPitchDeg: Object.freeze([5, 25]),
   // Not in the spec's list; V6's own ranges where it had them.
   photoOpacityPct: Object.freeze([5, 100]),
   photoTrim: Object.freeze([0.8, 1.2]),

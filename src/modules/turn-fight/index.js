@@ -6,13 +6,17 @@ import { h } from '../../ui-kit/dom.js';
 import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { timeText, phaseText, resultRows, moreDetailRows, geometryRows } from './readouts.js';
-import { DEFAULTS, ALLOWED, setupFrom, setupKey, saneFix, v6Defaults } from './state.js';
-import { START_DEFAULTS } from './geometry.js';
-import { createRun, advanceRun, frameDtSec } from './playback.js';
+import {
+  DEFAULTS, ALLOWED, setupFrom, startSetupFrom, startEnergyRun, setupKey, saneFix, v6Defaults, checkingDefaults,
+  START_DEFAULTS, TACTICAL_PRESETS,
+} from './state.js';
+import { createRun, createEnergyRun, advanceRun, frameDtSec } from './playback.js';
 import { createLayout } from './layout.js';
 import { createTopDownView, createStartPictureView } from './view.js';
 import { createProfileView } from './profile.js';
 import { createView3d } from './view3d.js';
+import { energyResultRows, energyMoreRows, flagNotes, flagAnnouncement, moveWhyText, altitudeSummary, altitudeRows } from './energy-readouts.js';
+import { createAltitudeGraph } from './energy-graph.js';
 
 const STYLESHEET = new URL('./turn-fight.css', import.meta.url).href;
 
@@ -56,7 +60,27 @@ function mount(root, app) {
     for (const fn of [...followers]) fn(settings.get());
   };
 
-  let run = createRun(setupFrom(settings.get()));
+  // A new run from the settings: the simple fight, or Energy's. An Energy setup that can't fly (two boxes that don't go
+  // together, which no box alone can refuse) says why beside the boxes and flies the default heights meanwhile.
+  let ui = null; // the layout, made below; newRun says nothing to it until then
+  let problemText = '';
+  let flownValues = null; // the settings an Energy run actually flies when they are not the person's; the start picture and pass line use them
+  function newRun(values) {
+    problemText = '';
+    flownValues = null;
+    if (!values.energy) {
+      ui?.setEnergyProblem('', null);
+      return createRun(setupFrom(values));
+    }
+    // The settings, or the default start when energyProblem finds one, or (the engine refusing what no check here saw) every
+    // Energy setting at its default; any other error is a fault and comes out (state.js startEnergyRun).
+    const started = startEnergyRun(values, createEnergyRun);
+    problemText = started.note;
+    if (started.flown !== values) flownValues = started.flown;
+    ui?.setEnergyProblem(problemText, flownValues);
+    return started.run;
+  }
+  let run = newRun(settings.get());
   let playing = false;
   let stopFrames = null;
   let lastReadout = -Infinity;
@@ -69,7 +93,7 @@ function mount(root, app) {
   // Whichever picture is showing draws; the other draws nothing and holds nothing.
   const redraw = () => (shown === '3d' ? view3d.requestDraw() : views.forEach((view) => view.requestDraw()));
 
-  const ui = createLayout({
+  ui = createLayout({
     settings,
     controls,
     on: {
@@ -77,6 +101,16 @@ function mount(root, app) {
       reset: () => resetFight(),
       resetDefaults() {
         settings.update(v6Defaults());
+        ui?.setPreset?.('neutral-merge');
+        showSettingsInBoxes();
+        resetFight();
+      },
+      onPreset(presetKey) {
+        const preset = TACTICAL_PRESETS[presetKey];
+        if (!preset) return;
+        const { name, ...values } = preset;
+        settings.update(values);
+        ui?.setPreset?.(presetKey);
         showSettingsInBoxes();
         resetFight();
       },
@@ -85,20 +119,39 @@ function mount(root, app) {
         settings.update({ ...START_DEFAULTS });
         showSettingsInBoxes();
       },
+      // Model settings for checking has its own reset: just those numbers.
+      checkingDefaults() {
+        settings.update(checkingDefaults());
+        showSettingsInBoxes();
+      },
       moreToggled: (open) => open && renderReadouts(),
+      tableToggled: (open) => open && renderReadouts(),
       cameraView: (name) => view3d.setView(name),
     },
   });
+  ui.setEnergyProblem(problemText, flownValues);
   root.append(ui.element);
-  views.push(createTopDownView(ui.canvas, { timers: app.scheduler, run: () => run }));
+  views.push(createTopDownView(ui.canvas, {
+    timers: app.scheduler,
+    run: () => run,
+    options: () => ({ dataTags: settings.get().dataTags }),
+  }));
   // The picture in Turn Fight settings, Start geometry: drawn from the set numbers, so it follows them as they change.
-  views.push(createStartPictureView(ui.startPicture, { timers: app.scheduler, setup: () => setupFrom(settings.get()) }));
-  // The side view draws only while Climb and dive is on; its panel is hidden (and 0 px) otherwise.
+  // (With Energy on the jets' speeds are the true airspeeds of their merge speeds.)
+  views.push(createStartPictureView(ui.startPicture, { timers: app.scheduler, setup: () => startSetupFrom(flownValues ?? settings.get()) }));
+  // The side view draws only while Climb and dive is on (and Energy is off: Energy has its own, the altitude graph); its panel is hidden (and 0 px) otherwise.
   const profile = createProfileView(ui.profileCanvas, { timers: app.scheduler, run: () => run, scale: () => settings.get().heightScale });
   views.push({
-    requestDraw: () => settings.get().vertical && profile.requestDraw(),
+    requestDraw: () => settings.get().vertical && !settings.get().energy && profile.requestDraw(),
     dispose: profile.dispose,
   });
+  // Energy's side view: altitude against time, drawn with uPlot, which is fetched (import()) only when it is first shown.
+  const graph = createAltitudeGraph(ui.energyChart, { run: () => run });
+  // Shown only with Energy on and 2D wanted. It draws at the readouts' rate (renderReadouts), never every frame.
+  function syncGraph() {
+    if (settings.get().energy && wantView !== '3d') graph.start().then((result) => result.ok && graph.update());
+    else graph.stop();
+  }
 
   // The 3D picture reads the same run as the 2D ones. Only the object is made now: three.js loads when 3D is switched on.
   // If the browser takes its WebGL context away, it has freed everything by the time this runs: show 2D with a note.
@@ -106,8 +159,10 @@ function mount(root, app) {
     timers: app.scheduler,
     run: () => run,
     paint: () => settings.get().paint,
+    options: () => ({ dataTags: settings.get().dataTags }),
     onLost: () => stayIn2d('3D stopped (the graphics card was reset); showing 2D.'),
   });
+
 
   // Goes back to 2D and says why. The fight is not touched: it plays on in 2D.
   function stayIn2d(message) {
@@ -146,7 +201,27 @@ function mount(root, app) {
     pendingReadout?.();
     pendingReadout = null;
     lastReadout = performance.now();
-    const { fight } = run;
+    const { fight, engine } = run;
+    if (engine) {
+      // Energy: the engine's own numbers for both aircraft (energy-readouts.js), the words beside each, the flags' reasons and the
+      // altitude line and table that stand in for the graph.
+      ui.renderReadouts({
+        time: timeText(fight),
+        phase: phaseText(fight),
+        result: energyResultRows(engine),
+        more: ui.moreOpen ? energyMoreRows(engine) : null,
+        energy: {
+          moves: { blue: moveWhyText(engine.blue), red: moveWhyText(engine.red) },
+          notes: flagNotes(engine),
+          flags: flagAnnouncement(engine),
+          summary: altitudeSummary(engine),
+          rows: ui.tableOpen ? altitudeRows(run.trails) : null,
+          deck: engine.setup.hardDeckFt,
+        },
+      });
+      graph.update();
+      return;
+    }
     ui.renderReadouts({
       time: timeText(fight),
       phase: phaseText(fight),
@@ -170,6 +245,20 @@ function mount(root, app) {
     advanceRun(run, dt);
     redraw();
     queueReadouts();
+    if (run.engine?.kill && !run.fight.killDismissed && !run.fight.killHandled) {
+      run.fight.killHandled = true;
+      endPlaying();
+      ui.showKillBanner(run.engine.kill, () => {
+        run.fight.killDismissed = true;
+        run.fight.stopped = false;
+        if (run.engine) run.engine.stopped = false;
+        setPlaying(true);
+      });
+    }
+    if (run.engine?.collision && !run.fight.collisionHandled) {
+      run.fight.collisionHandled = true;
+      ui.showCollisionBanner(run.engine.collision, () => resetFight());
+    }
     if (run.fight.stopped) {
       endPlaying();
       ui.setStopped(STOPPED_TEXT);
@@ -199,13 +288,20 @@ function mount(root, app) {
   // Changing the setup starts the fight again, paused, as in V6 (`reset`, line 4240).
   function resetFight() {
     endPlaying();
-    run = createRun(setupFrom(settings.get()));
+    ui.hideKillBanner();
+    ui.hideCollisionBanner();
+    run = newRun(settings.get());
+    run.fight.killHandled = false;
+    run.fight.killDismissed = false;
+    run.fight.collisionHandled = false;
     ui.setStopped(null);
     renderReadouts();
     redraw();
   }
 
   let lastSetup = setupKey(settings.get());
+  let lastEnergy = settings.get().energy;
+  let shownFor = settings.get().view;
   const stopSettings = settings.subscribe((values) => {
     ui.applyLayout(values);
     const setup = setupKey(values);
@@ -217,10 +313,14 @@ function mount(root, app) {
       lastSetup = setup;
       resetFight(); // a new fight; playback speed and the height scale never get here (#20)
     } else redraw();
+    if (values.energy !== lastEnergy || values.view !== shownFor) syncGraph();
+    lastEnergy = values.energy;
+    shownFor = values.view;
   });
 
   ui.applyLayout(settings.get());
   renderReadouts();
+  syncGraph();
   if (wantView === '3d') applyView('3d'); // remembered from last time: three.js loads now, as it would on a switch
 
   app.keys({
@@ -233,6 +333,7 @@ function mount(root, app) {
     pendingReadout?.();
     stopSettings();
     controls.dispose();
+    graph.dispose();
     view3d.dispose();
     for (const view of views) view.dispose();
     stylesheet.remove();

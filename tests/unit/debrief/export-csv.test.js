@@ -1,9 +1,20 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
 // The CSV export (SPEC-debrief: CSV export, #28): one row per second, ships
 // side by side, the same numbers the readouts show, sources and gap flags.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildFlight } from '../../../src/flight-data/flight.js';
-import { readoutsAt } from '../../../src/modules/debrief/readouts.js';
+import { readoutsAt, shipDetailText } from '../../../src/modules/debrief/readouts.js';
 import { csvRows, toCsv, csvCell, csvFileName } from '../../../src/modules/debrief/export-csv.js';
 
 const M_PER_DEG = 111_320;
@@ -104,20 +115,29 @@ test('the bank cell is blank where the bank is unknown, and a number where it is
   assert.equal(at(10), '0.0');
 });
 
-// Final verification F1: #1's est. IAS column is the number the Lead line shows, wind-corrected when the screen's is.
-test('#1 est. IAS uses the model wind when one is given, #2\'s never does', () => {
+// DB-R8 (D3): every ship's est. IAS uses the same wind when Winds aloft is on, and says "(no wind)" when it is off.
+// The wind reaches the file through `leadWindAt`, the one wind option the CSV has today.
+test('every ship\'s est. IAS uses the same wind when Winds aloft is on, and reads "(no wind)" when off', { todo: "Debrief plan step 2: not built yet. Remove this mark when it is built (Patrick's card, 4 Oct)" }, () => {
+  // Two ships on the same path at the same moment: same heading, speed and altitude, 300 m apart.
   const flight = buildFlight({ 1: { name: 'lead', fixes: east() }, 2: { name: 'two', fixes: east({ northM: 300 }) } });
   const asked = [];
-  const headwind = (t, altFt) => { asked.push([t, Math.round(altFt)]); return { dirDeg: 90, kt: 24 }; }; // from the east, Lead flies east
+  const headwind = (t, altFt) => { asked.push([t, Math.round(altFt)]); return { dirDeg: 90, kt: 24 }; }; // from the east; both ships fly east
   const plain = csvRows(flight);
   const windy = csvRows(flight, { leadWindAt: headwind });
   const col = (name) => plain[0].indexOf(name);
   const at = (rows, s) => rows.find((r) => Date.parse(r[0]) / 1000 === T0 + s);
-  const lead = (s) => Number(at(windy, s)[col('#1 est. IAS kt')]) - Number(at(plain, s)[col('#1 est. IAS kt')]);
-  assert.ok(lead(20) > 18 && lead(20) < 24, String(lead(20))); // 24 kt of headwind × √σ at 8,200 ft
-  assert.equal(at(windy, 20)[col('#2 est. IAS kt')], at(plain, 20)[col('#2 est. IAS kt')]);
-  assert.equal(at(windy, 20)[col('#1 est. IAS kt')], readoutsAt(flight, T0 + 20, { leadWind: { dirDeg: 90, kt: 24 } }).ships[0].iasKt.toFixed(1));
-  assert.ok(asked.length > 0 && asked.every(([, alt]) => Math.abs(alt - 8202) <= 1)); // asked with Lead's own altitude, each second
-  // No wind from the provider: the plain column.
+  const change = (slotCol, s) => Number(at(windy, s)[col(slotCol)]) - Number(at(plain, s)[col(slotCol)]);
+  // Standard aerodynamics: a 24 kt headwind adds 24 kt of true airspeed, and est. IAS is TAS x sqrt(density ratio).
+  // ISA at 8,202 ft: sigma = (1 - 6.8756e-6 x 8202)^4.2559 = 0.781, sqrt = 0.884, so about +21 kt (generous: 18 to 24).
+  for (const slotCol of ['#1 est. IAS kt', '#2 est. IAS kt']) {
+    assert.ok(change(slotCol, 20) > 18 && change(slotCol, 20) < 24, `${slotCol}: ${change(slotCol, 20)}`);
+  }
+  // The same path at the same time reads the same est. IAS for both ships.
+  assert.equal(at(windy, 20)[col('#2 est. IAS kt')], at(windy, 20)[col('#1 est. IAS kt')]);
+  assert.ok(asked.length > 0 && asked.every(([, alt]) => Math.abs(alt - 8202) <= 1)); // asked with the ships' altitude (2,500 m), each second
+  // Winds aloft off (no provider, or none for this moment): the plain column, and each ship's line says "(no wind)".
   assert.deepEqual(csvRows(flight, { leadWindAt: () => null }), plain);
+  for (const ship of readoutsAt(flight, T0 + 20).ships) {
+    assert.ok(shipDetailText(ship)[0].endsWith('(no wind)'), shipDetailText(ship)[0]);
+  }
 });

@@ -153,13 +153,14 @@ export function t6aExcessFn(ktas, altFt, g) {
 export const T6A_GLIDE = Object.freeze({
   clean: Object.freeze({ kias: 125, nmPer1000Ft: 2.0, chartSinkFpm: 1350, prop: 'feathered', dragIndex: 0 }),
   gearDown: Object.freeze({ kias: 105, nmPer1000Ft: 1.5, chartSinkFpm: 1500, prop: 'feathered', dragIndex: 20 }),
+  flapsTakeoff: Object.freeze({ kias: 110, nmPer1000Ft: 1.3, chartSinkFpm: 1816, prop: 'feathered', dragIndex: 50 }),
   landing: Object.freeze({ kias: 95, nmPer1000Ft: 1.1, chartSinkFpm: 1850, prop: 'feathered', dragIndex: 80 }),
   windmilling: Object.freeze({ kias: 110, nmPer1000Ft: 1.0, chartSinkFpm: 2350, prop: 'windmilling', dragIndex: 0 }),
 });
 
 /**
  * Sink rate in ft/min for a T6A_GLIDE configuration ('clean', 'gearDown',
- * 'landing', 'windmilling') at kias: true airspeed ÷ the glide ratio. The
+ * 'flapsTakeoff', 'landing', 'windmilling') at kias: true airspeed ÷ the glide ratio. The
  * ratio is fixed through the air, so the sink rate grows with height.
  */
 export function glideSinkFpm(config, kias, altFt) {

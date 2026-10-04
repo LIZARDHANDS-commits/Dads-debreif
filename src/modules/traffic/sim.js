@@ -27,13 +27,21 @@
 // in the same steps. Only an edit of the routes themselves (`forgetHistory`) makes the past be flown again from 0,
 // and the events stay in that replay. The dice are still shared (per-aircraft dice are task 12).
 import { ktToFtps } from '../../core/units.js';
-import { iasToTasKt } from '../../core/t6-performance.js';
-import { windTriangle } from '../../core/wind.js';
 import { createDice } from './dice.js';
 import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt } from './route.js';
+import { tickAircraft, initMode } from './tick-aircraft.js';
+import { makePflFromArea } from './nav-plans.js';
+import { buildPflRail } from './pfl-rail.js';
+import { buildFullHighKeyRail, HIGH_KEY_PT } from './high-key.js';
 
 /** The step, in seconds of sim time. */
 export const STEP_SEC = 0.05;
+
+/** Standard gravity in ft/s² for coordinated turn kinematics. */
+export const G_FTPS2 = 32.174;
+
+/** Maximum roll rate authority in deg/s (SPEC-traffic-vector). */
+export const MAX_ROLL_RATE_DPS = 45;
 
 /** Standard aircraft types and their colors. Supports legacy V6 names plus Hawk and Hornet. */
 export const TYPE_COLORS = Object.freeze({
@@ -105,7 +113,12 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   const history = new Map(); // step -> snapshot (taken before the events at that step)
   let every = SNAPSHOT_EVERY_STEPS;
 
-  const routeOptions = () => setup.routeOptions ?? DEFAULT_ROUTE_OPTIONS;
+  const routeOptions = () => ({
+    ...DEFAULT_ROUTE_OPTIONS,
+    ...(setup.routeOptions ?? {}),
+    windKt: setup.windKt ?? setup.routeOptions?.windKt ?? 0,
+    windFromDeg: setup.windFromDeg ?? setup.routeOptions?.windFromDeg ?? 360,
+  });
   const routeById = (id) => setup.routes.find((r) => r.id === id);
   /** The route an aircraft is on now; V6 falls back to the first route if it has gone. */
   const routeOf = (a) => routeById(a.routeId) || setup.routes[0];
@@ -122,18 +135,49 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.routeId = route.id;
     a.active = true;
     a.landed = false;
+    a.intent = a.intent ?? (route?.landOdds === 1 ? 'full_stop' : 'touch_and_go');
     a.distFt = pointDistFt(route, Math.min(+a.startIndex || 0, route.points.length - 1), routeOptions());
     a.lastLap = -1;
     a.splitTaken = {};
     a.trail = [];
     a.command = null;
     a.engineFailed = false;
-    delete a.customAlt;
-    delete a.customKt;
-    delete a.customHeading;
-    delete a.customX;
-    delete a.customY;
+    a.mode = 'RAIL';
+    delete a._blendStart;
+    delete a._blendTarget;
+    delete a._blendTimer;
     delete a.touchAndGo;
+
+    // Continuous 3D Cartesian vector state initialization (Slice A & B)
+    const p = posOnRoute(route, a.distFt, routeOptions());
+    a.x = p.x;
+    a.y = p.y;
+    a.alt = p.alt ?? a.fallbackAlt;
+    a.iasKt = p.kt ?? a.fallbackKt;
+    a.headingDeg = p.headingDeg;
+    a.bankDeg = 0;
+    const startWp = route.points?.[a.startIndex];
+    const isClosedPatternStart = route.id === 'PAT1' && (startWp?.tag === 'departure_end' || a.startIndex === 1 || /closed\s*pattern/i.test(startWp?.label || ''));
+    if (isClosedPatternStart) {
+      a.mode = 'PHYSICS';
+      a.phase = 'closed_pattern';
+      a.command = 'closed_pattern';
+      a.alt = 2400;
+      a.iasKt = 140;
+      a.headingDeg = 298;
+      a.x = route.points[a.startIndex]?.x ?? -4066.03;
+      a.y = route.points[a.startIndex]?.y ?? 680.56;
+      a.closedPatternBankDeg = a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
+      a.closedPatternPitchDeg = a.closedPatternPitchDeg ?? setup.settings?.closedPatternPitchDeg ?? 10;
+      a._closedPhase = 1;
+    } else {
+      const isBrkPoint = route.id === 'PAT1' && (startWp?.tag === 'break' || a.startIndex === 9 || p.seg === 9 || a.startIndex === 2 || p.seg === 2 || /break/i.test(startWp?.label || ''));
+      a.phase = p.phase || (isBrkPoint ? 'break' : 'initial');
+    }
+    a.trackDeg = a.headingDeg;
+    a.crabDeg = 0;
+    a.gsKt = a.iasKt;
+    a.tag = startWp?.tag ?? p.tag ?? route.points?.[p.seg]?.tag;
     return a;
   }
 
@@ -141,15 +185,15 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
    * A new aircraft (V6 `makeAircraft`, line 234), started but not yet flown. Like V6's it notes,
    * once, the height of its start point (2,500 ft if that has none), for a route with no legs.
    */
-  function makeAircraft({ id, type, routeId, startIndex, startsAt }) {
-    return toStart({ id, type, color: TYPE_COLORS[type] || '#fff', fallbackKt: TYPE_FALLBACK_KT[type] ?? 120, fallbackAlt: (routeById(routeId) || setup.routes[0])?.points[startIndex]?.alt || 2500, startRouteId: routeId, startIndex, startsAt });
+  function makeAircraft({ id, type, routeId, startIndex, startsAt, intent }) {
+    return toStart({ id, type, color: TYPE_COLORS[type] || '#fff', fallbackKt: TYPE_FALLBACK_KT[type] ?? 120, fallbackAlt: (routeById(routeId) || setup.routes[0])?.points[startIndex]?.alt || 2500, startRouteId: routeId, startIndex, startsAt, intent });
   }
 
   /** An aircraft from a `setup.aircraft` entry. */
-  const aircraftFromSpec = (spec) => makeAircraft({ id: spec.id, type: spec.type, routeId: spec.routeId, startIndex: spec.startIndex, startsAt: spec.startsAtSec });
+  const aircraftFromSpec = (spec) => makeAircraft({ id: spec.id, type: spec.type, routeId: spec.routeId, startIndex: spec.startIndex, startsAt: spec.startsAtSec, intent: spec.intent });
 
   /** What an aircraft is before it flies: enough to make it again with `toStart`. */
-  const baseOf = (a) => ({ id: a.id, type: a.type, color: a.color, fallbackKt: a.fallbackKt, fallbackAlt: a.fallbackAlt, startRouteId: a.startRouteId, startIndex: a.startIndex, startsAt: a.startsAt });
+  const baseOf = (a) => ({ id: a.id, type: a.type, color: a.color, fallbackKt: a.fallbackKt, fallbackAlt: a.fallbackAlt, startRouteId: a.startRouteId, startIndex: a.startIndex, startsAt: a.startsAt, intent: a.intent });
   const freshFrom = (rec) => toStart({ ...rec });
 
   /** A callsign is in use if an aircraft has it now or a spawn still to come (the run was rewound past it) will give it. */
@@ -171,9 +215,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
 
   // ── One step ───────────────────────────────────────────────────────────────
 
-  const getWindFromDeg = () => setup.windFromDeg ?? 360;
-  const getWindKt = () => setup.windKt ?? 0;
-
   /** Land or stay, and take a split or not, as an aircraft flies along a pattern (V6 `checkDecisions`, line 385). */
   function checkDecisions(a, oldDist, newDist) {
     const route = routeOf(a);
@@ -184,7 +225,20 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const wrapped = newLap > oldLap || (newDist % lengthFt) < (oldDist % lengthFt);
     if (wrapped && a.lastLap !== newLap) {
       a.lastLap = newLap;
-      if (dice() < (route.landOdds ?? 0.2)) { a.active = false; a.landed = true; return; }
+      if (a.intent === 'full_stop' || (route.landOdds === 1.0 && a.intent !== 'go_around')) {
+        a.active = false;
+        a.landed = true;
+        a.status = 'landed';
+        a.phase = 'full_stop';
+        a.alt = 1880;
+        a.mode = 'RAIL';
+        delete a._blendStart;
+        delete a._blendTarget;
+        delete a._blendTimer;
+        return;
+      } else {
+        a.phase = 'touch_and_go';
+      }
     }
     // Each split from this pattern rolls in turn, and a later one can override an earlier one (V6 bug #47, kept for now).
     for (const split of setup.routes) {
@@ -198,6 +252,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         if (dice() < (split.splitOdds ?? 0.5)) {
           a.routeId = split.id;
           a.distFt = 0;
+          a.phase = 'route';
         }
       }
     }
@@ -207,17 +262,30 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   function handleRouteEnd(a, overshootFt) {
     const route = routeOf(a);
     if (route.kind === 'pattern') { a.distFt = overshootFt; return; }
+    const isPfl = route.id === 'ENT4' || route.id === 'PFL' || route.id === 'PFL_HIGH_KEY' || route.kind === 'pfl' || /pfl/i.test(route.name);
+    if (isPfl) {
+      a.active = false;
+      a.landed = true;
+      a.phase = 'landing';
+      return;
+    }
     const target = routeById(route.attachTo);
     if (target && target.kind === 'pattern') {
       const mergeIndex = Math.max(0, Math.min(+route.mergeIndex || 0, target.points.length - 1));
       const curPos = whereIs(a, route);
       a.routeId = target.id;
       a.distFt = closestDistFt(target, curPos, routeOptions()) + Math.max(0, overshootFt);
-      // TR-08: a straight-in joining at the threshold (first point) rolls landing decision once
+      const nextP = whereIs(a, target);
+      a.phase = nextP.phase || (target.kind === 'pattern' ? 'initial' : 'route');
+      // TR-08: a straight-in joining at the threshold (first point) evaluates landing intent
       if (mergeIndex === 0) {
-        if (dice() < (target.landOdds ?? 0.2)) {
+        if (a.intent === 'full_stop' || (target.landOdds === 1.0 && a.intent !== 'go_around')) {
           a.active = false;
           a.landed = true;
+          a.status = 'landed';
+          a.phase = 'full_stop';
+        } else {
+          a.phase = 'touch_and_go';
         }
       }
       return;
@@ -225,75 +293,47 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.active = false;
   }
 
-  /** Everything V6's `step` does for one aircraft in one step of play (line 454). */
-  function fly(a) {
-    if (a.command === 'breakout') {
-      const p = whereIs(a);
-      a.customX = (a.customX ?? p.x) + Math.sin((a.customHeading * Math.PI) / 180) * ktToFtps(a.customKt ?? 140) * STEP_SEC;
-      a.customY = (a.customY ?? p.y) + Math.cos((a.customHeading * Math.PI) / 180) * ktToFtps(a.customKt ?? 140) * STEP_SEC;
-      a.customAlt = Math.min(3500, (a.customAlt ?? (p.alt ?? a.fallbackAlt)) + 25 * STEP_SEC);
-      a.headingDeg = a.customHeading;
-      a.gsKt = a.customKt ?? 140;
-      if (steps % TRAIL_EVERY_STEPS === 0) {
-        a.trail.push({ x: a.customX, y: a.customY });
-        if (a.trail.length > TRAIL_POINTS) a.trail.shift();
-      }
-      return;
-    }
-
-    const route = routeOf(a);
-    const options = routeOptions();
-    const before = a.distFt;
-    const p = whereIs(a, route);
-    let iasKt = a.customKt ?? (p.kt ?? a.fallbackKt);
-
-    if (a.engineFailed) {
-      // Airspeed decays toward 110 KIAS best glide
-      iasKt = a.customKt = Math.max(110, (a.customKt ?? (p.kt ?? a.fallbackKt)) - 15 * STEP_SEC);
-      // Emergency glide descent: ~1,000 fpm = 16.7 ft/sec
-      a.customAlt = Math.max(1880, (a.customAlt ?? (p.alt ?? a.fallbackAlt)) - 16.7 * STEP_SEC);
-      if (a.customAlt <= 1880) {
-        a.active = false;
-        a.landed = true;
-      }
-    }
-
-    let gsKt = iasKt;
-    let crabDeg = 0;
-    let headingDeg = p.headingDeg;
-
-    const windKt = getWindKt();
-    const windFromDeg = getWindFromDeg();
-    if (windKt > 0 && iasKt > 0) {
-      const altFt = a.customAlt ?? (p.alt ?? a.fallbackAlt);
-      const tasKt = iasToTasKt(iasKt, altFt);
-      const wt = windTriangle(p.headingDeg, tasKt, windFromDeg, windKt);
-      gsKt = wt.canHoldTrack ? Math.max(wt.groundSpeedKt, 10) : 10;
-      crabDeg = wt.crabDeg;
-      headingDeg = wt.headingDeg;
-    }
-
-    a.gsKt = gsKt;
-    a.crabDeg = crabDeg;
-    a.headingDeg = headingDeg;
-
-    a.distFt += ktToFtps(gsKt) * STEP_SEC;
-    const lengthFt = routeLengthFt(route, options);
-    if (route.kind === 'pattern') checkDecisions(a, before, a.distFt);
-    if (a.active && lengthFt && a.distFt >= lengthFt && !isClosedRoute(route)) handleRouteEnd(a, a.distFt - lengthFt);
-    if (steps % TRAIL_EVERY_STEPS === 0) {
-      const cur = whereIs(a);
-      a.trail.push({ x: cur.x, y: cur.y });
-      if (a.trail.length > TRAIL_POINTS) a.trail.shift();
-    }
-  }
 
   function stepOnce() {
     t += STEP_SEC; // added up one step at a time, as V6 does, so the clock is V6's to the last digit
     steps++;
+    const opt = routeOptions();
+    const wind = { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 };
     for (const a of aircraft) {
       if (!a.active || t < a.startsAt) continue;
-      fly(a);
+      const route = routeOf(a);
+      const beforeDist = a.distFt;
+      tickAircraft(a, STEP_SEC, wind, route, opt);
+      if (a.mode === 'RAIL' && route && !a.pflRail) {
+        const len = routeLengthFt(route, opt);
+        if (route.kind === 'pattern' && a.distFt >= beforeDist) {
+          checkDecisions(a, beforeDist, a.distFt);
+        }
+        if (a.active && len && a.distFt >= len && !isClosedRoute(route)) {
+          handleRouteEnd(a, a.distFt - len);
+        }
+      }
+
+      // Fallback Doctrine: continuous pattern training loop
+      if (a.active && !a.pflRail && (a.phase === 'touch_and_go' || a.phase === 'takeoff_climb') && a.x <= -3000) {
+        if (!a.command) {
+          // If no contingency command is active, climb to 2,500 ft MSL along runway heading (298°),
+          // turn crosswind climbing to 3,500 ft MSL, and rejoin outer pattern for another overhead break.
+          a.phase = 'takeoff_climb';
+          a.targetAltFt = 2500;
+          a.targetSpeedKt = 140;
+          a.headingDeg = 298;
+          const pat = (route && route.kind === 'pattern') ? route : (setup.routes.find((r) => r.kind === 'pattern') || setup.routes[0]);
+          if (pat && a.routeId !== pat.id) {
+            a.routeId = pat.id;
+          }
+        }
+      }
+
+      if (steps % TRAIL_EVERY_STEPS === 0) {
+        a.trail.push({ x: a.x, y: a.y });
+        if (a.trail.length > TRAIL_POINTS) a.trail.shift();
+      }
     }
     if (steps % every === 0 && !history.has(steps)) remember();
   }
@@ -340,10 +380,16 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     return {
       t, steps, dice: dice.getState(),
       aircraft: aircraft.map((a) => {
-        const { trail, splitTaken, ...rest } = a;
+        const { trail, splitTaken, _blendStart, _blendTarget, ...rest } = a;
         const flat = new Float64Array(trail.length * 2);
         trail.forEach((p, i) => { flat[2 * i] = p.x; flat[2 * i + 1] = p.y; });
-        return { ...rest, splitTaken: { ...splitTaken }, trail: flat };
+        return {
+          ...rest,
+          splitTaken: { ...splitTaken },
+          _blendStart: _blendStart ? { ..._blendStart } : undefined,
+          _blendTarget: _blendTarget ? { ..._blendTarget } : undefined,
+          trail: flat,
+        };
       }),
     };
   }
@@ -354,9 +400,11 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     nextEvent = events.findIndex((ev) => ev.step >= steps);
     if (nextEvent < 0) nextEvent = events.length;
     dice.setState(snap.dice);
-    aircraft = snap.aircraft.map(({ trail, splitTaken, ...rest }) => ({
+    aircraft = snap.aircraft.map(({ trail, splitTaken, _blendStart, _blendTarget, ...rest }) => ({
       ...rest,
       splitTaken: { ...splitTaken },
+      _blendStart: _blendStart ? { ..._blendStart } : undefined,
+      _blendTarget: _blendTarget ? { ..._blendTarget } : undefined,
       trail: Array.from({ length: trail.length / 2 }, (_, i) => ({ x: trail[2 * i], y: trail[2 * i + 1] })),
     }));
   }
@@ -449,7 +497,10 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   // ── What the screen asks ───────────────────────────────────────────────────
 
   function statusOf(a) {
-    if (!a.active) return a.landed ? 'landed' : 'done';
+    if (!a.active) {
+      if (a.status === 'crashed') return 'crashed';
+      return a.landed ? 'landed' : 'done';
+    }
     return t < a.startsAt ? 'waiting' : 'flying';
   }
 
@@ -562,9 +613,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
      * Adds an aircraft. `type` is a V6 type name (default CT-156), `routeId` a route (default the first),
      * `startPoint` counts from 1 as on screen (default 1; past the last point it is the last), `delaySec`
      * is from now (default 0). Returns its callsign. `id` picks the callsign.
-     * @param {{ type?: string, routeId?: string, startPoint?: number, delaySec?: number, id?: string }} [spec]
+     * @param {{ type?: string, routeId?: string, startPoint?: number, delaySec?: number, id?: string, intent?: string }} [spec]
      */
-    spawn({ type = 'CT-156', routeId, startPoint = 1, delaySec = 0, id } = {}) {
+    spawn({ type = 'CT-156', routeId, startPoint = 1, delaySec = 0, id, intent } = {}) {
       settle();
       if (!TYPE_COLORS[type]) throw new RangeError(`unknown aircraft type ${type}`);
       const route = routeId === undefined ? setup.routes[0] : routeById(routeId);
@@ -573,9 +624,25 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (!Number.isInteger(startPoint) || startPoint < 1) throw new RangeError(`the start point counts from 1, not ${startPoint}`);
       if (!Number.isFinite(delaySec)) throw new RangeError(`the delay must be a number of seconds, not ${delaySec}`);
       if (id !== undefined && inUse(id)) throw new RangeError(`callsign ${id} is in use`);
-      const rec = baseOf(makeAircraft({ id: id ?? nextCallsign(), type, routeId: route.id, startIndex: startPoint - 1, startsAt: t + delaySec }));
+      const rec = baseOf(makeAircraft({ id: id ?? nextCallsign(), type, routeId: route.id, startIndex: startPoint - 1, startsAt: t + delaySec, intent }));
       happen({ kind: 'spawn', rec });
       return rec.id;
+    },
+
+    /**
+     * A new aircraft already in an engine-out glide at a point in the training area (Phase 2.5):
+     * `radialDeg` °T and `distNm` NM from the field, `altFt` MSL, at 125 KIAS heading back toward the field,
+     * then the PFL command takes it to High Key and onto the PFL rails. Returns its callsign.
+     * @param {{ type?: string, radialDeg?: number, distNm?: number, altFt?: number, id?: string }} [spec]
+     */
+    spawnPflFromArea({ type = 'CT-156', radialDeg = 180, distNm = 5, altFt = 7500, id } = {}) {
+      const { spawn: from } = makePflFromArea(radialDeg, distNm, altFt); // clamps the three inputs to their ranges
+      const route = setup.routes.find((r) => r.kind === 'pattern') ?? setup.routes[0];
+      const callsign = this.spawn({ type, routeId: route?.id, startPoint: 1, delaySec: 0, id });
+      const a = aircraft.find((ac) => ac.id === callsign);
+      Object.assign(a, { x: from.x, y: from.y, alt: from.alt, iasKt: from.iasKt, headingDeg: from.headingDeg, bankDeg: 0 });
+      this.command(callsign, 'pfl_current');
+      return callsign;
     },
 
     /**
@@ -635,43 +702,141 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     },
 
     /**
-     * Issues an in-flight command to an aircraft: 'breakout', 'engine_fail', 'go_around', 'touch_and_go'.
+     * Issues an in-flight command to an aircraft: 'breakout', 'engine_fail', 'go_around', 'touch_and_go', 'closed_pattern'.
      */
-    command(aircraftId, action) {
+    command(aircraftId, action, options = {}) {
       settle();
       const a = aircraft.find((ac) => ac.id === aircraftId);
       if (!a) return false;
       if (action === 'breakout') {
-        const curP = whereIs(a);
-        a.command = 'breakout';
-        a.customHeading = ((a.headingDeg ?? 118) + 90) % 360;
-        a.customAlt = Math.max(a.customAlt ?? (curP.alt ?? 2500), 3500);
-        a.customKt = 140;
-        a.customX = curP.x;
-        a.customY = curP.y;
+        a.command = action;
+        a.landed = false;
+        a.active = true;
+        a.mode = 'PHYSICS';
+        delete a._blendStart;
+        delete a._blendTarget;
+        delete a._blendTimer;
+        a.phase = 'breakout';
+        a.intent = 'overhead';
+      } else if (action === 'closed_pattern') {
+        a.command = action;
+        a.landed = false;
+        a.active = true;
+        a.mode = 'PHYSICS';
+        delete a._blendStart;
+        delete a._blendTarget;
+        delete a._blendTimer;
+        a.phase = 'closed_pattern';
+        a.closedPatternBankDeg = options?.bankDeg ?? a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
+        a.closedPatternPitchDeg = options?.pitchDeg ?? a.closedPatternPitchDeg ?? setup.settings?.closedPatternPitchDeg ?? 10;
+        a._closedPhase = 1;
+      } else if (action === 'climb_high_key') {
+        const env = { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 };
+        const distToHk = Math.hypot(HIGH_KEY_PT.x - (a.x ?? 0), HIGH_KEY_PT.y - (a.y ?? 0));
+        const alt = a.alt ?? 3500;
+        let rail;
+        if (distToHk <= 1500 && alt >= 4750) {
+          rail = buildPflRail(a, env, { targetKey: 'high_key', forceHighKey: true, ...options });
+          rail.routeId = 'PFL_HIGH_KEY';
+          a.engineFailed = true;
+        } else {
+          rail = buildFullHighKeyRail(a, env, options);
+          a.engineFailed = false;
+        }
+        a.pflRail = rail;
+        a.pflRailIndex = 0;
+        a.distFt = 0;
+        a.mode = 'RAIL';
+        a.routeId = 'PFL_HIGH_KEY';
+        a.navPlan = null;
+        a.command = action;
+        a.landed = false;
+        a.active = true;
+        delete a._blendStart;
+        delete a._blendTarget;
+        delete a._blendTimer;
+        a.phase = rail[0]?.phase || 'climb_high_key';
+        a.config = rail[0]?.config || 'Clean';
+      } else if (action === 'climb_low_key') {
+        a.command = action;
+        a.landed = false;
+        a.active = true;
+        a.mode = 'PHYSICS';
+        delete a._blendStart;
+        delete a._blendTarget;
+        delete a._blendTimer;
+        a.phase = 'pfl';
       } else if (action === 'engine_fail') {
+        a.command = action;
+        a.landed = false;
+        a.active = true;
         a.engineFailed = true;
-        a.command = 'engine_fail';
-        a.customKt = 110;
+        a.mode = 'PHYSICS';
+        a.model = 'NRG';
+        delete a._blendStart;
+        delete a._blendTarget;
+        delete a._blendTimer;
+        a.phase = 'pfl';
+      } else if (action === 'pfl_current') {
+        const env = { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 };
+        const pflRail = buildPflRail(a, env, options);
+        a.pflRail = pflRail;
+        a.pflRailIndex = 0;
+        a.distFt = 0;
+        a.engineFailed = true;
+        a.mode = 'RAIL';
+        a.routeId = 'PFL_HIGH_KEY';
+        a.navPlan = null;
+        a.command = action;
+        a.landed = false;
+        a.active = true;
+        delete a._blendStart;
+        delete a._blendTarget;
+        delete a._blendTimer;
+        a.phase = pflRail[0]?.phase || 'pfl_zoom';
+        a.config = pflRail[0]?.config || 'clean';
       } else if (action === 'go_around') {
-        a.command = 'go_around';
+        a.command = action;
         a.landed = false;
         a.active = true;
         a.engineFailed = false;
-        delete a.customX;
-        delete a.customY;
-        delete a.customHeading;
-        const pat = setup.routes.find((r) => r.id === 'PAT1') ?? setup.routes[0];
-        if (pat) {
-          a.routeId = pat.id;
-          a.distFt = pointDistFt(pat, 1, routeOptions());
-          a.customAlt = 2500;
-          a.customKt = 140;
-        }
+        a.mode = 'PHYSICS';
+        delete a._blendStart;
+        delete a._blendTarget;
+        delete a._blendTimer;
+        a.phase = 'go_around';
       } else if (action === 'touch_and_go') {
         a.touchAndGo = true;
         a.landed = false;
+        a.active = true;
+        a.engineFailed = false;
+        a.mode = 'RAIL';
+        delete a._blendStart;
+        delete a._blendTarget;
+        delete a._blendTimer;
+        const pat = setup.routes.find((r) => r.id === 'PAT1') ?? setup.routes[0];
+        if (pat) {
+          a.routeId = pat.id;
+          a.distFt = pointDistFt(pat, 0, routeOptions());
+          const p = posOnRoute(pat, a.distFt, routeOptions());
+          a.x = p.x;
+          a.y = p.y;
+          a.alt = 1892;
+          a.iasKt = 100;
+          a.headingDeg = p.headingDeg;
+          a.bankDeg = 0;
+          a.phase = 'touch_and_go';
+        }
       }
+      return true;
+    },
+
+    /** Sets the landing intent for an active aircraft: 'touch_and_go', 'full_stop', 'go_around'. */
+    setIntent(aircraftId, intent) {
+      settle();
+      const a = aircraft.find((ac) => ac.id === aircraftId);
+      if (!a) return false;
+      a.intent = intent;
       return true;
     },
 
@@ -680,23 +845,35 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     /** What is where right now. */
     state() {
       const list = aircraft.map((a) => {
-        const p = whereIs(a);
-        const iasKt = a.customKt ?? (p.kt ?? a.fallbackKt);
-        const altFt = a.customAlt ?? (p.alt ?? a.fallbackAlt);
-        const x = a.customX ?? p.x;
-        const y = a.customY ?? p.y;
-        const headingDeg = a.customHeading ?? (a.headingDeg ?? p.headingDeg);
+        const route = routeOf(a);
+        const p = a.pflRail ? a : whereIs(a);
+        const iasKt = a.iasKt ?? (p.kt ?? a.fallbackKt);
+        const altFt = a.landed ? (a.alt ?? p.alt ?? 1892) : (a.alt ?? (p.alt ?? a.fallbackAlt));
+        const x = a.x ?? p.x;
+        const y = a.y ?? p.y;
+        const headingDeg = a.headingDeg ?? p.headingDeg;
         return {
           id: a.id, type: a.type, color: a.color, routeId: a.routeId,
+          mode: a.mode ?? 'RAIL',
           x, y, alt: altFt, kt: iasKt,
           headingDeg,
-          trackDeg: a.customHeading ?? p.headingDeg,
+          bankDeg: a.bankDeg ?? 0,
+          phase: a.phase ?? 'initial',
+          tag: a.tag ?? p.tag ?? route?.points?.[p.seg]?.tag,
+          trackDeg: a.trackDeg ?? a.headingDeg ?? p.headingDeg,
           crabDeg: a.crabDeg ?? 0,
           groundSpeedKt: a.gsKt ?? iasKt,
-          leg: p.seg + 1, distFt: a.distFt,
+          leg: p.seg !== undefined ? p.seg + 1 : 1, distFt: a.distFt,
           status: statusOf(a), startsAt: a.startsAt,
+          active: a.active,
+          landed: Boolean(a.landed),
           engineFailed: Boolean(a.engineFailed),
           command: a.command ?? null,
+          intent: a.intent ?? 'touch_and_go',
+          closedPatternBankDeg: a.closedPatternBankDeg,
+          closedPatternPitchDeg: a.closedPatternPitchDeg,
+          config: a.config,
+          pflRail: a.pflRail ?? null,
         };
       });
       return { t, aircraft: list, conflicts: findConflicts(list.filter((a) => a.status === 'flying')) };

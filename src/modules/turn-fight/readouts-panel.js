@@ -2,7 +2,8 @@
 // (SPEC-turn-fight, "Readouts": built with h(), never as HTML). Blue and Red
 // are labelled B and R as well as coloured, so colour is never the only signal.
 // render() can run ten times a second: it rebuilds only when the rows change
-// (Climb and dive adds two), and otherwise changes the text that differs.
+// (Climb and dive adds two), and otherwise changes the text that differs. A row
+// may give `blueTone` or `redTone` ('alert'): that cell is marked as a flag.
 import { h, clear } from '../../ui-kit/dom.js';
 
 const heading = (letter, name, who) =>
@@ -40,8 +41,12 @@ export function createReadoutTable({ caption }) {
       }
       rows.forEach((row, i) => {
         const texts = row.text === undefined ? [row.blue, row.red] : [row.text];
+        const tones = [row.blueTone, row.redTone];
         texts.forEach((text, k) => {
           if (cells[i][k].textContent !== text) cells[i][k].textContent = text;
+          // A flag's colour goes beside its words (the text says OVER G or STALL), never instead of them.
+          const tone = row.text === undefined && tones[k] === 'alert' ? 'tf-flag' : '';
+          if (cells[i][k].className !== tone) cells[i][k].className = tone;
         });
       });
     },

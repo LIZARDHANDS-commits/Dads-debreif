@@ -18,7 +18,6 @@ import { createStandardsPanel } from './standards-panel.js';
 import { createLayout } from './layout.js';
 import { createMapView } from './map2d/view.js';
 import { createView3d } from './view3d/view.js';
-import { createEmView } from './em.js';
 import { tennisAt } from './tennis.js';
 import { createTennisPanel } from './tennis-panel.js';
 import { FIELD_ELEVATION_FT } from './data/cymj.js';
@@ -200,19 +199,10 @@ function mount(root, app) {
       layout.update({ view: '2d' });
     },
   });
-  const em = createEmView(ui.emCanvas, {
-    timers: app.scheduler,
-    base: document.baseURI,
-    flight: () => flight,
-    time: () => clock?.t ?? 0,
-    settings: () => layout.get(),
-    onChart: (altitude) => ui.setEmChart(altitude),
-  });
-  // Only the view that's showing draws, and the EM chart only while open (#39).
+  // Only the view that's showing draws.
   const redraw = () => {
     const on = layout.get();
     (on.view === '3d' ? view3d : map).requestDraw();
-    if (on.emOpen) em.requestDraw();
   };
 
   // The METAR line (SPEC-debrief: Weather at the time of the flight): the
@@ -635,7 +625,6 @@ function mount(root, app) {
     standardsPanel?.dispose();
     map.dispose();
     view3d.dispose();
-    em.dispose();
     ui.dispose();
     stylesheet.remove();
   };

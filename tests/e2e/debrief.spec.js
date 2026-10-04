@@ -1,3 +1,14 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
 // Browser tests for the Debrief Viewer (SPEC-debrief: Testing strategy).
 import { readFileSync } from 'node:fs';
 import { test, expect } from './fixtures.js';
@@ -187,14 +198,13 @@ test('leaving the debrief while it plays stops everything it started (R4)', asyn
   expect(await page.locator('link[rel="stylesheet"][href*="debrief"]').count()).toBe(0);
 });
 
-test('leaving from 3D with the EM chart and tennis ball open stops everything too (R4)', async ({ page }) => {
+test('leaving from 3D with the tennis ball open stops everything too (R4)', async ({ page }) => {
   await openRoute(page, '#/');
   const fresh = await page.evaluate(() => window.__ooda.stats());
   await page.evaluate(() => { location.hash = '#/debrief'; });
   await page.waitForFunction(() => window.__ooda.stats().mounted === 'debrief');
   await loadExample(page);
   await page.getByRole('button', { name: 'Tools' }).click();
-  await page.getByRole('checkbox', { name: 'EM chart' }).check();
   await page.getByRole('checkbox', { name: 'Tennis ball' }).check();
   await page.keyboard.press('Escape');
   await page.getByText('3D', { exact: true }).click();
@@ -353,14 +363,11 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]
     await page.getByRole('button', { name: 'Routes and charts' }).click();
     await page.getByText('Chart alignment').click();
     expect(await overlaps()).toEqual([]);
-    // And with the EM chart open below the map (#37).
+    // And with the tennis ball open in Tools.
     await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Tools' }).click();
-    await page.getByRole('checkbox', { name: 'EM chart' }).check();
     await page.getByRole('checkbox', { name: 'Tennis ball' }).check();
     expect(await overlaps()).toEqual([]);
-    await page.keyboard.press('Escape');
-    await page.screenshot({ path: test.info().outputPath('debrief-em.png') });
     // The same in 3D, with its settings open.
     await page.keyboard.press('Escape');
     await page.getByText('3D', { exact: true }).click();
@@ -905,52 +912,12 @@ test('VNC charts: off at first, fetched only when chosen, "Not for navigation", 
 });
 
 
-const emPicture = (page) => page.locator('canvas.debrief-em-canvas').evaluate((canvas) => {
-  const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-  let hash = 0;
-  for (let i = 0; i < data.length; i += 7) hash = (hash * 31 + data[i]) | 0;
-  return hash;
-});
-
-test('EM chart: closed at first, opened from Tools below the map, charts fetched only when shown (#37, R5)', async ({ page }) => {
-  const asked = [];
-  page.on('request', (req) => /\/em-\d+\.jpg$/.test(req.url()) && asked.push(req.url().split('/').pop()));
+test('Tools menu: EM chart removed, tennis ball available (#37)', async ({ page }) => {
   await openRoute(page, '#/debrief');
   await loadExample(page);
-  const scrubber = page.getByLabel('Flight time');
-  await scrubber.fill(String(Number(await scrubber.getAttribute('min')) + 40 * 60));
-  const panel = page.locator('.debrief-em');
-  await expect(panel).toBeHidden();
-  expect(asked).toEqual([]);
-  const mapBefore = await page.locator('.debrief-map-wrap').boundingBox();
   await page.getByRole('button', { name: 'Tools' }).click();
-  await page.getByRole('checkbox', { name: 'EM chart' }).check();
-  await page.keyboard.press('Escape');
-  await expect(panel).toBeVisible();
-  // The map shrinks to make room; the panel sits below it, not over it.
-  const mapAfter = await page.locator('.debrief-map-wrap').boundingBox();
-  const emBox = await panel.boundingBox();
-  expect(mapAfter.height).toBeLessThan(mapBefore.height);
-  expect(emBox.y).toBeGreaterThanOrEqual(mapAfter.y + mapAfter.height);
-  await expect(page.locator('.debrief-em-note')).toHaveText(/^\d{1,2},\d{3} ft chart\./);
-  await expect.poll(() => asked.length).toBe(1);
-
-  const changes = async (act) => {
-    const b = await emPicture(page);
-    await act();
-    await expect.poll(() => emPicture(page)).not.toBe(b);
-  };
-  await changes(() => page.getByRole('button', { name: 'Ahead 1 second' }).click());
-  await changes(() => page.getByLabel('Trail (60 s)').uncheck());
-  await changes(() => page.getByLabel('Chart', { exact: true }).selectOption({ label: '6,500 ft' }));
-  await expect(page.locator('.debrief-em-note')).toHaveText(/^6,500 ft chart\./);
-  await page.getByRole('button', { name: 'Close EM chart' }).click();
-  await expect(panel).toBeHidden();
-  // Closed, it draws nothing while playing (#39).
-  await page.getByRole('button', { name: 'Play' }).click();
-  const still = await emPicture(page);
-  await page.waitForTimeout(300);
-  expect(await emPicture(page)).toBe(still);
+  await expect(page.getByRole('checkbox', { name: 'EM chart' })).toHaveCount(0);
+  await expect(page.getByRole('checkbox', { name: 'Tennis ball' })).toBeVisible();
 });
 
 test('tennis ball: opened from Tools, one answer in the panel, on the map and in 3D (#19)', async ({ page }) => {

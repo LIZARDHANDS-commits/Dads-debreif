@@ -55,12 +55,12 @@ export const test = base.extend({
 
 export { expect };
 
-// Runs axe (WCAG 2.0 A and AA rules) on the page as it is now and fails with a
+// Runs axe (WCAG 2.1 A and AA rules, Q-T3 decided) on the page as it is now and fails with a
 // readable list: rule id, impact, what it means, and the elements affected.
 // `exclude` is a list of CSS selectors to skip; use it only for a named,
 // known problem with a TODO naming the rule, never to silence a whole rule.
 export async function expectNoA11yViolations(page, { exclude = [] } = {}) {
-  let builder = new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']);
+  let builder = new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']);
   for (const selector of exclude) builder = builder.exclude(selector);
   const { violations } = await builder.analyze();
   const report = violations.map((v) => {

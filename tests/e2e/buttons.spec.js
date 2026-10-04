@@ -1,3 +1,14 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
 // R3: every visible button and link does something, and causes no errors.
 import { test, expect } from './fixtures.js';
 import { ROUTES, openRoute } from './routes.js';
@@ -15,7 +26,11 @@ async function tagControls(page) {
   );
 }
 
-for (const route of ROUTES) {
+// Traffic is left out of this walk on Patrick's word (4 Oct 06:54Z: "Just delete those shitty tests"); its
+// faults are on docs/modules/traffic/plan.md, step 3.
+const CHECKED_ROUTES = ROUTES.filter((route) => route !== '#/traffic');
+
+for (const route of CHECKED_ROUTES) {
   test(`every control on ${route} does something`, async ({ page }) => {
     // Each click starts from a fresh page, so nothing remembered from the last
     // one (a collapsed panel, say) moves the controls around.

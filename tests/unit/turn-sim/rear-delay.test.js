@@ -1,3 +1,14 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
 // The offset box's delayed turns, SMM 16.41 para 112a: the rear element (#3 and #4) turns rearDelaySec after the front element
 // (#1 and #2) has started, 10 to 15 s (12.5 s by default), so it misses them and flows to trail. V6 chained all four a base
 // delay apart (#3 at 32 s, #4 at 48 s) and, in a left turn, the solved delays sent #4 off first (6.3 s, before Lead at 16 s).

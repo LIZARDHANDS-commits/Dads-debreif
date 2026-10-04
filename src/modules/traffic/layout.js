@@ -13,20 +13,12 @@
 // data. All names go in as text (h, textContent), never as HTML.
 import { h, clear } from '../../ui-kit/dom.js';
 import { createPanel } from '../../ui-kit/panel.js';
-import { createMenu } from './playback-bar.js';
 
 export const SIMPLIFIED_NOTE = 'Simplified: aircraft fly their routes at set speeds, no avoiding action.';
 
-/** What + New route offers, in order. `needs` is a feature that has to exist. */
-export const NEW_ROUTE_CHOICES = Object.freeze([
-  { kind: 'pattern', label: 'Pattern' },
-  { kind: 'entry', label: 'Entry' },
-  { kind: 'split', label: 'Split' },
-  { kind: 'pfl', label: 'PFL', needs: 'pfl' },
-]);
-
-/** The choices to list, leaving out those whose feature isn't built yet: available = { pfl }. */
-export const newRouteChoices = (available = {}) => NEW_ROUTE_CHOICES.filter((c) => !c.needs || available[c.needs] === true);
+/** Backwards-compatibility stub: published military procedures are immutable. */
+export const NEW_ROUTE_CHOICES = Object.freeze([]);
+export const newRouteChoices = () => NEW_ROUTE_CHOICES;
 
 /** The second line of a route's row: where it joins ("→ Pattern 1 P8", "P6 → P1"), or its kind. */
 export const routeDetail = (row) => row.link || row.kind;
@@ -36,37 +28,21 @@ export const routeDetail = (row) => row.link || row.kind;
  * on: { selectRoute(id | null), newRoute(kind), toggleColumn(name, open), camera(name) } where name is 'routes' or 'aircraft'
  * for a column and 'fit', 'high' or 'low' for a camera button (the 3D view's; they show only while 3D does).
  * available: { pfl } (the PFL choice in + New route).
- * @param {{ bar: any, listen: any, on?: { selectRoute?: (id: string | null) => void, newRoute?: (kind: string) => void, toggleColumn?: (name: string, open: boolean) => void, camera?: (name: string) => void, toggleHeightLines?: (active: boolean) => void }, available?: { pfl?: boolean } }} options
+ * @param {{ bar: any, listen: any, on?: { selectRoute?: (id: string | null) => void, newRoute?: (kind: string) => void, toggleColumn?: (name: string, open: boolean) => void, camera?: (name: string) => void, toggleHeightLines?: (active: boolean) => void }, available?: { pfl?: boolean }, filterSplits?: boolean }} options
  */
-export function createLayout({ bar, listen, on = {}, available = {} }) {
+export function createLayout({ bar, listen, on = {}, available = {}, filterSplits = false }) {
   let selectedId = null;
-  let closedRoute = null; // the route whose details were just closed with ✕, to give focus back to its row
+  let closedRoute = null;
 
   // Slots for pieces built elsewhere; an empty one takes no room.
   const slot = (name) => h('div', { class: `traffic-slot traffic-slot-${name}` });
   const slots = { pointTable: slot('point-table'), leftExtras: slot('left-extras'), profiles: slot('profiles'), spawner: slot('spawner'), aircraft: slot('aircraft'), conflicts: slot('conflicts'), settings: slot('settings') };
 
-  // Left column: Profiles and notes (closed: one line), the routes list, + New route, and the selected route's point table.
+  // Left column: Profiles and notes (closed: one line), and the routes list.
   const list = h('ul', { class: 'route-list' });
-  const empty = h('p', { class: 'route-empty' }, 'No routes yet. Use + New route to make one.');
-  const newRoute = createMenu({
-    label: '+ New route',
-    listen,
-    children: newRouteChoices(available).map((choice) =>
-      h('button', { type: 'button', class: 'button menu-item', onclick: () => {
-        newRoute.setOpen(false);
-        newRoute.button.focus(); // the choice is gone, so keyboard focus goes back to the button
-        on.newRoute?.(choice.kind);
-      } }, choice.label)),
-  });
-  const tableTitle = h('h3', { class: 'point-table-title' });
-  const tableClose = h('button', { type: 'button', class: 'button point-table-close', 'aria-label': 'Close route details', onclick: () => {
-    closedRoute = selectedId;
-    on.selectRoute?.(null);
-  } }, '✕');
-  const tableSection = h('section', { class: 'point-table-section', hidden: true }, h('div', { class: 'point-table-head' }, tableTitle, tableClose), slots.pointTable);
+  const empty = h('p', { class: 'route-empty' }, 'No routes yet.');
   const routesPanel = createPanel({ title: 'Routes', onToggle: (collapsed) => columnToggled('routes', !collapsed) });
-  routesPanel.body.append(slots.profiles, list, empty, newRoute.element, tableSection, slots.leftExtras); // Profiles and notes on top: opened, it is in the first screen (UI-02)
+  routesPanel.body.append(slots.profiles, list, empty, slots.pointTable, slots.leftExtras); // Profiles and notes on top: opened, it is in the first screen (UI-02)
   const routesCol = h('aside', { class: 'traffic-col traffic-col-routes', 'aria-label': 'Routes' }, routesPanel.element);
 
   // Middle: the bar, then the map with its one-line hint, then the note under it.
@@ -76,7 +52,20 @@ export function createLayout({ bar, listen, on = {}, available = {} }) {
   // The 3D view: a box the size of the map for its canvases (made when 3D opens), the three camera buttons over
   // it, and a line for "Loading 3D…" or why 3D can't start (that one shows in 2D too, where the person stays).
   const stage3d = h('div', { class: 'traffic-3d', hidden: true });
-  const cameraButton = (name, label) => h('button', { type: 'button', class: 'button', onclick: () => on.camera?.(name) }, label);
+  const makeInstant = (fn) => {
+    let last = 0;
+    return (e) => {
+      if (e && e.button !== undefined && e.button !== 0) return;
+      const now = Date.now();
+      if (now - last < 250) return;
+      last = now;
+      fn?.(e);
+    };
+  };
+  const cameraButton = (name, label) => {
+    const trigger = makeInstant(() => on.camera?.(name));
+    return h('button', { type: 'button', class: 'button', onpointerdown: trigger, onclick: trigger }, label);
+  };
   const camera = h('div', { class: 'traffic-camera', role: 'group', 'aria-label': 'Camera', hidden: true }, cameraButton('fit', 'Fit'), cameraButton('high', 'High look-down'), cameraButton('low', 'Low chase'));
   const note3d = h('p', { class: 'traffic-note3d', role: 'status', hidden: true });
   let photoText = '';
@@ -113,9 +102,10 @@ export function createLayout({ bar, listen, on = {}, available = {} }) {
     for (const row of rows) {
       const swatch = h('span', { class: `route-swatch kind-${row.kind}`, 'aria-hidden': 'true' });
       swatch.style.setProperty('--route', row.color);
+      const trigger = makeInstant(() => on.selectRoute?.(row.id));
       const rowButton = h(
         'button',
-        { type: 'button', class: 'route-row', dataset: { routeId: row.id }, 'aria-current': row.id === selectedId ? 'true' : null, onclick: () => on.selectRoute?.(row.id) },
+        { type: 'button', class: 'route-row', dataset: { routeId: row.id }, 'aria-current': row.id === selectedId ? 'true' : null, onpointerdown: trigger, onclick: trigger },
         swatch,
         h('span', { class: 'route-name' }, row.name),
         h('span', { class: 'route-detail' }, routeDetail(row)),
@@ -141,11 +131,9 @@ export function createLayout({ bar, listen, on = {}, available = {} }) {
      * With one picked its point table shows, titled with its name; with none, only the list shows.
      */
     setRoutes(rows, selected = null) {
-      selectedId = rows.some((row) => row.id === selected) ? selected : null;
-      renderRoutes(rows);
-      const picked = rows.find((row) => row.id === selectedId);
-      tableSection.hidden = !picked;
-      tableTitle.textContent = picked ? picked.name : '';
+      const displayRows = filterSplits ? rows.filter((row) => row && row.kind !== 'split') : rows.filter(Boolean);
+      selectedId = displayRows.some((row) => row.id === selected) ? selected : null;
+      renderRoutes(displayRows);
     },
     /** Opens or collapses a side column ('routes' or 'aircraft') without calling toggleColumn. */
     setColumnOpen(name, open) {

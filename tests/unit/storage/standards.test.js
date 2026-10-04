@@ -1,3 +1,14 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createStore } from '../../../src/storage/store.js';
@@ -6,12 +17,18 @@ import { DEFAULT_STANDARDS, V6_STANDARDS } from '../../../src/core/standards.js'
 
 const freshStore = () => createStore(undefined).scope('standards');
 
-test("starts from the SMM's standards (core's DEFAULT_STANDARDS), read-only", () => {
+test("starts from the SMM's standards, read-only: each default against its source", () => {
   const standards = createStandards({ store: freshStore() });
-  assert.deepEqual(standards.get(), DEFAULT_STANDARDS);
-  assert.equal(standards.get().offset.aftTargetFt, 7000, 'D114');
-  assert.deepEqual([standards.get().spread.sweepMinDeg, standards.get().spread.sweepMaxDeg], [0, 10], 'D116');
-  assert.equal(standards.get().lead.lowTargetKt, 220, 'D115');
+  const d = standards.get();
+  // Sources are the same as in tests/unit/core/standards.test.js: SMM page, Gen Book page or Patrick's ruling.
+  assert.deepEqual([d.spread.minFt, d.spread.maxFt], [4000, 6000], 'SMM Fig 16.30 and para 112');
+  assert.deepEqual([d.spread.sweepMinDeg, d.spread.sweepMaxDeg], [0, 10], 'SMM 16.18 para 49 (D116)');
+  assert.deepEqual([d.offset.aftTargetFt, d.offset.aftTolFt], [7000, 1000], 'SMM 16.41 para 109 (D114): 6,000-8,000 ft back');
+  assert.deepEqual([d.lead.lowTargetKt, d.lead.midTargetKt], [220, 200], 'Gen Book p. 12 (D115)');
+  assert.equal(d.lead.lowBlockTopFt, 10250, 'D115: the join between the low block top (10,000 ft) and the mid block floor (10,500 ft), Gen Book p. 12; exact join a guess until Patrick confirms');
+  // No manual page found for these three: an estimate until a source is named.
+  assert.deepEqual([d.lead.speedTolKt, d.lead.targetG, d.lead.gTol], [10, 1.0, 0.2], 'estimate, not sourced');
+  assert.deepEqual([d.spread.on, d.offset.on, d.lead.on], [true, true, true], 'every standard starts on');
   assert.ok(Object.isFrozen(standards.get()));
   assert.ok(Object.isFrozen(standards.get().spread));
   assert.throws(() => {

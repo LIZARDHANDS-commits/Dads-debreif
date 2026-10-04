@@ -1,9 +1,20 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
 // What the turn numbers mean, checked against known answers.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ktToFtps } from '../../../src/core/units.js';
 import { radToDeg } from '../../../src/core/angles.js';
-import { MIN_TURN_G, limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec, turnSimG, isaDensityRatio, emPoint, closureKt, formatClosureKt, gFromTrack } from '../../../src/core/flight-math.js';
+import { MIN_TURN_G, limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec, turnSimG, isaDensityRatio, emPoint, closureKt, formatClosureKt, gFromTrack, rollToward, dampedClimbG } from '../../../src/core/flight-math.js';
 
 const near = (a, b, tol) => assert.ok(Math.abs(a - b) <= tol, `${a} is not within ${tol} of ${b}`);
 
@@ -93,7 +104,7 @@ function steadyTurn(kt, rateDeg) {
   return [-1, 0, 1].map(k => ({ x: R * Math.sin(w * k), y: R - R * Math.cos(w * k) }));
 }
 
-test('emPoint shows the real turn rate (D39: V6 showed half)', () => {
+test('emPoint shows the real turn rate (D39): the heading change per second on a steady circle, rate = speed / radius', () => {
   for (const rate of [3, 10, 19.2, -15]) {
     const [a, p, b] = steadyTurn(200, rate);
     near(emPoint(a, p, b).turnRateDeg, Math.abs(rate), 1e-9);
@@ -136,3 +147,28 @@ test('gFromTrack reads back the G of a steady level turn', () => {
   assert.equal(gFromTrack(null, 0, p1, 0, 1), null, 'a missing moment');
   assert.equal(gFromTrack(p0, 0, undefined, 0, 1), null);
 });
+
+test('rollToward smoothly rolls toward target bank angle within maxDelta', () => {
+  const maxDelta = 0.1; // rad
+  const step1 = rollToward(0, 0.5, maxDelta);
+  near(step1.bank, 0.1, 1e-12);
+  assert.equal(step1.movedRad, 0.1);
+
+  const step2 = rollToward(0.45, 0.5, maxDelta);
+  near(step2.bank, 0.5, 1e-12);
+  near(step2.movedRad, 0.05, 1e-12);
+
+  // wrapPi shortest arc
+  const wrapStep = rollToward(-3.1, 3.1, maxDelta);
+  assert.ok(Math.abs(wrapStep.movedRad) <= maxDelta);
+});
+
+test('dampedClimbG computes 1 G in level flight and increases with climb error', () => {
+  const v = ktToFtps(140);
+  const gLevel = dampedClimbG(0, 0, v, 1.0);
+  near(gLevel, 1.0, 1e-12);
+
+  const gPull = dampedClimbG(0, 0.1, v, 1.0);
+  assert.ok(gPull > 1.0);
+});
+

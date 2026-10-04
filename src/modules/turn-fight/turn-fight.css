@@ -184,12 +184,98 @@
   letter-spacing: 0.06em;
 }
 
+[data-module='turn-fight'] .tf-version-pill {
+  color: var(--accent, #58a6ff);
+  font-weight: 600;
+  font-size: var(--text-xs, 0.75rem);
+  letter-spacing: 0.05em;
+  border-color: rgba(88, 166, 255, 0.4);
+  background: rgba(88, 166, 255, 0.1);
+}
+
+[data-module='turn-fight'] .tf-version-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  font-size: var(--text-xs, 0.75rem);
+  font-weight: 700;
+  color: var(--tf-nose, #ffcc66);
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-2);
+}
+
+[data-module='turn-fight'] .tf-version-sub {
+  color: var(--text-muted);
+  font-weight: normal;
+}
+
 [data-module='turn-fight'] .tf-stopped {
   margin: 0;
   padding: var(--space-2) var(--space-3);
   border-left: 3px solid var(--caution);
   background: var(--bg-sunken);
   font-size: var(--text-sm);
+}
+
+[data-module='turn-fight'] .tf-kill-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--tf-nose);
+  border-left: 4px solid var(--tf-nose);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-fight'] .tf-kill-banner[hidden] {
+  display: none;
+}
+
+[data-module='turn-fight'] .tf-kill-banner-text {
+  flex: 1 1 auto;
+}
+
+[data-module='turn-fight'] .tf-kill-continue-btn {
+  flex: 0 0 auto;
+}
+
+[data-module='turn-fight'] .tf-collision-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--bad);
+  border-left: 4px solid var(--bad);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-fight'] .tf-collision-banner[hidden] {
+  display: none;
+}
+
+[data-module='turn-fight'] .tf-collision-banner-text {
+  flex: 1 1 auto;
+  color: var(--bad);
+}
+
+[data-module='turn-fight'] .tf-collision-reset-btn {
+  flex: 0 0 auto;
 }
 
 [data-module='turn-fight'] .tf-views {
@@ -203,7 +289,8 @@
 
 /* V6's dark stage: --bg-raised, which is V6's #071018. */
 [data-module='turn-fight'] .tf-topdown-wrap,
-[data-module='turn-fight'] .tf-profile {
+[data-module='turn-fight'] .tf-profile,
+[data-module='turn-fight'] .tf-energy-panel {
   position: relative;
   min-height: 0;
   border: 1px solid var(--border);
@@ -348,10 +435,62 @@
   color: var(--tf-red);
 }
 
-[data-module='turn-fight'] .tf-3d-label-nose {
+.tf-3d-label.blue::after,
+[data-module='turn-fight'] .tf-3d-label.blue::after,
+[data-module='turn-fight'] .tf-3d-label-blue::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  right: 10px;
+  width: 1px;
+  height: 12px;
+  background: var(--tf-blue, #58a6ff);
+  opacity: 0.6;
+}
+
+.tf-3d-label.red::after,
+[data-module='turn-fight'] .tf-3d-label.red::after,
+[data-module='turn-fight'] .tf-3d-label-red::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 10px;
+  width: 1px;
+  height: 12px;
+  background: var(--tf-red, #ff6b6b);
+  opacity: 0.6;
+}
+
+[data-module='turn-fight'] .tf-3d-label-nose,
+[data-module='turn-fight'] .tf-3d-label-deck {
   color: var(--tf-nose);
   font-weight: normal;
 }
+
+[data-module='turn-fight'] .tf-3d-tag-body {
+  display: flex;
+  flex-direction: column;
+  font-size: 10px;
+  line-height: 1.25;
+  font-weight: normal;
+  background: rgba(10, 18, 28, 0.85);
+  border: 1px solid currentColor;
+  padding: 2px 5px;
+  border-radius: 3px;
+  margin-top: 3px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  text-shadow: none;
+}
+
+[data-module='turn-fight'] .tf-3d-tag-body .tf-3d-tag-title {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+[data-module='turn-fight'] .tf-3d-tag-body .tf-3d-tag-detail {
+  color: inherit;
+}
+
 
 /* Where the 2D view puts these words, at the bottom-right, so nothing covers an aircraft. */
 [data-module='turn-fight'] .tf-3d-first-nose {
@@ -383,6 +522,115 @@
   color: var(--text-muted);
   font-size: var(--text-sm);
   text-shadow: 0 0 3px #000;
+}
+
+/* Energy (T-6): each aircraft's start altitude and merge speed, the move the model chose, and the note about high starts. */
+[data-module='turn-fight'] .tf-energy-row {
+  margin-top: var(--space-2);
+}
+
+/* These two labels may wrap: "Start altitude (ft)" and "Merge speed (KIAS)" share the row. */
+[data-module='turn-fight'] .tf-energy-row .control > label {
+  white-space: normal;
+}
+
+/* "10000" and "220" need more than the simple boxes' 4.25rem. */
+[data-module='turn-fight'] .tf-aircraft .tf-energy-row input[type='number'] {
+  width: 5.5rem;
+}
+
+[data-module='turn-fight'] .tf-move {
+  margin: 0 0 var(--space-3);
+  padding-left: var(--space-2);
+  border-left: 3px solid var(--tf-who);
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-fight'] .tf-move:empty {
+  display: none;
+}
+
+[data-module='turn-fight'] .tf-alt-note {
+  margin: 0 0 var(--space-3);
+  padding-left: var(--space-2);
+  border-left: 3px solid var(--caution);
+}
+
+/* Words first, colour beside them: a flag is on when the cell says OVER G or STALL, and it is also coloured and bold. */
+[data-module='turn-fight'] .tf-readout .tf-flag {
+  color: var(--bad);
+  font-weight: 700;
+}
+
+[data-module='turn-fight'] .tf-flag-notes {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-fight'] .tf-flag-notes:empty {
+  display: none;
+}
+
+[data-module='turn-fight'] .tf-flag-notes li {
+  margin: 0 0 var(--space-1);
+  padding-left: var(--space-2);
+  border-left: 3px solid var(--bad);
+}
+
+/* Energy's side view: the key, the altitude graph, its summary line and its table, in one panel that takes the room it needs. */
+[data-module='turn-fight'] .tf-energy-panel {
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  overflow-y: auto;
+  max-height: 16rem;
+}
+
+[data-module='turn-fight'] .tf-energy-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-fight'] .tf-energy-key .tf-blue,
+[data-module='turn-fight'] .tf-energy-key .tf-red {
+  color: var(--tf-who);
+}
+
+[data-module='turn-fight'] .tf-deck-key {
+  color: var(--tf-nose);
+}
+
+/* uPlot sizes itself to this box (energy-graph.js). */
+[data-module='turn-fight'] .tf-energy-chart {
+  flex: none;
+  width: 100%;
+  height: clamp(7rem, 20vh, 9rem);
+}
+
+[data-module='turn-fight'] .tf-energy-summary {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-module='turn-fight'] .tf-energy-table summary {
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-fight'] .tf-energy-table .tf-readout {
+  margin-top: var(--space-1);
+}
+
+[data-module='turn-fight'] .tf-check-reset {
+  margin-top: var(--space-2);
 }
 
 /* Last, so a hidden panel or box stays hidden whatever display it was given above. */

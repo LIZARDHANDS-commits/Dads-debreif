@@ -18,6 +18,7 @@ import { FT_PER_NM, ktToFtps } from '../../core/units.js';
 import { limitG, turnRadiusFt, bankDegFromG } from '../../core/flight-math.js';
 import { unitVectorFromCompassDeg } from '../../core/angles.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
+import { windTriangle } from '../../core/wind.js';
 
 /** V6's route options when the boxes are left alone (built-in profile, line 613). */
 export const DEFAULT_ROUTE_OPTIONS = Object.freeze({ flyRoundedTurns: true, radiusFromG: true, manualRadiusFt: 1800 });
@@ -73,6 +74,8 @@ function lerp(a, b, u, seg, headingDeg) {
     kt: kt + ((b.kt ?? 120) - kt) * u,
     g: g + ((b.g ?? 2) - g) * u,
     seg, u, headingDeg,
+    phase: a.phase ?? b.phase,
+    tag: u < 0.5 ? (a.tag ?? b.tag) : (b.tag ?? a.tag),
   };
 }
 
@@ -118,11 +121,12 @@ function bez(a, b, c, u) {
     kt: v * v * (a.kt ?? 120) + 2 * v * u * (b.kt ?? 120) + u * u * (c.kt ?? 120),
     g: b.g ?? 2,
     src: b.src ?? 0,
+    tag: b.tag,
   };
 }
 
 /** A route point as the path keeps it: its place, height, speed and G, and which point it came from. */
-const pathPoint = (p, src) => ({ x: p.x, y: p.y, alt: p.alt, kt: p.kt, g: p.g, src });
+const pathPoint = (p, src) => ({ x: p.x, y: p.y, alt: p.alt, kt: p.kt, g: p.g, src, tag: p.tag });
 
 function circularArcPoints(start, cur, end, vin, vout, turn, steps, d, radius, nextAlt) {
   const z = vin.x * vout.y - vin.y * vout.x;
@@ -147,6 +151,7 @@ function circularArcPoints(start, cur, end, vin, vout, turn, steps, d, radius, n
       kt: cur.kt ?? 120,
       g: cur.g ?? 2,
       src: cur.src ?? 0,
+      tag: cur.tag,
     });
   }
   return pts;
@@ -185,17 +190,17 @@ function buildRoundedPoints(route, options) {
     const curAlt = isPat1Final12 ? 2810 : cur.alt;
     const turnTargetAlt = isPat1Final11 ? 2810 : (isPat1Final12 ? 2119 : next.alt);
 
-    const start = { ...add(cur, mul(vin, -d)), alt: curAlt, kt: cur.kt, g: cur.g, src: i };
-    const end = { ...add(cur, mul(vout, d)), alt: turnTargetAlt, kt: cur.kt, g: cur.g, src: i };
+    const start = { ...add(cur, mul(vin, -d)), alt: curAlt, kt: cur.kt, g: cur.g, src: i, tag: cur.tag };
+    const end = { ...add(cur, mul(vout, d)), alt: turnTargetAlt, kt: cur.kt, g: cur.g, src: i, tag: cur.tag };
     out.push(start);
     const steps = options.trueArcs
       ? Math.max(16, Math.min(48, Math.ceil(turn * 20)))
       : Math.max(5, Math.min(28, Math.ceil(turn * 10)));
     if (options.trueArcs) {
-      const arc = circularArcPoints(start, { ...cur, alt: curAlt, src: i }, end, vin, vout, turn, steps, d, radius, turnTargetAlt);
+      const arc = circularArcPoints(start, { ...cur, alt: curAlt, src: i, tag: cur.tag }, end, vin, vout, turn, steps, d, radius, turnTargetAlt);
       for (const p of arc) out.push(p);
     } else {
-      for (let k = 1; k <= steps; k++) out.push(bez(start, { ...cur, src: i }, end, k / steps));
+      for (let k = 1; k <= steps; k++) out.push(bez(start, { ...cur, src: i, tag: cur.tag }, end, k / steps));
     }
   }
   if (options.trueArcs && route.id === 'PAT1') {
@@ -230,6 +235,17 @@ function buildRoundedPoints(route, options) {
       }
     }
   }
+  if (route.id === 'PAT1') {
+    for (const p of out) {
+      const src = p.src ?? 0;
+      if (src < 9) p.phase = 'initial';
+      else if (src === 9) p.phase = 'break';
+      else if (src === 10) { p.phase = 'downwind'; p.kt = 140; }
+      else if (src === 11) p.phase = 'final_turn';
+      else if (src === 12) p.phase = 'final';
+      else p.phase = 'initial';
+    }
+  }
   if (closed && out.length) out.push({ ...out[0] });
   return out;
 }
@@ -256,8 +272,13 @@ function buildSegs(points) {
 
 function buildPath(route, options) {
   let points;
-  if (route.id === 'PAT1' && (options.windKt ?? 0) > 0) {
-    points = generateWindAdjustedTrack(route, options.windFromDeg ?? 360, options.windKt, options);
+  const isPat1 = route.id === 'PAT1';
+  const isCompactPat1 = isPat1 && (route.points?.length ?? 0) < 10;
+  const isPfl = route.id === 'ENT4' || route.id === 'PFL' || route.id === 'PFL_HIGH_KEY' || route.kind === 'pfl' || /pfl/i.test(route.name);
+  if (options.flyRoundedTurns !== false && isPfl) {
+    points = generatePflTrack(route, options.windFromDeg ?? 360, options.windKt ?? 0, options);
+  } else if (options.flyRoundedTurns !== false && (isCompactPat1 || (isPat1 && (options.trueArcs || (options.windKt ?? 0) > 0)))) {
+    points = generateWindAdjustedTrack(route, options.windFromDeg ?? 360, options.windKt ?? 0, options);
   } else {
     points = buildRoundedPoints(route, options);
   }
@@ -347,7 +368,7 @@ export function posOnRoute(route, distFt, options = DEFAULT_ROUTE_OPTIONS) {
   const pts = route.points;
   if (!segs.length) {
     const p = pts[0] ?? point(0, 0);
-    return { x: p.x, y: p.y, alt: p.alt, kt: p.kt, g: p.g, seg: 0, u: 0, headingDeg: 0 };
+    return { x: p.x, y: p.y, alt: p.alt, kt: p.kt, g: p.g, seg: 0, u: 0, headingDeg: 0, tag: p.tag };
   }
   let f = closed ? (((distFt % total) + total) % total) : Math.max(0, Math.min(distFt, total));
   for (const s of segs) {
@@ -358,7 +379,7 @@ export function posOnRoute(route, distFt, options = DEFAULT_ROUTE_OPTIONS) {
     f -= s.len;
   }
   const last = pts[pts.length - 1];
-  return { x: last.x, y: last.y, alt: last.alt, kt: last.kt, g: last.g, seg: pts.length - 1, u: 1, headingDeg: segs[segs.length - 1].headingDeg };
+  return { x: last.x, y: last.y, alt: last.alt, kt: last.kt, g: last.g, seg: pts.length - 1, u: 1, headingDeg: segs[segs.length - 1].headingDeg, tag: last.tag };
 }
 
 /** Distance along the flown path of the place nearest to `target` (V6 `closestProg`, line 224). */
@@ -497,10 +518,10 @@ export function newSplit(id, name, patternId, routes, { color = nextRouteColor(r
  * @param {Record<string, any>} [options]
  */
 export function computeWindPerch(route, windFromDeg = 360, windKt = 0, options = DEFAULT_ROUTE_OPTIONS) {
-  const pts = route?.points;
-  if (!pts || pts.length < 12) return null;
-  const perchIdx = pts.findIndex((p) => /perch/i.test(p.label));
-  const nominal = perchIdx >= 0 ? pts[perchIdx] : pts[11];
+  const pts = route?.points || route?.waypoints;
+  if (!pts || pts.length === 0) return null;
+  const perchPoint = pts.find((p) => p.tag === 'perch' || /perch/i.test(p.label)) ?? pts[11];
+  const nominal = perchPoint;
   if (!nominal) return null;
 
   const opt = /** @type {Record<string, any>} */ (options);
@@ -552,17 +573,156 @@ export function computeWindPerch(route, windFromDeg = 360, windKt = 0, options =
 }
 
 /**
+ * Calculates the wind-compensated Break Rollout waypoint coordinates (Point 10).
+ * Simulates the 180° decelerating overhead break turn from Point 9 (Break entry).
+ * @param {any} route
+ * @param {number} [windFromDeg]
+ * @param {number} [windKt]
+ * @param {Record<string, any>} [options]
+ * @returns {{ x: number, y: number, headingDeg: number, alt?: number } | null}
+ */
+let _breakCache = { wFrom: null, wKt: null, result: null };
+
+/**
+ * Simulates the 180° decelerating overhead break turn.
+ * @param {any} route
+ * @param {number} [windFromDeg]
+ * @param {number} [windKt]
+ * @returns {{ rollout: { x: number, y: number, alt: number, headingDeg: number }, arcPoints: Array<any>, breakStartX?: number, breakStartY?: number, rwyHeadingDeg?: number, downwindHeadingDeg?: number } | null}
+ */
+function simulateBreakArc(route, windFromDeg = 360, windKt = 0) {
+  const pts = route?.points || route?.waypoints;
+  if (!pts || pts.length === 0) return null;
+
+  const th = pts.find((p) => p.tag === 'threshold' || /threshold/i.test(p.label)) ?? pts[0];
+  const dep = pts.find((p) => p.tag === 'departure_end' || /departure/i.test(p.label)) ?? pts[1];
+  const breakPoint = pts.find((p) => p.tag === 'break' || /break/i.test(p.label)) ?? pts[9];
+  const brk = breakPoint;
+  if (!th || !dep || !brk) return null;
+  const rwyLen = Math.hypot(dep.x - th.x, dep.y - th.y);
+  const rwyUx = (dep.x - th.x) / rwyLen;
+  const rwyUy = (dep.y - th.y) / rwyLen;
+  const rwyHeadingRad = Math.atan2(dep.x - th.x, dep.y - th.y);
+  const rwyHeadingDeg = (rwyHeadingRad * 180 / Math.PI + 360) % 360;
+  const downwindHeadingDeg = (rwyHeadingDeg + 180) % 360;
+
+  const useRwyBreak = (windKt ?? 0) <= 0;
+  const breakStartX = useRwyBreak ? th.x + rwyUx * 2000 : brk.x;
+  const breakStartY = useRwyBreak ? th.y + rwyUy * 2000 : brk.y;
+
+  const windFtps = ktToFtps(windKt);
+  const blowToRad = ((windFromDeg + 180) * Math.PI) / 180;
+  const wx = windFtps * Math.sin(blowToRad);
+  const wy = windFtps * Math.cos(blowToRad);
+
+  const tasInit = iasToTasKt(220, 3500);
+  const tasDownwind = iasToTasKt(140, 3500);
+
+  // Initial leg crabbed heading entering break (matches incoming runway centerline track)
+  const wtInit = windTriangle(rwyHeadingDeg, tasInit, windFromDeg, windKt);
+  const entryHeadingDeg = wtInit.canHoldTrack ? wtInit.headingDeg : rwyHeadingDeg;
+
+  // Downwind leg crabbed heading exiting break (matches outgoing downwind track)
+  const wtDw = windTriangle(downwindHeadingDeg, tasDownwind, windFromDeg, windKt);
+  const exitHeadingDeg = wtDw.canHoldTrack ? wtDw.headingDeg : downwindHeadingDeg;
+
+  let totalTurnDeg = ((entryHeadingDeg - exitHeadingDeg + 360) % 360);
+  if (totalTurnDeg < 30) totalTurnDeg += 360;
+
+  let curX = breakStartX;
+  let curY = breakStartY;
+  let curHeadingDeg = entryHeadingDeg;
+  let curIas = 220;
+  const breakDt = 0.2;
+  const g = 32.174;
+  let turnAccum = 0;
+  const arcPoints = [];
+
+  while (turnAccum < totalTurnDeg) {
+    const u = turnAccum / totalTurnDeg;
+
+    const curTasKt = iasToTasKt(curIas, 3500);
+    const tasFtps = ktToFtps(curTasKt);
+    const omega = (g * Math.tan((60 * Math.PI) / 180)) / Math.max(1, tasFtps);
+    const dTurnDeg = Math.min((omega * breakDt * 180) / Math.PI, totalTurnDeg - turnAccum);
+
+    turnAccum += dTurnDeg;
+    curHeadingDeg = (curHeadingDeg - dTurnDeg + 360) % 360;
+
+    curIas = 220 * Math.exp(-0.452 * u);
+
+    const hdgRad = (curHeadingDeg * Math.PI) / 180;
+    const vx = tasFtps * Math.sin(hdgRad) + wx;
+    const vy = tasFtps * Math.cos(hdgRad) + wy;
+    curX += vx * breakDt;
+    curY += vy * breakDt;
+
+    const isRollout = turnAccum >= totalTurnDeg;
+
+    arcPoints.push({
+      x: curX,
+      y: curY,
+      alt: 3500,
+      kt: isRollout ? 140 : Math.round(curIas),
+      g: isRollout ? 1 : 2,
+      src: isRollout ? 10 : 9,
+      phase: isRollout ? 'downwind' : 'break',
+      headingDeg: isRollout ? exitHeadingDeg : curHeadingDeg,
+      tag: isRollout ? 'break_rollout' : 'break',
+    });
+  }
+
+  const rolloutPt = pts.find((p) => p.tag === 'break_rollout' || /break\s*exit/i.test(p.label)) ?? pts[10];
+
+  return {
+    rollout: {
+      x: curX,
+      y: curY,
+      alt: rolloutPt?.alt ?? pts[10]?.alt ?? 3500,
+      headingDeg: exitHeadingDeg,
+    },
+    arcPoints,
+    breakStartX,
+    breakStartY,
+    rwyHeadingDeg,
+    downwindHeadingDeg: exitHeadingDeg,
+  };
+}
+
+export function computeBreakRollout(route, windFromDeg = 360, windKt = 0, options = DEFAULT_ROUTE_OPTIONS) {
+  if (_breakCache.wFrom === windFromDeg && _breakCache.wKt === windKt && _breakCache.result) {
+    return _breakCache.result;
+  }
+
+  const sim = simulateBreakArc(route, windFromDeg, windKt);
+  if (!sim) return null;
+
+  _breakCache = { wFrom: windFromDeg, wKt: windKt, result: sim.rollout };
+  return sim.rollout;
+}
+
+/**
  * Generates the wind-adjusted ground track coordinates for Pattern 1 (D370, D382, D389).
  */
 export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, options = DEFAULT_ROUTE_OPTIONS) {
   if (route.id !== 'PAT1' || !route.points || route.points.length < 13) {
-    return routePath(route, options).points;
+    return buildRoundedPoints(route, options);
   }
 
-  const pts = route.points;
-  const th = pts[0];   // Threshold
-  const dep = pts[1];  // Departure End
-  const brk = pts[9];  // Break Point
+  const pts = route.points.map((p) => ({ ...p }));
+  const perch = computeWindPerch(route, windFromDeg, windKt, options);
+  const perchIdx = pts.findIndex((p) => p.tag === 'perch' || /perch/i.test(p.label));
+  const targetPerchIdx = perchIdx >= 0 ? perchIdx : 11;
+  if (perch && pts[targetPerchIdx]) { pts[targetPerchIdx] = { ...pts[targetPerchIdx], x: perch.x, y: perch.y }; }
+
+  const breakSim = simulateBreakArc(route, windFromDeg, windKt);
+  const breakRollout = breakSim?.rollout ?? computeBreakRollout(route, windFromDeg, windKt, options);
+  const breakRolloutIdx = pts.findIndex((p) => p.tag === 'break_rollout' || /break\s*exit/i.test(p.label));
+  const targetBreakRolloutIdx = breakRolloutIdx >= 0 ? breakRolloutIdx : 10;
+  if (breakRollout && pts[targetBreakRolloutIdx]) { pts[targetBreakRolloutIdx] = { ...pts[targetBreakRolloutIdx], x: breakRollout.x, y: breakRollout.y }; }
+
+  const th = pts.find((p) => p.tag === 'threshold' || /threshold/i.test(p.label)) ?? pts[0];   // Threshold
+  const dep = pts.find((p) => p.tag === 'departure_end' || /departure/i.test(p.label)) ?? pts[1];  // Departure End
   const rwyHeadingRad = Math.atan2(dep.x - th.x, dep.y - th.y);
   const rwyHeadingDeg = (rwyHeadingRad * 180 / Math.PI + 360) % 360;
   const downwindHeadingDeg = (rwyHeadingDeg + 180) % 360;
@@ -577,51 +737,38 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
   // 1. Initial legs from Threshold through Climbout up to Break (points with src < 9)
   const baseRounded = buildRoundedPoints(route, { ...options, windKt: 0 });
   for (const p of baseRounded) {
-    if ((p.src ?? 0) < 9) {
-      track.push({ ...p, phase: 'initial' });
-    }
+    if ((p.src ?? 0) === 9) break;
+    track.push({ ...p, phase: 'initial', tag: p.tag ?? route.points?.[p.src]?.tag });
   }
 
   // 2. Overhead Break (60° bank / 2.0 G level turn to downwind heading)
-  let curX = brk.x;
-  let curY = brk.y;
-  let curHeadingDeg = rwyHeadingDeg;
-  let curIas = 220;
-  const breakDt = 0.2;
-  const g = 32.174;
-
-  let turnAccum = 0;
-  while (turnAccum < 180) {
-    const tasKt = iasToTasKt(curIas, 3500);
-    const tasFtps = ktToFtps(tasKt);
-    const omega = (g * Math.tan((60 * Math.PI) / 180)) / Math.max(1, tasFtps);
-    const dTurnDeg = Math.min((omega * breakDt * 180) / Math.PI, 180 - turnAccum);
-    turnAccum += dTurnDeg;
-    curHeadingDeg = (curHeadingDeg - dTurnDeg + 360) % 360;
-
-    const progress = turnAccum / 180;
-    curIas = 220 * Math.exp(-0.452 * progress);
-
-    const hdgRad = (curHeadingDeg * Math.PI) / 180;
-    const vx = tasFtps * Math.sin(hdgRad) + wx;
-    const vy = tasFtps * Math.cos(hdgRad) + wy;
-    curX += vx * breakDt;
-    curY += vy * breakDt;
-
+  const useRwyBreak = (windKt ?? 0) <= 0;
+  if (useRwyBreak && breakSim) {
     track.push({
-      x: curX,
-      y: curY,
+      x: breakSim.breakStartX,
+      y: breakSim.breakStartY,
       alt: 3500,
-      kt: Math.round(curIas),
+      kt: 220,
       g: 2,
       src: 9,
       phase: 'break',
-      headingDeg: curHeadingDeg,
+      headingDeg: rwyHeadingDeg,
+      tag: 'break',
     });
   }
 
-  // 3. Direct Steer to Calculated Wind Perch
-  const perch = computeWindPerch(route, windFromDeg, windKt, options);
+  let curX = breakRollout?.x ?? -3385;
+  let curY = breakRollout?.y ?? -4323;
+
+  if (breakSim && breakSim.arcPoints.length > 0) {
+    for (const p of breakSim.arcPoints) {
+      track.push(p);
+    }
+    curX = breakSim.rollout.x;
+    curY = breakSim.rollout.y;
+  }
+
+  // 3. Direct Steer from Break Rollout to Calculated Wind Perch
   const dwDist = Math.hypot(perch.x - curX, perch.y - curY);
   const dwSteps = Math.max(5, Math.ceil(dwDist / 1000));
   const dwStartX = curX;
@@ -629,7 +776,7 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
   const dwTrackRad = Math.atan2(perch.x - dwStartX, perch.y - dwStartY);
   const dwTrackDeg = (dwTrackRad * 180 / Math.PI + 360) % 360;
 
-  for (let k = 1; k <= dwSteps; k++) {
+  for (let k = 1; k < dwSteps; k++) {
     const u = k / dwSteps;
     track.push({
       x: dwStartX + (perch.x - dwStartX) * u,
@@ -637,47 +784,86 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
       alt: 3500,
       kt: 140,
       g: 1,
-      src: k === dwSteps ? 11 : 10,
+      src: 10,
       phase: 'downwind',
       headingDeg: dwTrackDeg,
+      tag: 'downwind',
     });
   }
 
-  // 4. Descending Final Turn (180° turn at 120 KIAS, cubic descent 3,500 to 2,700 ft)
+  // 4. Descending Final Turn: Wind-smoothed continuous transition from Perch to Final
+  const g = 32.174;
   curX = perch.x;
   curY = perch.y;
-  curHeadingDeg = downwindHeadingDeg;
-  curIas = 120;
+  let curIas = 120;
   const ftDt = 0.2;
   const ftTasKt = iasToTasKt(curIas, 3100);
   const ftTasFtps = ktToFtps(ftTasKt);
-  const ftOmega = (g * Math.tan((35 * Math.PI) / 180)) / Math.max(1, ftTasFtps);
+
+  // Compute crabbed heading at Perch (matches incoming downwind ground track)
+  const wtPerch = windTriangle(dwTrackDeg, ftTasKt, windFromDeg, windKt);
+  const entryHeadingDeg = wtPerch.canHoldTrack ? wtPerch.headingDeg : dwTrackDeg;
+
+  // Compute crabbed heading on Final (matches outgoing runway centerline ground track)
+  const wtFinal = windTriangle(rwyHeadingDeg, ftTasKt, windFromDeg, windKt);
+  const exitHeadingDeg = wtFinal.canHoldTrack ? wtFinal.headingDeg : rwyHeadingDeg;
+
+  // Total angular heading change turning left from entry to exit
+  let totalTurnDeg = ((entryHeadingDeg - exitHeadingDeg + 360) % 360);
+  if (totalTurnDeg < 30) totalTurnDeg += 360;
+
+  let curHeadingDeg = entryHeadingDeg;
   let ftTurnAccum = 0;
 
-  while (ftTurnAccum < 180) {
-    const dTurnDeg = Math.min((ftOmega * ftDt * 180) / Math.PI, 180 - ftTurnAccum);
+  track.push({
+    x: curX,
+    y: curY,
+    alt: 3500,
+    kt: 120,
+    g: 1.0,
+    src: 11,
+    phase: 'final_turn',
+    headingDeg: curHeadingDeg,
+    tag: 'perch',
+  });
+
+  while (ftTurnAccum < totalTurnDeg) {
+    const u = ftTurnAccum / totalTurnDeg;
+
+    // Smooth bank profile: ramp in over first 15%, hold 35° (G=1.22), ramp out over last 15%
+    let bankDeg = 35;
+    if (u < 0.15) {
+      bankDeg = 35 * Math.sin((u / 0.15) * (Math.PI / 2));
+    } else if (u > 0.85) {
+      bankDeg = 35 * Math.sin(((1 - u) / 0.15) * (Math.PI / 2));
+    }
+    const bankRad = (Math.max(5, bankDeg) * Math.PI) / 180;
+    const ftOmega = (g * Math.tan(bankRad)) / Math.max(1, ftTasFtps);
+    const dTurnDeg = Math.min((ftOmega * ftDt * 180) / Math.PI, totalTurnDeg - ftTurnAccum);
+
     ftTurnAccum += dTurnDeg;
     curHeadingDeg = (curHeadingDeg - dTurnDeg + 360) % 360;
 
-    const u = ftTurnAccum / 180;
-    const easedU = 3 * u * u - 2 * u * u * u;
-    const curAlt = 3500 - (3500 - 2700) * easedU;
-
+    const curAlt = 3500 - (3500 - 2119) * u;
     const hdgRad = (curHeadingDeg * Math.PI) / 180;
     const vx = ftTasFtps * Math.sin(hdgRad) + wx;
     const vy = ftTasFtps * Math.cos(hdgRad) + wy;
     curX += vx * ftDt;
     curY += vy * ftDt;
 
+    const currentG = 1 / Math.cos((bankDeg * Math.PI) / 180);
+    const isRollout = ftTurnAccum >= totalTurnDeg;
+
     track.push({
       x: curX,
       y: curY,
       alt: Math.round(curAlt),
       kt: 120,
-      g: 1.22,
-      src: ftTurnAccum >= 180 ? 12 : 11,
-      phase: 'final_turn',
-      headingDeg: curHeadingDeg,
+      g: Number(currentG.toFixed(2)),
+      src: isRollout ? 12 : 11,
+      phase: isRollout ? 'final' : 'final_turn',
+      headingDeg: isRollout ? exitHeadingDeg : curHeadingDeg,
+      tag: isRollout ? 'window' : 'final_turn',
     });
   }
 
@@ -686,7 +872,7 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
   const finalSteps = Math.max(10, Math.ceil(finalDist / 1000));
   const finalStartX = curX;
   const finalStartY = curY;
-  const startAlt = track.at(-1)?.alt ?? 2700;
+  const startAlt = track.at(-1)?.alt ?? 2119;
 
   for (let k = 1; k <= finalSteps; k++) {
     const u = k / finalSteps;
@@ -698,11 +884,154 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
       alt,
       kt,
       g: 1,
-      src: k === finalSteps ? 0 : 12,
+      src: 0,
       phase: 'final',
-      headingDeg: rwyHeadingDeg,
+      headingDeg: exitHeadingDeg,
+      tag: k === finalSteps ? 'threshold' : 'final',
     });
   }
+
+  return track;
+}
+
+/**
+ * Generates continuous 4-segment Practice Forced Landing (PFL) gliding track from High Key (5,000 ft MSL)
+ * over the threshold facing down the runway (298°), through Low Key (~3,700 ft, wind-compensated perch),
+ * Base Key (~2,900 ft), to final rollout and threshold touchdown (1,892 ft MSL).
+ *
+ * Segment 1 (High Key Turn): 180° descending turn from 5,000 ft -> 3,700 ft MSL, 125 -> 120 KIAS.
+ * Segment 2 (Downwind Leg to Low Key): Straight leg heading ~118° (wind crabbed) to dynamic Low Key.
+ * Segment 3 (Low Key to Final Approach): Smooth descending turn (35° bank) with crab boundary matching.
+ * Segment 4 (Final to Touchdown): Straight glide along runway centerline terminating exactly at threshold.
+ */
+export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options = DEFAULT_ROUTE_OPTIONS) {
+  const pts = route?.points || route?.waypoints || [];
+  const th = pts.find((p) => p.tag === 'threshold' || /threshold/i.test(p.label)) ?? pts.find((p) => (p.alt ?? 0) <= 2000) ?? pts[pts.length - 1] ?? { x: 3103.84, y: -3193.93 };
+  const rwyHeadingDeg = 298;
+  const radiusFt = 3038.06; // 0.5 NM radius (1.0 NM diameter)
+
+  // 90° LEFT of Runway 29L heading is bearing 208° True (South-Southwest)
+  const rad208 = (208 * Math.PI) / 180;
+  const nLeftX = Math.sin(rad208); // -0.469472 (West)
+  const nLeftY = Math.cos(rad208); // -0.882948 (South)
+
+  // Center of circle: 0.5 NM at 208° from threshold
+  const cxFt = th.x + radiusFt * nLeftX; // ~1677.7 ft
+  const cyFt = th.y + radiusFt * nLeftY; // ~-5876.4 ft
+
+  const totalSteps = 120; // 3° per step for smooth high-density trajectory
+  const track = [];
+
+  for (let k = 0; k <= totalSteps; k++) {
+    const u = k / totalSteps;
+    const turnDeg = u * 360;
+
+    // Angle from circle center to aircraft position on circle:
+    // Starts at bearing 028° (threshold), rotates counter-clockwise (left turn)
+    const posAngleDeg = (28 - turnDeg + 360) % 360;
+    const radPos = (posAngleDeg * Math.PI) / 180;
+
+    // Position on circle in calm air
+    const calmX = cxFt + radiusFt * Math.sin(radPos);
+    const calmY = cyFt + radiusFt * Math.cos(radPos);
+
+    // Flown track heading (tangent to circle pointing counter-clockwise):
+    const trackHdgDeg = ((rwyHeadingDeg - turnDeg) % 360 + 360) % 360;
+
+    // Altitude descent schedule:
+    // High Key (5,000') -> Low Key (3,700') at u=0.5 -> Base Key (2,900') at u=0.75 -> Threshold (1,892') at u=1.0
+    let alt;
+    if (u <= 0.5) {
+      alt = Math.round(5000 - (5000 - 3700) * (u / 0.5));
+    } else if (u <= 0.75) {
+      alt = Math.round(3700 - (3700 - 2900) * ((u - 0.5) / 0.25));
+    } else {
+      alt = Math.round(2900 - (2900 - 1892) * ((u - 0.75) / 0.25));
+    }
+
+    // Airspeed schedule:
+    // 125 KIAS (High Key) -> 120 KIAS (Low Key & Base Key) -> 100 KIAS (Threshold flare)
+    let kt;
+    if (u <= 0.5) {
+      kt = Math.round(125 - 5 * (u / 0.5));
+    } else if (u <= 0.75) {
+      kt = 120;
+    } else {
+      kt = Math.round(120 - 20 * ((u - 0.75) / 0.25));
+    }
+
+    // Phase and semantic tags:
+    let phase = 'pfl_high_key';
+    let tag = 'high_key';
+    let src = 0;
+    if (u === 0) {
+      phase = 'pfl_high_key';
+      tag = 'high_key';
+      src = 0;
+    } else if (u < 0.5) {
+      phase = 'pfl_high_key';
+      tag = 'high_key';
+      src = 0;
+    } else if (u === 0.5 || (u >= 0.48 && u <= 0.52)) {
+      phase = 'pfl_low_key';
+      tag = 'low_key';
+      src = 1;
+    } else if (u < 0.75) {
+      phase = 'pfl_base_key';
+      tag = 'base_key';
+      src = 2;
+    } else if (u === 0.75) {
+      phase = 'pfl_base_key';
+      tag = 'base_key';
+      src = 2;
+    } else if (u < 1.0) {
+      phase = 'pfl_final';
+      tag = 'final';
+      src = 3;
+    } else {
+      phase = 'pfl_final';
+      tag = 'threshold';
+      src = 3;
+    }
+
+    // Wind crab angle calculation
+    const tasKt = iasToTasKt(kt, alt);
+    const wt = windTriangle(trackHdgDeg, tasKt, windFromDeg, windKt);
+    const headingDeg = wt.canHoldTrack ? wt.headingDeg : trackHdgDeg;
+
+    // Configuration schedule:
+    // Clean (High Key) -> Gear Down (Low Key) -> Landing Flaps (Base Key & Final)
+    let config = 'clean';
+    if (u >= 0.5 && u < 0.75) config = 'gearDown';
+    else if (u >= 0.75) config = 'landing';
+
+    // Nominal coordinated bank for 0.5 NM radius circle at 120 kt is ~25°–30° (1.15 G)
+    const bankDeg = (u === 0 || u === 1.0) ? 0 : 30;
+    const g = (u === 0 || u === 1.0) ? 1.0 : 1.15;
+
+    // Coordinates: clamped exactly to threshold at end
+    const x = (k === totalSteps) ? th.x : Math.round(calmX * 10) / 10;
+    const y = (k === totalSteps) ? th.y : Math.round(calmY * 10) / 10;
+
+    track.push({
+      x,
+      y,
+      alt,
+      kt,
+      kias: kt,
+      headingDeg,
+      bankDeg,
+      g,
+      src,
+      phase,
+      tag,
+      config,
+    });
+  }
+
+  // Ensure semantic tags exist on key indices for lookup helpers
+  if (!track.some(p => p.tag === 'low_key')) track[Math.round(totalSteps * 0.5)].tag = 'low_key';
+  if (!track.some(p => p.tag === 'base_key')) track[Math.round(totalSteps * 0.75)].tag = 'base_key';
 
   return track;
 }
