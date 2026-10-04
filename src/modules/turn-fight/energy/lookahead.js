@@ -193,6 +193,25 @@ export function getFeasibleMoves(ac, other = null, setup = ENERGY_DEFAULT_SETUP)
  * @returns {{ move: string, why: string, winSec: number|null, deltaAdv: number, valid: boolean }}
  */
 export function pickTacticalMove(state, who, lookaheadSec = (state.setup?.tacticalLookaheadSec ?? 20)) {
+  const steps = tacticalPickSteps(state, who, lookaheadSec);
+  let next = steps.next();
+  while (!next.done) next = steps.next();
+  return next.value;
+}
+
+/**
+ * pickTacticalMove one dry step at a time (TF-62): a generator that yields after each step of a candidate's dry run and
+ * returns the pick, so the pilot can spread the look-ahead over several fight steps instead of freezing the screen.
+ * The fight is copied once, on the first next(), so every candidate starts from the same moment. With `leadSec` the
+ * copy first flies on that long as it is (the jet keeps flying its move while the pilot thinks), so the candidates
+ * start from where the jet will be when the pick is made. Its first yield is { work }: the most dry steps still to come.
+ */
+export function* tacticalPickSteps(live, who, lookaheadSec = (live.setup?.tacticalLookaheadSec ?? 20), leadSec = 0) {
+  const state = structuredClone(live);
+  if (leadSec > 0) {
+    state.dry = true;
+    for (let t = 0; t < leadSec - 1e-9 && !state.stopped; t += FIGHT_STEP_SEC) stepOnce(state);
+  }
   const whoName = typeof who === 'string' ? who : (who?.who ?? 'blue');
   const otherName = whoName === 'blue' ? 'red' : 'blue';
   const meAc = state[whoName];
@@ -200,6 +219,7 @@ export function pickTacticalMove(state, who, lookaheadSec = (state.setup?.tactic
   const setup = state.setup ?? ENERGY_DEFAULT_SETUP;
 
   const candidates = getFeasibleMoves(meAc, otherAc, setup);
+  yield { work: candidates.length * Math.ceil(lookaheadSec / FIGHT_STEP_SEC) };
   if (!candidates.length) {
     return {
       move: 'mpt',
@@ -245,6 +265,7 @@ export function pickTacticalMove(state, who, lookaheadSec = (state.setup?.tactic
     if (winSec === null && !lost) {
       while (sim.timeSec < until - 1e-9 && !sim.stopped) {
         stepOnce(sim);
+        yield;
         if (sim.timeSec >= FIGHT_MAX_SEC - 1e-6) sim.stopped = true;
 
         // A run that STALLs, goes OVER G or passes the top speed for its height is not a move a pilot would choose.

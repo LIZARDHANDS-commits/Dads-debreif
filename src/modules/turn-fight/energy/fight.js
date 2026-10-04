@@ -7,7 +7,7 @@ import { iasToTasKt } from '../../../core/t6-performance.js';
 import { FIGHT_STEP_SEC, FIGHT_MAX_SEC } from '../sim.js';
 import { MOVE_LABELS, need, checkedSetup } from './setup.js';
 import { dot, sub, velOf, posOf, sideOfOther, readPair } from './frame.js';
-import { newAircraft, readOut, stepAircraft } from './aircraft.js';
+import { newAircraft, readOut, readLimitFlags, stepAircraft } from './aircraft.js';
 import { startMove } from './moves/index.js';
 import { aimPoint } from './moves/pursuit.js';
 import { chooseFirstMove, heldPick, startChases } from './pilot.js';
@@ -153,6 +153,7 @@ export function flyStraight(state, d) {
     const pm = ac.pm;
     ac.pm = { ...pm, x: pm.x + pm.vx * d, y: pm.y + pm.vy * d, z: pm.z + pm.vz * d };
     readOut(ac, 1, 1, state.setup, null, !state.dry);
+    readLimitFlags(ac, state.setup); // the flags show before the pass too (TF-61)
   }
 }
 

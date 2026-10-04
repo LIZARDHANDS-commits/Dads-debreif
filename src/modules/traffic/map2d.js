@@ -27,7 +27,7 @@ import { FT_PER_NM } from '../../core/units.js';
 import { windVectorFtps } from '../../core/wind.js';
 import { glideRatio, iasToTasKt } from '../../core/t6-performance.js';
 import { PFL, PFL_CONFIGS, PFL_CONFIG_LABELS } from './pfl.js';
-import { FIELD_ELEV_FT, THRESHOLD_29L, PFL_CIRCLE_RADIUS_FT } from './airfield.js';
+import { FIELD_ELEV_FT, THRESHOLD_29L, PFL_CIRCLE_RADIUS_FT, PATTERN_ALT_FT } from './airfield.js';
 import { TYPE_COLORS as FLEET_COLORS } from './types.js';
 import { T6_LENGTH_FT } from './types.js';
 
@@ -429,7 +429,7 @@ export function getPflBadge(ac) {
   }
 
   // Fallback heuristic based on altitude / speed if phase is generic ('pfl' or not yet refined)
-  const alt = ac.altFt ?? ac.alt ?? 3500;
+  const alt = ac.altFt ?? ac.alt ?? PATTERN_ALT_FT;
   const kt = ac.kt ?? 120;
   if (alt <= FIELD_ELEV_FT && (status === 'crashed' || status === 'landed')) {
     return '[CRASH SHORT]';

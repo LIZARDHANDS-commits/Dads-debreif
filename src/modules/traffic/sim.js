@@ -39,7 +39,7 @@ import { buildClosedPattern } from './closed-pattern.js';
 import { DECONFLICT, freeze, decide, deconflictLabel } from './deconflict.js';
 import { buildFlinch, buildClimbAhead, EVADE } from './evade.js';
 import { buildBreakout, gateLegOf, ENT1_ROUTE } from './breakout.js';
-import { PATTERN_ALT_FT } from './airfield.js';
+import { PATTERN_ALT_FT, RUNWAY_29L_HDG_DEG, FIELD_ELEV_FT } from './airfield.js';
 import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
 
 /** The step, in seconds of sim time. */
@@ -137,7 +137,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   // ── Aircraft ───────────────────────────────────────────────────────────────
 
   /** The aircraft's state for a move flown from where it is. */
-  const stateOf = (a) => ({ x: a.x, y: a.y, alt: a.alt, kias: a.iasKt ?? a.kt ?? 220, headingDeg: a.headingDeg ?? 298, bankDeg: a.bankDeg ?? 0 });
+  const stateOf = (a) => ({ x: a.x, y: a.y, alt: a.alt, kias: a.iasKt ?? a.kt ?? 220, headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG, bankDeg: a.bankDeg ?? 0 });
   const windNow = () => ({ windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 });
 
   /**
@@ -173,7 +173,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     if (isClosedPatternStart) {
       a.alt = 2400;
       a.iasKt = 140;
-      a.headingDeg = 298;
+      a.headingDeg = RUNWAY_29L_HDG_DEG;
       a.x = route.points[a.startIndex]?.x ?? -4066.03;
       a.y = route.points[a.startIndex]?.y ?? 680.56;
       a.closedPatternBankDeg = a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
@@ -363,7 +363,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const pat = routeById('PAT1') ?? setup.routes.find((r) => r.kind === 'pattern');
     if (!pat) return;
     const points = buildGoAround(pat.points, {
-      x: a.x, y: a.y, alt: a.alt, kias: a.iasKt ?? a.kt ?? 110, headingDeg: a.headingDeg ?? 298, bankDeg: a.bankDeg ?? 0,
+      x: a.x, y: a.y, alt: a.alt, kias: a.iasKt ?? a.kt ?? 110, headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG, bankDeg: a.bankDeg ?? 0,
     }, setup.windFromDeg ?? 360, setup.windKt ?? 0, sideFt, levelAltFt, holdKias);
     a.goAroundFlight = { route: { id: 'GO_AROUND_FLOWN', kind: 'flown', name: 'Go-around', points } };
     a.distFt = 0;
@@ -1034,7 +1034,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         // climbing turn onto the 760 ft run-in, followed by the path follower; at High Key the PFL takes over (tick-aircraft.js).
         const bankDeg = a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
         const flown = buildHighKeyClimb({
-          x: a.x, y: a.y, alt: alt, kias: a.iasKt ?? a.kt ?? 140, headingDeg: a.headingDeg ?? 298, bankDeg: a.bankDeg ?? 0,
+          x: a.x, y: a.y, alt: alt, kias: a.iasKt ?? a.kt ?? 140, headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG, bankDeg: a.bankDeg ?? 0,
         }, env, bankDeg);
         a.highKeyFlight = { route: { id: 'HIGH_KEY_FLOWN', kind: 'flown', name: 'Climb to High Key', points: flown.points }, settings: setup.settings };
         a.engineFailed = false;
@@ -1090,7 +1090,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         const route = routeOf(a);
         const p = a.pflRail ? a : whereIs(a);
         const iasKt = a.iasKt ?? (p.kt ?? a.fallbackKt);
-        const altFt = a.landed ? (a.alt ?? p.alt ?? 1892) : (a.alt ?? (p.alt ?? a.fallbackAlt));
+        const altFt = a.landed ? (a.alt ?? p.alt ?? FIELD_ELEV_FT) : (a.alt ?? (p.alt ?? a.fallbackAlt));
         const x = a.x ?? p.x;
         const y = a.y ?? p.y;
         const headingDeg = a.headingDeg ?? p.headingDeg;

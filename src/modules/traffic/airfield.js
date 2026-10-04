@@ -39,8 +39,6 @@ export const PATTERN_ALT_FT = 3500;
  * PFL key heights, ft MSL, checked against the SMM (Patrick, card 4 Oct
  * 07:01Z): High Key 5,000 (SMM 13.8 para 17), Low Key 3,700 (SMM 13.8 para 17,
  * 4.28 para 71), Final Key about 1,000 ft above the field (SMM 13.9 para 18).
- * The flying code still uses its own key heights until the PFL is rebuilt
- * (refactor PR 3).
  */
 export const PFL_KEY_ALT_FT = Object.freeze({ highKey: 5000, lowKey: 3700, finalKey: 3000 });
 

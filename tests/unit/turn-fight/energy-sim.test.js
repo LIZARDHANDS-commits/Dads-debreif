@@ -23,6 +23,7 @@ import {
   getFeasibleMoves, pickTacticalMove,
 } from '../../../src/modules/turn-fight/energy-sim.js';
 import { TUNING as ENERGY_TUNING } from '../../../src/modules/turn-fight/energy/setup.js';
+import { tacticalPickSteps } from '../../../src/modules/turn-fight/energy/lookahead.js';
 
 const near = (actual, expected, tol, msg) => assert.ok(Math.abs(actual - expected) <= tol, `${msg ?? ''} ${actual} vs ${expected} (±${tol})`);
 const degDiff = (aRad, bRad) => Math.abs(radToDeg(wrapPi(aRad - bRad)));
@@ -1864,4 +1865,22 @@ test('Task 19: the Smart pilot (old name tactical) leaves the MPT when the other
   assert.ok(fightZoom.blue.why, 'Blue says why it changed');
 });
 
-
+// TF-62: the Smart look-ahead spread over the steps. Always true: worked through a step at a time, the look-ahead picks
+// the same move as worked out at once, and it leaves the fight it looked from untouched. Both an instant and a spread pick fly a whole fight.
+test('the Smart look-ahead worked a step at a time picks what it picks at once, and both an instant and a spread pick fly a fight (TF-62)', () => {
+  const fight = createEnergyFight({});
+  for (let i = 0; i < 25 / FIGHT_STEP_SEC; i++) stepEnergyFight(fight, FIGHT_STEP_SEC);
+  const before = JSON.stringify(fight);
+  const atOnce = pickTacticalMove(fight, 'blue', 20);
+  const steps = tacticalPickSteps(fight, 'blue', 20);
+  let next = steps.next(), stepsTaken = 0;
+  while (!next.done) { next = steps.next(); stepsTaken++; }
+  assert.deepEqual(next.value, atOnce);
+  assert.ok(stepsTaken > 0, 'the look-ahead flew some steps');
+  assert.equal(JSON.stringify(fight), before, 'the real fight is untouched');
+  for (const smartDecisionSec of [0, 0.5]) {
+    const f = createEnergyFight({ smartDecisionSec });
+    for (let i = 0; i < 120 / FIGHT_STEP_SEC && !f.kill && !f.collision; i++) stepEnergyFight(f, FIGHT_STEP_SEC);
+    assert.ok(Number.isFinite(f.blue.altFt) && Number.isFinite(f.red.altFt), `decision time ${smartDecisionSec} s: the fight flew`);
+  }
+});
