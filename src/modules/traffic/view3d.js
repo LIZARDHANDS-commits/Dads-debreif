@@ -17,9 +17,9 @@ import {
   loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addSky, createStandInMesh, createAircraftMesh, disposeAircraftMesh,
 } from '../../ui-kit/three-aircraft.js';
 import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT } from '../../ui-kit/ct156-model.js';
-import { KT_TO_FTPS, G_FTPS2 } from '../../core/units.js';
+import { KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../core/units.js';
 import { T6_LENGTH_FT } from './types.js';
-import { paletteFrom, conflictLevels, isFlying, aircraftColor, heightSpeedText, LEVEL_MARKS, MIN_RING_PX, photoAlignment, photoView, getPflBadge } from './map2d.js';
+import { paletteFrom, conflictLevels, isFlying, aircraftColor, heightSpeedText, LEVEL_MARKS, MIN_RING_PX, photoAlignment, photoView, getPflBadge, pflCircleLayout, calculateGlideFootprint, shouldShowGlideFootprint } from './map2d.js';
 import { createTileLayer, ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { makeLocalRef, latLonToLocalFt } from '../../core/geo.js';
 import { createAirfieldScenery, disposeAirfieldScenery, DEFAULT_FLOOR_FT } from './scenery3d.js';
@@ -302,6 +302,38 @@ export function routeSignature(route) {
 
 // A pattern is a closed loop, entries and splits open lines. Entries are dashed and splits dotted, as on the 2D map.
 const DASH_FT = Object.freeze({ entry: [500, 350], split: [120, 380] });
+/**
+ * How wide the routes are drawn in 3D, in pixels, the same as on the 2D map (patterns 3, the rest 2.5), with a dark
+ * edge either side so they stand out on the photo (Patrick, 4 Oct 10:55Z: more contrast). Plain WebGL lines are
+ * always 1 px, so these use three's own wide lines; without them the routes fall back to the thin lines.
+ */
+const ROUTE_LINE_PX = Object.freeze({ pattern: 3, other: 2.5, edge: 2.5 });
+const ROUTE_EDGE_COLOR = '#0b1620';
+/** The PFL circle on the 3D ground (layer "PFL ground circle"), drawn as on the map: pink circle, red spoke to Low Key. */
+const PFL_CIRCLE_COLOR = '#ff9bce';
+const PFL_SPOKE_COLOR = '#ff6b6b';
+const GLIDE_RING_COLOR = '#38bdf8';
+/** Feet above the ground the PFL lines are drawn, so the photo doesn't hide them. */
+const GROUND_LINE_LIFT_FT = 8;
+
+let fatLinesPromise = null;
+/**
+ * three's own wide lines (Line2, LineMaterial, LineGeometry from three/addons, part of the three package the 3D view
+ * already loads; no new library). Loaded with the 3D view only. Null when they can't load: the thin lines are used.
+ */
+export function loadFatLines() {
+  fatLinesPromise ??= Promise.all([
+    import('three/addons/lines/Line2.js'),
+    import('three/addons/lines/LineMaterial.js'),
+    import('three/addons/lines/LineGeometry.js'),
+  ]).then(([a, b, c]) => ({ Line2: a.Line2, LineMaterial: b.LineMaterial, LineGeometry: c.LineGeometry }))
+    .catch((err) => {
+      fatLinesPromise = null;
+      console.warn('Wide 3D lines could not be loaded; drawing thin ones:', err);
+      return null;
+    });
+  return fatLinesPromise;
+}
 
 /** How many T-6s flying at once get the full Harvard model (55 draw calls each); later ones get the ui-kit's plain T-6 (about 10). */
 export const MAX_FULL_T6 = 24;
@@ -336,9 +368,10 @@ const numberOf = (id) => String(id).replace(/\D+/g, '') || String(id);
  * what is missing, moves what is there and frees what has gone; dispose() frees the lot. `root` is the group to add
  * to the scene. models: { ct156, t6plain, standin }, each (THREE, { color, number, paint }) returning a mesh, for tests.
  */
-export function createSceneKit(THREE, { models = defaultModels() } = {}) {
+export function createSceneKit(THREE, { models = defaultModels(), fatLines = null } = {}) {
   const root = new THREE.Group();
-  const routeLines = new Map(); // route id -> { line, sig }
+  const routeLines = new Map(); // route id -> { line, sig, edge }
+  const resolution = { width: 1, height: 1 }; // the canvas size, which the wide lines need to be drawn in pixels
   const planes = new Map(); // aircraft id -> { mesh, kind, paint }
   const rings = new Map(); // aircraft id -> LineLoop
   const attitude = createAttitude();
@@ -444,20 +477,31 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
         const sig = routeSignature(route);
         const have = routeLines.get(route.id);
         if (!have || have.sig !== sig) {
-          if (have) freeLine(have.line);
+          if (have) freeRoute(have);
           const positions = new Float32Array(route.path.length * 3);
           route.path.forEach((p, i) => positions.set([p.x, p.y, altToZ(p.alt, ALT_SCALE)], i * 3));
           const geometry = new THREE.BufferGeometry();
           geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
           const dash = DASH_FT[route.kind];
-          const material = dash
-            ? new THREE.LineDashedMaterial({ color: route.color, dashSize: dash[0], gapSize: dash[1], fog: false })
-            : new THREE.LineBasicMaterial({ color: route.color, fog: false });
-          const line = route.kind === 'pattern' ? new THREE.LineLoop(geometry, material) : new THREE.Line(geometry, material);
-          if (dash) line.computeLineDistances();
-          line.frustumCulled = false;
-          root.add(line);
-          routeLines.set(route.id, { line, sig });
+          if (fatLines) {
+            geometry.dispose(); // the wide line keeps its own copy of the points
+            const closed = route.kind === 'pattern';
+            const widthPx = closed ? ROUTE_LINE_PX.pattern : ROUTE_LINE_PX.other;
+            // Both opaque, the edge drawn first: a see-through edge would be drawn after (and over) the colour.
+            const edge = wideLine(route.path, closed, { color: ROUTE_EDGE_COLOR, linewidth: widthPx + 2 * ROUTE_LINE_PX.edge }, 1);
+            // Pulled a hair toward the eye, so the colour never flickers with the edge at the same depth.
+            const line = wideLine(route.path, closed, { color: route.color, linewidth: widthPx, dash, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }, 2);
+            routeLines.set(route.id, { line, sig, edge });
+          } else {
+            const material = dash
+              ? new THREE.LineDashedMaterial({ color: route.color, dashSize: dash[0], gapSize: dash[1], fog: false })
+              : new THREE.LineBasicMaterial({ color: route.color, fog: false });
+            const line = route.kind === 'pattern' ? new THREE.LineLoop(geometry, material) : new THREE.Line(geometry, material);
+            if (dash) line.computeLineDistances();
+            line.frustumCulled = false;
+            root.add(line);
+            routeLines.set(route.id, { line, sig });
+          }
         }
       }
 
@@ -467,7 +511,7 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
         const sig = `${routeSignature(route)}_calm`;
         const have = routeLines.get(calmId);
         if (!have || have.sig !== sig) {
-          if (have) freeLine(have.line);
+          if (have) freeRoute(have);
           const positions = new Float32Array(route.calmPath.length * 3);
           route.calmPath.forEach((p, i) => positions.set([p.x, p.y, altToZ(p.alt, ALT_SCALE)], i * 3));
           const geometry = new THREE.BufferGeometry();
@@ -481,10 +525,84 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
         }
       }
     }
-    for (const [id, { line }] of routeLines) {
+    for (const [id, have] of routeLines) {
       if (wanted.has(id)) continue;
-      freeLine(line);
+      freeRoute(have);
       routeLines.delete(id);
+    }
+  }
+
+  /** A wide line through `points` ({ x, y, alt }), `material` options for three's LineMaterial; drawn after `order` lower. */
+  function wideLine(points, closed, { dash = null, ...options }, order) {
+    const flat = [];
+    for (const p of points) flat.push(p.x, p.y, altToZ(p.alt, ALT_SCALE));
+    if (closed && points.length > 2) flat.push(flat[0], flat[1], flat[2]);
+    const geometry = new fatLines.LineGeometry();
+    geometry.setPositions(flat);
+    const material = new fatLines.LineMaterial({ ...options, worldUnits: false, dashed: Boolean(dash), dashSize: dash?.[0] ?? 1, gapSize: dash?.[1] ?? 0, fog: false });
+    material.resolution.set(resolution.width, resolution.height);
+    const line = new fatLines.Line2(geometry, material);
+    if (dash) line.computeLineDistances();
+    line.renderOrder = order;
+    line.frustumCulled = false;
+    root.add(line);
+    return line;
+  }
+
+  function freeRoute(have) {
+    freeLine(have.line);
+    if (have.edge) freeLine(have.edge);
+  }
+
+  // The PFL circle and its spoke to Low Key, on the ground; built once, moved to the ground's height each sync.
+  const pflLayout = pflCircleLayout();
+  const PFL_SEGMENTS = 96;
+  const pflCirclePoints = [];
+  for (let i = 0; i < PFL_SEGMENTS; i++) {
+    const a = (i / PFL_SEGMENTS) * Math.PI * 2;
+    pflCirclePoints.push(new THREE.Vector3(pflLayout.center.x + pflLayout.radiusFt * Math.cos(a), pflLayout.center.y + pflLayout.radiusFt * Math.sin(a), 0));
+  }
+  const pflCircleGeometry = new THREE.BufferGeometry().setFromPoints(pflCirclePoints);
+  const pflCircleMaterial = new THREE.LineDashedMaterial({ color: PFL_CIRCLE_COLOR, dashSize: 400, gapSize: 280, fog: false });
+  const pflCircle = new THREE.LineLoop(pflCircleGeometry, pflCircleMaterial);
+  pflCircle.computeLineDistances();
+  const pflSpokeGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(pflLayout.highKey.x, pflLayout.highKey.y, 0), new THREE.Vector3(pflLayout.lowKey.x, pflLayout.lowKey.y, 0)]);
+  const pflSpokeMaterial = new THREE.LineDashedMaterial({ color: PFL_SPOKE_COLOR, dashSize: 250, gapSize: 250, fog: false });
+  const pflSpoke = new THREE.Line(pflSpokeGeometry, pflSpokeMaterial);
+  pflSpoke.computeLineDistances();
+  const pflGround = new THREE.Group();
+  pflGround.add(pflCircle, pflSpoke);
+  pflGround.visible = false;
+  root.add(pflGround);
+
+  // Each PFL aircraft's glide ring on the ground (as on the map): the shared unit circle, scaled to the glide distance.
+  const glideRings = new Map(); // aircraft id -> LineLoop
+  const glideMaterial = new THREE.LineBasicMaterial({ color: GLIDE_RING_COLOR, transparent: true, opacity: 0.8, fog: false });
+
+  function syncPflGround(scene, options) {
+    const lift = altToZ((options.groundFt ?? 0) + GROUND_LINE_LIFT_FT, ALT_SCALE);
+    pflGround.visible = options.layerPflCircle !== false;
+    pflGround.position.z = lift;
+    const present = new Set();
+    for (const ac of scene.aircraft) {
+      if (!isFlying(ac) || !shouldShowGlideFootprint(ac, null)) continue;
+      const footprint = calculateGlideFootprint(ac, scene.windFromDeg ?? 360, scene.windKt ?? 0);
+      if (!(footprint.rGlide > 0)) continue;
+      present.add(ac.id);
+      let ring = glideRings.get(ac.id);
+      if (!ring) {
+        ring = new THREE.LineLoop(ringGeometry, glideMaterial);
+        ring.frustumCulled = false;
+        root.add(ring);
+        glideRings.set(ac.id, ring);
+      }
+      ring.position.set(footprint.cx, footprint.cy, lift);
+      ring.scale.set(footprint.rGlide, footprint.rGlide, 1);
+    }
+    for (const [id, ring] of glideRings) {
+      if (present.has(id)) continue;
+      ring.removeFromParent();
+      glideRings.delete(id);
     }
   }
 
@@ -669,7 +787,21 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
       lastScene = scene;
       syncRoutes(scene.routes, options);
       syncAircraft(scene, options);
+      syncPflGround(scene, options);
       updateWindsocks(windsocks, scene.windFromDeg, scene.windKt);
+    },
+    /** The canvas size in pixels, which the wide route lines are drawn against. */
+    setResolution(width, height) {
+      if (resolution.width === width && resolution.height === height) return;
+      resolution.width = width;
+      resolution.height = height;
+      for (const have of routeLines.values()) {
+        for (const line of [have.line, have.edge]) if (line?.material?.resolution) line.material.resolution.set(width, height);
+      }
+    },
+    /** Where the glide rings are, for the labels: aircraft id -> { x, y, rFt }. */
+    glideRingsNow() {
+      return new Map([...glideRings].map(([id, ring]) => [id, { x: ring.position.x, y: ring.position.y, rFt: ring.scale.x }]));
     },
     /** The ground grid follows the view in whole steps, so it looks endless and still. */
     placeGrid(focus, groundFtNow) {
@@ -740,8 +872,15 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
       disposed = true;
       targetedId = null;
       lastScene = null;
-      for (const { line } of routeLines.values()) freeLine(line);
+      for (const have of routeLines.values()) freeRoute(have);
       routeLines.clear();
+      for (const ring of glideRings.values()) ring.removeFromParent();
+      glideRings.clear();
+      glideMaterial.dispose();
+      pflCircleGeometry.dispose();
+      pflCircleMaterial.dispose();
+      pflSpokeGeometry.dispose();
+      pflSpokeMaterial.dispose();
       for (const { mesh } of planes.values()) disposeAircraftMesh(mesh);
       planes.clear();
       for (const ring of rings.values()) ring.removeFromParent();
@@ -830,6 +969,12 @@ export function resetSoftwareCheck() {
 }
 
 const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+/** The dark edge round the 3D words, in pixels (was 3; thicker so they read on the photo). */
+const LABEL_EDGE_PX = 4;
+/** The ring round each 3D aircraft, in its colour: line width, the gap outside the drawn aircraft, and the smallest radius, in pixels. */
+const LOCATOR_PX = 2;
+const LOCATOR_GAP_PX = 5;
+const LOCATOR_MIN_PX = 14;
 
 function paintBaseAirfield(ctx) {
   ctx.fillStyle = '#243b2f';
@@ -897,6 +1042,7 @@ export function addTrafficLights(THREE, scene) {
  */
 export function createView3d({ host, timers, source, onLost = () => {}, win = globalThis }) {
   let THREE = null;
+  let fatLines = null; // three's wide lines, loaded with three (loadFatLines); null draws thin lines
   let gl = null; // { canvas, labels, ctx, renderer, scene, camera, sky, kit, palette }
   let visible = false;
   let disposed = false;
@@ -1103,7 +1249,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 2);
     const lights = addTrafficLights(THREE, scene);
     const sky = addSky(THREE, scene);
-    const kit = createSceneKit(THREE);
+    const kit = createSceneKit(THREE, { fatLines });
     scene.add(kit.root);
     const style = win.getComputedStyle?.(canvas);
     const palette = paletteFrom((name) => style?.getPropertyValue(name).trim() ?? '');
@@ -1298,6 +1444,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
       layerHeightLines: options.layerHeightLines ?? heightLines,
       layerWindTrack: options.layerWindTrack,
       layerSmmReference: options.layerSmmReference,
+      layerPflCircle: options.layerPflCircle,
       layerPhoto: options.layerPhoto,
       photoTexture: photoTex,
       midTexture: midTex,
@@ -1306,9 +1453,10 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
       photoOpacityPct: options.photoOpacityPct,
     });
     kit.placeGrid(focus, floor);
+    kit.setResolution(size.width, size.height);
     matchProjection(THREE, camera, focus, shown, size, 1);
     renderer.render(threeScene, camera);
-    drawLabels(ctx, labels, size, ratio, data, options, palette);
+    drawLabels(ctx, labels, size, ratio, data, options, palette, { zoom: shown.zoom, floor });
 
     drawn++;
     const ms = (win.performance?.now() ?? 0) - started;
@@ -1322,35 +1470,68 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
   }
 
   // The callsigns and, with the layer on, heights and speeds, written over the picture; a word for a conflict too (colour is never the only signal).
-  function drawLabels(ctx, labelCanvas, size, ratio, data, options, palette) {
+  // A ring in the aircraft's colour round each one, and a thick dark edge on the words, so they stand out on the photo
+  // (Patrick, 4 Oct 10:55Z). With the PFL layer on, the keys and each PFL aircraft's glide distance are named as on the map.
+  function drawLabels(ctx, labelCanvas, size, ratio, data, options, palette, { zoom = 20, floor = 0 } = {}) {
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.clearRect(0, 0, size.width, size.height);
     const levels = conflictLevels(data.conflicts ?? []);
     const camera = gl.camera;
     ctx.lineJoin = 'round';
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = palette.halo;
     ctx.textBaseline = 'alphabetic';
-    const write = (text, x, y, colour, bold = false, px = 11) => {
+    const write = (text, x, y, colour, bold = false, px = 12) => {
       ctx.font = `${bold ? '700 ' : ''}${px}px ${FONT}`;
+      ctx.lineWidth = LABEL_EDGE_PX;
+      ctx.strokeStyle = palette.halo;
       ctx.strokeText(text, x, y);
       ctx.fillStyle = colour;
       ctx.fillText(text, x, y);
     };
+    const screenOf = (x, y, alt) => worldToScreen(THREE, camera, { x, y, z: altToZ(alt, ALT_SCALE) }, size.width, size.height);
+    const onScreen = (p, margin = 50) => p.x > -margin && p.y > -margin && p.x < size.width + margin && p.y < size.height + margin;
+
+    if (options.layerPflCircle !== false) {
+      const layout = pflCircleLayout();
+      /** @type {Array<[{ x: number, y: number }, string, string]>} */
+      const keys = [
+        [layout.highKey, "HIGH KEY (5,000' MSL)", PFL_CIRCLE_COLOR],
+        [layout.lowKey, "LOW KEY (3,700' MSL)", PFL_SPOKE_COLOR],
+        [layout.finalKey, "FINAL KEY (3,000' MSL)", GLIDE_RING_COLOR],
+      ];
+      ctx.textAlign = 'center';
+      for (const [pt, words, colour] of keys) {
+        const p = screenOf(pt.x, pt.y, floor + GROUND_LINE_LIFT_FT);
+        if (onScreen(p)) write(words, p.x, p.y - 6, colour, true, 11);
+      }
+      for (const [, ring] of gl.kit.glideRingsNow()) {
+        const p = screenOf(ring.x, ring.y + ring.rFt, floor + GROUND_LINE_LIFT_FT);
+        if (onScreen(p)) write(`PFL GLIDE (${(ring.rFt / FT_PER_NM).toFixed(1)} NM)`, p.x, p.y - 6, GLIDE_RING_COLOR, true, 11);
+      }
+    }
+
+    const planeRadiusPx = Math.max(LOCATOR_MIN_PX, (planeLengthFt(zoom, options.aircraftScale) * zoom) / 1000 / 2 + LOCATOR_GAP_PX);
     for (const ac of data.aircraft) {
       if (!isFlying(ac)) continue;
-      const p = worldToScreen(THREE, camera, { x: ac.x, y: ac.y, z: altToZ(ac.alt, ALT_SCALE) }, size.width, size.height);
-      if (p.x < -50 || p.y < -20 || p.x > size.width + 50 || p.y > size.height + 20) continue;
-      const half = MIN_PLANE_PX / 2;
-      ctx.textAlign = p.x + 130 > size.width ? 'right' : 'left';
-      const x = ctx.textAlign === 'left' ? p.x + half : p.x - half;
-      write(ac.id, x, p.y - 6, aircraftColor(ac), true, 12);
-      if (options.layerLabels) write(heightSpeedText(ac), x, p.y + 7, palette.text);
+      const p = screenOf(ac.x, ac.y, ac.alt);
+      if (!onScreen(p)) continue;
+      const colour = aircraftColor(ac);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, planeRadiusPx, 0, Math.PI * 2);
+      ctx.lineWidth = LOCATOR_PX + 2;
+      ctx.strokeStyle = palette.halo;
+      ctx.stroke();
+      ctx.lineWidth = LOCATOR_PX;
+      ctx.strokeStyle = colour;
+      ctx.stroke();
+      ctx.textAlign = p.x + 160 > size.width ? 'right' : 'left';
+      const x = ctx.textAlign === 'left' ? p.x + planeRadiusPx + 4 : p.x - planeRadiusPx - 4;
+      write(ac.id, x, p.y - 6, colour, true, 13);
+      if (options.layerLabels) write(heightSpeedText(ac), x, p.y + 8, palette.text, false, 12);
       const level = levels.get(ac.id);
-      if (level) write(LEVEL_MARKS[level], x, p.y + 20, level === 'conflict' ? palette.bad : palette.caution, true);
-      // The PFL tag, as on the map (TR-R35).
+      if (level) write(LEVEL_MARKS[level], x, p.y + 22, level === 'conflict' ? palette.bad : palette.caution, true);
+      // The PFL tag, its decision and configuration, as on the map (TR-R35).
       const pfl = getPflBadge(ac);
-      if (pfl) write(pfl, x, p.y + (level ? 33 : options.layerLabels ? 20 : 7), pfl === '[CRASH SHORT]' ? palette.bad : '#38bdf8', true, 10);
+      if (pfl) write(pfl, x, p.y + (level ? 36 : options.layerLabels ? 22 : 8), pfl === '[CRASH SHORT]' ? palette.bad : GLIDE_RING_COLOR, true, 12);
     }
   }
 
@@ -1591,6 +1772,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
         loading ??= (async () => {
           try {
             THREE = await loadThree();
+            fatLines = await loadFatLines();
           } catch (err) {
             console.warn('three.js could not be loaded:', err);
             return { ok: false, reason: 'load' };

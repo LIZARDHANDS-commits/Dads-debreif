@@ -29,6 +29,9 @@ Ideas for the Traffic Sim that are not being built. An idea moves into `plan.md`
 - The sim's name in the top left: "Pat's CYMJ Traffic & Pattern Simulator" (10:09Z; #259).
 - A test that every manoeuvre's transitions are smooth (10:05Z; six limits approved 10:18Z; `smooth-transitions.test.js`).
 - His oblique view over the field as the opening 3D view (10:17Z; #267), and "Over the field" first in the Camera menu (his card, 10:53Z).
+- Clearer 3D (10:55Z): wider route lines with a dark edge, a coloured ring round each aircraft, bolder words; the PFL circle, its keys and each PFL aircraft's glide ring drawn on the 3D ground, as on the map. The PFL tag (decision and configuration) was already on the 3D aircraft; it is now easier to read.
+- In progress: the left panel becomes "Setup", with scenario buttons (Random spawns five aircraft in random spots, plus four more), a wind dial (drag round for direction) and a strength bar (11:05Z).
+- In progress: a design for the automatic deconfliction above, borrowing the idea of Turn Fight's collision avoidance (11:05Z; design notes in the project files, traffic-deconfliction/). Conflict resolution means breakout and move-over; who has right of way and who moves when come from the Flying Orders and the SMM, cited by page (11:06Z). Aircraft first manoeuvre as the manuals say; if a close collision is still coming, they switch to the skill (hand over to physics flight) and break out (11:07Z).
 
 ## The old Phase 2 queue for Traffic (PPQ-01 to PPQ-08)
 
