@@ -19,7 +19,10 @@ The second wave of live mode (rejoins, fighting wing and fluid manoeuvring, old 
 
 Patrick, 4 Oct (review thread): he wants all of V6's features eventually, added one at a time on the working 2-ship model (`spec.md` Part 1, section 6). The order of the first few is in `plan.md` Step 4; the rest wait here.
 
-- The 4-ship (4312 reading #4 #3 #1 #2 from behind, TS-44; 2134) and the offset box, each wingman flying off its reference aircraft.
+- The 4-ship's other orders (2134) and the offset box, each wingman flying off its reference aircraft. The Spread 4 itself is built (V2.7, TS-50).
+- The mid-flight transition between 2-ship and 4-ship (V2.7 restarts from the default start of the mode chosen); being designed in another thread.
+- The 4-ship's delayed 45 as the brief draws it: all the aircraft after #2 check together right after #2 starts its turn, then turn in sequence (AFM8 brief p.18). That cannot roll out in exact line abreast, which is what the brief's own note admits ("quickly fix any spacing or sweep errors on roll out"), so it waits for the errors layer; V2.7 flies each check and turn in sequence instead, which is exact except for a little tight on the first aircraft to check.
+- The 4-ship's altitude stack chosen by #2 (the SMM: #2 sets it, #3 and #4 take the opposite block, so #2 can be below Lead) and a stack-change step before a turn ("return to stack promptly when directed by Lead", AFM8 brief p.14). V2.7 keeps the brief's stack all the time.
 - Plan mode on the same core: pick a start and a manoeuvre, press Play (TS-R1).
 - Errors and faults (TS-R8): late or early, more or less G, wide, tight, fore or aft; one-click faults (TS-Q16); the hook's G adjustment at the 90° point and the wingman's roll-out fixes come with them (TS-48).
 - Pressing a button mid-turn and re-planning from the banked state (the first version queues it, TS-45).
