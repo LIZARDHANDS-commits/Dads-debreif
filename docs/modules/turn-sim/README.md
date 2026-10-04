@@ -1,14 +1,14 @@
 # Turn Sim
 
-This folder is the formation turn sim: formation turns from the SMM in plan mode today, live mode with manoeuvre buttons to come. Start here, then read only the file you need.
+This folder is the formation turn sim. From V2.6 it shows the first version of live mode: a 2-ship in line abreast that flies along, with a button for each SMM line abreast manoeuvre. Start here, then read only the file you need.
 
 ## Where it stands
 
-Live as a PROTOTYPE, but Patrick's directive is a full overhaul first; the Turn Sim review is the first step of its plan, and four paused branches hold work to reuse (`archive/HANDOVER.md:91`).
+Live as a PROTOTYPE. The Turn Sim review is done (4 Oct): Patrick chose a new flying core with planned, kinematically accurate paths, and approved the first version's spec (`spec.md` Part 1; decisions TS-35 to TS-49). The first version is built (`src/modules/turn-sim/live/`); the plan-mode code stays in the repo, unused, until Patrick agrees to retire it.
 
 ## What is next
 
-The plan's steps, in order: Step 1: The Turn Sim review (analysis only; Patrick decides); Step 2: Refresh spec.md against the new requirements (after the review); Step 3: Build what the review chose; Step 4: Second wave of live mode; Step 5: Sign-off. Only what is in `plan.md` gets built.
+The plan's steps, in order: Step 1: the review (done); Step 2: the first version (built; waiting for Patrick to fly every button); Step 3: retire the plan-mode code (Patrick decides); Step 4: next features one at a time on the same core; Step 5: sign-off. Only what is in `plan.md` gets built.
 
 ## The files
 
@@ -27,14 +27,17 @@ Each has a working answer that the tool uses until it is settled.
 
 ### Waiting on Patrick now (also on the list in `../../PLAN.md`)
 
-- **Turn Sim review questions A to E,** on live controllers or planned paths, speed basis, the 300 ft stack, the clock cue and the error settings (`docs/modules/turn-sim/plan.md:25`).
+- **Fly the first version** from the default start, every button both ways (`testing.md`, "First version" checklist, a draft for Patrick's own words).
+- **Retire the plan-mode code and its tests?** (`plan.md` Step 3).
+- **The low block height** for the IAS-to-TAS conversion (8,000 ft is an estimate, TS-38), and whether the wingman passes above (the working answer) or below in the crossing turns (TS-42).
+- **The hook's G change** at the 90° point is not flown when on speed and spacing (TS-48); confirm.
 - **The two PC-only reports** (Turn Sim and Turn Fight architecture reports): where in the repo their content lands (`pf/reset/2-inventory/file-register.md:194`).
 
 ### Deferred to the Turn Sim review
 
 | ID | Question | Options | Best guess (the working answer until it is settled) | Source |
 |---|---|---|---|---|
-| TS-Q2 | **Deferred by Patrick, 4 Oct 02:16Z: the Turn Sim gets two modes (plan mode, roughly today's, and live mode with manoeuvre buttons); rebuild vs new core vs fix is decided in a Turn Sim review step added to the end of the plan, after ratification, using the two reviews below and more repo documents.** Earlier, Patrick 4 Oct 02:03Z: examine the current architecture, code and assumptions first, then decide between rebuilding from the ground up, reusing parts, or fixing what is there. Review running: agents/turn-sim-architecture-review.md, with the manoeuvre list in agents/turn-sim-manoeuvre-catalogue.md.** Your 3 Oct note says the Turn Sim needs a full overhaul. The status papers say it is about 75% done and only needs four branches merged. The bloat report (written 2 Oct, before your note) proposes a 3-tier screen, no late/early/lag/lead/gfix, and a closed-form solver. Overhaul, or finish and trim? | (a) rebuild turn sequencing and trajectory on the SMM figures; (b) merge the four branches, then trim; (c) merge nothing until the SMM end pictures are agreed | (a) for the turn sequencing only; keep the screen shell and the verified formulas | `docs/handover/turn-sim.md:3-7`; `archive/docs/records/verification/swarm/STATUS_RECONCILIATION.md:22`; `archive/docs/REMEDIATION_ROADMAP.md:366-376`; report `pf/reset/inputs/turn-sim-architecture-and-bloat-report.md:1,17-26` |
+| TS-Q2 | **Decided 4 Oct 09:54Z: a new flying core, keeping and trimming the screen (`decisions.md` TS-35).** Deferred by Patrick, 4 Oct 02:16Z: the Turn Sim gets two modes (plan mode, roughly today's, and live mode with manoeuvre buttons); rebuild vs new core vs fix is decided in a Turn Sim review step added to the end of the plan, after ratification, using the two reviews below and more repo documents.** Earlier, Patrick 4 Oct 02:03Z: examine the current architecture, code and assumptions first, then decide between rebuilding from the ground up, reusing parts, or fixing what is there. Review running: agents/turn-sim-architecture-review.md, with the manoeuvre list in agents/turn-sim-manoeuvre-catalogue.md.** Your 3 Oct note says the Turn Sim needs a full overhaul. The status papers say it is about 75% done and only needs four branches merged. The bloat report (written 2 Oct, before your note) proposes a 3-tier screen, no late/early/lag/lead/gfix, and a closed-form solver. Overhaul, or finish and trim? | (a) rebuild turn sequencing and trajectory on the SMM figures; (b) merge the four branches, then trim; (c) merge nothing until the SMM end pictures are agreed | (a) for the turn sequencing only; keep the screen shell and the verified formulas | `docs/handover/turn-sim.md:3-7`; `archive/docs/records/verification/swarm/STATUS_RECONCILIATION.md:22`; `archive/docs/REMEDIATION_ROADMAP.md:366-376`; report `pf/reset/inputs/turn-sim-architecture-and-bloat-report.md:1,17-26` |
 | TS-Q10 | **Moved to the Turn Sim review step, 4 Oct 02:25Z (with TS-Q24, which Patrick deferred).** Dad's first email (the source of D41-D45) is not in the archive; only his check list and round-2 questions are, and neither is mostly about this module. Can you supply it? And do you want his two Turn Sim questions sent (Delayed 45 cue; box rear delay)? | send now / after TS-Q1 and TS-Q4 | after TS-Q1 and TS-Q4 | `pf/archive/2026-09/dad-email/`; `archive/docs/records/plan-decisions.md:414-418`; `pf/archive/2026-09/dad-email/dads-check-list.md:23-33` |
 
 Also deferred there: the settings count in TS-R27 and Dad's three four-ship working answers (TS-Q24); see `plan.md`, step 1.
@@ -57,7 +60,7 @@ Screen and build details. Each has a working answer (the best guess) that stands
 | TS-Q21 | Labels such as "#2 TIGHT / AFT" appear mid-turn. Judge only when the turn is finished? Also: the Turn Sim ignores FORE under 1 degree and WIDE/TIGHT within 1% while the Debrief does not (D251). One standard or two? | judge at roll-out only; same rule as Debrief | roll-out only; one standard | `docs/records/plan-decisions.md:624,715-716,462`; `agents/shots/turn-sim/new-3d-mid.png` |
 | TS-Q22 | Keep the MOA purple box? | keep / drop | drop unless Dad uses it | `original/shell.html:588,1807-1826` |
 | TS-Q23 | The sign-off checklist and the code disagree (Start heading 360 vs 0; "Reset to Standard Defaults" vs "Reset to defaults"; drag and the settings-menu sections it names; "closed-loop" auto timing). Who corrects which? | fix the checklist / fix the app | fix the checklist after TS-Q2 | `docs/checklists/turn-sim.md:18,29-32,74,91-95`; `archive/docs/records/plan-decisions.md:757`; `src/modules/turn-sim/layout.js:167` |
-| TS-Q25 | How is the Turn Sim driven? Patrick, 4 Oct: probably the same smooth, wind-shaped paths as Traffic. Not decided yet. | wind-shaped planned paths / full physics / a mix | wind-shaped planned paths, as Patrick leans | Patrick, 4 Oct 00:10Z in this thread; Traffic wording TR-R30 |
+| TS-Q25 | **Decided 4 Oct 08:53Z: pre-planned, kinematically accurate paths (`decisions.md` TS-36).** How is the Turn Sim driven? Patrick, 4 Oct: probably the same smooth, wind-shaped paths as Traffic. Not decided yet. | wind-shaped planned paths / full physics / a mix | wind-shaped planned paths, as Patrick leans | Patrick, 4 Oct 00:10Z in this thread; Traffic wording TR-R30 |
 
 ### For Dad
 

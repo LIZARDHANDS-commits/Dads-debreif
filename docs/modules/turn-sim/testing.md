@@ -19,6 +19,20 @@ Other facts from the test agent's report (`pf/reset/5-testing/agents/turn-sim.md
 - 75 have a tolerance band typed into the test, and none uses the shared tolerance table.
 - No test checks that an in-place turn ends in trail (TS-R4) or that labels wait for the roll-out (TS-R23).
 
+## First version (live mode, `spec.md` Part 1)
+
+The first version's checks are in `tests/unit/turn-sim/live.test.js` and follow FM1, FM2, FM5, FM6 and FM8 below: end pictures for every button both ways and with #2 on either side (who is where, which way they face, spacing within ±100 ft, heading within ±5°, against SMM 16.19 paras 52-64); bank never past the manoeuvre's bank by more than half a degree and G at 3; at least 300 ft vertical at the cross in the shackle and cross turn; every hand-over smooth (Patrick, 4 Oct 10:05Z: no jump in position, track, bank or pitch or their rates; TS-47); a press while flying is queued. No time gates. The plan-mode tests stay as they are until Step 3 of `plan.md`. The plan-mode browser test (`tests/e2e/turn-sim.spec.js`, sign-off only) checks the old screen and fails on the new one; it is retired or rewritten in Step 3 with Patrick's yes.
+
+**Sign-off checklist, first version** (draft, for Patrick to put in his own words). Open the Turn Sim fresh, V2.6 or later, 2D:
+1. The pair sits in line abreast, Lead on 000, #2 on the right at 6,000 ft, paused at t = 0; nothing covers the picture.
+2. Press each button, both ways where it has sides: the pair flies it the way the SMM figure draws it and carries on in line abreast. Delayed 90 and 45 roll out abeam with sides swapped; check 20 keeps the shape turned 20°; in place 90 ends in trail; the hook comes back the other way abreast; the shackle ends on the original heading with sides swapped; the cross turn comes back the other way.
+3. In the shackle and cross turn, #2 climbs over Lead (the Formation card shows about 300 ft) and comes back down.
+4. Nothing jumps or snaps: rolls in and out look smooth at 0.25×, in 2D and in 3D.
+5. A press during a manoeuvre shows "Next: ..." and is flown when the first ends.
+6. The camera keeps both aircraft in view; ground tracks stay drawn; the planned path is dashed ahead.
+7. The Formation card judges only after roll-out, in words with the numbers.
+8. Change Spacing to 3,000 ft: it is flown and flagged as outside the SMM band; type 500 ft: refused with a reason. Switch #2 to the left: the start mirrors and the buttons' into/away words swap.
+
 ## Turn Sim rules on top of the whole-tool rules
 
 - **FM1. The end picture is the test (TS-R3 to TS-R5).** For each turn, both ways, in each formation, check who is where and which way they face once every aircraft has rolled out, against the SMM figure's page reference (Figs 16.15 to 16.21 and 16.30 to 16.36). The checks are positions relative to Lead and spacing against the set spacing. Each has a stated margin and its reason. How long the turn took is never checked (T2).
@@ -235,4 +249,5 @@ From the ratified test register (`pf/reset/5-testing/test-register.md`, Part B).
 | `tests/unit/turn-sim/settings.test.js` | Follows the Turn Sim review (if kept: rewrite) | TS-R27 shrinks the settings. The change detectors that list exactly which settings differ from V6 or are new (`:24`, `:51`) and the version pin (`:125`) break on every added setting (T3). Kept: every setting has a valid default (TS-R14), bad values are refused, old saved settings still load | New: the default timing is the clock cue (TS-R7); Speed is KIAS with a low or mid block (TS-R6) | Each change |
 | `tests/unit/turn-sim/shackle.test.js` | Follows the Turn Sim review (if kept: keep, with changes) | TS-R4: the shackle ends on the start heading with sides swapped. The 19.45 s hold (`:83`) comes from the engine; it becomes the formula worked out in the test from true airspeed (TS-R6, FM2) | Carries over: the shackle end picture; a short Duration never cuts it off | Each change |
 | `tests/unit/turn-sim/view3d.test.js` | Follows the Turn Sim review (if kept: keep) | TS-R25: camera and attitude are geometry worked out in the test; no V6 values | Carries over: the whole file, if the 3D view stays | Each change |
+| `tests/unit/turn-sim/live.test.js` | New, keep (first version) | FM1, FM6, FM8, TS-R4, TS-R5, TS-R11, TS-47: end pictures, 300 ft at the cross, smooth hand-overs; expected values worked out in the test from the SMM pictures and the shared margins | | Each change |
 | `tests/e2e/turn-sim.spec.js` | Follows the Turn Sim review (if kept: keep, with changes) | 46 of 46 pass at `6283f38`. Changes: the typed defaults include "time delay, 16 s" and 220 KTAS (`:155-160`), which TS-R7 and TS-R6 change; "Close pass: 894 ft", "954 ft", 36.7 s and 1.0 s (`:719`, `:859`, `:731-736`) are the engine's own (T3); real-time waits (`:184`, `:431`, `:433`) wait for an event instead (T2); the layout check runs at 1366 and 1920 wide (`:93`), and TS-R20 asks for 1280; stale "skipped" comments (`:15-16`, `:881`) go | Carries over: the whole-tool per-change checks for any build (smoke, layout with every panel open, keys, leaving, 3D loads only when asked). New: the still-air line (TS-R10); live mode (TS-R1) when built | Smoke, layout, buttons, leaving and offline parts each change; the whole file at sign-off |

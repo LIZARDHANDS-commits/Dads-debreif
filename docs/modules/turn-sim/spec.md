@@ -1,12 +1,98 @@
+# Turn Sim spec
+
+This file has two parts. The first is the spec for the **first version of live mode**, approved by Patrick on 4 Oct 2026 at 10:03Z (decision card "Approve the Turn Sim first-version spec and screen as drafted?"), which is what the Turn Sim shows from V2.6. The second is the **plan-mode spec from before the reset**, kept unchanged below for the plan-mode code that is still in the repo but no longer on screen. Where the two disagree, the first part wins. Decisions are in `decisions.md` (TS-35 onward for this version); the review notes behind it are in the project files at `turn-sim-review/` (`compare-and-recommend.md`, `line-abreast/line-abreast.md`, `architecture/architecture.md`, `first-version/`).
+
+# Part 1. First version: a 2-ship in line abreast with manoeuvre buttons
+
+## 1. What it is
+
+A 2-ship in line abreast that flies along on its own. You press a manoeuvre button and the pair flies it the way the SMM draws it, then carries on in line abreast until the next press. The camera follows the pair and each aircraft's ground track stays drawn. This is the first slice of live mode (TS-R1). Plan mode, the 4-ship, errors and the rest of V6's features come later, one at a time, on the same flying core (section 6).
+
+## 2. How the aircraft fly
+
+| # | Rule | Source |
+|---|---|---|
+| F1 | Every aircraft flies a pre-planned path that is kinematically accurate. The path is worked out when a button is pressed, from where each aircraft is at that moment. It is flown with realistic roll rate, bank, pitch and G, and the turn radius and rate follow from speed and G. Each manoeuvre uses the bank and G its source gives. | Patrick, 4 Oct 08:53Z (wording approved); TS-36 |
+| F2 | Roll: the roll rate builds at 360°/s² up to 90°/s and eases off the same way, so 0 to 70.5° of bank takes about 1.0 s. Uses the shared `easeRoll`. | Patrick, 08:54Z and card 09:54Z; TS-37 |
+| F3 | Speed: 220 KIAS held constant through every manoeuvre, flown as true airspeed at the block height (shared `iasToTasKt`). Speeds on screen say KIAS. | Patrick card 09:54Z; 220 KIAS SMM 16.18 para 50; KIAS rule TS-R6; TS-38 |
+| F4 | Block height 8,000 ft for the IAS-to-TAS conversion (220 KIAS is about 248 KTAS there). **Estimate** until Patrick gives the low block height. | estimate; TS-38 |
+| F5 | Turns: 70.5° bank, 3.0 G level, unless the manoeuvre says otherwise (the cross turn's first half, F6b). | SMM 16.18 para 50, Figs 16.15-16.21 "70/3"; TS-39 |
+| F6 | Delayed turns use exact geometry: the second aircraft's turn start is calculated so it rolls out abeam at the starting spacing. This replaces the old Delayed 45 rule (ends slanted, then the wingman fixes). Both aircraft fly the same turn, so the wait is spacing ÷ speed × cot(half the turn) for a pair abreast; the planner uses the heading the turn really rolls out on, and rounds the wait to the 0.05 s step, so the roll-out is abeam to within a few tens of feet. | Patrick cards 09:53Z and 09:54Z; TS-40 |
+| F6b | Cross turn: both turn toward each other for the first 90° at the same bank, set so they roll out abeam at the spacing they started at (about 53° and 1.7 G at 6,000 ft, near the SMM's "60/2, or as required"), then 70/3 to 180°. | SMM 16.19 para 64, Fig 16.21; TS-41 |
+| F7 | Shackle and cross turn: the wingman climbs to pass 300 ft above Lead (**working answer:** above, not below), then returns to Lead's height after the cross. Lead stays level. The height change starts and ends with no climb rate and no vertical acceleration, so pitch and pitch rate carry on smoothly (shared `pitchDegFromClimb`). | Patrick card 09:52Z; SMM 16.19 paras 61, 64; 16.13 para 31; TS-42 |
+| F8 | No V6 lag, lead or G-fix nudges. | Patrick card 09:53Z (settles TS-Q17); TS-43 |
+| F9 | Still air. The screen says so in one line. | TS-R10 (Patrick, TS-Q6) |
+| F10 | Fixed 0.05 s step, so the same presses at the same times give the same picture at any playback speed. Each step uses the mean bank over the step for the turn and the middle heading for the move, so a turn's roll-in and roll-out are mirror images. | TS-R9 |
+| F11 | **Working answer:** a button pressed while a manoeuvre is still being flown is queued and flown the moment the current one ends (the screen shows "Next: Hook right"). Pressing mid-turn and re-planning from a banked state is a later step. | TS-45 |
+| F12 | Every hand-over is smooth: where one part of a manoeuvre ends and the next begins (roll-in, roll-out, the cross turn's change of bank, the climb and descent, one manoeuvre to the next), position, track, bank and pitch and their rates carry straight on. A turn never snaps onto its new heading; it rolls out within a fraction of a degree of it (each turn aims at the whole degree). | Patrick 4 Oct 10:05Z (Traffic thread, carried here); TS-47 |
+
+## 3. The manoeuvres (buttons)
+
+Each button has a left and a right version unless noted. With #2 on Lead's right, a right turn is "into #2"; each button says into or away for the current side (SMM 16.19 paras 53-57 name them from Lead's side). R/T words are from 2 CFFTS Orders B2 ch 8 p.103.
+
+| Button | How it is flown | Ends | Source |
+|---|---|---|---|
+| Delayed 90 | Outside aircraft rolls in first, 70/3, turns 90, rolls out. Inside aircraft holds straight, rolls in at the exact-geometry point, turns 90. | Line abreast on the new heading, sides swapped, same spacing | SMM 16.19 paras 52-54, Fig 16.15 |
+| Delayed 45 | Outside aircraft turns 45 first; inside aircraft crosses ahead of Lead's new track, then turns 45 at the exact-geometry point. | Line abreast on the new heading, sides swapped | paras 55-57, Fig 16.16 |
+| Check 20 | Both roll in together, turn 20°, roll out. **Working answer:** fixed 20° (the R/T example), angle box later (TS-46). | Same shape on the new heading; the line between them rotates 20°, so one ends ahead of abeam (spacing × sin 20°, about 2,050 ft at 6,000 ft) | para 58, Fig 16.18 |
+| In place 90 | Both roll in together, turn 90, roll out. | In trail at the old spacing, judged in trail | para 59 |
+| Hook | Both turn 180 the same way, 70/3. On speed and on spacing the fuselages are already lined up at the 90-degree point, so no G change is flown there; the SMM's G adjustment is the fix for an error and comes with the errors layer (TS-48). | Line abreast, same spacing, flying back the other way | para 60, Fig 16.19 |
+| Shackle (one button) | Both turn 45 toward each other at 70/3; the wingman passes 300 ft above Lead; both turn back together. | Original heading, sides swapped (an X) | paras 61-63, Fig 16.20 |
+| Cross turn (one button) | Both turn toward each other for the first 90° (F6b), cross with 300 ft vertical, then 70/3 to 180°. | Line abreast flying back the other way; each aircraft ends on the ground side the other started on, so #2 is still on the same hand of Lead | para 64, Fig 16.21 |
+
+Not in the first version (later, in this order unless Patrick reorders): G-warm, entry to line abreast, rejoins, other formations, 4-ship.
+
+## 4. The screen
+
+Picture: `turn-sim-review/first-version/screen-mockup.png` in the project files. V6's: `archive/2026-10-reset/1-requirements/agents/shots/turn-sim/v6-default.png` in the project files.
+
+**On the screen**
+- Top bar: Play/Pause, Reset, playback speed (0.25× to 4×), time, 2D/3D, Layers.
+- Left: the manoeuvre buttons (section 3), then Setup with two boxes: Spacing (default 6,000 ft, the briefs' wide side; 4,000 to 6,000 is the SMM band) and "#2 on Lead's" Right or Left (default Right). Below them, one fixed line: "220 KIAS · 8,000 ft · 3 G turns (71° bank) · still air · roll 90°/s".
+- Centre: the picture. The camera follows the middle of the pair and eases its zoom to keep both in view with a turn circle's room each side (it stops zooming for you once you zoom yourself, until Reset). Ground tracks for the whole flight, a 1 NM ground grid, Lead's 3/9 line, and both aircraft's planned paths drawn dashed while a manoeuvre is flown.
+- Layers (closed menu): ground tracks (on), 3/9 line (on), planned path (on), turn circles (off), 3D paint.
+- Right, the Formation card: what is being flown and who goes first; spacing, sweep and height difference now; the last roll-out judged (on spacing, wide, tight, fore, aft, with the numbers), judged only after roll-out; each aircraft's KIAS, heading, bank and G.
+- Start: Lead flying 000 at 220 KIAS, #2 abeam on the right at 6,000 ft, paused at t = 0. Press Play or any button to start.
+- Keys: Space plays or pauses, Home resets (only while the Turn Sim is open and not typing).
+- The 3D view shows the same flight: height (the vertical miss), signed bank and pitch, the camera centred on the pair.
+
+**Removed from the plan-mode screen** (kept in the code until the new core replaces it, then retired with Patrick's yes): formation preset, start heading, turn menu, direction, speed and G boxes, timing and clock-cue menus, the 27-box Aircraft errors panel, the 26-box Turn Sim settings menu, Profiles placeholder, Step, Fit (the camera follows instead), breadcrumbs, NM labels, spacing lines, clock marks, error labels, the MOA box, Follow Lead (always follows). 91 controls became about 20.
+
+## 5. When things go wrong
+
+- A Spacing typed outside 1,000 to 20,000 ft is refused with a one-line reason and the old value kept. Outside the SMM's 4,000 to 6,000 ft it is flown and flagged (references, not walls).
+- Saved screen choices from the plan-mode screen are not read (the layout's version changed); the defaults are used.
+- No outside data is used, so there are no stale-data cases.
+- A Delayed turn pressed when the pair is not abreast (after an in-place turn, in trail) still rolls out abeam: the planner picks whichever order gives a forward wait.
+
+## 6. Built so V6's features can bolt on later
+
+- Aircraft are a list with "who flies off whom" (`ref`), never numbers 1 to 4 in the logic, so the 4-ship and offset box add aircraft, not rewrites.
+- Every step's state is recorded in a rolling record (the last 10 minutes), which the spacing graph and the spreadsheet export will read.
+- Each manoeuvre is one small path-builder in `src/modules/turn-sim/live/manoeuvres.js`; a new button is a new builder.
+- The V6 feature list is on `future.md`.
+
+Code: `src/modules/turn-sim/live/flight.js` (one aircraft, one step), `live/manoeuvres.js` (the builders), `live/formation.js` (the pair, presses, tracks, judging), `index.js` (the mount), `layout.js` (the screen), `view.js` and `view3d.js` (the pictures). Shared math only from `src/core/` (`easeRoll`, `turnRateFromBankRadPerSec`, `gFromBankDeg`, `bankDegFromG`, `turnRadiusFromBankFt`, `pitchDegFromClimb`, `iasToTasKt`, `wrapPi`).
+
+## 7. Checks (light, per the rule book)
+
+Pilot-recognisable end pictures only (`tests/unit/turn-sim/live.test.js`): each button, both directions and with #2 on either side, ends in the picture in section 3 (who is where, which way they face, spacing within ±100 ft of the start, heading within ±5°); bank never passes the manoeuvre's bank by more than half a degree and G stays at 3; the shackle and cross turn keep at least 300 ft vertical at the cross; every hand-over is smooth (F12: no jump in position, track, bank or pitch, roll rate within 90°/s, its build-up within 360°/s², pitch rate never stepping by more than 0.5°/s, about 0.1 G); a press while flying is queued. No time gates. CI on the pull request is the one check. Sign-off: Patrick flies every button in the real app from the default start.
+
+---
+
+# Part 2. Plan mode: the spec from before the reset
+
+Not on screen since V2.6. Kept unchanged for the plan-mode code still in the repo (`src/modules/turn-sim/engine/`, `settings.js`, `fields.js`, `readouts.js`), which is retired only with Patrick's yes.
+
 > **Note (reset, 4 Oct 2026):** this is the spec as it stood before the reset, moved here unchanged. It is refreshed against this module's new `requirements.md` and `decisions.md` when the module's work resumes. Where it disagrees with them, they win. Lines saying the code must give "the same answer V6 gives" or must match V6 are replaced: flight math is checked against the manuals and standard aerodynamics (ALL-R22, Patrick's answer Q-ALL-4).
 >
 > **Replaced old decisions:** this spec still cites D6, D10, D87, D112, which are no longer in force. The "Replaced old decisions" section of `../../DECISIONS.md`, `../turn-fight/decisions.md` and `decisions.md` says what took each one's place.
 
-# Turn Sim spec
+## Turn Sim spec (as moved)
 
 Moved from `specs/SPEC-turn-sim.md`.
 
-# Spec: `turn-sim`, the Formation Turn Sim
+## Spec: `turn-sim`, the Formation Turn Sim
 
 Status: **approved by Patrick on 2026-09-30** ("Spec turn sim approved", in the Turn Sim spec thread). Patrick answered Q41 to Q47 the same day (see "Answered questions"), and this spec follows his answers. At 06:40Z he added eight formation items from the SMM (see "SMM formation additions"). Changes go through a pull request. Module id `turn-sim` in [`archive/SPEC.md`](../../../archive/SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102. The questions this spec raised were TS1 to TS7, logged in the plan doc as Q41 to Q47.
 

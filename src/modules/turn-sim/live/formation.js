@@ -1,0 +1,263 @@
+// The 2-ship in line abreast, flying on its own (Turn Sim first version, spec
+// docs/modules/turn-sim/spec.md). It holds the two aircraft, takes button presses
+// (one flown now, one queued), flies them in fixed steps, keeps the ground tracks
+// and a rolling record, and judges the picture once both have rolled out.
+//
+// Aircraft are a list, each with the aircraft it flies off (`ref`), so more
+// aircraft can join later without rewriting the logic (spec section 6). Lead is
+// the first aircraft and the one the others are judged from.
+import { iasToTasKt } from '../../../core/t6-performance.js';
+import { KT_TO_FTPS } from '../../../core/units.js';
+import { STEP_SEC, makeAircraft, stepAircraft, planDone } from './flight.js';
+import { MANOEUVRES, planManoeuvre, relativeTo, dryRun, TURN_BANK_DEG, TURN_G } from './manoeuvres.js';
+
+/**
+ * The first version's fixed numbers. Speeds name their kind (rule book): kias is
+ * indicated, and the aircraft fly it as true airspeed at the block height.
+ */
+export const LIVE_DEFAULTS = Object.freeze({
+  spacingFt: 6000, // the briefs' wide side of the 4,000 to 6,000 ft band (SMM 16.18 para 49)
+  wingSide: 'right', // #2 on Lead's right
+  kias: 220, // SMM 16.18 para 50
+  blockFt: 8000, // estimate until Patrick gives the low block height
+  headingDeg: 0, // Lead flies 000 at the start
+});
+
+/** Spacing the sim will fly at all; outside it a typed value is refused (spec section 5). */
+export const SPACING_LIMITS_FT = Object.freeze([1000, 20000]);
+/** The SMM's line abreast band (SMM 16.18 para 49); outside it the spacing is flown and flagged. */
+export const SPACING_BAND_FT = Object.freeze([4000, 6000]);
+/** Margins for the roll-out judgement: the shared table's ±100 ft (docs/TESTING.md). */
+export const JUDGE_MARGIN_FT = 100;
+/** The SMM's line abreast sweep: 0 to 10 degrees behind the 3/9 line (SMM 16.18 para 49). */
+export const SWEEP_MAX_DEG = 10;
+
+/** Ground tracks are kept at this interval, for the whole flight (up to the cap). */
+const TRACK_EVERY_SEC = 0.25;
+const TRACK_MAX_POINTS = 20000; // over 80 minutes at 0.25 s
+/** The rolling record holds every step of the last this-many seconds (spec section 6). */
+const RECORD_SEC = 600;
+const RECORD_MAX = Math.round(RECORD_SEC / STEP_SEC);
+
+const DEG = Math.PI / 180;
+
+/** Compass heading (degrees, 000 to 359) from math radians. */
+export function compassDeg(headingRad) {
+  const d = Math.round(90 - headingRad / DEG);
+  return ((d % 360) + 360) % 360;
+}
+
+/** Math radians from a compass heading in degrees. */
+export function headingRadFromCompass(deg) {
+  return (90 - deg) * DEG;
+}
+
+/** True airspeed (ft/s) for an indicated airspeed at the block height. */
+export function tasFtpsFor(kias, blockFt) {
+  return iasToTasKt(kias, blockFt) * KT_TO_FTPS;
+}
+
+/** A typed spacing: { ok, value, flag, reason }. Refused outside SPACING_LIMITS_FT, flagged outside the SMM band. */
+export function checkSpacing(ft) {
+  const n = Number(ft);
+  if (!Number.isFinite(n) || n < SPACING_LIMITS_FT[0] || n > SPACING_LIMITS_FT[1]) {
+    return { ok: false, reason: `Spacing must be between ${SPACING_LIMITS_FT[0].toLocaleString('en-CA')} and ${SPACING_LIMITS_FT[1].toLocaleString('en-CA')} ft.` };
+  }
+  const flag = n < SPACING_BAND_FT[0] || n > SPACING_BAND_FT[1]
+    ? `Outside the SMM's ${SPACING_BAND_FT[0].toLocaleString('en-CA')} to ${SPACING_BAND_FT[1].toLocaleString('en-CA')} ft line abreast band (SMM 16.18 para 49); flown anyway.`
+    : null;
+  return { ok: true, value: n, flag };
+}
+
+/**
+ * Judges #2 against Lead once both have rolled out. Line abreast: the spacing
+ * across Lead's heading against the spacing set (±100 ft), and #2's place along it
+ * (FORE if ahead of Lead's 3/9 line by more than 100 ft, AFT if more than 10° of
+ * sweep behind it, SMM 16.18 para 49). After an in-place turn the pair is in trail
+ * (SMM 16.19 para 59), so the distance is judged along Lead's heading instead.
+ */
+export function judgePair(lead, wing, spacingFt, shape = 'abreast') {
+  const rel = relativeTo(lead, wing);
+  if (shape === 'trail') {
+    const gap = Math.abs(rel.fwd);
+    const labels = [];
+    if (gap < spacingFt - JUDGE_MARGIN_FT) labels.push('CLOSE');
+    else if (gap > spacingFt + JUDGE_MARGIN_FT) labels.push('LONG');
+    if (Math.abs(rel.left) > JUDGE_MARGIN_FT) labels.push('OFFSET');
+    return { shape, labels: labels.length ? labels : ['IN TRAIL'], gapFt: gap, offsetFt: rel.left, ahead: rel.fwd > 0 ? 'wing' : 'lead' };
+  }
+  const across = Math.abs(rel.left);
+  const labels = [];
+  if (across < spacingFt - JUDGE_MARGIN_FT) labels.push('TIGHT');
+  else if (across > spacingFt + JUDGE_MARGIN_FT) labels.push('WIDE');
+  const sweepDeg = Math.atan2(-rel.fwd, Math.max(across, 1)) / DEG;
+  if (rel.fwd > JUDGE_MARGIN_FT) labels.push('FORE');
+  else if (sweepDeg > SWEEP_MAX_DEG) labels.push('AFT');
+  return { shape, labels: labels.length ? labels : ['ON SPACING'], acrossFt: across, foreAftFt: rel.fwd, sweepDeg, side: rel.left > 0 ? 'left' : 'right' };
+}
+
+/**
+ * A new formation. options: spacingFt, wingSide ('right' | 'left'), kias, blockFt, headingDeg.
+ * Returns an object whose `state` is updated in place by step(), press() and reset().
+ */
+export function createFormation(options = {}) {
+  let opts = { ...LIVE_DEFAULTS, ...options };
+  const state = {
+    tSec: 0,
+    aircraft: [],
+    current: null, // { key, dir, label, note, firstId, shape, startSec, endSec }
+    queued: null, // { key, dir, label }
+    plans: {}, // id -> { segments, profile }
+    planned: {}, // id -> [[t, x, y, alt], …], each aircraft's path for the manoeuvre being flown
+    tracks: {}, // id -> [[t, x, y, alt], …], the whole flight
+    judged: null, // the last roll-out's judgement, with the manoeuvre it followed
+    spacingFt: opts.spacingFt,
+    flown: 0, // manoeuvres finished since the start
+  };
+  let record = [];
+
+  function build() {
+    const tas = tasFtpsFor(opts.kias, opts.blockFt);
+    const h = headingRadFromCompass(opts.headingDeg);
+    const side = opts.wingSide === 'left' ? 1 : -1; // +1 left of Lead
+    const left = { x: Math.cos(h + Math.PI / 2), y: Math.sin(h + Math.PI / 2) };
+    const lead = { ...makeAircraft({ id: 1, xFt: 0, yFt: 0, headingRad: h, kias: opts.kias, tasFtps: tas }), ref: null, name: 'Lead' };
+    const wing = {
+      ...makeAircraft({ id: 2, xFt: side * left.x * opts.spacingFt, yFt: side * left.y * opts.spacingFt, headingRad: h, kias: opts.kias, tasFtps: tas }),
+      ref: 1,
+      name: '#2',
+    };
+    state.tSec = 0;
+    state.aircraft = [lead, wing];
+    state.current = null;
+    state.queued = null;
+    state.plans = { 1: { segments: [] }, 2: { segments: [] } };
+    state.planned = {};
+    state.tracks = {};
+    state.judged = null;
+    state.spacingFt = opts.spacingFt;
+    state.flown = 0;
+    record = [];
+    keepTrack(true);
+  }
+
+  function keepTrack(force = false) {
+    const t = state.tSec;
+    const due = force || Math.abs(t / TRACK_EVERY_SEC - Math.round(t / TRACK_EVERY_SEC)) < 1e-6;
+    for (const a of state.aircraft) {
+      const points = (state.tracks[a.id] ??= []);
+      if (!due && points.length) continue;
+      points.push([t, a.xFt, a.yFt, a.altAboveFt]);
+      if (points.length > TRACK_MAX_POINTS) points.splice(0, points.length - TRACK_MAX_POINTS);
+    }
+  }
+
+  function keepRecord() {
+    record.push({
+      t: state.tSec,
+      aircraft: state.aircraft.map((a) => ({
+        id: a.id, x: a.xFt, y: a.yFt, alt: a.altAboveFt, heading: a.headingRad, bank: a.bankDeg, rollRate: a.rollRateDps, pitch: a.pitchDeg, g: a.g,
+      })),
+    });
+    if (record.length > RECORD_MAX) record.splice(0, record.length - RECORD_MAX);
+  }
+
+  function start(key, dir) {
+    const m = MANOEUVRES[key];
+    const [lead, wing] = state.aircraft;
+    const plan = planManoeuvre([lead, wing], key, dir, state.tSec);
+    state.plans = plan.plans;
+    state.planned = {};
+    let endSec = state.tSec;
+    for (const a of state.aircraft) {
+      const p = state.plans[a.id] ?? { segments: [] };
+      state.plans[a.id] = p;
+      const run = dryRun(a, p, state.tSec);
+      state.planned[a.id] = run.points;
+      endSec = Math.max(endSec, state.tSec + run.durationSec);
+    }
+    state.current = {
+      key,
+      dir: m.sided ? dir : 0,
+      label: labelFor(key, dir),
+      note: plan.note,
+      firstId: plan.firstId ?? null,
+      shape: m.kind === 'together' && m.turnDeg > 30 && m.turnDeg < 180 ? 'trail' : 'abreast',
+      startSec: state.tSec,
+      endSec,
+    };
+    state.judged = null;
+  }
+
+  function finish() {
+    const [lead, wing] = state.aircraft;
+    state.judged = { label: state.current.label, ...judgePair(lead, wing, state.spacingFt, state.current.shape) };
+    state.current = null;
+    state.planned = {};
+    state.flown++;
+    if (state.queued) {
+      const next = state.queued;
+      state.queued = null;
+      start(next.key, next.dir);
+    }
+  }
+
+  build();
+
+  return {
+    state,
+    /** The rolling record of every step (newest last), for the spacing graph and the export later. */
+    record: () => record,
+    /** The options the formation was built with. */
+    options: () => ({ ...opts }),
+    /** Back to the start; any options given replace the current ones. */
+    reset(next = {}) {
+      opts = { ...opts, ...next };
+      build();
+    },
+    /**
+     * A button press. Flown at once when nothing is being flown, otherwise queued
+     * and flown the moment the current manoeuvre ends (a later press replaces the
+     * queued one). Returns 'started' or 'queued'.
+     */
+    press(key, dir = 1) {
+      if (!MANOEUVRES[key]) throw new Error(`No manoeuvre called ${key}`);
+      if (!state.current) {
+        start(key, dir);
+        return 'started';
+      }
+      state.queued = { key, dir, label: labelFor(key, dir) };
+      return 'queued';
+    },
+    /** Drops the queued press, if any. */
+    clearQueue() {
+      state.queued = null;
+    },
+    /** Flies one fixed step. */
+    step() {
+      for (const a of state.aircraft) stepAircraft(a, state.plans[a.id] ?? (state.plans[a.id] = { segments: [] }), state.tSec);
+      state.tSec = Math.round((state.tSec + STEP_SEC) / STEP_SEC) * STEP_SEC;
+      keepTrack();
+      keepRecord();
+      if (state.current && state.aircraft.every((a) => planDone(a, state.plans[a.id]) && (state.tSec >= state.current.endSec - STEP_SEC / 2))) finish();
+      return true;
+    },
+  };
+}
+
+/** The words for a press: "Hook right", "Shackle". */
+export function labelFor(key, dir) {
+  const m = MANOEUVRES[key];
+  return m.sided ? `${m.label} ${dir > 0 ? 'left' : 'right'}` : m.label;
+}
+
+/** Into or away from the wingman, for a sided button, with #2 on `wingSide` of Lead (SMM 16.19 paras 53-57 name them from Lead's side). */
+export function intoOrAway(dir, wingSide) {
+  const wingDir = wingSide === 'left' ? 1 : -1;
+  return dir === wingDir ? 'into #2' : 'away from #2';
+}
+
+/** The fixed line under Setup. */
+export function fixedLine(opts = LIVE_DEFAULTS) {
+  return `${opts.kias} KIAS · ${opts.blockFt.toLocaleString('en-CA')} ft · ${TURN_G} G turns (${Math.round(TURN_BANK_DEG)}° bank) · still air · roll 90°/s`;
+}

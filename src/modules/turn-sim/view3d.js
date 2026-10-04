@@ -13,7 +13,7 @@ import {
 } from '../../ui-kit/three-aircraft.js';
 import { createCt156Model, CT156_UNIT_LENGTH } from '../../ui-kit/ct156-model.js';
 
-/** The Turn Sim is flat: every aircraft flies at this one altitude (feet). */
+/** The formation's height in the picture (feet). An aircraft with altAboveFt is drawn that far above or below it (the vertical miss). */
 export const FLIGHT_ALT_FT = 0;
 /** The ground grid sits this far below the aircraft, so there is something to judge the view against. */
 const GROUND_BELOW_FT = 1500;
@@ -31,8 +31,8 @@ const WHEEL_ZOOM = Object.freeze({ in: 1.12, out: 0.89 });
 export const T6_LENGTH_FT = 33.4;
 /** The length an aircraft is drawn at least, on screen, in pixels. */
 export const MIN_PLANE_PX = 40;
-/** The most points a trail holds (TRAIL_SEC of 0.05 s steps, with room). */
-const TRAIL_POINTS = 1300;
+/** The most points a trail holds: the newest part of the ground track (over 30 minutes at the live screen's 0.25 s). */
+const TRAIL_POINTS = 8000;
 
 const rad = (d) => (d * Math.PI) / 180;
 const deg = (r) => (r * 180) / Math.PI;
@@ -72,17 +72,19 @@ export function turnSign(previousHeadingRad, headingRad) {
 }
 
 /**
- * Where and how one aircraft is drawn, from the engine's state alone: the world point, the heading
- * and the bank with the wing down positive on the left (`sign` is +1 for a left turn, from turnSign).
- * The model is then set with rotation.set(-bank, 0, heading), order 'ZYX'.
+ * Where and how one aircraft is drawn, from the engine's state alone: the world point, the heading,
+ * the bank with the wing down positive on the left (`sign` is +1 for a left turn, from turnSign; the
+ * live screen's bank is already signed, so it passes +1) and the nose above the horizon.
+ * The model is then set with rotation.set(-bank, -pitch, heading), order 'ZYX'.
  */
 export function aircraftPose(a, sign = 1) {
   return {
     x: a.xFt,
     y: a.yFt,
-    z: altToZ(FLIGHT_ALT_FT, ALT_SCALE),
+    z: altToZ(FLIGHT_ALT_FT + (a.altAboveFt ?? 0), ALT_SCALE),
     headingRad: a.headingRad,
     bankRad: rad(a.bankDeg) * (sign < 0 ? -1 : 1),
+    pitchRad: rad(a.pitchDeg ?? 0),
   };
 }
 
@@ -114,6 +116,7 @@ export function fitCamera(bounds, size, leadHeadingRad) {
  * canvas: the 3D <canvas>, sized by CSS (it holds the WebGL context, so it is never used for 2D).
  * timers: the module's scheduler scope (frame). source: {
  *   state(): the engine's live state; trails(): { trail }; layers(): { followLead };
+ *   focus?(): { x, y } to keep in the middle (the live screen follows the formation);
  *   paint(): 'harvard' or 'ship'; bankSigns(): { id: +1 or -1 }; colors: { id: '#rrggbb' } }.
  * onUserMove(): the person orbited or zoomed. win: for tests.
  * Returns { show, hide, requestDraw, fit, dispose, stats }.
@@ -196,7 +199,7 @@ export function createView3d(canvas, { timers, source, onUserMove = () => {}, wi
     const state = source.state();
     const lead = state.aircraft.find((a) => a.id === 1);
     const shown = dragging?.camera ?? cam;
-    const focus = source.layers().followLead && lead ? { x: lead.xFt, y: lead.yFt } : center;
+    const focus = source.focus?.() ?? (source.layers().followLead && lead ? { x: lead.xFt, y: lead.yFt } : center);
     paintNow = source.paint();
 
     const signs = source.bankSigns();
@@ -208,7 +211,7 @@ export function createView3d(canvas, { timers, source, onUserMove = () => {}, wi
       const mesh = planeFor(a.id);
       mesh.position.set(pose.x, pose.y, pose.z);
       mesh.scale.setScalar(lengthFt / CT156_UNIT_LENGTH);
-      mesh.rotation.set(-pose.bankRad, 0, pose.headingRad);
+      mesh.rotation.set(-pose.bankRad, -pose.pitchRad, pose.headingRad);
     }
     for (const [id, entry] of gl.planes) {
       if (present.has(id)) continue;
@@ -225,7 +228,7 @@ export function createView3d(canvas, { timers, source, onUserMove = () => {}, wi
       const first = points.length - count;
       for (let i = 0; i < count; i++) {
         const p = points[first + i];
-        attr.setXYZ(i, p[1], p[2], altToZ(FLIGHT_ALT_FT, ALT_SCALE));
+        attr.setXYZ(i, p[1], p[2], altToZ(FLIGHT_ALT_FT + (p[3] ?? 0), ALT_SCALE));
       }
       attr.needsUpdate = true;
       line.geometry.setDrawRange(0, count);

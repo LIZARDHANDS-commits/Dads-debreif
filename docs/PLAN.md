@@ -34,7 +34,7 @@ Patrick's answers of 4 October, 03:12Z (`pf/reset/4-decisions/answers.md:12`):
 | SOF | Built and live, but Patrick's 4 October answers rebuild it to one desk screen, so the checklist runs after the rebuild; the amber "Incomplete" state is a build task (`docs/modules/sof/plan.md:7`, `archive/docs/REMEDIATION_ROADMAP.md:81`). | [modules/sof/](modules/sof/) |
 | Traffic | Built; the sign-off box is still open. Being refactored first, then the PFL is rebuilt on the new structure (Patrick, 4 Oct 07:25Z and 07:53Z; [Traffic plan](modules/traffic/plan.md), Step 2) (`archive/HANDOVER.md:89`, `pf/reset/traffic-architecture/review.md`). | [modules/traffic/](modules/traffic/) |
 | Turn Fight | Built much further than the old file; the roadmap calls it ready for Patrick, and the reset found gaps between what Patrick decided and what is built (top-speed and hard-deck flags, pull G on screen, extra-stats panel) (`archive/HANDOVER.md:90`, `pf/reset/4-decisions/partb-turnfight.md:15`). | [modules/turn-fight/](modules/turn-fight/) |
-| Turn Sim | Live as a PROTOTYPE, but Patrick's directive is a full overhaul first; the Turn Sim review is the first step of its plan, and four paused branches hold work to reuse (`archive/HANDOVER.md:91`). | [modules/turn-sim/](modules/turn-sim/) |
+| Turn Sim | Live as a PROTOTYPE. The Turn Sim review is done (Patrick started it early, 4 Oct, alongside Traffic): a new flying core with planned paths; the first version, a 2-ship in line abreast with manoeuvre buttons, is on screen from V2.6 and waits for Patrick to fly it ([turn-sim spec](modules/turn-sim/spec.md) Part 1). | [modules/turn-sim/](modules/turn-sim/) |
 | Shared (flight core, app frame, weather, airfields, storage, ui-kit) | Built and merged on main; waiting on the flight-math list, the one-import-point review and the combined sign-off at the end (`archive/HANDOVER.md:92`, `archive/HANDOVER.md:94`). | [modules/shared/](modules/shared/) |
 | PT-PT Sim | Not started; needs a full spec and question session first (`pf/reset/consolidation-plan.md:275`). | [modules/pt-pt-sim/](modules/pt-pt-sim/) |
 | Briefing Board | Not started; needs a full spec and question session first (`pf/reset/consolidation-plan.md:275`). | [modules/briefing-board/](modules/briefing-board/) |
@@ -142,8 +142,8 @@ Starts once Patrick approves this plan. Nothing is closed, merged or deleted bef
 
 After Traffic is signed off, the Turn Sim review runs before any Turn Sim building: plan mode and live mode, then decide to rebuild, build a new live core, or fix what is there (`pf/reset/consolidation-plan.md:285`).
 
-- [ ] Run the Turn Sim review: [modules/turn-sim/plan.md](modules/turn-sim/plan.md), Step 1. It lists every document that helps, flags the four old branches and the backup bundle as work to reuse, and carries the items deferred to it (`docs/modules/turn-sim/plan.md:13`).
-- [ ] Patrick decides what the review recommends; Steps 2 onward of the Turn Sim plan are then rewritten (`docs/modules/turn-sim/plan.md:15`).
+- [x] Run the Turn Sim review (done 4 Oct, started early alongside Traffic at Patrick's ask): [modules/turn-sim/plan.md](modules/turn-sim/plan.md), Step 1. It lists every document that helps, flags the four old branches and the backup bundle as work to reuse, and carries the items deferred to it (`docs/modules/turn-sim/plan.md:13`).
+- [x] Patrick decided (new flying core, TS-35) and approved the first version's spec, 10:03Z; Steps 2 onward of the Turn Sim plan are rewritten (`docs/modules/turn-sim/plan.md:15`).
 - [ ] Only then does the module order above reach Gate 3.
 
 ## Waiting on Patrick
@@ -152,7 +152,7 @@ The one list. Each line is a question; the working answer applies until he says 
 
 - [ ] **Live site: public, or private with GitHub Pro.** Patrick's choice: pending (`pf/reset/6-plan-and-rules/ask-rows.md:17`).
 - [ ] **See the new PFL on screen** (Traffic refactor PR 3, spec 4.5 approved 4 Oct 08:54Z): from the default start, PFL from downwind, base and upwind, the High Key button, an area PFL at 8,000 ft, calm and 20 kt. Two working answers wait for his word: it ejects as soon as no runway point can be reached, and a failed join search falls back to direct or eject (`docs/modules/traffic/spec.md` 4.5 items 10 and 15).
-- [ ] **Turn Sim review questions A to E,** on live controllers or planned paths, speed basis, the 300 ft stack, the clock cue and the error settings (`docs/modules/turn-sim/plan.md:25`).
+- [ ] **Turn Sim first version:** fly every button from the default start (V2.6; checklist draft in [turn-sim testing](modules/turn-sim/testing.md), "First version"); then: retire the plan-mode code and its tests (Step 3 of the [Turn Sim plan](modules/turn-sim/plan.md)); the low block height (8,000 ft estimate, TS-38); wingman above or below at the cross (above, TS-42); no G change in the hook when on spacing (TS-48).
 - [ ] **DB-Q4:** no smoothing of the estimated G (D219) or a 3-point median filter (D383); neither is built (`pf/reset/1-requirements/questions.md:17`, `docs/modules/debrief/plan.md:37`).
 - [ ] **Traffic replay test at sign-off only:** `tests/unit/traffic/rewind.test.js` never finishes, so it runs in the sign-off run, not on every change, until the Traffic work makes it finish reliably (flaky-test rule Q-T4; `docs/modules/traffic/testing.md`, "The rewind hang"; list in `tools/unit-tests.mjs`).
 - [x] **Turn Fight turn to the MPT:** Patrick ruled on 4 Oct at 07:40Z that reaching the MPT is not a requirement; a jet flies it only when the fight needs it. TF-R6 gets reworded with him ([Turn Fight plan](modules/turn-fight/plan.md), Step 1), and the check that every jet reaches and holds the MPT was archived on his word (`archive/tests/unit/turn-fight/energy-sim-mpt-reach.js`).
