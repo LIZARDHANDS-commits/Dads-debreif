@@ -57,6 +57,32 @@ The 4-ship's checks are in `tests/unit/turn-sim/four-ship.test.js`, with the 2-s
 6. Random error: Reset a few times; each time one error is named on the card.
 7. Say if "Ahead (acute)" and "Behind (sucked)" are the right way round for how you and Dad use the words.
 
+## Changing formation, 2-ship (TS-53, `spec.md` section 10)
+
+The checks are in `tests/unit/turn-sim/transitions.test.js`, a handful, written to Patrick's 4 Oct 11:50Z rule (test that it flies right; no exact wording, exact seconds, control counts or one-off values):
+
+| What | Check | Source of the expected value |
+|---|---|---|
+| Every from-to pair ends in the target's band | All 20 changes between line abreast, fighting wing, echelon, route and line astern (Side kept) end in the band written out from the spec table, with the pair parallel (within 1°) and reading as that formation | `spec.md` section 10 table: SMM 16.18 para 49, 12.29 para 69, 12.6 para 15, 12.4 paras 11-12 (estimate), 12.5 para 13; margins ±100 ft and ±5° where the shared table applies, the close positions use the table's own |
+| Speeds | Both aircraft end at 200 KIAS outside line abreast and 220 in it (±0.5 KIAS) | Patrick 11:08Z; SMM 12.23 para 53, 16.18 para 49 |
+| Smooth hand-overs | Hot turning rejoin, entry to line abreast (Lead speeds up) and a station change: no jump in position, track, bank, roll rate (90°/s, 360°/s²), pitch rate (0.5°/s per step) or speed (3 kt/s, no step in its rate) | Patrick 10:05Z (TS-47); the speed bound covers the smootherstep's peak of 1.875 times the 1.5 kt/s estimate |
+| Rejoin lane | #2 below Lead inside 2,000 ft, never more than 100 ft ahead of Lead's 3/9 line inside 1,000 ft, #2's bank within the 60° cap and Lead's within 30° (each plus half a degree for the roll) | SMM 12.27 para 65; design section 10; the 60° cap is an estimate |
+| The queue and the greying | A press during a change is flown the moment it ends; a manoeuvre is refused outside line abreast | TS-45, spec section 10 |
+| Time | Only a 3-minute catch that the planner finished; no timing check | spec section 10 |
+
+Not tested: the screen (buttons, card, range ring, zoom): sign-off only. Not run locally before the pull request (CI is the one check).
+
+**Sign-off checklist, changing formation** (draft, for Patrick to put in his own words). Open the Turn Sim fresh, with the version shown on screen, 2D, 2-ship:
+1. "Change formation" sits above the manoeuvres: Line abreast (greyed: you are here), Fighting wing, Echelon, Route, Fluid manoeuvring (greyed, "coming later"), the Side switch, and Line astern under More.
+2. Press Fighting wing: Lead slows to 200 KIAS, pauses while #2 closes, then turns gently into #2; #2 ends about 750 ft back at about 45° on the same side and below Lead. The card shows Now, Flying and the rejoin block (range, closure, Lead's clock position, ON LINE / HOT / COLD, height) and judges the end against the fighting wing band.
+3. Press Echelon, then Route, then Line astern, then Fighting wing again: each is a slow station change that looks like the manuals (cross behind and below, never in front of Lead); the camera zooms in by itself as they get close and the card judges each end.
+4. From fighting wing press Line abreast: Lead speeds up to 220 KIAS and #2 opens out to the spacing. Press echelon from line abreast: the hot turning rejoin straight to echelon through the fighting wing position.
+5. Use the Side switch (L or R) with Echelon and Fighting wing: #2 changes side behind Lead.
+6. In any close formation the manoeuvre buttons are greyed with a reason; in line abreast they work as before.
+7. Press a second button while a change is flying: "Next: ..." shows and it is flown after.
+8. Nothing jumps or snaps in 2D or 3D at 0.25x; bank looks smooth into and out of the rejoin turn; the flags stay quiet unless something is wrong.
+9. Say if the estimates look right: the 60° bank cap, the 15 KIAS overtake, Lead's pause and 30° turn, hot and cold at 60° and 30°, the fighting wing default of 750 ft, 45° and 60 ft below, and the close-formation distances.
+
 ## Turn Sim rules on top of the whole-tool rules
 
 - **FM1. The end picture is the test (TS-R3 to TS-R5).** For each turn, both ways, in each formation, check who is where and which way they face once every aircraft has rolled out, against the SMM figure's page reference (Figs 16.15 to 16.21 and 16.30 to 16.36). The checks are positions relative to Lead and spacing against the set spacing. Each has a stated margin and its reason. How long the turn took is never checked (T2).

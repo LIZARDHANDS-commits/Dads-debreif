@@ -8,8 +8,9 @@
 // the first aircraft and the one the others are judged from.
 import { iasToTasKt } from '../../../core/t6-performance.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
-import { STEP_SEC, makeAircraft, stepAircraft, planDone } from './flight.js';
-import { MANOEUVRES, planManoeuvre, relativeTo, dryRun, TURN_BANK_DEG, TURN_G } from './manoeuvres.js';
+import { STEP_SEC, makeAircraft, planDone } from './flight.js';
+import { MANOEUVRES, planManoeuvre, relativeTo, TURN_BANK_DEG, TURN_G } from './manoeuvres.js';
+import { flyStep, dryRunT, planGoTo, classifyPair, judgeFormation } from './transitions.js';
 import { resolveErrors, applyStartErrors, planWithErrors, outcomeOf } from './errors.js';
 import { FOUR_SHIP_KEYS, fourShipStart, planFour, judgeFour } from './four-ship.js';
 
@@ -118,6 +119,8 @@ export function createFormation(options = {}) {
     planned: {}, // id -> [[t, x, y, alt], …], each aircraft's path for the manoeuvre being flown
     tracks: {}, // id -> [[t, x, y, alt], …], the whole flight
     judged: null, // the last roll-out's judgement, with the manoeuvre it followed
+    refusal: null, // why the last change press was refused (transitions.js), or null
+    lastSide: opts.wingSide === 'left' ? 1 : -1, // #2's side as last seen (+1 left, -1 right), for a pair in line astern
     errors: null, // the training error set for #2, or null (errors.js)
     errorOutcome: null, // how the last manoeuvre went with it: carried or fixed
     slot: { fwd: 0, left: 0 }, // where #2 should be in Lead's frame (the SMM picture); the errors' reference
@@ -151,6 +154,8 @@ export function createFormation(options = {}) {
     state.planned = {};
     state.tracks = {};
     state.judged = null;
+    state.refusal = null;
+    state.lastSide = side === 1 ? 1 : -1;
     state.spacingFt = opts.spacingFt;
     state.flown = 0;
     record = [];
@@ -193,7 +198,7 @@ export function createFormation(options = {}) {
     for (const a of state.aircraft) {
       const p = state.plans[a.id] ?? { segments: [] };
       state.plans[a.id] = p;
-      const run = dryRun(a, p, state.tSec);
+      const run = dryRunT(a, p, state.tSec);
       state.planned[a.id] = run.points;
       endSec = Math.max(endSec, state.tSec + run.durationSec);
     }
@@ -209,20 +214,76 @@ export function createFormation(options = {}) {
       errorRun: plan.errorRun ?? null,
     };
     state.judged = null;
+    state.refusal = null;
     state.errorOutcome = null;
+  }
+
+  /** Where #2 is now: the formation it is in (transitions.js classifyPair), remembering which side it is on. */
+  function whereNow() {
+    const c = classifyPair(state.aircraft[0], state.aircraft[1]);
+    if (c.side) state.lastSide = c.side;
+    return c;
+  }
+
+  /**
+   * Plans and starts a change of formation (transitions.js) from the pair as it is now.
+   * Returns false, with state.refusal saying why in one line, when there is no safe plan; nothing then changes.
+   */
+  function startChange(to, changeOptions) {
+    whereNow();
+    const plan = planGoTo(state.aircraft, to, { ...changeOptions, spacingFt: state.spacingFt, blockFt: opts.blockFt, lastSide: state.lastSide }, state.tSec);
+    if (!plan.ok) {
+      state.refusal = plan.reason;
+      return false;
+    }
+    state.refusal = null;
+    state.plans = plan.plans;
+    state.planned = {};
+    let endSec = state.tSec;
+    for (const a of state.aircraft) {
+      const p = state.plans[a.id] ?? { segments: [] };
+      state.plans[a.id] = p;
+      const run = dryRunT(a, p, state.tSec);
+      state.planned[a.id] = run.points;
+      endSec = Math.max(endSec, state.tSec + run.durationSec);
+    }
+    state.current = {
+      key: `change:${to}`,
+      change: { to, side: plan.side, from: plan.from, rejoining: plan.rejoining, rejoinKind: plan.rejoinKind, flying: plan.flying, maxBankDeg: plan.maxBankDeg },
+      dir: 0,
+      label: plan.label,
+      note: plan.note,
+      firstId: null,
+      shape: 'abreast',
+      startSec: state.tSec,
+      endSec,
+      errorRun: null,
+    };
+    state.judged = null;
+    state.errorOutcome = null;
+    return true;
   }
 
   function finish() {
     const [lead, wing] = state.aircraft;
-    state.judged = { label: state.current.label, ...(state.aircraft.length > 2 ? judgeFour(state.aircraft, state.spacingFt, state.current.shape, judgePair) : judgePair(lead, wing, state.spacingFt, state.current.shape)) };
-    if (state.current.errorRun) state.errorOutcome = outcomeOf(state.current.errorRun, lead, wing, state.current.label);
+    if (state.current.change) {
+      // A change of formation is judged against the target formation's band in the spec table (section 10).
+      const j = judgeFormation(state.current.change.to, lead, wing, state.spacingFt);
+      state.judged = { label: state.current.label, shape: 'formation', labels: j.inBand ? ['IN POSITION'] : j.labels, text: j.text, tone: j.tone };
+    } else {
+      state.judged = { label: state.current.label, ...(state.aircraft.length > 2 ? judgeFour(state.aircraft, state.spacingFt, state.current.shape, judgePair) : judgePair(lead, wing, state.spacingFt, state.current.shape)) };
+      if (state.current.errorRun) state.errorOutcome = outcomeOf(state.current.errorRun, lead, wing, state.current.label);
+    }
     state.current = null;
     state.planned = {};
     state.flown++;
+    whereNow();
     if (state.queued) {
       const next = state.queued;
       state.queued = null;
-      start(next.key, next.dir);
+      if (next.change) startChange(next.change.to, next.change.options);
+      else if (MOVES_FROM.includes(whereNow().key)) start(next.key, next.dir);
+      else state.refusal = `${next.label} flies in line abreast only.`;
     }
   }
 
@@ -247,6 +308,11 @@ export function createFormation(options = {}) {
     press(key, dir = 1) {
       if (!MANOEUVRES[key]) throw new Error(`No manoeuvre called ${key}`);
       if (state.aircraft.length > 2 && !FOUR_SHIP_KEYS.includes(key)) throw new Error(`${key} is not a four-ship manoeuvre`);
+      // The manoeuvres are line abreast manoeuvres (spec section 10): in a close formation or fighting wing they are not flown.
+      if (state.aircraft.length === 2 && !state.current && !MOVES_FROM.includes(whereNow().key)) {
+        state.refusal = `${labelFor(key, dir)} flies in line abreast only; change to line abreast first.`;
+        return 'refused';
+      }
       if (!state.current) {
         start(key, dir);
         return 'started';
@@ -254,13 +320,32 @@ export function createFormation(options = {}) {
       state.queued = { key, dir, label: labelFor(key, dir) };
       return 'queued';
     },
+    /**
+     * A "Change formation" press (spec section 10, transitions.js): to is 'lab', 'fw', 'echelon', 'route' or 'astern';
+     * options: { side: 'keep' | 'left' | 'right', rejoin: 'into' | 'straight' }. Flown at once when nothing is being
+     * flown, otherwise queued like a manoeuvre. Returns 'started', 'queued' or 'refused' (state.refusal says why).
+     */
+    change(to, options = {}) {
+      if (state.aircraft.length > 2) {
+        state.refusal = 'Formation changes are for the 2-ship.';
+        return 'refused';
+      }
+      if (state.current) {
+        const label = FORMATIONS_LABEL(to);
+        state.queued = { key: `change:${to}`, dir: 0, label, change: { to, options } };
+        return 'queued';
+      }
+      return startChange(to, options) ? 'started' : 'refused';
+    },
+    /** Which formation the pair is in now: { key: 'lab' | 'fw' | 'echelon' | 'route' | 'astern' | 'other', side }. */
+    where: () => classifyPair(state.aircraft[0], state.aircraft[1]),
     /** Drops the queued press, if any. */
     clearQueue() {
       state.queued = null;
     },
     /** Flies one fixed step. */
     step() {
-      for (const a of state.aircraft) stepAircraft(a, state.plans[a.id] ?? (state.plans[a.id] = { segments: [] }), state.tSec);
+      for (const a of state.aircraft) flyStep(a, state.plans[a.id] ?? (state.plans[a.id] = { segments: [] }), state.tSec);
       state.tSec = Math.round((state.tSec + STEP_SEC) / STEP_SEC) * STEP_SEC;
       keepTrack();
       keepRecord();
@@ -269,6 +354,10 @@ export function createFormation(options = {}) {
     },
   };
 }
+
+/** The formations the manoeuvre buttons fly from: line abreast, or a picture that is none of the close ones (after an in-place turn). */
+const MOVES_FROM = ['lab', 'other'];
+const FORMATIONS_LABEL = (to) => ({ lab: 'Line abreast', fw: 'Fighting wing', echelon: 'Echelon', route: 'Route', astern: 'Line astern' })[to] ?? to;
 
 /** The words for a press: "Hook right", "Shackle". */
 export function labelFor(key, dir) {

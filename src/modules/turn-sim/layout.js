@@ -54,8 +54,9 @@ function swatch(id) {
  * layout / layoutControls: the remembered layout and its controls.
  * listen: app.listen, so page-wide listeners end when the Turn Sim closes.
  * fixedLine: the one line of fixed numbers under Setup.
+ * changeUi: the "Change formation" group and its card lines (transitions-panel.js), or null.
  */
-export function createLayout({ buttons, setupControls, layout, layoutControls, listen, fixedLine }) {
+export function createLayout({ buttons, setupControls, layout, layoutControls, listen, fixedLine, changeUi = null }) {
   const handlers = {};
 
   // ---- Manoeuvres: one row per manoeuvre, a Left and a Right button where it has sides ----
@@ -87,8 +88,11 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   const movesPanel = createPanel({ title: 'Manoeuvres', onToggle: (c) => layout.update({ setupColumn: !c }) });
   const queueLine = h('p', { class: 'ts-hint ts-queue', role: 'status' });
   const movesHint = h('p', { class: 'ts-hint' }, PAIR_HINT);
+  const movesNote = h('p', { class: 'ts-hint ts-warning', role: 'status', hidden: true }, 'These manoeuvres fly in line abreast. Change to line abreast first.');
   movesPanel.body.append(
+    ...(changeUi ? [changeUi.element] : []),
     movesHint,
+    movesNote,
     ...rows,
     queueLine,
   );
@@ -189,7 +193,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   const ships = h('ul', { class: 'ts-card', 'aria-label': 'Each aircraft' });
   const formationPanel = createPanel({ title: 'Formation', onToggle: (c) => layout.update({ formationColumn: !c }) });
   formationPanel.body.append(
-    flying, flyingNote, errorSet, errorOutcome,
+    flying, flyingNote, ...(changeUi ? [changeUi.cardElement] : []), errorSet, errorOutcome,
     h('h3', { class: 'ts-group-title' }, 'Now'), now,
     h('h3', { class: 'ts-group-title' }, 'Last roll-out'), judged,
     h('h3', { class: 'ts-group-title' }, 'Each aircraft'), ships,
@@ -246,6 +250,15 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       fourLine.hidden = ships !== 4;
       check45Field.hidden = ships !== 4;
       errorsSection.hidden = ships === 4; // training errors are 2-ship only for now (TS-52)
+      if (changeUi) {
+        changeUi.element.hidden = ships === 4; // formation changes are the 2-ship's for now (spec section 10)
+        changeUi.cardElement.hidden = ships === 4;
+      }
+    },
+    /** The manoeuvre buttons work in line abreast only: greyed in the other formations, with the reason beside them. */
+    setMovesEnabled(enabled) {
+      for (const b of element.querySelectorAll('.ts-move-button')) b.disabled = !enabled;
+      movesNote.hidden = enabled;
     },
     /** The flag under Spacing (outside the SMM band), or null. */
     setSpacingFlag(text) {
