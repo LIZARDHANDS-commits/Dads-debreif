@@ -1,8 +1,6 @@
 # CT-156 Harvard II Authoritative SMM Aerobatics & Flight Maneuver Catalog
 
-> [!IMPORTANT]
-> **RATIFIED SOLE SOURCE OF TRUTH (Patrick, 2026-10-03, Decision D428)**  
-> This catalog constitutes the definitive, authoritative sole source of truth for all CT-156 Harvard II aerobatic maneuvers, entry/exit gates, power settings, G-pull laws, and autonomous sequence profiles across the application.
+> **Moved here in the October 2026 reset.** The old banner called this catalogue the "sole source of truth" (D428). Patrick reworded it on 4 Oct 2026 (card 4): "The SMM aerobatics catalog is the default reference for how each manoeuvre is flown, including Patrick's rulings in it. A simulator may depart from it when the flying calls for it, and says so on screen." Numbers here are references by page, not walls. Where it cites the D371 tolerances or old decision numbers, the module decisions files now hold the reworded rules.
 
 **Authority:** 15 Wing Moose Jaw CT-156 Harvard II Flying Training Syllabus  
 **Primary References:**  
@@ -180,3 +178,4 @@ The SMM Aerobatics Sequence Mode utilizes authentic Canadian military training s
 - **Hard Deck Safety Floor:** 6,000 ft MSL (3,000 ft AGL at Moose Jaw). Simulation forcibly levels off or halts if aircraft breaches 6,000 ft MSL.
 - **Stall Speed Baseline ($V_s$):** 86 KIAS at 1.0 G clean. Stick shaker onset at $15.5\text{ units AOA}$ (5–10 kt above stall).
 - **Asymmetric Rolling G Limit:** 4.7 G max whenever roll rate exceeds $15^\circ/\text{s}$.
+
