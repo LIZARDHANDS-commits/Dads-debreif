@@ -56,7 +56,7 @@ export const REJOIN = Object.freeze({
 const LANE_MARGIN_FT = 100;
 /** A generous cap on how long one change may take (the spec's 3 minutes, an estimate): it only catches a planner that never finishes. */
 export const CHANGE_LIMIT_SEC = 180;
-const PLAN_MAX_SEC = 300;
+export const PLAN_MAX_SEC = 300;
 /** Station changes close or open at about 5 kt (8 ft/s), an estimate: the SMM says only "controlled" (12.20 para 44). */
 const CLOSE_RATE_FTPS = 8;
 
@@ -242,40 +242,89 @@ const GAIN = Object.freeze({
 });
 
 /**
- * Runs the dry run. lead0, wing0: the aircraft now. leadSegs: Lead's plan. phases: the slots #2 flies to in
- * turn (see the builders below). profile: #2's height profile (or undefined). Returns
- * { points: [[bank, kias]…], end: { lead, wing }, times: [{ t0, t1 }…], maxBankDeg, ok, durationSec }.
+ * A recorded flight: an aircraft flown through its plan by flyStep, one state per step from t0, extended on demand (once
+ * its plan is done it flies straight on). It is the moving reference a tracker flies off, so a wingman can fly off Lead
+ * or off another wingman whose own path was planned first (the 4-ship, four-ship-moves.js). at(n) is the state at the
+ * start of step n: { xFt, yFt, headingRad, tasFtps, kias, altAboveFt, bankDeg, free } where free means its plan has no
+ * segments left.
  */
-function runTracker({ lead0, wing0, leadSegs, t0, phases, profile, blockFt }) {
-  const L = copyAircraft(lead0);
-  const W = copyAircraft(wing0);
-  const lp = { segments: leadSegs.map((s) => ({ ...s })) };
-  const wp = { segments: [], profile };
-  const points = [];
-  const times = phases.map(() => ({ t0: null, t1: null }));
-  let k = 0;
+export function recordFlight(aircraft, plan, t0) {
+  const a = copyAircraft(aircraft);
+  const p = { segments: plan.segments.map((s) => ({ ...s })), profile: plan.profile };
+  const snap = () => ({ xFt: a.xFt, yFt: a.yFt, headingRad: a.headingRad, tasFtps: a.tasFtps, kias: a.kias, altAboveFt: a.altAboveFt, bankDeg: a.bankDeg, free: p.segments.length === 0 });
+  const states = [snap()];
   let t = t0;
-  const rel0 = relativeTo(L, W);
-  const ref = { f: rel0.fwd, l: rel0.left, vf: 0, vl: 0 };
+  return {
+    t0,
+    at(n) {
+      while (states.length <= n) {
+        flyStep(a, p, t);
+        t += STEP_SEC;
+        states.push(snap());
+      }
+      return states[n];
+    },
+  };
+}
+
+/** The point a phase's reference sits at, and its velocity, in the world: { px, py, vpx, vpy }. */
+function refPoint(R, Rprev, ref, world) {
+  if (world) return { px: R.xFt + ref.f, py: R.yFt + ref.l, vpx: R.tasFtps * Math.cos(R.headingRad) + ref.vf, vpy: R.tasFtps * Math.sin(R.headingRad) + ref.vl };
+  const omega = Rprev ? wrapPi(R.headingRad - Rprev.headingRad) / STEP_SEC : 0;
+  const lf = unit(R.headingRad);
+  const lleft = { x: -lf.y, y: lf.x };
+  const px = R.xFt + lf.x * ref.f + lleft.x * ref.l;
+  const py = R.yFt + lf.y * ref.f + lleft.y * ref.l;
+  const rx = px - R.xFt;
+  const ry = py - R.yFt;
+  return {
+    px,
+    py,
+    vpx: R.tasFtps * lf.x - omega * ry + lf.x * ref.vf + lleft.x * ref.vl,
+    vpy: R.tasFtps * lf.y + omega * rx + lf.y * ref.vf + lleft.y * ref.vl,
+  };
+}
+
+/**
+ * Runs the dry run: #2 (wing0) flies the phases in turn, each a slot in the frame of the aircraft it names (`track`, a
+ * key of `refs`, recorded flights). For the 2-ship: refs = { [Lead's id]: Lead's recorded flight }. profile: the
+ * wingman's height profile (or undefined). A phase with `holdUntil` is not left (nor, the last one, finished) before
+ * that formation time: a gate (design section 4: "wait for the one ahead" as a start time). A phase with `world: true`
+ * holds its offset in world axes instead of the reference's frame, so the wingman turns with its reference as in an
+ * in-place turn. Returns { points: [[bank, kias]…], end: { lead, wing }, times: [{ t0, arrive, t1 }…], maxBankDeg, ok,
+ * durationSec, ranges, laneFwdFt, minBelowFt } (ranges and the lane are measured from the aircraft each phase flies off).
+ */
+export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec = PLAN_MAX_SEC }) {
+  const W = copyAircraft(wing0);
+  const points = [];
+  const times = phases.map(() => ({ t0: null, arrive: null, t1: null }));
+  let k = 0;
+  let m = 0; // steps flown
+  let t = t0;
+  const recOf = (ph) => refs[ph.track ?? Object.keys(refs)[0]];
+  let R = recOf(phases[0]);
+  const rel0 = relativeTo(R.at(0), W);
+  const ref = phases[0].world
+    ? { f: W.xFt - R.at(0).xFt, l: W.yFt - R.at(0).yFt, vf: 0, vl: 0 }
+    : { f: rel0.fwd, l: rel0.left, vf: 0, vl: 0 };
   let accel = 0; // KIAS per second, filtered by the jerk limit
   let psiCmdPrev = W.headingRad;
   let omegaFf = 0;
-  let leadHeadingPrev = L.headingRad;
   let maxBank = 0;
   let laneFwdFt = -Infinity; // furthest ahead of Lead's 3/9 line inside 1,000 ft (the overshoot lane)
   let minBelowFt = Infinity; // least height under Lead inside 2,000 ft
   const ranges = [];
   let aligning = false;
   let ok = false;
+  let reentered = false; // a phase change re-reads the step it happened in, with no reference turn rate for it
 
-  for (let n = 0; n < Math.round(PLAN_MAX_SEC / STEP_SEC); n++) {
-    // Both aircraft are read at the same instant (the start of the step); Lead's own step is flown after #2's.
-    const omegaL = wrapPi(L.headingRad - leadHeadingPrev) / STEP_SEC; // Lead's turn rate over the step before
-    leadHeadingPrev = L.headingRad;
+  for (let n = 0; n < Math.round(maxSec / STEP_SEC); n++) {
+    // Both aircraft are read at the same instant (the start of the step).
     const ph = phases[k];
+    const L = R.at(m);
+    const Lprev = m > 0 && !reentered ? R.at(m - 1) : null;
+    reentered = false;
     if (times[k].t0 === null) times[k].t0 = t;
-    const lf = unit(L.headingRad);
-    const lleft = { x: -lf.y, y: lf.x };
 
     // The reference slot moves toward the phase's slot at the phase's rates.
     for (const [axis, v, target, rate] of [['f', 'vf', ph.slot.fwd, ph.fwdRate], ['l', 'vl', ph.slot.left, ph.latRate]]) {
@@ -292,16 +341,12 @@ function runTracker({ lead0, wing0, leadSegs, t0, phases, profile, blockFt }) {
     }
     const arrived = ref.f === ph.slot.fwd && ref.l === ph.slot.left;
 
-    // The reference point and its velocity: attached to Lead, so it turns with him (v = vLead + ω × r + the reference's own motion).
-    const px = L.xFt + lf.x * ref.f + lleft.x * ref.l;
-    const py = L.yFt + lf.y * ref.f + lleft.y * ref.l;
-    const rx = px - L.xFt;
-    const ry = py - L.yFt;
-    const vpx = L.tasFtps * lf.x - omegaL * ry + lf.x * ref.vf + lleft.x * ref.vl;
-    const vpy = L.tasFtps * lf.y + omegaL * rx + lf.y * ref.vf + lleft.y * ref.vl;
+    // The reference point and its velocity: attached to the aircraft it flies off, so it turns with it (v = vRef + ω × r + the reference's own motion).
+    const { px, py, vpx, vpy } = refPoint(L, Lprev, ref, ph.world);
     const ex = px - W.xFt;
     const ey = py - W.yFt;
     const d = Math.hypot(ex, ey);
+    const gateOpen = t >= (ph.holdUntil ?? -Infinity) - 1e-9;
 
     let psiCmd;
     let kiasCmd;
@@ -309,14 +354,36 @@ function runTracker({ lead0, wing0, leadSegs, t0, phases, profile, blockFt }) {
       psiCmd = L.headingRad;
       kiasCmd = L.kias;
     } else {
-      // Phase bookkeeping: advance when close enough, finish when settled and Lead has finished his own plan.
+      // Phase bookkeeping: advance when close enough, finish when settled and the reference has finished its own plan.
       const relVel = Math.hypot(W.tasFtps * Math.cos(W.headingRad) - vpx, W.tasFtps * Math.sin(W.headingRad) - vpy);
-      if (arrived && k < phases.length - 1 && d <= ph.advanceTol) {
+      const last = k === phases.length - 1;
+      if (arrived && times[k].arrive === null && d <= (last ? Math.max(ph.finalTol, ph.advanceTol) : ph.advanceTol)) times[k].arrive = t;
+      if (arrived && !last && d <= ph.advanceTol && gateOpen) {
         times[k].t1 = t;
         k++;
+        const next = phases[k];
+        const R2 = recOf(next);
+        if (R2 !== R || Boolean(next.world) !== Boolean(ph.world)) {
+          // A new reference: the same point in the world, now carried by the other aircraft (or in world axes).
+          const L2 = R2.at(m);
+          const L2prev = m > 0 ? R2.at(m - 1) : null;
+          const rx = px - L2.xFt;
+          const ry = py - L2.yFt;
+          if (next.world) {
+            Object.assign(ref, { f: rx, l: ry, vf: vpx - L2.tasFtps * Math.cos(L2.headingRad), vl: vpy - L2.tasFtps * Math.sin(L2.headingRad) });
+          } else {
+            const f2 = unit(L2.headingRad);
+            const omega2 = L2prev ? wrapPi(L2.headingRad - L2prev.headingRad) / STEP_SEC : 0;
+            const ownX = vpx - (L2.tasFtps * f2.x - omega2 * ry);
+            const ownY = vpy - (L2.tasFtps * f2.y + omega2 * rx);
+            Object.assign(ref, { f: rx * f2.x + ry * f2.y, l: -rx * f2.y + ry * f2.x, vf: ownX * f2.x + ownY * f2.y, vl: -ownX * f2.y + ownY * f2.x });
+          }
+          R = R2;
+        }
+        reentered = true;
         continue; // re-enter this step with the next phase (nothing has moved for #2 yet)
       }
-      if (arrived && k === phases.length - 1 && d <= ph.finalTol && relVel <= Math.max(1.2, 0.3 * ph.finalTol) && lp.segments.length === 0 && L.bankDeg === 0) {
+      if (arrived && last && gateOpen && d <= ph.finalTol && relVel <= Math.max(1.2, 0.3 * ph.finalTol) && L.free && L.bankDeg === 0) {
         times[k].t1 = t;
         aligning = true;
       }
@@ -350,26 +417,27 @@ function runTracker({ lead0, wing0, leadSegs, t0, phases, profile, blockFt }) {
     points.push([bank, kias]);
     setKias(W, kias);
     stepCommanded(W, bank, t, profile);
-    flyStep(L, lp, t);
+    m++;
+    const Lafter = R.at(m);
     maxBank = Math.max(maxBank, Math.abs(W.bankDeg));
-    const after = relativeTo(L, W);
+    const after = relativeTo(Lafter, W);
     const range = Math.hypot(after.fwd, after.left);
     ranges.push(range);
     if (range < 1000) laneFwdFt = Math.max(laneFwdFt, after.fwd);
-    if (range < 2000) minBelowFt = Math.min(minBelowFt, L.altAboveFt - W.altAboveFt);
+    if (range < 2000) minBelowFt = Math.min(minBelowFt, Lafter.altAboveFt - W.altAboveFt);
     t += STEP_SEC;
 
-    if (aligning && lp.segments.length === 0 && W.bankDeg === 0 && W.rollRateDps === 0 && Math.abs(wrapPi(W.headingRad - L.headingRad)) < 1.5e-4 && W.kias === L.kias) {
+    if (aligning && Lafter.free && W.bankDeg === 0 && W.rollRateDps === 0 && Math.abs(wrapPi(W.headingRad - Lafter.headingRad)) < 1.5e-4 && W.kias === Lafter.kias) {
       ok = true;
       break;
     }
   }
-  return { points, end: { lead: L, wing: W }, times, maxBankDeg: maxBank, ok, durationSec: t - t0, ranges, laneFwdFt, minBelowFt };
+  return { points, end: { lead: { ...R.at(m) }, wing: W }, times, maxBankDeg: maxBank, ok, durationSec: t - t0, ranges, laneFwdFt, minBelowFt };
 }
 
 // ---- the legs (phases) ------------------------------------------------------------------------
 
-function phase(slot, over = {}) {
+export function phase(slot, over = {}) {
   return {
     slot,
     latRate: CLOSE_RATE_FTPS,
@@ -385,20 +453,21 @@ function phase(slot, over = {}) {
     advanceTol: 3,
     finalTol: 1.5,
     altSec: null, // seconds over which the height changes (null: the whole leg)
+    altRateFtps: null, // when set, the height change takes at least |change| / this many seconds (the 4-ship's stack; null: no floor)
     ...over,
   };
 }
 
 /** A station change in close formation (SMM 12.20 paras 44-47): about 5 kt, wings level but for a degree or two of heading. */
-const slide = (slot, over = {}) => phase(slot, { advanceTol: 6, ...over });
+export const slide = (slot, over = {}) => phase(slot, { advanceTol: 6, ...over });
 /** Drop back slowly (SMM 16.32 para 92): a few knots slower than Lead. */
-const dropBack = (slot, over = {}) => phase(slot, { fwdRate: 12, latRate: 12, vrel0: 14, advanceTol: 25, finalTol: 6, bankCapDeg: 20, ...over });
+export const dropBack = (slot, over = {}) => phase(slot, { fwdRate: 12, latRate: 12, vrel0: 14, advanceTol: 25, finalTol: 6, bankCapDeg: 20, ...over });
 /** Close from fighting wing through route (SMM 16.15 para 38; AFM7 p.18): 10-20 KIAS overtake, slowing to about 5 kt at route. */
-const closeThrough = (slot, over = {}) => phase(slot, { fwdRate: 40, latRate: 40, vrel0: 8, kcap: 0.05, d0: 100, vrelMax: 50, overtakeKias: 20, advanceTol: 6, bankCapDeg: 25, ...over });
+export const closeThrough = (slot, over = {}) => phase(slot, { fwdRate: 40, latRate: 40, vrel0: 8, kcap: 0.05, d0: 100, vrelMax: 50, overtakeKias: 20, advanceTol: 6, bankCapDeg: 25, ...over });
 /** The rejoin to a formation (SMM 12.24, 16.20): the slot is chased at once, the closing speed falls with range, bank up to the cap. */
-const rejoinTo = (slot, over = {}) => phase(slot, { fwdRate: Infinity, latRate: Infinity, vrel0: 25, kcap: 0.1, d0: 500, vrelMax: 260, decel: 3, bankCapDeg: REJOIN.bankCapDeg, overtakeKias: REJOIN.overtakeKias, undertakeKias: 25, advanceTol: 40, finalTol: 3, altSec: 10, ...over });
+export const rejoinTo = (slot, over = {}) => phase(slot, { fwdRate: Infinity, latRate: Infinity, vrel0: 25, kcap: 0.1, d0: 500, vrelMax: 260, decel: 3, bankCapDeg: REJOIN.bankCapDeg, overtakeKias: REJOIN.overtakeKias, undertakeKias: 25, advanceTol: 40, finalTol: 3, altSec: 10, ...over });
 /** Entry to line abreast (SMM 16.18 para 51): #2 turns away 20-40° to open out while Lead holds 220 KIAS. */
-const openOut = (slot, over = {}) => phase(slot, { fwdRate: 40, latRate: 150, vrel0: 40, kcap: 0.1, d0: 300, vrelMax: 220, decel: 2, bankCapDeg: 45, overtakeKias: 25, undertakeKias: 15, advanceTol: 30, finalTol: 25, ...over });
+export const openOut = (slot, over = {}) => phase(slot, { fwdRate: 40, latRate: 150, vrel0: 40, kcap: 0.1, d0: 300, vrelMax: 220, decel: 2, bankCapDeg: 45, overtakeKias: 25, undertakeKias: 15, advanceTol: 30, finalTol: 25, ...over });
 
 /**
  * The legs from one formation to another, as a list of phases, with #2 on side s now and sTo to end
@@ -607,15 +676,24 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
 
 /** Two passes of the tracker: the first learns the leg times, the second flies with #2's height profile built from them. */
 function fly2(lead, wing, leadSegs, t0, phases, blockFt) {
-  const common = { lead0: lead, wing0: wing, leadSegs, t0, phases, blockFt };
+  const refs = { [lead.id]: recordFlight(lead, { segments: leadSegs }, t0) };
+  return { leadSegs, ...trackTwice({ refs, wing0: wing, t0, phases, blockFt }) };
+}
+
+/**
+ * The tracker run twice (fly2's method, for any set of recorded references): the first run learns when each leg starts and
+ * ends, the second flies with the wingman's height profile built from those times. Returns { run, profile }.
+ */
+export function trackTwice({ refs, wing0, t0, phases, blockFt, maxSec = PLAN_MAX_SEC }) {
+  const common = { refs, wing0, t0, phases, blockFt, maxSec };
   const first = runTracker({ ...common, profile: undefined });
-  const profile = heightProfile(wing.altAboveFt, phases, first.times, t0);
+  const profile = heightProfile(wing0.altAboveFt, phases, first.times, t0);
   const run = profile.length ? runTracker({ ...common, profile }) : first;
-  return { leadSegs, run, profile };
+  return { run, profile };
 }
 
 /** #2's height: from where it is, smooth legs to each leg's slot height (smootherstep, no climb rate at the ends: spec F7, F12). */
-function heightProfile(alt0, phases, times, t0) {
+export function heightProfile(alt0, phases, times, t0) {
   const legs = [];
   let alt = alt0;
   let from = t0;
@@ -624,7 +702,8 @@ function heightProfile(alt0, phases, times, t0) {
     const start = Math.max(times[i].t0 ?? from, from);
     const end = times[i].t1 ?? start + 6;
     if (Math.abs(target - alt) > 0.5) {
-      const t1 = Math.max(ph.altSec ? start + ph.altSec : end, start + 4);
+      const floor = ph.altRateFtps ? Math.abs(target - alt) / ph.altRateFtps : 0;
+      const t1 = Math.max(ph.altSec ? start + ph.altSec : end, start + 4, start + floor);
       legs.push({ t0: start, t1, fromFt: alt, toFt: target });
       alt = target;
       from = t1;
