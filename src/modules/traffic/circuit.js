@@ -63,7 +63,7 @@ export const CIRCUIT = Object.freeze({
  * slowing toward the 180 KIAS climb speed over about this time (Patrick, 4 Oct
  * 09:14Z: "trade that speed for altitude after it crosses the end"). An estimate.
  */
-const ZOOM_SEC = 10;
+export const ZOOM_SEC = 10;
 
 /**
  * How hard the simulated pilot banks for a heading error: 3° of bank per degree,
@@ -74,9 +74,9 @@ const BANK_PER_DEG = 3;
 /** Track correction per foot off a line, near the line (0.05°/ft: 5° at 100 ft). An estimate. */
 const TRACK_PER_FT = 0.05;
 /** Height capture: the climb rate is the height to go over this time, so the level-off is smooth. An estimate. */
-const LEVEL_OFF_SEC = 6;
+export const LEVEL_OFF_SEC = 6;
 /** Radius for the line-holding law once on a line: small corrections only. An estimate. */
-const HOLD_RADIUS_FT = 3000;
+export const HOLD_RADIUS_FT = 3000;
 /** The simulated pilot's time step, seconds. */
 export const PILOT_DT = 0.1;
 const DT = PILOT_DT;
@@ -128,14 +128,14 @@ export function bankFor(wantedHdg, s, bankMax, dir = null) {
  * follows a circle of radius `radiusFt` onto it (so a turn onto the line is a
  * steady bank that rolls out on it); close in, a small proportional correction.
  */
-function trackForLine(line, p, radiusFt, maxInterceptDeg = 90) {
+export function trackForLine(line, p, radiusFt, maxInterceptDeg = 90) {
   const { crossFt } = legOffsetsFt(line.a, line.b, p);
   const x = Math.abs(crossFt);
   const theta = Math.min(maxInterceptDeg, acosDeg(1 - x / radiusFt), TRACK_PER_FT * x);
   return wrapDeg360(line.trackDeg + (crossFt > 0 ? -theta : theta));
 }
 
-const lineOf = (a, b) => ({ a, b, trackDeg: compassDegFromVector(b.x - a.x, b.y - a.y) });
+export const lineOf = (a, b) => ({ a, b, trackDeg: compassDegFromVector(b.x - a.x, b.y - a.y) });
 
 /** Seconds the wings take to roll into the turn, allowed for in the lead (about 1.8 s to 60°, ROLL). */
 const ROLL_IN_SEC = 1.8;
@@ -145,7 +145,7 @@ const ROLL_IN_SEC = 1.8;
  * away (a steady turn of radius R rolls out on it) plus the ground covered
  * toward it while the wings roll in, and the aircraft is closing on it.
  */
-function readyToTurnOnto(line, s, trackDeg, radiusFt, groundSpeedFtps, lineGroundSpeedFtps = groundSpeedFtps) {
+export function readyToTurnOnto(line, s, trackDeg, radiusFt, groundSpeedFtps, lineGroundSpeedFtps = groundSpeedFtps) {
   const { crossFt } = legOffsetsFt(line.a, line.b, s);
   const dpsi = Math.abs(wrapDeg180(line.trackDeg - trackDeg));
   // Over the ground the turn is wider downwind and tighter into wind: scale the
@@ -217,13 +217,13 @@ function leadRadiusFt(tasKt, bankDeg) {
 }
 
 /** Full-power level acceleration and climb, as true airspeed rate (ft/s²) for a climb rate, at this G. */
-function accelFor(ias, alt, g, climbFtps) {
+export function accelFor(ias, alt, g, climbFtps) {
   const tas = ktToFtps(iasToTasKt(ias, alt));
   return G_FTPS2 * (excessThrustPerWeight(ias, alt, g) - climbFtps / tas);
 }
 
 /** Idle deceleration (drag only, ft/s²): includes induced drag at G, but no prop drag at idle , so it underestimates the drag (an estimate). */
-function idleDecel(ias, alt, g) {
+export function idleDecel(ias, alt, g) {
   return -G_FTPS2 * dragPerWeight(ias, alt, g);
 }
 

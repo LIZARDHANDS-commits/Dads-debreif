@@ -34,7 +34,7 @@ import { startJoin } from './path-follower.js';
 import { makePflFromArea } from './nav-plans.js';
 import { startPflFlight } from './pfl.js';
 import { buildGoAround } from './circuit.js';
-import { buildFullHighKeyRail, HIGH_KEY_PT } from './high-key.js';
+import { buildHighKeyClimb, HIGH_KEY_PT } from './high-key.js';
 
 /** The step, in seconds of sim time. */
 export const STEP_SEC = 0.05;
@@ -459,7 +459,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       tickAircraft(a, STEP_SEC, wind, route, opt);
       if (a.pflDone) pflEnded(a);
       if (a.goAroundDone) goAroundEnded(a);
-      if (a.mode === 'RAIL' && route && !a.pflRail && !a.pflFlight && !a.pflEndedThisStep) {
+      if (a.mode === 'RAIL' && route && !a.pflRail && !a.pflFlight && !a.goAroundFlight && !a.highKeyFlight && !a.pflEndedThisStep) {
         const len = routeLengthFt(route, opt);
         if (route.kind === 'pattern' && a.distFt >= beforeDist) {
           checkDecisions(a, beforeDist, a.distFt);
@@ -872,6 +872,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (!a) return false;
       // A new command stops a flown go-around: back onto Pattern 1 where the aircraft is, then the command.
       if (a.goAroundFlight) goAroundEnded(a);
+      // A new command stops the flown climb to High Key; the command then flies from where the aircraft is.
+      delete a.highKeyFlight;
       if (action === 'breakout') {
         a.command = action;
         a.landed = false;
@@ -906,25 +908,32 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           a.routeId = 'PFL_HIGH_KEY';
           return true;
         }
-        // The climb to High Key is today's until refactor PR 4; at High Key it hands over to the PFL (tick-aircraft.js).
-        const full = buildFullHighKeyRail(a, env, options);
-        const hk = full.findIndex((wp) => wp.tag === 'high_key');
-        const rail = Object.assign(hk > 0 ? full.slice(0, hk + 1) : full, { routeId: 'PFL_HIGH_KEY', handOffAtHighKey: true });
+        // The climb to High Key, flown once from where the aircraft is (Traffic spec 1a item 23): a full-power
+        // climbing turn onto the 760 ft run-in, followed by the path follower; at High Key the PFL takes over (tick-aircraft.js).
+        const bankDeg = a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
+        const flown = buildHighKeyClimb({
+          x: a.x, y: a.y, alt: alt, kias: a.iasKt ?? a.kt ?? 140, headingDeg: a.headingDeg ?? 298, bankDeg: a.bankDeg ?? 0,
+        }, env, bankDeg);
+        a.highKeyFlight = { route: { id: 'HIGH_KEY_FLOWN', kind: 'flown', name: 'Climb to High Key', points: flown.points }, settings: setup.settings };
         a.engineFailed = false;
-        a.pflRail = rail;
-        a.pflRailIndex = 0;
         a.distFt = 0;
         a.mode = 'RAIL';
         a.routeId = 'PFL_HIGH_KEY';
-        a.navPlan = null;
         a.command = action;
         a.landed = false;
         a.active = true;
+        a.phase = 'climb_high_key';
+        a.config = 'Clean';
+        delete a.pflRail;
+        delete a.pflRailIndex;
+        delete a.pflFlight;
+        delete a.goAroundFlight;
+        delete a.joinOffset;
+        delete a.navPlan;
+        delete a._activeCommand;
         delete a._blendStart;
         delete a._blendTarget;
         delete a._blendTimer;
-        a.phase = rail[0]?.phase || 'climb_high_key';
-        a.config = rail[0]?.config || 'Clean';
       } else if (action === 'climb_low_key') {
         a.command = action;
         a.landed = false;
@@ -1013,6 +1022,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           pflRail: a.pflRail ?? null,
           pflDecision: a.pflDecision ?? null,
           pflFlight: Boolean(a.pflFlight),
+          highKeyFlight: Boolean(a.highKeyFlight),
           ejectAt: a.ejectAt ?? null,
         };
       });
