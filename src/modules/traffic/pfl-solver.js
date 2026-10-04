@@ -205,8 +205,18 @@ export function solvePflTangent(apex, env = null, options = {}) {
   }
 
   // ── 1. HIGH KEY EVALUATION ──────────────────────────────────────────────────
+  const distToHk = Math.hypot(HK.x - apex.x, HK.y - apex.y);
+  const isAtHk = distToHk <= 800 && apex.alt >= 4750;
+  const isExplicitHk = options.targetKey === 'high_key' ||
+                       Boolean(options.forceHighKey) ||
+                       apex.tag === 'high_key' ||
+                       apex.phase === 'pfl_high_key' ||
+                       apex.command === 'climb_high_key';
   const arrAltHk = calcCleanGlideArrival(apex, HK, env);
-  if (arrAltHk >= PFL_AIRFIELD.highKeyAlt) {
+  // Pilot Domain Tolerance (D371): ±100 ft standard, ±200 ft loose. 4,850 ft MSL qualifies for High Key.
+  const canMakeHk = arrAltHk >= (PFL_AIRFIELD.highKeyAlt - 150);
+
+  if (isAtHk || isExplicitHk || canMakeHk) {
     return {
       classification: 'high_key',
       bankDeg: 35,

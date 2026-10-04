@@ -193,6 +193,7 @@ export function buildPflRail(aircraft, env = null, options = {}) {
     }
   } else {
     // Airspeed already <= 120 KIAS: Immediate start at aircraft state
+    const isHk = solution.classification === 'high_key';
     rawWaypoints.push({
       x: x0,
       y: y0,
@@ -202,9 +203,9 @@ export function buildPflRail(aircraft, env = null, options = {}) {
       headingDeg: hdg0,
       bankDeg: bank0,
       g: 1.0,
-      phase: 'pfl_zoom',
+      phase: isHk ? 'pfl_high_key' : 'pfl_zoom',
       config: 'Clean',
-      tag: 'failure_point',
+      tag: isHk ? 'high_key' : 'failure_point',
       mode: 'rails',
     });
   }
@@ -301,15 +302,26 @@ export function buildPflRail(aircraft, env = null, options = {}) {
         const y = apexPt.y + (joinPt.y - apexPt.y) * u;
         const alt = apexPt.alt + (joinPt.alt - apexPt.alt) * u;
 
-        // Smooth heading alignment transition onto spiral heading over the last 20%
-        let headingDeg = tangentHdg;
-        if (u > 0.8) {
-          const blendU = (u - 0.8) / 0.2;
-          const diffHdg = wrapDeg180(joinPt.headingDeg - tangentHdg);
-          headingDeg = wrapDeg360(tangentHdg + diffHdg * blendU);
+        // Smooth heading alignment transition onto spiral heading
+        let headingDeg;
+        if (distToJoin <= 500) {
+          // Direct arrival / proximity: smoothly interpolate from apexPt.headingDeg to joinPt.headingDeg
+          const startHdg = apexPt.headingDeg ?? tangentHdg;
+          const diffHdg = wrapDeg180(joinPt.headingDeg - startHdg);
+          headingDeg = wrapDeg360(startHdg + diffHdg * u);
+        } else {
+          // Long glide: hold tangent heading, align onto spiral heading over the last 20%
+          headingDeg = tangentHdg;
+          if (u > 0.8) {
+            const blendU = (u - 0.8) / 0.2;
+            const diffHdg = wrapDeg180(joinPt.headingDeg - tangentHdg);
+            headingDeg = wrapDeg360(tangentHdg + diffHdg * blendU);
+          }
         }
 
-        const config = getPflConfig(alt, 'pfl_tangent');
+        const isHkTangent = solution.classification === 'high_key';
+        const phase = isHkTangent ? 'pfl_high_key' : 'pfl_tangent';
+        const config = getPflConfig(alt, phase);
 
         rawWaypoints.push({
           x,
@@ -320,7 +332,7 @@ export function buildPflRail(aircraft, env = null, options = {}) {
           headingDeg: Math.round(headingDeg * 10) / 10,
           bankDeg: 0,
           g: 1.0,
-          phase: 'pfl_tangent',
+          phase,
           config,
           tag: s === numTangentSteps ? joinPt.tag : undefined,
           mode: 'rails',
@@ -385,3 +397,6 @@ export function buildPflRail(aircraft, env = null, options = {}) {
 
   return finalWaypoints;
 }
+
+export const generatePflRail = buildPflRail;
+

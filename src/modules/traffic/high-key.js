@@ -11,6 +11,7 @@ import {
   calcCrossTrackError,
 } from './flight-engine.js';
 import { getNavPlan } from './nav-plans.js';
+import { generatePflRail } from './pfl-rail.js';
 
 // ── HIGH KEY GROUND TRUTH CONSTANTS ──────────────────────────────────────────
 export const HIGH_KEY_PT = Object.freeze({ x: 3104, y: -3194, alt: 5000 });
@@ -713,15 +714,27 @@ export function stepHighKey(a, route = null, env = null, stepDt = 0.05, routeOpt
     a.pitchDeg = 0;
     a.targetAltFt = 5000;
     a._highKeyPhase = 'complete';
-
-    // Transition to PFL navigation plan / rails
-    const pflPlan = getNavPlan('PFL_HIGH_KEY');
-    if (pflPlan) {
-      a.navPlan = pflPlan;
-      a.waypointIndex = 0;
-      a.mode = 'RAIL';
-    }
+    a.engineFailed = true;
+    a.command = null;
     delete a._activeCommand;
+
+    // Transition to continuous PFL kinematic rail
+    const pflRail = generatePflRail(a, env, { targetKey: 'high_key' });
+    if (pflRail && pflRail.length > 0) {
+      a.pflRail = pflRail;
+      a.pflRailIndex = 0;
+      a.distFt = 0;
+      a.mode = 'RAIL';
+      a.phase = pflRail[0]?.phase || 'pfl_high_key';
+      a.config = pflRail[0]?.config || 'clean';
+    } else {
+      const pflPlan = getNavPlan('PFL_HIGH_KEY');
+      if (pflPlan) {
+        a.navPlan = pflPlan;
+        a.waypointIndex = 0;
+        a.mode = 'RAIL';
+      }
+    }
     return;
   }
 

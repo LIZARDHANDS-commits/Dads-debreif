@@ -215,3 +215,4 @@ test('Test 4: Verify zero coordinate teleportation (<25 ft/frame), finite number
   const hasGearOrFlaps = configHistory.some((c) => c.config.includes('gear') || c.config.includes('flaps'));
   assert.ok(hasGearOrFlaps, 'Configuration must schedule gear and flap deployments during recovery');
 });
+

@@ -52,6 +52,7 @@
 | [**PATCH-050**](#patch-050-traffic-3d-visual-landmarks-buildings-cameras-sun-d430-d434) | M1 | 2026-10-03 15:45Z | 3D & UX | 3D Visual Landmarks, Traced Buildings, Camera Suite & SW Sun (D430–D434) | Pass |
 | [**PATCH-051**](#patch-051-breakout-rejoin-high-key-and-pfl-architecture-d435-d436) | M1 | 2026-10-03 23:05Z | Aero & SMM | Breakout 2 NM Rejoin, High Key Controller & PFL Architecture (D435–D436) | Pass |
 | [**PATCH-052**](#patch-052-traffic-single-click-button-responsiveness-and-dom-stability-d437) | M1 | 2026-10-03 23:15Z | UI & Architecture | Single-Click Button Responsiveness & Stable In-Place DOM Updates (D437) | Pass |
+| [**PATCH-053**](#patch-053-high-key-pfl-energy-gate-pilot-domain-tolerances--360-spiral-continuity-d438) | M1 | 2026-10-04 00:35Z | Aero & SMM | High Key PFL Energy Gate Pilot Domain Tolerances & 360° Spiral Continuity (D438) | Pass |
 
 ---
 
@@ -1392,3 +1393,29 @@
   Decision **D437**. Restores immediate, single-click responsiveness across all mobile, tablet, and desktop pointer interactions.
 * **Verification:**  
   30/30 `aircraft.test.js` tests passing; single-click verified on dev server.
+
+---
+
+### PATCH-053: High Key PFL Energy Gate Pilot Domain Tolerances & 360° Spiral Continuity (D438)
+* **Date & Time:** 2026-10-04 00:35 UTC
+* **Milestone:** Milestone 1 (Traffic Sim)
+* **Branch:** `main`
+* **Files Modified:**
+  * `src/modules/traffic/pfl-solver.js`
+  * `src/modules/traffic/pfl-rail.js`
+  * `src/modules/traffic/high-key.js`
+  * `tests/unit/traffic/high-key.test.js`
+  * `.agent/skills/wind-shaped-flight-paths/SKILL.md`
+* **Problem / Flaw Addressed:**  
+  Upon reaching High Key at ~4,950 ft MSL (or with minor spatial offset), the solver evaluated strict `arrAltHk >= 5000`. Failing by only ~11 ft, it falsely diagnosed that the aircraft lacked sufficient energy for High Key and downgraded to Low Key, cutting diagonally across the airfield to the downwind leg ("Window Farm") instead of flying the published SMM Chapter 13 360° descending spiral from High Key.
+* **Changes Made:**
+  1. In `src/modules/traffic/pfl-solver.js:solvePflTangent`, relaxed the High Key energy gate to Pilot Domain Tolerances (D371: $\pm 100\text{ ft}$ standard, $\pm 200\text{ ft}$ loose), allowing arrival altitudes $\ge 4,850\text{ ft}$ MSL, direct corridor proximity (`distToHk <= 800 ft && alt >= 4750 ft`), or explicit maneuver intent (`options.targetKey === 'high_key'`) to classify as `high_key`.
+  2. In `src/modules/traffic/high-key.js:stepHighKey`, passed `{ targetKey: 'high_key' }` upon reaching High Key.
+  3. In `src/modules/traffic/pfl-rail.js`, tagged the initial waypoint as `phase = 'pfl_high_key'` and `tag = 'high_key'` when classified as High Key, and smoothed heading alignment transition from arrival heading directly into the spiral entry heading when within 500 ft.
+  4. Added Unit Test 12 in `tests/unit/traffic/high-key.test.js` verifying full 360° spiral execution through High Key, Low Key, Base Key, and Final to threshold touchdown.
+  5. Codified **Pillar 12: Pilot Domain Energy Gates & Spiral Continuity (The Anti-Window-Cut Contract)** in `wind-shaped-flight-paths` skill.
+* **Reasoning / Rationale:**  
+  Decision **D438**. Enforces Pilot Domain Tolerances (D371) on numerical energy solvers, guaranteeing authentic SMM Chapter 13 forced landing trajectories.
+* **Verification:**  
+  34/34 High Key & PFL unit tests passing green in 310ms.
+

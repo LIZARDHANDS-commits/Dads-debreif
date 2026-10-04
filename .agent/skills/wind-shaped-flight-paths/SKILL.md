@@ -1,9 +1,9 @@
 ---
 name: wind-shaped-flight-paths
-description: Synthesizes smooth, aerodynamically authentic, wind-compensated flight trajectories (kinematic rails) for patterns, turns, breaks, circuits, and forced landings. Use when creating flight simulator paths, UAV routes, or air traffic patterns that must look physically realistic, match pilot boundary conditions (attitude/crab), and hit spatial targets (runway centerline, threshold) exactly under variable wind conditions.
+description: Synthesizes smooth, aerodynamically authentic, wind-compensated flight trajectories (kinematic rails) and governs state-machine handoffs (tangent capture, Hermite blending, and rail transitions) for patterns, turns, breaks, circuits, and forced landings. Use when creating flight simulator paths, UAV routes, air traffic patterns, or managing transitions between dynamic flight controllers and published procedural rails.
 ---
 
-# Wind-Shaped Kinematic Flight Paths
+# Wind-Shaped Kinematic Flight Paths & State-Machine Handoffs
 
 ## 1. Overview & Core Philosophy
 
@@ -163,6 +163,34 @@ In simulation engines where progress along flight rails is tracked by scalar rou
 3. **The Trap**: Applying `lapOffset` to an open route adds previously accumulated flight distance on top of the intercept point, immediately exceeding the route's total length (`distFt > rLen`). On the very next tick, route completion fires (`distFt >= len`), dumping the aircraft into the attached pattern with massive overshoot or setting `active = false`, causing the aircraft to teleport and disappear.
 4. **The Rule**: Always guard lap offset calculations by route type:
    $$\text{targetDistFt} = \text{isClosedRoute}(\text{route}) \;?\; (\text{lapOffset} + \text{closestDist}) : \text{closestDist}$$
+
+### Pillar 11: Downstream Rail Handoff & State-Machine Handshake Protocol (The Anti-Flythrough Contract)
+When a dynamic approach or maneuver controller (e.g. `climb_high_key`, `breakout`, `closed_pattern`) reaches its arrival gate (such as High Key at 5,000 ft MSL on runway heading 298°), the transition into the downstream rail must satisfy three mandatory handshake rules:
+
+1. **Command Annihilation (`a.command = null`):**
+   In hybrid state machines, `shouldEnterPhysics()` evaluates `if (a.command && PHYSICS_COMMANDS.has(a.command)) return true`. If a maneuver reaches its completion gate, sets `a.mode = 'RAIL'`, but leaves `a.command` set (e.g. `'climb_high_key'`), `shouldEnterPhysics` will instantly pull the aircraft back into `PHYSICS` mode on the very next tick! The maneuver has finished, but the engine thinks the command is still active.
+   - **The Rule**: `a.command = null` and `delete a._activeCommand` must be executed synchronously at the exact moment of transition.
+
+2. **Downstream Rail Instantiation (Preventing Rail Orphan Flythrough):**
+   Setting `a.mode = 'RAIL'` is completely ineffective if the downstream rail is not attached! The host engine's fallback rail runner operates on the default background circuit route (e.g. `PAT1`). If `a.pflRail` is missing, the engine evaluates distance along the background circuit, causing the aircraft to fly straight through the gate down the runway centerline.
+   - **The Rule**: The arrival gate must explicitly instantiate the downstream continuous dense rail (`a.pflRail = generatePflRail(a, env)`), initialize `a.pflRailIndex = 0`, and zero `a.distFt = 0`.
+
+3. **Next-Tick Forward Simulation Invariant Test:**
+   Never write a transition test that only asserts `if (reachedGate) assert.ok(transitioned)`.
+   - **The Rule**: Tests must continue stepping the simulation forward for at least 50–100 ticks (2.5–5.0 seconds) *after* the transition to prove that:
+     a) The aircraft does not snap back into physics mode.
+     b) The aircraft does not fly straight through along an unrelated background route.
+     c) Downstream telemetry (descent rate, bank angle into turn, rail waypoint stepping) is actively advancing.
+
+### Pillar 12: Pilot Domain Energy Gates & Spiral Continuity (The Anti-Window-Cut Contract)
+When classifying energy states for published procedural key points (e.g. High Key 5,000 ft MSL, Low Key 3,700 ft MSL, Base Key 2,900 ft MSL), trajectory solvers must never apply zero-tolerance mathematical boundaries ($\ge 5,000\text{ ft}$) without Pilot Domain Tolerances (D371: $\pm 100\text{ ft}$ standard, $\pm 200\text{ ft}$ loose).
+
+1. **The Energy Downgrade Trap:**
+   If an aircraft arrives over the High Key corridor at 4,950 ft MSL or experiences minor spatial offset, an arrival calculation of $4,988\text{ ft}$ tested against `arrAltHk >= 5000` evaluates to `false`. The solver falsely determines the aircraft lacks sufficient energy for High Key and downgrades to Low Key on the downwind leg, generating a diagonal glide tangent across the runway towards the "Window Farm" and completely bypassing the authentic 360° High Key spiral.
+2. **The Direct Arrival Rule:**
+   If an aircraft is within the arrival corridor (`distToKey <= 800 ft && alt >= nominal - 250 ft`), or arrives via an explicit maneuver controller (`options.targetKey === 'high_key'`), the solver must classify as that key point and sequence the dense rail from the initial waypoint (`joinIndex = 0`).
+3. **Smooth Local Intercept:**
+   When connecting into a downstream spiral within $500\text{ ft}$, do not construct artificial geometric tangents with large crab angle kinks. Smoothly interpolate heading from the aircraft's current arrival heading directly into the spiral entry heading.
 
 ---
 

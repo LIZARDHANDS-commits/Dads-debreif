@@ -28,6 +28,7 @@ import {
 } from '../../../src/modules/traffic/high-key.js';
 import { initAircraftState, stepAircraft } from '../../../src/modules/traffic/flight-engine.js';
 import { getNavPlan } from '../../../src/modules/traffic/nav-plans.js';
+import { tickAircraft } from '../../../src/modules/traffic/tick-aircraft.js';
 import { wrapDeg180 } from '../../../src/core/angles.js';
 
 const mooseJaw = JSON.parse(
@@ -253,6 +254,21 @@ test('Phase 3 & Transition: decelerates from 140 KIAS to 120 KIAS upon reaching 
   const distToHk = Math.hypot(HIGH_KEY_PT.x - ac.x, HIGH_KEY_PT.y - ac.y);
   assert.ok(distToHk <= 150, `Must be within 150 ft of High Key, got ${distToHk} ft`);
   assert.equal(ac.alt, 5000, 'Altitude at High Key is 5,000 ft MSL');
+
+  // Verify Anti-Flythrough Contract: command cleared, pflRail attached, mode is RAIL
+  assert.equal(ac.command, null, 'Command must be cleared to null upon reaching High Key');
+  assert.equal(ac.mode, 'RAIL', 'Mode must be RAIL');
+  assert.ok(ac.pflRail && ac.pflRail.length > 0, 'pflRail must be attached');
+
+  // Step 50 ticks in tickAircraft: verify aircraft actively flies the PFL rail (descending and advancing)
+  const startAlt = ac.alt;
+  const startIdx = ac.pflRailIndex ?? 0;
+  for (let s = 0; s < 50; s++) {
+    tickAircraft(ac, 0.05, { windFromDeg: 360, windKt: 0 }, pat);
+  }
+  assert.ok((ac.pflRailIndex ?? 0) > startIdx, `pflRailIndex must advance, got ${ac.pflRailIndex}`);
+  assert.ok(ac.alt < startAlt, `Aircraft must be descending along PFL spiral, got ${ac.alt} ft`);
+  assert.notEqual(ac.phase, 'initial', 'Must not fly straight through onto initial pattern leg');
 });
 
 // ── 8. INVARIANT GUARDS: ZERO COORDINATE SNAPPING OR NaN/INFINITY ────────────
@@ -450,4 +466,59 @@ test('South/Southeast arrival: smooth tangential capture into run-in and PFL tra
   assert.ok(Math.abs(ac.iasKt - 120) <= 10, `Airspeed at High Key must be 120 KIAS (±10 kt), got ${ac.iasKt}`);
   assert.equal(ac.mode, 'RAIL', 'Mode must switch to RAIL upon High Key transition');
 });
+
+// ── 12. HIGH KEY PFL RAIL INTEGRITY: 360° SPIRAL PATTERN (ANTI-WINDOW GLIDE GUARD) ─
+test('High Key PFL Rail Integrity: Transition instantiates full 360° spiral (high_key classification) rather than cutting to downwind/window', () => {
+  const pat = mooseJaw.routes[0];
+  const env = { windFromDeg: 360, windKt: 0 };
+
+  const ac = initAircraftState({
+    id: 'A1',
+    type: 'CT-156',
+    x: -4066,
+    y: 681,
+    alt: 2400,
+    headingDeg: 298,
+    iasKt: 140,
+    bankDeg: 0,
+    phase: 'climb_high_key',
+    command: 'climb_high_key',
+    mode: 'PHYSICS',
+  });
+
+  let simulatedTime = 0;
+  let transitioned = false;
+  const dt = 0.05;
+  const maxTime = 120;
+
+  while (simulatedTime < maxTime) {
+    stepHighKey(ac, pat, env, dt);
+    stepAircraft(ac, ac.navPlan, env, dt);
+
+    if (ac.phase === 'pfl_high_key' || ac._highKeyPhase === 'complete') {
+      transitioned = true;
+      break;
+    }
+
+    simulatedTime += dt;
+  }
+
+  assert.ok(transitioned, 'Aircraft must reach High Key and transition');
+  assert.ok(ac.pflRail, 'Aircraft must have pflRail attached');
+  assert.equal(ac.pflRail.classification, 'high_key', 'PFL rail must classify as high_key under pilot domain tolerances');
+  assert.equal(ac.phase, 'pfl_high_key', 'Aircraft phase must be pfl_high_key, never pfl_zoom or pfl_tangent');
+
+  const phases = [...new Set(ac.pflRail.map((p) => p.phase))];
+  assert.ok(phases.includes('pfl_high_key'), 'PFL rail must include pfl_high_key turn');
+  assert.ok(phases.includes('pfl_low_key'), 'PFL rail must include pfl_low_key');
+  assert.ok(phases.includes('pfl_base_key'), 'PFL rail must include pfl_base_key');
+  assert.ok(phases.includes('pfl_final'), 'PFL rail must include pfl_final');
+
+  // Verify terminal touchdown at Runway 29L threshold (1,892 ft MSL)
+  const lastPoint = ac.pflRail[ac.pflRail.length - 1];
+  assert.equal(lastPoint.alt, 1892, 'Terminal point must land at 1,892 ft MSL');
+  const distToTh = Math.hypot(3104 - lastPoint.x, -3194 - lastPoint.y);
+  assert.ok(distToTh <= 50, `Terminal point must touch down at runway threshold, got dist=${distToTh.toFixed(1)} ft`);
+});
+
 
