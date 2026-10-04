@@ -87,7 +87,8 @@ export const ENERGY_DEFAULT_SETUP = Object.freeze({
   immelmannOffNoseDeg: 120,
   immelmannMinTopKias: 120,
   pickLookaheadSec: 60,
-  tacticalLookaheadSec: 20,
+  tacticalLookaheadSec: 20,     // Patrick's ruling, 4 Oct 18:09Z
+  smartLookStepsPerStep: 100,  // estimate (TF-62): look-ahead dry-run steps worked through per fight step; a pick then takes about 0.35 s typically, 0.9 s at most. 0 = all at once
   deckMarginFt: 1000,
   splitSBelowKias: 120,
   pullG: MANEUVER_PULL_G,
@@ -240,6 +241,7 @@ export function checkedSetup(setup) {
   need(Number.isFinite(s.immelmannMinTopKias) && s.immelmannMinTopKias >= 0 && s.immelmannMinTopKias <= T6A_LIMITS.vmoKias, `immelmannMinTopKias is 0 to ${T6A_LIMITS.vmoKias}`, s.immelmannMinTopKias);
   need(Number.isFinite(s.pickLookaheadSec) && s.pickLookaheadSec >= 0 && s.pickLookaheadSec <= 120, 'pickLookaheadSec is 0 to 120', s.pickLookaheadSec);
   need(Number.isFinite(s.tacticalLookaheadSec) && s.tacticalLookaheadSec >= 0, 'tacticalLookaheadSec is 0 or more', s.tacticalLookaheadSec);
+  need(Number.isFinite(s.smartLookStepsPerStep) && s.smartLookStepsPerStep >= 0, 'smartLookStepsPerStep is 0 or more', s.smartLookStepsPerStep);
   need(Number.isFinite(s.deckMarginFt) && s.deckMarginFt >= 0 && s.deckMarginFt <= 10000, 'deckMarginFt is 0 to 10000', s.deckMarginFt);
   need(Number.isFinite(s.stallSec) && s.stallSec >= 0, 'stallSec is 0 or more', s.stallSec);
   need(Number.isFinite(s.midThrottle) && s.midThrottle > 0 && s.midThrottle <= 1, 'midThrottle is above 0 and up to 1', s.midThrottle);

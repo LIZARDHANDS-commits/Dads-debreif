@@ -78,7 +78,8 @@ export const CHECK_SETTINGS = Object.freeze([
   ['immelmannMinTopKias', 'Lowest Immelmann top speed (KIAS)', 'An Immelmann that would be over the top slower than this is never picked.'],
   ['pickLookaheadSec', 'Look-ahead (s)', 'How far ahead Smart races the two moves above its split point. 0 turns the race off.'],
   ['deckMarginFt', 'Deck margin (ft)', 'Under the MPT band and closer than this to the hard deck, Smart flies the level MPT instead of a slice or split S.'],
-  ['tacticalLookaheadSec', 'Smart look-ahead in the MPT (s)', 'How far ahead Smart flies each move it could change to in the MPT, to see which wins.'],
+  ['tacticalLookaheadSec', 'Smart look-ahead (s)', 'How far ahead Smart flies each move it could pick, to see which wins. 20 s is Patrick\'s ruling (4 Oct 2026).'],
+  ['smartLookStepsPerStep', 'Smart look-ahead spread (steps per step)', 'How much of the look-ahead Smart works through in each 0.02 s fight step, so a pick never freezes the screen; the pilot starts the move when it is done. Lower spreads it more and decides later; 0 works it all out at once. Estimate.'],
 ]);
 
 /**
@@ -95,7 +96,7 @@ export function createLayout({ settings, controls, on }) {
   };
 
   // ── Fight setup column ──────────────────────────────────────────────
-  const versionBadge = h('div', { class: 'tf-version-badge' }, "PAT'S FIGHT AND TURN SIM v2.14", h('span', { class: 'tf-version-sub' }, '• Smart pilot & Harvard 5.0 G'));
+  const versionBadge = h('div', { class: 'tf-version-badge' }, "PAT'S FIGHT AND TURN SIM v2.15", h('span', { class: 'tf-version-sub' }, '• Smart pilot & Harvard 5.0 G'));
   const intro = h('p', { class: 'tf-intro' }, versionBadge, h('br'), 'Two aircraft start apart and turn, at the pass or at once: who gets their nose on the other first?');
   const presetSelect = h(
     'select',

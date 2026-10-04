@@ -126,7 +126,7 @@ function energyDefaults() {
     immelmannAboveKias: e.immelmannAboveKias, splitSBelowKias: e.splitSBelowKias,
     immelmannOffNoseDeg: e.immelmannOffNoseDeg, immelmannMinTopKias: e.immelmannMinTopKias,
     pickLookaheadSec: e.pickLookaheadSec, deckMarginFt: e.deckMarginFt,
-    tacticalLookaheadSec: e.tacticalLookaheadSec ?? 20,
+    tacticalLookaheadSec: e.tacticalLookaheadSec ?? 20, smartLookStepsPerStep: e.smartLookStepsPerStep,
   };
 }
 
@@ -136,7 +136,7 @@ export const ENERGY_MORE_KEYS = Object.freeze(['blueMove', 'redMove', 'mptKias',
 export const ENERGY_CHECK_KEYS = Object.freeze([
   'stallKias', 'shakerPct', 'stallSec', 'midThrottlePct', 'leadSec', 'lagSec', 'rollRateDegPerSec', 'gOnsetGPerSec', 'rollAccelDegPerSec2', 'pitchBackBank160Deg',
   'pitchBackBank220Deg', 'immelmannAboveKias', 'splitSBelowKias', 'immelmannOffNoseDeg', 'immelmannMinTopKias', 'pickLookaheadSec', 'deckMarginFt',
-  'tacticalLookaheadSec',
+  'tacticalLookaheadSec', 'smartLookStepsPerStep',
 ]);
 /** Every Energy setting, without the checkbox itself. */
 export const ENERGY_KEYS = Object.freeze([...ENERGY_FIRST_KEYS, ...ENERGY_MORE_KEYS, ...ENERGY_CHECK_KEYS]);
@@ -230,7 +230,8 @@ export const RANGES = Object.freeze({
   immelmannMinTopKias: { min: 0, max: 316, step: 5, unit: 'KIAS' },
   pickLookaheadSec: { min: 0, max: 120, step: 5, unit: 's' },
   deckMarginFt: { min: 0, max: 10000, step: 500, unit: 'ft' },
-  tacticalLookaheadSec: Object.freeze({ min: 10, max: 45, default: 20 }),
+  tacticalLookaheadSec: { min: 10, max: 45, step: 1, unit: 's' },
+  smartLookStepsPerStep: { min: 0, max: 1000, step: 10, unit: 'steps' },
 });
 
 /**
@@ -277,7 +278,7 @@ export function energySetupFrom(values) {
     immelmannAboveKias: values.immelmannAboveKias, splitSBelowKias: values.splitSBelowKias,
     immelmannOffNoseDeg: values.immelmannOffNoseDeg, immelmannMinTopKias: values.immelmannMinTopKias,
     pickLookaheadSec: values.pickLookaheadSec, deckMarginFt: values.deckMarginFt,
-    tacticalLookaheadSec: values.tacticalLookaheadSec,
+    tacticalLookaheadSec: values.tacticalLookaheadSec, smartLookStepsPerStep: values.smartLookStepsPerStep,
   };
 }
 
@@ -393,7 +394,7 @@ const KEY_WORDS = Object.freeze({
   gOnsetGPerSec: 'The G onset', rollAccelDegPerSec2: 'The roll acceleration',
   immelmannAboveKias: 'The Immelmann speed', splitSBelowKias: 'The split S speed', immelmannOffNoseDeg: 'The Immelmann off-nose angle',
   immelmannMinTopKias: 'The lowest Immelmann top speed', pickLookaheadSec: 'The look-ahead', deckMarginFt: 'The deck margin',
-  tacticalLookaheadSec: 'The tactical AI lookahead',
+  tacticalLookaheadSec: 'The Smart look-ahead', smartLookStepsPerStep: 'The look-ahead spread',
   stallSec: 'How long a stall lasts', ataDeg: 'The off-nose angle', aaDeg: 'The aspect angle', circles: 'The fight type', turnsStart: 'The turns',
 });
 
