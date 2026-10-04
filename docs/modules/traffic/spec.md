@@ -246,13 +246,15 @@ Approved 4 Oct 2026 08:54Z (Traffic refactor PR 3). Replaces the old 4.5 PFL_HIG
 6. **Choosing the join.** Chosen at the button press from energy height (He = h + V²/2g, true airspeed), less the expected zoom loss, and checked again at the top of the zoom.
    - Points every 5° round the wind-corrected circle are tried.
    - A point is reachable if a clean, 125 KIAS tangent glide with the wind gets there with height to spare.
-   - Of the reachable points, it picks the one most in line with its heading (SMM 13.13 para 24, 13.17 para 38; EFIG p.409-410).
+   - Of the reachable points, it picks one it can join in a single turn, rolling out on the circle's line before the point, with the least turn (SMM 13.13 para 24, 13.17 para 38; EFIG p.409-410). While zooming, that turn is planned at the zoom's bank (30°, an estimate) at its mean speed, tighter only if it must. A turn one way then the other (an S) is flown only when no single-turn join leaves it in range of the runway (Patrick 09:46Z).
    - At the apex it changes only if the first choice is no longer reachable.
-7. **On the circle: one number, the energy margin.** Three drag options: gear, T/O flap, landing flap. The plan is gear near High Key, T/O flap near Low Key, landing flap near Final Key. Any of them can go early or late as required (Patrick, 08:32Z). Margin = height now − height needed to reach the aim point (a third down the runway) round the rest of the circle, flying that planned drag from here on, at the speed flown, with the wind. Re-checked every step. A positive margin brings the next step earlier; a negative margin pushes it later.
+7. **On the circle: one number, the energy margin.** Three drag options: gear, T/O flap, landing flap. The plan is gear near High Key, T/O flap near Low Key, landing flap near Final Key. Any of them can go early or late as required (Patrick, 08:32Z). Margin = height now − height needed to reach the aim point (a third down the runway) round the rest of the circle, flying the planned gear and T/O flap from here on, at the speed flown, with the wind. Re-checked every step. Gear and T/O flap go down at their planned point unless it is low; earlier only with height to spare. Landing flap goes down as soon as it would still touch down in the first 1,000 ft: closer is better (Patrick 09:49Z, 09:56Z).
 
    | Margin | What it does |
    |---|---|
-   | More than the next drag step costs, plus a buffer | Takes the next step: gear, then T/O flap, then landing flap |
+   | At or past a step's planned point, and no more than 50 ft low | Takes that step: gear, then T/O flap |
+   | Before a step's planned point, with the step's cost plus a buffer to spare | Takes the next step early |
+   | With landing flap it still reaches the first 1,000 ft | Takes the landing flap |
    | Still high with everything out | Steeper bank, tighter through the air; never wider |
    | About zero | Holds configuration |
    | Below zero | Delays drag; cuts toward the next key |
@@ -267,7 +269,7 @@ Approved 4 Oct 2026 08:54Z (Traffic refactor PR 3). Replaces the old 4.5 PFL_HIG
 10. **Can't make the circle.** Direct to the threshold, gear up, flight path within 35° of runway heading by 2,100 ft. Late in the glide it may trade speed for height down to 80 KIAS, shown on screen as below the SMM speed. It may turn early and land further down the runway (Patrick, 08:33Z). If it can't make the runway at all, it ejects: the tag says "Eject" (Patrick, 08:33Z). *Working answer for the screen, not yet ruled on: it ejects as soon as no point on the runway is reachable; the aircraft is removed and a marker stays where it ejected.*
 11. **Wind.** Bank varies to hold the circle over the ground. In strong wind the keys also move into wind: High Key the full amount, Low Key half, about 1,000 ft per 10 kt (EFIG p.402, p.406; SMM 13.12 paras 21-23).
 12. **2,100 ft gate** (200 ft AGL): 120 KIAS and within 35° of runway heading (TR-R14). Bank under 45°, gear down and T/O flap are shown as flags (SMM 13.14 warning). Practice: a missed gate goes around. Engine failure: keeps going and tries to land.
-13. **Landing.** Wings level before the threshold, aiming a third down the runway, brought closer with flap (SMM 13.9 para 18). Touches down in line with the runway, no slower than 80 KIAS. A PFL that makes the runway then flies a touch-and-go, power back on, and carries on in the circuit (Patrick, 08:40Z); the touch-and-go itself is today's, made jump-free in PR 4.
+13. **Landing.** Wings level before the threshold, aiming a third down the runway until the landing flap goes down, then touching down in the first 1,000 ft, closer being better (SMM 13.9 para 18; Patrick 09:49Z, 09:56Z). Touches down in line with the runway, no slower than 80 KIAS. A PFL that makes the runway then flies a touch-and-go, power back on, and carries on in the circuit (Patrick, 08:40Z); the touch-and-go itself is today's, made jump-free in PR 4.
 14. **On screen.** Once a PFL starts, a small tag beside the aircraft in 2D and 3D shows its current decision (for example "Zoom to circle", "Join at Low Key", "False High Key", "Direct threshold") and its configuration (clean, gear, T/O flap, landing flap). The margin shows as high / on profile / low at each key. Glide ring: how far the aircraft can glide from where it is now, in the configuration down, corrected for wind (the circle's centre drifts downwind by the wind over the glide time, so it is no longer centred on the aircraft), drawn on the ground (Patrick, 08:33Z). The PFL circle is also drawn on the ground.
 15. **If the numbers fail.** If the join search returns nothing usable (no finite answer), the aircraft does what item 10 says: direct to the runway, turning early to land further down it if needed, and ejects if it can't make the runway. *(New proposal, not yet ruled on.)*
 
@@ -278,7 +280,9 @@ Approved 4 Oct 2026 08:54Z (Traffic refactor PR 3). Replaces the old 4.5 PFL_HIG
 | High Key window | 5,000-6,000 ft MSL | WFO S2 art 403 para 1a; Patrick 06:30Z |
 | Keys move into wind | On from 15 kt; can be switched off | EFIG p.406; 15 kt is an **estimate** (Patrick 06:56Z) |
 | Max bank on the PFL | Up to 60° until the 2,100 ft gate; below it, bank over 45° is flagged | Patrick, 08:34Z; SMM 13.14 warning. The stall line still holds: at 120 KIAS it allows about 59° (calculation, stall 86 KIAS) |
-| Drag buffer | Next step's cost + 100 ft | **Estimate** (`pfl-energy-logic.md`) |
+| Drag buffer | Next step's cost + 100 ft, for a step before its planned point | **Estimate** (`pfl-energy-logic.md`) |
+| On profile | Down to 50 ft low still counts as on profile: a planned step is taken | **Estimate** |
+| Touchdown point | Aim a third down until landing flap, then the first 1,000 ft | SMM 13.9 para 18; Patrick 09:49Z, 09:56Z |
 | Zoom | 2 G, push through 140, capture 125; only above 150 KIAS | EFIG p.408; Patrick 4440, 06:35Z |
 
 ### 4.8 TAKEOFF — Runway Departure
