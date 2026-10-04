@@ -81,6 +81,10 @@ export const PFL = Object.freeze({
   /** When low, the look-ahead grows by this many feet per foot of deficit, so the path cuts inside the circle. An estimate. */
   cutFtPerFtLow: 8,
   maxLookaheadFt: 6000,
+  /** High by more than this even with all the drag out, it widens the circle before Final Key (Patrick 10:10Z). An estimate. */
+  widenAboveFt: 100,
+  /** Widest it goes outside the circle when widening. An estimate. */
+  maxWidenFt: 6000,
   /** Speed changes in the glide: at most 0.1 G along the path. An estimate. */
   maxAccelG: 0.1,
 });
@@ -478,6 +482,38 @@ function chooseDirect(geo, from, altFt, kias, wind, headingDeg = undefined) {
   return null;
 }
 
+/**
+ * The circle widened from where the aircraft is to Final Key, so that with all
+ * the drag out it still touches down where it aims (Patrick 10:10Z: widen the
+ * circle, but don't extend Final Key). The widening swells out and comes back
+ * in to the circle at Final Key; the rest of the path is unchanged. Null if
+ * none is needed or none of the widths tried uses the height up.
+ */
+function widenPath(geo, path, seg, s, altFt, wind, tdKey) {
+  const ground = THRESHOLD_DATA_ELEV_FT;
+  const th0 = path[seg].theta;
+  const fk = path.findIndex((p, i) => i > seg && p.theta !== undefined && p.theta >= PFL.lastJoinDeg);
+  if (fk < 0) return null;
+  const out = (p) => { const d = dist(geo.centre, p); return { x: (p.x - geo.centre.x) / d, y: (p.y - geo.centre.y) / d }; };
+  const base0 = geo.at(th0);
+  const now = dist(geo.centre, s) - dist(geo.centre, base0);
+  const build = (k) => {
+    const pts = [{ x: s.x, y: s.y, theta: th0, plan: path[seg].plan }];
+    for (let th = th0 + PFL.joinStepDeg; th < PFL.lastJoinDeg - 1e-6; th += PFL.joinStepDeg) {
+      const f = (th - th0) / (PFL.lastJoinDeg - th0);
+      const off = now * (1 - f) + k * Math.sin(Math.PI * f);
+      const p = geo.at(th), u = out(p);
+      pts.push({ x: p.x + u.x * off, y: p.y + u.y * off, theta: th, plan: planAt(th), key: keyAt(th) });
+    }
+    return [...pts, ...path.slice(fk)];
+  };
+  const spare = (k) => altFt - ground - neededFt(build(k), 0, s, altFt, 3, wind, false, tdKey);
+  if (spare(PFL.maxWidenFt) > 0) return build(PFL.maxWidenFt);
+  let lo = 0, hi = /** @type {number} */ (PFL.maxWidenFt);
+  for (let i = 0; i < 12; i++) { const mid = (lo + hi) / 2; if (spare(mid) > 0) lo = mid; else hi = mid; }
+  return lo > 50 ? build(lo) : null;
+}
+
 // ── Flying it ────────────────────────────────────────────────────────────────
 
 /** Nearest point on the path at or after segment `seg` (searching a few ahead, so it never runs backwards round an orbit). */
@@ -677,6 +713,15 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
       } else if (dragOk && cfg === 2) {
         // Landing flap as soon as it still touches down in the first 1,000 ft: closer is better (Patrick 09:56Z).
         if (s.alt - ground - neededFt(path, seg, proj.pt, s.alt, 3, wind, false, tdKey) >= 0) cfg = 3;
+      }
+      // High with all the drag out: widen the circle from here to Final Key, which stays where it is (Patrick 10:10Z).
+      const thNow = path[seg]?.theta;
+      if (n % 50 === 0 && plan.kind !== 'direct' && thNow !== undefined && thNow < PFL.lastJoinDeg - PFL.joinStepDeg) {
+        const high = s.alt - ground - neededFt(path, seg, proj.pt, s.alt, 3, wind, false, tdKey);
+        if (high > PFL.widenAboveFt) {
+          const wide = widenPath(geo, path, seg, s, s.alt, wind, tdKey);
+          if (wide) { path = wide; seg = 0; notes.push(`widened at ${Math.round(s.alt)} ft`); }
+        }
       }
       // Low on the circle and cutting in won't do it: go direct, turning early to land further down if needed; or eject.
       if (!onFinal && marginMin < -PFL.dragBufferFt && plan.kind !== 'direct') {
