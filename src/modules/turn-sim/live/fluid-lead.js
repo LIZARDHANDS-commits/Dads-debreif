@@ -19,6 +19,14 @@
 //    bleeds in the climb and builds in the descent on the shared point mass.
 //  - Terminate: Lead's gentle, predictable level turn while #2 goes back to fighting wing (SMM 16.17 paras 45-46, 48;
 //    AFM7 brief p.17; Patrick's pick 19:20Z row 7).
+//  - Loop (V2.18; SMM 7.5 paras 10-13 and Fig 7.2; Table 7.1; EFIG p.170-171): wings level on the heading Lead has,
+//    PCL MAX, 230 KIAS (Table 7.1; Fig 7.2 "Entry MAX TQ, 230 KIAS"), a wings-level pull at 3.5 G (EFIG p.171, inside
+//    the SMM's 3-4 G) until the nose nears the vertical, then the nose kept moving at a constant rate (paras 11-13): the
+//    G bleeds off with the speed, slight positive G over the top, back pressure up again coming down, then the pull-out
+//    to level, no harder than the pull (para 12: "adjust back pressure to achieve 230 KIAS"). Speeds to compare against:
+//    about 100-120 KIAS at the top, about 140 at the vertical down (EFIG p.171), 230 at the exit (para 12; Fig 7.2).
+//    Before the pull Lead rolls wings level and gets to 230 KIAS by lowering or raising the nose at MAX (SMM 7.5 para 11
+//    says to attain 230; how is not given, so the up to 10° nose down or up is an estimate).
 // The barrel roll, the wingovers, the side swap and the standard sequence wait for a later piece (spec 10.3).
 import { stepPointMass } from '../../../core/point-mass.js';
 import { easeValue, dampedClimbG } from '../../../core/flight-math.js';
@@ -48,6 +56,15 @@ export const LEAD = Object.freeze({
   pitchCueDps: 0.5, // #2 reads Lead's nose as rising or falling past 0.5°/s of pitch rate (an estimate)
   climbPitchDps: 3, // how fast Lead raises or lowers the nose into and out of the climb or descent (an estimate)
   minPushG: 0.5, // Lead keeps positive G (2 CFFTS Orders B2 ch 8 para 1a); 0.5 G at the push over is an estimate
+  loopEntryKias: 230, // SMM Table 7.1, 7.5 para 11, Fig 7.2 (entry and exit)
+  loopEntryBandKias: 5, // Lead starts the pull within 5 kt of 230 (an estimate; SMM 7.12 para 28b allows 200-250)
+  loopG: 3.5, // EFIG p.171 "3 1/2 G", inside SMM 7.5 para 11 and Table 7.1's 3-4 G
+  loopDownMaxG: 4, // coming down Lead may pull up to 4 G, the top of the SMM's 3-4 G (Table 7.1), to "adjust back pressure to achieve 230 KIAS" (SMM 7.5 para 12); at the Orders' 4 G, not over it
+  loopTopMinG: 0.5, // "slight positive G" over the top (SMM 7.5 para 11): 0.5 is an estimate
+  loopVerticalDeg: 80, // "until the aircraft approaches the vertical" (SMM 7.5 para 11): 80° is an estimate
+  loopPullOutDeg: 330, // where Lead stops holding the pitch rate and pulls out to level (an estimate)
+  setupMaxPitchDeg: 10, // the speed set-up's nose down or up before the loop (an estimate)
+  setupLimitSec: 60, // a guard only: after a minute of set-up the loop starts at whatever speed (an estimate)
 });
 
 /** The buttons Lead has in the baseline (design 5.1, cut down by Patrick 21:44Z), with their words. */
@@ -57,6 +74,10 @@ export const FLUID_MOVES = Object.freeze({
   reversal: { label: 'Reversal', sided: false, interruptible: true, source: "Patrick's list (not a manual manoeuvre)" },
   climb: { label: 'Climb', sided: false, interruptible: true, source: "Patrick's list; design 5.1 (15° and 2,000 ft are estimates)" },
   descend: { label: 'Descend', sided: false, interruptible: true, source: "Patrick's list; design 5.1 (15° and 2,000 ft are estimates)" },
+  loop: {
+    label: 'Loop', sided: false, interruptible: false, source: 'SMM 7.5 paras 10-13, Fig 7.2; Table 7.1; EFIG p.171',
+    speeds: { entryKias: 230, exitKias: 230, source: 'SMM Table 7.1, 7.5 paras 11-12, Fig 7.2' },
+  },
   terminate: { label: 'Terminate', sided: false, interruptible: false, source: 'SMM 16.17 paras 45-46, 48; AFM7 brief p.17' },
 });
 
@@ -239,6 +260,86 @@ export function climbOrDescend(sign, bankDeg = 0) {
       const aim = st.gammaRad + Math.max(-reach, Math.min(reach, want - st.gammaRad));
       const g = Math.max(LEAD.minPushG, gForClimb(st, aim, omega));
       return { g, bank: bankDeg, phase, cue: { mode: pitchCue(pitchDps), latDeg: Math.abs(bankDeg) > 45 ? 10 : 15 }, done: false };
+    },
+  };
+}
+
+/**
+ * The speed set-up before an aerobatic manoeuvre: wings level, nose down at MAX to gain speed or up to lose it (up to
+ * 10°, an estimate), until within 5 kt (estimate) of the entry speed, level and at 1 G. Returns the ask, or null when
+ * ready (or after the guard time, when the manoeuvre starts at the speed Lead has).
+ */
+function speedSetUp(st, mem, kias) {
+  mem.setupSec = (mem.setupSec ?? 0) + STEP_SEC;
+  const dKias = st.kias - kias;
+  const ready = Math.abs(dKias) <= LEAD.loopEntryBandKias && Math.abs(st.gammaRad) < 1 * DEG && Math.abs(st.bank) < 1 && Math.abs(st.g - 1) < 0.1;
+  if (ready || mem.setupSec > LEAD.setupLimitSec) return null;
+  const pitch = Math.max(-LEAD.setupMaxPitchDeg, Math.min(LEAD.setupMaxPitchDeg, 0.5 * dKias)) * DEG;
+  const reach = (LEAD.climbPitchDps * DEG) / 0.4;
+  const aim = st.gammaRad + Math.max(-reach, Math.min(reach, pitch - st.gammaRad));
+  const g = Math.max(LEAD.minPushG, gForClimb(st, aim, 0.4));
+  const phase = Math.abs(st.bank) > 1 ? 'wings level' : dKias < -LEAD.loopEntryBandKias ? 'nose low for 230' : dKias > LEAD.loopEntryBandKias ? 'nose high for 230' : 'steady for the pull';
+  return { g, bank: 0, phase };
+}
+
+/**
+ * #2's pursuit word through the loop (Patrick 17:12Z: lag going up, fuselages parallel crossing the horizon, lead
+ * coming down), by Lead's loop angle: LAG, PURE over the top (as near parallel as positive G allows, fluid-wing.js
+ * LOOP_WING), LEAD, then PURE in trail for the pull-out. Where he sits for it is fluid-wing.js loopPlace.
+ */
+function loopMode(alphaRad) {
+  const deg = alphaRad / DEG;
+  return deg < 155 ? 'lag' : deg < 205 ? 'pure' : deg < LEAD.loopPullOutDeg ? 'lead' : 'pure';
+}
+
+/**
+ * The loop (SMM 7.5 paras 10-13, Fig 7.2): the speed set-up, a 3.5 G wings-level pull to near the vertical, the nose
+ * kept moving at a constant rate over the top and down, the pull-out to level. Never cut short (a press waits for it).
+ */
+export function loop() {
+  return {
+    key: 'loop',
+    label: 'Loop',
+    interruptible: false,
+    init: () => ({ stage: 'setup' }),
+    step(st, mem) {
+      if (mem.stage === 'setup') {
+        const s = speedSetUp(st, mem, LEAD.loopEntryKias);
+        if (s) return { ...s, cue: { mode: 'pure', latDeg: 15 }, done: false };
+        mem.stage = 'pull';
+        mem.n0 = unit3({ x: st.nose.x, y: st.nose.y, z: 0 });
+        mem.alpha = 0;
+        mem.prev = 0;
+        mem.entryKias = st.kias;
+      }
+      // How far round the loop: the nose's angle in the loop's plane, counted on past 180° (unwrapped).
+      const a = Math.atan2(st.nose.z, st.nose.x * mem.n0.x + st.nose.y * mem.n0.y);
+      mem.alpha += wrapPi(a - mem.prev);
+      mem.prev = a;
+      const alpha = mem.alpha;
+      let g = /** @type {number} */ (LEAD.loopG);
+      let phase = 'pull, 3.5 G';
+      if (mem.stage === 'pull' && alpha >= LEAD.loopVerticalDeg * DEG) {
+        mem.stage = 'over';
+        mem.q = (G_FTPS2 * (st.g - Math.cos(alpha))) / st.V; // the pitch rate here, then held (SMM 7.5 paras 11-13)
+      }
+      if (mem.stage === 'over') {
+        // The G that keeps the nose moving at that rate (rate x speed over g, plus gravity's share), no less than slight
+        // positive over the top and no more than the pull's.
+        const cap = alpha > Math.PI ? LEAD.loopDownMaxG : LEAD.loopG;
+        g = Math.max(LEAD.loopTopMinG, Math.min(cap, (mem.q * st.V) / G_FTPS2 + Math.cos(alpha)));
+        phase = alpha < 160 * DEG ? 'constant rate' : alpha < 200 * DEG ? 'over the top' : 'coming down';
+        if (alpha >= LEAD.loopPullOutDeg * DEG) mem.stage = 'exit';
+      }
+      if (mem.stage === 'exit') {
+        g = Math.min(LEAD.loopDownMaxG, gForClimb(st, 0, 1.2));
+        phase = 'pull-out';
+      }
+      // The exit speed is read as the nose comes back to the horizon (SMM 7.5 para 12; Fig 7.2 "Exit 230 KIAS").
+      if (mem.stage === 'exit' && mem.exitKias === undefined && alpha >= 2 * Math.PI - 0.5 * DEG) mem.exitKias = st.kias;
+      const done = mem.stage === 'exit' && level(st);
+      // The loop's frame for #2 (fluid-wing.js framePoint): the entry heading and the angle round so far.
+      return { g, bank: 0, phase, cue: { mode: loopMode(alpha), latDeg: 15, loop: { n0: mem.n0, alpha } }, done, entryKias: mem.entryKias, exitKias: mem.exitKias };
     },
   };
 }

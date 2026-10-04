@@ -15,6 +15,10 @@
 // miss first), one away from him with lead (the collapse to his six), then pure (Fig 12.20). #2 uses the cue of the part
 // of Lead's path he is flying through, so he answers a turn a few seconds after Lead made it.
 //
+// In a loop (V2.18) #2's point on Lead's path is turned about Lead, in the loop's plane, toward a place set by the
+// loop's own schedule (loopPhi below: Patrick's rule, lag going up, fuselages as near parallel as positive G allows
+// crossing the horizon, lead coming down). The turn is zero at the loop's start and end, so nothing jumps there.
+//
 // Smoothness: the across offset changes on the septic step (no jump in rate, acceleration or jerk), the pursuit offset is
 // averaged over Lead's last seconds on a smooth bump; the position line is then smoothed over half a second either side,
 // shorter than the time behind Lead, so a new press of Lead never moves #2's next half second. Attitude, G and roll rate
@@ -238,6 +242,7 @@ export function rawWingPoint(E, k, kMin) {
   const back = (lo + hi) / 2;
   const fp = fluidPointAt(E, k - back);
   let p = fp.p;
+  if (now.cue?.loop) p = loopPoint(now, p);
   if (v.blend < 1) {
     // The fighting wing slot, in Lead's level frame now (fwd along his heading, left square to it, alt above or below).
     const h = headingAt(E, k);
@@ -245,7 +250,57 @@ export function rawWingPoint(E, k, kMin) {
     const slotP = { x: now.pos.x + Math.cos(h) * s.fwd - Math.sin(h) * s.left, y: now.pos.y + Math.sin(h) * s.fwd + Math.cos(h) * s.left, z: now.pos.z + s.alt };
     p = add3(scale3(slotP, 1 - v.blend), scale3(p, v.blend));
   }
-  return { p, behindSec: back * dt, cue: fp.lead.entry.wing.mode, blend: v.blend };
+  return { p, behindSec: back * dt, cue: now.cue?.loop ? now.wing.mode : fp.lead.entry.wing.mode, blend: v.blend };
+}
+
+/**
+ * #2's place in a loop (Patrick 17:12Z: "in loops it needs to lag on the way up, try to cross horizon with fuselages
+ * both parallel, and lead on the way down to stay in position"), as an angle off Lead's tail line inside the loop's
+ * plane: positive on Lead's belly side, outside his loop (lag: EFIG p.391, lag puts the path outside the turn circle),
+ * negative on his canopy side, inside it (lead). The place goes from +phiMaxDeg going up to -phiMaxDeg coming down,
+ * sweeping across over the top. Fully parallel at the top would need the sweep to run at Lead's own pitch rate
+ * (about 17°/s there) and then stop inside the cone, which takes #2 to about -2 G after the top at 600 ft (scratch runs
+ * on the planned loop): a wingman doesn't fly that, so the sweep is as quick as keeps #2 above about 0.5 G, and he
+ * crosses the horizon about 20° off parallel instead of the nearly 40° he would on Lead's own path. #2 moves from his
+ * point on Lead's path to this place over the way up (weight 0 at 20° of loop, 1 at 150°) and back over the way down.
+ * All four numbers are estimates.
+ */
+export const LOOP_WING = Object.freeze({
+  phiMaxDeg: 20, // with 15° across, #2 stays about 25° off Lead's tail, inside the 30° half cone (Patrick row 2)
+  sweepDeg: 40, // the width of the sweep across the top, in degrees of Lead's loop (sets how near parallel)
+  fromDeg: 20, // the move off Lead's path starts 20° into the loop ...
+  toDeg: 150, // ... and is complete by 150°; the same, mirrored, coming down
+});
+/** The weight of the loop's place against the point on Lead's path, and the place itself (radians), at loop angle alphaRad. */
+export function loopPlace(alphaRad) {
+  const deg = Math.max(0, Math.min(360, alphaRad / DEG));
+  const span = LOOP_WING.toDeg - LOOP_WING.fromDeg;
+  const weight = smoothest((deg - LOOP_WING.fromDeg) / span) * smoothest((360 - deg - LOOP_WING.fromDeg) / span);
+  const phi = -LOOP_WING.phiMaxDeg * DEG * Math.tanh((deg - 180) / LOOP_WING.sweepDeg);
+  return { weight, phi };
+}
+const wrapAngle = (x) => Math.atan2(Math.sin(x), Math.cos(x));
+
+/**
+ * #2's point p on Lead's path, turned about Lead in the loop's plane (his nose and level up; the wing line, the loop's
+ * axis, is kept) to the loop's place, by its weight. e: Lead's entry, with the loop's cue.
+ */
+function loopPoint(e, p) {
+  const nose = unit3(e.vel);
+  const up = unit3(perp3(e.levelUp, nose));
+  const loop = e.cue.loop;
+  // Lead's loop angle at this entry's own nose (the cue was worked out a step before), unwrapped near the cue's.
+  const a = Math.atan2(nose.z, nose.x * loop.n0.x + nose.y * loop.n0.y);
+  const place = loopPlace(loop.alpha + wrapAngle(a - loop.alpha));
+  if (place.weight <= 0) return p;
+  const r = sub3(p, e.pos);
+  const back = -dot3(r, nose);
+  const below = -dot3(r, up);
+  const rho = Math.hypot(back, below);
+  const phiPath = Math.atan2(below, back);
+  const phi = phiPath + wrapAngle(place.phi - phiPath) * place.weight;
+  const across = sub3(r, add3(scale3(nose, -back), scale3(up, -below)));
+  return add3(add3(e.pos, across), add3(scale3(nose, -rho * Math.cos(phi)), scale3(up, -rho * Math.sin(phi))));
 }
 
 /** The smoothing weights: a Gaussian over ±smoothSteps (sigma a third of that), summing to 1. */

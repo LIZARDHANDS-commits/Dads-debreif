@@ -13,6 +13,7 @@ export const FLUID_BUTTONS = Object.freeze([
   { key: 'reversal', dir: 1, label: 'Reversal' },
   { key: 'climb', dir: 1, label: 'Climb' },
   { key: 'descend', dir: 1, label: 'Descend' },
+  { key: 'loop', dir: 1, label: 'Loop' },
   { key: 'terminate', dir: 1, label: 'Terminate' },
 ]);
 /** How #2 is flown: Planned (scripted, the default) or Live (his own physics, a later piece). */
@@ -29,6 +30,18 @@ export function pursuitWord(wingCue) {
   if (wingCue === 'entry') return 'INTO THE CONE';
   if (wingCue === 'back to fighting wing') return 'BACK TO FIGHTING WING';
   return PURSUIT_WORDS[wingCue] ?? String(wingCue).toUpperCase();
+}
+
+/**
+ * The entry and exit speeds of the loop on the card, against the SMM's (spec section 10.3): "Loop: entry 230 KIAS, exit
+ * 238 KIAS (SMM 230 and 230, Table 7.1, 7.5 paras 11-12, Fig 7.2)". Before the pull it says the entry speed Lead is
+ * setting up for.
+ */
+export function speedsLine(sp) {
+  const kt = (n) => `${Math.round(n)} KIAS`;
+  const book = `SMM ${sp.book.entryKias} in, ${sp.book.exitKias} out: ${sp.book.source}`;
+  if (sp.entryKias === null) return `${sp.label}: setting up ${kt(sp.book.entryKias)} for the entry (${book})`;
+  return `${sp.label}: entry ${kt(sp.entryKias)}, exit ${sp.exitKias === null ? 'still to come' : kt(sp.exitKias)} (${book})`;
 }
 
 /**
@@ -124,6 +137,7 @@ export function createFluidUi({ onPress, onSettings, settings }) {
       lines.append(
         h('li', {}, `Lead: ${now.label}, ${now.phase}`),
         h('li', {}, `#2: ${pursuitWord(now.wingCue)}`),
+        ...(now.speeds ? [h('li', {}, speedsLine(now.speeds))] : []),
         h('li', { class: STATE_TONE[r.state] ?? '' }, `${r.state} · range ${ft(r.rangeFt)} (set ${ft(f.session.rangeFt)}; 500-750 good)`),
         h('li', {}, `Aspect ${Math.round(r.aspectDeg)}° (cone ${FLUID.coneHalfDeg}° each side), HCA ${Math.round(r.hcaDeg)}°, closure ${closing}`),
       );
