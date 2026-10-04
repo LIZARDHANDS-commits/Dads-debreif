@@ -17,7 +17,7 @@ import { MANOEUVRES, planManoeuvre, relativeTo, dryRun, TURN_BANK_DEG, TURN_G } 
  */
 export const LIVE_DEFAULTS = Object.freeze({
   spacingFt: 6000, // the briefs' wide side of the 4,000 to 6,000 ft band (SMM 16.18 para 49)
-  wingSide: 'right', // #2 on Lead's right
+  wingSide: /** @type {'right' | 'left'} */ ('right'), // #2 on Lead's right
   kias: 220, // SMM 16.18 para 50
   blockFt: 8000, // estimate until Patrick gives the low block height
   headingDeg: 0, // Lead flies 000 at the start
