@@ -349,10 +349,10 @@ function withRealControls(options = {}) {
 const numberBoxes = (bar) => tagged(bar.element, 'INPUT').filter((i) => i.getAttribute('type') === 'number');
 const messages = (bar) => all(bar.element, (n) => n.getAttribute?.('class') === 'control-message');
 
-test('the wind boxes start calm, take a good wind into the settings, and refuse the rest with a message', () => {
+test('the wind boxes start at the default wind, take a good wind into the settings, and refuse the rest with a message', () => {
   const { bar, settings } = withRealControls();
   const [from, speed] = numberBoxes(bar);
-  assert.deepEqual([from.value, speed.value], ['360', '0']);
+  assert.deepEqual([from.value, speed.value], [String(DEFAULTS.windFromDeg), String(DEFAULTS.windKt)]);
 
   from.value = '250';
   from.dispatch('input');
