@@ -302,6 +302,12 @@
   display: none;
 }
 
+/* A control the Setup column hides (How often, while Randomize behaviour is off) stays hidden: .control's own
+   display would otherwise win over the hidden attribute. */
+[data-module='traffic'] .setup-panel [hidden] {
+  display: none;
+}
+
 /* The 3D bar (camera-bar.js): Camera and Follow menus, the High | Performance switch and a short note. */
 [data-module='traffic'] .traffic-3d-bar {
   position: absolute;
