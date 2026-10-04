@@ -239,7 +239,7 @@ test('sim.command climb_high_key maintains RAIL mode, approach power, cuts engin
 
   let ac = sim.state().aircraft.find((a) => a.id === id);
   assert.equal(ac.mode, 'RAIL', 'Must be in RAIL mode, never PHYSICS mode');
-  assert.ok(ac.pflRail, 'Must have pflRail attached');
+  assert.ok(ac.highKeyFlight, 'Must be flying the planned climb to High Key');
   assert.equal(ac.engineFailed, false, 'Engine must remain powered during climb approach');
 
   // Step until crossing High Key
