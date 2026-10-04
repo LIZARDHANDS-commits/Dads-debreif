@@ -34,8 +34,8 @@ export const BUSY_PFL_AREA = Object.freeze({ radialDeg: 120, distNm: 6, altFt: 8
 export const BUSY_STRAIGHT_IN_SEC = 30;
 /** Random keeps its aircraft at least this far apart, so none starts inside another's conflict ring (estimate). */
 export const RANDOM_SPACING_FT = FT_PER_NM;
-/** While dragging, the dial moves in tens of degrees magnetic, the steps an ATIS gives a wind in; the arrow keys with Shift give single degrees. */
-export const DIAL_STEP_DEG = 10;
+/** The dial moves in 5° steps, magnetic (Patrick, 4 Oct), dragged or with the arrow keys; the arrow keys with Shift give single degrees. */
+export const DIAL_STEP_DEG = 5;
 
 const at = (routeId, startPoint, startsAtSec = 0) => ({ routeId, startIndex: startPoint - 1, startsAtSec });
 
@@ -122,11 +122,14 @@ export function busyStarts(routes, seed) {
   return [overhead, straightIn, pfl, ...rest];
 }
 
-/** 0-359 compass degrees from a point on the dial (dx right, dy down from its centre), as 1-360 in DIAL_STEP_DEG steps. */
-export function dialBearing(dx, dy, step = DIAL_STEP_DEG) {
-  const deg = (Math.atan2(dx, -dy) * 180) / Math.PI;
-  const stepped = Math.round((((deg % 360) + 360) % 360) / step) * step;
-  return stepped % 360 === 0 ? 360 : stepped;
+/**
+ * The wind setting (from, degrees true, 1-360) for a point on the dial, dx right and dy down from its centre:
+ * the turn and squash the dial is drawn with (facing: { yawDeg, squash }, see draw) are undone, and the bearing
+ * lands on a DIAL_STEP_DEG step magnetic (Patrick, 4 Oct: magnetic, 5° steps).
+ */
+export function dialWindFrom(dx, dy, facing = { yawDeg: 0, squash: 1 }, step = DIAL_STEP_DEG) {
+  const trueDeg = facing.yawDeg + (Math.atan2(dx, -dy / facing.squash) * 180) / Math.PI;
+  return magneticToTrue(Math.round(trueToMagnetic(trueDeg) / step) * step);
 }
 
 /** The wind along and across the active runway, in a pilot's words ("29L: 14 kt head, 9 kt cross from the left"). */
@@ -186,14 +189,11 @@ export function createSetupPanel({ controls, settings, onScenario }) {
     const d = ((Math.round(deg) % 360) + 360) % 360;
     settings.update({ windFromDeg: d === 0 ? 360 : d });
   };
-  // The bearing under the pointer, undoing the dial's turn and squash (see draw), set in tens of degrees magnetic.
+  // The bearing under the pointer, undoing the dial's turn and squash (see draw), set in DIAL_STEP_DEG steps magnetic.
   const fromPointer = (e) => {
     const box = canvas.getBoundingClientRect?.();
     if (!box || !box.width) return;
-    const dx = e.clientX - (box.left + box.width / 2);
-    const upPx = (box.top + box.height / 2) - e.clientY;
-    const trueDeg = facing.yawDeg + (Math.atan2(dx, upPx / facing.squash) * 180) / Math.PI;
-    setFrom(magneticToTrue(Math.round(trueToMagnetic(trueDeg) / DIAL_STEP_DEG) * DIAL_STEP_DEG));
+    setFrom(dialWindFrom(e.clientX - (box.left + box.width / 2), e.clientY - (box.top + box.height / 2), facing));
   };
   let dragging = false;
   dial.addEventListener('pointerdown', (e) => {
@@ -207,7 +207,7 @@ export function createSetupPanel({ controls, settings, onScenario }) {
   dial.addEventListener('pointerup', stop);
   dial.addEventListener('pointercancel', stop);
   dial.addEventListener('keydown', (e) => {
-    // Steps in magnetic: tens land on round magnetic figures, Shift gives single degrees, Home is 360°M.
+    // Steps in magnetic: each lands on a multiple of DIAL_STEP_DEG magnetic, Shift gives single degrees, Home is 360°M.
     const step = e.shiftKey ? 1 : DIAL_STEP_DEG;
     const mag = trueToMagnetic(settings.get().windFromDeg);
     const snap = (m, dir) => (step === 1 ? m + dir : (dir > 0 ? Math.floor(m / step) * step + step : Math.ceil(m / step) * step - step));

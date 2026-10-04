@@ -17,11 +17,11 @@ export const DEPARTURE_END_29L = Object.freeze({ x: -4066, y: 680 });
 export const RUNWAY_29L_HDG_DEG = 298;
 
 /**
- * Magnetic variation at Moose Jaw, degrees East (magnetic = true - this). ESTIMATE: no manual page yet. It is
- * what TR-7 already implies (runway 29 read as 298° true) and the Debrief's "about 8° from magnetic at Moose Jaw"
- * (src/modules/debrief/weather/winds.js). Used only to show the wind in °M (Patrick, 4 Oct); the flying is in true.
+ * Magnetic variation at Moose Jaw, degrees East (magnetic = true - this): Patrick's ruling, 4 Oct ("it's more like
+ * 9 east"; TR-58). Used only to show the wind in °M; the flying is in true. The runway's true heading (298°) is
+ * Patrick's ground truth on its own and does not come from this.
  */
-export const MAG_VARIATION_DEG_E = 8;
+export const MAG_VARIATION_DEG_E = 9;
 
 /** A true bearing as magnetic, 1-360 (360, never 0, for north). */
 export const trueToMagnetic = (trueDeg) => {

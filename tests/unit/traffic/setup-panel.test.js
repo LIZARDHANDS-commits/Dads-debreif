@@ -8,7 +8,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SCENARIOS, RANDOM_COUNT, RANDOM_SPACING_FT, BUSY_COUNT, randomStarts, scenarioAircraft, dialBearing, runwayWindText } from '../../../src/modules/traffic/setup-panel.js';
+import { SCENARIOS, RANDOM_COUNT, RANDOM_SPACING_FT, BUSY_COUNT, randomStarts, scenarioAircraft, dialWindFrom, runwayWindText } from '../../../src/modules/traffic/setup-panel.js';
 import { straightInDelaySec, conflictSpawnPlan } from '../../../src/modules/traffic/scenario-timing.js';
 import { createSim } from '../../../src/modules/traffic/sim.js';
 
@@ -78,12 +78,22 @@ test('Setup: "Moose Jaw day" is the built-in setup\'s own aircraft, and every sc
   }
 });
 
-test('Setup: the dial reads compass bearings (north up, east right), 360 for north', () => {
-  assert.equal(dialBearing(0, -50), 360);
-  assert.equal(dialBearing(50, 0), 90);
-  assert.equal(dialBearing(0, 50), 180);
-  assert.equal(dialBearing(-50, 0), 270);
-  assert.equal(dialBearing(Math.sin((203 * Math.PI) / 180) * 50, -Math.cos((203 * Math.PI) / 180) * 50), 200, 'drag steps of 10°');
+// The variation is 9° East (Patrick's ruling, TR-58): magnetic = true - 9.
+test('Setup: the dial reads magnetic compass bearings in 5° steps (north up, east right in 2D) and gives the wind in true', () => {
+  assert.equal(dialWindFrom(0, -50), 9, 'straight up is 360°M, 009°T');
+  assert.equal(dialWindFrom(50, 0), 99, 'right is 090°M');
+  assert.equal(dialWindFrom(0, 50), 189, 'down is 180°M');
+  assert.equal(dialWindFrom(-50, 0), 279, 'left is 270°M');
+  const at = (deg) => [Math.sin((deg * Math.PI) / 180) * 50, -Math.cos((deg * Math.PI) / 180) * 50];
+  assert.equal(dialWindFrom(...at(203)), 204, '203° on the dial is 194°M, which lands on 195°M: 204°T');
+});
+
+test('Setup: a dial turned and tilted with the 3D view reads the bearing under the pointer as the screen shows it', () => {
+  // Facing east (090°T up the screen), straight down: up the dial is 090°T, 081°M, which lands on 080°M.
+  assert.equal(dialWindFrom(0, -50, { yawDeg: 90, squash: 1 }), 89);
+  // Tilted so up the screen is shortened to half: a point up and to the right at 45° on the dial is a ground
+  // bearing of atan2(1, 1 / 0.5) = 26.6° right of up, so 027°T, 018°M, which lands on 020°M: 029°T.
+  assert.equal(dialWindFrom(50, -50, { yawDeg: 0, squash: 0.5 }), 29);
 });
 
 test('Setup: the runway wind line gives head and cross wind as a pilot works them out for 29L (298°T)', () => {

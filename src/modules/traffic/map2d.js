@@ -86,7 +86,7 @@ export const heightSpeedText = (ac) => `${whole(ac.alt)} ft ${whole(ac.kt)} kt`;
 /** "1,250 ft", a leg's length on the map. */
 export const feetText = (ft) => `${whole(ft)} ft`;
 
-/** "Wind 242°M 20 kt" for a wind from 250° true, or nothing when the wind is calm: magnetic, as the runways are (Patrick, 4 Oct). */
+/** "Wind 241°M 20 kt" for a wind from 250° true, or nothing when the wind is calm: magnetic, as the runways are (Patrick, 4 Oct). */
 export function windText(fromDeg, kt) {
   if (!(kt > 0)) return '';
   const from = String(trueToMagnetic(fromDeg)).padStart(3, '0');
@@ -805,7 +805,7 @@ function drawPoints(ctx, route, at, text, palette, circle) {
   });
 }
 
-// The wind arrow and "Wind 242°M 20 kt" in the top right corner, only when it isn't calm.
+// The wind arrow and "Wind 241°M 20 kt" in the top right corner, only when it isn't calm.
 function drawWind(ctx, map, settings, palette, text) {
   const words = windText(settings.windFromDeg, settings.windKt);
   if (!words) return;
