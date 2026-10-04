@@ -29,6 +29,8 @@ export const EVADE = Object.freeze({
   moveOverFt: 500,
   /** The move-over adds power and levels off here, ft MSL, until the upwind end, then goes around (Patrick, 4 Oct 19:01Z). */
   moveOverLevelAltFt: 2100,
+  /** ...and holds this speed to the upwind end, the overshoot, KIAS (Patrick, 4 Oct 19:52Z: "move over goes to 120 knots until overshoot"). */
+  moveOverKias: 120,
   /** A PFL's bank away: out to flinchFt over this, then back onto its circle over the next, s (estimates; about 30° of extra bank at most). */
   bankAwayOutSec: 12,
   bankAwayBackSec: 20,

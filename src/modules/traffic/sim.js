@@ -359,12 +359,12 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
    * flown once from its own place, height, speed, heading and bank (circuit.js buildGoAround), so
    * it starts without a step, then followed by the path follower.
    */
-  function startGoAround(a, sideFt = 0, levelAltFt = null) {
+  function startGoAround(a, sideFt = 0, levelAltFt = null, holdKias = null) {
     const pat = routeById('PAT1') ?? setup.routes.find((r) => r.kind === 'pattern');
     if (!pat) return;
     const points = buildGoAround(pat.points, {
       x: a.x, y: a.y, alt: a.alt, kias: a.iasKt ?? a.kt ?? 110, headingDeg: a.headingDeg ?? 298, bankDeg: a.bankDeg ?? 0,
-    }, setup.windFromDeg ?? 360, setup.windKt ?? 0, sideFt, levelAltFt);
+    }, setup.windFromDeg ?? 360, setup.windKt ?? 0, sideFt, levelAltFt, holdKias);
     a.goAroundFlight = { route: { id: 'GO_AROUND_FLOWN', kind: 'flown', name: 'Go-around', points } };
     a.distFt = 0;
     a.mode = 'RAIL';
@@ -465,7 +465,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (d.move === 'breakout') startBreakout(a);
       else if (d.move === 'flinch') startFlinch(a, other);
       else if (d.move === 'climb_breakout') startFlown(a, buildClimbAhead(stateOf(a), windNow(), PATTERN_ALT_FT + EVADE.climbAboveFt), 'CLIMB_FLOWN', 'Climb ahead', 'breakout');
-      else if (d.move === 'move_over') startGoAround(a, EVADE.moveOverFt, EVADE.moveOverLevelAltFt);
+      else if (d.move === 'move_over') startGoAround(a, EVADE.moveOverFt, EVADE.moveOverLevelAltFt, EVADE.moveOverKias);
       else if (d.move === 'bank_away') startBankAway(a, other);
       else startGoAround(a); // a go-around, or a fly-through: the same flown path from where it is at pattern height
       a.deconflict = { move: d.move, layer: d.layer, rule: d.rule, with: d.with, label: deconflictLabel(d.move, d.layer) };
