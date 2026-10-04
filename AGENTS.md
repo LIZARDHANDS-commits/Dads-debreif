@@ -77,6 +77,7 @@ The full policy is `docs/TESTING.md`; each module adds its own in `docs/modules/
 - Published limits (the G limit, the hard deck, the orders) are flagged on screen, never walls; a test never expects the aircraft to be held at one. Physical limits always hold.
 - Never skip, disable or delete a failing test just to get green. A test is only retired or rewritten as `docs/TESTING.md` says, with Patrick's yes.
 - Keep it light: no mutation, stress or long runs.
+- **Checks:** Don't run tests locally before a pull request. CI on the pull request is the one check. Patrick may merge before CI finishes. If main then goes red, fix it next.
 - Every status says what is untested or unseen.
 
 ## Git and names
