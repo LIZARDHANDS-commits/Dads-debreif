@@ -304,9 +304,23 @@ function steady() {
 const wrapDeg = (d) => (((d + 180) % 360) + 360) % 360 - 180;
 
 /**
+ * Is an aircraft manoeuvring (turning, pitching or pulling) rather than straight and level? Lead's, for the tags and
+ * the card (Patrick 23:07Z and 23:08Z: "during the turn all that matters is their distance from lead for spacing").
+ * Over 5° of bank or pitch, or 0.2 G off 1 G: estimates of what a pilot would call straight and level.
+ */
+export function isManoeuvring(a) {
+  return Math.abs(a.bankDeg ?? 0) > 5 || Math.abs(a.pitchDeg ?? 0) > 5 || Math.abs((a.g ?? 1) - 1) > 0.2;
+}
+
+/** The distance-only word while Lead manoeuvres: TIGHT inside 500 ft, STRETCHED past 1,000 ft, otherwise IN RANGE. */
+export function rangeWord(rangeFt) {
+  return rangeFt < FLUID.bubbleFt ? 'TIGHT' : rangeFt > FLUID.rangeFt.max ? 'STRETCHED' : 'IN RANGE';
+}
+
+/**
  * The readouts for the card and the tags (design 5.5), from the two aircraft as they are: range (straight line), aspect
- * (0 at Lead's tail, SMM 16.16 para 40b; Patrick row 10), HCA (para 40c), closure, line of sight rate, the cone state and
- * the flags. prev: the aircraft a step ago ({ lead, wing } with xFt, yFt, altAboveFt) for the rates, or null.
+ * (0 at Lead's tail, SMM 16.16 para 40b; Patrick row 10), HCA (para 40c), closure, line of sight rate, #2's state (the
+ * distance only while Lead manoeuvres, the distance and the cone straight and level) and the flags. prev: the aircraft a step ago ({ lead, wing } with xFt, yFt, altAboveFt) for the rates, or null.
  */
 export function fluidReadouts(lead, wing, prev, blockFt) {
   const p = (a) => ({ x: a.xFt, y: a.yFt, z: a.altAboveFt ?? 0 });
@@ -330,7 +344,10 @@ export function fluidReadouts(lead, wing, prev, blockFt) {
     const b = unit3(sub3(pl, pw));
     losDps = Math.acos(Math.max(-1, Math.min(1, dot3(a, b)))) / DEG / STEP_SEC;
   }
-  const state = rangeFt < FLUID.bubbleFt ? 'TIGHT' : rangeFt > FLUID.rangeFt.max ? 'STRETCHED' : aspectDeg > FLUID.coneHalfDeg ? 'OUT OF CONE' : 'IN POSITION';
+  // While Lead manoeuvres the cone is #2's aim, not a verdict (Patrick 23:02Z, SMM 16.17 para 42), and only the distance
+  // is judged (23:07Z, 23:08Z); straight and level, the full verdict: the distance and the cone.
+  const manoeuvring = isManoeuvring(lead);
+  const state = manoeuvring || rangeFt < FLUID.bubbleFt || rangeFt > FLUID.rangeFt.max ? rangeWord(rangeFt) : aspectDeg > FLUID.coneHalfDeg ? 'OUT OF CONE' : 'IN POSITION';
   const flags = [];
   if (rangeFt < FLUID.bubbleFt) flags.push(`Inside the 500 ft bubble (${Math.round(rangeFt)} ft; SMM 16.17 para 44c).`);
   if (wing.g > FLUID.wingGLimit) flags.push(`#2 is pulling ${wing.g.toFixed(1)} G; the limit is 5 G (SMM 16.17 para 44a).`);
@@ -340,5 +357,5 @@ export function fluidReadouts(lead, wing, prev, blockFt) {
     if (blockFt + (a.altAboveFt ?? 0) < FLUID.hardDeckMslFt) flags.push(`${name} is below 3,000 ft AGL, the fluid manoeuvring minimum (Orders B2 ch 8 para 1f; Gen Book p.11).`);
     if (a.g > shakerG(a.kias) - 0.01) flags.push(`${name} is at the stick shaker.`);
   }
-  return { rangeFt, aspectDeg, hcaDeg, closureKt, losDps, state, nearEnd: rangeFt <= FLUID.rangeFt.goodMax, flags };
+  return { rangeFt, aspectDeg, hcaDeg, closureKt, losDps, state, manoeuvring, nearEnd: rangeFt <= FLUID.rangeFt.goodMax, flags };
 }

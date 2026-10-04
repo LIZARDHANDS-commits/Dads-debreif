@@ -23,7 +23,7 @@ export const WINGMAN_METHODS = Object.freeze([
 ]);
 
 const ft = (n) => `${Math.round(Math.abs(n)).toLocaleString('en-CA')} ft`;
-const STATE_TONE = { 'IN POSITION': 'tone-good', TIGHT: 'tone-caution', STRETCHED: 'tone-caution', 'OUT OF CONE': 'tone-caution' };
+const STATE_TONE = { 'IN POSITION': 'tone-good', 'IN RANGE': 'tone-good', TIGHT: 'tone-caution', STRETCHED: 'tone-caution', 'OUT OF CONE': 'tone-caution' };
 
 /** #2's pursuit in words for the card and the tags: 'LAG', 'PURE', 'LEAD', or what he is doing instead. */
 export function pursuitWord(wingCue) {
