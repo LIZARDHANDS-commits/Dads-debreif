@@ -23,7 +23,7 @@ import {
   recordFlight, trackTwice, flyStep, dryRunT, speedSeg, phase, slide, dropBack, closeThrough, rejoinTo, openOut,
   slotFor, REJOIN,
 } from './transitions.js';
-import { FOUR_FORMATIONS, fourSlots, isStacked, classifyFour, judgeFourFormation, refsFor, fourWords } from './four-ship-slots.js';
+import { FOUR_FORMATIONS, fourSlots, isStacked, classifyFour, judgeFourFormation, refsFor, fourWords, FW_STEP_DOWN_FT } from './four-ship-slots.js';
 
 /** A generous limit on one 4-ship change (design section 9: Spread 4 to finger is estimated at 4 to 6 minutes); it only catches a plan that never ends. */
 export const FOUR_CHANGE_LIMIT_SEC = 480;
@@ -145,6 +145,18 @@ const toSlot = (c, kind, slot, over = {}) => kind(place(c, slot.fwd, slot.left, 
 const fwFollow = (slot, over = {}) => phase(slot, { fwdRate: 40, latRate: 40, vrel0: 30, kcap: 0.05, d0: 100, vrelMax: 120, decel: 2, bankCapDeg: 60, overtakeKias: 25, undertakeKias: 25, advanceTol: 25, finalTol: 6, ...over });
 /** Settle onto a slot off the formation reference after closing on a point near it (a short slide). */
 const settle = (slot, over = {}) => dropBack(slot, { advanceTol: 6, finalTol: 6, vrel0: 16, ...over });
+/**
+ * A rejoining wingman comes off its stack first (Patrick 4 Oct 19:11Z, "come off first"; SMM 12.27 para 65): one at or above
+ * Lead's height holds where it is while it steps down to FW_STEP_DOWN_FT below Lead, at the gentle stack rate, and only then
+ * closes, so it is never at or above Lead while closing. Returns the hold phase, or nothing when it is below Lead already.
+ */
+function comeOffFirst(c, id, track) {
+  const me = c.by.get(id);
+  const above = me.altAboveFt - c.leadAlt;
+  if (above < 0) return [];
+  const sec = Math.max(4, (above + FW_STEP_DOWN_FT) / GENTLE_ALT_FTPS);
+  return [hold(c, id, track, { holdUntil: c.t0 + sec, altSec: sec }, c.leadAlt - FW_STEP_DOWN_FT)];
+}
 /** Where a slot off #2 or #3 is in Lead's frame once everyone is in place (all on one heading, so the offsets add). */
 function inLeadFrame(slots, id) {
   let fwd = 0;
@@ -189,7 +201,9 @@ const toSpeed = (c, key) => (Math.abs(c.start[0].kias - FOUR_FORMATIONS[key].kia
  */
 function rejoinToFw(start, t0, opts, s) {
   const c = context(start, t0, opts);
-  const slots = fourSlots('fw', s, { stacked: c.stacked });
+  const slots = { ...fourSlots('fw', s, { stacked: c.stacked }) };
+  // #2's +300 ft comes off before it closes: it rejoins to fighting wing below Lead, starting down at once (Patrick 19:11Z).
+  if (slots[2].alt >= 0) slots[2] = { ...slots[2], alt: -FW_STEP_DOWN_FT };
   const speed = toSpeed(c, 'fw');
   const far = (id) => FAR_OVERTAKE_KIAS * (Math.abs(relativeTo(c.start[0], c.by.get(id)).left) > 3000 ? 1 : 0) || REJOIN.overtakeKias;
   const wings = [
@@ -262,11 +276,12 @@ function closeFromFw(start, t0, opts, s, to) {
     const fin = fourSlots(to === 'route' ? 'route' : 'finger', s);
     const low = (slot) => ({ ...slot, alt: slot.alt - 25 }); // close level or slightly low, then up into place (transitions.js closeThrough)
     const legsFor = (id) => [toSlot(c, closeThrough, low(route[id]), { advanceTol: 6 }), toSlot(c, slide, fin[id])];
-    const gateOn = (id, prev) => (done) => [hold(c, id, id === 4 ? 3 : 1, { holdUntil: done[prev].times[0].arrive }), ...legsFor(id)];
+    const off2 = comeOffFirst(c, 2, 1);
+    const gateOn = (id, prev) => (done) => [hold(c, id, id === 4 ? 3 : 1, { holdUntil: done[prev].times[prev === 2 ? off2.length : 0].arrive }), ...legsFor(id)];
     return {
       lead: toSpeed(c, to),
       wings: [
-        { id: 2, phases: () => legsFor(2) },
+        { id: 2, phases: () => [...off2, ...legsFor(2)] },
         { id: 3, phases: gateOn(3, 2) },
         { id: 4, phases: (done) => gateOn(4, 3)({ 3: { times: [done[3].times[1]] } }) },
       ],
@@ -282,12 +297,13 @@ function turningToFinger(start, t0, opts, s) {
   return legsInTurn(start, t0, opts, [(c) => {
     const fin = fourSlots('finger', s);
     const join = (id) => toSlot(c, rejoinTo, fin[id], { advanceTol: 10, overtakeKias: REJOIN.overtakeKias });
+    const off2 = comeOffFirst(c, 2, 1);
     return {
       lead: [...toSpeed(c, 'finger'), turnSeg(wholeDegree(c.start[0].headingRad + s * FINGER_TURN_DEG * DEG), s, REJOIN.leadBankDeg)],
       wings: [
-        { id: 2, phases: () => [join(2)] },
+        { id: 2, phases: () => [...off2, join(2)] },
         // #3 and #4 come off the stack while they wait, well behind (the stack is the separation until then, AFM8 brief p.18 item 6).
-        { id: 3, phases: (done) => [hold(c, 3, 1, { holdUntil: done[2].times[0].arrive }, place(c, 0, 0, fin[3].alt).alt), join(3)] },
+        { id: 3, phases: (done) => [hold(c, 3, 1, { holdUntil: done[2].times[off2.length].arrive }, place(c, 0, 0, fin[3].alt).alt), join(3)] },
         { id: 4, phases: (done) => [hold(c, 4, 3, { holdUntil: done[3].times[1].arrive }, place(c, 0, 0, fin[4].alt).alt), join(4)] },
       ],
     };
