@@ -18,7 +18,7 @@ Ideas for the Traffic Sim that are not being built. An idea moves into `plan.md`
   - an aircraft that gets too close to another flinches (as in the turn-fight sim), then goes into a breakout;
   - right-of-way rules: an aircraft that would perch and fly into a straight-in breaks out instead;
   - a straight-in that has to go around, or one that someone perches on by accident, goes between the runways;
-  - a PFL coming in while an overhead aircraft reaches initial, where they would conflict: the fly-through (as the orders say), then a rejoin on downwind (to be checked with Patrick which aircraft flies through);
+  - a PFL coming in while an overhead aircraft reaches initial, where they would conflict: the PFL keeps right of way; the overhead aircraft flies through (as the orders say), makes a 90° left turn at the end of the runway and rejoins the outer downwind; if traffic on the outer downwind would then be a conflict, it breaks out instead (Patrick, 4 Oct 09:43Z);
   - traffic rejoining on an entry that would conflict breaks out and rejoins.
   It overlaps PPQ-03 (automated SMM rules) and PPQ-04 (fly-through) below, and FF25. The rules need their Flying Orders and SMM pages before it is specced.
 
