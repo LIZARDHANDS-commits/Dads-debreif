@@ -78,7 +78,7 @@ test('Setup: "Moose Jaw day" is the built-in setup\'s own aircraft, and every sc
   }
 });
 
-// The variation is 9° East (Patrick's ruling, TR-61): magnetic = true - 9.
+// The variation is 9° East (Patrick's ruling, TR-63): magnetic = true - 9.
 test('Setup: the dial reads magnetic compass bearings in 5° steps (north up, east right in 2D) and gives the wind in true', () => {
   assert.equal(dialWindFrom(0, -50), 9, 'straight up is 360°M, 009°T');
   assert.equal(dialWindFrom(50, 0), 99, 'right is 090°M');

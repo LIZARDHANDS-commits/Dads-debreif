@@ -69,3 +69,21 @@ test('a closed pattern or High Key chosen on the upwind starts before the crossw
   assert.ok(r.pastEndFt >= -100 && r.pastEndFt <= RANDOM.upwindWindowFt + 300, `past the departure end, within 3/4 mile (${r.pastEndFt.toFixed(0)} ft)`);
   assert.ok(Math.abs(wrapDeg180(r.hdg - 298)) <= 30, 'still on the upwind when it starts');
 });
+
+test('an aircraft that starts on the straight-in flies the SI pattern again after its touch-and-go, without Randomize', () => {
+  // Patrick, 4 Oct 23:15Z: the SI pattern is the OHB pattern with the descent at 220 KIAS to 2,700 ft from abeam the
+  // departure end (23:19Z), then onto ENT2's base. Margins from the shared table (±100 ft, ±10 kt).
+  const sim = createSim({ ...MJ, windKt: 15, windFromDeg: 260, aircraft: [{ id: 'A1', type: 'CT-156', routeId: 'ENT2', startIndex: 0, startsAtSec: 0 }] }, { seed: 1 });
+  let laps = 0, wasClimbing = false, descending = [], baseAlts = [];
+  for (let t = 0.5; t <= 1000; t += 0.5) {
+    sim.stepTo(t);
+    const a = sim.state().aircraft[0];
+    if (a.phase === 'climb') wasClimbing = true;
+    if (a.phase === 'straight_in' && wasClimbing) { laps++; wasClimbing = false; }
+    if (laps > 0 && a.phase === 'straight_in' && a.alt > RANDOM.straightInAltFt + 100) descending.push(a.kt);
+    if (laps > 0 && a.routeId === 'ENT2' && a.leg === 2) baseAlts.push(a.alt);
+  }
+  assert.ok(laps >= 1, 'it flew the straight-in off the outer downwind after its touch-and-go');
+  assert.ok(descending.length > 0 && descending.every((kt) => Math.abs(kt - RANDOM.descentKias) <= 10), 'it holds 220 KIAS down to 2,700 ft');
+  assert.ok(baseAlts.length > 0 && baseAlts.every((alt) => Math.abs(alt - RANDOM.straightInAltFt) <= 100), 'it is at 2,700 ft on base');
+});

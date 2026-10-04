@@ -29,12 +29,17 @@ import { makePilot, bankFor, trackForLine, readyToTurnOnto, lineOf, accelFor, id
 export const RANDOM = Object.freeze({
   /** The upwind roll is made up to this far past the departure end, ft: 3/4 mile (Patrick, 4 Oct 21:54Z; 1 NM = 6,076 ft). */
   upwindWindowFt: 0.75 * 6076,
+  /** The outer-downwind roll, and the SI pattern's straight-in, start within this far past abeam the departure end, ft
+   *  (Pattern 1 point 5; an engineering window: the 0.5 s decision step at 220 KIAS covers about 190 ft). */
+  downwindWindowFt: 3000,
   /** The final roll is made this far from the threshold, ft: about a mile (an estimate). */
   finalRollFt: 6076,
   /** A low approach goes around this far from the threshold, ft (an estimate: about a quarter mile, low over the runway end). */
   lowApproachFt: 1500,
   /** The straight-in from the outer downwind (TR-3; SMM 4.5 para 8, 4.7 para 12). */
   straightInAltFt: 2700,
+  /** The descent to it is flown at 220 KIAS (SMM 4.16 para 36; Patrick, 4 Oct 23:15Z "keep 220 until at 2700"). */
+  descentKias: 220,
   straightInKias: 140,
   /** Bank in the base turn: 45° (an estimate inside the SMM's 45-60° pattern turns, SMM 4.14 para 33). */
   turnBankDeg: 45,
@@ -86,7 +91,7 @@ const MOST_STEPS = 6000; // a guard: 10 minutes of flying
 /**
  * The straight-in from the outer downwind (Patrick, 4 Oct 22:44Z), flown from the aircraft's state `from` = { x, y,
  * alt, kias, headingDeg, bankDeg } in a wind: from abeam the departure end along Pattern 1's outer downwind (points 5-6,
- * carried on) down to 2,700 ft at the speed it had, then level and slowing at idle toward 140 KIAS (SMM 4.16 para 36);
+ * carried on) down to 2,700 ft at 220 KIAS, then level and slowing at idle toward 140 KIAS (SMM 4.16 para 36);
  * the left turn onto the straight-in route's base leg (`ent2` points 1-2, Entry Mid to Entry Gate, the straight-in
  * rejoin, about a mile past the overhead's base turn as SMM 4.16 para 36 has it), rolling out on base at 140 KIAS. It ends once
  * settled on the base leg, where the straight-in route takes over (its final turn at 120 KIAS and the glide path).
@@ -109,8 +114,8 @@ export function buildDownwindStraightIn(points, from, wind, ent2) {
     // 220 KIAS to 300 ft below pattern height, then level and decelerate; roll out on base below 147).
     if (!slowing && Math.abs(s.alt - RANDOM.straightInAltFt) < 30) slowing = true;
     const climb = Math.max(-RANDOM.descentFtps, Math.min(RANDOM.descentFtps, (RANDOM.straightInAltFt - s.alt) / LEVEL_OFF_SEC));
-    // Until then it holds the speed it had (power as needed); then idle down to 140.
-    const wantKias = slowing ? RANDOM.straightInKias : from.kias;
+    // Until then it holds 220 KIAS (power as needed); then the reduced power lets it slow toward 140, in the turn too.
+    const wantKias = slowing ? RANDOM.straightInKias : RANDOM.descentKias;
     const toTarget = (ktToFtps(iasToTasKt(wantKias, s.alt)) - tas) / PILOT_DT;
     const accel = Math.max(idleDecel(s.ias, s.alt, g), Math.min(Math.max(0, accelFor(s.ias, s.alt, g, climb)), toTarget));
     const line = stage === 'downwind' ? downwind : base;
