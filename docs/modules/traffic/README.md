@@ -4,11 +4,11 @@ This folder is the traffic pattern sim: aircraft fly the Moose Jaw circuits and 
 
 ## Where it stands
 
-Built; the sign-off box is still open. The PFL review (promised in TR-R14) comes first, with six new PFL commits waiting on it (`archive/HANDOVER.md:89`, `pf/reset/6-plan-and-rules/new-since-pin.md:5`).
+Built; the sign-off box is still open. As of 4 Oct 2026 (DADS v2.10.17) the flying layer is refactored: every aircraft is flown once by a simulated pilot from where it is, and one path follower moves it (spec sections 1 and 1a). The PFL is rebuilt on it (spec 4.5), and so are the closed pattern, High Key from anywhere, the go-around, touch-and-go and the breakout; automatic deconfliction is on (spec 4.12). The old physics engine and its tests are gone. None of this has been seen in the real app yet; that is on Patrick's waiting list.
 
 ## What is next
 
-The plan's steps, in order: Step 1: The PFL review (TR-R14) and what waits on it; Step 2: Refactor the flying layer; Step 3: Refresh spec.md against the new requirements; Step 4: Fix the real faults found at the reset pin; Step 5: Build what the ratified requirements ask for and the screen lacks; Step 6: Check the camera, graphics and scenery work against the code; Step 7: Sign-off. Only what is in `plan.md` gets built.
+Step 2's refactor is built except PR 5 (clean-up). The plan's steps, in order: Step 1: The PFL review (TR-R14) and what waits on it (one estimate left, the T/O flap glide row); Step 2: Refactor the flying layer; Step 3: Refresh spec.md against the new requirements; Step 4: Fix the real faults found at the reset pin; Step 5: Build what the ratified requirements ask for and the screen lacks; Step 6: Check the camera, graphics and scenery work against the code; Step 7: Sign-off. Only what is in `plan.md` gets built.
 
 ## The files
 
@@ -27,7 +27,9 @@ Each has a working answer that the tool uses until it is settled.
 
 ### Waiting on Patrick now (also on the list in `../../PLAN.md`)
 
-- **PFL review items:** the new PFL work since the reset (D438 to D440), the pre-built PFL track (D436) and the PFL missing from the live manoeuvres, all held for the PFL review (`docs/modules/traffic/plan.md:13`).
+- **See the refactored Traffic on screen** from the default start: the PFL, the closed pattern, High Key from anywhere, the go-around, the breakout and the deconfliction, calm and in a strong wind (spec 1a "Check on screen").
+- **Requirement wording that no longer matches what is built:** TR-R30 still says manoeuvres are flown under live control and blend back onto the path, and TR-R33 still says the closed pattern can use up to 90° of bank to stop the climb and turns toward the perch. Both are now flown paths that level off with the climb and roll out on the downwind line. New wording needs Patrick's yes.
+- The PFL review items (D436, D438 to D440) were settled on Patrick's cards C2 to C7 (4 Oct 06:28Z to 06:35Z).
 
 ### Settled when this module's work resumes
 
@@ -43,7 +45,7 @@ Screen and build details. Each has a working answer (the best guess) that stands
 | TR-Q22 | Can a scenario be exported to a file and imported again (V6 could), and between machines? | (a) yes, with checks; (b) browser-only saving | (a) later; first make the browser saving reliable. | `v6/traffic.html:125-130`; `docs/references/v6-audit/findings.json:5168`; `src/modules/traffic/profiles-panel.js:19` |
 | TR-Q23 | Where do crab angle and ground speed show for each aircraft? | (a) in the aircraft row; (b) in a "More" panel; (c) as a map label option | (b) | R23 `archive/docs/records/plan-requirements.md:19`; TR-R6 |
 | TR-Q24 | The runway list shows "Runway 11R (Coming soon)". Hide it until it works? | (a) hide; (b) keep | (a), by the "no dead ends" rule. | `src/modules/traffic/defaults.js:15-18` |
-| TR-Q25 | How long should the blend be when an aircraft changes from one way of flying to another, and what shape? ASK (A14) | (a) 1 s; (b) 1 to 2 s; (c) 2 to 3 s; linear or smooth | Moot if TR-Q2 is (a); otherwise (b) smooth. | `pf/reset/0-lessons/antigravity.md:124` |
+| TR-Q25 | How long should the blend be when an aircraft changes from one way of flying to another, and what shape? ASK (A14) | (a) 1 s; (b) 1 to 2 s; (c) 2 to 3 s; linear or smooth | Moot since 4 Oct: the 1 s slide is gone, and every hand-over joins the next path from the aircraft's own place, track, bank and turn rate (spec 1a item 18). | `pf/reset/0-lessons/antigravity.md:124` |
 
 ### For Dad
 
