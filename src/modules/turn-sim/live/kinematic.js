@@ -202,6 +202,8 @@ export function followInto(track, { ref, from = 0, slotAt, events = [], blendSec
     const k1 = e + 1 < starts.length ? starts[e + 1] : end;
     const m = motionAt(track, k0);
     const r0 = refRates(ref, k0);
+    const bankTurn = (k, v) => (G_FTPS2 * Math.tan((ref.at(k).bankDeg ?? 0) * DEG)) / Math.max(v, 1);
+    const turn0 = bankTurn(k0, m.v); // the reference's bank, flown at the wingman's speed, at the start
     // The "carry on" line: own heading and speed, turning as the reference turns plus its own extra turn dying away.
     let fx = m.x;
     let fy = m.y;
@@ -212,7 +214,10 @@ export function followInto(track, { ref, from = 0, slotAt, events = [], blendSec
       const tau = (k + 0.5 - k0) * dt;
       const fade = 1 - smoother(Math.min(1, tau / decaySec));
       const rr = refRates(ref, k);
-      const turn = rr.omega + (m.turn - r0.omega) * fade;
+      // Turning as the reference turns means at the reference's bank as the wingman follows it (the bank `ref` gives, which
+      // the caller may lag: SMM 12.19 para 43), at the wingman's own speed, so a roll of Lead never asks more roll of the
+      // wingman than Lead's own.
+      const turn = bankTurn(k, fv) + (m.turn - turn0) * fade;
       const acc = rr.accel + (m.accel - r0.accel) * fade;
       const h1 = fh + turn * dt;
       const v1 = fv + acc * dt;

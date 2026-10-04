@@ -18,7 +18,7 @@ import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
 import { relativeTo, turnSeg, wholeDegree, DEG } from './manoeuvres.js';
-import { recordFlight, slotFor, KIAS_LAB, KIAS_OUTSIDE_LAB, SLOW_DOWN_KTPS, speedSeg, REJOIN } from './transitions.js';
+import { recordFlight, slotFor, KIAS_LAB, KIAS_OUTSIDE_LAB, SLOW_DOWN_KTPS, speedSeg, REJOIN, classifyPair, describe, FORMATIONS } from './transitions.js';
 import { makeTrack, seedTrack, posesFrom, settleLast, followInto, rollStarts, relPath, timeLaw, slotInWorld, poseOf, laggedBank } from './kinematic.js';
 
 const dt = STEP_SEC;
@@ -26,7 +26,7 @@ const dt = STEP_SEC;
 /** The numbers of the kinematic moves. All estimates unless a source is given. */
 export const KINEMATIC = Object.freeze({
   // In the frame of Lead, how fast #2 may move:
-  lateralFtps: 160, // across Lead's heading: about a 25° heading difference at 200 KIAS (inside the 20-40° turn away of SMM 16.18 para 51)
+  lateralFtps: 140, // across Lead's heading: about a 25° heading difference at 200 KIAS (inside the 20-40° turn away of SMM 16.18 para 51)
   foreAftFtps: 25, // along it: about 15 KIAS of overtake or undertake, the middle of EFIG p.374's 10-20 KIAS
   verticalFtps: 15, // up or down: 900 ft/min (the 4-ship's stack-change estimate)
   nearPerSec: 0.1, // closing slows with range: 10% of the range per second ...
@@ -142,10 +142,10 @@ function movingSlot(points, k0) {
   const path = relPath(points);
   const law = timeLaw(path, relSpeedLimit);
   const steps = Math.ceil(law.durationSec / dt);
-  // Sampled once per step, then lightly smoothed (three passes of a half-second running mean) so the tables behind the
+  // Sampled once per step, then lightly smoothed (three passes of a one-second running mean) so the tables behind the
   // curve and its time law leave no tiny corners for the bank and roll rate, read off the line, to pick up.
   const keys = ['fwd', 'left', 'up', 'plane'];
-  const HALF = 5;
+  const HALF = 10;
   const pad = 3 * HALF;
   let rows = [];
   for (let i = -pad; i <= steps + pad; i++) rows.push(path.at(law.sAt(Math.max(0, Math.min(steps, i)) * dt)));
@@ -319,10 +319,9 @@ const LINE_UP = Object.freeze({ behindFt: 300, minRangeFt: 400, maxRangeFt: 2000
  * -1 right); to, sTo: the formation and side commanded. Returns { ok, plans, endSec, leadTurnDeg, maxBankDeg, laneFwdFt,
  * minBelowFt, reverse } or { ok: false, reason }.
  */
-// Not switched on yet (4 Oct 2026): flown at 200 KIAS and 30° of bank, a reversal timed as Fig 16.25 shows ("lead passes
-// through approximate nose position") lines #2 up thousands of feet behind and outside Lead, while the figure shows it
-// inside. This planner follows the para 65b(2) text instead (it lines up about 500 ft behind, just outside, then slides
-// in). The conflict is with Patrick; the button keeps the tracker's rejoin until he answers.
+// Fig 16.25 is not to scale: flown at 200 KIAS and 30° of bank, a reversal timed as the figure draws it lines #2 up
+// thousands of feet behind and outside Lead. Patrick chose this SMM text version, from the standard start (4 Oct 19:16Z,
+// TS-55): #2 lines up just behind Lead, then one line carries it into fighting wing.
 export function planHotRejoin(pair, s, to, sTo, { spacingFt = 6000 } = {}, t0 = 0) {
   const [lead, wing] = pair;
   const h0 = lead.headingRad;
@@ -476,3 +475,56 @@ export function planHotRejoin(pair, s, to, sTo, { spacingFt = 6000 } = {}, t0 = 
   }
   return { ok: false, reason: 'No safe hot turning rejoin from here: every way in broke the bank cap, the overshoot lane or the height rule.' };
 }
+
+/**
+ * The hot turning rejoin as a "Change formation" plan (planGoTo's shape, transitions.js), or null when it does not apply
+ * and the tracker's rejoin flies instead: only from the standard start (Patrick 19:16Z): line abreast at the spacing, level,
+ * on the line, matched at 220 KIAS, with the turning rejoin chosen. Off-standard starts are a later piece.
+ */
+export function planHotRejoinChange(pair, to, options = {}, t0 = 0) {
+  const [lead, wing] = pair;
+  if (to === 'lab' || (options.rejoin ?? 'into') !== 'into') return null;
+  const from = classifyPair(lead, wing);
+  if (from.key !== 'lab') return null;
+  const spacingFt = options.spacingFt ?? 6000;
+  const rel = relativeTo(lead, wing);
+  const standard =
+    Math.abs(Math.abs(rel.left) - spacingFt) <= STANDARD.spacingFt &&
+    Math.abs(rel.fwd) <= STANDARD.foreAftFt &&
+    Math.abs(wing.altAboveFt - lead.altAboveFt) <= STANDARD.heightFt &&
+    Math.abs(lead.kias - KIAS_LAB) <= STANDARD.kias &&
+    Math.abs(wing.kias - KIAS_LAB) <= STANDARD.kias &&
+    Math.abs(wrapPi(wing.headingRad - lead.headingRad)) <= STANDARD.headingDeg * DEG &&
+    Math.abs(lead.bankDeg) < 0.5 &&
+    Math.abs(wing.bankDeg) < 0.5;
+  if (!standard) return null;
+  const s = from.side;
+  const want = options.side ?? 'keep';
+  const sTo = to === 'astern' ? 0 : want === 'left' ? 1 : want === 'right' ? -1 : s;
+  const r = /** @type {any} */ (planHotRejoin(pair, s, to, sTo, { spacingFt }, t0));
+  if (!r.ok) return null;
+  const label = FORMATIONS[to].label;
+  const sideWord = to === 'astern' ? '' : sTo > 0 ? ' left' : ' right';
+  const fromSide = s > 0 ? ' left' : ' right';
+  const how = describe('lab', to, 'into');
+  return {
+    ok: true,
+    plans: r.plans,
+    note: `Line abreast${fromSide} to ${label}${sideWord}: ${how}. Lead turns into #2 at ${REJOIN.leadBankDeg}° of bank, slowing to ${KIAS_OUTSIDE_LAB} KIAS, and holds it until #2 is in; #2 points at Lead, rolls out, reverses as the line of sight moves and lines up with Lead (SMM 16.20 para 65b(2)${to === 'fw' ? '' : ', through the fighting wing position, para 66'}).`,
+    label: `${label}${sideWord}`,
+    flying: `Line abreast${fromSide} to ${label}${sideWord} (${how})`,
+    from: 'lab',
+    fromSide: s,
+    to,
+    side: sTo,
+    rejoinKind: 'into',
+    leadTurnDeg: r.leadTurnDeg,
+    laneFwdFt: r.laneFwdFt,
+    maxBankDeg: r.maxBankDeg,
+    judged: null,
+    endSec: r.endSec,
+    rejoining: true,
+  };
+}
+/** How close to the standard start the pair must be for the hot turning rejoin (estimates: the shared margins). */
+const STANDARD = Object.freeze({ spacingFt: 100, foreAftFt: 500, heightFt: 100, kias: 10, headingDeg: 5 });

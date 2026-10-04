@@ -16,6 +16,7 @@ import { FOUR_SHIP_KEYS, fourShipStart, planFour, judgeFour } from './four-ship.
 import { G_WARM, planGWarm } from './g-warm.js';
 import { classifyFour, judgeFourFormation, FOUR_FORMATIONS } from './four-ship-slots.js';
 import { planChangeFour } from './four-ship-moves.js';
+import { planHotRejoinChange } from './kinematic-moves.js';
 
 /**
  * The first version's fixed numbers. Speeds name their kind (rule book): kias is
@@ -246,7 +247,10 @@ export function createFormation(options = {}) {
     whereNow();
     const four = state.aircraft.length > 2;
     const planOpts = { ...changeOptions, spacingFt: state.spacingFt, blockFt: opts.blockFt, lastSide: state.lastSide };
-    const plan = four ? planChangeFour(state.aircraft, to, planOpts, state.tSec) : planGoTo(state.aircraft, to, planOpts, state.tSec);
+    // The 2-ship's hot turning rejoin from the standard line abreast start flies a planned line (TS-55); anything else, the tracker.
+    const plan = four
+      ? planChangeFour(state.aircraft, to, planOpts, state.tSec)
+      : planHotRejoinChange(state.aircraft, to, planOpts, state.tSec) ?? planGoTo(state.aircraft, to, planOpts, state.tSec);
     if (!plan.ok) {
       state.refusal = plan.reason;
       return false;
