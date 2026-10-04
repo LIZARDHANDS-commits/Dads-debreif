@@ -612,6 +612,11 @@
   font-size: var(--text-sm);
 }
 
+[data-module='traffic'] .aircraft-more {
+  width: 100%;
+  margin-top: var(--space-1);
+}
+
 [data-module='traffic'] .aircraft-remove {
   margin-left: auto;
 }

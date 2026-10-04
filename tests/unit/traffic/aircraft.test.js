@@ -235,6 +235,14 @@ test('Remove takes one aircraft out of the run, and only that one (TR-R19)', () 
   assert.ok(!sim.state().aircraft.some((a) => a.id === 'A1'));
 });
 
+test('Spawn a conflict waits for a selected aircraft (Patrick, 4 Oct 19:24Z)', () => {
+  const { spawner, panel } = setup();
+  const button = buttonNamed(spawner, 'Spawn a conflict');
+  assert.equal(button.disabled, true);
+  panel.selectAircraft('A1');
+  assert.equal(button.disabled, false);
+});
+
 test('every row carries the callsign as text, so colour is never the only way to tell them apart', () => {
   const { list } = setup();
   for (const row of withClass(list, 'aircraft-row')) assert.match(words(tagged(row, 'STRONG')[0]), /^A\d$/);

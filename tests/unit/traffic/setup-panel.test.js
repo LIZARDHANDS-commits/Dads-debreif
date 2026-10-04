@@ -9,7 +9,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { SCENARIOS, RANDOM_COUNT, RANDOM_SPACING_FT, BUSY_COUNT, randomStarts, scenarioAircraft, dialBearing, runwayWindText } from '../../../src/modules/traffic/setup-panel.js';
-import { straightInDelaySec } from '../../../src/modules/traffic/scenario-timing.js';
+import { straightInDelaySec, conflictSpawnPlan } from '../../../src/modules/traffic/scenario-timing.js';
 import { createSim } from '../../../src/modules/traffic/sim.js';
 
 const mooseJaw = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw.json', import.meta.url), 'utf8'));
@@ -92,4 +92,18 @@ test('Setup: the runway wind line gives head and cross wind as a pilot works the
   assert.equal(runwayWindText(208, 10), '29L: no head or tail, 10 kt cross from the left');
   assert.equal(runwayWindText(28, 10), '29L: no head or tail, 10 kt cross from the right');
   assert.equal(runwayWindText(200, 0), '29L: calm');
+});
+
+test('Spawn a conflict finds a straight-in that meets an aircraft on initial, inside the caution distance, and leaves the run as it was (Patrick, 4 Oct 19:24Z)', () => {
+  const setup = { ...mooseJaw, deconflict: true, windFromDeg: 260, windKt: 15, aircraft: scenarioAircraft('joining', { routes: mooseJaw.routes, seed: 3 }) };
+  const sim = createSim(setup, { seed: 1 });
+  sim.stepTo(15);
+  const target = sim.state().aircraft.find((a) => a.status === 'flying' && a.phase === 'initial');
+  assert.ok(target, 'an aircraft on initial to aim at');
+  const before = JSON.stringify(sim.state());
+  const plan = conflictSpawnPlan(sim, setup, target.id, 'ENT2');
+  assert.equal(JSON.stringify(sim.state()), before, 'the run itself is not touched');
+  assert.ok(plan, 'a straight-in can meet it');
+  // Inside the caution distance (500 ft, TR-Q11), and far enough ahead to be seen coming.
+  assert.ok(plan.closestFt < 500 && plan.inSec >= 20, JSON.stringify(plan));
 });
