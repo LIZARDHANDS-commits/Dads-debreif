@@ -6,6 +6,7 @@
 //
 // It builds pieces to put in the layout's slots and holds no traffic data of its own.
 import { h, clear } from '../../ui-kit/dom.js';
+import { createPanel } from '../../ui-kit/panel.js';
 import { TYPE_COLORS } from './sim.js';
 import { aircraftRows, conflictLines, noConflictsText } from './readouts.js';
 import { LIMITS } from './defaults.js';
@@ -386,10 +387,12 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     if (!pflChosen) fillSpots();
   }
 
-  const spawner = h(
+  // "Spawn aircraft" opens and closes like Traffic settings (Patrick, 4 Oct); it is open at first.
+  const spawnPanel = createPanel({ title: 'Spawn aircraft', collapsed: false });
+  const spawnerBody = h(
     'section',
     { class: 'spawner', 'aria-label': 'Spawn aircraft' },
-    h('div', { class: 'spawner-head' }, h('h3', { class: 'traffic-subtitle' }, 'Spawn'), callsignBadge),
+    h('div', { class: 'spawner-head' }, callsignBadge),
     controls.select('spawnType', { label: 'Type', options: SPAWN_TYPES.map((type) => [type, type]) }),
     h('div', { class: 'control control-select' }, h('label', { for: routeSelect.id }, 'Route'), routeSelect),
     spotsHint,
@@ -399,6 +402,8 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     advanced,
     message,
   );
+  spawnPanel.body.append(spawnerBody);
+  const spawner = spawnPanel.element;
 
   // TR-14: no spot button acts while a box it reads refuses what was typed (the setting would keep its last good
   // value, which the person can't see). The box shows its own message; the spawner's line names the box too.

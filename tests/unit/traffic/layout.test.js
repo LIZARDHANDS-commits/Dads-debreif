@@ -168,12 +168,14 @@ test('setColumnOpen collapses or opens a column from outside (a remembered layou
   assert.deepEqual(calls, []);
 });
 
-test('the right column has room for the spawner, the settings menu (above the aircraft list, TR-15), the aircraft list and the conflicts; the left for the point table', () => {
+test('the right column has room for the spawner, the aircraft list and the conflicts; the left for the point table and, at its foot, the Traffic settings menu (Patrick, 4 Oct)', () => {
   const { ui } = setup();
   const [, routes, , aircraft] = ui.element.childNodes;
-  for (const name of ['spawner', 'aircraft', 'conflicts', 'settings']) assert.ok(aircraft.contains(ui.slots[name]), name);
-  const body = ui.slots.settings.parentNode;
-  assert.deepEqual([...body.childNodes], [ui.slots.spawner, ui.slots.settings, ui.slots.aircraft, ui.slots.conflicts], 'the settings menu sits under the spawner, above the readouts, so it is found without scrolling');
+  for (const name of ['spawner', 'aircraft', 'conflicts']) assert.ok(aircraft.contains(ui.slots[name]), name);
+  const body = ui.slots.spawner.parentNode;
+  assert.deepEqual([...body.childNodes], [ui.slots.spawner, ui.slots.aircraft, ui.slots.conflicts]);
+  assert.ok(routes.contains(ui.slots.settings), 'Traffic settings are in the Setup column');
+  assert.equal(ui.slots.settings.parentNode.lastChild, ui.slots.settings, 'at its foot');
   assert.ok(routes.contains(ui.slots.pointTable));
   assert.ok(routes.contains(ui.slots.leftExtras));
   // Profiles and notes sit above the routes list, so opened it is in the first screen (UI-02).

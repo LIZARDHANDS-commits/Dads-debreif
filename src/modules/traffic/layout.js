@@ -43,7 +43,8 @@ export function createLayout({ bar, listen, on = {}, available = {}, filterSplit
   const list = h('ul', { class: 'route-list', 'aria-label': 'Routes on the map: press one to show or hide it' });
   const empty = h('p', { class: 'route-empty' }, 'No routes yet.');
   const routesPanel = createPanel({ title: 'Setup', onToggle: (collapsed) => columnToggled('routes', !collapsed) });
-  routesPanel.body.append(slots.setup, slots.profiles, listTitle, list, empty, slots.pointTable, slots.leftExtras); // Profiles and notes on top: opened, it is in the first screen (UI-02)
+  // Traffic settings sit at the foot of the Setup column (Patrick, 4 Oct: it was in the Aircraft column).
+  routesPanel.body.append(slots.setup, slots.profiles, listTitle, list, empty, slots.pointTable, slots.leftExtras, slots.settings);
   const routesCol = h('aside', { class: 'traffic-col traffic-col-routes', 'aria-label': 'Setup' }, routesPanel.element);
 
   // Middle: the bar, then the map with its one-line hint, then the note under it.
@@ -79,11 +80,10 @@ export function createLayout({ bar, listen, on = {}, available = {}, filterSplit
     h('p', { class: 'traffic-note' }, SIMPLIFIED_NOTE),
   );
 
-  // Right column: the spawner, the Traffic settings menu (settings-panel.js: closed until asked for,
-  // opening in the column's flow, and above the aircraft list so it is found without scrolling, TR-15),
-  // then the aircraft list and the conflicts.
+  // Right column: the spawner (Spawn aircraft, a box that opens and closes), then the aircraft list and the conflicts.
+  // The Traffic settings menu moved to the Setup column (Patrick, 4 Oct).
   const aircraftPanel = createPanel({ title: 'Aircraft', onToggle: (collapsed) => columnToggled('aircraft', !collapsed) });
-  aircraftPanel.body.append(slots.spawner, slots.settings, slots.aircraft, slots.conflicts);
+  aircraftPanel.body.append(slots.spawner, slots.aircraft, slots.conflicts);
   const aircraftCol = h('aside', { class: 'traffic-col traffic-col-aircraft', 'aria-label': 'Aircraft' }, aircraftPanel.element);
 
   const element = h('div', { class: 'traffic' }, h('h1', { class: 'visually-hidden' }, 'Traffic Pattern Sim'), routesCol, stage, aircraftCol);

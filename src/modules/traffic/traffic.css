@@ -548,6 +548,18 @@
   font-size: var(--text-sm);
 }
 
+/* The OHB Rejoin's miles back: the label over the drop-down, both the box's full width, so neither is cut. */
+[data-module='traffic'] .spawner .control.spawn-miles {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-1);
+  width: 100%;
+}
+
+[data-module='traffic'] .spawner .control.spawn-miles select {
+  width: 100%;
+}
+
 [data-module='traffic'] .spawner [hidden] {
   display: none;
 }
