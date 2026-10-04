@@ -77,6 +77,10 @@ export const ENERGY_DEFAULT_SETUP = Object.freeze({
   leadSec: 1,
   lagSec: 1,
   rollRateDegPerSec: 90,
+  // Smooth pilot inputs (TF-57 PR 2), Patrick's "brisk" (4 Oct 10:38Z). Both are estimates until a manual or Patrick's practice
+  // gives a number; 0 turns that one off (G or roll then changes in one step, as before).
+  gOnsetGPerSec: 6,            // how fast the pilot's G builds or eases, G per second
+  rollAccelDegPerSec2: 360,    // how fast the roll rate builds and dies away: 90°/s reached in 0.25 s
   pitchBackBank160Deg: 60,
   pitchBackBank220Deg: 30,
   immelmannAboveKias: 220,
@@ -222,6 +226,7 @@ export function checkedSetup(setup) {
   need(PURSUITS_ACCEPTED.includes(s.pursuit), `pursuit is one of ${PURSUITS.join(', ')} (or none)`, s.pursuit);
   need(Number.isFinite(s.mptKias) && s.mptKias >= MPT_KIAS_RANGE[0] && s.mptKias <= MPT_KIAS_RANGE[1], `mptKias is from ${MPT_KIAS_RANGE[0]} to ${MPT_KIAS_RANGE[1]} KIAS`, s.mptKias);
   for (const k of ['stallKias', 'rollRateDegPerSec', 'pullG', 'immelmannAboveKias', 'splitSBelowKias']) need(finitePositive(s[k]), `${k} is above 0`, s[k]);
+  for (const k of ['gOnsetGPerSec', 'rollAccelDegPerSec2']) need(Number.isFinite(s[k]) && s[k] >= 0, `${k} is 0 (off) or more`, s[k]);
   need(Number.isFinite(s.shakerFrac) && s.shakerFrac > 0 && s.shakerFrac <= 1, 'shakerFrac is above 0 and up to 1', s.shakerFrac);
   need(Number.isFinite(s.immelmannOffNoseDeg) && s.immelmannOffNoseDeg >= 0 && s.immelmannOffNoseDeg <= 180, 'immelmannOffNoseDeg is 0 to 180', s.immelmannOffNoseDeg);
   need(Number.isFinite(s.immelmannMinTopKias) && s.immelmannMinTopKias >= 0 && s.immelmannMinTopKias <= T6A_LIMITS.vmoKias, `immelmannMinTopKias is 0 to ${T6A_LIMITS.vmoKias}`, s.immelmannMinTopKias);

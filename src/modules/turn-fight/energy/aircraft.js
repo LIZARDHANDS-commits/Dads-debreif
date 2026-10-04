@@ -1,11 +1,11 @@
 // One Energy-fight aircraft: making it, its readouts, and one step of it through the limits and core's
 // point-mass step. The aircraft maths is core's (t6-performance.js, point-mass.js); this file applies the
 // limits and keeps the readouts. Nothing here works out drag, thrust or the stall line itself.
-import { KT_TO_FTPS } from '../../../core/units.js';
+import { KT_TO_FTPS, G_FTPS2 } from '../../../core/units.js';
 import { wrapPi, degToRad, radToDeg } from '../../../core/angles.js';
 import { T6A_LIMITS, stallLimitG, tasToIasKt, t6aExcessFn, thrustPerWeight, dragPerWeight, energyHeightFt } from '../../../core/t6-performance.js';
 import { stepPointMass, pointMassState, pointMassFlight } from '../../../core/point-mass.js';
-import { rollToward } from '../../../core/flight-math.js';
+import { rollToward, isaDensityRatio } from '../../../core/flight-math.js';
 import { MPT_WITHIN_KT, TUNING, shakerG, round, belowStallText } from './setup.js';
 import { scale, unit, clamp, velOf, physicalBankDeg } from './frame.js';
 import { controlFor, isRolling } from './moves/index.js';
@@ -71,41 +71,32 @@ function gText(g, other) {
 }
 
 /**
+ * (thrust − drag) ÷ weight for a tumbling wreck: no thrust, and a bluff-body drag of 0.00052 × density ratio × V² ft/s²
+ * (V in ft/s). The 0.00052 is an estimate with no source, kept from the first tumble (TF-Q10, for Dad to check).
+ */
+function tumbleExcess(ktas, altFt) {
+  const v = ktas * KT_TO_FTPS;
+  return -(0.00052 * isaDensityRatio(altFt) * v * v) / G_FTPS2;
+}
+
+/** The point-mass state's speed, heading and climb, in pointMassState's terms. */
+function flightOf(pm) {
+  const f = pointMassFlight(pm);
+  return { ktas: f.ktas, headingRad: f.headingRad, climbRad: f.climbRad };
+}
+
+/**
  * One aircraft, one step: the pilot's hand-over, the move's controller, the smoothing layer, then the limits (forced G,
  * shaker, STALL, roll rate, OVER G), the point-mass step and the readouts. After a collision the aircraft tumbles instead.
  */
 export function stepAircraft(state, ac, other, d) {
   if (ac.tumble) {
-    ac.throttle = 0;
-    const z = ac.altFt ?? ac.pm.z;
-    const sqSigma = tasToIasKt(1, z);
-    const sigma = sqSigma * sqSigma;
-    const kDrag = 0.00052 * sigma;
-    let vx = ac.pm.vx, vy = ac.pm.vy, vz = ac.pm.vz;
-    let x = ac.pm.x, y = ac.pm.y, posZ = ac.pm.z;
-    const V = Math.hypot(vx, vy, vz);
-    const ax = -kDrag * V * vx;
-    const ay = -kDrag * V * vy;
-    const az = -kDrag * V * vz - 32.174;
-    vx += ax * d;
-    vy += ay * d;
-    vz += az * d;
-    x += vx * d;
-    y += vy * d;
-    posZ += vz * d;
-    ac.pm = { ...ac.pm, x, y, z: posZ, vx, vy, vz };
-    ac.xFt = x;
-    ac.yFt = y;
-    ac.zFt = posZ;
-    ac.altFt = posZ;
-    const speedKt = Math.hypot(vx, vy, vz) / KT_TO_FTPS;
-    ac.ktas = speedKt;
-    ac.kias = tasToIasKt(speedKt, posZ);
+    // After a mid-air collision: no lift, no thrust, a tumbling wreck's drag, through the same point-mass step as every
+    // other flight (TF-57 PR 2). The roll spins at the tumble rate for the views; heading and climb are the path's.
+    if (!ac.pm.up) ac.pm = { ...ac.pm, up: pointMassState({ x: 0, y: 0, altFt: 0, ...flightOf(ac.pm) }).up };
     ac.bankRad = wrapPi(ac.bankRad + degToRad(ac.tumble.pDegPerSec) * d);
-    ac.headingRad = wrapPi(ac.headingRad + degToRad(ac.tumble.rDegPerSec) * d);
-    ac.climbDeg = clamp(ac.climbDeg + ac.tumble.qDegPerSec * d, -89, 89);
-    ac.bankDeg = radToDeg(ac.bankRad);
-    ac.g = 0;
+    ac.pm = stepPointMass(ac.pm, { g: 0, bankRad: ac.bankRad }, d, tumbleExcess);
+    readOut(ac, 0, 0, state.setup, null, !state.dry);
     if (ac.altFt <= 0) {
       ac.altFt = 0;
       ac.pm.z = 0;
@@ -185,6 +176,7 @@ export function stepAircraft(state, ac, other, d) {
   const rollRate = ac.stall ? 0.3 * p.rollRateDegPerSec : p.rollRateDegPerSec;
   const maxRollDelta = degToRad(rollRate) * d;
   const roll = rollToward(ac.bankRad, cmd.bankRad, maxRollDelta, cmd.prefer);
+  c.rollRateDps = radToDeg(wrapPi(roll.bank - ac.bankRad)) / d; // signed, for the smoothing layer next step
   ac.bankRad = roll.bank;
   ac.rollDegPerSec = radToDeg(roll.movedRad) / d;
   ac.rolling = isRolling(roll.movedRad, d);
