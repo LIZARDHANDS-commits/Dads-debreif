@@ -94,6 +94,21 @@ test('a level turn and a reversal: Lead stays level and #2 stays in the cone at 
   assert.deepEqual(failures.slice(0, 5), []);
 });
 
+test('in a steady level turn, into #2 or away from him, #2 holds 15° off Lead\'s current tail', () => {
+  // Patrick 22:28Z ("lets go with hold 15"): 15° off Lead's current tail line on #2's side; shared ±5° margin. A turn
+  // is steady after about 15 s (the roll-in and #2's catch-up of a few seconds; a generous limit).
+  const HOLD_DEG = 15;
+  const f = inFightingWing();
+  f.change('fluid');
+  fly(f, 30);
+  for (const dir of [-1, 1]) {
+    f.pressFluid('levelTurn', dir);
+    fly(f, 20);
+    const r = f.state.fluid.readouts;
+    assert.ok(Math.abs(r.aspectDeg - HOLD_DEG) <= TOLERANCES.ANGLE_DEG, `turn ${dir > 0 ? 'left' : 'right'}: aspect ${r.aspectDeg.toFixed(1)}°`);
+  }
+});
+
 test('Terminate brings the pair back to fighting wing', () => {
   const f = inFightingWing();
   f.change('fluid');

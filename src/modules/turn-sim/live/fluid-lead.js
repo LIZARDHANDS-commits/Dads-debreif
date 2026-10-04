@@ -192,9 +192,8 @@ export function levelTurn(dir, bankDeg, { turnDeg = null, label = null } = {}) {
         if (mem.rollingOut) bank = 0;
       }
       const mode = mem.t < LEAD.earlyCueSec ? (mem.into ? 'lag' : 'lead') : 'pure';
-      const steep = Math.abs(st.bank) > 45;
       const done = mem.rollingOut && level(st);
-      return { g: gForClimb(st, 0), bank, phase: mem.rollingOut ? 'rolling out' : Math.abs(st.bank) < bankDeg - 2 ? 'rolling in' : 'turning', cue: { mode, latDeg: steep ? 10 : 15 }, done };
+      return { g: gForClimb(st, 0), bank, phase: mem.rollingOut ? 'rolling out' : Math.abs(st.bank) < bankDeg - 2 ? 'rolling in' : 'turning', cue: { mode, latDeg: 15 }, done }; // hold 15° off Lead's current tail (Patrick 22:28Z)
     },
   };
 }
@@ -259,7 +258,7 @@ export function climbOrDescend(sign, bankDeg = 0) {
       const reach = (LEAD.climbPitchDps * DEG) / omega;
       const aim = st.gammaRad + Math.max(-reach, Math.min(reach, want - st.gammaRad));
       const g = Math.max(LEAD.minPushG, gForClimb(st, aim, omega));
-      return { g, bank: bankDeg, phase, cue: { mode: pitchCue(pitchDps), latDeg: Math.abs(bankDeg) > 45 ? 10 : 15 }, done: false };
+      return { g, bank: bankDeg, phase, cue: { mode: pitchCue(pitchDps), latDeg: 15 }, done: false };
     },
   };
 }
