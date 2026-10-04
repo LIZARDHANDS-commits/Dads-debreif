@@ -338,14 +338,17 @@ export function buildCircuit(points, windFromDeg = 360, windKt = 0) {
  * runway, SMM 4.21 paras 50-51). `levelAltFt`, when given, is the height the
  * move-over adds power and levels at, coming down to it on a 3° path (an
  * estimate) if it is higher, until the upwind end (Patrick, 4 Oct 19:01Z).
+ * `holdKias`, when given, is the speed it slows or speeds up to and holds until
+ * the upwind end, the overshoot (the move-over's 120 KIAS: Patrick, 4 Oct
+ * 19:52Z); without it a go-around speeds up toward pattern speed.
  * Returns the path [{ x, y, alt, kt, g, src, phase, headingDeg }].
  */
-export function buildGoAround(points, from, windFromDeg = 360, windKt = 0, sideFt = 0, levelAltFt = null) {
+export function buildGoAround(points, from, windFromDeg = 360, windKt = 0, sideFt = 0, levelAltFt = null, holdKias = null) {
   const rwy = lineOf(points[0], points[1]);
   const r = (rwy.trackDeg + 90) * Math.PI / 180;
   const shift = (p) => ({ ...p, x: p.x + sideFt * Math.sin(r), y: p.y + sideFt * Math.cos(r) });
   const centre = sideFt ? lineOf(shift(points[0]), shift(points[1])) : rwy;
-  const start = { x: from.x, y: from.y, alt: from.alt, ias: from.kias, hdg: from.headingDeg, bank: from.bankDeg ?? 0, levelAltFt };
+  const start = { x: from.x, y: from.y, alt: from.alt, ias: from.kias, hdg: from.headingDeg, bank: from.bankDeg ?? 0, levelAltFt, holdKias };
   return flyOuter(points, centre, 0, { windFromDeg, windKt }, start).track;
 }
 
@@ -396,8 +399,9 @@ function flyOuter(points, centre, breakAlong, wind, goAround = null) {
     // Go-around: level at 2,500 ft to the upwind end (or where it is, if higher), speeding up at full
     // power (a take-off pitch if it has to climb to get there), then trade the extra speed for height
     // down to 180 KIAS.
+    // A move-over held slow to the overshoot has no extra speed to trade: it climbs out at take-off pitch, speeding up to 180.
     if (stage === 'goAround' && legOffsetsFt(th, points[1], s).alongFt >= runwayLen) {
-      stage = 'zoom';
+      stage = s.ias > CIRCUIT.climbKias ? 'zoom' : 'climbOut';
       phase('climb');
       pilot.mark({ src: 1 });
     }
@@ -413,7 +417,12 @@ function flyOuter(points, centre, breakAlong, wind, goAround = null) {
       const levelAlt = goAround.levelAltFt ?? CIRCUIT.goAroundAltFt;
       const mostDown = goAround.levelAltFt == null ? 0 : -ktToFtps(tasKt) * sinDeg(MOVE_OVER_DESCENT_DEG);
       climb = clamp((levelAlt - s.alt) / LEVEL_OFF_SEC, mostDown, takeoffClimb);
-      accel = s.ias >= CIRCUIT.patternKias - 0.01 ? 0 : accelFor(s.ias, s.alt, g, climb);
+      if (goAround.holdKias == null) accel = s.ias >= CIRCUIT.patternKias - 0.01 ? 0 : accelFor(s.ias, s.alt, g, climb);
+      else {
+        // The move-over holds its speed to the overshoot: power back (down to idle) to slow to it, or up to reach it.
+        const toTarget = (ktToFtps(iasToTasKt(goAround.holdKias, s.alt)) - ktToFtps(tasKt)) / DT;
+        accel = clamp(toTarget, Math.min(0, idleDecel(s.ias, s.alt, g)), Math.max(0, accelFor(s.ias, s.alt, g, climb)));
+      }
     } else if (stage === 'zoom') {
       const v = ktToFtps(tasKt);
       const decel = -(s.ias - CIRCUIT.climbKias) * KT_TO_FTPS / ZOOM_SEC;
