@@ -33,6 +33,7 @@ import { tickAircraft, initMode } from './tick-aircraft.js';
 import { startJoin } from './path-follower.js';
 import { makePflFromArea } from './nav-plans.js';
 import { startPflFlight } from './pfl.js';
+import { buildGoAround } from './circuit.js';
 import { buildFullHighKeyRail, HIGH_KEY_PT } from './high-key.js';
 
 /** The step, in seconds of sim time. */
@@ -326,6 +327,47 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     return true;
   }
 
+  /**
+   * A go-around from where the aircraft is (Traffic spec 4.10; Patrick, 4 Oct 09:14Z and 09:18Z):
+   * flown once from its own place, height, speed, heading and bank (circuit.js buildGoAround), so
+   * it starts without a step, then followed by the path follower.
+   */
+  function startGoAround(a) {
+    const pat = routeById('PAT1') ?? setup.routes.find((r) => r.kind === 'pattern');
+    if (!pat) return;
+    const points = buildGoAround(pat.points, {
+      x: a.x, y: a.y, alt: a.alt, kias: a.iasKt ?? a.kt ?? 110, headingDeg: a.headingDeg ?? 298, bankDeg: a.bankDeg ?? 0,
+    }, setup.windFromDeg ?? 360, setup.windKt ?? 0);
+    a.goAroundFlight = { route: { id: 'GO_AROUND_FLOWN', kind: 'flown', name: 'Go-around', points } };
+    a.distFt = 0;
+    a.mode = 'RAIL';
+    a.phase = 'go_around';
+    a.command = 'go_around';
+    a.landed = false;
+    a.active = true;
+    a.engineFailed = false;
+    delete a.joinOffset;
+    delete a.navPlan;
+    delete a._activeCommand;
+    delete a._blendStart;
+    delete a._blendTarget;
+    delete a._blendTimer;
+  }
+
+  /** The end of a flown go-around: settled on the outer downwind, it joins Pattern 1 there. */
+  function goAroundEnded(a) {
+    delete a.goAroundDone;
+    delete a.goAroundFlight;
+    const pat = routeById('PAT1') ?? setup.routes.find((r) => r.kind === 'pattern');
+    if (!pat) { a.active = false; return; }
+    const opt = routeOptions();
+    a.routeId = pat.id;
+    startJoin(a, pat, closestDistFt(pat, a, opt), { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 }, opt);
+    a.phase = posOnRoute(pat, a.distFt, opt).phase || 'downwind';
+    a.mode = 'RAIL';
+    if (a.command === 'go_around') a.command = null;
+  }
+
   /** The end of an entry or split: join the pattern it is linked to, or finish (V6 `handleRouteEnd`, line 365). */
   function handleRouteEnd(a, overshootFt) {
     const route = routeOf(a);
@@ -393,10 +435,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       a.config = undefined;
       a.tag = undefined;
     } else if (done === 'go_around') {
-      a.command = 'go_around';
-      a.mode = 'PHYSICS';
-      a.phase = 'go_around';
       a.pflDecision = null;
+      startGoAround(a);
     } else {
       a.active = false;
       a.landed = false;
@@ -418,6 +458,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       const beforeDist = a.distFt;
       tickAircraft(a, STEP_SEC, wind, route, opt);
       if (a.pflDone) pflEnded(a);
+      if (a.goAroundDone) goAroundEnded(a);
       if (a.mode === 'RAIL' && route && !a.pflRail && !a.pflFlight && !a.pflEndedThisStep) {
         const len = routeLengthFt(route, opt);
         if (route.kind === 'pattern' && a.distFt >= beforeDist) {
@@ -829,6 +870,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       settle();
       const a = aircraft.find((ac) => ac.id === aircraftId);
       if (!a) return false;
+      // A new command stops a flown go-around: back onto Pattern 1 where the aircraft is, then the command.
+      if (a.goAroundFlight) goAroundEnded(a);
       if (action === 'breakout') {
         a.command = action;
         a.landed = false;
@@ -897,15 +940,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         startPflFlight(a, env, { settings: setup.settings });
         a.command = action;
       } else if (action === 'go_around') {
-        a.command = action;
-        a.landed = false;
-        a.active = true;
-        a.engineFailed = false;
-        a.mode = 'PHYSICS';
-        delete a._blendStart;
-        delete a._blendTarget;
-        delete a._blendTimer;
-        a.phase = 'go_around';
+        startGoAround(a);
       } else if (action === 'touch_and_go') {
         a.touchAndGo = true;
         a.landed = false;

@@ -616,6 +616,16 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
   const windKt = wind?.windKt ?? 0;
   const env = { windFromDeg, windKt };
 
+  // ── Go-around: the flown go-around, on the path follower (Traffic spec 4.10) ──
+  // At its end sim.js joins the aircraft onto Pattern 1's downwind (goAroundEnded).
+  if (a.goAroundFlight) {
+    const ga = a.goAroundFlight;
+    const p = followRoute(a, ga.route, env, stepDt, PFL_ROUTE_OPTIONS);
+    a.phase = ga.route.points[Math.min(p.seg ?? 0, ga.route.points.length - 1)]?.phase ?? 'go_around';
+    if (a.distFt >= routeLengthFt(ga.route, PFL_ROUTE_OPTIONS) - 0.5) a.goAroundDone = true;
+    return a;
+  }
+
   // ── PFL: the flown glide, on the path follower (Traffic spec 4.5; refactor PR 3) ──
   if (a.pflFlight) {
     const fl = a.pflFlight;
