@@ -1083,10 +1083,11 @@ export function addTrafficLights(THREE, scene) {
  * host: the element the view puts its canvases in (a box the size of the map). timers: the module's scheduler scope
  * (frame). source: { scene(): the scene map2d draws (routes with path, aircraft, conflicts), settings(): the Traffic
  * settings (paint, layers, caution distance), time(): the sim time in seconds }. onLost(): the graphics context was
- * lost, so 3D has been put away. win: for tests.
+ * lost, so 3D has been put away. onFacing(deg): the compass bearing the top of the picture faces changed (the
+ * camera's yaw; Patrick, 4 Oct: the wind dial turns with the view). win: for tests.
  * Returns { show, hide, requestDraw, camera, isChasing, stats, dispose }.
  */
-export function createView3d({ host, timers, source, onLost = () => {}, win = globalThis }) {
+export function createView3d({ host, timers, source, onLost = () => {}, onFacing = () => {}, win = globalThis }) {
   let THREE = null;
   let fatLines = null; // three's wide lines, loaded with three (loadFatLines); null draws thin lines
   let gl = null; // { canvas, labels, ctx, renderer, scene, camera, sky, kit, palette }
@@ -1098,6 +1099,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
   let resizer = null;
   let dragging = null;
   let drawn = 0;
+  let lastFacing = null; // the bearing last reported to onFacing, whole degrees
   let averageMs = 0;
   let slowestMs = 0;
   let view = /** @type {{ center: { x: number, y: number, z: number }, cam: { yawDeg: number, pitchDeg: number, zoom: number, altScale: number } }} */ ({ center: { x: 0, y: 0, z: 0 }, cam: { yawDeg: 0, pitchDeg: PRESET_PITCH_DEG.fit, zoom: 20, altScale: ALT_SCALE } });
@@ -1513,6 +1515,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     kit.placeGrid(focus, floor);
     kit.setResolution(size.width, size.height);
     matchProjection(THREE, camera, focus, shown, size, 1);
+    const facing = Math.round(finite(shown.yawDeg));
+    if (facing !== lastFacing) { lastFacing = facing; onFacing(facing); }
     renderer.render(threeScene, camera);
     drawLabels(ctx, labels, size, ratio, data, options, palette, { zoom: shown.zoom, floor });
 
@@ -1888,6 +1892,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     isChasing: () => follow !== null,
     /** The Camera menu's current view id (fit, high, top, tower, low, cockpit, padlock) and any note beside it. */
     cameraView: () => ({ view: viewMode, note: noteText }),
+    /** The compass bearing the top of the picture faced at the last frame, whole degrees (0 before any). */
+    facing: () => lastFacing ?? 0,
     target: setTarget,
     currentTarget,
     nextTarget,

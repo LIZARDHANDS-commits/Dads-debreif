@@ -122,6 +122,7 @@ function mount(root, app) {
       time: () => sim.t,
     },
     onLost: () => noteAndReturnTo2d('3D stopped: the graphics were reset. Switch 3D on to start it again.'),
+    onFacing: (deg) => { if (shown === '3d') setupPanel.setFacing(deg); }, // the wind dial turns with the 3D view
   });
   let shown = '2d'; // the picture on screen; the View setting is what the person asked for
   let wantView = '2d';
@@ -144,6 +145,7 @@ function mount(root, app) {
       shown = '2d';
       view3d.hide(); // frees the renderer, the sky, every geometry and material
       ui.setView('2d');
+      setupPanel.setFacing(0); // the 2D map is north up
       for (const key of LAYERS_2D_ONLY) controls.setDisabled(key, false);
       if (!keepNote) ui.setNote3d('');
       map.requestDraw();
@@ -163,6 +165,7 @@ function mount(root, app) {
     ui.setNote3d('');
     shown = '3d';
     ui.setView('3d');
+    setupPanel.setFacing(view3d.facing?.() ?? 0);
     for (const key of LAYERS_2D_ONLY) controls.setDisabled(key, true);
     view3d.requestDraw();
   }

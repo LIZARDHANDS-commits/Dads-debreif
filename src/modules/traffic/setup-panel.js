@@ -188,7 +188,7 @@ export function createSetupPanel({ controls, settings, onScenario }) {
   const fromPointer = (e) => {
     const box = canvas.getBoundingClientRect?.();
     if (!box || !box.width) return;
-    setFrom(dialBearing(e.clientX - (box.left + box.width / 2), e.clientY - (box.top + box.height / 2)));
+    setFrom(dialBearing(e.clientX - (box.left + box.width / 2), e.clientY - (box.top + box.height / 2)) + facing); // the dial may be turned
   };
   let dragging = false;
   dial.addEventListener('pointerdown', (e) => {
@@ -232,7 +232,9 @@ export function createSetupPanel({ controls, settings, onScenario }) {
     ctx.clearRect(0, 0, DIAL_PX, DIAL_PX);
     const c = DIAL_PX / 2, r = c - 14;
     const text = token('--text', '#e5edf5'), muted = token('--text-muted', '#8aa0b4'), accent = token('--accent', '#38bdf8'), card = token('--bg-sunken', '#0b1620');
-    const polar = (deg, radius) => [c + radius * Math.sin((deg * Math.PI) / 180), c - radius * Math.cos((deg * Math.PI) / 180)];
+    // Turned by the bearing the picture's top faces (0 in 2D, the camera's in 3D), so N, the runway and the wind
+    // arrow sit on the dial as they do on screen (Patrick, 4 Oct).
+    const polar = (deg, radius) => [c + radius * Math.sin(((deg - facing) * Math.PI) / 180), c - radius * Math.cos(((deg - facing) * Math.PI) / 180)];
     ctx.fillStyle = card;
     ctx.beginPath(); ctx.arc(c, c, r, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = muted; ctx.lineWidth = 1; ctx.stroke();
@@ -270,11 +272,19 @@ export function createSetupPanel({ controls, settings, onScenario }) {
     if (components.textContent !== words) components.textContent = words;
     draw(values);
   }
+  let facing = 0; // the compass bearing at the top of the dial: the picture's, so the dial matches the screen
   show(settings.get());
   const stopSettings = settings.subscribe(show);
 
   return {
     element,
+    /** Turns the dial so `deg` (the compass bearing the top of the picture faces) is at its top; 0 is north up. */
+    setFacing(deg) {
+      const next = ((Math.round(Number(deg) || 0) % 360) + 360) % 360;
+      if (next === facing) return;
+      facing = next;
+      draw(settings.get());
+    },
     /** Shows the scenario loaded in the drop-down, or none ("Choose a scenario"). */
     setActive(id) {
       showScenario(id);
