@@ -1,6 +1,6 @@
-// Checks: the Energy Result card words: speed, altitude, G, the move chosen, flags (OVER G, STALL), first
+// Checks: the Energy Result card words: speed, altitude, G, the move chosen, flags (OVER G, STALL, OVERSPEED, BELOW DECK), first
 //   nose-on, winner or "No winner", altitude summary and table, kill and collision rows.
-// Serves: TF-R16, TF-R17, TF-R9, TF-R4.
+// Serves: TF-R16, TF-R17, TF-R9, TF-R4, TF-R6.
 // Expected values: the setup's own inputs (220 KIAS, 10,000 ft, 1 G at T+0), the 160 KIAS MPT (SMM 14.14), and times
 //   worked out from hand-made state. Exact card sentences, row lists and the move picked at the start are not
 //   pinned (Patrick, 4 Oct 11:48Z).
@@ -53,6 +53,18 @@ test('the flags are words: OVER G, STALL, both, or None; the tone is on for any 
   assert.equal(flagText({ overG: true, stall: false }), 'OVER G');
   assert.equal(flagText({ overG: false, stall: true }), 'STALL');
   assert.equal(flagText({ overG: true, stall: true }), 'OVER G + STALL');
+});
+
+test('a jet below the hard deck shows BELOW DECK with its reason, and keeps flying (TF-R6: flagged, not stopped)', () => {
+  const fight = createEnergyFight({ pursuit: 'none' });
+  assert.ok(!fight.blue.belowDeck, 'not flagged above the deck');
+  fight.blue.pm.z = fight.setup.hardDeckFt - 500; // put it under the deck directly: the rule, not a story that gets it there
+  stepEnergyFight(fight, 0.02);
+  assert.ok(fight.blue.belowDeck, 'flagged below the deck');
+  assert.notEqual(flagText(fight.blue), 'None');
+  assert.ok(flagNotes(fight).some((n) => n.startsWith('Blue BELOW DECK: ')), flagNotes(fight).join(' | '));
+  for (let i = 0; i < 5 / 0.02; i++) stepEnergyFight(fight, 0.02);
+  assert.ok(!fight.stopped && Number.isFinite(fight.blue.altFt), 'the fight carries on');
 });
 
 test('a pull past the rolling limit goes OVER G, and the card says so in words, with the reason', () => {

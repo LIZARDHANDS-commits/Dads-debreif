@@ -21,13 +21,15 @@ export function flagAnnouncement(state) {
     const ac = state[who];
     if (ac.overG) parts.push(`${NAMES[who]} OVER G`);
     if (ac.stall) parts.push(`${NAMES[who]} STALL`);
+    if (ac.overSpeed) parts.push(`${NAMES[who]} OVERSPEED`);
+    if (ac.belowDeck) parts.push(`${NAMES[who]} BELOW DECK`);
   }
   return parts.join(', ');
 }
 
-/** The words for a flag (SPEC "Two flags only"): OVER G, STALL, both, or "None". */
+/** The words for the flags that are on (SPEC "Flags"): OVER G, STALL, OVERSPEED, BELOW DECK, joined with +, or "None". */
 export function flagText(ac) {
-  const flags = [ac.overG && 'OVER G', ac.stall && 'STALL'].filter(Boolean);
+  const flags = [ac.overG && 'OVER G', ac.stall && 'STALL', ac.overSpeed && 'OVERSPEED', ac.belowDeck && 'BELOW DECK'].filter(Boolean);
   return flags.length ? flags.join(' + ') : 'None';
 }
 
@@ -41,6 +43,8 @@ export function flagNotes(state) {
     const ac = state[who];
     if (ac.overG) notes.push(`${NAMES[who]} OVER G: ${ac.overGReason}`);
     if (ac.stall) notes.push(`${NAMES[who]} STALL: ${ac.stallReason}`);
+    if (ac.overSpeed) notes.push(`${NAMES[who]} OVERSPEED: ${ac.overSpeedReason}`);
+    if (ac.belowDeck) notes.push(`${NAMES[who]} BELOW DECK: ${ac.belowDeckReason}`);
   }
   return notes;
 }
@@ -113,8 +117,8 @@ export function energyResultRows(state) {
     pair('move', 'Move', 'result', blue.moveLabel, red.moveLabel),
     pair('toMpt', 'To the MPT', 'result', toMpt(blue), toMpt(red)),
     pair('flags', 'Flags', 'result', flagText(blue), flagText(red), {
-      blueTone: blue.overG || blue.stall ? 'alert' : '',
-      redTone: red.overG || red.stall ? 'alert' : '',
+      blueTone: flagText(blue) !== 'None' ? 'alert' : '',
+      redTone: flagText(red) !== 'None' ? 'alert' : '',
     }),
     text('range', 'Range', 'result', `${(state.rangeFt / FT_PER_NM).toFixed(2)} NM`),
     text('firstNose', 'First nose-on', 'result', energyFirstNoseText(state)),

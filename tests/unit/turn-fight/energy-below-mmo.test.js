@@ -1,10 +1,9 @@
 // Checks: the Energy engine and the T-6A top speed: the merge-speed limit at each height, speeds over it
-//   refused, the AI's chosen speed stays under the NFM line, and a jet forced past it keeps flying.
+//   refused, the AI's chosen speed stays under the NFM line, and a jet forced past it keeps flying and shows OVERSPEED.
 //   The Immelmann reason sentence is not pinned.
 // Serves: TF-R4, TF-R6.
 // Expected values: NFM Figure 4-1-2 (Fig 5-3, p.5-9): 316 KIAS to 18,769 ft, 244 KIAS at 31,000 ft, worked out
-//   in nfm-limit.js, read to 2 KIAS; the engine's own margin is not checked; no top-speed flag exists yet to
-//   test.
+//   in nfm-limit.js, read to 2 KIAS; the engine's own margin is not checked.
 
 // The Energy engine and the T-6A's top speed (TF-R4, Turn Fight testing rule F3, T10; SPEC-turn-fight, "Limits").
 //
@@ -15,9 +14,7 @@
 // What is NOT checked here: how far under the NFM line the engine keeps its own limit. The engine flies in the model's IAS, which has
 // no compressibility, so its limit sits under the NFM's KIAS line up high; that margin is the model's business, not a requirement.
 //
-// Not testable yet (reported to Patrick): that a jet forced past the top speed SHOWS A FLAG. The engine has two flags only,
-// OVER G and STALL (energy-readouts.js flagText); nothing flags the top speed or the hard deck. TF-R4 and TF-R6 want both.
-// When the engine gets those flags, the forced-past test below gets its "shows the flag" check.
+// A jet forced past the engine's top speed shows OVERSPEED (TF-R4), checked in the forced-past test below.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { T6A_LIMITS, maxKiasT6A, iasToTasKt, speedOfSoundKt } from '../../../src/core/t6-performance.js';
@@ -194,17 +191,20 @@ test('a chaser starting fast at 25,000 ft keeps its nose up the faster it is, to
 
 // Entry speeds are legal merge speeds (under the line at the start height) chosen so the dive really crosses the line: with G and roll
 // now building at the onset rates the split S is flatter at the bottom, so 265 KIAS from 10,000 ft only just reaches the 316 KIAS line.
-test('a jet forced past the NFM line (a split S from a fast merge) goes past it and keeps flying: nothing holds it at the limit, and the fight carries on to a steady turn', () => {
+test('a jet forced past the NFM line (a split S from a fast merge) goes past it, shows OVERSPEED and keeps flying: nothing holds it at the limit, and the fight carries on to a steady turn', () => {
   for (const [altFt, kias] of [[10000, 300], [25000, 265]]) {
     const s = createEnergyFight({ blueAltFt: altFt, redAltFt: altFt, blueKias: kias, redKias: kias, blueMove: 'splitS', redMove: 'splitS', pursuit: 'none' });
     let fastest = 0;
     let lineAtFastest = Infinity;
+    let flagged = false;
     for (let i = 0; i < FLIGHT_SEC / FIGHT_STEP_SEC; i++) {
       stepEnergyFight(s, FIGHT_STEP_SEC);
       if (s.blue.kias > fastest) { fastest = s.blue.kias; lineAtFastest = nfmTopKias(s.blue.altFt); }
+      if (s.blue.overSpeed) flagged = true;
     }
     // The what-if has to be a real one: the dive must have gone past the line (at the height it was flown at), or this test says nothing about being held at it.
     assert.ok(fastest > lineAtFastest + 1, `the forced split S from ${altFt} ft went past the NFM line (fastest ${fastest.toFixed(0)} KIAS, line ${lineAtFastest.toFixed(0)})`);
+    assert.ok(flagged, 'OVERSPEED showed while it was past the top speed (TF-R4)');
     assert.ok(!s.stopped, 'the fight is not stopped by it');
     assert.ok(Math.abs(s.timeSec - FLIGHT_SEC) < 1, 'the fight clock kept running');
     for (const k of ['kias', 'altFt', 'g', 'bankDeg', 'climbDeg']) assert.ok(Number.isFinite(s.blue[k]), `blue.${k} is finite`);
