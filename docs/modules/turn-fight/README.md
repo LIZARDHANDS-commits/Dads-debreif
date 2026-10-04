@@ -6,7 +6,7 @@ This folder is the turn fight: two aircraft manoeuvring against each other, with
 
 Built much further than the old file; the roadmap calls it ready for Patrick, and the reset found gaps between what Patrick decided and what is built (top-speed and hard-deck flags, pull G on screen, extra-stats panel) (`archive/HANDOVER.md:90`, `pf/reset/4-decisions/partb-turnfight.md:15`).
 
-Energy pilot (4 Oct): TF-57 PR 1 and 2 merged, and PR 3 merged as #297 (v2.11): one Smart pilot (TF-59), below the deck loses and climbs out (TF-R6), a deck guard and a collision break in every move, and a chase that can end (TF-58). Not yet seen on screen by Patrick.
+Energy pilot (4 Oct): TF-57 PR 1 and 2 merged, and PR 3 merged as #297 (v2.11): one Smart pilot (TF-59), below the deck loses and climbs out (TF-R6), a deck guard and a collision break in every move, and a chase that can end (TF-58). Then #309 (v2.12): the Smart pilot picks its next move at once and keeps under the top speed. Not yet seen on screen by Patrick.
 
 On screen the module is called "Pat's Fight and Turn Sim" (TF-60, v2.13); the folder and id stay `turn-fight`.
 
