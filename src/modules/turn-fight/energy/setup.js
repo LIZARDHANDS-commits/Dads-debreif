@@ -146,6 +146,8 @@ export const TUNING = Object.freeze({
   levelBankMaxDeg: 88,        // model setting: the most bank the level MPT uses to hold its height
   chaseGainPerSec: 2,         // model setting: pursuit asks for this much turn rate per radian of pointing error
   immelmannRollStartDeg: 25,  // model setting: the roll upright starts this far above level on the way down the back (SMM 14.15)
+  chaseLostAtaDeg: 90,        // model setting (estimate, TF-57 PR 3): a chaser whose nose stays more than this far off the other has lost the shot
+  chaseLostSec: 2,            // model setting (estimate): for this long, then the chase ends and the jet flies the MPT and picks again
   moveMaxSec: 60,             // model setting: a move that has not ended by now hands over
   minKtas: 15,                // model setting: the point-mass step needs speed above zero; a stalled jet is kept at least this fast
   levelDoneDeg: 2,            // model setting: a level-off is done within this of level

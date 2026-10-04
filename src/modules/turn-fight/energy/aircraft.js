@@ -11,6 +11,7 @@ import { scale, unit, clamp, velOf, physicalBankDeg } from './frame.js';
 import { controlFor, isRolling } from './moves/index.js';
 import { handOver, reconsiderInMpt } from './pilot.js';
 import { smoothInputs } from './smoothing.js';
+import { avoidCollision } from './moves/avoid.js';
 
 /** (thrust − drag) ÷ weight at a throttle: 1 is maximum power, through core's function; less scales the thrust only. */
 export function excessFnFor(throttle) {
@@ -125,12 +126,12 @@ export function stepAircraft(state, ac, other, d) {
   }
 
   // A move that has ended hands to the next one (the pilot decides).
-  handOver(state, ac, other, kias);
+  handOver(state, ac, other, kias, d);
 
   const ctx = { state, ac, other, p, f, kias, d, shaker: shakerG(kias, p) };
-  // In the MPT the Tactical pilot may pick a new move first; then the move flies, and its inputs go through the smoothing layer.
+  // In the MPT the pilot may pick a new move first; then the move flies, a close collision overrides it with a dodge, and the inputs go through the smoothing layer.
   reconsiderInMpt(ctx);
-  const cmd = smoothInputs(ac, controlFor(ctx), d, p);
+  const cmd = smoothInputs(ac, avoidCollision(ctx, controlFor(ctx)), d, p);
 
   // A forced G is pulled as it is, past the stall line if need be.
   // In normal flight, the model pilot rides the stick shaker to stay out of high-speed / accelerated stall.
