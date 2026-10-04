@@ -223,6 +223,19 @@
   margin-bottom: var(--space-3);
 }
 
+/* Fix tools: the four tick boxes under "#2 then", styled like the .ts-check rule below. */
+[data-module='turn-sim'] .ts-fix-tools {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) 0 0;
+  border: 0;
+}
+
+[data-module='turn-sim'] .ts-fix-tools > legend {
+  padding: 0;
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+
 [data-module='turn-sim'] .ts-error-set {
   color: var(--text-muted);
   font-size: var(--text-sm);

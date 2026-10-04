@@ -93,7 +93,7 @@ function cardFor(state, wingSide) {
     ships: state.aircraft.map((a) => ({
       id: a.id,
       name: a.name,
-      text: `${a.kias} KIAS, ${String(compassDeg(a.headingRad)).padStart(3, '0')}, ${bankText(a.bankDeg)}, ${a.g.toFixed(1)} G`,
+      text: `${Math.round(a.kias)} KIAS, ${String(compassDeg(a.headingRad)).padStart(3, '0')}, ${bankText(a.bankDeg)}, ${a.g.toFixed(1)} G`, // the Speed/power fix changes #2's speed
     })),
   };
 }
@@ -292,6 +292,7 @@ function mount(root, app) {
   // Setup changes start again from t = 0 (spec section 4), 2-ship or 4-ship too. A spacing outside the SMM band is flown and flagged.
   const stopSetup = setup.subscribe((values) => {
     ui.setShips(values.ships, fourShipLine());
+    ui.setFixTools(values.errResponse !== 'reference');
     ui.setSide(values.wingSide);
     ui.setSpacingFlag(checkSpacing(values.spacingFt).flag);
     resetRun();
@@ -323,6 +324,7 @@ function mount(root, app) {
   });
 
   ui.setShips(setup.get().ships, fourShipLine());
+  ui.setFixTools(setup.get().errResponse !== 'reference');
   ui.setSide(setup.get().wingSide);
   ui.setSpacingFlag(checkSpacing(setup.get().spacingFt).flag);
   ui.applyLayout(layout.get());

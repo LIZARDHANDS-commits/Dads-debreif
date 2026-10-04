@@ -324,11 +324,12 @@ const SETS = [
 ];
 
 test('a fix is flown inside what the aircraft can do: bank and G inside the fix limits, roll rate 90°/s, roll build-up 360°/s², speed constant', () => {
+  // Speed/power unticked: this checks the constant-speed fix (V2.8). Speed changes (Patrick, 4 Oct 11:42Z) are checked below, "Fix tools".
   const stepFt = TAS_FTPS * STEP_SEC;
   const [, bankMax] = FIX_LIMITS.bankDeg;
   for (const [name, options] of SETS) {
     for (const [key, dir] of [['delayed90', 1], ['delayed90', -1], ['delayed45', 1], ['check', 1], ['inPlace90', -1], ['hook', 1], ['hook', -1], ['shackle', 0], ['crossTurn', 0]]) {
-      const f = createFormation(options);
+      const f = createFormation({ ...options, fixSpeed: false });
       f.press(key, dir);
       fly(f, (before, after) => {
         after.forEach((a, i) => {
@@ -371,6 +372,65 @@ test('every hand-over is still smooth with errors: no jump in position, track, b
       });
     }
   }
+});
+
+// ---- Fix tools (Patrick, 4 Oct 11:42Z) --------------------------------------------------------------------------------------------
+
+const TOOLS_OFF = { fixGeometry: false, fixVertical: false, fixSpeed: false, fixLateral: false };
+
+test('Fix tools, all ticked: a 1,200 ft fore/aft error and a 1,500 ft spacing error end in the SMM picture after a Delayed 90 (±100 ft)', () => {
+  for (const wingSide of SIDES) {
+    const side = sideSign(wingSide);
+    for (const dir of [1, -1]) {
+      for (const error of [AHEAD, BEHIND, WIDE, TIGHT, { ...BEHIND, ...WIDE }]) {
+        const { rel, f } = flown({ wingSide, ...error, ...FIX }, 'delayed90', dir);
+        const d = distance(rel, smmPicture('delayed90', dir, side));
+        assert.ok(d <= MARGIN_FT, `Delayed 90 ${dir}, ${JSON.stringify(error)}, #2 on the ${wingSide}: ${d.toFixed(0)} ft out`);
+        const [lead, wing] = f.state.aircraft;
+        assert.ok(Math.abs(wing.kias - lead.kias) < 0.01, 'back on Lead\'s speed at the end');
+      }
+    }
+  }
+});
+
+/** How many times #2 rolls into a turn in each manoeuvre, from the SMM figures (Figs 16.15, 16.18, 16.20, 16.21). */
+const ROLL_INS = { delayed90: 1, check: 1, shackle: 2, crossTurn: 1 };
+
+test('Fix tools: an unticked tool is never used', () => {
+  const cases = [['delayed90', 1], ['check', -1], ['shackle', 0], ['crossTurn', 0]];
+  for (const [key, dir] of cases) {
+    for (const error of [{ ...AHEAD, ...WIDE }, { ...BEHIND, ...TIGHT, ...HIGH, ...LATE }]) {
+      // Speed/power and Lateral spacing unticked (Geometry and Vertical, V2.8's fix): speed constant, and once #2 has
+      // rolled out of the manoeuvre's own last turn he doesn't bank again.
+      const f = createFormation({ ...error, ...FIX, fixSpeed: false, fixLateral: false });
+      f.press(key, dir);
+      let rollIns = 0;
+      fly(f, ([, w0], [, w1]) => {
+        assert.equal(w1.kias, w0.kias, `${key}: speed changed with Speed/power unticked`);
+        if (w0.bankDeg === 0 && w1.bankDeg !== 0) rollIns++;
+      });
+      assert.equal(rollIns, ROLL_INS[key], `${key}: rolled in ${rollIns} times; a heading fix after the roll-out with Lateral unticked`);
+
+      // Vertical unticked: the height error stays (outside a crossing turn's own miss, which always ends where it started).
+      if (error.errHeight) {
+        const g = createFormation({ ...error, ...FIX, fixVertical: false });
+        g.press(key, dir);
+        fly(g);
+        const [lead, wing] = g.state.aircraft;
+        assert.ok(Math.abs(wing.altAboveFt - lead.altAboveFt - 500) <= MARGIN_FT, `${key}: Vertical unticked, still 500 ft high (${(wing.altAboveFt - lead.altAboveFt).toFixed(0)})`);
+      }
+
+      // Geometry unticked: #2 flies the manoeuvre's standard bank (the roll-out fix banks gentler), never a fix bank.
+      const h = createFormation({ ...error, ...FIX, fixGeometry: false });
+      h.press(key, dir);
+      const standard = Math.max(...h.state.plans[1].segments.filter((s) => s.kind === 'turn').map((s) => s.bankDeg));
+      fly(h, (_b, [, w]) => assert.ok(Math.abs(w.bankDeg) <= standard + 0.5, `${key}: bank ${w.bankDeg.toFixed(1)} with Geometry unticked`));
+    }
+  }
+  // Everything unticked: Fix it flies as Turn at normal reference does, on the ground.
+  const off = flown({ ...BEHIND, ...WIDE, ...FIX, ...TOOLS_OFF }, 'hook', 1).rel;
+  const ref = flown({ ...BEHIND, ...WIDE, ...REFERENCE }, 'hook', 1).rel;
+  assert.ok(distance(off, ref) < 1, 'no tools: the error carries');
 });
 
 // ---- the card, the second press, the random error ------------------------------------------------------------------------------
