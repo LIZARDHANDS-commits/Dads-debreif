@@ -164,7 +164,8 @@ function finalToAim(geo, aimAlongFt) {
   const aim = geo.along(aimAlongFt);
   const beyond = geo.along(Math.min(geo.lenFt, aimAlongFt + 3000));
   const td = geo.along(PFL.touchdownFt);
-  const first = aimAlongFt > PFL.touchdownFt + 1 ? [{ x: td.x, y: td.y, plan: 3, key: 'touchdown' }] : [];
+  // The first 1,000 ft point only when aiming a third down or shorter; a direct glide landing long lines up beyond it.
+  const first = aimAlongFt > PFL.touchdownFt + 1 && aimAlongFt <= geo.aimAlongFt + 1 ? [{ x: td.x, y: td.y, plan: 3, key: 'touchdown' }] : [];
   return [...first, { x: aim.x, y: aim.y, plan: 3, key: 'aim' }, { x: beyond.x, y: beyond.y, plan: 3, key: 'rollout' }];
 }
 
