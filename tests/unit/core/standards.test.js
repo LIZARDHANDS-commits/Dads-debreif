@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: formation standards labels: #2 at 5,000 ft abeam on parameters, tight, wide or fore; #3 offset; sweep 0 to 10 degrees behind the 3/9 line; lead speed by height.
+// Serves: DB-R9, DB-R10, TS-R24.
+// Expected values: SMM 16.18 para 49, SMM 16.42 para 116 and Gen Book p.12 as cited in the test, and Patrick's rulings (D78, D114 to D116).
 
 // What the standards labels mean, on simple formations, including Patrick's
 // fix for #21 (D78), with what V6 said instead.

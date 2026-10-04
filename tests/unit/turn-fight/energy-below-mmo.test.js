@@ -1,13 +1,9 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the Energy engine and the T-6A top speed: the merge-speed limit at each height, speeds over it
+//   refused, the AI's chosen speed stays under the NFM line, and a jet forced past it keeps flying.
+// Serves: TF-R4, TF-R6.
+// Expected values: NFM Figure 4-1-2 (Fig 5-3, p.5-9): 316 KIAS to 18,769 ft, 244 KIAS at 31,000 ft, worked out
+//   in nfm-limit.js, read to 2 KIAS; the engine's own margin is not checked; no top-speed flag exists yet to
+//   test.
 
 // The Energy engine and the T-6A's top speed (TF-R4, Turn Fight testing rule F3, T10; SPEC-turn-fight, "Limits").
 //

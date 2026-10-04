@@ -1,6 +1,6 @@
 # flight-data: flight tracks for the debrief
 
-Reads ForeFlight track logs (KML), puts up to four aircraft on one map and one playback window, and says where each one was and what it was doing at any moment. The debrief's 2D map, 3D view, readouts and EM chart all read from here. The spec is [`specs/SPEC-flight-data.md`](../../specs/SPEC-flight-data.md).
+Reads ForeFlight track logs (KML), puts up to four aircraft on one map and one playback window, and says where each one was and what it was doing at any moment. The debrief's 2D map, 3D view, readouts and EM chart all read from here. The spec is [`docs/modules/debrief/spec.md`](../../docs/modules/debrief/spec.md).
 
 | File | What's in it |
 |---|---|
@@ -15,7 +15,7 @@ Reads ForeFlight track logs (KML), puts up to four aircraft on one map and one p
 
 ## Changing something
 
-- **Every number here matches V6 except the approved changes.** Each function names the V6 line it came from, and `tests/golden/flight-data-*.test.js` runs that V6 code next to it. The changes the spec approved (C1 to C10: blank columns, recorded bank, bad fixes, gaps and so on) each landed as their own commit, and the golden tests say exactly where each one differs from V6.
+- **Numbers come from the spec and the manuals, not V6** (`docs/TESTING.md`). Each function names the V6 line it started from, as history. The changes the spec approved (C1 to C10: blank columns, recorded bank, bad fixes, gaps and so on) each landed as their own commit.
 - **A track file is untrusted.** Never put anything from it (a name, a note) into `innerHTML`; the screen uses `textContent`. Size limits live at the top of `kml.js`, `xml.js` and `debrief-file.js`. They count characters of text, not bytes on disk (a 30-million-character file can be larger on disk), so whoever opens the file should also check its size first.
 - **Units are in the names:** `altM` metres, `altFt` feet, `xFt`/`yFt` feet east/north of the map's origin, `t` seconds since 1970, `speedKt` knots of ground speed. Headings are radians, 0 = east, counter-clockwise (`core`'s rule).
 
@@ -23,7 +23,6 @@ Reads ForeFlight track logs (KML), puts up to four aircraft on one map and one p
 
 ```
 npm test
-python3 tests/golden/checks/mutate-flight-data.py        # the tests must catch broken code
-NODE_PATH=$(npm root -g) node tests/golden/checks/xml-parity.cjs          # xml.js vs the browser's parser
-NODE_PATH=$(npm root -g) node tests/golden/checks/record-flight-data.cjs  # re-record V6's reader (rarely needed)
 ```
+
+The old V6 comparison scripts are archived in `archive/tests/golden/checks/` (Q-T8).

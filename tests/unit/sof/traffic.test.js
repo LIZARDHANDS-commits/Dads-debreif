@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the SOF traffic layer's model: hostile relay replies rejected, aircraft fade with age, the layer asks again
+//   on a schedule, answers carry their request id.
+// Serves: SOF-R17, SOF-R24 (the relay layer is on the future list, SOF-Q9; this file leaves when it is archived).
+// Expected values: one real-shaped reply (adsb.lol sample through relay/lib.js, traffic-relay-reply.json); hostile
+//   replies hand-written; 20 s, 10 s and 30 s are design choices.
 
 // Tests for src/modules/sof/traffic.js: the SOF traffic layer's model, decided
 // in Node (SPEC-sof, "Live traffic layer, through our own relay" and "Security").

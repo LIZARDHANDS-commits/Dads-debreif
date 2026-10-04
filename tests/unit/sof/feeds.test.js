@@ -1,13 +1,9 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the map's data feeds: ECCC WMS address and layer list, reading GetCapabilities, mercator numbers,
+//   RainViewer backup, stale times, and a hostile 256 KB reply.
+// Serves: SOF-R15, SOF-R16.
+// Expected values: real replies captured 2026-09-30 about 07:20Z (tests/fixtures/sof); mercator constants are the
+//   published Web Mercator values; stale limits (radar 20, lightning 40, cloud 60 minutes) are design choices from
+//   the SOF spec and F3.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

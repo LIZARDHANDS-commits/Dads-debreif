@@ -1,13 +1,7 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the test-only stand-in page (fake DOM) runs capture listeners first in the order added and handles
+//   once listeners; it checks a test helper, not the app.
+// Serves: none named yet (design check).
+// Expected values: the browser's own event-listener rules (standard behaviour). No flight numbers.
 
 // The stand-in DOM's listener rules the traffic tests lean on: capture listeners run first, in the order they were added;
 // `{ once: true }` is not a capture listener and runs once; `{ capture: true }` and `true` both mean capture.

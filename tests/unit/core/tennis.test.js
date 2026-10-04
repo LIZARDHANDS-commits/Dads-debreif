@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the tennis ball on simple flights: level and straight intercepts, nose-up tilt, climbing and turning targets, cone width of 3 degrees either side for 6.
+// Serves: DB-R19.
+// Expected values: Patrick's rulings Q33 to Q37 (30 Sep 2026) and straight-line geometry; the printed "INTERCEPT 105 ft" style strings are the code's own rounded output (register, T3).
 
 // The tennis ball on simple flights: what Patrick decided on 2026-09-30
 // (Q33 to Q37, tasks/flight-math/tennis-ball.md), against known answers.

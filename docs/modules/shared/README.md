@@ -4,7 +4,7 @@ This folder is the shared parts every module uses: flight core (flight math), ap
 
 ## Where it stands
 
-Built and merged on main; waiting on the flight-math list, the one-import-point review and the combined sign-off at the end (`HANDOVER.md:92`, `HANDOVER.md:94`).
+Built and merged on main; waiting on the flight-math list, the one-import-point review and the combined sign-off at the end (`archive/HANDOVER.md:92`, `archive/HANDOVER.md:94`).
 
 ## What is next
 
@@ -27,7 +27,7 @@ Each has a working answer that the tool uses until it is settled.
 
 ### Waiting on Patrick now (also on the list in `../../PLAN.md`)
 
-- **PROTOTYPE flags** come off only at the combined sign-off (`HANDOVER.md:103`).
+- **PROTOTYPE flags** come off only at the combined sign-off (`archive/HANDOVER.md:103`).
 
 Dad's flying questions for every module are in `../../questions-for-dad.md`.
 

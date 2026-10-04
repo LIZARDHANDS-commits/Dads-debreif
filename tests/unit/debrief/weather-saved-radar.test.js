@@ -1,13 +1,9 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the saved-radar rules: who is offered it, which frames, the box, image size, addresses, size limits, the
+//   file block with hostile-input checks, playback lookup.
+// Serves: DB-R25 (hostile input); otherwise none named yet (saved radar is on the future list, DB-Q19; leaves when
+//   archived).
+// Expected values: typed-in numbers and strings (3 hours, 25 MB, 1.5 MB, 100 frames, 36 MiB are design choices,
+//   decision D275); ECCC host and layer names; one longitude figure worked out by hand.
 
 // Saved radar and lightning, the plain parts (SPEC-debrief: Saved radar and
 // lightning, task 12f): who is offered it, which frames, the size limit and

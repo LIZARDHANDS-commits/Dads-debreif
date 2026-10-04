@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the settings menu starts closed, opens and closes, sections are in order, one Reset button stays last, and Escape closes it and returns focus.
+// Serves: ALL-R6, ALL-R11.
+// Expected values: design choice: labels and order typed in the test.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';

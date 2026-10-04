@@ -1,13 +1,7 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the last weather slice at or before the moment (never a later one), slices too old dropped, frames to
+//   fetch, scrubber ticks, nearest airfield, age words.
+// Serves: DB-R18.
+// Expected values: typed-in times and strings; the airfield list comes from src/airfields/catalog.js.
 
 // Weather slices (SPEC-debrief: Weather at the time of the flight): the last
 // slice at or before the moment, never one from the future, with its age.

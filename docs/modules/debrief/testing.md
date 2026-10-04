@@ -74,7 +74,7 @@ Anyone can run it, in the real app, from the module's default start, on a laptop
 
 > The old checklist below was written before the reset. It is refreshed against the requirements above when the module's work resumes: lines that test V6 numbers or exact times are rewritten or dropped.
 
-### Carried over from `docs/checklists/debrief.md`
+### Carried over from `archive/docs/checklists/debrief.md`
 
 #### Sign-off checklist: the Debrief Viewer
 
@@ -165,7 +165,7 @@ From the ratified test register (`pf/reset/5-testing/test-register.md`, Part B).
 | `tests/unit/debrief/attitude.test.js` | Keep | DB-R15; independent geometry, an invariant over 240 attitudes (T1) | | Each change |
 | `tests/unit/debrief/debrief-session.test.js` | Keep | DB-R17, DB-R25; round trips and hostile-file checks (T1). The saved-radar block in the file goes when that feature is archived (DB-Q19) | | Each change |
 | `tests/unit/debrief/dfp.test.js` | Keep | DB-R16, DB-R25 | | Each change |
-| `tests/unit/debrief/em.test.js` | Retire | DB-R20: the EM chart was dropped by Patrick on 4 Oct; nothing else uses `em.js` | | |
+| `archive/tests/unit/debrief/em.test.js` | Retire | DB-R20: the EM chart was dropped by Patrick on 4 Oct; nothing else uses `em.js` | | |
 | `tests/unit/debrief/export-csv.test.js` | Rewrite (one test) | DB-R17 is kept. The wind test checks Lead only, and DB-R8 now says every ship (D3) | Every ship's IAS in the CSV uses the same wind when Winds aloft is on, and reads "(no wind)" when off | Each change |
 | `tests/unit/debrief/frame.test.js` | Rewrite (three tests) | T3: the camera drag and zoom steps are V6's numbers (yaw −31, pitch 51, zoom 78.4 and 62.3). The grid and ship-placement tests are kept | Dragging turns the view the way the mouse moves; zoom reaches the whole sortie and a close view and stops at its limits; the datum line sits at the ground | Each change |
 | `tests/unit/debrief/geometry.test.js` | Rewrite (three tests) | T3: expected positions are labelled "V6 line 3027" and similar. DB-R14 keeps the layers | The same layers checked against their definitions, worked out in the test: the 3/9 line is square to the ship's heading through the ship; the cone opens by the setting's angle; trails break at GPS gaps | Each change |

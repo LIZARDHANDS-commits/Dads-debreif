@@ -241,7 +241,7 @@ before writing any synthesis, ledger or register entry. The rules, by number (ci
 - **§4.1a Raised vs reviewed** — label every count (raised / reviewed / survived / accepted); a cap is not a count.
 - **§4.2 Status levels** — DRAFT → PROMOTED → AUTHORITATIVE (Patrick only); a synthesis never declares GO.
 - **§4.3 Follow-up audit** — a second swarm produces a recommendations-only delta; extract to `ADDENDUM.md`; archive the audit.
-- **§4.4 Agents report, the orchestrator promotes** — agents never write registers or assign numbers; file-per-agent reports; numbers at ratification; dedupe against the open registers; the run folder moves to `docs/archive/swarm/` after promotion.
+- **§4.4 Agents report, the orchestrator promotes** — agents never write registers or assign numbers; file-per-agent reports; numbers at ratification; dedupe against the open registers; the run folder moves to `archive/swarm/` after promotion.
 - **§4.4a Promotion census** — done means every surviving finding is promoted, `DUP of <id>`, or rejected with a reason; survived = promoted + duplicate + rejected.
 - **§4.4b Conversation-history audit** — extract Patrick's messages and decision turns, inventory, classify COVERED / SUPERSEDED / PARTIAL / MISSING; a transcript proves what was said, not that it was true.
 - **§4.5 Corpus scour & safe archival (anti-G-2)** — three-tier classification, normative extraction gate, precedence hierarchy ([reference](./references/corpus_scour_and_archival_protocol.md)).

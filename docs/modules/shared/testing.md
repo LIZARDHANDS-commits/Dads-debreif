@@ -55,7 +55,7 @@ Built on the whole-tool requirements ALL-R1 to ALL-R28 (section 3 says how each 
 **At sign-off of the first module that uses them:**
 - The T-6 model report (SC2), read by Patrick and Dad.
 - The property tests over many seeds.
-- `docs/checklists/shell.md` rewritten. It still says the five modules are "Coming soon" and the heading has no version (`pf/reset/5-testing/agents/app-frame.md`, ASK-8).
+- `archive/docs/checklists/shell.md` rewritten. It still says the five modules are "Coming soon" and the heading has no version (`pf/reset/5-testing/agents/app-frame.md`, ASK-8).
 
 
 ## Sign-off checklist
@@ -68,7 +68,7 @@ Anyone can run it, in the real app, from the module's default start, on a laptop
 
 > The old checklist below was written before the reset. It is refreshed against the requirements above when the module's work resumes: lines that test V6 numbers or exact times are rewritten or dropped.
 
-### Carried over from `docs/checklists/shell.md`
+### Carried over from `archive/docs/checklists/shell.md`
 
 #### Sign-off checklist: the app frame (step 1)
 
@@ -191,7 +191,7 @@ From the ratified test register (`pf/reset/5-testing/test-register.md`, Part B).
 | `tests/e2e/file.spec.js` | Keep | ALL-R17, ALL-R13: safe names; an oversize file is refused in plain words | | Each change |
 | `tests/e2e/airfields.spec.js` | Keep, with changes | ALL-R16. "119 NM" to CYXE (`:42`) and CYMJ's position and 1,892 ft elevation (`:133`) are typed in with no source: the distance is worked out in the test, the elevation gets its publication reference (T3). The default alternates' minima follow SOF-R12 | | Each change |
 | `tests/e2e/buttons.spec.js` | Keep | ALL-R8: every control does something with no error. At `6283f38` the Traffic run timed out twice: the "+ Spawn PFL" button never became steady and clickable. Whether the button or the test is at fault is unclear. The SOF run timed out once and passed alone, so the flaky-test rule applies (Q-T4, decided) | | Each change |
-| `tests/e2e/visual.spec.js` and its nine reference pictures (`tests/e2e/__screenshots__/visual.spec.js/`) | Retire | Q-T2, decided: screenshot comparisons are dropped (Patrick, 4 Oct 02:59Z); the layout check and a person's look cover the screens. Two failed at `6283f38`: Traffic (60,024 pixels, 5 %) and Turn Fight (38,606 pixels, 3 %) differ from pictures last drawn on 30 Sep, before those screens changed (stale reference, inferred) | | |
+| `archive/tests/e2e/visual.spec.js` and its nine reference pictures (`archive/tests/e2e/__screenshots__/visual.spec.js`) | Retire | Q-T2, decided: screenshot comparisons are dropped (Patrick, 4 Oct 02:59Z); the layout check and a person's look cover the screens. Two failed at `6283f38`: Traffic (60,024 pixels, 5 %) and Turn Fight (38,606 pixels, 3 %) differ from pictures last drawn on 30 Sep, before those screens changed (stale reference, inferred) | | |
 | `tests/e2e/leave.spec.js` | Keep | ALL-R12, ALL-R17: the "leave?" question in a real browser, history kept | | Each change |
 | `tests/e2e/clock.spec.js` | Keep | ALL-R15, ALL-R16: fixed browser clock; the clock follows the home field | | Each change |
 | `tests/e2e/switching.spec.js` | Keep | ALL-R12, ALL-R11: after visiting every screen nothing keeps running; Tab and the skip link work | | Each change |

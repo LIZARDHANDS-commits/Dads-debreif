@@ -1,25 +1,10 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
-
-// ╔══════════════════════════════════════════════════════════════════════╗
-// ║  OPERATOR WARNING — READ BEFORE DEBUGGING TEST FAILURES            ║
-// ║                                                                    ║
-// ║  These tests use PILOT-DOMAIN TOLERANCES (±10 kt, ±100 ft, ±5°).  ║
-// ║  If a test fails repeatedly, DO NOT tweak the physics engine to    ║
-// ║  make it pass. Instead:                                            ║
-// ║    1. Ask the operator what to do.                                 ║
-// ║    2. The test tolerance may need widening, OR                     ║
-// ║    3. There may be a genuine flight behavior bug.                  ║
-// ║  Never force physics to match a test value.                        ║
-// ╚══════════════════════════════════════════════════════════════════════╝
+// Checks: the 3D view in Node: compass heading to model heading, bank from turn rate (2 G at 120 kt is 60
+//   degrees), pitch from climb, camera buttons, orbit and zoom limits, and the scene kit builds and frees each
+//   item once.
+// Serves: TR-R23, ALL-R12.
+// Expected values: bank atan(v x rate / g) and pitch atan(climb / ground speed) worked out in the test
+//   (standard aero); the 25 and 75 degree caps, 12 px ring, 120 px model switch and 64 drop-line slots are the
+//   code's own design numbers.
 
 // The Traffic Sim's 3D view (specs/SPEC-traffic.md: 3D view; SPEC-ui-kit "3D aircraft (three.js, D138)" and
 // "2D/3D switch (D141)"): the parts that are plain values or plain three.js objects, run with the real three.js

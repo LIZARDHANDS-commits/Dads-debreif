@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: Zulu and local time: Moose Jaw is UTC-6 all year, other zones follow their clock changes, Zulu and DTG formatting.
+// Serves: ALL-R15.
+// Expected values: IANA time-zone rules and the 2026 North American clock-change dates, worked out by hand in the test.
 
 // Zulu and local time (R10): Moose Jaw is UTC-6 all year; zones with clock
 // changes follow them. Dates either side of the 2026 North American changes.

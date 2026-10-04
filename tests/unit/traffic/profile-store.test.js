@@ -1,13 +1,9 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: saved setups are listed, replaced, refused or skipped with plain sentences; at most 20 setups and
+//   2,000,000 characters; blocked or full storage still works for the visit; damaged or other-version lists are
+//   never overwritten.
+// Serves: TR-R25, ALL-R13, ALL-R17.
+// Expected values: design choices typed in (20 setups, 2,000,000 characters, the sentences), equal to the
+//   code's own limits.
 
 // Where profiles are kept (task 7, #48): on the app's storage layer, checked both ways, and nothing breaks
 // when the browser blocks or fills its storage.

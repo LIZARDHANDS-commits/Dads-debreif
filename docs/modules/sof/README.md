@@ -4,7 +4,7 @@ This folder is the Supervisor of Flying weather desk: home field and alternates,
 
 ## Where it stands
 
-Built and live, but Patrick's 4 October answers rebuild it to one desk screen, so the checklist runs after the rebuild; the amber "Incomplete" state is a build task (`docs/modules/sof/plan.md:7`, `docs/REMEDIATION_ROADMAP.md:81`).
+Built and live, but Patrick's 4 October answers rebuild it to one desk screen, so the checklist runs after the rebuild; the amber "Incomplete" state is a build task (`docs/modules/sof/plan.md:7`, `archive/docs/REMEDIATION_ROADMAP.md:81`).
 
 ## What is next
 
@@ -31,7 +31,7 @@ Screen and build details. Each has a working answer (the best guess) that stands
 
 | ID | Question | Options | Best guess (the working answer until it is settled) | Source |
 |---|---|---|---|---|
-| SOF-Q10 | Settings are in two places on the SOF: "SOF settings" on the screen (trigger, home limits, lightning radius, banner, relay address) and the app Settings dialog (home field, alternates, approaches, minima, times). R22 said each module keeps its tuning numbers in one Settings menu on its own screen. Is the split OK? | (a) Keep the split. (b) Move alternates and approaches into the SOF settings menu (still shared with the Airfields module). | (a); the airfields are used by other modules too. Tell the SOF user where the alternates are set (a one-line note in the menu). | `docs/records/plan-requirements.md:18`; `specs/SPEC-sof.md:202`; screenshots `new-settings-open.png`, `new-app-settings-airfields.png` |
+| SOF-Q10 | Settings are in two places on the SOF: "SOF settings" on the screen (trigger, home limits, lightning radius, banner, relay address) and the app Settings dialog (home field, alternates, approaches, minima, times). R22 said each module keeps its tuning numbers in one Settings menu on its own screen. Is the split OK? | (a) Keep the split. (b) Move alternates and approaches into the SOF settings menu (still shared with the Airfields module). | (a); the airfields are used by other modules too. Tell the SOF user where the alternates are set (a one-line note in the menu). | `archive/docs/records/plan-requirements.md:18`; `archive/specs/SPEC-sof.md:202`; screenshots `new-settings-open.png`, `new-app-settings-airfields.png` |
 | SOF-Q14 | The SOF checks one home limit (ceiling and visibility) for all flying. The Gen Book has other weather limits by activity (low level, formation, chase, advanced formation, a wx check flight) and a formation crosswind limit by runway state. Should the SOF check any of them? | None / low-level only / all as optional checks. | None for now; list as future optional checks. | `pf/manuals/weather-and-limits-numbers.md:44-59` (Gen Book p.9, p.10, p.11, p.34) |
 
 ### For Dad

@@ -1,14 +1,16 @@
 > **Note (reset, 4 Oct 2026):** this is the spec as it stood before the reset, moved here unchanged. It is refreshed against this module's new `requirements.md` and `decisions.md` when the module's work resumes. Where it disagrees with them, they win. Lines saying the code must give "the same answer V6 gives" or must match V6 are replaced: flight math is checked against the manuals and standard aerodynamics (ALL-R22, Patrick's answer Q-ALL-4).
+>
+> **Replaced old decisions:** this spec still cites D6, D10, D23, D29, which are no longer in force. The "Replaced old decisions" section of `../../DECISIONS.md` says what took each one's place.
 
 # Debrief spec
 
-This module's spec is made of 2 old specs, one section each: `specs/SPEC-debrief.md`, `specs/SPEC-flight-data.md`.
+This module's spec is made of 2 old specs, one section each: `archive/specs/SPEC-debrief.md`, `archive/specs/SPEC-flight-data.md`.
 
-## From `specs/SPEC-debrief.md`
+## From `archive/specs/SPEC-debrief.md`
 
 ## Spec: `debrief`, the debrief screen (2D map and 3D view)
 
-Status: **approved by Patrick on 2026-09-30** ("spec-debreif-approved", in the Debrief screen thread), including his answers to Q32 to Q37 (Q32 read as pitch and G from the track's motion), #4 drawn white with a dark outline, and the trims listed below. The essentials-first screen in The screen (R22) was approved by Patrick on 2026-09-30 ("ok"). Changes go through a pull request. Module id `debrief` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Status: **approved by Patrick on 2026-09-30** ("spec-debreif-approved", in the Debrief screen thread), including his answers to Q32 to Q37 (Q32 read as pitch and G from the track's motion), #4 drawn white with a dark outline, and the trims listed below. The essentials-first screen in The screen (R22) was approved by Patrick on 2026-09-30 ("ok"). Changes go through a pull request. Module id `debrief` in [`archive/SPEC.md`](../../../archive/SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
 The build starts once flight data (PR #58) and flight math core part 2 (PR #61) are merged.
 
@@ -28,7 +30,7 @@ Users are T-6 instructors and students in a debrief, on a desktop or laptop (D6)
 
 ### Assumptions
 
-1. `flight-data` owns loading, cleaning, the flight model, the clock and the debrief file format ([`SPEC-flight-data.md`](SPEC-flight-data.md)). The debrief never parses KML or keeps a clock of its own.
+1. `flight-data` owns loading, cleaning, the flight model, the clock and the debrief file format ([`SPEC-flight-data.md`](../../../archive/specs/SPEC-flight-data.md)). The debrief never parses KML or keeps a clock of its own.
 2. `core` owns every number: aspect, HCA, closure, estimated G, the EM point, the tennis-ball solver and (in core PR 3) the standards classifier. The debrief picks the moments, calls `core`, and draws the answer.
 3. The 3D view is drawn with **three.js** (Patrick approved 2026-09-30 07:41Z, D138), using ui-kit's shared CT-156 Harvard model and `matchProjection` camera, which lands every point where `scene.js` `projectPoint` puts it. three.js downloads only when 3D is first shown (D141). Before that, the view was hand-drawn on a Canvas 2D, as V6's was.
 4. Map imagery (Esri satellite tiles) needs the network. Everything else, including the VNC charts once viewed, works offline (R6).
@@ -310,7 +312,7 @@ export function projectPoint(pt, camera) { ... }
 
 ### Testing strategy
 
-1. **Golden first (D10).** The debrief's own V6 drawing math is pinned before it moves, with V6's code run in Node through `tests/golden/v6-source.js`: the map's world-to-screen transform, the VNC warp, the 3D projection and attitude (bank and pitch), and the CSV rows. Changes (D40, the #27 drawing fixes, the CSV layout) then land as separate commits that update the pinned value on purpose.
+1. **Golden first (D10).** The debrief's own V6 drawing math is pinned before it moves, with V6's code run in Node through `archive/tests/golden/v6-source.js`: the map's world-to-screen transform, the VNC warp, the 3D projection and attitude (bank and pitch), and the CSV rows. Changes (D40, the #27 drawing fixes, the CSV layout) then land as separate commits that update the pinned value on purpose.
 2. **Unit tests** (`tests/unit/debrief/`, Node) for the pure pieces: DFP sorting, labels and fingerprints; readout rows (gap, unknown heading, recorded vs est.); standards labels (#21); the state's view switch keeping time and play state; CSV alignment.
 3. **Browser tests** (`tests/e2e/debrief.spec.js`, Playwright, failing on any console error, R7):
    - Load the example flight: fitted to view, correct status (R11).
@@ -324,8 +326,8 @@ export function projectPoint(pt, camera) { ... }
    - Offline after one visit: the debrief opens and the example flight plays if it was loaded before (R6).
    - A hostile file (script in the name, 10 MB note): shown as plain text or refused.
 
-   The debrief owns `tests/e2e/debrief.spec.js` and `docs/checklists/debrief.md` as new files (agreed with the app-frame thread, which owns the rest of `tests/e2e/`).
-4. **Sign-off checklist** `docs/checklists/debrief.md` (R21): load your own ForeFlight tracks, play, switch views, add and save DFPs, reopen the file, check #4 is visible, compare a few numbers with V6 side by side.
+   The debrief owns `tests/e2e/debrief.spec.js` and `archive/docs/checklists/debrief.md` as new files (agreed with the app-frame thread, which owns the rest of `tests/e2e/`).
+4. **Sign-off checklist** `archive/docs/checklists/debrief.md` (R21): load your own ForeFlight tracks, play, switch views, add and save DFPs, reopen the file, check #4 is visible, compare a few numbers with V6 side by side.
 
 ### Boundaries
 
@@ -342,7 +344,7 @@ export function projectPoint(pt, camera) { ... }
 
 ### Plan (after approval)
 
-The tasks go in `tasks/debrief/` once this spec is approved. The expected order, each slice working on its own:
+The tasks go in `archive/tasks/debrief` once this spec is approved. The expected order, each slice working on its own:
 
 1. Screen, load, status, 2D tracks, playback bar and fit-to-view.
 2. Readouts and standards.
@@ -359,11 +361,11 @@ It needs, from other threads: ui-kit `controls.js` and `canvas-view.js` before s
 1. **#4's new colour:** white with a dark outline. Say if you'd prefer another (for example yellow).
 
 
-## From `specs/SPEC-flight-data.md`
+## From `archive/specs/SPEC-flight-data.md`
 
 ## Spec: `flight-data`, flight tracks for the debrief
 
-Status: **approved by Patrick on 2026-09-30** ("spec-flight-data-approved", in the Flight data thread), which also logs C5 to C9 and the 5 s / 450 kt data-quality rule as decisions. Changes go through a pull request. Module id `flight-data` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Status: **approved by Patrick on 2026-09-30** ("spec-flight-data-approved", in the Flight data thread), which also logs C5 to C9 and the 5 s / 450 kt data-quality rule as decisions. Changes go through a pull request. Module id `flight-data` in [`archive/SPEC.md`](../../../archive/SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
 ### Objective
 
@@ -383,7 +385,7 @@ Users are instructors and students debriefing a sortie. They never see `flight-d
 2. Files are read with our own small KML reader, not the browser's XML parser. It reads only the tags V6 reads, runs the same in the browser and in Node's test runner (no package needed), and never expands XML entities. The golden test proves it gives V6's points exactly (see Testing).
 3. Everything stays on the user's computer. Nothing is uploaded anywhere.
 4. `core` owns the numbers (`geo.js` projection, `units.js` factors, `time.js` KML times, and the estimated-G formula coming in core's Task 8). `flight-data` calls them and never keeps its own copy.
-5. Folder: `src/flight-data/`, as the approved module map names it (not `src/data/`), with tests in `tests/unit/flight-data/` and `tests/golden/`.
+5. Folder: `src/flight-data/`, as the approved module map names it (not `src/data/`), with tests in `tests/unit/flight-data/` and `archive/tests/golden/`.
 
 ### What V6 does today (the behaviour we pin first)
 
@@ -509,8 +511,8 @@ export function sampleAt(track, t) { ... }
 
 ### Testing strategy
 
-1. **Golden, parsing.** V6's `parseKmlText` needs the browser's XML parser, so a recorder runs it in Chromium on the four example tracks, Patrick's track and the edge-case fixtures, and saves a fingerprint of every point plus a few hundred sample points in `tests/golden/v6-flight-data.json`. The golden test checks that `readKml` gives identical points (before C1 to C5). Patrick's track's fingerprint is committed, not the track.
-2. **Golden, everything after parsing.** V6's `projectAll`, `interpTrack`, `headingAtTrack`, `aircraftPitchAtTrack` and `estimatedGAtTrack` run unchanged in Node (via `tests/golden/v6-source.js`) on the same points, at a few thousand seeded times across the example flight, and must match exactly.
+1. **Golden, parsing.** V6's `parseKmlText` needs the browser's XML parser, so a recorder runs it in Chromium on the four example tracks, Patrick's track and the edge-case fixtures, and saves a fingerprint of every point plus a few hundred sample points in `archive/tests/golden/v6-flight-data.json`. The golden test checks that `readKml` gives identical points (before C1 to C5). Patrick's track's fingerprint is committed, not the track.
+2. **Golden, everything after parsing.** V6's `projectAll`, `interpTrack`, `headingAtTrack`, `aircraftPitchAtTrack` and `estimatedGAtTrack` run unchanged in Node (via `archive/tests/golden/v6-source.js`) on the same points, at a few thousand seeded times across the example flight, and must match exactly.
 3. **Each change (C1 to C10) is its own commit** that flips the golden expectation it touches and adds a unit test saying what it now means.
 4. **Unit tests** for meaning and abuse cases: gap and jump rules on the real tracks, a 1970 timestamp, too many fixes, a DOCTYPE bomb, a KMZ, a truncated file, a debrief file with extra fields or a 10 MB note, every clock control.
 5. **Mutation check** as in `core`: the tests must turn red when a threshold, a sign or a boundary is changed on purpose.
@@ -531,7 +533,7 @@ export function sampleAt(track, t) { ... }
 
 ### Plan
 
-PR 1 ports V6's reading, projection and sampling under golden tests. PR 2 adds C1 to C10, one commit each. PR 3 adds the clock and the debrief file. The tasks go in `tasks/flight-data/` once this spec is approved.
+PR 1 ports V6's reading, projection and sampling under golden tests. PR 2 adds C1 to C10, one commit each. PR 3 adds the clock and the debrief file. The tasks go in `archive/tasks/flight-data` once this spec is approved.
 
 ### Open questions
 

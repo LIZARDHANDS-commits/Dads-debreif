@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: when recorded G sets the 3D bank (nose within 10 degrees of the horizon, heading changing over 1 degree a
+//   second) and that recorded bank still wins.
+// Serves: DB-R6, DB-R15.
+// Expected values: acos(1/G) worked out in the test; the 10 degree and 1 degree a second thresholds are Patrick's
+//   ruling (item G, option 1); turns built from a circle formula.
 
 // Patrick's rule for "level" (item G, option 1): recorded G sets the 3D bank
 // only when the nose is within 10° of the horizon and the heading is changing

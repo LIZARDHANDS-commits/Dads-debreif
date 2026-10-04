@@ -1,25 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
-
-// ╔══════════════════════════════════════════════════════════════════════╗
-// ║  OPERATOR WARNING — READ BEFORE DEBUGGING TEST FAILURES            ║
-// ║                                                                    ║
-// ║  These tests use PILOT-DOMAIN TOLERANCES (±10 kt, ±100 ft, ±5°).  ║
-// ║  If a test fails repeatedly, DO NOT tweak the physics engine to    ║
-// ║  make it pass. Instead:                                            ║
-// ║    1. Ask the operator what to do.                                 ║
-// ║    2. The test tolerance may need widening, OR                     ║
-// ║    3. There may be a genuine flight behavior bug.                  ║
-// ║  Never force physics to match a test value.                        ║
-// ╚══════════════════════════════════════════════════════════════════════╝
+// Checks: the opening Moose Jaw setup never freezes a flying aircraft, finishes a pattern with no phase stuck,
+//   breakout and go-around climb, no value is NaN for 5 minutes, and one mode owns each aircraft's position.
+// Serves: TR-R15, TR-R30, TR-R13.
+// Expected values: things that must always be true; the 300 s, 120 s and 10 ft limits are the author's own, no
+//   reason given; input is the V6-derived data file, so "A1 flying at t=12" is that file's start time.
 
 // Behavioral flight invariant tests — conditions that must ALWAYS hold true
 // regardless of flight engine internals to prevent freezes, loops, NaNs, and dead controls.

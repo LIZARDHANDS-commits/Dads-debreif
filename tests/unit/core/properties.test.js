@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: always-true properties on random inputs (fixed seeds): turn radius rises with speed and falls with G, angle wrappers, unit round trips, G never above V-n or stall line.
+// Serves: ALL-R20, ALL-R23.
+// Expected values: standard aerodynamics and unit definitions; relationships that must always hold, not recorded numbers.
 
 // Random-input (property) tests for the core math. They only check the math:
 // nothing under src/ is changed to make them pass. Each property has a fixed

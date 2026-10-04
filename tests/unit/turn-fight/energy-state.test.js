@@ -1,15 +1,11 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: Energy mode's settings: opens on at the engine's defaults, the three groups cover every key once,
+//   ranges are the engine's setup checks, both ends of every box fly, refusals say why, reset and out-of-range
+//   saved values.
+// Serves: TF-R14, TF-R11, TF-R20.
+// Expected values: defaults typed in from the spec (1.2 NM, 10,000 ft, 220 KIAS, deck 6,000, MPT 160, stall 86
+//   kt Patrick, shaker 94 % a working value Dad has not checked, TF-Q10); the box count of 16 is a design choice
+//   (TF-Q9 open).
 
-// OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
 // Energy mode's settings (SPEC-turn-fight, "The screen", "More energy settings", "Model settings for checking"):
 // the defaults are the engine's, the ranges are its setup checks, and the setup key follows the Energy fight.
 import test from 'node:test';

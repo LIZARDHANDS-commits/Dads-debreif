@@ -1,6 +1,6 @@
 # SOF Dashboard
 
-The weather screen a Supervisor of Flying keeps open on a desk: the weather now and forecast at home and at the alternates, each report with its age. The spec is [`specs/SPEC-sof.md`](../../../specs/SPEC-sof.md); the tasks are in [`tasks/sof/`](../../../tasks/sof/todo.md). This folder holds tasks 1 to 5 so far: the wave, card and caution decisions, and a screen with live weather, the caution banner, the waves and the 24-hour timeline. The map and the rest come in later tasks.
+The weather screen a Supervisor of Flying keeps open on a desk: the weather now and forecast at home and at the alternates, each report with its age. The spec is [`docs/modules/sof/spec.md`](../../../docs/modules/sof/spec.md); the plan is [`docs/modules/sof/plan.md`](../../../docs/modules/sof/plan.md). This folder holds tasks 1 to 5 so far: the wave, card and caution decisions, and a screen with live weather, the caution banner, the waves and the 24-hour timeline. The map and the rest come in later tasks.
 
 | File | What's in it |
 |---|---|

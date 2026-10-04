@@ -98,4 +98,4 @@ When using swarms to scour repositories for dead documentation and archive candi
 
 1. **Three-Tier Classification:** Classify every candidate file into `SAFE_TO_ARCHIVE_IMMEDIATELY`, `NEEDS_EXTRACTION_FIRST`, or `KEEP_ACTIVE`.
 2. **The Normative Extraction Gate:** Never archive a document containing load-bearing system constraints, boundary matrices, or unratified decisions without first promoting them to canonical registers. (The G-2 incident orphaned the two-tier hydration boundary matrix when an audit doc was archived).
-3. **Precedence Hierarchy:** When documents conflict, resolve using the repository's precedence (Patrick's own words > `AGENTS.md` > `docs/PLAN.md` and `docs/modules/` > everything else). (See [Corpus Scour & Safe Archival Protocol](./references/corpus_scour_and_archival_protocol.md)).
+3. **Precedence Hierarchy:** When documents conflict, resolve using the repository's precedence (Patrick's own words > `AGENTS.md` > `docs/PLAN.md` and `docs/modules/` > everything else). (See [Corpus Scour & Safe Archival Protocol](./corpus_scour_and_archival_protocol.md)).

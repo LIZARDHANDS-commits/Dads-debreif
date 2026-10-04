@@ -1,5 +1,9 @@
-// D411 GUARDRAIL: If a test fails twice, DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass! STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS.
+// Checks: the 3D scene has one south-west sun about 45 degrees up, one hemisphere light, no shadows, and
+//   disposing frees them.
+// Serves: TR-R23.
+// Expected values: design choice (look and feel): azimuth 225 and elevation 45 degrees, plus or minus 10,
+//   typed in.
+
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadThree } from '../../../src/ui-kit/three-aircraft.js';

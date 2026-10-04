@@ -1,25 +1,9 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
-
-// ╔══════════════════════════════════════════════════════════════════════╗
-// ║  OPERATOR WARNING — READ BEFORE DEBUGGING TEST FAILURES            ║
-// ║                                                                    ║
-// ║  These tests use PILOT-DOMAIN TOLERANCES (±10 kt, ±100 ft, ±5°).  ║
-// ║  If a test fails repeatedly, DO NOT tweak the physics engine to    ║
-// ║  make it pass. Instead:                                            ║
-// ║    1. Ask the operator what to do.                                 ║
-// ║    2. The test tolerance may need widening, OR                     ║
-// ║    3. There may be a genuine flight behavior bug.                  ║
-// ║  Never force physics to match a test value.                        ║
-// ╚══════════════════════════════════════════════════════════════════════╝
+// Checks: settings reach the engine's setup (conflict limits 200/200 ft, caution 500/500 ft, rounded turns,
+//   1,800 ft radius), numbers past their range are held, a changed limit or wind reaches a running sim, a
+//   throwing frame pauses.
+// Serves: TR-R27, TR-R5, TR-R17.
+// Expected values: the Defaults table values typed in (design choice, no manual page); 5 s and 20 s runs only
+//   show arrival.
 
 // The glue between the settings and the engine's setup (src/modules/traffic/glue.js), and
 // that the settings reach a running sim.

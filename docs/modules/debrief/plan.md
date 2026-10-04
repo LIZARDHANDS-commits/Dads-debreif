@@ -4,16 +4,16 @@ How to read this plan: steps are in the order to do them. Only what is in a step
 
 ## Where it stands
 
-1. The Debrief is built and live; its last check left nothing open ("Nothing left from the final check.") and the next thing is Patrick running the sign-off checklist (`docs/handover/debrief.md:22`, `docs/handover/debrief.md:26`). The old task list has one open box, task 11, browser tests and sign-off (`tasks/debrief/todo.md:75`).
+1. The Debrief is built and live; its last check left nothing open ("Nothing left from the final check.") and the next thing is Patrick running the sign-off checklist (`archive/docs/handover/debrief.md:22`, `archive/docs/handover/debrief.md:26`). The old task list has one open box, task 11, browser tests and sign-off (`archive/tasks/debrief/todo.md:75`).
 2. The ratified requirements (DB-R1 to DB-R26) differ from the built screen in a few places: wind is applied to Lead's airspeed only, the actual interval and sweep numbers are not shown, the first 3D view hides ships, and the EM chart is gone (`pf/reset/1-requirements/requirements.md:72`, `pf/reset/1-requirements/requirements.md:91`, `pf/reset/1-requirements/requirements.md:96`).
 3. Fourteen small screen questions (the "Later" group) stay open until this module's work resumes; one needs Patrick's pick between two old decisions (`pf/reset/1-requirements/questions.md:17`).
 
 ## Step 1. Refresh spec.md against the new requirements
 
-- [ ] Refresh `spec.md` against the new requirements when work resumes, rewriting every "same answer V6 gives" or "numbers stay V6's" line: the aspect, HCA, closure and spacing wording (`specs/SPEC-debrief.md:134`), the "Golden first" test-order rule (`specs/SPEC-debrief.md:305`) and the success line "The golden tests pass for V6's behaviour" (`specs/SPEC-debrief.md:331`). Patrick's answer: flight math is checked against the manuals and standard geometry, never V6 (`pf/reset/1-requirements/questions.md:44`, `pf/reset/1-requirements/questions.md:31`).
+- [ ] Refresh `spec.md` against the new requirements when work resumes, rewriting every "same answer V6 gives" or "numbers stay V6's" line: the aspect, HCA, closure and spacing wording (`archive/specs/SPEC-debrief.md:134`), the "Golden first" test-order rule (`archive/specs/SPEC-debrief.md:305`) and the success line "The golden tests pass for V6's behaviour" (`archive/specs/SPEC-debrief.md:331`). Patrick's answer: flight math is checked against the manuals and standard geometry, never V6 (`pf/reset/1-requirements/questions.md:44`, `pf/reset/1-requirements/questions.md:31`).
 - [ ] Delete the EM chart lines from the spec, the task list and the sign-off checklist; Patrick left the chart out (DB-Q1, DB-R20) (`pf/reset/1-requirements/questions.md:40`, `pf/reset/1-requirements/requirements.md:101`).
 - [ ] Add one explicit line to `requirements.md` that the estimated model cloud base is dropped and the satellite picture stays live only, not saved in the file (Patrick's choice, 30 Sep; the old spec has no cloud-base row but never says it was dropped) (`pf/reset/0-lessons/agents/tags-3-debrief-and-core.md:43`, `pf/reset/0-lessons/lessons.md:146`).
-- [ ] Move the flight-data spec into this folder's spec (`specs/SPEC-flight-data.md`) as one file with the debrief spec, as the register proposes; keep the rule that a track must never be treated as real flying when a fix is impossible (DB-R4) (`pf/reset/2-inventory/agents/agent-3-specs-plans.md:31`).
+- [ ] Move the flight-data spec into this folder's spec (`archive/specs/SPEC-flight-data.md`) as one file with the debrief spec, as the register proposes; keep the rule that a track must never be treated as real flying when a fix is impossible (DB-R4) (`pf/reset/2-inventory/agents/agent-3-specs-plans.md:31`).
 - [ ] Move the tennis-ball decision note (D62, D63: one solver, `tennisBall`) into `decisions.md` (`pf/reset/2-inventory/agents/agent-3-specs-plans.md:53`).
 
 ## Step 2. Close the gaps between the ratified requirements and the built screen
@@ -25,7 +25,7 @@ How to read this plan: steps are in the order to do them. Only what is in a step
 - [ ] Model wind between the hours either side is blended and the screen names both hours (Patrick's answer DB-1, "Blend", 4 Oct 03:13Z). Check what the code does today and build it if it does not; the ratified DB-R18 wording needs Patrick's yes on a card before `requirements.md` carries the note (`pf/reset/4-decisions/answers.md:16`, `pf/reset/briefs/stage-3-briefs.md:53`).
 - [x] Saved radar and lightning frames: Patrick chose to leave the built feature in as it is (card, 4 Oct 2026 05:03Z). No work on it until he moves it up from `future.md` (`pf/reset/1-requirements/requirements.md:99`, `pf/reset/4-decisions/partb-debrief.md:22`).
 - [ ] The Debrief's own cut-offs (no verdict under 80 kt, Lead judged from 6,000 to 15,500 ft, a 5 s hole is a gap, ground speed over 350 kt blanked) are labelled as the Debrief's judgement calls until DB-Q6 is settled (Step 3) (`pf/reset/1-requirements/questions.md:45`).
-- [ ] Optional: the shared GPS gap rule becomes "5 s or more" in the flight-data code (a one-line change; the Debrief already does it). It is in the Shared plan, Step 3 (`docs/handover/core.md:10`).
+- [ ] Optional: the shared GPS gap rule becomes "5 s or more" in the flight-data code (a one-line change; the Debrief already does it). It is in the Shared plan, Step 3 (`archive/docs/handover/core.md:10`).
 
 ## Step 3. Settle the open screen questions when the work resumes
 
@@ -51,9 +51,9 @@ Each has a working answer built in. Patrick answers these one at a time when thi
 The test register marks the Debrief's files: about 9 unit checks and about 5 browser checks are pinned to V6's numbers, and one pins seconds of the example flight. Those are rewritten by the clean-up pull requests, not by this plan (`pf/reset/5-testing/test-register.md:641`). This plan only adds:
 
 - [ ] When a requirement above is built, its check in `testing.md` is written with it (DB-R8 wind on every ship, DB-R11 numbers shown), failing until then (`pf/reset/1-requirements/requirements.md:88`, `pf/reset/1-requirements/requirements.md:91`).
-- [ ] Keep the rule that debrief focus points never show on another flight (moved from `tasks/debrief/todo.md` to `requirements.md`) (`pf/reset/2-inventory/file-register.md:122`).
+- [ ] Keep the rule that debrief focus points never show on another flight (moved from `archive/tasks/debrief/todo.md` to `requirements.md`) (`pf/reset/2-inventory/file-register.md:122`).
 
 ## Step 5. Sign-off
 
 - [ ] Sign-off: anyone runs the checklist in `testing.md` and sends Patrick the result; the next module starts only after his yes (`pf/reset/4-decisions/answers.md:13`).
-- [ ] Remove the PROTOTYPE flag from the Debrief card only if Patrick says so (the registry keeps Debrief out of prototype status already, roadmap Task 0.5) (`docs/REMEDIATION_ROADMAP.md:301`).
+- [ ] Remove the PROTOTYPE flag from the Debrief card only if Patrick says so (the registry keeps Debrief out of prototype status already, roadmap Task 0.5) (`archive/docs/REMEDIATION_ROADMAP.md:301`).

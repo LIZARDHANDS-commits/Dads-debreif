@@ -2,7 +2,7 @@
 
 Date: 2026-09-29. Scope: all of V6 as stored in `original/`: the main page (`original/shell.html`) and the two sub-apps it embeds as base64, the SOF Dashboard and the Traffic Pattern Sim.
 
-The audit is the evidence behind the module map in [`SPEC.md`](../../SPEC.md). Each problem is a GitHub issue, listed at the end of this page.
+The audit is the evidence behind the module map in [`archive/SPEC.md`](../../../archive/SPEC.md). Each problem is a GitHub issue, listed at the end of this page.
 
 ## How it was done
 
@@ -32,7 +32,7 @@ How each of the 233 was checked:
 
 1. **SOF weather (#1 to #4).** V6's SOF misreads some TAFs. A `TEMPO 2916/2920 1/2SM FG` group is read as 2920 SM, BECMG conditions are dropped once the change period ends, CB/TCU layers are ignored, and `M1/4SM` is read as 4 SM. Alternate cards show green whatever the weather, unless the field is marked GNSS-only. V6's automatic alternate calls should not be relied on. The weather-limit highlighting and the NEW WEATHER LIMIT caution never run at all, because their script sits inside the Leaflet `<script src>` tag (#5). That corrects the earlier note that only the Acknowledge button was broken.
 2. **Flight numbers that look wrong (#13 to #20 and #47).** The EM chart plots turn rate at half the real value. The 3D view halves and mirrors bank. The Turn Sim swaps some left/right cues, and its auto timing makes aircraft wait for #1. These change numbers V6 shows, so under CLAUDE.md each one is pinned by a test first and changed only with sign-off (Question 18 in the plan doc).
-3. **Structure.** Most of the rest comes from modules sharing one page. Hidden modules keep running (#39). The side rails and the Tab key act on every module (#34, #35). Code was copied rather than shared (#43). The module map in `SPEC.md` is designed around these.
+3. **Structure.** Most of the rest comes from modules sharing one page. Hidden modules keep running (#39). The side rails and the Tab key act on every module (#34, #35). Code was copied rather than shared (#43). The module map in `archive/SPEC.md` is designed around these.
 
 ## Reading the line numbers
 

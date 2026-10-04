@@ -1,15 +1,10 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: start geometry: placing the jets from range, ATA and AA, heading crossing angle, the pass at closest
+//   approach, which way each jet turns, the "Pass at" and turn lines, and the MERGE or PASS word.
+// Serves: TF-R12, TF-R8, TF-R2, TF-R14.
+// Expected values: brute-force closest approach in 1 ms steps and pass = distance / closing speed worked out
+//   in the test; ATA and AA as SMM 12.2 paras 5-9; speed-weighted start is Patrick's Q49; "V6's directions" is a
+//   label only.
 
-// OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
 // The Turn Fight's start geometry (SPEC-turn-fight, "Start geometry and altitudes (R28)"):
 // placing the two jets from range, off-nose angle (ATA) and aspect angle (AA), the HCA that
 // follows, the pass (the closest point of approach), and which way each jet turns.

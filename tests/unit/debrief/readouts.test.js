@@ -1,13 +1,9 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the Formation card and detail lines: est. IAS, wingman labels, Lead's verdict by altitude block, no verdict
+//   on the ground, GPS gaps, wind, bank and G.
+// Serves: DB-R6, DB-R7, DB-R8, DB-R9, DB-R10, DB-R11, DB-R23.
+// Expected values: formulas worked out in the test (acos(1/G), sqrt of density ratio, stall line); SMM standards per
+//   decisions D114 to D116; blocks 6,000 and 15,500 ft from Gen Book p.12; 80 kt and 350 kt cut-offs are judgement
+//   calls (design choice); the recorded example flight.
 
 // The readout rows (SPEC-debrief: Readouts and standards, #18, #21, D31, D32, D47, D52, D78; DB-R6 to DB-R9).
 import test from 'node:test';

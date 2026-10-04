@@ -1,16 +1,18 @@
 > **Note (reset, 4 Oct 2026):** this is the spec as it stood before the reset, moved here unchanged. It is refreshed against this module's new `requirements.md` and `decisions.md` when the module's work resumes. Where it disagrees with them, they win. Lines saying the code must give "the same answer V6 gives" or must match V6 are replaced: flight math is checked against the manuals and standard aerodynamics (ALL-R22, Patrick's answer Q-ALL-4).
+>
+> **Replaced old decisions:** this spec still cites D6, D10, D117, D118, D134, D374, D384, D387, D389, D396, D400, D406, which are no longer in force. The "Replaced old decisions" section of `../../DECISIONS.md`, `../turn-fight/decisions.md` and `decisions.md` says what took each one's place.
 
 # Traffic Pattern Sim spec
 
-Moved from `specs/SPEC-traffic.md`.
+Moved from `specs/SPEC-traffic.md` (the old copy is in `archive/specs/`).
 
 # Spec: `traffic`, the Traffic Pattern Sim
 
 > **Authoritative Flight Guidance: This spec supersedes SPEC-traffic-vector.md**  
 > **Status**: Approved (D406, R34) — Vector Guidance Migration Ratification  
 > **Date**: 2026-10-02  
-> **Module ID**: `traffic` in [`SPEC.md`](../SPEC.md)  
-> **Authoritative Companion**: Master Pattern Matrix at [`docs/traffic-pattern-matrix.md`](../docs/traffic-pattern-matrix.md) (single source of truth for waypoints & coordinates)  
+> **Module ID**: `traffic` in [`archive/SPEC.md`](../../../archive/SPEC.md)  
+> **Authoritative Companion**: Master Pattern Matrix at [`docs/references/traffic-pattern-matrix.md`](../../references/traffic-pattern-matrix.md) (single source of truth for waypoints & coordinates)  
 > **Decisions**: D6, D10, D46, D109, D110, D117, D118, D134, D158, D368–D400, D406, D412 | **Requirements**: R2, R3, R4, R6, R8, R9, R14, R16, R21, R22, R24–R27, R34  
 > **Architecture Update (D412)**: Flight model uses Hybrid Rails/Physics — see SPEC_hybrid_migration.md for full details. Rails for stable legs via generateWindAdjustedTrack(), Physics for dynamic maneuvers via flight-engine.js.  
 
@@ -270,7 +272,7 @@ All numbers from 15 Wing SMM (Aug 2024), EFIG (24 Jun 2026), and T-6A NFM. Trace
 
 ## 4. Pattern Definitions
 
-> **Authoritative Coordinates**: See [`docs/traffic-pattern-matrix.md`](../docs/traffic-pattern-matrix.md) for exact $(x, y)$ positions and waypoint attributes.
+> **Authoritative Coordinates**: See [`docs/references/traffic-pattern-matrix.md`](../../references/traffic-pattern-matrix.md) for exact $(x, y)$ positions and waypoint attributes.
 
 ### 4.1 PAT_INNER — Overhead Break Circuit
 13 waypoints forming the primary tactical circuit.  
@@ -446,11 +448,11 @@ Every setting starts filled in so the first look is clean and intuitive:
 
 ### Pre-Phase: Documentation Sync
 - [x] Merge `SPEC-traffic.md` + `SPEC-traffic-vector.md` into one unified spec
-- [x] Commit `refined_pattern_matrix.md` to `docs/traffic-pattern-matrix.md`
-- [x] Register D406 in `docs/records/plan-decisions.md` & `docs/records/decisions-log.md`
-- [x] Register R34 in `docs/records/plan-requirements.md`
+- [x] Commit `refined_pattern_matrix.md` to `docs/references/traffic-pattern-matrix.md`
+- [x] Register D406 in `archive/docs/records/plan-decisions.md` & `archive/docs/records/decisions-log.md`
+- [x] Register R34 in `archive/docs/records/plan-requirements.md`
 - [x] Update HANDOVER.md, docs/handover/traffic.md, tasks/traffic/todo.md, tasks/traffic/plan.md, POST_PROTOTYPE_QUEUE.md, .agent/memory/handoff.md
-- [x] Create standalone checklist `tasks/traffic/vector-migration-todo.md`
+- [x] Create standalone checklist `archive/tasks/traffic/vector-migration-todo.md`
 
 ### Phase 1: Core Flight Engine (`flight-engine.js`)
 - [ ] **Task 1.1**: Create `flight-engine.js` — track intercept guidance
@@ -470,7 +472,7 @@ Every setting starts filled in so the first look is clean and intuitive:
   - State machine covering all circuit and emergency phases
 
 ### Phase 2: Pattern Definitions (`nav-plans.js`)
-- [ ] **Task 2.1**: Define all nav plans in `nav-plans.js` from `docs/traffic-pattern-matrix.md`
+- [ ] **Task 2.1**: Define all nav plans in `nav-plans.js` from `docs/references/traffic-pattern-matrix.md`
 - [ ] **Task 2.2**: Pattern-specific guidance overrides (break arc, perch pursuit, cubic descent, 3.0° glide slope)
 
 ### Phase 3: Integration (sim.js Swap)
@@ -496,7 +498,7 @@ Every setting starts filled in so the first look is clean and intuitive:
 1. **Core Math Verification**: `src/core/` unit tests (~800 tests) remain read-only and passing green.
 2. **Dedicated Engine Tests**:
    - `tests/unit/traffic/flight-engine.test.js` (~60 tests): track intercept, roll rate blending, lead turns, KIN/NRG integration, stall guards.
-   - `tests/unit/traffic/nav-plans.test.js` (~30 tests): coordinate integrity against `docs/traffic-pattern-matrix.md`.
+   - `tests/unit/traffic/nav-plans.test.js` (~30 tests): coordinate integrity against `docs/references/traffic-pattern-matrix.md`.
 3. **Module Regression Tests**:
    - `tests/unit/traffic/sim.test.js`: adapt for vector engine.
    - `tests/unit/traffic/route.test.js`: test display overlays and geometry utilities.
@@ -523,6 +525,6 @@ Every setting starts filled in so the first look is clean and intuitive:
 
 - **No editing `original/`** (D368, D372).
 - **Core math (`src/core/`) is read-only.**
-- **Single Source of Truth for Waypoints**: [`docs/traffic-pattern-matrix.md`](../docs/traffic-pattern-matrix.md).
+- **Single Source of Truth for Waypoints**: [`docs/references/traffic-pattern-matrix.md`](../../references/traffic-pattern-matrix.md).
 - **Never stop or cap simulation prematurely**: station keeping is closed-loop (D370, D374).
 - **Harvard II is CT-156** (D373). Default active runway: 29L (298° true), left-hand circuits (D378).

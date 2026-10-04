@@ -1,30 +1,14 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: small made-up routes and the built-in setup: 0.05 s steps, aircraft wait, fly 202.5 ft/s at 120 kt,
+//   land or go round, take splits and joins by odds, conflicts at 200 ft and 500 ft, same seed same run, spawn
+//   and remove, frame rate.
+// Serves: TR-R1, TR-R12, TR-R15, TR-R17, TR-R19, TR-R21, TR-R22.
+// Expected values: arithmetic worked out in comments (120 kt = 202.5 ft/s); lap times such as 118 s are the
+//   code's own output; 41 of 47 cases read a hard-coded second; start times [12, 137 ...] are V6's data; "as V6
+//   does" has no V6 number.
 
-// ╔══════════════════════════════════════════════════════════════════════╗
-// ║  OPERATOR WARNING — READ BEFORE DEBUGGING TEST FAILURES            ║
-// ║                                                                    ║
-// ║  These tests use PILOT-DOMAIN TOLERANCES (±10 kt, ±100 ft, ±5°).  ║
-// ║  If a test fails repeatedly, DO NOT tweak the physics engine to    ║
-// ║  make it pass. Instead:                                            ║
-// ║    1. Ask the operator what to do.                                 ║
-// ║    2. The test tolerance may need widening, OR                     ║
-// ║    3. There may be a genuine flight behavior bug.                  ║
-// ║  Never force physics to match a test value.                        ║
-// ╚══════════════════════════════════════════════════════════════════════╝
-
-// What sim.js means, in plain terms (the golden test tests/golden/traffic-sim.test.js pins
-// it to V6, step by step): time moves in fixed steps, aircraft fly their routes at the set
-// speed and height, pattern laps land or go round, splits are taken or not, entries join
-// the pattern, conflicts are found, and the same seed gives the same run.
+// What sim.js means, in plain terms: time moves in fixed steps, aircraft fly their routes
+// at the set speed and height, pattern laps land or go round, splits are taken or not,
+// entries join the pattern, conflicts are found, and the same seed gives the same run.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

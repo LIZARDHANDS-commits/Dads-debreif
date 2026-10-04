@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the 3 x 3 wind grid over the flight, the one request for nine points, reading the multi-point reply, wind
+//   at a height, arrow shape and words.
+// Serves: DB-R18, DB-R8.
+// Expected values: a hand-made fixture built from a real Open-Meteo single-point reply; one value worked out by hand
+//   from it (margins 0.01 kt, 0.05 degrees).
 
 // Wind arrows on the 2D map (SPEC-debrief: Winds aloft; task 12e-2): the 3 x 3
 // grid over the flight, the one request for all nine points, reading the

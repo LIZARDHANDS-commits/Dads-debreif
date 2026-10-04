@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: what the track reader accepts and refuses: the example track, DOCTYPE, KMZ, oversize, too many fixes, deep nesting, truncated; errors name file and line.
+// Serves: DB-R25, ALL-R13.
+// Expected values: the example KML; the accept-and-refuse table recorded in Chromium (tests/fixtures/flight-data/xml-cases.js); hand-made abuse files; limits are design choices.
 
 // What the track reader accepts and refuses. A track file is untrusted input
 // (specs/SPEC-flight-data.md, Security), so most of these are abuse cases.

@@ -1,25 +1,10 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
-
-// ╔══════════════════════════════════════════════════════════════════════╗
-// ║  OPERATOR WARNING — READ BEFORE DEBUGGING TEST FAILURES            ║
-// ║                                                                    ║
-// ║  These tests use PILOT-DOMAIN TOLERANCES (±10 kt, ±100 ft, ±5°).  ║
-// ║  If a test fails repeatedly, DO NOT tweak the physics engine to    ║
-// ║  make it pass. Instead:                                            ║
-// ║    1. Ask the operator what to do.                                 ║
-// ║    2. The test tolerance may need widening, OR                     ║
-// ║    3. There may be a genuine flight behavior bug.                  ║
-// ║  Never force physics to match a test value.                        ║
-// ╚══════════════════════════════════════════════════════════════════════╝
+// Checks: the right-hand panel: spawner boxes, + Spawn / + Pair / + Spawn PFL, plain-words refusals, the
+//   200-aircraft limit, the aircraft rows with their command buttons, row selection, the conflict line and the
+//   PFL badge.
+// Serves: TR-R19, TR-R20, TR-R17, TR-R14, TR-R28.
+// Expected values: screen wording and button states are design choices; Pair 20 s apart and the 200 limit are
+//   TR-R19's own; PFL 125 kt glide is the T-6A glide chart (traffic spec 3.1), the 7,500 ft start height is
+//   typed in, no source yet.
 
 // The right column (src/modules/traffic/aircraft.js): the spawner, the aircraft list and the
 // conflicts. The spawner asks the engine for aircraft and says in plain words when it can't;

@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the satellite frame at or before the moment on ten-minute marks, tile addresses, the 90-day keep rule, the
+//   corner label and the note under the map.
+// Serves: DB-R18.
+// Expected values: typed-in addresses and words; GIBS behaviour from the 2026-09-30 source checks; fixed dates, never
+//   the computer's clock.
 
 // The satellite layer's plain parts (SPEC-debrief: Weather at the time of the
 // flight; GIBS behaviour from the 2026-09-30 source checks).

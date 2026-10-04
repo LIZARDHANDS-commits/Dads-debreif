@@ -2,8 +2,7 @@
 // 4281) wrote into bfmTime, bfmPhase, bfmPerf and bfmLive, as plain text lines
 // built from a fight state (sim.js). V6's rounding is kept exactly; only the
 // words differ ("s" for "sec", "Blue at +18.2 s" for "BLUE @ +18.2 sec", a
-// hyphen in the phase, thousands separators and no "-0"), and
-// tests/golden/turn-fight-sim.test.js lists every difference.
+// hyphen in the phase, thousands separators and no "-0").
 //
 // Nothing here touches the page: the screen builds elements from these
 // strings with ui-kit's h(), never as HTML (SPEC-turn-fight, "Readouts").

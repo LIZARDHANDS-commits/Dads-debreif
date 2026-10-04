@@ -1,14 +1,11 @@
-// ╔══════════════════════════════════════════════════════════════════════╗
-// ║  OPERATOR WARNING — READ BEFORE DEBUGGING TEST FAILURES            ║
-// ║                                                                    ║
-// ║  These tests use PILOT-DOMAIN TOLERANCES (±10 kt, ±100 ft, ±5°).  ║
-// ║  If a test fails repeatedly, DO NOT tweak the physics engine to    ║
-// ║  make it pass. Instead:                                            ║
-// ║    1. Ask the operator what to do.                                 ║
-// ║    2. The test tolerance may need widening, OR                     ║
-// ║    3. There may be a genuine flight behavior bug.                  ║
-// ║  Never force physics to match a test value.                        ║
-// ╚══════════════════════════════════════════════════════════════════════╝
+// Checks: the Closed Pattern command from the departure end at 140 kt: a banked climbing turn (50, 45 and 60
+//   degrees) to 3,500 ft, roll-out on downwind, wind moves the perch, no position jump joining the downwind
+//   rail.
+// Serves: TR-R33, TR-R8, TR-R13, TR-R15.
+// Expected values: perch bearing worked out in the test (atan2); 3,500 ft is Patrick's pattern height (TR-R4);
+//   50 degrees is traffic spec 3.2 (decision D400); start point, 140 kt and the 2 s / 40 s / 90 s limits are
+//   typed in, no source yet.
+
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

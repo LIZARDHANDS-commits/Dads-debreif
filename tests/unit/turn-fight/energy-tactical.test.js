@@ -1,7 +1,9 @@
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Checks: the tactical AI's aim weights, yo-yos offered only in their envelopes, pursuit start rules, gun-kill
+//   build-up and reset, mid-air collision at the hitbox, closest-approach (TCPA) maths and avoidance, tumble and
+//   ground impact.
+// Serves: TF-R1, TF-R8.
+// Expected values: none is a manual number (F7): gun zone 2,500 ft / 15 / 60 degrees / 2 s, hitbox and tumble
+//   rates are design choices for Dad to check (TF-Q10); closest approach is worked out by hand in the test.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';

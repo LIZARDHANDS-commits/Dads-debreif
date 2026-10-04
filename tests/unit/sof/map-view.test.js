@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the SOF map's view maths: zoom picking, mercator and great-circle distances, and the size of the 25 NM
+//   ring.
+// Serves: SOF-R14.
+// Expected values: great-circle distance and mercator worked out in the test (the 25 NM ring is 25/60 of a degree of
+//   latitude); margins 0.2 NM and 1e-9.
 
 // Tests for src/modules/sof/map-view.js: the SOF map's view math (SPEC-sof, "Map").
 import { test } from 'node:test';

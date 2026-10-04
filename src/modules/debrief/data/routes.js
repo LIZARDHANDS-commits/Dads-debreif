@@ -1,7 +1,7 @@
 // V6's 19 built-in route overlays (original/shell.html, USER_KML_OVERLAYS),
 // reduced to what V6 drew: each <coordinates> line of two or more points, as
-// [longitude, latitude]. tests/golden/debrief-routes.test.js checks them
-// against V6's own KML. About 6 kB, so they come with the debrief.
+// [longitude, latitude], taken from V6's own KML. About 6 kB, so they come
+// with the debrief.
 export const ROUTES = Object.freeze([
   { name: "North A1", paths: [
     [[-105.8401433883896, 50.79152082560319], [-105.5658633830937, 51.1538980129836], [-105.9456952013095, 51.41719854051983]],

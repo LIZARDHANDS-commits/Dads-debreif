@@ -1,25 +1,10 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
-
-// ╔══════════════════════════════════════════════════════════════════════╗
-// ║  OPERATOR WARNING — READ BEFORE DEBUGGING TEST FAILURES            ║
-// ║                                                                    ║
-// ║  These tests use PILOT-DOMAIN TOLERANCES (±10 kt, ±100 ft, ±5°).  ║
-// ║  If a test fails repeatedly, DO NOT tweak the physics engine to    ║
-// ║  make it pass. Instead:                                            ║
-// ║    1. Ask the operator what to do.                                 ║
-// ║    2. The test tolerance may need widening, OR                     ║
-// ║    3. There may be a genuine flight behavior bug.                  ║
-// ║  Never force physics to match a test value.                        ║
-// ╚══════════════════════════════════════════════════════════════════════╝
+// Checks: one aircraft through a few ticks: which of rail, physics or blending owns it, commands and waypoints
+//   switch to physics, a finished break blends back over 1.0 s, landed aircraft do not move, crosswind gives
+//   crab, tags found.
+// Serves: TR-R30, TR-R6, TR-R15.
+// Expected values: smoothstep and wind triangle worked out in the test; break bank 60 and perch bank 35 are
+//   traffic spec 3.2; the 1.0 s blend is a design choice; positions and the 1,892 ft threshold are typed in from
+//   V6 data, no source.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';

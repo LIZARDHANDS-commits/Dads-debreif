@@ -1,13 +1,7 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the flight model: recorded bank read the short way round, gaps over 5 s, end-of-track speed, heading unknown when still, no G where heading is unknown.
+// Serves: DB-R5, DB-R6, DB-R7.
+// Expected values: synthetic tracks worked out in the test; the 7 G ceiling on the example flight is the T-6 V-n limit; 3 kt "still" and 5 s gap are design choices (C4, C7);
+//   the bank minimum on a real track is the code's own output (register, T3).
 
 // What the flight model means: recorded bank, gaps, ends of the track and so on.
 import test from 'node:test';

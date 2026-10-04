@@ -1,14 +1,16 @@
 > **Note (reset, 4 Oct 2026):** this is the spec as it stood before the reset, moved here unchanged. It is refreshed against this module's new `requirements.md` and `decisions.md` when the module's work resumes. Where it disagrees with them, they win. Lines saying the code must give "the same answer V6 gives" or must match V6 are replaced: flight math is checked against the manuals and standard aerodynamics (ALL-R22, Patrick's answer Q-ALL-4).
+>
+> **Replaced old decisions:** this spec still cites D6, D34, D59, D66, D67, D68, D72, which are no longer in force. The "Replaced old decisions" section of `../../DECISIONS.md`, `../traffic/decisions.md` and `decisions.md` says what took each one's place.
 
 # SOF Dashboard spec
 
-Moved from `specs/SPEC-sof.md`.
+Moved from `specs/SPEC-sof.md` (the old copy is in `archive/specs/`).
 
 # Spec: `sof`, the SOF Dashboard
 
-Status: **approved by Patrick on 2026-09-30** ("sof spec approved", 04:49Z, in the SOF dashboard spec thread), with SOF-7 answered (traffic as a layer through our own relay). Changes go through a pull request. Module id `sof` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Status: **approved by Patrick on 2026-09-30** ("sof spec approved", 04:49Z, in the SOF dashboard spec thread), with SOF-7 answered (traffic as a layer through our own relay). Changes go through a pull request. Module id `sof` in [`archive/SPEC.md`](../../../archive/SPEC.md). Requirement IDs (R#), decisions (D#) and questions refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
-The SOF is built last, after the debrief, Turn Sim, Turn Fight and Traffic, and only when the coordinator says it's its turn. Until then this spec and [`tasks/sof/`](../tasks/sof/plan.md) are the work.
+The SOF is built last, after the debrief, Turn Sim, Turn Fight and Traffic, and only when the coordinator says it's its turn. Until then this spec and [`archive/tasks/sof`](../../../archive/tasks/sof/plan.md) are the work.
 
 ## Objective
 
@@ -306,7 +308,7 @@ Patrick asked every thread to name the repo skills it uses (2026-09-30). These f
 | Step | Skill (`.claude/skills/`) | How it's used here |
 |---|---|---|
 | This spec | spec-driven-development | The six core areas, assumptions up front, open questions with defaults, and Patrick's approval before any code |
-| The task plan | planning-and-task-breakdown | `tasks/sof/`: vertical slices, each with acceptance, verify and at most about 5 files, checkpoints between PRs |
+| The task plan | planning-and-task-breakdown | `archive/tasks/sof`: vertical slices, each with acceptance, verify and at most about 5 files, checkpoints between PRs |
 | Tasks 1, 3, 4, 5 (waves, cautions, cards, timeline) | test-driven-development | Failing tests first from captured reports. The wave time conversion is pinned to V6's fixed CST for Moose Jaw before it uses the home zone (CLAUDE.md: time conversions) |
 | Every task | incremental-implementation | One task per commit, each leaving the app working; `npm test` before each commit |
 | Tasks 2 to 8 (every screen piece) | frontend-ui-engineering, with `.claude/references/accessibility-checklist.md` | Labelled controls, keyboard use, colour never the only signal, clear empty, error and stale states, R22's essentials-first layout, tokens instead of `!important` |
@@ -363,4 +365,4 @@ Also for the plan doc, not questions: the refresh timings here are D67's, and th
 
 ## Plan
 
-The tasks, checkpoints and risks are in [`tasks/sof/plan.md`](../tasks/sof/plan.md) and [`todo.md`](../tasks/sof/todo.md).
+The tasks, checkpoints and risks are in [`archive/tasks/sof/plan.md`](../../../archive/tasks/sof/plan.md) and [`todo.md`](../../../archive/tasks/sof/todo.md).

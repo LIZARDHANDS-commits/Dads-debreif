@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: fetching reports with a faked network: MET Norway first, Datamask for the rest, errors reported, stale after 75 minutes, refresh pacing, hostile replies refused.
+// Serves: SOF-R2, SOF-R5, SOF-R23.
+// Expected values: recorded real replies in tests/fixtures/wx (captured 30 Sep 2026); the 75 min, 5 min and 60 s limits are design choices tested on a fake clock.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

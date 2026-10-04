@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the tennis-ball intercept glue: INTERCEPT with its range, the target on its recorded path, OUT OF CONE, a
+//   narrower cone, and plain messages when ships are missing.
+// Serves: DB-R19.
+// Expected values: 300 m = 984 ft (unit conversion, margin 5 ft); the default 6 degree cone gives "+-3.0" (design
+//   choice); the solver itself is checked in the shared core tests.
 
 // The debrief's tennis-ball glue (SPEC-debrief: Tennis ball): it reads the
 // tracks at the moment and hands core's one solver the ships, their path

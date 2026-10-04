@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: with a fake service worker: a first install is not an update; a new version shows the bar and Reload switches to it; the page never reloads by itself.
+// Serves: ALL-R27.
+// Expected values: design choice: the hourly check and five-minute limit are rules tested on a fake clock (Q-T9).
 
 import test from 'node:test';
 import assert from 'node:assert/strict';

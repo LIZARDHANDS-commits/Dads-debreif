@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the Simple fight's Climb and dive side view: 1x, 2x and 4x height scales, axis range, drawing on a
+//   recording canvas.
+// Serves: none named yet (design check); TF-R22 removes this view, so the file retires with it.
+// Expected values: the file's own arithmetic; "at least 1,000 ft wide, as V6" and the two colours are typed
+//   in, no source.
 
 // The side view for Climb and dive (SPEC-turn-fight, "The side view's height
 // scale works"). V6 (original/shell.html, line 4287) divided the height by

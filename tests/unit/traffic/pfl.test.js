@@ -1,25 +1,10 @@
-// ╔══════════════════════════════════════════════════════════════════════╗
-// ║  OPERATOR WARNING — READ BEFORE DEBUGGING TEST FAILURES            ║
-// ║                                                                    ║
-// ║  These tests use PILOT-DOMAIN TOLERANCES (±10 kt, ±100 ft, ±5°).  ║
-// ║  If a test fails repeatedly, DO NOT tweak the physics engine to    ║
-// ║  make it pass. Instead:                                            ║
-// ║    1. Ask the operator what to do.                                 ║
-// ║    2. The test tolerance may need widening, OR                     ║
-// ║    3. There may be a genuine flight behavior bug.                  ║
-// ║  Never force physics to match a test value.                        ║
-// ╚══════════════════════════════════════════════════════════════════════╝
-
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: a PFL command or an engine-out spawned in the training area: starts on the rail with the gear and
+//   flaps clean, a good-energy case flies the PFL key phases and lands, a case 30 NM out comes down short of the
+//   runway (three tests now).
+// Serves: TR-R14.
+// Expected values: end results (lands within 3,000 ft of the 1,892 ft threshold, the far case ends more than
+//   3,000 ft out); the 10 minute and 150 s limits are safety stops with no reason written; spawn points typed
+//   in, no source yet; the "12:1 glide" comment matches traffic spec 3.5; input is the V6-derived data file.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';

@@ -1,7 +1,6 @@
-// Small XML documents and whether the browser's DOMParser (which V6 used) accepts
-// them, recorded in Chromium by tests/golden/checks/xml-parity.cjs, which also
-// re-checks this table. src/flight-data/xml.js must agree, except that it
-// refuses every DOCTYPE on purpose (specs/SPEC-flight-data.md, Security).
+// Small XML documents and whether the browser's DOMParser accepts them, recorded in
+// Chromium (the script that recorded them is archived, Q-T8). src/flight-data/xml.js must
+// agree, except that it refuses every DOCTYPE on purpose (specs/SPEC-flight-data.md, Security).
 export const XML_CASES = [
   ["<a/>", true],
   ["<a></a>", true],

@@ -1,13 +1,7 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the map's Layers menu model: bases, overlays, opacity, what is on by default, and what is kept.
+// Serves: SOF-R28, SOF-R14.
+// Expected values: hand-written lists and defaults from the SOF spec (Map); a fixed date, because rain or snow
+//   follows the date.
 
 // Tests for src/modules/sof/map-layers.js: the map's Layers menu model (SPEC-sof, Map).
 import { test } from 'node:test';

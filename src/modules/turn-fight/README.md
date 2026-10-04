@@ -1,6 +1,6 @@
 # Turn Fight
 
-Two aircraft, Blue and Red, start head-on, fly to the merge and turn. Set each one's speed and G and watch who gets their nose on first. The spec is [`specs/SPEC-turn-fight.md`](../../../specs/SPEC-turn-fight.md); the task list is [`tasks/turn-fight/`](../../../tasks/turn-fight/todo.md). The fight is V6's, pinned to V6's own code by `tests/golden/turn-fight-sim.test.js`.
+Two aircraft, Blue and Red, start head-on, fly to the merge and turn. Set each one's speed and G and watch who gets their nose on first. The spec is [`docs/modules/turn-fight/spec.md`](../../../docs/modules/turn-fight/spec.md); the plan is [`docs/modules/turn-fight/plan.md`](../../../docs/modules/turn-fight/plan.md). The fight started as V6's; V6 is a source of ideas, not answers (`docs/TESTING.md`).
 
 | File | What's in it |
 |---|---|
@@ -8,7 +8,7 @@ Two aircraft, Blue and Red, start head-on, fly to the merge and turn. Set each o
 | `sim.js` | The fight, pure (no page access): `createFight`, `stepFight` in whole 0.02 s steps, the merge, the turns, first nose-on, the chase, Climb and dive, the 10-minute stop, the start geometry and Red's starting height. Every line names the V6 line it comes from. Head-on keeps V6's own start arithmetic, bit for bit. |
 | `readouts.js` | The Result and More detail lines from a fight state, with V6's rounding, as text (`resultRows`, `moreDetailRows`, `timeText`, `phaseText`), and the live AA, HCA and range rows (`geometryRows`), kept apart so V6's own rows and their golden test stay as they were. |
 | `state.js` | Plain values: every setting and its V6 default, the number boxes' ranges, what "Reset to V6 defaults" puts back, and the check on settings read back from storage. |
-| `energy-sim.js` | Energy (T-6) mode's fight, pure: thrust, drag and stall limits, the moves (Auto, Immelmann, Pitch back, Slice, Split S, MPT), the two flags. Written to `specs/SPEC-turn-fight.md`, "Energy mode"; the screen only reads it (`createEnergyFight`, `stepEnergyFight`). |
+| `energy-sim.js` | Energy (T-6) mode's fight, pure: thrust, drag and stall limits, the moves (Auto, Immelmann, Pitch back, Slice, Split S, MPT), the two flags. Written to `docs/modules/turn-fight/spec.md`, "Energy mode"; the screen only reads it (`createEnergyFight`, `stepEnergyFight`). |
 | `energy-readouts.js` | Energy mode's Result and More detail rows, the flag words and notes, the winner ("Even fight" when nobody won), the move's why text and the altitude text alternative (`altitudeSummary`, `altitudeRows`). Text only, like `readouts.js`. |
 | `energy-graph.js` | The altitude-against-time side view with the hard deck line, on uPlot. uPlot is fetched by a dynamic import only when Energy is on in 2D (`loadUplot`); `createAltitudeGraph` starts, updates (at the readout rate) and disposes it. |
 | `t6-limit.js` | The words of the T-6 limit warning beside each G box. The stall line G = (speed ÷ 86)² and the 7 G cap are core's (`core/t6-performance.js`). |

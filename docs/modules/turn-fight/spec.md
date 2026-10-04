@@ -1,14 +1,16 @@
 > **Note (reset, 4 Oct 2026):** this is the spec as it stood before the reset, moved here unchanged. It is refreshed against this module's new `requirements.md` and `decisions.md` when the module's work resumes. Where it disagrees with them, they win. Lines saying the code must give "the same answer V6 gives" or must match V6 are replaced: flight math is checked against the manuals and standard aerodynamics (ALL-R22, Patrick's answer Q-ALL-4).
+>
+> **Replaced old decisions:** this spec still cites D6, D10, D112, D369, D381, D386, D393, D411, which are no longer in force. The "Replaced old decisions" section of `../../DECISIONS.md`, `../traffic/decisions.md` and `decisions.md` says what took each one's place.
 
 # Turn Fight spec
 
-Moved from `specs/SPEC-turn-fight.md`.
+Moved from `specs/SPEC-turn-fight.md` (the old copy is in `archive/specs/`).
 
 # Spec: `turn-fight`, the BFM Turn Fight
 
-Status: **approved by Patrick on 2026-09-30** ("Spec turn flight approved", in the Turn Fight spec thread). Patrick answered its four questions (Q48 to Q51) on 2026-09-30; each change lands as its own commit after V6 is pinned. **Energy mode (FF23, D112) approved by Patrick on 2026-09-30** ("Energy mode approved", 06:16Z, in this thread). **Start geometry and altitudes (R28), the SMM additions to Energy mode (level turn at the deck, stall cost, throttle, pursuit), and the defaults-and-simplicity rule approved by Patrick on 2026-09-30** ("Agreed", 07:13Z, in this thread). Changes go through a pull request. Module id `turn-fight` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Status: **approved by Patrick on 2026-09-30** ("Spec turn flight approved", in the Turn Fight spec thread). Patrick answered its four questions (Q48 to Q51) on 2026-09-30; each change lands as its own commit after V6 is pinned. **Energy mode (FF23, D112) approved by Patrick on 2026-09-30** ("Energy mode approved", 06:16Z, in this thread). **Start geometry and altitudes (R28), the SMM additions to Energy mode (level turn at the deck, stall cost, throttle, pursuit), and the defaults-and-simplicity rule approved by Patrick on 2026-09-30** ("Agreed", 07:13Z, in this thread). Changes go through a pull request. Module id `turn-fight` in [`archive/SPEC.md`](../../../archive/SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
-The build starts when the coordinator says it's the Turn Fight's turn, after the debrief and the Turn Sim. Until then this spec and [`tasks/turn-fight/`](../tasks/turn-fight/plan.md) are the work.
+The build starts when the coordinator says it's the Turn Fight's turn, after the debrief and the Turn Sim. Until then this spec and [`archive/tasks/turn-fight`](../../../archive/tasks/turn-fight/plan.md) are the work.
 
 ## Objective
 
@@ -162,14 +164,14 @@ For the simple fight, everything is already in `core` and pinned against Turn Fi
 
 | Turn Fight in V6 | `core` | Pinned by |
 |---|---|---|
-| `KT`, `G`, `NM` (line 4234) | `KT_TO_FTPS`, `G_FTPS2`, `FT_PER_NM` | `tests/golden/core-units.test.js` |
+| `KT`, `G`, `NM` (line 4234) | `KT_TO_FTPS`, `G_FTPS2`, `FT_PER_NM` | `archive/tests/golden/core-units.test.js` |
 | `M` (line 4237): G limit, radius, rate | `limitG`, `turnRadiusFt`, `turnRateRadPerSec` | `core-flight-math.test.js` (rate within 1e-15, because V6 works it out in a different order) |
 | `wrapH` (line 4239) | `wrapPi` | `core-angles.test.js`, exact |
 | `ad` and `ao` (lines 4238 and 4239) | `absAngleDeg`, `headingRad` | `core-angles.test.js` (`ad` within 1e-10°) |
 
 The fight itself (merge, turn directions, chase, first nose-on) is this module's `sim.js`, as the Turn Sim owns its integrator in the module map (SPEC.md). It uses only the `core` functions above. If the Flight math core thread would rather own it, it moves to `core` unchanged.
 
-**Energy mode uses `core`'s shared T-6A performance model** (D128, Patrick 2026-09-30 06:58Z). It is built by the Flight math core thread, test-first, as SPEC-core's "API, fifth PR: T-6A performance" (tasks 14 to 17 in `tasks/flight-math/todo.md`). The Turn Fight uses `T6A_LIMITS`, `stallLimitG`, `availableG`, `iasToTasKt` and `tasToIasKt`, `excessThrustPerWeight`, `energyHeightFt` and `stepPointMass` from it, and builds none of them itself.
+**Energy mode uses `core`'s shared T-6A performance model** (D128, Patrick 2026-09-30 06:58Z). It is built by the Flight math core thread, test-first, as SPEC-core's "API, fifth PR: T-6A performance" (tasks 14 to 17 in `archive/tasks/flight-math/todo.md`). The Turn Fight uses `T6A_LIMITS`, `stallLimitG`, `availableG`, `iasToTasKt` and `tasToIasKt`, `excessThrustPerWeight`, `energyHeightFt` and `stepPointMass` from it, and builds none of them itself.
 
 The moves (which bank and G each pilot uses, when a move ends) are the Turn Fight's own, in `energy-sim.js`.
 
@@ -428,7 +430,7 @@ Patrick asked every thread to name the repo skills it uses (2026-09-30). These f
 | Step | Skill (`.claude/skills/`) | How it's used here |
 |---|---|---|
 | This spec | spec-driven-development | The six core areas, assumptions listed up front, and Patrick's approval before any code |
-| The task plan | planning-and-task-breakdown | `tasks/turn-fight/`: vertical slices, each task with acceptance, verify and at most about 5 files, checkpoints between PRs |
+| The task plan | planning-and-task-breakdown | `archive/tasks/turn-fight`: vertical slices, each task with acceptance, verify and at most about 5 files, checkpoints between PRs |
 | Task 10 (Energy mode), with core's tasks 14 to 17 | test-driven-development | Every new formula starts as a failing known-answer test (core writes the model's; this module writes the moves'): a level turn gives today's `turnRadiusFt` and `turnRateRadPerSec` exactly; a steady climbing turn gives g·√(n² − cos²γ) / (V cos γ) (22.4°/s at 30°, 220 KTAS, 4 G); with thrust equal to drag, energy height stays constant round a loop; the stall line reaches 7 G at 227.5 KIAS; the fit meets the chart checks above |
 | Tasks 1 and 2 (the fight, readouts) | test-driven-development | Unit tests written first against certified aerodynamic equations and SMM standards within D371 pilot domain tolerances |
 | Every task | incremental-implementation | One task per commit, each leaving the app working; `npm test` before each commit |
@@ -448,7 +450,7 @@ security-and-hardening doesn't apply: the Turn Fight opens no files and fetches 
 3. **Unit tests** check aerodynamic physics: 220 KTAS at 4 G turns at 19.2°/s on a 1,106 ft radius; MPT speed range 125–175 KIAS; Mach 0.67 corner speed (269 KIAS at 25,000 ft); Immelmann 5.0 G pull to shaker (D393); prohibition of Immelmann $\le 140$ KIAS (D381); 10° elevation capture cone for vertical nose-on (D386).
 4. **Browser tests** (Playwright): 67 automated E2E tests validating controls, 2D/3D views, Energy Mode uPlot profiles, axe accessibility, and keyboard navigation.
 5. **Energy mode** flies the T-6A point-mass model, reaching and holding the 160 KIAS MPT from 125–175 KIAS, with full hard-deck containment and stall protection.
-6. **Sign-off checklist** (R21, Gate 2), run by Patrick against `docs/checklists/turn-fight.md`.
+6. **Sign-off checklist** (R21, Gate 2), run by Patrick against `archive/docs/checklists/turn-fight.md`.
 
 ## Boundaries
 
@@ -466,4 +468,4 @@ security-and-hardening doesn't apply: the Turn Fight opens no files and fetches 
 
 ## Plan
 
-The tasks, checkpoints and risks are in [`tasks/turn-fight/plan.md`](../tasks/turn-fight/plan.md) and [`todo.md`](../tasks/turn-fight/todo.md).
+The tasks, checkpoints and risks are in [`archive/tasks/turn-fight/plan.md`](../../../archive/tasks/turn-fight/plan.md) and [`todo.md`](../../../archive/tasks/turn-fight/todo.md).

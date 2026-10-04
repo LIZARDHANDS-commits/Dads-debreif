@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: a see-through picture is laid in strips that meet exactly, so no row is drawn twice.
+// Serves: SOF-R15.
+// Expected values: an invariant worked out in the test: no row drawn twice (from recheck item L1, sof-recheck-207).
 
 // Tests for src/modules/sof/map-draw.js drawGeoImage: a see-through picture is laid in strips that meet exactly,
 // so no row is drawn twice (L1 of sof-recheck-207: faint seams in the cloud and coverage layers below 100%).

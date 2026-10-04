@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the built-in airfield list: valid zones, CYMJ elevation 1,892 ft, the list cannot be changed, distances from CYMJ.
+// Serves: ALL-R16.
+// Expected values: great-circle distances worked out in the test (CYQR 35, CYYN 82, CYXE 119 NM, within 1 NM); the elevation is typed in, an estimate until a publication is cited.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

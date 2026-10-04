@@ -2,8 +2,8 @@
 // A pure calculation with no page access (SPEC-turn-fight, "The fight"): it
 // takes a plain setup and moves a plain state, so the same numbers come out in
 // Node and in the browser. It is V6's `bfmFight` script (original/shell.html,
-// lines 4232 to 4294) ported as it is, in the same order of operations, and
-// pinned to it by tests/golden/turn-fight-sim.test.js. The turn math itself
+// lines 4232 to 4294) ported as it is, in the same order of operations. V6 is a
+// source of ideas, not answers (docs/TESTING.md). The turn math itself
 // comes from core.
 //
 // Units: feet, seconds, radians. Headings follow core's rule: 0 is east (+x),

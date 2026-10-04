@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the refresh lifecycle on the module's scheduler: refresh every 5 minutes, wake refresh when the last round
+//   is old, a failed refresh keeps the last report, nothing after unmount.
+// Serves: SOF-R2, SOF-R5.
+// Expected values: hand-written fake fetch and fake timers; the 5 minute refresh is a design choice from the SOF
+//   spec.
 
 // Tests for src/modules/sof/weather.js: the refresh lifecycle the screen runs on
 // the module's scheduler scope, with fake timers and a fake fetch (SPEC-sof,

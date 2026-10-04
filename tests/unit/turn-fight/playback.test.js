@@ -1,15 +1,9 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: how the Simple fight's play loop moves it: capped step per frame, whole fight steps, remainder
+//   carried, a trail point every 0.1 s, trails capped at 6,001 points, extent follows the trails.
+// Serves: TF-R13, TF-R23.
+// Expected values: run compared with the engine's own stepFight, on purpose; the 0.08 s frame cap "as V6 does"
+//   is a design choice, no source; 10-minute stop is TF-R23's rule; 1 NM = 6,076.12 ft.
 
-// OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
 // Playing a fight: the frame limit, whole fight steps, and trails that keep one
 // point every 0.1 s whatever the frame rate (SPEC-turn-fight, "Frame time",
 // "One fixed step", "Trails").

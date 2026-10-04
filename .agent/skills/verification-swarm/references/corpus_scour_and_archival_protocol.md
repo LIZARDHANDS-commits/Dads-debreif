@@ -6,7 +6,7 @@
 
 ## 1. The Three-Tier Archival Classification
 
-When scouring a documentation corpus or project repository to identify candidates for retirement to `docs/archive/`, classify every candidate file into one of three tiers:
+When scouring a documentation corpus or project repository to identify candidates for retirement to `archive/`, classify every candidate file into one of three tiers:
 
 ```
 [Candidate File] ──┬──> Tier 1: SAFE_TO_ARCHIVE_IMMEDIATELY ────────> Move to docs/archive/
@@ -18,7 +18,7 @@ When scouring a documentation corpus or project repository to identify candidate
 
 | Tier | Category | Criteria | Required Action Before Archiving |
 | :--- | :--- | :--- | :--- |
-| **Tier 1** | **Safe to Archive Immediately** | Retrospective sprint notes, completed swarm run reports whose syntheses are ratified, temporary scratch files, superseded drafts that have zero unique content. | Confirm file is tracked in historical index; move directly to `docs/archive/`. |
+| **Tier 1** | **Safe to Archive Immediately** | Retrospective sprint notes, completed swarm run reports whose syntheses are ratified, temporary scratch files, superseded drafts that have zero unique content. | Confirm file is tracked in historical index; move directly to `archive/`. |
 | **Tier 2** | **Needs Extraction First** | Legacy audit documents, gap analyses, or review reports containing **unique normative rules**, architectural matrices, or decision context not duplicated in canonical registers. | **Mandatory Extraction Gate:** Cite and promote all unique normative content to authoritative documents (`DECISIONS.md`, system rules, or runbooks) before moving file. |
 | **Tier 3** | **Keep Active** | Canonical registers (`DECISIONS.md`, `GAP_REGISTER.md`), current operating procedures, living test plans, and active specifications. | Do not archive. Flag for update or synchronization if stale. |
 

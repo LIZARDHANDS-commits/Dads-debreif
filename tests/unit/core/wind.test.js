@@ -1,17 +1,10 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the wind triangle: crab angle and ground speed, calm gives airspeed and no crab, head, tail and cross wind, wind stronger than airspeed cannot hold track.
+// Serves: ALL-R19, TR-R5.
+// Expected values: wind-triangle trigonometry worked out in the test (track 290, 110 kt, wind 250 at 20 kt gives 6.7 degrees left crab and 93.9 kt ground speed).
 
 // The wind triangle, against known answers (SPEC-traffic, "Wind and aircraft
-// types"). V6 has no wind, so there is no golden test: with the wind calm it
-// must give V6's numbers exactly.
+// types"). With the wind calm it must give plain airspeed and no crab. V6 is a source
+// of ideas only, not answers (docs/TESTING.md).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { windTriangle } from '../../../src/core/wind.js';

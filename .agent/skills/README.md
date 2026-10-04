@@ -29,7 +29,7 @@ Each module (shell, core, wx, flight-data, debrief, Turn Sim, Turn Fight, Traffi
 
 Where the project's layout differs from a skill's defaults:
 
-- spec-driven-development: the spec is the module's `docs/modules/<module>/spec.md`, not a root `SPEC.md`.
+- spec-driven-development: the spec is the module's `docs/modules/<module>/spec.md`, not a root `archive/SPEC.md`.
 - planning-and-task-breakdown: the plan and its task list go in the module's `docs/modules/<module>/plan.md`, not `tasks/plan.md` or `tasks/todo.md`.
 
 frontend-ui-engineering covers keyboard access, labelled controls, empty, error and stale states, colour never being the only signal (SOF cautions), and design tokens instead of `!important`. Its examples are React/Tailwind and mobile-first: take the rules, not the code, and target desktop.

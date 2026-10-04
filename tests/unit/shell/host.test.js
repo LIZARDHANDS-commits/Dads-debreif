@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the host gives each module its own tools and, when a module closes, fails, throws or is replaced, removes every frame, timer, listener and subscription.
+// Serves: ALL-R12, ALL-R11.
+// Expected values: design choice: counts of what was started and removed are worked out in the test from the host's contract.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';

@@ -1,13 +1,10 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the engine in six groups: cross-track guidance and lead turns, wind triangle (crab, ground speed),
+//   bank and turn rate, speed/climb/descent rates, engine-out glide and gear limit, and the circuit phase
+//   machine.
+// Serves: TR-R5, TR-R6, TR-R7, TR-R9, TR-R10, TR-R12, TR-R14, ALL-R20.
+// Expected values: worked out in the test: lead turn R tan(d/2), turn rate g tan(bank)/v, crab asin(W/V),
+//   stall (V/86)^2; SMM speeds and 15,417 ft intercept via traffic spec 3; 4 kt/s, 2.7 kt/s, 52.37 ft/s and
+//   "chart ~1350 fpm" typed in, no source.
 
 // Comprehensive unit tests for the Unified 3D Vector Flight Engine (Milestone M1)
 // Authoritative specifications: specs/SPEC-traffic.md §2, §3, §6, §9; docs/traffic-pattern-matrix.md

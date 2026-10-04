@@ -1,6 +1,6 @@
 // The two embedded VNC charts: where they sit, and V6's hand-tuned warp that
 // lines them up with the ground. Pure functions in latitude/longitude and local
-// feet, so they run in Node; tests/golden/debrief-vnc.test.js pins them to V6.
+// feet, so they run in Node.
 // The layer that draws them (and caches the drawing, #43) sits on top of these.
 import { mercatorY, invMercatorY, latLonToLocalFt } from '../../../core/geo.js';
 

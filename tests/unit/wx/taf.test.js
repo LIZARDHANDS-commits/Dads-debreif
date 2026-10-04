@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: TAF parsing and timeline: valid period, TEMPO, BECMG until the next FM, PROB30, amendment, hour 24, month and year ends, forecast coverage.
+// Serves: SOF-R9.
+// Expected values: hand-written TAFs with the expected times worked out by hand on fixed dates.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

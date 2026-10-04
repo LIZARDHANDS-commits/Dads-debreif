@@ -1,13 +1,7 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the Traffic Sim in a real browser: opens paused, Play and Reset, keys, spawn and pair, conflicts, settings, layers, 2D/3D, rewind, saved setups, layout.
+// Serves: TR-R2, TR-R17, TR-R19, TR-R21, TR-R23, TR-R24, TR-R25, TR-R27, TR-R29.
+// Expected values: counts and words typed in from the spec and the built-in setup (some are the code's own, flagged circular in the test register);
+//   times are waits on simulated time, not exact values.
 
 // Browser tests for the Traffic Pattern Sim (SPEC-traffic: Testing strategy). Every test
 // fails on a console error (fixtures.js, R7). Most run on a test page that mounts the sim

@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: cutting a report's text into plain and marked pieces from wx's word positions.
+// Serves: SOF-R7, SOF-R24.
+// Expected values: hand-written strings and positions.
 
 // Tests for src/modules/sof/marks.js: cutting a report's text into plain and marked pieces
 // from wx's word positions (SPEC-sof, "Airfield cards", "Caution banner"). Pure: no page.

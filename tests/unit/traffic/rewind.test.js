@@ -1,25 +1,10 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
-
-// ╔══════════════════════════════════════════════════════════════════════╗
-// ║  OPERATOR WARNING — READ BEFORE DEBUGGING TEST FAILURES            ║
-// ║                                                                    ║
-// ║  These tests use PILOT-DOMAIN TOLERANCES (±10 kt, ±100 ft, ±5°).  ║
-// ║  If a test fails repeatedly, DO NOT tweak the physics engine to    ║
-// ║  make it pass. Instead:                                            ║
-// ║    1. Ask the operator what to do.                                 ║
-// ║    2. The test tolerance may need widening, OR                     ║
-// ║    3. There may be a genuine flight behavior bug.                  ║
-// ║  Never force physics to match a test value.                        ║
-// ╚══════════════════════════════════════════════════════════════════════╝
+// Checks: going back to any moment gives the state the forward run had (aircraft, dice, trails) at several
+//   seeds and speeds; spawn, remove, clear and edit mid-run replay correctly; snapshots every 10 s; rewind stays
+//   quick.
+// Serves: TR-R21, TR-R19.
+// Expected values: the forward run recorded from the same sim (the code against itself, on purpose); five
+//   checks time this computer against the author's own budgets (50, 8, 10 and 5,000 ms); runs at sign-off until
+//   it finishes reliably.
 
 // Rewind and the 10-second steps (specs/SPEC-traffic.md: "Rewind, -10 s and +10 s land exactly
 // where the run was at that time, at every speed", bug #46). The rule these tests hold to:

@@ -1,7 +1,7 @@
 // A small, strict XML reader for track files.
 //
 // V6 used the browser's DOMParser. This reader gives the same elements and text
-// for the files V6 reads (tests/golden/flight-data-kml.test.js), and it runs the
+// for the files V6 reads, and it runs the
 // same in Node's test runner. It is deliberately strict and small:
 // - It refuses a <!DOCTYPE>, so no entity can ever be defined or expanded
 //   (billion-laughs, external files). Only &lt; &gt; &amp; &quot; &apos; and

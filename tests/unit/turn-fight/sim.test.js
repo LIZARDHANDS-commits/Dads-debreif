@@ -1,15 +1,11 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the Simple level-turn fight: turn rate, radius, 360 degree time, merge time, speed-weighted start,
+//   first nose-on and ties, chase, 10-minute stop, frame-rate independence, start geometry. Climb and dive cases
+//   retire with TF-R22.
+// Serves: TF-R3, TF-R2, TF-R8, TF-R9, TF-R12, TF-R13, TF-R23.
+// Expected values: standard aerodynamics worked out in comments (4 G at 220 KTAS: 19.2 deg/s, 1,106 ft, 18.7
+//   s); Patrick's rulings Q48 (tie is both), Q49 (meet in the centre), Q51; merge time is distance / closing
+//   speed.
 
-// OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
 // The Turn Fight's fight (SPEC-turn-fight, Testing strategy 3): what the numbers mean.
 // Expected values are worked out from standard aerodynamics and geometry (F1) or are Patrick's rulings (Q48, Q49, Q51), never V6's output.
 import test from 'node:test';

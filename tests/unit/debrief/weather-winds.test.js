@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: winds aloft from Open-Meteo: model by date, archive address, reading replies, wind at an altitude and
+//   blended by time, wording, feed errors, no levels below ground.
+// Serves: DB-R8, DB-R18.
+// Expected values: typed-in replies, and two real Open-Meteo replies for Moose Jaw on 29 Sep 2026 used for shape and
+//   rules only; worked vector blends.
 
 // Winds aloft (SPEC-debrief: Weather at the time of the flight): the archive
 // address, reading the reply, the wind at Lead's altitude and its words.

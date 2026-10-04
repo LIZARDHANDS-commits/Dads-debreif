@@ -1,13 +1,8 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the Energy 3D view: each jet's own bank from the energy state and pitch from climb angle, bank sign,
+//   simple-fight pose unchanged, MERGE mark, see-through hard-deck plane, a tie's first nose-on line.
+// Serves: TF-R18, TF-R8.
+// Expected values: level-turn bank acos(1/G) worked out in the test (75.5 degrees at 4 G); events found by
+//   flying until they happen (stop about 40 s), no clock values; no WebGL, a stand-in renderer.
 
 // The 3D view in Energy mode (SPEC-turn-fight, "2D and 3D views"): each aircraft's own bank from the energy state in place
 // of the level-turn bank, its pitch from its climb angle, the see-through hard-deck plane, and the first nose-on

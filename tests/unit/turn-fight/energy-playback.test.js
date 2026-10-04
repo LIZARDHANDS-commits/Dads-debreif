@@ -1,13 +1,9 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the Energy play loop with an injected clock: flies the engine's own steps at any frame rate, a slow
+//   step (the AI's move pick) ends a frame, MERGE, PASS and phase words follow the engine, bad numbers are
+//   refused.
+// Serves: TF-R13, TF-R8.
+// Expected values: the engine's own steps compared with the engine, on purpose, so playback cannot change the
+//   outcome; time is injected, not computer time.
 
 // Playing an Energy fight (SPEC-turn-fight, "Energy mode"): the run the pictures read, and what one frame does when a
 // step is slow (the model pilot picking his next move).

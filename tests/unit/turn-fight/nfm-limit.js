@@ -1,8 +1,8 @@
 // The T-6A's airspeed and Mach limit as the NFM's own figure gives it, worked out for the tests from the figure, not from
 // core's or the engine's limit function. Not a test file (the runner only picks up *.test.js).
 //
-// NFM Figure 4-1-2, "Airspeed and Mach Limitations" (Figure 5-3, p. 5-9, in manuals/text/t6a-nfm-100-scribd.txt; page image
-// manuals/images/t6a-airspeed-mach-limits.png; numbers in manuals/formation-and-turn-numbers.md, "T-6A performance charts"):
+// NFM Figure 4-1-2, "Airspeed and Mach Limitations" (Figure 5-3, p. 5-9, in pf/manuals/text/t6a-nfm-100-scribd.txt; page image
+// pf/manuals/images/t6a-airspeed-mach-limits.png; numbers in pf/manuals/formation-and-turn-numbers.md, "T-6A performance charts"):
 // VMO 316 KIAS up to and including 18,769 ft, then the MMO 0.67 line, drawn straight, down to 244 KIAS at 31,000 ft: about
 // 309 at 20,000 ft and 279 at 25,000 ft. This is a compressible KIAS. The Energy engine does not compare the model's IAS
 // with it: the model's IAS has no compressibility, so it flies the model's own Mach 0.67 limit (energyTopKias, about 9 kt

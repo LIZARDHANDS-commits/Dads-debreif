@@ -1,13 +1,10 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: each aircraft type's name, colour, fallback speed and circuit speeds (CT-156 break 220, downwind
+//   120, threshold 100), frozen tables, unknown types fall back to CT-156, phase names matched loosely, map and
+//   3D colour and model.
+// Serves: TR-R16.
+// Expected values: the code's own constants written out again; CT-156 speeds agree with traffic spec 3.1 (SMM
+//   4.14 para 32, 4.17 para 39, 4.19 para 43, 4.1 para 1) but no page is in the file; the other types' speeds
+//   have no source yet.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';

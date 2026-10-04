@@ -1,6 +1,6 @@
 # storage
 
-Everything the app remembers in the browser goes through here (spec: `specs/SPEC-storage.md`).
+Everything the app remembers in the browser goes through here (spec: `docs/modules/shared/spec.md`).
 
 - `store.js`: `createStore(() => window.localStorage)` gives `get`, `set`, `remove` and `scope(moduleId)`. If the browser blocks or fills its storage, nothing breaks: values are kept for the visit and `store.persistent` is `false`.
 - `standards.js`: `createStandards({ store })` keeps the shared formation standards (R18, D89), seeded from core's `DEFAULT_STANDARDS` (the SMM's numbers, D114-D116), with range checks. Modules reach it as `app.standards` (specs/SPEC-shell.md).

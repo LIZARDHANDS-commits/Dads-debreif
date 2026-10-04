@@ -1,13 +1,6 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the map projection: a minute of latitude is about 1 NM, east is +x and north is +y, local feet round-trip to latitude and longitude.
+// Serves: ALL-R16.
+// Expected values: the definition of the nautical mile (one minute of latitude), worked out in the test.
 
 // Sanity checks on the debrief projection with known distances (SPEC-core).
 import test from 'node:test';

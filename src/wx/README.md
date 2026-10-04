@@ -1,6 +1,6 @@
 # wx: weather parsing and limit checks
 
-Turns raw METAR and TAF text into plain data and answers the SOF's weather questions. No page access; every function takes plain values and returns plain values, except `sources.js`, which fetches with the `fetch` it is given. Spec: [`specs/SPEC-wx.md`](../../specs/SPEC-wx.md).
+Turns raw METAR and TAF text into plain data and answers the SOF's weather questions. No page access; every function takes plain values and returns plain values, except `sources.js`, which fetches with the `fetch` it is given. Spec: [`docs/modules/shared/spec.md`](../../docs/modules/shared/spec.md).
 
 | File | What it does |
 |---|---|

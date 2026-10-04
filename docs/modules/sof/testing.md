@@ -51,12 +51,12 @@ Dad's open SOF questions (SOF-Q5 to SOF-Q8, SOF-Q12) are settings or named defau
 | SOF-R22 Home field and alternates are a setting | Set another home field: cards, map centre, rings, timeline and zone follow | Each change (unit); sign-off (browser) | |
 | SOF-R23 Every service down; offline after one visit | Every feed blocked: the screen opens, names the failed feeds in words, keeps the last reports with their ages, no console errors | Each change (offline) | |
 | SOF-R24 Not colour alone, keyboard, text only | S5; a report that looks like HTML shows as text; the accessibility scan; keyboard walks through the banner, waves and timeline | Each change (scan and unit); sign-off (keyboard walks) | Tab through the screen |
-| SOF-R25 The SOF checklist is run and signed | No automatic check. `docs/checklists/sof.md` is updated for the one-screen rebuild and run after it (SOF-Q13), the same day against NAV CANADA and V6 | Sign-off | The checklist itself |
+| SOF-R25 The SOF checklist is run and signed | No automatic check. `archive/docs/checklists/sof.md` is updated for the one-screen rebuild and run after it (SOF-Q13), the same day against NAV CANADA and V6 | Sign-off | The checklist itself |
 | SOF-R26 The everyday extras | New: the Zulu and local clocks agree with the DTG; the radar loop steps through the last hour's pictures, each with its own time; tapping a card centres the map on that airfield; Other airfields and About open from buttons and start closed. The NATO chart, Large text and the links are on the future list and get no tests | Each change (unit); sign-off (browser) | |
 | SOF-R27 Wind and crosswind | New: crosswind worked out by hand for each runway from the wind and the runway heading; amber just over 15 kt dry (10 wet, 5 icy), red just over 25 kt dry; a 30 kt wind or gust gives the warning and 35 kt the cease-flying caution; changing a setting changes the call; nothing stops past a limit (S4, T10) | Each change | Dad checks the numbers and their page references |
 | SOF-R28 Extra map layers, off by default except radar coverage | Fresh map: radar, lightning and radar coverage on, the rest off; each turns on and off; label overlap as in SOF-R14 | Each change (unit); sign-off (browser) | |
 
-**At SOF sign-off:** both SOF browser files in full, the hands-on checklist above and `docs/checklists/sof.md`, and one look in real Safari. Sign-off comes after the one-screen rebuild (SOF-Q13).
+**At SOF sign-off:** both SOF browser files in full, the hands-on checklist above and `archive/docs/checklists/sof.md`, and one look in real Safari. Sign-off comes after the one-screen rebuild (SOF-Q13).
 
 **Live-traffic relay** went to the future list (SOF-Q9). Its tests leave with it: `tests/unit/sof/traffic.test.js`, the relay's own `tests/unit/relay/traffic.test.js`, the traffic-layer tests in `tests/unit/sof/map-loops.test.js`, the relay-address tests in `tests/unit/sof/settings-model.test.js` and the relay tests in `tests/e2e/sof-map.spec.js`. Until thread 7 archives the relay code they keep running.
 
@@ -81,7 +81,7 @@ Anyone can run it, in the real app, from the module's default start, on a laptop
 
 > The old checklist below was written before the reset. It is refreshed against the requirements above when the module's work resumes: lines that test V6 numbers or exact times are rewritten or dropped.
 
-### Carried over from `docs/checklists/sof.md`
+### Carried over from `archive/docs/checklists/sof.md`
 
 #### Sign-off checklist: the SOF Dashboard
 

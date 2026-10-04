@@ -1,17 +1,12 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the VNC chart layer: choices Off, South, North and Both, nothing fetched until shown, failed charts
+//   reported, and each chart covering its four corners.
+// Serves: DB-R14.
+// Expected values: chart corners worked out in the test; file names come from VNC_FILES in the code (design choice);
+//   fake images, no network.
 
 // The VNC chart layer (SPEC-debrief: Map layers): charts fetched only when
 // shown, warped once per alignment (#43), and a failed chart reported.
-// The warp itself is pinned in tests/golden/debrief-vnc.test.js. What the user sees is checked here: the chart covers
+// What the user sees is checked here (V6 is a source of ideas only, docs/TESTING.md): the chart covers
 // its corners on the map and is redrawn once a frame (DB-R14); how many triangles the warp uses is not checked.
 import test from 'node:test';
 import assert from 'node:assert/strict';

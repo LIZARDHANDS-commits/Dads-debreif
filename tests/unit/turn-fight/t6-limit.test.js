@@ -1,13 +1,9 @@
-// ============================================================================
-// WARNING / TEST INTEGRITY GUARD (D411):
-// If this test or any test in this suite fails repeatedly (2x test fail):
-// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
-// aerodynamic formulas to force tests to pass!
-// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
-// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
-// or time-locked to legacy trajectory floats. Under D411, tests must be updated
-// or pruned, never accommodated by degrading aerodynamic fidelity.
-// ============================================================================
+// Checks: the warning beside a G box: none at a normal speed and G, one naming the speed and limit above the
+//   T-6A's stall line, none exactly on it, and the 7 G cap.
+// Serves: TF-R4.
+// Expected values: stall line G = (speed / 86 kt)^2 and 7 G cap from the shared limit table (circular); 86 kt
+//   is Patrick's ruling SH-25, 7 G is NFM p.5-9; the title's "V6's default" (4 G) is a label only, the default
+//   is now 5 G.
 
 // The T-6 limit warning beside a G box (SPEC-turn-fight, "T-6 limit warning").
 import test from 'node:test';
