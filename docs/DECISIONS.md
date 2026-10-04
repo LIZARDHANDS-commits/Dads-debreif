@@ -1,6 +1,6 @@
 # Whole-tool decisions
 
-Decisions that affect more than one module (IDs ALL-1 to ALL-26). Module decisions live in each module's `decisions.md`; shared-parts decisions (SH-) in `modules/shared/decisions.md`. A new whole-tool decision gets the next ALL- number and changes its requirement or spec in the same change.
+Decisions that affect more than one module (IDs ALL-1 to ALL-27). Module decisions live in each module's `decisions.md`; shared-parts decisions (SH-) in `modules/shared/decisions.md`. A new whole-tool decision gets the next ALL- number and changes its requirement or spec in the same change.
 
 Sources in this file point to where things were on 4 Oct 2026: `pf/` means the project files (`pf/`, private), and repo paths such as `docs/records/` or `specs/` are now under `archive/` (see `archive/README.md`).
 
