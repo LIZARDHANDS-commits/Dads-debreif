@@ -18,9 +18,8 @@
  *          (-10974, -24252) with Pillar 8 climb arrest pitch decay over last 300 ft (4,200 -> 4,500 ft).
  * Stage 2: Descending Rejoin Arc from 4,500 ft to 3,500 ft MSL curving toward the ENT1 track
  *          to intercept the 2 NM prior point (10256, -38141).
- * Tangent Capture: When within lateral tolerance (<= 250 ft of ENT1 line near or prior to the 2 NM point)
- *          at 3,500 ft (±100 ft) and heading aligned within 45° of ENT1 track (~034°), smoothly capture
- *          ENT1 with zero coordinate teleportation (< 25 ft frame jump).
+ * Tangent Capture: a planned turn rolls out on the ENT1 line; once on it at 3,500 ft (±100 ft) with the
+ *          track along it and the wings level, the aircraft goes straight onto the ENT1 path (startJoin).
  * Rollout: Heading settles to ENT1 track (~034°), wings level (bank = 0°), airspeed 220 KIAS,
  *          altitude 3,500 ft, continuing up ENT1 into the circuit entry.
  */
@@ -28,7 +27,10 @@
 import { wrapDeg180 } from '../../core/angles.js';
 import { windTriangle } from '../../core/wind.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
+import { turnRadiusFromBankFt, bankDegFromTurnRate } from '../../core/flight-math.js';
+import { ktToFtps } from '../../core/units.js';
 import { posOnRoute, closestDistFt, routeLengthFt, isClosedRoute, DEFAULT_ROUTE_OPTIONS } from './route.js';
+import { startJoin } from './path-follower.js';
 
 // ── Ground Truth Geometry Constants ──────────────────────────────────────────
 export const BREAKOUT_PT = Object.freeze({ x: -10974, y: -24252 });
@@ -124,19 +126,14 @@ export function calcRejoinDesiredHeading(a, tasKt, env) {
   const cross = calcCrossTrackENT1(a);
   const crossDist = Math.abs(cross);
 
-  let desiredTrack;
-  if (crossDist > 6500) {
-    // Beyond rollout circle: steer towards a lead aim point along ENT1 prior to or at 2 NM point
-    const sAim = Math.min(REJOIN_ALONG_TRACK_FT, Math.max(3000, along));
-    const aimX = ENTRY_MID_PT.x + sAim * UX_ENT1;
-    const aimY = ENTRY_MID_PT.y + sAim * UY_ENT1;
-    desiredTrack = (Math.atan2(aimX - (a.x ?? 0), aimY - (a.y ?? 0)) * 180 / Math.PI + 360) % 360;
-  } else {
-    // Within 6,500 ft: smoothly curve onto ENT1 track (33.7°) in a continuous left arc
-    const uCurve = Math.max(0, Math.min(1, crossDist / 6500));
-    const approachBrg = 125;
-    const diff = wrapDeg180(approachBrg - ENT1_TRACK_DEG);
-    desiredTrack = (ENT1_TRACK_DEG + diff * (uCurve ** 1.4) + 360) % 360;
+  // Far off: a 60° intercept toward the line. Close to it (after the planned turn, see rejoinTurnBankDeg),
+  // the intercept angle shrinks with the distance off, so the last few feet are closed gently.
+  const thetaDeg = Math.min(REJOIN_INTERCEPT_DEG, (crossDist / REJOIN_SETTLE_FT) * 180 / Math.PI);
+  const toward = cross > 0 ? -1 : 1; // positive cross is right of track: turn left toward it
+  let desiredTrack = (ENT1_TRACK_DEG + toward * thetaDeg + 360) % 360;
+  if (along > REJOIN_ALONG_TRACK_FT && crossDist > rejoinRadiusFt(tasKt)) {
+    // Already past the 2 NM point and well off the line: head for the 2 NM point instead.
+    desiredTrack = (Math.atan2(REJOIN_INTERCEPT_PT.x - (a.x ?? 0), REJOIN_INTERCEPT_PT.y - (a.y ?? 0)) * 180 / Math.PI + 360) % 360;
   }
 
   // Wind crab compensation to hold track
@@ -146,6 +143,63 @@ export function calcRejoinDesiredHeading(a, tasKt, env) {
 
   return { targetHdg, deltaHdg, cross, along };
 }
+
+/** Bank of the rejoin turn onto ENT1, degrees (an estimate; the old arc used 35-40°). */
+export const REJOIN_BANK_DEG = 35;
+/** Intercept angle onto ENT1 while still well off it, degrees (an estimate). */
+export const REJOIN_INTERCEPT_DEG = 60;
+
+/**
+ * Bank the rejoin path is planned at, degrees (an estimate). Shallower than REJOIN_BANK_DEG so the
+ * aircraft has bank in hand to catch up after rolling in, and rolls out on the line instead of past it.
+ */
+export const REJOIN_PLAN_BANK_DEG = 25;
+
+/** Distance off the line inside which the intercept angle shrinks toward zero, ft (an estimate). */
+const REJOIN_SETTLE_FT = 500;
+
+/** Radius of the planned rejoin turn at this true airspeed: what REJOIN_PLAN_BANK_DEG gives. */
+function rejoinRadiusFt(tasKt) {
+  return turnRadiusFromBankFt(ktToFtps(Math.max(60, tasKt)), REJOIN_PLAN_BANK_DEG);
+}
+
+/**
+ * The rejoin turn onto ENT1, planned so it ends on the line with the track along it (Patrick,
+ * 4 Oct 09:21Z: the path's end conditions have the vector in line with the track).
+ *
+ * Heading toward the line at an angle chi with `cross` feet still to go, a steady turn of radius
+ * R = |cross| / (1 - cos chi) rolls out exactly on the line, tangent. The turn starts when that
+ * radius comes down to the planned one (REJOIN_PLAN_BANK_DEG), and each step the bank is re-worked
+ * from where the aircraft really is, so roll-in lag and wind are taken out as it goes. Returns the
+ * signed bank (right positive), or null when no turn is due yet (or it is over).
+ */
+export function rejoinTurnBankDeg(a, tasKt, cross) {
+  const trackDeg = Number.isFinite(a.trackDeg) ? a.trackDeg : (a.headingDeg ?? 0);
+  const chiDeg = wrapDeg180(trackDeg - ENT1_TRACK_DEG); // positive: pointing right of the line
+  const closing = cross * chiDeg < 0;
+  if (!closing || Math.abs(chiDeg) < REJOIN_TURN_END_DEG) {
+    delete a._rejoinTurning;
+    delete a.commandedBankDeg;
+    return null;
+  }
+  const radiusReqFt = Math.abs(cross) / (1 - Math.cos(chiDeg * Math.PI / 180));
+  if (!a._rejoinTurning && radiusReqFt > rejoinRadiusFt(tasKt) * REJOIN_TURN_LEAD) return null;
+  a._rejoinTurning = true;
+  // Ground-track turn rate the radius needs, then the bank that gives it at this true airspeed.
+  const gsFtps = ktToFtps(Math.max(10, a.groundSpeedKt ?? a.gsKt ?? tasKt));
+  const rateRadPerSec = -Math.sign(chiDeg) * gsFtps / Math.max(1, radiusReqFt);
+  const bankDeg = bankDegFromTurnRate(ktToFtps(Math.max(60, tasKt)), rateRadPerSec);
+  return Math.max(-REJOIN_BANK_DEG, Math.min(REJOIN_BANK_DEG, bankDeg));
+}
+
+/**
+ * The turn starts a little before the planned radius is reached, for the roll-in (an estimate);
+ * the bank then sits a touch under the plan and grows to it as the roll catches up.
+ */
+const REJOIN_TURN_LEAD = 1.15;
+
+/** The planned turn hands back to fine steering this close to the line's track, degrees (an estimate). */
+const REJOIN_TURN_END_DEG = 0.5;
 
 /**
  * Initiates 1.0s cubic smoothstep transition from physics mode onto route rail.
@@ -203,9 +257,8 @@ export function enterBlending(a, route, routeOptions = DEFAULT_ROUTE_OPTIONS) {
  * Stage 2: Descending Rejoin Arc from 4,500 ft to 3,500 ft MSL at 220 KIAS curving toward the ENT1 track
  *          to intercept 2 NM prior to circuit entry at (10256, -38141).
  *          Pitch smoothly decays to 0° over the last 300 ft (3,800 to 3,500 ft MSL).
- * Tangent Capture: When within lateral tolerance (<= 250 ft of ENT1 line near or prior to the 2 NM point)
- *          at 3,500 ft (±100 ft) and heading aligned within 45° of ENT1 track (~034°), smoothly capture
- *          ENT1 with zero coordinate teleportation (< 25 ft frame jump).
+ * Tangent Capture: a planned turn rolls out on the ENT1 line; once on it at 3,500 ft (±100 ft) with the
+ *          track along it and the wings level, the aircraft goes straight onto the ENT1 path (startJoin).
  * Rollout: Heading settles to ENT1 track (~034°), wings level (bank = 0°), airspeed 220 KIAS,
  *          altitude 3,500 ft, continuing up ENT1 into the circuit entry.
  *
@@ -289,17 +342,24 @@ export function stepBreakout(a, route = null, env = null, stepDt = 0.05, routeOp
   } else {
     a.targetBankDeg = deltaHdg < 0 ? -35 : 35;
   }
+  // The planned turn onto the line sets the bank directly; otherwise the heading steering does.
+  const plannedBank = rejoinTurnBankDeg(a, tasKt, cross);
+  if (plannedBank === null) delete a.commandedBankDeg;
+  else a.commandedBankDeg = plannedBank;
 
   // ── Tangent Capture Check ─────────────────────────────────────────────────
-  // When within lateral tolerance (<= 250 ft of ENT1 line near or prior to 2 NM point)
-  // at 3,500 ft MSL (±100 ft) and heading aligned within 45° of ENT1 track (~034°),
-  // capture ENT1 and roll wings level with zero coordinate teleportation.
+  // Hand over only once on the line with the track along it and the wings level (Patrick, 4 Oct 09:21Z),
+  // so ENT1 carries on with the same place, track and bank: no snap and no slide.
   const crossDist = Math.abs(cross);
   const altCaptured = Math.abs(alt - 3500) <= 100;
-  const hdgAligned = Math.abs(wrapDeg180((a.headingDeg ?? 0) - ENT1_TRACK_DEG)) <= 45;
-  const isNearOrPrior2NM = along <= REJOIN_ALONG_TRACK_FT + 500 && along >= 0;
+  const trackDeg = Number.isFinite(a.trackDeg) ? a.trackDeg : (a.headingDeg ?? 0);
+  const trackAligned = Math.abs(wrapDeg180(trackDeg - ENT1_TRACK_DEG)) <= 1;
+  const wingsLevel = Math.abs(a.bankDeg ?? 0) <= 3;
+  // Anywhere up the line, past the gate too (a tailwind widens the turn); startJoin carries the aircraft
+  // onto ENT1's own path from there, round the bend at the gate if need be.
+  const onEntry = along >= 0;
 
-  if (crossDist <= 250 && altCaptured && isNearOrPrior2NM && hdgAligned) {
+  if (crossDist <= 100 && altCaptured && onEntry && trackAligned && wingsLevel) {
     const entRoute = resolveEntRoute(route);
     a.phase = 'entry';
     a.routeId = entRoute.id;
@@ -314,7 +374,11 @@ export function stepBreakout(a, route = null, env = null, stepDt = 0.05, routeOp
     delete a.desiredHeadingDeg;
     delete a.navPlan;
     delete a.waypointIndex;
+    delete a._rejoinTurning;
+    delete a.commandedBankDeg;
 
-    enterBlending(a, entRoute, routeOptions);
+    // Onto the ENT1 rail where the aircraft is, closing any last few feet smoothly (spec item 13a).
+    a.mode = 'RAIL';
+    startJoin(a, entRoute, closestDistFt(entRoute, a, routeOptions), env, routeOptions);
   }
 }

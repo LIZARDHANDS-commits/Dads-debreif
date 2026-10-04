@@ -144,7 +144,10 @@ export function calcBankTarget(aircraft, desiredHeadingDeg, dt = 0, maxRollRateD
   const maxStallBank = calcStallBankLimit(aircraft.iasKt ?? 140, STALL_SPEED_KIAS);
 
   let targetBank = 0;
-  if (aircraft.phase === 'closed_pattern') {
+  if (Number.isFinite(aircraft.commandedBankDeg)) {
+    // A controller that plans its own turn (the breakout rejoin) sets the bank itself.
+    targetBank = aircraft.commandedBankDeg;
+  } else if (aircraft.phase === 'closed_pattern') {
     const nominalBank = aircraft.closedPatternBankDeg || 50;
     const isClosedSlice = (aircraft.alt ?? 0) >= 3200 && Math.abs(deltaHdg) > 25;
     const maxBank = isClosedSlice ? Math.min(90, nominalBank + 20) : nominalBank;
@@ -618,6 +621,7 @@ export function stepAircraft(aircraft, arg2, arg3, arg4) {
 
   // Guarantee finite step
   dt = Number.isFinite(dt) && dt > 0 ? dt : 0.05;
+  const altBefore = aircraft.alt;
   const windFrom = env?.windFromDeg ?? 360;
   const windKt = env?.windKt ?? 0;
 
@@ -810,5 +814,7 @@ export function stepAircraft(aircraft, arg2, arg3, arg4) {
   // 7. Phase State Machine
   evaluatePhaseTransitions(aircraft, navPlan, env, dt);
 
+  // Climb rate this step, so a hand-over back onto a path carries it on (path-follower startJoin).
+  if (Number.isFinite(altBefore) && Number.isFinite(aircraft.alt)) aircraft.climbFtps = (aircraft.alt - altBefore) / dt;
   return aircraft;
 }

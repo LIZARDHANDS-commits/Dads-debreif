@@ -36,7 +36,7 @@ Built on TR-R1 to TR-R34, ratified by Patrick on 4 Oct 01:46Z (`pf/reset/1-requi
 | TR-R7 The break | TP1: level, about 60°, speed only falls from 220 to about 140, rolls out on downwind; a stronger headwind moves the break point down the runway | Each change | |
 | TR-R8 Downwind and a wind-shifted perch | Perch moves with the crosswind and the final turn still rolls out on the centreline; about 120 KIAS by the perch | Each change | |
 | TR-R9 Final turn | TP1: one continuous descending turn, bank under 45° and about 35° when the perch is placed for the wind, rolls out on the centreline with crab | Each change | |
-| TR-R33 Closed pattern | Pulls up only past the upwind end, one continuous climbing turn entered at 45° to 60°, levels at pattern height and reaches the perch with no step | Each change | |
+| TR-R33 Closed pattern | Pulls up only past the upwind end, one continuous climbing turn entered at 45° to 60°, levels at pattern height and reaches the perch with no step; lands within 2.5 minutes of the pull-up (Patrick, 4 Oct 09:14Z and 09:26Z) | Each change | |
 | TR-R10 Final | Height against distance is a straight line near 3°; speed falls only after the window; never speeds up | Each change | |
 | TR-R11 Straight-in | Level at base height, one turn of no more than 45°, then the same final as overhead traffic | Each change | |
 | TR-R12 Landing as chosen | Each of touch-and-go, full stop and go-around ends as chosen; no dice; no aircraft vanishes | Each change | |

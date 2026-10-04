@@ -2,6 +2,7 @@
 //   degrees) to 3,500 ft, roll-out on downwind, wind moves the perch, no position jump joining the downwind
 //   rail.
 // Serves: TR-R33, TR-R8, TR-R13, TR-R15.
+//   Also: every closed pattern lands within 2.5 minutes of the pull-up (Patrick, 4 Oct 09:14Z and 09:26Z).
 // Expected values: perch bearing worked out in the test (atan2); 3,500 ft is Patrick's pattern height (TR-R4);
 //   50 degrees is traffic spec 3.2 (decision D400); start point, 140 kt and the 2 s / 40 s / 90 s limits are
 //   typed in, no source yet.
@@ -289,4 +290,33 @@ test('Closed Pattern Preset Point 2 on PAT1 initializes and executes full 4-phas
   }
 
   assert.ok(enteredDownwind, 'Preset closed pattern should complete and capture downwind rail');
+});
+
+// Patrick, 4 Oct 09:14Z: "an aircraft that begins a closed pattern must land within 2 minutes"; limit set to
+// 2.5 minutes with the window moved to 3/4 NM (Patrick's card, 09:26Z). Timed from the pull-up to touchdown;
+// the time is mostly the downwind, which runs the length of the runway plus final.
+test('Closed Pattern: every closed pattern lands within 2.5 minutes of the pull-up (Patrick, 4 Oct 09:26Z)', () => {
+  const LIMIT_SEC = 150;
+  const cases = [
+    { label: 'from the climb-out, calm', startPoint: 2, windKt: 0, windFromDeg: 360 },
+    { label: 'from the climb-out, 20 kt from 200', startPoint: 2, windKt: 20, windFromDeg: 200 },
+    { label: 'asked for on final, pulls up past the upwind end, calm', startPoint: 13, windKt: 0, windFromDeg: 360 },
+  ];
+  for (const c of cases) {
+    const sim = createSim({ ...mooseJaw, aircraft: [], windKt: c.windKt, windFromDeg: c.windFromDeg }, { seed: 42 });
+    const id = sim.spawn({ routeId: 'PAT1', startPoint: c.startPoint });
+    sim.stepTo(1);
+    sim.command(id, 'closed_pattern');
+    let pullUpAt = null, touchdownAt = null;
+    while (sim.t < 400 && touchdownAt === null) {
+      sim.stepTo(sim.t + 0.5);
+      const a = sim.state().aircraft.find((x) => x.id === id);
+      if (pullUpAt === null && a.phase === 'closed_pattern') pullUpAt = sim.t;
+      if (pullUpAt !== null && (a.phase === 'touch_and_go' || a.status === 'landed')) touchdownAt = sim.t;
+    }
+    assert.ok(pullUpAt !== null, `${c.label}: the aircraft should pull up into the closed pattern`);
+    assert.ok(touchdownAt !== null, `${c.label}: the aircraft should land again`);
+    assert.ok(touchdownAt - pullUpAt <= LIMIT_SEC,
+      `${c.label}: landed ${(touchdownAt - pullUpAt).toFixed(0)} s after the pull-up, limit ${LIMIT_SEC} s`);
+  }
 });

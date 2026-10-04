@@ -54,7 +54,16 @@ export const CIRCUIT = Object.freeze({
   /** The break starts about 2,000 ft past the threshold with a 10 kt headwind (SMM 4.17 para 39). */
   breakPastThresholdFt: 2000,
   breakReferenceHeadwindKt: 10,
+  /** Go-around: level at 2,500 ft until past the upwind end of the runway (Patrick, 4 Oct 09:14Z). */
+  goAroundAltFt: 2500,
 });
+
+/**
+ * After a go-around passes the upwind end it trades its extra speed for height,
+ * slowing toward the 180 KIAS climb speed over about this time (Patrick, 4 Oct
+ * 09:14Z: "trade that speed for altitude after it crosses the end"). An estimate.
+ */
+const ZOOM_SEC = 10;
 
 /**
  * How hard the simulated pilot banks for a heading error: 3° of bank per degree,
@@ -288,20 +297,45 @@ export function buildCircuit(points, windFromDeg = 360, windKt = 0) {
   return { track: [...outerTrack, ...inner.track], perch, breakAlongFt: breakAlong };
 }
 
-/** From the threshold round the outer pattern to the break point. */
-function flyOuter(points, centre, breakAlong, wind) {
+/**
+ * A go-around flown from an aircraft's state `from` = { x, y, alt, kias,
+ * headingDeg, bankDeg } in a wind, onto Pattern 1's outer downwind (see
+ * flyOuter). Returns the path [{ x, y, alt, kt, g, src, phase, headingDeg }].
+ */
+export function buildGoAround(points, from, windFromDeg = 360, windKt = 0) {
+  const centre = lineOf(points[0], points[1]);
+  const start = { x: from.x, y: from.y, alt: from.alt, ias: from.kias, hdg: from.headingDeg, bank: from.bankDeg ?? 0 };
+  return flyOuter(points, centre, 0, { windFromDeg, windKt }, start).track;
+}
+
+/**
+ * From the threshold round the outer pattern to the break point. With
+ * `goAround` set to an aircraft's state ({ x, y, alt, ias, hdg, bank }) it flies
+ * a go-around from there instead (Traffic spec 4.10; Patrick, 4 Oct 09:14Z and
+ * 09:18Z): full power straight ahead on the runway track, level at 2,500 ft to
+ * the upwind end and speeding up, then trading that speed for height, then the
+ * take-off climb-out and crosswind turn; it stops once settled on the outer
+ * downwind, where it joins Pattern 1.
+ */
+function flyOuter(points, centre, breakAlong, wind, goAround = null) {
   const th = points[0];
   const rwyTrack = centre.trackDeg;
-  const pilot = makePilot({ x: th.x, y: th.y, alt: THRESHOLD_DATA_ELEV_FT, ias: CIRCUIT.thresholdKias, hdg: 0, src: 0, phase: 'initial' }, wind);
+  const start = goAround
+    ? { x: goAround.x, y: goAround.y, alt: goAround.alt, ias: goAround.ias, hdg: goAround.hdg, src: 0, phase: 'go_around' }
+    : { x: th.x, y: th.y, alt: THRESHOLD_DATA_ELEV_FT, ias: CIRCUIT.thresholdKias, hdg: 0, src: 0, phase: 'initial' };
+  const pilot = makePilot(start, wind);
   const { s } = pilot;
-  s.hdg = pilot.headingFor(rwyTrack);
+  if (goAround) s.bank = goAround.bank ?? 0;
+  else s.hdg = pilot.headingFor(rwyTrack);
   pilot.record();
+  // The go-around names its phases as it flies them; the circuit's come from its route points.
+  const phase = (ph) => { if (goAround) s.phase = ph; };
   const runwayLen = Math.hypot(points[1].x - th.x, points[1].y - th.y);
   const crosswindTrack = wrapDeg360(rwyTrack - 90);
   const downwind = lineOf(points[5], points[6]);
   const base = lineOf(points[6], points[7]);
   const leg45 = lineOf(points[7], points[8]);
-  let stage = 'climbOut', capturing = false;
+  let stage = goAround ? 'goAround' : 'climbOut', capturing = false;
   for (let n = 0; n < MAX_STEPS; n++) {
     const g = gFromBankDeg(s.bank);
     const tasKt = pilot.tasKt();
@@ -317,8 +351,31 @@ function flyOuter(points, centre, breakAlong, wind) {
     };
     let climb = 0, accel = 0, bank = 0;
 
+    // Go-around: level at 2,500 ft to the upwind end (or where it is, if higher), speeding up at full
+    // power (a take-off pitch if it has to climb to get there), then trade the extra speed for height
+    // down to 180 KIAS.
+    if (stage === 'goAround' && legOffsetsFt(th, points[1], s).alongFt >= runwayLen) {
+      stage = 'zoom';
+      phase('climb');
+      pilot.mark({ src: 1 });
+    }
+    if (stage === 'zoom' && (s.ias <= CIRCUIT.climbKias + 0.5 || s.alt >= PATTERN_ALT_FT - 50)) {
+      stage = 'climbOut';
+      pilot.mark({ src: 2 });
+    }
     // Speed and height: the climb-out schedule, then 220 KIAS level.
-    if (s.ias < CIRCUIT.climbKias - 0.01 && stage === 'climbOut' && s.src < 2) {
+    if (stage === 'goAround') {
+      const aoa = pitchDegFromClimb(0, ktToFtps(tasKt), s.ias, g);
+      const takeoffClimb = ktToFtps(tasKt) * sinDeg(Math.max(0, CIRCUIT.takeoffPitchDeg - aoa));
+      climb = clamp((CIRCUIT.goAroundAltFt - s.alt) / LEVEL_OFF_SEC, 0, takeoffClimb); // never down to it from above
+      accel = s.ias >= CIRCUIT.patternKias - 0.01 ? 0 : accelFor(s.ias, s.alt, g, climb);
+    } else if (stage === 'zoom') {
+      const v = ktToFtps(tasKt);
+      const decel = -(s.ias - CIRCUIT.climbKias) * KT_TO_FTPS / ZOOM_SEC;
+      // Energy: full-power climb plus the climb the lost speed buys, levelling at pattern height.
+      climb = Math.min(v * (excessThrustPerWeight(s.ias, s.alt, g) - decel / G_FTPS2), Math.max(0, (PATTERN_ALT_FT - s.alt) / LEVEL_OFF_SEC));
+      accel = accelFor(s.ias, s.alt, g, climb);
+    } else if (s.ias < CIRCUIT.climbKias - 0.01 && stage === 'climbOut' && s.src < 2) {
       const aoa = pitchDegFromClimb(0, ktToFtps(tasKt), s.ias, g);
       const gamma = Math.max(0, CIRCUIT.takeoffPitchDeg - aoa);
       climb = ktToFtps(tasKt) * sinDeg(gamma);
@@ -336,15 +393,17 @@ function flyOuter(points, centre, breakAlong, wind) {
     if (s.src < 1 && legOffsetsFt(th, points[1], s).alongFt >= runwayLen) pilot.mark({ src: 1 });
 
     // Where to point.
-    if (stage === 'climbOut') {
+    if (stage === 'climbOut' || stage === 'goAround' || stage === 'zoom') {
       bank = bankFor(pilot.headingFor(trackForLine(centre, s, HOLD_RADIUS_FT)), s, 30);
-      if (s.ias >= CIRCUIT.patternKias - 0.5 && s.alt >= PATTERN_ALT_FT - 50) { stage = 'crosswindTurn'; pilot.mark({ src: 3 }); }
+      if (stage === 'climbOut' && s.ias >= CIRCUIT.patternKias - 0.5 && s.alt >= PATTERN_ALT_FT - 50) { stage = 'crosswindTurn'; phase('crosswind'); pilot.mark({ src: 3 }); }
     } else if (stage === 'crosswindTurn' || stage === 'crosswind') {
       bank = bankFor(pilot.headingFor(crosswindTrack), s, CIRCUIT.patternBankDeg, 'left');
       if (stage === 'crosswindTurn' && Math.abs(bank) < 3 && Math.abs(s.bank) < 3) { stage = 'crosswind'; }
-      if (readyToTurnOnto(downwind, s, pilot.trackDeg(), R, gs, gsOn(downwind))) { stage = 'downwind'; capturing = true; pilot.mark({ src: 4 }); }
+      if (readyToTurnOnto(downwind, s, pilot.trackDeg(), R, gs, gsOn(downwind))) { stage = 'downwind'; capturing = true; phase('downwind'); pilot.mark({ src: 4 }); }
     } else if (stage === 'downwind') {
       bank = onto(downwind);
+      // A go-around ends once settled on the downwind line: Pattern 1 carries on from there.
+      if (goAround && !capturing && Math.abs(legOffsetsFt(downwind.a, downwind.b, s).crossFt) < 20 && Math.abs(s.bank) < 2) break;
       if (s.src < 5 && legOffsetsFt(downwind.a, downwind.b, s).alongFt >= 0) pilot.mark({ src: 5 });
       if (readyToTurnOnto(base, s, pilot.trackDeg(), R, gs, gsOn(base))) { stage = 'base'; capturing = true; pilot.mark({ src: 6 }); }
     } else if (stage === 'base') {

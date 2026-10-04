@@ -26,6 +26,9 @@ import {
   calcCrossTrackENT1,
 } from '../../../src/modules/traffic/breakout.js';
 import { initAircraftState, stepAircraft } from '../../../src/modules/traffic/flight-engine.js';
+import { tickAircraft } from '../../../src/modules/traffic/tick-aircraft.js';
+import { routeLengthFt, closestDistFt } from '../../../src/modules/traffic/route.js';
+import { ktToFtps } from '../../../src/core/units.js';
 import { wrapDeg180 } from '../../../src/core/angles.js';
 
 const mooseJaw = JSON.parse(
@@ -138,158 +141,79 @@ test('Breakout Stage 2: continuous descending rejoin arc from breakout point to 
   );
 });
 
-test('Breakout Stage 2 to tangent capture: intercept occurs 2 NM prior to circuit entry along ENT1 path with zero coordinate jumping (<25 ft/frame)', () => {
+// Rewritten with Patrick's yes (card, 4 Oct 09:47Z): the rejoin rolls out on the ENT1 line and hands straight
+// over (no 1 s blend), at least 1 NM before the merge (TR-R34). Patrick, 09:21Z: at the hand-over the aircraft's
+// vector is in line with the track, so nothing snaps.
+// Margins: ±100 ft and ±5° from the shared table (docs/TESTING.md). "No jump" is checked frame to frame: the
+// place moves by its ground speed within 5 ft, the heading by under 2° and the bank by under 5° in a 0.05 s step
+// (a snap shows as tens of feet or degrees in one step; a 90°/s roll is 4.5° a step).
+const NM_FT = 6076;
+
+/** Flies the breakout from the breakout point, calm, until it hands over to ENT1 or `limitSec` runs out. */
+function flyToHandOver(limitSec = 200) {
   const ac = initAircraftState({
-    id: 'A1',
-    type: 'CT-156',
-    x: -10974,
-    y: -24252,
-    alt: 4500,
-    headingDeg: 270,
-    iasKt: 220,
-    phase: 'breakout',
-    command: 'breakout',
-    mode: 'PHYSICS',
+    id: 'A1', type: 'CT-156', x: -10974, y: -24252, alt: 4500, headingDeg: 270, iasKt: 220,
+    phase: 'breakout', command: 'breakout', mode: 'PHYSICS',
   });
-
-  let maxFrameJump = 0;
-  let prevX = ac.x;
-  let prevY = ac.y;
-  let captured = false;
-  let captureState = null;
-
-  for (let t = 0; t < 150.0; t += 0.05) {
-    if (ac.mode === 'BLENDING') {
-      captured = true;
-      captureState = { ...ac };
-      break;
+  const env = { windFromDeg: 360, windKt: 0 };
+  let prev = null, worst = { jumpFt: 0, hdgDeg: 0, bankDeg: 0 };
+  const note = (a) => {
+    if (prev) {
+      const moved = Math.hypot(a.x - prev.x, a.y - prev.y);
+      const expected = ktToFtps(prev.groundSpeedKt ?? prev.gsKt ?? 220) * 0.05;
+      worst.jumpFt = Math.max(worst.jumpFt, Math.abs(moved - expected));
+      worst.hdgDeg = Math.max(worst.hdgDeg, Math.abs(wrapDeg180(a.headingDeg - prev.headingDeg)));
+      worst.bankDeg = Math.max(worst.bankDeg, Math.abs((a.bankDeg ?? 0) - (prev.bankDeg ?? 0)));
     }
-
-    stepBreakout(ac, ent1, { windFromDeg: 360, windKt: 0 }, 0.05);
-
-    if (ac.mode === 'BLENDING') {
-      captured = true;
-      captureState = { ...ac };
-      break;
-    }
-
-    stepAircraft(ac, ac.navPlan, { windFromDeg: 360, windKt: 0 }, 0.05);
-
-    const jump = Math.hypot(ac.x - prevX, ac.y - prevY);
-    if (jump > maxFrameJump) maxFrameJump = jump;
-    prevX = ac.x;
-    prevY = ac.y;
+    prev = { x: a.x, y: a.y, headingDeg: a.headingDeg, bankDeg: a.bankDeg, groundSpeedKt: a.groundSpeedKt, gsKt: a.gsKt };
+  };
+  for (let t = 0; t < limitSec; t += 0.05) {
+    stepBreakout(ac, ent1, env, 0.05);
+    if (ac.mode === 'RAIL') return { ac, handOver: { ...ac }, worst, env };
+    stepAircraft(ac, ac.navPlan, env, 0.05);
+    note(ac);
   }
+  return { ac, handOver: null, worst, env };
+}
 
-  assert.ok(captured, 'Aircraft should tangentially capture ENT1 and enter BLENDING mode');
-  assert.equal(captureState.phase, 'entry', 'Phase must be entry on capture');
-  assert.equal(captureState.routeId, 'ENT1', 'Route must be ENT1 on capture');
-  assert.equal(captureState.intent, 'overhead', 'Intent must be overhead break');
-
-  // Verify altitude and speed at intercept
-  assert.ok(
-    Math.abs(captureState.alt - 3500) <= 100,
-    `Intercept altitude must be 3,500 ft MSL (±100 ft), got ${captureState.alt} ft`
-  );
-  assert.ok(
-    Math.abs(captureState.iasKt - 220) <= 10,
-    `Intercept airspeed must be 220 KIAS (±10 kt), got ${captureState.iasKt} kt`
-  );
-
-  // Verify intercept location: occurs along ENT1 path, near or prior to 2 NM point (10256, -38141)
-  const alongTrack = calcAlongTrackENT1(captureState);
-  const crossTrack = calcCrossTrackENT1(captureState);
-  assert.ok(
-    Math.abs(crossTrack) <= 250,
-    `Lateral cross-track error must be <= 250 ft, got ${crossTrack.toFixed(1)} ft`
-  );
-  // 2 NM point is along ≈ 9815 ft; intercept must occur prior to or near 2 NM point
-  assert.ok(
-    alongTrack <= 9815 + 500 && alongTrack >= 0,
-    `Intercept must occur along ENT1 path near or prior to 2 NM point (along <= 10315 ft), got ${alongTrack.toFixed(1)} ft`
-  );
-  const distTo2NM = Math.hypot(captureState.x - REJOIN_INTERCEPT_PT.x, captureState.y - REJOIN_INTERCEPT_PT.y);
-  assert.ok(
-    distTo2NM <= 3650, // within 0.6 NM of target 2 NM intercept point
-    `Intercept must be near 2 NM target point (within 3650 ft), got ${distTo2NM.toFixed(1)} ft`
-  );
-
-  // Frame jump tolerance: strictly < 25 ft/frame (zero coordinate teleportation)
-  assert.ok(
-    maxFrameJump <= 25.0,
-    `Maximum frame-to-frame jump must be < 25 ft (zero coordinate teleportation), got ${maxFrameJump.toFixed(2)} ft`
-  );
+test('Breakout rejoin: hands over on the ENT1 line at pattern height, track along it, wings level, at least 1 NM before the merge, with no jump', () => {
+  const { handOver, worst } = flyToHandOver();
+  assert.ok(handOver, 'the breakout should hand over to ENT1');
+  assert.equal(handOver.phase, 'entry');
+  assert.equal(handOver.routeId, 'ENT1');
+  assert.equal(handOver.intent, 'overhead');
+  assert.ok(Math.abs(handOver.alt - 3500) <= 100, `at pattern height (3,500 ±100 ft), got ${handOver.alt.toFixed(0)} ft`);
+  assert.ok(Math.abs(calcCrossTrackENT1(handOver)) <= 100, `on the ENT1 line (±100 ft), got ${calcCrossTrackENT1(handOver).toFixed(0)} ft off`);
+  const trackDeg = handOver.trackDeg ?? handOver.headingDeg;
+  assert.ok(Math.abs(wrapDeg180(trackDeg - ENT1_TRACK_DEG)) <= 5, `track along the line (±5°), got ${trackDeg.toFixed(1)}°`);
+  assert.ok(Math.abs(handOver.bankDeg ?? 0) <= 5, `wings level (±5°), got ${(handOver.bankDeg ?? 0).toFixed(1)}°`);
+  const toMergeFt = routeLengthFt(ent1) - closestDistFt(ent1, handOver);
+  assert.ok(toMergeFt >= NM_FT, `at least 1 NM before the merge (TR-R34), got ${(toMergeFt / NM_FT).toFixed(2)} NM`);
+  assert.ok(worst.jumpFt <= 5, `no jump in place, worst ${worst.jumpFt.toFixed(1)} ft in a step`);
+  assert.ok(worst.hdgDeg <= 2, `no snap in heading, worst ${worst.hdgDeg.toFixed(2)}° in a step`);
+  assert.ok(worst.bankDeg <= 5, `no snap in bank, worst ${worst.bankDeg.toFixed(2)}° in a step`);
 });
 
-test('Breakout Rollout: settles to ENT1 track (~034°), wings level (bank = 0°), 220 KIAS, 3,500 ft', () => {
-  const ac = initAircraftState({
-    id: 'A1',
-    type: 'CT-156',
-    x: -10974,
-    y: -24252,
-    alt: 4500,
-    headingDeg: 270,
-    iasKt: 220,
-    phase: 'breakout',
-    command: 'breakout',
-    mode: 'PHYSICS',
-  });
-
-  let maxFrameJump = 0;
-  let prevX = ac.x;
-  let prevY = ac.y;
-
-  for (let t = 0; t < 150.0; t += 0.05) {
-    if (ac.mode === 'BLENDING') {
-      // Step through 1.0s cubic smoothstep blend
-      ac._blendTimer = (ac._blendTimer || 0) + 0.05;
-      const u = Math.min(1, ac._blendTimer / 1.0);
-      const s = 3 * u * u - 2 * u * u * u;
-      const start = ac._blendStart;
-      const target = ac._blendTarget;
-      ac.x = start.x + (target.x - start.x) * s;
-      ac.y = start.y + (target.y - start.y) * s;
-      ac.alt = start.alt + (target.alt - start.alt) * s;
-      ac.headingDeg = start.headingDeg + wrapDeg180(target.headingDeg - start.headingDeg) * s;
-      ac.bankDeg = (start.bankDeg || 0) * (1 - s);
-      if (u >= 1.0) {
-        ac.mode = 'RAIL';
-        ac.distFt = target.distFt;
-        break;
-      }
-    } else {
-      stepBreakout(ac, ent1, { windFromDeg: 360, windKt: 0 }, 0.05);
-      if (ac.mode !== 'BLENDING') {
-        stepAircraft(ac, ac.navPlan, { windFromDeg: 360, windKt: 0 }, 0.05);
-      }
-    }
-
-    const jump = Math.hypot(ac.x - prevX, ac.y - prevY);
-    if (jump > maxFrameJump) maxFrameJump = jump;
-    prevX = ac.x;
-    prevY = ac.y;
+test('Breakout rejoin: after the hand-over it carries on up ENT1 wings level at 3,500 ft and 220 KIAS, with no jump', () => {
+  const { ac, handOver, env } = flyToHandOver();
+  assert.ok(handOver, 'the breakout should hand over to ENT1');
+  let prev = { x: ac.x, y: ac.y, headingDeg: ac.headingDeg, bankDeg: ac.bankDeg };
+  let worstJumpFt = 0, worstHdgDeg = 0, worstBankDeg = 0;
+  for (let t = 0; t < 10; t += 0.05) {
+    tickAircraft(ac, 0.05, env, ent1);
+    const moved = Math.hypot(ac.x - prev.x, ac.y - prev.y);
+    worstJumpFt = Math.max(worstJumpFt, Math.abs(moved - ktToFtps(ac.groundSpeedKt ?? ac.gsKt ?? 220) * 0.05));
+    worstHdgDeg = Math.max(worstHdgDeg, Math.abs(wrapDeg180(ac.headingDeg - prev.headingDeg)));
+    worstBankDeg = Math.max(worstBankDeg, Math.abs((ac.bankDeg ?? 0) - (prev.bankDeg ?? 0)));
+    prev = { x: ac.x, y: ac.y, headingDeg: ac.headingDeg, bankDeg: ac.bankDeg };
   }
-
-  assert.equal(ac.mode, 'RAIL', 'Mode must settle to RAIL on ENT1');
-  assert.equal(ac.phase, 'entry', 'Phase must be entry');
-  assert.ok(
-    Math.abs(ac.headingDeg - ENT1_TRACK_DEG) <= 5.0,
-    `Heading must settle to ENT1 track (${ENT1_TRACK_DEG.toFixed(1)}° ±5°), got ${ac.headingDeg.toFixed(1)}°`
-  );
-  assert.ok(
-    Math.abs(ac.bankDeg) <= 1.0,
-    `Wings must be level (bank = 0° ±1°), got ${ac.bankDeg.toFixed(1)}°`
-  );
-  assert.ok(
-    Math.abs(ac.alt - 3500) <= 50,
-    `Altitude must be 3,500 ft MSL (±50 ft), got ${ac.alt} ft`
-  );
-  assert.ok(
-    Math.abs(ac.iasKt - 220) <= 5,
-    `Speed must be 220 KIAS (±5 kt), got ${ac.iasKt} kt`
-  );
-  assert.ok(
-    maxFrameJump <= 25.0,
-    `Frame-to-frame movement must not exceed 25 ft throughout rollout, max was ${maxFrameJump.toFixed(2)} ft`
-  );
+  assert.equal(ac.mode, 'RAIL');
+  assert.equal(ac.phase, 'entry');
+  assert.ok(Math.abs(wrapDeg180(ac.headingDeg - ENT1_TRACK_DEG)) <= 5, `heading along ENT1 (±5°, calm), got ${ac.headingDeg.toFixed(1)}°`);
+  assert.ok(Math.abs(ac.bankDeg ?? 0) <= 5, `wings level (±5°), got ${(ac.bankDeg ?? 0).toFixed(1)}°`);
+  assert.ok(Math.abs(ac.alt - 3500) <= 100, `3,500 ft (±100), got ${ac.alt.toFixed(0)} ft`);
+  assert.ok(Math.abs(ac.iasKt - 220) <= 10, `220 KIAS (±10), got ${ac.iasKt.toFixed(0)} kt`);
+  assert.ok(worstJumpFt <= 5, `no jump in place, worst ${worstJumpFt.toFixed(1)} ft in a step`);
+  assert.ok(worstHdgDeg <= 2, `no snap in heading, worst ${worstHdgDeg.toFixed(2)}° in a step`);
+  assert.ok(worstBankDeg <= 5, `no snap in bank, worst ${worstBankDeg.toFixed(2)}° in a step`);
 });
