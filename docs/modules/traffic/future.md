@@ -21,6 +21,7 @@ Ideas for the Traffic Sim that are not being built. An idea moves into `plan.md`
   - a PFL coming in while an overhead aircraft reaches initial, where they would conflict: the PFL keeps right of way; the overhead aircraft flies through (as the orders say), makes a 90° left turn at the end of the runway and rejoins the outer downwind; if traffic on the outer downwind would then be a conflict, it breaks out instead (Patrick, 4 Oct 09:43Z);
   - traffic rejoining on an entry that would conflict breaks out and rejoins.
   It overlaps PPQ-03 (automated SMM rules) and PPQ-04 (fly-through) below, and FF25. The rules need their Flying Orders and SMM pages before it is specced.
+- Formation take-offs and the initial recovery belong to Traffic, not the Turn Sim (Patrick agreed in the Turn Sim thread, 4 Oct 11:15Z): 2+2, interval and 3+1 take-offs, and GULAP. Future only; nothing is built for them yet.
 
 ## Asked for by Patrick and built straight away (4 Oct 2026)
 
