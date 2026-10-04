@@ -28,7 +28,6 @@ Each has a working answer that the tool uses until it is settled.
 ### Waiting on Patrick now (also on the list in `../../PLAN.md`)
 
 - **See the refactored Traffic on screen** from the default start: the PFL, the closed pattern, High Key from anywhere, the go-around, the breakout and the deconfliction, calm and in a strong wind (spec 1a "Check on screen").
-- **Requirement wording that no longer matches what is built:** TR-R30 still says manoeuvres are flown under live control and blend back onto the path, and TR-R33 still says the closed pattern can use up to 90° of bank to stop the climb and turns toward the perch. Both are now flown paths that level off with the climb and roll out on the downwind line. New wording needs Patrick's yes.
 - The PFL review items (D436, D438 to D440) were settled on Patrick's cards C2 to C7 (4 Oct 06:28Z to 06:35Z).
 
 ### Settled when this module's work resumes

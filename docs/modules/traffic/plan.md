@@ -60,7 +60,7 @@ Thread 5 ran the old browser tests at the pin: 13 passed, 37 failed, 5 skipped. 
 
 Each line says what the requirement asks and what the code shows today. After each one is built, its check in `testing.md` (marked "New") is written with it and fails until it is built.
 
-- [ ] Opening picture: three or four Harvards already in the circuit, opening at 1x speed, instead of the shipped seven-aircraft schedule with starts from 12 s to 902 s and V6-style names (TR-R2) (`pf/reset/1-requirements/requirements.md:188`, `pf/reset/1-requirements/questions.md:95`).
+- [x] Opening picture: done 4 Oct as the Busy circuit (TR-R2 reworded, approved 19:23Z; DADS v2.10.19). Was: three or four Harvards already in the circuit, opening at 1x speed, instead of the shipped seven-aircraft schedule with starts from 12 s to 902 s and V6-style names (TR-R2) (`pf/reset/1-requirements/requirements.md:188`, `pf/reset/1-requirements/questions.md:95`).
 - [x] Show each aircraft's crab angle and ground speed (TR-R6); nothing shows them today (`pf/reset/1-requirements/requirements.md:198`). Built 4 Oct (DADS v2.10.24): each flying row reads "GS 128 kt, crab 7° L" in the aircraft list.
 - [x] Add a Remove button for one aircraft; `sim.remove` exists but no button calls it, and the Rewind check must bring the aircraft back (TR-R19) (`pf/reset/1-requirements/requirements.md:225`, `src/modules/traffic/sim.js:675`). Built 4 Oct (DADS v2.10.24): a Remove button on each row; going back to before brings it back.
 - [ ] Spacing on final: aim for 2,000 ft between aircraft, extend downwind or move over to keep it (TR-R18). The screen says "traffic on final" avoidance is not built (`pf/reset/1-requirements/requirements.md:219`).
