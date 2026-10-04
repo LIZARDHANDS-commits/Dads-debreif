@@ -82,7 +82,7 @@ function mount(root, app) {
     bar,
     listen: app.listen,
     on: {
-      selectRoute,
+      toggleRoute,
       toggleColumn: () => app.scheduler.after(0, () => redraw()),
       camera: (name) => view3d.preset(name),
       toggleHeightLines: (active) => view3d.setHeightLines(active),
@@ -199,14 +199,15 @@ function mount(root, app) {
   }
 
   function showRoutes() {
-    const visibleRoutes = setup.routes.filter((r) => r.kind !== 'split');
-    ui.setRoutes(routeRows(visibleRoutes), selectedRouteId);
+    const listed = setup.routes.filter((r) => r.kind !== 'split');
+    ui.setRoutes(routeRows(listed));
   }
 
-  function selectRoute(id) {
+  /** A route's row was pressed: its line shows or hides on the map (Patrick, 4 Oct). Only the picture changes; the aircraft on it fly on. */
+  function toggleRoute(id) {
     const route = setup.routes.find((r) => r.id === id);
-    if (route && route.kind === 'split') id = null;
-    selectedRouteId = id;
+    if (!route || route.kind === 'split') return;
+    route.visible = route.visible === false;
     showRoutes();
     redraw();
   }

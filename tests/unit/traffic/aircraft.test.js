@@ -71,7 +71,7 @@ test('the spawner starts on the first entry (the first pattern when there is non
   assert.equal(spawnRouteId('GONE', routes), 'ENT1', 'a route that has gone falls back to the default');
 });
 
-test('a fresh spawner asks for a CT-156 on Entry 1, at point 1, with no delay', () => {
+test('a fresh spawner asks for a CT-156 on the OHB Rejoin, at point 1, with no delay', () => {
   const asked = spawnSpec({ ...DEFAULTS }, MOOSE_JAW.routes);
   assert.deepEqual(asked, { spec: { type: 'CT-156', routeId: 'ENT1', startPoint: 1, delaySec: 0 } });
   assert.deepEqual([...SPAWN_TYPES], ['CT-156'], 'the Harvard II only in the first version (TR-R16)');
@@ -81,7 +81,7 @@ test('a start point that is not a whole number from 1, past the route\'s last po
   const ask = (values) => spawnSpec({ ...DEFAULTS, ...values }, MOOSE_JAW.routes);
   assert.match(ask({ spawnStartPoint: 0 }).problem, /whole number from 1/);
   assert.match(ask({ spawnStartPoint: 2.5 }).problem, /whole number from 1/);
-  assert.match(ask({ spawnStartPoint: 5 }).problem, /Entry 1 has 4 points: choose a start point from 1 to 4/);
+  assert.match(ask({ spawnStartPoint: 5 }).problem, /OHB Rejoin has 4 points: choose a start point from 1 to 4/);
   assert.match(ask({ spawnDelayS: -1 }).problem, /delay/);
   assert.match(ask({ spawnDelayS: 86401 }).problem, /from 0 to 86,400/);
   assert.match(ask({ spawnDelayS: Infinity }).problem, /delay/);
@@ -177,7 +177,7 @@ test('a refused spawn adds nothing, says why, and never throws', () => {
   type(inputFor(spawner, 'Start at point'), '9');
   assert.doesNotThrow(() => buttonNamed(spawner, '+ Spawn').dispatch('click'));
   assert.equal(sim.state().aircraft.length, 7);
-  assert.match(words(withClass(spawner, 'spawn-message')[0]), /Entry 1 has 4 points/);
+  assert.match(words(withClass(spawner, 'spawn-message')[0]), /OHB Rejoin has 4 points/);
   // The engine's own check is passed on in words too.
   type(inputFor(spawner, 'Start at point'), '1');
   settings.update({ spawnType: 'Cessna' });
@@ -207,7 +207,7 @@ test('the aircraft list has a row for each aircraft: callsign, type, route, and 
   const { list } = setup();
   const rows = withClass(list, 'aircraft-row');
   assert.equal(rows.length, 7);
-  assert.match(words(rows[0]), /^A1 CT-156 on Pattern 1.*Waiting, starts at 0:12$/);
+  assert.match(words(rows[0]), /^A1 CT-156 on Overhead break.*Waiting, starts at 0:12$/);
   assert.equal(words(withClass(list, 'aircraft-empty')[0]), 'No aircraft yet. Use + Spawn to add one.');
   assert.equal(withClass(list, 'aircraft-empty')[0].hidden, true);
 });
@@ -217,7 +217,7 @@ test('a flying aircraft shows its height, speed, ground speed, crab and Flying, 
   sim.stepTo(60);
   panel.update(sim.state());
   const rows = withClass(list, 'aircraft-row');
-  assert.match(words(rows[0]), /^A1 CT-156 on Pattern 1.*[\d,]+ ft, \d+ kt, GS \d+ kt, (no crab|crab \d+° [LR]), Flying/);
+  assert.match(words(rows[0]), /^A1 CT-156 on Overhead break.*[\d,]+ ft, \d+ kt, GS \d+ kt, (no crab|crab \d+° [LR]), Flying/);
   assert.equal(detailText({ status: 'flying', statusText: 'Flying', altFt: 2500, kt: 140, gsKt: 128, crabDeg: -7 }), '2,500 ft, 140 kt, GS 128 kt, crab 7° L, Flying');
   const state = sim.state();
   assert.equal(detailText({ status: 'landed', statusText: 'Landed', altFt: 1880, kt: 0 }), '1,880 ft, Landed');

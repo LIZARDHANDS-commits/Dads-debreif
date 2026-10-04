@@ -43,11 +43,11 @@ const at = (routeId, startPoint, startsAtSec = 0) => ({ routeId, startIndex: sta
  * 'moose-jaw' is the built-in setup's own aircraft, and 'random' is made by randomStarts.
  */
 export const SCENARIOS = Object.freeze([
-  { id: 'busy', label: 'Busy circuit', about: 'Ten aircraft: seven at random points of Pattern 1, a PFL gliding in from the area to High Key, and a straight-in timed to meet an aircraft in its final turn. Press again for a new picture.' },
+  { id: 'busy', label: 'Busy circuit', about: 'Ten aircraft: seven at random points of the overhead break, a PFL gliding in from the area to High Key, and a straight-in timed to meet an aircraft in its final turn. Press again for a new picture.' },
   { id: 'moose-jaw', label: 'Moose Jaw day', about: 'The seven aircraft the tool opens with, joining over 15 minutes.' },
-  { id: 'one', label: 'One aircraft', about: 'One aircraft on Pattern 1 from the runway: watch one circuit, or press PFL.', starts: [at('PAT1', 1)] },
-  { id: 'circuit', label: 'Full circuit', about: 'Four aircraft round Pattern 1 at once: departure end, crosswind, initial and short final.', starts: [at('PAT1', 2), at('PAT1', 5), at('PAT1', 9), at('PAT1', 13)] },
-  { id: 'joining', label: 'Joining traffic', about: 'Two in the circuit and three joining on Entry 1 and Entry 2 close together.', starts: [at('PAT1', 5), at('PAT1', 9), at('ENT1', 1), at('ENT2', 1, 30), at('ENT1', 1, 90)] }, // join times: a teaching picture (estimate)
+  { id: 'one', label: 'One aircraft', about: 'One aircraft on the overhead break from the runway: watch one circuit, or press PFL.', starts: [at('PAT1', 1)] },
+  { id: 'circuit', label: 'Full circuit', about: 'Four aircraft round the overhead break at once: departure end, crosswind, initial and short final.', starts: [at('PAT1', 2), at('PAT1', 5), at('PAT1', 9), at('PAT1', 13)] },
+  { id: 'joining', label: 'Joining traffic', about: 'Two in the circuit and three joining on the OHB Rejoin and the SI Rejoin close together.', starts: [at('PAT1', 5), at('PAT1', 9), at('ENT1', 1), at('ENT2', 1, 30), at('ENT1', 1, 90)] }, // join times: a teaching picture (estimate)
   { id: 'random', label: 'Random', about: 'Five aircraft at random points on the routes. Press again for a new picture.' },
 ]);
 

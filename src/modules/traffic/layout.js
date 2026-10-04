@@ -20,18 +20,17 @@ export const SIMPLIFIED_NOTE = 'Simplified: aircraft fly their routes at set spe
 export const NEW_ROUTE_CHOICES = Object.freeze([]);
 export const newRouteChoices = () => NEW_ROUTE_CHOICES;
 
-/** The second line of a route's row: where it joins ("→ Pattern 1 P8", "P6 → P1"), or its kind. */
-export const routeDetail = (row) => row.link || row.kind;
+/** The second line of a route's row: "Hidden" when it is off the map, else where it joins ("→ Overhead break P8", "P6 → P1"), or its kind. */
+export const routeDetail = (row) => (row.visible === false ? 'Hidden' : row.link || row.kind);
 
 /**
  * bar: the playback bar (playback-bar.js). listen: app.listen.
- * on: { selectRoute(id | null), newRoute(kind), toggleColumn(name, open), camera(name) } where name is 'routes' or 'aircraft'
+ * on: { toggleRoute(id), newRoute(kind), toggleColumn(name, open), camera(name) } where name is 'routes' or 'aircraft'
  * for a column and 'fit', 'high' or 'low' for a camera button (the 3D view's; they show only while 3D does).
  * available: { pfl } (the PFL choice in + New route).
- * @param {{ bar: any, listen: any, on?: { selectRoute?: (id: string | null) => void, newRoute?: (kind: string) => void, toggleColumn?: (name: string, open: boolean) => void, camera?: (name: string) => void, toggleHeightLines?: (active: boolean) => void }, available?: { pfl?: boolean }, filterSplits?: boolean }} options
+ * @param {{ bar: any, listen: any, on?: { toggleRoute?: (id: string) => void, newRoute?: (kind: string) => void, toggleColumn?: (name: string, open: boolean) => void, camera?: (name: string) => void, toggleHeightLines?: (active: boolean) => void }, available?: { pfl?: boolean }, filterSplits?: boolean }} options
  */
 export function createLayout({ bar, listen, on = {}, available = {}, filterSplits = false }) {
-  let selectedId = null;
   let closedRoute = null;
 
   // Slots for pieces built elsewhere; an empty one takes no room.
@@ -39,10 +38,12 @@ export function createLayout({ bar, listen, on = {}, available = {}, filterSplit
   const slots = { setup: slot('setup'), pointTable: slot('point-table'), leftExtras: slot('left-extras'), profiles: slot('profiles'), spawner: slot('spawner'), aircraft: slot('aircraft'), conflicts: slot('conflicts'), settings: slot('settings') };
 
   // Left column, "Setup" (Patrick, 4 Oct 11:05Z): the scenario buttons and the wind, Profiles and notes (closed: one line), and the routes list.
-  const list = h('ul', { class: 'route-list' });
+  // Each route's row shows or hides its line on the map (Patrick, 4 Oct); the aircraft on it fly on either way.
+  const listTitle = h('p', { class: 'traffic-subtitle' }, 'Routes on the map');
+  const list = h('ul', { class: 'route-list', 'aria-label': 'Routes on the map: press one to show or hide it' });
   const empty = h('p', { class: 'route-empty' }, 'No routes yet.');
   const routesPanel = createPanel({ title: 'Setup', onToggle: (collapsed) => columnToggled('routes', !collapsed) });
-  routesPanel.body.append(slots.setup, slots.profiles, list, empty, slots.pointTable, slots.leftExtras); // Profiles and notes on top: opened, it is in the first screen (UI-02)
+  routesPanel.body.append(slots.setup, slots.profiles, listTitle, list, empty, slots.pointTable, slots.leftExtras); // Profiles and notes on top: opened, it is in the first screen (UI-02)
   const routesCol = h('aside', { class: 'traffic-col traffic-col-routes', 'aria-label': 'Setup' }, routesPanel.element);
 
   // Middle: the bar, then the map with its one-line hint, then the note under it.
@@ -102,10 +103,11 @@ export function createLayout({ bar, listen, on = {}, available = {}, filterSplit
     for (const row of rows) {
       const swatch = h('span', { class: `route-swatch kind-${row.kind}`, 'aria-hidden': 'true' });
       swatch.style.setProperty('--route', row.color);
-      const trigger = makeInstant(() => on.selectRoute?.(row.id));
+      const trigger = makeInstant(() => on.toggleRoute?.(row.id));
+      const shown = row.visible !== false;
       const rowButton = h(
         'button',
-        { type: 'button', class: 'route-row', dataset: { routeId: row.id }, 'aria-current': row.id === selectedId ? 'true' : null, onpointerdown: trigger, onclick: trigger },
+        { type: 'button', class: 'route-row', dataset: { routeId: row.id }, 'aria-pressed': String(shown), title: `${shown ? 'Hide' : 'Show'} ${row.name} on the map`, onpointerdown: trigger, onclick: trigger },
         swatch,
         h('span', { class: 'route-name' }, row.name),
         h('span', { class: 'route-detail' }, routeDetail(row)),
@@ -114,6 +116,7 @@ export function createLayout({ bar, listen, on = {}, available = {}, filterSplit
       list.appendChild(h('li', {}, rowButton));
     }
     empty.hidden = rows.length > 0;
+    listTitle.hidden = rows.length === 0;
     const focusTarget = kept ?? closedRoute;
     if (focusTarget !== null) buttons.get(focusTarget)?.focus();
     closedRoute = null;
@@ -127,12 +130,10 @@ export function createLayout({ bar, listen, on = {}, available = {}, filterSplit
     /** Empty places for the pieces built elsewhere: setup, pointTable, leftExtras, profiles, spawner, aircraft, conflicts, settings. */
     slots,
     /**
-     * Shows the routes, one line each ({ id, name, kind, color, link? }), and which one is picked.
-     * With one picked its point table shows, titled with its name; with none, only the list shows.
+     * Shows the routes, one line each ({ id, name, kind, color, link?, visible? }); a row is pressed while its route shows on the map.
      */
-    setRoutes(rows, selected = null) {
+    setRoutes(rows) {
       const displayRows = filterSplits ? rows.filter((row) => row && row.kind !== 'split') : rows.filter(Boolean);
-      selectedId = displayRows.some((row) => row.id === selected) ? selected : null;
       renderRoutes(displayRows);
     },
     /** Opens or collapses a side column ('routes' or 'aircraft') without calling toggleColumn. */

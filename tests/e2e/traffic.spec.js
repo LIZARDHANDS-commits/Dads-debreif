@@ -142,7 +142,7 @@ test('spawn an aircraft and it appears in the list, waits for its delay, and fli
   await page.getByLabel('Delay', { exact: true }).fill('5');
   await button(page, '+ Spawn').click();
   await expect(rows).toHaveCount(8);
-  await expect(rows.last()).toContainText('A8 CT-156 on Entry 1');
+  await expect(rows.last()).toContainText('A8 CT-156 on OHB Rejoin');
   await expect(rows.last()).toContainText('Waiting, starts at 0:05');
   await expect(page.locator('.spawn-message')).toHaveText('Added A8.');
   await playButton(page).click();
@@ -150,7 +150,7 @@ test('spawn an aircraft and it appears in the list, waits for its delay, and fli
   await playButton(page).click();
   await page.getByLabel('Start at point', { exact: true }).fill('9');
   await button(page, '+ Spawn').click();
-  await expect(page.locator('.spawn-message')).toContainText('Entry 1 has 4 points');
+  await expect(page.locator('.spawn-message')).toContainText('OHB Rejoin has 4 points');
   await expect(rows).toHaveCount(8);
 });
 
@@ -318,7 +318,7 @@ test('keyboard only: Tab order, Space and Enter on Play, Escape closes the Layer
     order.push(await focused());
   }
   const at = (name) => order.findIndex((n) => n.includes(name));
-  const inOrder = ['Setup', 'Pattern 1', 'Entry 1', 'Play', 'Reset', 'Fit', 'Layers', 'Aircraft'];
+  const inOrder = ['Setup', 'Overhead break', 'OHB Rejoin', 'Play', 'Reset', 'Fit', 'Layers', 'Aircraft'];
   const places = inOrder.map(at);
   expect(places.every((n) => n >= 0), `every stop is reached: ${order.join(' | ')}`).toBe(true);
   expect(places, `in this order: ${order.join(' | ')}`).toEqual([...places].sort((a, b) => a - b));
@@ -368,7 +368,7 @@ test.skip('the routes and points are reachable and changeable from the keyboard 
   await expect(page.locator('.point-row').nth(2).getByLabel('Point 3 label')).toBeFocused();
 });
 
-test('no accessibility violations at first, with a route picked, and with the settings menu open', async ({ page }) => {
+test('no accessibility violations at first, with a route hidden, and with the settings menu open', async ({ page }) => {
   await open(page);
   await expectNoA11yViolations(page);
   await page.locator('[data-route-id="ENT1"]').click();

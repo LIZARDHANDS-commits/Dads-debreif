@@ -151,13 +151,14 @@
   text-align: left;
 }
 
-[data-module='traffic'] .route-row[aria-current='true'] {
-  border-color: var(--accent);
-  background: var(--bg-sunken);
+/* A hidden route's row says "Hidden" and is dimmed, its line shown hollow, so the state reads without colour. */
+[data-module='traffic'] .route-row[aria-pressed='false'] {
+  border-style: dashed;
+  color: var(--text-muted);
 }
 
-[data-module='traffic'] .route-row[aria-current='true'] .route-name {
-  font-weight: 700;
+[data-module='traffic'] .route-row[aria-pressed='false'] .route-swatch {
+  opacity: 0.35;
 }
 
 [data-module='traffic'] .route-swatch {

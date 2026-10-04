@@ -227,7 +227,7 @@ test('points: every number must be a finite number in its box\'s range, and a la
   bad((p) => { p.label = 5; }, /label that is not text/);
   const notPoint = good();
   notPoint.routes[0].points[0] = 7;
-  refused(notPoint, /point 1 of Pattern 1 is not a point/);
+  refused(notPoint, /point 1 of Overhead break is not a point/);
 });
 
 test('links: an entry or split must join a pattern that is there, at a point that is there', () => {
@@ -243,7 +243,7 @@ test('links: an entry or split must join a pattern that is there, at a point tha
   refused(raw, /joins a route that is not there, or is not a pattern/);
   [raw, r] = entry();
   r.mergeIndex = 99;
-  refused(raw, /joins Pattern 1 at point 100, which it does not have/);
+  refused(raw, /joins Overhead break at point 100, which it does not have/);
   [raw, r] = entry();
   r.mergeIndex = -1;
   refused(raw, /point number/);
@@ -281,7 +281,7 @@ test('aircraft: a known type, a callsign, a route that is there, a start point i
   bad((a) => { a.id = 'prototype'; }, /callsign that is not/);
   bad((a, raw) => { a.id = raw.aircraft[0].id; }, /two aircraft are called/);
   bad((a) => { a.routeId = 'NOPE'; }, /starts on a route that is not there/);
-  bad((a) => { a.startIndex = 40; }, /starts at a point Pattern 1 does not have/);
+  bad((a) => { a.startIndex = 40; }, /starts at a point Overhead break does not have/);
   bad((a) => { a.startIndex = 0.5; }, /starts at a point/);
   bad((a) => { a.startsAtSec = -1; }, /start at a time outside 0 to 86,400 s|starts at a time outside 0 to 86,400 s/);
   bad((a) => { a.startsAtSec = 90000; }, /starts at a time outside/);

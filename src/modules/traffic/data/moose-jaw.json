@@ -5,7 +5,7 @@
   "routes": [
     {
       "id": "PAT1",
-      "name": "Pattern 1",
+      "name": "Overhead break",
       "kind": "pattern",
       "visible": true,
       "color": "#58a6ff",
@@ -28,7 +28,7 @@
     },
     {
       "id": "ENT1",
-      "name": "Entry 1",
+      "name": "OHB Rejoin",
       "kind": "entry",
       "visible": true,
       "color": "#bc8cff",
@@ -43,7 +43,7 @@
     },
     {
       "id": "ENT2",
-      "name": "Entry 2",
+      "name": "SI Rejoin",
       "kind": "entry",
       "visible": true,
       "color": "#7ee787",

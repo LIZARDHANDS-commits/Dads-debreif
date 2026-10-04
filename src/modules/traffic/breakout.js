@@ -76,7 +76,7 @@ const UY_ENT1 = DY_ENT1 / LEN_ENT1;
 // Canonical ENT1 route definition
 export const ENT1_ROUTE = Object.freeze({
   id: 'ENT1',
-  name: 'Entry 1',
+  name: 'OHB Rejoin',
   kind: 'entry',
   visible: true,
   color: '#bc8cff',

@@ -43,7 +43,7 @@ function setup(options = {}) {
   const listen = (target, type, fn) => listeners.push({ target, type, fn });
   const bar = createPlaybackBar({ controls, on: { play() {}, pause() {}, reset() {}, fit() {}, speed() {} }, listen });
   const on = {
-    selectRoute: (id) => calls.push(['select', id]),
+    toggleRoute: (id) => calls.push(['toggle', id]),
     newRoute: (kind) => calls.push(['new', kind]),
     toggleColumn: (name, open) => calls.push(['column', name, open]),
     camera: (name) => calls.push(['camera', name]),
@@ -100,29 +100,21 @@ test('each route shows its colour and its line style, so it is told apart by mor
   assert.ok(swatches.every((s) => s.getAttribute('aria-hidden') === 'true'), 'the words say it too');
 });
 
-test('picking a route marks only that route with aria-current', () => {
+test('a route row is pressed while its route shows on the map; a hidden one is not, and says Hidden in words', () => {
   const { ui } = setup();
-  ui.setRoutes(ROUTES, 'e1');
-  assert.deepEqual(withClass(ui.element, 'route-row').map((r) => r.getAttribute('aria-current')), [null, 'true', null]);
-  ui.setRoutes(ROUTES, null);
-  assert.deepEqual(withClass(ui.element, 'route-row').map((r) => r.getAttribute('aria-current')), [null, null, null]);
+  ui.setRoutes([ROUTES[0], { ...ROUTES[1], visible: false }, ROUTES[2]]);
+  const rows = withClass(ui.element, 'route-row');
+  assert.deepEqual(rows.map((r) => r.getAttribute('aria-pressed')), ['true', 'false', 'true']);
+  assert.deepEqual(rows.map((row) => withClass(row, 'route-detail')[0].textContent), ['pattern', 'Hidden', 'P6 → P1']);
+  assert.equal(rows[0].getAttribute('title'), 'Hide Pattern 1 on the map');
+  assert.equal(rows[1].getAttribute('title'), 'Show Entry 1 on the map');
 });
 
-test('a route that is not in the list can\'t be picked', () => {
-  const { ui } = setup();
-  ui.setRoutes(ROUTES, 'gone');
-  assert.deepEqual(withClass(ui.element, 'route-row').map((r) => r.getAttribute('aria-current')), [null, null, null]);
-  ui.setRoutes(ROUTES, 's1');
-  assert.deepEqual(withClass(ui.element, 'route-row').map((r) => r.getAttribute('aria-current')), [null, null, 'true']);
-  ui.setRoutes(ROUTES.slice(0, 2), 's1');
-  assert.deepEqual(withClass(ui.element, 'route-row').map((r) => r.getAttribute('aria-current')), [null, null]);
-});
-
-test('pressing a route line asks for that route', () => {
+test('pressing a route line asks to show or hide that route', () => {
   const { ui, calls } = setup();
   ui.setRoutes(ROUTES);
   withClass(ui.element, 'route-row')[2].dispatch('click');
-  assert.deepEqual(calls, [['select', 's1']]);
+  assert.deepEqual(calls, [['toggle', 's1']]);
 });
 
 test('a rebuilt list keeps focus where it was', () => {
@@ -274,20 +266,12 @@ test('a line on the map says why 3D can\'t start, in 2D too, and clears again', 
   assert.equal(note.hidden, true);
 });
 
-test('filterSplits filters out kind split and clears selection when split route is passed', () => {
+test('filterSplits filters out kind split', () => {
   const { ui } = setup({ filterSplits: true });
   // With filterSplits: true, Split 1 should not appear in the routes list
   ui.setRoutes(ROUTES);
   const rows = withClass(ui.element, 'route-row');
   assert.deepEqual(rows.map((row) => withClass(row, 'route-name')[0].textContent), ['Pattern 1', 'Entry 1']);
-
-  // Selecting a valid pattern route marks it
-  ui.setRoutes(ROUTES, 'p1');
-  assert.deepEqual(withClass(ui.element, 'route-row').map((r) => r.getAttribute('aria-current')), ['true', null]);
-
-  // Attempting to select a split route clears selection
-  ui.setRoutes(ROUTES, 's1');
-  assert.deepEqual(withClass(ui.element, 'route-row').map((r) => r.getAttribute('aria-current')), [null, null]);
 
   // Robust against null or undefined route items
   ui.setRoutes([null, undefined, ...ROUTES]);

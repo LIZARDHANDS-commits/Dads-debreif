@@ -77,6 +77,15 @@ Each line says what the requirement asks and what the code shows today. After ea
 - [ ] Simple spawn test buttons were promised and never built; check whether TR-R19's named start points are enough, otherwise add to `future.md` (`pf/reset/0-lessons/lessons.md:174`).
 - [ ] Settle the Traffic screen questions that stay open until work resumes (TR-Q10, Q14, Q15, Q16, Q18, Q22, Q23, Q24, Q25 in `questions.md`): `pf/reset/1-requirements/questions.md:96`, `pf/reset/1-requirements/questions.md:100`, `pf/reset/1-requirements/questions.md:101`, `pf/reset/1-requirements/questions.md:102`, `pf/reset/1-requirements/questions.md:104`, `pf/reset/1-requirements/questions.md:108`, `pf/reset/1-requirements/questions.md:109`, `pf/reset/1-requirements/questions.md:110`, `pf/reset/1-requirements/questions.md:111`.
 
+## Step 5b. Screen tidy-up: layout, menus and wording (Patrick, 4 Oct, screen session)
+
+Screen changes only: nothing in `src/core`, and no default, range or flying behaviour changes without Patrick's yes. Patrick's aim: the first look makes it obvious how to use the tool and what it can do, with the extras behind menus. The left column sets up the day and the scenario; the right column spawns and handles single aircraft and lists the aircraft flying; the top bar stays as it is.
+
+- [x] The route rows on the left show and hide their route on the map (they used to show the picked route's points only). A hidden route's row is dimmed and says "Hidden"; its aircraft fly on. DADS v2.10.31.
+- [x] The Moose Jaw routes are named as pilots call them: Pattern 1 is "Overhead break", Entry 1 "OHB Rejoin", Entry 2 "SI Rejoin". DADS v2.10.31.
+- [ ] "Scenarios and notes" becomes one line, "Scenario: Busy circuit" (the scenario loaded, Busy circuit by default), that opens a drop-down of every scenario.
+- [ ] The aircraft spawner stays at the top of the right column.
+
 ## Step 6. Check the camera, graphics and scenery work against the code
 
 The three old task folders show about 120 unticked boxes; most are old acceptance lines for work that is built, so the boxes are not live tasks. What is built: the six camera views (`pf/reset/2-inventory/agents/agent-3-specs-plans.md:71`, `src/modules/traffic/camera-views.js:61`), the tower, hangars and airfield ground (`pf/reset/2-inventory/agents/agent-3-specs-plans.md:73`, `src/modules/traffic/scenery3d.js:798`, `src/modules/traffic/airfield-core-ground.js:563`), and the sun, windsock, landmarks and trees (`pf/reset/2-inventory/agents/agent-3-specs-plans.md:75`, `src/modules/traffic/view3d.js:856`, `src/modules/traffic/landmarks3d.js:154`). What is still open:

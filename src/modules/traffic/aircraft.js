@@ -28,8 +28,8 @@ export const PILOT_SPAWN_PRESETS = Object.freeze([
   { id: 'final2m', label: '2-Mile Final (2,700 ft, 120 kt, Straight-in)', routeId: 'ENT2', point: 4 },
   { id: 'final1m', label: '1-Mile Final (2,120 ft, 100 kt, Short final)', routeId: 'PAT1', point: 13 },
   { id: 'takeoff', label: 'Takeoff (RWY 29L Threshold, 100 kt)', routeId: 'PAT1', point: 1 },
-  { id: 'rejoin45', label: 'Rejoin 45° Line (Entry 1, 3,500 ft, 220 kt)', routeId: 'ENT1', point: 1 },
-  { id: 'rejoinStraight', label: 'Rejoin Straight-In Line (Entry 2, 2,700 ft, 140 kt)', routeId: 'ENT2', point: 1 },
+  { id: 'rejoin45', label: 'Rejoin 45° Line (OHB Rejoin, 3,500 ft, 220 kt)', routeId: 'ENT1', point: 1 },
+  { id: 'rejoinStraight', label: 'Rejoin Straight-In Line (SI Rejoin, 2,700 ft, 140 kt)', routeId: 'ENT2', point: 1 },
 ]);
 
 /** The most points a start-point box accepts (the engine's own check is the route's length). */

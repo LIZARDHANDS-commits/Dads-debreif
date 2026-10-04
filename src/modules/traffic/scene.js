@@ -8,7 +8,7 @@ import { DEFAULT_ROUTE_OPTIONS, drawPath, legDistances, pointTurn, computeWindPe
 
 const isShowing = (route) => route.visible !== false;
 
-/** Where a route joins, as the routes list says it: "→ Pattern 1 P8" for an entry, "P6 → P1" for a split (points from 1). */
+/** Where a route joins, as the routes list says it: "→ Overhead break P8" for an entry, "P6 → P1" for a split (points from 1). */
 export function routeLink(route, routes) {
   if (route.kind === 'entry') {
     const pattern = routes.find((r) => r.id === route.attachTo);
@@ -22,7 +22,7 @@ export function routeLink(route, routes) {
 }
 
 /** One row per route for the routes list (layout.js setRoutes). */
-export const routeRows = (routes) => routes.map((r) => ({ id: r.id, name: r.name, kind: r.kind, color: r.color, link: routeLink(r, routes) }));
+export const routeRows = (routes) => routes.map((r) => ({ id: r.id, name: r.name, kind: r.kind, color: r.color, link: routeLink(r, routes), visible: isShowing(r) }));
 
 /** The points of a route where a choice is made: a pattern's first point, and every point a split leaves from (0-based). */
 export function decisionPoints(route, routes) {
