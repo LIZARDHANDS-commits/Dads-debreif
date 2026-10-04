@@ -43,13 +43,22 @@ for (const route of CHECKED_ROUTES) {
       }
       await page.goto('about:blank'); // a fresh page each time, so an open dialog can't carry over
       await openRoute(page, route);
-      await tagControls(page);
+      // Find it again by its words (and which one of that name it is), not its number: some controls arrive after the
+      // page mounts, such as the SOF's Acknowledge all once the weather is in, and would shift the numbers. It also waits
+      // until every control of the first read is back, so one arriving late can't pass for the click doing something.
+      const nth = list.slice(0, control.index).filter((c) => c.text === control.text).length;
+      let again;
+      await expect.poll(async () => {
+        const now = await tagControls(page);
+        again = now.filter((c) => c.text === control.text)[nth];
+        return Boolean(again) && now.length >= list.length;
+      }, { message: `"${control.text}" is on ${route} again` }).toBe(true);
       const before = await page.evaluate(() => {
         window.__changes = 0;
         new MutationObserver((m) => { window.__changes += m.length; }).observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
         return location.hash;
       });
-      const target = page.locator(`[data-test-control="${control.index}"]`);
+      const target = page.locator(`[data-test-control="${again.index}"]`);
       await expect(target).toHaveText(control.text);
       await target.click();
       const after = await page.evaluate(() => ({ hash: location.hash, changes: window.__changes, dialog: Boolean(document.querySelector('dialog[open]')) }));
