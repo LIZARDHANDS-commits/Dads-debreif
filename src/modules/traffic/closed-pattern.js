@@ -31,6 +31,13 @@ const PAST_ROLLOUT_FT = 300;
 const NEAR_LINE_FT = 300;
 const NEAR_TRACK_DEG = 15;
 const MOST_SEC = 600; // a guard: a closed pattern never takes this long
+/**
+ * The path starts with the aircraft carrying on as it was (its own bank and climb) for this long, s, before the
+ * pilot starts the turn: the path follower smooths the track over about this much either side of where the
+ * aircraft is (path-follower.js TRACK_HALF_WIDTH_SEC), so it sees the same flight on both sides of the hand-over
+ * and the heading does not step there. The displayed roll still starts at the hand-over. An estimate.
+ */
+const CARRY_ON_SEC = 0.8;
 
 /**
  * Flies the closed pattern from `from` = { x, y, alt, kias, headingDeg, bankDeg } in `wind` onto the
@@ -48,6 +55,10 @@ export function buildClosedPattern(from, wind, downwind, bankDeg = 50) {
   pilot.record();
   const windFtps = ktToFtps(env.windKt);
   let near = false;
+  for (let n = 0; n < CARRY_ON_SEC / PILOT_DT; n++) {
+    const { climb, accel } = powerClimb(pilot, CLOSED_CLIMB_KIAS, PATTERN_ALT_FT);
+    pilot.step(s.bank, climb, accel);
+  }
   for (let n = 0; n < MOST_SEC / PILOT_DT; n++) {
     const v = ktToFtps(pilot.tasKt());
     const { alongFt, crossFt } = legOffsetsFt(line.a, line.b, s);
