@@ -1,5 +1,5 @@
 // The right column of the Traffic Sim (specs/SPEC-traffic.md: The screen; task 6): the
-// spawner, the aircraft list and the conflicts. The spawner turns its boxes into a call to
+// spawner, the aircraft list and the conflicts. The spawner turns a press on a spot into a call to
 // the engine's `sim.spawn` and says in plain words when it can't; the list and the conflicts
 // show the engine's state as the text readouts.js makes. Names and callsigns go in as text,
 // never as HTML.
@@ -32,8 +32,8 @@ export const PILOT_SPAWN_PRESETS = Object.freeze([
   { id: 'rejoinStraight', label: 'Rejoin Straight-In Line (SI Rejoin, 2,700 ft, 140 kt)', routeId: 'ENT2', point: 1 },
 ]);
 
-/** The most points a start-point box accepts (the engine's own check is the route's length). */
-const MOST_POINTS = 999;
+/** The Route list's last choice: an aircraft gliding in from the training area with the engine out (Patrick, 4 Oct). */
+export const PFL_FROM_AREA = 'pfl-area';
 
 /** How often the list and the conflicts are rewritten while the run is playing. */
 const LIST_EVERY_MS = 100;
@@ -101,61 +101,90 @@ function groundText(row) {
  */
 export function createAircraftPanel({ controls, timers, settings, sim, setup, onChange, onSelectAircraft = null }) {
   // ---- the spawner ----------------------------------------------------------
+  // Patrick, 4 Oct: Type and Route, then a button for each spot on the route; one press adds an aircraft there.
+  // The delay and pairs sit under "Advanced settings". "PFL from area" is the Route list's last choice and
+  // brings up its own boxes instead of the spots.
   const message = h('p', { class: 'spawn-message', role: 'status' });
   const say = (text) => {
     if (message.textContent !== text) message.textContent = text;
   };
 
-  const pointSelect = h('select', {
-    id: 'traffic-spawn-start-point',
-    onchange: () => {
-      const val = parseInt(pointSelect.value, 10) || 1;
-      settings.update({ spawnStartPoint: val });
-    },
-  });
-
-  const fillStartPoints = () => {
-    clear(pointSelect);
-    const validRoutes = setup.routes.filter((r) => r && r.kind !== 'split');
-    const routesToUse = validRoutes.length > 0 ? validRoutes : setup.routes;
-    const routeId = spawnRouteId(settings.get().spawnRoute, routesToUse);
-    const route = routesToUse.find((r) => r.id === routeId);
-    const pts = route?.points ?? [];
-    for (let i = 0; i < pts.length; i++) {
-      const p = pts[i];
-      const idx = i + 1;
-      const isClosed = route?.id === 'PAT1' && i === 1;
-      const label = p.label || p.tag || `Point ${idx}`;
-      const extra = isClosed ? ' (Closed Pattern)' : '';
-      const alt = isClosed ? 2400 : (p.alt ?? 2500);
-      const kt = isClosed ? 140 : (p.kt ?? 120);
-      pointSelect.appendChild(h('option', { value: String(idx) }, `${idx}: ${label}${extra} (${alt} ft, ${kt} kt)`));
-    }
-    const current = settings.get().spawnStartPoint ?? 1;
-    pointSelect.value = String(current);
+  const flownRoutes = () => {
+    const valid = setup.routes.filter((r) => r && r.kind !== 'split');
+    return valid.length > 0 ? valid : setup.routes;
+  };
+  const currentRoute = () => {
+    const routes = flownRoutes();
+    return routes.find((r) => r.id === spawnRouteId(settings.get().spawnRoute, routes));
   };
 
+  /** A spot's name and what an aircraft starts with there ("Departure End (Closed Pattern)", 2400, 140). */
+  const spotOf = (route, i) => {
+    const p = route.points[i];
+    const isClosed = route.id === 'PAT1' && i === 1;
+    return { label: `${p.label || p.tag || `Point ${i + 1}`}${isClosed ? ' (Closed Pattern)' : ''}`, alt: isClosed ? 2400 : (p.alt ?? 2500), kt: isClosed ? 140 : (p.kt ?? 120) };
+  };
+
+  let pflChosen = false; // "PFL from area" is picked in the Route list; it is not a route the setting can hold
   const routeSelect = h('select', {
     id: 'traffic-spawn-route',
     onchange: () => {
-      settings.update({ spawnRoute: routeSelect.value, spawnStartPoint: 1 });
-      fillStartPoints();
+      pflChosen = routeSelect.value === PFL_FROM_AREA;
+      if (!pflChosen) settings.update({ spawnRoute: routeSelect.value, spawnStartPoint: 1 });
+      showRouteParts();
+      conflictButtonFollows();
     },
   });
   const fillRoutes = () => {
     clear(routeSelect);
     const visibleRoutes = setup.routes.filter((r) => r && r.kind !== 'split');
     for (const route of visibleRoutes) routeSelect.appendChild(h('option', { value: route.id }, route.name));
-    routeSelect.value = spawnRouteId(settings.get().spawnRoute, visibleRoutes.length > 0 ? visibleRoutes : setup.routes);
+    routeSelect.appendChild(h('option', { value: PFL_FROM_AREA }, 'PFL from area'));
+    routeSelect.value = pflChosen ? PFL_FROM_AREA : spawnRouteId(settings.get().spawnRoute, flownRoutes());
   };
-  fillRoutes();
-  fillStartPoints();
+
+  // The advanced choices: a delay before the aircraft starts, and adding a pair. Closed until asked for.
+  const pairBox = h('input', { id: 'traffic-spawn-pair', type: 'checkbox', onchange: () => showSpotsHint() });
+  const pairChoice = h('div', { class: 'control control-checkbox' }, pairBox, h('label', { for: pairBox.id }, 'Add a pair (a second aircraft on the same spot, later by the pair gap)'));
+  const advanced = h(
+    'details',
+    { class: 'spawner-advanced' },
+    h('summary', {}, 'Advanced settings'),
+    controls.number('spawnDelayS', { label: 'Delay', unit: 's', min: LIMITS.spawnDelayS[0], max: LIMITS.spawnDelayS[1], step: 1 }),
+    pairChoice,
+    controls.number('pairGapS', { label: 'Pair gap', unit: 's', min: 0, max: LIMITS.spawnDelayS[1], step: 1 }),
+  );
+
+  // The spots of the chosen route, one button each; the line above says what a press does with today's choices.
+  const spotsHint = h('p', { class: 'spawn-spots-hint' });
+  const spots = h('div', { class: 'spawn-spots', role: 'group', 'aria-label': 'Spots on the route' });
+  function showSpotsHint() {
+    const { spawnDelayS: delay, pairGapS: gap } = settings.get();
+    const what = pairBox.checked ? `a pair, ${gap} s apart,` : 'an aircraft';
+    const when = delay > 0 ? `in ${delay} s` : 'now';
+    const text = `Press a spot to add ${what} there ${when}.`;
+    if (spotsHint.textContent !== text) spotsHint.textContent = text;
+  }
+  function fillSpots() {
+    clear(spots);
+    const route = currentRoute();
+    for (let i = 0; i < (route?.points?.length ?? 0); i++) {
+      const spot = spotOf(route, i);
+      const button = h('button', {
+        type: 'button',
+        class: 'button spawn-spot',
+        dataset: { point: String(i + 1) },
+        title: `${spot.label}: ${feet(spot.alt)} ft, ${spot.kt} kt`,
+        onclick: () => spawnAt(i + 1),
+      }, spot.label);
+      guardButton(button, ['spawnDelayS']);
+      spots.appendChild(button);
+    }
+  }
 
   // The spawner keeps its own choice of route: picking a route on the left doesn't change it (#45).
   function spawn(pair) {
-    const validRoutes = setup.routes.filter((r) => r && r.kind !== 'split');
-    const routesToUse = validRoutes.length > 0 ? validRoutes : setup.routes;
-    const asked = spawnSpec(settings.get(), routesToUse);
+    const asked = spawnSpec(settings.get(), flownRoutes());
     if (asked.problem) return say(asked.problem);
     const second = pair ? pairSpec(asked.spec, settings.get()) : null;
     if (second?.problem) return say(second.problem);
@@ -173,6 +202,14 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     onChange();
   }
 
+  /** A spot was pressed: an aircraft (or a pair, from Advanced settings) at that spot of the chosen route. */
+  function spawnAt(point) {
+    // The pair gap is read only for a pair: a refused gap holds back a pair, not a single aircraft (TR-14).
+    if (pairBox.checked && controls.invalid().includes('pairGapS')) return say('Nothing was added: fix the Pair gap box first.');
+    settings.update({ spawnStartPoint: point });
+    spawn(pairBox.checked);
+  }
+
   // Spawn a conflict (Patrick, 4 Oct 19:24Z): a new aircraft on the spawner's route, started where and when it will
   // meet the selected aircraft, so that one of them has to manage it (scenario-timing.js conflictSpawnPlan).
   const routeName = (id) => setup.routes.find((r) => r.id === id)?.name ?? id;
@@ -181,8 +218,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     const target = sim.state().aircraft.find((a) => a.id === targetId);
     if (!target || target.status !== 'flying') return say('Spawn a conflict: select a flying aircraft first.');
     if (sim.state().aircraft.length + 1 > MOST_AIRCRAFT) return say(`Nothing was added: the most is ${MOST_AIRCRAFT} aircraft. Clear finished aircraft or remove some first.`);
-    const validRoutes = setup.routes.filter((r) => r && r.kind !== 'split');
-    const routeId = spawnRouteId(settings.get().spawnRoute, validRoutes.length > 0 ? validRoutes : setup.routes);
+    const routeId = spawnRouteId(settings.get().spawnRoute, flownRoutes());
     say(`Working out where an aircraft on ${routeName(routeId)} meets ${targetId}…`);
     // A moment later, so the line above shows while it works (it flies everyone ahead on a copy of the run).
     timers.after(0, () => {
@@ -215,43 +251,16 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
 
   const callsignBadge = h('span', { class: 'traffic-callsign-badge' }, sim.nextCallsign ? `Next: ${sim.nextCallsign()}` : '');
 
-  const pointCaption = h('div', { class: 'spawner-point-caption', 'aria-live': 'polite' });
-  const updatePointCaption = (vals = settings.get()) => {
-    const validRoutes = setup.routes.filter((r) => r && r.kind !== 'split');
-    const routesToUse = validRoutes.length > 0 ? validRoutes : setup.routes;
-    const routeId = spawnRouteId(vals.spawnRoute, routesToUse);
-    const route = routesToUse.find((r) => r.id === routeId);
-    const ptIdx = (vals.spawnStartPoint ?? 1) - 1;
-    const pt = route?.points?.[ptIdx];
-    if (pt) {
-      const isClosed = route.id === 'PAT1' && ptIdx === 1;
-      const label = pt.label || `Point ${ptIdx + 1}`;
-      const extra = isClosed ? ' (Closed Pattern)' : '';
-      const alt = isClosed ? 2400 : (pt.alt ?? 2500);
-      const kt = isClosed ? 140 : (pt.kt ?? 120);
-      pointCaption.textContent = `↳ ${label}${extra}: ${alt} ft, ${kt} kt`;
-    } else {
-      pointCaption.textContent = '';
-    }
-    if (vals?.spawnStartPoint !== undefined && pointSelect.value !== String(vals.spawnStartPoint)) {
-      pointSelect.value = String(vals.spawnStartPoint);
-    }
-  };
-  settings.subscribe?.(updatePointCaption);
-  updatePointCaption();
-
-  const pairLabel = () => `+ Pair, ${settings.get().pairGapS} s apart`;
-  const pairButton = h('button', { type: 'button', class: 'button', onclick: () => spawn(true) }, pairLabel());
-  const spawnButton = h('button', { type: 'button', class: 'button primary', onclick: () => spawn(false) }, '+ Spawn');
   const conflictButton = h('button', { type: 'button', class: 'button', disabled: true, title: 'Select an aircraft first', onclick: spawnConflict }, 'Spawn a conflict');
-  // The button waits for a selected aircraft (Patrick: "when an aircraft is selected").
+  // The button waits for a selected aircraft (Patrick: "when an aircraft is selected") and a route to put the new one on.
   const conflictButtonFollows = () => {
-    const on = Boolean(selectedAircraftId);
+    const on = Boolean(selectedAircraftId) && !pflChosen;
     conflictButton.disabled = !on;
-    conflictButton.title = on ? `A new aircraft on the route above, timed to meet ${selectedAircraftId}` : 'Select an aircraft first';
+    conflictButton.title = on ? `A new aircraft on the route above, timed to meet ${selectedAircraftId}` : pflChosen ? 'Choose a route above first' : 'Select an aircraft first';
   };
 
-  // PFL From Area: an aircraft already gliding with the engine out, somewhere in the training area. Closed until asked for.
+  // PFL from area: an aircraft already gliding with the engine out, somewhere in the training area. Its boxes show
+  // when it is chosen in the Route list, in place of the spots.
   const pflBox = (id, label, unit, value, min, max) => {
     const input = h('input', { id, type: 'number', value: String(value), min: String(min), max: String(max), step: '1', inputmode: 'numeric' });
     return { input, element: h('div', { class: 'control control-number' }, h('label', { for: id }, `${label} (${unit})`), input) };
@@ -261,7 +270,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
   const pflAlt = pflBox('traffic-pfl-alt', 'Altitude', 'ft MSL', 7500, 3000, 15000);
   const spawnPfl = () => {
     const [radialDeg, distNm, altFt] = [pflRadial, pflDist, pflAlt].map((b) => Number(b.input.value));
-    if (![radialDeg, distNm, altFt].every(Number.isFinite)) return say('PFL From Area: radial, distance and altitude must be numbers.');
+    if (![radialDeg, distNm, altFt].every(Number.isFinite)) return say('PFL from area: radial, distance and altitude must be numbers.');
     if (sim.state().aircraft.length + 1 > MOST_AIRCRAFT) return say(`Nothing was added: the most is ${MOST_AIRCRAFT} aircraft. Clear finished aircraft or remove some first.`);
     try {
       const id = sim.spawnPflFromArea({ type: settings.get().spawnType, radialDeg, distNm, altFt });
@@ -272,45 +281,41 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     }
     onChange();
   };
-  const pflPanel = h(
-    'details',
-    { class: 'spawner-pfl' },
-    h('summary', {}, 'PFL From Area'),
+  const pflFields = h(
+    'div',
+    { class: 'spawner-pfl', hidden: true },
     pflRadial.element,
     pflDist.element,
     pflAlt.element,
     h('button', { type: 'button', class: 'button danger', onclick: spawnPfl }, '+ Spawn PFL'),
   );
-  const startPointControl = h(
-    'div',
-    { class: 'control control-select' },
-    h('label', { for: pointSelect.id }, 'Start at point'),
-    pointSelect,
-  );
+
+  /** The spots for a route, or the PFL boxes for "PFL from area". */
+  function showRouteParts() {
+    spotsHint.hidden = pflChosen;
+    spots.hidden = pflChosen;
+    advanced.hidden = pflChosen; // the delay and pairs are for the spots
+    pflFields.hidden = !pflChosen;
+    if (!pflChosen) fillSpots();
+  }
+
   const spawner = h(
     'section',
     { class: 'spawner', 'aria-label': 'Spawn aircraft' },
     h('div', { class: 'spawner-head' }, h('h3', { class: 'traffic-subtitle' }, 'Spawn'), callsignBadge),
     controls.select('spawnType', { label: 'Type', options: SPAWN_TYPES.map((type) => [type, type]) }),
     h('div', { class: 'control control-select' }, h('label', { for: routeSelect.id }, 'Route'), routeSelect),
-    startPointControl,
-    pointCaption,
-    controls.number('spawnDelayS', { label: 'Delay', unit: 's', min: LIMITS.spawnDelayS[0], max: LIMITS.spawnDelayS[1], step: 1 }),
-    h(
-      'div',
-      { class: 'spawn-buttons' },
-      spawnButton,
-      pairButton,
-      h('button', { type: 'button', class: 'button', onclick: clearFinished }, 'Clear finished'),
-      conflictButton,
-    ),
-    pflPanel,
+    spotsHint,
+    spots,
+    pflFields,
+    h('div', { class: 'spawn-buttons' }, conflictButton, h('button', { type: 'button', class: 'button', onclick: clearFinished }, 'Clear finished')),
+    advanced,
     message,
   );
 
-  // TR-14: neither button acts while a box it reads refuses what was typed (the setting would keep its last good
+  // TR-14: no spot button acts while a box it reads refuses what was typed (the setting would keep its last good
   // value, which the person can't see). The box shows its own message; the spawner's line names the box too.
-  const guardButton = (button, keys) => {
+  function guardButton(button, keys) {
     button.addEventListener('click', (event) => {
       // The guard has run by the end of the click: if it held the action back, say which box to fix.
       timers.after(0, () => {
@@ -320,13 +325,16 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       });
     }, true); // registered first, so it sees the click before the guard stops it
     controls.guard(button, keys);
-  };
-  guardButton(spawnButton, ['spawnStartPoint', 'spawnDelayS']);
-  guardButton(pairButton, ['spawnStartPoint', 'spawnDelayS', 'pairGapS']);
+  }
+
+  fillRoutes();
+  showRouteParts();
+  showSpotsHint();
+  settings.subscribe?.(() => showSpotsHint());
 
   // ---- the aircraft list and the conflicts ------------------------------------
   const listBody = h('ul', { class: 'aircraft-list' });
-  const emptyNote = h('p', { class: 'aircraft-empty' }, 'No aircraft yet. Use + Spawn to add one.');
+  const emptyNote = h('p', { class: 'aircraft-empty' }, 'No aircraft yet. Press a spot under Spawn to add one.');
   // The list stays on one screen (Patrick, 4 Oct 19:27Z): rows that would run past the bottom of the window wait
   // behind a "More" button, which opens the whole list (and closes it again). The selected aircraft always shows.
   let showAll = false;
@@ -631,14 +639,11 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       if (playing && now - last < LIST_EVERY_MS) return;
       last = now;
       write(state);
-      const label = pairLabel();
-      if (pairButton.textContent !== label) pairButton.textContent = label;
     },
     /** The routes changed (one was made, renamed or removed): the spawner's route list follows. */
     routesChanged() {
       fillRoutes();
-      fillStartPoints();
-      updatePointCaption();
+      showRouteParts();
     },
     selectAircraft: setSelected,
     selectedAircraft: () => selectedAircraftId,

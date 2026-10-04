@@ -529,14 +529,41 @@
   grid-column: 1 / -1;
 }
 
-[data-module='traffic'] .spawner-point-caption {
-  font-size: var(--text-xs, 0.75rem);
-  color: var(--accent);
-  margin-top: calc(-1 * var(--space-1));
+/* The spots of the chosen route (Patrick, 4 Oct): one button each, wrapping; a press adds an aircraft there. */
+[data-module='traffic'] .spawn-spots-hint {
+  margin: var(--space-1) 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .spawn-spots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+
+[data-module='traffic'] .spawn-spot {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .spawner [hidden] {
+  display: none;
+}
+
+/* Advanced settings: closed until asked for, under the buttons. */
+[data-module='traffic'] .spawner-advanced {
+  margin-top: var(--space-3);
+}
+
+[data-module='traffic'] .spawner-advanced > summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+[data-module='traffic'] .spawner-advanced[open] > summary {
   margin-bottom: var(--space-2);
-  padding-left: var(--space-1);
-  font-family: var(--font-mono, monospace);
-  line-height: 1.3;
 }
 
 [data-module='traffic'] .spawn-buttons {

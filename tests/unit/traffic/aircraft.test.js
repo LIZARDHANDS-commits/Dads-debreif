@@ -1,4 +1,4 @@
-// Checks: the right-hand panel: spawner boxes, + Spawn / + Pair / + Spawn PFL, plain-words refusals, the
+// Checks: the right-hand panel: spawner spots, pairs, + Spawn PFL, plain-words refusals, the
 //   200-aircraft limit, the aircraft rows with their command buttons, row selection, the conflict line and the
 //   PFL badge.
 // Serves: TR-R19, TR-R20, TR-R17, TR-R14, TR-R28.
@@ -104,87 +104,120 @@ test('engine problems are said in words, and an unknown one is not passed on', (
   assert.equal(engineProblem(new Error('boom')), 'That aircraft could not be added.');
 });
 
-test('every spawner box is labelled: Type, Route, Start at point and Delay', () => {
+// The spawner's spots (Patrick, 4 Oct): Type and Route, then a button for each spot of the route; one press adds an
+// aircraft there. The delay and pairs are under Advanced settings; "PFL from area" is the Route list's last choice.
+const spotButtons = (spawner) => withClass(spawner, 'spawn-spot');
+const spot = (spawner, name) => spotButtons(spawner).find((b) => words(b) === name);
+const chooseRoute = (spawner, id) => {
+  const route = inputFor(spawner, 'Route');
+  route.value = id;
+  route.dispatch('change');
+};
+const pairBoxOf = (spawner) => all(spawner, (n) => n.getAttribute?.('id') === 'traffic-spawn-pair')[0];
+
+test('the spawner shows Type and Route, a button for each spot of the route, and the delay and pair gap under Advanced settings', () => {
   const { spawner } = setup();
-  for (const label of ['Type', 'Route', 'Start at point', 'Delay']) assert.ok(inputFor(spawner, label), label);
+  for (const label of ['Type', 'Route', 'Delay', 'Pair gap']) assert.ok(inputFor(spawner, label), label);
   assert.equal(inputFor(spawner, 'Type').value, '0', 'CT-156 is the first in the list');
   assert.equal(inputFor(spawner, 'Route').value, 'ENT1');
-  assert.equal(inputFor(spawner, 'Start at point').value, '1');
   assert.equal(inputFor(spawner, 'Delay').value, '0');
+  assert.deepEqual(spotButtons(spawner).map(words), ['Entry Start', 'Entry Mid', 'Entry Gate', 'Merge'], 'the OHB Rejoin\'s four spots, by name');
+  assert.equal(spot(spawner, 'Entry Start').getAttribute('title'), 'Entry Start: 3,500 ft, 220 kt');
+  assert.equal(words(withClass(spawner, 'spawn-spots-hint')[0]), 'Press a spot to add an aircraft there now.');
+  assert.equal(words(all(withClass(spawner, 'spawner-advanced')[0], (n) => n.tagName === 'SUMMARY')[0]), 'Advanced settings');
+  assert.equal(buttonNamed(spawner, '+ Spawn'), undefined, 'a spot press replaces + Spawn');
 });
 
-test('+ Spawn adds the aircraft the boxes describe, names it, and tells the screen', () => {
-  const { spawner, sim, changes } = setup();
-  buttonNamed(spawner, '+ Spawn').dispatch('click');
+test('choosing a route shows its spots: the overhead break has thirteen, the closed pattern start says so', () => {
+  const { spawner } = setup();
+  chooseRoute(spawner, 'PAT1');
+  assert.equal(spotButtons(spawner).length, 13);
+  assert.ok(spot(spawner, 'Final Entry'));
+  assert.equal(spot(spawner, 'Departure End (Closed Pattern)').getAttribute('title'), 'Departure End (Closed Pattern): 2,400 ft, 140 kt');
+});
+
+test('pressing a spot adds an aircraft there, names it, and tells the screen', () => {
+  const { spawner, sim, changes, settings } = setup();
+  spot(spawner, 'Entry Gate').dispatch('click');
   assert.equal(sim.state().aircraft.length, 8);
   const added = sim.state().aircraft.at(-1);
   assert.deepEqual([added.id, added.type, added.routeId], ['A8', 'CT-156', 'ENT1']);
+  assert.equal(settings.get().spawnStartPoint, 3, 'the third spot');
   assert.equal(words(withClass(spawner, 'spawn-message')[0]), 'Added A8.');
   assert.deepEqual(changes, [8]);
 });
 
-test('the boxes decide the aircraft: type, route, start point and delay', () => {
+test('type, route, spot and the delay decide the aircraft', () => {
   const { spawner, sim, settings } = setup();
   settings.update({ spawnType: 'CT-114' });
-  const route = inputFor(spawner, 'Route');
-  route.value = 'ENT2';
-  route.dispatch('change');
-  type(inputFor(spawner, 'Start at point'), '3');
+  chooseRoute(spawner, 'ENT2');
   type(inputFor(spawner, 'Delay'), '45');
-  buttonNamed(spawner, '+ Spawn').dispatch('click');
+  assert.equal(words(withClass(spawner, 'spawn-spots-hint')[0]), 'Press a spot to add an aircraft there in 45 s.');
+  spot(spawner, 'Entry Gate').dispatch('click');
   const added = sim.state().aircraft.at(-1);
   assert.deepEqual([added.type, added.routeId, added.startsAt], ['CT-114', 'ENT2', 45]);
   assert.equal(settings.get().spawnRoute, 'ENT2');
+  assert.equal(settings.get().spawnStartPoint, 3);
 });
 
 test('the spawner keeps its own route when a route is picked elsewhere, and follows a route that is added', () => {
   const { panel, spawner, traffic } = setup();
-  const route = inputFor(spawner, 'Route');
-  route.value = 'ENT2';
-  route.dispatch('change');
+  chooseRoute(spawner, 'ENT2');
   traffic.routes.push({ ...traffic.routes[1], id: 'ENT9', name: 'Entry 9' });
   panel.routesChanged();
   assert.equal(inputFor(spawner, 'Route').value, 'ENT2', 'its own choice stays');
-  assert.equal(tagged(inputFor(spawner, 'Route'), 'OPTION').length, 4);
-  assert.equal(words(tagged(inputFor(spawner, 'Route'), 'OPTION').at(-1)), 'Entry 9');
+  const options = tagged(inputFor(spawner, 'Route'), 'OPTION').map(words);
+  assert.deepEqual(options.slice(-2), ['Entry 9', 'PFL from area'], 'the new route, then PFL from area last');
 });
 
-test('+ Pair adds two aircraft on the same route, 20 s apart', () => {
+test('with Add a pair ticked, a spot adds two aircraft on the same route, the pair gap apart', () => {
   const { spawner, sim } = setup();
-  const route = inputFor(spawner, 'Route');
-  route.value = 'PAT1';
-  route.dispatch('change');
+  chooseRoute(spawner, 'PAT1');
   type(inputFor(spawner, 'Delay'), '10');
-  const pair = buttonNamed(spawner, '+ Pair, 20 s apart');
-  assert.ok(pair);
-  pair.dispatch('click');
+  const pair = pairBoxOf(spawner);
+  pair.checked = true;
+  pair.dispatch('change');
+  assert.equal(words(withClass(spawner, 'spawn-spots-hint')[0]), 'Press a spot to add a pair, 20 s apart, there in 10 s.');
+  spot(spawner, 'Downwind').dispatch('click');
   const [first, second] = sim.state().aircraft.slice(-2);
   assert.deepEqual([first.routeId, second.routeId], ['PAT1', 'PAT1']);
   assert.equal(second.startsAt - first.startsAt, 20);
   assert.equal(words(withClass(spawner, 'spawn-message')[0]), 'Added A8 and A9.');
 });
 
-test('+ Pair with a gap that makes no sense adds neither aircraft', () => {
+test('a pair with a gap that makes no sense adds neither aircraft', () => {
   const { spawner, sim, settings } = setup();
   settings.update({ pairGapS: -3 });
-  assert.doesNotThrow(() => buttonNamed(spawner, '+ Pair, 20 s apart').dispatch('click'));
+  const pair = pairBoxOf(spawner);
+  pair.checked = true;
+  pair.dispatch('change');
+  assert.doesNotThrow(() => spot(spawner, 'Entry Start').dispatch('click'));
   assert.equal(sim.state().aircraft.length, 7);
   assert.match(words(withClass(spawner, 'spawn-message')[0]), /gap between a pair/);
 });
 
 test('a refused spawn adds nothing, says why, and never throws', () => {
   const { spawner, sim, settings, changes } = setup();
-  type(inputFor(spawner, 'Start at point'), '9');
-  assert.doesNotThrow(() => buttonNamed(spawner, '+ Spawn').dispatch('click'));
-  assert.equal(sim.state().aircraft.length, 7);
-  assert.match(words(withClass(spawner, 'spawn-message')[0]), /OHB Rejoin has 4 points/);
-  // The engine's own check is passed on in words too.
-  type(inputFor(spawner, 'Start at point'), '1');
   settings.update({ spawnType: 'Cessna' });
-  assert.doesNotThrow(() => buttonNamed(spawner, '+ Spawn').dispatch('click'));
+  assert.doesNotThrow(() => spot(spawner, 'Entry Start').dispatch('click'));
   assert.equal(sim.state().aircraft.length, 7);
   assert.match(words(withClass(spawner, 'spawn-message')[0]), /could not be added: unknown aircraft type Cessna/);
-  assert.equal(changes.length, 1, 'the screen is told after the engine was asked, and not after a check that stopped short');
+  assert.equal(changes.length, 1, 'the screen is told after the engine was asked');
+});
+
+test('PFL from area, chosen as the route, swaps the spots for its radial, distance and height boxes, and adds a gliding aircraft', () => {
+  const { spawner, sim } = setup();
+  chooseRoute(spawner, 'pfl-area');
+  assert.equal(withClass(spawner, 'spawn-spots')[0].hidden, true, 'no spots');
+  assert.equal(withClass(spawner, 'spawner-advanced')[0].hidden, true, 'the delay and pairs are for the spots');
+  assert.equal(withClass(spawner, 'spawner-pfl')[0].hidden, false);
+  for (const label of ['Radial (°T)', 'Distance (NM)', 'Altitude (ft MSL)']) assert.ok(inputFor(spawner, label), label);
+  buttonNamed(spawner, '+ Spawn PFL').dispatch('click');
+  assert.equal(sim.state().aircraft.length, 8);
+  assert.match(words(withClass(spawner, 'spawn-message')[0]), /engine out, inbound to High Key/);
+  chooseRoute(spawner, 'PAT1');
+  assert.equal(withClass(spawner, 'spawn-spots')[0].hidden, false, 'a route brings the spots back');
+  assert.equal(withClass(spawner, 'spawner-pfl')[0].hidden, true);
 });
 
 test('Clear finished drops the aircraft that have landed or are done, and says how many', () => {
@@ -208,7 +241,7 @@ test('the aircraft list has a row for each aircraft: callsign, type, route, and 
   const rows = withClass(list, 'aircraft-row');
   assert.equal(rows.length, 7);
   assert.match(words(rows[0]), /^A1 CT-156 on Overhead break.*Waiting, starts at 0:12$/);
-  assert.equal(words(withClass(list, 'aircraft-empty')[0]), 'No aircraft yet. Use + Spawn to add one.');
+  assert.equal(words(withClass(list, 'aircraft-empty')[0]), 'No aircraft yet. Press a spot under Spawn to add one.');
   assert.equal(withClass(list, 'aircraft-empty')[0].hidden, true);
 });
 
@@ -291,75 +324,74 @@ test('while playing the lists are rewritten at most every 100 ms; paused, at onc
   assert.notEqual(shown(), written, 'paused: at once');
 });
 
-// TR-14: neither button acts while a box it reads is refused, and the spawner's line names the box.
-test('+ Spawn and + Pair hold back while Delay is refused, and the line names the box', () => {
+// TR-14: no spot acts while a box it reads is refused, and the spawner's line names the box.
+test('the spots hold back while Delay is refused, and the line names the box', () => {
   const timers = fakeTimers();
   const { spawner, sim, changes } = setup({ timers });
-  const spawn = buttonNamed(spawner, '+ Spawn'), pair = buttonNamed(spawner, '+ Pair, 20 s apart');
+  const first = spot(spawner, 'Entry Start');
   const before = sim.state().aircraft.length;
-  assert.equal(spawn.getAttribute('aria-disabled'), null);
+  assert.equal(first.getAttribute('aria-disabled'), null);
   type(inputFor(spawner, 'Delay'), '-1'); // out of range: refused, the setting keeps its last good value
-  assert.equal(spawn.getAttribute('aria-disabled'), 'true');
-  assert.equal(pair.getAttribute('aria-disabled'), 'true');
-  spawn.dispatch('click');
-  pair.dispatch('click');
+  assert.equal(first.getAttribute('aria-disabled'), 'true');
+  first.dispatch('click');
   timers.tick();
   assert.equal(sim.state().aircraft.length, before, 'nothing was added');
   assert.deepEqual(changes, [], 'and the screen was not told');
   assert.match(withClass(spawner, 'spawn-message')[0].textContent, /Nothing was added: fix the Delay box first\./);
-  // Put it right: both act again.
+  // Put it right: the spots act again.
   type(inputFor(spawner, 'Delay'), '0');
-  assert.equal(spawn.getAttribute('aria-disabled'), null);
-  spawn.dispatch('click');
-  pair.dispatch('click');
-  assert.equal(sim.state().aircraft.length, before + 3);
+  assert.equal(first.getAttribute('aria-disabled'), null);
+  first.dispatch('click');
+  assert.equal(sim.state().aircraft.length, before + 1);
 });
 
-test('a Delay typed but not yet "changed" is read at the click, so + Spawn still holds back', () => {
+test('a Delay typed but not yet "changed" is read at the click, so a spot still holds back', () => {
   const timers = fakeTimers();
   const { spawner, sim } = setup({ timers });
   const before = sim.state().aircraft.length;
   const delay = inputFor(spawner, 'Delay');
   delay.value = '99999'; // no change event: the guard reads the box at the click
   delay.dispatch('input');
-  buttonNamed(spawner, '+ Spawn').dispatch('click');
+  spot(spawner, 'Entry Start').dispatch('click');
   timers.tick();
   assert.equal(sim.state().aircraft.length, before);
   assert.match(withClass(spawner, 'spawn-message')[0].textContent, /fix the Delay box first/);
 });
 
-test('a refused Pair gap holds back + Pair only, and the line names it', () => {
-  // No screen has a Pair gap box yet, so one is made on the same controls, as a settings box would be.
-  const timers = fakeTimers();
-  const { spawner, sim, controls } = setup({ timers });
-  const gap = controls.number('pairGapS', { label: 'Pair gap', unit: 's', min: 0, max: 86_400, step: 1 });
+test('a refused Pair gap holds back a pair only, and the line names it', () => {
+  const { spawner, sim } = setup();
   const before = sim.state().aircraft.length;
-  type(inputFor(gap, 'Pair gap'), '-5');
-  const spawn = buttonNamed(spawner, '+ Spawn'), pair = buttonNamed(spawner, '+ Pair, 20 s apart');
-  assert.equal(pair.getAttribute('aria-disabled'), 'true');
-  assert.equal(spawn.getAttribute('aria-disabled'), null, '+ Spawn does not read the gap');
-  pair.dispatch('click');
-  timers.tick();
+  type(inputFor(spawner, 'Pair gap'), '-5');
+  const pair = pairBoxOf(spawner);
+  pair.checked = true;
+  pair.dispatch('change');
+  spot(spawner, 'Entry Start').dispatch('click');
   assert.equal(sim.state().aircraft.length, before);
   assert.match(withClass(spawner, 'spawn-message')[0].textContent, /fix the Pair gap box first/);
-  spawn.dispatch('click');
-  assert.equal(sim.state().aircraft.length, before + 1, '+ Spawn still works');
+  pair.checked = false;
+  pair.dispatch('change');
+  spot(spawner, 'Entry Start').dispatch('click');
+  assert.equal(sim.state().aircraft.length, before + 1, 'a single aircraft does not read the gap');
 });
 
 // PR-04: a saved profile holds 200 aircraft at most, so the spawner stops there, with the same limit in its words.
-test('the 201st aircraft is refused at + Spawn and + Pair, with the limit in the sentence (PR-04)', () => {
+test('the 201st aircraft is refused at a spot, alone or as a pair, with the limit in the sentence (PR-04)', () => {
   const { spawner, sim, changes } = setup();
   while (sim.state().aircraft.length < 199) sim.spawn({ type: 'CT-156', routeId: 'ENT1', startPoint: 1, delaySec: 0 });
-  const spawn = buttonNamed(spawner, '+ Spawn'), pair = buttonNamed(spawner, '+ Pair, 20 s apart');
   const say = () => words(withClass(spawner, 'spawn-message')[0]);
-  pair.dispatch('click'); // 199 + 2 = 201
+  const pair = pairBoxOf(spawner);
+  pair.checked = true;
+  pair.dispatch('change');
+  spot(spawner, 'Entry Start').dispatch('click'); // 199 + 2 = 201
   assert.equal(sim.state().aircraft.length, 199, 'a pair that would pass the limit adds neither aircraft');
   assert.match(say(), /Nothing was added: that would make 201 aircraft \(the most is 200\)\. Clear finished aircraft or remove some first\./);
-  spawn.dispatch('click'); // the 200th is allowed
+  pair.checked = false;
+  pair.dispatch('change');
+  spot(spawner, 'Entry Start').dispatch('click'); // the 200th is allowed
   assert.equal(sim.state().aircraft.length, 200);
   assert.match(say(), /^Added /);
   const before = changes.length;
-  spawn.dispatch('click');
+  spot(spawner, 'Entry Start').dispatch('click');
   assert.equal(sim.state().aircraft.length, 200);
   assert.match(say(), /that would make 201 aircraft \(the most is 200\)/);
   assert.equal(changes.length, before, 'and the screen was not told of a change');

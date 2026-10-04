@@ -117,7 +117,7 @@ export function turnLabelText(point) {
  * `place` names the setup ("Moose Jaw"), or is left empty for one of the user's own.
  */
 export function hintFor({ timeS, mode, aircraftCount, place = HOME_SETUP }) {
-  if (aircraftCount === 0) return 'No aircraft yet. Use + Spawn on the right to add one.';
+  if (aircraftCount === 0) return 'No aircraft yet. Press a spot under Spawn on the right to add one.';
   if (timeS !== 0 || mode !== 'paused') return '';
   return `Press Play to watch the ${place ? `${place} ` : ''}traffic.`;
 }
