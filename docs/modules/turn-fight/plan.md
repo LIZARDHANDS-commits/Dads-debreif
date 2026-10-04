@@ -29,8 +29,8 @@ How to read this plan: steps are in the order to do them. Only what is in a step
 
 ## Step 2. Build the gaps between decided and built
 
-- [ ] Top-speed flag: a jet that goes faster than the T-6's top speed shows a plain flag and keeps flying (TF-R4) (`pf/reset/1-requirements/requirements.md:278`, `pf/reset/4-decisions/partb-turnfight.md:15`).
-- [ ] Hard-deck flag: a jet below the 6,000 ft MSL hard deck (3,000 ft AGL in the Moose Jaw areas) shows a flag and keeps flying; jets fly above it by default (TF-R6) (`pf/reset/1-requirements/requirements.md:280`).
+- [x] Top-speed flag (done 4 Oct, TF-61, v2.14: OVERSPEED): a jet that goes faster than the T-6's top speed shows a plain flag and keeps flying (TF-R4) (`pf/reset/1-requirements/requirements.md:278`, `pf/reset/4-decisions/partb-turnfight.md:15`).
+- [x] Hard-deck flag (done 4 Oct, TF-61, v2.14: BELOW DECK; after the pass it also loses the fight, TF-R6): a jet below the 6,000 ft MSL hard deck (3,000 ft AGL in the Moose Jaw areas) shows a flag and keeps flying; jets fly above it by default (TF-R6) (`pf/reset/1-requirements/requirements.md:280`).
 - [ ] Pull G on screen: 5 G is the default pull for the split S, Immelmann, pitch back and slice, with the SMM's about 4 G shown as the reference; harder pulls are allowed up to the T-6's limits and flagged (`pf/reset/4-decisions/partb-turnfight.md:12`).
 - [ ] Extra-stats panel (TF-Q2): show each jet's turn rate and turn radius in Energy mode, in the extra stats panel on the right that is usually hidden (TF-R16) (`pf/reset/1-requirements/questions.md:124`, `pf/reset/1-requirements/requirements.md:300`).
 - [ ] Remove V6's simplified "Climb and dive" option and its two dead controls, "Red starts above Blue" and "Side view height scale" (TF-R22; Patrick's answer TF-Q8) (`pf/reset/1-requirements/requirements.md:311`, `pf/reset/1-requirements/questions.md:130`, `src/modules/turn-fight/layout.js:157`).
