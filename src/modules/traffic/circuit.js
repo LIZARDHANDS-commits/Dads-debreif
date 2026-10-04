@@ -279,22 +279,20 @@ export function buildCircuit(points, windFromDeg = 360, windKt = 0) {
 
   // The perch: start from the route's perch, fly the break, downwind and final
   // turn, and move the perch by the miss at the window until the rollout is there.
+  // The outer part first: the break starts from exactly where, and how, it reached the break point,
+  // so the path has no step or backtrack there (Patrick, 10:05Z: smooth transitions).
+  const outer = flyOuter(points, centre, breakAlong, wind);
   let perch = { x: points[11].x, y: points[11].y };
   let inner = null;
   for (let i = 0; i < 6; i++) {
-    inner = flyInner(points, centre, breakAlong, perch, wind, inner?.finalTurnFt);
+    inner = flyInner(points, centre, breakAlong, perch, wind, inner?.finalTurnFt, outer.end);
     const miss = { x: win.x - inner.rollout.x, y: win.y - inner.rollout.y };
     if (Math.hypot(miss.x, miss.y) < 5) break;
     perch = { x: perch.x + miss.x, y: perch.y + miss.y };
   }
-  const outer = flyOuter(points, centre, breakAlong, wind);
-  // The inner part starts where the outer one reached the break, so join them there.
-  // The route reads a point from the leg that ends at it, so the outer part's last
-  // point takes the break's phase: an aircraft started "at the break" is in the break.
-  const outerTrack = outer.track.slice();
-  const last = outerTrack.length - 1;
-  if (last >= 0) outerTrack[last] = { ...outerTrack[last], phase: inner.track[0]?.phase ?? outerTrack[last].phase };
-  return { track: [...outerTrack, ...inner.track], perch, breakAlongFt: breakAlong };
+  // The inner part starts at the outer part's last point, which it repeats with the break's phase and
+  // tag: an aircraft started "at the break" is in the break.
+  return { track: [...outer.track.slice(0, -1), ...inner.track], perch, breakAlongFt: breakAlong };
 }
 
 /**
@@ -427,15 +425,16 @@ function flyOuter(points, centre, breakAlong, wind, goAround = null) {
  * then the final approach to the threshold. Returns the path and where the
  * final turn rolled out.
  */
-function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = null) {
+function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = null, from = null) {
   const th = points[0];
   const rwyTrack = centre.trackDeg;
   const along = breakAlong;
   const ux = (points[1].x - th.x), uy = (points[1].y - th.y), len = Math.hypot(ux, uy);
-  const start = { x: th.x + ux / len * along, y: th.y + uy / len * along };
-  const pilot = makePilot({ x: start.x, y: start.y, alt: PATTERN_ALT_FT, ias: CIRCUIT.patternKias, hdg: 0, src: 9, phase: 'break' }, wind);
+  const start = from ?? { x: th.x + ux / len * along, y: th.y + uy / len * along };
+  const pilot = makePilot({ x: start.x, y: start.y, alt: from?.alt ?? PATTERN_ALT_FT, ias: from?.ias ?? CIRCUIT.patternKias, hdg: 0, src: 9, phase: 'break' }, wind);
   const { s } = pilot;
-  s.hdg = pilot.headingFor(rwyTrack);
+  s.hdg = from ? from.hdg : pilot.headingFor(rwyTrack);
+  if (from) { s.bank = from.bank ?? 0; s.rollRate = from.rollRate ?? 0; }
   s.tag = 'break';
   pilot.record();
   let stage = 'break', turned = 0, ftTotal = null, ftStartHdg = null, rollout = null, lastClimb = 0, ftDist = 0, finalTurnFt = null;
