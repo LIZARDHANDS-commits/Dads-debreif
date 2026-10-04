@@ -736,12 +736,15 @@ export function stepHighKey(a, route = null, env = null, stepDt = 0.05, routeOpt
       a.pflRailIndex = 0;
       a.distFt = 0;
       a.mode = 'RAIL';
+      a.routeId = 'PFL_HIGH_KEY';
+      a.navPlan = null;
       a.phase = pflRail[0]?.phase || 'pfl_high_key';
       a.config = pflRail[0]?.config || 'clean';
     } else {
       const pflPlan = getNavPlan('PFL_HIGH_KEY');
       if (pflPlan) {
         a.navPlan = pflPlan;
+        a.routeId = 'PFL_HIGH_KEY';
         a.waypointIndex = 0;
         a.mode = 'RAIL';
       }

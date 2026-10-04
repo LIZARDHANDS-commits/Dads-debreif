@@ -393,8 +393,8 @@ function isManeuverComplete(a, navPlan) {
     return false;
   }
 
-  // 5. Active emergency glide commands continue in physics:
-  if (a.command === 'pfl_current' || a.command === 'engine_fail') {
+  // 5. Active emergency glide commands and PFL rails never blend back to pattern:
+  if (a.pflRail || a.command === 'pfl_current' || a.command === 'engine_fail' || navPlan?.id === 'PFL_HIGH_KEY' || navPlan?.id === 'PFL_FROM_AREA' || (typeof a.phase === 'string' && a.phase.startsWith('pfl_'))) {
     return false;
   }
 
@@ -612,20 +612,24 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
       idx++;
     }
     a.pflRailIndex = idx;
-    const wp = a.pflRail[idx];
+    const wp0 = a.pflRail[idx];
+    const wp1 = a.pflRail[Math.min(idx + 1, a.pflRail.length - 1)];
+    const segDist = Math.max(0.001, (wp1.cumDistFt ?? 0) - (wp0.cumDistFt ?? 0));
+    const u = Math.max(0, Math.min(1, (a.distFt - (wp0.cumDistFt ?? 0)) / segDist));
 
-    a.x = wp.x;
-    a.y = wp.y;
-    a.alt = wp.alt;
-    a.iasKt = wp.kias ?? wp.kt ?? 120;
+    a.x = wp0.x + (wp1.x - wp0.x) * u;
+    a.y = wp0.y + (wp1.y - wp0.y) * u;
+    a.alt = wp0.alt + (wp1.alt - wp0.alt) * u;
+    a.iasKt = (wp0.kias ?? wp0.kt ?? 120) + ((wp1.kias ?? wp1.kt ?? 120) - (wp0.kias ?? wp0.kt ?? 120)) * u;
     a.kt = a.iasKt;
-    a.headingDeg = wp.headingDeg;
-    a.bankDeg = wp.bankDeg ?? 0;
-    a.g = wp.g ?? 1.0;
-    a.phase = wp.phase;
-    a.config = wp.config;
-    if (wp.tag) {
-      a.tag = wp.tag;
+    const diffHdg = wrapDeg180((wp1.headingDeg ?? wp0.headingDeg) - wp0.headingDeg);
+    a.headingDeg = wrapDeg360(wp0.headingDeg + diffHdg * u);
+    a.bankDeg = (wp0.bankDeg ?? 0) + ((wp1.bankDeg ?? 0) - (wp0.bankDeg ?? 0)) * u;
+    a.g = (wp0.g ?? 1.0) + ((wp1.g ?? 1.0) - (wp0.g ?? 1.0)) * u;
+    a.phase = u < 0.5 ? wp0.phase : wp1.phase;
+    a.config = u < 0.5 ? wp0.config : wp1.config;
+    if (wp0.tag) {
+      a.tag = wp0.tag;
     }
 
     const tasKt = (windKt > 0) ? iasToTasKt(a.iasKt, a.alt) : a.iasKt;

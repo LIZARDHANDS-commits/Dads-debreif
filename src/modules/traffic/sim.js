@@ -757,6 +757,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         a.distFt = 0;
         a.engineFailed = true;
         a.mode = 'RAIL';
+        a.routeId = 'PFL_HIGH_KEY';
+        a.navPlan = null;
         a.command = action;
         a.landed = false;
         a.active = true;

@@ -917,19 +917,43 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
   const dt = 0.2;
   const track = [];
 
-  // Low Key target with wind shift (compensates for wind drift during final turn):
+  // ── Backward Target Inversion from Extended Runway Centerline (Pillar 3) ──
+  const radRwy = (rwyHeadingDeg * Math.PI) / 180;
+  const uRwyX = Math.sin(radRwy);
+  const uRwyY = Math.cos(radRwy);
+  const uUpstreamX = -uRwyX;
+  const uUpstreamY = -uRwyY;
+  const nLeftX = -uRwyY;
+  const nLeftY = uRwyX;
+
+  const finalBankDeg = /** @type {any} */ (options)?.bankDeg ?? 30;
+  const hkBankDeg = finalBankDeg;
+  const hkTasKt = iasToTasKt(125, 4500);
+  const hkTasFtps = ktToFtps(hkTasKt);
+  const hkOmega = (g * Math.tan((hkBankDeg * Math.PI) / 180)) / Math.max(1, hkTasFtps);
+  const hkDiameterFt = (2 * hkTasFtps) / hkOmega;
+
+  // Stabilized wings-level final approach rollout gate 4,000 ft upstream of threshold at 2,400 ft MSL
+  const dFinalFt = 4000;
+  const rolloutPt = {
+    x: th.x + dFinalFt * uUpstreamX,
+    y: th.y + dFinalFt * uUpstreamY,
+    alt: 2400,
+    headingDeg: rwyHeadingDeg,
+  };
+
   const ftTasKt = iasToTasKt(120, 3100);
   const ftTasFtps = ktToFtps(ftTasKt);
-  const finalBankDeg = /** @type {any} */ (options)?.bankDeg ?? 35;
   const ftOmega = (g * Math.tan((finalBankDeg * Math.PI) / 180)) / Math.max(1, ftTasFtps);
   const finalTurnSec = Math.PI / ftOmega;
+
   const finalShiftX = -wx * finalTurnSec;
   const finalShiftY = -wy * finalTurnSec;
 
-  const nominalLowKey = pts.find((p) => p.tag === 'low_key' || /low\s*key/i.test(p.label) || /perch/i.test(p.label)) ?? { x: 7145.74, y: -10274.62, alt: 3700 };
+  // Downwind lateral offset matches High Key rollout diameter so downwind leg is parallel to runway (118° true)
   const lowKey = {
-    x: nominalLowKey.x + finalShiftX,
-    y: nominalLowKey.y + finalShiftY,
+    x: rolloutPt.x + hkDiameterFt * nLeftX + finalShiftX,
+    y: rolloutPt.y + hkDiameterFt * nLeftY + finalShiftY,
     alt: 3700,
   };
 
@@ -939,10 +963,6 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
   let curY = highKeyPt.y;
 
   // Segment 1: High Key Turn (5,000 ft -> 3,700 ft, 125 KIAS -> 120 KIAS)
-  const hkTasKt = iasToTasKt(125, 4500);
-  const hkTasFtps = ktToFtps(hkTasKt);
-  const hkBankDeg = 30;
-  const hkOmega = (g * Math.tan((hkBankDeg * Math.PI) / 180)) / Math.max(1, hkTasFtps);
 
   const wtTh = windTriangle(rwyHeadingDeg, hkTasKt, windFromDeg, windKt);
   let curHeadingDeg = wtTh.canHoldTrack ? wtTh.headingDeg : rwyHeadingDeg;
@@ -1037,8 +1057,8 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
   curX = lowKey.x;
   curY = lowKey.y;
 
-  const wtPerch = windTriangle(dwTrackDeg, ftTasKt, windFromDeg, windKt);
-  const entryHeadingDeg = wtPerch.canHoldTrack ? wtPerch.headingDeg : dwTrackDeg;
+  const wtLk = windTriangle(dwTrackDeg, ftTasKt, windFromDeg, windKt);
+  const entryHeadingDeg = wtLk.canHoldTrack ? wtLk.headingDeg : dwTrackDeg;
 
   const wtFinal = windTriangle(rwyHeadingDeg, ftTasKt, windFromDeg, windKt);
   const exitHeadingDeg = wtFinal.canHoldTrack ? wtFinal.headingDeg : rwyHeadingDeg;
@@ -1072,9 +1092,13 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
     const currentG = 1 / Math.cos((bDeg * Math.PI) / 180);
     const isRollout = ftTurnAccum >= totalTurnDeg;
 
+    // Clamp rollout point exactly to extended centerline gate
+    const ptX = isRollout ? rolloutPt.x : curX;
+    const ptY = isRollout ? rolloutPt.y : curY;
+
     track.push({
-      x: curX,
-      y: curY,
+      x: ptX,
+      y: ptY,
       alt: Math.round(curAlt),
       kt: 120,
       g: Number(currentG.toFixed(2)),
@@ -1085,11 +1109,9 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
     });
   }
 
-  // Segment 4: Final Approach straight-in to Threshold (2,400 ft -> 1,892 ft MSL)
-  const finalDist = Math.hypot(th.x - curX, th.y - curY);
+  // Segment 4: Final Approach straight-in along extended centerline to Threshold (2,400 ft -> 1,892 ft MSL)
+  const finalDist = Math.hypot(th.x - rolloutPt.x, th.y - rolloutPt.y);
   const finalSteps = Math.max(10, Math.ceil(finalDist / 1000));
-  const finalStartX = curX;
-  const finalStartY = curY;
   const startAlt = track.at(-1)?.alt ?? 2400;
 
   for (let k = 1; k <= finalSteps; k++) {
@@ -1097,8 +1119,8 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
     const kt = Math.round(120 - 20 * u);
     const alt = Math.round(startAlt - (startAlt - 1892) * u);
     track.push({
-      x: finalStartX + (th.x - finalStartX) * u,
-      y: finalStartY + (th.y - finalStartY) * u,
+      x: rolloutPt.x + (th.x - rolloutPt.x) * u,
+      y: rolloutPt.y + (th.y - rolloutPt.y) * u,
       alt,
       kt,
       g: 1.0,

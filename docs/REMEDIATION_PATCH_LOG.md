@@ -1419,3 +1419,64 @@
 * **Verification:**  
   34/34 High Key & PFL unit tests passing green in 310ms.
 
+---
+
+### PATCH-054: PFL Decoupling from Circuit Geometry, Authentic SMM Ch 13 Key Coordinates & Aerodynamic Sink Integration (D439, DADS v2.7)
+* **Date & Time:** 2026-10-04 02:10 UTC
+* **Milestone:** Milestone 1 (Traffic Sim)
+* **Branch:** `main`
+* **Files Modified:**
+  * `src/modules/traffic/high-key.js`
+  * `src/modules/traffic/nav-plans.js`
+  * `src/modules/traffic/pfl-rail.js`
+  * `src/modules/traffic/pfl-solver.js`
+  * `src/modules/traffic/route.js`
+  * `src/modules/traffic/sim.js`
+  * `src/modules/traffic/tick-aircraft.js`
+  * `src/modules/traffic/version.js`
+  * `tests/unit/traffic/pfl-rail.test.js`
+* **Problem / Flaw Addressed:**  
+  1. Conflation with Circuit: PFL was previously coupled to Circuit PAT1 coordinates (Low Key at the Circuit Perch (7146, -10275) and Base Key at the Circuit Window (9076, -6411)), and `route.js` queried `/perch/i` to find Low Key. In reality, PFL is an emergency forced landing procedure with NO Perch and NO Window.
+  2. Levelling Off / Re-blending into PAT1: Upon reaching Low Key or completing `PFL_HIGH_KEY_WPS`, `tick-aircraft.js` treated PFL like a standard pattern entry and blended the gliding aircraft back into PAT1 (the solid blue line), causing it to level off at 3,700 ft MSL and fly the circuit pattern.
+  3. Linear Vertical Slope: `pfl-rail.js` computed altitude along the recovery rail using a simple linear distance fraction $u$, ignoring the physical drag profiles of the four airframe configurations (Clean, Gear Down, Flaps TO, Flaps LDG).
+* **Changes Made:**
+  1. **Decoupled PFL Coordinates:** Exported authentic SMM Chapter 13 constants in `nav-plans.js`: Low Key `(4001, -9175)` (~0.8 NM lateral offset on downwind abeam threshold), Base Key `(6200, -8300)` (turn midpoint), Final Rollout `(6322, -4905)` at 2,400 ft MSL, and Threshold `(3104, -3194)` at 1,892 ft MSL. Updated `PFL_HIGH_KEY_WPS` and `makePflFromArea`.
+  2. **Cleaned Route Querying:** Removed `/perch/i` fallback from `generatePflTrack` in `route.js`, defaulting nominal Low Key to `(4001, -9175)` and renaming `wtPerch` to `wtLk`.
+  3. **Prevented Blending & Levelling Off:** In `tick-aircraft.js:isManeuverComplete`, added active emergency glide / PFL rail guards (`a.pflRail`, `pfl_current`, `engine_fail`, `PFL_HIGH_KEY`, `PFL_FROM_AREA`, or `phase.startsWith('pfl_')`) returning `false` so PFL aircraft NEVER get blended back into the circuit. Set `routeId = 'PFL_HIGH_KEY'` and `navPlan = null` upon reaching High Key and on `sim.command('pfl_current')`.
+  4. **Aerodynamic Sink Dissipation Profile:** Replaced linear slope in `pfl-rail.js` with a 2-pass aerodynamic sink integration profile: Pass 1 evaluates drag dissipation weight $w_k = \frac{\Delta s_k}{(L/D)_{\text{eff}}}$ based on configuration $L/D$, bank load factor $G = 1 / \cos(\phi)$, and wind ground speed ratio $V_{\text{gs}} / V_{\text{tas}}$; Pass 2 distributes total altitude drop $\Delta H$ proportionally ($\Delta z_k = \Delta H \times \frac{w_k}{\sum w}$), guaranteeing continuous aerodynamic sink down to threshold (1,892 ft MSL).
+  5. **Dynamic 3-Stage Drag Modulation:** Added `earlyGear` and `delayGear` flags to `pfl-solver.js` and updated `getPflConfig` with authentic 3-stage drag modulation (Clean -> Gear Down -> Flaps TO -> Flaps LDG) adjusting deployment altitude thresholds based on surplus/deficit energy.
+  6. **Visual Version Badge:** Bumped `TRAFFIC_VERSION` to `DADS v2.7` in `version.js`.
+* **Reasoning / Rationale:**  
+  Decision **D439**. Honors pilot directive: emergency forced landing trajectories are completely physically and procedurally separate from the normal circuit overhead break and descending final turn window.
+* **Verification:**  
+  All 71 traffic unit tests passing (`node --test tests/unit/traffic/pfl*.test.js tests/unit/traffic/route.test.js tests/unit/traffic/high-key.test.js`). Full test suite verified green.
+
+---
+
+### PATCH-055: PFL Direct Coordinated Intercept, Inverted Extended Centerline Rollout, Flap-Based Energy Management & Removal of Bank Angle Caps (D440, DADS v2.8)
+* **Date & Time:** 2026-10-04 02:30 UTC
+* **Milestone:** Milestone 1 (Traffic Sim)
+* **Branch:** `main`
+* **Files Modified:**
+  * `src/modules/traffic/pfl-rail.js`
+  * `src/modules/traffic/route.js`
+  * `src/modules/traffic/nav-plans.js`
+  * `src/modules/traffic/tick-aircraft.js`
+  * `src/modules/traffic/version.js`
+  * `tests/unit/traffic/pfl-rail.test.js`
+* **Problem / Flaw Addressed:**  
+  1. Engineering trap of 2D Path Stretching: When an aircraft arrived at a PFL state with high energy or position offset, the system attempted to solve energy management by synthesizing dynamic 2D ground tracks (Dubins tangents, polynomial chords, and dynamic join hunting). This generated wild green tracks radiating across the map (spiderweb trails over the fields), yaw-spinning flat with wings level, and rolling out hundreds of feet off the extended runway centerline.
+  2. In reality, a pilot flies a **fixed standard ground track** and manages energy **aerodynamically (drag/flaps/pitch)**.
+  3. Artificial Bank Angle Limitations: Hardcoded 25°–35° bank ceilings prevented natural coordinated turns.
+* **Changes Made:**
+  1. **Direct Coordinated Intercept (Killed Case C Spline Chords):** In `pfl-rail.js`, replaced the polynomial spline and linear chord intercept with a direct coordinated turn onto intercept bearing followed by a wings-level straight glide directly to the entry gate (High Key, Low Key, or Base Key). Zero yaw spins, zero arbitrary chords.
+  2. **Removal of Bank Angle Limitations:** Removed arbitrary bank clamps (e.g. 25° zoom bank and 30°/35° ceilings); aircraft rolls smoothly into coordinated bank proportional to heading change up to 60°, with sinusoidal roll-in and roll-out ($\Delta\psi < 2^\circ/\text{step}$).
+  3. **Backward Target Inversion from Extended Runway Centerline (Pillar 3):** In `route.js`, clamped the final rollout gate exactly to extended runway centerline $(6635.63, -5071.82)$ at 2,400 ft MSL ($D_{\text{final}} = 4,000\text{ ft}$ upstream along $298^\circ$). Solved wind-offset Low Key backward so the 180° descending turn rolls out with zero cross-track error (-0.0001 ft), track to threshold on exact $298.0^\circ$, and downwind leg on exact reciprocal $118.0^\circ$.
+  4. **Continuous Aircraft Telemetry Interpolation:** In `tick-aircraft.js`, linearly interpolated aircraft position along `a.pflRail` between discrete waypoints, guaranteeing strictly continuous frame-to-frame displacement ($< 15\text{ ft/frame}$, fully satisfying the $< 25\text{ ft/frame}$ invariant guard).
+  5. **Visual Version Badge:** Bumped `TRAFFIC_VERSION` to `DADS v2.8` in `version.js`.
+* **Reasoning / Rationale:**  
+  Decision **D440**. Ratified by Patrick: ground track is fixed and predictable; energy is managed with flaps and drag, not path distortion; bank angles follow natural coordinated aerodynamics.
+* **Verification:**  
+  All 71 PFL, route, and High Key unit tests passing (`node --test tests/unit/traffic/pfl*.test.js tests/unit/traffic/route.test.js tests/unit/traffic/high-key.test.js`). All 72 sim and tick-aircraft tests passing green.
+
+

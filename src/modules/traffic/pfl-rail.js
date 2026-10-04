@@ -5,7 +5,7 @@
 
 import { FT_PER_NM, ktToFtps } from '../../core/units.js';
 import { degToRad, radToDeg, wrapDeg180 } from '../../core/angles.js';
-import { iasToTasKt } from '../../core/t6-performance.js';
+import { iasToTasKt, T6A_GLIDE } from '../../core/t6-performance.js';
 import { windTriangle } from '../../core/wind.js';
 import { calcZoomApex, solvePflTangent, PFL_AIRFIELD } from './pfl-solver.js';
 
@@ -20,14 +20,14 @@ function wrapDeg360(deg) {
 
 /**
  * Enforces SMM Ch 13 & EFIG Ch 13 configuration schedule with multi-variable early drag:
- * - Clean: Glide to High Key (Alt > 3,700 ft MSL unless high energy)
- * - Gear Down: High Key (nominal Alt <= 3,700 ft MSL)
- * - Flaps TO: Low Key to Base Key (nominal 2,900 ft, or earlier at Low Key if surplus energy)
- * - Flaps LDG: Final approach (nominal <= 2,120 ft, or earlier at Base Key if high surplus energy)
+ * - Clean: Glide to High Key / tangent capture (Alt > 3,700 ft MSL unless high energy)
+ * - Gear Down: High Key (nominal Alt <= 3,700 ft MSL, or earlier if surplus energy)
+ * - Flaps TO: Low Key to Base Key (nominal 2,900 ft, or earlier at Low Key/intercept if surplus energy)
+ * - Flaps LDG: Final approach (nominal <= 2,400 ft, or earlier at Base Key if high surplus energy)
  *
  * @param {number} alt - Altitude MSL in feet
  * @param {string} [phase] - Flight phase
- * @param {Object} [dragSchedule] - Dynamic drag schedule { earlyFlapsTo, earlyFlapsLdg, delayFlaps }
+ * @param {Object} [dragSchedule] - Dynamic drag schedule { earlyGear, earlyFlapsTo, earlyFlapsLdg, delayGear, delayFlaps }
  * @returns {'Clean' | 'Gear Down' | 'Flaps TO' | 'Flaps LDG'}
  */
 export function getPflConfig(alt, phase = '', dragSchedule = null) {
@@ -37,28 +37,54 @@ export function getPflConfig(alt, phase = '', dragSchedule = null) {
   if (alt > 3700) return 'Clean';
 
   if (dragSchedule?.earlyFlapsLdg) {
-    // Severe surplus energy: Advance Flaps TO at Low Key (<= 3,700 ft), Flaps LDG at Base Key (nominal 2,900 ft)
-    if (alt > 2900) return 'Flaps TO';
+    // Severe surplus energy: Flaps TO early, Flaps LDG at Base Key / 2,900 ft
+    if (alt > 3300) return 'Gear Down';
+    if (alt > 2700) return 'Flaps TO';
     return 'Flaps LDG';
   }
 
   if (dragSchedule?.earlyFlapsTo) {
-    // Moderate surplus energy: Advance Flaps TO at Low Key (<= 3,700 ft), Flaps LDG at Final Key (2,120 ft)
-    if (alt > 2120) return 'Flaps TO';
+    // Moderate surplus energy: Flaps TO early at Low Key (<= 3,700 ft), Flaps LDG on final (2,400 ft)
+    if (alt > 2400) return 'Flaps TO';
     return 'Flaps LDG';
   }
 
+  if (dragSchedule?.delayGear) {
+    // Low energy: Delay gear and flaps to preserve glide range
+    if (alt > 2900) return 'Clean';
+    if (alt > 2200) return 'Gear Down';
+    return 'Flaps TO';
+  }
+
   if (dragSchedule?.delayFlaps) {
-    // Deficit energy: Delay drag deployment to preserve energy
-    if (alt > 3000) return 'Clean';
-    if (alt > 2092) return 'Gear Down';
+    // Mild deficit energy: Delay flaps
+    if (alt > 2400) return 'Gear Down';
     return 'Flaps TO';
   }
 
   // Nominal SMM standard schedule
   if (alt > 2900) return 'Gear Down';
-  if (alt > 2120) return 'Flaps TO';
+  if (alt > 2400) return 'Flaps TO';
   return 'Flaps LDG';
+}
+
+/**
+ * Returns aerodynamic lift-to-drag glide ratio for the given configuration.
+ * @param {'Clean' | 'Gear Down' | 'Flaps TO' | 'Flaps LDG'} config
+ * @returns {number}
+ */
+export function getPflGlideRatio(config) {
+  switch (config) {
+    case 'Gear Down':
+      return T6A_GLIDE.gearDown.nmPer1000Ft * FT_PER_NM / 1000;
+    case 'Flaps TO':
+      return T6A_GLIDE.flapsTakeoff.nmPer1000Ft * FT_PER_NM / 1000;
+    case 'Flaps LDG':
+      return T6A_GLIDE.landing.nmPer1000Ft * FT_PER_NM / 1000;
+    case 'Clean':
+    default:
+      return T6A_GLIDE.clean.nmPer1000Ft * FT_PER_NM / 1000;
+  }
 }
 
 /**
@@ -66,20 +92,21 @@ export function getPflConfig(alt, phase = '', dragSchedule = null) {
  * exceed maxStepFt (<25 ft/frame invariant guard).
  *
  * @param {Array<Object>} points - Input waypoints
- * @param {number} [maxStepFt=20] - Maximum allowable distance between consecutive points
+ * @param {number} [maxStepFt=19] - Maximum allowable distance between consecutive points
  * @returns {Array<Object>} Densified continuous waypoints
  */
-export function densifyRail(points, maxStepFt = 20, dragSchedule = null) {
+export function densifyRail(points, maxStepFt = 19, dragSchedule = null) {
   if (!points || points.length <= 1) return points ? [...points] : [];
   const out = [points[0]];
+  const stepLimit = Math.min(maxStepFt, 19);
 
   for (let i = 0; i < points.length - 1; i++) {
     const a = points[i];
     const b = points[i + 1];
     const d = Math.hypot(b.x - a.x, b.y - a.y);
 
-    if (d > maxStepFt) {
-      const steps = Math.ceil(d / maxStepFt);
+    if (d > stepLimit) {
+      const steps = Math.ceil(d / stepLimit);
       for (let s = 1; s <= steps; s++) {
         const u = s / steps;
         const diffHdg = wrapDeg180((b.headingDeg ?? 0) - (a.headingDeg ?? 0));
@@ -146,7 +173,7 @@ export function densifyRail(points, maxStepFt = 20, dragSchedule = null) {
 export function buildPflRail(aircraft, env = null, options = {}) {
   const windFromDeg = env?.windFromDeg ?? 360;
   const windKt = env?.windKt ?? 0;
-  const maxStepFt = options.maxStepFt ?? 20;
+  const maxStepFt = options.maxStepFt ?? 19;
 
   // 1. Solve zoom apex and recovery tangent intercept
   const apex = calcZoomApex(aircraft, env, options);
@@ -173,9 +200,10 @@ export function buildPflRail(aircraft, env = null, options = {}) {
       const diffHdg = wrapDeg180(apex.headingDeg - hdg0);
       const headingDeg = wrapDeg360(hdg0 + diffHdg * u);
 
-      // Bank rolls in to bank toward recovery track then rolls level at apex
+      // Bank rolls in toward recovery track then rolls level at apex (No bank limitations)
       const turnSign = Math.sign(diffHdg) || 1;
-      const bankDeg = 25 * Math.sin(u * Math.PI) * turnSign;
+      const zoomBank = Math.min(60, Math.max(20, Math.abs(diffHdg)));
+      const bankDeg = zoomBank * Math.sin(u * Math.PI) * turnSign;
       // Load factor: pulls 2.0 G then pushes over to 0.5 G near apex
       const g = 1.0 + 1.0 * Math.sin(u * Math.PI);
 
@@ -307,61 +335,110 @@ export function buildPflRail(aircraft, env = null, options = {}) {
       });
     }
   } else {
-    // ── CASE C: TANGENT JOIN INTO PFL SPIRAL (HIGH KEY / LOW KEY / BASE KEY) ──
+    // ── CASE C: DIRECT COORDINATED INTERCEPT TO PFL ENTRY GATE ──
+    // Patrick Pilot Guidance: No 2D path stretching, no spiderwebs, no bank angle limits.
+    // Flies a single coordinated turn onto direct track, straight wings-level glide to gate,
+    // then latches onto the fixed standard PFL track (SMM Ch 13).
     const joinPt = solution.joinPoint;
     const apexPt = rawWaypoints[rawWaypoints.length - 1];
     const distToJoin = Math.hypot(joinPt.x - apexPt.x, joinPt.y - apexPt.y);
     const recoveryStartIndex = rawWaypoints.length - 1;
 
-    if (distToJoin > 50) {
-      const trackDeg = wrapDeg360(Math.atan2(joinPt.x - apexPt.x, joinPt.y - apexPt.y) * 180 / Math.PI);
+    if (distToJoin > 30) {
+      const targetTrackDeg = wrapDeg360(Math.atan2(joinPt.x - apexPt.x, joinPt.y - apexPt.y) * 180 / Math.PI);
       const avgAlt = Math.max(1892, (apexPt.alt + joinPt.alt) / 2);
       const tasKt = iasToTasKt(120, avgAlt);
-      const wt = windTriangle(trackDeg, tasKt, windFromDeg, windKt);
-      const tangentHdg = wt.canHoldTrack ? wt.headingDeg : trackDeg;
+      const tasFtps = ktToFtps(tasKt);
+      const wt = windTriangle(targetTrackDeg, tasKt, windFromDeg, windKt);
+      const targetHdgDeg = wt.canHoldTrack ? wt.headingDeg : targetTrackDeg;
 
-      const numTangentSteps = Math.max(2, Math.ceil(distToJoin / maxStepFt));
-      for (let s = 1; s <= numTangentSteps; s++) {
-        const u = s / numTangentSteps;
-        const x = apexPt.x + (joinPt.x - apexPt.x) * u;
-        const y = apexPt.y + (joinPt.y - apexPt.y) * u;
-        const alt = apexPt.alt + (joinPt.alt - apexPt.alt) * u;
+      const blowToRad = degToRad((windFromDeg + 180) % 360);
+      const wxFtps = ktToFtps(windKt) * Math.sin(blowToRad);
+      const wyFtps = ktToFtps(windKt) * Math.cos(blowToRad);
 
-        // Smooth heading alignment transition onto spiral heading
-        let headingDeg;
-        if (distToJoin <= 500) {
-          // Direct arrival / proximity: smoothly interpolate from apexPt.headingDeg to joinPt.headingDeg
-          const startHdg = apexPt.headingDeg ?? tangentHdg;
-          const diffHdg = wrapDeg180(joinPt.headingDeg - startHdg);
-          headingDeg = wrapDeg360(startHdg + diffHdg * u);
-        } else {
-          // Long glide: hold tangent heading, align onto spiral heading over the last 20%
-          headingDeg = tangentHdg;
-          if (u > 0.8) {
-            const blendU = (u - 0.8) / 0.2;
-            const diffHdg = wrapDeg180(joinPt.headingDeg - tangentHdg);
-            headingDeg = wrapDeg360(tangentHdg + diffHdg * blendU);
-          }
+      const deltaHdg = wrapDeg180(targetHdgDeg - (apexPt.headingDeg ?? targetHdgDeg));
+      const turnMag = Math.abs(deltaHdg);
+      let curX = apexPt.x;
+      let curY = apexPt.y;
+      let curAlt = apexPt.alt;
+      let curHdg = apexPt.headingDeg ?? targetHdgDeg;
+
+      // 1. Coordinated Turn onto Direct Intercept Heading (No bank angle limitations)
+      if (turnMag > 2) {
+        const turnDir = Math.sign(deltaHdg) || 1;
+        // Natural bank up to 60° coordinated (no artificial clamp per Patrick's instruction)
+        const maxBankDeg = Math.min(60, Math.max(15, turnMag));
+        const dt = 0.05; // Ensures small steps (< 15 ft)
+        let turnAccum = 0;
+
+        while (turnAccum < turnMag) {
+          const u = turnAccum / turnMag;
+          const bankDeg = maxBankDeg * Math.sin(u * Math.PI) * turnDir;
+          const bRad = degToRad(Math.max(3, Math.abs(bankDeg)));
+          const omega = (32.174 * Math.tan(bRad)) / Math.max(1, tasFtps);
+          const dTurn = Math.min(radToDeg(omega) * dt, turnMag - turnAccum);
+          turnAccum += dTurn;
+          curHdg = wrapDeg360(curHdg + dTurn * turnDir);
+
+          const midHdgRad = degToRad(curHdg);
+          const vx = tasFtps * Math.sin(midHdgRad) + wxFtps;
+          const vy = tasFtps * Math.cos(midHdgRad) + wyFtps;
+          curX += vx * dt;
+          curY += vy * dt;
+          curAlt -= (1350 / 60) * dt;
+
+          const g = Math.abs(bankDeg) > 3 ? (1 / Math.cos(degToRad(Math.abs(bankDeg)))) : 1.0;
+          const phase = solution.classification === 'high_key' ? 'pfl_high_key' : 'pfl_tangent';
+          const config = getPflConfig(curAlt, phase, solution.dragSchedule);
+
+          rawWaypoints.push({
+            x: Math.round(curX * 10) / 10,
+            y: Math.round(curY * 10) / 10,
+            alt: Math.round(curAlt * 10) / 10,
+            kt: 120,
+            kias: 120,
+            headingDeg: Math.round(curHdg * 10) / 10,
+            bankDeg: Math.round(bankDeg * 10) / 10,
+            g: Math.round(g * 100) / 100,
+            phase,
+            config,
+            mode: 'rails',
+          });
         }
+      }
 
-        const isHkTangent = solution.classification === 'high_key';
-        const phase = isHkTangent ? 'pfl_high_key' : 'pfl_tangent';
-        const config = getPflConfig(alt, phase, solution.dragSchedule);
+      // 2. Wings-Level Straight Glide to Entry Gate
+      const distRemaining = Math.hypot(joinPt.x - curX, joinPt.y - curY);
+      if (distRemaining > 10) {
+        const numGlideSteps = Math.max(1, Math.ceil(distRemaining / maxStepFt));
+        const startGlideX = curX;
+        const startGlideY = curY;
+        const startGlideAlt = curAlt;
 
-        rawWaypoints.push({
-          x,
-          y,
-          alt: Math.round(alt * 10) / 10,
-          kt: 120,
-          kias: 120,
-          headingDeg: Math.round(headingDeg * 10) / 10,
-          bankDeg: 0,
-          g: 1.0,
-          phase,
-          config,
-          tag: s === numTangentSteps ? joinPt.tag : undefined,
-          mode: 'rails',
-        });
+        for (let s = 1; s <= numGlideSteps; s++) {
+          const u = s / numGlideSteps;
+          const x = startGlideX + (joinPt.x - startGlideX) * u;
+          const y = startGlideY + (joinPt.y - startGlideY) * u;
+          const alt = startGlideAlt + (joinPt.alt - startGlideAlt) * u;
+          const isEnd = s === numGlideSteps;
+          const phase = solution.classification === 'high_key' ? 'pfl_high_key' : 'pfl_tangent';
+          const config = getPflConfig(alt, phase, solution.dragSchedule);
+
+          rawWaypoints.push({
+            x: Math.round(x * 10) / 10,
+            y: Math.round(y * 10) / 10,
+            alt: Math.round(alt * 10) / 10,
+            kt: 120,
+            kias: 120,
+            headingDeg: Math.round(targetHdgDeg * 10) / 10,
+            bankDeg: 0,
+            g: 1.0,
+            phase,
+            config,
+            tag: isEnd ? joinPt.tag : undefined,
+            mode: 'rails',
+          });
+        }
       }
     }
 
@@ -388,21 +465,51 @@ export function buildPflRail(aircraft, env = null, options = {}) {
       });
     }
 
-    // Continuous vertical profile scaling for surplus energy recovery (SMM Ch 13 doctrine)
-    if (solution.classification !== 'high_key' && solution.energyMargin > 50) {
-      let cumDist = 0;
-      const dists = [0];
+    // Aerodynamic sink rate integration for energy recovery (SMM Ch 13 doctrine)
+    if (solution.classification !== 'high_key') {
+      const startAlt = rawWaypoints[recoveryStartIndex].alt;
+      const targetDeltaAlt = Math.max(1, startAlt - PFL_AIRFIELD.thresholdAlt);
+
+      // Pass 1: compute aerodynamic drag dissipation weight along each segment
+      const dragWeights = [];
+      let totalDragWeight = 0;
+      let estAlt = startAlt;
+
       for (let k = recoveryStartIndex + 1; k < rawWaypoints.length; k++) {
-        cumDist += Math.hypot(rawWaypoints[k].x - rawWaypoints[k - 1].x, rawWaypoints[k].y - rawWaypoints[k - 1].y);
-        dists.push(cumDist);
+        const prev = rawWaypoints[k - 1];
+        const cur = rawWaypoints[k];
+        const stepDist = Math.hypot(cur.x - prev.x, cur.y - prev.y);
+        const config = getPflConfig(estAlt, cur.phase, solution.dragSchedule);
+        const baseLd = getPflGlideRatio(config);
+
+        const bankDeg = Math.abs(cur.bankDeg ?? 0);
+        const gLoad = bankDeg > 5 ? Math.max(1.0, 1 / Math.cos(degToRad(bankDeg))) : 1.0;
+        const turnLd = baseLd / gLoad;
+
+        const trackDeg = wrapDeg360(Math.atan2(cur.x - prev.x, cur.y - prev.y) * 180 / Math.PI);
+        const tasKt = iasToTasKt(cur.kt || 120, estAlt);
+        const wt = windTriangle(trackDeg, tasKt, windFromDeg, windKt);
+        const gsKt = wt.canHoldTrack ? Math.max(10, wt.groundSpeedKt) : tasKt;
+        const groundGlideRatio = turnLd * (gsKt / Math.max(1, tasKt));
+
+        const segmentWeight = stepDist / Math.max(1, groundGlideRatio);
+        dragWeights.push(segmentWeight);
+        totalDragWeight += segmentWeight;
+
+        // Advance estimated altitude for next config lookup
+        estAlt = Math.max(PFL_AIRFIELD.thresholdAlt, estAlt - segmentWeight);
       }
-      const totalDist = cumDist;
-      if (totalDist > 0) {
-        for (let k = recoveryStartIndex; k < rawWaypoints.length; k++) {
-          const u = dists[k - recoveryStartIndex] / totalDist;
-          const alt = apexPt.alt - (apexPt.alt - PFL_AIRFIELD.thresholdAlt) * u;
-          rawWaypoints[k].alt = Math.round(alt * 10) / 10;
-          rawWaypoints[k].config = getPflConfig(alt, rawWaypoints[k].phase, solution.dragSchedule);
+
+      // Pass 2: distribute altitude drop according to physical aerodynamic drag
+      if (totalDragWeight > 0) {
+        let curAlt = startAlt;
+        for (let k = recoveryStartIndex + 1; k < rawWaypoints.length; k++) {
+          const w = dragWeights[k - (recoveryStartIndex + 1)];
+          const altLoss = targetDeltaAlt * (w / totalDragWeight);
+          curAlt = Math.max(PFL_AIRFIELD.thresholdAlt, curAlt - altLoss);
+
+          rawWaypoints[k].alt = Math.round(curAlt * 10) / 10;
+          rawWaypoints[k].config = getPflConfig(curAlt, rawWaypoints[k].phase, solution.dragSchedule);
         }
       }
     }

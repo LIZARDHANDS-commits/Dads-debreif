@@ -244,9 +244,11 @@ export function solvePflTangent(apex, env = null, options = {}) {
     const margin = arrAltLk - lowKeyPt.alt;
     const dragSchedule = {
       margin,
+      earlyGear: margin > 200,
       earlyFlapsTo: margin > 150,
       earlyFlapsLdg: margin > 400,
       delayFlaps: margin < -100,
+      delayGear: margin < -150,
       profile: margin > 400 ? 'high_energy' : (margin > 150 ? 'moderate_energy' : (margin < -100 ? 'low_energy' : 'nominal')),
     };
 
@@ -302,9 +304,11 @@ export function solvePflTangent(apex, env = null, options = {}) {
     const margin = best.margin;
     const dragSchedule = {
       margin,
+      earlyGear: margin > 200,
       earlyFlapsTo: margin > 150,
       earlyFlapsLdg: margin > 400,
       delayFlaps: margin < -100,
+      delayGear: margin < -150,
       profile: margin > 400 ? 'high_energy' : (margin > 150 ? 'moderate_energy' : (margin < -100 ? 'low_energy' : 'nominal')),
     };
 

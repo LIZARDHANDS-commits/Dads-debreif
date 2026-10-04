@@ -41,6 +41,15 @@ const THRESH_Y  = -3194;
 const FIELD_ELEV = 1892;
 const RWY_HDG   = 298;
 
+// ── PFL Ground Truth Constants (CYMJ RWY 29L SMM Ch 13 forced landing recovery) ──
+// Completely decoupled from circuit Perch and Window (D428, D430)
+export const PFL_LOW_KEY_X = 4064;
+export const PFL_LOW_KEY_Y = -9909;
+export const PFL_BASE_KEY_X = 8793;
+export const PFL_BASE_KEY_Y = -9538;
+export const PFL_FINAL_ROLLOUT_X = 6636;
+export const PFL_FINAL_ROLLOUT_Y = -5072;
+
 // ── Waypoint helper ───────────────────────────────────────────────────────────
 /** @param {Partial<Waypoint>} fields */
 function wp(fields) {
@@ -160,10 +169,11 @@ export const ENT_SI = Object.freeze({
 // Pattern matrix §5. NRG model. Engine-out glide with config transitions.
 
 const PFL_HIGH_KEY_WPS = [
-  wp({ x: 3104,  y: -3194,  alt: 5000,  kias: 125,  phase: 'high_key',   label: 'High Key',   mode: 'rails', config: 'clean',    tag: 'high_key'  }),
-  wp({ x: 7146,  y:-10275,  alt: 3700,  kias: 120,  phase: 'low_key',    label: 'Low Key',    mode: 'rails', config: 'gearDown', tag: 'low_key'   }),
-  wp({ x: 8800,  y: -8800,  alt: 3000,  kias: 120,  phase: 'base_key',   label: 'Base Key',   mode: 'rails', config: 'landing',  tag: 'base_key'  }),
-  wp({ x: 3104,  y: -3194,  alt: FIELD_ELEV, kias: 100, phase: 'pfl_final', label: 'Threshold', mode: 'rails', config: 'landing',  tag: 'threshold' }),
+  wp({ x: THRESH_X,            y: THRESH_Y,            alt: 5000,       kias: 125, phase: 'high_key',   label: 'High Key',      mode: 'rails', config: 'clean',    tag: 'high_key'      }),
+  wp({ x: PFL_LOW_KEY_X,       y: PFL_LOW_KEY_Y,       alt: 3700,       kias: 120, phase: 'low_key',    label: 'Low Key',       mode: 'rails', config: 'gearDown', tag: 'low_key'       }),
+  wp({ x: PFL_BASE_KEY_X,      y: PFL_BASE_KEY_Y,      alt: 2900,       kias: 120, phase: 'base_key',   label: 'Base Key',      mode: 'rails', config: 'flapsTo',  tag: 'base_key'      }),
+  wp({ x: PFL_FINAL_ROLLOUT_X, y: PFL_FINAL_ROLLOUT_Y, alt: 2400,       kias: 110, phase: 'pfl_final',  label: 'Final Rollout', mode: 'rails', config: 'landing',  tag: 'final_rollout' }),
+  wp({ x: THRESH_X,            y: THRESH_Y,            alt: FIELD_ELEV, kias: 100, phase: 'pfl_final',  label: 'Threshold',     mode: 'rails', config: 'landing',  tag: 'threshold'     }),
 ];
 
 export const PFL_HIGH_KEY = Object.freeze({
@@ -274,11 +284,12 @@ export function makePflFromArea(radialDeg = 90, distNm = 10, altFt = 8000) {
   const headingDeg = (radialDeg + 180) % 360;  // Reciprocal: toward field
 
   const wps = [
-    wp({ x: spawnX, y: spawnY, alt: altFt,    kias: 125, phase: 'pfl_inbound', label: 'Spawn (From Area)', mode: 'physics', config: 'clean',    tag: 'spawn'     }),
-    wp({ x: THRESH_X, y: THRESH_Y, alt: 5000, kias: 125, phase: 'high_key',   label: 'High Key',         mode: 'rails',   config: 'clean',    tag: 'high_key'  }),
-    wp({ x:  7146, y: -10275,  alt: 3700,     kias: 120, phase: 'low_key',     label: 'Low Key',          mode: 'rails',   config: 'gearDown', tag: 'low_key'   }),
-    wp({ x:  9076, y:  -6411,  alt: 2900,     kias: 120, phase: 'base_key',    label: 'Base Key',         mode: 'rails',   config: 'landing',  tag: 'base_key'  }),
-    wp({ x: THRESH_X, y: THRESH_Y, alt: FIELD_ELEV, kias: 100, phase: 'pfl_final', label: 'Threshold',    mode: 'rails',   config: 'landing',  tag: 'threshold' }),
+    wp({ x: spawnX,             y: spawnY,              alt: altFt,      kias: 125, phase: 'pfl_inbound', label: 'Spawn (From Area)', mode: 'physics', config: 'clean',    tag: 'spawn'         }),
+    wp({ x: THRESH_X,           y: THRESH_Y,            alt: 5000,       kias: 125, phase: 'high_key',   label: 'High Key',         mode: 'rails',   config: 'clean',    tag: 'high_key'      }),
+    wp({ x: PFL_LOW_KEY_X,      y: PFL_LOW_KEY_Y,       alt: 3700,       kias: 120, phase: 'low_key',    label: 'Low Key',          mode: 'rails',   config: 'gearDown', tag: 'low_key'       }),
+    wp({ x: PFL_BASE_KEY_X,     y: PFL_BASE_KEY_Y,      alt: 2900,       kias: 120, phase: 'base_key',   label: 'Base Key',         mode: 'rails',   config: 'flapsTo',  tag: 'base_key'      }),
+    wp({ x: PFL_FINAL_ROLLOUT_X,y: PFL_FINAL_ROLLOUT_Y, alt: 2400,       kias: 110, phase: 'pfl_final',  label: 'Final Rollout',    mode: 'rails',   config: 'landing',  tag: 'final_rollout' }),
+    wp({ x: THRESH_X,           y: THRESH_Y,            alt: FIELD_ELEV, kias: 100, phase: 'pfl_final',  label: 'Threshold',        mode: 'rails',   config: 'landing',  tag: 'threshold'     }),
   ];
 
   const plan = Object.freeze({
