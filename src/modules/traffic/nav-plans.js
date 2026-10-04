@@ -88,7 +88,7 @@ const PAT_INNER_WPS = [
   wp({ x:  -288,  y:  -1441,  alt: 3500,  kias: 220,  bankDeg: 60, g: 2, phase: 'break',    label: 'Break',     mode: 'rails', tag: 'break'   }),
   wp({ x: -3385,  y:  -4323,  alt: 3500,  kias: 140,  phase: 'inner_downwind',  label: 'Break Exit',     mode: 'rails', tag: 'break_rollout' }),
   wp({ x:  7146,  y: -10275,  alt: 3500,  kias: 120,  bankDeg: 35, g: 1.4, phase: 'final_turn', label: 'Perch', mode: 'rails', tag: 'perch' }),
-  wp({ x:  9076,  y:  -6411,  alt: 2119,  kias: 110,  phase: 'final',           label: 'Window',         mode: 'rails', tag: 'window'        }),
+  wp({ x:  7116,  y:  -5355,  alt: 2119,  kias: 110,  phase: 'final',           label: 'Window',         mode: 'rails', tag: 'window'        }),
 ];
 
 export const PAT_INNER = Object.freeze({
