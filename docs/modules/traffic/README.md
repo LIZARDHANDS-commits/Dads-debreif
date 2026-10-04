@@ -49,8 +49,8 @@ Screen and build details. Each has a working answer (the best guess) that stands
 
 Flying calls, kept in `../../questions-for-dad.md` and sent to him in one message when Patrick chooses. The tool uses the best guess until he answers.
 
-- **TR-Q8:** see `../../questions-for-dad.md`
-- **TR-Q11:** see `../../questions-for-dad.md`
+- **TR-Q8:** answered by Patrick, 4 Oct 09:09Z (his own list, checked against the manuals; T-6 numbers until it comes); see `../../questions-for-dad.md`
+- **TR-Q11:** answered by Patrick, 4 Oct 09:09Z (keep 200 / 200 ft and 500 / 500 ft); see `../../questions-for-dad.md`
 
 ### Decision clashes from the requirements review
 

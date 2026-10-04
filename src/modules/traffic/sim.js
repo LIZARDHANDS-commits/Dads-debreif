@@ -406,6 +406,27 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
 
 
   /**
+   * A touch-and-go from where the aircraft is on the runway (Traffic spec 1a item 21): it rolls on and flies
+   * the circuit's climb-out, joined smoothly, with no jump back to the threshold.
+   */
+  function goFromRunway(a) {
+    const pat = routeById('PAT1') ?? setup.routes.find((r) => r.kind === 'pattern') ?? setup.routes[0];
+    const opt = routeOptions();
+    a.routeId = pat.id;
+    // On the circuit's first leg (threshold to departure end), not the initial above the same runway.
+    const p0 = pat.points[0], p1 = pat.points[1] ?? p0;
+    const d0 = pointDistFt(pat, 0, opt), d1 = pointDistFt(pat, 1, opt);
+    const legFt = Math.hypot(p1.x - p0.x, p1.y - p0.y) || 1;
+    const along = ((a.x - p0.x) * (p1.x - p0.x) + (a.y - p0.y) * (p1.y - p0.y)) / legFt;
+    // The circuit's climb-out passes close to, not exactly through, the touchdown point: join it smoothly.
+    startJoin(a, pat, d0 + Math.max(0, Math.min(along, d1 - d0)), { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 }, opt);
+    a.mode = 'RAIL';
+    a.phase = 'touch_and_go';
+    a.command = null;
+    a.touchAndGo = true;
+  }
+
+  /**
    * The end of a PFL (Traffic spec 4.5 items 10-13): on the runway it flies a
    * touch-and-go with power back on and carries on in the circuit (Patrick 08:40Z);
    * a practice that missed the gate goes around; one that can't make the runway ejects.
@@ -417,20 +438,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.pflEndedThisStep = true;
     a.engineFailed = false;
     if (done === 'landed') {
-      const pat = routeById('PAT1') ?? setup.routes.find((r) => r.kind === 'pattern') ?? setup.routes[0];
-      const opt = routeOptions();
-      a.routeId = pat.id;
-      // On the circuit's first leg (threshold to departure end), not the initial above the same runway.
-      const p0 = pat.points[0], p1 = pat.points[1] ?? p0;
-      const d0 = pointDistFt(pat, 0, opt), d1 = pointDistFt(pat, 1, opt);
-      const legFt = Math.hypot(p1.x - p0.x, p1.y - p0.y) || 1;
-      const along = ((a.x - p0.x) * (p1.x - p0.x) + (a.y - p0.y) * (p1.y - p0.y)) / legFt;
-      // The circuit's climb-out passes close to, not exactly through, the touchdown point: join it smoothly.
-      startJoin(a, pat, d0 + Math.max(0, Math.min(along, d1 - d0)), { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 }, opt);
-      a.mode = 'RAIL';
-      a.phase = 'touch_and_go';
-      a.command = null;
-      a.touchAndGo = true;
+      goFromRunway(a);
       a.pflDecision = null;
       a.config = undefined;
       a.tag = undefined;
@@ -951,26 +959,18 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       } else if (action === 'go_around') {
         startGoAround(a);
       } else if (action === 'touch_and_go') {
-        a.touchAndGo = true;
-        a.landed = false;
-        a.active = true;
-        a.engineFailed = false;
-        a.mode = 'RAIL';
-        delete a._blendStart;
-        delete a._blendTarget;
-        delete a._blendTimer;
-        const pat = setup.routes.find((r) => r.id === 'PAT1') ?? setup.routes[0];
-        if (pat) {
-          a.routeId = pat.id;
-          a.distFt = pointDistFt(pat, 0, routeOptions());
-          const p = posOnRoute(pat, a.distFt, routeOptions());
-          a.x = p.x;
-          a.y = p.y;
-          a.alt = 1892;
-          a.iasKt = 100;
-          a.headingDeg = p.headingDeg;
-          a.bankDeg = 0;
-          a.phase = 'touch_and_go';
+        // Touch-and-go (Traffic spec 1a item 21), with no jump to the threshold: in the air it makes the next
+        // landing a touch-and-go; on the runway it rolls on and takes off from where it is.
+        a.intent = 'touch_and_go';
+        if (a.landed) {
+          a.landed = false;
+          a.active = true;
+          delete a.status;
+          a.engineFailed = false;
+          delete a._blendStart;
+          delete a._blendTarget;
+          delete a._blendTimer;
+          goFromRunway(a);
         }
       }
       return true;
