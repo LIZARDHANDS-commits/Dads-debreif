@@ -10,7 +10,7 @@
 // This file only decides. It reads a frozen copy of the aircraft taken before anyone moves this tick, changes
 // nothing, and gives the same answer whatever order the aircraft are listed in, so a rewind replays the same.
 // sim.js starts the moves through the same functions the buttons use.
-import { posOnRoute, pointDistFt } from './route.js';
+import { posOnRoute, pointDistFt, routeLengthFt, isClosedRoute } from './route.js';
 import { ktToFtps } from '../../core/units.js';
 import { wrapDeg180 } from '../../core/angles.js';
 import { firstEntrySampled } from '../../core/closest-approach.js';
@@ -139,9 +139,17 @@ export function freeze(aircraft, pathOf, routeOf) {
       const p0 = posOnRoute(path.route, a.distFt, path.options);
       const offX = a.x - p0.x, offY = a.y - p0.y, offZ = a.alt - (p0.alt ?? a.alt);
       const closeSec = a.joinOffset ? Math.max(1, (a.joinOffset.T ?? 5) - (a.joinOffset.t ?? 0)) : 5;
+      // Past the end of a path that ends (a straight-in at the runway, a flown move) it runs straight on along
+      // the last leg, as it really does (down the runway, or onto its next route), rather than stopping there.
+      const endFt = isClosedRoute(path.route) ? Infinity : routeLengthFt(path.route, path.options);
+      const at = (d) => {
+        if (d <= endFt) return posOnRoute(path.route, d, path.options);
+        const e = posOnRoute(path.route, endFt, path.options), r = (e.headingDeg ?? trackDeg) * Math.PI / 180;
+        return { ...e, x: e.x + (d - endFt) * Math.sin(r), y: e.y + (d - endFt) * Math.cos(r) };
+      };
       for (let i = 0; i <= n; i++) {
         const tSec = i * DECONFLICT.sampleSec;
-        const p = posOnRoute(path.route, a.distFt + gsFtps * tSec, path.options);
+        const p = at(a.distFt + gsFtps * tSec);
         const k = Math.max(0, 1 - tSec / closeSec);
         track.push({ x: p.x + offX * k, y: p.y + offY * k, z: (p.alt ?? a.alt) + offZ * k });
       }
@@ -209,6 +217,7 @@ export function decide(frozen, limits) {
 
 /** The words on the tag beside an aircraft the deconfliction moved, like the PFL tag. */
 export function deconflictLabel(move, layer) {
+  if (move === 'extend_downwind') return '[SPACING: extend downwind]';
   const WORDS = { fly_through: 'fly-through', go_around: 'go-around', move_over: 'move over', flinch: 'flinch', bank_away: 'bank away' };
   const what = WORDS[move] ?? 'break out';
   return layer === 'skill' ? `[EVASIVE: ${what}]` : `[GIVING WAY: ${what}]`;

@@ -15,6 +15,7 @@ import { compassDegFromVector, wrapDeg180 } from '../../core/angles.js';
 import { gFromBankDeg, bankDegFromG, turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { excessThrustPerWeight, stallLimitG, iasToTasKt } from '../../core/t6-performance.js';
 import { legOffsetsFt } from '../../core/geo.js';
+import { PATTERN_ALT_FT } from './airfield.js';
 import { makePilot, bankFor, trackForLine, readyToTurnOnto, lineOf, CIRCUIT, ZOOM_SEC, LEVEL_OFF_SEC, HOLD_RADIUS_FT, PILOT_DT } from './circuit.js';
 
 /** Every number the moves use, each with its source. */
@@ -45,6 +46,17 @@ export const EVADE = Object.freeze({
   rejoinBankDeg: 45,
   /** Steepest climb or descent on the way back to the line, ft/s (1,000 ft/min). An estimate. */
   rejoinVertFtps: 1000 / 60,
+  /**
+   * Spacing on final: an aircraft on the inner downwind turns final at least this far behind the traffic on final,
+   * ft: the Flying Orders' day minimum, Patrick's aim (TR-R18; WFO AL6.2, the final-spacing article; Patrick, 4 Oct 01:25Z).
+   */
+  finalSpacingFt: 2000,
+  /**
+   * An extended downwind starts its final turn far enough short of the overhead pattern's base and 45° leg
+   * (Pattern 1 points 6 to 8) that the turn stays this far clear of them, ft; past that it breaks out instead
+   * (Patrick, 4 Oct 21:52Z: "It would break out if it would hit the base leg of the OHB pattern"). An estimate.
+   */
+  extendClearFt: 1000,
 });
 
 const MOST_SEC = 600; // a guard: no move here lasts this long
@@ -169,4 +181,57 @@ export function flyRejoin(pilot, route, leg = 0) {
       && Math.abs(s.bank) < 2 && Math.abs(s.alt - altFt) < 30;
     if (settled) break;
   }
+}
+
+/**
+ * How far an aircraft on the inner downwind extends past its perch to turn final at least `EVADE.finalSpacingFt`
+ * from every aircraft on final, ft: the shortest extension, in 100 ft steps up to `limitFt`, that does it; 0 when
+ * none is needed, null when even `limitFt` isn't enough (it breaks out). `rolloutSec` is when it would roll out on
+ * final without extending and `rolloutFt` how far from the threshold (about the window), `downwindGsFtps` its ground
+ * speed on downwind and `finalGsFtps` on final. Each leader has `distAt(sec)`: how far from the threshold along
+ * the centreline it will be that many seconds from now (0 or less once it is on the runway). Extending by E rolls
+ * out E further out and about E / downwindGsFtps later. It is clear of a leader that stays at least the spacing
+ * ahead of it all the way down final until that leader lands, or is at least the spacing behind it at the
+ * rollout; one behind is left to space itself (it moves over if it must, TR-56).
+ */
+export function spacingExtensionFt({ rolloutSec, rolloutFt, downwindGsFtps, finalGsFtps, leaders, limitFt = Infinity }) {
+  const clearAt = (e) => {
+    const rollFt = rolloutFt + e, atSec = rolloutSec + e / Math.max(downwindGsFtps, 1);
+    return leaders.every((l) => {
+      if (l.distAt(atSec) - rollFt >= EVADE.finalSpacingFt) return true; // behind
+      for (let k = 0; k * finalGsFtps <= rollFt; k++) { // each second down final, until the leader lands
+        const leaderFt = l.distAt(atSec + k);
+        if (leaderFt <= 0) break;
+        if (rollFt - k * finalGsFtps - leaderFt < EVADE.finalSpacingFt) return false;
+      }
+      return true;
+    });
+  };
+  const most = Math.min(limitFt, 20 * 6076); // a guard: never more than 20 NM
+  for (let e = 0; e <= most; e += 100) if (clearAt(e)) return e;
+  return null;
+}
+
+/**
+ * The longest extension before the final turn would come within EVADE.extendClearFt of the overhead pattern's
+ * base or 45° leg (Pattern 1 points 6-7 and 7-8), ft along the downwind from `perch`: where the extended downwind
+ * first crosses either, less one final-turn radius (the turn's reach ahead, 35° at 120 KIAS, CIRCUIT) and the
+ * clearance. Infinity when the extended downwind never crosses them.
+ */
+export function extendLimitFt(points, perch) {
+  const back = (lineOf(points[0], points[1]).trackDeg + 180) * Math.PI / 180;
+  const dx = Math.sin(back), dy = Math.cos(back);
+  let first = Infinity;
+  for (const [i, j] of [[6, 7], [7, 8]]) {
+    const a = points[i], b = points[j];
+    if (!a || !b) continue;
+    const ex = b.x - a.x, ey = b.y - a.y;
+    const det = ex * dy - ey * dx;
+    if (Math.abs(det) < 1e-9) continue;
+    const rx = a.x - perch.x, ry = a.y - perch.y;
+    const along = (ex * ry - ey * rx) / det, u = (dx * ry - dy * rx) / det;
+    if (along > 0 && u >= 0 && u <= 1) first = Math.min(first, along);
+  }
+  const radiusFt = turnRadiusFromBankFt(ktToFtps(iasToTasKt(CIRCUIT.finalTurnKias, PATTERN_ALT_FT)), CIRCUIT.finalTurnBankDeg);
+  return first - radiusFt - EVADE.extendClearFt;
 }

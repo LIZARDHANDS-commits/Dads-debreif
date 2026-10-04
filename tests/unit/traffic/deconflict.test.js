@@ -1,5 +1,5 @@
 // Checks: automatic deconfliction does what a pilot would expect, and its own moves (the flinch, the climb before a
-// fly-through breaks out, the move-over, the straight-in rejoin and a PFL's bank away) fly as Patrick's answers say. Two aircraft on a collision course never get
+// fly-through breaks out, the move-over, the straight-in rejoin, a PFL's bank away and the extended downwind) fly as Patrick's answers say. Two aircraft on a collision course never get
 // inside the red, one of them gives way by the rule and the other keeps its track, nothing happens far out,
 // the right-of-way answer is the same whichever aircraft you ask, and a broken aircraft stops nothing.
 // Serves: Patrick, 4 Oct 09:40Z to 11:26Z (deconfliction asks and his nine answers); design D1, D2, D11, D13-D15.
@@ -11,8 +11,8 @@ import { closestApproach, firstEntry, firstEntrySampled } from '../../../src/cor
 import { rightOfWay, freeze } from '../../../src/modules/traffic/deconflict.js';
 import { createSim } from '../../../src/modules/traffic/sim.js';
 import { readFileSync } from 'node:fs';
-import { buildFlinch, buildClimbAhead, EVADE } from '../../../src/modules/traffic/evade.js';
-import { buildGoAround } from '../../../src/modules/traffic/circuit.js';
+import { buildFlinch, buildClimbAhead, EVADE, spacingExtensionFt, extendLimitFt } from '../../../src/modules/traffic/evade.js';
+import { buildGoAround, buildCircuit, buildExtendedDownwind } from '../../../src/modules/traffic/circuit.js';
 import { followRoute, startSideStep } from '../../../src/modules/traffic/path-follower.js';
 import { legOffsetsFt } from '../../../src/core/geo.js';
 import { gFromBankDeg } from '../../../src/core/flight-math.js';
@@ -221,3 +221,72 @@ test('a gliding PFL pays for its bank away in height: a little lower than its pa
   // Standard aerodynamics on core's glide drag: tens of feet for a 500 ft bank away (the PFL thread's estimate is about 45 ft).
   assert.ok(below > 10 && below < 100, `a bank away costs some height (${below.toFixed(0)} ft)`);
 });
+
+test('spacing on final: the overhead aircraft extends its downwind to land about 2,000 ft behind a straight-in, and nobody moves over (TR-R18, TR-58)', () => {
+  // The straight-in starts 30 s after the overhead aircraft at the Final Entry, so without spacing they meet on final.
+  const setup = structuredClone(MJ);
+  setup.windFromDeg = 260;
+  setup.windKt = 15;
+  setup.deconflict = true;
+  setup.aircraft = [
+    { id: 'A1', type: 'CT-156', routeId: 'PAT1', startIndex: 8, startsAtSec: 0 },
+    { id: 'A2', type: 'CT-156', routeId: 'ENT2', startIndex: 3, startsAtSec: 30 },
+  ];
+  const sim = createSim(setup, { seed: 1 });
+  const th = PAT.points[0], up = PAT.points[1];
+  const out = (p) => -legOffsetsFt(th, up, p).alongFt;
+  const tags = { A1: new Set(), A2: new Set() };
+  let closestOnFinal = Infinity, lastAlt = null, steepest = 0, inRed = false, landed = false;
+  for (let t = 0.5; t <= 260; t += 0.5) {
+    sim.stepTo(t);
+    const [a, b] = sim.state().aircraft;
+    for (const ac of [a, b]) if (ac.deconflict) tags[ac.id].add(ac.deconflict);
+    if (Math.hypot(a.x - b.x, a.y - b.y) < 200 && Math.abs(a.alt - b.alt) < 200) inRed = true;
+    if (a.phase === 'final' && b.active && out(b) > 0) closestOnFinal = Math.min(closestOnFinal, out(a) - out(b));
+    if (lastAlt !== null && a.active) steepest = Math.max(steepest, Math.abs(a.alt - lastAlt));
+    lastAlt = a.alt;
+    if (a.phase === 'final' && out(a) < 200) landed = true;
+  }
+  assert.ok([...tags.A1].some((w) => /extend downwind/.test(w)), 'the overhead aircraft extends its downwind');
+  assert.equal(tags.A2.size, 0, 'the straight-in is never moved');
+  assert.equal(inRed, false);
+  // 2,000 ft is the Flying Orders' day minimum (TR-R18); 10 percent off it because the speeds down final are estimates.
+  assert.ok(closestOnFinal >= 0.9 * EVADE.finalSpacingFt, `at least about 2,000 ft behind on final (${closestOnFinal.toFixed(0)} ft)`);
+  // No snaps: under 50 ft of height in any half second (6,000 ft/min; the final turn comes down at about 2,000).
+  assert.ok(steepest < 50, `no height jumps (${steepest.toFixed(0)} ft in 0.5 s)`);
+  assert.ok(landed, 'it comes down final to the runway');
+});
+
+test('an extended downwind rolls out further out on the glide path, and breaks out when the extension would reach the overhead base leg (Patrick, 21:52Z)', () => {
+  const windowFt = Math.hypot(PAT.points[12].x - PAT.points[0].x, PAT.points[12].y - PAT.points[0].y);
+  const glideFt = (d) => 1880 + (PAT.points[12].alt - 1880) / windowFt * d;
+  for (const w of WINDS) {
+    const c = buildCircuit(PAT.points, w.windFromDeg, w.windKt);
+    const ro = c.track.find((p) => p.tag === 'break_rollout');
+    const from = { x: ro.x, y: ro.y, alt: ro.alt, kias: ro.kt, headingDeg: ro.headingDeg, bankDeg: 0 };
+    const plain = buildExtendedDownwind(PAT.points, from, w.windFromDeg, w.windKt, c.perch, 0);
+    const ext = buildExtendedDownwind(PAT.points, from, w.windFromDeg, w.windKt, c.perch, 4000);
+    const out = (p) => -legOffsetsFt(PAT.points[0], PAT.points[1], p).alongFt;
+    // About 4,000 ft further out (10 percent: the final turn drifts), at the glide path's height there (±100 ft).
+    assert.ok(Math.abs(out(ext.rollout) - out(plain.rollout) - 4000) <= 400, `${w.windKt} kt: rolls out about 4,000 ft further out`);
+    const rollout = ext.track.find((p) => p.tag === 'window');
+    assert.ok(Math.abs(rollout.alt - glideFt(out(rollout))) <= 100, `${w.windKt} kt: on the glide path at the rollout`);
+    assert.ok(ext.track.every((p) => p.alt <= 3500 + 100), 'never climbs above pattern height');
+  }
+  // The overhead pattern's base and 45° leg are a few miles past the perch: there is room to extend, but not without end.
+  const limit = extendLimitFt(PAT.points, PAT.points[11]);
+  assert.ok(limit > 2 * EVADE.finalSpacingFt && limit < 6 * 6076, `room to extend (${limit.toFixed(0)} ft)`);
+  // A straight-in 1,000 ft further out than the rollout when it would roll out, closing at 150 ft/s. Worked by hand:
+  // extending by E rolls out E further out and E/250 s later, when the straight-in is 0.6 E closer in, so the gap is
+  // 1.6 E - 1,000 ft; down final the aircraft (180 ft/s) gains 30 ft/s on it until it lands, (windowFt + 1,000 - 0.6 E)
+  // / 150 s later. Keeping 2,000 ft until then needs 1.72 E >= 3,000 + 0.2 (windowFt + 1,000), about E >= 2,390 ft
+  // with the Moose Jaw window; with less room than that it breaks out.
+  const straightIn = { distAt: (sec) => windowFt + 1000 - 150 * (sec - 60) };
+  const ask = { rolloutSec: 60, rolloutFt: windowFt, downwindGsFtps: 250, finalGsFtps: 180, leaders: [straightIn] };
+  const need = (3000 + 0.2 * (windowFt + 1000)) / 1.72;
+  const e = spacingExtensionFt({ ...ask, limitFt: limit });
+  assert.ok(e >= need - 1 && e <= need + 100, `extends about ${need.toFixed(0)} ft to get behind it (${e} ft, in 100 ft steps)`);
+  assert.equal(spacingExtensionFt({ ...ask, limitFt: 2000 }), null, 'no room: no extension (it breaks out)');
+  assert.equal(spacingExtensionFt({ ...ask, leaders: [] }), 0, 'no traffic: no extension');
+});
+
