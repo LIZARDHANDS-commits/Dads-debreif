@@ -166,7 +166,7 @@ test('every box has a visible label, so screen readers say what it is', () => {
   const { panel } = setup({ available: { photo: true } });
   const labelled = new Set(tagged(panel.element, 'LABEL').map((l) => l.getAttribute('for')));
   const inputs = tagged(panel.element, 'INPUT');
-  assert.equal(inputs.length, 6, '6 number boxes');
+  assert.equal(inputs.length, 7, '7 boxes, the Aircraft size slider among them');
   for (const input of inputs) assert.ok(labelled.has(input.id), `input ${input.id} has a label`);
 });
 
