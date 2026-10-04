@@ -36,7 +36,7 @@ import { planManoeuvre, dryRun, relativeTo, missProfile, onStep, VERTICAL_MISS_F
 /**
  * Every setting and its default. All errors start at 'none', so the default start is
  * unchanged. The amounts are what an error means when it is chosen.
- *   errFore      along the line of the 3/9: 'ahead' (sucked) or 'behind' (acute)
+ *   errFore      along the line of the 3/9: 'ahead' (acute) or 'behind' (sucked)
  *   errSpacing   across it: 'wide' or 'tight', measured from Lead on #2's own side (TS-2)
  *   errHeight    'high' or 'low' against Lead
  *   errTiming    #2 rolls in 'early' or 'late' against the standard time
@@ -73,7 +73,7 @@ export const ERROR_ALLOWED = /** @type {Record<string, any[]>} */ (Object.freeze
  * say forward/back, in/out and up/down (SMM 12.18 para 39), so these are working readings.
  */
 export const ERROR_FIELDS = Object.freeze([
-  { key: 'errFore', label: 'Along the 3/9 line', amountKey: 'errForeFt', unit: 'ft', min: 100, max: 3000, step: 100, options: [{ value: 'none', label: 'None' }, { value: 'ahead', label: 'Ahead (sucked)' }, { value: 'behind', label: 'Behind (acute)' }] },
+  { key: 'errFore', label: 'Along the 3/9 line', amountKey: 'errForeFt', unit: 'ft', min: 100, max: 3000, step: 100, options: [{ value: 'none', label: 'None' }, { value: 'ahead', label: 'Ahead (acute)' }, { value: 'behind', label: 'Behind (sucked)' }] },
   { key: 'errSpacing', label: 'Spacing', amountKey: 'errSpacingFt', unit: 'ft', min: 100, max: 3000, step: 100, options: [{ value: 'none', label: 'None' }, { value: 'wide', label: 'Wide' }, { value: 'tight', label: 'Tight' }] },
   { key: 'errHeight', label: 'Height', amountKey: 'errHeightFt', unit: 'ft', min: 100, max: 2000, step: 100, options: [{ value: 'none', label: 'None' }, { value: 'high', label: 'High' }, { value: 'low', label: 'Low' }] },
   { key: 'errTiming', label: 'Roll-in', amountKey: 'errTimingSec', unit: 's', min: 0.5, max: 10, step: 0.5, options: [{ value: 'none', label: 'On time' }, { value: 'early', label: 'Early' }, { value: 'late', label: 'Late' }] },

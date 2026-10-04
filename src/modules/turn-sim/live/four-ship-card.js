@@ -1,0 +1,56 @@
+// The Formation card's words for the 4-ship (Spread 4): the same card as the 2-ship's,
+// with a line for each wingman against the aircraft it flies off, and the roll-out judged
+// the same way, wingman by wingman (live/four-ship.js judgeFour).
+import { relativeTo, MANOEUVRES } from './manoeuvres.js';
+import { compassDeg, intoOrAway } from './formation.js';
+
+const ftText = (n) => `${Math.round(n).toLocaleString('en-CA')} ft`;
+const signedFt = (n) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(Math.round(n)).toLocaleString('en-CA')}`;
+const bankText = (deg) => (Math.abs(deg) < 0.5 ? 'wings level' : `bank ${Math.round(Math.abs(deg))}° ${deg > 0 ? 'L' : 'R'}`);
+
+/** The card's content (the shape ui.renderCard takes) for the four-ship's state now. */
+export function cardForFour(state, wingSide) {
+  const byId = new Map(state.aircraft.map((a) => [a.id, a]));
+  const lead = state.aircraft[0];
+  const c = state.current;
+  let flying = `Spread 4 on ${String(compassDeg(lead.headingRad)).padStart(3, '0')}, waiting for a button.`;
+  if (c) {
+    const sided = MANOEUVRES[c.key].sided;
+    flying = `Flying: ${c.label}${sided ? ` (${intoOrAway(c.dir, wingSide)})` : ''}`;
+  }
+
+  const j = state.judged;
+  let judged = null;
+  if (j) {
+    const words = j.ships.map((s) => {
+      const numbers = j.shape === 'trail'
+        ? `${ftText(s.gapFt)} in trail, ${ftText(Math.abs(s.offsetFt))} off line`
+        : `${ftText(s.acrossFt)} abeam, ${ftText(Math.abs(s.foreAftFt))} ${s.foreAftFt >= 0 ? 'ahead' : 'behind'}`;
+      return `${s.name} off ${s.refName} ${s.labels.join(', ')} (${numbers})`;
+    });
+    const good = j.ships.every((s) => s.labels[0] === 'ON SPACING' || s.labels[0] === 'IN TRAIL');
+    judged = { text: `${j.label}: ${words.join('; ')}.`, tone: good ? 'good' : 'caution' };
+  }
+
+  const nowLines = state.aircraft.filter((a) => a.ref != null).map((a) => {
+    const ref = byId.get(a.ref);
+    const rel = relativeTo(ref, a);
+    const across = Math.abs(rel.left);
+    const sweepDeg = Math.atan2(-rel.fwd, Math.max(across, 1)) * 180 / Math.PI;
+    return `${a.name} off ${ref.name}: ${ftText(across)} abeam, sweep ${Math.abs(sweepDeg).toFixed(0)}° ${sweepDeg >= 0 ? 'behind' : 'ahead'}`;
+  });
+  nowLines.push(`Heights above Lead: ${state.aircraft.filter((a) => a.ref != null).map((a) => `${a.name} ${signedFt(a.altAboveFt - lead.altAboveFt)}`).join(', ')} ft`);
+
+  return {
+    flying,
+    note: c?.note ?? null,
+    queued: state.queued?.label ?? null,
+    nowLines,
+    judged,
+    ships: state.aircraft.map((a) => ({
+      id: a.id,
+      name: a.name,
+      text: `${a.kias} KIAS, ${String(compassDeg(a.headingRad)).padStart(3, '0')}, ${bankText(a.bankDeg)}, ${a.g.toFixed(1)} G`,
+    })),
+  };
+}

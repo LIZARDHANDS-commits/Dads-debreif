@@ -362,7 +362,8 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 ```
 
 ### 7.2 Progressive Disclosure (R22)
-- **Playback bar**: Play/Pause, Rewind, −10 s, +10 s, Reset, speed (0.25× to 8×), clock, status, 2D/3D toggle, Fit, Layers. Wind box shows direction (°T) and speed (kt).
+- **Playback bar**: Play/Pause, Rewind, −10 s, +10 s, Reset, speed (0.25× to 8×), clock, status, 2D/3D toggle, Fit, Layers.
+- **Setup column** (the left column, Patrick, 4 Oct 11:05Z): Scenarios buttons (Moose Jaw day, One aircraft, Full circuit, Joining traffic, Random; each replaces the aircraft, paused at 0:00, and keeps the routes, wind and settings), then Wind: a dial for the direction it blows from (°T, drag in 10° steps, arrow keys) and a strength bar (kt), with a line giving 29L's head and cross wind. Scenarios and notes and the routes list follow.
 - **Layers menu**: trails, altitude/speed labels, waypoint points, leg distances, conflict bubbles, caution rings, satellite photo. Under More: opacity, grid order, photo alignment.
 - **Routes list**: one line per route with color, kind, and link; "+ New route" dropdown.
 - **Selected route**: name, point table (number, label, alt, speed phase, bank/G).

@@ -817,27 +817,35 @@ function drawWind(ctx, map, settings, palette, text) {
   text(words, width - 50, 34, palette.text, { size: 13, bold: true, align: 'right' });
 }
 
-// Draws the 1/2 NM radius (1 NM diameter) PFL circle on the ground for Runway 29L.
-export function drawPflGroundCircle(ctx, settings, palette, at, pxPerFt, text, circle) {
+/**
+ * Where the PFL ground circle for Runway 29L and its keys are, in map feet: one place for the 2D map and
+ * the 3D view. The 1/2 NM radius (1 NM diameter) circle sits 90° left of the runway (298° − 90° = 208° true)
+ * with High Key over the threshold, Low Key 1 NM abeam it and Final Key 270° round the circle.
+ */
+export function pflCircleLayout() {
   const th = THRESHOLD_29L;
   const radiusFt = PFL_CIRCLE_RADIUS_FT; // 0.5 NM radius (1.0 NM diameter = 6076 ft)
-
-  // 90° LEFT of Runway 29L (298° - 90° = 208° True, South-Southwest)
   const rad208 = (208 * Math.PI) / 180;
   const nLeftX = Math.sin(rad208); // -0.469472 (West)
   const nLeftY = Math.cos(rad208); // -0.882948 (South)
+  const center = { x: th.x + radiusFt * nLeftX, y: th.y + radiusFt * nLeftY }; // (1677.7, -5876.4) ft
+  const lowKey = { x: th.x + 2 * radiusFt * nLeftX, y: th.y + 2 * radiusFt * nLeftY }; // (252, -8559) ft
+  const rad118 = (118 * Math.PI) / 180; // Final Key: 270° round the circle, bearing 118° from its centre
+  const finalKey = { x: center.x + radiusFt * Math.sin(rad118), y: center.y + radiusFt * Math.cos(rad118) }; // (4360, -7303) ft
+  return { highKey: { x: th.x, y: th.y }, center, radiusFt, lowKey, finalKey };
+}
 
-  // Center of circle: 0.5 NM at 208° from threshold
-  const cxFt = th.x + radiusFt * nLeftX; // 1677.7 ft
-  const cyFt = th.y + radiusFt * nLeftY; // -5876.4 ft
+// Draws the 1/2 NM radius (1 NM diameter) PFL circle on the ground for Runway 29L.
+export function drawPflGroundCircle(ctx, settings, palette, at, pxPerFt, text, circle) {
+  const layout = pflCircleLayout();
+  const th = layout.highKey;
+  const radiusFt = layout.radiusFt;
+  const cxFt = layout.center.x;
+  const cyFt = layout.center.y;
   const [cx, cy] = at({ x: cxFt, y: cyFt });
   const rPx = radiusFt * pxPerFt;
-
-  // Key coordinate points on the authentic 360° circle
-  const lkPt = { x: th.x + 2 * radiusFt * nLeftX, y: th.y + 2 * radiusFt * nLeftY }; // Low Key: (252, -8559)
-  // Final Key at 270° around circle (bearing 118° from center):
-  const rad118 = (118 * Math.PI) / 180;
-  const bkPt = { x: cxFt + radiusFt * Math.sin(rad118), y: cyFt + radiusFt * Math.cos(rad118) }; // Final Key: (4360, -7303)
+  const lkPt = layout.lowKey;
+  const bkPt = layout.finalKey;
 
   // 1. PFL ground circle (0.5 NM radius / 1.0 NM diameter)
   ctx.save();

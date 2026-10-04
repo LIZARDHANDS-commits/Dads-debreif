@@ -34,6 +34,10 @@ const LAYERS_2D = ['lead39', 'planned', 'turnCircles'];
 
 export const SPEEDS = Object.freeze([0.25, 0.5, 1, 2, 4]);
 
+/** The line above the buttons, for the pair and for the four. */
+const PAIR_HINT = 'Press a manoeuvre and the pair flies it, then carries on in line abreast. A press while one is flying is flown next.';
+const FOUR_HINT = 'Press a manoeuvre and the four fly it, then carry on in Spread 4 (line abreast). A press while one is flying is flown next.';
+
 /** Ship colours as in V6, except #4: white with a dark outline (#29), as in the debrief. */
 export const SHIP_COLORS = Object.freeze({ 1: '#0066ff', 2: '#00cc44', 3: '#ff2222', 4: '#ffffff' });
 export const OUTLINED_SHIPS = Object.freeze(new Set([4]));
@@ -45,8 +49,8 @@ function swatch(id) {
 }
 
 /**
- * buttons: [{ key, label, sided }] in screen order.
- * setupControls: ui-kit controls bound to the Setup settings (spacingFt, wingSide).
+ * buttons: [{ key, label, sided, ships }] in screen order; `ships` lists the formations that have the button (2, 4).
+ * setupControls: ui-kit controls bound to the Setup settings (ships, spacingFt, wingSide).
  * layout / layoutControls: the remembered layout and its controls.
  * listen: app.listen, so page-wide listeners end when the Turn Sim closes.
  * fixedLine: the one line of fixed numbers under Setup.
@@ -56,7 +60,13 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
 
   // ---- Manoeuvres: one row per manoeuvre, a Left and a Right button where it has sides ----
   const sideHints = []; // { el, dir }: the "into #2" / "away from #2" words, which follow #2's side
+  const rowShips = []; // { el, ships }: which formations show each row (2-ship, 4-ship)
   const rows = buttons.map((b) => {
+    const row = buttonRow(b);
+    rowShips.push({ el: row, ships: b.ships ?? [2] });
+    return row;
+  });
+  function buttonRow(b) {
     if (!b.sided) {
       return h('div', { class: 'ts-move ts-move-single' },
         h('button', { type: 'button', class: 'button ts-move-button', dataset: { move: b.key }, onclick: () => handlers.press?.(b.key, 0) }, b.label));
@@ -73,24 +83,28 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     };
     return h('div', { class: 'ts-move', role: 'group', 'aria-label': b.label },
       h('span', { class: 'ts-move-name' }, b.label), side(1, 'Left'), side(-1, 'Right'));
-  });
+  }
   const movesPanel = createPanel({ title: 'Manoeuvres', onToggle: (c) => layout.update({ setupColumn: !c }) });
   const queueLine = h('p', { class: 'ts-hint ts-queue', role: 'status' });
+  const movesHint = h('p', { class: 'ts-hint' }, PAIR_HINT);
   movesPanel.body.append(
-    h('p', { class: 'ts-hint' }, 'Press a manoeuvre and the pair flies it, then carries on in line abreast. A press while one is flying is flown next.'),
+    movesHint,
     ...rows,
     queueLine,
   );
 
   // ---- Setup: spacing and #2's side ---------------------------------------
   const spacingFlag = h('p', { class: 'ts-warning', role: 'status', hidden: true });
+  const fourLine = h('p', { class: 'ts-fixed', hidden: true });
   const setup = h('section', { class: 'ts-setup', 'aria-labelledby': 'ts-setup-title' },
     h('h3', { class: 'ts-group-title', id: 'ts-setup-title' }, 'Setup'),
+    h('div', { class: 'ts-field' }, setupControls.choice('ships', { label: 'Formation', options: [{ value: 2, label: '2-ship' }, { value: 4, label: '4-ship' }] })),
     h('div', { class: 'ts-field' }, setupControls.number('spacingFt', { label: 'Spacing', unit: 'ft', min: 1000, max: 20000, step: 100 })),
     spacingFlag,
     h('div', { class: 'ts-field' }, setupControls.choice('wingSide', { label: '#2 on Lead\'s', options: [{ value: 'right', label: 'Right' }, { value: 'left', label: 'Left' }] })),
     h('p', { class: 'ts-hint' }, 'Changing these starts again from the beginning.'),
     h('p', { class: 'ts-fixed' }, fixedLine),
+    fourLine,
   );
   movesPanel.body.append(setup);
 
@@ -167,7 +181,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   const flyingNote = h('p', { class: 'ts-line ts-turn' });
   const errorSet = h('p', { class: 'ts-line ts-error-set', hidden: true });
   const errorOutcome = h('p', { class: 'ts-line ts-judged ts-error-outcome', 'aria-live': 'polite', hidden: true });
-  const now = h('ul', { class: 'ts-lines', 'aria-label': 'The pair now' });
+  const now = h('ul', { class: 'ts-lines', 'aria-label': 'The formation now' });
   const judged = h('p', { class: 'ts-line ts-judged', 'aria-live': 'polite' });
   const ships = h('ul', { class: 'ts-card', 'aria-label': 'Each aircraft' });
   const formationPanel = createPanel({ title: 'Formation', onToggle: (c) => layout.update({ formationColumn: !c }) });
@@ -221,6 +235,14 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       const wingDir = wingSide === 'left' ? 1 : -1;
       for (const { el, dir } of sideHints) el.textContent = dir === wingDir ? 'into #2' : 'away';
     },
+    /** 2-ship or 4-ship: only the buttons that formation has show, and `line` (the four-ship's fixed numbers) shows under the fixed line. */
+    setShips(ships, line = '') {
+      for (const { el, ships: has } of rowShips) el.hidden = !has.includes(ships);
+      movesHint.textContent = ships === 4 ? FOUR_HINT : PAIR_HINT;
+      fourLine.textContent = ships === 4 ? line : '';
+      fourLine.hidden = ships !== 4;
+      errorsSection.hidden = ships === 4; // training errors are 2-ship only for now (TS-52)
+    },
     /** The flag under Spacing (outside the SMM band), or null. */
     setSpacingFlag(text) {
       spacingFlag.textContent = text ?? '';
@@ -248,7 +270,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       clear(now);
       for (const t of r.nowLines) now.append(h('li', {}, t));
       // A live region: rewritten only when the judgement changes, so a screen reader says it once.
-      const judgedText = r.judged ? r.judged.text : 'Judged once both have rolled out.';
+      const judgedText = r.judged ? r.judged.text : 'Judged once all have rolled out.';
       if (judgedText !== lastJudged) {
         lastJudged = judgedText;
         judged.textContent = judgedText;

@@ -32,6 +32,7 @@ Built on TR-R1 to TR-R34, ratified by Patrick on 4 Oct 01:46Z (`pf/reset/1-requi
 | TR-R4 Heights, names and Initial where the orders put it | Named points carry pilot names and the heights in TR-R4, each with its page reference (TP5); straight-in traffic steps down to 2,700 ft before base | Each change | Dad checks the point list against the Moose Jaw diagrams |
 | TR-R5 Wind works one way everywhere | TP3: calm and windy runs, crab worked out in the test, wind changed mid-flight | Each change | |
 | TR-R30 Planned legs, live manoeuvres, no jump between them | TP4 over a crosswind circuit with every manoeuvre. `smooth-transitions.test.js` (Patrick, 4 Oct 10:05Z; six limits approved 10:18Z): each manoeuvre, calm and in 20 kt, flown to 4 minutes; every 0.05 s step moves no further than the ground speed carries it plus 1 ft, heading at most 2°, bank at most 5° (90°/s roll), speed at most 1 kt, height at most 10 ft, and turn rate changes no faster than a 90°/s roll allows at that speed and bank (margin ×2 for the path's point-to-point ripple) | Each change | |
+| Setup column (Patrick, 4 Oct 11:05Z) | `setup-panel.test.js`: five scenario buttons, Random among them; Random puts five aircraft on route points at least 1 NM apart (estimate), and the same dice give the same picture; every scenario has aircraft up after two minutes; the wind dial reads compass bearings; the 29L head and cross wind line matches the wind triangle | Each change | |
 | TR-R6 Crab and ground speed shown | New: with wind on, each aircraft shows ground speed and crab, left or right | Each change | |
 | TR-R7 The break | TP1: level, about 60°, speed only falls from 220 to about 140, rolls out on downwind; a stronger headwind moves the break point down the runway | Each change | |
 | TR-R8 Downwind and a wind-shifted perch | Perch moves with the crosswind and the final turn still rolls out on the centreline; about 120 KIAS by the perch | Each change | |
@@ -102,10 +103,11 @@ The simulator models the 15 Wing Moose Jaw circuit (Runway 29L left-hand circuit
 
 - [ ] On the home screen, the **Traffic Pattern Sim** card has the short description and opens cleanly. **Home** in the header brings you back.
 - [ ] Three main areas appear without overlap:
-  - **Routes & Patterns** panel on the left (showing authentic routes: Pattern 1, Entry routes ENT1–ENT4; legacy polyline splits SPL1–SPL4 are deactivated per D399).
+  - **Setup** panel on the left (scenario buttons and the wind dial on top, then the routes: Pattern 1, Entry routes ENT1–ENT4; legacy polyline splits SPL1–SPL4 are deactivated per D399).
   - **2D Airfield Map** in the center (centered on CYMJ Moose Jaw Runway 29L, 1,892 ft MSL field elevation).
   - **Aircraft List & Spawner** on the right (with callsign, type, route, altitude, airspeed readouts, and tactical maneuver buttons).
-  - **Playback Bar** along the bottom with Play/Pause, Timeline slider, Time display, Speed multiplier, Photo toggle, 3D toggle, and Wind controls (**Wind from: °T** and **Wind speed: kt**).
+  - **Playback Bar** along the bottom with Play/Pause, Timeline slider, Time display, Speed multiplier, Photo toggle, 3D toggle. The wind is set in the Setup panel.
+- [ ] Press each **Scenarios** button: the aircraft change to that scenario, paused at 0:00. **Random** gives five aircraft spread round the routes, and pressing it again gives a new picture.
 
 ---
 
@@ -124,8 +126,8 @@ The simulator models the 15 Wing Moose Jaw circuit (Runway 29L left-hand circuit
 
 ### 3. Wind Triangle & Interactive Wind Controls
 
-- [ ] In the bottom playback bar, locate the **Wind from: °T** and **Wind speed: kt** inputs.
-- [ ] Set **Wind speed: kt** to `25` and **Wind from: °T** to `210` (crosswind from the left on RWY 29L).
+- [ ] In the **Setup** panel on the left, find the **Wind** dial and the **Wind strength** bar.
+- [ ] Drag the dial round to `210` and slide **Wind strength** to `25 kt` (crosswind from the left on RWY 29L). The line under the bar reads "29L: 1 kt head, 25 kt cross from the left".
 - [ ] Aircraft in flight dynamically crab into the wind:
   - Aircraft headings visually orient into the wind to maintain ground track along the circuit legs.
   - Readouts show differing **IAS** vs. **Ground Speed (GS)** and active **Crab Angle**.

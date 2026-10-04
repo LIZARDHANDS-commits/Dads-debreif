@@ -21,6 +21,7 @@ Ideas for the Traffic Sim that are not being built. An idea moves into `plan.md`
   - a PFL coming in while an overhead aircraft reaches initial, where they would conflict: the PFL keeps right of way; the overhead aircraft flies through (as the orders say), makes a 90° left turn at the end of the runway and rejoins the outer downwind; if traffic on the outer downwind would then be a conflict, it breaks out instead (Patrick, 4 Oct 09:43Z);
   - traffic rejoining on an entry that would conflict breaks out and rejoins.
   It overlaps PPQ-03 (automated SMM rules) and PPQ-04 (fly-through) below, and FF25. The rules need their Flying Orders and SMM pages before it is specced.
+- Formation take-offs and the initial recovery belong to Traffic, not the Turn Sim (Patrick agreed in the Turn Sim thread, 4 Oct 11:15Z): 2+2, interval and 3+1 take-offs, and GULAP. Future only; nothing is built for them yet.
 
 ## Asked for by Patrick and built straight away (4 Oct 2026)
 
@@ -28,7 +29,10 @@ Ideas for the Traffic Sim that are not being built. An idea moves into `plan.md`
 - An Aircraft size slider under settings, starting at "Realistic" (10:06Z; #259).
 - The sim's name in the top left: "Pat's CYMJ Traffic & Pattern Simulator" (10:09Z; #259).
 - A test that every manoeuvre's transitions are smooth (10:05Z; six limits approved 10:18Z; `smooth-transitions.test.js`).
-- His oblique view over the field as the opening 3D view (10:17Z). Adding it to the Camera menu waits on his card.
+- His oblique view over the field as the opening 3D view (10:17Z; #267), and "Over the field" first in the Camera menu (his card, 10:53Z).
+- Clearer 3D (10:55Z): wider route lines with a dark edge, a coloured ring round each aircraft, bolder words; the PFL circle, its keys and each PFL aircraft's glide ring drawn on the 3D ground, as on the map. The PFL tag (decision and configuration) was already on the 3D aircraft; it is now easier to read.
+- The left panel is "Setup" (11:05Z): five scenario buttons (Moose Jaw day, One aircraft, Full circuit, Joining traffic, and Random, which puts five aircraft at random route points at least 1 NM apart, an estimate), then the wind as a dial (click or drag round for the direction it blows from, in 10° steps) with a strength bar and a line giving 29L's head and cross wind. The wind boxes left the top bar.
+- In progress: a design for the automatic deconfliction above, borrowing the idea of Turn Fight's collision avoidance (11:05Z; design notes in the project files, traffic-deconfliction/). Conflict resolution means breakout and move-over; who has right of way and who moves when come from the Flying Orders and the SMM, cited by page (11:06Z). Aircraft first manoeuvre as the manuals say; if a close collision is still coming, they switch to the skill (hand over to physics flight) and break out (11:07Z).
 
 ## The old Phase 2 queue for Traffic (PPQ-01 to PPQ-08)
 

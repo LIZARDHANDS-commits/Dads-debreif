@@ -1233,10 +1233,14 @@ test('the state is plain data: it survives a JSON round trip and stepping the co
 });
 
 test('the model is core\'s: nothing in the module works out its own drag, thrust or stall line', async () => {
-  const { readFile } = await import('node:fs/promises');
-  const src = await readFile(new URL('../../../src/modules/turn-fight/energy-sim.js', import.meta.url), 'utf8');
-  assert.match(src, /core\/t6-performance\.js/);
-  assert.match(src, /core\/point-mass\.js/);
+  // The engine is energy-sim.js and the files in energy/ (TF-57 split it); every one of them is read.
+  const { readFile, readdir } = await import('node:fs/promises');
+  const dir = new URL('../../../src/modules/turn-fight/energy/', import.meta.url);
+  const names = (await readdir(dir, { recursive: true })).filter((n) => n.endsWith('.js'));
+  const files = [new URL('../energy-sim.js', dir), ...names.map((n) => new URL(n, dir))];
+  const src = (await Promise.all(files.map((f) => readFile(f, 'utf8')))).join('\n');
+  assert.match(src, /^import .* from '(\.\.\/)+core\/t6-performance\.js';$/m);
+  assert.match(src, /^import .* from '(\.\.\/)+core\/point-mass\.js';$/m);
   assert.doesNotMatch(src, /isaDensityRatio|T6A_FIT|dragA|thrustK/);
 });
 

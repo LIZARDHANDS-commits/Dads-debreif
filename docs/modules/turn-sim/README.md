@@ -1,6 +1,6 @@
 # Turn Sim
 
-This folder is the formation turn sim. From V2.6 it shows the first version of live mode: a 2-ship in line abreast that flies along, with a button for each SMM line abreast manoeuvre. Start here, then read only the file you need.
+This folder is the formation turn sim. From V2.6 it shows the first version of live mode: a 2-ship in line abreast that flies along, with a button for each SMM line abreast manoeuvre. From V2.7 a Setup option makes it a 4-ship (Spread 4, `spec.md` section 8). Start here, then read only the file you need.
 
 ## Where it stands
 
@@ -27,11 +27,11 @@ Each has a working answer that the tool uses until it is settled.
 
 ### Waiting on Patrick now (also on the list in `../../PLAN.md`)
 
-- **Fly the first version** from the default start, every button both ways (`testing.md`, "First version" checklist, a draft for Patrick's own words).
+- **Fly the first version** from the default start, every button both ways (`testing.md`, "First version" checklist, a draft for Patrick's own words), and the **4-ship** (V2.7; `testing.md`, "4-ship" checklist). The 4-ship's working answers to confirm (TS-50): the delayed 45's check turn is 10°, the altitude stack is the brief's on either side, and the check leaves the first aircraft to check about 200 ft tight.
 - **Retire the plan-mode code and its tests?** (`plan.md` Step 3).
 - **The low block height** for the IAS-to-TAS conversion (8,000 ft is an estimate, TS-38), and whether the wingman passes above (the working answer) or below in the crossing turns (TS-42).
 - **The hook's G change** at the 90° point is not flown when on speed and spacing (TS-48); confirm.
-- **Training errors (TS-52, built 4 Oct, behind "Errors (training)")**: fly them (`testing.md`, "Sign-off checklist, training errors"); confirm which way "sucked" and "acute" go (working reading: sucked = ahead, acute = behind); confirm "Fix it" as the default response; the fix may use bank 50 to 75° (estimate) and a roll-in delay but not a speed change (TS-38): a speed lever is your call. The settings proposal is in the project files (`turn-sim-review/errors/settings-proposal.md`).
+- **Training errors (TS-52, built 4 Oct, behind "Errors (training)")**: fly them (`testing.md`, "Sign-off checklist, training errors"); confirm which way "sucked" and "acute" go (working reading: acute = ahead, sucked = behind, the usual formation meaning); confirm "Fix it" as the default response; the fix may use bank 50 to 75° (estimate) and a roll-in delay but not a speed change (TS-38): a speed lever is your call. The settings proposal is in the project files (`turn-sim-review/errors/settings-proposal.md`).
 - **The two PC-only reports** (Turn Sim and Turn Fight architecture reports): where in the repo their content lands (`pf/reset/2-inventory/file-register.md:194`).
 
 ### Deferred to the Turn Sim review

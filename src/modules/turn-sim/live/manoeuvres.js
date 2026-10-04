@@ -37,10 +37,10 @@ export const MANOEUVRES = Object.freeze({
 });
 
 /** A heading rounded to the whole degree, so a turn aims at 090, not at 089.8 left over from the last one. */
-const DEG = Math.PI / 180;
-const wholeDegree = (rad) => wrapPi(Math.round(rad / DEG) * DEG);
-const unit = (h) => ({ x: Math.cos(h), y: Math.sin(h) });
-const dot = (a, b) => a.x * b.x + a.y * b.y;
+export const DEG = Math.PI / 180;
+export const wholeDegree = (rad) => wrapPi(Math.round(rad / DEG) * DEG);
+export const unit = (h) => ({ x: Math.cos(h), y: Math.sin(h) });
+export const dot = (a, b) => a.x * b.x + a.y * b.y;
 /** Rounds a time to the fixed step, so two aircraft flying the same turn at different times fly exact copies of it. */
 export const onStep = (sec) => Math.max(0, Math.round(sec / STEP_SEC)) * STEP_SEC;
 
@@ -72,7 +72,19 @@ export function dryRun(aircraft, plan, t0, { maxSec = 600, sampleSec = 0.25 } = 
   return { end: a, durationSec: t - t0, points };
 }
 
-const turnSeg = (toRad, dir, bankDeg, rollOut = true) => ({ kind: 'turn', toRad, dir, bankDeg, rollOut });
+export const turnSeg = (toRad, dir, bankDeg, rollOut = true) => ({ kind: 'turn', toRad, dir, bankDeg, rollOut });
+
+/**
+ * The wait that puts a second aircraft exactly abeam of the first on roll-out, when both fly
+ * the same turn from heading u0 to heading u1 (unit vectors) at true airspeed v and `rel` is
+ * where the second is from the first (feet): (rel · u1) / (v (1 − u0 · u1)). Shared by the
+ * 2-ship delayed turns and the four-ship chain (four-ship.js). `extraAlongFt` is for a
+ * second aircraft whose programme is not an exact copy of the first's (the four-ship's
+ * check turn): how much further it is along the new heading, once rolled out, than a copy would be.
+ */
+export function exactWaitSec(rel, u0, u1, v, extraAlongFt = 0) {
+  return (dot(rel, u1) + extraAlongFt) / (v * (1 - dot(u0, u1)));
+}
 
 /**
  * Delayed 90 or 45 (SMM 16.19 paras 52-57). The aircraft on the outside of the turn
@@ -96,10 +108,7 @@ function delayed(pair, m, dir, t0) {
   const turn = [turnSeg(h1, dir, TURN_BANK_DEG)];
   // The heading the turn really rolls out on (the fixed step leaves a fraction of a degree), from a dry run.
   const u1 = unit(dryRun(lead, { segments: turn }, t0).end.headingRad);
-  const waitFor = (first, second) => {
-    const rel = { x: second.xFt - first.xFt, y: second.yFt - first.yFt };
-    return dot(rel, u1) / (v * (1 - dot(u0, u1)));
-  };
+  const waitFor = (first, second) => exactWaitSec({ x: second.xFt - first.xFt, y: second.yFt - first.yFt }, u0, u1, v);
   // Outside of the turn: the aircraft whose partner is on the turning side.
   const wingLeft = relativeTo(lead, wing).left;
   const leadOutside = Math.sign(wingLeft) === dir;

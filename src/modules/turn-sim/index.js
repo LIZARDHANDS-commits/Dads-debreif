@@ -18,6 +18,8 @@ import { STEP_SEC } from './live/flight.js';
 import { MANOEUVRES, relativeTo, turnRadiusAt } from './live/manoeuvres.js';
 import { createFormation, LIVE_DEFAULTS, checkSpacing, compassDeg, fixedLine, intoOrAway, labelFor } from './live/formation.js';
 import { ERROR_DEFAULTS, ERROR_ALLOWED, errorCardLines } from './live/errors.js';
+import { FOUR_SHIP_KEYS, fourShipLine } from './live/four-ship.js';
+import { cardForFour } from './live/four-ship-card.js';
 import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, LAYOUT_VERSION, SHIP_COLORS } from './layout.js';
 import { createTurnSimView } from './view.js';
 import { createView3d } from './view3d.js';
@@ -32,7 +34,12 @@ const READOUT_MS = 100;
 const FOLLOW_MARGIN_FT = 1500;
 
 /** The buttons, in screen order (spec section 3). */
-const BUTTONS = ['delayed90', 'delayed45', 'check', 'inPlace90', 'hook', 'shackle', 'crossTurn'].map((key) => ({ key, label: MANOEUVRES[key].label, sided: MANOEUVRES[key].sided }));
+const BUTTONS = ['delayed90', 'delayed45', 'check', 'inPlace90', 'hook', 'shackle', 'crossTurn'].map((key) => ({
+  key,
+  label: MANOEUVRES[key].label,
+  sided: MANOEUVRES[key].sided,
+  ships: FOUR_SHIP_KEYS.includes(key) ? [2, 4] : [2], // the shackle and cross turn are not approved in Spread 4 (SMM 16.43 para 118)
+}));
 
 /** The setup isn't remembered between visits (saved setups are a later step), so it lives in memory. */
 function memoryStore() {
@@ -45,7 +52,7 @@ function layoutStore(storage) {
   return { get: (_name, fallback) => storage.get('layout', fallback), set: (_name, value) => storage.set('layout', value) };
 }
 
-const SETUP_DEFAULTS = Object.freeze({ spacingFt: LIVE_DEFAULTS.spacingFt, wingSide: LIVE_DEFAULTS.wingSide, ...ERROR_DEFAULTS });
+const SETUP_DEFAULTS = Object.freeze({ ships: LIVE_DEFAULTS.ships, spacingFt: LIVE_DEFAULTS.spacingFt, wingSide: LIVE_DEFAULTS.wingSide, ...ERROR_DEFAULTS });
 
 const ftText = (n) => `${Math.round(n).toLocaleString('en-CA')} ft`;
 const bankText = (deg) => (Math.abs(deg) < 0.5 ? 'wings level' : `bank ${Math.round(Math.abs(deg))}° ${deg > 0 ? 'L' : 'R'}`);
@@ -97,7 +104,7 @@ function mount(root, app) {
   stylesheet.href = STYLESHEET;
   document.head.append(stylesheet);
 
-  const setup = createSettings(memoryStore(), SETUP_DEFAULTS, { allowed: { wingSide: ['right', 'left'], ...ERROR_ALLOWED } });
+  const setup = createSettings(memoryStore(), SETUP_DEFAULTS, { allowed: { wingSide: ['right', 'left'], ships: [2, 4], ...ERROR_ALLOWED } });
   const layout = createSettings(layoutStore(app.storage), LAYOUT_DEFAULTS, { allowed: LAYOUT_ALLOWED, version: LAYOUT_VERSION });
   const setupControls = createControls(setup);
   const layoutControls = createControls(layout);
@@ -213,7 +220,8 @@ function mount(root, app) {
     pendingReadout?.();
     pendingReadout = null;
     lastReadout = performance.now();
-    ui.renderCard(cardFor(state, setup.get().wingSide));
+    const wingSide = setup.get().wingSide;
+    ui.renderCard(state.aircraft.length > 2 ? cardForFour(state, wingSide) : cardFor(state, wingSide));
   }
   function queueCard() {
     const wait = READOUT_MS - (performance.now() - lastReadout);
@@ -281,8 +289,9 @@ function mount(root, app) {
     speed = x; // changes steps per frame only; it doesn't stop the run
   });
 
-  // Setup changes start again from t = 0 (spec section 4). A spacing outside the SMM band is flown and flagged.
+  // Setup changes start again from t = 0 (spec section 4), 2-ship or 4-ship too. A spacing outside the SMM band is flown and flagged.
   const stopSetup = setup.subscribe((values) => {
+    ui.setShips(values.ships, fourShipLine());
     ui.setSide(values.wingSide);
     ui.setSpacingFlag(checkSpacing(values.spacingFt).flag);
     resetRun();
@@ -313,6 +322,7 @@ function mount(root, app) {
     Home: resetRun,
   });
 
+  ui.setShips(setup.get().ships, fourShipLine());
   ui.setSide(setup.get().wingSide);
   ui.setSpacingFlag(checkSpacing(setup.get().spacingFt).flag);
   ui.applyLayout(layout.get());

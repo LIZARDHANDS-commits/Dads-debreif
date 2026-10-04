@@ -72,7 +72,7 @@ test('povCamera picks the view, and Tower is the only one that works without an 
   assert.ok(allFinite(povCamera('tower', null, size, FLOOR)));
   assert.ok(angleOff(povCamera('cockpit', downwind, size, FLOOR).cam.yawDeg, 118) < 10);
   assert.deepEqual([...NEEDS_AIRCRAFT].sort(), ['cockpit', 'padlock']);
-  assert.deepEqual(CAMERA_VIEWS.map((v) => v.id), ['fit', 'high', 'top', 'tower', 'low', 'cockpit', 'padlock']);
+  assert.deepEqual(CAMERA_VIEWS.map((v) => v.id), ['field', 'fit', 'high', 'top', 'tower', 'low', 'cockpit', 'padlock']);
 });
 
 // ---- the bar ----
@@ -94,7 +94,7 @@ const labelled = (bar, text) => {
 test('the Camera menu lists every view and calls back with the one chosen', () => {
   const { bar, calls } = makeBar();
   const camera = labelled(bar, 'Camera');
-  assert.deepEqual(tagged(camera, 'OPTION').map(words), ['Fit', 'High look-down', 'Top-down', 'Tower', 'Chase', 'Cockpit', 'Padlock (runway)']);
+  assert.deepEqual(tagged(camera, 'OPTION').map(words), ['Over the field', 'Fit', 'High look-down', 'Top-down', 'Tower', 'Chase', 'Cockpit', 'Padlock (runway)']);
   camera.value = 'tower';
   camera.dispatch('change');
   assert.deepEqual(calls.view, ['tower']);
