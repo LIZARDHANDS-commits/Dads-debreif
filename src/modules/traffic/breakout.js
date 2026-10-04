@@ -270,6 +270,9 @@ export function stepBreakout(a, route = null, env = null, stepDt = 0.05, routeOp
     return;
   }
 
+  // A straight-in rejoins as a straight-in (Patrick's card, Q7): sim.js flies it back from here (evade.js).
+  if (a.rejoinRouteId) { a.breakoutRejoinDue = true; return; }
+
   // ── STAGE 2: Descending Rejoin Arc toward ENT1 ────────────────────────────
   a._breakoutStage = 2;
   a.targetAltFt = 3500;

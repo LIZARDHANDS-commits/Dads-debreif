@@ -39,6 +39,26 @@ const JOIN_ACCEL_FTPS2 = 0.15 * 32.174;
 /** Longest a join takes, seconds (an estimate). */
 const JOIN_MAX_SEC = 15;
 
+/**
+ * A bank away off the path and back (the deconfliction's last-moment move for a PFL, which keeps its
+ * glide and its circle; Patrick's card Q3): out to `peakFt` over `outSec`, back over `backSec`, each a
+ * smooth step (no jump in place, track or turn rate at either end). Sets `a.sideStep`; the follower adds
+ * it to the place on the path. `dirDeg` is the compass direction to step toward.
+ */
+export function startSideStep(a, dirDeg, peakFt, outSec, backSec) {
+  const r = dirDeg * Math.PI / 180;
+  a.sideStep = { ux: Math.sin(r), uy: Math.cos(r), peakFt, outSec, backSec, t: 0 };
+}
+
+/** Offset (ft) and its rate (ft/s) along the side step at its time t: a quintic smooth step out, then back. */
+function sideStepAt(st) {
+  const out = st.t < st.outSec;
+  const T = out ? st.outSec : st.backSec;
+  const u = Math.min(1, (out ? st.t : st.t - st.outSec) / T);
+  const f = 10 * u ** 3 - 15 * u ** 4 + 6 * u ** 5, df = (30 * u ** 2 - 60 * u ** 3 + 30 * u ** 4) / T;
+  return out ? { d: st.peakFt * f, rate: st.peakFt * df } : { d: st.peakFt * (1 - f), rate: -st.peakFt * df };
+}
+
 /** The path's own sideways (turning) acceleration at `distFt`, ft/s², right positive, at ground speed `gsFtps`. */
 function pathTurnAccel(route, distFt, gsFtps, options) {
   const d = TRACK_WINDOW_FT;
@@ -192,6 +212,15 @@ export function followRoute(a, route, env, dt, options = DEFAULT_ROUTE_OPTIONS) 
     a.x += j.x;
     a.y += j.y;
     if (u >= 1) delete a.joinOffset;
+  }
+  if (a.sideStep) {
+    const st = a.sideStep;
+    st.t += dt;
+    const { d, rate } = sideStepAt(st);
+    a.x += st.ux * d;
+    a.y += st.uy * d;
+    joinRate = { x: (joinRate?.x ?? 0) + st.ux * rate, y: (joinRate?.y ?? 0) + st.uy * rate };
+    if (st.t >= st.outSec + st.backSec) delete a.sideStep;
   }
   a.alt = p.alt ?? a.fallbackAlt ?? a.alt ?? 3500;
   a.iasKt = p.kt ?? a.fallbackKt ?? a.iasKt ?? 140;
