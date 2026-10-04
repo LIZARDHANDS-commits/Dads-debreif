@@ -118,7 +118,7 @@ test('Slice A: aircraft state carries continuous 3D Cartesian vector fields upon
   assert.equal(typeof a0.headingDeg, 'number');
   assert.equal(typeof a0.bankDeg, 'number');
   assert.equal(a0.bankDeg, 0);
-  assert.equal(a0.phase, 'initial');
+  assert.equal(a0.phase, 'climb', 'on the climb-out from the threshold');
   assert.equal(typeof a0.trackDeg, 'number');
   assert.equal(typeof a0.crabDeg, 'number');
   assert.equal(typeof a0.groundSpeedKt, 'number');
@@ -130,7 +130,7 @@ test('Slice A: aircraft state carries continuous 3D Cartesian vector fields upon
   assert.equal(typeof a5.x, 'number');
   assert.equal(typeof a5.y, 'number');
   assert.equal(typeof a5.bankDeg, 'number');
-  assert.equal(a5.phase, 'initial');
+  assert.equal(a5.phase, 'climb', 'still on the climb-out');
 });
 
 test('Slice A: Cartesian velocity integration updates ground speed and crab under crosswind', () => {

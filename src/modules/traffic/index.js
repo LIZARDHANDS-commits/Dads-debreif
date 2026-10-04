@@ -362,8 +362,9 @@ function mount(root, app) {
   const stopSettings = settings.subscribe((values) => {
     const beforeOpts = JSON.stringify(setup.routeOptions);
     const beforeWind = `${setup.windFromDeg}_${setup.windKt}`;
+    const beforeDeconflict = setup.deconflict;
     applyToSetup(setup, values);
-    if (JSON.stringify(setup.routeOptions) !== beforeOpts || `${setup.windFromDeg}_${setup.windKt}` !== beforeWind) {
+    if (JSON.stringify(setup.routeOptions) !== beforeOpts || `${setup.windFromDeg}_${setup.windKt}` !== beforeWind || setup.deconflict !== beforeDeconflict) {
       sim.forgetHistory(); // the turns and flight are flown differently now
     }
     clock.setSpeed(values.speed);

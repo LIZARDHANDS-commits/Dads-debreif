@@ -32,6 +32,7 @@ export function applyToSetup(setup, values) {
     cautionLatFt: distance('cautionLatFt'),
     cautionVertFt: distance('cautionVertFt'),
   };
+  setup.deconflict = values.autoDeconflict === true;
   setup.routeOptions = {
     flyRoundedTurns: values.flyRoundedTurns === true,
     radiusFromG: values.radiusFromG === true,

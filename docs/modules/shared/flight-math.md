@@ -59,6 +59,7 @@ Sources: "aero" means standard aerodynamics, worked out in the test. A manual pa
 | `compassDegToHeadingRad`, `headingRadToCompassDeg`, `unitVectorFromCompassDeg` | angles.js | Compass degrees to code headings and back | geometry |
 | `relativeBearingDeg`, `aspectAngleDeg`, `headingCrossAngleDeg`, `clockToRelativeDeg` | angles.js | Bearing off the nose, aspect, heading crossing angle, clock code | geometry |
 | `closureKt` | flight-math.js | Closure between two aircraft | geometry |
+| `closestApproach`, `firstEntry`, `firstEntrySampled` | `src/modules/traffic/closest-approach.js` for now | Closest approach of two straight tracks; the first time two aircraft are inside a cylinder (lateral and vertical) of each other, straight or along predicted tracks | geometry. A short-lived Traffic copy (coordinator's yes, 4 Oct 11:54Z) of Turn Fight's `computeTcpa` maths; moves to `src/core/closest-approach.js` after Turn Fight PR 3 |
 | `latLonToLocalFt`, `localFtToLatLon`, `distance` | geo.js | Map feet and lat/lon | flat-earth projection |
 | `FT_PER_NM`, `KT_TO_FTPS`, `G_FTPS2` and the rest | units.js | Unit constants, once | standard values |
 

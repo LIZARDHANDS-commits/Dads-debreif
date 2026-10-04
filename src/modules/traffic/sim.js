@@ -32,9 +32,10 @@ import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOn
 import { tickAircraft, initMode } from './tick-aircraft.js';
 import { startJoin } from './path-follower.js';
 import { makePflFromArea } from './nav-plans.js';
-import { startPflFlight } from './pfl.js';
+import { startPflFlight, PFL_ROUTE_OPTIONS } from './pfl.js';
 import { buildGoAround } from './circuit.js';
 import { buildHighKeyClimb, HIGH_KEY_PT } from './high-key.js';
+import { DECONFLICT, freeze, decide, deconflictLabel } from './deconflict.js';
 
 /** The step, in seconds of sim time. */
 export const STEP_SEC = 0.05;
@@ -354,6 +355,52 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     delete a._blendTimer;
   }
 
+  /** The breakout from where the aircraft is (TR-R34; breakout.js flies it): the button and the deconfliction. */
+  function startBreakout(a) {
+    a.command = 'breakout';
+    a.landed = false;
+    a.active = true;
+    a.mode = 'PHYSICS';
+    delete a._blendStart;
+    delete a._blendTarget;
+    delete a._blendTimer;
+    a.phase = 'breakout';
+    a.intent = 'overhead';
+  }
+
+  /** The path an aircraft is following now, for the deconfliction's prediction, or null when it flies free. */
+  function pathOf(a) {
+    const flown = a.goAroundFlight ?? a.highKeyFlight ?? a.pflFlight;
+    if (flown) return { route: flown.route, options: PFL_ROUTE_OPTIONS };
+    if (a.mode !== 'RAIL') return null;
+    const route = routeOf(a);
+    return route ? { route, options: routeOptions() } : null;
+  }
+
+  /**
+   * Automatic deconfliction (deconflict.js; Patrick, 4 Oct 09:40Z to 11:26Z): every 0.5 s, decided from all the
+   * aircraft as they were before anyone moves this step, then each move started the way its button starts it.
+   * A finished move clears its tag. Off unless the setup turns it on (setup.deconflict).
+   */
+  function deconflictTick() {
+    for (const a of aircraft) {
+      const d = a.deconflict;
+      if (!d) continue;
+      const done = !a.active || a.landed || (d.move === 'breakout' ? a.command !== 'breakout' : !a.goAroundFlight);
+      if (done) delete a.deconflict;
+    }
+    const limits = setup.conflictLimits ?? DEFAULT_CONFLICT_LIMITS;
+    const frozen = freeze(aircraft.filter((a) => t >= a.startsAt), pathOf, routeOf);
+    for (const d of decide(frozen, limits)) {
+      const a = aircraft.find((ac) => ac.id === d.id);
+      if (!a) continue;
+      if (a.goAroundFlight && d.move === 'breakout') { delete a.goAroundFlight; delete a.joinOffset; }
+      if (d.move === 'breakout') startBreakout(a);
+      else startGoAround(a); // a go-around, or a fly-through: the same flown path from where it is at pattern height
+      a.deconflict = { move: d.move, layer: d.layer, rule: d.rule, with: d.with, label: deconflictLabel(d.move, d.layer) };
+    }
+  }
+
   /** The end of a flown go-around: settled on the outer downwind, it joins Pattern 1 there. */
   function goAroundEnded(a) {
     delete a.goAroundDone;
@@ -460,6 +507,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     steps++;
     const opt = routeOptions();
     const wind = { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 };
+    if (setup.deconflict && steps % DECONFLICT.decideEverySteps === 0) deconflictTick();
     for (const a of aircraft) {
       if (!a.active || t < a.startsAt) continue;
       const route = routeOf(a);
@@ -883,15 +931,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       // A new command stops the flown climb to High Key; the command then flies from where the aircraft is.
       delete a.highKeyFlight;
       if (action === 'breakout') {
-        a.command = action;
-        a.landed = false;
-        a.active = true;
-        a.mode = 'PHYSICS';
-        delete a._blendStart;
-        delete a._blendTarget;
-        delete a._blendTimer;
-        a.phase = 'breakout';
-        a.intent = 'overhead';
+        startBreakout(a);
       } else if (action === 'closed_pattern') {
         a.closedPatternBankDeg = options?.bankDeg ?? a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
         a.closedPatternPitchDeg = options?.pitchDeg ?? a.closedPatternPitchDeg ?? setup.settings?.closedPatternPitchDeg ?? 10;
@@ -1024,6 +1064,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           pflFlight: Boolean(a.pflFlight),
           highKeyFlight: Boolean(a.highKeyFlight),
           ejectAt: a.ejectAt ?? null,
+          deconflict: a.deconflict?.label ?? null,
         };
       });
       return { t, aircraft: list, conflicts: findConflicts(list.filter((a) => a.status === 'flying')) };

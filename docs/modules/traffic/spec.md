@@ -302,6 +302,25 @@ See 1a, items 15-18 and 20 (Patrick, 09:56Z, 4 Oct 2026).
 ### 4.11 CLOSED_PATTERN — Closed Pattern Command
 See 1a, items 15-19 (Patrick, 09:56Z, 4 Oct 2026). Touch-and-go is item 21 and High Key from anywhere is item 23.
 
+### 4.12 Automatic deconfliction (Patrick, 4 Oct 09:40Z to 11:54Z)
+
+Design and Patrick's nine answers: project files, `traffic-deconfliction/design.md`. Code: `deconflict.js` (decides), `closest-approach.js` (the maths, moving to `src/core` after Turn Fight PR 3), `sim.js` (starts the moves). Setting: Traffic settings > Conflict limits > **Automatic deconfliction**, off at the start for now (a provisional overnight call, TR-49).
+
+1. Every 0.5 s, from all the aircraft as they were before anyone moved, each aircraft's position is predicted every second for 15 s: along the path it is following, at today's ground speed, or straight on when it flies free.
+2. Nothing happens unless a pair would get inside the caution distance (500 ft and 500 ft, TR-Q11) within 15 s (Q2).
+3. **Layer 1, by the book.** The right-of-way table picks the one that gives way, once per pair, the same whichever aircraft is asked:
+   - a PFL keeps right of way; an overhead aircraft at initial or in the break flies through, anyone on final goes around, anyone else breaks out (Patrick 09:43Z; WFO S2 art 401 para 9; SMM 4.28 para 68);
+   - downwind over a fly-through, which breaks out (WFO S2 art 401 para 9 Note 1; SMM 4.28 para 67);
+   - established in the pattern over joining, which breaks out (SMM 4.5 para 8, 4.15 para 35);
+   - the perch is the point of no return (Q1): before it the aircraft about to perch breaks out; past it the straight-in goes around (SMM 4.19 para 43, 4.28 para 68);
+   - no rule (Q9): the higher aircraft moves (higher by 100 ft or more, an estimate); at the same height the one on the right has right of way, so the one on the left moves; a dead heat goes by callsign order (an estimate).
+4. **Layer 2, by skill.** If the red (200 ft and 200 ft) is still coming within 6 s, the one giving way acts if it still can; within 3 s the one with right of way acts too (SMM 4.28 para 69). The skill move is a breakout, or a go-around on final (Q3). A PFL never moves.
+5. The moves are today's: the breakout (TR-R34), the go-around (4.10), and the fly-through, which is the go-around's flown path from where the aircraft is at pattern height (straight on to the departure end, crosswind, the outer downwind; WFO S2 art 401 para 9). A move already flying is never restarted.
+6. A tag beside the aircraft says what it is doing, like the PFL tag: `[GIVING WAY: break out]`, `[GIVING WAY: fly-through]`, `[GIVING WAY: go-around]`, `[EVASIVE: break out]`.
+7. **When data fails:** an aircraft with a non-finite position, height, track or speed is left out of the check for that tick, never an error, and every other pair is still checked. A red that still appears is the honest sign it could not clear it. A rewind replays the same decisions (no dice, the tag is part of the aircraft's saved state).
+8. **Speeds:** predictions use ground speed; the moves fly their own indicated speeds.
+9. **Not built yet** (`future.md`): the flinch before the breakout, the move-over slide 500 ft toward the inner runway before the go-around (Q5), the straight-ahead climb of about 500 ft before a fly-through's breakout turns (Q4), rejoining on the same kind of entry (Q7; the breakout still rejoins on the overhead entry), and a PFL banking away.
+
 ---
 
 ## 5. Spawn UI
@@ -331,7 +350,7 @@ When PFL pattern is selected and "From Area" start point chosen, three extra inp
 
 1. **Aircraft NEVER disappear randomly.** They keep flying their pattern continuously.
 2. **If an aircraft finishes a route with no next instruction**: revert to OHB (PAT_INNER) pattern.
-3. **Transitions**: No jumps at any hand-over (section 4.1, item 13a). Until refactor PR 4, the manoeuvre controllers still hand back to the rail through the old 1.0 s blend. No instantaneous heading or speed jumps.
+3. **Transitions**: No jumps at any hand-over (section 4.1, item 13a). Until refactor PR 4's clean-up merges, the manoeuvre controllers still hand back to the rail through the old 1.0 s blend. No instantaneous heading or speed jumps.
 4. **Landing is explicit**: aircraft only land when probability rolls at threshold (20% full stop, 80% touch-and-go).
 5. **Wind is always applied**: zero wind is NOT a special case. The same physics runs at 0 kt and 30 kt.
 6. **Accelerated stall protection**: bank angle capped at accelerated stall limit. At 120 KIAS: max bank 59°. At 140 KIAS: max bank 68°.
