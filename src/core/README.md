@@ -13,7 +13,7 @@ The small functions behind every number the tool shows: units, angles and headin
 | `standards.js` | Formation standards (spread, offset, lead): V6's values (pinned) and the SMM's as the default preset (D114-D116) |
 | `wind.js` | Crab angle, heading and ground speed in a wind (compass degrees in and out); the wind as a vector |
 | `t6-performance.js` | The one T-6A performance model: V-n limits and stall line, IAS and TAS, thrust and drag, energy height, glide, the flight manual's zoom, and the stick-shaker pull and split S (new, checked against the T-6A's charts, not V6) |
-| `closest-approach.js` | Closest approach of two aircraft, the danger test that holds until the range opens, and which side to dodge (ALL-27); every limit passed in |
+| `closest-approach.js` | Closest approach of two aircraft, the danger test that holds until the range opens, which side to dodge, and when two aircraft first get inside a cylinder of each other (ALL-27); every limit passed in |
 | `point-mass.js` | One step of an aircraft flown by G and bank as a point, through loops and straight up or down |
 | `t6a-turn-charts.js` | The sustained turn chart's points, read by eye, and the thrust and drag fitted to them |
 
