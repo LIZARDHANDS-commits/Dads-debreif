@@ -150,7 +150,8 @@ export const TYPE_FALLBACK_KT = Object.freeze(
 );
 
 /** Default types offered in the spawner with primary trainer CT-156 first. */
-export const SPAWN_TYPES = Object.freeze(['CT-156', 'CT-102B', 'CT-157', 'CT-155', 'CT-114', 'CF-188']);
+// The first version offers the CT-156 Harvard II only (TR-R16; Patrick, 4 Oct 01:31Z); the other types stay in AIRCRAFT_TYPES for later.
+export const SPAWN_TYPES = Object.freeze(['CT-156']);
 
 /** All supported types including Hawk and Hornet. */
 export const ALL_AIRCRAFT_TYPES = Object.freeze(Object.keys(AIRCRAFT_TYPES));

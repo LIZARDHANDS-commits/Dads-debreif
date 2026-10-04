@@ -79,8 +79,15 @@ const feet = (n) => n.toLocaleString('en-CA');
 /** The detail line of an aircraft's row: "2,500 ft, 120 kt, Flying", or "Waiting, starts at 2:17". */
 export function detailText(row) {
   if (row.status === 'waiting') return `${row.statusText}, ${row.startsText}`;
-  if (row.status === 'flying') return `${feet(row.altFt)} ft, ${row.kt} kt, ${row.statusText}`;
+  if (row.status === 'flying') return `${feet(row.altFt)} ft, ${row.kt} kt, ${groundText(row)}, ${row.statusText}`;
   return `${feet(row.altFt)} ft, ${row.statusText}`;
+}
+
+/** Ground speed and crab for a flying row (TR-R6), as the old spec's layout shows them: "GS 162 kt, crab 7° R". */
+function groundText(row) {
+  const crab = row.crabDeg ?? 0;
+  const gs = `GS ${row.gsKt ?? row.kt} kt`;
+  return crab === 0 ? `${gs}, no crab` : `${gs}, crab ${Math.abs(crab)}° ${crab > 0 ? 'R' : 'L'}`;
 }
 
 /**
@@ -359,6 +366,11 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
           const badgeClass = pflBadge === '[CRASH SHORT]' ? 'pfl-badge badge-crash' : 'pfl-badge';
           nameChildren.push(h('span', { class: badgeClass }, pflBadge));
         }
+        // Remove this one aircraft (TR-R19); going back to before now brings it back.
+        nameChildren.push(makeActionButton('Remove', `Remove ${row.id}`, () => {
+          sim.remove(row.id);
+          onChange?.();
+        }, false, 'aircraft-remove'));
         const children = [
           h('span', { class: 'aircraft-name' }, ...nameChildren),
           ' ',

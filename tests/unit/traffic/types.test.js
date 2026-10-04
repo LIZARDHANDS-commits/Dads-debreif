@@ -131,9 +131,9 @@ test('CF-188 Hornet is registered', () => {
   assert.equal(cf188.speeds.threshold, 135);
 });
 
-test('SPAWN_TYPES prioritizes CT-156 first and contains the authentic fleet', () => {
-  assert.deepEqual([...SPAWN_TYPES], ['CT-156', 'CT-102B', 'CT-157', 'CT-155', 'CT-114', 'CF-188']);
-  assert.equal(SPAWN_TYPES[0], 'CT-156', 'CT-156 must be first as default');
+test('the spawner offers the CT-156 Harvard II only in the first version, and the other types stay defined (TR-R16)', () => {
+  assert.deepEqual([...SPAWN_TYPES], ['CT-156']);
+  assert.ok(['CT-102B', 'CT-157', 'CT-155', 'CT-114', 'CF-188'].every((t) => isKnownType(t)), 'the type system stays for later');
   assert.ok(Object.isFrozen(SPAWN_TYPES));
 });
 

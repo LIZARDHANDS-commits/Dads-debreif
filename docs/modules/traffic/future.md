@@ -14,7 +14,7 @@ Ideas for the Traffic Sim that are not being built. An idea moves into `plan.md`
 
 ## Asked for by Patrick, waiting for his yes to move into the plan
 
-- Automatic deconfliction (Patrick, 4 Oct 09:40Z). Moved into `plan.md` and built (11:54Z and 17:38Z; spec 4.12). Still open: the real 29L/29R gap for the move-over (a question for Dad); a PFL's bank away that also costs it glide. The original ask, kept for reference: only when a conflict is close to happening, never far out:
+- Automatic deconfliction (Patrick, 4 Oct 09:40Z). Moved into `plan.md` and built (11:54Z and 17:38Z; spec 4.12). Still open: the real 29L/29R gap for the move-over (a question for Dad). A PFL's bank away now costs it glide (TR-55, #318), and the move-over levels at 2,100 ft (TR-56, #319). The original ask, kept for reference: only when a conflict is close to happening, never far out:
   - an aircraft that gets too close to another flinches (as in the turn-fight sim), then goes into a breakout;
   - right-of-way rules: an aircraft that would perch and fly into a straight-in breaks out instead;
   - a straight-in that has to go around, or one that someone perches on by accident, goes between the runways;
