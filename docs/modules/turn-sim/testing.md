@@ -146,6 +146,39 @@ Not run locally before the pull request beyond this file once (CI is the one che
 8. Nothing jumps or snaps in 2D or 3D at 0.25x.
 9. Say if the estimates in TS-55 look right.
 
+## Turns in every formation, 4-ship station changes and the screen pieces (TS-56, `spec.md` section 10.2)
+
+Patrick's 11:50Z rule again: test only that it flies right. No wording, seconds, counts or one-off values are pinned.
+
+| What | Check | Source of the expected value |
+|---|---|---|
+| 2-ship close formation turns | Echelon (both sides), route and line astern, Hook and Delayed 90 both ways. #2's bank stays within ±5° of Lead's. Once Lead has held his bank 5 s (the 3 s plane lag, an estimate, plus 2 s), #2 out to the side is stepped up on the outside and down on the inside. No wings overlap, height changes stay gentle, and #2 ends in the same formation on the same side. | SMM 12.19 paras 41-43, Fig 12.11; Patrick 18:11Z |
+| 4-ship turns | Finger, echelon, box, line astern, route and fighting wing, Delayed 90 and Hook. The same rolling and stepping checks link by link in the close formations. The four end in the formation they started in. Nothing snaps and nobody comes within a wingspan. | SMM 16.36 paras 99-102, 16.37 para 103; AFM7 brief p.14 |
+| 4-ship station changes wait for the one ahead | Finger to echelon on #3's side: when #2 crosses behind Lead, #3 is already wider than his echelon place. Finger to line astern: #3 moves across only once #2 is in line astern. Each ends in the formation pressed. | SMM 16.32 paras 86, 87, 89; AFM7 brief p.19 |
+| 4-ship turning rejoin and straight-ahead rejoin | As before (TS-54, TS-55): joins in order #2, #3, #4, and each ends in place. | SMM 16.34 paras 95-96 |
+| Info tag, fighting wing | 750 ft at 45° is IN POSITION; 400 ft TIGHT; 1,200 ft STRETCHED; 15° and 75° OUT OF CONE. Sweep reads 0° abeam and 30°, 45°, 60° at the cone (±5°). | SMM 12.29 para 69, Fig 12.19 |
+| Always true | Roll rate never steps by more than the T-6 can. Speed changes stay under 3 kt/s and never step (2-ship). | TS-37, TS-47 |
+
+Changed to keep their intent when the turns came to the close formations: `transitions.test.js` presses the Shackle in route (still refused) instead of Delayed 90 (now flown), and `four-ship-changes.test.js` presses G-warm in finger (still refused) instead of the Hook (now flown).
+
+Not tested:
+- the screen: the Fit button, the camera pausing on a pan or zoom, Lead's 3/9 and 7/5 lines, the tags on screen, the 3D picture. These were checked by eye in a browser run against `npx vite` (pictures in the project files at `turn-sim-review/screens/v216-*.png`) and are for sign-off;
+- the layout saved before V2.16 keeping its choices (layout version 3): browser sign-off only;
+- the 4-ship's speed smoothness in turns (the 4-ship test checks jumps in position and height, not kt/s; scratch runs stayed under about 2.3 kt/s).
+
+Not run locally before the pull request beyond the touched files once (CI is the one check).
+
+**Sign-off checklist, TS-56** (draft, for Patrick to put in his own words). Open the Formation Simulator fresh, with the version shown on screen (V2.16), 2D:
+1. 2-ship: change to Echelon. The picture zooms in to the pair by itself. Press Hook Left: #2 rolls with Lead, steps up on the outside, and ends in echelon. Try route and line astern too.
+2. Drag the picture: it stays where you put it and Fit appears. Press Fit: back to the pair. Switch Layers' "Fit all aircraft" off and on.
+3. Layers: switch on Lead 3/9 line and Lead 7 and 5 o'clock lines. In fighting wing, #2 sits between the 3/9 line and the 5 (or 7) o'clock line.
+4. Info tags: each wingman's tag says what it is doing and IN POSITION, TIGHT, STRETCHED or OUT OF CONE, with the sweep from the wing line in fighting wing.
+5. 3D in echelon: wings matched to Lead, #2 stepped down along the bearing line; in a turn both banked in Lead's plane.
+6. 4-ship: from fighting wing press Echelon: each lines up about 1,000 ft back and waits until the one ahead is in. Press Finger (turning rejoin): #3 crosses only once #2 is in, #4 once #3 is.
+7. 4-ship from finger: Echelon on #3's side (the AFM7 p.19 item 1 picture), Echelon on #2's side (item 2), Box (p.20), Line astern, and back to Finger each time. Then the turn buttons in each formation.
+8. Nothing jumps or snaps at 0.25x.
+9. Say if the estimates in TS-56 look right, and which 4-ship fighting wing sweep you want for #3 and #4.
+
 ## Turn Sim rules on top of the whole-tool rules
 
 - **FM1. The end picture is the test (TS-R3 to TS-R5).** For each turn, both ways, in each formation, check who is where and which way they face once every aircraft has rolled out, against the SMM figure's page reference (Figs 16.15 to 16.21 and 16.30 to 16.36). The checks are positions relative to Lead and spacing against the set spacing. Each has a stated margin and its reason. How long the turn took is never checked (T2).
@@ -365,5 +398,6 @@ From the ratified test register (`pf/reset/5-testing/test-register.md`, Part B).
 | `tests/unit/turn-sim/errors.test.js` | New, keep (TS-52, training errors) | TS-R8, TS-47, F12: errors off changes nothing; each error carried at normal reference; Fix it never worse and closer where there is room; flight limits and smooth hand-overs hold; expected values from the SMM pictures and geometry | | Each change |
 | `tests/unit/turn-sim/live.test.js` | New, keep (first version) | FM1, FM6, FM8, TS-R4, TS-R5, TS-R11, TS-47: end pictures, 300 ft at the cross, smooth hand-overs; expected values worked out in the test from the SMM pictures and the shared margins | | Each change |
 | `tests/unit/turn-sim/formation-moves.test.js` | New, keep (TS-55, V2.15) | FM1, TS-47, Patrick 11:50Z: the hot turning rejoin, fighting wing turns, the quick sweep to fighting wing, the straight-ahead rejoin to echelon (2-ship and 4-ship), coming off the stack and the SMM station changes end in the formation pressed with no snaps, below Lead and under the caps. Expected values come from the SMM, EFIG and Patrick's rulings; one generous limit (30 s), with its reason | | Each change |
+| `tests/unit/turn-sim/tags.test.js` | New, keep (TS-56, V2.16) | FM1, Patrick 11:50Z: the info tag's fighting wing states against the cone written out from SMM 12.29 para 69 and Fig 12.19, and sweep measured from the wing line | | Each change |
 | `tests/unit/turn-sim/four-ship.test.js` | New, keep (4-ship, V2.7) | FM1, FM6, TS-47, TS-50: the start picture and stack, end pictures of every 4-ship button, who turns first and the wait, the check turn, bank and G, 300 ft separation with the stack held, smooth hand-overs for all four; expected values from the briefs, SMM and the shared margins; one horizontal-only figure is an estimate and says so | | Each change |
 | `tests/e2e/turn-sim.spec.js` | Follows the Turn Sim review (if kept: keep, with changes) | 46 of 46 pass at `6283f38`. Changes: the typed defaults include "time delay, 16 s" and 220 KTAS (`:155-160`), which TS-R7 and TS-R6 change; "Close pass: 894 ft", "954 ft", 36.7 s and 1.0 s (`:719`, `:859`, `:731-736`) are the engine's own (T3); real-time waits (`:184`, `:431`, `:433`) wait for an event instead (T2); the layout check runs at 1366 and 1920 wide (`:93`), and TS-R20 asks for 1280; stale "skipped" comments (`:15-16`, `:881`) go | Carries over: the whole-tool per-change checks for any build (smoke, layout with every panel open, keys, leaving, 3D loads only when asked). New: the still-air line (TS-R10); live mode (TS-R1) when built | Smoke, layout, buttons, leaving and offline parts each change; the whole file at sign-off |
