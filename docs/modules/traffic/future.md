@@ -39,7 +39,3 @@ The two copies of the queue name some rows differently; both names are given. Pa
 
 - **Overhead break explorable**: break interval, bank and G against downwind spacing, plus a puzzle about where number two is when the lead rolls out; extends the Traffic Sim (Feature Ideas idea 27; value medium, effort small; flight math, so it needs a check first; `pf/reset/2-inventory/agents/sources/feature-ideas.md:29`)
 - Runway and airfield data for any airfield (idea 7, old FF20) is needed for TR-R26 beyond Moose Jaw; it is listed once, in `../shared/future.md`.
-
-## Screen faults taken out of CI
-
-- A text box overlaps the "Traffic settings" button at 1280, 1366 and 1920 px wide, and "+ Spawn PFL" is never visible to click. Traffic left the layout and every-button browser walks on Patrick's word (4 Oct 06:54Z: "Just delete those shitty tests"); `tests/e2e/layout.spec.js`, `tests/e2e/buttons.spec.js`.

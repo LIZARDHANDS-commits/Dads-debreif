@@ -27,7 +27,7 @@ async function tagControls(page) {
 }
 
 // Traffic is left out of this walk on Patrick's word (4 Oct 06:54Z: "Just delete those shitty tests"); its
-// faults are on docs/modules/traffic/future.md.
+// faults are on docs/modules/traffic/plan.md, step 3.
 const CHECKED_ROUTES = ROUTES.filter((route) => route !== '#/traffic');
 
 for (const route of CHECKED_ROUTES) {
