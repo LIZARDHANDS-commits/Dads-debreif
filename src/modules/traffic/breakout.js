@@ -29,7 +29,7 @@ import { windTriangle } from '../../core/wind.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
 import { turnRadiusFromBankFt, bankDegFromTurnRate } from '../../core/flight-math.js';
 import { ktToFtps } from '../../core/units.js';
-import { closestDistFt, DEFAULT_ROUTE_OPTIONS } from './route.js';
+import { posOnRoute, closestDistFt, routeLengthFt, isClosedRoute, DEFAULT_ROUTE_OPTIONS } from './route.js';
 import { startJoin } from './path-follower.js';
 
 // ── Ground Truth Geometry Constants ──────────────────────────────────────────
@@ -200,6 +200,53 @@ const REJOIN_TURN_LEAD = 1.15;
 
 /** The planned turn hands back to fine steering this close to the line's track, degrees (an estimate). */
 const REJOIN_TURN_END_DEG = 0.5;
+
+/**
+ * Initiates 1.0s cubic smoothstep transition from physics mode onto route rail.
+ *
+ * @param {Object} a - Aircraft state
+ * @param {Object} [route] - Target route
+ * @param {Object} [routeOptions=DEFAULT_ROUTE_OPTIONS]
+ */
+export function enterBlending(a, route, routeOptions = DEFAULT_ROUTE_OPTIONS) {
+  a.mode = 'BLENDING';
+  a._blendTimer = 0;
+  a._blendStart = {
+    x: a.x ?? 0,
+    y: a.y ?? 0,
+    alt: a.alt ?? 3500,
+    headingDeg: a.headingDeg ?? 0,
+    iasKt: a.iasKt ?? a.kt ?? 140,
+    bankDeg: a.bankDeg ?? 0,
+  };
+
+  if (!route) {
+    a._blendTarget = { ...a._blendStart, distFt: a.distFt ?? 0 };
+    return;
+  }
+
+  const closestDist = closestDistFt(route, a, routeOptions);
+  const rLen = routeLengthFt(route, routeOptions);
+  const isClosed = route ? isClosedRoute(route) : false;
+  const lapOffset = (isClosed && rLen > 0 && (a.distFt ?? 0) > 0) ? Math.floor(a.distFt / rLen) * rLen : 0;
+  let targetDistFt = isClosed ? (lapOffset + closestDist) : closestDist;
+
+  if (isClosed && rLen > 0 && targetDistFt < (a.distFt ?? 0) - rLen / 2) {
+    targetDistFt += rLen;
+  }
+  const p = posOnRoute(route, targetDistFt, routeOptions);
+
+  a._blendTarget = {
+    x: p.x,
+    y: p.y,
+    alt: p.alt ?? a.alt ?? 3500,
+    headingDeg: p.headingDeg ?? a.headingDeg ?? 0,
+    iasKt: p.kt ?? a.iasKt ?? 220,
+    distFt: targetDistFt,
+    phase: p.phase ?? 'entry',
+    tag: p.tag ?? route?.points?.[p.seg]?.tag,
+  };
+}
 
 /**
  * Breakout Maneuver Controller:

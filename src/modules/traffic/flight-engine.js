@@ -484,7 +484,7 @@ export function evaluatePhaseTransitions(aircraft, navPlan, env, dt = 0.05) {
 
     case 'climb_high_key':
     case 'high_key': {
-      // High Key is flown on the path follower (sim.js climb_high_key), not here
+      // High key progression is managed by stepHighKey controller
       break;
     }
 

@@ -1,9 +1,9 @@
 // Checks: one aircraft through a few ticks: which of rail, physics or blending owns it, commands and waypoints
-//   switch to physics, a finished break hands back to the rail with no jump, landed aircraft do not move, crosswind gives
+//   switch to physics, a finished break blends back over 1.0 s, landed aircraft do not move, crosswind gives
 //   crab, tags found.
 // Serves: TR-R30, TR-R6, TR-R15.
 // Expected values: smoothstep and wind triangle worked out in the test; break bank 60 and perch bank 35 are
-//   traffic spec 3.2; positions and the 1,892 ft threshold are typed in from
+//   traffic spec 3.2; the 1.0 s blend is a design choice; positions and the 1,892 ft threshold are typed in from
 //   V6 data, no source.
 
 import test from 'node:test';
@@ -13,7 +13,8 @@ import {
   tickAircraft,
   shouldEnterPhysics,
   initMode,
-  handBackToRail, evaluateWaypointTrigger,
+  enterBlending, evaluateWaypointTrigger,
+  BLEND_DURATION_SEC,
   PHYSICS_COMMANDS,
 } from '../../../src/modules/traffic/tick-aircraft.js';
 import { posOnRoute, pointDistFt } from '../../../src/modules/traffic/route.js';
@@ -45,6 +46,10 @@ test('1.2 initMode preserves existing mode', () => {
   const aPhysics = { mode: 'PHYSICS' };
   initMode(aPhysics);
   assert.equal(aPhysics.mode, 'PHYSICS');
+
+  const aBlending = { mode: 'BLENDING' };
+  initMode(aBlending);
+  assert.equal(aBlending.mode, 'BLENDING');
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -167,7 +172,7 @@ test('4.1 PHYSICS mode steps physics engine and updates aircraft state', () => {
   assert.notEqual(a.headingDeg, prevHdg, 'Heading must change during physics turn');
 });
 
-test('4.2 PHYSICS break turn completion hands back to the rail with no jump', () => {
+test('4.2 PHYSICS break turn completion transitions to BLENDING', () => {
   const navPlan = getNavPlan('PAT_INNER');
   const a = {
     id: 'A1',
@@ -185,11 +190,11 @@ test('4.2 PHYSICS break turn completion hands back to the rail with no jump', ()
     active: true,
   };
   tickAircraft(a, 0.1, { windFromDeg: 360, windKt: 0 }, pat1);
-  assert.equal(a.mode, 'RAIL', 'Break completion hands back to the rail');
-  const before = { x: a.x, y: a.y };
-  tickAircraft(a, 0.1, { windFromDeg: 360, windKt: 0 }, pat1);
-  // No jump: 140 KIAS is about 24 ft in 0.1 s; 50 ft leaves room for the join curve.
-  assert.ok(Math.hypot(a.x - before.x, a.y - before.y) <= 50, 'no jump at the hand-back');
+
+  assert.equal(a.mode, 'BLENDING', 'Break completion must transition to BLENDING');
+  assert.ok(a._blendStart, '_blendStart must be recorded');
+  assert.ok(a._blendTarget, '_blendTarget must be computed');
+  assert.equal(a._blendTimer, 0, '_blendTimer must start at 0');
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -335,7 +340,7 @@ test('6.3 Invariant: Landed or inactive aircraft do not tick', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Suite 7: Additional Commands & Circuit Scenarios
 // ─────────────────────────────────────────────────────────────────────────────
-test('7.1 Go-around command enters physics, executes climbout, and hands back to the rail', () => {
+test('7.1 Go-around command enters physics, executes climbout, and blends back to rail', () => {
   const a = {
     id: 'A1',
     mode: 'RAIL',
@@ -358,7 +363,7 @@ test('7.1 Go-around command enters physics, executes climbout, and hands back to
   a.waypointIndex = 3;
   tickAircraft(a, 0.1, { windFromDeg: 360, windKt: 0 }, pat1);
 
-  assert.equal(a.mode, 'RAIL', 'Reaching crosswind in go-around hands back to the rail');
+  assert.equal(a.mode, 'BLENDING', 'Reaching crosswind in go-around must enter BLENDING');
   assert.equal(a.command, null, 'Command must be cleared');
 });
 
@@ -382,7 +387,7 @@ test('7.2 PFL command switches model to NRG and loads PFL_HIGH_KEY plan', () => 
   assert.equal(a.navPlan?.id, 'PFL_HIGH_KEY');
 });
 
-test('7.3 Multi-lap cumulative distance is preserved through the hand-back', () => {
+test('7.3 Multi-lap cumulative distance is preserved through blending', () => {
   // Simulate an aircraft on lap 2 (distFt > 156,923 ft)
   const a = {
     id: 'A1',
@@ -400,10 +405,14 @@ test('7.3 Multi-lap cumulative distance is preserved through the hand-back', () 
     active: true,
   };
 
-  handBackToRail(a, pat1);
+  enterBlending(a, pat1);
+  assert.equal(a.mode, 'BLENDING');
+  // Target distFt should be offset into lap 2 (> 156,923 ft)
+  assert.ok(a._blendTarget.distFt >= 156923, 'Blend target must preserve lap offset');
+
+  // Complete blend (1.1s > 1.0s)
+  tickAircraft(a, 1.1, { windFromDeg: 360, windKt: 0 }, pat1);
   assert.equal(a.mode, 'RAIL');
-  assert.ok(a.distFt >= 156923, 'Hand-back keeps the lap: cumulative distance on lap 2');
-  tickAircraft(a, 0.1, { windFromDeg: 360, windKt: 0 }, pat1);
   assert.ok(a.distFt >= 156923, 'Cumulative distFt on lap 2 must be maintained');
 });
 
@@ -452,7 +461,7 @@ test('8.1 evaluateWaypointTrigger identifies break and perch triggers via tag or
   assert.equal(evaluateWaypointTrigger(null).trigger, null);
 });
 
-test('8.2 handBackToRail uses semantic tags to pick the final approach rollout, not the initial leg', () => {
+test('8.2 enterBlending uses semantic tags to disambiguate final approach rollout from initial leg', () => {
   const taggedPat = {
     ...pat1,
     points: pat1.points.map((p, i) => {
@@ -474,12 +483,13 @@ test('8.2 handBackToRail uses semantic tags to pick the final approach rollout, 
     turnAccumDeg: 180,
   };
 
-  handBackToRail(a, taggedPat);
-  assert.equal(a.mode, 'RAIL');
-  assert.equal(a.tag, 'window', 'Hands back onto the final approach rollout (window tag)');
+  enterBlending(a, taggedPat);
+  assert.equal(a.mode, 'BLENDING');
+  assert.ok(a._blendTarget, 'Blend target computed');
+  assert.equal(a._blendTarget.tag, 'window', 'Target must have window tag on final approach rollout');
 });
 
-test('8.3 tickAircraft preserves waypoint tag in RAIL mode', () => {
+test('8.3 tickAircraft preserves waypoint tag in RAIL and BLENDING modes', () => {
   const taggedRoute = {
     id: 'TAGGED',
     name: 'Tagged',
