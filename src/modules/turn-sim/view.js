@@ -562,21 +562,31 @@ function drawAircraft(ctx, map, a, named = true, s = SYMBOL_PX) {
 const POWER_RED = '#ff5a5a';
 
 /** A data tag (tags.js formatTag): the title in white, then each line in the aircraft's colour, or red. */
-function drawLinesTag(ctx, map, x, y, tag, colour, pad, placed = []) {
+function drawLinesTag(ctx, map, x, y, tag, colour, pad, placed = [], centre = null) {
   const rows = [tag.title, ...tag.lines.map((l) => l.text)];
   const w = Math.max(...rows.map((t) => ctx.measureText(t).width)) + 2 * pad;
   const h = 4 + rows.length * 11;
   // Up and to the right of the aircraft, clear of it (Patrick, 5 Oct: the tags covered the aircraft); left when the right
   // would run off the picture, below when the top would.
-  const gap = 40; // well clear of the aircraft, joined to it by a leader line (Patrick, 5 Oct)
-  const tx = x + gap + w > map.size.width ? x - gap - w : x + gap;
-  let ty = y - gap - h < 0 ? y + gap : y - gap - h;
+  const gap = 70; // well clear of the aircraft, joined to it by a leader line (Patrick, 5 Oct: "a little further")
+  // Out on the far side from the formation's middle (Patrick, 5 Oct: "away from the formation"); up and right when alone.
+  let dx = centre ? x - centre[0] : 1;
+  let dy = centre ? y - centre[1] : -1;
+  const len = Math.hypot(dx, dy);
+  if (len < 1) { dx = 1; dy = -1; } else { dx /= len; dy /= len; }
+  const ax = x + dx * gap;
+  const ay = y + dy * gap;
+  let tx = dx >= 0 ? ax : ax - w;
+  let ty = dy >= 0 ? ay : ay - h;
+  tx = Math.max(0, Math.min(map.size.width - w, tx));
+  ty = Math.max(0, Math.min(map.size.height - h, ty));
+  const away = dy >= 0 ? 1 : -1; // a tag that would cover another moves further out the same way
   // Close formations put the aircraft side by side: a tag that would cover one already drawn moves up above it.
   for (let moved = true; moved;) {
     moved = false;
     for (const r of placed) {
       if (tx < r.x + r.w && tx + w > r.x && ty < r.y + r.h + 3 && ty + h + 3 > r.y) {
-        ty = r.y - h - 3;
+        ty = away > 0 ? r.y + r.h + 3 : r.y - h - 3;
         moved = true;
       }
     }
@@ -607,6 +617,8 @@ function drawLinesTag(ctx, map, x, y, tag, colour, pad, placed = []) {
 
 export function drawTags(ctx, map, state, tags) {
   const placed = [];
+  const spots = state.aircraft.map((a) => (map.screenOf ? map.screenOf(a) : map.worldToScreen(a.xFt, a.yFt)));
+  const centre = spots.length > 1 ? [spots.reduce((t, p) => t + p[0], 0) / spots.length, spots.reduce((t, p) => t + p[1], 0) / spots.length] : null;
   ctx.save();
   ctx.font = `10px ${FONT}`;
   for (const a of state.aircraft) {
@@ -615,7 +627,7 @@ export function drawTags(ctx, map, state, tags) {
     const colour = SHIP_COLORS[a.id] ?? '#d9e6f2';
     const [x, y] = map.screenOf ? map.screenOf(a) : map.worldToScreen(a.xFt, a.yFt); // screenOf: the 3D view's, with height
     const pad = 4;
-    if (tag.lines) { drawLinesTag(ctx, map, x, y, tag, colour, pad, placed); continue; }
+    if (tag.lines) { drawLinesTag(ctx, map, x, y, tag, colour, pad, placed, centre); continue; }
     const power = tag.power ?? null;
     const w = Math.max(ctx.measureText(tag.title).width, ctx.measureText(tag.detail).width, power ? ctx.measureText(power.text).width : 0) + 2 * pad;
     const h = power ? 37 : 26;
