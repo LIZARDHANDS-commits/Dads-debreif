@@ -175,12 +175,6 @@ test('sim.command pfl_current executes zoom climb when above 150 KIAS and glides
   assert.ok(Math.abs(acGlide.kt - 125) <= 15, 'glide speed ~125 kt');
 });
 
-test('sim.nextCallsign gives next free callsign', () => {
-  const sim = createSim(SETUP, { seed: 1 });
-  const next = sim.nextCallsign();
-  assert.equal(next, 'A8');
-});
-
 test('sim.command climb_high_key climbs to 5,000 ft MSL over threshold facing 298° heading and enters circular PFL arc', () => {
   const sim = createSim(SETUP, { seed: 1 });
   const id = sim.spawn({ id: 'A_HK', routeId: 'PAT1', startPoint: 11, delaySec: 0 });

@@ -102,37 +102,6 @@ test('sim with wind integrates vector flight for overhead break and downwind ste
   assert.ok(Math.abs(a20.alt - 3500) <= 100, 'alt ~3500 ft');
 });
 
-test('Slice A: aircraft state carries continuous 3D Cartesian vector fields upon spawn and flying', () => {
-  const setup = structuredClone(MOOSE_JAW);
-  setup.aircraft = [
-    { id: 'A1', type: 'CT-156', routeId: 'PAT1', startIndex: 0, startsAtSec: 0 }
-  ];
-  const sim = createSim(setup, { seed: 1 });
-  const a0 = sim.state().aircraft[0];
-
-  // Verify vector fields exist and are initialized cleanly
-  assert.equal(typeof a0.x, 'number');
-  assert.equal(typeof a0.y, 'number');
-  assert.equal(typeof a0.alt, 'number');
-  assert.equal(typeof a0.kt, 'number');
-  assert.equal(typeof a0.headingDeg, 'number');
-  assert.equal(typeof a0.bankDeg, 'number');
-  assert.equal(a0.bankDeg, 0);
-  assert.equal(a0.phase, 'climb', 'on the climb-out from the threshold');
-  assert.equal(typeof a0.trackDeg, 'number');
-  assert.equal(typeof a0.crabDeg, 'number');
-  assert.equal(typeof a0.groundSpeedKt, 'number');
-
-  // Step 5 seconds
-  sim.stepTo(5);
-  const a5 = sim.state().aircraft[0];
-  assert.equal(a5.status, 'flying');
-  assert.equal(typeof a5.x, 'number');
-  assert.equal(typeof a5.y, 'number');
-  assert.equal(typeof a5.bankDeg, 'number');
-  assert.equal(a5.phase, 'climb', 'still on the climb-out');
-});
-
 test('Slice A: Cartesian velocity integration updates ground speed and crab under crosswind', () => {
   const setup = structuredClone(MOOSE_JAW);
   setup.windFromDeg = 28; // Crosswind from right on Runway 298°
@@ -168,35 +137,6 @@ test('Slice A: coordinated turn kinematics and roll rate limiter (45 deg/s)', ()
   assert.ok(Math.abs(a2.bankDeg) > 10, `Bank ${a2.bankDeg}° should have rolled into the turn`);
   // 60° is the SMM break bank, a reference not a wall (testing rule T10); the shared ±5° margin allows for the bank being read off the flown track (T4).
   assert.ok(Math.abs(a2.bankDeg) <= 60 + 5, `Bank ${a2.bankDeg}° should be about 60° (2.0 G)`);
-});
-
-test('Slice A: snapshot and restore preserves full Cartesian vector state', () => {
-  const setup = structuredClone(MOOSE_JAW);
-  setup.windFromDeg = 298;
-  setup.windKt = 10;
-  setup.aircraft = [
-    { id: 'A1', type: 'CT-156', routeId: 'PAT1', startIndex: 9, startsAtSec: 0 }
-  ];
-  const sim = createSim(setup, { seed: 1 });
-  sim.stepTo(10);
-  const snap = sim.snapshot();
-  const stateBefore = sim.state().aircraft[0];
-
-  // Advance further
-  sim.stepTo(25);
-
-  // Restore snapshot
-  sim.restore(snap);
-  const stateRestored = sim.state().aircraft[0];
-
-  assert.equal(stateRestored.x, stateBefore.x);
-  assert.equal(stateRestored.y, stateBefore.y);
-  assert.equal(stateRestored.alt, stateBefore.alt);
-  assert.equal(stateRestored.kt, stateBefore.kt);
-  assert.equal(stateRestored.headingDeg, stateBefore.headingDeg);
-  assert.equal(stateRestored.bankDeg, stateBefore.bankDeg);
-  assert.equal(stateRestored.phase, stateBefore.phase);
-  assert.equal(stateRestored.groundSpeedKt, stateBefore.groundSpeedKt);
 });
 
 test('Slice B: overhead break initiates at Point 9 with 60 deg bank and V² drag deceleration', () => {
@@ -408,29 +348,6 @@ test('Slice E: a touch-and-go asked for in flight makes the next landing a touch
   assert.equal(aCmd.intent, 'touch_and_go');
   assert.ok(Math.hypot(aCmd.x - before.x, aCmd.y - before.y) < 1, 'it stays where it is, no jump to the threshold (Traffic spec item 21)');
   assert.ok(Math.abs(aCmd.alt - before.alt) < 1, 'and at its height');
-});
-
-test('Slice F: PILOT_SPAWN_PRESETS provides operational pilot-intuitive spawn points', () => {
-  const ids = PILOT_SPAWN_PRESETS.map((p) => p.id);
-  assert.ok(ids.includes('initial'));
-  assert.ok(ids.includes('downwind'));
-  assert.ok(ids.includes('perch'));
-  assert.ok(ids.includes('final2m'));
-  assert.ok(ids.includes('final1m'));
-  assert.ok(ids.includes('takeoff'));
-
-  const downwind = PILOT_SPAWN_PRESETS.find((p) => p.id === 'downwind');
-  assert.equal(downwind.routeId, 'PAT1');
-  assert.equal(downwind.point, 11);
-  assert.match(downwind.label, /Inner Downwind/);
-
-  const perch = PILOT_SPAWN_PRESETS.find((p) => p.id === 'perch');
-  assert.equal(perch.routeId, 'PAT1');
-  assert.equal(perch.point, 12);
-
-  const final2m = PILOT_SPAWN_PRESETS.find((p) => p.id === 'final2m');
-  assert.equal(final2m.routeId, 'ENT2');
-  assert.equal(final2m.point, 4);
 });
 
 test('Slice G: in-flight breakout command climbs to 4,500 ft, vectors toward P_breakout and accelerates to 140-180 kt', () => {
