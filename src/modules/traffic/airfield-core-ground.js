@@ -1,17 +1,17 @@
 // High-resolution procedural vector and satellite ground plane for Moose Jaw (CYMJ)
-// aerodrome core complex (Runways 29L/11R, 29R/11L, 04/22, taxiways and south apron).
+// aerodrome core complex (Runways 29L/11R, 29R/11L, 03/21, taxiways and south apron).
 //
 // Adheres to D411: Strict memory disposal of geometries, materials, textures, and canvas.
 // Coordinates: Local feet relative to CYMJ anchor (X east, Y north, Z up).
 
 import { createTileLayer, ESRI_IMAGERY, tilesFor } from '../../ui-kit/map-tiles.js';
 import { makeLocalRef, latLonToLocalFt, localFtToLatLon, lonLatToTile } from '../../core/geo.js';
-import { THRESHOLD_DATA_ELEV_FT, THRESHOLD_29L as TH, DEPARTURE_END_29L as DEP } from './airfield.js';
+import { THRESHOLD_DATA_ELEV_FT, THRESHOLD_29L as TH, DEPARTURE_END_29L as DEP, THRESHOLD_29R, DEPARTURE_END_29R, RUNWAY_03, RUNWAY_21, RUNWAY_WIDTH_FT } from './airfield.js';
 
 /**
  * Authoritative Moose Jaw aerodrome core bounding box in local feet.
  * Encompasses Runway 29L threshold and departure end (airfield.js, true feet since TR-67),
- * parallel runway 29R/11L, cross runway 04/22, and the south flight line / apron.
+ * parallel runway 29R/11L, cross runway 03/21, and the south flight line / apron.
  */
 export const AIRFIELD_CORE_BOUNDS_FT = Object.freeze({
   minX: -7000,
@@ -119,8 +119,7 @@ export function createMockCanvas(width = 2048, height = 2048) {
 /**
  * High-fidelity offline procedural vector painter for the 2048x2048 core canvas.
  * Renders infield grass, south apron tarmac, taxiway network (Alpha, Bravo, connectors),
- * Runway 29L/11R (8,150 ft), parallel Runway 29R/11L (+1,000 ft north offset), and
- * cross Runway 04/22.
+ * Runway 29L/11R (7,250 ft), parallel Runway 29R/11L (8,260 ft) and cross Runway 03/21, all measured (airfield.js).
  *
  * Safe to execute in both browser CanvasRenderingContext2D and mock/Node environments without throwing.
  *
@@ -403,29 +402,28 @@ export function paintCoreAirfieldVector(ctx, { width = 2048, height = 2048, boun
   renderRunway({
     p1: { x: TH.x, y: TH.y },
     p2: { x: DEP.x, y: DEP.y },
-    widthFt: 150,
+    widthFt: RUNWAY_WIDTH_FT['29L'],
     num1: '29L',
     num2: '11R',
   });
 
-  // Runway 29R / 11L: Parallel runway offset ~1,000 ft north
-  const r29ROffsetX = 1000 * normX;
-  const r29ROffsetY = 1000 * normY;
+  // Runway 29R / 11L on its measured thresholds (airfield.js; the old copy sat 1,000 ft north of 29L, about 800 ft
+  // short of the photo).
   renderRunway({
-    p1: { x: TH.x + r29ROffsetX, y: TH.y + r29ROffsetY },
-    p2: { x: DEP.x + r29ROffsetX, y: DEP.y + r29ROffsetY },
-    widthFt: 150,
+    p1: THRESHOLD_29R,
+    p2: DEPARTURE_END_29R,
+    widthFt: RUNWAY_WIDTH_FT['29R'],
     num1: '29R',
     num2: '11L',
   });
 
-  // Runway 04 / 22: Cross runway (~5,600 ft long, width 150 ft)
+  // Cross runway 03/21 on the NE-SW strip the photo shows (airfield.js; the old 04/22 copy sat about 1,500 ft west of it)
   renderRunway({
-    p1: { x: -2524, y: -3406 },
-    p2: { x: 924, y: 1006 },
-    widthFt: 150,
-    num1: '04',
-    num2: '22',
+    p1: RUNWAY_03,
+    p2: RUNWAY_21,
+    widthFt: RUNWAY_WIDTH_FT['03'],
+    num1: '03',
+    num2: '21',
   });
 }
 
