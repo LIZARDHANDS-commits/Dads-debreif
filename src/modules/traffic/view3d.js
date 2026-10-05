@@ -1857,6 +1857,10 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       ctx.textAlign = 'center';
       const w = screenOf(marks.window.x, marks.window.y, marks.window.highFt);
       if (onScreen(w)) write('THE WINDOW', w.x, w.y - 8, '#7dd3fc', true, 11);
+      // The altimeter's window (TR-81): named under the window, with how far it sits from it.
+      const alt = marks.altimeter;
+      const b = alt && screenOf(marks.window.x, marks.window.y, marks.window.lowFt);
+      if (alt && onScreen(b)) write(`ALTIMETER 2,100-2,200 (${alt.hot ? '+' : '−'}${Math.round(Math.abs(alt.shiftFt))} FT ${alt.hot ? 'HOT' : 'COLD'})`, b.x, b.y + 16, alt.hot ? '#f87171' : '#60a5fa', true, 11);
       const i = screenOf(marks.intercept.x, marks.intercept.y, marks.intercept.altFt);
       if (onScreen(i)) write(`3° INTERCEPT (${(marks.intercept.outFt / FT_PER_NM).toFixed(1)} NM)`, i.x, i.y - 8, '#fde047', true, 11);
     }
