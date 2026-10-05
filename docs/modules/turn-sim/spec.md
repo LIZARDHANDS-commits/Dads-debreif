@@ -552,6 +552,18 @@ Patrick 08:40Z: "SARJ should start at full power until it gets back on leads six
 
 **Checks.** None added (Patrick 06:25Z, 09:08Z); a typecheck, a page-load check and a few dry runs (fighting wing to echelon 41 s, was 92 s; line abreast at 6,000 ft to echelon 57 s, was 112 s; at Instructor).
 
+
+### 10.10 Echelon or route out to fighting wing in about 10 s (V2.68, TS-73; built 5 Oct, not yet in Patrick's sign-off)
+
+Patrick 08:40Z: "I want the aircraft to get from echelon to fighting wing in 10 seconds. It can go idle boards then spool up power to end up in the cone, right?"
+
+- **When:** the 2-ship from echelon or route to fighting wing on the same side, with Lead straight and level. Other starts fly as before.
+- **How it flies:** #2 rolls away from Lead at a held 45 or 60°, 15-30° off Lead's heading, at idle and boards, easing down to fighting wing height; he turns back parallel at the slot's distance out, then goes to MAX so he stops near the slot's distance back; the tracker settles him anywhere in the cone (SMM 12.29 para 69). He falls no more than the Rates figure below Lead's 200 KIAS.
+- **What moves on screen:** nothing new; Lead's fighting wing buttons show at about 4 s, and #2 is in the cone at about 7-10 s.
+- **Failure and stale data:** no outside data. A start this doesn't cover, or a fighting wing setting outside the band, flies or is refused as before.
+
+**Checks.** None added (Patrick 06:25Z, 09:08Z); a typecheck, a page-load check and a few dry runs (from echelon in the cone at 7.1 s at Instructor, was 31.9 s).
+
 ---
 
 # Part 2. Plan mode: the spec from before the reset
