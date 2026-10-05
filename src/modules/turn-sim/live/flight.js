@@ -15,7 +15,7 @@
 import { easeRoll, turnRateFromBankRadPerSec, gFromBankDeg } from '../../../core/flight-math.js';
 import { pitchDegFromClimb } from '../../../core/t6-performance.js';
 import { wrapPi } from '../../../core/angles.js';
-import { throttleFor, powerFrom, POWER_BLOCK_FT } from './power.js';
+import { powerFor, POWER_BLOCK_FT } from './power.js';
 
 /** The step the whole Turn Sim flies in (TS-R9), the same 0.05 s as before. */
 export const STEP_SEC = 0.05;
@@ -252,7 +252,8 @@ export function stepAircraft(a, plan, t) {
   a.pitchDeg = pitchAboveHorizonDeg(a);
   // The power that flies this step (power.js): the slow-down's stage, or the model's throttle for the speed change, the
   // climb and the G flown (a held speed included). The block height is the plan's, or the formation's default.
-  a.power = powerFrom(a.slowStage, throttleFor((a.kias - kiasBefore) / dt, a.kias, plan.blockFt ?? POWER_BLOCK_FT, a.g, a.climbFtps));
+  const blockFt = plan.blockFt ?? POWER_BLOCK_FT;
+  a.power = powerFor((a.kias - kiasBefore) / dt, a.kias, blockFt, a.g, a.climbFtps, a.slowStage);
 }
 
 /**

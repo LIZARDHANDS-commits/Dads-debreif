@@ -22,7 +22,7 @@ import { relativeTo, turnSeg, wholeDegree, onStep, DEG } from './manoeuvres.js';
 import { recordFlight, fwShapeNow, KIAS_LAB, KIAS_OUTSIDE_LAB, REJOIN, classifyPair, describe, FORMATIONS, LENGTH_FT } from './transitions.js';
 import { makeTrack, seedTrack, posesFrom, settleLast, followInto, slotInWorld, poseOf, laggedBank } from './kinematic.js';
 import { KINEMATIC, CLOSE, slotPoint, routePoints, movingSlot, rollEvents, eventsEnd, lastRollEnd, laneAndBelow, finishLine, leadTurnSegs } from './kinematic-moves.js';
-import { throttleFor } from './power.js';
+import { powerFor } from './power.js';
 import { STAGES, STAGE_WORDS, speedSegFor, slowKtps, stageFor, fullPowerKtps } from './slow-down.js';
 
 const dt = STEP_SEC;
@@ -130,7 +130,7 @@ function labelStages(poses, from, needs) {
     let r = -1;
     for (let j = Math.max(0, k - hold); j <= Math.min(poses.length - 1, k + hold); j++) r = Math.max(r, ranks[j]);
     poses[k].stage = r >= 1 ? STAGES[r] : r === 0 ? 'power' : null;
-    poses[k].pwr = r >= 1 ? null : Math.min(1, Math.max(0, throttleFor(rates[k] ?? 0, poses[k].kias, blockFt, poses[k].g)));
+    poses[k].power = powerFor(rates[k] ?? 0, poses[k].kias, blockFt, poses[k].g, 0, poses[k].stage);
   }
 }
 
