@@ -4,7 +4,7 @@
 // path drawn ahead is the path flown (spec F1). Heading, speed, bank, roll rate, climb, pitch and G are read off the
 // path itself (a coordinated turn: bank from the turn rate and true airspeed), so they always agree with the line.
 //
-// Three pieces, used by the hot turning rejoin, the formation turns and the station changes:
+// Three pieces (and the power time law, step 2), used by the hot turning rejoin, the formation turns and the station changes:
 //  - A relative path: a smooth curve in the reference aircraft's frame (fwd, left, height) through the places a move
 //    passes (a C2 B-spline), flown on one smooth time law, so a press flies one continuous line with no stop between
 //    legs (Patrick 11:09Z: speed ramps only).
@@ -20,7 +20,9 @@ import { pitchDegFromClimb } from '../../../core/t6-performance.js';
 import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, smoother } from './flight.js';
-import { powerFrom } from './power.js';
+import { powerFrom, powerFor } from './power.js';
+import { STAGES, stageFor, slowKtps, fullPowerKtps } from './slow-down.js';
+import { closeRates } from './tuning.js';
 
 const DEG = Math.PI / 180;
 const dt = STEP_SEC;
@@ -402,4 +404,178 @@ export function timeLaw(path, limit) {
       return Math.min(path.length, (lo + f) * ds);
     },
   };
+}
+
+/**
+ * The most speed along a relative path at arc length s that keeps the turn of the path (its curvature, in the frame) inside
+ * turnFtps2 of acceleration (v² x curvature): a line that swings from moving aft to moving forward in the frame asks #2 for
+ * that change of speed, so it is taken no faster than the aircraft can change its speed.
+ */
+function curveLimit(path, s, ds, turnFtps2) {
+  if (!Number.isFinite(turnFtps2)) return Infinity;
+  const h = Math.max(ds, 2);
+  const a = path.at(Math.max(0, s - h));
+  const b = path.at(s);
+  const c = path.at(Math.min(path.length, s + h));
+  const t1 = [b.fwd - a.fwd, b.left - a.left, b.up - a.up];
+  const t2 = [c.fwd - b.fwd, c.left - b.left, c.up - b.up];
+  const n1 = Math.hypot(...t1);
+  const n2 = Math.hypot(...t2);
+  if (n1 < 1e-9 || n2 < 1e-9) return Infinity;
+  const cos = Math.max(-1, Math.min(1, (t1[0] * t2[0] + t1[1] * t2[1] + t1[2] * t2[2]) / (n1 * n2)));
+  const curvature = Math.acos(cos) / ((n1 + n2) / 2);
+  return curvature > 1e-9 ? Math.sqrt(turnFtps2 / curvature) : Infinity;
+}
+
+/**
+ * The power time law for a relative path (Patrick 5 Oct 04:58Z and 05:47Z, tuning.js CLOSURE; from the parked V2.22 work,
+ * clean-up step 2): how far along the path the wingman is at each moment when he speeds up in the frame at up to
+ * accel(point, dir) (ft/s²: full power, or bank sideways) until the rate allowed there is set, holds it, and slows at up to
+ * decel(point, dir) so that at arc length `endAt` he moves at no more than `endFtps` (0 at the path's end, a stop; the
+ * closure rate at a hand-over to the tracker, hand-over.js). The rate is held under min(cruiseFtps, limit(point, dir))
+ * everywhere (relSpeedLimit: across, along, up or down). Beyond endAt (a hand-over) he carries on at the end rate, so a
+ * line read a few steps past it has no stop. Worked out by the usual forward and backward passes (standard kinematics,
+ * v² = u² + 2as), so no part asks more than its acceleration. With rateSetSec (Patrick 06:13Z) each change of rate is the
+ * smallest step that makes it in about that long. Returns { durationSec (to endAt), sAt(t) }, as timeLaw.
+ */
+export function powerLaw(path, { cruiseFtps = Infinity, accel, decel, limit = null, endAt = path.length, endFtps = 0, turnFtps2 = Infinity, rateSetSec = Infinity }) {
+  const N = Math.max(50, Math.ceil(path.length / 0.5));
+  const ds = path.length / N;
+  const vmax = new Float64Array(N + 1);
+  const up = new Float64Array(N + 1);
+  const down = new Float64Array(N + 1);
+  for (let i = 0; i <= N; i++) {
+    const s = i * ds;
+    const a = path.at(Math.max(0, s - ds / 2));
+    const b = path.at(Math.min(path.length, s + ds / 2));
+    const len = Math.max(Math.hypot(b.fwd - a.fwd, b.left - a.left, b.up - a.up), 1e-9);
+    const d = { fwd: (b.fwd - a.fwd) / len, left: (b.left - a.left) / len, up: (b.up - a.up) / len };
+    const q = path.at(s);
+    vmax[i] = Math.max(0.5, Math.min(cruiseFtps, limit ? limit(q, d) : Infinity, curveLimit(path, s, ds, turnFtps2)));
+    up[i] = Math.max(0.05, accel(q, d));
+    down[i] = Math.max(0.05, decel(q, d));
+  }
+  // The local limit is eased along the path (the lowest within 30 ft either side), so the rate it allows has no notches.
+  const w = Math.max(1, Math.round(30 / Math.max(ds, 1e-9)));
+  const eased = vmax.map((_, i) => {
+    let m = Infinity;
+    for (let j = Math.max(0, i - w); j <= Math.min(N, i + w); j++) m = Math.min(m, vmax[j]);
+    return m;
+  });
+  const iEnd = Math.max(1, Math.min(N, Math.round(endAt / ds)));
+  // Patrick's technique (5 Oct 06:13Z, tuning.js RATE_SET_SEC): a rate is set, or taken off, by the smallest power step
+  // that does it in about rateSetSec, never more than full power or idle (accel, decel).
+  if (Number.isFinite(rateSetSec)) {
+    for (let i = 0; i <= N; i++) {
+      up[i] = Math.max(0.05, Math.min(up[i], eased[i] / rateSetSec));
+      down[i] = Math.max(0.05, Math.min(down[i], Math.max(eased[i] - (i < iEnd ? endFtps : 0), 1) / rateSetSec));
+    }
+  }
+  const v = new Float64Array(N + 1);
+  for (let i = 1; i <= N; i++) v[i] = Math.min(eased[i], Math.sqrt(v[i - 1] ** 2 + 2 * up[i] * ds));
+  v[iEnd] = Math.min(v[iEnd], Math.max(endFtps, 0.5));
+  for (let i = iEnd - 1; i >= 0; i--) v[i] = Math.min(v[i], Math.sqrt(v[i + 1] ** 2 + 2 * down[i] * ds));
+  for (let i = iEnd + 1; i <= N; i++) v[i] = Math.min(v[i], v[iEnd]);
+  if (iEnd === N && endFtps <= 0) v[N] = 0;
+  const times = new Float64Array(N + 1);
+  for (let i = 1; i <= N; i++) times[i] = times[i - 1] + (2 * ds) / Math.max(v[i - 1] + v[i], 1e-6);
+  const vEnd = v[N];
+  return {
+    durationSec: Math.max(dt, times[iEnd]),
+    sAt(t) {
+      if (t <= 0) return 0;
+      if (t >= times[N]) return vEnd > 0 ? path.length + vEnd * (t - times[N]) : path.length;
+      let lo = 0;
+      let hi = N;
+      while (hi - lo > 1) {
+        const mid = (lo + hi) >> 1;
+        if (times[mid] <= t) lo = mid;
+        else hi = mid;
+      }
+      // Inside a step the speed changes linearly with time (constant acceleration).
+      const h = times[hi] - times[lo];
+      const tau = t - times[lo];
+      const a = (v[hi] - v[lo]) / Math.max(h, 1e-9);
+      return Math.min(path.length, lo * ds + v[lo] * tau + 0.5 * a * tau * tau);
+    },
+  };
+}
+
+// ---- the rates a line may move at, and the power it asks for (moved here from kinematic-moves.js and hot-rejoin.js in clean-up step 2, so every planned line can use them) ----
+
+/**
+ * The speed limit in Lead's frame at a point of a relative path moving in direction d (unit, in fwd, left, up). The
+ * fore-aft rate is a rejoin's closure for the Rates choice (step 2, Patrick 06:09Z); relSpeedLimitFor gives it with another.
+ */
+export function relSpeedLimit(q, d, foreAftFtps = undefined) {
+  const range = Math.hypot(q.fwd, q.left);
+  const rates = closeRates(foreAftFtps);
+  const lim = [
+    rates.lateralFtps / Math.max(Math.abs(d.left), 1e-6),
+    rates.foreAftFtps / Math.max(Math.abs(d.fwd), 1e-6),
+    rates.verticalFtps / Math.max(Math.abs(d.up), 1e-6),
+    Math.max(rates.nearMinFtps, rates.nearPerSec * range),
+  ];
+  return Math.min(...lim);
+}
+
+/** relSpeedLimit with the fore-aft rate `foreAftFtps` (a closure, ft/s). */
+export const relSpeedLimitFor = (foreAftFtps) => (q, d) => relSpeedLimit(q, d, foreAftFtps);
+
+/** The ways of slowing, ranked in Patrick's order of use (slow-down.js STAGES). */
+export const RANK = Object.freeze({ power: 0, boards: 1, idle: 2, idleBoards: 3 });
+
+/**
+ * The slowing and speeding up a planned line asks for, from pose index `from` on: each step's stage (slow-down.js, the
+ * first in the order of use that gives it), the first step that asks more than idle and the boards can give (-1 if none),
+ * and the most a speed-up asks past full power (KIAS per second; 0 if never). Read from the line's own speeds, lightly
+ * smoothed (a half-second running mean) so the differences' noise is not read as a need. A climb or descent counts too
+ * (energy height, standard aerodynamics: holding the speed in a descent at climb rate c takes g c / V of extra drag), so a
+ * high start that dives down to Lead has its height to lose as well as its speed (Patrick 19:15Z lists "high" as a worse start).
+ */
+export function speedNeeds(poses, from, blockFt, to = poses.length) {
+  const n = poses.length;
+  const raw = new Float64Array(n);
+  for (let k = 1; k < n - 1; k++) raw[k] = (poses[k + 1].kias - poses[k - 1].kias) / (2 * dt);
+  const half = 5;
+  const ranks = new Int8Array(n).fill(-1);
+  const rates = new Float64Array(n); // the energy rate each step asks, in KIAS per second (the climb's share included)
+  let firstBad = -1;
+  let accelShort = 0;
+  let top = 0;
+  for (let k = Math.max(1, from); k < Math.min(n - 1, to); k++) {
+    let sum = 0;
+    let cnt = 0;
+    for (let j = Math.max(1, k - half); j <= Math.min(n - 2, k + half); j++) {
+      sum += raw[j];
+      cnt++;
+    }
+    const p = poses[k];
+    const r = sum / cnt + ((G_FTPS2 * (p.climb ?? 0)) / Math.max(p.tas, 1)) * (p.kias / Math.max(p.tas, 1));
+    rates[k] = r;
+    if (r < 0) {
+      const st = stageFor(-r, p.kias, blockFt, p.g);
+      if (!st.ok && -r > slowKtps('idleBoards', p.kias, blockFt, p.g) * 1.02 + 0.05 && firstBad < 0) firstBad = k;
+      ranks[k] = RANK[st.stage];
+      top = Math.max(top, ranks[k]);
+    } else {
+      accelShort = Math.max(accelShort, r - (fullPowerKtps(p.kias, blockFt, p.g) * 1.05 + 0.05));
+    }
+  }
+  return { ranks, rates, blockFt, firstBad, accelShort: Math.max(0, accelShort), top };
+}
+
+/**
+ * Writes each pose's slowing stage from its rank, held for a second either side so the boards don't flick in and out, and
+ * on power the model's throttle for the tag (power.js; speedNeeds' rates already hold the climb's share).
+ */
+export function labelStages(poses, from, needs) {
+  const { ranks, rates, blockFt } = needs;
+  const hold = Math.round(1 / dt);
+  for (let k = Math.max(0, from); k < poses.length; k++) {
+    let r = -1;
+    for (let j = Math.max(0, k - hold); j <= Math.min(poses.length - 1, k + hold); j++) r = Math.max(r, ranks[j]);
+    poses[k].stage = r >= 1 ? STAGES[r] : r === 0 ? 'power' : null;
+    poses[k].power = powerFor(rates[k] ?? 0, poses[k].kias, blockFt, poses[k].g, 0, poses[k].stage);
+  }
 }

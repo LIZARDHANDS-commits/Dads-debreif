@@ -8,10 +8,12 @@
 // dropBack, sweepOut, closeThrough, rejoinTo, openOut, straightAhead) stay with the moves in transitions.js.
 import { bankDegFromTurnRate } from '../../../core/flight-math.js';
 import { wrapPi } from '../../../core/angles.js';
+import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
 import { relativeTo, unit } from './manoeuvres.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
-import { TRACKER } from './tuning.js';
+import { throttleFor, powerFrom } from './power.js';
+import { TRACKER, CLOSURE, HAND_OVER_FT } from './tuning.js';
 
 /** The longest the tracker flies one plan before giving up (a guard only; the spec's limits are tighter). */
 export const PLAN_MAX_SEC = 300;
@@ -51,6 +53,39 @@ function refPoint(R, Rprev, ref, world) {
 }
 
 /**
+ * A closure phase's closing speed on its slot at distance d (ft/s, tuning.js CLOSURE): the closure rate, stopped from the
+ * stopping distance. Fore and aft the stop is the power-back slowing the tracker's speed loop uses (closing from behind)
+ * or full power's speeding up (closing from ahead), at the speed and height flown (slow-down.js); sideways it is the slide's bank (CLOSURE.slideBankDeg, the same for every
+ * Rates choice), never more than the phase's bank cap gives; both at CLOSURE.stopShare. Beyond the hand-over range (an odd start, the
+ * tracker's fallback) it may grow with range (CLOSURE.farGain), as the old rejoin's did.
+ */
+function closureCap(ph, L, W, ex, ey, d, blockFt, farFromFt) {
+  if (d < 1e-6) return 0;
+  const c = Math.cos(L.headingRad);
+  const s = Math.sin(L.headingRad);
+  const uf = (ex * c + ey * s) / d;
+  const ul = (-ex * s + ey * c) / d;
+  const ft2 = KT_TO_FTPS * (W.tasFtps / W.kias); // KIAS per second to true ft/s²
+  const aFore = (uf >= 0 ? slowKtps('power', W.kias, blockFt) : fullPowerKtps(W.kias, blockFt)) * ft2; // what the tracker's own speed loop can do
+  const aLat = G_FTPS2 * Math.tan((Math.min(CLOSURE.slideBankDeg, ph.bankCapDeg) * Math.PI) / 180);
+  const aStop = CLOSURE.stopShare * Math.min(aFore / Math.max(Math.abs(uf), 1e-6), aLat / Math.max(Math.abs(ul), 1e-6));
+  const rate = ph.closureFtps + CLOSURE.farGain * Math.max(0, d - farFromFt);
+  return Math.min(ph.vrelMax, rate, Math.sqrt(2 * aStop * d));
+}
+
+/**
+ * The power a tracker step was flown with (power.js; the tag's MAX, PWR nn%, IDLE or IDLE+BOARDS): full power while the
+ * acceleration is at full power's, part power down to the power floor, then idle, then idle and the speed brake only when
+ * idle can't give the slowing wanted (Patrick 05:47Z, 05:54Z, 06:13Z; slow-down.js, TS-61).
+ */
+function powerOf(accel, aMax, W, blockFt) {
+  if (accel >= aMax * 0.985) return powerFrom(null, 1, W.kias, blockFt);
+  if (accel >= -slowKtps('power', W.kias, blockFt, W.g)) return powerFrom(null, Math.max(0, throttleFor(accel, W.kias, blockFt, W.g, W.climbFtps)), W.kias, blockFt);
+  if (accel >= -slowKtps('idle', W.kias, blockFt, W.g)) return powerFrom('idle', 0, W.kias, blockFt);
+  return powerFrom('idleBoards', 0, W.kias, blockFt);
+}
+
+/**
  * Runs the dry run: #2 (wing0) flies the phases in turn, each a slot in the frame of the aircraft it names (`track`, a
  * key of `refs`, recorded flights). For the 2-ship: refs = { [Lead's id]: Lead's recorded flight }. profile: the
  * wingman's height profile (or undefined). A phase with `holdUntil` is not left (nor, the last one, finished) before
@@ -58,8 +93,17 @@ function refPoint(R, Rprev, ref, world) {
  * holds its offset in world axes instead of the reference's frame, so the wingman turns with its reference as in an
  * in-place turn. Returns { points: [[bank, kias]…], end: { lead, wing }, times: [{ t0, arrive, t1 }…], maxBankDeg, ok,
  * durationSec, ranges, laneFwdFt, minBelowFt } (ranges and the lane are measured from the aircraft each phase flies off).
+ * A phase with `closureFtps` flies the power profile (tuning.js CLOSURE, Patrick 04:58Z, 05:47Z, 05:54Z; clean-up step 2):
+ * the closing speed is set and held at the closure rate and stopped from the stopping distance idle (or the slide's bank)
+ * gives; the speed loop is the tracker's own (Patrick 06:24Z: test it as is first; the power technique of 06:13Z is the
+ * line's, hand-over.js). Each point carries the power it was flown with ([bank, kias, power]) for the tags. Phases without
+ * it fly as before (the 4-ship's, until step 3).
+ * Since step 2 also: `init` ({ accelKtps }) starts the speed loop at the acceleration the aircraft already has and its
+ * heading loop on its present turn, so a hand-over from a kinematic line (hand-over.js) has no step in bank or speed; and
+ * `stopWhenSettled` ends the run once #2 has settled on the last slot, without waiting for Lead to finish his plan (the
+ * first pass of a run whose Lead rolls out once #2 is in).
  */
-export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec = PLAN_MAX_SEC }) {
+export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec = PLAN_MAX_SEC, init = null, stopWhenSettled = false }) {
   const T = TRACKER;
   const GAIN = T.gain;
   const W = copyAircraft(wing0);
@@ -74,9 +118,10 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
   const ref = phases[0].world
     ? { f: W.xFt - R.at(0).xFt, l: W.yFt - R.at(0).yFt, vf: 0, vl: 0 }
     : { f: rel0.fwd, l: rel0.left, vf: 0, vl: 0 };
-  let accel = 0; // KIAS per second, filtered by the jerk limit
-  let psiCmdPrev = W.headingRad;
-  let omegaFf = 0;
+  let accel = init?.accelKtps ?? 0; // KIAS per second, filtered by the jerk limit
+  let psiCmdPrev = init ? null : W.headingRad; // with init, the first commanded heading is its own previous one (no feed-forward kick)
+  let omegaFf = init ? (G_FTPS2 * Math.tan((W.bankDeg * Math.PI) / 180)) / Math.max(W.tasFtps, 1) : 0;
+  const farFromFt = HAND_OVER_FT; // beyond the hand-over range a closure phase may close faster (odd starts only)
   let maxBank = 0;
   let laneFwdFt = -Infinity; // furthest ahead of Lead's 3/9 line inside 1,000 ft (the overshoot lane)
   let minBelowFt = Infinity; // least height under Lead inside 2,000 ft
@@ -157,41 +202,62 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
         reentered = true;
         continue; // re-enter this step with the next phase (nothing has moved for #2 yet)
       }
-      if (arrived && last && gateOpen && d <= ph.finalTol && relVel <= Math.max(T.settleMinFtps, T.settleShare * ph.finalTol) && L.free && L.bankDeg === 0) {
+      const settled = arrived && last && gateOpen && d <= ph.finalTol && relVel <= Math.max(T.settleMinFtps, T.settleShare * ph.finalTol);
+      if (settled && stopWhenSettled) {
+        times[k].t1 = t;
+        ok = true;
+        break;
+      }
+      if (settled && L.free && L.bankDeg === 0) {
         times[k].t1 = t;
         aligning = true;
       }
-      const cap = Math.min(ph.vrelMax, ph.vrel0 + ph.kcap * Math.max(0, d - ph.d0), Math.sqrt(2 * ph.decel * d)); // never closing faster than it can stop (decel in ft/s²)
-      const pull = Math.min(cap, GAIN.position * d);
+      const ratio = W.tasFtps / W.kias;
+      let pull;
+      if (ph.closureFtps) {
+        pull = Math.min(closureCap(ph, L, W, ex, ey, d, blockFt, farFromFt), CLOSURE.nearGain * d);
+      } else {
+        const cap = Math.min(ph.vrelMax, ph.vrel0 + ph.kcap * Math.max(0, d - ph.d0), Math.sqrt(2 * ph.decel * d)); // never closing faster than it can stop (decel in ft/s²)
+        pull = Math.min(cap, GAIN.position * d);
+      }
       const vdx = vpx + (d > 1e-6 ? (ex / d) * pull : 0);
       const vdy = vpy + (d > 1e-6 ? (ey / d) * pull : 0);
       const speed = Math.hypot(vdx, vdy);
       psiCmd = speed > T.minSpeedFtps ? Math.atan2(vdy, vdx) : L.headingRad;
-      const ratio = W.tasFtps / W.kias;
-      kiasCmd = Math.max(L.kias - ph.undertakeKias, Math.min(L.kias + ph.overtakeKias, speed / ratio));
+      // A closure phase may be faster or slower than the aircraft flown off by the closure rate (it replaces the 15 KIAS
+      // rejoin overtake, Patrick 05:46Z).
+      const over = ph.closureFtps ? ph.closureFtps / ratio : ph.overtakeKias;
+      const under = ph.closureFtps ? ph.closureFtps / ratio : ph.undertakeKias;
+      kiasCmd = Math.max(L.kias - under, Math.min(L.kias + over, speed / ratio));
     }
 
     // Heading loop: turn rate toward the commanded heading, with its own rate fed forward; bank from the turn rate.
+    if (psiCmdPrev === null) psiCmdPrev = psiCmd;
     const psiStep = wrapPi(psiCmd - psiCmdPrev);
     psiCmdPrev = psiCmd;
     omegaFf += GAIN.ffFilter * (psiStep / STEP_SEC - omegaFf);
     const omegaCmd = GAIN.heading * wrapPi(psiCmd - W.headingRad) + omegaFf;
     const cap = aligning ? T.alignBankDeg : ph.bankCapDeg;
-    const bank = Math.max(-cap, Math.min(cap, bankDegFromTurnRate(W.tasFtps, omegaCmd)));
+    let bank = Math.max(-cap, Math.min(cap, bankDegFromTurnRate(W.tasFtps, omegaCmd)));
+    // Lining up on a closure phase, the last few hundredths of a degree of bank are taken out at once, so the wings come
+    // level in a step or two instead of creeping for ten seconds (the heading left is inside alignHeadingRad).
+    if (aligning && ph.closureFtps && Math.abs(bank) < T.alignDeadbandDeg) bank = 0;
 
     // Speed loop: acceleration follows the speed error, limited to what the T-6 can do (full power up, power back down:
-    // slow-down.js, TS-61) and built up by a jerk limit.
+    // slow-down.js, TS-61) and built up by a jerk limit. The tracker keeps its own speed loop on every phase, a closure
+    // phase too (Patrick 5 Oct 06:24Z: "I think it needs a different power module.... Maybe we should test it as is first?").
     const aMax = fullPowerKtps(W.kias, blockFt);
-    const aCmd = Math.max(-slowKtps('power', W.kias, blockFt), Math.min(aMax, GAIN.speedLoop * (kiasCmd - W.kias)));
+    const aMin = slowKtps('power', W.kias, blockFt);
+    const aCmd = Math.max(-aMin, Math.min(aMax, GAIN.speedLoop * (kiasCmd - W.kias)));
     accel += Math.max(-GAIN.jerkKtps2 * STEP_SEC, Math.min(GAIN.jerkKtps2 * STEP_SEC, aCmd - accel));
     let kias = W.kias + accel * STEP_SEC;
     if (aligning && Math.abs(L.kias - kias) < T.kiasSnap) { // the last few thousandths of a knot, so the speed has no step
       kias = L.kias;
       accel = 0;
     }
-    points.push([bank, kias]);
     setKias(W, kias);
     stepCommanded(W, bank, t, profile);
+    points.push(ph.closureFtps ? [bank, kias, powerOf(accel, aMax, W, blockFt)] : [bank, kias]);
     m++;
     const Lafter = R.at(m);
     maxBank = Math.max(maxBank, Math.abs(W.bankDeg));
@@ -224,6 +290,7 @@ export function phase(slot, over = {}) {
     altRateFtps: null, // when set, the height change takes at least |change| / this many seconds (the 4-ship's stack; null: no floor)
     stopFtps: null, // when set, a real stop: the next phase starts only once #2's speed against the slot is under this...
     dwellSec: 0, // ...and has been for this long (the station change's "stabilize", SMM 12.20 para 45)
+    closureFtps: null, // when set, the power profile at this closure rate (runTracker; the 2-ship since step 2)
     ...over,
   };
 }
@@ -232,8 +299,8 @@ export function phase(slot, over = {}) {
  * The tracker run twice (fly2's method, for any set of recorded references): the first run learns when each leg starts and
  * ends, the second flies with the wingman's height profile built from those times. Returns { run, profile }.
  */
-export function trackTwice({ refs, wing0, t0, phases, blockFt, maxSec = PLAN_MAX_SEC }) {
-  const common = { refs, wing0, t0, phases, blockFt, maxSec };
+export function trackTwice({ refs, wing0, t0, phases, blockFt, maxSec = PLAN_MAX_SEC, init = null, stopWhenSettled = false }) {
+  const common = { refs, wing0, t0, phases, blockFt, maxSec, init, stopWhenSettled };
   const first = runTracker({ ...common, profile: undefined });
   const profile = heightProfile(wing0.altAboveFt, phases, first.times, t0);
   const run = profile.length ? runTracker({ ...common, profile }) : first;

@@ -23,7 +23,7 @@ import {
   recordFlight, flyStep, dryRunT, speedSeg, slide, dropBack, closeThrough, rejoinTo, openOut,
   straightAhead, sweepOut, stopAt, cornerBehind,
 } from './transitions.js';
-import { REJOIN } from './tuning.js';
+import { REJOIN, FW_FOLLOW_FOUR } from './tuning.js';
 import { trackTwice, phase } from './tracker.js';
 import { isStacked, classify, judge } from './judge.js';
 import { FOUR_FORMATIONS, LENGTH_FT, slotsFor, pairSlot, refsFor, fourWords, FW_STEP_DOWN_FT } from './slots.js';
@@ -145,7 +145,7 @@ function hold(c, id, track, over = {}, altFt = c.by.get(id).altAboveFt) {
 /** A table slot (slots.js) as a phase of the given kind. */
 const toSlot = (c, kind, slot, over = {}) => kind(place(c, slot.fwd, slot.left, slot.alt), { track: slot.ref, ...over });
 /** Fighting wing kept off a reference that is moving or turning (estimates: enough bank and speed to keep the slot). */
-const fwFollow = (slot, over = {}) => phase(slot, { fwdRate: 40, latRate: 40, vrel0: 30, kcap: 0.05, d0: 100, vrelMax: 120, decel: 2, bankCapDeg: 60, overtakeKias: 25, undertakeKias: 25, advanceTol: 25, finalTol: 6, ...over });
+const fwFollow = (slot, over = {}) => phase(slot, { ...FW_FOLLOW_FOUR, ...over }); // tuning.js FW_FOLLOW_FOUR (the 4-ship's, until step 3)
 /** Settle onto a slot off the formation reference after closing on a point near it (a short slide). */
 const settle = (slot, over = {}) => dropBack(slot, { advanceTol: 6, finalTol: 6, vrel0: 16, ...over });
 /**

@@ -8,6 +8,8 @@ This folder is the formation turn sim. From V2.6 it shows the first version of l
 
 Live as a PROTOTYPE. The Turn Sim review is done (4 Oct): Patrick chose a new flying core with planned, kinematically accurate paths, and approved the first version's spec (`spec.md` Part 1; decisions TS-35 to TS-49). The first version is built (`src/modules/turn-sim/live/`); the plan-mode code stays in the repo, unused, until Patrick agrees to retire it.
 
+Since clean-up step 2 (TS-65, V2.22) every 2-ship change the line rules cover is a kinematic line at the rejoin closure to about 500 ft from the slot, then the tracker at the close-in rate, planned again at the hand-over (`live/line-moves.js`, `live/hand-over.js`); the Rates setting (Student, Instructor, AI) is under More.
+
 Where things live since clean-up step 1 (TS-64): the slots for the 2- and 4-ship in `live/slots.js`, the one classifier and judge (card, roll-out verdict and tags) in `live/judge.js`, every closure rate, bank, timing and speed in `live/tuning.js`, and the tracker (the fallback for odd starts) in `live/tracker.js`.
 
 ## What is next

@@ -7,7 +7,7 @@
 // The 4-ship has its own buttons (spec section 8, TS-54; live/four-ship-moves.js): setShips swaps them.
 import { h, clear } from '../../ui-kit/dom.js';
 import { rejoinReadout } from './live/judge.js';
-import { REJOIN, KIAS_OUTSIDE_LAB } from './live/tuning.js';
+import { REJOIN, KIAS_OUTSIDE_LAB, RATE_CHOICES, RATE_WORDS, CLOSE_IN_SEC, REJOIN_CLOSURE_KT, setRates, ratesNow } from './live/tuning.js';
 import { slowWord } from './live/slow-down.js';
 import { FORMATIONS, FOUR_FORMATIONS, fourWords } from './live/slots.js';
 
@@ -121,15 +121,22 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   const rejoinLabel = h('span', { class: 'ts-hint' }, 'Rejoin from line abreast');
   const pairMore = h('div', { class: 'ts-change-grid' }, makeButton({ key: 'astern', label: 'Line astern' }));
   const fourMore = h('div', { class: 'ts-change-grid', hidden: true }, FOUR_MORE_BUTTONS.map(makeFourButton));
-  const PAIR_REJOIN_HINT = `A turning rejoin: Lead slows to ${KIAS_OUTSIDE_LAB} KIAS, waits for closure and turns gently into #2 (SMM 16.20 para 65). #2's bank is capped at ${REJOIN.bankCapDeg}° (an estimate, flagged).`;
+  const PAIR_REJOIN_HINT = `A turning rejoin: Lead turns into #2 at the press at ${REJOIN.leadBankDeg}° of bank, slowing to ${KIAS_OUTSIDE_LAB} KIAS (SMM 16.20 para 65). #2's bank is capped at ${REJOIN.bankCapDeg}° (an estimate, flagged).`;
   const FOUR_REJOIN_HINT = `A turning rejoin: Lead slows to ${KIAS_OUTSIDE_LAB} KIAS and turns gently into the others; to finger, #3 crosses only once #2 is in place and #4 once #3 is (SMM 16.34 para 96). Straight ahead, each closes through route in turn.`;
   const rejoinHint = h('p', { class: 'ts-hint' }, PAIR_REJOIN_HINT);
+  // Rates (clean-up step 2, TS-65; Patrick 5 Oct 05:46Z, 06:09Z, 06:11Z): how fast #2 closes, Student, Instructor (the
+  // default) or AI. It changes the closures only, not the banks or the G (06:07Z).
+  const rateWords = (c) => `${RATE_WORDS[c]}: ${REJOIN_CLOSURE_KT[c]} kt rejoins, route to echelon in about ${CLOSE_IN_SEC[c]} s`;
+  const ratesSelect = h('select', { 'aria-label': 'Rates', onchange: () => setRates(ratesSelect.value) },
+    RATE_CHOICES.map((c) => h('option', { value: c, selected: c === ratesNow() }, rateWords(c))));
+  const ratesField = h('label', { class: 'ts-field' }, h('span', { class: 'ts-hint' }, 'Rates'), ratesSelect);
   const more = h('details', { class: 'ts-more' },
     h('summary', {}, 'More'),
     pairMore,
     fourMore,
     h('label', { class: 'ts-field' }, rejoinLabel, rejoinSelect),
     rejoinHint,
+    ratesField,
   );
 
   const PAIR_HINT = 'The pair flies the manuals\' transition from where it is now. The formation you are in is greyed.';
@@ -164,6 +171,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       four = ships === 4;
       pairGrid.hidden = four;
       pairMore.hidden = four;
+      ratesField.hidden = four; // the 2-ship's in step 2
       fourGrid.hidden = !four;
       fourMore.hidden = !four;
       hint.textContent = four ? FOUR_HINT : PAIR_HINT;
