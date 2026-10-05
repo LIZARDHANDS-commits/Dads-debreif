@@ -24,7 +24,7 @@ import { createChangeUi } from './transitions-panel.js';
 import { createFluidUi } from './fluid-panel.js';
 import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, LAYOUT_VERSION, SHIP_COLORS, migrateLayout } from './layout.js';
 import { createTurnSimView } from './view.js';
-import { tagLines, formatTag } from './tags.js';
+import { tagLines, formatTag, closeTagsOff } from './tags.js';
 import { createView3d, yawBehind } from './view3d.js';
 
 const STYLESHEET = new URL('./turn-sim.css', import.meta.url).href;
@@ -272,6 +272,8 @@ function mount(root, app) {
   }
 
   function dataTags() {
+    // No tags in close formation (TS-92): both views then draw the aircraft as with the tags switched off.
+    if (closeTagsOff(state, formation.where())) return null;
     const tags = tagLines(state, formation.where());
     // The 2D view shows no height, so its tags always carry each wingman's height off Lead ("+150 ft"); 3D follows the Data tag tick.
     const show = shown === '2d' ? { ...layout.get(), tagHeight: true } : layout.get();

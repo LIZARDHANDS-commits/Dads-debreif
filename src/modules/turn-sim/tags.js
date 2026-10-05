@@ -246,6 +246,21 @@ export function tagLines(state, where) {
   return out;
 }
 
+/** A close formation's tags are left off within this distance of Lead (feet; the hand-over range, tuning.js HAND_OVER_FT). */
+const CLOSE_TAGS_OFF_FT = 500;
+
+/**
+ * True when the data tags are left off: the formation is a close one (or a change is flying to one) and every wingman is
+ * within CLOSE_TAGS_OFF_FT of Lead (Patrick 5 Oct 23:21Z: "dont show tags on close formation"; TS-92). A rejoin to a close
+ * formation keeps its tags, closure included, until #2 is in close.
+ */
+export function closeTagsOff(state, where) {
+  if (state.fluid) return false;
+  if (!CLOSE_KEYS.has(state.current?.change?.to ?? where.key)) return false;
+  const lead = state.aircraft[0];
+  return state.aircraft.every((a) => a === lead || Math.hypot(a.xFt - lead.xFt, a.yFt - lead.yFt) <= CLOSE_TAGS_OFF_FT);
+}
+
 /** What the Data tag menu shows at first (Patrick, 5 Oct): what it's doing, position, range and sweep, airspeed, power, closure. */
 export const TAG_DEFAULTS = Object.freeze({
   tagDoing: true, tagPosition: true, tagRange: true, tagSpeed: true, tagPower: true, tagClosure: true, tagError: true,
