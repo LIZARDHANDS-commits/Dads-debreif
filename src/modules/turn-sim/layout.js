@@ -8,7 +8,7 @@ import { createPanel } from '../../ui-kit/panel.js';
 import { TAG_DEFAULTS } from './tags.js';
 import { VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
-import { ERROR_FIELDS, RESPONSE_OPTIONS, FIX_TOOLS } from './live/errors.js';
+import { ERROR_FIELDS, FIX_WHEN_OPTIONS, FIX_TOOLS } from './live/errors.js';
 import { FW_LIMITS } from './live/slots.js';
 
 /**
@@ -208,16 +208,18 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     h('legend', {}, 'Fix tools'),
     ...FIX_TOOLS.map((t) => h('div', { class: 'ts-check' }, setupControls.checkbox(t.key, { label: `${t.label}: ${t.hint}` }))),
   );
+  const fixWhen = h('div', { class: 'ts-field ts-fix-when' }, setupControls.select('errFixWhen', { label: 'Fix it', options: FIX_WHEN_OPTIONS }));
   const errorsSection = h('details', { class: 'ts-errors' },
     h('summary', {}, 'Errors (training)'),
     h('p', { class: 'ts-hint' }, 'Start #2 out of position or rolling in off time, then see him carry the error or fix it. Reset puts it back.'),
     ...ERROR_FIELDS.map((f) => h('div', { class: 'ts-field ts-error-row' },
       setupControls.select(f.key, { label: f.label, options: f.options }),
       setupControls.number(f.amountKey, { label: 'Amount', unit: f.unit, min: f.min, max: f.max, step: f.step }))),
-    h('div', { class: 'ts-field' }, setupControls.select('errResponse', { label: '#2 then', options: RESPONSE_OPTIONS })),
+    h('div', { class: 'ts-check' }, setupControls.checkbox('errSmart', { label: 'Smart wingman: #2 fixes the error' })),
+    fixWhen,
     fixTools,
     h('div', { class: 'ts-field' }, setupControls.checkbox('errRandom', { label: 'One random error at every Reset (replaces the choices above)' })),
-    h('p', { class: 'ts-hint' }, 'Fix it: #2 uses the ticked Fix tools, smallest change first. Normal reference: he flies the standard turn and the error shows at the end.'),
+    h('p', { class: 'ts-hint' }, 'Smart wingman on: #2 fixes the error now, or in the next manoeuvre with the ticked Fix tools, smallest change first. Off: he turns at the normal references and the error shows at the end.'),
   );
   setup.append(errorsSection); // the training errors are part of the scenario
 
@@ -420,9 +422,10 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       movesNote.textContent = note;
       movesNote.hidden = enabled || !note;
     },
-    /** The Fix tools show only when #2's response is Fix it. */
+    /** The Fix tools and when he fixes it show only with Smart wingman on (TS-96). */
     setFixTools(visible) {
       fixTools.hidden = !visible;
+      fixWhen.style.display = visible ? '' : 'none';
     },
     /** The flag under Spacing (outside the SMM band), or null. */
     setSpacingFlag(text) {

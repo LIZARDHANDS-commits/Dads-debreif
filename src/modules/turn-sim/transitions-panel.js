@@ -10,6 +10,7 @@ import { rejoinReadout } from './live/judge.js';
 import { REJOIN, KIAS_OUTSIDE_LAB, RATE_CHOICES, RATE_WORDS, CLOSE_IN_SEC, REJOIN_CLOSURE_KT, setRates, ratesNow } from './live/tuning.js';
 import { slowWord } from './live/slow-down.js';
 import { FORMATIONS, FOUR_FORMATIONS, fourWords } from './live/slots.js';
+import { MOVE_IN_BAND_KEY, MOVE_IN_BAND_FORMATIONS, MOVE_STEP_FT, placeNow, clampToBand } from './live/move-in-band.js';
 
 /** The main buttons, in screen order. Fluid manoeuvring starts from fighting wing only (spec section 10.3, TS-57). */
 export const CHANGE_BUTTONS = Object.freeze([
@@ -81,6 +82,18 @@ export function fourChangeFlags(state, where) {
   return lead.g > limit ? [`Lead is pulling ${lead.g.toFixed(1)} G in ${FOUR_FORMATIONS[where.key].label.toLowerCase()}; the limit is ${limit} G (Orders B2 ch 8).`] : [];
 }
 
+/** Where #2 is against Lead, in words for the Position readout: fighting wing as range and sweep, the others fore and aft and out. */
+function placeWords(key, p) {
+  const height = Math.abs(p.alt) < 1 ? 'level' : `${Math.round(Math.abs(p.alt))} ft ${p.alt < 0 ? 'below' : 'above'}`;
+  if (key === 'fw') {
+    const range = Math.hypot(p.fwd, p.left);
+    const sweep = Math.atan2(-p.fwd, Math.max(Math.abs(p.left), 1e-6)) * (180 / Math.PI);
+    return `#2: ${Math.round(range)} ft, ${Math.round(sweep)}° back, ${height}`;
+  }
+  const fore = Math.abs(p.fwd) < 1 ? 'abeam' : `${Math.round(Math.abs(p.fwd))} ft ${p.fwd < 0 ? 'back' : 'forward'}`;
+  return `#2: ${Math.round(Math.abs(p.left)).toLocaleString('en-CA')} ft out, ${fore}, ${height}`;
+}
+
 /**
  * onChange(to, { side, rejoin }): called when a button is pressed. fluidUi: the fluid manoeuvring group (fluid-panel.js),
  * shown under this one for the 2-ship, or null. Returns
@@ -150,6 +163,65 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   }
   const handlers = {};
 
+  // Position (TS-98; Patrick 5 Oct 23:54Z, 23:56Z, 6 Oct 00:04Z): #2's place against Lead, and buttons that move him inside the band of
+  // the formation he is in (live/move-in-band.js). Each tap is a move the sim flies; taps stop at the band's edge and say so;
+  // the next move plans from where he is. Shown in fighting wing, line abreast, echelon, route and line astern, 2-ship.
+  let stateNow = null;
+  let target = null; // where the taps have asked for, in Lead's frame, while a move in the band is flown
+  let edgeUntil = -Infinity; // the "at the band's edge" word shows until this formation time
+  const placeLine = h('p', { class: 'ts-hint ts-position-now', role: 'status' });
+  const tap = (axis, sign) => {
+    if (!stateNow || !whereNow || !MOVE_IN_BAND_FORMATIONS.includes(whereNow.key)) return;
+    const [lead, wing] = stateNow.aircraft;
+    const key = whereNow.key;
+    const from = target ?? placeNow(lead, wing);
+    const step = MOVE_STEP_FT[key][axis] * sign;
+    const want = { ...from };
+    if (axis === 'fwd') want.fwd += step;
+    else if (axis === 'out') want.left += Math.sign(from.left || whereNow.side || -1) * step; // out: away from Lead on #2's side
+    else want.alt += step;
+    const c = clampToBand(lead, wing, key, whereNow.side, from, want, stateNow.spacingFt);
+    const moved = Math.hypot(c.place.fwd - from.fwd, c.place.left - from.left, c.place.alt - from.alt) > 0.5;
+    target = c.place;
+    edgeUntil = c.atEdge ? stateNow.tSec + 4 : -Infinity;
+    if (moved || !c.atEdge) onChange(MOVE_IN_BAND_KEY, { target, formation: key, side: key === 'astern' ? 0 : whereNow.side });
+    return moved;
+  };
+  // Tap and hold (Patrick 6 Oct 00:04Z): a tap is one step; holding takes another step every HOLD_REPEAT_MS (an estimate for
+  // the hand) until the button is let go or #2 is at the band's edge. Each step re-plans at once from where #2 is.
+  const HOLD_REPEAT_MS = 250;
+  let holdTimer = null;
+  const stopHold = () => {
+    if (holdTimer !== null) clearInterval(holdTimer);
+    holdTimer = null;
+  };
+  const holdButton = (axis, sign, words) => h('button', {
+    type: 'button',
+    class: 'button ts-side-button',
+    onpointerdown: (e) => {
+      e.preventDefault();
+      stopHold();
+      if (tap(axis, sign)) holdTimer = setInterval(() => { if (!tap(axis, sign)) stopHold(); }, HOLD_REPEAT_MS);
+    },
+    onpointerup: stopHold,
+    onpointerleave: stopHold,
+    onpointercancel: stopHold,
+    onclick: (e) => { if (e.detail === 0) tap(axis, sign); }, // Enter or Space: one step (a pointer's step was taken on pointerdown)
+  }, words);
+  const POSITION_ROWS = Object.freeze([
+    { axis: 'fwd', minus: 'Aft', plus: 'Fore' },
+    { axis: 'out', minus: 'In', plus: 'Out' },
+    { axis: 'up', minus: 'Down', plus: 'Up' },
+  ]);
+  const positionRows = POSITION_ROWS.map((r) => h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': `${r.minus} or ${r.plus}`, dataset: { axis: r.axis } },
+    holdButton(r.axis, -1, r.minus),
+    holdButton(r.axis, 1, r.plus)));
+  const positionGroup = h('div', { class: 'ts-change-group ts-position', hidden: true },
+    h('h4', { class: 'ts-change-subtitle' }, 'Position'),
+    placeLine,
+    positionRows,
+    h('p', { class: 'ts-hint' }, 'Moves #2 inside the band; the next move starts from there.'));
+
   const refusal = h('p', { class: 'ts-warning', role: 'status', hidden: true });
   const rejoinSelect = h('select', { 'aria-label': 'Rejoin kind', onchange: () => setRejoin(rejoinSelect.value) },
     REJOIN_OPTIONS.map((o) => h('option', { value: o.value, selected: o.value === rejoin }, o.label)));
@@ -188,6 +260,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     fourGrid,
     h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Station: the side #2 ends on' }, h('span', { class: 'ts-hint' }, 'Station'), sideButtons), // "Station", was "Side" (Patrick, 5 Oct)
     rejoinRow,
+    positionGroup,
     refusal,
     fluidUi?.element ?? null,
     fluidUi?.lagElement ?? null, // "#2": the lag roll, in its own small group
@@ -212,6 +285,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     setShips(ships) {
       four = ships === 4;
       pairGrid.hidden = four;
+      if (four) positionGroup.hidden = true; // the pair's only (move-in-band.js)
       fourGrid.hidden = !four;
       hint.textContent = four ? FOUR_HINT : PAIR_HINT;
       if (fluidUi) fluidUi.element.hidden = true; // the pair's shows in fluid manoeuvring and fighting wing only (update); the four's is a later piece
@@ -243,6 +317,20 @@ export function createChangeUi({ onChange, fluidUi = null }) {
         return;
       }
       fluidUi?.update(state, where);
+      // Position: only in a formation it works in, with nothing else flying (or the move in the band itself, so taps add up).
+      stateNow = state;
+      const nudging = state.current?.key === `change:${MOVE_IN_BAND_KEY}`;
+      const showPosition = MOVE_IN_BAND_FORMATIONS.includes(where.key) && !where.manoeuvring && (!state.current || nudging);
+      positionGroup.hidden = !showPosition;
+      if (!showPosition) stopHold();
+      if (!nudging) target = null; // once he is there, the next taps start from where he is
+      if (showPosition) {
+        const [lead, wing] = state.aircraft;
+        const words = `${placeWords(where.key, placeNow(lead, wing))}${state.tSec < edgeUntil ? ": at the band's edge" : ''}`;
+        if (placeLine.textContent !== words) placeLine.textContent = words;
+        // No Up or Down in the close formations: a 5 ft step is under the tracker's least height change (move-in-band.js).
+        for (const row of positionRows) row.hidden = row.dataset.axis === 'up' && ['echelon', 'route', 'astern'].includes(where.key);
+      }
       // Only what the formation the pair is in can use shows (Patrick, 5 Oct, fly-through item 6): the fluid manoeuvring
       // buttons while it runs; in fighting wing Lead's level turns, climbs and descents (TS-70); the lag roll in its own "#2"
       // group in fighting wing and echelon (TS-78, fluid-panel.js). A button that is only busy for a moment is greyed.

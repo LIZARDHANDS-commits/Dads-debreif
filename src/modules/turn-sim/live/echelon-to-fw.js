@@ -229,7 +229,7 @@ export function planEchelonToFw(pair, to, options = {}, t0 = 0) {
   const W1 = { ...part.end, altAboveFt: toFt, climbFtps: 0 };
   const rel1 = relativeTo(rec.at(n1), W1);
   const settle = onClosure([phase({ fwd: rel1.fwd, left: rel1.left, alt: W1.altAboveFt }, { ...FW_FOLLOW, goal: (L, W) => fwGoal(L, W, s, false) })], { closeIn: true });
-  const { run } = trackTwice({ refs: { [lead.id]: fromStep(rec, n1) }, wing0: W1, t0: t0 + n1 * dt, phases: settle, blockFt, init: { accelKtps: part.accelKtps } });
+  const { run, profile: settleProfile } = trackTwice({ refs: { [lead.id]: fromStep(rec, n1) }, wing0: W1, t0: t0 + n1 * dt, phases: settle, blockFt, init: { accelKtps: part.accelKtps } });
   const durationSec = (n1 + run.points.length) * dt;
   if (!run.ok || durationSec > CHANGE_LIMIT_SEC) return null;
   const judged = judge([run.end.lead, run.end.wing], { key: 'fw' }, { spacingFt });
@@ -242,7 +242,7 @@ export function planEchelonToFw(pair, to, options = {}, t0 = 0) {
   const power = part.maxSet ? 'MAX' : 'power';
   return {
     ok: true,
-    plans: { [lead.id]: { segments: [] }, [wing.id]: { segments: [{ kind: 'bankTrack', points: [...part.points, ...run.points] }], profile } },
+    plans: { [lead.id]: { segments: [] }, [wing.id]: { segments: [{ kind: 'bankTrack', points: [...part.points, ...run.points] }], profile: [...settleProfile, ...profile] } },
     note: `${fromWord}${sideWord} to Fighting wing${sideWord}: ${how} (SMM 16.32 para 92, 16.38 para 105; Patrick 4 Oct 19:03Z). #2 rolls away from Lead at ${best.bankDeg}° to ${best.offDeg}° off his heading, idle and boards, no more than ${undertakeKias} KIAS below Lead's ${KIAS_OUTSIDE_LAB} KIAS (Rates ${RATE_WORDS[ratesNow()]}; lowest ${Math.round(part.minKias)} KIAS), and eases down to fighting wing height; turns back parallel and sets ${power} to stop his drop back in the cone (SMM 12.29 para 69): in the cone in about ${Math.round(coneSec)} s (Patrick 5 Oct 08:40Z: about 10 s), settled in about ${Math.round(durationSec)} s.`,
     label: `${FORMATIONS.fw.label}${sideWord}`,
     flying: `${fromWord}${sideWord} to ${FORMATIONS.fw.label}${sideWord} (${how})`,

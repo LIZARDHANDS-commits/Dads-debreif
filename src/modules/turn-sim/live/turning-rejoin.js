@@ -216,7 +216,9 @@ function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, 
   const leadR = turnRadiusFromBankFt(iasToTasKt(KIAS_OUTSIDE_LAB, blockFt) * KT_TO_FTPS, REJOIN.leadBankDeg);
   const placeR = Math.hypot(decisionFt * Math.sin(TR.lineDeg * DEG), leadR - decisionFt * Math.cos(TR.lineDeg * DEG));
   const leastKias = to === 'fw' ? Math.floor((KIAS_OUTSIDE_LAB * placeR) / leadR) : KIAS_OUTSIDE_LAB;
-  const floorKias = lowFloor ? KIAS_OUTSIDE_LAB - TR.undertakeKias : leastKias;
+  // To fighting wing he never slows below Lead's 200 KIAS: where its place needs less, the extra goes into height in the
+  // cone as he settles (Patrick 5 Oct 22:45Z; the tracker's cone energy, TS-96).
+  const floorKias = lowFloor ? KIAS_OUTSIDE_LAB - TR.undertakeKias : Math.max(leastKias, KIAS_OUTSIDE_LAB);
   // #2's height: from where he is to slightly low on the line over heightSec, or over his part if that is shorter.
   // With the vertical (upFt, TS-82): up upFt first, then down onto the line, each at no more than the descent rate.
   const upSec = upFt > 0 ? Math.max(TR.heightSec / 2, upFt / TR.descentFtps) : 0;

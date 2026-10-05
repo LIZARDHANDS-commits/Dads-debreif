@@ -5,6 +5,7 @@
 // unchanged from tuning.js, except the retired hot rejoin's (TS-94), which went with it.
 import { FW_BAND } from './slots.js';
 import { RATE_SETS, G_RULE_BANK_DEG, CLOSE_BANK_DEG, rejoinClosureNow } from './rates.js';
+import { IN_POSITION } from './bands.js';
 
 // ---- speeds (from transitions.js) ---------------------------------------------------------------------------------
 
@@ -151,6 +152,7 @@ export const FW_TURN = Object.freeze({
  * screen, never a wall). What each does to the flying (tracker.js; Patrick 05:27Z asked for the gains in plain words):
  */
 export const FW_FOLLOW = Object.freeze({
+  coneAlt: true, // his height is his own anywhere in the cone, and on the power profile he manages energy with it (FW_ENERGY, tracker.js)
   goalTolFt: 3, // the moving goal counts as reached once the target slot is within 3 ft of it (estimate)
   fwdRate: 40, // how fast the target slot slides fore and aft toward the goal, ft/s (estimate)
   latRate: 60, // how fast the target slot slides sideways toward the goal, ft/s (estimate)
@@ -164,6 +166,19 @@ export const FW_FOLLOW = Object.freeze({
   undertakeKias: 15, // the most speed below Lead, KIAS (estimate)
   advanceTol: 25, // within this many feet of the goal a leg counts as flown (estimate)
   finalTol: 6, // within this many feet of the last goal, and slow against it, #2 is settled (estimate)
+});
+
+/**
+ * Fighting wing energy with the cone (TS-96; Patrick 5 Oct 22:45Z: "energy can be managed with the cone", 23:02Z: "Use the
+ * cone as required, power as a last resort"): on the power profile in fighting wing (tracker.js), #2 takes a slowing first
+ * as a climb and a speeding up as a descent, inside the cone's height, so the throttle moves only for what the height can't
+ * give. The horizontal path and the speeds are the tracker's own; only the height and the power change (standard energy:
+ * a climb at v ft/s costs g·v / TAS of speed). Estimates, inside IN_POSITION's ±200 ft (Patrick 21:26Z).
+ */
+export const FW_ENERGY = Object.freeze({
+  coneUpFt: IN_POSITION.fwStackFt - 50, // he uses the cone's height up to this far above or below Lead, 50 ft inside the in-position band (estimate)
+  climbFtps: TURNING_REJOIN.descentFtps, // no quicker than the rejoin's height changes, 1,800 ft/min (estimate)
+  pullFtps2: 8, // the climb rate changes no quicker than this, about a quarter G, charged as G (estimate)
 });
 
 /**

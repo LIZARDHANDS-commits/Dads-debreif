@@ -19,7 +19,7 @@ import { KIAS_LAB, OPEN_OUT, TRACKER } from './tuning.js';
 import { fromStep, onClosure } from './hand-over.js';
 import { outAfterTurnBack } from './echelon-to-fw.js';
 import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
-import { setKias, trackTwice } from './tracker.js';
+import { setKias, trackTwice, climbCostKtps } from './tracker.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
 import { powerFor, powerFrom } from './power.js';
 import { wrapPi } from '../../../core/angles.js';
@@ -41,7 +41,7 @@ export const OPEN_OUT_HELD = Object.freeze({
   trimKtPerFt: 0.05, // KIAS more (or less) per foot he is behind (or ahead of) the slot's distance back (estimate) ...
   trimMaxKias: 25, // ... up to this (estimate: the rejoin overtakes of REJOIN_CLOSURE_KT, Instructor)
   jerkKtps2: 6, // his acceleration follows the power at up to this (echelon-to-fw.js's; estimate)
-  startTol: Object.freeze({ kias: 5, headingDeg: 1 }), // the pair this close to Lead's speed and heading, Lead straight (estimate, echelon-to-fw.js's)
+  startTol: Object.freeze({ kias: 5, headingDeg: 1, fwHeadingDeg: 5 }), // the pair this close to Lead's speed and heading, Lead straight (estimate, echelon-to-fw.js's); in fighting wing anywhere in the cone, still settling (estimate)
 });
 
 /**
@@ -122,7 +122,11 @@ export function planOpenOut(pair, to, options = {}, t0 = 0) {
   if (sTo !== s) return null; // to the other side he crosses behind Lead first (line-moves.js)
   const H = OPEN_OUT_HELD;
   const straight = lead.bankDeg === 0 && lead.rollRateDps === 0;
-  const matched = Math.abs(wing.kias - lead.kias) <= H.startTol.kias && Math.abs(wrapPi(wing.headingRad - lead.headingRad)) <= H.startTol.headingDeg * DEG;
+  // In fighting wing his height in the cone is energy (TS-96, the whole cone): high and slow, or low and fast, counts at the
+  // speed the height is worth, and the dive below flies the height off.
+  const coneKias = from.key === 'fw' ? (wing.altAboveFt - lead.altAboveFt) * climbCostKtps(wing, 1) : 0;
+  const headingTolDeg = from.key === 'fw' ? H.startTol.fwHeadingDeg : H.startTol.headingDeg;
+  const matched = Math.abs(wing.kias + coneKias - lead.kias) <= H.startTol.kias && Math.abs(wrapPi(wing.headingRad - lead.headingRad)) <= headingTolDeg * DEG;
   if (!straight || !matched) return null;
   const spacingFt = options.spacingFt ?? 6000;
   const blockFt = options.blockFt ?? 8000;
