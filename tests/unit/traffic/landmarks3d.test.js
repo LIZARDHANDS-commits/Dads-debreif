@@ -39,7 +39,7 @@ test('the landmarks build at the floor, trees and cars are one draw call each', 
   const lm = root.children.filter((g) => g.userData?.landmark);
   assert.equal(lm.length, 4);
   for (const g of lm) assert.equal(g.position.z, 1880);
-  assert.ok(root.getObjectByName('hwy2').position.z > 1880, 'Hwy 2 sits just above the floor');
+  assert.equal(root.getObjectByName('hwy2'), undefined, 'Hwy 2 is not drawn over the photo (Patrick, 5 Oct)');
   assert.ok(root.getObjectByName('arrow-trees-rows').isInstancedMesh);
   assert.ok(root.getObjectByName('fiat-farm-cars').isInstancedMesh);
   disposeLandmarks(root);
