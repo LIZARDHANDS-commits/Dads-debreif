@@ -54,6 +54,15 @@ export const WING = Object.freeze({
   swapAccelDps2: 2, // how quickly a wingman can stop a drift across the cone, 2°/s² (estimate)
   swapMarginDeg: 2, // the stop must be at least 2° past the tail line before he swaps, so he doesn't flick on a line (estimate)
   swapGuardSec: 4, // no new swap for 4 s after one ends (estimate)
+  // Opening the range in the wingovers' and barrel roll's pulls (Patrick card 5 Oct 01:01Z, "Open his path"; SMM 16.17
+  // para 44's 5 G as an aim, not a wall; TS-60 amendment): on Lead's path at a long distance #2 has to speed up at the
+  // bottom of each pull to keep the distance, which takes him past 5 G. Instead he flies no faster along Lead's path than
+  // keeps him near openGAim, letting the distance open, then closes back to the setting.
+  openGAim: 4.5, // the G he aims to stay under while the range opens: 0.5 G inside the 5 G aim for the turn's own share (estimate)
+  openFadeSec: 2, // the opening is allowed only in those manoeuvres, faded in and out over 2 s (estimate)
+  closeShare: 0.08, // closing back he flies at most 8% faster along Lead's path than Lead did there (about 15-20 KIAS; estimate) ...
+  closeSec: 4, // ... and the last of it dies away over about 4 s (estimate)
+  openSoft: 0.005, // how softly the opening hands over to the closing (the smooth maximum's width; estimate)
 });
 
 /**
@@ -242,13 +251,13 @@ export function fluidPointAt(E, s, latFt) {
 }
 
 /**
- * Where Lead was, at the set straight-line range from where he is now: the point on his path the nearest time back
- * that reaches the range (walk back in 0.1 s steps, then halve the bracket), with its across offset. Cached on the
- * entry. Returns { fp (fluidPointAt), back (steps) }. kMin: the earliest step of Lead's path that exists.
+ * How far back along Lead's path (steps) is the set straight-line range from where he is now: the nearest time back
+ * that reaches it (walk back in 0.1 s steps, then halve the bracket). Cached on the entry. kMin: the earliest step of
+ * Lead's path that exists.
  */
-function pathPointAt(E, k, kMin) {
+function chordBackAt(E, k, kMin) {
   const now = E(k);
-  if (now.pathS) return now.pathS;
+  if (now.chordS !== undefined) return now.chordS;
   const v = wingValues(now.wing, now.t);
   const maxBack = Math.max(0, Math.min(WING.maxBehindSec / dt, k - kMin - 1));
   const gap = (back) => len3(sub3(now.pos, fluidPointAt(E, k - back, v.latFt).p)) - v.rangeFt;
@@ -267,7 +276,87 @@ function pathPointAt(E, k, kMin) {
     if (gap(mid) >= 0) hi = mid;
     else lo = mid;
   }
-  const back = (lo + hi) / 2;
+  now.chordS = (lo + hi) / 2;
+  return now.chordS;
+}
+
+/** A smooth maximum of a and b (never below either; within `soft` of the larger), so a hand-over has no corner. */
+const smoothMax = (a, b, soft) => (a + b) / 2 + Math.sqrt(((a - b) / 2) ** 2 + soft * soft);
+
+/** How much of the range-opening rule applies at step k: 1 in a wingover or barrel roll (the cue's hold 0), faded over WING.openFadeSec. */
+function openWeightAt(E, k) {
+  const n = Math.round(WING.openFadeSec / dt);
+  let sum = 0;
+  let wsum = 0;
+  for (let j = 0; j <= n; j += 1) {
+    const w = hann(j, n);
+    if (w > 0 && E(k - j).cue?.hold === 0) sum += w;
+    wsum += w;
+  }
+  return sum / wsum;
+}
+
+/**
+ * The G #2 would pull at step i on the set range alone (no opening): from his points over the last half second (looking
+ * ahead would ask for Lead's path before it is planned), the lift that turns that path and holds him up against gravity
+ * (standard kinematics). Cached on the entry.
+ */
+function chordGAt(E, i, kMin) {
+  const e = E(i);
+  if (e.chordG !== undefined) return e.chordG;
+  const h = 5;
+  const at = (j) => fluidPointAt(E, j - chordBackAt(E, j, kMin), wingValues(E(j).wing, E(j).t).latFt).p;
+  const p0 = at(i - 2 * h);
+  const p1 = at(i - h);
+  const p2 = at(i);
+  const T = h * dt;
+  const vel = scale3(sub3(p2, p0), 1 / (2 * T));
+  const acc = scale3(add3(sub3(p2, scale3(p1, 2)), p0), 1 / (T * T));
+  const n = unit3(vel);
+  const f = add3(acc, { x: 0, y: 0, z: G_FTPS2 });
+  e.chordG = len3(sub3(f, scale3(n, dot3(f, n)))) / G_FTPS2;
+  return e.chordG;
+}
+
+/**
+ * The extra steps back along Lead's path that let #2's range open (WING.openGAim), at step k: it grows when the set
+ * range alone would take him past openGAim, by slowing his progress along the path by sqrt(openGAim / that G) (the
+ * turning share of G grows with the speed squared on the same path, standard kinematics), and dies away again, closing
+ * at no more than WING.closeShare faster. Worked out step by step from the last step known, and cached on the entry.
+ */
+function openBackAt(E, k, kMin) {
+  const now = E(k);
+  if (now.openS !== undefined) return now.openS;
+  const first = kMin + 2;
+  let j = k;
+  while (j > first && E(j - 1).openS === undefined) j -= 1;
+  let open = j > first ? E(j - 1).openS : 0;
+  const closeSteps = WING.closeSec / dt;
+  for (let i = Math.max(j, first); i <= k; i += 1) {
+    const bc = chordBackAt(E, i, kMin);
+    const bcPrev = chordBackAt(E, i - 1, kMin);
+    // How much faster than keeps him at openGAim the set range would move him along Lead's path (per step), and none
+    // outside those manoeuvres (pushed well below the closing so it never wins there).
+    const progress = 1 - (bc - bcPrev);
+    const g = chordGAt(E, i, kMin);
+    const over = progress * (1 - Math.sqrt(WING.openGAim / Math.max(g, 0.1))) - (1 - openWeightAt(E, i));
+    const closing = -WING.closeShare * Math.tanh(open / (WING.closeShare * closeSteps));
+    open = Math.max(0, open + smoothMax(over, closing, WING.openSoft));
+    E(i).openS = open;
+  }
+  return now.openS;
+}
+
+/**
+ * Where Lead was, at the set straight-line range from where he is now, plus the opening (openBackAt), with its across
+ * offset. Cached on the entry. Returns { fp (fluidPointAt), back (steps) }.
+ */
+function pathPointAt(E, k, kMin) {
+  const now = E(k);
+  if (now.pathS) return now.pathS;
+  const v = wingValues(now.wing, now.t);
+  const maxBack = Math.max(0, Math.min(WING.maxBehindSec / dt, k - kMin - 1));
+  const back = Math.min(maxBack, chordBackAt(E, k, kMin) + openBackAt(E, k, kMin));
   now.pathS = { fp: fluidPointAt(E, k - back, v.latFt), back };
   return now.pathS;
 }

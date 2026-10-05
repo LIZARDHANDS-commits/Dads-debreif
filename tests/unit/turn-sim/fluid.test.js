@@ -368,3 +368,28 @@ test('the standard sequence flies a level turn, a loop, two wingovers and a barr
   assertBackInTheCone(f, 'after the sequence');
   assert.deepEqual(failures.slice(0, 5), []);
 });
+
+test('at a long distance setting #2 lets the range open in the wingovers and the barrel roll, and is back in the cone at the setting after', () => {
+  // Patrick card 5 Oct 01:01Z ("Open his path"): at 1,000 ft (the top of his 500-1,000 ft, row 3) #2 lets the range open
+  // during the pull rather than pull past 5 G (SMM 16.17 para 44, an aim, not a wall), then resets (TS-60). What is always
+  // true: positive G, nothing jumps, outside the 500 ft bubble, never ahead of the 3/9 line; and the end picture. Two
+  // minutes each is generous for the set-up and the manoeuvre.
+  const farFt = 1000;
+  for (const key of ['wingover', 'barrelRoll']) {
+    const f = createFormation({ fluidRangeFt: farFt });
+    assert.equal(f.change('fw'), 'started');
+    for (let i = 0; i < 3600 && f.state.current; i++) f.step();
+    f.change('fluid');
+    const failures = [];
+    const watch = alwaysTrue(failures);
+    fly(f, 30, watch);
+    f.pressFluid('wingsLevel');
+    fly(f, 5, watch);
+    assert.notEqual(f.pressFluid(key, 1), 'refused', key);
+    fly(f, 120, watch);
+    const r = f.state.fluid.readouts;
+    assert.ok(Math.abs(r.rangeFt - farFt) <= TOLERANCES.DISTANCE_FT, `${key}: back at the setting, ${Math.round(r.rangeFt)} ft`);
+    assert.ok(r.aspectDeg <= CONE_HALF_DEG, `${key}: back in the cone, aspect ${r.aspectDeg.toFixed(1)}°`);
+    assert.deepEqual(failures.slice(0, 5), [], key);
+  }
+});
