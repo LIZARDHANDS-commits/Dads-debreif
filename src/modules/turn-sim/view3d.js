@@ -209,8 +209,8 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(TRAIL_POINTS * 3), 3));
       geometry.setDrawRange(0, 0);
-      // Dots, slightly see-through (Patrick, 5 Oct): one every fourth track point, a second apart.
-      line = new THREE.Points(geometry, new THREE.PointsMaterial({ color: source.colors[id] ?? '#ffffff', size: 3, sizeAttenuation: false, transparent: true, opacity: 0.6, fog: false }));
+      // A faint line (Patrick, 5 Oct: "a more translucent line").
+      line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: source.colors[id] ?? '#ffffff', transparent: true, opacity: 0.3, fog: false }));
       line.frustumCulled = false;
       gl.scene.add(line);
       gl.trails.set(id, line);
@@ -431,8 +431,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       const points = layers.tracks === false ? [] : trail[a.id] ?? []; // the Tracks tick, as in 2D
       const line = trailFor(a.id);
       const attr = line.geometry.attributes.position;
-      // Every fourth point (the track is kept every 0.25 s), so the dots stand a second apart.
-      const every = 4;
+      const every = 1; // every track point, a smooth line
       const count = Math.min(Math.floor(points.length / every), TRAIL_POINTS);
       const first = points.length - count * every;
       for (let i = 0; i < count; i++) {
@@ -469,7 +468,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     }
     drawGuides(state, layers, (Math.max(box.width, box.height) * ftPerPx) * 0.75);
     gl.guideLines.material.dashSize = 8 * ftPerPx;
-    gl.guideLines.material.gapSize = 8 * ftPerPx;
+    gl.guideLines.material.gapSize = 24 * ftPerPx; // quieter: half the dashes, wider gaps (Patrick, 5 Oct)
     for (const [id, line] of gl.plans) {
       if (present.has(id)) continue;
       line.removeFromParent();

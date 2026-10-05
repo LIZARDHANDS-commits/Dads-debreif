@@ -46,20 +46,46 @@ export const REJOIN = Object.freeze({
 });
 
 /**
- * The turning rejoin (V2.59, TS-68; Patrick 5 Oct 07:14Z, card "Yes, as written" 07:31Z, 07:32Z): one rule for every turning
- * rejoin, from line abreast (hot: #2 starts ahead of the line and gets colder to reach it) or fighting wing (cold: he turns
- * hotter to reach it). #2 gets onto the rejoin line, Lead at his 10:30 or 1:30 with about half Lead's upper wing showing aft
- * of the fin (Patrick: "where the tail and the wing make an X"), on his own side, inside Lead's turn and slightly low; holds
- * that line and closes down it at the Rates closure; where the line reaches route's spacing (the decision point) he flows into
- * route and on into the slot in one motion (SMM 12.24 paras 56-58, Figs 12.14-12.15; 16.20 paras 65b-66). He goes behind
- * Lead only in an overshoot.
+ * The turning rejoin (V2.59, TS-68; flown as held bank and power since V2.63, TS-69; Patrick 5 Oct 07:14Z, card "Yes, as
+ * written" 07:31Z, 07:32Z, 08:12Z-08:20Z): one rule for every turning rejoin, from line abreast (hot: #2 starts ahead of the
+ * line and gets colder to reach it) or fighting wing (cold: he turns hotter to reach it). #2 gets onto the rejoin line, Lead
+ * at his 10:30 or 1:30 with about half Lead's upper wing showing aft of the fin (Patrick: "where the tail and the wing make an
+ * X"), on his own side, inside Lead's turn and slightly low; comes down it at Lead's speed plus the Rates overtake, taking it
+ * out with power for the decision point (where the line reaches route's spacing); then he flows into route and on into the
+ * slot in one motion (SMM 12.24 paras 56-58, Figs 12.14-12.15; 16.20 paras 65b-66). He goes behind Lead only in an overshoot.
+ * The flying is turning-rejoin.js's; review turn-sim-review/rejoin-review-fable.md.
  */
 export const TURNING_REJOIN = Object.freeze({
   lineDeg: 45, // the rejoin line, degrees behind Lead's 3/9 line: Lead at 10:30 or 1:30 (SMM 12.24 para 56; Patrick's card 07:31Z). It passes through the fighting wing place (16.20 para 66) and the corner behind echelon (para 58's latest point)
   lineUpFt: -30, // #2's height on the line, below Lead: "just slightly below lead" (SMM 12.24 para 58); 30 ft is an estimate
-  slideAheadFt: 200, // down the line #2 aims this far ahead of where he is, so he closes along it at the Rates closure (estimate)
-  captureTolFt: 30, // he is on the line, and at the decision point, within this many feet of it (estimate)
+  aimsFt: [300, 600, 1200], // how sharply #2 captures the line: off it by this much he heads for it at half approachDeg; the one that brings him in soonest is flown (estimates: smaller is a sharper capture, larger a gentler, longer one)
+  approachDeg: 80, // far off the line he heads for it at up to this angle across it, in Lead's frame (estimate)
+  bankCapDeg: 60, // the bank he uses at most to get onto the line and hold it: past about 60° the drag costs speed and buys nothing (the review's estimate, rejoin-review-fable.md). Only when no rejoin at 60° keeps him behind Lead's 3/9 line does he use more, up to the G rule (REJOIN.bankCapDeg)
+  hotFt: 1000, // ahead of the line by this much (hot) he flies undertakeKias below Lead's speed, less in proportion closer to it (estimate)
+  laneTolFt: 20, // flowing into the slot he may pass this far ahead of it, never more, toward Lead's 3/9 line (estimate; Patrick 08:04Z)
+  decisionArriveRates: 'instructor', // he reaches the decision point closing no faster than this Rates choice's close-in rate (about 15 kt), so AI's quicker close-in starts from a closure under control (estimate; SMM 12.24 para 58)
+  fwArriveFtps: 5, // to fighting wing he arrives at its place on the line at about this closure, and the tracker settles him there (estimate)
+  hotBanksDeg: [30, 60], // hot (from line abreast) he tries Lead's own 30° and the medium 60° first (the review's estimates, rejoin-review-fable.md follow-up 1)
+  lagAimFt: 2400, // and, hot, the gentlest capture too: lagging while Lead's turn brings the aspect round (estimate)
+  descentFtps: 30, // a height difference comes off no quicker than this, 1,800 ft/min (HOT.descentFtps's estimate)
+  captureFt: 150, // he is on the line within this many feet of it; only then does he start taking out the overtake for the decision point (estimate)
+  lineTauSec: 4, // his heading comes onto the one the line asks over about this long, so the bank changes smoothly (estimate)
+  heightSec: 10, // #2 settles slightly low on the line over this long, or over his part to the decision point if shorter (estimate)
+  undertakeKias: 25, // hot, or taking the overtake out, he slows no further than this below Lead's 200 KIAS (rejoinTo's, an estimate)
   routeFlowFt: 20, // he flows through route without stopping, within this many feet of it, on into the slot (estimate; Patrick 07:14Z: "in one motion")
+});
+
+/**
+ * The straight-ahead rejoin, flown the way a pilot flies it (straight-rejoin.js, TS-72; Patrick 5 Oct 08:40Z: "SARJ should
+ * start at full power until it gets back on leads six, then set an overtake. The geometry of moving makes it fall back";
+ * the review's SARJ, fable-compiled.md section 3). All estimates unless a source is given.
+ */
+export const STRAIGHT_REJOIN = Object.freeze({
+  cutsDeg: [30, 45, 60], // far off Lead's six line he heads across it at up to this angle to Lead's track; the one that brings him in soonest is flown (estimates: a bigger cut gets across sooner and falls back further)
+  aimsFt: [600, 1200, 2400], // how sharply he comes onto the six line: off it by this much he cuts at half the angle (estimates, as TURNING_REJOIN.aimsFt; gentler than the turning rejoin's so he doesn't swing through the six)
+  lineTauSec: 2, // his heading comes onto the one the cut asks over about this long (estimate; the turning rejoin's 4 s swings him through the six)
+  captureFt: 100, // he is on Lead's six within this many feet of it; until then full power, from then the overtake (estimate)
+  decisionBehindFt: 100, // the decision point, this far behind route on the line up to it: the tracker flows him through route from there. Coming straight up from behind, all of his closure is fore and aft, so he needs more room to stop than the turning rejoin's 45° line (about 22 ft behind route) gives (estimate)
 });
 
 // ---- the kinematic moves: close moves, the hot turning rejoin, following Lead (from kinematic-moves.js) ---------------
@@ -500,7 +526,14 @@ export const HOLD = Object.freeze({
   cutShare: 0.25, // the most offset inside Lead's turn, as a share of the range: about sin 15°, the lag line's angle, so he goes toward pure pursuit and stays inside the 30° cone (estimate)
   cutSec: 4, // how long moving into or out of the offset takes (estimate)
   cutMinCurvPerFt: 1 / 20000, // a line straighter than a 20,000 ft radius has no inside to cut (estimate)
-  landSec: 1, // the live hold (fluid manoeuvring, V2.59): once caught up, the last fraction of a foot is blended onto the line over 1 s (estimate)
+  // #2 in fluid manoeuvring by energy and geometry (TS-74, V2.69; full-power.js flyFluidStep). cutShare, cutSec and
+  // cutMinCurvPerFt above are his lag and lead offset too, either side of the line.
+  lookSec: 2, // he sets his lag or lead for the gap he will have in about 2 s at the closure he has (estimate)
+  bubbleMarginFt: 50, // with Lead at MAX, #2 takes power off only within about 50 ft of the 500 ft bubble (estimate)
+  offsetAccFtps2: 10, // and moves with at most about 0.3 G of its own, so the lag or lead adds little to the G he pulls (estimate)
+  aimSec: 1, // and the offset's aim is eased over about 1 s, so a new turn or a reversal never jerks his G (estimate)
+  powerSec: 2, // the PCL's full travel, MAX to idle and the boards, takes at least 2 s (estimate)
+  floorKias: 70, // his speed is never shown below 70 KIAS, a guard only: the planned line keeps him well above it (estimate)
 });
 
 // ---- roll (from flight.js) -----------------------------------------------------------------------------------------
@@ -511,3 +544,31 @@ export const HOLD = Object.freeze({
  * it was 360°/s², Patrick card 4 Oct 09:54Z, which reaches 180°/s only in a roll of 90° or more).
  */
 export const ROLL = Object.freeze({ maxRateDps: 180, maxAccelDps2: 720 });
+
+// ---- the lag roll to fighting wing (lag-roll.js; spec section 10.8, TS-71) ------------------------------------------
+
+/**
+ * #2's lag roll from fighting wing to the cone on Lead's other side (Patrick 5 Oct 08:54Z: "the airplane flips up and rolls
+ * canopy to canopy to lead then lands in the cone on the other side, power pitch and bank as required"). The SMM and EFIG
+ * do not name the lag roll; the nearest pages are SMM 12.29 para 69 (the cone, using the vertical), SMM 12.30-12.31
+ * para 74 (lag pursuit) and SMM 14.8 paras 18-19, Fig 14.1, Table 14.1 (the barrel roll). Every number here is an
+ * estimate unless a page or ruling is named beside it.
+ */
+export const LAG_ROLL = Object.freeze({
+  pullG: Object.freeze([3, 2.5]), // the searched pull: the barrel roll's 3 G entry (SMM Table 14.1; Fig 14.1) and a softer 2.5 (estimate)
+  noseUpDeg: Object.freeze([45, 30]), // the searched nose-up: 30-45° (estimate; 45 is the barrel roll's, SMM 14.8 para 19)
+  noseUpSlopDeg: 6, // how near the planned path's steepest climb must come to the searched nose-up (estimate)
+  topKias: 165, // the speed aimed for over the top, about 160-170 KIAS (estimate)
+  topKiasBand: Object.freeze([150, 185]), // a plan whose slowest speed is outside this is not used (estimate)
+  topRangeFt: Object.freeze([900, 1400]), // range from Lead passing over his six, about 1,000-1,300 ft (estimate, widened 100 ft each way)
+  bubbleFt: 500, // a plan that comes inside 500 ft of Lead is refused (SMM 16.23, the fluid bubble; FW_BAND's inner edge, SMM 12.29 para 69)
+  minG: 0.3, // canopy to canopy means positive G throughout: no plan pushes (estimate)
+  rollSec: Object.freeze([8, 30]), // the roll's length searched, in whole seconds (estimate)
+  climbFt: Object.freeze([200, 2000]), // how far above the straight line from start to end he goes, searched in 100 ft steps (estimate)
+  fallBackFt: Object.freeze([0, 1000]), // how far behind the slot the roll ends, searched in 100 ft steps (estimate)
+  searchStepSec: 0.25, // the search's coarse time step (the flown path is planned at the sim's own step)
+  coneRangeFt: Object.freeze([400, 1250]), // where the roll may end: the sim's fighting wing region (judge.js classifier, 400-1,300 ft), kept 50 ft inside its far edge (estimate)
+  coneSweepDeg: Object.freeze([20, 70]), // the same region's sweep (judge.js classifier; estimate)
+  closeOvertakeKias: 20, // closing back up to the slot after the roll: the top of EFIG p.374's 10-20 KIAS overtake (estimate choice)
+  rollingAboveDps: 10, // above this roll rate the rolling G limit (core availableG, rolling) is the one checked (estimate)
+});

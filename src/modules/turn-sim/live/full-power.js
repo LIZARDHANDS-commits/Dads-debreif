@@ -1,9 +1,8 @@
 // A wingman is held to what the aircraft can do (decision TS-63; Patrick 5 Oct 2026 02:48Z: "If they get stretched they
 // just have to show it in their tag and fix it as best as they can once the maneuver ever finishes"). One place for the
 // rule, used where a planned line broke it: the off-standard hot rejoin's capture lines (Patrick 03:46Z: "I thought the
-// thing that we added that for was one case"; holdToPower) and, since V2.59, #2 in fluid manoeuvring (Patrick 04:07Z: "I
-// thought we established fluid speed ups between md full just end stretched and fix la after"; holdLiveStep, step by
-// step; the parked V2.22 work, b905095 and ce650bb, ported):
+// thing that we added that for was one case"; holdToPower). #2 in fluid manoeuvring flies by energy and geometry from
+// V2.69 (flyFluidStep at the end of this file, TS-74), which replaced the V2.59 live hold:
 //  - a speed-up is never faster than full power gives at that speed, height and G (core excessThrustPerWeight, the same
 //    curve as slow-down.js fullPowerKtps), with a climb paid for out of the same excess (standard aerodynamics:
 //    dV/dt = g ((T - D) / W - sin(climb angle)));
@@ -18,7 +17,7 @@
 // A line already inside every limit is flown exactly as planned. Formation Sim only: the core curves are used, not changed.
 //
 // Units: feet, seconds, true airspeed in ft/s inside the governor, KIAS on the poses (the planned lines' own ratio).
-import { excessThrustPerWeight, stallLimitG, tasToIasKt } from '../../../core/t6-performance.js';
+import { excessThrustPerWeight, iasToTasKt, stallLimitG, tasToIasKt } from '../../../core/t6-performance.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { wrapPi } from '../../../core/angles.js';
 import { STEP_SEC } from './flight.js';
@@ -246,67 +245,36 @@ export function holdToPower(poses, { refAt, blockFt = 8000, kiasPerTas, from = 1
   return { poses: line, changed: true, stretched: stretchedAny, endIndex: end };
 }
 
-// ---- one step of the hold, and the live hold (fluid manoeuvring, V2.59) ---------------------------------------------
-
-/** The most #2 may speed up along his line (true airspeed, ft/s²): full power's excess at kias, altFt and G n, less the climb at angle gamma. */
-export function fullPowerFtps2(kias, altFt, n, gamma) {
-  return G_FTPS2 * (excessThrustPerWeight(kias, altFt, n) - Math.sin(gamma));
-}
-
-/** The G on a line that turns kh (rad/ft across) and pulls up kv (rad/ft) at climb angle gamma, flown at v ft/s (standard kinematics). */
-export function lineG(v, kh, kv, gamma) {
-  return Math.hypot((v * v * kh) / G_FTPS2, Math.cos(gamma) + (v * v * kv) / G_FTPS2);
-}
-
-/**
- * One step of the hold (the rules at the top), from #2's speed v and acceleration a along his line (ft/s, ft/s²):
- *  vd, ad: the planned speed and acceleration he follows (the caller says which: holdToPower the place he should be at,
- *    holdLiveStep the place he is at); gap: how far along the line the
- *    planned place is ahead of him (ft); overtakeFtps: the most overtake he closes with;
- *  kias, altFt: his indicated speed and height now; kh, kv, gamma: the line's turn, pull-up and climb angle where he is;
- *  gAt(v): the G on the line where he is at speed v (lineG from kh, kv and gamma unless given).
- * He follows the plan's speed plus the closing overtake (softened near the place, so arriving has no kink), his
- * acceleration changing no faster than HOLD.jerkFtps3, inside full power and idle with the boards; past the G wall
- * (Patrick 03:05Z) he slows (idle and the boards) so the G comes back down, where slowing does that; the line in the air
- * is kept.
- * Returns { v, a, ds (feet moved along the line this step), full (held to full power) }.
- */
-export function governStep(state, { vd, ad, gap, overtakeFtps, kias, altFt, kh, kv, gamma, gAt = (u) => lineG(u, kh, kv, gamma) }) {
-  const { v } = state;
-  let { a } = state;
-  const close = Math.sign(gap) * Math.min(overtakeFtps, Math.sqrt(2 * HOLD.closeDecelFtps2 * Math.abs(gap) + 1) - 1);
-  const want = ad + HOLD.gain * (vd + close - v);
-  a += Math.max(-HOLD.jerkFtps3 * dt, Math.min(HOLD.jerkFtps3 * dt, want - a));
-  const n = gAt(v);
-  const aMax = fullPowerFtps2(kias, altFt, n, gamma);
-  const aMin = G_FTPS2 * (excessPerWeight('idleBoards', kias, altFt, n) - Math.sin(gamma));
-  let full = false;
-  if (a > aMax) {
-    a = aMax;
-    full = true;
-  } else if (a < aMin) a = aMin;
-  // Past the wall he slows only where slowing brings the G down (the line's turn, not gravity, is most of it): slower over
-  // the top of a loop the stall line falls faster than the G does.
-  if (n > wallG(kias) && gAt(v * 0.99) < n) a = aMin;
-  const v1 = v + a * dt;
-  return { v: v1, a, ds: ((v + v1) / 2) * dt, full };
-}
-
-// ---- the live hold: a line planned a few seconds ahead and re-planned on a press (fluid manoeuvring) ----------------
+// ---- #2 in fluid manoeuvring: energy and geometry (TS-74, V2.69) ----------------------------------------------------
 
 const KT_PER_FTPS = 1 / KT_TO_FTPS;
 
 /**
- * One step of the hold on a line that is only planned a few seconds ahead (fluid manoeuvring, Patrick 04:07Z: "I thought
- * we established fluid speed ups between md full just end stretched and fix la after"): the same rules and governStep as
- * holdToPower, worked out step by step, so a press of Lead's that re-plans the line ahead is followed from where #2 is.
- *  state: null while #2 flies the planned line exactly, else { sig (his place: a fractional step of the line), v, a, landK,
- *    o and ov (his offset inside the turn, ft, and how fast it changes; V2.59 cut inside) };
+ * One step of #2 in fluid manoeuvring (TS-74, V2.69; Patrick 5 Oct 16:42Z: "That's how form works - you use geometry"),
+ * on a line planned only a few seconds ahead and re-planned on a press, so a press of Lead's is followed from where he is.
+ * The planned line (fluid-wing.js) is his aim; how he flies it is real:
+ *  - his speed comes from his energy height (height + V²/2g), which changes only by what his power gives at his speed,
+ *    height and G (specific excess power, V (T - D) / W; standard aerodynamics). So whatever the line asks, he never slows
+ *    faster than idle and the boards nor speeds up faster than MAX, a climb costs him speed, a dive gives it back, and
+ *    pulling hard costs energy;
+ *  - he keeps MAX, as Lead does (SMM 16.17 para 43; AFM7 brief p.17), and holds his place with geometry (SMM 16.17 para 44;
+ *    EFIG p.391: lead puts the path inside Lead's turn circle, lag outside): gaining, he flies outside the line's turn (lag,
+ *    a longer way round); behind, inside it (lead, a shorter way). In a loop the line's turn is the loop, so lag is higher
+ *    over the top. Either way at most HOLD.cutShare of the range off the line (about 15°, so he stays in the 30° cone),
+ *    and inside never past the G rule's normal 5 G (TS-63);
+ *  - only where geometry can't take out his extra speed (flying straight, or the most lag not enough) does he take power
+ *    off, toward idle and the boards; behind with the most lead at MAX he stays behind and the range opens (STRETCHED past
+ *    1,000 ft, fluid.js).
+ *  state: null at the first step, else { sig (his place: a fractional step of the line), es (energy height above the
+ *    block, ft), pwr (0 idle and boards .. 1 MAX), o and ov (his offset from the line, ft, and its rate) };
  *  P(k): the planned line's point at step k ({ x, y, z }, z above the block; needs k - 2 .. k + 5);
- *  k: the step to fly to; ref: the aircraft he flies off at step k ({ x, y }); blockFt: the block height.
- * Returns { state, p (his point at step k), stretched, full }. With state null and the line inside full power, p is P(k).
+ *  k: the step to fly to; ref: Lead at step k ({ x, y, z }); blockFt: the block height; opts: { v0 (his true airspeed
+ *    at the first step, ft/s; the line's own when not given), aheadOkFt (how far ahead of his place he may get before he
+ *    takes power off, 0 by default) }.
+ * Returns { state, p (his point at step k), power (his tag's power), behindFt (along the line, + behind his place),
+ * settled (on his place at its speed) }.
  */
-export function holdLiveStep(state, P, k, ref, blockFt) {
+export function flyFluidStep(state, P, k, ref, blockFt, { v0 = null, aheadOkFt = 0 } = {}) {
   const dist = (a, b) => Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
   const seg = (i) => dist(P(i), P(i + 1));
   const vAt = (j) => (seg(j - 1) + seg(j)) / (2 * dt);
@@ -327,20 +295,23 @@ export function holdLiveStep(state, P, k, ref, blockFt) {
     const tl = Math.max(Math.hypot(tx, ty, tz), 1e-9);
     return { t: { x: tx / tl, y: ty / tl, z: tz / tl }, k: { x: (t2.x - t1.x) * m, y: (t2.y - t1.y) * m, z: (t2.z - t1.z) * m }, z: b.z };
   };
-  const mixShape = (s0, s1, u) => {
+  const shapeAt = (sig) => {
+    const i = Math.floor(sig);
+    const u = sig - i;
+    const s0 = shape(i);
+    const s1 = shape(i + 1);
     const l = (p, q) => ({ x: p.x + (q.x - p.x) * u, y: p.y + (q.y - p.y) * u, z: p.z + (q.z - p.z) * u });
     return { t: l(s0.t, s1.t), k: l(s0.k, s1.k), z: s0.z + (s1.z - s0.z) * u };
   };
-  // The G at speed v on a line of that shape: the lift that turns it (v squared x curvature) and holds him up against
-  // gravity's share square to the line (standard kinematics).
-  const gOn = (sh) => (v) => {
+  // The G at speed v on a line of that shape flown `shorten` times shorter (inside its turn; longer outside): the lift
+  // that turns it (v squared x curvature) and holds him up against gravity's share square to the line (standard kinematics).
+  const gOn = (sh, shorten = 1) => (v) => {
     const tz = sh.t.z;
-    const x = v * v * sh.k.x - G_FTPS2 * tz * sh.t.x;
-    const y = v * v * sh.k.y - G_FTPS2 * tz * sh.t.y;
-    const z = v * v * sh.k.z + G_FTPS2 * (1 - tz * sh.t.z);
+    const x = (v * v * sh.k.x) / shorten - G_FTPS2 * tz * sh.t.x;
+    const y = (v * v * sh.k.y) / shorten - G_FTPS2 * tz * sh.t.y;
+    const z = (v * v * sh.k.z) / shorten + G_FTPS2 * (1 - tz * sh.t.z);
     return Math.hypot(x, y, z) / G_FTPS2;
   };
-  const climbOf = (sh) => Math.asin(Math.max(-1, Math.min(1, sh.t.z)));
   // Signed distance along the line from place sig to step j (positive: j ahead of him).
   const arcTo = (sig, j) => {
     const i = Math.floor(sig);
@@ -368,83 +339,108 @@ export function holdLiveStep(state, P, k, ref, blockFt) {
     const i = Math.floor(sig);
     return cr([P(i - 1), P(i), P(i + 1), P(i + 2)], 1, sig - i);
   };
+  const zero = { x: 0, y: 0, z: 0 };
   let st = state;
   if (!st) {
-    // Is the planned line asking more than full power here? (its speed-up read over half a second, as firstOverPower)
-    const vd = vAt(k);
-    const ad = (vAt(k + 5) - vAt(k - 5)) / (10 * dt);
-    const sh = shape(k);
-    const alt = blockFt + sh.z;
-    const kias = tasToIasKt(vd * KT_PER_FTPS, alt);
-    const up = fullPowerFtps2(kias, alt, gOn(sh)(vd), climbOf(sh));
-    const margin = Math.abs(up) * HOLD.margin.share + HOLD.margin.ktps * (vd / Math.max(kias, 1));
-    if (!(ad > up + margin)) return { state: null, p: P(k), stretched: false, full: false };
-    st = { sig: k - 1, v: vAt(k - 1), a: (vAt(k) - vAt(k - 2)) / (2 * dt), landK: null };
+    const v = v0 ?? vAt(k - 1);
+    st = { sig: k - 1, es: P(k - 1).z + (v * v) / (2 * G_FTPS2), pwr: 1, o: zero, ov: zero, wf: zero };
   }
-  const i = Math.floor(st.sig);
-  const u = st.sig - i;
-  const sh = mixShape(shape(i), shape(i + 1), u);
-  const alt = blockFt + sh.z;
-  const kias = tasToIasKt(st.v * KT_PER_FTPS, alt);
-  // The line's own speed and speed-up at his place (not at the place it wanted him now): behind on a loop he flies its
-  // bottom at the bottom's speed, not at the speed of the top the plan has reached.
-  const vd = vAt(i) + (vAt(i + 1) - vAt(i)) * u;
-  const adAt = (j) => (vAt(j + 1) - vAt(j - 1)) / (2 * dt);
-  const ad = (adAt(i) + (adAt(i + 1) - adAt(i)) * u) * (st.v / Math.max(vd, 1));
-  // Cutting inside (V2.59, Patrick card 5 Oct 04:53Z "Geometry: cut inside"): while he is behind, #2 flies a little inside
-  // the line's turn (less lag, toward pure pursuit), offset `o` from the line toward its centre. Inside the turn his own
-  // path is shorter by (1 - c x curvature), so the same speed takes him further along Lead's line and the gap closes; the
-  // tighter turn costs G, so the offset never asks more than the G rule's normal 5 G (TS-63, G_RULE).
-  const o0 = st.o ?? { x: 0, y: 0, z: 0 };
-  const ov0 = st.ov ?? { x: 0, y: 0, z: 0 };
+  // Where he is and how fast: his speed from his energy height and his height now.
+  const sh = shapeAt(st.sig);
+  const line0 = pointAt(st.sig);
+  const here = { x: line0.x + st.o.x, y: line0.y + st.o.y, z: line0.z + st.o.z };
+  const alt = blockFt + here.z;
+  const vFloor = iasToTasKt(HOLD.floorKias, alt) * KT_TO_FTPS;
+  const v = Math.sqrt(Math.max(vFloor * vFloor, 2 * G_FTPS2 * (st.es - here.z)));
+  const kias = tasToIasKt(v * KT_PER_FTPS, alt);
+  const overtake = HOLD.overtakeKias * (v / Math.max(kias, 1));
+  // His offset inside the line's turn (negative: outside), and how much shorter (longer) that makes his way round.
   const kap = Math.hypot(sh.k.x, sh.k.y, sh.k.z);
-  const cIn = kap > 1e-9 ? (o0.x * sh.k.x + o0.y * sh.k.y + o0.z * sh.k.z) / kap : 0;
-  const shorten = Math.max(0.7, 1 - cIn * kap);
-  const g = governStep(st, {
-    vd, ad, gap: arcTo(st.sig, k), overtakeFtps: HOLD.overtakeKias / (kias / Math.max(st.v, 1)),
-    kias, altFt: alt, gamma: climbOf(sh), gAt: (u) => gOn(sh)(u) / shorten, kh: 0, kv: 0, // the G from the 3D shape (gAt), not kh and kv
-  });
-  const sig = along(st.sig, Math.max(0, g.ds / shorten));
-  const line = pointAt(sig);
+  const cIn = kap > 1e-9 ? (st.o.x * sh.k.x + st.o.y * sh.k.y + st.o.z * sh.k.z) / kap : 0;
+  const shorten = Math.min(1.3, Math.max(0.7, 1 - cIn * kap));
+  const gAt = gOn(sh, shorten);
+  const n = gAt(v);
+  const climb = Math.asin(Math.max(-1, Math.min(1, sh.t.z)));
+  // This step: v along his own path, so v / shorten along the line.
+  const sig = along(st.sig, (v * dt) / shorten);
   const behind = arcTo(sig, k);
-  const range = Math.hypot(ref.x - line.x, ref.y - line.y);
-  const thr = Math.max(HOLD.stretchMinFt, HOLD.stretchShare * range);
-  const stretched = behind > thr;
-  // The offset he wants: none on the line, growing smoothly once he is stretched, at most cutShare of the range (about
-  // 15° of the 15° lag line, so he stays inside the 30° cone), never more than he is behind, and inside 5 G.
-  const shN = mixShape(shape(Math.floor(sig)), shape(Math.floor(sig) + 1), sig - Math.floor(sig));
-  const kapN = Math.hypot(shN.k.x, shN.k.y, shN.k.z);
-  let cWant = 0;
-  if (kapN > HOLD.cutMinCurvPerFt) {
-    const gNow = gOn(shN)(g.v);
-    const cG = Math.max(0, 1 - gNow / G_RULE.normalG) / kapN;
-    const w = smoothest((behind - thr) / (2 * thr));
-    cWant = w * Math.min(HOLD.cutShare * range, Math.max(0, behind), cG, 0.3 / kapN);
-  }
-  const want = kapN > HOLD.cutMinCurvPerFt ? { x: (shN.k.x / kapN) * cWant, y: (shN.k.y / kapN) * cWant, z: (shN.k.z / kapN) * cWant } : { x: 0, y: 0, z: 0 };
-  // Into and out of the offset smoothly (a critically damped follow over about cutSec), square to the line.
+  const range = dist(ref, here);
+  // His place's own speed and speed-up along the line, averaged over about a second: the planned line is his aim, not a
+  // speed to copy. And where he will be against it in HOLD.lookSec at the closure he has now.
+  let vPlace = 0;
+  for (let j = -10; j <= 10; j += 2) vPlace += vAt(k + j) / 11;
+  const aPlace = (vAt(k + 10) - vAt(k - 10)) / (20 * dt);
+  const gapSoon = behind + HOLD.lookSec * (vPlace - v / shorten);
+  // How far off the line his lag or lead may take him: within the cone (HOLD.cutShare of the range either way) and never
+  // more than 30% shorter or longer a way round. Inside he never pulls past 5 G or the stall line; where the line itself
+  // asks more than that at his speed he eases out to lag instead (SMM 12.30-12.31 para 74: lag pursuit trades angle for
+  // less G), whatever that costs the range. None on a line straighter than cutMinCurvPerFt, faded in over twice that.
+  const shN = shapeAt(sig);
+  const kapN = Math.max(Math.hypot(shN.k.x, shN.k.y, shN.k.z), 1e-9);
+  const turnW = smoothest((kapN - HOLD.cutMinCurvPerFt) / HOLD.cutMinCurvPerFt);
+  const gLim = Math.min(G_RULE.normalG, stallLimitG(kias));
+  const cMax = Math.min(HOLD.cutShare * range, 0.3 / kapN);
+  const cHi = Math.max(-0.3 / kapN, Math.min(cMax, (1 - gOn(shN)(v) / gLim) / kapN));
+  const cLo = Math.min(-cMax, cHi);
+  // Power. While Lead is at MAX (aheadOkFt over 0) #2 keeps MAX too, unless he is further ahead of his place than
+  // aheadOkFt and the most lag together can take out (eased in over 20 ft), then less, toward idle and the boards: power
+  // he takes off then can't be won back. While Lead holds a speed (the entry and Terminate, flying to or from the
+  // fighting wing slot) power flies his place, as the tracker does. The PCL moves one full travel in HOLD.powerSec at most.
+  const leadMax = aheadOkFt > 0;
+  const exMax = excessThrustPerWeight(kias, alt, n);
+  const exMin = excessPerWeight('idleBoards', kias, alt, n);
+  const gapP = behind + (leadMax ? aheadOkFt + turnW * Math.max(0, -cLo) : 0);
+  const closeP = Math.sign(gapP) * Math.min(overtake, Math.sqrt(2 * HOLD.closeDecelFtps2 * Math.abs(gapP) + 1) - 1);
+  const aWant = aPlace + HOLD.gain * (vPlace + closeP - (leadMax ? v / shorten : v));
+  const pwrRaw = (aWant / G_FTPS2 + Math.sin(climb) - exMin) / Math.max(exMax - exMin, 1e-6);
+  const pwrCtl = Math.max(0, Math.min(1, pwrRaw));
+  const cut = leadMax ? smoothest(-gapP / 20) : 1;
+  let pwrWant = 1 - cut * (1 - pwrCtl);
+  // Geometry, as a pilot flies it. With Lead at MAX it does the work: the offset that makes his way along the line as
+  // quick as his place's at the speed he has (outside his place on a turn he cuts inside it to keep up at the same speed;
+  // inside it, he lags), plus about as much again as the gap he will have, inside to gain and outside to lose. While Lead
+  // holds a speed it only helps where power can't: inside at MAX and still behind, outside at idle and the boards and
+  // still ahead.
+  const cFf = (1 - v / Math.max(vPlace, 1)) / kapN;
+  const helpIn = smoothest((pwrRaw - 1) / 0.3);
+  const helpOut = smoothest(-pwrRaw / 0.3);
+  const aim = leadMax ? cFf + gapSoon : gapSoon > 0 ? helpIn * gapSoon : helpOut * gapSoon;
+  const cWant = turnW * Math.max(cLo, Math.min(cHi, aim));
+  const want = { x: (shN.k.x / kapN) * cWant, y: (shN.k.y / kapN) * cWant, z: (shN.k.z / kapN) * cWant };
+  // Into and out of the offset smoothly: the aim eased over HOLD.aimSec, then a critically damped follow over about
+  // cutSec, its acceleration (G added to the line's) at most HOLD.offsetAccFtps2 and its speed no more than lets it stop
+  // there, so the offset never jerks #2's G; square to the line.
   const om = 4 / HOLD.cutSec;
-  const ov = { x: 0, y: 0, z: 0 };
-  const o = { x: 0, y: 0, z: 0 };
+  const ease = Math.min(1, dt / HOLD.aimSec);
+  const wf0 = st.wf ?? zero;
+  const wf = { x: 0, y: 0, z: 0 };
+  const acc = { x: 0, y: 0, z: 0 };
   for (const ax of /** @type {const} */ (['x', 'y', 'z'])) {
-    ov[ax] = ov0[ax] + (om * om * (want[ax] - o0[ax]) - 2 * om * ov0[ax]) * dt;
-    o[ax] = o0[ax] + ov[ax] * dt;
+    wf[ax] = wf0[ax] + (want[ax] - wf0[ax]) * ease;
+    acc[ax] = om * om * (wf[ax] - st.o[ax]) - 2 * om * st.ov[ax];
   }
+  const accLen = Math.hypot(acc.x, acc.y, acc.z);
+  const accScale = accLen > HOLD.offsetAccFtps2 ? HOLD.offsetAccFtps2 / accLen : 1;
+  const ov = { x: st.ov.x + acc.x * accScale * dt, y: st.ov.y + acc.y * accScale * dt, z: st.ov.z + acc.z * accScale * dt };
+  const errLen = Math.hypot(wf.x - st.o.x, wf.y - st.o.y, wf.z - st.o.z);
+  const ovLen = Math.hypot(ov.x, ov.y, ov.z);
+  const ovMax = Math.sqrt(2 * HOLD.offsetAccFtps2 * errLen) + HOLD.offsetAccFtps2 * dt;
+  if (ovLen > ovMax) for (const ax of /** @type {const} */ (['x', 'y', 'z'])) ov[ax] *= ovMax / ovLen;
+  const o = { x: st.o.x + ov.x * dt, y: st.o.y + ov.y * dt, z: st.o.z + ov.z * dt };
   const along0 = o.x * shN.t.x + o.y * shN.t.y + o.z * shN.t.z;
   o.x -= along0 * shN.t.x;
   o.y -= along0 * shN.t.y;
   o.z -= along0 * shN.t.z;
-  const oLen = Math.hypot(o.x, o.y, o.z);
-  let p = { x: line.x + o.x, y: line.y + o.y, z: line.z + o.z };
-  let landK = st.landK;
-  // Caught up (on his place, at its speed and acceleration, back on the line): the last fraction of a foot is blended
-  // onto the line, then he flies it exactly again.
-  if (landK === null && oLen < 0.1 && Math.abs(behind) < 0.1 && Math.abs(g.v - vd) < 0.1 && Math.abs(g.a - ad) < 0.1) landK = k;
-  if (landK !== null) {
-    const w = smoothest((k - landK) / (HOLD.landSec / dt));
-    if (w >= 1) return { state: null, p: P(k), stretched: false, full: false };
-    const q = P(k);
-    p = { x: p.x + (q.x - p.x) * w, y: p.y + (q.y - p.y) * w, z: p.z + (q.z - p.z) * w };
-  }
-  return { state: { sig, v: g.v, a: g.a, landK, o, ov }, p, stretched, full: g.full };
+  const line = pointAt(sig);
+  const p = { x: line.x + o.x, y: line.y + o.y, z: line.z + o.z };
+  // Past 7 G (Patrick 03:05Z: "must stay below 7 in all cases") he slows (idle and the boards), where slowing brings the G down.
+  if (n > WING_G.wall && gAt(v * 0.99) < n) pwrWant = 0;
+  const pwr = st.pwr + Math.max(-dt / HOLD.powerSec, Math.min(dt / HOLD.powerSec, pwrWant - st.pwr));
+  const ex = exMin + pwr * (exMax - exMin);
+  const es = st.es + v * ex * dt;
+  // His tag's power: MAX, or the power and stage that give this excess (power.js, Patrick's order of use).
+  const a = G_FTPS2 * (ex - Math.sin(climb));
+  const power = pwr > 0.999 ? powerFrom(null, 1, kias, alt) : powerFor((a * kias) / v, kias, alt, n, v * Math.sin(climb), 'idleBoards');
+  const settled = Math.abs(behind) < 10 && Math.hypot(o.x, o.y, o.z) < 5 && Math.abs(v - vPlace) < 2;
+  return { state: { sig, es, pwr, o, ov, wf }, p, power, behindFt: behind, settled };
 }

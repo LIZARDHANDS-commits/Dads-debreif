@@ -8,7 +8,7 @@
 // dropBack, sweepOut, closeThrough, rejoinTo, openOut, straightAhead) stay with the moves in transitions.js.
 import { bankDegFromTurnRate } from '../../../core/flight-math.js';
 import { wrapPi } from '../../../core/angles.js';
-import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
+import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
 import { relativeTo, unit } from './manoeuvres.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
@@ -65,7 +65,7 @@ function closureCap(ph, L, W, ex, ey, d, blockFt, farFromFt) {
   const s = Math.sin(L.headingRad);
   const uf = (ex * c + ey * s) / d;
   const ul = (-ex * s + ey * c) / d;
-  const ft2 = KT_TO_FTPS * (W.tasFtps / W.kias); // KIAS per second to true ft/s²
+  const ft2 = W.tasFtps / W.kias; // KIAS per second to true ft/s² (TAS in ft/s per KIAS; it counted KT_TO_FTPS twice before V2.64)
   const aFore = (uf >= 0 ? slowKtps('power', W.kias, blockFt) : fullPowerKtps(W.kias, blockFt)) * ft2; // what the tracker's own speed loop can do
   const aLat = G_FTPS2 * Math.tan((Math.min(CLOSURE.slideBankDeg, ph.bankCapDeg) * Math.PI) / 180);
   const aStop = CLOSURE.stopShare * Math.min(aFore / Math.max(Math.abs(uf), 1e-6), aLat / Math.max(Math.abs(ul), 1e-6));
@@ -235,32 +235,18 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
         pullX = d > 1e-6 ? (ex / d) * pull : 0;
         pullY = d > 1e-6 ? (ey / d) * pull : 0;
       }
-      let vdx = vpx + pullX;
-      let vdy = vpy + pullY;
+      const vdx = vpx + pullX;
+      const vdy = vpy + pullY;
       const speed = Math.hypot(vdx, vdy);
-      if (ph.holdLine) {
-        // Holding a rejoin line (the turning rejoin, TS-68): at the speed he has, #2 steers so his motion against the slot runs
-        // straight along the pull, the line held with bank, and the power takes out closure over the rate (the speed loop
-        // below), so long as a hard turn (the leg's bank cap) could still stop that closure in the distance left; closer in
-        // he turns to match the slot's motion instead: the reversal onto the line (SMM 12.24 para 57; 16.20 para 65b(2)).
-        const pm = Math.hypot(pullX, pullY);
-        const along = pm > 1e-6 ? (vpx * pullX + vpy * pullY) / pm : 0;
-        const disc = along * along - (vpx * vpx + vpy * vpy) + W.tasFtps * W.tasFtps;
-        if (pm > 1e-6 && disc >= 0) {
-          const lam = Math.sqrt(disc) - along; // the closure along the pull at his own speed
-          const stopHard = Math.sqrt(2 * CLOSURE.stopShare * G_FTPS2 * Math.tan((ph.bankCapDeg * Math.PI) / 180) * d);
-          if (lam > pm && lam <= stopHard) {
-            vdx = vpx + (pullX / pm) * lam;
-            vdy = vpy + (pullY / pm) * lam;
-          }
-        }
-      }
       psiCmd = speed > T.minSpeedFtps ? Math.atan2(vdy, vdx) : L.headingRad;
       // A closure phase may be faster or slower than the aircraft flown off by the closure rate (it replaces the 15 KIAS
       // rejoin overtake, Patrick 05:46Z).
       const over = ph.closureFtps ? ph.closureFtps / ratio : ph.overtakeKias;
       const under = ph.closureFtps ? ph.closureFtps / ratio : ph.undertakeKias;
-      kiasCmd = Math.max(L.kias - under, Math.min(L.kias + over, speed / ratio));
+      // Centred on the reference point's own speed, not Lead's: in a turn a place inside it moves slower than Lead and one
+      // outside faster, so holding it takes none of the closure (the review, V2.65); in straight flight the two are the same.
+      const refKias = Math.hypot(vpx, vpy) / ratio;
+      kiasCmd = Math.max(refKias - under, Math.min(refKias + over, speed / ratio));
     }
 
     // Heading loop: turn rate toward the commanded heading, with its own rate fed forward; bank from the turn rate.
@@ -323,7 +309,6 @@ export function phase(slot, over = {}) {
     stopFtps: null, // when set, a real stop: the next phase starts only once #2's speed against the slot is under this...
     dwellSec: 0, // ...and has been for this long (the station change's "stabilize", SMM 12.20 para 45)
     closureFtps: null, // when set, the power profile at this closure rate (runTracker; the 2-ship since step 2)
-    holdLine: false, // when set, a rejoin line held with bank at the speed he has (runTracker; the turning rejoin, TS-68)
     ...over,
   };
 }

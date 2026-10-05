@@ -500,17 +500,91 @@ Patrick's rulings of 4 Oct 19:15Z, 23:29Z and 23:37-23:38Z and 5 Oct 00:11Z-02:0
 
 **Checks (light).** `tests/unit/turn-sim/offstandard-rejoin.test.js`: a corrected off-standard start ends in the formation pressed, below Lead inside 1,000 ft, never slowing harder than idle and the boards, no roll-rate jumps; an overshooting #2 stays below Lead, crosses behind him, and still ends in the formation. `slow-down.test.js`: the stages are in order; idle at 200 KIAS is about 5 kt/s; a planned ramp never asks more than its stage; the core drag is unchanged. `tags.test.js`: a set power shows on the tag, red exactly for idle and the boards.
 
-### 10.6 Rejoins on Patrick's rulings, the turning rejoin on the rejoin line, quick fluid entry and cutting inside (V2.59, TS-67, TS-68, built 5 Oct, not yet in Patrick's sign-off)
+### 10.6 Rejoins on Patrick's rulings, the turning rejoin on the rejoin line, quick fluid entry and cutting inside (V2.59, TS-67, TS-68; held bank and power V2.63, TS-69; built 5 Oct, not yet in Patrick's sign-off)
 
 - **The turning rejoin (TS-68; Patrick 07:14Z, 07:19Z, card 07:31Z, 07:32Z):** one rule from line abreast (hot: #2 starts hot and gets colder to reach the line) and from fighting wing (cold: he turns hotter to reach it). Lead turns into #2 at the press at 30°, slowing to 200 KIAS, until #2 is in. #2 gets onto the rejoin line on his own side, inside the turn and slightly low: about 45° behind Lead's 3/9 line, Lead at his 10:30 or 1:30, the tail and the wing making an X (SMM 12.24 paras 56-57, Figs 12.14-12.15). He holds it and closes down it at the Rates closure; where it reaches route's spacing (the decision point, about 240 ft; the corner at the latest) he flows through route into the slot in one motion at the close-in rate (para 58). To fighting wing he stops on the line at the fighting wing place. He goes behind Lead only with too much closure (SMM 12.27 para 65). The tracker flies it all from the press; no line is drawn first.
+- **How #2 flies the turning rejoin (TS-69, V2.63; Patrick 08:12-08:29Z):** with held bank and power, through the same aircraft step as Lead. Rates is overtake: Student 15, Instructor 25, AI 50 kt above Lead's 200 KIAS, MAX until he has it, then held. In Lead's turning frame he heads across toward the rejoin line (more directly the further off it he is) and down it once on it; hot, he takes power off to get colder. On the line his bank stays near Lead's 30° and his closure is held to what idle can take out before the decision point, so the overtake comes off with power back, idle and the boards; then the tracker flows him through route into the slot. The quickest capture is chosen, a medium bank (60°) before the G rule, the overtake asked before a smaller one (the card says when), and never ahead of Lead's 3/9 line. All numbers but the overtake are estimates (`live/tuning.js` `TURNING_REJOIN`). **V2.64:** the power is held steps: MAX to set the overtake, held, then on the line the slowing starts where power back alone just fits the room to the decision point and that rate is held (idle, then the boards, only when the room needs more); his speed limits include the G he pulls and his climb or descent; he never banks past the stall line; from line abreast he tries Lead's 30° and a gentle lag capture before 60° and the G rule. Fighting wing may use the whole cone, high or low (Patrick 08:58Z).
 - **Training starts:** the Errors panel's off-standard starts and the decision overshoot still fly the kinematic hot rejoin (section 10.5, TS-62), as lines then tracker: the line flies the rejoin closure to about 500 ft from route (or the fighting wing slot), then the tracker runs in at the close-in rate, planned again at the hand-over. It lines up only on #2's own side; only the decision overshoot crosses behind Lead (Patrick 04:53Z).
 - **Rulings (Patrick 06:16Z):** #2's bank in a rejoin has no cap but the G rule (5 G level, about 78°; flagged on the card at that bank, never a wall); reversals up to 78°; Lead holds his 30° turn until #2 is in, then rolls out (every 2-ship turning rejoin); no fixed descent rate, only a smooth descent within 0.5 G of push (estimate), off Lead's height before 2,000 ft (SMM 12.27 para 65); the decision point about 200 ft.
 - **Rejoin kind** (More, 2-ship): Turning (TRJ, the default) or Straight ahead (SARJ), from line abreast and from fighting wing (Patrick 05:13Z, 07:32Z). They are two separate rejoins (Patrick 07:19Z): the SARJ drops onto Lead's six and runs up it (SMM 12.26 paras 62-63).
-- **Fluid** (Patrick 04:59Z; card "Geometry: cut inside" 04:53Z): the entry and Terminate move into the cone and back at the close-in rate (at least 3 s, estimate); aerobatics start within 15 KIAS of the entry speed; #2 is held to full power (STRETCHED while behind) and, while behind, flies inside Lead's turn toward pure pursuit (at most a quarter of the range and never past 5 G, estimates), then back onto the 15° lag line.
+- **Fluid** (Patrick 04:59Z; card "Geometry: cut inside" 04:53Z): the entry and Terminate move into the cone and back at the close-in rate (at least 3 s, estimate); aerobatics start within 15 KIAS of the entry speed; #2 is held to full power (STRETCHED while behind) and, while behind, flies inside Lead's turn toward pure pursuit (at most a quarter of the range and never past 5 G, estimates), then back onto the 15° lag line. **Replaced in V2.69 (TS-74, section 10.11):** he flies by energy and geometry, and STRETCHED shows only past 1,000 ft.
 
 **Failure and stale data.** No outside data. A turning rejoin that doesn't settle flies the straight-ahead rejoin from fighting wing, or the tracker's rejoin from line abreast (`planGoTo`, which can close via Lead's six); a training rejoin whose tracker part doesn't settle flies its whole line; Lead turning until #2 is in falls back to the fixed turn angles in the tracker's rejoin. The live hold always returns a point on or inside the planned line.
 
-**Checks.** None added (Patrick 06:25Z); typecheck and a page-load check, and the three default turning rejoins each planned once to see they don't refuse.
+**Checks.** None added (Patrick 06:25Z); typecheck and a page-load check, and the three default turning rejoins each planned once to see they don't refuse. V2.63: each turning rejoin start planned once at each Rates choice (TS-69 lists the three that still fall back). V2.64: the same, two still fall back (TS-69); the close moves' times checked unchanged after the tracker fix. V2.65: none fall back; the close moves' times unchanged.
+
+### 10.7 Lead's moves in fighting wing (V2.66, TS-70; Patrick 5 Oct 09:03Z, card "Yes, as written" 09:07Z; built 5 Oct, not yet in Patrick's sign-off)
+
+Patrick 09:03Z: "as SOON as "fighting wing" is clicked and the aircraft is in the cone (can still be moving) Lead can start manoeuvring. The manoeuvres are currently listed as the same from line abreast -- they should be normal clearhood turns and climbs etc. fluid manoeuvring is just fighting wing aerobatics."
+
+- **The buttons:** in fighting wing (2-ship) the formation box shows "Fighting wing, Lead": Level turn L and R, Wings level, Reversal, Climb, Descend. These are fluid's own moves without the aerobatics, and the level turn uses the "Lead's level turn bank" setting. The line abreast turns (Delayed 90 and 45, Check, In place 90, Hook) no longer show in fighting wing; they stay in line abreast and the close formations. Fluid manoeuvring stays as fighting wing aerobatics (10.3).
+- **When:** as soon as #2 is in the cone, even while a change to fighting wing is still flown; a press ends that change where #2 is.
+- **How it flies:** each press is flown at once and planned again from where the pair is. A level turn is held until the next press (planned two full turns ahead). A reversal rolls to the other side at the same bank. A climb or descent is fluid's 2,000 ft at a 15° path at the steepest, and a turn being flown carries on (estimates). #2 flies the fighting wing turns' tracker (TS-55, `formation-turns.js` fwGoal): anywhere in the cone is his place, high or low (Patrick 08:58Z), collapsing toward Lead's six while Lead is banked past about 32-42° (SMM 12.29 para 69), and he climbs and descends with Lead. After Wings level, once #2 has settled, the move ends and is judged against the fighting wing band.
+- **What moves on screen:** the line abreast turn buttons leave the Manoeuvres list in fighting wing. The formation buttons are greyed while Lead flies a move ("Wings level first").
+- **Not built:** the 4-ship; Lead's power is the commanded speed's (no MAX); #2 doesn't pick a different place in the cone on his own.
+
+**Checks.** None added (Patrick 06:25Z, 09:08Z); typecheck, a page-load check, and one dry run (into fighting wing, a level turn, a climb, a reversal, wings level: #2 stayed 660-800 ft, near Lead's six in the turns and at about 54° of sweep after).
+
+### 10.8 Lag roll to fighting wing (2-ship, TS-71, built 5 Oct, not yet in Patrick's sign-off)
+
+Patrick 08:54Z: "you hit "lag roll" and the airplane flips up and rolls canopy to canopy to lead then lands in the cone on the other side, power pitch and bank as required"; 08:58Z: fighting wing can use the whole cone, high or low. The SMM and EFIG do not name the lag roll; the nearest pages are SMM 12.29 para 69, SMM 12.30-12.31 para 74 and SMM 14.8 paras 18-19, Fig 14.1, Table 14.1. Numbers with no page or ruling beside them are estimates (`live/tuning.js` LAG_ROLL).
+
+**What changes on screen.**
+- A **Lag roll (#2)** button in the "Fighting wing, Lead" box (V2.66) calls `formation.lagRoll()`. It works from fighting wing in the 2-ship with Lead straight and level; otherwise the card says why ("The lag roll starts from fighting wing; change to fighting wing first.", "For now the lag roll flies only with Lead straight and level.", "The lag roll is 2-ship only for now."). In fluid manoeuvring it asks for Terminate first. Pressed while something else flies, it is queued.
+- The card shows the plan in one line: the pull, the nose-up, the range over Lead's six, the slowest speed, the side he lands on, and the flag when Lead leaves the top half of #2's canopy. At the end it is judged as fighting wing on the new side.
+- #2 goes through inverted in the 2D and 3D views (the same poses as Lead's barrel roll). Nothing else moves or disappears.
+
+**How it flies.** Lead flies straight on. #2's path is planned at the press in Lead's frame and played as a pose track: he pulls up (about 2.5-3 G, nose 30-45° up), rolls toward Lead at about 50°/s, passes over Lead's six inverted, canopy to canopy, at about 1,000-1,300 ft and about 2 G, slowing to about 165-175 KIAS, comes down on the other side into the cone (anywhere in the sim's fighting wing region, which may be past the 1,000 ft band), then closes to the slot at a 20 kt overtake (EFIG p.374, the top of 10-20 KIAS). A small search picks the path; G stays under core `availableG` at every step, positive throughout, and the plan never comes inside 500 ft of Lead (SMM 16.23). Speed is what the path needs (no energy model).
+
+**Failure and stale data.** No outside data. A start the search can't fly within the G and the 500 ft bubble is refused with the reason on the card; nothing moves.
+
+**Checks.** None added (Patrick 06:25Z, 09:08Z); a typecheck and one dry run of `formation.lagRoll()` from the default fighting wing start (it plans in about 0.2 s and ends IN POSITION on the other side).
+
+
+### 10.9 The straight-ahead rejoin at full power, then the overtake (V2.67, TS-72; built 5 Oct, not yet in Patrick's sign-off)
+
+Patrick 08:40Z: "SARJ should start at full power until it gets back on leads six, then set an overtake. The geometry of moving makes it fall back."
+
+- **When:** the 2-ship, with the straight-ahead rejoin chosen (Formation box, Rejoin kind), from line abreast or fighting wing to echelon, route or line astern. To fighting wing and the 4-ship fly as before.
+- **How it flies:** Lead flies straight on at 200 KIAS. #2 goes to full power and cuts toward Lead's six (up to 30, 45 or 60°, the quickest picked), falling back as he turns. On the six, just below Lead's wake (EFIG p.371), he sets 200 KIAS plus the Rates overtake and holds it, then takes it out with power back (idle and boards only if needed). From about 500 ft he takes the small vector to the side wanted (SMM 12.26 paras 62-63, Fig 12.17), and from about 100 ft behind route the tracker flows him through route into the slot.
+- **What moves on screen:** nothing new; the card's note says the cut, where he got onto the six, and the overtake. He no longer lines up at a fixed 1,000 ft (Patrick's 4 Oct card); he lines up where the cut puts him.
+- **Failure and stale data:** no outside data. If no cut reaches the slot without passing ahead of Lead's 3/9 line, the old planner flies it.
+
+**Checks.** None added (Patrick 06:25Z, 09:08Z); a typecheck, a page-load check and a few dry runs (fighting wing to echelon 41 s, was 92 s; line abreast at 6,000 ft to echelon 57 s, was 112 s; at Instructor).
+
+
+### 10.10 Echelon or route out to fighting wing in about 10 s (V2.68, TS-73; built 5 Oct, not yet in Patrick's sign-off)
+
+Patrick 08:40Z: "I want the aircraft to get from echelon to fighting wing in 10 seconds. It can go idle boards then spool up power to end up in the cone, right?"
+
+- **When:** the 2-ship from echelon or route to fighting wing on the same side, with Lead straight and level. Other starts fly as before.
+- **How it flies:** #2 rolls away from Lead at a held 45 or 60°, 15-30° off Lead's heading, at idle and boards, easing down to fighting wing height; he turns back parallel at the slot's distance out, then goes to MAX so he stops near the slot's distance back; the tracker settles him anywhere in the cone (SMM 12.29 para 69). He falls no more than the Rates figure below Lead's 200 KIAS.
+- **What moves on screen:** nothing new; Lead's fighting wing buttons show at about 4 s, and #2 is in the cone at about 7-10 s.
+- **Failure and stale data:** no outside data. A start this doesn't cover, or a fighting wing setting outside the band, flies or is refused as before.
+
+**Checks.** None added (Patrick 06:25Z, 09:08Z); a typecheck, a page-load check and a few dry runs (from echelon in the cone at 7.1 s at Instructor, was 31.9 s).
+
+### 10.11 Fluid #2 flies by energy and geometry (V2.69, TS-74; built 5 Oct, not yet in Patrick's sign-off)
+
+Patrick 16:19Z, card "Smaller loop" (Lead stays at MAX; STRETCHED shows only past 1,000 ft); 16:42Z: "That's how form works - you use geometry".
+
+- **Why:** #2's planned line asked for speeds no power setting gives. Over the top of the loop it slowed him faster than idle and boards can, and coming down it sped him up more slowly than idle would. He came out about 50 KIAS slow and up to 3,000 ft back, STRETCHED all the way (`/mnt/project-files/turn-sim-review/fluid-stretch-finding.md`).
+- **His speed:** comes from his energy height (height plus speed). It changes only by what his power gives at his speed, height and G (standard aerodynamics). He never slows faster than idle and boards allow or speeds up faster than MAX allows. A climb costs him speed, a dive gives it back, and pulling hard costs energy.
+- **Power:** MAX, like Lead (SMM 16.17 para 43; AFM7 brief p.17). He takes power off only when he is within about 50 ft of the 500 ft bubble (SMM 16.17 para 44c) and lag can't take the rest out. While Lead holds a speed (the entry and Terminate), power flies his place, as before.
+- **Spacing by geometry** (SMM 16.17 para 44; EFIG p.391): the planned line is his aim. When gaining, he flies outside its turn (lag, a longer way round). When behind, he flies inside it (lead, a shorter way). In a loop, that means higher or lower in the loop. He goes at most a quarter of the range off the line (about 15°), and his way round is never more than 30% shorter or longer. Inside, he never pulls past 5 G or the stall line; where the line asks for more than that, he eases out to lag instead. The offset itself adds no more than about 0.3 G. All four numbers are estimates.
+- **On screen:** STRETCHED shows only past 1,000 ft (SMM 16.17 para 42), on the card and the tag. His tag shows the power he is flying.
+- **Dry runs (600 ft, 8,000 ft):**
+  - The loop: 630-810 ft, MAX throughout, out at Lead's speed. Before this change he came out about 50 KIAS slow at 3,000 ft.
+  - The standard sequence: 600-810 ft, G 0.5-4.9.
+  - Reversal: settles at 600 ft.
+  - Terminate: back to fighting wing as before.
+- **Not fixed:**
+  - At the 1,000 ft setting the loop still opens to about 1,700 ft (was 3,400). At that range the planned place itself moves faster than any aircraft can over the top, and it jumps once, which gives a one-step G spike to about 6.9. That is left for later (`future.md`).
+  - Behind after a manoeuvre, with both aircraft at MAX in straight flight, he stays behind until Lead's next turn (TS-63: he fixes it as best he can).
+  - In a long level turn on the outside of Lead's turn, he sits near Lead's six, as before: at the same power he can't fly a bigger circle as fast.
+- **Failure and stale data:** no outside data. His speed is never shown below 70 KIAS. This is a guard only; the dry runs never reached it.
+
+**Checks.** None added (Patrick 06:25Z, 09:08Z). Done: a typecheck, a page-load check, and dry runs of every fluid button at 600 ft plus the loop at 1,000 ft.
 
 ---
 
