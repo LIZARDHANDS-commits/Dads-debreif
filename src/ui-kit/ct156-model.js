@@ -261,6 +261,8 @@ function buildKit(THREE) {
   geo.spine = ellipsoid(THREE, -0.22, 0, 0.058, 0.25, 0.042, 0.04);
   geo.glassFront = ellipsoid(THREE, 0.245, 0, 0.078, 0.1, 0.058, 0.06);
   geo.glassRear = ellipsoid(THREE, 0.075, 0, 0.078, 0.115, 0.058, 0.06);
+  // One long canopy over both seats, from the rear glass's back to the front glass's front, for the plain ship paint (Patrick, 5 Oct).
+  geo.glassOne = ellipsoid(THREE, 0.1525, 0, 0.078, 0.1925, 0.058, 0.06);
   const floor = new THREE.CircleGeometry(1, 24);
   floor.scale(0.29, 0.056, 1);
   floor.translate(0.165, 0, 0.0895);
@@ -291,7 +293,7 @@ function buildKit(THREE) {
   geo.blade = blade(0.03, 0.22, 0.016, 0.012);
   geo.bladeTip = blade(0.22, 0.26, 0.012, 0.011);
   geo.cheat = cheatLine(THREE);
-  for (const o of [geo.fuselage, geo.stab, geo.strake, geo.fin, geo.ventral, geo.spine, geo.glassFront, geo.glassRear, geo.floor, geo.helmet, geo.seat, geo.arch, geo.rail, geo.spinner, geo.disc, geo.blade, geo.bladeTip, geo.cheat]) keep(o);
+  for (const o of [geo.fuselage, geo.stab, geo.strake, geo.fin, geo.ventral, geo.spine, geo.glassFront, geo.glassRear, geo.glassOne, geo.floor, geo.helmet, geo.seat, geo.arch, geo.rail, geo.spinner, geo.disc, geo.blade, geo.bladeTip, geo.cheat]) keep(o);
   for (const s of ['1', '-1']) { keep(geo.wing[s]); keep(geo.wingLe[s]); keep(geo.stub[s]); }
 
   // Shared decal textures and geometry.
@@ -405,8 +407,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     add(geo.ventral, light);
     add(geo.spine, body);
     // Solid dark glass, one canopy (Patrick, 5 Oct: the two see-through bubbles overlapped as a "ghost double canopy").
-    add(geo.glassFront, m('#2c4a66', { roughness: 0.12, metalness: 0.45 }));
-    add(geo.glassRear, mine[mine.length - 1]);
+    add(geo.glassOne, m('#2c4a66', { roughness: 0.12, metalness: 0.45 }));
     add(geo.spinner, m('#20242a', { roughness: 0.4 }));
     add(geo.disc, mats.disc);
   } else {
