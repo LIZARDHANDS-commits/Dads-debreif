@@ -181,7 +181,7 @@ export function closeRates(foreAftFtps = rejoinClosureNow().ftps) {
 export const CLOSURE = Object.freeze({
   stopShare: 0.6, // the tracker's stop is planned at 60% of what power back (sideways: the slide's bank) gives, so the roll and the speed loop's lag still stop him on the slot (estimate)
   slideBankDeg: CLOSE_BANK_DEG, // sideways the closure is set and stopped with up to the close move's 60° of bank (Patrick 06:43Z; 30° from 06:16Z until then), the same for every Rates choice (Patrick 06:07Z: "No on bank and g")
-  nearGain: 1, // 1/s: inside the last few feet the closure dies away in proportion to the distance, so he settles without hunting (estimate)
+  nearGain: 1, // 1/s: inside the last few feet the closure dies away in proportion to the distance, so he settles without hunting; sideways only, fore and aft it is the tracker's own TRACKER.gain.position (V2.23.1) (estimate)
   farGain: 0.1, // ft/s per ft: beyond the hand-over band (odd starts only, the tracker's fallback) the closing speed may grow with range (the old rejoin's kcap)
 });
 
