@@ -11,7 +11,7 @@
 import {
   loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addLights, addSky, disposeAircraftMesh,
 } from '../../ui-kit/three-aircraft.js';
-import { drawTags, T6_LENGTH_FT, trailSince } from './view.js';
+import { drawTags, T6_LENGTH_FT, trailSince, BACKGROUND } from './view.js';
 import { FW_TURN } from './live/tuning.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH } from '../../ui-kit/ct156-model.js';
@@ -170,7 +170,10 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 2);
     addLights(THREE, scene);
     const sky = addSky(THREE, scene);
-    const grid = new THREE.GridHelper(GRID_STEP_FT * GRID_CELLS, GRID_CELLS, '#2c5a44', '#1c3a30');
+    // The same charcoal as 2D, flat, with its fog (Patrick, 5 Oct), and a faint grey ground grid.
+    scene.background = new THREE.Color(BACKGROUND);
+    scene.fog?.color.set(BACKGROUND);
+    const grid = new THREE.GridHelper(GRID_STEP_FT * GRID_CELLS, GRID_CELLS, '#3a434c', '#2b333b');
     grid.rotation.x = Math.PI / 2; // GridHelper is flat in X-Z; the sim's ground is X-Y
     grid.material.fog = false;
     scene.add(grid);

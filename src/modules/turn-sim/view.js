@@ -14,7 +14,8 @@ import { SHIP_COLORS, OUTLINED_SHIPS } from './layout.js';
 import { FW_TURN } from './live/tuning.js';
 
 const FT_PER_NM = 6076.11549;
-const BACKGROUND = '#071018'; // V6's
+/** The backdrop (Patrick, 5 Oct): a dark neutral charcoal, so all four ship colours read equally (was V6's navy #071018). */
+export const BACKGROUND = '#1c2127';
 const OUTLINE = '#02060a';
 const FONT = 'system-ui, sans-serif';
 const TRAIL_ALPHA = 0.55;
@@ -188,7 +189,7 @@ function drawGrid(ctx, map) {
   let step = FT_PER_NM;
   while (step * map.view.scale < 14) step *= 5;
   const { minX, minY, maxX, maxY } = map.visibleBounds();
-  ctx.strokeStyle = '#142334';
+  ctx.strokeStyle = '#2b333b'; // a faint grey grid on the charcoal (was navy #142334)
   ctx.lineWidth = 1;
   ctx.beginPath();
   for (let x = Math.floor(minX / step) * step; x <= maxX; x += step) {

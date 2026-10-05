@@ -74,7 +74,8 @@ const PAIR_MOVES_NOTE = 'These manoeuvres fly in line abreast. Change to line ab
 const FOUR_HINT = 'Press a manoeuvre and the four fly it, then carry on in the formation they are in. A press while one is flying is flown next.';
 
 /** Ship colours as in V6, except #4: white with a dark outline (#29), as in the debrief. */
-export const SHIP_COLORS = Object.freeze({ 1: '#0066ff', 2: '#00cc44', 3: '#ff2222', 4: '#ffffff' });
+// Lead's blue lifted from V6's #0066ff to #3d8bff so it stands out on the charcoal like the others (Patrick, 5 Oct).
+export const SHIP_COLORS = Object.freeze({ 1: '#3d8bff', 2: '#00cc44', 3: '#ff2222', 4: '#ffffff' });
 export const OUTLINED_SHIPS = Object.freeze(new Set([4]));
 
 function swatch(id) {
