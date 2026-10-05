@@ -224,35 +224,45 @@ export const T6A_GLIDE = Object.freeze({
 });
 
 /**
- * Sink rate in ft/min for a T6A_GLIDE configuration ('clean', 'gearDown',
- * 'flapsTakeoff', 'landing', 'windmilling') at kias: true airspeed ÷ the glide ratio. The
- * ratio is fixed through the air, so the sink rate grows with height.
+ * Glide ratios as flown, NM per 1,000 ft, where they differ from the chart above (Patrick, 5 Oct 2026 23:20Z:
+ * "Agreed with smm"). Gear down 1.18, so a 360° orbit at 120 KIAS and 30° of bank loses about 2,600 ft, as
+ * SMM 13.5 para 11 and 13.6 para 13 (p.46) say; the chart's 1.5 gave about 1,980. The clean orbit already
+ * agrees (about 1,640 ft, SMM about 1,700). T/O flap about 1.14, between gear down and landing flap: an estimate.
+ */
+export const T6A_GLIDE_FLOWN = Object.freeze({ gearDown: 1.18, flapsTakeoff: 1.14 });
+
+/**
+ * The chart's sink rate in ft/min for a T6A_GLIDE configuration ('clean', 'gearDown',
+ * 'flapsTakeoff', 'landing', 'windmilling') at kias: true airspeed ÷ the chart's glide ratio.
+ * The ratio is fixed through the air, so the sink rate grows with height. The flying uses
+ * glideRatio, which takes the SMM's gear-down figure (T6A_GLIDE_FLOWN).
  */
 export function glideSinkFpm(config, kias, altFt) {
-  return iasToTasKt(kias, altFt) * KT_TO_FTPS * 60 / glideRatio(config);
+  glideRatio(config);
+  return iasToTasKt(kias, altFt) * KT_TO_FTPS * 60 / (T6A_GLIDE[config].nmPer1000Ft * FT_PER_NM / 1000);
 }
 
 /**
  * The glide ratio through the air for a T6A_GLIDE configuration: feet flown
- * for each foot of height lost (clean 2 NM per 1,000 ft is about 12.2). The
- * flapsTakeoff row is an estimate (see T6A_GLIDE).
+ * for each foot of height lost (clean 2 NM per 1,000 ft is about 12.2). Gear
+ * down and T/O flap are as flown (T6A_GLIDE_FLOWN); the T/O flap is an estimate.
  */
 export function glideRatio(config) {
   if (!Object.hasOwn(T6A_GLIDE, config)) throw new RangeError(`glide configuration ${config}: use one of ${Object.keys(T6A_GLIDE).join(', ')}`);
-  return T6A_GLIDE[config].nmPer1000Ft * FT_PER_NM / 1000;
+  return (T6A_GLIDE_FLOWN[config] ?? T6A_GLIDE[config].nmPer1000Ft) * FT_PER_NM / 1000;
 }
 
 /**
  * Drag ÷ weight, engine off and prop feathered, for a T6A_GLIDE configuration
  * ('clean', 'gearDown', 'flapsTakeoff', 'landing') at kias, altFt and g. Gear
  * and flap raise the zero-lift part of the clean drag (dragPerWeight) so the
- * configuration's best glide ratio is the max glide chart's: dragA ×
- * (clean ratio ÷ its ratio)². Its best glide speed then comes out near the
- * chart's: gear down about 108 KIAS (chart 105), landing flap about 93
- * (chart 95). The flapsTakeoff row is an estimate, as its ratio is. Standard
- * aerodynamics on the chart's numbers; checked against SMM 13.5 para 11's
- * orbit losses: clean about 1,630 ft per 360° at 30° (SMM about 1,700), gear
- * down about 2,000 ft (SMM about 2,600, a difference not yet settled).
+ * configuration's best glide ratio is glideRatio's: dragA × (clean ratio ÷
+ * its ratio)². Standard aerodynamics on the chart's numbers, with gear down
+ * set by SMM 13.5 para 11's orbit losses (p.46): clean about 1,640 ft per 360°
+ * at 30° and 125 KIAS (SMM about 1,700), gear down about 2,600 ft at 120 KIAS
+ * (SMM about 2,600; the chart's 1.5 gave about 1,980; Patrick 5 Oct 23:20Z).
+ * Landing flap's best glide comes out about 93 KIAS (chart 95). The
+ * flapsTakeoff row is an estimate, as its ratio is.
  */
 export function glideDragPerWeight(config, kias, altFt, g = 1) {
   const f = T6A_FIT;
