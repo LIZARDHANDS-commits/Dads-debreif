@@ -123,10 +123,26 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       if (otherSide && SIDE_CHANGE_FORMATIONS.includes(key)) onChange(key, { side, rejoin });
     },
   }, o.label));
+  // The rejoin switch under Formation (Patrick, 5 Oct 07:35Z: "a switch on the left under "Formations" that has TRJ or SARJ
+  // and you can toggle which will happen with the formation change"): the same choice as Rejoin kind in Settings.
+  const REJOIN_SWITCH = Object.freeze([{ value: 'into', label: 'TRJ', title: 'Turning rejoin' }, { value: 'straight', label: 'SARJ', title: 'Straight-ahead rejoin' }]);
+  const rejoinButtons = REJOIN_SWITCH.map((o) => h('button', {
+    type: 'button',
+    class: 'button ts-side-button',
+    dataset: { rejoin: o.value },
+    title: o.title,
+    'aria-pressed': String(o.value === rejoin),
+    onclick: () => setRejoin(o.value),
+  }, o.label));
+  function setRejoin(value) {
+    rejoin = value;
+    for (const b of rejoinButtons) b.setAttribute('aria-pressed', String(b.dataset.rejoin === rejoin));
+    if (rejoinSelect.value !== rejoin) rejoinSelect.value = rejoin;
+  }
   const handlers = {};
 
   const refusal = h('p', { class: 'ts-warning', role: 'status', hidden: true });
-  const rejoinSelect = h('select', { 'aria-label': 'Rejoin kind', onchange: () => { rejoin = rejoinSelect.value; } },
+  const rejoinSelect = h('select', { 'aria-label': 'Rejoin kind', onchange: () => setRejoin(rejoinSelect.value) },
     REJOIN_OPTIONS.map((o) => h('option', { value: o.value, selected: o.value === rejoin }, o.label)));
   const rejoinLabel = h('span', { class: 'ts-hint' }, 'Rejoin kind');
   const PAIR_REJOIN_HINT = `From line abreast or fighting wing. Turning (TRJ): Lead turns into #2 at the press at ${REJOIN.leadBankDeg}° of bank, slowing to ${KIAS_OUTSIDE_LAB} KIAS, and holds it until #2 is in (SMM 16.20 para 65); #2 gets onto the rejoin line, Lead at his 10:30 or 1:30 and slightly high, closes down it and flows through route into the slot (SMM 12.24 paras 56-58). Straight ahead (SARJ): #2 drops onto Lead's six and runs up it (SMM 12.26 paras 62-63).`;
@@ -162,6 +178,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     pairGrid,
     fourGrid,
     h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Station: the side #2 ends on' }, h('span', { class: 'ts-hint' }, 'Station'), sideButtons), // "Station", was "Side" (Patrick, 5 Oct)
+    h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Rejoin: turning or straight ahead' }, h('span', { class: 'ts-hint' }, 'Rejoin'), rejoinButtons),
     refusal,
     fluidUi?.element ?? null,
   );
