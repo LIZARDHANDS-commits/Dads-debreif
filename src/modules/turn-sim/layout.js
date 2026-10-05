@@ -23,7 +23,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   lead39: true, // the 3/9 line, Lead only at the start (Patrick, 5 Oct); l39_<id> picks the aircraft
   lead75: true, // the 7 and 5 o'clock lines, Lead only at the start (Patrick, 5 Oct): the back edge of the fighting wing cone, 60° of sweep (SMM 12.29 para 69)
   cone: false, // The Cone switch: the fighting wing cone, shaded (Patrick, 5 Oct)
-  coneShape: '3d', // in 3D: '3d', the true cone round the tail, or 'flat', the 2D band at the aircraft's height
+  coneShape: 'flat', // in 3D: 'flat', the 2D band at the aircraft's height (the default, Patrick 5 Oct), or '3d', the true cone round the tail
   // Which aircraft draw each (Patrick, 5 Oct): Lead at first.
   l39_1: true, l39_2: false, l39_3: false, l39_4: false,
   l75_1: true, l75_2: false, l75_3: false, l75_4: false,
@@ -41,7 +41,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   view: '3d', // '2d' or '3d'; 3D at the start, looking straight down on the formation (Patrick, 5 Oct)
   paint: 'ship', // the 3D aircraft's paint: each in its ship colour, which stands out on the charcoal (Patrick, 5 Oct); 'harvard' is navy
 });
-export const LAYOUT_VERSION = 7; // 1 was the plan-mode screen's; 3 turned the 3/9 line off (TS-56); 4 the Lead-only lines; 5 3D on the formation at the start (Patrick, 5 Oct)
+export const LAYOUT_VERSION = 8; // 1 was the plan-mode screen's; 3 turned the 3/9 line off (TS-56); 4 the Lead-only lines; 5 3D on the formation at the start (Patrick, 5 Oct)
 
 /** A saved version 2 layout keeps every choice but the 3/9 line, which takes the new default (off). Older ones start fresh. */
 export function migrateLayout(values, version) {
@@ -49,9 +49,10 @@ export function migrateLayout(values, version) {
   const SHIP_KEYS = /^(l39|l75|cone)_\d$/;
   // Version 5 (Patrick, 5 Oct): 3D, top down, the camera on the formation.
   // Version 6 (Patrick, 5 Oct): ship colours on the 3D aircraft, for contrast on the charcoal.
-  // Version 7 (Patrick, 5 Oct): Auto zoom on at the start, even where it was switched off before.
-  if (![2, 3, 4, 5, 6].includes(version)) return {};
-  const reset = version === 6 ? ['autoFit'] : version === 5 ? ['paint', 'autoFit'] : version === 4 ? ['view', 'camOn', 'paint', 'autoFit'] : ['lead39', 'lead75', 'cone', 'view', 'camOn', 'paint', 'autoFit'];
+  // Version 7 (Patrick, 5 Oct): Auto zoom on at the start. Version 8: the cone as the 2D projection at the start.
+  if (![2, 3, 4, 5, 6, 7].includes(version)) return {};
+  const later = { 7: [], 6: ['autoFit'], 5: ['paint', 'autoFit'], 4: ['view', 'camOn', 'paint', 'autoFit'] };
+  const reset = [...(later[version] ?? ['lead39', 'lead75', 'cone', 'view', 'camOn', 'paint', 'autoFit']), 'coneShape'];
   return Object.fromEntries(Object.entries(values).filter(([k]) => !reset.includes(k) && (version >= 4 || !SHIP_KEYS.test(k))));
 }
 
