@@ -348,6 +348,17 @@
   height: 100%;
 }
 
+/* The info tags drawn over the 3D picture: on top, and clicks go through to the 3D view. */
+[data-module='turn-sim'] .ts-tags3d {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+[data-module='turn-sim'] .ts-tags3d[hidden] {
+  display: none;
+}
+
 /* Formation card */
 [data-module='turn-sim'] .ts-card {
   margin: 0 0 var(--space-3);

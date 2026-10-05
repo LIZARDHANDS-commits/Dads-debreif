@@ -167,19 +167,25 @@ function mount(root, app) {
   let snapNext = true; // the next 2D frame takes the fit at once (after a reset or Fit)
   let wantView = '2d';
 
-  /** The box every aircraft is in, grown by the fit's margin: its middle and its size each way (feet). */
+  /**
+   * The camera's centre and size: centred on the formation's centre of mass (every aircraft weighed the same; Patrick,
+   * 5 Oct), and wide enough each way to hold the aircraft furthest from it, grown by the fit's margin (feet).
+   */
   const fitBox = () => {
     const xs = state.aircraft.map((a) => a.xFt);
     const ys = state.aircraft.map((a) => a.yFt);
     const grow = 1 / (1 - 2 * FIT.marginShare);
-    const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    const x = xs.reduce((s, v) => s + v, 0) / xs.length;
+    const y = ys.reduce((s, v) => s + v, 0) / ys.length;
+    const reach = (vs, c) => Math.max(...vs.map((v) => Math.abs(v - c)));
     return {
-      x: (minX + maxX) / 2,
-      y: (minY + maxY) / 2,
-      spanXFt: Math.max(FIT.minSpanFt, (maxX - minX) * grow),
-      spanYFt: Math.max(FIT.minSpanFt, (maxY - minY) * grow),
+      x,
+      y,
+      spanXFt: Math.max(FIT.minSpanFt, 2 * reach(xs, x) * grow),
+      spanYFt: Math.max(FIT.minSpanFt, 2 * reach(ys, y) * grow),
     };
   };
+  let zoomFactor2d = 1; // the person's wheel zoom on top of the 2D fit; Fit puts it back to 1
   const fitBounds = () => {
     const b = fitBox();
     return { minX: b.x - b.spanXFt / 2, maxX: b.x + b.spanXFt / 2, minY: b.y - b.spanYFt / 2, maxY: b.y + b.spanYFt / 2 };
@@ -192,7 +198,7 @@ function mount(root, app) {
     if (cameraPaused) return null;
     const snap = snapNext;
     snapNext = false;
-    return { ...fitBox(), zoom: layout.get().autoFit || snap, snap };
+    return { ...fitBox(), zoom: layout.get().autoFit || snap, snap, zoomFactor: snap ? 1 : zoomFactor2d };
   };
   const showFit = () => ui.setFitShown(cameraPaused || !layout.get().autoFit);
   const pauseCamera = () => {
@@ -204,7 +210,12 @@ function mount(root, app) {
   // ---- the pictures -------------------------------------------------------------------
   const view = createTurnSimView(ui.canvas, {
     timers: app.scheduler,
-    onUserMove: pauseCamera,
+    // A wheel zoom while the camera follows sets how close it sits and it keeps following (Patrick, 5 Oct: the zoom changes
+    // as the formation closes up); a drag hands the camera to the person until Fit.
+    onUserMove: (kind, ratio) => {
+      if (kind === 'zoom' && !cameraPaused && layout.get().autoFit) zoomFactor2d *= ratio;
+      else pauseCamera();
+    },
     source: {
       state: () => state,
       trails: () => ({ trail: state.tracks, marks: {} }),
@@ -224,13 +235,18 @@ function mount(root, app) {
   // three.js loads only when 3D is first switched on.
   const view3d = createView3d(ui.canvas3d, {
     timers: app.scheduler,
+    overlay: ui.tags3d,
     onUserMove: (kind) => {
-      if (kind === 'zoom') pauseCamera(); // turning the 3D view round keeps the fit; zooming takes it over
+      // turning the 3D view round keeps the fit; a wheel zoom while it follows sets how close it sits (view3d.js); with
+      // the fit off, it takes the camera over as before
+      if (kind === 'zoom' && (cameraPaused || !layout.get().autoFit)) pauseCamera();
     },
     source: {
       state: () => state,
       trails: () => ({ trail: state.tracks }),
       layers: () => layout.get(),
+      planned: () => state.planned,
+      tags: () => tagLines(state, formation.where()),
       focus: () => {
         const b = fitBox();
         return { x: b.x, y: b.y };
@@ -254,6 +270,7 @@ function mount(root, app) {
   function fitNow() {
     cameraPaused = false;
     snapNext = true;
+    zoomFactor2d = 1;
     if (shown === '3d') fit3d();
     showFit();
     redraw();

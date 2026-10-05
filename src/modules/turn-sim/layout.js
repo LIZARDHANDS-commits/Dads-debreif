@@ -41,7 +41,7 @@ export function migrateLayout(values, version) {
 export const LAYOUT_ALLOWED = /** @type {Record<string, any[]>} */ (Object.freeze({ view: [...VIEW_ALLOWED], paint: PAINT_OPTIONS.map((o) => o.value) }));
 
 /** Layers that only the 2D picture draws; they are greyed out in 3D. */
-const LAYERS_2D = ['lead39', 'lead75', 'planned', 'turnCircles', 'tags'];
+const LAYERS_2D = ['lead39', 'lead75', 'turnCircles']; // planned and tags draw in 3D too (Patrick, 5 Oct)
 
 export const SPEEDS = Object.freeze([0.25, 0.5, 1, 2, 4]);
 
@@ -231,7 +231,8 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   const fitButton = h('button', { type: 'button', class: 'button ts-fit', hidden: true, title: 'Fit every aircraft in the picture again', onclick: () => handlers.fit?.() }, 'Fit');
   const canvas = h('canvas', { class: 'ts-canvas' });
   const canvas3d = h('canvas', { class: 'ts-canvas ts-canvas3d', hidden: true }); // the 3D view's own canvas: a WebGL context can't share the 2D one
-  const canvasWrap = h('div', { class: 'ts-canvas-wrap' }, canvas, canvas3d);
+  const tags3d = h('canvas', { class: 'ts-canvas ts-tags3d', hidden: true, 'aria-hidden': 'true' }); // the info tags over the 3D picture
+  const canvasWrap = h('div', { class: 'ts-canvas-wrap' }, canvas, canvas3d, tags3d);
   const note3d = h('span', { class: 'ts-note', role: 'status', hidden: true });
   const bar = h(
     'div',
@@ -285,10 +286,12 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     element,
     canvas,
     canvas3d,
+    tags3d,
     /** Which picture shows: '2d' or '3d'. */
     showView(view) {
       canvas.hidden = view === '3d';
       canvas3d.hidden = view !== '3d';
+      tags3d.hidden = view !== '3d';
       for (const key of LAYERS_2D) lc.setDisabled(key, view === '3d');
     },
     /** A short note beside the View switch ("3D needs a connection the first time."), or '' for none. */

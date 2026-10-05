@@ -74,13 +74,19 @@ export function plannedBounds(run, maxSteps = 12100) {
 export function createTurnSimView(canvas, { timers, source, onUserMove }) {
   let needsFit = null; // bounds to fit at the next draw, once the canvas has its real size
   let ready = false;
+  let drawnScale = 1; // the zoom the last frame was drawn at, so a move by the person can be told as a zoom or a pan
 
   const map = createCanvasView(canvas, {
     timers,
     minSpan: MIN_SPAN_FT,
     maxSpan: MAX_SPAN_FT,
     label: 'The formation from above. Drag to move, scroll or press + and − to zoom.',
-    onUserMove,
+    // onUserMove(kind, ratio): 'zoom' with how much the zoom changed, or 'pan'
+    onUserMove: () => {
+      const ratio = map.view.scale / drawnScale;
+      drawnScale = map.view.scale;
+      onUserMove?.(Math.abs(ratio - 1) > 1e-9 ? 'zoom' : 'pan', ratio);
+    },
     draw(ctx) {
       if (needsFit && ready && map.size.width > 0 && map.size.height > 0) { // a hidden canvas (3D is showing) has no size: keep the fit for when 2D is back
         const bounds = needsFit;
@@ -95,6 +101,7 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
       if (follow) followFormation(map, follow);
       else if (layers.followLead && lead && (lead.xFt !== map.view.cx || lead.yFt !== map.view.cy)) map.setCenter(lead.xFt, lead.yFt);
 
+      drawnScale = map.view.scale;
       const { width, height } = map.size;
       ctx.fillStyle = BACKGROUND;
       ctx.fillRect(0, 0, width, height);
@@ -146,11 +153,11 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
  * zoom eases toward that, or jumps to it when snap; follow.zoom false keeps the
  * zoom as it is.
  */
-function followFormation(map, { x, y, spanFt = 0, spanXFt = spanFt, spanYFt = spanFt, zoom = true, snap = false }) {
+function followFormation(map, { x, y, spanFt = 0, spanXFt = spanFt, spanYFt = spanFt, zoom = true, snap = false, zoomFactor = 1 }) {
   const { width, height } = map.size;
   let scale = map.view.scale;
   if (zoom && width > 0 && height > 0 && spanXFt > 0 && spanYFt > 0) {
-    const want = Math.min(width / spanXFt, height / spanYFt);
+    const want = Math.min(width / spanXFt, height / spanYFt) * zoomFactor; // zoomFactor: the person's wheel zoom on top of the fit
     scale = snap ? want : scale + (want - scale) * FOLLOW_ZOOM_EASE;
   }
   if (x !== map.view.cx || y !== map.view.cy || scale !== map.view.scale) map.setView({ cx: x, cy: y, scale });
@@ -495,14 +502,14 @@ function drawAircraft(ctx, map, a, named = true) {
 /** The red of a tag's IDLE, BOARDS and IDLE+BOARDS (Patrick 01:44Z: "red letters"), light enough to read on the dark box. */
 const POWER_RED = '#ff5a5a';
 
-function drawTags(ctx, map, state, tags) {
+export function drawTags(ctx, map, state, tags) {
   ctx.save();
   ctx.font = `10px ${FONT}`;
   for (const a of state.aircraft) {
     const tag = tags[a.id];
     if (!tag) continue;
     const colour = SHIP_COLORS[a.id] ?? '#d9e6f2';
-    const [x, y] = map.worldToScreen(a.xFt, a.yFt);
+    const [x, y] = map.screenOf ? map.screenOf(a) : map.worldToScreen(a.xFt, a.yFt); // screenOf: the 3D view's, with height
     const pad = 4;
     const power = tag.power ?? null;
     const w = Math.max(ctx.measureText(tag.title).width, ctx.measureText(tag.detail).width, power ? ctx.measureText(power.text).width : 0) + 2 * pad;

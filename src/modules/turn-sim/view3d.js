@@ -9,8 +9,9 @@
 // (R4). The camera is the ui-kit's matchProjection; nothing here does camera maths
 // of its own beyond choosing yaw, pitch, zoom and centre.
 import {
-  loadThree, webglSupported, matchProjection, altToZ, addLights, addSky, disposeAircraftMesh,
+  loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addLights, addSky, disposeAircraftMesh,
 } from '../../ui-kit/three-aircraft.js';
+import { drawTags } from './view.js';
 import { createCt156Model, CT156_UNIT_LENGTH } from '../../ui-kit/ct156-model.js';
 
 /** The formation's height in the picture (feet). An aircraft with altAboveFt is drawn that far above or below it (the vertical miss). */
@@ -39,6 +40,9 @@ export const T6_LENGTH_FT = 33.4;
 export const MIN_PLANE_PX = 40;
 /** The most points a trail holds: the newest part of the ground track (over 30 minutes at the live screen's 0.25 s). */
 const TRAIL_POINTS = 8000;
+/** The most points a planned path holds, and its dashes on screen (pixels), as the 2D view's 7 on, 6 off. */
+const PLAN_POINTS = 4000;
+const PLAN_DASH_PX = Object.freeze({ on: 7, off: 6 });
 
 const rad = (d) => (d * Math.PI) / 180;
 const deg = (r) => (r * 180) / Math.PI;
@@ -128,7 +132,7 @@ export function fitCamera(bounds, size, leadHeadingRad) {
  * onUserMove(kind): the person orbited ('orbit') or zoomed ('zoom'). win: for tests.
  * Returns { show, hide, requestDraw, fit, dispose, stats }.
  */
-export function createView3d(canvas, { timers, source, onUserMove = (_kind) => {}, win = globalThis }) {
+export function createView3d(canvas, { timers, source, overlay = null, onUserMove = (_kind) => {}, win = globalThis }) {
   let THREE = null;
   let gl = null; // { renderer, scene, camera, sky, grid, planes: Map, trails: Map }
   let visible = false;
@@ -142,6 +146,7 @@ export function createView3d(canvas, { timers, source, onUserMove = (_kind) => {
   let cam = { yawDeg: 0, pitchDeg: CAMERA_START_PITCH_DEG, zoom: 20, altScale: ALT_SCALE };
   let waitingFit = null; // a fit asked before three had loaded, or before the canvas had a size
   let paintNow = null;
+  let userZoom = 1; // the person's wheel zoom on top of the fit-all zoom (Patrick, 5 Oct: the zoom keeps following the formation)
 
   const size = () => ({ width: Math.max(1, canvas.clientWidth), height: Math.max(1, canvas.clientHeight) });
 
@@ -155,7 +160,7 @@ export function createView3d(canvas, { timers, source, onUserMove = (_kind) => {
     grid.rotation.x = Math.PI / 2; // GridHelper is flat in X-Z; the sim's ground is X-Y
     grid.material.fog = false;
     scene.add(grid);
-    gl = { renderer, scene, camera, sky, grid, planes: new Map(), trails: new Map() };
+    gl = { renderer, scene, camera, sky, grid, planes: new Map(), trails: new Map(), plans: new Map() };
   }
 
   function planeFor(id) {
@@ -189,6 +194,21 @@ export function createView3d(canvas, { timers, source, onUserMove = (_kind) => {
     return line;
   }
 
+  /** Each aircraft's path still to fly, dashed in its colour (the 2D view's planned paths; Patrick, 5 Oct: in 3D too). */
+  function planFor(id) {
+    let line = gl.plans.get(id);
+    if (!line) {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(PLAN_POINTS * 3), 3));
+      geometry.setDrawRange(0, 0);
+      line = new THREE.Line(geometry, new THREE.LineDashedMaterial({ color: source.colors[id] ?? '#ffffff', transparent: true, opacity: 0.75, fog: false }));
+      line.frustumCulled = false;
+      gl.scene.add(line);
+      gl.plans.set(id, line);
+    }
+    return line;
+  }
+
   function draw() {
     if (!gl || !visible || disposed) return;
     const { renderer, scene, camera } = gl;
@@ -207,7 +227,7 @@ export function createView3d(canvas, { timers, source, onUserMove = (_kind) => {
     // 2D view's does; the yaw and pitch stay the person's. Nothing moves while they drag.
     const keep = !dragging && source.fitBounds?.();
     if (keep) {
-      const want = fitCamera(keep, box, 0).camera.zoom;
+      const want = clamp(fitCamera(keep, box, 0).camera.zoom * userZoom, CAMERA_LIMITS.zoom);
       cam = { ...cam, zoom: cam.zoom + (want - cam.zoom) * FIT_ZOOM_EASE };
     }
     const state = source.state();
@@ -233,9 +253,10 @@ export function createView3d(canvas, { timers, source, onUserMove = (_kind) => {
       gl.planes.delete(id);
     }
 
+    const layers = source.layers();
     const { trail } = source.trails();
     for (const a of state.aircraft) {
-      const points = trail[a.id] ?? [];
+      const points = layers.tracks === false ? [] : trail[a.id] ?? []; // the Tracks tick, as in 2D
       const line = trailFor(a.id);
       const attr = line.geometry.attributes.position;
       const count = Math.min(points.length, TRAIL_POINTS);
@@ -255,6 +276,31 @@ export function createView3d(canvas, { timers, source, onUserMove = (_kind) => {
       gl.trails.delete(id);
     }
 
+    const planned = layers.planned && source.planned ? source.planned() ?? {} : {};
+    const ftPerPx = 1000 / shown.zoom;
+    for (const a of state.aircraft) {
+      const ahead = (planned[a.id] ?? []).filter((p) => p[0] >= state.tSec - 1e-9);
+      const line = planFor(a.id);
+      const attr = line.geometry.attributes.position;
+      const count = Math.min(ahead.length, PLAN_POINTS);
+      for (let i = 0; i < count; i++) {
+        const p = ahead[i];
+        attr.setXYZ(i, p[1], p[2], altToZ(FLIGHT_ALT_FT + (p[3] ?? 0), ALT_SCALE));
+      }
+      attr.needsUpdate = true;
+      line.geometry.setDrawRange(0, count >= 2 ? count : 0);
+      if (count >= 2) line.computeLineDistances();
+      line.material.dashSize = PLAN_DASH_PX.on * ftPerPx;
+      line.material.gapSize = PLAN_DASH_PX.off * ftPerPx;
+    }
+    for (const [id, line] of gl.plans) {
+      if (present.has(id)) continue;
+      line.removeFromParent();
+      line.geometry.dispose();
+      line.material.dispose();
+      gl.plans.delete(id);
+    }
+
     // The ground follows the view in whole grid steps, so it looks endless and still.
     gl.grid.position.set(
       Math.round(focus.x / GRID_STEP_FT) * GRID_STEP_FT,
@@ -264,8 +310,33 @@ export function createView3d(canvas, { timers, source, onUserMove = (_kind) => {
 
     matchProjection(THREE, camera, { x: focus.x, y: focus.y, z: FLIGHT_ALT_FT }, shown, box, 1);
     renderer.render(scene, camera);
+    drawTagsOver(state, layers, box, ratio, signs);
     drawn++;
     canvas.dataset.draws = String(drawn);
+  }
+
+  /** The info tags over the 3D picture, beside each aircraft where it is drawn (Patrick, 5 Oct: tags in 3D too). */
+  function drawTagsOver(state, layers, box, ratio, signs) {
+    if (!overlay) return;
+    const w = Math.round(box.width * ratio);
+    const h = Math.round(box.height * ratio);
+    if (overlay.width !== w || overlay.height !== h) {
+      overlay.width = w;
+      overlay.height = h;
+    }
+    const ctx = overlay.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const tags = layers.tags ? source.tags?.() : null;
+    if (!tags) return;
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    const screenOf = (a) => {
+      const pose = aircraftPose(a, signs[a.id] ?? 1);
+      const p = worldToScreen(THREE, gl.camera, { x: pose.x, y: pose.y, z: pose.z }, box.width, box.height);
+      return [p.x, p.y];
+    };
+    drawTags(ctx, { screenOf, size: box }, state, tags);
   }
 
   function requestDraw() {
@@ -290,7 +361,9 @@ export function createView3d(canvas, { timers, source, onUserMove = (_kind) => {
     canvas.classList.remove('is-dragging');
   };
   const zoomTo = (deltaY) => {
+    const was = cam.zoom;
     cam = zoomBy(cam, deltaY);
+    if (source.fitBounds?.()) userZoom *= cam.zoom / was; // following: the wheel sets how close, the fit keeps adjusting
     onUserMove('zoom');
     requestDraw();
   };
@@ -379,6 +452,7 @@ export function createView3d(canvas, { timers, source, onUserMove = (_kind) => {
     /** Puts the whole of `bounds` in view, behind Lead (`leadHeadingRad`), at the next draw. */
     fit(bounds, leadHeadingRad) {
       if (!bounds) return;
+      userZoom = 1;
       waitingFit = { bounds, headingRad: leadHeadingRad };
       requestDraw();
     },
@@ -393,7 +467,7 @@ export function createView3d(canvas, { timers, source, onUserMove = (_kind) => {
       for (const [type, fn] of hands) canvas.removeEventListener(type, fn);
       if (!gl) return;
       for (const { mesh } of gl.planes.values()) disposeAircraftMesh(mesh);
-      for (const line of gl.trails.values()) {
+      for (const line of [...gl.trails.values(), ...gl.plans.values()]) {
         line.geometry.dispose();
         line.material.dispose();
       }
