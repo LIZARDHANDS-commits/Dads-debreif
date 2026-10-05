@@ -63,6 +63,8 @@ export const PFL = Object.freeze({
   /** Up to 60° of bank until the 2,100 ft gate (Patrick 08:34Z); the stall line still holds. Bank over 45° below the gate is flagged (SMM 13.14). */
   maxBankDeg: 60,
   gateFlagBankDeg: 45,
+  /** An orbit to lose height is flown at 30° of bank (SMM 13.5 para 11, p.46; Patrick 5 Oct 23:29Z). */
+  orbitBankDeg: 30,
   /** The High Key window, ft MSL (WFO S2 art 403 para 1a; Patrick C4 06:30Z). */
   highKeyMinFt: 5000,
   highKeyMaxFt: 6000,
@@ -352,6 +354,14 @@ function glideJoinMinRadiusFt() {
 }
 
 /**
+ * Radius of an orbit to lose height: 30° of bank at 120 KIAS at about 4,000 ft, the SMM's orbit (SMM 13.5 para 11, p.46),
+ * tighter than the 1 NM pattern, which stays as it is (Patrick 5 Oct 23:29Z).
+ */
+function orbitRadiusFt() {
+  return turnRadiusFromBankFt(ktToFtps(iasToTasKt(PFL.glideGearKias, 4000)), PFL.orbitBankDeg);
+}
+
+/**
  * Radius of the turn onto final when going direct: 45° of bank at 120 KIAS at about 2,500 ft (SMM 13.14 flags more
  * than 45°), at today's true airspeed (a hot day turns wider, F2).
  */
@@ -619,7 +629,7 @@ function turnRoundJoin(geo, from, availFt, trackDeg, wind, { turnRadiusFt = dire
     const meet = interceptPath(geo, from, th, trackDeg, turnRadiusFt);
     if (meet) tries.push(meet);
     // Inside the circle: one full left turn where it is first (the High Key orbit's way round), then out to meet the circle.
-    if (meet) tries.push(Object.assign([...orbitPath(from, trackDeg, turnRadiusFt), ...meet], { turnDeg: 360 + meet.turnDeg }));
+    if (meet) tries.push(Object.assign([...orbitPath(from, trackDeg, orbitRadiusFt()), ...meet], { turnDeg: 360 + meet.turnDeg }));
     for (const raw of tries) {
       for (const dragBefore of close ? [0, 1, 3] : [0]) {
         const path = Object.assign(raw.map((p) => ({ ...p, plan: Math.max(p.plan ?? 0, dragBefore) })), { turnDeg: raw.turnDeg });
@@ -928,8 +938,9 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
         // then the gear goes early and it extends to a false High Key instead.
         let lapPath = null, lapClean = Infinity;
         if (s.alt > PFL.highKeyMaxFt) {
-          const lap = arcToAim(geo, PFL.joinStepDeg).filter((p) => p.theta !== undefined);
-          lapPath = [{ x: s.x, y: s.y, plan: cfg }, ...lap.map((p) => ({ ...p, plan: 0 })), { x: geo.th.x, y: geo.th.y, theta: 0, plan: 0, key: 'high_key', highKeyCheck: true }];
+          // One orbit at 30° of bank from High Key back to it, inside the pattern (SMM 13.5 para 11; Patrick 5 Oct 23:29Z).
+          const lap = orbitPath(s, geo.rwyDeg, orbitRadiusFt());
+          lapPath = [...lap.map((p, i) => ({ ...p, plan: i ? 0 : cfg })), { x: geo.th.x, y: geo.th.y, theta: 0, plan: 0, key: 'high_key', highKeyCheck: true }];
           lapClean = neededFt(lapPath, 0, s, s.alt, 0, wind);
         }
         if (lapPath && s.alt - lapClean >= PFL.highKeyMinFt) {
@@ -940,7 +951,9 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
         } else if (s.alt > PFL.highKeyMinFt) {
           if (lapPath && cfg < 1) { cfg = 1; notes.push('gear early: an orbit would end below the High Key window'); }
           // Carry on down the runway until half the excess is gone, turn, and lose the other half coming back (SMM 13.7 para 16, Fig 13.4).
-          const excess = s.alt - PFL.highKeyMinFt;
+          // Down to what the pattern needs from High Key with the gear down, if that is above the window's bottom (gear drag as the SMM's orbit).
+          const hkPath = [{ x: geo.th.x, y: geo.th.y, plan: 1, theta: 0, key: 'high_key' }, ...arcToAim(geo, PFL.joinStepDeg)];
+          const excess = s.alt - Math.max(PFL.highKeyMinFt, ground + neededFt(hkPath, 0, geo.th, s.alt, Math.max(cfg, 1), wind));
           const d = Math.max(0, excess / 2 * heightFactor(s.alt) * glideRatio(PFL_CONFIGS[Math.max(cfg, 1)]));
           const off = { x: geo.u.x * d, y: geo.u.y * d };
           const fhk = { x: geo.th.x + off.x, y: geo.th.y + off.y };

@@ -227,9 +227,11 @@ export const T6A_GLIDE = Object.freeze({
  * Glide ratios as flown, NM per 1,000 ft, where they differ from the chart above (Patrick, 5 Oct 2026 23:20Z:
  * "Agreed with smm"). Gear down 1.18, so a 360° orbit at 120 KIAS and 30° of bank loses about 2,600 ft, as
  * SMM 13.5 para 11 and 13.6 para 13 (p.46) say; the chart's 1.5 gave about 1,980. The clean orbit already
- * agrees (about 1,640 ft, SMM about 1,700). T/O flap about 1.14, between gear down and landing flap: an estimate.
+ * agrees (about 1,640 ft, SMM about 1,700). The flaps add the chart's own drag on top of that gear (the chart's
+ * step from its gear-down row to its flap rows): T/O flap 1.07, landing flap 0.95. Without it, flaps over the SMM's
+ * gear added almost nothing and every PFL landed about 1,000 ft longer. An estimate, waiting on Patrick's yes.
  */
-export const T6A_GLIDE_FLOWN = Object.freeze({ gearDown: 1.18, flapsTakeoff: 1.14 });
+export const T6A_GLIDE_FLOWN = Object.freeze({ gearDown: 1.18, flapsTakeoff: 1.07, landing: 0.95 });
 
 /**
  * The chart's sink rate in ft/min for a T6A_GLIDE configuration ('clean', 'gearDown',
