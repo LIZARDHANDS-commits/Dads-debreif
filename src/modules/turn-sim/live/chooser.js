@@ -140,7 +140,11 @@ export function chooseChange(pair, to, options = {}, t0 = 0) {
   const longMove = rangeToSlotFt(pair, to, options) > HAND_OVER_FT;
   const candidates = [];
   let refusal = null;
-  const planners = !mid ? PLANNERS : mid.lead?.kind === 'carry' ? [FROM_HERE] : MID_PLANNERS;
+  // Lead's turn into #2 held with #2 going to the other side: only "from here" keeps Lead turning until #2 is in there
+  // (Patrick 5 Oct 22:35Z; TS-87); the other planners would roll him out.
+  const sNow = Math.sign(relativeTo(pair[0], wing).left);
+  const across = mid?.lead?.kind === 'hold' && to !== 'lab' && ((options.side === 'left' && sNow < 0) || (options.side === 'right' && sNow > 0));
+  const planners = !mid ? PLANNERS : mid.lead?.kind === 'carry' || across ? [FROM_HERE] : MID_PLANNERS;
   for (const p of planners) {
     // Each planner refuses a Rejoin kind that is not its own; under 'auto' each rejoin planner is given its own kind.
     const opts = auto && p.rejoin !== null ? { ...options, rejoin: p.rejoin } : options;

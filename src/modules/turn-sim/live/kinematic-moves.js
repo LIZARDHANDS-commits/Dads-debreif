@@ -38,6 +38,9 @@ export function slotPoint(key, side, spacingFt) {
 const SWAP_CROSS_MARGIN_FT = 100;
 const SWAP_LAG_RATIO = 0.2;
 
+/** Where a crossing behind Lead passes his six, fwd ft: outside the 500 ft bubble by SWAP_CROSS_MARGIN_FT (estimates). */
+export const crossBehindFwd = (rangeFt) => -(Math.max(LAG_ROLL.bubbleFt, rangeFt * 0.9) + SWAP_CROSS_MARGIN_FT);
+
 /**
  * The places #2's line passes on its way from `from` (side s, where it is now: `cur`) to `to` (side sTo), in Lead's frame,
  * as relative-path points (design section 4's routes, flown as one line): close formations cross behind and below Lead
@@ -89,7 +92,7 @@ export function routePoints(from, s, to, sTo, cur, spacingFt) {
       const across = 2 * Math.abs(cur.left);
       const range = Math.hypot(cur.fwd, cur.left);
       const endFwd = -Math.min(-cur.fwd + SWAP_LAG_RATIO * across, Math.sqrt(Math.max(0, (FW_BAND.rangeFt[1] - 50) ** 2 - cur.left ** 2)));
-      const crossFwd = Math.min((cur.fwd + endFwd) / 2, -(Math.max(LAG_ROLL.bubbleFt, range * 0.9) + SWAP_CROSS_MARGIN_FT));
+      const crossFwd = Math.min((cur.fwd + endFwd) / 2, crossBehindFwd(range));
       pts.push({ fwd: crossFwd, left: 0, up: cur.up, plane: 0 }, { fwd: Math.min(endFwd, cur.fwd), left: -cur.left, up: cur.up, plane: 0 });
       return pts;
     } else {

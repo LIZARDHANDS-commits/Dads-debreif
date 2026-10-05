@@ -35,6 +35,7 @@ import { onClosure, leadTurnInto, fromStep } from './hand-over.js';
 import { STEP_SEC, copyAircraft } from './flight.js';
 import { stepCommanded, setKias, trackTwice, phase } from './tracker.js';
 import { fwGoal } from './formation-turns.js';
+import { acrossSixLegs } from './replan.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
 import { powerFor, powerFrom } from './power.js';
 import { bankDegFromTurnRate, turnRadiusFromBankFt } from '../../../core/flight-math.js';
@@ -241,8 +242,11 @@ function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, 
   // fighting wing; Patrick 08:58Z: "the whole cone can be used"; TS-75), so a hot arrival short of the slot is not dragged
   // back to it.
   const rel1 = relativeTo(into.longRec.at(n1), W1);
+  // To the other side, on across Lead's six in one motion, Lead turning until #2 is in there (replan.js acrossSixLegs; TS-87).
   const phases =
-    to === 'fw' && sTo === s
+    sTo !== s && sTo !== 0
+      ? onClosure(acrossSixLegs(rel1, s, to, sTo, spacingFt))
+      : to === 'fw'
       ? onClosure([phase({ fwd: rel1.fwd, left: rel1.left, alt: TR.lineUpFt }, { ...FW_FOLLOW, goal: (L, W) => fwGoal(L, W, s, false) })], { closeIn: true })
       : onClosure(tailLegs(s, to, sTo, spacingFt)).map((p, i) => (i === 0 && to !== 'fw' ? { ...p, closureFtps: Math.min(p.closureFtps, flowFtps) } : p));
   const fly = (rec, stopWhenSettled) => trackTwice({ refs: { [lead.id]: fromStep(rec, n1) }, wing0: W1, t0: t0 + n1 * dt, phases, blockFt, init: { accelKtps: part.accelKtps }, stopWhenSettled });

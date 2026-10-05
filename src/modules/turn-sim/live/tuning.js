@@ -115,6 +115,7 @@ export const TURNING_REJOIN = Object.freeze({
   runInReleaseShare: 0.5, // taking out the overtake, he sets it again once the room left needs less than this share of the slowing that started it (estimate; TS-75)
   runInHoldSec: 2, // within this many seconds of the decision point at the close-in rate, he keeps taking it out (estimate; TS-75)
   floorMarginKias: 5, // within this of his least speed, he banks no more than MAX holds the speed at, so he doesn't bleed below it (estimate; TS-75)
+  crossFlowFt: 150, // crossing Lead's six to the other side, he flows through the crossing point within this many feet (estimate)
   routeFlowFt: 20, // he flows through route without stopping, within this many feet of it, on into the slot (estimate; Patrick 07:14Z: "in one motion")
 });
 
