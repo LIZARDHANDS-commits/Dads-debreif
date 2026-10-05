@@ -1341,7 +1341,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     return tier;
   }
   const outerTier = createTier({ span: OUTER_PHOTO_SPAN_FT, px: 2048, maxZoom: 11, split: 2 }); // 30 NM each way, softest
-  const farTier = createTier({ span: PHOTO_SPAN_FT, px: 4096, maxZoom: 13, split: 3 }); // 10+ miles each way
+  // 10+ miles each way; 2,048 px (about 52 ft a pixel), as it is only seen far off (TR-71: was 4,096, about 65 MB more)
+  const farTier = createTier({ span: PHOTO_SPAN_FT, px: 2048, maxZoom: 12, split: 3 });
   const midTier = createTier({ span: MID_SPAN_FT, px: 4096, maxZoom: 15, split: 3 }); // about 3 miles each way
   const ensurePhotoTexture = (options) => farTier.ensure(options);
   const tightTier = createTier({ span: TIGHT_SPAN_FT, px: 6144, maxZoom: 18, split: 4, cx: TIGHT_CENTER_FT.x, cy: TIGHT_CENTER_FT.y, debounceMs: 700, maxKept: 900, transparent: true });
@@ -1426,6 +1427,17 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     }
 
     return coreTexture;
+  }
+  /** Lets the core picture go (High: the sharp square and the pattern squares already cover it), to free its memory. */
+  function releaseCore() {
+    if (coreDebounce) timers.clearTimeout?.(coreDebounce);
+    coreDebounce = null;
+    coreImagery?.dispose();
+    coreImagery = null;
+    coreTexture?.dispose();
+    coreTexture = null;
+    coreCanvas = null;
+    coreAlign = null;
   }
 
   const sizeOf = (canvas) => ({ width: Math.max(1, canvas.clientWidth), height: Math.max(1, canvas.clientHeight) });
@@ -1539,12 +1551,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     midTier.dispose();
     patternMidTiers.forEach((t) => t.dispose());
     tightTier.dispose();
-    if (coreDebounce) timers.clearTimeout?.(coreDebounce);
-    coreDebounce = null;
-    coreTexture?.dispose();
-    coreTexture = null;
-    coreCanvas = null;
-    coreImagery = null;
+    releaseCore();
     // What three.js still counts on the graphics card, for the leak check (data-gpu; see probeMemory): the ui-kit's T-6 frees
     // everything it made and so does the view, so this is what three.js keeps for itself, the same as after one Harvard.
     const { memory } = renderer.info;
@@ -1638,7 +1645,10 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     const outerTex = outerTier.ensure(options);
     const { midTex, patternMidTextures } = ensureMiddle(options, isLow);
     const tightTex = isLow ? null : ensureTightTexture(options);
-    const coreTex = ensureCoreTexture(options);
+    // The core airfield picture (4,096 px) only on Performance: on High the sharp square (zoom 18) covers the field and the
+    // pattern squares (zoom 15) the rest of the core box, so it would only cost about 85 MB of graphics memory (TR-71).
+    if (!isLow && coreCanvas) releaseCore();
+    const coreTex = isLow ? ensureCoreTexture(options) : null;
     kit.sync(data, {
       paint: options.paint,
       graphicsQuality: options.graphicsQuality,
