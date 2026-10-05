@@ -113,7 +113,7 @@ export function nextWing(w, cue, t, rangeFt, blend = null) {
   const r = out.range.to;
   const latTo = out.side * r * Math.sin((cue.latDeg ?? WING.latDeg) * DEG);
   out.lat = retarget(w.lat, latTo, t, cue.settleSec ?? WING.collapseSec);
-  // blend: { inSec, outSec }, the times the close-in rate gives (fluid.js blendSecs, V2.24), else WING's.
+  // blend: { inSec, outSec }, the times the close-in rate gives (fluid.js blendSecs, V2.59), else WING's.
   if (cue.blend !== undefined) out.blend = retarget(w.blend, cue.blend, t, cue.blend > valueOf(w.blend, t) ? blend?.inSec ?? WING.blendInSec : blend?.outSec ?? WING.blendOutSec);
   return out;
 }

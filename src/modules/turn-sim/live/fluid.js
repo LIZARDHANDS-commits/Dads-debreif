@@ -83,12 +83,12 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
   let queued = null; // { label, key }
   let ended = null; // the step Terminate finished on
   let endSeen = null; // the step Terminate's last step was flown on (the session ends once #2 has caught up too)
-  // #2 held to full power (full-power.js holdLiveStep, TS-63, V2.24): held is null while he flies the planned line exactly;
+  // #2 held to full power (full-power.js holdLiveStep, TS-63, V2.59): held is null while he flies the planned line exactly;
   // heldPrev is his point a step ago while held.
   let held = null;
   let heldPrev = null;
   /**
-   * The entry's and terminate's blend times (V2.24; Patrick 5 Oct 04:59Z: "move quickly into fluid maneouvering or into
+   * The entry's and terminate's blend times (V2.59; Patrick 5 Oct 04:59Z: "move quickly into fluid maneouvering or into
    * and out of fighting wing"): the distance from the fighting wing slot to the cone place at the set range (15° off
    * Lead's tail, on #2's side) at the close-in rate (tuning.js closureNow, the Rates choice) as the average closure, never
    * under WING.blendMinSec (estimate).
@@ -271,7 +271,7 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       if (queued && kNow > queued.startK) queued = null;
       const lp = leadPose(kNow);
       // #2's speed-up is never faster than full power gives (TS-63, Patrick 04:07Z): where his planned line asks more he
-      // flies the same line at the speed he can reach (STRETCHED), cutting inside Lead's turn while he is behind (V2.24,
+      // flies the same line at the speed he can reach (STRETCHED), cutting inside Lead's turn while he is behind (V2.59,
       // full-power.js), and closes up as best he can after. The point a step ahead is worked out from where he will be,
       // not kept, so a press of Lead's is followed from where he is.
       const ref = (k) => E(k).pos;

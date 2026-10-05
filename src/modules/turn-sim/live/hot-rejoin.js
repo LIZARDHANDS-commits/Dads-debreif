@@ -2,7 +2,7 @@
 // kinematic pre-planned line (Patrick 4 Oct 18:00Z): from the standard start (V2.15), from the off-standard starts the
 // Errors (training) panel sets (V2.20; Patrick 19:15Z: "wide or close, ahead of line, high, tight, fast; worst = ahead,
 // high, tight, fast"), and the overshoot when #2 reaches the decision point with too much energy (Patrick 23:29Z).
-// Since V2.24 (TS-68) it flies only the Errors panel's starts: every other 2-ship turning rejoin flies the rejoin line
+// Since V2.59 (TS-68) it flies only the Errors panel's starts: every other 2-ship turning rejoin flies the rejoin line
 // (turning-rejoin.js; Patrick 07:31Z).
 //
 // Sources (page references only):
@@ -16,7 +16,7 @@
 //    turning rejoin), 16.34 paras 94-96 (the 4-ship: not built here). EFIG p.374 (10-20 KIAS overtake, speed brake if
 //    required). Patrick 23:29Z (overshoot only at the decision point), 23:37-23:38Z (order of use: geometry, power,
 //    speed brake, idle, overshoot).
-//  - V2.24 (TS-67): Patrick 06:16Z's rulings flown (RULED_REJOIN: no bank cap but the G rule, Lead holds his turn until #2
+//  - V2.59 (TS-67): Patrick 06:16Z's rulings flown (RULED_REJOIN: no bank cap but the G rule, Lead holds his turn until #2
 //    is in, no fixed descent rate, the decision point about 200 ft); the rejoin line (SMM 12.24 paras 56-58, Fig 12.14;
 //    Patrick 04:53Z: "green should EXPEDITIOUSLY find the line (as per the smm), run up it, then move down into right route
 //    and into eschelon"): #2 lines up on his own side and never crosses Lead's six to the outside unless it is the decision
@@ -280,7 +280,7 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
               const L = longRec.at(k);
               const rel = relativeTo(L, a);
               const range = Math.hypot(rel.fwd, rel.left);
-              // On his own side of Lead (V2.24: the rejoin line passes through fighting wing on #2's side, SMM 16.20 para 66;
+              // On his own side of Lead (V2.59: the rejoin line passes through fighting wing on #2's side, SMM 16.20 para 66;
               // Patrick 04:53Z).
               if (rel.fwd <= -lineUp.behindFt && range >= lineUp.minRangeFt && range <= lineUp.maxRangeFt && rel.left * s > 0) {
                 const P0 = slotInWorld(longRec.at(k - 1), rel.fwd, rel.left, 0);
@@ -355,7 +355,7 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
     ? [closeThrough(pairSlot('route', s, spacingFt)), ...legsFor('route', s, to, sTo, spacingFt)]
     : [rejoinTo(pairSlot('fw', s, spacingFt))], { closeIn: true });
   /**
-   * Lines, then tracker (V2.24, TS-65 as for the other moves): the line is flown until #2 is about HAND_OVER_FT from route
+   * Lines, then tracker (V2.59, TS-65 as for the other moves): the line is flown until #2 is about HAND_OVER_FT from route
    * on his side (or the fighting wing slot), then the tracker runs him in at the close-in rate while Lead holds his 30°
    * turn until #2 is IN POSITION (Patrick 06:16Z item 3), planned again at the hand-over (Patrick 06:24Z). poses: the line
    * as flown (held to full power where it was). Null when the tail can't be flown (the whole line is flown then), and
@@ -436,7 +436,7 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
     for (const c of candidates.slice(0, 12)) {
       const b = buildLine(c, slowWing, KINEMATIC.captureSec);
       // No bank cap but the G rule (REJOIN.bankCapDeg, Patrick 06:16Z item 1), and never across Lead's six to the outside
-      // (V2.24: only the decision overshoot does that).
+      // (V2.59: only the decision overshoot does that).
       if (b.line.maxBankDeg > REJOIN.bankCapDeg + 0.5 || b.checks.laneFwdFt > 100 || b.checks.minBelowFt <= 0) continue;
       if (outsideCrossing(b.line.poses, b.lp.rec, s)) continue;
       const needs = speedNeeds(b.line.poses, c.kh - 3, blockFt);
@@ -476,9 +476,9 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
           if (Math.hypot(L.xFt - P.x, L.yFt - P.y) <= HOT.overshootRangeFt && (!needsOvershoot || RANK[stage] >= RANK[needsOvershoot.stage])) needsOvershoot = { b, kBad: Math.max(c.kh + 1, kBad), stage };
           continue;
         }
-        // A line that swings across behind Lead to the outside of his turn and back is never flown (V2.24; Patrick 04:53Z,
+        // A line that swings across behind Lead to the outside of his turn and back is never flown (V2.59; Patrick 04:53Z,
         // SMM 12.24 paras 56-58): #2 stays on his own side, and only the decision overshoot crosses (Patrick 23:29Z;
-        // firstBad above, planOvershoot). Until V2.24 a line that crossed well behind Lead was accepted.
+        // firstBad above, planOvershoot). Until V2.59 a line that crossed well behind Lead was accepted.
         if (outsideCrossing(b.line.poses, b.lp.rec, s)) continue;
         const entry = { b, needs, used: Math.max(RANK[stage], needs.top), score: c.score };
         if (needs.accelShort > 0) {
@@ -670,7 +670,7 @@ function offStandardStart(lead, wing, rel) {
  * The hot turning rejoin with a training error set (options.errors, errors.js resolveErrors; TS-62) as a "Change formation"
  * plan (planGoTo's shape, transitions.js), or null when it does not apply: from any roughly line abreast start, flown as
  * the error's response says (Fix it or Turn at normal reference), with the decision overshoot. With no error set it is
- * null: since V2.24 every turning rejoin flies the rejoin line (turning-rejoin.js, TS-68; Patrick 07:31Z).
+ * null: since V2.59 every turning rejoin flies the rejoin line (turning-rejoin.js, TS-68; Patrick 07:31Z).
  */
 export function planHotRejoinChange(pair, to, options = {}, t0 = 0) {
   const [lead, wing] = pair;

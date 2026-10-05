@@ -16,7 +16,7 @@
 //  - the straight-ahead rejoin from line abreast (the More option; SMM 16.20 para 65a), to fighting wing on #2's side or
 //    on to a close formation through the straight-ahead rejoin above;
 //  - the straight-ahead rejoin from fighting wing is the Rejoin kind choice's other option (the turning rejoin, the default,
-//    is turning-rejoin.js: V2.24, TS-68; Patrick 07:32Z: "From every tactical formation you should be able to pick either
+//    is turning-rejoin.js: V2.59, TS-68; Patrick 07:32Z: "From every tactical formation you should be able to pick either
 //    straight ahead rejoin or turning rejoin").
 import { relativeTo } from './manoeuvres.js';
 import { recordFlight, speedSeg, describe, legsFor, STRAIGHT_AHEAD, CHANGE_LIMIT_SEC } from './transitions.js';

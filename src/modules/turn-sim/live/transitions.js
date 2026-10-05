@@ -349,7 +349,7 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
   let best = null;
   if (rejoinKind === 'into' && RULED_REJOIN.leadTurnsUntilIn) {
     // Lead holds his 30° turn until #2 is IN POSITION, then rolls out (Patrick 5 Oct 06:16Z item 3: "until 2 is on";
-    // V2.24, TS-67): a first run against Lead turning on finds when #2 settles, the second flies against Lead rolling out
+    // V2.59, TS-67): a first run against Lead turning on finds when #2 settles, the second flies against Lead rolling out
     // then (hand-over.js leadTurnInto, trackTail).
     const into = leadTurnInto({ lead, pre: slowWhileTurning, s: sCur, bankDeg: REJOIN.leadBankDeg, t0, record: recordFlight });
     const tail = trackTail({ wing, lead, leadRec: into.longRec, phases, t0, blockFt, leadPlanFor: into.planTo });
@@ -362,7 +362,7 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
     // "Hot turning rejoin ALWAYS begins with lead IMMEDIATELY turning towards 2" (Patrick 5 Oct 05:29Z): Lead turns into #2
     // at the press, slowing as he turns (SMM 16.20 para 65b); the turn is the first angle that keeps the overshoot lane, or
     // failing that the first that finishes (the lane is flagged on the card, never a wall). Until step 2 Lead waited for
-    // closure first, or held straight when no turn kept the lane. Since V2.24 only when Lead turning until #2 is in
+    // closure first, or held straight when no turn kept the lane. Since V2.59 only when Lead turning until #2 is in
     // doesn't finish.
     let fallback = null;
     for (const turnDeg of REJOIN.turnAnglesDeg) {

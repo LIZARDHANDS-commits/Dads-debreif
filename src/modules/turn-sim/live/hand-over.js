@@ -42,7 +42,7 @@ const LONG_SLOT_FT = 300; // the close formations all sit inside about 230 ft (r
  *  - every close leg (station changes, echelon and route both ways, line astern, the run-in from a rejoin's route or
  *    corner) at the close-in rate (tuning.js CLOSE_IN_SEC, closeInFtps).
  * Banks (Patrick 06:16Z item 12): a close leg up to 30°; a kick out to fighting wing or line abreast with no cap but the G
- * rule; a rejoin's legs keep their own (REJOIN.bankCapDeg: the G rule since V2.24, Patrick 06:16Z item 1). Each slot is chased at once, not
+ * rule; a rejoin's legs keep their own (REJOIN.bankCapDeg: the G rule since V2.59, Patrick 06:16Z item 1). Each slot is chased at once, not
  * through a sliding reference, and the closure is never capped below the rate chosen. With `closeIn` (the tracker's run-in after a hand-over, or a move that starts inside
  * the hand-over range) every leg is at the close-in rate (Patrick 06:24Z). `rejoinBankDeg` replaces a rejoin leg's own cap
  * (the 4-ship's: the G rule only, Patrick 06:16Z item 1).

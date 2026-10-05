@@ -1,7 +1,7 @@
 // A wingman is held to what the aircraft can do (decision TS-63; Patrick 5 Oct 2026 02:48Z: "If they get stretched they
 // just have to show it in their tag and fix it as best as they can once the maneuver ever finishes"). One place for the
 // rule, used where a planned line broke it: the off-standard hot rejoin's capture lines (Patrick 03:46Z: "I thought the
-// thing that we added that for was one case"; holdToPower) and, since V2.24, #2 in fluid manoeuvring (Patrick 04:07Z: "I
+// thing that we added that for was one case"; holdToPower) and, since V2.59, #2 in fluid manoeuvring (Patrick 04:07Z: "I
 // thought we established fluid speed ups between md full just end stretched and fix la after"; holdLiveStep, step by
 // step; the parked V2.22 work, b905095 and ce650bb, ported):
 //  - a speed-up is never faster than full power gives at that speed, height and G (core excessThrustPerWeight, the same
@@ -246,7 +246,7 @@ export function holdToPower(poses, { refAt, blockFt = 8000, kiasPerTas, from = 1
   return { poses: line, changed: true, stretched: stretchedAny, endIndex: end };
 }
 
-// ---- one step of the hold, and the live hold (fluid manoeuvring, V2.24) ---------------------------------------------
+// ---- one step of the hold, and the live hold (fluid manoeuvring, V2.59) ---------------------------------------------
 
 /** The most #2 may speed up along his line (true airspeed, ft/s²): full power's excess at kias, altFt and G n, less the climb at angle gamma. */
 export function fullPowerFtps2(kias, altFt, n, gamma) {
@@ -301,7 +301,7 @@ const KT_PER_FTPS = 1 / KT_TO_FTPS;
  * we established fluid speed ups between md full just end stretched and fix la after"): the same rules and governStep as
  * holdToPower, worked out step by step, so a press of Lead's that re-plans the line ahead is followed from where #2 is.
  *  state: null while #2 flies the planned line exactly, else { sig (his place: a fractional step of the line), v, a, landK,
- *    o and ov (his offset inside the turn, ft, and how fast it changes; V2.24 cut inside) };
+ *    o and ov (his offset inside the turn, ft, and how fast it changes; V2.59 cut inside) };
  *  P(k): the planned line's point at step k ({ x, y, z }, z above the block; needs k - 2 .. k + 5);
  *  k: the step to fly to; ref: the aircraft he flies off at step k ({ x, y }); blockFt: the block height.
  * Returns { state, p (his point at step k), stretched, full }. With state null and the line inside full power, p is P(k).
@@ -391,7 +391,7 @@ export function holdLiveStep(state, P, k, ref, blockFt) {
   const vd = vAt(i) + (vAt(i + 1) - vAt(i)) * u;
   const adAt = (j) => (vAt(j + 1) - vAt(j - 1)) / (2 * dt);
   const ad = (adAt(i) + (adAt(i + 1) - adAt(i)) * u) * (st.v / Math.max(vd, 1));
-  // Cutting inside (V2.24, Patrick card 5 Oct 04:53Z "Geometry: cut inside"): while he is behind, #2 flies a little inside
+  // Cutting inside (V2.59, Patrick card 5 Oct 04:53Z "Geometry: cut inside"): while he is behind, #2 flies a little inside
   // the line's turn (less lag, toward pure pursuit), offset `o` from the line toward its centre. Inside the turn his own
   // path is shorter by (1 - c x curvature), so the same speed takes him further along Lead's line and the gap closes; the
   // tighter turn costs G, so the offset never asks more than the G rule's normal 5 G (TS-63, G_RULE).

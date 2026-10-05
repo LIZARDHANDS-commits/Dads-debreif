@@ -37,16 +37,16 @@ export const KIAS_LAB = 220;
 /** Defaults for rejoins. */
 export const REJOIN = Object.freeze({
   overtakeKias: 15, // the middle of EFIG p.374's 10 to 20 KIAS for a turning rejoin
-  bankCapDeg: G_RULE_BANK_DEG, // #2 in a rejoin: no bank cap but the G rule, about 78° level (Patrick 5 Oct 06:16Z item 1: "Unlimitd bank", RULED_REJOIN; flown since V2.24, TS-67; 60°, an estimate, until then)
+  bankCapDeg: G_RULE_BANK_DEG, // #2 in a rejoin: no bank cap but the G rule, about 78° level (Patrick 5 Oct 06:16Z item 1: "Unlimitd bank", RULED_REJOIN; flown since V2.59, TS-67; 60°, an estimate, until then)
   leadBankDeg: 30, // Lead's turn in a turning rejoin (SMM 12.24 para 54; AFM7 p.21)
   idealBearingDeg: 45, // Lead at 10:30 or 1:30 (SMM 12.24 para 56)
   hotBearingDeg: 60, // hot and cold are drawn but not numbered in SMM Fig 12.16: 60 and 30 are estimates
   coldBearingDeg: 30,
-  turnAnglesDeg: [30, 45, 20, 60], // how far Lead turns into #2; estimates (a gentle turn, AFM8 brief p.19). Since V2.24 the 2-ship's Lead holds his turn until #2 is in (Patrick 06:16Z item 3, RULED_REJOIN; hand-over.js leadTurnInto): these are only the 2-ship tracker's fallback, and the 4-ship's (step 3, not yet changed)
+  turnAnglesDeg: [30, 45, 20, 60], // how far Lead turns into #2; estimates (a gentle turn, AFM8 brief p.19). Since V2.59 the 2-ship's Lead holds his turn until #2 is in (Patrick 06:16Z item 3, RULED_REJOIN; hand-over.js leadTurnInto): these are only the 2-ship tracker's fallback, and the 4-ship's (step 3, not yet changed)
 });
 
 /**
- * The turning rejoin (V2.24, TS-68; Patrick 5 Oct 07:14Z, card "Yes, as written" 07:31Z, 07:32Z): one rule for every turning
+ * The turning rejoin (V2.59, TS-68; Patrick 5 Oct 07:14Z, card "Yes, as written" 07:31Z, 07:32Z): one rule for every turning
  * rejoin, from line abreast (hot: #2 starts ahead of the line and gets colder to reach it) or fighting wing (cold: he turns
  * hotter to reach it). #2 gets onto the rejoin line, Lead at his 10:30 or 1:30 with about half Lead's upper wing showing aft
  * of the fin (Patrick: "where the tail and the wing make an X"), on his own side, inside Lead's turn and slightly low; holds
@@ -74,8 +74,8 @@ export const KINEMATIC = Object.freeze({
   nearMinFtps: 8, // ... but never below about 5 kt, the station-change rate (SMM 12.20 para 44 says "controlled")
   // Patrick 05:12Z: echelon to route about 5 s; since step 2 the fore-aft rate is the Rates choice's closure (closeRates below).
   // The hot turning rejoin:
-  pointBankDeg: 60, // #2's "aggressive" turn to point at Lead (SMM 16.20 para 65b(2)): 60° (an estimate). Not a cap: the line may bank up to REJOIN.bankCapDeg, the G rule (Patrick 06:16Z item 1, V2.24)
-  reverseBanksDeg: [35, 40, 45, 50, 55, 60, 70, Math.floor(G_RULE_BANK_DEG)], // the reversal's banks the planner may choose from: any the G rule allows (Patrick 06:16Z item 2: "Unlimited"; 70° and 78° added in V2.24)
+  pointBankDeg: 60, // #2's "aggressive" turn to point at Lead (SMM 16.20 para 65b(2)): 60° (an estimate). Not a cap: the line may bank up to REJOIN.bankCapDeg, the G rule (Patrick 06:16Z item 1, V2.59)
+  reverseBanksDeg: [35, 40, 45, 50, 55, 60, 70, Math.floor(G_RULE_BANK_DEG)], // the reversal's banks the planner may choose from: any the G rule allows (Patrick 06:16Z item 2: "Unlimited"; 70° and 78° added in V2.59)
   hotWingKias: KIAS_OUTSIDE_LAB, // #2 slows with Lead to 200 KIAS in the hot rejoin: Lead turning into him gives the closure (estimate; the overtake comes in the capture, up to foreAftFtps)
   captureSec: 20, // the capture onto fighting wing, once the reversal has lined #2 up (how long the blend takes)
   captureEaseSec: 3, // how long #2 takes to ease the reversal's bank to Lead's turn as it lines up
@@ -257,13 +257,13 @@ export const HOT = Object.freeze({
   descentFtps: 30, // ... at about 30 ft/s average (1,800 ft/min) when there is time ...
   // ... and faster where he must be off the stack before he is inside 2,000 ft of Lead (SMM 12.27 para 65: never at or above
   // Lead's height while closing), with no fixed rate (Patrick 06:16Z item 4: "unlimited as it can be controlled?"; 45 ft/s
-  // average until V2.24): only as quick as a smooth descent whose push and pull stay within pushG of 1 G
+  // average until V2.59): only as quick as a smooth descent whose push and pull stay within pushG of 1 G
   pushG: 0.5, // the smooth descent's steepest push or pull off 1 G (estimate; the height profile's smootherstep peaks at 5.77 x change / time squared)
   // A planned speed-up is held to full power (TS-63, Patrick 02:48Z): the planner prefers a line inside it (geometry first);
   // a line that still asks more is flown held to full power (full-power.js) and #2 shows STRETCHED. (Until V2.21 the lines
   // could ask up to 3 kt/s.)
   lagShares: [0.75, 0.7], // Fix it may also cut off less (a lag line, geometry first: Patrick 23:37Z, SMM 12.24 para 57)
-  search: Object.freeze({ shares: [1.2, 1.1, 1, 0.9, 0.8], banksDeg: [35, 45, 55, 60, 70, Math.floor(G_RULE_BANK_DEG)], reversalStepSec: 1 }), // the coarser search off the standard start (70° and 78° added in V2.24: the G rule, Patrick 06:16Z item 2)
+  search: Object.freeze({ shares: [1.2, 1.1, 1, 0.9, 0.8], banksDeg: [35, 45, 55, 60, 70, Math.floor(G_RULE_BANK_DEG)], reversalStepSec: 1 }), // the coarser search off the standard start (70° and 78° added in V2.59: the G rule, Patrick 06:16Z item 2)
   // Fix it's power: the speed #2 slows to before the capture, 200 KIAS as the standard (Lead's speed) or a little more, so he
   // keeps a set overtake with power (SMM 12.24 para 56: 10 to 20 KIAS more than Lead's; Patrick 23:37Z)
   powerTargetsKias: [200, 210, 220],
@@ -283,13 +283,13 @@ export const HOT = Object.freeze({
   // energy to safely transition to route and move up the line in to eschelon"; SMM 12.27 para 64: "a decision made at the
   // latter stages of a rejoin"): no manual gives its distance; Fig 12.18 draws it a few aircraft lengths from Lead, so the
   // decision is taken only within about 1,000 ft (an ESTIMATE, the overshoot lane's own range). It was 1,500 ft in V2.20.
-  overshootRangeFt: 200, // Patrick 06:16Z item 5: "closer to 200 feet" (RULED_REJOIN; flown since V2.24; 1,000 ft, an estimate, until then)
-  outsideWithinFt: 3000, // a line that would slide behind Lead to the outside of his turn within this range is never flown (V2.24, Patrick 04:53Z: only the decision overshoot crosses to the outside; estimate)
+  overshootRangeFt: 200, // Patrick 06:16Z item 5: "closer to 200 feet" (RULED_REJOIN; flown since V2.59; 1,000 ft, an estimate, until then)
+  outsideWithinFt: 3000, // a line that would slide behind Lead to the outside of his turn within this range is never flown (V2.59, Patrick 04:53Z: only the decision overshoot crosses to the outside; estimate)
   nearlyKtps: 1, // a line whose capture asks up to 1 kt/s more speed-up than full power still flies (held to it, STRETCHED); beyond it the decision overshoot is preferred
 });
 
 /**
- * Patrick's 06:16Z rulings on the rejoin's estimates (5 Oct 06:16Z), flown since V2.24 (TS-67) in the numbers above
+ * Patrick's 06:16Z rulings on the rejoin's estimates (5 Oct 06:16Z), flown since V2.59 (TS-67) in the numbers above
  * (REJOIN.bankCapDeg, KINEMATIC.reverseBanksDeg, HOT.pushG, HOT.overshootRangeFt) and hand-over.js leadTurnInto:
  *  1. "Unlimitd bank. they can roll and dive if they want/need to and it ameks sense": no bank cap on #2 in a rejoin
  *     (REJOIN.bankCapDeg, KINEMATIC.pointBankDeg); bank follows the G the move needs, inside the G rule, past 90° where the
@@ -305,7 +305,7 @@ export const RULED_REJOIN = Object.freeze({ bankCapDeg: null, reverseBanksDeg: n
 
 // ---- the G rule and the 2-ship's banks (clean-up step 2, TS-65; Patrick 5 Oct 06:16Z) --------------------------------
 
-// (G_RULE and G_RULE_BANK_DEG are near the top of the file since V2.24: the rejoin numbers use them.)
+// (G_RULE and G_RULE_BANK_DEG are near the top of the file since V2.59: the rejoin numbers use them.)
 
 /**
  * The wingmen's banks, 2-ship (step 2) and 4-ship (step 3) (Patrick 5 Oct 06:16Z). Item 12: "30 is probably more accurate"
@@ -445,7 +445,7 @@ export const WING = Object.freeze({
   latDeg: 15, // off Lead's tail, inside the 30° half cone (estimate; cone: Patrick 19:20Z row 2)
   collapseSec: 6, // how long the collapse toward the six takes (estimate)
   rangeSec: 6, // how long a new distance setting takes to fly (estimate)
-  // Entry and terminate: from the fighting wing slot into the cone and back. Since V2.24 the time is what the close-in
+  // Entry and terminate: from the fighting wing slot into the cone and back. Since V2.59 the time is what the close-in
   // rate gives over that distance (fluid.js blendSecs; Patrick 5 Oct 04:59Z: "move quickly into fluid maneouvering or into
   // and out of fighting wing"); these two are the fallback when no time is given.
   blendInSec: 10, // entry (estimate)
@@ -496,11 +496,11 @@ export const HOLD = Object.freeze({
   jerkFtps3: 1.7,
   margin: Object.freeze({ share: 0.05, ktps: 0.05 }),
   extraSec: 120,
-  // Cutting inside when behind in fluid manoeuvring (V2.24, Patrick card 5 Oct 04:53Z "Geometry: cut inside"):
+  // Cutting inside when behind in fluid manoeuvring (V2.59, Patrick card 5 Oct 04:53Z "Geometry: cut inside"):
   cutShare: 0.25, // the most offset inside Lead's turn, as a share of the range: about sin 15°, the lag line's angle, so he goes toward pure pursuit and stays inside the 30° cone (estimate)
   cutSec: 4, // how long moving into or out of the offset takes (estimate)
   cutMinCurvPerFt: 1 / 20000, // a line straighter than a 20,000 ft radius has no inside to cut (estimate)
-  landSec: 1, // the live hold (fluid manoeuvring, V2.24): once caught up, the last fraction of a foot is blended onto the line over 1 s (estimate)
+  landSec: 1, // the live hold (fluid manoeuvring, V2.59): once caught up, the last fraction of a foot is blended onto the line over 1 s (estimate)
 });
 
 // ---- roll (from flight.js) -----------------------------------------------------------------------------------------

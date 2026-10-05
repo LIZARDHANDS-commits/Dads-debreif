@@ -259,7 +259,7 @@ export function planLineMove(pair, from, s, to, sTo, { spacingFt = 6000, blockFt
   };
 }
 
-// leadTurnSegs (a long turn as flight.js turn segments) lives in manoeuvres.js since V2.24, so transitions.js and
+// leadTurnSegs (a long turn as flight.js turn segments) lives in manoeuvres.js since V2.59, so transitions.js and
 // hand-over.js can use it without an import loop; it is re-exported here for the files that read it from here.
 export { leadTurnSegs } from './manoeuvres.js';
 

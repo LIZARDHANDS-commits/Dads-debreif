@@ -36,7 +36,7 @@ const FOUR_CLOSE = Object.freeze(['finger', 'echelon', 'box', 'trail', 'route'])
 /** The formations where pressing L or R flies the side change at once (Patrick, 5 Oct). */
 const SIDE_CHANGE_FORMATIONS = Object.freeze(['fw', 'echelon', 'route']);
 const SIDES = Object.freeze([{ value: 'keep', label: 'Keep' }, { value: 'left', label: 'Left' }, { value: 'right', label: 'Right' }]); // written out (Patrick, 5 Oct)
-// The Rejoin kind, from line abreast and (since V2.24, TS-67; Patrick 5 Oct 05:13Z: "FW-Esch you can pick TRJ or SARJ.
+// The Rejoin kind, from line abreast and (since V2.59, TS-67; Patrick 5 Oct 05:13Z: "FW-Esch you can pick TRJ or SARJ.
 // Obviously TRJ is faster") from fighting wing to echelon or route: the turning rejoin (TRJ, the default) or straight ahead (SARJ).
 const REJOIN_OPTIONS = Object.freeze([
   { value: 'into', label: 'Turning (TRJ), Lead turns into #2' },

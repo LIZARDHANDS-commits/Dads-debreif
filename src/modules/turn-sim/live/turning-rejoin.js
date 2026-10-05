@@ -1,4 +1,4 @@
-// The turning rejoin on the rejoin line (V2.24, TS-68; Patrick 5 Oct 07:14Z, 07:19Z, card "Yes, as written" 07:31Z,
+// The turning rejoin on the rejoin line (V2.59, TS-68; Patrick 5 Oct 07:14Z, 07:19Z, card "Yes, as written" 07:31Z,
 // 07:32Z): one rule for every turning rejoin of the 2-ship, from line abreast (the hot turning rejoin: #2 starts hot and
 // gets colder to reach the line) and from fighting wing (he starts cold and turns hotter to reach it). The straight-ahead
 // rejoin (SARJ) is the other choice from both, and stays separate (line-moves.js, transitions.js legsFor): it is the one
