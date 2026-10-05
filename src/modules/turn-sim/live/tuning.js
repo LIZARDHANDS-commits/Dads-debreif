@@ -10,8 +10,11 @@ import { G_FTPS2 } from '../../../core/units.js';
 import { bankDegFromG } from '../../../core/flight-math.js';
 import { LENGTH_FT, FW_BAND, pairSlot } from './slots.js';
 
-/** A 2-ship close move's bank cap (Patrick 5 Oct 06:16Z item 12: "30 is probably more accurate"); WING_BANKS below. */
-const CLOSE_BANK_DEG = 30;
+/**
+ * A close move's bank cap, every Rates choice (Patrick 5 Oct 06:43Z: "lets do up to 60 for all as requird for now"; it was
+ * 30°, 06:16Z item 12, which left the AI's 2.5 s route to echelon out of reach); WING_BANKS below. A slower rate banks less.
+ */
+const CLOSE_BANK_DEG = 60;
 
 // ---- speeds (from transitions.js) ---------------------------------------------------------------------------------
 
@@ -177,7 +180,7 @@ export function closeRates(foreAftFtps = rejoinClosureNow().ftps) {
  */
 export const CLOSURE = Object.freeze({
   stopShare: 0.6, // the tracker's stop is planned at 60% of what power back (sideways: the slide's bank) gives, so the roll and the speed loop's lag still stop him on the slot (estimate)
-  slideBankDeg: CLOSE_BANK_DEG, // sideways the closure is set and stopped with up to the close move's 30° of bank (Patrick 06:16Z item 12), the same for every Rates choice (Patrick 06:07Z: "No on bank and g")
+  slideBankDeg: CLOSE_BANK_DEG, // sideways the closure is set and stopped with up to the close move's 60° of bank (Patrick 06:43Z; 30° from 06:16Z until then), the same for every Rates choice (Patrick 06:07Z: "No on bank and g")
   nearGain: 1, // 1/s: inside the last few feet the closure dies away in proportion to the distance, so he settles without hunting (estimate)
   farGain: 0.1, // ft/s per ft: beyond the hand-over band (odd starts only, the tracker's fallback) the closing speed may grow with range (the old rejoin's kcap)
 });
@@ -292,7 +295,7 @@ export const G_RULE_BANK_DEG = bankDegFromG(G_RULE.normalG);
  * turns are level, so "roll and dive" past 90° is not flown.
  */
 export const WING_BANKS = Object.freeze({
-  closeBankCapDeg: CLOSE_BANK_DEG, // Patrick 06:16Z item 12
+  closeBankCapDeg: CLOSE_BANK_DEG, // Patrick 06:43Z: up to 60° as required (30° from 06:16Z item 12 until then)
   kickOutBankCapDeg: G_RULE_BANK_DEG, // Patrick 06:16Z item 12: the G rule only
   fwFollowBankCapDeg: G_RULE_BANK_DEG, // Patrick 06:16Z item 11: the G rule only
   rejoinBankCapDeg: G_RULE_BANK_DEG, // Patrick 06:16Z item 1: the G rule only (the 4-ship's rejoin legs since step 3)
@@ -307,6 +310,10 @@ export const FW_TURN = Object.freeze({
   turnBankDeg: 45, // item 5b's moderate turn: no longer flown since step 3 (WING_BANKS.fwTurnBankDeg)
   collapseFromDeg: 32, // #2 starts collapsing once Lead's bank passes this ...
   collapseFullDeg: 42, // ... and goes all the way to Lead's six by this
+  // ... but only in turns of this size or more: the check turn (20°) keeps #2's side and sweep (AFM7 brief p.14 item 5a).
+  // Patrick 5 Oct 06:44Z agreed "the fighting wing collapse tied to turn size, not bank" once every turn flew at 60°;
+  // 45° is the thread's pick (an estimate).
+  collapseMinTurnDeg: 45,
   band: { minFt: FW_BAND.rangeFt[0], maxFt: FW_BAND.rangeFt[1], minSweepDeg: FW_BAND.sweepDeg[0], maxSweepDeg: FW_BAND.sweepDeg[1] }, // SMM 12.29 para 69, Fig 12.19 (500-1,000 ft, 30-60°: slots.js FW_BAND, the one copy)
   aimInsideFt: 50, // when #2 has to move back into the band, it aims this far inside its edge in range ...
   aimInsideDeg: 5, // ... and in sweep, so it ends clearly in it (the shared ±100 ft and ±5° margins would also pass the edge)
@@ -393,7 +400,7 @@ export const TRACKER = Object.freeze({
     d0: 100, // the range beyond which the closing speed may grow, ft (estimate)
     vrelMax: 60, // the most closing speed on the slot, ft/s (estimate)
     decel: 1.2, // ft/s²: about half what slowing with the power back gives (about 1.5-2 kt/s, slow-down.js), so the speed loop can stop the closure in time (estimate)
-    bankCapDeg: CLOSE_BANK_DEG, // the most bank the wingman uses in a close move: 30° (Patrick 06:16Z item 12; 25°, an estimate, until step 3); flagged, never a wall
+    bankCapDeg: CLOSE_BANK_DEG, // the most bank the wingman uses in a close move: 60° (Patrick 06:43Z; 30° from 06:16Z item 12, 25°, an estimate, until step 3); flagged, never a wall
     overtakeKias: 8, // the most speed above the aircraft flown off, KIAS (estimate)
     undertakeKias: 12, // the most speed below it, KIAS (estimate)
     advanceTol: 3, // within this many feet of a leg's slot the next leg starts (estimate)
