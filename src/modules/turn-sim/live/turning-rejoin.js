@@ -2,8 +2,8 @@
 // "a more medium bank/power setting for a LONGER period"; card "Review, then build" 08:18Z; 08:20Z: "Keep with my overtake
 // numbers"; 08:29Z: "realistic aircraft behaviour"; review turn-sim-review/rejoin-review-fable.md). One rule for every
 // turning rejoin of the 2-ship, from line abreast (hot: #2 gets colder to reach the line) and from fighting wing (cold: he
-// turns hotter to reach it). The straight-ahead rejoin (SARJ) stays separate (line-moves.js, transitions.js legsFor): it is
-// the one that drops onto Lead's six.
+// turns hotter to reach it). The straight-ahead rejoin (SARJ) is separate (straight-rejoin.js, TS-72): it is the one that
+// drops onto Lead's six.
 //
 //  1. Lead turns into #2 at the press, at 30° of bank, slowing to 200 KIAS, and holds it until #2 is in (SMM 16.20 para
 //     65b; Patrick 05:29Z, 06:16Z item 3; hand-over.js leadTurnInto).
