@@ -13,7 +13,7 @@
 // counter-clockwise). Bank is signed, left wing down positive, so a positive
 // bank turns the heading the positive (left) way.
 import { easeRoll, turnRateFromBankRadPerSec, gFromBankDeg } from '../../../core/flight-math.js';
-import { pitchDegFromClimb, rollWithinT6A, stallLimitG, modelMaxIasT6A, T6A_G_ONSET } from '../../../core/t6-performance.js';
+import { pitchDegFromClimb, rollWithinT6A, stallLimitG, T6A_G_ONSET } from '../../../core/t6-performance.js';
 import { wrapPi, wrapDeg180 } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { powerFor, POWER_BLOCK_FT } from './power.js';
@@ -28,6 +28,12 @@ export { ROLL };
  */
 export const rollLimitAt = (tasFtps, roll = ROLL) => rollWithinT6A(roll, tasFtps / KT_TO_FTPS);
 
+/**
+ * The fastest the gate lets G build (G per second): twice the T-6A's normal onset (core T6A_G_ONSET, 4 G/s), an estimate.
+ * Patrick 5 Oct 23:27Z: "higher than 4 occasionally is fine thats life as a pilot": 4 G/s is the normal pull, not a wall;
+ * the gate only stops a pull no pilot could make.
+ */
+export const G_ONSET_CEILING = 2 * T6A_G_ONSET.maxRateDps;
 /** Steeper than this the level-turn G (1 / cos bank) is not this model's (a lag roll through the inverted): the gate holds the roll only. */
 const GATE_G_MAX_BANK_DEG = 85;
 
@@ -36,8 +42,8 @@ const GATE_G_MAX_BANK_DEG = 85;
  * rolling toward targetDeg, held inside what a T-6A can do whatever drives the aircraft (a turn, the tracker, a recorded
  * bank track, a replayed pose, Lead's own turns):
  *   - roll rate and roll onset: the lower of the pilot's (`roll`) and the T-6A's at this speed (rollLimitAt, core estimates);
- *   - G onset: rolling steeper never builds the turn's G (1 / cos bank) faster than core T6A_G_ONSET (4 G/s, an estimate),
- *     so the last of a roll into a steep bank slows down the way a pilot's pull does; rolling out is not held;
+ *   - G onset: rolling steeper never builds the turn's G (1 / cos bank) faster than G_ONSET_CEILING (8 G/s, twice the
+ *     T-6A's normal 4 G/s; estimates), so the last of a roll into a very steep bank slows down; rolling out is not held;
  *   - stall: never steeper than the bank whose G the speed can give (core stallLimitG; 86 KIAS 1 G stall, Patrick's).
  * A planner may ask for anything; the aircraft flies only this. tasFtps and kias are the aircraft's now. Returns easeRoll's
  * { bankDeg, rollRateDps }.
@@ -59,11 +65,11 @@ export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, roll, tasFtps, kia
   const ahead = Math.min(GATE_G_MAX_BANK_DEG, Math.abs(bankDeg) + (rate0 * rate0) / (2 * limits.maxAccelDps2));
   const phi = (ahead * Math.PI) / 180;
   const gRate = Math.tan(phi) / Math.cos(phi); // G per radian of bank
-  const capDps = gRate > 1e-9 ? ((T6A_G_ONSET.maxRateDps / gRate) * 180) / Math.PI : limits.maxRateDps;
+  const capDps = gRate > 1e-9 ? ((G_ONSET_CEILING / gRate) * 180) / Math.PI : limits.maxRateDps;
   const r = easeRoll(bankDeg, rate0, target, dt, { maxRateDps: Math.min(limits.maxRateDps, Math.max(capDps, 1)), maxAccelDps2: limits.maxAccelDps2 });
   // The backstop: this step's G change held to the onset, whatever the look-ahead missed.
   if (Math.abs(r.bankDeg) > Math.abs(bankDeg) && Math.abs(r.bankDeg) < GATE_G_MAX_BANK_DEG) {
-    const gMax = gFromBankDeg(bankDeg) + T6A_G_ONSET.maxRateDps * dt;
+    const gMax = gFromBankDeg(bankDeg) + G_ONSET_CEILING * dt;
     if (gFromBankDeg(r.bankDeg) > gMax + 1e-9) {
       const bank = Math.sign(r.bankDeg) * (Math.acos(1 / gMax) * 180) / Math.PI;
       return { bankDeg: bank, rollRateDps: (bank - bankDeg) / dt };
@@ -81,7 +87,7 @@ export function holdToEnvelope(a, seg, p, bank0, rate0) {
   const step = wrapDeg180(p.bank - bank0);
   const r = gateRoll(bank0, rate0, bank0 + step, STEP_SEC, ROLL, p.tas, a.kias);
   // The pose's own bank is flown when the gate gives it this step (within a roll step's rate change: the pose's roll rate).
-  const within = Math.abs(wrapDeg180(r.bankDeg - p.bank)) < 1e-6 || (Math.abs(step) <= rollLimitAt(p.tas).maxRateDps * STEP_SEC + 1e-9 && !(Math.abs(p.bank) > Math.abs(r.bankDeg) + 1e-6 && Math.abs(p.bank) < GATE_G_MAX_BANK_DEG && gFromBankDeg(p.bank) > gFromBankDeg(bank0) + T6A_G_ONSET.maxRateDps * STEP_SEC + 1e-9));
+  const within = Math.abs(wrapDeg180(r.bankDeg - p.bank)) < 1e-6 || (Math.abs(step) <= rollLimitAt(p.tas).maxRateDps * STEP_SEC + 1e-9 && !(Math.abs(p.bank) > Math.abs(r.bankDeg) + 1e-6 && Math.abs(p.bank) < GATE_G_MAX_BANK_DEG && gFromBankDeg(p.bank) > gFromBankDeg(bank0) + G_ONSET_CEILING * STEP_SEC + 1e-9));
   if (!seg.rollBehind && within) return;
   if (Math.abs(wrapDeg180(r.bankDeg - p.bank)) < 1e-6 && Math.abs(r.rollRateDps - p.roll) <= rollLimitAt(p.tas).maxAccelDps2 * STEP_SEC) {
     seg.rollBehind = false;
