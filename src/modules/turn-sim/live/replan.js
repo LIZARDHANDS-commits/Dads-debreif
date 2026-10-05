@@ -10,10 +10,11 @@
 //  - otherwise Lead flies straight, at the new formation's speed.
 // It changes no flight physics and no planner: the legs are transitions.js's, the tracker tracker.js's.
 import { relativeTo } from './manoeuvres.js';
-import { recordFlight, speedSeg, legsFor, rejoinTo, closeThrough, slide, openOut, CHANGE_LIMIT_SEC } from './transitions.js';
+import { recordFlight, speedSeg, legsFor, rejoinTo, closeThrough, slide, openOut, cornerBehind, CHANGE_LIMIT_SEC } from './transitions.js';
 import { judge } from './judge.js';
-import { FORMATIONS, pairSlot } from './slots.js';
-import { KIAS_LAB, KIAS_OUTSIDE_LAB, HAND_OVER_FT, FW_FOLLOW } from './tuning.js';
+import { FORMATIONS, FW_BAND, pairSlot } from './slots.js';
+import { KIAS_LAB, KIAS_OUTSIDE_LAB, HAND_OVER_FT, FW_FOLLOW, TURNING_REJOIN } from './tuning.js';
+import { crossBehindFwd } from './kinematic-moves.js';
 import { onClosure, leadTurnInto, trackTail } from './hand-over.js';
 import { trackTwice, phase } from './tracker.js';
 import { STEP_SEC } from './flight.js';
@@ -48,8 +49,9 @@ export function nearestPlace(lead, wing, spacingFt = 6000, lastSide = -1) {
  * abreast or fighting wing) to a close place, a rejoin to route on his side and the close legs from there (the turning
  * rejoin's tail); otherwise the change's own legs (transitions.js legsFor).
  */
-export function legsFromHere(near, s, to, sTo, rel, spacingFt = 6000) {
+export function legsFromHere(near, s, to, sTo, rel, spacingFt = 6000, turning = false) {
   const slot = (key, side) => pairSlot(key, side, spacingFt);
+  if (turning && s !== sTo && sTo !== 0 && to !== 'lab' && (near.key === 'fw' || CLOSE.has(near.key))) return acrossSixLegs(rel, s, to, sTo, spacingFt);
   const offFt = Math.hypot(rel.fwd - slot(to, sTo).fwd, rel.left - slot(to, sTo).left);
   const sameSide = to === 'astern' || s === sTo;
   if (to === 'fw' && near.key === 'fw' && sameSide) {
@@ -70,6 +72,29 @@ export function legsFromHere(near, s, to, sTo, rel, spacingFt = 6000) {
 }
 
 /**
+ * To the other side with Lead turning into #2 until he is in there (Patrick 5 Oct 22:35Z: "on a turning rejoin that rejoins
+ * to the opposite side lead should keep turning until 2 is in eschelon"; TS-87): #2 flows across Lead's six in one motion,
+ * inside the turn. To fighting wing: through a point behind Lead outside the bubble (the side swap's crossing,
+ * kinematic-moves.js) into the far cone, at the rejoin's closure (marked `rejoin`); to a close formation: through the
+ * corners behind it on both sides (SMM 12.20 paras 44-45's crossover, flowed, not stopped) into the slot.
+ */
+export function acrossSixLegs(rel, s, to, sTo, spacingFt = 6000) {
+  const slot = (key, side) => pairSlot(key, side, spacingFt);
+  if (to === 'fw') {
+    // Straight across from where he is: from inside the cone's inner edge no straight line stays outside it, and going aft
+    // first costs about 10 s (sims, 5 Oct), so he passes about 400 ft behind Lead.
+    const alt = slot('fw', sTo).alt;
+    const cross = { fwd: crossBehindFwd(Math.max(Math.hypot(rel.fwd, rel.left), FW_BAND.rangeFt[0])), left: 0, alt };
+    return [
+      phase(cross, { ...FW_FOLLOW, rejoin: true, advanceTol: TURNING_REJOIN.crossFlowFt }),
+      phase(cross, { ...FW_FOLLOW, rejoin: true, goal: (L, W) => fwGoal(L, W, sTo, false) }),
+    ];
+  }
+  const flow = { advanceTol: TURNING_REJOIN.routeFlowFt };
+  return [closeThrough(cornerBehind(slot(to, s), spacingFt), flow), closeThrough(cornerBehind(slot(to, sTo), spacingFt), flow), closeThrough(slot(to, sTo))];
+}
+
+/**
  * The "from here" candidate as a "Change formation" plan (planGoTo's shape, transitions.js), or { ok: false, reason }.
  * options: planGoTo's ({ side, spacingFt, blockFt, lastSide }) and `mid`, how Lead flies on:
  * { lead: { kind: 'carry', plan } } the rest of his own move (plan: his { segments, profile } as the press leaves them),
@@ -87,14 +112,16 @@ export function planFromHere(pair, to, options = {}, t0 = 0) {
   const toSlot = pairSlot(to, sTo, spacingFt);
   const rel = relativeTo(lead, wing);
   const closeIn = Math.hypot(rel.fwd - toSlot.fwd, rel.left - toSlot.left) <= HAND_OVER_FT;
-  const phases = onClosure(legsFromHere(near, s, to, sTo, rel, spacingFt), { closeIn: closeIn || (to === 'fw' && near.key === 'fw') });
+  const how = options.mid?.lead ?? { kind: 'straight' };
+  // Already nearest the new place or a close one, #2 is in: Lead's turn into him has done its job and he rolls out. Going to
+  // the other side, Lead keeps turning until #2 is in there (acrossSixLegs; TS-87).
+  const holding = how.kind === 'hold' && to !== 'lab' && (s !== sTo || (near.key !== to && !CLOSE.has(near.key)));
+  const across = holding && s !== sTo;
+  const phases = onClosure(legsFromHere(near, s, to, sTo, rel, spacingFt, holding), { closeIn: !across && (closeIn || (to === 'fw' && near.key === 'fw')) });
   if (!phases.length) return { ok: false, reason: 'Nothing to change.' };
 
   const targetKias = to === 'lab' ? KIAS_LAB : KIAS_OUTSIDE_LAB;
   const speed = Math.abs(lead.kias - targetKias) > 0.5 ? [{ ...speedSeg(lead.kias, targetKias, blockFt), withNext: true }] : [];
-  const how = options.mid?.lead ?? { kind: 'straight' };
-  // Already nearest the new place or a close one, #2 is in: Lead's turn into him has done its job and he rolls out.
-  const holding = how.kind === 'hold' && to !== 'lab' && near.key !== to && !CLOSE.has(near.key);
   const carried = how.kind === 'carry' ? how.plan.segments.map((x) => ({ ...x })) : [];
   const withHeight = (segments) => ({ segments, ...(how.kind === 'carry' && how.plan.profile ? { profile: how.plan.profile } : {}) });
   const label = `${FORMATIONS[to].label}${to === 'astern' ? '' : sTo > 0 ? ' left' : ' right'}`;
