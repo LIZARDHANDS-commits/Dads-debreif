@@ -11,7 +11,7 @@
 import {
   loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addLights, addSky, disposeAircraftMesh,
 } from '../../ui-kit/three-aircraft.js';
-import { drawTags, T6_LENGTH_FT, trailSince, BACKGROUND } from './view.js';
+import { drawTags, T6_LENGTH_FT, trailSince, BACKGROUND, CLOCK_LINE_RED } from './view.js';
 import { FW_TURN } from './live/tuning.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH } from '../../ui-kit/ct156-model.js';
@@ -244,11 +244,13 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       colour.set(source.colors[a.id] ?? '#ffffff');
       const z = aircraftPose(a).z;
       const out = (h, r) => [a.xFt + Math.cos(h) * r, a.yFt + Math.sin(h) * r, z];
+      colour.set(CLOCK_LINE_RED); // the 3/9 and 7/5 lines are red (Patrick, 5 Oct)
       if (layers.lead39 && layers[`l39_${a.id}`]) seg(out(a.headingRad + Math.PI / 2, lengthFt), out(a.headingRad - Math.PI / 2, lengthFt));
       if (layers.lead75 && layers[`l75_${a.id}`]) {
         for (const off of [Math.PI / 6, -Math.PI / 6]) seg([a.xFt, a.yFt, z], out(a.headingRad + Math.PI + off, lengthFt));
       }
       // The circle each banked aircraft is flying now, as the 2D live view's (view.js drawBankCircles).
+      colour.set(source.colors[a.id] ?? '#ffffff');
       if (layers.turnCircles && !state.finished && a.bankDeg) {
         const r = turnRadiusFromBankFt(a.tasFtps, Math.abs(a.bankDeg));
         const side = Math.sign(a.bankDeg);

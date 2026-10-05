@@ -31,6 +31,8 @@ function pairDistances(state) {
 }
 /** The backdrop (Patrick, 5 Oct): a dark neutral charcoal, so all four ship colours read equally (was V6's navy #071018). */
 export const BACKGROUND = '#1c2127';
+/** The 3/9 and 7/5 lines are red for every aircraft (Patrick, 5 Oct). */
+export const CLOCK_LINE_RED = '#ff4d4d';
 const OUTLINE = '#02060a';
 const FONT = 'system-ui, sans-serif';
 const TRAIL_ALPHA = 0.55;
@@ -287,7 +289,7 @@ function drawLead39(ctx, map, lead) {
   const [bx, by] = map.worldToScreen(lead.xFt + left.x * len, lead.yFt + left.y * len);
   const [cx, cy] = map.worldToScreen(lead.xFt, lead.yFt);
   ctx.save();
-  ctx.strokeStyle = SHIP_COLORS[lead.id] ?? '#58a6ff';
+  ctx.strokeStyle = CLOCK_LINE_RED;
   ctx.globalAlpha = 0.8;
   ctx.lineWidth = 2;
   ctx.setLineDash([10, 8]);
@@ -309,7 +311,7 @@ function drawLead75(ctx, map, lead) {
   // Left of the tail is +, so 7 o'clock is the tail +30° and 5 o'clock the tail -30°.
   const lines = [{ clock: '5', h: lead.headingRad + Math.PI - Math.PI / 6 }, { clock: '7', h: lead.headingRad + Math.PI + Math.PI / 6 }];
   ctx.save();
-  ctx.strokeStyle = SHIP_COLORS[lead.id] ?? '#58a6ff';
+  ctx.strokeStyle = CLOCK_LINE_RED;
   ctx.globalAlpha = 0.6;
   ctx.lineWidth = 1.5;
   ctx.setLineDash([4, 6]);
