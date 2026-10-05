@@ -10,18 +10,15 @@ import { iasToTasKt } from '../../../core/t6-performance.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, makeAircraft, stepAircraft, planDone } from './flight.js';
 import { MANOEUVRES, planManoeuvre, relativeTo, dryRun, TURN_BANK_DEG, TURN_G } from './manoeuvres.js';
-import { flyStep, dryRunT, planGoTo } from './transitions.js';
+import { flyStep, dryRunT } from './transitions.js';
 import { resolveErrors, resolveFixTools, applyStartErrors, planWithErrors, outcomeOf } from './errors.js';
 import { FOUR_SHIP_KEYS, fourShipStart, planFour } from './four-ship.js';
 import { G_WARM, planGWarm } from './g-warm.js';
 import { classify, judge } from './judge.js';
 import { FORMATIONS, FOUR_FORMATIONS, setFwShape, setFw4Shape } from './slots.js';
 import { planChangeFour } from './four-ship-moves.js';
-import { planHotRejoinChange, offStandardOutcome } from './hot-rejoin.js';
-import { planLineChange } from './line-moves.js';
-import { planTurningRejoin } from './turning-rejoin.js';
-import { planStraightRejoin } from './straight-rejoin.js';
-import { planEchelonToFw } from './echelon-to-fw.js';
+import { offStandardOutcome } from './hot-rejoin.js';
+import { chooseChange } from './chooser.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFwMove } from './formation-turns.js';
 import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
@@ -243,18 +240,14 @@ export function createFormation(options = {}) {
     const four = state.aircraft.length > 2;
     // A training error set (TS-62) makes the hot turning rejoin start from wherever #2 is, flown as its response says.
     const planOpts = { ...changeOptions, spacingFt: state.spacingFt, blockFt: opts.blockFt, lastSide: state.lastSide, errors: four ? null : state.errors };
-    // The 2-ship (clean-up step 2, TS-65): a training error's rejoin (hot-rejoin.js, TS-62); the turning rejoin on the rejoin
-    // line from line abreast or fighting wing (turning-rejoin.js, TS-68); every other change a line into the ball park, then
-    // the tracker (hand-over.js); odd starts no line rule covers, the tracker alone (planGoTo).
+    // The 2-ship: the chooser (chooser.js, TS-76) runs every planner that applies (a training error's rejoin first, TS-62;
+    // the turning rejoin, TS-68; the straight-ahead rejoin, TS-72; echelon or route out to fighting wing, TS-73; a line then
+    // the tracker, TS-65; the tracker alone) and flies the one that passes the pilot's checks quickest. Until V2.75 they were
+    // tried in that fixed order and the first that accepted the case flew it.
     const plan = to === LAG_ROLL_KEY ? planLagRoll(state.aircraft, planOpts, state.tSec) // #2's lag roll (lag-roll.js, TS-71)
       : four
       ? planChangeFour(state.aircraft, to, planOpts, state.tSec)
-      : planHotRejoinChange(state.aircraft, to, planOpts, state.tSec) ??
-        planTurningRejoin(state.aircraft, to, planOpts, state.tSec) ??
-        planStraightRejoin(state.aircraft, to, planOpts, state.tSec) ?? // the straight-ahead rejoin (straight-rejoin.js, TS-72)
-        planEchelonToFw(state.aircraft, to, planOpts, state.tSec) ?? // echelon or route out to fighting wing, about 10 s (echelon-to-fw.js, TS-73)
-        planLineChange(state.aircraft, to, planOpts, state.tSec) ??
-        planGoTo(state.aircraft, to, planOpts, state.tSec);
+      : chooseChange(state.aircraft, to, planOpts, state.tSec);
     if (!plan.ok) {
       state.refusal = plan.reason;
       return false;
@@ -274,7 +267,7 @@ export function createFormation(options = {}) {
     if (four) for (const a of state.aircraft) if (a.ref != null) a.ref = plan.refs[a.id];
     state.current = {
       key: `change:${to}`,
-      change: { to: plan.to ?? to, side: plan.side, from: plan.from, rejoining: plan.rejoining, rejoinKind: plan.rejoinKind, flying: plan.flying, maxBankDeg: plan.maxBankDeg, four, offStandard: plan.offStandard ?? null },
+      change: { to: plan.to ?? to, side: plan.side, from: plan.from, rejoining: plan.rejoining, rejoinKind: plan.rejoinKind, flying: plan.flying, maxBankDeg: plan.maxBankDeg, four, offStandard: plan.offStandard ?? null, chooser: plan.chooser ?? null },
       dir: 0,
       label: plan.label,
       note: plan.note,

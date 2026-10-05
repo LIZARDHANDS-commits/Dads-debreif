@@ -1,0 +1,150 @@
+// The chooser (TS-76; Patrick 5 Oct 2026 18:11Z: "dynamically hand off between lines, tracker, and the 'AI'"; card 18:51Z
+// "Checks, then quickest"; review /mnt/project-files/turn-sim-review/chooser/plan.md): one scoreboard for every way the
+// 2-ship can fly a change of formation. Each planner (the turning rejoin, the straight-ahead rejoin, echelon or route out to
+// fighting wing, a line then the tracker, the tracker alone) is already a search over its own candidates, flown as dry runs
+// through the real step; until V2.75 formation.js tried them in a fixed order and the first that accepted the case flew it.
+// Now every planner that applies is run, each returns its best, and the scoreboard picks:
+//   1. the pilot's checks first: IN POSITION at the end (the judge's band) and behind Lead's 3/9 line on the way in (the
+//      overshoot lane, SMM 12.27 para 65; Patrick 08:04Z). A candidate that fails either is out, whatever its time. The
+//      planners already keep the speed floors (TS-75) and the 500 ft bubble inside their own searches;
+//   2. then far away a held technique, not the tracker alone: a start more than the hand-over range (500 ft) from the slot
+//      is a long move, flown as a pilot flies it (a line or a held bank and power, the rejoin review's lesson; Patrick
+//      05:27Z "tracker for fallback", 05:41Z "lines, then tracker"), so the tracker alone wins there only when no technique
+//      passes. Inside the hand-over range the move is the tracker's and it competes like the rest;
+//   3. then the G rule: a candidate that banks past the normal 5 G ranks below one that doesn't (over 5 G is a last resort,
+//      Patrick 03:05Z; a flag, never a wall);
+//   4. then quickest (Patrick 08:12Z: "fast and effective like the SMM");
+//   5. then, within half a second, smoothest: the fewest bank reversals and power changes along #2's track.
+// A training error's rejoin (hot-rejoin.js, TS-62) is not raced: the lesson is #2's response, so when the errors layer
+// gives a plan it flies, as before. The chooser changes no flight physics and no planner: it only picks between them.
+// What re-plans when (the press, the hand-over, the decision point, the picture breaking: spec F1 and F11 as reworded by
+// TS-76) is formation.js's and hand-over.js's; this file only chooses.
+import { pairSlot } from './slots.js';
+import { relativeTo } from './manoeuvres.js';
+import { G_RULE_BANK_DEG, HAND_OVER_FT } from './tuning.js';
+import { planGoTo } from './transitions.js';
+import { planHotRejoinChange } from './hot-rejoin.js';
+import { planLineChange } from './line-moves.js';
+import { planTurningRejoin } from './turning-rejoin.js';
+import { planStraightRejoin } from './straight-rejoin.js';
+import { planEchelonToFw } from './echelon-to-fw.js';
+
+/** The overshoot lane's margin: inside 1,000 ft #2 may pass this far ahead of his slot toward Lead's 3/9 line, never more (the shared 100 ft margin, design section 10). */
+export const LANE_MARGIN_FT = 100;
+/** Two candidates closer than this in time are a tie, settled by smoothness (turning-rejoin.js uses the same half second). */
+export const TIE_SEC = 0.5;
+/** A bank under this is "wings level" when counting reversals (estimate). */
+const BANK_DEADBAND_DEG = 5;
+
+/**
+ * The planners the scoreboard races, each with the words for the card. `rejoin` says which Rejoin kind the planner needs:
+ * with the Rejoin kind set to 'auto' both rejoins run and the quicker wins; set to 'into' or 'straight' only that one does
+ * (Patrick 07:19Z: TRJ and SARJ are two separate rejoins, and which one is Lead's call).
+ */
+const PLANNERS = Object.freeze([
+  { name: 'turning rejoin', plan: planTurningRejoin, rejoin: 'into', fallback: false },
+  { name: 'straight-ahead rejoin', plan: planStraightRejoin, rejoin: 'straight', fallback: false },
+  { name: 'drop back out to fighting wing', plan: planEchelonToFw, rejoin: null, fallback: false },
+  { name: 'line, then tracker', plan: planLineChange, rejoin: 'into', fallback: false },
+  { name: 'tracker', plan: planGoTo, rejoin: 'into', fallback: true }, // the fallback on a long move (rule 2 above)
+]);
+
+/**
+ * How rough #2's track is: bank reversals (the bank crossing from one side to the other, past the deadband) plus power
+ * changes (a change of the stage the tag shows: MAX, power, idle, boards), counted along the recorded bank track or the
+ * poses of a line. A tie-break only.
+ */
+export function roughness(wingPlan) {
+  let reversals = 0;
+  let powerChanges = 0;
+  let side = 0;
+  let stage;
+  for (const seg of wingPlan?.segments ?? []) {
+    const rows = seg.kind === 'bankTrack' ? seg.points : seg.kind === 'poseTrack' ? seg.poses : [];
+    for (const row of rows) {
+      const bank = Array.isArray(row) ? row[0] : row.bank;
+      const st = Array.isArray(row) ? row[2]?.stage ?? null : row.stage ?? null;
+      if (bank > BANK_DEADBAND_DEG && side < 0) reversals++;
+      else if (bank < -BANK_DEADBAND_DEG && side > 0) reversals++;
+      if (Math.abs(bank) > BANK_DEADBAND_DEG) side = Math.sign(bank);
+      if (stage !== undefined && st !== stage) powerChanges++;
+      stage = st;
+    }
+  }
+  return reversals + powerChanges;
+}
+
+/**
+ * One planner's plan as a candidate on the scoreboard: its checks, time and roughness. `to` and `spacingFt` give the slot
+ * the overshoot lane is measured against; `fallback` marks the tracker alone on a long move (rule 2 above).
+ */
+export function candidateOf(name, plan, to, spacingFt, t0, wingId, fallback = false) {
+  const slotFwd = Math.max(0, pairSlot(to, plan.side || plan.fromSide || -1, spacingFt)?.fwd ?? 0);
+  const inBand = plan.judged?.inBand ?? true;
+  const laneOk = (plan.laneFwdFt ?? -Infinity) <= slotFwd + LANE_MARGIN_FT;
+  const gRuleOk = (plan.maxBankDeg ?? 0) <= G_RULE_BANK_DEG + 0.5;
+  const durationSec = Math.max(0, (plan.endSec ?? t0) - t0);
+  return { name, plan, inBand, laneOk, passes: inBand && laneOk, fallback, gRuleOk, durationSec, roughness: roughness(plan.plans?.[wingId]) };
+}
+
+/** How far #2 is from the slot he is going to, in Lead's frame, horizontally (feet). */
+export function rangeToSlotFt(pair, to, options = {}) {
+  const [lead, wing] = pair;
+  const rel = relativeTo(lead, wing);
+  const s = Math.sign(rel.left) || options.lastSide || -1;
+  const want = options.side ?? 'keep';
+  const sTo = to === 'astern' ? 0 : want === 'left' ? 1 : want === 'right' ? -1 : s;
+  const slot = pairSlot(to, sTo || s, options.spacingFt ?? 6000);
+  return slot ? Math.hypot(rel.fwd - slot.fwd, rel.left - slot.left) : Infinity;
+}
+
+/** The scoreboard's order: the checks, then a technique before the fallback, then the G rule, then quickest, then smoothest within TIE_SEC. */
+export function compareCandidates(a, b) {
+  if (a.passes !== b.passes) return a.passes ? -1 : 1;
+  if (a.fallback !== b.fallback) return a.fallback ? 1 : -1;
+  if (a.gRuleOk !== b.gRuleOk) return a.gRuleOk ? -1 : 1;
+  if (Math.abs(a.durationSec - b.durationSec) > TIE_SEC) return a.durationSec - b.durationSec;
+  if (a.roughness !== b.roughness) return a.roughness - b.roughness;
+  return a.durationSec - b.durationSec;
+}
+
+/** "turning rejoin 58 s" for the card's comparison line. */
+const words = (c) => `${c.name} ${Math.round(c.durationSec)} s${c.passes ? '' : ' (fails a check)'}${c.fallback ? ' (the fallback on a long move)' : ''}${c.gRuleOk ? '' : ' (over the G rule)'}`;
+
+/**
+ * Plans a change of formation for the pair (planGoTo's shape, transitions.js): runs every planner that applies from where
+ * the aircraft are now, scores their plans, and returns the winner with `chooser: { picked, compared }` and a comparison
+ * line added to its note. options: planGoTo's ({ side, spacingFt, blockFt, rejoin, lastSide, errors }); rejoin 'auto' races
+ * the turning and straight-ahead rejoins against each other. With no candidate the tracker's own refusal is returned, so
+ * the card's reason reads as before.
+ */
+export function chooseChange(pair, to, options = {}, t0 = 0) {
+  const wing = pair[1];
+  const spacingFt = options.spacingFt ?? 6000;
+  // A training error's response is the lesson, not a race (TS-62).
+  const hot = planHotRejoinChange(pair, to, options, t0);
+  if (hot?.ok) return hot;
+
+  const auto = (options.rejoin ?? 'into') === 'auto';
+  const longMove = rangeToSlotFt(pair, to, options) > HAND_OVER_FT;
+  const candidates = [];
+  let refusal = null;
+  for (const p of PLANNERS) {
+    // Each planner refuses a Rejoin kind that is not its own; under 'auto' each rejoin planner is given its own kind.
+    const opts = auto && p.rejoin !== null ? { ...options, rejoin: p.rejoin } : options;
+    const r = p.plan(pair, to, opts, t0);
+    if (!r) continue;
+    if (!r.ok) {
+      refusal ??= r;
+      continue;
+    }
+    candidates.push(candidateOf(p.name, r, to, spacingFt, t0, wing.id, p.fallback && longMove));
+  }
+  if (!candidates.length) return refusal ?? { ok: false, reason: 'No safe change from here.', from: null, to };
+  candidates.sort(compareCandidates);
+  const best = candidates[0];
+  const others = candidates.slice(1);
+  const compared = candidates.map((c) => ({ name: c.name, durationSec: c.durationSec, passes: c.passes, fallback: c.fallback, gRuleOk: c.gRuleOk, roughness: c.roughness }));
+  const line = others.length ? ` Chosen: ${words(best)}, over ${others.map(words).join(', ')}.` : '';
+  return { ...best.plan, note: `${best.plan.note}${line}`, chooser: { picked: best.name, compared } };
+}
