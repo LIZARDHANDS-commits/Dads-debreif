@@ -24,7 +24,7 @@ import { ktToFtps, KT_TO_FTPS, G_FTPS2 } from '../../core/units.js';
 import { wrapDeg180, compassDegFromVector, wrapDeg360 } from '../../core/angles.js';
 import { turnRateFromBankRadPerSec, turnRadiusFromBankFt, gFromBankDeg, easeRoll } from '../../core/flight-math.js';
 import { excessThrustPerWeight, dragPerWeight, pitchDegFromClimb } from '../../core/t6-performance.js';
-import { iasToTasKt, tasToIasKt, heightFactor } from './weather.js';
+import { iasToTasKt, tasToIasKt, heightFactor, temperatureKey } from './weather.js';
 import { windTriangle, windVectorFtps } from '../../core/wind.js';
 import { legOffsetsFt } from '../../core/geo.js';
 import { PATTERN_ALT_FT, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
@@ -90,18 +90,24 @@ const MAX_STEPS = 20000;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 /**
- * 0 to 1 with a rate that builds up over the first fifth, holds, and dies away
- * over the last fifth (a trapezoid), so a descent starts and ends gently with a
- * peak rate only 1.25 times the average.
+ * 0 to 1 with a rate that builds up over the first share `a`, holds, and changes
+ * over the last share `a` to `endRate` (the rate at 1, in the same units: 1 is the
+ * average), so a descent starts gently and ends already at the rate it carries on
+ * at. With `endRate` 0 it dies away, and the peak rate is only 1/(1 − a) of the average.
  */
-function easedFraction(u, a = 0.2) {
-  const peak = 1 / (1 - a);
+function easedFraction(u, a = 0.2, endRate = 0) {
+  const peak = (1 - a * endRate / 2) / (1 - a);
   if (u <= 0) return 0;
   if (u >= 1) return 1;
   if (u < a) return peak * u * u / (2 * a);
-  if (u > 1 - a) return 1 - peak * (1 - u) * (1 - u) / (2 * a);
-  return peak * (u - a / 2);
+  if (u <= 1 - a) return peak * (u - a / 2);
+  const w = u - (1 - a);
+  return peak * (1 - 1.5 * a) + peak * w - (peak - endRate) * w * w / (2 * a);
 }
+/** The perch search (buildCircuit): how many tries, the share of each miss it moves by, and its biggest move, ft. */
+const PERCH_TRIES = 20;
+const PERCH_STEP_SHARE = 0.6;
+const PERCH_MOST_STEP_FT = 1500;
 /** Share of the final turn spent easing into and out of the descent at each end (about 3-4 s each). */
 const FINAL_TURN_EASE = 0.12;
 const acosDeg = (c) => Math.acos(clamp(c, -1, 1)) * 180 / Math.PI;
@@ -274,9 +280,9 @@ function breakKias(turnedDeg) {
 }
 
 /** Seconds the break's 180° turn takes in calm air, flown the same way as in the circuit. */
-let breakSecCache = null;
+let breakSecCache = null; // { temp, sec }: true airspeeds, so redone when the temperature changes
 export function breakTurnSec() {
-  if (breakSecCache !== null) return breakSecCache;
+  if (breakSecCache?.temp === temperatureKey()) return breakSecCache.sec;
   let hdg = 0, turned = 0, t = 0;
   while (turned < 180 && t < 120) {
     const ias = breakKias(turned);
@@ -284,7 +290,7 @@ export function breakTurnSec() {
     const d = turnRateFromBankRadPerSec(v, CIRCUIT.patternBankDeg) * 180 / Math.PI * DT;
     turned += d; hdg += d; t += DT;
   }
-  breakSecCache = t;
+  breakSecCache = { temp: temperatureKey(), sec: t };
   return t;
 }
 
@@ -317,14 +323,22 @@ export function buildCircuit(points, windFromDeg = 360, windKt = 0) {
   // The outer part first: the break starts from exactly where, and how, it reached the break point,
   // so the path has no step or backtrack there (Patrick, 10:05Z: smooth transitions).
   const outer = flyOuter(points, centre, breakAlong, wind);
+  // Each try moves the perch by part of the miss, never more than PERCH_MOST_STEP_FT: in a strong wind a whole
+  // miss overshoots (the break rolls out aiming at the perch, so moving the perch moves the rollout back the
+  // other way), and the tries swung a few hundred feet either side and jumped between winds a knot apart
+  // (Patrick, 5 Oct 08:17Z). The best try is kept.
   let perch = { x: points[11].x, y: points[11].y };
-  let inner = null;
-  for (let i = 0; i < 6; i++) {
+  let inner = null, best = null;
+  for (let i = 0; i < PERCH_TRIES; i++) {
     inner = flyInner(points, centre, breakAlong, perch, wind, inner?.finalTurnFt, outer.end);
     const miss = { x: win.x - inner.rollout.x, y: win.y - inner.rollout.y };
-    if (Math.hypot(miss.x, miss.y) < 5) break;
-    perch = { x: perch.x + miss.x, y: perch.y + miss.y };
+    const missFt = inner.finalTurnFt != null ? Math.hypot(miss.x, miss.y) : Infinity;
+    if (!best || missFt < best.missFt) best = { missFt, perch, inner };
+    if (missFt < 5) break;
+    const k = PERCH_STEP_SHARE * Math.min(1, PERCH_MOST_STEP_FT / Math.max(1, PERCH_STEP_SHARE * Math.hypot(miss.x, miss.y)));
+    perch = { x: perch.x + miss.x * k, y: perch.y + miss.y * k };
   }
+  ({ perch, inner } = best);
   // The inner part starts at the outer part's last point. The route reads a point from the leg that
   // ends at it, so that last point takes the break's phase: an aircraft started "at the break" is in the break.
   const outerTrack = outer.track.slice();
@@ -530,6 +544,8 @@ function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = nu
   s.tag = startStage;
   pilot.record();
   const ftFromAlt = opts.finalTurnFromAlt ?? PATTERN_ALT_FT, ftEndAlt = opts.finalTurnEndAlt ?? points[12].alt;
+  // The glide path's slope, feet down per foot over the ground: the window's own (about 3°, SMM 4.7 para 12).
+  const glideSlope = Math.max(0, (points[12].alt - THRESHOLD_DATA_ELEV_FT) / Math.max(1, Math.hypot(points[12].x - th.x, points[12].y - th.y)));
   let rolloutSec = null, ftTurned = 0;
   let stage = startStage, turned = 0, ftTotal = null, rollout = null, lastClimb = 0, ftDist = 0, finalTurnFt = null;
   const glideStart = { alt: null, dist: null };
@@ -569,8 +585,16 @@ function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = nu
       // last try (the perch is found by trying again), or over the angle on the first.
       // Degrees turned so far, added up step by step: a heading that wanders right of where the turn began
       // (a wind correction) counts as none turned, never as nearly a full circle.
+      // It ends on the glide path both in height and in slope (Patrick, 5 Oct 08:17Z; TR-82): at the rollout it
+      // is already coming down at the window's own slope (about 3°), which the final carries on, so it does not
+      // level off at the window and sit above the glide path while it catches up. Past the turn's distance on the
+      // last try it carries on down that slope until it rolls out.
+      const dropFt = ftFromAlt - ftEndAlt;
+      const endRate = finalTurnFtGuess && dropFt > 1 ? clamp(glideSlope * finalTurnFtGuess / dropFt, 0, 2) : 0;
       const u = finalTurnFtGuess ? clamp(ftDist / finalTurnFtGuess, 0, 1) : clamp(ftTurned / ftTotal, 0, 1);
-      const hNow = ftFromAlt - (ftFromAlt - ftEndAlt) * easedFraction(u, FINAL_TURN_EASE);
+      const hNow = finalTurnFtGuess && ftDist > finalTurnFtGuess && endRate > 0
+        ? ftEndAlt - glideSlope * (ftDist - finalTurnFtGuess)
+        : ftFromAlt - dropFt * easedFraction(u, FINAL_TURN_EASE, endRate);
       climb = (hNow - s.alt) / DT;
       if (Math.abs(wrapDeg180(finalHdg - s.hdg)) < 0.5 && Math.abs(s.bank) < 2) {
         rollout = { x: s.x, y: s.y };

@@ -40,6 +40,11 @@ export function setFieldTemperature(tempC) {
   deviationC = Number.isFinite(tempC) ? tempC - STANDARD_FIELD_TEMP_C : 0;
 }
 
+/** Today's temperature as a key for anything worked out once and kept (paths, turn times): changes when the day does. */
+export function temperatureKey() {
+  return deviationC;
+}
+
 /** Air density over sea-level standard at an altimeter height: the standard pressure there, at today's temperature. */
 export function densityRatio(altFt) {
   const t = isaTempK(altFt);
