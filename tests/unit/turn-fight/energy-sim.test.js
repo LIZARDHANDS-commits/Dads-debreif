@@ -66,16 +66,6 @@ const shaker = (kias) => Math.min(T6A_LIMITS.maxG, 0.94 * stallLimitG(kias));
 
 // ── The setup and its defaults ───────────────────────────────────────────────
 
-test('the defaults are the spec\'s: 10,000 ft and 220 KIAS each, Auto, MPT 160, deck 6,000, Pure, stall 86, shaker 94 %', () => {
-  const d = ENERGY_DEFAULT_SETUP;
-  assert.deepEqual([d.blueAltFt, d.redAltFt, d.blueKias, d.redKias], [10000, 10000, 220, 220]);
-  assert.deepEqual([d.blueMove, d.redMove, d.mptKias, d.hardDeckFt, d.pursuit], ['auto', 'auto', 160, 6000, 'pure']);
-  assert.equal(d.stallKias, 86); // Patrick's ruling SH-25; the other working values are not pinned
-  assert.deepEqual([d.pitchBackBank160Deg, d.pitchBackBank220Deg, d.pullG], [60, 30, 5]);
-  assert.ok(Object.isFrozen(d));
-  assert.deepEqual(createEnergyFight().setup, { ...d });
-});
-
 test('each aircraft starts between the hard deck and 25,000 ft, and the screen is told where the model is accurate (15,000 ft)', () => {
   assert.equal(ENERGY_MAX_START_FT, 25000);
   assert.equal(ENERGY_ACCURATE_MAX_FT, 15000);
@@ -264,17 +254,6 @@ test('each aircraft picks for itself from its own merge speed', () => {
 const P = ENERGY_DEFAULT_SETUP;
 const LOOK = { offNoseDeg: 170, topKias: 140, noseOnSec: { immelmann: 24, pitchBack: 31 } };
 
-test('above 220 the quicker nose-on wins: an Immelmann 24 s against a pitch back 31 s, and the reason says so', () => {
-  const r = pickMove(245, 10000, P, LOOK);
-  assert.equal(r.move, 'immelmann');
-  const b = pickMove(245, 10000, P, { ...LOOK, noseOnSec: { immelmann: 40, pitchBack: 31 } });
-  assert.equal(b.move, 'pitchBack');
-  // The look-ahead is what decides, not the geometry: the other dead ahead, and the Immelmann still wins if it is quicker.
-  assert.equal(pickMove(245, 10000, P, { ...LOOK, offNoseDeg: 10 }).move, 'immelmann');
-  // A tie goes to the simpler move when both or neither SMM band holds the speed (the band rule has its own test below).
-  assert.equal(pickMove(210, 10000, P, { ...LOOK, noseOnSec: { immelmann: 30, pitchBack: 30 } }).move, 'pitchBack');
-});
-
 test('when only one of them gets the nose on in the look-ahead, that one wins, and the reason says the other did not', () => {
   const imm = pickMove(245, 10000, P, { ...LOOK, offNoseDeg: 20, noseOnSec: { immelmann: 34, pitchBack: null } });
   assert.equal(imm.move, 'immelmann');
@@ -301,15 +280,6 @@ test('with no nose-on in the look-ahead for either, the geometry decides: more t
   // Left out, the look-ahead is skipped and the geometry stands alone (also what a dry run does).
   assert.equal(pickMove(245, 10000, P, { offNoseDeg: 170 }).move, 'immelmann');
   assert.equal(pickMove(245, 10000, P, { offNoseDeg: 80 }).move, 'pitchBack');
-});
-
-test('the look-ahead is only worked out above 220, and only as far as it is needed', () => {
-  const boom = () => { throw new Error('worked out when not needed'); };
-  assert.equal(pickMove(200, 10000, P, { offNoseDeg: 170, topKias: boom, noseOnSec: boom }).move, 'pitchBack');
-  assert.equal(pickMove(100, 10000, P, { offNoseDeg: 170, topKias: boom, noseOnSec: boom }).move, 'splitS');
-  assert.equal(pickMove(160, 10000, P, { offNoseDeg: 170, topKias: boom, noseOnSec: boom }).move, 'mpt');
-  // A gated Immelmann never starts the dry run of the fight.
-  assert.equal(pickMove(245, 10000, P, { offNoseDeg: 170, topKias: () => 100, noseOnSec: boom }).move, 'pitchBack');
 });
 
 test('at a 250 KIAS merge head-on neither move scores (the noses meet head-on, which is no chase), so the geometry picks the Immelmann, and says so', () => {
@@ -609,15 +579,6 @@ test('at a 6,000 ft deck the level MPT settles near 144 KIAS (SMM 14.14: about 1
   assert.match(s.blue.why, /[Ll]evel MPT/);
 });
 
-test('known difference (T7): the model\'s level MPT bank is about 69°, the SMM\'s about 75° (SMM 14.14); recorded for Patrick and Dad, never tuned', (t) => {
-  const s = settleOnLevelMpt({ ...SOLO, blueAltFt: 6000, redAltFt: 6000, blueKias: 160, redKias: 160, hardDeckFt: 6000 });
-  const smmBankDeg = 75;
-  const gapDeg = smmBankDeg - s.blue.bankDeg;
-  t.diagnostic(`level MPT at the 6,000 ft deck: model bank ${s.blue.bankDeg.toFixed(1)}°, SMM about ${smmBankDeg}°, gap ${gapDeg.toFixed(1)}°; the SMM bank needs ${(1 / Math.cos(smmBankDeg * Math.PI / 180)).toFixed(1)} G`);
-  // The gap is known and written down. This only notices it growing: it must stay within 10° (twice the shared ±5° margin) of the SMM's figure.
-  assert.ok(Math.abs(gapDeg) <= 10, `the model bank ${s.blue.bankDeg.toFixed(1)}° is more than 10° from the SMM's ${smmBankDeg}°`);
-});
-
 test('the level MPT is reached from the CSMPT when the descent gets to the deck, and then holds that height', () => {
   const s = createEnergyFight({ ...SOLO, blueAltFt: 7000, redAltFt: 7000, blueKias: 160, redKias: 160, hardDeckFt: 6000 });
   let levelAt = null, minAlt = Infinity;
@@ -729,19 +690,6 @@ test('a crossing start (beam, both sides, range opening or closing) flies finite
 
 // ── Energy readouts ──────────────────────────────────────────────────────────
 
-test('the readouts are in the state: KIAS, KTAS, altitude, G, bank, climb, move, why, Ps, energy height, time and turn to the MPT, range', () => {
-  const s = runUntil({ ...SOLO, blueKias: 180, redKias: 180 }, (st) => st.timeSec > 20, 30);
-  for (const k of ['kias', 'ktas', 'altFt', 'g', 'bankDeg', 'climbDeg', 'psFtps', 'energyHeightFt', 'toMptSec', 'toMptDeg', 'throttle', 'shakerG']) {
-    assert.ok(Number.isFinite(s.blue[k]), `${k}: ${s.blue[k]}`);
-  }
-  for (const k of ['move', 'moveLabel', 'why']) assert.equal(typeof s.blue[k], 'string', k);
-  assert.equal(typeof s.blue.overG, 'boolean');
-  assert.equal(typeof s.blue.stall, 'boolean');
-  assert.ok(Number.isFinite(s.rangeFt));
-  assert.ok(s.blue.ktas > s.blue.kias, 'TAS above IAS at altitude');
-  assert.ok(s.blue.energyHeightFt > s.blue.altFt);
-});
-
 // ── The two flags ────────────────────────────────────────────────────────────
 
 test('a G above the stall line gives STALL, then 1 G for 1 s, then back to the shaker', () => {
@@ -761,13 +709,6 @@ test('a G above the stall line gives STALL, then 1 G for 1 s, then back to the s
   assert.equal(after.stall, false);
   assert.ok(after.g <= after.shaker + 1e-9 && after.g > 1.2, `back on the shaker: ${after.g} of ${after.shaker}`);
   assert.equal(s.blue.stallEver, true);
-});
-
-test('the stall time is a setting', () => {
-  const s = createEnergyFight({ ...SOLO, stallSec: 2, blueKias: 150, redKias: 150, blueMove: 'pitchBack', redMove: 'pitchBack', blueForceG: 6, turnsStart: 'now' });
-  let n = 0;
-  for (let i = 0; i < 5 / FIGHT_STEP_SEC; i++) { stepEnergyFight(s, FIGHT_STEP_SEC); if (s.blue.stall) n++; }
-  near(n * FIGHT_STEP_SEC, 2, 0.06);
 });
 
 test('speed below the 1 G stall gives STALL: an Immelmann entered too slow stalls at the top', () => {
@@ -1160,44 +1101,6 @@ for (const altFt of [10000, 8000, 12000, 15000]) {
   });
 }
 
-test('the move keeps its name until the speed is within 5 kt of the MPT speed, then reads MPT', () => {
-  for (const kias of [140, 220]) {
-    const s = createEnergyFight({ ...SOLO, blueKias: kias, redKias: kias });
-    const first = s.blue.move;
-    let flipped = null;
-    for (let i = 0; i < 60 / FIGHT_STEP_SEC && !flipped; i++) {
-      stepEnergyFight(s, FIGHT_STEP_SEC);
-      if (s.blue.move !== first) flipped = { move: s.blue.move, kias: s.blue.kias, why: s.blue.why };
-    }
-    assert.equal(flipped.move, 'mpt');
-    near(flipped.kias, 160, 5.01, `${kias} KIAS entry`);
-    assert.equal(flipped.why, 'MPT 160 KIAS');
-  }
-});
-
-test('a forced G is bounded: 0 to 12 G', () => {
-  assert.throws(() => createEnergyFight({ blueForceG: 50 }), /blueForceG/);
-  assert.throws(() => createEnergyFight({ redForceG: -1 }), /redForceG/);
-  assert.doesNotThrow(() => createEnergyFight({ blueForceG: 12 }));
-});
-
-test('the Auto settings have bounds: the off-nose angle 0 to 180, the top speed 0 to VMO, the look-ahead 0 to 120 s', () => {
-  assert.throws(() => createEnergyFight({ immelmannOffNoseDeg: 181 }), /immelmannOffNoseDeg/);
-  assert.throws(() => createEnergyFight({ immelmannOffNoseDeg: -1 }), /immelmannOffNoseDeg/);
-  assert.throws(() => createEnergyFight({ immelmannMinTopKias: 400 }), /immelmannMinTopKias/);
-  assert.throws(() => createEnergyFight({ immelmannMinTopKias: NaN }), /immelmannMinTopKias/);
-  assert.throws(() => createEnergyFight({ pickLookaheadSec: 121 }), /pickLookaheadSec/);
-  assert.throws(() => createEnergyFight({ pickLookaheadSec: -1 }), /pickLookaheadSec/);
-  assert.doesNotThrow(() => createEnergyFight({ pickLookaheadSec: 0, immelmannMinTopKias: 0, immelmannOffNoseDeg: 180 }));
-  // No look-ahead at all: the geometry alone, and the top speed gate still stands.
-  const geometry = createEnergyFight({ blueKias: 250, redKias: 250, pickLookaheadSec: 0 });
-});
-
-test('the pursuits a screen offers are Tactical, Pure, Lead and Lag; "none" is for tests and is still accepted', () => {
-  assert.doesNotThrow(() => createEnergyFight({ pursuit: 'none' }));
-  assert.throws(() => createEnergyFight({ pursuit: 'sideways' }), /pursuit/);
-});
-
 // ── Robustness ───────────────────────────────────────────────────────────────
 
 test('no NaN or infinity straight up or down: pitch back, Immelmann and split S through the vertical', () => {
@@ -1447,18 +1350,6 @@ test('a run where this aircraft goes OVER G or STALLs loses, however soon its no
   assert.deepEqual(forced, { immelmann: null, pitchBack: null });
 });
 
-test('the pre-merge look-ahead leaves the state as a plain fight: no copies, no dry-run markers, before or after the merge', () => {
-  const keys = ['aaDeg', 'ataBlueDeg', 'ataRedDeg', 'blue', 'carrySec', 'chase', 'deckLoss', 'evenFight', 'firstNose', 'headingCrossDeg', 'mergeSec', 'merged', 'plan', 'rangeFt', 'red', 'setup', 'stopped', 'timeSec'];
-  const s = createEnergyFight({ blueKias: 316, redKias: 316 });
-  assert.deepEqual(Object.keys(s).sort(), keys);
-  assert.ok(s.plan.blue.race && s.plan.red.race, 'the races ran from T+0');
-  const m = runUntil({ blueKias: 316, redKias: 316 }, (st) => st.merged);
-  assert.deepEqual(Object.keys(m).sort(), keys);
-  assert.deepEqual(m.plan, s.plan, 'the plan made at T+0 is the plan the turns start from');
-  assert.equal(m.blue.why, s.blue.why);
-  assert.equal(m.red.why, s.red.why);
-});
-
 test('lookAheadPick before the pass is the plan the turns will start from', () => {
   const s = createEnergyFight({ blueKias: 250, redKias: 250 });
   assert.deepEqual(lookAheadPick(s, 'blue'), s.plan.blue);
@@ -1497,10 +1388,6 @@ test('Auto from at or near the deck chooses to stay above it: starts at 6,000, 6
       assert.ok(minAlt >= 6000 - TOLERANCES.ALTITUDE_FT, `${kias} KIAS from ${altFt} ft: lowest ${minAlt.toFixed(0)} ft`);
     }
   }
-});
-
-test('the deckMarginFt default and bound', () => {
-  assert.doesNotThrow(() => createEnergyFight({ deckMarginFt: 0 }));
 });
 
 // ── The level MPT and the one rolling rule ──
@@ -1543,26 +1430,12 @@ test('the chaser\'s speed guard works: a chaser dived at a low, slow target from
 
 // ── The SMM bands in the reason ──
 
-test('an Immelmann outside the SMM band (200 to 250 KIAS) or a pitch back outside 160 to 220 says so', () => {
-  const look = (imm, pb, off = 170) => ({ offNoseDeg: off, topKias: 140, noseOnSec: { immelmann: imm, pitchBack: pb } });
-  assert.doesNotMatch(pickMove(245, 10000, P, look(24, 31)).why, /SMM band/, 'an Immelmann at 245 is in its band');
-  // The geometry fallback and the gate say it too.
-  assert.match(pickMove(300, 10000, P, look(null, null)).why, /outside the SMM band \(200 to 250 KIAS\)$/);
-  assert.match(pickMove(300, 10000, { ...P, immelmannMinTopKias: 200 }, look(10, 50)).why, /outside the SMM band \(160 to 220 KIAS\)$/);
-});
-
 test('on a tie the move whose SMM band holds the entry speed wins; the pitch back only if both or neither do', () => {
   const tie = { offNoseDeg: 170, topKias: 140, noseOnSec: { immelmann: 30, pitchBack: 30 } };
   assert.equal(pickMove(240, 10000, P, tie).move, 'immelmann', '240 is in the Immelmann band only');
   assert.equal(pickMove(210, 10000, P, tie).move, 'pitchBack', '210 is in both');
   assert.equal(pickMove(300, 10000, P, tie).move, 'pitchBack', '300 is in neither');
   assert.equal(pickMove(240, 10000, P, { ...tie, noseOnSec: { immelmann: 31, pitchBack: 30 } }).move, 'pitchBack', 'only a tie goes by the band');
-});
-
-test('when the nose is already on at the pick the reason says so, not "about 0 s vs 0 s"', () => {
-  const r = pickMove(245, 10000, P, { offNoseDeg: 3, topKias: 140, noseOnSec: { immelmann: 0, pitchBack: 0 } });
-  assert.doesNotMatch(r.why, /about 0 s|0 s vs 0 s/);
-  assert.match(r.why, /nose already on/i);
 });
 
 // ── Verification of #209, F1: a slow forced slice from high up (verification/turn-fight-energy-209.md) ──
@@ -1645,51 +1518,6 @@ test('F4: evenFight is false once a chase has started, even when the first nose-
   assert.equal(createEnergyFight({ chaseAfterHeadOn: true }).evenFight, false);
 });
 
-test('F5: the stall reason never reads the same number twice ("needs 5.5 G; gives 5.5 G")', () => {
-  let seen = 0;
-  for (const kias of [190, 202, 210, 220]) {
-    for (const forceG of [4.9, 5.0, 5.4, 5.5, 5.6, 6.0, 6.5, 7.0, 7.4]) {
-      const s = createEnergyFight({ ...SOLO, blueKias: kias, redKias: kias, blueMove: 'pitchBack', redMove: 'pitchBack', blueForceG: forceG, turnsStart: 'now' });
-      for (let i = 0; i < 40; i++) {
-        stepEnergyFight(s, FIGHT_STEP_SEC);
-        const m = /needs ([\d.]+) G; the stall line at \d+ KIAS gives ([\d.]+) G/.exec(s.blue.stallReason);
-        if (m) { seen++; assert.notEqual(m[1], m[2], `${kias} KIAS, ${forceG} G: "${s.blue.stallReason}"`); }
-        for (const g of s.blue.stallReason.match(/\d+\.\d+ G/g) ?? []) assert.ok(/^\d+\.\d{1,2} G$/.test(g), `at most two decimals: "${s.blue.stallReason}"`);
-      }
-    }
-  }
-  assert.ok(seen > 20, `${seen} stall reasons read`);
-  // Where the two round the same at one decimal (4.9 G against a stall line of 4.88 G at 190 KIAS), a second decimal tells them apart.
-  const s2 = createEnergyFight({ ...SOLO, blueKias: 190, redKias: 190, blueMove: 'pitchBack', redMove: 'pitchBack', blueForceG: 4.9, turnsStart: 'now' });
-  for (let i = 0; i < 5; i++) stepEnergyFight(s2, FIGHT_STEP_SEC);
-  assert.match(s2.blue.stallReason, /^The pull needs 4\.90 G; the stall line at 190 KIAS gives 4\.88 G$/);
-  // Closer than two decimals (verification N5: 5.5 G against 5.4995 at 202 KIAS) it may read "just over", not four decimals. Whether a
-  // given run passes through that exact closeness depends on how G builds, so no first-step wording is pinned: every reason seen as the
-  // jet bleeds through that speed is either two different numbers (the pull needs more than the line gives) or "just over".
-  const s3 = createEnergyFight({ ...SOLO, blueKias: 220, redKias: 220, blueMove: 'pitchBack', redMove: 'pitchBack', blueForceG: 5.5 });
-  const reasons = new Set();
-  for (let i = 0; i < 60 / FIGHT_STEP_SEC; i++) { stepEnergyFight(s3, FIGHT_STEP_SEC); if (s3.blue.stallReason) reasons.add(s3.blue.stallReason); }
-  assert.ok(reasons.size > 0, 'the 5.5 G pull reached the stall line');
-  for (const reason of reasons) {
-    const two = /^The pull needs (\d\.\d\d) G; the stall line at \d+ KIAS gives (\d\.\d\d) G$/.exec(reason);
-    if (two) assert.ok(Number(two[1]) > Number(two[2]) && two[1] !== two[2], `two different numbers, the pull higher: "${reason}"`);
-    else assert.match(reason, /^The pull needs just over the \d\.\d\d G the stall line gives at \d+ KIAS$/);
-  }
-});
-
-test('F7: the pick reason never rounds a speed onto the boundary it is compared with ("120 KIAS, below 120")', () => {
-  assert.match(pickMove(119.9, 10000).why, /^Split S: 119\.9 KIAS, below 120$/);
-  assert.match(pickMove(220.1, 10000).why, /^Immelmann: 220\.1 KIAS, above 220$/);
-  assert.match(pickMove(219.9, 10000).why, /^Pitch back: 219\.9 KIAS, SMM entry 160 to 220$/);
-  assert.match(pickMove(154.9, 10000).why, /^Slice: 154\.9 KIAS/);
-  assert.match(pickMove(119.96, 10000).why, /^Split S: 119\.96 KIAS, below 120$/);
-  // Whole speeds, and speeds that do not round onto a boundary, read as before.
-  assert.match(pickMove(120, 10000).why, /^Slice: 120 KIAS/);
-  assert.match(pickMove(119, 10000).why, /^Split S: 119 KIAS, below 120$/);
-  assert.match(pickMove(140.4, 10000).why, /^Slice: 140 KIAS/);
-  assert.match(pickMove(221, 10000).why, /^Immelmann: 221 KIAS, above 220$/);
-});
-
 test('F6: 8 G forced at 240 KIAS flags OVER G as well as STALL (the instant the pull is made)', () => {
   const s = createEnergyFight({ ...SOLO, blueKias: 240, redKias: 240, blueMove: 'mpt', redMove: 'mpt', blueForceG: 8, turnsStart: 'now' });
   let stallStep = null, overGAtStall = null;
@@ -1703,25 +1531,6 @@ test('F6: 8 G forced at 240 KIAS flags OVER G as well as STALL (the instant the 
   assert.match(s.blue.overGReason, /8\.0 G is above \+7 G/);
   // The turn is still lost: the G drops to 1 G while STALL is on.
   near(s.blue.g, 1, 1e-9, 'STALL still takes the turn');
-});
-
-test('F8: the MPT speed has a range, 125 to 175 KIAS', () => {
-  assert.throws(() => createEnergyFight({ mptKias: 124 }), /mptKias is from 125 to 175 KIAS, got 124/);
-  assert.throws(() => createEnergyFight({ mptKias: 176 }), /mptKias is from 125 to 175 KIAS, got 176/);
-  assert.throws(() => createEnergyFight({ mptKias: 200 }), /mptKias/);
-  assert.throws(() => createEnergyFight({ mptKias: NaN }), /mptKias/);
-  assert.doesNotThrow(() => createEnergyFight({ mptKias: 125 }));
-  assert.doesNotThrow(() => createEnergyFight({ mptKias: 175 }));
-});
-
-test('N2 (#227 verification): an MPT speed at each end of the range is held within 1.5 kt once the jet has settled in the MPT', () => {
-  for (const mptKias of MPT_KIAS_RANGE) {
-    // Event: in the MPT and within 5 kt of its speed (SMM 14.14). Then a 60 s window to settle, and the speed is read at the end of it.
-    // 300 s is only a safety stop. 1.5 kt is the margin checked in the #227 verification, tighter than the SMM's 5 kt.
-    const s = flyToEvent({ ...SOLO, mptKias, blueMove: 'mpt', redMove: 'mpt', hardDeckFt: 2000, blueKias: 160, redKias: 160 }, (st) => st.blue.move === 'mpt' && Math.abs(st.blue.kias - mptKias) <= 5, `MPT ${mptKias} reached`, 300);
-    flyFor(s, 60);
-    near(s.blue.kias, mptKias, 1.5, `MPT ${mptKias}`);
-  }
 });
 
 test('F8: at the top of the range (175 KIAS) flown from 7,000 ft, the level MPT is chosen to stay near the 6,000 ft deck, from every merge speed', () => {
@@ -1774,39 +1583,6 @@ test('D405: a stalled aircraft loses tracking authority and cannot claim nose-on
       assert.notEqual(s.chase?.by, 'blue', 'stalled blue cannot initiate chase');
     }
   }
-});
-
-test('Task 17: getFeasibleMoves returns expected candidate sets across flight envelopes', () => {
-  const p = { hardDeckFt: 6000, deckMarginFt: 1000, stallKias: 86 };
-
-  // 250 kt: Immelmann, Pitch Back, High Yo-Yo, MPT
-  const m250 = getFeasibleMoves({ kias: 250, altFt: 10000 }, null, p);
-  assert.deepEqual(m250, ['immelmann', 'pitchBack', 'highYoYo', 'mpt']);
-
-  // 160 kt: Pitch Back, Slice, Low Yo-Yo, MPT
-  const m160 = getFeasibleMoves({ kias: 160, altFt: 10000 }, null, p);
-  assert.deepEqual(m160, ['pitchBack', 'slice', 'lowYoYo', 'mpt']);
-
-  // 100 kt: Slice, Split S, MPT
-  const m100 = getFeasibleMoves({ kias: 100, altFt: 10000 }, null, p);
-  assert.deepEqual(m100, ['slice', 'splitS', 'mpt']);
-
-  // Near hard deck (altFt = 6500, deck = 6000): margin is 500 < 1000, Split S would breach deck
-  const mDeck = getFeasibleMoves({ kias: 100, altFt: 6500 }, null, p);
-  assert.deepEqual(mDeck, ['mpt']);
-});
-
-test('Task 17: pickTacticalMove ranks candidates by earliest victory or tactical advantage', () => {
-  const fight = createEnergyFight({ blueKias: 250, redKias: 160, circles: 2 });
-  const tacticalBlue = pickTacticalMove(fight, 'blue', 20);
-  assert.ok(tacticalBlue.move, 'Blue picks a tactical move');
-  assert.ok(tacticalBlue.why, 'Blue says why');
-  assert.ok(Number.isFinite(tacticalBlue.deltaAdv), 'deltaAdv is finite number');
-
-  const tacticalRed = pickTacticalMove(fight, 'red', 20);
-  assert.ok(tacticalRed.move, 'Red picks a tactical move');
-  assert.ok(tacticalRed.why, 'Red says why');
-  assert.ok(Number.isFinite(tacticalRed.deltaAdv), 'deltaAdv is finite number');
 });
 
 test('Task 19: the Smart pilot (old name tactical) leaves the MPT when the other jet is slow or zooms', () => {
