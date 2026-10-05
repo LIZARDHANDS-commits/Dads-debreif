@@ -35,7 +35,7 @@ export const BACKGROUND = '#1c2127';
 export const CLOCK_LINE_RED = '#ff4d4d';
 const OUTLINE = '#02060a';
 const FONT = 'system-ui, sans-serif';
-const TRAIL_ALPHA = 0.55;
+const TRAIL_ALPHA = 0.3; // a faint line (Patrick, 5 Oct: "a more translucent line")
 const LABEL_TONES = { good: '#7ee787', caution: '#ffcc66', none: '#9bb8c6' };
 const SPACING_LINES = new Set(['1-2', '1-3', '1-4', '3-4']); // V6 drew these four
 /** The widest and narrowest picture, in feet across: the whole MOA and a bit more, down to a few hundred feet. */
@@ -292,7 +292,7 @@ function drawLead39(ctx, map, lead) {
   ctx.strokeStyle = CLOCK_LINE_RED;
   ctx.globalAlpha = 0.8;
   ctx.lineWidth = 2;
-  ctx.setLineDash([10, 8]);
+  ctx.setLineDash([10, 26]); // quieter: half the dashes, wider gaps (Patrick, 5 Oct)
   ctx.beginPath();
   ctx.moveTo(ax, ay);
   ctx.lineTo(bx, by);
@@ -314,7 +314,7 @@ function drawLead75(ctx, map, lead) {
   ctx.strokeStyle = CLOCK_LINE_RED;
   ctx.globalAlpha = 0.6;
   ctx.lineWidth = 1.5;
-  ctx.setLineDash([4, 6]);
+  ctx.setLineDash([4, 16]); // quieter: half the dashes, wider gaps (Patrick, 5 Oct)
   for (const { h } of lines) {
     const [ex, ey] = map.worldToScreen(lead.xFt + Math.cos(h) * len, lead.yFt + Math.sin(h) * len);
     ctx.beginPath();
@@ -344,10 +344,7 @@ function drawTrails(ctx, map, trail) {
   for (const [id, points] of Object.entries(trail)) {
     if (points.length < 2) continue;
     ctx.strokeStyle = SHIP_COLORS[id] ?? '#d9e6f2';
-    // Dots, slightly see-through (Patrick, 5 Oct: "slightly translucent dots").
-    ctx.lineWidth = OUTLINED_SHIPS.has(Number(id)) ? 3.5 : 3;
-    ctx.lineCap = 'round';
-    ctx.setLineDash([0.1, 7]);
+    ctx.lineWidth = OUTLINED_SHIPS.has(Number(id)) ? 3 : 2;
     ctx.beginPath();
     points.forEach(([, x, y], i) => {
       const [sx, sy] = map.worldToScreen(x, y);

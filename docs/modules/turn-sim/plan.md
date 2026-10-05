@@ -164,3 +164,4 @@ Checks: the same buttons flown from the default start before and after, screensh
 
 - [ ] Sign-off: anyone runs the checklist in `testing.md` and sends Patrick the result; the next module starts only after his yes (TQ-2) (`pf/reset/4-decisions/answers.md:13`).
 - [ ] Remove the PROTOTYPE flag from the Turn Sim card only if Patrick says so (ALL-R4) (`pf/reset/1-requirements/requirements.md:20`).
+- [x] Quieter guides (Patrick, 5 Oct): the tracks are a faint solid line again (30%, not dots), and the 3/9 and 7/5 lines have half the dashes with wider gaps, in 2D and 3D (the 3D turn circles share the 3D dash). V2.70.
