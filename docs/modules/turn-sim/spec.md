@@ -527,6 +527,8 @@ Patrick 09:03Z: "as SOON as "fighting wing" is clicked and the aircraft is in th
 
 ### 10.8 Lag roll to fighting wing (2-ship, TS-71, built 5 Oct, not yet in Patrick's sign-off)
 
+From V2.78 it also starts from echelon (section 10.15, TS-78).
+
 Patrick 08:54Z: "you hit "lag roll" and the airplane flips up and rolls canopy to canopy to lead then lands in the cone on the other side, power pitch and bank as required"; 08:58Z: fighting wing can use the whole cone, high or low. The SMM and EFIG do not name the lag roll; the nearest pages are SMM 12.29 para 69, SMM 12.30-12.31 para 74 and SMM 14.8 paras 18-19, Fig 14.1, Table 14.1. Numbers with no page or ruling beside them are estimates (`live/tuning.js` LAG_ROLL).
 
 **What changes on screen.**
@@ -645,7 +647,7 @@ Patrick 18:11Z ("What if we dynamically hand off between lines, tracker, and the
   | Fighting wing | Line abreast | line then tracker 81 s | tracker 74 s (fallback) |
   | Line abreast 6,000 ft, `auto` | Echelon | straight-ahead rejoin 56 s | turning rejoin 58 s; tracker 143 s (fails the lane) |
 
-- **What TS-76 still owes (the second piece, Opus):** re-planning at the decision point and when the picture breaks, and the press mid-move re-planning now (F1, F11); every planner then accepting a start mid-turn, and the turning rejoin taking Lead's remaining plan instead of planning his turn-in from the press. The vertical as a candidate (Patrick 19:51Z: "if it scores high enough in our model") waits on `flight.js` charging a height change's pull as G (`future.md`, "height as energy"), or a dive-away would win falsely.
+- **What TS-76 still owes (the second piece):** the press mid-move re-planning now (F11) is built in V2.78 (section 10.15). Still owed: re-planning at the decision point and when the picture breaks (F1); every planner accepting Lead's remaining plan, so a turn button pressed mid-change re-plans instead of queuing, and the turning rejoin takes Lead's remaining plan instead of planning his turn-in from the press. The vertical as a candidate (Patrick 19:51Z: "if it scores high enough in our model") waits on `flight.js` charging a height change's pull as G (`future.md`, "height as energy"), or a dive-away would win falsely.
 - **Failure and stale data:** no outside data. With no candidate the tracker's own refusal reads on the card, as before.
 
 **Checks.** None added (Patrick 09:08Z). Done: a typecheck (the 11 errors are Traffic's, the same before and after) and the dry runs above.
@@ -675,6 +677,37 @@ Patrick 5 Oct 19:51Z: "One of the other problems we have right now is that when 
 - **Failure and stale data:** no outside data. A wingman that cannot settle is flown on until he does, up to 30 s after Lead rolls out.
 
 **Checks.** None added (Patrick 09:08Z). Done: a typecheck (the 11 errors are Traffic's, the same before and after) and the dry runs above.
+
+### 10.15 Press mid-move, in band and steady, quicker opening out, slow echelon turns, lag roll from echelon (V2.78, TS-78; built 5 Oct, not yet in Patrick's sign-off)
+
+Patrick card 20:30Z "I do the re-plan only"; 20:3xZ ("do all of this at once"); card "Button only" (the lag roll); card 20:39Z "In band and steady"; 20:41Z ("I want 'stabilize' to be 'within 5 knots' instead of 'exactly zero'"); card 20:41Z "Me, this PR" (the opening out); 20:39Z ("rejoins and transitions between tactical formations should be assertive and smooth and quick"); 20:50Z ("Eschelon turns are very slow and smooth. about 4-5 seconds to get to 60/2 ... Fighting wing, rejoins, tactical formations, line abreast etc is unrestricted (realistic) roll rates & aircraft handling"); 21:06Z ("LAB from echelon would be expedited by a full power dive to start"); 21:10Z (the lag roll "can just be echelon"); 21:11Z ("near lead throttle is only when holding close formation. as soon as a tactical formation is selected, unrestricted attitude changes and power").
+
+- **A press mid-move re-plans now (F11):** a formation button pressed while #2 is moving re-plans both aircraft from where they are; nothing queues for the 2-ship. The scoreboard adds a "from here" candidate (`live/replan.js`, from the Formation thread's draft): Lead carries his move, holds his turning rejoin turn, or flies straight, and his speed change waits until #2 is in. A turn button pressed mid-change still queues (owed, section 10.13).
+- **In band and steady:** a change ends once #2 is in the judge's band, on the side asked for, closing at 5 kt or less against Lead and with his bank within 10° of Lead's, and Lead's own plan is done. Line abreast does not wait for Lead's speed-up to 220 KIAS (estimate, Patrick's card pending). Until V2.78 it ended when the tracker settled on the exact slot. A station change's stop at a corner is "within 5 kt" (`STOP_KT`), not 1 ft/s.
+- **Opening out to line abreast** (fighting wing or a close formation to line abreast): #2 goes out and down at once in a full power dive to about 400 ft below Lead, his speed growing with the range (to about 240 KIAS) and his angle off Lead's heading growing with it (to about 34°), and climbs back to Lead's height by the slot, which bleeds the extra speed off. Lead holds his speed until #2 is out, then speeds up to 220 KIAS (SMM 16.18 para 49; holding first is an estimate needing Patrick's yes). The near-Lead slowing of the close formations does not apply (21:11Z); the tracker takes over at 150 ft. `OPEN_OUT` in `tuning.js`; every number is an estimate. SMM 16.18 para 51 says only that the wingman manoeuvres into position while Lead flies straight and level.
+- **Echelon turns** (2-ship): Lead rolls in slowly to 60° (2 G), up to 30°/s building at 12°/s², about 4 s to 60° (Patrick 20:50Z: 4-5 s). #2 holds his place within about 5 ft. Route, line astern and the 4-ship's turns are unchanged (not now). #2's roll is held to the aircraft's roll rate when he changes station mid-turn (it jumped up to about 300°/s before).
+- **Lag roll from echelon:** the Lag roll button also shows in echelon. Same path as from fighting wing (section 10.8), starting from his echelon place: up, over Lead's six inverted at 500 to 1,400 ft, and down into the fighting wing cone on Lead's other side. The 500 ft bubble counts once he has left his echelon place. Button only: the chooser never picks it.
+- **Dry runs** (default start, Instructor, 8,000 ft; seconds from the press to the change ending, all IN POSITION):
+
+  | From | To | V2.77 | V2.78 |
+  |---|---|---|---|
+  | Line abreast 6,000 ft | Echelon | 58 | 49 |
+  | Line abreast 6,000 ft | Fighting wing | 42 | 33 |
+  | Line abreast 6,000 ft | Route | 63 | 48 |
+  | Fighting wing | Echelon | 35 | 27 |
+  | Fighting wing | Route | 37 | 22 |
+  | Fighting wing | Line abreast | 81 | 48 |
+  | Echelon | Fighting wing | 24 | 15 |
+  | Echelon | Route | 11 | 6 |
+  | Echelon | Line astern | 29 | 17 |
+  | Echelon | Echelon, other side | 33 | 21 |
+  | Echelon | Line abreast | 109 | 59 |
+  | Echelon | Lag roll to fighting wing, other side | refused | 21 |
+
+  The Formation thread's eight change-mid-change cases all end IN POSITION.
+- **Failure and stale data:** no outside data. A lag roll with no path inside the limits is refused with the reason on the card, as before.
+
+**Checks.** None added (Patrick 09:08Z, 21:06Z). Done: a typecheck (no errors outside Traffic's) and the dry runs above.
 
 # Part 2. Plan mode: the spec from before the reset
 
