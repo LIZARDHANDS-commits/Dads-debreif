@@ -1,7 +1,7 @@
 // Approach marks in the 3D view (Patrick, 5 Oct 07:17Z; TR-78), to show what the day's temperature does to the approach:
 //  - the window: the "imaginary window at ¾ NM from the runway threshold on a 3 degree glide path, approximately
-//    2100'–2200' MSL in Moose Jaw" (SMM 4.7 para 12), drawn as a see-through slice the aircraft fly through. Its
-//    heights are altimeter heights, so it is drawn at their true height for the day: higher on a hot day, lower on a cold one;
+//    2100'–2200' MSL in Moose Jaw" (SMM 4.7 para 12), drawn as a see-through slice the aircraft fly through. It is
+//    fixed at those true heights (TR-79), so aircraft flown on the altimeter pass it high on a hot day and low on a cold one;
 //  - the 3° intercept point: where the straight-in, level at 2,700 ft on the altimeter, meets the 3° line to the
 //    runway, a mark on the ground with a dotted line up to the intercept height (further back on a hot day);
 //  - the selected aircraft's aim line: its velocity vector, in pink, out to where it meets the ground (the aim point).
@@ -12,7 +12,7 @@ import { RANDOM } from './randomize.js';
 import { trueAltFt, heightFactor } from './weather.js';
 import { KT_TO_FTPS } from '../../core/units.js';
 
-/** The window's heights on the altimeter, ft MSL (SMM 4.7 para 12). */
+/** The window's true heights, ft MSL (SMM 4.7 para 12; fixed in true height, Patrick 5 Oct 07:28Z). */
 export const WINDOW_LOW_FT = 2100;
 export const WINDOW_HIGH_FT = 2200;
 /** The window's width across the centreline, ft: not in the SMM, an estimate (twice 29L's 150 ft width). */
@@ -40,7 +40,9 @@ export function approachMarks(pattern) {
   const ux = (th.x - DEPARTURE_END_29L.x) / len, uy = (th.y - DEPARTURE_END_29L.y) / len;
   const w = pattern?.points?.[12];
   const outFt = w ? (w.x - th.x) * ux + (w.y - th.y) * uy : WINDOW_FALLBACK_FT;
-  const win = { x: th.x + ux * outFt, y: th.y + uy * outFt, lowFt: trueAltFt(WINDOW_LOW_FT), highFt: trueAltFt(WINDOW_HIGH_FT) };
+  // The window stays put at its true heights (Patrick, 5 Oct 07:28Z; TR-79): the aircraft, flown on the altimeter, pass
+  // through it higher on a hot day and lower on a cold one.
+  const win = { x: th.x + ux * outFt, y: th.y + uy * outFt, lowFt: WINDOW_LOW_FT, highFt: WINDOW_HIGH_FT };
   // The 3° line through the threshold (the sim's own: through the window on a standard day), and where it reaches the
   // straight-in's level height, taken at its true height today.
   // The slope is the sim's own glide path through the window (about 3°, SMM 4.7 para 12), or 3° without a pattern.
