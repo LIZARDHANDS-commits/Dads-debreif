@@ -121,11 +121,11 @@ const words = (c) => `${c.name} ${Math.round(c.durationSec)} s${c.passes ? '' : 
 export function chooseChange(pair, to, options = {}, t0 = 0) {
   const wing = pair[1];
   const spacingFt = options.spacingFt ?? 6000;
-  // A training error's response is the lesson, not a race (TS-62).
-  const hot = planHotRejoinChange(pair, to, options, t0);
+  const auto = (options.rejoin ?? 'into') === 'auto';
+  // A training error's response is the lesson, not a race (TS-62); it is a turning rejoin, so 'auto' flies it too.
+  const hot = planHotRejoinChange(pair, to, auto ? { ...options, rejoin: 'into' } : options, t0);
   if (hot?.ok) return hot;
 
-  const auto = (options.rejoin ?? 'into') === 'auto';
   const longMove = rangeToSlotFt(pair, to, options) > HAND_OVER_FT;
   const candidates = [];
   let refusal = null;
