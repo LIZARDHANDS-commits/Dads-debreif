@@ -12,6 +12,28 @@ Since clean-up step 2 (TS-65, V2.22) every 2-ship change the line rules cover is
 
 Where things live since clean-up step 1 (TS-64): the slots for the 2- and 4-ship in `live/slots.js`, the one classifier and judge (card, roll-out verdict and tags) in `live/judge.js`, every closure rate, bank, timing and speed in `live/tuning.js`, and the tracker (the fallback for odd starts) in `live/tracker.js`.
 
+## How #2 is planned now (V2.75 to V2.84)
+
+Read this before changing any 2-ship move. The decisions say why; this is the picture.
+
+- **One chooser** (`live/chooser.js`, TS-76): every "Change formation" press runs every planner that applies (turning rejoin, straight-ahead rejoin, drop back, line then tracker, tracker), checks each like a pilot would (G rule, never ahead of Lead's 3/9 line inside 1,000 ft, never through Lead), and flies the quickest that passes. The vertical is one of the turning rejoin's tries (TS-82).
+- **Re-planned at events, never queued** (spec F1 and F11): at the press, the hand-over, the decision point and when the picture breaks, the change is planned again from where the pair is (`live/replan.js`, `formation.js` replanAtEvents). A turn or a new change pressed mid-move flies at once (TS-78, TS-79).
+- **Done when in the band, not on a spot** (TS-78, TS-80): tactical formations anywhere in their band (fighting wing anywhere in the cone, line abreast 4,000-6,000 ft, 0-10°, 2,000 ft stack); close formations within 5 ft and 5 kt. Fighting wing legs aim for the cone, not a slot (TS-83).
+- **Two rate sets** (`live/tuning.js` `RATE_SETS`, TS-84): holding close formation is slow and smooth so #2 can stay in place (echelon turns about 4-5 s to 60°, 2 G); everything tactical is unrestricted, the aircraft's own handling.
+- **Energy is real:** a climb costs speed, a descent gives it, and the pull of a height change is charged as G (TS-82). Power is worked out at the G and climb being flown.
+
+## Lessons (Fable's reviews and the Formation thread, 5 Oct)
+
+1. **Name the kind of speed.** Rates are overtake in KIAS above Lead, not range rate; compare like with like.
+2. **Fly in Lead's turning frame.** In a turn Lead's turn does most of the closing; a place inside his turn needs less speed than his.
+3. **Manoeuvring costs energy.** Clamp every plan with the full-power and slow-down rates at the G and climb being flown. At 220 KIAS and 8,000 ft the T-6 has only about 1 kt/s in hand, so use geometry and height first and power last.
+4. **Fly like a pilot, not a controller.** Set a bank and a power and hold them; avoid re-aiming every step.
+5. **Finish on the band, not the slot.** Creeping onto one spot is what made changes slow.
+6. **Rate caps live in Lead's frame;** keep arrival and departure rates apart. When a move looks slow, check the STRETCHED flag in a dry run before touching rates.
+7. **Write the method down first; after two failed fixes, find the cause** by reading the whole chain end to end. The patch rounds of V2.22 to V2.62 only moved the problem around.
+
+The full notes, outside the repo: `turn-sim-review/fable-compiled.md` and `turn-sim-review/chooser/plan.md` (sections 9-15) in the project files.
+
 ## What is next
 
 The plan's steps, in order: Step 1: the review (done); Step 2: the first version (built; waiting for Patrick to fly every button); Step 3: retire the plan-mode code (Patrick decides); Step 4: next features one at a time on the same core; Step 5: sign-off. Only what is in `plan.md` gets built.
