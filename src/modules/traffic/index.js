@@ -61,6 +61,7 @@ function mount(root, app) {
     settings,
     listen: app.listen,
     available: { photo: true, view3d: true, windTrack: true, reach: true }, // the wind is set in the Setup column (setup-panel.js)
+    layersInBar: false, // the layers are in the Setup column's Display box (Patrick, 4 Oct)
     on: {
       play,
       pause,
@@ -98,6 +99,7 @@ function mount(root, app) {
   if (opensBusy) setupPanel.setActive('busy');
   const settingsPanel = createSettingsPanel({ controls, settings, onToggle: () => {}, available: { photo: true, view3d: true }, photoHome }); // opening the menu moves nothing on the map
   ui.slots.settings.append(settingsPanel.element);
+  if (bar.layers) ui.slots.layers.append(bar.layers); // the layer presets and ticks, in the Display box
   root.append(ui.element);
 
   const map = createMap2d(ui.canvas, {

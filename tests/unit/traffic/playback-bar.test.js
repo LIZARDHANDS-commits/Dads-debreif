@@ -512,3 +512,13 @@ test('selecting or changing runway triggers on.runwayChange and updates settings
   assert.equal(changedRunway, '11R');
   assert.equal(settings.get().runway, '11R');
 });
+
+test('with layersInBar false the bar has no Layers menu and hands the presets and ticks over as one block (Patrick, 4 Oct)', () => {
+  const calls = [];
+  const bar = createPlaybackBar({ controls: stubControls(), on: { play() {}, pause() {}, reset() {}, fit: () => calls.push('fit'), speed() {} }, listen: () => {}, layersInBar: false });
+  assert.equal(tagged(bar.element, 'BUTTON').some((b) => words(b) === 'Layers'), false);
+  assert.ok(bar.layers, 'the layers block');
+  assert.deepEqual(tagged(bar.layers, 'BUTTON').filter((b) => b.getAttribute('data-preset')).map(words), ['Clean Operational', 'Standard Training', 'Full Telemetry']);
+  assert.equal(tagged(bar.layers, 'SUMMARY').map(words)[0], 'More');
+  assert.equal(createPlaybackBar({ controls: stubControls(), on: { play() {}, pause() {}, reset() {}, fit() {}, speed() {} }, listen: () => {} }).layers, null, 'in the bar by default');
+});

@@ -35,7 +35,7 @@ export function createLayout({ bar, listen, on = {}, available = {}, filterSplit
 
   // Slots for pieces built elsewhere; an empty one takes no room.
   const slot = (name) => h('div', { class: `traffic-slot traffic-slot-${name}` });
-  const slots = { setup: slot('setup'), pointTable: slot('point-table'), leftExtras: slot('left-extras'), profiles: slot('profiles'), spawner: slot('spawner'), aircraft: slot('aircraft'), conflicts: slot('conflicts'), settings: slot('settings') };
+  const slots = { setup: slot('setup'), pointTable: slot('point-table'), leftExtras: slot('left-extras'), profiles: slot('profiles'), spawner: slot('spawner'), aircraft: slot('aircraft'), conflicts: slot('conflicts'), settings: slot('settings'), layers: slot('layers') };
 
   // Left column, "Setup" (Patrick, 4 Oct 11:05Z): the scenario buttons and the wind, Profiles and notes (closed: one line), and the routes list.
   // Each route's row shows or hides its line on the map (Patrick, 4 Oct); the aircraft on it fly on either way.
@@ -44,7 +44,11 @@ export function createLayout({ bar, listen, on = {}, available = {}, filterSplit
   const empty = h('p', { class: 'route-empty' }, 'No routes yet.');
   const routesPanel = createPanel({ title: 'Setup', onToggle: (collapsed) => columnToggled('routes', !collapsed) });
   // Traffic settings sit at the foot of the Setup column (Patrick, 4 Oct: it was in the Aircraft column).
-  routesPanel.body.append(slots.setup, slots.profiles, listTitle, list, empty, slots.pointTable, slots.leftExtras, slots.settings);
+  // Display (Patrick, 4 Oct): the routes on the map and the layers, in one box that opens and closes like Traffic
+  // settings, closed at first.
+  const displayPanel = createPanel({ title: 'Display', collapsed: true });
+  displayPanel.body.append(listTitle, list, empty, h('p', { class: 'traffic-subtitle' }, 'Layers'), slots.layers);
+  routesPanel.body.append(slots.setup, slots.profiles, displayPanel.element, slots.pointTable, slots.leftExtras, slots.settings);
   const routesCol = h('aside', { class: 'traffic-col traffic-col-routes', 'aria-label': 'Setup' }, routesPanel.element);
 
   // Middle: the bar, then the map with its one-line hint, then the note under it.

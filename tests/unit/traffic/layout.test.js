@@ -272,3 +272,15 @@ test('filterSplits filters out kind split', () => {
   assert.deepEqual(rowsAfter.map((row) => withClass(row, 'route-name')[0].textContent), ['Pattern 1', 'Entry 1']);
 });
 
+
+test('the Setup column has a Display box, closed at first, holding Routes on the map and a place for the layers (Patrick, 4 Oct)', () => {
+  const { ui } = setup();
+  ui.setRoutes(ROUTES);
+  const [, routes] = ui.element.childNodes;
+  const display = withClass(routes, 'panel-toggle').find((b) => words(b) === 'Display');
+  assert.ok(display, 'a Display box');
+  assert.equal(display.getAttribute('aria-expanded'), 'false', 'closed at first');
+  const body = all(routes, (n) => n.getAttribute?.('id') === display.getAttribute('aria-controls'))[0];
+  assert.ok(withClass(body, 'route-row').length > 0, 'the routes are in it');
+  assert.ok(body.contains(ui.slots.layers), 'and the layers');
+});

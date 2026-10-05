@@ -147,9 +147,11 @@ export function createMenu({ label, children = [], listen }) {
  * available: { wind, view3d, photo, reach }, each true once that feature is on the screen.
  * listen: app.listen.
  * Returns { element, setState({ mode, clockText, speed, note }) }: a note ("Replaying…") stands in for the status words until it is cleared with null.
- * @param {{ controls: any, settings?: any, on: Record<string, any>, available?: { wind?: boolean, view3d?: boolean, photo?: boolean, reach?: boolean, windTrack?: boolean }, listen: any }} options
+ * layersInBar: false leaves the Layers menu out of the bar and hands its contents over as `layers` (the Setup column's
+ * Display box, Patrick, 4 Oct).
+ * @param {{ controls: any, settings?: any, on: Record<string, any>, available?: { wind?: boolean, view3d?: boolean, photo?: boolean, reach?: boolean, windTrack?: boolean }, listen: any, layersInBar?: boolean }} options
  */
-export function createPlaybackBar({ controls, settings, on, available = {}, listen }) {
+export function createPlaybackBar({ controls, settings, on, available = {}, listen, layersInBar = true }) {
   let mode = 'paused';
   let note = null;
   const makeInstant = (fn) => {
@@ -348,13 +350,10 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
     h('div', { class: 'traffic-layer-controls' }, ...layerControls.map((c) => c.el).filter(Boolean)),
   );
 
-  const layers = createMenu({
-    label: 'Layers',
-    listen,
-    children: [...presetButtons.map((p) => p.btn), moreLayers],
-  });
-
-  layers.button.addEventListener('click', () => {
+  // The presets, then More: in the bar's Layers menu, or handed over as one block for the Display box.
+  const layersBlock = h('div', { class: 'traffic-layers' }, ...presetButtons.map((p) => p.btn), moreLayers);
+  const layers = layersInBar ? createMenu({ label: 'Layers', listen, children: [layersBlock] }) : null;
+  layers?.button.addEventListener('click', () => {
     syncPresetButtons();
   });
 
@@ -399,7 +398,7 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
       h('label', { class: 'bar-speed' }, h('span', { class: 'visually-hidden' }, 'Speed '), speed),
       clock, status, versionBadge,
     ),
-    h('div', { class: 'bar-row bar-view' }, wind, viewSwitch, fit, layers.element),
+    h('div', { class: 'bar-row bar-view' }, wind, viewSwitch, fit, layers?.element),
   );
 
   const write = (node, text) => {
@@ -410,6 +409,8 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
     element,
     /** The Active runway list, for the Setup column (Patrick, 4 Oct: it moved there from the bar, as it is). */
     runway: runwaySelect,
+    /** The layer presets and ticks, when they are not in the bar (layersInBar false). */
+    layers: layersInBar ? null : layersBlock,
     applyPreset,
     setPreset(presetId) {
       const preset = typeof presetId === 'string' ? LAYER_PRESETS[presetId] : presetId;
