@@ -16,7 +16,7 @@
 //    speed brake, idle, overshoot).
 // Every number with no source beside it is an estimate and says so.
 import { wrapPi } from '../../../core/angles.js';
-import { KT_TO_FTPS } from '../../../core/units.js';
+import { KT_TO_FTPS, G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft, SMOOTHER_PEAK, smoother } from './flight.js';
 import { relativeTo, turnSeg, wholeDegree, onStep, DEG } from './manoeuvres.js';
 import { recordFlight, fwShapeNow, KIAS_LAB, KIAS_OUTSIDE_LAB, REJOIN, classifyPair, describe, FORMATIONS, LENGTH_FT } from './transitions.js';
@@ -49,10 +49,16 @@ export const STANDARD = Object.freeze({ spacingFt: 100, foreAftFt: 500, heightFt
 export const HOT = Object.freeze({
   minDescentSec: 12, // #2 comes down (or up) to the fighting wing height over at least 12 s, the standard start's (TS-55) ...
   descentFtps: 30, // ... at about 30 ft/s average (1,800 ft/min) when there is time ...
-  maxDescentFtps: 50, // ... and faster, up to about 50 ft/s average (3,000 ft/min, about 8° nose down at 200 KIAS), to be off the
+  maxDescentFtps: 45, // ... and faster, up to about 45 ft/s average (2,700 ft/min; its steepest about 13° nose down at 200 KIAS), to be off the
   // stack before he is inside 2,000 ft of Lead (SMM 12.27 para 65: never at or above Lead's height while closing)
-  accelSlackKtps: 0.3, // a planned speed-up may ask this much more than full power gives (the line's smoothing), no more
+  // A planned speed-up may ask up to what full power gives, or the 3 kt/s every planned line keeps under (TS-55) where that is
+  // more: the kinematic lines of the standard rejoin already ask a little more than full power in the capture (TS-62 notes it).
+  accelCapKtps: 3,
   lagShares: [0.75, 0.7], // Fix it may also cut off less (a lag line, geometry first: Patrick 23:37Z, SMM 12.24 para 57)
+  search: Object.freeze({ shares: [1.2, 1.1, 1, 0.9, 0.8], banksDeg: [35, 45, 55, 60], reversalStepSec: 1 }), // the coarser search off the standard start
+  // Fix it's power: the speed #2 slows to before the capture, 200 KIAS as the standard (Lead's speed) or a little more, so he
+  // keeps a set overtake with power (SMM 12.24 para 56: 10 to 20 KIAS more than Lead's; Patrick 23:37Z)
+  powerTargetsKias: [200, 210, 220],
   captureSecs: [20, 30, 45], // the capture onto fighting wing: the shortest whose speed changes the aircraft can fly (20 s is the standard's)
   // Where off-standard starts are accepted at all (a generous "roughly line abreast"; anything else flies the tracker's rejoin):
   start: Object.freeze({ minAcrossFt: 1000, maxForeAftFt: 4000, maxHeightFt: 2500, maxKiasOff: 45, maxHeadingDeg: 10 }),
@@ -73,7 +79,9 @@ const RANK = Object.freeze({ power: 0, boards: 1, idle: 2, idleBoards: 3 });
  * The slowing and speeding up a planned line asks for, from pose index `from` on: each step's stage (slow-down.js, the
  * first in the order of use that gives it), the first step that asks more than idle and the boards can give (-1 if none),
  * and the most a speed-up asks past full power (KIAS per second; 0 if never). Read from the line's own speeds, lightly
- * smoothed (a half-second running mean) so the differences' noise is not read as a need.
+ * smoothed (a half-second running mean) so the differences' noise is not read as a need. A climb or descent counts too
+ * (energy height, standard aerodynamics: holding the speed in a descent at climb rate c takes g c / V of extra drag), so a
+ * high start that dives down to Lead has its height to lose as well as its speed (Patrick 19:15Z lists "high" as a worse start).
  */
 export function speedNeeds(poses, from, blockFt) {
   const n = poses.length;
@@ -91,15 +99,15 @@ export function speedNeeds(poses, from, blockFt) {
       sum += raw[j];
       cnt++;
     }
-    const r = sum / cnt;
     const p = poses[k];
+    const r = sum / cnt + ((G_FTPS2 * (p.climb ?? 0)) / Math.max(p.tas, 1)) * (p.kias / Math.max(p.tas, 1));
     if (r < 0) {
       const st = stageFor(-r, p.kias, blockFt, p.g);
       if (!st.ok && -r > slowKtps('idleBoards', p.kias, blockFt, p.g) * 1.02 + 0.05 && firstBad < 0) firstBad = k;
       ranks[k] = RANK[st.stage];
       top = Math.max(top, ranks[k]);
     } else {
-      accelShort = Math.max(accelShort, r - (fullPowerKtps(p.kias, blockFt, p.g) * 1.05 + 0.05));
+      accelShort = Math.max(accelShort, r - Math.max(fullPowerKtps(p.kias, blockFt, p.g) * 1.05 + 0.05, HOT.accelCapKtps));
     }
   }
   return { ranks, firstBad, accelShort: Math.max(0, accelShort), top };
@@ -123,6 +131,22 @@ function laneBreak(poses, leadRec, from) {
     if (Math.hypot(rel.fwd, rel.left) < 1000 && rel.fwd > 100) return k;
   }
   return -1;
+}
+
+/**
+ * The least height #2 is below Lead (feet; negative is above) where the off-standard rejoin holds him below (TS-62): from the
+ * line-up on (step kh) inside 2,000 ft, and anywhere inside 1,000 ft (SMM 12.27 para 65). Before the line-up a high start
+ * may still be stepping down while he is further out than 1,000 ft (flagged on the card, never walled).
+ */
+function belowWhereItCounts(poses, rec, kh) {
+  let least = Infinity;
+  for (let k = 1; k <= poses.length; k++) {
+    const L = rec.at(k);
+    const p = poses[k - 1];
+    const range = Math.hypot(L.xFt - p.x, L.yFt - p.y);
+    if (range < 1000 || (k >= kh && range < 2000)) least = Math.min(least, L.altAboveFt - p.alt);
+  }
+  return least;
 }
 
 /** A recorded flight seen with its wings level, for the overshoot's "carry on" line (followInto level). */
@@ -252,8 +276,10 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
     // reference only the standard start's own choices are flown.
     const bearing = (w, l) => wrapPi(Math.atan2(l.yFt - w.yFt, l.xFt - w.xFt) - w.headingRad);
     const fwSlotAt = (k) => slotInWorld(longRec.at(k), fw.fwd, fw.left, fw.up, 0);
-    const shares = knobs ? [knobs.share] : mode === 'fix' ? [...POINT_SHARES, ...HOT.lagShares] : POINT_SHARES;
-    const banks = knobs ? [knobs.b3] : KINEMATIC.reverseBanksDeg;
+    // Off the standard start the search is coarser (HOT.search) so a press still plans in a second or two.
+    const shares = knobs ? [knobs.share] : standard ? POINT_SHARES : [...HOT.search.shares, ...(mode === 'fix' ? HOT.lagShares : [])];
+    const banks = knobs ? [knobs.b3] : standard ? KINEMATIC.reverseBanksDeg : HOT.search.banksDeg;
+    const krStep = Math.round((standard ? 0.5 : HOT.search.reversalStepSec) / dt);
     const candidates = [];
     for (const share of shares) {
       const pointSeg = turnSeg(wholeDegree(wing.headingRad - s * pointTurn * share), -s, KINEMATIC.pointBankDeg);
@@ -270,7 +296,7 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
       while (firstMove < states.length - 1 && Math.abs(losRate(firstMove)) < LOS_RATE_DPS * DEG) firstMove++;
       const reversals = [];
       if (knobs) reversals.push(Math.min(states.length - 1, Math.max(rolledOut + 1, firstMove + knobs.delaySteps)));
-      else for (let kr = rolledOut + 1; kr <= Math.min(states.length - 1, firstMove + Math.round(20 / dt)); kr += Math.round(0.5 / dt)) reversals.push(kr);
+      else for (let kr = rolledOut + 1; kr <= Math.min(states.length - 1, firstMove + Math.round(20 / dt)); kr += krStep) reversals.push(kr);
       for (const kr of reversals) {
         for (const b3 of banks) {
           // The reversal turns until #2's heading matches the slot's track: fuselage lined up with Lead's (SMM 16.20 para 65b(2)).
@@ -340,7 +366,7 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
   };
   /** The capture's moving slot from the line-up, carrying #2's drift so the capture takes it out smoothly. */
   const captureSlot = (c, captureSec) => {
-    const carry = captureSec / 2;
+    const carry = Math.min(captureSec, KINEMATIC.captureSec) / 2; // the standard capture's carry; a longer capture only eases the line
     const first = { fwd: c.rel.fwd + c.drift.fwd * carry, left: c.rel.left + c.drift.left * carry, up: fw.up, plane: 0 };
     return movingSlot([first, fw, ...onward], c.kh);
   };
@@ -399,28 +425,36 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
   // geometry, keeping the line that uses the least; remember the best line that would need an overshoot.
   const wingKias = KINEMATIC.hotWingKias + carryKias; // at the normal reference #2 keeps his speed error (it carries)
   const good = [];
+  let nearly = null; // the best line whose capture asks a little more speed-up than full power gives (see HOT.accelCapKtps)
   let needsOvershoot = null;
   let lined = false;
   /** Tries one way of slowing (stage) with the given choices (knobs, or a search), the best `top` line-ups. */
-  const tryStage = (stage, knobs, top) => {
-    const slowWing = { ...speedSegFor(wing.kias, wingKias, blockFt, stage), withNext: true };
+  const tryStage = (stage, knobs, top, toKias = wingKias) => {
+    const slowWing = { ...speedSegFor(wing.kias, toKias, blockFt, stage), withNext: true };
     const candidates = lineUps(slowWing, knobs);
+    if (globalThis.HRDBG) console.error('DBG stage', stage, 'cands', candidates.length);
     if (candidates.length) lined = true;
     for (const c of candidates.slice(0, top)) {
       for (const captureSec of HOT.captureSecs) {
         const b = buildLine(c, slowWing, captureSec);
-        if (b.line.maxBankDeg > KINEMATIC.pointBankDeg + 0.5 || b.checks.minBelowFt <= 0) break;
+        if (b.line.maxBankDeg > KINEMATIC.pointBankDeg + 0.5 || belowWhereItCounts(b.line.poses, b.lp.rec, c.kh) <= 0) break;
         const needs = speedNeeds(b.line.poses, c.kh - 3, blockFt);
         const lane = laneBreak(b.line.poses, b.lp.rec, c.kh);
+        if (globalThis.HRDBG) console.error('DBG  cand', c.share, c.delaySteps, c.b3, 'kh', c.kh, 'cap', captureSec, 'bank', b.line.maxBankDeg.toFixed(1), 'below', b.checks.minBelowFt.toFixed(0), 'bad', needs.firstBad, 'lane', lane, 'accShort', needs.accelShort.toFixed(2), 'top', needs.top);
         if (needs.firstBad >= 0 || lane >= 0) {
           // Too much energy for this line: the decision point comes before the first step it can't be flown.
           const kBad = Math.min(...[needs.firstBad, lane].filter((x) => x >= 0));
           if (!needsOvershoot || RANK[stage] >= RANK[needsOvershoot.stage]) needsOvershoot = { b, kBad: Math.max(c.kh + 1, kBad), stage };
           break;
         }
-        if (needs.accelShort > HOT.accelSlackKtps) continue; // a longer capture asks less power
+        const entry = { b, needs, used: Math.max(RANK[stage], needs.top), score: c.score };
+        if (needs.accelShort > 0) {
+          // A longer capture asks less power; keep the line that asks least past it in case none is within it.
+          if (!nearly || needs.accelShort < nearly.needs.accelShort) nearly = entry;
+          continue;
+        }
         labelStages(b.line.poses, c.kh - 3, needs.ranks);
-        good.push({ b, used: Math.max(RANK[stage], needs.top), score: c.score });
+        good.push(entry);
         break;
       }
     }
@@ -430,17 +464,31 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
     // The standard start's own choices don't line up from here: the nearest standard rejoin, still power only.
     if (!good.length && !needsOvershoot) tryStage('power', null, 8);
   } else {
-    for (const stage of STAGES) {
-      tryStage(stage, null, 8);
-      if (good.some((g) => g.used <= RANK[stage])) break;
+    // Fix it, in Patrick's order: geometry with power (slowing to Lead's speed, or keeping a set overtake), then the speed
+    // brake, then idle, then both; the first way that works, and the line using the least of them.
+    for (const toKias of HOT.powerTargetsKias) {
+      tryStage('power', null, 5, toKias);
+      if (good.some((g) => g.used === 0)) break;
     }
+    for (const stage of STAGES.slice(1)) {
+      if (good.some((g) => g.used < RANK[stage])) break;
+      tryStage(stage, null, 5);
+    }
+  }
+  if (!good.length && nearly) {
+    // The speed-ups of the planned capture lines aren't held to full power yet (the standard rejoin's aren't either: TS-62,
+    // future.md); the slowing is, and that is what an off-standard start tests.
+    labelStages(nearly.b.line.poses, nearly.b.c.kh - 3, nearly.needs.ranks);
+    good.push(nearly);
   }
   if (good.length) {
     good.sort((x, y) => x.used - y.used || x.score - y.score);
     return result(good[0].b, { usedStage: STAGES[good[0].used] });
   }
   if (needsOvershoot) {
+    if (globalThis.HRDBG) console.error('DBG overshoot from kBad', needsOvershoot.kBad, 'kh', needsOvershoot.b.c.kh);
     const o = planOvershoot(needsOvershoot);
+    if (globalThis.HRDBG) console.error('DBG overshoot', Boolean(o));
     if (o) return o;
   }
   return { ok: false, reason: lined ? 'No safe hot turning rejoin or overshoot from here.' : 'No safe hot turning rejoin from here: #2 could not line up with Lead.' };
@@ -483,8 +531,10 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
         const n = kS + 8;
         const { track } = overshootTrack(longRec, kD, blendSec, n, outside);
         const poses = posesFrom(track, kiasPerTas).poses;
-        if (!passesBehindAndBelow(poses, longRec, kD, kS)) continue;
+        const pb = passesBehindAndBelow(poses, longRec, kD, kS);
         const needs = speedNeeds(poses, kD - 1, blockFt);
+        if (globalThis.HRDBG && blendSec === HOT.blendSecs[0]) console.error('DBG   kD', kD, 'B', blendSec, 'pass', pb, 'bad', needs.firstBad, 'kS', kS, 'upNow', upNow.toFixed(0));
+        if (!pb) continue;
         if (needs.firstBad >= 0 && needs.firstBad < kS - 1) continue;
         return finishOvershoot({ c, kD, kS, blendSec, outside, overshootTrack });
       }
