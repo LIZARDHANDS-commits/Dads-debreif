@@ -561,12 +561,26 @@ function drawAircraft(ctx, map, a, named = true, s = SYMBOL_PX) {
 const POWER_RED = '#ff5a5a';
 
 /** A data tag (tags.js formatTag): the title in white, then each line in the aircraft's colour, or red. */
-function drawLinesTag(ctx, map, x, y, tag, colour, pad) {
+function drawLinesTag(ctx, map, x, y, tag, colour, pad, placed = []) {
   const rows = [tag.title, ...tag.lines.map((l) => l.text)];
   const w = Math.max(...rows.map((t) => ctx.measureText(t).width)) + 2 * pad;
   const h = 4 + rows.length * 11;
-  const tx = x + 14 + w > map.size.width ? x - 14 - w : x + 14;
-  const ty = y - 8;
+  // Up and to the right of the aircraft, clear of it (Patrick, 5 Oct: the tags covered the aircraft); left when the right
+  // would run off the picture, below when the top would.
+  const gap = 18;
+  const tx = x + gap + w > map.size.width ? x - gap - w : x + gap;
+  let ty = y - gap - h < 0 ? y + gap : y - gap - h;
+  // Close formations put the aircraft side by side: a tag that would cover one already drawn moves up above it.
+  for (let moved = true; moved;) {
+    moved = false;
+    for (const r of placed) {
+      if (tx < r.x + r.w && tx + w > r.x && ty < r.y + r.h + 3 && ty + h + 3 > r.y) {
+        ty = r.y - h - 3;
+        moved = true;
+      }
+    }
+  }
+  placed.push({ x: tx, y: ty, w, h });
   ctx.fillStyle = 'rgba(10, 18, 28, 0.85)';
   ctx.fillRect(tx, ty, w, h);
   ctx.strokeStyle = colour;
@@ -582,6 +596,7 @@ function drawLinesTag(ctx, map, x, y, tag, colour, pad) {
 }
 
 export function drawTags(ctx, map, state, tags) {
+  const placed = [];
   ctx.save();
   ctx.font = `10px ${FONT}`;
   for (const a of state.aircraft) {
@@ -590,7 +605,7 @@ export function drawTags(ctx, map, state, tags) {
     const colour = SHIP_COLORS[a.id] ?? '#d9e6f2';
     const [x, y] = map.screenOf ? map.screenOf(a) : map.worldToScreen(a.xFt, a.yFt); // screenOf: the 3D view's, with height
     const pad = 4;
-    if (tag.lines) { drawLinesTag(ctx, map, x, y, tag, colour, pad); continue; }
+    if (tag.lines) { drawLinesTag(ctx, map, x, y, tag, colour, pad, placed); continue; }
     const power = tag.power ?? null;
     const w = Math.max(ctx.measureText(tag.title).width, ctx.measureText(tag.detail).width, power ? ctx.measureText(power.text).width : 0) + 2 * pad;
     const h = power ? 37 : 26;
