@@ -22,8 +22,8 @@ const byId = (setup, id) => setup.routes.find((r) => r.id === id);
 test('the routes list says where each entry and split joins, by point number counted from 1', () => {
   const setup = fresh();
   assert.equal(routeLink(byId(setup, 'PAT1'), setup.routes), '');
-  assert.equal(routeLink(byId(setup, 'ENT1'), setup.routes), '→ Pattern 1 P8');
-  assert.equal(routeLink(byId(setup, 'ENT2'), setup.routes), '→ Pattern 1 P1');
+  assert.equal(routeLink(byId(setup, 'ENT1'), setup.routes), '→ Overhead break P8');
+  assert.equal(routeLink(byId(setup, 'ENT2'), setup.routes), '→ Overhead break P1');
   const orphan = { ...byId(setup, 'ENT1'), attachTo: 'GONE' };
   assert.equal(routeLink(orphan, setup.routes), 'Not linked');
 });
@@ -32,7 +32,7 @@ test('one row per route for the routes list: id, name, kind, colour and link', (
   const setup = fresh();
   const rows = routeRows(setup.routes);
   assert.equal(rows.length, setup.routes.length);
-  assert.deepEqual(rows[1], { id: 'ENT1', name: 'Entry 1', kind: 'entry', color: byId(setup, 'ENT1').color, link: '→ Pattern 1 P8' });
+  assert.deepEqual(rows[1], { id: 'ENT1', name: 'OHB Rejoin', kind: 'entry', color: byId(setup, 'ENT1').color, link: '→ Overhead break P8', visible: true });
 });
 
 test('decision points are the first point of a pattern and every point a split leaves from', () => {
@@ -71,7 +71,7 @@ test('the scene has every route with its drawn path, the aircraft, the conflicts
   assert.equal(scene.routes.length, setup.routes.length);
   assert.equal(scene.selectedRouteId, 'ENT1');
   const pattern = scene.routes[0];
-  assert.deepEqual([pattern.id, pattern.name, pattern.kind, pattern.color], ['PAT1', 'Pattern 1', 'pattern', byId(setup, 'PAT1').color]);
+  assert.deepEqual([pattern.id, pattern.name, pattern.kind, pattern.color], ['PAT1', 'Overhead break', 'pattern', byId(setup, 'PAT1').color]);
   assert.ok(pattern.path.length > pattern.points.length, 'the rounded turns are drawn as curves');
   assert.equal(scene.aircraft.length, 7);
   assert.deepEqual(scene.conflicts, sim.state().conflicts);

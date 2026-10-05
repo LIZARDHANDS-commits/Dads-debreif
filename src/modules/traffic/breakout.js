@@ -65,35 +65,41 @@ export function gateLegOf(route) {
 }
 
 // ── Ground Truth Geometry Constants ──────────────────────────────────────────
-export const BREAKOUT_PT = Object.freeze({ x: -10974, y: -24252 });
-export const ENTRY_MID_PT = Object.freeze({ x: 4806, y: -46304 });
-export const ENTRY_GATE_PT = Object.freeze({ x: 17000, y: -28031 });
-export const REJOIN_INTERCEPT_PT = Object.freeze({ x: 10256, y: -38141 }); // 2 NM prior to Entry Gate along ENT1
+// True feet (TR-67): ENT1 runs north up the inner rejoin line, the overhead pattern's base leg 3.22 NM out from the
+// 29L threshold (EFIG Fig 3-10 and p.209; Patrick 5 Oct 01:05Z "the rejoin lines define the base leg"). Its points
+// match data/moose-jaw.json.
+/** The breakout point: 2 NM (12,152 ft) south of Pattern 1's abeam-the-departure-end point (as the old geometry). */
+export const BREAKOUT_PT = Object.freeze({ x: -9395, y: -22160 });
+export const ENTRY_MID_PT = Object.freeze({ x: 6592, y: -36696 });
+export const ENTRY_GATE_PT = Object.freeze({ x: 14145, y: -22820 });
 
-// ENT1 Path vector and track heading (~033.7° / 034°)
-const DX_ENT1 = ENTRY_GATE_PT.x - ENTRY_MID_PT.x; // 12194 ft
-const DY_ENT1 = ENTRY_GATE_PT.y - ENTRY_MID_PT.y; // 18273 ft
-const LEN_ENT1 = Math.hypot(DX_ENT1, DY_ENT1);   // 21968.1 ft
-export const ENT1_TRACK_DEG = (Math.atan2(DX_ENT1, DY_ENT1) * 180 / Math.PI + 360) % 360; // 33.716°
+// ENT1 Path vector and track heading (the base leg, 028.6° true)
+const DX_ENT1 = ENTRY_GATE_PT.x - ENTRY_MID_PT.x;
+const DY_ENT1 = ENTRY_GATE_PT.y - ENTRY_MID_PT.y;
+const LEN_ENT1 = Math.hypot(DX_ENT1, DY_ENT1);   // 15,798 ft (2.6 NM)
+export const ENT1_TRACK_DEG = (Math.atan2(DX_ENT1, DY_ENT1) * 180 / Math.PI + 360) % 360;
 
 // Unit vectors along and perpendicular to ENT1 track
 const UX_ENT1 = DX_ENT1 / LEN_ENT1;
 const UY_ENT1 = DY_ENT1 / LEN_ENT1;
 
-// Canonical ENT1 route definition
+/** 2 NM before the Entry Gate along ENT1. */
+export const REJOIN_INTERCEPT_PT = Object.freeze({ x: Math.round(ENTRY_GATE_PT.x - 2 * 6076 * UX_ENT1), y: Math.round(ENTRY_GATE_PT.y - 2 * 6076 * UY_ENT1) });
+
+// Canonical ENT1 route definition (the same points as data/moose-jaw.json)
 export const ENT1_ROUTE = Object.freeze({
   id: 'ENT1',
-  name: 'Entry 1',
+  name: 'OHB Rejoin',
   kind: 'entry',
   visible: true,
   color: '#bc8cff',
   attachTo: 'PAT1',
   mergeIndex: 7,
   points: Object.freeze([
-    Object.freeze({ label: 'Entry Start', x: -8694.14, y: -66643.51, alt: 3500, kt: 220, g: 2, phase: 'entry', tag: 'entry_start' }),
-    Object.freeze({ label: 'Entry Mid', x: 4805.86, y: -46303.51, alt: 3500, kt: 220, g: 2, phase: 'entry', tag: 'entry_mid' }),
-    Object.freeze({ label: 'Entry Gate', x: 17000.12, y: -28031.35, alt: 3500, kt: 220, g: 2, phase: 'entry', tag: 'entry_gate' }),
-    Object.freeze({ label: 'Merge', x: 21689.42, y: -19427.08, alt: 3500, kt: 220, g: 2, phase: 'initial', tag: 'merge' }),
+    Object.freeze({ label: 'Entry Start', x: -8616.0, y: -64637.5, alt: 3500, kt: 220, g: 2, phase: 'entry', tag: 'entry_start' }),
+    Object.freeze({ label: 'Entry Mid', x: 6592.2, y: -36695.9, alt: 3500, kt: 220, g: 2, phase: 'entry', tag: 'entry_mid' }),
+    Object.freeze({ label: 'Entry Gate', x: 14144.5, y: -22820.1, alt: 3500, kt: 220, g: 2, phase: 'entry', tag: 'entry_gate' }),
+    Object.freeze({ label: 'Merge', x: 18107.7, y: -15538.8, alt: 3500, kt: 220, g: 2, phase: 'initial', tag: 'merge' }),
   ]),
 });
 

@@ -44,63 +44,155 @@ function shed(THREE, w, d, h, wallMat, roofMat, x, y, name) {
   return g;
 }
 
-/** Window Farm: Titan Livestock feedlot east of Hwy 2, rust-red pens, white barns, a truck shop. */
+/** A round bin or silo: a steel cylinder standing on the floor. */
+function bin(THREE, r, h, mat, x, y, name) {
+  const geo = new THREE.CylinderGeometry(r, r, h, 12);
+  geo.rotateX(Math.PI / 2);
+  geo.translate(0, 0, h / 2);
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y, 0);
+  m.name = name;
+  return m;
+}
+
+/** A Quonset (half-round) barn, its length along X. */
+function quonset(THREE, length, width, mat, x, y, name) {
+  const geo = new THREE.CylinderGeometry(width / 2, width / 2, length, 16, 1, false, 0, Math.PI);
+  geo.rotateY(-Math.PI / 2); // the half-round up
+  geo.rotateZ(Math.PI / 2); // its axis along X
+  geo.scale(1, 1, 0.7); // a little lower than a full half-circle, like the real barn (estimate)
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y, 0);
+  m.name = name;
+  return m;
+}
+
+/** A repeatable 0-to-1 roll for scattering: the same picture every time the scene is built. */
+function scatterRolls(seed) {
+  let h = seed >>> 0;
+  return () => {
+    h = (Math.imul(h ^ (h >>> 15), 0x2c1b3c6d) + 0x9e3779b9) >>> 0;
+    h ^= h >>> 13;
+    return (h >>> 0) / 2 ** 32;
+  };
+}
+
+// Window Farm's layout, feet round Patrick's pin (x east, y north), traced off Esri's true-scale photo (5 Oct,
+// about ±15 ft; Patrick 5 Oct 01:43Z: the buildings go on the big white barn, the brown block is pigs).
+const WINDOW_FARM_PENS = Object.freeze([
+  // [x0, y0, x1, y1]: the pens south-east of the yard, where the pigs are.
+  [395, -640, 865, -365], [355, -850, 725, -655], [245, -850, 345, -730],
+]);
+const WINDOW_FARM_YARD = Object.freeze([20, -320, 300, -150]); // open yard south of the white barn: a few strays
+const PIG_FT = Object.freeze({ length: 6, width: 2.6, height: 3 }); // a market hog, near enough (estimate)
+
+/** Pigs: groups of 4 to 14 in the pens with solo pigs between them and a few kicking round the yard, one draw call. */
+function pigs(THREE, mat) {
+  const roll = scatterRolls(1880);
+  const spots = [];
+  const inBox = ([x0, y0, x1, y1]) => [x0 + roll() * (x1 - x0), y0 + roll() * (y1 - y0)];
+  for (const pen of WINDOW_FARM_PENS) {
+    const area = (pen[2] - pen[0]) * (pen[3] - pen[1]);
+    const groups = Math.max(2, Math.round(area / 9000));
+    for (let g = 0; g < groups; g++) {
+      const [cx, cy] = inBox(pen);
+      const n = 4 + Math.floor(roll() * 11);
+      for (let k = 0; k < n; k++) spots.push([cx + (roll() - 0.5) * 30, cy + (roll() - 0.5) * 30, roll() * Math.PI * 2]);
+    }
+    const solos = Math.round(groups / 2);
+    for (let k = 0; k < solos; k++) spots.push([...inBox(pen), roll() * Math.PI * 2]);
+  }
+  for (let k = 0; k < 6; k++) spots.push([...inBox(WINDOW_FARM_YARD), roll() * Math.PI * 2]);
+  const geo = new THREE.BoxGeometry(PIG_FT.length, PIG_FT.width, PIG_FT.height);
+  geo.translate(0, 0, PIG_FT.height / 2);
+  const mesh = new THREE.InstancedMesh(geo, mat, spots.length);
+  mesh.name = 'window-farm-pigs';
+  const m = new THREE.Matrix4();
+  spots.forEach(([x, y, a], i) => {
+    m.makeRotationZ(a);
+    m.setPosition(x, y, 0);
+    mesh.setMatrixAt(i, m);
+  });
+  return mesh;
+}
+
+/** Window Farm: Titan Livestock east of Hwy 2: the long white barn with its Quonset end, bins, feedlot barns, pigs. */
 function createWindowFarm(THREE, mats) {
   const g = new THREE.Group();
-  g.add(box(THREE, 520, 380, 1.5, mats.pens, 260, -120, 'window-farm-pens'));
-  g.add(shed(THREE, 160, 70, 22, mats.white, mats.grey, -40, 220, 'window-farm-shop'));
-  g.add(shed(THREE, 90, 60, 18, mats.white, mats.grey, 120, 60, 'window-farm-barn'));
-  for (let i = 0; i < 3; i++) g.add(box(THREE, 14, 14, 40, mats.steel, 60 + i * 20, 230, `window-farm-bin-${i + 1}`));
+  g.add(box(THREE, 159, 101, 24, mats.white, -78, -26, 'window-farm-barn'));
+  g.add(quonset(THREE, 122, 101, mats.white, 63, -26, 'window-farm-quonset'));
+  g.add(shed(THREE, 69, 45, 16, mats.white, mats.grey, -118, 48, 'window-farm-shop'));
+  g.add(bin(THREE, 20, 60, mats.steel, 133, 87, 'window-farm-silo-1'));
+  g.add(bin(THREE, 20, 60, mats.steel, 133, 48, 'window-farm-silo-2'));
+  for (let i = 0; i < 10; i++) g.add(bin(THREE, 11, 35, mats.steel, 300, 125 - i * 24, `window-farm-bin-${i + 1}`));
+  g.add(shed(THREE, 60, 163, 20, mats.white, mats.grey, 355, -412, 'window-farm-feedlot-barn-1'));
+  g.add(shed(THREE, 50, 150, 18, mats.white, mats.grey, 198, -575, 'window-farm-feedlot-barn-2'));
+  g.add(box(THREE, 90, 38, 16, mats.white, 280, -650, 'window-farm-feedlot-barn-3'));
+  g.add(box(THREE, 84, 56, 18, mats.white, 206, -697, 'window-farm-feedlot-barn-4'));
+  g.add(pigs(THREE, mats.pig));
   return g;
 }
 
-/** Sukanen Ship Pioneer Village: the red-roofed hall, grey sheds, the ship hull and a wooden elevator. */
+/**
+ * Sukanen Ship Pioneer Village, traced off Esri's true-scale photo (5 Oct, about ±15 ft; Patrick 5 Oct 01:43Z: the
+ * red roof turns and the buildings move with it). The red-roofed hall runs east-west on Patrick's pin, with the grey
+ * hall north of it, the white hall south, a column of halls to the east and a row of long sheds to the west.
+ */
+const SUKANEN_HALLS = Object.freeze([
+  // [x, y, east-west length, north-south width, wall height]
+  [-8, 61, 125, 45, 18], [1, -81, 101, 83, 18], [-40, 132, 62, 75, 16],
+  [117, 80, 65, 71, 16], [117, -19, 65, 107, 16], [117, -107, 65, 54, 14],
+  [-178, 140, 101, 38, 14], [-178, 89, 101, 60, 14], [-178, 23, 101, 58, 14], [-178, -38, 101, 53, 14],
+  [-178, -93, 101, 49, 14],
+]);
+
 function createSukanen(THREE, mats) {
   const g = new THREE.Group();
-  g.add(shed(THREE, 70, 120, 20, mats.white, mats.red, 0, 0, 'sukanen-red-roof'));
-  g.add(shed(THREE, 60, 160, 18, mats.white, mats.grey, -160, 20, 'sukanen-hall-west'));
-  g.add(shed(THREE, 50, 140, 16, mats.white, mats.grey, 90, 10, 'sukanen-hall-east'));
-  // The ship: a tapered hull with a wheelhouse.
-  const hull = new THREE.Shape([
-    new THREE.Vector2(-55, -12), new THREE.Vector2(45, -12), new THREE.Vector2(65, 0),
-    new THREE.Vector2(45, 12), new THREE.Vector2(-55, 12),
-  ]);
-  const hullGeo = new THREE.ExtrudeGeometry(hull, { depth: 18, bevelEnabled: false });
-  const ship = new THREE.Mesh(hullGeo, mats.hull);
-  ship.name = 'sukanen-ship-hull';
-  ship.position.set(260, 360, 0);
-  g.add(ship);
-  g.add(box(THREE, 24, 18, 14, mats.white, 250, 360, 'sukanen-ship-wheelhouse'));
-  g.children.at(-1).position.z = 18;
-  // A wooden prairie elevator, the tall cue from downwind.
-  g.add(box(THREE, 30, 30, 85, mats.elevator, 380, 240, 'sukanen-elevator'));
+  const eastWest = (w, d, h, roof, x, y, name) => {
+    const s = shed(THREE, d, w, h, mats.white, roof, x, y, name); // ridge along its length
+    s.rotation.z = Math.PI / 2;
+    return s;
+  };
+  g.add(eastWest(121, 71, 20, mats.red, -6, -2, 'sukanen-red-roof'));
+  SUKANEN_HALLS.forEach(([x, y, w, d, h], i) => g.add(eastWest(w, d, h, mats.grey, x, y, `sukanen-hall-${i + 1}`)));
   return g;
 }
 
-/** Auto Wrecker (Fiat Farm): rows of scrapped cars (instanced) inside shelterbelts. */
+// The Auto Wrecker's car lot, feet round Patrick's pin, traced off Esri's true-scale photo (5 Oct, about ±15 ft):
+// north-south rows of cars from the pin's south edge about 600 ft north, with a cross lane part way up.
+const FIAT_ROW_X = Object.freeze([-125, -106, -72, -31, 16, 56, 94, 131, 175, 215, 256]);
+const FIAT_ROW_Y = Object.freeze([-70, 520]);
+const FIAT_LANE_Y = Object.freeze([135, 175]);
+const CAR_FT = Object.freeze({ length: 16, width: 7, height: 5.5, spacing: 10 }); // a car, near enough (estimate)
+
+/** Auto Wrecker (Fiat Farm): the whole lot of scrapped cars (instanced) and the farmyard buildings south of it. */
 function createFiatFarm(THREE, mats) {
   const g = new THREE.Group();
-  const rows = 8;
-  const perRow = 18;
-  const carGeo = new THREE.BoxGeometry(15, 7, 5);
-  carGeo.translate(0, 0, 2.5);
-  const cars = new THREE.InstancedMesh(carGeo, mats.car, rows * perRow);
+  const roll = scatterRolls(2_155);
+  const spots = [];
+  for (const x of FIAT_ROW_X) {
+    for (let y = FIAT_ROW_Y[0]; y <= FIAT_ROW_Y[1]; y += CAR_FT.spacing) {
+      if (y > FIAT_LANE_Y[0] && y < FIAT_LANE_Y[1]) continue;
+      if (roll() < 0.12) continue; // the odd gap
+      spots.push([x + (roll() - 0.5) * 3, y, (roll() - 0.5) * 0.35]);
+    }
+  }
+  const carGeo = new THREE.BoxGeometry(CAR_FT.length, CAR_FT.width, CAR_FT.height);
+  carGeo.translate(0, 0, CAR_FT.height / 2);
+  const cars = new THREE.InstancedMesh(carGeo, mats.car, spots.length);
   cars.name = 'fiat-farm-cars';
   const m = new THREE.Matrix4();
   const c = new THREE.Color();
   const tones = ['#7c2d12', '#334155', '#a3a3a3', '#1e3a8a', '#e5e5e5', '#365314'];
-  let i = 0;
-  for (let r = 0; r < rows; r++) {
-    for (let k = 0; k < perRow; k++) {
-      m.makeRotationZ(((r * 7 + k * 3) % 5 - 2) * 0.08);
-      m.setPosition(-140 + k * 16, 40 + r * 22, 0);
-      cars.setMatrixAt(i, m);
-      cars.setColorAt?.(i, c.set(tones[(r + k) % tones.length]));
-      i++;
-    }
-  }
+  spots.forEach(([x, y, a], i) => {
+    m.makeRotationZ(a); // parked nose to the lane, length east-west
+    m.setPosition(x, y, 0);
+    cars.setMatrixAt(i, m);
+    cars.setColorAt?.(i, c.set(tones[Math.floor(roll() * tones.length)]));
+  });
   g.add(cars);
-  g.add(shed(THREE, 60, 40, 16, mats.white, mats.grey, 0, -20, 'fiat-farm-house'));
+  g.add(shed(THREE, 50, 34, 16, mats.white, mats.grey, -200, -367, 'fiat-farm-house'));
+  g.add(shed(THREE, 50, 44, 16, mats.white, mats.grey, -250, -243, 'fiat-farm-shed'));
   return g;
 }
 
@@ -130,13 +222,14 @@ function treeRows(THREE, mat, rows, name, spacing = 25) {
 }
 
 /**
- * Arrow Tree Rows: north-south shelterbelts filling the corners between two pivots, an hourglass from the air.
- * Traced from Patrick's blue lines (3 Oct, about 9 ft per pixel); the pin is where the two pivots touch.
+ * Arrow Tree Rows: north-south shelterbelts in the corners between two pivots, an hourglass from the air. The pin is
+ * where the two pivots touch. Moved onto the tree lines in Esri's true-scale photo (5 Oct, about ±15 ft; Patrick
+ * 5 Oct 01:43Z): one long row north of the pin, three rows in the south wedge, and the groves at the corners.
+ * Rows Patrick traced on 3 Oct that have no trees on the true photo (two north, two south-west) are left out.
  */
 const ARROW_ROWS = Object.freeze([
-  [-598, 1258, -598, 1170], [-334, 1240, -378, 950], [0, 1214, 0, 466], [308, 1232, 326, 906], [616, 1258, 634, 1082],
-  [-704, -1232, -722, -1408], [-563, -1126, -563, -1390], [-317, -994, -317, -1346], [0, -546, 0, -1311],
-  [308, -898, 308, -1311], [651, -1100, 616, -1452],
+  [12, 1207, 12, 557], [-598, 1258, -598, 1170], [616, 1258, 634, 1082],
+  [10, -493, 10, -1255], [-317, -980, -317, -1318], [345, -880, 345, -1305], [670, -1100, 670, -1340],
 ]);
 
 function createArrowTrees(THREE, mats) {
@@ -159,7 +252,7 @@ export function createLandmarks(THREE, { floor = THRESHOLD_DATA_ELEV_FT } = {}) 
   const mats = {
     white: lam('#eef0f2'), grey: lam('#8b95a1'), red: lam('#c0262d'), pens: lam('#7a3b1d'),
     steel: new THREE.MeshStandardMaterial({ color: '#cbd5e1', roughness: 0.35, metalness: 0.7 }),
-    hull: lam('#5b4636'), elevator: lam('#8a3a26'), car: lam('#ffffff'), tree: lam('#1f4d2b'),
+    car: lam('#ffffff'), tree: lam('#1f4d2b'), pig: lam('#e8a7a0'),
   };
   for (const l of CYMJ_LANDMARKS) {
     const g = BUILDERS[l.kind](THREE, mats);
@@ -175,12 +268,14 @@ export function createLandmarks(THREE, { floor = THRESHOLD_DATA_ELEV_FT } = {}) 
 // ---- Highway 2 ------------------------------------------------------------------------------------
 
 /**
- * Hwy 2 centreline (x east, y north, ft from the ARP), north to south. Estimated from Patrick's photos: about
- * 500 ft west of Window Farm and 600 ft east of Sukanen Ship. NEEDS A VISUAL CHECK against the satellite photo;
- * correct the points here.
+ * Hwy 2 centreline (x east, y north, ft from the ARP), north to south. Read off Esri's true-scale photo (5 Oct,
+ * about ±30 ft; TR-67): the divided highway north of the field, then the road due south past Window Farm's west
+ * side and about 1,000 ft east of the Sukanen Ship pin (through the Sukanen Ship intersection, EFIG p.211), bending
+ * south-west near 4.7 NM south of the field.
  */
 export const HWY2_POINTS = Object.freeze([
-  Object.freeze([5892, 8000]), Object.freeze([5600, -4324]), Object.freeze([5277, -17956]), Object.freeze([4992, -30000]),
+  Object.freeze([6250, 8000]), Object.freeze([5700, -4324]), Object.freeze([5700, -18267]), Object.freeze([5700, -28400]),
+  Object.freeze([4950, -31450]),
 ]);
 export const HWY2_WIDTH_FT = 40;
 
@@ -209,10 +304,13 @@ export function createHighway(THREE, points, floor = THRESHOLD_DATA_ELEV_FT, wid
 
 // ---- Windsocks --------------------------------------------------------------------------------------
 
-/** 29L threshold sock ~250 ft SW of centreline; mid-field sock south of the runway (ft from the ARP). */
+/**
+ * 29L threshold sock ~250 ft SW of centreline; mid-field sock south of the runway (ft from the ARP). Moved with the
+ * runway onto its true thresholds (TR-67), keeping their places beside it.
+ */
 export const WINDSOCK_SITES = Object.freeze([
-  Object.freeze({ id: 'windsock-29l', x: 2987, y: -3415 }),
-  Object.freeze({ id: 'windsock-midfield', x: 267, y: -2140 }),
+  Object.freeze({ id: 'windsock-29l', x: 2678, y: -2997 }),
+  Object.freeze({ id: 'windsock-midfield', x: 253, y: -1872 }),
 ]);
 export const WINDSOCK_FULL_KT = 15;
 const MAST_FT = 20;

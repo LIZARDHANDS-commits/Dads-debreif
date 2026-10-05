@@ -1,6 +1,6 @@
 // The behaviour tag on every aircraft (Traffic spec 4.14, TR-60; Patrick's words approved 4 Oct 22:53Z, shortened
-// 23:45Z): the pattern it is flying, what it does next (not for OHB and SI) and its configuration unless clean, in the
-// PFL tag's style, for example "[OHB · Gear + T/O flap]" or "[UPWIND: crosswind next]". A PFL's own tag and the deconfliction's tags win while they apply
+// 23:45Z, and again 4 Oct: round the lap only "[OHB]" or "[SI]"): the pattern it is flying, or the manoeuvre with what
+// it does next and its configuration unless clean, in the PFL tag's style, for example "[CLOSED: downwind next]". A PFL's own tag and the deconfliction's tags win while they apply
 // (map2d.js getPflBadge); the deconfliction's tags carry the configuration too.
 //
 // Nothing here moves an aircraft or reads the page: it only names what the sim already flies.
@@ -13,6 +13,10 @@ export const CONFIG = Object.freeze({
   gearLandingFlap: 'Gear + landing flap',
 });
 
+/** Past the window, the tag is the landing behaviour (Patrick, 4 Oct: "T+GO, STOP, or GO AROUND"); a low approach goes around. */
+export const LANDING_TAGS = Object.freeze({ touch_and_go: 'T+GO', overhead: 'T+GO', full_stop: 'STOP', go_around: 'GO AROUND' });
+const landingTag = (a) => (a.rndLowApproach ? LANDING_TAGS.go_around : LANDING_TAGS[a.intent] ?? LANDING_TAGS.touch_and_go);
+
 /** Every number the tag uses, each with its source. */
 export const BEHAVIOUR = Object.freeze({
   /** Gear and take-off flap on the inner downwind once below this, KIAS (SMM 4.17 paras 40-41, EFIG p.185; the gear point is a guess). */
@@ -22,9 +26,6 @@ export const BEHAVIOUR = Object.freeze({
   /** Above the field by this much the aircraft is climbing and the gear comes up, ft (an estimate). */
   airborneFt: 50,
 });
-
-/** What the final choice is called on the tag. */
-const FINAL_WORDS = { touch_and_go: 'touch-and-go', full_stop: 'full stop', go_around: 'go-around', overhead: 'touch-and-go' };
 
 /**
  * The tag for aircraft `a` (the sim's own state for it), or null when none shows (landed, not started, or in a PFL,
@@ -46,38 +47,42 @@ export function behaviourLabel(b, deconflictLabel = null) {
   const config = b?.config && b.config !== CONFIG.clean ? b.config : null;
   if (deconflictLabel) return config ? deconflictLabel.replace(/]$/, ` · ${config}]`) : deconflictLabel;
   if (!b) return null;
+  // An aircraft flying the overhead or the SI pattern says only which (Patrick, 4 Oct: "just say [OHB] or [SI], not
+  // what they are doing next"; no configuration either).
+  if (b.pattern === 'OHB' || b.pattern === 'SI' || Object.values(LANDING_TAGS).includes(b.pattern)) return `[${b.pattern}]`;
   return `[${b.pattern}${b.next ? `: ${b.next}` : ''}${config ? ` · ${config}` : ''}]`;
 }
-
-const finalWord = (a) => (a.rndLowApproach ? 'low approach' : FINAL_WORDS[a.intent] ?? 'touch-and-go');
 
 /** The pattern and next step, from the move it is flying, then the route and phase. */
 function patternOf(a, ctx) {
   if (!a.active || a.landed || a.pflFlight || a.pflRail || a.engineFailed) return null;
   const flown = a.goAroundFlight?.route.id;
+  // Lined up on final and past the window: what it will do at the runway (Patrick, 4 Oct).
+  const pastWindow = ctx.onFinal && Number.isFinite(ctx.toThresholdFt) && Number.isFinite(ctx.windowFt) && ctx.toThresholdFt <= ctx.windowFt;
+  if (pastWindow && (!flown || flown === 'EXTEND_FLOWN')) return { pattern: landingTag(a), next: null, stage: ctx.route?.kind === 'entry' ? 'final_straight_in' : 'final' };
   if (a.highKeyFlight) return { pattern: 'CLOSED TO HIGH KEY', next: 'PFL next', stage: 'climb' };
   if (flown === 'CLOSED_FLOWN') return { pattern: 'CLOSED', next: 'downwind next', stage: 'closed' };
   if (flown === 'GO_AROUND_FLOWN') return { pattern: 'GO-AROUND', next: 'outer downwind next', stage: 'go_around' };
   if (flown === 'STRAIGHT_IN_FLOWN') return { pattern: 'SI', next: null, stage: 'straight_in_downwind' };
   if (flown === 'EXTEND_FLOWN') {
-    return a.phase === 'final_turn' || a.phase === 'final'
-      ? { pattern: 'FINAL', next: finalWord(a), stage: 'final' }
-      : { pattern: 'OHB', next: null, stage: 'inner_downwind' };
+    return { pattern: 'OHB', next: null, stage: a.phase === 'final_turn' || a.phase === 'final' ? 'final' : 'inner_downwind' };
   }
   if (flown) return { pattern: 'BREAKOUT', next: 'rejoin next', stage: 'breakout' };
   const route = ctx.route;
   if (!route) return null;
   if (route.kind === 'entry' || route.kind === 'split') {
     if (+route.mergeIndex > 0) return { pattern: 'OHB', next: null, stage: 'entry' };
-    return ctx.onFinal ? { pattern: 'FINAL', next: finalWord(a), stage: 'final_straight_in' } : { pattern: 'SI', next: null, stage: 'straight_in' };
+    return { pattern: 'SI', next: null, stage: ctx.onFinal ? 'final_straight_in' : 'straight_in' };
   }
+  // Round the lap the tag names the pattern only, OHB or SI (Patrick, 4 Oct); the stage still sets the configuration.
+  const lap = a.siPattern ? 'SI' : 'OHB';
   switch (a.phase) {
-    case 'climb': case 'climb_out': case 'touch_and_go': return { pattern: 'UPWIND', next: 'crosswind next', stage: 'upwind' };
-    case 'crosswind': case 'outer_downwind': return { pattern: 'OUTER', next: a.siPattern ? 'SI next' : 'initial next', stage: 'outer' };
+    case 'climb': case 'climb_out': case 'touch_and_go': return { pattern: lap, next: null, stage: 'upwind' };
+    case 'crosswind': case 'outer_downwind': return { pattern: lap, next: null, stage: 'outer' };
     case 'initial': return { pattern: 'OHB', next: null, stage: 'initial' };
     case 'break': return { pattern: 'OHB', next: null, stage: 'break' };
     case 'downwind': return { pattern: 'OHB', next: null, stage: 'inner_downwind' };
-    case 'final_turn': case 'final': return { pattern: 'FINAL', next: finalWord(a), stage: 'final' };
+    case 'final_turn': case 'final': return { pattern: lap, next: null, stage: 'final' };
     default: return null;
   }
 }

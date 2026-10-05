@@ -13,6 +13,8 @@ Ideas for the Traffic Sim that are not being built. An idea moves into `plan.md`
 - Patrick's gear-and-flaps drag idea for the forced landing is not listed here: it is in `plan.md` Step 1 (the PFL review), which is its single home.
 
 ## Asked for by Patrick, waiting for his yes to move into the plan
+- **Tune the PFL to touch down in the first third of the true-length runway** (Patrick, 5 Oct 02:01Z: "accept it and flag pfls for tuning later"). On the true runway (TR-67) the first third ends about 2,420 ft past the threshold. A PFL from Low Key (3,700 ft, 120 KIAS, heading 118°) with 20 kt from 208° touches down about 2,553 ft down the runway (the same spot as on the old 8,150 ft runway, so the glide did not change). Its other cases land 1,230 to 2,050 ft in. The check in `tests/unit/traffic/pfl.test.js` ("on profile at High Key or Low Key ... first third") allows up to 2,600 ft until this is done.
+- The SI Rejoin's "Miles back from the base turn" counts from its Entry Mid. With the true-scale routes (TR-67) the SI Rejoin runs straight up the base-leg line, so there is no turn there; whether to count from the Arrow Tree Rows (where the straight-in turns base) instead is for Patrick.
 
 - Automatic deconfliction (Patrick, 4 Oct 09:40Z). Moved into `plan.md` and built (11:54Z and 17:38Z; spec 4.12). Still open: the real 29L/29R gap for the move-over (a question for Dad). A PFL's bank away now costs it glide (TR-55, #318), and the move-over levels at 2,100 ft (TR-56, #319). The original ask, kept for reference: only when a conflict is close to happening, never far out:
   - an aircraft that gets too close to another flinches (as in the turn-fight sim), then goes into a breakout;
@@ -60,6 +62,10 @@ The two copies of the queue name some rows differently; both names are given. Pa
 - FF36: flapless as an aircraft option (SMM 4.25, 4.26, 14.2) (`pf/reset/2-inventory/agents/sources/plan-doc-future-features.md:39`).
 
 ## Feature Ideas for the Traffic Sim
+
+- **A Base start for the overhead break** (Patrick, 4 Oct, in his list of spawn spots: Initial, In the break, Downwind, Base, Perch). The route has no spot between the inner downwind and the Perch, nor in the final turn; where Base starts is to be settled with Patrick. A new route spot is a flying change.
+
+- **Saved scenarios with notes** (off the screen since DADS v2.10.32, Patrick, 4 Oct: "I don't think we need scenarios and notes, just a drop down for pre-made scenarios"). What it did: saved the whole setup (routes, aircraft, dice seed, settings and a notes box) by name in the browser, loaded or deleted one after asking, refused damaged or unsafe saved data, said so when the browser would not keep it, and opened on the last setup used. The code is still in `src/modules/traffic/profiles-panel.js`, `profile-store.js` and `profiles.css`, with its unit tests; bring it back as a "More" item, or delete it, when Patrick says. A file export to send a scenario to Dad is TR-Q22.
 
 - **Overhead break explorable**: break interval, bank and G against downwind spacing, plus a puzzle about where number two is when the lead rolls out; extends the Traffic Sim (Feature Ideas idea 27; value medium, effort small; flight math, so it needs a check first; `pf/reset/2-inventory/agents/sources/feature-ideas.md:29`)
 - A parachute animation when a PFL aircraft ejects (today a red ✕ marks the spot) (listed 4 Oct, after the 3D ground photo work, #317).

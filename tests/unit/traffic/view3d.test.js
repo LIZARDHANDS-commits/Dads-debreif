@@ -330,14 +330,16 @@ const OPTIONS = { paint: PAINT_DEFAULT, layerCautionRings: true, cautionLatFt: 5
 // Close in (chase or zoomed in), where a T-6 is more than FULL_MODEL_PX long on screen and gets the full Harvard model.
 const CLOSE = { ...OPTIONS, zoom: CAMERA_LIMITS.zoom[1] }; // the closest the wheel goes, 4,000 px to 1,000 ft: a T-6 about 134 px long
 
-test('the scene kit draws each route once, each flying aircraft once, and a caution ring and a drop line for each', (t) => {
+test('the scene kit draws each route once, each flying aircraft once, a drop line for each, and a caution ring round the selected one only', (t) => {
   const kit = createSceneKit(THREE, { models });
   kit.sync(scene(), OPTIONS);
+  assert.equal(kit.counts().rings, 0, 'no ring with no aircraft selected (Patrick, 4 Oct)');
+  kit.sync(scene({ selectedAircraftId: 'A1' }), OPTIONS);
   const c = kit.counts();
   assert.equal(c.routes, 2, 'the two routes that show');
   assert.equal(c.aircraft, 2, 'the waiting one is made when it first flies');
   assert.equal(c.visibleAircraft, 2);
-  assert.equal(c.rings, 2);
+  assert.equal(c.rings, 1, 'round A1');
   assert.equal(c.drops, 2);
   kit.dispose();
   t.diagnostic(JSON.stringify(c));
@@ -361,7 +363,7 @@ test('a route that is hidden or deleted, and an aircraft that is removed, are fr
   const kit = createSceneKit(THREE, { models });
   kit.sync(scene(), OPTIONS);
   const lines = tracker.ownedBy(kit.root);
-  kit.sync(scene({ routes: [routes[1]], aircraft: [scene().aircraft[0]] }), OPTIONS);
+  kit.sync(scene({ routes: [routes[1]], aircraft: [scene().aircraft[0]], selectedAircraftId: scene().aircraft[0].id }), OPTIONS);
   const c = kit.counts();
   assert.equal(c.routes, 1);
   assert.equal(c.aircraft, 1);
@@ -406,11 +408,12 @@ test('the circuit landmarks group is added to the scene and fully freed and remo
 test('switching the caution rings off frees the rings, and a paint change replaces only the T-6s', (t) => {
   const tracker = trackDisposals(t);
   const kit = createSceneKit(THREE, { models });
-  kit.sync(scene(), CLOSE);
-  kit.sync(scene(), { ...CLOSE, layerCautionRings: false });
+  const picked = scene({ selectedAircraftId: 'A1' });
+  kit.sync(picked, CLOSE);
+  kit.sync(picked, { ...CLOSE, layerCautionRings: false });
   assert.equal(kit.counts().rings, 0);
-  kit.sync(scene(), CLOSE);
-  assert.equal(kit.counts().rings, 2, 'and back');
+  kit.sync(picked, CLOSE);
+  assert.equal(kit.counts().rings, 1, 'and back, round the selected aircraft');
   const stand = kit.aircraftMesh('A2');
   const t6 = kit.aircraftMesh('A1');
   kit.sync(scene(), { ...CLOSE, paint: 'ship' });

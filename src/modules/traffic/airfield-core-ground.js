@@ -6,11 +6,11 @@
 
 import { createTileLayer, ESRI_IMAGERY, tilesFor } from '../../ui-kit/map-tiles.js';
 import { makeLocalRef, latLonToLocalFt, localFtToLatLon, lonLatToTile } from '../../core/geo.js';
-import { THRESHOLD_DATA_ELEV_FT } from './airfield.js';
+import { THRESHOLD_DATA_ELEV_FT, THRESHOLD_29L as TH, DEPARTURE_END_29L as DEP } from './airfield.js';
 
 /**
  * Authoritative Moose Jaw aerodrome core bounding box in local feet.
- * Encompasses Runway 29L threshold (3104, -3194), departure end (-4066, 680),
+ * Encompasses Runway 29L threshold and departure end (airfield.js, true feet since TR-67),
  * parallel runway 29R/11L, cross runway 04/22, and the south flight line / apron.
  */
 export const AIRFIELD_CORE_BOUNDS_FT = Object.freeze({
@@ -188,12 +188,12 @@ export function paintCoreAirfieldVector(ctx, { width = 2048, height = 2048, boun
   ctx.lineJoin = 'round';
 
   // Runway 29L direction vectors for taxiway geometry
-  // P29L_thresh = (3104, -3194), P11R_thresh = (-4066, 680)
-  const dx29L = -4066 - 3104; // -7170
-  const dy29L = 680 - (-3194); // 3874
-  const len29L = Math.hypot(dx29L, dy29L); // ~8149.65
-  const uX = dx29L / len29L; // ~ -0.8798
-  const uY = dy29L / len29L; // ~ 0.4754
+  // From the 29L threshold to the 11R threshold (airfield.js)
+  const dx29L = DEP.x - TH.x;
+  const dy29L = DEP.y - TH.y;
+  const len29L = Math.hypot(dx29L, dy29L); // ~7,250 ft
+  const uX = dx29L / len29L; // ~ -0.878
+  const uY = dy29L / len29L; // ~ 0.478
   // Normal vector pointing North-East (+Y/+X):
   const nX = -uY; // ~ -0.4754 (or pointing North-East: uY, -uX -> 0.4754, 0.8798)
   const normX = uY;
@@ -204,10 +204,10 @@ export function paintCoreAirfieldVector(ctx, { width = 2048, height = 2048, boun
 
   ctx.lineWidth = taxiWidthPx;
 
-  const aStartX = 3104 - 450 * normX;
-  const aStartY = -3194 - 450 * normY;
-  const aEndX = -4066 - 450 * normX;
-  const aEndY = 680 - 450 * normY;
+  const aStartX = TH.x - 450 * normX;
+  const aStartY = TH.y - 450 * normY;
+  const aEndX = DEP.x - 450 * normX;
+  const aEndY = DEP.y - 450 * normY;
 
   const bStartX = 3300 + 500 * normX;
   const bStartY = -3000 + 500 * normY;
@@ -230,11 +230,11 @@ export function paintCoreAirfieldVector(ctx, { width = 2048, height = 2048, boun
     // Taxiway connecting links from South Apron to Taxiway Alpha and Runway 29L
     const connectors = [
       // Link 1: South apron to 29L Threshold run-up bay
-      [[2200, -4200], [3104, -3194]],
+      [[2200, -4200], [TH.x, TH.y]],
       // Link 2: Mid-apron connector
       [[400, -4200], [400 - 450 * normX, -4200 + (len29L * 0.4) * uY]],
       // Link 3: West apron to 11R Threshold
-      [[-2000, -4200], [-4066 - 450 * normX, 680 - 450 * normY], [-4066, 680]],
+      [[-2000, -4200], [DEP.x - 450 * normX, DEP.y - 450 * normY], [DEP.x, DEP.y]],
       // Link 4: High-speed turnoffs / links between 29L and Bravo / 29R
       [[0, -1257], [0 + 1000 * normX, -1257 + 1000 * normY]],
       [[-1800, -288], [-1800 + 1000 * normX, -288 + 1000 * normY]],
@@ -399,10 +399,10 @@ export function paintCoreAirfieldVector(ctx, { width = 2048, height = 2048, boun
     drawRunwayNumber(p2, { x: -ruX, y: -ruY }, num2);
   }
 
-  // Runway 29L / 11R: Length ~8,150 ft, width 150 ft, centerline connecting (3104, -3194) to (-4066, 680)
+  // Runway 29L / 11R: width 150 ft, centreline from the 29L threshold to the 11R threshold (airfield.js)
   renderRunway({
-    p1: { x: 3104, y: -3194 },
-    p2: { x: -4066, y: 680 },
+    p1: { x: TH.x, y: TH.y },
+    p2: { x: DEP.x, y: DEP.y },
     widthFt: 150,
     num1: '29L',
     num2: '11R',
@@ -412,8 +412,8 @@ export function paintCoreAirfieldVector(ctx, { width = 2048, height = 2048, boun
   const r29ROffsetX = 1000 * normX;
   const r29ROffsetY = 1000 * normY;
   renderRunway({
-    p1: { x: 3104 + r29ROffsetX, y: -3194 + r29ROffsetY },
-    p2: { x: -4066 + r29ROffsetX, y: 680 + r29ROffsetY },
+    p1: { x: TH.x + r29ROffsetX, y: TH.y + r29ROffsetY },
+    p2: { x: DEP.x + r29ROffsetX, y: DEP.y + r29ROffsetY },
     widthFt: 150,
     num1: '29R',
     num2: '11L',

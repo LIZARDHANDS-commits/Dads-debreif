@@ -443,3 +443,22 @@ test('generatePflTrack carries the drag-adaptive config: clean at High Key, gear
   assert.ok(Math.abs(last.alt - 1892) <= 20, `ends at field elevation, ${last.alt}`);
   assert.ok(Math.abs(last.kt - 100) <= 10, `ends at 100 kt, ${last.kt}`);
 });
+
+// The built-in Moose Jaw in true feet (TR-67): the legs sit where EFIG Fig 3-10 puts them (downwind 2.0 NM out, the
+// base leg on the inner rejoin line 3.2 NM out, the run-in on the centreline), and the Window is 3/4 NM from the
+// number base (Patrick, 5 Oct 00:36Z), which is 207 ft past the threshold bar (Patrick's point on the true photo).
+// Fig 3-10's lines are hand-drawn, so its legs are good to about ±300 ft; the Window uses the shared ±100 ft.
+test('the built-in Pattern 1 legs sit where EFIG Fig 3-10 puts them, in true feet (TR-67)', async () => {
+  const { legOffsetsFt } = await import('../../../src/core/geo.js');
+  const builtIn = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw.json', import.meta.url), 'utf8'));
+  const pat = builtIn.routes.find((r) => r.id === 'PAT1');
+  const [th, dep] = pat.points;
+  const along = (p) => -legOffsetsFt(th, dep, p).alongFt; // ft from the 29L threshold toward the approach
+  const out = (p) => Math.abs(legOffsetsFt(th, dep, p).crossFt);
+  const NM = 6076.12;
+  for (const i of [5, 6]) assert.ok(Math.abs(out(pat.points[i]) - 2.0 * NM) <= 300, `downwind point ${i + 1} is 2.0 NM out, got ${(out(pat.points[i]) / NM).toFixed(2)}`);
+  for (const i of [6, 7]) assert.ok(Math.abs(along(pat.points[i]) - 3.22 * NM) <= 300, `base leg point ${i + 1} is 3.2 NM out, got ${(along(pat.points[i]) / NM).toFixed(2)}`);
+  assert.ok(out(pat.points[8]) <= 100, 'the run-in joins on the centreline');
+  assert.ok(Math.abs(along(pat.points[12]) + 207 - 0.75 * NM) <= 100, 'the Window is 3/4 NM from the number base');
+  assert.ok(out(pat.points[12]) <= 100, 'the Window is on the centreline');
+});

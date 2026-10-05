@@ -38,26 +38,42 @@
   margin-top: var(--space-3);
 }
 
-/* Setup (Patrick, 4 Oct 11:05Z): the scenario buttons, then the wind dial with its strength bar beside it. */
+/* Setup (Patrick, 4 Oct 11:05Z): the Scenario drop-down, then the wind dial with its strength bar beside it. */
 [data-module='traffic'] .setup-panel {
   display: grid;
   gap: var(--space-2);
 }
 
-[data-module='traffic'] .setup-scenarios {
-  display: flex;
-  flex-wrap: wrap;
+[data-module='traffic'] .setup-scenario {
+  display: grid;
   gap: var(--space-1);
 }
 
-[data-module='traffic'] .setup-scenario {
+[data-module='traffic'] .setup-scenario-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+[data-module='traffic'] .setup-scenario-row label {
+  font-weight: 700;
+}
+
+[data-module='traffic'] .setup-scenario-pick {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+[data-module='traffic'] .setup-scenario-again {
   padding: var(--space-1) var(--space-2);
   font-size: var(--text-sm);
 }
 
-[data-module='traffic'] .setup-scenario[aria-pressed='true'] {
-  border-color: var(--accent);
-  background: var(--bg-sunken);
+[data-module='traffic'] .setup-scenario-about {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }
 
 [data-module='traffic'] .setup-wind {
@@ -151,13 +167,14 @@
   text-align: left;
 }
 
-[data-module='traffic'] .route-row[aria-current='true'] {
-  border-color: var(--accent);
-  background: var(--bg-sunken);
+/* A hidden route's row says "Hidden" and is dimmed, its line shown hollow, so the state reads without colour. */
+[data-module='traffic'] .route-row[aria-pressed='false'] {
+  border-style: dashed;
+  color: var(--text-muted);
 }
 
-[data-module='traffic'] .route-row[aria-current='true'] .route-name {
-  font-weight: 700;
+[data-module='traffic'] .route-row[aria-pressed='false'] .route-swatch {
+  opacity: 0.35;
 }
 
 [data-module='traffic'] .route-swatch {
@@ -269,19 +286,13 @@
   pointer-events: none;
 }
 
-[data-module='traffic'] .traffic-camera {
-  position: absolute;
-  z-index: 2;
-  top: var(--space-2);
-  left: var(--space-2);
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-  max-width: calc(100% - var(--space-4));
+[data-module='traffic'] .traffic-note3d[hidden] {
+  display: none;
 }
 
-[data-module='traffic'] .traffic-camera[hidden],
-[data-module='traffic'] .traffic-note3d[hidden] {
+/* A control the Setup column hides (How often, while Randomize behaviour is off) stays hidden: .control's own
+   display would otherwise win over the hidden attribute. */
+[data-module='traffic'] .setup-panel [hidden] {
   display: none;
 }
 
@@ -506,14 +517,70 @@
   grid-column: 1 / -1;
 }
 
-[data-module='traffic'] .spawner-point-caption {
-  font-size: var(--text-xs, 0.75rem);
-  color: var(--accent);
-  margin-top: calc(-1 * var(--space-1));
+/* The spots of the chosen route (Patrick, 4 Oct): one button each, wrapping; a press adds an aircraft there. */
+[data-module='traffic'] .spawn-spots-hint {
+  margin: var(--space-1) 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .spawn-spots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+
+[data-module='traffic'] .spawn-spot {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+}
+
+/* The OHB Rejoin's miles back: the label over the drop-down, both the box's full width, so neither is cut. */
+[data-module='traffic'] .spawner .control.spawn-miles {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-1);
+  width: 100%;
+}
+
+[data-module='traffic'] .spawner .control.spawn-miles select {
+  width: 100%;
+}
+
+/* The miles box, its range and + Spawn on one line under the label. */
+[data-module='traffic'] .spawn-miles-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+[data-module='traffic'] .spawner .spawn-miles-row input {
+  width: 5rem;
+}
+
+[data-module='traffic'] .spawn-miles-range {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  flex: 1;
+}
+
+[data-module='traffic'] .spawner [hidden] {
+  display: none;
+}
+
+/* Advanced settings: closed until asked for, under the buttons. */
+[data-module='traffic'] .spawner-advanced {
+  margin-top: var(--space-3);
+}
+
+[data-module='traffic'] .spawner-advanced > summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+[data-module='traffic'] .spawner-advanced[open] > summary {
   margin-bottom: var(--space-2);
-  padding-left: var(--space-1);
-  font-family: var(--font-mono, monospace);
-  line-height: 1.3;
 }
 
 [data-module='traffic'] .spawn-buttons {
@@ -662,16 +729,6 @@
   border-color: var(--border-subtle, rgba(255, 255, 255, 0.1));
 }
 
-[data-module='traffic'] .button-tiny.danger {
-  color: var(--bad, #ef4444);
-  border-color: rgba(239, 68, 68, 0.4);
-}
-
-[data-module='traffic'] .button-tiny.danger.is-active {
-  background: var(--bad, #ef4444);
-  color: var(--bg, #020a10);
-  border-color: var(--bad, #ef4444);
-}
 
 [data-module='traffic'] .aircraft-menu-select {
   padding: 0.1rem 0.3rem;
@@ -754,10 +811,12 @@
   top: calc(100% + var(--space-1));
   left: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
-  gap: var(--space-1) var(--space-4);
+  grid-template-columns: 1fr; /* one item a row: the presets, then More (Patrick, 4 Oct) */
+  gap: var(--space-1);
   align-content: start;
-  width: min(100%, 40rem);
+  width: max-content;
+  min-width: 12rem;
+  max-width: min(100vw - 2rem, 22rem);
   max-height: calc(100dvh - var(--header-height) - 10rem);
   overflow-y: auto;
   padding: var(--space-3);
@@ -905,4 +964,258 @@
     height: min(70vh, 32rem);
     min-height: 18rem;
   }
+}
+
+/* Layers: the preset in use shows as chosen; every layer's tick sits under More (Patrick, 4 Oct). */
+[data-module='traffic'] .layer-preset[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--bg-sunken);
+  font-weight: 700;
+}
+
+[data-module='traffic'] .traffic-layer-more {
+  margin-top: var(--space-2);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-2);
+}
+
+[data-module='traffic'] .traffic-layer-more > summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+[data-module='traffic'] .traffic-layer-controls {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+/* The Active runway list in the Setup column's Wind group (Patrick, 4 Oct: moved from the bar, as it is). */
+[data-module='traffic'] .setup-runway {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Aircraft cards (Patrick, 4 Oct): each one its own box, a gap between them, the selected one in the accent; only it
+   shows its menu and buttons. */
+[data-module='traffic'] .aircraft-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+[data-module='traffic'] .aircraft-row {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  cursor: pointer;
+}
+
+[data-module='traffic'] .aircraft-row.is-selected {
+  border: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-sunken));
+}
+
+[data-module='traffic'] .aircraft-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+[data-module='traffic'] .aircraft-remove {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  padding: 0 var(--space-1);
+}
+
+[data-module='traffic'] .aircraft-remove:hover {
+  color: var(--text);
+}
+
+[data-module='traffic'] .aircraft-actions[hidden] {
+  display: none;
+}
+
+/* Closed Pattern and its bank, one control. */
+[data-module='traffic'] .aircraft-split {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+[data-module='traffic'] .aircraft-split > .button-tiny {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+[data-module='traffic'] .aircraft-split > select {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 0;
+}
+
+/* A gliding aircraft's card is yellow (Patrick, 4 Oct: PFL in yellow), with the same padding as the others. */
+[data-module='traffic'] .aircraft-row.has-engine-fail {
+  border-left: 4px solid var(--caution);
+  padding-left: var(--space-3);
+  background: color-mix(in srgb, var(--caution) 10%, var(--bg-sunken));
+}
+
+[data-module='traffic'] .aircraft-row.has-engine-fail.is-selected {
+  border-color: var(--caution);
+}
+
+[data-module='traffic'] .pfl-badge.badge-pfl {
+  background: color-mix(in srgb, var(--caution) 15%, transparent);
+  border-color: var(--caution);
+  color: var(--caution);
+}
+
+/* A long tag wraps inside the card instead of running off its edge (Patrick, 4 Oct). */
+[data-module='traffic'] .aircraft-name {
+  align-items: flex-start;
+}
+
+[data-module='traffic'] .aircraft-name > strong,
+[data-module='traffic'] .aircraft-name > .aircraft-swatch,
+[data-module='traffic'] .aircraft-name > .aircraft-remove {
+  flex: none;
+}
+
+[data-module='traffic'] .aircraft-name > .pfl-badge {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Spawn a conflict is red (Patrick, 4 Oct). */
+[data-module='traffic'] .button.spawn-conflict {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+/* The layers in the Display box: the three presets one a row, then More. */
+[data-module='traffic'] .traffic-layers {
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* The card's menu (Pattern / Landing behaviour / Manoeuvres): its own box with an arrow button at the right, so it
+   reads as a menu (Patrick, 4 Oct). The arrow is drawn over the select; a click anywhere opens it. */
+[data-module='traffic'] .aircraft-menu {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+
+[data-module='traffic'] .aircraft-menu > .aircraft-menu-select {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font-weight: 700;
+  padding: 0.2rem 2rem 0.2rem 0.5rem;
+  cursor: pointer;
+}
+
+[data-module='traffic'] .aircraft-menu-arrow {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 20%, var(--bg-raised));
+  color: var(--accent-strong);
+  pointer-events: none;
+}
+
+[data-module='traffic'] .button.spawn-conflict[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: help;
+}
+
+/* The card menu in white on blue, its list too (Patrick, 4 Oct). #1b77a8 rather than the light accent so white text
+   keeps WCAG AA contrast (about 5:1; white on the accent is about 2:1). */
+[data-module='traffic'] .aircraft-menu {
+  border-color: #1b77a8;
+  background: #1b77a8;
+}
+
+[data-module='traffic'] .aircraft-menu > .aircraft-menu-select,
+[data-module='traffic'] .aircraft-menu > .aircraft-menu-select option {
+  background: #1b77a8;
+  color: #ffffff;
+}
+
+[data-module='traffic'] .aircraft-menu-arrow {
+  border-left-color: rgba(255, 255, 255, 0.5);
+  background: #155f87;
+  color: #ffffff;
+}
+
+/* A route's line settings: the ▸ beside its row, and thickness, opacity and ground draw under it (Patrick, 4 Oct). */
+[data-module='traffic'] .route-line-row {
+  display: flex;
+  gap: var(--space-1);
+  align-items: stretch;
+}
+
+[data-module='traffic'] .route-line-row > .route-row {
+  flex: 1;
+  min-width: 0;
+}
+
+[data-module='traffic'] .route-line-more {
+  flex: none;
+  min-height: 0;
+  padding: 0 var(--space-2);
+}
+
+[data-module='traffic'] .route-line-settings {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-1) 0 var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .route-line-settings[hidden] {
+  display: none;
+}
+
+[data-module='traffic'] .route-line-control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+[data-module='traffic'] .route-line-control > label {
+  min-width: 4.5rem;
+}
+
+[data-module='traffic'] .route-line-control > input[type='range'] {
+  flex: 1;
+  min-width: 0;
+}
+
+[data-module='traffic'] .route-line-value {
+  min-width: 2.75rem;
+  text-align: right;
+  color: var(--text-muted);
 }

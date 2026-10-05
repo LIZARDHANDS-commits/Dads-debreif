@@ -113,7 +113,7 @@ The simulator models the 15 Wing Moose Jaw circuit (Runway 29L left-hand circuit
   - **2D Airfield Map** in the center (centered on CYMJ Moose Jaw Runway 29L, 1,892 ft MSL field elevation).
   - **Aircraft List & Spawner** on the right (with callsign, type, route, altitude, airspeed readouts, and tactical maneuver buttons).
   - **Playback Bar** along the bottom with Play/Pause, Timeline slider, Time display, Speed multiplier, Photo toggle, 3D toggle. The wind is set in the Setup panel.
-- [ ] Open the sim: **Busy circuit** is showing, wind 260° at 15 kt. Press Play: the PFL glides in to High Key, and about two minutes in the straight-in meets the aircraft in its final turn, moves over toward the inner runway and goes around.
+- [ ] Open the sim: **Busy circuit** is showing, wind 260°M at 15 kt. Press Play: the PFL glides in to High Key, and about two minutes in the straight-in meets the aircraft in its final turn, moves over toward the inner runway and goes around.
 - [ ] Press each **Scenarios** button: the aircraft change to that scenario, paused at 0:00. **Random** gives five aircraft spread round the routes, and pressing it again gives a new picture.
 
 ---

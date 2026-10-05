@@ -32,32 +32,35 @@ export const DEFAULTS = Object.freeze({
   // 3D graphics quality: 'high' (sharp 4-tier satellite and up to 24 full Harvards) or 'low' (performance).
   graphicsQuality: 'low', // Performance by default (Patrick, 3D upgrade); High is one click in the 3D bar or Traffic settings
 
-  // Wind: 260°T at 15 kt, the opening picture's wind (Patrick, 4 Oct 18:47Z; was calm).
-  windFromDeg: 260,
+  // Wind: 260°M at 15 kt, the opening picture's wind (Patrick, 4 Oct 18:47Z; was calm). Set in true: 269°T with
+  // Moose Jaw's 9° East (TR-65). Patrick, 4 Oct: "260 magnetic is fine" (it was 260°T, which reads 251°M).
+  windFromDeg: 269,
   windKt: 15,
 
-  // Layers: trails, height and speed labels, route points, conflict bubbles,
-  // caution rings and the satellite photo on (V6's built-in setup); leg
-  // distances, turn data and Engine-out reach off.
-  layerTrails: true,
+  // Layers: the Clean Operational preset (Patrick, 4 Oct: "the default display settings to be clean operational"):
+  // labels, the wind-adjusted track and the photo on, with the caution ring and the PFL glide circle (both shown only
+  // round the selected aircraft) and the 3D height drop lines; trails, route points, bubbles, the SMM calm reference,
+  // leg distances and turn data off. The PFL ground circle is off too: only the overhead break and the OHB Rejoin show at first.
+  // (Before 4 Oct: trails, points, bubbles, height lines, the SMM reference and the PFL circle were on.)
+  layerTrails: false,
   layerLabels: true,
-  layerPoints: true,
-  layerBubbles: true,
+  layerPoints: false,
+  layerBubbles: false,
   layerCautionRings: true,
-  layerHeightLines: true,
+  layerHeightLines: true, // in Clean Operational for the 3D view (Patrick, 4 Oct)
   layerPhoto: true,
   layerWindTrack: true,
-  layerSmmReference: true,
-  layerPflCircle: true,
+  layerSmmReference: false,
+  layerPflCircle: false,
   layerLegDistances: false,
   layerTurnData: false,
-  layerEngineReach: false,
+  layerEngineReach: true, // the PFL glide circle, behind this tick (Patrick, 4 Oct)
 
   // Photo (More in Layers): opacity 100 %, drawn above the grid, the setup's
-  // own alignment (1.2 trim until the redraw, T8; no offset).
+  // own alignment (true scale since the routes were rebuilt in true feet, TR-67; no offset).
   photoOpacityPct: 100,
   photoAboveGrid: true,
-  photoTrim: 1.2,
+  photoTrim: 1,
   photoEastFt: 0,
   photoNorthFt: 0,
 

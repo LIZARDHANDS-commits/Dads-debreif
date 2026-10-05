@@ -41,7 +41,7 @@ import { buildFlinch, buildClimbAhead, EVADE, spacingExtensionFt, extendLimitFt 
 import { buildBreakout, gateLegOf, ENT1_ROUTE, BREAKOUT_TRAFFIC_BANK_DEG } from './breakout.js';
 import { RANDOM, rollFor, pick, oddsFor, buildDownwindStraightIn } from './randomize.js';
 import { behaviourOf, behaviourLabel } from './behaviour.js';
-import { PATTERN_ALT_FT, RUNWAY_29L_HDG_DEG, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
+import { PATTERN_ALT_FT, RUNWAY_29L_HDG_DEG, DEPARTURE_END_29L, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
 import { windTriangle } from '../../core/wind.js';
 import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
@@ -156,7 +156,17 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.active = true;
     a.landed = false;
     a.intent = a.intent ?? (route?.landOdds === 1 ? 'full_stop' : 'touch_and_go');
-    a.distFt = pointDistFt(route, Math.min(+a.startIndex || 0, route.points.length - 1), routeOptions());
+    if (Number.isFinite(a.backFt)) {
+      // A start partway along a leg (Patrick, 4 Oct: the OHB Rejoin in whole miles back): `backFt` back from the
+      // route's last point along the line it flies; startIndex becomes the spot it starts after.
+      const lastIndex = route.points.length - 1;
+      a.distFt = Math.max(0, pointDistFt(route, lastIndex, routeOptions()) - a.backFt);
+      let after = 0;
+      while (after < lastIndex - 1 && pointDistFt(route, after + 1, routeOptions()) <= a.distFt) after++;
+      a.startIndex = after;
+    } else {
+      a.distFt = pointDistFt(route, Math.min(+a.startIndex || 0, route.points.length - 1), routeOptions());
+    }
     a.lastLap = -1;
     a.splitTaken = {};
     a.trail = [];
@@ -179,8 +189,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       a.alt = 2400;
       a.iasKt = 140;
       a.headingDeg = RUNWAY_29L_HDG_DEG;
-      a.x = route.points[a.startIndex]?.x ?? -4066.03;
-      a.y = route.points[a.startIndex]?.y ?? 680.56;
+      a.x = route.points[a.startIndex]?.x ?? DEPARTURE_END_29L.x;
+      a.y = route.points[a.startIndex]?.y ?? DEPARTURE_END_29L.y;
       a.closedPatternBankDeg = a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
       startClosedPattern(a);
     } else {
@@ -206,15 +216,15 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
    * A new aircraft (V6 `makeAircraft`, line 234), started but not yet flown. Like V6's it notes,
    * once, the height of its start point (2,500 ft if that has none), for a route with no legs.
    */
-  function makeAircraft({ id, type, routeId, startIndex, startsAt, intent, area = null }) {
-    return toStart({ id, type, color: TYPE_COLORS[type] || '#fff', fallbackKt: TYPE_FALLBACK_KT[type] ?? 120, fallbackAlt: (routeById(routeId) || setup.routes[0])?.points[startIndex]?.alt || 2500, startRouteId: routeId, startIndex, startsAt, intent, ...(area ? { area: { ...area } } : {}) });
+  function makeAircraft({ id, type, routeId, startIndex, startsAt, intent, area = null, backFt }) {
+    return toStart({ id, type, color: TYPE_COLORS[type] || '#fff', fallbackKt: TYPE_FALLBACK_KT[type] ?? 120, fallbackAlt: (routeById(routeId) || setup.routes[0])?.points[startIndex]?.alt || 2500, startRouteId: routeId, startIndex, startsAt, intent, ...(area ? { area: { ...area } } : {}), ...(Number.isFinite(backFt) ? { backFt } : {}) });
   }
 
   /** An aircraft from a `setup.aircraft` entry. */
-  const aircraftFromSpec = (spec) => makeAircraft({ id: spec.id, type: spec.type, routeId: spec.routeId, startIndex: spec.startIndex, startsAt: spec.startsAtSec, intent: spec.intent, area: spec.area });
+  const aircraftFromSpec = (spec) => makeAircraft({ id: spec.id, type: spec.type, routeId: spec.routeId, startIndex: spec.startIndex, startsAt: spec.startsAtSec, intent: spec.intent, area: spec.area, backFt: spec.backFt });
 
   /** What an aircraft is before it flies: enough to make it again with `toStart`. */
-  const baseOf = (a) => ({ id: a.id, type: a.type, color: a.color, fallbackKt: a.fallbackKt, fallbackAlt: a.fallbackAlt, startRouteId: a.startRouteId, startIndex: a.startIndex, startsAt: a.startsAt, intent: a.intent, ...(a.area ? { area: { ...a.area } } : {}) });
+  const baseOf = (a) => ({ id: a.id, type: a.type, color: a.color, fallbackKt: a.fallbackKt, fallbackAlt: a.fallbackAlt, startRouteId: a.startRouteId, startIndex: a.startIndex, startsAt: a.startsAt, intent: a.intent, ...(a.area ? { area: { ...a.area } } : {}), ...(Number.isFinite(a.backFt) ? { backFt: a.backFt } : {}) });
   const freshFrom = (rec) => toStart({ ...rec });
 
   /** A callsign is in use if an aircraft has it now or a spawn still to come (the run was rewound past it) will give it. */
@@ -1167,10 +1177,11 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     /**
      * Adds an aircraft. `type` is a V6 type name (default CT-156), `routeId` a route (default the first),
      * `startPoint` counts from 1 as on screen (default 1; past the last point it is the last), `delaySec`
-     * is from now (default 0). Returns its callsign. `id` picks the callsign.
-     * @param {{ type?: string, routeId?: string, startPoint?: number, delaySec?: number, id?: string, intent?: string }} [spec]
+     * is from now (default 0). Returns its callsign. `id` picks the callsign. `backFt`, when given, starts it that
+     * far back from the route's last point along the line instead of at a start point (the OHB Rejoin's miles back).
+     * @param {{ type?: string, routeId?: string, startPoint?: number, delaySec?: number, id?: string, intent?: string, backFt?: number }} [spec]
      */
-    spawn({ type = 'CT-156', routeId, startPoint = 1, delaySec = 0, id, intent } = {}) {
+    spawn({ type = 'CT-156', routeId, startPoint = 1, delaySec = 0, id, intent, backFt } = {}) {
       settle();
       if (!TYPE_COLORS[type]) throw new RangeError(`unknown aircraft type ${type}`);
       const route = routeId === undefined ? setup.routes[0] : routeById(routeId);
@@ -1178,8 +1189,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (!route) throw new RangeError(`unknown route ${routeId}`);
       if (!Number.isInteger(startPoint) || startPoint < 1) throw new RangeError(`the start point counts from 1, not ${startPoint}`);
       if (!Number.isFinite(delaySec)) throw new RangeError(`the delay must be a number of seconds, not ${delaySec}`);
+      if (backFt !== undefined && !(Number.isFinite(backFt) && backFt >= 0)) throw new RangeError(`the distance back must be a number of feet from 0, not ${backFt}`);
       if (id !== undefined && inUse(id)) throw new RangeError(`callsign ${id} is in use`);
-      const rec = baseOf(makeAircraft({ id: id ?? nextCallsign(), type, routeId: route.id, startIndex: startPoint - 1, startsAt: t + delaySec, intent }));
+      const rec = baseOf(makeAircraft({ id: id ?? nextCallsign(), type, routeId: route.id, startIndex: startPoint - 1, startsAt: t + delaySec, intent, backFt }));
       happen({ kind: 'spawn', rec });
       return rec.id;
     },
@@ -1245,7 +1257,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
 
     /** The aircraft as `setup.aircraft` has them, so a profile can be saved with what was spawned. */
     aircraftSpecs() {
-      return rosterAtEnd().map((rec) => ({ id: rec.id, type: rec.type, routeId: rec.startRouteId, startIndex: rec.startIndex, startsAtSec: rec.startsAt, ...(rec.area ? { area: { ...rec.area } } : {}) }));
+      return rosterAtEnd().map((rec) => ({ id: rec.id, type: rec.type, routeId: rec.startRouteId, startIndex: rec.startIndex, startsAtSec: rec.startsAt, ...(rec.area ? { area: { ...rec.area } } : {}), ...(Number.isFinite(rec.backFt) ? { backFt: rec.backFt } : {}) }));
     },
 
     /** Where the dice are in their sequence (a number that changes with every roll). */

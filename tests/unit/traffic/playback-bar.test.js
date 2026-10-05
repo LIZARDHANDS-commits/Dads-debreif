@@ -76,24 +76,32 @@ test('the bar starts paused at 0:00:00 and 8×, with every clock control there',
   assert.equal(all(bar.element, (n) => n.getAttribute?.('role') === 'status')[0].textContent, 'Paused');
 });
 
-test('Fit all routes is in the Layers menu, after the layers, and closes the menu; Fit is in the bar before it (UI-01)', () => {
+// The Fit menu (Patrick, 4 Oct): Fit pattern and Fit all routes; the Layers menu no longer holds Fit all routes.
+const menuBodies = (bar) => all(bar.element, (n) => n.getAttribute?.('class')?.split(' ').includes('traffic-menu-body'));
+const menuButton = (bar, label) => tagged(bar.element, 'BUTTON').find((b) => b.getAttribute('aria-controls') && words(b) === label);
+
+test('Fit is a menu of Fit pattern and Fit all routes, before the Layers menu; each calls its own and closes the menu', () => {
   const { bar, calls } = setup();
-  const body = all(bar.element, (n) => n.getAttribute?.('class')?.split(' ').includes('traffic-menu-body'))[0];
-  const fitAll = tagged(body, 'BUTTON').find((b) => words(b) === 'Fit all routes');
-  assert.ok(fitAll, 'a Fit all routes button in the menu');
-  assert.equal(tagged(body, 'BUTTON').at(-1), fitAll, 'the last thing in it');
-  const bars = tagged(bar.element, 'BUTTON');
-  assert.ok(bars.findIndex((b) => words(b) === 'Fit') < bars.findIndex((b) => b.getAttribute('aria-controls')), 'Fit comes before the Layers button');
-  body.hidden = false;
-  fitAll.dispatch('click');
-  assert.deepEqual(calls, ['fitAll']);
-  assert.equal(body.hidden, true, 'the menu closes');
+  const fit = menuButton(bar, 'Fit'), layers = menuButton(bar, 'Layers');
+  assert.ok(fit && layers);
+  const buttons = tagged(bar.element, 'BUTTON');
+  assert.ok(buttons.indexOf(fit) < buttons.indexOf(layers), 'Fit comes before Layers');
+  const body = menuBodies(bar).find((b) => b.getAttribute('id') === fit.getAttribute('aria-controls'));
+  assert.deepEqual(tagged(body, 'BUTTON').map(words), ['Fit pattern', 'Fit all routes']);
+  for (const [name, call] of [['Fit pattern', 'fit'], ['Fit all routes', 'fitAll']]) {
+    body.hidden = false;
+    tagged(body, 'BUTTON').find((b) => words(b) === name).dispatch('click');
+    assert.equal(calls.at(-1), call);
+    assert.equal(body.hidden, true, 'the menu closes');
+  }
+  const layersBody = menuBodies(bar).find((b) => b.getAttribute('id') === layers.getAttribute('aria-controls'));
+  assert.equal(tagged(layersBody, 'BUTTON').some((b) => words(b).startsWith('Fit')), false, 'Layers has no Fit in it');
 });
 
-test('Play, Reset, Fit and Fit all call what they are given; the steps say which way', () => {
+test('Play, Reset and the steps call what they are given; the steps say which way', () => {
   const { bar, calls } = setup();
-  for (const name of ['Play', 'Reset', 'Fit', 'Fit all', '−10 s', '+10 s', 'Rewind']) press(bar.element, name);
-  assert.deepEqual(calls, ['play', 'reset', 'fit', 'fitAll', ['step', -10], ['step', 10], 'rewind']);
+  for (const name of ['Play', 'Reset', '−10 s', '+10 s', 'Rewind']) press(bar.element, name);
+  assert.deepEqual(calls, ['play', 'reset', ['step', -10], ['step', 10], 'rewind']);
 });
 
 test('the speed list runs from 0.25× to 8× and a choice is passed on as a number', () => {
@@ -165,7 +173,10 @@ test('Rewind and the ±10 s steps are left out until they can be called, so noth
   const { bar } = setup({ on: { rewind: undefined, step: undefined } });
   for (const name of ['Rewind', '−10 s', '+10 s']) assert.equal(pressable(bar.element, name), undefined, name);
   for (const name of ['Play', 'Reset', 'Fit']) assert.ok(pressable(bar.element, name), name);
-  assert.equal(pressable(setup({ on: { fitAll: undefined } }).bar.element, 'Fit all'), undefined, 'and so is Fit all');
+  const plain = setup({ on: { fitAll: undefined } });
+  assert.equal(pressable(plain.bar.element, 'Fit all'), undefined, 'and so is Fit all routes');
+  press(plain.bar.element, 'Fit');
+  assert.deepEqual(plain.calls, ['fit'], 'without it, Fit is one button that fits the pattern');
   const stepsOnly = setup({ on: { rewind: undefined } });
   assert.equal(pressable(stepsOnly.bar.element, 'Rewind'), undefined);
   assert.ok(pressable(stepsOnly.bar.element, '+10 s'));
@@ -207,13 +218,13 @@ test('the 3 master presets define the required layer states', () => {
   assert.equal(LAYER_PRESETS.cleanOperational.layers.layerWindTrack, true);
   assert.equal(LAYER_PRESETS.cleanOperational.layers.layerTrails, false);
   assert.equal(LAYER_PRESETS.cleanOperational.layers.layerPoints, false);
-  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerCautionRings, false);
+  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerCautionRings, true, 'round the selected aircraft only (Patrick, 4 Oct)');
   assert.equal(LAYER_PRESETS.cleanOperational.layers.layerLegDistances, false);
   assert.equal(LAYER_PRESETS.cleanOperational.layers.layerTurnData, false);
   assert.equal(LAYER_PRESETS.cleanOperational.layers.layerBubbles, false);
-  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerHeightLines, false);
+  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerHeightLines, true, 'the 3D height drop lines (Patrick, 4 Oct)');
   assert.equal(LAYER_PRESETS.cleanOperational.layers.layerSmmReference, false);
-  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerEngineReach, false);
+  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerEngineReach, true, 'the glide circle, selected aircraft only (Patrick, 4 Oct)');
 
   // Standard Training (Default)
   assert.equal(LAYER_PRESETS.standardTraining.layers.layerPhoto, true);
@@ -227,7 +238,7 @@ test('the 3 master presets define the required layer states', () => {
   assert.equal(LAYER_PRESETS.standardTraining.layers.layerTurnData, false);
   assert.equal(LAYER_PRESETS.standardTraining.layers.layerBubbles, false);
   assert.equal(LAYER_PRESETS.standardTraining.layers.layerHeightLines, false);
-  assert.equal(LAYER_PRESETS.standardTraining.layers.layerEngineReach, false);
+  assert.equal(LAYER_PRESETS.standardTraining.layers.layerEngineReach, true, 'the PFL glide circle, as the screen has always shown it');
 
   // Full Telemetry
   assert.equal(LAYER_PRESETS.fullTelemetry.layers.layerPhoto, true);
@@ -244,15 +255,20 @@ test('the 3 master presets define the required layer states', () => {
   assert.equal(LAYER_PRESETS.fullTelemetry.layers.layerEngineReach, true);
 });
 
-test('the Layers menu binds the underlying layer settings for available features', () => {
-  const { controls } = setup();
+test('the Layers menu has a tick for every layer, under More, the 2D-only ones saying so; the PFL circle is on the routes list instead', () => {
+  const { bar, controls } = setup();
   const layers = controls.asked.filter((a) => a.kind === 'checkbox');
   assert.deepEqual(layers.map((l) => l.key), [
-    'layerTrails', 'layerLabels', 'layerPoints', 'layerLegDistances', 'layerTurnData', 'layerBubbles', 'layerCautionRings', 'layerPflCircle',
+    'layerTrails', 'layerLabels', 'layerPoints', 'layerLegDistances', 'layerTurnData', 'layerBubbles', 'layerCautionRings',
   ]);
   assert.deepEqual(layers.map((l) => l.label), [
-    'Trails', 'Height and speed labels', 'Route points', 'Leg distances', 'Turn data (radius and bank)', 'Conflict bubbles', 'Caution rings', 'PFL ground circle',
+    'Trails (2D)', 'Height and speed labels', 'Route points (2D)', 'Leg distances (2D)', 'Turn data, radius and bank (2D)', 'Conflict bubbles (2D)', 'Caution rings',
   ]);
+  const more = all(bar.element, (n) => n.getAttribute?.('class') === 'traffic-layer-more')[0];
+  assert.equal(more.tagName, 'DETAILS');
+  assert.equal(words(tagged(more, 'SUMMARY')[0]), 'More');
+  assert.equal(all(more, (n) => n.dataset?.key === 'layerTrails').length, 1, 'the ticks are inside More, not hidden');
+  assert.equal(all(more, (n) => n.getAttribute?.('hidden') !== null && n.getAttribute?.('class') === 'traffic-layer-controls').length, 0);
 });
 
 test('the photo and Engine-out reach layers, and the 2D | 3D switch, appear only when their features are there', () => {
@@ -349,22 +365,27 @@ function withRealControls(options = {}) {
 const numberBoxes = (bar) => tagged(bar.element, 'INPUT').filter((i) => i.getAttribute('type') === 'number');
 const messages = (bar) => all(bar.element, (n) => n.getAttribute?.('class') === 'control-message');
 
+// Wind from reads in °M (Patrick's card, 5 Oct 01:39Z; 9° East, TR-65), and the setting stays true.
 test('the wind boxes start at the default wind, take a good wind into the settings, and refuse the rest with a message', () => {
   const { bar, settings } = withRealControls();
   const [from, speed] = numberBoxes(bar);
-  assert.deepEqual([from.value, speed.value], [String(DEFAULTS.windFromDeg), String(DEFAULTS.windKt)]);
+  assert.deepEqual([from.value, speed.value], [String(DEFAULTS.windFromDeg - 9), String(DEFAULTS.windKt)]);
+  assert.ok(words(bar.element).includes('°M'), 'the direction says magnetic');
 
   from.value = '250';
   from.dispatch('input');
   speed.value = '20';
   speed.dispatch('input');
-  assert.deepEqual([settings.get().windFromDeg, settings.get().windKt], [250, 20]);
+  assert.deepEqual([settings.get().windFromDeg, settings.get().windKt], [259, 20], '250°M is 259° true');
+  settings.update({ windFromDeg: 300 });
+  assert.equal(from.value, '291', 'a wind set elsewhere (the dial) shows in °M');
+  settings.update({ windFromDeg: 259 });
 
   for (const [box, bad] of [[from, '400'], [from, '0'], [from, ''], [speed, '61'], [speed, '-1']]) {
     box.value = bad;
     box.dispatch('input');
     box.dispatch('change');
-    assert.deepEqual([settings.get().windFromDeg, settings.get().windKt], [250, 20], `"${bad}" is refused and the last good value stays`);
+    assert.deepEqual([settings.get().windFromDeg, settings.get().windKt], [259, 20], `"${bad}" is refused and the last good value stays`);
     assert.equal(box.getAttribute('aria-invalid'), 'true');
   }
   assert.match(messages(bar)[0].textContent, /Enter a number from 1 to 360/);
@@ -374,32 +395,24 @@ test('the wind boxes start at the default wind, take a good wind into the settin
 test('selecting a layer preset updates the settings to match that preset', () => {
   const { bar, settings } = withRealControls({ available: { wind: true, photo: true, windTrack: true, view3d: true, reach: true } });
 
-  // Initially DEFAULTS are loaded
-  assert.equal(settings.get().layerTrails, true);
-  assert.equal(settings.get().layerLabels, true);
-  assert.equal(settings.get().layerPoints, true);
-  assert.equal(settings.get().layerCautionRings, true);
-  assert.equal(settings.get().layerPhoto, true);
-  assert.equal(settings.get().layerWindTrack, true);
-  assert.equal(settings.get().layerSmmReference, true);
-  assert.equal(settings.get().layerLegDistances, false);
-  assert.equal(settings.get().layerTurnData, false);
-  assert.equal(settings.get().layerBubbles, DEFAULTS.layerBubbles);
+  // The opening layers are Clean Operational's (Patrick, 4 Oct), with the PFL ground circle off.
+  for (const [key, val] of Object.entries(LAYER_PRESETS.cleanOperational.layers)) assert.equal(settings.get()[key], val, key);
+  assert.equal(settings.get().layerPflCircle, false);
 
-  // Switch to Clean Operational: activates Photo, Labels, Wind Track; all other layers false
+  // Switch to Clean Operational: Photo, Labels, Wind Track, and the selected aircraft's caution ring and glide circle
   press(bar.element, 'Clean Operational');
   assert.equal(settings.get().layerPhoto, true);
   assert.equal(settings.get().layerLabels, true);
   assert.equal(settings.get().layerWindTrack, true);
   assert.equal(settings.get().layerTrails, false);
   assert.equal(settings.get().layerPoints, false);
-  assert.equal(settings.get().layerCautionRings, false);
+  assert.equal(settings.get().layerCautionRings, true);
   assert.equal(settings.get().layerSmmReference, false);
   assert.equal(settings.get().layerLegDistances, false);
   assert.equal(settings.get().layerTurnData, false);
   assert.equal(settings.get().layerBubbles, false);
-  assert.equal(settings.get().layerHeightLines, false);
-  assert.equal(settings.get().layerEngineReach, false);
+  assert.equal(settings.get().layerHeightLines, true);
+  assert.equal(settings.get().layerEngineReach, true);
 
   // Switch to Full Telemetry: activates all layers including Leg Distances, Turn Data, Height Lines, Conflict Bubbles
   press(bar.element, 'Full Telemetry');
@@ -429,20 +442,26 @@ test('selecting a layer preset updates the settings to match that preset', () =>
   assert.equal(settings.get().layerTurnData, false);
   assert.equal(settings.get().layerBubbles, false);
   assert.equal(settings.get().layerHeightLines, false);
-  assert.equal(settings.get().layerEngineReach, false);
+  assert.equal(settings.get().layerEngineReach, true);
 });
 
 test('preset buttons reflect the active preset state and update on preset change', () => {
   const { bar } = withRealControls({ available: { wind: true, photo: true, windTrack: true, view3d: true, reach: true } });
   const getPressed = () => tagged(bar.element, 'BUTTON').find((b) => b.getAttribute('data-preset') && b.getAttribute('aria-pressed') === 'true');
 
-  assert.equal(getPressed()?.getAttribute('data-preset'), 'standardTraining');
+  // The opening layers are Clean Operational's, so it shows as chosen (Patrick, 4 Oct).
+  assert.equal(getPressed()?.getAttribute('data-preset'), 'cleanOperational');
   press(bar.element, 'Clean Operational');
   assert.equal(getPressed()?.getAttribute('data-preset'), 'cleanOperational');
   press(bar.element, 'Full Telemetry');
   assert.equal(getPressed()?.getAttribute('data-preset'), 'fullTelemetry');
   press(bar.element, 'Standard Training');
   assert.equal(getPressed()?.getAttribute('data-preset'), 'standardTraining');
+  // A single tick that breaks the match lights none.
+  const trails = tagged(bar.element, 'INPUT').find((i) => i.getAttribute('type') === 'checkbox' && all(i.parentNode, (n) => n.tagName === 'LABEL').some((l) => words(l) === 'Trails (2D)'));
+  trails.checked = false;
+  trails.dispatch('change');
+  assert.equal(getPressed(), undefined);
 });
 
 test('a note replaces the status words while it is set ("Replaying…"), and clearing it brings the mode back', () => {
@@ -461,7 +480,8 @@ test('a note replaces the status words while it is set ("Replaying…"), and cle
 
 test('runway selector renders with Runway 29L (Active) selected by default, and does not offer Runway 11R until it works (TR-R28)', () => {
   const { bar } = setup();
-  const select = all(bar.element, (n) => n.getAttribute?.('aria-label') === 'Active runway')[0];
+  assert.equal(all(bar.element, (n) => n.getAttribute?.('aria-label') === 'Active runway').length, 0, 'not in the bar: it sits in the Setup column');
+  const select = bar.runway;
   assert.ok(select, 'Active runway select element is rendered');
   assert.equal(select.value, '29L');
 
@@ -486,7 +506,7 @@ test('selecting or changing runway triggers on.runwayChange and updates settings
     },
   });
 
-  const select = all(bar.element, (n) => n.getAttribute?.('aria-label') === 'Active runway')[0];
+  const select = bar.runway;
   assert.ok(select);
   assert.equal(select.value, '29L');
   assert.equal(settings.get().runway, '29L');
@@ -496,4 +516,14 @@ test('selecting or changing runway triggers on.runwayChange and updates settings
 
   assert.equal(changedRunway, '11R');
   assert.equal(settings.get().runway, '11R');
+});
+
+test('with layersInBar false the bar has no Layers menu and hands the presets and ticks over as one block (Patrick, 4 Oct)', () => {
+  const calls = [];
+  const bar = createPlaybackBar({ controls: stubControls(), on: { play() {}, pause() {}, reset() {}, fit: () => calls.push('fit'), speed() {} }, listen: () => {}, layersInBar: false });
+  assert.equal(tagged(bar.element, 'BUTTON').some((b) => words(b) === 'Layers'), false);
+  assert.ok(bar.layers, 'the layers block');
+  assert.deepEqual(tagged(bar.layers, 'BUTTON').filter((b) => b.getAttribute('data-preset')).map(words), ['Clean Operational', 'Standard Training', 'Full Telemetry']);
+  assert.equal(tagged(bar.layers, 'SUMMARY').map(words)[0], 'More');
+  assert.equal(createPlaybackBar({ controls: stubControls(), on: { play() {}, pause() {}, reset() {}, fit() {}, speed() {} }, listen: () => {} }).layers, null, 'in the bar by default');
 });

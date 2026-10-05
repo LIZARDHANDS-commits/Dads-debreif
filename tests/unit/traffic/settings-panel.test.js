@@ -251,7 +251,7 @@ test('the conflict limits carry a one-line hint that a screen reader reads with 
 test('the 3D view\'s Paint choice is in the menu, Harvard first and by default, and Reset to Standard Defaults puts it back', () => {
   const { panel, settings } = setup({ available: { view3d: true } });
   assert.ok(legends(panel).length >= 0);
-  const label = tagged(panel.element, 'LABEL').find((l) => words(l) === 'Paint');
+  const label = tagged(panel.element, 'LABEL').find((l) => words(l) === 'Paint (3D)');
   assert.ok(label, 'a "Paint" label');
   const selects = tagged(panel.element, 'SELECT');
   const paintSelect = selects.find((s) => s.id === label.getAttribute('for'));
@@ -283,7 +283,7 @@ test('Reset button has title and label "Reset to Standard Defaults" (D384)', () 
 
 test('without the 3D view there is no Paint choice (R3)', () => {
   const { panel } = setup({ available: {} });
-  const paintLabel = tagged(panel.element, 'LABEL').find((l) => words(l) === 'Paint');
+  const paintLabel = tagged(panel.element, 'LABEL').find((l) => words(l) === 'Paint (3D)');
   assert.equal(paintLabel, undefined);
 });
 
@@ -298,18 +298,11 @@ test('Closed pattern settings include the Bank angle select', () => {
   assert.equal(settings.get().closedPatternBankDeg, 50);
 });
 
-test('the 3D view Graphics Quality selector switches between High and Performance', () => {
+test('Graphics (High or Performance) is not in Traffic settings: it is switched in the 3D view bar only (Patrick, 4 Oct), and Reset still puts it back', () => {
   const { panel, settings } = setup({ available: { view3d: true } });
-  const label = tagged(panel.element, 'LABEL').find((l) => words(l) === 'Graphics');
-  assert.ok(label, 'a "Graphics" label exists');
-  const select = tagged(panel.element, 'SELECT').find((s) => s.id === label.getAttribute('for'));
-  assert.ok(select, 'a select for Graphics exists');
-  assert.equal(settings.get().graphicsQuality, 'low');
+  assert.equal(tagged(panel.element, 'LABEL').some((l) => words(l) === 'Graphics'), false);
   assert.equal(DEFAULTS.graphicsQuality, 'low');
-  select.value = '0';
-  select.dispatch('change');
-  assert.equal(settings.get().graphicsQuality, 'high');
-  const reset = buttonNamed(panel, 'Reset to Standard Defaults');
-  reset.dispatch('click');
+  settings.update({ graphicsQuality: 'high' });
+  buttonNamed(panel, 'Reset to Standard Defaults').dispatch('click');
   assert.equal(settings.get().graphicsQuality, 'low');
 });

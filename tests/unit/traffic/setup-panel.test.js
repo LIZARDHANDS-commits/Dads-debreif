@@ -8,7 +8,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SCENARIOS, RANDOM_COUNT, RANDOM_SPACING_FT, BUSY_COUNT, randomStarts, scenarioAircraft, dialBearing, runwayWindText } from '../../../src/modules/traffic/setup-panel.js';
+import { SCENARIOS, RANDOM_COUNT, RANDOM_SPACING_FT, BUSY_COUNT, randomStarts, scenarioAircraft, dialWindFrom, runwayWindText } from '../../../src/modules/traffic/setup-panel.js';
 import { straightInDelaySec, conflictSpawnPlan } from '../../../src/modules/traffic/scenario-timing.js';
 import { createSim } from '../../../src/modules/traffic/sim.js';
 
@@ -78,12 +78,21 @@ test('Setup: "Moose Jaw day" is the built-in setup\'s own aircraft, and every sc
   }
 });
 
-test('Setup: the dial reads compass bearings (north up, east right), 360 for north', () => {
-  assert.equal(dialBearing(0, -50), 360);
-  assert.equal(dialBearing(50, 0), 90);
-  assert.equal(dialBearing(0, 50), 180);
-  assert.equal(dialBearing(-50, 0), 270);
-  assert.equal(dialBearing(Math.sin((203 * Math.PI) / 180) * 50, -Math.cos((203 * Math.PI) / 180) * 50), 200, 'drag steps of 10°');
+// The variation is 9° East (Patrick's ruling, TR-65): magnetic = true - 9.
+test('Setup: the dial reads magnetic compass bearings in 5° steps (north up, east right in 2D) and gives the wind in true', () => {
+  assert.equal(dialWindFrom(0, -50), 9, 'straight up is 360°M, 009°T');
+  assert.equal(dialWindFrom(50, 0), 99, 'right is 090°M');
+  assert.equal(dialWindFrom(0, 50), 189, 'down is 180°M');
+  assert.equal(dialWindFrom(-50, 0), 279, 'left is 270°M');
+  const at = (deg) => [Math.sin((deg * Math.PI) / 180) * 50, -Math.cos((deg * Math.PI) / 180) * 50];
+  assert.equal(dialWindFrom(...at(203)), 204, '203° on the dial is 194°M, which lands on 195°M: 204°T');
+});
+
+test('Setup: a dial turned with the 3D view reads the bearing under the pointer as the turned dial shows it', () => {
+  // Facing east (090°T up the screen), straight down: up the dial is 090°T, 081°M, which lands on 080°M.
+  assert.equal(dialWindFrom(0, -50, 90), 89);
+  // Facing west (270°T up the screen): a point to the right on the dial is north, 360°T, 351°M, which lands on 350°M: 359°T.
+  assert.equal(dialWindFrom(50, 0, 270), 359);
 });
 
 test('Setup: the runway wind line gives head and cross wind as a pilot works them out for 29L (298°T)', () => {
@@ -106,4 +115,17 @@ test('Spawn a conflict finds a straight-in that meets an aircraft on initial, in
   assert.ok(plan, 'a straight-in can meet it');
   // Inside the caution distance (500 ft, TR-Q11), and far enough ahead to be seen coming.
   assert.ok(plan.closestFt < 500 && plan.inSec >= 20, JSON.stringify(plan));
+  // Anywhere along the route, not only at its spots (Patrick, 4 Oct): spawned there and flown, the two really meet,
+  // inside 500 ft and 500 ft, near when the plan said (within 30 s, a generous margin for the start's placement).
+  assert.ok(Number.isFinite(plan.backFt) && plan.backFt >= 0, 'a distance back along the route');
+  const id = sim.spawn({ routeId: 'ENT2', startPoint: 1, backFt: plan.backFt, delaySec: plan.delaySec, id: 'CX' });
+  const t0 = sim.t;
+  let met = null;
+  for (let s = 0.5; s <= plan.inSec + 30 && !met; s += 0.5) {
+    sim.stepTo(t0 + s);
+    const now = sim.state().aircraft;
+    const a = now.find((x) => x.id === id), b = now.find((x) => x.id === target.id);
+    if (a?.status === 'flying' && b?.status === 'flying' && Math.abs(a.alt - b.alt) < 500 && Math.hypot(a.x - b.x, a.y - b.y) < 500) met = s;
+  }
+  assert.ok(met !== null, `flown, they meet inside 500 ft and 500 ft by ${plan.inSec + 30} s`);
 });

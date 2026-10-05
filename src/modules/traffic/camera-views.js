@@ -7,8 +7,8 @@
 // 90 is level), clamped to the view's limits. Display only: no flight math.
 import { THRESHOLD_29L, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
 
-/** The tower cab at CYMJ, in local feet, and how far above the field its eye sits. */
-export const TOWER_FT = Object.freeze({ x: 30, y: 2575 });
+/** The tower cab at CYMJ, in local feet (true feet, TR-67: placed on the stretched photo, then divided by 1.2), and how far above the field its eye sits. */
+export const TOWER_FT = Object.freeze({ x: 25, y: 2146 });
 export const TOWER_EYE_AGL_FT = 140;
 /** Runway 29L threshold (local feet, ft MSL): what the Padlock view keeps in sight. */
 export const RWY_29L_THRESHOLD = Object.freeze({ x: THRESHOLD_29L.x, y: THRESHOLD_29L.y, alt: THRESHOLD_DATA_ELEV_FT });
@@ -64,9 +64,10 @@ export function topDownCamera(box, size) {
  * south-south-east, low over the base, with the runways in the lower half and the circuit beyond them. The angles,
  * the middle of the picture and the ground across the screen were measured from that picture by lining up the
  * runways and the tower (estimates): yaw 148°, 77° from straight down, about 11,500 ft across, centred over the
- * circuit south-east of the 29L threshold at field height.
+ * circuit south-east of the 29L threshold at field height. Centre and span divided by 1.2 with the true-scale
+ * map (TR-67), so the same ground fills the screen.
  */
-export const FIELD_VIEW = Object.freeze({ yawDeg: 148, pitchDeg: 77, spanFt: 11_500, center: Object.freeze({ x: 5100, y: -6200 }) });
+export const FIELD_VIEW = Object.freeze({ yawDeg: 148, pitchDeg: 77, spanFt: 9_600, center: Object.freeze({ x: 4250, y: -5167 }) });
 
 /** Over the field: the opening view above, the same ground across any screen width. */
 export function fieldCamera(size) {

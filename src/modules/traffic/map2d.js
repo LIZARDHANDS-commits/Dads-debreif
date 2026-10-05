@@ -27,7 +27,7 @@ import { FT_PER_NM } from '../../core/units.js';
 import { windVectorFtps } from '../../core/wind.js';
 import { glideRatio, iasToTasKt } from '../../core/t6-performance.js';
 import { PFL, PFL_CONFIGS, PFL_CONFIG_LABELS } from './pfl.js';
-import { FIELD_ELEV_FT, THRESHOLD_29L, PFL_CIRCLE_RADIUS_FT, PATTERN_ALT_FT } from './airfield.js';
+import { FIELD_ELEV_FT, THRESHOLD_29L, PFL_CIRCLE_RADIUS_FT, PATTERN_ALT_FT, trueToMagnetic } from './airfield.js';
 import { TYPE_COLORS as FLEET_COLORS } from './types.js';
 import { T6_LENGTH_FT } from './types.js';
 
@@ -86,11 +86,11 @@ export const heightSpeedText = (ac) => `${whole(ac.alt)} ft ${whole(ac.kt)} kt`;
 /** "1,250 ft", a leg's length on the map. */
 export const feetText = (ft) => `${whole(ft)} ft`;
 
-/** "Wind 250°T 20 kt", or nothing when the wind is calm. */
+/** "Wind 241°M 20 kt" for a wind from 250° true, or nothing when the wind is calm: magnetic, as the runways are (Patrick, 4 Oct). */
 export function windText(fromDeg, kt) {
   if (!(kt > 0)) return '';
-  const from = String(Math.round(fromDeg) % 360 || 360).padStart(3, '0');
-  return `Wind ${from}°T ${whole(kt)} kt`;
+  const from = String(trueToMagnetic(fromDeg)).padStart(3, '0');
+  return `Wind ${from}°M ${whole(kt)} kt`;
 }
 
 /** The direction the wind blows towards, in degrees true (the arrow points this way). */
@@ -117,7 +117,7 @@ export function turnLabelText(point) {
  * `place` names the setup ("Moose Jaw"), or is left empty for one of the user's own.
  */
 export function hintFor({ timeS, mode, aircraftCount, place = HOME_SETUP }) {
-  if (aircraftCount === 0) return 'No aircraft yet. Use + Spawn on the right to add one.';
+  if (aircraftCount === 0) return 'No aircraft yet. Press a spot under Spawn on the right to add one.';
   if (timeS !== 0 || mode !== 'paused') return '';
   return `Press Play to watch the ${place ? `${place} ` : ''}traffic.`;
 }
@@ -186,6 +186,10 @@ export function gridLines({ minX, minY, maxX, maxY }, stepFt) {
 export const gridLabel = (stepFt) => `Grid: ${whole(stepFt)} ft`;
 
 /** How a route is drawn: patterns solid, entries dashed, splits dotted (V6 line 281); a PFL dash-dot. */
+/** A route's own line thickness (a multiple of its kind's) and opacity, 0-1, from the Display box (Patrick, 4 Oct). */
+export const lineScale = (route) => (Number.isFinite(route?.lineScale) && route.lineScale > 0 ? route.lineScale : 1);
+export const lineOpacity = (route) => (Number.isFinite(route?.lineOpacity) ? Math.min(1, Math.max(0, route.lineOpacity)) : 1);
+
 export function routeStyle(kind) {
   if (kind === 'entry') return { dash: [8, 6], width: 2.5 };
   if (kind === 'split') return { dash: [3, 7], width: 2.5 };
@@ -335,10 +339,9 @@ export function isPflActive(a) {
  * @returns {boolean}
  */
 export function shouldShowGlideFootprint(a, selectedAircraftId = null) {
-  if (!a) return false;
-  if (isPflActive(a)) return true;
-  if (selectedAircraftId && a.id === selectedAircraftId && (a.command?.startsWith('pfl') || a.engineFailed)) return true;
-  return false;
+  // Only for the selected aircraft (Patrick, 4 Oct), and only while it is gliding or set up for a PFL.
+  if (!a || !selectedAircraftId || a.id !== selectedAircraftId) return false;
+  return isPflActive(a) || Boolean(a.command?.startsWith('pfl'));
 }
 
 /**
@@ -589,16 +592,16 @@ export function drawScene(ctx, map, scene, settings, palette, layers = {}) {
       if (showWind) {
         const chosen = route.id === picked;
         ctx.save();
-        ctx.globalAlpha = picked !== null && !chosen ? 0.55 : 1;
-        line(route.path, route.color, chosen ? 4.5 : 3, [], true);
+        ctx.globalAlpha = (picked !== null && !chosen ? 0.55 : 1) * lineOpacity(route);
+        line(route.path, route.color, (chosen ? 4.5 : 3) * lineScale(route), [], true);
         ctx.restore();
       }
     } else {
       const style = routeStyle(route.kind);
       const chosen = route.id === picked;
       ctx.save();
-      ctx.globalAlpha = picked !== null && !chosen ? 0.55 : 1;
-      line(path, route.color, chosen ? style.width + 1.5 : style.width, style.dash, route.kind === 'pattern');
+      ctx.globalAlpha = (picked !== null && !chosen ? 0.55 : 1) * lineOpacity(route);
+      line(path, route.color, (chosen ? style.width + 1.5 : style.width) * lineScale(route), style.dash, route.kind === 'pattern');
       ctx.restore();
     }
 
@@ -665,7 +668,10 @@ export function drawScene(ctx, map, scene, settings, palette, layers = {}) {
   for (const ac of flying) {
     const [x, y] = at(ac);
     const level = levels.get(ac.id);
-    if (settings.layerCautionRings) {
+    // The caution ring: round the selected aircraft only (Patrick, 4 Oct: "only the aircraft selected should have the
+    // green circle"). A conflict still shows by its bubble and its words.
+    const ringed = ac.id === (scene.selectedAircraftId ?? null);
+    if (settings.layerCautionRings && ringed) {
       ctx.save();
       const hot = level === 'caution';
       ctx.globalAlpha = hot ? 1 : 0.3;
@@ -699,7 +705,7 @@ export function drawScene(ctx, map, scene, settings, palette, layers = {}) {
   const windFromDeg = settings.windFromDeg ?? scene.windFromDeg ?? 360;
   const windKt = settings.windKt ?? scene.windKt ?? 0;
   for (const ac of flying) {
-    if (shouldShowGlideFootprint(ac, scene.selectedAircraftId ?? null)) {
+    if (settings.layerEngineReach !== false && shouldShowGlideFootprint(ac, scene.selectedAircraftId ?? null)) { // the Engine-out reach tick
       const footprint = calculateGlideFootprint(ac, windFromDeg, windKt);
       if (footprint.rGlide > 0) {
         const [scx, scy] = map.worldToScreen(footprint.cx, footprint.cy);
@@ -808,7 +814,7 @@ function drawPoints(ctx, route, at, text, palette, circle) {
   });
 }
 
-// The wind arrow and "Wind 250°T 20 kt" in the top right corner, only when it isn't calm.
+// The wind arrow and "Wind 241°M 20 kt" in the top right corner, only when it isn't calm.
 function drawWind(ctx, map, settings, palette, text) {
   const words = windText(settings.windFromDeg, settings.windKt);
   if (!words) return;
@@ -833,10 +839,10 @@ export function pflCircleLayout() {
   const rad208 = (208 * Math.PI) / 180;
   const nLeftX = Math.sin(rad208); // -0.469472 (West)
   const nLeftY = Math.cos(rad208); // -0.882948 (South)
-  const center = { x: th.x + radiusFt * nLeftX, y: th.y + radiusFt * nLeftY }; // (1677.7, -5876.4) ft
-  const lowKey = { x: th.x + 2 * radiusFt * nLeftX, y: th.y + 2 * radiusFt * nLeftY }; // (252, -8559) ft
+  const center = { x: th.x + radiusFt * nLeftX, y: th.y + radiusFt * nLeftY };
+  const lowKey = { x: th.x + 2 * radiusFt * nLeftX, y: th.y + 2 * radiusFt * nLeftY };
   const rad118 = (118 * Math.PI) / 180; // Final Key: 270° round the circle, bearing 118° from its centre
-  const finalKey = { x: center.x + radiusFt * Math.sin(rad118), y: center.y + radiusFt * Math.cos(rad118) }; // (4360, -7303) ft
+  const finalKey = { x: center.x + radiusFt * Math.sin(rad118), y: center.y + radiusFt * Math.cos(rad118) };
   return { highKey: { x: th.x, y: th.y }, center, radiusFt, lowKey, finalKey };
 }
 
