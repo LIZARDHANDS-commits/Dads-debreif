@@ -218,7 +218,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
         // The four: the time left on the change (its legs and gates are in the note above it).
         rejoinBlock.hidden = !c;
         if (c) rejoinBlock.append(h('li', {}, `About ${Math.max(0, Math.round(state.current.endSec - state.tSec))} s to go`));
-        const flags = fourChangeFlags(state, where);
+        const flags = [...fourChangeFlags(state, where), ...stretchedFlags(state)];
         flagList.hidden = flags.length === 0;
         for (const f of flags) flagList.append(h('li', { class: 'tone-caution' }, f));
         return;
@@ -237,10 +237,20 @@ export function createChangeUi({ onChange, fluidUi = null }) {
         const how = [wing.overshooting ? 'OVERSHOOTING, behind and below Lead (SMM 12.27 para 65)' : null, slowWord(wing) ? `${slowWord(wing)} to control the overtake` : null].filter(Boolean);
         if (how.length) rejoinBlock.append(h('li', { class: 'tone-caution' }, `#2: ${how.join('; ')}`));
       }
-      const flags = where.key === 'fluid' ? [] : changeFlags(state, where); // fluid has its own flags (fluid-panel.js)
+      const flags = where.key === 'fluid' ? [] : [...changeFlags(state, where), ...stretchedFlags(state)]; // fluid has its own flags (fluid-panel.js)
       flagList.hidden = flags.length === 0;
       for (const f of flags) flagList.append(h('li', { class: 'tone-caution' }, f));
       fluidUi?.renderCard(state);
     },
   };
+}
+
+/**
+ * The card's STRETCHED lines (TS-63, Patrick 5 Oct 02:48Z): each wingman held to full power behind the place his line wanted
+ * him, who closes up as best he can once Lead's manoeuvre ends.
+ */
+function stretchedFlags(state) {
+  return state.aircraft
+    .filter((a) => a.ref != null && a.stretched)
+    .map((a) => `${a.name ?? `#${a.id}`}: STRETCHED, at full power behind his place; he closes up as best he can once Lead's manoeuvre ends.`);
 }

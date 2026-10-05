@@ -15,7 +15,8 @@
 // 23:07Z: "this is true in fighting wing as well"; 23:08Z: "during the turn all that matters is their distance from lead
 // for spacing"). Straight and level, and at the roll-out, the full verdict shows again. The real flag stays either way:
 // a wingman ahead of the 3/9 line of the aircraft he flies off reads AHEAD OF 3/9.
-// A wingman on an overshoot reads OVERSHOOTING (TS-62).
+// A wingman on an overshoot reads OVERSHOOTING (TS-62); one held to full power behind his planned place reads STRETCHED
+// (TS-63, Patrick 5 Oct 02:48Z).
 // Every tag has a power line when what flies the aircraft sets its power (live/power.js; Patrick 5 Oct 01:44Z): MAX, PWR
 // nn% (the model's throttle, not a torque reading), or in red IDLE, BOARDS or IDLE+BOARDS (TS-61, TS-62). None otherwise.
 // formation.js first: the live files import each other in a loop, and entering it at transitions.js reads REJOIN in
@@ -136,8 +137,9 @@ export function tagLines(state, where) {
       const rel = relativeTo(ref, a);
       detail = `${ft(rel.left)} abeam${refId === 1 ? '' : ` of ${ref.name ?? `#${refId}`}`}`;
     }
-    // How he is flying it (TS-62): OVERSHOOTING in place of what the formation is doing; his power on its own line.
-    out[a.id] = { title: `${name} · ${a.overshooting ? 'OVERSHOOTING' : what}`, detail, power: powerWord(a.power) };
+    // How he is flying it (TS-62): OVERSHOOTING in place of what the formation is doing, or STRETCHED while he is held to
+    // full power behind his place (TS-63); his power on its own line.
+    out[a.id] = { title: `${name} · ${a.overshooting ? 'OVERSHOOTING' : a.stretched ? 'STRETCHED' : what}`, detail, power: powerWord(a.power) };
   }
   return out;
 }
