@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1650 1150" font-family="system-ui,sans-serif" font-size="13">
+<rect width="100%" height="100%" fill="#fbfaf7"/><clipPath id="map"><rect width="1650" height="1000"/></clipPath><g clip-path="url(#map)">
+<polyline fill="none" stroke="#222" stroke-width="4.0" stroke-dasharray="" stroke-linejoin="round" points="969.9,319.4 810.7,232.8"/>
+<polyline fill="none" stroke="#d97706" stroke-width="2.4" stroke-dasharray="12 8" stroke-linejoin="round" points="1040.6,1211.8 1253.6,820.5"/>
+<polyline fill="none" stroke="#0a8fa8" stroke-width="2.4" stroke-dasharray="12 8" stroke-linejoin="round" points="1130.9,1260.9 1343.9,869.6"/>
+<polyline fill="none" stroke="#d97706" stroke-width="2.4" stroke-dasharray="4 6" stroke-linejoin="round" points="77.8,180.5 272.1,286.3"/>
+<polyline fill="none" stroke="#0a8fa8" stroke-width="3.2" stroke-dasharray="" stroke-linejoin="round" points="1253.6,820.5 1343.9,869.6 1428.6,713.9 1374.8,539.8 1303.9,501.2"/>
+<polyline fill="none" stroke="#d1242f" stroke-width="3.2" stroke-dasharray="" stroke-linejoin="round" points="810.7,232.8 500.0,63.6 373.4,105.4 272.1,286.3 1253.6,820.5 1352.7,638.5 1316.4,508.0 969.9,319.4"/>
+<polyline fill="none" stroke="#2f63d6" stroke-width="3.2" stroke-dasharray="" stroke-linejoin="round" points="969.9,319.4 963.9,316.5 957.8,314.1 951.4,312.3 944.9,311.0 938.3,310.3 931.7,310.2 925.1,310.6 918.5,311.7 912.1,313.3 905.8,315.4 899.8,318.1 894.0,321.3 888.5,325.0 883.3,329.2 878.5,333.8 874.2,338.8 870.3,344.1 866.9,349.8 864.0,355.8 861.6,361.9 859.8,368.3 858.5,374.8 857.8,381.4 857.7,388.0 858.1,394.6 859.2,401.2 860.8,407.6 862.9,413.9 865.6,419.9 868.8,425.7 872.5,431.2 876.7,436.4 881.3,441.2 886.2,445.5 891.6,449.4 897.3,452.8 903.2,455.7 909.4,458.1 915.8,460.0 922.3,461.2 928.9,461.9 935.5,462.0 942.1,461.6 948.7,460.5 955.1,458.9 961.3,456.8 967.4,454.1 973.2,450.9 978.7,447.2 983.9,443.0 988.6,438.4 993.0,433.5 996.9,428.1 1000.3,422.4 1003.2,416.5 1005.6,410.3 1007.4,403.9 1008.7,397.4 1009.4,390.8 1009.5,384.2 1009.1,377.6 1008.0,371.0 1006.4,364.6 1004.3,358.4 1001.6,352.3 998.4,346.5 994.7,341.0 990.5,335.8 985.9,331.1 980.9,326.7 975.6,322.8 969.9,319.4"/>
+<polyline fill="none" stroke="#2f63d6" stroke-width="2.4" stroke-dasharray="10 6" stroke-linejoin="round" points="560.8,443.4 897.3,452.8"/>
+<polyline fill="none" stroke="#2f63d6" stroke-width="2.4" stroke-dasharray="10 6" stroke-linejoin="round" points="745.3,543.8 955.1,458.9"/>
+<polyline fill="none" stroke="#2f63d6" stroke-width="2.4" stroke-dasharray="10 6" stroke-linejoin="round" points="890.2,622.7 988.6,438.4"/>
+<circle cx="187.9" cy="239.6" r="5" fill="none" stroke="#444" stroke-width="1.5"/><text x="195.9" y="243.6" fill="#333">Race Track Lake</text>
+<circle cx="143.6" cy="216.4" r="5" fill="none" stroke="#444" stroke-width="1.5"/><text x="151.6" y="220.4" fill="#333">Whiskey (est.)</text>
+<circle cx="1042.6" cy="706.2" r="5" fill="none" stroke="#444" stroke-width="1.5"/><text x="1050.6" y="710.2" fill="#333">Sukanen Ship intersection</text>
+<circle cx="366.7" cy="292.8" r="5" fill="none" stroke="#444" stroke-width="1.5"/><text x="374.7" y="296.8" fill="#333">Snowdys Springs</text>
+<circle cx="1197.1" cy="895.6" r="5" fill="none" stroke="#444" stroke-width="1.5"/><text x="1189.1" y="899.6" fill="#333" text-anchor="end">Auto Wrecker (Fiat Farm)</text>
+<circle cx="1328.0" cy="895.7" r="5" fill="none" stroke="#444" stroke-width="1.5"/><text x="1336.0" y="899.7" fill="#333">Arrow Tree Rows</text>
+<circle cx="1065.4" cy="371.4" r="3.5" fill="#2e8b2e"/><text x="1072.4" y="365.4" fill="#2e8b2e" font-size="12">Window ¾ NM</text>
+<circle cx="1263.5" cy="479.2" r="3.5" fill="#d1242f"/><text x="1270.5" y="473.2" fill="#d1242f" font-size="12">Initial 2.2 NM (reference)</text>
+<circle cx="1303.9" cy="501.2" r="3.5" fill="#0a8fa8"/><text x="1310.9" y="495.2" fill="#0a8fa8" font-size="12">Glide path 2.5 NM</text>
+<circle cx="969.9" cy="319.4" r="3.5" fill="#2f63d6"/><text x="976.9" y="313.4" fill="#2f63d6" font-size="12">High Key 5,000</text>
+<circle cx="897.3" cy="452.8" r="3.5" fill="#2f63d6"/><text x="904.3" y="446.8" fill="#2f63d6" font-size="12">Low Key 3,700</text>
+<circle cx="1000.3" cy="422.4" r="3.5" fill="#2f63d6"/><text x="1007.3" y="416.4" fill="#2f63d6" font-size="12">Final Key 3,000</text>
+</g><g transform="translate(1610,40)"><path d="M0,-22 L7,6 L0,0 L-7,6 Z" fill="#333"/><text x="-5" y="22" fill="#333">N</text></g>
+<g transform="translate(1306,980)"><rect width="151.9" height="5" fill="#333"/><rect x="151.9" width="151.9" height="5" fill="none" stroke="#333"/><text y="-6" fill="#333">0</text><text x="289.8" y="-6" fill="#333">2 NM</text></g>
+<text x="16" y="1024.0" font-weight="700" fill="#222">Moose Jaw 29L routes in true feet (draft, Patrick: "looks great", 5 Oct 2026)</text>
+<line x1="16" y1="1042.0" x2="44" y2="1042.0" stroke="#d1242f" stroke-width="3" stroke-dasharray=""/><text x="52" y="1046.0" fill="#333">Overhead pattern (EFIG Fig 3-10). Base leg on the inner rejoin line, 3.2 NM out</text>
+<line x1="16" y1="1059.0" x2="44" y2="1059.0" stroke="#0a8fa8" stroke-width="3" stroke-dasharray=""/><text x="52" y="1063.0" fill="#333">Straight-in (EFIG p.131). Base turn at the Arrow Tree Rows, 3.9 NM out, 2,700 ft, then a 45° leg to final</text>
+<line x1="16" y1="1076.0" x2="44" y2="1076.0" stroke="#2f63d6" stroke-width="3" stroke-dasharray=""/><text x="52" y="1080.0" fill="#333">PFL circle, 0.5 NM, and three pattern PFL tangents (EFIG p.409)</text>
+<line x1="16" y1="1093.0" x2="44" y2="1093.0" stroke="#d97706" stroke-width="3" stroke-dasharray="8 5"/><text x="52" y="1097.0" fill="#333">Overhead rejoin from the south along the base-leg line (EFIG p.209)</text>
+<line x1="16" y1="1110.0" x2="44" y2="1110.0" stroke="#0a8fa8" stroke-width="3" stroke-dasharray="8 5"/><text x="52" y="1114.0" fill="#333">Straight-in rejoin from the south along its base-leg line</text>
+<line x1="16" y1="1127.0" x2="44" y2="1127.0" stroke="#d97706" stroke-width="3" stroke-dasharray="8 5"/><text x="52" y="1131.0" fill="#333">Whiskey: the 29L downwind extended west (SMM 4 para 76)</text>
+<line x1="16" y1="1144.0" x2="44" y2="1144.0" stroke="#222" stroke-width="3" stroke-dasharray=""/><text x="52" y="1148.0" fill="#333">Runway 29L, 7,250 ft at 298.6° true</text>
+</svg>
