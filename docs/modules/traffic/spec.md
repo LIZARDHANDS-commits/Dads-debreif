@@ -185,7 +185,7 @@ The sim uses the glide **ratio** for the configuration down (clean 2.0, gear 1.5
   $$V(u) = 220 \cdot e^{-0.452 u} \quad u \in [0, 1] \text{ over 180° turn}$$
 - **Cubic descent** (final turn, smooth altitude transition):
   $$z(u) = 3500 - 800 \cdot (3u^2 - 2u^3) \quad u = \Delta\psi / 180^\circ \in [0, 1]$$
-  Guarantees $dz/du = 0$ at entry (Perch) and exit (centerline rollout).
+  Guarantees $dz/du = 0$ at entry (Perch). Since TR-82 the exit is not level: the descent rate at the rollout is the window's glide slope, so height and slope both match final.
 - **Cross-track localizer** (straight corridor tracking):
   $$e_{\text{xtrack}} = (x - x_0)\cos\tau - (y - y_0)\sin\tau$$
   $$\psi_{\text{cmd}} = \tau + \text{crab} + \text{clamp}(K_p \cdot e_{\text{xtrack}}, -30^\circ, +30^\circ) \quad (K_p = 0.02^\circ/\text{ft})$$
@@ -229,6 +229,8 @@ Approved 4 Oct 2026 (Traffic refactor PR 2). Items 10-14 cover both the circuit 
     - It replaces today's two points: 2,000 ft in calm air, and V6's 3,818 ft point in any wind at all (route.js:609, :745).
 13. **Final turn.** It is a continuous descending turn from the perch to the window, up to 45° bank (SMM 4.19 paras 43-48).
     - The perch moves so the turn rolls out at the window: earlier in a strong headwind, later in a light one, tighter with wind from the north, wider with wind from the south (Patrick, 08:27Z; SMM 4.20 para 49).
+    - It ends on the glide path in both height and slope: at the rollout it is already coming down at the window's own slope (about 3°), which final carries on, so it never levels at the window and sits above the glide path (Patrick, 5 Oct 08:17Z; TR-82).
+    - The perch search moves the perch by 0.6 of each miss, at most 1,500 ft a try, for up to 20 tries, and keeps the best (estimates; TR-83). It holds the window to within about 5 ft up to about 46 kt of wind from 260°-270°.
 13a. **No jumps at any hand-over.** Each piece of path starts from where the last one ended: the same place, track, bank and pitch, and the same rates of change. It is joined like a clamped curve, so the joins are smooth (Patrick, 08:27Z).
 14. **Check on screen**, at calm and in a strong wind:
     - the circuit from take-off and from initial;

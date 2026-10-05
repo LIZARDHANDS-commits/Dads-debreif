@@ -17,7 +17,7 @@
 import { FT_PER_NM, ktToFtps } from '../../core/units.js';
 import { limitG, turnRadiusFt, bankDegFromG, gFromBankDeg, turnRateFromBankRadPerSec } from '../../core/flight-math.js';
 import { unitVectorFromCompassDeg, compassDegFromVector } from '../../core/angles.js';
-import { iasToTasKt } from './weather.js';
+import { iasToTasKt, temperatureKey } from './weather.js';
 import { windTriangle, windVectorFtps } from '../../core/wind.js';
 import { RUNWAY_29L_HDG_DEG, THRESHOLD_29L, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT, PFL_CIRCLE_RADIUS_FT, PATTERN_ALT_FT, PFL_KEY_ALT_FT } from './airfield.js';
 import { buildCircuit } from './circuit.js';
@@ -296,20 +296,22 @@ const pathCache = new WeakMap();
 const MOST_PATHS_PER_ROUTE = 6;
 
 function signatureOf(route, options) {
-  const sig = [route.kind, options.flyRoundedTurns, options.radiusFromG, options.manualRadiusFt, options.trueArcs, options.windKt ?? 0, options.windFromDeg ?? 360];
+  // Today's temperature too: it sets the true airspeeds, so the turns' sizes (TR-77; Patrick, 5 Oct 08:17Z: the
+  // lines changed with the temperature but the aircraft kept flying the old ones).
+  const sig = [route.kind, options.flyRoundedTurns, options.radiusFromG, options.manualRadiusFt, options.trueArcs, options.windKt ?? 0, options.windFromDeg ?? 360, temperatureKey()];
   for (const p of route.points) sig.push(p.x, p.y, p.alt, p.kt, p.g);
   return sig;
 }
 
 function sameSignature(entry, route, options) {
   const sig = entry.sig, pts = route.points;
-  if (sig.length !== 7 + 5 * pts.length) return false;
-  if (sig[0] !== route.kind || !Object.is(sig[1], options.flyRoundedTurns) || !Object.is(sig[2], options.radiusFromG) || !Object.is(sig[3], options.manualRadiusFt) || !Object.is(sig[4], options.trueArcs) || !Object.is(sig[5], options.windKt ?? 0) || !Object.is(sig[6], options.windFromDeg ?? 360)) return false;
+  if (sig.length !== 8 + 5 * pts.length) return false;
+  if (sig[0] !== route.kind || !Object.is(sig[1], options.flyRoundedTurns) || !Object.is(sig[2], options.radiusFromG) || !Object.is(sig[3], options.manualRadiusFt) || !Object.is(sig[4], options.trueArcs) || !Object.is(sig[5], options.windKt ?? 0) || !Object.is(sig[6], options.windFromDeg ?? 360) || !Object.is(sig[7], temperatureKey())) return false;
   // A flown path (a manoeuvre flown once by the simulated pilot) is never edited in place, only given a new points
   // list, and it can hold thousands of points: comparing each one on every call made a gliding PFL cost about 3 ms
   // a step. The same list is the same path.
   if (route.kind === 'flown') return entry.pts === pts;
-  for (let i = 0, k = 7; i < pts.length; i++, k += 5) {
+  for (let i = 0, k = 8; i < pts.length; i++, k += 5) {
     const p = pts[i];
     if (!Object.is(sig[k], p.x) || !Object.is(sig[k + 1], p.y) || !Object.is(sig[k + 2], p.alt) || !Object.is(sig[k + 3], p.kt) || !Object.is(sig[k + 4], p.g)) return false;
   }
@@ -586,7 +588,7 @@ export function computeWindPerch(route, windFromDeg = 360, windKt = 0, options =
  * @param {Record<string, any>} [options]
  * @returns {{ x: number, y: number, headingDeg: number, alt?: number } | null}
  */
-let _breakCache = { wFrom: null, wKt: null, result: null };
+let _breakCache = { wFrom: null, wKt: null, temp: null, result: null };
 
 /**
  * Simulates the 180° decelerating overhead break turn.
@@ -690,14 +692,14 @@ function simulateBreakArc(route, windFromDeg = 360, windKt = 0) {
 }
 
 export function computeBreakRollout(route, windFromDeg = 360, windKt = 0, options = DEFAULT_ROUTE_OPTIONS) {
-  if (_breakCache.wFrom === windFromDeg && _breakCache.wKt === windKt && _breakCache.result) {
+  if (_breakCache.wFrom === windFromDeg && _breakCache.wKt === windKt && _breakCache.temp === temperatureKey() && _breakCache.result) {
     return _breakCache.result;
   }
 
   const sim = simulateBreakArc(route, windFromDeg, windKt);
   if (!sim) return null;
 
-  _breakCache = { wFrom: windFromDeg, wKt: windKt, result: sim.rollout };
+  _breakCache = { wFrom: windFromDeg, wKt: windKt, temp: temperatureKey(), result: sim.rollout };
   return sim.rollout;
 }
 

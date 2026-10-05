@@ -6,6 +6,7 @@
 // and works out no flight math of its own (radius, bank and the drawn path are the engine's).
 import { DEFAULT_ROUTE_OPTIONS, drawPath, legDistances, pointTurn, computeWindPerch, generateWindAdjustedTrack, generatePflTrack } from './route.js';
 import { buildDownwindStraightIn } from './randomize.js';
+import { temperatureKey } from './weather.js';
 
 const isShowing = (route) => route.visible !== false;
 
@@ -22,7 +23,7 @@ const siLines = new WeakMap(); // Pattern 1's route → { key, ent2, path }: flo
 export function siPatternPath(routes, windFromDeg = 360, windKt = 0, options = DEFAULT_ROUTE_OPTIONS) {
   const pat = routes.find((r) => r.id === 'PAT1'), ent2 = routes.find((r) => r.id === 'ENT2');
   if (!pat || !ent2 || pat.points.length < 7 || ent2.points.length < 3) return null;
-  const key = `${windFromDeg}_${windKt}`;
+  const key = `${windFromDeg}_${windKt}_${temperatureKey()}`; // and the day's temperature (true airspeeds)
   const kept = siLines.get(pat);
   if (kept && kept.key === key && kept.ent2 === ent2) return kept.path;
   const a = pat.points[5], b = pat.points[6]; // abeam the departure end, then the outer downwind
