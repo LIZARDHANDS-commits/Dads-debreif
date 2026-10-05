@@ -19,7 +19,7 @@ import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
 import { relativeTo } from './manoeuvres.js';
 import { recordFlight, speedSeg, describe } from './transitions.js';
-import { KIAS_LAB, KIAS_OUTSIDE_LAB, KINEMATIC } from './tuning.js';
+import { KIAS_LAB, KIAS_OUTSIDE_LAB, KINEMATIC, OPEN_OUT } from './tuning.js';
 import { FORMATIONS, fwShapeNow, pairSlot } from './slots.js';
 import { speedSegFor } from './slow-down.js';
 import { makeTrack, seedTrack, posesFrom, settleLast, followInto, rollStarts, relPath, timeLaw, slotInWorld, poseOf, laggedBank, relSpeedLimit } from './kinematic.js';
@@ -64,12 +64,15 @@ export function routePoints(from, s, to, sTo, cur, spacingFt) {
     at = 'fw';
   }
   if (to === 'lab') {
+    const dive = OPEN_OUT.diveFt;
     if (at === 'fw' && side !== sTo) pts.push({ fwd: fwBack, left: side * 300, up: -60, plane: 0 }, { fwd: fwBack, left: 0, up: -60, plane: 0 }, { fwd: fwBack, left: sTo * 300, up: -60, plane: 0 });
     else if (at !== 'fw') {
       if (side !== sTo || at === 'astern') crossClose('astern');
-      pts.push({ fwd: cur.fwd - 60, left: sTo * 80, up: cur.up - 15, plane: 0.5 }, { fwd: -300, left: sTo * 500, up: -40, plane: 0 });
+      // out and down at once, no drop back first (Patrick 21:11Z: a tactical formation selected means unrestricted attitude and power)
+      pts.push({ fwd: cur.fwd - 20, left: sTo * 110, up: cur.up - 40, plane: 0.5 }, { fwd: -200, left: sTo * 500, up: -0.6 * dive, plane: 0 });
     }
-    pts.push({ fwd: -350, left: sTo * spacingFt * 0.35, up: -20, plane: 0 }, { fwd: -100, left: sTo * spacingFt * 0.8, up: 0, plane: 0 }, slot('lab', sTo));
+    // A full power dive to start, then the climb back to Lead's height by the slot (OPEN_OUT.diveFt, TS-78; Patrick 21:06Z).
+    pts.push({ fwd: -350, left: sTo * spacingFt * 0.35, up: -dive, plane: 0 }, { fwd: -100, left: sTo * spacingFt * 0.8, up: -0.25 * dive, plane: 0 }, slot('lab', sTo));
     return pts;
   }
   if (to === 'fw') {

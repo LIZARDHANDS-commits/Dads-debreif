@@ -125,7 +125,7 @@ export function fitCamera(bounds, size, leadHeadingRad) {
   const spanX = bounds.maxX - bounds.minX;
   const spanY = bounds.maxY - bounds.minY;
   // The picture turns with the yaw, so fit the diagonal, which holds whatever way it is turned.
-  const span = Math.max(Math.hypot(spanX, spanY), 1);
+  const span = Math.max(Math.hypot(spanX, spanY, bounds.spanZFt ?? 0), 1); // the height spread counts too (loops)
   const pxPerFt = (0.9 * Math.max(1, Math.min(size.width, size.height))) / span;
   return {
     center: { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 },
@@ -175,7 +175,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     // The same charcoal as 2D, flat, with its fog (Patrick, 5 Oct), and a faint grey ground grid.
     scene.background = new THREE.Color(BACKGROUND);
     scene.fog?.color.set(BACKGROUND);
-    const grid = new THREE.GridHelper(GRID_STEP_FT * GRID_CELLS, GRID_CELLS, '#3a434c', '#2b333b');
+    const grid = new THREE.GridHelper(GRID_STEP_FT * GRID_CELLS, GRID_CELLS, '#4a535d', '#3a424b');
     grid.rotation.x = Math.PI / 2; // GridHelper is flat in X-Z; the sim's ground is X-Y
     grid.material.fog = false;
     scene.add(grid);
@@ -484,7 +484,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       altToZ(FLIGHT_ALT_FT, ALT_SCALE) - GROUND_BELOW_FT,
     );
 
-    matchProjection(THREE, camera, { x: focus.x, y: focus.y, z: FLIGHT_ALT_FT }, shown, box, 1);
+    matchProjection(THREE, camera, { x: focus.x, y: focus.y, z: FLIGHT_ALT_FT + (focus.z ?? 0) }, shown, box, 1); // at the formation's height
     // A depth range round the formation only (the shared one spans Traffic's 30-mile scene), so close up the aircraft's
     // near-touching surfaces don't flicker through each other (Patrick, 5 Oct: the striped tails).
     const mid = (camera.near + camera.far) / 2;

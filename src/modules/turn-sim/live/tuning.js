@@ -39,6 +39,8 @@ export const REJOIN = Object.freeze({
   overtakeKias: 15, // the middle of EFIG p.374's 10 to 20 KIAS for a turning rejoin
   bankCapDeg: G_RULE_BANK_DEG, // #2 in a rejoin: no bank cap but the G rule, about 78° level (Patrick 5 Oct 06:16Z item 1: "Unlimitd bank", RULED_REJOIN; flown since V2.59, TS-67; 60°, an estimate, until then)
   leadBankDeg: 30, // Lead's turn in a turning rejoin (SMM 12.24 para 54; AFM7 p.21)
+  lineKias: 220, // every rejoin, turning or straight ahead: at least this down the line (or Lead's six) to the decision point, whatever the Rates choice; Rates sets only the close-in rate after it (Patrick 5 Oct 17:54Z: "aim for 220 up the line for both"; 17:55Z: "in all rejoins id like the minimum closure up the line to be 220 knots for expeidiousness, then slow down at the decision point"; TS-75)
+  stopStage: /** @type {'idle'} */ ('idle'), // from the decision point the overtake comes off at idle, planned at CLOSURE.stopShare of what idle gives, the boards only when the room left needs more; the decision point is where that stop just fits (Patrick 17:55Z; TS-75; slow-down.js's stages)
   idealBearingDeg: 45, // Lead at 10:30 or 1:30 (SMM 12.24 para 56)
   hotBearingDeg: 60, // hot and cold are drawn but not numbered in SMM Fig 12.16: 60 and 30 are estimates
   coldBearingDeg: 30,
@@ -61,7 +63,7 @@ export const TURNING_REJOIN = Object.freeze({
   aimsFt: [300, 600, 1200], // how sharply #2 captures the line: off it by this much he heads for it at half approachDeg; the one that brings him in soonest is flown (estimates: smaller is a sharper capture, larger a gentler, longer one)
   approachDeg: 80, // far off the line he heads for it at up to this angle across it, in Lead's frame (estimate)
   bankCapDeg: 60, // the bank he uses at most to get onto the line and hold it: past about 60° the drag costs speed and buys nothing (the review's estimate, rejoin-review-fable.md). Only when no rejoin at 60° keeps him behind Lead's 3/9 line does he use more, up to the G rule (REJOIN.bankCapDeg)
-  hotFt: 1000, // ahead of the line by this much (hot) he flies undertakeKias below Lead's speed, less in proportion closer to it (estimate)
+  hotFt: 1000, // ahead of the line by this much (hot) he flies his least speed, Lead's 200 KIAS, coming up to lineOverKias above it as he reaches the line (estimate; TS-75)
   laneTolFt: 20, // flowing into the slot he may pass this far ahead of it, never more, toward Lead's 3/9 line (estimate; Patrick 08:04Z)
   decisionArriveRates: 'instructor', // he reaches the decision point closing no faster than this Rates choice's close-in rate (about 15 kt), so AI's quicker close-in starts from a closure under control (estimate; SMM 12.24 para 58)
   fwArriveFtps: 5, // to fighting wing he arrives at its place on the line at about this closure, and the tracker settles him there (estimate)
@@ -71,7 +73,11 @@ export const TURNING_REJOIN = Object.freeze({
   captureFt: 150, // he is on the line within this many feet of it; only then does he start taking out the overtake for the decision point (estimate)
   lineTauSec: 4, // his heading comes onto the one the line asks over about this long, so the bank changes smoothly (estimate)
   heightSec: 10, // #2 settles slightly low on the line over this long, or over his part to the decision point if shorter (estimate)
-  undertakeKias: 25, // hot, or taking the overtake out, he slows no further than this below Lead's 200 KIAS (rejoinTo's, an estimate)
+  undertakeKias: 25, // only when no rejoin at his least speed keeps him behind Lead's 3/9 line (close in and hot) does he slow, at most this far below Lead's 200 KIAS (rejoinTo's, an estimate; TS-75)
+  lineOverKias: 10, // hot, he reaches the line at no more than this over his least speed, Lead's 200 KIAS (to fighting wing, its place's own speed) (Patrick 17:29Z: "when they hit the line it needs to be at 210-200 knots"; TS-75)
+  runInReleaseShare: 0.5, // taking out the overtake, he sets it again once the room left needs less than this share of the slowing that started it (estimate; TS-75)
+  runInHoldSec: 2, // within this many seconds of the decision point at the close-in rate, he keeps taking it out (estimate; TS-75)
+  floorMarginKias: 5, // within this of his least speed, he banks no more than MAX holds the speed at, so he doesn't bleed below it (estimate; TS-75)
   routeFlowFt: 20, // he flows through route without stopping, within this many feet of it, on into the slot (estimate; Patrick 07:14Z: "in one motion")
 });
 
@@ -93,7 +99,7 @@ export const STRAIGHT_REJOIN = Object.freeze({
 /** The numbers of the kinematic moves. All estimates unless a source is given. */
 export const KINEMATIC = Object.freeze({
   // In the frame of Lead, how fast #2 may move:
-  lateralFtps: 140, // across Lead's heading: about a 25° heading difference at 200 KIAS (inside the 20-40° turn away of SMM 16.18 para 51)
+  lateralFtps: 140, // across Lead's heading: about a 25° heading difference at 200 KIAS (estimate; SMM 16.18 para 51 gives no angle)
   foreAftFtps: 25, // along it: about 15 KIAS of overtake or undertake, the middle of EFIG p.374's 10-20 KIAS
   verticalFtps: 15, // up or down: 900 ft/min (the 4-ship's stack-change estimate)
   nearPerSec: 0.1, // closing slows with range: 10% of the range per second ...
@@ -545,6 +551,49 @@ export const HOLD = Object.freeze({
  */
 export const ROLL = Object.freeze({ maxRateDps: 180, maxAccelDps2: 720 });
 
+/**
+ * When a 2-ship change of formation counts as done (formation.js inBandAndSteady; Patrick 5 Oct 20:39Z card "In band and
+ * steady", 20:41Z "I want 'stabilize' to be 'within 5 knots' instead of 'exactly zero'"; TS-78): #2 IN POSITION by the
+ * judge's band, moving against his slot at under closureKt, and banked within bankOffDeg of Lead (estimate). The tracker
+ * keeps closing on the exact slot underneath.
+ */
+export const STEADY = Object.freeze({ closureKt: 5, bankOffDeg: 10 });
+/**
+ * The opening out to line abreast (line-moves.js; Patrick 5 Oct 20:39Z: "rejoins and transitions between tactical
+ * formations should be assertive and smooth and quick"; card 20:41Z "Me, this PR"; TS-78). SMM 16.18 para 51 says only that
+ * #2 "manoeuvres into position while lead flies straight and level", so the numbers are estimates. Until V2.78 the line
+ * opened out at KINEMATIC.lateralFtps (140 ft/s), slowed in proportion to the range left from 1,400 ft out, and handed over
+ * 500 ft from the slot to the tracker at the close-in rate: 81 s from fighting wing, 109 s from echelon.
+ *  - reserveKtps: #2 opens out at the speed where full power still gives this much acceleration (slow-down.js
+ *    fullPowerKtps, standard aerodynamics): about 242 KIAS at 8,000 ft. His heading off Lead's follows from that speed and
+ *    Lead's 220 KIAS, about 25°: the turn away is what the speed allows, not a fixed angle;
+ *  - nearPerSec, nearMinFtps: the line slows only over the last few hundred feet (the band is ±100 ft);
+ *  - handOverFt: the tracker takes the last part at a rejoin's closure, not the close-in rate.
+ */
+export const OPEN_OUT = Object.freeze({
+  reserveKtps: 0.4, // #2 opens out up to the speed where full power still has this much in hand (estimate)
+  gainKtPerSqrtFt: 0.45, // KIAS gained per square root of the range from Lead on the way out: full power plus the dive, about 1 KIAS per second from 200 (estimate fitted to the core T-6 curve, kept under it so the line stays inside full power)
+  leadHolds: true, // Lead holds his speed until #2 is out, then speeds up to line abreast speed (estimate needing Patrick's yes; false: he speeds up at once)
+  // No slowing with range from Lead: leaving his side is not an arrival (the near term of kinematic.js relSpeedLimit throttled
+  // the first 1,000 ft from echelon to about 25 ft/s); the arrival at the slot is the time law's own slowing to endFtps.
+  nearPerSec: 10,
+  nearMinFtps: 20,
+  foreAftFtps: 80, // falling back in Lead's frame on the way out is geometry (the angle off), not a closure: up to about 47 kt (estimate)
+  // How hard the line may accelerate and turn in Lead's frame (hand-over.js RUN_IN's overrides). Patrick 21:11Z: the
+  // near-Lead throttle is only for holding close formation; "as soon as a tactical formation is selected, unrestricted
+  // attitude changes and power". Full power along, a 45° banked turn's lateral acceleration (1 g across; estimate), a
+  // 0.3 g push or pull for the dive and the climb back (estimate).
+  law: Object.freeze({ powerShare: 1, turnShare: 1, latG: 1, vertFtps2: 10 }),
+  handOverFt: 150, // the tracker takes over this close to the slot (estimate)
+  // A full power dive to start (Patrick 21:06Z: "LAB from echelon would be expedited by a full power dive to start"): #2
+  // drops this far below Lead on the way out, trading height for speed, and climbs back to Lead's height by the slot, which
+  // bleeds the extra speed off again (energy height, standard aerodynamics; full-power.js). Both numbers are estimates.
+  diveFt: 400,
+  verticalFtps: 40, // down or up on the way out: about 2,400 ft/min (estimate)
+});
+/** A station change's stop at a corner: "stabilize" is within this many knots against the slot, then the dwell (Patrick 20:41Z; was 1 ft/s). */
+export const STOP_KT = 5;
+
 // ---- the lag roll to fighting wing (lag-roll.js; spec section 10.8, TS-71) ------------------------------------------
 
 /**
@@ -561,6 +610,7 @@ export const LAG_ROLL = Object.freeze({
   topKias: 165, // the speed aimed for over the top, about 160-170 KIAS (estimate)
   topKiasBand: Object.freeze([150, 185]), // a plan whose slowest speed is outside this is not used (estimate)
   topRangeFt: Object.freeze([900, 1400]), // range from Lead passing over his six, about 1,000-1,300 ft (estimate, widened 100 ft each way)
+  closeTopRangeFt: Object.freeze([500, 1400]), // from echelon (TS-78): over Lead's six at 500-1,400 ft, the bubble's edge to the same far end (estimate)
   bubbleFt: 500, // a plan that comes inside 500 ft of Lead is refused (SMM 16.23, the fluid bubble; FW_BAND's inner edge, SMM 12.29 para 69)
   minG: 0.3, // canopy to canopy means positive G throughout: no plan pushes (estimate)
   rollSec: Object.freeze([8, 30]), // the roll's length searched, in whole seconds (estimate)

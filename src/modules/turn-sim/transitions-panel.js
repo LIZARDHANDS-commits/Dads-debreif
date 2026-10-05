@@ -38,9 +38,11 @@ const SIDE_CHANGE_FORMATIONS = Object.freeze(['fw', 'echelon', 'route']);
 const SIDES = Object.freeze([{ value: 'keep', label: 'Keep' }, { value: 'left', label: 'Left' }, { value: 'right', label: 'Right' }]); // written out (Patrick, 5 Oct)
 // The Rejoin kind, from line abreast and (since V2.59, TS-67; Patrick 5 Oct 05:13Z: "FW-Esch you can pick TRJ or SARJ.
 // Obviously TRJ is faster") from fighting wing to echelon or route: the turning rejoin (TRJ, the default) or straight ahead (SARJ).
+// Auto (TS-76, the chooser): both are flown ahead as dry runs and the quicker that passes the checks is flown; 2-ship only.
 const REJOIN_OPTIONS = Object.freeze([
   { value: 'into', label: 'Turning (TRJ), Lead turns into #2' },
   { value: 'straight', label: 'Straight ahead (SARJ)' },
+  { value: 'auto', label: 'Auto, the quicker of the two' },
 ]);
 
 
@@ -125,7 +127,11 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   }, o.label));
   // The rejoin switch under Formation (Patrick, 5 Oct 07:35Z: "a switch on the left under "Formations" that has TRJ or SARJ
   // and you can toggle which will happen with the formation change"): the same choice as Rejoin kind in Settings.
-  const REJOIN_SWITCH = Object.freeze([{ value: 'into', label: 'TRJ', title: 'Turning rejoin' }, { value: 'straight', label: 'SARJ', title: 'Straight-ahead rejoin' }]);
+  const REJOIN_SWITCH = Object.freeze([
+    { value: 'into', label: 'TRJ', title: 'Turning rejoin' },
+    { value: 'straight', label: 'SARJ', title: 'Straight-ahead rejoin' },
+    { value: 'auto', label: 'Auto', title: 'Both rejoins are tried ahead; the quicker one is flown' },
+  ]);
   const rejoinButtons = REJOIN_SWITCH.map((o) => h('button', {
     type: 'button',
     class: 'button ts-side-button',
@@ -145,7 +151,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   const rejoinSelect = h('select', { 'aria-label': 'Rejoin kind', onchange: () => setRejoin(rejoinSelect.value) },
     REJOIN_OPTIONS.map((o) => h('option', { value: o.value, selected: o.value === rejoin }, o.label)));
   const rejoinLabel = h('span', { class: 'ts-hint' }, 'Rejoin kind');
-  const PAIR_REJOIN_HINT = `From line abreast or fighting wing. Turning (TRJ): Lead turns into #2 at the press at ${REJOIN.leadBankDeg}° of bank, slowing to ${KIAS_OUTSIDE_LAB} KIAS, and holds it until #2 is in (SMM 16.20 para 65); #2 gets onto the rejoin line, Lead at his 10:30 or 1:30 and slightly high, closes down it and flows through route into the slot (SMM 12.24 paras 56-58). Straight ahead (SARJ): #2 drops onto Lead's six and runs up it (SMM 12.26 paras 62-63).`;
+  const PAIR_REJOIN_HINT = `From line abreast or fighting wing. Turning (TRJ): Lead turns into #2 at the press at ${REJOIN.leadBankDeg}° of bank, slowing to ${KIAS_OUTSIDE_LAB} KIAS, and holds it until #2 is in (SMM 16.20 para 65); #2 gets onto the rejoin line, Lead at his 10:30 or 1:30 and slightly high, closes down it and flows through route into the slot (SMM 12.24 paras 56-58). Straight ahead (SARJ): #2 drops onto Lead's six and runs up it (SMM 12.26 paras 62-63). Auto: both are tried ahead and the quicker one is flown; the card says which.`;
   const FOUR_REJOIN_HINT = `A turning rejoin: Lead turns into #2 at the press, slowing to ${KIAS_OUTSIDE_LAB} KIAS; #3 and #4 close at once and come in on the outside one at a time, #3 once #2 is in and #4 once #3 is (SMM 16.34 paras 95-96). Straight ahead, each closes through route in turn.`;
   const rejoinHint = h('p', { class: 'ts-hint' }, PAIR_REJOIN_HINT);
   const rejoinField = h('label', { class: 'ts-field' }, rejoinLabel, rejoinSelect);
@@ -178,7 +184,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     pairGrid,
     fourGrid,
     h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Station: the side #2 ends on' }, h('span', { class: 'ts-hint' }, 'Station'), sideButtons), // "Station", was "Side" (Patrick, 5 Oct)
-    h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Rejoin: turning or straight ahead' }, h('span', { class: 'ts-hint' }, 'Rejoin'), rejoinButtons),
+    h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Rejoin: turning, straight ahead or auto' }, h('span', { class: 'ts-hint' }, 'Rejoin'), rejoinButtons),
     refusal,
     fluidUi?.element ?? null,
   );
@@ -210,6 +216,10 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       rejoinHint.hidden = false;
       rejoinLabel.textContent = four ? 'Rejoin to fighting wing or finger' : 'Rejoin kind';
       rejoinSelect.options[0].textContent = four ? 'Turning, Lead turns into the others' : REJOIN_OPTIONS[0].label;
+      // Auto races the 2-ship's rejoins (chooser.js); the 4-ship has no race, so it goes back to the turning rejoin.
+      if (four && rejoin === 'auto') setRejoin('into');
+      for (const o of rejoinSelect.options) if (o.value === 'auto') o.disabled = four;
+      for (const b of rejoinButtons) if (b.dataset.rejoin === 'auto') b.hidden = four;
       rejoinHint.textContent = four ? FOUR_REJOIN_HINT : PAIR_REJOIN_HINT;
     },
     /** Greys the button for the formation the pair is in (and, for a sided one, on the side the switch asks for), and shows a refusal. */
@@ -227,11 +237,12 @@ export function createChangeUi({ onChange, fluidUi = null }) {
         refusal.hidden = !state.refusal;
         return;
       }
-      fluidUi?.update(state);
+      fluidUi?.update(state, where);
       // Only what the formation the pair is in can use shows (Patrick, 5 Oct): the fluid buttons in fluid manoeuvring,
       // the rejoin choice in line abreast.
       // In fighting wing the same group holds Lead's level turns, climbs and descents (TS-70, Patrick card 09:07Z).
-      if (fluidUi) fluidUi.element.hidden = where.key !== 'fluid' && where.key !== 'fw';
+      // In echelon it holds only the lag roll (TS-78).
+      if (fluidUi) fluidUi.element.hidden = where.key !== 'fluid' && where.key !== 'fw' && where.key !== 'echelon';
       for (const [key, button] of buttons) {
         if (where.key === 'fluid' || where.manoeuvring) {
           // In fluid manoeuvring Terminate is the way out; it ends in fighting wing (spec section 10.3). While Lead flies a

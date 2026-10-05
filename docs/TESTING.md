@@ -35,7 +35,7 @@ The last column is history. The test trim (#398, Patrick's yes 5 Oct 05:15Z) cut
 | **Module sign-off** | Everything above, plus: the module's own browser tests, where it still has any (after #398 and #407 no module has its own browser file; every module relies on the shared smoke, layout and button checks); the same smoke set in Firefox and WebKit; the property tests with many seeds; a plain list of what the module's tests check, made from the test names, for Patrick to skim (lesson F4). Then the hands-on checklist (section 4). | Patrick, or whoever signs off |
 | **Never** | Nightly runs; re-checking every module after each merge (lesson F6); heavy test machinery (T9). | |
 
-Every push to main publishes the live site. A failing check doesn't stop it; it shows as a warning on the run **(Q-T1, decided: "Always publish", Patrick 4 Oct 02:59Z)**.
+Every push to main publishes the live site while the repo variable PAGES_ON is true, and a hand Run workflow always publishes (#451, 5 Oct). A failing check doesn't stop it; it shows as a warning on the run **(Q-T1, decided: "Always publish", Patrick 4 Oct 02:59Z)**.
 
 A test that passes and fails on the same code (a flaky test) is fixed first. If it can't be fixed the same day, it moves to the sign-off run with a note on the waiting-on-Patrick list, so one flaky test can't hold up every change **(Q-T4, decided)**.
 

@@ -30,7 +30,7 @@ function pairDistances(state) {
     .map(([a, b]) => ({ label: `${a}-${b}`, a, b, distFt: distance(byId.get(a), byId.get(b)) }));
 }
 /** The backdrop (Patrick, 5 Oct): a dark neutral charcoal, so all four ship colours read equally (was V6's navy #071018). */
-export const BACKGROUND = '#1c2127';
+export const BACKGROUND = '#2a3038'; // lifted to a medium slate (Patrick, 5 Oct; was #1c2127)
 /** The 3/9 and 7/5 lines are red for every aircraft (Patrick, 5 Oct). */
 export const CLOCK_LINE_RED = '#ff4d4d';
 const OUTLINE = '#02060a';
@@ -206,7 +206,7 @@ function drawGrid(ctx, map) {
   let step = FT_PER_NM;
   while (step * map.view.scale < 14) step *= 5;
   const { minX, minY, maxX, maxY } = map.visibleBounds();
-  ctx.strokeStyle = '#2b333b'; // a faint grey grid on the charcoal (was navy #142334)
+  ctx.strokeStyle = '#3a424b'; // a faint grey grid on the slate (was navy #142334)
   ctx.lineWidth = 1;
   ctx.beginPath();
   for (let x = Math.floor(minX / step) * step; x <= maxX; x += step) {

@@ -10,22 +10,20 @@ import { iasToTasKt } from '../../../core/t6-performance.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, makeAircraft, stepAircraft, planDone } from './flight.js';
 import { MANOEUVRES, planManoeuvre, relativeTo, dryRun, TURN_BANK_DEG, TURN_G } from './manoeuvres.js';
-import { flyStep, dryRunT, planGoTo } from './transitions.js';
+import { flyStep, dryRunT } from './transitions.js';
 import { resolveErrors, resolveFixTools, applyStartErrors, planWithErrors, outcomeOf } from './errors.js';
 import { FOUR_SHIP_KEYS, fourShipStart, planFour } from './four-ship.js';
 import { G_WARM, planGWarm } from './g-warm.js';
 import { classify, judge } from './judge.js';
 import { FORMATIONS, FOUR_FORMATIONS, setFwShape, setFw4Shape } from './slots.js';
 import { planChangeFour } from './four-ship-moves.js';
-import { planHotRejoinChange, offStandardOutcome } from './hot-rejoin.js';
-import { planLineChange } from './line-moves.js';
-import { planTurningRejoin } from './turning-rejoin.js';
-import { planStraightRejoin } from './straight-rejoin.js';
-import { planEchelonToFw } from './echelon-to-fw.js';
-import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFwMove } from './formation-turns.js';
+import { offStandardOutcome } from './hot-rejoin.js';
+import { chooseChange } from './chooser.js';
+import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFwMove, leadTurnPlan } from './formation-turns.js';
 import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
 import { LAG_ROLL_KEY, planLagRoll } from './lag-roll.js';
+import { REJOIN, STEADY } from './tuning.js';
 
 /**
  * The first version's fixed numbers. Speeds name their kind (rule book): kias is
@@ -237,24 +235,22 @@ export function createFormation(options = {}) {
    * four-ship-moves.js for the four. Returns false, with state.refusal saying why in one line, when there is no safe
    * plan; nothing then changes.
    */
-  function startChange(to, changeOptions) {
+  function startChange(to, changeOptions, midLead = null) {
     if (to === 'fluid') return startFluid();
     whereNow();
     const four = state.aircraft.length > 2;
     // A training error set (TS-62) makes the hot turning rejoin start from wherever #2 is, flown as its response says.
-    const planOpts = { ...changeOptions, spacingFt: state.spacingFt, blockFt: opts.blockFt, lastSide: state.lastSide, errors: four ? null : state.errors };
-    // The 2-ship (clean-up step 2, TS-65): a training error's rejoin (hot-rejoin.js, TS-62); the turning rejoin on the rejoin
-    // line from line abreast or fighting wing (turning-rejoin.js, TS-68); every other change a line into the ball park, then
-    // the tracker (hand-over.js); odd starts no line rule covers, the tracker alone (planGoTo).
+    // midLead: Lead's own flying when a turn button is pressed mid-change (turnMidChange); otherwise how the press leaves him.
+    const mid = midLead ? { lead: { kind: 'carry', plan: midLead } } : state.current ? midPress(state.current) : null;
+    const planOpts = { ...changeOptions, spacingFt: state.spacingFt, blockFt: opts.blockFt, lastSide: state.lastSide, errors: four ? null : state.errors, mid };
+    // The 2-ship: the chooser (chooser.js, TS-76) runs every planner that applies (a training error's rejoin first, TS-62;
+    // the turning rejoin, TS-68; the straight-ahead rejoin, TS-72; echelon or route out to fighting wing, TS-73; a line then
+    // the tracker, TS-65; the tracker alone) and flies the one that passes the pilot's checks quickest. Until V2.75 they were
+    // tried in that fixed order and the first that accepted the case flew it.
     const plan = to === LAG_ROLL_KEY ? planLagRoll(state.aircraft, planOpts, state.tSec) // #2's lag roll (lag-roll.js, TS-71)
       : four
       ? planChangeFour(state.aircraft, to, planOpts, state.tSec)
-      : planHotRejoinChange(state.aircraft, to, planOpts, state.tSec) ??
-        planTurningRejoin(state.aircraft, to, planOpts, state.tSec) ??
-        planStraightRejoin(state.aircraft, to, planOpts, state.tSec) ?? // the straight-ahead rejoin (straight-rejoin.js, TS-72)
-        planEchelonToFw(state.aircraft, to, planOpts, state.tSec) ?? // echelon or route out to fighting wing, about 10 s (echelon-to-fw.js, TS-73)
-        planLineChange(state.aircraft, to, planOpts, state.tSec) ??
-        planGoTo(state.aircraft, to, planOpts, state.tSec);
+      : chooseChange(state.aircraft, to, planOpts, state.tSec);
     if (!plan.ok) {
       state.refusal = plan.reason;
       return false;
@@ -274,7 +270,7 @@ export function createFormation(options = {}) {
     if (four) for (const a of state.aircraft) if (a.ref != null) a.ref = plan.refs[a.id];
     state.current = {
       key: `change:${to}`,
-      change: { to: plan.to ?? to, side: plan.side, from: plan.from, rejoining: plan.rejoining, rejoinKind: plan.rejoinKind, flying: plan.flying, maxBankDeg: plan.maxBankDeg, four, offStandard: plan.offStandard ?? null },
+      change: { to: plan.to ?? to, side: plan.side, from: plan.from, rejoining: plan.rejoining, rejoinKind: plan.rejoinKind, flying: plan.flying, maxBankDeg: plan.maxBankDeg, four, offStandard: plan.offStandard ?? null, chooser: plan.chooser ?? null },
       dir: 0,
       label: plan.label,
       note: plan.note,
@@ -287,6 +283,40 @@ export function createFormation(options = {}) {
     state.judged = null;
     state.errorOutcome = null;
     return true;
+  }
+
+  /**
+   * A turn button pressed while #2 is still changing formation, 2-ship (spec F11; Fable's handover item 1): Lead flies the
+   * turn now, as he would in the formation #2 is going to, and #2's change is planned again from where he is against it
+   * (replan.js, the chooser's "from here"), so nothing waits in the queue. Not the lag roll, a training error's rejoin or a
+   * change to line abreast (its turns are both aircraft's manoeuvres). Returns true when it started, false to queue as before.
+   */
+  function turnMidChange(key, dir) {
+    const c = state.current;
+    if (!c?.change || c.change.four || c.change.offStandard || c.key === `change:${LAG_ROLL_KEY}`) return false;
+    const leadPlan = leadTurnPlan(state.aircraft[0], c.change.to, key, dir);
+    if (!leadPlan) return false;
+    const side = c.change.side > 0 ? 'left' : c.change.side < 0 ? 'right' : 'keep';
+    const was = { refusal: state.refusal };
+    if (!startChange(c.change.to, { side }, leadPlan)) {
+      state.refusal = was.refusal;
+      return false;
+    }
+    state.current.label = `${labelFor(key, dir)}, ${state.current.label.toLowerCase()}`;
+    state.queued = null;
+    return true;
+  }
+
+  /**
+   * How Lead flies on when a change is pressed mid-move (spec F11, replan.js): the rest of his own move (a turn, a fighting
+   * wing move, a line abreast manoeuvre); in a turning rejoin, his turn into #2 held until #2 is in; otherwise straight.
+   */
+  function midPress(c) {
+    const lead = state.aircraft[0];
+    const plan = state.plans[lead.id] ?? { segments: [] };
+    if (!c.change) return { lead: { kind: 'carry', plan: { segments: plan.segments.map((x) => ({ ...x })), profile: plan.profile } } };
+    if (c.change.rejoining && c.change.rejoinKind === 'into' && Math.abs(lead.bankDeg) > 1) return { lead: { kind: 'hold', s: Math.sign(lead.bankDeg), bankDeg: REJOIN.leadBankDeg } };
+    return { lead: { kind: 'straight' } };
   }
 
   /**
@@ -378,6 +408,34 @@ export function createFormation(options = {}) {
     }
   }
 
+  /**
+   * A 2-ship change of formation is done once #2 is IN POSITION (the judge's band) and steady, not when the tracker has
+   * settled on the exact slot (Patrick 5 Oct 20:39Z card "In band and steady"; TS-78): the tracker's plan keeps flying
+   * underneath and goes on holding the slot. Steady is #2's speed against the slot under STEADY.closureKt ("stabilize"
+   * means within 5 knots, Patrick 20:41Z), his bank within STEADY.bankOffDeg of Lead's, and Lead's own plan done (his
+   * speed change, his turn-in rolled out). Not the lag roll (it ends on its own), the 4-ship or a training error's rejoin.
+   */
+  function inBandAndSteady() {
+    const c = state.current;
+    if (!c?.change || c.change.four || c.change.offStandard || c.key === `change:${LAG_ROLL_KEY}`) return false;
+    const [lead, wing] = state.aircraft;
+    // Line abreast is a wide band: once #2 is in it and steady, Lead finishing his speed-up to 220 KIAS is ordinary formation
+  // keeping, not part of the change (estimate pending Patrick's card, 21:15Z; the other changes wait for Lead's plan).
+  if (c.change.to !== 'lab' && !planDone(lead, state.plans[lead.id])) return false;
+    const rel = relativeTo(lead, wing);
+    const prev = c.relPrev;
+    c.relPrev = { fwd: rel.fwd, left: rel.left, up: wing.altAboveFt - lead.altAboveFt, tSec: state.tSec };
+    if (!prev) return false;
+    const dtSec = Math.max(STEP_SEC, state.tSec - prev.tSec);
+    const closureFtps = Math.hypot(rel.fwd - prev.fwd, rel.left - prev.left, c.relPrev.up - prev.up) / dtSec;
+    if (closureFtps > STEADY.closureKt * KT_TO_FTPS) return false;
+    if (Math.abs(wing.bankDeg - lead.bankDeg) > STEADY.bankOffDeg) return false;
+    // The judge's band is sideless for the pair: a change of side is done only on the new side.
+    const side = c.change.side ?? 0;
+    if (side !== 0 && Math.sign(rel.left) !== side) return false;
+    return judge(state.aircraft, { key: c.change.to, side }, { spacingFt: state.spacingFt }).inBand;
+  }
+
   /** Why a manoeuvre can't be flown from where the formation is now, or null (spec sections 8 and 10: line abreast only). */
   function refuseMove(key, dir) {
     const where = whereNow().key;
@@ -403,9 +461,9 @@ export function createFormation(options = {}) {
       build();
     },
     /**
-     * A button press. Flown at once when nothing is being flown, otherwise queued
-     * and flown the moment the current manoeuvre ends (a later press replaces the
-     * queued one). Returns 'started' or 'queued'.
+     * A button press. Flown at once when nothing is being flown; a turn button while #2 is changing formation (2-ship) is
+     * flown at once too, the change planned again around it (turnMidChange); otherwise queued and flown the moment the
+     * current manoeuvre ends (a later press replaces the queued one). Returns 'started' or 'queued'.
      */
     press(key, dir = 1) {
       if (state.fluid) {
@@ -425,6 +483,7 @@ export function createFormation(options = {}) {
         }
       }
       if (!state.current) return start(key, dir) ? 'started' : 'refused';
+      if (!four && turnMidChange(key, dir)) return 'started';
       state.queued = { key, dir, label: labelFor(key, dir) };
       return 'queued';
     },
@@ -439,21 +498,21 @@ export function createFormation(options = {}) {
         state.refusal = 'Terminate fluid manoeuvring first; it ends in fighting wing.';
         return 'refused';
       }
-      if (state.current) {
-        const label = state.aircraft.length > 2 ? FOUR_FORMATIONS[to]?.label ?? to : FORMATIONS[to]?.label ?? to;
+      if (state.current && state.aircraft.length > 2) {
+        const label = FOUR_FORMATIONS[to]?.label ?? to;
         state.queued = { key: `change:${to}`, dir: 0, label, change: { to, options } };
         return 'queued';
       }
       return startChange(to, options) ? 'started' : 'refused';
     },
     /**
-     * #2's lag roll to fighting wing on Lead's other side (spec section 10.8, lag-roll.js, TS-71): 2-ship, from fighting wing,
-     * Lead straight and level. Flown at once when nothing is being flown, otherwise queued like a change. Returns 'started',
+     * #2's lag roll to fighting wing on Lead's other side (spec section 10.8, lag-roll.js, TS-71): 2-ship, from fighting wing
+     * or echelon (TS-78), Lead straight and level. Flown at once when nothing is being flown, otherwise queued like a change. Returns 'started',
      * 'queued' or 'refused' (state.refusal says why).
      */
     lagRoll() {
       if (state.fluid) {
-        state.refusal = 'Terminate fluid manoeuvring first; the lag roll starts from fighting wing.';
+        state.refusal = 'Terminate fluid manoeuvring first; the lag roll starts from fighting wing or echelon.';
         return 'refused';
       }
       if (state.current) {
@@ -568,6 +627,7 @@ export function createFormation(options = {}) {
         }
       }
       if (state.current && state.aircraft.every((a) => planDone(a, state.plans[a.id]) && (state.tSec >= state.current.endSec - STEP_SEC / 2))) finish();
+      else if (state.current && inBandAndSteady()) finish();
       return true;
     },
   };

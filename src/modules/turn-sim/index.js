@@ -215,7 +215,10 @@ function mount(root, app) {
   }
   const fitBounds = () => {
     const b = fitBox();
-    return { minX: b.x - b.spanXFt / 2, maxX: b.x + b.spanXFt / 2, minY: b.y - b.spanYFt / 2, maxY: b.y + b.spanYFt / 2 };
+    // The height spread too (Patrick, 5 Oct: a loop took the formation off the top of the 3D picture); 2D ignores it.
+    const alts = state.aircraft.map((a) => a.altAboveFt ?? 0);
+    const spanZFt = (Math.max(...alts) - Math.min(...alts)) / (1 - 2 * FIT.marginShare);
+    return { minX: b.x - b.spanXFt / 2, maxX: b.x + b.spanXFt / 2, minY: b.y - b.spanYFt / 2, maxY: b.y + b.spanYFt / 2, spanZFt };
   };
   /**
    * The 2D camera: with Fit all aircraft on, centred on them and zoomed to fit them (eased, or at once after a reset or a
@@ -246,6 +249,26 @@ function mount(root, app) {
     const abreast = key === 'lab' || key === 'spread4';
     const fw = key === 'fw';
     layout.update({ lead39: abreast, ...(abreast ? only1('l39', true) : {}), cone: fw, ...(fw ? only1('cone', true) : {}) });
+  }
+
+  /**
+   * The planned paths as drawn (Patrick, 5 Oct: the path moving with the aircraft was confusing): each one is frozen once
+   * drawn, so the aircraft flies along a still line (behind it the flown track takes over), and it is only redrawn when the
+   * aircraft reaches its end or a new manoeuvre, formation change or fluid move starts.
+   */
+  let planFrozen = {};
+  let planFor = null;
+  function shownPlan() {
+    const what = [state.current, state.fluid?.session.now().key, state.fluid?.session.now().label];
+    const changed = !planFor || what.some((w, i) => w !== planFor[i]);
+    planFor = what;
+    for (const [id, points] of Object.entries(state.planned ?? {})) {
+      const held = planFrozen[id];
+      const used = !held || held.length === 0 || held[held.length - 1][0] <= state.tSec;
+      if (changed || used) planFrozen[id] = points;
+    }
+    for (const id of Object.keys(planFrozen)) if (!state.planned?.[id]) delete planFrozen[id];
+    return planFrozen;
   }
 
   function dataTags() {
@@ -288,7 +311,7 @@ function mount(root, app) {
       settings: () => ({}),
       labels: () => ({}),
       follow,
-      planned: () => state.planned,
+      planned: shownPlan,
       tags: dataTags,
       rejoin: () => {
         if (!state.current?.change?.rejoining || state.aircraft.length !== 2) return null;
@@ -310,13 +333,15 @@ function mount(root, app) {
       state: () => state,
       trails: () => ({ trail: state.tracks }),
       layers: () => layout.get(),
-      planned: () => state.planned,
+      planned: shownPlan,
       tags: dataTags,
       look: camLook,
       focus: () => {
         if (freeCamera()) return null; // the 3D view keeps its own centre, moved by shift-drag or right-drag
         const b = fitBox();
-        return { x: b.x, y: b.y };
+        // and the formation's average height, so the camera stays on it through loops and wingovers (Patrick, 5 Oct)
+        const alts = state.aircraft.map((a) => a.altAboveFt ?? 0);
+        return { x: b.x, y: b.y, z: alts.reduce((t, v) => t + v, 0) / alts.length };
       },
       fitBounds: () => (cameraPaused || freeCamera() || !layout.get().autoFit ? null : fitBounds()),
       paint: () => layout.get().paint,
@@ -450,6 +475,8 @@ function mount(root, app) {
   }
 
   function resetRun() {
+    planFrozen = {}; // the frozen planned paths go with the old run
+    planFor = null;
     pause();
     formation.reset({ ...setup.get() });
     owed = 0;

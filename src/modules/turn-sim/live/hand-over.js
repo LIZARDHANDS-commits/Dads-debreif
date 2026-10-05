@@ -75,16 +75,17 @@ export function wingFromPose(wing, pose) {
 }
 
 /** The line's time law makers, from RUN_IN at the speed and block height (moving aft in the frame is #2 slower: speeding up along such a path is slowing, and the other way round). */
-function runInLaw(kiasPerTas, blockFt) {
+function runInLaw(kiasPerTas, blockFt, over = null) {
+  const R = over ? { ...RUN_IN, ...over } : RUN_IN;
   const ft2 = (ktps) => ktps / kiasPerTas; // KIAS per second to true ft/s² (kiasPerTas is KIAS per ft/s; it counted KT_TO_FTPS twice before V2.64)
-  const up = ft2(fullPowerKtps(KIAS_OUTSIDE_LAB, blockFt) * RUN_IN.powerShare);
-  const down = ft2(slowKtps('idle', KIAS_OUTSIDE_LAB, blockFt) * RUN_IN.powerShare);
-  const latA = RUN_IN.latG * G_FTPS2;
-  const cap = (d, f) => Math.min(f / Math.max(Math.abs(d.fwd), 1e-6), latA / Math.max(Math.abs(d.left), 1e-6), RUN_IN.vertFtps2 / Math.max(Math.abs(d.up), 1e-6));
+  const up = ft2(fullPowerKtps(KIAS_OUTSIDE_LAB, blockFt) * R.powerShare);
+  const down = ft2(slowKtps('idle', KIAS_OUTSIDE_LAB, blockFt) * R.powerShare);
+  const latA = R.latG * G_FTPS2;
+  const cap = (d, f) => Math.min(f / Math.max(Math.abs(d.fwd), 1e-6), latA / Math.max(Math.abs(d.left), 1e-6), R.vertFtps2 / Math.max(Math.abs(d.up), 1e-6));
   return {
     accel: (q, d) => cap(d, d.fwd >= 0 ? up : down),
     decel: (q, d) => cap(d, d.fwd >= 0 ? down : up),
-    turnFtps2: RUN_IN.turnShare * Math.min(up, down, latA), // the line's own turns in the frame, added to the speed changes above, so together they stay inside full power
+    turnFtps2: R.turnShare * Math.min(up, down, latA), // the line's own turns in the frame, added to the speed changes above, so together they stay inside full power
   };
 }
 
@@ -92,8 +93,8 @@ function runInLaw(kiasPerTas, blockFt) {
  * Where the line hands over to the tracker (the one place the rule lives, so it can be switched): about HAND_OVER_FT from
  * the final slot, the same for every Rates choice (Patrick 5 Oct 06:24Z). Returns { slot, withinFt }.
  */
-export function handOverPoint({ finalSlot }) {
-  return { slot: finalSlot, withinFt: HAND_OVER_FT };
+export function handOverPoint({ finalSlot, withinFt = HAND_OVER_FT }) {
+  return { slot: finalSlot, withinFt };
 }
 
 /**
@@ -103,10 +104,13 @@ export function handOverPoint({ finalSlot }) {
  * (Patrick 06:13Z), arriving at the hand-over point (handOverPoint) at `endFtps` (the close-in rate). Held to full power
  * where Lead's own speed change asks more (full-power.js, TS-63). Returns null when #2 starts inside the hand-over range
  * (the tracker flies it all), else { poses, steps, accelKtps, stretched, maxBankDeg, handOverFt }: poses for steps
- * 1..steps, the last being the hand-over state, and the acceleration there (KIAS per second).
+ * 1..steps, the last being the hand-over state, and the acceleration there (KIAS per second). handOverFt and rates
+ * (relSpeedLimitFor's overrides) and law (RUN_IN's overrides: how hard the line may accelerate and turn in the frame) are
+ * the opening out to line abreast's (line-moves.js OPEN_OUT, TS-78): a wide band needs no 500 ft close-in run, and a
+ * tactical formation selected means unrestricted attitude and power (Patrick 21:11Z).
  */
-export function lineRunIn({ wing, leadRec, points, finalSlot, blockFt = 8000, cruiseFtps = rejoinClosureNow().ftps, endFtps = closureNow().ftps }) {
-  const { slot: hoSlot, withinFt: D } = handOverPoint({ finalSlot });
+export function lineRunIn({ wing, leadRec, points, finalSlot, blockFt = 8000, cruiseFtps = rejoinClosureNow().ftps, endFtps = closureNow().ftps, handOverFt = HAND_OVER_FT, rates = null, law = null }) {
+  const { slot: hoSlot, withinFt: D } = handOverPoint({ finalSlot, withinFt: handOverFt });
   const L0 = leadRec.at(0);
   if (offSlotFt(L0, wing.xFt, wing.yFt, hoSlot) <= D) return null;
   const path = relPath(points);
@@ -119,9 +123,9 @@ export function lineRunIn({ wing, leadRec, points, finalSlot, blockFt = 8000, cr
     }
   }
   const kiasPerTas = wing.kias / wing.tasFtps;
-  const { accel, decel, turnFtps2 } = runInLaw(kiasPerTas, blockFt);
-  const law = powerLaw(path, { accel, decel, turnFtps2, limit: relSpeedLimitFor(cruiseFtps), endAt: sH, endFtps, rateSetSec: RATE_SET_SEC });
-  const steps = Math.ceil(law.durationSec / dt);
+  const { accel, decel, turnFtps2 } = runInLaw(kiasPerTas, blockFt, law);
+  const timeLaw = powerLaw(path, { accel, decel, turnFtps2, limit: relSpeedLimitFor(cruiseFtps, rates), endAt: sH, endFtps, rateSetSec: RATE_SET_SEC });
+  const steps = Math.ceil(timeLaw.durationSec / dt);
   // Sampled once a step, past the hand-over too, then lightly smoothed (three passes of a one-second running mean, as
   // kinematic-moves.js movingSlot) so the bank and roll read off the line have no tiny corners.
   const HALF = 10;
@@ -129,7 +133,7 @@ export function lineRunIn({ wing, leadRec, points, finalSlot, blockFt = 8000, cr
   const extra = Math.round(KINEMATIC.startBlendSec / dt) + 40;
   const keys = ['fwd', 'left', 'up', 'plane'];
   let rows = [];
-  for (let i = -pad; i <= steps + extra + pad; i++) rows.push(path.at(law.sAt(Math.max(0, i) * dt)));
+  for (let i = -pad; i <= steps + extra + pad; i++) rows.push(path.at(timeLaw.sAt(Math.max(0, i) * dt)));
   for (let pass = 0; pass < 3; pass++) {
     rows = rows.map((_, i) => {
       const o = {};

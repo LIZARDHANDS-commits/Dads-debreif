@@ -77,4 +77,4 @@ These old numbers are not in force. Each row says what took its place or where i
 
 | Old ID |  |  |  |
 |---|---|---|---|
-| D12 | Host on free GitHub Pages; deploys from the repo. | Free GitHub Pages is how ALL-R1's "web link" is delivered today, but the repo is private and the site returns 404 (`archive/HANDOVER.md:11`), and the public-or-private choice is the open Q-ALL-1, left for thread 6 (`pf/reset/1-requirements/requirements.md:12`). I can't tell from the requirements whether Pages stays. Same question as Q-ALL-1; answer once there. | same as Q-ALL-1 (public or private), thread 6 |
+| D12 | Host on free GitHub Pages; deploys from the repo. | Free GitHub Pages is how ALL-R1's "web link" is delivered today, but the repo was private and the site returned 404 (`archive/HANDOVER.md:11`), and the public-or-private choice was Q-ALL-1, left for thread 6 (`pf/reset/1-requirements/requirements.md:12`). Update 5 Oct: the repo is now public, and #451 publishes on a hand Run workflow, or on a push while PAGES_ON is true. | Q-ALL-1 answered: repo public since 5 Oct |

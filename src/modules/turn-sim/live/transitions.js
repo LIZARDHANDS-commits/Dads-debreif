@@ -33,7 +33,8 @@ import { applyPose } from './kinematic.js';
 import { fullPowerKtps, speedSegFor } from './slow-down.js';
 import { setKias, stepCommanded, phase, trackTwice, PLAN_MAX_SEC } from './tracker.js';
 import { FORMATIONS, fwShapeNow, pairSlot } from './slots.js';
-import { KIAS_OUTSIDE_LAB, KIAS_LAB, REJOIN, RULED_REJOIN, closureNow, rejoinClosureNow } from './tuning.js';
+import { KIAS_OUTSIDE_LAB, KIAS_LAB, REJOIN, RULED_REJOIN, STOP_KT, closureNow, rejoinClosureNow } from './tuning.js';
+import { KT_TO_FTPS } from '../../../core/units.js';
 import { onClosure, leadTurnInto, trackTail } from './hand-over.js';
 
 // ---- the numbers -----------------------------------------------------------------------
@@ -148,9 +149,9 @@ export const slide = (slot, over = {}) => phase(slot, { advanceTol: 6, ...over }
 /**
  * A station change's corner or end point, flown as a real stop (SMM 12.20 para 45: "stabilize in this position", "stop the
  * aircraft", "stabilize directly behind the echelon position"): #2 stops on it and holds 2 s before moving on. The 1 ft/s
- * and 2 s are estimates.
+ * and 2 s are estimates; the stop is within STOP_KT (Patrick 20:41Z: "stabilize" is within 5 knots, not exactly zero).
  */
-export const stopAt = (slot, over = {}) => slide(slot, { fwdRate: 5, advanceTol: 2, stopFtps: 1, dwellSec: 2, ...over });
+export const stopAt = (slot, over = {}) => slide(slot, { fwdRate: 5, advanceTol: 2, stopFtps: STOP_KT * KT_TO_FTPS, dwellSec: 2, ...over });
 /**
  * The corner behind a close slot (SMM 12.20 para 45; Figs 12.12-12.13): back until #2's nose is at least 10 ft behind Lead's
  * tail (line astern's own spacing, plus 12 ft so it does not fall short: an estimate), at the slot's own lateral, and low
