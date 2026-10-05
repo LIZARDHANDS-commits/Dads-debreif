@@ -68,3 +68,16 @@ Patrick, 4 Oct (review thread): he wants all of V6's features eventually, added 
 - A finer geometry search off the standard start (tried: it took up to 12 s a press and gave no better lines), so Fix it could keep #2 on his own side more often before it settles for the slide to the outside.
 - A torque curve from the NFM (torque against PCL, speed and height) in place of the model's throttle and the 0.81 efficiency behind TQ % (Patrick 02:05Z).
 - Power on the tags for the tracker's rejoin and the other planned lines (they set no power, so none shows).
+
+## Ideas kept from the retired plan-mode code (clean-up step 4; Patrick, card "Approve, all 4" 5 Oct 01:36Z)
+
+The first Turn Sim engine (plan mode, ported from V6) was removed in clean-up step 4; today's screen had not used it since live mode. Its ideas, for a later plan mode (TS-Q2, the two modes) if Patrick wants one back. The code is in git history before the step 4 pull request.
+- **Plan a whole turn in advance and play it** (engine/plan.js, run.js, step.js): who turns which way, how far and when, from settings, stepped 0.05 s at a time.
+- **Clock-position cues** (engine/cues.js): an aircraft waits until another passes a clock position on it, then turns (V6 `clockCueCrossed`).
+- **The Delayed 45 with the check turn** for the 2-ship, spread 4 and box (engine/check-plan.js; SMM 16.19 Figs 16.17, 16.31, 16.34).
+- **The offset box's rear element check** (engine/rear-check.js): #3 and #4 turn a few degrees away, hold and turn back to look behind.
+- **The Solver** (engine/solver.js): finds the base delay, starting spacing or G that gives a target spacing at the end of a run.
+- **The Spacing graph** (engine/series.js): pair distances, minimum separation and closure over a run.
+- **Auto timing and the G correction** (plan.js, step.js): turn starts timed to keep spacing; a wingman's G corrected toward his slot.
+- **V6's formation slots and position errors, settings and input boxes** (engine/formation.js, settings.js, fields.js) and the old Formation card rows (readouts.js).
+- Two shared helpers in `src/core` were used only by plan mode and are now unused by the Formation Sim: `turnSimG` (flight-math.js) and `classifyTurnSimPosition` (standards.js). They stay until a `src/core` change is agreed.
