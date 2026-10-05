@@ -62,6 +62,9 @@ const DEG = Math.PI / 180;
 const PICTURE_BREAK_FT = 100;
 /** After a re-plan for a broken picture that found nothing better, the next try waits this long (seconds, an estimate). */
 const PICTURE_RETRY_SEC = 2;
+/** A change pressed in fluid manoeuvring is planned only with Lead within this of level (TS-86; estimates). */
+const FLUID_CHANGE_MAX_BANK_DEG = 90;
+const FLUID_CHANGE_MAX_CLIMB_DEG = 30;
 
 /** Compass heading (degrees, 000 to 359) from math radians. */
 export function compassDeg(headingRad) {
@@ -418,6 +421,29 @@ export function createFormation(options = {}) {
     return true;
   }
 
+  /**
+   * A Change formation press in fluid manoeuvring or its Terminate (Patrick 5 Oct 22:32Z: "after fluid manoeuvring the
+   * planes seem to get stuck in that I can't rejoin"; TS-86): the session ends and the change is planned from where the
+   * pair is, like any press mid-move (TS-78). Refused, with fluid going on, only while Lead is far from level (a loop's
+   * top, a wingover): planned from there the change would start from an attitude the planners don't fly.
+   */
+  function changeFromFluid(to, options) {
+    const lead = state.aircraft[0];
+    const climbDeg = Math.atan2(lead.climbFtps ?? 0, Math.max(lead.tasFtps, 1)) / DEG;
+    if (Math.abs(lead.bankDeg) > FLUID_CHANGE_MAX_BANK_DEG || Math.abs(climbDeg) > FLUID_CHANGE_MAX_CLIMB_DEG) {
+      state.refusal = 'Lead is in the vertical; press again once he is back near level.';
+      return 'refused';
+    }
+    const f = state.fluid;
+    const cur = state.current;
+    state.fluid = null;
+    state.current = null;
+    if (startChange(to, options)) return 'started';
+    state.fluid = f;
+    state.current = cur;
+    return 'refused';
+  }
+
   /** The end of fluid manoeuvring: back in fighting wing, judged against its band (spec section 10 table). */
   function finishFluid() {
     state.fluid = null;
@@ -557,10 +583,7 @@ export function createFormation(options = {}) {
      * flown, otherwise queued like a manoeuvre. Returns 'started', 'queued' or 'refused' (state.refusal says why).
      */
     change(to, options = {}) {
-      if (state.fluid) {
-        state.refusal = 'Terminate fluid manoeuvring first; it ends in fighting wing.';
-        return 'refused';
-      }
+      if (state.fluid) return changeFromFluid(to, options);
       if (state.current && state.aircraft.length > 2) {
         const label = FOUR_FORMATIONS[to]?.label ?? to;
         state.queued = { key: `change:${to}`, dir: 0, label, change: { to, options } };
