@@ -671,7 +671,7 @@ function fingerTrail(start, t0, opts, s, toTrail) {
 function fwFluid(start, t0, opts, s, toFluid) {
   return legsInTurn(start, t0, opts, [(c) => {
     if (toFluid) {
-      const f4 = slotsFor('fluid4', s, { ships: 4 });
+      const f4 = slotsFor('fluid4', s, { ships: 4, spacingFt: c.spacingFt });
       return {
         lead: toSpeed(c, 'fluid4'),
         wings: [
@@ -703,7 +703,7 @@ function fwFluid(start, t0, opts, s, toFluid) {
 function fluidToBox(start, t0, opts, s) {
   return legsInTurn(start, t0, opts, [
     (c) => {
-      const f4 = slotsFor('fluid4', s, { ships: 4 });
+      const f4 = slotsFor('fluid4', s, { ships: 4, spacingFt: c.spacingFt });
       const turn = { bankCapDeg: 75, overtakeKias: 25, undertakeKias: 25 };
       return {
         lead: [turnSeg(wholeDegree(c.start[0].headingRad + s * Math.PI / 2), s, TURN_BANK_DEG)],

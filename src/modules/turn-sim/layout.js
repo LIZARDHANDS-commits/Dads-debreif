@@ -291,6 +291,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     lc.checkbox('tagSpeed', { label: 'Airspeed' }),
     lc.checkbox('tagPower', { label: 'Power' }),
     lc.checkbox('tagClosure', { label: 'Closure (rejoins)' }),
+    lc.checkbox('tagError', { label: 'Error and fix (#2)' }),
     lc.checkbox('tagHeight', { label: 'Height off Lead' }),
     lc.checkbox('tagHeading', { label: 'Heading' }),
     lc.checkbox('tagBankG', { label: 'Bank and G' }),

@@ -141,8 +141,6 @@ export const FW_STEP_DOWN_FT = 60;
 /** The offset box's second element sits this far behind the first (TS-18; SMM 16.41 para 109 gives 6,000-8,000 ft). */
 export const BOX_DEPTH_FT = 7000;
 export const BOX_DEPTH_BAND_FT = Object.freeze([6000, 8000]);
-/** Fluid 4: #3 this far abeam of Lead, the wide LAB (AFM8 brief p.20). */
-export const FLUID4_ABEAM_FT = 6000;
 
 // ---- the table ---------------------------------------------------------------------------------------------------------
 
@@ -191,7 +189,7 @@ export function slotsFor(key, s, { ships = 2, spacingFt = 6000, stacked = true }
       // #4 flies fighting wing off #3 as #2 does off Lead: #2's spacing and sweep setting (FW4: 650 ft at 45° by default, an estimate).
       return {
         2: { ref: 1, ...fwAt(fw4.twoRangeFt, fw4.twoDeg, s), alt: STACK_FT[2] },
-        3: { ref: 1, fwd: 0, left: -s * FLUID4_ABEAM_FT, alt: STACK_FT[3] },
+        3: { ref: 1, fwd: 0, left: -s * spacingFt, alt: STACK_FT[3] }, // abeam of Lead at the Setup's line abreast spacing (AFM8 brief p.20; Patrick ratified the 4-ship moves table, 5 Oct)
         4: { ref: 3, ...fwAt(fw4.twoRangeFt, fw4.twoDeg, -s), alt: STACK_FT[4] },
       };
     case 'fw':
