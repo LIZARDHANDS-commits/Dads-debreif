@@ -568,7 +568,7 @@ function drawLinesTag(ctx, map, x, y, tag, colour, pad, placed = []) {
   const h = 4 + rows.length * 11;
   // Up and to the right of the aircraft, clear of it (Patrick, 5 Oct: the tags covered the aircraft); left when the right
   // would run off the picture, below when the top would.
-  const gap = 18;
+  const gap = 40; // well clear of the aircraft, joined to it by a leader line (Patrick, 5 Oct)
   const tx = x + gap + w > map.size.width ? x - gap - w : x + gap;
   let ty = y - gap - h < 0 ? y + gap : y - gap - h;
   // Close formations put the aircraft side by side: a tag that would cover one already drawn moves up above it.
@@ -582,10 +582,19 @@ function drawLinesTag(ctx, map, x, y, tag, colour, pad, placed = []) {
     }
   }
   placed.push({ x: tx, y: ty, w, h });
-  ctx.fillStyle = 'rgba(10, 18, 28, 0.85)';
-  ctx.fillRect(tx, ty, w, h);
+  // The leader: from the aircraft to the box's nearest corner, in its colour.
+  const cx = tx > x ? tx : tx + w;
+  const cy = ty > y ? ty : ty + h;
   ctx.strokeStyle = colour;
+  ctx.globalAlpha = 0.7;
   ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(cx, cy);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = 'rgba(10, 18, 28, 0.5)'; // see-through, so the picture shows behind it (was 0.85)
+  ctx.fillRect(tx, ty, w, h);
   ctx.strokeRect(tx, ty, w, h);
   ctx.textAlign = 'left';
   ctx.fillStyle = '#ffffff';
