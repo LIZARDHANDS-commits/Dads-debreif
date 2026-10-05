@@ -4,6 +4,7 @@
 // reversal and Terminate; from V2.18 climb and descend, and the loop; from V2.19 the wingovers, the barrel roll and the SMM's standard sequence. Everything is built with h(), so all text goes in as text. Flags are never walls.
 import { h, clear } from '../../ui-kit/dom.js';
 import { FLUID, LEVEL_BANKS, PURSUIT_WORDS, checkFluidRange } from './live/fluid.js';
+import { FW_MOVES } from './live/formation-turns.js';
 
 /** Lead's buttons, in screen order. dir +1 left, -1 right for the sided ones. */
 export const FLUID_BUTTONS = Object.freeze([
@@ -106,8 +107,11 @@ export function createFluidUi({ onPress, onSettings, settings }) {
     rangeMessage,
     h('label', { class: 'ts-field' }, h('span', { class: 'ts-hint' }, 'How #2 is flown'), methodSelect),
   );
+  const title = h('h3', { class: 'ts-group-title', id: 'ts-fluid-title' }, 'Fluid manoeuvring, Lead');
+  const FLUID_HINT = hint.textContent;
+  const FW_HINT = "Lead's turns, climbs and descents in fighting wing, at the level turn bank in Settings. #2 stays anywhere in the cone, collapsing toward Lead's six while Lead is banked.";
   const element = h('section', { class: 'ts-change ts-fluid', 'aria-labelledby': 'ts-fluid-title' },
-    h('h3', { class: 'ts-group-title', id: 'ts-fluid-title' }, 'Fluid manoeuvring, Lead'),
+    title,
     hint,
     h('div', { class: 'ts-change-grid' }, buttons),
   );
@@ -125,12 +129,21 @@ export function createFluidUi({ onPress, onSettings, settings }) {
     /** Lead's buttons work only while fluid manoeuvring runs; Terminate and the rest grey once Terminate is flown. */
     update(state) {
       const f = state.fluid;
+      // Shown outside fluid manoeuvring only in fighting wing (transitions-panel.js): then it holds Lead's fighting wing
+      // moves, the level turns, climbs and descents (TS-70), flown at once.
+      const fw = !f;
       const now = f?.session.now();
-      const ending = !f || now.key === 'terminate' || now.key === 'steady';
-      for (const b of buttons) {
+      const ending = Boolean(f) && (now.key === 'terminate' || now.key === 'steady');
+      FLUID_BUTTONS.forEach((def, i) => {
+        const b = buttons[i];
+        b.hidden = fw && !FW_MOVES[def.key];
         b.disabled = ending;
-        b.title = !f ? 'Start fluid manoeuvring from fighting wing first' : ending ? 'Terminate is being flown' : '';
-      }
+        b.title = ending ? 'Terminate is being flown' : '';
+      });
+      const words = fw ? 'Fighting wing, Lead' : 'Fluid manoeuvring, Lead';
+      if (title.textContent !== words) title.textContent = words;
+      const help = fw ? FW_HINT : FLUID_HINT;
+      if (hint.textContent !== help) hint.textContent = help;
     },
     renderCard(state) {
       clear(lines);

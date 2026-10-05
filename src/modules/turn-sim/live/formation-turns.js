@@ -18,7 +18,7 @@
 //
 // Turns in the close formations (spec section 10.2; Patrick 18:11Z: "do turns in any of these formations") are planned here
 // too: planCloseTurn, below. planFormationTurn picks the planner for the formation the aircraft are in.
-import { STEP_SEC, copyAircraft } from './flight.js';
+import { STEP_SEC, SMOOTHER_PEAK, copyAircraft } from './flight.js';
 import { MANOEUVRES, relativeTo, DEG } from './manoeuvres.js';
 import { recordFlight, flyStep, dryRunT } from './transitions.js';
 import { trackTwice, phase } from './tracker.js';
@@ -257,4 +257,69 @@ export function planFormationTurn(aircraft, where, key, dir, t0 = 0, { blockFt =
   const ships = aircraft.length > 2 ? 4 : 2;
   if (!FW_TURN_KEYS.includes(key) || !TURN_FORMATIONS[ships].includes(where.key)) return null;
   return where.key === 'fw' ? planFwTurn(aircraft, key, dir, t0, { blockFt }) : planCloseTurn(aircraft, where.key, key, dir, t0);
+}
+
+// ---- Lead's manoeuvres in fighting wing (TS-70) ------------------------------------------------------------------------
+
+/**
+ * Lead's buttons in fighting wing, 2-ship (spec section 10.7, TS-70; Patrick 5 Oct 09:03Z: "they should be normal clearhood
+ * turns and climbs etc. fluid manoeuvring is just fighting wing aerobatics"; card "Yes, as written" 09:07Z): fluid's own
+ * level turns, wings level, reversal, climb and descent, with no aerobatics. Each press is flown at once, planned again from
+ * where the pair is (a held turn is planned FW_MOVE.heldTurnDeg ahead), and #2 flies the fighting wing turns' goal-seeking
+ * tracker (fwGoal): anywhere in the cone is his place (Patrick 08:58Z), collapsing toward Lead's six while Lead is banked.
+ */
+export const FW_MOVES = Object.freeze({
+  levelTurn: { label: 'Level turn', sided: true },
+  wingsLevel: { label: 'Wings level', sided: false },
+  reversal: { label: 'Reversal', sided: false },
+  climb: { label: 'Climb', sided: false },
+  descend: { label: 'Descend', sided: false },
+});
+/** Lead's moves in fighting wing: a held turn is planned two full turns ahead, the next press planning again from where the
+ * pair is; climbs and descents as fluid's (2,000 ft, a 15° path at the steepest; design 5.1, estimates). */
+export const FW_MOVE = Object.freeze({ heldTurnDeg: 720, climbFt: 2000, climbDeg: 15 });
+
+/**
+ * One of Lead's fighting wing moves (FW_MOVES) from where the pair is now, 2-ship. bankDeg: Lead's level turn bank (the
+ * fluid setting). Returns { ok, plans, note, leadBankDeg, maxBankDeg, endSec } or { ok: false, reason }.
+ */
+export function planFwMove(aircraft, key, dir, t0 = 0, { blockFt = 8000, bankDeg = /** @type {number} */ (WING_BANKS.fwTurnBankDeg) } = {}) {
+  const [lead, wing] = aircraft;
+  if (!FW_MOVES[key]) return { ok: false, reason: `No fighting wing move called ${key}.` };
+  const turning = Math.abs(lead.bankDeg) > 5;
+  const nowDir = Math.sign(lead.bankDeg) || 1;
+  const held = (d, bank) => leadTurnSegs(lead.headingRad, d, FW_MOVE.heldTurnDeg * DEG, bank, true);
+  let segments = [];
+  let profile = [];
+  if (key === 'levelTurn') segments = held(dir, bankDeg);
+  else if (key === 'reversal') {
+    if (!turning) return { ok: false, reason: 'Reversal needs a turn to reverse: press a level turn first.' };
+    segments = held(-nowDir, Math.max(bankDeg, Math.abs(lead.bankDeg)));
+  } else if (key === 'climb' || key === 'descend') {
+    // A pitch change only: a turn being flown carries on at its bank (as fluid's).
+    if (turning) segments = held(nowDir, Math.abs(lead.bankDeg));
+    const avgFtps = (lead.tasFtps * Math.sin(FW_MOVE.climbDeg * DEG)) / SMOOTHER_PEAK;
+    const up = key === 'climb' ? 1 : -1;
+    profile = [{ t0, t1: t0 + FW_MOVE.climbFt / avgFtps, fromFt: lead.altAboveFt, toFt: lead.altAboveFt + up * FW_MOVE.climbFt }];
+  } // wings level: no segments, so Lead rolls out (flight.js)
+  const leadPlan = { segments, profile };
+  const refs = { [lead.id]: recordFlight(lead, leadPlan, t0) };
+  const rel0 = relativeTo(lead, wing);
+  const side = Math.sign(rel0.left) || -1;
+  const follow = { ...FW_FOLLOW, bankCapDeg: WING_BANKS.fwFollowBankCapDeg };
+  const goalPhase = phase({ fwd: rel0.fwd, left: rel0.left, alt: wing.altAboveFt }, { ...follow, track: lead.id, goal: (L, W) => fwGoal(L, W, side, true) });
+  const { run } = trackTwice({ refs, wing0: wing, t0, phases: [goalPhase], blockFt });
+  if (!run.ok) return { ok: false, reason: `No safe ${FW_MOVES[key].label.toLowerCase()} in fighting wing from here: #2 could not stay in the cone.` };
+  // #2 climbs and descends with Lead, keeping the height he has from Lead (the whole cone, high or low: Patrick 08:58Z).
+  const dh = wing.altAboveFt - lead.altAboveFt;
+  const wingProfile = profile.map((leg) => ({ ...leg, fromFt: leg.fromFt + dh, toFt: leg.toFt + dh }));
+  const words = key === 'levelTurn' ? `a level turn ${dir > 0 ? 'left' : 'right'} at ${bankDeg}° of bank, held until the next press` : key === 'reversal' ? 'a reversal' : key === 'wingsLevel' ? 'wings level' : `a ${key === 'climb' ? 'climb' : 'descent'} of ${FW_MOVE.climbFt.toLocaleString('en-CA')} ft`;
+  return {
+    ok: true,
+    plans: { [lead.id]: { segments: segments.map((x) => ({ ...x })), profile }, [wing.id]: { segments: [{ kind: 'bankTrack', points: run.points }], profile: wingProfile } },
+    note: `Fighting wing: Lead flies ${words}. #2 stays in the cone, anywhere in it, collapsing toward Lead's six while Lead is banked (SMM 12.29 para 69, Fig 12.19).`,
+    leadBankDeg: key === 'levelTurn' ? bankDeg : Math.abs(lead.bankDeg),
+    maxBankDeg: run.maxBankDeg,
+    endSec: t0 + run.durationSec,
+  };
 }

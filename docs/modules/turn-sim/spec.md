@@ -513,6 +513,18 @@ Patrick's rulings of 4 Oct 19:15Z, 23:29Z and 23:37-23:38Z and 5 Oct 00:11Z-02:0
 
 **Checks.** None added (Patrick 06:25Z); typecheck and a page-load check, and the three default turning rejoins each planned once to see they don't refuse. V2.63: each turning rejoin start planned once at each Rates choice (TS-69 lists the three that still fall back). V2.64: the same, two still fall back (TS-69); the close moves' times checked unchanged after the tracker fix. V2.65: none fall back; the close moves' times unchanged.
 
+### 10.7 Lead's moves in fighting wing (V2.66, TS-70; Patrick 5 Oct 09:03Z, card "Yes, as written" 09:07Z; built 5 Oct, not yet in Patrick's sign-off)
+
+Patrick 09:03Z: "as SOON as "fighting wing" is clicked and the aircraft is in the cone (can still be moving) Lead can start manoeuvring. The manoeuvres are currently listed as the same from line abreast -- they should be normal clearhood turns and climbs etc. fluid manoeuvring is just fighting wing aerobatics."
+
+- **The buttons:** in fighting wing (2-ship) the formation box shows "Fighting wing, Lead": Level turn L and R, Wings level, Reversal, Climb, Descend. These are fluid's own moves without the aerobatics, and the level turn uses the "Lead's level turn bank" setting. The line abreast turns (Delayed 90 and 45, Check, In place 90, Hook) no longer show in fighting wing; they stay in line abreast and the close formations. Fluid manoeuvring stays as fighting wing aerobatics (10.3).
+- **When:** as soon as #2 is in the cone, even while a change to fighting wing is still flown; a press ends that change where #2 is.
+- **How it flies:** each press is flown at once and planned again from where the pair is. A level turn is held until the next press (planned two full turns ahead). A reversal rolls to the other side at the same bank. A climb or descent is fluid's 2,000 ft at a 15° path at the steepest, and a turn being flown carries on (estimates). #2 flies the fighting wing turns' tracker (TS-55, `formation-turns.js` fwGoal): anywhere in the cone is his place, high or low (Patrick 08:58Z), collapsing toward Lead's six while Lead is banked past about 32-42° (SMM 12.29 para 69), and he climbs and descends with Lead. After Wings level, once #2 has settled, the move ends and is judged against the fighting wing band.
+- **What moves on screen:** the line abreast turn buttons leave the Manoeuvres list in fighting wing. The formation buttons are greyed while Lead flies a move ("Wings level first").
+- **Not built:** the 4-ship; Lead's power is the commanded speed's (no MAX); #2 doesn't pick a different place in the cone on his own.
+
+**Checks.** None added (Patrick 06:25Z, 09:08Z); typecheck, a page-load check, and one dry run (into fighting wing, a level turn, a climb, a reversal, wings level: #2 stayed 660-800 ft, near Lead's six in the turns and at about 54° of sweep after).
+
 ---
 
 # Part 2. Plan mode: the spec from before the reset

@@ -230,12 +230,14 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       fluidUi?.update(state);
       // Only what the formation the pair is in can use shows (Patrick, 5 Oct): the fluid buttons in fluid manoeuvring,
       // the rejoin choice in line abreast.
-      if (fluidUi) fluidUi.element.hidden = where.key !== 'fluid';
+      // In fighting wing the same group holds Lead's level turns, climbs and descents (TS-70, Patrick card 09:07Z).
+      if (fluidUi) fluidUi.element.hidden = where.key !== 'fluid' && where.key !== 'fw';
       for (const [key, button] of buttons) {
-        if (where.key === 'fluid') {
-          // In fluid manoeuvring Terminate is the way out; it ends in fighting wing (spec section 10.3).
+        if (where.key === 'fluid' || where.manoeuvring) {
+          // In fluid manoeuvring Terminate is the way out; it ends in fighting wing (spec section 10.3). While Lead flies a
+          // fighting wing move, Wings level, then the change once #2 has settled (TS-70).
           button.disabled = true;
-          button.title = 'Terminate first';
+          button.title = where.manoeuvring ? 'Wings level first; the formation buttons come back once #2 has settled' : 'Terminate first';
           continue;
         }
         if (key === 'fluid') {

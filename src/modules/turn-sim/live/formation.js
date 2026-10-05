@@ -20,8 +20,8 @@ import { planChangeFour } from './four-ship-moves.js';
 import { planHotRejoinChange, offStandardOutcome } from './hot-rejoin.js';
 import { planLineChange } from './line-moves.js';
 import { planTurningRejoin } from './turning-rejoin.js';
-import { FW_TURN_KEYS, TURN_FORMATIONS, planFormationTurn } from './formation-turns.js';
-import { createFluidSession, fluidReadouts } from './fluid.js';
+import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFwMove } from './formation-turns.js';
+import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
 
 /**
@@ -444,7 +444,46 @@ export function createFormation(options = {}) {
      * Which formation the aircraft are in now: for the pair { key: 'lab' | 'fw' | 'echelon' | 'route' | 'astern' | 'other', side },
      * for the four one of slots.js FOUR_FORMATIONS or 'other', with #2's side.
      */
-    where: () => (state.fluid ? { key: 'fluid', side: state.lastSide } : classify(state.aircraft)),
+    // While Lead flies a fighting wing move it is fighting wing, even with #2 collapsed toward Lead's six (TS-70).
+    where: () => (state.fluid ? { key: 'fluid', side: state.lastSide } : state.current?.fwMove ? { key: 'fw', side: state.lastSide, manoeuvring: true } : classify(state.aircraft)),
+    /**
+     * One of Lead's buttons in fighting wing (formation-turns.js FW_MOVES: levelTurn, wingsLevel, reversal, climb, descend;
+     * spec section 10.7, TS-70), 2-ship: flown at once, planned again from where the pair is. Also while a change to
+     * fighting wing is still flown, once #2 is in the cone: that change ends there (Patrick 09:03Z). dir +1 left, -1 right.
+     * Returns 'started' or 'refused' (state.refusal says why).
+     */
+    pressFw(key, dir = 1) {
+      const refuse = (why) => {
+        state.refusal = why;
+        return 'refused';
+      };
+      if (!FW_MOVES[key]) throw new Error(`No fighting wing move called ${key}`);
+      if (state.fluid) return refuse('In fluid manoeuvring Lead flies the fluid buttons; Terminate first.');
+      if (state.aircraft.length > 2) return refuse('Fighting wing moves for the 4-ship come later.');
+      const c = state.current;
+      if (c && !c.fwMove && c.change?.to !== 'fw') return refuse(`Wait for ${c.label} to finish.`);
+      if (!c?.fwMove && whereNow().key !== 'fw') return refuse('These are fighting wing moves; change to fighting wing first.');
+      const plan = planFwMove(state.aircraft, key, dir, state.tSec, { blockFt: opts.blockFt, bankDeg: bankDegFor(opts.fluidBank) });
+      if (!plan.ok) return refuse(plan.reason);
+      state.plans = plan.plans;
+      state.planned = {};
+      let endSec = state.tSec;
+      for (const a of state.aircraft) {
+        const run = dryRunT(a, state.plans[a.id], state.tSec);
+        state.planned[a.id] = run.points;
+        endSec = Math.max(endSec, state.tSec + run.durationSec);
+      }
+      const label = `${FW_MOVES[key].label}${FW_MOVES[key].sided ? (dir > 0 ? ' left' : ' right') : ''}`;
+      state.current = {
+        key: `fw:${key}`, dir: FW_MOVES[key].sided ? dir : 0, label, note: plan.note, firstId: null, shape: 'formation',
+        formationTurn: { key: 'fw', side: state.lastSide }, fwMove: true, flag: null, startSec: state.tSec, endSec, errorRun: null, gWarm: null,
+      };
+      state.queued = null;
+      state.judged = null;
+      state.refusal = null;
+      state.errorOutcome = null;
+      return 'started';
+    },
     /**
      * A Lead button in fluid manoeuvring (fluid-lead.js FLUID_MOVES: levelTurn, wingsLevel, reversal, climb, descend, loop, terminate); dir +1
      * left, -1 right. Returns 'started', 'queued' (the entry is still flown) or 'refused' (state.refusal says why).
