@@ -254,7 +254,9 @@ export function powerClimb(pilot, kias, toAltFt) {
     accel = accelFor(s.ias, s.alt, g, climb);
   } else {
     climb = Math.min(levelCap, climbMax);
-    accel = 0;
+    // Holding the speed takes power; in a turn too hard for full power to hold it (no excess thrust at this G, as a
+    // breakout at up to 80° bank), it bleeds (standard aerodynamics: drag at G above full-power thrust).
+    accel = Math.min(0, accelFor(s.ias, s.alt, g, climb));
   }
   return { climb, accel, climbMax };
 }
