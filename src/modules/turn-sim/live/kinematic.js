@@ -52,6 +52,7 @@ export function applyPose(a, p) {
   a.turning = true;
   a.slowStage = p.stage ?? null; // how the line's slow-down is flown (slow-down.js, TS-61): BOARDS or IDLE on the card and tags
   a.overshooting = Boolean(p.over); // on an overshoot (TS-62): OVERSHOOTING on the card and tags
+  a.stretched = Boolean(p.stretched); // held to full power and behind his planned place (TS-63): STRETCHED on the card and tags
   // The power the line was planned with (power.js, TS-62): its stage or throttle when the planner set one, else none shown.
   a.power = p.power ?? powerFrom(null, p.pwr ?? null, p.kias);
 }
