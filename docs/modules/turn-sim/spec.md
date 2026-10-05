@@ -652,6 +652,8 @@ Patrick 18:11Z ("What if we dynamically hand off between lines, tracker, and the
 
 **Checks.** None added (Patrick 09:08Z). Done: a typecheck (the 11 errors are Traffic's, the same before and after) and the dry runs above.
 
+- **Fighting wing ends anywhere in the cone (V2.83, TS-83):** the tracker's last leg into fighting wing aims for the nearest point of the cone and holds where #2 arrives in it, not the one slot.
+
 ### 10.14 Close formation turns: #2 holds his place in Lead's wing plane (V2.76, TS-77; built 5 Oct, not yet in Patrick's sign-off)
 
 Patrick 5 Oct 19:51Z: "One of the other problems we have right now is that when in eschelon the aircraft falls well outside of position and then corrects on roll out. The aircraft should use bank and pitch and roll to stay in position as lead flies in eschelon, from any close formation position."
