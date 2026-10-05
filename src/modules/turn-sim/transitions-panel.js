@@ -122,10 +122,10 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   const pairMore = h('div', { class: 'ts-change-grid' }, makeButton({ key: 'astern', label: 'Line astern' }));
   const fourMore = h('div', { class: 'ts-change-grid', hidden: true }, FOUR_MORE_BUTTONS.map(makeFourButton));
   const PAIR_REJOIN_HINT = `A turning rejoin: Lead turns into #2 at the press at ${REJOIN.leadBankDeg}° of bank, slowing to ${KIAS_OUTSIDE_LAB} KIAS (SMM 16.20 para 65). #2's bank is capped at ${REJOIN.bankCapDeg}° (an estimate, flagged).`;
-  const FOUR_REJOIN_HINT = `A turning rejoin: Lead slows to ${KIAS_OUTSIDE_LAB} KIAS and turns gently into the others; to finger, #3 crosses only once #2 is in place and #4 once #3 is (SMM 16.34 para 96). Straight ahead, each closes through route in turn.`;
+  const FOUR_REJOIN_HINT = `A turning rejoin: Lead turns into #2 at the press, slowing to ${KIAS_OUTSIDE_LAB} KIAS; #3 and #4 close at once and come in on the outside one at a time, #3 once #2 is in and #4 once #3 is (SMM 16.34 paras 95-96). Straight ahead, each closes through route in turn.`;
   const rejoinHint = h('p', { class: 'ts-hint' }, PAIR_REJOIN_HINT);
-  // Rates (clean-up step 2, TS-65; Patrick 5 Oct 05:46Z, 06:09Z, 06:11Z): how fast #2 closes, Student, Instructor (the
-  // default) or AI. It changes the closures only, not the banks or the G (06:07Z).
+  // Rates (clean-up steps 2 and 3, TS-65, TS-66; Patrick 5 Oct 05:46Z, 06:09Z, 06:11Z): how fast the wingmen close,
+  // Student, Instructor (the default) or AI, 2-ship and 4-ship. It changes the closures only, not the banks or the G (06:07Z).
   const rateWords = (c) => `${RATE_WORDS[c]}: ${REJOIN_CLOSURE_KT[c]} kt rejoins, route to echelon in about ${CLOSE_IN_SEC[c]} s`;
   const ratesSelect = h('select', { 'aria-label': 'Rates', onchange: () => setRates(ratesSelect.value) },
     RATE_CHOICES.map((c) => h('option', { value: c, selected: c === ratesNow() }, rateWords(c))));
@@ -171,7 +171,6 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       four = ships === 4;
       pairGrid.hidden = four;
       pairMore.hidden = four;
-      ratesField.hidden = four; // the 2-ship's in step 2
       fourGrid.hidden = !four;
       fourMore.hidden = !four;
       hint.textContent = four ? FOUR_HINT : PAIR_HINT;

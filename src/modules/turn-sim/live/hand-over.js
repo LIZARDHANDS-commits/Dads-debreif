@@ -18,7 +18,7 @@ import { applyPose, makeTrack, seedTrack, posesFrom, followInto, laggedBank, rel
 import { trackTwice } from './tracker.js';
 import { holdToPower } from './full-power.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
-import { KIAS_OUTSIDE_LAB, KINEMATIC, TWO_SHIP, HAND_OVER_FT, RATE_SET_SEC, closureNow, rejoinClosureNow } from './tuning.js';
+import { KIAS_OUTSIDE_LAB, KINEMATIC, WING_BANKS, HAND_OVER_FT, RATE_SET_SEC, closureNow, rejoinClosureNow } from './tuning.js';
 
 const dt = STEP_SEC;
 
@@ -43,15 +43,16 @@ const LONG_SLOT_FT = 300; // the close formations all sit inside about 230 ft (r
  * Banks (Patrick 06:16Z item 12): a close leg up to 30°; a kick out to fighting wing or line abreast with no cap but the G
  * rule; a rejoin's legs keep their own (REJOIN.bankCapDeg until the V2.22 rejoin work). Each slot is chased at once, not
  * through a sliding reference, and the closure is never capped below the rate chosen. With `closeIn` (the tracker's run-in after a hand-over, or a move that starts inside
- * the hand-over range) every leg is at the close-in rate (Patrick 06:24Z).
+ * the hand-over range) every leg is at the close-in rate (Patrick 06:24Z). `rejoinBankDeg` replaces a rejoin leg's own cap
+ * (the 4-ship's: the G rule only, Patrick 06:16Z item 1).
  */
-export function onClosure(phases, { closeIn: allCloseIn = false } = {}) {
+export function onClosure(phases, { closeIn: allCloseIn = false, rejoinBankDeg = null } = {}) {
   const closeIn = closureNow().ftps;
   const rejoin = rejoinClosureNow().ftps;
   return phases.map((p) => {
     const long = Math.hypot(p.slot.fwd, p.slot.left) > LONG_SLOT_FT;
     const closureFtps = !allCloseIn && (p.rejoin || long) ? rejoin : closeIn;
-    const bankCapDeg = p.rejoin ? p.bankCapDeg : long ? TWO_SHIP.kickOutBankCapDeg : TWO_SHIP.closeBankCapDeg;
+    const bankCapDeg = p.rejoin ? rejoinBankDeg ?? p.bankCapDeg : long ? WING_BANKS.kickOutBankCapDeg : WING_BANKS.closeBankCapDeg;
     return { ...p, closureFtps, bankCapDeg, fwdRate: Infinity, latRate: Infinity, vrelMax: Math.max(p.vrelMax, closureFtps) };
   });
 }
@@ -193,16 +194,19 @@ export function trackTail({ wing, lead, leadRec, line = null, phases, t0, blockF
  * The tracker's run-in planned again at the hand-over (Patrick 06:24Z: "Should the tracker re-calculate after the line hands
  * over?": yes): a function transitions.js flyStep calls as the line's last pose is flown, in the live formation only, with
  * #2 (`wing`, as he really is), the formation time and { aircraft, plans } (everyone as they really are, and their plans
- * now). It flies `phases` off Lead's real state and the rest of his plan (`record`: transitions.js recordFlight, passed in
+ * now). It flies `phases` off Lead's (or `refIds`', the 4-ship's) real state and the rest of his plan (`record`: transitions.js recordFlight, passed in
  * so this file needs no import of it) from #2's real state, his speed loop starting at the line's acceleration, so nothing
  * jumps. Returns { points, profile }, or null (the press's look-ahead is flown) when it does not settle.
  */
-export function replanFor({ leadId, phases, blockFt, accelKtps, record }) {
+export function replanFor({ leadId = 1, refIds = [leadId], phases, blockFt, accelKtps, record }) {
   return (wing, t, ctx) => {
-    const lead = ctx?.aircraft?.find((a) => a.id === leadId);
-    if (!lead) return null;
-    const leadRec = record(lead, ctx.plans?.[leadId] ?? { segments: [] }, t);
-    const { run, profile } = trackTwice({ refs: { [leadId]: leadRec }, wing0: wing, t0: t, phases, blockFt, init: { accelKtps } });
+    const refs = {};
+    for (const id of refIds) {
+      const a = ctx?.aircraft?.find((x) => x.id === id);
+      if (!a) return null;
+      refs[id] = record(a, ctx.plans?.[id] ?? { segments: [] }, t);
+    }
+    const { run, profile } = trackTwice({ refs, wing0: wing, t0: t, phases, blockFt, init: { accelKtps } });
     return run.ok ? { points: run.points, profile } : null;
   };
 }

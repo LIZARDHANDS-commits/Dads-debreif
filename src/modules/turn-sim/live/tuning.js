@@ -10,8 +10,8 @@ import { G_FTPS2 } from '../../../core/units.js';
 import { bankDegFromG } from '../../../core/flight-math.js';
 import { LENGTH_FT, FW_BAND, pairSlot } from './slots.js';
 
-/** A 2-ship close move's bank cap (Patrick 5 Oct 06:16Z item 12: "30 is probably more accurate"); TWO_SHIP below. */
-const TWO_SHIP_CLOSE_BANK = 30;
+/** A 2-ship close move's bank cap (Patrick 5 Oct 06:16Z item 12: "30 is probably more accurate"); WING_BANKS below. */
+const CLOSE_BANK_DEG = 30;
 
 // ---- speeds (from transitions.js) ---------------------------------------------------------------------------------
 
@@ -30,7 +30,6 @@ export const REJOIN = Object.freeze({
   hotBearingDeg: 60, // hot and cold are drawn but not numbered in SMM Fig 12.16: 60 and 30 are estimates
   coldBearingDeg: 30,
   turnAnglesDeg: [30, 45, 20, 60], // how far Lead turns into #2 once it has closed; estimates (a gentle turn, AFM8 brief p.19); the planner takes the first that keeps the overshoot lane. Patrick 06:16Z (item 3): Lead holds the turn until #2 is in (RULED_REJOIN); V2.22 rejoin work
-  turnAtRangeFt: [2000, 1500, 2500], // Lead turns when #2 has closed to this range; estimates
 });
 
 // ---- the kinematic moves: close moves, the hot turning rejoin, following Lead (from kinematic-moves.js) ---------------
@@ -178,7 +177,7 @@ export function closeRates(foreAftFtps = rejoinClosureNow().ftps) {
  */
 export const CLOSURE = Object.freeze({
   stopShare: 0.6, // the tracker's stop is planned at 60% of what power back (sideways: the slide's bank) gives, so the roll and the speed loop's lag still stop him on the slot (estimate)
-  slideBankDeg: TWO_SHIP_CLOSE_BANK, // sideways the closure is set and stopped with up to the close move's 30° of bank (Patrick 06:16Z item 12), the same for every Rates choice (Patrick 06:07Z: "No on bank and g")
+  slideBankDeg: CLOSE_BANK_DEG, // sideways the closure is set and stopped with up to the close move's 30° of bank (Patrick 06:16Z item 12), the same for every Rates choice (Patrick 06:07Z: "No on bank and g")
   nearGain: 1, // 1/s: inside the last few feet the closure dies away in proportion to the distance, so he settles without hunting (estimate)
   farGain: 0.1, // ft/s per ft: beyond the hand-over band (odd starts only, the tracker's fallback) the closing speed may grow with range (the old rejoin's kcap)
 });
@@ -283,27 +282,29 @@ export const G_RULE = Object.freeze({ normalG: 5, lastResortG: 7 });
 export const G_RULE_BANK_DEG = bankDegFromG(G_RULE.normalG);
 
 /**
- * The 2-ship's banks (Patrick 5 Oct 06:16Z). Item 12: "30 is probably more accurate" for a close move's bank cap (the
- * tracker's 25° until step 2, which the 4-ship keeps until step 3); "When the aircraft is kicked off to fighting wing or
- * line abreast they can use unlimited bank to dive away and get in position quickly": no cap there but the G rule. Item
- * 11: "No, unlimitedf": #2 following in a fighting wing turn has no bank cap but the G rule (FW_FOLLOW's 60° stays the
- * 4-ship's until step 3). Item 9: "60/2 as a standard always": Lead flies every 2-ship fighting wing turn, the check turn
- * included, at 60° of bank, 2 G level (it was 30° for the check turn and 45° for the others, AFM7 brief p.14 item 5; the
- * 4-ship keeps those until step 3). The tracker's turns are level, so "roll and dive" past 90° is not flown in step 2.
+ * The wingmen's banks, 2-ship (step 2) and 4-ship (step 3) (Patrick 5 Oct 06:16Z). Item 12: "30 is probably more accurate"
+ * for a close move's bank cap (the tracker's 25° until step 2); "When the aircraft is kicked off to fighting wing or line
+ * abreast they can use unlimited bank to dive away and get in position quickly": no cap there but the G rule. Item 11: "No,
+ * unlimitedf": a wingman following in a fighting wing turn has no bank cap but the G rule. Item 1: "Unlimitd bank" in a
+ * rejoin: the 4-ship's tracker rejoin legs have no cap but the G rule (the 2-ship's hot rejoin keeps REJOIN.bankCapDeg until
+ * the V2.22 rejoin work). Item 9: "60/2 as a standard always": Lead flies every fighting wing turn, the check turn included,
+ * at 60° of bank, 2 G level (it was 30° for the check turn and 45° for the others, AFM7 brief p.14 item 5). The tracker's
+ * turns are level, so "roll and dive" past 90° is not flown.
  */
-export const TWO_SHIP = Object.freeze({
-  closeBankCapDeg: TWO_SHIP_CLOSE_BANK, // Patrick 06:16Z item 12
+export const WING_BANKS = Object.freeze({
+  closeBankCapDeg: CLOSE_BANK_DEG, // Patrick 06:16Z item 12
   kickOutBankCapDeg: G_RULE_BANK_DEG, // Patrick 06:16Z item 12: the G rule only
   fwFollowBankCapDeg: G_RULE_BANK_DEG, // Patrick 06:16Z item 11: the G rule only
-  fwTurnBankDeg: 60, // Patrick 06:16Z item 9: 60° of bank, 2 G level, every 2-ship fighting wing turn
+  rejoinBankCapDeg: G_RULE_BANK_DEG, // Patrick 06:16Z item 1: the G rule only (the 4-ship's rejoin legs since step 3)
+  fwTurnBankDeg: 60, // Patrick 06:16Z item 9: 60° of bank, 2 G level, every fighting wing turn
 });
 
 // ---- fighting wing turns (from formation-turns.js) -----------------------------------------------------------------
 
 /** The numbers of the fighting wing turns. Estimates unless a source is given. */
 export const FW_TURN = Object.freeze({
-  gentleBankDeg: 30, // Lead's bank for a turn of 30° or less (the check turn): gentle (AFM7 brief p.14 item 5a); the 4-ship's (the 2-ship: TWO_SHIP.fwTurnBankDeg)
-  turnBankDeg: 45, // Lead's bank for the bigger turns: moderate, so #2 collapses (item 5b); 1.4 G level; the 4-ship's (the 2-ship: TWO_SHIP.fwTurnBankDeg)
+  gentleBankDeg: 30, // AFM7 brief p.14 item 5a's gentle check turn: no longer flown since step 3 (every turn at WING_BANKS.fwTurnBankDeg, Patrick 06:16Z)
+  turnBankDeg: 45, // item 5b's moderate turn: no longer flown since step 3 (WING_BANKS.fwTurnBankDeg)
   collapseFromDeg: 32, // #2 starts collapsing once Lead's bank passes this ...
   collapseFullDeg: 42, // ... and goes all the way to Lead's six by this
   band: { minFt: FW_BAND.rangeFt[0], maxFt: FW_BAND.rangeFt[1], minSweepDeg: FW_BAND.sweepDeg[0], maxSweepDeg: FW_BAND.sweepDeg[1] }, // SMM 12.29 para 69, Fig 12.19 (500-1,000 ft, 30-60°: slots.js FW_BAND, the one copy)
@@ -325,7 +326,7 @@ export const FW_FOLLOW = Object.freeze({
   d0: 100, // the range beyond which the closing speed may grow, ft (estimate)
   vrelMax: 120, // the most closing speed on the target slot, ft/s (estimate)
   decel: 2, // the closure is never more than #2 could stop at this deceleration, ft/s² (estimate)
-  bankCapDeg: 60, // the most bank #2 uses to follow, degrees (estimate; flagged, never a wall); the 2-ship has no cap but the G rule since step 2 (TWO_SHIP)
+  bankCapDeg: G_RULE_BANK_DEG, // no cap but the G rule (Patrick 06:16Z item 11; 60°, an estimate, until step 2), flagged, never a wall
   overtakeKias: 15, // power only a little: geometry does the rest (Patrick 19:12Z); the most speed above Lead, KIAS
   undertakeKias: 15, // the most speed below Lead, KIAS (estimate)
   advanceTol: 25, // within this many feet of the goal a leg counts as flown (estimate)
@@ -333,9 +334,9 @@ export const FW_FOLLOW = Object.freeze({
 });
 
 /**
- * The 4-ship's wingmen moving to fighting wing (four-ship-moves.js, until step 3): FW_FOLLOW's tracker settings with a
- * slower sideways and fore-aft slide (40 ft/s, against FW_FOLLOW's 60 and 40) and more power (25 KIAS each way), as it has
- * flown since V2.1x. All estimates; one named entry so the 4-ship's screen behaviour stays as it is (clean-up step 2).
+ * The 4-ship's wingmen moving to fighting wing (four-ship-moves.js): FW_FOLLOW's tracker settings with a slower sideways
+ * and fore-aft slide (40 ft/s, against FW_FOLLOW's 60 and 40) and more power (25 KIAS each way), as it has flown since
+ * V2.1x. All estimates; one named entry (clean-up step 2); since step 3 the closure law sets its closing speed (four-ship-moves.js).
  */
 export const FW_FOLLOW_FOUR = Object.freeze({
   fwdRate: 40,
@@ -392,7 +393,7 @@ export const TRACKER = Object.freeze({
     d0: 100, // the range beyond which the closing speed may grow, ft (estimate)
     vrelMax: 60, // the most closing speed on the slot, ft/s (estimate)
     decel: 1.2, // ft/s²: about half what slowing with the power back gives (about 1.5-2 kt/s, slow-down.js), so the speed loop can stop the closure in time (estimate)
-    bankCapDeg: 25, // the most bank the wingman uses, degrees (estimate; flagged, never a wall); the 4-ship's until step 3: the 2-ship's close moves use 30° (TWO_SHIP, Patrick 06:16Z)
+    bankCapDeg: CLOSE_BANK_DEG, // the most bank the wingman uses in a close move: 30° (Patrick 06:16Z item 12; 25°, an estimate, until step 3); flagged, never a wall
     overtakeKias: 8, // the most speed above the aircraft flown off, KIAS (estimate)
     undertakeKias: 12, // the most speed below it, KIAS (estimate)
     advanceTol: 3, // within this many feet of a leg's slot the next leg starts (estimate)

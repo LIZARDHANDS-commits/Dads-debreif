@@ -24,7 +24,7 @@ import { recordFlight, flyStep, dryRunT } from './transitions.js';
 import { trackTwice, phase } from './tracker.js';
 import { smoothest, makeTrack, seedTrack, posesFrom, settleLast, laggedBank, followInto } from './kinematic.js';
 import { leadTurnSegs, rollEvents, eventsEnd } from './kinematic-moves.js';
-import { KINEMATIC, FW_TURN, FW_FOLLOW, TWO_SHIP } from './tuning.js';
+import { KINEMATIC, FW_TURN, FW_FOLLOW, WING_BANKS } from './tuning.js';
 import { G_FTPS2 } from '../../../core/units.js';
 
 /** The turn buttons that fly in fighting wing (spec section 10); the shackle and the cross turn stay line abreast moves. */
@@ -82,11 +82,10 @@ export function planFwTurn(aircraft, key, dir, t0 = 0, { blockFt = 8000 } = {}) 
   const m = MANOEUVRES[key];
   if (!FW_TURN_KEYS.includes(key)) return { ok: false, reason: `${m?.label ?? key} flies in line abreast only.` };
   const turnDeg = FW_TURN.turnDeg[key];
-  // The 2-ship: Lead flies every fighting wing turn at 60° of bank, 2 G level, and #2 follows with no bank cap but the G
-  // rule (Patrick 5 Oct 06:16Z items 9 and 11, tuning.js TWO_SHIP); the 4-ship keeps 30° and 45° (AFM7 brief p.14 item 5).
-  const two = aircraft.length === 2;
-  const bank = two ? TWO_SHIP.fwTurnBankDeg : turnDeg <= 30 ? FW_TURN.gentleBankDeg : FW_TURN.turnBankDeg;
-  const follow = two ? { ...FW_FOLLOW, bankCapDeg: TWO_SHIP.fwFollowBankCapDeg } : FW_FOLLOW;
+  // Lead flies every fighting wing turn at 60° of bank, 2 G level, 2-ship and 4-ship, and the wingmen follow with no bank cap
+  // but the G rule (Patrick 5 Oct 06:16Z items 9 and 11, tuning.js WING_BANKS; AFM7 brief p.14 item 5's 30° and 45° until V2.22).
+  const bank = WING_BANKS.fwTurnBankDeg;
+  const follow = { ...FW_FOLLOW, bankCapDeg: WING_BANKS.fwFollowBankCapDeg };
   const leadSegs = leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, bank, true);
   const by = new Map(aircraft.map((a) => [a.id, a]));
   const refs = { [lead.id]: recordFlight(lead, { segments: leadSegs }, t0) };
