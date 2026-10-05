@@ -780,3 +780,17 @@
 [data-module='turn-sim'] .ts-move.ts-move-single[hidden] {
   display: none;
 }
+
+/* Side, its own row under the formation groups (Patrick, 5 Oct). */
+[data-module='turn-sim'] .ts-side-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+}
+
+[data-module='turn-sim'] .ts-side-row .button {
+  min-height: 0;
+  padding: 0.2rem 0.6rem;
+  font-size: var(--text-sm);
+}

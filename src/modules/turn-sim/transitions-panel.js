@@ -149,12 +149,11 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     group('Tactical', fourAll.filter((b) => TACTICAL.has(b.key)).map(makeFourButton)),
     group('Close formation', fourAll.filter((b) => !TACTICAL.has(b.key)).map(makeFourButton)));
   const element = h('section', { class: 'ts-change', 'aria-labelledby': 'ts-change-title' },
-    // The FORMATION bar with Side on it, then the two groups (Patrick, 5 Oct: easier to read).
-    h('div', { class: 'ts-section-bar' },
-      h('h3', { id: 'ts-change-title' }, 'Formation'),
-      h('div', { class: 'ts-side', role: 'group', 'aria-label': 'Side #2 ends on' }, h('span', { class: 'ts-hint' }, 'Side'), sideButtons)),
+    // The FORMATION bar, the two groups, then Side, just above the manoeuvres (Patrick, 5 Oct).
+    h('div', { class: 'ts-section-bar' }, h('h3', { id: 'ts-change-title' }, 'Formation')),
     pairGrid,
     fourGrid,
+    h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Side #2 ends on' }, h('span', { class: 'ts-hint' }, 'Side'), sideButtons),
     refusal,
     fluidUi?.element ?? null,
   );
