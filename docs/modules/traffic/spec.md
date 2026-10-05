@@ -359,6 +359,8 @@ Code: `randomize.js` (the odds, the seeded rolls and the straight-in from the ou
 
 ### 4.14 Behaviour tag on every aircraft (Patrick, 4 Oct 21:55Z to 23:45Z)
 
+**4 Oct (Patrick):** round the lap the tag says only `[OHB]` or `[SI]`, the pattern the aircraft flies: no stage (UPWIND, OUTER, FINAL), no next step and no configuration. The manoeuvre tags (CLOSED, GO-AROUND, BREAKOUT, CLOSED TO HIGH KEY), the deconfliction's tags and the PFL tags are as below.
+
 Code: `behaviour.js` (the tag's words and the configuration), `sim.js` `state()` (the `behaviour` field), `map2d.js` `getPflBadge` (shows it on the map and in the aircraft list). TR-60.
 
 1. Every flying aircraft carries a tag in the PFL tag's style: the pattern it is flying, what it does next (not for OHB and SI) and its configuration, for example `[OHB · Gear + T/O flap]`. Clean is never shown outside a PFL's own tag: no configuration means clean. Words approved by Patrick (card list 22:34Z, "overhead can just be OHB" 22:44Z, "agreed" 22:53Z and 22:57Z; shortened 23:14Z, list approved 23:45Z):
