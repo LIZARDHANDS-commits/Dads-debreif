@@ -24,6 +24,7 @@ import { createAircraftPanel } from './aircraft.js';
 import { createSetupPanel, scenarioAircraft, BUSY_STRAIGHT_IN_SEC } from './setup-panel.js';
 import { straightInDelaySec } from './scenario-timing.js';
 import { applyToSetup, memoryStore, pauseOnThrow } from './glue.js';
+import { trueAltFt } from './weather.js';
 
 const STYLESHEET = new URL('./traffic.css', import.meta.url).href;
 
@@ -119,7 +120,7 @@ function mount(root, app) {
     host: ui.stage3d,
     timers: app.scheduler,
     source: {
-      scene: () => withSiPattern(buildScene({ setup, state: state(), selectedRouteId, trailOf: () => [] })), // 3D draws no trails
+      scene: () => atTrueHeight(withSiPattern(buildScene({ setup, state: state(), selectedRouteId, trailOf: () => [] }))), // 3D draws no trails
       settings: () => settings.get(),
       // The 3D bar's High | Performance writes graphicsQuality here (it used to go through Traffic settings' Graphics
       // box, which moved out on 4 Oct, so the buttons did nothing: Patrick, 4 Oct).
@@ -211,6 +212,12 @@ function mount(root, app) {
     routeLines.set(id, { ...lineOf(id), ...change });
     redraw();
   }
+  /** The 3D picture puts each aircraft at its true height for the day's temperature; the labels keep the altimeter's (TR-77). */
+  function atTrueHeight(scene) {
+    scene.aircraft = scene.aircraft.map((ac) => (Number.isFinite(ac.alt) ? { ...ac, indicatedAlt: ac.alt, alt: trueAltFt(ac.alt) } : ac));
+    return scene;
+  }
+
   function withSiPattern(scene) {
     scene.selectedAircraftId = selectedAircraftId;
     if (siPatternShown) {
@@ -396,9 +403,9 @@ function mount(root, app) {
   const stopSettings = settings.subscribe((values) => {
     const beforeOpts = JSON.stringify(setup.routeOptions);
     const beforeWind = `${setup.windFromDeg}_${setup.windKt}`;
-    const beforeDeconflict = setup.deconflict, beforeRandomize = `${setup.randomize}_${setup.randomizeSharePct}`;
+    const beforeDeconflict = setup.deconflict, beforeRandomize = `${setup.randomize}_${setup.randomizeSharePct}`, beforeTemp = setup.fieldTempC;
     applyToSetup(setup, values);
-    if (JSON.stringify(setup.routeOptions) !== beforeOpts || `${setup.windFromDeg}_${setup.windKt}` !== beforeWind || setup.deconflict !== beforeDeconflict || `${setup.randomize}_${setup.randomizeSharePct}` !== beforeRandomize) {
+    if (JSON.stringify(setup.routeOptions) !== beforeOpts || `${setup.windFromDeg}_${setup.windKt}` !== beforeWind || setup.deconflict !== beforeDeconflict || `${setup.randomize}_${setup.randomizeSharePct}` !== beforeRandomize || setup.fieldTempC !== beforeTemp) {
       sim.forgetHistory(); // the turns and flight are flown differently now
     }
     clock.setSpeed(values.speed);

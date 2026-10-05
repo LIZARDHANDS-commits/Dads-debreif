@@ -27,6 +27,7 @@ import { createLandmarks, disposeLandmarks, createWindsocks, updateWindsocks, di
 import { createBaseBuildings, disposeBaseBuildings } from './base-buildings3d.js';
 import { createRiverGeometry } from './rivers3d.js';
 import { ejectionAt, EJECTION } from './ejection.js';
+import { trueAltFt } from './weather.js';
 import { createEjectionModel, poseEjectionModel, disposeEjectionModel } from './ejection3d.js';
 import { AIRFIELD_CORE_BOUNDS_FT, paintCoreAirfieldVector, getCoreCorners, getOptimalCoreTileZoom } from './airfield-core-ground.js';
 import { fieldCamera, topDownCamera, towerCamera, cockpitCamera, padlockCamera, NEEDS_AIRCRAFT } from './camera-views.js';
@@ -790,7 +791,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
       const ej = ac.ejectAt;
       if (ac.status !== 'ejected' || !ej || !Number.isFinite(ej.t) || tNow < ej.t) continue;
       const since = tNow - ej.t;
-      const st = ejectionAt(ej, since, wind, groundFt);
+      const st = ejectionAt({ ...ej, alt: trueAltFt(ej.alt) }, since, wind, groundFt); // drawn at true height (TR-77)
       if (st.aircraft) abandoned.push({ ...ac, ...st.aircraft, bankDeg: 0, status: 'flying' });
       let chute = chutes.get(ac.id);
       if (!chute) {

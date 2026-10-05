@@ -6,6 +6,7 @@
 // checked against their ranges on the way: whatever a setting holds, the setup only gets a
 // number the sim can use.
 import { DEFAULTS, LIMITS } from './defaults.js';
+import { fieldTempFor, setFieldTemperature } from './weather.js';
 
 /**
  * A number held to its range; anything that is not a finite number becomes `fallback`.
@@ -43,6 +44,9 @@ export function applyToSetup(setup, values) {
   };
   if (values.windFromDeg !== undefined) setup.windFromDeg = within(values.windFromDeg, LIMITS.windFromDeg, DEFAULTS.windFromDeg);
   if (values.windKt !== undefined) setup.windKt = within(values.windKt, LIMITS.windKt, DEFAULTS.windKt);
+  // The day's temperature at the field (TR-77): a Weather preset, or the box when it is "Set the temperature".
+  setup.fieldTempC = fieldTempFor(values.weather, within(values.fieldTempC, LIMITS.fieldTempC, DEFAULTS.fieldTempC));
+  setFieldTemperature(setup.fieldTempC); // so the routes drawn before the next step use it too
 }
 
 /** The settings aren't remembered between visits yet (profiles are a later task), so they live in memory. */

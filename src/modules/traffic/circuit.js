@@ -23,7 +23,8 @@
 import { ktToFtps, KT_TO_FTPS, G_FTPS2 } from '../../core/units.js';
 import { wrapDeg180, compassDegFromVector, wrapDeg360 } from '../../core/angles.js';
 import { turnRateFromBankRadPerSec, turnRadiusFromBankFt, gFromBankDeg, easeRoll } from '../../core/flight-math.js';
-import { iasToTasKt, tasToIasKt, excessThrustPerWeight, dragPerWeight, pitchDegFromClimb } from '../../core/t6-performance.js';
+import { excessThrustPerWeight, dragPerWeight, pitchDegFromClimb } from '../../core/t6-performance.js';
+import { iasToTasKt, tasToIasKt, heightFactor } from './weather.js';
 import { windTriangle, windVectorFtps } from '../../core/wind.js';
 import { legOffsetsFt } from '../../core/geo.js';
 import { PATTERN_ALT_FT, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
@@ -200,7 +201,7 @@ export function makePilot(start, wind) {
     const g = ground();
     s.x += g.x * DT;
     s.y += g.y * DT;
-    s.alt += climbFtps * DT;
+    s.alt += climbFtps * DT / heightFactor(s.alt); // climbFtps is true; the altimeter moves less on a hot day, more on a cold one (TR-77)
     const newTas = Math.max(ktToFtps(40), v + accelFtps2 * DT);
     s.ias = tasToIasKt(newTas / KT_TO_FTPS, s.alt);
     s.k++;

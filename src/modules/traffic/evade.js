@@ -13,7 +13,8 @@
 import { ktToFtps, KT_TO_FTPS, G_FTPS2 } from '../../core/units.js';
 import { compassDegFromVector, wrapDeg180 } from '../../core/angles.js';
 import { gFromBankDeg, bankDegFromG, turnRadiusFromBankFt } from '../../core/flight-math.js';
-import { excessThrustPerWeight, stallLimitG, iasToTasKt } from '../../core/t6-performance.js';
+import { excessThrustPerWeight, stallLimitG } from '../../core/t6-performance.js';
+import { iasToTasKt } from './weather.js';
 import { legOffsetsFt } from '../../core/geo.js';
 import { PATTERN_ALT_FT } from './airfield.js';
 import { makePilot, bankFor, trackForLine, readyToTurnOnto, lineOf, CIRCUIT, ZOOM_SEC, LEVEL_OFF_SEC, HOLD_RADIUS_FT, PILOT_DT } from './circuit.js';

@@ -20,7 +20,7 @@
 // setting or the page.
 import { ktToFtps } from '../../core/units.js';
 import { gFromBankDeg, turnRadiusFromBankFt } from '../../core/flight-math.js';
-import { iasToTasKt } from '../../core/t6-performance.js';
+import { iasToTasKt } from './weather.js';
 import { legOffsetsFt } from '../../core/geo.js';
 import { wrapDeg180 } from '../../core/angles.js';
 import { makePilot, bankFor, trackForLine, readyToTurnOnto, lineOf, accelFor, idleDecel, LEVEL_OFF_SEC, HOLD_RADIUS_FT, PILOT_DT } from './circuit.js';

@@ -22,7 +22,8 @@
 import { ktToFtps, KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../core/units.js';
 import { wrapDeg180, wrapDeg360, compassDegFromVector } from '../../core/angles.js';
 import { turnRadiusFromBankFt, turnRateFromBankRadPerSec, dampedClimbG, easeValue } from '../../core/flight-math.js';
-import { iasToTasKt, glideDragPerWeight, glideRatio, stallLimitG, zoomT6A } from '../../core/t6-performance.js';
+import { glideDragPerWeight, glideRatio, stallLimitG, zoomT6A } from '../../core/t6-performance.js';
+import { iasToTasKt, heightFactor } from './weather.js';
 import { windTriangle, windVectorFtps } from '../../core/wind.js';
 import { legOffsetsFt } from '../../core/geo.js';
 import { makePilot, bankFor, PILOT_DT } from './circuit.js';
@@ -136,7 +137,7 @@ const PLAN_DEG = [-Infinity, 0, 180, 270];
  */
 export function glideFootprint(a, windFromDeg = 360, windKt = 0) {
   const alt = Number.isFinite(a?.alt) ? /** @type {number} */ (a.alt) : FIELD_ELEV_FT;
-  const altDiff = Math.max(0, alt - FIELD_ELEV_FT);
+  const altDiff = Math.max(0, alt - FIELD_ELEV_FT) * heightFactor(alt); // true height: further on a hot day (TR-77)
   const cfgIndex = Math.max(0, PFL_CONFIG_LABELS.indexOf(a?.config ?? ''));
   const rGlide = altDiff * glideRatio(PFL_CONFIGS[cfgIndex]);
   const kias = cfgIndex > 0 ? PFL.glideGearKias : PFL.glideCleanKias;

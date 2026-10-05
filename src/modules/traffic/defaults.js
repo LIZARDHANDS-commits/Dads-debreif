@@ -37,6 +37,10 @@ export const DEFAULTS = Object.freeze({
   // Moose Jaw's 9° East (TR-65). Patrick, 4 Oct: "260 magnetic is fine" (it was 260°T, which reads 251°M).
   windFromDeg: 269,
   windKt: 15,
+  // Weather (Patrick, 5 Oct 06:47Z, card "Temperature, full"; TR-77): the temperature at the field, which changes true
+  // height and true airspeed. A standard day by default; "custom" uses fieldTempC.
+  weather: 'standard',
+  fieldTempC: 11,
 
   // Layers: the Clean Operational preset (Patrick, 4 Oct: "the default display settings to be clean operational"):
   // labels, the wind-adjusted track and the photo on, with the caution ring and the PFL glide circle (both shown only
@@ -108,6 +112,7 @@ export const ALLOWED = /** @type {Record<string, any[]>} */ (/** @type {unknown}
   paint: PAINT_OPTIONS.map((o) => o.value),
   graphicsQuality: ['high', 'low'],
   closedPatternBankDeg: [45, 50, 60],
+  weather: ['standard', 'hot', 'cold', 'custom'],
 })));
 
 // The playback speeds on offer (the spec's "0.25× to 8×"), and the speed the
@@ -120,6 +125,7 @@ export const SPEEDS = Object.freeze([0.25, 0.5, 1, 2, 4, 8]);
 export const LIMITS = Object.freeze({
   windFromDeg: Object.freeze([1, 360]), // degrees true, as a METAR gives it
   windKt: Object.freeze([0, 60]),
+  fieldTempC: Object.freeze([-50, 50]), // °C at the field: past the T-6's own operating range both ways
   conflictLatFt: Object.freeze([0, 20000]),
   conflictVertFt: Object.freeze([0, 20000]),
   cautionLatFt: Object.freeze([0, 20000]),
