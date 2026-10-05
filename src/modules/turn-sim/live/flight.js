@@ -15,6 +15,7 @@
 import { easeRoll, turnRateFromBankRadPerSec, gFromBankDeg } from '../../../core/flight-math.js';
 import { pitchDegFromClimb } from '../../../core/t6-performance.js';
 import { wrapPi } from '../../../core/angles.js';
+import { G_FTPS2 } from '../../../core/units.js';
 import { powerFor, POWER_BLOCK_FT } from './power.js';
 import { ROLL } from './tuning.js';
 
@@ -86,6 +87,8 @@ export function headingChangeRollingOut(bankDeg, rollRateDps, tasFtps, roll = RO
  */
 export const smoother = (u) => u * u * u * (10 - 15 * u + 6 * u * u);
 export const smootherSlope = (u) => 30 * u * u * (1 - u) * (1 - u);
+/** The smootherstep's curvature (the slope's own slope): a height leg's vertical acceleration is rise x this / span². */
+export const smootherCurve = (u) => 60 * u * (1 - u) * (1 - 2 * u);
 /** The smootherstep's steepest slope is this many times its average one (at the middle). */
 export const SMOOTHER_PEAK = 1.875;
 
@@ -102,7 +105,8 @@ export function heightAt(profile, t) {
     const span = Math.max(leg.t1 - leg.t0, 1e-9);
     const u = (t - leg.t0) / span;
     const rise = leg.toFt - leg.fromFt;
-    return { altAboveFt: leg.fromFt + rise * smoother(u), climbFtps: (rise * smootherSlope(u)) / span };
+    // nz: the G the leg's pull or push puts on the aircraft with the wings level (1 + vertical acceleration / g; height as energy).
+    return { altAboveFt: leg.fromFt + rise * smoother(u), climbFtps: (rise * smootherSlope(u)) / span, nz: 1 + (rise * smootherCurve(u)) / (span * span * G_FTPS2) };
   }
   return null;
 }
@@ -239,8 +243,14 @@ export function stepAircraft(a, plan, t) {
   if (height) {
     a.altAboveFt = height.altAboveFt;
     a.climbFtps = height.climbFtps;
-    // A vertical manoeuvre planned with its load factor (a push over) adds what it pulls or pushes on top of the turn's G.
-    if (height.nz !== undefined) a.g += height.nz - 1;
+    // The pull or push of the height change is charged as G (height as energy; until V2.82 a smooth height leg's pull was
+    // free, so a 700 ft pop-up in 6 s cost nothing): the turn's sideways share (tan bank, in g) and the vertical share
+    // (nz) together, standard mechanics; 1 / cos(bank) in a level turn, nz with the wings level. A push past zero G keeps
+    // its sign (G-warm's push over).
+    if (height.nz !== undefined) {
+      const side = Math.max(0, a.g * a.g - 1);
+      a.g = Math.sign(height.nz || 1) * Math.sqrt(side + height.nz * height.nz);
+    }
   } else {
     a.climbFtps = 0;
   }

@@ -617,7 +617,7 @@ Patrick 17:29Z: "It takes way too long to get in a turning rejoin sometimes. The
   | SARJ, fighting wing to echelon | 41 s | 37 s |
 
   In the slot inside Lead's turn he sits a few knots under Lead (route about 196 KIAS), which is turn geometry.
-- **The vertical (Patrick 17:44Z: "we can use the vertical too"):** tried. Going high early and coming down onto the line saved 0-2 s at realistic climb rates. Bigger gains came only from pop-ups of about 700 ft in 6 s, which would need roughly 3 G more pull than the model charges for, so they aren't used. Height flown as energy, with its G costed, is in `future.md`.
+- **The vertical (Patrick 17:44Z: "we can use the vertical too"):** tried. Going high early and coming down onto the line saved 0-2 s at realistic climb rates. Bigger gains came only from pop-ups of about 700 ft in 6 s, which would need roughly 3 G more pull than the model charges for, so they aren't used. Since V2.82 (TS-82) a height change's pull is charged as G and the vertical is a candidate: the turning rejoin also tries going 500 or 1,000 ft high early, within the G rule, and flies it only when it brings #2 in sooner (in dry runs, line abreast to fighting wing by about half a second).
 - **Not changed:** the 4-ship rejoins (still the old tracker, slow), the Errors panel's drawn lines, and echelon to fighting wing, which slows on purpose to drop back.
 - **Failure and stale data:** no outside data. If no rejoin works even with the dip, the old planner flies it, as before.
 
@@ -647,7 +647,7 @@ Patrick 18:11Z ("What if we dynamically hand off between lines, tracker, and the
   | Fighting wing | Line abreast | line then tracker 81 s | tracker 74 s (fallback) |
   | Line abreast 6,000 ft, `auto` | Echelon | straight-ahead rejoin 56 s | turning rejoin 58 s; tracker 143 s (fails the lane) |
 
-- **What TS-76 still owes (the second piece):** the press mid-move re-planning now (F11) is built in V2.78 (section 10.15), the re-plans at the decision point and when the picture breaks (F1) in V2.81 (TS-81). Still owed: the turning rejoin takes Lead's remaining plan instead of planning his turn-in from the press. The vertical as a candidate (Patrick 19:51Z: "if it scores high enough in our model") waits on `flight.js` charging a height change's pull as G (`future.md`, "height as energy"), or a dive-away would win falsely.
+- **What TS-76 still owes (the second piece):** the press mid-move re-planning now (F11) is built in V2.78 (section 10.15), the re-plans at the decision point and when the picture breaks (F1) in V2.81 (TS-81). Still owed: the turning rejoin takes Lead's remaining plan instead of planning his turn-in from the press. The vertical as a candidate (Patrick 19:51Z: "if it scores high enough in our model") is built in V2.82 (TS-82), with the pull charged as G.
 - **Failure and stale data:** no outside data. With no candidate the tracker's own refusal reads on the card, as before.
 
 **Checks.** None added (Patrick 09:08Z). Done: a typecheck (the 11 errors are Traffic's, the same before and after) and the dry runs above.
