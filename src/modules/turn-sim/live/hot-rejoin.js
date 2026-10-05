@@ -752,6 +752,11 @@ export function planHotRejoinChange(pair, to, options = {}, t0 = 0) {
 /** What #2 does about an off-standard start, in words for the card (TS-62). */
 export function offStandardWords(mode, r) {
   const used = r.usedStage && r.usedStage !== 'power' ? STAGE_WORDS[r.usedStage] : null;
+  if (r.overshoot?.crossFwdFt !== undefined) {
+    // The line's own slide to the outside (outsideCrossing): say what it uses, not the decision overshoot's idle and boards.
+    const why = mode === 'reference' ? 'Turning at the normal reference, the error carries: ' : `Fix it: geometry and power${used ? `, then ${used},` : ''} can't stop #2 on his own side, so `;
+    return `${why}he slides behind and below Lead to the outside of the turn, then crosses back and joins (SMM 12.27 para 65, Fig 12.18).`;
+  }
   if (r.overshoot) {
     const why = mode === 'reference' ? 'Turning at the normal reference, the error carries: ' : 'Fix it: geometry, power, the boards and idle are not enough, so ';
     return `${why}at the decision point #2 overshoots: wings level, power back and boards, behind and below Lead, stable on the outside, then he crosses back and joins (SMM 12.27 para 65, Fig 12.18).`;
