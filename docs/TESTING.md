@@ -11,7 +11,7 @@ Tests check what a pilot would recognise: what must always be true (an aircraft 
 
 ## 1. What a test may check
 
-| # | Rule | Why | Today (from the test register) |
+| # | Rule | Why | Before the trim (test register, 4 Oct) |
 |---|---|---|---|
 | T1 | **Check invariants and outcomes.** An invariant is something that is always true, for any input (no aircraft flies through the ground; a steeper bank at the same speed always turns tighter). An outcome is the end result a pilot would judge (it landed on the runway; separation never dropped below the limit). A comparison test runs two cases and checks how they relate (mirror the wind and the circuit, and the path mirrors). | ALL-R19 to ALL-R21 say checks look at invariants, not numbers; top lesson 3; research section 1, options A to C | Mostly expected values: for example SOF about 350 of 796, Turn Sim 76 of 189 |
 | T2 | **No tight time gates.** A test may check that something happens within a generous, realistic time, with the reason written beside it: for example, an aircraft sent to a PFL lands within 5 minutes. The limit sits well above the usual time, so it catches an aircraft that is stuck or lost, never one that is a second slow. Exact times and narrow windows (such as reaching High Key between 85 and 125 s) are never checked, and neither is how long the computer takes. Rules that are about time, such as a stale weather report, are tested as rules. **(Wording by Patrick, 4 Oct 03:07Z; Q-T9 and Q-T13, decided.)** | Patrick 21:18Z (`pf/reset/consolidation-plan.md:12`) and 4 Oct 03:06Z (reasonable time tests are allowed; the old tests failed for being about a second off); lesson F2; ALL-R21 ("nothing is capped by time") | About 250 tests gate on a time; Traffic about 94, Turn Fight about 70, Turn Sim 44 |
@@ -24,13 +24,15 @@ Tests check what a pilot would recognise: what must always be true (an aircraft 
 | T9 | **Keep it light.** No mutation runs, stress runs or long parameter sweeps. Property tests (many random inputs through one law) are allowed with a few fixed seeds on each change and a wider sweep at sign-off **(Q-T10, decided)**. | Lesson F4 ("no mutation, fuzz or stress runs"); top lesson 4 | `fast-check` is installed and used in two files |
 | T10 | **Limits and orders are references, not walls.** Two kinds of limit are kept apart. *Physical limits* are what the air and the aircraft allow: it can't pull more G than its wing gives at that speed, it can't fly through the ground, and it can't make energy. These are invariants (T1) and hold every time. *Published limits* are the SMM safety limits, the orders and the aircraft's operating limits (for example the G limit, the maximum speed and a hard deck). A flight may cross one. The test then checks that the screen says so, and that the aircraft keeps flying realistically; it never expects the aircraft to be held at the limit. The standard setups are still checked against the SMM and the manuals as outcomes (T1, T3). | Patrick, 4 Oct 00:47Z: orders and SMM limits are references, not absolute requirements; the turn sims follow the SMM but not absolutely. ALL-R20 ("unless the screen flags it as an exceedance"). Lesson F1 (agents added G clamps to make tests pass) | D411 lists "Hard Deck 6,000 ft MSL floor clamping" and the speed limits as invariants (`archive/agent-rules/dads-debrief.md:62`) |
 
+The last column is history. The test trim (#398, Patrick's yes 5 Oct 05:15Z) cut the unit tests from 3,125 to 1,608 and the browser tests from 383 to 123, keeping the flying and safety checks. Formation Sim's tests wait for its own clean-up.
+
 
 ## 2. What runs when
 
 | When | What runs | Who looks |
 |---|---|---|
 | **Every change** (each pull request and each push to main) | Unit tests for every module (flight invariants, outcomes, rules, data parsing). Type check. Build with the home-screen size budget (ALL-R9). In Chromium only: one smoke test per screen (it opens with no errors and one key control works), the accessibility scan, the layout check at 1280 × 800 and 1920 × 1080 with every menu open, the every-button check, and the leave-and-switch, offline and blocked-storage checks. Aim: the whole run under 10 minutes; a run that grows past that is trimmed, it doesn't get a longer limit. | Nobody, unless it goes red |
-| **Module sign-off** | Everything above, plus: the module's full browser tests; the same smoke set in Firefox and WebKit; the property tests with many seeds; a plain list of what the module's tests check, made from the test names, for Patrick to skim (lesson F4). Then the hands-on checklist (section 4). | Patrick, or whoever signs off |
+| **Module sign-off** | Everything above, plus: the module's own browser tests, where it still has any (after #398 only Formation Sim has its own browser file; the other modules rely on the shared smoke, layout and button checks); the same smoke set in Firefox and WebKit; the property tests with many seeds; a plain list of what the module's tests check, made from the test names, for Patrick to skim (lesson F4). Then the hands-on checklist (section 4). | Patrick, or whoever signs off |
 | **Never** | Nightly runs; re-checking every module after each merge (lesson F6); heavy test machinery (T9). | |
 
 Every push to main publishes the live site. A failing check doesn't stop it; it shows as a warning on the run **(Q-T1, decided: "Always publish", Patrick 4 Oct 02:59Z)**.
@@ -89,7 +91,8 @@ A test that passes and fails on the same code (a flaky test) is fixed first. If 
 - **Each test file starts with three plain lines:** what it checks, which requirement it serves, and where its expected values come from. This replaces the D411 warning banner, which sits in 201 of 205 test files, including layout and accessibility tests where it means nothing **(Q-T11, decided)**. The testing rules themselves go in the rule book and in every agent brief (lesson F36).
 - **Browser tests wait for what is on screen, not for a number of seconds,** and use a fixed clock where time matters, so they don't depend on the computer's speed, date or time zone (lesson F5).
 - **No real network in tests:** every outside service is stubbed, and an unplanned request fails the test (already built).
-- **Each module owns its tests:** `tests/unit/<module>/` and one browser file per module; shared pieces in shared folders. A module's tests never reach into another module.
+- **Each module owns its tests:** `tests/unit/<module>/` and at most one browser file per module; shared pieces in shared folders. A module's tests never reach into another module.
+- **Each PR adds at most one test, the one that best shows it flies right. Skills that say otherwise are overridden.** (Patrick, 5 Oct 05:19Z; also in `AGENTS.md`.)
 - **Before deleting or rewriting code, list what it did**, and check the new code on the default start (lesson F42).
 
 
