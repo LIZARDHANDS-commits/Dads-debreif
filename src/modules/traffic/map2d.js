@@ -24,9 +24,9 @@ import { createCanvasView } from '../../ui-kit/canvas-view.js';
 import { createTileLayer, ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { makeLocalRef, localFtToLatLon, latLonToLocalFt } from '../../core/geo.js';
 import { FT_PER_NM } from '../../core/units.js';
-import { windVectorFtps } from '../../core/wind.js';
-import { glideRatio, iasToTasKt } from '../../core/t6-performance.js';
 import { PFL, PFL_CONFIGS, PFL_CONFIG_LABELS } from './pfl.js';
+import { ejectionAt } from './ejection.js';
+import { trueAltFt } from './weather.js';
 import { FIELD_ELEV_FT, THRESHOLD_29L, PFL_CIRCLE_RADIUS_FT, PATTERN_ALT_FT, trueToMagnetic } from './airfield.js';
 import { TYPE_COLORS as FLEET_COLORS } from './types.js';
 import { CLOSE_UP_DRAW_FT } from './types.js';
@@ -81,7 +81,7 @@ export function paletteFrom(read) {
 const whole = (n) => (Math.round(n) || 0).toLocaleString('en-US'); // never "-0"
 
 /** "2,500 ft 220 kt", the label under an aircraft's callsign. */
-export const heightSpeedText = (ac) => `${whole(ac.alt)} ft ${whole(ac.kt)} kt`;
+export const heightSpeedText = (ac) => `${whole(ac.indicatedAlt ?? ac.alt)} ft ${whole(ac.kt)} kt`; // the altimeter's height
 
 /** "1,250 ft", a leg's length on the map. */
 export const feetText = (ft) => `${whole(ft)} ft`;
@@ -280,41 +280,8 @@ export function conflictLevels(conflicts) {
 export const isFlying = (ac) => ac.status === 'flying';
 export const aircraftColor = (ac) => ac.color ?? TYPE_COLORS[ac.type] ?? FLEET_COLORS[ac.type] ?? FALLBACK_COLOR;
 
-/**
- * The glide ring (Traffic spec 4.5 item 14; Patrick 4 Oct 08:33Z): how far the
- * aircraft can glide from where it is now, in the configuration down, drawn on
- * the ground. Radius = height above the field × the configuration's glide ratio
- * (T-6A max glide chart: clean 2.0 NM per 1,000 ft). The glide takes radius ÷
- * true airspeed at the PFL speed (125 KIAS clean, 120 with the gear down, at
- * mid-height), and the wind carries the whole circle downwind for that long, so
- * its centre is no longer on the aircraft.
- *
- * @param {{ x?: number, y?: number, alt?: number, config?: string }} a
- * @param {number} [windFromDeg=360]
- * @param {number} [windKt=0]
- * @returns {{ cx: number, cy: number, rGlide: number, tGlide: number, altDiff: number, driftFt: number, wxFtps: number, wyFtps: number }}
- */
-export function calculateGlideFootprint(a, windFromDeg = 360, windKt = 0) {
-  const alt = Number.isFinite(a?.alt) ? /** @type {number} */ (a.alt) : FIELD_ELEV_FT;
-  const altDiff = Math.max(0, alt - FIELD_ELEV_FT);
-  const cfgIndex = Math.max(0, PFL_CONFIG_LABELS.indexOf(a?.config ?? ''));
-  const rGlide = altDiff * glideRatio(PFL_CONFIGS[cfgIndex]);
-  const kias = cfgIndex > 0 ? PFL.glideGearKias : PFL.glideCleanKias;
-  const tasFtps = iasToTasKt(kias, (alt + FIELD_ELEV_FT) / 2) * FT_PER_NM / 3600;
-  const tGlide = rGlide / tasFtps;
-
-  const fromDeg = Number.isFinite(windFromDeg) ? windFromDeg : 360;
-  const kt = Number.isFinite(windKt) && windKt > 0 ? windKt : 0;
-  const { x: wxFtps, y: wyFtps } = windVectorFtps(fromDeg % 360, kt);
-
-  const ax = Number.isFinite(a?.x) ? /** @type {number} */ (a.x) : 0;
-  const ay = Number.isFinite(a?.y) ? /** @type {number} */ (a.y) : 0;
-  const cx = ax + wxFtps * tGlide;
-  const cy = ay + wyFtps * tGlide;
-  const driftFt = Math.hypot(wxFtps * tGlide, wyFtps * tGlide);
-
-  return { cx, cy, rGlide, tGlide, altDiff, driftFt, wxFtps, wyFtps };
-}
+// The glide ring lives with the PFL's numbers in pfl.js (glideFootprint), so the PFL's own ejection check uses the same ring.
+export { glideFootprint as calculateGlideFootprint } from './pfl.js';
 
 /**
  * Checks if an aircraft has engine failure or PFL active.
@@ -760,11 +727,38 @@ export function drawScene(ctx, map, scene, settings, palette, layers = {}) {
     }
   }
 
-  // Where an aircraft ejected (Traffic spec 4.5 item 10): the aircraft is gone, a marker stays.
+  // Where an aircraft ejected (Traffic spec 4.5 item 10): the aircraft is gone, a marker stays, and the parachute
+  // drifts down with the wind from there (TR-75; ejection.js).
   for (const ac of scene.aircraft) {
     if (ac.status !== 'ejected' || !ac.ejectAt) continue;
     const [x, y] = at(ac.ejectAt);
     text(`✕ ${ac.id} EJECT`, x, y, palette.bad, { size: 12, bold: true, align: 'center', anchor: x });
+    if (!Number.isFinite(ac.ejectAt.t) || !Number.isFinite(scene.t) || scene.t < ac.ejectAt.t) continue;
+    const st = ejectionAt({ ...ac.ejectAt, alt: trueAltFt(ac.ejectAt.alt) }, scene.t - ac.ejectAt.t, { windFromDeg: scene.windFromDeg, windKt: scene.windKt }, FIELD_ELEV_FT);
+    const [px, py] = at(st.person);
+    ctx.save();
+    ctx.strokeStyle = palette.bad;
+    ctx.fillStyle = '#f97316';
+    ctx.lineWidth = 1.5;
+    if (st.chuteOpen > 0 || st.down) {
+      // A canopy over the pilot: open in the air, flat on the ground.
+      const r = 7 * Math.max(0.3, st.down ? 1 : st.chuteOpen);
+      ctx.beginPath();
+      if (st.down) ctx.ellipse(px + 8, py, r, 2.5, 0, 0, Math.PI * 2);
+      else ctx.arc(px, py - 9, r, Math.PI, 0);
+      ctx.fill();
+      if (!st.down) {
+        ctx.beginPath();
+        ctx.moveTo(px - r, py - 9); ctx.lineTo(px, py);
+        ctx.moveTo(px + r, py - 9); ctx.lineTo(px, py);
+        ctx.stroke();
+      }
+    }
+    ctx.beginPath();
+    ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = palette.bad;
+    ctx.fill();
+    ctx.restore();
   }
 
   drawWind(ctx, map, settings, palette, text);

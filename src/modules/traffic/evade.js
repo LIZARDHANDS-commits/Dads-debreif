@@ -13,7 +13,8 @@
 import { ktToFtps, KT_TO_FTPS, G_FTPS2 } from '../../core/units.js';
 import { compassDegFromVector, wrapDeg180 } from '../../core/angles.js';
 import { gFromBankDeg, bankDegFromG, turnRadiusFromBankFt } from '../../core/flight-math.js';
-import { excessThrustPerWeight, stallLimitG, iasToTasKt } from '../../core/t6-performance.js';
+import { excessThrustPerWeight, stallLimitG } from '../../core/t6-performance.js';
+import { iasToTasKt } from './weather.js';
 import { legOffsetsFt } from '../../core/geo.js';
 import { PATTERN_ALT_FT } from './airfield.js';
 import { makePilot, bankFor, trackForLine, readyToTurnOnto, lineOf, CIRCUIT, ZOOM_SEC, LEVEL_OFF_SEC, HOLD_RADIUS_FT, PILOT_DT } from './circuit.js';
@@ -51,6 +52,9 @@ export const EVADE = Object.freeze({
    * ft: the Flying Orders' day minimum, Patrick's aim (TR-R18; WFO AL6.2, the final-spacing article; Patrick, 4 Oct 01:25Z).
    */
   finalSpacingFt: 2000,
+  /** The share of aircraft on the inner downwind that don't extend behind a straight-in: they perch anyway and the
+   *  straight-in moves over (Patrick, 5 Oct 06:28Z: "a 25 percent chance"; TR-74). */
+  perchAnywayShare: 0.25,
   /**
    * An extended downwind starts its final turn far enough short of the overhead pattern's base and 45° leg
    * (Pattern 1 points 6 to 8) that the turn stays this far clear of them, ft; past that it breaks out instead

@@ -16,6 +16,7 @@ import { FT_PER_NM } from '../../core/units.js';
 import { createDice } from './dice.js';
 import { LIMITS, RUNWAYS, DEFAULT_RUNWAY } from './defaults.js';
 import { trueToMagnetic, magneticToTrue } from './airfield.js';
+import { WEATHER_PRESETS } from './weather.js';
 
 /** How many aircraft Random puts up (Patrick, 11:05Z). */
 export const RANDOM_COUNT = 5;
@@ -244,7 +245,13 @@ export function createSetupPanel({ controls, settings, onScenario }) {
   // How often, shown only while Randomize is ticked (extras behind a switch).
   const share = controls.slider('randomizeSharePct', { label: 'How often', min: LIMITS.randomizeSharePct[0], max: LIMITS.randomizeSharePct[1], step: 10, format: (v) => `${v}% different` });
   share.title = 'How often an aircraft does something other than the normal circuit at each point.';
-  const element = h('div', { class: 'setup-panel' }, row, randomize, share, wind); // the Scenario drop-down labels itself
+  // Weather (Patrick, 5 Oct 06:47Z; TR-77): the temperature at the field. The circuit is flown on the altimeter, so a
+  // hot day flies higher above the ground and a cold day lower, and true airspeed changes with it.
+  const weather = controls.select('weather', { label: 'Weather', options: WEATHER_PRESETS.map((p) => ({ value: p.value, label: p.label })) });
+  weather.title = 'The temperature at the field. The pattern is still flown at 3,500 ft on the altimeter: hotter is higher above the ground, colder is lower.';
+  // The temperature box, shown only for "Set the temperature" (extras behind a switch).
+  const temperature = controls.number('fieldTempC', { label: 'Temperature at the field', unit: '°C', min: LIMITS.fieldTempC[0], max: LIMITS.fieldTempC[1], step: 1 });
+  const element = h('div', { class: 'setup-panel' }, row, weather, temperature, randomize, share, wind); // the Scenario drop-down labels itself
 
   function token(name, fallback) {
     try {
@@ -299,6 +306,7 @@ export function createSetupPanel({ controls, settings, onScenario }) {
 
   function show(values) {
     share.hidden = values.randomizeBehaviour !== true;
+    temperature.hidden = values.weather !== 'custom';
     const from = values.windFromDeg, kt = values.windKt;
     const mag = trueToMagnetic(from);
     dial.setAttribute('aria-valuenow', String(from));

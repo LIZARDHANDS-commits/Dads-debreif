@@ -19,10 +19,10 @@ import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
 import { relativeTo, turnSeg, wholeDegree, DEG } from './manoeuvres.js';
 import { recordFlight, speedSeg, describe } from './transitions.js';
-import { KIAS_LAB, KIAS_OUTSIDE_LAB, KINEMATIC, closeRates } from './tuning.js';
+import { KIAS_LAB, KIAS_OUTSIDE_LAB, KINEMATIC } from './tuning.js';
 import { FORMATIONS, fwShapeNow, pairSlot } from './slots.js';
 import { speedSegFor } from './slow-down.js';
-import { makeTrack, seedTrack, posesFrom, settleLast, followInto, rollStarts, relPath, timeLaw, slotInWorld, poseOf, laggedBank } from './kinematic.js';
+import { makeTrack, seedTrack, posesFrom, settleLast, followInto, rollStarts, relPath, timeLaw, slotInWorld, poseOf, laggedBank, relSpeedLimit } from './kinematic.js';
 
 const dt = STEP_SEC;
 
@@ -32,19 +32,6 @@ export const CLOSE = new Set(['echelon', 'route', 'astern']);
 export function slotPoint(key, side, spacingFt) {
   const s = pairSlot(key, side, spacingFt);
   return { fwd: s.fwd, left: s.left, up: s.alt, plane: CLOSE.has(key) ? 1 : 0 };
-}
-
-/** The speed limit in Lead's frame at a point of a relative path moving in direction d (unit, in fwd, left, up). */
-export function relSpeedLimit(q, d) {
-  const range = Math.hypot(q.fwd, q.left);
-  const rates = closeRates(); // tuning.js: the close-move rates for the Rates choice ('training' until step 2)
-  const lim = [
-    rates.lateralFtps / Math.max(Math.abs(d.left), 1e-6),
-    rates.foreAftFtps / Math.max(Math.abs(d.fwd), 1e-6),
-    rates.verticalFtps / Math.max(Math.abs(d.up), 1e-6),
-    Math.max(rates.nearMinFtps, rates.nearPerSec * range),
-  ];
-  return Math.min(...lim);
 }
 
 /**
@@ -120,10 +107,13 @@ export function routePoints(from, s, to, sTo, cur, spacingFt) {
   return pts;
 }
 
-/** A relative path and its time law, started at step k0: slotAt(k) for followInto. Returns { slotAt, endStep }. */
-export function movingSlot(points, k0) {
+/**
+ * A relative path and its time law, started at step k0: slotAt(k) for followInto. Returns { slotAt, endStep }. limit: the
+ * speed limit in the frame (relSpeedLimit by default: a rejoin's closure fore and aft).
+ */
+export function movingSlot(points, k0, limit = relSpeedLimit) {
   const path = relPath(points);
-  const law = timeLaw(path, relSpeedLimit);
+  const law = timeLaw(path, limit);
   const steps = Math.ceil(law.durationSec / dt);
   // Sampled once per step, then lightly smoothed (three passes of a one-second running mean) so the tables behind the
   // curve and its time law leave no tiny corners for the bank and roll rate, read off the line, to pick up.

@@ -7,7 +7,7 @@
 // The 4-ship has its own buttons (spec section 8, TS-54; live/four-ship-moves.js): setShips swaps them.
 import { h, clear } from '../../ui-kit/dom.js';
 import { rejoinReadout } from './live/judge.js';
-import { REJOIN, KIAS_OUTSIDE_LAB } from './live/tuning.js';
+import { REJOIN, KIAS_OUTSIDE_LAB, RATE_CHOICES, RATE_WORDS, CLOSE_IN_SEC, REJOIN_CLOSURE_KT, setRates, ratesNow } from './live/tuning.js';
 import { slowWord } from './live/slow-down.js';
 import { FORMATIONS, FOUR_FORMATIONS, fourWords } from './live/slots.js';
 
@@ -127,12 +127,18 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   const rejoinSelect = h('select', { 'aria-label': 'Rejoin from line abreast', onchange: () => { rejoin = rejoinSelect.value; } },
     REJOIN_OPTIONS.map((o) => h('option', { value: o.value, selected: o.value === rejoin }, o.label)));
   const rejoinLabel = h('span', { class: 'ts-hint' }, 'Rejoin from line abreast');
-  const PAIR_REJOIN_HINT = `A turning rejoin: Lead slows to ${KIAS_OUTSIDE_LAB} KIAS, waits for closure and turns gently into #2 (SMM 16.20 para 65). #2's bank is capped at ${REJOIN.bankCapDeg}° (an estimate, flagged).`;
-  const FOUR_REJOIN_HINT = `A turning rejoin: Lead slows to ${KIAS_OUTSIDE_LAB} KIAS and turns gently into the others; to finger, #3 crosses only once #2 is in place and #4 once #3 is (SMM 16.34 para 96). Straight ahead, each closes through route in turn.`;
+  const PAIR_REJOIN_HINT = `A turning rejoin: Lead turns into #2 at the press at ${REJOIN.leadBankDeg}° of bank, slowing to ${KIAS_OUTSIDE_LAB} KIAS (SMM 16.20 para 65). #2's bank is capped at ${REJOIN.bankCapDeg}° (an estimate, flagged).`;
+  const FOUR_REJOIN_HINT = `A turning rejoin: Lead turns into #2 at the press, slowing to ${KIAS_OUTSIDE_LAB} KIAS; #3 and #4 close at once and come in on the outside one at a time, #3 once #2 is in and #4 once #3 is (SMM 16.34 paras 95-96). Straight ahead, each closes through route in turn.`;
   const rejoinHint = h('p', { class: 'ts-hint' }, PAIR_REJOIN_HINT);
   const rejoinField = h('label', { class: 'ts-field' }, rejoinLabel, rejoinSelect);
-  // The rejoin choice lives in the Settings box (Patrick, 5 Oct); its default is Lead turning into #2.
-  const rejoinSettings = h('div', { class: 'ts-rejoin-setting' }, rejoinField, rejoinHint);
+  // Rates (clean-up steps 2 and 3, TS-65, TS-66; Patrick 5 Oct 05:46Z, 06:09Z, 06:11Z): how fast the wingmen close,
+  // Student, Instructor (the default) or AI, 2-ship and 4-ship. It changes the closures only, not the banks or the G (06:07Z).
+  const rateWords = (c) => `${RATE_WORDS[c]}: ${REJOIN_CLOSURE_KT[c]} kt rejoins, route to echelon in about ${CLOSE_IN_SEC[c]} s`;
+  const ratesSelect = h('select', { 'aria-label': 'Rates', onchange: () => setRates(ratesSelect.value) },
+    RATE_CHOICES.map((c) => h('option', { value: c, selected: c === ratesNow() }, rateWords(c))));
+  const ratesField = h('label', { class: 'ts-field' }, h('span', { class: 'ts-hint' }, 'Rates'), ratesSelect);
+  // The rejoin choice and Rates live in the Settings box (Patrick, 5 Oct); the rejoin's default is Lead turning into #2.
+  const rejoinSettings = h('div', { class: 'ts-rejoin-setting' }, rejoinField, rejoinHint, ratesField);
 
   const PAIR_HINT = 'The pair flies the manuals\' transition from where it is now. The formation you are in is greyed.';
   const FOUR_HINT = 'The four fly the manuals\' way there from where they are now, one at a time where the manuals say to wait. Side is #2\'s side; finger is named by the side #3 and #4 are on.';

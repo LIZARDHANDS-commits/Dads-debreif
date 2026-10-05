@@ -26,7 +26,8 @@ export function cardForFour(state, wingSide) {
   const j = state.judged;
   let judged = null;
   if (j?.shape === 'formation') {
-    judged = { text: `${j.label}: ${j.text}`, tone: j.tone }; // a change of formation, judged link by link
+    // a change of formation, judged link by link; the label once, when the judge's words already start with it ("Finger left: ...")
+    judged = { text: j.text.startsWith(j.label) ? j.text : `${j.label}: ${j.text}`, tone: j.tone };
   } else if (j) {
     const words = j.ships.map((s) => {
       const numbers = j.shape === 'trail'

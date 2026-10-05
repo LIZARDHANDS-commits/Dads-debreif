@@ -3,8 +3,18 @@
 // a change in one place. Moved here unchanged from the files that use them (named beside each table); those files import
 // them from here. Numbers with no manual page or ruling beside them are estimates and say so.
 //
-// This file imports only slots.js (which imports nothing), so any file can read it without an import loop.
-import { LENGTH_FT, FW_BAND } from './slots.js';
+// This file imports only slots.js (which imports nothing) and core units and flight math, so any file can read it without
+// an import loop.
+import { KT_TO_FTPS } from '../../../core/units.js';
+import { G_FTPS2 } from '../../../core/units.js';
+import { bankDegFromG } from '../../../core/flight-math.js';
+import { LENGTH_FT, FW_BAND, pairSlot } from './slots.js';
+
+/**
+ * A close move's bank cap, every Rates choice (Patrick 5 Oct 06:43Z: "lets do up to 60 for all as requird for now"; it was
+ * 30°, 06:16Z item 12, which left the AI's 2.5 s route to echelon out of reach); WING_BANKS below. A slower rate banks less.
+ */
+const CLOSE_BANK_DEG = 60;
 
 // ---- speeds (from transitions.js) ---------------------------------------------------------------------------------
 
@@ -17,13 +27,12 @@ export const KIAS_LAB = 220;
 /** Defaults for rejoins. */
 export const REJOIN = Object.freeze({
   overtakeKias: 15, // the middle of EFIG p.374's 10 to 20 KIAS for a turning rejoin
-  bankCapDeg: 60, // #2's bank cap in a rejoin: an estimate (the break's own bank), flagged and never a wall
+  bankCapDeg: 60, // #2's bank cap in a rejoin: an estimate (the break's own bank), flagged and never a wall. Patrick 5 Oct 06:16Z (item 1): no cap, the G rule only (RULED_REJOIN); built in the V2.22 rejoin work
   leadBankDeg: 30, // Lead's turn in a turning rejoin (SMM 12.24 para 54; AFM7 p.21)
   idealBearingDeg: 45, // Lead at 10:30 or 1:30 (SMM 12.24 para 56)
   hotBearingDeg: 60, // hot and cold are drawn but not numbered in SMM Fig 12.16: 60 and 30 are estimates
   coldBearingDeg: 30,
-  turnAnglesDeg: [30, 45, 20, 60], // how far Lead turns into #2 once it has closed; estimates (a gentle turn, AFM8 brief p.19); the planner takes the first that keeps the overshoot lane
-  turnAtRangeFt: [2000, 1500, 2500], // Lead turns when #2 has closed to this range; estimates
+  turnAnglesDeg: [30, 45, 20, 60], // how far Lead turns into #2 once it has closed; estimates (a gentle turn, AFM8 brief p.19); the planner takes the first that keeps the overshoot lane. Patrick 06:16Z (item 3): Lead holds the turn until #2 is in (RULED_REJOIN); V2.22 rejoin work
 });
 
 // ---- the kinematic moves: close moves, the hot turning rejoin, following Lead (from kinematic-moves.js) ---------------
@@ -36,10 +45,10 @@ export const KINEMATIC = Object.freeze({
   verticalFtps: 15, // up or down: 900 ft/min (the 4-ship's stack-change estimate)
   nearPerSec: 0.1, // closing slows with range: 10% of the range per second ...
   nearMinFtps: 8, // ... but never below about 5 kt, the station-change rate (SMM 12.20 para 44 says "controlled")
-  // Patrick 05:12Z: echelon to route about 5 s; built in step 2 (the 'brisk' rates, closeRates below).
+  // Patrick 05:12Z: echelon to route about 5 s; since step 2 the fore-aft rate is the Rates choice's closure (closeRates below).
   // The hot turning rejoin:
-  pointBankDeg: REJOIN.bankCapDeg, // #2's "aggressive" turn to point at Lead: the 60° bank cap (an estimate, flagged, never a wall)
-  reverseBanksDeg: [35, 40, 45, 50, 55, 60], // the reversal's banks the planner may choose from
+  pointBankDeg: REJOIN.bankCapDeg, // #2's "aggressive" turn to point at Lead: the 60° bank cap (an estimate, flagged, never a wall); Patrick 06:16Z item 1: no cap (V2.22 rejoin work)
+  reverseBanksDeg: [35, 40, 45, 50, 55, 60], // the reversal's banks the planner may choose from; Patrick 06:16Z item 2: any the G rule allows (V2.22 rejoin work)
   hotWingKias: KIAS_OUTSIDE_LAB, // #2 slows with Lead to 200 KIAS in the hot rejoin: Lead turning into him gives the closure (estimate; the overtake comes in the capture, up to foreAftFtps)
   captureSec: 20, // the capture onto fighting wing, once the reversal has lined #2 up (how long the blend takes)
   captureEaseSec: 3, // how long #2 takes to ease the reversal's bank to Lead's turn as it lines up
@@ -51,37 +60,155 @@ export const KINEMATIC = Object.freeze({
   startBlendSec: 3, // a station change starts moving over this long
 });
 
-/**
- * The close-move rates' choice (Patrick 05:13Z, for step 2: a "rates" toggle in the advanced options; 'brisk' is echelon to
- * route in about 5 s with every other close-move rate scaled by the same factor, capped by power, G and roll). Until step 2
- * 'training' (today's values, KINEMATIC's) is the only choice, so nothing changes.
- */
-const RATES = Object.freeze({
-  training: Object.freeze({
-    lateralFtps: KINEMATIC.lateralFtps,
-    foreAftFtps: KINEMATIC.foreAftFtps,
-    verticalFtps: KINEMATIC.verticalFtps,
-    nearPerSec: KINEMATIC.nearPerSec,
-    nearMinFtps: KINEMATIC.nearMinFtps,
-  }),
-});
-export const RATE_CHOICES = Object.freeze(Object.keys(RATES));
-let ratesChoice = 'training';
+// ---- the Rates setting: how fast a 2-ship wingman closes on his slot (clean-up step 2, TS-65) ----------------------
 
-/** Sets the close-move rates' choice (one of RATE_CHOICES; anything else keeps 'training'). */
+/**
+ * How long each Rates choice takes from route to echelon, from the press to IN POSITION, seconds (Patrick 5 Oct 06:11Z:
+ * "student should take 10 seconds to get from route to eschelon ..., IP takes 5, AI takes 2-3? use that as a close in rate
+ * gauge"; AI's 2.5 is the middle of his 2-3). From it comes the close-in closure (closeInFtps below): the closure rate that
+ * flies route to echelon in that time with the aircraft's real set and stop. It is the closure of every close move (station
+ * changes, echelon and route both ways, line astern) and of the run-in from a rejoin's route, corner or decision point
+ * into the slot. Closure is range rate (Patrick 06:07Z: "how fast lead is getting closer/how quickly they are getting
+ * bigger in the windscreen"): the tracker holds it as the rate the range to the slot closes along the line of sight. The
+ * choice changes the closure only: "No on bank and g" (06:07Z). It replaces the 15 KIAS rejoin overtake on the 2-ship
+ * (REJOIN.overtakeKias, which the 4-ship keeps until step 3); Instructor is the default (the coordinator's pick, told to
+ * Patrick 5 Oct 05:46Z). Every rate is still capped by full power, the G rule and the roll rate: the aircraft flies what it
+ * can and says so. (Patrick's 05:46Z first numbers, 10, 20 and 40 kt for every move, were retired at 06:11Z.)
+ */
+export const CLOSE_IN_SEC = Object.freeze({ student: 10, instructor: 5, ai: 2.5 });
+/** IN POSITION comes inside the echelon band, 15 ft short of the slot sideways (judge.js: 45 ±15 ft out), so the gauge is timed to there. */
+const CLOSE_IN_BAND_FT = 15;
+/**
+ * A rejoin's closure for each Rates choice, knots (Patrick 5 Oct 06:09Z: "Student keeps 15 knots, instructor 25 knots, all
+ * the way up into "route" or "corner" or "decision point" (whichever happens as a part of that rejoin) then they run in";
+ * AI's 50 is an estimate, the thread's pick: double Instructor's). Held until #2 reaches the point the rejoin passes through
+ * (route, the corner, or the decision point), then he takes it down to the close-in rate (CLOSE_IN_SEC) for the run-in,
+ * whether the line or the tracker is flying (Patrick 06:09Z / 05:46Z; 06:11Z). The long part of other long moves (line
+ * abreast or fighting wing to a close formation, a close formation out to fighting wing or line abreast) closes at it too.
+ */
+export const REJOIN_CLOSURE_KT = Object.freeze({ student: 15, instructor: 25, ai: 50 });
+/** The Rates choices in screen order, and their words. */
+export const RATE_CHOICES = Object.freeze(Object.keys(CLOSE_IN_SEC));
+export const RATE_WORDS = Object.freeze({ student: 'Student', instructor: 'Instructor', ai: 'AI' });
+export const DEFAULT_RATES = 'instructor';
+let ratesChoice = DEFAULT_RATES;
+
+/** Sets the Rates choice (one of RATE_CHOICES; anything else keeps the default, Instructor). */
 export function setRates(choice) {
-  ratesChoice = RATES[choice] ? choice : 'training';
+  ratesChoice = RATE_CHOICES.includes(choice) ? choice : DEFAULT_RATES;
 }
 
-/** The close-move rates' choice now. */
+/** The Rates choice now. */
 export function ratesNow() {
   return ratesChoice;
 }
 
-/** The close-move rates the planners read: { lateralFtps, foreAftFtps, verticalFtps, nearPerSec, nearMinFtps } for the choice now. */
-export function closeRates() {
-  return RATES[ratesChoice];
+/**
+ * The close-in closure for a Rates choice, feet per second of relative motion: the closure rate that flies route to
+ * echelon (pairSlot's places, side by side, so the move is sideways) in CLOSE_IN_SEC, timed to the edge of the echelon
+ * band (CLOSE_IN_BAND_FT), where IN POSITION shows. Sideways #2 sets the closure with the slide's bank and stops it at
+ * CLOSURE.stopShare of it (the closure law below), so with v the rate, a the slide's sideways acceleration (g tan of
+ * CLOSURE.slideBankDeg) and d the distance, the time is
+ *   ENGINE_RESPONSE_SEC + v / 2a (set) + d / v (cruise) + v / (2 stopShare a) (stop);
+ * the rate is the slower root that gives CLOSE_IN_SEC. When no rate is that quick (the slide's bank limits it), it is the
+ * rate that gives the quickest time. Derived, so an estimate as good as the slide's bank (Patrick 06:11Z: the gauge).
+ */
+export function closeInFtps(choice = ratesChoice) {
+  const T = CLOSE_IN_SEC[choice] ?? CLOSE_IN_SEC[DEFAULT_RATES];
+  const r = pairSlot('route', 1);
+  const e = pairSlot('echelon', 1);
+  const d = Math.hypot(r.fwd - e.fwd, r.left - e.left) - CLOSE_IN_BAND_FT;
+  const a = G_FTPS2 * Math.tan((CLOSURE.slideBankDeg * Math.PI) / 180);
+  const k = 1 / (2 * a) + 1 / (2 * CLOSURE.stopShare * a); // seconds per (ft/s) of set and stop
+  const t = T - ENGINE_RESPONSE_SEC;
+  const disc = t * t - 4 * k * d;
+  return disc >= 0 ? (t - Math.sqrt(disc)) / (2 * k) : Math.sqrt(d / k);
 }
+
+/** The quickest route to echelon the slide's bank allows, seconds (closeInFtps's formula at its best rate). */
+export function quickestCloseInSec() {
+  const r = pairSlot('route', 1);
+  const e = pairSlot('echelon', 1);
+  const d = Math.hypot(r.fwd - e.fwd, r.left - e.left) - CLOSE_IN_BAND_FT;
+  const a = G_FTPS2 * Math.tan((CLOSURE.slideBankDeg * Math.PI) / 180);
+  const k = 1 / (2 * a) + 1 / (2 * CLOSURE.stopShare * a);
+  return ENGINE_RESPONSE_SEC + 2 * Math.sqrt(k * d);
+}
+
+/** The close-in closure for the Rates choice now: { kt, ftps } (ftps: feet per second of relative motion). */
+export function closureNow() {
+  const ftps = closeInFtps();
+  return { kt: Math.round(ftps / KT_TO_FTPS), ftps };
+}
+
+/** A rejoin's closure for the Rates choice now (REJOIN_CLOSURE_KT): { kt, ftps }. */
+export function rejoinClosureNow() {
+  const kt = REJOIN_CLOSURE_KT[ratesChoice];
+  return { kt, ftps: kt * KT_TO_FTPS };
+}
+
+/**
+ * The rates a kinematic line may move at in the frame of the aircraft flown off (kinematic.js relSpeedLimit): KINEMATIC's,
+ * with the fore-aft rate (overtake or undertake) a closure: a rejoin's by default (the hot turning rejoin's lines), or the
+ * one given (Patrick 05:46Z, 06:09Z).
+ */
+export function closeRates(foreAftFtps = rejoinClosureNow().ftps) {
+  return {
+    lateralFtps: KINEMATIC.lateralFtps,
+    foreAftFtps,
+    verticalFtps: KINEMATIC.verticalFtps,
+    nearPerSec: KINEMATIC.nearPerSec,
+    nearMinFtps: KINEMATIC.nearMinFtps,
+  };
+}
+
+/**
+ * The power profile (Patrick 5 Oct 04:58Z: "setting a higher power setting until a rate is "Set" then reducing the powr to
+ * "maintain that rate", then as the aaircraft approaches the position it wants to be in, it does the opposite... low power
+ * until its stopped in position, then increase to maintain"; 05:47Z: "We can use power to "assertively set the rate""; 05:54Z:
+ * "speed brake can be used to help arrest the rate to the desired as well"; 06:13Z: "they dont HAVE to go full power to set
+ * a rate. they can massage it at a lower power. it's just a techinque. so if the rate you wanted was at 67 torque, you could
+ * set 90 or 100 to set it, then reset to 67 to maintain it... I dont want them to only use full power or idle"). A line
+ * (hand-over.js, kinematic.js powerLaw) flies it on every 2-ship move: each change of rate (setting it, slowing it) overshoots
+ * the new rate's holding power by the smallest step that reaches the new rate in about RATE_SET_SEC, never past full power
+ * or idle, then resets to the power that holds it. Slowing, that is power below the holding power first, idle only if
+ * needed, and the speed brake only when idle can't do it in time (slow-down.js, TS-61). Big changes end up at MAX or IDLE,
+ * small ones show a part power (PWR 88%, then PWR 67%). The tracker's close-in work keeps its own speed loop and gains
+ * (Patrick 06:24Z: "I think it needs a different power module.... i use the power different? Maybe we should test it as is
+ * first?"); only its closure target is set here: the close-in rate, stopped from the stopping distance its power-back
+ * slowing (sideways the slide's bank) gives. All estimates unless a source is given.
+ */
+export const CLOSURE = Object.freeze({
+  stopShare: 0.6, // the tracker's stop is planned at 60% of what power back (sideways: the slide's bank) gives, so the roll and the speed loop's lag still stop him on the slot (estimate)
+  slideBankDeg: CLOSE_BANK_DEG, // sideways the closure is set and stopped with up to the close move's 60° of bank (Patrick 06:43Z; 30° from 06:16Z until then), the same for every Rates choice (Patrick 06:07Z: "No on bank and g")
+  nearGain: 1, // 1/s: inside the last few feet the closure dies away in proportion to the distance, so he settles without hunting (estimate)
+  farGain: 0.1, // ft/s per ft: beyond the hand-over band (odd starts only, the tracker's fallback) the closing speed may grow with range (the old rejoin's kcap)
+});
+
+/**
+ * How fast the engine answers the power lever: torque from 2% to 100% in about 0.25 s (Patrick 5 Oct 06:02Z: "The TQ can
+ * change very fast. 2 percent to 100 in .25 seconds."). A power change in the power profile (MAX, the power that holds the
+ * rate, IDLE, the power that holds the slot) reaches its new thrust in this long, so the acceleration it gives is there
+ * within it, then follows thrust minus drag.
+ */
+export const ENGINE_RESPONSE_SEC = 0.25;
+
+/**
+ * How long a change of rate takes: the power step is the smallest that reaches the new rate in about this long (an
+ * estimate, the thread's default for Patrick's 06:13Z technique: "set 90 or 100 to set it, then reset to 67 to maintain it").
+ */
+export const RATE_SET_SEC = 2;
+
+/**
+ * The hand-over from a kinematic line to the tracker, and the change from a rejoin's closure to the close-in rate, together
+ * at about 500 ft from the slot (Patrick 5 Oct 06:24Z; before it, card "Lines, then tracker" 05:41Z and 05:44Z: "within
+ * 500-1000 feet, dpending on whats going on. becuase we start to see the aspect change and the clusre visually and adjust to
+ * that"). The line flies the big move at the rejoin closure (REJOIN_CLOSURE_KT) to about 500 ft from the slot, arriving at
+ * the close-in rate; the tracker takes the run-in from there, planned again from where #2 and Lead really are at that
+ * moment (Patrick 06:24Z, "Should the tracker re-calculate after the line hands over?": yes). A move that starts inside
+ * 500 ft is the tracker's alone. The same for every Rates choice. hand-over.js handOverPoint is the one place it is used.
+ */
+export const HAND_OVER_FT = 500;
 
 // ---- the off-standard hot rejoins and the overshoot (from hot-rejoin.js) -------------------------------------------
 
@@ -101,7 +228,7 @@ export const STANDARD = Object.freeze({ spacingFt: 100, foreAftFt: 500, heightFt
 export const HOT = Object.freeze({
   minDescentSec: 12, // #2 comes down (or up) to the fighting wing height over at least 12 s, the standard start's (TS-55) ...
   descentFtps: 30, // ... at about 30 ft/s average (1,800 ft/min) when there is time ...
-  maxDescentFtps: 45, // ... and faster, up to about 45 ft/s average (2,700 ft/min; its steepest about 13° nose down at 200 KIAS), to be off the
+  maxDescentFtps: 45, // (Patrick 06:16Z item 4: no fixed cap, any smooth descent inside the G rule; V2.22 rejoin work) ... and faster, up to about 45 ft/s average (2,700 ft/min; its steepest about 13° nose down at 200 KIAS), to be off the
   // stack before he is inside 2,000 ft of Lead (SMM 12.27 para 65: never at or above Lead's height while closing)
   // A planned speed-up is held to full power (TS-63, Patrick 02:48Z): the planner prefers a line inside it (geometry first);
   // a line that still asks more is flown held to full power (full-power.js) and #2 shows STRETCHED. (Until V2.21 the lines
@@ -127,19 +254,66 @@ export const HOT = Object.freeze({
   // energy to safely transition to route and move up the line in to eschelon"; SMM 12.27 para 64: "a decision made at the
   // latter stages of a rejoin"): no manual gives its distance; Fig 12.18 draws it a few aircraft lengths from Lead, so the
   // decision is taken only within about 1,000 ft (an ESTIMATE, the overshoot lane's own range). It was 1,500 ft in V2.20.
-  overshootRangeFt: 1000,
+  overshootRangeFt: 1000, // Patrick 06:16Z item 5: about 200 ft (RULED_REJOIN); V2.22 rejoin work
   outsideWithinFt: 3000, // a line that would slide behind Lead to the outside of his turn within this range is too much energy, not a rejoin (estimate)
   nearlyKtps: 1, // a line whose capture asks up to 1 kt/s more speed-up than full power still flies (held to it, STRETCHED); beyond it the decision overshoot is preferred
+});
+
+/**
+ * Patrick's 06:16Z rulings on the rejoin's estimates (5 Oct 06:16Z), recorded here for the V2.22 rejoin work and not yet
+ * flown (the rejoin planners still use the numbers above):
+ *  1. "Unlimitd bank. they can roll and dive if they want/need to and it ameks sense": no bank cap on #2 in a rejoin
+ *     (REJOIN.bankCapDeg, KINEMATIC.pointBankDeg); bank follows the G the move needs, inside the G rule, past 90° where the
+ *     path needs it.
+ *  2. "Unlimited": the reversal may take any bank the G rule allows (KINEMATIC.reverseBanksDeg).
+ *  3. "until 2 is on": Lead holds his 30° turn until #2 is IN POSITION, then rolls out (replaces REJOIN.turnAnglesDeg).
+ *  4. "unlimited as it can be controlled?": no fixed descent rate (HOT.descentFtps, maxDescentFtps); any smooth descent
+ *     inside the G rule, still off Lead's height before 2,000 ft (SMM 12.27 para 65).
+ *  5. "Decision point would be when the AI would usually tansition to a rate so clser to 200 feet": HOT.overshootRangeFt
+ *     about 200 ft.
+ */
+export const RULED_REJOIN = Object.freeze({ bankCapDeg: null, reverseBanksDeg: null, leadTurnsUntilIn: true, descentFtps: null, overshootRangeFt: 200 });
+
+// ---- the G rule and the 2-ship's banks (clean-up step 2, TS-65; Patrick 5 Oct 06:16Z) --------------------------------
+
+/**
+ * The G rule: 5 G is the normal aim (SMM 16.17 para 44a; Gen Book p.11), more only as a last resort and never 7 (TS-60
+ * amendment). Flagged on screen, never a wall; 7 G is the physical limit the planners keep under.
+ */
+export const G_RULE = Object.freeze({ normalG: 5, lastResortG: 7 });
+/** "No bank cap" (Patrick 06:16Z): the bank of a level turn at the G rule's normal 5 G, about 78°. */
+export const G_RULE_BANK_DEG = bankDegFromG(G_RULE.normalG);
+
+/**
+ * The wingmen's banks, 2-ship (step 2) and 4-ship (step 3) (Patrick 5 Oct 06:16Z). Item 12: "30 is probably more accurate"
+ * for a close move's bank cap (the tracker's 25° until step 2); "When the aircraft is kicked off to fighting wing or line
+ * abreast they can use unlimited bank to dive away and get in position quickly": no cap there but the G rule. Item 11: "No,
+ * unlimitedf": a wingman following in a fighting wing turn has no bank cap but the G rule. Item 1: "Unlimitd bank" in a
+ * rejoin: the 4-ship's tracker rejoin legs have no cap but the G rule (the 2-ship's hot rejoin keeps REJOIN.bankCapDeg until
+ * the V2.22 rejoin work). Item 9: "60/2 as a standard always": Lead flies every fighting wing turn, the check turn included,
+ * at 60° of bank, 2 G level (it was 30° for the check turn and 45° for the others, AFM7 brief p.14 item 5). The tracker's
+ * turns are level, so "roll and dive" past 90° is not flown.
+ */
+export const WING_BANKS = Object.freeze({
+  closeBankCapDeg: CLOSE_BANK_DEG, // Patrick 06:43Z: up to 60° as required (30° from 06:16Z item 12 until then)
+  kickOutBankCapDeg: G_RULE_BANK_DEG, // Patrick 06:16Z item 12: the G rule only
+  fwFollowBankCapDeg: G_RULE_BANK_DEG, // Patrick 06:16Z item 11: the G rule only
+  rejoinBankCapDeg: G_RULE_BANK_DEG, // Patrick 06:16Z item 1: the G rule only (the 4-ship's rejoin legs since step 3)
+  fwTurnBankDeg: 60, // Patrick 06:16Z item 9: 60° of bank, 2 G level, every fighting wing turn
 });
 
 // ---- fighting wing turns (from formation-turns.js) -----------------------------------------------------------------
 
 /** The numbers of the fighting wing turns. Estimates unless a source is given. */
 export const FW_TURN = Object.freeze({
-  gentleBankDeg: 30, // Lead's bank for a turn of 30° or less (the check turn): gentle (AFM7 brief p.14 item 5a)
-  turnBankDeg: 45, // Lead's bank for the bigger turns: moderate, so #2 collapses (item 5b); 1.4 G level
+  gentleBankDeg: 30, // AFM7 brief p.14 item 5a's gentle check turn: no longer flown since step 3 (every turn at WING_BANKS.fwTurnBankDeg, Patrick 06:16Z)
+  turnBankDeg: 45, // item 5b's moderate turn: no longer flown since step 3 (WING_BANKS.fwTurnBankDeg)
   collapseFromDeg: 32, // #2 starts collapsing once Lead's bank passes this ...
   collapseFullDeg: 42, // ... and goes all the way to Lead's six by this
+  // ... but only in turns of this size or more: the check turn (20°) keeps #2's side and sweep (AFM7 brief p.14 item 5a).
+  // Patrick 5 Oct 06:44Z agreed "the fighting wing collapse tied to turn size, not bank" once every turn flew at 60°;
+  // 45° is the thread's pick (an estimate).
+  collapseMinTurnDeg: 45,
   band: { minFt: FW_BAND.rangeFt[0], maxFt: FW_BAND.rangeFt[1], minSweepDeg: FW_BAND.sweepDeg[0], maxSweepDeg: FW_BAND.sweepDeg[1] }, // SMM 12.29 para 69, Fig 12.19 (500-1,000 ft, 30-60°: slots.js FW_BAND, the one copy)
   aimInsideFt: 50, // when #2 has to move back into the band, it aims this far inside its edge in range ...
   aimInsideDeg: 5, // ... and in sweep, so it ends clearly in it (the shared ±100 ft and ±5° margins would also pass the edge)
@@ -159,11 +333,31 @@ export const FW_FOLLOW = Object.freeze({
   d0: 100, // the range beyond which the closing speed may grow, ft (estimate)
   vrelMax: 120, // the most closing speed on the target slot, ft/s (estimate)
   decel: 2, // the closure is never more than #2 could stop at this deceleration, ft/s² (estimate)
-  bankCapDeg: 60, // the most bank #2 uses to follow, degrees (estimate; flagged, never a wall)
+  bankCapDeg: G_RULE_BANK_DEG, // no cap but the G rule (Patrick 06:16Z item 11; 60°, an estimate, until step 2), flagged, never a wall
   overtakeKias: 15, // power only a little: geometry does the rest (Patrick 19:12Z); the most speed above Lead, KIAS
   undertakeKias: 15, // the most speed below Lead, KIAS (estimate)
   advanceTol: 25, // within this many feet of the goal a leg counts as flown (estimate)
   finalTol: 6, // within this many feet of the last goal, and slow against it, #2 is settled (estimate)
+});
+
+/**
+ * The 4-ship's wingmen moving to fighting wing (four-ship-moves.js): FW_FOLLOW's tracker settings with a slower sideways
+ * and fore-aft slide (40 ft/s, against FW_FOLLOW's 60 and 40) and more power (25 KIAS each way), as it has flown since
+ * V2.1x. All estimates; one named entry (clean-up step 2); since step 3 the closure law sets its closing speed (four-ship-moves.js).
+ */
+export const FW_FOLLOW_FOUR = Object.freeze({
+  fwdRate: 40,
+  latRate: 40,
+  vrel0: FW_FOLLOW.vrel0,
+  kcap: FW_FOLLOW.kcap,
+  d0: FW_FOLLOW.d0,
+  vrelMax: FW_FOLLOW.vrelMax,
+  decel: FW_FOLLOW.decel,
+  bankCapDeg: FW_FOLLOW.bankCapDeg,
+  overtakeKias: 25,
+  undertakeKias: 25,
+  advanceTol: FW_FOLLOW.advanceTol,
+  finalTol: FW_FOLLOW.finalTol,
 });
 
 // ---- the tracker, the fallback for odd starts (from transitions.js; Patrick 05:27Z) --------------------------------
@@ -194,6 +388,7 @@ export const TRACKER = Object.freeze({
   minSpeedFtps: 1, // a commanded velocity under this gives no heading: #2 takes Lead's (estimate)
   kiasSnap: 0.003, // the last few thousandths of a knot are taken out at once, so the speed has no step
   alignHeadingRad: 1.5e-4, // aligned: within this of Lead's heading (about 0.01°)
+  alignDeadbandDeg: 0.05, // a closure phase lining up commands no bank under this (step 2): at 1.5/s of heading gain it is a heading error of about 0.003°, inside alignHeadingRad
   laneRangeFt: 1000, // the overshoot lane is measured inside this range (SMM 12.27 para 65; design section 10)
   belowRangeFt: 2000, // the height under Lead is measured inside this range (SMM 12.27 para 65)
   /** Every leg's settings before its recipe changes them, and what each does to the flying. */
@@ -205,7 +400,7 @@ export const TRACKER = Object.freeze({
     d0: 100, // the range beyond which the closing speed may grow, ft (estimate)
     vrelMax: 60, // the most closing speed on the slot, ft/s (estimate)
     decel: 1.2, // ft/s²: about half what slowing with the power back gives (about 1.5-2 kt/s, slow-down.js), so the speed loop can stop the closure in time (estimate)
-    bankCapDeg: 25, // the most bank the wingman uses, degrees (estimate; flagged, never a wall)
+    bankCapDeg: CLOSE_BANK_DEG, // the most bank the wingman uses in a close move: 60° (Patrick 06:43Z; 30° from 06:16Z item 12, 25°, an estimate, until step 3); flagged, never a wall
     overtakeKias: 8, // the most speed above the aircraft flown off, KIAS (estimate)
     undertakeKias: 12, // the most speed below it, KIAS (estimate)
     advanceTol: 3, // within this many feet of a leg's slot the next leg starts (estimate)
@@ -278,5 +473,9 @@ export const HOLD = Object.freeze({
 
 // ---- roll (from flight.js) -----------------------------------------------------------------------------------------
 
-/** Roll limits: up to 90°/s (Patrick, 4 Oct 08:54Z), building and dying away at 360°/s² (Patrick, card 09:54Z). */
-export const ROLL = Object.freeze({ maxRateDps: 90, maxAccelDps2: 360 });
+/**
+ * Roll limits: up to 180°/s (Patrick 5 Oct 06:07Z: "Roll rate can be 180 degrees per second"; 90°/s until step 2, Patrick
+ * 4 Oct 08:54Z), building and dying away at 720°/s² (an estimate, step 2: 180°/s is reached in 0.25 s and within a 45° roll;
+ * it was 360°/s², Patrick card 4 Oct 09:54Z, which reaches 180°/s only in a roll of 90° or more).
+ */
+export const ROLL = Object.freeze({ maxRateDps: 180, maxAccelDps2: 720 });

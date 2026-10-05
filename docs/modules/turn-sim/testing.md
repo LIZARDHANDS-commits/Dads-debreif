@@ -274,6 +274,8 @@ Not tested: the tag's red letters and the torque numbers on screen (sign-off; th
 6. Say whether the torque readings look right: about 40-45% level at 180 KIAS, Lead about 55-60% in the 30° rejoin turn at 200 KIAS, MAX on a full-power speed-up.
 7. (V2.21, TS-63) Set Speed: fast (20 KIAS), Response Turn at normal reference. Reset and press Fighting wing: if #2 falls behind his line at full power his tag and the card say STRETCHED and his power shows MAX; once he can he closes with power and the normal state comes back. No OVERSHOOTING unless he is within about 1,000 ft of Lead with power reduced.
 
+**Sign-off checklist line, clean-up step 2 (TS-65)** (draft, for Patrick to put in his own words), V2.22, hard refresh: with Rates at Student, Instructor and AI in turn (More), press Route then Echelon and back: #2 slides about 5 wingspans to echelon in roughly 10, 5 and a few seconds; press Echelon from fighting wing: a line up the six at the rejoin closure, then the tracker from about 500 ft with nothing jumping at the hand-over; fly a fighting wing check turn: Lead at 60° and #2 collapses and comes back out. Not tested by any automatic check (Patrick 06:25Z).
+
 ## Turn Sim rules on top of the whole-tool rules
 
 - **FM1. The end picture is the test (TS-R3 to TS-R5).** For each turn, both ways, in each formation, check who is where and which way they face once every aircraft has rolled out, against the SMM figure's page reference (Figs 16.15 to 16.21 and 16.30 to 16.36). The checks are positions relative to Lead and spacing against the set spacing. Each has a stated margin and its reason. How long the turn took is never checked (T2).

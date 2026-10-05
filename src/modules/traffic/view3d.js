@@ -26,6 +26,9 @@ import { createAirfieldScenery, disposeAirfieldScenery, DEFAULT_FLOOR_FT, RUNWAY
 import { createLandmarks, disposeLandmarks, createWindsocks, updateWindsocks, disposeWindsocks } from './landmarks3d.js';
 import { createBaseBuildings, disposeBaseBuildings } from './base-buildings3d.js';
 import { createRiverGeometry } from './rivers3d.js';
+import { ejectionAt, EJECTION } from './ejection.js';
+import { trueAltFt } from './weather.js';
+import { createEjectionModel, poseEjectionModel, disposeEjectionModel } from './ejection3d.js';
 import { AIRFIELD_CORE_BOUNDS_FT, paintCoreAirfieldVector, getCoreCorners, getOptimalCoreTileZoom } from './airfield-core-ground.js';
 import { fieldCamera, topDownCamera, towerCamera, cockpitCamera, padlockCamera, NEEDS_AIRCRAFT } from './camera-views.js';
 import { createCameraBar } from './camera-bar.js';
@@ -475,6 +478,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   const routeLines = new Map(); // route id -> { line, sig, edge }
   const resolution = { width: 1, height: 1 }; // the canvas size, which the wide lines need to be drawn in pixels
   const planes = new Map(); // aircraft id -> { mesh, kind, paint }
+  const chutes = new Map(); // ejected aircraft id -> its seat and parachute (ejection3d.js)
   const rings = new Map(); // aircraft id -> LineLoop
   const attitude = createAttitude();
   let disposed = false;
@@ -773,10 +777,43 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     return mesh;
   }
 
+  /**
+   * The ejections (TR-75): each ejected aircraft's seat and parachute, posed for now, and the abandoned aircraft while
+   * it is still above the ground, returned as aircraft to draw like the flying ones.
+   */
+  function syncEjections(scene, options, lengthFt) {
+    const tNow = options.time ?? 0;
+    const wind = { windFromDeg: scene.windFromDeg, windKt: scene.windKt };
+    const groundFt = options.groundFt ?? 0;
+    const abandoned = [];
+    const now = new Set();
+    for (const ac of scene.aircraft) {
+      const ej = ac.ejectAt;
+      if (ac.status !== 'ejected' || !ej || !Number.isFinite(ej.t) || tNow < ej.t) continue;
+      const since = tNow - ej.t;
+      const st = ejectionAt({ ...ej, alt: trueAltFt(ej.alt) }, since, wind, groundFt); // drawn at true height (TR-77)
+      if (st.aircraft) abandoned.push({ ...ac, ...st.aircraft, bankDeg: 0, status: 'flying' });
+      let chute = chutes.get(ac.id);
+      if (!chute) {
+        chute = createEjectionModel(THREE);
+        root.add(chute);
+        chutes.set(ac.id, chute);
+      }
+      poseEjectionModel(chute, st, altToZ(st.person.alt, ALT_SCALE), lengthFt / T6_LENGTH_FT, since, EJECTION.riseSec);
+      now.add(ac.id);
+    }
+    for (const [id, chute] of chutes) {
+      if (now.has(id)) continue;
+      disposeEjectionModel(chute);
+      chutes.delete(id);
+    }
+    return abandoned;
+  }
+
   function syncAircraft(scene, options) {
-    const flying = scene.aircraft.filter(isFlying);
     const levels = conflictLevels(scene.conflicts ?? []);
     const lengthFt = planeLengthFt(options.zoom, options.aircraftScale);
+    const flying = [...scene.aircraft.filter(isFlying), ...syncEjections(scene, options, lengthFt)];
     const present = new Set();
     const wantRings = options.layerCautionRings !== false;
     const wantHeightLines = options.layerHeightLines !== false;
@@ -1065,6 +1102,8 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
       pflSpokeGeometry.dispose();
       pflSpokeMaterial.dispose();
       for (const { mesh } of planes.values()) disposeAircraftMesh(mesh);
+      for (const chute of chutes.values()) disposeEjectionModel(chute);
+      chutes.clear();
       planes.clear();
       for (const ring of rings.values()) ring.removeFromParent();
       rings.clear();

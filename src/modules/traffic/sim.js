@@ -42,7 +42,8 @@ import { buildBreakout, gateLegOf, ENT1_ROUTE, BREAKOUT_TRAFFIC_BANK_DEG } from 
 import { RANDOM, rollFor, pick, oddsFor, buildDownwindStraightIn } from './randomize.js';
 import { behaviourOf, behaviourLabel } from './behaviour.js';
 import { PATTERN_ALT_FT, RUNWAY_29L_HDG_DEG, DEPARTURE_END_29L, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
-import { iasToTasKt } from '../../core/t6-performance.js';
+import { iasToTasKt } from './weather.js';
+import { setFieldTemperature } from './weather.js';
 import { windTriangle } from '../../core/wind.js';
 import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
 import { legOffsetsFt } from '../../core/geo.js';
@@ -118,6 +119,7 @@ const NO_ROUTES = 'the setup needs at least one route';
  */
 export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAPSHOTS } = {}) {
   let seed = firstSeed;
+  setFieldTemperature(setup.fieldTempC); // the day's temperature (weather.js, TR-77)
   let dice = createDice(seed);
   let t = 0, steps = 0;
   let aircraft = [];
@@ -527,6 +529,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     }
     if (!leaders.length) return;
     for (const f of live) {
+      if (f.phase !== 'downwind') delete f.perchRoll; // rolled once each time round the downwind
       if (f.routeId !== pat.id || f.phase !== 'downwind' || f.mode !== 'RAIL' || f.deconflict) continue;
       if (f.goAroundFlight || f.pflFlight || f.pflRail || f.highKeyFlight || f.sideStep) continue;
       const ahead = leaders.filter((l) => l.a !== f);
@@ -542,6 +545,11 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (extendFt === 0) continue;
       // The one it spaces on: the first that alone would keep it from turning in now.
       const leader = ahead.find((l) => spacingExtensionFt({ ...ask, leaders: [l], limitFt: 0 }) === null) ?? ahead[0];
+      // Behind a straight-in, one in four doesn't extend: it perches anyway and the straight-in moves over (TR-74).
+      if (isStraightIn(routeOf(leader.a))) {
+        f.perchRoll ??= rollFor(seed, `${f.id}:perch`, f.perchRolls = (f.perchRolls ?? 0) + 1) < EVADE.perchAnywayShare ? 'perch' : 'extend';
+        if (f.perchRoll === 'perch') continue;
+      }
       let flight = extendFt === null ? null : buildExtendedDownwind(pat.points, stateOf(f), wind.windFromDeg, wind.windKt, perch, extendFt);
       // The final turn rolls out a little short of a full extension: make up the shortfall once.
       const shortFt = flight ? rolloutFt + extendFt - alongOf(flight.rollout) : 0;
@@ -858,12 +866,14 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       a.landed = false;
       a.status = 'ejected';
       a.command = null;
-      a.ejectAt = { x: a.x, y: a.y, alt: a.alt };
+      // Where, when and how fast it was going, for the ejection and the abandoned aircraft on screen (ejection.js).
+      a.ejectAt = { x: a.x, y: a.y, alt: a.alt, t, headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG, kias: a.iasKt ?? a.kt ?? 125 };
       a.pflDecision = 'Eject';
     }
   }
 
   function stepOnce() {
+    setFieldTemperature(setup.fieldTempC); // set each step, so two sims in one page each fly their own day
     t += STEP_SEC; // added up one step at a time, as V6 does, so the clock is V6's to the last digit
     steps++;
     const opt = routeOptions();
