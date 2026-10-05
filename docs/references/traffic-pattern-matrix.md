@@ -1,222 +1,74 @@
-# Authoritative Pattern Matrix — Vector Guidance Migration
-> **Moved here in the October 2026 reset.** Kept as the reference for the Traffic waypoints. The line below calling it "the single source of truth" is superseded: the Traffic requirements and decisions in `../modules/traffic/` win where they differ, and every number here should cite a manual page or Patrick's ruling.
+# Moose Jaw pattern matrix (29L, true feet)
 
-> **This document is the single source of truth for nav-plan waypoints.**  
-> This was the ground truth for the old `nav-plans.js` (removed 4 Oct 2026); the circuit is now built from `src/modules/traffic/data/moose-jaw.json`.
+The route points the Traffic sim flies at Moose Jaw, in true feet since TR-67 (5 Oct 2026). The code is the source of truth: `src/modules/traffic/data/moose-jaw.json` for the routes and `src/modules/traffic/airfield.js` for the runway constants. How the ground is drawn and where the points come from is [Traffic spec section 4.0](../modules/traffic/spec.md). The Traffic requirements and decisions in `../modules/traffic/` win wherever this page differs. Manual text is not copied here; only pages are cited.
 
-## Coordinate System
-- Origin: CYMJ anchor (50.3303°N, 105.5592°W)
-- X: feet East of origin (positive = east)
-- Y: feet North of origin (positive = north)
-- Alt: feet MSL
-- Runway 29L: 298° true, threshold at (3104, -3194), departure end at (-4066, 681)
-- Field elevation: 1,892 ft MSL
+Before TR-67 this page listed V6's hand-drawn positions, which were about 1.12 to 1.2 times too big. Those positions are still in git history and in the "Moose Jaw (V6 original)" setup. They are no longer the reference.
 
----
+## Frame
 
-## 1. PAT_INNER — Overhead Break Circuit (Primary)
+- Origin: the field reference point, 50.3303 N, 105.5592 W (CAP aerodrome chart ARP N50 19.82 W105 33.55). Positions are converted with `core/geo.js` `latLonToLocalFt`.
+- x is feet east of the origin and y is feet north. Heights are feet MSL and speeds are KIAS.
+- Runway 29L runs 298° true (`RUNWAY_29L_HDG_DEG`, rounded from 298.6° on the photo; CAP chart 289°M plus 9° East). Downwind is 118° true.
+- Field elevation is 1,892 ft (CAP aerodrome chart, CYMJ-AD, effective 3 Sep 2026). The route file uses 1,880 ft at the threshold (`THRESHOLD_DATA_ELEV_FT`).
+- "Along" means NM from the 29L threshold toward the approach end. "Out" means NM south of the 29L centreline.
 
-**Flight model**: KIN (kinematic)  
-**Closed**: Yes (loops at threshold via landing check)  
-**Color**: `#58a6ff` (blue)
+## Runway 29L
 
-| # | Label | X (ft) | Y (ft) | Alt (MSL) | Speed (KIAS) | Bank (°) | G | Phase | Notes |
-|---|---|---|---|---|---|---|---|---|---|
-| 0 | Threshold | 3,104 | -3,194 | 1,880 | 100 | 0 | 1 | `landing` | Touchdown/landing check |
-| 1 | Departure End | -4,066 | 681 | 2,500 | 140 | 0 | 1 | `takeoff_climb` | Closed pattern branch trigger at x ≤ -4000 |
-| 2 | Climb Out | -14,866 | 7,020 | 3,500 | 180 | 0 | 1 | `climb` | Climbing straight ahead |
-| 3 | Upwind Turn | -21,000 | 10,327 | 3,500 | 220 | 60 | 2 | `crosswind` | Turn crosswind (60°/2G) |
-| 4 | Crosswind | -28,411 | -1,450 | 3,500 | 220 | 0 | 1 | `crosswind` | Level crosswind leg |
-| 5 | Abeam Dep End | -10,974 | -12,100 | 3,500 | 220 | 0 | 1 | `downwind` | **SI descent trigger** |
-| 6 | Downwind | 17,150 | -28,181 | 3,500 | 220 | 0 | 1 | `downwind` | Mid-downwind |
-| 7 | 45° Leg | 21,906 | -19,364 | 3,500 | 220 | 0 | 1 | `initial` | ENT_OHB merge point |
-| 8 | Initial | 19,741 | -12,172 | 3,500 | 220 | 0 | 1 | `initial` | Run-in along extended centerline |
-| 9 | Break | -288 | -1,441 | 3,500 | 220 | 60 | 2 | `break` | **Break point** (+2,048 ft past threshold) |
-| 10 | Break Exit | -3,385 | -4,323 | 3,500 | 140 | 0 | 1 | `inner_downwind` | Rollout at 180° turn, 118° true |
-| 11 | Perch | 7,146 | -10,275 | 3,500 | 120 | 35 | 1.4 | `final_turn` | Dynamic wind-shifted: P_perch = P_calm - W × T_turn |
-| 12 | Window | 9,076 | -6,411 | 2,119 | 110 | 0 | 1 | `final` | Rollout on centerline, 3.0° glide slope |
+| Point | x, y (ft) | Along / out (NM) | Source |
+|---|---|---|---|
+| 29L threshold bar | 2,796, −2,776 | 0 / 0 | Esri true-scale photo, ±10 ft (`THRESHOLD_29L`) |
+| 29L number base | 2,614, −2,677 | −0.03 / 0 | Patrick, 5 Oct 00:35Z |
+| Departure end (11R threshold) | −3,572, 690 | −1.19 / 0 | Photo: 7,250 ft at 298.6° true (CAP chart 7,280 ft) (`DEPARTURE_END_29L`) |
+| Window | 6,617, −4,856 | 0.72 / 0 | Patrick, 5 Oct 00:36Z: ¾ NM to the number base; about 2,119 to 2,131 ft on a 3° path (SMM 4.7 paras 10-12) |
 
-### Phase Transitions
-- `initial` → `break`: Aircraft crosses waypoint 9 (Break)
-- `break` → `inner_downwind`: 180° turn accumulated (heading ≈ 118°)
-- `inner_downwind` → `final_turn`: Perch capture (within 200 ft or along-track overshoot)
-- `final_turn` → `final`: Rollout on 298° with cross-track < 50 ft
-- `final` → `landing`: Threshold crossing (waypoint 0)
-- `landing` → `takeoff_climb`: Touch-and-go (80% probability → advances power)
-- `takeoff_climb` → `closed_pattern`: Past departure end at x ≤ -4000 → 50° bank climbing turn
-- `closed_pattern` → `inner_downwind`: 180° accumulated or heading ≈ 118° → wings level direct to Perch
+## PAT1: the overhead pattern (3,500 ft, 220 KIAS)
 
-### Key Aerodynamics
-- **Break decel**: V(u) = 220 × e^(-0.452u) over 180° turn (u ∈ [0,1])
-- **Final turn descent**: z(u) = 3500 - 800(3u² - 2u³) cubic easing
-- **Perch wind shift**: T_turn = π × v_tas / (g × tan(35°)) ≈ 29.8 s
+| # | Point | x, y (ft) | Alt | KIAS | Source |
+|---|---|---|---|---|---|
+| 0 | Threshold / final | 2,796, −2,776 | 1,880 | 100 | Runway, above |
+| 1 | Departure end | −3,572, 690 | 2,500 | 140 | Runway, above |
+| 2 | Climb out | −12,311, 5,447 | 3,500 | 180 | On the runway line |
+| 3 | Upwind ends, crosswind starts | −16,000, 7,455 | 3,500 | 220 | EFIG Fig 3-10 (p.211), drawing only. As flown, the crosswind turn starts once the aircraft reaches 220 KIAS (Patrick, 5 Oct 01:12Z) |
+| 4 | Crosswind meets the outer downwind | −25,117, −1,451 | 3,500 | 220 | EFIG Fig 3-10 |
+| 5 | Abeam departure end: the straight-in descent starts | −9,395, −10,008 | 3,500 | 220 | TR-61 (Patrick, 4 Oct 23:19Z) |
+| 6 | Downwind ends, turn north | 14,145, −22,820 | 3,500 | 220 | EFIG Fig 3-10, inner line, 3.22 NM along |
+| 7 | 45° leg starts (overhead rejoin merges here) | 18,108, −15,539 | 3,500 | 220 | EFIG Fig 3-10 |
+| 8 | Final entry (initial starts) | 16,656, −10,320 | 3,500 | 220 | EFIG Fig 3-10, 2.60 NM along. Open: the orders put initial at 2.2 NM (WFO Annex C). Initial is only a reference point on the run-in (Patrick, 5 Oct 01:05Z) |
+| 9 | Break | 1,039, −1,820 | 3,500 | 220 | Flown by rule: about 2,000 ft past the threshold with a 10 kt headwind, moving with the wind (SMM 4.17 para 39, 4.18 para 42), and no later than the departure end (WFO S2 art 401 para 1c) |
+| 10 | Break exit | −1,550, −4,213 | 3,500 | 140 | Flown by rule (SMM 4.17-4.19, EFIG p.151) |
+| 11 | Perch | 6,148, −8,688 | 3,500 | 120 | Flown by rule (SMM 4.17-4.19, EFIG p.151) |
+| 12 | Window | 6,617, −4,856 | 2,119 | 110 | Runway, above |
 
----
+The outer downwind runs 2.00 NM south of the 29L centreline and parallel to it, through Race Track Lake and the Sukanen Ship intersection (EFIG Fig 3-10). The lap is about 18.7 NM; V6's was 25.8 NM in stretched feet.
 
-## 2. PAT_SI — Straight-In Pattern
+## ENT1: the overhead rejoin (3,500 ft, 220 KIAS)
 
-**Flight model**: KIN (kinematic)  
-**Closed**: Yes (can loop)  
-**Color**: `#7ee787` (green)
+It comes from the south along the inner base-leg line (3.22 NM along) and merges into PAT1 at point 7. The rejoin lines define the base leg (Patrick, 5 Oct 01:05Z; SMM 4 para 76; EFIG p.209). It must be established at least 1 NM before the pattern (WFO S2 art 401 para 7, SMM 4.15 para 35).
 
-Same as PAT_INNER waypoints 0–5, then diverges:
+| # | Point | x, y (ft) | Alt | KIAS |
+|---|---|---|---|---|
+| 0 | Entry start | −8,616, −64,638 | 3,500 | 220 |
+| 1 | Entry mid | 6,592, −36,696 | 3,500 | 220 |
+| 2 | Entry gate (= PAT1 point 6) | 14,145, −22,820 | 3,500 | 220 |
+| 3 | Merge (= PAT1 point 7) | 18,108, −15,539 | 3,500 | 220 |
 
-| # | Label | X (ft) | Y (ft) | Alt (MSL) | Speed (KIAS) | Bank (°) | G | Phase | Notes |
-|---|---|---|---|---|---|---|---|---|---|
-| 0 | Threshold | 3,104 | -3,194 | 1,880 | 100 | 0 | 1 | `landing` | Shared with PAT_INNER |
-| 1–5 | *(Same as PAT_INNER 1–5)* | | | | | | | | Shared upwind/crosswind/downwind |
-| 6 | SI Downwind | -3,233 | -16,592 | 2,700 | 140 | 0 | 1 | `si_downwind` | Level at 2,700 after descent |
-| 7 | SI Base Turn | 21,427 | -30,872 | 2,700 | 140 | 45 | 1.4 | `si_base` | Turn toward final |
-| 8 | SI Base | 26,407 | -22,172 | 2,700 | 120 | 0 | 1 | `si_base` | ENT_SI merge point |
-| 9 | SI Final (2 NM) | 16,828 | -10,708 | 2,700 | 120 | 0 | 1 | `si_final` | Stabilized on centerline |
-| 10 | Window (¾ NM) | 6,663 | -4,560 | 2,250 | 120 | 0 | 1 | `si_final` | **0.75 NM speed gate** — decel starts HERE |
-| 11 | Threshold | 3,104 | -3,194 | 1,880 | 100 | 0 | 1 | `landing` | Touchdown |
+## ENT2: the straight-in rejoin (2,700 ft)
 
-### Critical Rule: 0.75 NM Speed Gate
-- Aircraft maintains 120 KIAS from SI Base all the way down final
-- Does NOT slow down until crossing the Window (¾ NM = 4,558 ft from threshold)
-- Window position: along 298° bearing, 4,558 ft from threshold → (6,663, -4,560)
-- From Window to Threshold: decelerate 120 → 100 KIAS over 4,558 ft
+It comes from the south along the outer base-leg line (3.89 NM along), with a 45° bank base turn, the pre-landing check on base, then a 30 to 45° bank turn onto final (EFIG p.131; SMM 4.5-4.6, 4.16 para 36). The 3° glide path is met about 2.50 NM out: 2,700 − 1,892 = 808 ft on 3° to the number base (SMM 4.7 para 10). TR-61 flies the full straight-in pattern from here, lap after lap.
 
-### Phase Transitions
-- `downwind` → `si_descent`: Abeam departure end (waypoint 5) → descend 3,500 → 2,700
-- `si_descent` → `si_downwind`: Level at 2,700 ft
-- `si_base` → `si_final`: Rollout on extended centerline
-- `si_final` → `landing`: Threshold crossing
+| # | Point | x, y (ft) | Alt | KIAS |
+|---|---|---|---|---|
+| 0 | Entry start | −5,006, −66,602 | 3,500 | 160 |
+| 1 | Entry mid | 10,202, −38,661 | 2,700 | 140 |
+| 2 | Entry gate (base) | 21,144, −18,558 | 2,700 | 120 |
+| 3 | Final | 18,992, −11,591 | 2,700 | 110 |
+| 4 | Glide path | 16,158, −10,049 | 2,700 | 110 |
+| 5 | Merge (threshold) | 2,796, −2,776 | 1,880 | 100 |
 
----
+## PFL
 
-## 3. ENT_OHB — Overhead Break Entry
+The circle has a radius of 0.5 true NM (`PFL_CIRCLE_RADIUS_FT`). Its centre is 0.5 NM left of 29L at the threshold, so the circle closes on the centreline at the threshold (Traffic pfl-definition, ratified 4 Oct 07:03Z). The key heights (`PFL_KEY_ALT_FT`) are High Key over the threshold at 5,000 ft, Low Key at 3,700 ft and Final Key at 3,000 ft (SMM 13.8 para 17, 13.9 para 18). Pattern PFLs meet the circle on a tangent (EFIG p.409). The full rules are in the [Traffic spec](../modules/traffic/spec.md).
 
-**Flight model**: KIN  
-**Closed**: No (merges into PAT_INNER at waypoint 7)  
-**Color**: `#bc8cff` (purple)  
-**Display**: Dotted line
+## Whiskey
 
-| # | Label | X (ft) | Y (ft) | Alt (MSL) | Speed (KIAS) | Bank (°) | Phase |
-|---|---|---|---|---|---|---|---|
-| 0 | Entry Start | -8,694 | -66,644 | 3,500 | 220 | 0 | `entry` |
-| 1 | Entry Mid | 4,806 | -46,304 | 3,500 | 220 | 0 | `entry` |
-| 2 | Entry Gate | 17,000 | -28,031 | 3,500 | 220 | 0 | `entry` |
-| 3 | Merge (→ PAT_INNER #7) | 21,689 | -19,427 | 3,500 | 220 | 0 | `initial` |
-
-Coordinates from current ENT1 in `moose-jaw.json`.
-
----
-
-## 4. ENT_SI — Straight-In Entry
-
-**Flight model**: KIN  
-**Closed**: No (merges into PAT_SI at waypoint 8)  
-**Color**: `#7ee787` (green, dashed)  
-**Display**: Dotted line
-
-| # | Label | X (ft) | Y (ft) | Alt (MSL) | Speed (KIAS) | Bank (°) | Phase |
-|---|---|---|---|---|---|---|---|
-| 0 | Entry Start | -3,850 | -69,669 | 3,500 | 160 | 0 | `entry` |
-| 1 | Entry Mid | 20,000 | -33,669 | 2,700 | 140 | 0 | `entry` |
-| 2 | Entry Gate | 26,449 | -21,979 | 2,700 | 120 | 0 | `entry` |
-| 3 | Merge (→ PAT_SI #8) | 26,407 | -22,172 | 2,700 | 120 | 0 | `si_base` |
-
-Coordinates from current ENT2 in `moose-jaw.json`, merge point adjusted to PAT_SI base.
-
----
-
-## 5. PFL_HIGH_KEY — Practice Forced Landing
-
-**Flight model**: NRG (energy — uses `t6-performance.js`)  
-**Closed**: No (terminates at landing)  
-**Color**: `#ff9bce` (pink)
-
-| # | Label | X (ft) | Y (ft) | Alt (MSL) | Speed (KIAS) | Config | Phase | Notes |
-|---|---|---|---|---|---|---|---|---|
-| 0 | High Key | 3,104 | -3,194 | 5,000 | 125 | Clean, feathered | `high_key` | Over 29L threshold, heading 298° |
-| 1 | Low Key | 4,064 | -9,909 | 3,700 | 120 | Gear DOWN | `low_key` | Abeam threshold on downwind, 1.0 NM lateral offset (118°) |
-| 2 | Base Key | 8,793 | -9,538 | 2,900 | 120 | Flaps T/O | `base_key` | Midpoint of 0.5 NM radius final turn |
-| 3 | Final Rollout | 6,636 | -5,072 | 2,400 | 110 | Flaps LDG | `pfl_final` | Wings level on extended centerline (298°) |
-| 4 | Threshold | 3,104 | -3,194 | 1,892 | 100 | Flaps LDG | `pfl_final` | Flare & touchdown |
-
-> [!NOTE]
-> **Decoupling from Circuit & Window:** PFL has a turn radius of 0.5 NM (1.0 NM lateral offset). It is completely independent of the normal circuit downwind (1.5 NM offset) and The Perch (+1.5 NM downwind). **"The Window" belongs strictly to PAT_SI (0.75 NM speed gate)** and has zero relation to PFL.
-
-### PFL Energy Model
-- **Glide performance**: `glideSinkFpm('clean', 125, alt)` → 1,350 fpm (2.0 NM/1,000 ft)
-- **Gear down**: `glideSinkFpm('gearDown', 120, alt)` → 1,500 fpm (1.5 NM/1,000 ft)
-- **Landing config**: `glideSinkFpm('landing', 100, alt)` → 1,850 fpm (1.1 NM/1,000 ft)
-- **Turn radius**: Exactly 0.5 NM (3,038 ft) at 35° bank; diameter 1.0 NM (6,076 ft)
-- **200 ft AGL safety gate**: Mandatory go-around unless runway assured
-
----
-
-## 6. TAKEOFF — Runway Departure
-
-**Flight model**: KIN  
-**Closed**: No (transitions to PAT_INNER closed pattern or departure)
-
-| # | Label | X (ft) | Y (ft) | Alt (MSL) | Speed (KIAS) | Phase |
-|---|---|---|---|---|---|---|
-| 0 | Lineup | 3,104 | -3,194 | 1,892 | 0 | `lineup` |
-| 1 | Rotation | 1,500 | -2,250 | 1,892 | 85 | `takeoff_roll` |
-| 2 | Liftoff | 500 | -1,660 | 1,900 | 100 | `initial_climb` |
-| 3 | Gear Up | -2,000 | -190 | 2,200 | 140 | `climb` |
-| 4 | Departure End | -4,066 | 681 | 2,500 | 140 | `climb` |
-
-After waypoint 4: transitions to closed pattern climb (50° bank) or straight departure.
-
----
-
-## 7. Master Spawn Point Catalog
-
-**This is the two-dropdown spawn menu.** Dropdown 1 selects the pattern, Dropdown 2 selects the start point.
-
-| Pattern | Start Point | X (ft) | Y (ft) | Alt (MSL) | Speed (KIAS) | Heading (°T) | Phase |
-|---|---|---|---|---|---|---|---|
-| **OHB** | Initial (2 NM) | 19,741 | -12,172 | 3,500 | 220 | 298 | `initial` |
-| **OHB** | Break | -288 | -1,441 | 3,500 | 220 | 298 | `break` |
-| **OHB** | Base (ENT merge) | 21,906 | -19,364 | 3,500 | 220 | 298 | `initial` |
-| **OHB** | Abeam Threshold | -10,974 | -12,100 | 3,500 | 220 | 118 | `downwind` |
-| **OHB** | Inner Downwind | -3,385 | -4,323 | 3,500 | 140 | 118 | `inner_downwind` |
-| **OHB** | Perch | 7,146 | -10,275 | 3,500 | 120 | 118 | `final_turn` |
-| **OHB** | 2-Mile Final | 15,500 | -10,200 | 2,700 | 120 | 298 | `final` |
-| **OHB** | 1-Mile Final | 9,076 | -6,411 | 2,119 | 110 | 298 | `final` |
-| **Straight In** | 2-Mile Final | 16,828 | -10,708 | 2,700 | 120 | 298 | `si_final` |
-| **Straight In** | 1-Mile Final | 6,663 | -4,560 | 2,250 | 120 | 298 | `si_final` |
-| **Straight In** | Base | 26,407 | -22,172 | 2,700 | 140 | 298 | `si_base` |
-| **Entry OHB** | Entry Gate | -8,694 | -66,644 | 3,500 | 220 | 298 | `entry` |
-| **Entry SI** | Entry Gate | -3,850 | -69,669 | 3,500 | 160 | 298 | `entry` |
-| **PFL** | High Key | 3,104 | -3,194 | 5,000 | 125 | 298 | `high_key` |
-| **PFL** | Low Key | 7,146 | -10,275 | 3,700 | 120 | 118 | `low_key` |
-| **PFL** | From Area | *Computed* | *Computed* | *User-defined* | 125 | *Reciprocal* | `pfl_inbound` |
-| **Takeoff** | Runway 29L | 3,104 | -3,194 | 1,892 | 0 | 298 | `lineup` |
-
-### PFL "From Area" Spawn Computation
-When "From Area" is selected, three input fields appear:
-- **Radial** (°): direction FROM airfield center, 0–360, default 090°
-- **Distance** (NM): 1–30 NM from airfield, default 10 NM
-- **Altitude** (ft MSL): 3,000–15,000, default 8,000
-
-Spawn position computed as:
-```
-x = distance_ft × sin(radial_rad)
-y = distance_ft × cos(radial_rad)
-heading = (radial + 180) % 360    // reciprocal, toward field
-```
-Aircraft spawns engine-out, NRG model, 125 KIAS clean glide. Target: High Key at 5,000 ft MSL. If arriving above 5,000: false High Key (fly runway heading until half excess altitude burned). If arriving below 5,000: direct to nearest key or threshold.
-
----
-
-## 8. Flight Model Assignment
-
-| Pattern | Default Model | Why |
-|---|---|---|
-| PAT_INNER | KIN | Standard kinematic speed/altitude profiles |
-| PAT_SI | KIN | Standard kinematic |
-| ENT_OHB | KIN | Standard entry |
-| ENT_SI | KIN | Standard entry |
-| PFL_HIGH_KEY | **NRG** | Uses `glideSinkFpm()`, energy management |
-| PFL_PATTERN | **NRG** | Uses `flyZoomT6A()`, energy gates |
-| TAKEOFF | KIN | Acceleration profile |
-| BREAKOUT | KIN | Climbing vector to breakout point |
-| GO_AROUND | KIN | Climb-out + rejoin |
-
-Commands that auto-switch to NRG: `engine_fail`, `pfl_current`, `climb_high_key`
+Whiskey is a waypoint on the extended 29L downwind (SMM 4 para 76), about 5.1 NM west of the threshold, just past Race Track Lake. This is an estimate from Fig 3-10, and Whiskey is not yet in the route file.
