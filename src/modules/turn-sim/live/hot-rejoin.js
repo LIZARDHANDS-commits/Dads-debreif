@@ -16,17 +16,16 @@
 //    speed brake, idle, overshoot).
 // Every number with no source beside it is an estimate and says so.
 import { wrapPi } from '../../../core/angles.js';
-import { KT_TO_FTPS, G_FTPS2 } from '../../../core/units.js';
+import { KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft, smoother } from './flight.js';
 import { relativeTo, turnSeg, wholeDegree, onStep, DEG } from './manoeuvres.js';
 import { recordFlight, describe } from './transitions.js';
 import { KIAS_LAB, KIAS_OUTSIDE_LAB, REJOIN, KINEMATIC, HOT, STANDARD, LINE_UP, LINE_UP_REFERENCE } from './tuning.js';
 import { classify } from './judge.js';
 import { FORMATIONS, LENGTH_FT, fwShapeNow } from './slots.js';
-import { makeTrack, seedTrack, posesFrom, settleLast, followInto, slotInWorld, poseOf, laggedBank } from './kinematic.js';
+import { makeTrack, seedTrack, posesFrom, settleLast, followInto, slotInWorld, poseOf, laggedBank, speedNeeds, labelStages, RANK } from './kinematic.js';
 import { CLOSE, slotPoint, routePoints, movingSlot, rollEvents, eventsEnd, lastRollEnd, laneAndBelow, finishLine, leadTurnSegs } from './kinematic-moves.js';
-import { powerFor } from './power.js';
-import { STAGES, STAGE_WORDS, speedSegFor, slowKtps, stageFor, fullPowerKtps } from './slow-down.js';
+import { STAGES, STAGE_WORDS, speedSegFor, slowKtps } from './slow-down.js';
 import { holdToPower } from './full-power.js';
 
 const dt = STEP_SEC;
@@ -38,63 +37,6 @@ const reverseSeg = (state, s, b3) => turnSeg(wrapPi(state.headingRad + s * Math.
 const LOS_RATE_DPS = 2;
 /** How much of the full pure-pursuit turn #2 may fly to point at Lead (estimates; the planner picks one). */
 const POINT_SHARES = [1.2, 1.15, 1.1, 1.05, 1, 0.95, 0.9, 0.85, 0.8];
-const RANK = Object.freeze({ power: 0, boards: 1, idle: 2, idleBoards: 3 });
-
-/**
- * The slowing and speeding up a planned line asks for, from pose index `from` on: each step's stage (slow-down.js, the
- * first in the order of use that gives it), the first step that asks more than idle and the boards can give (-1 if none),
- * and the most a speed-up asks past full power (KIAS per second; 0 if never). Read from the line's own speeds, lightly
- * smoothed (a half-second running mean) so the differences' noise is not read as a need. A climb or descent counts too
- * (energy height, standard aerodynamics: holding the speed in a descent at climb rate c takes g c / V of extra drag), so a
- * high start that dives down to Lead has its height to lose as well as its speed (Patrick 19:15Z lists "high" as a worse start).
- */
-export function speedNeeds(poses, from, blockFt, to = poses.length) {
-  const n = poses.length;
-  const raw = new Float64Array(n);
-  for (let k = 1; k < n - 1; k++) raw[k] = (poses[k + 1].kias - poses[k - 1].kias) / (2 * dt);
-  const half = 5;
-  const ranks = new Int8Array(n).fill(-1);
-  const rates = new Float64Array(n); // the energy rate each step asks, in KIAS per second (the climb's share included)
-  let firstBad = -1;
-  let accelShort = 0;
-  let top = 0;
-  for (let k = Math.max(1, from); k < Math.min(n - 1, to); k++) {
-    let sum = 0;
-    let cnt = 0;
-    for (let j = Math.max(1, k - half); j <= Math.min(n - 2, k + half); j++) {
-      sum += raw[j];
-      cnt++;
-    }
-    const p = poses[k];
-    const r = sum / cnt + ((G_FTPS2 * (p.climb ?? 0)) / Math.max(p.tas, 1)) * (p.kias / Math.max(p.tas, 1));
-    rates[k] = r;
-    if (r < 0) {
-      const st = stageFor(-r, p.kias, blockFt, p.g);
-      if (!st.ok && -r > slowKtps('idleBoards', p.kias, blockFt, p.g) * 1.02 + 0.05 && firstBad < 0) firstBad = k;
-      ranks[k] = RANK[st.stage];
-      top = Math.max(top, ranks[k]);
-    } else {
-      accelShort = Math.max(accelShort, r - (fullPowerKtps(p.kias, blockFt, p.g) * 1.05 + 0.05));
-    }
-  }
-  return { ranks, rates, blockFt, firstBad, accelShort: Math.max(0, accelShort), top };
-}
-
-/**
- * Writes each pose's slowing stage from its rank, held for a second either side so the boards don't flick in and out, and
- * on power the model's throttle for the tag (power.js; speedNeeds' rates already hold the climb's share).
- */
-function labelStages(poses, from, needs) {
-  const { ranks, rates, blockFt } = needs;
-  const hold = Math.round(1 / dt);
-  for (let k = Math.max(0, from); k < poses.length; k++) {
-    let r = -1;
-    for (let j = Math.max(0, k - hold); j <= Math.min(poses.length - 1, k + hold); j++) r = Math.max(r, ranks[j]);
-    poses[k].stage = r >= 1 ? STAGES[r] : r === 0 ? 'power' : null;
-    poses[k].power = powerFor(rates[k] ?? 0, poses[k].kias, blockFt, poses[k].g, 0, poses[k].stage);
-  }
-}
-
 /** The first pose index from `from` at which #2 would pass ahead of Lead's 3/9 line inside 1,000 ft (the overshoot lane, ±100 ft margin), or -1. */
 function laneBreak(poses, leadRec, from) {
   for (let k = Math.max(0, from); k < poses.length; k++) {

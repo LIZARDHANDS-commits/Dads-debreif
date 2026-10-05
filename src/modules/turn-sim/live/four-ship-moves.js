@@ -18,12 +18,13 @@
 //
 // Sources for each move are beside it. Numbers with no manual or ruling behind them say "estimate".
 import { STEP_SEC, copyAircraft, planDone } from './flight.js';
-import { relativeTo, turnSeg, wholeDegree, onStep, DEG, TURN_BANK_DEG } from './manoeuvres.js';
+import { relativeTo, turnSeg, wholeDegree, DEG, TURN_BANK_DEG } from './manoeuvres.js';
 import {
   recordFlight, flyStep, dryRunT, speedSeg, slide, dropBack, closeThrough, rejoinTo, openOut,
   straightAhead, sweepOut, stopAt, cornerBehind,
 } from './transitions.js';
-import { REJOIN } from './tuning.js';
+import { REJOIN, FW_FOLLOW_FOUR, WING_BANKS } from './tuning.js';
+import { onClosure, lineRunIn, fromStep, wingFromPose, replanFor } from './hand-over.js';
 import { trackTwice, phase } from './tracker.js';
 import { isStacked, classify, judge } from './judge.js';
 import { FOUR_FORMATIONS, LENGTH_FT, slotsFor, pairSlot, refsFor, fourWords, FW_STEP_DOWN_FT } from './slots.js';
@@ -68,16 +69,68 @@ function flyLeg(start, t0, leadSegs, wings, blockFt) {
   let endSec = t0 + dryRunT(lead, { segments: leadSegs }, t0, { maxSec: FOUR_CHANGE_LIMIT_SEC }).durationSec;
   const done = {};
   for (const w of wings) {
-    const phases = w.phases(done).map((ph) => ({ ...ph, altRateFtps: ph.altRateFtps ?? GENTLE_ALT_FTPS }));
-    const { run, profile } = trackTwice({ refs: recs, wing0: by.get(w.id), t0, phases, blockFt, maxSec: FOUR_CHANGE_LIMIT_SEC });
-    if (!run.ok) return { ok: false, reason: `${NAMES[w.id]} could not settle in its place inside ${Math.round(FOUR_CHANGE_LIMIT_SEC / 60)} minutes.`, id: w.id };
-    const plan = { segments: [{ kind: 'bankTrack', points: run.points }], profile };
+    const raw = w.phases(done).map((ph) => ({ ...ph, altRateFtps: ph.altRateFtps ?? GENTLE_ALT_FTPS }));
+    const wing0 = by.get(w.id);
+    // Lines, then tracker (clean-up step 3, TS-66): a wingman with one leg to fly, no gate, starting further than the
+    // hand-over range from it, flies a kinematic line in the frame of the aircraft he flies off, then the tracker.
+    const lined = lineFirst(wing0, raw, recs, blockFt);
+    let run;
+    let profile;
+    let plan;
+    let steps0 = 0;
+    if (lined) {
+      steps0 = lined.line.steps;
+      const refs = Object.fromEntries(Object.entries(recs).map(([id, r]) => [id, fromStep(r, steps0)]));
+      const init = { accelKtps: lined.line.accelKtps };
+      ({ run, profile } = trackTwice({ refs, wing0: wingFromPose(wing0, lined.line.poses[steps0 - 1]), t0: t0 + steps0 * STEP_SEC, phases: lined.legs, blockFt, maxSec: FOUR_CHANGE_LIMIT_SEC, init }));
+      if (run.ok) {
+        const replan = replanFor({ refIds: Object.keys(recs).map(Number), phases: lined.legs, blockFt, accelKtps: init.accelKtps, record: recordFlight });
+        plan = { segments: [{ kind: 'poseTrack', poses: lined.line.poses, replan }, { kind: 'bankTrack', points: run.points }], profile };
+      } else {
+        steps0 = 0;
+      }
+    }
+    if (!plan) {
+      // The tracker alone, every leg on the closure law (step 3): a rejoin's closure for rejoins and long moves, the close-in
+      // rate for close ones, the 06:16Z banks; legs that follow a goal or hold world axes (the turns) fly as before.
+      ({ run, profile } = trackTwice({ refs: recs, wing0, t0, phases: onFour(raw), blockFt, maxSec: FOUR_CHANGE_LIMIT_SEC }));
+      if (!run.ok) return { ok: false, reason: `${NAMES[w.id]} could not settle in its place inside ${Math.round(FOUR_CHANGE_LIMIT_SEC / 60)} minutes.`, id: w.id };
+      plan = { segments: [{ kind: 'bankTrack', points: run.points }], profile };
+    }
+    const durationSec = steps0 * STEP_SEC + run.durationSec;
     plans[w.id] = plan;
-    recs[w.id] = recordFlight(by.get(w.id), plan, t0);
-    done[w.id] = { times: run.times, endSec: t0 + run.durationSec, run };
-    endSec = Math.max(endSec, t0 + run.durationSec, ...profile.map((leg) => leg.t1));
+    recs[w.id] = recordFlight(wing0, plan, t0);
+    done[w.id] = { times: run.times, endSec: t0 + durationSec, run };
+    endSec = Math.max(endSec, t0 + durationSec, ...profile.map((leg) => leg.t1));
   }
   return { ok: true, t0, endSec: t0 + Math.ceil((endSec - t0) / STEP_SEC - 1e-6) * STEP_SEC, plans, done };
+}
+
+/** The 4-ship's legs on the closure law (hand-over.js onClosure; rejoins with no bank cap but the G rule, Patrick 06:16Z item 1); goal and world legs as they were. */
+function onFour(phases, opts = {}) {
+  return phases.map((ph) => (ph.goal || ph.world ? ph : onClosure([ph], { rejoinBankDeg: WING_BANKS.rejoinBankCapDeg, ...opts })[0]));
+}
+
+/**
+ * The line for a wingman's leg, or null (the tracker flies it all): only a single leg with no gate, no goal and no world
+ * axes, starting further than the hand-over range from its slot (hand-over.js lineRunIn), so the gates of the ones behind
+ * (their `done` times) read the same leg. The line runs straight at its slot in the frame of the aircraft the leg flies off,
+ * at a rejoin's closure, arriving at the close-in rate; the leg then flies at the close-in rate. Returns { line, legs }.
+ */
+function lineFirst(wing, raw, recs, blockFt) {
+  if (raw.length !== 1) return null;
+  const ph = raw[0];
+  if (ph.holdUntil !== undefined || ph.goal || ph.world) return null;
+  const ref = recs[ph.track ?? 1];
+  if (!ref) return null;
+  const R0 = ref.at(0);
+  const rel = relativeTo(R0, wing);
+  const points = [
+    { fwd: rel.fwd, left: rel.left, up: wing.altAboveFt - R0.altAboveFt, plane: 0 },
+    { fwd: ph.slot.fwd, left: ph.slot.left, up: ph.slot.alt - R0.altAboveFt, plane: 0 },
+  ];
+  const line = lineRunIn({ wing, leadRec: ref, points, finalSlot: ph.slot, blockFt });
+  return line ? { line, legs: onFour(raw, { closeIn: true }) } : null;
 }
 
 /** The four at formation time T after flying a leg (each straight and level once its own part is done). */
@@ -112,7 +165,7 @@ function joinLegs(legs, ids) {
         const gap = Math.round((leg.t0 - at) / STEP_SEC);
         if (gap > 0) segments.push({ kind: 'bankTrack', points: Array.from({ length: gap }, () => [0, null]) });
         for (const s of p.segments) segments.push({ ...s });
-        const n = p.segments.reduce((sum, s) => sum + (s.points?.length ?? 0), 0);
+        const n = p.segments.reduce((sum, s) => sum + (s.points?.length ?? s.poses?.length ?? 0), 0); // a line's poses count too (step 3)
         at = leg.t0 + n * STEP_SEC;
       }
       profile.push(...(p.profile ?? []));
@@ -145,7 +198,7 @@ function hold(c, id, track, over = {}, altFt = c.by.get(id).altAboveFt) {
 /** A table slot (slots.js) as a phase of the given kind. */
 const toSlot = (c, kind, slot, over = {}) => kind(place(c, slot.fwd, slot.left, slot.alt), { track: slot.ref, ...over });
 /** Fighting wing kept off a reference that is moving or turning (estimates: enough bank and speed to keep the slot). */
-const fwFollow = (slot, over = {}) => phase(slot, { fwdRate: 40, latRate: 40, vrel0: 30, kcap: 0.05, d0: 100, vrelMax: 120, decel: 2, bankCapDeg: 60, overtakeKias: 25, undertakeKias: 25, advanceTol: 25, finalTol: 6, ...over });
+const fwFollow = (slot, over = {}) => phase(slot, { ...FW_FOLLOW_FOUR, ...over }); // tuning.js FW_FOLLOW_FOUR (the 4-ship's, until step 3)
 /** Settle onto a slot off the formation reference after closing on a point near it (a short slide). */
 const settle = (slot, over = {}) => dropBack(slot, { advanceTol: 6, finalTol: 6, vrel0: 16, ...over });
 /**
@@ -197,10 +250,13 @@ const toSpeed = (c, key) => (Math.abs(c.start[0].kias - FOUR_FORMATIONS[key].kia
 
 /**
  * R3 (and F11): Spread 4, the offset box or any wide picture to fighting wing, the turning rejoin of AFM7 brief p.17 and
- * AFM8 brief pp.19, 25. Lead slows to 200 KIAS and pauses to let #2 establish closure, then turns gently toward #2
- * (30° at 30° bank); #2 (inside, hot) rejoins to its fighting wing slot holding its stack; #3 and #4 (cold) rejoin too,
- * #3 to its slot off #2 and #4 off #3, holding theirs: the stack is the separation (AFM8 brief p.18 item 6).
- * With rejoin 'straight' Lead holds straight (the straight-ahead rejoin).
+ * AFM8 brief pp.19, 25. Since clean-up step 3 (TS-66; Patrick 5 Oct 05:29Z, 05:34Z: "lead should just turn towards number2
+ * who does a hot turning rejoin, then 3 and 4 immediately go full power and towards number 1's turn circle, then rejoin on
+ * the outside of the turn one at a time"): Lead turns toward #2 at the press (30° bank), slowing to 200 KIAS as he turns;
+ * #2 (inside, hot) rejoins to its fighting wing slot; #3 and #4 close at once at a rejoin's closure toward Lead's turn, wait
+ * a little behind their places on the outside of the turn, and come in one at a time: #3 once #2 is in, #4 once #3 is
+ * (SMM 16.34 paras 95-96). The stack is kept as the separation (AFM8 brief p.18 item 6). With rejoin 'straight' Lead holds
+ * straight (the straight-ahead rejoin).
  */
 function rejoinToFw(start, t0, opts, s) {
   const c = context(start, t0, opts);
@@ -209,26 +265,45 @@ function rejoinToFw(start, t0, opts, s) {
   if (slots[2].alt >= 0) slots[2] = { ...slots[2], alt: -FW_STEP_DOWN_FT };
   const speed = toSpeed(c, 'fw');
   const far = (id) => FAR_OVERTAKE_KIAS * (Math.abs(relativeTo(c.start[0], c.by.get(id)).left) > 3000 ? 1 : 0) || REJOIN.overtakeKias;
+  // #3 and #4 wait this far behind their places (in Lead's frame) until the one ahead is in (estimates, TRJ's spacing).
+  const waitAt = (id) => {
+    const p = inLeadFrame(slots, id);
+    return place(c, p.fwd - TRJ.waitBehindFt[id] * 2, p.left, p.alt);
+  };
+  const gateOf = (done, id) => done[id].times[done[id].times.length - 1].arrive;
   const wings = [
     { id: 2, phases: () => [toSlot(c, rejoinTo, slots[2], { overtakeKias: far(2) })] },
-    { id: 3, phases: () => [rejoinTo(place(c, ...Object.values(inLeadFrame(slots, 3))), { track: 1, overtakeKias: far(3), advanceTol: 60 }), toSlot(c, settle, slots[3])] },
-    { id: 4, phases: () => [rejoinTo(place(c, ...Object.values(inLeadFrame(slots, 4))), { track: 1, overtakeKias: far(4), advanceTol: 60 }), toSlot(c, settle, slots[4])] },
+    {
+      id: 3,
+      phases: (done) => [
+        rejoinTo(waitAt(3), { track: 1, overtakeKias: far(3), advanceTol: 60, holdUntil: gateOf(done, 2) }),
+        rejoinTo(place(c, ...Object.values(inLeadFrame(slots, 3))), { track: 1, advanceTol: 60 }),
+        toSlot(c, settle, slots[3]),
+      ],
+    },
+    {
+      id: 4,
+      phases: (done) => [
+        rejoinTo(waitAt(4), { track: 1, overtakeKias: far(4), advanceTol: 60, holdUntil: gateOf(done, 3) }),
+        rejoinTo(place(c, ...Object.values(inLeadFrame(slots, 4))), { track: 1, advanceTol: 60 }),
+        toSlot(c, settle, slots[4]),
+      ],
+    },
   ];
   const tryLead = (leadSegs) => flyLeg(start, t0, leadSegs, wings, opts.blockFt);
   if (opts.rejoin === 'straight') return wrap(tryLead(speed), { how: 'straight-ahead rejoin to fighting wing' });
-  // The pause is how long a straight-ahead rejoin takes to bring #2 inside the range (planGoTo's way, transitions.js).
-  const straightTwo = flyLeg(start, t0, speed, wings.slice(0, 1), opts.blockFt);
-  const ranges = straightTwo.ok ? straightTwo.done[2].run.ranges : [];
-  for (const rangeFt of REJOIN.turnAtRangeFt) {
-    const at = ranges.findIndex((r) => r <= rangeFt);
-    if (at < 0) continue;
-    for (const turnDeg of REJOIN.turnAnglesDeg) {
-      const leadSegs = [...speed, { kind: 'hold', untilSec: t0 + onStep(at * STEP_SEC) }, turnSeg(wholeDegree(c.start[0].headingRad + s * turnDeg * DEG), s, REJOIN.leadBankDeg)];
-      const leg = tryLead(leadSegs);
-      if (leg.ok && laneKept(leg)) return wrap(leg, { leadTurnDeg: turnDeg });
-    }
+  // Lead turns at the press, slowing as he turns (Patrick 05:29Z: never waits for closure); the first turn that keeps the
+  // overshoot lane, else the first that flies (REJOIN.turnAnglesDeg until the V2.22 rejoin work: Lead holds his turn until
+  // #2 is in, RULED_REJOIN).
+  const slowWhileTurning = speed.map((x) => ({ ...x, withNext: true }));
+  let first = null;
+  for (const turnDeg of REJOIN.turnAnglesDeg) {
+    const leg = tryLead([...slowWhileTurning, turnSeg(wholeDegree(c.start[0].headingRad + s * turnDeg * DEG), s, REJOIN.leadBankDeg)]);
+    if (leg.ok && laneKept(leg)) return wrap(leg, { leadTurnDeg: turnDeg });
+    if (leg.ok && !first) first = { leg, turnDeg };
   }
-  // No turn keeps the lane from here: Lead holds straight (the straight-ahead rejoin, SMM 12.26 paras 62-63).
+  if (first) return wrap(first.leg, { leadTurnDeg: first.turnDeg });
+  // Nothing settles with Lead turning: Lead holds straight (the straight-ahead rejoin, SMM 12.26 paras 62-63).
   return wrap(tryLead(speed), { straightFallback: true, how: 'rejoin to fighting wing' });
 }
 const wrap = (leg, extra = {}) => (leg.ok ? { ok: true, legs: [leg], ...extra } : { ok: false, reason: leg.reason, legs: [] });
