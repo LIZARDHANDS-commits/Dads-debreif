@@ -19,6 +19,7 @@ import { FORMATIONS, FOUR_FORMATIONS, setFwShape, setFw4Shape } from './slots.js
 import { planChangeFour } from './four-ship-moves.js';
 import { planHotRejoinChange, offStandardOutcome } from './hot-rejoin.js';
 import { planLineChange } from './line-moves.js';
+import { planTurningRejoin } from './turning-rejoin.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS, planFormationTurn } from './formation-turns.js';
 import { createFluidSession, fluidReadouts } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
@@ -239,11 +240,15 @@ export function createFormation(options = {}) {
     const four = state.aircraft.length > 2;
     // A training error set (TS-62) makes the hot turning rejoin start from wherever #2 is, flown as its response says.
     const planOpts = { ...changeOptions, spacingFt: state.spacingFt, blockFt: opts.blockFt, lastSide: state.lastSide, errors: four ? null : state.errors };
-    // The 2-ship (clean-up step 2, TS-65): the hot turning rejoin from line abreast (TS-55) and every other change a line
-    // into the ball park, then the tracker (hand-over.js); odd starts no line rule covers, the tracker alone (planGoTo).
+    // The 2-ship (clean-up step 2, TS-65): a training error's rejoin (hot-rejoin.js, TS-62); the turning rejoin on the rejoin
+    // line from line abreast or fighting wing (turning-rejoin.js, TS-68); every other change a line into the ball park, then
+    // the tracker (hand-over.js); odd starts no line rule covers, the tracker alone (planGoTo).
     const plan = four
       ? planChangeFour(state.aircraft, to, planOpts, state.tSec)
-      : planHotRejoinChange(state.aircraft, to, planOpts, state.tSec) ?? planLineChange(state.aircraft, to, planOpts, state.tSec) ?? planGoTo(state.aircraft, to, planOpts, state.tSec);
+      : planHotRejoinChange(state.aircraft, to, planOpts, state.tSec) ??
+        planTurningRejoin(state.aircraft, to, planOpts, state.tSec) ??
+        planLineChange(state.aircraft, to, planOpts, state.tSec) ??
+        planGoTo(state.aircraft, to, planOpts, state.tSec);
     if (!plan.ok) {
       state.refusal = plan.reason;
       return false;

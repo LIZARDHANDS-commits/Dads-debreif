@@ -2,6 +2,8 @@
 // kinematic pre-planned line (Patrick 4 Oct 18:00Z): from the standard start (V2.15), from the off-standard starts the
 // Errors (training) panel sets (V2.20; Patrick 19:15Z: "wide or close, ahead of line, high, tight, fast; worst = ahead,
 // high, tight, fast"), and the overshoot when #2 reaches the decision point with too much energy (Patrick 23:29Z).
+// Since V2.24 (TS-68) it flies only the Errors panel's starts: every other 2-ship turning rejoin flies the rejoin line
+// (turning-rejoin.js; Patrick 07:31Z).
 //
 // Sources (page references only):
 //  - SMM 16.20 para 65b and 65b(2), para 66, Fig 16.25: Lead rocks the wings, turns into #2 at 30° of bank and holds that
@@ -665,16 +667,16 @@ function offStandardStart(lead, wing, rel) {
 }
 
 /**
- * The hot turning rejoin as a "Change formation" plan (planGoTo's shape, transitions.js), or null when it does not apply
- * and the tracker's rejoin flies instead. With no training error set: only from the standard start (Patrick 19:16Z), line
- * abreast at the spacing, level, on the line, matched at 220 KIAS, with the turning rejoin chosen. With an error set
- * (options.errors, errors.js resolveErrors; TS-62): from any roughly line abreast start, flown as the error's response says
- * (Fix it or Turn at normal reference).
+ * The hot turning rejoin with a training error set (options.errors, errors.js resolveErrors; TS-62) as a "Change formation"
+ * plan (planGoTo's shape, transitions.js), or null when it does not apply: from any roughly line abreast start, flown as
+ * the error's response says (Fix it or Turn at normal reference), with the decision overshoot. With no error set it is
+ * null: since V2.24 every turning rejoin flies the rejoin line (turning-rejoin.js, TS-68; Patrick 07:31Z).
  */
 export function planHotRejoinChange(pair, to, options = {}, t0 = 0) {
   const [lead, wing] = pair;
   if (to === 'lab' || (options.rejoin ?? 'into') !== 'into') return null;
   const errors = options.errors ?? null;
+  if (!errors) return null;
   const from = classify([lead, wing]);
   const spacingFt = options.spacingFt ?? 6000;
   const blockFt = options.blockFt ?? 8000;
@@ -689,34 +691,27 @@ export function planHotRejoinChange(pair, to, options = {}, t0 = 0) {
     Math.abs(wrapPi(wing.headingRad - lead.headingRad)) <= STANDARD.headingDeg * DEG &&
     Math.abs(lead.bankDeg) < 0.5 &&
     Math.abs(wing.bankDeg) < 0.5;
-  if (!errors && !standard) return null;
-  if (errors && !standard && !offStandardStart(lead, wing, rel)) return null;
+  if (!standard && !offStandardStart(lead, wing, rel)) return null;
   const s = Math.sign(rel.left) || from.side || -1;
   const want = options.side ?? 'keep';
   const sTo = to === 'astern' ? 0 : want === 'left' ? 1 : want === 'right' ? -1 : s;
-  let r;
-  let mode = 'standard';
-  if (!errors) {
-    r = /** @type {any} */ (planHotRejoin(pair, s, to, sTo, { spacingFt, blockFt }, t0));
-  } else {
-    mode = errors.response === 'reference' ? 'reference' : 'fix';
-    const lateSec = Math.max(0, errors.timingSec ?? 0); // early can't be earlier than the call
-    let knobs = null;
-    if (mode === 'reference') {
-      // The standard rejoin's own choices, worked out from the standard start beside Lead as he is now.
-      const nominal = { ...wing, xFt: lead.xFt - Math.sin(lead.headingRad) * s * spacingFt, yFt: lead.yFt + Math.cos(lead.headingRad) * s * spacingFt, altAboveFt: lead.altAboveFt, headingRad: lead.headingRad, kias: lead.kias, tasFtps: lead.tasFtps, bankDeg: 0, rollRateDps: 0 };
-      const std = /** @type {any} */ (planHotRejoin([lead, nominal], s, to, sTo, { spacingFt, blockFt }, t0));
-      knobs = std.ok ? std.knobs : { share: 1, delaySteps: 0, b3: 45 };
-    }
-    r = /** @type {any} */ (planHotRejoin(pair, s, to, sTo, { spacingFt, blockFt, mode, knobs, lateSec, carryKias: mode === 'reference' ? wing.kias - lead.kias : 0 }, t0));
+  const mode = errors.response === 'reference' ? 'reference' : 'fix';
+  const lateSec = Math.max(0, errors.timingSec ?? 0); // early can't be earlier than the call
+  let knobs = null;
+  if (mode === 'reference') {
+    // The standard rejoin's own choices, worked out from the standard start beside Lead as he is now.
+    const nominal = { ...wing, xFt: lead.xFt - Math.sin(lead.headingRad) * s * spacingFt, yFt: lead.yFt + Math.cos(lead.headingRad) * s * spacingFt, altAboveFt: lead.altAboveFt, headingRad: lead.headingRad, kias: lead.kias, tasFtps: lead.tasFtps, bankDeg: 0, rollRateDps: 0 };
+    const std = /** @type {any} */ (planHotRejoin([lead, nominal], s, to, sTo, { spacingFt, blockFt }, t0));
+    knobs = std.ok ? std.knobs : { share: 1, delaySteps: 0, b3: 45 };
   }
+  const r = /** @type {any} */ (planHotRejoin(pair, s, to, sTo, { spacingFt, blockFt, mode, knobs, lateSec, carryKias: mode === 'reference' ? wing.kias - lead.kias : 0 }, t0));
   if (!r.ok) return null;
   const label = FORMATIONS[to].label;
   const sideWord = to === 'astern' ? '' : sTo > 0 ? ' left' : ' right';
   const fromSide = s > 0 ? ' left' : ' right';
   const how = describe('lab', to, 'into');
   const base = `Lead turns into #2 at ${REJOIN.leadBankDeg}° of bank, slowing to ${KIAS_OUTSIDE_LAB} KIAS, and holds it until #2 is in; #2 points at Lead, rolls out, reverses as the line of sight moves and lines up with Lead (SMM 16.20 para 65b(2)${to === 'fw' ? '' : ', through the fighting wing position, para 66'}).`;
-  const offWords = mode === 'standard' ? '' : ` ${offStandardWords(mode, r)}`;
+  const offWords = ` ${offStandardWords(mode, r)}`;
   const handOver = r.handOverSec
     ? ` #2 flies the line at ${rejoinClosureNow().kt} kt of closure to about 500 ft from ${to === 'fw' ? 'the fighting wing slot' : 'route'}, then the tracker closes at ${closureNow().kt} kt (${RATE_WORDS[ratesNow()]}).`
     : '';
@@ -725,7 +720,7 @@ export function planHotRejoinChange(pair, to, options = {}, t0 = 0) {
     plans: r.plans,
     note: `Line abreast${fromSide} to ${label}${sideWord}: ${how}. ${base}${handOver}${offWords}`,
     label: `${label}${sideWord}`,
-    flying: `Line abreast${fromSide} to ${label}${sideWord} (${how}${mode === 'standard' ? '' : ', off-standard start'})`,
+    flying: `Line abreast${fromSide} to ${label}${sideWord} (${how}, off-standard start)`,
     from: 'lab',
     fromSide: s,
     to,
@@ -738,7 +733,7 @@ export function planHotRejoinChange(pair, to, options = {}, t0 = 0) {
     endSec: r.endSec,
     handOverSec: r.handOverSec ?? null,
     rejoining: true,
-    offStandard: mode === 'standard' ? null : { mode, usedStage: r.usedStage, overshoot: r.overshoot },
+    offStandard: { mode, usedStage: r.usedStage, overshoot: r.overshoot },
   };
 }
 

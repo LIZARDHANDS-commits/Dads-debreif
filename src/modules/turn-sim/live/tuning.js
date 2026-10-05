@@ -45,6 +45,23 @@ export const REJOIN = Object.freeze({
   turnAnglesDeg: [30, 45, 20, 60], // how far Lead turns into #2; estimates (a gentle turn, AFM8 brief p.19). Since V2.24 the 2-ship's Lead holds his turn until #2 is in (Patrick 06:16Z item 3, RULED_REJOIN; hand-over.js leadTurnInto): these are only the 2-ship tracker's fallback, and the 4-ship's (step 3, not yet changed)
 });
 
+/**
+ * The turning rejoin (V2.24, TS-68; Patrick 5 Oct 07:14Z, card "Yes, as written" 07:31Z, 07:32Z): one rule for every turning
+ * rejoin, from line abreast (hot: #2 starts ahead of the line and gets colder to reach it) or fighting wing (cold: he turns
+ * hotter to reach it). #2 gets onto the rejoin line, Lead at his 10:30 or 1:30 with about half Lead's upper wing showing aft
+ * of the fin (Patrick: "where the tail and the wing make an X"), on his own side, inside Lead's turn and slightly low; holds
+ * that line and closes down it at the Rates closure; where the line reaches route's spacing (the decision point) he flows into
+ * route and on into the slot in one motion (SMM 12.24 paras 56-58, Figs 12.14-12.15; 16.20 paras 65b-66). He goes behind
+ * Lead only in an overshoot.
+ */
+export const TURNING_REJOIN = Object.freeze({
+  lineDeg: 45, // the rejoin line, degrees behind Lead's 3/9 line: Lead at 10:30 or 1:30 (SMM 12.24 para 56; Patrick's card 07:31Z). It passes through the fighting wing place (16.20 para 66) and the corner behind echelon (para 58's latest point)
+  lineUpFt: -30, // #2's height on the line, below Lead: "just slightly below lead" (SMM 12.24 para 58); 30 ft is an estimate
+  slideAheadFt: 200, // down the line #2 aims this far ahead of where he is, so he closes along it at the Rates closure (estimate)
+  captureTolFt: 30, // he is on the line, and at the decision point, within this many feet of it (estimate)
+  routeFlowFt: 20, // he flows through route without stopping, within this many feet of it, on into the slot (estimate; Patrick 07:14Z: "in one motion")
+});
+
 // ---- the kinematic moves: close moves, the hot turning rejoin, following Lead (from kinematic-moves.js) ---------------
 
 /** The numbers of the kinematic moves. All estimates unless a source is given. */
