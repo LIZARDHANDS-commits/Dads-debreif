@@ -22,6 +22,8 @@ export const FLUID_BUTTONS = Object.freeze([
   { key: 'sequence', dir: 1, label: 'Standard sequence L' },
   { key: 'sequence', dir: -1, label: 'Standard sequence R' },
   { key: 'terminate', dir: 1, label: 'Terminate' },
+  // #2's move, shown only in fighting wing (TS-71, spec section 10.8).
+  { key: 'lagRoll', dir: 1, label: 'Lag roll (#2)' },
 ]);
 /** How #2 is flown: Planned (scripted, the default) or Live (his own physics, a later piece). */
 export const WINGMAN_METHODS = Object.freeze([
@@ -109,7 +111,7 @@ export function createFluidUi({ onPress, onSettings, settings }) {
   );
   const title = h('h3', { class: 'ts-group-title', id: 'ts-fluid-title' }, 'Fluid manoeuvring, Lead');
   const FLUID_HINT = hint.textContent;
-  const FW_HINT = "Lead's turns, climbs and descents in fighting wing, at the level turn bank in Settings. #2 stays anywhere in the cone, collapsing toward Lead's six while Lead is banked.";
+  const FW_HINT = "Lead's turns, climbs and descents in fighting wing, at the level turn bank in Settings. #2 stays anywhere in the cone, collapsing toward Lead's six while Lead is banked. Lag roll: #2 rolls over Lead's six to the cone on the other side, with Lead wings level.";
   const element = h('section', { class: 'ts-change ts-fluid', 'aria-labelledby': 'ts-fluid-title' },
     title,
     hint,
@@ -136,7 +138,7 @@ export function createFluidUi({ onPress, onSettings, settings }) {
       const ending = Boolean(f) && (now.key === 'terminate' || now.key === 'steady');
       FLUID_BUTTONS.forEach((def, i) => {
         const b = buttons[i];
-        b.hidden = fw && !FW_MOVES[def.key];
+        b.hidden = def.key === 'lagRoll' ? !fw : fw && !FW_MOVES[def.key];
         b.disabled = ending;
         b.title = ending ? 'Terminate is being flown' : '';
       });

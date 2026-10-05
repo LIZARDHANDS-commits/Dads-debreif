@@ -477,7 +477,14 @@ function mount(root, app) {
 
   /** A Lead button in fluid manoeuvring (spec section 10.3): flown at once, or after the entry if it is still flown. */
   function pressFluid(key, dir) {
-    // Outside fluid manoeuvring the group holds Lead's fighting wing moves (TS-70).
+    // Outside fluid manoeuvring the group holds Lead's fighting wing moves (TS-70) and #2's lag roll (TS-71).
+    if (key === 'lagRoll') {
+      const how = formation.lagRoll();
+      if (how === 'queued') app.status('The lag roll is next, after the move being flown.');
+      if (how !== 'refused') play();
+      refresh();
+      return;
+    }
     const how = state.fluid ? formation.pressFluid(key, dir) : formation.pressFw(key, dir);
     if (how === 'queued') app.status(`${state.fluid.session.queued?.label ?? 'That'} is next, after the entry.`);
     if (how !== 'refused') play();
