@@ -21,6 +21,7 @@ import { planHotRejoinChange, offStandardOutcome } from './hot-rejoin.js';
 import { planLineChange } from './line-moves.js';
 import { planTurningRejoin } from './turning-rejoin.js';
 import { planStraightRejoin } from './straight-rejoin.js';
+import { planEchelonToFw } from './echelon-to-fw.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFwMove } from './formation-turns.js';
 import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
@@ -251,6 +252,7 @@ export function createFormation(options = {}) {
       : planHotRejoinChange(state.aircraft, to, planOpts, state.tSec) ??
         planTurningRejoin(state.aircraft, to, planOpts, state.tSec) ??
         planStraightRejoin(state.aircraft, to, planOpts, state.tSec) ?? // the straight-ahead rejoin (straight-rejoin.js, TS-72)
+        planEchelonToFw(state.aircraft, to, planOpts, state.tSec) ?? // echelon or route out to fighting wing, about 10 s (echelon-to-fw.js, TS-73)
         planLineChange(state.aircraft, to, planOpts, state.tSec) ??
         planGoTo(state.aircraft, to, planOpts, state.tSec);
     if (!plan.ok) {
