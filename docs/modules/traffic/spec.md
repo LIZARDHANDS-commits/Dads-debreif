@@ -349,6 +349,7 @@ Design and Patrick's nine answers: project files, `traffic-deconfliction/design.
     - it flies on past its perch along the downwind line by that distance at 120 KIAS, flies the same final turn, and rolls out on the extended centreline at the glide path's height there (the window's own slope, about 3°, carried further out), then joins Pattern 1's own final 1,000 ft inside the window and lands as the circuit does;
     - it breaks out instead only if the extension would bring its final turn within 1,000 ft (an estimate) of the overhead pattern's base and 45° leg (Pattern 1 points 6 to 8; Patrick: "It would break out if it would hit the base leg of the OHB pattern"). With today's points that is about 13,000 ft past the perch;
     - one that would be at least 2,000 ft behind is left to space itself (it moves over if it must, item 3);
+    - behind a straight-in, one in four don't extend: they perch anyway and the straight-in moves over (Patrick, 5 Oct 06:28Z, TR-74);
     - the tag reads `[SPACING: extend downwind]`.
     In the Busy circuit check (seeds 1-5, 260°/15 kt) the overhead aircraft extends about 1,700 ft behind the straight-in, the straight-in lands, and nobody moves over; the gap at the threshold came out at about 1,800-2,000 ft, because the speeds down final are estimated.
 
