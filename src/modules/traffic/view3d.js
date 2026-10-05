@@ -1258,8 +1258,65 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
   let coreCanvas = null;
   let coreTexture = null;
   let coreImagery = null;
+  let coreDrawn = null; // the tiles the core picture already holds
   let coreDebounce = null;
   let coreAlign = null;
+
+  // Loading without stutter (TR-72): a photo square repaints only the tiles that arrived since its last paint, and sends
+  // only those patches to the graphics card, instead of repainting and resending the whole 2,048 to 6,144 px square.
+  let patchCanvas = null; // scratch canvas a patch is copied through on its way to the card
+  let patchTexture = null;
+  /** A drawing pen for imagery.draw that skips tiles this canvas already holds and notes where new ones landed. */
+  function tilePen(ctx, drawn, rects) {
+    return {
+      drawImage(image, x, y, w, h) {
+        if (drawn.has(image)) return;
+        drawn.add(image);
+        ctx.drawImage(image, x, y, w, h);
+        rects.push([x, y, w, h]);
+      },
+    };
+  }
+  /**
+   * Sends the changed patches of `canvas` to `texture` on the card. Falls back to resending the whole picture when the
+   * card has no copy yet, a full send is already due, or the patches cover much of the picture.
+   */
+  function sendPatches(texture, canvas, rects) {
+    if (!texture || !rects.length) return;
+    const renderer = gl?.renderer;
+    const props = renderer?.properties?.get?.(texture);
+    const W = canvas.width;
+    const H = canvas.height;
+    const area = rects.reduce((sum, [, , w, h]) => sum + Math.abs(w * h), 0);
+    if (!renderer?.copyTextureToTexture || !props?.__webglTexture || props.__version !== texture.version || area > 0.4 * W * H) {
+      texture.needsUpdate = true;
+      return;
+    }
+    if (!patchCanvas) {
+      patchCanvas = win.document.createElement('canvas');
+      patchTexture = new THREE.Texture(patchCanvas);
+    }
+    const pctx = patchCanvas.getContext?.('2d');
+    if (!pctx) {
+      texture.needsUpdate = true;
+      return;
+    }
+    const mipmaps = texture.generateMipmaps;
+    rects.forEach(([x, y, w, h], i) => {
+      const x0 = Math.max(0, Math.floor(x));
+      const y0 = Math.max(0, Math.floor(y));
+      const x1 = Math.min(W, Math.ceil(x + w));
+      const y1 = Math.min(H, Math.ceil(y + h));
+      if (x1 <= x0 || y1 <= y0) return;
+      patchCanvas.width = x1 - x0;
+      patchCanvas.height = y1 - y0;
+      pctx.drawImage(canvas, x0, y0, x1 - x0, y1 - y0, 0, 0, x1 - x0, y1 - y0);
+      texture.generateMipmaps = mipmaps && i === rects.length - 1; // the smaller copies are rebuilt once, after the last patch
+      // The picture is sent flipped (flipY), so a patch's row on the card counts up from the bottom.
+      renderer.copyTextureToTexture(patchTexture, texture, null, new THREE.Vector2(x0, H - y1));
+    });
+    texture.generateMipmaps = mipmaps;
+  }
 
   /**
    * A ground tier: a square canvas of Esri tiles laid on a plane `span` feet across. One tile-layer draw takes at most
@@ -1268,16 +1325,23 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
    */
   function createTier({ span, px, maxZoom, split, cx = 0, cy = 0, debounceMs = 150, maxKept = undefined, transparent = false }) {
     const half = span / 2;
-    const tier = { canvas: null, texture: null, imagery: null, debounce: null, align: null };
-    function paint() {
+    const tier = { canvas: null, texture: null, imagery: null, debounce: null, align: null, drawn: null };
+    /** Paints the tiles that arrived since the last paint; `full` starts the picture again (a new square or alignment). */
+    function paint(full = false) {
       const { canvas, imagery, align } = tier;
       if (!canvas || !imagery || disposed || !gl) return;
       const anchor = source.anchor?.();
       const ctx = canvas.getContext?.('2d');
       if (!anchor || !ctx) return;
       const ref = makeLocalRef(anchor.lat, anchor.lon);
-      ctx.fillStyle = '#243b2f';
-      if (transparent) ctx.clearRect(0, 0, px, px); else ctx.fillRect(0, 0, px, px);
+      if (full || !tier.drawn) {
+        tier.drawn = new WeakSet();
+        ctx.fillStyle = '#243b2f';
+        if (transparent) ctx.clearRect(0, 0, px, px); else ctx.fillRect(0, 0, px, px);
+        full = true;
+      }
+      const rects = [];
+      const pen = tilePen(ctx, tier.drawn, rects);
       const step = span / split;
       for (let i = 0; i < split; i++) {
         for (let j = 0; j < split; j++) {
@@ -1287,10 +1351,14 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
             visibleBounds: () => q,
             worldToScreen: (wx, wy) => [((wx - cx + half) / span) * px, ((cy + half - wy) / span) * px],
           };
-          imagery.draw(ctx, photoView(fake, ref, align));
+          imagery.draw(pen, photoView(fake, ref, align));
         }
       }
-      if (tier.texture) tier.texture.needsUpdate = true;
+      if (full) {
+        if (tier.texture) tier.texture.needsUpdate = true;
+      } else {
+        sendPatches(tier.texture, canvas, rects);
+      }
       requestDraw();
     }
     tier.ensure = (options) => {
@@ -1323,9 +1391,9 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
             });
           },
         });
-        paint();
+        paint(true);
       } else if (changed) {
-        paint();
+        paint(true);
       }
       return tier.texture;
     };
@@ -1337,6 +1405,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       tier.texture?.dispose();
       tier.texture = null;
       tier.canvas = null;
+      tier.drawn = null;
     };
     return tier;
   }
@@ -1377,12 +1446,18 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       coreTexture.anisotropy = 8;
     }
 
-    function paintCorePhoto() {
+    function paintCorePhoto(full = false) {
       if (!coreCanvas || disposed || !gl) return;
       const ctx = coreCanvas.getContext?.('2d');
       if (!ctx) return;
-      // Offline fallback first; satellite tiles paint over it as they arrive.
-      paintCoreAirfieldVector(ctx, { width: coreCanvas.width, height: coreCanvas.height, bounds: AIRFIELD_CORE_BOUNDS_FT });
+      // Offline fallback first; satellite tiles paint over it as they arrive (only the new ones after the first paint, TR-72).
+      if (full || !coreDrawn) {
+        coreDrawn = new WeakSet();
+        paintCoreAirfieldVector(ctx, { width: coreCanvas.width, height: coreCanvas.height, bounds: AIRFIELD_CORE_BOUNDS_FT });
+        full = true;
+      }
+      const rects = [];
+      const pen = tilePen(ctx, coreDrawn, rects);
       if (coreImagery && anchor) {
         const ref = makeLocalRef(anchor.lat, anchor.lon);
         const B = AIRFIELD_CORE_BOUNDS_FT;
@@ -1400,11 +1475,15 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
               visibleBounds: () => q,
               worldToScreen: (wx, wy) => [((wx - B.minX) / B.width) * cw, ((B.maxY - wy) / B.height) * ch],
             };
-            coreImagery.draw(ctx, photoView(fake, ref, coreAlign));
+            coreImagery.draw(pen, photoView(fake, ref, coreAlign));
           }
         }
       }
-      if (coreTexture) coreTexture.needsUpdate = true;
+      if (full) {
+        if (coreTexture) coreTexture.needsUpdate = true;
+      } else {
+        sendPatches(coreTexture, coreCanvas, rects);
+      }
       requestDraw();
     }
 
@@ -1421,9 +1500,9 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
           });
         },
       });
-      paintCorePhoto();
+      paintCorePhoto(true);
     } else if (alignChanged) {
-      paintCorePhoto();
+      paintCorePhoto(true);
     }
 
     return coreTexture;
@@ -1438,6 +1517,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     coreTexture = null;
     coreCanvas = null;
     coreAlign = null;
+    coreDrawn = null;
   }
 
   const sizeOf = (canvas) => ({ width: Math.max(1, canvas.clientWidth), height: Math.max(1, canvas.clientHeight) });
@@ -1552,6 +1632,9 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     patternMidTiers.forEach((t) => t.dispose());
     tightTier.dispose();
     releaseCore();
+    patchTexture?.dispose();
+    patchTexture = null;
+    patchCanvas = null;
     // What three.js still counts on the graphics card, for the leak check (data-gpu; see probeMemory): the ui-kit's T-6 frees
     // everything it made and so does the view, so this is what three.js keeps for itself, the same as after one Harvard.
     const { memory } = renderer.info;
