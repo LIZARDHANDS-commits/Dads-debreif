@@ -14,17 +14,24 @@
 //    turning rejoin), 16.34 paras 94-96 (the 4-ship: not built here). EFIG p.374 (10-20 KIAS overtake, speed brake if
 //    required). Patrick 23:29Z (overshoot only at the decision point), 23:37-23:38Z (order of use: geometry, power,
 //    speed brake, idle, overshoot).
+//  - V2.24 (TS-67): Patrick 06:16Z's rulings flown (RULED_REJOIN: no bank cap but the G rule, Lead holds his turn until #2
+//    is in, no fixed descent rate, the decision point about 200 ft); the rejoin line (SMM 12.24 paras 56-58, Fig 12.14;
+//    Patrick 04:53Z: "green should EXPEDITIOUSLY find the line (as per the smm), run up it, then move down into right route
+//    and into eschelon"): #2 lines up on his own side and never crosses Lead's six to the outside unless it is the decision
+//    overshoot; and lines, then tracker (TS-65): the line hands over about 500 ft from route (or the fighting wing slot)
+//    and the tracker runs in at the close-in rate, planned again at the hand-over.
 // Every number with no source beside it is an estimate and says so.
 import { wrapPi } from '../../../core/angles.js';
-import { KT_TO_FTPS } from '../../../core/units.js';
+import { KT_TO_FTPS, G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft, smoother } from './flight.js';
 import { relativeTo, turnSeg, wholeDegree, onStep, DEG } from './manoeuvres.js';
-import { recordFlight, describe } from './transitions.js';
-import { KIAS_LAB, KIAS_OUTSIDE_LAB, REJOIN, KINEMATIC, HOT, STANDARD, LINE_UP, LINE_UP_REFERENCE } from './tuning.js';
-import { classify } from './judge.js';
-import { FORMATIONS, LENGTH_FT, fwShapeNow } from './slots.js';
+import { recordFlight, describe, closeThrough, rejoinTo, legsFor, CHANGE_LIMIT_SEC } from './transitions.js';
+import { KIAS_LAB, KIAS_OUTSIDE_LAB, REJOIN, KINEMATIC, HOT, STANDARD, LINE_UP, LINE_UP_REFERENCE, closureNow, rejoinClosureNow, ratesNow, RATE_WORDS } from './tuning.js';
+import { classify, judge } from './judge.js';
+import { FORMATIONS, LENGTH_FT, fwShapeNow, pairSlot } from './slots.js';
 import { makeTrack, seedTrack, posesFrom, settleLast, followInto, slotInWorld, poseOf, laggedBank, speedNeeds, labelStages, RANK } from './kinematic.js';
-import { CLOSE, slotPoint, routePoints, movingSlot, rollEvents, eventsEnd, lastRollEnd, laneAndBelow, finishLine, leadTurnSegs } from './kinematic-moves.js';
+import { CLOSE, slotPoint, routePoints, movingSlot, rollEvents, eventsEnd, lastRollEnd, laneAndBelow, finishLine } from './kinematic-moves.js';
+import { leadTurnInto, handOverPoint, offSlotFt, onClosure, trackTail, replanFor, wingPlan } from './hand-over.js';
 import { STAGES, STAGE_WORDS, speedSegFor, slowKtps } from './slow-down.js';
 import { holdToPower } from './full-power.js';
 
@@ -153,8 +160,10 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
   const bank = REJOIN.leadBankDeg;
   // Lead "smoothly slows to 200 KIAS" (Fig 16.25) with power, not the boards (Patrick 23:37Z, TS-61).
   const leadSlow = { ...speedSegFor(lead.kias, KIAS_OUTSIDE_LAB, blockFt, 'power'), withNext: true };
-  // While planning, Lead keeps turning (four near-half circles at 30°); the real plan ends the turn once #2 is in.
-  const longRec = recordFlight(lead, { segments: [leadSlow, ...leadTurnSegs(h0, s, 4 * 170 * DEG, bank, false)] }, t0);
+  // While planning, Lead keeps turning (four near-half circles at 30°); the real plan ends the turn once #2 is in
+  // (Patrick 06:16Z item 3, hand-over.js leadTurnInto).
+  const into = leadTurnInto({ lead, pre: [leadSlow], s, bankDeg: bank, t0, record: recordFlight });
+  const longRec = into.longRec;
   const kiasPerTas = wing.kias / wing.tasFtps;
   // A late reaction (the Roll-in error) holds #2 straight, at his speed, before anything else.
   const pre = lateSec > 0 ? [{ kind: 'hold', untilSec: onStep(t0 + lateSec), thenNext: true }] : [];
@@ -175,9 +184,12 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
   };
   // Down (or up) to the fighting wing height first: 12 s from the standard start, longer from a high or low one, but done
   // before #2 is inside 2,000 ft of Lead (HOT; the horizontal path doesn't depend on it, so it is read off a first look).
+  // No fixed rate (Patrick 06:16Z item 4): never quicker than a smooth descent whose push stays within HOT.pushG (the
+  // smootherstep's steepest vertical acceleration is 10 / sqrt(3), about 5.77, x change / time squared).
   const dh = lead.altAboveFt + fw.up - wing.altAboveFt;
   const within2000 = standard ? Infinity : timeToRange(2200);
-  const descendSec = Math.max(HOT.minDescentSec, Math.abs(dh) / HOT.maxDescentFtps, Math.min(Math.abs(dh) / HOT.descentFtps, within2000 - 2));
+  const smoothFloorSec = Math.sqrt(((10 / Math.sqrt(3)) * Math.abs(dh)) / (HOT.pushG * G_FTPS2));
+  const descendSec = Math.max(HOT.minDescentSec, smoothFloorSec, Math.min(Math.abs(dh) / HOT.descentFtps, within2000 - 2));
   const descend = { t0, t1: t0 + descendSec, fromFt: wing.altAboveFt, toFt: lead.altAboveFt + fw.up };
   /** Flies #2 from the press through segments, calling each(a, k, p) after every step until it returns false. */
   const flyWing = (segments, maxSteps, each) => {
@@ -266,7 +278,9 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
               const L = longRec.at(k);
               const rel = relativeTo(L, a);
               const range = Math.hypot(rel.fwd, rel.left);
-              if (rel.fwd <= -lineUp.behindFt && range >= lineUp.minRangeFt && range <= lineUp.maxRangeFt) {
+              // On his own side of Lead (V2.24: the rejoin line passes through fighting wing on #2's side, SMM 16.20 para 66;
+              // Patrick 04:53Z).
+              if (rel.fwd <= -lineUp.behindFt && range >= lineUp.minRangeFt && range <= lineUp.maxRangeFt && rel.left * s > 0) {
                 const P0 = slotInWorld(longRec.at(k - 1), rel.fwd, rel.left, 0);
                 const P1 = slotInWorld(longRec.at(k + 1), rel.fwd, rel.left, 0);
                 const settled = a.headingRad + s * ease; // the heading once the capture has eased the reversal
@@ -314,12 +328,7 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
     return movingSlot([first, fw, ...onward], c.kh);
   };
   /** Lead's turn, held at 30° until step inStep, then rolled out on the whole degree. */
-  const leadPlanTo = (inStep) => {
-    let turned = 0;
-    for (let i = 1; i <= inStep; i++) turned += wrapPi(longRec.at(i).headingRad - longRec.at(i - 1).headingRad) * s;
-    const segments = [leadSlow, ...leadTurnSegs(h0, s, Math.round(turned / DEG) * DEG, bank, true)];
-    return { segments, turned, rec: recordFlight(lead, { segments }, t0) };
-  };
+  const leadPlanTo = into.planTo;
   const buildLine = (c, slowWing, captureSec) => {
     const moving = captureSlot(c, captureSec);
     const inStep = Math.max(c.kh + Math.round(captureSec / dt), moving.endStep);
@@ -336,8 +345,68 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
   };
   /** #2's line held to what the aircraft can do (full-power.js, TS-63): unchanged when it is already inside the limits. */
   const held = (poses, rec) => holdToPower(poses, { refAt: (i) => rec.at(i + 1), blockFt, kiasPerTas, from: 1 });
+  /**
+   * The tracker's legs from the hand-over (Patrick 06:09Z, 06:24Z): into route on #2's side at the close-in rate, then on
+   * as the close legs say (SMM 12.24 para 58: stabilise in route, then echelon); to fighting wing, its slot.
+   */
+  const tailLegs = () => onClosure(CLOSE.has(to)
+    ? [closeThrough(pairSlot('route', s, spacingFt)), ...legsFor('route', s, to, sTo, spacingFt)]
+    : [rejoinTo(pairSlot('fw', s, spacingFt))], { closeIn: true });
+  /**
+   * Lines, then tracker (V2.24, TS-65 as for the other moves): the line is flown until #2 is about HAND_OVER_FT from route
+   * on his side (or the fighting wing slot), then the tracker runs him in at the close-in rate while Lead holds his 30°
+   * turn until #2 is IN POSITION (Patrick 06:16Z item 3), planned again at the hand-over (Patrick 06:24Z). poses: the line
+   * as flown (held to full power where it was). Null when the tail can't be flown (the whole line is flown then), and
+   * for fighting wing on the other side (the line flows across behind Lead to its end).
+   */
+  const withTail = (b, poses) => {
+    if (to === 'fw' && sTo !== s) return null;
+    const hoSlot = CLOSE.has(to) ? pairSlot('route', s, spacingFt) : pairSlot('fw', s, spacingFt);
+    const { withinFt } = handOverPoint({ finalSlot: hoSlot });
+    let iH = -1;
+    for (let i = Math.max(1, b.c.kh - 3); i < poses.length - 2; i++) {
+      if (offSlotFt(b.lp.rec.at(i + 1), poses[i].x, poses[i].y, hoSlot) <= withinFt) {
+        iH = i;
+        break;
+      }
+    }
+    if (iH < 0) return null;
+    const line = { poses: poses.slice(0, iH + 1), steps: iH + 1, accelKtps: (poses[iH + 1].kias - poses[iH - 1].kias) / (2 * dt) };
+    const legs = tailLegs();
+    const tail = trackTail({ wing, lead, leadRec: longRec, line, phases: legs, t0, blockFt, leadPlanFor: leadPlanTo });
+    const { run } = tail;
+    if (!run.ok || !tail.lp) return null;
+    const durationSec = (tail.steps0 + run.points.length) * dt;
+    if (durationSec > CHANGE_LIMIT_SEC || !judge([run.end.lead, run.end.wing], { key: to }, { spacingFt }).inBand) return null;
+    const replan = replanFor({ leadId: lead.id, phases: legs, blockFt, accelKtps: line.accelKtps, record: recordFlight });
+    return { line, tail, replan, durationSec };
+  };
   const result = (b, extra = {}, hold = true) => {
     const h = hold ? held(b.line.poses, b.lp.rec) : { poses: b.line.poses, stretched: false };
+    const tl = withTail(b, h.poses);
+    if (tl) {
+      const { line, tail, replan, durationSec } = tl;
+      const lineBank = line.poses.reduce((m, p) => Math.max(m, Math.abs(p.bank)), 0);
+      return {
+        ok: true,
+        plans: { [lead.id]: { segments: tail.lp.segments.map((x) => ({ ...x })) }, [wing.id]: wingPlan(line, tail, replan) },
+        endSec: t0 + durationSec,
+        handOverSec: t0 + line.steps * dt,
+        stretched: h.stretched,
+        leadTurnDeg: Math.round(tail.lp.turned / DEG),
+        maxBankDeg: Math.max(lineBank, tail.run.maxBankDeg),
+        minKias: b.line.minKias,
+        maxKias: b.line.maxKias,
+        reverse: { atSec: b.c.kr * dt, bankDeg: b.c.b3 },
+        knobs: { share: b.c.share, delaySteps: b.c.delaySteps, b3: b.c.b3 },
+        usedStage: null,
+        overshoot: null,
+        ...b.checks,
+        laneFwdFt: Math.max(b.checks.laneFwdFt, tail.run.laneFwdFt),
+        minBelowFt: Math.min(b.checks.minBelowFt, tail.run.minBelowFt),
+        ...extra,
+      };
+    }
     return {
     ok: true,
     plans: { [lead.id]: { segments: b.lp.segments.map((x) => ({ ...x })) }, [wing.id]: { segments: [{ kind: 'poseTrack', poses: h.poses }] } },
@@ -364,7 +433,10 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
     // off-standard capture lines that broke it, Patrick 03:46Z).
     for (const c of candidates.slice(0, 12)) {
       const b = buildLine(c, slowWing, KINEMATIC.captureSec);
-      if (b.line.maxBankDeg > KINEMATIC.pointBankDeg + 0.5 || b.checks.laneFwdFt > 100 || b.checks.minBelowFt <= 0) continue;
+      // No bank cap but the G rule (REJOIN.bankCapDeg, Patrick 06:16Z item 1), and never across Lead's six to the outside
+      // (V2.24: only the decision overshoot does that).
+      if (b.line.maxBankDeg > REJOIN.bankCapDeg + 0.5 || b.checks.laneFwdFt > 100 || b.checks.minBelowFt <= 0) continue;
+      if (outsideCrossing(b.line.poses, b.lp.rec, s)) continue;
       const needs = speedNeeds(b.line.poses, c.kh - 3, blockFt);
       labelStages(b.line.poses, c.kh - 3, needs);
       return result(b, {}, false);
@@ -389,7 +461,7 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
       // At the normal reference #2 flies the standard capture (20 s, TS-55): he does not stretch it to soak up his error.
       for (const captureSec of mode === 'reference' ? [KINEMATIC.captureSec] : HOT.captureSecs) {
         const b = buildLine(c, slowWing, captureSec);
-        if (b.line.maxBankDeg > KINEMATIC.pointBankDeg + 0.5 || belowWhereItCounts(b.line.poses, b.lp.rec, c.kh) <= 0) break;
+        if (b.line.maxBankDeg > REJOIN.bankCapDeg + 0.5 || belowWhereItCounts(b.line.poses, b.lp.rec, c.kh) <= 0) break;
         const needs = speedNeeds(b.line.poses, c.kh - 3, blockFt);
         const lane = laneBreak(b.line.poses, b.lp.rec, c.kh);
         if (needs.firstBad >= 0 || lane >= 0) {
@@ -402,14 +474,11 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
           if (Math.hypot(L.xFt - P.x, L.yFt - P.y) <= HOT.overshootRangeFt && (!needsOvershoot || RANK[stage] >= RANK[needsOvershoot.stage])) needsOvershoot = { b, kBad: Math.max(c.kh + 1, kBad), stage };
           continue;
         }
-        // A line that swings across behind Lead and back (the standard start's own line does it during the reversal, about
-        // 500 ft behind him) is a rejoin, not an overshoot: until V2.20 it was shown as OVERSHOOTING from the crossing, at
-        // full power (TS-63). The overshoot is #2's decision at the decision point only, when power, the boards and idle
-        // can't take the overtake off (Patrick 23:29Z; firstBad above, planOvershoot). Such a line must cross well behind
-        // Lead, and one that doesn't cross is preferred where the ways of slowing used are the same.
-        const xo = outsideCrossing(b.line.poses, b.lp.rec, s);
-        if (xo && xo.crossFwd > -HOT.passBehindFt) continue;
-        const entry = { b, needs, used: Math.max(RANK[stage], needs.top), score: c.score + (xo ? 1e4 : 0) };
+        // A line that swings across behind Lead to the outside of his turn and back is never flown (V2.24; Patrick 04:53Z,
+        // SMM 12.24 paras 56-58): #2 stays on his own side, and only the decision overshoot crosses (Patrick 23:29Z;
+        // firstBad above, planOvershoot). Until V2.24 a line that crossed well behind Lead was accepted.
+        if (outsideCrossing(b.line.poses, b.lp.rec, s)) continue;
+        const entry = { b, needs, used: Math.max(RANK[stage], needs.top), score: c.score };
         if (needs.accelShort > 0) {
           // A longer capture asks less power; keep the line that asks least past it in case none is within it.
           if (!nearly || needs.accelShort < nearly.needs.accelShort) nearly = entry;
@@ -648,10 +717,13 @@ export function planHotRejoinChange(pair, to, options = {}, t0 = 0) {
   const how = describe('lab', to, 'into');
   const base = `Lead turns into #2 at ${REJOIN.leadBankDeg}° of bank, slowing to ${KIAS_OUTSIDE_LAB} KIAS, and holds it until #2 is in; #2 points at Lead, rolls out, reverses as the line of sight moves and lines up with Lead (SMM 16.20 para 65b(2)${to === 'fw' ? '' : ', through the fighting wing position, para 66'}).`;
   const offWords = mode === 'standard' ? '' : ` ${offStandardWords(mode, r)}`;
+  const handOver = r.handOverSec
+    ? ` #2 flies the line at ${rejoinClosureNow().kt} kt of closure to about 500 ft from ${to === 'fw' ? 'the fighting wing slot' : 'route'}, then the tracker closes at ${closureNow().kt} kt (${RATE_WORDS[ratesNow()]}).`
+    : '';
   return {
     ok: true,
     plans: r.plans,
-    note: `Line abreast${fromSide} to ${label}${sideWord}: ${how}. ${base}${offWords}`,
+    note: `Line abreast${fromSide} to ${label}${sideWord}: ${how}. ${base}${handOver}${offWords}`,
     label: `${label}${sideWord}`,
     flying: `Line abreast${fromSide} to ${label}${sideWord} (${how}${mode === 'standard' ? '' : ', off-standard start'})`,
     from: 'lab',
@@ -664,6 +736,7 @@ export function planHotRejoinChange(pair, to, options = {}, t0 = 0) {
     maxBankDeg: r.maxBankDeg,
     judged: null,
     endSec: r.endSec,
+    handOverSec: r.handOverSec ?? null,
     rejoining: true,
     offStandard: mode === 'standard' ? null : { mode, usedStage: r.usedStage, overshoot: r.overshoot },
   };

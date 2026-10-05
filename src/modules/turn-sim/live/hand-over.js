@@ -12,8 +12,9 @@
 // share (line-moves.js and hot-rejoin.js); it changes no flight physics: the line is read off positions as every planned
 // line is, and the tracker flies the unchanged flight.js step. Numbers are tuning.js's.
 import { KT_TO_FTPS, G_FTPS2 } from '../../../core/units.js';
+import { wrapPi } from '../../../core/angles.js';
 import { STEP_SEC, copyAircraft } from './flight.js';
-import { relativeTo } from './manoeuvres.js';
+import { relativeTo, leadTurnSegs, DEG } from './manoeuvres.js';
 import { applyPose, makeTrack, seedTrack, posesFrom, followInto, laggedBank, relPath, powerLaw, relSpeedLimitFor, speedNeeds, labelStages } from './kinematic.js';
 import { trackTwice } from './tracker.js';
 import { holdToPower } from './full-power.js';
@@ -41,7 +42,7 @@ const LONG_SLOT_FT = 300; // the close formations all sit inside about 230 ft (r
  *  - every close leg (station changes, echelon and route both ways, line astern, the run-in from a rejoin's route or
  *    corner) at the close-in rate (tuning.js CLOSE_IN_SEC, closeInFtps).
  * Banks (Patrick 06:16Z item 12): a close leg up to 30°; a kick out to fighting wing or line abreast with no cap but the G
- * rule; a rejoin's legs keep their own (REJOIN.bankCapDeg until the V2.22 rejoin work). Each slot is chased at once, not
+ * rule; a rejoin's legs keep their own (REJOIN.bankCapDeg: the G rule since V2.24, Patrick 06:16Z item 1). Each slot is chased at once, not
  * through a sliding reference, and the closure is never capped below the rate chosen. With `closeIn` (the tracker's run-in after a hand-over, or a move that starts inside
  * the hand-over range) every leg is at the close-in rate (Patrick 06:24Z). `rejoinBankDeg` replaces a rejoin leg's own cap
  * (the 4-ship's: the G rule only, Patrick 06:16Z item 1).
@@ -170,6 +171,26 @@ export function lineRunIn({ wing, leadRec, points, finalSlot, blockFt = 8000, cr
     maxBankDeg: part.reduce((m, p) => Math.max(m, Math.abs(p.bank)), 0),
     handOverFt: D,
   };
+}
+
+/**
+ * Lead's turn into #2 in a turning rejoin, held until #2 is IN POSITION, then rolled out (Patrick 5 Oct 06:16Z item 3:
+ * "until 2 is on"; RULED_REJOIN; SMM 16.20 para 65b: 30° of bank, constant bank and speed). pre: his speed change, flown
+ * with the turn (withNext); s: the way he turns (toward #2); record: transitions.js recordFlight (passed in, so this file
+ * needs no import of it). Returns { longRec, planTo }: longRec, the turn held on (four near-half circles, for planning);
+ * planTo(step), his real plan, rolling out on the whole degree once he has turned what longRec turned by that step
+ * ({ segments, turned, rec }): trackTail's leadPlanFor.
+ */
+export function leadTurnInto({ lead, pre = [], s, bankDeg, t0, record }) {
+  const h0 = lead.headingRad;
+  const longRec = record(lead, { segments: [...pre, ...leadTurnSegs(h0, s, 4 * 170 * DEG, bankDeg, false)] }, t0);
+  const planTo = (inStep) => {
+    let turned = 0;
+    for (let i = 1; i <= inStep; i++) turned += wrapPi(longRec.at(i).headingRad - longRec.at(i - 1).headingRad) * s;
+    const segments = [...pre, ...leadTurnSegs(h0, s, Math.round(turned / DEG) * DEG, bankDeg, true)];
+    return { segments, turned, rec: record(lead, { segments }, t0) };
+  };
+  return { longRec, planTo };
 }
 
 /**
