@@ -294,15 +294,33 @@ export function breakTurnSec() {
   return t;
 }
 
+/** Seconds the final turn's 180° takes in calm air at its speed and bank (120 KIAS, 35°), at pattern height. */
+let finalSecCache = null; // { temp, sec }
+export function finalTurnSec() {
+  if (finalSecCache?.temp === temperatureKey()) return finalSecCache.sec;
+  const v = ktToFtps(iasToTasKt(CIRCUIT.finalTurnKias, PATTERN_ALT_FT));
+  const sec = Math.PI / turnRateFromBankRadPerSec(v, CIRCUIT.finalTurnBankDeg);
+  finalSecCache = { temp: temperatureKey(), sec };
+  return sec;
+}
+
 /**
  * Where the break starts, in feet past the threshold along the runway: 2,000 ft
  * with a 10 kt headwind (SMM 4.17 para 39), later with more headwind and earlier
- * with less (SMM 4.18 para 42). Patrick chose "Same rollout spot" (4 Oct 08:48Z): it
- * moves by (headwind − 10 kt) × the time the break takes, so the rollout lands
- * on the same ground point in any headwind.
+ * with less (SMM 4.18 para 42).
+ *  - Less than 10 kt: Patrick's "Same rollout spot" (4 Oct 08:48Z), earlier by
+ *    (10 kt − headwind) × the time the break takes.
+ *  - More than 10 kt: later in a steady increase, all the way up to the departure
+ *    end `runwayFt` (Patrick, 5 Oct 08:31Z: "Break later all the way up until the
+ *    departure end. Steady increase from the ten knot break point"; TR-84). It moves
+ *    by (headwind − 10 kt) × the time the break and the final turn take together, so
+ *    the downwind keeps the length it has at 10 kt instead of being squeezed out as
+ *    the final turn drifts back in the headwind.
  */
-export function breakPointAlongFt(headwindKt) {
-  return CIRCUIT.breakPastThresholdFt + (headwindKt - CIRCUIT.breakReferenceHeadwindKt) * KT_TO_FTPS * breakTurnSec();
+export function breakPointAlongFt(headwindKt, runwayFt = Infinity) {
+  const extraKt = headwindKt - CIRCUIT.breakReferenceHeadwindKt;
+  const perKt = KT_TO_FTPS * (extraKt > 0 ? breakTurnSec() + finalTurnSec() : breakTurnSec());
+  return Math.min(runwayFt, CIRCUIT.breakPastThresholdFt + extraKt * perKt);
 }
 
 /**
@@ -316,7 +334,7 @@ export function buildCircuit(points, windFromDeg = 360, windKt = 0) {
   const centre = lineOf(th, dep);
   const rwyTrack = centre.trackDeg;
   const headwindKt = windKt * Math.cos((windFromDeg - rwyTrack) * Math.PI / 180);
-  const breakAlong = breakPointAlongFt(headwindKt);
+  const breakAlong = breakPointAlongFt(headwindKt, Math.hypot(dep.x - th.x, dep.y - th.y));
 
   // The perch: start from the route's perch, fly the break, downwind and final
   // turn, and move the perch by the miss at the window until the rollout is there.
