@@ -404,7 +404,8 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     add(geo.fin, m(base.clone().lerp(new THREE.Color('#ffffff'), 0.15)));
     add(geo.ventral, light);
     add(geo.spine, body);
-    add(geo.glassFront, m('#8fc4ff', { transparent: true, opacity: 0.6, roughness: 0.1, metalness: 0.4 }));
+    // Solid dark glass, one canopy (Patrick, 5 Oct: the two see-through bubbles overlapped as a "ghost double canopy").
+    add(geo.glassFront, m('#2c4a66', { roughness: 0.12, metalness: 0.45 }));
     add(geo.glassRear, mine[mine.length - 1]);
     add(geo.spinner, m('#20242a', { roughness: 0.4 }));
     add(geo.disc, mats.disc);
