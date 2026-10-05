@@ -9,10 +9,25 @@
 import { createCanvasView } from '../../ui-kit/canvas-view.js';
 import { turnRadiusFt, turnRadiusFromBankFt, limitG, MIN_TURN_G } from '../../core/flight-math.js';
 import { ktToFtps, formatNm } from '../../core/units.js';
-import { pairDistances, ft } from './readouts.js';
+import { distance } from '../../core/geo.js';
 import { SHIP_COLORS, OUTLINED_SHIPS } from './layout.js';
 
 const FT_PER_NM = 6076.11549;
+const MINUS = '−';
+
+/** 6420 -> "6,420 ft", with a real minus sign (moved here from the retired plan-mode readouts.js). */
+function ft(n) {
+  return `${(Math.round(n) + 0).toLocaleString('en-US').replace('-', MINUS)} ft`; // + 0 turns -0 into 0
+}
+
+/** The distance between each pair of aircraft that are there, Lead's pairs first (moved here from readouts.js). */
+function pairDistances(state) {
+  const byId = new Map((state?.aircraft ?? []).map((a) => [a.id, { x: a.xFt, y: a.yFt }]));
+  const order = [[1, 2], [1, 3], [1, 4], [3, 4], [2, 3], [2, 4]];
+  return order
+    .filter(([a, b]) => byId.has(a) && byId.has(b))
+    .map(([a, b]) => ({ label: `${a}-${b}`, a, b, distFt: distance(byId.get(a), byId.get(b)) }));
+}
 const BACKGROUND = '#071018'; // V6's
 const OUTLINE = '#02060a';
 const FONT = 'system-ui, sans-serif';

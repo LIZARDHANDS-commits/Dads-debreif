@@ -8,10 +8,6 @@
 // The formation is always flown in fixed 0.05 s steps (TS-R9): playback speed
 // changes how many steps run per frame, never their size, so the same presses at
 // the same times give the same picture at any frame rate.
-//
-// The plan-mode engine (engine/), its settings (settings.js, fields.js) and
-// readouts (readouts.js) stay in the repo, untouched, until Patrick agrees to
-// retire them; this screen no longer uses them.
 import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { STEP_SEC } from './live/flight.js';
