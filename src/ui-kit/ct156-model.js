@@ -247,8 +247,11 @@ function buildKit(THREE) {
   geo.fuselage = fuselage;
 
   const wingShape = (side, pts) => pts.map(([x, y]) => [x, side * y]);
-  const wingPlan = [[0.26, 0], [0.14, 0.66], [0.06, 0.66], [-0.06, 0]];
-  const wingLe = [[0.262, 0], [0.142, 0.66], [0.137, 0.66], [0.257, 0]];
+  // Wingtip at 0.722 units (was 0.66, a span 8% short): span 1.444 units against the 1.44 length, the T-6A's 33 ft 5 in
+  // against 33 ft 4 in (published T-6A dimensions, an estimate until a manual page backs it; Patrick, 5 Oct).
+  const TIP = 0.722;
+  const wingPlan = [[0.26, 0], [0.14, TIP], [0.06, TIP], [-0.06, 0]];
+  const wingLe = [[0.262, 0], [0.142, TIP], [0.137, TIP], [0.257, 0]];
   geo.wing = { 1: flatXY(THREE, wingShape(1, wingPlan), WING_T, WING_Z), '-1': flatXY(THREE, wingShape(-1, wingPlan), WING_T, WING_Z) };
   geo.wingLe = { 1: flatXY(THREE, wingShape(1, wingLe), WING_T + 0.002, WING_Z - 0.001), '-1': flatXY(THREE, wingShape(-1, wingLe), WING_T + 0.002, WING_Z - 0.001) };
   geo.stab = flatXY(THREE, [[-0.48, 0.04], [-0.6, 0.3], [-0.68, 0.3], [-0.72, 0.04], [-0.72, -0.04], [-0.68, -0.3], [-0.6, -0.3], [-0.48, -0.04]], 0.012, -0.006);
