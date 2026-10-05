@@ -249,7 +249,7 @@ Shares waypoints 0–5 with PAT_INNER, then diverges at "Abeam Departure End":
 Dotted line, 4 waypoints from the south up the inner rejoin line (the overhead's base leg, 3.22 NM out), joining PAT_INNER at the 45° entry leg (3,500 ft / 220 KIAS; TR-67).
 
 ### 4.4 ENT_SI — Straight-In Entry
-Dotted line, 6 waypoints from the south up the outer rejoin line (the straight-in's base leg at the Arrow Tree Rows, 3.89 NM out; EFIG p.131), then the 45° leg to final at 3.03 NM and the glide path from 2.5 NM, at 2,700 ft (TR-67).
+Dotted line, 6 waypoints from the south up the outer rejoin line (the straight-in's base leg at the Arrow Tree Rows, 3.89 NM out; EFIG p.131), then the 45° leg to final at 3.03 NM and the glide path from 2.5 NM, at 2,700 ft (TR-67). The glide path point moves with the temperature to where a true 3° line meets 2,700 ft on the altimeter: 2.46 NM on a standard day, 2.62 NM at 30°C, 2.10 NM at −30°C (Patrick's card "Follow the mark", 5 Oct 07:29Z; TR-80).
 
 ### 4.5 PFL: engine failure, and the glide from High Key
 
@@ -488,7 +488,7 @@ Every setting starts filled in so the first look is clean and intuitive:
 - Playback speed: 8×
 - 2D or 3D: 3D, on Performance (Patrick, 5 Oct 06:31Z; TR-76). Without WebGL it falls back to 2D with a note. 3D opens over the field: from north of the field looking south-south-east, low over the base, with the runways in the lower half and the circuit beyond (Patrick, 4 Oct 2026 10:17Z, from his screenshot). Fit still frames every route.
 - Weather: a standard day (about 11°C at the field). The Weather drop-down under Scenario also offers a hot day (30°C), a cold day (−30°C) or a temperature you set. Heights stay as the altimeter reads them on the local setting, and the 3,500 ft pattern is still flown at 3,500 ft on the altimeter. The temperature changes two things. True height above the field is the indicated height above the field × (mean temperature ÷ standard), so a hot day flies higher and a cold day lower; the 3D view draws the aircraft there, and the labels keep the altimeter's height. True airspeed for a given IAS also changes, and with it turn size, climbs, zooms, glides and the glide ring. Pressure is taken as standard, since a correct altimeter setting cancels it, and humidity is left out (Patrick, 5 Oct 06:47Z, card "Temperature, full" 06:48Z; TR-77).
-- Approach marks in 3D (Layers, both on): the window, a slice at ¾ NM fixed at a true 2,100 to 2,200 ft (SMM 4.7 para 12; TR-79), which aircraft flown on the altimeter pass high on a hot day and low on a cold one, with the 3° intercept point on the straight-in; and the selected aircraft's pink aim line (velocity vector) out to where it meets the ground (Patrick, 5 Oct 07:17Z; TR-78).
+- Approach marks in 3D (Layers, both on): the window, a slice at ¾ NM fixed at a true 2,100 to 2,200 ft (SMM 4.7 para 12; TR-79), which aircraft flown on the altimeter pass high on a hot day and low on a cold one, with the 3° intercept point on the straight-in, where the straight-in starts down (TR-80); and the selected aircraft's pink aim line (velocity vector) out to where it meets the ground (Patrick, 5 Oct 07:17Z; TR-78).
 - Wind: 260°M at 15 kt, held as 269°T (Patrick, 4 Oct 18:47Z, was calm; magnetic from 4 Oct, TR-65, was 260°T)
 - Aircraft: the Busy circuit scenario (7.2), unless a saved setup is open
 - Default aircraft type: CT-156 Harvard II (paint: `harvard`)
