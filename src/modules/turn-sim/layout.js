@@ -296,7 +296,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   ]);
   const cameraMenu = menu('Camera', 'ts-camera', [
     camOnChoice,
-    lc.choice('camLook', { label: 'On an aircraft (3D)', options: [
+    lc.choice('camLook', { label: 'Look (3D)', options: [
       { value: 'chase', label: 'Chase' }, { value: 'free', label: 'Follow (free look)' }, { value: 'padlock', label: 'Padlock' },
     ] }),
     lc.checkbox('autoFit', { label: 'Auto zoom' }),

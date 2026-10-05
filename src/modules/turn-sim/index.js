@@ -204,7 +204,9 @@ function mount(root, app) {
   function camLook() {
     const on = camAircraft();
     const mode = layout.get().camLook;
-    if (!on || mode === 'free') return null;
+    // On the formation, Chase turns the view with Lead's heading (Patrick, 5 Oct); Follow and Padlock leave it to the person.
+    if (!on) return mode === 'chase' && layout.get().camOn === 'formation' && state.aircraft[0] ? { yawDeg: yawBehind(state.aircraft[0].headingRad) } : null;
+    if (mode === 'free') return null;
     if (mode === 'padlock') {
       const other = state.aircraft.find((a) => a.id === padlockOf(on.id));
       const across = other ? Math.hypot(other.xFt - on.xFt, other.yFt - on.yFt) : 0;
