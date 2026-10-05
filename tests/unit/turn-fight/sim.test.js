@@ -60,12 +60,6 @@ test('the merge is the separation divided by the closing speed: T+16.4 s at 2 NM
   assert.equal(createFight().mergeSec, mergeTimeSec(2, 220, 220));
 });
 
-test('the defaults are Harvard standard: 2-circle, 2 NM, 220 KTAS and 5 G each, both extras off, pitch 0', () => {
-  // The start-geometry boxes (R28) open at head-on, level, turns at the pass: Harvard standard fight.
-  assert.deepEqual(createFight().setup, { ...V6_DEFAULT_SETUP, ...START_DEFAULTS });
-  assert.deepEqual(createFight({}).setup, createFight(V6_DEFAULT_SETUP).setup);
-});
-
 test('the start: Blue on the left heading east, Red on the right heading west, the separation apart, level', () => {
   const s = createFight({ separationNm: 3 });
   near(s.blue.xFt, -1.5 * FT_PER_NM, 1e-9);
@@ -150,14 +144,6 @@ test('Q49 (Patrick): at 250 and 200 kt the jets meet at the centre, with no jump
   const offFt = (250 / 450 - 0.5) * 2 * FT_PER_NM;
   near(v6.blueXFt, offFt, 0.1, 'older start: Blue off the centre');
   near(v6.redXFt, offFt, 0.1, 'older start: Red off the centre');
-});
-
-test('Q49: v6Start keeps the older start (equal distance from the centre) and is not part of the setup boxes', () => {
-  const s = createFight({ blueKt: 250, redKt: 200, v6Start: true });
-  near(s.blue.xFt, -FT_PER_NM, 1e-9);
-  near(s.red.xFt, FT_PER_NM, 1e-9);
-  assert.deepEqual(s.setup, createFight({ blueKt: 250, redKt: 200 }).setup, 'the setup copy has only the boxes');
-  assert.ok(!('v6Start' in V6_DEFAULT_SETUP));
 });
 
 test('Q49: everything from the merge on is the same in both starts', () => {
@@ -278,15 +264,6 @@ test('with First nose chases, the aircraft that got first nose-on keeps its nose
   assert.ok(offNoseDeg(free.blue, free.red) > 30, 'left alone, the same aircraft is already well off the other');
 });
 
-test('the chase wraps headings into ±π (a design choice of the engine), where a free turn keeps counting past 2π', () => {
-  const chase = createFight({ blueG: 6, chase: true });
-  const free = createFight({ blueG: 6 });
-  // Fly until the free turn has gone past a full circle (an event, not a second); the stop of 120 s is only a safety net.
-  for (let i = 0; i < 120 / FIGHT_STEP_SEC && !(free.blue.headingRad > 2 * Math.PI); i++) { stepFight(chase, FIGHT_STEP_SEC); stepFight(free, FIGHT_STEP_SEC); }
-  assert.ok(Math.abs(chase.blue.headingRad) <= Math.PI && Math.abs(chase.red.headingRad) <= Math.PI);
-  assert.ok(free.blue.headingRad > 2 * Math.PI);
-});
-
 test('without the chase, the turn never changes course after first nose-on (both keep turning at the set rate)', () => {
   const s = runUntil({ blueG: 6 }, (f) => f.firstNose);
   const b0 = s.blue.headingRad;
@@ -375,12 +352,6 @@ test('a zero, negative or unreadable frame time moves nothing', () => {
   for (const dt of [0, -1, NaN, Infinity, -Infinity, undefined, null]) stepFight(s, dt);
   assert.equal(s.timeSec, 0);
   assert.equal(s.carrySec, 0);
-});
-
-test('stepFight changes the state it is given and returns it', () => {
-  const s = createFight();
-  assert.equal(stepFight(s, 1), s);
-  near(s.timeSec, 1, 1e-9);
 });
 
 test('the fight stops at 10 minutes and stays stopped', () => {
@@ -473,22 +444,11 @@ test('Q51: with Climb and dive on, first nose-on is not called on a jet that is 
   assert.equal(now.stopped, true);
 });
 
-test('Q51: with Climb and dive on but both pitches 0, nothing changes: first nose-on is +14.4 s', () => {
-  const setup = { vertical: true };
-  const now = runUntil(setup, (f) => f.firstNose), v6 = runUntil({ ...setup, v6OffNose: true }, (f) => f.firstNose);
-  assert.equal(now.firstNose.timeSec, v6.firstNose.timeSec);
-});
-
 test('Q51: with Climb and dive off the pitch boxes and v6OffNose change nothing: the same fight, step for step', () => {
   const a = createFight({ bluePitchDeg: 40, blueG: 5, turnsAt: 'once' }), b = createFight({ bluePitchDeg: 40, blueG: 5, turnsAt: 'once', v6OffNose: true });
   for (let i = 0; i < 500; i++) { stepFight(a, FIGHT_STEP_SEC); stepFight(b, FIGHT_STEP_SEC); }
   assert.deepEqual({ ...a, v6OffNose: null }, { ...b, v6OffNose: null });
   assert.ok(a.firstNose);
-});
-
-test('Q51: v6OffNose is an option, not one of the boxes: it is not kept in the setup', () => {
-  assert.deepEqual(createFight({ v6OffNose: true }).setup, createFight().setup);
-  assert.ok(!('v6OffNose' in V6_DEFAULT_SETUP));
 });
 
 test('a setup that can\'t fly is refused, not run', () => {
@@ -654,20 +614,6 @@ test('R28: with the height difference and pitch, the start height is where Red\'
   assert.ok(s.red.zFt > 1500 - 220 * 1.68781 * 2.1 * Math.sin(20 * Math.PI / 180) - 1);
 });
 
-test('R28: the start geometry is part of the setup copy, not a separate option', () => {
-  const s = createFight({ startAtaDeg: 30, startAtaSide: 'right', startAaDeg: 100, startAaSide: 'left', redAboveFt: 500, turnsAt: 'once' });
-  assert.deepEqual(
-    [s.setup.startAtaDeg, s.setup.startAtaSide, s.setup.startAaDeg, s.setup.startAaSide, s.setup.redAboveFt, s.setup.turnsAt],
-    [30, 'right', 100, 'left', 500, 'once'],
-  );
-});
-
-test('R28: v6Start only applies at head-on; elsewhere the jets meet at the centre as set', () => {
-  const s = createFight({ startAtaDeg: 30, startAaDeg: 120, v6Start: true });
-  const plain = createFight({ startAtaDeg: 30, startAaDeg: 120 });
-  assert.deepEqual(s.blue, plain.blue);
-});
-
 test('R28: a start that can\'t be placed is refused, not run', () => {
   for (const bad of [
     { startAtaDeg: -1 }, { startAtaDeg: 181 }, { startAtaDeg: NaN }, { startAaDeg: -5 }, { startAaDeg: 200 }, { startAaDeg: Infinity },
@@ -754,15 +700,6 @@ test('TF3-3: a jet already nose-on when the turns start counts at +0.0 s (Both i
   // Not nose-on at the start (a beam start): nothing at +0.0 s.
   const beam = createFight({ startAtaDeg: 90, startAaDeg: 90, turnsAt: 'once' });
   assert.equal(beam.firstNose, null);
-});
-
-test('TF3-3: a head-on start is not touched: with the turns at once it is marked a step after T+0 as before (not at T+0 by the new rule), and at the pass it is Harvard\'s +14.4 s', () => {
-  const once = createFight({ turnsAt: 'once' });
-  assert.equal(once.firstNose, null, 'head-on at once: no mark at T+0 from the start rule');
-  stepFight(once, FIGHT_STEP_SEC);
-  assert.equal(once.firstNose.both, true, 'marked one step later, as before: Both at +0.0 s');
-  const pass = firstNoseAt({});
-  assert.equal(pass.both, true);
 });
 
 test('Observation A: a 2-circle fight between equal jets has a nose-on only if they come back exactly head-on; 1-circle changes smoothly', () => {

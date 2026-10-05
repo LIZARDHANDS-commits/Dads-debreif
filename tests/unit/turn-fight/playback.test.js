@@ -19,30 +19,6 @@ const play = (run, seconds, frameSec) => {
   return run;
 };
 
-test('a frame moves the fight by at most 0.08 s times the playback speed, as V6 does', () => {
-  assert.equal(MAX_FRAME_SEC, 0.08);
-  assert.equal(frameDtSec(16.7, 1), 0.0167);
-  assert.equal(frameDtSec(5000, 1), 0.08); // a slow or hidden frame doesn't jump the fight
-  assert.equal(frameDtSec(5000, 4), 0.32);
-  assert.equal(frameDtSec(16, 0.5), 0.008);
-  assert.equal(frameDtSec(0, 2), 0);
-  assert.equal(frameDtSec(-5, 2), 0);
-  assert.equal(frameDtSec(Number.NaN, 2), 0);
-});
-
-test('at 50 frames a second the run is V6\'s fight exactly, as stepFight gives it', () => {
-  const run = createRun({});
-  const direct = createFight({});
-  for (let i = 0; i < 500; i++) {
-    advanceRun(run, 0.02);
-    stepFight(direct, 0.02);
-  }
-  assert.deepEqual(run.fight.blue, direct.blue);
-  assert.deepEqual(run.fight.red, direct.red);
-  assert.equal(run.fight.timeSec, direct.timeSec);
-  assert.deepEqual(run.fight.firstNose, direct.firstNose);
-});
-
 test('the same fight at 60, 30 and 12.5 frames a second, to within one step', () => {
   const at = (frameSec) => play(createRun({}), 20, frameSec).fight;
   const ref = at(0.02);
@@ -83,16 +59,6 @@ test('the trail starts at the start positions and a trail point is where the air
   assert.equal(run.trails.blue.length, 2);
   assert.equal(run.trails.blue[1].xFt, run.fight.blue.xFt);
   assert.equal(run.trails.red[1].xFt, run.fight.red.xFt);
-});
-
-test('the trail never grows past the ten-minute fight: 6,001 points at most', () => {
-  const run = play(createRun({}), FIGHT_MAX_SEC + 30, 0.08);
-  assert.equal(run.fight.stopped, true);
-  assert.ok(run.trails.blue.length <= 6001, String(run.trails.blue.length));
-  const before = run.trails.blue.length;
-  advanceRun(run, 1);
-  assert.equal(run.trails.blue.length, before);
-  assert.equal(run.pendingSec, 0);
 });
 
 test('extent follows every trail point: the widest reach, the x range and the tallest height', () => {

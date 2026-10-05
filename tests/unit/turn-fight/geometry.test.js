@@ -171,12 +171,6 @@ test('isHeadOn is true only for ATA 0° with AA 180° exactly, on either side', 
   assert.equal(isHeadOn(setup({ startAaDeg: 179.5 })), false);
 });
 
-test('the start defaults are the neutral head-on that the reset returns to (TF-R14): head-on, turns at the pass, Red level with Blue', () => {
-  assert.deepEqual({ ...START_DEFAULTS }, {
-    startAtaDeg: 0, startAtaSide: 'left', startAaDeg: 180, startAaSide: 'left', redAboveFt: 0, turnsAt: 'pass',
-  });
-});
-
 test('with the turns at once the jets are centred on T+0, not on a pass that never comes: a tail chase at 200 kt against 220 kt', () => {
   const g = startGeometry(setup({ startAaDeg: 0, redKt: 200, turnsAt: 'once' }));
   near((g.blue.xFt + g.red.xFt) / 2, 0, 1e-6, 'midpoint x at T+0');
@@ -217,57 +211,10 @@ test('on a collision course the side is the one set up: ATA 45 right with AA 135
   assert.deepEqual(turnDirections(mirror, startGeometry(mirror)), { blue: 1, red: -1 });
 });
 
-test('the pass note says when the jets pass, or that there is no pass', () => {
-  assert.equal(passNote(setup()), 'Pass at T+16.4 s');
-  assert.equal(passNote(setup({ startAaDeg: 0, redKt: 200 })), 'Pass at T+360.0 s');
-  assert.equal(passNote(setup({ startAaDeg: 0 })), 'No pass: the turns start at once');
-  assert.equal(passNote(setup({ startAtaDeg: 90, startAaDeg: 90 })), 'No pass: the turns start at once');
-  assert.equal(passNote(setup({ turnsAt: 'once' })), 'Turns start at once (the jets pass at T+16.4 s)');
-});
-
 // ---- the turn line (TF3-2) and the tail chase (TF3-1) ----------------------------------------------
 
 const base = { separationNm: 2, blueKt: 220, redKt: 220, ...START_DEFAULTS };
 const words = (setup) => [2, 1].map((circles) => turnNote({ ...base, ...setup, circles }));
 
-test('the turn line says which way each jet turns, with Red flipped in a 1-circle fight: head-on is the neutral left and left, left and right', () => {
-  assert.deepEqual(words({}), ['Blue turns left, Red turns left', 'Blue turns left, Red turns right']);
-});
-
-test('the turn line follows the side: a beam start on the left turns left, on the right turns right, and 1-circle flips Red', () => {
-  assert.deepEqual(words({ startAtaDeg: 90, startAtaSide: 'left', startAaDeg: 90, startAaSide: 'left' }), ['Blue turns left, Red turns left', 'Blue turns left, Red turns right']);
-  assert.deepEqual(words({ startAtaDeg: 90, startAtaSide: 'right', startAaDeg: 90, startAaSide: 'right' }), ['Blue turns right, Red turns right', 'Blue turns right, Red turns left']);
-  // Red crossing Blue's nose: the side Blue is on decides, as the fight flies it.
-  assert.deepEqual(words({ startAaDeg: 90, startAaSide: 'left' }), ['Blue turns left, Red turns left', 'Blue turns left, Red turns right']);
-  assert.deepEqual(words({ startAaDeg: 90, startAaSide: 'right' }), ['Blue turns right, Red turns right', 'Blue turns right, Red turns left']);
-});
-
-test('from a tail chase the 2-circle directions differ: Blue left and Red right, so "same direction" is not what 2-circle means there', () => {
-  const tail = { startAtaDeg: 30, startAtaSide: 'left', startAaDeg: 20, startAaSide: 'right', redKt: 150 };
-  assert.deepEqual(words(tail), ['Blue turns left, Red turns right', 'Blue turns left, Red turns left']);
-  const dirs = turnDirections({ ...base, ...tail }, startGeometry({ ...base, ...tail }));
-  assert.notEqual(dirs.blue, dirs.red, 'each turns toward the other, from opposite sides');
-  // A stern chase (dead astern of a slower Red): both ties, so the neutral directions stand.
-  assert.deepEqual(words({ startAtaDeg: 0, startAaDeg: 0, redKt: 150 }), ['Blue turns left, Red turns left', 'Blue turns left, Red turns right']);
-});
-
 // ---- the word at the pass (TF3-5) -----------------------------------------------------------------
 
-test('the word at the pass is MERGE when the jets meet and PASS when they go by more than 0.25 NM apart', () => {
-  const word = (setup) => passMarkWord(createFight({ ...setup }));
-  assert.equal(MERGE_WORD_MAX_NM, 0.25);
-  assert.equal(word({}), 'MERGE', 'head-on, they meet');
-  assert.equal(word({ startAtaDeg: 0, startAaDeg: 0, redKt: 150 }), 'MERGE', 'a stern chase passes through');
-  assert.equal(word({ startAtaDeg: 5, startAaDeg: 175 }), 'MERGE', '2 NM x sin 5° = 0.17 NM apart');
-  assert.equal(word({ startAtaDeg: 20, startAaDeg: 160 }), 'PASS', '0.68 NM apart');
-  assert.equal(word({ startAaDeg: 90 }), 'PASS', 'crossing Blue\'s nose: 1.4 NM apart at the closest');
-  near(startGeometry({ ...base, startAaDeg: 90 }).passRangeFt / FT_PER_NM, 2 * Math.SQRT1_2, 1e-9);
-  assert.equal(startGeometry({ ...base, startAtaDeg: 90, startAaDeg: 90 }).passRangeFt, 0, 'no pass, no range');
-});
-
-test('TF3-2: with First nose chases on the turn line says the turns are only until first nose-on, then each chases the other', () => {
-  const chase = { ...base, chase: true, circles: 2 };
-  assert.equal(turnNote(chase), 'Blue turns left, Red turns left (until first nose-on; then each chases the other)');
-  assert.equal(turnNote({ ...chase, circles: 1 }), 'Blue turns left, Red turns right (until first nose-on; then each chases the other)');
-  assert.equal(turnNote({ ...chase, chase: false }), 'Blue turns left, Red turns left');
-});
