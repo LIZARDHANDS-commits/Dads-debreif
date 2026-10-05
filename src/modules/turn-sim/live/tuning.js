@@ -46,19 +46,29 @@ export const REJOIN = Object.freeze({
 });
 
 /**
- * The turning rejoin (V2.59, TS-68; Patrick 5 Oct 07:14Z, card "Yes, as written" 07:31Z, 07:32Z): one rule for every turning
- * rejoin, from line abreast (hot: #2 starts ahead of the line and gets colder to reach it) or fighting wing (cold: he turns
- * hotter to reach it). #2 gets onto the rejoin line, Lead at his 10:30 or 1:30 with about half Lead's upper wing showing aft
- * of the fin (Patrick: "where the tail and the wing make an X"), on his own side, inside Lead's turn and slightly low; holds
- * that line and closes down it at the Rates closure; where the line reaches route's spacing (the decision point) he flows into
- * route and on into the slot in one motion (SMM 12.24 paras 56-58, Figs 12.14-12.15; 16.20 paras 65b-66). He goes behind
- * Lead only in an overshoot.
+ * The turning rejoin (V2.59, TS-68; flown as held bank and power since V2.63, TS-69; Patrick 5 Oct 07:14Z, card "Yes, as
+ * written" 07:31Z, 07:32Z, 08:12Z-08:20Z): one rule for every turning rejoin, from line abreast (hot: #2 starts ahead of the
+ * line and gets colder to reach it) or fighting wing (cold: he turns hotter to reach it). #2 gets onto the rejoin line, Lead
+ * at his 10:30 or 1:30 with about half Lead's upper wing showing aft of the fin (Patrick: "where the tail and the wing make an
+ * X"), on his own side, inside Lead's turn and slightly low; comes down it at Lead's speed plus the Rates overtake, taking it
+ * out with power for the decision point (where the line reaches route's spacing); then he flows into route and on into the
+ * slot in one motion (SMM 12.24 paras 56-58, Figs 12.14-12.15; 16.20 paras 65b-66). He goes behind Lead only in an overshoot.
+ * The flying is turning-rejoin.js's; review turn-sim-review/rejoin-review-fable.md.
  */
 export const TURNING_REJOIN = Object.freeze({
   lineDeg: 45, // the rejoin line, degrees behind Lead's 3/9 line: Lead at 10:30 or 1:30 (SMM 12.24 para 56; Patrick's card 07:31Z). It passes through the fighting wing place (16.20 para 66) and the corner behind echelon (para 58's latest point)
   lineUpFt: -30, // #2's height on the line, below Lead: "just slightly below lead" (SMM 12.24 para 58); 30 ft is an estimate
-  slideAheadFt: 200, // down the line #2 aims this far ahead of where he is, so he closes along it at the Rates closure (estimate)
-  captureTolFt: 30, // he is on the line, and at the decision point, within this many feet of it (estimate)
+  aimsFt: [300, 600, 1200], // how sharply #2 captures the line: off it by this much he heads for it at half approachDeg; the one that brings him in soonest is flown (estimates: smaller is a sharper capture, larger a gentler, longer one)
+  approachDeg: 80, // far off the line he heads for it at up to this angle across it, in Lead's frame (estimate)
+  bankCapDeg: 60, // the bank he uses at most to get onto the line and hold it: past about 60° the drag costs speed and buys nothing (the review's estimate, rejoin-review-fable.md). Only when no rejoin at 60° keeps him behind Lead's 3/9 line does he use more, up to the G rule (REJOIN.bankCapDeg)
+  hotFt: 1000, // ahead of the line by this much (hot) he flies undertakeKias below Lead's speed, less in proportion closer to it (estimate)
+  laneTolFt: 20, // flowing into the slot he may pass this far ahead of it, never more, toward Lead's 3/9 line (estimate; Patrick 08:04Z)
+  decisionArriveRates: 'instructor', // he reaches the decision point closing no faster than this Rates choice's close-in rate (about 15 kt), so AI's quicker close-in starts from a closure under control (estimate; SMM 12.24 para 58)
+  fwArriveFtps: 5, // to fighting wing he arrives at its place on the line at about this closure, and the tracker settles him there (estimate)
+  captureFt: 150, // he is on the line within this many feet of it; only then does he start taking out the overtake for the decision point (estimate)
+  lineTauSec: 4, // his heading comes onto the one the line asks over about this long, so the bank changes smoothly (estimate)
+  heightSec: 10, // #2 settles slightly low on the line over this long, or over his part to the decision point if shorter (estimate)
+  undertakeKias: 25, // hot, or taking the overtake out, he slows no further than this below Lead's 200 KIAS (rejoinTo's, an estimate)
   routeFlowFt: 20, // he flows through route without stopping, within this many feet of it, on into the slot (estimate; Patrick 07:14Z: "in one motion")
 });
 
