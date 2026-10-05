@@ -32,6 +32,8 @@ export const FOUR_CHANGE_BUTTONS = Object.freeze([
 const FOUR_MORE_BUTTONS = Object.freeze([{ key: 'trail', label: 'Line astern' }, { key: 'route', label: 'Route' }]);
 /** The four's close formations, where Lead's limit is 3 G (Orders B2 ch 8), and fighting wing's 4 G. */
 const FOUR_CLOSE = Object.freeze(['finger', 'echelon', 'box', 'trail', 'route']);
+/** The formations where pressing L or R flies the side change at once (Patrick, 5 Oct). */
+const SIDE_CHANGE_FORMATIONS = Object.freeze(['fw', 'echelon', 'route']);
 const SIDES = Object.freeze([{ value: 'keep', label: 'Keep' }, { value: 'left', label: 'L' }, { value: 'right', label: 'R' }]);
 const REJOIN_OPTIONS = Object.freeze([
   { value: 'into', label: 'Turning, Lead turns into #2' },
@@ -84,6 +86,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   let side = 'keep';
   let rejoin = 'into';
   let four = false;
+  let whereNow = null; // the formation the aircraft are in, from the last update
 
   const buttons = new Map(); // the pair's
   const fourButtons = new Map();
@@ -110,6 +113,12 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       side = o.value;
       for (const b of sideButtons) b.setAttribute('aria-pressed', String(b.dataset.side === side));
       handlers.sideChanged?.();
+      // L or R in fighting wing, echelon or route changes side at once (Patrick, 5 Oct): the same change as pressing the
+      // formation's own button with the other side, a station change in echelon and route (SMM 12.20 paras 44-45) or the
+      // flow behind Lead in fighting wing (SMM 12.29 para 69).
+      const key = whereNow?.key;
+      const otherSide = side !== 'keep' && (side === 'left') !== (whereNow?.side > 0);
+      if (otherSide && SIDE_CHANGE_FORMATIONS.includes(key)) onChange(key, { side, rejoin });
     },
   }, o.label));
   const handlers = {};
@@ -176,6 +185,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     },
     /** Greys the button for the formation the pair is in (and, for a sided one, on the side the switch asks for), and shows a refusal. */
     update(state, where) {
+      whereNow = where;
       if (four) {
         for (const [key, button] of fourButtons) {
           if (FOUR_FORMATIONS[key].later) continue;
