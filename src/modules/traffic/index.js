@@ -117,6 +117,9 @@ function mount(root, app) {
     source: {
       scene: () => withSiPattern(buildScene({ setup, state: state(), selectedRouteId, trailOf: () => [] })), // 3D draws no trails
       settings: () => settings.get(),
+      // The 3D bar's High | Performance writes graphicsQuality here (it used to go through Traffic settings' Graphics
+      // box, which moved out on 4 Oct, so the buttons did nothing: Patrick, 4 Oct).
+      setSettings: (values) => settings.update(values),
       anchor: () => setup.anchor,
       time: () => sim.t,
     },

@@ -1323,8 +1323,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
   }
 
   /**
-   * The bar's High | Performance switch writes the same graphicsQuality setting as the Traffic settings panel: through
-   * source.setSettings when given, otherwise by choosing it in the settings panel's own Graphics box, so both stay in step.
+   * The bar's High | Performance switch writes the graphicsQuality setting through source.setSettings (the Traffic
+   * screen gives it). Without it, it falls back to a Graphics box on the page, if there is one.
    */
   function setGraphicsQuality(quality) {
     if (source.setSettings) source.setSettings({ graphicsQuality: quality });
