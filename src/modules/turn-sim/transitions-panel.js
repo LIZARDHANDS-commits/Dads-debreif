@@ -17,7 +17,7 @@ export const CHANGE_BUTTONS = Object.freeze([
   { key: 'fw', label: 'Fighting wing' },
   { key: 'echelon', label: 'Echelon' },
   { key: 'route', label: 'Route' },
-  { key: 'fluid', label: 'Fluid manoeuvring' },
+  { key: 'fluid', label: 'Fluid' }, // fluid manoeuvring, short so three fit a row (Patrick, 5 Oct)
 ]);
 /** The four's buttons (spec section 8): the wide formations first, then the close ones; Line astern and Route under More. */
 export const FOUR_CHANGE_BUTTONS = Object.freeze([
@@ -33,13 +33,14 @@ export const FOUR_CHANGE_BUTTONS = Object.freeze([
 const FOUR_MORE_BUTTONS = Object.freeze([{ key: 'trail', label: 'Line astern' }, { key: 'route', label: 'Route' }]);
 /** The four's close formations, where Lead's limit is 3 G (Orders B2 ch 8), and fighting wing's 4 G. */
 const FOUR_CLOSE = Object.freeze(['finger', 'echelon', 'box', 'trail', 'route']);
-const SIDES = Object.freeze([{ value: 'keep', label: 'Keep' }, { value: 'left', label: 'L' }, { value: 'right', label: 'R' }]);
+/** The formations where pressing L or R flies the side change at once (Patrick, 5 Oct). */
+const SIDE_CHANGE_FORMATIONS = Object.freeze(['fw', 'echelon', 'route']);
+const SIDES = Object.freeze([{ value: 'keep', label: 'Keep' }, { value: 'left', label: 'Left' }, { value: 'right', label: 'Right' }]); // written out (Patrick, 5 Oct)
 const REJOIN_OPTIONS = Object.freeze([
   { value: 'into', label: 'Turning, Lead turns into #2' },
   { value: 'straight', label: 'Straight ahead' },
 ]);
 
-const ft = (n) => `${Math.round(Math.abs(n)).toLocaleString('en-CA')} ft`;
 
 /** "Line abreast, right" for the pair as classified now (live/judge.js classify). */
 export function nowWords(where) {
@@ -85,6 +86,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   let side = 'keep';
   let rejoin = 'into';
   let four = false;
+  let whereNow = null; // the formation the aircraft are in, from the last update
 
   const buttons = new Map(); // the pair's
   const fourButtons = new Map();
@@ -111,6 +113,12 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       side = o.value;
       for (const b of sideButtons) b.setAttribute('aria-pressed', String(b.dataset.side === side));
       handlers.sideChanged?.();
+      // L or R in fighting wing, echelon or route changes side at once (Patrick, 5 Oct): the same change as pressing the
+      // formation's own button with the other side, a station change in echelon and route (SMM 12.20 paras 44-45) or the
+      // flow behind Lead in fighting wing (SMM 12.29 para 69).
+      const key = whereNow?.key;
+      const otherSide = side !== 'keep' && (side === 'left') !== (whereNow?.side > 0);
+      if (otherSide && SIDE_CHANGE_FORMATIONS.includes(key)) onChange(key, { side, rejoin });
     },
   }, o.label));
   const handlers = {};
@@ -119,39 +127,40 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   const rejoinSelect = h('select', { 'aria-label': 'Rejoin from line abreast', onchange: () => { rejoin = rejoinSelect.value; } },
     REJOIN_OPTIONS.map((o) => h('option', { value: o.value, selected: o.value === rejoin }, o.label)));
   const rejoinLabel = h('span', { class: 'ts-hint' }, 'Rejoin from line abreast');
-  const pairMore = h('div', { class: 'ts-change-grid' }, makeButton({ key: 'astern', label: 'Line astern' }));
-  const fourMore = h('div', { class: 'ts-change-grid', hidden: true }, FOUR_MORE_BUTTONS.map(makeFourButton));
   const PAIR_REJOIN_HINT = `A turning rejoin: Lead turns into #2 at the press at ${REJOIN.leadBankDeg}° of bank, slowing to ${KIAS_OUTSIDE_LAB} KIAS (SMM 16.20 para 65). #2's bank is capped at ${REJOIN.bankCapDeg}° (an estimate, flagged).`;
   const FOUR_REJOIN_HINT = `A turning rejoin: Lead turns into #2 at the press, slowing to ${KIAS_OUTSIDE_LAB} KIAS; #3 and #4 close at once and come in on the outside one at a time, #3 once #2 is in and #4 once #3 is (SMM 16.34 paras 95-96). Straight ahead, each closes through route in turn.`;
   const rejoinHint = h('p', { class: 'ts-hint' }, PAIR_REJOIN_HINT);
+  const rejoinField = h('label', { class: 'ts-field' }, rejoinLabel, rejoinSelect);
   // Rates (clean-up steps 2 and 3, TS-65, TS-66; Patrick 5 Oct 05:46Z, 06:09Z, 06:11Z): how fast the wingmen close,
   // Student, Instructor (the default) or AI, 2-ship and 4-ship. It changes the closures only, not the banks or the G (06:07Z).
   const rateWords = (c) => `${RATE_WORDS[c]}: ${REJOIN_CLOSURE_KT[c]} kt rejoins, route to echelon in about ${CLOSE_IN_SEC[c]} s`;
   const ratesSelect = h('select', { 'aria-label': 'Rates', onchange: () => setRates(ratesSelect.value) },
     RATE_CHOICES.map((c) => h('option', { value: c, selected: c === ratesNow() }, rateWords(c))));
   const ratesField = h('label', { class: 'ts-field' }, h('span', { class: 'ts-hint' }, 'Rates'), ratesSelect);
-  const more = h('details', { class: 'ts-more' },
-    h('summary', {}, 'More'),
-    pairMore,
-    fourMore,
-    h('label', { class: 'ts-field' }, rejoinLabel, rejoinSelect),
-    rejoinHint,
-    ratesField,
-  );
+  // The rejoin choice and Rates live in the Settings box (Patrick, 5 Oct); the rejoin's default is Lead turning into #2.
+  const rejoinSettings = h('div', { class: 'ts-rejoin-setting' }, rejoinField, rejoinHint, ratesField);
 
   const PAIR_HINT = 'The pair flies the manuals\' transition from where it is now. The formation you are in is greyed.';
   const FOUR_HINT = 'The four fly the manuals\' way there from where they are now, one at a time where the manuals say to wait. Side is #2\'s side; finger is named by the side #3 and #4 are on.';
   const hint = h('p', { class: 'ts-hint' }, PAIR_HINT);
-  const pairGrid = h('div', { class: 'ts-change-grid' }, CHANGE_BUTTONS.map((b) => makeButton(b)));
-  const fourGrid = h('div', { class: 'ts-change-grid', hidden: true }, FOUR_CHANGE_BUTTONS.map(makeFourButton));
+  // Two groups (Patrick, 5 Oct): Tactical (line abreast, fighting wing, fluid, the four's wide formations) and Close formation.
+  const TACTICAL = new Set(['lab', 'fw', 'fluid', 'spread4', 'fluid4', 'fluidMan', 'offsetBox']);
+  const group = (title, buttons) => h('div', { class: 'ts-change-group' }, h('h4', { class: 'ts-change-subtitle' }, title), h('div', { class: 'ts-change-grid' }, buttons));
+  const pairAll = [...CHANGE_BUTTONS, { key: 'astern', label: 'Line astern' }];
+  const fourAll = [...FOUR_CHANGE_BUTTONS, ...FOUR_MORE_BUTTONS];
+  const pairGrid = h('div', {},
+    group('Tactical', pairAll.filter((b) => TACTICAL.has(b.key)).map((b) => makeButton(b))),
+    group('Close formation', pairAll.filter((b) => !TACTICAL.has(b.key)).map((b) => makeButton(b))));
+  const fourGrid = h('div', { hidden: true },
+    group('Tactical', fourAll.filter((b) => TACTICAL.has(b.key)).map(makeFourButton)),
+    group('Close formation', fourAll.filter((b) => !TACTICAL.has(b.key)).map(makeFourButton)));
   const element = h('section', { class: 'ts-change', 'aria-labelledby': 'ts-change-title' },
-    h('h3', { class: 'ts-group-title', id: 'ts-change-title' }, 'Change formation'),
-    hint,
+    // The FORMATION bar, the two groups, then Side, just above the manoeuvres (Patrick, 5 Oct).
+    h('div', { class: 'ts-section-bar' }, h('h3', { id: 'ts-change-title' }, 'Formation')),
     pairGrid,
     fourGrid,
-    h('div', { class: 'ts-side', role: 'group', 'aria-label': 'Side #2 ends on' }, h('span', { class: 'ts-hint' }, 'Side'), sideButtons),
+    h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Station: the side #2 ends on' }, h('span', { class: 'ts-hint' }, 'Station'), sideButtons), // "Station", was "Side" (Patrick, 5 Oct)
     refusal,
-    more,
     fluidUi?.element ?? null,
   );
 
@@ -164,28 +173,35 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   return {
     element,
     cardElement,
+    /** The fluid settings, for the Settings box (fluid-panel.js), or null. */
+    fluidSettings: fluidUi?.settingsElement ?? null,
+    /** The rejoin choice and its note, for the Settings box. */
+    rejoinSettings,
     onSideChanged: (fn) => (handlers.sideChanged = fn),
     values: () => ({ side, rejoin }),
     /** 2-ship or 4-ship: shows that formation's buttons and words. */
     setShips(ships) {
       four = ships === 4;
       pairGrid.hidden = four;
-      pairMore.hidden = four;
       fourGrid.hidden = !four;
-      fourMore.hidden = !four;
       hint.textContent = four ? FOUR_HINT : PAIR_HINT;
-      if (fluidUi) fluidUi.element.hidden = four; // the four's fluid manoeuvring is a later piece
+      if (fluidUi) fluidUi.element.hidden = true; // the pair's shows in fluid manoeuvring only (update); the four's is a later piece
+      if (fluidUi) fluidUi.settingsElement.hidden = four;
+      rejoinField.hidden = false;
+      rejoinHint.hidden = false;
       rejoinLabel.textContent = four ? 'Rejoin to fighting wing or finger' : 'Rejoin from line abreast';
       rejoinSelect.options[0].textContent = four ? 'Turning, Lead turns into the others' : REJOIN_OPTIONS[0].label;
       rejoinHint.textContent = four ? FOUR_REJOIN_HINT : PAIR_REJOIN_HINT;
     },
     /** Greys the button for the formation the pair is in (and, for a sided one, on the side the switch asks for), and shows a refusal. */
     update(state, where) {
+      whereNow = where;
       if (four) {
         for (const [key, button] of fourButtons) {
           if (FOUR_FORMATIONS[key].later) continue;
           const here = key === where.key && (!FOUR_FORMATIONS[key].sided || side === 'keep' || (side === 'left') === (where.side > 0));
           button.disabled = here;
+          button.setAttribute('aria-current', String(here)); // lit as "you are here", not greyed
           button.title = here ? 'You are here' : '';
         }
         refusal.textContent = state.refusal ?? '';
@@ -193,6 +209,9 @@ export function createChangeUi({ onChange, fluidUi = null }) {
         return;
       }
       fluidUi?.update(state);
+      // Only what the formation the pair is in can use shows (Patrick, 5 Oct): the fluid buttons in fluid manoeuvring,
+      // the rejoin choice in line abreast.
+      if (fluidUi) fluidUi.element.hidden = where.key !== 'fluid';
       for (const [key, button] of buttons) {
         if (where.key === 'fluid') {
           // In fluid manoeuvring Terminate is the way out; it ends in fighting wing (spec section 10.3).
@@ -211,6 +230,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
         // Line abreast has no side change of its own: a change of side there goes through another formation first.
         const greyed = here || (key === 'lab' && where.key === 'lab');
         button.disabled = greyed;
+        button.setAttribute('aria-current', String(greyed && key === where.key)); // lit as "you are here", not greyed
         button.title = greyed ? 'You are here' : '';
       }
       refusal.textContent = state.refusal ?? '';
@@ -231,15 +251,9 @@ export function createChangeUi({ onChange, fluidUi = null }) {
         for (const f of flags) flagList.append(h('li', { class: 'tone-caution' }, f));
         return;
       }
-      rejoinBlock.hidden = !(c?.rejoining);
-      if (c?.rejoining) {
-        const r = rejoinReadout(state.aircraft[0], state.aircraft[1]);
-        const closing = Math.abs(r.closureKt) < 1 ? '0 kt' : `${r.closureKt > 0 ? '+' : ''}${Math.round(r.closureKt)} kt`;
-        rejoinBlock.append(
-          h('li', {}, `Range ${ft(r.rangeFt)}, closure ${closing}`),
-          h('li', {}, `Lead at ${r.clock}, ${r.line}`),
-          h('li', { class: r.aboveLead ? 'tone-caution' : 'tone-good' }, `#2 is ${ft(r.belowFt)} ${r.belowFt > 0 ? 'below' : 'above'} Lead`),
-        );
+      // The rejoin's range, closure and clock are on the data tags now (Patrick, 5 Oct); only OVERSHOOTING and the slow-down stay.
+      rejoinBlock.hidden = !(c?.rejoining && (state.aircraft[1]?.overshooting || slowWord(state.aircraft[1])));
+      if (c?.rejoining && !rejoinBlock.hidden) {
         // How #2 is flying it (TS-61, TS-62): OVERSHOOTING, and the speed brake or idle when he is slowing with them.
         const wing = state.aircraft[1];
         const how = [wing.overshooting ? 'OVERSHOOTING, behind and below Lead (SMM 12.27 para 65)' : null, slowWord(wing) ? `${slowWord(wing)} to control the overtake` : null].filter(Boolean);

@@ -261,7 +261,8 @@ export function createLandmarks(THREE, { floor = THRESHOLD_DATA_ELEV_FT } = {}) 
     g.position.set(l.x, l.y, floor);
     root.add(g);
   }
-  root.add(createHighway(THREE, HWY2_POINTS, floor));
+  // Hwy 2 is no longer drawn over the photo (Patrick, 5 Oct: "it looks like trash"); the photo shows the road.
+  // HWY2_POINTS stays as the road's traced line.
   return root;
 }
 

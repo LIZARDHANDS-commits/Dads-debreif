@@ -472,6 +472,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
 
   // "Spawn aircraft" opens and closes like Traffic settings, closed at first (Patrick, 4 Oct).
   const spawnPanel = createPanel({ title: 'Spawn aircraft', collapsed: true });
+  spawnPanel.element.classList.add('panel-pop'); // stands out as clickable (Patrick, 5 Oct)
   const spawnerBody = h(
     'section',
     { class: 'spawner', 'aria-label': 'Spawn aircraft' },

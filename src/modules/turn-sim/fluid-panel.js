@@ -110,7 +110,6 @@ export function createFluidUi({ onPress, onSettings, settings }) {
     h('h3', { class: 'ts-group-title', id: 'ts-fluid-title' }, 'Fluid manoeuvring, Lead'),
     hint,
     h('div', { class: 'ts-change-grid' }, buttons),
-    more,
   );
 
   // ---- the card's lines ----
@@ -120,6 +119,8 @@ export function createFluidUi({ onPress, onSettings, settings }) {
 
   return {
     element,
+    /** Fluid settings: Lead's bank, the distance, how #2 is flown. They sit in the left column's Settings box (Patrick, 5 Oct). */
+    settingsElement: more,
     cardElement,
     /** Lead's buttons work only while fluid manoeuvring runs; Terminate and the rest grey once Terminate is flown. */
     update(state) {

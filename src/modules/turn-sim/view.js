@@ -11,6 +11,7 @@ import { turnRadiusFt, turnRadiusFromBankFt, limitG, MIN_TURN_G } from '../../co
 import { ktToFtps, formatNm } from '../../core/units.js';
 import { distance } from '../../core/geo.js';
 import { SHIP_COLORS, OUTLINED_SHIPS } from './layout.js';
+import { FW_TURN } from './live/tuning.js';
 
 const FT_PER_NM = 6076.11549;
 const MINUS = '−';
@@ -28,7 +29,10 @@ function pairDistances(state) {
     .filter(([a, b]) => byId.has(a) && byId.has(b))
     .map(([a, b]) => ({ label: `${a}-${b}`, a, b, distFt: distance(byId.get(a), byId.get(b)) }));
 }
-const BACKGROUND = '#071018'; // V6's
+/** The backdrop (Patrick, 5 Oct): a dark neutral charcoal, so all four ship colours read equally (was V6's navy #071018). */
+export const BACKGROUND = '#1c2127';
+/** The 3/9 and 7/5 lines are red for every aircraft (Patrick, 5 Oct). */
+export const CLOCK_LINE_RED = '#ff4d4d';
 const OUTLINE = '#02060a';
 const FONT = 'system-ui, sans-serif';
 const TRAIL_ALPHA = 0.55;
@@ -89,13 +93,19 @@ export function plannedBounds(run, maxSteps = 12100) {
 export function createTurnSimView(canvas, { timers, source, onUserMove }) {
   let needsFit = null; // bounds to fit at the next draw, once the canvas has its real size
   let ready = false;
+  let drawnScale = 1; // the zoom the last frame was drawn at, so a move by the person can be told as a zoom or a pan
 
   const map = createCanvasView(canvas, {
     timers,
     minSpan: MIN_SPAN_FT,
     maxSpan: MAX_SPAN_FT,
     label: 'The formation from above. Drag to move, scroll or press + and − to zoom.',
-    onUserMove,
+    // onUserMove(kind, ratio): 'zoom' with how much the zoom changed, or 'pan'
+    onUserMove: () => {
+      const ratio = map.view.scale / drawnScale;
+      drawnScale = map.view.scale;
+      onUserMove?.(Math.abs(ratio - 1) > 1e-9 ? 'zoom' : 'pan', ratio);
+    },
     draw(ctx) {
       if (needsFit && ready && map.size.width > 0 && map.size.height > 0) { // a hidden canvas (3D is showing) has no size: keep the fit for when 2D is back
         const bounds = needsFit;
@@ -110,15 +120,20 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
       if (follow) followFormation(map, follow);
       else if (layers.followLead && lead && (lead.xFt !== map.view.cx || lead.yFt !== map.view.cy)) map.setCenter(lead.xFt, lead.yFt);
 
+      drawnScale = map.view.scale;
       const { width, height } = map.size;
       ctx.fillStyle = BACKGROUND;
       ctx.fillRect(0, 0, width, height);
       drawGrid(ctx, map);
       if (Number.isFinite(settings.moaBoundaryNm)) drawMoa(ctx, map, settings.moaBoundaryNm);
-      if (layers.lead39 && lead) drawLead39(ctx, map, lead);
-      if (layers.lead75 && lead) drawLead75(ctx, map, lead);
+      // The Cone, the 3/9 and the 7/5 lines, for each aircraft ticked in its list (Patrick, 5 Oct).
+      for (const a of state.aircraft) {
+        if (layers.cone && layers[`cone_${a.id}`]) drawCone(ctx, map, a);
+        if (layers.lead39 && layers[`l39_${a.id}`]) drawLead39(ctx, map, a);
+        if (layers.lead75 && layers[`l75_${a.id}`]) drawLead75(ctx, map, a);
+      }
       const { trail, marks } = source.trails();
-      if (layers.tracks !== false) drawTrails(ctx, map, trail);
+      if (layers.tracks !== false) drawTrails(ctx, map, trailSince(trail, state.tSec, layers.trackSec));
       if (layers.planned && source.planned) drawPlanned(ctx, map, source.planned(), state.tSec);
       const tags = layers.tags ? source.tags?.() : null;
       const rejoin = source.rejoin?.();
@@ -131,7 +146,9 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
         else drawTurnCircles(ctx, map, state, settings);
       }
       if (layers.clockMarks) for (const a of state.aircraft) drawClockMarks(ctx, map, a);
-      for (const a of state.aircraft) drawAircraft(ctx, map, a, !tags);
+      // Real aircraft size (Patrick, 5 Oct): a T-6's real length at this zoom, or the usual size times the Scale slider.
+      const symbolPx = layers.realSize ? (T6_LENGTH_FT * map.view.scale) / SYMBOL_LENGTH_UNITS : SYMBOL_PX * (layers.planeScale ?? 1);
+      for (const a of state.aircraft) drawAircraft(ctx, map, a, !tags, symbolPx);
       if (tags) drawTags(ctx, map, state, tags);
       if (layers.errorLabels) drawErrorLabels(ctx, map, state, source.labels(), tags);
     },
@@ -161,11 +178,11 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
  * zoom eases toward that, or jumps to it when snap; follow.zoom false keeps the
  * zoom as it is.
  */
-function followFormation(map, { x, y, spanFt = 0, spanXFt = spanFt, spanYFt = spanFt, zoom = true, snap = false }) {
+function followFormation(map, { x, y, spanFt = 0, spanXFt = spanFt, spanYFt = spanFt, zoom = true, snap = false, zoomFactor = 1 }) {
   const { width, height } = map.size;
   let scale = map.view.scale;
   if (zoom && width > 0 && height > 0 && spanXFt > 0 && spanYFt > 0) {
-    const want = Math.min(width / spanXFt, height / spanYFt);
+    const want = Math.min(width / spanXFt, height / spanYFt) * zoomFactor; // zoomFactor: the person's wheel zoom on top of the fit
     scale = snap ? want : scale + (want - scale) * FOLLOW_ZOOM_EASE;
   }
   if (x !== map.view.cx || y !== map.view.cy || scale !== map.view.scale) map.setView({ cx: x, cy: y, scale });
@@ -189,7 +206,7 @@ function drawGrid(ctx, map) {
   let step = FT_PER_NM;
   while (step * map.view.scale < 14) step *= 5;
   const { minX, minY, maxX, maxY } = map.visibleBounds();
-  ctx.strokeStyle = '#142334';
+  ctx.strokeStyle = '#2b333b'; // a faint grey grid on the charcoal (was navy #142334)
   ctx.lineWidth = 1;
   ctx.beginPath();
   for (let x = Math.floor(minX / step) * step; x <= maxX; x += step) {
@@ -220,7 +237,51 @@ function drawMoa(ctx, map, nm) {
   ctx.restore();
 }
 
-/** Lead's 3/9 line: across Lead's heading, through Lead (V6 drawLead39Line, line 1757). */
+const shipName = (a) => (a.id === 1 ? 'Lead' : `#${a.id}`);
+
+/** Real length of a T-6 (feet), for Real aircraft size; the 3D view reads it from here. */
+export const T6_LENGTH_FT = 33.4;
+/** The 2D symbol's half-length in pixels at the usual size, and its nose-to-tail length in those units (1 + 0.65). */
+const SYMBOL_PX = 15;
+const SYMBOL_LENGTH_UNITS = 1.65;
+
+/**
+ * The fighting wing cone behind an aircraft, both sides, lightly shaded in its colour: 30-60° of sweep back from its wing
+ * line and 500-1,000 ft from it (SMM 12.29 para 69, Fig 12.19; FW_TURN.band). Patrick, 5 Oct.
+ */
+function drawCone(ctx, map, a) {
+  const { minFt, maxFt, minSweepDeg, maxSweepDeg } = FW_TURN.band;
+  const deg = Math.PI / 180;
+  const steps = 12;
+  ctx.save();
+  ctx.fillStyle = SHIP_COLORS[a.id] ?? '#d9e6f2';
+  ctx.strokeStyle = SHIP_COLORS[a.id] ?? '#d9e6f2';
+  ctx.lineWidth = 1;
+  for (const side of [1, -1]) { // +1 left, -1 right; a bearing of heading + side·(90° + sweep) is that far back from the wing line
+    const at = (r, sweepDeg) => {
+      const h = a.headingRad + side * (Math.PI / 2 + sweepDeg * deg);
+      return map.worldToScreen(a.xFt + Math.cos(h) * r, a.yFt + Math.sin(h) * r);
+    };
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const [x, y] = at(maxFt, minSweepDeg + ((maxSweepDeg - minSweepDeg) * i) / steps);
+      if (i) ctx.lineTo(x, y);
+      else ctx.moveTo(x, y);
+    }
+    for (let i = steps; i >= 0; i--) {
+      const [x, y] = at(minFt, minSweepDeg + ((maxSweepDeg - minSweepDeg) * i) / steps);
+      ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.globalAlpha = 0.14;
+    ctx.fill();
+    ctx.globalAlpha = 0.45;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** An aircraft's 3/9 line: across its heading, through it (V6 drawLead39Line, line 1757), in its colour. */
 function drawLead39(ctx, map, lead) {
   const left = { x: Math.cos(lead.headingRad + Math.PI / 2), y: Math.sin(lead.headingRad + Math.PI / 2) };
   const len = Math.max(map.size.width, map.size.height) / map.view.scale * 0.75;
@@ -228,7 +289,7 @@ function drawLead39(ctx, map, lead) {
   const [bx, by] = map.worldToScreen(lead.xFt + left.x * len, lead.yFt + left.y * len);
   const [cx, cy] = map.worldToScreen(lead.xFt, lead.yFt);
   ctx.save();
-  ctx.strokeStyle = '#58a6ff';
+  ctx.strokeStyle = CLOCK_LINE_RED;
   ctx.globalAlpha = 0.8;
   ctx.lineWidth = 2;
   ctx.setLineDash([10, 8]);
@@ -237,7 +298,7 @@ function drawLead39(ctx, map, lead) {
   ctx.lineTo(bx, by);
   ctx.stroke();
   ctx.restore();
-  text(ctx, 'Lead 3/9', cx - 16, cy - 26, '#b9d8f5', 11, 'right'); // above the line, off the circle labels below
+  text(ctx, `${shipName(lead)} 3/9`, cx - 16, cy - 26, '#b9d8f5', 11, 'right'); // above the line, off the circle labels below
 }
 
 /**
@@ -250,7 +311,7 @@ function drawLead75(ctx, map, lead) {
   // Left of the tail is +, so 7 o'clock is the tail +30° and 5 o'clock the tail -30°.
   const lines = [{ clock: '5', h: lead.headingRad + Math.PI - Math.PI / 6 }, { clock: '7', h: lead.headingRad + Math.PI + Math.PI / 6 }];
   ctx.save();
-  ctx.strokeStyle = '#58a6ff';
+  ctx.strokeStyle = CLOCK_LINE_RED;
   ctx.globalAlpha = 0.6;
   ctx.lineWidth = 1.5;
   ctx.setLineDash([4, 6]);
@@ -265,8 +326,16 @@ function drawLead75(ctx, map, lead) {
   const labelAt = 140 / map.view.scale; // 140 px out along each line, clear of the 3/9 label
   for (const { clock, h } of lines) {
     const [lx, ly] = map.worldToScreen(lead.xFt + Math.cos(h) * labelAt, lead.yFt + Math.sin(h) * labelAt);
-    text(ctx, `Lead ${clock}`, lx + 6, ly, '#b9d8f5', 11);
+    text(ctx, `${shipName(lead)} ${clock}`, lx + 6, ly, '#b9d8f5', 11);
   }
+}
+
+/** Each track cut to its last `sec` seconds (Settings › Track length, Patrick 5 Oct); 0 or none keeps the whole flight. */
+export function trailSince(trail, now, sec) {
+  if (!(sec > 0)) return trail;
+  const out = {};
+  for (const [id, points] of Object.entries(trail)) out[id] = points.filter((p) => p[0] >= now - sec);
+  return out;
 }
 
 function drawTrails(ctx, map, trail) {
@@ -275,7 +344,10 @@ function drawTrails(ctx, map, trail) {
   for (const [id, points] of Object.entries(trail)) {
     if (points.length < 2) continue;
     ctx.strokeStyle = SHIP_COLORS[id] ?? '#d9e6f2';
-    ctx.lineWidth = OUTLINED_SHIPS.has(Number(id)) ? 3 : 2;
+    // Dots, slightly see-through (Patrick, 5 Oct: "slightly translucent dots").
+    ctx.lineWidth = OUTLINED_SHIPS.has(Number(id)) ? 3.5 : 3;
+    ctx.lineCap = 'round';
+    ctx.setLineDash([0.1, 7]);
     ctx.beginPath();
     points.forEach(([, x, y], i) => {
       const [sx, sy] = map.worldToScreen(x, y);
@@ -481,9 +553,8 @@ function drawClockMarks(ctx, map, a) {
 }
 
 /** The aircraft: a nose-up arrow turned to its heading, with its number. #4 is white with a dark outline (#29). */
-function drawAircraft(ctx, map, a, named = true) {
+function drawAircraft(ctx, map, a, named = true, s = SYMBOL_PX) {
   const [x, y] = map.worldToScreen(a.xFt, a.yFt);
-  const s = 15;
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(Math.PI / 2 - a.headingRad);
@@ -510,15 +581,102 @@ function drawAircraft(ctx, map, a, named = true) {
 /** The red of a tag's IDLE, BOARDS and IDLE+BOARDS (Patrick 01:44Z: "red letters"), light enough to read on the dark box. */
 const POWER_RED = '#ff5a5a';
 
-function drawTags(ctx, map, state, tags) {
+/** A data tag (tags.js formatTag): the title in white, then each line in the aircraft's colour, or red. */
+/** Each tag's direction out from the formation, eased frame to frame so a small wobble doesn't shake it (Patrick, 5 Oct). */
+const tagDirs = new Map();
+
+function drawLinesTag(ctx, map, x, y, tag, colour, pad, placed = [], centre = null, id = 0, nose = null) {
+  const rows = [tag.title, ...tag.lines.map((l) => l.text)];
+  const w = Math.max(...rows.map((t) => ctx.measureText(t).width)) + 2 * pad;
+  const h = 4 + rows.length * 11;
+  // Up and to the right of the aircraft, clear of it (Patrick, 5 Oct: the tags covered the aircraft); left when the right
+  // would run off the picture, below when the top would.
+  const gap = 90; // well clear of the aircraft, joined to it by a leader line (Patrick, 5 Oct)
+  // Out on the far side from the formation's middle (Patrick, 5 Oct: "away from the formation"); up and right when alone.
+  let dx = centre ? x - centre[0] : 1;
+  let dy = centre ? y - centre[1] : -1;
+  const len = Math.hypot(dx, dy);
+  if (len < 1) { dx = 1; dy = -1; } else { dx /= len; dy /= len; }
+  // Clear of the lines (Patrick, 5 Oct: "so they don't touch any lines"): the planned path runs ahead, the 3/9 line out each
+  // wing, the 7/5 lines and the track behind, so the tag goes on a forward diagonal, 45° off the nose, on the side away
+  // from the formation.
+  if (nose) {
+    const hl = Math.hypot(nose[0] - x, nose[1] - y);
+    if (hl > 0.5) {
+      const hx = (nose[0] - x) / hl;
+      const hy = (nose[1] - y) / hl;
+      const c = Math.SQRT1_2;
+      const a1 = [hx * c - hy * c, hx * c + hy * c];
+      const a2 = [hx * c + hy * c, -hx * c + hy * c];
+      [dx, dy] = a1[0] * dx + a1[1] * dy >= a2[0] * dx + a2[1] * dy ? a1 : a2;
+    }
+  }
+  const was = tagDirs.get(id);
+  if (was) {
+    dx = was[0] + (dx - was[0]) * 0.15;
+    dy = was[1] + (dy - was[1]) * 0.15;
+    const l = Math.hypot(dx, dy) || 1;
+    dx /= l;
+    dy /= l;
+  }
+  tagDirs.set(id, [dx, dy]);
+  const ax = x + dx * gap;
+  const ay = y + dy * gap;
+  // The box slides smoothly round its anchor with the direction (no jump from one side to the other).
+  let tx = ax + ((dx - 1) / 2) * w;
+  let ty = ay + ((dy - 1) / 2) * h;
+  tx = Math.max(0, Math.min(map.size.width - w, tx));
+  ty = Math.max(0, Math.min(map.size.height - h, ty));
+  const away = dy >= 0 ? 1 : -1; // a tag that would cover another moves further out the same way
+  // Close formations put the aircraft side by side: a tag that would cover one already drawn moves up above it.
+  for (let moved = true; moved;) {
+    moved = false;
+    for (const r of placed) {
+      if (tx < r.x + r.w && tx + w > r.x && ty < r.y + r.h + 3 && ty + h + 3 > r.y) {
+        ty = away > 0 ? r.y + r.h + 3 : r.y - h - 3;
+        moved = true;
+      }
+    }
+  }
+  placed.push({ x: tx, y: ty, w, h });
+  // The leader: from the aircraft to the box's nearest corner, in its colour.
+  const cx = Math.max(tx, Math.min(tx + w, x)); // the leader meets the box's nearest edge
+  const cy = Math.max(ty, Math.min(ty + h, y));
+  ctx.strokeStyle = colour;
+  ctx.globalAlpha = 0.7;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(cx, cy);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = 'rgba(10, 18, 28, 0.5)'; // see-through, so the picture shows behind it (was 0.85)
+  ctx.fillRect(tx, ty, w, h);
+  ctx.strokeRect(tx, ty, w, h);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(tag.title, tx + pad, ty + 11);
+  tag.lines.forEach((l, i) => {
+    ctx.fillStyle = l.red ? POWER_RED : colour;
+    ctx.fillText(l.text, tx + pad, ty + 22 + i * 11);
+  });
+}
+
+export function drawTags(ctx, map, state, tags) {
+  const placed = [];
+  const spots = state.aircraft.map((a) => (map.screenOf ? map.screenOf(a) : map.worldToScreen(a.xFt, a.yFt)));
+  const centre = spots.length > 1 ? [spots.reduce((t, p) => t + p[0], 0) / spots.length, spots.reduce((t, p) => t + p[1], 0) / spots.length] : null;
+  // A point 100 ft ahead of each aircraft on screen, for its heading (the 3D view passes its own).
+  const noseOf = (a) => (map.noseOf ? map.noseOf(a) : map.worldToScreen(a.xFt + Math.cos(a.headingRad) * 100, a.yFt + Math.sin(a.headingRad) * 100));
   ctx.save();
   ctx.font = `10px ${FONT}`;
   for (const a of state.aircraft) {
     const tag = tags[a.id];
     if (!tag) continue;
     const colour = SHIP_COLORS[a.id] ?? '#d9e6f2';
-    const [x, y] = map.worldToScreen(a.xFt, a.yFt);
+    const [x, y] = map.screenOf ? map.screenOf(a) : map.worldToScreen(a.xFt, a.yFt); // screenOf: the 3D view's, with height
     const pad = 4;
+    if (tag.lines) { drawLinesTag(ctx, map, x, y, tag, colour, pad, placed, centre, a.id, noseOf(a)); continue; }
     const power = tag.power ?? null;
     const w = Math.max(ctx.measureText(tag.title).width, ctx.measureText(tag.detail).width, power ? ctx.measureText(power.text).width : 0) + 2 * pad;
     const h = power ? 37 : 26;

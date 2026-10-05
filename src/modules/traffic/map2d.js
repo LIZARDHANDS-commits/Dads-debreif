@@ -29,7 +29,7 @@ import { ejectionAt } from './ejection.js';
 import { trueAltFt } from './weather.js';
 import { FIELD_ELEV_FT, THRESHOLD_29L, PFL_CIRCLE_RADIUS_FT, PATTERN_ALT_FT, trueToMagnetic } from './airfield.js';
 import { TYPE_COLORS as FLEET_COLORS } from './types.js';
-import { T6_LENGTH_FT } from './types.js';
+import { CLOSE_UP_DRAW_FT } from './types.js';
 
 export const MAP_MIN_SPAN_FT = 300;
 export const MAP_MAX_SPAN_FT = 200_000;
@@ -250,7 +250,7 @@ export const MIN_SYMBOL_PX = 14;
  * shape's units) once that is bigger than MIN_SYMBOL_PX, so zoomed in it grows with the map and never
  * looks smaller than the aircraft really is (Patrick, 4 Oct 09:19Z).
  */
-export const aircraftSymbolPx = (pxPerFt, scale = 1) => Math.max(MIN_SYMBOL_PX, (T6_LENGTH_FT * pxPerFt) / 1.7) * (Number(scale) > 0 ? Number(scale) : 1);
+export const aircraftSymbolPx = (pxPerFt, scale = 1) => Math.max(MIN_SYMBOL_PX, (CLOSE_UP_DRAW_FT * pxPerFt) / 1.7) * (Number(scale) > 0 ? Number(scale) : 1);
 
 /** The smallest a conflict bubble and a caution ring are drawn on screen, in pixels, so they can be seen when zoomed out. */
 export const MIN_BUBBLE_PX = 8;

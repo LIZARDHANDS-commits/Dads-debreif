@@ -143,7 +143,9 @@
 [data-module='turn-sim'] .ts-message[hidden],
 [data-module='turn-sim'] .ts-flags[hidden],
 [data-module='turn-sim'] .ts-turn[hidden],
-[data-module='turn-sim'] .ts-move[hidden] {
+[data-module='turn-sim'] .ts-move[hidden],
+[data-module='turn-sim'] .ts-field[hidden],
+[data-module='turn-sim'] .ts-hint[hidden] {
   display: none;
 }
 
@@ -344,6 +346,19 @@
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/* The info tags drawn over the 3D picture: on top, and clicks go through to the 3D view. */
+[data-module='turn-sim'] .ts-tags3d {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+[data-module='turn-sim'] .ts-tags3d[hidden],
+[data-module='turn-sim'] .choice-option[hidden],
+[data-module='turn-sim'] .ts-menu-body .control-checkbox[hidden] {
+  display: none;
 }
 
 /* Formation card */
@@ -565,3 +580,231 @@
 [data-module='turn-sim'] .ts-flags {
   margin: 0 0 var(--space-2);
 }
+
+/* The Camera menu (Patrick, 5 Oct): each choice under its own label, the options wrapping. */
+[data-module='turn-sim'] .ts-bar .ts-menu-body .control-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-2);
+}
+
+[data-module='turn-sim'] .ts-bar .ts-menu-body .control-choice > legend {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+  margin-bottom: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* The column boxes' header buttons "pop" so they read as clickable (Patrick, 5 Oct), as Traffic's do: an accent edge and
+   tint, bold title, the marker in the accent, brighter on hover; a little gap between the boxes. */
+[data-module='turn-sim'] .panel-pop > .panel-header > .panel-toggle {
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg-raised));
+  color: var(--text);
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.35);
+  cursor: pointer;
+}
+
+[data-module='turn-sim'] .panel-pop > .panel-header > .panel-toggle::after {
+  color: var(--accent-strong);
+}
+
+[data-module='turn-sim'] .panel-pop > .panel-header > .panel-toggle:hover {
+  background: color-mix(in srgb, var(--accent) 28%, var(--bg-raised));
+  border-color: var(--accent-strong);
+}
+
+[data-module='turn-sim'] .ts-col-setup .panel-pop + .panel-pop {
+  margin-top: var(--space-2);
+}
+
+/* The 3/9, 7/5 and Cone layers (Patrick, 5 Oct): the tick, then a row of small ticks for which aircraft draw it. */
+[data-module='turn-sim'] .ts-ship-ticks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-3);
+  margin: 0 0 var(--space-2) var(--space-5);
+  font-size: var(--text-sm);
+}
+
+/* Real aircraft size and its scale slider, in the bar (Patrick, 5 Oct). */
+[data-module='turn-sim'] .ts-size {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-sim'] .ts-size .control {
+  margin: 0;
+}
+
+[data-module='turn-sim'] .ts-size .control-slider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+[data-module='turn-sim'] .ts-size .control-slider input {
+  width: 7rem;
+}
+
+[data-module='turn-sim'] .ts-size .control-slider[hidden] {
+  display: none;
+}
+
+/* The Cone's 2D projection | 3D choice, under its aircraft ticks. */
+[data-module='turn-sim'] .ts-cone-shape {
+  margin: 0 0 var(--space-2) var(--space-5);
+}
+
+[data-module='turn-sim'] .ts-cone-shape .control-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: var(--text-sm);
+}
+
+/* Change formation in two groups, Tactical and Close formation (Patrick, 5 Oct). */
+[data-module='turn-sim'] .ts-change-subtitle {
+  margin: var(--space-2) 0 var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* Controls, easier to read (Patrick, 5 Oct). Section bars: FORMATION (with Side) and MANOEUVRES. */
+[data-module='turn-sim'] .ts-section-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 var(--space-2);
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--accent);
+}
+
+[data-module='turn-sim'] .ts-section-bar h3 {
+  margin: 0;
+  color: var(--accent-strong);
+  font-size: var(--text-md);
+  font-weight: 800;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+[data-module='turn-sim'] .ts-section-bar .ts-side {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+[data-module='turn-sim'] .ts-section-bar .ts-side .button {
+  min-height: 0;
+  padding: 0.15rem 0.5rem;
+  font-size: var(--text-sm);
+}
+
+/* Tactical and Close: quiet sub-labels; three buttons a row. */
+[data-module='turn-sim'] .ts-change-subtitle {
+  margin: var(--space-2) 0 var(--space-1);
+  font-size: 0.72rem;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+[data-module='turn-sim'] .ts-change-group .ts-change-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+
+[data-module='turn-sim'] .ts-change-group .ts-change-button {
+  min-height: 2.4rem;
+  padding: var(--space-1);
+  font-size: var(--text-sm);
+}
+
+/* The formation flown now: lit, not greyed. */
+[data-module='turn-sim'] .ts-change-button[aria-current='true'] {
+  opacity: 1;
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 24%, var(--bg-raised));
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* Manoeuvres: the name, then small L and R; the into/away words are for screen readers only. */
+[data-module='turn-sim'] .ts-move {
+  grid-template-columns: minmax(0, 1fr) 2.6rem 2.6rem;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-1);
+}
+
+[data-module='turn-sim'] .ts-move .ts-move-button {
+  min-height: 2rem;
+  padding: 0.15rem;
+}
+
+[data-module='turn-sim'] .ts-move .ts-move-hint {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Shackle and Cross turn side by side. */
+[data-module='turn-sim'] .ts-move.ts-move-single {
+  grid-template-columns: minmax(0, 1fr);
+  display: inline-grid;
+  width: calc(50% - var(--space-1) / 2);
+  vertical-align: top;
+}
+
+[data-module='turn-sim'] .ts-move-single + .ts-move-single {
+  margin-left: var(--space-1);
+}
+
+[data-module='turn-sim'] .ts-move.ts-move-single[hidden] {
+  display: none;
+}
+
+/* Side, its own row under the formation groups (Patrick, 5 Oct). */
+[data-module='turn-sim'] .ts-side-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+}
+
+[data-module='turn-sim'] .ts-side-row .button {
+  min-height: 0;
+  padding: 0.2rem 0.6rem;
+  font-size: var(--text-sm);
+}
+
+/* Controls: every text 1 px bigger (Patrick, 5 Oct). */
+[data-module='turn-sim'] .ts-controls .panel-body { font-size: calc(var(--text-md) + 1px); }
+[data-module='turn-sim'] .ts-controls .ts-section-bar h3 { font-size: calc(var(--text-md) + 1px); }
+[data-module='turn-sim'] .ts-controls .ts-change-subtitle { font-size: calc(0.72rem + 1px); }
+[data-module='turn-sim'] .ts-controls .ts-change-group .ts-change-button,
+[data-module='turn-sim'] .ts-controls .ts-side-row .button,
+[data-module='turn-sim'] .ts-controls .ts-hint { font-size: calc(var(--text-sm) + 1px); }
+[data-module='turn-sim'] .ts-controls .ts-move-name,
+[data-module='turn-sim'] .ts-controls .ts-move-button { font-size: calc(var(--text-md) + 1px); }
+
+/* FORMATION and MANOEUVRES centred, a little more room above MANOEUVRES (Patrick, 5 Oct). */
+[data-module='turn-sim'] .ts-controls .ts-section-bar { justify-content: center; }
+[data-module='turn-sim'] .ts-controls .ts-change + .ts-section-bar { margin-top: var(--space-5); }

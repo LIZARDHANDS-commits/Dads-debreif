@@ -31,8 +31,15 @@ const ct102bProfile = Object.freeze({
 });
 
 /** Standard aircraft type profiles and circuit speeds (KIAS). */
-/** Real length of a T-6 nose to tail, feet (33 ft 4 in; the value the 3D view has used, not yet cited to a manual page). The 2D and 3D views draw aircraft no smaller than this. */
+/** Real length of a T-6 nose to tail, feet (33 ft 4 in; the value the 3D view has used, not yet cited to a manual page). */
 export const T6_LENGTH_FT = 33.4;
+
+/**
+ * The smallest an aircraft is drawn on the ground, feet, so zoomed in close it stops shrinking against the ground at
+ * about half 29L's 150 ft width, about 2.2 times a real T-6 (Patrick, 5 Oct: "stop getting smaller when their wings
+ * are about ... 1/2 of the runway width"). A drawing size only: the flying uses real sizes.
+ */
+export const CLOSE_UP_DRAW_FT = 75;
 
 export const AIRCRAFT_TYPES = Object.freeze({
   'CT-156': Object.freeze({

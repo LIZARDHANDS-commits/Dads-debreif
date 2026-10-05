@@ -24,8 +24,8 @@ import { createChangeUi } from './transitions-panel.js';
 import { createFluidUi } from './fluid-panel.js';
 import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, LAYOUT_VERSION, SHIP_COLORS, migrateLayout } from './layout.js';
 import { createTurnSimView } from './view.js';
-import { tagLines } from './tags.js';
-import { createView3d } from './view3d.js';
+import { tagLines, formatTag } from './tags.js';
+import { createView3d, yawBehind } from './view3d.js';
 
 const STYLESHEET = new URL('./turn-sim.css', import.meta.url).href;
 
@@ -70,7 +70,9 @@ const FW_DEFAULTS = Object.freeze({
   fw4OtherRangeFt: FW4.rangeFt,
   fw4OtherDeg: FW4.otherDeg,
 });
-const SETUP_DEFAULTS = Object.freeze({ ships: LIVE_DEFAULTS.ships, check45: LIVE_DEFAULTS.check45, spacingFt: LIVE_DEFAULTS.spacingFt, wingSide: LIVE_DEFAULTS.wingSide, ...FW_DEFAULTS, ...ERROR_DEFAULTS });
+/** The screen starts line abreast at 4,000 ft (Patrick, 5 Oct), the close side of the 4,000 to 6,000 ft band (SMM 16.18 para 49). */
+const START_SPACING_FT = 4000;
+const SETUP_DEFAULTS = Object.freeze({ ships: LIVE_DEFAULTS.ships, check45: LIVE_DEFAULTS.check45, spacingFt: START_SPACING_FT, wingSide: LIVE_DEFAULTS.wingSide, ...FW_DEFAULTS, ...ERROR_DEFAULTS });
 
 /** The flags for fighting wing places outside the SMM band (SMM 12.29 para 69), for the ships flown: flown anyway, never refused. */
 function fwFlags(values) {
@@ -163,19 +165,54 @@ function mount(root, app) {
   let snapNext = true; // the next 2D frame takes the fit at once (after a reset or Fit)
   let wantView = '2d';
 
-  /** The box every aircraft is in, grown by the fit's margin: its middle and its size each way (feet). */
+  /**
+   * The camera's centre and size: centred on the formation's centre of mass (every aircraft weighed the same; Patrick,
+   * 5 Oct), and wide enough each way to hold the aircraft furthest from it, grown by the fit's margin (feet).
+   */
   const fitBox = () => {
     const xs = state.aircraft.map((a) => a.xFt);
     const ys = state.aircraft.map((a) => a.yFt);
     const grow = 1 / (1 - 2 * FIT.marginShare);
-    const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    const on = camAircraft(); // the Camera menu's choice: one aircraft, or the formation's centre of mass
+    const x = on ? on.xFt : xs.reduce((s, v) => s + v, 0) / xs.length;
+    const y = on ? on.yFt : ys.reduce((s, v) => s + v, 0) / ys.length;
+    const reach = (vs, c) => Math.max(...vs.map((v) => Math.abs(v - c)));
     return {
-      x: (minX + maxX) / 2,
-      y: (minY + maxY) / 2,
-      spanXFt: Math.max(FIT.minSpanFt, (maxX - minX) * grow),
-      spanYFt: Math.max(FIT.minSpanFt, (maxY - minY) * grow),
+      x,
+      y,
+      spanXFt: Math.max(FIT.minSpanFt, 2 * reach(xs, x) * grow),
+      spanYFt: Math.max(FIT.minSpanFt, 2 * reach(ys, y) * grow),
     };
   };
+  let zoomFactor2d = 1; // the person's wheel zoom on top of the 2D fit; Fit puts it back to 1
+  /** The aircraft the Camera menu centres on, or null for the formation (or one this formation doesn't have). */
+  function camAircraft() {
+    const on = layout.get().camOn;
+    return on === 'formation' ? null : state.aircraft.find((a) => String(a.id) === on) ?? null;
+  }
+  /** Who an aircraft padlocks: Lead watches #2, #4 his element lead #3, the others Lead. */
+  const padlockOf = (id) => (id === 1 ? 2 : id === 4 ? 3 : 1);
+  /**
+   * The 3D camera on one aircraft (Patrick, 5 Oct): Chase, behind it along its nose; Follow (free look), centred on it and
+   * turned by hand (null: the person's yaw and pitch); Padlock, behind it looking at the other, tilted up or down by how far
+   * the other is above or below (pitchUpDeg, added to the person's tilt). Null for the formation.
+   */
+  function camLook() {
+    const on = camAircraft();
+    const mode = layout.get().camLook;
+    // On the formation, Chase turns the view with Lead's heading (Patrick, 5 Oct); Follow and Padlock leave it to the person.
+    if (!on) return mode === 'chase' && layout.get().camOn === 'formation' && state.aircraft[0] ? { yawDeg: yawBehind(state.aircraft[0].headingRad) } : null;
+    if (mode === 'free') return null;
+    if (mode === 'padlock') {
+      const other = state.aircraft.find((a) => a.id === padlockOf(on.id));
+      const across = other ? Math.hypot(other.xFt - on.xFt, other.yFt - on.yFt) : 0;
+      if (other && across > 0) {
+        const upFt = (other.altAboveFt ?? 0) - (on.altAboveFt ?? 0);
+        return { yawDeg: yawBehind(Math.atan2(other.yFt - on.yFt, other.xFt - on.xFt)), pitchUpDeg: (Math.atan2(upFt, across) * 180) / Math.PI };
+      }
+    }
+    return { yawDeg: yawBehind(on.headingRad) };
+  }
   const fitBounds = () => {
     const b = fitBox();
     return { minX: b.x - b.spanXFt / 2, maxX: b.x + b.spanXFt / 2, minY: b.y - b.spanYFt / 2, maxY: b.y + b.spanYFt / 2 };
@@ -184,12 +221,49 @@ function mount(root, app) {
    * The 2D camera: with Fit all aircraft on, centred on them and zoomed to fit them (eased, or at once after a reset or a
    * Fit press); off, it stays centred on them at the person's zoom. A pan or zoom pauses it (null: the camera stays put).
    */
+  const freeCamera = () => layout.get().camOn === 'free'; // Free (Patrick, 5 Oct): the camera follows nothing and doesn't zoom by itself
   const follow = () => {
-    if (cameraPaused) return null;
+    if (cameraPaused || freeCamera()) return null;
     const snap = snapNext;
     snapNext = false;
-    return { ...fitBox(), zoom: layout.get().autoFit || snap, snap };
+    return { ...fitBox(), zoom: layout.get().autoFit || snap, snap, zoomFactor: snap ? 1 : zoomFactor2d };
   };
+  /**
+   * The data tags (Patrick, 5 Oct): each aircraft's tag with what the Data tag menu ticks, and during a rejoin the
+   * wingman's closure and Lead's clock position.
+   */
+  /**
+   * The guides follow the formation (Patrick, 5 Oct): Lead's 3/9 line comes on in line abreast (Spread 4 for the four) and
+   * goes off in the others; Lead's cone comes on in fighting wing and goes off in the others. Lead only. Set once each time
+   * the formation changes, so a tick changed by hand holds until the next change.
+   */
+  let guidesFor = null;
+  function autoGuides(key) {
+    if (!key || key === 'other' || key === guidesFor) return;
+    guidesFor = key;
+    const only1 = (prefix, on) => ({ [`${prefix}_1`]: on || layout.get()[`${prefix}_1`], [`${prefix}_2`]: false, [`${prefix}_3`]: false, [`${prefix}_4`]: false });
+    const abreast = key === 'lab' || key === 'spread4';
+    const fw = key === 'fw';
+    layout.update({ lead39: abreast, ...(abreast ? only1('l39', true) : {}), cone: fw, ...(fw ? only1('cone', true) : {}) });
+  }
+
+  function dataTags() {
+    const tags = tagLines(state, formation.where());
+    const show = layout.get();
+    const lead = state.aircraft[0];
+    const out = {};
+    for (const a of state.aircraft) {
+      if (!tags[a.id]) continue;
+      let closure = null;
+      if (a.id !== 1 && state.current?.change?.rejoining) {
+        const r = rejoinReadout(lead, a);
+        const kt = Math.abs(r.closureKt) < 1 ? '0 kt' : `${r.closureKt > 0 ? '+' : ''}${Math.round(r.closureKt)} kt`;
+        closure = `closure ${kt}, Lead at ${r.clock}`;
+      }
+      out[a.id] = formatTag(tags[a.id], a, lead, show, closure);
+    }
+    return out;
+  }
   const showFit = () => ui.setFitShown(cameraPaused || !layout.get().autoFit);
   const pauseCamera = () => {
     if (cameraPaused) return;
@@ -200,7 +274,12 @@ function mount(root, app) {
   // ---- the pictures -------------------------------------------------------------------
   const view = createTurnSimView(ui.canvas, {
     timers: app.scheduler,
-    onUserMove: pauseCamera,
+    // A wheel zoom while the camera follows sets how close it sits and it keeps following (Patrick, 5 Oct: the zoom changes
+    // as the formation closes up); a drag hands the camera to the person until Fit.
+    onUserMove: (kind, ratio) => {
+      if (kind === 'zoom' && !cameraPaused && layout.get().autoFit) zoomFactor2d *= ratio;
+      else pauseCamera();
+    },
     source: {
       state: () => state,
       trails: () => ({ trail: state.tracks, marks: {} }),
@@ -209,7 +288,7 @@ function mount(root, app) {
       labels: () => ({}),
       follow,
       planned: () => state.planned,
-      tags: () => tagLines(state, formation.where()),
+      tags: dataTags,
       rejoin: () => {
         if (!state.current?.change?.rejoining || state.aircraft.length !== 2) return null;
         const r = rejoinReadout(state.aircraft[0], state.aircraft[1]);
@@ -220,18 +299,25 @@ function mount(root, app) {
   // three.js loads only when 3D is first switched on.
   const view3d = createView3d(ui.canvas3d, {
     timers: app.scheduler,
+    overlay: ui.tags3d,
     onUserMove: (kind) => {
-      if (kind === 'zoom') pauseCamera(); // turning the 3D view round keeps the fit; zooming takes it over
+      // turning the 3D view round keeps the fit; a wheel zoom while it follows sets how close it sits (view3d.js); with
+      // the fit off, it takes the camera over as before
+      if (kind === 'zoom' && (cameraPaused || !layout.get().autoFit)) pauseCamera();
     },
     source: {
       state: () => state,
       trails: () => ({ trail: state.tracks }),
       layers: () => layout.get(),
+      planned: () => state.planned,
+      tags: dataTags,
+      look: camLook,
       focus: () => {
+        if (freeCamera()) return null; // the 3D view keeps its own centre, moved by shift-drag or right-drag
         const b = fitBox();
         return { x: b.x, y: b.y };
       },
-      fitBounds: () => (cameraPaused || !layout.get().autoFit ? null : fitBounds()),
+      fitBounds: () => (cameraPaused || freeCamera() || !layout.get().autoFit ? null : fitBounds()),
       paint: () => layout.get().paint,
       bankSigns: () => ({}), // the live bank is already signed (left positive)
       colors: SHIP_COLORS,
@@ -250,6 +336,7 @@ function mount(root, app) {
   function fitNow() {
     cameraPaused = false;
     snapNext = true;
+    zoomFactor2d = 1;
     if (shown === '3d') fit3d();
     showFit();
     redraw();
@@ -294,11 +381,15 @@ function mount(root, app) {
     const wingSide = setup.get().wingSide;
     ui.renderCard(state.aircraft.length > 2 ? cardForFour(state, wingSide) : cardFor(state, wingSide));
     const whereAll = formation.where();
+    autoGuides(whereAll.key);
     changeUi.update(state, whereAll);
     changeUi.renderCard(state, whereAll);
     const ships = state.aircraft.length > 2 ? 4 : 2;
-    if (whereAll.key === 'fluid') {
-      ui.setMovesEnabled(false, undefined, 'In fluid manoeuvring Lead flies the fluid buttons under Change formation; Terminate first.');
+    if (state.current?.change) {
+      // While a change is flown, the new formation's manoeuvres wait until the aircraft are in it (Patrick, 5 Oct).
+      ui.setMovesEnabled(false, undefined, 'Changing formation. Its manoeuvres show once the change is flown.');
+    } else if (whereAll.key === 'fluid') {
+      ui.setMovesEnabled(false, undefined, ''); // the fluid buttons show instead (transitions-panel.js)
     } else if (TURN_FORMATIONS[ships].includes(whereAll.key)) {
       // In fighting wing and the close formations the turn buttons turn the formation (TS-55, spec section 10.2); the
       // shackle, the cross turn and G-warm stay line abreast moves.
