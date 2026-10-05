@@ -251,6 +251,26 @@ function mount(root, app) {
     layout.update({ lead39: abreast, ...(abreast ? only1('l39', true) : {}), cone: fw, ...(fw ? only1('cone', true) : {}) });
   }
 
+  /**
+   * The planned paths as drawn (Patrick, 5 Oct: the path moving with the aircraft was confusing): each one is frozen once
+   * drawn, so the aircraft flies along a still line (behind it the flown track takes over), and it is only redrawn when the
+   * aircraft reaches its end or a new manoeuvre, formation change or fluid move starts.
+   */
+  let planFrozen = {};
+  let planFor = null;
+  function shownPlan() {
+    const what = [state.current, state.fluid?.session.now().key, state.fluid?.session.now().label];
+    const changed = !planFor || what.some((w, i) => w !== planFor[i]);
+    planFor = what;
+    for (const [id, points] of Object.entries(state.planned ?? {})) {
+      const held = planFrozen[id];
+      const used = !held || held.length === 0 || held[held.length - 1][0] <= state.tSec;
+      if (changed || used) planFrozen[id] = points;
+    }
+    for (const id of Object.keys(planFrozen)) if (!state.planned?.[id]) delete planFrozen[id];
+    return planFrozen;
+  }
+
   function dataTags() {
     const tags = tagLines(state, formation.where());
     const show = layout.get();
@@ -291,7 +311,7 @@ function mount(root, app) {
       settings: () => ({}),
       labels: () => ({}),
       follow,
-      planned: () => state.planned,
+      planned: shownPlan,
       tags: dataTags,
       rejoin: () => {
         if (!state.current?.change?.rejoining || state.aircraft.length !== 2) return null;
@@ -313,7 +333,7 @@ function mount(root, app) {
       state: () => state,
       trails: () => ({ trail: state.tracks }),
       layers: () => layout.get(),
-      planned: () => state.planned,
+      planned: shownPlan,
       tags: dataTags,
       look: camLook,
       focus: () => {
@@ -455,6 +475,8 @@ function mount(root, app) {
   }
 
   function resetRun() {
+    planFrozen = {}; // the frozen planned paths go with the old run
+    planFor = null;
     pause();
     formation.reset({ ...setup.get() });
     owed = 0;
