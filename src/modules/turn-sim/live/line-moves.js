@@ -88,7 +88,9 @@ export function planLineChange(pair, to, options = {}, t0 = 0) {
   if (!rule) return null;
   const phases = legsFor(from.key, sCur, to, sTo, spacingFt);
   if (!phases.length) return null;
-  const finalSlot = pairSlot(to, sTo, spacingFt);
+  // A fighting wing side swap ends where its line ends: his place in the cone, mirrored (kinematic-moves.js routePoints, TS-86).
+  const swap = from.key === 'fw' && to === 'fw';
+  const finalSlot = swap ? rule.points[rule.points.length - 1] : pairSlot(to, sTo, spacingFt);
   const targetKias = to === 'lab' ? KIAS_LAB : KIAS_OUTSIDE_LAB;
   const speedSegs = Math.abs(lead.kias - targetKias) > 0.5 ? [speedSeg(lead.kias, targetKias, blockFt)] : [];
   /** @type {Array<any>} */
@@ -99,8 +101,11 @@ export function planLineChange(pair, to, options = {}, t0 = 0) {
   // Out to line abreast (OPEN_OUT, TS-78): the line at the speed full power can hold, slowing only near the slot, the tracker
   // from 150 ft at a rejoin's closure; a wide band needs no close-in run.
   const opening = to === 'lab';
-  const legs = onClosure(phases.slice(rule.tail < 0 ? phases.length + rule.tail : rule.tail), { closeIn: !opening });
-  const open = opening ? openOutRates(lead, blockFt) : null;
+  // Fighting wing to the other side is tactical too (Patrick 21:11Z; 22:29Z "Fighting wing side swap should be fast, not
+  // slow like the corner to corner station change"): the opening out's rates and law, not the close set's (TS-86).
+  const tactical = opening || swap;
+  const legs = onClosure(phases.slice(rule.tail < 0 ? phases.length + rule.tail : rule.tail), { closeIn: !tactical });
+  const open = tactical ? openOutRates(lead, blockFt) : null;
   let line;
   if (open) {
     // Lead holds his speed until #2 is out (OPEN_OUT.leadHolds, an estimate needing Patrick's yes): at 220 KIAS the T-6

@@ -62,6 +62,11 @@ export const LEAD = Object.freeze({
   gOnset: T6A_G_ONSET, // G per second and per second²: the T-6A's in core (estimate, design 5.3; TS-85)
   levelBanks: Object.freeze({ gentle: 30, medium: 60, steep: 70.5 }), // AFM7 p.17 (30, 60/2); SMM 16.18 para 50 (70/3, estimate as "steep")
   entryHoldSec: 5, // the entry's 30° bank stage while "all call ready" (AFM7 p.17): 5 s is an estimate
+  // The entry turn (AFM7 brief p.17: 30° away, then the chosen bank at MAX) is off: Lead flies straight and level while #2
+  // moves into the fluid picture, and the 360 waits for the Standard sequence (Patrick 5 Oct 22:30Z: "fluid manoeuvring
+  // should just move into position to begin, not start a turn yet. the 360 happens when we hit sequence"; TS-86). true
+  // flies AFM7's entry turn as before.
+  entryTurn: false,
   terminateBankDeg: 30, // "gentle" (AFM7 p.17), "predictable" (SMM 16.17 para 46): 30° is an estimate
   terminateTurnDeg: 90, // how far the terminate turn goes before rolling out: an estimate
   fwKias: 200, // fighting wing speed (TS-53; SMM 12.23 para 53)
@@ -623,8 +628,26 @@ function wingoverPath(h0, dir, A) {
   }, 2));
 }
 
-/** The entry from fighting wing (AFM7 brief p.17): a 30° bank turn away from #2 while all call ready, then 60° and PCL MAX. */
+/**
+ * The entry from fighting wing. By default (Patrick 22:30Z, LEAD.entryTurn false) Lead flies straight and level at his
+ * speed while #2 moves into the fluid picture, and the entry ends once he is in it; Lead then holds straight and level until
+ * the next press. With LEAD.entryTurn, AFM7 brief p.17's entry: a 30° bank turn away from #2 while all call ready, then
+ * the chosen bank and PCL MAX.
+ */
 export function entry(dir, bankDeg) {
+  if (!LEAD.entryTurn) {
+    return {
+      key: 'entry',
+      label: 'Entry: #2 into position, Lead straight and level',
+      interruptible: false,
+      init: (st) => ({ t: 0, fwKias: st.kias }),
+      step(st, mem, ctx) {
+        mem.t += STEP_SEC;
+        const blendSec = ctx?.blendInSec ?? WING.blendInSec;
+        return { g: gForClimb(st, 0), bank: 0, holdKias: mem.fwKias, phase: '#2 into position', cue: { mode: 'pure', latDeg: 15, blend: 1 }, done: mem.t > blendSec + 1 };
+      },
+    };
+  }
   const turn = levelTurn(dir, bankDeg);
   return {
     key: 'entry',
