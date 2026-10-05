@@ -92,5 +92,5 @@ export function buildScene({ setup, state, selectedRouteId, trailOf }) {
   });
   const trails = Object.create(null); // keyed by callsign: a callsign like __proto__ is an ordinary key here
   for (const a of state.aircraft) trails[a.id] = trailOf(a.id);
-  return { routes, selectedRouteId, aircraft: state.aircraft, conflicts: state.conflicts, trails, legs: legMarks(setup.routes), windFromDeg, windKt };
+  return { routes, selectedRouteId, aircraft: state.aircraft, conflicts: state.conflicts, trails, legs: legMarks(setup.routes), windFromDeg, windKt, t: state.t };
 }

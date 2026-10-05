@@ -415,6 +415,8 @@ function mount(root, app) {
     stylesheet.addEventListener('load', ready, { once: true });
     stylesheet.addEventListener('error', ready, { once: true });
   }
+  // It opens in the view the settings start with: 3D on Performance (Patrick, 5 Oct 06:31Z).
+  if (settings.get().view !== wantView) applyView(settings.get().view);
 
   // Space plays or pauses, Home resets, [ and ] step back and ahead 10 s: only while the Traffic Sim is open and
   // never while typing (app.keys). The bracket keys are matched by the character and by the key's place, for other layouts.

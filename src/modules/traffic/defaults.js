@@ -8,7 +8,7 @@
 // Rows that describe a rule rather than a number (which route the spawner
 // starts on) are kept as short words; the code that does the work reads them.
 
-import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
+import { VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import { RUNWAY_29L_HDG_DEG, DOWNWIND_29L_HDG_DEG } from './airfield.js';
 
@@ -25,8 +25,9 @@ export const DEFAULTS = Object.freeze({
   // Playback speed: 1× (1x real-time speed, rebaselined from 8x).
   speed: 1,
 
-  // 2D or 3D: 2D (the ui-kit's shared default).
-  view: VIEW_DEFAULT,
+  // 2D or 3D: 3D on Performance (Patrick, 5 Oct 06:31Z: "make the traffic sim default in 3d performance mode");
+  // the other modules keep the ui-kit's 2D. Without WebGL it falls back to 2D with a note.
+  view: '3d',
   // The 3D aircraft's paint: the Harvard scheme (the ui-kit's PAINT_DEFAULT), or plain ship colours.
   paint: PAINT_DEFAULT,
   // 3D graphics quality: 'high' (sharp 4-tier satellite and up to 24 full Harvards) or 'low' (performance).
