@@ -322,6 +322,8 @@ export function planTurningRejoin(pair, to, options = {}, t0 = 0) {
     to,
     side: sTo,
     rejoinKind: 'into',
+    // The decision point (where a stop at idle just fits): formation.js plans the change again there (spec F1).
+    decisionSec: t0 + part.steps * dt,
     leadTurnDeg: turnDeg,
     laneFwdFt: run.laneFwdFt,
     maxBankDeg: Math.max(part.maxBankDeg, run.maxBankDeg),
