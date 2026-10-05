@@ -73,8 +73,12 @@ export const HOT = Object.freeze({
   rollLevelSec: 2, // #2's turn dies away over this long as he rolls the wings level
   idleShare: 0.9, // the overshoot slows at 90% of what idle and the boards give, so the settling has room ("use power and speed brake as required")
   decisionStepSec: 0.5, // the decision point is searched back from the latest possible in half-second steps
-  overshootRangeFt: 1500, // an overshoot decision is only taken this close to Lead, where the overtake shows (SMM 12.27 para 65; the figure is about 1,000 ft or less)
-  outsideWithinFt: 3000, // a line that slides to the outside of Lead's turn within this range of him is an overshoot (estimate)
+  // The decision point (TS-63; Patrick 23:29Z: "Overshoot is only required if they get to the decision point with too much
+  // energy to safely transition to route and move up the line in to eschelon"; SMM 12.27 para 64: "a decision made at the
+  // latter stages of a rejoin"): no manual gives its distance; Fig 12.18 draws it a few aircraft lengths from Lead, so the
+  // decision is taken only within about 1,000 ft (an ESTIMATE, the overshoot lane's own range). It was 1,500 ft in V2.20.
+  overshootRangeFt: 1000,
+  outsideWithinFt: 3000, // a line that would slide behind Lead to the outside of his turn within this range is too much energy, not a rejoin (estimate)
   nearlyKtps: 1, // a line whose capture asks up to 1 kt/s more speed-up than full power still flies (held to it, STRETCHED); beyond it the decision overshoot is preferred
 });
 
@@ -511,11 +515,14 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
           if (Math.hypot(L.xFt - P.x, L.yFt - P.y) <= HOT.overshootRangeFt && (!needsOvershoot || RANK[stage] >= RANK[needsOvershoot.stage])) needsOvershoot = { b, kBad: Math.max(c.kh + 1, kBad), stage };
           continue;
         }
-        // A line that slides behind Lead to the outside of his turn is an overshoot: last in Patrick's order (23:37Z), after
-        // power, the boards and idle, and only if it passes behind him.
+        // A line that swings across behind Lead and back (the standard start's own line does it during the reversal, about
+        // 500 ft behind him) is a rejoin, not an overshoot: until V2.20 it was shown as OVERSHOOTING from the crossing, at
+        // full power (TS-63). The overshoot is #2's decision at the decision point only, when power, the boards and idle
+        // can't take the overtake off (Patrick 23:29Z; firstBad above, planOvershoot). Such a line must cross well behind
+        // Lead, and one that doesn't cross is preferred where the ways of slowing used are the same.
         const xo = outsideCrossing(b.line.poses, b.lp.rec, s);
         if (xo && xo.crossFwd > -HOT.passBehindFt) continue;
-        const entry = { b, needs, used: Math.max(RANK[stage], needs.top) + (xo ? 4 : 0), score: c.score, xo };
+        const entry = { b, needs, used: Math.max(RANK[stage], needs.top), score: c.score + (xo ? 1e4 : 0) };
         if (needs.accelShort > 0) {
           // A longer capture asks less power; keep the line that asks least past it in case none is within it.
           if (!nearly || needs.accelShort < nearly.needs.accelShort) nearly = entry;
@@ -565,8 +572,7 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
   if (good.length) {
     good.sort((x, y) => x.used - y.used || x.score - y.score);
     const g = good[0];
-    if (g.xo) for (let k = g.xo.k0; k <= g.xo.k1; k++) g.b.line.poses[k].over = true;
-    return result(g.b, { usedStage: STAGES[g.used % 4], overshoot: g.xo ? { atSec: (g.xo.k0 + 1) * dt, stableSec: (g.xo.k1 + 1) * dt, crossFwdFt: g.xo.crossFwd } : null });
+    return result(g.b, { usedStage: STAGES[g.used % 4], overshoot: null });
   }
   if (needsOvershoot) {
     const o = planOvershoot(needsOvershoot);
@@ -605,8 +611,13 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
       return { track, flown };
     };
     const step = Math.max(1, Math.round(HOT.decisionStepSec / dt));
+    // The decision point is in the latter stages (after the line-up) and close to Lead (HOT.overshootRangeFt, an estimate
+    // from Fig 12.18), never further out.
     const earliest = c.kh + Math.round(1 / dt);
     for (let kD = kBad; kD > earliest; kD -= step) {
+      const at = b.line.poses[kD - 1];
+      const L = longRec.at(kD);
+      if (!at || Math.hypot(L.xFt - at.x, L.yFt - at.y) > HOT.overshootRangeFt) break;
       // Where #2 is at the decision: the outside place keeps his height if he is lower (he never climbs while crossing).
       const probe = overshootTrack(longRec, kD, 1, kD + 8, { fwd: 0, left: 0, up: 0, plane: 0 }).track;
       const upNow = probe.z[kD + 3] - longRec.at(kD).altAboveFt;
