@@ -75,6 +75,19 @@ export const TURNING_REJOIN = Object.freeze({
   routeFlowFt: 20, // he flows through route without stopping, within this many feet of it, on into the slot (estimate; Patrick 07:14Z: "in one motion")
 });
 
+/**
+ * The straight-ahead rejoin, flown the way a pilot flies it (straight-rejoin.js, TS-72; Patrick 5 Oct 08:40Z: "SARJ should
+ * start at full power until it gets back on leads six, then set an overtake. The geometry of moving makes it fall back";
+ * the review's SARJ, fable-compiled.md section 3). All estimates unless a source is given.
+ */
+export const STRAIGHT_REJOIN = Object.freeze({
+  cutsDeg: [30, 45, 60], // far off Lead's six line he heads across it at up to this angle to Lead's track; the one that brings him in soonest is flown (estimates: a bigger cut gets across sooner and falls back further)
+  aimsFt: [600, 1200, 2400], // how sharply he comes onto the six line: off it by this much he cuts at half the angle (estimates, as TURNING_REJOIN.aimsFt; gentler than the turning rejoin's so he doesn't swing through the six)
+  lineTauSec: 2, // his heading comes onto the one the cut asks over about this long (estimate; the turning rejoin's 4 s swings him through the six)
+  captureFt: 100, // he is on Lead's six within this many feet of it; until then full power, from then the overtake (estimate)
+  decisionBehindFt: 100, // the decision point, this far behind route on the line up to it: the tracker flows him through route from there. Coming straight up from behind, all of his closure is fore and aft, so he needs more room to stop than the turning rejoin's 45° line (about 22 ft behind route) gives (estimate)
+});
+
 // ---- the kinematic moves: close moves, the hot turning rejoin, following Lead (from kinematic-moves.js) ---------------
 
 /** The numbers of the kinematic moves. All estimates unless a source is given. */

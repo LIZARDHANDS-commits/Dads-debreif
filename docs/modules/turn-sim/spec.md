@@ -530,7 +530,7 @@ Patrick 09:03Z: "as SOON as "fighting wing" is clicked and the aircraft is in th
 Patrick 08:54Z: "you hit "lag roll" and the airplane flips up and rolls canopy to canopy to lead then lands in the cone on the other side, power pitch and bank as required"; 08:58Z: fighting wing can use the whole cone, high or low. The SMM and EFIG do not name the lag roll; the nearest pages are SMM 12.29 para 69, SMM 12.30-12.31 para 74 and SMM 14.8 paras 18-19, Fig 14.1, Table 14.1. Numbers with no page or ruling beside them are estimates (`live/tuning.js` LAG_ROLL).
 
 **What changes on screen.**
-- A **Lag roll** button (added by the screen work, not in this piece) calls `formation.lagRoll()`. It works from fighting wing in the 2-ship with Lead straight and level; otherwise the card says why ("The lag roll starts from fighting wing; change to fighting wing first.", "For now the lag roll flies only with Lead straight and level.", "The lag roll is 2-ship only for now."). In fluid manoeuvring it asks for Terminate first. Pressed while something else flies, it is queued.
+- A **Lag roll (#2)** button in the "Fighting wing, Lead" box (V2.66) calls `formation.lagRoll()`. It works from fighting wing in the 2-ship with Lead straight and level; otherwise the card says why ("The lag roll starts from fighting wing; change to fighting wing first.", "For now the lag roll flies only with Lead straight and level.", "The lag roll is 2-ship only for now."). In fluid manoeuvring it asks for Terminate first. Pressed while something else flies, it is queued.
 - The card shows the plan in one line: the pull, the nose-up, the range over Lead's six, the slowest speed, the side he lands on, and the flag when Lead leaves the top half of #2's canopy. At the end it is judged as fighting wing on the new side.
 - #2 goes through inverted in the 2D and 3D views (the same poses as Lead's barrel roll). Nothing else moves or disappears.
 
@@ -539,6 +539,18 @@ Patrick 08:54Z: "you hit "lag roll" and the airplane flips up and rolls canopy t
 **Failure and stale data.** No outside data. A start the search can't fly within the G and the 500 ft bubble is refused with the reason on the card; nothing moves.
 
 **Checks.** None added (Patrick 06:25Z, 09:08Z); a typecheck and one dry run of `formation.lagRoll()` from the default fighting wing start (it plans in about 0.2 s and ends IN POSITION on the other side).
+
+
+### 10.9 The straight-ahead rejoin at full power, then the overtake (V2.67, TS-72; built 5 Oct, not yet in Patrick's sign-off)
+
+Patrick 08:40Z: "SARJ should start at full power until it gets back on leads six, then set an overtake. The geometry of moving makes it fall back."
+
+- **When:** the 2-ship, with the straight-ahead rejoin chosen (Formation box, Rejoin kind), from line abreast or fighting wing to echelon, route or line astern. To fighting wing and the 4-ship fly as before.
+- **How it flies:** Lead flies straight on at 200 KIAS. #2 goes to full power and cuts toward Lead's six (up to 30, 45 or 60°, the quickest picked), falling back as he turns. On the six, just below Lead's wake (EFIG p.371), he sets 200 KIAS plus the Rates overtake and holds it, then takes it out with power back (idle and boards only if needed). From about 500 ft he takes the small vector to the side wanted (SMM 12.26 paras 62-63, Fig 12.17), and from about 100 ft behind route the tracker flows him through route into the slot.
+- **What moves on screen:** nothing new; the card's note says the cut, where he got onto the six, and the overtake. He no longer lines up at a fixed 1,000 ft (Patrick's 4 Oct card); he lines up where the cut puts him.
+- **Failure and stale data:** no outside data. If no cut reaches the slot without passing ahead of Lead's 3/9 line, the old planner flies it.
+
+**Checks.** None added (Patrick 06:25Z, 09:08Z); a typecheck, a page-load check and a few dry runs (fighting wing to echelon 41 s, was 92 s; line abreast at 6,000 ft to echelon 57 s, was 112 s; at Instructor).
 
 ---
 

@@ -20,6 +20,7 @@ import { planChangeFour } from './four-ship-moves.js';
 import { planHotRejoinChange, offStandardOutcome } from './hot-rejoin.js';
 import { planLineChange } from './line-moves.js';
 import { planTurningRejoin } from './turning-rejoin.js';
+import { planStraightRejoin } from './straight-rejoin.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFwMove } from './formation-turns.js';
 import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
@@ -249,6 +250,7 @@ export function createFormation(options = {}) {
       ? planChangeFour(state.aircraft, to, planOpts, state.tSec)
       : planHotRejoinChange(state.aircraft, to, planOpts, state.tSec) ??
         planTurningRejoin(state.aircraft, to, planOpts, state.tSec) ??
+        planStraightRejoin(state.aircraft, to, planOpts, state.tSec) ?? // the straight-ahead rejoin (straight-rejoin.js, TS-72)
         planLineChange(state.aircraft, to, planOpts, state.tSec) ??
         planGoTo(state.aircraft, to, planOpts, state.tSec);
     if (!plan.ok) {
