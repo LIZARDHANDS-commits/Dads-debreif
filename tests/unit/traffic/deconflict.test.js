@@ -115,6 +115,8 @@ test('right of way follows the orders and the SMM', () => {
   const past = rightOfWay(at('A1', 'final_turn'), at('A2', 'straight_in'));
   assert.equal(past.giver, 'A2');
   assert.equal(past.move, 'move_over');
+  // On final, giving way to a PFL or to an aircraft that has perched: move over between the runways, then go around (Patrick, 5 Oct 05:53Z).
+  assert.equal(rightOfWay(at('A1', 'pfl'), at('A2', 'final')).move, 'move_over');
   // A fly-through against downwind traffic climbs straight ahead, then breaks out (Patrick's card, Q4).
   assert.equal(rightOfWay(at('A1', 'fly_through'), at('A2', 'outer_downwind')).move, 'climb_breakout');
   // Two PFLs never meet by rule (WFO S2 art 403 para 1d): no one is told to give way.
