@@ -22,7 +22,7 @@
 import { ktToFtps, KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../core/units.js';
 import { wrapDeg180, wrapDeg360, compassDegFromVector } from '../../core/angles.js';
 import { turnRadiusFromBankFt, turnRateFromBankRadPerSec, dampedClimbG, easeValue } from '../../core/flight-math.js';
-import { glideDragPerWeight, glideRatioFlown, stallLimitG, zoomT6A } from '../../core/t6-performance.js';
+import { glideDragPerWeight, glideRatio, stallLimitG, zoomT6A } from '../../core/t6-performance.js';
 import { iasToTasKt, heightFactor } from './weather.js';
 import { windTriangle, windVectorFtps } from '../../core/wind.js';
 import { legOffsetsFt } from '../../core/geo.js';
@@ -163,7 +163,7 @@ export function glideFootprint(a, windFromDeg = 360, windKt = 0) {
   const alt = Number.isFinite(a?.alt) ? /** @type {number} */ (a.alt) : FIELD_ELEV_FT;
   const altDiff = Math.max(0, alt - FIELD_ELEV_FT) * heightFactor(alt); // true height: further on a hot day (TR-77)
   const cfgIndex = Math.max(0, PFL_CONFIG_LABELS.indexOf(a?.config ?? ''));
-  const rGlide = altDiff * glideRatioFlown(PFL_CONFIGS[cfgIndex]);
+  const rGlide = altDiff * glideRatio(PFL_CONFIGS[cfgIndex]);
   const kias = cfgIndex > 0 ? PFL.glideGearKias : PFL.glideCleanKias;
   const tasFtps = iasToTasKt(kias, (alt + FIELD_ELEV_FT) / 2) * FT_PER_NM / 3600;
   const tGlide = rGlide / tasFtps;
@@ -558,7 +558,7 @@ export function chooseJoin(geo, from, availFt, trackDeg, wind, { allowHighKey = 
       const pick = { turn: score(path), turnDeg: path.turnDeg ?? 0, th, path };
       // A high join still has to put it on the runway: room before Final Key to widen and stage the drag, or the
       // excess with all the drag out (at the landing-flap glide) lands before the far end's stopping margin.
-      const longFt = (hAtJoin - most - ground) * glideRatioFlown('landing');
+      const longFt = (hAtJoin - most - ground) * glideRatio('landing');
       const landable = th <= PFL.highJoinRoomDeg || geo.aimAlongFt + longFt <= geo.lenFt - PFL.stopMarginFt;
       if (hAtJoin - most - ground <= 0) { if (!best || pick.turn < best.turn - 1e-6) best = pick; }
       else if (landable && (!bestHigh || pick.turn < bestHigh.turn - 1e-6)) bestHigh = pick;
@@ -951,10 +951,8 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
         } else if (s.alt > PFL.highKeyMinFt) {
           if (lapPath && cfg < 1) { cfg = 1; notes.push('gear early: an orbit would end below the High Key window'); }
           // Carry on down the runway until half the excess is gone, turn, and lose the other half coming back (SMM 13.7 para 16, Fig 13.4).
-          // Down to what the pattern needs from High Key with the gear down, if that is above the window's bottom (gear drag as the SMM's orbit).
-          const hkPath = [{ x: geo.th.x, y: geo.th.y, plan: 1, theta: 0, key: 'high_key' }, ...arcToAim(geo, PFL.joinStepDeg)];
-          const excess = s.alt - Math.max(PFL.highKeyMinFt, ground + neededFt(hkPath, 0, geo.th, s.alt, Math.max(cfg, 1), wind));
-          const d = Math.max(0, excess / 2 * heightFactor(s.alt) * glideRatioFlown(PFL_CONFIGS[Math.max(cfg, 1)]));
+          const excess = s.alt - PFL.highKeyMinFt;
+          const d = Math.max(0, excess / 2 * heightFactor(s.alt) * glideRatio(PFL_CONFIGS[Math.max(cfg, 1)]));
           const off = { x: geo.u.x * d, y: geo.u.y * d };
           const fhk = { x: geo.th.x + off.x, y: geo.th.y + off.y };
           const semi = [];
@@ -986,7 +984,7 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
     let climb, accel;
     if (state === 'zoom') {
       // 2 G pull until 140 KIAS (the climb held at most PFL.zoomMaxClimbDeg), then push over to capture the glide at 125 (EFIG p.408).
-      const glideGamma = -Math.atan(1 / glideRatioFlown('clean'));
+      const glideGamma = -Math.atan(1 / glideRatio('clean'));
       let nLoad;
       if (!pullDone && s.ias > PFL.pushOverKias) {
         nLoad = gamma < PFL.zoomMaxClimbDeg * DEG ? PFL.zoomPullG : Math.cos(gamma);
@@ -1061,9 +1059,12 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
       else if (mustGear) cfg = 1;
       else if (gearEarly) { cfg = 1; notes.push(`gear early before the join at ${Math.round(s.alt)} ft`); }
       else if (dragOk && cfg < 2) {
-        // Gear and T/O flap: at their planned point unless low; before it only with height to spare.
+        // Gear and T/O flap: at their planned point unless low; before it only with height to spare. The T/O flap waits
+        // for Low Key: a little high at the keys is carried round, and the landing flap takes it off early after Low Key
+        // (Patrick 5 Oct 23:49Z "chart drag as is, keys about 100 ft high, take land flap early"; SMM 13.8 para 17).
         const due = (path[seg]?.plan ?? 0) > cfg;
-        if (due ? margin >= -PFL.onProfileFt : s.alt - ground - neededFt(path, seg, proj.pt, s.alt, cfg, wind, true, 'aim', 2) >= PFL.dragBufferFt) cfg += 1;
+        const earlyOk = cfg === 0 || (path[seg]?.theta ?? 360) >= 180;
+        if (due ? margin >= -PFL.onProfileFt : earlyOk && s.alt - ground - neededFt(path, seg, proj.pt, s.alt, cfg, wind, true, 'aim', 2) >= PFL.dragBufferFt) cfg += 1;
       } else if (dragOk && cfg === 2) {
         // Landing flap as soon as it still touches down in the first 1,000 ft: closer is better (Patrick 09:56Z).
         if (s.alt - ground - neededFt(path, seg, proj.pt, s.alt, 3, wind, false, tdKey) >= 0) cfg = 3;
