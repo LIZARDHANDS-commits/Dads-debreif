@@ -72,9 +72,9 @@ function ktpsFrom(excess, kias, altFt) {
   return excess * G_FTPS2 * FTPS_TO_KT * (kias / iasToTasKt(kias, altFt));
 }
 
-/** Full-power acceleration at an indicated speed, in KIAS per second (the core's excess thrust at maximum power, 1 G). */
-export function fullPowerKtps(kias, altFt) {
-  return ktpsFrom(excessThrustPerWeight(kias, altFt, 1), kias, altFt);
+/** Full-power acceleration at an indicated speed, in KIAS per second (the core's excess thrust at maximum power, at g; 1 G by default). */
+export function fullPowerKtps(kias, altFt, g = 1) {
+  return ktpsFrom(excessThrustPerWeight(kias, altFt, g), kias, altFt);
 }
 
 /** The most a stage slows the aircraft (KIAS per second, a positive number) at kias, altFt and g. */

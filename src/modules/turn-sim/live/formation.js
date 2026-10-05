@@ -16,7 +16,7 @@ import { FOUR_SHIP_KEYS, fourShipStart, planFour, judgeFour } from './four-ship.
 import { G_WARM, planGWarm } from './g-warm.js';
 import { classifyFour, judgeFourFormation, FOUR_FORMATIONS, setFw4Shape } from './four-ship-slots.js';
 import { planChangeFour } from './four-ship-moves.js';
-import { planHotRejoinChange } from './kinematic-moves.js';
+import { planHotRejoinChange } from './hot-rejoin.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS, planFormationTurn } from './formation-turns.js';
 import { createFluidSession, fluidReadouts } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
@@ -272,7 +272,8 @@ export function createFormation(options = {}) {
     if (to === 'fluid') return startFluid();
     whereNow();
     const four = state.aircraft.length > 2;
-    const planOpts = { ...changeOptions, spacingFt: state.spacingFt, blockFt: opts.blockFt, lastSide: state.lastSide };
+    // A training error set (TS-62) makes the hot turning rejoin start from wherever #2 is, flown as its response says.
+    const planOpts = { ...changeOptions, spacingFt: state.spacingFt, blockFt: opts.blockFt, lastSide: state.lastSide, errors: four ? null : state.errors };
     // The 2-ship's hot turning rejoin from the standard line abreast start flies a planned line (TS-55); anything else, the tracker.
     const plan = four
       ? planChangeFour(state.aircraft, to, planOpts, state.tSec)

@@ -195,8 +195,12 @@ function motionAt(track, k) {
  *    turning as the reference turns" to the slot over blendSec, so a roll of the reference reaches it smoothly.
  *  blendSec: how long the blend takes (an estimate per formation, given by the caller); decaySec: how long its own extra
  *    turn and speed change take to die away on the "carry on" line (estimate; default half the blend).
+ *  level: the "carry on" line rolls wings level instead of turning as the reference turns (an overshoot, SMM 12.27 para 65:
+ *    "rolling the wings level"); its own turn dies away over decaySec.
+ *  accelFn(vFtps): the "carry on" line's own acceleration (ft/s², true airspeed) at speed v instead of the reference's, such
+ *    as slowing with idle and the speed brake (TS-61, an overshoot); its own change of acceleration dies away over decaySec.
  */
-export function followInto(track, { ref, from = 0, slotAt, events = [], blendSec = 4, decaySec = blendSec / 2 }) {
+export function followInto(track, { ref, from = 0, slotAt, events = [], blendSec = 4, decaySec = blendSec / 2, level = false, accelFn = null }) {
   const end = track.n + PAD;
   const starts = [...new Set([from, ...events.filter((e) => e > from && e < track.n)])].sort((a, b) => a - b);
   for (let e = 0; e < starts.length; e++) {
@@ -205,7 +209,8 @@ export function followInto(track, { ref, from = 0, slotAt, events = [], blendSec
     const m = motionAt(track, k0);
     const r0 = refRates(ref, k0);
     const bankTurn = (k, v) => (G_FTPS2 * Math.tan((ref.at(k).bankDeg ?? 0) * DEG)) / Math.max(v, 1);
-    const turn0 = bankTurn(k0, m.v); // the reference's bank, flown at the wingman's speed, at the start
+    const turn0 = level ? 0 : bankTurn(k0, m.v); // the reference's bank, flown at the wingman's speed, at the start
+    const acc0 = accelFn ? accelFn(m.v) : r0.accel;
     // The "carry on" line: own heading and speed, turning as the reference turns plus its own extra turn dying away.
     let fx = m.x;
     let fy = m.y;
@@ -219,8 +224,8 @@ export function followInto(track, { ref, from = 0, slotAt, events = [], blendSec
       // Turning as the reference turns means at the reference's bank as the wingman follows it (the bank `ref` gives, which
       // the caller may lag: SMM 12.19 para 43), at the wingman's own speed, so a roll of Lead never asks more roll of the
       // wingman than Lead's own.
-      const turn = bankTurn(k, fv) + (m.turn - turn0) * fade;
-      const acc = rr.accel + (m.accel - r0.accel) * fade;
+      const turn = (level ? 0 : bankTurn(k, fv)) + (m.turn - turn0) * fade;
+      const acc = (accelFn ? accelFn(fv) : rr.accel) + (m.accel - acc0) * fade;
       const h1 = fh + turn * dt;
       const v1 = fv + acc * dt;
       fx += Math.cos((fh + h1) / 2) * ((fv + v1) / 2) * dt;
