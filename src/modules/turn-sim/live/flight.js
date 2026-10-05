@@ -67,14 +67,14 @@ function stepTurnRad(tasFtps, fromDeg, toDeg) {
   return ((turnRateFromBankRadPerSec(tasFtps, fromDeg) + turnRateFromBankRadPerSec(tasFtps, toDeg)) / 2) * STEP_SEC;
 }
 
-/** How much the heading still changes (radians, signed) if the wings are rolled level from here. */
-export function headingChangeRollingOut(bankDeg, rollRateDps, tasFtps) {
+/** How much the heading still changes (radians, signed) if the wings are rolled level from here, at the roll limits `roll`. */
+export function headingChangeRollingOut(bankDeg, rollRateDps, tasFtps, roll = ROLL) {
   let bank = bankDeg;
   let rate = rollRateDps;
   let change = 0;
   for (let i = 0; i < 400 && (Math.abs(bank) > 1e-6 || Math.abs(rate) > 1e-6); i++) {
     const before = bank;
-    ({ bankDeg: bank, rollRateDps: rate } = easeRoll(bank, rate, 0, STEP_SEC, ROLL));
+    ({ bankDeg: bank, rollRateDps: rate } = easeRoll(bank, rate, 0, STEP_SEC, roll));
     change += stepTurnRad(tasFtps, before, bank);
   }
   return change;
@@ -197,7 +197,7 @@ export function stepAircraft(a, plan, t) {
         }
       } else {
         // Roll out early enough that the wings come level on the target heading.
-        const rollOutChange = Math.abs(headingChangeRollingOut(a.bankDeg, a.rollRateDps, a.tasFtps));
+        const rollOutChange = Math.abs(headingChangeRollingOut(a.bankDeg, a.rollRateDps, a.tasFtps, seg.roll));
         const thisStep = Math.abs(turnRateFromBankRadPerSec(a.tasFtps, a.bankDeg)) * dt;
         if (seg.started && (toGo <= rollOutChange + thisStep / 2 || toGo > 1.5 * Math.PI)) seg.rollingOut = true;
       }
@@ -227,7 +227,7 @@ export function stepAircraft(a, plan, t) {
   }
   // The step's mean true airspeed: the same number when the speed is constant, so nothing else changes.
   const tas = (tasBefore + a.tasFtps) / 2;
-  const rolled = easeRoll(a.bankDeg, a.rollRateDps, targetBank, dt, ROLL);
+  const rolled = easeRoll(a.bankDeg, a.rollRateDps, targetBank, dt, seg?.roll ?? ROLL); // a turn segment may roll gentler (a close formation Lead)
   a.bankDeg = Math.abs(rolled.bankDeg) < 1e-9 ? 0 : rolled.bankDeg;
   a.rollRateDps = Math.abs(rolled.rollRateDps) < 1e-9 ? 0 : rolled.rollRateDps;
   const turned = stepTurnRad(tas, bankBefore, a.bankDeg);
