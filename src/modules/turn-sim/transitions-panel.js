@@ -35,7 +35,7 @@ const FOUR_MORE_BUTTONS = Object.freeze([{ key: 'trail', label: 'Line astern' },
 const FOUR_CLOSE = Object.freeze(['finger', 'echelon', 'box', 'trail', 'route']);
 /** The formations where pressing L or R flies the side change at once (Patrick, 5 Oct). */
 const SIDE_CHANGE_FORMATIONS = Object.freeze(['fw', 'echelon', 'route']);
-const SIDES = Object.freeze([{ value: 'keep', label: 'Keep' }, { value: 'left', label: 'L' }, { value: 'right', label: 'R' }]);
+const SIDES = Object.freeze([{ value: 'keep', label: 'Keep' }, { value: 'left', label: 'Left' }, { value: 'right', label: 'Right' }]); // written out (Patrick, 5 Oct)
 const REJOIN_OPTIONS = Object.freeze([
   { value: 'into', label: 'Turning, Lead turns into #2' },
   { value: 'straight', label: 'Straight ahead' },
@@ -153,7 +153,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     h('div', { class: 'ts-section-bar' }, h('h3', { id: 'ts-change-title' }, 'Formation')),
     pairGrid,
     fourGrid,
-    h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Side #2 ends on' }, h('span', { class: 'ts-hint' }, 'Side'), sideButtons),
+    h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Station: the side #2 ends on' }, h('span', { class: 'ts-hint' }, 'Station'), sideButtons), // "Station", was "Side" (Patrick, 5 Oct)
     refusal,
     fluidUi?.element ?? null,
   );

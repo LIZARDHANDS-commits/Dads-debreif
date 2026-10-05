@@ -100,6 +100,7 @@ The three lists below are kept from the review's brief as references. Nothing in
 - [x] Side moved off the FORMATION bar to its own row under the formation groups, just above MANOEUVRES (Patrick, 5 Oct). V2.45.
 - [x] Every text in the Controls box 1 px bigger (Patrick, 5 Oct). V2.46.
 - [x] FORMATION and MANOEUVRES centred, with a little more room (24 px) between Side and MANOEUVRES (Patrick, 5 Oct). V2.47.
+- [x] Side renamed Station, with Keep, Left and Right written out (Patrick, 5 Oct). V2.48.
 - [x] Formation moves the manuals' way (V2.15, `spec.md` section 10.1, TS-55; Patrick 4 Oct 18:00Z to 19:26Z, each ruling in the project files at `turn-sim-review/requirements-log.md`), on planned paths, not live physics:
   - **Hot turning rejoin, from the standard start:** Lead turns into #2 at once, #2 points, reverses and captures fighting wing with fuselages aligned, or carries on to echelon. Fig 16.25 is not to scale, so the SMM's text is flown (card "Standard first").
   - **Fighting wing band and turns:** anywhere in 500-1,000 ft and 30-60° is in position. The turn buttons work in fighting wing: #2 collapses toward Lead's six and fixes tight or stretched on the turn in and turn out.
