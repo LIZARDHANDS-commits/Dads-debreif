@@ -32,6 +32,8 @@ export const LAYER_ITEMS = Object.freeze([
   { key: 'layerSmmReference', label: 'SMM calm reference', needs: 'windTrack' },
   { key: 'layerPhoto', label: 'Satellite photo', needs: 'photo' },
   { key: 'layerEngineReach', label: 'Engine-out reach (glide circle)', needs: 'reach' },
+  { key: 'layerWindow', label: 'The window and 3° intercept (3D)', needs: 'view3d' },
+  { key: 'layerAimLine', label: 'Aim line, selected aircraft (3D)', needs: 'view3d' },
 ]);
 
 /** The layers to list, leaving out those whose feature isn't built yet: available = { photo, reach }. */
@@ -55,6 +57,8 @@ export const LAYER_PRESETS = Object.freeze({
       layerSmmReference: false,
       layerPhoto: true,
       layerEngineReach: true, // the PFL glide circle, selected aircraft only (Patrick, 4 Oct)
+      layerWindow: true,
+      layerAimLine: true,
     }),
   }),
   standardTraining: Object.freeze({
@@ -74,6 +78,8 @@ export const LAYER_PRESETS = Object.freeze({
       layerSmmReference: true,
       layerPhoto: true,
       layerEngineReach: true, // the PFL glide circle, shown since it was built (Patrick, 4 Oct: keep it as a tick)
+      layerWindow: true,
+      layerAimLine: true,
     }),
   }),
   fullTelemetry: Object.freeze({
@@ -92,6 +98,8 @@ export const LAYER_PRESETS = Object.freeze({
       layerSmmReference: true,
       layerPhoto: true,
       layerEngineReach: true,
+      layerWindow: true,
+      layerAimLine: true,
     }),
   }),
 });

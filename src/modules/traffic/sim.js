@@ -1385,6 +1385,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           headingDeg,
           bankDeg: a.bankDeg ?? 0,
           pitchDeg: a.pitchDeg ?? null,
+          climbFtps: Number.isFinite(a.climbFtps) ? a.climbFtps : 0, // on the altimeter; the 3D aim line reads it (TR-78)
           phase: a.phase ?? 'initial',
           tag: a.tag ?? p.tag ?? route?.points?.[p.seg]?.tag,
           trackDeg: a.trackDeg ?? a.headingDeg ?? p.headingDeg,
