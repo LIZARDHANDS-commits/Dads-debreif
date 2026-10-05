@@ -63,6 +63,8 @@ export const PFL = Object.freeze({
   /** Up to 60° of bank until the 2,100 ft gate (Patrick 08:34Z); the stall line still holds. Bank over 45° below the gate is flagged (SMM 13.14). */
   maxBankDeg: 60,
   gateFlagBankDeg: 45,
+  /** An orbit to lose height is flown at 30° of bank (SMM 13.5 para 11, p.46; Patrick 5 Oct 23:29Z). */
+  orbitBankDeg: 30,
   /** The High Key window, ft MSL (WFO S2 art 403 para 1a; Patrick C4 06:30Z). */
   highKeyMinFt: 5000,
   highKeyMaxFt: 6000,
@@ -352,6 +354,14 @@ function glideJoinMinRadiusFt() {
 }
 
 /**
+ * Radius of an orbit to lose height: 30° of bank at 120 KIAS at about 4,000 ft, the SMM's orbit (SMM 13.5 para 11, p.46),
+ * tighter than the 1 NM pattern, which stays as it is (Patrick 5 Oct 23:29Z).
+ */
+function orbitRadiusFt() {
+  return turnRadiusFromBankFt(ktToFtps(iasToTasKt(PFL.glideGearKias, 4000)), PFL.orbitBankDeg);
+}
+
+/**
  * Radius of the turn onto final when going direct: 45° of bank at 120 KIAS at about 2,500 ft (SMM 13.14 flags more
  * than 45°), at today's true airspeed (a hot day turns wider, F2).
  */
@@ -619,7 +629,7 @@ function turnRoundJoin(geo, from, availFt, trackDeg, wind, { turnRadiusFt = dire
     const meet = interceptPath(geo, from, th, trackDeg, turnRadiusFt);
     if (meet) tries.push(meet);
     // Inside the circle: one full left turn where it is first (the High Key orbit's way round), then out to meet the circle.
-    if (meet) tries.push(Object.assign([...orbitPath(from, trackDeg, turnRadiusFt), ...meet], { turnDeg: 360 + meet.turnDeg }));
+    if (meet) tries.push(Object.assign([...orbitPath(from, trackDeg, orbitRadiusFt()), ...meet], { turnDeg: 360 + meet.turnDeg }));
     for (const raw of tries) {
       for (const dragBefore of close ? [0, 1, 3] : [0]) {
         const path = Object.assign(raw.map((p) => ({ ...p, plan: Math.max(p.plan ?? 0, dragBefore) })), { turnDeg: raw.turnDeg });
@@ -928,8 +938,9 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
         // then the gear goes early and it extends to a false High Key instead.
         let lapPath = null, lapClean = Infinity;
         if (s.alt > PFL.highKeyMaxFt) {
-          const lap = arcToAim(geo, PFL.joinStepDeg).filter((p) => p.theta !== undefined);
-          lapPath = [{ x: s.x, y: s.y, plan: cfg }, ...lap.map((p) => ({ ...p, plan: 0 })), { x: geo.th.x, y: geo.th.y, theta: 0, plan: 0, key: 'high_key', highKeyCheck: true }];
+          // One orbit at 30° of bank from High Key back to it, inside the pattern (SMM 13.5 para 11; Patrick 5 Oct 23:29Z).
+          const lap = orbitPath(s, geo.rwyDeg, orbitRadiusFt());
+          lapPath = [...lap.map((p, i) => ({ ...p, plan: i ? 0 : cfg })), { x: geo.th.x, y: geo.th.y, theta: 0, plan: 0, key: 'high_key', highKeyCheck: true }];
           lapClean = neededFt(lapPath, 0, s, s.alt, 0, wind);
         }
         if (lapPath && s.alt - lapClean >= PFL.highKeyMinFt) {
@@ -1048,9 +1059,12 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
       else if (mustGear) cfg = 1;
       else if (gearEarly) { cfg = 1; notes.push(`gear early before the join at ${Math.round(s.alt)} ft`); }
       else if (dragOk && cfg < 2) {
-        // Gear and T/O flap: at their planned point unless low; before it only with height to spare.
+        // Gear and T/O flap: at their planned point unless low; before it only with height to spare. The T/O flap waits
+        // for Low Key: a little high at the keys is carried round, and the landing flap takes it off early after Low Key
+        // (Patrick 5 Oct 23:49Z "chart drag as is, keys about 100 ft high, take land flap early"; SMM 13.8 para 17).
         const due = (path[seg]?.plan ?? 0) > cfg;
-        if (due ? margin >= -PFL.onProfileFt : s.alt - ground - neededFt(path, seg, proj.pt, s.alt, cfg, wind, true, 'aim', 2) >= PFL.dragBufferFt) cfg += 1;
+        const earlyOk = cfg === 0 || (path[seg]?.theta ?? 360) >= 180;
+        if (due ? margin >= -PFL.onProfileFt : earlyOk && s.alt - ground - neededFt(path, seg, proj.pt, s.alt, cfg, wind, true, 'aim', 2) >= PFL.dragBufferFt) cfg += 1;
       } else if (dragOk && cfg === 2) {
         // Landing flap as soon as it still touches down in the first 1,000 ft: closer is better (Patrick 09:56Z).
         if (s.alt - ground - neededFt(path, seg, proj.pt, s.alt, 3, wind, false, tdKey) >= 0) cfg = 3;
