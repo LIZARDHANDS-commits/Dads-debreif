@@ -301,8 +301,11 @@ function mount(root, app) {
     changeUi.update(state, whereAll);
     changeUi.renderCard(state, whereAll);
     const ships = state.aircraft.length > 2 ? 4 : 2;
-    if (whereAll.key === 'fluid') {
-      ui.setMovesEnabled(false, undefined, 'In fluid manoeuvring Lead flies the fluid buttons under Change formation; Terminate first.');
+    if (state.current?.change) {
+      // While a change is flown, the new formation's manoeuvres wait until the aircraft are in it (Patrick, 5 Oct).
+      ui.setMovesEnabled(false, undefined, 'Changing formation. Its manoeuvres show once the change is flown.');
+    } else if (whereAll.key === 'fluid') {
+      ui.setMovesEnabled(false, undefined, ''); // the fluid buttons show instead (transitions-panel.js)
     } else if (TURN_FORMATIONS[ships].includes(whereAll.key)) {
       // In fighting wing and the close formations the turn buttons turn the formation (TS-55, spec section 10.2); the
       // shackle, the cross turn and G-warm stay line abreast moves.

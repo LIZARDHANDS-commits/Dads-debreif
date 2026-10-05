@@ -76,7 +76,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   const rowShips = []; // { el, ships }: which formations show each row (2-ship, 4-ship)
   const rows = buttons.map((b) => {
     const row = buttonRow(b);
-    rowShips.push({ el: row, ships: b.ships ?? [2] });
+    rowShips.push({ el: row, ships: b.ships ?? [2], key: b.key });
     return row;
   });
   function buttonRow(b) {
@@ -101,6 +101,19 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   const queueLine = h('p', { class: 'ts-hint ts-queue', role: 'status' });
   const movesHint = h('p', { class: 'ts-hint' }, PAIR_HINT);
   const movesNote = h('p', { class: 'ts-hint ts-warning', role: 'status', hidden: true }, PAIR_MOVES_NOTE);
+  // Only the manoeuvres the formation the aircraft are in can fly are shown, nothing greyed (Patrick, 5 Oct: "I ONLY
+  // WANT the options/manoeuvres available FOR THE ACTIVE FORMATION to be visible"). They switch once a change is flown.
+  let shipsNow = 2;
+  let moveShown = (_key) => true;
+  function showMoves() {
+    let any = false;
+    for (const { el, ships: has, key } of rowShips) {
+      el.hidden = !has.includes(shipsNow) || !moveShown(key);
+      any ||= !el.hidden;
+    }
+    for (const b of element.querySelectorAll('.ts-move-button')) b.disabled = false;
+    movesHint.hidden = !any;
+  }
   movesPanel.body.append(
     ...(changeUi ? [changeUi.element] : []),
     movesHint,
@@ -291,7 +304,8 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     },
     /** 2-ship or 4-ship: only the buttons that formation has show, and `line` (the four-ship's fixed numbers) shows under the fixed line. */
     setShips(ships, line = '') {
-      for (const { el, ships: has } of rowShips) el.hidden = !has.includes(ships);
+      shipsNow = ships;
+      showMoves();
       movesHint.textContent = ships === 4 ? FOUR_HINT : PAIR_HINT;
       fourLine.textContent = ships === 4 ? line : '';
       fourLine.hidden = ships !== 4;
@@ -301,16 +315,17 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       errorsSection.hidden = ships === 4; // training errors are 2-ship only for now (TS-52)
       changeUi?.setShips(ships); // the four have their own formation buttons (spec section 8)
     },
-    /** The manoeuvre buttons work in line abreast only: greyed in the other formations, with the reason beside them. */
     /**
-     * @param {boolean} enabled
-     * @param {(key: string) => boolean} [keyEnabled] which buttons may be pressed when enabled (G-warm only from Spread 4)
-     * @param {string} [note] the reason shown when they are greyed
+     * Shows only the manoeuvre buttons that fly in the formation the aircraft are in; the rest are hidden, not greyed.
+     * @param {boolean} enabled false hides them all
+     * @param {(key: string) => boolean} [keyEnabled] which buttons show when enabled (G-warm only from Spread 4)
+     * @param {string} [note] the line shown when none do ('' for none)
      */
     setMovesEnabled(enabled, keyEnabled = (_key) => true, note = PAIR_MOVES_NOTE) {
-      for (const b of element.querySelectorAll('.ts-move-button')) b.disabled = !enabled || !keyEnabled(b.dataset.move);
+      moveShown = enabled ? keyEnabled : () => false;
+      showMoves();
       movesNote.textContent = note;
-      movesNote.hidden = enabled;
+      movesNote.hidden = enabled || !note;
     },
     /** The Fix tools show only when #2's response is Fix it. */
     setFixTools(visible) {

@@ -123,11 +123,12 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   const PAIR_REJOIN_HINT = `A turning rejoin: Lead slows to ${KIAS_OUTSIDE_LAB} KIAS, waits for closure and turns gently into #2 (SMM 16.20 para 65). #2's bank is capped at ${REJOIN.bankCapDeg}° (an estimate, flagged).`;
   const FOUR_REJOIN_HINT = `A turning rejoin: Lead slows to ${KIAS_OUTSIDE_LAB} KIAS and turns gently into the others; to finger, #3 crosses only once #2 is in place and #4 once #3 is (SMM 16.34 para 96). Straight ahead, each closes through route in turn.`;
   const rejoinHint = h('p', { class: 'ts-hint' }, PAIR_REJOIN_HINT);
+  const rejoinField = h('label', { class: 'ts-field' }, rejoinLabel, rejoinSelect);
   const more = h('details', { class: 'ts-more' },
     h('summary', {}, 'More'),
     pairMore,
     fourMore,
-    h('label', { class: 'ts-field' }, rejoinLabel, rejoinSelect),
+    rejoinField,
     rejoinHint,
   );
 
@@ -166,7 +167,9 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       fourGrid.hidden = !four;
       fourMore.hidden = !four;
       hint.textContent = four ? FOUR_HINT : PAIR_HINT;
-      if (fluidUi) fluidUi.element.hidden = four; // the four's fluid manoeuvring is a later piece
+      if (fluidUi) fluidUi.element.hidden = true; // the pair's shows in fluid manoeuvring only (update); the four's is a later piece
+      rejoinField.hidden = false;
+      rejoinHint.hidden = false;
       rejoinLabel.textContent = four ? 'Rejoin to fighting wing or finger' : 'Rejoin from line abreast';
       rejoinSelect.options[0].textContent = four ? 'Turning, Lead turns into the others' : REJOIN_OPTIONS[0].label;
       rejoinHint.textContent = four ? FOUR_REJOIN_HINT : PAIR_REJOIN_HINT;
@@ -185,6 +188,11 @@ export function createChangeUi({ onChange, fluidUi = null }) {
         return;
       }
       fluidUi?.update(state);
+      // Only what the formation the pair is in can use shows (Patrick, 5 Oct): the fluid buttons in fluid manoeuvring,
+      // the rejoin choice in line abreast.
+      if (fluidUi) fluidUi.element.hidden = where.key !== 'fluid';
+      rejoinField.hidden = where.key !== 'lab';
+      rejoinHint.hidden = where.key !== 'lab';
       for (const [key, button] of buttons) {
         if (where.key === 'fluid') {
           // In fluid manoeuvring Terminate is the way out; it ends in fighting wing (spec section 10.3).

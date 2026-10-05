@@ -143,7 +143,9 @@
 [data-module='turn-sim'] .ts-message[hidden],
 [data-module='turn-sim'] .ts-flags[hidden],
 [data-module='turn-sim'] .ts-turn[hidden],
-[data-module='turn-sim'] .ts-move[hidden] {
+[data-module='turn-sim'] .ts-move[hidden],
+[data-module='turn-sim'] .ts-field[hidden],
+[data-module='turn-sim'] .ts-hint[hidden] {
   display: none;
 }
 
