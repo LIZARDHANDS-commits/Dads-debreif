@@ -591,6 +591,13 @@ export const OPEN_OUT = Object.freeze({
   diveFt: 400,
   verticalFtps: 40, // down or up on the way out: about 2,400 ft/min (estimate)
 });
+/**
+ * What "in position" means (Patrick 5 Oct 21:26Z, TS-80): a tactical formation is in position anywhere in its band (the
+ * fighting wing cone, line abreast's band), up to stackFt above or below Lead with Lead straight and level; a close
+ * formation within closeFt of its place and within STEADY.closureKt. Patrick gave 200 ft for fighting wing; line abreast's
+ * stack band is the same number as an estimate until the SMM page is found.
+ */
+export const IN_POSITION = Object.freeze({ closeFt: 5, stackFt: 200 });
 /** A station change's stop at a corner: "stabilize" is within this many knots against the slot, then the dwell (Patrick 20:41Z; was 1 ft/s). */
 export const STOP_KT = 5;
 
