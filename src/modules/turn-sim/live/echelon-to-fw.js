@@ -79,12 +79,12 @@ function aimFor(s, spacingFt) {
 }
 
 /** How far out from Lead's straight track (ft, positive on side s) #2 is: Lead flies straight, so his track is a line. */
-function outFt(L, W, s) {
+export function outFt(L, W, s) {
   return s * (-(W.xFt - L.xFt) * Math.sin(L.headingRad) + (W.yFt - L.yFt) * Math.cos(L.headingRad));
 }
 
 /** How far out #2 ends if he turns back parallel to Lead now at bankDeg (flight.js's own turn and roll-out, speed held). */
-function outAfterTurnBack(W, L, s, bankDeg, t) {
+export function outAfterTurnBack(W, L, s, bankDeg, t) {
   const c = copyAircraft(W);
   const plan = { segments: [turnSeg(L.headingRad, -s, bankDeg)] };
   for (let i = 0; i < 400 && plan.segments.length; i++) stepAircraft(c, plan, t + i * dt);
