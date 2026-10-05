@@ -18,7 +18,7 @@ import {
 } from '../../ui-kit/three-aircraft.js';
 import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT } from '../../ui-kit/ct156-model.js';
 import { KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../core/units.js';
-import { T6_LENGTH_FT } from './types.js';
+import { T6_LENGTH_FT, CLOSE_UP_DRAW_FT } from './types.js';
 import { paletteFrom, conflictLevels, isFlying, aircraftColor, heightSpeedText, LEVEL_MARKS, MIN_RING_PX, photoAlignment, photoView, getPflBadge, pflCircleLayout, calculateGlideFootprint, shouldShowGlideFootprint } from './map2d.js';
 import { createTileLayer, ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { makeLocalRef, latLonToLocalFt } from '../../core/geo.js';
@@ -77,7 +77,7 @@ const CHASE_SPAN_FT = 3000;
 const CHASE_LERP = 0.15; // how fast the chase camera swings behind a turning aircraft, a share of the gap each frame
 
 /** Real length of a T-6 in feet (kept in types.js). A zoomed-out aircraft is drawn bigger, so it can still be seen. */
-export { T6_LENGTH_FT };
+export { T6_LENGTH_FT, CLOSE_UP_DRAW_FT };
 /** The length an aircraft is drawn at least, on screen, in pixels. */
 export const MIN_PLANE_PX = 44;
 
@@ -264,9 +264,9 @@ export function blurProp(THREE, mesh) {
   else if (ct) ct.mine.push({ dispose: () => material.dispose() }); // freed with the model; the shared picture stays
 }
 
-/** Feet an aircraft is drawn at, at a zoom (pixels to 1,000 ft): its real length, or MIN_PLANE_PX if that is smaller on screen, times the Aircraft size setting (1 = realistic). */
+/** Feet an aircraft is drawn at, at a zoom (pixels to 1,000 ft): CLOSE_UP_DRAW_FT (half the runway width, Patrick 5 Oct), or MIN_PLANE_PX if that is smaller on screen, times the Aircraft size setting. */
 export function planeLengthFt(zoom, scale = 1) {
-  return Math.max(T6_LENGTH_FT, MIN_PLANE_PX / (zoom / 1000)) * (Number(scale) > 0 ? Number(scale) : 1);
+  return Math.max(CLOSE_UP_DRAW_FT, MIN_PLANE_PX / (zoom / 1000)) * (Number(scale) > 0 ? Number(scale) : 1);
 }
 
 /** The CT-156 and CT-157 are the shared T-6; every other type (CT-102B, CT-102, CT-114, CT-155, CF-188) is a stand-in shape until it has its own model. */
@@ -802,9 +802,10 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
       mesh.visible = true;
       const { bankRad, pitchRad } = attitudeOf(ac, attitude.update(ac.id, { t: options.time ?? 0, headingDeg: ac.headingDeg, kt: ac.kt, altFt: ac.alt }));
       applyPose(mesh, { x: ac.x, y: ac.y, altFt: ac.alt, headingDeg: ac.headingDeg, bankRad, pitchRad }, lengthFt);
-      mesh.position.z += wheelLiftFt(lengthFt);
-
       const z = altToZ(ac.alt, ALT_SCALE);
+      // Drawn at its true height, on its route line; raised only where its wheels would go under the runway (Patrick,
+      // 5 Oct: the aircraft flew "above the line" when the wheel lift was added in the air too).
+      mesh.position.z = Math.max(z, floor + wheelLiftFt(lengthFt));
       const groundZ = Math.min(floor, z);
       dropAt.setXYZ(n * 2, ac.x, ac.y, z);
       dropAt.setXYZ(n * 2 + 1, ac.x, ac.y, groundZ);

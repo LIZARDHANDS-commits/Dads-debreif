@@ -21,7 +21,7 @@ import {
   hdgRadOf, turnRateRadPerS, bankRadFromTurn, createAttitude, applyPose, planeLengthFt, modelKindFor,
   planePx, wantsFullModel, ringRadiusFt, FULL_MODEL_PX, FULL_MODEL_KEEP_PX,
   routeSignature, groundFt, sceneBox, fitCamera, orbit, zoomBy, panCamera, cameraFor, chaseCamera, CAMERA_LIMITS,
-  T6_LENGTH_FT, MIN_PLANE_PX, ALT_SCALE, MAX_FULL_T6, createSceneKit, threeStats, softwareRenderer, resetSoftwareCheck,
+  T6_LENGTH_FT, CLOSE_UP_DRAW_FT, MIN_PLANE_PX, ALT_SCALE, MAX_FULL_T6, createSceneKit, threeStats, softwareRenderer, resetSoftwareCheck,
   createView3d,
 } from '../../../src/modules/traffic/view3d.js';
 
@@ -156,12 +156,14 @@ test('the attitude is rotation.set(-bank, -pitch, heading) in order ZYX: on its 
   assert.ok(dive.nose.z < 0);
 });
 
-test('an aircraft is at least its real length, and at least MIN_PLANE_PX long on screen', () => {
-  assert.equal(planeLengthFt(2000), T6_LENGTH_FT);
+test('an aircraft is drawn at least half the runway width long (Patrick, 5 Oct), and at least MIN_PLANE_PX long on screen', () => {
+  assert.equal(CLOSE_UP_DRAW_FT, 150 / 2, 'half 29L, 150 ft wide');
+  assert.ok(CLOSE_UP_DRAW_FT > T6_LENGTH_FT, 'never smaller than a real T-6');
+  assert.equal(planeLengthFt(2000), CLOSE_UP_DRAW_FT);
   assert.equal(planeLengthFt(10), MIN_PLANE_PX / 0.01);
   for (const zoom of [0.5, 5, 20, 100, 400]) {
     const px = (planeLengthFt(zoom) * zoom) / 1000;
-    assert.ok(px >= MIN_PLANE_PX - 1e-9 || planeLengthFt(zoom) === T6_LENGTH_FT, `zoom ${zoom}`);
+    assert.ok(px >= MIN_PLANE_PX - 1e-9 || planeLengthFt(zoom) === CLOSE_UP_DRAW_FT, `zoom ${zoom}`);
   }
 });
 
@@ -514,7 +516,7 @@ test('the full Harvard model is for a T-6 drawn more than FULL_MODEL_PX long, an
   assert.equal(FULL_MODEL_PX, 120);
   assert.ok(FULL_MODEL_KEEP_PX < FULL_MODEL_PX);
   near(planePx(20), MIN_PLANE_PX);
-  near(planePx(4000), (T6_LENGTH_FT * 4000) / 1000);
+  near(planePx(4000), (CLOSE_UP_DRAW_FT * 4000) / 1000);
   assert.ok(planePx(CAMERA_LIMITS.zoom[1]) > FULL_MODEL_PX, 'the closest zoom the wheel allows does reach the full model');
   assert.equal(wantsFullModel(FULL_MODEL_PX + 1, false), true);
   assert.equal(wantsFullModel(FULL_MODEL_PX - 1, false), false);
