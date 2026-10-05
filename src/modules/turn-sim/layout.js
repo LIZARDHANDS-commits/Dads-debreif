@@ -188,6 +188,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       { value: 0, label: 'Whole flight' }, { value: 30, label: '30 s' }, { value: 60, label: '1 min' }, { value: 120, label: '2 min' },
       { value: 300, label: '5 min' }, { value: 600, label: '10 min' },
     ] })),
+    ...(changeUi?.rejoinSettings ? [changeUi.rejoinSettings] : []),
     fwMore,
     ...(changeUi?.fluidSettings ? [changeUi.fluidSettings] : []),
     h('p', { class: 'ts-fixed' }, fixedLine),

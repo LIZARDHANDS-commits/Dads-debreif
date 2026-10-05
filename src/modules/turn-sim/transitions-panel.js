@@ -127,20 +127,12 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   const rejoinSelect = h('select', { 'aria-label': 'Rejoin from line abreast', onchange: () => { rejoin = rejoinSelect.value; } },
     REJOIN_OPTIONS.map((o) => h('option', { value: o.value, selected: o.value === rejoin }, o.label)));
   const rejoinLabel = h('span', { class: 'ts-hint' }, 'Rejoin from line abreast');
-  // Line astern (and the four's route) sit with the close formations now (Patrick, 5 Oct); More keeps the rejoin choice.
-  const pairMore = h('div', { hidden: true });
-  const fourMore = h('div', { hidden: true });
   const PAIR_REJOIN_HINT = `A turning rejoin: Lead slows to ${KIAS_OUTSIDE_LAB} KIAS, waits for closure and turns gently into #2 (SMM 16.20 para 65). #2's bank is capped at ${REJOIN.bankCapDeg}° (an estimate, flagged).`;
   const FOUR_REJOIN_HINT = `A turning rejoin: Lead slows to ${KIAS_OUTSIDE_LAB} KIAS and turns gently into the others; to finger, #3 crosses only once #2 is in place and #4 once #3 is (SMM 16.34 para 96). Straight ahead, each closes through route in turn.`;
   const rejoinHint = h('p', { class: 'ts-hint' }, PAIR_REJOIN_HINT);
   const rejoinField = h('label', { class: 'ts-field' }, rejoinLabel, rejoinSelect);
-  const more = h('details', { class: 'ts-more' },
-    h('summary', {}, 'More'),
-    pairMore,
-    fourMore,
-    rejoinField,
-    rejoinHint,
-  );
+  // The rejoin choice lives in the Settings box (Patrick, 5 Oct); its default is Lead turning into #2.
+  const rejoinSettings = h('div', { class: 'ts-rejoin-setting' }, rejoinField, rejoinHint);
 
   const PAIR_HINT = 'The pair flies the manuals\' transition from where it is now. The formation you are in is greyed.';
   const FOUR_HINT = 'The four fly the manuals\' way there from where they are now, one at a time where the manuals say to wait. Side is #2\'s side; finger is named by the side #3 and #4 are on.';
@@ -163,7 +155,6 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     fourGrid,
     h('div', { class: 'ts-side', role: 'group', 'aria-label': 'Side #2 ends on' }, h('span', { class: 'ts-hint' }, 'Side'), sideButtons),
     refusal,
-    more,
     fluidUi?.element ?? null,
   );
 
@@ -178,15 +169,15 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     cardElement,
     /** The fluid settings, for the Settings box (fluid-panel.js), or null. */
     fluidSettings: fluidUi?.settingsElement ?? null,
+    /** The rejoin choice and its note, for the Settings box. */
+    rejoinSettings,
     onSideChanged: (fn) => (handlers.sideChanged = fn),
     values: () => ({ side, rejoin }),
     /** 2-ship or 4-ship: shows that formation's buttons and words. */
     setShips(ships) {
       four = ships === 4;
       pairGrid.hidden = four;
-      pairMore.hidden = four;
       fourGrid.hidden = !four;
-      fourMore.hidden = !four;
       hint.textContent = four ? FOUR_HINT : PAIR_HINT;
       if (fluidUi) fluidUi.element.hidden = true; // the pair's shows in fluid manoeuvring only (update); the four's is a later piece
       if (fluidUi) fluidUi.settingsElement.hidden = four;
@@ -214,8 +205,6 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       // Only what the formation the pair is in can use shows (Patrick, 5 Oct): the fluid buttons in fluid manoeuvring,
       // the rejoin choice in line abreast.
       if (fluidUi) fluidUi.element.hidden = where.key !== 'fluid';
-      rejoinField.hidden = where.key !== 'lab';
-      rejoinHint.hidden = where.key !== 'lab';
       for (const [key, button] of buttons) {
         if (where.key === 'fluid') {
           // In fluid manoeuvring Terminate is the way out; it ends in fighting wing (spec section 10.3).
