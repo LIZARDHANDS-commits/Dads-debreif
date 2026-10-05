@@ -23,6 +23,7 @@ import { planTurningRejoin } from './turning-rejoin.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFwMove } from './formation-turns.js';
 import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
+import { LAG_ROLL_KEY, planLagRoll } from './lag-roll.js';
 
 /**
  * The first version's fixed numbers. Speeds name their kind (rule book): kias is
@@ -243,7 +244,8 @@ export function createFormation(options = {}) {
     // The 2-ship (clean-up step 2, TS-65): a training error's rejoin (hot-rejoin.js, TS-62); the turning rejoin on the rejoin
     // line from line abreast or fighting wing (turning-rejoin.js, TS-68); every other change a line into the ball park, then
     // the tracker (hand-over.js); odd starts no line rule covers, the tracker alone (planGoTo).
-    const plan = four
+    const plan = to === LAG_ROLL_KEY ? planLagRoll(state.aircraft, planOpts, state.tSec) // #2's lag roll (lag-roll.js, TS-71)
+      : four
       ? planChangeFour(state.aircraft, to, planOpts, state.tSec)
       : planHotRejoinChange(state.aircraft, to, planOpts, state.tSec) ??
         planTurningRejoin(state.aircraft, to, planOpts, state.tSec) ??
@@ -268,7 +270,7 @@ export function createFormation(options = {}) {
     if (four) for (const a of state.aircraft) if (a.ref != null) a.ref = plan.refs[a.id];
     state.current = {
       key: `change:${to}`,
-      change: { to, side: plan.side, from: plan.from, rejoining: plan.rejoining, rejoinKind: plan.rejoinKind, flying: plan.flying, maxBankDeg: plan.maxBankDeg, four, offStandard: plan.offStandard ?? null },
+      change: { to: plan.to ?? to, side: plan.side, from: plan.from, rejoining: plan.rejoining, rejoinKind: plan.rejoinKind, flying: plan.flying, maxBankDeg: plan.maxBankDeg, four, offStandard: plan.offStandard ?? null },
       dir: 0,
       label: plan.label,
       note: plan.note,
@@ -439,6 +441,22 @@ export function createFormation(options = {}) {
         return 'queued';
       }
       return startChange(to, options) ? 'started' : 'refused';
+    },
+    /**
+     * #2's lag roll to fighting wing on Lead's other side (spec section 10.8, lag-roll.js, TS-71): 2-ship, from fighting wing,
+     * Lead straight and level. Flown at once when nothing is being flown, otherwise queued like a change. Returns 'started',
+     * 'queued' or 'refused' (state.refusal says why).
+     */
+    lagRoll() {
+      if (state.fluid) {
+        state.refusal = 'Terminate fluid manoeuvring first; the lag roll starts from fighting wing.';
+        return 'refused';
+      }
+      if (state.current) {
+        state.queued = { key: `change:${LAG_ROLL_KEY}`, dir: 0, label: 'Lag roll', change: { to: LAG_ROLL_KEY, options: {} } };
+        return 'queued';
+      }
+      return startChange(LAG_ROLL_KEY, {}) ? 'started' : 'refused';
     },
     /**
      * Which formation the aircraft are in now: for the pair { key: 'lab' | 'fw' | 'echelon' | 'route' | 'astern' | 'other', side },
