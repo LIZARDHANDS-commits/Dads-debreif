@@ -243,7 +243,10 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       // rejoin overtake, Patrick 05:46Z).
       const over = ph.closureFtps ? ph.closureFtps / ratio : ph.overtakeKias;
       const under = ph.closureFtps ? ph.closureFtps / ratio : ph.undertakeKias;
-      kiasCmd = Math.max(L.kias - under, Math.min(L.kias + over, speed / ratio));
+      // Centred on the reference point's own speed, not Lead's: in a turn a place inside it moves slower than Lead and one
+      // outside faster, so holding it takes none of the closure (the review, V2.65); in straight flight the two are the same.
+      const refKias = Math.hypot(vpx, vpy) / ratio;
+      kiasCmd = Math.max(refKias - under, Math.min(refKias + over, speed / ratio));
     }
 
     // Heading loop: turn rate toward the commanded heading, with its own rate fed forward; bank from the turn rate.

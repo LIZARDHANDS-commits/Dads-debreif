@@ -511,7 +511,7 @@ Patrick's rulings of 4 Oct 19:15Z, 23:29Z and 23:37-23:38Z and 5 Oct 00:11Z-02:0
 
 **Failure and stale data.** No outside data. A turning rejoin that doesn't settle flies the straight-ahead rejoin from fighting wing, or the tracker's rejoin from line abreast (`planGoTo`, which can close via Lead's six); a training rejoin whose tracker part doesn't settle flies its whole line; Lead turning until #2 is in falls back to the fixed turn angles in the tracker's rejoin. The live hold always returns a point on or inside the planned line.
 
-**Checks.** None added (Patrick 06:25Z); typecheck and a page-load check, and the three default turning rejoins each planned once to see they don't refuse. V2.63: each turning rejoin start planned once at each Rates choice (TS-69 lists the three that still fall back). V2.64: the same, two still fall back (TS-69); the close moves' times checked unchanged after the tracker fix.
+**Checks.** None added (Patrick 06:25Z); typecheck and a page-load check, and the three default turning rejoins each planned once to see they don't refuse. V2.63: each turning rejoin start planned once at each Rates choice (TS-69 lists the three that still fall back). V2.64: the same, two still fall back (TS-69); the close moves' times checked unchanged after the tracker fix. V2.65: none fall back; the close moves' times unchanged.
 
 ---
 
