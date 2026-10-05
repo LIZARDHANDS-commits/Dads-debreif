@@ -191,9 +191,13 @@ function holdInPlane(leadRec, lead, wing, body, leadSteps) {
   const vel = (a) => [Math.cos(a.headingRad) * a.tasFtps, Math.sin(a.headingRad) * a.tasFtps, a.climbFtps ?? 0];
   const vl = vel(lead);
   const vw = vel(wing);
-  let r = placeAt(0);
+  let r = [wing.xFt - lead.xFt, wing.yFt - lead.yFt, wing.altAboveFt - lead.altAboveFt]; // where he is (his place, in a turn)
   let v = [vw[0] - vl[0], vw[1] - vl[1], vw[2] - vl[2]];
-  let acc = [0, 0, 0];
+  // His turn and Lead's as they are (none at a close turn's press; a press mid-turn, replan.js), so his bank carries on.
+  const turnAcc = (a) => [-Math.sin(a.headingRad) * G_FTPS2 * Math.tan(a.bankDeg * DEG), Math.cos(a.headingRad) * G_FTPS2 * Math.tan(a.bankDeg * DEG), 0];
+  const aw = turnAcc(wing);
+  const al = turnAcc(lead);
+  let acc = [aw[0] - al[0], aw[1] - al[1], 0];
   const rel = [{ x: r[0], y: r[1], z: r[2] }];
   const last = leadSteps + Math.ceil(30 / dt);
   let prev = placeAt(0);
@@ -235,6 +239,35 @@ function holdInPlane(leadRec, lead, wing, body, leadSteps) {
     if (i + 1 >= leadSteps && off < 0.05 && slip < 0.05 && Math.hypot(...acc) < 0.05) break;
   }
   return { rel };
+}
+
+/** A held wingman's poses for steps 1..n: his offsets from Lead (holdInPlane's rel) laid on Lead's flight, his bank his own. */
+function heldPoses(leadRec, wing, rel, n) {
+  const track = makeTrack(n);
+  seedTrack(track, wing);
+  for (let k = 1; k <= n + TRACK_PAD; k++) {
+    const L = leadRec.at(k);
+    const r = rel[Math.min(k, rel.length - 1)]; // once he is settled and Lead is wings level, the same offset
+    setTrackStep(track, k, L.xFt + r.x, L.yFt + r.y, L.altAboveFt + r.z);
+  }
+  const line = posesFrom(track, wing.kias / wing.tasFtps);
+  ownBank(line.poses);
+  settleLast(line.poses, leadRec.at(n));
+  return line.poses;
+}
+
+/**
+ * #2 from where he is to a close place on his side (echelon or route), held in Lead's real wing plane the way the close
+ * turns hold him (holdInPlane): a press mid-move (spec F11, replan.js), so a station change in a turn moves along Lead's
+ * wing line instead of chasing a level place. leadPlan: Lead's { segments, profile } from here; slot: the place
+ * ({ fwd, left, alt }, slots.js). Returns { poses, steps, leadRec }: poses for steps 1..steps, the last settled on Lead.
+ */
+export function slideInPlane(lead, wing, leadPlan, slot, t0 = 0) {
+  const leadSteps = Math.round(dryRunT(lead, leadPlan, t0).durationSec / STEP_SEC);
+  const leadRec = recordFlight(lead, leadPlan, t0);
+  const { rel } = holdInPlane(leadRec, lead, wing, { fwd: slot.fwd, left: slot.left, up: slot.alt }, leadSteps);
+  const steps = Math.max(leadSteps, rel.length - 1);
+  return { poses: heldPoses(leadRec, wing, rel, steps), steps, leadRec };
 }
 
 /**
@@ -293,18 +326,9 @@ export function planCloseTurn(aircraft, formation, key, dir, t0 = 0) {
   });
   const n = held.reduce((m, h) => Math.max(m, h.rel.length - 1), leadSteps);
   for (const { wing, rel } of held) {
-    const track = makeTrack(n);
-    seedTrack(track, wing);
-    for (let k = 1; k <= n + TRACK_PAD; k++) {
-      const L = leadRec.at(k);
-      const r = rel[Math.min(k, rel.length - 1)]; // once he is settled and Lead is wings level, the same offset
-      setTrackStep(track, k, L.xFt + r.x, L.yFt + r.y, L.altAboveFt + r.z);
-    }
-    const line = posesFrom(track, wing.kias / wing.tasFtps);
-    ownBank(line.poses);
-    settleLast(line.poses, leadRec.at(n));
-    plans[wing.id] = { segments: [{ kind: 'poseTrack', poses: line.poses }] };
-    for (const p of line.poses) maxBankDeg = Math.max(maxBankDeg, Math.abs(p.bank));
+    const poses = heldPoses(leadRec, wing, rel, n);
+    plans[wing.id] = { segments: [{ kind: 'poseTrack', poses }] };
+    for (const p of poses) maxBankDeg = Math.max(maxBankDeg, Math.abs(p.bank));
   }
   // Which way each is stepped: the wingmen on the turn's side are on the inside (stepped down), the others on the outside (up).
   const two = by.get(2);

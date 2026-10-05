@@ -23,6 +23,7 @@ import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFwMove 
 import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
 import { LAG_ROLL_KEY, planLagRoll } from './lag-roll.js';
+import { REJOIN } from './tuning.js';
 
 /**
  * The first version's fixed numbers. Speeds name their kind (rule book): kias is
@@ -239,7 +240,7 @@ export function createFormation(options = {}) {
     whereNow();
     const four = state.aircraft.length > 2;
     // A training error set (TS-62) makes the hot turning rejoin start from wherever #2 is, flown as its response says.
-    const planOpts = { ...changeOptions, spacingFt: state.spacingFt, blockFt: opts.blockFt, lastSide: state.lastSide, errors: four ? null : state.errors };
+    const planOpts = { ...changeOptions, spacingFt: state.spacingFt, blockFt: opts.blockFt, lastSide: state.lastSide, errors: four ? null : state.errors, mid: state.current ? midPress(state.current) : null };
     // The 2-ship: the chooser (chooser.js, TS-76) runs every planner that applies (a training error's rejoin first, TS-62;
     // the turning rejoin, TS-68; the straight-ahead rejoin, TS-72; echelon or route out to fighting wing, TS-73; a line then
     // the tracker, TS-65; the tracker alone) and flies the one that passes the pilot's checks quickest. Until V2.75 they were
@@ -280,6 +281,18 @@ export function createFormation(options = {}) {
     state.judged = null;
     state.errorOutcome = null;
     return true;
+  }
+
+  /**
+   * How Lead flies on when a change is pressed mid-move (spec F11, replan.js): the rest of his own move (a turn, a fighting
+   * wing move, a line abreast manoeuvre); in a turning rejoin, his turn into #2 held until #2 is in; otherwise straight.
+   */
+  function midPress(c) {
+    const lead = state.aircraft[0];
+    const plan = state.plans[lead.id] ?? { segments: [] };
+    if (!c.change) return { lead: { kind: 'carry', plan: { segments: plan.segments.map((x) => ({ ...x })), profile: plan.profile } } };
+    if (c.change.rejoining && c.change.rejoinKind === 'into' && Math.abs(lead.bankDeg) > 1) return { lead: { kind: 'hold', s: Math.sign(lead.bankDeg), bankDeg: REJOIN.leadBankDeg } };
+    return { lead: { kind: 'straight' } };
   }
 
   /**
@@ -432,8 +445,8 @@ export function createFormation(options = {}) {
         state.refusal = 'Terminate fluid manoeuvring first; it ends in fighting wing.';
         return 'refused';
       }
-      if (state.current) {
-        const label = state.aircraft.length > 2 ? FOUR_FORMATIONS[to]?.label ?? to : FORMATIONS[to]?.label ?? to;
+      if (state.current && state.aircraft.length > 2) {
+        const label = FOUR_FORMATIONS[to]?.label ?? to;
         state.queued = { key: `change:${to}`, dir: 0, label, change: { to, options } };
         return 'queued';
       }
