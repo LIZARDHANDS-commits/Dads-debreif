@@ -17,7 +17,7 @@
 // Every number with no source beside it is an estimate and says so.
 import { wrapPi } from '../../../core/angles.js';
 import { KT_TO_FTPS, G_FTPS2 } from '../../../core/units.js';
-import { STEP_SEC, stepAircraft, copyAircraft, SMOOTHER_PEAK, smoother } from './flight.js';
+import { STEP_SEC, stepAircraft, copyAircraft, smoother } from './flight.js';
 import { relativeTo, turnSeg, wholeDegree, onStep, DEG } from './manoeuvres.js';
 import { recordFlight, fwShapeNow, KIAS_LAB, KIAS_OUTSIDE_LAB, REJOIN, classifyPair, describe, FORMATIONS, LENGTH_FT } from './transitions.js';
 import { makeTrack, seedTrack, posesFrom, settleLast, followInto, slotInWorld, poseOf, laggedBank } from './kinematic.js';
@@ -39,7 +39,7 @@ const LINE_UP = Object.freeze({ behindFt: 300, minRangeFt: 400, maxRangeFt: 2000
  * At the normal reference #2 lines up wherever the standard rejoin's choices put him, even a little ahead or close in (the
  * error carries, TS-62); an overshoot then takes over if he can't stop. Estimates.
  */
-const LINE_UP_REFERENCE = Object.freeze({ behindFt: -100, minRangeFt: 250, maxRangeFt: 3000 });
+const LINE_UP_REFERENCE = Object.freeze({ behindFt: -1000, minRangeFt: 150, maxRangeFt: 3000 });
 /** How close to the standard start the pair must be for the standard hot turning rejoin (estimates: the shared margins). */
 export const STANDARD = Object.freeze({ spacingFt: 100, foreAftFt: 500, heightFt: 100, kias: 10, headingDeg: 5 });
 
@@ -71,6 +71,9 @@ export const HOT = Object.freeze({
   rollLevelSec: 2, // #2's turn dies away over this long as he rolls the wings level
   idleShare: 0.9, // the overshoot slows at 90% of what idle and the boards give, so the settling has room ("use power and speed brake as required")
   decisionStepSec: 0.5, // the decision point is searched back from the latest possible in half-second steps
+  overshootRangeFt: 1500, // an overshoot decision is only taken this close to Lead, where the overtake shows (SMM 12.27 para 65; the figure is about 1,000 ft or less)
+  outsideWithinFt: 3000, // a line that slides to the outside of Lead's turn within this range of him is an overshoot (estimate)
+  nearlyKtps: 1, // a line whose capture asks up to 1 kt/s more speed-up than HOT.accelCapKtps still flies; beyond it the overshoot is preferred
 });
 
 const RANK = Object.freeze({ power: 0, boards: 1, idle: 2, idleBoards: 3 });
@@ -83,7 +86,7 @@ const RANK = Object.freeze({ power: 0, boards: 1, idle: 2, idleBoards: 3 });
  * (energy height, standard aerodynamics: holding the speed in a descent at climb rate c takes g c / V of extra drag), so a
  * high start that dives down to Lead has its height to lose as well as its speed (Patrick 19:15Z lists "high" as a worse start).
  */
-export function speedNeeds(poses, from, blockFt) {
+export function speedNeeds(poses, from, blockFt, to = poses.length) {
   const n = poses.length;
   const raw = new Float64Array(n);
   for (let k = 1; k < n - 1; k++) raw[k] = (poses[k + 1].kias - poses[k - 1].kias) / (2 * dt);
@@ -92,7 +95,7 @@ export function speedNeeds(poses, from, blockFt) {
   let firstBad = -1;
   let accelShort = 0;
   let top = 0;
-  for (let k = Math.max(1, from); k < n - 1; k++) {
+  for (let k = Math.max(1, from); k < Math.min(n - 1, to); k++) {
     let sum = 0;
     let cnt = 0;
     for (let j = Math.max(1, k - half); j <= Math.min(n - 2, k + half); j++) {
@@ -147,6 +150,31 @@ function belowWhereItCounts(poses, rec, kh) {
     if (range < 1000 || (k >= kh && range < 2000)) least = Math.min(least, L.altAboveFt - p.alt);
   }
   return least;
+}
+
+/**
+ * Where a planned line slides across behind Lead to the outside of his turn (side -s) and back: the overshoot of SMM 12.27
+ * para 65 and Fig 12.18 seen in the line itself (#2 could not stop on his own side, passes behind and below Lead, is on the
+ * outside, then crosses back). Returns { k0, k1, crossFwd } (pose indices of the crossing out and back, and how far behind
+ * Lead he crossed) or null. Only inside HOT.outsideWithinFt of Lead counts: a wide swing far out is a lag, not an overshoot.
+ */
+function outsideCrossing(poses, rec, s) {
+  let k0 = -1;
+  let crossFwd = 0;
+  let prev = null;
+  for (let k = 0; k < poses.length; k++) {
+    const L = rec.at(k + 1);
+    const rel = relativeTo(L, { xFt: poses[k].x, yFt: poses[k].y });
+    const side = Math.sign(rel.left);
+    if (prev !== null && side !== prev) {
+      if (side === -s && k0 < 0 && Math.hypot(rel.fwd, rel.left) < HOT.outsideWithinFt) {
+        k0 = k;
+        crossFwd = rel.fwd;
+      } else if (side === s && k0 >= 0) return { k0, k1: k, crossFwd };
+    }
+    prev = side;
+  }
+  return k0 >= 0 ? { k0, k1: poses.length - 1, crossFwd } : null;
 }
 
 /** A recorded flight seen with its wings level, for the overshoot's "carry on" line (followInto level). */
@@ -238,7 +266,7 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
   // before #2 is inside 2,000 ft of Lead (HOT; the horizontal path doesn't depend on it, so it is read off a first look).
   const dh = lead.altAboveFt + fw.up - wing.altAboveFt;
   const within2000 = standard ? Infinity : timeToRange(2200);
-  const descendSec = Math.max(HOT.minDescentSec, (SMOOTHER_PEAK * Math.abs(dh)) / HOT.maxDescentFtps, Math.min((SMOOTHER_PEAK * Math.abs(dh)) / HOT.descentFtps, within2000 - 2));
+  const descendSec = Math.max(HOT.minDescentSec, Math.abs(dh) / HOT.maxDescentFtps, Math.min(Math.abs(dh) / HOT.descentFtps, within2000 - 2));
   const descend = { t0, t1: t0 + descendSec, fromFt: wing.altAboveFt, toFt: lead.altAboveFt + fw.up };
   /** Flies #2 from the press through segments, calling each(a, k, p) after every step until it returns false. */
   const flyWing = (segments, maxSteps, each) => {
@@ -254,18 +282,22 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
   };
 
   /** Steps 1 and 2 for one way of slowing: the turn to point, the roll-out and the reversal; every way that lines #2 up, best first. */
-  const lineUps = (slowWing, knobs = null) => {
-    const lineUp = mode === 'reference' ? LINE_UP_REFERENCE : LINE_UP;
+  const lineUps = (slowWing, knobs = null, lineUp = mode === 'reference' ? LINE_UP_REFERENCE : LINE_UP) => {
     // 1. Turn hard to point at Lead (pure pursuit at the roll-out), found in a few passes.
     let point = Math.atan2(lead.yFt - wing.yFt, lead.xFt - wing.xFt);
-    for (let pass = 0; pass < 5; pass++) {
+    // Off the standard start a fast #2 can cross Lead's nose before he has turned, and the passes then swing between "turn
+    // all the way" and "don't turn"; there each pass moves only halfway to the new answer, with more passes, so it settles.
+    const passes = standard ? 5 : 10;
+    const relax = standard ? 1 : 0.5;
+    for (let pass = 0; pass < passes; pass++) {
       let out = 1;
       const end = flyWing([...pre, slowWing, turnSeg(wholeDegree(point), -s, KINEMATIC.pointBankDeg)], 4000, (a, k, p) => {
         out = k;
         return !(p.segments.length === 0 && a.bankDeg === 0);
       });
       const L = longRec.at(out);
-      point = Math.atan2(L.yFt - end.yFt, L.xFt - end.xFt);
+      const next = Math.atan2(L.yFt - end.yFt, L.xFt - end.xFt);
+      point = pass === 0 ? next : wrapPi(point + relax * wrapPi(next - point));
     }
     const pointTurn = Math.abs(wrapPi(point - wing.headingRad));
 
@@ -429,25 +461,33 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
   let needsOvershoot = null;
   let lined = false;
   /** Tries one way of slowing (stage) with the given choices (knobs, or a search), the best `top` line-ups. */
-  const tryStage = (stage, knobs, top, toKias = wingKias) => {
+  const tryStage = (stage, knobs, top, toKias = wingKias, lineUp = undefined) => {
     const slowWing = { ...speedSegFor(wing.kias, toKias, blockFt, stage), withNext: true };
-    const candidates = lineUps(slowWing, knobs);
-    if (globalThis.HRDBG) console.error('DBG stage', stage, 'cands', candidates.length);
+    const candidates = lineUps(slowWing, knobs, lineUp);
     if (candidates.length) lined = true;
+    else return 0;
     for (const c of candidates.slice(0, top)) {
-      for (const captureSec of HOT.captureSecs) {
+      // At the normal reference #2 flies the standard capture (20 s, TS-55): he does not stretch it to soak up his error.
+      for (const captureSec of mode === 'reference' ? [KINEMATIC.captureSec] : HOT.captureSecs) {
         const b = buildLine(c, slowWing, captureSec);
         if (b.line.maxBankDeg > KINEMATIC.pointBankDeg + 0.5 || belowWhereItCounts(b.line.poses, b.lp.rec, c.kh) <= 0) break;
         const needs = speedNeeds(b.line.poses, c.kh - 3, blockFt);
         const lane = laneBreak(b.line.poses, b.lp.rec, c.kh);
-        if (globalThis.HRDBG) console.error('DBG  cand', c.share, c.delaySteps, c.b3, 'kh', c.kh, 'cap', captureSec, 'bank', b.line.maxBankDeg.toFixed(1), 'below', b.checks.minBelowFt.toFixed(0), 'bad', needs.firstBad, 'lane', lane, 'accShort', needs.accelShort.toFixed(2), 'top', needs.top);
         if (needs.firstBad >= 0 || lane >= 0) {
           // Too much energy for this line: the decision point comes before the first step it can't be flown.
+          // It is an overshoot only if that is close to Lead (SMM 12.27 para 65: excess overtake as #2 reaches him); further
+          // out a longer capture is tried instead.
           const kBad = Math.min(...[needs.firstBad, lane].filter((x) => x >= 0));
-          if (!needsOvershoot || RANK[stage] >= RANK[needsOvershoot.stage]) needsOvershoot = { b, kBad: Math.max(c.kh + 1, kBad), stage };
-          break;
+          const P = b.line.poses[kBad];
+          const L = b.lp.rec.at(kBad + 1);
+          if (Math.hypot(L.xFt - P.x, L.yFt - P.y) <= HOT.overshootRangeFt && (!needsOvershoot || RANK[stage] >= RANK[needsOvershoot.stage])) needsOvershoot = { b, kBad: Math.max(c.kh + 1, kBad), stage };
+          continue;
         }
-        const entry = { b, needs, used: Math.max(RANK[stage], needs.top), score: c.score };
+        // A line that slides behind Lead to the outside of his turn is an overshoot: last in Patrick's order (23:37Z), after
+        // power, the boards and idle, and only if it passes behind him.
+        const xo = outsideCrossing(b.line.poses, b.lp.rec, s);
+        if (xo && xo.crossFwd > -HOT.passBehindFt) continue;
+        const entry = { b, needs, used: Math.max(RANK[stage], needs.top) + (xo ? 4 : 0), score: c.score, xo };
         if (needs.accelShort > 0) {
           // A longer capture asks less power; keep the line that asks least past it in case none is within it.
           if (!nearly || needs.accelShort < nearly.needs.accelShort) nearly = entry;
@@ -458,6 +498,7 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
         break;
       }
     }
+    return candidates.length;
   };
   if (mode === 'reference') {
     tryStage('power', refKnobs, 1);
@@ -466,16 +507,28 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
   } else {
     // Fix it, in Patrick's order: geometry with power (slowing to Lead's speed, or keeping a set overtake), then the speed
     // brake, then idle, then both; the first way that works, and the line using the least of them.
-    for (const toKias of HOT.powerTargetsKias) {
-      tryStage('power', null, 5, toKias);
-      if (good.some((g) => g.used === 0)) break;
+    // A line found that only asks a little more speed-up than the cap (HOT.nearlyKtps) also ends the search, so a press
+    // still plans in a second or a few.
+    const enough = (rank) => good.some((g) => g.used <= rank) || (nearly !== null && nearly.needs.accelShort < HOT.nearlyKtps);
+    // A faster target only lines up where a slower one does (more energy, further ahead), so a target with no line-up ends
+    // that way of slowing.
+    for (const stage of STAGES) {
+      if (enough(RANK[stage] - 1)) break;
+      // The faster targets (a set overtake kept with power) are for power only; the boards and idle slow him to Lead's speed.
+      for (const toKias of stage === 'power' ? HOT.powerTargetsKias : [KINEMATIC.hotWingKias]) {
+        if (!tryStage(stage, null, 5, toKias) || enough(RANK[stage])) break;
+      }
     }
-    for (const stage of STAGES.slice(1)) {
-      if (good.some((g) => g.used < RANK[stage])) break;
-      tryStage(stage, null, 5);
+    // Nothing lines up behind Lead from here (ahead and close in): the nearest line-ups, even a little ahead or close, in
+    // the same order; they need the overshoot if he can't stop.
+    if (!good.length && !enough(3)) {
+      for (const stage of ['power', 'idleBoards']) { // the ends of the order only, so a press still plans in a few seconds
+        tryStage(stage, null, 5, KINEMATIC.hotWingKias, LINE_UP_REFERENCE);
+        if (good.length) break;
+      }
     }
   }
-  if (!good.length && nearly) {
+  if (!good.length && nearly && (nearly.needs.accelShort < HOT.nearlyKtps || !needsOvershoot)) {
     // The speed-ups of the planned capture lines aren't held to full power yet (the standard rejoin's aren't either: TS-62,
     // future.md); the slowing is, and that is what an off-standard start tests.
     labelStages(nearly.b.line.poses, nearly.b.c.kh - 3, nearly.needs.ranks);
@@ -483,14 +536,17 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
   }
   if (good.length) {
     good.sort((x, y) => x.used - y.used || x.score - y.score);
-    return result(good[0].b, { usedStage: STAGES[good[0].used] });
+    const g = good[0];
+    if (g.xo) for (let k = g.xo.k0; k <= g.xo.k1; k++) g.b.line.poses[k].over = true;
+    return result(g.b, { usedStage: STAGES[g.used % 4], overshoot: g.xo ? { atSec: (g.xo.k0 + 1) * dt, stableSec: (g.xo.k1 + 1) * dt, crossFwdFt: g.xo.crossFwd } : null });
   }
   if (needsOvershoot) {
-    if (globalThis.HRDBG) console.error('DBG overshoot from kBad', needsOvershoot.kBad, 'kh', needsOvershoot.b.c.kh);
     const o = planOvershoot(needsOvershoot);
-    if (globalThis.HRDBG) console.error('DBG overshoot', Boolean(o));
     if (o) return o;
   }
+  // Nothing lines up at all (a fast or ahead start at the normal reference, or ahead and close in): pointed at Lead, #2 is
+  // carried ahead of Lead's 3/9 line by Lead's turn into him, which is not the overshoot of Fig 12.18 (that starts behind,
+  // with closure). The tracker's rejoin flies it (as before V2.20); what #2 should do there is a question for Patrick (TS-62).
   return { ok: false, reason: lined ? 'No safe hot turning rejoin or overshoot from here.' : 'No safe hot turning rejoin from here: #2 could not line up with Lead.' };
 
   /**
@@ -521,7 +577,8 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
       return { track, flown };
     };
     const step = Math.max(1, Math.round(HOT.decisionStepSec / dt));
-    for (let kD = kBad; kD > c.kh + Math.round(1 / dt); kD -= step) {
+    const earliest = c.kh + Math.round(1 / dt);
+    for (let kD = kBad; kD > earliest; kD -= step) {
       // Where #2 is at the decision: the outside place keeps his height if he is lower (he never climbs while crossing).
       const probe = overshootTrack(longRec, kD, 1, kD + 8, { fwd: 0, left: 0, up: 0, plane: 0 }).track;
       const upNow = probe.z[kD + 3] - longRec.at(kD).altAboveFt;
@@ -532,10 +589,10 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
         const { track } = overshootTrack(longRec, kD, blendSec, n, outside);
         const poses = posesFrom(track, kiasPerTas).poses;
         const pb = passesBehindAndBelow(poses, longRec, kD, kS);
-        const needs = speedNeeds(poses, kD - 1, blockFt);
-        if (globalThis.HRDBG && blendSec === HOT.blendSecs[0]) console.error('DBG   kD', kD, 'B', blendSec, 'pass', pb, 'bad', needs.firstBad, 'kS', kS, 'upNow', upNow.toFixed(0));
+        const needs = speedNeeds(poses, kD - 1, blockFt, kS);
         if (!pb) continue;
-        if (needs.firstBad >= 0 && needs.firstBad < kS - 1) continue;
+        // The overshoot only slows him (power back, boards): never a line that has him speed up to get there.
+        if (needs.firstBad >= 0 || needs.accelShort > 0) continue;
         return finishOvershoot({ c, kD, kS, blendSec, outside, overshootTrack });
       }
     }
@@ -575,9 +632,10 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
     for (const e of events) followInto(track, { ref, from: e.k, slotAt: back.slotAt, blendSec: e.blendSec, decaySec: e.blendSec / 2 });
     const line = posesFrom(track, kiasPerTas);
     settleLast(line.poses, lp.rec.at(n));
-    for (let k = 1; k <= c.kh - 3; k++) line.poses[k - 1] = flown[k];
-    const needs = speedNeeds(line.poses, c.kh - 3, blockFt);
-    labelStages(line.poses, c.kh - 3, needs.ranks);
+    const kFlown = c.kh - 3;
+    for (let k = 1; k <= kFlown; k++) line.poses[k - 1] = flown[k];
+    const needs = speedNeeds(line.poses, kFlown, blockFt);
+    labelStages(line.poses, kFlown, needs.ranks);
     for (let k = kD; k <= kS && k <= line.poses.length; k++) line.poses[k - 1].over = true;
     const checks = laneAndBelow(lp.rec, track, n);
     return {
@@ -692,4 +750,16 @@ export function offStandardWords(mode, r) {
   }
   if (mode === 'reference') return `Turning at the normal reference: #2 flies the standard rejoin from where he is, power only${used ? `, and needs ${used} to stop the overtake` : ''}.`;
   return `Fix it: #2 corrects with geometry first (cut-off, lag line, reversal), then power${used ? `, then ${used}` : ''} (Patrick's order, SMM 12.26 para 63).`;
+}
+
+/** The Errors line on the card once an off-standard hot turning rejoin ends (TS-62): what #2 used, and whether he joined. */
+export function offStandardOutcome(off, inBand, label) {
+  const used = off.usedStage && off.usedStage !== 'power' ? STAGE_WORDS[off.usedStage] : null;
+  const how = off.overshoot
+    ? 'overshot behind and below Lead, stabilised on the outside, crossed back and joined'
+    : off.mode === 'reference'
+      ? `turned at the normal reference, power only${used ? `, then ${used} to stop the overtake` : ''}`
+      : `fixed it with geometry and power${used ? `, then ${used}` : ''}`;
+  const end = inBand ? 'ended in position' : 'ended outside the band (see the judged line)';
+  return { label, response: off.mode, fixed: off.mode === 'fix', text: `${label}: #2 ${how}, and ${end}.`, tone: inBand ? 'good' : 'caution' };
 }

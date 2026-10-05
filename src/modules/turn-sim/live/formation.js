@@ -16,7 +16,7 @@ import { FOUR_SHIP_KEYS, fourShipStart, planFour, judgeFour } from './four-ship.
 import { G_WARM, planGWarm } from './g-warm.js';
 import { classifyFour, judgeFourFormation, FOUR_FORMATIONS, setFw4Shape } from './four-ship-slots.js';
 import { planChangeFour } from './four-ship-moves.js';
-import { planHotRejoinChange } from './hot-rejoin.js';
+import { planHotRejoinChange, offStandardOutcome } from './hot-rejoin.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS, planFormationTurn } from './formation-turns.js';
 import { createFluidSession, fluidReadouts } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
@@ -297,7 +297,7 @@ export function createFormation(options = {}) {
     if (four) for (const a of state.aircraft) if (a.ref != null) a.ref = plan.refs[a.id];
     state.current = {
       key: `change:${to}`,
-      change: { to, side: plan.side, from: plan.from, rejoining: plan.rejoining, rejoinKind: plan.rejoinKind, flying: plan.flying, maxBankDeg: plan.maxBankDeg, four },
+      change: { to, side: plan.side, from: plan.from, rejoining: plan.rejoining, rejoinKind: plan.rejoinKind, flying: plan.flying, maxBankDeg: plan.maxBankDeg, four, offStandard: plan.offStandard ?? null },
       dir: 0,
       label: plan.label,
       note: plan.note,
@@ -369,6 +369,8 @@ export function createFormation(options = {}) {
       const c = state.current.change;
       const j = c.four ? judgeFourFormation(c.to, state.aircraft, c.side, { spacingFt: state.spacingFt }) : judgeFormation(c.to, lead, wing, state.spacingFt);
       state.judged = { label: state.current.label, shape: 'formation', labels: j.inBand ? ['IN POSITION'] : j.labels, text: j.text, tone: j.tone, ...(c.four ? { ships: j.ships } : {}) };
+      // An off-standard hot turning rejoin (TS-62) says on the card how #2 dealt with the start.
+      if (c.offStandard) state.errorOutcome = offStandardOutcome(c.offStandard, j.inBand, state.current.label);
     } else if (state.current.gWarm) {
       // G-warm ends in line abreast at the tightened gap (AFM8 brief p.16 item 5); that gap is the four's from now on.
       const g = state.current.gWarm;
