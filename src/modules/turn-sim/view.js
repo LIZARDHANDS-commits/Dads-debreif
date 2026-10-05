@@ -11,6 +11,7 @@ import { turnRadiusFt, turnRadiusFromBankFt, limitG, MIN_TURN_G } from '../../co
 import { ktToFtps, formatNm } from '../../core/units.js';
 import { pairDistances, ft } from './readouts.js';
 import { SHIP_COLORS, OUTLINED_SHIPS } from './layout.js';
+import { FW_TURN } from './live/formation-turns.js';
 
 const FT_PER_NM = 6076.11549;
 const BACKGROUND = '#071018'; // V6's
@@ -107,8 +108,12 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
       ctx.fillRect(0, 0, width, height);
       drawGrid(ctx, map);
       if (Number.isFinite(settings.moaBoundaryNm)) drawMoa(ctx, map, settings.moaBoundaryNm);
-      if (layers.lead39 && lead) drawLead39(ctx, map, lead);
-      if (layers.lead75 && lead) drawLead75(ctx, map, lead);
+      // The Cone, the 3/9 and the 7/5 lines, for each aircraft ticked in its list (Patrick, 5 Oct).
+      for (const a of state.aircraft) {
+        if (layers.cone && layers[`cone_${a.id}`]) drawCone(ctx, map, a);
+        if (layers.lead39 && layers[`l39_${a.id}`]) drawLead39(ctx, map, a);
+        if (layers.lead75 && layers[`l75_${a.id}`]) drawLead75(ctx, map, a);
+      }
       const { trail, marks } = source.trails();
       if (layers.tracks !== false) drawTrails(ctx, map, trail);
       if (layers.planned && source.planned) drawPlanned(ctx, map, source.planned(), state.tSec);
@@ -212,7 +217,45 @@ function drawMoa(ctx, map, nm) {
   ctx.restore();
 }
 
-/** Lead's 3/9 line: across Lead's heading, through Lead (V6 drawLead39Line, line 1757). */
+const shipName = (a) => (a.id === 1 ? 'Lead' : `#${a.id}`);
+
+/**
+ * The fighting wing cone behind an aircraft, both sides, lightly shaded in its colour: 30-60° of sweep back from its wing
+ * line and 500-1,000 ft from it (SMM 12.29 para 69, Fig 12.19; FW_TURN.band). Patrick, 5 Oct.
+ */
+function drawCone(ctx, map, a) {
+  const { minFt, maxFt, minSweepDeg, maxSweepDeg } = FW_TURN.band;
+  const deg = Math.PI / 180;
+  const steps = 12;
+  ctx.save();
+  ctx.fillStyle = SHIP_COLORS[a.id] ?? '#d9e6f2';
+  ctx.strokeStyle = SHIP_COLORS[a.id] ?? '#d9e6f2';
+  ctx.lineWidth = 1;
+  for (const side of [1, -1]) { // +1 left, -1 right; a bearing of heading + side·(90° + sweep) is that far back from the wing line
+    const at = (r, sweepDeg) => {
+      const h = a.headingRad + side * (Math.PI / 2 + sweepDeg * deg);
+      return map.worldToScreen(a.xFt + Math.cos(h) * r, a.yFt + Math.sin(h) * r);
+    };
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const [x, y] = at(maxFt, minSweepDeg + ((maxSweepDeg - minSweepDeg) * i) / steps);
+      if (i) ctx.lineTo(x, y);
+      else ctx.moveTo(x, y);
+    }
+    for (let i = steps; i >= 0; i--) {
+      const [x, y] = at(minFt, minSweepDeg + ((maxSweepDeg - minSweepDeg) * i) / steps);
+      ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.globalAlpha = 0.14;
+    ctx.fill();
+    ctx.globalAlpha = 0.45;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** An aircraft's 3/9 line: across its heading, through it (V6 drawLead39Line, line 1757), in its colour. */
 function drawLead39(ctx, map, lead) {
   const left = { x: Math.cos(lead.headingRad + Math.PI / 2), y: Math.sin(lead.headingRad + Math.PI / 2) };
   const len = Math.max(map.size.width, map.size.height) / map.view.scale * 0.75;
@@ -220,7 +263,7 @@ function drawLead39(ctx, map, lead) {
   const [bx, by] = map.worldToScreen(lead.xFt + left.x * len, lead.yFt + left.y * len);
   const [cx, cy] = map.worldToScreen(lead.xFt, lead.yFt);
   ctx.save();
-  ctx.strokeStyle = '#58a6ff';
+  ctx.strokeStyle = SHIP_COLORS[lead.id] ?? '#58a6ff';
   ctx.globalAlpha = 0.8;
   ctx.lineWidth = 2;
   ctx.setLineDash([10, 8]);
@@ -229,7 +272,7 @@ function drawLead39(ctx, map, lead) {
   ctx.lineTo(bx, by);
   ctx.stroke();
   ctx.restore();
-  text(ctx, 'Lead 3/9', cx - 16, cy - 26, '#b9d8f5', 11, 'right'); // above the line, off the circle labels below
+  text(ctx, `${shipName(lead)} 3/9`, cx - 16, cy - 26, '#b9d8f5', 11, 'right'); // above the line, off the circle labels below
 }
 
 /**
@@ -242,7 +285,7 @@ function drawLead75(ctx, map, lead) {
   // Left of the tail is +, so 7 o'clock is the tail +30° and 5 o'clock the tail -30°.
   const lines = [{ clock: '5', h: lead.headingRad + Math.PI - Math.PI / 6 }, { clock: '7', h: lead.headingRad + Math.PI + Math.PI / 6 }];
   ctx.save();
-  ctx.strokeStyle = '#58a6ff';
+  ctx.strokeStyle = SHIP_COLORS[lead.id] ?? '#58a6ff';
   ctx.globalAlpha = 0.6;
   ctx.lineWidth = 1.5;
   ctx.setLineDash([4, 6]);
@@ -257,7 +300,7 @@ function drawLead75(ctx, map, lead) {
   const labelAt = 140 / map.view.scale; // 140 px out along each line, clear of the 3/9 label
   for (const { clock, h } of lines) {
     const [lx, ly] = map.worldToScreen(lead.xFt + Math.cos(h) * labelAt, lead.yFt + Math.sin(h) * labelAt);
-    text(ctx, `Lead ${clock}`, lx + 6, ly, '#b9d8f5', 11);
+    text(ctx, `${shipName(lead)} ${clock}`, lx + 6, ly, '#b9d8f5', 11);
   }
 }
 

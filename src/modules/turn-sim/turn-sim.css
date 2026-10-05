@@ -356,7 +356,8 @@
 }
 
 [data-module='turn-sim'] .ts-tags3d[hidden],
-[data-module='turn-sim'] .choice-option[hidden] {
+[data-module='turn-sim'] .choice-option[hidden],
+[data-module='turn-sim'] .ts-menu-body .control-checkbox[hidden] {
   display: none;
 }
 
@@ -621,4 +622,13 @@
 
 [data-module='turn-sim'] .ts-col-setup .panel-pop + .panel-pop {
   margin-top: var(--space-2);
+}
+
+/* The 3/9, 7/5 and Cone layers (Patrick, 5 Oct): the tick, then a row of small ticks for which aircraft draw it. */
+[data-module='turn-sim'] .ts-ship-ticks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-3);
+  margin: 0 0 var(--space-2) var(--space-5);
+  font-size: var(--text-sm);
 }

@@ -19,8 +19,13 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   setupColumn: true,
   formationColumn: true,
   tracks: true, // each aircraft's ground track, for the whole flight
-  lead39: false, // Lead's 3/9 line (off by default from layout version 3, TS-56)
-  lead75: false, // Lead's 7 and 5 o'clock lines: the back edge of the fighting wing cone, 60° of sweep (SMM 12.29 para 69)
+  lead39: false, // the 3/9 line switch (off by default from layout version 3, TS-56); l39_<id> picks the aircraft
+  lead75: false, // the 7 and 5 o'clock lines switch: the back edge of the fighting wing cone, 60° of sweep (SMM 12.29 para 69)
+  cone: false, // The Cone switch: the fighting wing cone, shaded (Patrick, 5 Oct)
+  // Which aircraft draw each (Patrick, 5 Oct): Lead at first.
+  l39_1: true, l39_2: false, l39_3: false, l39_4: false,
+  l75_1: true, l75_2: false, l75_3: false, l75_4: false,
+  cone_1: true, cone_2: false, cone_3: false, cone_4: false,
   planned: true, // the paths still to fly, dashed
   turnCircles: false,
   tags: true, // the info tag beside each aircraft: what it is doing and how it sits (spec section 10.4)
@@ -48,7 +53,7 @@ export const LAYOUT_ALLOWED = /** @type {Record<string, any[]>} */ (Object.freez
 }));
 
 /** Layers that only the 2D picture draws; they are greyed out in 3D. */
-const LAYERS_2D = ['lead39', 'lead75', 'turnCircles']; // planned and tags draw in 3D too (Patrick, 5 Oct)
+const LAYERS_2D = []; // every layer draws in 3D as well as 2D (Patrick, 5 Oct)
 
 export const SPEEDS = Object.freeze([0.25, 0.5, 1, 2, 4]);
 
@@ -231,13 +236,25 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     return { element, setOpen };
   }
   const lc = layoutControls;
+  // The 3/9 line, the 7/5 lines and The Cone (Patrick, 5 Oct), each with ticks for which aircraft draw it (Lead at first).
+  const SHIP_NAMES = [[1, 'Lead'], [2, '#2'], [3, '#3'], [4, '#4']];
+  const shipTicks = []; // { el, id }: #3 and #4 show in the four only
+  function layerWithShips(key, prefix, label) {
+    const ticks = SHIP_NAMES.map(([id, name]) => {
+      const el = lc.checkbox(`${prefix}_${id}`, { label: name });
+      shipTicks.push({ el, id });
+      return el;
+    });
+    return h('div', { class: 'ts-layer-ships' }, lc.checkbox(key, { label }), h('div', { class: 'ts-ship-ticks', role: 'group', 'aria-label': `${label}: which aircraft` }, ...ticks));
+  }
   const layersMenu = menu('Layers', 'ts-layers', [
     lc.checkbox('tracks', { label: 'Ground tracks' }),
-    lc.checkbox('lead39', { label: 'Lead 3/9 line' }),
-    lc.checkbox('lead75', { label: 'Lead 7 and 5 o\'clock lines' }),
     lc.checkbox('planned', { label: 'Planned path' }),
     lc.checkbox('turnCircles', { label: 'Turn circles' }),
     lc.checkbox('tags', { label: 'Info tags' }),
+    layerWithShips('lead39', 'l39', '3/9 line'),
+    layerWithShips('lead75', 'l75', "7/5 o'clock lines"),
+    layerWithShips('cone', 'cone', 'The Cone'),
     lc.select('paint', { label: '3D paint', options: PAINT_OPTIONS }),
   ]);
   // The camera (Patrick, 5 Oct): centred on the formation or one aircraft; on one aircraft in 3D it follows it or padlocks the
@@ -319,6 +336,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       tags3d.hidden = view !== '3d';
       for (const key of LAYERS_2D) lc.setDisabled(key, view === '3d');
       lc.setDisabled('camLook', view !== '3d'); // Follow and Padlock turn the 3D view; the 2D map stays north up
+
     },
     /** A short note beside the View switch ("3D needs a connection the first time."), or '' for none. */
     setNote(text) {
@@ -344,6 +362,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       errorsSection.hidden = ships === 4; // training errors are 2-ship only for now (TS-52)
       changeUi?.setShips(ships); // the four have their own formation buttons (spec section 8)
       camOnChoice.querySelectorAll('.choice-option').forEach((el, i) => { el.hidden = i > 2 && ships !== 4; }); // #3 and #4 in the four only
+      for (const { el, id } of shipTicks) el.hidden = id > 2 && ships !== 4;
     },
     /**
      * Shows only the manoeuvre buttons that fly in the formation the aircraft are in; the rest are hidden, not greyed.
