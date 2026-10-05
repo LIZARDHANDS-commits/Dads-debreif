@@ -527,6 +527,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     }
     if (!leaders.length) return;
     for (const f of live) {
+      if (f.phase !== 'downwind') delete f.perchRoll; // rolled once each time round the downwind
       if (f.routeId !== pat.id || f.phase !== 'downwind' || f.mode !== 'RAIL' || f.deconflict) continue;
       if (f.goAroundFlight || f.pflFlight || f.pflRail || f.highKeyFlight || f.sideStep) continue;
       const ahead = leaders.filter((l) => l.a !== f);
@@ -542,6 +543,11 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (extendFt === 0) continue;
       // The one it spaces on: the first that alone would keep it from turning in now.
       const leader = ahead.find((l) => spacingExtensionFt({ ...ask, leaders: [l], limitFt: 0 }) === null) ?? ahead[0];
+      // Behind a straight-in, one in four doesn't extend: it perches anyway and the straight-in moves over (TR-74).
+      if (isStraightIn(routeOf(leader.a))) {
+        f.perchRoll ??= rollFor(seed, `${f.id}:perch`, f.perchRolls = (f.perchRolls ?? 0) + 1) < EVADE.perchAnywayShare ? 'perch' : 'extend';
+        if (f.perchRoll === 'perch') continue;
+      }
       let flight = extendFt === null ? null : buildExtendedDownwind(pat.points, stateOf(f), wind.windFromDeg, wind.windKt, perch, extendFt);
       // The final turn rolls out a little short of a full extension: make up the shortfall once.
       const shortFt = flight ? rolloutFt + extendFt - alongOf(flight.rollout) : 0;

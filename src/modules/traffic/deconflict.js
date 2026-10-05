@@ -101,6 +101,8 @@ export function rightOfWay(p, q) {
   // 4.28 para 68, 4.21 paras 50-51).
   if (sa === 'straight_in' || sb === 'straight_in') {
     const [s, o] = sa === 'straight_in' ? [a, b] : [b, a];
+    // One that chose not to extend (TR-74) perches anyway, so the straight-in moves over.
+    if (o.standing === 'inner_downwind' && o.perchAnyway) return pick(s, o, 'move_over', 'aircraft perching ahead did not extend');
     if (o.standing === 'inner_downwind') return pick(o, s, 'breakout', 'straight-in over an aircraft about to perch');
     if (o.standing === 'final_turn' || o.standing === 'final') return pick(s, o, 'move_over', 'final turn over straight-in');
   }
@@ -172,7 +174,7 @@ export function freeze(aircraft, pathOf, routeOf) {
     // A straight-in is on final only on its last leg; further out it breaks out like anyone else (Patrick's Q3, Q7).
     const finalLeg = standing === 'straight_in' && route?.points?.length >= 2 && Number.isFinite(a.distFt)
       ? a.distFt >= pointDistFt(route, route.points.length - 2, path?.options) : undefined;
-    out.push({ id: a.id, x: a.x, y: a.y, alt: a.alt, trackDeg, gsFtps, standing, finalLeg, busy: Boolean(a.deconflict), track });
+    out.push({ id: a.id, x: a.x, y: a.y, alt: a.alt, trackDeg, gsFtps, standing, finalLeg, perchAnyway: a.perchRoll === 'perch', busy: Boolean(a.deconflict), track });
   }
   return out.sort((p, q) => (p.id < q.id ? -1 : p.id > q.id ? 1 : 0));
 }
