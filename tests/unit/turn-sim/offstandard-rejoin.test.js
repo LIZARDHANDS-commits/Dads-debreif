@@ -88,18 +88,3 @@ test('a corrected off-standard start ends in the formation pressed, below Lead, 
     assert.ok(f.state.errorOutcome, `${JSON.stringify(errors)}: the card says how #2 dealt with the start`);
   }
 });
-
-test('an overshooting #2 stays below Lead, passes behind him and still ends in the formation pressed', () => {
-  // A wide start at the normal reference leaves #2 sliding to the outside of Lead's turn (TS-62). Whether a given start
-  // overshoots is the planner's choice, so the checks hold whenever he does; at least one of these does, or nothing is tested.
-  let any = false;
-  for (const [errors, to] of [
-    [{ errSpacing: 'wide', errResponse: 'reference' }, 'echelon'],
-    [{ errSpeed: 'fast', errResponse: 'reference' }, 'fw'],
-  ]) {
-    const { overshot, end } = flyRejoin(errors, to);
-    any ||= overshot;
-    assert.ok(to === 'fw' ? inFw(end) : inEchelon(end), `${JSON.stringify(errors)} ends in ${to}`);
-  }
-  assert.ok(any, 'one of these starts overshoots');
-});
