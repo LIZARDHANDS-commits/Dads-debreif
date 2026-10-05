@@ -24,6 +24,7 @@ import { recordFlight, trackTwice, phase, flyStep, dryRunT } from './transitions
 import { smoothest, makeTrack, seedTrack, posesFrom, settleLast, laggedBank, followInto } from './kinematic.js';
 import { leadTurnSegs, rollEvents, eventsEnd, KINEMATIC } from './kinematic-moves.js';
 import { G_FTPS2 } from '../../../core/units.js';
+import { holdToPower } from './full-power.js';
 
 /** The numbers of the fighting wing turns. Estimates unless a source is given. */
 export const FW_TURN = Object.freeze({
@@ -201,7 +202,7 @@ function bankAndRoll(aircraft, segments, t0, n) {
  * aircraft: Lead first, each wingman with `ref`; formation: the formation they are in; key: a turn button; dir: +1 left, -1 right.
  * Returns { ok, plans, note, leadBankDeg, maxBankDeg, endSec, flag }.
  */
-export function planCloseTurn(aircraft, formation, key, dir, t0 = 0) {
+export function planCloseTurn(aircraft, formation, key, dir, t0 = 0, { blockFt = 8000 } = {}) {
   const lead = aircraft[0];
   const m = MANOEUVRES[key];
   if (!FW_TURN_KEYS.includes(key)) return { ok: false, reason: `${m?.label ?? key} flies in line abreast only.` };
@@ -231,6 +232,7 @@ export function planCloseTurn(aircraft, formation, key, dir, t0 = 0) {
   const n = wings.reduce((m, w) => Math.max(m, eventsEnd(w.events) + 4), leadSteps + Math.ceil((2 * CLOSE_TURN.planeLagSec + 1) / STEP_SEC));
   const leadAttitude = bankAndRoll(lead, leadSegs, t0, n);
   let maxBankDeg = Number(bank);
+  let endSteps = n;
   for (const { wing, slotAt, events } of wings) {
     const track = makeTrack(n);
     seedTrack(track, wing);
@@ -243,7 +245,19 @@ export function planCloseTurn(aircraft, formation, key, dir, t0 = 0) {
       p.roll = leadAttitude[i].roll;
     });
     settleLast(line.poses, leadRec.at(n));
-    plans[wing.id] = { segments: [{ kind: 'poseTrack', poses: line.poses }] };
+    // Held to full power (TS-63, full-power.js): the outside wingman's place speeds up as Lead rolls in; where that asks
+    // more than full power he falls a few feet back (STRETCHED) and moves back up once he can. He still rolls with Lead.
+    const held = holdToPower(line.poses, { refAt: (i) => leadRec.at(i + 1), blockFt, kiasPerTas: wing.kias / wing.tasFtps });
+    if (held.changed) {
+      const att = bankAndRoll(lead, leadSegs, t0, held.poses.length);
+      held.poses.forEach((p, i) => {
+        p.bank = att[i].bank;
+        p.roll = att[i].roll;
+      });
+      settleLast(held.poses, leadRec.at(held.poses.length));
+      endSteps = Math.max(endSteps, held.poses.length);
+    }
+    plans[wing.id] = { segments: [{ kind: 'poseTrack', poses: held.poses }] };
     maxBankDeg = Math.max(maxBankDeg, line.maxBankDeg);
   }
   // Which way each is stepped: the wingmen on the turn's side are on the inside (stepped down), the others on the outside (up).
@@ -264,7 +278,7 @@ export function planCloseTurn(aircraft, formation, key, dir, t0 = 0) {
     flag: intoEchelon ? '4-ship echelon turn into the formation (Orders B2 ch 8 p.97: normally turns away only)' : null,
     leadBankDeg: bank,
     maxBankDeg,
-    endSec: t0 + n * STEP_SEC,
+    endSec: t0 + endSteps * STEP_SEC,
     stepSec: STEP_SEC,
   };
 }
@@ -279,5 +293,5 @@ const formationWord = (key, four) => ({ echelon: 'echelon', route: 'route', aste
 export function planFormationTurn(aircraft, where, key, dir, t0 = 0, { blockFt = 8000 } = {}) {
   const ships = aircraft.length > 2 ? 4 : 2;
   if (!FW_TURN_KEYS.includes(key) || !TURN_FORMATIONS[ships].includes(where.key)) return null;
-  return where.key === 'fw' ? planFwTurn(aircraft, key, dir, t0, { blockFt }) : planCloseTurn(aircraft, where.key, key, dir, t0);
+  return where.key === 'fw' ? planFwTurn(aircraft, key, dir, t0, { blockFt }) : planCloseTurn(aircraft, where.key, key, dir, t0, { blockFt });
 }

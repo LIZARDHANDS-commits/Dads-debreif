@@ -39,6 +39,7 @@ export function makeAircraft({ id, xFt, yFt, headingRad, kias, tasFtps }) {
     turning: false,
     slowStage: null, // how it is slowing now (slow-down.js, TS-61), or null
     power: null, // its power setting for the tag (power.js, TS-62), or null when nothing sets it
+    stretched: false, // held to full power and behind his planned place (full-power.js, TS-63)
   };
 }
 
@@ -253,6 +254,7 @@ export function stepAircraft(a, plan, t) {
   // The power that flies this step (power.js): the slow-down's stage, or the model's throttle for the speed change, the
   // climb and the G flown (a held speed included). The block height is the plan's, or the formation's default.
   const blockFt = plan.blockFt ?? POWER_BLOCK_FT;
+  a.stretched = false; // a flight.js segment flies its own plan, never behind it (TS-63 marks the planned lines only)
   a.power = powerFor((a.kias - kiasBefore) / dt, a.kias, blockFt, a.g, a.climbFtps, a.slowStage);
 }
 

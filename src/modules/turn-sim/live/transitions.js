@@ -31,6 +31,8 @@ import { relativeTo, unit, wholeDegree, turnSeg, onStep, DEG } from './manoeuvre
 import { judgePair, SWEEP_MAX_DEG } from './formation.js';
 import { applyPose } from './kinematic.js';
 import { fullPowerKtps, slowKtps, speedSegFor } from './slow-down.js';
+import { speedUpLimitKtps } from './full-power.js';
+import { powerFrom } from './power.js';
 
 // ---- the numbers -----------------------------------------------------------------------
 
@@ -258,10 +260,12 @@ export function flyStep(a, plan, t) {
   }
   if (seg?.kind === 'bankTrack') {
     seg.i ??= 0;
-    const [bank, kias] = seg.points[seg.i++];
+    const [bank, kias, flags = 0] = seg.points[seg.i++];
     if (kias !== null && kias !== undefined) setKias(a, kias);
     stepCommanded(a, bank, t, plan.profile);
-    a.power = null; // the tracker's replay sets no power: the tag shows none rather than a guess (TS-62)
+    // The tracker's replay sets no power (TS-62), except while it is held to full power (TS-63): then MAX.
+    a.power = flags & 2 ? powerFrom(null, 1, a.kias) : null;
+    a.stretched = false;
     a.slowStage = null;
     if (seg.i >= seg.points.length) plan.segments.shift();
     return;
@@ -474,17 +478,22 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     const cap = aligning ? 30 : ph.bankCapDeg;
     const bank = Math.max(-cap, Math.min(cap, bankDegFromTurnRate(W.tasFtps, omegaCmd)));
 
-    // Speed loop: acceleration follows the speed error, limited to what the T-6 can do (full power up, power back down:
-    // slow-down.js, TS-61) and built up by a jerk limit.
-    const aMax = fullPowerKtps(W.kias, blockFt);
-    const aCmd = Math.max(-slowKtps('power', W.kias, blockFt), Math.min(aMax, GAIN.speedLoop * (kiasCmd - W.kias)));
+    // Speed loop: acceleration follows the speed error, limited to what the T-6 can do (full power up at the G and climb
+    // flown, TS-63 (full-power.js); power back down: slow-down.js, TS-61) and built up by a jerk limit.
+    const aMax = speedUpLimitKtps(W.kias, blockFt, W.g ?? 1, W.climbFtps, W.tasFtps);
+    const aWant = GAIN.speedLoop * (kiasCmd - W.kias);
+    const aCmd = Math.max(-slowKtps('power', W.kias, blockFt), Math.min(aMax, aWant));
     accel += Math.max(-GAIN.jerkKtps2 * STEP_SEC, Math.min(GAIN.jerkKtps2 * STEP_SEC, aCmd - accel));
+    if (accel > aMax) accel = aMax; // never more than full power gives, even while the jerk limit eases a change in
+    // At full power (MAX on the tag). The tracker is a goal-seeking run that never asks more than this, so it has no
+    // planned place to fall behind: its distance words (TIGHT, STRETCHED, IN RANGE) say where he is (tags.js).
+    const full = !aligning && aWant > aMax + 0.05 && accel >= aMax - 1e-9;
     let kias = W.kias + accel * STEP_SEC;
     if (aligning && Math.abs(L.kias - kias) < 0.003) { // the last few thousandths of a knot, so the speed has no step
       kias = L.kias;
       accel = 0;
     }
-    points.push([bank, kias]);
+    points.push([bank, kias, full ? 2 : 0]);
     setKias(W, kias);
     stepCommanded(W, bank, t, profile);
     m++;

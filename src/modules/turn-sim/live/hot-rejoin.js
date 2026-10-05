@@ -24,6 +24,7 @@ import { makeTrack, seedTrack, posesFrom, settleLast, followInto, slotInWorld, p
 import { KINEMATIC, CLOSE, slotPoint, routePoints, movingSlot, rollEvents, eventsEnd, lastRollEnd, laneAndBelow, finishLine, leadTurnSegs } from './kinematic-moves.js';
 import { powerFor } from './power.js';
 import { STAGES, STAGE_WORDS, speedSegFor, slowKtps, stageFor, fullPowerKtps } from './slow-down.js';
+import { holdToPower } from './full-power.js';
 
 const dt = STEP_SEC;
 
@@ -52,9 +53,9 @@ export const HOT = Object.freeze({
   descentFtps: 30, // ... at about 30 ft/s average (1,800 ft/min) when there is time ...
   maxDescentFtps: 45, // ... and faster, up to about 45 ft/s average (2,700 ft/min; its steepest about 13° nose down at 200 KIAS), to be off the
   // stack before he is inside 2,000 ft of Lead (SMM 12.27 para 65: never at or above Lead's height while closing)
-  // A planned speed-up may ask up to what full power gives, or the 3 kt/s every planned line keeps under (TS-55) where that is
-  // more: the kinematic lines of the standard rejoin already ask a little more than full power in the capture (TS-62 notes it).
-  accelCapKtps: 3,
+  // A planned speed-up is held to full power (TS-63, Patrick 02:48Z): the planner prefers a line inside it (geometry first);
+  // a line that still asks more is flown held to full power (full-power.js) and #2 shows STRETCHED. (Until V2.21 the lines
+  // could ask up to 3 kt/s.)
   lagShares: [0.75, 0.7], // Fix it may also cut off less (a lag line, geometry first: Patrick 23:37Z, SMM 12.24 para 57)
   search: Object.freeze({ shares: [1.2, 1.1, 1, 0.9, 0.8], banksDeg: [35, 45, 55, 60], reversalStepSec: 1 }), // the coarser search off the standard start
   // Fix it's power: the speed #2 slows to before the capture, 200 KIAS as the standard (Lead's speed) or a little more, so he
@@ -74,7 +75,7 @@ export const HOT = Object.freeze({
   decisionStepSec: 0.5, // the decision point is searched back from the latest possible in half-second steps
   overshootRangeFt: 1500, // an overshoot decision is only taken this close to Lead, where the overtake shows (SMM 12.27 para 65; the figure is about 1,000 ft or less)
   outsideWithinFt: 3000, // a line that slides to the outside of Lead's turn within this range of him is an overshoot (estimate)
-  nearlyKtps: 1, // a line whose capture asks up to 1 kt/s more speed-up than HOT.accelCapKtps still flies; beyond it the overshoot is preferred
+  nearlyKtps: 1, // a line whose capture asks up to 1 kt/s more speed-up than full power still flies (held to it, STRETCHED); beyond it the decision overshoot is preferred
 });
 
 const RANK = Object.freeze({ power: 0, boards: 1, idle: 2, idleBoards: 3 });
@@ -113,7 +114,7 @@ export function speedNeeds(poses, from, blockFt, to = poses.length) {
       ranks[k] = RANK[st.stage];
       top = Math.max(top, ranks[k]);
     } else {
-      accelShort = Math.max(accelShort, r - Math.max(fullPowerKtps(p.kias, blockFt, p.g) * 1.05 + 0.05, HOT.accelCapKtps));
+      accelShort = Math.max(accelShort, r - (fullPowerKtps(p.kias, blockFt, p.g) * 1.05 + 0.05));
     }
   }
   return { ranks, rates, blockFt, firstBad, accelShort: Math.max(0, accelShort), top };
@@ -431,10 +432,15 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
     for (let k = 1; k <= c.kh - 3; k++) line.poses[k - 1] = flown[k];
     return { c, slowWing, captureSec, moving, lp, n, track, line, checks: laneAndBelow(lp.rec, track, n) };
   };
-  const result = (b, extra = {}) => ({
+  /** #2's line held to what the aircraft can do (full-power.js, TS-63): unchanged when it is already inside the limits. */
+  const held = (poses, rec) => holdToPower(poses, { refAt: (i) => rec.at(i + 1), blockFt, kiasPerTas, from: 1 });
+  const result = (b, extra = {}) => {
+    const h = held(b.line.poses, b.lp.rec);
+    return {
     ok: true,
-    plans: { [lead.id]: { segments: b.lp.segments.map((x) => ({ ...x })) }, [wing.id]: { segments: [{ kind: 'poseTrack', poses: b.line.poses }] } },
-    endSec: t0 + b.n * dt,
+    plans: { [lead.id]: { segments: b.lp.segments.map((x) => ({ ...x })) }, [wing.id]: { segments: [{ kind: 'poseTrack', poses: h.poses }] } },
+    endSec: t0 + h.poses.length * dt,
+    stretched: h.stretched,
     leadTurnDeg: Math.round(b.lp.turned / DEG),
     maxBankDeg: b.line.maxBankDeg,
     minKias: b.line.minKias,
@@ -445,18 +451,32 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
     overshoot: null,
     ...b.checks,
     ...extra,
-  });
+    };
+  };
 
   if (standard) {
     const slowWing = { ...speedSegFor(wing.kias, KINEMATIC.hotWingKias, blockFt, 'power'), withNext: true };
     const candidates = lineUps(slowWing);
     if (!candidates.length) return { ok: false, reason: 'No safe hot turning rejoin from here: #2 could not line up with Lead.' };
-    for (const c of candidates.slice(0, 12)) {
-      const b = buildLine(c, slowWing, KINEMATIC.captureSec);
-      if (b.line.maxBankDeg > KINEMATIC.pointBankDeg + 0.5 || b.checks.laneFwdFt > 100 || b.checks.minBelowFt <= 0) continue;
-      const needs = speedNeeds(b.line.poses, c.kh - 3, blockFt);
-      labelStages(b.line.poses, c.kh - 3, needs);
-      return result(b);
+    // Geometry first (TS-61, TS-63): the best line whose speed-ups full power can give, with the standard 20 s capture or,
+    // if none, a longer one; failing that the best 20 s line, flown held to full power (full-power.js: STRETCHED).
+    let fallback = null;
+    for (const captureSec of HOT.captureSecs) {
+      for (const c of candidates.slice(0, 12)) {
+        const b = buildLine(c, slowWing, captureSec);
+        if (b.line.maxBankDeg > KINEMATIC.pointBankDeg + 0.5 || b.checks.laneFwdFt > 100 || b.checks.minBelowFt <= 0) continue;
+        const needs = speedNeeds(b.line.poses, c.kh - 3, blockFt);
+        if (needs.accelShort > 0) {
+          if (!fallback && captureSec === KINEMATIC.captureSec) fallback = { b, needs };
+          continue;
+        }
+        labelStages(b.line.poses, c.kh - 3, needs);
+        return result(b);
+      }
+    }
+    if (fallback) {
+      labelStages(fallback.b.line.poses, fallback.b.c.kh - 3, fallback.needs);
+      return result(fallback.b);
     }
     return { ok: false, reason: 'No safe hot turning rejoin from here: every way in broke the bank cap, the overshoot lane or the height rule.' };
   }
@@ -465,7 +485,7 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
   // geometry, keeping the line that uses the least; remember the best line that would need an overshoot.
   const wingKias = KINEMATIC.hotWingKias + carryKias; // at the normal reference #2 keeps his speed error (it carries)
   const good = [];
-  let nearly = null; // the best line whose capture asks a little more speed-up than full power gives (see HOT.accelCapKtps)
+  let nearly = null; // the best line whose capture asks a little more speed-up than full power gives (flown held to it, full-power.js)
   let needsOvershoot = null;
   let lined = false;
   /** Tries one way of slowing (stage) with the given choices (knobs, or a search), the best `top` line-ups. */
@@ -646,10 +666,12 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
     labelStages(line.poses, kFlown, needs);
     for (let k = kD; k <= kS && k <= line.poses.length; k++) line.poses[k - 1].over = true;
     const checks = laneAndBelow(lp.rec, track, n);
+    const h = held(line.poses, lp.rec);
     return {
       ok: true,
-      plans: { [lead.id]: { segments: lp.segments.map((x) => ({ ...x })) }, [wing.id]: { segments: [{ kind: 'poseTrack', poses: line.poses }] } },
-      endSec: t0 + n * dt,
+      plans: { [lead.id]: { segments: lp.segments.map((x) => ({ ...x })) }, [wing.id]: { segments: [{ kind: 'poseTrack', poses: h.poses }] } },
+      endSec: t0 + h.poses.length * dt,
+      stretched: h.stretched,
       leadTurnDeg: Math.round(lp.turned / DEG),
       maxBankDeg: line.maxBankDeg,
       minKias: line.minKias,
