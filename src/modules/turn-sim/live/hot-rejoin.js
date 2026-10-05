@@ -438,12 +438,12 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
   };
   /** #2's line held to what the aircraft can do (full-power.js, TS-63): unchanged when it is already inside the limits. */
   const held = (poses, rec) => holdToPower(poses, { refAt: (i) => rec.at(i + 1), blockFt, kiasPerTas, from: 1 });
-  const result = (b, extra = {}) => {
-    const h = held(b.line.poses, b.lp.rec);
+  const result = (b, extra = {}, hold = true) => {
+    const h = hold ? held(b.line.poses, b.lp.rec) : { poses: b.line.poses, stretched: false };
     return {
     ok: true,
     plans: { [lead.id]: { segments: b.lp.segments.map((x) => ({ ...x })) }, [wing.id]: { segments: [{ kind: 'poseTrack', poses: h.poses }] } },
-    endSec: t0 + h.poses.length * dt,
+    endSec: hold && h.changed ? t0 + h.poses.length * dt : t0 + b.n * dt,
     stretched: h.stretched,
     leadTurnDeg: Math.round(b.lp.turned / DEG),
     maxBankDeg: b.line.maxBankDeg,
@@ -462,25 +462,14 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
     const slowWing = { ...speedSegFor(wing.kias, KINEMATIC.hotWingKias, blockFt, 'power'), withNext: true };
     const candidates = lineUps(slowWing);
     if (!candidates.length) return { ok: false, reason: 'No safe hot turning rejoin from here: #2 could not line up with Lead.' };
-    // Geometry first (TS-61, TS-63): the best line whose speed-ups full power can give, with the standard 20 s capture or,
-    // if none, a longer one; failing that the best 20 s line, flown held to full power (full-power.js: STRETCHED).
-    let fallback = null;
-    for (const captureSec of HOT.captureSecs) {
-      for (const c of candidates.slice(0, 12)) {
-        const b = buildLine(c, slowWing, captureSec);
-        if (b.line.maxBankDeg > KINEMATIC.pointBankDeg + 0.5 || b.checks.laneFwdFt > 100 || b.checks.minBelowFt <= 0) continue;
-        const needs = speedNeeds(b.line.poses, c.kh - 3, blockFt);
-        if (needs.accelShort > 0) {
-          if (!fallback && captureSec === KINEMATIC.captureSec) fallback = { b, needs };
-          continue;
-        }
-        labelStages(b.line.poses, c.kh - 3, needs);
-        return result(b);
-      }
-    }
-    if (fallback) {
-      labelStages(fallback.b.line.poses, fallback.b.c.kh - 3, fallback.needs);
-      return result(fallback.b);
+    // The standard start's line is flown as planned (as in V2.20): it is inside full power (TS-63 holds only the
+    // off-standard capture lines that broke it, Patrick 03:46Z).
+    for (const c of candidates.slice(0, 12)) {
+      const b = buildLine(c, slowWing, KINEMATIC.captureSec);
+      if (b.line.maxBankDeg > KINEMATIC.pointBankDeg + 0.5 || b.checks.laneFwdFt > 100 || b.checks.minBelowFt <= 0) continue;
+      const needs = speedNeeds(b.line.poses, c.kh - 3, blockFt);
+      labelStages(b.line.poses, c.kh - 3, needs);
+      return result(b, {}, false);
     }
     return { ok: false, reason: 'No safe hot turning rejoin from here: every way in broke the bank cap, the overshoot lane or the height rule.' };
   }
@@ -681,7 +670,7 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
     return {
       ok: true,
       plans: { [lead.id]: { segments: lp.segments.map((x) => ({ ...x })) }, [wing.id]: { segments: [{ kind: 'poseTrack', poses: h.poses }] } },
-      endSec: t0 + h.poses.length * dt,
+      endSec: h.changed ? t0 + h.poses.length * dt : t0 + n * dt,
       stretched: h.stretched,
       leadTurnDeg: Math.round(lp.turned / DEG),
       maxBankDeg: line.maxBankDeg,
