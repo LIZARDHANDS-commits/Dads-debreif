@@ -14,7 +14,7 @@
 // Textures and sprites need a canvas, so they exist only in a browser; with no document (the Node
 // tests) every building falls back to plain colours and no sprites are made.
 
-import { RUNWAY_29L_HDG_DEG, THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
+import { RUNWAY_29L_HDG_DEG, THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_29R, DEPARTURE_END_29R, RUNWAY_03, RUNWAY_21, RUNWAY_WIDTH_FT, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
 
 export const DEFAULT_FLOOR_FT = THRESHOLD_DATA_ELEV_FT;
 
@@ -89,7 +89,8 @@ export const CYMJ_EXTRA_BUILDINGS = Object.freeze([
     roof: '#d8dadc', wall: '#c9ccd0', accent: '#c8102e',
   }),
   Object.freeze({
-    id: 'barracks-u', name: 'Student Barracks', type: 'barracks', x: -300, y: 3375, height: 34, rotation: -0.75,
+    // Moved onto the blue U roof in the true-scale photo (5 Oct, about ±20 ft): it sat about 250 ft west of it, open the wrong way.
+    id: 'barracks-u', name: 'Student Barracks', type: 'barracks', x: -35, y: 3319, height: 34, rotation: 3.56,
     roof: '#0d9488', wall: '#f1f5f9', accent: '#0f766e',
   }),
   Object.freeze({
@@ -414,6 +415,77 @@ function createSouthApron(THREE, floor) {
   mesh.visible = false;
   mesh.position.set(centerX, centerY, floor);
   return mesh;
+}
+
+/**
+ * How far the runway slabs stand above the field floor, ft: a drawing choice (Patrick, 5 Oct 02:38Z: "raised runway
+ * graphics"), not a real height. Aircraft on the runway are drawn on the slab top (view3d.js).
+ */
+export const RUNWAY_TOP_FT = 3;
+const RUNWAY_SLAB_DEPTH_FT = 6; // top to bottom; the bottom sits under the photo (floor - 2)
+
+/** The two runways as their measured ends and widths (airfield.js). */
+export const CYMJ_RUNWAYS = Object.freeze([
+  Object.freeze({ id: 'runway-29L', a: THRESHOLD_29L, b: DEPARTURE_END_29L, widthFt: RUNWAY_WIDTH_FT['29L'] }),
+  Object.freeze({ id: 'runway-29R', a: THRESHOLD_29R, b: DEPARTURE_END_29R, widthFt: RUNWAY_WIDTH_FT['29R'] }),
+  Object.freeze({ id: 'runway-03', a: RUNWAY_03, b: RUNWAY_21, widthFt: RUNWAY_WIDTH_FT['03'] }),
+]);
+
+/**
+ * Raised runway slabs: concrete side walls standing RUNWAY_TOP_FT proud of the photo, and a faint see-through top so the
+ * photo's own runway paint (numbers, piano keys, centreline) shows through.
+ */
+function createRunwaySlabs(THREE, floor) {
+  const group = new THREE.Group();
+  group.name = 'runway-slabs';
+  const wallMat = new THREE.MeshStandardMaterial({ color: '#b9bec3', roughness: 0.85, metalness: 0.05 });
+  const topMat = new THREE.MeshBasicMaterial({ color: '#d4d8dc', transparent: true, opacity: 0.12, depthWrite: false });
+  for (const rw of CYMJ_RUNWAYS) {
+    const len = Math.hypot(rw.b.x - rw.a.x, rw.b.y - rw.a.y);
+    const geo = new THREE.BoxGeometry(len, rw.widthFt, RUNWAY_SLAB_DEPTH_FT);
+    geo.translate(0, 0, RUNWAY_TOP_FT - RUNWAY_SLAB_DEPTH_FT / 2);
+    // Box faces: +x, -x, +y, -y (the walls), +z (top), -z (bottom, never seen).
+    const mesh = new THREE.Mesh(geo, [wallMat, wallMat, wallMat, wallMat, topMat, wallMat]);
+    mesh.name = rw.id;
+    mesh.userData = { type: 'runway', ...rw };
+    mesh.position.set((rw.a.x + rw.b.x) / 2, (rw.a.y + rw.b.y) / 2, floor);
+    mesh.rotation.z = Math.atan2(rw.b.y - rw.a.y, rw.b.x - rw.a.x);
+    group.add(mesh);
+  }
+  return group;
+}
+
+/**
+ * The airfield radar mid-field: a white radome on a lattice-grey mast with its equipment hut, placed off Esri's
+ * true-scale photo (5 Oct, about ±10 ft; Patrick 5 Oct 02:38Z). The dome is about 34 ft across on the photo; the mast
+ * height is an estimate.
+ */
+export const CYMJ_RADAR = Object.freeze({ id: 'radar-dome', x: 545, y: -21, domeFt: 34, mastFt: 40, hut: Object.freeze({ x: 14, y: -50, w: 18, d: 15, h: 10 }) });
+
+function createRadarDome(THREE, floor) {
+  const group = new THREE.Group();
+  group.name = CYMJ_RADAR.id;
+  group.userData = { type: 'radar', ...CYMJ_RADAR };
+  group.position.set(CYMJ_RADAR.x, CYMJ_RADAR.y, floor);
+  const r = CYMJ_RADAR.domeFt / 2;
+  const mastGeo = new THREE.CylinderGeometry(5, 7, CYMJ_RADAR.mastFt, 8);
+  mastGeo.rotateX(Math.PI / 2);
+  mastGeo.translate(0, 0, CYMJ_RADAR.mastFt / 2);
+  const mast = new THREE.Mesh(mastGeo, new THREE.MeshStandardMaterial({ color: '#9aa1a8', roughness: 0.6, metalness: 0.4 }));
+  mast.name = 'radar-mast';
+  group.add(mast);
+  const domeGeo = new THREE.SphereGeometry(r, 20, 14);
+  domeGeo.translate(0, 0, CYMJ_RADAR.mastFt + r * 0.8);
+  const dome = new THREE.Mesh(domeGeo, new THREE.MeshStandardMaterial({ color: '#f4f5f6', roughness: 0.45, metalness: 0.05 }));
+  dome.name = 'radar-radome';
+  group.add(dome);
+  const { hut } = CYMJ_RADAR;
+  const hutGeo = new THREE.BoxGeometry(hut.w, hut.d, hut.h);
+  hutGeo.translate(hut.x, hut.y, hut.h / 2);
+  const hutMesh = new THREE.Mesh(hutGeo, new THREE.MeshStandardMaterial({ color: '#e5e7ea', roughness: 0.7, metalness: 0.1 }));
+  hutMesh.name = 'radar-hut';
+  group.add(hutMesh);
+  return group;
 }
 
 /** The tower: an octagonal shaft 140 ft tall, a flared glass cab, a roof deck and a red-lit mast. */
@@ -828,6 +900,10 @@ export function createAirfieldScenery(THREE, { floor = DEFAULT_FLOOR_FT, anchor 
 
   const apron = createSouthApron(THREE, floor);
   root.add(apron);
+
+  const runways = createRunwaySlabs(THREE, floor);
+  root.add(runways);
+  root.add(createRadarDome(THREE, floor));
 
   const tower = createControlTower(THREE, floor, kit);
   root.add(tower);
