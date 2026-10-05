@@ -54,5 +54,15 @@ Patrick, 4 Oct (review thread): he wants all of V6's features eventually, added 
 - Live fighting wing: #2 holding the cone while Lead turns and climbs; the manoeuvre buttons from fighting wing, echelon and route (greyed outside line abreast for now).
 - The Overshoot button and rejoin mistakes (too hot, too much bank), SMM 12.27; break and rejoin (design M7); the turning rejoin with Lead turning away from #2 (SMM Fig 16.24) and the in-place-turn rejoin (M9); the hot or cold line choice, an overtake box and a bank-cap box under More.
 - The dynamic entry to line abreast (both turn onto a new heading together, design M8); the 4-ship changes (design section 5).
-- Training errors flown through a change (they apply to the manoeuvres only).
+- Training errors flown through a change (they apply to the manoeuvres, and from V2.20 to the 2-ship hot turning rejoin from line abreast, TS-62; not yet to the other changes).
 - Speed bled in the turns. Idle and speed-brake slowing moved up: settled in TS-61 for the off-standard hot turning rejoin piece.
+
+## Off-standard hot turning rejoin and the overshoot: what V2.20 leaves out (TS-62)
+
+- The straight-ahead rejoin's overshoot (SMM 12.27 para 66: vertical separation and turn away), with training errors applied to the straight-ahead rejoin.
+- The 4-ship's overshoot and off-standard rejoins (SMM 16.34 paras 94-96).
+- What #2 does when Lead's turn into him puts him ahead of the 3/9 line (ahead, ahead and tight, or fast at the normal reference): today the section 10 tracker's rejoin flies it (a question for Patrick).
+- Holding every planned speed-up to full power: the planned capture lines may ask up to 3 kt/s (the standard rejoin's already ask 2.2-2.7), and a little more where nothing else fits.
+- A finer geometry search off the standard start (tried: it took up to 12 s a press and gave no better lines), so Fix it could keep #2 on his own side more often before it settles for the slide to the outside.
+- A torque curve from the NFM (torque against PCL, speed and height) in place of the model's throttle and the 0.81 efficiency behind TQ % (Patrick 02:05Z).
+- Power on the tags for the tracker's rejoin and the other planned lines (they set no power, so none shows).

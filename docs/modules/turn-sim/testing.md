@@ -66,7 +66,7 @@ The checks are in `tests/unit/turn-sim/transitions.test.js`, a handful, written 
 |---|---|---|
 | Every from-to pair ends in the target's band | All 20 changes between line abreast, fighting wing, echelon, route and line astern (Side kept) end in the band written out from the spec table, with the pair parallel (within 1°) and reading as that formation | `spec.md` section 10 table: SMM 16.18 para 49, 12.29 para 69, 12.6 para 15, 12.4 paras 11-12 (estimate), 12.5 para 13; margins ±100 ft and ±5° where the shared table applies, the close positions use the table's own |
 | Speeds | Both aircraft end at 200 KIAS outside line abreast and 220 in it (±0.5 KIAS) | Patrick 11:08Z; SMM 12.23 para 53, 16.18 para 49 |
-| Smooth hand-overs | Hot turning rejoin, entry to line abreast (Lead speeds up) and a station change: no jump in position, track, bank, roll rate (90°/s, 360°/s²), pitch rate (0.5°/s per step) or speed (3 kt/s, no step in its rate) | Patrick 10:05Z (TS-47); the speed bound covers the smootherstep's peak of 1.875 times the 1.5 kt/s estimate |
+| Smooth hand-overs | Hot turning rejoin, entry to line abreast (Lead speeds up) and a station change: no jump in position, track, bank, roll rate (90°/s, 360°/s²), pitch rate (0.5°/s per step) or speed (3 kt/s, no step in its rate) | Patrick 10:05Z (TS-47); the speed bound covers the smootherstep's peak; from V2.20 slowing follows the slow-down model (TS-61), whose planned ramps peak within the power stage's own rate, about 2 kt/s at 200 KIAS |
 | Rejoin lane | #2 below Lead inside 2,000 ft, never more than 100 ft ahead of Lead's 3/9 line inside 1,000 ft, #2's bank within the 60° cap and Lead's within 30° (each plus half a degree for the roll) | SMM 12.27 para 65; design section 10; the 60° cap is an estimate |
 | The queue and the greying | A press during a change is flown the moment it ends; a manoeuvre is refused outside line abreast | TS-45, spec section 10 |
 | Time | Only a 3-minute catch that the planner finished; no timing check | spec section 10 |
@@ -206,7 +206,7 @@ Not tested:
 - the screen: the Fluid button greying, Lead's buttons, the settings, the card lines, the flags and the tags. Checked by eye in a browser run against `npx vite` (pictures in the project files at `turn-sim-review/screens/v217-*.png`), for sign-off;
 - the flags firing (bubble, G, aspect and HCA, hard deck): the baseline's turns don't reach them from the default start; they are worded in `live/fluid.js` and seen only by reading the code;
 - the 70/3 and 30° banks and a distance change while flying: scratch runs only;
-- (V2.19) #2's lag, pure and lead in the wingovers and the barrel roll, how near parallel he is over the top (a loose aim, Patrick 23:00Z: never tested), the swap rule's own numbers, the wingovers' exit speed (the SMM gives none), the barrel roll's bank at the 45° points (about 75°), the pitch flag firing (the roll stays under 60°), the 1,000 ft runs where #2 is flagged over 5 G, the wingovers and the roll from a turn or at other block heights, a press queued during the sequence: scratch runs only. The screen (the new buttons, the card's speeds and SWAPPING, the distance-only tags in fighting wing) was seen in one browser run (`turn-sim-review/screens/v219-*.png`); the 3D view of the new manoeuvres was not looked at.
+- (V2.19) #2's lag, pure and lead in the wingovers and the barrel roll, how near parallel he is over the top (a loose aim, Patrick 23:00Z: never tested), the swap rule's own numbers, the wingovers' exit speed (the SMM gives none), the barrel roll's bank at the 45° points (about 75°), the pitch flag firing (the roll stays under 60°), the 1,000 ft runs where #2 is flagged over 5 G (V2.20: now only the loop; the wingovers and the barrel roll open the range, one unit check), the 360° level turn's settle on a distance change (scratch run only, V2.20), the wingovers and the roll from a turn or at other block heights, a press queued during the sequence: scratch runs only. The screen (the new buttons, the card's speeds and SWAPPING, the distance-only tags in fighting wing) was seen in one browser run (`turn-sim-review/screens/v219-*.png`); the 3D view of the new manoeuvres was not looked at.
 - (V2.18) Patrick's loop rule for #2 is not checked by a test (lag up, near parallel over the top, lead down: seen in scratch runs only, HCA about 22° at the top); a climb from a steep turn; a press queued during the loop; the loop's card speeds line (seen in a browser run, `turn-sim-review/screens/v218-*.png`); the 3D view of the loop (its camera looks down).
 
 Not run locally before the pull request beyond the touched file once (CI is the one check).
@@ -224,9 +224,10 @@ Not run locally before the pull request beyond the touched file once (CI is the 
 1. Start fluid manoeuvring from fighting wing. Set Steep 70/3 in Fluid settings, press Level turn R, then Reversal: #2 may cross behind Lead to the other side; his tag reads SWAPPING while he does, and he never passes in front of Lead.
 2. Press Wingovers L: Lead sets up 230 KIAS, pulls up about 3 G, about 45° nose up, rolls to about 120° of bank over the top, comes down about 45°, comes out 180° from the entry, then the second the other way back to the entry heading. #2 reads LAG, PURE, LEAD; he may drift out of the cone and swap, then settles back to 15°. The card shows entry and exit speeds ("the exit not given").
 3. Press Barrel roll R: Lead sets up 230 KIAS, pulls 3 G and rolls; 45° up at 45° off the line, level inverted at 90° off, 45° down, back on the line at about 230 KIAS. No 60° pitch flag.
-4. Press Standard sequence L: a 180° level turn, a loop, two wingovers and a barrel roll, each named on the card; a press during it waits.
-5. In fighting wing and fluid, while Lead turns, #2's tag shows only IN RANGE, TIGHT or STRETCHED with the range; straight and level the full verdict comes back.
-6. Nothing jumps at 0.25x; #2's G flag shows only above 5 G (it can at 1,000 ft in the wingovers and the barrel roll).
+4. Press Standard sequence L: a 360° level turn (back on the entry heading), a loop, two wingovers and a barrel roll, each named on the card; a press during it waits. Change the distance during the level turn: #2 eases to it over the rest of the turn, with no jump (V2.20, Patrick 01:03Z).
+5. At distance 1,000 ft, press Wingovers L, then Barrel roll L: #2 lets the range open a little in the pulls rather than pulling past 5 G, then closes back to the setting smoothly (V2.20, Patrick 01:01Z "Open his path").
+6. In fighting wing and fluid, while Lead turns, #2's tag shows only IN RANGE, TIGHT or STRETCHED with the range; straight and level the full verdict comes back.
+7. Nothing jumps at 0.25x; #2's G flag shows only above 5 G (at 1,000 ft it still can in the loop; since V2.20 the wingovers and the barrel roll open the range instead).
 
 **Sign-off checklist, TS-59** (draft, for Patrick to put in his own words), V2.18, 2D:
 1. Start fluid manoeuvring from fighting wing. In a level turn either way, once it is steady, #2's tag reads about 15° of aspect.
@@ -250,6 +251,26 @@ Not tested: the More section on screen (seen in a browser run, `turn-sim-review/
 1. Setup, "More: fighting wing spacing and sweep": the 2-ship shows #2's spacing 750 ft and sweep 45°; switch to the 4-ship and it shows #2 650 ft and 45°, #3 and #4 650 ft and 30°.
 2. Type 1,100 ft: a line says it is outside the SMM band and is flown anyway. Press Fighting wing: #2 settles about 1,100 ft out and the card flags it.
 3. In the 4-ship set #3 and #4's sweep to 60° and press Fighting wing: #3 and #4 sit further back.
+
+## Off-standard hot turning rejoin, the overshoot, slowing down and power on the tags (TS-61, TS-62, `spec.md` section 10.5)
+
+| What | Check | Source of the expected value |
+|---|---|---|
+| Slowing never beats the aircraft | In off-standard rejoins #2's slowing, averaged over 1 s, is never more than idle and the boards give at his speed and G (0.5 kt/s for reading it back from the line) | TS-61 (Patrick 00:11Z, 00:47-00:48Z); standard aerodynamics |
+| The stages are in order | Power, boards, idle, idle and boards each slow harder than the one before at every rejoin speed; idle at 200 KIAS is about 5 kt/s (±1, his estimate) | Patrick 23:37-23:38Z, 00:11Z |
+| A corrected start ends in the formation | Fix it from a fast, a behind and a high start ends in echelon or fighting wing (the bands written out from the manuals), below Lead inside 1,000 ft, no roll-rate jumps, and the card says how #2 dealt with it | SMM 12.27 para 65, 12.29 para 69, 16.20 paras 65b(2) and 66 |
+| An overshoot stays below and passes behind | Whenever #2 is OVERSHOOTING he is below Lead and crosses Lead's track at least one length behind; he still ends in the formation pressed | SMM 12.27 paras 64-66, Fig 12.18; Patrick 23:29Z |
+| Power shows on the tags | A set power shows on the tag; red exactly when idle or the boards are in use (the words are not pinned) | Patrick 01:44Z, 02:05Z |
+
+Not tested: the tag's red letters and the torque numbers on screen (sign-off; the torque checks against SMM Table 8.1 are approximate, in TS-62); the decision overshoot at the decision point (built, but no start tried with the default amounts needs it); the starts that still fly the tracker's rejoin (ahead of Lead's 3/9 line); the 4-ship. Not run locally before the pull request beyond the touched test files once (CI is the one check). Seen in one browser run (V2.20, 2D, `turn-sim-review/screens/v220-*.png`): Speed fast 20 KIAS to Echelon (Fix it and normal reference fly the same line: a slide to the outside about 1,700 ft out and 1,500 ft back, then joined in position), and Behind to Fighting wing with "TQ 17% + BOARDS" in red on #2's tag; the 3D view was not looked at.
+
+**Sign-off checklist, TS-61 and TS-62** (draft, for Patrick to put in his own words), V2.20, 2D, hard refresh:
+1. With every error at None, press Echelon from line abreast: the hot turning rejoin flies as before, a few seconds longer (Lead slows to 200 on power). The tags show Lead's TQ and #2's power; nothing jumps at 0.25x.
+2. Open Errors (training) and set Speed: fast (20 KIAS), Response Fix it. Reset and press Echelon: #2 corrects with the cut-off and reversal first, then power; if he needs the boards his tag shows TQ nn% + BOARDS in red. He ends in echelon, and the card says how he fixed it.
+3. Set Spacing: wide, Response Turn at normal reference. Reset and press Echelon: #2 flies the standard rejoin from where he is; if he slides behind Lead to the outside of the turn his tag reads OVERSHOOTING. He stays below Lead, crosses behind him, comes back and ends in echelon.
+4. Set Height: high (500 ft). Reset and press Fighting wing: #2 comes down to below Lead before he is close, then rejoins.
+5. Try the worst case (Fore/aft ahead, Height high, Spacing tight, Speed fast): say what #2 should do when Lead's turn puts him ahead of the 3/9 line (today the tracker's rejoin flies it).
+6. Say whether the torque readings look right: about 40-45% level at 180 KIAS, Lead about 55-60% in the 30° rejoin turn at 200 KIAS, MAX on a full-power speed-up.
 
 ## Turn Sim rules on top of the whole-tool rules
 

@@ -69,7 +69,7 @@ export function plannedBounds(run, maxSteps = 12100) {
  *   labels(): { id: { text, tone } } for the error labels.
  *   follow(): { x, y, spanXFt, spanYFt, zoom, snap } to keep centred and in view, or null to leave the camera where the person put it (the live screen's camera);
  *   planned(): { id: [[t, x, y, …], …] }, paths still to fly, drawn dashed when layers().planned is on.
- *   tags?(): { id: { title, detail } }, the info tags (tags.js), drawn when layers().tags is on.
+ *   tags?(): { id: { title, detail, power } }, the info tags (tags.js), drawn when layers().tags is on.
  */
 export function createTurnSimView(canvas, { timers, source, onUserMove }) {
   let needsFit = null; // bounds to fit at the next draw, once the canvas has its real size
@@ -105,8 +105,10 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
       const { trail, marks } = source.trails();
       if (layers.tracks !== false) drawTrails(ctx, map, trail);
       if (layers.planned && source.planned) drawPlanned(ctx, map, source.planned(), state.tSec);
+      const tags = layers.tags ? source.tags?.() : null;
       const rejoin = source.rejoin?.();
-      if (rejoin) drawRejoin(ctx, map, state, rejoin);
+      // The range line sits under #2's tag, a line lower when the tag shows a power line.
+      if (rejoin) drawRejoin(ctx, map, state, rejoin, tags?.[rejoin.wingId]?.power ? 11 : 0);
       if (layers.breadcrumbs) drawBreadcrumbs(ctx, map, marks, layers.crumbSec, state.tSec);
       if (layers.spacingLines) drawSpacingLines(ctx, map, state, layers.distNm);
       if (layers.turnCircles && !state.finished) {
@@ -114,10 +116,9 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
         else drawTurnCircles(ctx, map, state, settings);
       }
       if (layers.clockMarks) for (const a of state.aircraft) drawClockMarks(ctx, map, a);
-      const tags = layers.tags ? source.tags?.() : null;
       for (const a of state.aircraft) drawAircraft(ctx, map, a, !tags);
       if (tags) drawTags(ctx, map, state, tags);
-      if (layers.errorLabels) drawErrorLabels(ctx, map, state, source.labels());
+      if (layers.errorLabels) drawErrorLabels(ctx, map, state, source.labels(), tags);
     },
   });
 
@@ -293,7 +294,7 @@ function drawPlanned(ctx, map, planned, now) {
 }
 
 /** During a rejoin: a dashed range ring around Lead through #2, and an arrow on #2 toward Lead as long as the closure (spec section 10). */
-function drawRejoin(ctx, map, state, { leadId, wingId, rangeFt, closureKt }) {
+function drawRejoin(ctx, map, state, { leadId, wingId, rangeFt, closureKt }, below = 0) {
   const lead = state.aircraft.find((a) => a.id === leadId);
   const wing = state.aircraft.find((a) => a.id === wingId);
   if (!lead || !wing) return;
@@ -330,7 +331,7 @@ function drawRejoin(ctx, map, state, { leadId, wingId, rangeFt, closureKt }) {
     ctx.fill();
   }
   ctx.restore();
-  text(ctx, `${Math.round(rangeFt).toLocaleString('en-CA')} ft, ${closureKt >= 0 ? '+' : ''}${Math.round(closureKt)} kt`, wx + 14, wy + 34, '#ffcc66', 11);
+  text(ctx, `${Math.round(rangeFt).toLocaleString('en-CA')} ft, ${closureKt >= 0 ? '+' : ''}${Math.round(closureKt)} kt`, wx + 14, wy + 34 + below, '#ffcc66', 11);
 }
 
 /** The circle each banked aircraft is flying now, from its own true airspeed and bank, on the side its bank is (left positive). */
@@ -488,8 +489,12 @@ function drawAircraft(ctx, map, a, named = true) {
 
 /**
  * The info tags (tags.js): beside each aircraft a dark box with a border in its colour, the title in white and the detail
- * in its colour, 10 px text, as Fight Sim draws them (turn-fight view.js, copied, not imported).
+ * in its colour, 10 px text, as Fight Sim draws them (turn-fight view.js, copied, not imported). A third line gives the
+ * power when it is known (TS-62): MAX or PWR in the tag's colour, IDLE, BOARDS and IDLE+BOARDS in red (Patrick 01:44Z).
  */
+/** The red of a tag's IDLE, BOARDS and IDLE+BOARDS (Patrick 01:44Z: "red letters"), light enough to read on the dark box. */
+const POWER_RED = '#ff5a5a';
+
 function drawTags(ctx, map, state, tags) {
   ctx.save();
   ctx.font = `10px ${FONT}`;
@@ -499,8 +504,9 @@ function drawTags(ctx, map, state, tags) {
     const colour = SHIP_COLORS[a.id] ?? '#d9e6f2';
     const [x, y] = map.worldToScreen(a.xFt, a.yFt);
     const pad = 4;
-    const w = Math.max(ctx.measureText(tag.title).width, ctx.measureText(tag.detail).width) + 2 * pad;
-    const h = 26;
+    const power = tag.power ?? null;
+    const w = Math.max(ctx.measureText(tag.title).width, ctx.measureText(tag.detail).width, power ? ctx.measureText(power.text).width : 0) + 2 * pad;
+    const h = power ? 37 : 26;
     const tx = x + 14 + w > map.size.width ? x - 14 - w : x + 14; // on the left when the right would run off the picture
     const ty = y - 8;
     ctx.fillStyle = 'rgba(10, 18, 28, 0.85)';
@@ -513,16 +519,21 @@ function drawTags(ctx, map, state, tags) {
     ctx.fillText(tag.title, tx + pad, ty + 11);
     ctx.fillStyle = colour;
     ctx.fillText(tag.detail, tx + pad, ty + 22);
+    if (power) {
+      ctx.fillStyle = power.red ? POWER_RED : colour;
+      ctx.fillText(power.text, tx + pad, ty + 33);
+    }
   }
   ctx.restore();
 }
 
-/** Each wingman's label in words, beside it (V6 drawErrorLabels, line 1947). */
-function drawErrorLabels(ctx, map, state, labels) {
+/** Each wingman's label in words, beside it (V6 drawErrorLabels, line 1947), moved down under a tag's power line. */
+function drawErrorLabels(ctx, map, state, labels, tags = null) {
   for (const a of state.aircraft) {
     const label = labels[a.id];
     if (!label) continue;
     const [x, y] = map.worldToScreen(a.xFt, a.yFt);
-    text(ctx, label.text, x + 14, y + 20, LABEL_TONES[label.tone] ?? LABEL_TONES.none, 11);
+    const below = tags?.[a.id]?.power ? 11 : 0;
+    text(ctx, label.text, x + 14, y + 20 + below, LABEL_TONES[label.tone] ?? LABEL_TONES.none, 11);
   }
 }

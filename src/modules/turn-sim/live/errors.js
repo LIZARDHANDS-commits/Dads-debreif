@@ -2,7 +2,7 @@
 // "introduce errors ... the wing man either turns at normal reference OR fixes
 // it"). An error is two things:
 //   1. an offset on #2's start state (ahead of or behind the 3/9 line, wide or
-//      tight, high or low) and a timing error on #2's roll-in (early or late);
+//      tight, high or low, fast or slow) and a timing error on #2's roll-in (early or late);
 //   2. a response, which changes how #2's plan is worked out for each button:
 //        'reference'  #2 flies the standard turn for where he SHOULD be (the set
 //                     spacing, abeam) at the standard time. The error carries
@@ -41,6 +41,7 @@ import { gFromBankDeg, turnRadiusFromBankFt } from '../../../core/flight-math.js
 import { excessThrustPerWeight } from '../../../core/t6-performance.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, copyAircraft, heightAt, angleToGo, stepAircraft, planDone, smoother, smootherSlope, SMOOTHER_PEAK } from './flight.js';
+import { slowKtps, speedSegFor } from './slow-down.js';
 import { planManoeuvre, dryRun, relativeTo, missProfile, onStep, turnSeg, VERTICAL_MISS_FT } from './manoeuvres.js';
 
 // ---- the settings ------------------------------------------------------------------------
@@ -52,6 +53,8 @@ import { planManoeuvre, dryRun, relativeTo, missProfile, onStep, turnSeg, VERTIC
  *   errSpacing   across it: 'wide' or 'tight', measured from Lead on #2's own side (TS-2)
  *   errHeight    'high' or 'low' against Lead
  *   errTiming    #2 rolls in 'early' or 'late' against the standard time
+ *   errSpeed     #2 starts 'fast' or 'slow' against Lead (V2.20, TS-62: the off-standard hot turning rejoin starts,
+ *                Patrick 19:15Z "wide or close, ahead of line, high, tight, fast")
  *   errResponse  'fix' or 'reference' (see the top of this file)
  *   errRandom    one random error at every Reset instead of the choices above
  * Amount defaults are estimates (docs/modules/turn-sim/decisions.md TS-52): each puts the
@@ -66,6 +69,8 @@ export const ERROR_DEFAULTS = /** @type {Record<string, any>} */ (Object.freeze(
   errHeightFt: 500, // estimate: inside the ±2,000 ft band (SMM 16.18 para 49), more than the 300 ft crossing miss
   errTiming: 'none',
   errTimingSec: 2, // estimate: about 840 ft of flight at 248 KTAS
+  errSpeed: 'none',
+  errSpeedKias: 20, // estimate: the top of EFIG p.374's 10-20 KIAS rejoin overtake, so "fast" is a clearly hot start
   errResponse: 'fix', // the wingman corrects "regardless of how it developed" (SMM 16.18 para 50)
   errRandom: false,
   // The Fix tools, all ticked (Patrick, 4 Oct 11:42Z; draft wording in the project files, turn-sim-review/errors/fix-tools-draft.md)
@@ -98,6 +103,7 @@ export const ERROR_ALLOWED = /** @type {Record<string, any[]>} */ (Object.freeze
   errSpacing: ['none', 'wide', 'tight'],
   errHeight: ['none', 'high', 'low'],
   errTiming: ['none', 'early', 'late'],
+  errSpeed: ['none', 'fast', 'slow'],
   errResponse: ['fix', 'reference'],
 }));
 
@@ -110,6 +116,7 @@ export const ERROR_FIELDS = Object.freeze([
   { key: 'errFore', label: 'Along the 3/9 line', amountKey: 'errForeFt', unit: 'ft', min: 100, max: 3000, step: 100, options: [{ value: 'none', label: 'None' }, { value: 'ahead', label: 'Ahead (acute)' }, { value: 'behind', label: 'Behind (sucked)' }] },
   { key: 'errSpacing', label: 'Spacing', amountKey: 'errSpacingFt', unit: 'ft', min: 100, max: 3000, step: 100, options: [{ value: 'none', label: 'None' }, { value: 'wide', label: 'Wide' }, { value: 'tight', label: 'Tight' }] },
   { key: 'errHeight', label: 'Height', amountKey: 'errHeightFt', unit: 'ft', min: 100, max: 2000, step: 100, options: [{ value: 'none', label: 'None' }, { value: 'high', label: 'High' }, { value: 'low', label: 'Low' }] },
+  { key: 'errSpeed', label: 'Speed', amountKey: 'errSpeedKias', unit: 'KIAS', min: 5, max: 40, step: 5, options: [{ value: 'none', label: 'None' }, { value: 'fast', label: 'Fast' }, { value: 'slow', label: 'Slow' }] },
   { key: 'errTiming', label: 'Roll-in', amountKey: 'errTimingSec', unit: 's', min: 0.5, max: 10, step: 0.5, options: [{ value: 'none', label: 'On time' }, { value: 'early', label: 'Early' }, { value: 'late', label: 'Late' }] },
 ]);
 export const RESPONSE_OPTIONS = Object.freeze([{ value: 'fix', label: 'Fix it' }, { value: 'reference', label: 'Turn at normal reference' }]);
@@ -133,7 +140,7 @@ export const FIX_LIMITS = Object.freeze({
   pushPullG: 0.3, // estimate: the most a dive or zoom moves the G away from 1 (a gentle push or pull, 0.7 to 1.3 G)
   // Speed/power
   speedKias: 20, // estimate: the most #2 flies above or below Lead's speed
-  slowKtps: 1.5, // estimate: the steepest he slows (KIAS per second) with the power back, level
+  // slowing: with the power back, slow-down.js (TS-61; was a fixed 1.5 kt/s until V2.20)
   // Lateral spacing
   headingDeg: 10, // estimate: the most heading change in or out after the roll-out
   lateralBankDeg: 30, // estimate: the bank for that small heading change (1.15 G)
@@ -158,10 +165,10 @@ const ftText = (n) => `${Math.round(n).toLocaleString('en-CA')} ft`;
 
 /**
  * The error the settings ask for, or null when none is set (the default). Signs: foreFt + ahead,
- * spacingFt + wide, heightFt + high, timingSec + late.
+ * spacingFt + wide, heightFt + high, timingSec + late, speedKias + fast.
  * @param {Record<string, any>} [options]  formation options holding the err* keys
  * @param {() => number} [rng]  a random number in [0, 1), for the random option
- * @returns {null | { foreFt: number, spacingFt: number, heightFt: number, timingSec: number, response: 'fix' | 'reference', random: boolean }}
+ * @returns {null | { foreFt: number, spacingFt: number, heightFt: number, timingSec: number, speedKias: number, response: 'fix' | 'reference', random: boolean }}
  */
 export function resolveErrors(options = {}, rng = Math.random) {
   const o = { ...ERROR_DEFAULTS };
@@ -169,20 +176,21 @@ export function resolveErrors(options = {}, rng = Math.random) {
   const response = o.errResponse === 'reference' ? 'reference' : 'fix';
   if (o.errRandom === true) return randomError(rng, response);
   const signed = (choice, plus, minus, amount) => (choice === plus ? 1 : choice === minus ? -1 : 0) * Math.abs(num(amount, 0));
-  /** @type {{ foreFt: number, spacingFt: number, heightFt: number, timingSec: number, response: 'fix' | 'reference', random: boolean }} */
+  /** @type {{ foreFt: number, spacingFt: number, heightFt: number, timingSec: number, speedKias: number, response: 'fix' | 'reference', random: boolean }} */
   const spec = {
     foreFt: signed(o.errFore, 'ahead', 'behind', o.errForeFt),
     spacingFt: signed(o.errSpacing, 'wide', 'tight', o.errSpacingFt),
     heightFt: signed(o.errHeight, 'high', 'low', o.errHeightFt),
     timingSec: signed(o.errTiming, 'late', 'early', o.errTimingSec),
+    speedKias: signed(o.errSpeed, 'fast', 'slow', o.errSpeedKias),
     response,
     random: false,
   };
-  return spec.foreFt || spec.spacingFt || spec.heightFt || spec.timingSec ? spec : null;
+  return spec.foreFt || spec.spacingFt || spec.heightFt || spec.timingSec || spec.speedKias ? spec : null;
 }
 
 /** The ranges a random error is drawn from (estimates, inside the same ranges as the boxes). */
-const RANDOM_RANGES = Object.freeze({ fore: [500, 2500, 100], spacing: [1000, 2500, 100], height: [300, 1000, 100], timing: [2, 6, 0.5] });
+const RANDOM_RANGES = Object.freeze({ fore: [500, 2500, 100], spacing: [1000, 2500, 100], height: [300, 1000, 100], timing: [2, 6, 0.5], speed: [10, 30, 5] });
 
 /**
  * One error of a random kind, a random way and size, for the "Random error" option.
@@ -190,13 +198,13 @@ const RANDOM_RANGES = Object.freeze({ fore: [500, 2500, 100], spacing: [1000, 25
  * @param {'fix' | 'reference'} response
  */
 function randomError(rng, response) {
-  const kinds = ['fore', 'spacing', 'height', 'timing'];
+  const kinds = ['fore', 'spacing', 'height', 'timing', 'speed'];
   const kind = kinds[Math.min(kinds.length - 1, Math.floor(rng() * kinds.length))];
   const [lo, hi, step] = RANDOM_RANGES[kind];
   const amount = lo + Math.round((rng() * (hi - lo)) / step) * step;
   const sign = rng() < 0.5 ? -1 : 1;
-  const spec = { foreFt: 0, spacingFt: 0, heightFt: 0, timingSec: 0, response, random: true };
-  spec[{ fore: 'foreFt', spacing: 'spacingFt', height: 'heightFt', timing: 'timingSec' }[kind]] = sign * amount;
+  const spec = { foreFt: 0, spacingFt: 0, heightFt: 0, timingSec: 0, speedKias: 0, response, random: true };
+  spec[{ fore: 'foreFt', spacing: 'spacingFt', height: 'heightFt', timing: 'timingSec', speed: 'speedKias' }[kind]] = sign * amount;
   return spec;
 }
 
@@ -207,6 +215,7 @@ export function describeErrors(spec) {
   if (spec.foreFt) parts.push(`${spec.foreFt > 0 ? 'ahead of' : 'behind'} the 3/9 line ${ftText(Math.abs(spec.foreFt))}`);
   if (spec.spacingFt) parts.push(`${spec.spacingFt > 0 ? 'wide' : 'tight'} ${ftText(Math.abs(spec.spacingFt))}`);
   if (spec.heightFt) parts.push(`${ftText(Math.abs(spec.heightFt))} ${spec.heightFt > 0 ? 'high' : 'low'}`);
+  if (spec.speedKias) parts.push(`${Math.abs(spec.speedKias)} KIAS ${spec.speedKias > 0 ? 'fast' : 'slow'}`);
   if (spec.timingSec) parts.push(`rolls in ${Math.abs(spec.timingSec)} s ${spec.timingSec > 0 ? 'late' : 'early'}`);
   const how = spec.response === 'fix' ? 'Fix it' : 'Turn at normal reference';
   return `${spec.random ? 'Random error' : 'Error'}: #2 ${parts.join(', ')}. Response: ${how}.`;
@@ -215,7 +224,9 @@ export function describeErrors(spec) {
 /**
  * Moves #2 to his error start (a copy of nothing: `wing` itself is changed). The offsets are
  * measured in Lead's frame from where #2 stands now: along the 3/9 line, across it (wide is away
- * from Lead on #2's own side, tight toward him; TS-2), and in height.
+ * from Lead on #2's own side, tight toward him; TS-2), and in height; a speed error sets his
+ * indicated airspeed off Lead's (true airspeed in proportion, at the same height). Until a button is
+ * pressed a fast or slow #2 flies on at that speed, so he draws ahead or drops back, as a real one does.
  */
 export function applyStartErrors(lead, wing, spec, spacingFt) {
   const rel = relativeTo(lead, wing);
@@ -227,16 +238,25 @@ export function applyStartErrors(lead, wing, spec, spacingFt) {
   wing.xFt = lead.xFt + fwd * u.x + left * n.x;
   wing.yFt = lead.yFt + fwd * u.y + left * n.y;
   wing.altAboveFt = lead.altAboveFt + spec.heightFt;
+  if (spec.speedKias) {
+    const kias = Math.max(MIN_START_KIAS, wing.kias + spec.speedKias);
+    wing.tasFtps *= kias / wing.kias;
+    wing.kias = kias;
+  }
 }
+/** The slowest a speed error starts #2 at: well clear of the 1 G stall (86 KIAS, core T6A_LIMITS); an estimate. */
+const MIN_START_KIAS = 150;
 
 // ---- the planner -------------------------------------------------------------------------------
 
-/** #2 standing in his slot (the SMM picture) beside Lead as Lead is now. slot: { fwd, left } in Lead's frame. */
+/** #2 standing in his slot (the SMM picture) beside Lead as Lead is now, at Lead's speed. slot: { fwd, left } in Lead's frame. */
 function inSlot(lead, wing, slot) {
   const u = unit(lead.headingRad);
   const n = { x: -u.y, y: u.x };
   return {
     ...copyAircraft(wing),
+    kias: lead.kias,
+    tasFtps: lead.tasFtps,
     xFt: lead.xFt + slot.fwd * u.x + slot.left * n.x,
     yFt: lead.yFt + slot.fwd * u.y + slot.left * n.y,
     altAboveFt: lead.altAboveFt,
@@ -281,8 +301,10 @@ function shiftWhole(segs, t0, d) {
  *   reversal  seconds later the shackle's straight leg ends (no effect where there is no straight leg)
  *   bank1     bank of the first half of the turn (the first turn in a shackle or cross turn)
  *   bank2     bank of the second half (the last turn)
+ * speedBack: a speed segment that brings a fast or slow #2 back to Lead's speed as he starts (or null): it is flown with
+ * the turns (withNext), so every dry run of the plan includes it.
  */
-function wingProgramme(base, heading0, x, t0) {
+function wingProgramme(base, heading0, x, t0, speedBack = null) {
   const [delay, reversal, bank1, bank2] = x;
   const segs = clone(base);
   const turns = segs.flatMap((s, i) => (s.kind === 'turn' ? [i] : []));
@@ -298,7 +320,9 @@ function wingProgramme(base, heading0, x, t0) {
   }
   const holds = segs.flatMap((s, i) => (s.kind === 'hold' && i > 0 ? [i] : []));
   if (holds.length) segs[holds[holds.length - 1]].untilSec = onStep(segs[holds[holds.length - 1]].untilSec + reversal);
-  return shiftStart(segs, t0, delay);
+  const out = shiftStart(segs, t0, delay);
+  if (speedBack) out.unshift({ ...speedBack });
+  return out;
 }
 
 /**
@@ -471,6 +495,9 @@ function planCore(pair, key, dir, t0, spec, slot, tools, blockFt) {
   const scale = [5, 5, 8, 8];
 
   const heading0 = wing.headingRad;
+  // A fast or slow #2 (the speed error) brings his speed back to Lead's as he starts, in either response: with power back
+  // or full power (slow-down.js), flown with the turns. What he gains or loses on the way is a fore/aft error to fix or carry.
+  const speedBack = Math.abs(wing.kias - lead.kias) > 0.5 ? { ...speedSegFor(wing.kias, lead.kias, blockFt, 'power'), withNext: true } : null;
   /** @returns {[number, number]} */
   const sub = (a, b) => [a.fwd - b.fwd, a.left - b.left];
   const lateBy = spec.timingSec;
@@ -489,7 +516,7 @@ function planCore(pair, key, dir, t0, spec, slot, tools, blockFt) {
   if (geometry && (spec.foreFt || spec.spacingFt)) {
     const free = [true, hasReversal, true, true];
     intended = solveKnobs(
-      (xk) => sub(endPicture(leadNomRun, dryRun(wing, { segments: wingProgramme(wingNom, heading0, xk, t0) }, t0), t0), target),
+      (xk) => sub(endPicture(leadNomRun, dryRun(wing, { segments: wingProgramme(wingNom, heading0, xk, t0, speedBack) }, t0), t0), target),
       x0, lo, hi, free, scale,
     );
   }
@@ -504,7 +531,7 @@ function planCore(pair, key, dir, t0, spec, slot, tools, blockFt) {
     const hi2 = hi.slice();
     lo2[0] = hi2[0] = timed.x[0];
     xFinal = solveKnobs(
-      (xk) => sub(endPicture(leadRun, dryRun(wing, { segments: wingProgramme(wingNom, heading0, xk, t0) }, t0), t0), target),
+      (xk) => sub(endPicture(leadRun, dryRun(wing, { segments: wingProgramme(wingNom, heading0, xk, t0, speedBack) }, t0), t0), target),
       timed.x, lo2, hi2, free, scale,
     );
   }
@@ -512,13 +539,13 @@ function planCore(pair, key, dir, t0, spec, slot, tools, blockFt) {
   // What the same press would give with no fix: the standard programme, only the roll-in off.
   const refX = withTiming(x0);
   const refLeadRun = dryRun(lead, leadPlanFor(refX.leadShift), t0);
-  const refRun = dryRun(wing, { segments: wingProgramme(wingNom, heading0, refX.x, t0) }, t0);
+  const refRun = dryRun(wing, { segments: wingProgramme(wingNom, heading0, refX.x, t0, speedBack) }, t0);
   const uncorrected = sub(endPicture(refLeadRun, refRun, t0), target);
 
   const x = geometry ? xFinal : refX.x;
   const leadPlanFinal = geometry ? leadPlan : leadPlanFor(refX.leadShift);
   const leadRunFinal = geometry ? leadRun : refLeadRun;
-  let segments = wingProgramme(wingNom, heading0, x, t0);
+  let segments = wingProgramme(wingNom, heading0, x, t0, speedBack);
   const wingRun = dryRun(wing, { segments }, t0);
 
   // Height. A crossing turn's miss is made around where they really cross (a fix always makes the
@@ -570,7 +597,7 @@ function planCore(pair, key, dir, t0, spec, slot, tools, blockFt) {
     : '#2 flies the standard turn for his slot at the standard time, so the error carries.';
   return {
     plans: { [lead.id]: leadPlanFinal, [wing.id]: { segments, profile } },
-    note: `${nominal.note}${note ? ` ${note}` : ''}${flags.length ? ` #2 ${flags.join('; ')}.` : ''}`,
+    note: `${nominal.note}${note ? ` ${note}` : ''}${speedBack ? ` #2 brings his speed back to Lead's ${Math.round(lead.kias)} KIAS as he starts (${Math.round(Math.abs(wing.kias - lead.kias))} KIAS ${wing.kias > lead.kias ? 'fast' : 'slow'}).` : ''}${flags.length ? ` #2 ${flags.join('; ')}.` : ''}`,
     firstId: nominal.firstId,
     slotAfter: { fwd: target.fwd, left: target.left },
     errorRun: { response: spec.response, target, uncorrectedFt: total(uncorrected), predictedFt: total(residual), startHeightFt: h0, flags, banks, tools: { ...tools }, wouldFix: [] },
@@ -586,7 +613,7 @@ function planCore(pair, key, dir, t0, spec, slot, tools, blockFt) {
  *     P = dh/dt + (V / g) dV/dt           (standard aerodynamics, energy height)
  * which on the smootherstep is slope(u) / span × [dHeightFt + (V / g) ΔV]. More than zero, full power must give
  * it (the T-6A's excess thrust × V, core excessThrustPerWeight); less than zero, the power back must take it,
- * and that is set by FIX_LIMITS.slowKtps (the level slowing rate, an estimate). The height change also keeps
+ * and that is what the power back gives level (slow-down.js, TS-61). The height change also keeps
  * under FIX_LIMITS.maxClimbFtps and FIX_LIMITS.pushPullG. A dive that pays for the speed (dHeightFt = -(V / g) ΔV) needs no power at all.
  * Infinity when full power can't give it (past the T-6A's top speed at this height).
  */
@@ -606,7 +633,7 @@ function rampSpanSec(kias0, dKias, dHeightFt, tasPerKias, altFt) {
       if (power <= 0) return Infinity;
       span = Math.max(span, (slope * need) / power);
     } else if (need < 0) {
-      const idle = (v / G_FTPS2) * FIX_LIMITS.slowKtps * tasPerKias;
+      const idle = (v / G_FTPS2) * slowKtps('power', kias, altFt) * tasPerKias;
       span = Math.max(span, (slope * -need) / idle);
     }
   }

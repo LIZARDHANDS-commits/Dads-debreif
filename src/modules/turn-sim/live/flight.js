@@ -15,6 +15,7 @@
 import { easeRoll, turnRateFromBankRadPerSec, gFromBankDeg } from '../../../core/flight-math.js';
 import { pitchDegFromClimb } from '../../../core/t6-performance.js';
 import { wrapPi } from '../../../core/angles.js';
+import { powerFor, POWER_BLOCK_FT } from './power.js';
 
 /** The step the whole Turn Sim flies in (TS-R9), the same 0.05 s as before. */
 export const STEP_SEC = 0.05;
@@ -36,6 +37,8 @@ export function makeAircraft({ id, xFt, yFt, headingRad, kias, tasFtps }) {
     climbFtps: 0,
     pitchDeg: pitchDegFromClimb(0, tasFtps, kias, 1),
     turning: false,
+    slowStage: null, // how it is slowing now (slow-down.js, TS-61), or null
+    power: null, // its power setting for the tag (power.js, TS-62), or null when nothing sets it
   };
 }
 
@@ -142,7 +145,7 @@ export function speedAt(leg, t) {
  *   { kind: 'turn', toRad, dir, bankDeg, rollOut }
  *        turn the `dir` way (+1 left, -1 right) at bankDeg (magnitude) to heading toRad;
  *        rollOut false hands the bank straight on to the next segment (the cross turn's two stages).
- *   { kind: 'speed', toKias, rateKtps, withNext }
+ *   { kind: 'speed', toKias, rateKtps, withNext, stage }
  *        change indicated airspeed from what it is now to toKias at an average of rateKtps
  *        (knots per second; the smootherstep's steepest point is SMOOTHER_PEAK times that), so
  *        the change takes |toKias - kias| / rateKtps seconds and the acceleration starts and ends
@@ -152,7 +155,8 @@ export function speedAt(leg, t) {
  *        speed is reached. withNext: true starts the change and hands straight on to the next
  *        segment in the same step, so the speed changes during the turns and holds that follow
  *        (the plan isn't done until the change is). A change that starts while another is still
- *        running waits for it, so the acceleration never jumps.
+ *        running waits for it, so the acceleration never jumps. stage (slow-down.js: 'power', 'boards', 'idle',
+        'idleBoards') says how a slow-down is flown; while the change runs it is the aircraft's slowStage.
  * With no segments left the aircraft flies straight and level.
  */
 export function stepAircraft(a, plan, t) {
@@ -166,7 +170,7 @@ export function stepAircraft(a, plan, t) {
       const change = seg.toKias - a.kias;
       const span = rate > 0 ? Math.abs(change) / rate : 0;
       seg.begun = true;
-      if (Math.abs(change) > 1e-9 && span > 0) plan.speedLeg = { t0: t, t1: t + span, fromKias: a.kias, toKias: seg.toKias, tasPerKias: a.tasFtps / a.kias };
+      if (Math.abs(change) > 1e-9 && span > 0) plan.speedLeg = { t0: t, t1: t + span, fromKias: a.kias, toKias: seg.toKias, tasPerKias: a.tasFtps / a.kias, stage: seg.stage ?? null };
     }
     if (seg.begun && (seg.withNext || !plan.speedLeg)) {
       plan.segments.shift();
@@ -209,11 +213,15 @@ export function stepAircraft(a, plan, t) {
   const headingBefore = a.headingRad;
   const climbBefore = a.climbFtps;
   const tasBefore = a.tasFtps;
+  const kiasBefore = a.kias;
   if (plan.speedLeg) {
     const sp = speedAt(plan.speedLeg, t + dt);
     a.kias = sp.kias;
     a.tasFtps = sp.tasFtps;
+    a.slowStage = plan.speedLeg.stage ?? null; // how the slow-down is flown (slow-down.js, TS-61): the card and tags say BOARDS or IDLE
     if (t + dt >= plan.speedLeg.t1 - 1e-9) plan.speedLeg = null;
+  } else {
+    a.slowStage = null;
   }
   // The step's mean true airspeed: the same number when the speed is constant, so nothing else changes.
   const tas = (tasBefore + a.tasFtps) / 2;
@@ -242,6 +250,10 @@ export function stepAircraft(a, plan, t) {
   a.xFt += Math.cos(middle) * horiz * dt;
   a.yFt += Math.sin(middle) * horiz * dt;
   a.pitchDeg = pitchAboveHorizonDeg(a);
+  // The power that flies this step (power.js): the slow-down's stage, or the model's throttle for the speed change, the
+  // climb and the G flown (a held speed included). The block height is the plan's, or the formation's default.
+  const blockFt = plan.blockFt ?? POWER_BLOCK_FT;
+  a.power = powerFor((a.kias - kiasBefore) / dt, a.kias, blockFt, a.g, a.climbFtps, a.slowStage);
 }
 
 /**
