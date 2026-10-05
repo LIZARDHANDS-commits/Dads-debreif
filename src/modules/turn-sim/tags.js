@@ -140,7 +140,7 @@ export function formatTag(tag, a, lead, show, closure = null) {
   const upFt = (a.altAboveFt ?? 0) - (lead?.altAboveFt ?? 0);
   const flight = [
     show.tagSpeed && `${Math.round(a.kias)} KIAS`,
-    show.tagHeight && a.id !== 1 && `${ft(upFt)} ${upFt >= 0 ? 'above' : 'below'} Lead`,
+    show.tagHeight && a.id !== 1 && `${upFt >= 0 ? '+' : '\u2212'}${ft(upFt)}`, // against Lead: +150 ft above, \u2212200 ft below
     show.tagHeading && `${String(compassDeg(a.headingRad)).padStart(3, '0')}°`,
     show.tagBankG && `bank ${Math.round(Math.abs(a.bankDeg ?? 0))}°${Math.abs(a.bankDeg ?? 0) >= 1 ? (a.bankDeg > 0 ? ' L' : ' R') : ''}, ${(a.g ?? 1).toFixed(1)} G`,
   ].filter(Boolean).join(', ');

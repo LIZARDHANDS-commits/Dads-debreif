@@ -1,7 +1,7 @@
 // The "Change formation" group of buttons and the Formation card's lines for it (Turn Sim spec
 // section 10, TS-53). Everything is built with h(), so all text goes in as text. The flying is
-// live/transitions.js; this file is only the screen: buttons that grey out for where the pair is
-// now, a Side switch (Keep, L or R), "More" with Line astern and the rejoin kind, and the card's
+// live/transitions.js; this file is only the screen: buttons that show only when the pair's formation can use them (a
+// button it can never use is hidden; one that is only busy for a moment is greyed), a Side switch (Keep, L or R), "More" with Line astern and the rejoin kind, and the card's
 // "Now:", the rejoin block (range, closure, Lead's clock position, ON LINE / HOT / COLD, height
 // against Lead) and the flags. Flags are never walls: the sim flies on and says so.
 // The 4-ship has its own buttons (spec section 8, TS-54; live/four-ship-moves.js): setShips swaps them.
@@ -100,9 +100,10 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       class: 'button ts-change-button',
       dataset: { change: b.key },
       disabled: Boolean(b.later),
+      hidden: Boolean(b.later), // not built yet: hidden, not greyed (Patrick, 5 Oct fly-through item 6)
       title: b.later ? 'Coming later' : '',
       onclick: () => onChange(b.key, { side, rejoin }),
-    }, h('span', {}, b.label), b.later ? h('span', { class: 'ts-move-hint' }, 'coming later') : null);
+    }, h('span', {}, b.label));
     into.set(b.key, button);
     return button;
   };
@@ -140,6 +141,8 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     'aria-pressed': String(o.value === rejoin),
     onclick: () => setRejoin(o.value),
   }, o.label));
+  // The rejoin kind matters only where a rejoin starts: line abreast, and fighting wing to a close formation (update).
+  const rejoinRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Rejoin: turning, straight ahead or auto' }, h('span', { class: 'ts-hint' }, 'Rejoin'), rejoinButtons);
   function setRejoin(value) {
     rejoin = value;
     for (const b of rejoinButtons) b.setAttribute('aria-pressed', String(b.dataset.rejoin === rejoin));
@@ -164,7 +167,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   // The rejoin choice and Rates live in the Settings box (Patrick, 5 Oct); the rejoin's default is Lead turning into #2.
   const rejoinSettings = h('div', { class: 'ts-rejoin-setting' }, rejoinField, rejoinHint, ratesField);
 
-  const PAIR_HINT = 'The pair flies the manuals\' transition from where it is now. The formation you are in is greyed.';
+  const PAIR_HINT = 'The pair flies the manuals\' transition from where it is now. The formation you are in is lit; a button this formation cannot use is hidden.';
   const FOUR_HINT = 'The four fly the manuals\' way there from where they are now, one at a time where the manuals say to wait. Side is #2\'s side; finger is named by the side #3 and #4 are on.';
   const hint = h('p', { class: 'ts-hint' }, PAIR_HINT);
   // Two groups (Patrick, 5 Oct): Tactical (line abreast, fighting wing, fluid, the four's wide formations) and Close formation.
@@ -184,9 +187,10 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     pairGrid,
     fourGrid,
     h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Station: the side #2 ends on' }, h('span', { class: 'ts-hint' }, 'Station'), sideButtons), // "Station", was "Side" (Patrick, 5 Oct)
-    h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Rejoin: turning, straight ahead or auto' }, h('span', { class: 'ts-hint' }, 'Rejoin'), rejoinButtons),
+    rejoinRow,
     refusal,
     fluidUi?.element ?? null,
+    fluidUi?.lagElement ?? null, // "#2": the lag roll, in its own small group
   );
 
   // ---- the card's lines ----
@@ -210,7 +214,8 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       pairGrid.hidden = four;
       fourGrid.hidden = !four;
       hint.textContent = four ? FOUR_HINT : PAIR_HINT;
-      if (fluidUi) fluidUi.element.hidden = true; // the pair's shows in fluid manoeuvring only (update); the four's is a later piece
+      if (fluidUi) fluidUi.element.hidden = true; // the pair's shows in fluid manoeuvring and fighting wing only (update); the four's is a later piece
+      if (fluidUi) fluidUi.lagElement.hidden = true; // the pair's lag roll group is shown by update
       if (fluidUi) fluidUi.settingsElement.hidden = four;
       rejoinField.hidden = false;
       rejoinHint.hidden = false;
@@ -238,26 +243,33 @@ export function createChangeUi({ onChange, fluidUi = null }) {
         return;
       }
       fluidUi?.update(state, where);
-      // Only what the formation the pair is in can use shows (Patrick, 5 Oct): the fluid buttons in fluid manoeuvring,
-      // the rejoin choice in line abreast.
-      // In fighting wing the same group holds Lead's level turns, climbs and descents (TS-70, Patrick card 09:07Z).
-      // In echelon it holds only the lag roll (TS-78).
-      if (fluidUi) fluidUi.element.hidden = where.key !== 'fluid' && where.key !== 'fw' && where.key !== 'echelon';
+      // Only what the formation the pair is in can use shows (Patrick, 5 Oct, fly-through item 6): the fluid manoeuvring
+      // buttons while it runs; in fighting wing Lead's level turns, climbs and descents (TS-70); the lag roll in its own "#2"
+      // group in fighting wing and echelon (TS-78, fluid-panel.js). A button that is only busy for a moment is greyed.
+      if (fluidUi) fluidUi.element.hidden = where.key !== 'fluid' && where.key !== 'fw';
+      rejoinRow.hidden = where.key !== 'lab' && where.key !== 'fw';
       for (const [key, button] of buttons) {
+        if (key === 'fluid') {
+          // Fluid starts from fighting wing only (Patrick 21:44Z, spec section 10.3, formation.js startFluid), so it is hidden
+          // in every other formation; once it runs it is the "you are here" button.
+          const running = where.key === 'fluid';
+          button.hidden = !running && where.key !== 'fw';
+          const ok = where.key === 'fw' && !state.current && !where.manoeuvring;
+          button.disabled = !ok;
+          button.setAttribute('aria-current', String(running));
+          button.title = running ? 'You are here' : ok ? '' : where.manoeuvring ? 'Wings level first; the formation buttons come back once #2 has settled' : 'Wait for the change to finish';
+          continue;
+        }
         if (where.key === 'fluid' || where.manoeuvring) {
           // In fluid manoeuvring Terminate is the way out; it ends in fighting wing (spec section 10.3). While Lead flies a
-          // fighting wing move, Wings level, then the change once #2 has settled (TS-70).
+          // fighting wing move, Wings level, then the change once #2 has settled (TS-70). Busy for a moment: greyed, not hidden.
           button.disabled = true;
+          button.setAttribute('aria-current', 'false');
           button.title = where.manoeuvring ? 'Wings level first; the formation buttons come back once #2 has settled' : 'Terminate first';
           continue;
         }
-        if (key === 'fluid') {
-          // From fighting wing only (Patrick 21:44Z, spec section 10.3); greyed in every other formation.
-          const ok = where.key === 'fw' && !state.current;
-          button.disabled = !ok;
-          button.title = ok ? '' : where.key === 'fw' ? 'Wait for the change to finish' : 'From fighting wing only';
-          continue;
-        }
+        // Every formation button shows in every formation: no rule in live/transitions.js, chooser.js or its planners refuses a
+        // formation from another (the tracker flies any to any); the only refusal is "Already in ..." (the lit button).
         const here = key === where.key && (key === 'astern' || side === 'keep' || (side === 'left') === (where.side > 0));
         // Line abreast has no side change of its own: a change of side there goes through another formation first.
         const greyed = here || (key === 'lab' && where.key === 'lab');

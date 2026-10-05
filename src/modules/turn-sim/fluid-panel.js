@@ -22,8 +22,8 @@ export const FLUID_BUTTONS = Object.freeze([
   { key: 'sequence', dir: 1, label: 'Standard sequence L' },
   { key: 'sequence', dir: -1, label: 'Standard sequence R' },
   { key: 'terminate', dir: 1, label: 'Terminate' },
-  // #2's move, shown only in fighting wing (TS-71, spec section 10.8).
-  { key: 'lagRoll', dir: 1, label: 'Lag roll (#2)' },
+  // #2's move, in its own small group headed "#2", shown only in fighting wing and echelon (TS-71, TS-78, spec section 10.8).
+  { key: 'lagRoll', dir: 1, label: 'Lag roll' },
 ]);
 /** How #2 is flown: Planned (scripted, the default) or Live (his own physics, a later piece). */
 export const WINGMAN_METHODS = Object.freeze([
@@ -69,6 +69,10 @@ export function createFluidUi({ onPress, onSettings, settings }) {
     disabled: true,
     onclick: () => onPress(b.key, b.dir),
   }, b.label));
+  // The lag roll is #2's move, not Lead's: it sits in its own group, apart from Lead's buttons.
+  const isLag = (def) => def.key === 'lagRoll';
+  const lagButtons = buttons.filter((_, i) => isLag(FLUID_BUTTONS[i]));
+  const leadButtons = buttons.filter((_, i) => !isLag(FLUID_BUTTONS[i]));
 
   const bankSelect = h('select', {
     'aria-label': "Lead's level turn bank",
@@ -111,12 +115,18 @@ export function createFluidUi({ onPress, onSettings, settings }) {
   );
   const title = h('h3', { class: 'ts-group-title', id: 'ts-fluid-title' }, 'Fluid manoeuvring, Lead');
   const FLUID_HINT = hint.textContent;
-  const FW_HINT = "Lead's turns, climbs and descents in fighting wing, at the level turn bank in Settings. #2 stays anywhere in the cone, collapsing toward Lead's six while Lead is banked. Lag roll: #2 rolls over Lead's six to the cone on the other side, with Lead wings level.";
-  const ECHELON_HINT = "Lag roll: #2 pulls up, rolls over Lead's six and lands in the fighting wing cone on Lead's other side, with Lead wings level.";
+  const FW_HINT = "Lead's turns, climbs and descents in fighting wing, at the level turn bank in Settings. #2 stays anywhere in the cone, collapsing toward Lead's six while Lead is banked.";
+  const LAG_HINT = "Lag roll: #2 pulls up, rolls over Lead's six and lands in the fighting wing cone on Lead's other side, with Lead wings level.";
   const element = h('section', { class: 'ts-change ts-fluid', 'aria-labelledby': 'ts-fluid-title' },
     title,
     hint,
-    h('div', { class: 'ts-change-grid' }, buttons),
+    h('div', { class: 'ts-change-grid' }, leadButtons),
+  );
+  // "#2": the lag roll, in fighting wing and echelon, the formations it flies from (TS-78). Shown by update().
+  const lagElement = h('div', { class: 'ts-change-group ts-lag-group', hidden: true },
+    h('h4', { class: 'ts-change-subtitle' }, '#2'),
+    h('div', { class: 'ts-change-grid' }, lagButtons),
+    h('p', { class: 'ts-hint' }, LAG_HINT),
   );
 
   // ---- the card's lines ----
@@ -126,28 +136,31 @@ export function createFluidUi({ onPress, onSettings, settings }) {
 
   return {
     element,
+    /** The small "#2" group holding the lag roll (shown in fighting wing and echelon, hidden in fluid manoeuvring). */
+    lagElement,
     /** Fluid settings: Lead's bank, the distance, how #2 is flown. They sit in the left column's Settings box (Patrick, 5 Oct). */
     settingsElement: more,
     cardElement,
     /** Lead's buttons work only while fluid manoeuvring runs; Terminate and the rest grey once Terminate is flown. */
     update(state, where = null) {
       const f = state.fluid;
-      // In echelon only the lag roll shows (TS-78: it flops #2 into the cone on Lead's other side).
-      const echelon = !f && where?.key === 'echelon';
       // Shown outside fluid manoeuvring only in fighting wing (transitions-panel.js): then it holds Lead's fighting wing
-      // moves, the level turns, climbs and descents (TS-70), flown at once.
+      // moves, the level turns, climbs and descents (TS-70), flown at once. The moves of fluid manoeuvring itself show
+      // only while it runs.
       const fw = !f;
+      // The lag roll flies from fighting wing or echelon, with fluid manoeuvring not running (formation.js lagRoll).
+      lagElement.hidden = Boolean(f) || (where?.key !== 'fw' && where?.key !== 'echelon');
       const now = f?.session.now();
       const ending = Boolean(f) && (now.key === 'terminate' || now.key === 'steady');
       FLUID_BUTTONS.forEach((def, i) => {
         const b = buttons[i];
-        b.hidden = echelon ? def.key !== 'lagRoll' : def.key === 'lagRoll' ? !fw : fw && !FW_MOVES[def.key];
+        b.hidden = isLag(def) ? false : fw && !FW_MOVES[def.key]; // the lag roll's own group does its hiding
         b.disabled = ending;
         b.title = ending ? 'Terminate is being flown' : '';
       });
-      const words = echelon ? 'Echelon, #2' : fw ? 'Fighting wing, Lead' : 'Fluid manoeuvring, Lead';
+      const words = fw ? 'Fighting wing, Lead' : 'Fluid manoeuvring, Lead';
       if (title.textContent !== words) title.textContent = words;
-      const help = echelon ? ECHELON_HINT : fw ? FW_HINT : FLUID_HINT;
+      const help = fw ? FW_HINT : FLUID_HINT;
       if (hint.textContent !== help) hint.textContent = help;
     },
     renderCard(state) {
