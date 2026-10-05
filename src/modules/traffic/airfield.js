@@ -16,6 +16,25 @@ export const DEPARTURE_END_29L = Object.freeze({ x: -4066, y: 680 });
 /** Runway 29L heading, degrees true: Patrick's CYMJ ground truth (D373, D378; TR-24). */
 export const RUNWAY_29L_HDG_DEG = 298;
 
+/**
+ * Magnetic variation at Moose Jaw, degrees East (magnetic = true - this): Patrick's ruling, 4 Oct ("it's more like
+ * 9 east"; TR-65). Used only to show the wind in °M; the flying is in true. The runway's true heading (298°) is
+ * Patrick's ground truth on its own and does not come from this.
+ */
+export const MAG_VARIATION_DEG_E = 9;
+
+/** A true bearing as magnetic, 1-360 (360, never 0, for north). */
+export const trueToMagnetic = (trueDeg) => {
+  const m = ((Math.round(trueDeg - MAG_VARIATION_DEG_E) % 360) + 360) % 360;
+  return m === 0 ? 360 : m;
+};
+
+/** A magnetic bearing as true, 1-360. */
+export const magneticToTrue = (magDeg) => {
+  const t = ((Math.round(magDeg + MAG_VARIATION_DEG_E) % 360) + 360) % 360;
+  return t === 0 ? 360 : t;
+};
+
 /** Downwind heading for 29L: the reciprocal of the runway. */
 export const DOWNWIND_29L_HDG_DEG = 118;
 

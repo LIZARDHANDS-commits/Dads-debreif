@@ -1,4 +1,5 @@
-// The top of the left "Setup" column (Patrick, 4 Oct 11:05Z): ready-made scenario buttons, and the wind
+// The top of the left "Setup" column (Patrick, 4 Oct 11:05Z): the ready-made scenarios in one "Scenario" drop-down
+// showing the one loaded (Patrick, 4 Oct: it replaced six buttons and the "Scenarios and notes" section), and the wind
 // as a dial (click or drag round for the direction it blows from) with a bar under it for the strength.
 //
 // A scenario is only a list of aircraft starts on the setup's own routes ({ id, type, routeId, startIndex,
@@ -14,6 +15,7 @@ import { windTriangle } from '../../core/wind.js';
 import { FT_PER_NM } from '../../core/units.js';
 import { createDice } from './dice.js';
 import { LIMITS, RUNWAYS, DEFAULT_RUNWAY } from './defaults.js';
+import { trueToMagnetic, magneticToTrue } from './airfield.js';
 
 /** How many aircraft Random puts up (Patrick, 11:05Z). */
 export const RANDOM_COUNT = 5;
@@ -32,8 +34,8 @@ export const BUSY_PFL_AREA = Object.freeze({ radialDeg: 120, distNm: 6, altFt: 8
 export const BUSY_STRAIGHT_IN_SEC = 30;
 /** Random keeps its aircraft at least this far apart, so none starts inside another's conflict ring (estimate). */
 export const RANDOM_SPACING_FT = FT_PER_NM;
-/** While dragging, the dial moves in tens of degrees, the steps a METAR gives a wind in; the arrow keys with Shift give single degrees. */
-export const DIAL_STEP_DEG = 10;
+/** The dial moves in 5° steps, magnetic (Patrick, 4 Oct), dragged or with the arrow keys; the arrow keys with Shift give single degrees. */
+export const DIAL_STEP_DEG = 5;
 
 const at = (routeId, startPoint, startsAtSec = 0) => ({ routeId, startIndex: startPoint - 1, startsAtSec });
 
@@ -43,13 +45,16 @@ const at = (routeId, startPoint, startsAtSec = 0) => ({ routeId, startIndex: sta
  * 'moose-jaw' is the built-in setup's own aircraft, and 'random' is made by randomStarts.
  */
 export const SCENARIOS = Object.freeze([
-  { id: 'busy', label: 'Busy circuit', about: 'Ten aircraft: seven at random points of Pattern 1, a PFL gliding in from the area to High Key, and a straight-in timed to meet an aircraft in its final turn. Press again for a new picture.' },
+  { id: 'busy', label: 'Busy circuit', about: 'Ten aircraft: seven at random points of the overhead break, a PFL gliding in from the area to High Key, and a straight-in timed to meet an aircraft in its final turn.' },
   { id: 'moose-jaw', label: 'Moose Jaw day', about: 'The seven aircraft the tool opens with, joining over 15 minutes.' },
-  { id: 'one', label: 'One aircraft', about: 'One aircraft on Pattern 1 from the runway: watch one circuit, or press PFL.', starts: [at('PAT1', 1)] },
-  { id: 'circuit', label: 'Full circuit', about: 'Four aircraft round Pattern 1 at once: departure end, crosswind, initial and short final.', starts: [at('PAT1', 2), at('PAT1', 5), at('PAT1', 9), at('PAT1', 13)] },
-  { id: 'joining', label: 'Joining traffic', about: 'Two in the circuit and three joining on Entry 1 and Entry 2 close together.', starts: [at('PAT1', 5), at('PAT1', 9), at('ENT1', 1), at('ENT2', 1, 30), at('ENT1', 1, 90)] }, // join times: a teaching picture (estimate)
-  { id: 'random', label: 'Random', about: 'Five aircraft at random points on the routes. Press again for a new picture.' },
+  { id: 'one', label: 'One aircraft', about: 'One aircraft on the overhead break from the runway: watch one circuit, or press PFL.', starts: [at('PAT1', 1)] },
+  { id: 'circuit', label: 'Full circuit', about: 'Four aircraft round the overhead break at once: departure end, crosswind, initial and short final.', starts: [at('PAT1', 2), at('PAT1', 5), at('PAT1', 9), at('PAT1', 13)] },
+  { id: 'joining', label: 'Joining traffic', about: 'Two in the circuit and three joining on the OHB Rejoin and the SI Rejoin close together.', starts: [at('PAT1', 5), at('PAT1', 9), at('ENT1', 1), at('ENT2', 1, 30), at('ENT1', 1, 90)] }, // join times: a teaching picture (estimate)
+  { id: 'random', label: 'Random', about: 'Five aircraft at random points on the routes.' },
 ]);
+
+/** The scenarios that make a new picture each time they load; the drop-down gives them a "New picture" button. */
+export const RESHUFFLED = Object.freeze(['busy', 'random']);
 
 /**
  * Five starts at random points of the routes (patterns and entries, not splits), at least RANDOM_SPACING_FT
@@ -117,11 +122,14 @@ export function busyStarts(routes, seed) {
   return [overhead, straightIn, pfl, ...rest];
 }
 
-/** 0-359 compass degrees from a point on the dial (dx right, dy down from its centre), as 1-360 in DIAL_STEP_DEG steps. */
-export function dialBearing(dx, dy, step = DIAL_STEP_DEG) {
-  const deg = (Math.atan2(dx, -dy) * 180) / Math.PI;
-  const stepped = Math.round((((deg % 360) + 360) % 360) / step) * step;
-  return stepped % 360 === 0 ? 360 : stepped;
+/**
+ * The wind setting (from, degrees true, 1-360) for a point on the dial, dx right and dy down from its centre:
+ * the turn the dial is drawn with (yawDeg, the bearing up the screen; see draw) is undone, and the bearing
+ * lands on a DIAL_STEP_DEG step magnetic (Patrick, 4 Oct: magnetic, 5° steps).
+ */
+export function dialWindFrom(dx, dy, yawDeg = 0, step = DIAL_STEP_DEG) {
+  const trueDeg = yawDeg + (Math.atan2(dx, -dy) * 180) / Math.PI;
+  return magneticToTrue(Math.round(trueToMagnetic(trueDeg) / step) * step);
 }
 
 /** The wind along and across the active runway, in a pilot's words ("29L: 14 kt head, 9 kt cross from the left"). */
@@ -140,31 +148,29 @@ const DIAL_PX = 132;
 
 /**
  * controls: the module's createControls (the strength bar is its slider). settings: { get, update, subscribe }.
- * onScenario(id): a scenario button was pressed.
+ * onScenario(id): a scenario was chosen in the drop-down, or New picture was pressed (the same id again).
  * @param {{ controls: any, settings: any, onScenario?: (id: string) => void }} options
  */
 export function createSetupPanel({ controls, settings, onScenario }) {
-  // Scenarios: one Tab stop, the arrow keys move along the row (a toolbar).
-  const buttons = SCENARIOS.map((s, i) => h('button', {
-    type: 'button',
-    class: 'button setup-scenario',
-    title: s.about,
-    'aria-pressed': 'false',
-    tabIndex: i === 0 ? 0 : -1,
-    dataset: { scenario: s.id },
-    onclick: () => onScenario?.(s.id),
-  }, s.label));
-  const row = h('div', { class: 'setup-scenarios', role: 'toolbar', 'aria-label': 'Scenarios' }, buttons);
-  row.addEventListener('keydown', (e) => {
-    const i = buttons.indexOf(/** @type {any} */ (e.target));
-    if (i < 0) return;
-    const next = { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: buttons.length - 1 }[e.key];
-    if (next === undefined) return;
-    e.preventDefault();
-    const to = (next + buttons.length) % buttons.length;
-    for (const [k, b] of buttons.entries()) b.tabIndex = k === to ? 0 : -1;
-    buttons[to].focus();
-  });
+  // Scenario: one drop-down showing the scenario loaded, a line under it saying what it is, and New picture for the
+  // two that come out different each time (choosing the same item again in a drop-down does nothing).
+  const pickId = `traffic-scenario-${Math.random().toString(36).slice(2, 8)}`;
+  const none = h('option', { value: '', disabled: true, hidden: true }, 'Choose a scenario');
+  const pick = h('select', { id: pickId, class: 'setup-scenario-pick', onchange: () => { if (pick.value) onScenario?.(pick.value); } },
+    none, SCENARIOS.map((s) => h('option', { value: s.id }, s.label)));
+  const about = h('p', { class: 'setup-scenario-about' });
+  const again = h('button', { type: 'button', class: 'button setup-scenario-again', hidden: true, onclick: () => { if (pick.value) onScenario?.(pick.value); } }, 'New picture');
+  const row = h('div', { class: 'setup-scenario' },
+    h('div', { class: 'setup-scenario-row' }, h('label', { for: pickId }, 'Scenario:'), pick, again),
+    about);
+  const showScenario = (id) => {
+    const scenario = SCENARIOS.find((s) => s.id === id);
+    pick.value = scenario ? scenario.id : '';
+    about.textContent = scenario ? scenario.about : '';
+    about.hidden = !scenario;
+    again.hidden = !RESHUFFLED.includes(scenario?.id);
+  };
+  showScenario(null);
 
   // The wind dial: a compass card with the runway on it and an arrow from where the wind blows.
   const canvas = h('canvas', { class: 'setup-wind-dial', width: DIAL_PX, height: DIAL_PX, 'aria-hidden': 'true' });
@@ -183,10 +189,11 @@ export function createSetupPanel({ controls, settings, onScenario }) {
     const d = ((Math.round(deg) % 360) + 360) % 360;
     settings.update({ windFromDeg: d === 0 ? 360 : d });
   };
+  // The bearing under the pointer, undoing the dial's turn (see draw), set in DIAL_STEP_DEG steps magnetic.
   const fromPointer = (e) => {
     const box = canvas.getBoundingClientRect?.();
     if (!box || !box.width) return;
-    setFrom(dialBearing(e.clientX - (box.left + box.width / 2), e.clientY - (box.top + box.height / 2)));
+    setFrom(dialWindFrom(e.clientX - (box.left + box.width / 2), e.clientY - (box.top + box.height / 2), yawDeg));
   };
   let dragging = false;
   dial.addEventListener('pointerdown', (e) => {
@@ -200,12 +207,14 @@ export function createSetupPanel({ controls, settings, onScenario }) {
   dial.addEventListener('pointerup', stop);
   dial.addEventListener('pointercancel', stop);
   dial.addEventListener('keydown', (e) => {
+    // Steps in magnetic: each lands on a multiple of DIAL_STEP_DEG magnetic, Shift gives single degrees, Home is 360°M.
     const step = e.shiftKey ? 1 : DIAL_STEP_DEG;
-    const now = settings.get().windFromDeg;
-    const to = { ArrowRight: now + step, ArrowUp: now + step, ArrowLeft: now - step, ArrowDown: now - step, PageUp: now + 30, PageDown: now - 30, Home: 360 }[e.key];
+    const mag = trueToMagnetic(settings.get().windFromDeg);
+    const snap = (m, dir) => (step === 1 ? m + dir : (dir > 0 ? Math.floor(m / step) * step + step : Math.ceil(m / step) * step - step));
+    const to = { ArrowRight: snap(mag, 1), ArrowUp: snap(mag, 1), ArrowLeft: snap(mag, -1), ArrowDown: snap(mag, -1), PageUp: mag + 30, PageDown: mag - 30, Home: 360 }[e.key];
     if (to === undefined) return;
     e.preventDefault();
-    setFrom(to);
+    setFrom(magneticToTrue(to));
   });
 
   const wind = h('div', { class: 'setup-wind', role: 'group', 'aria-label': 'Wind' },
@@ -218,7 +227,7 @@ export function createSetupPanel({ controls, settings, onScenario }) {
   // How often, shown only while Randomize is ticked (extras behind a switch).
   const share = controls.slider('randomizeSharePct', { label: 'How often', min: LIMITS.randomizeSharePct[0], max: LIMITS.randomizeSharePct[1], step: 10, format: (v) => `${v}% different` });
   share.title = 'How often an aircraft does something other than the normal circuit at each point.';
-  const element = h('div', { class: 'setup-panel' }, h('p', { class: 'traffic-subtitle' }, 'Scenarios'), row, randomize, share, wind);
+  const element = h('div', { class: 'setup-panel' }, row, randomize, share, wind); // the Scenario drop-down labels itself
 
   function token(name, fallback) {
     try {
@@ -236,7 +245,12 @@ export function createSetupPanel({ controls, settings, onScenario }) {
     ctx.clearRect(0, 0, DIAL_PX, DIAL_PX);
     const c = DIAL_PX / 2, r = c - 14;
     const text = token('--text', '#e5edf5'), muted = token('--text-muted', '#8aa0b4'), accent = token('--accent', '#38bdf8'), card = token('--bg-sunken', '#0b1620');
-    const polar = (deg, radius) => [c + radius * Math.sin((deg * Math.PI) / 180), c - radius * Math.cos((deg * Math.PI) / 180)];
+    // Turned so the bearing up the screen is at the top (yawDeg: the 3D camera's, 0 in 2D), and always round: it
+    // turns with the camera but keeps its shape however far the camera tilts (Patrick, 4 Oct).
+    const polar = (deg, radius) => {
+      const a = ((deg - yawDeg) * Math.PI) / 180;
+      return [c + radius * Math.sin(a), c - radius * Math.cos(a)];
+    };
     ctx.fillStyle = card;
     ctx.beginPath(); ctx.arc(c, c, r, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = muted; ctx.lineWidth = 1; ctx.stroke();
@@ -263,26 +277,42 @@ export function createSetupPanel({ controls, settings, onScenario }) {
     ctx.globalAlpha = 1;
     ctx.fillStyle = text; ctx.font = '700 13px ui-monospace, monospace';
     const [rx, ry] = polar(from + 180, r * 0.6); // the readout sits opposite the arrow, clear of it
-    ctx.fillText(`${String(from).padStart(3, '0')}°T`, rx, ry);
+    ctx.fillText(`${String(trueToMagnetic(from)).padStart(3, '0')}°M`, rx, ry);
   }
 
   function show(values) {
     share.hidden = values.randomizeBehaviour !== true;
     const from = values.windFromDeg, kt = values.windKt;
+    const mag = trueToMagnetic(from);
     dial.setAttribute('aria-valuenow', String(from));
-    dial.setAttribute('aria-valuetext', kt > 0 ? `from ${from}° true` : `calm, set to ${from}° true`);
+    dial.setAttribute('aria-valuetext', kt > 0 ? `from ${mag}° magnetic` : `calm, set to ${mag}° magnetic`);
     const words = runwayWindText(from, kt, values.runway);
     if (components.textContent !== words) components.textContent = words;
     draw(values);
   }
+  let yawDeg = 0; // the bearing up the screen: the dial is turned so it is at the top
   show(settings.get());
   const stopSettings = settings.subscribe(show);
 
   return {
     element,
-    /** Marks the scenario on screen (its button pressed), or none. */
+    /** Turns the dial so `deg`, the bearing up the screen (the 3D camera's, 0 for the 2D map), is at its top. */
+    setFacing(deg) {
+      const next = ((Math.round(Number(deg) || 0) % 360) + 360) % 360;
+      if (next === yawDeg) return;
+      yawDeg = next;
+      draw(settings.get());
+    },
+    /** Puts the Active runway list (built by the playback bar) in the Wind group, under the head and cross wind line. */
+    addRunway(select) {
+      if (!select) return;
+      const id = select.id || 'traffic-setup-runway';
+      select.id = id;
+      wind.append(h('div', { class: 'control control-select setup-runway' }, h('label', { for: id }, 'Runway'), select));
+    },
+    /** Shows the scenario loaded in the drop-down, or none ("Choose a scenario"). */
     setActive(id) {
-      for (const b of buttons) b.setAttribute('aria-pressed', String(b.dataset.scenario === id));
+      showScenario(id);
     },
     dispose() { stopSettings?.(); },
   };

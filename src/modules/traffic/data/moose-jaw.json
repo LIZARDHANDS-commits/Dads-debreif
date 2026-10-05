@@ -5,7 +5,7 @@
   "routes": [
     {
       "id": "PAT1",
-      "name": "Pattern 1",
+      "name": "Overhead break",
       "kind": "pattern",
       "visible": true,
       "color": "#58a6ff",
@@ -28,7 +28,7 @@
     },
     {
       "id": "ENT1",
-      "name": "Entry 1",
+      "name": "OHB Rejoin",
       "kind": "entry",
       "visible": true,
       "color": "#bc8cff",
@@ -43,9 +43,9 @@
     },
     {
       "id": "ENT2",
-      "name": "Entry 2",
+      "name": "SI Rejoin",
       "kind": "entry",
-      "visible": true,
+      "visible": false,
       "color": "#7ee787",
       "attachTo": "PAT1",
       "mergeIndex": 0,
@@ -73,12 +73,12 @@
   "view": {
     "playbackSpeed": 1,
     "zoom": 0.95,
-    "showTrails": true,
+    "showTrails": false,
     "showLabels": true,
-    "showRoutePoints": true,
+    "showRoutePoints": false,
     "showLegDistances": false,
     "showTurnData": false,
-    "showBubbles": true,
+    "showBubbles": false,
     "showCautionRings": true,
     "center": {"x":4504.931296920242,"y":-22620.312111217863},
     "photo": {"show":true,"aboveGrid":true,"opacity":1,"trim":1.2,"offsetEastFt":0,"offsetNorthFt":0}

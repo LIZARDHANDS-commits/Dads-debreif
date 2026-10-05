@@ -10,13 +10,11 @@ import { h } from '../../ui-kit/dom.js';
 import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { DEFAULTS, ALLOWED } from './defaults.js';
-import { BUILT_IN, captureProfile, nextProfileName, profileSettingDefaults, startingProfile } from './profile.js';
-import { createProfileStore } from './profile-store.js';
-import { createProfilesPanel } from './profiles-panel.js';
+import { BUILT_IN, profileSettingDefaults, startingProfile } from './profile.js';
 import { createSim } from './sim.js';
 import { clockText } from './readouts.js';
 import { createClock, TEN_SECONDS_STEPS } from './clock.js';
-import { buildScene, routeRows } from './scene.js';
+import { buildScene, routeRows, SI_PATTERN, siPatternPath } from './scene.js';
 import { createPlaybackBar } from './playback-bar.js';
 import { createLayout } from './layout.js';
 import { createMap2d, hintFor, photoCaption } from './map2d.js';
@@ -28,31 +26,30 @@ import { straightInDelaySec } from './scenario-timing.js';
 import { applyToSetup, memoryStore, pauseOnThrow } from './glue.js';
 
 const STYLESHEET = new URL('./traffic.css', import.meta.url).href;
-const PROFILES_STYLESHEET = new URL('./profiles.css', import.meta.url).href;
 
 function mount(root, app) {
   const stylesheet = h('link', { rel: 'stylesheet', href: STYLESHEET });
-  const profilesStylesheet = h('link', { rel: 'stylesheet', href: PROFILES_STYLESHEET });
-  document.head.append(stylesheet, profilesStylesheet);
+  document.head.append(stylesheet);
 
   const settings = createSettings(memoryStore(), DEFAULTS, { allowed: ALLOWED });
   const controls = createControls(settings);
 
-  // What opens: the last profile used, else the built-in Moose Jaw (V6's generic pattern at another home field).
-  // A profile is copied, never used as it is: the person edits the copy, and the saved one stays as saved.
-  const profileStore = createProfileStore(app.storage);
-  const start = startingProfile({ last: profileStore.lastUsed(), saved: profileStore.list().profiles, home: app.airfields?.home() });
-  let place = start.place; // what the map's hint calls the setup ("Moose Jaw"), empty for one of the person's own
-  let airfield = start.profile.airfield; // where the setup is, saved with it
+  // What opens: the built-in Moose Jaw (V6's generic pattern at another home field), copied so nothing edits it.
+  // "Scenarios and notes", with its saved profiles, came off the screen (Patrick, 4 Oct: a drop-down of the
+  // ready-made scenarios is enough), so a profile saved earlier is no longer opened: nothing on screen could
+  // leave it. profiles-panel.js and profile-store.js stay until Patrick says (Traffic future list).
+  const start = startingProfile({ last: null, saved: [], home: app.airfields?.home() });
+  const place = start.place; // what the map's hint calls the setup ("Moose Jaw")
   settings.update({ ...profileSettingDefaults(), ...start.profile.settings });
   const setup = /** @type {any} */ ({ version: 1, name: start.profile.name, anchor: structuredClone(start.profile.anchor), routes: structuredClone(start.profile.routes), aircraft: structuredClone(start.profile.aircraft) });
   applyToSetup(setup, settings.get());
-  // The built-in Moose Jaw opens on the Busy circuit scenario, in 260° at 15 kt (Patrick, 4 Oct 18:47Z).
+  // The built-in Moose Jaw opens on the Busy circuit scenario, in 260°M at 15 kt (Patrick, 4 Oct 18:47Z; °M, TR-65).
   const opensBusy = start.profile === BUILT_IN[0].profile;
   if (opensBusy) setup.aircraft = scenarioAircraftNow('busy', 1);
   const sim = createSim(setup, { seed: start.profile.seed });
   const clock = createClock({ sim, speed: settings.get().speed });
   let selectedRouteId = null; // no route is selected when the sim opens
+  let selectedAircraftId = null; // the aircraft card picked: only it shows its caution ring and glide circle (Patrick, 4 Oct)
   let stopFrames = null;
   let cached = null; // sim.state() for this moment, worked out once however often it is asked
 
@@ -63,7 +60,8 @@ function mount(root, app) {
     controls,
     settings,
     listen: app.listen,
-    available: { photo: true, view3d: true, windTrack: true }, // the wind is set in the Setup column (setup-panel.js)
+    available: { photo: true, view3d: true, windTrack: true, reach: true }, // the wind is set in the Setup column (setup-panel.js)
+    layersInBar: false, // the layers are in the Setup column's Display box (Patrick, 4 Oct)
     on: {
       play,
       pause,
@@ -82,39 +80,32 @@ function mount(root, app) {
     bar,
     listen: app.listen,
     on: {
-      selectRoute,
+      toggleRoute,
+      routeLine: (id, change) => setRouteLine(id, change),
       toggleColumn: () => app.scheduler.after(0, () => redraw()),
-      camera: (name) => view3d.preset(name),
-      toggleHeightLines: (active) => view3d.setHeightLines(active),
     },
     filterSplits: true,
   });
-  const aircraftPanel = createAircraftPanel({ controls, timers: app.scheduler, settings, sim, setup, onChange: () => changed(), onSelectAircraft: (id) => view3d?.target(id) });
+  const aircraftPanel = createAircraftPanel({ controls, timers: app.scheduler, settings, sim, setup, onChange: () => changed(), onSelectAircraft: (id) => { selectedAircraftId = id; redraw(); } }); // the camera stays put (Patrick, 4 Oct); the 3D bar's Follow still follows
   ui.slots.spawner.append(aircraftPanel.elements.spawner);
   ui.slots.aircraft.append(aircraftPanel.elements.aircraft);
   ui.slots.conflicts.append(aircraftPanel.elements.conflicts);
   // "Reset photo alignment" goes back to the setup's own trim and offsets (V6's photo block, T8).
   const photo = setup.view?.photo ?? {};
   const photoHome = { photoTrim: photo.trim ?? DEFAULTS.photoTrim, photoEastFt: photo.offsetEastFt ?? DEFAULTS.photoEastFt, photoNorthFt: photo.offsetNorthFt ?? DEFAULTS.photoNorthFt };
-  // Profiles and notes: a closed section at the top of the left column, so it is in the first screen when opened (profiles-panel.js, profile.js).
-  const profilesPanel = createProfilesPanel({
-    store: profileStore,
-    current: { name: start.entry?.kind === 'saved' ? start.profile.name : nextProfileName(profileStore.list().profiles.map((p) => p.name)), notes: start.profile.notes },
-    capture: (name, notes) => captureProfile({ name, airfield, notes, setup, aircraft: sim.aircraftSpecs(), seed: sim.seed, settings: settings.get() }),
-    load: (profile, entry) => loadProfile(profile, entry),
-  });
-  ui.slots.profiles.append(profilesPanel.element);
-  // Scenarios and the wind dial at the top of the Setup column (Patrick, 4 Oct 11:05Z).
+  // The Scenario drop-down and the wind dial at the top of the Setup column (Patrick, 4 Oct 11:05Z).
   const setupPanel = createSetupPanel({ controls, settings, onScenario: (id) => loadScenario(id) });
   ui.slots.setup.append(setupPanel.element);
+  setupPanel.addRunway(bar.runway); // the Active runway list, under the wind (Patrick, 4 Oct)
   if (opensBusy) setupPanel.setActive('busy');
   const settingsPanel = createSettingsPanel({ controls, settings, onToggle: () => {}, available: { photo: true, view3d: true }, photoHome }); // opening the menu moves nothing on the map
   ui.slots.settings.append(settingsPanel.element);
+  if (bar.layers) ui.slots.layers.append(bar.layers); // the layer presets and ticks, in the Display box
   root.append(ui.element);
 
   const map = createMap2d(ui.canvas, {
     timers: app.scheduler,
-    scene: () => buildScene({ setup, state: state(), selectedRouteId, trailOf: sim.trailOf }),
+    scene: () => withSiPattern(buildScene({ setup, state: state(), selectedRouteId, trailOf: sim.trailOf })),
     settings: () => settings.get(),
     anchor: () => setup.anchor,
     onPhoto: (state) => {
@@ -128,12 +119,16 @@ function mount(root, app) {
     host: ui.stage3d,
     timers: app.scheduler,
     source: {
-      scene: () => buildScene({ setup, state: state(), selectedRouteId, trailOf: () => [] }), // 3D draws no trails
+      scene: () => withSiPattern(buildScene({ setup, state: state(), selectedRouteId, trailOf: () => [] })), // 3D draws no trails
       settings: () => settings.get(),
+      // The 3D bar's High | Performance writes graphicsQuality here (it used to go through Traffic settings' Graphics
+      // box, which moved out on 4 Oct, so the buttons did nothing: Patrick, 4 Oct).
+      setSettings: (values) => settings.update(values),
       anchor: () => setup.anchor,
       time: () => sim.t,
     },
     onLost: () => noteAndReturnTo2d('3D stopped: the graphics were reset. Switch 3D on to start it again.'),
+    onFacing: (yawDeg) => { if (shown === '3d') setupPanel.setFacing(yawDeg); }, // the wind dial turns with the 3D view
   });
   let shown = '2d'; // the picture on screen; the View setting is what the person asked for
   let wantView = '2d';
@@ -156,6 +151,7 @@ function mount(root, app) {
       shown = '2d';
       view3d.hide(); // frees the renderer, the sky, every geometry and material
       ui.setView('2d');
+      setupPanel.setFacing(0); // the 2D map is north up
       for (const key of LAYERS_2D_ONLY) controls.setDisabled(key, false);
       if (!keepNote) ui.setNote3d('');
       map.requestDraw();
@@ -175,6 +171,7 @@ function mount(root, app) {
     ui.setNote3d('');
     shown = '3d';
     ui.setView('3d');
+    setupPanel.setFacing(view3d.facing().yawDeg);
     for (const key of LAYERS_2D_ONLY) controls.setDisabled(key, true);
     view3d.requestDraw();
   }
@@ -198,15 +195,58 @@ function mount(root, app) {
     redraw();
   }
 
+  // The PFL circle has a row in "Routes on the map" too (Patrick, 4 Oct). It is the Layers menu's "PFL ground
+  // circle" switch (layerPflCircle), so the row and the menu always agree. Colour as map2d draws it.
+  const PFL_CIRCLE_ROW = 'pfl-circle';
+  // The SI pattern has a row too (Patrick, 4 Oct): its line is flown, not stored (scene.js siPatternPath), so it is
+  // added to the picture here. Hidden at first, so the opening picture is as it was.
+  let siPatternShown = false;
+  const siPatternRow = () => ({ ...SI_PATTERN, visible: siPatternShown });
+  // Each route's line settings from the Display box (Patrick, 4 Oct): thickness (a multiple of its usual width),
+  // opacity (0-1) and whether the 3D view draws it on the ground; ×1 and 70% at first (Patrick, 4 Oct); kept for the visit.
+  const LINE_DEFAULTS = Object.freeze({ lineScale: 1, lineOpacity: 0.7, onGround: false });
+  const routeLines = new Map();
+  const lineOf = (id) => ({ ...LINE_DEFAULTS, ...(routeLines.get(id) ?? {}) });
+  function setRouteLine(id, change) {
+    routeLines.set(id, { ...lineOf(id), ...change });
+    redraw();
+  }
+  function withSiPattern(scene) {
+    scene.selectedAircraftId = selectedAircraftId;
+    if (siPatternShown) {
+      const path = siPatternPath(setup.routes, setup.windFromDeg ?? 360, setup.windKt ?? 0, setup.routeOptions);
+      if (path) scene.routes.push({ ...SI_PATTERN, visible: true, points: [], path });
+    }
+    scene.routes = scene.routes.map((r) => ({ ...r, ...lineOf(r.id) }));
+    return scene;
+  }
+  const pflCircleRow = () => ({ id: PFL_CIRCLE_ROW, name: 'PFL circle', kind: 'pfl', color: '#ff9bce', visible: settings.get().layerPflCircle !== false });
+  let shownPflCircle = null;
+
   function showRoutes() {
-    const visibleRoutes = setup.routes.filter((r) => r.kind !== 'split');
-    ui.setRoutes(routeRows(visibleRoutes), selectedRouteId);
+    const listed = setup.routes.filter((r) => r.kind !== 'split');
+    const rows = routeRows(listed).map((row) => ({ ...row, line: lineOf(row.id) }));
+    if (setup.routes.some((r) => r.id === 'PAT1') && setup.routes.some((r) => r.id === 'ENT2')) rows.push({ ...siPatternRow(), line: lineOf(SI_PATTERN.id) });
+    rows.push(pflCircleRow());
+    shownPflCircle = settings.get().layerPflCircle !== false;
+    ui.setRoutes(rows);
   }
 
-  function selectRoute(id) {
+  /** A route's row was pressed: its line shows or hides on the map (Patrick, 4 Oct). Only the picture changes; the aircraft on it fly on. */
+  function toggleRoute(id) {
+    if (id === SI_PATTERN.id) {
+      siPatternShown = !siPatternShown;
+      showRoutes();
+      redraw();
+      return;
+    }
+    if (id === PFL_CIRCLE_ROW) {
+      settings.update({ layerPflCircle: settings.get().layerPflCircle === false }); // the subscriber redraws and updates the row
+      return;
+    }
     const route = setup.routes.find((r) => r.id === id);
-    if (route && route.kind === 'split') id = null;
-    selectedRouteId = id;
+    if (!route || route.kind === 'split') return;
+    route.visible = route.visible === false;
     showRoutes();
     redraw();
   }
@@ -220,32 +260,7 @@ function mount(root, app) {
   }
 
   /**
-   * Puts a profile on the screen (Load, or the built-in setup): its routes, aircraft, dice seed and settings,
-   * paused at 0:00. The profile is copied, so editing it leaves the saved one alone.
-   */
-  function loadProfile(profile, entry) {
-    cancelReplay();
-    stopFrames?.();
-    stopFrames = null;
-    setup.name = profile.name;
-    setup.anchor = structuredClone(profile.anchor);
-    setup.routes = structuredClone(profile.routes);
-    setup.aircraft = structuredClone(profile.aircraft);
-    sim.rebuild({ seed: profile.seed });
-    clock.reset();
-    airfield = profile.airfield;
-    place = entry?.kind === 'built-in' ? 'Moose Jaw' : '';
-    selectedRouteId = null;
-    setupPanel.setActive(null);
-    settings.update({ ...profileSettingDefaults(), ...profile.settings }); // the subscriber below copies them into the setup
-    showRoutes();
-    aircraftPanel.routesChanged();
-    map.fit();
-    changed();
-  }
-
-  /**
-   * A scenario's aircraft for the routes on screen. Busy circuit's straight-in is timed for 260° at 15 kt; in any
+   * A scenario's aircraft for the routes on screen. Busy circuit's straight-in is timed for 260°T at 15 kt; in any
    * other wind it is timed again so it still meets the overhead aircraft in its final turn (scenario-timing.js,
    * under a second).
    */
@@ -389,6 +404,7 @@ function mount(root, app) {
     clock.setSpeed(values.speed);
     bar.setState({ speed: values.speed });
     if (values.view !== wantView) applyView(values.view);
+    if ((values.layerPflCircle !== false) !== shownPflCircle) showRoutes(); // the Layers menu switched the PFL circle
     changed();
   });
 
@@ -427,7 +443,6 @@ function mount(root, app) {
     view3d.dispose(); // three.js, the renderer and everything drawn with it
     map.dispose();
     stylesheet.remove();
-    profilesStylesheet.remove();
   };
 }
 

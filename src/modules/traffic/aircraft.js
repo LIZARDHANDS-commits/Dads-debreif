@@ -1,11 +1,12 @@
 // The right column of the Traffic Sim (specs/SPEC-traffic.md: The screen; task 6): the
-// spawner, the aircraft list and the conflicts. The spawner turns its boxes into a call to
+// spawner, the aircraft list and the conflicts. The spawner turns a press on a spot into a call to
 // the engine's `sim.spawn` and says in plain words when it can't; the list and the conflicts
 // show the engine's state as the text readouts.js makes. Names and callsigns go in as text,
 // never as HTML.
 //
 // It builds pieces to put in the layout's slots and holds no traffic data of its own.
 import { h, clear } from '../../ui-kit/dom.js';
+import { createPanel } from '../../ui-kit/panel.js';
 import { TYPE_COLORS } from './sim.js';
 import { aircraftRows, conflictLines, noConflictsText } from './readouts.js';
 import { LIMITS } from './defaults.js';
@@ -17,6 +18,9 @@ const BOX_NAMES = Object.freeze({ spawnStartPoint: 'Start at point', spawnDelayS
 
 import { SPAWN_TYPES } from './types.js';
 import { conflictSpawnPlan } from './scenario-timing.js';
+import { onProfileAltFt } from './nav-plans.js';
+import { legDistances, pointDistFt, DEFAULT_ROUTE_OPTIONS } from './route.js';
+import { FT_PER_NM } from '../../core/units.js';
 export { SPAWN_TYPES };
 
 export const PILOT_SPAWN_PRESETS = Object.freeze([
@@ -28,12 +32,82 @@ export const PILOT_SPAWN_PRESETS = Object.freeze([
   { id: 'final2m', label: '2-Mile Final (2,700 ft, 120 kt, Straight-in)', routeId: 'ENT2', point: 4 },
   { id: 'final1m', label: '1-Mile Final (2,120 ft, 100 kt, Short final)', routeId: 'PAT1', point: 13 },
   { id: 'takeoff', label: 'Takeoff (RWY 29L Threshold, 100 kt)', routeId: 'PAT1', point: 1 },
-  { id: 'rejoin45', label: 'Rejoin 45° Line (Entry 1, 3,500 ft, 220 kt)', routeId: 'ENT1', point: 1 },
-  { id: 'rejoinStraight', label: 'Rejoin Straight-In Line (Entry 2, 2,700 ft, 140 kt)', routeId: 'ENT2', point: 1 },
+  { id: 'rejoin45', label: 'Rejoin 45° Line (OHB Rejoin, 3,500 ft, 220 kt)', routeId: 'ENT1', point: 1 },
+  { id: 'rejoinStraight', label: 'Rejoin Straight-In Line (SI Rejoin, 2,700 ft, 140 kt)', routeId: 'ENT2', point: 1 },
 ]);
 
-/** The most points a start-point box accepts (the engine's own check is the route's length). */
-const MOST_POINTS = 999;
+/**
+ * The spots offered for a route, when not every point of it (Patrick, 4 Oct: for the overhead break only "Initial",
+ * "In the break", "Downwind" and "Perch"; Base waits until its start is settled). `point` counts from 1 on the
+ * built-in Moose Jaw Overhead break: 9 Final Entry (the run-in), 10 Break, 11 Break exit (the inner downwind,
+ * 140 kt), 12 Perch. The same spots the code's Initial and Inner Downwind presets use.
+ */
+export const SPOT_CHOICES = Object.freeze({
+  PAT1: Object.freeze([
+    { label: 'Initial', point: 9 },
+    { label: 'In the break', point: 10 },
+    { label: 'Downwind', point: 11 },
+    { label: 'Perch', point: 12 },
+  ]),
+});
+
+/** The spots for a route: its SPOT_CHOICES (those it has), or every point by its own name. [{ label, point }] */
+export function spotChoices(route) {
+  const count = route?.points?.length ?? 0;
+  const chosen = SPOT_CHOICES[route?.id]?.filter((c) => c.point <= count);
+  if (chosen?.length) return chosen.map((c) => ({ ...c }));
+  return Array.from({ length: count }, (_, i) => ({ label: route.points[i].label || route.points[i].tag || `Point ${i + 1}`, point: i + 1 }));
+}
+
+/**
+ * Routes whose start is chosen by distance back along the line instead of by spot buttons (Patrick, 4 Oct: the
+ * OHB Rejoin, "how many miles back on the rejoin line", in whole miles; the engine starts it partway along a
+ * leg, sim.spawn backFt, approved by Patrick 4 Oct).
+ */
+export const MILES_BACK_ROUTES = Object.freeze(['ENT1', 'ENT2']);
+
+/**
+ * The miles boxes (Patrick, 4 Oct: "specifically selected", in 0.1 NM steps), each a distance back along the route
+ * (sim.spawn backFt, TR-66) from where the rejoin joins the pattern, as a pilot counts it: the OHB Rejoin from its
+ * Merge (its last point, on initial); the SI Rejoin from its base turn (`fromPoint` 2, the Entry Mid, where it turns
+ * base; Patrick, 4 Oct). The most is the rejoin line's length to that point; the least keeps it a rejoin.
+ * "Miles on final": from the threshold (the SI Rejoin's end), 0.75 NM, the Window (3/4 mile), out to 4.1 NM, the
+ * SI Rejoin's Final point where it has rolled out after base (route file). `fallback` is the box's first value.
+ */
+export const MILES_BOXES = Object.freeze({
+  ENT1: Object.freeze({ label: 'Miles back from the Merge', least: 0.5, fallback: 9 }),
+  ENT2: Object.freeze({ label: 'Miles back from the base turn', least: 0.5, fallback: 5, fromPoint: 2 }),
+  final: Object.freeze({ label: 'Miles on final', routeId: 'ENT2', least: 0.75, most: 4.1, fallback: 2 }),
+});
+export const MILES_STEP_NM = 0.1;
+
+/** Each start spot of a route but its last, with how far back from the last it is along the legs: [{ point, nm }], farthest first. */
+export function milesBack(route) {
+  const legs = legDistances(route);
+  const out = [];
+  let back = 0;
+  for (let i = legs.length - 1; i >= 0; i--) {
+    back += legs[i].ft;
+    out.unshift({ point: i + 1, nm: Math.round((back / FT_PER_NM) * 10) / 10 });
+  }
+  return out;
+}
+
+/**
+ * "SI pattern" in the Route list (Patrick, 4 Oct): Downwind, Base and Final. Downwind is the overhead break's
+ * Abeam departure end (point 6) with the aircraft's pattern set to SI, so it flies the straight-in from there; Base
+ * (the SI Rejoin's Entry Mid, the base leg the straight-in joins) and Final start on the SI Rejoin, which flies the SI
+ * pattern lap after lap already (TR-61).
+ */
+export const SI_PATTERN_CHOICE = 'si-pattern';
+export const SI_SPOTS = Object.freeze([
+  Object.freeze({ label: 'Downwind', routeId: 'PAT1', point: 6, pattern: 'si' }),
+  Object.freeze({ label: 'Base', routeId: 'ENT2', point: 2 }),
+  Object.freeze({ label: 'Final', routeId: 'ENT2', point: 4 }),
+]);
+
+/** The Route list's last choice: an aircraft gliding in from the training area with the engine out (Patrick, 4 Oct). */
+export const PFL_FROM_AREA = 'pfl-area';
 
 /** How often the list and the conflicts are rewritten while the run is playing. */
 const LIST_EVERY_MS = 100;
@@ -77,19 +151,18 @@ export const engineProblem = (err) => (err instanceof RangeError ? `That aircraf
 
 const feet = (n) => n.toLocaleString('en-CA');
 
-/** The detail line of an aircraft's row: "2,500 ft, 120 kt, Flying", or "Waiting, starts at 2:17". */
+/**
+ * The detail line of an aircraft's card: "2,500 ft · 120 kt" while flying (Patrick, 4 Oct: no ground speed, no crab,
+ * no "Flying", the normal case), "Waiting, starts at 2:17", or "1,880 ft, Landed". Heights to the nearest 10 ft
+ * (Patrick, 4 Oct).
+ */
 export function detailText(row) {
+  const alt = feet(Math.round(row.altFt / 10) * 10);
   if (row.status === 'waiting') return `${row.statusText}, ${row.startsText}`;
-  if (row.status === 'flying') return `${feet(row.altFt)} ft, ${row.kt} kt, ${groundText(row)}, ${row.statusText}`;
-  return `${feet(row.altFt)} ft, ${row.statusText}`;
+  if (row.status === 'flying') return `${alt} ft · ${row.kt} kt`;
+  return `${alt} ft, ${row.statusText}`;
 }
 
-/** Ground speed and crab for a flying row (TR-R6), as the old spec's layout shows them: "GS 162 kt, crab 7° R". */
-function groundText(row) {
-  const crab = row.crabDeg ?? 0;
-  const gs = `GS ${row.gsKt ?? row.kt} kt`;
-  return crab === 0 ? `${gs}, no crab` : `${gs}, crab ${Math.abs(crab)}° ${crab > 0 ? 'R' : 'L'}`;
-}
 
 /**
  * controls, settings: the ui-kit controls bound to the traffic settings, and those settings.
@@ -101,62 +174,124 @@ function groundText(row) {
  */
 export function createAircraftPanel({ controls, timers, settings, sim, setup, onChange, onSelectAircraft = null }) {
   // ---- the spawner ----------------------------------------------------------
+  // Patrick, 4 Oct: Type and Route, then a button for each spot on the route; one press adds an aircraft there.
+  // The delay and pairs sit under "Advanced settings". "PFL from area" is the Route list's last choice and
+  // brings up its own boxes instead of the spots.
   const message = h('p', { class: 'spawn-message', role: 'status' });
   const say = (text) => {
     if (message.textContent !== text) message.textContent = text;
   };
 
-  const pointSelect = h('select', {
-    id: 'traffic-spawn-start-point',
-    onchange: () => {
-      const val = parseInt(pointSelect.value, 10) || 1;
-      settings.update({ spawnStartPoint: val });
-    },
-  });
-
-  const fillStartPoints = () => {
-    clear(pointSelect);
-    const validRoutes = setup.routes.filter((r) => r && r.kind !== 'split');
-    const routesToUse = validRoutes.length > 0 ? validRoutes : setup.routes;
-    const routeId = spawnRouteId(settings.get().spawnRoute, routesToUse);
-    const route = routesToUse.find((r) => r.id === routeId);
-    const pts = route?.points ?? [];
-    for (let i = 0; i < pts.length; i++) {
-      const p = pts[i];
-      const idx = i + 1;
-      const isClosed = route?.id === 'PAT1' && i === 1;
-      const label = p.label || p.tag || `Point ${idx}`;
-      const extra = isClosed ? ' (Closed Pattern)' : '';
-      const alt = isClosed ? 2400 : (p.alt ?? 2500);
-      const kt = isClosed ? 140 : (p.kt ?? 120);
-      pointSelect.appendChild(h('option', { value: String(idx) }, `${idx}: ${label}${extra} (${alt} ft, ${kt} kt)`));
-    }
-    const current = settings.get().spawnStartPoint ?? 1;
-    pointSelect.value = String(current);
+  const flownRoutes = () => {
+    const valid = setup.routes.filter((r) => r && r.kind !== 'split');
+    return valid.length > 0 ? valid : setup.routes;
+  };
+  const currentRoute = () => {
+    const routes = flownRoutes();
+    return routes.find((r) => r.id === spawnRouteId(settings.get().spawnRoute, routes));
   };
 
+  /** A spot's name and what an aircraft starts with there ("Departure End (Closed Pattern)", 2400, 140). */
+  const spotOf = (route, i) => {
+    const p = route.points[i];
+    const isClosed = route.id === 'PAT1' && i === 1;
+    return { label: `${p.label || p.tag || `Point ${i + 1}`}${isClosed ? ' (Closed Pattern)' : ''}`, alt: isClosed ? 2400 : (p.alt ?? 2500), kt: isClosed ? 140 : (p.kt ?? 120) };
+  };
+
+  let pflChosen = false; // "PFL from area" is picked in the Route list; it is not a route the setting can hold
+  let siChosen = false; // "SI pattern" is picked: its spots are on two routes (SI_SPOTS)
   const routeSelect = h('select', {
     id: 'traffic-spawn-route',
     onchange: () => {
-      settings.update({ spawnRoute: routeSelect.value, spawnStartPoint: 1 });
-      fillStartPoints();
+      pflChosen = routeSelect.value === PFL_FROM_AREA;
+      siChosen = routeSelect.value === SI_PATTERN_CHOICE;
+      if (!pflChosen && !siChosen) settings.update({ spawnRoute: routeSelect.value, spawnStartPoint: 1 });
+      showRouteParts();
+      conflictButtonFollows();
     },
   });
   const fillRoutes = () => {
     clear(routeSelect);
     const visibleRoutes = setup.routes.filter((r) => r && r.kind !== 'split');
     for (const route of visibleRoutes) routeSelect.appendChild(h('option', { value: route.id }, route.name));
-    routeSelect.value = spawnRouteId(settings.get().spawnRoute, visibleRoutes.length > 0 ? visibleRoutes : setup.routes);
+    const hasSi = SI_SPOTS.every((s) => setup.routes.some((r) => r.id === s.routeId));
+    if (hasSi) routeSelect.appendChild(h('option', { value: SI_PATTERN_CHOICE }, 'SI pattern'));
+    else siChosen = false;
+    routeSelect.appendChild(h('option', { value: PFL_FROM_AREA }, 'PFL from area'));
+    routeSelect.value = pflChosen ? PFL_FROM_AREA : siChosen ? SI_PATTERN_CHOICE : spawnRouteId(settings.get().spawnRoute, flownRoutes());
   };
-  fillRoutes();
-  fillStartPoints();
+
+  // The advanced choices: a delay before the aircraft starts, and adding a pair. Closed until asked for.
+  const pairBox = h('input', { id: 'traffic-spawn-pair', type: 'checkbox', onchange: () => showSpotsHint() });
+  const pairChoice = h('div', { class: 'control control-checkbox' }, pairBox, h('label', { for: pairBox.id }, 'Add a pair (a second aircraft on the same spot, later by the pair gap)'));
+  const advanced = h(
+    'details',
+    { class: 'spawner-advanced' },
+    h('summary', {}, 'Advanced settings'),
+    controls.number('spawnDelayS', { label: 'Delay', unit: 's', min: LIMITS.spawnDelayS[0], max: LIMITS.spawnDelayS[1], step: 1 }),
+    pairChoice,
+    controls.number('pairGapS', { label: 'Pair gap', unit: 's', min: 0, max: LIMITS.spawnDelayS[1], step: 1 }),
+  );
+
+  // The spots of the chosen route, one button each; the line above says what a press does with today's choices.
+  const spotsHint = h('p', { class: 'spawn-spots-hint' });
+  const spots = h('div', { class: 'spawn-spots', role: 'group', 'aria-label': 'Spots on the route' });
+  function showSpotsHint() {
+    const { spawnDelayS: delay, pairGapS: gap } = settings.get();
+    const what = pairBox.checked ? `a pair, ${gap} s apart,` : 'an aircraft';
+    const when = delay > 0 ? `in ${delay} s` : 'now';
+    const milesRoute = !siChosen && MILES_BACK_ROUTES.includes(currentRoute()?.id);
+    const text = milesRoute ? `Choose how far back, then + Spawn adds ${what} there ${when}.` : `Press a spot to add ${what} there ${when}.`;
+    if (spotsHint.textContent !== text) spotsHint.textContent = text;
+  }
+  function fillSpots() {
+    clear(spots);
+    if (siChosen) {
+      for (const choice of SI_SPOTS) {
+        if (choice.label === 'Final') continue; // on final it is the miles box below
+        const route = setup.routes.find((r) => r.id === choice.routeId);
+        if (!route?.points?.[choice.point - 1]) continue;
+        const spot = spotOf(route, choice.point - 1);
+        const button = h('button', { type: 'button', class: 'button spawn-spot', dataset: { point: String(choice.point) }, title: `${choice.label}: ${feet(spot.alt)} ft, ${spot.kt} kt`, onclick: () => spawnSi(choice) }, choice.label);
+        guardButton(button, ['spawnDelayS']);
+        spots.appendChild(button);
+      }
+      const final = MILES_BOXES.final;
+      const ent2 = setup.routes.find((r) => r.id === final.routeId);
+      if (ent2) milesField(final, ent2, final.most);
+      showSpotsHint();
+      return;
+    }
+    const route = currentRoute();
+    if (MILES_BACK_ROUTES.includes(route?.id)) {
+      const box = MILES_BOXES[route.id];
+      const opts = setup.routeOptions ?? DEFAULT_ROUTE_OPTIONS;
+      const most = box.fromPoint ? pointDistFt(route, box.fromPoint - 1, opts) / FT_PER_NM : (milesBack(route)[0]?.nm ?? box.fallback);
+      milesField(box, route, Math.floor(most * 10) / 10);
+      showSpotsHint();
+      return;
+    }
+    for (const choice of spotChoices(route)) {
+      const spot = spotOf(route, choice.point - 1);
+      const button = h('button', {
+        type: 'button',
+        class: 'button spawn-spot',
+        dataset: { point: String(choice.point) },
+        title: `${spot.label}: ${feet(spot.alt)} ft, ${spot.kt} kt`,
+        onclick: () => spawnAt(choice.point),
+      }, choice.label);
+      guardButton(button, ['spawnDelayS']);
+      spots.appendChild(button);
+    }
+  }
 
   // The spawner keeps its own choice of route: picking a route on the left doesn't change it (#45).
-  function spawn(pair) {
-    const validRoutes = setup.routes.filter((r) => r && r.kind !== 'split');
-    const routesToUse = validRoutes.length > 0 ? validRoutes : setup.routes;
-    const asked = spawnSpec(settings.get(), routesToUse);
+  function spawn(pair, extra = {}) {
+    // `extra.routeId` and `extra.startPoint` start it on a route other than the Route list's (the SI pattern's spots).
+    const { routeId: onRoute, startPoint: atPoint, ...more } = extra;
+    const asked = spawnSpec(onRoute ? { ...settings.get(), spawnRoute: onRoute, spawnStartPoint: atPoint } : settings.get(), flownRoutes());
     if (asked.problem) return say(asked.problem);
+    asked.spec = { ...asked.spec, ...more };
     const second = pair ? pairSpec(asked.spec, settings.get()) : null;
     if (second?.problem) return say(second.problem);
     // A saved profile holds MOST_AIRCRAFT at most (PR-04): stop here, in the same words Save would use.
@@ -166,11 +301,56 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       const ids = [sim.spawn(asked.spec)];
       if (second) ids.push(sim.spawn(second.spec)); // the same route, as the spawner has it
       say(`Added ${ids.join(' and ')}.`);
+      onChange();
+      return ids;
     } catch (err) {
       if (!(err instanceof RangeError)) console.error('Adding an aircraft failed:', err);
       say(engineProblem(err));
     }
     onChange();
+    return [];
+  }
+
+  /** An SI pattern spot: an aircraft (or a pair) there, its pattern set to SI where the spot says so. */
+  function spawnSi(choice) {
+    if (pairBox.checked && controls.invalid().includes('pairGapS')) return say('Nothing was added: fix the Pair gap box first.');
+    const ids = spawn(pairBox.checked, { routeId: choice.routeId, startPoint: choice.point }) ?? [];
+    if (choice.pattern) for (const id of ids) sim.setPattern?.(id, choice.pattern);
+  }
+
+  /**
+   * A miles box and its + Spawn (MILES_BOXES): a number from `box.least` to `most` NM in 0.1 NM steps; + Spawn adds an
+   * aircraft (or a pair) that far back from `route`'s last point along it. A figure outside the range is said in words.
+   */
+  function milesField(box, route, most) {
+    const id = `traffic-spawn-miles-${route.id}-${box === MILES_BOXES.final ? 'final' : 'line'}`;
+    const top = Math.round(Math.max(box.least, most) * 10) / 10;
+    const input = h('input', { id, type: 'number', min: String(box.least), max: String(top), step: String(MILES_STEP_NM), inputmode: 'decimal', value: String(Math.min(box.fallback, top)) });
+    const range = h('span', { class: 'spawn-miles-range' }, `${box.least} to ${top} NM`);
+    const go = h('button', { type: 'button', class: 'button primary spawn-spot', onclick: () => {
+      const nm = Number(input.value);
+      if (!Number.isFinite(nm) || nm < box.least || nm > top) return say(`${box.label}: enter a number from ${box.least} to ${top}.`);
+      // From the box's point back up the line: past it, the route's own end lies that much further on.
+      const opts = setup.routeOptions ?? DEFAULT_ROUTE_OPTIONS;
+      const beyondFt = box.fromPoint ? pointDistFt(route, route.points.length - 1, opts) - pointDistFt(route, box.fromPoint - 1, opts) : 0;
+      spawnBack(Math.round(nm * 10) / 10, route.id, beyondFt);
+    } }, '+ Spawn');
+    guardButton(go, ['spawnDelayS']);
+    spots.appendChild(h('div', { class: 'control control-number spawn-miles' }, h('label', { for: id }, box.label), h('div', { class: 'spawn-miles-row' }, input, range, go)));
+  }
+
+  /** + Spawn on a miles box: an aircraft (or a pair) `nm` back along route `routeId` from `beyondFt` before its end. */
+  function spawnBack(nm, routeId, beyondFt = 0) {
+    if (pairBox.checked && controls.invalid().includes('pairGapS')) return say('Nothing was added: fix the Pair gap box first.');
+    spawn(pairBox.checked, { routeId, startPoint: 1, backFt: beyondFt + nm * FT_PER_NM });
+  }
+
+  /** A spot was pressed: an aircraft (or a pair, from Advanced settings) at that spot of the chosen route. */
+  function spawnAt(point) {
+    // The pair gap is read only for a pair: a refused gap holds back a pair, not a single aircraft (TR-14).
+    if (pairBox.checked && controls.invalid().includes('pairGapS')) return say('Nothing was added: fix the Pair gap box first.');
+    settings.update({ spawnStartPoint: point });
+    spawn(pairBox.checked);
   }
 
   // Spawn a conflict (Patrick, 4 Oct 19:24Z): a new aircraft on the spawner's route, started where and when it will
@@ -181,8 +361,8 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     const target = sim.state().aircraft.find((a) => a.id === targetId);
     if (!target || target.status !== 'flying') return say('Spawn a conflict: select a flying aircraft first.');
     if (sim.state().aircraft.length + 1 > MOST_AIRCRAFT) return say(`Nothing was added: the most is ${MOST_AIRCRAFT} aircraft. Clear finished aircraft or remove some first.`);
-    const validRoutes = setup.routes.filter((r) => r && r.kind !== 'split');
-    const routeId = spawnRouteId(settings.get().spawnRoute, validRoutes.length > 0 ? validRoutes : setup.routes);
+    // The SI pattern's conflicts come in on the SI Rejoin (its base and final); any other choice is its own route.
+    const routeId = siChosen ? 'ENT2' : spawnRouteId(settings.get().spawnRoute, flownRoutes());
     say(`Working out where an aircraft on ${routeName(routeId)} meets ${targetId}…`);
     // A moment later, so the line above shows while it works (it flies everyone ahead on a copy of the run).
     timers.after(0, () => {
@@ -194,11 +374,14 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       }
       if (!plan) return say(`No start on ${routeName(routeId)} meets ${targetId} in the next 3 minutes. Try another route.`);
       try {
-        const id = sim.spawn({ type: settings.get().spawnType, routeId, startPoint: plan.startPoint, delaySec: plan.delaySec });
+        // Anywhere along the route (TR-66), not only at its spots (Patrick, 4 Oct).
+        const id = sim.spawn({ type: settings.get().spawnType, routeId, startPoint: 1, backFt: plan.backFt, delaySec: plan.delaySec });
         const route = setup.routes.find((r) => r.id === routeId);
-        const where = route?.points?.[plan.startPoint - 1]?.label ?? `point ${plan.startPoint}`;
+        const after = route?.points?.[plan.startPoint - 1]?.label ?? `point ${plan.startPoint}`;
+        const nm = (plan.backFt / FT_PER_NM).toFixed(1);
+        const toEnd = routeId === 'ENT2' ? 'from the threshold' : routeId === 'ENT1' ? 'back from the Merge' : 'before the end of the route';
         const when = plan.delaySec > 0 ? `in ${Math.round(plan.delaySec)} s` : 'now';
-        say(`Added ${id} on ${routeName(routeId)} at ${where}, ${when}: it meets ${targetId} in about ${Math.round(plan.inSec)} s.`);
+        say(`Added ${id} on ${routeName(routeId)}, ${nm} NM ${toEnd} (past ${after}), ${when}: it meets ${targetId} in about ${Math.round(plan.inSec)} s.`);
       } catch (err) {
         if (!(err instanceof RangeError)) console.error('Adding an aircraft failed:', err);
         say(engineProblem(err));
@@ -215,43 +398,19 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
 
   const callsignBadge = h('span', { class: 'traffic-callsign-badge' }, sim.nextCallsign ? `Next: ${sim.nextCallsign()}` : '');
 
-  const pointCaption = h('div', { class: 'spawner-point-caption', 'aria-live': 'polite' });
-  const updatePointCaption = (vals = settings.get()) => {
-    const validRoutes = setup.routes.filter((r) => r && r.kind !== 'split');
-    const routesToUse = validRoutes.length > 0 ? validRoutes : setup.routes;
-    const routeId = spawnRouteId(vals.spawnRoute, routesToUse);
-    const route = routesToUse.find((r) => r.id === routeId);
-    const ptIdx = (vals.spawnStartPoint ?? 1) - 1;
-    const pt = route?.points?.[ptIdx];
-    if (pt) {
-      const isClosed = route.id === 'PAT1' && ptIdx === 1;
-      const label = pt.label || `Point ${ptIdx + 1}`;
-      const extra = isClosed ? ' (Closed Pattern)' : '';
-      const alt = isClosed ? 2400 : (pt.alt ?? 2500);
-      const kt = isClosed ? 140 : (pt.kt ?? 120);
-      pointCaption.textContent = `↳ ${label}${extra}: ${alt} ft, ${kt} kt`;
-    } else {
-      pointCaption.textContent = '';
-    }
-    if (vals?.spawnStartPoint !== undefined && pointSelect.value !== String(vals.spawnStartPoint)) {
-      pointSelect.value = String(vals.spawnStartPoint);
-    }
-  };
-  settings.subscribe?.(updatePointCaption);
-  updatePointCaption();
-
-  const pairLabel = () => `+ Pair, ${settings.get().pairGapS} s apart`;
-  const pairButton = h('button', { type: 'button', class: 'button', onclick: () => spawn(true) }, pairLabel());
-  const spawnButton = h('button', { type: 'button', class: 'button primary', onclick: () => spawn(false) }, '+ Spawn');
-  const conflictButton = h('button', { type: 'button', class: 'button', disabled: true, title: 'Select an aircraft first', onclick: spawnConflict }, 'Spawn a conflict');
-  // The button waits for a selected aircraft (Patrick: "when an aircraft is selected").
+  // Red (Patrick, 4 Oct). Not ready, it is marked so rather than switched off, so its hover text shows: "Select a pattern
+  // and aircraft" (Patrick, 4 Oct); a press then says the same.
+  const CONFLICT_NOT_READY = 'Select a pattern and aircraft';
+  const conflictButton = h('button', { type: 'button', class: 'button spawn-conflict', 'aria-disabled': 'true', title: CONFLICT_NOT_READY, onclick: () => (conflictButton.getAttribute('aria-disabled') === 'true' ? say(`Spawn a conflict: ${CONFLICT_NOT_READY.toLowerCase()} first.`) : spawnConflict()) }, 'Spawn a conflict');
+  // The button waits for a selected aircraft (Patrick: "when an aircraft is selected") and a route to put the new one on.
   const conflictButtonFollows = () => {
-    const on = Boolean(selectedAircraftId);
-    conflictButton.disabled = !on;
-    conflictButton.title = on ? `A new aircraft on the route above, timed to meet ${selectedAircraftId}` : 'Select an aircraft first';
+    const on = Boolean(selectedAircraftId) && !pflChosen;
+    conflictButton.setAttribute('aria-disabled', String(!on));
+    conflictButton.title = on ? `A new aircraft on the route above, timed to meet ${selectedAircraftId}` : CONFLICT_NOT_READY;
   };
 
-  // PFL From Area: an aircraft already gliding with the engine out, somewhere in the training area. Closed until asked for.
+  // PFL from area: an aircraft already gliding with the engine out, somewhere in the training area. Its boxes show
+  // when it is chosen in the Route list, in place of the spots.
   const pflBox = (id, label, unit, value, min, max) => {
     const input = h('input', { id, type: 'number', value: String(value), min: String(min), max: String(max), step: '1', inputmode: 'numeric' });
     return { input, element: h('div', { class: 'control control-number' }, h('label', { for: id }, `${label} (${unit})`), input) };
@@ -261,7 +420,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
   const pflAlt = pflBox('traffic-pfl-alt', 'Altitude', 'ft MSL', 7500, 3000, 15000);
   const spawnPfl = () => {
     const [radialDeg, distNm, altFt] = [pflRadial, pflDist, pflAlt].map((b) => Number(b.input.value));
-    if (![radialDeg, distNm, altFt].every(Number.isFinite)) return say('PFL From Area: radial, distance and altitude must be numbers.');
+    if (![radialDeg, distNm, altFt].every(Number.isFinite)) return say('PFL from area: radial, distance and altitude must be numbers.');
     if (sim.state().aircraft.length + 1 > MOST_AIRCRAFT) return say(`Nothing was added: the most is ${MOST_AIRCRAFT} aircraft. Clear finished aircraft or remove some first.`);
     try {
       const id = sim.spawnPflFromArea({ type: settings.get().spawnType, radialDeg, distNm, altFt });
@@ -272,45 +431,66 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     }
     onChange();
   };
-  const pflPanel = h(
-    'details',
-    { class: 'spawner-pfl' },
-    h('summary', {}, 'PFL From Area'),
+  // On profile (Patrick, 4 Oct): the start height from which this radial and distance cross High Key inside its
+  // 5,000-6,000 ft window in today's wind, worked out by flying the sim's own PFL (nav-plans.js onProfileAltFt).
+  const onProfile = () => {
+    const [radialDeg, distNm] = [pflRadial, pflDist].map((b) => Number(b.input.value));
+    if (![radialDeg, distNm].every(Number.isFinite)) return say('On profile: radial and distance must be numbers.');
+    say('Working out a start on profile…');
+    timers.after(0, () => {
+      let found = null;
+      try {
+        found = onProfileAltFt(radialDeg, distNm, { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 }, setup.settings);
+      } catch (err) {
+        console.error('On profile failed:', err);
+        return say('On profile could not be worked out.');
+      }
+      if (found.problem) return say(`On profile: ${found.problem}`);
+      pflAlt.input.value = String(found.altFt);
+      say(`On profile: from ${feet(found.altFt)} ft it crosses High Key at ${feet(found.highKeyFt)} ft in today's wind. Press + Spawn PFL.`);
+    });
+  };
+  const pflFields = h(
+    'div',
+    { class: 'spawner-pfl', hidden: true },
     pflRadial.element,
     pflDist.element,
     pflAlt.element,
-    h('button', { type: 'button', class: 'button danger', onclick: spawnPfl }, '+ Spawn PFL'),
-  );
-  const startPointControl = h(
-    'div',
-    { class: 'control control-select' },
-    h('label', { for: pointSelect.id }, 'Start at point'),
-    pointSelect,
-  );
-  const spawner = h(
-    'section',
-    { class: 'spawner', 'aria-label': 'Spawn aircraft' },
-    h('div', { class: 'spawner-head' }, h('h3', { class: 'traffic-subtitle' }, 'Spawn'), callsignBadge),
-    controls.select('spawnType', { label: 'Type', options: SPAWN_TYPES.map((type) => [type, type]) }),
-    h('div', { class: 'control control-select' }, h('label', { for: routeSelect.id }, 'Route'), routeSelect),
-    startPointControl,
-    pointCaption,
-    controls.number('spawnDelayS', { label: 'Delay', unit: 's', min: LIMITS.spawnDelayS[0], max: LIMITS.spawnDelayS[1], step: 1 }),
-    h(
-      'div',
-      { class: 'spawn-buttons' },
-      spawnButton,
-      pairButton,
-      h('button', { type: 'button', class: 'button', onclick: clearFinished }, 'Clear finished'),
-      conflictButton,
-    ),
-    pflPanel,
-    message,
+    h('div', { class: 'spawn-buttons' },
+      h('button', { type: 'button', class: 'button', title: 'Sets the altitude so it crosses High Key between 5,000 and 6,000 ft in the wind set now', onclick: onProfile }, 'On profile'),
+      h('button', { type: 'button', class: 'button danger', onclick: spawnPfl }, '+ Spawn PFL')),
   );
 
-  // TR-14: neither button acts while a box it reads refuses what was typed (the setting would keep its last good
+  /** The spots for a route, or the PFL boxes for "PFL from area". */
+  function showRouteParts() {
+    spotsHint.hidden = pflChosen;
+    spots.hidden = pflChosen;
+    advanced.hidden = pflChosen; // the delay and pairs are for the spots
+    pflFields.hidden = !pflChosen;
+    if (!pflChosen) fillSpots();
+  }
+
+  // "Spawn aircraft" opens and closes like Traffic settings, closed at first (Patrick, 4 Oct).
+  const spawnPanel = createPanel({ title: 'Spawn aircraft', collapsed: true });
+  const spawnerBody = h(
+    'section',
+    { class: 'spawner', 'aria-label': 'Spawn aircraft' },
+    h('div', { class: 'spawner-head' }, callsignBadge),
+    controls.select('spawnType', { label: 'Type', options: SPAWN_TYPES.map((type) => [type, type]) }),
+    h('div', { class: 'control control-select' }, h('label', { for: routeSelect.id }, 'Route'), routeSelect),
+    spotsHint,
+    spots,
+    pflFields,
+    h('div', { class: 'spawn-buttons' }, conflictButton, h('button', { type: 'button', class: 'button', onclick: clearFinished }, 'Clear finished')),
+    advanced,
+    message,
+  );
+  spawnPanel.body.append(spawnerBody);
+  const spawner = spawnPanel.element;
+
+  // TR-14: no spot button acts while a box it reads refuses what was typed (the setting would keep its last good
   // value, which the person can't see). The box shows its own message; the spawner's line names the box too.
-  const guardButton = (button, keys) => {
+  function guardButton(button, keys) {
     button.addEventListener('click', (event) => {
       // The guard has run by the end of the click: if it held the action back, say which box to fix.
       timers.after(0, () => {
@@ -320,13 +500,16 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       });
     }, true); // registered first, so it sees the click before the guard stops it
     controls.guard(button, keys);
-  };
-  guardButton(spawnButton, ['spawnStartPoint', 'spawnDelayS']);
-  guardButton(pairButton, ['spawnStartPoint', 'spawnDelayS', 'pairGapS']);
+  }
+
+  fillRoutes();
+  showRouteParts();
+  showSpotsHint();
+  settings.subscribe?.(() => showSpotsHint());
 
   // ---- the aircraft list and the conflicts ------------------------------------
   const listBody = h('ul', { class: 'aircraft-list' });
-  const emptyNote = h('p', { class: 'aircraft-empty' }, 'No aircraft yet. Use + Spawn to add one.');
+  const emptyNote = h('p', { class: 'aircraft-empty' }, 'No aircraft yet. Press a spot under Spawn to add one.');
   // The list stays on one screen (Patrick, 4 Oct 19:27Z): rows that would run past the bottom of the window wait
   // behind a "More" button, which opens the whole list (and closes it again). The selected aircraft always shows.
   let showAll = false;
@@ -377,6 +560,9 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       const classes = (li.getAttribute?.('class') || '').split(' ').filter((c) => c && c !== 'is-selected');
       if (isTarget) classes.push('is-selected');
       li.setAttribute?.('class', classes.join(' '));
+      // Only the selected card shows its menu and buttons (Patrick, 4 Oct); switched in place, nothing rebuilt.
+      const actions = findChildWithClass(li, 'aircraft-actions');
+      if (actions) actions.hidden = !isTarget;
     }
     fold();
   }
@@ -436,19 +622,21 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       for (const row of rows) {
         const swatch = h('span', { class: 'aircraft-swatch', 'aria-hidden': 'true' });
         swatch.style.setProperty('--ac', row.color);
-        const pflBadge = getPflBadge(row);
-        const nameChildren = [swatch, h('strong', {}, row.id), ` ${row.type} on ${row.routeName}`];
-        if (pflBadge) {
-          const badgeClass = pflBadge === '[CRASH SHORT]' ? 'pfl-badge badge-crash' : 'pfl-badge';
-          nameChildren.push(h('span', { class: badgeClass }, pflBadge));
-        }
-        // Remove this one aircraft (TR-R19); going back to before now brings it back.
-        nameChildren.push(makeActionButton('Remove', `Remove ${row.id}`, () => {
+        // The callsign and the tag only (Patrick, 4 Oct: no "CT-156 on Overhead break" beside "[OHB]"); the type and
+        // route are in the tooltip. An aircraft with no tag yet (waiting) shows its route in brackets.
+        const pflBadge = getPflBadge(row) ?? `[${row.routeName}]`;
+        // A PFL in yellow (Patrick, 4 Oct); a crash short stays red.
+        const badgeClass = pflBadge === '[CRASH SHORT]' ? 'pfl-badge badge-crash' : (row.engineFailed || pflBadge.startsWith('[PFL')) ? 'pfl-badge badge-pfl' : 'pfl-badge';
+        const nameChildren = [swatch, h('strong', {}, row.id), ' ', h('span', { class: badgeClass }, pflBadge)];
+        // Remove this one aircraft (TR-R19), as a small ✕; going back to before brings it back.
+        const removeBtn = makeActionButton('✕', `Remove ${row.id}`, () => {
           sim.remove(row.id);
           onChange?.();
-        }, false, 'aircraft-remove'));
+        }, false, 'aircraft-remove');
+        removeBtn.setAttribute('aria-label', `Remove ${row.id}`);
+        nameChildren.push(removeBtn);
         const children = [
-          h('span', { class: 'aircraft-name' }, ...nameChildren),
+          h('span', { class: 'aircraft-name', title: `${row.id}: ${row.type} on ${row.routeName}` }, ...nameChildren),
           ' ',
           h('span', { class: 'aircraft-detail' }, detailText(row)),
         ];
@@ -504,7 +692,6 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
               onChange?.();
             },
             row.command === 'pfl_current' || row.engineFailed,
-            'danger',
           );
           // Go-around only works after the window (when slowing to 100 knots)
           const canGoAround = row.phase === 'final' || row.phase === 'short_final' ||
@@ -558,18 +745,19 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
             }, (row.intent || 'touch_and_go') === value, 'aircraft-landing'));
           const buttons = menu === 'pattern' ? patternButtons
             : menu === 'landing' ? landingButtons
-              : [breakoutBtn, closedPatternBtn, closedBankSelect, highKeyBtn, pflBtn, goAroundBtn];
+              : [breakoutBtn, h('span', { class: 'aircraft-split' }, closedPatternBtn, closedBankSelect), highKeyBtn, pflBtn, ...(canGoAround ? [goAroundBtn] : [])];
 
           children.push(
             h(
               'div',
               {
                 class: 'aircraft-actions',
+                hidden: selectedAircraftId !== row.id, // only the selected card shows its controls (Patrick, 4 Oct)
                 onclick: (e) => {
                   e?.stopPropagation?.();
                 },
               },
-              menuSelect,
+              h('span', { class: 'aircraft-menu' }, menuSelect, h('span', { class: 'aircraft-menu-arrow', 'aria-hidden': 'true' }, '▾')), // a box with its own arrow, so it reads as a menu (Patrick, 4 Oct)
               ...buttons,
             ),
           );
@@ -631,14 +819,11 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       if (playing && now - last < LIST_EVERY_MS) return;
       last = now;
       write(state);
-      const label = pairLabel();
-      if (pairButton.textContent !== label) pairButton.textContent = label;
     },
     /** The routes changed (one was made, renamed or removed): the spawner's route list follows. */
     routesChanged() {
       fillRoutes();
-      fillStartPoints();
-      updatePointCaption();
+      showRouteParts();
     },
     selectAircraft: setSelected,
     selectedAircraft: () => selectedAircraftId,

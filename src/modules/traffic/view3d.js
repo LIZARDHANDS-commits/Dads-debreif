@@ -309,7 +309,7 @@ export function routeSignature(route) {
   path.forEach((p, i) => {
     sum += (i + 1) * (finite(p.x) * 1.3 + finite(p.y) * 1.7 + finite(p.alt) * 2.3);
   });
-  return `${route.kind}|${route.color}|${path.length}|${sum.toFixed(3)}`;
+  return `${route.kind}|${route.color}|${path.length}|${sum.toFixed(3)}|${route.lineScale ?? 1}|${route.lineOpacity ?? 1}|${route.onGround ? 'g' : 'h'}`;
 }
 
 // A pattern is a closed loop, entries and splits open lines. Entries are dashed and splits dotted, as on the 2D map.
@@ -510,25 +510,29 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
         const have = routeLines.get(route.id);
         if (!have || have.sig !== sig) {
           if (have) freeRoute(have);
-          const positions = new Float32Array(route.path.length * 3);
-          route.path.forEach((p, i) => positions.set([p.x, p.y, altToZ(p.alt, ALT_SCALE)], i * 3));
+          // On the ground (the Display box's Draw choice, Patrick, 4 Oct) the line lies on the field, else at its heights.
+          const drawn = route.onGround ? route.path.map((p) => ({ ...p, alt: (options.groundFt ?? 0) + GROUND_LINE_LIFT_FT })) : route.path;
+          const scale = Number.isFinite(route.lineScale) && route.lineScale > 0 ? route.lineScale : 1;
+          const fade = Number.isFinite(route.lineOpacity) ? Math.min(1, Math.max(0, route.lineOpacity)) : 1;
+          const positions = new Float32Array(drawn.length * 3);
+          drawn.forEach((p, i) => positions.set([p.x, p.y, altToZ(p.alt, ALT_SCALE)], i * 3));
           const geometry = new THREE.BufferGeometry();
           geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
           const dash = DASH_FT[route.kind];
           if (fatLines) {
             geometry.dispose(); // the wide line keeps its own copy of the points
             const closed = route.kind === 'pattern';
-            const widthPx = closed ? ROUTE_LINE_PX.pattern : ROUTE_LINE_PX.other;
+            const widthPx = (closed ? ROUTE_LINE_PX.pattern : ROUTE_LINE_PX.other) * scale;
             // Both see-through, the edge drawn first (render order goes before three's sorting of see-through lines).
             const seeThrough = (opacity) => ({ transparent: true, opacity, depthWrite: false });
-            const edge = wideLine(route.path, closed, { color: ROUTE_EDGE_COLOR, linewidth: widthPx + 2 * ROUTE_LINE_PX.edge, ...seeThrough(ROUTE_LINE_OPACITY.edge) }, 1);
+            const edge = wideLine(drawn, closed, { color: ROUTE_EDGE_COLOR, linewidth: widthPx + 2 * ROUTE_LINE_PX.edge, ...seeThrough(ROUTE_LINE_OPACITY.edge * fade) }, 1);
             // Pulled a hair toward the eye, so the colour never flickers with the edge at the same depth.
-            const line = wideLine(route.path, closed, { color: route.color, linewidth: widthPx, dash, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, ...seeThrough(ROUTE_LINE_OPACITY.line) }, 2);
+            const line = wideLine(drawn, closed, { color: route.color, linewidth: widthPx, dash, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, ...seeThrough(ROUTE_LINE_OPACITY.line * fade) }, 2);
             routeLines.set(route.id, { line, sig, edge });
           } else {
             const material = dash
-              ? new THREE.LineDashedMaterial({ color: route.color, dashSize: dash[0], gapSize: dash[1], fog: false })
-              : new THREE.LineBasicMaterial({ color: route.color, fog: false });
+              ? new THREE.LineDashedMaterial({ color: route.color, dashSize: dash[0], gapSize: dash[1], fog: false, transparent: fade < 1, opacity: fade })
+              : new THREE.LineBasicMaterial({ color: route.color, fog: false, transparent: fade < 1, opacity: fade });
             const line = route.kind === 'pattern' ? new THREE.LineLoop(geometry, material) : new THREE.Line(geometry, material);
             if (dash) line.computeLineDistances();
             line.frustumCulled = false;
@@ -618,7 +622,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     pflGround.position.z = lift;
     const present = new Set();
     for (const ac of scene.aircraft) {
-      if (!isFlying(ac) || !shouldShowGlideFootprint(ac, null)) continue;
+      if (options.layerEngineReach === false || !isFlying(ac) || !shouldShowGlideFootprint(ac, scene.selectedAircraftId ?? null)) continue; // the Engine-out reach tick, selected aircraft only
       const footprint = calculateGlideFootprint(ac, scene.windFromDeg ?? 360, scene.windKt ?? 0);
       if (!(footprint.rGlide > 0)) continue;
       present.add(ac.id);
@@ -708,7 +712,8 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
       }
 
       let ring = rings.get(ac.id);
-      if (wantRings) {
+      // Round the selected aircraft only (Patrick, 4 Oct).
+      if (wantRings && ac.id === (scene.selectedAircraftId ?? null)) {
         if (!ring) {
           ring = new THREE.LineLoop(ringGeometry, ringMaterials.calm);
           ring.frustumCulled = false;
@@ -1083,10 +1088,11 @@ export function addTrafficLights(THREE, scene) {
  * host: the element the view puts its canvases in (a box the size of the map). timers: the module's scheduler scope
  * (frame). source: { scene(): the scene map2d draws (routes with path, aircraft, conflicts), settings(): the Traffic
  * settings (paint, layers, caution distance), time(): the sim time in seconds }. onLost(): the graphics context was
- * lost, so 3D has been put away. win: for tests.
+ * lost, so 3D has been put away. onFacing(yawDeg, tiltDeg): the bearing up the picture or the camera's tilt from
+ * straight down changed (Patrick, 4 Oct: the wind dial is drawn as the view shows the ground). win: for tests.
  * Returns { show, hide, requestDraw, camera, isChasing, stats, dispose }.
  */
-export function createView3d({ host, timers, source, onLost = () => {}, win = globalThis }) {
+export function createView3d({ host, timers, source, onLost = () => {}, onFacing = () => {}, win = globalThis }) {
   let THREE = null;
   let fatLines = null; // three's wide lines, loaded with three (loadFatLines); null draws thin lines
   let gl = null; // { canvas, labels, ctx, renderer, scene, camera, sky, kit, palette }
@@ -1098,6 +1104,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
   let resizer = null;
   let dragging = null;
   let drawn = 0;
+  let lastFacing = null; // { yawDeg, tiltDeg } last reported to onFacing, whole degrees
   let averageMs = 0;
   let slowestMs = 0;
   let view = /** @type {{ center: { x: number, y: number, z: number }, cam: { yawDeg: number, pitchDeg: number, zoom: number, altScale: number } }} */ ({ center: { x: 0, y: 0, z: 0 }, cam: { yawDeg: 0, pitchDeg: PRESET_PITCH_DEG.fit, zoom: 20, altScale: ALT_SCALE } });
@@ -1105,7 +1112,6 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
   let wantPreset = null; // a camera button pressed before there was something to frame
   let follow = null; // { id, autoYaw }: the chase camera
   let chasePending = false; // Low chase was asked for with nothing flying: it starts on the first aircraft that does
-  let heightLines = true; // height plumb lines and ground shadows
   let viewMode = 'field'; // the Camera menu's choice: field (Over the field), fit, high, top, tower, low (Chase), cockpit or padlock
   let noteText = ''; // a short word in the 3D bar, such as why Cockpit fell back to Fit
   let cameraBar = null; // the 3D bar (camera-bar.js), made with the canvas and freed with it
@@ -1322,8 +1328,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
   }
 
   /**
-   * The bar's High | Performance switch writes the same graphicsQuality setting as the Traffic settings panel: through
-   * source.setSettings when given, otherwise by choosing it in the settings panel's own Graphics box, so both stay in step.
+   * The bar's High | Performance switch writes the graphicsQuality setting through source.setSettings (the Traffic
+   * screen gives it). Without it, it falls back to a Graphics box on the page, if there is one.
    */
   function setGraphicsQuality(quality) {
     if (source.setSettings) source.setSettings({ graphicsQuality: quality });
@@ -1498,7 +1504,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
       aircraftScale: options.aircraftScale,
       zoom: shown.zoom, groundFt: floor, time: source.time(),
       fullModels: options.fullModels ?? true,
-      layerHeightLines: options.layerHeightLines ?? heightLines,
+      layerHeightLines: options.layerHeightLines !== false,
+      layerEngineReach: options.layerEngineReach,
       layerWindTrack: options.layerWindTrack,
       layerSmmReference: options.layerSmmReference,
       layerPflCircle: options.layerPflCircle,
@@ -1513,6 +1520,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     kit.placeGrid(focus, floor);
     kit.setResolution(size.width, size.height);
     matchProjection(THREE, camera, focus, shown, size, 1);
+    const facing = { yawDeg: Math.round(finite(shown.yawDeg)), tiltDeg: Math.round(finite(shown.pitchDeg)) };
+    if (facing.yawDeg !== lastFacing?.yawDeg || facing.tiltDeg !== lastFacing?.tiltDeg) { lastFacing = facing; onFacing(facing.yawDeg, facing.tiltDeg); }
     renderer.render(threeScene, camera);
     drawLabels(ctx, labels, size, ratio, data, options, palette, { zoom: shown.zoom, floor });
 
@@ -1573,14 +1582,18 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
       const p = screenOf(ac.x, ac.y, ac.alt);
       if (!onScreen(p)) continue;
       const colour = aircraftColor(ac);
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, planeRadiusPx, 0, Math.PI * 2);
-      ctx.lineWidth = LOCATOR_PX + 2;
-      ctx.strokeStyle = palette.halo;
-      ctx.stroke();
-      ctx.lineWidth = LOCATOR_PX;
-      ctx.strokeStyle = colour;
-      ctx.stroke();
+      // The locator circle: round the selected aircraft only (Patrick, 4 Oct: "the default to be no circles anywhere,
+      // and when you click an aircraft THAT aircraft has a green circle").
+      if (ac.id === (data.selectedAircraftId ?? null)) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, planeRadiusPx, 0, Math.PI * 2);
+        ctx.lineWidth = LOCATOR_PX + 2;
+        ctx.strokeStyle = palette.halo;
+        ctx.stroke();
+        ctx.lineWidth = LOCATOR_PX;
+        ctx.strokeStyle = colour;
+        ctx.stroke();
+      }
       ctx.textAlign = p.x + 160 > size.width ? 'right' : 'left';
       const x = ctx.textAlign === 'left' ? p.x + planeRadiusPx + 4 : p.x - planeRadiusPx - 4;
       write(ac.id, x, p.y - 6, colour, true, 13);
@@ -1870,24 +1883,16 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
       teardown();
     },
     requestDraw,
-    /** A camera button: 'fit', 'high' (High look-down) or 'low' (Low chase). Done at the next frame, when the size is known. */
+    /** A camera view by id ('fit', 'high', 'low', … as camera-views.js lists them). Done at the next frame, when the size is known. */
     preset(name) {
-      if (name === 'height' || name === 'heightLines') {
-        heightLines = !heightLines;
-        requestDraw();
-        return;
-      }
       wantPreset = name;
       requestDraw();
     },
-    setHeightLines(active) {
-      heightLines = Boolean(active);
-      requestDraw();
-    },
-    isHeightLines: () => heightLines,
     isChasing: () => follow !== null,
     /** The Camera menu's current view id (fit, high, top, tower, low, cockpit, padlock) and any note beside it. */
     cameraView: () => ({ view: viewMode, note: noteText }),
+    /** The bearing up the picture and the camera's tilt at the last frame, whole degrees ({ 0, 0 } before any). */
+    facing: () => lastFacing ?? { yawDeg: 0, tiltDeg: 0 },
     target: setTarget,
     currentTarget,
     nextTarget,

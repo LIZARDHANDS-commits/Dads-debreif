@@ -43,7 +43,7 @@ function setup(options = {}) {
   const listen = (target, type, fn) => listeners.push({ target, type, fn });
   const bar = createPlaybackBar({ controls, on: { play() {}, pause() {}, reset() {}, fit() {}, speed() {} }, listen });
   const on = {
-    selectRoute: (id) => calls.push(['select', id]),
+    toggleRoute: (id) => calls.push(['toggle', id]),
     newRoute: (kind) => calls.push(['new', kind]),
     toggleColumn: (name, open) => calls.push(['column', name, open]),
     camera: (name) => calls.push(['camera', name]),
@@ -80,15 +80,15 @@ test('at first no route is picked: the left column shows only the routes list', 
   for (const slot of Object.values(ui.slots)) assert.equal(slot.childNodes.length, 0, 'the slots start empty');
 });
 
-test('the routes list has one line per route: its name and where it joins, or its kind', () => {
+test('the routes list has one line per route: its name only, with "Hidden" beside it when it is off the map', () => {
   const { ui } = setup();
   ui.setRoutes(ROUTES);
   const rows = withClass(ui.element, 'route-row');
   assert.deepEqual(rows.map((row) => withClass(row, 'route-name')[0].textContent), ['Pattern 1', 'Entry 1', 'Split 1']);
-  assert.deepEqual(rows.map((row) => withClass(row, 'route-detail')[0].textContent), ['pattern', '→ Pattern 1 P8', 'P6 → P1']);
+  assert.deepEqual(rows.map((row) => withClass(row, 'route-detail')[0].textContent), ['', '', '']);
   assert.equal(one(ui.element, 'route-empty').hidden, true);
-  assert.equal(routeDetail(ROUTES[1]), '→ Pattern 1 P8');
-  assert.equal(routeDetail({ kind: 'split' }), 'split');
+  assert.equal(routeDetail(ROUTES[1]), '');
+  assert.equal(routeDetail({ ...ROUTES[1], visible: false }), 'Hidden');
 });
 
 test('each route shows its colour and its line style, so it is told apart by more than colour', () => {
@@ -100,29 +100,21 @@ test('each route shows its colour and its line style, so it is told apart by mor
   assert.ok(swatches.every((s) => s.getAttribute('aria-hidden') === 'true'), 'the words say it too');
 });
 
-test('picking a route marks only that route with aria-current', () => {
+test('a route row is pressed while its route shows on the map; a hidden one is not, and says Hidden in words', () => {
   const { ui } = setup();
-  ui.setRoutes(ROUTES, 'e1');
-  assert.deepEqual(withClass(ui.element, 'route-row').map((r) => r.getAttribute('aria-current')), [null, 'true', null]);
-  ui.setRoutes(ROUTES, null);
-  assert.deepEqual(withClass(ui.element, 'route-row').map((r) => r.getAttribute('aria-current')), [null, null, null]);
+  ui.setRoutes([ROUTES[0], { ...ROUTES[1], visible: false }, ROUTES[2]]);
+  const rows = withClass(ui.element, 'route-row');
+  assert.deepEqual(rows.map((r) => r.getAttribute('aria-pressed')), ['true', 'false', 'true']);
+  assert.deepEqual(rows.map((row) => withClass(row, 'route-detail')[0].textContent), ['', 'Hidden', '']);
+  assert.equal(rows[0].getAttribute('title'), 'Hide Pattern 1 on the map');
+  assert.equal(rows[1].getAttribute('title'), 'Show Entry 1 on the map');
 });
 
-test('a route that is not in the list can\'t be picked', () => {
-  const { ui } = setup();
-  ui.setRoutes(ROUTES, 'gone');
-  assert.deepEqual(withClass(ui.element, 'route-row').map((r) => r.getAttribute('aria-current')), [null, null, null]);
-  ui.setRoutes(ROUTES, 's1');
-  assert.deepEqual(withClass(ui.element, 'route-row').map((r) => r.getAttribute('aria-current')), [null, null, 'true']);
-  ui.setRoutes(ROUTES.slice(0, 2), 's1');
-  assert.deepEqual(withClass(ui.element, 'route-row').map((r) => r.getAttribute('aria-current')), [null, null]);
-});
-
-test('pressing a route line asks for that route', () => {
+test('pressing a route line asks to show or hide that route', () => {
   const { ui, calls } = setup();
   ui.setRoutes(ROUTES);
   withClass(ui.element, 'route-row')[2].dispatch('click');
-  assert.deepEqual(calls, [['select', 's1']]);
+  assert.deepEqual(calls, [['toggle', 's1']]);
 });
 
 test('a rebuilt list keeps focus where it was', () => {
@@ -176,12 +168,14 @@ test('setColumnOpen collapses or opens a column from outside (a remembered layou
   assert.deepEqual(calls, []);
 });
 
-test('the right column has room for the spawner, the settings menu (above the aircraft list, TR-15), the aircraft list and the conflicts; the left for the point table', () => {
+test('the right column has room for the spawner, the aircraft list and the conflicts; the left for the point table and, at its foot, the Traffic settings menu (Patrick, 4 Oct)', () => {
   const { ui } = setup();
   const [, routes, , aircraft] = ui.element.childNodes;
-  for (const name of ['spawner', 'aircraft', 'conflicts', 'settings']) assert.ok(aircraft.contains(ui.slots[name]), name);
-  const body = ui.slots.settings.parentNode;
-  assert.deepEqual([...body.childNodes], [ui.slots.spawner, ui.slots.settings, ui.slots.aircraft, ui.slots.conflicts], 'the settings menu sits under the spawner, above the readouts, so it is found without scrolling');
+  for (const name of ['spawner', 'aircraft', 'conflicts']) assert.ok(aircraft.contains(ui.slots[name]), name);
+  const body = ui.slots.spawner.parentNode;
+  assert.deepEqual([...body.childNodes], [ui.slots.spawner, ui.slots.aircraft, ui.slots.conflicts]);
+  assert.ok(routes.contains(ui.slots.settings), 'Traffic settings are in the Setup column');
+  assert.equal(ui.slots.settings.parentNode.lastChild, ui.slots.settings, 'at its foot');
   assert.ok(routes.contains(ui.slots.pointTable));
   assert.ok(routes.contains(ui.slots.leftExtras));
   // Profiles and notes sit above the routes list, so opened it is in the first screen (UI-02).
@@ -222,29 +216,20 @@ test('the photo\'s credit sits in the map\'s corner: shown with its words, hidde
   assert.equal(credit.getAttribute('aria-live'), 'polite');
 });
 
-test('the 3D view has a box in the map, and the three camera buttons show only while 3D does', () => {
-  const { ui, calls } = setup();
+test('the 3D view has a box in the map that shows only while 3D does, and no camera buttons of its own (the 3D bar has the Camera menu; Patrick, 4 Oct)', () => {
+  const { ui } = setup();
   const wrap = one(ui.element, 'traffic-map-wrap');
   const stage = one(ui.element, 'traffic-3d');
-  const camera = one(ui.element, 'traffic-camera');
   assert.equal(ui.stage3d, stage);
   assert.equal(stage.parentNode, wrap, 'in the map\'s box, so 3D fills the map');
   assert.equal(stage.hidden, true, '2D is what opens');
-  assert.equal(camera.hidden, true);
+  assert.equal(withClass(ui.element, 'traffic-camera').length, 0, 'the Fit, High look-down and Low chase buttons are gone');
   ui.setView('3d');
   assert.equal(ui.canvas.hidden, true, 'the 2D map steps aside');
   assert.equal(stage.hidden, false);
-  assert.equal(camera.hidden, false);
-  assert.deepEqual(tagged(camera, 'BUTTON').map(words), ['Fit', 'High look-down', 'Low chase']);
-  assert.equal(camera.getAttribute('aria-label'), 'Camera');
-  for (const name of ['Fit', 'High look-down', 'Low chase']) pressable(camera, name).dispatch('click');
-  assert.deepEqual(calls, [['camera', 'fit'], ['camera', 'high'], ['camera', 'low']]);
   ui.setView('2d');
   assert.equal(ui.canvas.hidden, false);
   assert.equal(stage.hidden, true);
-  assert.equal(camera.hidden, true);
-  ui.setView('nonsense');
-  assert.equal(stage.hidden, true, 'anything but 3d is 2D');
 });
 
 test('the photo\'s credit is for the 2D map: it hides in 3D and comes back with 2D', () => {
@@ -274,20 +259,12 @@ test('a line on the map says why 3D can\'t start, in 2D too, and clears again', 
   assert.equal(note.hidden, true);
 });
 
-test('filterSplits filters out kind split and clears selection when split route is passed', () => {
+test('filterSplits filters out kind split', () => {
   const { ui } = setup({ filterSplits: true });
   // With filterSplits: true, Split 1 should not appear in the routes list
   ui.setRoutes(ROUTES);
   const rows = withClass(ui.element, 'route-row');
   assert.deepEqual(rows.map((row) => withClass(row, 'route-name')[0].textContent), ['Pattern 1', 'Entry 1']);
-
-  // Selecting a valid pattern route marks it
-  ui.setRoutes(ROUTES, 'p1');
-  assert.deepEqual(withClass(ui.element, 'route-row').map((r) => r.getAttribute('aria-current')), ['true', null]);
-
-  // Attempting to select a split route clears selection
-  ui.setRoutes(ROUTES, 's1');
-  assert.deepEqual(withClass(ui.element, 'route-row').map((r) => r.getAttribute('aria-current')), [null, null]);
 
   // Robust against null or undefined route items
   ui.setRoutes([null, undefined, ...ROUTES]);
@@ -295,3 +272,15 @@ test('filterSplits filters out kind split and clears selection when split route 
   assert.deepEqual(rowsAfter.map((row) => withClass(row, 'route-name')[0].textContent), ['Pattern 1', 'Entry 1']);
 });
 
+
+test('the Setup column has a Display box, closed at first, holding Routes on the map and a place for the layers (Patrick, 4 Oct)', () => {
+  const { ui } = setup();
+  ui.setRoutes(ROUTES);
+  const [, routes] = ui.element.childNodes;
+  const display = withClass(routes, 'panel-toggle').find((b) => words(b) === 'Display');
+  assert.ok(display, 'a Display box');
+  assert.equal(display.getAttribute('aria-expanded'), 'false', 'closed at first');
+  const body = all(routes, (n) => n.getAttribute?.('id') === display.getAttribute('aria-controls'))[0];
+  assert.ok(withClass(body, 'route-row').length > 0, 'the routes are in it');
+  assert.ok(body.contains(ui.slots.layers), 'and the layers');
+});
