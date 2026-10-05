@@ -6,7 +6,7 @@
 import { h, clear } from '../../ui-kit/dom.js';
 import { createPanel } from '../../ui-kit/panel.js';
 import { TAG_DEFAULTS } from './tags.js';
-import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
+import { VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import { ERROR_FIELDS, RESPONSE_OPTIONS, FIX_TOOLS } from './live/errors.js';
 import { FW_LIMITS } from './live/slots.js';
@@ -38,17 +38,19 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   planeScale: 1, // unticked: the scale on the usual easy-to-see size (×0.5 to ×4)
   camOn: 'formation', // what the camera centres on: the formation's centre of mass, or one aircraft ('1' to '4') (Patrick, 5 Oct)
   camLook: 'chase', // on one aircraft, in 3D (Patrick, 5 Oct): 'chase' behind its nose, 'free' centred on it and turned by hand, 'padlock' looking at the other
-  view: VIEW_DEFAULT, // '2d' or '3d'
+  view: '3d', // '2d' or '3d'; 3D at the start, looking straight down on the formation (Patrick, 5 Oct)
   paint: PAINT_DEFAULT, // the 3D aircraft's paint: 'harvard' or 'ship'
 });
-export const LAYOUT_VERSION = 4; // 1 was the plan-mode screen's; 3 turned the 3/9 line off (TS-56); 4 the Lead-only lines at the start (Patrick, 5 Oct)
+export const LAYOUT_VERSION = 5; // 1 was the plan-mode screen's; 3 turned the 3/9 line off (TS-56); 4 the Lead-only lines; 5 3D on the formation at the start (Patrick, 5 Oct)
 
 /** A saved version 2 layout keeps every choice but the 3/9 line, which takes the new default (off). Older ones start fresh. */
 export function migrateLayout(values, version) {
   // Version 4 (Patrick, 5 Oct): the start shows Lead's 3/9 and 7/5 lines, no cone, and every per-aircraft list Lead only.
   const SHIP_KEYS = /^(l39|l75|cone)_\d$/;
-  if (version !== 2 && version !== 3) return {};
-  return Object.fromEntries(Object.entries(values).filter(([k]) => !['lead39', 'lead75', 'cone'].includes(k) && !SHIP_KEYS.test(k)));
+  // Version 5 (Patrick, 5 Oct): 3D, top down, the camera on the formation.
+  if (![2, 3, 4].includes(version)) return {};
+  const reset = version === 4 ? ['view', 'camOn'] : ['lead39', 'lead75', 'cone', 'view', 'camOn'];
+  return Object.fromEntries(Object.entries(values).filter(([k]) => !reset.includes(k) && (version === 4 || !SHIP_KEYS.test(k))));
 }
 
 /** The layout values that only allow some choices (createSettings' `allowed`). */

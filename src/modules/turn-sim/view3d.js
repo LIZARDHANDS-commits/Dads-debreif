@@ -30,7 +30,7 @@ const ALT_SCALE = 1;
  * closest), so an echelon's step down and its bearing line can be seen (SMM 12.4 Figs 12.3-12.4; spec section 10.2).
  */
 export const CAMERA_LIMITS = Object.freeze({ pitch: [5, 80], zoom: [0.5, 8000] });
-export const CAMERA_START_PITCH_DEG = 35;
+export const CAMERA_START_PITCH_DEG = 5; // top down at the start (Patrick, 5 Oct; was 35°); 5° is the closest to straight down the camera allows
 /** Padlock may tilt the camera past level to look up at the other aircraft (90° is level; more looks up from below). */
 const PADLOCK_PITCH = Object.freeze([5, 175]);
 const ORBIT_DEG_PER_PX = Object.freeze({ yaw: 0.4, pitch: 0.25 });

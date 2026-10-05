@@ -74,7 +74,9 @@ const FW_DEFAULTS = Object.freeze({
   fw4OtherRangeFt: FW4.rangeFt,
   fw4OtherDeg: FW4.otherDeg,
 });
-const SETUP_DEFAULTS = Object.freeze({ ships: LIVE_DEFAULTS.ships, check45: LIVE_DEFAULTS.check45, spacingFt: LIVE_DEFAULTS.spacingFt, wingSide: LIVE_DEFAULTS.wingSide, ...FW_DEFAULTS, ...ERROR_DEFAULTS });
+/** The screen starts line abreast at 4,000 ft (Patrick, 5 Oct), the close side of the 4,000 to 6,000 ft band (SMM 16.18 para 49). */
+const START_SPACING_FT = 4000;
+const SETUP_DEFAULTS = Object.freeze({ ships: LIVE_DEFAULTS.ships, check45: LIVE_DEFAULTS.check45, spacingFt: START_SPACING_FT, wingSide: LIVE_DEFAULTS.wingSide, ...FW_DEFAULTS, ...ERROR_DEFAULTS });
 
 /** The flags for fighting wing places outside the SMM band (SMM 12.29 para 69), for the ships flown: flown anyway, never refused. */
 function fwFlags(values) {
