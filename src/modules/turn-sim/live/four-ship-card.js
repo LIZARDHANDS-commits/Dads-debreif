@@ -3,7 +3,8 @@
 // by wingman (live/four-ship.js judgeFour; a change of formation by four-ship-slots.js judgeFourFormation).
 import { relativeTo, MANOEUVRES } from './manoeuvres.js';
 import { compassDeg, intoOrAway } from './formation.js';
-import { classifyFour, fourWords } from './four-ship-slots.js';
+import { classifyFour } from './four-ship-slots.js';
+import { fourWords } from './slots.js';
 
 const ftText = (n) => `${Math.round(n).toLocaleString('en-CA')} ft`;
 const signedFt = (n) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(Math.round(n)).toLocaleString('en-CA')}`;

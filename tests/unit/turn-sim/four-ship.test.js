@@ -30,7 +30,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createFormation, judgePair, LIVE_DEFAULTS } from '../../../src/modules/turn-sim/live/formation.js';
-import { judgeFour, FOUR_SHIP_KEYS, STACK_FT } from '../../../src/modules/turn-sim/live/four-ship.js';
+import { judgeFour, FOUR_SHIP_KEYS } from '../../../src/modules/turn-sim/live/four-ship.js';
+import { STACK_FT } from '../../../src/modules/turn-sim/live/slots.js';
 import { relativeTo, TURN_BANK_DEG, CHECK_DEG } from '../../../src/modules/turn-sim/live/manoeuvres.js';
 import { ROLL, STEP_SEC } from '../../../src/modules/turn-sim/live/flight.js';
 import { turnRateFromBankRadPerSec } from '../../../src/core/flight-math.js';

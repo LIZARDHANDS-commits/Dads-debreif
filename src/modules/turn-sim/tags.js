@@ -23,8 +23,8 @@
 // kinematic-moves.js before transitions.js has set it (the same happens on main if transitions.js is loaded first).
 import './live/formation.js';
 import { relativeTo, DEG } from './live/manoeuvres.js';
-import { judgeFormation, FORMATIONS } from './live/transitions.js';
-import { FOUR_FORMATIONS, fourSlots } from './live/four-ship-slots.js';
+import { judgeFormation } from './live/transitions.js';
+import { FORMATIONS, FOUR_FORMATIONS, slotsFor } from './live/slots.js';
 import { pursuitWord } from './fluid-panel.js';
 import { isManoeuvring, rangeWord } from './live/fluid.js';
 import { powerWord } from './live/power.js';
@@ -125,7 +125,7 @@ export function tagLines(state, where) {
     }
     // The aircraft he flies off: the 4-ship's table for the formation being flown (to), Lead in the 2-ship.
     let refId = 1;
-    if (four && FOUR_FORMATIONS[target] && !FOUR_FORMATIONS[target].later) refId = fourSlots(target, side || -1)[a.id].ref;
+    if (four && FOUR_FORMATIONS[target] && !FOUR_FORMATIONS[target].later) refId = slotsFor(target, side || -1, { ships: 4 })[a.id].ref;
     const ref = by.get(refId) ?? lead;
     let detail;
     if (target === 'fw') {

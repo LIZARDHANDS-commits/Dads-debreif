@@ -18,7 +18,8 @@ import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
 import { relativeTo, turnSeg, wholeDegree, DEG } from './manoeuvres.js';
-import { recordFlight, slotFor, fwShapeNow, KIAS_LAB, KIAS_OUTSIDE_LAB, speedSeg, REJOIN, classifyPair, describe, FORMATIONS } from './transitions.js';
+import { recordFlight, KIAS_LAB, KIAS_OUTSIDE_LAB, speedSeg, REJOIN, classifyPair, describe } from './transitions.js';
+import { FORMATIONS, fwShapeNow, pairSlot } from './slots.js';
 import { speedSegFor } from './slow-down.js';
 import { makeTrack, seedTrack, posesFrom, settleLast, followInto, rollStarts, relPath, timeLaw, slotInWorld, poseOf, laggedBank } from './kinematic.js';
 
@@ -50,7 +51,7 @@ export const CLOSE = new Set(['echelon', 'route', 'astern']);
 
 /** A formation's slot as a relative-path point: { fwd, left, up, plane } (plane 1: in Lead's wing plane, a close formation). */
 export function slotPoint(key, side, spacingFt) {
-  const s = slotFor(key, side, spacingFt);
+  const s = pairSlot(key, side, spacingFt);
   return { fwd: s.fwd, left: s.left, up: s.alt, plane: CLOSE.has(key) ? 1 : 0 };
 }
 

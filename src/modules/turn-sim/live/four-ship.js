@@ -25,10 +25,9 @@
 //    A Setup toggle (Patrick, 4 Oct 11:28Z) flies it without the check, as a plain chain.
 //  - Hook: all four turn 180 at 70/3 together (AFM8 brief p.18, SMM 16.45 para 121).
 import { makeAircraft } from './flight.js';
+import { STACK_FT } from './slots.js'; // the brief's stack (AFM8 brief p.14-15), held in the slot table
 import { planManoeuvre, relativeTo, dryRun, exactWaitSec, turnSeg, wholeDegree, unit, dot, onStep, DEG, TURN_BANK_DEG, MANOEUVRES } from './manoeuvres.js';
 
-/** Heights above the formation's block, feet, by aircraft id (AFM8 brief p.14-15: low to high 4, 3, 1, 2; 300 ft stacks). */
-export const STACK_FT = Object.freeze({ 1: 0, 2: 300, 3: -300, 4: -600 });
 
 /** The buttons in the four-ship, in screen order (briefs p.17-18; SMM 16.43 para 118). */
 export const FOUR_SHIP_KEYS = Object.freeze(['delayed90', 'delayed45', 'check', 'inPlace90', 'hook']);

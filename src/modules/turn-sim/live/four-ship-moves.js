@@ -21,9 +21,10 @@ import { STEP_SEC, copyAircraft, planDone } from './flight.js';
 import { relativeTo, turnSeg, wholeDegree, onStep, DEG, TURN_BANK_DEG } from './manoeuvres.js';
 import {
   recordFlight, trackTwice, flyStep, dryRunT, speedSeg, phase, slide, dropBack, closeThrough, rejoinTo, openOut,
-  slotFor, REJOIN, straightAhead, sweepOut, LENGTH_FT, stopAt, cornerBehind,
+  REJOIN, straightAhead, sweepOut, stopAt, cornerBehind,
 } from './transitions.js';
-import { FOUR_FORMATIONS, fourSlots, isStacked, classifyFour, judgeFourFormation, refsFor, fourWords, FW_STEP_DOWN_FT } from './four-ship-slots.js';
+import { isStacked, classifyFour, judgeFourFormation } from './four-ship-slots.js';
+import { FOUR_FORMATIONS, LENGTH_FT, slotsFor, pairSlot, refsFor, fourWords, FW_STEP_DOWN_FT } from './slots.js';
 
 /** A generous limit on one 4-ship change (design section 9: Spread 4 to finger is estimated at 4 to 6 minutes); it only catches a plan that never ends. */
 export const FOUR_CHANGE_LIMIT_SEC = 480;
@@ -45,8 +46,8 @@ const FOUR_LOWER_FT = 10;
 const NAMES = Object.freeze({ 1: 'Lead', 2: '#2', 3: '#3', 4: '#4' });
 // The 2-ship's close places (transitions.js), read when a move is planned: these modules import each other, so nothing
 // here may call into transitions.js while the modules are still loading.
-const ech = () => slotFor('echelon', 1); // { fwd: -25, left: 45, alt: -5 }
-const ast = () => slotFor('astern', 0); // { fwd: -43.4, left: 0, alt: -8 }
+const ech = () => pairSlot('echelon', 1); // { fwd: -25, left: 45, alt: -5 }
+const ast = () => pairSlot('astern', 0); // { fwd: -43.4, left: 0, alt: -8 }
 /** Behind an aircraft far enough to pass under its tail: line astern plus 12 ft (the 2-ship's crossing, transitions.js). */
 const behind = () => ast().fwd - 12;
 
@@ -201,7 +202,7 @@ const toSpeed = (c, key) => (Math.abs(c.start[0].kias - FOUR_FORMATIONS[key].kia
  */
 function rejoinToFw(start, t0, opts, s) {
   const c = context(start, t0, opts);
-  const slots = { ...fourSlots('fw', s, { stacked: c.stacked }) };
+  const slots = { ...slotsFor('fw', s, { ships: 4, stacked: c.stacked }) };
   // #2's +300 ft comes off before it closes: it rejoins to fighting wing below Lead, starting down at once (Patrick 19:11Z).
   if (slots[2].alt >= 0) slots[2] = { ...slots[2], alt: -FW_STEP_DOWN_FT };
   const speed = toSpeed(c, 'fw');
@@ -239,7 +240,7 @@ const laneKept = (leg) => [2, 3, 4].every((id) => (leg.done[id]?.run.laneFwdFt ?
  */
 function entryToSpread(start, t0, opts, s, fromFinger) {
   return legsInTurn(start, t0, opts, [(c) => {
-    const slots = fourSlots('spread4', s, { spacingFt: c.spacingFt });
+    const slots = slotsFor('spread4', s, { ships: 4, spacingFt: c.spacingFt });
     return {
       lead: toSpeed(c, 'spread4'),
       wings: [
@@ -259,7 +260,7 @@ function entryToSpread(start, t0, opts, s, fromFinger) {
  */
 function openToFw(start, t0, opts, s) {
   return legsInTurn(start, t0, opts, [(c) => {
-    const slots = fourSlots('fw', s, { stacked: false });
+    const slots = slotsFor('fw', s, { ships: 4, stacked: false });
     const wing = (id) => {
       const rel = relativeTo(c.by.get(slots[id].ref), c.by.get(id));
       return { id, phases: () => [sweepOut(place(c, slots[id].fwd, rel.left, slots[id].alt), { track: slots[id].ref, advanceTol: 60 }), toSlot(c, sweepOut, slots[id])] };
@@ -274,8 +275,8 @@ function openToFw(start, t0, opts, s) {
  */
 function closeFromFw(start, t0, opts, s, to) {
   return legsInTurn(start, t0, opts, [(c) => {
-    const route = fourSlots('route', s);
-    const fin = fourSlots(to === 'route' ? 'route' : 'finger', s);
+    const route = slotsFor('route', s, { ships: 4 });
+    const fin = slotsFor(to === 'route' ? 'route' : 'finger', s, { ships: 4 });
     const low = (slot) => ({ ...slot, alt: slot.alt - 25 }); // close level or slightly low, then up into place (transitions.js closeThrough)
     const legsFor = (id) => [toSlot(c, closeThrough, low(route[id]), { advanceTol: 6 }), toSlot(c, slide, fin[id])];
     const off2 = comeOffFirst(c, 2, 1);
@@ -302,8 +303,8 @@ function closeFromFw(start, t0, opts, s, to) {
  */
 function straightToEchelon(start, t0, opts, sTo) {
   return legsInTurn(start, t0, opts, [(c) => {
-    const ech4 = fourSlots('echelon', sTo);
-    const route = slotFor('route', sTo);
+    const ech4 = slotsFor('echelon', sTo, { ships: 4 });
+    const route = pairSlot('route', sTo);
     const legsFor = (id, holdLineUpUntil) => {
       const { ref } = ech4[id];
       const refAlt = ref === 1 ? 0 : ech4[ref].alt;
@@ -340,7 +341,7 @@ const TRJ = Object.freeze({ passBehindLengths: 2, waitBehindFt: { 3: 150, 4: 300
  */
 function turningToFinger(start, t0, opts, s) {
   return legsInTurn(start, t0, opts, [(c) => {
-    const fin = fourSlots('finger', s);
+    const fin = slotsFor('finger', s, { ships: 4 });
     const join = (id) => toSlot(c, rejoinTo, fin[id], { advanceTol: 10, overtakeKias: REJOIN.overtakeKias });
     const off2 = comeOffFirst(c, 2, 1);
     const across = { track: 1, bankCapDeg: 45, overtakeKias: 10, undertakeKias: 10 }; // enough bank to stay with Lead's 30° turn (estimate)
@@ -372,7 +373,7 @@ function turningToFinger(start, t0, opts, s) {
 /** Finger and route, either way: a slide in or out at the same time (AFM8 brief p.9: anticipate the collapse to route). */
 function slideTo(start, t0, opts, s, to) {
   return legsInTurn(start, t0, opts, [(c) => {
-    const slots = fourSlots(to, s);
+    const slots = slotsFor(to, s, { ships: 4 });
     return { lead: toSpeed(c, to), wings: [2, 3, 4].map((id) => ({ id, phases: () => [toSlot(c, slide, slots[id])] })) };
   }]);
 }
@@ -408,7 +409,7 @@ const MAKE_ROOM = Object.freeze({ outFt: 15, backFt: 25, downFt: 5 });
  */
 function fingerToEchelon(start, t0, opts, s, e) {
   if (e === s) return crossThreeFour(start, t0, opts, -s, s, 'echelon');
-  const ech4 = fourSlots('echelon', -s);
+  const ech4 = slotsFor('echelon', -s, { ships: 4 });
   return legsInTurn(start, t0, opts, [
     (c) => ({
       lead: [],
@@ -445,7 +446,7 @@ function fingerToEchelon(start, t0, opts, s, e) {
  * 'echelon' (all on #2's side, #2 on side `to`) or 'finger' (#2 on side -to).
  */
 function crossThreeFour(start, t0, opts, from, to, key) {
-  const slots = fourSlots(key, key === 'echelon' ? to : -to);
+  const slots = slotsFor(key, key === 'echelon' ? to : -to, { ships: 4 });
   return legsInTurn(start, t0, opts, [(c) => {
     const back3 = corner(c).fwd + ech().fwd; // behind #2 as well as Lead
     const low3 = -CROSS_LOW_FT - 5;
@@ -479,7 +480,7 @@ function crossThreeFour(start, t0, opts, from, to, key) {
  */
 function echelonToFinger(start, t0, opts, e, s) {
   if (e === s) return crossThreeFour(start, t0, opts, s, -s, 'finger');
-  const fin = fourSlots('finger', s);
+  const fin = slotsFor('finger', s, { ships: 4 });
   return legsInTurn(start, t0, opts, [
     (c) => ({
       lead: [],
@@ -511,8 +512,8 @@ function fingerBox(start, t0, opts, s, toBox) {
     const low = -CROSS_LOW_FT - 5;
     const fin4Left = -s * 2 * ech().left; // #4's lateral place in finger, in Lead's frame
     const four = toBox
-      ? crossTo(c, 1, fin4Left, 0, back, low, upInto(c, fourSlots('box', s)[4]))
-      : crossTo(c, 1, 0, fin4Left, back, low, upInto(c, fourSlots('finger', s)[4]));
+      ? crossTo(c, 1, fin4Left, 0, back, low, upInto(c, slotsFor('box', s, { ships: 4 })[4]))
+      : crossTo(c, 1, 0, fin4Left, back, low, upInto(c, slotsFor('finger', s, { ships: 4 })[4]));
     return { lead: [], wings: [{ id: 2, phases: () => [hold(c, 2, 1)] }, { id: 3, phases: () => [hold(c, 3, 1)] }, { id: 4, phases: () => four }] };
   }]);
 }
@@ -525,7 +526,7 @@ function fingerBox(start, t0, opts, s, toBox) {
  * astern, #3 moves to the other side and up into echelon on Lead; then #4 regains echelon on #3.
  */
 function fingerTrail(start, t0, opts, s, toTrail) {
-  const trail = fourSlots('trail', 0);
+  const trail = slotsFor('trail', 0, { ships: 4 });
   if (toTrail) {
     // #3's corner: back far enough that #2's crossing passes well ahead of it (two line astern places, plus 15 ft: estimates)
     const back3 = 2 * ast().fwd - 15;
@@ -556,7 +557,7 @@ function fingerTrail(start, t0, opts, s, toTrail) {
       }),
     ]);
   }
-  const fin = fourSlots('finger', s);
+  const fin = slotsFor('finger', s, { ships: 4 });
   return legsInTurn(start, t0, opts, [
     (c) => ({
       lead: [],
@@ -593,7 +594,7 @@ function fingerTrail(start, t0, opts, s, toTrail) {
 function fwFluid(start, t0, opts, s, toFluid) {
   return legsInTurn(start, t0, opts, [(c) => {
     if (toFluid) {
-      const f4 = fourSlots('fluid4', s);
+      const f4 = slotsFor('fluid4', s, { ships: 4 });
       return {
         lead: toSpeed(c, 'fluid4'),
         wings: [
@@ -603,7 +604,7 @@ function fwFluid(start, t0, opts, s, toFluid) {
         ],
       };
     }
-    const fw = fourSlots('fw', s, { stacked: true });
+    const fw = slotsFor('fw', s, { ships: 4, stacked: true });
     return {
       lead: toSpeed(c, 'fw'),
       wings: [
@@ -625,7 +626,7 @@ function fwFluid(start, t0, opts, s, toFluid) {
 function fluidToBox(start, t0, opts, s) {
   return legsInTurn(start, t0, opts, [
     (c) => {
-      const f4 = fourSlots('fluid4', s);
+      const f4 = slotsFor('fluid4', s, { ships: 4 });
       const turn = { bankCapDeg: 75, overtakeKias: 25, undertakeKias: 25 };
       return {
         lead: [turnSeg(wholeDegree(c.start[0].headingRad + s * Math.PI / 2), s, TURN_BANK_DEG)],
@@ -637,7 +638,7 @@ function fluidToBox(start, t0, opts, s) {
       };
     },
     (c) => {
-      const box = fourSlots('offsetBox', s, { spacingFt: c.spacingFt });
+      const box = slotsFor('offsetBox', s, { ships: 4, spacingFt: c.spacingFt });
       return {
         lead: toSpeed(c, 'offsetBox'),
         wings: [

@@ -25,137 +25,18 @@
 //    ahead (SMM Fig 16.27, 12.5 para 13). Route: finger at route spacing (AFM7 brief p.18 item 2; SMM 12.6 para 15).
 //    The close positions in feet are the 2-ship's estimates (transitions.js slotFor), the manuals give sight references.
 import { relativeTo, DEG } from './manoeuvres.js';
-import { classifyPair, judgeFormation, slotFor } from './transitions.js';
+import { classifyPair, judgeFormation } from './transitions.js';
 import { judgePair } from './formation.js';
-import { STACK_FT } from './four-ship.js';
+import { FOUR_FORMATIONS, BOX_DEPTH_BAND_FT, FLUID4_ABEAM_FT, slotsFor, fourWords } from './slots.js';
 
-/** The 4-ship's formations, their words and the speed they are flown at (KIAS: 200 outside line abreast, 220 in it, Patrick 4 Oct 11:08Z). */
-export const FOUR_FORMATIONS = Object.freeze({
-  spread4: { label: 'Spread 4', kias: 220, sided: true },
-  offsetBox: { label: 'Offset box', kias: 220, sided: true }, // 220: two line abreasts (estimate, design question 9)
-  fluid4: { label: 'Fluid 4', kias: 200, sided: true }, // 200: two fighting-wing pairs (estimate, design question 9)
-  fluidMan: { label: 'Fluid manoeuvring', kias: 200, sided: true, later: true }, // the live build, later
-  fw: { label: 'Fighting wing', kias: 200, sided: true },
-  finger: { label: 'Finger', kias: 200, sided: true },
-  echelon: { label: 'Echelon', kias: 200, sided: true },
-  box: { label: 'Box', kias: 200, sided: true },
-  trail: { label: 'Line astern', kias: 200, sided: false },
-  route: { label: 'Route', kias: 200, sided: true },
-});
+const NAMES = Object.freeze({ 1: 'Lead', 2: '#2', 3: '#3', 4: '#4' });
+const fourSlots = (key, s, opts = {}) => slotsFor(key, s, { ...opts, ships: 4 });
 
-/**
- * Four-ship fighting wing: each link 650 ft; #2 at 45°, #3 and #4 at 30° (Patrick, 4 Oct 11:44Z; estimates until Dad says).
- * The angles are sweep back from the wing line of the aircraft flown off, the manual's way (SMM 12.29 para 69, Fig 12.19).
- * #3 and #4 sit on the side opposite #2 (SMM 16.38 para 104; AFM7 brief p.14). Their 30° matches Fig 16.29's picture; the
- * para 104 text says a 60° sweep: both are written down, and Patrick chose to set it himself through the setting (TS-58).
- */
-export const FW4 = Object.freeze({ rangeFt: 650, twoDeg: 45, otherDeg: 30 });
-/**
- * The desired places now: FW4 by default, changed by the settings (Patrick 21:25Z, TS-58). #2's pair (spacing and sweep off
- * Lead; #4 off #3 in Fluid 4 too) and #3/#4's pair (each off the one ahead in fighting wing).
- */
-let fw4 = { twoRangeFt: FW4.rangeFt, twoDeg: FW4.twoDeg, otherRangeFt: FW4.rangeFt, otherDeg: FW4.otherDeg };
-
-/** Sets the four-ship's desired fighting wing places ({ twoRangeFt, twoDeg, otherRangeFt, otherDeg }; a missing value takes FW4's). */
-export function setFw4Shape({ twoRangeFt = FW4.rangeFt, twoDeg = FW4.twoDeg, otherRangeFt = FW4.rangeFt, otherDeg = FW4.otherDeg } = {}) {
-  fw4 = { twoRangeFt, twoDeg, otherRangeFt, otherDeg };
-}
-
-/** The four-ship's desired fighting wing places now. */
-export function fw4ShapeNow() {
-  return { ...fw4 };
-}
-/** Fighting wing with no stack (entered from a close formation): each aircraft 60 ft below the one it flies off, the 2-ship's estimate. */
-export const FW_STEP_DOWN_FT = 60;
-/** The offset box's second element sits this far behind the first (TS-18; SMM 16.41 para 109 gives 6,000-8,000 ft). */
-export const BOX_DEPTH_FT = 7000;
-export const BOX_DEPTH_BAND_FT = Object.freeze([6000, 8000]);
-/** Fluid 4: #3 this far abeam of Lead, the wide LAB (AFM8 brief p.20). */
-export const FLUID4_ABEAM_FT = 6000;
 /** #3's place in the offset box slot may be this far off sideways before it is named (estimate, design section 7). */
 const BOX_SLOT_MARGIN_FT = 500;
 /** The shared table's margin, ±100 ft (docs/TESTING.md). */
 const MARGIN_FT = 100;
 const MARGIN_DEG = 5;
-
-const NAMES = Object.freeze({ 1: 'Lead', 2: '#2', 3: '#3', 4: '#4' });
-const fwAt = (rangeFt, deg, side) => ({ fwd: -rangeFt * Math.sin(deg * DEG), left: side * rangeFt * Math.cos(deg * DEG) });
-
-/**
- * Where each wingman sits for formation `key` with #2 on side s: { 2: { ref, fwd, left, alt }, 3: …, 4: … }.
- * options.spacingFt: the LAB gap (Spread 4, offset box elements); options.stacked: fighting wing keeps the stack.
- */
-export function fourSlots(key, s, { spacingFt = 6000, stacked = true } = {}) {
-  const ech = (side) => slotFor('echelon', side);
-  const rte = (side) => slotFor('route', side);
-  const ast = slotFor('astern', 0);
-  switch (key) {
-    case 'spread4':
-      return {
-        2: { ref: 1, fwd: 0, left: s * spacingFt, alt: STACK_FT[2] },
-        3: { ref: 1, fwd: 0, left: -s * spacingFt, alt: STACK_FT[3] },
-        4: { ref: 3, fwd: 0, left: -s * spacingFt, alt: STACK_FT[4] },
-      };
-    case 'offsetBox':
-      return {
-        2: { ref: 1, fwd: 0, left: s * spacingFt, alt: STACK_FT[2] },
-        3: { ref: 1, fwd: -BOX_DEPTH_FT, left: s * spacingFt / 2, alt: STACK_FT[3] },
-        4: { ref: 3, fwd: 0, left: s * spacingFt, alt: STACK_FT[4] },
-      };
-    case 'fluid4':
-      // #4 flies fighting wing off #3 as #2 does off Lead: #2's spacing and sweep setting (FW4: 650 ft at 45° by default, an estimate).
-      return {
-        2: { ref: 1, ...fwAt(fw4.twoRangeFt, fw4.twoDeg, s), alt: STACK_FT[2] },
-        3: { ref: 1, fwd: 0, left: -s * FLUID4_ABEAM_FT, alt: STACK_FT[3] },
-        4: { ref: 3, ...fwAt(fw4.twoRangeFt, fw4.twoDeg, -s), alt: STACK_FT[4] },
-      };
-    case 'fw':
-    case 'fluidMan':
-      return {
-        2: { ref: 1, ...fwAt(fw4.twoRangeFt, fw4.twoDeg, s), alt: stacked ? STACK_FT[2] : -FW_STEP_DOWN_FT },
-        3: { ref: 2, ...fwAt(fw4.otherRangeFt, fw4.otherDeg, -s), alt: stacked ? STACK_FT[3] : -2 * FW_STEP_DOWN_FT },
-        4: { ref: 3, ...fwAt(fw4.otherRangeFt, fw4.otherDeg, -s), alt: stacked ? STACK_FT[4] : -3 * FW_STEP_DOWN_FT },
-      };
-    case 'finger':
-      return {
-        2: { ref: 1, ...ech(s) },
-        3: { ref: 1, ...ech(-s) },
-        4: { ref: 3, ...ech(-s), alt: 2 * ech(-s).alt },
-      };
-    case 'route':
-      return {
-        2: { ref: 1, ...rte(s) },
-        3: { ref: 1, ...rte(-s) },
-        4: { ref: 3, ...rte(-s), alt: 2 * rte(-s).alt },
-      };
-    case 'echelon':
-      return {
-        2: { ref: 1, ...ech(s) },
-        3: { ref: 2, ...ech(s), alt: 2 * ech(s).alt },
-        4: { ref: 3, ...ech(s), alt: 3 * ech(s).alt },
-      };
-    case 'box':
-      return {
-        2: { ref: 1, ...ech(s) },
-        3: { ref: 1, ...ech(-s) },
-        4: { ref: 1, ...ast },
-      };
-    case 'trail':
-      return {
-        2: { ref: 1, ...ast },
-        3: { ref: 2, ...ast, alt: 2 * ast.alt },
-        4: { ref: 3, ...ast, alt: 3 * ast.alt },
-      };
-    default:
-      throw new Error(`No four-ship formation called ${key}`);
-  }
-}
-
-/** Who flies off whom in a formation: { 2: id, 3: id, 4: id }. */
-export function refsFor(key) {
-  const slots = fourSlots(key, -1);
-  return { 2: slots[2].ref, 3: slots[3].ref, 4: slots[4].ref };
-}
 
 /** True when the four are on the stack (each wingman more than 150 ft from Lead's height): fighting wing then keeps it. */
 export function isStacked(aircraft) {
@@ -207,28 +88,6 @@ export function classifyFour(aircraft) {
   // No formation: #2's side only when it is clearly to one side (in a column after an in-place turn it is not, and the
   // side last seen is used instead; 100 ft is the shared margin).
   return { key: 'other', side: Math.abs(relativeTo(L, two).left) > MARGIN_FT ? side : 0 };
-}
-
-/** The words for where the four are: "Finger left (#3 and #4 left)", "Spread 4, #2 right". */
-export function fourWords(where) {
-  const f = FOUR_FORMATIONS[where.key];
-  if (!f) return 'between formations';
-  const w = (s) => (s > 0 ? 'left' : 'right');
-  switch (where.key) {
-    case 'finger':
-    case 'route':
-      return `${f.label} ${w(-where.side)} (#3 and #4 ${w(-where.side)})`;
-    case 'echelon':
-      return `${f.label} ${w(where.side)}`;
-    case 'offsetBox':
-      return `${f.label} ${w(where.side)}`;
-    case 'trail':
-      return f.label;
-    case 'fluid4':
-      return `${f.label}, #3 ${w(-where.side)}`;
-    default:
-      return `${f.label}, #2 ${w(where.side)}`;
-  }
 }
 
 const ft = (n) => `${Math.round(Math.abs(n)).toLocaleString('en-CA')} ft`;

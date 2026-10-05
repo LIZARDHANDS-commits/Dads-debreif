@@ -6,9 +6,9 @@
 // against Lead) and the flags. Flags are never walls: the sim flies on and says so.
 // The 4-ship has its own buttons (spec section 8, TS-54; live/four-ship-moves.js): setShips swaps them.
 import { h, clear } from '../../ui-kit/dom.js';
-import { FORMATIONS, REJOIN, KIAS_OUTSIDE_LAB, rejoinReadout } from './live/transitions.js';
+import { REJOIN, KIAS_OUTSIDE_LAB, rejoinReadout } from './live/transitions.js';
 import { slowWord } from './live/slow-down.js';
-import { FOUR_FORMATIONS, fourWords } from './live/four-ship-slots.js';
+import { FORMATIONS, FOUR_FORMATIONS, fourWords } from './live/slots.js';
 
 /** The main buttons, in screen order. Fluid manoeuvring starts from fighting wing only (spec section 10.3, TS-57). */
 export const CHANGE_BUTTONS = Object.freeze([
