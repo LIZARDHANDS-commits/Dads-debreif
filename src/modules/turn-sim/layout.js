@@ -20,8 +20,8 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   setupColumn: true,
   formationColumn: true,
   tracks: true, // each aircraft's ground track, for the whole flight
-  lead39: false, // the 3/9 line switch (off by default from layout version 3, TS-56); l39_<id> picks the aircraft
-  lead75: false, // the 7 and 5 o'clock lines switch: the back edge of the fighting wing cone, 60° of sweep (SMM 12.29 para 69)
+  lead39: true, // the 3/9 line, Lead only at the start (Patrick, 5 Oct); l39_<id> picks the aircraft
+  lead75: true, // the 7 and 5 o'clock lines, Lead only at the start (Patrick, 5 Oct): the back edge of the fighting wing cone, 60° of sweep (SMM 12.29 para 69)
   cone: false, // The Cone switch: the fighting wing cone, shaded (Patrick, 5 Oct)
   coneShape: '3d', // in 3D: '3d', the true cone round the tail, or 'flat', the 2D band at the aircraft's height
   // Which aircraft draw each (Patrick, 5 Oct): Lead at first.
@@ -41,13 +41,14 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   view: VIEW_DEFAULT, // '2d' or '3d'
   paint: PAINT_DEFAULT, // the 3D aircraft's paint: 'harvard' or 'ship'
 });
-export const LAYOUT_VERSION = 3; // 1 was the plan-mode screen's; 3 turned the 3/9 line off by default (TS-56)
+export const LAYOUT_VERSION = 4; // 1 was the plan-mode screen's; 3 turned the 3/9 line off (TS-56); 4 the Lead-only lines at the start (Patrick, 5 Oct)
 
 /** A saved version 2 layout keeps every choice but the 3/9 line, which takes the new default (off). Older ones start fresh. */
 export function migrateLayout(values, version) {
-  if (version !== 2) return {};
-  const { lead39: _lead39, ...rest } = values;
-  return rest;
+  // Version 4 (Patrick, 5 Oct): the start shows Lead's 3/9 and 7/5 lines, no cone, and every per-aircraft list Lead only.
+  const SHIP_KEYS = /^(l39|l75|cone)_\d$/;
+  if (version !== 2 && version !== 3) return {};
+  return Object.fromEntries(Object.entries(values).filter(([k]) => !['lead39', 'lead75', 'cone'].includes(k) && !SHIP_KEYS.test(k)));
 }
 
 /** The layout values that only allow some choices (createSettings' `allowed`). */
