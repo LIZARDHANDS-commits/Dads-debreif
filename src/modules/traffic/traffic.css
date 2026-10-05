@@ -1219,3 +1219,23 @@
   text-align: right;
   color: var(--text-muted);
 }
+
+/* Setup and Spawn aircraft: their header buttons "pop" so they read as clickable (Patrick, 5 Oct): an accent edge and
+   tint, bold title, the marker in the accent, brighter on hover. */
+[data-module='traffic'] .panel-pop > .panel-header > .panel-toggle {
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg-raised));
+  color: var(--text);
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.35);
+  cursor: pointer;
+}
+
+[data-module='traffic'] .panel-pop > .panel-header > .panel-toggle::after {
+  color: var(--accent-strong);
+}
+
+[data-module='traffic'] .panel-pop > .panel-header > .panel-toggle:hover {
+  background: color-mix(in srgb, var(--accent) 28%, var(--bg-raised));
+  border-color: var(--accent-strong);
+}

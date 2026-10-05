@@ -44,6 +44,7 @@ export function createLayout({ bar, listen, on = {}, available = {}, filterSplit
   const list = h('ul', { class: 'route-list', 'aria-label': 'Routes on the map: press one to show or hide it' });
   const empty = h('p', { class: 'route-empty' }, 'No routes yet.');
   const routesPanel = createPanel({ title: 'Setup', onToggle: (collapsed) => columnToggled('routes', !collapsed) });
+  routesPanel.element.classList.add('panel-pop'); // stands out as clickable (Patrick, 5 Oct)
   // Traffic settings sit at the foot of the Setup column (Patrick, 4 Oct: it was in the Aircraft column).
   // Display (Patrick, 4 Oct): the routes on the map and the layers, in one box that opens and closes like Traffic
   // settings, closed at first.
