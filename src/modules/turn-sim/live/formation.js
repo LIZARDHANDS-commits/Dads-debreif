@@ -23,7 +23,7 @@ import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFwMove 
 import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
 import { LAG_ROLL_KEY, planLagRoll } from './lag-roll.js';
-import { REJOIN } from './tuning.js';
+import { REJOIN, STEADY } from './tuning.js';
 
 /**
  * The first version's fixed numbers. Speeds name their kind (rule book): kias is
@@ -384,6 +384,34 @@ export function createFormation(options = {}) {
     }
   }
 
+  /**
+   * A 2-ship change of formation is done once #2 is IN POSITION (the judge's band) and steady, not when the tracker has
+   * settled on the exact slot (Patrick 5 Oct 20:39Z card "In band and steady"; TS-78): the tracker's plan keeps flying
+   * underneath and goes on holding the slot. Steady is #2's speed against the slot under STEADY.closureKt ("stabilize"
+   * means within 5 knots, Patrick 20:41Z), his bank within STEADY.bankOffDeg of Lead's, and Lead's own plan done (his
+   * speed change, his turn-in rolled out). Not the lag roll (it ends on its own), the 4-ship or a training error's rejoin.
+   */
+  function inBandAndSteady() {
+    const c = state.current;
+    if (!c?.change || c.change.four || c.change.offStandard || c.key === `change:${LAG_ROLL_KEY}`) return false;
+    const [lead, wing] = state.aircraft;
+    // Line abreast is a wide band: once #2 is in it and steady, Lead finishing his speed-up to 220 KIAS is ordinary formation
+  // keeping, not part of the change (estimate pending Patrick's card, 21:15Z; the other changes wait for Lead's plan).
+  if (c.change.to !== 'lab' && !planDone(lead, state.plans[lead.id])) return false;
+    const rel = relativeTo(lead, wing);
+    const prev = c.relPrev;
+    c.relPrev = { fwd: rel.fwd, left: rel.left, up: wing.altAboveFt - lead.altAboveFt, tSec: state.tSec };
+    if (!prev) return false;
+    const dtSec = Math.max(STEP_SEC, state.tSec - prev.tSec);
+    const closureFtps = Math.hypot(rel.fwd - prev.fwd, rel.left - prev.left, c.relPrev.up - prev.up) / dtSec;
+    if (closureFtps > STEADY.closureKt * KT_TO_FTPS) return false;
+    if (Math.abs(wing.bankDeg - lead.bankDeg) > STEADY.bankOffDeg) return false;
+    // The judge's band is sideless for the pair: a change of side is done only on the new side.
+    const side = c.change.side ?? 0;
+    if (side !== 0 && Math.sign(rel.left) !== side) return false;
+    return judge(state.aircraft, { key: c.change.to, side }, { spacingFt: state.spacingFt }).inBand;
+  }
+
   /** Why a manoeuvre can't be flown from where the formation is now, or null (spec sections 8 and 10: line abreast only). */
   function refuseMove(key, dir) {
     const where = whereNow().key;
@@ -453,13 +481,13 @@ export function createFormation(options = {}) {
       return startChange(to, options) ? 'started' : 'refused';
     },
     /**
-     * #2's lag roll to fighting wing on Lead's other side (spec section 10.8, lag-roll.js, TS-71): 2-ship, from fighting wing,
-     * Lead straight and level. Flown at once when nothing is being flown, otherwise queued like a change. Returns 'started',
+     * #2's lag roll to fighting wing on Lead's other side (spec section 10.8, lag-roll.js, TS-71): 2-ship, from fighting wing
+     * or echelon (TS-78), Lead straight and level. Flown at once when nothing is being flown, otherwise queued like a change. Returns 'started',
      * 'queued' or 'refused' (state.refusal says why).
      */
     lagRoll() {
       if (state.fluid) {
-        state.refusal = 'Terminate fluid manoeuvring first; the lag roll starts from fighting wing.';
+        state.refusal = 'Terminate fluid manoeuvring first; the lag roll starts from fighting wing or echelon.';
         return 'refused';
       }
       if (state.current) {
@@ -574,6 +602,7 @@ export function createFormation(options = {}) {
         }
       }
       if (state.current && state.aircraft.every((a) => planDone(a, state.plans[a.id]) && (state.tSec >= state.current.endSec - STEP_SEC / 2))) finish();
+      else if (state.current && inBandAndSteady()) finish();
       return true;
     },
   };

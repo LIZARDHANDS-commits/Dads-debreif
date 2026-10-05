@@ -1,4 +1,5 @@
-// #2's lag roll to fighting wing (spec section 10.8, TS-71; Patrick 5 Oct 08:54Z and 08:58Z): from fighting wing, with Lead
+// #2's lag roll to fighting wing (spec section 10.8, TS-71; Patrick 5 Oct 08:54Z and 08:58Z): from fighting wing (or from
+// echelon, TS-78), with Lead
 // straight and level, #2 pulls up, rolls toward Lead, passes over Lead's six inverted, canopy to canopy, and comes down into
 // the cone on Lead's other side, power, pitch and bank as required. The SMM and EFIG do not name the lag roll; the nearest
 // pages are SMM 12.29 para 69 (the cone, using the vertical), SMM 12.30-12.31 para 74 (lag pursuit) and SMM 14.8 paras
@@ -58,7 +59,9 @@ function relAt(t, P) {
       a: (-half * c - bump * sn) * w * w + (-half * sn + bump * c) * a,
     });
     const fwd = F((P.f0 + P.fE) / 2, (P.f0 - P.fE) / 2, 0);
-    const left = F((P.L0 + P.L1) / 2, (P.L0 - P.L1) / 2, 0);
+    // The top passes over Lead's six (left 0 at θ = π/2): from fighting wing the ends are mirror images, so the bump is 0;
+    // from echelon (TS-78) the start is close in, so the bump carries the path across his six.
+    const left = F((P.L0 + P.L1) / 2, (P.L0 - P.L1) / 2, -(P.L0 + P.L1) / 2);
     const up = F((P.z0 + P.zs) / 2, (P.z0 - P.zs) / 2, P.H);
     return { p: { fwd: fwd.p, left: left.p, up: up.p }, v: { fwd: fwd.v, left: left.v, up: up.v }, a: { fwd: fwd.a, left: left.a, up: up.a } };
   }
@@ -92,13 +95,14 @@ function gOf(acc, nose) {
  * Measures one candidate roll on a coarse step: null when it breaks a check (G past gCap or availableG, under LAG_ROLL.minG,
  * not inverted over the top, inside the bubble, the top range or slowest speed outside the design's band), else its numbers.
  */
-function measure(P, lead0, vL, heightFt, gCap) {
+function measure(P, lead0, vL, heightFt, gCap, close = false) {
   const dt = LAG_ROLL.searchStepSec;
   let maxG = 0;
   let minG = Infinity;
   let minKias = Infinity;
   let maxClimbDeg = -90;
   let minRange = Infinity;
+  let out = !close; // from echelon the 500 ft bubble counts once #2 has left his close place (TS-78)
   for (let t = 0; t <= P.T + 1e-9; t += dt) {
     const s = groundAt(t, P, lead0, vL);
     const tas = len3(s.vel);
@@ -110,13 +114,16 @@ function measure(P, lead0, vL, heightFt, gCap) {
     minG = Math.min(minG, g);
     minKias = Math.min(minKias, kias);
     maxClimbDeg = Math.max(maxClimbDeg, Math.atan2(s.vel.z, Math.hypot(s.vel.x, s.vel.y)) / DEG);
-    minRange = Math.min(minRange, Math.hypot(s.rel.fwd, s.rel.left, s.rel.up));
+    const range = Math.hypot(s.rel.fwd, s.rel.left, s.rel.up);
+    if (range >= LAG_ROLL.bubbleFt) out = true;
+    if (out) minRange = Math.min(minRange, range);
   }
   const top = groundAt(P.T / 2, P, lead0, vL);
   const liftUpZ = top.acc.z + G_FTPS2; // canopy to canopy: the lift points down, toward Lead, over his six
   const topRange = Math.hypot(top.rel.fwd, top.rel.left, top.rel.up);
   if (liftUpZ >= 0 || minRange < LAG_ROLL.bubbleFt) return null;
-  if (topRange < LAG_ROLL.topRangeFt[0] || topRange > LAG_ROLL.topRangeFt[1]) return null;
+  const topBand = close ? LAG_ROLL.closeTopRangeFt : LAG_ROLL.topRangeFt;
+  if (topRange < topBand[0] || topRange > topBand[1]) return null;
   if (minKias < LAG_ROLL.topKiasBand[0] || minKias > LAG_ROLL.topKiasBand[1]) return null;
   return { maxG, minG, minKias, maxClimbDeg, topRange, minRange };
 }
@@ -150,13 +157,16 @@ export function planLagRoll(aircraft, options = {}, t0 = 0) {
   if (aircraft.length !== 2) return { ok: false, reason: 'The lag roll is 2-ship only for now.' };
   const [lead, wing] = aircraft;
   const where = classify(aircraft);
-  if (where.key !== 'fw') return { ok: false, reason: 'The lag roll starts from fighting wing; change to fighting wing first.' };
+  // From fighting wing (TS-71) or from echelon (TS-78; Patrick 20:3xZ "lag roll flops you into the cone on the other side",
+  // 21:10Z "can just be echelon").
+  if (where.key !== 'fw' && where.key !== 'echelon') return { ok: false, reason: 'The lag roll starts from fighting wing or echelon.' };
+  const close = where.key === 'echelon';
   if (Math.abs(lead.bankDeg) > 1 || Math.abs(lead.climbFtps ?? 0) > 2) {
     return { ok: false, reason: 'For now the lag roll flies only with Lead straight and level.' };
   }
   const blockFt = options.blockFt ?? 8000;
-  const s = where.side; // #2's side now (+1 left); he lands on -s
   const rel = relativeTo(lead, wing);
+  const s = where.side || Math.sign(rel.left) || (options.lastSide ?? -1); // #2's side now (+1 left); he lands on -s
   const slot = pairSlot('fw', -s);
   const vL = lead.tasFtps;
   const lead0 = { x: lead.xFt, y: lead.yFt, h: lead.headingRad };
@@ -172,7 +182,7 @@ export function planLagRoll(aircraft, options = {}, t0 = 0) {
       for (let fb = LAG_ROLL.fallBackFt[0]; fb <= LAG_ROLL.fallBackFt[1]; fb += 100) {
         const P = { ...base, T, H, fE: base.fs - fb, T2: fb > 0 ? (2 * fb) / closeFtps : 0 };
         if (!landsInCone(P)) break; // he lands in the cone (Patrick 08:54Z): a longer fall-back only lands further out
-        const m = measure(P, lead0, vL, heightFt, gCap);
+        const m = measure(P, lead0, vL, heightFt, gCap, close);
         if (!m) continue;
         for (const pullG of LAG_ROLL.pullG) {
           for (const noseUpDeg of LAG_ROLL.noseUpDeg) {
@@ -228,7 +238,8 @@ export function planLagRoll(aircraft, options = {}, t0 = 0) {
   const sideWord = -s > 0 ? 'left' : 'right';
   const sc = best.sc;
   const flag = leadOutOfTopHalfSec > 0 ? ` Lead leaves the top half of #2's canopy for about ${leadOutOfTopHalfSec.toFixed(1)} s.` : '';
-  const note = `Lag roll to fighting wing ${sideWord}: #2 pulls up to ${sc.maxG.toFixed(1)} G, nose about ${Math.round(sc.maxClimbDeg)}° up, `
+  const fromWords = close ? `from echelon ${s > 0 ? 'left' : 'right'} ` : '';
+  const note = `Lag roll ${fromWords}to fighting wing ${sideWord}: #2 pulls up to ${sc.maxG.toFixed(1)} G, nose about ${Math.round(sc.maxClimbDeg)}° up, `
     + `rolls toward Lead and passes over his six inverted at about ${Math.round(sc.topRange).toLocaleString('en-CA')} ft, `
     + `slowest ${Math.round(sc.minKias)} KIAS, then down into the cone on the ${sideWord} and closes at ${LAG_ROLL.closeOvertakeKias} kt to the slot. `
     + `The SMM does not name the lag roll (nearest: SMM 12.29 para 69, 12.30-12.31 para 74, 14.8 paras 18-19); the numbers are estimates.${flag}`;
@@ -240,8 +251,8 @@ export function planLagRoll(aircraft, options = {}, t0 = 0) {
     },
     note,
     label: `Lag roll to fighting wing ${sideWord}`,
-    flying: `Fighting wing ${s > 0 ? 'left' : 'right'} to fighting wing ${sideWord} (lag roll)`,
-    from: 'fw',
+    flying: `${close ? 'Echelon' : 'Fighting wing'} ${s > 0 ? 'left' : 'right'} to fighting wing ${sideWord} (lag roll)`,
+    from: where.key,
     fromSide: s,
     to: 'fw',
     side: -s,

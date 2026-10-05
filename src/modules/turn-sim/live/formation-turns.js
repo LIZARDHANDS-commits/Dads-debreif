@@ -24,7 +24,8 @@ import { recordFlight, dryRunT } from './transitions.js';
 import { trackTwice, phase } from './tracker.js';
 import { smoothest, makeTrack, seedTrack, setTrackStep, TRACK_PAD, posesFrom, settleLast, slotInWorld } from './kinematic.js';
 import { leadTurnSegs } from './kinematic-moves.js';
-import { FW_TURN, FW_FOLLOW, WING_BANKS } from './tuning.js';
+import { FW_TURN, FW_FOLLOW, WING_BANKS, ROLL } from './tuning.js';
+import { easeRoll } from '../../../core/flight-math.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { wrapPi } from '../../../core/angles.js';
 
@@ -138,6 +139,8 @@ export function planFwTurn(aircraft, key, dir, t0 = 0, { blockFt = 8000 } = {}) 
  */
 export const CLOSE_TURN = Object.freeze({
   bankDeg: 45,
+  /** The 2-ship echelon turn: 60° of bank, 2 G (Patrick 5 Oct 20:50Z: "about 4-5 seconds to get to 60/2"; TS-78). */
+  echelonBankDeg: 60,
   gentleBankDeg: 30,
   fourEchelonBankDeg: 30,
   /**
@@ -146,6 +149,13 @@ export const CLOSE_TURN = Object.freeze({
    * wingman's place 30 ft (echelon) to 120 ft (route) up or down in half a second, which no wingman can follow.
    */
   leadRoll: Object.freeze({ maxRateDps: 30, maxAccelDps2: 20 }),
+  /**
+   * The 2-ship echelon turn's roll: "very slow and smooth, about 4-5 seconds to get to 60/2 ... Echelon is smooth to allow 2
+   * to stay in position in tight formation" (Patrick 20:50Z): up to 30°/s, building at 12°/s², about 4.5 s to 60° (the
+   * Formation thread's dry runs, 5 Oct: past about 15°/s² Lead's roll pushes #2 along his lift line faster than #2 can
+   * follow at 0.3 G or more). Every other formation and move keeps the aircraft's own roll (tuning.js ROLL).
+   */
+  echelonRoll: Object.freeze({ maxRateDps: 30, maxAccelDps2: 12 }),
   /**
    * How a close wingman holds his place in Lead's real wing plane through the roll-in, the turn and the roll-out (SMM 12.19
    * paras 41-43, Fig 12.11; Patrick 5 Oct 19:51Z: "The aircraft should use bank and pitch and roll to stay in position as
@@ -252,8 +262,29 @@ function heldPoses(leadRec, wing, rel, n) {
   }
   const line = posesFrom(track, wing.kias / wing.tasFtps);
   ownBank(line.poses);
+  rollFrom(line.poses, wing);
   settleLast(line.poses, leadRec.at(n));
   return line.poses;
+}
+
+/**
+ * The poses' bank taken up from the aircraft's real bank and roll rate at no more than the aircraft's own roll (tuning.js
+ * ROLL), so a path planned from a banked, rolling start (a press mid-turn, replan.js slideInPlane) has no step in the bank:
+ * the path's own bank (ownBank) is reached within a fraction of a second and then followed. The positions are the path's.
+ */
+function rollFrom(poses, wing) {
+  let bank = wing.bankDeg ?? 0;
+  let rate = wing.rollRateDps ?? 0;
+  for (const p of poses) {
+    const want = p.bank;
+    ({ bankDeg: bank, rollRateDps: rate } = easeRoll(bank, rate, want, STEP_SEC, ROLL));
+    if (Math.abs(bank - want) < 1e-6 && Math.abs(rate - p.roll) < ROLL.maxAccelDps2 * STEP_SEC) {
+      bank = want;
+      rate = p.roll;
+    }
+    p.bank = bank;
+    p.roll = rate;
+  }
 }
 
 /**
@@ -309,8 +340,10 @@ export function planCloseTurn(aircraft, formation, key, dir, t0 = 0) {
   if (!FW_TURN_KEYS.includes(key)) return { ok: false, reason: `${m?.label ?? key} flies in line abreast only.` };
   const four = aircraft.length > 2;
   const turnDeg = FW_TURN.turnDeg[key];
-  const bank = turnDeg <= 30 ? CLOSE_TURN.gentleBankDeg : four && formation === 'echelon' ? CLOSE_TURN.fourEchelonBankDeg : CLOSE_TURN.bankDeg;
-  const leadSegs = leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, bank, true).map((x) => ({ ...x, roll: CLOSE_TURN.leadRoll }));
+  const echelon2 = !four && formation === 'echelon';
+  const bank = turnDeg <= 30 ? CLOSE_TURN.gentleBankDeg : four && formation === 'echelon' ? CLOSE_TURN.fourEchelonBankDeg : echelon2 ? CLOSE_TURN.echelonBankDeg : CLOSE_TURN.bankDeg;
+  // The 2-ship echelon turn rolls slow and smooth (Patrick 20:50Z, TS-78); the other close formations as V2.76 (TS-77).
+  const leadSegs = leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, bank, true).map((x) => ({ ...x, roll: echelon2 ? CLOSE_TURN.echelonRoll : CLOSE_TURN.leadRoll }));
   const leadSteps = Math.round(dryRunT(lead, { segments: leadSegs }, t0).durationSec / STEP_SEC);
   const by = new Map(aircraft.map((a) => [a.id, a]));
   const leadRec = recordFlight(lead, { segments: leadSegs }, t0);
