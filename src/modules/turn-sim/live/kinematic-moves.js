@@ -18,34 +18,13 @@ import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
 import { relativeTo, turnSeg, wholeDegree, DEG } from './manoeuvres.js';
-import { recordFlight, KIAS_LAB, KIAS_OUTSIDE_LAB, speedSeg, REJOIN, describe } from './transitions.js';
+import { recordFlight, speedSeg, describe } from './transitions.js';
+import { KIAS_LAB, KIAS_OUTSIDE_LAB, KINEMATIC, closeRates } from './tuning.js';
 import { FORMATIONS, fwShapeNow, pairSlot } from './slots.js';
 import { speedSegFor } from './slow-down.js';
 import { makeTrack, seedTrack, posesFrom, settleLast, followInto, rollStarts, relPath, timeLaw, slotInWorld, poseOf, laggedBank } from './kinematic.js';
 
 const dt = STEP_SEC;
-
-/** The numbers of the kinematic moves. All estimates unless a source is given. */
-export const KINEMATIC = Object.freeze({
-  // In the frame of Lead, how fast #2 may move:
-  lateralFtps: 140, // across Lead's heading: about a 25° heading difference at 200 KIAS (inside the 20-40° turn away of SMM 16.18 para 51)
-  foreAftFtps: 25, // along it: about 15 KIAS of overtake or undertake, the middle of EFIG p.374's 10-20 KIAS
-  verticalFtps: 15, // up or down: 900 ft/min (the 4-ship's stack-change estimate)
-  nearPerSec: 0.1, // closing slows with range: 10% of the range per second ...
-  nearMinFtps: 8, // ... but never below about 5 kt, the station-change rate (SMM 12.20 para 44 says "controlled")
-  // The hot turning rejoin:
-  pointBankDeg: REJOIN.bankCapDeg, // #2's "aggressive" turn to point at Lead: the 60° bank cap (an estimate, flagged, never a wall)
-  reverseBanksDeg: [35, 40, 45, 50, 55, 60], // the reversal's banks the planner may choose from
-  hotWingKias: KIAS_OUTSIDE_LAB, // #2 slows with Lead to 200 KIAS in the hot rejoin: Lead turning into him gives the closure (estimate; the overtake comes in the capture, up to foreAftFtps)
-  captureSec: 20, // the capture onto fighting wing, once the reversal has lined #2 up (how long the blend takes)
-  captureEaseSec: 3, // how long #2 takes to ease the reversal's bank to Lead's turn as it lines up
-  closeBlendSec: 3, // a close formation wingman follows a roll of Lead this long after it (SMM 12.19 para 43: he lags Lead's roll)
-  planeLagSec: 3, // a close wingman's place in Lead's wing plane follows Lead's bank over this long (SMM 12.19 para 43: he lags the roll; estimate)
-  wideBlendSec: 8, // a fighting wing wingman takes this long
-  followLateralG: 0.2, // ... and swings its track at no more than this much sideways G (estimate)
-  followAccelKtps: 2.5, // ... or longer, so a wingman following a roll of Lead speeds up or slows at no more than this (estimate; inside the 3 kt/s the smoothness tests allow)
-  startBlendSec: 3, // a station change starts moving over this long
-});
 
 export const CLOSE = new Set(['echelon', 'route', 'astern']);
 
@@ -58,11 +37,12 @@ export function slotPoint(key, side, spacingFt) {
 /** The speed limit in Lead's frame at a point of a relative path moving in direction d (unit, in fwd, left, up). */
 export function relSpeedLimit(q, d) {
   const range = Math.hypot(q.fwd, q.left);
+  const rates = closeRates(); // tuning.js: the close-move rates for the Rates choice ('training' until step 2)
   const lim = [
-    KINEMATIC.lateralFtps / Math.max(Math.abs(d.left), 1e-6),
-    KINEMATIC.foreAftFtps / Math.max(Math.abs(d.fwd), 1e-6),
-    KINEMATIC.verticalFtps / Math.max(Math.abs(d.up), 1e-6),
-    Math.max(KINEMATIC.nearMinFtps, KINEMATIC.nearPerSec * range),
+    rates.lateralFtps / Math.max(Math.abs(d.left), 1e-6),
+    rates.foreAftFtps / Math.max(Math.abs(d.fwd), 1e-6),
+    rates.verticalFtps / Math.max(Math.abs(d.up), 1e-6),
+    Math.max(rates.nearMinFtps, rates.nearPerSec * range),
   ];
   return Math.min(...lim);
 }

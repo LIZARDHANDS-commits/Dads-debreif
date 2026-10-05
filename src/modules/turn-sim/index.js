@@ -21,7 +21,7 @@ import { ERROR_DEFAULTS, ERROR_ALLOWED, errorCardLines } from './live/errors.js'
 import { FOUR_SHIP_KEYS, fourShipLine } from './live/four-ship.js';
 import { cardForFour } from './live/four-ship-card.js';
 import { G_WARM } from './live/g-warm.js';
-import { rejoinReadout } from './live/transitions.js';
+import { rejoinReadout } from './live/judge.js';
 import { FW2, FW4, checkFwShape } from './live/slots.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS } from './live/formation-turns.js';
 import { createChangeUi } from './transitions-panel.js';

@@ -21,8 +21,9 @@
 // (TS-63, Patrick 5 Oct 02:48Z).
 // Every tag has a power line when what flies the aircraft sets its power (live/power.js; Patrick 5 Oct 01:44Z): MAX, PWR
 // nn% (the model's throttle, not a torque reading), or in red IDLE, BOARDS or IDLE+BOARDS (TS-61, TS-62). None otherwise.
-// formation.js first: the live files import each other in a loop, and entering it at transitions.js reads REJOIN in
-// kinematic-moves.js before transitions.js has set it (the same happens on main if transitions.js is loaded first).
+// formation.js first: the live files import each other in a loop, so they are entered where the app enters them. (Until
+// clean-up step 1 entering at transitions.js read REJOIN before it was set; REJOIN now lives in tuning.js, which imports
+// nothing from the loop.)
 import './live/formation.js';
 import { relativeTo } from './live/manoeuvres.js';
 import { fwState, closeState, closeLinkKind } from './live/judge.js';

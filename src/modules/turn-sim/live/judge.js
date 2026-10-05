@@ -5,7 +5,7 @@
 //
 // Until step 1 this was six pieces: judgePair (formation.js), classifyPair and judgeFormation (transitions.js), judgeFour
 // (four-ship.js), classifyFour and judgeFourFormation (four-ship-slots.js), and the judging inside fwState and closeState
-// (tags.js). They now share one link judge (judgeLink: one wingman against the aircraft he flies off), and every verdict is
+// (tags.js). The card's rejoin readout (HOT, COLD or ON LINE) moved here from transitions.js too. They now share one link judge (judgeLink: one wingman against the aircraft he flies off), and every verdict is
 // built from it. Where two of them used different bands or words for the same thing, each screen keeps what it showed before
 // step 1, as a named option of the link judge (the 4-ship's fighting wing margins, the tag words); the differences are listed
 // in TS-64 for Patrick.
@@ -15,9 +15,12 @@
 // para 15 (route, 1 to 3 wingspans), 12.5 para 13 (line astern, about 10 ft nose to tail), 12.19 paras 41-43 and Fig 12.11
 // (a close wingman stepped with Lead's bank), 16.41 para 109 (offset box depth 6,000-8,000 ft). Margins: the shared table's
 // ±100 ft and ±5° (docs/TESTING.md). The close bands in feet are estimates beside sight references.
+import { relativeBearingDeg } from '../../../core/angles.js';
+import { FTPS_TO_KT } from '../../../core/units.js';
 import { relativeTo, DEG } from './manoeuvres.js';
 import { rangeWord } from './fluid.js';
 import { FORMATIONS, WINGSPAN_FT, LENGTH_FT, FW_BAND, BOX_DEPTH_BAND_FT, FLUID4_ABEAM_FT, slotsFor, fourWords } from './slots.js';
+import { REJOIN } from './tuning.js';
 
 /** Margins for the roll-out judgement: the shared table's ±100 ft (docs/TESTING.md). */
 export const JUDGE_MARGIN_FT = 100;
@@ -378,4 +381,32 @@ export function closeState(kind, ref, wing) {
   if (j.labels.some((l) => TIGHT_WORDS.has(l))) return 'TIGHT';
   if (j.labels.some((l) => STRETCHED_WORDS.has(l))) return 'STRETCHED';
   return j.labels[0];
+}
+
+// ---- the rejoin readout for the Formation card (from transitions.js) ---------------------------------------------
+
+/** Lead's clock position from #2 (12 at the nose, 9 off the left wing), to the half hour. */
+export function clockText(bearingDeg) {
+  let hour = Math.round((((-bearingDeg / 30) % 12) + 12) % 12 * 2) / 2;
+  if (hour === 0) hour = 12;
+  const whole = Math.floor(hour);
+  return `${whole}${hour % 1 ? ':30' : ''} o'clock`;
+}
+
+/**
+ * The rejoin block of the card: range, closure, where Lead is, the line (ON LINE, HOT or COLD, 60° and 30° being
+ * estimates), and height against Lead (SMM 12.27 para 65: never at or above Lead's height).
+ */
+export function rejoinReadout(lead, wing) {
+  const dx = wing.xFt - lead.xFt;
+  const dy = wing.yFt - lead.yFt;
+  const range = Math.hypot(dx, dy);
+  const lv = { x: lead.tasFtps * Math.cos(lead.headingRad), y: lead.tasFtps * Math.sin(lead.headingRad) };
+  const wv = { x: wing.tasFtps * Math.cos(wing.headingRad), y: wing.tasFtps * Math.sin(wing.headingRad) };
+  const closureFtps = range > 1e-6 ? -(((wv.x - lv.x) * dx) + ((wv.y - lv.y) * dy)) / range : 0;
+  const bearing = relativeBearingDeg({ x: wing.xFt, y: wing.yFt, hdg: wing.headingRad }, { x: lead.xFt, y: lead.yFt });
+  const abs = Math.abs(bearing);
+  const line = abs >= REJOIN.hotBearingDeg ? 'HOT' : abs <= REJOIN.coldBearingDeg ? 'COLD' : 'ON LINE';
+  const below = lead.altAboveFt - wing.altAboveFt;
+  return { rangeFt: range, closureKt: closureFtps * FTPS_TO_KT, bearingDeg: bearing, clock: clockText(bearing), line, belowFt: below, aboveLead: below <= 0 };
 }

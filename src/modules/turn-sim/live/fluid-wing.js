@@ -28,42 +28,14 @@
 // come from the line itself (attitude.js), so they always agree with it.
 import { tasToIasKt } from '../../../core/t6-performance.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
-import { STEP_SEC, ROLL } from './flight.js';
+import { STEP_SEC } from './flight.js';
+import { ROLL, WING } from './tuning.js';
 import { easeRoll } from '../../../core/flight-math.js';
 import { smoothest } from './kinematic.js';
 import { dot3, add3, sub3, scale3, len3, cross3, unit3, perp3, liftOf, poseOf3d } from './attitude.js';
 
 const DEG = Math.PI / 180;
 const dt = STEP_SEC;
-
-/** #2's numbers. Sources beside each; "estimate" where none. */
-export const WING = Object.freeze({
-  pursuitShare: 0.1, // the lag or lead offset as a share of the range (estimate)
-  latDeg: 15, // off Lead's tail, inside the 30° half cone (estimate; cone: Patrick 19:20Z row 2)
-  collapseSec: 6, // how long the collapse toward the six takes (estimate)
-  rangeSec: 6, // how long a new distance setting takes to fly (estimate)
-  blendInSec: 10, // entry: from the fighting wing slot into the cone (estimate)
-  blendOutSec: 12, // terminate: from the cone back to the fighting wing slot (estimate)
-  smoothSteps: 10, // the position line is smoothed over 10 steps (0.5 s) either side (estimate)
-  maxBehindSec: 10, // the furthest back along Lead's path #2 can be
-  turnSec: 8, // the lag or lead offset is what the cue wanted over the last 8 s, averaged (estimate)
-  tailSec: 6, // the turn onto the place off Lead's current tail is averaged over the last 6 s (estimate; 3 s in V2.18)
-  headingSec: 3, // the fighting wing slot, while blending, turns with Lead's heading averaged over the last 3 s (estimate)
-  swapMinSec: 5, // the side swap takes no less than 5 s ... (estimate)
-  swapMaxSec: 12, // ... and no more than 12 s (estimate)
-  swapAccelDps2: 2, // how quickly a wingman can stop a drift across the cone, 2°/s² (estimate)
-  swapMarginDeg: 2, // the stop must be at least 2° past the tail line before he swaps, so he doesn't flick on a line (estimate)
-  swapGuardSec: 4, // no new swap for 4 s after one ends (estimate)
-  // Opening the range in the wingovers' and barrel roll's pulls (Patrick card 5 Oct 01:01Z, "Open his path"; SMM 16.17
-  // para 44's 5 G as an aim, not a wall; TS-60 amendment): on Lead's path at a long distance #2 has to speed up at the
-  // bottom of each pull to keep the distance, which takes him past 5 G. Instead he flies no faster along Lead's path than
-  // keeps him near openGAim, letting the distance open, then closes back to the setting.
-  openGAim: 4.5, // the G he aims to stay under while the range opens: 0.5 G inside the 5 G aim for the turn's own share (estimate)
-  openFadeSec: 2, // the opening is allowed only in those manoeuvres, faded in and out over 2 s (estimate)
-  closeShare: 0.08, // closing back he flies at most 8% faster along Lead's path than Lead did there (about 15-20 KIAS; estimate) ...
-  closeSec: 4, // ... and the last of it dies away over about 4 s (estimate)
-  openSoft: 0.005, // how softly the opening hands over to the closing (the smooth maximum's width; estimate)
-});
 
 /**
  * A value that moves from `from` to `to` over `sec` from t0, arriving with no rate or acceleration left. From rest it is

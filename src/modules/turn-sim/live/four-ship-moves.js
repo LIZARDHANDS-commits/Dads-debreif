@@ -1,7 +1,7 @@
 // Changing formation, 4-ship (Turn Sim spec section 8, decision TS-54; design: project files
 // turn-sim-review/four-ship/design.md sections 4 to 6 and 9). Press a formation and the four fly the manuals'
 // way there from wherever they are, planned at the press: Lead flies ordinary segments, and each wingman's path is a
-// recorded dry run of the 2-ship's tracker (transitions.js runTracker) flying to its slot in the frame of the aircraft
+// recorded dry run of the 2-ship's tracker (tracker.js runTracker) flying to its slot in the frame of the aircraft
 // it flies off, through the same flight step as every other aircraft, so the path drawn is the path flown (spec F1).
 //
 // How it plans.
@@ -20,9 +20,11 @@
 import { STEP_SEC, copyAircraft, planDone } from './flight.js';
 import { relativeTo, turnSeg, wholeDegree, onStep, DEG, TURN_BANK_DEG } from './manoeuvres.js';
 import {
-  recordFlight, trackTwice, flyStep, dryRunT, speedSeg, phase, slide, dropBack, closeThrough, rejoinTo, openOut,
-  REJOIN, straightAhead, sweepOut, stopAt, cornerBehind,
+  recordFlight, flyStep, dryRunT, speedSeg, slide, dropBack, closeThrough, rejoinTo, openOut,
+  straightAhead, sweepOut, stopAt, cornerBehind,
 } from './transitions.js';
+import { REJOIN } from './tuning.js';
+import { trackTwice, phase } from './tracker.js';
 import { isStacked, classify, judge } from './judge.js';
 import { FOUR_FORMATIONS, LENGTH_FT, slotsFor, pairSlot, refsFor, fourWords, FW_STEP_DOWN_FT } from './slots.js';
 
