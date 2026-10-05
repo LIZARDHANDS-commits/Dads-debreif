@@ -13,7 +13,7 @@
 // counter-clockwise). Bank is signed, left wing down positive, so a positive
 // bank turns the heading the positive (left) way.
 import { easeRoll, turnRateFromBankRadPerSec, gFromBankDeg } from '../../../core/flight-math.js';
-import { pitchDegFromClimb, rollWithinT6A } from '../../../core/t6-performance.js';
+import { pitchDegFromClimb, rollWithinT6A, stallLimitG, modelMaxIasT6A, T6A_G_ONSET } from '../../../core/t6-performance.js';
 import { wrapPi, wrapDeg180 } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { powerFor, POWER_BLOCK_FT } from './power.js';
@@ -28,20 +28,62 @@ export { ROLL };
  */
 export const rollLimitAt = (tasFtps, roll = ROLL) => rollWithinT6A(roll, tasFtps / KT_TO_FTPS);
 
+/** Steeper than this the level-turn G (1 / cos bank) is not this model's (a lag roll through the inverted): the gate holds the roll only. */
+const GATE_G_MAX_BANK_DEG = 85;
+
 /**
- * The aircraft's envelope gate for a replayed planned pose (transitions.js flyStep's poseTrack; TS-85, Fable's review item 1):
- * the wings follow the pose's bank at no more than the roll rollLimitAt gives at its speed, the near way round, until they
- * catch it up; the path flown is the pose's. Every other step (a bank track, the tracker, a turn) already rolls under the same
- * limit in stepAircraft, so nothing any planner asks is flown faster than the aircraft rolls. G and speed need no gate here:
- * the planners hold G under the stick shaker and fly speed on full power's model, and a replayed path's G and speed are its
- * own. seg keeps whether the wings are still catching up; bank0, rate0: the aircraft's before the pose.
+ * The envelope gate (refactor PR 1, Fable's plan 23:20Z; ALL-28, Patrick's ruling 22:01Z; TS-93): one step of the wings
+ * rolling toward targetDeg, held inside what a T-6A can do whatever drives the aircraft (a turn, the tracker, a recorded
+ * bank track, a replayed pose, Lead's own turns):
+ *   - roll rate and roll onset: the lower of the pilot's (`roll`) and the T-6A's at this speed (rollLimitAt, core estimates);
+ *   - G onset: rolling steeper never builds the turn's G (1 / cos bank) faster than core T6A_G_ONSET (4 G/s, an estimate),
+ *     so the last of a roll into a steep bank slows down the way a pilot's pull does; rolling out is not held;
+ *   - stall: never steeper than the bank whose G the speed can give (core stallLimitG; 86 KIAS 1 G stall, Patrick's).
+ * A planner may ask for anything; the aircraft flies only this. tasFtps and kias are the aircraft's now. Returns easeRoll's
+ * { bankDeg, rollRateDps }.
+ */
+export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, roll, tasFtps, kias) {
+  const limits = rollLimitAt(tasFtps, roll);
+  // A rate handed in faster than the aircraft rolls (a replayed pose's own) is taken at the aircraft's.
+  const rate0 = Math.max(-limits.maxRateDps, Math.min(limits.maxRateDps, rollRateDps));
+  let target = targetDeg;
+  const gStall = stallLimitG(kias);
+  if (Math.abs(target) < GATE_G_MAX_BANK_DEG && gStall > 1) {
+    const stallBank = (Math.acos(1 / gStall) * 180) / Math.PI;
+    if (Math.abs(target) > stallBank && Math.abs(bankDeg) <= stallBank + 1e-6) target = Math.sign(target) * stallBank;
+  }
+  const steeper = Math.abs(target) > Math.abs(bankDeg) && Math.sign(target) === (Math.sign(bankDeg) || Math.sign(target));
+  if (!steeper || Math.abs(bankDeg) >= GATE_G_MAX_BANK_DEG) return easeRoll(bankDeg, rate0, target, dt, limits);
+  // The roll rate that builds G at the onset limit, read a little ahead (where the roll could still stop), so the rate
+  // eases down inside the roll's own acceleration rather than stopping short.
+  const ahead = Math.min(GATE_G_MAX_BANK_DEG, Math.abs(bankDeg) + (rate0 * rate0) / (2 * limits.maxAccelDps2));
+  const phi = (ahead * Math.PI) / 180;
+  const gRate = Math.tan(phi) / Math.cos(phi); // G per radian of bank
+  const capDps = gRate > 1e-9 ? ((T6A_G_ONSET.maxRateDps / gRate) * 180) / Math.PI : limits.maxRateDps;
+  const r = easeRoll(bankDeg, rate0, target, dt, { maxRateDps: Math.min(limits.maxRateDps, Math.max(capDps, 1)), maxAccelDps2: limits.maxAccelDps2 });
+  // The backstop: this step's G change held to the onset, whatever the look-ahead missed.
+  if (Math.abs(r.bankDeg) > Math.abs(bankDeg) && Math.abs(r.bankDeg) < GATE_G_MAX_BANK_DEG) {
+    const gMax = gFromBankDeg(bankDeg) + T6A_G_ONSET.maxRateDps * dt;
+    if (gFromBankDeg(r.bankDeg) > gMax + 1e-9) {
+      const bank = Math.sign(r.bankDeg) * (Math.acos(1 / gMax) * 180) / Math.PI;
+      return { bankDeg: bank, rollRateDps: (bank - bankDeg) / dt };
+    }
+  }
+  return r;
+}
+
+/**
+ * The envelope gate for a replayed planned pose (transitions.js flyStep's poseTrack): the wings follow the pose's bank
+ * through gateRoll, the near way round, until they catch it up; the path flown is the pose's. seg keeps whether the wings
+ * are still catching up; bank0, rate0: the aircraft's before the pose.
  */
 export function holdToEnvelope(a, seg, p, bank0, rate0) {
-  const roll = rollLimitAt(p.tas);
   const step = wrapDeg180(p.bank - bank0);
-  if (!seg.rollBehind && Math.abs(step) <= roll.maxRateDps * STEP_SEC + 1e-9) return;
-  const r = easeRoll(bank0, rate0, bank0 + step, STEP_SEC, roll);
-  if (Math.abs(wrapDeg180(r.bankDeg - p.bank)) < 1e-6 && Math.abs(r.rollRateDps - p.roll) <= roll.maxAccelDps2 * STEP_SEC) {
+  const r = gateRoll(bank0, rate0, bank0 + step, STEP_SEC, ROLL, p.tas, a.kias);
+  // The pose's own bank is flown when the gate gives it this step (within a roll step's rate change: the pose's roll rate).
+  const within = Math.abs(wrapDeg180(r.bankDeg - p.bank)) < 1e-6 || (Math.abs(step) <= rollLimitAt(p.tas).maxRateDps * STEP_SEC + 1e-9 && !(Math.abs(p.bank) > Math.abs(r.bankDeg) + 1e-6 && Math.abs(p.bank) < GATE_G_MAX_BANK_DEG && gFromBankDeg(p.bank) > gFromBankDeg(bank0) + T6A_G_ONSET.maxRateDps * STEP_SEC + 1e-9));
+  if (!seg.rollBehind && within) return;
+  if (Math.abs(wrapDeg180(r.bankDeg - p.bank)) < 1e-6 && Math.abs(r.rollRateDps - p.roll) <= rollLimitAt(p.tas).maxAccelDps2 * STEP_SEC) {
     seg.rollBehind = false;
     return;
   }
@@ -260,8 +302,9 @@ export function stepAircraft(a, plan, t) {
   }
   // The step's mean true airspeed: the same number when the speed is constant, so nothing else changes.
   const tas = (tasBefore + a.tasFtps) / 2;
-  // A turn segment may roll gentler (a close formation Lead); never faster than the T-6A at this speed (TS-85).
-  const rolled = easeRoll(a.bankDeg, a.rollRateDps, targetBank, dt, rollLimitAt(tasBefore, seg?.roll ?? ROLL));
+  // A turn segment may roll gentler (a close formation Lead); never past the envelope gate (gateRoll: the T-6A's roll at
+  // this speed, TS-85; G onset and stall, TS-93).
+  const rolled = gateRoll(a.bankDeg, a.rollRateDps, targetBank, dt, seg?.roll ?? ROLL, tasBefore, a.kias);
   a.bankDeg = Math.abs(rolled.bankDeg) < 1e-9 ? 0 : rolled.bankDeg;
   a.rollRateDps = Math.abs(rolled.rollRateDps) < 1e-9 ? 0 : rolled.rollRateDps;
   const turned = stepTurnRad(tas, bankBefore, a.bankDeg);
@@ -276,10 +319,14 @@ export function stepAircraft(a, plan, t) {
     // The pull or push of the height change is charged as G (height as energy; until V2.82 a smooth height leg's pull was
     // free, so a 700 ft pop-up in 6 s cost nothing): the turn's sideways share (tan bank, in g) and the vertical share
     // (nz) together, standard mechanics; 1 / cos(bank) in a level turn, nz with the wings level. A push past zero G keeps
-    // its sign (G-warm's push over).
+    // its sign (G-warm's push over). The sign is the lift's, along the wings' up axis (the vertical share times cos bank
+    // plus the sideways share times sin bank), so a banked aircraft easing its descent through zero vertical G keeps
+    // positive G; until V2.92 the sign was the vertical share's alone, a 2 G jump in one step (Fable's review, section 17).
     if (height.nz !== undefined) {
       const side = Math.max(0, a.g * a.g - 1);
-      a.g = Math.sign(height.nz || 1) * Math.sqrt(side + height.nz * height.nz);
+      const b = (Math.abs(a.bankDeg) * Math.PI) / 180;
+      const lift = height.nz * Math.cos(b) + Math.sqrt(side) * Math.sin(b);
+      a.g = Math.sign(lift || 1) * Math.sqrt(side + height.nz * height.nz);
     }
   } else {
     a.climbFtps = 0;
