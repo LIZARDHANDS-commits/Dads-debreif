@@ -25,10 +25,9 @@
 //    A Setup toggle (Patrick, 4 Oct 11:28Z) flies it without the check, as a plain chain.
 //  - Hook: all four turn 180 at 70/3 together (AFM8 brief p.18, SMM 16.45 para 121).
 import { makeAircraft } from './flight.js';
+import { STACK_FT } from './slots.js'; // the brief's stack (AFM8 brief p.14-15), held in the slot table
 import { planManoeuvre, relativeTo, dryRun, exactWaitSec, turnSeg, wholeDegree, unit, dot, onStep, DEG, TURN_BANK_DEG, MANOEUVRES } from './manoeuvres.js';
 
-/** Heights above the formation's block, feet, by aircraft id (AFM8 brief p.14-15: low to high 4, 3, 1, 2; 300 ft stacks). */
-export const STACK_FT = Object.freeze({ 1: 0, 2: 300, 3: -300, 4: -600 });
 
 /** The buttons in the four-ship, in screen order (briefs p.17-18; SMM 16.43 para 118). */
 export const FOUR_SHIP_KEYS = Object.freeze(['delayed90', 'delayed45', 'check', 'inPlace90', 'hook']);
@@ -161,22 +160,4 @@ export function planFour(aircraft, key, dir, t0, { check45 = true } = {}) {
   const m = MANOEUVRES[key];
   if (m.kind === 'delayed') return delayedChain(aircraft, m, dir, t0, check45 && m.turnDeg === 45);
   return allTogether(aircraft, key, dir, t0);
-}
-
-/**
- * Judges every wingman against the aircraft it flies off (SMM 16.42 para 116: #2 and #3 off Lead,
- * #4 off #3) once all four have rolled out. `judgePair` is the formation's own, passed in so
- * the pairs are judged by the same rule as the 2-ship's.
- */
-export function judgeFour(aircraft, spacingFt, shape, judgePair) {
-  const byId = new Map(aircraft.map((a) => [a.id, a]));
-  const ships = aircraft
-    .filter((a) => a.ref != null)
-    .map((a) => {
-      const ref = byId.get(a.ref);
-      return { id: a.id, name: nameOf(a), refName: nameOf(ref), ...judgePair(ref, a, spacingFt, shape) };
-    });
-  const good = (s) => s.labels[0] === 'ON SPACING' || s.labels[0] === 'IN TRAIL';
-  const labels = ships.every(good) ? [shape === 'trail' ? 'IN TRAIL' : 'ON SPACING'] : ships.filter((s) => !good(s)).flatMap((s) => s.labels.map((l) => `${s.name} ${l}`));
-  return { shape, ships, labels };
 }

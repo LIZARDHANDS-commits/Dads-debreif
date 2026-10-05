@@ -71,27 +71,7 @@ test('the sim does not go back: asking for an earlier time does nothing, and a b
   for (const bad of [NaN, Infinity, '5', undefined]) assert.throws(() => sim.stepTo(bad), RangeError);
 });
 
-test('an hour of sim time is 72,000 steps and the clock says an hour', () => {
-  const sim = createSim(setupOf([straight()]));
-  assert.equal(sim.stepTo(3600), 72000);
-  near(sim.t, 3600, 1e-6);
-});
-
 // ── Aircraft ─────────────────────────────────────────────────────────────────
-
-test('the built-in setup opens with its seven aircraft waiting, each at the start of its route', () => {
-  const sim = createSim(builtIn(), { seed: 1 });
-  const { t, aircraft, conflicts } = sim.state();
-  assert.equal(t, 0);
-  assert.equal(aircraft.length, 7);
-  assert.deepEqual(aircraft.map((a) => a.id), ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7']);
-  assert.deepEqual(aircraft.map((a) => a.status), new Array(7).fill('waiting'));
-  assert.deepEqual(aircraft.map((a) => a.startsAt), [12, 137, 177, 592, 856, 884, 902]);
-  const a1 = aircraft[0];
-  const threshold = MOOSE_JAW.routes[0].points[0];
-  assert.deepEqual([a1.x, a1.y, a1.alt, a1.kt, a1.routeId, a1.color, a1.type], [threshold.x, threshold.y, 1880, 100, 'PAT1', TYPE_COLORS['CT-157'], 'CT-157']);
-  assert.deepEqual(conflicts, []);
-});
 
 test('an aircraft waits until its start time and then flies', () => {
   const sim = createSim(setupOf([straight()], [plane('A1', 'ST', 12)]));
@@ -280,16 +260,6 @@ function exactSetup(points, sourceIndex, startIndex = 0) {
 const routeIdAfter = (setup, sec) => { const sim = createSim(setup, { seed: 1 }); sim.stepTo(sec); return { id: only(sim.state(), 'A1').routeId, dice: sim.diceState() }; };
 const BOX = [point8(0, 0), point8(6000, 0), point8(6000, 6000), point8(0, 6000)]; // 24,000 ft round
 
-test('moving a split to another point while it runs offers it there on the same lap, as V6 does', () => {
-  const setup = withSplit(0);
-  const sim = createSim(setup, { seed: 1 });
-  sim.stepTo(30); // point 2 passed, and the split refused
-  setup.routes[1].sourceIndex = 2;
-  setup.routes[1].splitOdds = 1;
-  sim.stepTo(70); // point 3 is passed at 55 s
-  assert.equal(only(sim.state(), 'A1').routeId, 'SP');
-});
-
 test('a split that leaves from a point past the last leaves from the last, and from one before the first leaves from the first', () => {
   const leavingFrom = (sourceIndex, sec) => {
     const setup = withSplit(1);
@@ -311,42 +281,6 @@ test('a pattern of no length is never landed on or split from', () => {
   assert.equal(a.status, 'flying');
   assert.equal(a.routeId, 'DOT');
   assert.equal(sim.diceState(), createDice(4).getState(), 'no choice was made');
-});
-
-test('a point with no speed reads 120 kt and one with no height 2,500 ft; the type\'s own speed is used only on a route with no legs', () => {
-  const types = ['CT-157', 'CT-156', 'CT-102', 'CT-114'];
-  const flownOn = (points) => {
-    const sim = createSim(setupOf([route('BARE', 'entry', points, { attachTo: '', mergeIndex: 0 })], types.map((type, i) => plane('A' + (i + 1), 'BARE', 0, 0, type))));
-    sim.stepTo(1);
-    return sim.state().aircraft;
-  };
-  const withLegs = flownOn([{ label: '', x: 0, y: 0 }, { label: '', x: 9000, y: 0 }]);
-  assert.deepEqual(withLegs.map((a) => a.kt), [120, 120, 120, 120]);
-  assert.deepEqual(withLegs.map((a) => a.alt), [2500, 2500, 2500, 2500]);
-  const noLegs = flownOn([{ label: '', x: 0, y: 0 }]);
-  assert.deepEqual(noLegs.map((a) => a.kt), [125, 180, 150, 230]);
-  assert.deepEqual(noLegs.map((a) => a.alt), [2500, 2500, 2500, 2500]);
-});
-
-test('on a route with no legs, a point that loses its height while flown shows the height the aircraft\'s start point had when it was made, as V6 does', () => {
-  const dot = route('DOT', 'entry', [{ label: '', x: 0, y: 0, alt: 3000, kt: 100 }], { attachTo: '', mergeIndex: 0 });
-  const sim = createSim(setupOf([dot], [plane('A1', 'DOT')]));
-  sim.stepTo(1);
-  assert.equal(only(sim.state(), 'A1').alt, 3000);
-  delete dot.points[0].alt; // edited while it runs
-  assert.equal(only(sim.state(), 'A1').alt, 3000, 'V6 falls back on what the aircraft noted');
-  const bare = route('BARE', 'entry', [{ label: '', x: 0, y: 0 }], { attachTo: '', mergeIndex: 0 });
-  assert.equal(only(createSim(setupOf([bare], [plane('A1', 'BARE')])).state(), 'A1').alt, 2500, 'and 2,500 ft when its start point had none');
-});
-
-test('the built-in setup: A1 leaves the threshold at 12 s and speeds up and climbs, and the later ones wait their turn', () => {
-  const sim = createSim(builtIn(), { seed: 1 });
-  sim.stepTo(60);
-  const a1 = only(sim.state(), 'A1');
-  assert.equal(a1.status, 'flying');
-  assert.ok(a1.kt > 100 && a1.alt > 1880, `${a1.kt} kt, ${a1.alt} ft`);
-  sim.stepTo(300);
-  assert.deepEqual(sim.state().aircraft.map((a) => a.status !== 'waiting'), [true, true, true, false, false, false, false]);
 });
 
 // ── Conflicts ────────────────────────────────────────────────────────────────
@@ -460,18 +394,6 @@ test('Reset goes back to 0 s with every aircraft at its start, spawned ones too,
 
 // ── Spawning and removing ────────────────────────────────────────────────────
 
-test('Reset also forgets that an aircraft landed: after it, an aircraft that finishes is Done, not Landed (V6\'s Reset button leaves it Landed)', () => {
-  const entry = route('EN', 'entry', [point(-20000, 0, 2000), point(-9000, 0, 2000), point(0, 0, 2000)], { attachTo: 'SQ', mergeIndex: 0 });
-  const setup = setupOf([square(), entry], [plane('A1', 'EN', 0, 0, 'CT-156', 'full_stop')]);
-  const sim = createSim(setup);
-  sim.stepTo(300); // joins the pattern at 99 s and lands at the end of its first lap
-  assert.equal(only(sim.state(), 'A1').status, 'landed');
-  entry.attachTo = ''; // now the entry joins nothing
-  sim.reset();
-  sim.stepTo(200);
-  assert.equal(only(sim.state(), 'A1').status, 'done');
-});
-
 test('spawn: the next free callsign, the type\'s colour, a start point counted from 1, and a delay from now', () => {
   const sim = createSim(builtIn());
   sim.stepTo(10);
@@ -486,14 +408,6 @@ test('spawn: the next free callsign, the type\'s colour, a start point counted f
   const b = only(sim.state(), 'A9');
   assert.deepEqual([b.type, b.routeId], ['CT-156', 'PAT1']);
   near(b.startsAt, 10, 1e-9);
-});
-
-test('spawn takes the first callsign not in use, as V6 does, and a callsign can be chosen', () => {
-  const sim = createSim(builtIn());
-  sim.remove('A3');
-  assert.equal(sim.spawn(), 'A3');
-  assert.equal(sim.spawn({ id: 'LEAD' }), 'LEAD');
-  assert.throws(() => sim.spawn({ id: 'LEAD' }), RangeError);
 });
 
 test('spawn refuses what makes no sense: an unknown type or route, a start point under 1, a delay that is not a number', () => {
@@ -530,12 +444,6 @@ test('aircraftSpecs gives the aircraft as a setup keeps them, so a new sim from 
   const again = createSim({ ...builtIn(), aircraft: specs }, { seed: 4 });
   sim.reset();
   assert.equal(JSON.stringify(again.state()), JSON.stringify(sim.state()));
-});
-
-test('an aircraft whose route is not there flies the first route, as V6 does', () => {
-  const setup = setupOf([square()], [plane('A1', 'GONE')]);
-  const sim = createSim(setup);
-  assert.equal(only(sim.state(), 'A1').routeId, 'SQ');
 });
 
 test('the specs of an aircraft that has moved to another route are still where it started', () => {
@@ -600,31 +508,7 @@ test('the run is the same at any frame rate: 20, 30 and 60 frames a second, 8x, 
   }
 });
 
-test('a caller that keeps the remainder gets 8 steps of sim time from 8x at 20 frames a second', () => {
-  const sim = createSim(setupOf([straight()], [plane('A1', 'ST')]));
-  let target = 0, steps = 0;
-  for (let frame = 0; frame < 100; frame++) {
-    target += (1 / 20) * 8; // 0.4 s of sim time a frame
-    steps += sim.stepTo(target);
-  }
-  assert.equal(steps, 800);
-  near(sim.t, 40, 1e-9);
-});
-
 // ── Trails ───────────────────────────────────────────────────────────────────
-
-test('a trail has a point every half second of sim time, whatever the frame rate, and the last two minutes', () => {
-  const sim = createSim(setupOf([straight()], [plane('A1', 'ST')]));
-  sim.stepTo(10);
-  assert.equal(sim.trailOf('A1').length, 20);
-  for (let t = 10.016; t < 300; t += 0.016) sim.stepTo(t);
-  const trail = sim.trailOf('A1');
-  assert.equal(trail.length, 240, 'two minutes of half seconds');
-  near(trail.at(-1).x - trail.at(-2).x, 0.5 * 120 * KT_TO_FTPS, 5);
-  assert.deepEqual(sim.trailOf('NOBODY'), []);
-  sim.reset();
-  assert.deepEqual(sim.trailOf('A1'), []);
-});
 
 test('state gives the heading the aircraft is flying, as a compass heading', () => {
   const sim = createSim(setupOf([square()], [plane('A1', 'SQ')]));

@@ -12,7 +12,7 @@ import {
   loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addLights, addSky, disposeAircraftMesh,
 } from '../../ui-kit/three-aircraft.js';
 import { drawTags, T6_LENGTH_FT } from './view.js';
-import { FW_TURN } from './live/formation-turns.js';
+import { FW_TURN } from './live/tuning.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH } from '../../ui-kit/ct156-model.js';
 

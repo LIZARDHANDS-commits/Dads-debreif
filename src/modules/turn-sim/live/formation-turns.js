@@ -20,22 +20,12 @@
 // too: planCloseTurn, below. planFormationTurn picks the planner for the formation the aircraft are in.
 import { STEP_SEC, copyAircraft } from './flight.js';
 import { MANOEUVRES, relativeTo, DEG } from './manoeuvres.js';
-import { recordFlight, trackTwice, phase, flyStep, dryRunT } from './transitions.js';
+import { recordFlight, flyStep, dryRunT } from './transitions.js';
+import { trackTwice, phase } from './tracker.js';
 import { smoothest, makeTrack, seedTrack, posesFrom, settleLast, laggedBank, followInto } from './kinematic.js';
-import { leadTurnSegs, rollEvents, eventsEnd, KINEMATIC } from './kinematic-moves.js';
+import { leadTurnSegs, rollEvents, eventsEnd } from './kinematic-moves.js';
+import { KINEMATIC, FW_TURN, FW_FOLLOW } from './tuning.js';
 import { G_FTPS2 } from '../../../core/units.js';
-
-/** The numbers of the fighting wing turns. Estimates unless a source is given. */
-export const FW_TURN = Object.freeze({
-  gentleBankDeg: 30, // Lead's bank for a turn of 30° or less (the check turn): gentle (AFM7 brief p.14 item 5a)
-  turnBankDeg: 45, // Lead's bank for the bigger turns: moderate, so #2 collapses (item 5b); 1.4 G level
-  collapseFromDeg: 32, // #2 starts collapsing once Lead's bank passes this ...
-  collapseFullDeg: 42, // ... and goes all the way to Lead's six by this
-  band: { minFt: 500, maxFt: 1000, minSweepDeg: 30, maxSweepDeg: 60 }, // SMM 12.29 para 69, Fig 12.19
-  aimInsideFt: 50, // when #2 has to move back into the band, it aims this far inside its edge in range ...
-  aimInsideDeg: 5, // ... and in sweep, so it ends clearly in it (the shared ±100 ft and ±5° margins would also pass the edge)
-  turnDeg: { check: 20, delayed45: 45, delayed90: 90, inPlace90: 90, hook: 180 }, // each turn button's turn, in fighting wing
-});
 
 /** The turn buttons that fly in fighting wing (spec section 10); the shackle and the cross turn stay line abreast moves. */
 export const FW_TURN_KEYS = Object.freeze(Object.keys(FW_TURN.turnDeg));
@@ -74,23 +64,6 @@ function sweepOf(q) {
   return Math.atan2(-q.fwd, Math.max(Math.abs(q.left), 1e-6)) / DEG;
 }
 
-
-/** The tracker's settings for a wingman following its goal in a fighting wing turn (estimates; the bank cap is flagged on screen, never a wall). */
-const FW_FOLLOW = Object.freeze({
-  goalTolFt: 3,
-  fwdRate: 40,
-  latRate: 60,
-  vrel0: 30,
-  kcap: 0.05,
-  d0: 100,
-  vrelMax: 120,
-  decel: 2,
-  bankCapDeg: 60,
-  overtakeKias: 15, // power only a little: geometry does the rest (Patrick 19:12Z)
-  undertakeKias: 15,
-  advanceTol: 25,
-  finalTol: 6,
-});
 
 const NAMES = Object.freeze({ 1: 'Lead', 2: '#2', 3: '#3', 4: '#4' });
 /** The wingmen in an order where the aircraft each flies off comes first (#4 off #3 after #3, SMM 16.37 para 103). */

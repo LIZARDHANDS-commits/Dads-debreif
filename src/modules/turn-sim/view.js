@@ -11,7 +11,7 @@ import { turnRadiusFt, turnRadiusFromBankFt, limitG, MIN_TURN_G } from '../../co
 import { ktToFtps, formatNm } from '../../core/units.js';
 import { pairDistances, ft } from './readouts.js';
 import { SHIP_COLORS, OUTLINED_SHIPS } from './layout.js';
-import { FW_TURN } from './live/formation-turns.js';
+import { FW_TURN } from './live/tuning.js';
 
 const FT_PER_NM = 6076.11549;
 const BACKGROUND = '#071018'; // V6's

@@ -29,8 +29,10 @@
 // End pictures only; no time gates. Margins are the shared table's (±100 ft, ±5°) unless a check says why.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createFormation, judgePair, LIVE_DEFAULTS } from '../../../src/modules/turn-sim/live/formation.js';
-import { judgeFour, FOUR_SHIP_KEYS, STACK_FT } from '../../../src/modules/turn-sim/live/four-ship.js';
+import { createFormation, LIVE_DEFAULTS } from '../../../src/modules/turn-sim/live/formation.js';
+import { judgePair, judgeFour } from '../../../src/modules/turn-sim/live/judge.js';
+import { FOUR_SHIP_KEYS } from '../../../src/modules/turn-sim/live/four-ship.js';
+import { STACK_FT } from '../../../src/modules/turn-sim/live/slots.js';
 import { relativeTo, TURN_BANK_DEG, CHECK_DEG } from '../../../src/modules/turn-sim/live/manoeuvres.js';
 import { ROLL, STEP_SEC } from '../../../src/modules/turn-sim/live/flight.js';
 import { turnRateFromBankRadPerSec } from '../../../src/core/flight-math.js';

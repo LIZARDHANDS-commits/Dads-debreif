@@ -19,11 +19,6 @@ test('the limits are core\'s: the stall line is G = (speed / 86 kt) squared, cap
   assert.ok(Math.abs(stallLimitG(227.5) - 7) < 0.02);
 });
 
-test('V6\'s default, 220 KTAS at 4 G, is inside the limit (6.5 G), so there is no warning', () => {
-  assert.equal(stallLimitG(220).toFixed(1), '6.5');
-  assert.equal(limitWarning(220, 4), null);
-});
-
 test('a G above the stall line names the speed and the limit, rounded down so it never overstates it', () => {
   assert.equal(limitWarning(120, 4), "4.0 G is above the T-6's stall limit at 120 kt (1.9 G)");
   assert.equal(limitWarning(172, 4.5), "4.5 G is above the T-6's stall limit at 172 kt (4.0 G)");

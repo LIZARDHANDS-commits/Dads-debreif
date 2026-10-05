@@ -10,11 +10,7 @@
 import { globSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
-const SIGN_OFF_ONLY = [
-  // Traffic replay invariant (TP7). Never finished at the reset (300 s limit);
-  // docs/modules/traffic/testing.md, "The rewind hang".
-  'tests/unit/traffic/rewind.test.js',
-];
+const SIGN_OFF_ONLY = [];
 
 const all = process.argv.includes('--all');
 const files = globSync(['tests/unit/**/*.test.js', 'tests/crosscheck/**/*.test.js'])

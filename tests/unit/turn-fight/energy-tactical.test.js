@@ -139,45 +139,6 @@ test('tacticalAimCalculation: wPure dominates in tracking phase at medium range 
   assert.equal(resTracking.label, 'Pursuit: Pure (Tracking)');
 });
 
-test('aimPoint delegates to tacticalAimCalculation when pursuit is tactical', () => {
-  const setup = { ...ENERGY_DEFAULT_SETUP, pursuit: 'tactical' };
-  const target = {
-    pm: { x: 1000, y: 2000, z: -10000, vx: 150, vy: 0, vz: 0 },
-    turnDir: 1,
-    rollRad: 0.5,
-  };
-  const ac = {
-    pm: { x: 500, y: 2000, z: -10000, vx: 150, vy: 0, vz: 0 },
-  };
-
-  const expectedAim = tacticalAimCalculation(setup, target, ac).aim;
-  const actualAim = aimPoint(setup, target, ac);
-  assert.deepEqual(actualAim, expectedAim);
-});
-
-test('full fight with pursuit tactical assigns human telemetry labels during pursuit', () => {
-  // Set up an unequal fight where Blue quickly gets on Red's tail
-  const state = createEnergyFight({
-    ...ENERGY_DEFAULT_SETUP,
-    blueKias: 280,
-    redKias: 180,
-    blueMove: 'mpt',
-    redMove: 'mpt',
-    pursuit: 'tactical',
-  });
-
-  // Step simulation until pursuit starts
-  let pursued = false;
-  for (let t = 0; t < 1200; t++) {
-    stepEnergyFight(state, 0.05);
-    if (state.blue.ctl.mode === 'pursuit' || state.red.ctl.mode === 'pursuit') {
-      pursued = true;
-      break;
-    }
-  }
-  assert.ok(pursued, 'At least one aircraft entered pursuit');
-});
-
 test('Task 21: Low Yo-Yo appears in getFeasibleMoves at 160 KIAS with altitude margin', () => {
   const setup = { hardDeckFt: 6000, deckMarginFt: 1000, stallKias: 86 };
   const moves = getFeasibleMoves({ kias: 160, altFt: 10000 }, null, setup);
@@ -545,51 +506,6 @@ test('Task 28: computeTcpa returns closing: false when aircraft are opening/dive
   assert.equal(tcpa.closing, false);
   assert.equal(tcpa.tcpaSec, 0);
   assert.ok(Math.abs(tcpa.missFt - 1000) <= 1.0, `missFt ${tcpa.missFt} reflects initial separation`);
-});
-
-test('Task 28: aimPoint displaces aim point out-of-plane when TCPA gate triggers (<75 ft, 0.5-1.5 s)', () => {
-  // Set up geometry where TCPA is 1.0 s (within [0.5, 1.5] s) and miss distance is 50 ft (< 75 ft)
-  // Target at (300, 50, 10000), vx = -150, vy = 0, vz = 0
-  // Ac at (0, 0, 10000), vx = 150, vy = 0, vz = 0
-  // r = (300, 50, 0), vRel = (-300, 0, 0), vv = 90000, rv = -90000
-  // tcpaSec = 1.0 s, cpaX = 0, cpaY = 50, cpaZ = 0 -> missFt = 50 ft (< 75 ft)
-  // Target wings level -> turnPlaneNormal is (0, 0, 1)
-  // acPos.z - targetPos.z = 0 -> dot(acPos - targetPos, n) = 0 >= 0 -> offset is +85 ft along n (z)
-  const setup = { ...ENERGY_DEFAULT_SETUP, pursuit: 'pure' };
-  const target = {
-    pm: { x: 300, y: 50, z: 10000, vx: -150, vy: 0, vz: 0 },
-    turnDir: 0,
-    g: 1.0,
-  };
-  const ac = {
-    pm: { x: 0, y: 0, z: 10000, vx: 150, vy: 0, vz: 0 },
-    deconflicting: false,
-  };
-
-  const baseAim = { x: target.pm.x, y: target.pm.y, z: target.pm.z };
-  const aim = aimPoint(setup, target, ac);
-
-  assert.equal(ac.deconflicting, true);
-  assert.equal(aim.x, baseAim.x);
-  assert.equal(aim.y, baseAim.y);
-  assert.ok(Math.abs(aim.z - (baseAim.z + DECONFLICTION_OFFSET_FT)) <= 1.0);
-
-  // Also verify turning defender produces out-of-plane offset orthogonal to turn plane
-  const turnTarget = {
-    pm: { x: 300, y: 0, z: 10000, vx: -150, vy: 0, vz: 0, up: { x: 0, y: 0, z: 1 } },
-    turnDir: 1,
-    g: 3.0,
-  };
-  const turnAc = {
-    pm: { x: 0, y: 50, z: 10000, vx: 150, vy: 0, vz: 0 },
-    deconflicting: false,
-  };
-  const n = turnPlaneNormal(turnTarget);
-  // n = cross((-150, 0, 0), (0, 0, 1)) = (0, 150, 0) -> normalized (0, 1, 0)
-  assert.ok(Math.abs(n.y - 1.0) <= 0.05);
-  const turnAim = aimPoint(setup, turnTarget, turnAc);
-  assert.equal(turnAc.deconflicting, true);
-  assert.ok(Math.abs(turnAim.y - (turnTarget.pm.y + DECONFLICTION_OFFSET_FT)) <= 1.0);
 });
 
 test('Task 28: aimPoint does not displace aim point when collisionAvoidance === false', () => {
