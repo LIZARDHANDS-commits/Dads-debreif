@@ -56,6 +56,9 @@ export const SCENARIOS = Object.freeze([
 /** The scenarios that make a new picture each time they load; the drop-down gives them a "New picture" button. */
 export const RESHUFFLED = Object.freeze(['busy', 'random']);
 
+/** Random orders tried at each spacing before the spacing is halved (an engineering choice: cheap, and enough). */
+const SHUFFLE_TRIES = 40;
+
 /**
  * Five starts at random points of the routes (patterns and entries, not splits), at least RANDOM_SPACING_FT
  * apart over the ground; an entry's last point is left out, as it is a point of the pattern it joins.
@@ -71,18 +74,32 @@ export function randomStarts(routes, seed, count = RANDOM_COUNT, { only = null, 
     const last = r.kind === 'entry' ? r.points.length - 1 : r.points.length;
     for (let i = 0; i < last; i++) spots.push({ routeId: r.id, startIndex: i, x: r.points[i].x, y: r.points[i].y });
   }
-  for (let i = spots.length - 1; i > 0; i--) { // Fisher-Yates with the seeded dice
-    const j = Math.floor(dice() * (i + 1));
-    [spots[i], spots[j]] = [spots[j], spots[i]];
-  }
+  const shuffle = () => {
+    for (let i = spots.length - 1; i > 0; i--) { // Fisher-Yates with the seeded dice
+      const j = Math.floor(dice() * (i + 1));
+      [spots[i], spots[j]] = [spots[j], spots[i]];
+    }
+  };
+  const pickAt = (spacing) => {
+    const out = [];
+    for (const s of spots) {
+      if (out.length >= count) break;
+      if ([...avoid, ...out].every((p) => Math.hypot(p.x - s.x, p.y - s.y) >= spacing)) out.push(s);
+    }
+    return out;
+  };
+  // A few shuffles at each spacing before it is halved: on the true-scale map (TR-67) the points are closer, and
+  // the first random order often misses a set that fits.
+  const want = Math.min(count, spots.length);
   let picked = [];
   for (let spacing = RANDOM_SPACING_FT; spacing >= 1; spacing /= 2) {
     picked = [];
-    for (const s of spots) {
-      if (picked.length >= count) break;
-      if ([...avoid, ...picked].every((p) => Math.hypot(p.x - s.x, p.y - s.y) >= spacing)) picked.push(s);
+    for (let tries = 0; tries < SHUFFLE_TRIES && picked.length < want; tries++) {
+      shuffle();
+      const got = pickAt(spacing);
+      if (got.length > picked.length) picked = got;
     }
-    if (picked.length >= Math.min(count, spots.length)) break;
+    if (picked.length >= want) break;
   }
   return picked.map(({ routeId, startIndex }) => ({ routeId, startIndex, startsAtSec: 0 }));
 }

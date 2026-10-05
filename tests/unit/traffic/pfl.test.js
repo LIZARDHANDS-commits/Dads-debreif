@@ -6,7 +6,7 @@
 // Expected values: end results only (on the runway, ejected, back in the circuit); clean glide 2 NM per 1,000 ft
 //   (T-6A max glide chart; SMM 13.5 para 7); start points are the circuit's own points and spec 4.5's keys; the
 //   step limit and the 10 minute safety stop have their reasons beside them; touchdown in the first third of the
-//   runway (Patrick 4 Oct 09:49Z).
+//   runway (Patrick 4 Oct 09:49Z), or within 2,600 ft on the true-length runway for now (Patrick 5 Oct 02:01Z).
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -68,6 +68,9 @@ test('PFL: from each failure point with the height for it, it glides to the runw
 
 test('PFL: on profile at High Key or Low Key, or high at High Key, it touches down in the first third of the runway (spec 4.5 items 7, 13)', () => {
   const geo = pflGeometry();
+  // The first third of the true-length runway is about 2,420 ft (TR-67). Patrick, 5 Oct 02:01Z: accept up to 2,600 ft
+  // for now (Low Key in 20 kt from 208° lands at about 2,550 ft) and tune the PFL later (Traffic future list).
+  const TOUCHDOWN_LIMIT_FT = Math.max(geo.lenFt / 3, 2600);
   const lowKey = geo.at(180);
   // SMM key heights: High Key 5,000 ft, Low Key 3,700 ft MSL.
   const keys = {
@@ -80,7 +83,7 @@ test('PFL: on profile at High Key or Low Key, or high at High Key, it touches do
     for (const [name, start] of Object.entries(keys)) {
       const r = flyPfl(start, wind);
       assert.equal(r.outcome, 'landed', `${name}, ${wind.windKt} kt from ${wind.windFromDeg}: ${r.outcome}`);
-      assert.ok(r.touchdown.alongFt <= geo.lenFt / 3, `${name}, ${wind.windKt} kt from ${wind.windFromDeg}: touched down ${Math.round(r.touchdown.alongFt)} ft down the runway`);
+      assert.ok(r.touchdown.alongFt <= TOUCHDOWN_LIMIT_FT, `${name}, ${wind.windKt} kt from ${wind.windFromDeg}: touched down ${Math.round(r.touchdown.alongFt)} ft down the runway`);
     }
   }
 });

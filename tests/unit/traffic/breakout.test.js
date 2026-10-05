@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { ENT1_TRACK_DEG, ENT1_ROUTE, calcCrossTrackENT1 } from '../../../src/modules/traffic/breakout.js';
+import { ENT1_TRACK_DEG, ENT1_ROUTE, REJOIN_INTERCEPT_PT, calcCrossTrackENT1 } from '../../../src/modules/traffic/breakout.js';
 import { createSim } from '../../../src/modules/traffic/sim.js';
 import { routeLengthFt, closestDistFt } from '../../../src/modules/traffic/route.js';
 import { wrapDeg180 } from '../../../src/core/angles.js';
@@ -71,7 +71,7 @@ test('a breakout off the rejoin line turns away from the pattern, and an 80° on
   sim.stepTo(26);
   assert.ok(wrapDeg180(sim.state().aircraft[0].headingDeg - h0) > 5, 'it turns right, away from the pattern');
 
-  const path = buildBreakout({ x: 10256, y: -38141, alt: 3500, kias: 220, headingDeg: ENT1_TRACK_DEG, bankDeg: 0 }, { windFromDeg: 260, windKt: 15 }, ent1, gateLegOf(ent1), BREAKOUT_TRAFFIC_BANK_DEG, 'right');
+  const path = buildBreakout({ ...REJOIN_INTERCEPT_PT, alt: 3500, kias: 220, headingDeg: ENT1_TRACK_DEG, bankDeg: 0 }, { windFromDeg: 260, windKt: 15 }, ent1, gateLegOf(ent1), BREAKOUT_TRAFFIC_BANK_DEG, 'right');
   assert.ok(path.every((p) => p.g <= stallLimitG(p.kt) + 0.1), 'never past the stall line');
   assert.ok(Math.max(...path.map((p) => p.g)) > 3, 'it pulls hard when it can');
   assert.ok(Math.min(...path.map((p) => p.kt)) < 220 - 10, 'the hard turn costs speed');

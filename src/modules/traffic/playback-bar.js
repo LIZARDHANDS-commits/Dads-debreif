@@ -15,6 +15,7 @@
 import { h } from '../../ui-kit/dom.js';
 import { DEFAULTS, SPEEDS, LIMITS, RUNWAYS, DEFAULT_RUNWAY } from './defaults.js';
 import { TRAFFIC_VERSION } from './version.js';
+import { trueToMagnetic, magneticToTrue } from './airfield.js';
 
 /** The layers, in the order the Layers menu lists them (the spec's Layers row). `needs` is a feature that has to exist. */
 export const LAYER_ITEMS = Object.freeze([
@@ -142,6 +143,42 @@ export function createMenu({ label, children = [], listen }) {
 }
 
 /**
+ * The Wind from box in degrees magnetic (Patrick's card, 5 Oct 01:39Z), like the wind dial (TR-65): it shows and takes
+ * °M, 1-360, and the setting it writes stays in true, as the engine reads it. It looks and checks like the ui-kit's
+ * number box: a good number goes straight to the setting while typing, a bad one gets the message on Enter or leaving.
+ */
+function magneticWindBox(settings) {
+  const id = 'traffic-wind-from-mag';
+  const messageId = `${id}-message`;
+  const input = h('input', { type: 'number', id, min: 1, max: 360, step: 1, inputmode: 'decimal', 'aria-describedby': messageId });
+  const message = h('span', { class: 'control-message', id: messageId });
+  const read = () => {
+    if (input.validity?.badInput || input.value.trim() === '') return null;
+    const n = Number(input.value);
+    return Number.isFinite(n) && n >= 1 && n <= 360 ? n : null;
+  };
+  const setInvalid = (invalid) => {
+    if (invalid) input.setAttribute('aria-invalid', 'true');
+    else input.removeAttribute('aria-invalid');
+    message.textContent = invalid ? 'Enter a number from 1 to 360°M.' : '';
+  };
+  input.addEventListener('input', () => {
+    const n = read();
+    if (n === null) return;
+    setInvalid(false);
+    settings.update({ windFromDeg: magneticToTrue(n) });
+  });
+  input.addEventListener('change', () => setInvalid(read() === null));
+  const sync = (values) => {
+    const mag = trueToMagnetic(values.windFromDeg);
+    if (read() !== mag) input.value = String(mag);
+  };
+  sync(settings.get());
+  settings.subscribe(sync);
+  return h('div', { class: 'control control-number' }, h('label', { for: id }, 'Wind from'), input, h('span', { class: 'control-unit' }, '°M'), message);
+}
+
+/**
  * controls: ui-kit controls bound to the traffic settings (wind, layers, 2D | 3D).
  * on: { play, pause, reset, speed(x), fit, fitAll?, rewind?, step?(seconds) }.
  * available: { wind, view3d, photo, reach }, each true once that feature is on the screen.
@@ -198,7 +235,7 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
     ? h(
       'div',
       { class: 'bar-wind', role: 'group', 'aria-label': 'Wind' },
-      controls.number('windFromDeg', { label: 'Wind from', unit: '°T', min: LIMITS.windFromDeg[0], max: LIMITS.windFromDeg[1], step: 1 }),
+      settings?.subscribe ? magneticWindBox(settings) : controls.number('windFromDeg', { label: 'Wind from', unit: '°T', min: LIMITS.windFromDeg[0], max: LIMITS.windFromDeg[1], step: 1 }),
       controls.number('windKt', { label: 'Wind speed', unit: 'kt', min: LIMITS.windKt[0], max: LIMITS.windKt[1], step: 1 }),
     )
     : null;

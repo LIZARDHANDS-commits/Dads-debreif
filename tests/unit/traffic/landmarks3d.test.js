@@ -10,6 +10,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadThree } from '../../../src/ui-kit/three-aircraft.js';
 import { CYMJ_LANDMARKS, createLandmarks, disposeLandmarks, createWindsocks, updateWindsocks, disposeWindsocks, HWY2_POINTS } from '../../../src/modules/traffic/landmarks3d.js';
+import { THRESHOLD_29L, DOWNWIND_29L_HDG_DEG } from '../../../src/modules/traffic/airfield.js';
 
 const THREE = await loadThree();
 const NM = 6076;
@@ -26,8 +27,8 @@ test('every landmark has a source and sits south/east of the field within 6 NM',
 
 test('Window Farm lies on the 29L extended centreline within 0.15 NM', () => {
   const w = CYMJ_LANDMARKS.find((l) => l.id === 'window-farm');
-  const thr = { x: 3104, y: -3194 };
-  const u = { x: Math.sin((118 * Math.PI) / 180), y: Math.cos((118 * Math.PI) / 180) };
+  const thr = THRESHOLD_29L;
+  const u = { x: Math.sin((DOWNWIND_29L_HDG_DEG * Math.PI) / 180), y: Math.cos((DOWNWIND_29L_HDG_DEG * Math.PI) / 180) };
   const dx = w.x - thr.x; const dy = w.y - thr.y;
   const cross = Math.abs(dx * u.y - dy * u.x);
   assert.ok(cross < 0.15 * NM, `cross-track ${Math.round(cross)} ft`);
@@ -98,7 +99,9 @@ test('missing or NaN wind is calm and never NaN', () => {
   disposeWindsocks(g);
 });
 
-test('Hwy 2 passes within 800 ft of Window Farm and Sukanen Ship references', () => {
+// Expected from Esri's true-scale photo (TR-67): the road is about 400 ft west of Window Farm's pin and about 1,000 ft
+// east of the Sukanen Ship's red roof; 1,200 ft allows for the pins and the photo reading.
+test('Hwy 2 passes within 1,200 ft of Window Farm and Sukanen Ship references', () => {
   const distToLine = (px, py) => {
     let best = Infinity;
     for (let i = 1; i < HWY2_POINTS.length; i++) {
@@ -109,8 +112,9 @@ test('Hwy 2 passes within 800 ft of Window Farm and Sukanen Ship references', ()
     }
     return best;
   };
-  assert.ok(distToLine(6100, -4324) < 800);
-  assert.ok(distToLine(4677, -17956) < 800);
+  const near = (id) => { const l = CYMJ_LANDMARKS.find((m) => m.id === id); return distToLine(l.x, l.y); };
+  assert.ok(near('window-farm') < 1200, `Window Farm ${Math.round(near('window-farm'))} ft`);
+  assert.ok(near('sukanen-ship') < 1200, `Sukanen Ship ${Math.round(near('sukanen-ship'))} ft`);
   assert.ok(HWY2_POINTS[0][1] >= 8000 && HWY2_POINTS.at(-1)[1] <= -30000);
 });
 

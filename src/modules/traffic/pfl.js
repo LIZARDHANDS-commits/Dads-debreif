@@ -28,7 +28,7 @@ import { legOffsetsFt } from '../../core/geo.js';
 import { makePilot, bankFor, PILOT_DT } from './circuit.js';
 import { startJoin } from './path-follower.js';
 import { routeLengthFt } from './route.js';
-import { THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_DATA_ELEV_FT, PFL_CIRCLE_RADIUS_FT, PFL_KEY_ALT_FT } from './airfield.js';
+import { THRESHOLD_29L, DEPARTURE_END_29L, RUNWAY_29L_HDG_DEG, THRESHOLD_DATA_ELEV_FT, PFL_CIRCLE_RADIUS_FT, PFL_KEY_ALT_FT } from './airfield.js';
 
 /** The PFL's flying numbers, each with its source. Orders and SMM numbers are defaults, not walls. */
 export const PFL = Object.freeze({
@@ -887,7 +887,7 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
  * (a missed gate goes around). Sets a.pflFlight, a.pflDecision and a.config.
  */
 export function startPflFlight(a, wind, options = {}) {
-  const flight = flyPfl({ x: a.x, y: a.y, alt: a.alt, kias: a.iasKt ?? a.kt ?? 125, headingDeg: a.headingDeg ?? 298, bankDeg: a.bankDeg, rollRateDps: a.rollRateDps }, wind, options);
+  const flight = flyPfl({ x: a.x, y: a.y, alt: a.alt, kias: a.iasKt ?? a.kt ?? 125, headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG, bankDeg: a.bankDeg, rollRateDps: a.rollRateDps }, wind, options);
   a.pflFlight = {
     route: { id: 'PFL_FLOWN', kind: 'flown', name: 'Engine-out glide', points: flight.points },
     outcome: flight.outcome, touchdown: flight.touchdown, eject: flight.eject, gate: flight.gate, practice: Boolean(options.practice),
@@ -958,7 +958,7 @@ function flownBehind(a, first, wind) {
   const omegaDeg = Number.isFinite(a.bankDeg) ? turnRateFromBankRadPerSec(Math.max(tasFtps, 1), a.bankDeg) * 180 / Math.PI : 0;
   const w = { x: -Math.sin((wind?.windFromDeg ?? 360) * DEG) * ktToFtps(wind?.windKt ?? 0), y: -Math.cos((wind?.windFromDeg ?? 360) * DEG) * ktToFtps(wind?.windKt ?? 0) };
   const pts = [];
-  let x = a.x, y = a.y, hdg = a.headingDeg ?? 298;
+  let x = a.x, y = a.y, hdg = a.headingDeg ?? RUNWAY_29L_HDG_DEG;
   const dt = 0.4;
   for (let k = 0; k < 8; k++) {
     // Back one step: undo the turn, then the move.

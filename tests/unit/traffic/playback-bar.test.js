@@ -365,22 +365,27 @@ function withRealControls(options = {}) {
 const numberBoxes = (bar) => tagged(bar.element, 'INPUT').filter((i) => i.getAttribute('type') === 'number');
 const messages = (bar) => all(bar.element, (n) => n.getAttribute?.('class') === 'control-message');
 
+// Wind from reads in °M (Patrick's card, 5 Oct 01:39Z; 9° East, TR-65), and the setting stays true.
 test('the wind boxes start at the default wind, take a good wind into the settings, and refuse the rest with a message', () => {
   const { bar, settings } = withRealControls();
   const [from, speed] = numberBoxes(bar);
-  assert.deepEqual([from.value, speed.value], [String(DEFAULTS.windFromDeg), String(DEFAULTS.windKt)]);
+  assert.deepEqual([from.value, speed.value], [String(DEFAULTS.windFromDeg - 9), String(DEFAULTS.windKt)]);
+  assert.ok(words(bar.element).includes('°M'), 'the direction says magnetic');
 
   from.value = '250';
   from.dispatch('input');
   speed.value = '20';
   speed.dispatch('input');
-  assert.deepEqual([settings.get().windFromDeg, settings.get().windKt], [250, 20]);
+  assert.deepEqual([settings.get().windFromDeg, settings.get().windKt], [259, 20], '250°M is 259° true');
+  settings.update({ windFromDeg: 300 });
+  assert.equal(from.value, '291', 'a wind set elsewhere (the dial) shows in °M');
+  settings.update({ windFromDeg: 259 });
 
   for (const [box, bad] of [[from, '400'], [from, '0'], [from, ''], [speed, '61'], [speed, '-1']]) {
     box.value = bad;
     box.dispatch('input');
     box.dispatch('change');
-    assert.deepEqual([settings.get().windFromDeg, settings.get().windKt], [250, 20], `"${bad}" is refused and the last good value stays`);
+    assert.deepEqual([settings.get().windFromDeg, settings.get().windKt], [259, 20], `"${bad}" is refused and the last good value stays`);
     assert.equal(box.getAttribute('aria-invalid'), 'true');
   }
   assert.match(messages(bar)[0].textContent, /Enter a number from 1 to 360/);

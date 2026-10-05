@@ -17,6 +17,7 @@ import { followRoute, startSideStep } from '../../../src/modules/traffic/path-fo
 import { legOffsetsFt } from '../../../src/core/geo.js';
 import { gFromBankDeg } from '../../../src/core/flight-math.js';
 import { wrapDeg180 } from '../../../src/core/angles.js';
+import { straightInDelaySec } from '../../../src/modules/traffic/scenario-timing.js';
 
 const CAUTION = { latFt: 500, vertFt: 500 };
 
@@ -223,15 +224,18 @@ test('a gliding PFL pays for its bank away in height: a little lower than its pa
 });
 
 test('spacing on final: the overhead aircraft extends its downwind to land about 2,000 ft behind a straight-in, and nobody moves over (TR-R18, TR-58)', () => {
-  // The straight-in starts 30 s after the overhead aircraft at the Final Entry, so without spacing they meet on final.
+  // The straight-in starts timed to meet the overhead aircraft (from the Final Entry) in its final turn (Busy circuit's
+  // own timing, scenario-timing.js), so without spacing they meet on final. A fixed 30 s did that on the stretched
+  // map; on the true-scale map (TR-67) the timing is worked out instead.
   const setup = structuredClone(MJ);
   setup.windFromDeg = 260;
   setup.windKt = 15;
   setup.deconflict = true;
   setup.aircraft = [
     { id: 'A1', type: 'CT-156', routeId: 'PAT1', startIndex: 8, startsAtSec: 0 },
-    { id: 'A2', type: 'CT-156', routeId: 'ENT2', startIndex: 3, startsAtSec: 30 },
+    { id: 'A2', type: 'CT-156', routeId: 'ENT2', startIndex: 3, startsAtSec: 0 },
   ];
+  setup.aircraft[1].startsAtSec = straightInDelaySec(setup, setup.aircraft[0], setup.aircraft[1]).delaySec;
   const sim = createSim(setup, { seed: 1 });
   const th = PAT.points[0], up = PAT.points[1];
   const out = (p) => -legOffsetsFt(th, up, p).alongFt;

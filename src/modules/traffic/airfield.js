@@ -4,16 +4,27 @@
 //
 // Map coordinates are feet, x east and y north, with the origin at the field
 // (the same frame as data/moose-jaw.json). Headings are compass degrees true.
-// The coordinates are V6's geometry, kept until the routes are redrawn with
-// Dad (Traffic plan, Step 6).
+// The coordinates are true feet (TR-67, Patrick 5 Oct 00:27Z: V6's hand-drawn,
+// 1.2 times stretched routes dropped and rebuilt from the manuals).
 
-/** Runway 29L threshold, map feet (data/moose-jaw.json point 0, rounded). */
-export const THRESHOLD_29L = Object.freeze({ x: 3104, y: -3194 });
+/**
+ * Runway 29L threshold bar, map feet (data/moose-jaw.json point 0), measured on
+ * Esri's true-scale photo (about ±10 ft; TR-67).
+ */
+export const THRESHOLD_29L = Object.freeze({ x: 2796, y: -2776 });
 
-/** Runway 29L departure end, map feet (data/moose-jaw.json point 1, rounded). */
-export const DEPARTURE_END_29L = Object.freeze({ x: -4066, y: 680 });
+/**
+ * Runway 29L departure end (the 11R threshold bar), map feet (data/moose-jaw.json
+ * point 1), measured the same way: 7,250 ft from the 29L threshold at 298.6° true.
+ * The CAP aerodrome chart gives 7,280 ft (TR-67).
+ */
+export const DEPARTURE_END_29L = Object.freeze({ x: -3572, y: 690 });
 
-/** Runway 29L heading, degrees true: Patrick's CYMJ ground truth (D373, D378; TR-24). */
+/**
+ * Runway 29L heading, degrees true: Patrick's CYMJ ground truth (D373, D378; TR-24), the same as the CAP chart's
+ * 289°M with 9° East. The photo's thresholds lie on 298.6° true; the routes follow the drawn runway, and this
+ * heading sets the PFL circle and High Key's run-in (half a degree apart, about 30 ft at the circle's centre).
+ */
 export const RUNWAY_29L_HDG_DEG = 298;
 
 /**
@@ -45,9 +56,10 @@ export const DOWNWIND_29L_HDG_DEG = 118;
 export const FIELD_ELEV_FT = 1892;
 
 /**
- * Threshold height in the route data, ft MSL. It disagrees with FIELD_ELEV_FT;
- * the data inconsistency is fixed at the route redraw (TR-Q15, decisions D202
- * and TR-24). Kept here so the refactor changes nothing on screen.
+ * Threshold height in the route data, ft MSL. It disagrees with FIELD_ELEV_FT
+ * and the CAP chart's 1,892 ft threshold (decisions D202 and TR-24); the true-scale
+ * rebuild (TR-67) left it alone, so the window (2,119 ft, 3° to the number base)
+ * and every route height stay as they were.
  */
 export const THRESHOLD_DATA_ELEV_FT = 1880;
 
@@ -65,6 +77,7 @@ export const PFL_KEY_ALT_FT = Object.freeze({ highKey: 5000, lowKey: 3700, final
  * The PFL circle: 0.5 NM radius (1 NM across), centre 0.5 NM from the 29L
  * threshold, 90° left of the runway heading (208° true), so the circle closes
  * on the centreline at the threshold (pf/reset/pfl-prep/pfl-definition.md,
- * ratified 4 Oct 07:03Z).
+ * ratified 4 Oct 07:03Z). True feet since TR-67 (on the stretched map it was
+ * only about 0.42 NM over the ground).
  */
 export const PFL_CIRCLE_RADIUS_FT = 3038.06;
