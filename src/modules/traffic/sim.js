@@ -864,7 +864,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       a.landed = false;
       a.status = 'ejected';
       a.command = null;
-      a.ejectAt = { x: a.x, y: a.y, alt: a.alt };
+      // Where, when and how fast it was going, for the ejection and the abandoned aircraft on screen (ejection.js).
+      a.ejectAt = { x: a.x, y: a.y, alt: a.alt, t, headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG, kias: a.iasKt ?? a.kt ?? 125 };
       a.pflDecision = 'Eject';
     }
   }

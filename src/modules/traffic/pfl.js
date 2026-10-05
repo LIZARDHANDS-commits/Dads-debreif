@@ -19,16 +19,16 @@
 //
 // Positions are map feet, x east and y north; headings and tracks compass
 // degrees true; speeds KIAS unless named KTAS. Nothing here reads the page.
-import { ktToFtps, KT_TO_FTPS, G_FTPS2 } from '../../core/units.js';
+import { ktToFtps, KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../core/units.js';
 import { wrapDeg180, wrapDeg360, compassDegFromVector } from '../../core/angles.js';
 import { turnRadiusFromBankFt, turnRateFromBankRadPerSec, dampedClimbG, easeValue } from '../../core/flight-math.js';
 import { iasToTasKt, glideDragPerWeight, glideRatio, stallLimitG, zoomT6A } from '../../core/t6-performance.js';
-import { windTriangle } from '../../core/wind.js';
+import { windTriangle, windVectorFtps } from '../../core/wind.js';
 import { legOffsetsFt } from '../../core/geo.js';
 import { makePilot, bankFor, PILOT_DT } from './circuit.js';
 import { startJoin } from './path-follower.js';
 import { routeLengthFt } from './route.js';
-import { THRESHOLD_29L, DEPARTURE_END_29L, RUNWAY_29L_HDG_DEG, THRESHOLD_DATA_ELEV_FT, PFL_CIRCLE_RADIUS_FT, PFL_KEY_ALT_FT } from './airfield.js';
+import { THRESHOLD_29L, DEPARTURE_END_29L, RUNWAY_29L_HDG_DEG, THRESHOLD_DATA_ELEV_FT, PFL_CIRCLE_RADIUS_FT, PFL_KEY_ALT_FT, FIELD_ELEV_FT } from './airfield.js';
 
 /** The PFL's flying numbers, each with its source. Orders and SMM numbers are defaults, not walls. */
 export const PFL = Object.freeze({
@@ -106,6 +106,11 @@ export const PFL = Object.freeze({
   holdBankSec: 1,
   /** Speed changes in the glide: at most 0.1 G along the path. An estimate. */
   maxAccelG: 0.1,
+  /** Obviously can't make it: at the zoom's top, the runway is further from the glide ring's centre than this many times its
+   *  radius ("glide circle nowhere near the runway after zoom", Patrick 5 Oct 06:29Z). 1.5 is an estimate. */
+  obviousShortRingFactor: 1.5,
+  /** ...then it thinks for this long ("OODA") before it ejects (Patrick 5 Oct 06:29Z: "after 5 seconds"). */
+  ejectDecideSec: 5,
 });
 
 /** The configurations in the order they are taken (spec 4.5 item 7). */
@@ -114,6 +119,55 @@ export const PFL_CONFIGS = Object.freeze(['clean', 'gearDown', 'flapsTakeoff', '
 export const PFL_CONFIG_LABELS = Object.freeze(['Clean', 'Gear', 'Gear + T/O flap', 'Gear + landing flap']);
 /** The planned drag (Patrick 08:32Z): gear near High Key, T/O flap near Low Key, landing flap near Final Key; degrees round the circle. */
 const PLAN_DEG = [-Infinity, 0, 180, 270];
+
+/**
+ * The glide ring (Traffic spec 4.5 item 14; Patrick 4 Oct 08:33Z): how far the
+ * aircraft can glide from where it is now, in the configuration down, drawn on
+ * the ground. Radius = height above the field × the configuration's glide ratio
+ * (T-6A max glide chart: clean 2.0 NM per 1,000 ft). The glide takes radius ÷
+ * true airspeed at the PFL speed (125 KIAS clean, 120 with the gear down, at
+ * mid-height), and the wind carries the whole circle downwind for that long, so
+ * its centre is no longer on the aircraft.
+ *
+ * @param {{ x?: number, y?: number, alt?: number, config?: string }} a
+ * @param {number} [windFromDeg=360]
+ * @param {number} [windKt=0]
+ * @returns {{ cx: number, cy: number, rGlide: number, tGlide: number, altDiff: number, driftFt: number, wxFtps: number, wyFtps: number }}
+ */
+export function glideFootprint(a, windFromDeg = 360, windKt = 0) {
+  const alt = Number.isFinite(a?.alt) ? /** @type {number} */ (a.alt) : FIELD_ELEV_FT;
+  const altDiff = Math.max(0, alt - FIELD_ELEV_FT);
+  const cfgIndex = Math.max(0, PFL_CONFIG_LABELS.indexOf(a?.config ?? ''));
+  const rGlide = altDiff * glideRatio(PFL_CONFIGS[cfgIndex]);
+  const kias = cfgIndex > 0 ? PFL.glideGearKias : PFL.glideCleanKias;
+  const tasFtps = iasToTasKt(kias, (alt + FIELD_ELEV_FT) / 2) * FT_PER_NM / 3600;
+  const tGlide = rGlide / tasFtps;
+
+  const fromDeg = Number.isFinite(windFromDeg) ? windFromDeg : 360;
+  const kt = Number.isFinite(windKt) && windKt > 0 ? windKt : 0;
+  const { x: wxFtps, y: wyFtps } = windVectorFtps(fromDeg % 360, kt);
+
+  const ax = Number.isFinite(a?.x) ? /** @type {number} */ (a.x) : 0;
+  const ay = Number.isFinite(a?.y) ? /** @type {number} */ (a.y) : 0;
+  const cx = ax + wxFtps * tGlide;
+  const cy = ay + wyFtps * tGlide;
+  const driftFt = Math.hypot(wxFtps * tGlide, wyFtps * tGlide);
+
+  return { cx, cy, rGlide, tGlide, altDiff, driftFt, wxFtps, wyFtps };
+}
+
+/**
+ * Obviously can't make the runway (Patrick 5 Oct 06:29Z; TR-75): the glide ring (glideFootprint, as drawn on screen)
+ * is nowhere near it, the nearest point of the runway being more than PFL.obviousShortRingFactor ring radii from
+ * the ring's centre. `geo` is the PFL geometry (th, dep), `s` = { x, y, alt }, `cfg` the configuration index.
+ */
+export function obviouslyShort(geo, s, cfg, wind) {
+  const ring = glideFootprint({ x: s.x, y: s.y, alt: s.alt, config: PFL_CONFIG_LABELS[cfg] }, wind.windFromDeg, wind.windKt);
+  const ux = geo.dep.x - geo.th.x, uy = geo.dep.y - geo.th.y, len2 = ux * ux + uy * uy || 1;
+  const k = Math.max(0, Math.min(1, ((ring.cx - geo.th.x) * ux + (ring.cy - geo.th.y) * uy) / len2));
+  const missFt = Math.hypot(ring.cx - (geo.th.x + k * ux), ring.cy - (geo.th.y + k * uy));
+  return missFt > PFL.obviousShortRingFactor * ring.rGlide;
+}
 
 const DEG = Math.PI / 180;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -634,6 +688,7 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
   let eject = null;
   let goingShort = false; // can't make the runway: glide on toward it until Low Key, then eject
   let pastLowKey = false;
+  let ejectAtN = null; // obviously short: the step it ejects at, after thinking about it
   const notes = [];
   // Each plan it flies and the point it starts at, so a PFL moved off its glide can carry on along it (resumePflFlight).
   const planLog = [];
@@ -823,6 +878,13 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
     // The zoom's top: check the join again with the real numbers, and change it only if it can no longer be made (spec 4.5 item 6).
     if ((state === 'glide') && (s.phase === 'pfl_zoom')) {
       s.phase = 'pfl';
+      // Obviously short: no join, it thinks for 5 s on its way, then ejects (Patrick 5 Oct 06:29Z; TR-75).
+      if (!practice && ejectAtN === null && obviouslyShort(geo, s, cfg, wind)) {
+        ejectAtN = n + Math.round(PFL.ejectDecideSec / PILOT_DT);
+        goingShort = true;
+        notes.push(`obviously short at ${Math.round(s.alt)} ft`);
+        setRec("Can't make it: ejecting");
+      }
       const least = s.alt - ground - neededFt(minDragPlan(path), seg, proj.pt, s.alt, 0, wind);
       const trade = plan.kind === 'direct' ? speedTradeFt(s.ias, s.alt, cfg) : 0;
       if (least + trade < 0) {
@@ -851,7 +913,7 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
     }
 
     pilot.step(bank, climb, accel);
-    if (goingShort && (pastLowKey || s.alt <= PFL_KEY_ALT_FT.lowKey)) {
+    if (ejectAtN !== null ? n >= ejectAtN : goingShort && (pastLowKey || s.alt <= PFL_KEY_ALT_FT.lowKey)) {
       outcome = 'eject';
       eject = { x: s.x, y: s.y, alt: s.alt };
       setRec('Eject');
