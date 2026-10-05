@@ -15,7 +15,7 @@ import { resolveErrors, resolveFixTools, applyStartErrors, planWithErrors, outco
 import { FOUR_SHIP_KEYS, fourShipStart, planFour } from './four-ship.js';
 import { G_WARM, planGWarm } from './g-warm.js';
 import { classify, judge } from './judge.js';
-import { FOUR_FORMATIONS, setFwShape, setFw4Shape } from './slots.js';
+import { FORMATIONS, FOUR_FORMATIONS, setFwShape, setFw4Shape } from './slots.js';
 import { planChangeFour } from './four-ship-moves.js';
 import { planHotRejoinChange, offStandardOutcome } from './hot-rejoin.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS, planFormationTurn } from './formation-turns.js';
@@ -427,7 +427,7 @@ export function createFormation(options = {}) {
         return 'refused';
       }
       if (state.current) {
-        const label = state.aircraft.length > 2 ? FOUR_FORMATIONS[to]?.label ?? to : FORMATIONS_LABEL(to);
+        const label = state.aircraft.length > 2 ? FOUR_FORMATIONS[to]?.label ?? to : FORMATIONS[to]?.label ?? to;
         state.queued = { key: `change:${to}`, dir: 0, label, change: { to, options } };
         return 'queued';
       }
@@ -518,7 +518,6 @@ function gFlownWords(g) {
   }).filter(Boolean);
   return `G flown: ${parts.join(', ')}.`;
 }
-const FORMATIONS_LABEL = (to) => ({ lab: 'Line abreast', fw: 'Fighting wing', echelon: 'Echelon', route: 'Route', astern: 'Line astern' })[to] ?? to;
 
 /** The words for a press: "Hook right", "Shackle". */
 export function labelFor(key, dir) {
