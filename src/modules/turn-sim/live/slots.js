@@ -59,6 +59,13 @@ export const FOUR_FORMATIONS = Object.freeze({
 export const WINGSPAN_FT = 33.4;
 export const LENGTH_FT = 33.4;
 
+/**
+ * Route spacing in wingspans out on the wing-tip line: the slot 5 out, judged in route between 4 and 6 (Patrick 5 Oct 06:11Z:
+ * "Lets use a 5 plane spacing route, yours is too tight right now"; the thread reads "5 plane" as five wingspans). It is
+ * wider than SMM 12.6 para 15's 1 to 3 wingspans (2 until step 2): the manual is the reference, Patrick's practice the default.
+ */
+export const ROUTE_SPANS = Object.freeze({ slot: 5, min: 4, max: 6 });
+
 /** Heights above the formation's block, feet, by aircraft id (AFM8 brief p.14-15: low to high 4, 3, 1, 2; 300 ft stacks). */
 export const STACK_FT = Object.freeze({ 1: 0, 2: 300, 3: -300, 4: -600 });
 
@@ -149,8 +156,8 @@ function link(key, s, spacingFt) {
     case 'fw': return { fwd: -fwShape.rangeFt * Math.sin(fwShape.sweepDeg * DEG), left: s * fwShape.rangeFt * Math.cos(fwShape.sweepDeg * DEG), alt: -60 };
     // about 45 ft out, 25 ft back, 5 ft down: estimates, the manual gives sight references (SMM 12.4 paras 11-12)
     case 'echelon': return { fwd: -25, left: s * 45, alt: -5 };
-    // two wingspans out on the wing-tip line, the middle of 1 to 3 (SMM 12.6 para 15), level or slightly low
-    case 'route': return { fwd: -25, left: s * 2 * WINGSPAN_FT, alt: -5 };
+    // five wingspans out on the wing-tip line (Patrick 06:11Z, ROUTE_SPANS; SMM 12.6 para 15 gives 1 to 3), level or slightly low
+    case 'route': return { fwd: -25, left: s * ROUTE_SPANS.slot * WINGSPAN_FT, alt: -5 };
     // nose to tail about 10 ft (SMM 12.5 para 13): centre to centre is that plus a fuselage length; below the prop wash (estimate)
     case 'astern': return { fwd: -(LENGTH_FT + 10), left: 0, alt: -8 };
     default: throw new Error(`No formation called ${key}`);

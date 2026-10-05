@@ -27,13 +27,14 @@
 // transitions) and 11:45Z (wording agreed). Numbers with no manual or ruling behind them are
 // labelled "estimate" beside them.
 import { STEP_SEC, stepAircraft, copyAircraft, planDone } from './flight.js';
-import { wholeDegree, turnSeg, onStep, DEG } from './manoeuvres.js';
+import { wholeDegree, turnSeg, DEG } from './manoeuvres.js';
 import { classify, judge } from './judge.js';
 import { applyPose } from './kinematic.js';
 import { fullPowerKtps, speedSegFor } from './slow-down.js';
 import { setKias, stepCommanded, phase, trackTwice, PLAN_MAX_SEC } from './tracker.js';
 import { FORMATIONS, fwShapeNow, pairSlot } from './slots.js';
-import { KIAS_OUTSIDE_LAB, KIAS_LAB, REJOIN } from './tuning.js';
+import { KIAS_OUTSIDE_LAB, KIAS_LAB, REJOIN, closureNow, rejoinClosureNow } from './tuning.js';
+import { onClosure } from './hand-over.js';
 
 // ---- the numbers -----------------------------------------------------------------------
 
@@ -54,7 +55,7 @@ export const CHANGE_LIMIT_SEC = 180;
  *   { kind: 'bankTrack', points: [[bankDeg, kias], …] }   replays what the planner's dry run commanded,
  *                                             one entry a step; kias may be null for "unchanged".
  */
-export function flyStep(a, plan, t) {
+export function flyStep(a, plan, t, ctx = null) {
   const seg = plan.segments[0];
   if (seg?.kind === 'poseTrack') {
     // A kinematic pre-planned line (kinematic.js, TS-55): the pose for each step was worked out at the press.
@@ -62,17 +63,28 @@ export function flyStep(a, plan, t) {
     applyPose(a, seg.poses[seg.i++]);
     if (seg.i >= seg.poses.length) {
       plan.segments.shift();
+      // Lines, then tracker (step 2, Patrick 06:24Z): in the live formation (ctx, from formation.js) the tracker's run-in is
+      // planned again here, from where #2 and Lead really are as the line ends; a dry run flies the press's look-ahead.
+      if (ctx?.live && seg.replan && plan.segments[0]?.kind === 'bankTrack') {
+        const again = seg.replan(a, t + STEP_SEC, ctx);
+        if (again) {
+          plan.segments[0] = { kind: 'bankTrack', points: again.points };
+          if (again.profile) plan.profile = again.profile;
+        }
+      }
       a.turning = plan.segments.length > 0 || a.bankDeg !== 0;
     }
     return;
   }
   if (seg?.kind === 'bankTrack') {
     seg.i ??= 0;
-    const [bank, kias] = seg.points[seg.i++];
+    const [bank, kias, power] = seg.points[seg.i++];
     if (kias !== null && kias !== undefined) setKias(a, kias);
     stepCommanded(a, bank, t, plan.profile);
-    a.power = null; // the tracker's replay sets no power: the tag shows none rather than a guess (TS-62)
-    a.slowStage = null;
+    // The power the tracker flew it with (its power profile, step 2: MAX, TQ, IDLE or IDLE+BOARDS); a replay that recorded
+    // none (the 4-ship's, until step 3) shows none rather than a guess (TS-62).
+    a.power = power ?? null;
+    a.slowStage = power?.stage ?? null;
     if (seg.i >= seg.points.length) plan.segments.shift();
     return;
   }
@@ -158,7 +170,7 @@ export const sweepOut = (slot, over = {}) => phase(slot, { fwdRate: Infinity, la
 /** Close from fighting wing through route (SMM 16.15 para 38; AFM7 p.18): 10-20 KIAS overtake, slowing to about 5 kt at route. */
 export const closeThrough = (slot, over = {}) => phase(slot, { fwdRate: 40, latRate: 40, vrel0: 8, kcap: 0.05, d0: 100, vrelMax: 50, overtakeKias: 20, advanceTol: 6, bankCapDeg: 25, ...over });
 /** The rejoin to a formation (SMM 12.24, 16.20): the slot is chased at once, the closing speed falls with range, bank up to the cap. */
-export const rejoinTo = (slot, over = {}) => phase(slot, { fwdRate: Infinity, latRate: Infinity, vrel0: 25, kcap: 0.1, d0: 500, vrelMax: 260, decel: 3, bankCapDeg: REJOIN.bankCapDeg, overtakeKias: REJOIN.overtakeKias, undertakeKias: 25, advanceTol: 40, finalTol: 3, altSec: 10, ...over });
+export const rejoinTo = (slot, over = {}) => phase(slot, { rejoin: true, fwdRate: Infinity, latRate: Infinity, vrel0: 25, kcap: 0.1, d0: 500, vrelMax: 260, decel: 3, bankCapDeg: REJOIN.bankCapDeg, overtakeKias: REJOIN.overtakeKias, undertakeKias: 25, advanceTol: 40, finalTol: 3, altSec: 10, ...over });
 /** Entry to line abreast (SMM 16.18 para 51): #2 turns away 20-40° to open out while Lead holds 220 KIAS. */
 export const openOut = (slot, over = {}) => phase(slot, { fwdRate: 40, latRate: 150, vrel0: 40, kcap: 0.1, d0: 300, vrelMax: 220, decel: 2, bankCapDeg: 45, overtakeKias: 25, undertakeKias: 15, advanceTol: 30, finalTol: 25, ...over });
 
@@ -184,13 +196,13 @@ export const STRAIGHT_AHEAD = {
  */
 export function straightAhead(at, route, { endInRoute = false, holdLineUpUntil, ...over } = {}) {
   const A = STRAIGHT_AHEAD;
-  const quick = { fwdRate: Infinity, latRate: Infinity, decel: 2, undertakeKias: 15, ...over };
+  const quick = { rejoin: true, fwdRate: Infinity, latRate: Infinity, decel: 2, undertakeKias: 15, ...over }; // a rejoin up to route (Patrick 06:09Z)
   return [
     phase(at(A.sixFt, 0, A.belowWakeFt), { ...quick, vrel0: 20, kcap: 0.05, d0: 50, vrelMax: 100, bankCapDeg: 30, overtakeKias: 15, advanceTol: 60, ...(holdLineUpUntil !== undefined ? { holdUntil: holdLineUpUntil } : {}) }),
     // close along the six line at about 21 KIAS overtake, inside EFIG p.371's 20-30, until the vector point
     phase(at(A.closeTowardFt, 0, A.belowWakeFt), { ...quick, vrel0: 36, kcap: 0, vrelMax: 50, decel: 3, bankCapDeg: 20, overtakeKias: 30, advanceTol: A.vectorAtFt + A.closeTowardFt }),
     // then route, closing level or slightly low (SMM 16.15 para 38) and slowing as it comes in
-    closeThrough(endInRoute ? route : { ...route, alt: route.alt - 25 }, { overtakeKias: 30, vrel0: 6, kcap: 0.04, decel: 1, advanceTol: 6, ...(endInRoute ? { finalTol: 1.5 } : {}), ...over }),
+    closeThrough(endInRoute ? route : { ...route, alt: route.alt - 25 }, { rejoin: true, overtakeKias: 30, vrel0: 6, kcap: 0.04, decel: 1, advanceTol: 6, ...(endInRoute ? { finalTol: 1.5 } : {}), ...over }),
   ];
 }
 
@@ -202,7 +214,7 @@ export function straightAhead(at, route, { endInRoute = false, holdLineUpUntil, 
  * formation never crosses in front of Lead, SMM 12.20 para 44b; "flow to the opposite side" in fighting wing,
  * SMM 12.29 para 69); then the close-formation legs, or the opening out into line abreast (SMM 16.18 para 51).
  */
-function legsFor(from, s, to, sTo, spacingFt) {
+export function legsFor(from, s, to, sTo, spacingFt) {
   const slot = (key, side) => pairSlot(key, side, spacingFt);
   const phases = [];
   let at = from;
@@ -315,7 +327,9 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
   const fromLab = from.key === 'lab' || from.key === 'other';
   const rejoinKind = fromLab && to !== 'lab' ? (rejoinOpt === 'straight' || from.key === 'other' ? 'straight' : 'into') : 'none';
   const targetKias = to === 'lab' ? KIAS_LAB : KIAS_OUTSIDE_LAB;
-  const phases = legsFor(from.key, sCur, to, sTo, spacingFt);
+  // Every leg on the power profile at the Rates choice's closure, a rejoin's up to route (clean-up step 2, TS-65; Patrick
+  // 05:46Z, 05:47Z, 05:54Z, 06:09Z).
+  const phases = onClosure(legsFor(from.key, sCur, to, sTo, spacingFt));
   if (!phases.length) return { ok: false, reason: 'Nothing to change.' };
   if (options.overtakeKias !== undefined || options.bankCapDeg !== undefined) {
     for (const p of phases) {
@@ -325,6 +339,8 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
   }
 
   const speedSegs = Math.abs(lead.kias - targetKias) > 0.5 ? [speedSeg(lead.kias, targetKias, blockFt)] : [];
+  // In a turning rejoin Lead slows while he turns, so the turn starts at the press (Patrick 05:29Z).
+  const slowWhileTurning = speedSegs.map((x) => ({ ...x, withNext: true }));
   const judgeEnd = (attempt) => judge([attempt.run.end.lead, attempt.run.end.wing], { key: to }, { spacingFt });
   const finished = (attempt) => attempt.run.ok && judgeEnd(attempt).inBand && attempt.run.durationSec <= CHANGE_LIMIT_SEC;
   // A rejoin has to keep the overshoot lane (never ahead of Lead's 3/9 line inside 1,000 ft, +-100 ft) and stay under Lead (SMM 12.27 para 65).
@@ -332,29 +348,23 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
   /** @type {any} */
   let best = null;
   if (rejoinKind === 'into') {
-    // Lead pauses and lets #2 establish closure, then turns gently into #2 (AFM8 brief p.19; SMM 16.20 para 65b): the pause is how long
-    // a straight-ahead rejoin takes to bring #2 inside the range, found from a first run; the turn is the first angle that keeps the lane.
-    const straight = fly2(lead, wing, speedSegs, t0, phases, blockFt);
-    for (const rangeFt of REJOIN.turnAtRangeFt) {
-      const at = straight.run.ranges.findIndex((r) => r <= rangeFt);
-      if (at < 0) continue;
-      const waitSec = onStep(at * STEP_SEC);
-      for (const turnDeg of REJOIN.turnAnglesDeg) {
-        const leadSegs = [...speedSegs, { kind: 'hold', untilSec: t0 + waitSec }, turnSeg(wholeDegree(lead.headingRad + sCur * turnDeg * DEG), sCur, REJOIN.leadBankDeg)];
-        const attempt = { ...fly2(lead, wing, leadSegs, t0, phases, blockFt), turnDeg, waitSec };
-        if (finished(attempt) && laneOk(attempt)) {
-          best = attempt;
-          break;
-        }
+    // "Hot turning rejoin ALWAYS begins with lead IMMEDIATELY turning towards 2" (Patrick 5 Oct 05:29Z): Lead turns into #2
+    // at the press, slowing as he turns (SMM 16.20 para 65b); the turn is the first angle that keeps the overshoot lane, or
+    // failing that the first that finishes (the lane is flagged on the card, never a wall). Until step 2 Lead waited for
+    // closure first, or held straight when no turn kept the lane.
+    let fallback = null;
+    for (const turnDeg of REJOIN.turnAnglesDeg) {
+      const leadSegs = [...slowWhileTurning, turnSeg(wholeDegree(lead.headingRad + sCur * turnDeg * DEG), sCur, REJOIN.leadBankDeg)];
+      const attempt = { ...fly2(lead, wing, leadSegs, t0, phases, blockFt), turnDeg };
+      if (finished(attempt) && laneOk(attempt)) {
+        best = attempt;
+        break;
       }
-      if (best) break;
+      if (!fallback && finished(attempt)) fallback = attempt;
     }
-    if (!best) {
-      // No turn keeps the lane from here: Lead holds straight and #2 flies the straight-ahead rejoin (SMM 12.26 paras 62-63).
-      best = { ...straight, turnDeg: 0, waitSec: 0, straightFallback: true };
-    }
+    best ??= fallback ?? { ...fly2(lead, wing, [...slowWhileTurning, turnSeg(wholeDegree(lead.headingRad + sCur * REJOIN.turnAnglesDeg[0] * DEG), sCur, REJOIN.leadBankDeg)], t0, phases, blockFt), turnDeg: REJOIN.turnAnglesDeg[0] };
   } else {
-    best = { ...fly2(lead, wing, speedSegs, t0, phases, blockFt), turnDeg: 0, waitSec: 0 };
+    best = { ...fly2(lead, wing, speedSegs, t0, phases, blockFt), turnDeg: 0 };
   }
   best.judged = judgeEnd(best);
   best.good = finished(best);
@@ -380,8 +390,8 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
   const fromWord = FORMATIONS[from.key]?.label ?? 'In trail';
   const fromSide = from.key === 'astern' || from.key === 'other' ? '' : sCur > 0 ? ' left' : ' right';
   const turnNote = best.turnDeg
-    ? ` Lead slows to ${KIAS_OUTSIDE_LAB} KIAS, waits for closure, then turns ${best.turnDeg}° into #2 at ${REJOIN.leadBankDeg}° bank.`
-    : best.straightFallback ? ' No turn kept the overshoot lane from here, so Lead holds straight.' : '';
+    ? ` Lead turns ${best.turnDeg}° into #2 at the press at ${REJOIN.leadBankDeg}° bank, slowing to ${KIAS_OUTSIDE_LAB} KIAS; #2 closes at ${rejoinClosureNow().kt} kt, to fighting wing or route, then ${closureNow().kt} kt into the slot.`
+    : '';
   return {
     ok: true,
     plans,

@@ -24,7 +24,7 @@ import { recordFlight, flyStep, dryRunT } from './transitions.js';
 import { trackTwice, phase } from './tracker.js';
 import { smoothest, makeTrack, seedTrack, posesFrom, settleLast, laggedBank, followInto } from './kinematic.js';
 import { leadTurnSegs, rollEvents, eventsEnd } from './kinematic-moves.js';
-import { KINEMATIC, FW_TURN, FW_FOLLOW } from './tuning.js';
+import { KINEMATIC, FW_TURN, FW_FOLLOW, WING_BANKS } from './tuning.js';
 import { G_FTPS2 } from '../../../core/units.js';
 
 /** The turn buttons that fly in fighting wing (spec section 10); the shackle and the cross turn stay line abreast moves. */
@@ -82,7 +82,10 @@ export function planFwTurn(aircraft, key, dir, t0 = 0, { blockFt = 8000 } = {}) 
   const m = MANOEUVRES[key];
   if (!FW_TURN_KEYS.includes(key)) return { ok: false, reason: `${m?.label ?? key} flies in line abreast only.` };
   const turnDeg = FW_TURN.turnDeg[key];
-  const bank = turnDeg <= 30 ? FW_TURN.gentleBankDeg : FW_TURN.turnBankDeg;
+  // Lead flies every fighting wing turn at 60° of bank, 2 G level, 2-ship and 4-ship, and the wingmen follow with no bank cap
+  // but the G rule (Patrick 5 Oct 06:16Z items 9 and 11, tuning.js WING_BANKS; AFM7 brief p.14 item 5's 30° and 45° until V2.22).
+  const bank = WING_BANKS.fwTurnBankDeg;
+  const follow = { ...FW_FOLLOW, bankCapDeg: WING_BANKS.fwFollowBankCapDeg };
   const leadSegs = leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, bank, true);
   const by = new Map(aircraft.map((a) => [a.id, a]));
   const refs = { [lead.id]: recordFlight(lead, { segments: leadSegs }, t0) };
@@ -93,7 +96,7 @@ export function planFwTurn(aircraft, key, dir, t0 = 0, { blockFt = 8000 } = {}) 
     const ref = by.get(wing.ref);
     const rel0 = relativeTo(ref, wing);
     const side = Math.sign(rel0.left) || -1;
-    const goalPhase = phase({ fwd: rel0.fwd, left: rel0.left, alt: wing.altAboveFt }, { ...FW_FOLLOW, track: wing.ref, goal: (L, W) => fwGoal(L, W, side) });
+    const goalPhase = phase({ fwd: rel0.fwd, left: rel0.left, alt: wing.altAboveFt }, { ...follow, track: wing.ref, goal: (L, W) => fwGoal(L, W, side) });
     const { run, profile } = trackTwice({ refs, wing0: wing, t0, phases: [goalPhase], blockFt });
     if (!run.ok) return { ok: false, reason: `No safe ${m.label.toLowerCase()} in fighting wing from here: ${NAMES[wing.id]} could not settle back into the band.` };
     const plan = { segments: [{ kind: 'bankTrack', points: run.points }], profile };
@@ -103,8 +106,7 @@ export function planFwTurn(aircraft, key, dir, t0 = 0, { blockFt = 8000 } = {}) 
     maxBankDeg = Math.max(maxBankDeg, run.maxBankDeg);
   }
   const four = aircraft.length > 2;
-  const two = by.get(2);
-  const sideWord = relativeTo(lead, two).left > 0 ? 'left' : 'right';
+  const sideWord = relativeTo(lead, by.get(2)).left > 0 ? 'left' : 'right';
   return {
     ok: true,
     plans,

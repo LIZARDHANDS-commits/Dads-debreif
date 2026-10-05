@@ -19,7 +19,7 @@ import { relativeBearingDeg } from '../../../core/angles.js';
 import { FTPS_TO_KT } from '../../../core/units.js';
 import { relativeTo, DEG } from './manoeuvres.js';
 import { rangeWord } from './fluid.js';
-import { FORMATIONS, WINGSPAN_FT, LENGTH_FT, FW_BAND, BOX_DEPTH_BAND_FT, FLUID4_ABEAM_FT, slotsFor, fourWords } from './slots.js';
+import { FORMATIONS, WINGSPAN_FT, ROUTE_SPANS, LENGTH_FT, FW_BAND, BOX_DEPTH_BAND_FT, FLUID4_ABEAM_FT, slotsFor, fourWords } from './slots.js';
 import { REJOIN } from './tuning.js';
 
 /** Margins for the roll-out judgement: the shared table's ±100 ft (docs/TESTING.md). */
@@ -52,10 +52,10 @@ function classifyLink(lead, wing) {
   const sweep = Math.atan2(back, Math.max(across, 1e-6)) / DEG;
   if (across >= 1500 && sweep <= 25 && sweep >= -15) return { key: 'lab', side };
   if (range >= 400 && range <= 1300 && sweep >= 20 && sweep <= 70) return { key: 'fw', side };
-  if (range < 250) {
+  if (range < 300) { // inside about 300 ft: the close formations (route reaches about 230 ft out since step 2)
     if (across < 22 && back > 0) return { key: 'astern', side: 0 };
     if (across < 56 && rel.fwd < 40 && rel.fwd > -90) return { key: 'echelon', side };
-    if (across <= 130 && rel.fwd < 60 && rel.fwd > -120) return { key: 'route', side };
+    if (across <= (ROUTE_SPANS.max + 1) * WINGSPAN_FT && rel.fwd < 60 && rel.fwd > -120) return { key: 'route', side }; // out to a wingspan past the route band (Patrick 06:11Z)
   }
   return { key: 'other', side };
 }
@@ -185,13 +185,14 @@ export function judgeLink(kind, ref, wing, { spacingFt = 6000, wingPlane = false
     else if (down > 15) labels.push('LOW');
     numbers = `${ft(across)} out (45 ±15), ${ft(back)} back (25 ±15), ${ft(down)} ${down >= 0 ? 'below' : 'above'} (5 ±10)`;
   } else if (kind === 'route') {
-    if (across < WINGSPAN_FT) labels.push('TIGHT');
-    else if (across > 3 * WINGSPAN_FT) labels.push('WIDE');
+    // ROUTE_SPANS: 4 to 6 wingspans, the slot 5 (Patrick 06:11Z; SMM 12.6 para 15's 1 to 3 until step 2)
+    if (across < ROUTE_SPANS.min * WINGSPAN_FT) labels.push('TIGHT');
+    else if (across > ROUTE_SPANS.max * WINGSPAN_FT) labels.push('WIDE');
     if (rel.fwd < -75) labels.push('AFT');
     else if (rel.fwd > 25) labels.push('FORE');
     if (down < -10) labels.push('HIGH');
     else if (down > 40) labels.push('LOW');
-    numbers = `${ft(across)} out (${Math.round(WINGSPAN_FT)}-${Math.round(3 * WINGSPAN_FT)} ft: 1 to 3 wingspans), ${ft(rel.fwd)} ${rel.fwd >= 0 ? 'ahead' : 'back'}, ${ft(down)} ${down >= 0 ? 'below' : 'above'}`;
+    numbers = `${ft(across)} out (${Math.round(ROUTE_SPANS.min * WINGSPAN_FT)}-${Math.round(ROUTE_SPANS.max * WINGSPAN_FT)} ft: ${ROUTE_SPANS.min} to ${ROUTE_SPANS.max} wingspans), ${ft(rel.fwd)} ${rel.fwd >= 0 ? 'ahead' : 'back'}, ${ft(down)} ${down >= 0 ? 'below' : 'above'}`;
   } else if (kind === 'astern') {
     const gap = -rel.fwd - LENGTH_FT; // nose to tail
     if (across > 10) labels.push('OFF LINE');
