@@ -34,7 +34,8 @@ import { fullPowerKtps, slowKtps } from './slow-down.js';
 import { powerFor, powerFrom } from './power.js';
 import { bankDegFromTurnRate } from '../../../core/flight-math.js';
 import { wrapPi } from '../../../core/angles.js';
-import { KT_TO_FTPS } from '../../../core/units.js';
+import { G_FTPS2 } from '../../../core/units.js';
+import { availableG } from '../../../core/t6-performance.js';
 
 const dt = STEP_SEC;
 
@@ -62,6 +63,8 @@ function flyToDecision({ wing, rec, s, aimFt, bankCapDeg, decisionFt, arriveFtps
   let accel = 0;
   let maxBank = 0;
   let ahead = false;
+  let wasBehind = false;
+  const startFt = Math.hypot(rec.at(0).xFt - W.xFt, rec.at(0).yFt - W.yFt);
   let psiPrev = null;
   let ff = 0;
   for (let n = 0; n < Math.round(CHANGE_LIMIT_SEC / dt); n++) {
@@ -96,29 +99,43 @@ function flyToDecision({ wing, rec, s, aimFt, bankCapDeg, decisionFt, arriveFtps
     ff += G.ffFilter * (wrapPi(psi - psiPrev) / dt - ff);
     psiPrev = psi;
     const rate = ff + wrapPi(psi - W.headingRad) / TR.lineTauSec;
-    const bank = Math.max(-bankCapDeg, Math.min(bankCapDeg, bankDegFromTurnRate(W.tasFtps, rate)));
+    const cap = Math.min(bankCapDeg, Math.acos(1 / Math.max(1, availableG(W.kias))) / DEG); // never past the stall line at the speed he has
+    const bank = Math.max(-cap, Math.min(cap, bankDegFromTurnRate(W.tasFtps, rate)));
 
-    // The power: MAX to the overtake and held; once idle needs the room left to the decision point, the speed that brings the
-    // closure down to the close-in rate there (about 0.7 of a speed change shows in the closure with Lead 45° off the nose).
-    // The closure down the line (not the range rate: hot, the range comes down fast across it while he is still getting on).
+    // The power, as a pilot sets it (Patrick 08:48Z: a lot for a short time, or a medium amount for a while; the review's
+    // answer): MAX to set the overtake, then held; on the line, the slowing starts where power back alone just takes the
+    // closure down to the close-in rate by the decision point, and that rate is held, with idle and then the boards only when
+    // the room left needs more (SMM 12.24 para 58; TS-61's order). About 0.7 of a speed change shows in the closure with Lead
+    // 45° off the nose. The closure is the one down the line (not the range rate: hot, the range comes down fast across it
+    // while he is still getting on).
     const closure = alongPrev === null ? 0 : (alongPrev - along) / dt;
     alongPrev = along;
     onLine ||= Math.abs(cross) <= TR.captureFt;
     const ratio = W.tasFtps / W.kias;
-    const stopFtps2 = CLOSURE.stopShare * slowKtps('idle', W.kias, blockFt) * KT_TO_FTPS * ratio;
+    // Speed changes at the G he is pulling, less what a climb costs or plus what a descent gives (standard aerodynamics,
+    // dV/dt = g (T - D) / W - g sin(climb angle)); KIAS per second times ratio is true ft/s².
+    const climbKtps = (G_FTPS2 * W.climbFtps) / Math.max(W.tasFtps, 1) / ratio;
     const room = along - decisionFt;
-    const want = Math.sqrt(closeFtps * closeFtps + 2 * stopFtps2 * Math.max(0, room)); // the most closure idle can still take out in the room left
-    if (!runIn && onLine && closure > closeFtps && closure >= want) runIn = true;
-    // Hot (ahead of the line), he takes power off to get colder, down to undertakeKias below Lead's speed by hotFt ahead of
-    // it (Patrick 07:32Z: "get colder"); on the line, or behind it, the overtake.
-    let kiasCmd = targetKias - (targetKias - (KIAS_OUTSIDE_LAB - TR.undertakeKias)) * Math.min(1, Math.max(0, cross / TR.hotFt));
-    if (onLine) {
-      // On the line the closure is held to what can still be stopped by the decision point: the overtake comes off as he nears it.
-      kiasCmd = Math.max(KIAS_OUTSIDE_LAB - TR.undertakeKias, Math.min(targetKias, W.kias - (closure - want) / (cosL * ratio)));
+    const needKtps = room > 1 && closure > closeFtps ? (closure * closure - closeFtps * closeFtps) / (2 * room) / (cosL * ratio) : 0;
+    const aMax = fullPowerKtps(W.kias, blockFt, W.g) - climbKtps;
+    const aPower = slowKtps('power', W.kias, blockFt, W.g) + climbKtps;
+    const aAll = slowKtps('idleBoards', W.kias, blockFt, W.g) + climbKtps;
+    if (!runIn && onLine && closure > closeFtps && needKtps >= CLOSURE.stopShare * aPower) runIn = true;
+    const floorKias = KIAS_OUTSIDE_LAB - TR.undertakeKias;
+    let aCmd;
+    if (runIn) {
+      // Hold the slowing the room needs; once the closure is down to the close-in rate, the speed that keeps it there.
+      aCmd = closure > closeFtps
+        ? -Math.min(needKtps, aAll)
+        : Math.max(-aAll, Math.min(aMax, G.speedLoop * Math.min(targetKias - W.kias, (closeFtps - closure) / (cosL * ratio))));
+      if (W.kias <= floorKias) aCmd = Math.max(aCmd, 0);
+    } else {
+      // Hot (ahead of the line), he takes power off to get colder, down to undertakeKias below Lead's speed by hotFt ahead of
+      // it (Patrick 07:32Z: "get colder"); on the line, or behind it, the overtake.
+      const kiasCmd = targetKias - (targetKias - floorKias) * Math.min(1, Math.max(0, cross / TR.hotFt));
+      const aMin = cross > TR.captureFt ? aAll : aPower;
+      aCmd = Math.max(-aMin, Math.min(aMax, G.speedLoop * (kiasCmd - W.kias)));
     }
-    const aMax = fullPowerKtps(W.kias, blockFt);
-    const aMin = slowKtps(runIn || cross > TR.captureFt ? 'idleBoards' : 'power', W.kias, blockFt);
-    const aCmd = Math.max(-aMin, Math.min(aMax, G.speedLoop * (kiasCmd - W.kias)));
     accel += Math.max(-G.jerkKtps2 * dt, Math.min(G.jerkKtps2 * dt, aCmd - accel));
     const kias = W.kias + accel * dt;
     setKias(W, kias);
@@ -127,7 +144,10 @@ function flyToDecision({ wing, rec, s, aimFt, bankCapDeg, decisionFt, arriveFtps
     points.push([bank, kias, power]);
     maxBank = Math.max(maxBank, Math.abs(W.bankDeg));
     const after = relativeTo(Lnext, W);
-    if (Math.hypot(after.fwd, after.left) < TRACKER.laneRangeFt && after.fwd > 0) ahead = true;
+    // Ahead of Lead's 3/9 line inside laneRangeFt is refused, except for a tight start that begins inside it ahead of the
+    // line as Lead turns in, until he has been behind it once.
+    if (after.fwd <= 0) wasBehind = true;
+    else if ((wasBehind || startFt >= TRACKER.laneRangeFt) && Math.hypot(after.fwd, after.left) < TRACKER.laneRangeFt) ahead = true;
   }
   return null;
 }
@@ -148,22 +168,25 @@ function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, 
   const route = pairSlot('route', s, spacingFt);
   const decisionFt = to === 'fw' ? fwShapeNow().rangeFt : Math.abs(route.left) / Math.cos(TR.lineDeg * DEG); // where the line reaches route's spacing
   // #2's height: from where he is to slightly low on the line over heightSec, or over his part if that is shorter.
+  const descentSec = Math.max(TR.heightSec, Math.abs(wing.altAboveFt - TR.lineUpFt) / TR.descentFtps); // no quicker than the rejoin's descent rate
   const heightLeg = (sec) => (Math.abs(wing.altAboveFt - TR.lineUpFt) > 0.5 ? [{ t0, t1: t0 + sec, fromFt: wing.altAboveFt, toFt: TR.lineUpFt }] : []);
   const args = { wing, rec: into.longRec, s, aimFt, bankCapDeg, decisionFt, arriveFtps: to === 'fw' ? TR.fwArriveFtps : Math.min(closureNow().ftps, closeInFtps(TR.decisionArriveRates)), overtakeKt, blockFt, t0 };
-  let part = flyToDecision({ ...args, profile: heightLeg(TR.heightSec) });
+  let part = flyToDecision({ ...args, profile: heightLeg(descentSec) });
   if (!part) return null;
-  if (part.steps * dt < TR.heightSec) part = flyToDecision({ ...args, profile: heightLeg(Math.max(part.steps * dt, dt)) });
+  if (part.steps * dt < descentSec) part = flyToDecision({ ...args, profile: heightLeg(Math.max(part.steps * dt, dt)) });
   if (!part || part.ahead) return null;
   const n1 = part.steps;
   const W1 = { ...part.end, altAboveFt: TR.lineUpFt, climbFtps: 0 };
-  const phases = onClosure(tailLegs(s, to, sTo, spacingFt));
+  // The flow through route at no more than the decision point's arrival rate (AI's close-in rate overran the slot from there).
+  const flowFtps = closeInFtps(TR.decisionArriveRates);
+  const phases = onClosure(tailLegs(s, to, sTo, spacingFt)).map((p, i) => (i === 0 && to !== 'fw' ? { ...p, closureFtps: Math.min(p.closureFtps, flowFtps) } : p));
   const fly = (rec, stopWhenSettled) => trackTwice({ refs: { [lead.id]: fromStep(rec, n1) }, wing0: W1, t0: t0 + n1 * dt, phases, blockFt, init: { accelKtps: part.accelKtps }, stopWhenSettled });
   const first = fly(into.longRec, true);
   if (!first.run.ok) return null;
   const lp = into.planTo(n1 + first.run.points.length);
   const { run, profile } = fly(lp.rec, false);
-  if (!run.ok || run.laneFwdFt > Math.max(0, pairSlot(to, sTo || s, spacingFt).fwd) + TR.laneTolFt) return null; // never ahead of Lead's 3/9 line on the way in (Patrick 08:04Z) // never ahead of Lead's 3/9 line on the way in (Patrick 08:04Z)
-  return { part, run, profile: [...heightLeg(Math.min(TR.heightSec, Math.max(n1 * dt, dt))), ...profile], lp, durationSec: (n1 + run.points.length) * dt };
+  if (!run.ok || run.laneFwdFt > Math.max(0, pairSlot(to, sTo || s, spacingFt).fwd) + TR.laneTolFt) return null; // never ahead of Lead's 3/9 line on the way in (Patrick 08:04Z)
+  return { part, run, profile: [...heightLeg(Math.min(descentSec, Math.max(n1 * dt, dt))), ...profile], lp, durationSec: (n1 + run.points.length) * dt };
 }
 
 /**
@@ -185,6 +208,7 @@ export function planTurningRejoin(pair, to, options = {}, t0 = 0) {
   const pre = Math.abs(lead.kias - KIAS_OUTSIDE_LAB) > 0.5 ? [{ ...speedSeg(lead.kias, KIAS_OUTSIDE_LAB, blockFt), withNext: true }] : [];
   const into = leadTurnInto({ lead, pre, s, bankDeg: REJOIN.leadBankDeg, t0, record: recordFlight });
 
+  const hot = from.key === 'lab';
   // How far ahead down the line he aims: the one that brings him in soonest (Patrick 08:20Z: "find a way to make the most
   // efficient": smaller inputs for longer, or larger for shorter).
   // A medium bank first; more, up to the G rule, only when no medium-bank rejoin keeps him behind Lead's 3/9 line.
@@ -194,8 +218,10 @@ export function planTurningRejoin(pair, to, options = {}, t0 = 0) {
   const asked = rejoinClosureNow().kt;
   const overtakes = [asked, ...Object.values(REJOIN_CLOSURE_KT).filter((kt) => kt < asked).sort((a, b) => b - a)];
   for (const overtakeKt of overtakes) {
-    for (const bankCapDeg of [TURNING_REJOIN.bankCapDeg, REJOIN.bankCapDeg]) {
-      for (const aimFt of TURNING_REJOIN.aimsFt) {
+    // Medium banks first (hot, also Lead's own 30° and the gentlest capture: lagging while Lead's turn brings the aspect
+    // round, the review's worst-case answer), then the G rule only when none of those keeps him behind Lead's 3/9 line.
+    for (const caps of [hot ? TURNING_REJOIN.hotBanksDeg : [TURNING_REJOIN.bankCapDeg], [REJOIN.bankCapDeg]]) {
+      for (const bankCapDeg of caps) for (const aimFt of hot ? [...TURNING_REJOIN.aimsFt, TURNING_REJOIN.lagAimFt] : TURNING_REJOIN.aimsFt) {
         const flown = flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt });
         if (flown && (!best || flown.durationSec < best.durationSec - 0.5)) best = { ...flown, overtakeKt };
       }
@@ -208,7 +234,6 @@ export function planTurningRejoin(pair, to, options = {}, t0 = 0) {
   const judged = judge([run.end.lead, run.end.wing], { key: to }, { spacingFt });
   if (!judged.inBand) return null;
 
-  const hot = from.key === 'lab';
   const label = FORMATIONS[to].label;
   const sideWord = to === 'astern' ? '' : sTo > 0 ? ' left' : ' right';
   const fromWord = FORMATIONS[from.key].label;
