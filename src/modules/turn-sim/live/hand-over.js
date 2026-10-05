@@ -11,7 +11,7 @@
 // A move that starts inside 500 ft is the tracker's alone. This file holds the pieces the 2-ship's planners
 // share (line-moves.js and hot-rejoin.js); it changes no flight physics: the line is read off positions as every planned
 // line is, and the tracker flies the unchanged flight.js step. Numbers are tuning.js's.
-import { KT_TO_FTPS, G_FTPS2 } from '../../../core/units.js';
+import { G_FTPS2 } from '../../../core/units.js';
 import { wrapPi } from '../../../core/angles.js';
 import { STEP_SEC, copyAircraft } from './flight.js';
 import { relativeTo, leadTurnSegs, DEG } from './manoeuvres.js';
