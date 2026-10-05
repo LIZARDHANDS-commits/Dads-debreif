@@ -63,6 +63,13 @@ const CAN_MOVE = new Set([...IN_PATTERN, 'joining', 'straight_in', 'fly_through'
  */
 const skillMove = (f) => (ON_FINAL.has(f.standing) && (f.standing !== 'straight_in' || f.finalLeg !== false) ? 'go_around' : 'breakout');
 
+/**
+ * Giving way on final to a PFL or to an aircraft that has perched (on its final turn or final): the move-over, toward
+ * the inner runway, between the runways, then the go-around (Patrick, 5 Oct 05:53Z; TR-73). Anyone else: skillMove.
+ */
+const giveWayMove = (g, h) => (skillMove(g) === 'go_around' && (h.standing === 'pfl' || h.standing === 'final_turn' || h.standing === 'final')
+  ? 'move_over' : skillMove(g));
+
 /** The last-moment move: a PFL banks away, an aircraft on final goes around, anyone else flinches then breaks out. */
 const evasiveMove = (f) => (f.standing === 'pfl' ? 'bank_away' : skillMove(f) === 'go_around' ? 'go_around' : 'flinch');
 
@@ -78,7 +85,7 @@ export function rightOfWay(p, q) {
   if (sa === 'pfl' || sb === 'pfl') {
     if (sa === sb) return { giver: null, rule: 'two PFLs' };
     const [g, h] = sa === 'pfl' ? [b, a] : [a, b];
-    const move = g.standing === 'initial' || g.standing === 'break' ? 'fly_through' : skillMove(g);
+    const move = g.standing === 'initial' || g.standing === 'break' ? 'fly_through' : giveWayMove(g, h);
     return pick(g, h, move, 'PFL has right of way');
   }
   // R2: downwind has right of way over a fly-through, which climbs straight ahead above pattern height and
@@ -94,6 +101,8 @@ export function rightOfWay(p, q) {
   // 4.28 para 68, 4.21 paras 50-51).
   if (sa === 'straight_in' || sb === 'straight_in') {
     const [s, o] = sa === 'straight_in' ? [a, b] : [b, a];
+    // One that chose not to extend (TR-74) perches anyway, so the straight-in moves over.
+    if (o.standing === 'inner_downwind' && o.perchAnyway) return pick(s, o, 'move_over', 'aircraft perching ahead did not extend');
     if (o.standing === 'inner_downwind') return pick(o, s, 'breakout', 'straight-in over an aircraft about to perch');
     if (o.standing === 'final_turn' || o.standing === 'final') return pick(s, o, 'move_over', 'final turn over straight-in');
   }
@@ -102,7 +111,7 @@ export function rightOfWay(p, q) {
   const dz = a.alt - b.alt;
   if (Math.abs(dz) >= DECONFLICT.higherByFt) {
     const [g, h] = dz > 0 ? [a, b] : [b, a];
-    return pick(g, h, skillMove(g), 'higher aircraft moves');
+    return pick(g, h, giveWayMove(g, h), 'higher aircraft moves');
   }
   const rightOf = (from, to) => {
     const brg = Math.atan2(to.x - from.x, to.y - from.y) * 180 / Math.PI;
@@ -112,9 +121,9 @@ export function rightOfWay(p, q) {
   const aSeesRight = rightOf(a, b), bSeesRight = rightOf(b, a);
   if (aSeesRight !== bSeesRight) {
     const [g, h] = aSeesRight ? [a, b] : [b, a];
-    return pick(g, h, skillMove(g), 'aircraft on the right has right of way');
+    return pick(g, h, giveWayMove(g, h), 'aircraft on the right has right of way');
   }
-  return pick(b, a, skillMove(b), 'same height, head-on: callsign order');
+  return pick(b, a, giveWayMove(b, a), 'same height, head-on: callsign order');
 }
 
 /**
@@ -165,7 +174,7 @@ export function freeze(aircraft, pathOf, routeOf) {
     // A straight-in is on final only on its last leg; further out it breaks out like anyone else (Patrick's Q3, Q7).
     const finalLeg = standing === 'straight_in' && route?.points?.length >= 2 && Number.isFinite(a.distFt)
       ? a.distFt >= pointDistFt(route, route.points.length - 2, path?.options) : undefined;
-    out.push({ id: a.id, x: a.x, y: a.y, alt: a.alt, trackDeg, gsFtps, standing, finalLeg, busy: Boolean(a.deconflict), track });
+    out.push({ id: a.id, x: a.x, y: a.y, alt: a.alt, trackDeg, gsFtps, standing, finalLeg, perchAnyway: a.perchRoll === 'perch', busy: Boolean(a.deconflict), track });
   }
   return out.sort((p, q) => (p.id < q.id ? -1 : p.id > q.id ? 1 : 0));
 }
