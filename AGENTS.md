@@ -97,6 +97,7 @@ The full policy is `docs/TESTING.md`; each module adds its own in `docs/modules/
 ## Git and names
 
 - Agents work on a branch and open a pull request; they never push straight to main.
+- **Dad's sessions** follow this rule book too. They pull main, work on a branch, and open a pull request for Patrick to review. They never merge, and Patrick's threads leave Dad's pull requests for Patrick to merge himself. GitHub enforces it: only Patrick and his Claude threads can update main.
 - Once Patrick has approved the spec or decision behind a change, its pull request merges when its checks are green, without asking, with a short note on the pull request saying what changed, what was checked and what is unseen. Patrick hears only about problems.
 - Every branch, commit, pull request and merge has a plain-English name that says what changed, for example "Traffic: break turn follows the wind". Decision, patch or task numbers may follow in brackets, but never replace the words.
 - Fewer, larger pull requests: one per finished piece of work, not one per fix.
