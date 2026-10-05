@@ -27,14 +27,29 @@
 //    about 100-120 KIAS at the top, about 140 at the vertical down (EFIG p.171), 230 at the exit (para 12; Fig 7.2).
 //    Before the pull Lead rolls wings level and gets to 230 KIAS by lowering or raising the nose at MAX (SMM 7.5 para 11
 //    says to attain 230; how is not given, so the up to 10° nose down or up is an estimate).
-// The barrel roll, the wingovers, the side swap and the standard sequence wait for a later piece (spec 10.3).
-import { stepPointMass } from '../../../core/point-mass.js';
+//  - Wingovers (V2.19; SMM 16.17 para 47, the only text; no figure in the SMM or EFIG): about 230 KIAS, the pull up at
+//    the cloverleaf's pitch rate (about 3 G, SMM 7.7 and EFIG p.137), aileron blended in as the nose comes through the
+//    horizon, about 45° of pitch above and below the horizon, up to 120° of bank, about 3 G, out on a heading about 180°
+//    from the entry; then the second the other way (para 47: "ideally"), back to the entry heading. Flown as a planned
+//    nose path (followNose below) with the nose rate set for about 3 G: the 120° of bank and the 45° come out of it.
+//  - Barrel roll (V2.19; SMM 14.8 paras 18-19, Fig 14.1; Table 14.1; Patrick's picks 19:20Z rows 5 and 6): PCL MAX,
+//    on a reference line at 230 KIAS, a 3 G wings-level pull and the roll blended in; the nose circles a point on the
+//    horizon 45° off the line: 45° off at 45° pitch up and about 90° of bank, 90° off level and inverted, 45° off at 45°
+//    pitch down, then level on the line at 230 KIAS. The nose moves round that circle with the back pressure set by a G
+//    plan: 3 G at the entry (Table 14.1), reduced over the top to 2.25 G (para 19: "the back pressure must be reduced";
+//    2.25 is an estimate that brings the exit back to about 230 KIAS, Fig 14.1 "adjust rate as required for 230 KIAS
+//    exit"), back up to 3 G coming down. Pitch over 60° is flagged (AFM7 brief p.17, Exercise 4), never held.
+//  - The standard sequence (V2.19; SMM 16.17 para 42, as written there): a level turn, a loop, two wingovers and a
+//    barrel roll, flown one after the other. The level turn is at the chosen bank (60/2 by default, AFM7 brief p.17
+//    Exercise 1) for 180° (an estimate: the SMM gives no amount; EFIG p.76's fighting wing turns are about 180°), then
+//    each manoeuvre's own speed set-up leads into the next.
+import { stepPointMass, gAndBankForLift } from '../../../core/point-mass.js';
 import { easeValue, dampedClimbG } from '../../../core/flight-math.js';
 import { t6aExcessFn, tasToIasKt, shakerG } from '../../../core/t6-performance.js';
 import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { ROLL, STEP_SEC, headingChangeRollingOut } from './flight.js';
-import { add3, sub3, scale3, len3, cross3, unit3, perp3 } from './attitude.js';
+import { add3, sub3, scale3, len3, cross3, unit3, perp3, dot3 } from './attitude.js';
 import { WING } from './fluid-wing.js';
 
 const DEG = Math.PI / 180;
@@ -65,6 +80,18 @@ export const LEAD = Object.freeze({
   loopPullOutDeg: 330, // where Lead stops holding the pitch rate and pulls out to level (an estimate)
   setupMaxPitchDeg: 10, // the speed set-up's nose down or up before the loop (an estimate)
   setupLimitSec: 60, // a guard only: after a minute of set-up the loop starts at whatever speed (an estimate)
+  wingoverKias: 230, // "approximately 230 KIAS" (SMM 16.17 para 47)
+  wingoverG: 3, // "approximately 3 G" (SMM 16.17 para 47); the cloverleaf's pull, 2.5-3.5 G (SMM Table 7.1; EFIG p.137 about 3 G)
+  wingoverPitchDeg: 45, // "approximately 45 degrees of pitch (above and below the horizon)" (SMM 16.17 para 47)
+  noseAccelDps2: 8, // how fast Lead changes the nose's rate along a planned nose path, 8°/s² (an estimate)
+  noseEndDps2: 3, // and how gently he slows it onto the end of the path, 3°/s² (an estimate): the pull-out to level
+  noseSteerPerSec: 1.2, // how fast he steers back onto the planned nose path, per second (an estimate)
+  shakerShare: 0.9, // he pulls no more than 90% of the stick shaker's G on a planned nose path (an estimate)
+  barrelKias: 230, // SMM Table 14.1, 14.8 para 19 (entry and exit)
+  barrelG: 3, // entry load (SMM Table 14.1; Fig 14.1 "3G, wings level pull and begin roll")
+  barrelTopG: 2.25, // the back pressure reduced over the top (SMM 14.8 para 19): 2.25 G is an estimate (230 KIAS out)
+  barrelPitchDeg: 45, // SMM 14.8 para 19 (45° pitch up and down at the quarter points); Patrick's pick row 6
+  barrelOffDeg: 45, // the nose circles a point 45° off the reference line (SMM 14.8 para 19: 45° off, then 90° off)
 });
 
 /** The buttons Lead has in the baseline (design 5.1, cut down by Patrick 21:44Z), with their words. */
@@ -78,6 +105,16 @@ export const FLUID_MOVES = Object.freeze({
     label: 'Loop', sided: false, interruptible: false, source: 'SMM 7.5 paras 10-13, Fig 7.2; Table 7.1; EFIG p.171',
     speeds: { entryKias: 230, exitKias: 230, source: 'SMM Table 7.1, 7.5 paras 11-12, Fig 7.2' },
   },
+  wingover: {
+    label: 'Wingovers', sided: true, interruptible: false, source: 'SMM 16.17 para 47',
+    speeds: { entryKias: 230, exitKias: null, source: 'SMM 16.17 para 47: about 230 in, the exit not given' },
+  },
+  barrelRoll: {
+    label: 'Barrel roll', sided: true, interruptible: false, source: 'SMM 14.8 paras 18-19, Fig 14.1; Table 14.1',
+    speeds: { entryKias: 230, exitKias: 230, source: 'SMM Table 14.1, 14.8 para 19, Fig 14.1' },
+    maxPitch: { deg: 60, source: 'AFM7 brief p.17, Exercise 4' },
+  },
+  sequence: { label: 'Standard sequence', sided: true, interruptible: false, source: 'SMM 16.17 para 42' },
   terminate: { label: 'Terminate', sided: false, interruptible: false, source: 'SMM 16.17 paras 45-46, 48; AFM7 brief p.17' },
 });
 
@@ -149,7 +186,7 @@ export function stepLead(st, ask) {
     const target = s.bank + wrapPi((ask.bank - s.bank) * DEG) / DEG; // the near way round
     const r = easeValue(s.bank, s.rollRate, target, half, ROLL);
     const pm = stepPointMass(s.pm, { g: g.bankDeg, bankRad: r.bankDeg * DEG }, half, excess);
-    s = finish({ pm, bank: r.bankDeg, rollRate: r.rollRateDps, g: g.bankDeg, gRate: g.rollRateDps, blockFt: s.blockFt });
+    s = finish({ pm, bank: wrapDeg(r.bankDeg), rollRate: r.rollRateDps, g: g.bankDeg, gRate: g.rollRateDps, blockFt: s.blockFt });
   }
   return s;
 }
@@ -164,6 +201,93 @@ function gForClimb(st, targetRad, omega = 0.5) {
 const headingOf = (st) => Math.atan2(st.nose.y, st.nose.x);
 const wrapDeg = (d) => wrapPi(d * DEG) / DEG;
 const level = (st) => Math.abs(st.gammaRad) < 0.3 * DEG && Math.abs(wrapDeg(st.bank)) < 0.5 && Math.abs(st.g - 1) < 0.03;
+
+/** A nose direction from a heading and a climb angle (radians). */
+const noseAt = (h, th) => ({ x: Math.cos(th) * Math.cos(h), y: Math.cos(th) * Math.sin(h), z: Math.sin(th) });
+
+/**
+ * A planned nose path (the wingovers and the barrel roll): the nose direction as a function of u over [0, uEnd],
+ * tabled by the angle the nose has moved through so far, so the pilot's one lever is how fast the nose moves along it
+ * (the SMM's own words for the barrel roll: "keep the nose moving at a constant rate", 14.8 para 19).
+ * Returns { total (radians), at(s) -> { nose, tangent, u } }.
+ */
+function nosePath(N, uEnd, steps = 4000) {
+  const us = [0];
+  const ss = [0];
+  let prev = N(0);
+  for (let i = 1; i <= steps; i++) {
+    const u = (uEnd * i) / steps;
+    const n = N(u);
+    ss.push(ss[i - 1] + Math.acos(Math.max(-1, Math.min(1, dot3(prev, n)))));
+    us.push(u);
+    prev = n;
+  }
+  const total = ss[steps];
+  const uAt = (s) => {
+    const x = Math.max(0, Math.min(total, s));
+    let lo = 0;
+    let hi = steps;
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (ss[mid] <= x) lo = mid;
+      else hi = mid;
+    }
+    const f = ss[hi] > ss[lo] ? (x - ss[lo]) / (ss[hi] - ss[lo]) : 0;
+    return us[lo] + f * (us[hi] - us[lo]);
+  };
+  return {
+    total,
+    at(s) {
+      const u = uAt(s);
+      const e = 1e-3;
+      const a = N(uAt(Math.max(0, s - e)));
+      const b = N(uAt(Math.min(total, s + e)));
+      const d = sub3(b, a);
+      return { nose: N(u), tangent: len3(d) > 1e-12 ? unit3(d) : { x: 0, y: 0, z: 0 }, u };
+    },
+  };
+}
+
+/**
+ * One step along a planned nose path: the nose rate (mem.rate, rad/s) is set for the G wanted (gWant, capped under the
+ * stick shaker: LEAD.shakerShare), changed no faster than LEAD.noseAccelDps2 and slowed onto the path's end at
+ * LEAD.noseEndDps2, so the pull-out comes in gently and nothing jumps. The lift a pilot needs follows: the path's own
+ * turn at that rate plus a steer back onto it (LEAD.noseSteerPerSec), plus gravity's share square to the path (core
+ * gAndBankForLift gives the G and the bank). mem: { s, rate }. Returns { g, bank, u, end }.
+ */
+function followNose(st, path, mem, gWant) {
+  const p = path.at(mem.s);
+  const w = perp3(Z, st.nose); // gravity's share square to the path, in G
+  const k = st.V / G_FTPS2;
+  const steer = scale3(perp3(sub3(p.nose, st.nose), st.nose), LEAD.noseSteerPerSec * k);
+  const c = add3(w, steer);
+  const T = scale3(perp3(p.tangent, st.nose), k);
+  // The rate that gives gWant: |T rate + c| = gWant (the larger root).
+  const g = Math.min(gWant, LEAD.shakerShare * shakerG(st.kias));
+  const a = dot3(T, T);
+  const b = 2 * dot3(T, c);
+  const cc = dot3(c, c) - g * g;
+  const want = a > 1e-12 ? Math.max(0, (-b + Math.sqrt(Math.max(0, b * b - 4 * a * cc))) / (2 * a)) : mem.rate;
+  const left = path.total - mem.s;
+  const endCap = Math.sqrt(2 * LEAD.noseEndDps2 * DEG * Math.max(0, left));
+  const step = LEAD.noseAccelDps2 * DEG * STEP_SEC;
+  mem.rate = Math.max(0, Math.min(endCap, mem.rate + Math.max(-step, Math.min(step, want - mem.rate))));
+  const lift = add3(scale3(T, mem.rate), c);
+  const gb = gAndBankForLift(lift, st.nose, st.pm.up, st.bank * DEG);
+  mem.s = Math.min(path.total, mem.s + mem.rate * STEP_SEC);
+  return { g: gb.g, bank: gb.g < 0.3 ? st.bank : gb.bankRad / DEG, u: p.u, end: mem.s >= path.total - 1e-6 || (left < 0.5 * DEG && mem.rate < 0.1 * DEG) };
+}
+
+/**
+ * #2's pursuit through a manoeuvre that goes up and over (the wingover and the barrel roll), by how far through it Lead
+ * is (u, 0 to 1 for one wingover or the roll): Patrick's loop rule (17:12Z, "lag on the way up, try to cross horizon
+ * with fuselages both parallel, and lead on the way down"), which he asked for here too (card 19:21Z, "like the loop"):
+ * LAG going up, PURE over the top (as near parallel as positive G allows: his 23:00Z ruling, a loose aim), LEAD coming
+ * down, PURE for the pull-out. The breaks (0.4, 0.6, 0.9) are estimates.
+ */
+function overTheTopMode(u) {
+  return u < 0.4 ? 'lag' : u < 0.6 ? 'pure' : u < 0.9 ? 'lead' : 'pure';
+}
 
 // ---- the controllers: one per button -------------------------------------------------------------
 // Each is { key, label, interruptible, init(st, ctx) -> mem, step(st, mem) -> { g, bank, holdKias?, phase, cue, done } }.
@@ -277,7 +401,7 @@ function speedSetUp(st, mem, kias) {
   const reach = (LEAD.climbPitchDps * DEG) / 0.4;
   const aim = st.gammaRad + Math.max(-reach, Math.min(reach, pitch - st.gammaRad));
   const g = Math.max(LEAD.minPushG, gForClimb(st, aim, 0.4));
-  const phase = Math.abs(st.bank) > 1 ? 'wings level' : dKias < -LEAD.loopEntryBandKias ? 'nose low for 230' : dKias > LEAD.loopEntryBandKias ? 'nose high for 230' : 'steady for the pull';
+  const phase = Math.abs(st.bank) > 1 ? 'wings level' : dKias < -LEAD.loopEntryBandKias ? `nose low for ${kias}` : dKias > LEAD.loopEntryBandKias ? `nose high for ${kias}` : 'steady for the pull';
   return { g, bank: 0, phase };
 }
 
@@ -341,6 +465,141 @@ export function loop() {
       return { g, bank: 0, phase, cue: { mode: loopMode(alpha), latDeg: 15, loop: { n0: mem.n0, alpha } }, done, entryKias: mem.entryKias, exitKias: mem.exitKias };
     },
   };
+}
+
+/**
+ * Two wingovers (SMM 16.17 para 47), the first rolling dir (+1 left, -1 right), the second the other way. The nose path:
+ * the heading turns 180° each way on a smooth curve (no turn rate at the start or end of each, so the wings start and
+ * finish level), the nose rises to 45° at the quarter, crosses the horizon at the 90° point (the highest point and the
+ * most bank) and falls to 45° below at three quarters; at the end of the second it comes up to the horizon on the entry
+ * heading. The nose rate is set for about 3 G (para 47), less near the stick shaker. Never cut short (a press waits).
+ */
+export function wingovers(dir) {
+  const A = LEAD.wingoverPitchDeg * DEG;
+  return {
+    key: 'wingover',
+    label: `Wingovers, ${dir > 0 ? 'left' : 'right'} first`,
+    interruptible: false,
+    init: () => ({ stage: 'setup' }),
+    step(st, mem) {
+      if (mem.stage === 'setup') {
+        const s = speedSetUp(st, mem, LEAD.wingoverKias);
+        if (s) return { ...s, cue: { mode: 'pure', latDeg: 15 }, done: false };
+        mem.stage = 'over';
+        mem.h0 = headingOf(st);
+        mem.s = 0;
+        mem.rate = 0;
+        mem.t = 0;
+        mem.entryKias = st.kias;
+      }
+      // The path is looked up from its plain numbers each step (mem is copied step to step, so it holds no functions).
+      const path = wingoverPath(mem.h0, dir, A);
+      let r = { g: 1, bank: 0, u: 2, end: true };
+      if (mem.stage === 'over') {
+        mem.t += STEP_SEC;
+        // The pull builds to about 3 G over the first second (and no faster than LEAD.gOnset).
+        r = followNose(st, path, mem, 1 + (LEAD.wingoverG - 1) * Math.min(1, mem.t));
+        if (r.end) mem.stage = 'exit';
+      }
+      if (mem.stage === 'exit') r = { ...r, g: gForClimb(st, 0, 0.6), bank: 0 };
+      if (mem.stage === 'exit' && mem.exitKias === undefined) mem.exitKias = st.kias;
+      const first = r.u <= 1;
+      const v = first ? r.u : r.u - 1;
+      const phase = mem.stage === 'exit' ? 'level' : `${first ? 'first' : 'second'} wingover, ${v < 0.25 ? 'nose up' : v < 0.5 ? 'to the top' : v < 0.75 ? 'nose down' : 'pulling up'}`;
+      const done = mem.stage === 'exit' && level(st);
+      // Through the wingovers #2 goes where Lead was and drifts in the cone (hold 0), back to 15° once level (Patrick 23:02Z).
+      const cue = mem.stage === 'exit' ? { mode: 'pure', latDeg: 15 } : { mode: overTheTopMode(v), latDeg: 15, hold: 0 };
+      return { g: r.g, bank: r.bank, phase, cue, done, entryKias: mem.entryKias, exitKias: mem.exitKias };
+    },
+  };
+}
+
+/**
+ * The barrel roll (SMM 14.8 paras 18-19, Fig 14.1), dir +1 left, -1 right: the speed set-up to 230 KIAS on the heading
+ * Lead has (the reference line), then the nose round its circle (see the header) with the G plan, then level. Never cut
+ * short (a press waits).
+ */
+export function barrelRoll(dir) {
+  return {
+    key: 'barrelRoll',
+    label: `Barrel roll ${dir > 0 ? 'left' : 'right'}`,
+    interruptible: false,
+    init: () => ({ stage: 'setup' }),
+    step(st, mem) {
+      if (mem.stage === 'setup') {
+        const s = speedSetUp(st, mem, LEAD.barrelKias);
+        if (s) return { ...s, cue: { mode: 'pure', latDeg: 15 }, done: false };
+        mem.stage = 'roll';
+        mem.h0 = headingOf(st);
+        mem.s = 0;
+        mem.rate = 0;
+        mem.t = 0;
+        mem.entryKias = st.kias;
+      }
+      const path = barrelPath(mem.h0, dir);
+      let r = { g: 1, bank: 0, u: 1, end: true };
+      if (mem.stage === 'roll') {
+        mem.t += STEP_SEC;
+        const u = path.at(mem.s).u;
+        const plan = LEAD.barrelG - (LEAD.barrelG - LEAD.barrelTopG) * Math.sin(Math.PI * u) ** 2;
+        r = followNose(st, path, mem, 1 + (plan - 1) * Math.min(1, mem.t));
+        if (r.end) mem.stage = 'exit';
+      }
+      if (mem.stage === 'exit') r = { ...r, g: gForClimb(st, 0, 0.6), bank: 0 };
+      // The exit speed is read as the nose comes back to the horizon on the line (SMM 14.8 para 19).
+      if (mem.stage === 'exit' && mem.exitKias === undefined) mem.exitKias = st.kias;
+      const u = r.u;
+      const phase = mem.stage === 'exit' ? 'level' : u < 0.25 ? 'pull and roll' : u < 0.5 ? 'to inverted' : u < 0.75 ? 'nose down' : 'back to the line';
+      const done = mem.stage === 'exit' && level(st);
+      // #2 like the loop (Patrick card 19:21Z), drifting in the cone, back to 15° once level (23:02Z).
+      const cue = mem.stage === 'exit' ? { mode: 'pure', latDeg: 15 } : { mode: overTheTopMode(u), latDeg: 15, hold: 0 };
+      return { g: r.g, bank: r.bank, phase, cue, done, entryKias: mem.entryKias, exitKias: mem.exitKias };
+    },
+  };
+}
+
+/** The barrel roll's nose path: a circle of 45° about a point on the horizon 45° off the reference line, toward the roll. */
+function barrelPath(h0, dir) {
+  const A = LEAD.barrelPitchDeg * DEG;
+  const off = LEAD.barrelOffDeg * DEG;
+  return cachedPath(`barrel ${h0} ${dir}`, () => nosePath((u) => {
+    const phi = 2 * Math.PI * u;
+    return noseAt(h0 + dir * off * (1 - Math.cos(phi)), A * Math.sin(phi));
+  }, 1));
+}
+
+/**
+ * The standard sequence's parts (SMM 16.17 para 42), in its order: a level turn dir (+1 left) at bankDeg for 180°
+ * (an estimate), a loop, two wingovers rolling dir first, a barrel roll dir.
+ */
+export function sequenceParts(dir, bankDeg) {
+  return [
+    levelTurn(dir, bankDeg, { turnDeg: 180, label: `Level turn ${dir > 0 ? 'left' : 'right'}, ${Math.round(bankDeg)}°, 180°` }),
+    loop(),
+    wingovers(dir),
+    barrelRoll(dir),
+  ];
+}
+
+/** Planned nose paths, kept by their numbers (a few at a time). */
+const pathCache = new Map();
+function cachedPath(key, make) {
+  if (!pathCache.has(key)) {
+    if (pathCache.size > 20) pathCache.clear();
+    pathCache.set(key, make());
+  }
+  return pathCache.get(key);
+}
+
+/** The wingovers' nose path (see wingovers). */
+function wingoverPath(h0, dir, A) {
+  return cachedPath(`wingover ${h0} ${dir} ${A}`, () => nosePath((u) => {
+    const first = u <= 1;
+    const v = first ? u : u - 1;
+    const d = first ? dir : -dir;
+    const h = h0 + (first ? 0 : dir * Math.PI) + d * Math.PI * 0.5 * (1 - Math.cos(Math.PI * v));
+    return noseAt(h, A * Math.sin(2 * Math.PI * v));
+  }, 2));
 }
 
 /** The entry from fighting wing (AFM7 brief p.17): a 30° bank turn away from #2 while all call ready, then 60° and PCL MAX. */

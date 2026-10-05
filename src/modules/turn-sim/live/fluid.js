@@ -13,8 +13,8 @@ import { shakerG } from '../../../core/t6-performance.js';
 import { FTPS_TO_KT, G_FTPS2 } from '../../../core/units.js';
 import { applyPose } from './kinematic.js';
 import { len3, sub3, poseOf3d, rollRateDps, unit3, dot3 } from './attitude.js';
-import { LEAD, FLUID_MOVES, leadStateOf, stepLead, levelTurn, wingsLevel, hold, reversal, entry, terminate, climbOrDescend, loop } from './fluid-lead.js';
-import { startWing, nextWing, rawWingPoint, smoothPoint, wingPose, levelUpOf, WING } from './fluid-wing.js';
+import { LEAD, FLUID_MOVES, leadStateOf, stepLead, levelTurn, wingsLevel, hold, reversal, entry, terminate, climbOrDescend, loop, wingovers, barrelRoll, sequenceParts } from './fluid-lead.js';
+import { startWing, nextWing, rawWingPoint, smoothPoint, wingPose, levelUpOf, WING, swapWanted, swapSide, wingValues } from './fluid-wing.js';
 
 const dt = STEP_SEC;
 const DEG = Math.PI / 180;
@@ -24,6 +24,8 @@ const AHEAD_STEPS = Math.round(20 / dt);
 const SEED_STEPS = Math.round(WING.maxBehindSec / dt) + 20;
 /** A guard on how far ahead the planner looks for the end of a manoeuvre a press must wait for. */
 const WAIT_LIMIT_STEPS = Math.round(240 / dt);
+/** How far apart #2's angles off the tail are read for his drift across the cone (the side swap): 0.25 s (estimate). */
+const SWAP_LOOK_STEPS = Math.round(0.25 / dt);
 
 /** The fluid manoeuvring numbers (Patrick's picks of 19:20Z, fluid-conflicts.md, unless said). */
 export const FLUID = Object.freeze({
@@ -53,7 +55,7 @@ export const LEVEL_BANKS = Object.freeze([
 export const bankDegFor = (value) => (LEVEL_BANKS.find((b) => b.value === value) ?? LEVEL_BANKS[1]).deg;
 
 /** The words for #2's pursuit, for the tags and the card. */
-export const PURSUIT_WORDS = Object.freeze({ lag: 'LAG', pure: 'PURE', lead: 'LEAD' });
+export const PURSUIT_WORDS = Object.freeze({ lag: 'LAG', pure: 'PURE', lead: 'LEAD', swap: 'SWAPPING' });
 
 /**
  * A new session from fighting wing. lead, wing: the live aircraft (flight.js) at the press; t0 the formation time.
@@ -107,7 +109,17 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
     const r = e.ctl.step(e.st, mem, { wingSide: e.wing.side });
     const st = stepLead(e.st, r);
     const t = t0 + (kMax + 1) * dt;
-    const w = nextWing(e.wing, r.cue, t, rangeFt);
+    let w = nextWing(e.wing, r.cue, t, rangeFt);
+    // The side swap (fluid-wing.js swapWanted): from where #2 is now and how he is drifting, worked out from what is
+    // already flown (his raw points up to this step), so a press of Lead's never changes a swap already begun.
+    if (kMax - 2 * SWAP_LOOK_STEPS > kMin + SEED_STEPS) {
+      const [p0, p1, p2] = [R(kMax).latRad, R(kMax - SWAP_LOOK_STEPS).latRad, R(kMax - 2 * SWAP_LOOK_STEPS).latRad];
+      const h = SWAP_LOOK_STEPS * dt;
+      const rate = (p0 - p1) / h;
+      const s = e.wing.side;
+      const blend = wingValues(e.wing, e.t).blend;
+      if (swapWanted((s * p0) / DEG, (s * rate) / DEG, { blend, t, swapUntil: e.wing.swapUntil })) w = swapSide(w, t, rate);
+    }
     let ctl = e.ctl;
     let next = mem;
     let queue = e.queue;
@@ -117,6 +129,8 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       if (queue.length) {
         ctl = queue[0];
         queue = queue.slice(1);
+        // The next part of the standard sequence: its own name on the card, in the same group (a press waits for all).
+        if (man.group !== undefined) man = { id: manId++, key: ctl.key, label: `${FLUID_MOVES.sequence.label}: ${ctl.label}`, group: man.group };
       } else if (ctl.key === 'terminate' || ctl.key === 'steady') {
         end = ctl.key === 'terminate';
         ctl = steady();
@@ -174,6 +188,9 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       case 'climb': return [climbOrDescend(1, at.askBank ?? st.bank)];
       case 'descend': return [climbOrDescend(-1, at.askBank ?? st.bank)];
       case 'loop': return [loop()];
+      case 'wingover': return [wingovers(dir)];
+      case 'barrelRoll': return [barrelRoll(dir)];
+      case 'sequence': return sequenceParts(dir, bank);
       case 'reversal':
         if (Math.abs(tsBank) < 10) return { reason: 'Reversal needs a turn to reverse: press a level turn first.' };
         return [reversal(tsBank, Math.max(bank, Math.abs(tsBank) > 5 ? Math.min(Math.abs(tsBank), LEAD.levelBanks.steep) : bank))];
@@ -206,21 +223,24 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       const now = E(kNow);
       if (ended !== null || now.man.key === 'terminate' || entries.get(kMax).man.key === 'terminate') return { refused: 'Terminate is being flown; fluid manoeuvring is ending.' };
       const curMan = now.man;
-      const interruptible = (curMan.key === 'hold' || (FLUID_MOVES[curMan.key]?.interruptible ?? false)) && now.ctl.interruptible !== false;
+      const interruptible = (curMan.key === 'hold' || (FLUID_MOVES[curMan.key]?.interruptible ?? false)) && now.ctl.interruptible !== false && curMan.group === undefined;
       // Started now, or once the manoeuvre being flown has finished (its last step); the controllers are worked out from
       // where Lead will be then.
       let j = kNow;
-      if (!interruptible) while (j - kNow < WAIT_LIMIT_STEPS && E(j + 1).man.id === curMan.id) j++;
+      const group = (m) => m.group ?? m.id;
+      if (!interruptible) while (j - kNow < WAIT_LIMIT_STEPS && group(E(j + 1).man) === group(curMan)) j++;
       const ctls = controllersFor(key, dir, E(j));
       if (ctls.reason) return { refused: ctls.reason };
-      const man = { id: manId++, key, label: label(key, dir) };
       const [first, ...rest] = ctls;
+      const id = manId++;
+      // The standard sequence is flown as its parts, each named on the card, one group (SMM 16.17 para 42).
+      const man = key === 'sequence' ? { id, key: first.key, label: `${FLUID_MOVES.sequence.label}: ${first.label}`, group: id } : { id, key, label: label(key, dir) };
       replanFrom(j, first, rest, man);
       if (interruptible) {
         queued = null;
         return 'started';
       }
-      queued = { key, label: man.label, startK: j };
+      queued = { key, label: key === 'sequence' ? label(key, dir) : man.label, startK: j };
       return 'queued';
     },
     /** Flies one step: applies the planned poses to the two aircraft. */
@@ -244,7 +264,7 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       wing.turning = !this.done;
     },
     /**
-     * What is flown now: { key, label, phase, manId, wingCue ('lag' | 'pure' | 'lead' | 'entry' | 'back to fighting wing'),
+     * What is flown now: { key, label, phase, manId, wingCue ('lag' | 'pure' | 'lead' | 'swap' | 'entry' | 'back to fighting wing'),
      * behindSec, speeds }. speeds: for the loop being flown, or the last one while Lead flies straight on after it,
      * { label, entryKias, exitKias (null until flown), book: { entryKias, exitKias, source } }; else null.
      */
@@ -292,11 +312,25 @@ function steady() {
 const wrapDeg = (d) => (((d + 180) % 360) + 360) % 360 - 180;
 
 /**
- * The readouts for the card and the tags (design 5.5), from the two aircraft as they are: range (straight line), aspect
- * (0 at Lead's tail, SMM 16.16 para 40b; Patrick row 10), HCA (para 40c), closure, line of sight rate, the cone state and
- * the flags. prev: the aircraft a step ago ({ lead, wing } with xFt, yFt, altAboveFt) for the rates, or null.
+ * Is an aircraft manoeuvring (turning, pitching or pulling) rather than straight and level? Lead's, for the tags and
+ * the card (Patrick 23:07Z and 23:08Z: "during the turn all that matters is their distance from lead for spacing").
+ * Over 5° of bank or pitch, or 0.2 G off 1 G: estimates of what a pilot would call straight and level.
  */
-export function fluidReadouts(lead, wing, prev, blockFt) {
+export function isManoeuvring(a) {
+  return Math.abs(a.bankDeg ?? 0) > 5 || Math.abs(a.pitchDeg ?? 0) > 5 || Math.abs((a.g ?? 1) - 1) > 0.2;
+}
+
+/** The distance-only word while Lead manoeuvres: TIGHT inside 500 ft, STRETCHED past 1,000 ft, otherwise IN RANGE. */
+export function rangeWord(rangeFt) {
+  return rangeFt < FLUID.bubbleFt ? 'TIGHT' : rangeFt > FLUID.rangeFt.max ? 'STRETCHED' : 'IN RANGE';
+}
+
+/**
+ * The readouts for the card and the tags (design 5.5), from the two aircraft as they are: range (straight line), aspect
+ * (0 at Lead's tail, SMM 16.16 para 40b; Patrick row 10), HCA (para 40c), closure, line of sight rate, #2's state (the
+ * distance only while Lead manoeuvres, the distance and the cone straight and level) and the flags. manKey: the manoeuvre Lead flies (for its pitch limit, the barrel roll 60°). prev: the aircraft a step ago ({ lead, wing } with xFt, yFt, altAboveFt) for the rates, or null.
+ */
+export function fluidReadouts(lead, wing, prev, blockFt, manKey = null) {
   const p = (a) => ({ x: a.xFt, y: a.yFt, z: a.altAboveFt ?? 0 });
   const vel = (a) => {
     const horiz = Math.sqrt(Math.max(0, a.tasFtps ** 2 - (a.climbFtps ?? 0) ** 2));
@@ -318,15 +352,20 @@ export function fluidReadouts(lead, wing, prev, blockFt) {
     const b = unit3(sub3(pl, pw));
     losDps = Math.acos(Math.max(-1, Math.min(1, dot3(a, b)))) / DEG / STEP_SEC;
   }
-  const state = rangeFt < FLUID.bubbleFt ? 'TIGHT' : rangeFt > FLUID.rangeFt.max ? 'STRETCHED' : aspectDeg > FLUID.coneHalfDeg ? 'OUT OF CONE' : 'IN POSITION';
+  // While Lead manoeuvres the cone is #2's aim, not a verdict (Patrick 23:02Z, SMM 16.17 para 42), and only the distance
+  // is judged (23:07Z, 23:08Z); straight and level, the full verdict: the distance and the cone.
+  const manoeuvring = isManoeuvring(lead);
+  const state = manoeuvring || rangeFt < FLUID.bubbleFt || rangeFt > FLUID.rangeFt.max ? rangeWord(rangeFt) : aspectDeg > FLUID.coneHalfDeg ? 'OUT OF CONE' : 'IN POSITION';
   const flags = [];
   if (rangeFt < FLUID.bubbleFt) flags.push(`Inside the 500 ft bubble (${Math.round(rangeFt)} ft; SMM 16.17 para 44c).`);
   if (wing.g > FLUID.wingGLimit) flags.push(`#2 is pulling ${wing.g.toFixed(1)} G; the limit is 5 G (SMM 16.17 para 44a).`);
   if (lead.g > FLUID.leadGLimit) flags.push(`Lead is pulling ${lead.g.toFixed(1)} G; the limit is 4 G (Orders B2 ch 8).`);
   if (aspectDeg > FLUID.aspectHcaFlagDeg && hcaDeg > FLUID.aspectHcaFlagDeg && losDps < FLUID.lowLosDps) flags.push('More than 90° of aspect with more than 90° of HCA and low line of sight (SMM 16.17 para 44b).');
+  const maxPitch = manKey ? FLUID_MOVES[manKey]?.maxPitch : null;
+  if (maxPitch && Math.abs(lead.pitchDeg ?? 0) > maxPitch.deg) flags.push(`Lead's pitch is ${Math.round(Math.abs(lead.pitchDeg))}°; the barrel roll's limit is ${maxPitch.deg}° (${maxPitch.source}).`);
   for (const [a, name] of [[lead, 'Lead'], [wing, '#2']]) {
     if (blockFt + (a.altAboveFt ?? 0) < FLUID.hardDeckMslFt) flags.push(`${name} is below 3,000 ft AGL, the fluid manoeuvring minimum (Orders B2 ch 8 para 1f; Gen Book p.11).`);
     if (a.g > shakerG(a.kias) - 0.01) flags.push(`${name} is at the stick shaker.`);
   }
-  return { rangeFt, aspectDeg, hcaDeg, closureKt, losDps, state, nearEnd: rangeFt <= FLUID.rangeFt.goodMax, flags };
+  return { rangeFt, aspectDeg, hcaDeg, closureKt, losDps, state, manoeuvring, nearEnd: rangeFt <= FLUID.rangeFt.goodMax, flags };
 }

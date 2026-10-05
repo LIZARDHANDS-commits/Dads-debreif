@@ -68,7 +68,7 @@ export const MILES_BACK_ROUTES = Object.freeze(['ENT1', 'ENT2']);
 
 /**
  * The miles boxes (Patrick, 4 Oct: "specifically selected", in 0.1 NM steps), each a distance back along the route
- * (sim.spawn backFt, TR-64) from where the rejoin joins the pattern, as a pilot counts it: the OHB Rejoin from its
+ * (sim.spawn backFt, TR-66) from where the rejoin joins the pattern, as a pilot counts it: the OHB Rejoin from its
  * Merge (its last point, on initial); the SI Rejoin from its base turn (`fromPoint` 2, the Entry Mid, where it turns
  * base; Patrick, 4 Oct). The most is the rejoin line's length to that point; the least keeps it a rejoin.
  * "Miles on final": from the threshold (the SI Rejoin's end), 0.75 NM, the Window (3/4 mile), out to 4.1 NM, the
@@ -374,7 +374,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       }
       if (!plan) return say(`No start on ${routeName(routeId)} meets ${targetId} in the next 3 minutes. Try another route.`);
       try {
-        // Anywhere along the route (TR-64), not only at its spots (Patrick, 4 Oct).
+        // Anywhere along the route (TR-66), not only at its spots (Patrick, 4 Oct).
         const id = sim.spawn({ type: settings.get().spawnType, routeId, startPoint: 1, backFt: plan.backFt, delaySec: plan.delaySec });
         const route = setup.routes.find((r) => r.id === routeId);
         const after = route?.points?.[plan.startPoint - 1]?.label ?? `point ${plan.startPoint}`;

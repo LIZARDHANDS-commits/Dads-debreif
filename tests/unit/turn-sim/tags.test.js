@@ -29,3 +29,14 @@ test('fighting wing: inside the cone is in position, too close is tight, too far
 test('the sweep is shown from the wing line, the manual\'s way (Fig 12.19): abeam is 0°, the cone\'s edges 30° and 60°', () => {
   for (const sweep of [0, 30, 45, 60]) assert.ok(Math.abs(fwState(lead, at(750, sweep)).sweepDeg - sweep) <= 5, `${sweep}°`); // the shared ±5° margin
 });
+
+test('while Lead manoeuvres only the distance is judged; ahead of the 3/9 line is flagged either way', () => {
+  // Patrick 23:07Z and 23:08Z: "during the turn all that matters is their distance from lead for spacing" (500 to 1,000
+  // ft, SMM 12.29 para 69); the sweep is judged again straight and level. Ahead of Lead's 3/9 line stays a flag.
+  const turning = { distanceOnly: true };
+  assert.notEqual(fwState(lead, at(750, 15), turning).state, 'OUT OF CONE');
+  assert.notEqual(fwState(lead, at(750, 75), turning).state, 'OUT OF CONE');
+  assert.equal(fwState(lead, at(400, 45), turning).state, 'TIGHT');
+  assert.equal(fwState(lead, at(1200, 45), turning).state, 'STRETCHED');
+  for (const opts of [turning, {}]) assert.equal(fwState(lead, at(750, -20), opts).state, 'AHEAD OF 3/9');
+});

@@ -62,7 +62,7 @@ const CONFLICT_SPAWN_GAP_HEIGHT_FT = 1000;
  * and after what delay, so that it meets aircraft `targetId` of the running `sim` and one of them has to manage it.
  * Everyone is flown on from now on a copy of the run with no deconfliction (the run itself is not touched), and the
  * route once from its first point; a start anywhere along it is that same flight from when it was there (every
- * SAMPLE_SEC of it, finer than 0.1 NM), placed with the start partway along a route (sim.spawn backFt, TR-64). The pick
+ * SAMPLE_SEC of it, finer than 0.1 NM), placed with the start partway along a route (sim.spawn backFt, TR-66). The pick
  * is the meeting that comes soonest, inside the caution distance (500 ft and 500 ft, TR-Q11) and at least
  * CONFLICT_LEAD_SEC ahead, starting now if any start now works, else after a delay of up to `mostSec`; it appears at
  * least 1 NM from everyone. Meeting someone else first is allowed (Patrick: "if that happens oh well").

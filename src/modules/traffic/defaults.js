@@ -33,7 +33,7 @@ export const DEFAULTS = Object.freeze({
   graphicsQuality: 'low', // Performance by default (Patrick, 3D upgrade); High is one click in the 3D bar or Traffic settings
 
   // Wind: 260°M at 15 kt, the opening picture's wind (Patrick, 4 Oct 18:47Z; was calm). Set in true: 269°T with
-  // Moose Jaw's 9° East (TR-63). Patrick, 4 Oct: "260 magnetic is fine" (it was 260°T, which reads 251°M).
+  // Moose Jaw's 9° East (TR-65). Patrick, 4 Oct: "260 magnetic is fine" (it was 260°T, which reads 251°M).
   windFromDeg: 269,
   windKt: 15,
 

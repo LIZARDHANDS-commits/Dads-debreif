@@ -43,7 +43,7 @@ function mount(root, app) {
   settings.update({ ...profileSettingDefaults(), ...start.profile.settings });
   const setup = /** @type {any} */ ({ version: 1, name: start.profile.name, anchor: structuredClone(start.profile.anchor), routes: structuredClone(start.profile.routes), aircraft: structuredClone(start.profile.aircraft) });
   applyToSetup(setup, settings.get());
-  // The built-in Moose Jaw opens on the Busy circuit scenario, in 260°M at 15 kt (Patrick, 4 Oct 18:47Z; °M, TR-63).
+  // The built-in Moose Jaw opens on the Busy circuit scenario, in 260°M at 15 kt (Patrick, 4 Oct 18:47Z; °M, TR-65).
   const opensBusy = start.profile === BUILT_IN[0].profile;
   if (opensBusy) setup.aircraft = scenarioAircraftNow('busy', 1);
   const sim = createSim(setup, { seed: start.profile.seed });

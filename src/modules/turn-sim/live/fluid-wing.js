@@ -9,7 +9,8 @@
 //    turn and in the climb, descent and loop (Patrick 22:28Z: "lets go with hold 15"), inside the 30° half cone of
 //    Patrick's pick row 2. Where Lead was is turned about Lead onto that place (tailTurnAt), so turning into #2 or away
 //    from him both hold 15° once the turn is steady (going where Lead was gave about 25° and 5°). Across is measured in
-//    a frame that follows Lead's path but not his roll (design 5.2). Swapping sides is the next piece (swapSide).
+//    a frame that follows Lead's path but not his roll (design 5.2). From V2.19 he swaps sides behind Lead's tail when
+//    crossing gets him back to 15° sooner than staying put (swapWanted, swapSide).
 //  - in the plane Lead is turning in, the pursuit: outside Lead's path is lag, on it pure, inside lead (SMM 12.30 paras
 //    72-74; EFIG p.391: lead puts the path inside Lead's turn circle, lag outside). The offset is 10% of the range, an
 //    estimate, and scales with how hard Lead is turning (none when he flies straight).
@@ -46,8 +47,13 @@ export const WING = Object.freeze({
   smoothSteps: 10, // the position line is smoothed over 10 steps (0.5 s) either side (estimate)
   maxBehindSec: 10, // the furthest back along Lead's path #2 can be
   turnSec: 8, // the lag or lead offset is what the cue wanted over the last 8 s, averaged (estimate)
-  tailSec: 3, // the turn onto the place off Lead's current tail is averaged over the last 3 s (estimate)
+  tailSec: 6, // the turn onto the place off Lead's current tail is averaged over the last 6 s (estimate; 3 s in V2.18)
   headingSec: 3, // the fighting wing slot, while blending, turns with Lead's heading averaged over the last 3 s (estimate)
+  swapMinSec: 5, // the side swap takes no less than 5 s ... (estimate)
+  swapMaxSec: 12, // ... and no more than 12 s (estimate)
+  swapAccelDps2: 2, // how quickly a wingman can stop a drift across the cone, 2°/s² (estimate)
+  swapMarginDeg: 2, // the stop must be at least 2° past the tail line before he swaps, so he doesn't flick on a line (estimate)
+  swapGuardSec: 4, // no new swap for 4 s after one ends (estimate)
 });
 
 /**
@@ -130,14 +136,37 @@ export function nextWing(w, cue, t, rangeFt) {
 }
 
 /**
- * The side swap's hook (the next piece: Patrick 22:28Z, "can swap sides if it makes sense for spacing/lead/lag", and the
- * swap over the top): #2 to the other side of Lead's tail, the across offset moving there over `sec` from time t. The
- * place off the current tail line (rawWingPoint) follows the across offset, so nothing else needs to change. Not used yet.
+ * The side swap (V2.19; Patrick 19:21Z: "wingman can 'swap sides' ... to fix lead/lag spacing over the top"; 22:28Z:
+ * "lets go with hold 15, but again, can swap sides if it makes sense for spacing/lead/lag"): #2 to the other side of
+ * Lead's tail, the across offset moving there over `sec` from time t. He crosses behind Lead's tail (the across offset
+ * passes through zero, straight behind him at the set range), never in front. The place off the current tail line
+ * (rawWingPoint) follows the across offset, so nothing else needs to change.
  */
-export function swapSide(w, t, sec) {
+export function swapSide(w, t, rateRad) {
   const side = -w.side;
   const lat = w.lat.to === 0 ? 0 : -w.lat.to;
-  return { ...w, side, lat: retarget(w.lat, lat, t, sec) };
+  // The across offset moves smoothly to the other side (from the rate and acceleration it has, so nothing jumps), while
+  // the drift that started the swap carries him on across. The quicker he is drifting, the quicker the move: about
+  // three times the distance over the drift's rate, kept between swapMinSec and swapMaxSec.
+  const v0 = rateRad * Math.max(w.range.to, 1); // ft/s across, left positive
+  const sec = Math.max(WING.swapMinSec, Math.min(WING.swapMaxSec, (3 * Math.abs(lat - valueOf(w.lat, t))) / Math.max(Math.abs(v0), 1e-6)));
+  return { ...w, side, lat: retarget(w.lat, lat, t, sec), swapUntil: t + sec };
+}
+
+/**
+ * The one rule for a swap, in level turns and over the top alike (Patrick 19:21Z and 22:28Z): #2 crosses to the other
+ * side of the cone when crossing gets him back to 15° sooner than staying put. a: his angle off Lead's tail now, toward
+ * his own side positive (degrees, measured across Lead's level plane); aDot: how fast it changes (°/s). Staying put,
+ * he must first stop the drift: at the angular acceleration a wingman makes across the cone (WING.swapAccelDps2) the
+ * drift carries him on by aDot² / 2A before it stops. If that stop is past Lead's tail line, on the other side, the
+ * other side's 15° is nearer than his own and he swaps; otherwise he holds his side (a steady turn holds 15° either
+ * way: Patrick 22:28Z). No swap during the entry or the terminate blend, or within WING.swapGuardSec of the last one.
+ */
+export function swapWanted(a, aDot, { blend = 1, t = 0, swapUntil = -Infinity } = {}) {
+  if (blend < 1 || t < swapUntil + WING.swapGuardSec) return false;
+  if (aDot >= 0) return false; // moving out toward his own place, or holding
+  const stopAt = a - (aDot * aDot) / (2 * WING.swapAccelDps2);
+  return stopAt < -WING.swapMarginDeg;
 }
 
 /** The wing state's values at a time: { latFt, rangeFt, blend }. */
@@ -196,10 +225,14 @@ function pursuitAt(E, k) {
   return e.pursuitS;
 }
 
-/** The fluid point behind Lead's path at a (fractional) step s of it: Lead's position there plus the pursuit and across offsets. */
-export function fluidPointAt(E, s) {
+/**
+ * The fluid point behind Lead's path at a (fractional) step s of it: Lead's position there plus the pursuit and across
+ * offsets. latFt: the across offset #2 wants now (V2.19: now, not when Lead was there, so a change of side or of
+ * distance moves his place once, with nothing left over to come back later).
+ */
+export function fluidPointAt(E, s, latFt) {
   const L = leadAt(E, s);
-  const v = wingValues(L.entry.wing, L.t);
+  const v = { latFt };
   const k = Math.floor(s);
   const f = s - k;
   const pursuit = add3(scale3(pursuitAt(E, k), 1 - f), scale3(pursuitAt(E, k + 1), f));
@@ -218,7 +251,7 @@ function pathPointAt(E, k, kMin) {
   if (now.pathS) return now.pathS;
   const v = wingValues(now.wing, now.t);
   const maxBack = Math.max(0, Math.min(WING.maxBehindSec / dt, k - kMin - 1));
-  const gap = (back) => len3(sub3(now.pos, fluidPointAt(E, k - back).p)) - v.rangeFt;
+  const gap = (back) => len3(sub3(now.pos, fluidPointAt(E, k - back, v.latFt).p)) - v.rangeFt;
   let lo = 0;
   let hi = null;
   for (let back = 2; back <= maxBack; back += 2) {
@@ -235,7 +268,7 @@ function pathPointAt(E, k, kMin) {
     else lo = mid;
   }
   const back = (lo + hi) / 2;
-  now.pathS = { fp: fluidPointAt(E, k - back), back };
+  now.pathS = { fp: fluidPointAt(E, k - back, v.latFt), back };
   return now.pathS;
 }
 
@@ -268,7 +301,9 @@ function tailErrorAt(E, k, kMin) {
     const r = sub3(pathPointAt(E, k, kMin).fp.base, e.pos);
     const now = Math.atan2(dot3(r, left), -dot3(r, nose));
     const want = Math.asin(Math.max(-1, Math.min(1, v.latFt / Math.max(v.rangeFt, 1))));
-    err = wrapAngle(want - now);
+    // The cue's hold (1 unless said): 0 through a wingover or a barrel roll, where #2 goes where Lead was and drifts in
+    // the cone, then settles back onto 15° as the averaging brings the hold back in (Patrick 23:02Z).
+    err = wrapAngle(want - now) * (e.cue?.hold ?? 1);
   }
   e.tailErrS = err;
   return err;
@@ -322,8 +357,10 @@ export function rawWingPoint(E, k, kMin) {
   const { fp, back } = pathPointAt(E, k, kMin);
   // Where Lead was, turned about Lead (his level up) onto the place off his current tail line, then the pursuit offset.
   const turn = tailTurnAt(E, k, kMin);
-  const { up } = frameOf(now);
-  let p = add3(add3(now.pos, turnAbout(sub3(fp.base, now.pos), up, -turn)), fp.pursuit);
+  const { up, nose, left } = frameOf(now);
+  const rel = turnAbout(sub3(fp.base, now.pos), up, -turn);
+  const latRad = Math.atan2(dot3(rel, left), -dot3(rel, nose)); // his angle off Lead's tail, left positive
+  let p = add3(add3(now.pos, rel), fp.pursuit);
   if (now.cue?.loop) p = loopPoint(now, p);
   if (v.blend < 1) {
     // The fighting wing slot, in Lead's level frame now (fwd along his heading, left square to it, alt above or below).
@@ -332,7 +369,8 @@ export function rawWingPoint(E, k, kMin) {
     const slotP = { x: now.pos.x + Math.cos(h) * s.fwd - Math.sin(h) * s.left, y: now.pos.y + Math.sin(h) * s.fwd + Math.cos(h) * s.left, z: now.pos.z + s.alt };
     p = add3(scale3(slotP, 1 - v.blend), scale3(p, v.blend));
   }
-  return { p, behindSec: back * dt, cue: now.cue?.loop ? now.wing.mode : fp.lead.entry.wing.mode, blend: v.blend };
+  const swapping = (now.wing.swapUntil ?? -Infinity) > now.t;
+  return { p, latRad, behindSec: back * dt, cue: swapping ? 'swap' : now.cue?.loop ? now.wing.mode : fp.lead.entry.wing.mode, blend: v.blend };
 }
 
 /**
