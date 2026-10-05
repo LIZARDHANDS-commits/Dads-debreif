@@ -383,7 +383,7 @@ const numberOf = (id) => String(id).replace(/\D+/g, '') || String(id);
  * what is missing, moves what is there and frees what has gone; dispose() frees the lot. `root` is the group to add
  * to the scene. models: { ct156, t6plain, standin }, each (THREE, { color, number, paint }) returning a mesh, for tests.
  */
-export function createSceneKit(THREE, { models = defaultModels(), fatLines = null, photoAlign = undefined } = {}) {
+export function createSceneKit(THREE, { models = defaultModels(), fatLines = null } = {}) {
   const root = new THREE.Group();
   const routeLines = new Map(); // route id -> { line, sig, edge }
   const resolution = { width: 1, height: 1 }; // the canvas size, which the wide lines need to be drawn in pixels
@@ -484,7 +484,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   root.add(scenery);
 
   // Circuit landmarks (Window Farm, Sukanen, Fiat Farm, Arrow Trees): always on.
-  const landmarks = createLandmarks(THREE, { floor: DEFAULT_FLOOR_FT, align: photoAlign }); // on the photo's places
+  const landmarks = createLandmarks(THREE, { floor: DEFAULT_FLOOR_FT });
   root.add(landmarks);
   const windsocks = createWindsocks(THREE, { floor: DEFAULT_FLOOR_FT });
   root.add(windsocks);
@@ -1307,7 +1307,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 2);
     const lights = addTrafficLights(THREE, scene);
     const sky = addSky(THREE, scene);
-    const kit = createSceneKit(THREE, { fatLines, photoAlign: photoAlignment(source.settings?.() ?? {}) });
+    const kit = createSceneKit(THREE, { fatLines });
     scene.add(kit.root);
     const style = win.getComputedStyle?.(canvas);
     const palette = paletteFrom((name) => style?.getPropertyValue(name).trim() ?? '');
