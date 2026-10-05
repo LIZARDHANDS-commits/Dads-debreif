@@ -49,8 +49,13 @@ const CONFLICT_LEAD_SEC = 20;
 const CONFLICT_AHEAD_SEC = 180;
 /** How long the new aircraft's route is flown once, s: a full Pattern 1 circuit and the look ahead (an estimate). */
 const CONFLICT_LAP_SEC = 480;
-/** The new aircraft never appears closer than this to anyone, ft (1 NM, as Random's spacing). */
+/** The new aircraft never appears closer than this to anyone, ft (1 NM, as Random's spacing)... */
 const CONFLICT_SPAWN_GAP_FT = 6076;
+/**
+ * ...counting only aircraft within this height of it, ft (an estimate). Without it a PFL gliding in 5,000 ft overhead
+ * blocked every start on final, and Spawn a conflict found nothing (Patrick, 4 Oct).
+ */
+const CONFLICT_SPAWN_GAP_HEIGHT_FT = 1000;
 
 /**
  * "Spawn a conflict" (Patrick, 4 Oct 19:24Z; any spot, soonest, 4 Oct): where on `routeId` a new aircraft should start,
@@ -75,7 +80,7 @@ export function conflictSpawnPlan(sim, setup, targetId, routeId, { type = 'CT-15
     fork.stepTo(t0 + s);
     const flying = fork.state().aircraft.filter((a) => a.status === 'flying');
     targetAt.push(flying.find((a) => a.id === targetId) ?? null);
-    others.push(flying.map((a) => ({ x: a.x, y: a.y })));
+    others.push(flying.map((a) => ({ x: a.x, y: a.y, alt: a.alt })));
   }
   const lap = trackOf(setup, { type, routeId, startIndex: 0 }, CONFLICT_LAP_SEC);
   const endFt = pointDistFt(route, route.points.length - 1, setup.routeOptions ?? DEFAULT_ROUTE_OPTIONS);
@@ -95,7 +100,7 @@ export function conflictSpawnPlan(sim, setup, targetId, routeId, { type = 'CT-15
     let best = null;
     for (const j of starts) {
       const first = lap[j];
-      if (others[k].some((o) => Math.hypot(o.x - first.x, o.y - first.y) < CONFLICT_SPAWN_GAP_FT)) continue;
+      if (others[k].some((o) => Math.abs(o.alt - first.alt) < CONFLICT_SPAWN_GAP_HEIGHT_FT && Math.hypot(o.x - first.x, o.y - first.y) < CONFLICT_SPAWN_GAP_FT)) continue;
       for (let i = Math.max(k, lead); i < targetAt.length; i++) {
         if (best && i >= best.i) break; // not sooner
         const b = lap[j + i - k];
