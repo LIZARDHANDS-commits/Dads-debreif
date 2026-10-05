@@ -1,8 +1,9 @@
 // The 2-ship's formation changes as lines, then tracker (clean-up step 2, TS-65; Patrick, card "Lines, then tracker"
 // 5 Oct 05:41Z; 06:24Z on the hand-over): the moves that start further than about 500 ft from the new slot fly a kinematic
 // line into the ball park at a rejoin's closure, then the tracker closes on the slot at the close-in rate and holds it,
-// planned again from the real state when the line ends (hand-over.js). The hot turning rejoin from line abreast is hot-rejoin.js; odd starts no line rule covers stay with the
-// tracker alone (transitions.js planGoTo, the fallback).
+// planned again from the real state when the line ends (hand-over.js). The turning rejoin, from line abreast or fighting
+// wing, is turning-rejoin.js (TS-68); odd starts no line rule covers stay with the tracker alone (transitions.js planGoTo,
+// the fallback).
 //
 // The lines follow the same manual routes as the tracker's legs (transitions.js legsFor), so the end picture is the same:
 //  - fighting wing to echelon, route or line astern: the straight-ahead rejoin (SMM 12.26 paras 62-63, Fig 12.17; EFIG
@@ -13,7 +14,10 @@
 //    105; Patrick 19:03Z), fighting wing across to the other side behind Lead (SMM 12.29 para 69), and any formation out
 //    to line abreast (SMM 16.18 para 51): the kinematic-moves.js routePoints lines, the tracker for the last of each;
 //  - the straight-ahead rejoin from line abreast (the More option; SMM 16.20 para 65a), to fighting wing on #2's side or
-//    on to a close formation through the straight-ahead rejoin above.
+//    on to a close formation through the straight-ahead rejoin above;
+//  - the straight-ahead rejoin from fighting wing is the Rejoin kind choice's other option (the turning rejoin, the default,
+//    is turning-rejoin.js: V2.59, TS-68; Patrick 07:32Z: "From every tactical formation you should be able to pick either
+//    straight ahead rejoin or turning rejoin").
 import { relativeTo } from './manoeuvres.js';
 import { recordFlight, speedSeg, describe, legsFor, STRAIGHT_AHEAD, CHANGE_LIMIT_SEC } from './transitions.js';
 import { CLOSE, routePoints } from './kinematic-moves.js';

@@ -33,8 +33,8 @@ import { applyPose } from './kinematic.js';
 import { fullPowerKtps, speedSegFor } from './slow-down.js';
 import { setKias, stepCommanded, phase, trackTwice, PLAN_MAX_SEC } from './tracker.js';
 import { FORMATIONS, fwShapeNow, pairSlot } from './slots.js';
-import { KIAS_OUTSIDE_LAB, KIAS_LAB, REJOIN, closureNow, rejoinClosureNow } from './tuning.js';
-import { onClosure } from './hand-over.js';
+import { KIAS_OUTSIDE_LAB, KIAS_LAB, REJOIN, RULED_REJOIN, closureNow, rejoinClosureNow } from './tuning.js';
+import { onClosure, leadTurnInto, trackTail } from './hand-over.js';
 
 // ---- the numbers -----------------------------------------------------------------------
 
@@ -347,11 +347,23 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
   const laneOk = (attempt) => attempt.run.laneFwdFt <= LANE_MARGIN_FT && attempt.run.minBelowFt > 0;
   /** @type {any} */
   let best = null;
-  if (rejoinKind === 'into') {
+  if (rejoinKind === 'into' && RULED_REJOIN.leadTurnsUntilIn) {
+    // Lead holds his 30° turn until #2 is IN POSITION, then rolls out (Patrick 5 Oct 06:16Z item 3: "until 2 is on";
+    // V2.59, TS-67): a first run against Lead turning on finds when #2 settles, the second flies against Lead rolling out
+    // then (hand-over.js leadTurnInto, trackTail).
+    const into = leadTurnInto({ lead, pre: slowWhileTurning, s: sCur, bankDeg: REJOIN.leadBankDeg, t0, record: recordFlight });
+    const tail = trackTail({ wing, lead, leadRec: into.longRec, phases, t0, blockFt, leadPlanFor: into.planTo });
+    if (tail.lp) {
+      const attempt = { leadSegs: tail.lp.segments, run: tail.run, profile: tail.profile, turnDeg: Math.round(tail.lp.turned / DEG) };
+      if (finished(attempt)) best = attempt;
+    }
+  }
+  if (rejoinKind === 'into' && !best) {
     // "Hot turning rejoin ALWAYS begins with lead IMMEDIATELY turning towards 2" (Patrick 5 Oct 05:29Z): Lead turns into #2
     // at the press, slowing as he turns (SMM 16.20 para 65b); the turn is the first angle that keeps the overshoot lane, or
     // failing that the first that finishes (the lane is flagged on the card, never a wall). Until step 2 Lead waited for
-    // closure first, or held straight when no turn kept the lane.
+    // closure first, or held straight when no turn kept the lane. Since V2.59 only when Lead turning until #2 is in
+    // doesn't finish.
     let fallback = null;
     for (const turnDeg of REJOIN.turnAnglesDeg) {
       const leadSegs = [...slowWhileTurning, turnSeg(wholeDegree(lead.headingRad + sCur * turnDeg * DEG), sCur, REJOIN.leadBankDeg)];
@@ -363,7 +375,7 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
       if (!fallback && finished(attempt)) fallback = attempt;
     }
     best ??= fallback ?? { ...fly2(lead, wing, [...slowWhileTurning, turnSeg(wholeDegree(lead.headingRad + sCur * REJOIN.turnAnglesDeg[0] * DEG), sCur, REJOIN.leadBankDeg)], t0, phases, blockFt), turnDeg: REJOIN.turnAnglesDeg[0] };
-  } else {
+  } else if (!best) {
     best = { ...fly2(lead, wing, speedSegs, t0, phases, blockFt), turnDeg: 0 };
   }
   best.judged = judgeEnd(best);

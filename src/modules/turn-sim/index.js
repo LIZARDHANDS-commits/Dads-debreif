@@ -235,7 +235,8 @@ function mount(root, app) {
   /**
    * The guides follow the formation (Patrick, 5 Oct): Lead's 3/9 line comes on in line abreast (Spread 4 for the four) and
    * goes off in the others; Lead's cone comes on in fighting wing and goes off in the others. Lead only. Set once each time
-   * the formation changes, so a tick changed by hand holds until the next change.
+   * the formation changes, at the press (Patrick, 5 Oct: "as soon as I hit the button"), so a tick changed by hand holds
+   * until the next change.
    */
   let guidesFor = null;
   function autoGuides(key) {
@@ -381,7 +382,7 @@ function mount(root, app) {
     const wingSide = setup.get().wingSide;
     ui.renderCard(state.aircraft.length > 2 ? cardForFour(state, wingSide) : cardFor(state, wingSide));
     const whereAll = formation.where();
-    autoGuides(whereAll.key);
+    autoGuides(state.current?.change?.to ?? whereAll.key); // the formation being flown to, from the press (Patrick, 5 Oct)
     changeUi.update(state, whereAll);
     changeUi.renderCard(state, whereAll);
     const ships = state.aircraft.length > 2 ? 4 : 2;

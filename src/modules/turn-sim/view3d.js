@@ -50,6 +50,8 @@ const PLAN_DASH_PX = Object.freeze({ on: 7, off: 6 });
 /** Room for the 3D guides (the 3/9 and 7/5 lines and the turn circles), in points. */
 const GUIDE_LINE_POINTS = 4000;
 const CIRCLE_STEPS = 48;
+/** Half the depth range the 3D camera keeps round the formation, feet (the grid beyond it simply isn't drawn). */
+const DEPTH_HALF_FT = 60_000;
 /** The 3D cone's facets: round the tail, and across the 30-60° band. */
 const CONE_ROUND_STEPS = 48;
 const CONE_BAND_STEPS = 6;
@@ -484,6 +486,12 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     );
 
     matchProjection(THREE, camera, { x: focus.x, y: focus.y, z: FLIGHT_ALT_FT }, shown, box, 1);
+    // A depth range round the formation only (the shared one spans Traffic's 30-mile scene), so close up the aircraft's
+    // near-touching surfaces don't flicker through each other (Patrick, 5 Oct: the striped tails).
+    const mid = (camera.near + camera.far) / 2;
+    camera.near = mid - DEPTH_HALF_FT;
+    camera.far = mid + DEPTH_HALF_FT;
+    camera.updateProjectionMatrix();
     renderer.render(scene, camera);
     drawTagsOver(state, layers, box, ratio, signs);
     drawn++;

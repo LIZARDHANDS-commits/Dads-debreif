@@ -12,7 +12,8 @@ import { aspectAngle3dDeg, headingCrossAngle3dDeg } from '../../../core/angles.j
 import { shakerG } from '../../../core/t6-performance.js';
 import { FTPS_TO_KT, G_FTPS2 } from '../../../core/units.js';
 import { applyPose } from './kinematic.js';
-import { WING } from './tuning.js';
+import { WING, HOLD, closureNow } from './tuning.js';
+import { holdLiveStep } from './full-power.js';
 import { len3, sub3, poseOf3d, rollRateDps, unit3, dot3 } from './attitude.js';
 import { LEAD, FLUID_MOVES, leadStateOf, stepLead, leadThrottle, levelTurn, wingsLevel, hold, reversal, entry, terminate, climbOrDescend, loop, wingovers, barrelRoll, sequenceParts } from './fluid-lead.js';
 import { startWing, nextWing, rawWingPoint, smoothPoint, wingPose, levelUpOf, swapWanted, swapSide, wingValues } from './fluid-wing.js';
@@ -81,6 +82,22 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
   let wingState = { up: { x: -Math.sin(wb) * Math.sin(wing.headingRad), y: Math.sin(wb) * Math.cos(wing.headingRad), z: Math.cos(wb) }, rollDps: wing.rollRateDps ?? 0 };
   let queued = null; // { label, key }
   let ended = null; // the step Terminate finished on
+  let endSeen = null; // the step Terminate's last step was flown on (the session ends once #2 has caught up too)
+  // #2 held to full power (full-power.js holdLiveStep, TS-63, V2.59): held is null while he flies the planned line exactly;
+  // heldPrev is his point a step ago while held.
+  let held = null;
+  let heldPrev = null;
+  /**
+   * The entry's and terminate's blend times (V2.59; Patrick 5 Oct 04:59Z: "move quickly into fluid maneouvering or into
+   * and out of fighting wing"): the distance from the fighting wing slot to the cone place at the set range (15° off
+   * Lead's tail, on #2's side) at the close-in rate (tuning.js closureNow, the Rates choice) as the average closure, never
+   * under WING.blendMinSec (estimate).
+   */
+  const blendSecs = () => {
+    const d = Math.hypot(slot.fwd + rangeFt * Math.cos(WING.latDeg * DEG), Math.abs(slot.left) - rangeFt * Math.sin(WING.latDeg * DEG), slot.alt);
+    const sec = Math.max(WING.blendMinSec, d / Math.max(closureNow().ftps, 1));
+    return { inSec: sec, outSec: sec };
+  };
 
   // ---- Lead's entries ----
   const st0 = leadStateOf(lead, blockFt);
@@ -107,10 +124,11 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
   function generate() {
     const e = entries.get(kMax);
     const mem = structuredClone(e.mem);
-    const r = e.ctl.step(e.st, mem, { wingSide: e.wing.side });
+    const blend = blendSecs();
+    const r = e.ctl.step(e.st, mem, { wingSide: e.wing.side, blendInSec: blend.inSec, blendOutSec: blend.outSec });
     const st = stepLead(e.st, r);
     const t = t0 + (kMax + 1) * dt;
-    let w = nextWing(e.wing, r.cue, t, rangeFt);
+    let w = nextWing(e.wing, r.cue, t, rangeFt, blend);
     // The side swap (fluid-wing.js swapWanted): from where #2 is now and how he is drifting, worked out from what is
     // already flown (his raw points up to this step), so a press of Lead's never changes a swap already begun.
     if (kMax - 2 * SWAP_LOOK_STEPS > kMin + SEED_STEPS) {
@@ -252,10 +270,22 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       while (kMax < kNow + AHEAD_STEPS) generate();
       if (queued && kNow > queued.startK) queued = null;
       const lp = leadPose(kNow);
-      const w = wingPose(S, kNow, wingState, blockFt);
+      // #2's speed-up is never faster than full power gives (TS-63, Patrick 04:07Z): where his planned line asks more he
+      // flies the same line at the speed he can reach (STRETCHED), cutting inside Lead's turn while he is behind (V2.59,
+      // full-power.js), and closes up as best he can after. The point a step ahead is worked out from where he will be,
+      // not kept, so a press of Lead's is followed from where he is.
+      const ref = (k) => E(k).pos;
+      const h1 = holdLiveStep(held, S, kNow, ref(kNow), blockFt);
+      const h2 = holdLiveStep(h1.state, S, kNow + 1, ref(kNow + 1), blockFt);
+      const before = held ? heldPrev : null;
+      const Sh = (k) => (k === kNow - 1 ? before ?? S(k) : k === kNow ? h1.p : h2.p);
+      const w = wingPose(Sh, kNow, wingState, blockFt);
       wingState = w.state;
+      held = h1.state;
+      heldPrev = h1.p;
       const e = E(kNow);
-      if (e.end && ended === null) ended = kNow;
+      if (e.end && endSeen === null) endSeen = kNow;
+      if (endSeen !== null && ended === null && (!held || kNow - endSeen > HOLD.extraSec / dt)) ended = kNow;
       if (this.done) {
         // Back to fighting wing: both straight and level, #2 exactly parallel at Lead's speed, for flight.js to fly on.
         Object.assign(lp, { bank: 0, roll: 0, climb: 0, g: 1 });
@@ -264,7 +294,7 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       // Both aircraft fly the same power (SMM 16.17 para 43): #2 shows MAX with Lead; while Lead holds a speed #2's power
       // is not planned (he follows the path), so his tag shows none.
       applyPose(lead, lp);
-      applyPose(wing, { ...w.pose, pwr: lp.pwr === 1 ? 1 : null });
+      applyPose(wing, { ...w.pose, pwr: lp.pwr === 1 || h1.full ? 1 : null, stretched: h1.stretched });
       lead.turning = !this.done;
       wing.turning = !this.done;
     },
@@ -364,6 +394,7 @@ export function fluidReadouts(lead, wing, prev, blockFt, manKey = null) {
   const flags = [];
   if (rangeFt < FLUID.bubbleFt) flags.push(`Inside the 500 ft bubble (${Math.round(rangeFt)} ft; SMM 16.17 para 44c).`);
   if (wing.g > FLUID.wingGLimit) flags.push(`#2 is pulling ${wing.g.toFixed(1)} G; the limit is 5 G (SMM 16.17 para 44a).`);
+  if (wing.stretched) flags.push('#2 is STRETCHED: at full power behind his place, cutting inside Lead\'s turn to close; he closes up as best he can once Lead\'s manoeuvre ends (TS-63, TS-67).');
   if (lead.g > FLUID.leadGLimit) flags.push(`Lead is pulling ${lead.g.toFixed(1)} G; the limit is 4 G (Orders B2 ch 8).`);
   if (aspectDeg > FLUID.aspectHcaFlagDeg && hcaDeg > FLUID.aspectHcaFlagDeg && losDps < FLUID.lowLosDps) flags.push('More than 90° of aspect with more than 90° of HCA and low line of sight (SMM 16.17 para 44b).');
   const maxPitch = manKey ? FLUID_MOVES[manKey]?.maxPitch : null;

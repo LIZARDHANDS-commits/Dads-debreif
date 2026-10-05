@@ -75,6 +75,20 @@ export function dryRun(aircraft, plan, t0, { maxSec = 600, sampleSec = 0.25 } = 
 export const turnSeg = (toRad, dir, bankDeg, rollOut = true) => ({ kind: 'turn', toRad, dir, bankDeg, rollOut });
 
 /**
+ * A turn of `total` radians the `dir` way at `bankDeg`, as flight.js turn segments of at most 170° each handed straight on
+ * (flight.js reads a heading more than 270° away as already passed), the last rolling out on the whole degree when rollOut.
+ */
+export function leadTurnSegs(h0, dir, total, bankDeg, rollOut) {
+  const segs = [];
+  const chunks = Math.max(1, Math.ceil(total / (170 * DEG)));
+  for (let i = 1; i <= chunks; i++) {
+    const to = wholeDegree(h0 + dir * total * (i / chunks));
+    segs.push(turnSeg(to, dir, bankDeg, i === chunks ? rollOut : false));
+  }
+  return segs;
+}
+
+/**
  * The wait that puts a second aircraft exactly abeam of the first on roll-out, when both fly
  * the same turn from heading u0 to heading u1 (unit vectors) at true airspeed v and `rel` is
  * where the second is from the first (feet): (rel · u1) / (v (1 − u0 · u1)). Shared by the

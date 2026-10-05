@@ -17,7 +17,7 @@
 import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
-import { relativeTo, turnSeg, wholeDegree, DEG } from './manoeuvres.js';
+import { relativeTo } from './manoeuvres.js';
 import { recordFlight, speedSeg, describe } from './transitions.js';
 import { KIAS_LAB, KIAS_OUTSIDE_LAB, KINEMATIC } from './tuning.js';
 import { FORMATIONS, fwShapeNow, pairSlot } from './slots.js';
@@ -259,18 +259,8 @@ export function planLineMove(pair, from, s, to, sTo, { spacingFt = 6000, blockFt
   };
 }
 
-/**
- * A turn of `total` radians the `dir` way at `bankDeg`, as flight.js turn segments of at most 170° each handed straight on
- * (flight.js reads a heading more than 270° away as already passed), the last rolling out on the whole degree when rollOut.
- */
-export function leadTurnSegs(h0, dir, total, bankDeg, rollOut) {
-  const segs = [];
-  const chunks = Math.max(1, Math.ceil(total / (170 * DEG)));
-  for (let i = 1; i <= chunks; i++) {
-    const to = wholeDegree(h0 + dir * total * (i / chunks));
-    segs.push(turnSeg(to, dir, bankDeg, i === chunks ? rollOut : false));
-  }
-  return segs;
-}
+// leadTurnSegs (a long turn as flight.js turn segments) lives in manoeuvres.js since V2.59, so transitions.js and
+// hand-over.js can use it without an import loop; it is re-exported here for the files that read it from here.
+export { leadTurnSegs } from './manoeuvres.js';
 
 // The hot turning rejoin from line abreast (standard and off-standard starts, and the overshoot) is in hot-rejoin.js.
