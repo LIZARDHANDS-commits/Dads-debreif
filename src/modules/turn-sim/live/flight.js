@@ -16,12 +16,13 @@ import { easeRoll, turnRateFromBankRadPerSec, gFromBankDeg } from '../../../core
 import { pitchDegFromClimb } from '../../../core/t6-performance.js';
 import { wrapPi } from '../../../core/angles.js';
 import { powerFor, POWER_BLOCK_FT } from './power.js';
+import { ROLL } from './tuning.js';
+
+/** Roll limits (tuning.js ROLL), still read from here by the tests. */
+export { ROLL };
 
 /** The step the whole Turn Sim flies in (TS-R9), the same 0.05 s as before. */
 export const STEP_SEC = 0.05;
-
-/** Roll limits: up to 90°/s (Patrick, 4 Oct 08:54Z), building and dying away at 360°/s² (Patrick, card 09:54Z). */
-export const ROLL = Object.freeze({ maxRateDps: 90, maxAccelDps2: 360 });
 
 /**
  * A new aircraft, straight and level.

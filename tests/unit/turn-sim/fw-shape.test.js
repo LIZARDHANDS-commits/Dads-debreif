@@ -15,7 +15,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createFormation } from '../../../src/modules/turn-sim/live/formation.js';
 import { relativeTo } from '../../../src/modules/turn-sim/live/manoeuvres.js';
-import { checkFwShape, judgeFormation } from '../../../src/modules/turn-sim/live/transitions.js';
+import { judgeFormation } from '../../../src/modules/turn-sim/live/judge.js';
+import { checkFwShape } from '../../../src/modules/turn-sim/live/slots.js';
 import { TOLERANCES } from '../../helpers/tolerances.js';
 
 /** Range and sweep back from ref's wing line (SMM Fig 12.19), as a pilot would read them. */

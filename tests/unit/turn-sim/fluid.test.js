@@ -21,7 +21,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createFormation } from '../../../src/modules/turn-sim/live/formation.js';
-import { judgeFormation } from '../../../src/modules/turn-sim/live/transitions.js';
+import { judgeFormation } from '../../../src/modules/turn-sim/live/judge.js';
 import { checkFluidRange } from '../../../src/modules/turn-sim/live/fluid.js';
 import { TOLERANCES } from '../../helpers/tolerances.js';
 

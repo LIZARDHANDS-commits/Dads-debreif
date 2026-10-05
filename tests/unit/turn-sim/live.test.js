@@ -17,7 +17,8 @@
 // unless a check says why it uses another.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createFormation, judgePair } from '../../../src/modules/turn-sim/live/formation.js';
+import { createFormation } from '../../../src/modules/turn-sim/live/formation.js';
+import { judgePair } from '../../../src/modules/turn-sim/live/judge.js';
 import { relativeTo, TURN_BANK_DEG, VERTICAL_MISS_FT, CHECK_DEG } from '../../../src/modules/turn-sim/live/manoeuvres.js';
 import { ROLL, STEP_SEC, makeAircraft, stepAircraft, planDone } from '../../../src/modules/turn-sim/live/flight.js';
 import { turnRateFromBankRadPerSec } from '../../../src/core/flight-math.js';

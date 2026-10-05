@@ -19,9 +19,12 @@ import { wrapPi } from '../../../core/angles.js';
 import { KT_TO_FTPS, G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft, smoother } from './flight.js';
 import { relativeTo, turnSeg, wholeDegree, onStep, DEG } from './manoeuvres.js';
-import { recordFlight, fwShapeNow, KIAS_LAB, KIAS_OUTSIDE_LAB, REJOIN, classifyPair, describe, FORMATIONS, LENGTH_FT } from './transitions.js';
+import { recordFlight, describe } from './transitions.js';
+import { KIAS_LAB, KIAS_OUTSIDE_LAB, REJOIN, KINEMATIC, HOT, STANDARD, LINE_UP, LINE_UP_REFERENCE } from './tuning.js';
+import { classify } from './judge.js';
+import { FORMATIONS, LENGTH_FT, fwShapeNow } from './slots.js';
 import { makeTrack, seedTrack, posesFrom, settleLast, followInto, slotInWorld, poseOf, laggedBank } from './kinematic.js';
-import { KINEMATIC, CLOSE, slotPoint, routePoints, movingSlot, rollEvents, eventsEnd, lastRollEnd, laneAndBelow, finishLine, leadTurnSegs } from './kinematic-moves.js';
+import { CLOSE, slotPoint, routePoints, movingSlot, rollEvents, eventsEnd, lastRollEnd, laneAndBelow, finishLine, leadTurnSegs } from './kinematic-moves.js';
 import { powerFor } from './power.js';
 import { STAGES, STAGE_WORDS, speedSegFor, slowKtps, stageFor, fullPowerKtps } from './slow-down.js';
 import { holdToPower } from './full-power.js';
@@ -35,53 +38,6 @@ const reverseSeg = (state, s, b3) => turnSeg(wrapPi(state.headingRad + s * Math.
 const LOS_RATE_DPS = 2;
 /** How much of the full pure-pursuit turn #2 may fly to point at Lead (estimates; the planner picks one). */
 const POINT_SHARES = [1.2, 1.15, 1.1, 1.05, 1, 0.95, 0.9, 0.85, 0.8];
-/** Where #2 may line up after the reversal: at least 300 ft behind Lead's 3/9 line, 400 to 2,000 ft from him (estimates). */
-const LINE_UP = Object.freeze({ behindFt: 300, minRangeFt: 400, maxRangeFt: 2000 });
-/**
- * At the normal reference #2 lines up wherever the standard rejoin's choices put him, even a little ahead or close in (the
- * error carries, TS-62); an overshoot then takes over if he can't stop. Estimates.
- */
-const LINE_UP_REFERENCE = Object.freeze({ behindFt: -1000, minRangeFt: 150, maxRangeFt: 3000 });
-/** How close to the standard start the pair must be for the standard hot turning rejoin (estimates: the shared margins). */
-export const STANDARD = Object.freeze({ spacingFt: 100, foreAftFt: 500, heightFt: 100, kias: 10, headingDeg: 5 });
-
-/**
- * The numbers of the off-standard starts and the overshoot (TS-62). All estimates unless a source is given.
- */
-export const HOT = Object.freeze({
-  minDescentSec: 12, // #2 comes down (or up) to the fighting wing height over at least 12 s, the standard start's (TS-55) ...
-  descentFtps: 30, // ... at about 30 ft/s average (1,800 ft/min) when there is time ...
-  maxDescentFtps: 45, // ... and faster, up to about 45 ft/s average (2,700 ft/min; its steepest about 13° nose down at 200 KIAS), to be off the
-  // stack before he is inside 2,000 ft of Lead (SMM 12.27 para 65: never at or above Lead's height while closing)
-  // A planned speed-up is held to full power (TS-63, Patrick 02:48Z): the planner prefers a line inside it (geometry first);
-  // a line that still asks more is flown held to full power (full-power.js) and #2 shows STRETCHED. (Until V2.21 the lines
-  // could ask up to 3 kt/s.)
-  lagShares: [0.75, 0.7], // Fix it may also cut off less (a lag line, geometry first: Patrick 23:37Z, SMM 12.24 para 57)
-  search: Object.freeze({ shares: [1.2, 1.1, 1, 0.9, 0.8], banksDeg: [35, 45, 55, 60], reversalStepSec: 1 }), // the coarser search off the standard start
-  // Fix it's power: the speed #2 slows to before the capture, 200 KIAS as the standard (Lead's speed) or a little more, so he
-  // keeps a set overtake with power (SMM 12.24 para 56: 10 to 20 KIAS more than Lead's; Patrick 23:37Z)
-  powerTargetsKias: [200, 210, 220],
-  captureSecs: [20, 30, 45], // the capture onto fighting wing: the shortest whose speed changes the aircraft can fly (20 s is the standard's)
-  // Where off-standard starts are accepted at all (a generous "roughly line abreast"; anything else flies the tracker's rejoin):
-  start: Object.freeze({ minAcrossFt: 1000, maxForeAftFt: 4000, maxHeightFt: 2500, maxKiasOff: 45, maxHeadingDeg: 10 }),
-  // The overshoot (SMM 12.27 para 65, Fig 12.18):
-  passBehindFt: LENGTH_FT, // passes at least one aircraft length behind Lead (the figure: "one to two aircraft lengths behind and below")
-  belowFt: 30, // ... and stays at least this far below Lead until stable outside ("do not go higher than the flat turn position")
-  outsideLeftFt: 100, // stabilises on the outside about 3 wingspans out, about one length of clearance tip to tip ("at least one aircraft length")
-  outsideBackFt: 40, // ... a little behind Lead's 3/9 line
-  blendSecs: [8, 11, 14, 18, 24], // how long the overshoot takes to settle on the outside: the shortest the aircraft can fly
-  rollLevelSec: 2, // #2's turn dies away over this long as he rolls the wings level
-  idleShare: 0.9, // the overshoot slows at 90% of what idle and the boards give, so the settling has room ("use power and speed brake as required")
-  decisionStepSec: 0.5, // the decision point is searched back from the latest possible in half-second steps
-  // The decision point (TS-63; Patrick 23:29Z: "Overshoot is only required if they get to the decision point with too much
-  // energy to safely transition to route and move up the line in to eschelon"; SMM 12.27 para 64: "a decision made at the
-  // latter stages of a rejoin"): no manual gives its distance; Fig 12.18 draws it a few aircraft lengths from Lead, so the
-  // decision is taken only within about 1,000 ft (an ESTIMATE, the overshoot lane's own range). It was 1,500 ft in V2.20.
-  overshootRangeFt: 1000,
-  outsideWithinFt: 3000, // a line that would slide behind Lead to the outside of his turn within this range is too much energy, not a rejoin (estimate)
-  nearlyKtps: 1, // a line whose capture asks up to 1 kt/s more speed-up than full power still flies (held to it, STRETCHED); beyond it the decision overshoot is preferred
-});
-
 const RANK = Object.freeze({ power: 0, boards: 1, idle: 2, idleBoards: 3 });
 
 /**
@@ -708,7 +664,7 @@ export function planHotRejoinChange(pair, to, options = {}, t0 = 0) {
   const [lead, wing] = pair;
   if (to === 'lab' || (options.rejoin ?? 'into') !== 'into') return null;
   const errors = options.errors ?? null;
-  const from = classifyPair(lead, wing);
+  const from = classify([lead, wing]);
   const spacingFt = options.spacingFt ?? 6000;
   const blockFt = options.blockFt ?? 8000;
   const rel = relativeTo(lead, wing);

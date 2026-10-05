@@ -11,7 +11,7 @@
 // para 69, Fig 12.19). Sweep is measured the manual's way: 0° abeam on the wing line, 90° straight behind.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fwState } from '../../../src/modules/turn-sim/tags.js';
+import { fwState } from '../../../src/modules/turn-sim/live/judge.js';
 
 const DEG = Math.PI / 180;
 const lead = { xFt: 0, yFt: 0, headingRad: 0, altAboveFt: 0 }; // heading east; left is +y

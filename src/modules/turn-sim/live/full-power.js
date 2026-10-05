@@ -24,6 +24,7 @@ import { fullPowerKtps, excessPerWeight } from './slow-down.js';
 import { powerFor, powerFrom } from './power.js';
 import { makeTrack, posesFrom, settleLast, slotInWorld } from './kinematic.js';
 import { relativeTo } from './manoeuvres.js';
+import { HOLD } from './tuning.js';
 
 const dt = STEP_SEC;
 
@@ -37,30 +38,6 @@ export const WING_G = Object.freeze({ normal: 5, wall: 6.95 });
 export function wallG(kias) {
   return Math.min(stallLimitG(kias), WING_G.wall);
 }
-
-/**
- * The numbers of the hold. Estimates unless said.
- *  stretchMinFt, stretchShare: #2 is STRETCHED while he is more than this far behind where the planned line wanted him
- *    (10 ft, or 5% of his range from the aircraft he flies off if more), so a close wingman shows it at a few feet and a
- *    fighting wing one at a few tens.
- *  overtakeKias: closing back up he keeps at most this overtake, the middle of EFIG p.374's 10-20 KIAS.
- *  closeDecelFtps2: and plans to take it off at about this (about 0.6 kt/s, power back: well inside slow-down.js's
- *    power stage), so he arrives without overshooting.
- *  gain, jerkFtps3: how quickly he follows the speed he wants (1/s) and changes his acceleration (about 1 kt/s², the
- *    tracker's own figure), so the speed has no corners.
- *  margin: a planned line within full power x (1 + share) + ktps (the read-back of a planned line's speeds) is within it.
- *  extraSec: the longest he may take to close up after the planned line ends (a guard only).
- */
-export const HOLD = Object.freeze({
-  stretchMinFt: 10,
-  stretchShare: 0.05,
-  overtakeKias: 15,
-  closeDecelFtps2: 1,
-  gain: 0.6,
-  jerkFtps3: 1.7,
-  margin: Object.freeze({ share: 0.05, ktps: 0.05 }),
-  extraSec: 120,
-});
 
 /** KIAS per second the climb costs at climb rate climbFtps (energy height, standard aerodynamics: g x climb / V, in KIAS terms). */
 export function climbKtps(climbFtps, tasFtps, kias) {
