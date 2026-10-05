@@ -18,7 +18,8 @@ import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
 import { relativeTo, turnSeg, wholeDegree, DEG } from './manoeuvres.js';
-import { recordFlight, slotFor, fwShapeNow, KIAS_LAB, KIAS_OUTSIDE_LAB, SLOW_DOWN_KTPS, speedSeg, REJOIN, classifyPair, describe, FORMATIONS } from './transitions.js';
+import { recordFlight, slotFor, fwShapeNow, KIAS_LAB, KIAS_OUTSIDE_LAB, speedSeg, REJOIN, classifyPair, describe, FORMATIONS } from './transitions.js';
+import { speedSegFor } from './slow-down.js';
 import { makeTrack, seedTrack, posesFrom, settleLast, followInto, rollStarts, relPath, timeLaw, slotInWorld, poseOf, laggedBank } from './kinematic.js';
 
 const dt = STEP_SEC;
@@ -215,7 +216,7 @@ const KT_FTPS = 1.6878;
 /** The last step a list of roll events still blends at. */
 export const eventsEnd = (events) => events.reduce((m, e) => Math.max(m, e.k + Math.ceil(e.blendSec / dt)), 0);
 
-/** Lead's segments for a change: a speed change to the target formation's speed, at the start (full power up, 1.5 kt/s down). */
+/** Lead's segments for a change: a speed change to the target formation's speed, at the start (full power up, power back down: slow-down.js). */
 function leadSpeed(lead, kias, blockFt, withNext = false) {
   if (Math.abs(lead.kias - kias) <= 0.5) return [];
   return [{ ...speedSeg(lead.kias, kias, blockFt), withNext }];
@@ -323,16 +324,17 @@ const LINE_UP = Object.freeze({ behindFt: 300, minRangeFt: 400, maxRangeFt: 2000
 // Fig 16.25 is not to scale: flown at 200 KIAS and 30° of bank, a reversal timed as the figure draws it lines #2 up
 // thousands of feet behind and outside Lead. Patrick chose this SMM text version, from the standard start (4 Oct 19:16Z,
 // TS-55): #2 lines up just behind Lead, then one line carries it into fighting wing.
-export function planHotRejoin(pair, s, to, sTo, { spacingFt = 6000 } = {}, t0 = 0) {
+export function planHotRejoin(pair, s, to, sTo, { spacingFt = 6000, blockFt = 8000 } = {}, t0 = 0) {
   const [lead, wing] = pair;
   const h0 = lead.headingRad;
   const fw = slotPoint('fw', s, spacingFt);
   const bank = REJOIN.leadBankDeg;
-  const leadSlow = { kind: 'speed', toKias: KIAS_OUTSIDE_LAB, rateKtps: SLOW_DOWN_KTPS, withNext: true };
+  // Lead "smoothly slows to 200 KIAS" (Fig 16.25) with power, not the boards (Patrick 23:37Z, TS-61).
+  const leadSlow = { ...speedSegFor(lead.kias, KIAS_OUTSIDE_LAB, blockFt, 'power'), withNext: true };
   // While planning, Lead keeps turning (two near-full circles at 30°); the real plan ends the turn once #2 is in.
   const longRec = recordFlight(lead, { segments: [leadSlow, ...leadTurnSegs(h0, s, 4 * 170 * DEG, bank, false)] }, t0);
   const kiasPerTas = wing.kias / wing.tasFtps;
-  const slowWing = { kind: 'speed', toKias: KINEMATIC.hotWingKias, rateKtps: SLOW_DOWN_KTPS, withNext: true };
+  const slowWing = { ...speedSegFor(wing.kias, KINEMATIC.hotWingKias, blockFt, 'power'), withNext: true };
   const descend = { t0, t1: t0 + 12, fromFt: wing.altAboveFt, toFt: lead.altAboveFt + fw.up }; // down to the fighting wing height first (12 s, estimate)
   /** Flies #2 from the press through segments, calling each(a, k) after every step until it returns false. */
   const flyWing = (segments, maxSteps, each) => {
@@ -502,7 +504,7 @@ export function planHotRejoinChange(pair, to, options = {}, t0 = 0) {
   const s = from.side;
   const want = options.side ?? 'keep';
   const sTo = to === 'astern' ? 0 : want === 'left' ? 1 : want === 'right' ? -1 : s;
-  const r = /** @type {any} */ (planHotRejoin(pair, s, to, sTo, { spacingFt }, t0));
+  const r = /** @type {any} */ (planHotRejoin(pair, s, to, sTo, { spacingFt, blockFt: options.blockFt ?? 8000 }, t0));
   if (!r.ok) return null;
   const label = FORMATIONS[to].label;
   const sideWord = to === 'astern' ? '' : sTo > 0 ? ' left' : ' right';

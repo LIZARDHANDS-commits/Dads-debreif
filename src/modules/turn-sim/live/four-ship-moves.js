@@ -14,7 +14,7 @@
 //    time from the earlier aircraft's planned arrival (`holdUntil`), or a new leg that starts when every aircraft of
 //    the last one is settled. Legs join on the exact step they were planned from (flight.js hold thenNext).
 //  - Speeds: 200 KIAS outside line abreast, 220 in it (Patrick, 4 Oct 11:08Z), changed only inside a change with the
-//    smooth speed segment (full power up, 1.5 kt/s down, an estimate).
+//    smooth speed segment (full power up, power back down: slow-down.js, TS-61).
 //
 // Sources for each move are beside it. Numbers with no manual or ruling behind them say "estimate".
 import { STEP_SEC, copyAircraft, planDone } from './flight.js';

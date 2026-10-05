@@ -15,6 +15,8 @@
 // 23:07Z: "this is true in fighting wing as well"; 23:08Z: "during the turn all that matters is their distance from lead
 // for spacing"). Straight and level, and at the roll-out, the full verdict shows again. The real flag stays either way:
 // a wingman ahead of the 3/9 line of the aircraft he flies off reads AHEAD OF 3/9.
+// A wingman on an overshoot reads OVERSHOOTING (TS-62), and one slowing with the speed brake or at idle adds BOARDS, IDLE
+// or IDLE + BOARDS (TS-61).
 // formation.js first: the live files import each other in a loop, and entering it at transitions.js reads REJOIN in
 // kinematic-moves.js before transitions.js has set it (the same happens on main if transitions.js is loaded first).
 import './live/formation.js';
@@ -23,6 +25,7 @@ import { judgeFormation, FORMATIONS } from './live/transitions.js';
 import { FOUR_FORMATIONS, fourSlots } from './live/four-ship-slots.js';
 import { pursuitWord } from './fluid-panel.js';
 import { isManoeuvring, rangeWord } from './live/fluid.js';
+import { slowWord } from './live/slow-down.js';
 
 /** The fighting wing cone (SMM 12.29 para 69, Fig 12.19): feet from the aircraft flown off, and sweep back from its wing line. */
 export const FW_CONE = Object.freeze({ minFt: 500, maxFt: 1000, minSweepDeg: 30, maxSweepDeg: 60 });
@@ -131,7 +134,9 @@ export function tagLines(state, where) {
       const rel = relativeTo(ref, a);
       detail = `${ft(rel.left)} abeam${refId === 1 ? '' : ` of ${ref.name ?? `#${refId}`}`}`;
     }
-    out[a.id] = { title: `${name} · ${what}`, detail };
+    // How he is flying it (TS-61, TS-62): OVERSHOOTING in place of what the formation is doing, and BOARDS or IDLE when slowing with them.
+    const how = slowWord(a);
+    out[a.id] = { title: `${name} · ${a.overshooting ? 'OVERSHOOTING' : what}${how ? ` · ${how}` : ''}`, detail };
   }
   return out;
 }

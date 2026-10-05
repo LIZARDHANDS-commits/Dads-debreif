@@ -49,6 +49,7 @@ import { t6aExcessFn, tasToIasKt, shakerG } from '../../../core/t6-performance.j
 import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { ROLL, STEP_SEC, headingChangeRollingOut } from './flight.js';
+import { excessPerWeight } from './slow-down.js';
 import { add3, sub3, scale3, len3, cross3, unit3, perp3, dot3 } from './attitude.js';
 import { WING } from './fluid-wing.js';
 
@@ -63,7 +64,6 @@ export const LEAD = Object.freeze({
   terminateBankDeg: 30, // "gentle" (AFM7 p.17), "predictable" (SMM 16.17 para 46): 30° is an estimate
   terminateTurnDeg: 90, // how far the terminate turn goes before rolling out: an estimate
   fwKias: 200, // fighting wing speed (TS-53; SMM 12.23 para 53)
-  slowKtps: 1.5, // slowing with the power back: the Turn Sim's 1.5 kt/s estimate (TS-53)
   earlyCueSec: 4, // how long a new turn's lag (into #2) or lead (away from #2) lasts before pure: an estimate
   climbDeg: 15, // the climb or descent angle (design 5.1, an estimate)
   climbChangeFt: 2000, // how far a climb or descent goes before levelling off (an estimate)
@@ -162,13 +162,13 @@ function finish(st) {
   return st;
 }
 
-/** Excess thrust that holds an indicated speed: what it takes, up to full power, and slowing at 1.5 kt/s at most (estimate). */
+/** Excess thrust that holds an indicated speed: what it takes, up to full power, and slowing no faster than the power back gives (slow-down.js, TS-61). */
 function holdSpeedExcess(kiasTarget) {
   return (ktas, altFt, g) => {
     const kias = tasToIasKt(ktas, altFt);
-    const wantKtps = Math.max(-LEAD.slowKtps, Math.min(3, 0.2 * (kiasTarget - kias)));
+    const wantKtps = Math.min(3, 0.2 * (kiasTarget - kias));
     const wantFtps2 = wantKtps * KT_TO_FTPS * (ktas / Math.max(kias, 1));
-    return Math.min(wantFtps2 / G_FTPS2, t6aExcessFn(ktas, altFt, g));
+    return Math.max(excessPerWeight('power', kias, altFt, g), Math.min(wantFtps2 / G_FTPS2, t6aExcessFn(ktas, altFt, g)));
   };
 }
 

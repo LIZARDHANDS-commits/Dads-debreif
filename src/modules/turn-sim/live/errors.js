@@ -41,6 +41,7 @@ import { gFromBankDeg, turnRadiusFromBankFt } from '../../../core/flight-math.js
 import { excessThrustPerWeight } from '../../../core/t6-performance.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, copyAircraft, heightAt, angleToGo, stepAircraft, planDone, smoother, smootherSlope, SMOOTHER_PEAK } from './flight.js';
+import { slowKtps } from './slow-down.js';
 import { planManoeuvre, dryRun, relativeTo, missProfile, onStep, turnSeg, VERTICAL_MISS_FT } from './manoeuvres.js';
 
 // ---- the settings ------------------------------------------------------------------------
@@ -133,7 +134,7 @@ export const FIX_LIMITS = Object.freeze({
   pushPullG: 0.3, // estimate: the most a dive or zoom moves the G away from 1 (a gentle push or pull, 0.7 to 1.3 G)
   // Speed/power
   speedKias: 20, // estimate: the most #2 flies above or below Lead's speed
-  slowKtps: 1.5, // estimate: the steepest he slows (KIAS per second) with the power back, level
+  // slowing: with the power back, slow-down.js (TS-61; was a fixed 1.5 kt/s until V2.20)
   // Lateral spacing
   headingDeg: 10, // estimate: the most heading change in or out after the roll-out
   lateralBankDeg: 30, // estimate: the bank for that small heading change (1.15 G)
@@ -586,7 +587,7 @@ function planCore(pair, key, dir, t0, spec, slot, tools, blockFt) {
  *     P = dh/dt + (V / g) dV/dt           (standard aerodynamics, energy height)
  * which on the smootherstep is slope(u) / span × [dHeightFt + (V / g) ΔV]. More than zero, full power must give
  * it (the T-6A's excess thrust × V, core excessThrustPerWeight); less than zero, the power back must take it,
- * and that is set by FIX_LIMITS.slowKtps (the level slowing rate, an estimate). The height change also keeps
+ * and that is what the power back gives level (slow-down.js, TS-61). The height change also keeps
  * under FIX_LIMITS.maxClimbFtps and FIX_LIMITS.pushPullG. A dive that pays for the speed (dHeightFt = -(V / g) ΔV) needs no power at all.
  * Infinity when full power can't give it (past the T-6A's top speed at this height).
  */
@@ -606,7 +607,7 @@ function rampSpanSec(kias0, dKias, dHeightFt, tasPerKias, altFt) {
       if (power <= 0) return Infinity;
       span = Math.max(span, (slope * need) / power);
     } else if (need < 0) {
-      const idle = (v / G_FTPS2) * FIX_LIMITS.slowKtps * tasPerKias;
+      const idle = (v / G_FTPS2) * slowKtps('power', kias, altFt) * tasPerKias;
       span = Math.max(span, (slope * -need) / idle);
     }
   }

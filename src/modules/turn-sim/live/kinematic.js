@@ -49,11 +49,13 @@ export function applyPose(a, p) {
   a.pitchDeg = p.pitch;
   a.g = p.g;
   a.turning = true;
+  a.slowStage = p.stage ?? null; // how the line's slow-down is flown (slow-down.js, TS-61): BOARDS or IDLE on the card and tags
+  a.overshooting = Boolean(p.over); // on an overshoot (TS-62): OVERSHOOTING on the card and tags
 }
 
 /** An aircraft's state as a pose (the inverse of applyPose), for the parts of a track flight.js flies itself. */
 export function poseOf(a) {
-  return { x: a.xFt, y: a.yFt, alt: a.altAboveFt, h: a.headingRad, bank: a.bankDeg, roll: a.rollRateDps ?? 0, kias: a.kias, tas: a.tasFtps, climb: a.climbFtps ?? 0, pitch: a.pitchDeg ?? 0, g: a.g ?? 1 };
+  return { x: a.xFt, y: a.yFt, alt: a.altAboveFt, h: a.headingRad, bank: a.bankDeg, roll: a.rollRateDps ?? 0, kias: a.kias, tas: a.tasFtps, climb: a.climbFtps ?? 0, pitch: a.pitchDeg ?? 0, g: a.g ?? 1, stage: a.slowStage ?? null };
 }
 
 /**
