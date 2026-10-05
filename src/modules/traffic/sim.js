@@ -43,7 +43,7 @@ import { RANDOM, rollFor, pick, oddsFor, buildDownwindStraightIn } from './rando
 import { behaviourOf, behaviourLabel } from './behaviour.js';
 import { PATTERN_ALT_FT, RUNWAY_29L_HDG_DEG, DEPARTURE_END_29L, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
 import { iasToTasKt } from './weather.js';
-import { setFieldTemperature } from './weather.js';
+import { setFieldTemperature, placeStraightInDescent } from './weather.js';
 import { windTriangle } from '../../core/wind.js';
 import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
 import { legOffsetsFt } from '../../core/geo.js';
@@ -120,6 +120,7 @@ const NO_ROUTES = 'the setup needs at least one route';
 export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAPSHOTS } = {}) {
   let seed = firstSeed;
   setFieldTemperature(setup.fieldTempC); // the day's temperature (weather.js, TR-77)
+  placeStraightInDescent(setup.routes); // the straight-in starts down at today's 3° intercept (TR-80)
   let dice = createDice(seed);
   let t = 0, steps = 0;
   let aircraft = [];
@@ -874,6 +875,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
 
   function stepOnce() {
     setFieldTemperature(setup.fieldTempC); // set each step, so two sims in one page each fly their own day
+    placeStraightInDescent(setup.routes);
     t += STEP_SEC; // added up one step at a time, as V6 does, so the clock is V6's to the last digit
     steps++;
     const opt = routeOptions();
@@ -1385,6 +1387,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           headingDeg,
           bankDeg: a.bankDeg ?? 0,
           pitchDeg: a.pitchDeg ?? null,
+          climbFtps: Number.isFinite(a.climbFtps) ? a.climbFtps : 0, // on the altimeter; the 3D aim line reads it (TR-78)
           phase: a.phase ?? 'initial',
           tag: a.tag ?? p.tag ?? route?.points?.[p.seg]?.tag,
           trackDeg: a.trackDeg ?? a.headingDeg ?? p.headingDeg,

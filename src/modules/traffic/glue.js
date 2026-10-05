@@ -6,7 +6,7 @@
 // checked against their ranges on the way: whatever a setting holds, the setup only gets a
 // number the sim can use.
 import { DEFAULTS, LIMITS } from './defaults.js';
-import { fieldTempFor, setFieldTemperature } from './weather.js';
+import { fieldTempFor, setFieldTemperature, placeStraightInDescent } from './weather.js';
 
 /**
  * A number held to its range; anything that is not a finite number becomes `fallback`.
@@ -22,7 +22,7 @@ export function within(value, range, fallback) {
 /**
  * Copies the traffic settings the engine reads into the setup: the conflict and caution
  * distances (`setup.conflictLimits`), the route options (`setup.routeOptions`), and wind.
- * @param {{ conflictLimits?: any, routeOptions?: any, windFromDeg?: number, windKt?: number, deconflict?: boolean, randomize?: boolean, randomizeSharePct?: number }} setup
+ * @param {{ conflictLimits?: any, routeOptions?: any, windFromDeg?: number, windKt?: number, deconflict?: boolean, randomize?: boolean, randomizeSharePct?: number, fieldTempC?: number, routes?: any[] }} setup
  * @param {Record<string, any>} values the traffic settings (settings.get())
  */
 export function applyToSetup(setup, values) {
@@ -47,6 +47,7 @@ export function applyToSetup(setup, values) {
   // The day's temperature at the field (TR-77): a Weather preset, or the box when it is "Set the temperature".
   setup.fieldTempC = fieldTempFor(values.weather, within(values.fieldTempC, LIMITS.fieldTempC, DEFAULTS.fieldTempC));
   setFieldTemperature(setup.fieldTempC); // so the routes drawn before the next step use it too
+  placeStraightInDescent(setup.routes); // and the straight-in's descent point with it (TR-80)
 }
 
 /** The settings aren't remembered between visits yet (profiles are a later task), so they live in memory. */

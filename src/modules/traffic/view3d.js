@@ -29,6 +29,7 @@ import { createRiverGeometry } from './rivers3d.js';
 import { ejectionAt, EJECTION } from './ejection.js';
 import { trueAltFt } from './weather.js';
 import { createEjectionModel, poseEjectionModel, disposeEjectionModel } from './ejection3d.js';
+import { approachMarks, createApproachMarks, updateApproachMarks, disposeApproachMarks } from './approach3d.js';
 import { AIRFIELD_CORE_BOUNDS_FT, paintCoreAirfieldVector, getCoreCorners, getOptimalCoreTileZoom } from './airfield-core-ground.js';
 import { fieldCamera, topDownCamera, towerCamera, cockpitCamera, padlockCamera, NEEDS_AIRCRAFT } from './camera-views.js';
 import { createCameraBar } from './camera-bar.js';
@@ -479,6 +480,8 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   const resolution = { width: 1, height: 1 }; // the canvas size, which the wide lines need to be drawn in pixels
   const planes = new Map(); // aircraft id -> { mesh, kind, paint }
   const chutes = new Map(); // ejected aircraft id -> its seat and parachute (ejection3d.js)
+  const approach = createApproachMarks(THREE); // the window, the 3° intercept and the aim line (approach3d.js, TR-78)
+  root.add(approach);
   const rings = new Map(); // aircraft id -> LineLoop
   const attitude = createAttitude();
   let disposed = false;
@@ -1008,6 +1011,15 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
       syncRoutes(scene.routes, options);
       syncAircraft(scene, options);
       syncPflGround(scene, options);
+      updateApproachMarks(approach, {
+        altToZ: (ft) => altToZ(ft, ALT_SCALE),
+        floorFt: options.groundFt ?? 0,
+        pattern: scene.routes?.find((r) => r.id === 'PAT1') ?? null,
+        selected: scene.aircraft.find((a) => a.id === (scene.selectedAircraftId ?? null) && isFlying(a)) ?? null,
+        showMarks: options.layerWindow !== false,
+        showAim: options.layerAimLine !== false,
+        drawScale: planeLengthFt(options.zoom, options.aircraftScale) / T6_LENGTH_FT,
+      });
       updateWindsocks(windsocks, scene.windFromDeg, scene.windKt);
     },
     /** The canvas size in pixels, which the wide route lines are drawn against. */
@@ -1103,6 +1115,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
       pflSpokeMaterial.dispose();
       for (const { mesh } of planes.values()) disposeAircraftMesh(mesh);
       for (const chute of chutes.values()) disposeEjectionModel(chute);
+      disposeApproachMarks(approach);
       chutes.clear();
       planes.clear();
       for (const ring of rings.values()) ring.removeFromParent();
@@ -1787,6 +1800,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       layerWindTrack: options.layerWindTrack,
       layerSmmReference: options.layerSmmReference,
       layerPflCircle: options.layerPflCircle,
+      layerWindow: options.layerWindow,
+      layerAimLine: options.layerAimLine,
       layerPhoto: options.layerPhoto,
       photoTexture: photoTex,
       outerTexture: outerTex,
@@ -1835,6 +1850,16 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     };
     const screenOf = (x, y, alt) => worldToScreen(THREE, camera, { x, y, z: altToZ(alt, ALT_SCALE) }, size.width, size.height);
     const onScreen = (p, margin = 50) => p.x > -margin && p.y > -margin && p.x < size.width + margin && p.y < size.height + margin;
+
+    // The window and the 3° intercept, named (TR-78).
+    if (options.layerWindow !== false) {
+      const marks = approachMarks(data.routes?.find((r) => r.id === 'PAT1') ?? null);
+      ctx.textAlign = 'center';
+      const w = screenOf(marks.window.x, marks.window.y, marks.window.highFt);
+      if (onScreen(w)) write('THE WINDOW', w.x, w.y - 8, '#7dd3fc', true, 11);
+      const i = screenOf(marks.intercept.x, marks.intercept.y, marks.intercept.altFt);
+      if (onScreen(i)) write(`3° INTERCEPT (${(marks.intercept.outFt / FT_PER_NM).toFixed(1)} NM)`, i.x, i.y - 8, '#fde047', true, 11);
+    }
 
     if (options.layerPflCircle !== false) {
       const layout = pflCircleLayout();

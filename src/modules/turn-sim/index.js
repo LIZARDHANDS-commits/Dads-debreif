@@ -70,11 +70,8 @@ const FW_DEFAULTS = Object.freeze({
   fw4OtherRangeFt: FW4.rangeFt,
   fw4OtherDeg: FW4.otherDeg,
 });
-/**
- * The screen's start spacing. Patrick asked for 4,000 ft (5 Oct); it is back at 6,000 ft for now (Patrick, 5 Oct) because
- * since V2.22 the planner refuses the echelon rejoin from 4,000 and 5,000 ft. Put 4,000 back once that is fixed.
- */
-const START_SPACING_FT = LIVE_DEFAULTS.spacingFt;
+/** The screen starts line abreast at 4,000 ft (Patrick, 5 Oct), the close side of the 4,000 to 6,000 ft band (SMM 16.18 para 49). */
+const START_SPACING_FT = 4000;
 const SETUP_DEFAULTS = Object.freeze({ ships: LIVE_DEFAULTS.ships, check45: LIVE_DEFAULTS.check45, spacingFt: START_SPACING_FT, wingSide: LIVE_DEFAULTS.wingSide, ...FW_DEFAULTS, ...ERROR_DEFAULTS });
 
 /** The flags for fighting wing places outside the SMM band (SMM 12.29 para 69), for the ships flown: flown anyway, never refused. */
