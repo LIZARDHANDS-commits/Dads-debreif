@@ -90,3 +90,4 @@ The first Turn Sim engine (plan mode, ported from V6) was removed in clean-up st
 - Refactor (Patrick 21:06Z "Should we refactor the code after all this?"): its own pull request with no change to how anything flies; one place for the two rate sets, holding close formation and tactical (unrestricted, 21:11Z), which each planner now carries in its own limits (`KINEMATIC`, `OPEN_OUT`, `RUN_IN`, `CLOSE_TURN`).
 - A turn button pressed mid-change re-plans instead of queuing: every planner takes Lead's remaining plan (TS-78 leaves it queued).
 - Route, line astern and the 4-ship's turns at the slow close formation roll (Patrick 20:50Z: not now).
+- Move #2 around inside a formation's band with the controls (Patrick 21:38Z: "Ideally i'd like to be able to tell the aircraft to move around in 'the band' with those controls"). Today each formation has one place (the slot) as the aim and the judge uses the band (TS-80).

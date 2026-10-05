@@ -122,12 +122,13 @@ export function closeLinkKind(key, id) {
 
 /**
  * One wingman judged against the aircraft he flies off (ref). kind:
- *  - 'abreast': line abreast at spacingFt, ±100 ft, FORE more than 100 ft ahead of ref's 3/9 line, AFT past 10° of sweep
- *    (SMM 16.18 para 49);
+ *  - 'abreast': line abreast in the SMM's band, 4,000-6,000 ft (IN_POSITION.labBandFt; the spacing setting ±100 ft when the
+ *    setting is outside it), FORE more than 100 ft ahead of ref's 3/9 line, AFT past 10° of sweep, and with stackFt HIGH or
+ *    LOW past it (SMM 16.18 para 49: ±2,000 ft);
  *  - 'trail': in trail at spacingFt along ref's heading, ±100 ft, OFFSET more than 100 ft off line (SMM 16.19 para 59);
  *  - 'fw': SMM 12.29 para 69's band, 500-1,000 ft and 30-60°, widened by marginFt and marginDeg (0 unless the caller says
  *    why), and with needBelow NOT BELOW LEAD when not below ref (the four's links); the pair is in position anywhere in the
- *    cone, within IN_POSITION.stackFt above or below ref with ref straight and level (Patrick 5 Oct 21:26Z, TS-80);
+ *    cone, within IN_POSITION.fwStackFt above or below ref with ref straight and level (Patrick 5 Oct 21:26Z, TS-80);
  *  - 'echelon', 'route', 'astern': within IN_POSITION.closeFt of the place in each direction (Patrick 21:26Z, TS-80: "close
  *    formation within 5 feet and 5 knots"; the bands were ±15 ft and ±10 ft, estimates beside sight references, until
  *    V2.80). wingPlane: measure out and down in ref's
@@ -150,8 +151,14 @@ export function judgeLink(kind, ref, wing, { spacingFt = 6000, wingPlane = false
   const labels = [];
   const M = JUDGE_MARGIN_FT;
   if (kind === 'abreast') {
-    if (across < spacingFt - M) labels.push('TIGHT');
-    else if (across > spacingFt + M) labels.push('WIDE');
+    // The SMM's band (16.18 para 49: 4,000-6,000 ft lateral, 0-10° sweep, ±2,000 ft vertical), not the spacing setting
+    // ±100 ft (Patrick 5 Oct 21:38Z, TS-80); the setting is the aim. A setting outside the band is judged ±100 ft of itself.
+    const [bMin, bMax] = IN_POSITION.labBandFt;
+    const outside = spacingFt < bMin || spacingFt > bMax;
+    const lo = (outside ? spacingFt : bMin) - M; // the band's edges carry the shared ±100 ft margin (the default spacing sits on its far edge)
+    const hi = (outside ? spacingFt : bMax) + M;
+    if (across < lo) labels.push('TIGHT');
+    else if (across > hi) labels.push('WIDE');
     const sweepDeg = Math.atan2(-rel.fwd, Math.max(across, 1)) / DEG;
     if (rel.fwd > M) labels.push('FORE');
     else if (sweepDeg > SWEEP_MAX_DEG) labels.push('AFT');
@@ -258,12 +265,12 @@ function formationPair(key, lead, wing, spacingFt, wingPlane) {
   let numbers;
   let left;
   if (key === 'lab') {
-    const j = judgeLink('abreast', lead, wing, { spacingFt, stackFt: IN_POSITION.stackFt });
+    const j = judgeLink('abreast', lead, wing, { spacingFt, stackFt: IN_POSITION.labStackFt });
     labels = j.labels;
     numbers = `${ft(j.acrossFt)} abeam, ${ft(j.foreAftFt)} ${j.foreAftFt >= 0 ? 'ahead of' : 'behind'} Lead's 3/9 line, sweep ${Math.round(Math.max(0, j.sweepDeg))}° (0-${SWEEP_MAX_DEG}°)`;
     left = wingPlane ? judgeLink('abreast', lead, wing, { spacingFt, wingPlane }).rel.left : j.rel.left; // the spacing is judged level, the side in the wing plane
   } else if (key === 'fw') {
-    const j = judgeLink('fw', lead, wing, { wingPlane, needBelow: false, stackFt: IN_POSITION.stackFt });
+    const j = judgeLink('fw', lead, wing, { wingPlane, needBelow: false, stackFt: IN_POSITION.fwStackFt });
     labels = j.labels;
     numbers = `${j.numbers}, ${ft(j.down)} ${j.down >= 0 ? 'below' : 'above'} Lead`;
     left = j.rel.left;
