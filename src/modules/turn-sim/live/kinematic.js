@@ -515,11 +515,11 @@ export function powerLaw(path, { cruiseFtps = Infinity, accel, decel, limit = nu
  * The speed limit in Lead's frame at a point of a relative path moving in direction d (unit, in fwd, left, up). The
  * fore-aft rate is a rejoin's closure for the Rates choice (step 2, Patrick 06:09Z); relSpeedLimitFor gives it with another.
  */
-export function relSpeedLimit(q, d, foreAftFtps = undefined) {
+export function relSpeedLimit(q, d, foreAftFtps = undefined, over = null) {
   const range = Math.hypot(q.fwd, q.left);
-  const rates = closeRates(foreAftFtps);
+  const rates = over ? { ...closeRates(foreAftFtps), ...over } : closeRates(foreAftFtps);
   const lim = [
-    rates.lateralFtps / Math.max(Math.abs(d.left), 1e-6),
+    (typeof rates.lateralFtps === 'function' ? rates.lateralFtps(range) : rates.lateralFtps) / Math.max(Math.abs(d.left), 1e-6),
     rates.foreAftFtps / Math.max(Math.abs(d.fwd), 1e-6),
     rates.verticalFtps / Math.max(Math.abs(d.up), 1e-6),
     Math.max(rates.nearMinFtps, rates.nearPerSec * range),
@@ -527,8 +527,8 @@ export function relSpeedLimit(q, d, foreAftFtps = undefined) {
   return Math.min(...lim);
 }
 
-/** relSpeedLimit with the fore-aft rate `foreAftFtps` (a closure, ft/s). */
-export const relSpeedLimitFor = (foreAftFtps) => (q, d) => relSpeedLimit(q, d, foreAftFtps);
+/** relSpeedLimit with the fore-aft rate `foreAftFtps` (a closure, ft/s), and any of its other rates replaced by `over` ({ lateralFtps, foreAftFtps, verticalFtps, nearPerSec, nearMinFtps }: the opening out to line abreast, line-moves.js; lateralFtps may be a function of the range from Lead, the speed #2 has gained by there). */
+export const relSpeedLimitFor = (foreAftFtps, over = null) => (q, d) => relSpeedLimit(q, d, foreAftFtps, over);
 
 /** The ways of slowing, ranked in Patrick's order of use (slow-down.js STAGES). */
 export const RANK = Object.freeze({ power: 0, boards: 1, idle: 2, idleBoards: 3 });

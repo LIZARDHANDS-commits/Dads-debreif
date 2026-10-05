@@ -18,12 +18,14 @@
 //  - the straight-ahead rejoin from fighting wing is the Rejoin kind choice's other option (the turning rejoin, the default,
 //    is turning-rejoin.js: V2.59, TS-68; Patrick 07:32Z: "From every tactical formation you should be able to pick either
 //    straight ahead rejoin or turning rejoin").
-import { relativeTo } from './manoeuvres.js';
 import { recordFlight, speedSeg, describe, legsFor, STRAIGHT_AHEAD, CHANGE_LIMIT_SEC } from './transitions.js';
 import { CLOSE, routePoints } from './kinematic-moves.js';
 import { classify, judge } from './judge.js';
 import { FORMATIONS, pairSlot } from './slots.js';
-import { KIAS_LAB, KIAS_OUTSIDE_LAB, closureNow, rejoinClosureNow, ratesNow, RATE_WORDS } from './tuning.js';
+import { KIAS_LAB, KIAS_OUTSIDE_LAB, OPEN_OUT, closureNow, rejoinClosureNow, ratesNow, RATE_WORDS } from './tuning.js';
+import { fullPowerKtps } from './slow-down.js';
+import { climbKtps } from './full-power.js';
+import { relativeTo, DEG } from './manoeuvres.js';
 import { onClosure, lineRunIn, trackTail, wingPlan, replanFor } from './hand-over.js';
 import { STEP_SEC } from './flight.js';
 
@@ -41,6 +43,25 @@ function lineFor(from, s, to, sTo, cur, spacingFt, straightFromLab) {
   if (straightFromLab && to === 'fw' && s === sTo) return { points: routePoints('lab', s, 'fw', s, cur, spacingFt), tail: -1 };
   if (straightFromLab && CLOSE.has(to)) return { points: [...routePoints('lab', s, 'fw', s, cur, spacingFt), six(A.sixFt), six(A.closeTowardFt)], tail: 2 };
   return null;
+}
+
+/**
+ * The opening out's rates (OPEN_OUT, TS-78). #2 goes out at full power in a dive, so his speed grows as he goes: by
+ * OPEN_OUT.gainKtPerSqrtFt x the square root of the range from Lead (an estimate fitted to the core T-6 curve at full
+ * power plus the dive, about 1.3 KIAS per second from 200), up to the speed full power holds level with
+ * OPEN_OUT.reserveKtps in hand (slow-down.js fullPowerKtps). His rate across Lead's heading at each range follows from that
+ * speed and Lead's own (true airspeeds): the angle off that keeps him up with Lead, so he never asks more than the
+ * aircraft has. Returns relSpeedLimitFor's overrides (lateralFtps a function of range) plus { kias, offDeg } for the card.
+ */
+export function openOutRates(lead, blockFt) {
+  const ratio = lead.tasFtps / lead.kias; // true ft/s per KIAS at the block height, as the aircraft fly it
+  let kiasMax = lead.kias;
+  while (kiasMax < 300 && fullPowerKtps(kiasMax + 1, blockFt) >= OPEN_OUT.reserveKtps) kiasMax += 1;
+  const vLead = lead.kias * ratio;
+  const kiasAt = (rangeFt) => Math.min(kiasMax, lead.kias + OPEN_OUT.gainKtPerSqrtFt * Math.sqrt(Math.max(0, rangeFt)));
+  const lateralAt = (rangeFt) => Math.sqrt(Math.max(0, (kiasAt(rangeFt) * ratio) ** 2 - vLead * vLead));
+  const lateralFtps = lateralAt(Infinity);
+  return { lateralFtps: lateralAt, foreAftFtps: OPEN_OUT.foreAftFtps, verticalFtps: OPEN_OUT.verticalFtps, nearPerSec: OPEN_OUT.nearPerSec, nearMinFtps: OPEN_OUT.nearMinFtps, kias: kiasMax, offDeg: Math.atan2(lateralFtps, vLead) / DEG };
 }
 
 /**
@@ -69,12 +90,30 @@ export function planLineChange(pair, to, options = {}, t0 = 0) {
   if (!phases.length) return null;
   const finalSlot = pairSlot(to, sTo, spacingFt);
   const targetKias = to === 'lab' ? KIAS_LAB : KIAS_OUTSIDE_LAB;
-  const leadSegs = Math.abs(lead.kias - targetKias) > 0.5 ? [speedSeg(lead.kias, targetKias, blockFt)] : [];
-  const leadRec = recordFlight(lead, { segments: leadSegs }, t0);
+  const speedSegs = Math.abs(lead.kias - targetKias) > 0.5 ? [speedSeg(lead.kias, targetKias, blockFt)] : [];
+  /** @type {Array<any>} */
+  let leadSegs = speedSegs;
+  let leadRec = recordFlight(lead, { segments: leadSegs }, t0);
   // The line at a rejoin's closure to about 500 ft from the slot, then the tracker at the close-in rate (Patrick 06:24Z);
   // a move that starts inside 500 ft is the tracker's alone, at the close-in rate.
-  const legs = onClosure(phases.slice(rule.tail < 0 ? phases.length + rule.tail : rule.tail), { closeIn: true });
-  const line = lineRunIn({ wing, leadRec, points: rule.points, finalSlot, blockFt });
+  // Out to line abreast (OPEN_OUT, TS-78): the line at the speed full power can hold, slowing only near the slot, the tracker
+  // from 150 ft at a rejoin's closure; a wide band needs no close-in run.
+  const opening = to === 'lab';
+  const legs = onClosure(phases.slice(rule.tail < 0 ? phases.length + rule.tail : rule.tail), { closeIn: !opening });
+  const open = opening ? openOutRates(lead, blockFt) : null;
+  let line;
+  if (open) {
+    // Lead holds his speed until #2 is out (OPEN_OUT.leadHolds, an estimate needing Patrick's yes): at 220 KIAS the T-6
+    // has little in hand, so #2 would fall behind at any angle off and crawl back at a 15 kt overtake. The line is planned
+    // against Lead at his present speed; his speed change then starts at the line's hand-over, and the tracker's tail is
+    // planned against that.
+    const holdRec = OPEN_OUT.leadHolds && speedSegs.length ? recordFlight(lead, { segments: [] }, t0) : leadRec;
+    line = lineRunIn({ wing, leadRec: holdRec, points: rule.points, finalSlot, blockFt, endFtps: rejoinClosureNow().ftps, handOverFt: OPEN_OUT.handOverFt, rates: open, law: OPEN_OUT.law });
+    if (line && holdRec !== leadRec) {
+      leadSegs = [{ kind: 'hold', untilSec: t0 + line.steps * STEP_SEC, thenNext: true }, ...speedSegs];
+      leadRec = recordFlight(lead, { segments: leadSegs }, t0);
+    }
+  } else line = lineRunIn({ wing, leadRec, points: rule.points, finalSlot, blockFt });
   const tail = trackTail({ wing, lead, leadRec, line, phases: line ? legs : onClosure(phases, { closeIn: true }), t0, blockFt });
   const replan = line ? replanFor({ leadId: lead.id, phases: legs, blockFt, accelKtps: line.accelKtps, record: recordFlight }) : null;
   const { run } = tail;
@@ -88,7 +127,9 @@ export function planLineChange(pair, to, options = {}, t0 = 0) {
   const fromWord = FORMATIONS[from.key].label;
   const fromSide = from.key === 'astern' ? '' : sCur > 0 ? ' left' : ' right';
   const closure = closureNow();
-  const handOver = line
+  const handOver = line && open
+    ? ` #2 opens out in a full power dive to about ${Math.round(OPEN_OUT.diveFt / 50) * 50} ft below Lead, up to about ${Math.round(open.kias)} KIAS and ${Math.round(open.offDeg)}° off Lead's heading (what full power and the dive give, OPEN_OUT)${leadSegs[0]?.kind === 'hold' ? `, Lead holding ${Math.round(lead.kias)} KIAS until #2 is out (estimate)` : ''}, climbing back to his height by the slot, to about ${Math.round(line.handOverFt / 10) * 10} ft from the slot, then the tracker closes at ${rejoinClosureNow().kt} kt.`
+    : line
     ? ` #2 flies a line at ${rejoinClosureNow().kt} kt of closure to about ${Math.round(line.handOverFt / 10) * 10} ft from the slot, then the tracker closes at ${closure.kt} kt (${RATE_WORDS[ratesNow()]}).`
     : ` #2 closes at ${closure.kt} kt (${RATE_WORDS[ratesNow()]}).`;
   return {

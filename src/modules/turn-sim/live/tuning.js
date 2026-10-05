@@ -99,7 +99,7 @@ export const STRAIGHT_REJOIN = Object.freeze({
 /** The numbers of the kinematic moves. All estimates unless a source is given. */
 export const KINEMATIC = Object.freeze({
   // In the frame of Lead, how fast #2 may move:
-  lateralFtps: 140, // across Lead's heading: about a 25° heading difference at 200 KIAS (inside the 20-40° turn away of SMM 16.18 para 51)
+  lateralFtps: 140, // across Lead's heading: about a 25° heading difference at 200 KIAS (estimate; SMM 16.18 para 51 gives no angle)
   foreAftFtps: 25, // along it: about 15 KIAS of overtake or undertake, the middle of EFIG p.374's 10-20 KIAS
   verticalFtps: 15, // up or down: 900 ft/min (the 4-ship's stack-change estimate)
   nearPerSec: 0.1, // closing slows with range: 10% of the range per second ...
@@ -551,6 +551,49 @@ export const HOLD = Object.freeze({
  */
 export const ROLL = Object.freeze({ maxRateDps: 180, maxAccelDps2: 720 });
 
+/**
+ * When a 2-ship change of formation counts as done (formation.js inBandAndSteady; Patrick 5 Oct 20:39Z card "In band and
+ * steady", 20:41Z "I want 'stabilize' to be 'within 5 knots' instead of 'exactly zero'"; TS-78): #2 IN POSITION by the
+ * judge's band, moving against his slot at under closureKt, and banked within bankOffDeg of Lead (estimate). The tracker
+ * keeps closing on the exact slot underneath.
+ */
+export const STEADY = Object.freeze({ closureKt: 5, bankOffDeg: 10 });
+/**
+ * The opening out to line abreast (line-moves.js; Patrick 5 Oct 20:39Z: "rejoins and transitions between tactical
+ * formations should be assertive and smooth and quick"; card 20:41Z "Me, this PR"; TS-78). SMM 16.18 para 51 says only that
+ * #2 "manoeuvres into position while lead flies straight and level", so the numbers are estimates. Until V2.78 the line
+ * opened out at KINEMATIC.lateralFtps (140 ft/s), slowed in proportion to the range left from 1,400 ft out, and handed over
+ * 500 ft from the slot to the tracker at the close-in rate: 81 s from fighting wing, 109 s from echelon.
+ *  - reserveKtps: #2 opens out at the speed where full power still gives this much acceleration (slow-down.js
+ *    fullPowerKtps, standard aerodynamics): about 242 KIAS at 8,000 ft. His heading off Lead's follows from that speed and
+ *    Lead's 220 KIAS, about 25°: the turn away is what the speed allows, not a fixed angle;
+ *  - nearPerSec, nearMinFtps: the line slows only over the last few hundred feet (the band is ±100 ft);
+ *  - handOverFt: the tracker takes the last part at a rejoin's closure, not the close-in rate.
+ */
+export const OPEN_OUT = Object.freeze({
+  reserveKtps: 0.4, // #2 opens out up to the speed where full power still has this much in hand (estimate)
+  gainKtPerSqrtFt: 0.45, // KIAS gained per square root of the range from Lead on the way out: full power plus the dive, about 1 KIAS per second from 200 (estimate fitted to the core T-6 curve, kept under it so the line stays inside full power)
+  leadHolds: true, // Lead holds his speed until #2 is out, then speeds up to line abreast speed (estimate needing Patrick's yes; false: he speeds up at once)
+  // No slowing with range from Lead: leaving his side is not an arrival (the near term of kinematic.js relSpeedLimit throttled
+  // the first 1,000 ft from echelon to about 25 ft/s); the arrival at the slot is the time law's own slowing to endFtps.
+  nearPerSec: 10,
+  nearMinFtps: 20,
+  foreAftFtps: 80, // falling back in Lead's frame on the way out is geometry (the angle off), not a closure: up to about 47 kt (estimate)
+  // How hard the line may accelerate and turn in Lead's frame (hand-over.js RUN_IN's overrides). Patrick 21:11Z: the
+  // near-Lead throttle is only for holding close formation; "as soon as a tactical formation is selected, unrestricted
+  // attitude changes and power". Full power along, a 45° banked turn's lateral acceleration (1 g across; estimate), a
+  // 0.3 g push or pull for the dive and the climb back (estimate).
+  law: Object.freeze({ powerShare: 1, turnShare: 1, latG: 1, vertFtps2: 10 }),
+  handOverFt: 150, // the tracker takes over this close to the slot (estimate)
+  // A full power dive to start (Patrick 21:06Z: "LAB from echelon would be expedited by a full power dive to start"): #2
+  // drops this far below Lead on the way out, trading height for speed, and climbs back to Lead's height by the slot, which
+  // bleeds the extra speed off again (energy height, standard aerodynamics; full-power.js). Both numbers are estimates.
+  diveFt: 400,
+  verticalFtps: 40, // down or up on the way out: about 2,400 ft/min (estimate)
+});
+/** A station change's stop at a corner: "stabilize" is within this many knots against the slot, then the dwell (Patrick 20:41Z; was 1 ft/s). */
+export const STOP_KT = 5;
+
 // ---- the lag roll to fighting wing (lag-roll.js; spec section 10.8, TS-71) ------------------------------------------
 
 /**
@@ -567,6 +610,7 @@ export const LAG_ROLL = Object.freeze({
   topKias: 165, // the speed aimed for over the top, about 160-170 KIAS (estimate)
   topKiasBand: Object.freeze([150, 185]), // a plan whose slowest speed is outside this is not used (estimate)
   topRangeFt: Object.freeze([900, 1400]), // range from Lead passing over his six, about 1,000-1,300 ft (estimate, widened 100 ft each way)
+  closeTopRangeFt: Object.freeze([500, 1400]), // from echelon (TS-78): over Lead's six at 500-1,400 ft, the bubble's edge to the same far end (estimate)
   bubbleFt: 500, // a plan that comes inside 500 ft of Lead is refused (SMM 16.23, the fluid bubble; FW_BAND's inner edge, SMM 12.29 para 69)
   minG: 0.3, // canopy to canopy means positive G throughout: no plan pushes (estimate)
   rollSec: Object.freeze([8, 30]), // the roll's length searched, in whole seconds (estimate)

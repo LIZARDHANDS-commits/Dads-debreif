@@ -87,3 +87,6 @@ The first Turn Sim engine (plan mode, ported from V6) was removed in clean-up st
 - **Auto timing and the G correction** (plan.js, step.js): turn starts timed to keep spacing; a wingman's G corrected toward his slot.
 - **V6's formation slots and position errors, settings and input boxes** (engine/formation.js, settings.js, fields.js) and the old Formation card rows (readouts.js).
 - Two shared helpers in `src/core` were used only by plan mode and are now unused by the Formation Sim: `turnSimG` (flight-math.js) and `classifyTurnSimPosition` (standards.js). They stay until a `src/core` change is agreed.
+- Refactor (Patrick 21:06Z "Should we refactor the code after all this?"): its own pull request with no change to how anything flies; one place for the two rate sets, holding close formation and tactical (unrestricted, 21:11Z), which each planner now carries in its own limits (`KINEMATIC`, `OPEN_OUT`, `RUN_IN`, `CLOSE_TURN`).
+- A turn button pressed mid-change re-plans instead of queuing: every planner takes Lead's remaining plan (TS-78 leaves it queued).
+- Route, line astern and the 4-ship's turns at the slow close formation roll (Patrick 20:50Z: not now).

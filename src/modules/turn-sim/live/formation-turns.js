@@ -24,7 +24,8 @@ import { recordFlight, dryRunT } from './transitions.js';
 import { trackTwice, phase } from './tracker.js';
 import { smoothest, makeTrack, seedTrack, setTrackStep, TRACK_PAD, posesFrom, settleLast, slotInWorld } from './kinematic.js';
 import { leadTurnSegs } from './kinematic-moves.js';
-import { FW_TURN, FW_FOLLOW, WING_BANKS } from './tuning.js';
+import { FW_TURN, FW_FOLLOW, WING_BANKS, ROLL } from './tuning.js';
+import { easeRoll } from '../../../core/flight-math.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { wrapPi } from '../../../core/angles.js';
 
@@ -138,6 +139,8 @@ export function planFwTurn(aircraft, key, dir, t0 = 0, { blockFt = 8000 } = {}) 
  */
 export const CLOSE_TURN = Object.freeze({
   bankDeg: 45,
+  /** The 2-ship echelon turn: 60° of bank, 2 G (Patrick 5 Oct 20:50Z: "about 4-5 seconds to get to 60/2"; TS-78). */
+  echelonBankDeg: 60,
   gentleBankDeg: 30,
   fourEchelonBankDeg: 30,
   /**
@@ -146,6 +149,13 @@ export const CLOSE_TURN = Object.freeze({
    * wingman's place 30 ft (echelon) to 120 ft (route) up or down in half a second, which no wingman can follow.
    */
   leadRoll: Object.freeze({ maxRateDps: 30, maxAccelDps2: 20 }),
+  /**
+   * The 2-ship echelon turn's roll: "very slow and smooth, about 4-5 seconds to get to 60/2 ... Echelon is smooth to allow 2
+   * to stay in position in tight formation" (Patrick 20:50Z): up to 30°/s, building at 12°/s², about 4.5 s to 60° (the
+   * Formation thread's dry runs, 5 Oct: past about 15°/s² Lead's roll pushes #2 along his lift line faster than #2 can
+   * follow at 0.3 G or more). Every other formation and move keeps the aircraft's own roll (tuning.js ROLL).
+   */
+  echelonRoll: Object.freeze({ maxRateDps: 30, maxAccelDps2: 12 }),
   /**
    * How a close wingman holds his place in Lead's real wing plane through the roll-in, the turn and the roll-out (SMM 12.19
    * paras 41-43, Fig 12.11; Patrick 5 Oct 19:51Z: "The aircraft should use bank and pitch and roll to stay in position as
@@ -191,9 +201,13 @@ function holdInPlane(leadRec, lead, wing, body, leadSteps) {
   const vel = (a) => [Math.cos(a.headingRad) * a.tasFtps, Math.sin(a.headingRad) * a.tasFtps, a.climbFtps ?? 0];
   const vl = vel(lead);
   const vw = vel(wing);
-  let r = placeAt(0);
+  let r = [wing.xFt - lead.xFt, wing.yFt - lead.yFt, wing.altAboveFt - lead.altAboveFt]; // where he is (his place, in a turn)
   let v = [vw[0] - vl[0], vw[1] - vl[1], vw[2] - vl[2]];
-  let acc = [0, 0, 0];
+  // His turn and Lead's as they are (none at a close turn's press; a press mid-turn, replan.js), so his bank carries on.
+  const turnAcc = (a) => [-Math.sin(a.headingRad) * G_FTPS2 * Math.tan(a.bankDeg * DEG), Math.cos(a.headingRad) * G_FTPS2 * Math.tan(a.bankDeg * DEG), 0];
+  const aw = turnAcc(wing);
+  const al = turnAcc(lead);
+  let acc = [aw[0] - al[0], aw[1] - al[1], 0];
   const rel = [{ x: r[0], y: r[1], z: r[2] }];
   const last = leadSteps + Math.ceil(30 / dt);
   let prev = placeAt(0);
@@ -237,6 +251,56 @@ function holdInPlane(leadRec, lead, wing, body, leadSteps) {
   return { rel };
 }
 
+/** A held wingman's poses for steps 1..n: his offsets from Lead (holdInPlane's rel) laid on Lead's flight, his bank his own. */
+function heldPoses(leadRec, wing, rel, n) {
+  const track = makeTrack(n);
+  seedTrack(track, wing);
+  for (let k = 1; k <= n + TRACK_PAD; k++) {
+    const L = leadRec.at(k);
+    const r = rel[Math.min(k, rel.length - 1)]; // once he is settled and Lead is wings level, the same offset
+    setTrackStep(track, k, L.xFt + r.x, L.yFt + r.y, L.altAboveFt + r.z);
+  }
+  const line = posesFrom(track, wing.kias / wing.tasFtps);
+  ownBank(line.poses);
+  rollFrom(line.poses, wing);
+  settleLast(line.poses, leadRec.at(n));
+  return line.poses;
+}
+
+/**
+ * The poses' bank taken up from the aircraft's real bank and roll rate at no more than the aircraft's own roll (tuning.js
+ * ROLL), so a path planned from a banked, rolling start (a press mid-turn, replan.js slideInPlane) has no step in the bank:
+ * the path's own bank (ownBank) is reached within a fraction of a second and then followed. The positions are the path's.
+ */
+function rollFrom(poses, wing) {
+  let bank = wing.bankDeg ?? 0;
+  let rate = wing.rollRateDps ?? 0;
+  for (const p of poses) {
+    const want = p.bank;
+    ({ bankDeg: bank, rollRateDps: rate } = easeRoll(bank, rate, want, STEP_SEC, ROLL));
+    if (Math.abs(bank - want) < 1e-6 && Math.abs(rate - p.roll) < ROLL.maxAccelDps2 * STEP_SEC) {
+      bank = want;
+      rate = p.roll;
+    }
+    p.bank = bank;
+    p.roll = rate;
+  }
+}
+
+/**
+ * #2 from where he is to a close place on his side (echelon or route), held in Lead's real wing plane the way the close
+ * turns hold him (holdInPlane): a press mid-move (spec F11, replan.js), so a station change in a turn moves along Lead's
+ * wing line instead of chasing a level place. leadPlan: Lead's { segments, profile } from here; slot: the place
+ * ({ fwd, left, alt }, slots.js). Returns { poses, steps, leadRec }: poses for steps 1..steps, the last settled on Lead.
+ */
+export function slideInPlane(lead, wing, leadPlan, slot, t0 = 0) {
+  const leadSteps = Math.round(dryRunT(lead, leadPlan, t0).durationSec / STEP_SEC);
+  const leadRec = recordFlight(lead, leadPlan, t0);
+  const { rel } = holdInPlane(leadRec, lead, wing, { fwd: slot.fwd, left: slot.left, up: slot.alt }, leadSteps);
+  const steps = Math.max(leadSteps, rel.length - 1);
+  return { poses: heldPoses(leadRec, wing, rel, steps), steps, leadRec };
+}
+
 /**
  * Bank and roll rate from a wingman's own path: the direction of the lift that turns him and lifts or lowers him (standard
  * aerodynamics: tan bank = V turn rate / (g + vertical acceleration)), so he rolls with Lead and pulls or unloads to stay in
@@ -276,8 +340,10 @@ export function planCloseTurn(aircraft, formation, key, dir, t0 = 0) {
   if (!FW_TURN_KEYS.includes(key)) return { ok: false, reason: `${m?.label ?? key} flies in line abreast only.` };
   const four = aircraft.length > 2;
   const turnDeg = FW_TURN.turnDeg[key];
-  const bank = turnDeg <= 30 ? CLOSE_TURN.gentleBankDeg : four && formation === 'echelon' ? CLOSE_TURN.fourEchelonBankDeg : CLOSE_TURN.bankDeg;
-  const leadSegs = leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, bank, true).map((x) => ({ ...x, roll: CLOSE_TURN.leadRoll }));
+  const echelon2 = !four && formation === 'echelon';
+  const bank = turnDeg <= 30 ? CLOSE_TURN.gentleBankDeg : four && formation === 'echelon' ? CLOSE_TURN.fourEchelonBankDeg : echelon2 ? CLOSE_TURN.echelonBankDeg : CLOSE_TURN.bankDeg;
+  // The 2-ship echelon turn rolls slow and smooth (Patrick 20:50Z, TS-78); the other close formations as V2.76 (TS-77).
+  const leadSegs = leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, bank, true).map((x) => ({ ...x, roll: echelon2 ? CLOSE_TURN.echelonRoll : CLOSE_TURN.leadRoll }));
   const leadSteps = Math.round(dryRunT(lead, { segments: leadSegs }, t0).durationSec / STEP_SEC);
   const by = new Map(aircraft.map((a) => [a.id, a]));
   const leadRec = recordFlight(lead, { segments: leadSegs }, t0);
@@ -293,18 +359,9 @@ export function planCloseTurn(aircraft, formation, key, dir, t0 = 0) {
   });
   const n = held.reduce((m, h) => Math.max(m, h.rel.length - 1), leadSteps);
   for (const { wing, rel } of held) {
-    const track = makeTrack(n);
-    seedTrack(track, wing);
-    for (let k = 1; k <= n + TRACK_PAD; k++) {
-      const L = leadRec.at(k);
-      const r = rel[Math.min(k, rel.length - 1)]; // once he is settled and Lead is wings level, the same offset
-      setTrackStep(track, k, L.xFt + r.x, L.yFt + r.y, L.altAboveFt + r.z);
-    }
-    const line = posesFrom(track, wing.kias / wing.tasFtps);
-    ownBank(line.poses);
-    settleLast(line.poses, leadRec.at(n));
-    plans[wing.id] = { segments: [{ kind: 'poseTrack', poses: line.poses }] };
-    for (const p of line.poses) maxBankDeg = Math.max(maxBankDeg, Math.abs(p.bank));
+    const poses = heldPoses(leadRec, wing, rel, n);
+    plans[wing.id] = { segments: [{ kind: 'poseTrack', poses }] };
+    for (const p of poses) maxBankDeg = Math.max(maxBankDeg, Math.abs(p.bank));
   }
   // Which way each is stepped: the wingmen on the turn's side are on the inside (stepped down), the others on the outside (up).
   const two = by.get(2);

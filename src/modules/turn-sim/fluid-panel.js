@@ -112,6 +112,7 @@ export function createFluidUi({ onPress, onSettings, settings }) {
   const title = h('h3', { class: 'ts-group-title', id: 'ts-fluid-title' }, 'Fluid manoeuvring, Lead');
   const FLUID_HINT = hint.textContent;
   const FW_HINT = "Lead's turns, climbs and descents in fighting wing, at the level turn bank in Settings. #2 stays anywhere in the cone, collapsing toward Lead's six while Lead is banked. Lag roll: #2 rolls over Lead's six to the cone on the other side, with Lead wings level.";
+  const ECHELON_HINT = "Lag roll: #2 pulls up, rolls over Lead's six and lands in the fighting wing cone on Lead's other side, with Lead wings level.";
   const element = h('section', { class: 'ts-change ts-fluid', 'aria-labelledby': 'ts-fluid-title' },
     title,
     hint,
@@ -129,8 +130,10 @@ export function createFluidUi({ onPress, onSettings, settings }) {
     settingsElement: more,
     cardElement,
     /** Lead's buttons work only while fluid manoeuvring runs; Terminate and the rest grey once Terminate is flown. */
-    update(state) {
+    update(state, where = null) {
       const f = state.fluid;
+      // In echelon only the lag roll shows (TS-78: it flops #2 into the cone on Lead's other side).
+      const echelon = !f && where?.key === 'echelon';
       // Shown outside fluid manoeuvring only in fighting wing (transitions-panel.js): then it holds Lead's fighting wing
       // moves, the level turns, climbs and descents (TS-70), flown at once.
       const fw = !f;
@@ -138,13 +141,13 @@ export function createFluidUi({ onPress, onSettings, settings }) {
       const ending = Boolean(f) && (now.key === 'terminate' || now.key === 'steady');
       FLUID_BUTTONS.forEach((def, i) => {
         const b = buttons[i];
-        b.hidden = def.key === 'lagRoll' ? !fw : fw && !FW_MOVES[def.key];
+        b.hidden = echelon ? def.key !== 'lagRoll' : def.key === 'lagRoll' ? !fw : fw && !FW_MOVES[def.key];
         b.disabled = ending;
         b.title = ending ? 'Terminate is being flown' : '';
       });
-      const words = fw ? 'Fighting wing, Lead' : 'Fluid manoeuvring, Lead';
+      const words = echelon ? 'Echelon, #2' : fw ? 'Fighting wing, Lead' : 'Fluid manoeuvring, Lead';
       if (title.textContent !== words) title.textContent = words;
-      const help = fw ? FW_HINT : FLUID_HINT;
+      const help = echelon ? ECHELON_HINT : fw ? FW_HINT : FLUID_HINT;
       if (hint.textContent !== help) hint.textContent = help;
     },
     renderCard(state) {

@@ -28,6 +28,7 @@ import { planLineChange } from './line-moves.js';
 import { planTurningRejoin } from './turning-rejoin.js';
 import { planStraightRejoin } from './straight-rejoin.js';
 import { planEchelonToFw } from './echelon-to-fw.js';
+import { planFromHere } from './replan.js';
 
 /** The overshoot lane's margin: inside 1,000 ft #2 may pass this far ahead of his slot toward Lead's 3/9 line, never more (the shared 100 ft margin, design section 10). */
 export const LANE_MARGIN_FT = 100;
@@ -48,6 +49,15 @@ const PLANNERS = Object.freeze([
   { name: 'line, then tracker', plan: planLineChange, rejoin: 'into', fallback: false },
   { name: 'tracker', plan: planGoTo, rejoin: 'into', fallback: true }, // the fallback on a long move (rule 2 above)
 ]);
+
+/**
+ * A press while a move is still flown (spec F11, replan.js): "from here" joins the race, the tracker from where #2 is
+ * against Lead flying on. The line is left out (it starts #2 at rest in Lead's frame), and so is a training error's rejoin
+ * (its lesson starts from line abreast). In a turn of Lead's own only "from here" runs: every other planner flies Lead
+ * straight, and a formation command for #2 doesn't change Lead's flying.
+ */
+const FROM_HERE = Object.freeze({ name: 'from here', plan: planFromHere, rejoin: null, fallback: true });
+const MID_PLANNERS = Object.freeze([FROM_HERE, ...PLANNERS.filter((p) => p.plan !== planLineChange)]);
 
 /**
  * How rough #2's track is: bank reversals (the bank crossing from one side to the other, past the deadband) plus power
@@ -122,14 +132,16 @@ export function chooseChange(pair, to, options = {}, t0 = 0) {
   const wing = pair[1];
   const spacingFt = options.spacingFt ?? 6000;
   const auto = (options.rejoin ?? 'into') === 'auto';
+  const mid = options.mid ?? null;
   // A training error's response is the lesson, not a race (TS-62); it is a turning rejoin, so 'auto' flies it too.
-  const hot = planHotRejoinChange(pair, to, auto ? { ...options, rejoin: 'into' } : options, t0);
+  const hot = mid ? null : planHotRejoinChange(pair, to, auto ? { ...options, rejoin: 'into' } : options, t0);
   if (hot?.ok) return hot;
 
   const longMove = rangeToSlotFt(pair, to, options) > HAND_OVER_FT;
   const candidates = [];
   let refusal = null;
-  for (const p of PLANNERS) {
+  const planners = !mid ? PLANNERS : mid.lead?.kind === 'carry' ? [FROM_HERE] : MID_PLANNERS;
+  for (const p of planners) {
     // Each planner refuses a Rejoin kind that is not its own; under 'auto' each rejoin planner is given its own kind.
     const opts = auto && p.rejoin !== null ? { ...options, rejoin: p.rejoin } : options;
     const r = p.plan(pair, to, opts, t0);

@@ -237,11 +237,12 @@ export function createChangeUi({ onChange, fluidUi = null }) {
         refusal.hidden = !state.refusal;
         return;
       }
-      fluidUi?.update(state);
+      fluidUi?.update(state, where);
       // Only what the formation the pair is in can use shows (Patrick, 5 Oct): the fluid buttons in fluid manoeuvring,
       // the rejoin choice in line abreast.
       // In fighting wing the same group holds Lead's level turns, climbs and descents (TS-70, Patrick card 09:07Z).
-      if (fluidUi) fluidUi.element.hidden = where.key !== 'fluid' && where.key !== 'fw';
+      // In echelon it holds only the lag roll (TS-78).
+      if (fluidUi) fluidUi.element.hidden = where.key !== 'fluid' && where.key !== 'fw' && where.key !== 'echelon';
       for (const [key, button] of buttons) {
         if (where.key === 'fluid' || where.manoeuvring) {
           // In fluid manoeuvring Terminate is the way out; it ends in fighting wing (spec section 10.3). While Lead flies a
