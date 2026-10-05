@@ -18,7 +18,7 @@ import { classify, judge } from './judge.js';
 import { FORMATIONS, FOUR_FORMATIONS, setFwShape, setFw4Shape } from './slots.js';
 import { planChangeFour } from './four-ship-moves.js';
 import { offStandardOutcome } from './hot-rejoin.js';
-import { chooseChange } from './chooser.js';
+import { chooseChange, TIE_SEC } from './chooser.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFwMove, leadTurnPlan } from './formation-turns.js';
 import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
@@ -53,6 +53,15 @@ const RECORD_SEC = 600;
 const RECORD_MAX = Math.round(RECORD_SEC / STEP_SEC);
 
 const DEG = Math.PI / 180;
+/**
+ * The picture breaking (spec F1): Lead or #2 this far from where the plan has him at this moment plans the change again from
+ * where the pair is. The shared table's ±100 ft margin (docs/TESTING.md), an estimate as a trigger. Nothing in the sim moves an
+ * aircraft off its plan today (no turbulence, Lead flies only what a press gives him), so it waits for a cause (Patrick
+ * 21:44Z card "Build it anyway").
+ */
+const PICTURE_BREAK_FT = 100;
+/** After a re-plan for a broken picture that found nothing better, the next try waits this long (seconds, an estimate). */
+const PICTURE_RETRY_SEC = 2;
 
 /** Compass heading (degrees, 000 to 359) from math radians. */
 export function compassDeg(headingRad) {
@@ -270,7 +279,8 @@ export function createFormation(options = {}) {
     if (four) for (const a of state.aircraft) if (a.ref != null) a.ref = plan.refs[a.id];
     state.current = {
       key: `change:${to}`,
-      change: { to: plan.to ?? to, side: plan.side, from: plan.from, rejoining: plan.rejoining, rejoinKind: plan.rejoinKind, flying: plan.flying, maxBankDeg: plan.maxBankDeg, four, offStandard: plan.offStandard ?? null, chooser: plan.chooser ?? null },
+      change: { to: plan.to ?? to, side: plan.side, from: plan.from, rejoining: plan.rejoining, rejoinKind: plan.rejoinKind, flying: plan.flying, maxBankDeg: plan.maxBankDeg, four, offStandard: plan.offStandard ?? null, chooser: plan.chooser ?? null, options: changeOptions },
+      decisionSec: plan.decisionSec ?? null,
       dir: 0,
       label: plan.label,
       note: plan.note,
@@ -282,6 +292,59 @@ export function createFormation(options = {}) {
     };
     state.judged = null;
     state.errorOutcome = null;
+    return true;
+  }
+
+  /**
+   * The events that plan a 2-ship change again from where the pair is (spec F1; the press and the hand-over are planned
+   * again elsewhere): the decision point (a turning rejoin's, where a stop at idle just fits), taken only when the new plan
+   * ends sooner (by more than the chooser's tie); and the picture breaking, Lead or #2 more than PICTURE_BREAK_FT from where
+   * the plan has him now, taken whenever the new plan passes. Not the lag roll, a training error's rejoin or the 4-ship.
+   */
+  function replanAtEvents() {
+    const c = state.current;
+    if (!c?.change || c.change.four || c.change.offStandard || c.key === `change:${LAG_ROLL_KEY}`) return;
+    if (c.decisionSec != null && !c.decided && state.tSec >= c.decisionSec - STEP_SEC / 2) {
+      c.decided = true;
+      replanChange('the decision point', true);
+      return;
+    }
+    if (state.tSec < (c.pictureRetrySec ?? -Infinity)) return;
+    if (state.aircraft.some((a) => offPlanFt(a) > PICTURE_BREAK_FT)) {
+      if (!replanChange('the picture breaking', false)) c.pictureRetrySec = state.tSec + PICTURE_RETRY_SEC;
+    }
+  }
+
+  /** How far an aircraft is from where its planned line (state.planned) has it now, feet; 0 once past the line's end. */
+  function offPlanFt(a) {
+    const pts = state.planned[a.id];
+    if (!pts?.length || state.tSec > pts[pts.length - 1][0] || state.tSec < pts[0][0]) return 0;
+    let i = 1;
+    while (i < pts.length - 1 && pts[i][0] < state.tSec) i++;
+    const [t0, x0, y0] = pts[i - 1];
+    const [t1, x1, y1] = pts[i];
+    const f = t1 > t0 ? (state.tSec - t0) / (t1 - t0) : 1;
+    return Math.hypot(a.xFt - (x0 + (x1 - x0) * f), a.yFt - (y0 + (y1 - y0) * f));
+  }
+
+  /**
+   * The change planned again from where the pair is, Lead flying on as midPress says (the chooser's mid-move candidates).
+   * quicker: keep the old plan unless the new one ends sooner. Returns true when the new plan is flown; otherwise nothing
+   * changes.
+   */
+  function replanChange(why, quicker) {
+    const c = state.current;
+    const was = { current: c, plans: state.plans, planned: state.planned, refusal: state.refusal, judged: state.judged, errorOutcome: state.errorOutcome };
+    const side = c.change.side > 0 ? 'left' : c.change.side < 0 ? 'right' : 'keep';
+    const ok = startChange(c.change.to, { ...c.change.options, side });
+    if (!ok || (quicker && state.current.endSec > c.endSec - TIE_SEC)) {
+      Object.assign(state, was);
+      return false;
+    }
+    state.current.label = c.label;
+    state.current.startSec = c.startSec;
+    state.current.decided = true;
+    state.current.note = `${state.current.note} Planned again at ${why}.`;
     return true;
   }
 
@@ -628,6 +691,7 @@ export function createFormation(options = {}) {
       }
       if (state.current && state.aircraft.every((a) => planDone(a, state.plans[a.id]) && (state.tSec >= state.current.endSec - STEP_SEC / 2))) finish();
       else if (state.current && inBandAndSteady()) finish();
+      else if (state.current) replanAtEvents();
       return true;
     },
   };

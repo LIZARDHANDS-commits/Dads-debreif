@@ -51,7 +51,9 @@ export const ECHELON_TO_FW = Object.freeze({
   matchedKias: 0.3, // he hands the settle to the tracker within this of Lead's speed ... (estimate)
   matchedKtps: 0.3, // ... with his speed this steady (estimate)
   preferSec: 0.5, // a sharper choice is kept only if it reaches the cone at least this much sooner (estimate; turning-rejoin.js's 0.5 s)
-  startTol: Object.freeze({ kias: 2, headingDeg: 1 }), // a pair this close to Lead's speed and heading, Lead straight and level at 200 KIAS, is the case built (estimate)
+  // A pair this close to Lead's speed and heading, Lead straight and level at 200 KIAS, is the case built (estimate). The speed is
+  // "steady"'s 5 kt (STEADY.closureKt, TS-78): a change that ends in band and steady can carry up to that into this one.
+  startTol: Object.freeze({ kias: 5, headingDeg: 1 }),
 });
 
 /** In the cone: SMM 12.29 para 69, Fig 12.19 (500-1,000 ft, 30-60° of sweep back from Lead's wing line), on side s. */
