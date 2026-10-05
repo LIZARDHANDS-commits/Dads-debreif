@@ -1,6 +1,7 @@
 // A wingman is held to what the aircraft can do (decision TS-63; Patrick 5 Oct 2026 02:48Z: "If they get stretched they
 // just have to show it in their tag and fix it as best as they can once the maneuver ever finishes"). One place for the
-// rule, used by every planned wingman path in the Formation Sim:
+// rule, used only where a planned line broke it: the off-standard hot rejoin's capture lines (Patrick 03:46Z: "I thought
+// the thing that we added that for was one case"):
 //  - a speed-up is never faster than full power gives at that speed, height and G (core excessThrustPerWeight, the same
 //    curve as slow-down.js fullPowerKtps), with a climb paid for out of the same excess (standard aerodynamics:
 //    dV/dt = g ((T - D) / W - sin(climb angle)));
@@ -19,7 +20,7 @@ import { excessThrustPerWeight, stallLimitG } from '../../../core/t6-performance
 import { G_FTPS2 } from '../../../core/units.js';
 import { wrapPi } from '../../../core/angles.js';
 import { STEP_SEC } from './flight.js';
-import { fullPowerKtps, slowKtps, excessPerWeight } from './slow-down.js';
+import { fullPowerKtps, excessPerWeight } from './slow-down.js';
 import { powerFor, powerFrom } from './power.js';
 import { makeTrack, posesFrom, settleLast, slotInWorld } from './kinematic.js';
 import { relativeTo } from './manoeuvres.js';
@@ -71,11 +72,6 @@ export function speedUpLimitKtps(kias, altFt, g, climbFtps, tasFtps) {
   return fullPowerKtps(kias, altFt, g) - climbKtps(climbFtps, tasFtps, kias);
 }
 
-/** The most a pose may slow (KIAS per second, positive): idle and the speed brake, plus what a climb takes off. */
-export function slowDownLimitKtps(kias, altFt, g, climbFtps, tasFtps) {
-  return slowKtps('idleBoards', kias, altFt, g) + climbKtps(climbFtps, tasFtps, kias);
-}
-
 /** Each pose's speed rate (KIAS per second), read back off the line over half a second (a running mean either side). */
 function rates(poses) {
   const n = poses.length;
@@ -105,7 +101,7 @@ export function firstOverPower(poses, blockFt, from = 1) {
     const p = poses[k];
     const alt = blockFt + (p.alt ?? 0);
     const up = speedUpLimitKtps(p.kias, alt, p.g ?? 1, p.climb, p.tas);
-    if (r[k] > up + Math.abs(up) * HOLD.margin.share + HOLD.margin.ktps) return k;
+    if (r[k] > up + Math.abs(up) * HOLD.margin.share + HOLD.margin.ktps || (p.g ?? 1) > wallG(p.kias)) return k;
   }
   return -1;
 }
@@ -212,6 +208,9 @@ export function holdToPower(poses, { refAt, blockFt = 8000, kiasPerTas, from = 1
       a = aMax;
       full = true;
     } else if (a < aMin) a = aMin;
+    // The G wall (Patrick 03:05Z): past the stall line or just under 7 G on this line, he slows (idle and the boards) so the
+    // G comes back down; the line in the air is kept.
+    if (n > wallG(kias)) a = aMin;
     const v1 = v + a * dt;
     s += ((v + v1) / 2) * dt;
     v = v1;
