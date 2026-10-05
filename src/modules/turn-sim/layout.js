@@ -41,7 +41,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   view: '3d', // '2d' or '3d'; 3D at the start, looking straight down on the formation (Patrick, 5 Oct)
   paint: 'ship', // the 3D aircraft's paint: each in its ship colour, which stands out on the charcoal (Patrick, 5 Oct); 'harvard' is navy
 });
-export const LAYOUT_VERSION = 6; // 1 was the plan-mode screen's; 3 turned the 3/9 line off (TS-56); 4 the Lead-only lines; 5 3D on the formation at the start (Patrick, 5 Oct)
+export const LAYOUT_VERSION = 7; // 1 was the plan-mode screen's; 3 turned the 3/9 line off (TS-56); 4 the Lead-only lines; 5 3D on the formation at the start (Patrick, 5 Oct)
 
 /** A saved version 2 layout keeps every choice but the 3/9 line, which takes the new default (off). Older ones start fresh. */
 export function migrateLayout(values, version) {
@@ -49,8 +49,9 @@ export function migrateLayout(values, version) {
   const SHIP_KEYS = /^(l39|l75|cone)_\d$/;
   // Version 5 (Patrick, 5 Oct): 3D, top down, the camera on the formation.
   // Version 6 (Patrick, 5 Oct): ship colours on the 3D aircraft, for contrast on the charcoal.
-  if (![2, 3, 4, 5].includes(version)) return {};
-  const reset = version === 5 ? ['paint'] : version === 4 ? ['view', 'camOn', 'paint'] : ['lead39', 'lead75', 'cone', 'view', 'camOn', 'paint'];
+  // Version 7 (Patrick, 5 Oct): Auto zoom on at the start, even where it was switched off before.
+  if (![2, 3, 4, 5, 6].includes(version)) return {};
+  const reset = version === 6 ? ['autoFit'] : version === 5 ? ['paint', 'autoFit'] : version === 4 ? ['view', 'camOn', 'paint', 'autoFit'] : ['lead39', 'lead75', 'cone', 'view', 'camOn', 'paint', 'autoFit'];
   return Object.fromEntries(Object.entries(values).filter(([k]) => !reset.includes(k) && (version >= 4 || !SHIP_KEYS.test(k))));
 }
 
