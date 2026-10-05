@@ -31,6 +31,8 @@ const ALT_SCALE = 1;
  */
 export const CAMERA_LIMITS = Object.freeze({ pitch: [5, 80], zoom: [0.5, 8000] });
 export const CAMERA_START_PITCH_DEG = 35;
+/** Padlock may tilt the camera past level to look up at the other aircraft (90° is level; more looks up from below). */
+const PADLOCK_PITCH = Object.freeze([5, 175]);
 const ORBIT_DEG_PER_PX = Object.freeze({ yaw: 0.4, pitch: 0.25 });
 const WHEEL_ZOOM = Object.freeze({ in: 1.12, out: 0.89 });
 /** How far the fit-all zoom moves toward the zoom it wants, each frame (the 2D view's ease). */
@@ -176,7 +178,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     const guideLines = new THREE.LineSegments(guideGeometry(GUIDE_LINE_POINTS), new THREE.LineDashedMaterial({ vertexColors: true, transparent: true, opacity: 0.6, fog: false }));
     guideLines.frustumCulled = false;
     scene.add(guideLines);
-    gl = { renderer, scene, camera, sky, grid, planes: new Map(), trails: new Map(), plans: new Map(), guideLines, cones: new Map(), coneGeometry: null };
+    gl = { renderer, scene, camera, sky, grid, planes: new Map(), trails: new Map(), plans: new Map(), guideLines, cones: new Map(), coneGeometry: {} };
   }
 
   function planeFor(id) {
@@ -266,35 +268,49 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
    * out (SMM 12.29 para 69, Fig 12.19; FW_TURN.band). Built once in the aircraft's own frame (x forward, y left, z up) and
    * turned with it, so it banks and pitches as the aircraft does.
    */
-  function coneGeometry() {
-    if (gl.coneGeometry) return gl.coneGeometry;
+  function coneGeometry(shape) {
+    if (gl.coneGeometry[shape]) return gl.coneGeometry[shape];
     const { minFt, maxFt, minSweepDeg, maxSweepDeg } = FW_TURN.band;
-    const offTail = [90 - maxSweepDeg, 90 - minSweepDeg].map(rad); // 30° and 60° off the tail
-    const at = (r, alpha, phi) => [-r * Math.cos(alpha), r * Math.sin(alpha) * Math.cos(phi), r * Math.sin(alpha) * Math.sin(phi)];
     const tris = [];
     const edges = [];
     const quad = (a, b, c, d) => tris.push(...a, ...b, ...c, ...a, ...c, ...d);
-    for (let j = 0; j < CONE_ROUND_STEPS; j++) {
-      const p0 = (2 * Math.PI * j) / CONE_ROUND_STEPS;
-      const p1 = (2 * Math.PI * (j + 1)) / CONE_ROUND_STEPS;
-      for (const alpha of offTail) quad(at(minFt, alpha, p0), at(maxFt, alpha, p0), at(maxFt, alpha, p1), at(minFt, alpha, p1)); // inner and outer walls
-      for (let i = 0; i < CONE_BAND_STEPS; i++) {
-        const a0 = offTail[0] + ((offTail[1] - offTail[0]) * i) / CONE_BAND_STEPS;
-        const a1 = offTail[0] + ((offTail[1] - offTail[0]) * (i + 1)) / CONE_BAND_STEPS;
-        for (const r of [minFt, maxFt]) quad(at(r, a0, p0), at(r, a1, p0), at(r, a1, p1), at(r, a0, p1)); // the 500 and 1,000 ft caps
+    if (shape === 'flat') {
+      // The 2D band at the aircraft's height, both sides (the 2D view's drawCone): a bearing of nose + side·(90° + sweep).
+      const at = (r, side, sweepDeg) => {
+        const b = side * (Math.PI / 2 + rad(sweepDeg));
+        return [r * Math.cos(b), r * Math.sin(b), 0];
+      };
+      for (const side of [1, -1]) {
+        for (let i = 0; i < CONE_BAND_STEPS * 2; i++) {
+          const s0 = minSweepDeg + ((maxSweepDeg - minSweepDeg) * i) / (CONE_BAND_STEPS * 2);
+          const s1 = minSweepDeg + ((maxSweepDeg - minSweepDeg) * (i + 1)) / (CONE_BAND_STEPS * 2);
+          quad(at(minFt, side, s0), at(maxFt, side, s0), at(maxFt, side, s1), at(minFt, side, s1));
+          for (const r of [minFt, maxFt]) edges.push(...at(r, side, s0), ...at(r, side, s1));
+        }
+        for (const s of [minSweepDeg, maxSweepDeg]) edges.push(...at(minFt, side, s), ...at(maxFt, side, s));
       }
-      for (const alpha of offTail) for (const r of [minFt, maxFt]) edges.push(...at(r, alpha, p0), ...at(r, alpha, p1)); // four rims
-    }
-    for (let j = 0; j < 8; j++) { // eight lines along the cone, so its shape reads
-      const phi = (2 * Math.PI * j) / 8;
-      for (const alpha of offTail) edges.push(...at(minFt, alpha, phi), ...at(maxFt, alpha, phi));
+    } else {
+      const offTail = [90 - maxSweepDeg, 90 - minSweepDeg].map(rad); // 30° and 60° off the tail
+      const at = (r, alpha, phi) => [-r * Math.cos(alpha), r * Math.sin(alpha) * Math.cos(phi), r * Math.sin(alpha) * Math.sin(phi)];
+      for (let j = 0; j < CONE_ROUND_STEPS; j++) {
+        const p0 = (2 * Math.PI * j) / CONE_ROUND_STEPS;
+        const p1 = (2 * Math.PI * (j + 1)) / CONE_ROUND_STEPS;
+        for (const alpha of offTail) quad(at(minFt, alpha, p0), at(maxFt, alpha, p0), at(maxFt, alpha, p1), at(minFt, alpha, p1)); // inner and outer walls
+        for (let i = 0; i < CONE_BAND_STEPS; i++) {
+          const a0 = offTail[0] + ((offTail[1] - offTail[0]) * i) / CONE_BAND_STEPS;
+          const a1 = offTail[0] + ((offTail[1] - offTail[0]) * (i + 1)) / CONE_BAND_STEPS;
+          for (const r of [minFt, maxFt]) quad(at(r, a0, p0), at(r, a1, p0), at(r, a1, p1), at(r, a0, p1)); // the 500 and 1,000 ft caps
+        }
+        // Only the four rims, faint: no lines across the cone (Patrick, 5 Oct: "get rid of the lines in the cone").
+        for (const alpha of offTail) for (const r of [minFt, maxFt]) edges.push(...at(r, alpha, p0), ...at(r, alpha, p1));
+      }
     }
     const fill = new THREE.BufferGeometry();
     fill.setAttribute('position', new THREE.BufferAttribute(new Float32Array(tris), 3));
     const lines = new THREE.BufferGeometry();
     lines.setAttribute('position', new THREE.BufferAttribute(new Float32Array(edges), 3));
-    gl.coneGeometry = { fill, lines };
-    return gl.coneGeometry;
+    gl.coneGeometry[shape] = { fill, lines };
+    return gl.coneGeometry[shape];
   }
 
   function syncCones(state, layers) {
@@ -303,23 +319,27 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     for (const a of state.aircraft) {
       if (!layers.cone || !layers[`cone_${a.id}`]) continue;
       want.add(a.id);
+      const shape = layers.coneShape === 'flat' ? 'flat' : '3d';
+      const geo = coneGeometry(shape);
       let cone = gl.cones.get(a.id);
       if (!cone) {
-        const geo = coneGeometry();
         const colour = source.colors[a.id] ?? '#ffffff';
         cone = new THREE.Group();
         cone.add(
-          new THREE.Mesh(geo.fill, new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.1, side: THREE.DoubleSide, depthWrite: false, fog: false })),
-          new THREE.LineSegments(geo.lines, new THREE.LineBasicMaterial({ color: colour, transparent: true, opacity: 0.45, fog: false })),
+          new THREE.Mesh(geo.fill, new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false, fog: false })),
+          new THREE.LineSegments(geo.lines, new THREE.LineBasicMaterial({ color: colour, transparent: true, opacity: 0.25, fog: false })),
         );
         cone.rotation.order = 'ZYX';
         for (const o of cone.children) o.frustumCulled = false;
         gl.scene.add(cone);
         gl.cones.set(a.id, cone);
       }
+      cone.children[0].geometry = geo.fill;
+      cone.children[1].geometry = geo.lines;
       const pose = aircraftPose(a, signs[a.id] ?? 1);
       cone.position.set(pose.x, pose.y, pose.z);
-      cone.rotation.set(-pose.bankRad, -pose.pitchRad, pose.headingRad); // as the aircraft model
+      if (shape === 'flat') cone.rotation.set(0, 0, pose.headingRad); // the 2D band stays level, turned with the heading
+      else cone.rotation.set(-pose.bankRad, -pose.pitchRad, pose.headingRad); // as the aircraft model
     }
     for (const [id, cone] of gl.cones) {
       if (want.has(id)) continue;
@@ -370,7 +390,9 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     // Follow or Padlock (Patrick, 5 Oct): the camera's yaw comes from the aircraft it is on; the pitch stays the person's.
     const look = !dragging && source.look?.();
     if (look) cam = { ...cam, yawDeg: look.yawDeg };
-    const shown = dragging?.camera ?? cam;
+    const held = dragging?.camera ?? cam;
+    // Padlock tilts by the other aircraft's elevation on top of the person's tilt, so it looks up when the other is above.
+    const shown = look?.pitchUpDeg ? { ...held, pitchDeg: clamp(held.pitchDeg + look.pitchUpDeg, PADLOCK_PITCH) } : held;
     const focus = source.focus?.() ?? (source.layers().followLead && lead ? { x: lead.xFt, y: lead.yFt } : center);
     paintNow = source.paint();
 
@@ -614,8 +636,10 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
         line.material.dispose();
       }
       for (const cone of gl.cones.values()) for (const o of cone.children) o.material.dispose();
-      gl.coneGeometry?.fill.dispose();
-      gl.coneGeometry?.lines.dispose();
+      for (const geo of Object.values(gl.coneGeometry)) {
+        geo.fill.dispose();
+        geo.lines.dispose();
+      }
       gl.grid.geometry.dispose();
       gl.grid.material.dispose();
       gl.sky.dispose();

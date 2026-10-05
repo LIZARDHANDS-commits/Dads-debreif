@@ -22,6 +22,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   lead39: false, // the 3/9 line switch (off by default from layout version 3, TS-56); l39_<id> picks the aircraft
   lead75: false, // the 7 and 5 o'clock lines switch: the back edge of the fighting wing cone, 60° of sweep (SMM 12.29 para 69)
   cone: false, // The Cone switch: the fighting wing cone, shaded (Patrick, 5 Oct)
+  coneShape: '3d', // in 3D: '3d', the true cone round the tail, or 'flat', the 2D band at the aircraft's height
   // Which aircraft draw each (Patrick, 5 Oct): Lead at first.
   l39_1: true, l39_2: false, l39_3: false, l39_4: false,
   l75_1: true, l75_2: false, l75_3: false, l75_4: false,
@@ -33,7 +34,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   realSize: false, // Real aircraft size (Patrick, 5 Oct): ticked, each aircraft is drawn at a T-6's real length in 2D and 3D
   planeScale: 1, // unticked: the scale on the usual easy-to-see size (×0.5 to ×4)
   camOn: 'formation', // what the camera centres on: the formation's centre of mass, or one aircraft ('1' to '4') (Patrick, 5 Oct)
-  camLook: 'follow', // on one aircraft, in 3D: 'follow' looks along its nose, 'padlock' looks at the other aircraft
+  camLook: 'chase', // on one aircraft, in 3D (Patrick, 5 Oct): 'chase' behind its nose, 'free' centred on it and turned by hand, 'padlock' looking at the other
   view: VIEW_DEFAULT, // '2d' or '3d'
   paint: PAINT_DEFAULT, // the 3D aircraft's paint: 'harvard' or 'ship'
 });
@@ -51,7 +52,8 @@ export const LAYOUT_ALLOWED = /** @type {Record<string, any[]>} */ (Object.freez
   view: [...VIEW_ALLOWED],
   paint: PAINT_OPTIONS.map((o) => o.value),
   camOn: ['formation', '1', '2', '3', '4'],
-  camLook: ['follow', 'padlock'],
+  coneShape: ['3d', 'flat'],
+  camLook: ['chase', 'free', 'padlock'],
 }));
 
 /** Layers that only the 2D picture draws; they are greyed out in 3D. */
@@ -241,13 +243,13 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   // The 3/9 line, the 7/5 lines and The Cone (Patrick, 5 Oct), each with ticks for which aircraft draw it (Lead at first).
   const SHIP_NAMES = [[1, 'Lead'], [2, '#2'], [3, '#3'], [4, '#4']];
   const shipTicks = []; // { el, id }: #3 and #4 show in the four only
-  function layerWithShips(key, prefix, label) {
+  function layerWithShips(key, prefix, label, extra = null) {
     const ticks = SHIP_NAMES.map(([id, name]) => {
       const el = lc.checkbox(`${prefix}_${id}`, { label: name });
       shipTicks.push({ el, id });
       return el;
     });
-    return h('div', { class: 'ts-layer-ships' }, lc.checkbox(key, { label }), h('div', { class: 'ts-ship-ticks', role: 'group', 'aria-label': `${label}: which aircraft` }, ...ticks));
+    return h('div', { class: 'ts-layer-ships' }, lc.checkbox(key, { label }), h('div', { class: 'ts-ship-ticks', role: 'group', 'aria-label': `${label}: which aircraft` }, ...ticks), extra);
   }
   const layersMenu = menu('Layers', 'ts-layers', [
     lc.checkbox('tracks', { label: 'Ground tracks' }),
@@ -256,7 +258,8 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     lc.checkbox('tags', { label: 'Info tags' }),
     layerWithShips('lead39', 'l39', '3/9 line'),
     layerWithShips('lead75', 'l75', "7/5 o'clock lines"),
-    layerWithShips('cone', 'cone', 'The Cone'),
+    // In 3D, the cone as the true 3D cone or as the 2D band (Patrick, 5 Oct).
+    layerWithShips('cone', 'cone', 'The Cone', h('div', { class: 'ts-cone-shape' }, lc.choice('coneShape', { label: 'In 3D', options: [{ value: 'flat', label: '2D projection' }, { value: '3d', label: '3D' }] }))),
     lc.select('paint', { label: '3D paint', options: PAINT_OPTIONS }),
   ]);
   // The camera (Patrick, 5 Oct): centred on the formation or one aircraft; on one aircraft in 3D it follows it or padlocks the
@@ -267,7 +270,9 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   ] });
   const cameraMenu = menu('Camera', 'ts-camera', [
     camOnChoice,
-    lc.choice('camLook', { label: 'On an aircraft (3D)', options: [{ value: 'follow', label: 'Follow' }, { value: 'padlock', label: 'Padlock the other' }] }),
+    lc.choice('camLook', { label: 'On an aircraft (3D)', options: [
+      { value: 'chase', label: 'Chase' }, { value: 'free', label: 'Follow (free look)' }, { value: 'padlock', label: 'Padlock' },
+    ] }),
     lc.checkbox('autoFit', { label: 'Auto zoom' }),
   ]);
 
@@ -342,6 +347,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       tags3d.hidden = view !== '3d';
       for (const key of LAYERS_2D) lc.setDisabled(key, view === '3d');
       lc.setDisabled('camLook', view !== '3d'); // Follow and Padlock turn the 3D view; the 2D map stays north up
+      lc.setDisabled('coneShape', view !== '3d'); // the 2D map always draws the flat band
 
     },
     /** A short note beside the View switch ("3D needs a connection the first time."), or '' for none. */

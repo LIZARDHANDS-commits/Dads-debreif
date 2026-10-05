@@ -194,13 +194,22 @@ function mount(root, app) {
   }
   /** Who an aircraft padlocks: Lead watches #2, #4 his element lead #3, the others Lead. */
   const padlockOf = (id) => (id === 1 ? 2 : id === 4 ? 3 : 1);
-  /** The 3D yaw for Follow (behind the aircraft, along its nose) or Padlock (behind it, looking at the other), or null. */
+  /**
+   * The 3D camera on one aircraft (Patrick, 5 Oct): Chase, behind it along its nose; Follow (free look), centred on it and
+   * turned by hand (null: the person's yaw and pitch); Padlock, behind it looking at the other, tilted up or down by how far
+   * the other is above or below (pitchUpDeg, added to the person's tilt). Null for the formation.
+   */
   function camLook() {
     const on = camAircraft();
-    if (!on) return null;
-    if (layout.get().camLook === 'padlock') {
+    const mode = layout.get().camLook;
+    if (!on || mode === 'free') return null;
+    if (mode === 'padlock') {
       const other = state.aircraft.find((a) => a.id === padlockOf(on.id));
-      if (other && (other.xFt !== on.xFt || other.yFt !== on.yFt)) return { yawDeg: yawBehind(Math.atan2(other.yFt - on.yFt, other.xFt - on.xFt)) };
+      const across = other ? Math.hypot(other.xFt - on.xFt, other.yFt - on.yFt) : 0;
+      if (other && across > 0) {
+        const upFt = (other.altAboveFt ?? 0) - (on.altAboveFt ?? 0);
+        return { yawDeg: yawBehind(Math.atan2(other.yFt - on.yFt, other.xFt - on.xFt)), pitchUpDeg: (Math.atan2(upFt, across) * 180) / Math.PI };
+      }
     }
     return { yawDeg: yawBehind(on.headingRad) };
   }

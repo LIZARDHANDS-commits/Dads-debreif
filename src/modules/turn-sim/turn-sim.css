@@ -658,3 +658,19 @@
 [data-module='turn-sim'] .ts-size .control-slider[hidden] {
   display: none;
 }
+
+/* The Cone's 2D projection | 3D choice, under its aircraft ticks. */
+[data-module='turn-sim'] .ts-cone-shape {
+  margin: 0 0 var(--space-2) var(--space-5);
+}
+
+[data-module='turn-sim'] .ts-cone-shape .control-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: var(--text-sm);
+}
