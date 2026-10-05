@@ -115,7 +115,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
         class: 'button ts-move-button',
         dataset: { move: b.key, dir: word.toLowerCase() },
         onclick: () => handlers.press?.(b.key, dir),
-      }, h('span', { class: 'visually-hidden' }, `${b.label} `), h('span', {}, word), hint); // read out as "Delayed 90 Left into #2"
+      }, h('span', { class: 'visually-hidden' }, `${b.label} `), h('span', { 'aria-hidden': 'true' }, word[0]), h('span', { class: 'visually-hidden' }, word), hint); // shows L or R; read out as "Delayed 90 Left into #2"
     };
     return h('div', { class: 'ts-move', role: 'group', 'aria-label': b.label },
       h('span', { class: 'ts-move-name' }, b.label), side(1, 'Left'), side(-1, 'Right'));
@@ -123,7 +123,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   // The left column (Patrick, 5 Oct): Controls (open), then Scenario and Settings, each a box that starts closed.
   const movesPanel = createPanel({ title: 'Controls' });
   const queueLine = h('p', { class: 'ts-hint ts-queue', role: 'status' });
-  const movesHint = h('h3', { class: 'ts-group-title' }, 'Manoeuvres'); // a heading, not the old sentence (Patrick, 5 Oct)
+  const movesHint = h('div', { class: 'ts-section-bar' }, h('h3', {}, 'Manoeuvres')); // the MANOEUVRES bar (Patrick, 5 Oct)
   const movesNote = h('p', { class: 'ts-hint ts-warning', role: 'status', hidden: true }, PAIR_MOVES_NOTE);
   // Only the manoeuvres the formation the aircraft are in can fly are shown, nothing greyed (Patrick, 5 Oct: "I ONLY
   // WANT the options/manoeuvres available FOR THE ACTIVE FORMATION to be visible"). They switch once a change is flown.

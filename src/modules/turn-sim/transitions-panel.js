@@ -17,7 +17,7 @@ export const CHANGE_BUTTONS = Object.freeze([
   { key: 'fw', label: 'Fighting wing' },
   { key: 'echelon', label: 'Echelon' },
   { key: 'route', label: 'Route' },
-  { key: 'fluid', label: 'Fluid manoeuvring' },
+  { key: 'fluid', label: 'Fluid' }, // fluid manoeuvring, short so three fit a row (Patrick, 5 Oct)
 ]);
 /** The four's buttons (spec section 8): the wide formations first, then the close ones; Line astern and Route under More. */
 export const FOUR_CHANGE_BUTTONS = Object.freeze([
@@ -149,11 +149,12 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     group('Tactical', fourAll.filter((b) => TACTICAL.has(b.key)).map(makeFourButton)),
     group('Close formation', fourAll.filter((b) => !TACTICAL.has(b.key)).map(makeFourButton)));
   const element = h('section', { class: 'ts-change', 'aria-labelledby': 'ts-change-title' },
-    h('h3', { class: 'ts-group-title', id: 'ts-change-title' }, 'Change formation'),
-    hint,
+    // The FORMATION bar with Side on it, then the two groups (Patrick, 5 Oct: easier to read).
+    h('div', { class: 'ts-section-bar' },
+      h('h3', { id: 'ts-change-title' }, 'Formation'),
+      h('div', { class: 'ts-side', role: 'group', 'aria-label': 'Side #2 ends on' }, h('span', { class: 'ts-hint' }, 'Side'), sideButtons)),
     pairGrid,
     fourGrid,
-    h('div', { class: 'ts-side', role: 'group', 'aria-label': 'Side #2 ends on' }, h('span', { class: 'ts-hint' }, 'Side'), sideButtons),
     refusal,
     fluidUi?.element ?? null,
   );
@@ -195,6 +196,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
           if (FOUR_FORMATIONS[key].later) continue;
           const here = key === where.key && (!FOUR_FORMATIONS[key].sided || side === 'keep' || (side === 'left') === (where.side > 0));
           button.disabled = here;
+          button.setAttribute('aria-current', String(here)); // lit as "you are here", not greyed
           button.title = here ? 'You are here' : '';
         }
         refusal.textContent = state.refusal ?? '';
@@ -223,6 +225,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
         // Line abreast has no side change of its own: a change of side there goes through another formation first.
         const greyed = here || (key === 'lab' && where.key === 'lab');
         button.disabled = greyed;
+        button.setAttribute('aria-current', String(greyed && key === where.key)); // lit as "you are here", not greyed
         button.title = greyed ? 'You are here' : '';
       }
       refusal.textContent = state.refusal ?? '';

@@ -682,3 +682,101 @@
   font-weight: 600;
   color: var(--text-muted);
 }
+
+/* Controls, easier to read (Patrick, 5 Oct). Section bars: FORMATION (with Side) and MANOEUVRES. */
+[data-module='turn-sim'] .ts-section-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 var(--space-2);
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--accent);
+}
+
+[data-module='turn-sim'] .ts-section-bar h3 {
+  margin: 0;
+  color: var(--accent-strong);
+  font-size: var(--text-md);
+  font-weight: 800;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+[data-module='turn-sim'] .ts-section-bar .ts-side {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+[data-module='turn-sim'] .ts-section-bar .ts-side .button {
+  min-height: 0;
+  padding: 0.15rem 0.5rem;
+  font-size: var(--text-sm);
+}
+
+/* Tactical and Close: quiet sub-labels; three buttons a row. */
+[data-module='turn-sim'] .ts-change-subtitle {
+  margin: var(--space-2) 0 var(--space-1);
+  font-size: 0.72rem;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+[data-module='turn-sim'] .ts-change-group .ts-change-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+
+[data-module='turn-sim'] .ts-change-group .ts-change-button {
+  min-height: 2.4rem;
+  padding: var(--space-1);
+  font-size: var(--text-sm);
+}
+
+/* The formation flown now: lit, not greyed. */
+[data-module='turn-sim'] .ts-change-button[aria-current='true'] {
+  opacity: 1;
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 24%, var(--bg-raised));
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* Manoeuvres: the name, then small L and R; the into/away words are for screen readers only. */
+[data-module='turn-sim'] .ts-move {
+  grid-template-columns: minmax(0, 1fr) 2.6rem 2.6rem;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-1);
+}
+
+[data-module='turn-sim'] .ts-move .ts-move-button {
+  min-height: 2rem;
+  padding: 0.15rem;
+}
+
+[data-module='turn-sim'] .ts-move .ts-move-hint {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Shackle and Cross turn side by side. */
+[data-module='turn-sim'] .ts-move.ts-move-single {
+  grid-template-columns: minmax(0, 1fr);
+  display: inline-grid;
+  width: calc(50% - var(--space-1) / 2);
+  vertical-align: top;
+}
+
+[data-module='turn-sim'] .ts-move-single + .ts-move-single {
+  margin-left: var(--space-1);
+}
+
+[data-module='turn-sim'] .ts-move.ts-move-single[hidden] {
+  display: none;
+}
