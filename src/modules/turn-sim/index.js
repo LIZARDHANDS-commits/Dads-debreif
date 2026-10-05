@@ -234,6 +234,21 @@ function mount(root, app) {
    * The data tags (Patrick, 5 Oct): each aircraft's tag with what the Data tag menu ticks, and during a rejoin the
    * wingman's closure and Lead's clock position.
    */
+  /**
+   * The guides follow the formation (Patrick, 5 Oct): Lead's 3/9 line comes on in line abreast (Spread 4 for the four) and
+   * goes off in the others; Lead's cone comes on in fighting wing and goes off in the others. Lead only. Set once each time
+   * the formation changes, so a tick changed by hand holds until the next change.
+   */
+  let guidesFor = null;
+  function autoGuides(key) {
+    if (!key || key === 'other' || key === guidesFor) return;
+    guidesFor = key;
+    const only1 = (prefix, on) => ({ [`${prefix}_1`]: on || layout.get()[`${prefix}_1`], [`${prefix}_2`]: false, [`${prefix}_3`]: false, [`${prefix}_4`]: false });
+    const abreast = key === 'lab' || key === 'spread4';
+    const fw = key === 'fw';
+    layout.update({ lead39: abreast, ...(abreast ? only1('l39', true) : {}), cone: fw, ...(fw ? only1('cone', true) : {}) });
+  }
+
   function dataTags() {
     const tags = tagLines(state, formation.where());
     const show = layout.get();
@@ -368,6 +383,7 @@ function mount(root, app) {
     const wingSide = setup.get().wingSide;
     ui.renderCard(state.aircraft.length > 2 ? cardForFour(state, wingSide) : cardFor(state, wingSide));
     const whereAll = formation.where();
+    autoGuides(whereAll.key);
     changeUi.update(state, whereAll);
     changeUi.renderCard(state, whereAll);
     const ships = state.aircraft.length > 2 ? 4 : 2;
