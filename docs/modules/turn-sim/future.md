@@ -55,4 +55,4 @@ Patrick, 4 Oct (review thread): he wants all of V6's features eventually, added 
 - The Overshoot button and rejoin mistakes (too hot, too much bank), SMM 12.27; break and rejoin (design M7); the turning rejoin with Lead turning away from #2 (SMM Fig 16.24) and the in-place-turn rejoin (M9); the hot or cold line choice, an overtake box and a bank-cap box under More.
 - The dynamic entry to line abreast (both turn onto a new heading together, design M8); the 4-ship changes (design section 5).
 - Training errors flown through a change (they apply to the manoeuvres only).
-- Speed bled in the turns and idle-thrust and speed-brake slowing (the 1.5 kt/s slow-down is an estimate until an idle drag figure is found).
+- Speed bled in the turns. Idle and speed-brake slowing moved up: settled in TS-61 for the off-standard hot turning rejoin piece.
