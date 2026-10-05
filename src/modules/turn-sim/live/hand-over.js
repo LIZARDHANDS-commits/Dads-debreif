@@ -19,7 +19,7 @@ import { applyPose, makeTrack, seedTrack, posesFrom, followInto, laggedBank, rel
 import { trackTwice } from './tracker.js';
 import { holdToPower } from './full-power.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
-import { KIAS_OUTSIDE_LAB, KINEMATIC, WING_BANKS, HAND_OVER_FT, RATE_SET_SEC, closureNow, rejoinClosureNow } from './tuning.js';
+import { KIAS_OUTSIDE_LAB, KINEMATIC, WING_BANKS, HAND_OVER_FT, RATE_SET_SEC, RATE_SETS, closureNow, rejoinClosureNow } from './tuning.js';
 
 const dt = STEP_SEC;
 
@@ -30,7 +30,7 @@ const dt = STEP_SEC;
  * what the aircraft can do and the line is never STRETCHED by its own shape; sideways about 0.3 G of turn (a gentle heading
  * change); up or down 3 ft/s²; a 1 s blend at the start. At the formation's 200 KIAS and the block height.
  */
-export const RUN_IN = Object.freeze({ powerShare: 0.65, turnShare: 0.35, latG: 0.3, vertFtps2: 3, blendSec: 1 });
+export const RUN_IN = Object.freeze({ ...RATE_SETS.close.law, blendSec: 1 }); // the close set's law (tuning.js RATE_SETS)
 
 /** A leg whose slot is further than this from the aircraft flown off is a long move's (fighting wing, line abreast). */
 const LONG_SLOT_FT = 300; // the close formations all sit inside about 230 ft (route, 5 wingspans out); fighting wing starts at 500 ft
