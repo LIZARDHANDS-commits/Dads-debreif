@@ -41,8 +41,10 @@ function turningLegs(s, to, sTo, spacingFt) {
   const route = pairSlot('route', s, spacingFt);
   const fwFt = fwShapeNow().rangeFt;
   const decisionFt = Math.abs(route.left) / out; // where the line reaches route's spacing
-  const on = (r) => at(Math.max(decisionFt, Math.min(fwFt, r)));
-  // Onto the line where he is (no nearer than the fighting wing place), then down it, aiming slideAheadFt ahead of himself.
+  const on = (r) => at(Math.max(decisionFt, to === 'fw' ? Math.max(fwFt, r) : r)); // anywhere out along the line: he meets it where he is (V2.61)
+  // Onto the line where he meets it, however far out, then down it, aiming slideAheadFt ahead of himself (V2.62: until then
+  // he aimed no further out than the fighting wing place, met the line only about 400 ft out and passed ahead of Lead's 3/9
+  // line on the way, Patrick 08:04Z).
   const onto = rejoinTo(at(fwFt), { holdLine: true, goal: (L, W) => on(along(L, W)), advanceTol: TR.captureTolFt });
   if (to === 'fw') return [onto, rejoinTo(pairSlot('fw', s, spacingFt)), ...(sTo !== s ? legsFor('fw', s, 'fw', sTo, spacingFt) : [])];
   const down = rejoinTo(at(decisionFt), { holdLine: true, goal: (L, W) => on(along(L, W) - TR.slideAheadFt), advanceTol: TR.captureTolFt });
