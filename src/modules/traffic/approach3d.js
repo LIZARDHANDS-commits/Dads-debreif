@@ -7,9 +7,9 @@
 //  - the selected aircraft's aim line: its velocity vector, in pink, out to where it meets the ground (the aim point).
 // The window's width is not in the SMM: WINDOW_WIDTH_FT is an estimate for the picture.
 
-import { THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
+import { THRESHOLD_29L } from './airfield.js';
 import { RANDOM } from './randomize.js';
-import { trueAltFt, heightFactor } from './weather.js';
+import { trueAltFt, heightFactor, approachLine, interceptOutFt } from './weather.js';
 import { KT_TO_FTPS } from '../../core/units.js';
 
 /** The window's true heights, ft MSL (SMM 4.7 para 12; fixed in true height, Patrick 5 Oct 07:28Z). */
@@ -19,8 +19,6 @@ export const WINDOW_HIGH_FT = 2200;
 export const WINDOW_WIDTH_FT = 300;
 /** Zoomed out, the window grows with the drawn aircraft, but by no more than this, so its height still reads true-ish. */
 const WINDOW_MAX_GROW = 3;
-/** Without a pattern route, the window is ¾ NM out from the 29L threshold (SMM 4.7 para 12). */
-const WINDOW_FALLBACK_FT = 0.75 * 6076;
 /** The aim line runs to the ground, or this far ahead when the aircraft is level or climbing, ft (an estimate: 2 NM). */
 export const AIM_LINE_MAX_FT = 2 * 6076;
 /** ...and is drawn to the ground only when it meets it within this, ft (an estimate: 5 NM). */
@@ -35,21 +33,14 @@ const INTERCEPT_COLOR = 0xfde047;
  */
 export function approachMarks(pattern) {
   const th = THRESHOLD_29L;
-  const len = Math.hypot(DEPARTURE_END_29L.x - th.x, DEPARTURE_END_29L.y - th.y);
-  // From the threshold out along the approach (away from the departure end).
-  const ux = (th.x - DEPARTURE_END_29L.x) / len, uy = (th.y - DEPARTURE_END_29L.y) / len;
-  const w = pattern?.points?.[12];
-  const outFt = w ? (w.x - th.x) * ux + (w.y - th.y) * uy : WINDOW_FALLBACK_FT;
+  const { ux, uy, windowOutFt: outFt, slope } = approachLine(pattern);
   // The window stays put at its true heights (Patrick, 5 Oct 07:28Z; TR-79): the aircraft, flown on the altimeter, pass
   // through it higher on a hot day and lower on a cold one.
   const win = { x: th.x + ux * outFt, y: th.y + uy * outFt, lowFt: WINDOW_LOW_FT, highFt: WINDOW_HIGH_FT };
   // The 3° line through the threshold (the sim's own: through the window on a standard day), and where it reaches the
-  // straight-in's level height, taken at its true height today.
-  // The slope is the sim's own glide path through the window (about 3°, SMM 4.7 para 12), or 3° without a pattern.
-  const slope = w && outFt > 0 && w.alt > THRESHOLD_DATA_ELEV_FT ? (w.alt - THRESHOLD_DATA_ELEV_FT) / outFt : Math.tan(3 * Math.PI / 180);
-  const levelFt = trueAltFt(RANDOM.straightInAltFt);
-  const interceptOutFt = (levelFt - THRESHOLD_DATA_ELEV_FT) / slope;
-  const intercept = { x: th.x + ux * interceptOutFt, y: th.y + uy * interceptOutFt, altFt: levelFt, outFt: interceptOutFt };
+  // straight-in's level height, taken at its true height today; the straight-in starts down there (TR-80).
+  const interceptOut = interceptOutFt(slope, RANDOM.straightInAltFt);
+  const intercept = { x: th.x + ux * interceptOut, y: th.y + uy * interceptOut, altFt: trueAltFt(RANDOM.straightInAltFt), outFt: interceptOut };
   return { window: win, intercept, ux, uy };
 }
 
