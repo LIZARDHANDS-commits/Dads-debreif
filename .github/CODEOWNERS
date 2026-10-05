@@ -1,0 +1,3 @@
+# Patrick is asked to review every pull request. Only Patrick and his Claude
+# threads merge to main (a ruleset on main enforces it).
+* @LIZARDHANDS-commits
