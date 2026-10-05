@@ -41,6 +41,7 @@ Patrick, 4 Oct (review thread): he wants all of V6's features eventually, added 
 ## Changing formation: what the 2-ship build left out (TS-53)
 
 - ~~Fluid manoeuvring: its button is greyed ("coming later")~~: the baseline is built (V2.17, TS-57), entered from fighting wing only (Patrick 21:44Z). Entering from echelon by the 2 s break and from line abreast are dropped, not deferred.
+- **Lag roll to fighting wing** (Patrick 5 Oct 08:54Z: "you hit "lag roll" and the airplane flips up and rolls canopy to canopy to lead then lands in the cone on the other side, power pitch and bank as required"): a move button; #2 pulls up, rolls over the top canopy to canopy with Lead and comes down into the cone on Lead's other side. Lead's barrel roll (fluid-lead.js, attitude.js) already flies through inverted and could be the base. The fighting wing place is anywhere in the cone, high or low, not on Lead's plane (Patrick 08:54Z).
 
 ## Fluid manoeuvring: what the baseline leaves out (TS-57, Patrick 21:44Z)
 
