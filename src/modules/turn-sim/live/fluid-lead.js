@@ -73,7 +73,7 @@ export const LEAD = Object.freeze({
   climbPitchDps: 3, // how fast Lead raises or lowers the nose into and out of the climb or descent (an estimate)
   minPushG: 0.5, // Lead keeps positive G (2 CFFTS Orders B2 ch 8 para 1a); 0.5 G at the push over is an estimate
   loopEntryKias: 230, // SMM Table 7.1, 7.5 para 11, Fig 7.2 (entry and exit)
-  loopEntryBandKias: 5, // Lead starts the pull within 5 kt of 230 (an estimate; SMM 7.12 para 28b allows 200-250)
+  loopEntryBandKias: 15, // the aerobatics start within 15 KIAS of the entry speed (Patrick 5 Oct 04:59Z: "Fluid maneouvering aerobatics can happen as long as the aircraft are within 15 knots of the starting parameters"; 5 kt, an estimate, until V2.59; SMM 7.12 para 28b allows 200-250 for the loop)
   loopG: 3.5, // EFIG p.171 "3 1/2 G", inside SMM 7.5 para 11 and Table 7.1's 3-4 G
   loopDownMaxG: 4, // coming down Lead may pull up to 4 G, the top of the SMM's 3-4 G (Table 7.1), to "adjust back pressure to achieve 230 KIAS" (SMM 7.5 para 12); at the Orders' 4 G, not over it
   loopTopMinG: 0.5, // "slight positive G" over the top (SMM 7.5 para 11): 0.5 is an estimate
@@ -410,7 +410,7 @@ export function climbOrDescend(sign, bankDeg = 0) {
 
 /**
  * The speed set-up before an aerobatic manoeuvre: wings level, nose down at MAX to gain speed or up to lose it (up to
- * 10°, an estimate), until within 5 kt (estimate) of the entry speed, level and at 1 G. Returns the ask, or null when
+ * 10°, an estimate), until within 15 KIAS of the entry speed (Patrick 04:59Z, LEAD.loopEntryBandKias), level and at 1 G. Returns the ask, or null when
  * ready (or after the guard time, when the manoeuvre starts at the speed Lead has).
  */
 function speedSetUp(st, mem, kias) {
@@ -642,8 +642,10 @@ export function entry(dir, bankDeg) {
       }
       const r = turn.step(st, mem.turnMem);
       // Fig 12.20, turn away: #2 collapses into the cone by lead pursuit. The blend into the fluid picture starts here,
-      // and the entry ends once he is in it (WING.blendInSec), so Lead's next manoeuvre starts from a settled picture.
-      return { ...r, phase: `${Math.round(bankDeg)}° at MAX`, cue: { mode: 'lead', latDeg: 15, blend: 1 }, done: Math.abs(st.bank) >= bankDeg - 1 && mem.turnMem.t > WING.blendInSec + 1 };
+      // and the entry ends once he is in it (the blend time: from the close-in rate since V2.59, ctx.blendInSec, else
+      // WING.blendInSec), so Lead's next manoeuvre starts from a settled picture.
+      const blendSec = ctx?.blendInSec ?? WING.blendInSec;
+      return { ...r, phase: `${Math.round(bankDeg)}° at MAX`, cue: { mode: 'lead', latDeg: 15, blend: 1 }, done: Math.abs(st.bank) >= bankDeg - 1 && mem.turnMem.t > blendSec + 1 };
     },
   };
 }
@@ -659,7 +661,7 @@ export function terminate(dir) {
     label: 'Terminate',
     interruptible: false,
     init: (st) => ({ hPrev: headingOf(st), turned: 0, rollingOut: false, steady: 0, t: 0 }),
-    step(st, mem) {
+    step(st, mem, ctx) {
       const h = headingOf(st);
       mem.turned += wrapPi(h - mem.hPrev) * dir;
       mem.hPrev = h;
@@ -670,7 +672,7 @@ export function terminate(dir) {
       const steady = mem.rollingOut && level(st) && Math.abs(st.kias - LEAD.fwKias) < 0.5;
       mem.steady = steady ? mem.steady + STEP_SEC : 0;
       mem.t += STEP_SEC;
-      return { g: gForClimb(st, 0), bank, holdKias: LEAD.fwKias, phase: mem.rollingOut ? 'rolling out' : 'gentle turn', cue: { mode: 'pure', latDeg: 15, blend: 0 }, done: mem.steady >= 3 && mem.t > WING.blendOutSec + 1 };
+      return { g: gForClimb(st, 0), bank, holdKias: LEAD.fwKias, phase: mem.rollingOut ? 'rolling out' : 'gentle turn', cue: { mode: 'pure', latDeg: 15, blend: 0 }, done: mem.steady >= 3 && mem.t > (ctx?.blendOutSec ?? WING.blendOutSec) + 1 };
     },
   };
 }

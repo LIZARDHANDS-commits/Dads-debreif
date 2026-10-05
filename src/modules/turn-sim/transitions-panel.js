@@ -36,9 +36,11 @@ const FOUR_CLOSE = Object.freeze(['finger', 'echelon', 'box', 'trail', 'route'])
 /** The formations where pressing L or R flies the side change at once (Patrick, 5 Oct). */
 const SIDE_CHANGE_FORMATIONS = Object.freeze(['fw', 'echelon', 'route']);
 const SIDES = Object.freeze([{ value: 'keep', label: 'Keep' }, { value: 'left', label: 'Left' }, { value: 'right', label: 'Right' }]); // written out (Patrick, 5 Oct)
+// The Rejoin kind, from line abreast and (since V2.59, TS-67; Patrick 5 Oct 05:13Z: "FW-Esch you can pick TRJ or SARJ.
+// Obviously TRJ is faster") from fighting wing to echelon or route: the turning rejoin (TRJ, the default) or straight ahead (SARJ).
 const REJOIN_OPTIONS = Object.freeze([
-  { value: 'into', label: 'Turning, Lead turns into #2' },
-  { value: 'straight', label: 'Straight ahead' },
+  { value: 'into', label: 'Turning (TRJ), Lead turns into #2' },
+  { value: 'straight', label: 'Straight ahead (SARJ)' },
 ]);
 
 
@@ -54,7 +56,7 @@ export function nowWords(where) {
 /**
  * The flags for the Formation card (spec section 10, "Flags, never walls"): Lead above 4 G in fighting wing and above
  * 3 G in close formation (2 CFFTS Orders B2 ch 8; Gen Book p.11), #2 at or above Lead's height in a rejoin (SMM 12.27
- * para 65), and #2 at its bank cap (an estimate). Returns an array of sentences.
+ * para 65), and #2 past the G rule's bank in a rejoin (5 G level, Patrick 06:16Z). Returns an array of sentences.
  */
 export function changeFlags(state, where) {
   const [lead, wing] = state.aircraft;
@@ -66,7 +68,7 @@ export function changeFlags(state, where) {
     const r = rejoinReadout(lead, wing);
     if (r.rangeFt < 2000 && r.aboveLead) flags.push('#2 is at or above Lead\'s height; a rejoin stays below him (SMM 12.27 para 65).');
   }
-  if (c && Math.abs(wing.bankDeg) >= REJOIN.bankCapDeg - 0.5 && c.rejoining) flags.push(`#2 is at the ${REJOIN.bankCapDeg}° bank cap (an estimate); flown anyway.`);
+  if (c && Math.abs(wing.bankDeg) >= REJOIN.bankCapDeg - 0.5 && c.rejoining) flags.push(`#2 is at ${Math.round(REJOIN.bankCapDeg)}° of bank, 5 G in a level turn: the G rule's normal limit (Patrick 06:16Z; SMM 16.17 para 44a); flown anyway.`);
   return flags;
 }
 
@@ -124,10 +126,10 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   const handlers = {};
 
   const refusal = h('p', { class: 'ts-warning', role: 'status', hidden: true });
-  const rejoinSelect = h('select', { 'aria-label': 'Rejoin from line abreast', onchange: () => { rejoin = rejoinSelect.value; } },
+  const rejoinSelect = h('select', { 'aria-label': 'Rejoin kind', onchange: () => { rejoin = rejoinSelect.value; } },
     REJOIN_OPTIONS.map((o) => h('option', { value: o.value, selected: o.value === rejoin }, o.label)));
-  const rejoinLabel = h('span', { class: 'ts-hint' }, 'Rejoin from line abreast');
-  const PAIR_REJOIN_HINT = `A turning rejoin: Lead turns into #2 at the press at ${REJOIN.leadBankDeg}° of bank, slowing to ${KIAS_OUTSIDE_LAB} KIAS (SMM 16.20 para 65). #2's bank is capped at ${REJOIN.bankCapDeg}° (an estimate, flagged).`;
+  const rejoinLabel = h('span', { class: 'ts-hint' }, 'Rejoin kind');
+  const PAIR_REJOIN_HINT = `From line abreast or fighting wing. Turning (TRJ): Lead turns into #2 at the press at ${REJOIN.leadBankDeg}° of bank, slowing to ${KIAS_OUTSIDE_LAB} KIAS, and holds it until #2 is in (SMM 16.20 para 65); #2 gets onto the rejoin line, Lead at his 10:30 or 1:30 and slightly high, closes down it and flows through route into the slot (SMM 12.24 paras 56-58). Straight ahead (SARJ): #2 drops onto Lead's six and runs up it (SMM 12.26 paras 62-63).`;
   const FOUR_REJOIN_HINT = `A turning rejoin: Lead turns into #2 at the press, slowing to ${KIAS_OUTSIDE_LAB} KIAS; #3 and #4 close at once and come in on the outside one at a time, #3 once #2 is in and #4 once #3 is (SMM 16.34 paras 95-96). Straight ahead, each closes through route in turn.`;
   const rejoinHint = h('p', { class: 'ts-hint' }, PAIR_REJOIN_HINT);
   const rejoinField = h('label', { class: 'ts-field' }, rejoinLabel, rejoinSelect);
@@ -189,7 +191,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       if (fluidUi) fluidUi.settingsElement.hidden = four;
       rejoinField.hidden = false;
       rejoinHint.hidden = false;
-      rejoinLabel.textContent = four ? 'Rejoin to fighting wing or finger' : 'Rejoin from line abreast';
+      rejoinLabel.textContent = four ? 'Rejoin to fighting wing or finger' : 'Rejoin kind';
       rejoinSelect.options[0].textContent = four ? 'Turning, Lead turns into the others' : REJOIN_OPTIONS[0].label;
       rejoinHint.textContent = four ? FOUR_REJOIN_HINT : PAIR_REJOIN_HINT;
     },
