@@ -357,7 +357,8 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     const target = sim.state().aircraft.find((a) => a.id === targetId);
     if (!target || target.status !== 'flying') return say('Spawn a conflict: select a flying aircraft first.');
     if (sim.state().aircraft.length + 1 > MOST_AIRCRAFT) return say(`Nothing was added: the most is ${MOST_AIRCRAFT} aircraft. Clear finished aircraft or remove some first.`);
-    const routeId = spawnRouteId(settings.get().spawnRoute, flownRoutes());
+    // The SI pattern's conflicts come in on the SI Rejoin (its base and final); any other choice is its own route.
+    const routeId = siChosen ? 'ENT2' : spawnRouteId(settings.get().spawnRoute, flownRoutes());
     say(`Working out where an aircraft on ${routeName(routeId)} meets ${targetId}…`);
     // A moment later, so the line above shows while it works (it flies everyone ahead on a copy of the run).
     timers.after(0, () => {
@@ -369,11 +370,14 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       }
       if (!plan) return say(`No start on ${routeName(routeId)} meets ${targetId} in the next 3 minutes. Try another route.`);
       try {
-        const id = sim.spawn({ type: settings.get().spawnType, routeId, startPoint: plan.startPoint, delaySec: plan.delaySec });
+        // Anywhere along the route (TR-64), not only at its spots (Patrick, 4 Oct).
+        const id = sim.spawn({ type: settings.get().spawnType, routeId, startPoint: 1, backFt: plan.backFt, delaySec: plan.delaySec });
         const route = setup.routes.find((r) => r.id === routeId);
-        const where = route?.points?.[plan.startPoint - 1]?.label ?? `point ${plan.startPoint}`;
+        const after = route?.points?.[plan.startPoint - 1]?.label ?? `point ${plan.startPoint}`;
+        const nm = (plan.backFt / FT_PER_NM).toFixed(1);
+        const toEnd = routeId === 'ENT2' ? 'from the threshold' : routeId === 'ENT1' ? 'back from the Merge' : 'before the end of the route';
         const when = plan.delaySec > 0 ? `in ${Math.round(plan.delaySec)} s` : 'now';
-        say(`Added ${id} on ${routeName(routeId)} at ${where}, ${when}: it meets ${targetId} in about ${Math.round(plan.inSec)} s.`);
+        say(`Added ${id} on ${routeName(routeId)}, ${nm} NM ${toEnd} (past ${after}), ${when}: it meets ${targetId} in about ${Math.round(plan.inSec)} s.`);
       } catch (err) {
         if (!(err instanceof RangeError)) console.error('Adding an aircraft failed:', err);
         say(engineProblem(err));
@@ -393,9 +397,9 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
   const conflictButton = h('button', { type: 'button', class: 'button', disabled: true, title: 'Select an aircraft first', onclick: spawnConflict }, 'Spawn a conflict');
   // The button waits for a selected aircraft (Patrick: "when an aircraft is selected") and a route to put the new one on.
   const conflictButtonFollows = () => {
-    const on = Boolean(selectedAircraftId) && !pflChosen && !siChosen;
+    const on = Boolean(selectedAircraftId) && !pflChosen;
     conflictButton.disabled = !on;
-    conflictButton.title = on ? `A new aircraft on the route above, timed to meet ${selectedAircraftId}` : (pflChosen || siChosen) ? 'Choose a route above first' : 'Select an aircraft first';
+    conflictButton.title = on ? `A new aircraft on the route above, timed to meet ${selectedAircraftId}` : pflChosen ? 'Choose a route above first' : 'Select an aircraft first';
   };
 
   // PFL from area: an aircraft already gliding with the engine out, somewhere in the training area. Its boxes show

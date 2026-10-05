@@ -115,4 +115,17 @@ test('Spawn a conflict finds a straight-in that meets an aircraft on initial, in
   assert.ok(plan, 'a straight-in can meet it');
   // Inside the caution distance (500 ft, TR-Q11), and far enough ahead to be seen coming.
   assert.ok(plan.closestFt < 500 && plan.inSec >= 20, JSON.stringify(plan));
+  // Anywhere along the route, not only at its spots (Patrick, 4 Oct): spawned there and flown, the two really meet,
+  // inside 500 ft and 500 ft, near when the plan said (within 30 s, a generous margin for the start's placement).
+  assert.ok(Number.isFinite(plan.backFt) && plan.backFt >= 0, 'a distance back along the route');
+  const id = sim.spawn({ routeId: 'ENT2', startPoint: 1, backFt: plan.backFt, delaySec: plan.delaySec, id: 'CX' });
+  const t0 = sim.t;
+  let met = null;
+  for (let s = 0.5; s <= plan.inSec + 30 && !met; s += 0.5) {
+    sim.stepTo(t0 + s);
+    const now = sim.state().aircraft;
+    const a = now.find((x) => x.id === id), b = now.find((x) => x.id === target.id);
+    if (a?.status === 'flying' && b?.status === 'flying' && Math.abs(a.alt - b.alt) < 500 && Math.hypot(a.x - b.x, a.y - b.y) < 500) met = s;
+  }
+  assert.ok(met !== null, `flown, they meet inside 500 ft and 500 ft by ${plan.inSec + 30} s`);
 });

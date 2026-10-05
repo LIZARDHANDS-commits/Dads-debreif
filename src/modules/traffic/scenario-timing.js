@@ -3,6 +3,7 @@
 // compared: the straight-in's start is the delay that brings it closest to the other while that one is in its
 // final turn, within the caution height (500 ft, TR-Q11). Nothing here changes how anything flies.
 import { createSim } from './sim.js';
+import { pointDistFt, DEFAULT_ROUTE_OPTIONS } from './route.js';
 
 /** How often the tracks are sampled, s. */
 const SAMPLE_SEC = 0.5;
@@ -17,7 +18,7 @@ function trackOf(setup, spec, flySec = FLY_SEC) {
   for (let t = SAMPLE_SEC; t <= flySec; t += SAMPLE_SEC) {
     sim.stepTo(t);
     const a = sim.state().aircraft[0];
-    out.push(a?.status === 'flying' ? { x: a.x, y: a.y, alt: a.alt, phase: a.phase, leg: a.leg } : null);
+    out.push(a?.status === 'flying' ? { x: a.x, y: a.y, alt: a.alt, phase: a.phase, leg: a.leg, routeId: a.routeId, distFt: a.distFt } : null);
   }
   return out;
 }
@@ -52,14 +53,15 @@ const CONFLICT_LAP_SEC = 480;
 const CONFLICT_SPAWN_GAP_FT = 6076;
 
 /**
- * "Spawn a conflict" (Patrick, 4 Oct 19:24Z): where on `routeId` a new aircraft should start, and after what delay,
- * so that it meets aircraft `targetId` of the running `sim` and one of them has to manage it (for example a
- * straight-in that meets the aircraft on initial at the perch). Everyone is flown on from now on a copy of the run
- * with no deconfliction (the run itself is not touched), and the route once from its first point; a start at a
- * later point is that same flight from when it passed the point. The pick is the start point and delay
- * (0 to `mostSec`) that bring the two closest, at least CONFLICT_LEAD_SEC ahead and inside the caution distance
- * (500 ft and 500 ft, TR-Q11), appearing at least 1 NM from everyone and meeting no one else first.
- * Returns { startPoint (from 1), delaySec, closestFt, inSec } or null when the route can't meet it.
+ * "Spawn a conflict" (Patrick, 4 Oct 19:24Z; any spot, soonest, 4 Oct): where on `routeId` a new aircraft should start,
+ * and after what delay, so that it meets aircraft `targetId` of the running `sim` and one of them has to manage it.
+ * Everyone is flown on from now on a copy of the run with no deconfliction (the run itself is not touched), and the
+ * route once from its first point; a start anywhere along it is that same flight from when it was there (every
+ * SAMPLE_SEC of it, finer than 0.1 NM), placed with the start partway along a route (sim.spawn backFt, TR-64). The pick
+ * is the meeting that comes soonest, inside the caution distance (500 ft and 500 ft, TR-Q11) and at least
+ * CONFLICT_LEAD_SEC ahead, starting now if any start now works, else after a delay of up to `mostSec`; it appears at
+ * least 1 NM from everyone. Meeting someone else first is allowed (Patrick: "if that happens oh well").
+ * Returns { backFt, startPoint (the spot it starts after, from 1), delaySec, inSec, closestFt } or null.
  */
 export function conflictSpawnPlan(sim, setup, targetId, routeId, { type = 'CT-156', mostSec = 120 } = {}) {
   const route = (setup.routes ?? []).find((r) => r.id === routeId);
@@ -68,31 +70,47 @@ export function conflictSpawnPlan(sim, setup, targetId, routeId, { type = 'CT-15
   fork.restore(structuredClone(sim.snapshot()));
   if (!fork.state().aircraft.some((a) => a.id === targetId && a.status === 'flying')) return null;
   const t0 = fork.t;
-  const frames = [];
+  const targetAt = [], others = [];
   for (let s = SAMPLE_SEC; s <= CONFLICT_AHEAD_SEC; s += SAMPLE_SEC) {
     fork.stepTo(t0 + s);
-    frames.push(fork.state().aircraft.filter((a) => a.status === 'flying').map((a) => ({ id: a.id, x: a.x, y: a.y, alt: a.alt })));
+    const flying = fork.state().aircraft.filter((a) => a.status === 'flying');
+    targetAt.push(flying.find((a) => a.id === targetId) ?? null);
+    others.push(flying.map((a) => ({ x: a.x, y: a.y })));
   }
   const lap = trackOf(setup, { type, routeId, startIndex: 0 }, CONFLICT_LAP_SEC);
-  const near = (a, b, lat) => Math.abs(a.alt - b.alt) < HEIGHT_FT && Math.hypot(a.x - b.x, a.y - b.y) < lat;
-  let best = null;
-  for (let p = 0; p < route.points.length; p++) {
-    const from = p === 0 ? 0 : lap.findIndex((q) => q && q.leg === p + 1);
-    if (from < 0) continue;
-    for (let k = 0; k * SAMPLE_SEC <= mostSec && k < frames.length; k++) {
-      const at = (i) => lap[from + i - k];
-      const first = at(k);
-      if (!first || frames[k].some((o) => Math.hypot(o.x - first.x, o.y - first.y) < CONFLICT_SPAWN_GAP_FT)) continue;
-      for (let i = k; i < frames.length; i++) {
-        const b = at(i);
+  const endFt = pointDistFt(route, route.points.length - 1, setup.routeOptions ?? DEFAULT_ROUTE_OPTIONS);
+  const lead = Math.ceil(CONFLICT_LEAD_SEC / SAMPLE_SEC) - 1;
+  const meets = (o, b) => o && b && Math.abs(o.alt - b.alt) < HEIGHT_FT && Math.hypot(o.x - b.x, o.y - b.y) < HEIGHT_FT;
+  // The starts on the route's first lap: while it is still on this route, before its end.
+  const starts = [];
+  for (let j = 0; j < lap.length; j++) {
+    const q = lap[j];
+    if (!q || q.routeId !== routeId || !Number.isFinite(q.distFt) || q.distFt > endFt) continue;
+    if (j > 0 && lap[j - 1] && lap[j - 1].routeId === routeId && lap[j - 1].distFt > q.distFt) break; // round again
+    starts.push(j);
+  }
+  const stride = Math.round(2 / SAMPLE_SEC); // delays in 2 s steps, once nothing starting now works
+  for (const k of [0, ...Array.from({ length: Math.floor(mostSec / 2) }, (_, n) => (n + 1) * stride)]) {
+    if (k >= targetAt.length) break;
+    let best = null;
+    for (const j of starts) {
+      const first = lap[j];
+      if (others[k].some((o) => Math.hypot(o.x - first.x, o.y - first.y) < CONFLICT_SPAWN_GAP_FT)) continue;
+      for (let i = Math.max(k, lead); i < targetAt.length; i++) {
+        if (best && i >= best.i) break; // not sooner
+        const b = lap[j + i - k];
         if (!b) break;
-        const target = frames[i].find((o) => o.id === targetId);
-        if (frames[i].some((o) => o.id !== targetId && near(o, b, HEIGHT_FT))) break; // meets someone else first
-        if (!target || i + 1 < CONFLICT_LEAD_SEC / SAMPLE_SEC || Math.abs(target.alt - b.alt) >= HEIGHT_FT) continue;
-        const d = Math.hypot(target.x - b.x, target.y - b.y);
-        if (!best || d < best.closestFt) best = { startPoint: p + 1, delaySec: k * SAMPLE_SEC, closestFt: d, inSec: (i + 1) * SAMPLE_SEC };
+        if (meets(targetAt[i], b)) {
+          best = { i, j, closestFt: Math.hypot(targetAt[i].x - b.x, targetAt[i].y - b.y) };
+          break;
+        }
       }
     }
+    if (best) {
+      const q = lap[best.j];
+      const startPoint = Math.max(1, Math.min(route.points.length, q.leg ?? 1));
+      return { backFt: Math.max(0, endFt - q.distFt), startPoint, delaySec: k * SAMPLE_SEC, inSec: (best.i + 1) * SAMPLE_SEC, closestFt: best.closestFt };
+    }
   }
-  return best && best.closestFt < HEIGHT_FT ? best : null;
+  return null;
 }
