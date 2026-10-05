@@ -344,7 +344,10 @@ function drawTrails(ctx, map, trail) {
   for (const [id, points] of Object.entries(trail)) {
     if (points.length < 2) continue;
     ctx.strokeStyle = SHIP_COLORS[id] ?? '#d9e6f2';
-    ctx.lineWidth = OUTLINED_SHIPS.has(Number(id)) ? 3 : 2;
+    // Dots, slightly see-through (Patrick, 5 Oct: "slightly translucent dots").
+    ctx.lineWidth = OUTLINED_SHIPS.has(Number(id)) ? 3.5 : 3;
+    ctx.lineCap = 'round';
+    ctx.setLineDash([0.1, 7]);
     ctx.beginPath();
     points.forEach(([, x, y], i) => {
       const [sx, sy] = map.worldToScreen(x, y);
@@ -582,18 +585,32 @@ const POWER_RED = '#ff5a5a';
 /** Each tag's direction out from the formation, eased frame to frame so a small wobble doesn't shake it (Patrick, 5 Oct). */
 const tagDirs = new Map();
 
-function drawLinesTag(ctx, map, x, y, tag, colour, pad, placed = [], centre = null, id = 0) {
+function drawLinesTag(ctx, map, x, y, tag, colour, pad, placed = [], centre = null, id = 0, nose = null) {
   const rows = [tag.title, ...tag.lines.map((l) => l.text)];
   const w = Math.max(...rows.map((t) => ctx.measureText(t).width)) + 2 * pad;
   const h = 4 + rows.length * 11;
   // Up and to the right of the aircraft, clear of it (Patrick, 5 Oct: the tags covered the aircraft); left when the right
   // would run off the picture, below when the top would.
-  const gap = 70; // well clear of the aircraft, joined to it by a leader line (Patrick, 5 Oct: "a little further")
+  const gap = 90; // well clear of the aircraft, joined to it by a leader line (Patrick, 5 Oct)
   // Out on the far side from the formation's middle (Patrick, 5 Oct: "away from the formation"); up and right when alone.
   let dx = centre ? x - centre[0] : 1;
   let dy = centre ? y - centre[1] : -1;
   const len = Math.hypot(dx, dy);
   if (len < 1) { dx = 1; dy = -1; } else { dx /= len; dy /= len; }
+  // Clear of the lines (Patrick, 5 Oct: "so they don't touch any lines"): the planned path runs ahead, the 3/9 line out each
+  // wing, the 7/5 lines and the track behind, so the tag goes on a forward diagonal, 45° off the nose, on the side away
+  // from the formation.
+  if (nose) {
+    const hl = Math.hypot(nose[0] - x, nose[1] - y);
+    if (hl > 0.5) {
+      const hx = (nose[0] - x) / hl;
+      const hy = (nose[1] - y) / hl;
+      const c = Math.SQRT1_2;
+      const a1 = [hx * c - hy * c, hx * c + hy * c];
+      const a2 = [hx * c + hy * c, -hx * c + hy * c];
+      [dx, dy] = a1[0] * dx + a1[1] * dy >= a2[0] * dx + a2[1] * dy ? a1 : a2;
+    }
+  }
   const was = tagDirs.get(id);
   if (was) {
     dx = was[0] + (dx - was[0]) * 0.15;
@@ -649,6 +666,8 @@ export function drawTags(ctx, map, state, tags) {
   const placed = [];
   const spots = state.aircraft.map((a) => (map.screenOf ? map.screenOf(a) : map.worldToScreen(a.xFt, a.yFt)));
   const centre = spots.length > 1 ? [spots.reduce((t, p) => t + p[0], 0) / spots.length, spots.reduce((t, p) => t + p[1], 0) / spots.length] : null;
+  // A point 100 ft ahead of each aircraft on screen, for its heading (the 3D view passes its own).
+  const noseOf = (a) => (map.noseOf ? map.noseOf(a) : map.worldToScreen(a.xFt + Math.cos(a.headingRad) * 100, a.yFt + Math.sin(a.headingRad) * 100));
   ctx.save();
   ctx.font = `10px ${FONT}`;
   for (const a of state.aircraft) {
@@ -657,7 +676,7 @@ export function drawTags(ctx, map, state, tags) {
     const colour = SHIP_COLORS[a.id] ?? '#d9e6f2';
     const [x, y] = map.screenOf ? map.screenOf(a) : map.worldToScreen(a.xFt, a.yFt); // screenOf: the 3D view's, with height
     const pad = 4;
-    if (tag.lines) { drawLinesTag(ctx, map, x, y, tag, colour, pad, placed, centre, a.id); continue; }
+    if (tag.lines) { drawLinesTag(ctx, map, x, y, tag, colour, pad, placed, centre, a.id, noseOf(a)); continue; }
     const power = tag.power ?? null;
     const w = Math.max(ctx.measureText(tag.title).width, ctx.measureText(tag.detail).width, power ? ctx.measureText(power.text).width : 0) + 2 * pad;
     const h = power ? 37 : 26;

@@ -207,7 +207,8 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(TRAIL_POINTS * 3), 3));
       geometry.setDrawRange(0, 0);
-      line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: source.colors[id] ?? '#ffffff', fog: false }));
+      // Dots, slightly see-through (Patrick, 5 Oct): one every fourth track point, a second apart.
+      line = new THREE.Points(geometry, new THREE.PointsMaterial({ color: source.colors[id] ?? '#ffffff', size: 3, sizeAttenuation: false, transparent: true, opacity: 0.6, fog: false }));
       line.frustumCulled = false;
       gl.scene.add(line);
       gl.trails.set(id, line);
@@ -428,10 +429,12 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       const points = layers.tracks === false ? [] : trail[a.id] ?? []; // the Tracks tick, as in 2D
       const line = trailFor(a.id);
       const attr = line.geometry.attributes.position;
-      const count = Math.min(points.length, TRAIL_POINTS);
-      const first = points.length - count;
+      // Every fourth point (the track is kept every 0.25 s), so the dots stand a second apart.
+      const every = 4;
+      const count = Math.min(Math.floor(points.length / every), TRAIL_POINTS);
+      const first = points.length - count * every;
       for (let i = 0; i < count; i++) {
-        const p = points[first + i];
+        const p = points[first + i * every];
         attr.setXYZ(i, p[1], p[2], altToZ(FLIGHT_ALT_FT + (p[3] ?? 0), ALT_SCALE));
       }
       attr.needsUpdate = true;
@@ -508,7 +511,12 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       const p = worldToScreen(THREE, gl.camera, { x: pose.x, y: pose.y, z: pose.z }, box.width, box.height);
       return [p.x, p.y];
     };
-    drawTags(ctx, { screenOf, size: box }, state, tags);
+    const noseOf = (a) => {
+      const pose = aircraftPose(a, signs[a.id] ?? 1);
+      const p = worldToScreen(THREE, gl.camera, { x: pose.x + Math.cos(a.headingRad) * 100, y: pose.y + Math.sin(a.headingRad) * 100, z: pose.z }, box.width, box.height);
+      return [p.x, p.y];
+    };
+    drawTags(ctx, { screenOf, noseOf, size: box }, state, tags);
   }
 
   function requestDraw() {
