@@ -26,6 +26,39 @@ export const G_RULE = Object.freeze({ normalG: 5, lastResortG: 7 });
 /** "No bank cap" (Patrick 06:16Z): the bank of a level turn at the G rule's normal 5 G, about 78°. */
 export const G_RULE_BANK_DEG = bankDegFromG(G_RULE.normalG);
 
+// ---- Patrick's two rate sets: holding close formation, and tactical (the tidy-up, TS-84) -------------------------------
+
+/**
+ * Every move flies one of two sets of rates, and this is their one home (Patrick 5 Oct 21:06Z, 21:11Z: the near-Lead throttle
+ * is only for holding close formation, "as soon as a tactical formation is selected, unrestricted attitude changes and
+ * power"; 20:50Z: "Escelon is smooth to allow 2 to stay in position in tight formation", while "Fithging wing, rejoins,
+ * tactical formations, line abreast etc is unrestricted (realistic) roll rates & aircraft handling"). The moves' own tables
+ * read them from here: ROLL and KINEMATIC below, OPEN_OUT, formation-turns.js CLOSE_TURN and hand-over.js RUN_IN. All
+ * estimates unless a source is given; the comments at those tables say where each number came from.
+ *  - close: holding close formation and moving near Lead.
+ *    leadRoll: Lead's roll in a close formation turn, up to 30°/s building at 20°/s² (about 3 s to 45°);
+ *    echelonRoll: the 2-ship echelon turn's, up to 30°/s building at 12°/s² (about 4.5 s to 60°; Patrick 20:50Z "about 4-5 s");
+ *    frame: how fast #2 may move in Lead's frame on a kinematic line (across, along, up or down, and the slowing near the slot);
+ *    law: how hard such a line may accelerate and turn in Lead's frame (shares of full power and of the turn, sideways and
+ *    vertical acceleration).
+ *  - tactical: unrestricted, the aircraft's own handling.
+ *    roll: 180°/s building at 720°/s² (Patrick 5 Oct 06:07Z "Roll rate can be 180 degrees per second");
+ *    frame and law: the opening out to line abreast's (TS-78): full power along, 1 g across, 0.3 g up or down.
+ */
+export const RATE_SETS = Object.freeze({
+  close: Object.freeze({
+    leadRoll: Object.freeze({ maxRateDps: 30, maxAccelDps2: 20 }),
+    echelonRoll: Object.freeze({ maxRateDps: 30, maxAccelDps2: 12 }),
+    frame: Object.freeze({ lateralFtps: 140, foreAftFtps: 25, verticalFtps: 15, nearPerSec: 0.1, nearMinFtps: 8 }),
+    law: Object.freeze({ powerShare: 0.65, turnShare: 0.35, latG: 0.3, vertFtps2: 3 }),
+  }),
+  tactical: Object.freeze({
+    roll: Object.freeze({ maxRateDps: 180, maxAccelDps2: 720 }),
+    frame: Object.freeze({ foreAftFtps: 80, verticalFtps: 40, nearPerSec: 10, nearMinFtps: 20 }),
+    law: Object.freeze({ powerShare: 1, turnShare: 1, latG: 1, vertFtps2: 10 }),
+  }),
+});
+
 // ---- speeds (from transitions.js) ---------------------------------------------------------------------------------
 
 /** The pair flies 200 KIAS outside line abreast (SMM 12.23 para 53; Patrick 11:08Z) and 220 in it (SMM 16.18 para 49). */
@@ -103,11 +136,11 @@ export const STRAIGHT_REJOIN = Object.freeze({
 /** The numbers of the kinematic moves. All estimates unless a source is given. */
 export const KINEMATIC = Object.freeze({
   // In the frame of Lead, how fast #2 may move:
-  lateralFtps: 140, // across Lead's heading: about a 25° heading difference at 200 KIAS (estimate; SMM 16.18 para 51 gives no angle)
-  foreAftFtps: 25, // along it: about 15 KIAS of overtake or undertake, the middle of EFIG p.374's 10-20 KIAS
-  verticalFtps: 15, // up or down: 900 ft/min (the 4-ship's stack-change estimate)
-  nearPerSec: 0.1, // closing slows with range: 10% of the range per second ...
-  nearMinFtps: 8, // ... but never below about 5 kt, the station-change rate (SMM 12.20 para 44 says "controlled")
+  lateralFtps: RATE_SETS.close.frame.lateralFtps, // 140 ft/s across Lead's heading: about a 25° heading difference at 200 KIAS (estimate; SMM 16.18 para 51 gives no angle)
+  foreAftFtps: RATE_SETS.close.frame.foreAftFtps, // 25 ft/s along it: about 15 KIAS of overtake or undertake, the middle of EFIG p.374's 10-20 KIAS
+  verticalFtps: RATE_SETS.close.frame.verticalFtps, // 15 ft/s up or down: 900 ft/min (the 4-ship's stack-change estimate)
+  nearPerSec: RATE_SETS.close.frame.nearPerSec, // closing slows with range: 10% of the range per second ...
+  nearMinFtps: RATE_SETS.close.frame.nearMinFtps, // 8 ft/s ... but never below about 5 kt, the station-change rate (SMM 12.20 para 44 says "controlled")
   // Patrick 05:12Z: echelon to route about 5 s; since step 2 the fore-aft rate is the Rates choice's closure (closeRates below).
   // The hot turning rejoin:
   pointBankDeg: 60, // #2's "aggressive" turn to point at Lead (SMM 16.20 para 65b(2)): 60° (an estimate). Not a cap: the line may bank up to REJOIN.bankCapDeg, the G rule (Patrick 06:16Z item 1, V2.59)
@@ -553,7 +586,7 @@ export const HOLD = Object.freeze({
  * 4 Oct 08:54Z), building and dying away at 720°/s² (an estimate, step 2: 180°/s is reached in 0.25 s and within a 45° roll;
  * it was 360°/s², Patrick card 4 Oct 09:54Z, which reaches 180°/s only in a roll of 90° or more).
  */
-export const ROLL = Object.freeze({ maxRateDps: 180, maxAccelDps2: 720 });
+export const ROLL = RATE_SETS.tactical.roll;
 
 /**
  * When a 2-ship change of formation counts as done (formation.js inBandAndSteady; Patrick 5 Oct 20:39Z card "In band and
@@ -580,20 +613,20 @@ export const OPEN_OUT = Object.freeze({
   leadHolds: true, // Lead holds his speed until #2 is out, then speeds up to line abreast speed (estimate needing Patrick's yes; false: he speeds up at once)
   // No slowing with range from Lead: leaving his side is not an arrival (the near term of kinematic.js relSpeedLimit throttled
   // the first 1,000 ft from echelon to about 25 ft/s); the arrival at the slot is the time law's own slowing to endFtps.
-  nearPerSec: 10,
-  nearMinFtps: 20,
-  foreAftFtps: 80, // falling back in Lead's frame on the way out is geometry (the angle off), not a closure: up to about 47 kt (estimate)
+  nearPerSec: RATE_SETS.tactical.frame.nearPerSec, // 10
+  nearMinFtps: RATE_SETS.tactical.frame.nearMinFtps, // 20 ft/s
+  foreAftFtps: RATE_SETS.tactical.frame.foreAftFtps, // 80 ft/s: falling back in Lead's frame on the way out is geometry (the angle off), not a closure: up to about 47 kt (estimate)
   // How hard the line may accelerate and turn in Lead's frame (hand-over.js RUN_IN's overrides). Patrick 21:11Z: the
   // near-Lead throttle is only for holding close formation; "as soon as a tactical formation is selected, unrestricted
   // attitude changes and power". Full power along, a 45° banked turn's lateral acceleration (1 g across; estimate), a
   // 0.3 g push or pull for the dive and the climb back (estimate).
-  law: Object.freeze({ powerShare: 1, turnShare: 1, latG: 1, vertFtps2: 10 }),
+  law: RATE_SETS.tactical.law,
   handOverFt: 150, // the tracker takes over this close to the slot (estimate)
   // A full power dive to start (Patrick 21:06Z: "LAB from echelon would be expedited by a full power dive to start"): #2
   // drops this far below Lead on the way out, trading height for speed, and climbs back to Lead's height by the slot, which
   // bleeds the extra speed off again (energy height, standard aerodynamics; full-power.js). Both numbers are estimates.
   diveFt: 400,
-  verticalFtps: 40, // down or up on the way out: about 2,400 ft/min (estimate)
+  verticalFtps: RATE_SETS.tactical.frame.verticalFtps, // 40 ft/s down or up on the way out: about 2,400 ft/min (estimate)
 });
 /**
  * What "in position" means (Patrick 5 Oct 21:26Z and 21:38Z, TS-80): a tactical formation is in position anywhere in its

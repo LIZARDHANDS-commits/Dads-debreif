@@ -24,7 +24,7 @@ import { recordFlight, dryRunT } from './transitions.js';
 import { trackTwice, phase } from './tracker.js';
 import { smoothest, makeTrack, seedTrack, setTrackStep, TRACK_PAD, posesFrom, settleLast, slotInWorld } from './kinematic.js';
 import { leadTurnSegs } from './kinematic-moves.js';
-import { FW_TURN, FW_FOLLOW, WING_BANKS, ROLL } from './tuning.js';
+import { FW_TURN, FW_FOLLOW, WING_BANKS, ROLL, RATE_SETS } from './tuning.js';
 import { easeRoll } from '../../../core/flight-math.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { wrapPi } from '../../../core/angles.js';
@@ -148,14 +148,14 @@ export const CLOSE_TURN = Object.freeze({
    * manual gives a roll rate). At the 180°/s every other move may use (Patrick 5 Oct 06:07Z) his wing plane would swing a
    * wingman's place 30 ft (echelon) to 120 ft (route) up or down in half a second, which no wingman can follow.
    */
-  leadRoll: Object.freeze({ maxRateDps: 30, maxAccelDps2: 20 }),
+  leadRoll: RATE_SETS.close.leadRoll,
   /**
    * The 2-ship echelon turn's roll: "very slow and smooth, about 4-5 seconds to get to 60/2 ... Echelon is smooth to allow 2
    * to stay in position in tight formation" (Patrick 20:50Z): up to 30°/s, building at 12°/s², about 4.5 s to 60° (the
    * Formation thread's dry runs, 5 Oct: past about 15°/s² Lead's roll pushes #2 along his lift line faster than #2 can
    * follow at 0.3 G or more). Every other formation and move keeps the aircraft's own roll (tuning.js ROLL).
    */
-  echelonRoll: Object.freeze({ maxRateDps: 30, maxAccelDps2: 12 }),
+  echelonRoll: RATE_SETS.close.echelonRoll,
   /**
    * How a close wingman holds his place in Lead's real wing plane through the roll-in, the turn and the roll-out (SMM 12.19
    * paras 41-43, Fig 12.11; Patrick 5 Oct 19:51Z: "The aircraft should use bank and pitch and roll to stay in position as
