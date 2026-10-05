@@ -12,7 +12,7 @@ Moved from `specs/SPEC-traffic.md` (the old copy is in `archive/specs/`).
 > **Status**: Approved (D406, R34) — Vector Guidance Migration Ratification  
 > **Date**: 2026-10-02  
 > **Module ID**: `traffic` in [`archive/SPEC.md`](../../../archive/SPEC.md)  
-> **Authoritative Companion**: Master Pattern Matrix at [`docs/references/traffic-pattern-matrix.md`](../../references/traffic-pattern-matrix.md) (single source of truth for waypoints & coordinates)  
+> **Authoritative Companion**: Master Pattern Matrix at [`docs/references/traffic-pattern-matrix.md`](../../references/traffic-pattern-matrix.md) (a readable list of the route points in true feet; the route file and `airfield.js` are the source)  
 > **Decisions**: D6, D10, D46, D109, D110, D117, D118, D134, D158, D368–D400, D406, D412 | **Requirements**: R2, R3, R4, R6, R8, R9, R14, R16, R21, R22, R24–R27, R34  
 > **Architecture Update (D412)**: Flight model uses Hybrid Rails/Physics — see SPEC_hybrid_migration.md for full details. Rails for stable legs via generateWindAdjustedTrack(), Physics for dynamic maneuvers via flight-engine.js. *Superseded 4 Oct 2026 (Patrick's card "Rebuild, then delete", 4 Oct 17:53Z): there is no physics mode or `flight-engine.js` any more; every manoeuvre is flown once by `circuit.js`'s simulated pilot and followed by `path-follower.js`.*  
 
@@ -197,12 +197,13 @@ The sim uses the glide **ratio** for the configuration down (clean 2.0, gear 1.5
 
 ## 4. Pattern Definitions
 
-> **Authoritative Coordinates**: the route file `src/modules/traffic/data/moose-jaw.json` and the runway constants in `src/modules/traffic/airfield.js`, in true feet since TR-67. Each point's source is in the project files' `traffic-map-rebuild/point-list.md`; the drawing is [moose-jaw-routes-draft.svg](moose-jaw-routes-draft.svg). (`docs/references/traffic-pattern-matrix.md` still lists V6's stretched positions.)
+> **Authoritative Coordinates**: the route file `src/modules/traffic/data/moose-jaw.json` and the runway constants in `src/modules/traffic/airfield.js`, in true feet since TR-67. Each point's source is in the project files' `traffic-map-rebuild/point-list.md`; the drawing is [moose-jaw-routes-draft.svg](moose-jaw-routes-draft.svg). `docs/references/traffic-pattern-matrix.md` lists the same points in a table.
 
 ### 4.0 The ground the routes are drawn on (TR-67, Patrick 5 Oct 00:27Z)
 
 - **One frame, true feet.** x east and y north in feet from the field reference point (50.3303 N, 105.5592 W), converted with `core/geo.js` `latLonToLocalFt`. The satellite photo is drawn at true scale (trim 1.0, no offset), so the routes, the runway, the 3D scenery and the photo all agree, and distances on the map are real (leg lengths, miles on final, the Window, spacing, glide reach).
 - **Where the points come from.** Runway 29L from its threshold bars on Esri's true-scale photo (7,250 ft at 298.6° true; CAP chart 7,280 ft, 289°M). The overhead pattern from EFIG Fig 3-10 laid on the photo (Race Track Lake and the Sukanen Ship intersection land within about 60 ft of the figure, its lines good to about ±300 ft); the straight-in from EFIG p.131; the rejoins from EFIG p.209 and Patrick ("the rejoin lines define the base leg"); the Window from Patrick (3/4 NM from the base of the numbers). Initial is only a reference point on the run-in (Patrick, 01:05Z).
+- **Landmarks and buildings (TR-68).** The 3D landmarks (`landmarks3d.js`) and flight-line buildings (`scenery3d.js`) are traced off the same true-scale photo round Patrick's pins, about ±15 ft: Window Farm with its pigs in the pens, Sukanen with the red roof east-west, the whole Fiat Farm car lot, the Arrow Tree Rows on their real tree lines, the Glass Palace on its real outline, Hangars 5 and 6 turned to the taxiway, and three small arch hangars plus two buildings added. Pig and car sizes are estimates.
 - **Anything new goes straight in.** A position from latitude and longitude (a pin, a GPS track, airport data) is used as is. The photo-alignment controls stay for a photo that is off, never to fit routes to it.
 - **To check a position again:** fetch Esri `World_Imagery` tiles at zoom 16 to 18, convert feet to latitude and longitude with the same formula, and draw the point on them. Esri's photos are not put in the repo.
 - Before TR-67, V6's hand-drawn routes were about 1.12 to 1.2 times too big and the photo was stretched 1.2 times to sit under them; the flight physics was always in true feet, so turns were right and legs were long. The "Moose Jaw (V6 original)" setup keeps V6's routes and its 1.2 trim.
@@ -612,6 +613,6 @@ Every setting starts filled in so the first look is clean and intuitive:
 
 - **No editing `original/`** (D368, D372).
 - **Core math (`src/core/`) is read-only.**
-- **Single Source of Truth for Waypoints**: [`docs/references/traffic-pattern-matrix.md`](../../references/traffic-pattern-matrix.md).
+- **Source of the waypoints**: the route file `src/modules/traffic/data/moose-jaw.json` and `airfield.js`; [`docs/references/traffic-pattern-matrix.md`](../../references/traffic-pattern-matrix.md) is a readable copy.
 - **Never stop or cap simulation prematurely**: station keeping is closed-loop (D370, D374).
 - **Harvard II is CT-156** (D373). Default active runway: 29L (298° true), left-hand circuits (D378).
