@@ -729,16 +729,6 @@
   border-color: var(--border-subtle, rgba(255, 255, 255, 0.1));
 }
 
-[data-module='traffic'] .button-tiny.danger {
-  color: var(--bad, #ef4444);
-  border-color: rgba(239, 68, 68, 0.4);
-}
-
-[data-module='traffic'] .button-tiny.danger.is-active {
-  background: var(--bad, #ef4444);
-  color: var(--bg, #020a10);
-  border-color: var(--bad, #ef4444);
-}
 
 [data-module='traffic'] .aircraft-menu-select {
   padding: 0.1rem 0.3rem;
@@ -1005,4 +995,100 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+}
+
+/* Aircraft cards (Patrick, 4 Oct): each one its own box, a gap between them, the selected one in the accent; only it
+   shows its menu and buttons. */
+[data-module='traffic'] .aircraft-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+[data-module='traffic'] .aircraft-row {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  cursor: pointer;
+}
+
+[data-module='traffic'] .aircraft-row.is-selected {
+  border: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-sunken));
+}
+
+[data-module='traffic'] .aircraft-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+[data-module='traffic'] .aircraft-remove {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  padding: 0 var(--space-1);
+}
+
+[data-module='traffic'] .aircraft-remove:hover {
+  color: var(--text);
+}
+
+[data-module='traffic'] .aircraft-actions[hidden] {
+  display: none;
+}
+
+/* Closed Pattern and its bank, one control. */
+[data-module='traffic'] .aircraft-split {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+[data-module='traffic'] .aircraft-split > .button-tiny {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+[data-module='traffic'] .aircraft-split > select {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 0;
+}
+
+/* A gliding aircraft's card is yellow (Patrick, 4 Oct: PFL in yellow), with the same padding as the others. */
+[data-module='traffic'] .aircraft-row.has-engine-fail {
+  border-left: 4px solid var(--caution);
+  padding-left: var(--space-3);
+  background: color-mix(in srgb, var(--caution) 10%, var(--bg-sunken));
+}
+
+[data-module='traffic'] .aircraft-row.has-engine-fail.is-selected {
+  border-color: var(--caution);
+}
+
+[data-module='traffic'] .pfl-badge.badge-pfl {
+  background: color-mix(in srgb, var(--caution) 15%, transparent);
+  border-color: var(--caution);
+  color: var(--caution);
+}
+
+/* A long tag wraps inside the card instead of running off its edge (Patrick, 4 Oct). */
+[data-module='traffic'] .aircraft-name {
+  align-items: flex-start;
+}
+
+[data-module='traffic'] .aircraft-name > strong,
+[data-module='traffic'] .aircraft-name > .aircraft-swatch,
+[data-module='traffic'] .aircraft-name > .aircraft-remove {
+  flex: none;
+}
+
+[data-module='traffic'] .aircraft-name > .pfl-badge {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }

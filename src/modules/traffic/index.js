@@ -49,6 +49,7 @@ function mount(root, app) {
   const sim = createSim(setup, { seed: start.profile.seed });
   const clock = createClock({ sim, speed: settings.get().speed });
   let selectedRouteId = null; // no route is selected when the sim opens
+  let selectedAircraftId = null; // the aircraft card picked: only it shows its caution ring and glide circle (Patrick, 4 Oct)
   let stopFrames = null;
   let cached = null; // sim.state() for this moment, worked out once however often it is asked
 
@@ -83,7 +84,7 @@ function mount(root, app) {
     },
     filterSplits: true,
   });
-  const aircraftPanel = createAircraftPanel({ controls, timers: app.scheduler, settings, sim, setup, onChange: () => changed(), onSelectAircraft: (id) => view3d?.target(id) });
+  const aircraftPanel = createAircraftPanel({ controls, timers: app.scheduler, settings, sim, setup, onChange: () => changed(), onSelectAircraft: (id) => { selectedAircraftId = id; redraw(); } }); // the camera stays put (Patrick, 4 Oct); the 3D bar's Follow still follows
   ui.slots.spawner.append(aircraftPanel.elements.spawner);
   ui.slots.aircraft.append(aircraftPanel.elements.aircraft);
   ui.slots.conflicts.append(aircraftPanel.elements.conflicts);
@@ -199,6 +200,7 @@ function mount(root, app) {
   let siPatternShown = false;
   const siPatternRow = () => ({ ...SI_PATTERN, visible: siPatternShown });
   function withSiPattern(scene) {
+    scene.selectedAircraftId = selectedAircraftId;
     if (!siPatternShown) return scene;
     const path = siPatternPath(setup.routes, setup.windFromDeg ?? 360, setup.windKt ?? 0, setup.routeOptions);
     if (path) scene.routes.push({ ...SI_PATTERN, visible: true, points: [], path });

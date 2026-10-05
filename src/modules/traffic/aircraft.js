@@ -151,19 +151,18 @@ export const engineProblem = (err) => (err instanceof RangeError ? `That aircraf
 
 const feet = (n) => n.toLocaleString('en-CA');
 
-/** The detail line of an aircraft's row: "2,500 ft, 120 kt, Flying", or "Waiting, starts at 2:17". */
+/**
+ * The detail line of an aircraft's card: "2,500 ft · 120 kt" while flying (Patrick, 4 Oct: no ground speed, no crab,
+ * no "Flying", the normal case), "Waiting, starts at 2:17", or "1,880 ft, Landed". Heights to the nearest 10 ft
+ * (Patrick, 4 Oct).
+ */
 export function detailText(row) {
+  const alt = feet(Math.round(row.altFt / 10) * 10);
   if (row.status === 'waiting') return `${row.statusText}, ${row.startsText}`;
-  if (row.status === 'flying') return `${feet(row.altFt)} ft, ${row.kt} kt, ${groundText(row)}, ${row.statusText}`;
-  return `${feet(row.altFt)} ft, ${row.statusText}`;
+  if (row.status === 'flying') return `${alt} ft · ${row.kt} kt`;
+  return `${alt} ft, ${row.statusText}`;
 }
 
-/** Ground speed and crab for a flying row (TR-R6), as the old spec's layout shows them: "GS 162 kt, crab 7° R". */
-function groundText(row) {
-  const crab = row.crabDeg ?? 0;
-  const gs = `GS ${row.gsKt ?? row.kt} kt`;
-  return crab === 0 ? `${gs}, no crab` : `${gs}, crab ${Math.abs(crab)}° ${crab > 0 ? 'R' : 'L'}`;
-}
 
 /**
  * controls, settings: the ui-kit controls bound to the traffic settings, and those settings.
@@ -553,6 +552,9 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       const classes = (li.getAttribute?.('class') || '').split(' ').filter((c) => c && c !== 'is-selected');
       if (isTarget) classes.push('is-selected');
       li.setAttribute?.('class', classes.join(' '));
+      // Only the selected card shows its menu and buttons (Patrick, 4 Oct); switched in place, nothing rebuilt.
+      const actions = findChildWithClass(li, 'aircraft-actions');
+      if (actions) actions.hidden = !isTarget;
     }
     fold();
   }
@@ -612,19 +614,21 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       for (const row of rows) {
         const swatch = h('span', { class: 'aircraft-swatch', 'aria-hidden': 'true' });
         swatch.style.setProperty('--ac', row.color);
-        const pflBadge = getPflBadge(row);
-        const nameChildren = [swatch, h('strong', {}, row.id), ` ${row.type} on ${row.routeName}`];
-        if (pflBadge) {
-          const badgeClass = pflBadge === '[CRASH SHORT]' ? 'pfl-badge badge-crash' : 'pfl-badge';
-          nameChildren.push(h('span', { class: badgeClass }, pflBadge));
-        }
-        // Remove this one aircraft (TR-R19); going back to before now brings it back.
-        nameChildren.push(makeActionButton('Remove', `Remove ${row.id}`, () => {
+        // The callsign and the tag only (Patrick, 4 Oct: no "CT-156 on Overhead break" beside "[OHB]"); the type and
+        // route are in the tooltip. An aircraft with no tag yet (waiting) shows its route in brackets.
+        const pflBadge = getPflBadge(row) ?? `[${row.routeName}]`;
+        // A PFL in yellow (Patrick, 4 Oct); a crash short stays red.
+        const badgeClass = pflBadge === '[CRASH SHORT]' ? 'pfl-badge badge-crash' : (row.engineFailed || pflBadge.startsWith('[PFL')) ? 'pfl-badge badge-pfl' : 'pfl-badge';
+        const nameChildren = [swatch, h('strong', {}, row.id), ' ', h('span', { class: badgeClass }, pflBadge)];
+        // Remove this one aircraft (TR-R19), as a small ✕; going back to before brings it back.
+        const removeBtn = makeActionButton('✕', `Remove ${row.id}`, () => {
           sim.remove(row.id);
           onChange?.();
-        }, false, 'aircraft-remove'));
+        }, false, 'aircraft-remove');
+        removeBtn.setAttribute('aria-label', `Remove ${row.id}`);
+        nameChildren.push(removeBtn);
         const children = [
-          h('span', { class: 'aircraft-name' }, ...nameChildren),
+          h('span', { class: 'aircraft-name', title: `${row.id}: ${row.type} on ${row.routeName}` }, ...nameChildren),
           ' ',
           h('span', { class: 'aircraft-detail' }, detailText(row)),
         ];
@@ -680,7 +684,6 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
               onChange?.();
             },
             row.command === 'pfl_current' || row.engineFailed,
-            'danger',
           );
           // Go-around only works after the window (when slowing to 100 knots)
           const canGoAround = row.phase === 'final' || row.phase === 'short_final' ||
@@ -734,13 +737,14 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
             }, (row.intent || 'touch_and_go') === value, 'aircraft-landing'));
           const buttons = menu === 'pattern' ? patternButtons
             : menu === 'landing' ? landingButtons
-              : [breakoutBtn, closedPatternBtn, closedBankSelect, highKeyBtn, pflBtn, goAroundBtn];
+              : [breakoutBtn, h('span', { class: 'aircraft-split' }, closedPatternBtn, closedBankSelect), highKeyBtn, pflBtn, ...(canGoAround ? [goAroundBtn] : [])];
 
           children.push(
             h(
               'div',
               {
                 class: 'aircraft-actions',
+                hidden: selectedAircraftId !== row.id, // only the selected card shows its controls (Patrick, 4 Oct)
                 onclick: (e) => {
                   e?.stopPropagation?.();
                 },

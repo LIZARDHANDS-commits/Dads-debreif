@@ -618,7 +618,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     pflGround.position.z = lift;
     const present = new Set();
     for (const ac of scene.aircraft) {
-      if (options.layerEngineReach === false || !isFlying(ac) || !shouldShowGlideFootprint(ac, null)) continue; // the Engine-out reach tick
+      if (options.layerEngineReach === false || !isFlying(ac) || !shouldShowGlideFootprint(ac, scene.selectedAircraftId ?? null)) continue; // the Engine-out reach tick, selected aircraft only
       const footprint = calculateGlideFootprint(ac, scene.windFromDeg ?? 360, scene.windKt ?? 0);
       if (!(footprint.rGlide > 0)) continue;
       present.add(ac.id);
@@ -708,7 +708,8 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
       }
 
       let ring = rings.get(ac.id);
-      if (wantRings) {
+      // Round the selected aircraft only (Patrick, 4 Oct).
+      if (wantRings && ac.id === (scene.selectedAircraftId ?? null)) {
         if (!ring) {
           ring = new THREE.LineLoop(ringGeometry, ringMaterials.calm);
           ring.frustumCulled = false;

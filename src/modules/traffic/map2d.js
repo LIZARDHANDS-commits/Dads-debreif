@@ -335,10 +335,9 @@ export function isPflActive(a) {
  * @returns {boolean}
  */
 export function shouldShowGlideFootprint(a, selectedAircraftId = null) {
-  if (!a) return false;
-  if (isPflActive(a)) return true;
-  if (selectedAircraftId && a.id === selectedAircraftId && (a.command?.startsWith('pfl') || a.engineFailed)) return true;
-  return false;
+  // Only for the selected aircraft (Patrick, 4 Oct), and only while it is gliding or set up for a PFL.
+  if (!a || !selectedAircraftId || a.id !== selectedAircraftId) return false;
+  return isPflActive(a) || Boolean(a.command?.startsWith('pfl'));
 }
 
 /**
@@ -665,7 +664,10 @@ export function drawScene(ctx, map, scene, settings, palette, layers = {}) {
   for (const ac of flying) {
     const [x, y] = at(ac);
     const level = levels.get(ac.id);
-    if (settings.layerCautionRings) {
+    // The caution ring: round the selected aircraft only (Patrick, 4 Oct: "only the aircraft selected should have the
+    // green circle"). A conflict still shows by its bubble and its words.
+    const ringed = ac.id === (scene.selectedAircraftId ?? null);
+    if (settings.layerCautionRings && ringed) {
       ctx.save();
       const hot = level === 'caution';
       ctx.globalAlpha = hot ? 1 : 0.3;

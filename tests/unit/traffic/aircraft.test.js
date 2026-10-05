@@ -283,22 +283,26 @@ test('Clear finished drops the aircraft that have landed or are done, and says h
   assert.equal(words(withClass(spawner, 'spawn-message')[0]), `Cleared ${finished} finished aircraft.`);
 });
 
-test('the aircraft list has a row for each aircraft: callsign, type, route, and Waiting with its start time', () => {
+test('the aircraft list has a card for each aircraft: callsign, its tag (the route in brackets while waiting), and Waiting with its start time', () => {
   const { list } = setup();
   const rows = withClass(list, 'aircraft-row');
   assert.equal(rows.length, 7);
-  assert.match(words(rows[0]), /^A1 CT-156 on Overhead break.*Waiting, starts at 0:12$/);
+  assert.match(words(rows[0]), /^A1 \[Overhead break\].*Waiting, starts at 0:12$/);
+  assert.equal(withClass(rows[0], 'aircraft-name')[0].getAttribute('title'), 'A1: CT-156 on Overhead break', 'the type and route in the tooltip');
   assert.equal(words(withClass(list, 'aircraft-empty')[0]), 'No aircraft yet. Press a spot under Spawn to add one.');
   assert.equal(withClass(list, 'aircraft-empty')[0].hidden, true);
 });
 
-test('a flying aircraft shows its height, speed, ground speed, crab and Flying, in whole numbers; landed and done say so (TR-R6)', () => {
+test('a flying aircraft shows its height and speed in whole numbers, no ground speed, crab or "Flying"; landed and done say so (Patrick, 4 Oct)', () => {
   const { panel, list, sim } = setup();
   sim.stepTo(60);
   panel.update(sim.state());
   const rows = withClass(list, 'aircraft-row');
-  assert.match(words(rows[0]), /^A1 CT-156 on Overhead break.*[\d,]+ ft, \d+ kt, GS \d+ kt, (no crab|crab \d+° [LR]), Flying/);
-  assert.equal(detailText({ status: 'flying', statusText: 'Flying', altFt: 2500, kt: 140, gsKt: 128, crabDeg: -7 }), '2,500 ft, 140 kt, GS 128 kt, crab 7° L, Flying');
+  assert.match(words(rows[0]), /^A1 \[.+\].*[\d,]+0 ft · \d+ kt$/);
+  assert.doesNotMatch(words(rows[0]), /GS|crab|Flying|CT-156 on/);
+  assert.equal(detailText({ status: 'flying', statusText: 'Flying', altFt: 2500, kt: 140, gsKt: 128, crabDeg: -7 }), '2,500 ft · 140 kt');
+  assert.equal(detailText({ status: 'flying', statusText: 'Flying', altFt: 3498, kt: 220 }), '3,500 ft · 220 kt', 'heights to the nearest 10 ft');
+  assert.equal(detailText({ status: 'flying', statusText: 'Flying', altFt: 2134, kt: 107 }), '2,130 ft · 107 kt');
   const state = sim.state();
   assert.equal(detailText({ status: 'landed', statusText: 'Landed', altFt: 1880, kt: 0 }), '1,880 ft, Landed');
   assert.equal(detailText({ status: 'done', statusText: 'Done', altFt: 2500, kt: 100 }), '2,500 ft, Done');
@@ -309,7 +313,9 @@ test('Remove takes one aircraft out of the run, and only that one (TR-R19)', () 
   const { list, sim, panel } = setup();
   const before = sim.state().aircraft.length;
   const row = withClass(list, 'aircraft-row')[0];
-  buttonNamed(row, 'Remove').dispatch('click');
+  const remove = tagged(row, 'BUTTON').find((b) => b.getAttribute('aria-label') === 'Remove A1');
+  assert.equal(words(remove), '✕', 'a small ✕ (Patrick, 4 Oct)');
+  remove.dispatch('click');
   panel.update(sim.state());
   assert.equal(sim.state().aircraft.length, before - 1);
   assert.ok(!sim.state().aircraft.some((a) => a.id === 'A1'));
@@ -444,23 +450,27 @@ test('the 201st aircraft is refused at a spot, alone or as a pair, with the limi
   assert.equal(changes.length, before, 'and the screen was not told of a change');
 });
 
-test('flying aircraft rows show Breakout, High Key, PFL, and window-restricted Go-around buttons', () => {
+test('only the selected card shows its controls: Breakout, Closed Pattern, High Key, PFL, and Go-around once it can be flown', () => {
   const { panel, list, sim } = setup();
   sim.stepTo(60);
   panel.update(sim.state());
   const rows = withClass(list, 'aircraft-row');
   const row0 = rows[0];
+  const actionsOf = (row) => withClass(row, 'aircraft-actions')[0];
+  assert.equal(actionsOf(row0).hidden, true, 'not selected: its controls are hidden (Patrick, 4 Oct)');
+  panel.selectAircraft('A1');
+  assert.equal(actionsOf(row0).hidden, false, 'selected: they show');
+  assert.equal(actionsOf(rows[1])?.hidden ?? true, true, 'and only on that card');
   const breakoutBtn = buttonNamed(row0, 'Breakout');
   const closedBtn = buttonNamed(row0, 'Closed Pattern');
   const highKeyBtn = buttonNamed(row0, 'High Key');
   const pflBtn = buttonNamed(row0, 'PFL');
-  const goAroundBtn = buttonNamed(row0, 'Go-around');
 
   assert.ok(breakoutBtn, 'Breakout button is rendered on flying aircraft');
   assert.ok(closedBtn, 'Closed Pattern button is rendered on flying aircraft');
   assert.ok(highKeyBtn, 'High Key button is rendered on flying aircraft');
   assert.ok(pflBtn, 'PFL button is rendered on flying aircraft');
-  assert.ok(goAroundBtn, 'Go-around button is rendered on flying aircraft');
+  assert.equal(buttonNamed(row0, 'Go-around'), undefined, 'no Go-around before the window: hidden, not greyed (Patrick, 4 Oct)');
 
   // Closed Pattern issues closed_pattern command
   closedBtn.dispatch('click');
@@ -482,10 +492,6 @@ test('flying aircraft rows show Breakout, High Key, PFL, and window-restricted G
   menuOf(withClass(list, 'aircraft-row')[0]).value = 'manoeuvres';
   menuOf(withClass(list, 'aircraft-row')[0]).dispatch('change');
 
-  // Go-around is disabled before the landing window (e.g. on climbout)
-  assert.equal(goAroundBtn.disabled, true, 'Go-around is disabled outside the final approach window');
-  goAroundBtn.dispatch('click');
-  assert.equal(sim.state().aircraft[0].command, 'closed_pattern', 'Clicking disabled Go-around does not change command');
 
   // Breakout issues command from anywhere
   breakoutBtn.dispatch('click');
@@ -502,6 +508,7 @@ test('flying aircraft rows show Breakout, High Key, PFL, and window-restricted G
   // Aircraft on final approach window (point 13 = threshold / final) has Go-around enabled
   const id = sim.spawn({ id: 'AFINAL', routeId: 'PAT1', startPoint: 13, delaySec: 0 });
   panel.update(sim.state());
+  panel.selectAircraft(id);
   const finalRow = withClass(list, 'aircraft-row').find((r) => r.dataset.aircraftId === id);
   assert.ok(finalRow, 'Final approach aircraft row is rendered');
   const finalGaBtn = buttonNamed(finalRow, 'Go-around');

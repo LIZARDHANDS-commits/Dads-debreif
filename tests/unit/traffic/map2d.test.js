@@ -394,23 +394,25 @@ test('markRadiiPx: the ring is always larger than the bubble, even if the limits
 test('at the fitted zoom the bubbles are drawn 8 px and the rings 12 px, and zoomed in they keep their true size', () => {
   const zoomed = { ...fakeMap, view: { ...VIEW, scale: FITTED } };
   const rec = recordingContext();
-  drawScene(rec.ctx, zoomed, scene(), LAYERS_ON, PALETTE);
+  drawScene(rec.ctx, zoomed, scene({ selectedAircraftId: 'A5' }), LAYERS_ON, PALETTE);
   const radii = rec.named('arc').map((c) => c.args[2]);
   assert.equal(radii.filter((r) => r === 8).length, 3, 'a bubble for A1, A2 and A5');
-  assert.equal(radii.filter((r) => r === 12).length, 3, 'a ring for each');
+  assert.equal(radii.filter((r) => r === 12).length, 1, 'a ring for the selected aircraft');
   assert.equal(draw().named('arc').filter((c) => Math.abs(c.args[2] - 10) < 1e-9).length, 3, 'at 20 ft a pixel they are still true size');
 });
 
-test('each flying aircraft has a bubble at the conflict limit and a dashed ring at the caution limit', () => {
-  const rec = draw();
+test('each flying aircraft has a bubble at the conflict limit; only the selected one a dashed ring at the caution limit (Patrick, 4 Oct)', () => {
+  assert.equal(draw().named('arc').filter((c) => Math.abs(c.args[2] - 25) < 1e-9).length, 0, 'no ring with no aircraft selected');
+  const rec = draw({ selectedAircraftId: 'A1' });
   const radii = rec.named('arc').map((c) => c.args[2]);
   assert.equal(radii.filter((r) => Math.abs(r - 10) < 1e-9).length, 3, '200 ft at 20 ft a pixel, for A1, A2 and A5');
-  assert.equal(radii.filter((r) => Math.abs(r - 25) < 1e-9).length, 3, '500 ft, the same');
+  assert.equal(radii.filter((r) => Math.abs(r - 25) < 1e-9).length, 1, '500 ft, round A1 only');
   assert.ok(rec.named('setLineDash').some((c) => JSON.stringify(c.args[0]) === '[4,4]'), 'rings are dashed, bubbles solid');
 });
 
-test('an aircraft in conflict gets a heavier, red bubble; one in caution a heavier, amber ring', () => {
-  const rec = draw();
+test('an aircraft in conflict gets a heavier, red bubble; a selected one in caution a heavier, amber ring', () => {
+  assert.equal(draw().named('stroke').filter((c) => c.lineWidth === 2.5 && c.strokeStyle === PALETTE.caution).length, 0, 'not selected: no ring');
+  const rec = draw({ selectedAircraftId: 'A5' });
   const bubbles = rec.named('stroke').filter((c) => c.lineWidth === 3 && c.strokeStyle === PALETTE.bad);
   assert.equal(bubbles.length, 2, 'A1 and A2');
   const rings = rec.named('stroke').filter((c) => c.lineWidth === 2.5 && c.strokeStyle === PALETTE.caution);
@@ -418,10 +420,10 @@ test('an aircraft in conflict gets a heavier, red bubble; one in caution a heavi
 });
 
 test('the bubble and ring layers each switch off on their own', () => {
-  const noBubbles = draw({}, { layerBubbles: false });
+  const noBubbles = draw({ selectedAircraftId: 'A1' }, { layerBubbles: false });
   assert.equal(noBubbles.named('arc').filter((c) => Math.abs(c.args[2] - 10) < 1e-9).length, 0);
-  assert.equal(noBubbles.named('arc').filter((c) => Math.abs(c.args[2] - 25) < 1e-9).length, 3);
-  const noRings = draw({}, { layerCautionRings: false });
+  assert.equal(noBubbles.named('arc').filter((c) => Math.abs(c.args[2] - 25) < 1e-9).length, 1);
+  const noRings = draw({ selectedAircraftId: 'A1' }, { layerCautionRings: false });
   assert.equal(noRings.named('arc').filter((c) => Math.abs(c.args[2] - 25) < 1e-9).length, 0);
   assert.equal(noRings.named('arc').filter((c) => Math.abs(c.args[2] - 10) < 1e-9).length, 3);
   // The words still say who is in conflict when the drawing layers are off.
@@ -917,17 +919,19 @@ test('calculateGlideFootprint: glide ratio radius, and the wind carries the ring
   near(2000 - northWind.cy, northWind.driftFt, 1.0);
 });
 
-test('shouldShowGlideFootprint activates for engine failure, PFL phases, commands, or active selection', () => {
-  assert.ok(shouldShowGlideFootprint({ engineFailed: true }));
-  assert.ok(shouldShowGlideFootprint({ phase: 'pfl_high_key' }));
-  assert.ok(shouldShowGlideFootprint({ phase: 'pfl_zoom' }));
-  assert.ok(shouldShowGlideFootprint({ phase: 'pfl_low_key' }));
-  assert.ok(shouldShowGlideFootprint({ phase: 'pfl_direct' }));
-  assert.ok(shouldShowGlideFootprint({ phase: 'crash_short' }));
-  assert.ok(shouldShowGlideFootprint({ command: 'pfl_current' }));
-  assert.ok(shouldShowGlideFootprint({ command: 'engine_fail' }));
-  assert.ok(shouldShowGlideFootprint({ pflActive: true }));
-  assert.ok(shouldShowGlideFootprint({ id: 'A1', engineFailed: true }, 'A1'));
+test('shouldShowGlideFootprint: only for the selected aircraft (Patrick, 4 Oct), while it has an engine failure, a PFL phase or a PFL command', () => {
+  const sel = (a) => shouldShowGlideFootprint({ id: 'A1', ...a }, 'A1');
+  assert.ok(sel({ engineFailed: true }));
+  assert.ok(sel({ phase: 'pfl_high_key' }));
+  assert.ok(sel({ phase: 'pfl_zoom' }));
+  assert.ok(sel({ phase: 'pfl_low_key' }));
+  assert.ok(sel({ phase: 'pfl_direct' }));
+  assert.ok(sel({ phase: 'crash_short' }));
+  assert.ok(sel({ command: 'pfl_current' }));
+  assert.ok(sel({ command: 'engine_fail' }));
+  assert.ok(sel({ pflActive: true }));
+  assert.ok(!shouldShowGlideFootprint({ id: 'A1', engineFailed: true }), 'not without a selected aircraft');
+  assert.ok(!shouldShowGlideFootprint({ id: 'A2', engineFailed: true }, 'A1'), 'not for another aircraft');
 
   assert.ok(!shouldShowGlideFootprint(null));
   assert.ok(!shouldShowGlideFootprint({ status: 'flying', alt: 2500, phase: 'downwind' }));
@@ -965,9 +969,11 @@ test('getPflBadge returns exact tactical badges for all 6 PFL recovery phases', 
   assert.equal(getPflBadge({ status: 'flying', phase: 'downwind' }), null);
 });
 
-test('drawScene renders dotted glide footprint ring and PFL badge when aircraft is in PFL recovery', () => {
+test('drawScene renders the dotted glide footprint ring for the selected aircraft in PFL recovery, and its PFL badge', () => {
   const pflAc = { id: 'A1', type: 'CT-156', routeId: 'p1', x: 0, y: 1000, alt: 3500, kt: 120, headingDeg: 90, status: 'flying', engineFailed: true, phase: 'pfl_high_key' };
-  const rec = draw({ aircraft: [pflAc], conflicts: [] });
+  // Not selected: no glide ring (Patrick, 4 Oct: only the selected aircraft).
+  assert.ok(!draw({ aircraft: [pflAc], conflicts: [] }).written().some((w) => w.startsWith('PFL GLIDE')));
+  const rec = draw({ aircraft: [pflAc], conflicts: [], selectedAircraftId: 'A1' });
   const written = rec.written();
   assert.ok(written.includes('[PFL: HIGH KEY]'), 'draws tactical status badge on map');
 
