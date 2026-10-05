@@ -10,7 +10,7 @@ const FILES = [
   ['moves.js', 'Moves: each move\'s numbers'],
 ];
 const dir = 'src/modules/turn-sim/live/';
-const cell = (s) => s.replace(/\|/g, '\\|').replace(/\s+/g, ' ').trim();
+const cell = (s) => s.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\s+/g, ' ').trim(); // backslashes first, then the table's pipes
 
 function rows(text) {
   const out = [];
