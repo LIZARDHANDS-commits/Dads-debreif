@@ -4,6 +4,8 @@
 // "Rebuild, then delete" (4 Oct 17:53Z).
 
 import { compassDegFromVector } from '../../core/angles.js';
+import { bankDegFromG } from '../../core/flight-math.js';
+import { stallLimitG } from '../../core/t6-performance.js';
 import { makePilot, bankFor, powerClimb, CIRCUIT, PILOT_DT } from './circuit.js';
 import { flyRejoin } from './evade.js';
 
@@ -20,16 +22,20 @@ import { flyRejoin } from './evade.js';
 
 /** The breakout climbs to this height, ft MSL (TR-R34; Patrick, 4 Oct 01:24Z, TR-Q20). */
 export const BREAKOUT_ALT_FT = 4500;
+/** A breakout needed so as not to collide (the deconfliction's last-moment one) may bank up to this, degrees (Patrick, 5 Oct 00:08Z and 00:13Z); never past the stall line. */
+export const BREAKOUT_TRAFFIC_BANK_DEG = 80;
 /** Within this of the breakout point, the climbing turn is over and it holds its track until level, ft (as the old controller, an estimate). */
 const BREAKOUT_REACHED_FT = 2500;
 const MOST_SEC = 600; // a guard: no breakout climb lasts this long
 
 /**
  * Flies the breakout from `from` = { x, y, alt, kias, headingDeg, bankDeg } in `wind`, turning at up to
- * `bankDeg`, then rejoins leg `leg` of `rejoinRoute` (see above). Returns the path
- * [{ x, y, alt, kt, g, phase, headingDeg }]: phase 'breakout', then 'rejoin'.
+ * `bankDeg` (never past the stall line: core stallLimitG, a little inside it), then rejoins leg `leg` of
+ * `rejoinRoute` (see above). `turnDir` 'left' or 'right' sets which way the first turn goes (an aircraft on
+ * the rejoin line turns away from the pattern: Patrick, 5 Oct 00:08Z); null takes the shorter way.
+ * Returns the path [{ x, y, alt, kt, g, phase, headingDeg }]: phase 'breakout', then 'rejoin'.
  */
-export function buildBreakout(from, wind, rejoinRoute, leg, bankDeg = 50) {
+export function buildBreakout(from, wind, rejoinRoute, leg, bankDeg = 50, turnDir = null) {
   const env = { windFromDeg: wind?.windFromDeg ?? 360, windKt: wind?.windKt ?? 0 };
   const pilot = makePilot({ x: from.x, y: from.y, alt: from.alt, ias: from.kias, hdg: from.headingDeg, src: 0, phase: 'breakout' }, env);
   const { s } = pilot;
@@ -40,8 +46,9 @@ export function buildBreakout(from, wind, rejoinRoute, leg, bankDeg = 50) {
     if (heldTrack === null && Math.hypot(BREAKOUT_PT.x - s.x, BREAKOUT_PT.y - s.y) <= BREAKOUT_REACHED_FT) heldTrack = pilot.trackDeg();
     if (heldTrack !== null && s.alt >= BREAKOUT_ALT_FT - 50) break;
     const { climb, accel } = powerClimb(pilot, CIRCUIT.patternKias, BREAKOUT_ALT_FT);
+    const bankMax = Math.min(bankDeg, bankDegFromG(Math.max(1.01, 0.9 * stallLimitG(s.ias))));
     const bank = heldTrack === null
-      ? bankFor(pilot.headingFor(compassDegFromVector(BREAKOUT_PT.x - s.x, BREAKOUT_PT.y - s.y)), s, bankDeg)
+      ? bankFor(pilot.headingFor(compassDegFromVector(BREAKOUT_PT.x - s.x, BREAKOUT_PT.y - s.y)), s, bankMax, turnDir)
       : bankFor(pilot.headingFor(heldTrack), s, 30);
     pilot.step(bank, climb, accel);
   }

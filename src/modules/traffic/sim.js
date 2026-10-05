@@ -38,7 +38,7 @@ import { buildHighKeyClimb, HIGH_KEY_PT } from './high-key.js';
 import { buildClosedPattern } from './closed-pattern.js';
 import { DECONFLICT, freeze, decide, deconflictLabel } from './deconflict.js';
 import { buildFlinch, buildClimbAhead, EVADE, spacingExtensionFt, extendLimitFt } from './evade.js';
-import { buildBreakout, gateLegOf, ENT1_ROUTE } from './breakout.js';
+import { buildBreakout, gateLegOf, ENT1_ROUTE, BREAKOUT_TRAFFIC_BANK_DEG } from './breakout.js';
 import { RANDOM, rollFor, pick, oddsFor, buildDownwindStraightIn } from './randomize.js';
 import { behaviourOf, behaviourLabel } from './behaviour.js';
 import { PATTERN_ALT_FT, RUNWAY_29L_HDG_DEG, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
@@ -381,6 +381,17 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     delete a.joinOffset;
   }
 
+  /** Which way is away from Pattern 1 for an aircraft: 'right' when the pattern's middle is on its left, else 'left'. */
+  function awayFromPattern(a) {
+    const pat = routeById('PAT1') ?? setup.routes.find((r) => r.kind === 'pattern');
+    if (!pat?.points?.length || !Number.isFinite(a.x)) return null;
+    const cx = pat.points.reduce((t, p) => t + p.x, 0) / pat.points.length, cy = pat.points.reduce((t, p) => t + p.y, 0) / pat.points.length;
+    const h = (a.headingDeg ?? 0) * Math.PI / 180;
+    // Cross product of the heading (x east, y north) with the line to the middle: positive means the middle is on the left.
+    const cross = Math.sin(h) * (cy - a.y) - Math.cos(h) * (cx - a.x);
+    return cross > 0 ? 'right' : 'left';
+  }
+
   /** A straight-in: an entry or split that ends on the runway rather than merging into the pattern. */
   const isStraightIn = (r) => Boolean(r) && (r.kind === 'entry' || r.kind === 'split') && !(+r.mergeIndex > 0) && r.points?.length >= 2;
 
@@ -389,14 +400,19 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
    * the button and the deconfliction. A straight-in rejoins as a straight-in, anyone else on the overhead
    * entry's line into the Entry Gate (Patrick's card, Q7); at the end it joins that route (goAroundEnded).
    */
-  function startBreakout(a) {
+  function startBreakout(a, toAvoidCollision = false) {
     const from = routeOf(a);
     // With no ENT1 in the setup it flies ENT1's line all the same and then joins Pattern 1 where it is nearest.
     const joinTo = isStraightIn(from) ? from : routeById('ENT1');
     const rejoin = joinTo ?? ENT1_ROUTE;
     const leg = rejoin === from ? 0 : gateLegOf(rejoin);
-    const bankDeg = a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
-    startFlown(a, buildBreakout(stateOf(a), windNow(), rejoin, leg, bankDeg), 'BREAKOUT_FLOWN', 'Breakout', joinTo ? 'join' : null, joinTo?.id ?? null);
+    // A breakout needed so as not to collide (the deconfliction's last-moment, skill layer) may bank up to 80° (Patrick,
+    // 5 Oct 00:08Z and 00:13Z); otherwise, and for the button, the closed-pattern bank.
+    const bankDeg = toAvoidCollision ? BREAKOUT_TRAFFIC_BANK_DEG : (a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50);
+    // Off the rejoin line (an entry that joins the pattern) it turns away from the pattern (Patrick, 5 Oct 00:08Z).
+    const onRejoinLine = a.mode === 'RAIL' && !a.goAroundFlight && from && from.kind === 'entry' && +from.mergeIndex > 0;
+    const turnDir = onRejoinLine ? awayFromPattern(a) : null;
+    startFlown(a, buildBreakout(stateOf(a), windNow(), rejoin, leg, bankDeg, turnDir), 'BREAKOUT_FLOWN', 'Breakout', joinTo ? 'join' : null, joinTo?.id ?? null);
     delete a.rejoinRouteId;
     a.phase = 'breakout';
     a.intent = 'overhead';
@@ -659,7 +675,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (!a) continue;
       const other = aircraft.find((ac) => ac.id === d.with) ?? a;
       if (a.goAroundFlight && d.move === 'breakout') { delete a.goAroundFlight; delete a.joinOffset; }
-      if (d.move === 'breakout') startBreakout(a);
+      if (d.move === 'breakout') startBreakout(a, d.layer === 'skill');
       else if (d.move === 'flinch') startFlinch(a, other);
       else if (d.move === 'climb_breakout') startFlown(a, buildClimbAhead(stateOf(a), windNow(), PATTERN_ALT_FT + EVADE.climbAboveFt), 'CLIMB_FLOWN', 'Climb ahead', 'breakout');
       else if (d.move === 'move_over') startGoAround(a, EVADE.moveOverFt, EVADE.moveOverLevelAltFt, EVADE.moveOverKias);
@@ -713,7 +729,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const then = a.goAroundFlight?.then, joinId = a.goAroundFlight?.joinId;
     delete a.goAroundFlight;
     // The deconfliction's short moves: the breakout follows, or the straight-in is joined again.
-    if (then === 'breakout') { startBreakout(a); return; }
+    if (then === 'breakout') { startBreakout(a, a.deconflict?.layer === 'skill'); return; }
     if (then === 'final') {
       // An extended downwind ends on Pattern 1's own straight final, inside the window: join it there, never on
       // the initial above it (same centreline).

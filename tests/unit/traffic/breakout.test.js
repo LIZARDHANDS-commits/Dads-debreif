@@ -57,3 +57,22 @@ test('Breakout flown from downwind: climbs to 4,500 ft, then rejoins on the ENT1
     assert.ok(intoCircuit, `${label}: carries on into the circuit`);
   }
 });
+
+// Patrick, 5 Oct 00:08Z and 00:13Z: off the rejoin line a breakout turns away from the pattern (here to the right),
+// and one needed so as not to collide may bank up to 80°, never past the stall line (standard aerodynamics: the
+// G a wing can make at that speed).
+test('a breakout off the rejoin line turns away from the pattern, and an 80° one stays inside the stall line and bleeds speed', async () => {
+  const { buildBreakout, gateLegOf, BREAKOUT_TRAFFIC_BANK_DEG } = await import('../../../src/modules/traffic/breakout.js');
+  const { stallLimitG } = await import('../../../src/core/t6-performance.js');
+  const sim = createSim({ ...mooseJaw, windKt: 15, windFromDeg: 260, aircraft: [{ id: 'A1', type: 'CT-156', routeId: 'ENT1', startIndex: 1, startsAtSec: 0 }] }, { seed: 1 });
+  sim.stepTo(20);
+  const h0 = sim.state().aircraft[0].headingDeg;
+  sim.command('A1', 'breakout');
+  sim.stepTo(26);
+  assert.ok(wrapDeg180(sim.state().aircraft[0].headingDeg - h0) > 5, 'it turns right, away from the pattern');
+
+  const path = buildBreakout({ x: 10256, y: -38141, alt: 3500, kias: 220, headingDeg: ENT1_TRACK_DEG, bankDeg: 0 }, { windFromDeg: 260, windKt: 15 }, ent1, gateLegOf(ent1), BREAKOUT_TRAFFIC_BANK_DEG, 'right');
+  assert.ok(path.every((p) => p.g <= stallLimitG(p.kt) + 0.1), 'never past the stall line');
+  assert.ok(Math.max(...path.map((p) => p.g)) > 3, 'it pulls hard when it can');
+  assert.ok(Math.min(...path.map((p) => p.kt)) < 220 - 10, 'the hard turn costs speed');
+});
