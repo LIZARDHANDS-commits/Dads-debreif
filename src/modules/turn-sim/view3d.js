@@ -232,6 +232,9 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     }
     const state = source.state();
     const lead = state.aircraft.find((a) => a.id === 1);
+    // Follow or Padlock (Patrick, 5 Oct): the camera's yaw comes from the aircraft it is on; the pitch stays the person's.
+    const look = !dragging && source.look?.();
+    if (look) cam = { ...cam, yawDeg: look.yawDeg };
     const shown = dragging?.camera ?? cam;
     const focus = source.focus?.() ?? (source.layers().followLead && lead ? { x: lead.xFt, y: lead.yFt } : center);
     paintNow = source.paint();

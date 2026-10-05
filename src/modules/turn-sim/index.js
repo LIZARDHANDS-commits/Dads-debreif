@@ -29,7 +29,7 @@ import { createFluidUi } from './fluid-panel.js';
 import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, LAYOUT_VERSION, SHIP_COLORS, migrateLayout } from './layout.js';
 import { createTurnSimView } from './view.js';
 import { tagLines } from './tags.js';
-import { createView3d } from './view3d.js';
+import { createView3d, yawBehind } from './view3d.js';
 
 const STYLESHEET = new URL('./turn-sim.css', import.meta.url).href;
 
@@ -175,8 +175,9 @@ function mount(root, app) {
     const xs = state.aircraft.map((a) => a.xFt);
     const ys = state.aircraft.map((a) => a.yFt);
     const grow = 1 / (1 - 2 * FIT.marginShare);
-    const x = xs.reduce((s, v) => s + v, 0) / xs.length;
-    const y = ys.reduce((s, v) => s + v, 0) / ys.length;
+    const on = camAircraft(); // the Camera menu's choice: one aircraft, or the formation's centre of mass
+    const x = on ? on.xFt : xs.reduce((s, v) => s + v, 0) / xs.length;
+    const y = on ? on.yFt : ys.reduce((s, v) => s + v, 0) / ys.length;
     const reach = (vs, c) => Math.max(...vs.map((v) => Math.abs(v - c)));
     return {
       x,
@@ -186,6 +187,23 @@ function mount(root, app) {
     };
   };
   let zoomFactor2d = 1; // the person's wheel zoom on top of the 2D fit; Fit puts it back to 1
+  /** The aircraft the Camera menu centres on, or null for the formation (or one this formation doesn't have). */
+  function camAircraft() {
+    const on = layout.get().camOn;
+    return on === 'formation' ? null : state.aircraft.find((a) => String(a.id) === on) ?? null;
+  }
+  /** Who an aircraft padlocks: Lead watches #2, #4 his element lead #3, the others Lead. */
+  const padlockOf = (id) => (id === 1 ? 2 : id === 4 ? 3 : 1);
+  /** The 3D yaw for Follow (behind the aircraft, along its nose) or Padlock (behind it, looking at the other), or null. */
+  function camLook() {
+    const on = camAircraft();
+    if (!on) return null;
+    if (layout.get().camLook === 'padlock') {
+      const other = state.aircraft.find((a) => a.id === padlockOf(on.id));
+      if (other && (other.xFt !== on.xFt || other.yFt !== on.yFt)) return { yawDeg: yawBehind(Math.atan2(other.yFt - on.yFt, other.xFt - on.xFt)) };
+    }
+    return { yawDeg: yawBehind(on.headingRad) };
+  }
   const fitBounds = () => {
     const b = fitBox();
     return { minX: b.x - b.spanXFt / 2, maxX: b.x + b.spanXFt / 2, minY: b.y - b.spanYFt / 2, maxY: b.y + b.spanYFt / 2 };
@@ -247,6 +265,7 @@ function mount(root, app) {
       layers: () => layout.get(),
       planned: () => state.planned,
       tags: () => tagLines(state, formation.where()),
+      look: camLook,
       focus: () => {
         const b = fitBox();
         return { x: b.x, y: b.y };

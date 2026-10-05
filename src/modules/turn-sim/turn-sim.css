@@ -355,7 +355,8 @@
   pointer-events: none;
 }
 
-[data-module='turn-sim'] .ts-tags3d[hidden] {
+[data-module='turn-sim'] .ts-tags3d[hidden],
+[data-module='turn-sim'] .choice-option[hidden] {
   display: none;
 }
 
@@ -577,4 +578,23 @@
 [data-module='turn-sim'] .ts-rejoin,
 [data-module='turn-sim'] .ts-flags {
   margin: 0 0 var(--space-2);
+}
+
+/* The Camera menu (Patrick, 5 Oct): each choice under its own label, the options wrapping. */
+[data-module='turn-sim'] .ts-bar .ts-menu-body .control-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-2);
+}
+
+[data-module='turn-sim'] .ts-bar .ts-menu-body .control-choice > legend {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+  margin-bottom: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
 }

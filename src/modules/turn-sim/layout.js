@@ -24,7 +24,9 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   planned: true, // the paths still to fly, dashed
   turnCircles: false,
   tags: true, // the info tag beside each aircraft: what it is doing and how it sits (spec section 10.4)
-  autoFit: true, // the camera keeps every aircraft in the picture (spec section 10.3); a pan or zoom pauses it, Fit brings it back
+  autoFit: true, // Auto zoom: the camera keeps every aircraft in the picture (spec section 10.3); a drag pauses it, Fit brings it back
+  camOn: 'formation', // what the camera centres on: the formation's centre of mass, or one aircraft ('1' to '4') (Patrick, 5 Oct)
+  camLook: 'follow', // on one aircraft, in 3D: 'follow' looks along its nose, 'padlock' looks at the other aircraft
   view: VIEW_DEFAULT, // '2d' or '3d'
   paint: PAINT_DEFAULT, // the 3D aircraft's paint: 'harvard' or 'ship'
 });
@@ -38,7 +40,12 @@ export function migrateLayout(values, version) {
 }
 
 /** The layout values that only allow some choices (createSettings' `allowed`). */
-export const LAYOUT_ALLOWED = /** @type {Record<string, any[]>} */ (Object.freeze({ view: [...VIEW_ALLOWED], paint: PAINT_OPTIONS.map((o) => o.value) }));
+export const LAYOUT_ALLOWED = /** @type {Record<string, any[]>} */ (Object.freeze({
+  view: [...VIEW_ALLOWED],
+  paint: PAINT_OPTIONS.map((o) => o.value),
+  camOn: ['formation', '1', '2', '3', '4'],
+  camLook: ['follow', 'padlock'],
+}));
 
 /** Layers that only the 2D picture draws; they are greyed out in 3D. */
 const LAYERS_2D = ['lead39', 'lead75', 'turnCircles']; // planned and tags draw in 3D too (Patrick, 5 Oct)
@@ -223,8 +230,18 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     lc.checkbox('planned', { label: 'Planned path' }),
     lc.checkbox('turnCircles', { label: 'Turn circles' }),
     lc.checkbox('tags', { label: 'Info tags' }),
-    lc.checkbox('autoFit', { label: 'Fit all aircraft' }),
     lc.select('paint', { label: '3D paint', options: PAINT_OPTIONS }),
+  ]);
+  // The camera (Patrick, 5 Oct): centred on the formation or one aircraft; on one aircraft in 3D it follows it or padlocks the
+  // other; Auto zoom keeps everyone in the picture. In 2D it only picks the centre, north up.
+  const camOnChoice = lc.choice('camOn', { label: 'Centre on', options: [
+    { value: 'formation', label: 'Formation (average)' }, { value: '1', label: 'Lead' }, { value: '2', label: '#2' },
+    { value: '3', label: '#3' }, { value: '4', label: '#4' },
+  ] });
+  const cameraMenu = menu('Camera', 'ts-camera', [
+    camOnChoice,
+    lc.choice('camLook', { label: 'On an aircraft (3D)', options: [{ value: 'follow', label: 'Follow' }, { value: 'padlock', label: 'Padlock the other' }] }),
+    lc.checkbox('autoFit', { label: 'Auto zoom' }),
   ]);
 
   // Fit: back to the camera that keeps every aircraft in the picture, after a pan or zoom paused it (or once, when it is off).
@@ -240,7 +257,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     playButton, resetRunButton, speedSelect, time,
     h('span', { class: 'ts-bar-gap' }),
     fitButton,
-    lc.viewSwitch(), note3d, layersMenu.element,
+    lc.viewSwitch(), note3d, cameraMenu.element, layersMenu.element,
   );
   const stage = h('section', { class: 'ts-stage', 'aria-label': 'Formation from above and playback' }, bar, canvasWrap);
 
@@ -293,6 +310,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       canvas3d.hidden = view !== '3d';
       tags3d.hidden = view !== '3d';
       for (const key of LAYERS_2D) lc.setDisabled(key, view === '3d');
+      lc.setDisabled('camLook', view !== '3d'); // Follow and Padlock turn the 3D view; the 2D map stays north up
     },
     /** A short note beside the View switch ("3D needs a connection the first time."), or '' for none. */
     setNote(text) {
@@ -317,6 +335,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       fwFour.hidden = ships !== 4;
       errorsSection.hidden = ships === 4; // training errors are 2-ship only for now (TS-52)
       changeUi?.setShips(ships); // the four have their own formation buttons (spec section 8)
+      camOnChoice.querySelectorAll('.choice-option').forEach((el, i) => { el.hidden = i > 2 && ships !== 4; }); // #3 and #4 in the four only
     },
     /**
      * Shows only the manoeuvre buttons that fly in the formation the aircraft are in; the rest are hidden, not greyed.
