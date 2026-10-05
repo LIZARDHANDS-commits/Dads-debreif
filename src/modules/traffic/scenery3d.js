@@ -1,13 +1,13 @@
 // 15 Wing Moose Jaw (CYMJ) 3D Airfield Scenery & Landmarks (D138, D141, D373, D378, D411).
 // Procedural 3D models for the north flight line: the CYMJ Control Tower, the arch/barrel flight-line
-// hangars, and three more buildings, each painted with a small canvas texture and given a label sprite.
+// hangars, three small arch hangars and more buildings, each painted with a small canvas texture.
 //
 // Coordinates & Aerodrome Context:
 // - Local origin (0, 0) is Moose Jaw ARP: Lat 50.3303° N, Lon -105.5592° W.
 // - Runway 29L threshold and departure end: airfield.js (true feet, TR-67). Runway heading: 298° true.
 // - The flight line / apron / hangars sit NORTH of the parallel runways (Y about 2,000 to 3,400 ft),
 //   placed against the satellite photo: first on the 1.2 times stretched photo, then divided by 1.2 to
-//   true feet with the route rebuild (TR-67).
+//   true feet with the route rebuild (TR-67), then checked and re-traced on the true photo (5 Oct).
 // - Field elevation: 1880 ft MSL (floor default).
 // - World frame: X east, Y north, Z up (altitude in feet).
 //
@@ -53,6 +53,16 @@ const hangarCoords = Object.freeze([
 
 const allBuildingCoords = Object.freeze([towerCoord, ...hangarCoords]);
 
+/**
+ * The three small arch hangars west of Hangar 1, doors to the south, traced off Esri's true-scale photo (5 Oct,
+ * about ±10 ft; Patrick 5 Oct 01:43Z: "populate the ones that aren't there"). Their names aren't known, so no label.
+ */
+export const CYMJ_SMALL_HANGARS = Object.freeze([
+  Object.freeze({ id: 'small-hangar-1', type: 'hangar', x: -386, y: 2302, halfWidth: 24, depth: 105, rotation: Math.PI }),
+  Object.freeze({ id: 'small-hangar-2', type: 'hangar', x: -315, y: 2295, halfWidth: 22, depth: 100, rotation: Math.PI }),
+  Object.freeze({ id: 'small-hangar-3', type: 'hangar', x: -249, y: 2270, halfWidth: 26, depth: 133, rotation: Math.PI }),
+]);
+
 /** Exact positions of 1 Control Tower and 4 Arch Hangars at 15 Wing Moose Jaw. */
 export const CYMJ_BUILDING_COORDS = Object.freeze({
   tower: towerCoord,
@@ -64,16 +74,18 @@ export const CYMJ_BUILDING_COORDS = Object.freeze({
 });
 
 /**
- * More buildings, traced from Patrick's red outlines on the 3D screenshot (3 Oct), so each model sits on its roof in
- * the satellite photo (about 20 ft). Footprints are [x, y] in feet round the building's centre, north-up.
+ * More buildings, each sitting on its roof in the satellite photo. The Glass Palace, Hangars 5 and 6 and the two
+ * flight-line buildings by Hangar 4 are traced off Esri's true-scale photo (5 Oct, about ±15 ft; Patrick 5 Oct
+ * 01:43Z); the barracks and rec centre from Patrick's red outlines (3 Oct). Footprints are [x, y] in feet round the
+ * building's centre, north-up, then turned by `rotation` (radians, anticlockwise).
  */
 export const CYMJ_EXTRA_BUILDINGS = Object.freeze([
   Object.freeze({
-    id: 'main-building', name: 'Glass Palace (2 CFFTS HQ)', type: 'building', x: 775, y: 2617, height: 52,
-    rotation: -0.58,
-    footprint: Object.freeze([[-50, -148], [-79, -42], [-122, 6], [-122, 85], [-44, 177], [52, 105], [65, 62]]),
-    glassCurve: Object.freeze([[133, 61], [158, -50], [125, -142], [13, -186]]),
-    badge: Object.freeze([20, 10]),
+    id: 'main-building', name: 'Glass Palace (2 CFFTS HQ)', type: 'building', x: 860, y: 2580, height: 52,
+    rotation: 0,
+    footprint: Object.freeze([[-88, 114], [84, 168], [146, 64], [67, 19], [137, -108], [106, -126], [-65, -180]]),
+    glassCurve: Object.freeze([[-96, -152], [-127, -116], [-147, -79], [-154, -17], [-138, -3], [-127, 31], [-116, 65]]),
+    badge: Object.freeze([-70, -37]),
     roof: '#d8dadc', wall: '#c9ccd0', accent: '#c8102e',
   }),
   Object.freeze({
@@ -86,14 +98,24 @@ export const CYMJ_EXTRA_BUILDINGS = Object.freeze([
     roof: '#d6d8db', wall: '#e2e8f0', accent: '#3b82f6',
   }),
   Object.freeze({
-    id: 'hangar-5', name: 'Hangar 5', type: 'building', x: 1983, y: 2558, height: 48, rotation: -0.49,
-    footprint: Object.freeze([[-100, -71], [100, -71], [100, 71], [-100, 71]]),
+    id: 'hangar-5', name: 'Hangar 5', type: 'building', x: 1897, y: 2554, height: 48, rotation: -0.70,
+    footprint: Object.freeze([[-126, -100], [126, -100], [126, 100], [-126, 100]]),
     roof: '#9aa3ad', wall: '#e7ebef', accent: '#1d4ed8',
   }),
   Object.freeze({
-    id: 'hangar-6', name: 'Hangar 6', type: 'building', x: 2133, y: 2817, height: 48, rotation: -0.49,
-    footprint: Object.freeze([[-104, -75], [104, -75], [104, 75], [-104, 75]]),
+    id: 'hangar-6', name: 'Hangar 6', type: 'building', x: 2104, y: 2772, height: 48, rotation: -0.79,
+    footprint: Object.freeze([[-132, -83], [132, -83], [132, 83], [-132, 83]]),
     roof: '#9aa3ad', wall: '#e7ebef', accent: '#0f766e',
+  }),
+  Object.freeze({
+    id: 'flightline-dark', type: 'building', x: 1290, y: 2440, height: 32, rotation: 0, label: false,
+    footprint: Object.freeze([[-111, -72], [91, -72], [91, 40], [21, 40], [21, 74], [-111, 74]]),
+    roof: '#3f4650', wall: '#e2e8f0', accent: '#64748b',
+  }),
+  Object.freeze({
+    id: 'flightline-grey', type: 'building', x: 1516, y: 2392, height: 30, rotation: 0, label: false,
+    footprint: Object.freeze([[-28, -90], [28, -90], [28, 90], [-28, 90]]),
+    roof: '#a9b0b8', wall: '#e7ebef', accent: '#64748b',
   }),
 ]);
 
@@ -481,7 +503,7 @@ function createArchHangar(THREE, coord, floor, kit, look, label) {
   group.name = coord.id;
   group.userData = { type: 'hangar', ...coord };
   group.position.set(coord.x, coord.y, floor);
-  group.rotation.z = Math.PI - 0.1; // doors face south onto the ramp
+  group.rotation.z = coord.rotation ?? Math.PI - 0.1; // doors face south onto the ramp
 
   const halfWidth = coord.halfWidth ?? 100;
   const depth = coord.depth ?? 240;
@@ -577,7 +599,7 @@ function createArchHangar(THREE, coord, floor, kit, look, label) {
   rightWall.position.set(halfWidth - 1, 0, 3);
   group.add(rightWall);
 
-  const plate = makeLabel(THREE, label, look.accent);
+  const plate = label ? makeLabel(THREE, label, look.accent) : null;
   if (plate) {
     plate.position.set(0, 0, height + 70);
     group.add(plate);
@@ -610,7 +632,7 @@ function createBoxBuilding(THREE, spec, floor) {
   trim.scale.set(1.01, 1.01, 1);
   group.add(trim);
 
-  const plate = makeLabel(THREE, spec.name, spec.accent);
+  const plate = spec.label === false ? null : makeLabel(THREE, spec.name, spec.accent);
   if (plate) {
     plate.position.set(0, 0, spec.height + 70);
     group.add(plate);
@@ -813,6 +835,11 @@ export function createAirfieldScenery(THREE, { floor = DEFAULT_FLOOR_FT, anchor 
   const hangars = [];
   CYMJ_BUILDING_COORDS.hangars.forEach((hCoord, i) => {
     const hangar = createArchHangar(THREE, hCoord, floor, kit, HANGAR_LOOKS[i % HANGAR_LOOKS.length], hCoord.name);
+    hangars.push(hangar);
+    root.add(hangar);
+  });
+  CYMJ_SMALL_HANGARS.forEach((hCoord, i) => {
+    const hangar = createArchHangar(THREE, hCoord, floor, kit, HANGAR_LOOKS[i % HANGAR_LOOKS.length], null);
     hangars.push(hangar);
     root.add(hangar);
   });

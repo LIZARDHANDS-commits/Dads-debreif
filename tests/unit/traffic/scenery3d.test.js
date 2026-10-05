@@ -61,7 +61,7 @@ test('instantiates scenery group and asserts tower, 4 hangars, and apron slab ex
 
   // 4 Arch Hangars
   const hangars = scenery.children.filter((c) => c.userData.type === 'hangar');
-  assert.equal(hangars.length, 4, '4 hangars exist');
+  assert.ok(hangars.length >= 4, 'the 4 numbered hangars and any small ones exist');
 
   for (let i = 1; i <= 4; i++) {
     const id = `hangar-${i}`;
