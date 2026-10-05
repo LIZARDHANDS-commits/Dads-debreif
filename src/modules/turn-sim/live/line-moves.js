@@ -81,7 +81,7 @@ export function planLineChange(pair, to, options = {}, t0 = 0) {
   if (from.key === to && (to === 'astern' || sTo === sCur)) return null;
   if (from.key === 'other' || (from.key === 'lab' && to === 'lab')) return null;
   const straightFromLab = from.key === 'lab' && (options.rejoin ?? 'into') === 'straight';
-  if (from.key === 'lab' && !straightFromLab) return null; // the hot turning rejoin (hot-rejoin.js) or the tracker's
+  if (from.key === 'lab' && !straightFromLab) return null; // the turning rejoin (turning-rejoin.js) or the tracker's
   const rel = relativeTo(lead, wing);
   const cur = { fwd: rel.fwd, left: rel.left, up: wing.altAboveFt - lead.altAboveFt, plane: CLOSE.has(from.key) ? 1 : 0 };
   const rule = lineFor(from.key, sCur, to, sTo, cur, spacingFt, straightFromLab);

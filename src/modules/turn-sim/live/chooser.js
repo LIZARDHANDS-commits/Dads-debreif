@@ -15,15 +15,17 @@
 //      Patrick 03:05Z; a flag, never a wall);
 //   4. then quickest (Patrick 08:12Z: "fast and effective like the SMM");
 //   5. then, within half a second, smoothest: the fewest bank reversals and power changes along #2's track.
-// A training error's rejoin (hot-rejoin.js, TS-62) is not raced: the lesson is #2's response, so when the errors layer
-// gives a plan it flies, as before. The chooser changes no flight physics and no planner: it only picks between them.
+// One candidate shape (refactor PR 2, Fable's plan 23:20Z; TS-94): every planner, the lag roll included, hands back a plan in
+// planGoTo's shape and candidateOf is the only place it is scored. A training error's start (errors.js, TS-62) is raced like
+// any other: "from here" reads where the error put #2 (until V2.93 the hot rejoin, hot-rejoin.js, flew it on its own).
+// The chooser changes no flight physics and no planner: it only picks between them.
 // What re-plans when (the press, the hand-over, the decision point, the picture breaking: spec F1 and F11 as reworded by
 // TS-76) is formation.js's and hand-over.js's; this file only chooses.
 import { pairSlot } from './slots.js';
 import { relativeTo } from './manoeuvres.js';
 import { G_RULE_BANK_DEG, HAND_OVER_FT } from './tuning.js';
 import { planGoTo } from './transitions.js';
-import { planHotRejoinChange } from './hot-rejoin.js';
+import { planLagRoll, LAG_ROLL_KEY } from './lag-roll.js';
 import { planLineChange } from './line-moves.js';
 import { planTurningRejoin } from './turning-rejoin.js';
 import { planStraightRejoin } from './straight-rejoin.js';
@@ -59,6 +61,8 @@ const PLANNERS = Object.freeze([
  * straight, and a formation command for #2 doesn't change Lead's flying.
  */
 const FROM_HERE = Object.freeze({ name: 'from here', plan: planFromHere, rejoin: null, fallback: true });
+/** #2's lag roll (lag-roll.js, TS-71): a button of its own, so it is the only candidate when pressed and never raced otherwise. */
+const LAG_ROLL = Object.freeze({ name: 'lag roll', plan: (pair, _to, options, t0) => planLagRoll(pair, options, t0), rejoin: null, fallback: false });
 const MID_PLANNERS = Object.freeze([FROM_HERE, ...PLANNERS.filter((p) => p.plan !== planLineChange)]);
 
 /**
@@ -87,16 +91,22 @@ export function roughness(wingPlan) {
 }
 
 /**
- * One planner's plan as a candidate on the scoreboard: its checks, time and roughness. `to` and `spacingFt` give the slot
- * the overshoot lane is measured against; `fallback` marks the tracker alone on a long move (rule 2 above).
+ * The one candidate shape (TS-94): one planner's plan as a candidate on the scoreboard, the only place any plan is scored.
+ * { name, plan (planGoTo's shape: plans, endSec, judged, laneFwdFt, maxBankDeg, note), durationSec, maxG, inBand, laneOk,
+ * passes, fallback, gRuleOk, roughness, words }. `to` and `spacingFt` give the slot the overshoot lane is measured against;
+ * `fallback` marks the tracker alone on a long move (rule 2 above). maxG is the plan's own when it gives one (the lag roll's
+ * pull), else the level-turn G of its steepest bank.
  */
 export function candidateOf(name, plan, to, spacingFt, t0, wingId, fallback = false) {
   const slotFwd = Math.max(0, pairSlot(to, plan.side || plan.fromSide || -1, spacingFt)?.fwd ?? 0);
   const inBand = plan.judged?.inBand ?? true;
   const laneOk = (plan.laneFwdFt ?? -Infinity) <= slotFwd + LANE_MARGIN_FT;
-  const gRuleOk = (plan.maxBankDeg ?? 0) <= G_RULE_BANK_DEG + 0.5;
+  const bank = Math.min(89, Math.abs(plan.maxBankDeg ?? 0));
+  const maxG = plan.maxG ?? plan.lagRoll?.maxG ?? 1 / Math.cos((bank * Math.PI) / 180);
+  const gRuleOk = plan.lagRoll ? true : (plan.maxBankDeg ?? 0) <= G_RULE_BANK_DEG + 0.5; // the lag roll rolls through the inverted: its pull is its own (TS-71)
   const durationSec = Math.max(0, (plan.endSec ?? t0) - t0);
-  return { name, plan, inBand, laneOk, passes: inBand && laneOk, fallback, gRuleOk, durationSec, roughness: roughness(plan.plans?.[wingId]) };
+  const c = { name, plan, inBand, laneOk, passes: inBand && laneOk, fallback, gRuleOk, durationSec, maxG, roughness: roughness(plan.plans?.[wingId]) };
+  return { ...c, words: words(c) };
 }
 
 /** How far #2 is from the slot he is going to, in Lead's frame, horizontally (feet). */
@@ -121,7 +131,7 @@ export function compareCandidates(a, b) {
 }
 
 /** "turning rejoin 58 s" for the card's comparison line. */
-const words = (c) => `${c.name} ${Math.round(c.durationSec)} s${c.passes ? '' : ' (fails a check)'}${c.fallback ? ' (the fallback on a long move)' : ''}${c.gRuleOk ? '' : ' (over the G rule)'}`;
+function words(c) { return `${c.name} ${Math.round(c.durationSec)} s${c.passes ? '' : ' (fails a check)'}${c.fallback ? ' (the fallback on a long move)' : ''}${c.gRuleOk ? '' : ' (over the G rule)'}`; }
 
 /**
  * Plans a change of formation for the pair (planGoTo's shape, transitions.js): runs every planner that applies from where
@@ -135,18 +145,16 @@ export function chooseChange(pair, to, options = {}, t0 = 0) {
   const spacingFt = options.spacingFt ?? 6000;
   const auto = (options.rejoin ?? 'into') === 'auto';
   const mid = options.mid ?? null;
-  // A training error's response is the lesson, not a race (TS-62); it is a turning rejoin, so 'auto' flies it too.
-  const hot = mid ? null : planHotRejoinChange(pair, to, auto ? { ...options, rejoin: 'into' } : options, t0);
-  if (hot?.ok) return hot;
-
-  const longMove = rangeToSlotFt(pair, to, options) > HAND_OVER_FT;
+  const lag = to === LAG_ROLL_KEY;
+  const longMove = !lag && rangeToSlotFt(pair, to, options) > HAND_OVER_FT;
   const candidates = [];
   let refusal = null;
   // Lead's turn into #2 held with #2 going to the other side: only "from here" keeps Lead turning until #2 is in there
   // (Patrick 5 Oct 22:35Z; TS-87); the other planners would roll him out.
   const sNow = Math.sign(relativeTo(pair[0], wing).left);
   const across = mid?.lead?.kind === 'hold' && to !== 'lab' && ((options.side === 'left' && sNow < 0) || (options.side === 'right' && sNow > 0));
-  const planners = !mid ? PLANNERS : mid.lead?.kind === 'carry' || across ? [FROM_HERE] : MID_PLANNERS;
+  // A training error's start (TS-62) joins "from here" to the race, which reads where the error put #2.
+  const planners = lag ? [LAG_ROLL] : !mid ? (options.errors ? MID_PLANNERS : PLANNERS) : mid.lead?.kind === 'carry' || across ? [FROM_HERE] : MID_PLANNERS;
   for (const p of planners) {
     // Each planner refuses a Rejoin kind that is not its own; under 'auto' each rejoin planner is given its own kind.
     const opts = auto && p.rejoin !== null ? { ...options, rejoin: p.rejoin } : options;
@@ -156,7 +164,7 @@ export function chooseChange(pair, to, options = {}, t0 = 0) {
       refusal ??= r;
       continue;
     }
-    candidates.push(candidateOf(p.name, r, to, spacingFt, t0, wing.id, p.fallback && longMove));
+    candidates.push(candidateOf(p.name, r, lag ? 'fw' : to, spacingFt, t0, wing.id, p.fallback && longMove));
   }
   // Out to line abreast the full power opening out replaces the line (Patrick 5 Oct 22:39Z: "should start at FULL POWER";
   // TS-88): the line is raced only when it doesn't apply.
@@ -166,6 +174,8 @@ export function chooseChange(pair, to, options = {}, t0 = 0) {
   const best = candidates[0];
   const others = candidates.slice(1);
   const compared = candidates.map((c) => ({ name: c.name, durationSec: c.durationSec, passes: c.passes, fallback: c.fallback, gRuleOk: c.gRuleOk, roughness: c.roughness }));
-  const line = others.length ? ` Chosen: ${words(best)}, over ${others.map(words).join(', ')}.` : '';
-  return { ...best.plan, note: `${best.plan.note}${line}`, chooser: { picked: best.name, compared } };
+  const line = others.length ? ` Chosen: ${best.words}, over ${others.map((c) => c.words).join(', ')}.` : '';
+  // With a training error set, the card says how #2 dealt with it when the move ends (errors.js offStandardOutcome).
+  const offStandard = options.errors && !lag ? { mode: options.errors.response === 'reference' ? 'reference' : 'fix' } : null;
+  return { ...best.plan, note: `${best.plan.note}${line}`, chooser: { picked: best.name, compared }, ...(offStandard ? { offStandard } : {}) };
 }

@@ -817,6 +817,17 @@ function wordsFor(res, target) {
 }
 
 /**
+ * The Errors line on the card once a change of formation flown from a training error's start ends (TS-62; TS-94): whether
+ * #2 joined. off: the chooser's { mode } ('fix' or 'reference'). Since V2.93 the chooser plans it from where the error put
+ * him (until then hot-rejoin.js flew it, with the overshoot); the response switch is refactor PR 3's Smart wingman.
+ */
+export function offStandardOutcome(off, inBand, label) {
+  const how = off.mode === 'reference' ? 'flew the change from where the error left him' : 'fixed it from where the error left him';
+  const end = inBand ? 'ended in position' : 'ended outside the band (see the judged line)';
+  return { label, response: off.mode, fixed: off.mode === 'fix', text: `${label}: #2 ${how}, and ${end}.`, tone: inBand ? 'good' : 'caution' };
+}
+
+/**
  * After the roll-out: how far #2 is from the SMM picture, and whether the fix worked. run: the plan's
  * `errorRun`; lead and wing as they are now. Fixed means within the shared ±100 ft, along, across and up.
  */
