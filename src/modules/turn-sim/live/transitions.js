@@ -36,6 +36,7 @@ import { FORMATIONS, fwShapeNow, pairSlot } from './slots.js';
 import { KIAS_OUTSIDE_LAB, KIAS_LAB, REJOIN, RULED_REJOIN, STOP_KT, closureNow, rejoinClosureNow } from './tuning.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { onClosure, leadTurnInto, trackTail } from './hand-over.js';
+import { fwGoal } from './formation-turns.js';
 
 // ---- the numbers -----------------------------------------------------------------------
 
@@ -285,6 +286,12 @@ export function legsFor(from, s, to, sTo, spacingFt) {
     } else if (at !== to || side !== sTo) {
       phases.push(slide(slot(to, sTo)));
     }
+  }
+  // Fighting wing's last leg ends anywhere in the cone, not on its one slot (Patrick 08:58Z: "the whole cone can be used";
+  // V2.80's band, TS-80): the tracker aims for the nearest point of the cone, and inside it holds where he arrives (fwGoal).
+  if (to === 'fw' && phases.length) {
+    const last = phases[phases.length - 1];
+    phases[phases.length - 1] = { ...last, goal: (L, W) => fwGoal(L, W, sTo, false) };
   }
   return phases;
 }
