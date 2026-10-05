@@ -70,9 +70,7 @@ const LAYERS_2D = []; // every layer draws in 3D as well as 2D (Patrick, 5 Oct)
 export const SPEEDS = Object.freeze([0.25, 0.5, 1, 2, 4]);
 
 /** The line above the buttons, for the pair and for the four. */
-const PAIR_HINT = 'Press a manoeuvre and the pair flies it, then carries on in the formation it is in. A press while one is flying is flown next.';
 const PAIR_MOVES_NOTE = 'These manoeuvres fly in line abreast. Change to line abreast first.';
-const FOUR_HINT = 'Press a manoeuvre and the four fly it, then carry on in the formation they are in. A press while one is flying is flown next.';
 
 /** Ship colours as in V6, except #4: white with a dark outline (#29), as in the debrief. */
 // Lead's blue lifted from V6's #0066ff to #3d8bff so it stands out on the charcoal like the others (Patrick, 5 Oct).
@@ -125,7 +123,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   // The left column (Patrick, 5 Oct): Controls (open), then Scenario and Settings, each a box that starts closed.
   const movesPanel = createPanel({ title: 'Controls' });
   const queueLine = h('p', { class: 'ts-hint ts-queue', role: 'status' });
-  const movesHint = h('p', { class: 'ts-hint' }, PAIR_HINT);
+  const movesHint = h('h3', { class: 'ts-group-title' }, 'Manoeuvres'); // a heading, not the old sentence (Patrick, 5 Oct)
   const movesNote = h('p', { class: 'ts-hint ts-warning', role: 'status', hidden: true }, PAIR_MOVES_NOTE);
   // Only the manoeuvres the formation the aircraft are in can fly are shown, nothing greyed (Patrick, 5 Oct: "I ONLY
   // WANT the options/manoeuvres available FOR THE ACTIVE FORMATION to be visible"). They switch once a change is flown.
@@ -396,7 +394,6 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     setShips(ships, line = '') {
       shipsNow = ships;
       showMoves();
-      movesHint.textContent = ships === 4 ? FOUR_HINT : PAIR_HINT;
       fourLine.textContent = ships === 4 ? line : '';
       fourLine.hidden = ships !== 4;
       check45Field.hidden = ships !== 4;
