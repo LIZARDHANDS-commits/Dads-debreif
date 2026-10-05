@@ -15,7 +15,7 @@ import { ktToFtps, G_FTPS2 } from '../../core/units.js';
 import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
 import { bankDegFromTurnRate, easeRoll, gFromBankDeg } from '../../core/flight-math.js';
 import { windTriangle } from '../../core/wind.js';
-import { pitchDegFromClimb, glideDragPerWeight, glideRatio } from '../../core/t6-performance.js';
+import { pitchDegFromClimb, glideDragPerWeight, glideRatioFlown } from '../../core/t6-performance.js';
 import { iasToTasKt } from './weather.js';
 import { posOnRoute, routePath, DEFAULT_ROUTE_OPTIONS } from './route.js';
 import { ROLL } from './circuit.js';
@@ -68,7 +68,7 @@ function sideStepAt(st) {
 /**
  * Height a gliding side step costs over one step `dt` (ft): the drag of the G it pulls on top of the path's own
  * turn, less the drag the path's turn already costs, through the air flown; plus the extra ground it covers at
- * the glide ratio. Standard aerodynamics on core's glide drag (glideDragPerWeight, glideRatio).
+ * the glide ratio. Standard aerodynamics on core's glide drag (glideDragPerWeight, glideRatioFlown).
  */
 function sideStepLossFt(st, step, route, distFt, env, options, kias, altFt, dt) {
   const cfg = st.glideConfig;
@@ -83,7 +83,7 @@ function sideStepLossFt(st, step, route, distFt, env, options, kias, altFt, dt) 
   const airFt = ktToFtps(iasToTasKt(kias, altFt)) * dt;
   const dragFt = (glideDragPerWeight(cfg, kias, altFt, gWithStep) - glideDragPerWeight(cfg, kias, altFt, gPlanned)) * airFt;
   const extraGroundFt = (Math.hypot(path.x + st.ux * step.rate, path.y + st.uy * step.rate) - gs) * dt;
-  return dragFt + extraGroundFt / glideRatio(cfg);
+  return dragFt + extraGroundFt / glideRatioFlown(cfg);
 }
 
 /** The path's own sideways (turning) acceleration at `distFt`, ft/s², right positive, at ground speed `gsFtps`. */

@@ -238,30 +238,31 @@ function gearDownConfig(config) {
   return config === 'gearDown' || config === 'flapsTakeoff' || config === 'landing';
 }
 
-/** The chart's own glide ratio for a configuration, feet flown per foot lost. */
-function chartGlideRatio(config) {
+/**
+ * The chart's sink rate in ft/min for a T6A_GLIDE configuration ('clean', 'gearDown',
+ * 'flapsTakeoff', 'landing', 'windmilling') at kias: true airspeed ÷ the glide ratio. The
+ * ratio is fixed through the air, so the sink rate grows with height.
+ */
+export function glideSinkFpm(config, kias, altFt) {
+  return iasToTasKt(kias, altFt) * KT_TO_FTPS * 60 / glideRatio(config);
+}
+
+/**
+ * The max glide chart's glide ratio through the air for a T6A_GLIDE configuration: feet flown
+ * for each foot of height lost (clean 2 NM per 1,000 ft is about 12.2). The
+ * flapsTakeoff row is an estimate (see T6A_GLIDE). What the aircraft flies is glideRatioFlown.
+ */
+export function glideRatio(config) {
   if (!Object.hasOwn(T6A_GLIDE, config)) throw new RangeError(`glide configuration ${config}: use one of ${Object.keys(T6A_GLIDE).join(', ')}`);
   return T6A_GLIDE[config].nmPer1000Ft * FT_PER_NM / 1000;
 }
 
 /**
- * The chart's sink rate in ft/min for a T6A_GLIDE configuration ('clean', 'gearDown',
- * 'flapsTakeoff', 'landing', 'windmilling') at kias: true airspeed ÷ the chart's glide ratio.
- * The ratio is fixed through the air, so the sink rate grows with height. The flying uses
- * glideRatio, which has the SMM orbit's gear-down drag (T6A_GEAR_PATTERN_DRAG).
+ * The best glide ratio as flown: the chart's, ÷ T6A_GEAR_PATTERN_DRAG with the gear down
+ * (the SMM's orbit; Patrick 5 Oct 23:45Z). Use this one for the flying, as glideDragPerWeight does.
  */
-export function glideSinkFpm(config, kias, altFt) {
-  return iasToTasKt(kias, altFt) * KT_TO_FTPS * 60 / chartGlideRatio(config);
-}
-
-/**
- * The best glide ratio through the air for a T6A_GLIDE configuration: feet flown
- * for each foot of height lost (clean 2 NM per 1,000 ft is about 12.2). With the
- * gear down it is the chart's ÷ T6A_GEAR_PATTERN_DRAG. The flapsTakeoff row is an
- * estimate (see T6A_GLIDE).
- */
-export function glideRatio(config) {
-  return chartGlideRatio(config) / (gearDownConfig(config) ? T6A_GEAR_PATTERN_DRAG : 1);
+export function glideRatioFlown(config) {
+  return glideRatio(config) / (gearDownConfig(config) ? T6A_GEAR_PATTERN_DRAG : 1);
 }
 
 /**
@@ -277,7 +278,7 @@ export function glideRatio(config) {
  */
 export function glideDragPerWeight(config, kias, altFt, g = 1) {
   const f = T6A_FIT;
-  const k = (chartGlideRatio('clean') / chartGlideRatio(config)) ** 2;
+  const k = (glideRatio('clean') / glideRatio(config)) ** 2;
   return (gearDownConfig(config) ? T6A_GEAR_PATTERN_DRAG : 1) * (f.dragA * k * kias * kias + f.dragB * g * g / (kias * kias));
 }
 
