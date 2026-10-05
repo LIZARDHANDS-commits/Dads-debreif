@@ -285,6 +285,8 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     h('h3', { class: 'ts-group-title' }, 'Each aircraft'), ships,
   );
 
+  // Controls, Scenario, Settings and Formation: their header buttons "pop" so they read as clickable (Patrick, 5 Oct).
+  for (const p of [movesPanel, scenarioPanel, settingsPanel, formationPanel]) p.element.classList.add('panel-pop');
   const setupCol = h('aside', { class: 'ts-col ts-col-setup', 'aria-label': 'Controls, scenario and settings' }, movesPanel.element, scenarioPanel.element, settingsPanel.element);
   const formationCol = h('aside', { class: 'ts-col ts-col-formation', 'aria-label': 'Formation' }, formationPanel.element);
   const element = h(
