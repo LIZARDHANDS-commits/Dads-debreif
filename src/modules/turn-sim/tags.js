@@ -10,6 +10,11 @@
 //    table, link by link in the 4-ship). In it, IN POSITION; too close (TIGHT, TOO CLOSE, FORE) TIGHT; too far (WIDE, AFT,
 //    TOO FAR BACK) STRETCHED; otherwise the judgement's own word (HIGH, LOW, OFF LINE, WRONG SIDE).
 //  - Line abreast and the wide 4-ship formations: no state, the spacing only (the card judges them).
+// While Lead manoeuvres (turning, pitching or pulling), fighting wing (2- and 4-ship) and fluid manoeuvring judge the
+// distance only: TIGHT inside 500 ft, STRETCHED past 1,000 ft, otherwise IN RANGE, with no sweep or cone verdict (Patrick
+// 23:07Z: "this is true in fighting wing as well"; 23:08Z: "during the turn all that matters is their distance from lead
+// for spacing"). Straight and level, and at the roll-out, the full verdict shows again. The real flag stays either way:
+// a wingman ahead of the 3/9 line of the aircraft he flies off reads AHEAD OF 3/9.
 // formation.js first: the live files import each other in a loop, and entering it at transitions.js reads REJOIN in
 // kinematic-moves.js before transitions.js has set it (the same happens on main if transitions.js is loaded first).
 import './live/formation.js';
@@ -17,6 +22,7 @@ import { relativeTo, DEG } from './live/manoeuvres.js';
 import { judgeFormation, FORMATIONS } from './live/transitions.js';
 import { FOUR_FORMATIONS, fourSlots } from './live/four-ship-slots.js';
 import { pursuitWord } from './fluid-panel.js';
+import { isManoeuvring, rangeWord } from './live/fluid.js';
 
 /** The fighting wing cone (SMM 12.29 para 69, Fig 12.19): feet from the aircraft flown off, and sweep back from its wing line. */
 export const FW_CONE = Object.freeze({ minFt: 500, maxFt: 1000, minSweepDeg: 30, maxSweepDeg: 60 });
@@ -26,20 +32,27 @@ const TIGHT_WORDS = new Set(['TIGHT', 'TOO CLOSE', 'FORE']);
 const STRETCHED_WORDS = new Set(['WIDE', 'AFT', 'TOO FAR BACK', 'TOO FAR']);
 const ft = (n) => `${Math.round(Math.abs(n)).toLocaleString('en-CA')} ft`;
 
-/** Where `wing` sits in the fighting wing cone of `ref`: { state, rangeFt, sweepDeg } (sweep back from ref's wing line). */
-export function fwState(ref, wing) {
+/**
+ * Where `wing` sits in the fighting wing cone of `ref`: { state, rangeFt, sweepDeg } (sweep back from ref's wing line).
+ * distanceOnly: Lead is manoeuvring, so only the distance is judged (TIGHT, STRETCHED, IN RANGE). Ahead of ref's 3/9
+ * line is AHEAD OF 3/9 either way.
+ */
+export function fwState(ref, wing, { distanceOnly = false } = {}) {
   const rel = relativeTo(ref, wing);
   const rangeFt = Math.hypot(rel.fwd, rel.left);
   const sweepDeg = Math.atan2(-rel.fwd, Math.max(Math.abs(rel.left), 1e-6)) / DEG;
   const c = FW_CONE;
-  const state = rangeFt < c.minFt ? 'TIGHT' : rangeFt > c.maxFt ? 'STRETCHED' : sweepDeg < c.minSweepDeg || sweepDeg > c.maxSweepDeg ? 'OUT OF CONE' : 'IN POSITION';
-  return { state, rangeFt, sweepDeg };
+  let state;
+  if (rel.fwd > 0) state = 'AHEAD OF 3/9';
+  else if (distanceOnly) state = rangeWord(rangeFt);
+  else state = rangeFt < c.minFt ? 'TIGHT' : rangeFt > c.maxFt ? 'STRETCHED' : sweepDeg < c.minSweepDeg || sweepDeg > c.maxSweepDeg ? 'OUT OF CONE' : 'IN POSITION';
+  return { state, rangeFt, sweepDeg, distanceOnly };
 }
 
 /**
  * Fluid manoeuvring's tags (spec section 10.3, TS-57): Lead with the manoeuvre and its phase; #2 with his pursuit (LAG,
- * PURE, LEAD), where he sits (IN POSITION, TIGHT inside 500 ft, STRETCHED past 1,000 ft, OUT OF CONE past 30° of aspect),
- * the range and the aspect (0 at Lead's tail).
+ * PURE, LEAD, SWAPPING), where he sits (fluid.js readouts: the distance only while Lead manoeuvres; straight and level
+ * IN POSITION, or OUT OF CONE past 30° of aspect), the range and the aspect (0 at Lead's tail), or AHEAD OF 3/9.
  */
 function fluidTags(state) {
   const f = state.fluid;
@@ -51,7 +64,7 @@ function fluidTags(state) {
   };
   out[wing.id] = {
     title: `${wing.name ?? '#2'} · ${pursuitWord(now.wingCue)}`,
-    detail: r ? `${r.state} · ${ft(r.rangeFt)}, aspect ${Math.round(r.aspectDeg)}°` : '',
+    detail: r ? `${r.aspectDeg >= 90 ? 'AHEAD OF 3/9' : r.state} · ${ft(r.rangeFt)}, aspect ${Math.round(r.aspectDeg)}°` : '',
   };
   return out;
 }
@@ -110,8 +123,8 @@ export function tagLines(state, where) {
     const ref = by.get(refId) ?? lead;
     let detail;
     if (target === 'fw') {
-      const s = fwState(ref, a);
-      detail = `${s.state} · ${ft(s.rangeFt)}, ${Math.round(s.sweepDeg)}° from the wing line`;
+      const s = fwState(ref, a, { distanceOnly: isManoeuvring(lead) });
+      detail = s.distanceOnly ? `${s.state} · ${ft(s.rangeFt)}` : `${s.state} · ${ft(s.rangeFt)}, ${Math.round(s.sweepDeg)}° from the wing line`;
     } else if (CLOSE_KEYS.has(target)) {
       detail = closeState(four ? pairKeyFor(target, a.id) : target, ref, a);
     } else {
