@@ -114,7 +114,7 @@ The rule after the clean-up:
 
 The tracker goes away. Steps, one Opus pull request each, checked in the browser before merging; `src/core`, Traffic and Fight Sim untouched; no flight physics changes:
 
-- [ ] First, Patrick's 5 Oct 02:48Z ruling: a wingman never speeds up faster than full power allows; if he falls behind, his tag shows STRETCHED and he closes up as best he can once the manoeuvre ends. With it, the V2.20 overshoot labels: OVERSHOOTING only from the decision point near Lead, with power reduced (seen 5 Oct: a 20 KIAS fast start shows OVERSHOOTING at 1,200-2,000 ft with MAX power).
+- [x] First, Patrick's 5 Oct 02:48Z ruling (V2.21, TS-63; narrowed 03:46Z to the off-standard capture lines): a wingman never speeds up faster than full power allows; if he falls behind, his tag shows STRETCHED and he closes up as best he can once the manoeuvre ends. With it, the V2.20 overshoot labels: OVERSHOOTING only from the decision point near Lead, with power reduced (seen 5 Oct: a 20 KIAS fast start shows OVERSHOOTING at 1,200-2,000 ft with MAX power).
 - [ ] 1. One slot table, one classifier, one judge (2- and 4-ship); `transitions.js` split into slots and judging, plus moves. No visible change.
 - [ ] 2. 2-ship: fighting wing turns and the remaining tracker changes on kinematic lines; same end picture, band and collapse to six.
 - [ ] 3. 4-ship: every change on kinematic lines, each wingman's line in the frame of the aircraft he flies off, keeping "wait for the one ahead" (SMM 16.32 para 86, 16.34 paras 95-96). The tracker is deleted.
