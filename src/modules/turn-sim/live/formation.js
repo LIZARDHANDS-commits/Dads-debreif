@@ -30,7 +30,7 @@ import { REJOIN, STEADY } from './tuning.js';
  * indicated, and the aircraft fly it as true airspeed at the block height.
  */
 export const LIVE_DEFAULTS = Object.freeze({
-  spacingFt: 6000, // the briefs' wide side of the 4,000 to 6,000 ft band (SMM 16.18 para 49)
+  spacingFt: 5000, // the middle of the 4,000 to 6,000 ft band (SMM 16.18 para 49; Patrick 5 Oct 22:46Z: "5000")
   wingSide: /** @type {'right' | 'left'} */ ('right'), // #2 on Lead's right
   kias: 220, // SMM 16.18 para 50
   blockFt: 8000, // estimate until Patrick gives the low block height

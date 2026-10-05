@@ -70,8 +70,8 @@ const FW_DEFAULTS = Object.freeze({
   fw4OtherRangeFt: FW4.rangeFt,
   fw4OtherDeg: FW4.otherDeg,
 });
-/** The screen starts line abreast at 4,000 ft (Patrick, 5 Oct), the close side of the 4,000 to 6,000 ft band (SMM 16.18 para 49). */
-const START_SPACING_FT = 4000;
+/** The screen starts line abreast at 5,000 ft (Patrick 5 Oct 22:46Z: "5000"), the middle of the 4,000 to 6,000 ft band (SMM 16.18 para 49); any spacing can be set. */
+const START_SPACING_FT = 5000;
 const SETUP_DEFAULTS = Object.freeze({ ships: LIVE_DEFAULTS.ships, check45: LIVE_DEFAULTS.check45, spacingFt: START_SPACING_FT, wingSide: LIVE_DEFAULTS.wingSide, ...FW_DEFAULTS, ...ERROR_DEFAULTS });
 
 /** The flags for fighting wing places outside the SMM band (SMM 12.29 para 69), for the ships flown: flown anyway, never refused. */
@@ -273,7 +273,8 @@ function mount(root, app) {
 
   function dataTags() {
     const tags = tagLines(state, formation.where());
-    const show = layout.get();
+    // The 2D view shows no height, so its tags always carry each wingman's height off Lead ("+150 ft"); 3D follows the Data tag tick.
+    const show = shown === '2d' ? { ...layout.get(), tagHeight: true } : layout.get();
     const lead = state.aircraft[0];
     const out = {};
     for (const a of state.aircraft) {
