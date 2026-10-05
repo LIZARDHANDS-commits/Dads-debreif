@@ -73,6 +73,10 @@ export const TURNING_REJOIN = Object.freeze({
   captureFt: 150, // he is on the line within this many feet of it; only then does he start taking out the overtake for the decision point (estimate)
   lineTauSec: 4, // his heading comes onto the one the line asks over about this long, so the bank changes smoothly (estimate)
   heightSec: 10, // #2 settles slightly low on the line over this long, or over his part to the decision point if shorter (estimate)
+  // The vertical as a candidate (Patrick 5 Oct 17:44Z "we can use the vertical too", 19:51Z "if it scores high enough"; TS-82):
+  // #2 goes this much higher than he starts early in the rejoin, then comes down onto the line, the climb and descent at no more
+  // than descentFtps, its pull charged as G (flight.js) and within the G rule. Flown only when it brings him in sooner (estimates).
+  verticalUpFt: Object.freeze([500, 1000]),
   undertakeKias: 25, // only when no rejoin at his least speed keeps him behind Lead's 3/9 line (close in and hot) does he slow, at most this far below Lead's 200 KIAS (rejoinTo's, an estimate; TS-75)
   lineOverKias: 10, // hot, he reaches the line at no more than this over his least speed, Lead's 200 KIAS (to fighting wing, its place's own speed) (Patrick 17:29Z: "when they hit the line it needs to be at 210-200 knots"; TS-75)
   runInReleaseShare: 0.5, // taking out the overtake, he sets it again once the room left needs less than this share of the slowing that started it (estimate; TS-75)
