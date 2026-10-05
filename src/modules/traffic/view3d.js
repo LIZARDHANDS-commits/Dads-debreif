@@ -383,7 +383,7 @@ const numberOf = (id) => String(id).replace(/\D+/g, '') || String(id);
  * what is missing, moves what is there and frees what has gone; dispose() frees the lot. `root` is the group to add
  * to the scene. models: { ct156, t6plain, standin }, each (THREE, { color, number, paint }) returning a mesh, for tests.
  */
-export function createSceneKit(THREE, { models = defaultModels(), fatLines = null } = {}) {
+export function createSceneKit(THREE, { models = defaultModels(), fatLines = null, photoAlign = undefined } = {}) {
   const root = new THREE.Group();
   const routeLines = new Map(); // route id -> { line, sig, edge }
   const resolution = { width: 1, height: 1 }; // the canvas size, which the wide lines need to be drawn in pixels
@@ -484,7 +484,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   root.add(scenery);
 
   // Circuit landmarks (Window Farm, Sukanen, Fiat Farm, Arrow Trees): always on.
-  const landmarks = createLandmarks(THREE, { floor: DEFAULT_FLOOR_FT });
+  const landmarks = createLandmarks(THREE, { floor: DEFAULT_FLOOR_FT, align: photoAlign }); // on the photo's places
   root.add(landmarks);
   const windsocks = createWindsocks(THREE, { floor: DEFAULT_FLOOR_FT });
   root.add(windsocks);
@@ -1307,7 +1307,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 2);
     const lights = addTrafficLights(THREE, scene);
     const sky = addSky(THREE, scene);
-    const kit = createSceneKit(THREE, { fatLines });
+    const kit = createSceneKit(THREE, { fatLines, photoAlign: photoAlignment(source.settings?.() ?? {}) });
     scene.add(kit.root);
     const style = win.getComputedStyle?.(canvas);
     const palette = paletteFrom((name) => style?.getPropertyValue(name).trim() ?? '');
@@ -1578,14 +1578,18 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       const p = screenOf(ac.x, ac.y, ac.alt);
       if (!onScreen(p)) continue;
       const colour = aircraftColor(ac);
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, planeRadiusPx, 0, Math.PI * 2);
-      ctx.lineWidth = LOCATOR_PX + 2;
-      ctx.strokeStyle = palette.halo;
-      ctx.stroke();
-      ctx.lineWidth = LOCATOR_PX;
-      ctx.strokeStyle = colour;
-      ctx.stroke();
+      // The locator circle: round the selected aircraft only (Patrick, 4 Oct: "the default to be no circles anywhere,
+      // and when you click an aircraft THAT aircraft has a green circle").
+      if (ac.id === (data.selectedAircraftId ?? null)) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, planeRadiusPx, 0, Math.PI * 2);
+        ctx.lineWidth = LOCATOR_PX + 2;
+        ctx.strokeStyle = palette.halo;
+        ctx.stroke();
+        ctx.lineWidth = LOCATOR_PX;
+        ctx.strokeStyle = colour;
+        ctx.stroke();
+      }
       ctx.textAlign = p.x + 160 > size.width ? 'right' : 'left';
       const x = ctx.textAlign === 'left' ? p.x + planeRadiusPx + 4 : p.x - planeRadiusPx - 4;
       write(ac.id, x, p.y - 6, colour, true, 13);
