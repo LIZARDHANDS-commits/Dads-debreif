@@ -6,9 +6,10 @@
 // against Lead) and the flags. Flags are never walls: the sim flies on and says so.
 // The 4-ship has its own buttons (spec section 8, TS-54; live/four-ship-moves.js): setShips swaps them.
 import { h, clear } from '../../ui-kit/dom.js';
-import { FORMATIONS, REJOIN, KIAS_OUTSIDE_LAB, rejoinReadout } from './live/transitions.js';
+import { rejoinReadout } from './live/judge.js';
+import { REJOIN, KIAS_OUTSIDE_LAB } from './live/tuning.js';
 import { slowWord } from './live/slow-down.js';
-import { FOUR_FORMATIONS, fourWords } from './live/four-ship-slots.js';
+import { FORMATIONS, FOUR_FORMATIONS, fourWords } from './live/slots.js';
 
 /** The main buttons, in screen order. Fluid manoeuvring starts from fighting wing only (spec section 10.3, TS-57). */
 export const CHANGE_BUTTONS = Object.freeze([
@@ -40,7 +41,7 @@ const REJOIN_OPTIONS = Object.freeze([
 
 const ft = (n) => `${Math.round(Math.abs(n)).toLocaleString('en-CA')} ft`;
 
-/** "Line abreast, right" for the pair as classified now (transitions.js classifyPair). */
+/** "Line abreast, right" for the pair as classified now (live/judge.js classify). */
 export function nowWords(where) {
   if (where.key === 'fluid') return 'Fluid manoeuvring';
   const word = FORMATIONS[where.key]?.label;

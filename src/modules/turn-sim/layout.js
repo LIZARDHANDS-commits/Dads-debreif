@@ -8,7 +8,7 @@ import { createPanel } from '../../ui-kit/panel.js';
 import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import { ERROR_FIELDS, RESPONSE_OPTIONS, FIX_TOOLS } from './live/errors.js';
-import { FW_LIMITS } from './live/transitions.js';
+import { FW_LIMITS } from './live/slots.js';
 
 /**
  * What the screen remembers in this browser: which columns are open, which
