@@ -11,18 +11,17 @@ import { KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, makeAircraft, stepAircraft, planDone } from './flight.js';
 import { MANOEUVRES, planManoeuvre, relativeTo, dryRun, TURN_BANK_DEG, TURN_G } from './manoeuvres.js';
 import { flyStep, dryRunT } from './transitions.js';
-import { resolveErrors, resolveFixTools, applyStartErrors, planWithErrors, outcomeOf } from './errors.js';
+import { resolveErrors, resolveFixTools, applyStartErrors, planWithErrors, outcomeOf, offStandardOutcome } from './errors.js';
 import { FOUR_SHIP_KEYS, fourShipStart, planFour } from './four-ship.js';
 import { G_WARM, planGWarm } from './g-warm.js';
 import { classify, judge } from './judge.js';
 import { FORMATIONS, FOUR_FORMATIONS, setFwShape, setFw4Shape } from './slots.js';
 import { planChangeFour } from './four-ship-moves.js';
-import { offStandardOutcome } from './hot-rejoin.js';
 import { chooseChange, TIE_SEC } from './chooser.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFwMove, leadTurnPlan } from './formation-turns.js';
 import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
-import { LAG_ROLL_KEY, planLagRoll } from './lag-roll.js';
+import { LAG_ROLL_KEY } from './lag-roll.js';
 import { REJOIN, STEADY } from './tuning.js';
 
 /**
@@ -251,16 +250,15 @@ export function createFormation(options = {}) {
     if (to === 'fluid') return startFluid();
     whereNow();
     const four = state.aircraft.length > 2;
-    // A training error set (TS-62) makes the hot turning rejoin start from wherever #2 is, flown as its response says.
+    // A training error set (TS-62): the chooser races "from here" too, from wherever the error put #2.
     // midLead: Lead's own flying when a turn button is pressed mid-change (turnMidChange); otherwise how the press leaves him.
     const mid = midLead ? { lead: { kind: 'carry', plan: midLead } } : state.current ? midPress(state.current) : null;
     const planOpts = { ...changeOptions, spacingFt: state.spacingFt, blockFt: opts.blockFt, lastSide: state.lastSide, errors: four ? null : state.errors, mid };
-    // The 2-ship: the chooser (chooser.js, TS-76) runs every planner that applies (a training error's rejoin first, TS-62;
-    // the turning rejoin, TS-68; the straight-ahead rejoin, TS-72; echelon or route out to fighting wing, TS-73; a line then
-    // the tracker, TS-65; the tracker alone) and flies the one that passes the pilot's checks quickest. Until V2.75 they were
-    // tried in that fixed order and the first that accepted the case flew it.
-    const plan = to === LAG_ROLL_KEY ? planLagRoll(state.aircraft, planOpts, state.tSec) // #2's lag roll (lag-roll.js, TS-71)
-      : four
+    // The 2-ship: the chooser (chooser.js, TS-76) runs every planner that applies (the turning rejoin, TS-68; the
+    // straight-ahead rejoin, TS-72; echelon or route out to fighting wing, TS-73; opening out at full power, TS-88; a line
+    // then the tracker, TS-65; "from here" after a training error's start or a press mid-move; the tracker alone) and flies
+    // the one that passes the pilot's checks quickest; #2's lag roll (TS-71) is its own button and only candidate (TS-94).
+    const plan = four
       ? planChangeFour(state.aircraft, to, planOpts, state.tSec)
       : chooseChange(state.aircraft, to, planOpts, state.tSec);
     if (!plan.ok) {
@@ -306,7 +304,7 @@ export function createFormation(options = {}) {
    */
   function replanAtEvents() {
     const c = state.current;
-    if (!c?.change || c.change.four || c.change.offStandard || c.key === `change:${LAG_ROLL_KEY}`) return;
+    if (!c?.change || c.change.four || c.key === `change:${LAG_ROLL_KEY}`) return;
     if (c.decisionSec != null && !c.decided && state.tSec >= c.decisionSec - STEP_SEC / 2) {
       c.decided = true;
       replanChange('the decision point', true);
@@ -359,7 +357,7 @@ export function createFormation(options = {}) {
    */
   function turnMidChange(key, dir) {
     const c = state.current;
-    if (!c?.change || c.change.four || c.change.offStandard || c.key === `change:${LAG_ROLL_KEY}`) return false;
+    if (!c?.change || c.change.four || c.key === `change:${LAG_ROLL_KEY}`) return false;
     const leadPlan = leadTurnPlan(state.aircraft[0], c.change.to, key, dir);
     if (!leadPlan) return false;
     const side = c.change.side > 0 ? 'left' : c.change.side < 0 ? 'right' : 'keep';
@@ -464,7 +462,7 @@ export function createFormation(options = {}) {
       const c = state.current.change;
       const j = judge(state.aircraft, { key: c.to, side: c.side }, { spacingFt: state.spacingFt });
       state.judged = { label: state.current.label, shape: 'formation', labels: j.inBand ? ['IN POSITION'] : j.labels, text: j.text, tone: j.tone, ...(c.four ? { ships: j.ships } : {}) };
-      // An off-standard hot turning rejoin (TS-62) says on the card how #2 dealt with the start.
+      // A change flown from a training error's start (TS-62) says on the card how #2 dealt with it.
       if (c.offStandard) state.errorOutcome = offStandardOutcome(c.offStandard, j.inBand, state.current.label);
     } else if (state.current.gWarm) {
       // G-warm ends in line abreast at the tightened gap (AFM8 brief p.16 item 5); that gap is the four's from now on.
@@ -506,7 +504,7 @@ export function createFormation(options = {}) {
    */
   function inBandAndSteady() {
     const c = state.current;
-    if (!c?.change || c.change.four || c.change.offStandard || c.key === `change:${LAG_ROLL_KEY}`) return false;
+    if (!c?.change || c.change.four || c.key === `change:${LAG_ROLL_KEY}`) return false;
     const [lead, wing] = state.aircraft;
     // Line abreast is a wide band: once #2 is in it and steady, Lead finishing his speed-up to 220 KIAS is ordinary formation
   // keeping, not part of the change (estimate pending Patrick's card, 21:15Z; the other changes wait for Lead's plan).

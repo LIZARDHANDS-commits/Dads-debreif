@@ -282,4 +282,4 @@ export function planLineMove(pair, from, s, to, sTo, { spacingFt = 6000, blockFt
 // hand-over.js can use it without an import loop; it is re-exported here for the files that read it from here.
 export { leadTurnSegs } from './manoeuvres.js';
 
-// The hot turning rejoin from line abreast (standard and off-standard starts, and the overshoot) is in hot-rejoin.js.
+// The hot turning rejoin from line abreast lived in hot-rejoin.js until V2.93 (TS-94: a training error's start is now raced by the chooser).
