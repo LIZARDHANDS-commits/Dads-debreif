@@ -4,11 +4,12 @@ name: Deploy to GitHub Pages
 # check shows as a warning on the CI run, never a stop (Q-T1, "Always
 # publish", docs/TESTING.md section 2).
 #
-# The site stays offline until Patrick picks a public repo or private with
-# GitHub Pro (Q-ALL-1, docs/PLAN.md). To turn publishing on:
-#   1. Settings > Pages > Build and deployment > Source: GitHub Actions.
-#   2. Settings > Secrets and variables > Actions > Variables: add PAGES_ON = true.
-# Until PAGES_ON is true, this workflow skips itself instead of failing.
+# Publishing by hand: Actions > Deploy to GitHub Pages > Run workflow. A hand
+# run always publishes (Patrick, 5 Oct 2026).
+# Publishing on every push to main also needs the Actions variable
+# PAGES_ON = true (Settings > Secrets and variables > Actions > Variables);
+# until then a push skips this workflow instead of failing.
+# Settings > Pages > Build and deployment > Source must be GitHub Actions.
 on:
   push:
     branches: [main]
@@ -23,7 +24,7 @@ concurrency:
 
 jobs:
   build:
-    if: vars.PAGES_ON == 'true'
+    if: github.event_name == 'workflow_dispatch' || vars.PAGES_ON == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
