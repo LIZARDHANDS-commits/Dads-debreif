@@ -43,7 +43,7 @@ Patrick approved this wording on 4 Oct 2026 (09:56Z). It replaces the old 4.9-4.
 *As built, 4 Oct 2026 (DADS v2.10.17), where it differs from the wording below (new wording waits for Patrick):*
 - *Item 15: the "one controller" is the simulated pilot, which flies each manoeuvre once as a path (`closed-pattern.js`, `high-key.js`, `breakout.js`, `circuit.js` `buildGoAround`); the shared climb is `circuit.js` `powerClimb`.*
 - *Item 16: the climb levels off smoothly as it nears the height (`powerClimb`), so the bank never rolls past the setting to stop the climb.*
-- *Items 17 and 19: the closed pattern rolls out on the inner downwind line and hands over to the circuit there, at least 300 ft past where the break rolls out (an estimate); the circuit then flies its own perch and final turn. It first carries on as it was for 0.8 s (an estimate matched to the path follower's smoothing) so the heading doesn't step at the hand-over.*
+- *Items 17 and 19: the closed pattern turns until its track points at today's wind-corrected perch, holds that track, and hands over to the circuit 1,000 ft short of the perch (an estimate); the circuit then flies its own final turn from the perch (Patrick, 5 Oct 19:55Z; TR-86). It first carries on as it was for 0.8 s (an estimate matched to the path follower's smoothing) so the heading doesn't step at the hand-over.*
 - *Item 22: the breakout turns toward the breakout point 2 NM south of the pattern, climbing at full power toward 220 KIAS and 4,500 ft, then rejoins on ENT1's line at 3,500 ft and 220 KIAS, 0.7 to 1.2 NM before the Entry Gate (measured in calm and 20 kt); a straight-in rejoins its own straight-in.*
 
 ### One climbing turn for every rejoin
@@ -54,7 +54,7 @@ Patrick approved this wording on 4 Oct 2026 (09:56Z). It replaces the old 4.9-4.
     - The climb is at full power and 140 KIAS. The climb rate comes from excess thrust at the turn's real G (`excessThrustPerWeight`), so it climbs less while turning harder.
     - Pitch comes from the climb (spec item 6) and is shown.
 17. **Aim at where it joins, not at a point.** The turn aims at the place where it will meet its next path:
-    - closed pattern: the inner downwind line of today's built circuit, then the circuit's own perch and final turn;
+    - closed pattern: straight to today's wind-corrected perch, then the circuit's own final turn (Patrick, 5 Oct 19:55Z: in a high wind it used to intercept the downwind line first; TR-86);
     - High Key: the 1/8 NM run-in (760 ft) to High Key;
     - breakout: the ENT1 line at pattern height, at least 1 NM out (TR-R34).
 18. **Hand over only once on the path.** Control passes to the next path only when the aircraft is on it, with the same place, track, bank and pitch (item 13a). No snap and no slide.
@@ -62,7 +62,7 @@ Patrick approved this wording on 4 Oct 2026 (09:56Z). It replaces the old 4.9-4.
 
 ### Each manoeuvre
 
-19. **Closed pattern (4.11).** Pull-up at or after the upwind end of the runway (WFO art 402). One continuous climbing turn to the inner downwind, levelling at 3,500 ft, then the circuit's own perch and final turn (TR-R33).
+19. **Closed pattern (4.11).** Pull-up at or after the upwind end of the runway (WFO art 402). One continuous climbing turn until it points at the wind-corrected perch, then straight to it, levelling at 3,500 ft, then the circuit's own final turn (TR-R33; TR-86).
 20. **Go-around (4.10).** Full power, straight ahead on the runway track. It levels at 2,500 ft until it crosses the upwind end of the runway, speeding up there, then trades that speed for height after it crosses (Patrick, 09:14Z). Then it flies the same climb-out as a take-off (item 10): climb at 180 KIAS to 3,500, accelerate to 220, crosswind turn at 220 onto the outer pattern (Patrick's card "Like a take-off", 09:18Z).
 21. **Touch-and-go.** It touches down and rolls on the runway from where it landed, then flies the take-off climb-out (item 10). It no longer jumps back to the threshold. The ground roll uses lift-off at 85 KIAS (today's take-off number, an estimate until checked).
 22. **Breakout (4.9).** An immediate climbing turn to 4,500 ft, staying 2 NM south of the pattern and clear of the rejoin lines, then rejoining on the ENT1 line at pattern height at least 1 NM out (TR-R34). Its bank and climb come from the same controller (item 16), not the old fixed 30-45° and 1,500-2,000 ft/min. Off the rejoin line (an entry that joins the pattern) the first turn goes away from the pattern, to the right at Moose Jaw (Patrick, 5 Oct 00:08Z). A breakout needed so as not to collide (the deconfliction's last-moment, skill-layer move) may bank up to 80°, never past the stall line, and bleeds speed when full power can't hold it at that G; other breakouts and the button use the closed-pattern bank (Patrick, 5 Oct 00:13Z; TR-63).
