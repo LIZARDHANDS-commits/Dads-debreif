@@ -224,14 +224,14 @@ export const T6A_GLIDE = Object.freeze({
 });
 
 /**
- * The SMM's PFL pattern with the gear down: 120 KIAS round the 1 NM circle loses about 2,600 ft per 360°
- * (SMM 13.6 para 13 and 13.5 para 11, p.46; Patrick 5 Oct 2026 23:20Z "Agreed with smm"). The chart's gear-down
- * polar loses about 2,330 ft there, so every gear-down configuration's whole polar (zero-lift and induced parts
- * alike) is scaled by this factor: best-glide speeds stay the chart's, and the flaps keep the chart's steps on top.
- * Fitted on the 1 NM circle (Fable's consult, 5 Oct 23:50Z, traffic-review/fable-gear-drag-consult.md); an estimate
- * until Patrick's own figure replaces it. The clean polar already matches (orbit about 1,640 ft, SMM about 1,700).
+ * Gear-down drag as the SMM's orbit before High Key: 120 KIAS at 30° of bank loses about 2,600 ft per 360°
+ * (SMM 13.5 para 11, p.46; Patrick 5 Oct 2026 23:20Z "Agreed with smm", 23:45Z "the 2600 belongs to the orbit
+ * prior to commencing high key"). The chart's gear-down polar loses about 1,980 ft there, so every gear-down
+ * configuration's whole polar (zero-lift and induced parts alike) is scaled by this factor: best-glide speeds stay
+ * the chart's and the flaps keep the chart's steps on top (Fable's consult, 5 Oct 23:50Z). Fitted to the SMM's
+ * figure, not measured. The clean polar already matches (orbit about 1,640 ft, SMM about 1,700).
  */
-export const T6A_GEAR_PATTERN_DRAG = 1.117;
+export const T6A_GEAR_PATTERN_DRAG = 1.322;
 
 /** The gear is down in every T6A_GLIDE configuration but clean and windmilling. */
 function gearDownConfig(config) {
@@ -248,7 +248,7 @@ function chartGlideRatio(config) {
  * The chart's sink rate in ft/min for a T6A_GLIDE configuration ('clean', 'gearDown',
  * 'flapsTakeoff', 'landing', 'windmilling') at kias: true airspeed ÷ the chart's glide ratio.
  * The ratio is fixed through the air, so the sink rate grows with height. The flying uses
- * glideRatio, which has the SMM pattern's gear-down drag (T6A_GEAR_PATTERN_DRAG).
+ * glideRatio, which has the SMM orbit's gear-down drag (T6A_GEAR_PATTERN_DRAG).
  */
 export function glideSinkFpm(config, kias, altFt) {
   return iasToTasKt(kias, altFt) * KT_TO_FTPS * 60 / chartGlideRatio(config);
@@ -272,7 +272,7 @@ export function glideRatio(config) {
  * ratio ÷ its ratio)². Its best glide speed then comes out near the chart's:
  * gear down about 108 KIAS (chart 105), landing flap about 93 (chart 95). With
  * the gear down the whole of it is then scaled by T6A_GEAR_PATTERN_DRAG (the
- * SMM's pattern), which leaves those speeds where they are. The flapsTakeoff
+ * SMM's orbit), which leaves those speeds where they are. The flapsTakeoff
  * row is an estimate, as its ratio is.
  */
 export function glideDragPerWeight(config, kias, altFt, g = 1) {
