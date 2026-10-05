@@ -1150,3 +1150,22 @@
   opacity: 0.5;
   cursor: help;
 }
+
+/* The card menu in white on blue, its list too (Patrick, 4 Oct). #1b77a8 rather than the light accent so white text
+   keeps WCAG AA contrast (about 5:1; white on the accent is about 2:1). */
+[data-module='traffic'] .aircraft-menu {
+  border-color: #1b77a8;
+  background: #1b77a8;
+}
+
+[data-module='traffic'] .aircraft-menu > .aircraft-menu-select,
+[data-module='traffic'] .aircraft-menu > .aircraft-menu-select option {
+  background: #1b77a8;
+  color: #ffffff;
+}
+
+[data-module='traffic'] .aircraft-menu-arrow {
+  border-left-color: rgba(255, 255, 255, 0.5);
+  background: #155f87;
+  color: #ffffff;
+}
