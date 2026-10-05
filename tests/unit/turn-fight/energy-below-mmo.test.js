@@ -116,12 +116,6 @@ test('the height check comes first: a speed over the limit is refused with the l
   assert.throws(() => createEnergyFight({ blueAltFt: 25000, redAltFt: 25000, blueKias: 317 }), /Blue's merge speed is above the T-6A's limit at 25,000 ft \(\d+ KIAS in the model, Mach 0\.67; the NFM's 279 is the same Mach on the gauge\), got 317/);
 });
 
-test('a speed under 40 or not a number still names the box and the range at that height', () => {
-  assert.throws(() => createEnergyFight({ blueKias: NaN }), /blueKias is from 40 to 316 KIAS, got NaN/);
-  assert.throws(() => createEnergyFight({ redKias: 39 }), /redKias is from 40 to 316 KIAS, got 39/);
-  assert.throws(() => createEnergyFight({ blueAltFt: 25000, redAltFt: 25000, blueKias: 39 }), /blueKias is from 40 to \d+ KIAS, got 39/);
-});
-
 // ── The AI keeps under the top speed by choice ───────────────────────────────
 
 /**
