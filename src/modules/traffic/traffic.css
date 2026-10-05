@@ -1106,3 +1106,47 @@
   display: grid;
   gap: var(--space-1);
 }
+
+/* The card's menu (Pattern / Landing behaviour / Manoeuvres): its own box with an arrow button at the right, so it
+   reads as a menu (Patrick, 4 Oct). The arrow is drawn over the select; a click anywhere opens it. */
+[data-module='traffic'] .aircraft-menu {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+
+[data-module='traffic'] .aircraft-menu > .aircraft-menu-select {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font-weight: 700;
+  padding: 0.2rem 2rem 0.2rem 0.5rem;
+  cursor: pointer;
+}
+
+[data-module='traffic'] .aircraft-menu-arrow {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 20%, var(--bg-raised));
+  color: var(--accent-strong);
+  pointer-events: none;
+}
+
+[data-module='traffic'] .button.spawn-conflict[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: help;
+}

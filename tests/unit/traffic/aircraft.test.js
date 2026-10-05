@@ -325,9 +325,12 @@ test('Remove takes one aircraft out of the run, and only that one (TR-R19)', () 
 test('Spawn a conflict waits for a selected aircraft (Patrick, 4 Oct 19:24Z)', () => {
   const { spawner, panel } = setup();
   const button = buttonNamed(spawner, 'Spawn a conflict');
-  assert.equal(button.disabled, true);
+  assert.equal(button.getAttribute('aria-disabled'), 'true');
+  assert.equal(button.getAttribute('title'), 'Select a pattern and aircraft', 'its hover text says what it needs (Patrick, 4 Oct)');
+  button.dispatch('click');
+  assert.match(words(withClass(spawner, 'spawn-message')[0]), /select a pattern and aircraft first/);
   panel.selectAircraft('A1');
-  assert.equal(button.disabled, false);
+  assert.equal(button.getAttribute('aria-disabled'), 'false');
 });
 
 test('every row carries the callsign as text, so colour is never the only way to tell them apart', () => {

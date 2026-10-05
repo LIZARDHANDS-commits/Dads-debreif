@@ -398,12 +398,15 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
 
   const callsignBadge = h('span', { class: 'traffic-callsign-badge' }, sim.nextCallsign ? `Next: ${sim.nextCallsign()}` : '');
 
-  const conflictButton = h('button', { type: 'button', class: 'button spawn-conflict', disabled: true, title: 'Select an aircraft first', onclick: spawnConflict }, 'Spawn a conflict'); // red (Patrick, 4 Oct)
+  // Red (Patrick, 4 Oct). Not ready, it is marked so rather than switched off, so its hover text shows: "Select a pattern
+  // and aircraft" (Patrick, 4 Oct); a press then says the same.
+  const CONFLICT_NOT_READY = 'Select a pattern and aircraft';
+  const conflictButton = h('button', { type: 'button', class: 'button spawn-conflict', 'aria-disabled': 'true', title: CONFLICT_NOT_READY, onclick: () => (conflictButton.getAttribute('aria-disabled') === 'true' ? say(`Spawn a conflict: ${CONFLICT_NOT_READY.toLowerCase()} first.`) : spawnConflict()) }, 'Spawn a conflict');
   // The button waits for a selected aircraft (Patrick: "when an aircraft is selected") and a route to put the new one on.
   const conflictButtonFollows = () => {
     const on = Boolean(selectedAircraftId) && !pflChosen;
-    conflictButton.disabled = !on;
-    conflictButton.title = on ? `A new aircraft on the route above, timed to meet ${selectedAircraftId}` : pflChosen ? 'Choose a route above first' : 'Select an aircraft first';
+    conflictButton.setAttribute('aria-disabled', String(!on));
+    conflictButton.title = on ? `A new aircraft on the route above, timed to meet ${selectedAircraftId}` : CONFLICT_NOT_READY;
   };
 
   // PFL from area: an aircraft already gliding with the engine out, somewhere in the training area. Its boxes show
@@ -754,7 +757,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
                   e?.stopPropagation?.();
                 },
               },
-              menuSelect,
+              h('span', { class: 'aircraft-menu' }, menuSelect, h('span', { class: 'aircraft-menu-arrow', 'aria-hidden': 'true' }, '▾')), // a box with its own arrow, so it reads as a menu (Patrick, 4 Oct)
               ...buttons,
             ),
           );
