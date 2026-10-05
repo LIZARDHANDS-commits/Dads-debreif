@@ -105,6 +105,11 @@ export const PFL = Object.freeze({
   inTurnBankDeg: 10,
   /** Gliding in from the area the gear stays up until this close to the field: about 5 NM (Patrick 5 Oct 18:39Z, "difficult to manage"). */
   earlyGearWithinFt: 5 * FT_PER_NM,
+  /** A join with all the drag out from now aims to arrive no more than this high on the all-drag profile. An estimate. */
+  dragJoinHighFt: 150,
+  /** Meeting the circle from inside it: no more than this turn first, and a left turn onto it of no more than the second. Estimates. */
+  interceptTurnDeg: 60,
+  interceptOntoDeg: 120,
   /** Straight run onto a join point along its tangent, so the aircraft arrives on the circle's line. An estimate. */
   joinLeadFt: 1500,
   /** Run-in to High Key along the extended centreline from the area. An estimate. */
@@ -530,6 +535,7 @@ export function chooseJoin(geo, from, availFt, trackDeg, wind, { allowHighKey = 
     let best = null, bestHigh = null;
     for (let th = 0; th <= PFL.lastJoinDeg + 1e-6; th += PFL.joinStepDeg) {
       const tries = oneTurn ? [-1, 1].map((side) => joinPath(geo, from, th, trackDeg, turnRadiusFt, minTurnRadiusFt, side)) : [joinPath(geo, from, th)];
+      if (oneTurn) tries.push(interceptPath(geo, from, th, trackDeg, turnRadiusFt));
       const score = (p) => (oneTurn ? p.turnDeg + p.straightFt / 1000 + 1000 * (turnRadiusFt - p.turnRadiusFt) / turnRadiusFt : Math.abs(wrapDeg180(geo.trackAt(th) - trackDeg)));
       const path = tries.filter((p, k) => p && (!oneTurn || p.turnDeg <= (k === 0 ? leftMaxDeg : 180))).sort((x, y) => score(x) - score(y))[0];
       if (!path) continue;
@@ -555,16 +561,67 @@ export function chooseJoin(geo, from, availFt, trackDeg, wind, { allowHighKey = 
   };
   // One turn and in range first; then one turn but high, which early gear, the drag and the runway take; then a
   // straight run onto the line (an S-turn is the unrealistic manoeuvre, Patrick 17:51Z, so it comes after a high join).
-  const one = search(true), run = search(false);
+  const one = search(true);
+  if (!one.best && !one.high) { const dirty = allDragJoin(geo, from, availFt, trackDeg, wind, { turnRadiusFt, minTurnRadiusFt, bankDeg }); if (dirty) return dirty; }
+  const run = search(false);
   const join = one.best ?? one.high ?? run.best ?? run.high ?? chooseDirect(geo, from, availFt, PFL.glideCleanKias, wind, trackDeg);
   if (join) return join;
   return { kind: 'none', path: directPath(geo, from, geo.aimAlongFt, true, trackDeg), aimAlongFt: geo.aimAlongFt, label: 'Eject' };
 }
 
-/** Height to fly from `from` along the path to point `idx`, clean. */
-function neededTo(path, idx, from, altFt, wind) {
+/**
+ * Meeting the circle from inside it, where there is no one-turn tangent join (Patrick 5 Oct 22:07Z, "intercept the
+ * profile"): a turn of at most PFL.interceptTurnDeg toward the circle point at `theta`, straight to it, then left onto
+ * the circle, as a pilot extends a little and turns onto the profile. Null if the turns are bigger than that.
+ */
+function interceptPath(geo, from, theta, trackDeg, turnRadiusFt) {
+  if (!Number.isFinite(trackDeg)) return null;
+  const p = geo.at(theta);
+  const lineTrk = bearing(from, p);
+  const first = Math.abs(wrapDeg180(lineTrk - trackDeg));
+  const onto = wrapDeg180(geo.trackAt(theta) - lineTrk);
+  if (first > PFL.interceptTurnDeg || onto > 10 || onto < -PFL.interceptOntoDeg) return null;
+  return Object.assign([{ x: from.x, y: from.y, plan: 0 }, ...arcToAim(geo, theta)], { turnDeg: first + Math.abs(onto), straightFt: dist(from, p), turnRadiusFt });
+}
+
+/**
+ * All the drag out now, and intercept the profile somewhere between High Key and Final Key (Patrick 5 Oct 22:07Z:
+ * "Could it just intercept the profile somewhere between high key and final key with all the drag out?"). Used close
+ * in when no one-turn join can be made at all, as from inside the circle past Low Key (Fable's H2); his 17:51Z rule
+ * allows drag before the join when joining without it needs an unrealistic manoeuvre. Of the joins it makes with all
+ * the drag out, the least turn that arrives on the all-drag profile or up to PFL.dragJoinHighFt above it; failing
+ * that, the earliest that isn't short, so the widen (item 7) has the most room to take the rest. Returns a 'circle' join with
+ * `allDrag`, or null.
+ */
+function allDragJoin(geo, from, availFt, trackDeg, wind, { turnRadiusFt = directTurnRadiusFt(), minTurnRadiusFt = glideJoinMinRadiusFt(), bankDeg = 0 } = {}) {
+  if (dist(from, geo.th) > PFL.earlyGearWithinFt) return null;
+  const ground = THRESHOLD_DATA_ELEV_FT;
+  const leftMaxDeg = bankDeg <= -PFL.inTurnBankDeg ? 270 : 180;
+  let onProfile = null, high = null;
+  for (let th = 0; th <= PFL.lastJoinDeg + 1e-6; th += PFL.joinStepDeg) {
+    const tries = [-1, 1].map((side) => joinPath(geo, from, th, trackDeg, turnRadiusFt, minTurnRadiusFt, side)).filter((raw, k) => raw && raw.turnDeg <= (k === 0 ? leftMaxDeg : 180));
+    const meet = interceptPath(geo, from, th, trackDeg, turnRadiusFt);
+    if (meet) tries.push(meet);
+    for (const raw of tries) {
+      const path = Object.assign(raw.map((p) => ({ ...p, plan: 3 })), { turnDeg: raw.turnDeg });
+      const idx = path.findIndex((p) => p.theta === th);
+      const hAtJoin = availFt - neededTo(path, idx, from, availFt, wind, 3);
+      const tdKey = path.some((p) => p.key === 'touchdown') ? 'touchdown' : 'aim';
+      const over = hAtJoin - neededFt(path, idx, path[idx], hAtJoin, 3, wind, false, tdKey) - ground;
+      if (over < 0) continue;
+      const pick = { path, th };
+      if (over <= PFL.dragJoinHighFt) { if (!onProfile || path.turnDeg < onProfile.path.turnDeg - 1e-6) onProfile = pick; }
+      else if (!high) high = pick; // the earliest, so the widen has the most room before Final Key
+    }
+  }
+  const pick = onProfile ?? high;
+  return pick && { kind: 'circle', path: pick.path, theta: pick.th, label: joinLabel(pick.th), allDrag: true };
+}
+
+/** Height to fly from `from` along the path to point `idx`, clean (or in configuration `cfg`). */
+function neededTo(path, idx, from, altFt, wind, cfg = 0) {
   const part = path.slice(0, idx + 1).map((p, i) => (i === idx ? { ...p, key: '__end' } : p));
-  return neededFt(part, 0, from, altFt, 0, wind, false, '__end');
+  return neededFt(part, 0, from, altFt, cfg, wind, false, '__end');
 }
 
 /**
@@ -677,7 +734,13 @@ function turnOntoRunway(geo, from, trackDeg, kias, altFt, wind) {
  */
 function widenPath(geo, path, seg, s, altFt, wind, tdKey) {
   const ground = THRESHOLD_DATA_ELEV_FT;
-  const th0 = path[seg].theta;
+  // From where the aircraft is round the circle, not where the path says: inside the circle it can be well round
+  // from its point on the path, and a widen built from behind it turned it round (Fable's H2).
+  const own = bearing(geo.centre, s);
+  let thOwn = 0;
+  for (let th = 0; th < 360; th += 1) if (Math.abs(wrapDeg180(bearing(geo.centre, geo.at(th)) - own)) < Math.abs(wrapDeg180(bearing(geo.centre, geo.at(thOwn)) - own))) thOwn = th;
+  const th0 = Math.max(path[seg].theta, thOwn);
+  if (th0 >= PFL.lastJoinDeg - PFL.joinStepDeg) return null;
   const fk = path.findIndex((p, i) => i > seg && p.theta !== undefined && p.theta >= PFL.lastJoinDeg);
   if (fk < 0) return null;
   const out = (p) => { const d = dist(geo.centre, p); return { x: (p.x - geo.centre.x) / d, y: (p.y - geo.centre.y) / d }; };
@@ -959,7 +1022,8 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
       // (Patrick 17:51Z, 18:39Z: "gear can come early", but not before about 5 miles gliding in). Flaps wait for the circle.
       const gearEarly = cfg === 0 && !onCircle() && plan.kind !== 'direct' && dist(s, geo.th) <= PFL.earlyGearWithinFt
         && s.alt - ground - neededFt(path, seg, proj.pt, s.alt, cfg, wind, true, 'aim', 2) >= PFL.dragBufferFt;
-      if (mustGear) cfg = 1;
+      if (plan.allDrag && cfg < 3) { cfg += 1; if (cfg === 3) notes.push(`all the drag out before the join at ${Math.round(s.alt)} ft`); }
+      else if (mustGear) cfg = 1;
       else if (gearEarly) { cfg = 1; notes.push(`gear early before the join at ${Math.round(s.alt)} ft`); }
       else if (dragOk && cfg < 2) {
         // Gear and T/O flap: at their planned point unless low; before it only with height to spare.
