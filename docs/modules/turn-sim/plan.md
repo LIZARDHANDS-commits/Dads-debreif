@@ -6,7 +6,7 @@ How to read this plan: steps are in the order to do them. Step 1, the review, is
 
 On screen the module is called **Pat's Formation Simulator** (from V2.14). Its code name stays `turn-sim`.
 
-1. From V2.6 the Turn Sim shows the first version of live mode: a 2-ship in line abreast with manoeuvre buttons, flown on a new core (`spec.md` Part 1). Before that it flew the SMM turns in plan mode only, and Patrick's 3 October finding was that it needed a full overhaul (`docs/handover/turn-sim.md:4`).
+1. From V2.6 the Turn Sim shows the first version of live mode: a 2-ship in line abreast with manoeuvre buttons, flown on a new core (`spec.md` Part 1). Before that it flew the SMM turns in plan mode only, and Patrick's 3 October finding was that it needed a full overhaul (`archive/docs/handover/turn-sim.md:4`).
 2. Patrick wants two modes: plan mode, and live mode where the formation flies along and a manoeuvre button makes it fly that manoeuvre; whether to rebuild, start a new core or fix what is there is decided by the review in Step 1 (`pf/reset/1-requirements/requirements.md:327`, `pf/reset/consolidation-plan.md:285`).
 3. Four old branches and one backup bundle hold about 1,200 lines of Turn Sim work that is not on main; they are flagged in Step 1 as work to reuse and are not to be deleted until this plan carries the flag (`pf/reset/2-inventory/agents/agent-4-outside.md:8`, `pf/reset/2-inventory/file-register.md:47`).
 
@@ -26,15 +26,15 @@ Patrick started the review early, alongside Traffic, on 4 Oct. Notes are in the 
 The three lists below are kept from the review's brief as references. Nothing in them is built unless a later step names it (TS-35: the branches are not merged).
 
 **Old work to reuse: the four branches and the bundle** (flag for the Turn Sim plan; Patrick, 3 Oct 23:54Z)
-- [ ] `handover/turn-sim-223-fixes`: the Delayed 45 check turn flies only at 45 degrees; the offset box keeps its shape at 5,000 to 6,000 ft aft (`docs/handover/turn-sim.md:22`).
-- [ ] `handover/turn-sim-215-recheck`: an in-place 90 judged in trail from each wingman's own reference aircraft; a check turn reads "Not judged"; label and menu fixes; the optional `app.scenarioStore` (`docs/handover/turn-sim.md:21`).
-- [ ] `handover/turn-sim-screen-audit`: aircraft errors under "More ...", wingman dragging and keyboard nudge, NM rings (`drag.js` and `rings.js` exist only on this branch) (`docs/handover/turn-sim.md:20`, `pf/reset/2-inventory/file-register.md:98`).
-- [ ] `handover/turn-sim-sequences`: `engine/sequence.js`, a runner for turns flown one after another, with the two-ship G-warm; engine only (`docs/handover/turn-sim.md:23`).
-- [ ] The old merge order was 223-fixes, 215-recheck, screen-audit, sequences. The review decides which parts to cherry-pick; the guess in TS-Q12 is the dragging and the in-trail judge (`docs/handover/turn-sim.md:25`, `pf/reset/1-requirements/questions.md:157`).
+- [ ] `handover/turn-sim-223-fixes`: the Delayed 45 check turn flies only at 45 degrees; the offset box keeps its shape at 5,000 to 6,000 ft aft (`archive/docs/handover/turn-sim.md:22`).
+- [ ] `handover/turn-sim-215-recheck`: an in-place 90 judged in trail from each wingman's own reference aircraft; a check turn reads "Not judged"; label and menu fixes; the optional `app.scenarioStore` (`archive/docs/handover/turn-sim.md:21`).
+- [ ] `handover/turn-sim-screen-audit`: aircraft errors under "More ...", wingman dragging and keyboard nudge, NM rings (`drag.js` and `rings.js` exist only on this branch) (`archive/docs/handover/turn-sim.md:20`, `pf/reset/2-inventory/file-register.md:98`).
+- [ ] `handover/turn-sim-sequences`: `engine/sequence.js`, a runner for turns flown one after another, with the two-ship G-warm; engine only (`archive/docs/handover/turn-sim.md:23`).
+- [ ] The old merge order was 223-fixes, 215-recheck, screen-audit, sequences. The review decides which parts to cherry-pick; the guess in TS-Q12 is the dragging and the in-trail judge (`archive/docs/handover/turn-sim.md:25`, `pf/reset/1-requirements/questions.md:157`).
 - [ ] The backup is `archive/bundles/turn-sim-paused-branches.bundle` in this repo (same four tips; also in project files at `pf/archive/2026-09/turn-sim/paused/`). Keep it as the backup; thread 8 may delete the four remote branches now that this plan carries the flag (`pf/reset/2-inventory/file-register.md:102`, `pf/reset/consolidation-plan.md:261`).
 
 **Every document that helps the review** (read-only; each is also listed in `agents/plans-futures.md` with its tag)
-- [ ] Specs and plans in the repo: the old spec, `specs/SPEC-turn-sim.md` (`specs/SPEC-turn-sim.md:1`); the old plan and to-do list in `tasks/turn-sim/` (`tasks/turn-sim/plan.md:1`, `tasks/turn-sim/todo.md:1`); the handover note, which carries Patrick's 3 October directive (`docs/handover/turn-sim.md:1`); the old sign-off checklist (`docs/checklists/turn-sim.md:1`).
+- [ ] Specs and plans in the repo: the old spec, `specs/SPEC-turn-sim.md` (`specs/SPEC-turn-sim.md:1`); the old plan and to-do list in `tasks/turn-sim/` (`tasks/turn-sim/plan.md:1`, `tasks/turn-sim/todo.md:1`); the handover note, which carries Patrick's 3 October directive (`archive/docs/handover/turn-sim.md:1`); the old sign-off checklist (`docs/checklists/turn-sim.md:1`).
 - [ ] Verification notes in the repo: `docs/records/verification/turn-sim.md`, `turn-sim-2026-09-30.md`, `turn-sim-recheck-189.md`, `turn-sim-recheck-215.md` and `turn-sim-recheck-223.md` (`docs/records/verification/turn-sim.md:1`, `docs/records/verification/turn-sim-recheck-223.md:1`).
 - [ ] Roadmap Milestone 3 and its trap 6 (`archive/docs/REMEDIATION_ROADMAP.md:366`, `archive/docs/REMEDIATION_ROADMAP.md:192`); the swarm queue rows for the Turn Sim, PPQ-09 to PPQ-11 (`archive/docs/records/verification/swarm/POST_PROTOTYPE_QUEUE.md:53`).
 - [ ] Questions and references: Dad's list of questions (`archive/docs/records/dads-questions.md`) (`archive/docs/records/dads-questions.md:1`); the manuals discrepancy matrix (`docs/references/manuals-discrepancy-matrix.md:1`); the SMM aerobatics catalogue, whose "Immelmann" and G lines are references, not walls (`docs/references/smm-aerobatics-catalog.md:1`); the audit findings in `docs/references/v6-audit/findings.json` (`docs/references/v6-audit/README.md:1`); the future-ideas list rows FF38 to FF41 and FF46 (`archive/docs/records/future-ideas.md:22`); the skill on wind-shaped flight paths (`.agent/skills/wind-shaped-flight-paths/SKILL.md:6`).
@@ -59,7 +59,7 @@ The three lists below are kept from the review's brief as references. Nothing in
 - [x] Light checks written with the code (`tests/unit/turn-sim/live.test.js`): end pictures, bank and G, 300 ft at the cross, smooth hand-overs, the queue.
 - [ ] Patrick flies every button in the real app from the default start (the sign-off checklist in `testing.md`, "First version").
 
-## Step 3. Retire the plan-mode code (Patrick decides)
+## Step 3. Retire the plan-mode code (approved 5 Oct 01:36Z, done as clean-up step 4 below)
 
 - [ ] With Patrick's yes: retire the plan-mode engine (`engine/`), `settings.js`, `fields.js`, `readouts.js`, their 20 unit test files and the plan-mode browser test `tests/e2e/turn-sim.spec.js` (sign-off only; it tests the old screen and fails on the new one). Before deleting, list what each did (rule book); ideas worth keeping go to `future.md`. Until then they stay, untouched.
 
@@ -90,14 +90,37 @@ The three lists below are kept from the review's brief as references. Nothing in
   - **3D close formations** at real size; **fit-all camera** with Fit; **Lead's 3/9 and 7/5 o'clock lines** (off); **info tags** (on); sweep shown from the wing line.
   - Checks in `formation-moves.test.js`, `four-ship-changes.test.js` and `tags.test.js`.
 - [ ] Patrick flies them in the real app (the "TS-56" checklist in `testing.md`).
-- [ ] Next, from the same rulings: hot rejoin off-standard starts (wide, close, ahead, high, tight, fast).
+- [x] Hot rejoin off-standard starts and the overshoot (V2.20, `spec.md` section 10.5, TS-61, TS-62; Patrick 19:15Z, 23:29Z, 23:37-23:38Z; 5 Oct 00:11Z-02:05Z): the slow-down model (power, speed brake, idle) in place of 1.5 kt/s; a Speed error (fast or slow, 20 KIAS); the hot turning rejoin from off-standard starts, Fix it in Patrick's order or Turn at normal reference; the overshoot (SMM 12.27, Fig 12.18) with OVERSHOOTING on the tag and card; power on every tag (MAX, TQ %, red IDLE and BOARDS). Starts that end up ahead of Lead's 3/9 line still fly the tracker's rejoin (question to Patrick). Checks in `offstandard-rejoin.test.js`, `slow-down.test.js` and `tags.test.js`.
+- [ ] Patrick flies it in the real app (the "TS-61 and TS-62" checklist in `testing.md`).
 - [x] Fluid manoeuvring, the simplified baseline (V2.17, `spec.md` section 10.3, TS-57; Patrick 21:44Z): entry from fighting wing only (greyed elsewhere); Lead's level turns (30°, 60/2, 70/3), wings level, reversal and Terminate back to fighting wing; #2 planned, in the cone at the distance set (default 600 ft) with lag, pure or lead; card lines, flags and tags; settings for the bank, the distance and the wingman method (Live greyed). Checks in `fluid.test.js`.
 - [x] Fluid manoeuvring, vertical piece 1 (V2.18, `spec.md` section 10.3, TS-59; Patrick 21:44Z, 22:04Z, 22:28Z): Lead's Climb and Descend (15°, 2,000 ft, bank kept) and the Loop (SMM 7.5, Table 7.1: 230 KIAS in and out, 3.5 G, constant rate over the top); #2 follows Lead's plane of motion, lags up, crosses the top near parallel and leads down in the loop; #2 holds 15° off Lead's current tail in every fluid turn; entry and exit speeds on the card. Checks in `fluid.test.js`.
 - [x] Fluid manoeuvring, vertical piece 2 (V2.19, `spec.md` section 10.3, TS-60; Patrick 19:21Z, 22:28Z, 23:00Z-23:08Z): #2's side swap behind Lead (one rule in turns and over the top); Lead's Wingovers (SMM 16.17 para 47) and Barrel roll (SMM 14.8, Fig 14.1); the SMM's standard sequence on one button (para 42); #2 "like the loop" in both, drifting in the cone and resetting to 15° at the end; the cone as the wingman's aim; tags judge distance only while Lead manoeuvres (fighting wing and fluid). Checks in `fluid.test.js` and `tags.test.js`.
 - [ ] Patrick flies it in the real app (the "TS-57" checklist in `testing.md`).
 - [x] Fighting wing desired spacing and sweep as settings behind More (V2.17, `spec.md` section 10.4, TS-58; Patrick 21:25Z): 2-ship #2, 4-ship #2, and #3 and #4; defaults unchanged; outside the SMM band flown and flagged. Checks in `fw-shape.test.js`.
 - [ ] Next for fluid manoeuvring, each with Patrick's yes: Terminate for position, the Live wingman, Fluid 4 manoeuvring (`future.md`).
-- [ ] Next for formations, each with its own short spec and Patrick's yes: live fighting wing (the second four-ship piece), manoeuvring in the offset box and Fluid 4, Overshoot and rejoin mistakes (`future.md`).
+- [ ] Next for formations, each with its own short spec and Patrick's yes: live fighting wing (the second four-ship piece), manoeuvring in the offset box and Fluid 4, rejoin mistakes, the straight-ahead and 4-ship overshoots (`future.md`).
+
+## Step 4a. Pause and tidy: one way to plan each kind of move (Patrick, cards "Pause and tidy" 5 Oct 01:25Z and "Approve, all 4" 01:36Z)
+
+No new Formation Sim features until Patrick has flown V2.20 against its checklist and this clean-up is done. Aim: no visible change. Every button ends in the same formation at the same place, from the same manual figures; paths in between may look slightly different, and each is checked against its figure with before and after pictures.
+
+Why: over seven builds the module grew four ways of planning a path (segments, the tracker in `transitions.js`, kinematic lines in `kinematic.js`, fluid) and six ways of judging a position (`judgePair`, `judgeFormation`, `classifyPair`, `judgeFour`, `judgeFourFormation`, `classifyFour`, plus `fwState` and `closeState` in `tags.js`), with two slot tables (`slotFor`, `fourSlots`). That is lesson 8's drift.
+
+The rule after the clean-up:
+1. An aircraft flying its own manoeuvre uses segments: Lead, and each aircraft in a line abreast turn (SMM F6).
+2. An aircraft keeping station on another uses a kinematic line: every wingman move in every formation, 2-ship and 4-ship.
+3. Fluid stays as it is; only its pose output goes through the same `kinematic.js` code.
+4. One slot table, one classifier and one judge for the 2-ship and the 4-ship; the tags, card and roll-out verdict all read it.
+
+The tracker goes away. Steps, one Opus pull request each, checked in the browser before merging; `src/core`, Traffic and Fight Sim untouched; no flight physics changes:
+
+- [ ] First, Patrick's 5 Oct 02:48Z ruling: a wingman never speeds up faster than full power allows; if he falls behind, his tag shows STRETCHED and he closes up as best he can once the manoeuvre ends. With it, the V2.20 overshoot labels: OVERSHOOTING only from the decision point near Lead, with power reduced (seen 5 Oct: a 20 KIAS fast start shows OVERSHOOTING at 1,200-2,000 ft with MAX power).
+- [ ] 1. One slot table, one classifier, one judge (2- and 4-ship); `transitions.js` split into slots and judging, plus moves. No visible change.
+- [ ] 2. 2-ship: fighting wing turns and the remaining tracker changes on kinematic lines; same end picture, band and collapse to six.
+- [ ] 3. 4-ship: every change on kinematic lines, each wingman's line in the frame of the aircraft he flies off, keeping "wait for the one ahead" (SMM 16.32 para 86, 16.34 paras 95-96). The tracker is deleted.
+- [ ] 4. Retire the plan-mode code (Step 3): `engine/`, `settings.js`, `fields.js`, the old `readouts.js`, their 20 unit test files and the old plan-mode browser test, after listing what each did; ideas worth keeping go to `future.md`.
+
+Checks: the same buttons flown from the default start before and after, screenshots side by side; tests stay "always true / end picture"; a test pinned to the tracker's workings is retired or rewritten only as `docs/TESTING.md` says, with Patrick's yes, and listed in the pull request. The queue (4-ship fluid manoeuvring, more errors, Terminate for position, the Live wingman) waits until after this and Patrick's fly-through.
 
 ## Step 5. Sign-off
 

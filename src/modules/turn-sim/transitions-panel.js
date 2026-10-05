@@ -7,6 +7,7 @@
 // The 4-ship has its own buttons (spec section 8, TS-54; live/four-ship-moves.js): setShips swaps them.
 import { h, clear } from '../../ui-kit/dom.js';
 import { FORMATIONS, REJOIN, KIAS_OUTSIDE_LAB, rejoinReadout } from './live/transitions.js';
+import { slowWord } from './live/slow-down.js';
 import { FOUR_FORMATIONS, fourWords } from './live/four-ship-slots.js';
 
 /** The main buttons, in screen order. Fluid manoeuvring starts from fighting wing only (spec section 10.3, TS-57). */
@@ -231,6 +232,10 @@ export function createChangeUi({ onChange, fluidUi = null }) {
           h('li', {}, `Lead at ${r.clock}, ${r.line}`),
           h('li', { class: r.aboveLead ? 'tone-caution' : 'tone-good' }, `#2 is ${ft(r.belowFt)} ${r.belowFt > 0 ? 'below' : 'above'} Lead`),
         );
+        // How #2 is flying it (TS-61, TS-62): OVERSHOOTING, and the speed brake or idle when he is slowing with them.
+        const wing = state.aircraft[1];
+        const how = [wing.overshooting ? 'OVERSHOOTING, behind and below Lead (SMM 12.27 para 65)' : null, slowWord(wing) ? `${slowWord(wing)} to control the overtake` : null].filter(Boolean);
+        if (how.length) rejoinBlock.append(h('li', { class: 'tone-caution' }, `#2: ${how.join('; ')}`));
       }
       const flags = where.key === 'fluid' ? [] : changeFlags(state, where); // fluid has its own flags (fluid-panel.js)
       flagList.hidden = flags.length === 0;

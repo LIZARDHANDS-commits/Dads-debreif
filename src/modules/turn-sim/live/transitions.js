@@ -24,21 +24,23 @@
 // transitions) and 11:45Z (wording agreed). Numbers with no manual or ruling behind them are
 // labelled "estimate" beside them.
 import { bankDegFromTurnRate } from '../../../core/flight-math.js';
-import { excessThrustPerWeight, iasToTasKt } from '../../../core/t6-performance.js';
 import { wrapPi, relativeBearingDeg } from '../../../core/angles.js';
-import { G_FTPS2, FTPS_TO_KT } from '../../../core/units.js';
+import { FTPS_TO_KT } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft, planDone } from './flight.js';
 import { relativeTo, unit, wholeDegree, turnSeg, onStep, DEG } from './manoeuvres.js';
 import { judgePair, SWEEP_MAX_DEG } from './formation.js';
 import { applyPose } from './kinematic.js';
+import { fullPowerKtps, slowKtps, speedSegFor } from './slow-down.js';
 
 // ---- the numbers -----------------------------------------------------------------------
 
 /** The pair flies 200 KIAS outside line abreast (SMM 12.23 para 53; Patrick 11:08Z) and 220 in it (SMM 16.18 para 49). */
 export const KIAS_OUTSIDE_LAB = 200;
 export const KIAS_LAB = 220;
-/** Slowing down: 1.5 kt/s, an estimate, because idle thrust and the speed brake are not modelled (design section 6; Patrick 11:09Z). */
-export const SLOW_DOWN_KTPS = 1.5;
+// Slowing down: slow-down.js (TS-61) replaces the fixed 1.5 kt/s estimate (SLOW_DOWN_KTPS, until V2.20). A formation
+// change slows with power only (a set, controlled overtake held with power, Patrick 23:37Z); the speed brake and idle are
+// for the off-standard rejoins (kinematic-moves.js).
+export { fullPowerKtps };
 /** The T-6A's wingspan and length, about 33.4 ft (the repo's energy-sim note); an estimate for the close positions. */
 export const WINGSPAN_FT = 33.4;
 export const LENGTH_FT = 33.4;
@@ -259,6 +261,8 @@ export function flyStep(a, plan, t) {
     const [bank, kias] = seg.points[seg.i++];
     if (kias !== null && kias !== undefined) setKias(a, kias);
     stepCommanded(a, bank, t, plan.profile);
+    a.power = null; // the tracker's replay sets no power: the tag shows none rather than a guess (TS-62)
+    a.slowStage = null;
     if (seg.i >= seg.points.length) plan.segments.shift();
     return;
   }
@@ -282,16 +286,9 @@ export function dryRunT(aircraft, plan, t0, { maxSec = 600, sampleSec = 0.25 } =
   return { end: a, durationSec: t - t0, points };
 }
 
-/** Full-power acceleration at an indicated speed, in KIAS per second (the core's excess thrust; design section 6). */
-export function fullPowerKtps(kias, blockFt) {
-  const tasKt = iasToTasKt(kias, blockFt);
-  return excessThrustPerWeight(kias, blockFt, 1) * G_FTPS2 * FTPS_TO_KT * (kias / tasKt);
-}
-
-/** A speed segment from `from` to `to` KIAS: full power to speed up, 1.5 kt/s (estimate) to slow down. */
+/** A speed segment from `from` to `to` KIAS: full power to speed up, power back to slow down (slow-down.js, TS-61). */
 export function speedSeg(from, to, blockFt = 8000) {
-  const rateKtps = to > from ? fullPowerKtps((from + to) / 2, blockFt) : SLOW_DOWN_KTPS;
-  return { kind: 'speed', toKias: to, rateKtps };
+  return speedSegFor(from, to, blockFt, 'power');
 }
 
 // ---- the tracker: #2 flies to a slot in Lead's frame ----------------------------------------
@@ -477,9 +474,10 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     const cap = aligning ? 30 : ph.bankCapDeg;
     const bank = Math.max(-cap, Math.min(cap, bankDegFromTurnRate(W.tasFtps, omegaCmd)));
 
-    // Speed loop: acceleration follows the speed error, limited to what the T-6 can do (full power up, 1.5 kt/s down) and built up by a jerk limit.
+    // Speed loop: acceleration follows the speed error, limited to what the T-6 can do (full power up, power back down:
+    // slow-down.js, TS-61) and built up by a jerk limit.
     const aMax = fullPowerKtps(W.kias, blockFt);
-    const aCmd = Math.max(-SLOW_DOWN_KTPS, Math.min(aMax, GAIN.speedLoop * (kiasCmd - W.kias)));
+    const aCmd = Math.max(-slowKtps('power', W.kias, blockFt), Math.min(aMax, GAIN.speedLoop * (kiasCmd - W.kias)));
     accel += Math.max(-GAIN.jerkKtps2 * STEP_SEC, Math.min(GAIN.jerkKtps2 * STEP_SEC, aCmd - accel));
     let kias = W.kias + accel * STEP_SEC;
     if (aligning && Math.abs(L.kias - kias) < 0.003) { // the last few thousandths of a knot, so the speed has no step
@@ -518,7 +516,7 @@ export function phase(slot, over = {}) {
     kcap: 0, // ft/s more per foot of range beyond d0
     d0: 100,
     vrelMax: 60,
-    decel: 1.2, // ft/s²: about half what slowing at 1.5 kt/s gives, so the speed loop can stop the closure in time (estimate)
+    decel: 1.2, // ft/s²: about half what slowing with the power back gives (about 1.5-2 kt/s, slow-down.js), so the speed loop can stop the closure in time (estimate)
     bankCapDeg: 25,
     overtakeKias: 8,
     undertakeKias: 12,

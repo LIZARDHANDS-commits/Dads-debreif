@@ -41,14 +41,16 @@
 //    exit"), back up to 3 G coming down. Pitch over 60° is flagged (AFM7 brief p.17, Exercise 4), never held.
 //  - The standard sequence (V2.19; SMM 16.17 para 42, as written there): a level turn, a loop, two wingovers and a
 //    barrel roll, flown one after the other. The level turn is at the chosen bank (60/2 by default, AFM7 brief p.17
-//    Exercise 1) for 180° (an estimate: the SMM gives no amount; EFIG p.76's fighting wing turns are about 180°), then
-//    each manoeuvre's own speed set-up leads into the next.
+//    Exercise 1) for 360° (Patrick card 5 Oct 01:03Z, "360°", and "360 and the wingman uses it to set their spacing"; it
+//    was 180°, an estimate, in V2.19), so the sequence starts and ends on the entry heading and #2 settles onto his fluid
+//    position (the distance setting, 15° off Lead's tail) during it; then each manoeuvre's own speed set-up leads on.
 import { stepPointMass, gAndBankForLift } from '../../../core/point-mass.js';
 import { easeValue, dampedClimbG } from '../../../core/flight-math.js';
-import { t6aExcessFn, tasToIasKt, shakerG } from '../../../core/t6-performance.js';
+import { t6aExcessFn, tasToIasKt, shakerG, dragPerWeight, thrustPerWeight } from '../../../core/t6-performance.js';
 import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { ROLL, STEP_SEC, headingChangeRollingOut } from './flight.js';
+import { excessPerWeight } from './slow-down.js';
 import { add3, sub3, scale3, len3, cross3, unit3, perp3, dot3 } from './attitude.js';
 import { WING } from './fluid-wing.js';
 
@@ -63,7 +65,6 @@ export const LEAD = Object.freeze({
   terminateBankDeg: 30, // "gentle" (AFM7 p.17), "predictable" (SMM 16.17 para 46): 30° is an estimate
   terminateTurnDeg: 90, // how far the terminate turn goes before rolling out: an estimate
   fwKias: 200, // fighting wing speed (TS-53; SMM 12.23 para 53)
-  slowKtps: 1.5, // slowing with the power back: the Turn Sim's 1.5 kt/s estimate (TS-53)
   earlyCueSec: 4, // how long a new turn's lag (into #2) or lead (away from #2) lasts before pure: an estimate
   climbDeg: 15, // the climb or descent angle (design 5.1, an estimate)
   climbChangeFt: 2000, // how far a climb or descent goes before levelling off (an estimate)
@@ -162,14 +163,25 @@ function finish(st) {
   return st;
 }
 
-/** Excess thrust that holds an indicated speed: what it takes, up to full power, and slowing at 1.5 kt/s at most (estimate). */
+/** Excess thrust that holds an indicated speed: what it takes, up to full power, and slowing no faster than the power back gives (slow-down.js, TS-61). */
 function holdSpeedExcess(kiasTarget) {
   return (ktas, altFt, g) => {
     const kias = tasToIasKt(ktas, altFt);
-    const wantKtps = Math.max(-LEAD.slowKtps, Math.min(3, 0.2 * (kiasTarget - kias)));
+    const wantKtps = Math.min(3, 0.2 * (kiasTarget - kias));
     const wantFtps2 = wantKtps * KT_TO_FTPS * (ktas / Math.max(kias, 1));
-    return Math.min(wantFtps2 / G_FTPS2, t6aExcessFn(ktas, altFt, g));
+    return Math.max(excessPerWeight('power', kias, altFt, g), Math.min(wantFtps2 / G_FTPS2, t6aExcessFn(ktas, altFt, g)));
   };
+}
+
+/**
+ * Lead's power for the tag (power.js, TS-62): PCL MAX (1) through the manoeuvres (SMM 16.17 para 43), and in a stage
+ * that holds a speed (the entry's 30° stage, fighting wing, Terminate) the model's throttle for holdSpeedExcess.
+ */
+export function leadThrottle(st, holdKias) {
+  if (!holdKias) return 1;
+  const altFt = st.pm.z;
+  const excess = holdSpeedExcess(holdKias)(st.V / KT_TO_FTPS, altFt, st.g);
+  return Math.min(1, Math.max(0, (excess + dragPerWeight(st.kias, altFt, st.g)) / thrustPerWeight(st.kias, altFt)));
 }
 
 /**
@@ -317,7 +329,16 @@ export function levelTurn(dir, bankDeg, { turnDeg = null, label = null } = {}) {
       }
       const mode = mem.t < LEAD.earlyCueSec ? (mem.into ? 'lag' : 'lead') : 'pure';
       const done = mem.rollingOut && level(st);
-      return { g: gForClimb(st, 0), bank, phase: mem.rollingOut ? 'rolling out' : Math.abs(st.bank) < bankDeg - 2 ? 'rolling in' : 'turning', cue: { mode, latDeg: 15 }, done }; // hold 15° off Lead's current tail (Patrick 22:28Z)
+      const cue = { mode, latDeg: 15 }; // hold 15° off Lead's current tail (Patrick 22:28Z)
+      // The sequence's 360° is where #2 sets his spacing (Patrick 01:03Z, "360 and the wingman uses it to set their
+      // spacing"): a new distance, or a place he is not yet on, is eased in over the rest of the turn (at the commanded
+      // bank's turn rate, standard kinematics), never quicker than WING.rangeSec, instead of in a few seconds. Already
+      // set, nothing moves.
+      if (turnDeg != null && !mem.rollingOut) {
+        const rate = (G_FTPS2 * Math.tan(bankDeg * DEG)) / Math.max(st.V, 1);
+        cue.settleSec = Math.max(WING.rangeSec, (turnDeg * DEG - mem.turned) / rate);
+      }
+      return { g: gForClimb(st, 0), bank, phase: mem.rollingOut ? 'rolling out' : Math.abs(st.bank) < bankDeg - 2 ? 'rolling in' : 'turning', cue, done };
     },
   };
 }
@@ -569,12 +590,12 @@ function barrelPath(h0, dir) {
 }
 
 /**
- * The standard sequence's parts (SMM 16.17 para 42), in its order: a level turn dir (+1 left) at bankDeg for 180°
- * (an estimate), a loop, two wingovers rolling dir first, a barrel roll dir.
+ * The standard sequence's parts (SMM 16.17 para 42), in its order: a level turn dir (+1 left) at bankDeg for 360°
+ * (Patrick 01:03Z; #2 sets his spacing in it), a loop, two wingovers rolling dir first, a barrel roll dir.
  */
 export function sequenceParts(dir, bankDeg) {
   return [
-    levelTurn(dir, bankDeg, { turnDeg: 180, label: `Level turn ${dir > 0 ? 'left' : 'right'}, ${Math.round(bankDeg)}°, 180°` }),
+    levelTurn(dir, bankDeg, { turnDeg: 360, label: `Level turn ${dir > 0 ? 'left' : 'right'}, ${Math.round(bankDeg)}°, 360°` }),
     loop(),
     wingovers(dir),
     barrelRoll(dir),

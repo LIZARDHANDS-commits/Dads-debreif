@@ -13,7 +13,7 @@ import { shakerG } from '../../../core/t6-performance.js';
 import { FTPS_TO_KT, G_FTPS2 } from '../../../core/units.js';
 import { applyPose } from './kinematic.js';
 import { len3, sub3, poseOf3d, rollRateDps, unit3, dot3 } from './attitude.js';
-import { LEAD, FLUID_MOVES, leadStateOf, stepLead, levelTurn, wingsLevel, hold, reversal, entry, terminate, climbOrDescend, loop, wingovers, barrelRoll, sequenceParts } from './fluid-lead.js';
+import { LEAD, FLUID_MOVES, leadStateOf, stepLead, leadThrottle, levelTurn, wingsLevel, hold, reversal, entry, terminate, climbOrDescend, loop, wingovers, barrelRoll, sequenceParts } from './fluid-lead.js';
 import { startWing, nextWing, rawWingPoint, smoothPoint, wingPose, levelUpOf, WING, swapWanted, swapSide, wingValues } from './fluid-wing.js';
 
 const dt = STEP_SEC;
@@ -146,7 +146,7 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
     if (r.exitKias !== undefined && e.man.exitK === undefined) Object.assign(e.man, { exitKias: r.exitKias, exitK: kMax + 1 });
     const lastMan = r.done ? e.man : e.lastMan;
     kMax += 1;
-    entries.set(kMax, toEntry(kMax, st, w, { ctl, mem: next, queue, man, phase: r.phase, cue: r.cue, end, askBank: r.bank, lastMan }));
+    entries.set(kMax, toEntry(kMax, st, w, { ctl, mem: next, queue, man, phase: r.phase, cue: r.cue, end, askBank: r.bank, lastMan, holdKias: r.holdKias ?? null }));
   }
 
   /** Re-plan from step j: everything Lead flies after it is worked out again, starting with the controller ctl. */
@@ -170,7 +170,9 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
     const a = E(k - 1).st;
     const c = E(k + 1).st;
     const roll = rollRateDps(a.nose, a.bodyUp, c.nose, c.bodyUp, 2 * dt);
-    return poseOf3d({ x: e.pos.x, y: e.pos.y, altAbove: e.pos.z, vel: e.st.vel, up: e.st.bodyUp, kias: e.st.kias, g: e.st.g, rollDps: roll });
+    const pose = poseOf3d({ x: e.pos.x, y: e.pos.y, altAbove: e.pos.z, vel: e.st.vel, up: e.st.bodyUp, kias: e.st.kias, g: e.st.g, rollDps: roll });
+    // His power for the tag (power.js): PCL MAX, or the throttle that holds a set speed; none before the first planned step.
+    return { ...pose, pwr: e.holdKias === undefined ? null : leadThrottle(e.st, e.holdKias) };
   }
 
   // ---- presses ----
@@ -258,8 +260,10 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
         Object.assign(lp, { bank: 0, roll: 0, climb: 0, g: 1 });
         Object.assign(w.pose, { h: lp.h, bank: 0, roll: 0, climb: 0, g: 1, kias: lp.kias, tas: lp.tas, pitch: lp.pitch });
       }
+      // Both aircraft fly the same power (SMM 16.17 para 43): #2 shows MAX with Lead; while Lead holds a speed #2's power
+      // is not planned (he follows the path), so his tag shows none.
       applyPose(lead, lp);
-      applyPose(wing, w.pose);
+      applyPose(wing, { ...w.pose, pwr: lp.pwr === 1 ? 1 : null });
       lead.turning = !this.done;
       wing.turning = !this.done;
     },

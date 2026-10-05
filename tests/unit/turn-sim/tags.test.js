@@ -40,3 +40,25 @@ test('while Lead manoeuvres only the distance is judged; ahead of the 3/9 line i
   assert.equal(fwState(lead, at(1200, 45), turning).state, 'STRETCHED');
   for (const opts of [turning, {}]) assert.equal(fwState(lead, at(750, -20), opts).state, 'AHEAD OF 3/9');
 });
+
+test('every tag shows a power line when the aircraft\'s power is set, and the slowing devices are the red ones (TS-62)', async () => {
+  // Patrick 5 Oct 01:44Z: tags show the power setting, red letters for IDLE, BOARDS and IDLE+BOARDS. The words are the
+  // screen's business; this checks only that a set power shows, that idle and the boards are red and power is not.
+  const { tagLines } = await import('../../../src/modules/turn-sim/tags.js');
+  const { createFormation } = await import('../../../src/modules/turn-sim/live/formation.js');
+  const f = createFormation({ errSpeed: 'fast', errResponse: 'fix' });
+  f.change('echelon', { side: 'keep', rejoin: 'into' });
+  let shown = false;
+  for (let i = 0; i < 600 * 20 && f.state.current; i++) {
+    f.step();
+    const tags = tagLines(f.state, f.where());
+    for (const a of f.state.aircraft) {
+      const p = tags[a.id].power;
+      if (a.power) assert.ok(p && p.text, `${a.name}: a set power shows on the tag`);
+      if (!p) continue;
+      assert.equal(p.red, Boolean(a.power.stage), `${a.name}: red exactly when idle or the boards are in use`);
+      shown = true;
+    }
+  }
+  assert.ok(shown, 'a power setting showed during the rejoin');
+});
