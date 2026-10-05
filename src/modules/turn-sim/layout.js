@@ -104,7 +104,8 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     return h('div', { class: 'ts-move', role: 'group', 'aria-label': b.label },
       h('span', { class: 'ts-move-name' }, b.label), side(1, 'Left'), side(-1, 'Right'));
   }
-  const movesPanel = createPanel({ title: 'Manoeuvres', onToggle: (c) => layout.update({ setupColumn: !c }) });
+  // The left column (Patrick, 5 Oct): Controls (open), then Scenario and Settings, each a box that starts closed.
+  const movesPanel = createPanel({ title: 'Controls' });
   const queueLine = h('p', { class: 'ts-hint ts-queue', role: 'status' });
   const movesHint = h('p', { class: 'ts-hint' }, PAIR_HINT);
   const movesNote = h('p', { class: 'ts-hint ts-warning', role: 'status', hidden: true }, PAIR_MOVES_NOTE);
@@ -149,26 +150,33 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     h('div', { class: 'ts-field' }, setupControls.number('fw4OtherDeg', { label: '#3 and #4 sweep', ...fwSweep })),
   );
   const fwFlag = h('p', { class: 'ts-warning', role: 'status', hidden: true });
-  const fwMore = h('details', { class: 'ts-fw-more' },
-    h('summary', {}, 'More: fighting wing spacing and sweep'),
+  const fwMore = h('section', { class: 'ts-fw-more' },
+    h('h3', { class: 'ts-group-title' }, 'Fighting wing spacing and sweep'),
     h('p', { class: 'ts-hint' }, 'Where each wingman settles in fighting wing. Sweep is measured back from the wing line of the aircraft he flies off. The SMM band is 500-1,000 ft and 30-60° (SMM 12.29 para 69).'),
     fwTwo,
     fwFour,
     fwFlag,
   );
-  const setup = h('section', { class: 'ts-setup', 'aria-labelledby': 'ts-setup-title' },
-    h('h3', { class: 'ts-group-title', id: 'ts-setup-title' }, 'Setup'),
+  const setup = h('section', { class: 'ts-setup', 'aria-label': 'Scenario' },
     h('div', { class: 'ts-field' }, setupControls.choice('ships', { label: 'Formation', options: [{ value: 2, label: '2-ship' }, { value: 4, label: '4-ship' }] })),
     h('div', { class: 'ts-field' }, setupControls.number('spacingFt', { label: 'Spacing', unit: 'ft', min: 1000, max: 20000, step: 100 })),
     spacingFlag,
-    check45Field,
     h('div', { class: 'ts-field' }, setupControls.choice('wingSide', { label: '#2 on Lead\'s', options: [{ value: 'right', label: 'Right' }, { value: 'left', label: 'Left' }] })),
-    fwMore,
     h('p', { class: 'ts-hint' }, 'Changing these starts again from the beginning.'),
+  );
+  // Settings: how things are flown, and the fixed numbers.
+  const settingsBody = h('section', { class: 'ts-settings', 'aria-label': 'Settings' },
+    fwMore,
+    ...(changeUi?.fluidSettings ? [changeUi.fluidSettings] : []),
     h('p', { class: 'ts-fixed' }, fixedLine),
     fourLine,
   );
-  movesPanel.body.append(setup);
+  // Controls also hold the 4-ship Delayed 45 check-turn tick, beside the buttons it changes (Patrick, 5 Oct).
+  movesPanel.body.append(check45Field);
+  const scenarioPanel = createPanel({ title: 'Scenario', collapsed: true });
+  scenarioPanel.body.append(setup);
+  const settingsPanel = createPanel({ title: 'Settings', collapsed: true });
+  settingsPanel.body.append(settingsBody);
 
   // ---- Errors (training): closed, and every error starts at None (TS-52) ----
   // The Fix tools #2 may use (Patrick, 4 Oct 11:42Z), all ticked; shown only when the response is Fix it.
@@ -187,7 +195,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     h('div', { class: 'ts-field' }, setupControls.checkbox('errRandom', { label: 'One random error at every Reset (replaces the choices above)' })),
     h('p', { class: 'ts-hint' }, 'Fix it: #2 uses the ticked Fix tools, smallest change first. Normal reference: he flies the standard turn and the error shows at the end.'),
   );
-  movesPanel.body.append(errorsSection);
+  setup.append(errorsSection); // the training errors are part of the scenario
 
   // ---- Stage: the playback bar and Layers above the picture -----------------
   const playGlyph = h('span', { 'aria-hidden': 'true' }, '▶');
@@ -277,7 +285,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     h('h3', { class: 'ts-group-title' }, 'Each aircraft'), ships,
   );
 
-  const setupCol = h('aside', { class: 'ts-col ts-col-setup', 'aria-label': 'Manoeuvres and setup' }, movesPanel.element);
+  const setupCol = h('aside', { class: 'ts-col ts-col-setup', 'aria-label': 'Controls, scenario and settings' }, movesPanel.element, scenarioPanel.element, settingsPanel.element);
   const formationCol = h('aside', { class: 'ts-col ts-col-formation', 'aria-label': 'Formation' }, formationPanel.element);
   const element = h(
     'div',
@@ -289,9 +297,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   );
 
   function applyLayout(values) {
-    movesPanel.setCollapsed(!values.setupColumn);
     formationPanel.setCollapsed(!values.formationColumn);
-    setupCol.classList.toggle('is-collapsed', !values.setupColumn);
     formationCol.classList.toggle('is-collapsed', !values.formationColumn);
   }
   applyLayout(layout.get());

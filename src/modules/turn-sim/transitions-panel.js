@@ -166,6 +166,8 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   return {
     element,
     cardElement,
+    /** The fluid settings, for the Settings box (fluid-panel.js), or null. */
+    fluidSettings: fluidUi?.settingsElement ?? null,
     onSideChanged: (fn) => (handlers.sideChanged = fn),
     values: () => ({ side, rejoin }),
     /** 2-ship or 4-ship: shows that formation's buttons and words. */
@@ -177,6 +179,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       fourMore.hidden = !four;
       hint.textContent = four ? FOUR_HINT : PAIR_HINT;
       if (fluidUi) fluidUi.element.hidden = true; // the pair's shows in fluid manoeuvring only (update); the four's is a later piece
+      if (fluidUi) fluidUi.settingsElement.hidden = four;
       rejoinField.hidden = false;
       rejoinHint.hidden = false;
       rejoinLabel.textContent = four ? 'Rejoin to fighting wing or finger' : 'Rejoin from line abreast';
