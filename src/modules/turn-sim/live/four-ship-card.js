@@ -1,9 +1,9 @@
 // The Formation card's words for the 4-ship: the same card as the 2-ship's, with a line for
 // each wingman against the aircraft it flies off, and the roll-out judged the same way, wingman
-// by wingman (live/four-ship.js judgeFour; a change of formation by four-ship-slots.js judgeFourFormation).
+// by wingman (live/judge.js judge, for a roll-out and for a change of formation alike).
 import { relativeTo, MANOEUVRES } from './manoeuvres.js';
 import { compassDeg, intoOrAway } from './formation.js';
-import { classifyFour } from './four-ship-slots.js';
+import { classify } from './judge.js';
 import { fourWords } from './slots.js';
 
 const ftText = (n) => `${Math.round(n).toLocaleString('en-CA')} ft`;
@@ -15,7 +15,7 @@ export function cardForFour(state, wingSide) {
   const byId = new Map(state.aircraft.map((a) => [a.id, a]));
   const lead = state.aircraft[0];
   const c = state.current;
-  let flying = `${fourWords(classifyFour(state.aircraft))} on ${String(compassDeg(lead.headingRad)).padStart(3, '0')}, waiting for a button.`;
+  let flying = `${fourWords(classify(state.aircraft))} on ${String(compassDeg(lead.headingRad)).padStart(3, '0')}, waiting for a button.`;
   if (c) {
     const sided = MANOEUVRES[c.key]?.sided;
     flying = `Flying: ${c.label}${sided ? ` (${intoOrAway(c.dir, wingSide)})` : ''}`;

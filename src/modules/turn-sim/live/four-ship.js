@@ -161,21 +161,3 @@ export function planFour(aircraft, key, dir, t0, { check45 = true } = {}) {
   if (m.kind === 'delayed') return delayedChain(aircraft, m, dir, t0, check45 && m.turnDeg === 45);
   return allTogether(aircraft, key, dir, t0);
 }
-
-/**
- * Judges every wingman against the aircraft it flies off (SMM 16.42 para 116: #2 and #3 off Lead,
- * #4 off #3) once all four have rolled out. `judgePair` is the formation's own, passed in so
- * the pairs are judged by the same rule as the 2-ship's.
- */
-export function judgeFour(aircraft, spacingFt, shape, judgePair) {
-  const byId = new Map(aircraft.map((a) => [a.id, a]));
-  const ships = aircraft
-    .filter((a) => a.ref != null)
-    .map((a) => {
-      const ref = byId.get(a.ref);
-      return { id: a.id, name: nameOf(a), refName: nameOf(ref), ...judgePair(ref, a, spacingFt, shape) };
-    });
-  const good = (s) => s.labels[0] === 'ON SPACING' || s.labels[0] === 'IN TRAIL';
-  const labels = ships.every(good) ? [shape === 'trail' ? 'IN TRAIL' : 'ON SPACING'] : ships.filter((s) => !good(s)).flatMap((s) => s.labels.map((l) => `${s.name} ${l}`));
-  return { shape, ships, labels };
-}

@@ -40,7 +40,7 @@ const REJOIN_OPTIONS = Object.freeze([
 
 const ft = (n) => `${Math.round(Math.abs(n)).toLocaleString('en-CA')} ft`;
 
-/** "Line abreast, right" for the pair as classified now (transitions.js classifyPair). */
+/** "Line abreast, right" for the pair as classified now (live/judge.js classify). */
 export function nowWords(where) {
   if (where.key === 'fluid') return 'Fluid manoeuvring';
   const word = FORMATIONS[where.key]?.label;

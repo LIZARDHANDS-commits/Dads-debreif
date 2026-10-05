@@ -28,10 +28,10 @@ import { wrapPi, relativeBearingDeg } from '../../../core/angles.js';
 import { FTPS_TO_KT } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft, planDone } from './flight.js';
 import { relativeTo, unit, wholeDegree, turnSeg, onStep, DEG } from './manoeuvres.js';
-import { judgePair, SWEEP_MAX_DEG } from './formation.js';
+import { classify, judge } from './judge.js';
 import { applyPose } from './kinematic.js';
 import { fullPowerKtps, slowKtps, speedSegFor } from './slow-down.js';
-import { FORMATIONS, WINGSPAN_FT, LENGTH_FT, fwShapeNow, pairSlot } from './slots.js';
+import { FORMATIONS, fwShapeNow, pairSlot } from './slots.js';
 
 // ---- the numbers -----------------------------------------------------------------------
 
@@ -60,94 +60,6 @@ export const CHANGE_LIMIT_SEC = 180;
 export const PLAN_MAX_SEC = 300;
 /** Station changes close or open at about 5 kt (8 ft/s), an estimate: the SMM says only "controlled" (12.20 para 44). */
 const CLOSE_RATE_FTPS = 8;
-
-// ---- classifying and judging ---------------------------------------------------------------
-
-/**
- * Which formation the pair is in, from where #2 really is (design section 4, note 2):
- * { key: 'lab' | 'fw' | 'echelon' | 'route' | 'astern' | 'other', side: +1 | -1 | 0 }.
- * The regions are generous: they only say what the pair is nearest to. 'other' is anything else
- * (in trail after an in-place turn, mid-change).
- */
-export function classifyPair(lead, wing) {
-  const rel = relativeTo(lead, wing);
-  const across = Math.abs(rel.left);
-  const back = -rel.fwd;
-  const range = Math.hypot(rel.fwd, rel.left);
-  const side = Math.sign(rel.left);
-  const sweep = Math.atan2(back, Math.max(across, 1e-6)) / DEG;
-  if (across >= 1500 && sweep <= 25 && sweep >= -15) return { key: 'lab', side };
-  if (range >= 400 && range <= 1300 && sweep >= 20 && sweep <= 70) return { key: 'fw', side };
-  if (range < 250) {
-    if (across < 22 && back > 0) return { key: 'astern', side: 0 };
-    if (across < 56 && rel.fwd < 40 && rel.fwd > -90) return { key: 'echelon', side };
-    if (across <= 130 && rel.fwd < 60 && rel.fwd > -120) return { key: 'route', side };
-  }
-  return { key: 'other', side };
-}
-
-/**
- * Judges the pair against a formation's band in the spec table (section 10). Returns { key, inBand, labels, text, tone }.
- * opts.wingPlane: measure out and down in Lead's wing plane, not level, so a wingman stepped up or down with Lead's bank in
- * a close turn (SMM 12.19 paras 41-43, Fig 12.11) reads as in place. Lead's bank only tilts the frame; level, it is the same.
- */
-export function judgeFormation(key, lead, wing, spacingFt = 6000, opts = {}) {
-  const rel = { ...relativeTo(lead, wing) };
-  let down = lead.altAboveFt - wing.altAboveFt; // positive: #2 is below Lead
-  if (opts.wingPlane && lead.bankDeg) {
-    const phi = lead.bankDeg * DEG; // positive: left wing down
-    const up = -down;
-    const left = rel.left * Math.cos(phi) - up * Math.sin(phi);
-    down = -(rel.left * Math.sin(phi) + up * Math.cos(phi));
-    rel.left = left;
-  }
-  const across = Math.abs(rel.left);
-  const ft = (n) => `${Math.round(Math.abs(n)).toLocaleString('en-CA')} ft`;
-  const word = FORMATIONS[key].label;
-  let labels = [];
-  let numbers = '';
-  if (key === 'lab') {
-    const j = judgePair(lead, wing, spacingFt);
-    labels = j.labels[0] === 'ON SPACING' ? [] : j.labels;
-    numbers = `${ft(j.acrossFt)} abeam, ${ft(j.foreAftFt)} ${j.foreAftFt >= 0 ? 'ahead of' : 'behind'} Lead's 3/9 line, sweep ${Math.round(Math.max(0, j.sweepDeg))}° (0-${SWEEP_MAX_DEG}°)`;
-  } else if (key === 'fw') {
-    const range = Math.hypot(rel.fwd, rel.left);
-    const sweep = Math.atan2(-rel.fwd, Math.max(across, 1e-6)) / DEG;
-    if (range < 500) labels.push('TOO CLOSE');
-    else if (range > 1000) labels.push('TOO FAR');
-    if (sweep < 30) labels.push('TOO FLAT');
-    else if (sweep > 60) labels.push('TOO FAR BACK');
-    if (down <= 0) labels.push('NOT BELOW LEAD');
-    numbers = `${ft(range)} (500-1,000), sweep ${Math.round(sweep)}° (30-60°), ${ft(down)} ${down >= 0 ? 'below' : 'above'} Lead`;
-  } else if (key === 'echelon') {
-    const back = -rel.fwd;
-    if (across < 30) labels.push('TIGHT');
-    else if (across > 60) labels.push('WIDE');
-    if (back < 10) labels.push('FORE');
-    else if (back > 40) labels.push('AFT');
-    if (down < -5) labels.push('HIGH');
-    else if (down > 15) labels.push('LOW');
-    numbers = `${ft(across)} out (45 ±15), ${ft(back)} back (25 ±15), ${ft(down)} ${down >= 0 ? 'below' : 'above'} (5 ±10)`;
-  } else if (key === 'route') {
-    if (across < WINGSPAN_FT) labels.push('TIGHT');
-    else if (across > 3 * WINGSPAN_FT) labels.push('WIDE');
-    if (rel.fwd < -75) labels.push('AFT');
-    else if (rel.fwd > 25) labels.push('FORE');
-    if (down < -10) labels.push('HIGH');
-    else if (down > 40) labels.push('LOW');
-    numbers = `${ft(across)} out (${Math.round(WINGSPAN_FT)}-${Math.round(3 * WINGSPAN_FT)} ft: 1 to 3 wingspans), ${ft(rel.fwd)} ${rel.fwd >= 0 ? 'ahead' : 'back'}, ${ft(down)} ${down >= 0 ? 'below' : 'above'}`;
-  } else {
-    const gap = -rel.fwd - LENGTH_FT; // nose to tail
-    if (across > 10) labels.push('OFF LINE');
-    if (gap < 0) labels.push('TOO CLOSE');
-    else if (gap > 20) labels.push('TOO FAR BACK');
-    if (down < 0) labels.push('HIGH');
-    numbers = `${ft(gap)} nose to tail (10 ±10), ${ft(across)} off line, ${ft(down)} ${down >= 0 ? 'below' : 'above'}`;
-  }
-  const inBand = labels.length === 0;
-  const sided = FORMATIONS[key].sided && key !== 'lab' ? ` ${rel.left > 0 ? 'left' : 'right'}` : key === 'lab' ? `, ${rel.left > 0 ? 'left' : 'right'}` : '';
-  return { key, inBand, labels, text: `${word}${sided}: ${inBand ? 'IN POSITION' : labels.join(', ')}, ${numbers}.`, tone: inBand ? 'good' : 'caution' };
-}
 
 // ---- flying: the temporary speed and recorded-bank handlers ---------------------------------
 
@@ -633,7 +545,7 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
   const spacingFt = options.spacingFt ?? 6000;
   const blockFt = options.blockFt ?? 8000;
   if (!FORMATIONS[to]) return { ok: false, reason: `There is no formation called ${to}.` };
-  const from = classifyPair(lead, wing);
+  const from = classify([lead, wing]);
   const lastSide = options.lastSide ?? -1;
   const sCur = from.side || lastSide;
   const want = options.side ?? 'keep';
@@ -654,7 +566,7 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
   }
 
   const speedSegs = Math.abs(lead.kias - targetKias) > 0.5 ? [speedSeg(lead.kias, targetKias, blockFt)] : [];
-  const judgeEnd = (attempt) => judgeFormation(to, attempt.run.end.lead, attempt.run.end.wing, spacingFt);
+  const judgeEnd = (attempt) => judge([attempt.run.end.lead, attempt.run.end.wing], { key: to }, { spacingFt });
   const finished = (attempt) => attempt.run.ok && judgeEnd(attempt).inBand && attempt.run.durationSec <= CHANGE_LIMIT_SEC;
   // A rejoin has to keep the overshoot lane (never ahead of Lead's 3/9 line inside 1,000 ft, +-100 ft) and stay under Lead (SMM 12.27 para 65).
   const laneOk = (attempt) => attempt.run.laneFwdFt <= LANE_MARGIN_FT && attempt.run.minBelowFt > 0;

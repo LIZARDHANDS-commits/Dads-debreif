@@ -18,7 +18,7 @@ import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
 import { relativeTo, turnSeg, wholeDegree, DEG } from './manoeuvres.js';
-import { recordFlight, KIAS_LAB, KIAS_OUTSIDE_LAB, speedSeg, REJOIN, classifyPair, describe } from './transitions.js';
+import { recordFlight, KIAS_LAB, KIAS_OUTSIDE_LAB, speedSeg, REJOIN, describe } from './transitions.js';
 import { FORMATIONS, fwShapeNow, pairSlot } from './slots.js';
 import { speedSegFor } from './slow-down.js';
 import { makeTrack, seedTrack, posesFrom, settleLast, followInto, rollStarts, relPath, timeLaw, slotInWorld, poseOf, laggedBank } from './kinematic.js';

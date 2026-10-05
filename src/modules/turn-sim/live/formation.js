@@ -10,11 +10,11 @@ import { iasToTasKt } from '../../../core/t6-performance.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, makeAircraft, stepAircraft, planDone } from './flight.js';
 import { MANOEUVRES, planManoeuvre, relativeTo, dryRun, TURN_BANK_DEG, TURN_G } from './manoeuvres.js';
-import { flyStep, dryRunT, planGoTo, classifyPair, judgeFormation } from './transitions.js';
+import { flyStep, dryRunT, planGoTo } from './transitions.js';
 import { resolveErrors, resolveFixTools, applyStartErrors, planWithErrors, outcomeOf } from './errors.js';
-import { FOUR_SHIP_KEYS, fourShipStart, planFour, judgeFour } from './four-ship.js';
+import { FOUR_SHIP_KEYS, fourShipStart, planFour } from './four-ship.js';
 import { G_WARM, planGWarm } from './g-warm.js';
-import { classifyFour, judgeFourFormation } from './four-ship-slots.js';
+import { classify, judge } from './judge.js';
 import { FOUR_FORMATIONS, setFwShape, setFw4Shape } from './slots.js';
 import { planChangeFour } from './four-ship-moves.js';
 import { planHotRejoinChange, offStandardOutcome } from './hot-rejoin.js';
@@ -42,11 +42,6 @@ export const LIVE_DEFAULTS = Object.freeze({
 export const SPACING_LIMITS_FT = Object.freeze([1000, 20000]);
 /** The SMM's line abreast band (SMM 16.18 para 49); outside it the spacing is flown and flagged. */
 export const SPACING_BAND_FT = Object.freeze([4000, 6000]);
-/** Margins for the roll-out judgement: the shared table's ±100 ft (docs/TESTING.md). */
-export const JUDGE_MARGIN_FT = 100;
-/** The SMM's line abreast sweep: 0 to 10 degrees behind the 3/9 line (SMM 16.18 para 49). */
-export const SWEEP_MAX_DEG = 10;
-
 /** Ground tracks are kept at this interval, for the whole flight (up to the cap). */
 const TRACK_EVERY_SEC = 0.25;
 const TRACK_MAX_POINTS = 20000; // over 80 minutes at 0.25 s
@@ -82,33 +77,6 @@ export function checkSpacing(ft) {
     ? `Outside the SMM's ${SPACING_BAND_FT[0].toLocaleString('en-CA')} to ${SPACING_BAND_FT[1].toLocaleString('en-CA')} ft line abreast band (SMM 16.18 para 49); flown anyway.`
     : null;
   return { ok: true, value: n, flag };
-}
-
-/**
- * Judges #2 against Lead once both have rolled out. Line abreast: the spacing
- * across Lead's heading against the spacing set (±100 ft), and #2's place along it
- * (FORE if ahead of Lead's 3/9 line by more than 100 ft, AFT if more than 10° of
- * sweep behind it, SMM 16.18 para 49). After an in-place turn the pair is in trail
- * (SMM 16.19 para 59), so the distance is judged along Lead's heading instead.
- */
-export function judgePair(lead, wing, spacingFt, shape = 'abreast') {
-  const rel = relativeTo(lead, wing);
-  if (shape === 'trail') {
-    const gap = Math.abs(rel.fwd);
-    const labels = [];
-    if (gap < spacingFt - JUDGE_MARGIN_FT) labels.push('CLOSE');
-    else if (gap > spacingFt + JUDGE_MARGIN_FT) labels.push('LONG');
-    if (Math.abs(rel.left) > JUDGE_MARGIN_FT) labels.push('OFFSET');
-    return { shape, labels: labels.length ? labels : ['IN TRAIL'], gapFt: gap, offsetFt: rel.left, ahead: rel.fwd > 0 ? 'wing' : 'lead' };
-  }
-  const across = Math.abs(rel.left);
-  const labels = [];
-  if (across < spacingFt - JUDGE_MARGIN_FT) labels.push('TIGHT');
-  else if (across > spacingFt + JUDGE_MARGIN_FT) labels.push('WIDE');
-  const sweepDeg = Math.atan2(-rel.fwd, Math.max(across, 1)) / DEG;
-  if (rel.fwd > JUDGE_MARGIN_FT) labels.push('FORE');
-  else if (sweepDeg > SWEEP_MAX_DEG) labels.push('AFT');
-  return { shape, labels: labels.length ? labels : ['ON SPACING'], acrossFt: across, foreAftFt: rel.fwd, sweepDeg, side: rel.left > 0 ? 'left' : 'right' };
 }
 
 /**
@@ -252,14 +220,9 @@ export function createFormation(options = {}) {
     return true;
   }
 
-  /** Where #2 is now: the formation it is in (transitions.js classifyPair), remembering which side it is on. */
+  /** Where the formation is now (judge.js classify, 2- or 4-ship), remembering which side #2 is on. */
   function whereNow() {
-    if (state.aircraft.length > 2) {
-      const c = classifyFour(state.aircraft);
-      if (c.side) state.lastSide = c.side;
-      return c;
-    }
-    const c = classifyPair(state.aircraft[0], state.aircraft[1]);
+    const c = classify(state.aircraft);
     if (c.side) state.lastSide = c.side;
     return c;
   }
@@ -351,10 +314,9 @@ export function createFormation(options = {}) {
 
   /** The end of fluid manoeuvring: back in fighting wing, judged against its band (spec section 10 table). */
   function finishFluid() {
-    const [lead, wing] = state.aircraft;
     state.fluid = null;
     state.plans = Object.fromEntries(state.aircraft.map((a) => [a.id, { segments: [] }]));
-    const j = judgeFormation('fw', lead, wing, state.spacingFt);
+    const j = judge(state.aircraft, { key: 'fw' }, { spacingFt: state.spacingFt });
     state.judged = { label: 'Fluid manoeuvring, terminated', shape: 'formation', labels: j.inBand ? ['IN POSITION'] : j.labels, text: j.text, tone: j.tone };
     state.current = null;
     state.planned = {};
@@ -368,7 +330,7 @@ export function createFormation(options = {}) {
       // A change of formation is judged against the target formation's band in the spec table (section 10; the four:
       // design section 7, each link against the aircraft it flies off).
       const c = state.current.change;
-      const j = c.four ? judgeFourFormation(c.to, state.aircraft, c.side, { spacingFt: state.spacingFt }) : judgeFormation(c.to, lead, wing, state.spacingFt);
+      const j = judge(state.aircraft, { key: c.to, side: c.side }, { spacingFt: state.spacingFt });
       state.judged = { label: state.current.label, shape: 'formation', labels: j.inBand ? ['IN POSITION'] : j.labels, text: j.text, tone: j.tone, ...(c.four ? { ships: j.ships } : {}) };
       // An off-standard hot turning rejoin (TS-62) says on the card how #2 dealt with the start.
       if (c.offStandard) state.errorOutcome = offStandardOutcome(c.offStandard, j.inBand, state.current.label);
@@ -376,15 +338,15 @@ export function createFormation(options = {}) {
       // G-warm ends in line abreast at the tightened gap (AFM8 brief p.16 item 5); that gap is the four's from now on.
       const g = state.current.gWarm;
       state.spacingFt = g.spacingAfter;
-      state.judged = { label: state.current.label, ...judgeFour(state.aircraft, state.spacingFt, 'abreast', judgePair), gFlown: gFlownWords(g) };
+      state.judged = { label: state.current.label, ...judge(state.aircraft, { shape: 'abreast' }, { spacingFt: state.spacingFt }), gFlown: gFlownWords(g) };
     } else if (state.current.formationTurn) {
       // A turn in fighting wing or a close formation ends judged against that formation (spec section 10 table; the four, link by link).
       const ft = state.current.formationTurn;
       const four = state.aircraft.length > 2;
-      const j = four ? judgeFourFormation(ft.key, state.aircraft, ft.side, { spacingFt: state.spacingFt }) : judgeFormation(ft.key, lead, wing, state.spacingFt);
+      const j = judge(state.aircraft, { key: ft.key, side: ft.side }, { spacingFt: state.spacingFt });
       state.judged = { label: state.current.label, shape: 'formation', labels: j.inBand ? ['IN POSITION'] : j.labels, text: j.text, tone: j.tone, ...(four ? { ships: j.ships } : {}) };
     } else {
-      state.judged = { label: state.current.label, ...(state.aircraft.length > 2 ? judgeFour(state.aircraft, state.spacingFt, state.current.shape, judgePair) : judgePair(lead, wing, state.spacingFt, state.current.shape)) };
+      state.judged = { label: state.current.label, ...judge(state.aircraft, { shape: state.current.shape }, { spacingFt: state.spacingFt }) };
       if (state.current.errorRun) state.errorOutcome = outcomeOf(state.current.errorRun, lead, wing, state.current.label);
     }
     state.current = null;
@@ -455,7 +417,7 @@ export function createFormation(options = {}) {
     },
     /**
      * A "Change formation" press (spec section 10, transitions.js): to is 'lab', 'fw', 'echelon', 'route' or 'astern';
-     * for the four (spec section 8, four-ship-moves.js) one of four-ship-slots.js FOUR_FORMATIONS' keys;
+     * for the four (spec section 8, four-ship-moves.js) one of slots.js FOUR_FORMATIONS' keys;
      * options: { side: 'keep' | 'left' | 'right', rejoin: 'into' | 'straight' }. Flown at once when nothing is being
      * flown, otherwise queued like a manoeuvre. Returns 'started', 'queued' or 'refused' (state.refusal says why).
      */
@@ -473,9 +435,9 @@ export function createFormation(options = {}) {
     },
     /**
      * Which formation the aircraft are in now: for the pair { key: 'lab' | 'fw' | 'echelon' | 'route' | 'astern' | 'other', side },
-     * for the four one of four-ship-slots.js FOUR_FORMATIONS or 'other', with #2's side.
+     * for the four one of slots.js FOUR_FORMATIONS or 'other', with #2's side.
      */
-    where: () => (state.fluid ? { key: 'fluid', side: state.lastSide } : state.aircraft.length > 2 ? classifyFour(state.aircraft) : classifyPair(state.aircraft[0], state.aircraft[1])),
+    where: () => (state.fluid ? { key: 'fluid', side: state.lastSide } : classify(state.aircraft)),
     /**
      * A Lead button in fluid manoeuvring (fluid-lead.js FLUID_MOVES: levelTurn, wingsLevel, reversal, climb, descend, loop, terminate); dir +1
      * left, -1 right. Returns 'started', 'queued' (the entry is still flown) or 'refused' (state.refusal says why).

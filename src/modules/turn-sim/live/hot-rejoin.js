@@ -19,7 +19,8 @@ import { wrapPi } from '../../../core/angles.js';
 import { KT_TO_FTPS, G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft, smoother } from './flight.js';
 import { relativeTo, turnSeg, wholeDegree, onStep, DEG } from './manoeuvres.js';
-import { recordFlight, KIAS_LAB, KIAS_OUTSIDE_LAB, REJOIN, classifyPair, describe } from './transitions.js';
+import { recordFlight, KIAS_LAB, KIAS_OUTSIDE_LAB, REJOIN, describe } from './transitions.js';
+import { classify } from './judge.js';
 import { FORMATIONS, LENGTH_FT, fwShapeNow } from './slots.js';
 import { makeTrack, seedTrack, posesFrom, settleLast, followInto, slotInWorld, poseOf, laggedBank } from './kinematic.js';
 import { KINEMATIC, CLOSE, slotPoint, routePoints, movingSlot, rollEvents, eventsEnd, lastRollEnd, laneAndBelow, finishLine, leadTurnSegs } from './kinematic-moves.js';
@@ -709,7 +710,7 @@ export function planHotRejoinChange(pair, to, options = {}, t0 = 0) {
   const [lead, wing] = pair;
   if (to === 'lab' || (options.rejoin ?? 'into') !== 'into') return null;
   const errors = options.errors ?? null;
-  const from = classifyPair(lead, wing);
+  const from = classify([lead, wing]);
   const spacingFt = options.spacingFt ?? 6000;
   const blockFt = options.blockFt ?? 8000;
   const rel = relativeTo(lead, wing);

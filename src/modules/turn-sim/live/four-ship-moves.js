@@ -5,7 +5,7 @@
 // it flies off, through the same flight step as every other aircraft, so the path drawn is the path flown (spec F1).
 //
 // How it plans.
-//  - The slots are four-ship-slots.js's one table.
+//  - The slots are slots.js's one table.
 //  - The route is the cheapest way through the from-to graph (design section 6): every formation joins fighting wing or
 //    finger by a move the manuals give; anything else goes through them. Each edge is one or more legs.
 //  - A leg plans Lead first, then the wingmen in an order where the aircraft each flies off is already planned
@@ -23,7 +23,7 @@ import {
   recordFlight, trackTwice, flyStep, dryRunT, speedSeg, phase, slide, dropBack, closeThrough, rejoinTo, openOut,
   REJOIN, straightAhead, sweepOut, stopAt, cornerBehind,
 } from './transitions.js';
-import { isStacked, classifyFour, judgeFourFormation } from './four-ship-slots.js';
+import { isStacked, classify, judge } from './judge.js';
 import { FOUR_FORMATIONS, LENGTH_FT, slotsFor, pairSlot, refsFor, fourWords, FW_STEP_DOWN_FT } from './slots.js';
 
 /** A generous limit on one 4-ship change (design section 9: Spread 4 to finger is estimated at 4 to 6 minutes); it only catches a plan that never ends. */
@@ -140,7 +140,7 @@ function hold(c, id, track, over = {}, altFt = c.by.get(id).altAboveFt) {
   const rel = over.world ? { fwd: me.xFt - ref.xFt, left: me.yFt - ref.yFt } : relativeTo(ref, me);
   return phase({ fwd: rel.fwd, left: rel.left, alt: altFt }, { track, bankCapDeg: 45, overtakeKias: 15, undertakeKias: 15, advanceTol: 10, finalTol: 3, ...over });
 }
-/** A table slot (four-ship-slots.js) as a phase of the given kind. */
+/** A table slot (slots.js) as a phase of the given kind. */
 const toSlot = (c, kind, slot, over = {}) => kind(place(c, slot.fwd, slot.left, slot.alt), { track: slot.ref, ...over });
 /** Fighting wing kept off a reference that is moving or turning (estimates: enough bank and speed to keep the slot). */
 const fwFollow = (slot, over = {}) => phase(slot, { fwdRate: 40, latRate: 40, vrel0: 30, kcap: 0.05, d0: 100, vrelMax: 120, decel: 2, bankCapDeg: 60, overtakeKias: 25, undertakeKias: 25, advanceTol: 25, finalTol: 6, ...over });
@@ -728,7 +728,7 @@ export function planChangeFour(aircraft, to, options = {}, t0 = 0) {
   const f = FOUR_FORMATIONS[to];
   if (!f) return { ok: false, reason: `There is no four-ship formation called ${to}.` };
   if (f.later) return { ok: false, reason: `${f.label} is the live build, coming later.` };
-  const from = classifyFour(aircraft);
+  const from = classify(aircraft);
   const sNow = from.side || opts.lastSide || -1;
   const want = opts.side ?? 'keep';
   const sTo = to === 'trail' ? 0 : want === 'left' ? 1 : want === 'right' ? -1 : sNow;
@@ -754,7 +754,7 @@ export function planChangeFour(aircraft, to, options = {}, t0 = 0) {
   }
   // Each later leg's start states came from flying the earlier legs, so the joined plan flies exactly that.
   const plans = joinLegs(legs, aircraft.map((a) => a.id));
-  const judged = judgeFourFormation(to, now, sTo, { spacingFt: opts.spacingFt });
+  const judged = judge(now, { key: to, side: sTo }, { spacingFt: opts.spacingFt });
   if (!judged.inBand) return { ok: false, reason: `No safe change from here: it would end ${judged.labels.join(', ')}.`, from: from.key, to, end: now, judged };
   const fromWords = fourWords(from);
   const toWords = fourWords({ key: to, side: sTo });

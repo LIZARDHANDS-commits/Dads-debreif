@@ -1,13 +1,15 @@
 // The info tags beside each aircraft in the live picture (spec section 10.4, decision TS-56): Fight Sim's look (a dark box,
 // a border in the aircraft's colour, a white title and a detail line in its colour), drawn by view.js. This file only
 // works out the words: what each aircraft is doing, and for a wingman how he sits against the aircraft he flies off.
+// The verdicts come from the one judge (live/judge.js fwState and closeState, built on its link judge); this file picks
+// which one each wingman gets.
 //
 // The states:
 //  - Fighting wing: the cone of SMM 12.29 para 69 and Fig 12.19, 500 to 1,000 ft and 30° to 60° of sweep back from the
 //    wing line of the aircraft flown off. Inside 500 ft TIGHT, past 1,000 ft STRETCHED, otherwise outside the sweep OUT OF
 //    CONE, and inside it all IN POSITION. The sweep is shown the manual's way, from the wing line (Fig 12.19).
-//  - The close formations: the in-position test the roll-out judgement uses (transitions.js judgeFormation, the 2-ship
-//    table, link by link in the 4-ship). In it, IN POSITION; too close (TIGHT, TOO CLOSE, FORE) TIGHT; too far (WIDE, AFT,
+//  - The close formations: the in-position test the roll-out judgement uses (live/judge.js judgeLink, the 2-ship
+//    bands, link by link in the 4-ship). In it, IN POSITION; too close (TIGHT, TOO CLOSE, FORE) TIGHT; too far (WIDE, AFT,
 //    TOO FAR BACK) STRETCHED; otherwise the judgement's own word (HIGH, LOW, OFF LINE, WRONG SIDE).
 //  - Line abreast and the wide 4-ship formations: no state, the spacing only (the card judges them).
 // While Lead manoeuvres (turning, pitching or pulling), fighting wing (2- and 4-ship) and fluid manoeuvring judge the
@@ -22,37 +24,15 @@
 // formation.js first: the live files import each other in a loop, and entering it at transitions.js reads REJOIN in
 // kinematic-moves.js before transitions.js has set it (the same happens on main if transitions.js is loaded first).
 import './live/formation.js';
-import { relativeTo, DEG } from './live/manoeuvres.js';
-import { judgeFormation } from './live/transitions.js';
+import { relativeTo } from './live/manoeuvres.js';
+import { fwState, closeState, closeLinkKind } from './live/judge.js';
 import { FORMATIONS, FOUR_FORMATIONS, slotsFor } from './live/slots.js';
 import { pursuitWord } from './fluid-panel.js';
-import { isManoeuvring, rangeWord } from './live/fluid.js';
+import { isManoeuvring } from './live/fluid.js';
 import { powerWord } from './live/power.js';
 
-/** The fighting wing cone (SMM 12.29 para 69, Fig 12.19): feet from the aircraft flown off, and sweep back from its wing line. */
-export const FW_CONE = Object.freeze({ minFt: 500, maxFt: 1000, minSweepDeg: 30, maxSweepDeg: 60 });
-
 const CLOSE_KEYS = new Set(['echelon', 'route', 'astern', 'finger', 'box', 'trail']);
-const TIGHT_WORDS = new Set(['TIGHT', 'TOO CLOSE', 'FORE']);
-const STRETCHED_WORDS = new Set(['WIDE', 'AFT', 'TOO FAR BACK', 'TOO FAR']);
 const ft = (n) => `${Math.round(Math.abs(n)).toLocaleString('en-CA')} ft`;
-
-/**
- * Where `wing` sits in the fighting wing cone of `ref`: { state, rangeFt, sweepDeg } (sweep back from ref's wing line).
- * distanceOnly: Lead is manoeuvring, so only the distance is judged (TIGHT, STRETCHED, IN RANGE). Ahead of ref's 3/9
- * line is AHEAD OF 3/9 either way.
- */
-export function fwState(ref, wing, { distanceOnly = false } = {}) {
-  const rel = relativeTo(ref, wing);
-  const rangeFt = Math.hypot(rel.fwd, rel.left);
-  const sweepDeg = Math.atan2(-rel.fwd, Math.max(Math.abs(rel.left), 1e-6)) / DEG;
-  const c = FW_CONE;
-  let state;
-  if (rel.fwd > 0) state = 'AHEAD OF 3/9';
-  else if (distanceOnly) state = rangeWord(rangeFt);
-  else state = rangeFt < c.minFt ? 'TIGHT' : rangeFt > c.maxFt ? 'STRETCHED' : sweepDeg < c.minSweepDeg || sweepDeg > c.maxSweepDeg ? 'OUT OF CONE' : 'IN POSITION';
-  return { state, rangeFt, sweepDeg, distanceOnly };
-}
 
 /**
  * Fluid manoeuvring's tags (spec section 10.3, TS-57): Lead with the manoeuvre and its phase; #2 with his pursuit (LAG,
@@ -74,18 +54,6 @@ function fluidTags(state) {
   };
   return out;
 }
-
-/** A close formation's in-position test turned into one state word, for the 2-ship key (echelon, route, astern). */
-export function closeState(pairKey, ref, wing) {
-  const j = judgeFormation(pairKey, ref, wing, undefined, { wingPlane: true }); // stepped up or down in a turn is in place
-  if (j.inBand) return 'IN POSITION';
-  if (j.labels.some((l) => TIGHT_WORDS.has(l))) return 'TIGHT';
-  if (j.labels.some((l) => STRETCHED_WORDS.has(l))) return 'STRETCHED';
-  return j.labels[0];
-}
-
-/** The 2-ship table's formation for one 4-ship link (four-ship-slots.js judgeFourFormation's rule). */
-const pairKeyFor = (key, id) => (key === 'trail' || key === 'astern' || (key === 'box' && id === 4) ? 'astern' : key === 'route' ? 'route' : 'echelon');
 
 const WIDE_KEYS = new Set(['lab', 'spread4', 'offsetBox', 'fluid4', 'other']);
 /**
@@ -132,7 +100,7 @@ export function tagLines(state, where) {
       const s = fwState(ref, a, { distanceOnly: isManoeuvring(lead) });
       detail = s.distanceOnly ? `${s.state} · ${ft(s.rangeFt)}` : `${s.state} · ${ft(s.rangeFt)}, ${Math.round(s.sweepDeg)}° from the wing line`;
     } else if (CLOSE_KEYS.has(target)) {
-      detail = closeState(four ? pairKeyFor(target, a.id) : target, ref, a);
+      detail = closeState(four ? closeLinkKind(target, a.id) : target, ref, a);
     } else {
       const rel = relativeTo(ref, a);
       detail = `${ft(rel.left)} abeam${refId === 1 ? '' : ` of ${ref.name ?? `#${refId}`}`}`;
