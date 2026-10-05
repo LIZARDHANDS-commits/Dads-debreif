@@ -213,15 +213,30 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
         aligning = true;
       }
       const ratio = W.tasFtps / W.kias;
-      let pull;
+      let pullX;
+      let pullY;
       if (ph.closureFtps) {
-        pull = Math.min(closureCap(ph, L, W, ex, ey, d, blockFt, farFromFt), CLOSURE.nearGain * d);
+        // The closure, dying away near the slot in proportion to the distance: fore and aft at the tracker's own position
+        // gain (power is the slow axis), sideways at CLOSURE.nearGain (bank is quick). One gain of 1/s on both left #2
+        // hunting about 20 ft fore and aft of the slot, never settling (V2.22-V2.23: the refusals Patrick saw 5 Oct 07:06Z).
+        const pull = closureCap(ph, L, W, ex, ey, d, blockFt, farFromFt);
+        const c = Math.cos(L.headingRad);
+        const s = Math.sin(L.headingRad);
+        const ef = ex * c + ey * s;
+        const el = -ex * s + ey * c;
+        const share = d > 1e-6 ? pull / d : 0;
+        const vf = Math.sign(ef) * Math.min(share * Math.abs(ef), GAIN.position * Math.abs(ef));
+        const vl = Math.sign(el) * Math.min(share * Math.abs(el), CLOSURE.nearGain * Math.abs(el));
+        pullX = vf * c - vl * s;
+        pullY = vf * s + vl * c;
       } else {
         const cap = Math.min(ph.vrelMax, ph.vrel0 + ph.kcap * Math.max(0, d - ph.d0), Math.sqrt(2 * ph.decel * d)); // never closing faster than it can stop (decel in ft/s²)
-        pull = Math.min(cap, GAIN.position * d);
+        const pull = Math.min(cap, GAIN.position * d);
+        pullX = d > 1e-6 ? (ex / d) * pull : 0;
+        pullY = d > 1e-6 ? (ey / d) * pull : 0;
       }
-      const vdx = vpx + (d > 1e-6 ? (ex / d) * pull : 0);
-      const vdy = vpy + (d > 1e-6 ? (ey / d) * pull : 0);
+      const vdx = vpx + pullX;
+      const vdy = vpy + pullY;
       const speed = Math.hypot(vdx, vdy);
       psiCmd = speed > T.minSpeedFtps ? Math.atan2(vdy, vdx) : L.headingRad;
       // A closure phase may be faster or slower than the aircraft flown off by the closure rate (it replaces the 15 KIAS
