@@ -513,6 +513,33 @@ Patrick's rulings of 4 Oct 19:15Z, 23:29Z and 23:37-23:38Z and 5 Oct 00:11Z-02:0
 
 **Checks.** None added (Patrick 06:25Z); typecheck and a page-load check, and the three default turning rejoins each planned once to see they don't refuse. V2.63: each turning rejoin start planned once at each Rates choice (TS-69 lists the three that still fall back). V2.64: the same, two still fall back (TS-69); the close moves' times checked unchanged after the tracker fix. V2.65: none fall back; the close moves' times unchanged.
 
+### 10.7 Lead's moves in fighting wing (V2.66, TS-70; Patrick 5 Oct 09:03Z, card "Yes, as written" 09:07Z; built 5 Oct, not yet in Patrick's sign-off)
+
+Patrick 09:03Z: "as SOON as "fighting wing" is clicked and the aircraft is in the cone (can still be moving) Lead can start manoeuvring. The manoeuvres are currently listed as the same from line abreast -- they should be normal clearhood turns and climbs etc. fluid manoeuvring is just fighting wing aerobatics."
+
+- **The buttons:** in fighting wing (2-ship) the formation box shows "Fighting wing, Lead": Level turn L and R, Wings level, Reversal, Climb, Descend. These are fluid's own moves without the aerobatics, and the level turn uses the "Lead's level turn bank" setting. The line abreast turns (Delayed 90 and 45, Check, In place 90, Hook) no longer show in fighting wing; they stay in line abreast and the close formations. Fluid manoeuvring stays as fighting wing aerobatics (10.3).
+- **When:** as soon as #2 is in the cone, even while a change to fighting wing is still flown; a press ends that change where #2 is.
+- **How it flies:** each press is flown at once and planned again from where the pair is. A level turn is held until the next press (planned two full turns ahead). A reversal rolls to the other side at the same bank. A climb or descent is fluid's 2,000 ft at a 15° path at the steepest, and a turn being flown carries on (estimates). #2 flies the fighting wing turns' tracker (TS-55, `formation-turns.js` fwGoal): anywhere in the cone is his place, high or low (Patrick 08:58Z), collapsing toward Lead's six while Lead is banked past about 32-42° (SMM 12.29 para 69), and he climbs and descends with Lead. After Wings level, once #2 has settled, the move ends and is judged against the fighting wing band.
+- **What moves on screen:** the line abreast turn buttons leave the Manoeuvres list in fighting wing. The formation buttons are greyed while Lead flies a move ("Wings level first").
+- **Not built:** the 4-ship; Lead's power is the commanded speed's (no MAX); #2 doesn't pick a different place in the cone on his own.
+
+**Checks.** None added (Patrick 06:25Z, 09:08Z); typecheck, a page-load check, and one dry run (into fighting wing, a level turn, a climb, a reversal, wings level: #2 stayed 660-800 ft, near Lead's six in the turns and at about 54° of sweep after).
+
+### 10.8 Lag roll to fighting wing (2-ship, TS-71, built 5 Oct, not yet in Patrick's sign-off)
+
+Patrick 08:54Z: "you hit "lag roll" and the airplane flips up and rolls canopy to canopy to lead then lands in the cone on the other side, power pitch and bank as required"; 08:58Z: fighting wing can use the whole cone, high or low. The SMM and EFIG do not name the lag roll; the nearest pages are SMM 12.29 para 69, SMM 12.30-12.31 para 74 and SMM 14.8 paras 18-19, Fig 14.1, Table 14.1. Numbers with no page or ruling beside them are estimates (`live/tuning.js` LAG_ROLL).
+
+**What changes on screen.**
+- A **Lag roll** button (added by the screen work, not in this piece) calls `formation.lagRoll()`. It works from fighting wing in the 2-ship with Lead straight and level; otherwise the card says why ("The lag roll starts from fighting wing; change to fighting wing first.", "For now the lag roll flies only with Lead straight and level.", "The lag roll is 2-ship only for now."). In fluid manoeuvring it asks for Terminate first. Pressed while something else flies, it is queued.
+- The card shows the plan in one line: the pull, the nose-up, the range over Lead's six, the slowest speed, the side he lands on, and the flag when Lead leaves the top half of #2's canopy. At the end it is judged as fighting wing on the new side.
+- #2 goes through inverted in the 2D and 3D views (the same poses as Lead's barrel roll). Nothing else moves or disappears.
+
+**How it flies.** Lead flies straight on. #2's path is planned at the press in Lead's frame and played as a pose track: he pulls up (about 2.5-3 G, nose 30-45° up), rolls toward Lead at about 50°/s, passes over Lead's six inverted, canopy to canopy, at about 1,000-1,300 ft and about 2 G, slowing to about 165-175 KIAS, comes down on the other side into the cone (anywhere in the sim's fighting wing region, which may be past the 1,000 ft band), then closes to the slot at a 20 kt overtake (EFIG p.374, the top of 10-20 KIAS). A small search picks the path; G stays under core `availableG` at every step, positive throughout, and the plan never comes inside 500 ft of Lead (SMM 16.23). Speed is what the path needs (no energy model).
+
+**Failure and stale data.** No outside data. A start the search can't fly within the G and the 500 ft bubble is refused with the reason on the card; nothing moves.
+
+**Checks.** None added (Patrick 06:25Z, 09:08Z); a typecheck and one dry run of `formation.lagRoll()` from the default fighting wing start (it plans in about 0.2 s and ends IN POSITION on the other side).
+
 ---
 
 # Part 2. Plan mode: the spec from before the reset

@@ -98,7 +98,7 @@ function cardFor(state, wingSide) {
   } else if (c?.change) {
     flying = `Flying: ${c.change.flying}`;
   } else if (c) {
-    const sided = MANOEUVRES[c.key].sided;
+    const sided = !c.fwMove && MANOEUVRES[c.key]?.sided; // a fighting wing move (TS-70) names its side in its label
     flying = `Flying: ${c.label}${sided ? ` (${intoOrAway(c.dir, wingSide)})` : ''}`;
   }
   const j = state.judged;
@@ -386,11 +386,14 @@ function mount(root, app) {
     changeUi.update(state, whereAll);
     changeUi.renderCard(state, whereAll);
     const ships = state.aircraft.length > 2 ? 4 : 2;
-    if (state.current?.change) {
+    // In fighting wing the pair's Lead buttons are the level turns, climbs and descents in the formation box, as soon as #2
+    // is in the cone, even while a change to it is still flown (TS-70, Patrick card 09:07Z).
+    const pairFw = ships === 2 && whereAll.key === 'fw';
+    if (state.current?.change && !pairFw) {
       // While a change is flown, the new formation's manoeuvres wait until the aircraft are in it (Patrick, 5 Oct).
       ui.setMovesEnabled(false, undefined, 'Changing formation. Its manoeuvres show once the change is flown.');
-    } else if (whereAll.key === 'fluid') {
-      ui.setMovesEnabled(false, undefined, ''); // the fluid buttons show instead (transitions-panel.js)
+    } else if (whereAll.key === 'fluid' || pairFw) {
+      ui.setMovesEnabled(false, undefined, ''); // the fluid buttons show instead (transitions-panel.js), or in fighting wing Lead's moves
     } else if (TURN_FORMATIONS[ships].includes(whereAll.key)) {
       // In fighting wing and the close formations the turn buttons turn the formation (TS-55, spec section 10.2); the
       // shackle, the cross turn and G-warm stay line abreast moves.
@@ -474,7 +477,15 @@ function mount(root, app) {
 
   /** A Lead button in fluid manoeuvring (spec section 10.3): flown at once, or after the entry if it is still flown. */
   function pressFluid(key, dir) {
-    const how = formation.pressFluid(key, dir);
+    // Outside fluid manoeuvring the group holds Lead's fighting wing moves (TS-70) and #2's lag roll (TS-71).
+    if (key === 'lagRoll') {
+      const how = formation.lagRoll();
+      if (how === 'queued') app.status('The lag roll is next, after the move being flown.');
+      if (how !== 'refused') play();
+      refresh();
+      return;
+    }
+    const how = state.fluid ? formation.pressFluid(key, dir) : formation.pressFw(key, dir);
     if (how === 'queued') app.status(`${state.fluid.session.queued?.label ?? 'That'} is next, after the entry.`);
     if (how !== 'refused') play();
     refresh();

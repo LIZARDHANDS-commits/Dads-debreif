@@ -524,3 +524,31 @@ export const HOLD = Object.freeze({
  * it was 360°/s², Patrick card 4 Oct 09:54Z, which reaches 180°/s only in a roll of 90° or more).
  */
 export const ROLL = Object.freeze({ maxRateDps: 180, maxAccelDps2: 720 });
+
+// ---- the lag roll to fighting wing (lag-roll.js; spec section 10.8, TS-71) ------------------------------------------
+
+/**
+ * #2's lag roll from fighting wing to the cone on Lead's other side (Patrick 5 Oct 08:54Z: "the airplane flips up and rolls
+ * canopy to canopy to lead then lands in the cone on the other side, power pitch and bank as required"). The SMM and EFIG
+ * do not name the lag roll; the nearest pages are SMM 12.29 para 69 (the cone, using the vertical), SMM 12.30-12.31
+ * para 74 (lag pursuit) and SMM 14.8 paras 18-19, Fig 14.1, Table 14.1 (the barrel roll). Every number here is an
+ * estimate unless a page or ruling is named beside it.
+ */
+export const LAG_ROLL = Object.freeze({
+  pullG: Object.freeze([3, 2.5]), // the searched pull: the barrel roll's 3 G entry (SMM Table 14.1; Fig 14.1) and a softer 2.5 (estimate)
+  noseUpDeg: Object.freeze([45, 30]), // the searched nose-up: 30-45° (estimate; 45 is the barrel roll's, SMM 14.8 para 19)
+  noseUpSlopDeg: 6, // how near the planned path's steepest climb must come to the searched nose-up (estimate)
+  topKias: 165, // the speed aimed for over the top, about 160-170 KIAS (estimate)
+  topKiasBand: Object.freeze([150, 185]), // a plan whose slowest speed is outside this is not used (estimate)
+  topRangeFt: Object.freeze([900, 1400]), // range from Lead passing over his six, about 1,000-1,300 ft (estimate, widened 100 ft each way)
+  bubbleFt: 500, // a plan that comes inside 500 ft of Lead is refused (SMM 16.23, the fluid bubble; FW_BAND's inner edge, SMM 12.29 para 69)
+  minG: 0.3, // canopy to canopy means positive G throughout: no plan pushes (estimate)
+  rollSec: Object.freeze([8, 30]), // the roll's length searched, in whole seconds (estimate)
+  climbFt: Object.freeze([200, 2000]), // how far above the straight line from start to end he goes, searched in 100 ft steps (estimate)
+  fallBackFt: Object.freeze([0, 1000]), // how far behind the slot the roll ends, searched in 100 ft steps (estimate)
+  searchStepSec: 0.25, // the search's coarse time step (the flown path is planned at the sim's own step)
+  coneRangeFt: Object.freeze([400, 1250]), // where the roll may end: the sim's fighting wing region (judge.js classifier, 400-1,300 ft), kept 50 ft inside its far edge (estimate)
+  coneSweepDeg: Object.freeze([20, 70]), // the same region's sweep (judge.js classifier; estimate)
+  closeOvertakeKias: 20, // closing back up to the slot after the roll: the top of EFIG p.374's 10-20 KIAS overtake (estimate choice)
+  rollingAboveDps: 10, // above this roll rate the rolling G limit (core availableG, rolling) is the one checked (estimate)
+});
