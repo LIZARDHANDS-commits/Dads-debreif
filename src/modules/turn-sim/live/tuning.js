@@ -422,8 +422,12 @@ export const WING = Object.freeze({
   latDeg: 15, // off Lead's tail, inside the 30° half cone (estimate; cone: Patrick 19:20Z row 2)
   collapseSec: 6, // how long the collapse toward the six takes (estimate)
   rangeSec: 6, // how long a new distance setting takes to fly (estimate)
-  blendInSec: 10, // entry: from the fighting wing slot into the cone (estimate)
-  blendOutSec: 12, // terminate: from the cone back to the fighting wing slot (estimate)
+  // Entry and terminate: from the fighting wing slot into the cone and back. Since V2.24 the time is what the close-in
+  // rate gives over that distance (fluid.js blendSecs; Patrick 5 Oct 04:59Z: "move quickly into fluid maneouvering or into
+  // and out of fighting wing"); these two are the fallback when no time is given.
+  blendInSec: 10, // entry (estimate)
+  blendOutSec: 12, // terminate (estimate)
+  blendMinSec: 3, // no blend quicker than 3 s, however quick the rate (estimate)
   smoothSteps: 10, // the position line is smoothed over 10 steps (0.5 s) either side (estimate)
   maxBehindSec: 10, // the furthest back along Lead's path #2 can be
   turnSec: 8, // the lag or lead offset is what the cue wanted over the last 8 s, averaged (estimate)
@@ -469,6 +473,11 @@ export const HOLD = Object.freeze({
   jerkFtps3: 1.7,
   margin: Object.freeze({ share: 0.05, ktps: 0.05 }),
   extraSec: 120,
+  // Cutting inside when behind in fluid manoeuvring (V2.24, Patrick card 5 Oct 04:53Z "Geometry: cut inside"):
+  cutShare: 0.25, // the most offset inside Lead's turn, as a share of the range: about sin 15°, the lag line's angle, so he goes toward pure pursuit and stays inside the 30° cone (estimate)
+  cutSec: 4, // how long moving into or out of the offset takes (estimate)
+  cutMinCurvPerFt: 1 / 20000, // a line straighter than a 20,000 ft radius has no inside to cut (estimate)
+  landSec: 1, // the live hold (fluid manoeuvring, V2.24): once caught up, the last fraction of a foot is blended onto the line over 1 s (estimate)
 });
 
 // ---- roll (from flight.js) -----------------------------------------------------------------------------------------

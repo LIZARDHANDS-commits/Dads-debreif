@@ -50,8 +50,8 @@ function fluidTags(state) {
     [lead.id]: { title: `${lead.name ?? 'Lead'} · ${now.label}`, detail: `${now.phase}, ${Math.round(lead.kias)} KIAS`, power: powerWord(lead.power), doing: now.label, position: now.phase, range: null },
   };
   out[wing.id] = {
-    title: `${wing.name ?? '#2'} · ${pursuitWord(now.wingCue)}`,
-    doing: pursuitWord(now.wingCue),
+    title: `${wing.name ?? '#2'} · ${wing.stretched ? 'STRETCHED' : pursuitWord(now.wingCue)}`, // held to full power behind his place (TS-63)
+    doing: wing.stretched ? 'STRETCHED' : pursuitWord(now.wingCue),
     position: r ? (r.aspectDeg >= 90 ? 'AHEAD OF 3/9' : r.state) : null,
     range: r ? `${ft(r.rangeFt)}, aspect ${Math.round(r.aspectDeg)}°` : null,
     detail: r ? `${r.aspectDeg >= 90 ? 'AHEAD OF 3/9' : r.state} · ${ft(r.rangeFt)}, aspect ${Math.round(r.aspectDeg)}°` : '',

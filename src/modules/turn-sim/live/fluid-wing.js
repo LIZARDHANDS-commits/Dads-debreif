@@ -102,9 +102,9 @@ export function startWing({ t, side, rangeFt, slot }) {
 
 /**
  * The wing state one step on, from Lead's cue for that step (fluid-lead.js): { mode, latDeg, blend } and the range
- * setting. Returns a new state.
+ * setting; blend, when given, the entry and terminate times ({ inSec, outSec }). Returns a new state.
  */
-export function nextWing(w, cue, t, rangeFt) {
+export function nextWing(w, cue, t, rangeFt, blend = null) {
   const out = { ...w };
   out.mode = cue.mode;
   out.share = cue.mode === 'lag' ? -WING.pursuitShare : cue.mode === 'lead' ? WING.pursuitShare : 0;
@@ -113,7 +113,8 @@ export function nextWing(w, cue, t, rangeFt) {
   const r = out.range.to;
   const latTo = out.side * r * Math.sin((cue.latDeg ?? WING.latDeg) * DEG);
   out.lat = retarget(w.lat, latTo, t, cue.settleSec ?? WING.collapseSec);
-  if (cue.blend !== undefined) out.blend = retarget(w.blend, cue.blend, t, cue.blend > valueOf(w.blend, t) ? WING.blendInSec : WING.blendOutSec);
+  // blend: { inSec, outSec }, the times the close-in rate gives (fluid.js blendSecs, V2.24), else WING's.
+  if (cue.blend !== undefined) out.blend = retarget(w.blend, cue.blend, t, cue.blend > valueOf(w.blend, t) ? blend?.inSec ?? WING.blendInSec : blend?.outSec ?? WING.blendOutSec);
   return out;
 }
 
