@@ -794,3 +794,13 @@
   padding: 0.2rem 0.6rem;
   font-size: var(--text-sm);
 }
+
+/* Controls: every text 1 px bigger (Patrick, 5 Oct). */
+[data-module='turn-sim'] .ts-controls .panel-body { font-size: calc(var(--text-md) + 1px); }
+[data-module='turn-sim'] .ts-controls .ts-section-bar h3 { font-size: calc(var(--text-md) + 1px); }
+[data-module='turn-sim'] .ts-controls .ts-change-subtitle { font-size: calc(0.72rem + 1px); }
+[data-module='turn-sim'] .ts-controls .ts-change-group .ts-change-button,
+[data-module='turn-sim'] .ts-controls .ts-side-row .button,
+[data-module='turn-sim'] .ts-controls .ts-hint { font-size: calc(var(--text-sm) + 1px); }
+[data-module='turn-sim'] .ts-controls .ts-move-name,
+[data-module='turn-sim'] .ts-controls .ts-move-button { font-size: calc(var(--text-md) + 1px); }

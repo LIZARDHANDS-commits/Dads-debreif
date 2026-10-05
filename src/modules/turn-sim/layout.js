@@ -122,6 +122,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   }
   // The left column (Patrick, 5 Oct): Controls (open), then Scenario and Settings, each a box that starts closed.
   const movesPanel = createPanel({ title: 'Controls' });
+  movesPanel.element.classList.add('ts-controls'); // its text 1 px bigger (Patrick, 5 Oct)
   const queueLine = h('p', { class: 'ts-hint ts-queue', role: 'status' });
   const movesHint = h('div', { class: 'ts-section-bar' }, h('h3', {}, 'Manoeuvres')); // the MANOEUVRES bar (Patrick, 5 Oct)
   const movesNote = h('p', { class: 'ts-hint ts-warning', role: 'status', hidden: true }, PAIR_MOVES_NOTE);
