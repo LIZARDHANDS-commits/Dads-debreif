@@ -21,6 +21,25 @@ export const THRESHOLD_29L = Object.freeze({ x: 2796, y: -2776 });
 export const DEPARTURE_END_29L = Object.freeze({ x: -3572, y: 690 });
 
 /**
+ * Runway 29R threshold bar and its departure end (the 11L threshold bar), map feet, measured on Esri's true-scale
+ * photo (about ±15 ft; 5 Oct): 8,260 ft at 298.6° true, about 1,800 ft north-east of 29L. Drawn only (the 3D slab
+ * and the painted ground); no route uses 29R.
+ */
+export const THRESHOLD_29R = Object.freeze({ x: 3622, y: -1189 });
+export const DEPARTURE_END_29R = Object.freeze({ x: -3628, y: 2769 });
+
+/**
+ * Crossing runway 03/21, map feet: the NE-SW strip between 29L and the taxiway north of 29R, measured on Esri's true-scale
+ * photo (about ±15 ft; 5 Oct). The 03 end is on the 29L centreline; about 3,060 ft at 44° true (35°M). Patrick named it
+ * runway 03/21 (5 Oct 03:11Z; the NNW-SSE strip west of it is taxiway Echo). Drawn only; no route uses it.
+ */
+export const RUNWAY_03 = Object.freeze({ x: 55, y: -1284 });
+export const RUNWAY_21 = Object.freeze({ x: 2175, y: 929 });
+
+/** Runway widths, ft: 29L 150 (the painted ground's figure, which the photo matches), 29R about 200, 03/21 about 100 (photo). Estimates. */
+export const RUNWAY_WIDTH_FT = Object.freeze({ '29L': 150, '29R': 200, '03': 100 });
+
+/**
  * Runway 29L heading, degrees true: Patrick's CYMJ ground truth (D373, D378; TR-24), the same as the CAP chart's
  * 289°M with 9° East. The photo's thresholds lie on 298.6° true; the routes follow the drawn runway, and this
  * heading sets the PFL circle and High Key's run-in (half a degree apart, about 30 ft at the circle's centre).
