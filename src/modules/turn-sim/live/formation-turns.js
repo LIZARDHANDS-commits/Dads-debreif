@@ -18,14 +18,13 @@
 //
 // Turns in the close formations (spec section 10.2; Patrick 18:11Z: "do turns in any of these formations") are planned here
 // too: planCloseTurn, below. planFormationTurn picks the planner for the formation the aircraft are in.
-import { STEP_SEC, SMOOTHER_PEAK, rollLimitAt } from './flight.js';
+import { STEP_SEC, SMOOTHER_PEAK, rollLimitAt, gateRoll } from './flight.js';
 import { MANOEUVRES, relativeTo, DEG } from './manoeuvres.js';
 import { recordFlight, dryRunT } from './transitions.js';
 import { trackTwice, phase } from './tracker.js';
 import { smoothest, makeTrack, seedTrack, setTrackStep, TRACK_PAD, posesFrom, settleLast, slotInWorld } from './kinematic.js';
 import { leadTurnSegs } from './kinematic-moves.js';
 import { FW_TURN, FW_FOLLOW, WING_BANKS, ROLL, RATE_SETS } from './tuning.js';
-import { easeRoll } from '../../../core/flight-math.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { wrapPi } from '../../../core/angles.js';
 
@@ -279,7 +278,7 @@ function rollFrom(poses, wing) {
   for (const p of poses) {
     const want = p.bank;
     const roll = rollLimitAt(p.tas, ROLL);
-    ({ bankDeg: bank, rollRateDps: rate } = easeRoll(bank, rate, want, STEP_SEC, roll));
+    ({ bankDeg: bank, rollRateDps: rate } = gateRoll(bank, rate, want, STEP_SEC, ROLL, p.tas, wing.kias));
     if (Math.abs(bank - want) < 1e-6 && Math.abs(rate - p.roll) < roll.maxAccelDps2 * STEP_SEC) {
       bank = want;
       rate = p.roll;
