@@ -73,6 +73,14 @@ export function makeTrack(n) {
   return { x: new Float64Array(len), y: new Float64Array(len), z: new Float64Array(len), n };
 }
 const row = (k) => k + PAD;
+/** The steps a track carries past each end, for the differences that read speed and turn off it. */
+export const TRACK_PAD = PAD;
+/** Sets step k of a track (any step from -PAD to n + PAD). */
+export function setTrackStep(track, k, x, y, z) {
+  track.x[row(k)] = x;
+  track.y[row(k)] = y;
+  track.z[row(k)] = z;
+}
 
 /** Fills steps -PAD..0 of a track from an aircraft as it is now, extrapolated backward on its present turn and climb. */
 export function seedTrack(track, a) {

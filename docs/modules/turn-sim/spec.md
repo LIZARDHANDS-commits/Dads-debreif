@@ -353,7 +353,7 @@ The rest of Patrick's 4 Oct rulings (18:00Z to 19:54Z), from the screen-piece br
   - #3 crosses about two aircraft lengths behind and slightly lower than Lead only once #2 is stable, to echelon on the outer wing. #4 crosses only once #3 is stable.
 - **Turns in the close formations** (SMM 12.19 paras 41-43, Fig 12.11; 16.36 paras 99-102).
   - Lead flies the button's turn: 45° of bank (1.4 G, an estimate inside the 3 G close-formation limit of 2 CFFTS Orders B2 ch 8 p.97); 30° for the check turn and for the 4-ship's echelon (the Orders' stepped turns away at 30°).
-  - Each wingman keeps his place in Lead's wing plane: stepped up on the outside of the turn, stepped down on the inside, and rolls with Lead at Lead's own roll rate. Line astern stays under the tail of the one ahead.
+  - Each wingman keeps his place in Lead's wing plane: stepped up on the outside of the turn, stepped down on the inside, and rolls with Lead at Lead's own roll rate. Line astern stays under the tail of the one ahead. *Changed in V2.76 (TS-77, section 10.14): Lead rolls in smoothly, and each wingman holds his place in Lead's real wing plane with G, pitch and bank instead of following it 3 s late.*
   - His path is a kinematic line planned at the press (TS-55). His place follows Lead's bank 3 s behind (an estimate, KINEMATIC.planeLagSec), and each roll of Lead is blended in gently, so speed changes stay under about 2.5 kt/s and height changes under about 20 ft/s.
   - In the 4-ship, #4 flies through #3 (SMM 16.37 para 103). #3 is in Lead's plane, so every wingman's place is worked out in Lead's plane.
   - A turn into a 4-ship echelon is flown and flagged: the Orders and SMM 16.36 para 101 normally turn echelon away only.
@@ -647,6 +647,32 @@ Patrick 18:11Z ("What if we dynamically hand off between lines, tracker, and the
 
 - **What TS-76 still owes (the second piece, Opus):** re-planning at the decision point and when the picture breaks, and the press mid-move re-planning now (F1, F11); every planner then accepting a start mid-turn, and the turning rejoin taking Lead's remaining plan instead of planning his turn-in from the press. The vertical as a candidate (Patrick 19:51Z: "if it scores high enough in our model") waits on `flight.js` charging a height change's pull as G (`future.md`, "height as energy"), or a dive-away would win falsely.
 - **Failure and stale data:** no outside data. With no candidate the tracker's own refusal reads on the card, as before.
+
+**Checks.** None added (Patrick 09:08Z). Done: a typecheck (the 11 errors are Traffic's, the same before and after) and the dry runs above.
+
+### 10.14 Close formation turns: #2 holds his place in Lead's wing plane (V2.76, TS-77; built 5 Oct, not yet in Patrick's sign-off)
+
+Patrick 5 Oct 19:51Z: "One of the other problems we have right now is that when in eschelon the aircraft falls well outside of position and then corrects on roll out. The aircraft should use bank and pitch and roll to stay in position as lead flies in eschelon, from any close formation position."
+
+- **The cause:** each wingman's place followed Lead's wing plane about 3 s late (`KINEMATIC.planeLagSec`) and was then blended in over 3 s or more (`closeBlendSec`, longer for route), and his bank and roll were copied from Lead's. Lead rolled at up to 180°/s, so his wing plane swung #2's place 30 ft (echelon) to 120 ft (route) up or down in half a second, and #2 caught up only seconds later, at the roll-in and again at the roll-out.
+- **Lead rolls in smoothly** in close formation turns: up to 30°/s, building at 20°/s², about 3 s to 45° of bank (`formation-turns.js` `CLOSE_TURN.leadRoll`; estimates, no manual gives a roll rate). Fighting wing, line abreast and every other move keep the 180°/s Patrick allowed (06:07Z).
+- **Each wingman holds his place in Lead's real wing plane** every step (SMM 12.19 paras 41-43, Fig 12.11), with what a wingman has (`holdInPlane`): G along Lead's lift line (pitch), up to 0.5 G more or less than Lead's, so on the outside of a roll-in he climbs into the plane and on the inside he descends; a bank up to 10° off Lead's to slide in or out along Lead's wing line; and power along Lead's heading, about 2 kt/s. A change of G builds at no more than 4 G/s, and he closes any gap at a rate he can stop from, so he never overshoots. All estimates.
+- **His bank is his own:** read from the lift his path needs (`ownBank`), so he rolls with Lead and sits within about 10° of Lead's bank; his speed and G come from his own path too.
+- **Where Lead's roll moves the place faster than that** (route, 167 ft out, and the 4-ship's outer wingmen) he is out of place for a few seconds and comes back in without overshooting ("initially climbs or descends slightly as bank is changed", para 41).
+- **Dry runs** (default start, Instructor, 200 KIAS, 8,000 ft; the error is from his place in Lead's real wing plane):
+
+  | Turn | V2.75 | V2.76 |
+  |---|---|---|
+  | 2-ship echelon, 90° either way | about 35 ft off, back within 5 ft in about 4.5 s, at the roll-in and the roll-out | at most 7 ft, over 5 ft for about half a second |
+  | 2-ship route, 90° either way | about 130 ft off, back in about 16 s | about 75 ft off, back in about 5.5 s |
+  | 4-ship echelon, 90° away, #4 | about 76 ft off, back in about 8 s | about 40 ft off, back in about 4 s |
+  | Line astern, box #4, trail | under Lead's tail | the same, within 10 ft |
+  | Lead's roll-in to 45° | about 0.5 s | about 3 s |
+  | #2's G in an echelon 90° (Lead 1.4 G) | Lead's | 0.5 to 1.9 G |
+
+  Every turn still rolls out on the whole degree and is judged IN POSITION.
+- **Not changed:** the moves into a close place while Lead is banked (the hot rejoin's capture, the station changes, the hand-over's run-in) still follow Lead's wing plane 3 s late (`future.md`). Fighting wing turns are the tracker's, unchanged.
+- **Failure and stale data:** no outside data. A wingman that cannot settle is flown on until he does, up to 30 s after Lead rolls out.
 
 **Checks.** None added (Patrick 09:08Z). Done: a typecheck (the 11 errors are Traffic's, the same before and after) and the dry runs above.
 
