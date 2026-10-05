@@ -12,7 +12,7 @@ A 2-ship in line abreast that flies along on its own. You press a manoeuvre butt
 
 | # | Rule | Source |
 |---|---|---|
-| F1 | Every aircraft flies a pre-planned path that is kinematically accurate. The path is worked out when a button is pressed, from where each aircraft is at that moment. It is flown with realistic roll rate, bank, pitch and G, and the turn radius and rate follow from speed and G. Each manoeuvre uses the bank and G its source gives. | Patrick, 4 Oct 08:53Z (wording approved); TS-36 |
+| F1 | Every aircraft flies a planned, kinematically accurate path. The plan is worked out at the press and again at each event (a press, the hand-over, the decision point, the picture breaking), from where the aircraft are then. The line drawn ahead is the current plan. It is flown with realistic roll rate, bank, pitch and G, and the turn radius and rate follow from speed and G. Each manoeuvre uses the bank and G its source gives. | Patrick, 4 Oct 08:53Z (wording approved); TS-36; reworded 5 Oct 19:54Z, card "Yes, as written" (TS-76). Built so far: the press and the hand-over (TS-65); the decision point and the picture breaking come with TS-76's second piece |
 | F2 | Roll: the roll rate builds at 360°/s² up to 90°/s and eases off the same way, so 0 to 70.5° of bank takes about 1.0 s. Uses the shared `easeRoll`. | Patrick, 08:54Z and card 09:54Z; TS-37 |
 | F3 | Speed: 220 KIAS held constant through every manoeuvre, flown as true airspeed at the block height (shared `iasToTasKt`). Speeds on screen say KIAS. The one exception is the training errors' Speed/power fix tool (section 9), flown with a smooth speed segment (`flight.js` `{ kind: 'speed', toKias, rateKtps }`). | Patrick card 09:54Z; 220 KIAS SMM 16.18 para 50; KIAS rule TS-R6; TS-38; Speed/power fix Patrick 4 Oct 11:42Z |
 | F4 | Block height 8,000 ft for the IAS-to-TAS conversion (220 KIAS is about 248 KTAS there). **Estimate** until Patrick gives the low block height. | estimate; TS-38 |
@@ -23,7 +23,7 @@ A 2-ship in line abreast that flies along on its own. You press a manoeuvre butt
 | F8 | No V6 lag, lead or G-fix nudges. | Patrick card 09:53Z (settles TS-Q17); TS-43 |
 | F9 | Still air. The screen says so in one line. | TS-R10 (Patrick, TS-Q6) |
 | F10 | Fixed 0.05 s step, so the same presses at the same times give the same picture at any playback speed. Each step uses the mean bank over the step for the turn and the middle heading for the move, so a turn's roll-in and roll-out are mirror images. | TS-R9 |
-| F11 | **Working answer:** a button pressed while a manoeuvre is still being flown is queued and flown the moment the current one ends (the screen shows "Next: Hook right"). Pressing mid-turn and re-planning from a banked state is a later step. | TS-45 |
+| F11 | A press while a manoeuvre is still being flown re-plans now, from where the aircraft are, bank and speed included. Nothing is queued. | Patrick 5 Oct 19:51Z ("I want to be able to 'change the plan' mid change and have the wingman react correctly"), card 19:54Z "Yes, as written"; TS-76 replaces TS-45. Not built yet: V2.75 still queues the press (the screen shows "Next: Hook right") until TS-76's second piece |
 | F12 | Every hand-over is smooth: where one part of a manoeuvre ends and the next begins (roll-in, roll-out, the cross turn's change of bank, the climb and descent, one manoeuvre to the next), position, track, bank and pitch and their rates carry straight on. A turn never snaps onto its new heading; it rolls out within a fraction of a degree of it (each turn aims at the whole degree). | Patrick 4 Oct 10:05Z (Traffic thread, carried here); TS-47 |
 
 ## 3. The manoeuvres (buttons)
@@ -622,6 +622,33 @@ Patrick 17:29Z: "It takes way too long to get in a turning rejoin sometimes. The
 **Checks.** None added (Patrick 06:25Z, 09:08Z). Done: a typecheck, a page-load check, and dry runs of every 2-ship TRJ and SARJ start at each Rates choice (none fall back).
 
 ---
+
+### 10.13 One chooser for #2's changes of formation (V2.75, TS-76; built 5 Oct, not yet in Patrick's sign-off)
+
+Patrick 18:11Z ("What if we dynamically hand off between lines, tracker, and the 'AI' used in fight sim? how could we know when the best spot was to use for each?"); card 18:51Z "Checks, then quickest"; 19:51Z "I agree on the matrix and the options"; review `/mnt/project-files/turn-sim-review/chooser/` (`plan.md`, `options.md`).
+
+- **What it is:** every way the 2-ship can fly a change of formation is already a search over candidates flown as dry runs (the turning rejoin, the straight-ahead rejoin, echelon or route out to fighting wing, a line then the tracker, the tracker alone). Until V2.75 `formation.js` tried them in a fixed order and the first that accepted the case flew it. Now `live/chooser.js` runs every planner that applies from where the aircraft are, scores their plans and flies the winner. The planners and the flying are unchanged.
+- **The score:** (1) the pilot's checks first: IN POSITION at the end (the judge's band) and behind Lead's 3/9 line on the way in (the overshoot lane, SMM 12.27 para 65, the shared 100 ft margin); a candidate failing either is out whatever its time. (2) On a long move (more than the 500 ft hand-over range from the slot) a held technique before the tracker alone, which is the fallback there (Patrick 05:27Z, 05:41Z; the matrix: far away a held technique, close in the tracker). (3) Under the G rule before over it (over 5 G is a last resort, never a wall). (4) Quickest. (5) Within half a second, smoothest: the fewest bank reversals and power changes along #2's track (a tie-break only).
+- **A training error's rejoin** (TS-62) is not raced: when the errors layer gives a plan it flies, since #2's response is the lesson.
+- **Rejoin kind 'auto':** with the Rejoin kind set to `auto` both rejoins run and the quicker wins; `into` (TRJ, the default) and `straight` (SARJ) run only that one, as Lead's call (Patrick 07:19Z: two separate rejoins). The planner takes `auto` now; the switch under More still offers TRJ and SARJ only (the screen is the Formation thread's).
+- **On screen:** nothing moves. The card's note ends with the comparison ("Chosen: turning rejoin 58 s, over tracker 143 s (fails a check)"), and the change carries `chooser: { picked, compared }` for a later readout.
+- **Dry runs** (default start, Instructor, 8,000 ft; this machine): every pick is the same as the fixed order gave, except under `auto` from line abreast to echelon, where the straight-ahead rejoin (56 s) beats the turning rejoin (58 s). The whole scoreboard at a press took 1 to 590 ms (the turning rejoin's own search is most of it).
+
+  | From | To | Picked | Compared |
+  |---|---|---|---|
+  | Line abreast 6,000 ft | Echelon | turning rejoin 58 s | tracker 143 s (fails the lane) |
+  | Line abreast 6,000 ft | Fighting wing | turning rejoin 42 s | tracker 108 s (fails the lane) |
+  | Fighting wing | Echelon | turning rejoin 35 s | line then tracker 96 s; tracker 76 s (fallback) |
+  | Fighting wing | Route | turning rejoin 37 s | tracker 72 s; line then tracker 87 s |
+  | Echelon | Fighting wing | drop back 24 s | line then tracker 52 s; tracker 32 s (fallback) |
+  | Echelon | Line abreast | line then tracker 109 s | tracker 69 s (fallback) |
+  | Fighting wing | Line abreast | line then tracker 81 s | tracker 74 s (fallback) |
+  | Line abreast 6,000 ft, `auto` | Echelon | straight-ahead rejoin 56 s | turning rejoin 58 s; tracker 143 s (fails the lane) |
+
+- **What TS-76 still owes (the second piece, Opus):** re-planning at the decision point and when the picture breaks, and the press mid-move re-planning now (F1, F11); every planner then accepting a start mid-turn, and the turning rejoin taking Lead's remaining plan instead of planning his turn-in from the press. The vertical as a candidate (Patrick 19:51Z: "if it scores high enough in our model") waits on `flight.js` charging a height change's pull as G (`future.md`, "height as energy"), or a dive-away would win falsely.
+- **Failure and stale data:** no outside data. With no candidate the tracker's own refusal reads on the card, as before.
+
+**Checks.** None added (Patrick 09:08Z). Done: a typecheck (the 11 errors are Traffic's, the same before and after) and the dry runs above.
 
 # Part 2. Plan mode: the spec from before the reset
 
