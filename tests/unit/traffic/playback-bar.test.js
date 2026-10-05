@@ -222,7 +222,7 @@ test('the 3 master presets define the required layer states', () => {
   assert.equal(LAYER_PRESETS.cleanOperational.layers.layerLegDistances, false);
   assert.equal(LAYER_PRESETS.cleanOperational.layers.layerTurnData, false);
   assert.equal(LAYER_PRESETS.cleanOperational.layers.layerBubbles, false);
-  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerHeightLines, false);
+  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerHeightLines, true, 'the 3D height drop lines (Patrick, 4 Oct)');
   assert.equal(LAYER_PRESETS.cleanOperational.layers.layerSmmReference, false);
   assert.equal(LAYER_PRESETS.cleanOperational.layers.layerEngineReach, true, 'the glide circle, selected aircraft only (Patrick, 4 Oct)');
 
@@ -406,7 +406,7 @@ test('selecting a layer preset updates the settings to match that preset', () =>
   assert.equal(settings.get().layerLegDistances, false);
   assert.equal(settings.get().layerTurnData, false);
   assert.equal(settings.get().layerBubbles, false);
-  assert.equal(settings.get().layerHeightLines, false);
+  assert.equal(settings.get().layerHeightLines, true);
   assert.equal(settings.get().layerEngineReach, true);
 
   // Switch to Full Telemetry: activates all layers including Leg Distances, Turn Data, Height Lines, Conflict Bubbles

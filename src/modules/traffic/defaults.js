@@ -39,15 +39,15 @@ export const DEFAULTS = Object.freeze({
 
   // Layers: the Clean Operational preset (Patrick, 4 Oct: "the default display settings to be clean operational"):
   // labels, the wind-adjusted track and the photo on, with the caution ring and the PFL glide circle (both shown only
-  // round the selected aircraft); trails, route points, bubbles, height lines, the SMM calm reference, leg distances
-  // and turn data off. The PFL ground circle is off too: only the overhead break and the OHB Rejoin show at first.
+  // round the selected aircraft) and the 3D height drop lines; trails, route points, bubbles, the SMM calm reference,
+  // leg distances and turn data off. The PFL ground circle is off too: only the overhead break and the OHB Rejoin show at first.
   // (Before 4 Oct: trails, points, bubbles, height lines, the SMM reference and the PFL circle were on.)
   layerTrails: false,
   layerLabels: true,
   layerPoints: false,
   layerBubbles: false,
   layerCautionRings: true,
-  layerHeightLines: false,
+  layerHeightLines: true, // in Clean Operational for the 3D view (Patrick, 4 Oct)
   layerPhoto: true,
   layerWindTrack: true,
   layerSmmReference: false,

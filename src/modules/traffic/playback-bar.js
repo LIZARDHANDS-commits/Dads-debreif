@@ -49,7 +49,7 @@ export const LAYER_PRESETS = Object.freeze({
       layerTurnData: false,
       layerBubbles: false,
       layerCautionRings: true, // round the selected aircraft only, so it adds no clutter (Patrick, 4 Oct)
-      layerHeightLines: false,
+      layerHeightLines: true, // the 3D view's height drop lines (Patrick, 4 Oct)
       layerWindTrack: true,
       layerSmmReference: false,
       layerPhoto: true,
