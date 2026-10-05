@@ -197,7 +197,15 @@ The sim uses the glide **ratio** for the configuration down (clean 2.0, gear 1.5
 
 ## 4. Pattern Definitions
 
-> **Authoritative Coordinates**: See [`docs/references/traffic-pattern-matrix.md`](../../references/traffic-pattern-matrix.md) for exact $(x, y)$ positions and waypoint attributes.
+> **Authoritative Coordinates**: the route file `src/modules/traffic/data/moose-jaw.json` and the runway constants in `src/modules/traffic/airfield.js`, in true feet since TR-67. Each point's source is in the project files' `traffic-map-rebuild/point-list.md`; the drawing is [moose-jaw-routes-draft.svg](moose-jaw-routes-draft.svg). (`docs/references/traffic-pattern-matrix.md` still lists V6's stretched positions.)
+
+### 4.0 The ground the routes are drawn on (TR-67, Patrick 5 Oct 00:27Z)
+
+- **One frame, true feet.** x east and y north in feet from the field reference point (50.3303 N, 105.5592 W), converted with `core/geo.js` `latLonToLocalFt`. The satellite photo is drawn at true scale (trim 1.0, no offset), so the routes, the runway, the 3D scenery and the photo all agree, and distances on the map are real (leg lengths, miles on final, the Window, spacing, glide reach).
+- **Where the points come from.** Runway 29L from its threshold bars on Esri's true-scale photo (7,250 ft at 298.6° true; CAP chart 7,280 ft, 289°M). The overhead pattern from EFIG Fig 3-10 laid on the photo (Race Track Lake and the Sukanen Ship intersection land within about 60 ft of the figure, its lines good to about ±300 ft); the straight-in from EFIG p.131; the rejoins from EFIG p.209 and Patrick ("the rejoin lines define the base leg"); the Window from Patrick (3/4 NM from the base of the numbers). Initial is only a reference point on the run-in (Patrick, 01:05Z).
+- **Anything new goes straight in.** A position from latitude and longitude (a pin, a GPS track, airport data) is used as is. The photo-alignment controls stay for a photo that is off, never to fit routes to it.
+- **To check a position again:** fetch Esri `World_Imagery` tiles at zoom 16 to 18, convert feet to latitude and longitude with the same formula, and draw the point on them. Esri's photos are not put in the repo.
+- Before TR-67, V6's hand-drawn routes were about 1.12 to 1.2 times too big and the photo was stretched 1.2 times to sit under them; the flight physics was always in true feet, so turns were right and legs were long. The "Moose Jaw (V6 original)" setup keeps V6's routes and its 1.2 trim.
 
 ### 4.1 PAT_INNER — Overhead Break Circuit
 
@@ -235,10 +243,10 @@ Shares waypoints 0–5 with PAT_INNER, then diverges at "Abeam Departure End":
 - **0.75 NM speed gate**: maintain 120 KIAS until 4,558 ft from threshold, THEN decelerate to 100 KIAS.
 
 ### 4.3 ENT_OHB — Overhead Break Entry
-Dotted line, 4 waypoints joining PAT_INNER at the 45° entry leg (3,500 ft / 220 KIAS).
+Dotted line, 4 waypoints from the south up the inner rejoin line (the overhead's base leg, 3.22 NM out), joining PAT_INNER at the 45° entry leg (3,500 ft / 220 KIAS; TR-67).
 
 ### 4.4 ENT_SI — Straight-In Entry
-Dotted line, 4 waypoints joining PAT_SI at the base leg (2,700 ft / 120 KIAS).
+Dotted line, 6 waypoints from the south up the outer rejoin line (the straight-in's base leg at the Arrow Tree Rows, 3.89 NM out; EFIG p.131), then the 45° leg to final at 3.03 NM and the glide path from 2.5 NM, at 2,700 ft (TR-67).
 
 ### 4.5 PFL: engine failure, and the glide from High Key
 
