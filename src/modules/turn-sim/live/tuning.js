@@ -665,4 +665,5 @@ export const LAG_ROLL = Object.freeze({
   coneSweepDeg: Object.freeze([20, 70]), // the same region's sweep (judge.js classifier; estimate)
   closeOvertakeKias: 20, // closing back up to the slot after the roll: the top of EFIG p.374's 10-20 KIAS overtake (estimate choice)
   rollingAboveDps: 10, // above this roll rate the rolling G limit (core availableG, rolling) is the one checked (estimate)
+  rollMissG: 0.3, // #2's wings roll no faster than the T-6A (TS-85): a path asking more is used only while the lift they don't yet point stays under this (estimate)
 });

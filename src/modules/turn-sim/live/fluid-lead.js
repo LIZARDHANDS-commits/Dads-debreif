@@ -46,10 +46,10 @@
 //    position (the distance setting, 15° off Lead's tail) during it; then each manoeuvre's own speed set-up leads on.
 import { stepPointMass, gAndBankForLift } from '../../../core/point-mass.js';
 import { easeValue, dampedClimbG } from '../../../core/flight-math.js';
-import { t6aExcessFn, tasToIasKt, shakerG, dragPerWeight, thrustPerWeight } from '../../../core/t6-performance.js';
+import { t6aExcessFn, tasToIasKt, shakerG, dragPerWeight, thrustPerWeight, T6A_G_ONSET } from '../../../core/t6-performance.js';
 import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
-import { STEP_SEC, headingChangeRollingOut } from './flight.js';
+import { STEP_SEC, headingChangeRollingOut, rollLimitAt } from './flight.js';
 import { ROLL, WING } from './tuning.js';
 import { excessPerWeight } from './slow-down.js';
 import { add3, sub3, scale3, len3, cross3, unit3, perp3, dot3 } from './attitude.js';
@@ -59,7 +59,7 @@ const Z = Object.freeze({ x: 0, y: 0, z: 1 });
 
 /** The numbers Lead flies. Every one has its source; "estimate" where no manual or ruling gives it. */
 export const LEAD = Object.freeze({
-  gOnset: Object.freeze({ maxRateDps: 4, maxAccelDps2: 16 }), // G per second and per second², design 5.3 (estimate)
+  gOnset: T6A_G_ONSET, // G per second and per second²: the T-6A's in core (estimate, design 5.3; TS-85)
   levelBanks: Object.freeze({ gentle: 30, medium: 60, steep: 70.5 }), // AFM7 p.17 (30, 60/2); SMM 16.18 para 50 (70/3, estimate as "steep")
   entryHoldSec: 5, // the entry's 30° bank stage while "all call ready" (AFM7 p.17): 5 s is an estimate
   terminateBankDeg: 30, // "gentle" (AFM7 p.17), "predictable" (SMM 16.17 para 46): 30° is an estimate
@@ -196,7 +196,7 @@ export function stepLead(st, ask) {
   for (let i = 0; i < 2; i++) {
     const g = easeValue(s.g, s.gRate, Math.min(ask.g, shakerG(s.kias)), half, LEAD.gOnset);
     const target = s.bank + wrapPi((ask.bank - s.bank) * DEG) / DEG; // the near way round
-    const r = easeValue(s.bank, s.rollRate, target, half, ROLL);
+    const r = easeValue(s.bank, s.rollRate, target, half, rollLimitAt(s.V, ROLL)); // never faster than the T-6A at this speed (TS-85)
     const pm = stepPointMass(s.pm, { g: g.bankDeg, bankRad: r.bankDeg * DEG }, half, excess);
     s = finish({ pm, bank: wrapDeg(r.bankDeg), rollRate: r.rollRateDps, g: g.bankDeg, gRate: g.rollRateDps, blockFt: s.blockFt });
   }

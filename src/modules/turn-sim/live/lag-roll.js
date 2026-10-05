@@ -20,18 +20,21 @@
 // counter-clockwise); fwd and left in Lead's frame (left positive); bank left wing down positive.
 import { availableG, tasToIasKt } from '../../../core/t6-performance.js';
 import { G_FTPS2, FTPS_TO_KT } from '../../../core/units.js';
-import { STEP_SEC } from './flight.js';
+import { STEP_SEC, rollLimitAt } from './flight.js';
 import { classify } from './judge.js';
 import { relativeTo } from './manoeuvres.js';
 import { pairSlot } from './slots.js';
 import { LAG_ROLL } from './tuning.js';
-import { add3, scale3, perp3, len3, unit3, dot3, liftOf, poseOf3d, rollRateDps } from './attitude.js';
+import { add3, scale3, perp3, len3, unit3, dot3, cross3, liftOf, poseOf3d } from './attitude.js';
+import { easeRoll } from '../../../core/flight-math.js';
 
 const DEG = Math.PI / 180;
 const Z = Object.freeze({ x: 0, y: 0, z: 1 });
 
 /** The key formation.js uses for the lag roll in its change machinery. */
 export const LAG_ROLL_KEY = 'lagRoll';
+/** Why a lag roll is refused when only the roll is too quick (TS-85). */
+const ROLL_REFUSAL = 'No lag roll from here: every path over Lead\'s six needs a faster roll than the T-6A has at that speed (an estimate).';
 
 /** A smooth 0-to-1 step with no speed or acceleration at either end: s(u), s'(u), s''(u) (u from 0 to 1). */
 function smooth(u) {
@@ -92,11 +95,32 @@ function gOf(acc, nose) {
 }
 
 /**
+ * #2's wings one step on (dt): rolled toward the path's lift at no more than the T-6A's roll at this speed (flight.js
+ * rollLimitAt, TS-85), the way fluid-wing.js wingPose rolls them. wings: the last step's { up, rollDps }. Returns the new
+ * wings and missG, the share of the path's lift (in G) the wings don't yet point: at low G over the top the lift swings
+ * faster than any roll, and there so little is missing that the path flown is the same.
+ */
+function wingsToward(wings, lift, nose, tas, dt) {
+  const base = unit3(perp3(wings.up, nose));
+  const left = cross3(base, nose);
+  const want = Math.atan2(dot3(lift.up, left), dot3(lift.up, base)) / DEG;
+  const r = easeRoll(0, wings.rollDps, want, dt, rollLimitAt(tas));
+  const a = r.bankDeg * DEG;
+  const up = unit3(add3(scale3(base, Math.cos(a)), scale3(left, Math.sin(a))));
+  const c = dot3(lift.up, up);
+  return { up, rollDps: r.rollRateDps, missG: lift.g * (c > 0 ? Math.sqrt(Math.max(0, 1 - c * c)) : 1) };
+}
+
+/**
  * Measures one candidate roll on a coarse step: null when it breaks a check (G past gCap or availableG, under LAG_ROLL.minG,
- * not inverted over the top, inside the bubble, the top range or slowest speed outside the design's band), else its numbers.
+ * not inverted over the top, inside the bubble, the top range or slowest speed outside the design's band), 'roll' when it
+ * passes those but asks a faster roll than the T-6A has (more than LAG_ROLL.rollMissG of lift the wings can't point in
+ * time, wingsToward; TS-85: a longer roll is a slower one), else its numbers.
  */
 function measure(P, lead0, vL, heightFt, gCap, close = false) {
   const dt = LAG_ROLL.searchStepSec;
+  let wings = { up: { x: 0, y: 0, z: 1 }, rollDps: 0, missG: 0 }; // wings level
+  let maxMissG = 0;
   let maxG = 0;
   let minG = Infinity;
   let minKias = Infinity;
@@ -110,6 +134,8 @@ function measure(P, lead0, vL, heightFt, gCap, close = false) {
     const g = gOf(s.acc, nose);
     const kias = tasToIasKt(tas * FTPS_TO_KT, heightFt + s.pos.z);
     if (g > gCap + 0.05 || g > availableG(kias, true) || g < LAG_ROLL.minG) return null;
+    wings = wingsToward(wings, liftOf(s.acc, nose, wings.up), nose, tas, dt);
+    maxMissG = Math.max(maxMissG, wings.missG);
     maxG = Math.max(maxG, g);
     minG = Math.min(minG, g);
     minKias = Math.min(minKias, kias);
@@ -125,6 +151,7 @@ function measure(P, lead0, vL, heightFt, gCap, close = false) {
   const topBand = close ? LAG_ROLL.closeTopRangeFt : LAG_ROLL.topRangeFt;
   if (topRange < topBand[0] || topRange > topBand[1]) return null;
   if (minKias < LAG_ROLL.topKiasBand[0] || minKias > LAG_ROLL.topKiasBand[1]) return null;
+  if (maxMissG > LAG_ROLL.rollMissG) return 'roll';
   return { maxG, minG, minKias, maxClimbDeg, topRange, minRange };
 }
 
@@ -176,6 +203,7 @@ export function planLagRoll(aircraft, options = {}, t0 = 0) {
 
   // The search: pull G x nose-up (the design's set), and for each the roll's length, height and fall-back (LAG_ROLL).
   let best = null;
+  let rollTooFast = false; // a path passed every other check but asked a faster roll than the T-6A has
   const gCap = Math.max(...LAG_ROLL.pullG);
   for (let T = LAG_ROLL.rollSec[0]; T <= LAG_ROLL.rollSec[1]; T += 1) {
     for (let H = LAG_ROLL.climbFt[0]; H <= LAG_ROLL.climbFt[1]; H += 100) {
@@ -183,7 +211,8 @@ export function planLagRoll(aircraft, options = {}, t0 = 0) {
         const P = { ...base, T, H, fE: base.fs - fb, T2: fb > 0 ? (2 * fb) / closeFtps : 0 };
         if (!landsInCone(P)) break; // he lands in the cone (Patrick 08:54Z): a longer fall-back only lands further out
         const m = measure(P, lead0, vL, heightFt, gCap, close);
-        if (!m) continue;
+        if (m === 'roll') rollTooFast = true;
+        if (!m || m === 'roll') continue;
         for (const pullG of LAG_ROLL.pullG) {
           for (const noseUpDeg of LAG_ROLL.noseUpDeg) {
             const sc = score(m, P, pullG, noseUpDeg);
@@ -193,6 +222,7 @@ export function planLagRoll(aircraft, options = {}, t0 = 0) {
       }
     }
   }
+  if (!best && rollTooFast) return { ok: false, reason: ROLL_REFUSAL };
   if (!best) {
     return { ok: false, reason: 'No lag roll from here: no path over Lead\'s six keeps the G inside the limits and stays outside 500 ft.' };
   }
@@ -202,8 +232,8 @@ export function planLagRoll(aircraft, options = {}, t0 = 0) {
   const total = P.T + P.T2;
   const n = Math.max(1, Math.round(total / STEP_SEC));
   const poses = [];
-  let prevUp = { x: 0, y: 0, z: 1 };
-  let prevNose = null;
+  let wings = { up: { x: 0, y: 0, z: 1 }, rollDps: 0, missG: 0 }; // wings level
+  let maxMissG = 0;
   let maxBankDeg = 0;
   let maxG = 0;
   let maxRollDps = 0;
@@ -214,26 +244,27 @@ export function planLagRoll(aircraft, options = {}, t0 = 0) {
     const st = groundAt(t, P, lead0, vL);
     const tas = len3(st.vel);
     const nose = scale3(st.vel, 1 / tas);
-    const lift = liftOf(st.acc, nose, prevUp);
+    const lift = liftOf(st.acc, nose, wings.up);
     const kias = tasToIasKt(tas * FTPS_TO_KT, heightFt + st.pos.z);
-    const roll = prevNose ? rollRateDps(prevNose, prevUp, nose, lift.up, total / n) : 0;
+    wings = wingsToward(wings, lift, nose, tas, total / n);
+    maxMissG = Math.max(maxMissG, wings.missG);
+    const roll = wings.rollDps;
     const last = i === n;
-    const pose = poseOf3d({ x: st.pos.x, y: st.pos.y, altAbove: lead.altAboveFt + st.pos.z, vel: st.vel, up: lift.up, kias, g: lift.g, rollDps: roll });
+    const pose = poseOf3d({ x: st.pos.x, y: st.pos.y, altAbove: lead.altAboveFt + st.pos.z, vel: st.vel, up: wings.up, kias, g: lift.g, rollDps: roll });
     if (last) Object.assign(pose, { bank: 0, roll: 0, g: 1, climb: 0, h: lead.headingRad, kias: lead.kias, tas: vL });
     poses.push(pose);
     if (lift.g > availableG(kias, Math.abs(roll) > LAG_ROLL.rollingAboveDps)) overAvailable = true;
     // Lead in the top half of #2's canopy (the design's flag): Lead's side of #2's wing plane.
     const toLead = unit3(add3(st.leadPos, scale3(st.pos, -1)));
-    if (t <= P.T && dot3(toLead, lift.up) < 0) leadOutOfTopHalfSec += total / n;
+    if (t <= P.T && dot3(toLead, wings.up) < 0) leadOutOfTopHalfSec += total / n;
     maxBankDeg = Math.max(maxBankDeg, Math.abs(pose.bank));
     maxG = Math.max(maxG, lift.g);
     maxRollDps = Math.max(maxRollDps, Math.abs(roll));
-    prevUp = lift.up;
-    prevNose = nose;
   }
   if (overAvailable) {
     return { ok: false, reason: 'No lag roll from here: the path would need more G than the aircraft has at that speed.' };
   }
+  if (maxMissG > LAG_ROLL.rollMissG * 1.25) return { ok: false, reason: ROLL_REFUSAL };
 
   const sideWord = -s > 0 ? 'left' : 'right';
   const sc = best.sc;

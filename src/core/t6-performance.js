@@ -35,6 +35,42 @@ export function availableG(kias, rolling = false, stallKias = T6A_LIMITS.stallKi
   return Math.min(stallLimitG(kias, stallKias), rolling ? T6A_LIMITS.rollingMaxG : T6A_LIMITS.maxG);
 }
 
+/**
+ * The T-6A's roll and G onset: the one aircraft limit every module stays under (Patrick 5 Oct 2026 22:01Z, "okay, let's do
+ * that"; whole-tool decision with the Docs keeper; Formation's part TS-85). ESTIMATES from standard aerodynamics (Fable's
+ * performance audit, 5 Oct 21:59Z-22:01Z): no manual in the project files gives them, so they stay estimates until Patrick
+ * corrects them.
+ *  - full-stick roll rate: rollPerKtasDps per knot of TRUE airspeed (a roll rate at a fixed helix angle grows with true
+ *    airspeed), capped at maxRateDps: about 100°/s at 200 KIAS and 8,000 ft, the cap from about 265 KTAS. The audit's examples
+ *    (65°/s at 140 KIAS, 90 at 200, 115 at 250) are the same rule read with KIAS, about 13% lower at 8,000 ft;
+ *  - roll acceleration: full rate in fullRateSec;
+ *  - G onset (T6A_G_ONSET): 4 G per second, building at 16 G/s² (the Formation fluid Lead's number, design 5.3).
+ * A module's own gentler rate (a pilot's) is its choice; it never goes past these (rollWithinT6A).
+ */
+export const T6A_ROLL = Object.freeze({ rollPerKtasDps: 0.45, maxRateDps: 120, fullRateSec: 0.3 });
+/** The T-6A's G onset in easeValue's shape (flight-math.js): G per second, and per second². An estimate (T6A_ROLL). */
+export const T6A_G_ONSET = Object.freeze({ maxRateDps: 4, maxAccelDps2: 16 });
+
+/** The T-6A's roll limits at a true airspeed (knots), in easeRoll's shape { maxRateDps, maxAccelDps2 }. Estimates (T6A_ROLL). */
+export function rollLimitsAtKtasT6A(ktas) {
+  const maxRateDps = Math.min(T6A_ROLL.maxRateDps, T6A_ROLL.rollPerKtasDps * Math.max(0, ktas));
+  return { maxRateDps, maxAccelDps2: maxRateDps / T6A_ROLL.fullRateSec };
+}
+
+/** The T-6A's roll limits at an indicated airspeed and pressure height. Estimates (T6A_ROLL). */
+export function rollLimitsT6A(kias, altFt) {
+  return rollLimitsAtKtasT6A(iasToTasKt(kias, altFt));
+}
+
+/**
+ * A module's roll limits held under the aircraft's at a true airspeed: the lower rate and the lower acceleration of the
+ * two. limits: { maxRateDps, maxAccelDps2 } (a pilot's, a formation's); ktas: knots.
+ */
+export function rollWithinT6A(limits, ktas) {
+  const t6 = rollLimitsAtKtasT6A(ktas);
+  return { maxRateDps: Math.min(limits.maxRateDps, t6.maxRateDps), maxAccelDps2: Math.min(limits.maxAccelDps2, t6.maxAccelDps2) };
+}
+
 /** True airspeed from indicated: IAS ÷ √σ (standard atmosphere, no compressibility). */
 export function iasToTasKt(kias, altFt) {
   return kias / Math.sqrt(isaDensityRatio(altFt));

@@ -26,7 +26,7 @@
 // 11:08Z-11:09Z (200 KIAS outside line abreast, Lead turns into #2, speed only in
 // transitions) and 11:45Z (wording agreed). Numbers with no manual or ruling behind them are
 // labelled "estimate" beside them.
-import { STEP_SEC, stepAircraft, copyAircraft, planDone } from './flight.js';
+import { STEP_SEC, stepAircraft, copyAircraft, planDone, holdToEnvelope } from './flight.js';
 import { wholeDegree, turnSeg, DEG } from './manoeuvres.js';
 import { classify, judge } from './judge.js';
 import { applyPose } from './kinematic.js';
@@ -62,7 +62,11 @@ export function flyStep(a, plan, t, ctx = null) {
   if (seg?.kind === 'poseTrack') {
     // A kinematic pre-planned line (kinematic.js, TS-55): the pose for each step was worked out at the press.
     seg.i ??= 0;
-    applyPose(a, seg.poses[seg.i++]);
+    const bank0 = a.bankDeg;
+    const rate0 = a.rollRateDps ?? 0;
+    const p = seg.poses[seg.i++];
+    applyPose(a, p);
+    holdToEnvelope(a, seg, p, bank0, rate0);
     if (seg.i >= seg.poses.length) {
       plan.segments.shift();
       // Lines, then tracker (step 2, Patrick 06:24Z): in the live formation (ctx, from formation.js) the tracker's run-in is

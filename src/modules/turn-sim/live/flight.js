@@ -13,14 +13,42 @@
 // counter-clockwise). Bank is signed, left wing down positive, so a positive
 // bank turns the heading the positive (left) way.
 import { easeRoll, turnRateFromBankRadPerSec, gFromBankDeg } from '../../../core/flight-math.js';
-import { pitchDegFromClimb } from '../../../core/t6-performance.js';
-import { wrapPi } from '../../../core/angles.js';
-import { G_FTPS2 } from '../../../core/units.js';
+import { pitchDegFromClimb, rollWithinT6A } from '../../../core/t6-performance.js';
+import { wrapPi, wrapDeg180 } from '../../../core/angles.js';
+import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { powerFor, POWER_BLOCK_FT } from './power.js';
 import { ROLL } from './tuning.js';
 
 /** Roll limits (tuning.js ROLL), still read from here by the tests. */
 export { ROLL };
+
+/**
+ * The roll limits flown at a true airspeed (ft/s): the lower of the pilot's (`roll`, tuning.js ROLL or a close formation's
+ * gentler rate) and the T-6A's own at that speed (core rollWithinT6A, estimates; TS-85).
+ */
+export const rollLimitAt = (tasFtps, roll = ROLL) => rollWithinT6A(roll, tasFtps / KT_TO_FTPS);
+
+/**
+ * The aircraft's envelope gate for a replayed planned pose (transitions.js flyStep's poseTrack; TS-85, Fable's review item 1):
+ * the wings follow the pose's bank at no more than the roll rollLimitAt gives at its speed, the near way round, until they
+ * catch it up; the path flown is the pose's. Every other step (a bank track, the tracker, a turn) already rolls under the same
+ * limit in stepAircraft, so nothing any planner asks is flown faster than the aircraft rolls. G and speed need no gate here:
+ * the planners hold G under the stick shaker and fly speed on full power's model, and a replayed path's G and speed are its
+ * own. seg keeps whether the wings are still catching up; bank0, rate0: the aircraft's before the pose.
+ */
+export function holdToEnvelope(a, seg, p, bank0, rate0) {
+  const roll = rollLimitAt(p.tas);
+  const step = wrapDeg180(p.bank - bank0);
+  if (!seg.rollBehind && Math.abs(step) <= roll.maxRateDps * STEP_SEC + 1e-9) return;
+  const r = easeRoll(bank0, rate0, bank0 + step, STEP_SEC, roll);
+  if (Math.abs(wrapDeg180(r.bankDeg - p.bank)) < 1e-6 && Math.abs(r.rollRateDps - p.roll) <= roll.maxAccelDps2 * STEP_SEC) {
+    seg.rollBehind = false;
+    return;
+  }
+  a.bankDeg = wrapDeg180(r.bankDeg);
+  a.rollRateDps = r.rollRateDps;
+  seg.rollBehind = true;
+}
 
 /** The step the whole Turn Sim flies in (TS-R9), the same 0.05 s as before. */
 export const STEP_SEC = 0.05;
@@ -68,14 +96,15 @@ function stepTurnRad(tasFtps, fromDeg, toDeg) {
   return ((turnRateFromBankRadPerSec(tasFtps, fromDeg) + turnRateFromBankRadPerSec(tasFtps, toDeg)) / 2) * STEP_SEC;
 }
 
-/** How much the heading still changes (radians, signed) if the wings are rolled level from here, at the roll limits `roll`. */
+/** How much the heading still changes (radians, signed) if the wings are rolled level from here, at the roll limits `roll` (under the T-6A's, rollLimitAt). */
 export function headingChangeRollingOut(bankDeg, rollRateDps, tasFtps, roll = ROLL) {
+  const limits = rollLimitAt(tasFtps, roll);
   let bank = bankDeg;
   let rate = rollRateDps;
   let change = 0;
   for (let i = 0; i < 400 && (Math.abs(bank) > 1e-6 || Math.abs(rate) > 1e-6); i++) {
     const before = bank;
-    ({ bankDeg: bank, rollRateDps: rate } = easeRoll(bank, rate, 0, STEP_SEC, roll));
+    ({ bankDeg: bank, rollRateDps: rate } = easeRoll(bank, rate, 0, STEP_SEC, limits));
     change += stepTurnRad(tasFtps, before, bank);
   }
   return change;
@@ -231,7 +260,8 @@ export function stepAircraft(a, plan, t) {
   }
   // The step's mean true airspeed: the same number when the speed is constant, so nothing else changes.
   const tas = (tasBefore + a.tasFtps) / 2;
-  const rolled = easeRoll(a.bankDeg, a.rollRateDps, targetBank, dt, seg?.roll ?? ROLL); // a turn segment may roll gentler (a close formation Lead)
+  // A turn segment may roll gentler (a close formation Lead); never faster than the T-6A at this speed (TS-85).
+  const rolled = easeRoll(a.bankDeg, a.rollRateDps, targetBank, dt, rollLimitAt(tasBefore, seg?.roll ?? ROLL));
   a.bankDeg = Math.abs(rolled.bankDeg) < 1e-9 ? 0 : rolled.bankDeg;
   a.rollRateDps = Math.abs(rolled.rollRateDps) < 1e-9 ? 0 : rolled.rollRateDps;
   const turned = stepTurnRad(tas, bankBefore, a.bankDeg);
