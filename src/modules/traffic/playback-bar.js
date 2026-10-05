@@ -48,12 +48,12 @@ export const LAYER_PRESETS = Object.freeze({
       layerLegDistances: false,
       layerTurnData: false,
       layerBubbles: false,
-      layerCautionRings: false,
+      layerCautionRings: true, // round the selected aircraft only, so it adds no clutter (Patrick, 4 Oct)
       layerHeightLines: false,
       layerWindTrack: true,
       layerSmmReference: false,
       layerPhoto: true,
-      layerEngineReach: false,
+      layerEngineReach: true, // the PFL glide circle, selected aircraft only (Patrick, 4 Oct)
     }),
   }),
   standardTraining: Object.freeze({

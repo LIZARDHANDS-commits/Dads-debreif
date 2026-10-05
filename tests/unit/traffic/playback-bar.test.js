@@ -218,13 +218,13 @@ test('the 3 master presets define the required layer states', () => {
   assert.equal(LAYER_PRESETS.cleanOperational.layers.layerWindTrack, true);
   assert.equal(LAYER_PRESETS.cleanOperational.layers.layerTrails, false);
   assert.equal(LAYER_PRESETS.cleanOperational.layers.layerPoints, false);
-  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerCautionRings, false);
+  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerCautionRings, true, 'round the selected aircraft only (Patrick, 4 Oct)');
   assert.equal(LAYER_PRESETS.cleanOperational.layers.layerLegDistances, false);
   assert.equal(LAYER_PRESETS.cleanOperational.layers.layerTurnData, false);
   assert.equal(LAYER_PRESETS.cleanOperational.layers.layerBubbles, false);
   assert.equal(LAYER_PRESETS.cleanOperational.layers.layerHeightLines, false);
   assert.equal(LAYER_PRESETS.cleanOperational.layers.layerSmmReference, false);
-  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerEngineReach, false);
+  assert.equal(LAYER_PRESETS.cleanOperational.layers.layerEngineReach, true, 'the glide circle, selected aircraft only (Patrick, 4 Oct)');
 
   // Standard Training (Default)
   assert.equal(LAYER_PRESETS.standardTraining.layers.layerPhoto, true);
@@ -390,32 +390,24 @@ test('the wind boxes start at the default wind, take a good wind into the settin
 test('selecting a layer preset updates the settings to match that preset', () => {
   const { bar, settings } = withRealControls({ available: { wind: true, photo: true, windTrack: true, view3d: true, reach: true } });
 
-  // Initially DEFAULTS are loaded
-  assert.equal(settings.get().layerTrails, true);
-  assert.equal(settings.get().layerLabels, true);
-  assert.equal(settings.get().layerPoints, true);
-  assert.equal(settings.get().layerCautionRings, true);
-  assert.equal(settings.get().layerPhoto, true);
-  assert.equal(settings.get().layerWindTrack, true);
-  assert.equal(settings.get().layerSmmReference, true);
-  assert.equal(settings.get().layerLegDistances, false);
-  assert.equal(settings.get().layerTurnData, false);
-  assert.equal(settings.get().layerBubbles, DEFAULTS.layerBubbles);
+  // The opening layers are Clean Operational's (Patrick, 4 Oct), with the PFL ground circle off.
+  for (const [key, val] of Object.entries(LAYER_PRESETS.cleanOperational.layers)) assert.equal(settings.get()[key], val, key);
+  assert.equal(settings.get().layerPflCircle, false);
 
-  // Switch to Clean Operational: activates Photo, Labels, Wind Track; all other layers false
+  // Switch to Clean Operational: Photo, Labels, Wind Track, and the selected aircraft's caution ring and glide circle
   press(bar.element, 'Clean Operational');
   assert.equal(settings.get().layerPhoto, true);
   assert.equal(settings.get().layerLabels, true);
   assert.equal(settings.get().layerWindTrack, true);
   assert.equal(settings.get().layerTrails, false);
   assert.equal(settings.get().layerPoints, false);
-  assert.equal(settings.get().layerCautionRings, false);
+  assert.equal(settings.get().layerCautionRings, true);
   assert.equal(settings.get().layerSmmReference, false);
   assert.equal(settings.get().layerLegDistances, false);
   assert.equal(settings.get().layerTurnData, false);
   assert.equal(settings.get().layerBubbles, false);
   assert.equal(settings.get().layerHeightLines, false);
-  assert.equal(settings.get().layerEngineReach, false);
+  assert.equal(settings.get().layerEngineReach, true);
 
   // Switch to Full Telemetry: activates all layers including Leg Distances, Turn Data, Height Lines, Conflict Bubbles
   press(bar.element, 'Full Telemetry');
@@ -452,8 +444,8 @@ test('preset buttons reflect the active preset state and update on preset change
   const { bar } = withRealControls({ available: { wind: true, photo: true, windTrack: true, view3d: true, reach: true } });
   const getPressed = () => tagged(bar.element, 'BUTTON').find((b) => b.getAttribute('data-preset') && b.getAttribute('aria-pressed') === 'true');
 
-  // The opening layers (conflict bubbles and height lines on) match no preset, so none shows as chosen (Patrick, 4 Oct).
-  assert.equal(getPressed(), undefined);
+  // The opening layers are Clean Operational's, so it shows as chosen (Patrick, 4 Oct).
+  assert.equal(getPressed()?.getAttribute('data-preset'), 'cleanOperational');
   press(bar.element, 'Clean Operational');
   assert.equal(getPressed()?.getAttribute('data-preset'), 'cleanOperational');
   press(bar.element, 'Full Telemetry');

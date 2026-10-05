@@ -393,7 +393,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
 
   const callsignBadge = h('span', { class: 'traffic-callsign-badge' }, sim.nextCallsign ? `Next: ${sim.nextCallsign()}` : '');
 
-  const conflictButton = h('button', { type: 'button', class: 'button', disabled: true, title: 'Select an aircraft first', onclick: spawnConflict }, 'Spawn a conflict');
+  const conflictButton = h('button', { type: 'button', class: 'button spawn-conflict', disabled: true, title: 'Select an aircraft first', onclick: spawnConflict }, 'Spawn a conflict'); // red (Patrick, 4 Oct)
   // The button waits for a selected aircraft (Patrick: "when an aircraft is selected") and a route to put the new one on.
   const conflictButtonFollows = () => {
     const on = Boolean(selectedAircraftId) && !pflChosen;

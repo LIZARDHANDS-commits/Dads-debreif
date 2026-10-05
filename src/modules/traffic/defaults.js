@@ -37,22 +37,24 @@ export const DEFAULTS = Object.freeze({
   windFromDeg: 269,
   windKt: 15,
 
-  // Layers: trails, height and speed labels, route points, conflict bubbles,
-  // caution rings and the satellite photo on (V6's built-in setup); leg
-  // distances, turn data and Engine-out reach off.
-  layerTrails: true,
+  // Layers: the Clean Operational preset (Patrick, 4 Oct: "the default display settings to be clean operational"):
+  // labels, the wind-adjusted track and the photo on, with the caution ring and the PFL glide circle (both shown only
+  // round the selected aircraft); trails, route points, bubbles, height lines, the SMM calm reference, leg distances
+  // and turn data off. The PFL ground circle is off too: only the overhead break and the OHB Rejoin show at first.
+  // (Before 4 Oct: trails, points, bubbles, height lines, the SMM reference and the PFL circle were on.)
+  layerTrails: false,
   layerLabels: true,
-  layerPoints: true,
-  layerBubbles: true,
+  layerPoints: false,
+  layerBubbles: false,
   layerCautionRings: true,
-  layerHeightLines: true,
+  layerHeightLines: false,
   layerPhoto: true,
   layerWindTrack: true,
-  layerSmmReference: true,
-  layerPflCircle: true,
+  layerSmmReference: false,
+  layerPflCircle: false,
   layerLegDistances: false,
   layerTurnData: false,
-  layerEngineReach: true, // the PFL glide circle: drawn since it was built, now behind this tick (Patrick, 4 Oct)
+  layerEngineReach: true, // the PFL glide circle, behind this tick (Patrick, 4 Oct)
 
   // Photo (More in Layers): opacity 100 %, drawn above the grid, the setup's
   // own alignment (1.2 trim until the redraw, T8; no offset).

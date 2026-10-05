@@ -1092,3 +1092,11 @@
   white-space: normal;
   overflow-wrap: anywhere;
 }
+
+/* Spawn a conflict is red (Patrick, 4 Oct). */
+[data-module='traffic'] .button.spawn-conflict {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: var(--bg);
+  font-weight: 600;
+}
