@@ -19,7 +19,7 @@ const BOX_NAMES = Object.freeze({ spawnStartPoint: 'Start at point', spawnDelayS
 import { SPAWN_TYPES } from './types.js';
 import { conflictSpawnPlan } from './scenario-timing.js';
 import { onProfileAltFt } from './nav-plans.js';
-import { legDistances } from './route.js';
+import { legDistances, pointDistFt, DEFAULT_ROUTE_OPTIONS } from './route.js';
 import { FT_PER_NM } from '../../core/units.js';
 export { SPAWN_TYPES };
 
@@ -67,16 +67,16 @@ export function spotChoices(route) {
 export const MILES_BACK_ROUTES = Object.freeze(['ENT1', 'ENT2']);
 
 /**
- * The miles boxes (Patrick, 4 Oct: "specifically selected", in 0.1 NM steps), each a distance back from its route's
- * last point along the route (sim.spawn backFt, TR-64): the OHB Rejoin's Merge, and the SI Rejoin's end at the
- * threshold. The most for a rejoin is its length; the least keeps the rejoin a rejoin (the OHB Rejoin's last half
- * mile is the merge itself; the SI Rejoin below 4.2 NM is final, which the SI pattern's "Miles on final" covers).
- * "Miles on final": 0.75 NM, the Window (3/4 mile), out to 4.1 NM, the SI Rejoin's Final point where it has rolled
- * out after base (route file). `fallback` is the box's first value.
+ * The miles boxes (Patrick, 4 Oct: "specifically selected", in 0.1 NM steps), each a distance back along the route
+ * (sim.spawn backFt, TR-64) from where the rejoin joins the pattern, as a pilot counts it: the OHB Rejoin from its
+ * Merge (its last point, on initial); the SI Rejoin from its base turn (`fromPoint` 2, the Entry Mid, where it turns
+ * base; Patrick, 4 Oct). The most is the rejoin line's length to that point; the least keeps it a rejoin.
+ * "Miles on final": from the threshold (the SI Rejoin's end), 0.75 NM, the Window (3/4 mile), out to 4.1 NM, the
+ * SI Rejoin's Final point where it has rolled out after base (route file). `fallback` is the box's first value.
  */
 export const MILES_BOXES = Object.freeze({
   ENT1: Object.freeze({ label: 'Miles back from the Merge', least: 0.5, fallback: 9 }),
-  ENT2: Object.freeze({ label: 'Miles from the threshold', least: 4.2, fallback: 10 }),
+  ENT2: Object.freeze({ label: 'Miles back from the base turn', least: 0.5, fallback: 5, fromPoint: 2 }),
   final: Object.freeze({ label: 'Miles on final', routeId: 'ENT2', least: 0.75, most: 4.1, fallback: 2 }),
 });
 export const MILES_STEP_NM = 0.1;
@@ -265,7 +265,9 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     const route = currentRoute();
     if (MILES_BACK_ROUTES.includes(route?.id)) {
       const box = MILES_BOXES[route.id];
-      milesField(box, route, Math.round((milesBack(route)[0]?.nm ?? box.fallback) * 10) / 10);
+      const opts = setup.routeOptions ?? DEFAULT_ROUTE_OPTIONS;
+      const most = box.fromPoint ? pointDistFt(route, box.fromPoint - 1, opts) / FT_PER_NM : (milesBack(route)[0]?.nm ?? box.fallback);
+      milesField(box, route, Math.floor(most * 10) / 10);
       showSpotsHint();
       return;
     }
@@ -328,16 +330,19 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     const go = h('button', { type: 'button', class: 'button primary spawn-spot', onclick: () => {
       const nm = Number(input.value);
       if (!Number.isFinite(nm) || nm < box.least || nm > top) return say(`${box.label}: enter a number from ${box.least} to ${top}.`);
-      spawnBack(Math.round(nm * 10) / 10, route.id);
+      // From the box's point back up the line: past it, the route's own end lies that much further on.
+      const opts = setup.routeOptions ?? DEFAULT_ROUTE_OPTIONS;
+      const beyondFt = box.fromPoint ? pointDistFt(route, route.points.length - 1, opts) - pointDistFt(route, box.fromPoint - 1, opts) : 0;
+      spawnBack(Math.round(nm * 10) / 10, route.id, beyondFt);
     } }, '+ Spawn');
     guardButton(go, ['spawnDelayS']);
     spots.appendChild(h('div', { class: 'control control-number spawn-miles' }, h('label', { for: id }, box.label), h('div', { class: 'spawn-miles-row' }, input, range, go)));
   }
 
-  /** + Spawn on a miles box: an aircraft (or a pair) `nm` back from the end of route `routeId` along it. */
-  function spawnBack(nm, routeId) {
+  /** + Spawn on a miles box: an aircraft (or a pair) `nm` back along route `routeId` from `beyondFt` before its end. */
+  function spawnBack(nm, routeId, beyondFt = 0) {
     if (pairBox.checked && controls.invalid().includes('pairGapS')) return say('Nothing was added: fix the Pair gap box first.');
-    spawn(pairBox.checked, { routeId, startPoint: 1, backFt: nm * FT_PER_NM });
+    spawn(pairBox.checked, { routeId, startPoint: 1, backFt: beyondFt + nm * FT_PER_NM });
   }
 
   /** A spot was pressed: an aircraft (or a pair, from Advanced settings) at that spot of the chosen route. */

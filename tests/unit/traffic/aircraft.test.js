@@ -126,10 +126,11 @@ test('the spawner shows Type and Route, a button for each spot of the route, and
   assert.deepEqual([miles.getAttribute('type'), miles.getAttribute('step'), miles.getAttribute('min'), miles.getAttribute('max'), miles.value], ['number', '0.1', '0.5', '9.2', '9']);
   assert.equal(words(withClass(spawner, 'spawn-spots-hint')[0]), 'Choose how far back, then + Spawn adds an aircraft there now.');
   assert.equal(words(all(withClass(spawner, 'spawner-advanced')[0], (n) => n.tagName === 'SUMMARY')[0]), 'Advanced settings');
-  // The SI Rejoin too, by miles from the threshold: 4.2 (below that is final) to its 14.6 NM length (the route file).
+  // The SI Rejoin too, by miles back from its base turn (Patrick, 4 Oct): 0.5 to the rejoin line's length, about 7.1 NM.
   chooseRoute(spawner, 'ENT2');
-  const si = inputFor(spawner, 'Miles from the threshold');
-  assert.deepEqual([si.getAttribute('min'), si.getAttribute('max')], ['4.2', '14.6']);
+  const si = inputFor(spawner, 'Miles back from the base turn');
+  assert.equal(si.getAttribute('min'), '0.5');
+  assert.ok(Number(si.getAttribute('max')) >= 6.9 && Number(si.getAttribute('max')) <= 7.2, `the line is about 7.1 NM (route file), max ${si.getAttribute('max')}`);
   assert.equal(spotButtons(spawner).filter((b) => words(b) !== '+ Spawn').length, 0, 'no spot buttons on a rejoin');
   // Spot buttons are for the patterns: the overhead break's need no + Spawn.
   chooseRoute(spawner, 'PAT1');
@@ -221,15 +222,15 @@ test('SI pattern offers Downwind and Base, and miles on final from 0.75 to 4.1 N
   assert.match(words(withClass(spawner, 'spawn-message')[0]), /Miles on final: enter a number from 0\.75 to 4\.1/);
 });
 
-test('on the SI Rejoin, + Spawn starts an aircraft the chosen miles from the threshold along the rejoin', () => {
+test('on the SI Rejoin, + Spawn starts an aircraft the chosen miles back from the base turn along the rejoin line', () => {
   const { spawner, sim } = setup();
   chooseRoute(spawner, 'ENT2');
-  inputFor(spawner, 'Miles from the threshold').value = '14.5';
+  inputFor(spawner, 'Miles back from the base turn').value = '3';
   spot(spawner, '+ Spawn').dispatch('click');
   const added = sim.state().aircraft.at(-1);
-  const start = MOOSE_JAW.routes.find((r) => r.id === 'ENT2').points[0]; // the Entry Start, 14.6 NM along
-  const nm = Math.hypot(added.x - start.x, added.y - start.y) / 6076.12;
-  assert.ok(nm <= 0.3, `14.5 NM out is within 0.3 NM of the Entry Start (14.6 NM), got ${nm.toFixed(2)} NM`);
+  const turn = MOOSE_JAW.routes.find((r) => r.id === 'ENT2').points[1]; // the Entry Mid, where it turns base
+  const nm = Math.hypot(added.x - turn.x, added.y - turn.y) / 6076.12;
+  assert.ok(Math.abs(nm - 3) <= 0.1, `3 NM back from the base turn (the line is straight there), got ${nm.toFixed(2)} NM`);
 });
 
 test('a pair with a gap that makes no sense adds neither aircraft', () => {
