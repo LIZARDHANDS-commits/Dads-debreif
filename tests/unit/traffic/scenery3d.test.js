@@ -24,9 +24,12 @@ test('CYMJ aerodrome context and constants match Moose Jaw ground truth', () => 
   assert.equal(CYMJ_ARP.lat, 50.3303);
   assert.equal(CYMJ_ARP.lon, -105.5592);
   assert.equal(CYMJ_RUNWAY_29L.headingDeg, 298);
-  assert.deepEqual(CYMJ_RUNWAY_29L.threshold, { x: 3104, y: -3194 });
-  assert.deepEqual(CYMJ_RUNWAY_29L.departure, { x: -4066, y: 680 });
-  assert.deepEqual(CYMJ_APRON_BOUNDS, { minX: -600, maxX: 2600, minY: 2000, maxY: 3600 });
+  // Runway 29L is 7,280 ft on the CAP aerodrome chart (CYMJ-AD), on 298° true (TR-24); shared margins ±100 ft, ±5°.
+  const { threshold: th, departure: dep } = CYMJ_RUNWAY_29L;
+  assert.ok(Math.abs(Math.hypot(dep.x - th.x, dep.y - th.y) - 7280) <= 100, 'runway length');
+  const bearing = (Math.atan2(dep.x - th.x, dep.y - th.y) * 180 / Math.PI + 360) % 360;
+  assert.ok(Math.abs(bearing - 298) <= 5, `runway bearing ${bearing.toFixed(1)}°`);
+  assert.ok(CYMJ_APRON_BOUNDS.minY > Math.max(th.y, dep.y), 'the flight line is north of the runway');
 });
 
 test('instantiates scenery group and asserts tower, 4 hangars, and apron slab exist', () => {
@@ -103,11 +106,8 @@ test('instantiates scenery group and asserts tower, 4 hangars, and apron slab ex
   disposeAirfieldScenery(scenery);
 });
 
-test('building coordinates fall within expected apron bounds (X in [-600, 2000], Y in [2000, 3800])', () => {
-  const minX = -600;
-  const maxX = 2000;
-  const minY = 2000;
-  const maxY = 3800;
+test('building coordinates fall within the apron bounds', () => {
+  const { minX, maxX, minY, maxY } = CYMJ_APRON_BOUNDS;
 
   // Tower coordinates in CYMJ_BUILDING_COORDS
   assert.ok(

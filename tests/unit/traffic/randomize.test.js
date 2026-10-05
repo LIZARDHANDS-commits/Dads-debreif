@@ -35,8 +35,12 @@ test('the straight-in from the outer downwind comes down to 2,700 ft and rolls o
   for (const [windFromDeg, windKt] of [[360, 0], [260, 15], [200, 25]]) {
     const path = buildDownwindStraightIn(PAT.points, { x: PAT.points[5].x, y: PAT.points[5].y, alt: 3500, kias: 220, headingDeg: 118, bankDeg: 0 }, { windFromDeg, windKt }, ent2);
     const end = path.at(-1);
-    const o = legOffsetsFt(base.a, base.b, end);
-    assert.ok(Math.abs(o.crossFt) <= 100 && o.alongFt > 0 && o.alongFt < Math.hypot(base.b.x - base.a.x, base.b.y - base.a.y), 'on the base leg, short of the Entry Gate');
+    // Rolled out on base: wings level and on the line (shared ±100 ft), before the Entry Gate where it turns onto the
+    // 45° leg. On the true-scale map the base leg is only about 1.2 NM (TR-67).
+    const turned = path.findIndex((p) => p.g > 1.3);
+    const settled = path.find((p, k) => k > turned && p.g < 1.02 && Math.abs(legOffsetsFt(base.a, base.b, p).crossFt) <= 100);
+    const o = settled && legOffsetsFt(base.a, base.b, settled);
+    assert.ok(o && o.alongFt > 0 && o.alongFt < Math.hypot(base.b.x - base.a.x, base.b.y - base.a.y), `${windKt} kt from ${windFromDeg}: rolled out on the base leg, short of the Entry Gate`);
     assert.ok(Math.abs(end.alt - RANDOM.straightInAltFt) <= 100, 'at 2,700 ft');
     assert.ok(Math.abs(end.kt - RANDOM.straightInKias) <= 10, 'at 140 KIAS');
     assert.ok(Math.abs(wrapDeg180(end.headingDeg - baseTrack)) <= 15, 'heading along the base leg (±15° for the crab)');

@@ -60,7 +60,7 @@ test('each built-in profile has its data file\'s routes, aircraft and anchor exa
     const s = entry.profile.settings;
     assert.equal(s.speed, entry.id === 'moose-jaw-v6' ? 8 : 1);
     assert.equal(s.layerPhoto, true);
-    assert.equal(s.photoTrim, 1.2);
+    assert.equal(s.photoTrim, entry.id === 'moose-jaw-v6' ? 1.2 : 1); // the built-in is true feet (TR-67); V6's own setup keeps its 1.2 stretch
     assert.equal(s.photoOpacityPct, 100);
     assert.equal(s.flyRoundedTurns, true);
     assert.equal(s.manualRadiusFt, 1800);

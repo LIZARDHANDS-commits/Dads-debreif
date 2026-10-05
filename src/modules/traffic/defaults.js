@@ -57,10 +57,10 @@ export const DEFAULTS = Object.freeze({
   layerEngineReach: true, // the PFL glide circle, behind this tick (Patrick, 4 Oct)
 
   // Photo (More in Layers): opacity 100 %, drawn above the grid, the setup's
-  // own alignment (1.2 trim until the redraw, T8; no offset).
+  // own alignment (true scale since the routes were rebuilt in true feet, TR-67; no offset).
   photoOpacityPct: 100,
   photoAboveGrid: true,
-  photoTrim: 1.2,
+  photoTrim: 1,
   photoEastFt: 0,
   photoNorthFt: 0,
 

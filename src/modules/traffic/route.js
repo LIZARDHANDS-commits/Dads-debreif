@@ -19,7 +19,7 @@ import { limitG, turnRadiusFt, bankDegFromG, gFromBankDeg, turnRateFromBankRadPe
 import { unitVectorFromCompassDeg, compassDegFromVector } from '../../core/angles.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
 import { windTriangle, windVectorFtps } from '../../core/wind.js';
-import { RUNWAY_29L_HDG_DEG, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT, PFL_CIRCLE_RADIUS_FT, PATTERN_ALT_FT, PFL_KEY_ALT_FT } from './airfield.js';
+import { RUNWAY_29L_HDG_DEG, THRESHOLD_29L, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT, PFL_CIRCLE_RADIUS_FT, PATTERN_ALT_FT, PFL_KEY_ALT_FT } from './airfield.js';
 import { buildCircuit } from './circuit.js';
 
 /**
@@ -724,7 +724,7 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
  */
 export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options = DEFAULT_ROUTE_OPTIONS) {
   const pts = route?.points || route?.waypoints || [];
-  const th = pts.find((p) => p.tag === 'threshold' || /threshold/i.test(p.label)) ?? pts.find((p) => (p.alt ?? 0) <= 2000) ?? pts[pts.length - 1] ?? { x: 3103.84, y: -3193.93 };
+  const th = pts.find((p) => p.tag === 'threshold' || /threshold/i.test(p.label)) ?? pts.find((p) => (p.alt ?? 0) <= 2000) ?? pts[pts.length - 1] ?? THRESHOLD_29L;
   const rwyHeadingDeg = RUNWAY_29L_HDG_DEG;
   const radiusFt = PFL_CIRCLE_RADIUS_FT; // 0.5 NM radius (1.0 NM diameter)
 
@@ -734,8 +734,8 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
   const nLeftY = Math.cos(rad208); // -0.882948 (South)
 
   // Center of circle: 0.5 NM at 208° from threshold
-  const cxFt = th.x + radiusFt * nLeftX; // ~1677.7 ft
-  const cyFt = th.y + radiusFt * nLeftY; // ~-5876.4 ft
+  const cxFt = th.x + radiusFt * nLeftX;
+  const cyFt = th.y + radiusFt * nLeftY;
 
   const totalSteps = 120; // 3° per step for smooth high-density trajectory
   const track = [];

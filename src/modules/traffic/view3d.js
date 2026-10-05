@@ -44,11 +44,12 @@ export const PHOTO_SPAN_FT = 105_600; // ten miles each way
 export const MID_SPAN_FT = 30_000;
 /**
  * On High the middle tier covers the pattern lines plus a mile (Patrick, 4 Oct 2026: "sharp all the way to a mile
- * past the pattern lines"): a square round the built-in Moose Jaw Pattern 1 points plus 6,076 ft, about 10 x 8 NM.
- * It is four 4,096 px squares (about 7.6 ft a pixel, Esri zoom 15), not one 8,192 px canvas, which some browsers refuse.
+ * past the pattern lines"): a square round the built-in Moose Jaw Pattern 1 points plus 6,076 ft, about 9 x 7 NM
+ * in true feet (TR-67). It is four 4,096 px squares (about 6.8 ft a pixel, Esri zoom 15), not one 8,192 px canvas,
+ * which some browsers refuse.
  */
-export const PATTERN_MID_SPAN_FT = 62_500;
-export const PATTERN_MID_CENTER_FT = Object.freeze({ x: -3_250, y: -8_930 });
+export const PATTERN_MID_SPAN_FT = 55_500;
+export const PATTERN_MID_CENTER_FT = Object.freeze({ x: -3_500, y: -7_700 });
 /** The four squares' centres, west to east then south to north. */
 export const PATTERN_MID_QUADS = Object.freeze([-1, 1].flatMap((dy) => [-1, 1].map((dx) => Object.freeze({
   x: PATTERN_MID_CENTER_FT.x + (dx * PATTERN_MID_SPAN_FT) / 4,
@@ -56,7 +57,7 @@ export const PATTERN_MID_QUADS = Object.freeze([-1, 1].flatMap((dy) => [-1, 1].m
 }))));
 /** The sharpest ground (Esri zoom 18, about 1.3 ft a pixel): a box round both runway ends and the flight line. */
 export const TIGHT_SPAN_FT = 7_600;
-export const TIGHT_CENTER_FT = Object.freeze({ x: -480, y: -150 });
+export const TIGHT_CENTER_FT = Object.freeze({ x: -400, y: -125 }); // divided by 1.2 to true feet (TR-67)
 
 /** Camera limits. pitch is degrees from straight down (0 looks down, 90 is level); zoom is pixels to 1,000 ft. */
 export const CAMERA_LIMITS = Object.freeze({ pitch: [0, 85], zoom: [0.3, 4000] });

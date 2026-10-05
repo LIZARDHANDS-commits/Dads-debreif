@@ -8,6 +8,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadThree } from '../../../src/ui-kit/three-aircraft.js';
+import { THRESHOLD_29L, DEPARTURE_END_29L } from '../../../src/modules/traffic/airfield.js';
 import {
   AIRFIELD_CORE_BOUNDS_FT,
   createCoreGroundMesh,
@@ -21,10 +22,10 @@ import {
 
 const THREE = await loadThree();
 
-test('1. Core bounds configuration encompasses Runway 29L threshold (3104, -3194) and departure end (-4066, 680)', () => {
+test('1. Core bounds configuration encompasses the Runway 29L threshold and departure end', () => {
   const b = AIRFIELD_CORE_BOUNDS_FT;
-  const thresh = { x: 3104, y: -3194 };
-  const dep = { x: -4066, y: 680 };
+  const thresh = THRESHOLD_29L;
+  const dep = DEPARTURE_END_29L;
 
   // Assert exact bounding box dimensions
   assert.equal(b.minX, -7000);

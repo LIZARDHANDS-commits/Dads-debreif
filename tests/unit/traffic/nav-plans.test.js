@@ -37,7 +37,11 @@ test('On profile: too far out to make High Key even from 15,000 ft is said in wo
   assert.match(found.problem, /Too far out/);
 });
 
-test('the OHB Rejoin\'s starts are 9.2, 5.2 and 1.6 NM back from the Merge along the line', () => {
+test('the OHB Rejoin\'s starts are their distances back from the Merge along the line, farthest first', () => {
   const ent1 = MOOSE_JAW.routes.find((r) => r.id === 'ENT1');
-  assert.deepEqual(milesBack(ent1), [{ point: 1, nm: 9.2 }, { point: 2, nm: 5.2 }, { point: 3, nm: 1.6 }]);
+  const pts = ent1.points;
+  const toMergeNm = (i) => pts.slice(i).reduce((sum, p, k, rest) => sum + (k ? Math.hypot(p.x - rest[k - 1].x, p.y - rest[k - 1].y) : 0), 0) / 6076.12;
+  const got = milesBack(ent1);
+  assert.deepEqual(got.map((s) => s.point), [1, 2, 3]);
+  got.forEach((s, i) => assert.ok(Math.abs(s.nm - toMergeNm(i)) <= 0.05, `point ${s.point}: ${s.nm} NM`));
 });

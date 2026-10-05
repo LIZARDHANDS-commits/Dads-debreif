@@ -108,7 +108,11 @@ export function buildDownwindStraightIn(points, from, wind, ent2) {
   for (let n = 0; n < MOST_STEPS; n++) {
     const g = gFromBankDeg(s.bank);
     const tas = ktToFtps(pilot.tasKt());
-    const R = turnRadiusFromBankFt(tas, RANDOM.turnBankDeg);
+    // It slows toward 140 KIAS in the turn onto base, so the turn tightens as it goes: lead it on the mean of today's
+    // speed and the speed it is slowing to, or it rolls out short of the line (TR-67: on the true-scale map the
+    // downwind is too short for it to have slowed before the turn).
+    const leadTas = slowing ? (tas + Math.min(tas, ktToFtps(iasToTasKt(RANDOM.straightInKias, s.alt)))) / 2 : tas;
+    const R = turnRadiusFromBankFt(leadTas, RANDOM.turnBankDeg);
     const gs = pilot.groundSpeedFtps();
     // Level at 2,700 ft, then let it slow at idle toward 140 KIAS, holding 140 once there (SMM 4.16 para 36: descend at
     // 220 KIAS to 300 ft below pattern height, then level and decelerate; roll out on base below 147).

@@ -41,7 +41,7 @@ import { buildFlinch, buildClimbAhead, EVADE, spacingExtensionFt, extendLimitFt 
 import { buildBreakout, gateLegOf, ENT1_ROUTE, BREAKOUT_TRAFFIC_BANK_DEG } from './breakout.js';
 import { RANDOM, rollFor, pick, oddsFor, buildDownwindStraightIn } from './randomize.js';
 import { behaviourOf, behaviourLabel } from './behaviour.js';
-import { PATTERN_ALT_FT, RUNWAY_29L_HDG_DEG, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
+import { PATTERN_ALT_FT, RUNWAY_29L_HDG_DEG, DEPARTURE_END_29L, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
 import { windTriangle } from '../../core/wind.js';
 import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
@@ -189,8 +189,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       a.alt = 2400;
       a.iasKt = 140;
       a.headingDeg = RUNWAY_29L_HDG_DEG;
-      a.x = route.points[a.startIndex]?.x ?? -4066.03;
-      a.y = route.points[a.startIndex]?.y ?? 680.56;
+      a.x = route.points[a.startIndex]?.x ?? DEPARTURE_END_29L.x;
+      a.y = route.points[a.startIndex]?.y ?? DEPARTURE_END_29L.y;
       a.closedPatternBankDeg = a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
       startClosedPattern(a);
     } else {

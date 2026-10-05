@@ -126,11 +126,13 @@ test('the spawner shows Type and Route, a button for each spot of the route, and
   assert.deepEqual([miles.getAttribute('type'), miles.getAttribute('step'), miles.getAttribute('min'), miles.getAttribute('max'), miles.value], ['number', '0.1', '0.5', '9.2', '9']);
   assert.equal(words(withClass(spawner, 'spawn-spots-hint')[0]), 'Choose how far back, then + Spawn adds an aircraft there now.');
   assert.equal(words(all(withClass(spawner, 'spawner-advanced')[0], (n) => n.tagName === 'SUMMARY')[0]), 'Advanced settings');
-  // The SI Rejoin too, by miles back from its base turn (Patrick, 4 Oct): 0.5 to the rejoin line's length, about 7.1 NM.
+  // The SI Rejoin too, by miles back from its base turn (Patrick, 4 Oct): 0.5 to the rejoin line's length (route file).
   chooseRoute(spawner, 'ENT2');
   const si = inputFor(spawner, 'Miles back from the base turn');
   assert.equal(si.getAttribute('min'), '0.5');
-  assert.ok(Number(si.getAttribute('max')) >= 6.9 && Number(si.getAttribute('max')) <= 7.2, `the line is about 7.1 NM (route file), max ${si.getAttribute('max')}`);
+  const [siStart, siMid] = MOOSE_JAW.routes.find((r) => r.id === 'ENT2').points;
+  const siLineNm = Math.hypot(siMid.x - siStart.x, siMid.y - siStart.y) / 6076.12;
+  assert.ok(Math.abs(Number(si.getAttribute('max')) - siLineNm) <= 0.15, `the line is about ${siLineNm.toFixed(1)} NM (route file), max ${si.getAttribute('max')}`);
   assert.equal(spotButtons(spawner).filter((b) => words(b) !== '+ Spawn').length, 0, 'no spot buttons on a rejoin');
   // Spot buttons are for the patterns: the overhead break's need no + Spawn.
   chooseRoute(spawner, 'PAT1');
@@ -511,6 +513,7 @@ test('only the selected card shows its controls: Breakout, Closed Pattern, High 
 
   // Aircraft on final approach window (point 13 = threshold / final) has Go-around enabled
   const id = sim.spawn({ id: 'AFINAL', routeId: 'PAT1', startPoint: 13, delaySec: 0 });
+  sim.stepTo(sim.t + 2); // just past the window, on final (a start exactly at the window is the end of the final turn)
   panel.update(sim.state());
   panel.selectAircraft(id);
   const finalRow = withClass(list, 'aircraft-row').find((r) => r.dataset.aircraftId === id);

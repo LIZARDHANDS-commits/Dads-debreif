@@ -175,12 +175,14 @@ export function createLandmarks(THREE, { floor = THRESHOLD_DATA_ELEV_FT } = {}) 
 // ---- Highway 2 ------------------------------------------------------------------------------------
 
 /**
- * Hwy 2 centreline (x east, y north, ft from the ARP), north to south. Estimated from Patrick's photos: about
- * 500 ft west of Window Farm and 600 ft east of Sukanen Ship. NEEDS A VISUAL CHECK against the satellite photo;
- * correct the points here.
+ * Hwy 2 centreline (x east, y north, ft from the ARP), north to south. Read off Esri's true-scale photo (5 Oct,
+ * about ±30 ft; TR-67): the divided highway north of the field, then the road due south past Window Farm's west
+ * side and about 1,000 ft east of the Sukanen Ship pin (through the Sukanen Ship intersection, EFIG p.211), bending
+ * south-west near 4.7 NM south of the field.
  */
 export const HWY2_POINTS = Object.freeze([
-  Object.freeze([5892, 8000]), Object.freeze([5600, -4324]), Object.freeze([5277, -17956]), Object.freeze([4992, -30000]),
+  Object.freeze([6250, 8000]), Object.freeze([5700, -4324]), Object.freeze([5700, -18267]), Object.freeze([5700, -28400]),
+  Object.freeze([4950, -31450]),
 ]);
 export const HWY2_WIDTH_FT = 40;
 
@@ -209,10 +211,13 @@ export function createHighway(THREE, points, floor = THRESHOLD_DATA_ELEV_FT, wid
 
 // ---- Windsocks --------------------------------------------------------------------------------------
 
-/** 29L threshold sock ~250 ft SW of centreline; mid-field sock south of the runway (ft from the ARP). */
+/**
+ * 29L threshold sock ~250 ft SW of centreline; mid-field sock south of the runway (ft from the ARP). Moved with the
+ * runway onto its true thresholds (TR-67), keeping their places beside it.
+ */
 export const WINDSOCK_SITES = Object.freeze([
-  Object.freeze({ id: 'windsock-29l', x: 2987, y: -3415 }),
-  Object.freeze({ id: 'windsock-midfield', x: 267, y: -2140 }),
+  Object.freeze({ id: 'windsock-29l', x: 2678, y: -2997 }),
+  Object.freeze({ id: 'windsock-midfield', x: 253, y: -1872 }),
 ]);
 export const WINDSOCK_FULL_KT = 15;
 const MAST_FT = 20;

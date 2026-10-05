@@ -529,15 +529,15 @@ test('the photo\'s alignment is in the settings menu, and Reset photo alignment 
   await open(page);
   await page.getByRole('button', { name: /^Traffic settings/ }).click();
   const trim = page.getByLabel('Photo scale trim');
-  await expect(trim).toHaveValue('1.2');
-  await trim.fill('1');
+  await expect(trim).toHaveValue('1'); // true scale: the routes are in true feet (TR-67)
+  await trim.fill('1.1');
   await trim.press('Enter');
-  await expect(trim).toHaveValue('1');
+  await expect(trim).toHaveValue('1.1');
   const east = page.getByLabel('Photo east / west offset');
   await east.fill('300');
   await east.press('Enter');
   await page.getByRole('button', { name: 'Reset photo alignment' }).click();
-  await expect(trim).toHaveValue('1.2');
+  await expect(trim).toHaveValue('1');
   await expect(east).toHaveValue('0');
 });
 

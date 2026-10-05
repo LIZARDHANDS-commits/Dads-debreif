@@ -839,10 +839,10 @@ export function pflCircleLayout() {
   const rad208 = (208 * Math.PI) / 180;
   const nLeftX = Math.sin(rad208); // -0.469472 (West)
   const nLeftY = Math.cos(rad208); // -0.882948 (South)
-  const center = { x: th.x + radiusFt * nLeftX, y: th.y + radiusFt * nLeftY }; // (1677.7, -5876.4) ft
-  const lowKey = { x: th.x + 2 * radiusFt * nLeftX, y: th.y + 2 * radiusFt * nLeftY }; // (252, -8559) ft
+  const center = { x: th.x + radiusFt * nLeftX, y: th.y + radiusFt * nLeftY };
+  const lowKey = { x: th.x + 2 * radiusFt * nLeftX, y: th.y + 2 * radiusFt * nLeftY };
   const rad118 = (118 * Math.PI) / 180; // Final Key: 270° round the circle, bearing 118° from its centre
-  const finalKey = { x: center.x + radiusFt * Math.sin(rad118), y: center.y + radiusFt * Math.cos(rad118) }; // (4360, -7303) ft
+  const finalKey = { x: center.x + radiusFt * Math.sin(rad118), y: center.y + radiusFt * Math.cos(rad118) };
   return { highKey: { x: th.x, y: th.y }, center, radiusFt, lowKey, finalKey };
 }
 
