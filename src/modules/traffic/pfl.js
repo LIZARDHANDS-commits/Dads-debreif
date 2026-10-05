@@ -65,6 +65,8 @@ export const PFL = Object.freeze({
   gateFlagBankDeg: 45,
   /** An orbit to lose height is flown at 30° of bank (SMM 13.5 para 11, p.46; Patrick 5 Oct 23:29Z). */
   orbitBankDeg: 30,
+  /** High by up to this at the keys is carried round, not taken off with an early T/O flap (Patrick 5 Oct 23:49Z, 23:51Z). */
+  keysCarryHighFt: 100,
   /** The High Key window, ft MSL (WFO S2 art 403 para 1a; Patrick C4 06:30Z). */
   highKeyMinFt: 5000,
   highKeyMaxFt: 6000,
@@ -1059,11 +1061,12 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
       else if (mustGear) cfg = 1;
       else if (gearEarly) { cfg = 1; notes.push(`gear early before the join at ${Math.round(s.alt)} ft`); }
       else if (dragOk && cfg < 2) {
-        // Gear and T/O flap: at their planned point unless low; before it only with height to spare. The T/O flap waits
-        // for Low Key: a little high at the keys is carried round, and the landing flap takes it off early after Low Key
-        // (Patrick 5 Oct 23:49Z "chart drag as is, keys about 100 ft high, take land flap early"; SMM 13.8 para 17).
+        // Gear and T/O flap: at their planned point unless low; before it only with height to spare. Before Low Key the
+        // T/O flap goes early only when more than about 100 ft high: a little high is carried round, and the landing flap
+        // takes it off early after Low Key (Patrick 5 Oct 23:49Z "keys about 100 ft high, take land flap early";
+        // 23:51Z "if ... i see that im going to be very high at low key i will take takeoff flaps early").
         const due = (path[seg]?.plan ?? 0) > cfg;
-        const earlyOk = cfg === 0 || (path[seg]?.theta ?? 360) >= 180;
+        const earlyOk = cfg === 0 || (path[seg]?.theta ?? 360) >= 180 || margin > PFL.keysCarryHighFt;
         if (due ? margin >= -PFL.onProfileFt : earlyOk && s.alt - ground - neededFt(path, seg, proj.pt, s.alt, cfg, wind, true, 'aim', 2) >= PFL.dragBufferFt) cfg += 1;
       } else if (dragOk && cfg === 2) {
         // Landing flap as soon as it still touches down in the first 1,000 ft: closer is better (Patrick 09:56Z).
