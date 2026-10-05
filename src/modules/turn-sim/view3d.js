@@ -45,11 +45,12 @@ const TRAIL_POINTS = 8000;
 /** The most points a planned path holds, and its dashes on screen (pixels), as the 2D view's 7 on, 6 off. */
 const PLAN_POINTS = 4000;
 const PLAN_DASH_PX = Object.freeze({ on: 7, off: 6 });
-/** Room for the 3D guides (the 3/9 and 7/5 lines, the turn circles, The Cone's edges and its shading), in points. */
+/** Room for the 3D guides (the 3/9 and 7/5 lines and the turn circles), in points. */
 const GUIDE_LINE_POINTS = 4000;
-const GUIDE_FILL_POINTS = 1600;
 const CIRCLE_STEPS = 48;
-const CONE_STEPS = 12;
+/** The 3D cone's facets: round the tail, and across the 30-60° band. */
+const CONE_ROUND_STEPS = 48;
+const CONE_BAND_STEPS = 6;
 
 const rad = (d) => (d * Math.PI) / 180;
 const deg = (r) => (r * 180) / Math.PI;
@@ -167,14 +168,11 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     grid.rotation.x = Math.PI / 2; // GridHelper is flat in X-Z; the sim's ground is X-Y
     grid.material.fog = false;
     scene.add(grid);
-    // The guides (Patrick, 5 Oct: every layer in 3D too): dashed lines in each aircraft's colour, and The Cone's shading.
+    // The guides (Patrick, 5 Oct: every layer in 3D too): dashed lines in each aircraft's colour. The Cone is its own object (syncCones).
     const guideLines = new THREE.LineSegments(guideGeometry(GUIDE_LINE_POINTS), new THREE.LineDashedMaterial({ vertexColors: true, transparent: true, opacity: 0.6, fog: false }));
-    const guideFill = new THREE.Mesh(guideGeometry(GUIDE_FILL_POINTS), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.14, side: THREE.DoubleSide, depthWrite: false, fog: false }));
-    for (const o of [guideLines, guideFill]) {
-      o.frustumCulled = false;
-      scene.add(o);
-    }
-    gl = { renderer, scene, camera, sky, grid, planes: new Map(), trails: new Map(), plans: new Map(), guideLines, guideFill };
+    guideLines.frustumCulled = false;
+    scene.add(guideLines);
+    gl = { renderer, scene, camera, sky, grid, planes: new Map(), trails: new Map(), plans: new Map(), guideLines, cones: new Map(), coneGeometry: null };
   }
 
   function planeFor(id) {
@@ -217,14 +215,12 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
   }
 
   /**
-   * The 3/9 line, the 7/5 lines, the turn circles and The Cone in 3D, as the 2D view draws them (view.js): at each
+   * The 3/9 line, the 7/5 lines and the turn circles in 3D, as the 2D view draws them (view.js): at each
    * aircraft's height, in its colour, for the aircraft ticked in each list.
    */
   function drawGuides(state, layers, lengthFt) {
     const lines = gl.guideLines.geometry;
-    const fill = gl.guideFill.geometry;
     let nl = 0;
-    let nf = 0;
     const colour = new THREE.Color();
     const put = (geo, i, x, y, z) => {
       geo.attributes.position.setXYZ(i, x, y, z);
@@ -235,12 +231,6 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       put(lines, nl++, ...a);
       put(lines, nl++, ...b);
     };
-    const tri = (a, b, c) => {
-      if (nf + 3 > GUIDE_FILL_POINTS) return;
-      put(fill, nf++, ...a);
-      put(fill, nf++, ...b);
-      put(fill, nf++, ...c);
-    };
     for (const a of state.aircraft) {
       colour.set(source.colors[a.id] ?? '#ffffff');
       const z = aircraftPose(a).z;
@@ -248,20 +238,6 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       if (layers.lead39 && layers[`l39_${a.id}`]) seg(out(a.headingRad + Math.PI / 2, lengthFt), out(a.headingRad - Math.PI / 2, lengthFt));
       if (layers.lead75 && layers[`l75_${a.id}`]) {
         for (const off of [Math.PI / 6, -Math.PI / 6]) seg([a.xFt, a.yFt, z], out(a.headingRad + Math.PI + off, lengthFt));
-      }
-      if (layers.cone && layers[`cone_${a.id}`]) {
-        const { minFt, maxFt, minSweepDeg, maxSweepDeg } = FW_TURN.band;
-        for (const side of [1, -1]) {
-          const at = (r, i) => out(a.headingRad + side * (Math.PI / 2 + rad(minSweepDeg + ((maxSweepDeg - minSweepDeg) * i) / CONE_STEPS)), r);
-          for (let i = 0; i < CONE_STEPS; i++) {
-            tri(at(minFt, i), at(maxFt, i), at(maxFt, i + 1));
-            tri(at(minFt, i), at(maxFt, i + 1), at(minFt, i + 1));
-            seg(at(maxFt, i), at(maxFt, i + 1));
-            seg(at(minFt, i), at(minFt, i + 1));
-          }
-          seg(at(minFt, 0), at(maxFt, 0));
-          seg(at(minFt, CONE_STEPS), at(maxFt, CONE_STEPS));
-        }
       }
       // The circle each banked aircraft is flying now, as the 2D live view's (view.js drawBankCircles).
       if (layers.turnCircles && !state.finished && a.bankDeg) {
@@ -273,12 +249,80 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
         for (let i = 0; i < CIRCLE_STEPS; i++) seg(p(i), p(i + 1));
       }
     }
-    for (const [geo, n] of [[lines, nl], [fill, nf]]) {
-      geo.attributes.position.needsUpdate = true;
-      geo.attributes.color.needsUpdate = true;
-      geo.setDrawRange(0, n);
-    }
+    syncCones(state, layers);
+    lines.attributes.position.needsUpdate = true;
+    lines.attributes.color.needsUpdate = true;
+    lines.setDrawRange(0, nl);
     if (nl) gl.guideLines.computeLineDistances();
+  }
+
+  /**
+   * The fighting wing cone in 3D (Patrick, 5 Oct: "actually 3D", a true cone round the tail): the 2D band spun round the
+   * aircraft's tail line, a hollow shell from 30° to 60° off the tail (60-30° of sweep from the wing line) and 500-1,000 ft
+   * out (SMM 12.29 para 69, Fig 12.19; FW_TURN.band). Built once in the aircraft's own frame (x forward, y left, z up) and
+   * turned with it, so it banks and pitches as the aircraft does.
+   */
+  function coneGeometry() {
+    if (gl.coneGeometry) return gl.coneGeometry;
+    const { minFt, maxFt, minSweepDeg, maxSweepDeg } = FW_TURN.band;
+    const offTail = [90 - maxSweepDeg, 90 - minSweepDeg].map(rad); // 30° and 60° off the tail
+    const at = (r, alpha, phi) => [-r * Math.cos(alpha), r * Math.sin(alpha) * Math.cos(phi), r * Math.sin(alpha) * Math.sin(phi)];
+    const tris = [];
+    const edges = [];
+    const quad = (a, b, c, d) => tris.push(...a, ...b, ...c, ...a, ...c, ...d);
+    for (let j = 0; j < CONE_ROUND_STEPS; j++) {
+      const p0 = (2 * Math.PI * j) / CONE_ROUND_STEPS;
+      const p1 = (2 * Math.PI * (j + 1)) / CONE_ROUND_STEPS;
+      for (const alpha of offTail) quad(at(minFt, alpha, p0), at(maxFt, alpha, p0), at(maxFt, alpha, p1), at(minFt, alpha, p1)); // inner and outer walls
+      for (let i = 0; i < CONE_BAND_STEPS; i++) {
+        const a0 = offTail[0] + ((offTail[1] - offTail[0]) * i) / CONE_BAND_STEPS;
+        const a1 = offTail[0] + ((offTail[1] - offTail[0]) * (i + 1)) / CONE_BAND_STEPS;
+        for (const r of [minFt, maxFt]) quad(at(r, a0, p0), at(r, a1, p0), at(r, a1, p1), at(r, a0, p1)); // the 500 and 1,000 ft caps
+      }
+      for (const alpha of offTail) for (const r of [minFt, maxFt]) edges.push(...at(r, alpha, p0), ...at(r, alpha, p1)); // four rims
+    }
+    for (let j = 0; j < 8; j++) { // eight lines along the cone, so its shape reads
+      const phi = (2 * Math.PI * j) / 8;
+      for (const alpha of offTail) edges.push(...at(minFt, alpha, phi), ...at(maxFt, alpha, phi));
+    }
+    const fill = new THREE.BufferGeometry();
+    fill.setAttribute('position', new THREE.BufferAttribute(new Float32Array(tris), 3));
+    const lines = new THREE.BufferGeometry();
+    lines.setAttribute('position', new THREE.BufferAttribute(new Float32Array(edges), 3));
+    gl.coneGeometry = { fill, lines };
+    return gl.coneGeometry;
+  }
+
+  function syncCones(state, layers) {
+    const signs = source.bankSigns();
+    const want = new Set();
+    for (const a of state.aircraft) {
+      if (!layers.cone || !layers[`cone_${a.id}`]) continue;
+      want.add(a.id);
+      let cone = gl.cones.get(a.id);
+      if (!cone) {
+        const geo = coneGeometry();
+        const colour = source.colors[a.id] ?? '#ffffff';
+        cone = new THREE.Group();
+        cone.add(
+          new THREE.Mesh(geo.fill, new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.1, side: THREE.DoubleSide, depthWrite: false, fog: false })),
+          new THREE.LineSegments(geo.lines, new THREE.LineBasicMaterial({ color: colour, transparent: true, opacity: 0.45, fog: false })),
+        );
+        cone.rotation.order = 'ZYX';
+        for (const o of cone.children) o.frustumCulled = false;
+        gl.scene.add(cone);
+        gl.cones.set(a.id, cone);
+      }
+      const pose = aircraftPose(a, signs[a.id] ?? 1);
+      cone.position.set(pose.x, pose.y, pose.z);
+      cone.rotation.set(-pose.bankRad, -pose.pitchRad, pose.headingRad); // as the aircraft model
+    }
+    for (const [id, cone] of gl.cones) {
+      if (want.has(id)) continue;
+      cone.removeFromParent();
+      for (const o of cone.children) o.material.dispose();
+      gl.cones.delete(id);
+    }
   }
 
   /** Each aircraft's path still to fly, dashed in its colour (the 2D view's planned paths; Patrick, 5 Oct: in 3D too). */
@@ -560,10 +604,13 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       for (const [type, fn] of hands) canvas.removeEventListener(type, fn);
       if (!gl) return;
       for (const { mesh } of gl.planes.values()) disposeAircraftMesh(mesh);
-      for (const line of [...gl.trails.values(), ...gl.plans.values(), gl.guideLines, gl.guideFill]) {
+      for (const line of [...gl.trails.values(), ...gl.plans.values(), gl.guideLines]) {
         line.geometry.dispose();
         line.material.dispose();
       }
+      for (const cone of gl.cones.values()) for (const o of cone.children) o.material.dispose();
+      gl.coneGeometry?.fill.dispose();
+      gl.coneGeometry?.lines.dispose();
       gl.grid.geometry.dispose();
       gl.grid.material.dispose();
       gl.sky.dispose();
