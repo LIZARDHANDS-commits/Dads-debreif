@@ -215,7 +215,10 @@ function mount(root, app) {
   }
   const fitBounds = () => {
     const b = fitBox();
-    return { minX: b.x - b.spanXFt / 2, maxX: b.x + b.spanXFt / 2, minY: b.y - b.spanYFt / 2, maxY: b.y + b.spanYFt / 2 };
+    // The height spread too (Patrick, 5 Oct: a loop took the formation off the top of the 3D picture); 2D ignores it.
+    const alts = state.aircraft.map((a) => a.altAboveFt ?? 0);
+    const spanZFt = (Math.max(...alts) - Math.min(...alts)) / (1 - 2 * FIT.marginShare);
+    return { minX: b.x - b.spanXFt / 2, maxX: b.x + b.spanXFt / 2, minY: b.y - b.spanYFt / 2, maxY: b.y + b.spanYFt / 2, spanZFt };
   };
   /**
    * The 2D camera: with Fit all aircraft on, centred on them and zoomed to fit them (eased, or at once after a reset or a
@@ -316,7 +319,9 @@ function mount(root, app) {
       focus: () => {
         if (freeCamera()) return null; // the 3D view keeps its own centre, moved by shift-drag or right-drag
         const b = fitBox();
-        return { x: b.x, y: b.y };
+        // and the formation's average height, so the camera stays on it through loops and wingovers (Patrick, 5 Oct)
+        const alts = state.aircraft.map((a) => a.altAboveFt ?? 0);
+        return { x: b.x, y: b.y, z: alts.reduce((t, v) => t + v, 0) / alts.length };
       },
       fitBounds: () => (cameraPaused || freeCamera() || !layout.get().autoFit ? null : fitBounds()),
       paint: () => layout.get().paint,

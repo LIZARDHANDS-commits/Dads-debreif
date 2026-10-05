@@ -166,3 +166,4 @@ Checks: the same buttons flown from the default start before and after, screensh
 - [ ] Remove the PROTOTYPE flag from the Turn Sim card only if Patrick says so (ALL-R4) (`pf/reset/1-requirements/requirements.md:20`).
 - [x] Quieter guides (Patrick, 5 Oct): the tracks are a faint solid line again (30%, not dots), and the 3/9 and 7/5 lines have half the dashes with wider gaps, in 2D and 3D (the 3D turn circles share the 3D dash). V2.70.
 - [x] The backdrop lifted from charcoal #1c2127 to a medium slate #2a3038, with the grid lifted to match, in 2D and 3D (Patrick, 5 Oct: it read as the same black as the page). V2.72.
+- [x] The 3D camera follows the formation's average height as well as its centre, and Auto zoom counts the height spread, so loops and wingovers in fluid manoeuvring stay in the picture (Patrick, 5 Oct). V2.73.
