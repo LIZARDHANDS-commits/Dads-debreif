@@ -18,7 +18,7 @@
 //
 // Turns in the close formations (spec section 10.2; Patrick 18:11Z: "do turns in any of these formations") are planned here
 // too: planCloseTurn, below. planFormationTurn picks the planner for the formation the aircraft are in.
-import { STEP_SEC, SMOOTHER_PEAK } from './flight.js';
+import { STEP_SEC, SMOOTHER_PEAK, rollLimitAt } from './flight.js';
 import { MANOEUVRES, relativeTo, DEG } from './manoeuvres.js';
 import { recordFlight, dryRunT } from './transitions.js';
 import { trackTwice, phase } from './tracker.js';
@@ -269,16 +269,18 @@ function heldPoses(leadRec, wing, rel, n) {
 
 /**
  * The poses' bank taken up from the aircraft's real bank and roll rate at no more than the aircraft's own roll (tuning.js
- * ROLL), so a path planned from a banked, rolling start (a press mid-turn, replan.js slideInPlane) has no step in the bank:
- * the path's own bank (ownBank) is reached within a fraction of a second and then followed. The positions are the path's.
+ * ROLL, under the T-6A's at each pose's speed, flight.js rollLimitAt, TS-85), so a path planned from a banked, rolling start
+ * (a press mid-turn, replan.js slideInPlane) has no step in the bank: the path's own bank (ownBank) is reached within a
+ * fraction of a second and then followed, never faster than that roll. The positions are the path's.
  */
 function rollFrom(poses, wing) {
   let bank = wing.bankDeg ?? 0;
   let rate = wing.rollRateDps ?? 0;
   for (const p of poses) {
     const want = p.bank;
-    ({ bankDeg: bank, rollRateDps: rate } = easeRoll(bank, rate, want, STEP_SEC, ROLL));
-    if (Math.abs(bank - want) < 1e-6 && Math.abs(rate - p.roll) < ROLL.maxAccelDps2 * STEP_SEC) {
+    const roll = rollLimitAt(p.tas, ROLL);
+    ({ bankDeg: bank, rollRateDps: rate } = easeRoll(bank, rate, want, STEP_SEC, roll));
+    if (Math.abs(bank - want) < 1e-6 && Math.abs(rate - p.roll) < roll.maxAccelDps2 * STEP_SEC) {
       bank = want;
       rate = p.roll;
     }

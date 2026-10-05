@@ -28,7 +28,7 @@
 // come from the line itself (attitude.js), so they always agree with it.
 import { tasToIasKt } from '../../../core/t6-performance.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
-import { STEP_SEC } from './flight.js';
+import { STEP_SEC, rollLimitAt } from './flight.js';
 import { ROLL, WING } from './tuning.js';
 import { easeRoll } from '../../../core/flight-math.js';
 import { smoothest } from './kinematic.js';
@@ -510,8 +510,8 @@ export function smoothPoint(R, k) {
 
 /**
  * #2's pose at step k from the smoothed line S(k) (needs k-1..k+1): velocity and acceleration by central differences,
- * then the lift and G of a coordinated aircraft (attitude.js). The wings roll toward that lift at the T-6's roll rate
- * and roll acceleration at most (90°/s, 360°/s², flight.js ROLL), so a moment of near-zero G
+ * then the lift and G of a coordinated aircraft (attitude.js). The wings roll toward that lift at the pilot's roll rate
+ * and roll acceleration at most (tuning.js ROLL, under the T-6A's at this speed, flight.js rollLimitAt), so a moment of near-zero G
  * never spins him: there the lift is too small to need the wings anywhere in particular. prev: the last step's
  * { up, rollDps } (null at the start). Returns { pose, state } with state for the next step.
  */
@@ -529,7 +529,7 @@ export function wingPose(S, k, prev, blockFt) {
   if (prev) {
     const left = cross3(base, nose);
     const want = Math.atan2(dot3(lift.up, left), dot3(lift.up, base)) / DEG;
-    const r = easeRoll(0, prev.rollDps, want, dt, ROLL);
+    const r = easeRoll(0, prev.rollDps, want, dt, rollLimitAt(len3(vel), ROLL));
     const a = r.bankDeg * DEG;
     up = unit3(add3(scale3(base, Math.cos(a)), scale3(left, Math.sin(a))));
     roll = r.rollRateDps;

@@ -41,6 +41,7 @@ Sources: "aero" means standard aerodynamics, worked out in the test. A manual pa
 | `pitchDegFromClimb(climb, tas, kias, g)`, `T6A_PITCH` | t6-performance.js | Nose attitude: climb angle plus angle of attack, which grows with G and falls with speed squared (about 11° in a 180 KIAS climb) | climb angle aero; angle of attack an estimate matched to SMM 3.14 para 35 and EFIG p.126 |
 | `thrustPerWeight`, `dragPerWeight`, `excessThrustPerWeight` | t6-performance.js | Full-power thrust, drag and what is left to climb or speed up with. Climb rate = excess × TAS. Pass the turn's real G | fitted to the T-6A sustained turn chart (`T6A_FIT`) |
 | `T6A_LIMITS`, `stallLimitG`, `availableG` | t6-performance.js | V-n limits, stall line, G available now | NFM; stall 86 KIAS (Patrick, 30 Sep) |
+| `T6A_ROLL`, `rollLimitsT6A`, `rollLimitsAtKtasT6A`, `rollWithinT6A`, `T6A_G_ONSET` | t6-performance.js | The aircraft's roll limit at a speed (0.45°/s per knot of true airspeed, capped at 120°/s, full rate in 0.3 s) and G onset (4 G/s, 16 G/s²); every module's roll and G onset stays under them | ESTIMATES, standard aerodynamics (Fable's audit 5 Oct); Patrick 5 Oct 22:01Z agreed one core limit |
 | `maxKiasT6A`, `modelMaxIasT6A` | t6-performance.js | Top speed at a height (VMO 316 or Mmo 0.67) | NFM Fig 5-3, p.5-9 |
 | `shakerG`, `T6A_MANOEUVRE`, `splitST6A` | t6-performance.js | Pulls in the stick shaker; the split S | SMM 14.16 |
 

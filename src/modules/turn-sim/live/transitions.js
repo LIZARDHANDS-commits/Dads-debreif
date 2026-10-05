@@ -26,7 +26,7 @@
 // 11:08Z-11:09Z (200 KIAS outside line abreast, Lead turns into #2, speed only in
 // transitions) and 11:45Z (wording agreed). Numbers with no manual or ruling behind them are
 // labelled "estimate" beside them.
-import { STEP_SEC, stepAircraft, copyAircraft, planDone } from './flight.js';
+import { STEP_SEC, stepAircraft, copyAircraft, planDone, rollLimitAt } from './flight.js';
 import { wholeDegree, turnSeg, DEG } from './manoeuvres.js';
 import { classify, judge } from './judge.js';
 import { applyPose } from './kinematic.js';
@@ -35,6 +35,8 @@ import { setKias, stepCommanded, phase, trackTwice, PLAN_MAX_SEC } from './track
 import { FORMATIONS, fwShapeNow, pairSlot } from './slots.js';
 import { KIAS_OUTSIDE_LAB, KIAS_LAB, REJOIN, RULED_REJOIN, STOP_KT, closureNow, rejoinClosureNow } from './tuning.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
+import { easeRoll } from '../../../core/flight-math.js';
+import { wrapDeg180 } from '../../../core/angles.js';
 import { onClosure, leadTurnInto, trackTail } from './hand-over.js';
 import { fwGoal } from './formation-turns.js';
 
@@ -62,7 +64,11 @@ export function flyStep(a, plan, t, ctx = null) {
   if (seg?.kind === 'poseTrack') {
     // A kinematic pre-planned line (kinematic.js, TS-55): the pose for each step was worked out at the press.
     seg.i ??= 0;
-    applyPose(a, seg.poses[seg.i++]);
+    const bank0 = a.bankDeg;
+    const rate0 = a.rollRateDps ?? 0;
+    const p = seg.poses[seg.i++];
+    applyPose(a, p);
+    rollNoFaster(a, seg, p, bank0, rate0);
     if (seg.i >= seg.poses.length) {
       plan.segments.shift();
       // Lines, then tracker (step 2, Patrick 06:24Z): in the live formation (ctx, from formation.js) the tracker's run-in is
@@ -91,6 +97,25 @@ export function flyStep(a, plan, t, ctx = null) {
     return;
   }
   stepAircraft(a, plan, t);
+}
+
+/**
+ * A planned pose's wings, rolled no faster than the T-6A can at its speed (flight.js rollLimitAt, TS-85): a pose that asks
+ * a faster roll than that is followed at that roll, the near way round, until the wings catch it up; the path flown is the
+ * pose's. A track that never asks more is flown exactly as planned.
+ */
+function rollNoFaster(a, seg, p, bank0, rate0) {
+  const roll = rollLimitAt(p.tas);
+  const step = wrapDeg180(p.bank - bank0);
+  if (!seg.rollBehind && Math.abs(step) <= roll.maxRateDps * STEP_SEC + 1e-9) return;
+  const r = easeRoll(bank0, rate0, bank0 + step, STEP_SEC, roll);
+  if (Math.abs(wrapDeg180(r.bankDeg - p.bank)) < 1e-6 && Math.abs(r.rollRateDps - p.roll) <= roll.maxAccelDps2 * STEP_SEC) {
+    seg.rollBehind = false;
+    return;
+  }
+  a.bankDeg = wrapDeg180(r.bankDeg);
+  a.rollRateDps = r.rollRateDps;
+  seg.rollBehind = true;
 }
 
 /** manoeuvres.js's dryRun, flown through flyStep so it knows the speed and bank-track segments. */

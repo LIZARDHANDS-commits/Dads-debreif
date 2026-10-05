@@ -13,7 +13,7 @@ A 2-ship in line abreast that flies along on its own. You press a manoeuvre butt
 | # | Rule | Source |
 |---|---|---|
 | F1 | Every aircraft flies a planned, kinematically accurate path. The plan is worked out at the press and again at each event (a press, the hand-over, the decision point, the picture breaking), from where the aircraft are then. The line drawn ahead is the current plan. It is flown with realistic roll rate, bank, pitch and G, and the turn radius and rate follow from speed and G. Each manoeuvre uses the bank and G its source gives. | Patrick, 4 Oct 08:53Z (wording approved); TS-36; reworded 5 Oct 19:54Z, card "Yes, as written" (TS-76). Built: the press and the hand-over (TS-65); the decision point and the picture breaking (TS-81, V2.81) |
-| F2 | Roll: the roll rate builds at 360°/s² up to 90°/s and eases off the same way, so 0 to 70.5° of bank takes about 1.0 s. Uses the shared `easeRoll`. | Patrick, 08:54Z and card 09:54Z; TS-37 |
+| F2 | Roll: the roll rate builds at 360°/s² up to 90°/s and eases off the same way, so 0 to 70.5° of bank takes about 1.0 s. Uses the shared `easeRoll`. *Since V2.85 (TS-85, section 10.16) no roll is faster than the aircraft's own at its speed (core, estimates).* | Patrick, 08:54Z and card 09:54Z; TS-37 |
 | F3 | Speed: 220 KIAS held constant through every manoeuvre, flown as true airspeed at the block height (shared `iasToTasKt`). Speeds on screen say KIAS. The one exception is the training errors' Speed/power fix tool (section 9), flown with a smooth speed segment (`flight.js` `{ kind: 'speed', toKias, rateKtps }`). | Patrick card 09:54Z; 220 KIAS SMM 16.18 para 50; KIAS rule TS-R6; TS-38; Speed/power fix Patrick 4 Oct 11:42Z |
 | F4 | Block height 8,000 ft for the IAS-to-TAS conversion (220 KIAS is about 248 KTAS there). **Estimate** until Patrick gives the low block height. | estimate; TS-38 |
 | F5 | Turns: 70.5° bank, 3.0 G level, unless the manoeuvre says otherwise (the cross turn's first half, F6b). | SMM 16.18 para 50, Figs 16.15-16.21 "70/3"; TS-39 |
@@ -710,6 +710,37 @@ Patrick card 20:30Z "I do the re-plan only"; 20:3xZ ("do all of this at once"); 
 - **Failure and stale data:** no outside data. A lag roll with no path inside the limits is refused with the reason on the card, as before.
 
 **Checks.** None added (Patrick 09:08Z, 21:06Z). Done: a typecheck (no errors outside Traffic's) and the dry runs above.
+
+### 10.16 One roll limit for the aircraft (V2.85, TS-85; built 5 Oct, not yet in Patrick's sign-off)
+
+Patrick 5 Oct 22:01Z ("okay, let's do that"), on section 3 of Fable's performance audit of 5 Oct (project files).
+
+- **The limit** (core `t6-performance.js` `T6A_ROLL`, `rollWithinT6A`; ESTIMATES from standard aerodynamics, no manual in the project files gives them): full-stick roll about 0.45°/s per knot of true airspeed, at most 120°/s, full rate in about 0.3 s. About 100°/s at 200 KIAS and 8,000 ft. G onset 4 G/s, building at 16 G/s² (`T6A_G_ONSET`, the fluid Lead's number).
+- **Every roll stays under it.** The pilot's own rate is used when it is lower: Lead's 30°/s in close turns is unchanged; the tactical 180°/s now becomes the aircraft's rate at the speed. Held in each flown step and its roll-out timing (`flight.js` `rollLimitAt`), in a path planned from a rolling start (`formation-turns.js` rollFrom), in the fluid Lead and #2, and in every replayed planned path (`transitions.js`): the wings follow the plan at that roll at most, and the path flown is the plan's.
+- **Lag roll:** #2's wings roll toward the lift at that roll. Over the top, at low G, the lift swings faster than any roll can follow, and there so little lift is missing that the path is the same. A path is used only while the lift the wings don't yet point stays under 0.3 G (`LAG_ROLL.rollMissG`, estimate); otherwise a longer roll is tried, and with none the button is refused with the reason. From echelon it flies the same 21 s path as before, rolling at up to about 104°/s (157°/s before).
+- **A line's start** (Fable's review, 22:10Z, mid case 6): a line's acceleration in Lead's frame now builds over its first second instead of starting at full value, and the start blend takes up only #2's own motion. Pressing line abreast 25 s into a rejoin to fighting wing no longer swings #2's bank -5°, -56°, +42°, -37° in the first second (740°/s); he rolls in once, under the limit.
+- **Dry runs** (default start, 8,000 ft; seconds from the press, all IN POSITION; #2's fastest roll in °/s):
+
+  | From | To | V2.84 | V2.85 | Fastest roll V2.84 | V2.85 |
+  |---|---|---|---|---|---|
+  | Line abreast 6,000 ft | Echelon | 43 | 43 | 180 | 112 |
+  | Line abreast 6,000 ft | Fighting wing | 24 | 24 | 180 | 112 |
+  | Line abreast 6,000 ft | Route | 44 | 44 | 180 | 112 |
+  | Fighting wing | Echelon | 23 | 24 | 180 | 106 |
+  | Fighting wing | Route | 25 | 25 | 180 | 106 |
+  | Fighting wing | Line abreast | 51 | 43 | 655 | 107 |
+  | Echelon | Fighting wing | 15 | 15 | 180 | 102 |
+  | Echelon | Route | 6 | 6 | 180 | 103 |
+  | Echelon | Line abreast | 60 | 60 | 402 | 81 |
+  | Echelon | Echelon, other side | 23 | 24 | 180 | 102 |
+  | Echelon | Line astern | 19 | 20 | 180 | 102 |
+  | Echelon | Lag roll to fighting wing, other side | 21 | 21 | 157 | 104 |
+  | Echelon turn (Lead's roll 27°/s both) | | 18 | 18 | 55 | 47 |
+
+  Lead's fastest roll in a turning rejoin went from 144 to 100°/s. Fable's ten mid-move cases all end IN POSITION, with case 6 at 42 s (47 before). The fluid Lead's fastest roll went from about 178 to 86-115°/s, and the 4-ship's finger from 859 to 117°/s; all end where they did.
+- **Failure and stale data:** no outside data. A lag roll that needs a faster roll than the aircraft has is refused with that reason on the card.
+
+**Checks.** None added (Patrick 21:06Z). Done: a typecheck (no errors outside Traffic's) and the dry runs above. Unseen on screen.
 
 # Part 2. Plan mode: the spec from before the reset
 
