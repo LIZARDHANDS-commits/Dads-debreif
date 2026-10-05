@@ -165,7 +165,7 @@ The close places are the 2-ship's (section 10: echelon 45 ft out, 25 ft back, 5 
 
 Not every pair is direct: for example Spread 4 to finger is a turning rejoin to fighting wing, then a turning rejoin to finger; finger to finger on the other side goes through echelon (the SMM does not authorise finger to finger, SMM 16.33 para 93); fighting wing to echelon goes through finger (a simplification; the design has a direct rejoin). The card's note names every leg.
 
-**Height and speed.** Stack changes average no more than 15 ft/s (900 ft/min; estimate), so they never snap. Speed changes only inside a change, with the smooth speed segment (full power up, 1.5 kt/s down, an estimate, as section 10).
+**Height and speed.** Stack changes average no more than 15 ft/s (900 ft/min; estimate), so they never snap. Speed changes only inside a change, with the smooth speed segment (full power up, the slow-down model down, TS-61, section 10.5; 1.5 kt/s until V2.20).
 
 **The card.** Now: where the four are, in words. Flying: the change and the route, the note naming each leg, and about how long is left. Each wingman's line reads off the aircraft it now flies off (#3 off #2 in fighting wing, #4 off Lead in the box). The end is judged link by link (design section 7): Spread 4 and the offset box's elements on spacing (±100 ft) and sweep (0-10°), the box's second element 6,000-8,000 ft back and within 500 ft of its slot sideways (estimate), the stack ±100 ft; fighting wing links 500-1,000 ft and 30-60° with the shared ±100 ft and ±5° round them (the 30° default is the band's flat end), on the right side; the close formations by the 2-ship's table. Flags, never walls: Lead above 4 G in fighting wing or 3 G in a close formation (2 CFFTS Orders B2 ch 8).
 
@@ -184,10 +184,11 @@ A training aid, behind a closed "Errors (training)" section in the Manoeuvres pa
 | Fore/aft | none | ahead, behind; amount 100 to 3,000 ft (default 1,200) | #2 starts that far ahead of ("acute") or behind ("sucked") the SMM slot, along Lead's heading. The working reading of those two words is Patrick's to confirm. | SMM 12.18 para 39 (station-keeping terms), 16.18 para 49 (bands); amount: estimate |
 | Spacing | none | wide, tight; amount 100 to 3,000 ft (default 1,500) | #2 starts that far wider or closer than the Spacing box. | SMM 16.18 para 49, 16.19 para 54 NOTE; amount: estimate |
 | Height | none | high, low; amount 100 to 2,000 ft (default 500) | #2 starts that far above or below Lead. | SMM 16.13 para 31; amount: estimate |
+| Speed | none | fast, slow; amount 5 to 40 KIAS (default 20) | #2 starts that much faster or slower than Lead (V2.20, TS-62). In the manoeuvres he brings his speed back to Lead's in the turns; in the hot turning rejoin see section 10.5. | Patrick 19:15Z ("fast"); amount: estimate, the top of EFIG p.374's 10-20 KIAS |
 | Timing | none | late, early; amount 0.5 to 10 s (default 2) | #2's first roll-in goes that late or that early. Early beyond the button press makes Lead wait, so the press time is not moved. | SMM 16.19 paras 58, 62; amount: estimate |
 | Response | Fix it | Turn at normal reference, Fix it | See below. | Patrick 4 Oct 10:51Z |
 | Fix tools | all four ticked | Geometry, Vertical, Lateral spacing, Speed/power, each on or off | What #2 may use to fix it (below). Shown only when the response is Fix it. | Patrick 4 Oct 11:42Z; limits: estimates |
-| Random error | off | on, off | At Reset, picks one error of a random kind, a random way and a random size (fore/aft 500 to 2,500 ft, spacing 1,000 to 2,500 ft, height 300 to 1,000 ft, timing 2 to 6 s). The card says which. | Patrick 10:51Z (training aid); ranges: estimates |
+| Random error | off | on, off | At Reset, picks one error of a random kind, a random way and a random size (fore/aft 500 to 2,500 ft, spacing 1,000 to 2,500 ft, height 300 to 1,000 ft, timing 2 to 6 s, speed 10 to 30 KIAS). The card says which. | Patrick 10:51Z (training aid); ranges: estimates |
 
 **Turn at normal reference.** #2 flies the standard manoeuvre, standard timing and bank, from where he is. The error is carried through: the end picture is the SMM picture plus the start offset, turned with Lead's heading change. (SMM 16.19 para 52 NOTE: the wingman who does not adjust keeps the error.)
 
@@ -199,7 +200,7 @@ A training aid, behind a closed "Errors (training)" section in the Manoeuvres pa
 |---|---|---|
 | Geometry | Changes when he rolls in and how hard he turns: an earlier or later roll-in, more or less bank, the shackle's reversal point | Bank 50-75° (1.6-3.9 G), flagged above 3 G; roll-in up to 30 s late (V2.8's limits) |
 | Vertical | Climbs or descends smoothly to Lead's height, and with Speed/power ticked, dives a little to gain speed or zooms to lose it | Up to 60 ft/s climb or descent; a dive or zoom of up to 500 ft, back on height after, with no more than 0.3 G of push or pull (estimates) |
-| Speed/power | Adds or takes off power for a while to close a fore/aft gap, then matches Lead again. The change is a smooth ramp, the same as in formation changes | Up to ±20 KIAS from Lead's speed; speeds up at the T-6's full-power figure, slows at 1.5 kt/s (estimate) |
+| Speed/power | Adds or takes off power for a while to close a fore/aft gap, then matches Lead again. The change is a smooth ramp, the same as in formation changes | Up to ±20 KIAS from Lead's speed; speeds up at the T-6's full-power figure, slows on power (the slow-down model, section 10.5, TS-61; until V2.20 a fixed 1.5 kt/s) |
 | Lateral spacing | After the roll-out, a small heading change in or out (a few degrees, then back) to open or close to the set spacing | Up to 10° heading change at 30° bank, sized so the straight leg takes about 20 s (estimates) |
 
 Nothing is clipped or snapped: every fix is a flown path with smooth hand-overs, roll 90°/s.
@@ -220,7 +221,7 @@ Code: `src/modules/turn-sim/live/errors.js` (the offsets, the two modes, the Fix
 
 **How it flies.**
 - **Planned paths:** every transition is planned when you press the button, in the same style as the manoeuvres: pre-planned paths, roll 90°/s, and smooth hand-overs with no jump in position, track, bank, roll rate, pitch rate or speed.
-- **Speed:** the pair flies 200 KIAS outside line abreast and 220 KIAS in line abreast (SMM 12.23 para 53, SMM 16.18 para 49; Patrick 11:08Z). Lead slows or speeds up during the transition. Speed changes are smooth ramps, and they happen only during transitions (Patrick 11:09Z). Speeding up uses the T-6's full-power figure from the core. Slowing down uses 1.5 kt/s, an estimate, because idle thrust and the speed brake are not modelled.
+- **Speed:** the pair flies 200 KIAS outside line abreast and 220 KIAS in line abreast (SMM 12.23 para 53, SMM 16.18 para 49; Patrick 11:08Z). Lead slows or speeds up during the transition. Speed changes are smooth ramps, and they happen only during transitions (Patrick 11:09Z). Speeding up uses the T-6's full-power figure from the core. Slowing down uses power, the speed brake and idle in Patrick's order (section 10.5, TS-61; until V2.20 a fixed 1.5 kt/s).
 - **Rejoins:**
   - The default rejoin from line abreast is a turning rejoin: Lead turns into #2, and #2 rejoins to fighting wing (SMM 16.20 para 65, Fig 16.25; AFM7 p.17; Patrick 11:09Z).
   - Pressing Echelon from line abreast flies the hot turning rejoin straight to echelon (SMM 16.20 para 66).
@@ -271,7 +272,7 @@ No time gates. A generous limit of 3 minutes per change catches a planner that n
 - **The turning rejoin.** Lead slows to 200 KIAS, pauses until #2 has closed to about 2,000 ft ("Lead will pause, allow No. 2 to establish closure", AFM8 brief p.19), then turns 30° into #2 at 30° bank (SMM 12.24 para 54). #2's bank is capped at 60° (estimate); its overtake is 15 KIAS (EFIG p.374). The planner takes the first turn that keeps the overshoot lane (inside 1,000 ft #2 never more than 100 ft ahead of Lead's 3/9 line, and below Lead inside 2,000 ft); if none does, Lead holds straight and #2 flies the straight-ahead rejoin (SMM 12.26 paras 62-63). The rejoin choice under More is "Turning, Lead turns into #2" (the default) or "Straight ahead". Turning away, in-place turns, hot and cold line choices and an overtake box are not built (`future.md`).
 - **The slots** (where the planner sends #2, all estimates inside the table's bands): fighting wing 750 ft at 45° sweep by default (a setting, section 10.4), 60 ft below Lead; route 2 wingspans (67 ft) out, 25 ft back, 5 ft low; echelon 45 ft out, 25 ft back, 5 ft down; line astern 43 ft centre to centre (10 ft nose to tail), 8 ft low; line abreast the Setup spacing.
 - **The card.** "Now:" (the formation the pair is in, read from where #2 really is), the existing "Flying:" line (for a change, "Line abreast right to Echelon right (hot turning rejoin)"), the rejoin block during a rejoin from line abreast (range, closure, Lead's clock position and ON LINE / HOT / COLD at 60° and 30°, #2's height against Lead), the flags (Lead's G over 4 in fighting wing and over 3 in close formation; #2 at or above Lead's height inside 2,000 ft; #2 at the 60° bank cap), and, once the change ends, the judgement against the table above. During a rejoin the picture draws a dashed range ring around Lead and a closure arrow on #2. The camera keeps every aircraft in view (section 10.2; before V2.16 it zoomed in by itself under about 1,000 ft apart).
-- **When it cannot be planned.** Nothing changes; the card says why in one line ("No safe rejoin from here: ..."), for example when the plan would take more than 3 minutes or ends outside the band. A press while a change is flying is queued, as the manoeuvres are (TS-45). A pair that fits no formation (in trail, mid-turn) is planned as a straight-ahead rejoin from where #2 is. Training errors are not applied to a change.
+- **When it cannot be planned.** Nothing changes; the card says why in one line ("No safe rejoin from here: ..."), for example when the plan would take more than 3 minutes or ends outside the band. A press while a change is flying is queued, as the manoeuvres are (TS-45). A pair that fits no formation (in trail, mid-turn) is planned as a straight-ahead rejoin from where #2 is. Training errors are not applied to a change, except to the 2-ship hot turning rejoin from line abreast (V2.20, section 10.5).
 - **Speed.** Lead's speed changes use `{ kind: 'speed', toKias, rateKtps }` segments; until the shared one in `live/flight.js` is swapped in, `flyStep` in `live/transitions.js` flies them itself (marked TEMPORARY there).
 - **Checks.** `tests/unit/turn-sim/transitions.test.js` (a handful, no time gates): every from-to pair ends in the target's band at 200 KIAS (220 in line abreast); smooth hand-overs through speed changes; #2 below Lead and in the overshoot lane in a rejoin, bank inside the caps; the queue.
 
@@ -291,7 +292,7 @@ Patrick's rulings of 4 Oct, 18:00Z to 19:26Z. Each is listed in the project file
   - #2 points at Lead (bank up to 60°), rolls out, and reverses when the line of sight starts to move.
   - #2 then captures fighting wing with fuselages aligned, or carries on through the fighting wing spot to echelon, route or line astern.
   - Fig 16.25 is not to scale, so the manual's text is flown, not the figure's line.
-  - Any other start flies the section 10 turning rejoin until the off-standard starts are built.
+  - Any other start flies the section 10 turning rejoin, unless a training error is set: then the off-standard starts of section 10.5 (V2.20).
 - **Coming off the stack** (card 19:11Z; SMM 12.27 para 65): a rejoining wingman at or above Lead's height holds his place while he steps down to 60 ft below Lead, at about 15 ft/s. Only then does he close. This applies to the 2-ship and the 4-ship.
 - **Fighting wing turns** (19:12Z).
   - Fighting wing is a band: 500-1,000 ft and 30-60° of sweep from Lead's wing line (SMM Fig 12.19). #2 stays where he is inside the band.
@@ -319,7 +320,7 @@ Patrick's rulings of 4 Oct, 18:00Z to 19:26Z. Each is listed in the project file
   - No wings overlap.
 
 **Not in this step:**
-- off-standard hot rejoin starts (next, with the Errors panel and Fix tools);
+- off-standard hot rejoin starts: built in V2.20, section 10.5;
 - turns in the other formations, the 4-ship station changes, 3D echelon, the fit-all camera and the info tags: built in V2.16, section 10.2.
 
 **Checks (light).** `tests/unit/turn-sim/formation-moves.test.js` checks that each move:
@@ -459,6 +460,40 @@ Patrick 21:25Z: "Can we make the 'desired sweep and spacing' a setting?"
 - **Not the fluid distance.** Fluid manoeuvring's distance (500-1,000 ft, default 600, section 10.3) stays its own setting: it is how far #2 sits behind Lead in the cone while manoeuvring, a different formation from fighting wing's place (SMM 16.17 para 42 against 12.29 para 69). Fluid manoeuvring is entered from wherever #2 is in fighting wing and Terminate returns him there.
 
 **Checks (light).** `tests/unit/turn-sim/fw-shape.test.js`: #2 settles at the spacing and sweep set (2-ship); a spacing past the band is flown there and flagged; #3 and #4 settle at their own spacing and sweep (4-ship); a place inside the band has no flag, outside it a flag, far outside it a refusal.
+
+### 10.5 Off-standard hot turning rejoin starts, the overshoot, slowing down and power on the tags (V2.20, TS-61, TS-62, built 5 Oct, not yet in Patrick's sign-off)
+
+Patrick's rulings of 4 Oct 19:15Z, 23:29Z and 23:37-23:38Z and 5 Oct 00:11Z-02:05Z; requirements log items 8a and 22-34 (project files `turn-sim-review/requirements-log.md`). Numbers with no manual or ruling beside them are estimates.
+
+**What changes on screen.**
+- Errors (training) gains **Speed**: none, fast or slow, amount 5 to 40 KIAS (default 20). Nothing else moves or disappears.
+- With any training error set, pressing Fighting wing, Echelon, Route or Line astern from line abreast flies the hot turning rejoin from wherever #2 is (the Flying line adds "off-standard start"), and the card says at the end how #2 dealt with it.
+- A wingman on an overshoot reads **OVERSHOOTING** on his tag, and the card's rejoin block adds the line.
+- Every tag has a **power line** when its power is known: MAX, TQ nn%, or in red IDLE, IDLE+BOARDS or TQ nn% + BOARDS.
+
+**Slowing down (TS-61).** The fixed 1.5 kt/s slow-down is gone. Slowing uses, in Patrick's order: geometry (the planners), power (core `excessFnFor`, its slowest the power floor at throttle 0), the speed brake (drag ÷ weight about 0.095 at 200 KIAS, about +1.7 kt/s; its size is a guess), idle (the idle prop's drag ÷ weight 0.16 at 200 KIAS, about 5 kt/s level at 200, Patrick 00:11Z), then idle and the brake. Lead's slow-down in the rejoin (220 to 200 KIAS, Fig 16.25) uses power: about 17 s where it took about 13 s at 1.5 kt/s, so the hot rejoin and the speed changes in the other moves take a few seconds longer than V2.19. Code: `live/slow-down.js`.
+
+**The off-standard starts (TS-62 (2)).** From a roughly line abreast pair (1,000 ft or more across, within 4,000 ft fore and aft, 2,500 ft of height, 45 KIAS and 10°, wings level), as the error's Response says:
+- **Fix it:** geometry first (how far he cuts off, a lag line, when and how hard he reverses), then power (to 200 KIAS, or 210 or 220 KIAS held as a set overtake, SMM 12.24 para 56), then the boards, then idle, then both; the line using the least wins. The capture onto fighting wing may take 20, 30 or 45 s.
+- **Turn at normal reference:** the standard rejoin's own choices (worked out from the standard start beside Lead) flown from where he is, with his speed error kept and the standard 20 s capture; the error carries, and he uses the boards or idle only when the line needs them.
+- A high start comes down at up to about 45 ft/s on average so he is below Lead inside 1,000 ft (SMM 12.27 para 65); further out, before the line-up, he may still be stepping down, flagged by the rejoin flag, not walled.
+- Every line is still Fig 16.25's and para 65b(2)'s: Lead turns into #2 at 30° and slows to 200 KIAS on power; #2 points at Lead (up to 60° of bank), rolls out, reverses as the line of sight moves, and captures fighting wing or flows through it to the formation pressed (para 66).
+- **When none fits:** a start that leaves #2 ahead of Lead's 3/9 line once Lead turns into him (ahead, or ahead and tight, or fast at the normal reference) flies the section 10 tracker's rejoin, as before V2.20. A question for Patrick.
+
+**The overshoot (TS-62 (3); SMM 12.27 paras 64-66, Fig 12.18; Patrick 23:29Z).** An overshoot is #2's decision, last in the order of use:
+- **Sliding to the outside:** when the best line takes #2 behind Lead to the outside of his turn within 3,000 ft, it is flown as an overshoot: he crosses Lead's track at least one aircraft length behind him, below him, is on the outside, then crosses back and joins. The tag reads OVERSHOOTING from the crossing until he is back on his side.
+- **At the decision point:** where the slowing a line asks inside 1,500 ft of Lead is more than idle and the boards give, #2 rolls wings level, slows at 90% of idle and the boards, passes behind and below to about 100 ft out and 40 ft back on the outside (never stepped up: SMM 12.27 para 65, "do not go higher than the flat turn position"), then crosses back under Lead's tail to the formation pressed (SMM 12.20 para 44b). None of the starts tried with the default amounts needs it; it is built and waiting.
+- **Straight-ahead rejoin overshoot** (vertical separation and turn away) and the 4-ship's overshoot: `future.md` (training errors do not apply to those rejoins yet).
+
+**Power on the tags (TS-62 (4); Patrick 01:44Z and 02:05Z).**
+- **Words:** MAX at full power; TQ nn% at part power; IDLE; IDLE+BOARDS; TQ nn% + BOARDS (power set and the speed brake out). The last three in red, the others in the tag's colour.
+- **Torque:** TQ% = thrust x TAS / (eta x 1,100 shp) x 100, capped at 100. Thrust is the model's throttle x core `thrustPerWeight` x 6,000 lb (estimate); 1,100 shp is the PT6A-68's flat rating (NFM ch 1); eta 0.81 (estimate) is the model's full-power thrust power at 200 KIAS over 1,100 shp. The throttle is the model's (the share of full-power thrust that flies the speed change, climb and G), not a torque gauge reading.
+- **Checks against SMM Table 8.1** (approximate, not pins): level 180 KIAS clean about 43% (SMM 40-45%); level 120 KIAS with gear and T/O flap about 36% (SMM 35%); 3° glidepath at 120 KIAS about 22% (SMM 25%).
+- **Where it shows:** aircraft flown by flight.js segments (holds, turns, speed changes: the energy flown), the hot rejoin's lines (the least device that gives the slowing flown), and fluid manoeuvring (PCL MAX for both aircraft, SMM 16.17 para 43; Lead's held speeds as TQ). The tracker's rejoin and the other planned lines set no power, so their tags show none rather than a guess.
+
+**Failure and stale data.** No outside data. A start the planner can't fly falls back to the section 10 rejoin and the card says what is flying; a planning search is bounded (a press plans in under about 5 s on a desktop, most in 1 s). A bad error amount is treated as the default.
+
+**Checks (light).** `tests/unit/turn-sim/offstandard-rejoin.test.js`: a corrected off-standard start ends in the formation pressed, below Lead inside 1,000 ft, never slowing harder than idle and the boards, no roll-rate jumps; an overshooting #2 stays below Lead, crosses behind him, and still ends in the formation. `slow-down.test.js`: the stages are in order; idle at 200 KIAS is about 5 kt/s; a planned ramp never asks more than its stage; the core drag is unchanged. `tags.test.js`: a set power shows on the tag, red exactly for idle and the boards.
 
 ---
 
