@@ -136,10 +136,11 @@ export function nextWing(w, cue, t, rangeFt) {
   const out = { ...w };
   out.mode = cue.mode;
   out.share = cue.mode === 'lag' ? -WING.pursuitShare : cue.mode === 'lead' ? WING.pursuitShare : 0;
-  out.range = retarget(w.range, rangeFt, t, WING.rangeSec);
+  // cue.settleSec: the sequence's 360° level turn eases a new place in over the rest of the turn (fluid-lead.js levelTurn).
+  out.range = retarget(w.range, rangeFt, t, cue.settleSec ?? WING.rangeSec);
   const r = out.range.to;
   const latTo = out.side * r * Math.sin((cue.latDeg ?? WING.latDeg) * DEG);
-  out.lat = retarget(w.lat, latTo, t, WING.collapseSec);
+  out.lat = retarget(w.lat, latTo, t, cue.settleSec ?? WING.collapseSec);
   if (cue.blend !== undefined) out.blend = retarget(w.blend, cue.blend, t, cue.blend > valueOf(w.blend, t) ? WING.blendInSec : WING.blendOutSec);
   return out;
 }

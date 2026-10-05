@@ -41,8 +41,9 @@
 //    exit"), back up to 3 G coming down. Pitch over 60° is flagged (AFM7 brief p.17, Exercise 4), never held.
 //  - The standard sequence (V2.19; SMM 16.17 para 42, as written there): a level turn, a loop, two wingovers and a
 //    barrel roll, flown one after the other. The level turn is at the chosen bank (60/2 by default, AFM7 brief p.17
-//    Exercise 1) for 180° (an estimate: the SMM gives no amount; EFIG p.76's fighting wing turns are about 180°), then
-//    each manoeuvre's own speed set-up leads into the next.
+//    Exercise 1) for 360° (Patrick card 5 Oct 01:03Z, "360°", and "360 and the wingman uses it to set their spacing"; it
+//    was 180°, an estimate, in V2.19), so the sequence starts and ends on the entry heading and #2 settles onto his fluid
+//    position (the distance setting, 15° off Lead's tail) during it; then each manoeuvre's own speed set-up leads on.
 import { stepPointMass, gAndBankForLift } from '../../../core/point-mass.js';
 import { easeValue, dampedClimbG } from '../../../core/flight-math.js';
 import { t6aExcessFn, tasToIasKt, shakerG, dragPerWeight, thrustPerWeight } from '../../../core/t6-performance.js';
@@ -328,7 +329,16 @@ export function levelTurn(dir, bankDeg, { turnDeg = null, label = null } = {}) {
       }
       const mode = mem.t < LEAD.earlyCueSec ? (mem.into ? 'lag' : 'lead') : 'pure';
       const done = mem.rollingOut && level(st);
-      return { g: gForClimb(st, 0), bank, phase: mem.rollingOut ? 'rolling out' : Math.abs(st.bank) < bankDeg - 2 ? 'rolling in' : 'turning', cue: { mode, latDeg: 15 }, done }; // hold 15° off Lead's current tail (Patrick 22:28Z)
+      const cue = { mode, latDeg: 15 }; // hold 15° off Lead's current tail (Patrick 22:28Z)
+      // The sequence's 360° is where #2 sets his spacing (Patrick 01:03Z, "360 and the wingman uses it to set their
+      // spacing"): a new distance, or a place he is not yet on, is eased in over the rest of the turn (at the commanded
+      // bank's turn rate, standard kinematics), never quicker than WING.rangeSec, instead of in a few seconds. Already
+      // set, nothing moves.
+      if (turnDeg != null && !mem.rollingOut) {
+        const rate = (G_FTPS2 * Math.tan(bankDeg * DEG)) / Math.max(st.V, 1);
+        cue.settleSec = Math.max(WING.rangeSec, (turnDeg * DEG - mem.turned) / rate);
+      }
+      return { g: gForClimb(st, 0), bank, phase: mem.rollingOut ? 'rolling out' : Math.abs(st.bank) < bankDeg - 2 ? 'rolling in' : 'turning', cue, done };
     },
   };
 }
@@ -580,12 +590,12 @@ function barrelPath(h0, dir) {
 }
 
 /**
- * The standard sequence's parts (SMM 16.17 para 42), in its order: a level turn dir (+1 left) at bankDeg for 180°
- * (an estimate), a loop, two wingovers rolling dir first, a barrel roll dir.
+ * The standard sequence's parts (SMM 16.17 para 42), in its order: a level turn dir (+1 left) at bankDeg for 360°
+ * (Patrick 01:03Z; #2 sets his spacing in it), a loop, two wingovers rolling dir first, a barrel roll dir.
  */
 export function sequenceParts(dir, bankDeg) {
   return [
-    levelTurn(dir, bankDeg, { turnDeg: 180, label: `Level turn ${dir > 0 ? 'left' : 'right'}, ${Math.round(bankDeg)}°, 180°` }),
+    levelTurn(dir, bankDeg, { turnDeg: 360, label: `Level turn ${dir > 0 ? 'left' : 'right'}, ${Math.round(bankDeg)}°, 360°` }),
     loop(),
     wingovers(dir),
     barrelRoll(dir),
