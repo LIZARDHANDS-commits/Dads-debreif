@@ -674,3 +674,11 @@
   border: 0;
   font-size: var(--text-sm);
 }
+
+/* Change formation in two groups, Tactical and Close formation (Patrick, 5 Oct). */
+[data-module='turn-sim'] .ts-change-subtitle {
+  margin: var(--space-2) 0 var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-muted);
+}

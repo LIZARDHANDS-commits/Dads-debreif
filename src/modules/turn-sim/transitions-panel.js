@@ -127,8 +127,9 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   const rejoinSelect = h('select', { 'aria-label': 'Rejoin from line abreast', onchange: () => { rejoin = rejoinSelect.value; } },
     REJOIN_OPTIONS.map((o) => h('option', { value: o.value, selected: o.value === rejoin }, o.label)));
   const rejoinLabel = h('span', { class: 'ts-hint' }, 'Rejoin from line abreast');
-  const pairMore = h('div', { class: 'ts-change-grid' }, makeButton({ key: 'astern', label: 'Line astern' }));
-  const fourMore = h('div', { class: 'ts-change-grid', hidden: true }, FOUR_MORE_BUTTONS.map(makeFourButton));
+  // Line astern (and the four's route) sit with the close formations now (Patrick, 5 Oct); More keeps the rejoin choice.
+  const pairMore = h('div', { hidden: true });
+  const fourMore = h('div', { hidden: true });
   const PAIR_REJOIN_HINT = `A turning rejoin: Lead slows to ${KIAS_OUTSIDE_LAB} KIAS, waits for closure and turns gently into #2 (SMM 16.20 para 65). #2's bank is capped at ${REJOIN.bankCapDeg}° (an estimate, flagged).`;
   const FOUR_REJOIN_HINT = `A turning rejoin: Lead slows to ${KIAS_OUTSIDE_LAB} KIAS and turns gently into the others; to finger, #3 crosses only once #2 is in place and #4 once #3 is (SMM 16.34 para 96). Straight ahead, each closes through route in turn.`;
   const rejoinHint = h('p', { class: 'ts-hint' }, PAIR_REJOIN_HINT);
@@ -144,8 +145,17 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   const PAIR_HINT = 'The pair flies the manuals\' transition from where it is now. The formation you are in is greyed.';
   const FOUR_HINT = 'The four fly the manuals\' way there from where they are now, one at a time where the manuals say to wait. Side is #2\'s side; finger is named by the side #3 and #4 are on.';
   const hint = h('p', { class: 'ts-hint' }, PAIR_HINT);
-  const pairGrid = h('div', { class: 'ts-change-grid' }, CHANGE_BUTTONS.map((b) => makeButton(b)));
-  const fourGrid = h('div', { class: 'ts-change-grid', hidden: true }, FOUR_CHANGE_BUTTONS.map(makeFourButton));
+  // Two groups (Patrick, 5 Oct): Tactical (line abreast, fighting wing, fluid, the four's wide formations) and Close formation.
+  const TACTICAL = new Set(['lab', 'fw', 'fluid', 'spread4', 'fluid4', 'fluidMan', 'offsetBox']);
+  const group = (title, buttons) => h('div', { class: 'ts-change-group' }, h('h4', { class: 'ts-change-subtitle' }, title), h('div', { class: 'ts-change-grid' }, buttons));
+  const pairAll = [...CHANGE_BUTTONS, { key: 'astern', label: 'Line astern' }];
+  const fourAll = [...FOUR_CHANGE_BUTTONS, ...FOUR_MORE_BUTTONS];
+  const pairGrid = h('div', {},
+    group('Tactical', pairAll.filter((b) => TACTICAL.has(b.key)).map((b) => makeButton(b))),
+    group('Close formation', pairAll.filter((b) => !TACTICAL.has(b.key)).map((b) => makeButton(b))));
+  const fourGrid = h('div', { hidden: true },
+    group('Tactical', fourAll.filter((b) => TACTICAL.has(b.key)).map(makeFourButton)),
+    group('Close formation', fourAll.filter((b) => !TACTICAL.has(b.key)).map(makeFourButton)));
   const element = h('section', { class: 'ts-change', 'aria-labelledby': 'ts-change-title' },
     h('h3', { class: 'ts-group-title', id: 'ts-change-title' }, 'Change formation'),
     hint,
