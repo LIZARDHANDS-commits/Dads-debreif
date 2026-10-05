@@ -175,7 +175,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     // The same charcoal as 2D, flat, with its fog (Patrick, 5 Oct), and a faint grey ground grid.
     scene.background = new THREE.Color(BACKGROUND);
     scene.fog?.color.set(BACKGROUND);
-    const grid = new THREE.GridHelper(GRID_STEP_FT * GRID_CELLS, GRID_CELLS, '#3a434c', '#2b333b');
+    const grid = new THREE.GridHelper(GRID_STEP_FT * GRID_CELLS, GRID_CELLS, '#4a535d', '#3a424b');
     grid.rotation.x = Math.PI / 2; // GridHelper is flat in X-Z; the sim's ground is X-Y
     grid.material.fog = false;
     scene.add(grid);
