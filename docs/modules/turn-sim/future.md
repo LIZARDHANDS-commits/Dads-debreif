@@ -90,3 +90,10 @@ The first Turn Sim engine (plan mode, ported from V6) was removed in clean-up st
 - A turn button pressed mid-change re-plans instead of queuing: every planner takes Lead's remaining plan (TS-78 leaves it queued).
 - Route, line astern and the 4-ship's turns at the slow close formation roll (Patrick 20:50Z: not now).
 - Move #2 around inside a formation's band with the controls (Patrick 21:38Z: "Ideally i'd like to be able to tell the aircraft to move around in 'the band' with those controls"). Today each formation has one place (the slot) as the aim and the judge uses the band (TS-80).
+- **Refactor list** (Fable, 5 Oct 22:12Z; Patrick 22:13Z "execute"). Item 1, one envelope gate at the aircraft, is built in V2.85 (TS-85). The rest wait here until Patrick moves them up; Fable's advice is to wait until the module is signed off, since a refactor before anything is seen on screen is where earlier work was lost (rule book, lesson 5).
+  - Finish the one-candidate shape: every planner returns the same { plans, endSec, judged } for the chooser. The lag roll, training-error rejoins (errors.js), hot-rejoin.js and the 4-ship still sit outside; hot-rejoin and errors repeat rejoin logic the turning rejoin and chooser now own. Retire or fold them after listing what each did.
+  - Split tuning.js by rate set and by move family (close, tactical, rejoin, bands), keeping RATE_SETS as the one home, plus a generated numbers register (each number's value and source or "estimate") so the spec stops repeating them.
+  - formation.js: the press, re-plan and finish events into one small events file; the state machine stays.
+  - spec.md rewritten by topic (how #2 is planned, rejoins, lines, bands and "in position", rate sets, 4-ship), each paragraph citing its TS decision, history to decisions.md. Sonnet, after Patrick has flown V2.75 onward.
+  - testing.md: only the current sign-off checklist; per-version sign-off lines to archive/. Same timing.
+  - Project files: condense the turn-sim-review notes into the README's "How #2 is planned now" and archive the rest.

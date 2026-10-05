@@ -14,7 +14,7 @@
 // bank turns the heading the positive (left) way.
 import { easeRoll, turnRateFromBankRadPerSec, gFromBankDeg } from '../../../core/flight-math.js';
 import { pitchDegFromClimb, rollWithinT6A } from '../../../core/t6-performance.js';
-import { wrapPi } from '../../../core/angles.js';
+import { wrapPi, wrapDeg180 } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { powerFor, POWER_BLOCK_FT } from './power.js';
 import { ROLL } from './tuning.js';
@@ -27,6 +27,28 @@ export { ROLL };
  * gentler rate) and the T-6A's own at that speed (core rollWithinT6A, estimates; TS-85).
  */
 export const rollLimitAt = (tasFtps, roll = ROLL) => rollWithinT6A(roll, tasFtps / KT_TO_FTPS);
+
+/**
+ * The aircraft's envelope gate for a replayed planned pose (transitions.js flyStep's poseTrack; TS-85, Fable's review item 1):
+ * the wings follow the pose's bank at no more than the roll rollLimitAt gives at its speed, the near way round, until they
+ * catch it up; the path flown is the pose's. Every other step (a bank track, the tracker, a turn) already rolls under the same
+ * limit in stepAircraft, so nothing any planner asks is flown faster than the aircraft rolls. G and speed need no gate here:
+ * the planners hold G under the stick shaker and fly speed on full power's model, and a replayed path's G and speed are its
+ * own. seg keeps whether the wings are still catching up; bank0, rate0: the aircraft's before the pose.
+ */
+export function holdToEnvelope(a, seg, p, bank0, rate0) {
+  const roll = rollLimitAt(p.tas);
+  const step = wrapDeg180(p.bank - bank0);
+  if (!seg.rollBehind && Math.abs(step) <= roll.maxRateDps * STEP_SEC + 1e-9) return;
+  const r = easeRoll(bank0, rate0, bank0 + step, STEP_SEC, roll);
+  if (Math.abs(wrapDeg180(r.bankDeg - p.bank)) < 1e-6 && Math.abs(r.rollRateDps - p.roll) <= roll.maxAccelDps2 * STEP_SEC) {
+    seg.rollBehind = false;
+    return;
+  }
+  a.bankDeg = wrapDeg180(r.bankDeg);
+  a.rollRateDps = r.rollRateDps;
+  seg.rollBehind = true;
+}
 
 /** The step the whole Turn Sim flies in (TS-R9), the same 0.05 s as before. */
 export const STEP_SEC = 0.05;
