@@ -203,8 +203,8 @@ function mount(root, app) {
   let siPatternShown = false;
   const siPatternRow = () => ({ ...SI_PATTERN, visible: siPatternShown });
   // Each route's line settings from the Display box (Patrick, 4 Oct): thickness (a multiple of its usual width),
-  // opacity (0-1) and whether the 3D view draws it on the ground. Today's look until changed; kept for the visit.
-  const LINE_DEFAULTS = Object.freeze({ lineScale: 1, lineOpacity: 1, onGround: false });
+  // opacity (0-1) and whether the 3D view draws it on the ground; ×1 and 70% at first (Patrick, 4 Oct); kept for the visit.
+  const LINE_DEFAULTS = Object.freeze({ lineScale: 1, lineOpacity: 0.7, onGround: false });
   const routeLines = new Map();
   const lineOf = (id) => ({ ...LINE_DEFAULTS, ...(routeLines.get(id) ?? {}) });
   function setRouteLine(id, change) {
