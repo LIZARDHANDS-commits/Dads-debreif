@@ -234,11 +234,11 @@ Code: `src/modules/turn-sim/live/errors.js` (the offsets, the two modes, the Fix
 
 | Formation | #2's position | Source |
 |---|---|---|
-| Line abreast | 4,000-6,000 ft abeam, 0-10° sweep | SMM 16.18 para 49 |
-| Fighting wing | 500-1,000 ft, 30-60° sweep, below Lead; default 750 ft and 45° (estimate; a setting, section 10.4) | SMM 12.29 para 69 |
-| Route | 4 to 6 wingspans out on the wing-tip line, the slot 5 (Patrick 5 Oct 06:11Z, TS-65); the SMM gives 1 to 3 | SMM 12.6 para 15 |
-| Echelon | about 45 ft out, 25 ft back, 5 ft down (estimate; the manual gives sight references, not feet) | SMM 12.4 paras 11-12 |
-| Line astern | directly behind and below, about 10 ft nose to tail | SMM 12.5 para 13 |
+| Line abreast | in position anywhere in the SMM's band: 4,000-6,000 ft abeam, 0-10° sweep, up to 2,000 ft above or below Lead (TS-80; the spacing setting is the aim, and a setting outside the band is judged within 100 ft of itself) | SMM 16.18 para 49; Patrick 5 Oct 21:38Z |
+| Fighting wing | 500-1,000 ft, 30-60° sweep, anywhere in the cone up to 200 ft above or below Lead with Lead straight and level (TS-80; "below Lead" was required until V2.80); default 750 ft and 45° (estimate; a setting, section 10.4) | SMM 12.29 para 69; Patrick 5 Oct 21:26Z |
+| Route | 4 to 6 wingspans out on the wing-tip line, the slot 5 (Patrick 5 Oct 06:11Z, TS-65); the SMM gives 1 to 3. In position within 5 ft of the place and 5 kt (TS-80) | SMM 12.6 para 15; Patrick 21:26Z |
+| Echelon | about 45 ft out, 25 ft back, 5 ft down (estimate; the manual gives sight references, not feet). In position within 5 ft of the place and 5 kt (TS-80; ±15 ft until V2.80) | SMM 12.4 paras 11-12; Patrick 21:26Z |
+| Line astern | directly behind and below, about 10 ft nose to tail. In position within 5 ft of the place and 5 kt (TS-80) | SMM 12.5 para 13; Patrick 21:26Z |
 
 **Screen.**
 - **Formation card:** shows "Now:" and "Flying:". During a rejoin it adds range, closure, Lead's clock position, ON LINE, HOT or COLD (hot and cold at 60° and 30°, estimates), and height against Lead. After each change, the card judges the new formation against the table above.
