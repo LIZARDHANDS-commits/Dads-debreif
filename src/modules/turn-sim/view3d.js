@@ -11,7 +11,7 @@
 import {
   loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addLights, addSky, disposeAircraftMesh,
 } from '../../ui-kit/three-aircraft.js';
-import { drawTags } from './view.js';
+import { drawTags, T6_LENGTH_FT } from './view.js';
 import { FW_TURN } from './live/formation-turns.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH } from '../../ui-kit/ct156-model.js';
@@ -36,8 +36,8 @@ const WHEEL_ZOOM = Object.freeze({ in: 1.12, out: 0.89 });
 /** How far the fit-all zoom moves toward the zoom it wants, each frame (the 2D view's ease). */
 const FIT_ZOOM_EASE = 0.08;
 
-/** Real length of a T-6 (feet). A zoomed-out aircraft is drawn bigger than that, so it can still be seen. */
-export const T6_LENGTH_FT = 33.4;
+/** Real length of a T-6 (feet, view.js). A zoomed-out aircraft is drawn bigger than that, so it can still be seen. */
+export { T6_LENGTH_FT };
 /** The length an aircraft is drawn at least, on screen, in pixels. */
 export const MIN_PLANE_PX = 40;
 /** The most points a trail holds: the newest part of the ground track (over 30 minutes at the live screen's 0.25 s). */
@@ -106,10 +106,14 @@ export function aircraftPose(a, sign = 1) {
   };
 }
 
-/** Feet an aircraft is drawn at, at a zoom (pixels per 1,000 ft): its real length, or MIN_PLANE_PX if that is smaller on screen. */
-export function planeLengthFt(zoom) {
+/**
+ * Feet an aircraft is drawn at, at a zoom (pixels per 1,000 ft): its real length, or MIN_PLANE_PX if that is smaller on
+ * screen, times `scale`; with `real` (Real aircraft size, Patrick 5 Oct) its real length whatever the zoom.
+ */
+export function planeLengthFt(zoom, { real = false, scale = 1 } = {}) {
+  if (real) return T6_LENGTH_FT;
   const pxPerFt = zoom / 1000;
-  return Math.max(T6_LENGTH_FT, MIN_PLANE_PX / pxPerFt);
+  return Math.max(T6_LENGTH_FT, MIN_PLANE_PX / pxPerFt) * scale;
 }
 
 /** The camera that shows `bounds` (feet) whole in a canvas of `size`, behind Lead, at the start pitch. */
@@ -371,7 +375,8 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     paintNow = source.paint();
 
     const signs = source.bankSigns();
-    const lengthFt = planeLengthFt(shown.zoom);
+    const sizing = source.layers();
+    const lengthFt = planeLengthFt(shown.zoom, { real: Boolean(sizing.realSize), scale: sizing.planeScale ?? 1 });
     const present = new Set();
     for (const a of state.aircraft) {
       present.add(a.id);

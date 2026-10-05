@@ -632,3 +632,29 @@
   margin: 0 0 var(--space-2) var(--space-5);
   font-size: var(--text-sm);
 }
+
+/* Real aircraft size and its scale slider, in the bar (Patrick, 5 Oct). */
+[data-module='turn-sim'] .ts-size {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-sim'] .ts-size .control {
+  margin: 0;
+}
+
+[data-module='turn-sim'] .ts-size .control-slider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+[data-module='turn-sim'] .ts-size .control-slider input {
+  width: 7rem;
+}
+
+[data-module='turn-sim'] .ts-size .control-slider[hidden] {
+  display: none;
+}

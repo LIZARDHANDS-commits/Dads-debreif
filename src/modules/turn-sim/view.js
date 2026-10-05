@@ -128,7 +128,9 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
         else drawTurnCircles(ctx, map, state, settings);
       }
       if (layers.clockMarks) for (const a of state.aircraft) drawClockMarks(ctx, map, a);
-      for (const a of state.aircraft) drawAircraft(ctx, map, a, !tags);
+      // Real aircraft size (Patrick, 5 Oct): a T-6's real length at this zoom, or the usual size times the Scale slider.
+      const symbolPx = layers.realSize ? (T6_LENGTH_FT * map.view.scale) / SYMBOL_LENGTH_UNITS : SYMBOL_PX * (layers.planeScale ?? 1);
+      for (const a of state.aircraft) drawAircraft(ctx, map, a, !tags, symbolPx);
       if (tags) drawTags(ctx, map, state, tags);
       if (layers.errorLabels) drawErrorLabels(ctx, map, state, source.labels(), tags);
     },
@@ -218,6 +220,12 @@ function drawMoa(ctx, map, nm) {
 }
 
 const shipName = (a) => (a.id === 1 ? 'Lead' : `#${a.id}`);
+
+/** Real length of a T-6 (feet), for Real aircraft size; the 3D view reads it from here. */
+export const T6_LENGTH_FT = 33.4;
+/** The 2D symbol's half-length in pixels at the usual size, and its nose-to-tail length in those units (1 + 0.65). */
+const SYMBOL_PX = 15;
+const SYMBOL_LENGTH_UNITS = 1.65;
 
 /**
  * The fighting wing cone behind an aircraft, both sides, lightly shaded in its colour: 30-60° of sweep back from its wing
@@ -516,9 +524,8 @@ function drawClockMarks(ctx, map, a) {
 }
 
 /** The aircraft: a nose-up arrow turned to its heading, with its number. #4 is white with a dark outline (#29). */
-function drawAircraft(ctx, map, a, named = true) {
+function drawAircraft(ctx, map, a, named = true, s = SYMBOL_PX) {
   const [x, y] = map.worldToScreen(a.xFt, a.yFt);
-  const s = 15;
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(Math.PI / 2 - a.headingRad);

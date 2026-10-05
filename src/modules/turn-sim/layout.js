@@ -30,6 +30,8 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   turnCircles: false,
   tags: true, // the info tag beside each aircraft: what it is doing and how it sits (spec section 10.4)
   autoFit: true, // Auto zoom: the camera keeps every aircraft in the picture (spec section 10.3); a drag pauses it, Fit brings it back
+  realSize: false, // Real aircraft size (Patrick, 5 Oct): ticked, each aircraft is drawn at a T-6's real length in 2D and 3D
+  planeScale: 1, // unticked: the scale on the usual easy-to-see size (×0.5 to ×4)
   camOn: 'formation', // what the camera centres on: the formation's centre of mass, or one aircraft ('1' to '4') (Patrick, 5 Oct)
   camLook: 'follow', // on one aircraft, in 3D: 'follow' looks along its nose, 'padlock' looks at the other aircraft
   view: VIEW_DEFAULT, // '2d' or '3d'
@@ -276,10 +278,13 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   const tags3d = h('canvas', { class: 'ts-canvas ts-tags3d', hidden: true, 'aria-hidden': 'true' }); // the info tags over the 3D picture
   const canvasWrap = h('div', { class: 'ts-canvas-wrap' }, canvas, canvas3d, tags3d);
   const note3d = h('span', { class: 'ts-note', role: 'status', hidden: true });
+  // Real aircraft size, and the scale slider when it is off (Patrick, 5 Oct).
+  const scaleSlider = lc.slider('planeScale', { label: 'Scale', min: 0.5, max: 4, step: 0.25, format: (v) => `×${v}` });
+  const sizeGroup = h('div', { class: 'ts-size' }, lc.checkbox('realSize', { label: 'Real aircraft size' }), scaleSlider);
   const bar = h(
     'div',
     { class: 'ts-bar', role: 'group', 'aria-label': 'Playback' },
-    playButton, resetRunButton, speedSelect, time,
+    playButton, resetRunButton, speedSelect, time, sizeGroup,
     h('span', { class: 'ts-bar-gap' }),
     fitButton,
     lc.viewSwitch(), note3d, cameraMenu.element, layersMenu.element,
@@ -316,6 +321,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   );
 
   function applyLayout(values) {
+    scaleSlider.hidden = Boolean(values.realSize);
     formationPanel.setCollapsed(!values.formationColumn);
     formationCol.classList.toggle('is-collapsed', !values.formationColumn);
   }
