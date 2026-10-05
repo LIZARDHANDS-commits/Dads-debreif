@@ -386,6 +386,20 @@ export function planCloseTurn(aircraft, formation, key, dir, t0 = 0) {
   };
 }
 
+/**
+ * Lead's own flying for a turn button in a formation (the segments planFwTurn and planCloseTurn give him), 2-ship, from
+ * where he is now. A turn pressed while #2 is still changing into that formation (spec F11) flies this, and #2 re-plans his
+ * change against it (replan.js "carry"). Returns { segments } or null when the turn buttons do not fly in that formation.
+ */
+export function leadTurnPlan(lead, formation, key, dir) {
+  if (!FW_TURN_KEYS.includes(key) || !TURN_FORMATIONS[2].includes(formation)) return null;
+  const turnDeg = FW_TURN.turnDeg[key];
+  if (formation === 'fw') return { segments: leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, WING_BANKS.fwTurnBankDeg, true) };
+  const echelon = formation === 'echelon';
+  const bank = turnDeg <= 30 ? CLOSE_TURN.gentleBankDeg : echelon ? CLOSE_TURN.echelonBankDeg : CLOSE_TURN.bankDeg;
+  return { segments: leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, bank, true).map((x) => ({ ...x, roll: echelon ? CLOSE_TURN.echelonRoll : CLOSE_TURN.leadRoll })) };
+}
+
 const formationWord = (key, four) => ({ echelon: 'echelon', route: 'route', astern: 'line astern', trail: 'line astern', finger: 'finger', box: 'box', fw: 'fighting wing' })[key] ?? (four ? 'the formation' : key);
 
 /**

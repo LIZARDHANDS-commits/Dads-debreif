@@ -19,7 +19,7 @@ import { FORMATIONS, FOUR_FORMATIONS, setFwShape, setFw4Shape } from './slots.js
 import { planChangeFour } from './four-ship-moves.js';
 import { offStandardOutcome } from './hot-rejoin.js';
 import { chooseChange } from './chooser.js';
-import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFwMove } from './formation-turns.js';
+import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFwMove, leadTurnPlan } from './formation-turns.js';
 import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
 import { LAG_ROLL_KEY, planLagRoll } from './lag-roll.js';
@@ -235,12 +235,14 @@ export function createFormation(options = {}) {
    * four-ship-moves.js for the four. Returns false, with state.refusal saying why in one line, when there is no safe
    * plan; nothing then changes.
    */
-  function startChange(to, changeOptions) {
+  function startChange(to, changeOptions, midLead = null) {
     if (to === 'fluid') return startFluid();
     whereNow();
     const four = state.aircraft.length > 2;
     // A training error set (TS-62) makes the hot turning rejoin start from wherever #2 is, flown as its response says.
-    const planOpts = { ...changeOptions, spacingFt: state.spacingFt, blockFt: opts.blockFt, lastSide: state.lastSide, errors: four ? null : state.errors, mid: state.current ? midPress(state.current) : null };
+    // midLead: Lead's own flying when a turn button is pressed mid-change (turnMidChange); otherwise how the press leaves him.
+    const mid = midLead ? { lead: { kind: 'carry', plan: midLead } } : state.current ? midPress(state.current) : null;
+    const planOpts = { ...changeOptions, spacingFt: state.spacingFt, blockFt: opts.blockFt, lastSide: state.lastSide, errors: four ? null : state.errors, mid };
     // The 2-ship: the chooser (chooser.js, TS-76) runs every planner that applies (a training error's rejoin first, TS-62;
     // the turning rejoin, TS-68; the straight-ahead rejoin, TS-72; echelon or route out to fighting wing, TS-73; a line then
     // the tracker, TS-65; the tracker alone) and flies the one that passes the pilot's checks quickest. Until V2.75 they were
@@ -280,6 +282,28 @@ export function createFormation(options = {}) {
     };
     state.judged = null;
     state.errorOutcome = null;
+    return true;
+  }
+
+  /**
+   * A turn button pressed while #2 is still changing formation, 2-ship (spec F11; Fable's handover item 1): Lead flies the
+   * turn now, as he would in the formation #2 is going to, and #2's change is planned again from where he is against it
+   * (replan.js, the chooser's "from here"), so nothing waits in the queue. Not the lag roll, a training error's rejoin or a
+   * change to line abreast (its turns are both aircraft's manoeuvres). Returns true when it started, false to queue as before.
+   */
+  function turnMidChange(key, dir) {
+    const c = state.current;
+    if (!c?.change || c.change.four || c.change.offStandard || c.key === `change:${LAG_ROLL_KEY}`) return false;
+    const leadPlan = leadTurnPlan(state.aircraft[0], c.change.to, key, dir);
+    if (!leadPlan) return false;
+    const side = c.change.side > 0 ? 'left' : c.change.side < 0 ? 'right' : 'keep';
+    const was = { refusal: state.refusal };
+    if (!startChange(c.change.to, { side }, leadPlan)) {
+      state.refusal = was.refusal;
+      return false;
+    }
+    state.current.label = `${labelFor(key, dir)}, ${state.current.label.toLowerCase()}`;
+    state.queued = null;
     return true;
   }
 
@@ -437,9 +461,9 @@ export function createFormation(options = {}) {
       build();
     },
     /**
-     * A button press. Flown at once when nothing is being flown, otherwise queued
-     * and flown the moment the current manoeuvre ends (a later press replaces the
-     * queued one). Returns 'started' or 'queued'.
+     * A button press. Flown at once when nothing is being flown; a turn button while #2 is changing formation (2-ship) is
+     * flown at once too, the change planned again around it (turnMidChange); otherwise queued and flown the moment the
+     * current manoeuvre ends (a later press replaces the queued one). Returns 'started' or 'queued'.
      */
     press(key, dir = 1) {
       if (state.fluid) {
@@ -459,6 +483,7 @@ export function createFormation(options = {}) {
         }
       }
       if (!state.current) return start(key, dir) ? 'started' : 'refused';
+      if (!four && turnMidChange(key, dir)) return 'started';
       state.queued = { key, dir, label: labelFor(key, dir) };
       return 'queued';
     },
