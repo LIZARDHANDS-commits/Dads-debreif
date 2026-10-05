@@ -1208,8 +1208,10 @@ export const SUN_ELEVATION_DEG = 45;
  * Returns { hemisphere, sun, dispose() }; dispose() removes both from the scene and frees them.
  */
 export function addTrafficLights(THREE, scene) {
-  const hemisphere = new THREE.HemisphereLight('#bcd6f5', '#7a6646', 1.1);
-  const sun = new THREE.DirectionalLight('#ffeccc', 2.4);
+  // Less sky fill and a stronger sun, so the sun side and the shade side of an aircraft or building differ clearly
+  // (Patrick, 5 Oct: "I don't see any shade from the sun"; was 1.1 and 2.4).
+  const hemisphere = new THREE.HemisphereLight('#bcd6f5', '#7a6646', 0.45);
+  const sun = new THREE.DirectionalLight('#ffeccc', 3.2);
   sun.castShadow = false;
   const az = SUN_AZIMUTH_DEG * Math.PI / 180, el = SUN_ELEVATION_DEG * Math.PI / 180;
   sun.position.set(Math.sin(az) * Math.cos(el), Math.cos(az) * Math.cos(el), Math.sin(el)).multiplyScalar(1000);
