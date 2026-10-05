@@ -25,6 +25,7 @@ import { makeLocalRef, latLonToLocalFt } from '../../core/geo.js';
 import { createAirfieldScenery, disposeAirfieldScenery, DEFAULT_FLOOR_FT, RUNWAY_TOP_FT } from './scenery3d.js';
 import { createLandmarks, disposeLandmarks, createWindsocks, updateWindsocks, disposeWindsocks } from './landmarks3d.js';
 import { createBaseBuildings, disposeBaseBuildings } from './base-buildings3d.js';
+import { createRiverGeometry } from './rivers3d.js';
 import { AIRFIELD_CORE_BOUNDS_FT, paintCoreAirfieldVector, getCoreCorners, getOptimalCoreTileZoom } from './airfield-core-ground.js';
 import { fieldCamera, topDownCamera, towerCamera, cockpitCamera, padlockCamera, NEEDS_AIRCRAFT } from './camera-views.js';
 import { createCameraBar } from './camera-bar.js';
@@ -42,6 +43,12 @@ export function povCamera(name, target, size, floorFt) {
 /** Every axis is drawn at the same scale: a foot of height is a foot of ground (SPEC-traffic: the 3D view). */
 export const ALT_SCALE = 1;
 export const PHOTO_SPAN_FT = 105_600; // ten miles each way
+/**
+ * The outermost, softest ring: thirty nautical miles each way, out past Old Wives Lake (Patrick, 5 Oct 03:19Z "extend the
+ * blurry image layer all the way out to old wives lake", 03:20Z "go in every direction"; TR-70). One 2,048 px square at
+ * Esri zoom 11 (about 178 ft a pixel), so about 16 MB and some 80 tiles, at every quality.
+ */
+export const OUTER_PHOTO_SPAN_FT = 364_560;
 export const MID_SPAN_FT = 30_000;
 /**
  * On High the middle tier covers the pattern lines plus a mile (Patrick, 4 Oct 2026: "sharp all the way to a mile
@@ -501,6 +508,14 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   const shadowMaterial = new THREE.LineBasicMaterial({ color: '#58a6ff', transparent: true, opacity: 0.6, fog: false });
 
 
+  // Outermost photo ring (OUTER_PHOTO_SPAN_FT), under everything else
+  const outerGeometry = new THREE.PlaneGeometry(OUTER_PHOTO_SPAN_FT, OUTER_PHOTO_SPAN_FT);
+  const outerMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.95, depthWrite: false, fog: false, side: THREE.DoubleSide });
+  const outerMesh = new THREE.Mesh(outerGeometry, outerMaterial);
+  outerMesh.renderOrder = -5;
+  outerMesh.visible = false;
+  root.add(outerMesh);
+
   // Satellite photo ground plane
   const photoGeometry = new THREE.PlaneGeometry(PHOTO_SPAN_FT, PHOTO_SPAN_FT);
   const photoMaterial = new THREE.MeshBasicMaterial({
@@ -527,13 +542,25 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   root.add(midMesh);
   // High: the middle tier stretched to the pattern plus a mile, in four squares (PATTERN_MID_QUADS)
   const patternMidGeometry = new THREE.PlaneGeometry(PATTERN_MID_SPAN_FT / 2, PATTERN_MID_SPAN_FT / 2);
-  const patternMid = PATTERN_MID_QUADS.map(() => {
+  const patternMid = PATTERN_MID_QUADS.map((q) => {
     const material = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.97, depthWrite: false, fog: false, side: THREE.DoubleSide });
     const mesh = new THREE.Mesh(patternMidGeometry, material);
     mesh.renderOrder = -3;
     mesh.visible = false;
     root.add(mesh);
-    return { mesh, material };
+    // The recessed river valley in this square (rivers3d.js, TR-70): the square's own photo on a sunk ribbon, drawn just
+    // after the flat square so the valley replaces it there; it writes depth so a near bank hides the far one.
+    const riverGeometry = createRiverGeometry(THREE, { x: q.x, y: q.y, span: PATTERN_MID_SPAN_FT / 2 });
+    let river = null;
+    let riverMaterial = null;
+    if (riverGeometry) {
+      riverMaterial = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.97, depthWrite: true, fog: false, side: THREE.DoubleSide });
+      river = new THREE.Mesh(riverGeometry, riverMaterial);
+      river.name = 'river-valley';
+      river.renderOrder = -2.5;
+      mesh.add(river);
+    }
+    return { mesh, material, river, riverGeometry, riverMaterial };
   });
 
   // Sharpest tier: zoom-18 imagery over the runways and flight line (transparent until tiles arrive)
@@ -826,6 +853,18 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
       shadows.delete(id);
     }
 
+    if (options.outerTexture && options.layerPhoto !== false) {
+      outerMesh.visible = true;
+      if (outerMaterial.map !== options.outerTexture) {
+        outerMaterial.map = options.outerTexture;
+        outerMaterial.needsUpdate = true;
+      }
+      outerMaterial.opacity = (Number.isFinite(options.photoOpacityPct) ? options.photoOpacityPct : 100) / 100 * 0.95;
+      outerMesh.position.set(0, 0, floor - 2.25);
+    } else {
+      outerMesh.visible = false;
+    }
+
     if (photoMesh) {
       if (options.photoTexture && options.layerPhoto !== false) {
         photoMesh.visible = true;
@@ -851,7 +890,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     } else {
       midMesh.visible = false;
     }
-    patternMid.forEach(({ mesh, material }, i) => {
+    patternMid.forEach(({ mesh, material, riverMaterial }, i) => {
       const texture = options.layerPhoto !== false ? options.patternMidTextures?.[i] : null;
       mesh.visible = !!texture;
       if (!texture) return;
@@ -860,6 +899,13 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
         material.needsUpdate = true;
       }
       material.opacity = (Number.isFinite(options.photoOpacityPct) ? options.photoOpacityPct : 100) / 100 * 0.97;
+      if (riverMaterial) {
+        if (riverMaterial.map !== texture) {
+          riverMaterial.map = texture;
+          riverMaterial.needsUpdate = true;
+        }
+        riverMaterial.opacity = material.opacity;
+      }
       mesh.position.set(PATTERN_MID_QUADS[i].x, PATTERN_MID_QUADS[i].y, floor - 1.75);
     });
 
@@ -1043,7 +1089,13 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
       midGeometry.dispose();
       midMaterial.dispose();
       patternMidGeometry.dispose();
-      patternMid.forEach(({ material }) => material.dispose());
+      patternMid.forEach(({ material, riverGeometry, riverMaterial }) => {
+        material.dispose();
+        riverGeometry?.dispose();
+        riverMaterial?.dispose();
+      });
+      outerGeometry.dispose();
+      outerMaterial.dispose();
       tightGeometry.dispose();
       tightMaterial.dispose();
       grid.geometry.dispose();
@@ -1288,6 +1340,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     };
     return tier;
   }
+  const outerTier = createTier({ span: OUTER_PHOTO_SPAN_FT, px: 2048, maxZoom: 11, split: 2 }); // 30 NM each way, softest
   const farTier = createTier({ span: PHOTO_SPAN_FT, px: 4096, maxZoom: 13, split: 3 }); // 10+ miles each way
   const midTier = createTier({ span: MID_SPAN_FT, px: 4096, maxZoom: 15, split: 3 }); // about 3 miles each way
   const ensurePhotoTexture = (options) => farTier.ensure(options);
@@ -1481,6 +1534,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     kit.dispose();
     sky.dispose();
     lights.dispose();
+    outerTier.dispose();
     farTier.dispose();
     midTier.dispose();
     patternMidTiers.forEach((t) => t.dispose());
@@ -1581,6 +1635,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     const focus = dragging?.isPan ? dragging.center : view.center;
 
     const photoTex = ensurePhotoTexture(options);
+    const outerTex = outerTier.ensure(options);
     const { midTex, patternMidTextures } = ensureMiddle(options, isLow);
     const tightTex = isLow ? null : ensureTightTexture(options);
     const coreTex = ensureCoreTexture(options);
@@ -1599,6 +1654,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       layerPflCircle: options.layerPflCircle,
       layerPhoto: options.layerPhoto,
       photoTexture: photoTex,
+      outerTexture: outerTex,
       midTexture: midTex,
       patternMidTextures,
       tightTexture: tightTex,
