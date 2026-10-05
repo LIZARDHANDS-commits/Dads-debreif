@@ -11,7 +11,7 @@
 import {
   loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addLights, addSky, disposeAircraftMesh,
 } from '../../ui-kit/three-aircraft.js';
-import { drawTags, T6_LENGTH_FT } from './view.js';
+import { drawTags, T6_LENGTH_FT, trailSince } from './view.js';
 import { FW_TURN } from './live/tuning.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH } from '../../ui-kit/ct156-model.js';
@@ -393,7 +393,10 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     const held = dragging?.camera ?? cam;
     // Padlock tilts by the other aircraft's elevation on top of the person's tilt, so it looks up when the other is above.
     const shown = look?.pitchUpDeg ? { ...held, pitchDeg: clamp(held.pitchDeg + look.pitchUpDeg, PADLOCK_PITCH) } : held;
-    const focus = source.focus?.() ?? (source.layers().followLead && lead ? { x: lead.xFt, y: lead.yFt } : center);
+    const wanted = source.focus?.();
+    // Free (Patrick, 5 Oct): nothing to follow, so the camera stays where it last was, and shift-drag or right-drag pans it.
+    if (wanted) center = { x: wanted.x, y: wanted.y };
+    const focus = wanted ?? (source.layers().followLead && lead ? { x: lead.xFt, y: lead.yFt } : center);
     paintNow = source.paint();
 
     const signs = source.bankSigns();
@@ -415,7 +418,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     }
 
     const layers = source.layers();
-    const { trail } = source.trails();
+    const trail = trailSince(source.trails().trail, state.tSec, layers.trackSec);
     for (const a of state.aircraft) {
       const points = layers.tracks === false ? [] : trail[a.id] ?? []; // the Tracks tick, as in 2D
       const line = trailFor(a.id);
@@ -532,14 +535,28 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     requestDraw();
   };
   const hands = [
+    ['contextmenu', (e) => e.preventDefault()], // right-drag pans
     ['pointerdown', (e) => {
-      if (e.button !== 0) return;
-      dragging = { id: e.pointerId, x: e.clientX, y: e.clientY, camera: cam };
+      if (e.button !== 0 && e.button !== 2) return;
+      dragging = { id: e.pointerId, x: e.clientX, y: e.clientY, camera: cam, pan: e.button === 2 || e.shiftKey };
       canvas.setPointerCapture?.(e.pointerId);
       canvas.classList.add('is-dragging');
     }],
     ['pointermove', (e) => {
       if (!dragging || e.pointerId !== dragging.id) return;
+      if (dragging.pan) {
+        // Pan along the ground: screen right is (cos yaw, -sin yaw), screen up is (sin yaw, cos yaw) (matchProjection).
+        const ftPerPx = 1000 / cam.zoom;
+        const yaw = rad(cam.yawDeg);
+        const dx = (e.clientX - dragging.x) * ftPerPx;
+        const dy = (e.clientY - dragging.y) * ftPerPx;
+        center = { x: center.x - dx * Math.cos(yaw) + dy * Math.sin(yaw), y: center.y + dx * Math.sin(yaw) + dy * Math.cos(yaw) };
+        dragging.x = e.clientX;
+        dragging.y = e.clientY;
+        onUserMove('pan');
+        requestDraw();
+        return;
+      }
       dragging.camera = orbit(dragging.camera, e.clientX - dragging.x, e.clientY - dragging.y);
       dragging.x = e.clientX;
       dragging.y = e.clientY;

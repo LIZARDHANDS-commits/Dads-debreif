@@ -115,7 +115,7 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
         if (layers.lead75 && layers[`l75_${a.id}`]) drawLead75(ctx, map, a);
       }
       const { trail, marks } = source.trails();
-      if (layers.tracks !== false) drawTrails(ctx, map, trail);
+      if (layers.tracks !== false) drawTrails(ctx, map, trailSince(trail, state.tSec, layers.trackSec));
       if (layers.planned && source.planned) drawPlanned(ctx, map, source.planned(), state.tSec);
       const tags = layers.tags ? source.tags?.() : null;
       const rejoin = source.rejoin?.();
@@ -310,6 +310,14 @@ function drawLead75(ctx, map, lead) {
     const [lx, ly] = map.worldToScreen(lead.xFt + Math.cos(h) * labelAt, lead.yFt + Math.sin(h) * labelAt);
     text(ctx, `${shipName(lead)} ${clock}`, lx + 6, ly, '#b9d8f5', 11);
   }
+}
+
+/** Each track cut to its last `sec` seconds (Settings › Track length, Patrick 5 Oct); 0 or none keeps the whole flight. */
+export function trailSince(trail, now, sec) {
+  if (!(sec > 0)) return trail;
+  const out = {};
+  for (const [id, points] of Object.entries(trail)) out[id] = points.filter((p) => p[0] >= now - sec);
+  return out;
 }
 
 function drawTrails(ctx, map, trail) {
@@ -552,6 +560,27 @@ function drawAircraft(ctx, map, a, named = true, s = SYMBOL_PX) {
 /** The red of a tag's IDLE, BOARDS and IDLE+BOARDS (Patrick 01:44Z: "red letters"), light enough to read on the dark box. */
 const POWER_RED = '#ff5a5a';
 
+/** A data tag (tags.js formatTag): the title in white, then each line in the aircraft's colour, or red. */
+function drawLinesTag(ctx, map, x, y, tag, colour, pad) {
+  const rows = [tag.title, ...tag.lines.map((l) => l.text)];
+  const w = Math.max(...rows.map((t) => ctx.measureText(t).width)) + 2 * pad;
+  const h = 4 + rows.length * 11;
+  const tx = x + 14 + w > map.size.width ? x - 14 - w : x + 14;
+  const ty = y - 8;
+  ctx.fillStyle = 'rgba(10, 18, 28, 0.85)';
+  ctx.fillRect(tx, ty, w, h);
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(tx, ty, w, h);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(tag.title, tx + pad, ty + 11);
+  tag.lines.forEach((l, i) => {
+    ctx.fillStyle = l.red ? POWER_RED : colour;
+    ctx.fillText(l.text, tx + pad, ty + 22 + i * 11);
+  });
+}
+
 export function drawTags(ctx, map, state, tags) {
   ctx.save();
   ctx.font = `10px ${FONT}`;
@@ -561,6 +590,7 @@ export function drawTags(ctx, map, state, tags) {
     const colour = SHIP_COLORS[a.id] ?? '#d9e6f2';
     const [x, y] = map.screenOf ? map.screenOf(a) : map.worldToScreen(a.xFt, a.yFt); // screenOf: the 3D view's, with height
     const pad = 4;
+    if (tag.lines) { drawLinesTag(ctx, map, x, y, tag, colour, pad); continue; }
     const power = tag.power ?? null;
     const w = Math.max(ctx.measureText(tag.title).width, ctx.measureText(tag.detail).width, power ? ctx.measureText(power.text).width : 0) + 2 * pad;
     const h = power ? 37 : 26;

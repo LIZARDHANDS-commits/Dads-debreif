@@ -31,6 +31,7 @@ import { FORMATIONS, FOUR_FORMATIONS, slotsFor } from './live/slots.js';
 import { pursuitWord } from './fluid-panel.js';
 import { isManoeuvring } from './live/fluid.js';
 import { powerWord } from './live/power.js';
+import { compassDeg } from './live/formation.js';
 
 const CLOSE_KEYS = new Set(['echelon', 'route', 'astern', 'finger', 'box', 'trail']);
 const ft = (n) => `${Math.round(Math.abs(n)).toLocaleString('en-CA')} ft`;
@@ -46,10 +47,13 @@ function fluidTags(state) {
   const r = f.readouts;
   const [lead, wing] = state.aircraft;
   const out = {
-    [lead.id]: { title: `${lead.name ?? 'Lead'} · ${now.label}`, detail: `${now.phase}, ${Math.round(lead.kias)} KIAS`, power: powerWord(lead.power) },
+    [lead.id]: { title: `${lead.name ?? 'Lead'} · ${now.label}`, detail: `${now.phase}, ${Math.round(lead.kias)} KIAS`, power: powerWord(lead.power), doing: now.label, position: now.phase, range: null },
   };
   out[wing.id] = {
     title: `${wing.name ?? '#2'} · ${pursuitWord(now.wingCue)}`,
+    doing: pursuitWord(now.wingCue),
+    position: r ? (r.aspectDeg >= 90 ? 'AHEAD OF 3/9' : r.state) : null,
+    range: r ? `${ft(r.rangeFt)}, aspect ${Math.round(r.aspectDeg)}°` : null,
     detail: r ? `${r.aspectDeg >= 90 ? 'AHEAD OF 3/9' : r.state} · ${ft(r.rangeFt)}, aspect ${Math.round(r.aspectDeg)}°` : '',
     power: powerWord(wing.power),
   };
@@ -89,26 +93,59 @@ export function tagLines(state, where) {
     const name = a.name ?? `#${a.id}`;
     if (a.id === 1) {
       const turning = Math.abs(a.bankDeg) > 5;
-      out[a.id] = { title: `${name} · ${what}`, detail: `${Math.round(a.kias)} KIAS${turning ? `, bank ${Math.round(Math.abs(a.bankDeg))}° ${a.bankDeg > 0 ? 'L' : 'R'}` : ''}`, power: powerWord(a.power) };
+      out[a.id] = { title: `${name} · ${what}`, detail: `${Math.round(a.kias)} KIAS${turning ? `, bank ${Math.round(Math.abs(a.bankDeg))}° ${a.bankDeg > 0 ? 'L' : 'R'}` : ''}`, power: powerWord(a.power), doing: what, position: null, range: null };
       continue;
     }
     // The aircraft he flies off: the 4-ship's table for the formation being flown (to), Lead in the 2-ship.
     let refId = 1;
     if (four && FOUR_FORMATIONS[target] && !FOUR_FORMATIONS[target].later) refId = slotsFor(target, side || -1, { ships: 4 })[a.id].ref;
     const ref = by.get(refId) ?? lead;
-    let detail;
+    let position = null;
+    let range = null;
     if (target === 'fw') {
       const s = fwState(ref, a, { distanceOnly: isManoeuvring(lead) });
-      detail = s.distanceOnly ? `${s.state} · ${ft(s.rangeFt)}` : `${s.state} · ${ft(s.rangeFt)}, ${Math.round(s.sweepDeg)}° from the wing line`;
+      position = s.state;
+      range = s.distanceOnly ? ft(s.rangeFt) : `${ft(s.rangeFt)}, ${Math.round(s.sweepDeg)}° from the wing line`;
     } else if (CLOSE_KEYS.has(target)) {
-      detail = closeState(four ? closeLinkKind(target, a.id) : target, ref, a);
+      position = closeState(four ? closeLinkKind(target, a.id) : target, ref, a);
     } else {
       const rel = relativeTo(ref, a);
-      detail = `${ft(rel.left)} abeam${refId === 1 ? '' : ` of ${ref.name ?? `#${refId}`}`}`;
+      range = `${ft(rel.left)} abeam${refId === 1 ? '' : ` of ${ref.name ?? `#${refId}`}`}`;
     }
+    const detail = [position, range].filter(Boolean).join(' · ');
+    const what2 = a.overshooting ? 'OVERSHOOTING' : a.stretched ? 'STRETCHED' : what;
     // How he is flying it (TS-62): OVERSHOOTING in place of what the formation is doing, or STRETCHED while he is held to
     // full power behind his place (TS-63); his power on its own line.
-    out[a.id] = { title: `${name} · ${a.overshooting ? 'OVERSHOOTING' : a.stretched ? 'STRETCHED' : what}`, detail, power: powerWord(a.power) };
+    out[a.id] = { title: `${name} · ${what2}`, detail, power: powerWord(a.power), doing: what2, position, range };
   }
   return out;
+}
+
+/** What the Data tag menu shows at first (Patrick, 5 Oct): what it's doing, position, range and sweep, airspeed, power, closure. */
+export const TAG_DEFAULTS = Object.freeze({
+  tagDoing: true, tagPosition: true, tagRange: true, tagSpeed: true, tagPower: true, tagClosure: true,
+  tagHeight: false, tagHeading: false, tagBankG: false,
+});
+
+/**
+ * One aircraft's data tag, built from its tag (tagLines) and the Data tag ticks in `show` (TAG_DEFAULTS' keys):
+ * { title, lines: [{ text, red }] }. `closure` is the rejoin line ("+24 kt, Lead at 11 o'clock") or null; `lead` gives the
+ * height above or below.
+ */
+export function formatTag(tag, a, lead, show, closure = null) {
+  const name = a.name ?? (a.id === 1 ? 'Lead' : `#${a.id}`);
+  const lines = [];
+  const where = [show.tagPosition && tag.position, show.tagRange && tag.range].filter(Boolean).join(' · ');
+  if (where) lines.push({ text: where });
+  const upFt = (a.altAboveFt ?? 0) - (lead?.altAboveFt ?? 0);
+  const flight = [
+    show.tagSpeed && `${Math.round(a.kias)} KIAS`,
+    show.tagHeight && a.id !== 1 && `${ft(upFt)} ${upFt >= 0 ? 'above' : 'below'} Lead`,
+    show.tagHeading && `${String(compassDeg(a.headingRad)).padStart(3, '0')}°`,
+    show.tagBankG && `bank ${Math.round(Math.abs(a.bankDeg ?? 0))}°${Math.abs(a.bankDeg ?? 0) >= 1 ? (a.bankDeg > 0 ? ' L' : ' R') : ''}, ${(a.g ?? 1).toFixed(1)} G`,
+  ].filter(Boolean).join(', ');
+  if (flight) lines.push({ text: flight });
+  if (show.tagClosure && closure) lines.push({ text: closure });
+  if (show.tagPower && tag.power) lines.push({ text: tag.power.text, red: Boolean(tag.power.red) });
+  return { title: show.tagDoing && tag.doing ? `${name} · ${tag.doing}` : name, lines };
 }

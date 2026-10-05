@@ -5,6 +5,7 @@
 // (h), never as HTML.
 import { h, clear } from '../../ui-kit/dom.js';
 import { createPanel } from '../../ui-kit/panel.js';
+import { TAG_DEFAULTS } from './tags.js';
 import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import { ERROR_FIELDS, RESPONSE_OPTIONS, FIX_TOOLS } from './live/errors.js';
@@ -29,7 +30,9 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   cone_1: true, cone_2: false, cone_3: false, cone_4: false,
   planned: true, // the paths still to fly, dashed
   turnCircles: false,
-  tags: true, // the info tag beside each aircraft: what it is doing and how it sits (spec section 10.4)
+  tags: true, // the data tags beside each aircraft (spec section 10.4); what they show is the Data tag menu (Patrick, 5 Oct)
+  ...TAG_DEFAULTS,
+  trackSec: 0, // Settings › Track length: how long the tracks stay, in seconds; 0 is the whole flight (Patrick, 5 Oct)
   autoFit: true, // Auto zoom: the camera keeps every aircraft in the picture (spec section 10.3); a drag pauses it, Fit brings it back
   realSize: false, // Real aircraft size (Patrick, 5 Oct): ticked, each aircraft is drawn at a T-6's real length in 2D and 3D
   planeScale: 1, // unticked: the scale on the usual easy-to-see size (×0.5 to ×4)
@@ -51,7 +54,8 @@ export function migrateLayout(values, version) {
 export const LAYOUT_ALLOWED = /** @type {Record<string, any[]>} */ (Object.freeze({
   view: [...VIEW_ALLOWED],
   paint: PAINT_OPTIONS.map((o) => o.value),
-  camOn: ['formation', '1', '2', '3', '4'],
+  camOn: ['formation', '1', '2', '3', '4', 'free'],
+  trackSec: [0, 30, 60, 120, 300, 600],
   coneShape: ['3d', 'flat'],
   camLook: ['chase', 'free', 'padlock'],
 }));
@@ -175,6 +179,10 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   );
   // Settings: how things are flown, and the fixed numbers.
   const settingsBody = h('section', { class: 'ts-settings', 'aria-label': 'Settings' },
+    h('div', { class: 'ts-field' }, layoutControls.select('trackSec', { label: 'Track length', options: [
+      { value: 0, label: 'Whole flight' }, { value: 30, label: '30 s' }, { value: 60, label: '1 min' }, { value: 120, label: '2 min' },
+      { value: 300, label: '5 min' }, { value: 600, label: '10 min' },
+    ] })),
     fwMore,
     ...(changeUi?.fluidSettings ? [changeUi.fluidSettings] : []),
     h('p', { class: 'ts-fixed' }, fixedLine),
@@ -255,7 +263,6 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     lc.checkbox('tracks', { label: 'Ground tracks' }),
     lc.checkbox('planned', { label: 'Planned path' }),
     lc.checkbox('turnCircles', { label: 'Turn circles' }),
-    lc.checkbox('tags', { label: 'Info tags' }),
     layerWithShips('lead39', 'l39', '3/9 line'),
     layerWithShips('lead75', 'l75', "7/5 o'clock lines"),
     // In 3D, the cone as the true 3D cone or as the 2D band (Patrick, 5 Oct).
@@ -266,8 +273,21 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   // other; Auto zoom keeps everyone in the picture. In 2D it only picks the centre, north up.
   const camOnChoice = lc.choice('camOn', { label: 'Centre on', options: [
     { value: 'formation', label: 'Formation (average)' }, { value: '1', label: 'Lead' }, { value: '2', label: '#2' },
-    { value: '3', label: '#3' }, { value: '4', label: '#4' },
+    { value: '3', label: '#3' }, { value: '4', label: '#4' }, { value: 'free', label: 'Free' },
   ] });
+  // Data tag (Patrick, 5 Oct): what each aircraft's tag shows.
+  const dataTagMenu = menu('Data tag', 'ts-datatag', [
+    lc.checkbox('tags', { label: 'Data tags' }),
+    lc.checkbox('tagDoing', { label: "What it's doing" }),
+    lc.checkbox('tagPosition', { label: 'Position' }),
+    lc.checkbox('tagRange', { label: 'Range and sweep' }),
+    lc.checkbox('tagSpeed', { label: 'Airspeed' }),
+    lc.checkbox('tagPower', { label: 'Power' }),
+    lc.checkbox('tagClosure', { label: 'Closure (rejoins)' }),
+    lc.checkbox('tagHeight', { label: 'Height off Lead' }),
+    lc.checkbox('tagHeading', { label: 'Heading' }),
+    lc.checkbox('tagBankG', { label: 'Bank and G' }),
+  ]);
   const cameraMenu = menu('Camera', 'ts-camera', [
     camOnChoice,
     lc.choice('camLook', { label: 'On an aircraft (3D)', options: [
@@ -292,24 +312,29 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     playButton, resetRunButton, speedSelect, time, sizeGroup,
     h('span', { class: 'ts-bar-gap' }),
     fitButton,
-    lc.viewSwitch(), note3d, cameraMenu.element, layersMenu.element,
+    lc.viewSwitch(), note3d, cameraMenu.element, layersMenu.element, dataTagMenu.element,
   );
   const stage = h('section', { class: 'ts-stage', 'aria-label': 'Formation from above and playback' }, bar, canvasWrap);
 
   // ---- Formation card -----------------------------------------------------------
   const flying = h('p', { class: 'ts-line ts-flying' });
   const flyingNote = h('p', { class: 'ts-line ts-turn' });
+  // How the move is flown (the manuals' words), folded away (Patrick, 5 Oct: declutter the Formation card).
+  const flyingMore = h('details', { class: 'ts-more ts-flying-more', hidden: true }, h('summary', {}, 'More'), flyingNote);
   const errorSet = h('p', { class: 'ts-line ts-error-set', hidden: true });
   const errorOutcome = h('p', { class: 'ts-line ts-judged ts-error-outcome', 'aria-live': 'polite', hidden: true });
   const now = h('ul', { class: 'ts-lines', 'aria-label': 'The formation now' });
   const judged = h('p', { class: 'ts-line ts-judged', 'aria-live': 'polite' });
   const ships = h('ul', { class: 'ts-card', 'aria-label': 'Each aircraft' });
   const formationPanel = createPanel({ title: 'Formation', onToggle: (c) => layout.update({ formationColumn: !c }) });
+  // The spacing, sweep and height lines and each aircraft's numbers are on the data tags now (Patrick, 5 Oct); the card keeps
+  // what is flying, where the formation is, the roll-out verdict, the flags and the training error.
+  now.hidden = true;
+  ships.hidden = true;
   formationPanel.body.append(
-    flying, flyingNote, ...(changeUi ? [changeUi.cardElement] : []), errorSet, errorOutcome,
-    h('h3', { class: 'ts-group-title' }, 'Now'), now,
+    flying, flyingMore, ...(changeUi ? [changeUi.cardElement] : []), errorSet, errorOutcome,
     h('h3', { class: 'ts-group-title' }, 'Last roll-out'), judged,
-    h('h3', { class: 'ts-group-title' }, 'Each aircraft'), ships,
+    now, ships,
   );
 
   // Controls, Scenario, Settings and Formation: their header buttons "pop" so they read as clickable (Patrick, 5 Oct).
@@ -373,7 +398,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       fwFour.hidden = ships !== 4;
       errorsSection.hidden = ships === 4; // training errors are 2-ship only for now (TS-52)
       changeUi?.setShips(ships); // the four have their own formation buttons (spec section 8)
-      camOnChoice.querySelectorAll('.choice-option').forEach((el, i) => { el.hidden = i > 2 && ships !== 4; }); // #3 and #4 in the four only
+      camOnChoice.querySelectorAll('.choice-option').forEach((el, i) => { el.hidden = (i === 3 || i === 4) && ships !== 4; }); // #3 and #4 in the four only
       for (const { el, id } of shipTicks) el.hidden = id > 2 && ships !== 4;
     },
     /**
@@ -418,7 +443,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     renderCard(r) {
       flying.textContent = r.flying;
       flyingNote.textContent = r.note ?? '';
-      flyingNote.hidden = !r.note;
+      flyingMore.hidden = !r.note;
       const queueText = r.queued ? `Next: ${r.queued}` : '';
       if (queueLine.textContent !== queueText) queueLine.textContent = queueText;
       clear(now);

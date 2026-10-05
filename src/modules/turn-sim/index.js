@@ -28,7 +28,7 @@ import { createChangeUi } from './transitions-panel.js';
 import { createFluidUi } from './fluid-panel.js';
 import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, LAYOUT_VERSION, SHIP_COLORS, migrateLayout } from './layout.js';
 import { createTurnSimView } from './view.js';
-import { tagLines } from './tags.js';
+import { tagLines, formatTag } from './tags.js';
 import { createView3d, yawBehind } from './view3d.js';
 
 const STYLESHEET = new URL('./turn-sim.css', import.meta.url).href;
@@ -221,12 +221,34 @@ function mount(root, app) {
    * The 2D camera: with Fit all aircraft on, centred on them and zoomed to fit them (eased, or at once after a reset or a
    * Fit press); off, it stays centred on them at the person's zoom. A pan or zoom pauses it (null: the camera stays put).
    */
+  const freeCamera = () => layout.get().camOn === 'free'; // Free (Patrick, 5 Oct): the camera follows nothing and doesn't zoom by itself
   const follow = () => {
-    if (cameraPaused) return null;
+    if (cameraPaused || freeCamera()) return null;
     const snap = snapNext;
     snapNext = false;
     return { ...fitBox(), zoom: layout.get().autoFit || snap, snap, zoomFactor: snap ? 1 : zoomFactor2d };
   };
+  /**
+   * The data tags (Patrick, 5 Oct): each aircraft's tag with what the Data tag menu ticks, and during a rejoin the
+   * wingman's closure and Lead's clock position.
+   */
+  function dataTags() {
+    const tags = tagLines(state, formation.where());
+    const show = layout.get();
+    const lead = state.aircraft[0];
+    const out = {};
+    for (const a of state.aircraft) {
+      if (!tags[a.id]) continue;
+      let closure = null;
+      if (a.id !== 1 && state.current?.change?.rejoining) {
+        const r = rejoinReadout(lead, a);
+        const kt = Math.abs(r.closureKt) < 1 ? '0 kt' : `${r.closureKt > 0 ? '+' : ''}${Math.round(r.closureKt)} kt`;
+        closure = `closure ${kt}, Lead at ${r.clock}`;
+      }
+      out[a.id] = formatTag(tags[a.id], a, lead, show, closure);
+    }
+    return out;
+  }
   const showFit = () => ui.setFitShown(cameraPaused || !layout.get().autoFit);
   const pauseCamera = () => {
     if (cameraPaused) return;
@@ -251,7 +273,7 @@ function mount(root, app) {
       labels: () => ({}),
       follow,
       planned: () => state.planned,
-      tags: () => tagLines(state, formation.where()),
+      tags: dataTags,
       rejoin: () => {
         if (!state.current?.change?.rejoining || state.aircraft.length !== 2) return null;
         const r = rejoinReadout(state.aircraft[0], state.aircraft[1]);
@@ -273,13 +295,14 @@ function mount(root, app) {
       trails: () => ({ trail: state.tracks }),
       layers: () => layout.get(),
       planned: () => state.planned,
-      tags: () => tagLines(state, formation.where()),
+      tags: dataTags,
       look: camLook,
       focus: () => {
+        if (freeCamera()) return null; // the 3D view keeps its own centre, moved by shift-drag or right-drag
         const b = fitBox();
         return { x: b.x, y: b.y };
       },
-      fitBounds: () => (cameraPaused || !layout.get().autoFit ? null : fitBounds()),
+      fitBounds: () => (cameraPaused || freeCamera() || !layout.get().autoFit ? null : fitBounds()),
       paint: () => layout.get().paint,
       bankSigns: () => ({}), // the live bank is already signed (left positive)
       colors: SHIP_COLORS,

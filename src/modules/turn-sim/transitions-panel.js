@@ -41,7 +41,6 @@ const REJOIN_OPTIONS = Object.freeze([
   { value: 'straight', label: 'Straight ahead' },
 ]);
 
-const ft = (n) => `${Math.round(Math.abs(n)).toLocaleString('en-CA')} ft`;
 
 /** "Line abreast, right" for the pair as classified now (live/judge.js classify). */
 export function nowWords(where) {
@@ -245,15 +244,9 @@ export function createChangeUi({ onChange, fluidUi = null }) {
         for (const f of flags) flagList.append(h('li', { class: 'tone-caution' }, f));
         return;
       }
-      rejoinBlock.hidden = !(c?.rejoining);
-      if (c?.rejoining) {
-        const r = rejoinReadout(state.aircraft[0], state.aircraft[1]);
-        const closing = Math.abs(r.closureKt) < 1 ? '0 kt' : `${r.closureKt > 0 ? '+' : ''}${Math.round(r.closureKt)} kt`;
-        rejoinBlock.append(
-          h('li', {}, `Range ${ft(r.rangeFt)}, closure ${closing}`),
-          h('li', {}, `Lead at ${r.clock}, ${r.line}`),
-          h('li', { class: r.aboveLead ? 'tone-caution' : 'tone-good' }, `#2 is ${ft(r.belowFt)} ${r.belowFt > 0 ? 'below' : 'above'} Lead`),
-        );
+      // The rejoin's range, closure and clock are on the data tags now (Patrick, 5 Oct); only OVERSHOOTING and the slow-down stay.
+      rejoinBlock.hidden = !(c?.rejoining && (state.aircraft[1]?.overshooting || slowWord(state.aircraft[1])));
+      if (c?.rejoining && !rejoinBlock.hidden) {
         // How #2 is flying it (TS-61, TS-62): OVERSHOOTING, and the speed brake or idle when he is slowing with them.
         const wing = state.aircraft[1];
         const how = [wing.overshooting ? 'OVERSHOOTING, behind and below Lead (SMM 12.27 para 65)' : null, slowWord(wing) ? `${slowWord(wing)} to control the overtake` : null].filter(Boolean);
