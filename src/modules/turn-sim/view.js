@@ -562,7 +562,10 @@ function drawAircraft(ctx, map, a, named = true, s = SYMBOL_PX) {
 const POWER_RED = '#ff5a5a';
 
 /** A data tag (tags.js formatTag): the title in white, then each line in the aircraft's colour, or red. */
-function drawLinesTag(ctx, map, x, y, tag, colour, pad, placed = [], centre = null) {
+/** Each tag's direction out from the formation, eased frame to frame so a small wobble doesn't shake it (Patrick, 5 Oct). */
+const tagDirs = new Map();
+
+function drawLinesTag(ctx, map, x, y, tag, colour, pad, placed = [], centre = null, id = 0) {
   const rows = [tag.title, ...tag.lines.map((l) => l.text)];
   const w = Math.max(...rows.map((t) => ctx.measureText(t).width)) + 2 * pad;
   const h = 4 + rows.length * 11;
@@ -574,10 +577,20 @@ function drawLinesTag(ctx, map, x, y, tag, colour, pad, placed = [], centre = nu
   let dy = centre ? y - centre[1] : -1;
   const len = Math.hypot(dx, dy);
   if (len < 1) { dx = 1; dy = -1; } else { dx /= len; dy /= len; }
+  const was = tagDirs.get(id);
+  if (was) {
+    dx = was[0] + (dx - was[0]) * 0.15;
+    dy = was[1] + (dy - was[1]) * 0.15;
+    const l = Math.hypot(dx, dy) || 1;
+    dx /= l;
+    dy /= l;
+  }
+  tagDirs.set(id, [dx, dy]);
   const ax = x + dx * gap;
   const ay = y + dy * gap;
-  let tx = dx >= 0 ? ax : ax - w;
-  let ty = dy >= 0 ? ay : ay - h;
+  // The box slides smoothly round its anchor with the direction (no jump from one side to the other).
+  let tx = ax + ((dx - 1) / 2) * w;
+  let ty = ay + ((dy - 1) / 2) * h;
   tx = Math.max(0, Math.min(map.size.width - w, tx));
   ty = Math.max(0, Math.min(map.size.height - h, ty));
   const away = dy >= 0 ? 1 : -1; // a tag that would cover another moves further out the same way
@@ -593,8 +606,8 @@ function drawLinesTag(ctx, map, x, y, tag, colour, pad, placed = [], centre = nu
   }
   placed.push({ x: tx, y: ty, w, h });
   // The leader: from the aircraft to the box's nearest corner, in its colour.
-  const cx = tx > x ? tx : tx + w;
-  const cy = ty > y ? ty : ty + h;
+  const cx = Math.max(tx, Math.min(tx + w, x)); // the leader meets the box's nearest edge
+  const cy = Math.max(ty, Math.min(ty + h, y));
   ctx.strokeStyle = colour;
   ctx.globalAlpha = 0.7;
   ctx.lineWidth = 1;
@@ -627,7 +640,7 @@ export function drawTags(ctx, map, state, tags) {
     const colour = SHIP_COLORS[a.id] ?? '#d9e6f2';
     const [x, y] = map.screenOf ? map.screenOf(a) : map.worldToScreen(a.xFt, a.yFt); // screenOf: the 3D view's, with height
     const pad = 4;
-    if (tag.lines) { drawLinesTag(ctx, map, x, y, tag, colour, pad, placed, centre); continue; }
+    if (tag.lines) { drawLinesTag(ctx, map, x, y, tag, colour, pad, placed, centre, a.id); continue; }
     const power = tag.power ?? null;
     const w = Math.max(ctx.measureText(tag.title).width, ctx.measureText(tag.detail).width, power ? ctx.measureText(power.text).width : 0) + 2 * pad;
     const h = power ? 37 : 26;
