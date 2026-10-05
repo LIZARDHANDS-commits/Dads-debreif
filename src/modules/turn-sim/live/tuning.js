@@ -526,7 +526,14 @@ export const HOLD = Object.freeze({
   cutShare: 0.25, // the most offset inside Lead's turn, as a share of the range: about sin 15°, the lag line's angle, so he goes toward pure pursuit and stays inside the 30° cone (estimate)
   cutSec: 4, // how long moving into or out of the offset takes (estimate)
   cutMinCurvPerFt: 1 / 20000, // a line straighter than a 20,000 ft radius has no inside to cut (estimate)
-  landSec: 1, // the live hold (fluid manoeuvring, V2.59): once caught up, the last fraction of a foot is blended onto the line over 1 s (estimate)
+  // #2 in fluid manoeuvring by energy and geometry (TS-74, V2.69; full-power.js flyFluidStep). cutShare, cutSec and
+  // cutMinCurvPerFt above are his lag and lead offset too, either side of the line.
+  lookSec: 2, // he sets his lag or lead for the gap he will have in about 2 s at the closure he has (estimate)
+  bubbleMarginFt: 50, // with Lead at MAX, #2 takes power off only within about 50 ft of the 500 ft bubble (estimate)
+  offsetAccFtps2: 10, // and moves with at most about 0.3 G of its own, so the lag or lead adds little to the G he pulls (estimate)
+  aimSec: 1, // and the offset's aim is eased over about 1 s, so a new turn or a reversal never jerks his G (estimate)
+  powerSec: 2, // the PCL's full travel, MAX to idle and the boards, takes at least 2 s (estimate)
+  floorKias: 70, // his speed is never shown below 70 KIAS, a guard only: the planned line keeps him well above it (estimate)
 });
 
 // ---- roll (from flight.js) -----------------------------------------------------------------------------------------

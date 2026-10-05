@@ -507,7 +507,7 @@ Patrick's rulings of 4 Oct 19:15Z, 23:29Z and 23:37-23:38Z and 5 Oct 00:11Z-02:0
 - **Training starts:** the Errors panel's off-standard starts and the decision overshoot still fly the kinematic hot rejoin (section 10.5, TS-62), as lines then tracker: the line flies the rejoin closure to about 500 ft from route (or the fighting wing slot), then the tracker runs in at the close-in rate, planned again at the hand-over. It lines up only on #2's own side; only the decision overshoot crosses behind Lead (Patrick 04:53Z).
 - **Rulings (Patrick 06:16Z):** #2's bank in a rejoin has no cap but the G rule (5 G level, about 78°; flagged on the card at that bank, never a wall); reversals up to 78°; Lead holds his 30° turn until #2 is in, then rolls out (every 2-ship turning rejoin); no fixed descent rate, only a smooth descent within 0.5 G of push (estimate), off Lead's height before 2,000 ft (SMM 12.27 para 65); the decision point about 200 ft.
 - **Rejoin kind** (More, 2-ship): Turning (TRJ, the default) or Straight ahead (SARJ), from line abreast and from fighting wing (Patrick 05:13Z, 07:32Z). They are two separate rejoins (Patrick 07:19Z): the SARJ drops onto Lead's six and runs up it (SMM 12.26 paras 62-63).
-- **Fluid** (Patrick 04:59Z; card "Geometry: cut inside" 04:53Z): the entry and Terminate move into the cone and back at the close-in rate (at least 3 s, estimate); aerobatics start within 15 KIAS of the entry speed; #2 is held to full power (STRETCHED while behind) and, while behind, flies inside Lead's turn toward pure pursuit (at most a quarter of the range and never past 5 G, estimates), then back onto the 15° lag line.
+- **Fluid** (Patrick 04:59Z; card "Geometry: cut inside" 04:53Z): the entry and Terminate move into the cone and back at the close-in rate (at least 3 s, estimate); aerobatics start within 15 KIAS of the entry speed; #2 is held to full power (STRETCHED while behind) and, while behind, flies inside Lead's turn toward pure pursuit (at most a quarter of the range and never past 5 G, estimates), then back onto the 15° lag line. **Replaced in V2.69 (TS-74, section 10.11):** he flies by energy and geometry, and STRETCHED shows only past 1,000 ft.
 
 **Failure and stale data.** No outside data. A turning rejoin that doesn't settle flies the straight-ahead rejoin from fighting wing, or the tracker's rejoin from line abreast (`planGoTo`, which can close via Lead's six); a training rejoin whose tracker part doesn't settle flies its whole line; Lead turning until #2 is in falls back to the fixed turn angles in the tracker's rejoin. The live hold always returns a point on or inside the planned line.
 
@@ -563,6 +563,28 @@ Patrick 08:40Z: "I want the aircraft to get from echelon to fighting wing in 10 
 - **Failure and stale data:** no outside data. A start this doesn't cover, or a fighting wing setting outside the band, flies or is refused as before.
 
 **Checks.** None added (Patrick 06:25Z, 09:08Z); a typecheck, a page-load check and a few dry runs (from echelon in the cone at 7.1 s at Instructor, was 31.9 s).
+
+### 10.11 Fluid #2 flies by energy and geometry (V2.69, TS-74; built 5 Oct, not yet in Patrick's sign-off)
+
+Patrick 16:19Z, card "Smaller loop" (Lead stays at MAX; STRETCHED shows only past 1,000 ft); 16:42Z: "That's how form works - you use geometry".
+
+- **Why:** #2's planned line asked for speeds no power setting gives. Over the top of the loop it slowed him faster than idle and boards can, and coming down it sped him up more slowly than idle would. He came out about 50 KIAS slow and up to 3,000 ft back, STRETCHED all the way (`/mnt/project-files/turn-sim-review/fluid-stretch-finding.md`).
+- **His speed:** comes from his energy height (height plus speed). It changes only by what his power gives at his speed, height and G (standard aerodynamics). He never slows faster than idle and boards allow or speeds up faster than MAX allows. A climb costs him speed, a dive gives it back, and pulling hard costs energy.
+- **Power:** MAX, like Lead (SMM 16.17 para 43; AFM7 brief p.17). He takes power off only when he is within about 50 ft of the 500 ft bubble (SMM 16.17 para 44c) and lag can't take the rest out. While Lead holds a speed (the entry and Terminate), power flies his place, as before.
+- **Spacing by geometry** (SMM 16.17 para 44; EFIG p.391): the planned line is his aim. When gaining, he flies outside its turn (lag, a longer way round). When behind, he flies inside it (lead, a shorter way). In a loop, that means higher or lower in the loop. He goes at most a quarter of the range off the line (about 15°), and his way round is never more than 30% shorter or longer. Inside, he never pulls past 5 G or the stall line; where the line asks for more than that, he eases out to lag instead. The offset itself adds no more than about 0.3 G. All four numbers are estimates.
+- **On screen:** STRETCHED shows only past 1,000 ft (SMM 16.17 para 42), on the card and the tag. His tag shows the power he is flying.
+- **Dry runs (600 ft, 8,000 ft):**
+  - The loop: 630-810 ft, MAX throughout, out at Lead's speed. Before this change he came out about 50 KIAS slow at 3,000 ft.
+  - The standard sequence: 600-810 ft, G 0.5-4.9.
+  - Reversal: settles at 600 ft.
+  - Terminate: back to fighting wing as before.
+- **Not fixed:**
+  - At the 1,000 ft setting the loop still opens to about 1,700 ft (was 3,400). At that range the planned place itself moves faster than any aircraft can over the top, and it jumps once, which gives a one-step G spike to about 6.9. That is left for later (`future.md`).
+  - Behind after a manoeuvre, with both aircraft at MAX in straight flight, he stays behind until Lead's next turn (TS-63: he fixes it as best he can).
+  - In a long level turn on the outside of Lead's turn, he sits near Lead's six, as before: at the same power he can't fly a bigger circle as fast.
+- **Failure and stale data:** no outside data. His speed is never shown below 70 KIAS. This is a guard only; the dry runs never reached it.
+
+**Checks.** None added (Patrick 06:25Z, 09:08Z). Done: a typecheck, a page-load check, and dry runs of every fluid button at 600 ft plus the loop at 1,000 ft.
 
 ---
 
