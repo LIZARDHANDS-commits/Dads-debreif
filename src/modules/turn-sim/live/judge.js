@@ -19,7 +19,7 @@ import { relativeBearingDeg } from '../../../core/angles.js';
 import { FTPS_TO_KT } from '../../../core/units.js';
 import { relativeTo, DEG } from './manoeuvres.js';
 import { rangeWord } from './fluid.js';
-import { FORMATIONS, WINGSPAN_FT, ROUTE_SPANS, LENGTH_FT, FW_BAND, BOX_DEPTH_BAND_FT, FLUID4_ABEAM_FT, slotsFor, fourWords, pairSlot } from './slots.js';
+import { FORMATIONS, WINGSPAN_FT, ROUTE_SPANS, LENGTH_FT, FW_BAND, BOX_DEPTH_BAND_FT, slotsFor, fourWords, pairSlot } from './slots.js';
 import { REJOIN, IN_POSITION } from './tuning.js';
 
 /** Margins for the roll-out judgement: the shared table's ±100 ft (docs/TESTING.md). */
@@ -306,11 +306,10 @@ function formationFour(key, aircraft, s, spacingFt) {
       if (Math.abs(wing.altAboveFt - lead.altAboveFt - want.alt) > JUDGE_MARGIN_FT) labels.push('OFF STACK');
     };
     if (key === 'spread4' || (key === 'offsetBox' && id !== 3) || (key === 'fluid4' && id === 3)) {
-      const gap = key === 'fluid4' ? FLUID4_ABEAM_FT : spacingFt;
-      const j = judgeLink('abreast', ref, wing, { spacingFt: gap });
+      const j = judgeLink('abreast', ref, wing, { spacingFt });
       labels = [...j.labels];
       if (Math.sign(rel.left) !== Math.sign(want.left)) labels.push('WRONG SIDE');
-      numbers = `${ft(j.acrossFt)} abeam (${ft(gap)}), ${ft(j.foreAftFt)} ${j.foreAftFt >= 0 ? 'ahead' : 'behind'}`;
+      numbers = `${ft(j.acrossFt)} abeam (${ft(spacingFt)}), ${ft(j.foreAftFt)} ${j.foreAftFt >= 0 ? 'ahead' : 'behind'}`;
       stackOff();
     } else if (key === 'offsetBox') {
       const depth = -rel.fwd;
