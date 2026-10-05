@@ -26,6 +26,7 @@ import { makeLocalRef, localFtToLatLon, latLonToLocalFt } from '../../core/geo.j
 import { FT_PER_NM } from '../../core/units.js';
 import { PFL, PFL_CONFIGS, PFL_CONFIG_LABELS } from './pfl.js';
 import { ejectionAt } from './ejection.js';
+import { trueAltFt } from './weather.js';
 import { FIELD_ELEV_FT, THRESHOLD_29L, PFL_CIRCLE_RADIUS_FT, PATTERN_ALT_FT, trueToMagnetic } from './airfield.js';
 import { TYPE_COLORS as FLEET_COLORS } from './types.js';
 import { T6_LENGTH_FT } from './types.js';
@@ -80,7 +81,7 @@ export function paletteFrom(read) {
 const whole = (n) => (Math.round(n) || 0).toLocaleString('en-US'); // never "-0"
 
 /** "2,500 ft 220 kt", the label under an aircraft's callsign. */
-export const heightSpeedText = (ac) => `${whole(ac.alt)} ft ${whole(ac.kt)} kt`;
+export const heightSpeedText = (ac) => `${whole(ac.indicatedAlt ?? ac.alt)} ft ${whole(ac.kt)} kt`; // the altimeter's height
 
 /** "1,250 ft", a leg's length on the map. */
 export const feetText = (ft) => `${whole(ft)} ft`;
@@ -733,7 +734,7 @@ export function drawScene(ctx, map, scene, settings, palette, layers = {}) {
     const [x, y] = at(ac.ejectAt);
     text(`✕ ${ac.id} EJECT`, x, y, palette.bad, { size: 12, bold: true, align: 'center', anchor: x });
     if (!Number.isFinite(ac.ejectAt.t) || !Number.isFinite(scene.t) || scene.t < ac.ejectAt.t) continue;
-    const st = ejectionAt(ac.ejectAt, scene.t - ac.ejectAt.t, { windFromDeg: scene.windFromDeg, windKt: scene.windKt }, FIELD_ELEV_FT);
+    const st = ejectionAt({ ...ac.ejectAt, alt: trueAltFt(ac.ejectAt.alt) }, scene.t - ac.ejectAt.t, { windFromDeg: scene.windFromDeg, windKt: scene.windKt }, FIELD_ELEV_FT);
     const [px, py] = at(st.person);
     ctx.save();
     ctx.strokeStyle = palette.bad;

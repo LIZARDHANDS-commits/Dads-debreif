@@ -5,7 +5,7 @@
 
 import { KT_TO_FTPS } from '../../core/units.js';
 import { windVectorFtps } from '../../core/wind.js';
-import { iasToTasKt } from '../../core/t6-performance.js';
+import { iasToTasKt } from './weather.js';
 
 export const EJECTION = Object.freeze({
   /** The seat rises this far above where it left the aircraft, ft, over riseSec (estimates). */

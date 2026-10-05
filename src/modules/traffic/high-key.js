@@ -2,7 +2,7 @@
 // Ground truth: 15 Wing Moose Jaw CT-156 Harvard II / CYMJ Runway 29L
 import { degToRad, wrapDeg180 } from '../../core/angles.js';
 import { ktToFtps } from '../../core/units.js';
-import { iasToTasKt } from '../../core/t6-performance.js';
+import { iasToTasKt } from './weather.js';
 import { THRESHOLD_29L, PFL_KEY_ALT_FT, RUNWAY_29L_HDG_DEG } from './airfield.js';
 import { makePilot, bankFor, trackForLine, readyToTurnOnto, lineOf, powerClimb, HOLD_RADIUS_FT } from './circuit.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';

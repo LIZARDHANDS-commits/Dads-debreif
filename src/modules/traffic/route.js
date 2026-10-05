@@ -17,7 +17,7 @@
 import { FT_PER_NM, ktToFtps } from '../../core/units.js';
 import { limitG, turnRadiusFt, bankDegFromG, gFromBankDeg, turnRateFromBankRadPerSec } from '../../core/flight-math.js';
 import { unitVectorFromCompassDeg, compassDegFromVector } from '../../core/angles.js';
-import { iasToTasKt } from '../../core/t6-performance.js';
+import { iasToTasKt } from './weather.js';
 import { windTriangle, windVectorFtps } from '../../core/wind.js';
 import { RUNWAY_29L_HDG_DEG, THRESHOLD_29L, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT, PFL_CIRCLE_RADIUS_FT, PATTERN_ALT_FT, PFL_KEY_ALT_FT } from './airfield.js';
 import { buildCircuit } from './circuit.js';

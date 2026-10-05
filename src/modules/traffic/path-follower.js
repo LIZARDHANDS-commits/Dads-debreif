@@ -15,7 +15,8 @@ import { ktToFtps, G_FTPS2 } from '../../core/units.js';
 import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
 import { bankDegFromTurnRate, easeRoll, gFromBankDeg } from '../../core/flight-math.js';
 import { windTriangle } from '../../core/wind.js';
-import { iasToTasKt, pitchDegFromClimb, glideDragPerWeight, glideRatio } from '../../core/t6-performance.js';
+import { pitchDegFromClimb, glideDragPerWeight, glideRatio } from '../../core/t6-performance.js';
+import { iasToTasKt } from './weather.js';
 import { posOnRoute, routePath, DEFAULT_ROUTE_OPTIONS } from './route.js';
 import { ROLL } from './circuit.js';
 
