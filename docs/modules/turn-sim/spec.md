@@ -525,6 +525,21 @@ Patrick 09:03Z: "as SOON as "fighting wing" is clicked and the aircraft is in th
 
 **Checks.** None added (Patrick 06:25Z, 09:08Z); typecheck, a page-load check, and one dry run (into fighting wing, a level turn, a climb, a reversal, wings level: #2 stayed 660-800 ft, near Lead's six in the turns and at about 54° of sweep after).
 
+### 10.8 Lag roll to fighting wing (2-ship, TS-71, built 5 Oct, not yet in Patrick's sign-off)
+
+Patrick 08:54Z: "you hit "lag roll" and the airplane flips up and rolls canopy to canopy to lead then lands in the cone on the other side, power pitch and bank as required"; 08:58Z: fighting wing can use the whole cone, high or low. The SMM and EFIG do not name the lag roll; the nearest pages are SMM 12.29 para 69, SMM 12.30-12.31 para 74 and SMM 14.8 paras 18-19, Fig 14.1, Table 14.1. Numbers with no page or ruling beside them are estimates (`live/tuning.js` LAG_ROLL).
+
+**What changes on screen.**
+- A **Lag roll** button (added by the screen work, not in this piece) calls `formation.lagRoll()`. It works from fighting wing in the 2-ship with Lead straight and level; otherwise the card says why ("The lag roll starts from fighting wing; change to fighting wing first.", "For now the lag roll flies only with Lead straight and level.", "The lag roll is 2-ship only for now."). In fluid manoeuvring it asks for Terminate first. Pressed while something else flies, it is queued.
+- The card shows the plan in one line: the pull, the nose-up, the range over Lead's six, the slowest speed, the side he lands on, and the flag when Lead leaves the top half of #2's canopy. At the end it is judged as fighting wing on the new side.
+- #2 goes through inverted in the 2D and 3D views (the same poses as Lead's barrel roll). Nothing else moves or disappears.
+
+**How it flies.** Lead flies straight on. #2's path is planned at the press in Lead's frame and played as a pose track: he pulls up (about 2.5-3 G, nose 30-45° up), rolls toward Lead at about 50°/s, passes over Lead's six inverted, canopy to canopy, at about 1,000-1,300 ft and about 2 G, slowing to about 165-175 KIAS, comes down on the other side into the cone (anywhere in the sim's fighting wing region, which may be past the 1,000 ft band), then closes to the slot at a 20 kt overtake (EFIG p.374, the top of 10-20 KIAS). A small search picks the path; G stays under core `availableG` at every step, positive throughout, and the plan never comes inside 500 ft of Lead (SMM 16.23). Speed is what the path needs (no energy model).
+
+**Failure and stale data.** No outside data. A start the search can't fly within the G and the 500 ft bubble is refused with the reason on the card; nothing moves.
+
+**Checks.** None added (Patrick 06:25Z, 09:08Z); a typecheck and one dry run of `formation.lagRoll()` from the default fighting wing start (it plans in about 0.2 s and ends IN POSITION on the other side).
+
 ---
 
 # Part 2. Plan mode: the spec from before the reset
