@@ -69,7 +69,7 @@ export function plannedBounds(run, maxSteps = 12100) {
  *   labels(): { id: { text, tone } } for the error labels.
  *   follow(): { x, y, spanXFt, spanYFt, zoom, snap } to keep centred and in view, or null to leave the camera where the person put it (the live screen's camera);
  *   planned(): { id: [[t, x, y, …], …] }, paths still to fly, drawn dashed when layers().planned is on.
- *   tags?(): { id: { title, detail } }, the info tags (tags.js), drawn when layers().tags is on.
+ *   tags?(): { id: { title, detail, power } }, the info tags (tags.js), drawn when layers().tags is on.
  */
 export function createTurnSimView(canvas, { timers, source, onUserMove }) {
   let needsFit = null; // bounds to fit at the next draw, once the canvas has its real size
@@ -488,8 +488,12 @@ function drawAircraft(ctx, map, a, named = true) {
 
 /**
  * The info tags (tags.js): beside each aircraft a dark box with a border in its colour, the title in white and the detail
- * in its colour, 10 px text, as Fight Sim draws them (turn-fight view.js, copied, not imported).
+ * in its colour, 10 px text, as Fight Sim draws them (turn-fight view.js, copied, not imported). A third line gives the
+ * power when it is known (TS-62): MAX or PWR in the tag's colour, IDLE, BOARDS and IDLE+BOARDS in red (Patrick 01:44Z).
  */
+/** The red of a tag's IDLE, BOARDS and IDLE+BOARDS (Patrick 01:44Z: "red letters"), light enough to read on the dark box. */
+const POWER_RED = '#ff5a5a';
+
 function drawTags(ctx, map, state, tags) {
   ctx.save();
   ctx.font = `10px ${FONT}`;
@@ -499,8 +503,9 @@ function drawTags(ctx, map, state, tags) {
     const colour = SHIP_COLORS[a.id] ?? '#d9e6f2';
     const [x, y] = map.worldToScreen(a.xFt, a.yFt);
     const pad = 4;
-    const w = Math.max(ctx.measureText(tag.title).width, ctx.measureText(tag.detail).width) + 2 * pad;
-    const h = 26;
+    const power = tag.power ?? null;
+    const w = Math.max(ctx.measureText(tag.title).width, ctx.measureText(tag.detail).width, power ? ctx.measureText(power.text).width : 0) + 2 * pad;
+    const h = power ? 37 : 26;
     const tx = x + 14 + w > map.size.width ? x - 14 - w : x + 14; // on the left when the right would run off the picture
     const ty = y - 8;
     ctx.fillStyle = 'rgba(10, 18, 28, 0.85)';
@@ -513,6 +518,10 @@ function drawTags(ctx, map, state, tags) {
     ctx.fillText(tag.title, tx + pad, ty + 11);
     ctx.fillStyle = colour;
     ctx.fillText(tag.detail, tx + pad, ty + 22);
+    if (power) {
+      ctx.fillStyle = power.red ? POWER_RED : colour;
+      ctx.fillText(power.text, tx + pad, ty + 33);
+    }
   }
   ctx.restore();
 }

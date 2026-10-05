@@ -22,6 +22,7 @@ import { relativeTo, turnSeg, wholeDegree, onStep, DEG } from './manoeuvres.js';
 import { recordFlight, fwShapeNow, KIAS_LAB, KIAS_OUTSIDE_LAB, REJOIN, classifyPair, describe, FORMATIONS, LENGTH_FT } from './transitions.js';
 import { makeTrack, seedTrack, posesFrom, settleLast, followInto, slotInWorld, poseOf, laggedBank } from './kinematic.js';
 import { KINEMATIC, CLOSE, slotPoint, routePoints, movingSlot, rollEvents, eventsEnd, lastRollEnd, laneAndBelow, finishLine, leadTurnSegs } from './kinematic-moves.js';
+import { throttleFor } from './power.js';
 import { STAGES, STAGE_WORDS, speedSegFor, slowKtps, stageFor, fullPowerKtps } from './slow-down.js';
 
 const dt = STEP_SEC;
@@ -92,6 +93,7 @@ export function speedNeeds(poses, from, blockFt, to = poses.length) {
   for (let k = 1; k < n - 1; k++) raw[k] = (poses[k + 1].kias - poses[k - 1].kias) / (2 * dt);
   const half = 5;
   const ranks = new Int8Array(n).fill(-1);
+  const rates = new Float64Array(n); // the energy rate each step asks, in KIAS per second (the climb's share included)
   let firstBad = -1;
   let accelShort = 0;
   let top = 0;
@@ -104,6 +106,7 @@ export function speedNeeds(poses, from, blockFt, to = poses.length) {
     }
     const p = poses[k];
     const r = sum / cnt + ((G_FTPS2 * (p.climb ?? 0)) / Math.max(p.tas, 1)) * (p.kias / Math.max(p.tas, 1));
+    rates[k] = r;
     if (r < 0) {
       const st = stageFor(-r, p.kias, blockFt, p.g);
       if (!st.ok && -r > slowKtps('idleBoards', p.kias, blockFt, p.g) * 1.02 + 0.05 && firstBad < 0) firstBad = k;
@@ -113,16 +116,21 @@ export function speedNeeds(poses, from, blockFt, to = poses.length) {
       accelShort = Math.max(accelShort, r - Math.max(fullPowerKtps(p.kias, blockFt, p.g) * 1.05 + 0.05, HOT.accelCapKtps));
     }
   }
-  return { ranks, firstBad, accelShort: Math.max(0, accelShort), top };
+  return { ranks, rates, blockFt, firstBad, accelShort: Math.max(0, accelShort), top };
 }
 
-/** Writes each pose's slowing stage from its rank, held for a second either side so the boards don't flick in and out. */
-function labelStages(poses, from, ranks) {
+/**
+ * Writes each pose's slowing stage from its rank, held for a second either side so the boards don't flick in and out, and
+ * on power the model's throttle for the tag (power.js; speedNeeds' rates already hold the climb's share).
+ */
+function labelStages(poses, from, needs) {
+  const { ranks, rates, blockFt } = needs;
   const hold = Math.round(1 / dt);
   for (let k = Math.max(0, from); k < poses.length; k++) {
     let r = -1;
     for (let j = Math.max(0, k - hold); j <= Math.min(poses.length - 1, k + hold); j++) r = Math.max(r, ranks[j]);
     poses[k].stage = r >= 1 ? STAGES[r] : r === 0 ? 'power' : null;
+    poses[k].pwr = r >= 1 ? null : Math.min(1, Math.max(0, throttleFor(rates[k] ?? 0, poses[k].kias, blockFt, poses[k].g)));
   }
 }
 
@@ -447,7 +455,7 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
       const b = buildLine(c, slowWing, KINEMATIC.captureSec);
       if (b.line.maxBankDeg > KINEMATIC.pointBankDeg + 0.5 || b.checks.laneFwdFt > 100 || b.checks.minBelowFt <= 0) continue;
       const needs = speedNeeds(b.line.poses, c.kh - 3, blockFt);
-      labelStages(b.line.poses, c.kh - 3, needs.ranks);
+      labelStages(b.line.poses, c.kh - 3, needs);
       return result(b);
     }
     return { ok: false, reason: 'No safe hot turning rejoin from here: every way in broke the bank cap, the overshoot lane or the height rule.' };
@@ -493,7 +501,7 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
           if (!nearly || needs.accelShort < nearly.needs.accelShort) nearly = entry;
           continue;
         }
-        labelStages(b.line.poses, c.kh - 3, needs.ranks);
+        labelStages(b.line.poses, c.kh - 3, needs);
         good.push(entry);
         break;
       }
@@ -531,7 +539,7 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
   if (!good.length && nearly && (nearly.needs.accelShort < HOT.nearlyKtps || !needsOvershoot)) {
     // The speed-ups of the planned capture lines aren't held to full power yet (the standard rejoin's aren't either: TS-62,
     // future.md); the slowing is, and that is what an off-standard start tests.
-    labelStages(nearly.b.line.poses, nearly.b.c.kh - 3, nearly.needs.ranks);
+    labelStages(nearly.b.line.poses, nearly.b.c.kh - 3, nearly.needs);
     good.push(nearly);
   }
   if (good.length) {
@@ -635,7 +643,7 @@ export function planHotRejoin(pair, s, to, sTo, opts = {}, t0 = 0) {
     const kFlown = c.kh - 3;
     for (let k = 1; k <= kFlown; k++) line.poses[k - 1] = flown[k];
     const needs = speedNeeds(line.poses, kFlown, blockFt);
-    labelStages(line.poses, kFlown, needs.ranks);
+    labelStages(line.poses, kFlown, needs);
     for (let k = kD; k <= kS && k <= line.poses.length; k++) line.poses[k - 1].over = true;
     const checks = laneAndBelow(lp.rec, track, n);
     return {

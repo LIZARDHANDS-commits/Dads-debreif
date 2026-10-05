@@ -261,6 +261,8 @@ export function flyStep(a, plan, t) {
     const [bank, kias] = seg.points[seg.i++];
     if (kias !== null && kias !== undefined) setKias(a, kias);
     stepCommanded(a, bank, t, plan.profile);
+    a.power = null; // the tracker's replay sets no power: the tag shows none rather than a guess (TS-62)
+    a.slowStage = null;
     if (seg.i >= seg.points.length) plan.segments.shift();
     return;
   }

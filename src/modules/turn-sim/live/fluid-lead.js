@@ -45,7 +45,7 @@
 //    each manoeuvre's own speed set-up leads into the next.
 import { stepPointMass, gAndBankForLift } from '../../../core/point-mass.js';
 import { easeValue, dampedClimbG } from '../../../core/flight-math.js';
-import { t6aExcessFn, tasToIasKt, shakerG } from '../../../core/t6-performance.js';
+import { t6aExcessFn, tasToIasKt, shakerG, dragPerWeight, thrustPerWeight } from '../../../core/t6-performance.js';
 import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { ROLL, STEP_SEC, headingChangeRollingOut } from './flight.js';
@@ -170,6 +170,17 @@ function holdSpeedExcess(kiasTarget) {
     const wantFtps2 = wantKtps * KT_TO_FTPS * (ktas / Math.max(kias, 1));
     return Math.max(excessPerWeight('power', kias, altFt, g), Math.min(wantFtps2 / G_FTPS2, t6aExcessFn(ktas, altFt, g)));
   };
+}
+
+/**
+ * Lead's power for the tag (power.js, TS-62): PCL MAX (1) through the manoeuvres (SMM 16.17 para 43), and in a stage
+ * that holds a speed (the entry's 30° stage, fighting wing, Terminate) the model's throttle for holdSpeedExcess.
+ */
+export function leadThrottle(st, holdKias) {
+  if (!holdKias) return 1;
+  const altFt = st.pm.z;
+  const excess = holdSpeedExcess(holdKias)(st.V / KT_TO_FTPS, altFt, st.g);
+  return Math.min(1, Math.max(0, (excess + dragPerWeight(st.kias, altFt, st.g)) / thrustPerWeight(st.kias, altFt)));
 }
 
 /**

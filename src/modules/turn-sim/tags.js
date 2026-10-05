@@ -15,8 +15,9 @@
 // 23:07Z: "this is true in fighting wing as well"; 23:08Z: "during the turn all that matters is their distance from lead
 // for spacing"). Straight and level, and at the roll-out, the full verdict shows again. The real flag stays either way:
 // a wingman ahead of the 3/9 line of the aircraft he flies off reads AHEAD OF 3/9.
-// A wingman on an overshoot reads OVERSHOOTING (TS-62), and one slowing with the speed brake or at idle adds BOARDS, IDLE
-// or IDLE + BOARDS (TS-61).
+// A wingman on an overshoot reads OVERSHOOTING (TS-62).
+// Every tag has a power line when what flies the aircraft sets its power (live/power.js; Patrick 5 Oct 01:44Z): MAX, PWR
+// nn% (the model's throttle, not a torque reading), or in red IDLE, BOARDS or IDLE+BOARDS (TS-61, TS-62). None otherwise.
 // formation.js first: the live files import each other in a loop, and entering it at transitions.js reads REJOIN in
 // kinematic-moves.js before transitions.js has set it (the same happens on main if transitions.js is loaded first).
 import './live/formation.js';
@@ -25,7 +26,7 @@ import { judgeFormation, FORMATIONS } from './live/transitions.js';
 import { FOUR_FORMATIONS, fourSlots } from './live/four-ship-slots.js';
 import { pursuitWord } from './fluid-panel.js';
 import { isManoeuvring, rangeWord } from './live/fluid.js';
-import { slowWord } from './live/slow-down.js';
+import { powerWord } from './live/power.js';
 
 /** The fighting wing cone (SMM 12.29 para 69, Fig 12.19): feet from the aircraft flown off, and sweep back from its wing line. */
 export const FW_CONE = Object.freeze({ minFt: 500, maxFt: 1000, minSweepDeg: 30, maxSweepDeg: 60 });
@@ -63,11 +64,12 @@ function fluidTags(state) {
   const r = f.readouts;
   const [lead, wing] = state.aircraft;
   const out = {
-    [lead.id]: { title: `${lead.name ?? 'Lead'} · ${now.label}`, detail: `${now.phase}, ${Math.round(lead.kias)} KIAS` },
+    [lead.id]: { title: `${lead.name ?? 'Lead'} · ${now.label}`, detail: `${now.phase}, ${Math.round(lead.kias)} KIAS`, power: powerWord(lead.power) },
   };
   out[wing.id] = {
     title: `${wing.name ?? '#2'} · ${pursuitWord(now.wingCue)}`,
     detail: r ? `${r.aspectDeg >= 90 ? 'AHEAD OF 3/9' : r.state} · ${ft(r.rangeFt)}, aspect ${Math.round(r.aspectDeg)}°` : '',
+    power: powerWord(wing.power),
   };
   return out;
 }
@@ -101,7 +103,7 @@ function doing(state, whereKey, four) {
 }
 
 /**
- * The tags: { id: { title, detail } } for every aircraft. state: the live formation state (aircraft with `ref`, current);
+ * The tags: { id: { title, detail, power } } for every aircraft (power: live/power.js powerWord, { text, red } or null). state: the live formation state (aircraft with `ref`, current);
  * where: formation.where() ({ key, side }). During a change each wingman is judged against the formation being flown to.
  */
 export function tagLines(state, where) {
@@ -117,7 +119,7 @@ export function tagLines(state, where) {
     const name = a.name ?? `#${a.id}`;
     if (a.id === 1) {
       const turning = Math.abs(a.bankDeg) > 5;
-      out[a.id] = { title: `${name} · ${what}`, detail: `${Math.round(a.kias)} KIAS${turning ? `, bank ${Math.round(Math.abs(a.bankDeg))}° ${a.bankDeg > 0 ? 'L' : 'R'}` : ''}` };
+      out[a.id] = { title: `${name} · ${what}`, detail: `${Math.round(a.kias)} KIAS${turning ? `, bank ${Math.round(Math.abs(a.bankDeg))}° ${a.bankDeg > 0 ? 'L' : 'R'}` : ''}`, power: powerWord(a.power) };
       continue;
     }
     // The aircraft he flies off: the 4-ship's table for the formation being flown (to), Lead in the 2-ship.
@@ -134,9 +136,8 @@ export function tagLines(state, where) {
       const rel = relativeTo(ref, a);
       detail = `${ft(rel.left)} abeam${refId === 1 ? '' : ` of ${ref.name ?? `#${refId}`}`}`;
     }
-    // How he is flying it (TS-61, TS-62): OVERSHOOTING in place of what the formation is doing, and BOARDS or IDLE when slowing with them.
-    const how = slowWord(a);
-    out[a.id] = { title: `${name} · ${a.overshooting ? 'OVERSHOOTING' : what}${how ? ` · ${how}` : ''}`, detail };
+    // How he is flying it (TS-62): OVERSHOOTING in place of what the formation is doing; his power on its own line.
+    out[a.id] = { title: `${name} · ${a.overshooting ? 'OVERSHOOTING' : what}`, detail, power: powerWord(a.power) };
   }
   return out;
 }
