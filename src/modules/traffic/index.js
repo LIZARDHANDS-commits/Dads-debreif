@@ -81,6 +81,7 @@ function mount(root, app) {
     listen: app.listen,
     on: {
       toggleRoute,
+      routeLine: (id, change) => setRouteLine(id, change),
       toggleColumn: () => app.scheduler.after(0, () => redraw()),
     },
     filterSplits: true,
@@ -201,11 +202,22 @@ function mount(root, app) {
   // added to the picture here. Hidden at first, so the opening picture is as it was.
   let siPatternShown = false;
   const siPatternRow = () => ({ ...SI_PATTERN, visible: siPatternShown });
+  // Each route's line settings from the Display box (Patrick, 4 Oct): thickness (a multiple of its usual width),
+  // opacity (0-1) and whether the 3D view draws it on the ground. Today's look until changed; kept for the visit.
+  const LINE_DEFAULTS = Object.freeze({ lineScale: 1, lineOpacity: 1, onGround: false });
+  const routeLines = new Map();
+  const lineOf = (id) => ({ ...LINE_DEFAULTS, ...(routeLines.get(id) ?? {}) });
+  function setRouteLine(id, change) {
+    routeLines.set(id, { ...lineOf(id), ...change });
+    redraw();
+  }
   function withSiPattern(scene) {
     scene.selectedAircraftId = selectedAircraftId;
-    if (!siPatternShown) return scene;
-    const path = siPatternPath(setup.routes, setup.windFromDeg ?? 360, setup.windKt ?? 0, setup.routeOptions);
-    if (path) scene.routes.push({ ...SI_PATTERN, visible: true, points: [], path });
+    if (siPatternShown) {
+      const path = siPatternPath(setup.routes, setup.windFromDeg ?? 360, setup.windKt ?? 0, setup.routeOptions);
+      if (path) scene.routes.push({ ...SI_PATTERN, visible: true, points: [], path });
+    }
+    scene.routes = scene.routes.map((r) => ({ ...r, ...lineOf(r.id) }));
     return scene;
   }
   const pflCircleRow = () => ({ id: PFL_CIRCLE_ROW, name: 'PFL circle', kind: 'pfl', color: '#ff9bce', visible: settings.get().layerPflCircle !== false });
@@ -213,8 +225,8 @@ function mount(root, app) {
 
   function showRoutes() {
     const listed = setup.routes.filter((r) => r.kind !== 'split');
-    const rows = routeRows(listed);
-    if (setup.routes.some((r) => r.id === 'PAT1') && setup.routes.some((r) => r.id === 'ENT2')) rows.push(siPatternRow());
+    const rows = routeRows(listed).map((row) => ({ ...row, line: lineOf(row.id) }));
+    if (setup.routes.some((r) => r.id === 'PAT1') && setup.routes.some((r) => r.id === 'ENT2')) rows.push({ ...siPatternRow(), line: lineOf(SI_PATTERN.id) });
     rows.push(pflCircleRow());
     shownPflCircle = settings.get().layerPflCircle !== false;
     ui.setRoutes(rows);

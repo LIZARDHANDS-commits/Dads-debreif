@@ -186,6 +186,10 @@ export function gridLines({ minX, minY, maxX, maxY }, stepFt) {
 export const gridLabel = (stepFt) => `Grid: ${whole(stepFt)} ft`;
 
 /** How a route is drawn: patterns solid, entries dashed, splits dotted (V6 line 281); a PFL dash-dot. */
+/** A route's own line thickness (a multiple of its kind's) and opacity, 0-1, from the Display box (Patrick, 4 Oct). */
+export const lineScale = (route) => (Number.isFinite(route?.lineScale) && route.lineScale > 0 ? route.lineScale : 1);
+export const lineOpacity = (route) => (Number.isFinite(route?.lineOpacity) ? Math.min(1, Math.max(0, route.lineOpacity)) : 1);
+
 export function routeStyle(kind) {
   if (kind === 'entry') return { dash: [8, 6], width: 2.5 };
   if (kind === 'split') return { dash: [3, 7], width: 2.5 };
@@ -588,16 +592,16 @@ export function drawScene(ctx, map, scene, settings, palette, layers = {}) {
       if (showWind) {
         const chosen = route.id === picked;
         ctx.save();
-        ctx.globalAlpha = picked !== null && !chosen ? 0.55 : 1;
-        line(route.path, route.color, chosen ? 4.5 : 3, [], true);
+        ctx.globalAlpha = (picked !== null && !chosen ? 0.55 : 1) * lineOpacity(route);
+        line(route.path, route.color, (chosen ? 4.5 : 3) * lineScale(route), [], true);
         ctx.restore();
       }
     } else {
       const style = routeStyle(route.kind);
       const chosen = route.id === picked;
       ctx.save();
-      ctx.globalAlpha = picked !== null && !chosen ? 0.55 : 1;
-      line(path, route.color, chosen ? style.width + 1.5 : style.width, style.dash, route.kind === 'pattern');
+      ctx.globalAlpha = (picked !== null && !chosen ? 0.55 : 1) * lineOpacity(route);
+      line(path, route.color, (chosen ? style.width + 1.5 : style.width) * lineScale(route), style.dash, route.kind === 'pattern');
       ctx.restore();
     }
 

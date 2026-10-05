@@ -13,6 +13,10 @@ export const CONFIG = Object.freeze({
   gearLandingFlap: 'Gear + landing flap',
 });
 
+/** Past the window, the tag is the landing behaviour (Patrick, 4 Oct: "T+GO, STOP, or GO AROUND"); a low approach goes around. */
+export const LANDING_TAGS = Object.freeze({ touch_and_go: 'T+GO', overhead: 'T+GO', full_stop: 'STOP', go_around: 'GO AROUND' });
+const landingTag = (a) => (a.rndLowApproach ? LANDING_TAGS.go_around : LANDING_TAGS[a.intent] ?? LANDING_TAGS.touch_and_go);
+
 /** Every number the tag uses, each with its source. */
 export const BEHAVIOUR = Object.freeze({
   /** Gear and take-off flap on the inner downwind once below this, KIAS (SMM 4.17 paras 40-41, EFIG p.185; the gear point is a guess). */
@@ -45,7 +49,7 @@ export function behaviourLabel(b, deconflictLabel = null) {
   if (!b) return null;
   // An aircraft flying the overhead or the SI pattern says only which (Patrick, 4 Oct: "just say [OHB] or [SI], not
   // what they are doing next"; no configuration either).
-  if (b.pattern === 'OHB' || b.pattern === 'SI') return `[${b.pattern}]`;
+  if (b.pattern === 'OHB' || b.pattern === 'SI' || Object.values(LANDING_TAGS).includes(b.pattern)) return `[${b.pattern}]`;
   return `[${b.pattern}${b.next ? `: ${b.next}` : ''}${config ? ` · ${config}` : ''}]`;
 }
 
@@ -53,6 +57,9 @@ export function behaviourLabel(b, deconflictLabel = null) {
 function patternOf(a, ctx) {
   if (!a.active || a.landed || a.pflFlight || a.pflRail || a.engineFailed) return null;
   const flown = a.goAroundFlight?.route.id;
+  // Lined up on final and past the window: what it will do at the runway (Patrick, 4 Oct).
+  const pastWindow = ctx.onFinal && Number.isFinite(ctx.toThresholdFt) && Number.isFinite(ctx.windowFt) && ctx.toThresholdFt <= ctx.windowFt;
+  if (pastWindow && (!flown || flown === 'EXTEND_FLOWN')) return { pattern: landingTag(a), next: null, stage: ctx.route?.kind === 'entry' ? 'final_straight_in' : 'final' };
   if (a.highKeyFlight) return { pattern: 'CLOSED TO HIGH KEY', next: 'PFL next', stage: 'climb' };
   if (flown === 'CLOSED_FLOWN') return { pattern: 'CLOSED', next: 'downwind next', stage: 'closed' };
   if (flown === 'GO_AROUND_FLOWN') return { pattern: 'GO-AROUND', next: 'outer downwind next', stage: 'go_around' };

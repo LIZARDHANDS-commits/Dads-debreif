@@ -31,6 +31,7 @@ export const routeDetail = (row) => (row.visible === false ? 'Hidden' : '');
  * @param {{ bar: any, listen: any, on?: { toggleRoute?: (id: string) => void, newRoute?: (kind: string) => void, toggleColumn?: (name: string, open: boolean) => void }, available?: { pfl?: boolean }, filterSplits?: boolean }} options
  */
 export function createLayout({ bar, listen, on = {}, available = {}, filterSplits = false }) {
+  const openLines = new Set(); // the route rows whose line settings are open, kept when the list is rebuilt
   let closedRoute = null;
 
   // Slots for pieces built elsewhere; an empty one takes no room.
@@ -112,7 +113,37 @@ export function createLayout({ bar, listen, on = {}, available = {}, filterSplit
         h('span', { class: 'route-detail' }, routeDetail(row)),
       );
       buttons.set(row.id, rowButton);
-      list.appendChild(h('li', {}, rowButton));
+      // A route's line settings (Patrick, 4 Oct): thickness, opacity, and in 3D at its heights or on the ground, behind
+      // a small ▸ beside the row. Rows without a line (the PFL circle) have none.
+      if (!row.line) {
+        list.appendChild(h('li', {}, rowButton));
+        continue;
+      }
+      const open = openLines.has(row.id);
+      const panel = h('div', { class: 'route-line-settings', hidden: !open });
+      const more = h('button', { type: 'button', class: 'button route-line-more', 'aria-expanded': String(open), 'aria-label': `Line settings for ${row.name}`, title: `Line settings for ${row.name}` }, open ? '▾' : '▸');
+      more.addEventListener('click', () => {
+        const now = panel.hidden;
+        panel.hidden = !now;
+        more.textContent = now ? '▾' : '▸';
+        more.setAttribute('aria-expanded', String(now));
+        if (now) openLines.add(row.id); else openLines.delete(row.id);
+      });
+      const range = (label, min, max, step, value, show, onValue) => {
+        const id = `route-line-${row.id}-${label.toLowerCase()}`;
+        const out = h('span', { class: 'route-line-value' }, show(value));
+        const input = h('input', { id, type: 'range', min: String(min), max: String(max), step: String(step), value: String(value) });
+        input.addEventListener('input', () => { out.textContent = show(Number(input.value)); onValue(Number(input.value)); });
+        return h('div', { class: 'route-line-control' }, h('label', { for: id }, label), input, out);
+      };
+      const ground = h('input', { id: `route-line-${row.id}-ground`, type: 'checkbox', checked: Boolean(row.line.onGround) });
+      ground.addEventListener('change', () => on.routeLine?.(row.id, { onGround: ground.checked }));
+      panel.append(
+        range('Thickness', 0.5, 4, 0.25, row.line.lineScale, (v) => `×${v}`, (v) => on.routeLine?.(row.id, { lineScale: v })),
+        range('Opacity', 0.1, 1, 0.05, row.line.lineOpacity, (v) => `${Math.round(v * 100)}%`, (v) => on.routeLine?.(row.id, { lineOpacity: v })),
+        h('div', { class: 'route-line-control' }, ground, h('label', { for: ground.id }, 'Draw on the ground (3D)')),
+      );
+      list.appendChild(h('li', {}, h('div', { class: 'route-line-row' }, rowButton, more), panel));
     }
     empty.hidden = rows.length > 0;
     listTitle.hidden = rows.length === 0;

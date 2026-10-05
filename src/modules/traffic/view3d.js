@@ -309,7 +309,7 @@ export function routeSignature(route) {
   path.forEach((p, i) => {
     sum += (i + 1) * (finite(p.x) * 1.3 + finite(p.y) * 1.7 + finite(p.alt) * 2.3);
   });
-  return `${route.kind}|${route.color}|${path.length}|${sum.toFixed(3)}`;
+  return `${route.kind}|${route.color}|${path.length}|${sum.toFixed(3)}|${route.lineScale ?? 1}|${route.lineOpacity ?? 1}|${route.onGround ? 'g' : 'h'}`;
 }
 
 // A pattern is a closed loop, entries and splits open lines. Entries are dashed and splits dotted, as on the 2D map.
@@ -510,25 +510,29 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
         const have = routeLines.get(route.id);
         if (!have || have.sig !== sig) {
           if (have) freeRoute(have);
-          const positions = new Float32Array(route.path.length * 3);
-          route.path.forEach((p, i) => positions.set([p.x, p.y, altToZ(p.alt, ALT_SCALE)], i * 3));
+          // On the ground (the Display box's Draw choice, Patrick, 4 Oct) the line lies on the field, else at its heights.
+          const drawn = route.onGround ? route.path.map((p) => ({ ...p, alt: (options.groundFt ?? 0) + GROUND_LINE_LIFT_FT })) : route.path;
+          const scale = Number.isFinite(route.lineScale) && route.lineScale > 0 ? route.lineScale : 1;
+          const fade = Number.isFinite(route.lineOpacity) ? Math.min(1, Math.max(0, route.lineOpacity)) : 1;
+          const positions = new Float32Array(drawn.length * 3);
+          drawn.forEach((p, i) => positions.set([p.x, p.y, altToZ(p.alt, ALT_SCALE)], i * 3));
           const geometry = new THREE.BufferGeometry();
           geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
           const dash = DASH_FT[route.kind];
           if (fatLines) {
             geometry.dispose(); // the wide line keeps its own copy of the points
             const closed = route.kind === 'pattern';
-            const widthPx = closed ? ROUTE_LINE_PX.pattern : ROUTE_LINE_PX.other;
+            const widthPx = (closed ? ROUTE_LINE_PX.pattern : ROUTE_LINE_PX.other) * scale;
             // Both see-through, the edge drawn first (render order goes before three's sorting of see-through lines).
             const seeThrough = (opacity) => ({ transparent: true, opacity, depthWrite: false });
-            const edge = wideLine(route.path, closed, { color: ROUTE_EDGE_COLOR, linewidth: widthPx + 2 * ROUTE_LINE_PX.edge, ...seeThrough(ROUTE_LINE_OPACITY.edge) }, 1);
+            const edge = wideLine(drawn, closed, { color: ROUTE_EDGE_COLOR, linewidth: widthPx + 2 * ROUTE_LINE_PX.edge, ...seeThrough(ROUTE_LINE_OPACITY.edge * fade) }, 1);
             // Pulled a hair toward the eye, so the colour never flickers with the edge at the same depth.
-            const line = wideLine(route.path, closed, { color: route.color, linewidth: widthPx, dash, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, ...seeThrough(ROUTE_LINE_OPACITY.line) }, 2);
+            const line = wideLine(drawn, closed, { color: route.color, linewidth: widthPx, dash, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, ...seeThrough(ROUTE_LINE_OPACITY.line * fade) }, 2);
             routeLines.set(route.id, { line, sig, edge });
           } else {
             const material = dash
-              ? new THREE.LineDashedMaterial({ color: route.color, dashSize: dash[0], gapSize: dash[1], fog: false })
-              : new THREE.LineBasicMaterial({ color: route.color, fog: false });
+              ? new THREE.LineDashedMaterial({ color: route.color, dashSize: dash[0], gapSize: dash[1], fog: false, transparent: fade < 1, opacity: fade })
+              : new THREE.LineBasicMaterial({ color: route.color, fog: false, transparent: fade < 1, opacity: fade });
             const line = route.kind === 'pattern' ? new THREE.LineLoop(geometry, material) : new THREE.Line(geometry, material);
             if (dash) line.computeLineDistances();
             line.frustumCulled = false;
