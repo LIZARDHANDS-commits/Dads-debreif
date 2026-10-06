@@ -16,7 +16,7 @@
 // Every step goes through the one envelope gate (flight.js gateRoll, TS-93); the tracker legs fly the 2-ship's power profile
 // (four-legs.js onProfile). Until V2.98 these were four-ship-moves.js's, with a kinematic line in front of each long leg.
 import { DEG, relativeTo, turnSeg, wholeDegree } from './manoeuvres.js';
-import { recordFlight, slide, dropBack, closeThrough, rejoinTo, straightAhead, sweepOut } from './transitions.js';
+import { recordFlight, slide, closeThrough, rejoinTo, straightAhead, sweepOut } from './transitions.js';
 import { REJOIN, TURNING_REJOIN, FW_FOLLOW } from './tuning.js';
 import { fwGoal } from './formation-turns.js';
 import { leadTurnInto } from './hand-over.js';
@@ -37,8 +37,8 @@ const FOUR_LOWER_FT = 10;
  */
 const TRJ = Object.freeze({ outsideBehindFt: { 3: 300, 4: 600 }, passBehindLengths: 2, waitBehindFt: { 3: 150, 4: 300 }, waitLowFt: { 3: 20, 4: 30 } });
 
-/** Settle onto a slot off the formation reference after closing on a point near it (a short slide). */
-const settle = (slot, over = {}) => dropBack(slot, { advanceTol: 6, finalTol: 6, vrel0: 16, ...over });
+/** The least G #2's vertical may push to on the way down from his stack (an estimate). */
+const VERTICAL_MIN_G = 0.5;
 
 /**
  * A rejoining wingman comes off its stack first (Patrick 4 Oct 19:11Z, "come off first"; SMM 12.27 para 65): one at or above
@@ -63,12 +63,12 @@ function twoTurning(c, into, s, to, sTo, hot) {
   let pick;
   return ({ wing, recs, t0 }) => {
     const args = { lead: c.start[0], wing, s, to, sTo, spacingFt: c.spacingFt, blockFt: c.blockFt, t0 };
-    // No vertical: he starts 300 ft up on his stack, and going higher first then diving through Lead's height pushed below
-    // 0 G in the dry runs (TS-82's vertical is the 2-ship's, from level).
-    pick ??= searchTurningRejoin({ ...args, into, hot, vertical: false }) ?? false;
+    // The vertical too (TS-82; Patrick 6 Oct 01:14Z: "they can use the vertical if they need to"), but from his +300 ft
+    // stack the climb and the dive through Lead's height pushed to -0.5 G in the dry runs: none below VERTICAL_MIN_G.
+    pick ??= searchTurningRejoin({ ...args, into, hot, verticalMinG: VERTICAL_MIN_G }) ?? false;
     if (!pick) return null;
     const rec = recs[1];
-    const flown = flyWith({ ...args, into: { longRec: rec, planTo: () => ({ rec, segments: [], turned: 0 }) }, aimFt: pick.aimFt, bankCapDeg: pick.bankCapDeg, overtakeKt: pick.overtakeKt, lowFloor: pick.lowFloor, upFt: pick.upFt });
+    const flown = flyWith({ ...args, into: { longRec: rec, planTo: () => ({ rec, segments: [], turned: 0 }) }, aimFt: pick.aimFt, bankCapDeg: pick.bankCapDeg, overtakeKt: pick.overtakeKt, lowFloor: pick.lowFloor, upFt: pick.upFt, minG: VERTICAL_MIN_G });
     if (!flown) return null;
     return { plan: { segments: [{ kind: 'bankTrack', points: [...flown.part.points, ...flown.run.points] }], profile: flown.profile }, durationSec: flown.durationSec, inSec: t0 + pick.durationSec };
   };
