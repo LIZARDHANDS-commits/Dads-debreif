@@ -312,8 +312,13 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     // angle): climbCostKtps), so the engine's range is shifted by it: climbing at MAX he slows (Patrick 6 Oct 05:00Z: "This
     // climb is unrealistic to not lose speed on"; until V2.124 the height was flown free and only the power read showed it).
     // Not on fighting wing's cone energy (TS-96, below), which picks the climb from the speed change and so already counts it.
-    const climbKtps = cone || (ph.coneAlt && (ph.closureFtps || ph.coneEnergy)) ? 0 : climbCostKtps(W, W.climbFtps ?? 0);
-    const aCmd = Math.max(-aMin - climbKtps, Math.min(aMax - climbKtps, GAIN.speedLoop * (kiasCmd - W.kias)));
+    const energy = cone || (ph.coneAlt && (ph.closureFtps || ph.coneEnergy));
+    const climbKtps = energy ? 0 : climbCostKtps(W, W.climbFtps ?? 0);
+    // Fighting wing soaks up extra speed with the cone (Patrick 6 Oct 16:58Z: "Settle high at the top of the cone to soak up
+    // the extra speed. we can ALWAYS use the cone to soak up speed"): while there is room above, a zoom up to FW_BUBBLE's
+    // climb rate slows him beyond what power back gives (standard energy, climbCostKtps); the climb itself is flown below.
+    const zoomFtps = energy && belowOwn == null ? zoomRoomFtps(L, W) : 0;
+    const aCmd = Math.max(-aMin - climbKtps - (zoomFtps > 0 ? climbCostKtps(W, zoomFtps) : 0), Math.min(aMax - climbKtps, GAIN.speedLoop * (kiasCmd - W.kias)));
     accel += Math.max(-GAIN.jerkKtps2 * STEP_SEC, Math.min(GAIN.jerkKtps2 * STEP_SEC, aCmd - accel));
     let kias = W.kias + accel * STEP_SEC;
     if (aligning && Math.abs(L.kias - kias) < T.kiasSnap) { // the last few thousandths of a knot, so the speed has no step
@@ -342,8 +347,10 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       const bottomFt = L.altAboveFt - E.coneUpFt;
       const toward = (ft) => Math.max(-D.diveFtps, Math.min(D.diveFtps, (ft - W.altAboveFt) * D.altGain));
       const quick = belowOwn != null || W.altAboveFt > topFt || W.altAboveFt < bottomFt || Math.abs(v0) > E.climbFtps;
-      const wantV = belowOwn != null ? toward(L.altAboveFt - belowOwn) : W.altAboveFt > topFt ? toward(topFt) : W.altAboveFt < bottomFt ? toward(bottomFt) : Math.max(lo, Math.min(hi, want));
-      const pull = quick ? D.pullFtps2 : E.pullFtps2;
+      // Slowing faster than the gentle climb gives, he zooms (up to zoomFtps, at the bubble's pull) toward the cone's top.
+      const zoom = belowOwn == null && want > hi && zoomFtps > hi;
+      const wantV = belowOwn != null ? toward(L.altAboveFt - belowOwn) : W.altAboveFt > topFt ? toward(topFt) : W.altAboveFt < bottomFt ? toward(bottomFt) : Math.max(lo, Math.min(zoom ? zoomFtps : hi, want));
+      const pull = quick || zoom ? D.pullFtps2 : E.pullFtps2;
       const v1 = v0 + Math.max(-pull * STEP_SEC, Math.min(pull * STEP_SEC, wantV - v0));
       const nz = 1 + (v1 - v0) / STEP_SEC / G_FTPS2;
       const a1 = W.altAboveFt + ((v0 + v1) / 2) * STEP_SEC;
@@ -372,6 +379,12 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
   }
   const heightLeg = cone && { t0: cone.t0, t1: cone.t0 + (cone.alt.length - 1) * STEP_SEC, table: { dt: STEP_SEC, alt: cone.alt, climb: cone.climb, nz: cone.nz } };
   return { points, end: { lead: { ...R.at(m) }, wing: W }, times, maxBankDeg: maxBank, ok, durationSec: t - t0, ranges, laneFwdFt, minBelowFt, heightLeg };
+}
+
+/** The climb rate the room left above him in the cone allows, at FW_BUBBLE's climb rate and pull (the cone energy's zoom). */
+function zoomRoomFtps(L, W) {
+  const up = Math.max(0, L.altAboveFt + FW_ENERGY.coneUpFt - W.altAboveFt);
+  return Math.min(FW_BUBBLE.diveFtps, Math.sqrt(2 * FW_BUBBLE.pullFtps2 * up));
 }
 
 /**
