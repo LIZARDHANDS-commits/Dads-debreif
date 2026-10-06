@@ -585,6 +585,9 @@ function mount(root, app) {
   ui.setSide(setup.get().wingSide);
   ui.setSpacingFlag(checkSpacing(setup.get().spacingFt).flag);
   ui.setFwFlag(fwFlags(setup.get()));
+  // Free (follow nothing) is for the moment it's picked; every visit starts with the camera on the formation (Patrick, 6 Oct:
+  // a Free remembered from an earlier visit left the camera not following).
+  if (layout.get().camOn === 'free') layout.update({ camOn: 'formation' });
   ui.applyLayout(layout.get());
   showFit();
   refresh();
