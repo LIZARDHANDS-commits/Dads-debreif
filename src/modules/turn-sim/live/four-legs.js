@@ -43,7 +43,8 @@ export const ast = () => pairSlot('astern', 0); // { fwd: -43.4, left: 0, alt: -
  * `closeIn`, a settle after a held part, at the close-in rate throughout), except legs held in world axes (an in-place
  * turn), which fly as they are. Height changes no quicker than GENTLE_ALT_FTPS unless the leg says. A leg with `heldBankDeg`
  * keeps that bank cap over the profile's (the 4-ship's opening out, moves.js FOUR_OPEN); one with `closureCapFtps` closes
- * no faster than that (the 4-ship's flow up the line into echelon, moves.js STRAIGHT_REJOIN).
+ * no faster than that (the 4-ship's flow up the line into echelon, moves.js STRAIGHT_REJOIN), and one with `closureMinFtps` no
+ * slower (the 4-ship's drop back to fighting wing, four-close.js DROP_FAST).
  */
 function onProfile(phases) {
   return phases.map((ph) => {
@@ -51,7 +52,8 @@ function onProfile(phases) {
     if (p.world) return p;
     const q = onClosure([p], { closeIn: Boolean(p.closeIn) })[0];
     const held = p.heldBankDeg != null ? { ...q, bankCapDeg: p.heldBankDeg } : q;
-    return p.closureCapFtps != null ? { ...held, closureFtps: Math.min(held.closureFtps, p.closureCapFtps) } : held;
+    const floored = p.closureMinFtps != null && p.closureMinFtps > held.closureFtps ? { ...held, closureFtps: p.closureMinFtps, vrelMax: Math.max(held.vrelMax, p.closureMinFtps) } : held;
+    return p.closureCapFtps != null ? { ...floored, closureFtps: Math.min(floored.closureFtps, p.closureCapFtps) } : floored;
   });
 }
 

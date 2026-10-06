@@ -10,6 +10,7 @@
 //
 // The move numbers (M1 to M12) are the ratified table's. Numbers with no manual page or ruling beside them are estimates.
 import { STEP_SEC } from './flight.js';
+import { KT_TO_FTPS } from '../../../core/units.js';
 import { stopAt, slide, cornerBehind, sweepOut } from './transitions.js';
 import { relativeTo } from './manoeuvres.js';
 import { slotsFor } from './slots.js';
@@ -17,7 +18,7 @@ import { FW_FOLLOW } from './tuning.js';
 import { closureNow } from './rates.js';
 import { fwGoal } from './formation-turns.js';
 import { planEchelonToFw } from './echelon-to-fw.js';
-import { legsInTurn, place, hold, toSlot, ech, ast, toSpeed } from './four-legs.js';
+import { legsInTurn, place, hold, toSlot, inLeadFrame, ech, ast, toSpeed } from './four-legs.js';
 
 /** Close-formation crossings go behind and below (SMM 16.32 paras 87-88): 15 ft below Lead, #4 a further 10 ft below #3 (estimates). */
 const CROSS_LOW_FT = 15;
@@ -34,8 +35,6 @@ const TRIPLE_ACROSS_SHARE = 0.5;
  * estimates, about half a wingspan out, most of a length back and 5 ft down.
  */
 const MAKE_ROOM = Object.freeze({ outFt: 15, backFt: 25, downFt: 5 });
-/** From echelon to fighting wing, how far behind Lead #3 drops back before #2 sweeps out, #4 twice as far (an estimate). */
-const ECHELON_CLEAR_FT = 300;
 
 /**
  * The close station change's technique, the 2-ship's (SMM 12.20 paras 44-45; transitions.js legsFor's crossClose), for one
@@ -297,6 +296,13 @@ export function slideTo(start, t0, opts, s, to) {
 }
 
 /**
+ * #3 and #4 dropping back to fighting wing all at once (Patrick 6 Oct 05:42Z: "it should always be fast to get to fifhtring
+ * wing", 40 s or less): up to 40 KIAS under, idle and the boards as needed, and down to the stack within about 3 s, so each
+ * is below and behind the one ahead before #2's roll away reaches him (estimates).
+ */
+const DROP_FAST = Object.freeze({ closureMinFtps: 50 * KT_TO_FTPS, undertakeKias: 40, slowStage: 'idleBoards', altSec: 3, altRateFtps: 40 });
+
+/**
  * M9: finger or echelon to fighting wing (SMM 16.32 para 92, 16.38 para 105; AFM7 brief p.14 item 4): the wingmen drop back
  * and open out from each other until each is behind the aircraft ahead, then move sideways into the swept place; no stack
  * from a close formation; #2 to the side he was on, #3 and #4 to the other. Expeditious (Patrick 4 Oct 19:03Z, "about 7-15
@@ -309,53 +315,35 @@ export function slideTo(start, t0, opts, s, to) {
  * (until V2.97 each chased the one ahead from the press: #4 reversed bank by up to 125° and the change took 86 s).
  */
 export function openToFw(start, t0, opts, s, from) {
-  return legsInTurn(start, t0, opts, [
-    // From echelon #3 and #4 sit outboard of #2, where his drop back sweeps out: they first drop back and down in their own
-    // lanes, clear behind him, while he holds (SMM 16.32 para 92: "drop back ... until each is steady behind the aircraft
-    // ahead; then a sideways move"). Until V2.97's first build #2 swept out through #3's place and passed 12 ft from him.
-    (c) => {
-      if (from !== 'echelon') return null;
-      const slots = slotsFor('fw', s, { ships: 4, stacked: false });
-      const lane = (id) => relativeTo(c.start[0], c.by.get(id)).left;
-      return {
-        lead: toSpeed(c, 'fw'),
-        wings: [
-          { id: 2, phases: () => [hold(c, 2, 1)] },
-          ...[3, 4].map((id) => ({ id, phases: () => [sweepOut(place(c, -ECHELON_CLEAR_FT * (id - 2), lane(id), slots[id].alt), { track: 1 })] })),
-        ],
-      };
-    },
-    (c) => {
+  return legsInTurn(start, t0, opts, [(c) => {
     const slots = slotsFor('fw', s, { ships: 4, stacked: false });
     const lead = c.start[0];
     const two = {
       id: 2,
       fly: ({ wing, t0: t }) => {
+        if (from !== 'echelon' && from !== 'finger') return null;
         const p = planEchelonToFw([lead, wing], 'fw', { spacingFt: c.spacingFt, blockFt: c.blockFt }, t);
         return p?.ok ? { plan: p.plans[wing.id], durationSec: p.endSec - t, inSec: p.coneSec ?? p.endSec } : null;
       },
       phases: () => [sweepOut(place(c, slots[2].fwd, relativeTo(lead, c.by.get(2)).left, slots[2].alt), { track: 1, advanceTol: 60 }), { ...toSlot(c, sweepOut, slots[2]), goal: (L, W) => fwGoal(L, W, s, false) }],
     };
-    // Where a wingman's place will be in Lead's frame once the one he flies off has settled (all on Lead's heading then).
-    const placeOff = (id, done, recs) => {
-      const ref = slots[id].ref;
-      const step = Math.round((done[ref].endSec - c.t0) / STEP_SEC);
-      const at = relativeTo(recs[1].at(step), recs[ref].at(step));
-      return { fwd: at.fwd + slots[id].fwd, left: at.left + slots[id].left };
-    };
+    // #3 and #4 go at the same time as #2, each missing the one ahead (Patrick 6 Oct 05:45Z: "2 immedately flis into his
+    // cone, 3 misses to and flies to their cone, 4 misses 3 and flies to theirs"): straight back in his own lane, lower
+    // than the one ahead, to where his place will be in Lead's frame once everyone is in (all on Lead's heading then),
+    // across into it, then into the cone off the aircraft he flies off (fwGoal, the whole cone). Until V2.131 each waited
+    // for the one ahead to settle first, and from echelon #3 and #4 dropped back before #2 moved (50-140 s in all).
     const behind = (id) => ({
       id,
-      phases: (done, recs) => {
-        const p = placeOff(id, done, recs);
+      phases: () => {
+        const p = inLeadFrame(slots, id);
         const now = relativeTo(lead, c.by.get(id));
         return [
-          sweepOut(place(c, p.fwd, now.left, slots[id].alt), { track: 1, advanceTol: 60 }),
-          sweepOut(place(c, p.fwd, p.left, slots[id].alt), { track: 1, advanceTol: 60 }),
+          sweepOut(place(c, p.fwd, now.left, slots[id].alt), { track: 1, advanceTol: 150, ...DROP_FAST }),
+          sweepOut(place(c, p.fwd, p.left, slots[id].alt), { track: 1, advanceTol: 150, closureMinFtps: DROP_FAST.closureMinFtps, undertakeKias: DROP_FAST.undertakeKias, slowStage: DROP_FAST.slowStage }),
           { ...toSlot(c, sweepOut, slots[id]), ...FW_FOLLOW, coneAlt: false, closeIn: true, goal: (R, W) => fwGoal(R, W, -s, false) },
         ];
       },
     });
     return { lead: toSpeed(c, 'fw'), wings: [two, behind(3), behind(4)] };
-  },
-  ]);
+  }]);
 }
