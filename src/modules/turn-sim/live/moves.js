@@ -6,6 +6,16 @@
 import { FW_BAND } from './slots.js';
 import { RATE_SETS, G_RULE_BANK_DEG, NO_BANK_CAP_DEG, CLOSE_BANK_DEG, rejoinClosureNow } from './rates.js';
 import { IN_POSITION } from './bands.js';
+import { KT_TO_FTPS } from '../../../core/units.js';
+
+/**
+ * How fast the power answers (Patrick 6 Oct 03:17Z: torque 0 to 100% in about 0.2 s; 03:18Z: the speed brakes are instant;
+ * TS-108). torqueSec: the torque's full travel. jerkKtps2: the most the acceleration changes per second, so the full
+ * torque's span (about 4.5 kt/s from throttle 0 to MAX at 150 KIAS, 3.7 at 200; slow-down.js) is covered in about 0.2 s;
+ * the boards' 1-2.5 kt/s then comes in under 0.1 s, as near instant as a 0.05 s step shows (an estimate from those).
+ */
+export const POWER = Object.freeze({ torqueSec: 0.2, jerkKtps2: 25 });
+const POWER_JERK_KTPS2 = POWER.jerkKtps2;
 
 // ---- speeds (from transitions.js) ---------------------------------------------------------------------------------
 
@@ -21,7 +31,8 @@ export const REJOIN = Object.freeze({
   bankCapDeg: NO_BANK_CAP_DEG, // #2 in a rejoin: no bank cap, only the aircraft's own limits (Patrick 6 Oct 04:07Z: "there is NO LIMIT on bank angle in formation"; the G rule, about 78° level, from V2.59 until V2.116, TS-67; 60°, an estimate, until then)
   leadBankDeg: 30, // Lead's turn in a turning rejoin (SMM 12.24 para 54; AFM7 p.21)
   lineKias: 220, // every rejoin, turning or straight ahead: at least this down the line (or Lead's six) to the decision point, whatever the Rates choice; Rates sets only the close-in rate after it (Patrick 5 Oct 17:54Z: "aim for 220 up the line for both"; 17:55Z: "in all rejoins id like the minimum closure up the line to be 220 knots for expeidiousness, then slow down at the decision point"; TS-75)
-  stopStage: /** @type {'idle'} */ ('idle'), // from the decision point the overtake comes off at idle, planned at CLOSURE.stopShare of what idle gives, the boards only when the room left needs more; the decision point is where that stop just fits (Patrick 17:55Z; TS-75; slow-down.js's stages)
+  stopStage: /** @type {'boards'} */ ('boards'), // from the decision point the overtake comes off with the torque floor and the boards, planned at CLOSURE.stopShare of what they give, idle only when the room left needs more (the last resort); the decision point is where that stop just fits (Patrick 6 Oct 03:17-03:20Z, TS-108; idle from 5 Oct 17:55Z, TS-75, until V2.119; slow-down.js's stages)
+  floorTorquePct: 5, // a rejoin keeps at least 5% torque, the boards as needed; idle is a last resort (Patrick 6 Oct 03:17-03:20Z, TS-108)
   idealBearingDeg: 45, // Lead at 10:30 or 1:30 (SMM 12.24 para 56)
   hotBearingDeg: 60, // hot and cold are drawn but not numbered in SMM Fig 12.16: 60 and 30 are estimates
   coldBearingDeg: 30,
@@ -258,7 +269,7 @@ export const TRACKER = Object.freeze({
     heading: 1.5, // 1/s: heading error to turn rate
     refRate: 0.5, // 1/s: how fast the moving reference closes on its target
     speedLoop: 0.8, // 1/s: speed error to acceleration
-    jerkKtps2: 1.0, // kt/s²: acceleration builds over about a second and a half, so the speed has no corners
+    jerkKtps2: POWER_JERK_KTPS2, // kt/s²: the acceleration follows the torque, 0 to 100% in about 0.2 s (Patrick 6 Oct 03:17Z, TS-108; 1.0 until V2.119)
     ffFilter: 0.2, // how much of the commanded heading's own turn rate is fed forward each step (a smoothing share; estimate)
   }),
   refAccelShare: 0.25, // the target slot builds up to its slide rate over 4 s (a quarter of the rate per second; estimate)
@@ -341,8 +352,8 @@ export const WING = Object.freeze({
  *  overtakeKias: closing back up he keeps at most this overtake, the middle of EFIG p.374's 10-20 KIAS.
  *  closeDecelFtps2: and plans to take it off at about this (about 0.6 kt/s, power back: well inside slow-down.js's
  *    power stage), so he arrives without overshooting.
- *  gain, jerkFtps3: how quickly he follows the speed he wants (1/s) and changes his acceleration (about 1 kt/s², the
- *    tracker's own figure), so the speed has no corners.
+ *  gain, jerkFtps3: how quickly he follows the speed he wants (1/s) and changes his acceleration (POWER.jerkKtps2, the
+ *    torque's 0.2 s; about 1 kt/s² until V2.119).
  *  margin: a planned line within full power x (1 + share) + ktps (the read-back of a planned line's speeds) is within it.
  *  extraSec: the longest he may take to close up after the planned line ends (a guard only).
  */
@@ -352,7 +363,7 @@ export const HOLD = Object.freeze({
   overtakeKias: 15,
   closeDecelFtps2: 1,
   gain: 0.6,
-  jerkFtps3: 1.7,
+  jerkFtps3: POWER_JERK_KTPS2 * KT_TO_FTPS,
   margin: Object.freeze({ share: 0.05, ktps: 0.05 }),
   extraSec: 120,
   // Cutting inside when behind in fluid manoeuvring (V2.59, Patrick card 5 Oct 04:53Z "Geometry: cut inside"):
@@ -365,7 +376,7 @@ export const HOLD = Object.freeze({
   bubbleMarginFt: 50, // with Lead at MAX, #2 takes power off only within about 50 ft of the 500 ft bubble (estimate)
   offsetAccFtps2: 10, // and moves with at most about 0.3 G of its own, so the lag or lead adds little to the G he pulls (estimate)
   aimSec: 1, // and the offset's aim is eased over about 1 s, so a new turn or a reversal never jerks his G (estimate)
-  powerSec: 2, // the PCL's full travel, MAX to idle and the boards, takes at least 2 s (estimate)
+  powerSec: POWER.torqueSec, // the torque's full travel, 0 to 100%, takes about 0.2 s; the boards are instant (Patrick 6 Oct 03:17Z, 03:18Z, TS-108; 2 s, an estimate, until V2.119)
   floorKias: 70, // his speed is never shown below 70 KIAS, a guard only: the planned line keeps him well above it (estimate)
 });
 

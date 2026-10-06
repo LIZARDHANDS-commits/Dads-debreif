@@ -10,7 +10,7 @@
 // the same times give the same picture at any frame rate.
 import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
-import { STEP_SEC } from './live/flight.js';
+import { STEP_SEC, liftBankDeg } from './live/flight.js';
 import { MANOEUVRES, relativeTo } from './live/manoeuvres.js';
 import { createFormation, LIVE_DEFAULTS, checkSpacing, compassDeg, fixedLine, intoOrAway, labelFor } from './live/formation.js';
 import { ERROR_DEFAULTS, ERROR_ALLOWED, errorCardLines } from './live/errors.js';
@@ -129,7 +129,7 @@ function cardFor(state, wingSide) {
     ships: state.aircraft.map((a) => ({
       id: a.id,
       name: a.name,
-      text: `${Math.round(a.kias)} KIAS, ${String(compassDeg(a.headingRad)).padStart(3, '0')}, ${bankText(a.bankDeg)}, ${a.g.toFixed(1)} G`, // the Speed/power fix changes #2's speed
+      text: `${Math.round(a.kias)} KIAS, ${String(compassDeg(a.headingRad)).padStart(3, '0')}, ${bankText(liftBankDeg(a.bankDeg, a.nz ?? 1))}, ${a.g.toFixed(1)} G`, // the Speed/power fix changes #2's speed
     })),
   };
 }

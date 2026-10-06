@@ -15,7 +15,7 @@
 //  3. He gets onto the rejoin line (Lead at his 10:30 or 1:30, the tail and wing making an X; SMM 12.24 paras 56-57) and
 //     comes down it: in Lead's turning frame he heads across toward the line, more directly the further off it he is, and
 //     down it once on it. Most of the closure is Lead's turn's, so on the line his bank stays close to Lead's own.
-//  4. He holds the line's speed to the point where a stop at idle just fits (the boards only when the room left needs them),
+//  4. He holds the line's speed to the point where a stop with the torque floor and the boards just fits (idle only when the room left needs it),
 //     then takes it out, arriving at the decision point (where the line reaches route's spacing) closing at no more than
 //     Instructor's close-in rate (SMM 12.24 para 58; Patrick 06:24Z: the rate change at about 500 ft; 17:55Z: "then slow
 //     down at the decision point").
@@ -41,7 +41,7 @@ import { stepCommanded, setKias, trackTwice, phase } from './tracker.js';
 import { fwGoal } from './formation-turns.js';
 import { acrossSixLegs } from './replan.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
-import { powerFor, powerFrom } from './power.js';
+import { powerFor, powerFrom, throttleAtTorque } from './power.js';
 import { bankDegFromTurnRate, turnRadiusFromBankFt } from '../../../core/flight-math.js';
 import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
@@ -148,15 +148,16 @@ export function flyToDecision({ wing, rec, s, aimFt, bankCapDeg, decisionFt, arr
     alongPrev = along;
     if (!onLine && Math.abs(cross) <= TR.captureFt) lineKias = W.kias;
     onLine ||= Math.abs(cross) <= TR.captureFt;
-    const aStop = slowKtps(REJOIN.stopStage, W.kias, blockFt, W.g) + climbKtps;
+    const floorThr = throttleAtTorque(REJOIN.floorTorquePct, W.kias, blockFt); // the rejoin's torque floor (TS-108)
+    const aStop = slowKtps(REJOIN.stopStage, W.kias, blockFt, W.g, floorThr) + climbKtps;
     // The room left, less what he covers while the slowing builds up at the rate the acceleration can change (TS-75).
     const rampFt = (closure * CLOSURE.stopShare * aStop) / G.jerkKtps2 / 2;
     const room = along - decisionFt;
     const needKtps = room - rampFt > 1 && closure > closeFtps ? (closure * closure - closeFtps * closeFtps) / (2 * (room - rampFt)) / (cosL * ratio) : 0;
     const aMax = fullPowerKtps(W.kias, blockFt, W.g) - climbKtps;
-    const aPower = slowKtps('power', W.kias, blockFt, W.g) + climbKtps;
+    const aPower = slowKtps('power', W.kias, blockFt, W.g, floorThr) + climbKtps;
     const aAll = slowKtps('idleBoards', W.kias, blockFt, W.g) + climbKtps;
-    // The decision point: where the stop at idle just fits the room left (Patrick 17:55Z: "then slow down at the decision
+    // The decision point: where the stop with the torque floor and the boards just fits (TS-108) the room left (Patrick 17:55Z: "then slow down at the decision
     // point"; TS-75). Until then he holds the line's speed.
     if (!runIn && onLine && closure > closeFtps && needKtps >= CLOSURE.stopShare * aStop) runIn = true;
     // Lead's turn's closure dies away as the range comes down, so the slowing may leave him short of the stopping curve: then
@@ -186,7 +187,7 @@ export function flyToDecision({ wing, rec, s, aimFt, bankCapDeg, decisionFt, arr
     const kias = W.kias + accel * dt;
     setKias(W, kias);
     stepCommanded(W, bank, t, profile);
-    const power = accel >= aMax * 0.985 ? powerFrom(null, 1, W.kias, blockFt) : powerFor(accel, W.kias, blockFt, W.g, W.climbFtps, runIn || cross > TR.captureFt ? 'idleBoards' : null);
+    const power = accel >= aMax * 0.985 ? powerFrom(null, 1, W.kias, blockFt) : powerFor(accel, W.kias, blockFt, W.g, W.climbFtps, runIn || cross > TR.captureFt ? 'idleBoards' : null, floorThr);
     points.push([bank, kias, power]);
     minKias = Math.min(minKias, W.kias);
     maxG = Math.max(maxG, W.g);
@@ -308,7 +309,7 @@ export function flyOnTheX({ wing, rec, s, tauSec, bankCapDeg, farFt, nearFt, ove
     const kias = W.kias + accel * dt;
     setKias(W, kias);
     stepCommanded(W, bank, t, profile);
-    const power = accel >= aMax * 0.985 ? powerFrom(null, 1, W.kias, blockFt) : powerFor(accel, W.kias, blockFt, W.g, W.climbFtps, 'idleBoards');
+    const power = accel >= aMax * 0.985 ? powerFrom(null, 1, W.kias, blockFt) : powerFor(accel, W.kias, blockFt, W.g, W.climbFtps, 'idleBoards', throttleAtTorque(REJOIN.floorTorquePct, W.kias, blockFt));
     points.push([bank, kias, power]);
     minKias = Math.min(minKias, W.kias);
     maxG = Math.max(maxG, W.g);
@@ -616,7 +617,7 @@ export function planTurningRejoin(pair, to, options = {}, t0 = 0) {
   return {
     ok: true,
     plans: { [lead.id]: { segments: lp.segments.map((x) => ({ ...x })) }, [wing.id]: { segments: [{ kind: 'bankTrack', points: [...part.points, ...run.points] }], profile } },
-    note: to !== 'fw' ? xNote() : `${fromWord}${fromSide} to ${label}${sideWord}: ${how}. Lead turns into #2 at ${REJOIN.leadBankDeg}° of bank${slowing} and holds it until #2 is in (${turnDeg}°; SMM 16.20 para 65b). #2 aims for ${KIAS_OUTSIDE_LAB + best.overtakeKt} KIAS down the line, ${best.overtakeKt} kt of overtake${best.overtakeKt < asked ? ` (${KIAS_OUTSIDE_LAB + asked} would put him ahead of Lead's 3/9 line from here)` : ''}, gets onto the rejoin line and holds it with Lead at his ${clock}, slightly low (SMM 12.24 paras 56-57); ${hot ? 'he starts hot and gets colder to reach it' : 'he starts cold and turns hotter to reach it'}. ${speeds}${best.upFt ? ` He goes ${best.upFt.toLocaleString('en-CA')} ft higher early and comes down onto the line (the vertical, TS-82).` : ''} From the decision point, where a stop at idle just fits, he takes it out and flows ${end}.`,
+    note: to !== 'fw' ? xNote() : `${fromWord}${fromSide} to ${label}${sideWord}: ${how}. Lead turns into #2 at ${REJOIN.leadBankDeg}° of bank${slowing} and holds it until #2 is in (${turnDeg}°; SMM 16.20 para 65b). #2 aims for ${KIAS_OUTSIDE_LAB + best.overtakeKt} KIAS down the line, ${best.overtakeKt} kt of overtake${best.overtakeKt < asked ? ` (${KIAS_OUTSIDE_LAB + asked} would put him ahead of Lead's 3/9 line from here)` : ''}, gets onto the rejoin line and holds it with Lead at his ${clock}, slightly low (SMM 12.24 paras 56-57); ${hot ? 'he starts hot and gets colder to reach it' : 'he starts cold and turns hotter to reach it'}. ${speeds}${best.upFt ? ` He goes ${best.upFt.toLocaleString('en-CA')} ft higher early and comes down onto the line (the vertical, TS-82).` : ''} From the decision point, where a stop with the torque floor and the boards just fits, he takes it out and flows ${end}.`,
     label: `${label}${sideWord}`,
     flying: `${fromWord}${fromSide} to ${label}${sideWord} (${how})`,
     from: from.key,

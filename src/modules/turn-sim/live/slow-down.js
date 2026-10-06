@@ -77,9 +77,9 @@ export function fullPowerKtps(kias, altFt, g = 1) {
   return ktpsFrom(excessThrustPerWeight(kias, altFt, g), kias, altFt);
 }
 
-/** The most a stage slows the aircraft (KIAS per second, a positive number) at kias, altFt and g. */
-export function slowKtps(stage, kias, altFt, g = 1) {
-  return Math.max(0, -ktpsFrom(excessPerWeight(stage, kias, altFt, g), kias, altFt));
+/** The most a stage slows the aircraft (KIAS per second, a positive number) at kias, altFt and g, power and boards at `throttle` (the floor by default). */
+export function slowKtps(stage, kias, altFt, g = 1, throttle = POWER_FLOOR_THROTTLE) {
+  return Math.max(0, -ktpsFrom(excessPerWeight(stage, kias, altFt, g, throttle), kias, altFt));
 }
 
 /**

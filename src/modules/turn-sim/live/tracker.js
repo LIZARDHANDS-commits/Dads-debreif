@@ -12,8 +12,8 @@ import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
 import { relativeTo, unit } from './manoeuvres.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
-import { throttleFor, powerFrom } from './power.js';
-import { TRACKER, CLOSURE, HAND_OVER_FT, FW_ENERGY } from './tuning.js';
+import { throttleFor, powerFrom, throttleAtTorque } from './power.js';
+import { TRACKER, CLOSURE, HAND_OVER_FT, FW_ENERGY, REJOIN } from './tuning.js';
 
 /** The longest the tracker flies one plan before giving up (a guard only; the spec's limits are tighter). */
 export const PLAN_MAX_SEC = 300;
@@ -76,15 +76,16 @@ function closureCap(ph, L, W, ex, ey, d, blockFt, farFromFt) {
 /**
  * The power a tracker step was flown with (power.js; the tag's MAX, PWR nn%, IDLE or IDLE+BOARDS): full power while the
  * acceleration is at full power's, part power down to the power floor, then idle, then idle and the speed brake only when
- * idle can't give the slowing wanted (Patrick 05:47Z, 05:54Z, 06:13Z; slow-down.js, TS-61).
+ * idle can't give the slowing wanted (Patrick 05:47Z, 05:54Z, 06:13Z; slow-down.js, TS-61). A rejoin's leg keeps its torque
+ * floor (`floorThr`, 5%) and the boards, idle a last resort (Patrick 6 Oct 03:17-03:20Z, TS-108).
  */
-function powerOf(accel, aMax, W, blockFt, stage = 'power') {
+function powerOf(accel, aMax, W, blockFt, stage = 'power', floorThr = 0) {
   // What the engine has to give: the speed change and the climb's cost (a climb at v ft/s costs g·v / TAS; TS-96).
   const aEngine = accel + climbCostKtps(W, W.climbFtps ?? 0);
   if (aEngine >= aMax * 0.985) return powerFrom(null, 1, W.kias, blockFt);
-  if (aEngine >= -slowKtps('power', W.kias, blockFt, W.g)) return powerFrom(null, Math.max(0, throttleFor(accel, W.kias, blockFt, W.g, W.climbFtps)), W.kias, blockFt);
+  if (aEngine >= -slowKtps('power', W.kias, blockFt, W.g, floorThr)) return powerFrom(null, Math.max(floorThr, throttleFor(accel, W.kias, blockFt, W.g, W.climbFtps)), W.kias, blockFt);
   // A phase slowing with power back and the speed brake (slowStage 'boards'): the boards out, power at its floor.
-  if (stage === 'boards') return powerFrom('boards', 0, W.kias, blockFt);
+  if (stage === 'boards') return powerFrom('boards', floorThr, W.kias, blockFt);
   if (aEngine >= -slowKtps('idle', W.kias, blockFt, W.g)) return powerFrom('idle', 0, W.kias, blockFt);
   return powerFrom('idleBoards', 0, W.kias, blockFt);
 }
@@ -296,7 +297,11 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     const aMax = fullPowerKtps(W.kias, blockFt);
     // A phase may slow with more than power back (slowStage, slow-down.js; the turning rejoin's run-in: power back and the
     // speed brake, card 03:33Z rule 4: "torque and speed brake first").
-    const aMin = slowKtps(ph.slowStage ?? 'power', W.kias, blockFt);
+    // A rejoin's leg slows with its torque floor and the boards as needed (Patrick 6 Oct 03:17-03:20Z, TS-108).
+    const rejoinLeg = ph.rejoin || ph.slowStage === 'boards';
+    const floorThr = rejoinLeg ? throttleAtTorque(REJOIN.floorTorquePct, W.kias, blockFt) : 0;
+    const slowStage = ph.slowStage ?? (ph.rejoin ? 'boards' : 'power');
+    const aMin = slowKtps(slowStage, W.kias, blockFt, 1, floorThr);
     const aCmd = Math.max(-aMin, Math.min(aMax, GAIN.speedLoop * (kiasCmd - W.kias)));
     accel += Math.max(-GAIN.jerkKtps2 * STEP_SEC, Math.min(GAIN.jerkKtps2 * STEP_SEC, aCmd - accel));
     let kias = W.kias + accel * STEP_SEC;
@@ -329,7 +334,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     }
     setKias(W, kias);
     stepCommanded(W, bank, t, stepProfile);
-    points.push(ph.closureFtps ? [bank, kias, powerOf(accel, aMax, W, blockFt, ph.slowStage)] : [bank, kias]);
+    points.push(ph.closureFtps ? [bank, kias, powerOf(accel, aMax, W, blockFt, slowStage, floorThr)] : [bank, kias]);
     m++;
     const Lafter = R.at(m);
     maxBank = Math.max(maxBank, Math.abs(W.bankDeg));

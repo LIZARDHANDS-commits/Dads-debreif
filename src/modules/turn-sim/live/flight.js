@@ -112,6 +112,7 @@ export function makeAircraft({ id, xFt, yFt, headingRad, kias, tasFtps }) {
     bankDeg: 0, // signed: left wing down positive
     rollRateDps: 0,
     g: 1,
+    nz: 1, // the vertical share of the G (1 + vertical acceleration / g): with bankDeg, where the lift points (liftBankDeg)
     climbFtps: 0,
     pitchDeg: pitchDegFromClimb(0, tasFtps, kias, 1),
     turning: false,
@@ -122,6 +123,20 @@ export function makeAircraft({ id, xFt, yFt, headingRad, kias, tasFtps }) {
 }
 
 /** A copy that shares nothing with the original, for dry runs. */
+/**
+ * The bank the lift points along (Patrick 6 Oct 04:17Z: "the bank should follow the lift vector"; TS-108), for drawing and
+ * reading out: the turn's sideways share (tan of bankDeg, the level-turn bank its turn rate gives, in g) and the vertical
+ * share nz (1 + vertical acceleration / g) together, standard mechanics. A level turn reads its own bank; a pull up reads
+ * less, a pull down to a lower line more, past 90° once the vertical share is below zero. A push (the G negative by
+ * stepAircraft's sign rule) reads the turn's bank. The flight itself steps on the turn's bank.
+ */
+export function liftBankDeg(bankDeg, nz = 1) {
+  const b = (Math.min(Math.abs(bankDeg), 89.9) * Math.PI) / 180;
+  const side = Math.tan(b);
+  if (!bankDeg || nz * Math.cos(b) + side * Math.sin(b) < 0) return bankDeg;
+  return (Math.sign(bankDeg) * Math.atan2(side, nz) * 180) / Math.PI;
+}
+
 export function copyAircraft(a) {
   return { ...a };
 }
@@ -319,6 +334,7 @@ export function stepAircraft(a, plan, t) {
   a.turning = a.bankDeg !== 0 || plan.segments.length > 0;
 
   const height = heightAt(plan.profile, t + dt);
+  a.nz = height?.nz ?? 1;
   if (height) {
     a.altAboveFt = height.altAboveFt;
     a.climbFtps = height.climbFtps;

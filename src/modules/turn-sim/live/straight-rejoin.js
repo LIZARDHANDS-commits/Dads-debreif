@@ -8,8 +8,8 @@
 //     as he nears the line. Turning in costs ground along Lead's track, so he falls back as he cuts (Patrick 08:40Z); full power
 //     keeps that small.
 //  2. On Lead's six, just below his wake (EFIG p.371; SMM 12.26 para 62), he holds at least 220 KIAS (tuning.js
-//     REJOIN.lineKias, whatever the Rates choice; Patrick 17:55Z, TS-75), and from the decision point, where a stop at idle just
-//     fits, takes it out, the boards only when the room left needs them, to arrive closing at no more than Instructor's
+//     REJOIN.lineKias, whatever the Rates choice; Patrick 17:55Z, TS-75), and from the decision point, where a stop with the torque floor and the
+//     boards just fits (TS-108), takes it out, idle only when the room left needs it, to arrive closing at no more than Instructor's
 //     close-in rate.
 //  3. From about 500 ft back he takes the small vector toward the side wanted (SMM 12.26 para 63, Fig 12.17 point 2): the line
 //     runs from there to route.
@@ -26,7 +26,7 @@ import { onClosure, fromStep } from './hand-over.js';
 import { STEP_SEC, copyAircraft } from './flight.js';
 import { stepCommanded, setKias, trackTwice } from './tracker.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
-import { powerFor, powerFrom } from './power.js';
+import { powerFor, powerFrom, throttleAtTorque } from './power.js';
 import { bankDegFromTurnRate } from '../../../core/flight-math.js';
 import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS as KT_FTPS } from '../../../core/units.js';
@@ -93,15 +93,16 @@ function flyToDecision({ wing, rec, s, route, cutDeg, aimFt, overtakeKt, arriveF
     backPrev = back;
     const ratio = W.tasFtps / W.kias;
     const climbKtps = (G_FTPS2 * W.climbFtps) / Math.max(W.tasFtps, 1) / ratio;
-    const aStop = slowKtps(REJOIN.stopStage, W.kias, blockFt, W.g) + climbKtps;
+    const floorThr = throttleAtTorque(REJOIN.floorTorquePct, W.kias, blockFt); // the rejoin's torque floor (TS-108)
+    const aStop = slowKtps(REJOIN.stopStage, W.kias, blockFt, W.g, floorThr) + climbKtps;
     // The room left, less what he covers while the slowing builds up at the rate the acceleration can change (TS-75).
     const rampFt = (closure * CLOSURE.stopShare * aStop) / G.jerkKtps2 / 2;
     const room = back - decisionFt;
     const needKtps = room - rampFt > 1 && closure > arriveFtps ? (closure * closure - arriveFtps * arriveFtps) / (2 * (room - rampFt)) / ratio : 0;
     const aMax = fullPowerKtps(W.kias, blockFt, W.g) - climbKtps;
-    const aPower = slowKtps('power', W.kias, blockFt, W.g) + climbKtps;
+    const aPower = slowKtps('power', W.kias, blockFt, W.g, floorThr) + climbKtps;
     const aAll = slowKtps('idleBoards', W.kias, blockFt, W.g) + climbKtps;
-    // The decision point: where the stop at idle just fits the room left (Patrick 17:55Z: "then slow down at the decision
+    // The decision point: where the stop with the torque floor and the boards just fits (TS-108) the room left (Patrick 17:55Z: "then slow down at the decision
     // point for eithe SARJ or TRJ"; TS-75).
     if (onSix && !runIn && closure > arriveFtps && needKtps >= CLOSURE.stopShare * aStop) runIn = true;
     const floorKias = KIAS_OUTSIDE_LAB; // never below Lead's 200 KIAS (Patrick 17:29Z; TS-75)
@@ -123,7 +124,7 @@ function flyToDecision({ wing, rec, s, route, cutDeg, aimFt, overtakeKt, arriveF
     const kias = W.kias + accel * dt;
     setKias(W, kias);
     stepCommanded(W, bank, t, profile);
-    const power = accel >= aMax * 0.985 ? powerFrom(null, 1, W.kias, blockFt) : powerFor(accel, W.kias, blockFt, W.g, W.climbFtps, runIn ? 'idleBoards' : null);
+    const power = accel >= aMax * 0.985 ? powerFrom(null, 1, W.kias, blockFt) : powerFor(accel, W.kias, blockFt, W.g, W.climbFtps, runIn ? 'idleBoards' : null, floorThr);
     points.push([bank, kias, power]);
     maxBank = Math.max(maxBank, Math.abs(W.bankDeg));
     const after = relativeTo(Lnext, W);

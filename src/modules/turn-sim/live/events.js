@@ -33,7 +33,7 @@ export function createEvents({ state, startChange, labelFor }) {
 
   /**
    * The events that plan a 2-ship change again from where the pair is (spec F1; the press and the hand-over are planned
-   * again elsewhere): the decision point (a turning rejoin's, where a stop at idle just fits), taken only when the new plan
+   * again elsewhere): the decision point (a turning rejoin's, where a stop with the torque floor and the boards just fits), taken only when the new plan
    * ends sooner (by more than the chooser's tie); and the picture breaking, Lead or #2 more than PICTURE_BREAK_FT from where
    * the plan has him now, taken whenever the new plan passes.
    */

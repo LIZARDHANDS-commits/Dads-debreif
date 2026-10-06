@@ -51,6 +51,7 @@ export function applyPose(a, p) {
   a.climbFtps = p.climb;
   a.pitchDeg = p.pitch;
   a.g = p.g;
+  a.nz = p.nz ?? 1;
   a.turning = true;
   a.slowStage = p.stage ?? null; // how the line's slow-down is flown (slow-down.js, TS-61): BOARDS or IDLE on the card and tags
   a.overshooting = Boolean(p.over); // on an overshoot (TS-62): OVERSHOOTING on the card and tags
@@ -61,7 +62,7 @@ export function applyPose(a, p) {
 
 /** An aircraft's state as a pose (the inverse of applyPose), for the parts of a track flight.js flies itself. */
 export function poseOf(a) {
-  return { x: a.xFt, y: a.yFt, alt: a.altAboveFt, h: a.headingRad, bank: a.bankDeg, roll: a.rollRateDps ?? 0, kias: a.kias, tas: a.tasFtps, climb: a.climbFtps ?? 0, pitch: a.pitchDeg ?? 0, g: a.g ?? 1, stage: a.slowStage ?? null, power: a.power ?? null };
+  return { x: a.xFt, y: a.yFt, alt: a.altAboveFt, h: a.headingRad, bank: a.bankDeg, roll: a.rollRateDps ?? 0, kias: a.kias, tas: a.tasFtps, climb: a.climbFtps ?? 0, pitch: a.pitchDeg ?? 0, g: a.g ?? 1, nz: a.nz ?? 1, stage: a.slowStage ?? null, power: a.power ?? null };
 }
 
 /**
@@ -140,7 +141,7 @@ export function posesFrom(track, kiasPerTas) {
     const g = Math.hypot((tas[r] * omega[r]) / G_FTPS2, 1 + az / G_FTPS2);
     const kias = tas[r] * kiasPerTas;
     const pitch = pitchDegFromClimb(climb[r], tas[r], kias, g * Math.cos(bank[r] * DEG));
-    poses.push({ x: x[r], y: y[r], alt: z[r], h: h[r], bank: bank[r], roll, kias, tas: tas[r], climb: climb[r], pitch, g });
+    poses.push({ x: x[r], y: y[r], alt: z[r], h: h[r], bank: bank[r], roll, kias, tas: tas[r], climb: climb[r], pitch, g, nz: 1 + az / G_FTPS2 });
     maxBankDeg = Math.max(maxBankDeg, Math.abs(bank[r]));
     minKias = Math.min(minKias, kias);
     maxKias = Math.max(maxKias, kias);
@@ -156,7 +157,7 @@ export function posesFrom(track, kiasPerTas) {
 export function settleLast(poses, ref) {
   const p = poses[poses.length - 1];
   if (!p) return;
-  Object.assign(p, { h: ref.headingRad, bank: 0, roll: 0, kias: ref.kias, tas: ref.tasFtps, climb: 0, g: 1 });
+  Object.assign(p, { h: ref.headingRad, bank: 0, roll: 0, kias: ref.kias, tas: ref.tasFtps, climb: 0, g: 1, nz: 1 });
   p.pitch = pitchDegFromClimb(0, p.tas, p.kias, 1);
 }
 

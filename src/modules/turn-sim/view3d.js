@@ -14,6 +14,7 @@ import {
 import { drawTags, T6_LENGTH_FT, trailSince, BACKGROUND, CLOCK_LINE_RED } from './view.js';
 import { FW_TURN } from './live/tuning.js';
 import { placeBoxOutline } from './live/move-in-band.js';
+import { liftBankDeg } from './live/flight.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH } from '../../ui-kit/ct156-model.js';
 
@@ -110,7 +111,7 @@ export function aircraftPose(a, sign = 1) {
     y: a.yFt,
     z: altToZ(FLIGHT_ALT_FT + (a.altAboveFt ?? 0), ALT_SCALE),
     headingRad: a.headingRad,
-    bankRad: rad(a.bankDeg) * (sign < 0 ? -1 : 1),
+    bankRad: rad(liftBankDeg(a.bankDeg, a.nz ?? 1)) * (sign < 0 ? -1 : 1), // where the lift points (TS-108)
     pitchRad: rad(a.pitchDeg ?? 0),
   };
 }

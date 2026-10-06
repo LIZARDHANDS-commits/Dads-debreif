@@ -38,6 +38,7 @@ import { pursuitWord } from './fluid-panel.js';
 import { isManoeuvring, FLUID } from './live/fluid.js';
 import { powerWord, throttleFor } from './live/power.js';
 import { compassDeg } from './live/formation.js';
+import { liftBankDeg } from './live/flight.js';
 
 const CLOSE_KEYS = new Set(['echelon', 'route', 'astern', 'finger', 'box', 'trail']);
 const ft = (n) => `${Math.round(Math.abs(n)).toLocaleString('en-CA')} ft`;
@@ -280,11 +281,12 @@ export function formatTag(tag, a, lead, show, closure = null) {
   // #2's error against his place and what he is doing about it (Patrick 5 Oct 22:54Z), only while he is off his place.
   if (show.tagError && tag.error) lines.push({ text: tag.error }, ...(tag.fix ? [{ text: tag.fix }] : []));
   const upFt = (a.altAboveFt ?? 0) - (lead?.altAboveFt ?? 0);
+  const liftBank = liftBankDeg(a.bankDeg ?? 0, a.nz ?? 1);
   const flight = [
     show.tagSpeed && `${Math.round(a.kias)} KIAS`,
     show.tagHeight && a.id !== 1 && `${upFt >= 0 ? '+' : '\u2212'}${ft(upFt)}`, // against Lead: +150 ft above, \u2212200 ft below
     show.tagHeading && `${String(compassDeg(a.headingRad)).padStart(3, '0')}°`,
-    show.tagBankG && `bank ${Math.round(Math.abs(a.bankDeg ?? 0))}°${Math.abs(a.bankDeg ?? 0) >= 1 ? (a.bankDeg > 0 ? ' L' : ' R') : ''}, ${(a.g ?? 1).toFixed(1)} G`,
+    show.tagBankG && `bank ${Math.round(Math.abs(liftBank))}°${Math.abs(liftBank) >= 1 ? (liftBank > 0 ? ' L' : ' R') : ''}, ${(a.g ?? 1).toFixed(1)} G`, // where the lift points (TS-108)
   ].filter(Boolean).join(', ');
   if (flight) lines.push({ text: flight });
   if (show.tagClosure && closure) lines.push({ text: closure });
