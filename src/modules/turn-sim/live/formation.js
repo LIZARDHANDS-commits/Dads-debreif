@@ -15,11 +15,11 @@ import { flyStep, dryRunT } from './transitions.js';
 import { resolveErrors, resolveFixTools, applyStartErrors, planWithErrors, outcomeOf, offStandardOutcome, responseOf } from './errors.js';
 import { FOUR_SHIP_KEYS, fourShipStart, planFour } from './four-ship.js';
 import { G_WARM, planGWarm } from './g-warm.js';
-import { classify, judge } from './judge.js';
+import { classify, judge, judgeFluid4 } from './judge.js';
 import { FORMATIONS, FOUR_FORMATIONS, setFwShape, setFw4Shape } from './slots.js';
 import { planChangeFour } from './four-plan.js';
 import { chooseChange } from './chooser.js';
-import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFwMove } from './formation-turns.js';
+import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFluid4Turn, planFwMove } from './formation-turns.js';
 import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
 import { LAG_ROLL_KEY } from './lag-roll.js';
@@ -186,8 +186,12 @@ export function createFormation(options = {}) {
     // In fighting wing and the close formations the turn buttons turn the formation (TS-55, spec section 10.2): Lead turns,
     // the wingmen keep their places (the fighting wing band, or their place in Lead's wing plane).
     const where = whereNow();
-    const turnIn = FW_TURN_KEYS.includes(key) && TURN_FORMATIONS[four ? 4 : 2].includes(where.key) ? { key: where.key, side: where.side } : null;
-    const plan = turnIn
+    // In Fluid 4 the two elements turn: Lead and #3 in line abreast, #2 and #4 in fighting wing on them (planFluid4Turn).
+    const fluid4 = four && where.key === 'fluid4' && FOUR_SHIP_KEYS.includes(key);
+    const turnIn = fluid4 || (FW_TURN_KEYS.includes(key) && TURN_FORMATIONS[four ? 4 : 2].includes(where.key)) ? { key: where.key, side: where.side } : null;
+    const plan = fluid4
+      ? planFluid4Turn(state.aircraft, key, dir, state.tSec, { blockFt: opts.blockFt })
+      : turnIn
       ? planFormationTurn(state.aircraft, turnIn, key, dir, state.tSec, { blockFt: opts.blockFt })
       : key === G_WARM.key
       ? planGWarm(state.aircraft, state.tSec)
@@ -391,7 +395,9 @@ export function createFormation(options = {}) {
       // A turn in fighting wing or a close formation ends judged against that formation (spec section 10 table; the four, link by link).
       const ft = state.current.formationTurn;
       const four = state.aircraft.length > 2;
-      const j = judge(state.aircraft, { key: ft.key, side: ft.side }, { spacingFt: state.spacingFt });
+      // Fluid 4: the elements against the line abreast roll-out, the wingmen in the cone on their leaders (judgeFluid4).
+      const f4 = ft.key === 'fluid4' ? judgeFluid4(state.aircraft, MANOEUVRES[state.current.key]?.kind === 'together' && MANOEUVRES[state.current.key].turnDeg > 30 && MANOEUVRES[state.current.key].turnDeg < 180 ? 'trail' : 'abreast', state.spacingFt) : null;
+      const j = f4 ? { inBand: f4.labels[0] === 'IN POSITION', labels: f4.labels, text: `Fluid 4: ${f4.labels.join(', ')}.`, tone: f4.labels[0] === 'IN POSITION' ? 'good' : 'caution', ships: f4.ships } : judge(state.aircraft, { key: ft.key, side: ft.side }, { spacingFt: state.spacingFt });
       state.judged = { label: state.current.label, shape: 'formation', labels: j.inBand ? ['IN POSITION'] : j.labels, text: j.text, tone: j.tone, ...(four ? { ships: j.ships } : {}) };
     } else {
       state.judged = { label: state.current.label, ...judge(state.aircraft, { shape: state.current.shape }, { spacingFt: state.spacingFt }) };
@@ -420,6 +426,8 @@ export function createFormation(options = {}) {
     if (four && key === G_WARM.key) return where === 'spread4' ? null : 'G-warm starts from Spread 4; change to Spread 4 first.';
     // The turns fly in fighting wing (TS-55) and the close formations too (spec section 10.2).
     if (FW_TURN_KEYS.includes(key) && TURN_FORMATIONS[four ? 4 : 2].includes(where)) return null;
+    // Fluid 4: Spread 4's five turns, flown by the two elements (Patrick 6 Oct 04:56Z; card 04:59Z "Spread 4's five").
+    if (four && where === 'fluid4') return FOUR_SHIP_KEYS.includes(key) ? null : `${labelFor(key, dir)} is not flown in Fluid 4.`;
     if (four) return MOVES_FROM_FOUR.includes(where) ? null : `${labelFor(key, dir)} flies in Spread 4 only; change to Spread 4 first.`;
     return MOVES_FROM.includes(where) ? null : `${labelFor(key, dir)} flies in line abreast only; change formation first.`;
   }

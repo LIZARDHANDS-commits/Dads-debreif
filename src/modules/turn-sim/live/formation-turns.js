@@ -20,7 +20,7 @@
 // Turns in the close formations (spec section 10.2; Patrick 18:11Z: "do turns in any of these formations") are planned here
 // too: planCloseTurn, below. planFormationTurn picks the planner for the formation the aircraft are in.
 import { STEP_SEC, SMOOTHER_PEAK, rollLimitAt, gateRoll } from './flight.js';
-import { MANOEUVRES, relativeTo, DEG } from './manoeuvres.js';
+import { MANOEUVRES, relativeTo, DEG, planManoeuvre } from './manoeuvres.js';
 import { recordFlight, dryRunT } from './transitions.js';
 import { trackTwice, phase } from './tracker.js';
 import { smoothest, makeTrack, seedTrack, setTrackStep, TRACK_PAD, posesFrom, settleLast, slotInWorld } from './kinematic.js';
@@ -214,6 +214,60 @@ export function planFwTurn(aircraft, key, dir, t0 = 0, { blockFt = 8000 } = {}) 
           : `#2 collapses to Lead's six on his turn circle, then moves back out into the band on the ${sideWord} (SMM 12.29 para 69, Figs 12.20, 12.23).`
         : `${four ? 'The wingmen keep their' : '#2 keeps its'} side and sweep (AFM7 brief p.14).`),
     leadBankDeg: bank,
+    maxBankDeg,
+    endSec,
+    stepSec: STEP_SEC,
+  };
+}
+
+/**
+ * A turn in Fluid 4: two elements of two (Patrick 6 Oct 04:56Z: "Fluid 4 needs to move like two elements of two aircraft each
+ * element of which is in fighting wing. so the two leads fly LAB off each other and essentially fly like single ship aircraft
+ * and the other two just stay in position in fighting wing off their leads"; AFM8 brief p.21: "Both elements turn in FW to
+ * new heading"). Lead and #3 fly the button's line abreast manoeuvre as a pair (manoeuvres.js planManoeuvre, the 2-ship's,
+ * #3 in #2's part); #2 then flies the fighting wing goal off Lead and #4 off #3, as in planFwTurn: the pursuit curves while
+ * the one he flies off is banked, collapsing toward his six in the bigger turns, and the turn exit (Fig 12.23) on his own side
+ * once that one rolls out. aircraft: the four, Lead first. Returns planFwTurn's shape, or { ok: false, reason }.
+ */
+export function planFluid4Turn(aircraft, key, dir, t0 = 0, { blockFt = 8000 } = {}) {
+  const m = MANOEUVRES[key];
+  if (!FW_TURN_KEYS.includes(key)) return { ok: false, reason: `${m?.label ?? key} is not flown in Fluid 4.` };
+  const by = new Map(aircraft.map((a) => [a.id, a]));
+  const [lead, two, three, four] = [1, 2, 3, 4].map((id) => by.get(id));
+  const pair = planManoeuvre([lead, three], key, dir, t0);
+  const plans = { [lead.id]: pair.plans[lead.id], [three.id]: pair.plans[three.id] };
+  const refs = { [lead.id]: recordFlight(lead, plans[lead.id], t0), [three.id]: recordFlight(three, plans[three.id], t0) };
+  const collapse = FW_TURN.turnDeg[key] >= FW_TURN.collapseMinTurnDeg;
+  const follow = { ...FW_FOLLOW, bankCapDeg: WING_BANKS.fwFollowBankCapDeg };
+  let endSec = t0;
+  let maxBankDeg = 0;
+  // Where the elements end: abreast, each wingman comes out on the outside, away from the other element (AFM8 brief p.20:
+  // "Nos. 2 and 4 will maintain FW position on the outside"); in trail (the in-place turn), on the side he started.
+  const endStep = Math.round(Math.max(...[lead, three].map((a) => dryRunT(a, plans[a.id], t0).durationSec)) / STEP_SEC);
+  const outside = (ref, other) => {
+    const q = relativeTo(refs[ref.id].at(endStep), refs[other.id].at(endStep));
+    return Math.abs(q.left) > Math.abs(q.fwd) ? -Math.sign(q.left) : null;
+  };
+  for (const [ref, wing, other] of [[lead, two, three], [three, four, lead]]) {
+    endSec = Math.max(endSec, t0 + dryRunT(ref, plans[ref.id], t0).durationSec);
+    const rel0 = relativeTo(ref, wing);
+    const side = outside(ref, other) ?? (Math.sign(rel0.left) || -1);
+    const outAt = rollOutAt(refs[ref.id], t0);
+    const exit = outAt !== null ? fwExit(outAt, side) : {};
+    const pursuit = collapse ? { pursuit: pursuitOf(null) } : {};
+    const goalPhase = phase({ fwd: rel0.fwd, left: rel0.left, alt: wing.altAboveFt }, { ...follow, ...pursuit, ...exit, track: ref.id, goal: (L, W) => fwGoal(L, W, side, collapse) });
+    const { run, profile } = trackTwice({ refs, wing0: wing, t0, phases: [goalPhase], blockFt });
+    if (!run.ok) return { ok: false, reason: `No safe ${m.label.toLowerCase()} in Fluid 4 from here: ${NAMES[wing.id]} could not settle back into fighting wing on ${NAMES[ref.id]}.` };
+    plans[wing.id] = { segments: [{ kind: 'bankTrack', points: run.points }], profile };
+    endSec = Math.max(endSec, t0 + run.durationSec);
+    maxBankDeg = Math.max(maxBankDeg, run.maxBankDeg);
+  }
+  return {
+    ok: true,
+    plans,
+    firstId: pair.firstId ?? null,
+    note: `Fluid 4, two elements: Lead and #3 fly the ${m.label.toLowerCase()} ${dir > 0 ? 'left' : 'right'} as a line abreast pair (${pair.note.replace(/#2/g, '#3')}); #2 stays in fighting wing on Lead and #4 on #3${collapse ? ', each collapsing toward his leader\'s six while he is banked, then back out into the cone on the outside' : ', keeping their sweep'} (AFM8 brief pp.20-21; SMM 12.29 para 69, Fig 12.23).`,
+    leadBankDeg: Math.max(...[lead, three].map((a) => Math.max(...(plans[a.id].segments ?? []).map((g) => Math.abs(g.bankDeg ?? 0)), 0))),
     maxBankDeg,
     endSec,
     stepSec: STEP_SEC,

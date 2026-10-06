@@ -437,7 +437,8 @@ function mount(root, app) {
     } else {
       // The four's manoeuvres fly from Spread 4 (or a column after an in-place turn); G-warm from Spread 4 only.
       const where = whereAll.key;
-      const lineAbreast = where === 'spread4' || where === 'other';
+      // In Fluid 4 the two elements fly Spread 4's turns (planFluid4Turn; Patrick 6 Oct card 04:59Z "Spread 4's five").
+      const lineAbreast = where === 'spread4' || where === 'other' || where === 'fluid4';
       ui.setMovesEnabled(lineAbreast, (key) => key !== G_WARM.key || where === 'spread4', 'These manoeuvres fly in Spread 4, fighting wing and the close formations. Change formation first.');
     }
   }

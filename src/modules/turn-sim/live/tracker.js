@@ -304,7 +304,12 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     const floorThr = rejoinLeg ? throttleAtTorque(REJOIN.floorTorquePct, W.kias, blockFt) : 0;
     const slowStage = ph.slowStage ?? (ph.rejoin ? 'boards' : 'power');
     const aMin = slowKtps(slowStage, W.kias, blockFt, 1, floorThr);
-    const aCmd = Math.max(-aMin, Math.min(aMax, GAIN.speedLoop * (kiasCmd - W.kias)));
+    // The climb he is flying costs speed and a descent gives it (standard energy, dV/dt = g (T - D) / W - g sin(climb
+    // angle): climbCostKtps), so the engine's range is shifted by it: climbing at MAX he slows (Patrick 6 Oct 05:00Z: "This
+    // climb is unrealistic to not lose speed on"; until V2.124 the height was flown free and only the power read showed it).
+    // Not on fighting wing's cone energy (TS-96, below), which picks the climb from the speed change and so already counts it.
+    const climbKtps = cone || (ph.coneAlt && ph.closureFtps) ? 0 : climbCostKtps(W, W.climbFtps ?? 0);
+    const aCmd = Math.max(-aMin - climbKtps, Math.min(aMax - climbKtps, GAIN.speedLoop * (kiasCmd - W.kias)));
     accel += Math.max(-GAIN.jerkKtps2 * STEP_SEC, Math.min(GAIN.jerkKtps2 * STEP_SEC, aCmd - accel));
     let kias = W.kias + accel * STEP_SEC;
     if (aligning && Math.abs(L.kias - kias) < T.kiasSnap) { // the last few thousandths of a knot, so the speed has no step
@@ -401,7 +406,9 @@ export function heightProfile(alt0, phases, times, t0) {
     const start = Math.max(times[i].t0 ?? from, from);
     const end = times[i].t1 ?? start + TRACKER.height.unknownLegSec;
     if (Math.abs(target - alt) > TRACKER.height.minChangeFt) {
-      const floor = ph.altRateFtps ? Math.abs(target - alt) / ph.altRateFtps : 0;
+      // No quicker than the leg's own rate, or else TRACKER.height.maxRateFtps (Patrick 6 Oct 05:00Z: a 2,000 ft climb in
+      // 10 s, about 12,000 ft/min, from low in line abreast; no floor until V2.124).
+      const floor = Math.abs(target - alt) / (ph.altRateFtps ?? TRACKER.height.maxRateFtps);
       const t1 = Math.max(ph.altSec ? start + ph.altSec : end, start + TRACKER.height.minSec, start + floor);
       legs.push({ t0: start, t1, fromFt: alt, toFt: target });
       alt = target;

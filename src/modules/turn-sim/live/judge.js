@@ -236,6 +236,24 @@ export function judge(aircraft, what, { spacingFt = 6000, wingPlane = false } = 
 }
 
 /**
+ * A Fluid 4 turn's roll-out (formation-turns.js planFluid4Turn): Lead and #3 against the line abreast manoeuvre's roll-out
+ * (judgePair: abreast, or in trail after the in-place turn), and #2 on Lead and #4 on #3 anywhere in the fighting wing cone,
+ * on either side (the stack's heights are not judged here). Returns { labels (['IN POSITION'] when all three are in), ships }.
+ */
+export function judgeFluid4(aircraft, shape, spacingFt) {
+  const by = new Map(aircraft.map((a) => [a.id, a]));
+  const pair = judgePair(by.get(1), by.get(3), spacingFt, shape);
+  const ok = shape === 'trail' ? 'IN TRAIL' : 'ON SPACING';
+  const ships = {
+    3: pair.labels.filter((x) => x !== ok),
+    2: judgeLink('fw', by.get(1), by.get(2), { needBelow: false }).labels,
+    4: judgeLink('fw', by.get(3), by.get(4), { needBelow: false }).labels,
+  };
+  const labels = Object.entries(ships).flatMap(([id, l]) => l.map((x) => `#${id} ${x}`));
+  return { labels: labels.length ? labels : ['IN POSITION'], ships };
+}
+
+/**
  * A line abreast manoeuvre's roll-out for a pair (SMM 16.18 para 49; in trail after an in-place turn, SMM 16.19 para 59):
  * { shape, labels (ON SPACING or IN TRAIL when in position), … the measurements }. Read by the card and by the four's
  * roll-out, wingman by wingman.
