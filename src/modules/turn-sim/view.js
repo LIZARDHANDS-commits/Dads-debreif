@@ -708,6 +708,9 @@ function drawLinesTag(ctx, map, x, y, tag, colour, pad, placed = [], centre = nu
       }
     }
   }
+  // Back onto the picture after stacking (Patrick, 6 Oct: tags sometimes disappeared, pushed off the top or bottom edge
+  // by the one they made room for); with no room left it overlaps rather than vanishing.
+  ty = Math.max(0, Math.min(map.size.height - h, ty));
   placed.push({ x: tx, y: ty, w, h });
   // The leader: from the aircraft to the box's nearest corner, in its colour.
   const cx = Math.max(tx, Math.min(tx + w, x)); // the leader meets the box's nearest edge
