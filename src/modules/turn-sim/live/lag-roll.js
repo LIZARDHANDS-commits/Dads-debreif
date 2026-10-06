@@ -27,7 +27,8 @@ import { pairSlot, FW_BAND } from './slots.js';
 import { LAG_ROLL, FW_ENERGY } from './tuning.js';
 import { add3, scale3, perp3, len3, unit3, dot3, cross3, liftOf, poseOf3d } from './attitude.js';
 import { easeRoll } from '../../../core/flight-math.js';
-import { speedUpLimitKtps } from './full-power.js';
+import { speedUpLimitKtps, climbKtps } from './full-power.js';
+import { slowKtps } from './slow-down.js';
 
 const Z = Object.freeze({ x: 0, y: 0, z: 1 });
 
@@ -151,7 +152,12 @@ function measure(P, lead0, vL, heightFt, gCap, close = false) {
     if (g > gCap + 0.05 || g > availableG(kias, true) || g < LAG_ROLL.minG) return null;
     // Energy (TS-144): he is at full power throughout, so the path may never ask him to speed up faster than full power
     // gives at that speed, height, G and climb (full-power.js, standard aerodynamics). This replaces the old speed band's top.
-    if (lastKias != null && (kias - lastKias) / dt > speedUpLimitKtps(kias, heightFt + s.pos.z, g, s.vel.z, tas) + LAG_ROLL.powerSlackKtps) return null;
+    // ... nor slow down faster than idle and the boards with the climb's cost give (TS-146: both ways, what the T-6 can do).
+    if (lastKias != null) {
+      const dK = (kias - lastKias) / dt;
+      if (dK > speedUpLimitKtps(kias, heightFt + s.pos.z, g, s.vel.z, tas) + LAG_ROLL.powerSlackKtps) return null;
+      if (dK < -(slowKtps('idleBoards', kias, heightFt + s.pos.z, g) + climbKtps(s.vel.z, tas, kias)) - LAG_ROLL.powerSlackKtps) return null;
+    }
     lastKias = kias;
     wings = wingsToward(wings, liftOf(s.acc, nose, wings.up), nose, tas, dt);
     maxMissG = Math.max(maxMissG, wings.missG);

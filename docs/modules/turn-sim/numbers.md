@@ -285,7 +285,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | LAG_ROLL.inBandMarginFt | `50` | the roll may end, or close to, this far inside the band's far range ... (TS-144; estimate) |
 | LAG_ROLL.inBandMarginDeg | `5` | ... and this far inside its far sweep (estimate) |
 | LAG_ROLL.powerSlackKtps | `1` | the path may ask up to this many KIAS per second more than full power gives, for the coarse step (estimate) |
-| LAG_ROLL.topRangeFt | `Object.freeze([900, 1400])` | range from Lead passing over his six, about 1,000-1,300 ft (estimate, widened 100 ft each way) |
+| LAG_ROLL.topRangeFt | `Object.freeze([600, 1400])` | range from Lead passing over his six: 600-1,400 ft, the apex as low and close as the bubble allows with 100 ft to spare (Patrick 6 Oct 22:50Z "could we make the apex lower", TS-146; was 900; estimate) |
 | LAG_ROLL.closeTopRangeFt | `Object.freeze([500, 1400])` | from echelon (TS-78): over Lead's six at 500-1,400 ft, the bubble's edge to the same far end (estimate) |
 | LAG_ROLL.bubbleFt | `FW_BAND.bubbleFt` | a plan that comes inside 500 ft of Lead is refused (slots.js FW_BAND.bubbleFt) |
 | LAG_ROLL.minG | `0.3` | canopy to canopy means positive G throughout: no plan pushes (estimate) |
