@@ -27,7 +27,7 @@ import { excessThrustPerWeight, dragPerWeight, attitudeDegFromClimb } from '../.
 import { iasToTasKt, tasToIasKt, heightFactor, temperatureKey } from './weather.js';
 import { windTriangle, windVectorFtps } from '../../core/wind.js';
 import { legOffsetsFt } from '../../core/geo.js';
-import { PATTERN_ALT_FT, THRESHOLD_DATA_ELEV_FT, NUMBER_BASE_PAST_THRESHOLD_FT } from './airfield.js';
+import { PATTERN_ALT_FT, THRESHOLD_DATA_ELEV_FT, NUMBER_BASE_PAST_THRESHOLD_FT, FLARE_FROM_FT, TOUCHDOWN_PAST_NUMBERS_FT } from './airfield.js';
 
 /**
  * How fast the wings roll: at most 45°/s, building up and dying away at 90°/s²
@@ -88,17 +88,22 @@ const RECORD_EVERY = 4; // a path point every 0.4 s (about 90 ft at 220 kt)
 const MAX_STEPS = 20000;
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+/** Sink rate at touchdown after the flare, ft/s (an estimate: about 120 ft/min, a firm but normal touchdown). */
+const FLARE_TOUCH_SINK_FTPS = 2;
 
 /**
  * The aim point: the base of the runway numbers, NUMBER_BASE_PAST_THRESHOLD_FT up the runway from the threshold
  * point `th` toward `dep`, at the threshold's height (Patrick, 6 Oct 06:33Z: "three degree goes to the base of the
  * numbers"; TR-93). The glide path ends here and the climb-out starts here.
  */
-export function aimPointOf(th, dep) {
+export function aimPointOf(th, dep, pastFt = NUMBER_BASE_PAST_THRESHOLD_FT) {
   const len = Math.max(1, Math.hypot(dep.x - th.x, dep.y - th.y));
-  const k = NUMBER_BASE_PAST_THRESHOLD_FT / len;
+  const k = pastFt / len;
   return { x: th.x + (dep.x - th.x) * k, y: th.y + (dep.y - th.y) * k };
 }
+
+/** Where the wheels touch: TOUCHDOWN_PAST_NUMBERS_FT past the aim point, after the flare (TR-96). The climb-out starts here. */
+export const touchdownPointOf = (th, dep) => aimPointOf(th, dep, NUMBER_BASE_PAST_THRESHOLD_FT + TOUCHDOWN_PAST_NUMBERS_FT);
 
 /**
  * 0 to 1 with a rate that builds up over the first share `a`, holds, and changes
@@ -557,7 +562,7 @@ function flyOuter(points, centre, breakAlong, wind, goAround = null) {
   const rwyTrack = centre.trackDeg;
   const start = goAround
     ? { x: goAround.x, y: goAround.y, alt: goAround.alt, ias: goAround.ias, hdg: goAround.hdg, src: 0, phase: 'go_around' }
-    : { ...aimPointOf(th, points[1]), alt: THRESHOLD_DATA_ELEV_FT, ias: CIRCUIT.thresholdKias, hdg: 0, src: 0, phase: 'climb' };
+    : { ...touchdownPointOf(th, points[1]), alt: THRESHOLD_DATA_ELEV_FT, ias: CIRCUIT.thresholdKias, hdg: 0, src: 0, phase: 'climb' };
   const pilot = makePilot(start, wind);
   const { s } = pilot;
   if (goAround) s.bank = goAround.bank ?? 0;
@@ -697,7 +702,8 @@ function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = nu
   // The glide path's slope, feet down per foot over the ground: the window's own (about 3°, SMM 4.7 para 12).
   const aim = aimPointOf(th, points[1]);
   const glideSlope = Math.max(0, (points[12].alt - THRESHOLD_DATA_ELEV_FT) / Math.max(1, Math.hypot(points[12].x - aim.x, points[12].y - aim.y)));
-  let crossedThreshold = false;
+  const touchdown = touchdownPointOf(th, points[1]);
+  let crossedThreshold = false, flare = null;
   let rolloutSec = null, ftTurned = 0;
   let stage = startStage, turned = 0, ftTotal = null, rollout = null, lastClimb = 0, ftDist = 0, finalTurnFt = null;
   const glideStart = { alt: null, dist: null };
@@ -769,6 +775,21 @@ function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = nu
       const toAim = toGo + NUMBER_BASE_PAST_THRESHOLD_FT;
       const glideRate = -((s.alt - THRESHOLD_DATA_ELEV_FT) / Math.max(toAim, 1)) * v;
       climb = lastClimb + (glideRate - lastClimb) * Math.min(1, DT / 1.5); // eases onto the glide path
+      // The flare (TR-96): from FLARE_FROM_FT the sink dies away to FLARE_TOUCH_SINK_FTPS at touchdown,
+      // TOUCHDOWN_PAST_NUMBERS_FT past the numbers: height over the runway along a cubic that starts at the glide's own slope.
+      const toTouch = toAim + TOUCHDOWN_PAST_NUMBERS_FT;
+      const h = s.alt - THRESHOLD_DATA_ELEV_FT;
+      if (!flare && h <= FLARE_FROM_FT && toTouch > 0) {
+        const h0 = Math.max(h, 0.1);
+        const m0 = -Math.min(3 * h0, Math.max(0, -climb / Math.max(v, 1)) * toTouch); // never so steep it dips under the runway
+        const m1 = -Math.min(3 * h0, FLARE_TOUCH_SINK_FTPS / Math.max(v, 1) * toTouch);
+        flare = { h0, m0, m1, dist: toTouch };
+      }
+      if (flare) {
+        const u = clamp(1 - (toTouch - v * DT) / flare.dist, 0, 1);
+        const hWant = (2 * u ** 3 - 3 * u ** 2 + 1) * flare.h0 + (u ** 3 - 2 * u ** 2 + u) * flare.m0 + (u ** 3 - u ** 2) * flare.m1;
+        climb = (hWant - h) / DT;
+      }
       const wantKias = CIRCUIT.finalTurnKias - (CIRCUIT.finalTurnKias - CIRCUIT.thresholdKias) * f;
       accel = (ktToFtps(iasToTasKt(wantKias, s.alt)) - ktToFtps(pilot.tasKt())) / DT * 0.2;
       if (opts.stopToGoFt != null && toGo <= opts.stopToGoFt && Math.abs(s.bank) < 2) break;
@@ -777,8 +798,8 @@ function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = nu
         crossedThreshold = true;
         pilot.points.push({ x: th.x, y: th.y, alt: Math.round((s.alt + climb * (toGo / Math.max(v, 1))) * 10) / 10, kt: CIRCUIT.thresholdKias, g: 1, src: 0, phase: 'final', headingDeg: s.hdg, tag: 'threshold' });
       }
-      if (toAim <= v * DT) {
-        pilot.points.push({ x: aim.x, y: aim.y, alt: THRESHOLD_DATA_ELEV_FT, kt: CIRCUIT.thresholdKias, g: 1, src: 0, phase: 'final', headingDeg: s.hdg, tag: 'numbers' });
+      if (toTouch <= v * DT) {
+        pilot.points.push({ x: touchdown.x, y: touchdown.y, alt: THRESHOLD_DATA_ELEV_FT, kt: CIRCUIT.thresholdKias, g: 1, src: 0, phase: 'final', headingDeg: s.hdg, tag: 'touchdown' });
         break;
       }
     }

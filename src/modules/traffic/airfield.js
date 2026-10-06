@@ -22,6 +22,14 @@ export const NUMBER_BASE_29L = Object.freeze({ x: 2614, y: -2677 });
 export const NUMBER_BASE_PAST_THRESHOLD_FT = 207;
 
 /**
+ * The flare: rounded out from this height above the runway, ft (an estimate, just before the threshold on the 3°
+ * path), to touch down this far past the base of the numbers, ft (Patrick, 6 Oct 06:50Z: "round out/flare ... touch
+ * down 300-500 feet down the runway"; 400 is the middle).
+ */
+export const FLARE_FROM_FT = 15;
+export const TOUCHDOWN_PAST_NUMBERS_FT = 400;
+
+/**
  * Runway 29L departure end (the 11R threshold bar), map feet (data/moose-jaw.json
  * point 1), measured the same way: 7,250 ft from the 29L threshold at 298.6° true.
  * The CAP aerodrome chart gives 7,280 ft (TR-67).

@@ -362,10 +362,15 @@ export function chaseCamera(ac, size) {
 /**
  * Cockpit and Chase are drawn with a true perspective camera (Patrick, 6 Oct 06:07Z, card "Build now"): nearer is
  * bigger, so the runway's shape on final changes with the glide angle as a pilot sees it. Every other view stays
- * orthographic. 60° across is a natural field of view (an estimate); nothing nearer than 40 ft is drawn, so the far
+ * orthographic. 60° across is a natural field of view (an estimate); nothing nearer than 1 ft is drawn (with a logarithmic depth buffer, TR-96), so the far
  * ground stays steady; the haze starts at 12,000 ft and is full at 45,000 ft, short of where the photo ends (estimates).
  */
-export const PERSPECTIVE = Object.freeze({ fovAcrossDeg: 60, nearFt: 40, farFt: 400_000, hazeFromFt: 12_000, hazeToFt: 45_000 });
+export const PERSPECTIVE = Object.freeze({ fovAcrossDeg: 60, nearFt: 1, farFt: 400_000, hazeFromFt: 12_000, hazeToFt: 45_000 });
+/**
+ * The pilot's eye in Cockpit: this far above the drawn model's middle along its top, and never lower than this over the
+ * ground, ft (estimates: about a T-6 pilot's eye height on the runway; TR-96), so the view never goes under the photo.
+ */
+export const COCKPIT_EYE = Object.freeze({ aboveModelFt: 3, leastAglFt: 8 });
 /** The views drawn in perspective. */
 export const PERSPECTIVE_VIEWS = Object.freeze(new Set(['cockpit', 'low', 'padlock']));
 /**
@@ -1485,7 +1490,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
           if (transparent) ctx.clearRect(0, 0, px, px); else ctx.fillRect(0, 0, px, px);
         }
         tier.texture = new THREE.CanvasTexture(tier.canvas);
-        tier.texture.anisotropy = 8;
+        tier.texture.anisotropy = sharpestFiltering(); // the photo stays sharp looking along the ground (TR-96)
       }
       if (!tier.imagery) {
         tier.imagery = createTileLayer({
@@ -1517,6 +1522,10 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       tier.drawn = null;
     };
     return tier;
+  }
+  /** The most anisotropic filtering this graphics card does (often 16), or 8 before the renderer is made. */
+  function sharpestFiltering() {
+    return Math.max(8, gl?.renderer?.capabilities?.getMaxAnisotropy?.() ?? 8);
   }
   const outerTier = createTier({ span: OUTER_PHOTO_SPAN_FT, px: 2048, maxZoom: 11, split: 2 }); // 30 NM each way, softest
   // 10+ miles each way; 2,048 px (about 52 ft a pixel), as it is only seen far off (TR-71: was 4,096, about 65 MB more)
@@ -1552,7 +1561,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       const ctx = coreCanvas.getContext?.('2d');
       if (ctx) paintCoreAirfieldVector(ctx, { width: 4096, height: 4096, bounds: AIRFIELD_CORE_BOUNDS_FT });
       coreTexture = new THREE.CanvasTexture(coreCanvas);
-      coreTexture.anisotropy = 8;
+      coreTexture.anisotropy = sharpestFiltering();
     }
 
     function paintCorePhoto(full = false) {
@@ -1643,7 +1652,9 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     host.append(canvas, labels);
     let renderer;
     try {
-      renderer = new THREE.WebGLRenderer({ canvas, antialias: !softwareRenderer(win.document) });
+      // A logarithmic depth buffer, so the perspective views can draw from a foot away (the cockpit on the runway) without the
+      // stacked photo squares flickering far off (TR-96).
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: !softwareRenderer(win.document), logarithmicDepthBuffer: true });
     } catch (err) {
       canvas.remove();
       labels.remove();
@@ -1944,7 +1955,6 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     const threshold = new THREE.Vector3(RWY_29L_THRESHOLD.x, RWY_29L_THRESHOLD.y, altToZ(RWY_29L_THRESHOLD.alt, ALT_SCALE));
     let eye, hidden = null, labelZoom;
     if (viewMode === 'cockpit' || (viewMode === 'padlock' && padlockFrom !== 'low')) {
-      eye = at;
       const mesh = gl.kit.aircraftMesh(target.id);
       const turn = new THREE.Quaternion();
       if (mesh) {
@@ -1954,6 +1964,13 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
         hidden = mesh;
       } else turn.setFromAxisAngle(new THREE.Vector3(0, 0, 1), rad(90 - finite(target.headingDeg)));
       const up = new THREE.Vector3(0, 0, 1).applyQuaternion(turn);
+      // At the seat: the drawn model's middle (raised onto its wheels on the runway), up along its top.
+      const seat = mesh ? mesh.position : new THREE.Vector3(at.x, at.y, at.z);
+      eye = {
+        x: seat.x + up.x * COCKPIT_EYE.aboveModelFt,
+        y: seat.y + up.y * COCKPIT_EYE.aboveModelFt,
+        z: Math.max(seat.z + up.z * COCKPIT_EYE.aboveModelFt, floor + COCKPIT_EYE.leastAglFt),
+      };
       p.position.set(eye.x, eye.y, eye.z);
       p.up.copy(up);
       if (viewMode === 'padlock') p.lookAt(threshold);
