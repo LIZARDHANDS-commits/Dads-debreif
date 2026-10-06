@@ -7,7 +7,8 @@
 // its turn (as TS-45); Terminate can't be cut short. #2's line is worked out from Lead's path (fluid-wing.js), so it is
 // planned too: the dashed path ahead is the path flown.
 import { STEP_SEC } from './flight.js';
-import { relativeTo } from './manoeuvres.js';
+import { FW_BAND } from './slots.js';
+import { relativeTo, DEG } from './manoeuvres.js';
 import { aspectAngle3dDeg, headingCrossAngle3dDeg } from '../../../core/angles.js';
 import { shakerG } from '../../../core/t6-performance.js';
 import { FTPS_TO_KT, G_FTPS2 } from '../../../core/units.js';
@@ -19,7 +20,6 @@ import { LEAD, FLUID_MOVES, leadStateOf, stepLead, leadThrottle, levelTurn, wing
 import { startWing, nextWing, rawWingPoint, smoothPoint, wingPose, levelUpOf, swapWanted, swapSide, wingValues } from './fluid-wing.js';
 
 const dt = STEP_SEC;
-const DEG = Math.PI / 180;
 /** Lead's path is kept planned this far ahead (it feeds #2's line and the dashed preview). */
 const AHEAD_STEPS = Math.round(20 / dt);
 /** Lead's path before the press is extended back this far (straight, as he was), so #2 can look back along it. */
@@ -31,9 +31,9 @@ const SWAP_LOOK_STEPS = Math.round(0.25 / dt);
 
 /** The fluid manoeuvring numbers (Patrick's picks of 19:20Z, fluid-conflicts.md, unless said). */
 export const FLUID = Object.freeze({
-  rangeFt: Object.freeze({ min: 500, max: 1000, def: 600, goodMax: 750 }), // SMM 16.17 para 42; AFM7 p.17, AFM8 p.19; Patrick row 3
+  rangeFt: Object.freeze({ min: FW_BAND.rangeFt[0], max: FW_BAND.rangeFt[1], def: 600, goodMax: 750 }), // SMM 16.17 para 42; AFM7 p.17, AFM8 p.19; Patrick row 3 (min and max: slots.js FW_BAND)
   coneHalfDeg: 30, // 60° in all, 30° either side of Lead's tail (Patrick row 2)
-  bubbleFt: 500, // SMM 16.17 para 44c; Gen Book p.11
+  bubbleFt: FW_BAND.bubbleFt, // SMM 16.17 para 44c; Gen Book p.11 (slots.js FW_BAND)
   wingGLimit: 5, // SMM 16.17 para 44a; Gen Book p.11 (flagged, never a wall)
   leadGLimit: 4, // 2 CFFTS Orders B2 ch 8 para 1a; Gen Book p.11 (flagged)
   hardDeckMslFt: 6000, // 3,000 ft AGL, about 6,000 ft MSL in the Moose Jaw areas (SMM 14.6 para 16); FM minimum (Orders B2 ch 8 para 1f; Gen Book p.11)

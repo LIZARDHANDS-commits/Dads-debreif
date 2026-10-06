@@ -10,6 +10,8 @@ export const SKY_COLOURS = Object.freeze({ top: '#2f6aa8', middle: '#6f9fd2', ho
 /** The cloud layer: how far above the centre it sits (Patrick, 6 Oct: clouds above, ground below), the size of a tile and
  * how many clouds each holds (estimates). */
 export const CLOUD_LAYER = Object.freeze({ aboveFt: 2500, tileFt: 40_000, perTile: 7, sizeFt: [3000, 7000] });
+/** The clouds are off (Patrick, 6 Oct: "I want to get rid of the clouds"); the blue sky stays. true brings them back. */
+export const SHOW_CLOUDS = false;
 
 /** A small repeatable random number generator, so the clouds sit in the same places every time. */
 function seeded(seed) {
@@ -91,9 +93,14 @@ export function addSkyAndClouds(THREE, scene, { doc = globalThis.document, seed 
       sprites.push({ s, c, t });
     }
   }
+  group.visible = SHOW_CLOUDS;
   scene.add(group);
   return {
     update(centre, show = 1) {
+      if (!SHOW_CLOUDS) {
+        group.visible = false;
+        return;
+      }
       material.opacity = 0.85 * Math.max(0, Math.min(1, show));
       group.visible = material.opacity > 0.02;
       const T = CLOUD_LAYER.tileFt;
@@ -106,7 +113,7 @@ export function addSkyAndClouds(THREE, scene, { doc = globalThis.document, seed 
       }
     },
     setVisible(on) {
-      group.visible = Boolean(on);
+      group.visible = SHOW_CLOUDS && Boolean(on);
     },
     dispose() {
       scene.remove(group);

@@ -16,7 +16,7 @@
 // the centre when he is stretched or outside the circle and a lag angle away from it when he is tight. The tracker's own
 // heading and speed loops, bank cap and flight step fly the command (tracker.js, a phase with `pursuit`), so the path is
 // recorded and replayed like every other 2-ship move. Numbers: tuning.js FW_PURSUIT (estimates unless a page is named).
-import { G_FTPS2 } from '../../../core/units.js';
+import { turnRadiusFromBankFt, turnRateFromBankRadPerSec } from '../../../core/flight-math.js';
 import { DEG } from './manoeuvres.js';
 import { FW_PURSUIT, FW_BUBBLE } from './tuning.js';
 
@@ -35,7 +35,7 @@ export function fwPursuitCommand(L, W, plannedBankDeg = null) {
   if (plannedBankDeg != null && Math.abs(plannedBankDeg) > Math.abs(bank) && Math.sign(plannedBankDeg) === (Math.sign(bank) || Math.sign(plannedBankDeg))) bank = plannedBankDeg;
   if (Math.abs(bank) < P.minBankDeg) return null;
   const s = Math.sign(bank); // +1 a left turn (heading grows), -1 right
-  const radiusFt = L.tasFtps ** 2 / (G_FTPS2 * Math.tan(Math.abs(bank) * DEG));
+  const radiusFt = turnRadiusFromBankFt(L.tasFtps, Math.abs(bank));
   // Lead's turn centre, off his left or right wing.
   const cx = L.xFt - s * Math.sin(L.headingRad) * radiusFt;
   const cy = L.yFt + s * Math.cos(L.headingRad) * radiusFt;
@@ -77,7 +77,7 @@ const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
  */
 function predict(L, W, psi, horizonSec = FW_BUBBLE.horizonSec) {
   const B = FW_BUBBLE;
-  const omegaL = (G_FTPS2 * Math.tan(L.bankDeg * DEG)) / Math.max(L.tasFtps, 1); // + left, heading grows
+  const omegaL = turnRateFromBankRadPerSec(Math.max(L.tasFtps, 1), L.bankDeg); // + left, heading grows
   const wMax = B.turnRateDegS * DEG;
   const dt = B.stepSec;
   let [lx, ly, lh] = [L.xFt, L.yFt, L.headingRad];

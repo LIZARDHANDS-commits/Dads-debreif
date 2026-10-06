@@ -1,11 +1,11 @@
 // The tracker (clean-up step 1, TS-64; Patrick 5 Oct 05:27Z: "Tracker for fallback, and refractor the tracker"): a small
 // closed-loop "pilot" that flies a wingman toward a slot in the frame of the aircraft he flies off, commanding bank and
 // speed the way a pilot would, through the very same flight.js step the real aircraft use. It is flown once as a dry run
-// at the press; the bank and speed it commanded are recorded and replayed by the real aircraft (transitions.js flyStep's
+// at the press; the bank and speed it commanded are recorded and replayed by the real aircraft (replay.js flyStep's
 // 'bankTrack' segment), so the path drawn ahead is the path flown (spec F1). It stays as the fallback for starts that no
 // kinematic-line rule covers; until step 1 it lived in transitions.js. Its numbers are tuning.js TRACKER (all estimates:
-// they shape how smoothly the wingman flies, not where the formations are). The leg recipes that call it (slide, stopAt,
-// dropBack, sweepOut, closeThrough, rejoinTo, openOut, straightAhead) stay with the moves in transitions.js.
+// they shape how smoothly the wingman flies, not where the formations are). Its phase defaults are here; the leg recipes that call it
+// (slide, stopAt, dropBack, sweepOut, closeThrough, rejoinTo, openOut, straightAhead) live in recipes.js.
 import { bankDegFromTurnRate } from '../../../core/flight-math.js';
 import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2 } from '../../../core/units.js';
@@ -389,7 +389,7 @@ function zoomRoomFtps(L, W) {
 
 /**
  * One leg for the tracker: chase `slot` (in the frame of the aircraft the leg names in `track`, or Lead) with
- * tuning.js TRACKER.phase's settings, changed by `over` (the leg recipes in transitions.js, four-close.js and
+ * tuning.js TRACKER.phase's settings, changed by `over` (the leg recipes in recipes.js, four-close.js and
  * formation-turns.js). Fields beyond those: altSec, altRateFtps, stopFtps, dwellSec (below), goal, goalTolFt, holdUntil,
  * world, track (runTracker).
  */
@@ -408,7 +408,7 @@ export function phase(slot, over = {}) {
 }
 
 /**
- * The tracker run twice (fly2's method, for any set of recorded references): the first run learns when each leg starts and
+ * The tracker run twice (transitions.js trackTwiceOffLead's method, for any set of recorded references): the first run learns when each leg starts and
  * ends, the second flies with the wingman's height profile built from those times. Returns { run, profile }.
  */
 export function trackTwice({ refs, wing0, t0, phases, blockFt, maxSec = PLAN_MAX_SEC, init = null, stopWhenSettled = false }) {

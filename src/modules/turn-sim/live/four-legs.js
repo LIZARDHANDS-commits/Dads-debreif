@@ -1,7 +1,7 @@
 // The 4-ship's legs (refactor PR 6, the four rebuilt on the 2-ship's planners; Fable's plan, chooser/plan.md section 20;
 // Patrick "agreed" 5 Oct 23:18Z): the machinery every 4-ship move is built from. A move is one or more legs; a leg plans
 // Lead first, then each wingman in an order where the aircraft he flies off is already planned (#4 off #3 "flies through
-// #3", SMM 16.37 para 103), each against the others' recorded flights (transitions.js recordFlight), through the same
+// #3", SMM 16.37 para 103), each against the others' recorded flights (replay.js recordFlight), through the same
 // flight step as every other aircraft, so the path drawn is the path flown (spec F1).
 //
 // A wingman's part is either tracker legs (`phases`, the 2-ship's own leg recipes on the 2-ship's power profile,
@@ -18,7 +18,10 @@
 // baseline), so they are not used here.
 import { STEP_SEC, copyAircraft } from './flight.js';
 import { relativeTo } from './manoeuvres.js';
-import { recordFlight, flyStep, dryRunT, speedSeg } from './transitions.js';
+import { recordFlight, flyStep, dryRunT, speedSeg } from './replay.js';
+import { sweepOut } from './recipes.js';
+import { FW_FOLLOW } from './tuning.js';
+import { fwGoal } from './formation-turns.js';
 import { trackTwice, runTracker, phase } from './tracker.js';
 import { inLeadsPlane, planeEaseSec } from './turning-rejoin.js';
 import { onClosure } from './hand-over.js';
@@ -220,6 +223,8 @@ export function hold(c, id, track, over = {}, altFt = c.by.get(id).altAboveFt) {
 
 /** A table slot (slots.js) as a phase of the given kind. */
 export const toSlot = (c, kind, slot, over = {}) => kind(place(c, slot.fwd, slot.left, slot.alt), { track: slot.ref, ...over });
+/** Fighting wing kept off the aircraft he flies off, anywhere in the cone (formation-turns.js fwGoal, the whole cone, TS-75), his stack held. */
+export const inCone = (c, slot, side, over = {}) => ({ ...toSlot(c, sweepOut, slot), ...FW_FOLLOW, coneAlt: false, goal: (R, W) => fwGoal(R, W, side, false), ...over });
 
 /** Where a slot off #2 or #3 is in Lead's frame once everyone is in place (all on one heading, so the offsets add). */
 export function inLeadFrame(slots, id) {

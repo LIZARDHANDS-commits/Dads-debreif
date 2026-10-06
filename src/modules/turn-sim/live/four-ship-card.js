@@ -2,7 +2,7 @@
 // each wingman against the aircraft it flies off, and the roll-out judged the same way, wingman
 // by wingman (live/judge.js judge, for a roll-out and for a change of formation alike).
 import { relativeTo, MANOEUVRES } from './manoeuvres.js';
-import { compassDeg, intoOrAway } from './formation.js';
+import { compassDeg, intoOrAway } from './formation-words.js';
 import { classify } from './judge.js';
 import { fourWords } from './slots.js';
 

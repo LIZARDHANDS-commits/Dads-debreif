@@ -8,8 +8,9 @@
 // It changes no flight physics and no planner: the move is one tracker phase (tracker.js), at the close-in closure in the
 // close bands and, since V2.145, with no closure cap and a hard dive or climb in line abreast and fighting wing (TS-128).
 // Written by Fable (turn-sim-review/move-in-band/), folded into V2.95 (TS-98).
-import { relativeTo } from './manoeuvres.js';
-import { recordFlight, speedSeg, CHANGE_LIMIT_SEC } from './transitions.js';
+import { relativeTo, DEG } from './manoeuvres.js';
+import { recordFlight, speedSeg } from './replay.js';
+import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { judge, classify } from './judge.js';
 import { FORMATIONS, FW_BAND } from './slots.js';
 import { IN_POSITION } from './bands.js';
@@ -39,8 +40,6 @@ export const PLACE_HEIGHT = Object.freeze({
   fw: Object.freeze({ maxFt: IN_POSITION.fwStackFt, startFt: -60, stepFt: 10 }),
   lab: Object.freeze({ maxFt: IN_POSITION.labStackFt, startFt: 0, stepFt: 100 }),
 });
-
-const DEG = Math.PI / 180;
 
 /**
  * The box's outline in Lead's frame, on #2's side (side +1 left, -1 right): [{ fwd, left }]. Fighting wing: the cone,

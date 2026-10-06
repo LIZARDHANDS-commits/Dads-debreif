@@ -52,7 +52,11 @@ export function applyPose(a, p) {
   a.pitchDeg = p.pitch;
   a.g = p.g;
   a.nz = p.nz ?? 1;
-  flyAttitude(a, { attitudeDeg: a.attitudeDeg }, STEP_SEC); // the wings follow the lift as a roll (flight.js)
+  // A 3D path's pose (attitude.js poseOf3d) carries the wings' true attitude: drawn as it is, so a barrel or lag roll is one
+  // smooth roll through inverted (Patrick 6 Oct 21:30Z: "the rolls snap 180 degrees ... the lag roll should be a smooth 360").
+  // Otherwise the wings follow the lift as a roll (flight.js flyAttitude).
+  if (Number.isFinite(p.att)) a.attitudeDeg = p.att;
+  else flyAttitude(a, { attitudeDeg: a.attitudeDeg }, STEP_SEC);
   a.turning = true;
   a.slowStage = p.stage ?? null; // how the line's slow-down is flown (slow-down.js, TS-61): BOARDS or IDLE on the card and tags
   a.overshooting = Boolean(p.over); // on an overshoot (TS-62): OVERSHOOTING on the card and tags
@@ -205,7 +209,7 @@ function motionAt(track, k) {
 
 /**
  * Fills a track from step `from` (whose earlier rows are already set) to n + PAD with the wingman following its slot.
- *  ref: the reference's recorded flight (transitions.js recordFlight), step 0 at the track's step 0.
+ *  ref: the reference's recorded flight (replay.js recordFlight), step 0 at the track's step 0.
  *  slotAt(k, R): { fwd, left, up, plane } the slot in R's frame at step k (R = ref.at(k)); up is height above R.
  *  events: step indices at which the wingman re-bases (`from` is always one): from there it blends from "carry on as I am,
  *    turning as the reference turns" to the slot over blendSec, so a roll of the reference reaches it smoothly.

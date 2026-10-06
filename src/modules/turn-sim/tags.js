@@ -37,7 +37,7 @@ import { IN_POSITION } from './live/tuning.js';
 import { pursuitWord } from './fluid-panel.js';
 import { isManoeuvring, FLUID } from './live/fluid.js';
 import { powerWord, throttleFor } from './live/power.js';
-import { compassDeg } from './live/formation.js';
+import { compassDeg } from './live/formation-words.js';
 import { liftBankDeg } from './live/flight.js';
 
 const CLOSE_KEYS = new Set(['echelon', 'route', 'astern', 'finger', 'box', 'trail']);

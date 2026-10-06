@@ -21,7 +21,7 @@
 // The chooser changes no flight physics and no planner: it only picks between them.
 // What re-plans when (the press, the hand-over, the decision point, the picture breaking: spec F1 and F11 as reworded by
 // TS-76) is formation.js's and hand-over.js's; this file only chooses.
-import { pairSlot } from './slots.js';
+import { pairSlot, LANE, sideFor } from './slots.js';
 import { relativeTo } from './manoeuvres.js';
 import { G_RULE_BANK_DEG, HAND_OVER_FT } from './tuning.js';
 import { planGoTo } from './transitions.js';
@@ -35,8 +35,6 @@ import { planOpenOut } from './open-out.js';
 import { planFromHere } from './replan.js';
 import { planRollingRejoin, ROLLING_REJOIN_KIND } from './rolling-rejoin.js';
 
-/** The overshoot lane's margin: inside 1,000 ft #2 may pass this far ahead of his slot toward Lead's 3/9 line, never more (the shared 100 ft margin, design section 10). */
-export const LANE_MARGIN_FT = 100;
 /** Two candidates closer than this in time are a tie, settled by smoothness (turning-rejoin.js uses the same half second). */
 export const TIE_SEC = 0.5;
 /** A bank under this is "wings level" when counting reversals (estimate). */
@@ -111,7 +109,7 @@ export function roughness(wingPlan) {
 export function candidateOf(name, plan, to, spacingFt, t0, wingId, fallback = false) {
   const slotFwd = Math.max(0, pairSlot(to, plan.side || plan.fromSide || -1, spacingFt)?.fwd ?? 0);
   const inBand = plan.judged?.inBand ?? true;
-  const laneOk = (plan.laneFwdFt ?? -Infinity) <= slotFwd + LANE_MARGIN_FT;
+  const laneOk = (plan.laneFwdFt ?? -Infinity) <= slotFwd + LANE.marginFt; // the overshoot lane (slots.js LANE)
   const bank = Math.min(89, Math.abs(plan.maxBankDeg ?? 0));
   const maxG = plan.maxG ?? plan.lagRoll?.maxG ?? 1 / Math.cos((bank * Math.PI) / 180);
   // The lag roll rolls through the inverted: its pull is its own (TS-71); a plan that judges its own G rule (the rolling rejoin) says so.
@@ -127,7 +125,7 @@ export function rangeToSlotFt(pair, to, options = {}) {
   const rel = relativeTo(lead, wing);
   const s = Math.sign(rel.left) || options.lastSide || -1;
   const want = options.side ?? 'keep';
-  const sTo = to === 'astern' ? 0 : want === 'left' ? 1 : want === 'right' ? -1 : s;
+  const sTo = sideFor(to, want, s);
   const slot = pairSlot(to, sTo || s, options.spacingFt ?? 6000);
   return slot ? Math.hypot(rel.fwd - slot.fwd, rel.left - slot.left) : Infinity;
 }

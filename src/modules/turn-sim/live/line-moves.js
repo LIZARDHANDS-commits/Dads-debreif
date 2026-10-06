@@ -5,7 +5,7 @@
 // wing, is turning-rejoin.js (TS-68); odd starts no line rule covers stay with the tracker alone (transitions.js planGoTo,
 // the fallback).
 //
-// The lines follow the same manual routes as the tracker's legs (transitions.js legsFor), so the end picture is the same:
+// The lines follow the same manual routes as the tracker's legs (recipes.js legsFor), so the end picture is the same:
 //  - fighting wing to echelon, route or line astern: the straight-ahead rejoin (SMM 12.26 paras 62-63, Fig 12.17; EFIG
 //    p.371; Patrick 4 Oct 19:04Z, TS-55): the line drops back onto Lead's six about 1,000 ft behind, just below his wake,
 //    and runs up it; the tracker takes over about 500 ft from the slot (near Fig 12.17's point 2, where the small vector to
@@ -18,15 +18,18 @@
 //  - the straight-ahead rejoin from fighting wing is the Rejoin kind choice's other option (the turning rejoin, the default,
 //    is turning-rejoin.js: V2.59, TS-68; Patrick 07:32Z: "From every tactical formation you should be able to pick either
 //    straight ahead rejoin or turning rejoin").
-import { recordFlight, speedSeg, describe, legsFor, STRAIGHT_AHEAD, CHANGE_LIMIT_SEC } from './transitions.js';
+import { recordFlight, speedSeg } from './replay.js';
+import { legsFor, STRAIGHT_AHEAD } from './recipes.js';
+import { describe, CHANGE_LIMIT_SEC } from './transitions.js';
 import { CLOSE, routePoints } from './kinematic-moves.js';
 import { classify, judge } from './judge.js';
-import { FORMATIONS, pairSlot } from './slots.js';
+import { FORMATIONS, pairSlot, sideFor } from './slots.js';
 import { KIAS_LAB, KIAS_OUTSIDE_LAB, OPEN_OUT, closureNow, rejoinClosureNow, ratesNow, RATE_WORDS } from './tuning.js';
 import { fullPowerKtps } from './slow-down.js';
 import { climbKtps } from './full-power.js';
 import { relativeTo, DEG } from './manoeuvres.js';
-import { onClosure, lineRunIn, trackTail, wingPlan, replanFor } from './hand-over.js';
+import { onClosure, lineRunIn, wingPlan, replanFor } from './hand-over.js';
+import { trackTail } from './lead-turn-in.js';
 import { STEP_SEC } from './flight.js';
 
 /**
@@ -77,7 +80,7 @@ export function planLineChange(pair, to, options = {}, t0 = 0) {
   const from = classify([lead, wing]);
   const sCur = from.side || (options.lastSide ?? -1);
   const want = options.side ?? 'keep';
-  const sTo = to === 'astern' ? 0 : want === 'left' ? 1 : want === 'right' ? -1 : sCur;
+  const sTo = sideFor(to, want, sCur);
   if (from.key === to && (to === 'astern' || sTo === sCur)) return null;
   if (from.key === 'other' || (from.key === 'lab' && to === 'lab')) return null;
   if (from.key === 'fw' && to === 'fw') return null; // the side switch is the tracker's S-turn (fw-switch.js, TS-102), not a line

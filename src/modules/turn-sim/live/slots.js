@@ -91,13 +91,33 @@ export const STACK_FT = Object.freeze({ 1: 0, 2: 300, 3: -300, 4: -600 });
  * (Patrick 21:25Z, TS-58): setFwShape changes it, and the table's 'fw' reads it.
  */
 export const FW2 = Object.freeze({ rangeFt: 750, sweepDeg: 45 });
-/** SMM 12.29 para 69's band: a desired place outside it is flown and flagged, never refused. The judge reads it too. */
-export const FW_BAND = Object.freeze({ rangeFt: Object.freeze([500, 1000]), sweepDeg: Object.freeze([30, 60]) });
 /**
- * What the sim will fly at all: 50 ft and 5° inside the region where the pair is still recognised as fighting wing
- * (judge.js classify: 400-1,300 ft, 20-70°), so the fighting wing buttons keep working. Estimates, not manual limits.
+ * Fighting wing's band, the one table every planner, the judge and the bubble read (Fable review step 1).
+ * rangeFt, sweepDeg: SMM 12.29 para 69, Fig 12.19. A desired place outside it is flown and flagged, never refused.
+ * flyMarginFt/Deg: what the sim will fly at all, the band widened by this (FW_LIMITS; estimates, not manual limits).
+ * seeMarginFt/Deg: where the pair is still recognised as fighting wing, the band widened by this (FW_REGION, judge.js
+ * classifier; estimates). bubbleFt: never inside this of Lead (SMM 16.17 para 44c, SMM 16.23, Gen Book p.11).
  */
-export const FW_LIMITS = Object.freeze({ rangeFt: Object.freeze([450, 1250]), sweepDeg: Object.freeze([25, 65]) });
+export const FW_BAND = Object.freeze({
+  rangeFt: Object.freeze([500, 1000]), sweepDeg: Object.freeze([30, 60]),
+  flyMarginFt: 50, flyMarginDeg: 5, seeMarginFt: 100, seeMarginDeg: 10, bubbleFt: 500,
+});
+const widen = (marginFt, marginDeg) => Object.freeze({
+  rangeFt: Object.freeze([FW_BAND.rangeFt[0] - marginFt, FW_BAND.rangeFt[1] + marginFt]),
+  sweepDeg: Object.freeze([FW_BAND.sweepDeg[0] - marginDeg, FW_BAND.sweepDeg[1] + marginDeg]),
+});
+/** What the sim will fly at all (450-1,250 ft, 25-65°): 50 ft and 5° inside FW_REGION, so the fighting wing buttons keep working. */
+export const FW_LIMITS = widen(FW_BAND.flyMarginFt, FW_BAND.flyMarginDeg);
+/** Where the pair is still recognised as fighting wing (400-1,300 ft, 20-70°; judge.js classifier). */
+export const FW_REGION = widen(FW_BAND.seeMarginFt, FW_BAND.seeMarginDeg);
+
+/**
+ * The overshoot lane, one rule (SMM 12.27 para 65; Fable review step 1). A plan passes if #2 never gets more than
+ * marginFt ahead of his slot's fore and aft place while inside rangeFt of Lead (estimate); his height under Lead is
+ * measured inside belowRangeFt.
+ */
+export const LANE = Object.freeze({ marginFt: 100, rangeFt: 1000, belowRangeFt: 2000 });
+
 let fwShape = { ...FW2 };
 
 /** Sets the 2-ship's desired fighting wing place ({ rangeFt, sweepDeg }; a missing value takes the default). */
@@ -253,6 +273,14 @@ export function slotsFor(key, s, { ships = 2, spacingFt = 6000, stacked = true }
 export function pairSlot(key, s, spacingFt = 6000) {
   const { ref: _ref, ...at } = slotsFor(key, s, { spacingFt })[2];
   return at;
+}
+
+/**
+ * The side #2 ends on for a 2-ship change to formation `to` (+1 left of Lead, -1 right, 0 for line astern): the side asked
+ * for (`want`: 'left', 'right' or 'keep'), or, kept, the side he is on now (`sNow`). The one copy of the planners' side choice.
+ */
+export function sideFor(to, want, sNow) {
+  return to === 'astern' ? 0 : want === 'left' ? 1 : want === 'right' ? -1 : sNow;
 }
 
 /** Who flies off whom in a 4-ship formation: { 2: id, 3: id, 4: id }. */

@@ -6,7 +6,7 @@
 // Fig 14.1, Table 14.1 (the barrel roll). Every number in ROLLING_REJOIN is an estimate unless a page or ruling is named
 // beside it. Approach and dry runs: turn-sim-review/rolling-rejoin/approach.md (project files).
 //
-// How it is planned. Lead turns into #2 exactly as in the plain turning rejoin (hand-over.js leadTurnInto, 30° of bank held
+// How it is planned. Lead turns into #2 exactly as in the plain turning rejoin (lead-turn-in.js leadTurnInto, 30° of bank held
 // until #2 is in). #2 flies a roll from the press, then the plain turning rejoin's own search (turning-rejoin.js
 // searchTurningRejoin) from where he rolls out. The roll is flown the way fluid manoeuvring flies Lead's barrel roll
 // (fluid-lead.js): a planned nose path followed at a set G on the point mass (core point-mass.js: full power, the T-6A's
@@ -23,16 +23,17 @@
 // Conventions as the rest of the live code: x east, y north, z up, feet and seconds; heading in math radians (0 east,
 // counter-clockwise); fwd and left in Lead's frame (left positive); bank left wing down positive.
 import { relativeTo, DEG } from './manoeuvres.js';
-import { recordFlight, speedSeg, CHANGE_LIMIT_SEC } from './transitions.js';
+import { recordFlight, speedSeg } from './replay.js';
+import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
-import { FORMATIONS, pairSlot } from './slots.js';
+import { FORMATIONS, pairSlot, LANE, sideFor } from './slots.js';
 import { KIAS_OUTSIDE_LAB, REJOIN, TURNING_REJOIN, LAG_ROLL, G_RULE_BANK_DEG } from './tuning.js';
-import { leadTurnInto, fromStep, wingFromPose } from './hand-over.js';
+import { fromStep, wingFromPose } from './hand-over.js';
+import { leadTurnInto } from './lead-turn-in.js';
 import { searchTurningRejoin } from './turning-rejoin.js';
 import { STEP_SEC, smoother } from './flight.js';
 import { leadStateOf, stepLead, nosePath, followNose, noseAt } from './fluid-lead.js';
 import { poseOf3d } from './attitude.js';
-import { LANE_MARGIN_FT } from './chooser.js'; // read at plan time only (chooser.js imports this file)
 
 const dt = STEP_SEC;
 
@@ -101,7 +102,7 @@ function flyRoll(c, wing, rec, s, blockFt) {
     if (range >= LAG_ROLL.bubbleFt) out = true;
     if (out && range < LAG_ROLL.bubbleFt) return null; // never inside 500 ft of Lead (SMM 16.23, the fluid bubble)
     if (out) minRangeFt = Math.min(minRangeFt, range);
-    if (Math.hypot(rel.fwd, rel.left) < 1000) laneFwdFt = Math.max(laneFwdFt, rel.fwd);
+    if (Math.hypot(rel.fwd, rel.left) < LANE.rangeFt) laneFwdFt = Math.max(laneFwdFt, rel.fwd);
     minKias = Math.min(minKias, st.kias);
     maxG = Math.max(maxG, st.g);
     maxBankDeg = Math.max(maxBankDeg, Math.abs(pose.bank));
@@ -155,7 +156,7 @@ export function planRollingRejoin(pair, to, options = {}, t0 = 0) {
   const blockFt = options.blockFt ?? 8000;
   const s = from.side || Math.sign(relativeTo(lead, wing).left) || (options.lastSide ?? -1);
   const want = options.side ?? 'keep';
-  const sTo = to === 'astern' ? 0 : want === 'left' ? 1 : want === 'right' ? -1 : s;
+  const sTo = sideFor(to, want, s);
   const pre = Math.abs(lead.kias - KIAS_OUTSIDE_LAB) > 0.5 ? [{ ...speedSeg(lead.kias, KIAS_OUTSIDE_LAB, blockFt), withNext: true }] : [];
   const into = leadTurnInto({ lead, pre, s, bankDeg: REJOIN.leadBankDeg, t0, record: recordFlight });
   const rec = into.longRec;
@@ -176,7 +177,7 @@ export function planRollingRejoin(pair, to, options = {}, t0 = 0) {
   flown.sort((a, b) => a.score - b.score);
   // The overshoot lane (chooser.js's check, SMM 12.27 para 65): inside 1,000 ft he stays behind his slot toward Lead's 3/9
   // line; a roll that keeps it beats one that doesn't, whatever its time.
-  const laneLimitFt = Math.max(0, pairSlot(to, sTo || s, spacingFt)?.fwd ?? 0) + LANE_MARGIN_FT;
+  const laneLimitFt = Math.max(0, pairSlot(to, sTo || s, spacingFt)?.fwd ?? 0) + LANE.marginFt;
   const better = (x, y) => (x.laneOk !== y.laneOk ? x.laneOk : x.durationSec < y.durationSec - 0.5);
   let best = null;
   let since = 0;
@@ -224,7 +225,6 @@ export function planRollingRejoin(pair, to, options = {}, t0 = 0) {
     to,
     side: sTo,
     rejoinKind: 'into',
-    decisionSec: null,
     leadTurnDeg: Math.round(lp.turned / DEG),
     laneFwdFt: Math.max(m.laneFwdFt, run.laneFwdFt ?? -Infinity),
     maxBankDeg: Math.max(m.maxBankDeg, restBankDeg),

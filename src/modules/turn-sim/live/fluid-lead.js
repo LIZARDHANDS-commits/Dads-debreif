@@ -45,7 +45,7 @@
 //    was 180°, an estimate, in V2.19), so the sequence starts and ends on the entry heading and #2 settles onto his fluid
 //    position (the distance setting, 15° off Lead's tail) during it; then each manoeuvre's own speed set-up leads on.
 import { stepPointMass, gAndBankForLift } from '../../../core/point-mass.js';
-import { easeValue, dampedClimbG } from '../../../core/flight-math.js';
+import { easeValue, dampedClimbG, turnRateFromBankRadPerSec } from '../../../core/flight-math.js';
 import { t6aExcessFn, tasToIasKt, shakerG, dragPerWeight, thrustPerWeight, T6A_G_ONSET } from '../../../core/t6-performance.js';
 import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
@@ -340,7 +340,7 @@ export function levelTurn(dir, bankDeg, { turnDeg = null, label = null } = {}) {
       // bank's turn rate, standard kinematics), never quicker than WING.rangeSec, instead of in a few seconds. Already
       // set, nothing moves.
       if (turnDeg != null && !mem.rollingOut) {
-        const rate = (G_FTPS2 * Math.tan(bankDeg * DEG)) / Math.max(st.V, 1);
+        const rate = turnRateFromBankRadPerSec(Math.max(st.V, 1), bankDeg);
         cue.settleSec = Math.max(WING.rangeSec, (turnDeg * DEG - mem.turned) / rate);
       }
       return { g: gForClimb(st, 0), bank, phase: mem.rollingOut ? 'rolling out' : Math.abs(st.bank) < bankDeg - 2 ? 'rolling in' : 'turning', cue, done };

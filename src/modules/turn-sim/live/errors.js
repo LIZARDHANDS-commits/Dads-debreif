@@ -42,7 +42,7 @@ import { excessThrustPerWeight } from '../../../core/t6-performance.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, copyAircraft, heightAt, angleToGo, stepAircraft, planDone, smoother, smootherSlope, SMOOTHER_PEAK } from './flight.js';
 import { slowKtps, speedSegFor } from './slow-down.js';
-import { planManoeuvre, dryRun, relativeTo, missProfile, onStep, turnSeg, VERTICAL_MISS_FT } from './manoeuvres.js';
+import { planManoeuvre, dryRun, relativeTo, missProfile, onStep, turnSeg, VERTICAL_MISS_FT, DEG } from './manoeuvres.js';
 
 // ---- the settings ------------------------------------------------------------------------
 
@@ -163,7 +163,6 @@ const MIN_SPACING_FT = 1000;
 /** A fix that ends this close to the SMM picture counts as fixed: the shared table's ±100 ft (docs/TESTING.md). */
 export const FIXED_WITHIN_FT = 100;
 
-const DEG = Math.PI / 180;
 const unit = (h) => ({ x: Math.cos(h), y: Math.sin(h) });
 const clone = (segs) => segs.map((s) => ({ ...s }));
 const num = (v, fallback) => (Number.isFinite(v) ? v : fallback);

@@ -6,7 +6,7 @@
 // 18-19, Fig 14.1, Table 14.1 (the barrel roll). Every number is in tuning.js LAG_ROLL with its source or "estimate".
 //
 // How it is planned (the first version, Lead straight and level only). Like the barrel roll's nose path (fluid-lead.js),
-// it is #2's own 3D manoeuvre worked out at the press and played as a poseTrack segment (transitions.js flyStep). Here the
+// it is #2's own 3D manoeuvre worked out at the press and played as a poseTrack segment (replay.js flyStep). Here the
 // path is drawn in Lead's frame (Lead flies straight at constant speed, so that frame does not accelerate): #2's place off
 // Lead goes round half a turn from his fighting wing place to the fighting wing slot on the other side, through a point
 // above and behind Lead's six, then he closes back up to the slot at a small overtake. The speed is what that path needs
@@ -22,13 +22,12 @@ import { availableG, tasToIasKt } from '../../../core/t6-performance.js';
 import { G_FTPS2, FTPS_TO_KT } from '../../../core/units.js';
 import { STEP_SEC, rollLimitAt } from './flight.js';
 import { classify } from './judge.js';
-import { relativeTo } from './manoeuvres.js';
+import { relativeTo, DEG } from './manoeuvres.js';
 import { pairSlot } from './slots.js';
 import { LAG_ROLL } from './tuning.js';
 import { add3, scale3, perp3, len3, unit3, dot3, cross3, liftOf, poseOf3d } from './attitude.js';
 import { easeRoll } from '../../../core/flight-math.js';
 
-const DEG = Math.PI / 180;
 const Z = Object.freeze({ x: 0, y: 0, z: 1 });
 
 /** The key formation.js uses for the lag roll in its change machinery. */

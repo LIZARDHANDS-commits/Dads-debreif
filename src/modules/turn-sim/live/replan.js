@@ -8,21 +8,22 @@
 //  - in a turning rejoin, Lead holds his turn into #2 until #2 is in, then rolls out (SMM 16.20 para 65b; Patrick 06:16Z
 //    item 3: "until 2 is on"), whatever the new place, except line abreast;
 //  - otherwise Lead flies straight, at the new formation's speed.
-// It changes no flight physics and no planner: the legs are transitions.js's, the tracker tracker.js's.
+// It changes no flight physics and no planner: the legs are recipes.js's, the tracker tracker.js's.
 import { relativeTo } from './manoeuvres.js';
-import { recordFlight, speedSeg, legsFor, rejoinTo, closeThrough, slide, openOut, cornerBehind, CHANGE_LIMIT_SEC } from './transitions.js';
+import { recordFlight, speedSeg } from './replay.js';
+import { legsFor, rejoinTo, closeThrough, slide, openOut, cornerBehind } from './recipes.js';
+import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { judge } from './judge.js';
-import { FORMATIONS, FW_BAND, pairSlot } from './slots.js';
+import { FORMATIONS, FW_BAND, LANE, pairSlot, sideFor } from './slots.js';
 import { KIAS_LAB, KIAS_OUTSIDE_LAB, HAND_OVER_FT, FW_FOLLOW, TURNING_REJOIN } from './tuning.js';
 import { crossBehindFwd } from './kinematic-moves.js';
-import { onClosure, leadTurnInto, trackTail } from './hand-over.js';
+import { onClosure } from './hand-over.js';
+import { leadTurnInto, trackTail } from './lead-turn-in.js';
 import { trackTwice, phase } from './tracker.js';
 import { STEP_SEC } from './flight.js';
 import { fwGoal, slideInPlane } from './formation-turns.js';
 import { wingFromPose } from './hand-over.js';
 
-/** The overshoot lane: inside 1,000 ft #2 stays behind Lead's 3/9 line, within the shared 100 ft margin (as chooser.js). */
-const LANE_MARGIN_FT = 100;
 /** Further than this from the new place, #2 closes on it with a rejoin's leg rather than a station change's (feet, an estimate: about route's spacing). */
 const CLOSE_LEG_FT = 100;
 
@@ -47,7 +48,7 @@ export function nearestPlace(lead, wing, spacingFt = 6000, lastSide = -1) {
  * fighting wing on his own side, the whole cone (he settles where he is in it, Patrick 08:58Z); between the close places on
  * his own side, straight into the new one; when he is already nearest the new place, straight into it; from out wide (line
  * abreast or fighting wing) to a close place, a rejoin to route on his side and the close legs from there (the turning
- * rejoin's tail); otherwise the change's own legs (transitions.js legsFor).
+ * rejoin's tail); otherwise the change's own legs (recipes.js legsFor).
  */
 export function legsFromHere(near, s, to, sTo, rel, spacingFt = 6000, turning = false) {
   const slot = (key, side) => pairSlot(key, side, spacingFt);
@@ -108,7 +109,7 @@ export function planFromHere(pair, to, options = {}, t0 = 0) {
   const near = nearestPlace(lead, wing, spacingFt, options.lastSide ?? -1);
   const s = near.side || Math.sign(relativeTo(lead, wing).left) || (options.lastSide ?? -1);
   const want = options.side ?? 'keep';
-  const sTo = to === 'astern' ? 0 : want === 'left' ? 1 : want === 'right' ? -1 : s;
+  const sTo = sideFor(to, want, s);
   const toSlot = pairSlot(to, sTo, spacingFt);
   const rel = relativeTo(lead, wing);
   const closeIn = Math.hypot(rel.fwd - toSlot.fwd, rel.left - toSlot.left) <= HAND_OVER_FT;
@@ -157,7 +158,7 @@ export function planFromHere(pair, to, options = {}, t0 = 0) {
       };
     }
   }
-  const laneFt = Math.max(0, toSlot.fwd) + LANE_MARGIN_FT;
+  const laneFt = Math.max(0, toSlot.fwd) + LANE.marginFt; // the overshoot lane (slots.js LANE); a slot behind Lead counts as 0 here, unlike chooser.js
   const judgeRun = (r) => judge([r.end.lead, r.end.wing], { key: to, side: sTo }, { spacingFt });
   const good = (r) => r.ok && r.durationSec <= CHANGE_LIMIT_SEC && judgeRun(r).inBand;
   const fly = (leadPlan) => ({ leadPlan, ...trackTwice({ refs: { [lead.id]: recordFlight(lead, leadPlan, t0) }, wing0: wing, t0, phases, blockFt }) });

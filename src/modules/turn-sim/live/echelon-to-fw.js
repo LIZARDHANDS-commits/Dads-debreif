@@ -22,19 +22,20 @@
 // even while still moving (Patrick 5 Oct ruling; Lead's buttons show then, formation.js pressFw).
 // A few bank and heading choices are flown and the one that reaches the cone soonest is kept, gentlest first. Numbers are
 // in ECHELON_TO_FW below with their source or "estimate".
+import { turnRateFromBankRadPerSec } from '../../../core/flight-math.js';
 import { relativeTo, turnSeg, DEG } from './manoeuvres.js';
-import { recordFlight, describe, CHANGE_LIMIT_SEC } from './transitions.js';
+import { recordFlight } from './replay.js';
+import { describe, CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
 import { FORMATIONS, FW_BAND, fwShapeNow, pairSlot } from './slots.js';
 import { KIAS_OUTSIDE_LAB, REJOIN_CLOSURE_KT, FW_FOLLOW, FW_TURN, TRACKER, TURNING_REJOIN, ratesNow, RATE_WORDS } from './tuning.js';
 import { fromStep, onClosure } from './hand-over.js';
 import { fwGoal } from './formation-turns.js';
 import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
-import { setKias, phase, trackTwice } from './tracker.js';
+import { setKias, phase, trackTwice, climbCostKtps } from './tracker.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
 import { powerFor, powerFrom } from './power.js';
 import { wrapPi } from '../../../core/angles.js';
-import { G_FTPS2 } from '../../../core/units.js';
 import { availableG } from '../../../core/t6-performance.js';
 
 const dt = STEP_SEC;
@@ -43,7 +44,7 @@ const dt = STEP_SEC;
 export const ECHELON_TO_FW = Object.freeze({
   banksDeg: Object.freeze([45, 60]), // the held bank to roll away and back, gentlest first: 60° is the review's (fable-compiled.md 3.2, estimate), 45° a gentler choice (estimate)
   offHeadingsDeg: Object.freeze([15, 20, 25, 30]), // how far off Lead's heading he holds: the review's 15-30° (estimate)
-  heightSec: 6, // he eases down to the fighting wing slot's height over this long (estimate: transitions.js sweepOut's 6 s) ...
+  heightSec: 6, // he eases down to the fighting wing slot's height over this long (estimate: recipes.js sweepOut's 6 s) ...
   descentFtps: TURNING_REJOIN.descentFtps, // ... and no quicker than this on average (the rejoin's 30 ft/s, an estimate)
   stopShare: 0.85, // the stop is planned at this share of what full power gives (wings level, at the speed halfway back to Lead's), so he stops a little short of the slot's distance back, never long (estimate)
   jerkKtps2: 6, // his acceleration follows the power at up to this, so idle and the boards to MAX takes about 1.5 s (estimate: the engine answers in about 0.25 s, Patrick 5 Oct 06:02Z, tuning.js ENGINE_RESPONSE_SEC; the speed brake's travel time is a guess)
@@ -105,7 +106,7 @@ function stopDriftFt(D0, a0, a1, jerk, ratio) {
 /**
  * #2's held-command part, against Lead's recorded straight flight `rec`, with one bank and one heading off. Returns null when
  * it breaks a check, else { points, steps, end, accelKtps, coneStep, maxBankDeg, laneFwdFt, minKias, maxSet }: points are
- * [bank, kias, power] a step (transitions.js flyStep's bankTrack), coneStep the first step he is in the cone, maxSet
+ * [bank, kias, power] a step (replay.js flyStep's bankTrack), coneStep the first step he is in the cone, maxSet
  * whether the stop reached full power.
  */
 function flyOut({ wing, rec, s, slot, bankDeg, offDeg, undertakeKias, blockFt, t0, profile, heightEndSec }) {
@@ -138,7 +139,7 @@ function flyOut({ wing, rec, s, slot, bankDeg, offDeg, undertakeKias, blockFt, t
 
     // The power. His speed limits are full power's and idle and the boards' at the G he pulls, less what a climb costs or
     // plus what a descent gives (standard aerodynamics, dV/dt = g (T - D) / W - g sin(climb angle); turning-rejoin.js).
-    const climbKtps = (G_FTPS2 * W.climbFtps) / Math.max(W.tasFtps, 1) / ratio;
+    const climbKtps = climbCostKtps(W, W.climbFtps);
     const aMax = fullPowerKtps(W.kias, blockFt, W.g) - climbKtps;
     const aAll = slowKtps('idleBoards', W.kias, blockFt, W.g) + climbKtps;
     const D = L.kias - W.kias; // KIAS below Lead (KIAS against KIAS)
@@ -147,7 +148,7 @@ function flyOut({ wing, rec, s, slot, bankDeg, offDeg, undertakeKias, blockFt, t
     // out in the turn back, which drifts him aft too (about a third of the rate now, over the turn and its roll).
     const aStop = E.stopShare * fullPowerKtps((W.kias + L.kias) / 2, blockFt);
     const off = Math.abs(wrapPi(W.headingRad - L.headingRad));
-    const turnRate = (G_FTPS2 * Math.tan(bankDeg * DEG)) / W.tasFtps;
+    const turnRate = turnRateFromBankRadPerSec(W.tasFtps, bankDeg);
     const geoFt = leg === 'parallel' ? 0 : (W.tasFtps * (1 - Math.cos(off)) * (off / turnRate + 1)) / 3;
     if (!stopping && D > 0 && stopDriftFt(D, accel, aStop, E.jerkKtps2, ratio) + geoFt >= room) stopping = true;
     // Idle and the boards to the undertake; once stopping, MAX held until he has Lead's speed, the last knots eased on.
