@@ -60,7 +60,7 @@ export const TURNING_REJOIN = Object.freeze({
   fwArriveFtps: 5, // to fighting wing he arrives at its place on the line at about this closure, and the tracker settles him there (estimate)
   hotBanksDeg: [30, 60], // hot (from line abreast) he tries Lead's own 30° and the medium 60° first (the review's estimates, rejoin-review-fable.md follow-up 1)
   lagAimFt: 2400, // and, hot, the gentlest capture too: lagging while Lead's turn brings the aspect round (estimate)
-  descentFtps: 30, // a height difference comes off no quicker than this, 1,800 ft/min (estimate)
+  heightG: 1, // a height change is one smooth leg whose push and pull stay within this many g of level flight: no rate cap, only the physics (the G is charged in flight.js) and smoothness (Patrick 6 Oct 21:30Z: "there shouldnt be a limit within the physics and smoothness"; TS-140; the 1 g an estimate)
   captureFt: 150, // he is on the line within this many feet of it; only then does he start taking out the overtake for the decision point (estimate)
   lagCutFt: 1500, // to fighting wing, hot and within this far of the place down the line he flies at the place itself, lagging the cut so it ends there (Patrick 6 Oct 17:11Z card "Lag the cut"; the distance an estimate)
   lineTauSec: 4, // his heading comes onto the one the line asks over about this long, so the bank changes smoothly (estimate)
@@ -70,8 +70,8 @@ export const TURNING_REJOIN = Object.freeze({
   diveSlackSec: 8, // a dive that brings him in no more than this much later than the steady descent is flown (estimate)
   heightSec: 10, // #2 settles slightly low on the line over this long, or over his part to the decision point if shorter (estimate)
   // The vertical as a candidate (Patrick 5 Oct 17:44Z "we can use the vertical too", 19:51Z "if it scores high enough"; TS-82):
-  // #2 goes this much higher than he starts early in the rejoin, then comes down onto the line, the climb and descent at no more
-  // than descentFtps, its pull charged as G (flight.js) and within the G rule. Flown only when it brings him in sooner (estimates).
+  // #2 goes this much higher than he starts early in the rejoin, then comes down onto the line, the climb and descent each one smooth
+  // leg within heightG, its pull charged as G (flight.js) and within the G rule. Flown only when it brings him in sooner (estimates).
   verticalUpFt: Object.freeze([500, 1000]),
   undertakeKias: 25, // only when no rejoin at his least speed keeps him behind Lead's 3/9 line (close in and hot) does he slow, at most this far below Lead's 200 KIAS (rejoinTo's, an estimate; TS-75)
   lineOverKias: 10, // hot, he reaches the line at no more than this over his least speed, Lead's 200 KIAS (to fighting wing, its place's own speed) (Patrick 17:29Z: "when they hit the line it needs to be at 210-200 knots"; TS-75)
@@ -274,7 +274,6 @@ export const FW_SWITCH = Object.freeze({
  */
 export const FW_ENERGY = Object.freeze({
   coneUpFt: IN_POSITION.fwStackFt - 25, // he uses the cone's height up to this far above or below Lead, 25 ft inside the in-position band: the top of the cone (Patrick 6 Oct 16:58Z; the margin an estimate)
-  climbFtps: TURNING_REJOIN.descentFtps, // no quicker than the rejoin's height changes, 1,800 ft/min (estimate)
   pullFtps2: 8, // the climb rate changes no quicker than this, about a quarter G, charged as G (estimate)
 });
 
@@ -328,7 +327,7 @@ export const TRACKER = Object.freeze({
   height: Object.freeze({
     minChangeFt: 0.5, // a smaller change is left out
     minSec: 4, // no height change takes less than 4 s (estimate)
-    maxRateFtps: TURNING_REJOIN.descentFtps, // nor at more than the rejoin's height-change rate on average, 1,800 ft/min (estimate)
+    heightG: TURNING_REJOIN.heightG, // nor quicker than one smooth leg within the rejoin's height-change g (TS-140; estimate)
     unknownLegSec: 6, // a leg whose end was never learned is given 6 s (estimate)
   }),
 });

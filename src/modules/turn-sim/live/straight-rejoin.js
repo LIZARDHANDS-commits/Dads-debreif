@@ -25,7 +25,7 @@ import { classify, judge } from './judge.js';
 import { FORMATIONS, pairSlot, sideFor } from './slots.js';
 import { KIAS_OUTSIDE_LAB, REJOIN_CLOSURE_KT, STRAIGHT_REJOIN, TURNING_REJOIN, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
 import { onClosure, fromStep } from './hand-over.js';
-import { STEP_SEC } from './flight.js';
+import { STEP_SEC, smoothLegSec } from './flight.js';
 import { trackTwice } from './tracker.js';
 import { flyRejoinLine } from './rejoin-law.js';
 import { KT_TO_FTPS as KT_FTPS } from '../../../core/units.js';
@@ -86,7 +86,7 @@ function flyStraightRejoinWith({ lead, wing, rec, s, to, sTo, spacingFt, blockFt
   // they were read as heights against the block's zero, so with Lead off it #2 flew to the wrong height).
   const leadAlt = rec.at(0).altAboveFt;
   const wakeFt = leadAlt + A.belowWakeFt;
-  const descentSec = Math.max(TR.heightSec, Math.abs(wing.altAboveFt - wakeFt) / TR.descentFtps);
+  const descentSec = Math.max(TR.heightSec, smoothLegSec(wing.altAboveFt - wakeFt, TR.heightG));
   const heightLeg = (sec) => (Math.abs(wing.altAboveFt - wakeFt) > 0.5 ? [{ t0, t1: t0 + sec, fromFt: wing.altAboveFt, toFt: wakeFt }] : []);
   const args = { wing, rec, s, route, cutDeg, aimFt, overtakeKt, blockFt, t0 };
   // The height the part was flown with is the one the plan flies (partSec): a different one changes the G he pulls and so,
