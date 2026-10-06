@@ -8,17 +8,22 @@
 //     rounded turn drawn as short straight pieces still turns smoothly);
 //   - bank: what that heading rate needs at this true airspeed, signed (right
 //     positive), eased in and out at the roll-rate setting;
-//   - pitch: the climb angle plus the angle of attack (T6A_PITCH).
+//   - pitch: the climb angle plus the angle of attack, less the fuselage datum (T6A_PITCH); 2.5° on the wheels.
 // Speeds: the route's speeds are KIAS; true airspeed comes from KIAS and
 // height (iasToTasKt) in every wind, and ground speed from the wind triangle.
 import { ktToFtps, G_FTPS2 } from '../../core/units.js';
 import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
 import { bankDegFromTurnRate, easeRoll, gFromBankDeg } from '../../core/flight-math.js';
 import { windTriangle } from '../../core/wind.js';
-import { pitchDegFromClimb, glideDragPerWeight, glideRatio } from '../../core/t6-performance.js';
+import { attitudeDegFromClimb, glideDragPerWeight, glideRatio } from '../../core/t6-performance.js';
+import { THRESHOLD_DATA_ELEV_FT } from './airfield.js';
 import { iasToTasKt } from './weather.js';
 import { posOnRoute, routePath, DEFAULT_ROUTE_OPTIONS } from './route.js';
 import { ROLL } from './circuit.js';
+
+/** The attitude on the wheels, degrees nose up (Patrick, 6 Oct 06:17Z), and how close to the runway's height counts as on them (an estimate). */
+const GROUND_ATTITUDE_DEG = 2.5;
+const ON_WHEELS_FT = 3;
 
 /**
  * Half the window the track is read across, in feet. Longer than the pieces a
@@ -292,9 +297,10 @@ export function followRoute(a, route, env, dt, options = DEFAULT_ROUTE_OPTIONS) 
   a.rollRateDps = roll.rollRateDps;
   a.g = gFromBankDeg(a.bankDeg);
 
-  // Pitch: the climb angle plus the angle of attack at this G.
+  // Pitch: the attitude the pilot sees, the climb angle plus the angle of attack at this G less the fuselage datum;
+  // on the wheels, the 2.5° nose up the gear holds it at (Patrick, 6 Oct 06:17Z).
   const climbFtps = (prevAlt === null || !(dt > 0)) ? 0 : (a.alt - prevAlt) / dt;
   a.climbFtps = climbFtps;
-  a.pitchDeg = pitchDegFromClimb(climbFtps, tasFtps, a.iasKt, a.g);
+  a.pitchDeg = a.alt <= THRESHOLD_DATA_ELEV_FT + ON_WHEELS_FT ? GROUND_ATTITUDE_DEG : attitudeDegFromClimb(climbFtps, tasFtps, a.iasKt, a.g);
   return p;
 }
