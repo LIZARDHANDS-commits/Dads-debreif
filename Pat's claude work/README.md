@@ -1,8 +1,28 @@
-# Project files
+# Pat's claude work
 
-Reset on 3 Oct 2026. Kept here: manuals/ (flying manuals index and readings), manuals-for-repo.zip, and Dad's V6 file. Everything from the Sep 2026 build (logs, plans, questions, research, screenshots, module folders) is in archive/2026-09/. The new layout will be added once the updated project is ratified.
+Patrick's project-only working docs from the Claude project, copied into the repo on 6 Oct 2026 (main at Formation V2.163, DADS v2.10.122) so Antigravity and anyone else can read them while the project is off Claude.
 
-turn-sim-review/: notes and screenshots for the Turn Sim review (opened 4 Oct 2026).
+**What these are:** working notes, reviews, designs, handovers and Fable's analysis. They are background, not instructions. The rule book still wins: `AGENTS.md`, then `docs/PLAN.md`, then `docs/modules/<module>/`. Where a note here disagrees with the repo, the repo is newer.
+
+**Paths inside the notes:** `/mnt/project-files/<path>` and `pf/<path>` mean `Pat's claude work/<path>` here. Links to an `archive/` folder point at history that was not copied.
+
+## Where to start
+
+| For | Read first | Then |
+|---|---|---|
+| Formation (turn-sim) | [turn-sim-review/formation-sim-handover.md](turn-sim-review/formation-sim-handover.md) | [fable-findings-mapped.md](turn-sim-review/fable-findings-mapped.md), [fable-compiled.md](turn-sim-review/fable-compiled.md), the design folders |
+| Fix drawn-path moves on the point-mass model | [turn-sim-review/drawn-path/handover.md](turn-sim-review/drawn-path/handover.md) | the three check scripts in that folder |
+| Fable's Formation engine review | [formation-review-package/report/report.md](formation-review-package/report/report.md) | [fable-findings-mapped.md](turn-sim-review/fable-findings-mapped.md) turns its renamed terms back into ours |
+| The optimiser (next after polish) | [optimiser-plan.md](formation-review-package/report/optimiser-plan.md) (route 1, for the app) | [optimiser-plan-route2.md](formation-review-package/report/optimiser-plan-route2.md) (route 2, PC yardstick) |
+| Traffic PFL | [traffic-review/pfl-full-rewrite-handover.md](traffic-review/pfl-full-rewrite-handover.md) | [fable-report.md](traffic-review/fable-report.md), the drag consults |
+| Fight Sim (turn-fight) | [turn-fight-review/README.md](turn-fight-review/README.md) | its reading order |
+| Aircraft performance, roll and G | [manuals/performance-audit-5oct.md](manuals/performance-audit-5oct.md) | `src/core/t6-performance.js` |
+| Dad's sessions (SOF, Debrief) | [dad-setup/handover-for-dads-claude.md](dad-setup/handover-for-dads-claude.md) | |
+
+**Fable's renamed terms:** the Formation review ran on a renamed copy of the engine, so `report.md` and `BRIEF.md` say cone position (fighting wing), lead point / nose on / lag point (lead / pure / lag pursuit), pointing (pursuit), follow (chase), spread (tactical), wandering (hunting), alpha (angle of attack) and two-ship module (Turn Fight).
+
+**Scripts:** the `.mjs` and `.js` files are the trace and check scripts the reviews used. Run them with Node from the repo root and pass the repo path where the script asks for it (for example `node "Pat's claude work/turn-sim-review/fset.mjs" .`). They read the code as it was when written, so expect drift.
+
 ## Left out, and why
 
 Patrick (6 Oct 22:31Z): copy everything except the controlled flight manual, with no mentions of it.
@@ -176,6 +196,11 @@ Work-in-progress F11 replan code and probe scripts handed over to Formation.
 Small Node sims used in the chooser review.
 
 - [lag-ech.mjs](turn-sim-review/chooser/sims/lag-ech.mjs), [legs.mjs](turn-sim-review/chooser/sims/legs.mjs), [mid.mjs](turn-sim-review/chooser/sims/mid.mjs), [trace-lab.mjs](turn-sim-review/chooser/sims/trace-lab.mjs)
+
+### turn-sim-review/drawn-path/
+
+- [handover.md](turn-sim-review/drawn-path/handover.md): Handover for fixing drawn-path moves on the point-mass model (waits for Antigravity).
+- Check scripts: [jerk.mjs](turn-sim-review/drawn-path/jerk.mjs), [lag.mjs](turn-sim-review/drawn-path/lag.mjs), [lagpm.mjs](turn-sim-review/drawn-path/lagpm.mjs)
 
 ### turn-sim-review/fighting-wing/
 
