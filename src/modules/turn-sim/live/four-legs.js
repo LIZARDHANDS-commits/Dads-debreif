@@ -73,6 +73,7 @@ export function flyLeg(start, t0, lead, wings, blockFt) {
     const done = {};
     const plans = {};
     let endSec = t0;
+    let settleSec = t0; // when the last wingman has settled in place, before he lines up on Lead's heading to the last 0.01°
     for (const w of wings) {
       const wing0 = by.get(w.id);
       let part = w.fly ? w.fly({ wing: wing0, recs, done, t0, blockFt }) : null;
@@ -90,8 +91,10 @@ export function flyLeg(start, t0, lead, wings, blockFt) {
       recs[w.id] = recordFlight(wing0, part.plan, t0);
       done[w.id] = { times: part.times ?? [], inSec: part.inSec, endSec: t0 + part.durationSec };
       endSec = Math.max(endSec, t0 + part.durationSec, part.profileEnd ?? t0);
+      const settled = part.times?.length ? part.times[part.times.length - 1].t1 : null;
+      settleSec = Math.max(settleSec, settled ?? t0 + part.durationSec, part.profileEnd ?? t0);
     }
-    return { ok: true, recs, done, plans, endSec };
+    return { ok: true, recs, done, plans, endSec, settleSec };
   };
   let leadSegs;
   let flown;
@@ -114,10 +117,12 @@ export function flyLeg(start, t0, lead, wings, blockFt) {
   }
   const leadEnd = t0 + dryRunT(L0, { segments: leadSegs }, t0, { maxSec: FOUR_CHANGE_LIMIT_SEC }).durationSec;
   const endSec = Math.max(flown.endSec, leadEnd);
+  const onStep = (T) => t0 + Math.ceil((T - t0) / STEP_SEC - 1e-6) * STEP_SEC;
   return {
     ok: true,
     t0,
-    endSec: t0 + Math.ceil((endSec - t0) / STEP_SEC - 1e-6) * STEP_SEC,
+    endSec: onStep(endSec),
+    settleSec: onStep(Math.max(flown.settleSec, leadEnd)),
     plans: { [L0.id]: { segments: leadSegs.map((s) => ({ ...s })) }, ...flown.plans },
     done: flown.done,
     leadTurnDeg,
@@ -202,11 +207,17 @@ export function inLeadFrame(slots, id) {
   return { fwd, left, alt: slots[id].alt };
 }
 
-/** Runs a list of leg makers one after another: each gets the context at its own start. */
+/**
+ * Runs a list of leg makers one after another: each gets the context at its own start. A step starts as soon as everyone in
+ * the one before has settled in place (when #2 sees room, SMM 16.32 para 87; Patrick 6 Oct 05:29Z), not after each has also
+ * lined up on Lead's heading to the last hundredth of a degree; the last step flies to its end. Until V2.128 each step
+ * waited for that line-up too, 5 to 8 s a step. A leg with a held planner's part (not tracker points) still flies to its end.
+ */
 export function legsInTurn(start, t0, opts, makers) {
   const legs = [];
   let now = start;
   let t = t0;
+  let before = null; // the last leg flown, cut at its settle time: { leg, from (the states it started from), whole (its uncut plans) }
   for (const make of makers) {
     const c = context(now, t, opts);
     const spec = make(c);
@@ -214,10 +225,47 @@ export function legsInTurn(start, t0, opts, makers) {
     const leg = flyLeg(now, t, spec.lead ?? [], spec.wings, opts.blockFt);
     if (!leg.ok) return { ok: false, reason: leg.reason, legs };
     legs.push(leg);
-    now = statesAt(now, leg, leg.endSec);
+    const from = now;
+    const whole = leg.plans;
+    const cut = cutAt(leg, leg.settleSec);
+    before = cut ? { leg, from, whole } : null;
+    now = statesAt(from, leg, leg.endSec);
     t = leg.endSec;
   }
+  // The last leg flies to its end.
+  if (before) {
+    Object.assign(before.leg, { plans: before.whole, endSec: before.leg.wholeEndSec });
+    now = statesAt(before.from, before.leg, before.leg.endSec);
+    t = before.leg.endSec;
+  }
   return { ok: true, legs, end: now, endSec: t };
+}
+
+/**
+ * Cuts a leg's wingmen's tracker points at T (on a step), so the next leg starts then; a no-op (false) when T is not before
+ * its end or a part is not tracker points.
+ */
+function cutAt(leg, T) {
+  if (!(T < leg.endSec - 1e-9)) return false;
+  const n = Math.round((T - leg.t0) / STEP_SEC);
+  const plans = {};
+  for (const [id, p] of Object.entries(leg.plans)) {
+    if (Number(id) === 1) {
+      plans[id] = p;
+      continue;
+    }
+    if (!p.segments.every((sg) => sg.kind === 'bankTrack')) return false;
+    let left = n;
+    const segments = [];
+    for (const sg of p.segments) {
+      if (left <= 0) break;
+      segments.push({ ...sg, points: sg.points.slice(0, left) });
+      left -= sg.points.length;
+    }
+    plans[id] = { ...p, segments };
+  }
+  Object.assign(leg, { plans, wholeEndSec: leg.endSec, endSec: T });
+  return true;
 }
 
 /** Lead's speed change into a formation's speed, when he is not there already. */

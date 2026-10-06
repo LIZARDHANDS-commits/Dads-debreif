@@ -14,6 +14,7 @@ import { stopAt, slide, cornerBehind, sweepOut } from './transitions.js';
 import { relativeTo } from './manoeuvres.js';
 import { slotsFor } from './slots.js';
 import { FW_FOLLOW } from './tuning.js';
+import { closureNow } from './rates.js';
 import { fwGoal } from './formation-turns.js';
 import { planEchelonToFw } from './echelon-to-fw.js';
 import { legsInTurn, place, hold, toSlot, ech, ast, toSpeed } from './four-legs.js';
@@ -21,8 +22,12 @@ import { legsInTurn, place, hold, toSlot, ech, ast, toSpeed } from './four-legs.
 /** Close-formation crossings go behind and below (SMM 16.32 paras 87-88): 15 ft below Lead, #4 a further 10 ft below #3 (estimates). */
 const CROSS_LOW_FT = 15;
 const FOUR_LOWER_FT = 10;
-/** #4 in line with Lead and #3 aims at the line as it will be this far ahead, so he swings with #3, not after him (estimate). */
+/** A wingman in line with Lead and the one ahead aims at the line as it will be this far ahead per place out, so he swings with it, not after it (estimate). */
 const LINE_LEAD_SEC = 1;
+/** ...and is down to his crossing height within this long, about as long as the one ahead takes to reach his corner (estimate). */
+const LINE_DOWN_SEC = 4;
+/** In the triple change #2 crosses at this share of the close-in rate, so #4, about three times as far out, keeps up with the line (estimate). */
+const TRIPLE_ACROSS_SHARE = 0.5;
 /**
  * Finger to echelon on #3's side: how far #3 (with #4 on its wing) moves out, back and slightly down beyond its echelon
  * place to make room for #2 (SMM 16.32 para 87; AFM7 brief p.19 item 1, frame 2). The manuals give no distance: these are
@@ -42,6 +47,23 @@ const ECHELON_CLEAR_FT = 300;
 function crossTo(c, track, fromLeft, toLeft, back, low, last, first = {}) {
   return [stopAt(place(c, back, fromLeft, low), { track, ...first }), stopAt(place(c, back, toLeft, low), { track }), last];
 }
+/**
+ * In line with Lead (Patrick 6 Oct 04:58Z: "inline with lead as they cross under his flight path togehter, so 4 has to move
+ * faster"; card 05:16Z "Column"; 05:29Z, echelon to echelon "time it so all 4 fusilages are aligned at once"): a wingman held
+ * on the line from Lead through `ahead`, k echelon places (about 51 ft each) further out, `alt` against Lead's height, flown
+ * off `ahead`; he leaves it at `until`. As the one ahead moves back and crosses under Lead's track, everyone on the line
+ * stays in one column with Lead, and the further out moves the faster.
+ */
+function onTheLine(c, recs, ahead, k, alt, until, over = {}) {
+  const outFt = k * Math.hypot(ech().fwd, ech().left);
+  const goal = (L, W, t) => {
+    const n = Math.max(0, Math.round((t - recs[ahead].t0 + LINE_LEAD_SEC * k) / STEP_SEC));
+    const p = relativeTo(recs[1].at(n), recs[ahead].at(n)); // the one ahead from Lead, a moment ahead
+    const r = Math.hypot(p.fwd, p.left) || 1;
+    return { fwd: (p.fwd / r) * outFt, left: (p.left / r) * outFt, alt: c.leadAlt + alt }; // off the one ahead, in his frame
+  };
+  return slide(place(c, 0, 0, alt), { track: ahead, holdUntil: until, goal, ...over });
+}
 /** The corner behind a close place (the 2-ship's, transitions.js cornerBehind): { fwd, alt } in the frame flown off. */
 const corner = (c) => cornerBehind(ech(), c.spacingFt);
 /** Up into a close place from directly behind it (SMM 12.20 para 45: "move forward and up"). */
@@ -59,18 +81,19 @@ export function fingerToEchelon(start, t0, opts, s, e) {
   return legsInTurn(start, t0, opts, [
     (c) => ({
       wings: [
-        { id: 2, phases: () => [stopAt(place(c, corner(c).fwd, s * ech().left, corner(c).alt), { track: 1 })] },
         { id: 3, phases: () => [stopAt(place(c, 2 * ech().fwd - MAKE_ROOM.backFt, -s * (2 * ech().left + MAKE_ROOM.outFt), 2 * ech().alt - MAKE_ROOM.downFt), { track: 1 })] },
         // #4 moves out with #3 to the same make-room offset from his own echelon place, flown off Lead: until V2.97 he held
         // off #3 and lagged #3's sweep out, closing to 31 ft of #3 when he had not settled from the last change
         { id: 4, phases: () => [stopAt(place(c, 3 * ech().fwd - MAKE_ROOM.backFt, -s * (3 * ech().left + MAKE_ROOM.outFt), 3 * ech().alt - MAKE_ROOM.downFt), { track: 1 })] },
-      ],
-    }),
-    (c) => ({
-      wings: [
-        { id: 2, phases: () => [stopAt(place(c, corner(c).fwd, -s * ech().left, corner(c).alt), { track: 1 }), upInto(c, ech4[2])] },
-        { id: 3, phases: () => [hold(c, 3, 1)] },
-        { id: 4, phases: () => [hold(c, 4, 3)] },
+        // #2 crosses as soon as he sees room (para 87): once #3 has moved out, not once everyone has settled (until V2.128)
+        {
+          id: 2,
+          phases: (done) => [
+            stopAt(place(c, corner(c).fwd, s * ech().left, corner(c).alt), { track: 1 }),
+            stopAt(place(c, corner(c).fwd, -s * ech().left, corner(c).alt), { track: 1, holdUntil: done[3].times[0].arrive }),
+            upInto(c, ech4[2]),
+          ],
+        },
       ],
     }),
     (c) => ({
@@ -97,7 +120,6 @@ function crossThreeFour(start, t0, opts, from, to, key) {
     const back3 = corner(c).fwd + ech().fwd; // behind #2 as well as Lead
     const low3 = -CROSS_LOW_FT - 5;
     const low4 = low3 - FOUR_LOWER_FT - 5;
-    const spokeFt = Math.hypot(ech().fwd, ech().left); // #4's spacing behind #3 along the line from Lead: one echelon place
     const fromLeft3 = from * (key === 'echelon' ? 1 : 2) * ech().left; // #3 is one echelon out in finger, two in echelon
     const toLeft3 = to * (key === 'echelon' ? 2 : 1) * ech().left;
     return {
@@ -106,21 +128,54 @@ function crossThreeFour(start, t0, opts, from, to, key) {
         { id: 3, phases: () => crossTo(c, 1, fromLeft3, toLeft3, back3, low3, upInto(c, slots[3])) },
         {
           id: 4,
-          // In one column with #3 under Lead's track (Patrick 6 Oct 05:16Z, "Column"; SMM 16.32 para 88): #4 holds on the line
-          // from Lead through #3, one echelon spacing further out and lower, so the two stay in line with Lead as they move
-          // back, cross under his track together (#4 directly behind and below #3, moving faster sideways) and stop across.
-          // Until V2.126 #4 moved into a column behind #3 and lagged its crossing by about a second, 50 ft outboard.
-          phases: (done, recs) => {
-            const lineOut = (t, alt) => {
-              const n = Math.max(0, Math.round((t - recs[3].t0 + LINE_LEAD_SEC) / STEP_SEC));
-              const p3 = relativeTo(recs[1].at(n), recs[3].at(n)); // #3 from Lead, a moment ahead
-              const r = Math.hypot(p3.fwd, p3.left) || 1;
-              return { fwd: (p3.fwd / r) * spokeFt, left: (p3.left / r) * spokeFt, alt }; // off #3, in his frame
-            };
-            const inLine = (alt, until) => slide(place(c, 0, 0, alt), { track: 3, holdUntil: until, goal: (L, W, t) => lineOut(t, c.leadAlt + alt) });
-            return [inLine(low4, done[3].times[0].t1), inLine(low4, done[3].times[1].t1), upInto(c, slots[4])];
-          },
+          // In one column with #3 under Lead's track (Patrick 6 Oct 05:16Z, "Column"; SMM 16.32 para 88), moving faster
+          // sideways. Until V2.126 #4 moved into a column behind #3 and lagged its crossing by about a second, 50 ft outboard.
+          phases: (done, recs) => [
+            onTheLine(c, recs, 3, 1, low4, done[3].times[0].t1, { altSec: LINE_DOWN_SEC }),
+            onTheLine(c, recs, 3, 1, low4, done[3].times[1].t1),
+            upInto(c, slots[4]),
+          ],
         },
+      ],
+    };
+  }]);
+}
+
+/**
+ * Echelon to echelon on the other side as one triple station change (Patrick 6 Oct 05:29Z: "Make esch to esch a triple
+ * station change and time it so all 4 fusilages are aligned at once so 4 goes the fastest and further"; the manuals give no
+ * such change: it was two, through finger, about 90 s, until V2.128): #2 flies the 2-ship's crossover behind Lead (SMM
+ * 12.20 paras 44-45), while #3 and #4 hold on the line from Lead through #2, one and two places further out, each 15 ft
+ * lower (onTheLine). The echelon is that line already, so the four stay in one line as #2 moves back, cross under Lead's
+ * track together and come out on the other side; once #2 is across, each moves forward and up into his place.
+ * e, eTo: the echelon's side now and at the end.
+ */
+export function echelonToEchelon(start, t0, opts, e, eTo) {
+  const slots = slotsFor('echelon', eTo, { ships: 4 });
+  return legsInTurn(start, t0, opts, [(c) => {
+    const low2 = corner(c).alt;
+    const low3 = low2 - FOUR_LOWER_FT - 5;
+    const low4 = low3 - FOUR_LOWER_FT - 5;
+    const behind = (id, k, low) => ({
+      id,
+      phases: (done, recs) => [
+        onTheLine(c, recs, 2, k, low, done[2].times[0].t1, { altSec: LINE_DOWN_SEC }),
+        onTheLine(c, recs, 2, k, low, done[2].times[1].t1),
+        upInto(c, slots[id]),
+      ],
+    });
+    return {
+      wings: [
+        {
+          id: 2,
+          phases: () => [
+            stopAt(place(c, corner(c).fwd, e * ech().left, low2), { track: 1 }),
+            stopAt(place(c, corner(c).fwd, eTo * ech().left, low2), { track: 1, closureCapFtps: closureNow().ftps * TRIPLE_ACROSS_SHARE }),
+            upInto(c, slots[2]),
+          ],
+        },
+        behind(3, 1, low3),
+        behind(4, 2, low4),
       ],
     };
   }]);
