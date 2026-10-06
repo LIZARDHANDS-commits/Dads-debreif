@@ -39,8 +39,8 @@ const MOVES = [
   // all at once from every close formation (Patrick 6 Oct 05:42Z, 05:45Z; until V2.131 box, line astern and route went through finger first)
   ...['finger', 'echelon', 'box', 'trail', 'route'].map((from) => ({ from, to: 'fw', m: 'M9', cost: 40, sides: from === 'trail' ? 'any' : 'same', fly: (st, t, o, s, sTo) => openToFw(st, t, o, from === 'trail' ? sTo : s, from), how: 'drop back to fighting wing, all at once' })),
   // rejoins (four-rejoin.js)
-  { from: 'spread4', to: 'fw', m: 'M16', cost: 150, sides: 'same', fly: (st, t, o, s) => rejoinToFw(st, t, o, s, 'spread4'), how: (o) => (o.rejoin === 'straight' ? 'straight-ahead rejoin to fighting wing' : 'turning rejoin to fighting wing') },
-  { from: 'offsetBox', to: 'fw', m: 'M22', cost: 200, sides: 'same', fly: (st, t, o, s) => rejoinToFw(st, t, o, s, 'offsetBox'), how: (o) => (o.rejoin === 'straight' ? 'straight-ahead rejoin to fighting wing' : 'turning rejoin to fighting wing') },
+  { from: 'spread4', to: 'fw', m: 'M16', cost: 150, sides: 'same', fly: (st, t, o, s) => rejoinToFw(st, t, o, s, 'spread4'), how: 'straight ahead to fighting wing, full power until in the cone' },
+  { from: 'offsetBox', to: 'fw', m: 'M22', cost: 200, sides: 'same', fly: (st, t, o, s) => rejoinToFw(st, t, o, s, 'offsetBox'), how: 'straight ahead to fighting wing, full power until in the cone' },
   { from: 'other', to: 'fw', m: 'M16', cost: 150, sides: 'same', fly: (st, t, o, s) => rejoinToFw(st, t, o, s, 'other'), how: 'rejoin to fighting wing' },
   { from: 'fw', to: 'route', m: 'M12', cost: 60, sides: 'same', fly: (st, t, o, s) => closeFromFw(st, t, o, s, 'route'), how: 'close through route' },
   { from: 'fw', to: 'finger', m: 'M10/M11', cost: 70, sides: 'same', fly: (st, t, o, s) => (o.rejoin === 'straight' ? { ...closeFromFw(st, t, o, s, 'finger'), how: 'straight-ahead rejoin to finger, through route' } : turningToFinger(st, t, o, s, 'fw')), how: 'turning rejoin to finger' },

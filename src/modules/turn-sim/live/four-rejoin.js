@@ -27,6 +27,12 @@ import { legsInTurn, place, hold, toSlot, inLeadFrame, ech, toSpeed, GENTLE_ALT_
 
 /** The overtake the rear wingmen use to close from far out (estimate: the straight-ahead rejoin's 20 to 30 KIAS, EFIG p.371). */
 const FAR_OVERTAKE_KIAS = 25;
+/**
+ * From Spread 4 and the offset box to fighting wing Lead holds straight and each closes at full power until in his cone
+ * (Patrick's card 6 Oct 06:05Z: "Straight, MAX"): a closure floor more than full power gives at these speeds, so the engine
+ * is the limit and the power-back stop still brings him in (estimate).
+ */
+const MAX_CLOSURE_FTPS = 80 * KT_FTPS;
 /** Close crossings go behind and below (SMM 16.32 paras 87-88): 15 ft below Lead, #4 a further 10 ft below #3 (estimates). */
 const CROSS_LOW_FT = 15;
 const FOUR_LOWER_FT = 10;
@@ -100,7 +106,8 @@ const inAt = (done, id) => done[id].inSec ?? done[id].times[done[id].times.lengt
 
 /**
  * Spread 4, the offset box, or anywhere else, to fighting wing (M16, M22; AFM8 brief pp.19, 25, AFM7 p.17): the turning
- * rejoin above; with rejoin 'straight' Lead holds straight and each closes in turn. from: the formation key now.
+ * rejoin above; with rejoin 'straight' Lead holds straight and each closes in turn. From Spread 4 and the offset box always
+ * straight, each at full power until in his cone (MAX_CLOSURE_FTPS; until V2.134 Lead turned into #2). from: the formation key now.
  */
 export function rejoinToFw(start, t0, opts, s, from) {
   return legsInTurn(start, t0, opts, [(c) => {
@@ -109,25 +116,26 @@ export function rejoinToFw(start, t0, opts, s, from) {
     if (slots[2].alt >= 0) slots[2] = { ...slots[2], alt: -FW_STEP_DOWN_FT };
     const lead = c.start[0];
     const far = (id) => (Math.abs(relativeTo(lead, c.by.get(id)).left) > 3000 ? FAR_OVERTAKE_KIAS : REJOIN.overtakeKias);
+    const straight = opts.rejoin === 'straight' || from === 'spread4' || from === 'offsetBox';
+    const max = from === 'spread4' || from === 'offsetBox' ? { closureMinFtps: MAX_CLOSURE_FTPS } : {};
     const outside = (id) => ({
       id,
       phases: () => [
         // no waiting for the one ahead (Patrick 6 Oct 05:45Z: "2 immedately flis into his cone, 3 misses to and flies to
         // their cone, 4 misses 3 and flies to theirs"): through the far edge of his window behind his place, his stack held
         // as the separation, and on in. Until V2.131 each waited in the window until the one ahead was in.
-        rejoinTo(place(c, inLeadFrame(slots, id).fwd - TRJ.outsideWindowFt[id][1], inLeadFrame(slots, id).left, slots[id].alt), { track: 1, advanceTol: FW_PASS_FT, overtakeKias: far(id), bankCapDeg: TURNING_REJOIN.bankCapDeg }),
+        rejoinTo(place(c, inLeadFrame(slots, id).fwd - TRJ.outsideWindowFt[id][1], inLeadFrame(slots, id).left, slots[id].alt), { track: 1, advanceTol: FW_PASS_FT, overtakeKias: far(id), bankCapDeg: TURNING_REJOIN.bankCapDeg, ...max }),
         // into the cone off the aircraft he flies off, settling where he arrives in it (the whole cone, Patrick 5 Oct 08:58Z;
         // TS-75), his stack held as the separation
         { ...toSlot(c, sweepOut, slots[id]), ...FW_FOLLOW, coneAlt: false, goal: (R, W) => fwGoal(R, W, -s, false) },
       ],
     });
-    const two = { id: 2, phases: () => [toSlot(c, rejoinTo, slots[2], { overtakeKias: far(2) })] };
-    if (opts.rejoin === 'straight') return { lead: toSpeed(c, 'fw'), wings: [two, outside(3), outside(4)], how: 'straight-ahead rejoin to fighting wing' };
+    const two = { id: 2, phases: () => [toSlot(c, rejoinTo, slots[2], { overtakeKias: far(2), ...max })] };
+    if (straight) return { lead: toSpeed(c, 'fw'), wings: [two, outside(3), outside(4)], how: 'straight-ahead rejoin to fighting wing' };
     const into = leadInto(c, s, 'fw');
-    const hot = from === 'spread4' || from === 'offsetBox';
     return {
       lead: { hold: into, until: [2, 3, 4] },
-      wings: [{ ...two, fly: twoTurning(c, into, s, 'fw', s, hot) }, outside(3), outside(4)],
+      wings: [{ ...two, fly: twoTurning(c, into, s, 'fw', s, false) }, outside(3), outside(4)],
     };
   }]);
 }
