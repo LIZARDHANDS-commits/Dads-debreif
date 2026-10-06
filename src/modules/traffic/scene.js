@@ -20,7 +20,9 @@ function windowToDeparture(track) {
   const from = track.findIndex((p) => p.src === 1);
   const to = track.findIndex((p) => p.phase === 'final');
   if (from < 0 || to <= from) return { path: track, cut: false };
-  return { path: track.slice(from, to + 1), cut: true };
+  // The whole circuit's lowest height (the threshold) goes with it: the 3D view sets its ground there (view3d groundFt).
+  const lowFt = Math.min(...track.map((p) => p.alt).filter(Number.isFinite));
+  return { path: track.slice(from, to + 1), cut: true, lowFt };
 }
 
 /** The SI pattern's line on the map (Patrick, 4 Oct): its id, name and colour as the routes list shows them. */
@@ -104,6 +106,7 @@ export function buildScene({ setup, state, selectedRouteId, trailOf }) {
         : undefined,
       calmPath: calm ? calm.path : undefined,
       open: Boolean(pat1?.cut), // drawn as an open line, not a loop
+      lowFt: pat1?.lowFt, // the hidden runway part's height, so the ground stays at the threshold
       windPerch: isShowing(route) && isPat1Wind ? computeWindPerch(route, windFromDeg, windKt, options) : null,
     };
   });

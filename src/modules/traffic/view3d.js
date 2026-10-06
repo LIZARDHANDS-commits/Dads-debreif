@@ -298,7 +298,12 @@ export function standInKindFor(type) {
 /** The ground: the lowest height on any route that shows (the runway), or 0 with no route. */
 export function groundFt(routes) {
   let low = Infinity;
-  for (const route of routes) if (route.visible !== false) for (const p of route.path ?? []) if (finite(p.alt) < low) low = finite(p.alt);
+  for (const route of routes) {
+    if (route.visible === false) continue;
+    // A line drawn without its runway part (Pattern 1, scene.js) brings the runway's height with it.
+    if (Number.isFinite(route.lowFt) && route.lowFt < low) low = route.lowFt;
+    for (const p of route.path ?? []) if (finite(p.alt) < low) low = finite(p.alt);
+  }
   return low === Infinity ? 0 : low;
 }
 
