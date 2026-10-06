@@ -73,7 +73,9 @@ export function poseOf3d({ x, y, altAbove, vel, up, kias, g, rollDps }) {
   const e = eulerOf(nose, up);
   const climb = vel.z;
   const pitch = attitudeDegFromClimb(climb, tas, kias, g * Math.cos(e.bank * DEG));
-  return { x, y, alt: altAbove, h: e.h, bank: e.bank, roll: rollDps, kias, tas, climb, pitch, g };
+  // att: the wings' true attitude from the up vector, drawn as it is (kinematic.js applyPose): a roll through inverted stays
+  // one smooth roll instead of being re-read from the lift line as a pull or a push.
+  return { x, y, alt: altAbove, h: e.h, bank: e.bank, att: e.bank, roll: rollDps, kias, tas, climb, pitch, g };
 }
 
 /** The roll rate between two attitudes dt apart (degrees per second, left wing down positive): how fast the up tilts toward the left wing. */
