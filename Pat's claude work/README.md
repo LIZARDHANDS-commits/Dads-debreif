@@ -8,7 +8,7 @@ turn-sim-review/: notes and screenshots for the Turn Sim review (opened 4 Oct 20
 Patrick (6 Oct 22:31Z): copy everything except CFAFM, and no mentions of CFAFM.
 
 - **Flight-manual (CFAFM) content and mentions:** every mention was removed or reworded from these files. The Gen Book (text, PDF and page pictures) is left out because it reproduces flight-manual tables.
-- **The manual PDFs:** they mention the flight manual inside and can't be edited here; the text extracts and pictures in `manuals/` cover them, and the PDFs stay in the project files.
+- **The manual PDFs and full-text extracts:** held in the project files until Patrick decides; the Gen Book also holds a staff contact list.
 - **The renamed engine copy and renamed docs** in the Formation review package (`src/`, `docs/trainer/`): a duplicate of our own code and module docs with Fable's renamed terms.
 - **Archives and uploads:** history only.
 - **Dad's V6 file:** too big for GitHub, and already in the repo as `original/`.
@@ -55,13 +55,6 @@ SMM formation pages as pictures.
 
 - [smm-part7-p10.png](manuals/images/smm-formation/smm-part7-p10.png), [smm-part7-p11.png](manuals/images/smm-formation/smm-part7-p11.png), [smm-part7-p13.png](manuals/images/smm-formation/smm-part7-p13.png), [smm-part7-p26.png](manuals/images/smm-formation/smm-part7-p26.png), [smm-part7-p28.png](manuals/images/smm-formation/smm-part7-p28.png), [smm-part7-p8.png](manuals/images/smm-formation/smm-part7-p8.png), [smm-part7-p9.png](manuals/images/smm-formation/smm-part7-p9.png), [smm-part8-p0.png](manuals/images/smm-formation/smm-part8-p0.png), [smm-part8-p2.png](manuals/images/smm-formation/smm-part8-p2.png), [smm-part8-p3.png](manuals/images/smm-formation/smm-part8-p3.png)
 
-### manuals/text/
-
-Text extracts of the manuals (EFIG, SMM, orders, WFO, four-plane briefs, T-6A NFM), for searching. Flight-manual mentions removed.
-
-- [2cffts-orders-jul26.txt](manuals/text/2cffts-orders-jul26.txt), [efig-page-list.txt](manuals/text/efig-page-list.txt), [efig.txt](manuals/text/efig.txt), [four-plane-brief-afm7.txt](manuals/text/four-plane-brief-afm7.txt), [four-plane-brief-afm8.txt](manuals/text/four-plane-brief-afm8.txt), [smm-drive-text.txt](manuals/text/smm-drive-text.txt), [smm.txt](manuals/text/smm.txt), [t6a-nfm-100-scribd.txt](manuals/text/t6a-nfm-100-scribd.txt), [wfo-al6.2.txt](manuals/text/wfo-al6.2.txt)
-
-### test-trim/
 
 - [plan.md](test-trim/plan.md): Which tests would go and which stay in the test trim.
 
