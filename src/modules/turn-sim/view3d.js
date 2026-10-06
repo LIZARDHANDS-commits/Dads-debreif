@@ -194,8 +194,8 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     const skyClouds = addSkyAndClouds(THREE, scene);
     scene.fog?.color.set(SKY_COLOURS.horizon);
     // The ground under the formation (Patrick, 6 Oct: "the sky is sky, the ground is ground"): a muted prairie plane with the
-    // grid on it, following the camera; the sky shows toward the horizon and above.
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(GRID_STEP_FT * GRID_CELLS * 3, GRID_STEP_FT * GRID_CELLS * 3), new THREE.MeshBasicMaterial({ color: '#56664a', fog: true }));
+    // grid on it, following the camera; the sky shows toward the horizon and above. Darker (Patrick, 6 Oct: "better contrast against the ground"): a deep prairie green, so the ships' colours, the lines and the tags stand out.
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(GRID_STEP_FT * GRID_CELLS * 3, GRID_STEP_FT * GRID_CELLS * 3), new THREE.MeshBasicMaterial({ color: '#2a3327', fog: true }));
     scene.add(ground);
     const grid = new THREE.GridHelper(GRID_STEP_FT * GRID_CELLS, GRID_CELLS, '#7d8f6b', '#6a7b5a'); // a little lighter than the ground
     grid.rotation.x = Math.PI / 2; // GridHelper is flat in X-Z; the sim's ground is X-Y
