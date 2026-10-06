@@ -39,6 +39,12 @@ const BAR_11R_PAST_END_FT = 4;
 const CENTRELINE_DASH_FT = 98;
 const CENTRELINE_WIDTH_FT = 3;
 /**
+ * The side stripes along both edges, threshold bar to threshold bar (Patrick, 6 Oct 07:33Z: "the entire runway outlined"):
+ * 3 ft wide (the usual edge stripe, standard practice; an estimate here), their middles 78 ft either side of the
+ * centreline, just outside the piano keys and on the photo's pavement edge (about ±80 ft, photo).
+ */
+const EDGE_STRIPE = Object.freeze({ widthFt: 3, centreFt: 78 });
+/**
  * The black outline round the piano keys, letters, numbers and centreline dashes, ft (Patrick, 6 Oct 07:24Z: "outline ... in
  * black"; 07:29Z: 1.5 ft "too thick"). 6 in, the black border real paint on light concrete gets (FAA AC 150/5340-1, standard
  * practice, not a Canadian source).
@@ -132,6 +138,10 @@ export function runwayMarkingPolygons() {
       if (t1 <= t0) continue;
       for (const side of [-1, 1]) stroke('yellow', place, apex - t0, side * C.slope * t0, apex - t1, side * C.slope * t1, C.width);
     }
+  }
+  for (const side of [-1, 1]) {
+    const c = side * EDGE_STRIPE.centreFt;
+    outlinedQuad(at29, BAR_29L_FT - END_PAINT.bar.to, len + BAR_11R_PAST_END_FT - END_PAINT.bar.from, c - EDGE_STRIPE.widthFt / 2, c + EDGE_STRIPE.widthFt / 2);
   }
   for (const s0 of CENTRELINE_STARTS_FT) outlinedQuad(at29, s0, s0 + CENTRELINE_DASH_FT, -CENTRELINE_WIDTH_FT / 2, CENTRELINE_WIDTH_FT / 2);
   return shapes;
