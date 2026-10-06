@@ -475,9 +475,15 @@ export function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, 
     ? { wing, rec: into.longRec, s, tauSec: TR.bearingTauSec, bankCapDeg, farFt: TR.windowFarFt, nearFt: TR.windowNearFt, overtakeKt, floorKias, blockFt, t0 }
     : { wing, rec: into.longRec, s, aimFt, bankCapDeg, decisionFt, arriveFtps: to === 'fw' ? TR.fwArriveFtps : Math.min(closureNow().ftps, closeInFtps(TR.decisionArriveRates)), overtakeKt, floorKias, lineAtKias: leastKias + TR.lineOverKias, blockFt, t0 };
   const fly1 = onX ? (a) => (hardSec > 0 ? hardThenX(a, hardSec) : farThenX(a, aimFt)) : flyToDecision;
-  let part = fly1({ ...args, profile: heightLeg(descentSec) });
+  // The height the part was flown with is the one the plan flies (partSec): a different one changes the G he pulls and so,
+  // near the G rule, his turn (the replay then left the planned path: 6 Oct 05:13Z, #2 ended 250 ft back on Lead's other side).
+  let partSec = descentSec;
+  let part = fly1({ ...args, profile: heightLeg(partSec) });
   if (!part) return null;
-  if (part.steps * dt < descentSec) part = fly1({ ...args, profile: heightLeg(Math.max(part.steps * dt, dt)) });
+  if (part.steps * dt < descentSec) {
+    partSec = Math.max(part.steps * dt, dt);
+    part = fly1({ ...args, profile: heightLeg(partSec) });
+  }
   // minG: the least G a vertical may push to (the 4-ship's #2 from his stack); none for the 2-ship.
   if (!part || part.ahead || (upFt > 0 && (part.maxG > G_RULE.normalG || (minG !== null && part.minG < minG)))) return null;
   // Not stable by the window's near edge, only the overshoot is left (Patrick 03:35Z: the last resort).
@@ -517,7 +523,7 @@ export function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, 
   // Passing more than TR.laneTolFt ahead of the slot is a warning on the card, not a refusal (Patrick 6 Oct 03:45Z; TS-110;
   // a refusal from 5 Oct 08:04Z until V2.122).
   const slotFwdFt = Math.max(0, pairSlot(to, sTo || s, spacingFt).fwd);
-  return { part, run, slotFwdFt, profile: [...heightLeg(Math.min(descentSec, Math.max(n1 * dt, dt))), ...profile], lp, durationSec: (n1 + run.points.length) * dt, overshoot: onX && overshoot };
+  return { part, run, slotFwdFt, profile: [...heightLeg(partSec), ...profile], lp, durationSec: (n1 + run.points.length) * dt, overshoot: onX && overshoot };
 }
 
 /**
