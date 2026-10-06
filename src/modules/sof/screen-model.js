@@ -5,7 +5,7 @@
 // out. The page code (layout.js, cards-view.js) only draws it.
 //
 // Every weather answer is wx's, through cards.js; nothing here reads a report's text.
-import { formatDtgZulu } from '../../core/time.js';
+import { formatDtgZulu, formatInZone, zoneAbbreviation } from '../../core/time.js';
 import { SOURCES, staleness } from '../../wx/sources.js';
 import { MINUTE_MS, toDate } from '../../wx/dates.js';
 import { cardModel, formatAge, formatDuration } from './cards.js';
@@ -19,6 +19,19 @@ export const CREDITS = 'Not for flight planning. Confirm with NAV CANADA. '
 
 /** The weather feed reads STALE once its last good round is older than this (three missed refreshes). */
 export const STALE_FEED_MIN = 15;
+
+/**
+ * The world clocks in the SOF bar (SOF-38): Pacific, Mountain and Eastern, as V6's top bar had them. Zulu and home local are
+ * already in the app header. A zone's name follows the season (PDT in summer, PST in winter), from core/time.js.
+ */
+export const WORLD_ZONES = Object.freeze([
+  { label: 'Pacific', timeZone: 'America/Vancouver' },
+  { label: 'Mountain', timeZone: 'America/Edmonton' },
+  { label: 'Eastern', timeZone: 'America/Toronto' },
+]);
+
+/** The world clocks at `now`: `[{ label, zone, time }]`, time as HH:MM. */
+export const worldClocks = (now) => WORLD_ZONES.map(({ label, timeZone }) => ({ label, zone: zoneAbbreviation(now, timeZone), time: formatInZone(now, timeZone).slice(0, 5) }));
 
 const two = (n) => String(n).padStart(2, '0');
 const hhmmZ = (date) => `${two(date.getUTCHours())}${two(date.getUTCMinutes())}Z`;
@@ -96,7 +109,7 @@ export function alertText(snapshot, now) {
 // ---- The cards ------------------------------------------------------------------------------------
 
 /**
- * The whole screen: { dtg, dtgIso, feed, alert, cards, credits, lightning, cautions }.
+ * The whole screen: { dtg, dtgIso, clocks, feed, alert, cards, credits, lightning, cautions }.
  * `airfields` is app.airfields; `snapshot` is createWeather's; `limits` the home
  * limits from Settings; `now` a Date; `timeZone` home's (the day the marked TAF words are checked over). Cards are home first, then each alternate,
  * one per airfield.
@@ -140,6 +153,7 @@ export function buildScreen({ airfields, snapshot, limits, now, lightning = null
   return {
     dtg: formatDtgZulu(now),
     dtgIso: now.toISOString(),
+    clocks: worldClocks(now),
     feed: feedStatus(snapshot, now),
     alert: alertText(snapshot, now),
     cards,

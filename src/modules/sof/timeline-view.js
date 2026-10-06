@@ -4,9 +4,12 @@
 // its whole story in words for hover, focus and screen readers. The axis is Zulu first with a
 // local row. It is redrawn only when the model's signature changes; the now line moves on its
 // own, once a minute, without a redraw. A redraw keeps the piece that had focus, and never
-// touches the Waves inputs, which are elsewhere on the page. Everything is text; nothing is HTML.
+// touches the Waves inputs, which are in its header. Everything is text; nothing is HTML.
+//
+// SOF-38: on the one-screen SOF the timeline is always open, across the full width, and its header holds the
+// waves (waves-view.js hands in its element): there is nothing to collapse. The key to the pieces is one
+// click away, in a note that opens over the screen.
 import { h } from '../../ui-kit/dom.js';
-import { createPanel } from '../../ui-kit/panel.js';
 import { moveFocus } from './timeline-view-model.js';
 
 const HINT = 'Hover over or focus a piece for its details. The arrow keys step through the pieces.';
@@ -21,27 +24,32 @@ const place = (el, left, width) => {
 };
 
 /**
- * `collapsed` and `onToggle(collapsed)`: the panel's start state and its callback, so the choice can be kept.
- * Returns { element, render(view) } where `view` is buildTimelineView's answer.
- * @param {{ collapsed?: boolean, onToggle?: (collapsed: boolean) => void }} [args]
+ * `header`: an element for the header, beside the title (the waves). Returns { element, render(view) } where `view` is buildTimelineView's answer.
+ * @param {{ header?: HTMLElement | null }} [args]
  */
-export function createTimelineView({ collapsed = false, onToggle } = {}) {
-  const panel = createPanel({ title: '24-hour timeline', collapsed, onToggle });
-  const title = panel.element.querySelector('.panel-title');
+export function createTimelineView({ header = null } = {}) {
+  const title = h('h2', { class: 'sof-tl-title' });
   const problem = h('p', { class: 'sof-tl-problem', hidden: true });
   const axis = h('div', { class: 'sof-tl-axis' });
   const rows = h('div', { class: 'sof-tl-rows', role: 'group', 'aria-label': 'Forecast pieces by airfield. Use the arrow keys to move between them.' });
   const info = h('p', { class: 'sof-tl-info', 'aria-hidden': 'true' }, HINT);
   // The waves' times and marks in words, for a screen reader; the bands are the picture.
   const waveWords = h('p', { class: 'sof-tl-waves visually-hidden', hidden: true });
-  const legend = h(
-    'p',
-    { class: 'sof-tl-legend' },
-    'Each piece shows its NATO colour state in words. Hatched, and ▼ marks a piece below the limits for that airfield (a short piece shows only the ▼; its full words are on hover, on focus and to a screen reader). ◆ latest METAR. L landing, +1 landing plus one hour. The line is now.',
+  const key = h(
+    'details',
+    { class: 'sof-tl-key' },
+    h('summary', {}, 'Timeline key'),
+    h(
+      'p',
+      { class: 'sof-tl-legend' },
+      'Each piece shows its NATO colour state in words. Hatched, and ▼ marks a piece below the limits for that airfield (a short piece shows only the ▼; its full words are on hover, on focus and to a screen reader). ◆ latest METAR. L landing, +1 landing plus one hour. The line is now.',
+    ),
   );
-  panel.body.append(problem, axis, rows, info, waveWords, legend);
-  const element = panel.element;
-  element.classList.add('sof-timeline');
+  // The header holds the title and the waves; the body holds the picture, and scrolls inside itself if there are many airfields.
+  const head = h('div', { class: 'sof-tl-head' }, title, header);
+  const scroll = h('div', { class: 'sof-tl-scroll' }, problem, axis, rows);
+  const element = h('section', { class: 'sof-timeline', 'aria-labelledby': 'sof-tl-title' }, head, scroll, h('div', { class: 'sof-tl-foot' }, info, key), waveWords);
+  title.id = 'sof-tl-title';
 
   let signature = null;
   let current = null; // the view drawn
@@ -55,6 +63,7 @@ export function createTimelineView({ collapsed = false, onToggle } = {}) {
 
   function showInfo(text) {
     setText(info, text || HINT);
+    info.title = text || ''; // a piece's words can be longer than the one line
   }
 
   function makeTick(t, index, count) {

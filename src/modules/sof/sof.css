@@ -10,22 +10,69 @@
   --sof-lifr: #e08bff;
 }
 
-[data-module='sof'] .sof {
+/* SOF-38: the screen fills the window under the app's header and the footer, so there is no page scroll. The page is the
+   window's height (the app's body is already a column: header, this, footer), and the SOF takes what is left. If a window is
+   too short for the map's smallest size, the screen scrolls inside itself, never the page. */
+body:has(> main[data-module='sof']) {
+  height: 100vh;
+}
+
+main[data-module='sof'] {
+  position: relative; /* so a visually-hidden word inside a scrolled box cannot stretch the page */
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  min-height: 0;
+  overflow: auto;
+}
+
+[data-module='sof'] .sof {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 0;
   max-width: 120rem;
   margin: 0 auto;
-  padding: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+}
+
+/* Drop-downs over the screen (SOF settings, the clocks, the caution list, a wave's boxes): drawn over what is below, never pushing it. */
+[data-module='sof'] .sof-drop-host {
+  position: relative;
+}
+
+[data-module='sof'] .sof-drop {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  z-index: 20;
+  width: min(30rem, 92vw);
+  max-height: calc(100vh - 11rem);
+  overflow-y: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow);
+}
+
+[data-module='sof'] .sof-drop[hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-drop .panel {
+  border: 0;
+  background: transparent;
 }
 
 /* The SOF bar: the DTG, the feed's state in words, and the two buttons. */
+/* The SOF bar, one line: the DTG, the world clocks, the weather feed's state in words, SOF settings and Refresh. */
 [data-module='sof'] .sof-bar {
   display: flex;
-  flex-wrap: wrap;
+  flex: none;
   align-items: center;
-  gap: var(--space-2) var(--space-5);
-  padding: var(--space-2) var(--space-4);
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-1) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-raised);
@@ -33,16 +80,77 @@
 
 [data-module='sof'] .sof-dtg {
   font-family: var(--font-mono);
-  font-size: var(--text-xl);
+  font-size: var(--text-lg);
   font-weight: 700;
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
+/* World clocks: in the bar when the window is wide, behind "Clocks" at 1440 px and narrower. */
+[data-module='sof'] .sof-clocks {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
+[data-module='sof'] .sof-clocks-btn {
+  display: none;
+}
+
+[data-module='sof'] .sof-clock-list {
+  display: flex;
+  gap: var(--space-4);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-clock-time {
+  color: var(--text);
+  font-weight: 600;
+}
+
+@media (max-width: 1440px) {
+  /* The alternates' count is in the chip's hover words and in its panel; on a narrower window the chip keeps room for its reason. */
+  [data-module='sof'] .sof-chip-alts {
+    display: none;
+  }
+
+  [data-module='sof'] .sof-clocks-btn {
+    display: inline-flex;
+  }
+
+  [data-module='sof'] .sof-clock-list {
+    position: absolute;
+    top: calc(100% + var(--space-1));
+    left: 0;
+    z-index: 20;
+    display: none;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    background: var(--bg-raised);
+    box-shadow: var(--shadow);
+  }
+
+  [data-module='sof'] .sof-clocks.is-open .sof-clock-list {
+    display: flex;
+  }
+}
+
 [data-module='sof'] .sof-feed {
-  flex: 1 1 16rem;
+  flex: 1 1 0;
+  min-width: 0;
   margin: 0;
+  overflow: hidden;
   font-size: var(--text-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 [data-module='sof'] .sof-feed-label {
@@ -68,6 +176,7 @@
 
 [data-module='sof'] .sof-bar-actions {
   display: flex;
+  flex: none;
   gap: var(--space-2);
   margin-left: auto;
 }
@@ -79,21 +188,24 @@
 
 /* Every feed failing: its own row, above the cards, which keep the last reports. */
 [data-module='sof'] .sof-alert {
+  flex: none;
   margin: 0;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-1) var(--space-3);
+  overflow: hidden;
   border: 1px solid var(--bad);
   border-left-width: 6px;
   border-radius: var(--radius);
   background: var(--bg-sunken);
   font-weight: 600;
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 [data-module='sof'] .sof-alert[hidden] {
   display: none;
 }
 
-/* The one settings menu, in the page flow, closed until opened. */
+/* The one settings menu: a drop-down from the SOF bar, closed until opened. */
 [data-module='sof'] .sof .panel {
   margin: 0;
 }
@@ -104,17 +216,21 @@
   font-size: var(--text-sm);
 }
 
-/* The cards beside the map: the cards stack in a column, the map takes the rest; narrow, the map comes first. */
+/* The cards beside the map: the cards stack in a column that scrolls inside itself if it must, the map takes the height that is left; narrow, the map comes first. */
 [data-module='sof'] .sof-main {
   display: grid;
-  grid-template-columns: minmax(19rem, 26rem) minmax(0, 1fr);
-  gap: var(--space-3);
-  align-items: start;
+  flex: 1 1 0;
+  grid-template-columns: minmax(19rem, 27rem) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: var(--space-2);
+  min-height: 10rem;
 }
 
 @media (max-width: 62rem) {
   [data-module='sof'] .sof-main {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 28rem auto;
+    min-height: 40rem;
   }
 
   [data-module='sof'] .sof-map {
@@ -122,17 +238,21 @@
   }
 }
 
-/* Airfield cards */
+/* Airfield cards: short to begin with, each one punched out; Full brief opens the whole card. */
 [data-module='sof'] .sof-cards {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-3);
-  align-items: start;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
 [data-module='sof'] .sof-card {
+  flex: none;
   min-width: 0;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
   border-left: 6px solid var(--border-strong);
   border-radius: var(--radius);
@@ -159,16 +279,23 @@
 
 [data-module='sof'] .sof-card-head {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-1) var(--space-3);
+  margin-bottom: var(--space-1);
+}
+
+[data-module='sof'] .sof-card.is-open .sof-card-head {
   margin-bottom: var(--space-2);
 }
 
 [data-module='sof'] .sof-card-title {
+  min-width: 0;
   margin: 0;
-  font-size: var(--text-lg);
+  overflow: hidden;
+  font-size: var(--text-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 [data-module='sof'] .sof-icao {
@@ -178,12 +305,13 @@
 
 [data-module='sof'] .sof-name {
   color: var(--text-muted);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   font-weight: 400;
 }
 
 [data-module='sof'] .sof-badges {
   display: flex;
+  flex: none;
   flex-wrap: wrap;
   gap: var(--space-1);
 }
@@ -228,6 +356,58 @@
 [data-module='sof'] .sof-badge.is-stale {
   border-color: var(--border-strong);
   color: var(--text-muted);
+}
+
+/* The card's short lines (SOF-38): the label, then the report's own words in one line, cut with an ellipsis when long (all of
+   it is in Full brief). On a short window (1366 x 768 and the like) they wait behind Full brief, and the card is its header
+   and its result. */
+[data-module='sof'] .sof-card-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: var(--space-1);
+}
+
+[data-module='sof'] .sof-line {
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-line-label {
+  font-weight: 700;
+}
+
+[data-module='sof'] .sof-line-flag {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-line-raw {
+  font-family: var(--font-mono);
+}
+
+[data-module='sof'] .sof-line-raw.is-stale {
+  color: var(--text-faint);
+}
+
+[data-module='sof'] .sof-line.is-bad .sof-line-raw {
+  color: var(--bad);
+  font-family: var(--font);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-line.is-ok .sof-line-raw {
+  color: var(--text-muted);
+  font-family: var(--font);
+}
+
+@media (max-height: 800px) {
+  [data-module='sof'] .sof-card:not(.is-open) .sof-card-lines {
+    display: none;
+  }
 }
 
 [data-module='sof'] .sof-limits {
@@ -349,12 +529,35 @@
   color: var(--text-muted);
 }
 
+[data-module='sof'] .sof-result-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+[data-module='sof'] .sof-card.is-open .sof-result-row {
+  margin-bottom: var(--space-2);
+}
+
 [data-module='sof'] .sof-result {
-  margin: 0 0 var(--space-1);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--border);
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-sm);
   font-weight: 600;
   overflow-wrap: anywhere;
+}
+
+[data-module='sof'] .sof-card.is-open .sof-result {
+  font-size: var(--text-md);
+}
+
+[data-module='sof'] .sof-card-more {
+  flex: none;
+  min-height: 1.75rem;
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
 }
 
 [data-module='sof'] .sof-result.level-below .sof-result-symbol {
@@ -377,26 +580,91 @@
   overflow-wrap: anywhere;
 }
 
-[data-module='sof'] .sof-credits {
+/* The credits: one line at the bottom, "Not for flight planning" first; Sources opens every credit in full, over the screen. */
+[data-module='sof'] .sof-credits-row {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+[data-module='sof'] .sof-credits,
+[data-module='sof'] .sof-credits-row .sof-map-credits {
+  flex: 1 1 0;
+  min-width: 0;
   margin: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-sources,
+[data-module='sof'] .sof-tl-key,
+[data-module='sof'] .sof-map-legend {
+  position: relative;
+  flex: none;
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
 
-/* The map (SPEC-sof: Map) */
-[data-module='sof'] .sof-map {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
+[data-module='sof'] .sof-sources summary,
+[data-module='sof'] .sof-tl-key summary,
+[data-module='sof'] .sof-map-legend summary {
+  cursor: pointer;
 }
+
+/* A note that opens over the screen, above its line, never pushing anything. */
+[data-module='sof'] .sof-sources-body,
+[data-module='sof'] .sof-tl-legend,
+[data-module='sof'] .sof-map-legend-body {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + var(--space-1));
+  z-index: 20;
+  box-sizing: border-box;
+  width: min(40rem, 92vw);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Sources is first on its line and opens toward the right, over the cards, so it does not cover the map's key. */
+[data-module='sof'] .sof-sources-body {
+  right: auto;
+  left: 0;
+  width: min(44rem, 60vw);
+}
+
+[data-module='sof'] .sof-sources-body p {
+  margin: 0 0 var(--space-2);
+}
+
+[data-module='sof'] .sof-sources-body p:last-child {
+  margin-bottom: 0;
+}
+
+/* The map (SPEC-sof: Map) fills the height that is left (SOF-38): its controls on top, the canvas taking the rest, a one-line status under it. */
 
 [data-module='sof'] .sof-map-bar {
   position: relative;
   display: flex;
+  flex: none;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1) var(--space-2);
+}
+
+[data-module='sof'] .sof-map-bar button {
+  min-height: 2rem;
+  padding-top: var(--space-1);
+  padding-bottom: var(--space-1);
 }
 
 [data-module='sof'] .sof-map-field {
@@ -410,7 +678,7 @@
 /* Selects in the map bar and menu look like the ui-kit's .control selects: the browser's own white would put light text on white. */
 [data-module='sof'] .sof-map-field select,
 [data-module='sof'] .sof-layers-panel select {
-  min-height: 2.25rem;
+  min-height: 2rem;
   padding: var(--space-1) var(--space-2);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
@@ -435,12 +703,18 @@
 }
 
 [data-module='sof'] .sof-map {
-  --sof-map-height: clamp(24rem, 66vh, 46rem);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  min-height: 0;
 }
 
 [data-module='sof'] .sof-map-stage {
   position: relative;
-  height: var(--sof-map-height);
+  flex: 1 1 0;
+  min-height: 6rem;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -448,6 +722,8 @@
 }
 
 [data-module='sof'] .sof-map-canvas {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
@@ -466,11 +742,11 @@
 /*
  * The Layers menu sits over the top left of the map, and scrolls inside itself when the map is short. In the page it is inside the
  * bar, straight after its button (so Tab reaches it from the button); it is placed from the bar's bottom edge, past the row gap and
- * the map's border, so it is inside the map's top left corner.
+ * the map's border, so it is inside the map's top left corner. It is as tall as the window allows and scrolls inside itself.
  */
 [data-module='sof'] .sof-layers-panel {
   position: absolute;
-  top: calc(100% + 2 * var(--space-2) + 1px);
+  top: calc(100% + var(--space-1) + 1px);
   left: calc(var(--space-2) + 1px);
   z-index: 2;
   display: flex;
@@ -478,7 +754,7 @@
   gap: var(--space-2);
   box-sizing: border-box;
   width: min(22rem, calc(100% - 2 * var(--space-2)));
-  max-height: calc(var(--sof-map-height) - 2 * var(--space-2) - 2px);
+  max-height: max(12rem, calc(100vh - 16rem));
   overflow-y: auto;
   padding: var(--space-3);
   border: 1px solid var(--border-strong);
@@ -566,14 +842,30 @@
 }
 
 /* What each map feed says about itself, in words and a symbol */
-[data-module='sof'] .sof-map-status {
+/* The line under the map: what each map feed says about itself, in words and a symbol; one line, all of it on hover. */
+[data-module='sof'] .sof-map-foot {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-4);
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 1.5rem;
+}
+
+[data-module='sof'] .sof-map-status {
+  flex: 1 1 0;
+  min-width: 0;
   margin: 0;
   padding: 0;
-  list-style: none;
+  overflow: hidden;
   font-size: var(--text-sm);
+  list-style: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-map-feed {
+  display: inline;
+  margin-right: var(--space-4);
 }
 
 [data-module='sof'] .sof-map-feed.is-ok .sof-map-feed-symbol {
@@ -596,27 +888,16 @@
   font-size: var(--text-sm);
 }
 
-/* The map key: closed to begin with, a few plain lines under the map's status. */
-[data-module='sof'] .sof-map-legend {
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-}
-
+/* The map key: closed to begin with, one word on the line under the map; it opens over the map (see the notes above). */
 [data-module='sof'] .sof-map-legend[hidden] {
   display: none;
-}
-
-[data-module='sof'] .sof-map-legend summary {
-  cursor: pointer;
-  min-height: 1.5rem;
 }
 
 [data-module='sof'] .sof-map-legend-body {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding-top: var(--space-2);
-  max-width: 34rem;
+  width: min(34rem, 92vw);
 }
 
 [data-module='sof'] .sof-legend-item p {
@@ -670,13 +951,76 @@
   outline: 1px solid var(--border-strong);
 }
 
-/* The new-caution banner: its own row in the page flow, pushing the screen down, never over it. */
+/* The new-caution banner (SOF-38): one line (the lead caution, "+N more", Show all, Acknowledge). Show all drops the whole list over the
+   screen, never pushing it down. With no caution it is not there, and takes no room. */
 [data-module='sof'] .sof-banner {
-  padding: var(--space-3) var(--space-4);
+  position: relative;
+  flex: none;
   border: 1px solid var(--caution);
   border-left-width: 6px;
   border-radius: var(--radius);
   background: var(--bg-sunken);
+}
+
+[data-module='sof'] .sof-banner-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 2.5rem;
+  padding: var(--space-1) var(--space-3);
+}
+
+[data-module='sof'] .sof-banner-lead {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-banner-lead.is-stale {
+  color: var(--text-muted);
+}
+
+[data-module='sof'] .sof-banner-lead-symbol.is-below {
+  color: var(--bad);
+}
+
+[data-module='sof'] .sof-banner-lead-symbol.is-caution {
+  color: var(--caution);
+}
+
+[data-module='sof'] .sof-banner-more {
+  flex: none;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-banner-strip button {
+  flex: none;
+  min-height: 2rem;
+  padding-top: var(--space-1);
+  padding-bottom: var(--space-1);
+}
+
+[data-module='sof'] .sof-banner-drop {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  left: 0;
+  z-index: 20;
+  max-height: min(60vh, 30rem);
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--caution);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow);
+}
+
+[data-module='sof'] .sof-banner-drop[hidden] {
+  display: none;
 }
 
 [data-module='sof'] .sof-banner[hidden] {
@@ -684,10 +1028,12 @@
 }
 
 [data-module='sof'] .sof-banner-title {
-  margin: 0 0 var(--space-2);
-  font-size: var(--text-md);
+  flex: none;
+  margin: 0;
+  font-size: var(--text-sm);
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 [data-module='sof'] .sof-banner-list {
@@ -729,25 +1075,22 @@
   display: none;
 }
 
-/* Waves: one row per wave, its fields on the left and its call beside them. Every call is words and a symbol. */
+/* Waves (SOF-38): in the timeline's header, a chip for each wave with its call in words; a chip opens that wave's boxes and its
+   hits in a panel over the screen. Every call is words and a symbol. */
 [data-module='sof'] .sof-waves {
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-raised);
-}
-
-[data-module='sof'] .sof-waves-head {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-2) var(--space-4);
-  margin-bottom: var(--space-2);
+  flex: 1 1 0;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  min-width: 0;
 }
 
 [data-module='sof'] .sof-waves-title {
   margin: 0;
-  font-size: var(--text-lg);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
 }
 
 [data-module='sof'] .sof-day {
@@ -757,47 +1100,78 @@
   margin: 0;
   padding: 0;
   border: 0;
+  font-size: var(--text-sm);
 }
 
-[data-module='sof'] .sof-day-date,
 [data-module='sof'] .sof-waves-zone {
+  margin: 0;
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
 
+[data-module='sof'] .sof-wave-chips {
+  display: flex;
+  flex: 1 1 0;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
 [data-module='sof'] .sof-waves-problem {
-  margin: 0 0 var(--space-2);
+  margin: var(--space-2) 0;
   color: var(--bad);
   font-weight: 600;
 }
 
 [data-module='sof'] .sof-waves-problem[hidden],
 [data-module='sof'] .sof-waves-empty[hidden],
+[data-module='sof'] .sof-wave-limit[hidden],
+[data-module='sof'] .sof-wave[hidden],
+[data-module='sof'] .sof-wave-chip[hidden],
 [data-module='sof'] .sof-wave-detail[hidden] {
   display: none;
 }
 
 [data-module='sof'] .sof-waves-empty {
-  margin: 0 0 var(--space-2);
   color: var(--text-muted);
+  font-size: var(--text-sm);
 }
 
 [data-module='sof'] .sof-wave-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: 0 0 var(--space-2);
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
 [data-module='sof'] .sof-wave {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: var(--space-1) var(--space-4);
   padding-bottom: var(--space-2);
-  border-bottom: 1px solid var(--border);
+}
+
+[data-module='sof'] .sof-wave-pop {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  left: 0;
+  z-index: 20;
+  max-height: min(65vh, 34rem);
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow);
+}
+
+[data-module='sof'] .sof-wave-pop[hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-wave-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
 }
 
 [data-module='sof'] .sof-wave-fields {
@@ -840,16 +1214,21 @@
 
 [data-module='sof'] .sof-wave-chip {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
+  flex: 1 1 0;
+  align-items: center;
   justify-content: flex-start;
-  gap: var(--space-1) var(--space-3);
-  min-width: 0;
-  padding: var(--space-2) var(--space-3);
+  gap: var(--space-2);
+  min-width: 15rem;
+  max-width: 42rem;
+  min-height: 2rem;
+  overflow: hidden;
+  padding: 2px var(--space-3);
   border: 1px solid var(--border-strong);
   border-left-width: 6px;
   border-radius: var(--radius);
+  font-size: var(--text-sm);
   text-align: left;
+  white-space: nowrap;
 }
 
 [data-module='sof'] .sof-wave-chip[hidden] {
@@ -873,15 +1252,34 @@
   border-color: var(--accent);
 }
 
-[data-module='sof'] .sof-chip-call {
+[data-module='sof'] .sof-chip-title {
+  flex: none;
   font-weight: 700;
+}
+
+/* The call is the last thing to be cut: the reason (and the alternates' count) give way first. */
+[data-module='sof'] .sof-chip-call {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
 }
 
 [data-module='sof'] .sof-chip-reason,
 [data-module='sof'] .sof-chip-alts {
   color: var(--text-muted);
-  font-size: var(--text-sm);
-  overflow-wrap: anywhere;
+}
+
+[data-module='sof'] .sof-chip-reason {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-module='sof'] .sof-chip-alts {
+  flex: none;
 }
 
 [data-module='sof'] .sof-chip-reason[hidden],
@@ -889,9 +1287,6 @@
   display: none;
 }
 
-[data-module='sof'] .sof-waves-actions {
-  margin: 0;
-}
 
 [data-module='sof'] .sof-wave-add[aria-disabled='true'] {
   opacity: 0.5;
@@ -905,7 +1300,7 @@
 
 /* The list of hits for the selected wave. */
 [data-module='sof'] .sof-wave-detail {
-  margin-top: var(--space-3);
+  margin-top: var(--space-2);
   padding-top: var(--space-2);
   border-top: 1px solid var(--border);
 }
@@ -995,8 +1390,37 @@
   --sof-tl-lane-h: 1.75rem;
 }
 
+/* Across the full width, always open (SOF-38). Its header holds the title and the waves; its picture scrolls inside itself if there
+   are many airfields, never the page. */
 [data-module='sof'] .sof-timeline {
+  position: relative;
+  flex: none;
   margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+[data-module='sof'] .sof-tl-head {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+}
+
+[data-module='sof'] .sof-tl-title {
+  flex: none;
+  margin: 0;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-tl-scroll {
+  max-height: 40vh;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 [data-module='sof'] .sof-tl-problem {
@@ -1031,10 +1455,10 @@
 
 /* The ADS-B Exchange view takes the map's place */
 [data-module='sof'] .sof-adsbx {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
-  width: 100%;
-  height: 100%;
 }
 
 [data-module='sof'] .sof-adsbx[hidden] {
@@ -1103,11 +1527,12 @@
 
 [data-module='sof'] .sof-tl-rows {
   position: relative;
-  margin-top: var(--space-5); /* room for the wave names above the bands */
+  margin-top: 1.2rem; /* room for the wave names above the bands */
+  padding-bottom: 1.2rem; /* and for the landing and now labels below them */
 }
 
 [data-module='sof'] .sof-tl-row {
-  margin-bottom: var(--space-2);
+  margin-bottom: var(--space-1);
 }
 
 [data-module='sof'] .sof-tl-track {
@@ -1243,7 +1668,7 @@
 /* Over every row: wave bands with landing marks, and the now line. They never take the pointer. */
 [data-module='sof'] .sof-tl-overlay {
   position: absolute;
-  inset: 0 var(--sof-tl-end-gap) 0 var(--sof-tl-label-w);
+  inset: 0 var(--sof-tl-end-gap) 1.2rem var(--sof-tl-label-w);
   pointer-events: none;
 }
 
@@ -1312,19 +1737,49 @@
   color: var(--focus);
 }
 
+/* The foot of the timeline: the hover words for a piece on one line (all of them are on hover, on focus and to a screen reader),
+   and the key, which opens over the screen. */
+[data-module='sof'] .sof-tl-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 [data-module='sof'] .sof-tl-info {
-  min-height: 2.75rem;
-  margin: var(--space-4) 0 var(--space-2);
-  padding: var(--space-2) var(--space-3);
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  padding: 2px var(--space-3);
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-sunken);
   font-size: var(--text-sm);
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 [data-module='sof'] .sof-tl-legend {
-  margin: 0 0 var(--space-1);
-  color: var(--text-muted);
-  font-size: var(--text-sm);
+  margin: 0;
+}
+
+/* A short window (1366 x 768 and the like): lanes a little lower, so the map keeps its height. */
+@media (max-height: 800px) {
+  [data-module='sof'] {
+    --sof-tl-lane-h: 1.4rem;
+  }
+
+  [data-module='sof'] .sof-tl-piece-label {
+    line-height: 1rem;
+  }
+
+  [data-module='sof'] .sof-tl-scroll {
+    max-height: 34vh;
+  }
+
+  /* Short windows: less room kept round the bands for their labels, so the map keeps more height. */
+  [data-module='sof'] .sof-tl-rows {
+    margin-top: 0.9rem;
+    padding-bottom: 0.9rem;
+  }
 }

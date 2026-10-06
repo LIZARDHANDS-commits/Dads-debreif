@@ -14,6 +14,11 @@ Ideas for the SOF that are not being built. An idea moves into `plan.md` only wi
 - Keep the radar and lightning pictures all day so a later debrief can use them (old FF37). It needs somewhere to store them and has not been proposed to Patrick yet; it would also remove the 3-hour weather limit in the Debrief's DB-R18 (`archive/docs/records/future-ideas.md:11`, `pf/reset/2-inventory/agents/sources/plan-doc-future-features.md:40`).
 - SIGMETs, PIREPs and the Prairies forecast chart on the SOF, through the same relay (old FF26) (`archive/docs/records/future-ideas.md:10`).
 
+## Asked by Dad (6 Oct)
+
+- **Live aircraft plotted on our own map** from ADS-B sites. This is the relay layer above (SOF-R17, SOF-7); it still waits on whose account runs the relay. V6 used Dad's own Netlify function for this (`v6/sof.html:727`), so that account is one option to put to Patrick.
+- **A 3D SOF picture, like the pattern sim:** Moose Jaw's airspace drawn in 3D, with clouds, fronts, storms, radar and winds, and live aircraft in it. Clouds are built from reported and forecast bases and tops and the low, medium and high layers. Long-term goal; not proposed to Patrick yet. It needs new outside data sources, so it waits for his yes.
+
 ## Feature Ideas for the SOF
 
 - **Sun and moon panel, sun in the eyes**: sunrise, sunset and twilight cutoffs, moon and last-land cues; the Debrief's sun-in-the-eyes half goes with it (Feature Ideas idea 9; value high, effort small; `pf/reset/2-inventory/agents/sources/feature-ideas.md:11`)

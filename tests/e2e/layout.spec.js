@@ -1,6 +1,6 @@
-// Checks: at 1280x800, 1366x768 and 1920x1080 on every screen and the Settings dialog, nothing overlaps, sticks out or scrolls sideways.
+// Checks: at 1280x800, 1366x768 and 1920x1080 on every screen and the Settings dialog, nothing overlaps, sticks out or scrolls sideways; the SOF fits one screen at 1366x768.
 // Serves: ALL-R7.
-// Expected values: geometry measured live in the browser; the smallest supported width of 1280 (D183) and the 1180 px note (D225) are design choices.
+// Expected values: geometry measured live in the browser; the smallest supported width of 1280 (D183), the 1180 px note (D225) and the SOF's one-screen layout at 1366 x 768 (SOF-38, Dad's approval) are design choices.
 
 // R2: from 1280 wide (the smallest supported width, D183) up to 1920 × 1080, nothing is cut off and no control covers another.
 import { test, expect, expectNoA11yViolations } from './fixtures.js';
@@ -100,6 +100,36 @@ for (const size of SIZES) {
     });
   });
 }
+
+// SOF-38 (decision, Dad 6 Oct 2026): the SOF is one screen. At 1366 x 768, from the default start, the whole of it fits under the
+// app's header: the page does not scroll, and the timeline, an airfield card and the map are all in view.
+test.describe('the SOF is one screen at 1366 × 768', () => {
+  test.use({ viewport: { width: 1366, height: 768 } });
+
+  test('the page does not scroll, and the timeline, a card and the map are all in view', async ({ page }) => {
+    await openRoute(page, '#/sof');
+    await page.waitForFunction(() => window.__ooda.stats().mounted === 'sof');
+    await expect(page.locator('article.sof-card').first()).toBeVisible();
+    const seen = await page.evaluate(() => {
+      const inView = (selector) => {
+        const el = document.querySelector(selector);
+        if (!el) return false;
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && r.height > 0 && r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth;
+      };
+      return {
+        scroll: document.documentElement.scrollHeight - innerHeight,
+        timeline: inView('.sof-timeline'),
+        card: inView('article.sof-card'),
+        map: inView('.sof-map-stage'),
+      };
+    });
+    expect(seen.scroll, 'the page scrolls down').toBeLessThanOrEqual(0);
+    expect(seen.timeline, 'the timeline is in view').toBe(true);
+    expect(seen.card, 'an airfield card is in view').toBe(true);
+    expect(seen.map, 'the map is in view').toBe(true);
+  });
+});
 
 test('openRoute waits for a module stylesheet that is slow to arrive', async ({ page }) => {
   await page.route(/\/assets\/.*\.css$/, async (route) => {
