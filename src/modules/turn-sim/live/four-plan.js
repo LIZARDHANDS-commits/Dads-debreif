@@ -8,12 +8,14 @@
 // another, the fewest that get there (MOVES' rough seconds pick the route; estimates).
 //
 // Sources for each move are in the file that flies it: four-close.js (finger, echelon, box, line astern, route, and out of
-// them to fighting wing). The rest still fly the V2.96 code in four-ship-moves.js until refactor PRs 7 and 8 rebuild them.
+// them to fighting wing) and four-rejoin.js (the turning and straight-ahead rejoins, V2.98). Opening out to Spread 4, Fluid
+// 4 and the offset box still fly the V2.96 code in four-ship-moves.js until refactor PR 8 rebuilds them.
 import { copyAircraft, planDone } from './flight.js';
 import { classify, judge } from './judge.js';
 import { FOUR_FORMATIONS, refsFor, fourWords } from './slots.js';
 import { FOUR_CHANGE_LIMIT_SEC, statesAt, joinLegs } from './four-legs.js';
 import { fingerToEchelon, echelonToFinger, fingerBox, fingerTrail, slideTo, openToFw } from './four-close.js';
+import { rejoinToFw, turningToFinger, closeFromFw, straightToEchelon } from './four-rejoin.js';
 import { LEGACY } from './four-ship-moves.js';
 
 export { FOUR_CHANGE_LIMIT_SEC };
@@ -34,18 +36,20 @@ const MOVES = [
   { from: 'finger', to: 'route', m: 'M12', cost: 15, sides: 'same', fly: (st, t, o, s) => slideTo(st, t, o, s, 'route'), how: 'out to route' },
   { from: 'route', to: 'finger', m: 'M10 (route to echelon references)', cost: 15, sides: 'same', fly: (st, t, o, s) => slideTo(st, t, o, s, 'finger'), how: 'in from route' },
   ...['finger', 'echelon'].map((from) => ({ from, to: 'fw', m: 'M9', cost: 60, sides: 'same', fly: (st, t, o, s) => openToFw(st, t, o, s, from), how: 'drop back to fighting wing' })),
-  // still V2.96's (four-ship-moves.js), until refactor PRs 7 and 8
-  { from: 'spread4', to: 'fw', m: 'M16', cost: 150, sides: 'same', fly: (st, t, o, s) => LEGACY.rejoinToFw(st, t, o, s), how: 'turning rejoin to fighting wing' },
-  { from: 'offsetBox', to: 'fw', m: 'M22', cost: 200, sides: 'same', fly: (st, t, o, s) => LEGACY.rejoinToFw(st, t, o, s), how: 'turning rejoin to fighting wing' },
-  { from: 'other', to: 'fw', m: 'M16', cost: 150, sides: 'same', fly: (st, t, o, s) => LEGACY.rejoinToFw(st, t, o, s), how: 'rejoin to fighting wing' },
+  // rejoins (four-rejoin.js)
+  { from: 'spread4', to: 'fw', m: 'M16', cost: 150, sides: 'same', fly: (st, t, o, s) => rejoinToFw(st, t, o, s, 'spread4'), how: (o) => (o.rejoin === 'straight' ? 'straight-ahead rejoin to fighting wing' : 'turning rejoin to fighting wing') },
+  { from: 'offsetBox', to: 'fw', m: 'M22', cost: 200, sides: 'same', fly: (st, t, o, s) => rejoinToFw(st, t, o, s, 'offsetBox'), how: (o) => (o.rejoin === 'straight' ? 'straight-ahead rejoin to fighting wing' : 'turning rejoin to fighting wing') },
+  { from: 'other', to: 'fw', m: 'M16', cost: 150, sides: 'same', fly: (st, t, o, s) => rejoinToFw(st, t, o, s, 'other'), how: 'rejoin to fighting wing' },
+  { from: 'fw', to: 'route', m: 'M12', cost: 60, sides: 'same', fly: (st, t, o, s) => closeFromFw(st, t, o, s, 'route'), how: 'close through route' },
+  { from: 'fw', to: 'finger', m: 'M10/M11', cost: 70, sides: 'same', fly: (st, t, o, s) => (o.rejoin === 'straight' ? { ...closeFromFw(st, t, o, s, 'finger'), how: 'straight-ahead rejoin to finger, through route' } : turningToFinger(st, t, o, s, 'fw')), how: 'turning rejoin to finger' },
+  { from: 'spread4', to: 'finger', m: 'M11 (Q5)', cost: 150, sides: 'same', fly: (st, t, o, s) => turningToFinger(st, t, o, s, 'spread4'), how: 'turning rejoin to finger' },
+  { from: 'fw', to: 'echelon', m: 'M10', cost: 90, sides: 'any', fly: (st, t, o, s, sTo) => straightToEchelon(st, t, o, sTo), how: 'straight-ahead rejoin to echelon' },
+  // still V2.96's (four-ship-moves.js), until refactor PR 8
   { from: 'fw', to: 'spread4', m: 'M13', cost: 90, sides: 'same', fly: (st, t, o, s) => LEGACY.entryToSpread(st, t, o, s, false), how: 'entry to Spread 4' },
   { from: 'finger', to: 'spread4', m: 'M13', cost: 90, sides: 'same', fly: (st, t, o, s) => LEGACY.entryToSpread(st, t, o, s, true), how: 'open out to Spread 4' },
   { from: 'fw', to: 'fluid4', m: 'M18', cost: 60, sides: 'same', fly: (st, t, o, s) => LEGACY.fwFluid(st, t, o, s, true), how: '"Fluid 4, go"' },
   { from: 'fluid4', to: 'fw', m: 'not in the manuals', cost: 60, sides: 'same', fly: (st, t, o, s) => LEGACY.fwFluid(st, t, o, s, false), how: 'back to fighting wing' },
   { from: 'fluid4', to: 'offsetBox', m: 'M19', cost: 120, sides: 'same', fly: (st, t, o, s) => LEGACY.fluidToBox(st, t, o, s), how: 'in place 90, then spread to the box' },
-  { from: 'fw', to: 'route', m: 'M12', cost: 60, sides: 'same', fly: (st, t, o, s) => LEGACY.closeFromFw(st, t, o, s, 'route'), how: 'close through route' },
-  { from: 'fw', to: 'finger', m: 'M10/M11', cost: 70, sides: 'same', fly: (st, t, o, s) => (o.rejoin === 'straight' ? { ...LEGACY.closeFromFw(st, t, o, s, 'finger'), how: 'straight-ahead rejoin to finger, through route' } : LEGACY.turningOrStraight(st, t, o, s)), how: 'turning rejoin to finger' },
-  { from: 'fw', to: 'echelon', m: 'M10', cost: 90, sides: 'any', fly: (st, t, o, s, sTo) => LEGACY.straightToEchelon(st, t, o, sTo), how: 'straight-ahead rejoin to echelon' },
 ];
 
 /** The fewest-seconds route from (key, side) to (to, sTo) through MOVES: [{ move, s, sTo }…], or null. */
@@ -100,7 +104,8 @@ export function planChangeFour(aircraft, to, options = {}, t0 = 0) {
     const s = step.s === 0 ? (step.sTo || sNow) : step.s;
     const r = step.move.fly(now, t, opts, s, step.sTo);
     if (!r.ok) return { ok: false, reason: `No safe change from here: ${r.reason}`, from: from.key, to };
-    hows.push(r.straightFallback ? `${r.how ?? step.move.how} (straight ahead: no turn kept the lane)` : r.how ?? step.move.how);
+    const how = r.how ?? (typeof step.move.how === 'function' ? step.move.how(opts) : step.move.how);
+    hows.push(r.straightFallback ? `${how} (straight ahead: no turn kept the lane)` : how);
     legs.push(...r.legs);
     const last = r.legs[r.legs.length - 1];
     now = r.end ?? statesAt(now, last, last.endSec); // a move of several legs hands back where its last leg ended
