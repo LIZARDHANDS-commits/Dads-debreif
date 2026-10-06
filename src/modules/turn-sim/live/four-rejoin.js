@@ -41,6 +41,9 @@ const FOUR_LOWER_FT = 10;
  */
 const TRJ = Object.freeze({ outsideWindowFt: { 3: [250, 550], 4: [600, 900] }, creepKt: 5, passBehindLengths: 2, waitBehindFt: { 3: 150, 4: 300 }, waitLowFt: { 3: 20, 4: 30 } });
 
+/** In the rejoin to fighting wing #3 and #4 pass the point behind their places within this, without stopping (an estimate). */
+const FW_PASS_FT = 300;
+
 /** The least G #2's vertical may push to on the way down from his stack (an estimate). */
 const VERTICAL_MIN_G = 0.5;
 
@@ -106,22 +109,25 @@ export function rejoinToFw(start, t0, opts, s, from) {
     if (slots[2].alt >= 0) slots[2] = { ...slots[2], alt: -FW_STEP_DOWN_FT };
     const lead = c.start[0];
     const far = (id) => (Math.abs(relativeTo(lead, c.by.get(id)).left) > 3000 ? FAR_OVERTAKE_KIAS : REJOIN.overtakeKias);
-    const outside = (id, gateId) => ({
+    const outside = (id) => ({
       id,
-      phases: (done) => [
-        ...waitInWindow(c, id, inLeadFrame(slots, id), slots[id].alt, inAt(done, gateId), { overtakeKias: far(id), bankCapDeg: TURNING_REJOIN.bankCapDeg }),
+      phases: () => [
+        // no waiting for the one ahead (Patrick 6 Oct 05:45Z: "2 immedately flis into his cone, 3 misses to and flies to
+        // their cone, 4 misses 3 and flies to theirs"): through the far edge of his window behind his place, his stack held
+        // as the separation, and on in. Until V2.131 each waited in the window until the one ahead was in.
+        rejoinTo(place(c, inLeadFrame(slots, id).fwd - TRJ.outsideWindowFt[id][1], inLeadFrame(slots, id).left, slots[id].alt), { track: 1, advanceTol: FW_PASS_FT, overtakeKias: far(id), bankCapDeg: TURNING_REJOIN.bankCapDeg }),
         // into the cone off the aircraft he flies off, settling where he arrives in it (the whole cone, Patrick 5 Oct 08:58Z;
         // TS-75), his stack held as the separation
         { ...toSlot(c, sweepOut, slots[id]), ...FW_FOLLOW, coneAlt: false, goal: (R, W) => fwGoal(R, W, -s, false) },
       ],
     });
     const two = { id: 2, phases: () => [toSlot(c, rejoinTo, slots[2], { overtakeKias: far(2) })] };
-    if (opts.rejoin === 'straight') return { lead: toSpeed(c, 'fw'), wings: [two, outside(3, 2), outside(4, 3)], how: 'straight-ahead rejoin to fighting wing' };
+    if (opts.rejoin === 'straight') return { lead: toSpeed(c, 'fw'), wings: [two, outside(3), outside(4)], how: 'straight-ahead rejoin to fighting wing' };
     const into = leadInto(c, s, 'fw');
     const hot = from === 'spread4' || from === 'offsetBox';
     return {
       lead: { hold: into, until: [2, 3, 4] },
-      wings: [{ ...two, fly: twoTurning(c, into, s, 'fw', s, hot) }, outside(3, 2), outside(4, 3)],
+      wings: [{ ...two, fly: twoTurning(c, into, s, 'fw', s, hot) }, outside(3), outside(4)],
     };
   }]);
 }

@@ -183,10 +183,10 @@ export function flyToDecision({ allowAcross = false, maxWhenLow = true, wing, re
       // Cold (behind the line) he is at MAX until he is on it, with no top speed, and down the line he keeps what he has
       // until the run-in takes it out (Patrick 6 Oct 05:29Z: "would just bne full power for a while. we only need a MINIMUM
       // of 200 knots on the line. its unlimited until then"; until V2.130 he held targetKias both ways).
-      // Short of Lead's energy (height and speed together) he is at MAX too, hot or not: from low and far out he never comes
-      // back on the power while he still has to climb to Lead (Patrick 6 Oct 05:00Z, 05:29Z).
-      const esFt = W.altAboveFt - L.altAboveFt + (W.tasFtps * W.tasFtps - L.tasFtps * L.tasFtps) / (2 * G_FTPS2);
-      const low = maxWhenLow && r > TRACKER.laneRangeFt && esFt < -TR.lowEnergyFt;
+      // Below Lead he is at MAX too, hot or not: from low and far out he never comes back on the power while he still has to
+      // climb to Lead (Patrick 6 Oct 05:00Z, 05:29Z). Height only: counting speed too (V2.130) put him at MAX from a level
+      // start as his turn bled a few knots, and line abreast to fighting wing took 5-10 s longer.
+      const low = maxWhenLow && r > TRACKER.laneRangeFt && W.altAboveFt < L.altAboveFt - TR.lowEnergyFt;
       const kiasCmd = low ? Infinity : cross > TR.captureFt ? lineCmd - (lineCmd - floorKias) * Math.min(1, (cross - TR.captureFt) / TR.hotFt) : onLine ? Math.max(targetKias, W.kias) : Infinity;
       const aMin = cross > TR.captureFt ? aAll : aPower;
       aCmd = Math.max(-aMin, Math.min(aMax, G.speedLoop * (kiasCmd - W.kias)));
