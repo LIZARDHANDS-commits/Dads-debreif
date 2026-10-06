@@ -176,3 +176,4 @@ Checks: the same buttons flown from the default start before and after, screensh
 - [x] The camera starts every visit on the formation (Patrick, 6 Oct: the 2D camera wasn't following): a Free picked on an earlier visit was remembered and left the camera following nothing. North stays up in 2D. V2.111.
 - [x] A click on any Camera menu choice, even the one already picked, locks the camera back on after a drag, as Fit does (Patrick, 6 Oct); Free stays free. V2.112.
 - [x] Data tags no longer vanish (Patrick, 6 Oct): a tag that stepped past another to avoid covering it could be pushed off the top or bottom of the picture; it is now kept on the picture, overlapping if there is no room. V2.115.
+- [x] In close formation Lead's tag stays and only the wingmen's go (TS-92 changed, Patrick 6 Oct: "Only show lead's tag"; the tags 'disappearing' from fighting wing to echelon were TS-92 switching them all off inside 500 ft). V2.117.

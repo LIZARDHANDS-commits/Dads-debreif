@@ -272,15 +272,15 @@ function mount(root, app) {
   }
 
   function dataTags() {
-    // No tags in close formation (TS-92): both views then draw the aircraft as with the tags switched off.
-    if (closeTagsOff(state, formation.where())) return null;
+    // In close formation only Lead's tag shows (TS-92, Patrick 6 Oct: "Only show lead's tag"; it was none).
+    const leadOnly = closeTagsOff(state, formation.where());
     const tags = tagLines(state, formation.where());
     // The 2D view shows no height, so its tags always carry each wingman's height off Lead ("+150 ft"); 3D follows the Data tag tick.
     const show = shown === '2d' ? { ...layout.get(), tagHeight: true } : layout.get();
     const lead = state.aircraft[0];
     const out = {};
     for (const a of state.aircraft) {
-      if (!tags[a.id]) continue;
+      if (!tags[a.id] || (leadOnly && a.id !== 1)) continue;
       let closure = null;
       if (a.id !== 1 && state.current?.change?.rejoining) {
         const r = rejoinReadout(lead, a);
