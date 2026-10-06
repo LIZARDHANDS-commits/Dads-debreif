@@ -1196,7 +1196,7 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
       if (onRunway) touchdown = { x: s.x, y: s.y, alongFt: o.alongFt, kias: s.ias };
       else eject = { x: s.x, y: s.y, alt: s.alt };
       // Landing past the first third (it carried on its turn, or turned early to land long) is shown (Fable Q2, working answer (c)).
-      setRec(onRunway ? (o.alongFt > geo.aimAlongFt ? 'Touchdown past the first third' : 'Touchdown') : 'Eject');
+      setRec(onRunway ? (o.alongFt > geo.lenFt / 3 ? 'Touchdown past the first third' : 'Touchdown') : 'Eject');
       pilot.record();
       break;
     }
