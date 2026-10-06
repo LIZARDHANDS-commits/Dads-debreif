@@ -132,23 +132,19 @@ Every number the Formation Sim's planners use, with the source written beside it
 | FW_FOLLOW.undertakeKias | `15` | the most speed below Lead, KIAS (estimate) |
 | FW_FOLLOW.advanceTol | `25` | within this many feet of the goal a leg counts as flown (estimate) |
 | FW_FOLLOW.finalTol | `6` | within this many feet of the last goal, and slow against it, #2 is settled (estimate) |
+| FW_PURSUIT |  | The pursuit curves #2 flies in a fighting wing turn (fw-pursuit.js, TS-100; SMM 12.29 para 69, 12.30 paras 71-73, Figs 12.20-12.23). Every number is an estimate unless a page is named beside it. |
+| FW_PURSUIT.minBankDeg | `5` | Lead banked less than this is not turning: the tracker's band goal flies #2 instead (estimate) |
+| FW_PURSUIT.aimRangeFt | `750` | the range aimed for on the circle: the middle of the cone's 500-1,000 ft (SMM 12.29 para 69, Fig 12.19) |
+| FW_PURSUIT.arcScaleFt | `250` | the arc ahead of or behind the aim point that asks for the full angle off the tangent: the cone's edges, 250 ft either side of the aim (estimate) |
+| FW_PURSUIT.leadMaxDeg | `30` | the most #2's nose points inside the circle when behind the aim point (lead) or outside it when ahead (lag), degrees (estimate) |
+| FW_PURSUIT.lagMaxDeg | `20` | the most his nose points outside the circle when ahead of the aim point and inside it (turned into, tight: the miss, Fig 12.22), degrees (estimate) |
+| FW_PURSUIT.circleScaleFt | `500` | how far outside or inside Lead's circle asks for the full extra lead or lag, ft (estimate) |
+| FW_PURSUIT.circleDeg | `20` | that extra lead (outside the circle) or lag (inside it), degrees (estimate) |
+| FW_PURSUIT.closeKias | `10` | the most speed above or below Lead the arc error asks for; power last, geometry first (Patrick 5 Oct 23:02Z; estimate) |
 | FW_ENERGY |  | Fighting wing energy with the cone (TS-96; Patrick 5 Oct 22:45Z: "energy can be managed with the cone", 23:02Z: "Use the cone as required, power as a last resort"): on the power profile in fighting wing (tracker.js), #2 takes a slowing first as a climb and a speeding up as a descent, inside the cone's height, so the throttle moves only for what the height can't give. The horizontal path and the sp |
 | FW_ENERGY.coneUpFt | `IN_POSITION.fwStackFt - 50` | he uses the cone's height up to this far above or below Lead, 50 ft inside the in-position band (estimate) |
 | FW_ENERGY.climbFtps | `TURNING_REJOIN.descentFtps` | no quicker than the rejoin's height changes, 1,800 ft/min (estimate) |
 | FW_ENERGY.pullFtps2 | `8` | the climb rate changes no quicker than this, about a quarter G, charged as G (estimate) |
-| FW_FOLLOW_FOUR |  | The 4-ship's wingmen moving to fighting wing (four-ship-moves.js): FW_FOLLOW's tracker settings with a slower sideways and fore-aft slide (40 ft/s, against FW_FOLLOW's 60 and 40) and more power (25 KIAS each way), as it has flown since V2.1x. All estimates; one named entry (clean-up step 2); since step 3 the closure law sets its closing speed (four-ship-moves.js). |
-| FW_FOLLOW_FOUR.fwdRate | `40` |  |
-| FW_FOLLOW_FOUR.latRate | `40` |  |
-| FW_FOLLOW_FOUR.vrel0 | `FW_FOLLOW.vrel0` |  |
-| FW_FOLLOW_FOUR.kcap | `FW_FOLLOW.kcap` |  |
-| FW_FOLLOW_FOUR.d0 | `FW_FOLLOW.d0` |  |
-| FW_FOLLOW_FOUR.vrelMax | `FW_FOLLOW.vrelMax` |  |
-| FW_FOLLOW_FOUR.decel | `FW_FOLLOW.decel` |  |
-| FW_FOLLOW_FOUR.bankCapDeg | `FW_FOLLOW.bankCapDeg` |  |
-| FW_FOLLOW_FOUR.overtakeKias | `25` |  |
-| FW_FOLLOW_FOUR.undertakeKias | `25` |  |
-| FW_FOLLOW_FOUR.advanceTol | `FW_FOLLOW.advanceTol` |  |
-| FW_FOLLOW_FOUR.finalTol | `FW_FOLLOW.finalTol` |  |
 | TRACKER |  | The tracker's own numbers (tracker.js): a small control loop that chases a moving target slot in the frame of the aircraft flown off, flown once at the press and replayed. It stays as the fallback for starts no kinematic-line rule covers (Patrick 5 Oct 05:27Z: "Tracker for fallback, and refractor the tracker"). All estimates: they shape how smoothly the wingman flies, not where the formations are. |
 | TRACKER.gain | `Object.freeze({` |  |
 | TRACKER.…position | `0.3` | 1/s: position error to relative velocity |

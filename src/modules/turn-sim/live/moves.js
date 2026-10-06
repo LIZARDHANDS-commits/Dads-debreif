@@ -212,26 +212,6 @@ export const FW_ENERGY = Object.freeze({
   pullFtps2: 8, // the climb rate changes no quicker than this, about a quarter G, charged as G (estimate)
 });
 
-/**
- * The 4-ship's wingmen moving to fighting wing (four-ship-moves.js): FW_FOLLOW's tracker settings with a slower sideways
- * and fore-aft slide (40 ft/s, against FW_FOLLOW's 60 and 40) and more power (25 KIAS each way), as it has flown since
- * V2.1x. All estimates; one named entry (clean-up step 2); since step 3 the closure law sets its closing speed (four-ship-moves.js).
- */
-export const FW_FOLLOW_FOUR = Object.freeze({
-  fwdRate: 40,
-  latRate: 40,
-  vrel0: FW_FOLLOW.vrel0,
-  kcap: FW_FOLLOW.kcap,
-  d0: FW_FOLLOW.d0,
-  vrelMax: FW_FOLLOW.vrelMax,
-  decel: FW_FOLLOW.decel,
-  bankCapDeg: FW_FOLLOW.bankCapDeg,
-  overtakeKias: 25,
-  undertakeKias: 25,
-  advanceTol: FW_FOLLOW.advanceTol,
-  finalTol: FW_FOLLOW.finalTol,
-});
-
 // ---- the tracker, the fallback for odd starts (from transitions.js; Patrick 05:27Z) --------------------------------
 
 /**

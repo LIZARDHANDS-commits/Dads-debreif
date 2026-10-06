@@ -92,6 +92,7 @@ export function flyToDecision({ wing, rec, s, aimFt, bankCapDeg, decisionFt, arr
   let lineKias = null;
   let minKias = W.kias;
   let maxG = W.g ?? 1;
+  let minG = W.g ?? 1;
   for (let n = 0; n < Math.round(CHANGE_LIMIT_SEC / dt); n++) {
     const L = rec.at(n);
     const Lnext = rec.at(n + 1);
@@ -102,7 +103,7 @@ export function flyToDecision({ wing, rec, s, aimFt, bankCapDeg, decisionFt, arr
     const rel = relativeTo(L, W);
     const along = rel.fwd * u.fwd + rel.left * u.left;
     if (rel.left * s < 0) return null; // across to Lead's other side: not a rejoin on this side
-    if (along <= decisionFt && Math.abs(rel.fwd * nrm.fwd + rel.left * nrm.left) <= TR.captureFt) return { points, steps: n, end: W, accelKtps: accel, maxBankDeg: maxBank, ahead, minKias, maxG, lineKias: lineKias ?? W.kias };
+    if (along <= decisionFt && Math.abs(rel.fwd * nrm.fwd + rel.left * nrm.left) <= TR.captureFt) return { points, steps: n, end: W, accelKtps: accel, maxBankDeg: maxBank, ahead, minKias, maxG, minG, lineKias: lineKias ?? W.kias };
 
     // Where he steers, in Lead's turning frame: down the line toward Lead once on it; off it, across toward it at up to
     // TURNING_REJOIN.approachDeg, the angle growing with the distance off (the further off, the more directly he heads for
@@ -185,6 +186,7 @@ export function flyToDecision({ wing, rec, s, aimFt, bankCapDeg, decisionFt, arr
     points.push([bank, kias, power]);
     minKias = Math.min(minKias, W.kias);
     maxG = Math.max(maxG, W.g);
+    minG = Math.min(minG, W.g);
     maxBank = Math.max(maxBank, Math.abs(W.bankDeg));
     const after = relativeTo(Lnext, W);
     // Ahead of Lead's 3/9 line inside laneRangeFt is refused, except for a tight start that begins inside it ahead of the
@@ -206,7 +208,7 @@ function tailLegs(s, to, sTo, spacingFt) {
 }
 
 /** The whole rejoin with one point bank: #2's part to the decision point, then the tracker against Lead turning until #2 is in. */
-export function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, upFt = 0 }) {
+export function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, upFt = 0, minG = null }) {
   const TR = TURNING_REJOIN;
   const route = pairSlot('route', s, spacingFt);
   const decisionFt = to === 'fw' ? fwShapeNow().rangeFt : Math.abs(route.left) / Math.cos(TR.lineDeg * DEG); // where the line reaches route's spacing
@@ -239,7 +241,8 @@ export function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, 
   let part = flyToDecision({ ...args, profile: heightLeg(descentSec) });
   if (!part) return null;
   if (part.steps * dt < descentSec) part = flyToDecision({ ...args, profile: heightLeg(Math.max(part.steps * dt, dt)) });
-  if (!part || part.ahead || (upFt > 0 && part.maxG > G_RULE.normalG)) return null;
+  // minG: the least G a vertical may push to (the 4-ship's #2 from his stack); none for the 2-ship.
+  if (!part || part.ahead || (upFt > 0 && (part.maxG > G_RULE.normalG || (minG !== null && part.minG < minG)))) return null;
   const n1 = part.steps;
   const W1 = { ...part.end, altAboveFt: lineFt, climbFtps: 0 };
   // The flow through route at no more than the decision point's arrival rate (AI's close-in rate overran the slot from there).
@@ -268,9 +271,10 @@ export function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, 
 /**
  * The search for the most efficient turning rejoin (planTurningRejoin's, also the 4-ship's #2 against Lead's held turn,
  * four-rejoin.js): every overtake, bank and aim in the order below, then the vertical. into: leadTurnInto's { longRec,
- * planTo }. hot: from line abreast. vertical: false leaves out the vertical (the 4-ship: #2 starts on his stack). Returns flyWith's result with { overtakeKt, lowFloor, aimFt, bankCapDeg, upFt }, or null.
+ * planTo }. hot: from line abreast. vertical: false leaves out the vertical; verticalMinG: the least G a vertical may push to
+ * (the 4-ship's #2, who starts on his stack; none for the 2-ship). Returns flyWith's result with { overtakeKt, lowFloor, aimFt, bankCapDeg, upFt }, or null.
  */
-export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, hot, vertical = true }) {
+export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, hot, vertical = true, verticalMinG = null }) {
   // How far ahead down the line he aims: the one that brings him in soonest (Patrick 08:20Z: "find a way to make the most
   // efficient": smaller inputs for longer, or larger for shorter).
   // A medium bank first; more, up to the G rule, only when no medium-bank rejoin keeps him behind Lead's 3/9 line.
@@ -302,7 +306,7 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
   // when it brings him in sooner, by more than the chooser's half-second tie, within the G rule with its pull charged.
   if (best && vertical) {
     for (const upFt of TURNING_REJOIN.verticalUpFt) {
-      const flown = flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, upFt });
+      const flown = flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, upFt, minG: verticalMinG });
       if (flown && flown.durationSec < best.durationSec - 0.5) best = { ...flown, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, upFt };
     }
   }
