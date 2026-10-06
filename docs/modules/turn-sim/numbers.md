@@ -281,8 +281,10 @@ Every number the Formation Sim's planners use, with the source written beside it
 | LAG_ROLL.pullG | `Object.freeze([3, 2.5])` | the searched pull: the barrel roll's 3 G entry (SMM Table 14.1; Fig 14.1) and a softer 2.5 (estimate) |
 | LAG_ROLL.noseUpDeg | `Object.freeze([45, 30])` | the searched nose-up: 30-45° (estimate; 45 is the barrel roll's, SMM 14.8 para 19) |
 | LAG_ROLL.noseUpSlopDeg | `6` | how near the planned path's steepest climb must come to the searched nose-up (estimate) |
-| LAG_ROLL.topKias | `165` | the speed aimed for over the top, about 160-170 KIAS (estimate) |
-| LAG_ROLL.topKiasBand | `Object.freeze([150, 185])` | a plan whose slowest speed is outside this is not used (estimate) |
+| LAG_ROLL.topKiasBand | `Object.freeze([150, 185])` | a plan slower than the first over the top is not used (estimate); since TS-144 the speed is the energy's, at full power throughout, so the 185 is no longer used |
+| LAG_ROLL.inBandMarginFt | `50` | the roll may end, or close to, this far inside the band's far range ... (TS-144; estimate) |
+| LAG_ROLL.inBandMarginDeg | `5` | ... and this far inside its far sweep (estimate) |
+| LAG_ROLL.powerSlackKtps | `1` | the path may ask up to this many KIAS per second more than full power gives, for the coarse step (estimate) |
 | LAG_ROLL.topRangeFt | `Object.freeze([900, 1400])` | range from Lead passing over his six, about 1,000-1,300 ft (estimate, widened 100 ft each way) |
 | LAG_ROLL.closeTopRangeFt | `Object.freeze([500, 1400])` | from echelon (TS-78): over Lead's six at 500-1,400 ft, the bubble's edge to the same far end (estimate) |
 | LAG_ROLL.bubbleFt | `FW_BAND.bubbleFt` | a plan that comes inside 500 ft of Lead is refused (slots.js FW_BAND.bubbleFt) |

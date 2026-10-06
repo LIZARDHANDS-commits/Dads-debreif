@@ -27,6 +27,7 @@ import { pairSlot, FW_BAND } from './slots.js';
 import { LAG_ROLL, FW_ENERGY } from './tuning.js';
 import { add3, scale3, perp3, len3, unit3, dot3, cross3, liftOf, poseOf3d } from './attitude.js';
 import { easeRoll } from '../../../core/flight-math.js';
+import { speedUpLimitKtps } from './full-power.js';
 
 const Z = Object.freeze({ x: 0, y: 0, z: 1 });
 
@@ -81,7 +82,7 @@ function relAt(t, P) {
     return { p: { fwd: fwd.p, left: left.p, up: up.p }, v: { fwd: fwd.v, left: left.v, up: up.v }, a: { fwd: fwd.a, left: left.a, up: up.a } };
   }
   const m = smooth(P.T2 > 0 ? Math.min(1, (t - P.T) / P.T2) : 1);
-  const d = P.fs - P.fE;
+  const d = (P.fc ?? P.fs) - P.fE; // closing to fc, the cone's band, not all the way to the slot (TS-144)
   return {
     p: { fwd: P.fE + d * m.s, left: P.L1, up: P.zs },
     v: { fwd: P.T2 > 0 ? (d * m.d) / P.T2 : 0, left: 0, up: 0 },
@@ -140,6 +141,7 @@ function measure(P, lead0, vL, heightFt, gCap, close = false) {
   let minRange = Infinity;
   let out = !close; // from echelon the 500 ft bubble counts once #2 has left his close place (TS-78)
   const T0 = P.T0 ?? 0; // the roll itself is measured; the set-up before it stays in the cone
+  let lastKias = null;
   for (let t = 0; t <= P.T + 1e-9; t += dt) {
     const s = groundAt(T0 + t, P, lead0, vL);
     const tas = len3(s.vel);
@@ -147,6 +149,10 @@ function measure(P, lead0, vL, heightFt, gCap, close = false) {
     const g = gOf(s.acc, nose);
     const kias = tasToIasKt(tas * FTPS_TO_KT, heightFt + s.pos.z);
     if (g > gCap + 0.05 || g > availableG(kias, true) || g < LAG_ROLL.minG) return null;
+    // Energy (TS-144): he is at full power throughout, so the path may never ask him to speed up faster than full power
+    // gives at that speed, height, G and climb (full-power.js, standard aerodynamics). This replaces the old speed band's top.
+    if (lastKias != null && (kias - lastKias) / dt > speedUpLimitKtps(kias, heightFt + s.pos.z, g, s.vel.z, tas) + LAG_ROLL.powerSlackKtps) return null;
+    lastKias = kias;
     wings = wingsToward(wings, liftOf(s.acc, nose, wings.up), nose, tas, dt);
     maxMissG = Math.max(maxMissG, wings.missG);
     maxG = Math.max(maxG, g);
@@ -163,7 +169,7 @@ function measure(P, lead0, vL, heightFt, gCap, close = false) {
   if (liftUpZ >= 0 || minRange < LAG_ROLL.bubbleFt) return null;
   const topBand = close ? LAG_ROLL.closeTopRangeFt : LAG_ROLL.topRangeFt;
   if (topRange < topBand[0] || topRange > topBand[1]) return null;
-  if (minKias < LAG_ROLL.topKiasBand[0] || minKias > LAG_ROLL.topKiasBand[1]) return null;
+  if (minKias < LAG_ROLL.topKiasBand[0]) return null; // the top of the band is now the energy check above (TS-144)
   if (maxMissG > LAG_ROLL.rollMissG) return 'roll';
   return { maxG, minG, minKias, maxClimbDeg, topRange, minRange };
 }
@@ -183,7 +189,7 @@ function landsInCone(P) {
 function score(m, P, pullG, noseUpDeg) {
   if (m.maxG > pullG + 0.05) return null;
   const noseMiss = Math.abs(m.maxClimbDeg - noseUpDeg);
-  const cost = Math.abs(m.minKias - LAG_ROLL.topKias) + noseMiss * (noseMiss > LAG_ROLL.noseUpSlopDeg ? 3 : 1) + 10 * Math.abs(pullG - m.maxG) + (P.fs - P.fE) / LAG_ROLL.fallBackCostFt + P.T / 4;
+  const cost = noseMiss * (noseMiss > LAG_ROLL.noseUpSlopDeg ? 3 : 1) + 10 * Math.abs(pullG - m.maxG) + (P.fs - P.fE) / LAG_ROLL.fallBackCostFt + P.T / 4;
   return { ...m, cost, pullG, noseUpDeg };
 }
 
@@ -227,14 +233,21 @@ export function planLagRoll(aircraft, options = {}, t0 = 0) {
   }
   const base = { T0, s0, f0: start.fwd, L0: start.left, z0: start.up, fs: slot.fwd, L1: slot.left, zs: slot.alt };
 
+  // He may land anywhere down to the cone's bottom (Patrick 6 Oct 22:40Z, TS-144): the slot's height or the bottom.
+  const endUps = [slot.alt, -FW_ENERGY.coneUpFt];
+  // The furthest back he may end and still be in the band on the slot's side: inside its far range and sweep, less a margin.
+  const inBandFwd = Math.max(-Math.sqrt(Math.max(0, (FW_BAND.rangeFt[1] - LAG_ROLL.inBandMarginFt) ** 2 - slot.left ** 2)),
+    -Math.abs(slot.left) * Math.tan((FW_BAND.sweepDeg[1] - LAG_ROLL.inBandMarginDeg) * DEG));
   // The search: pull G x nose-up (the design's set), and for each the roll's length, height and fall-back (LAG_ROLL).
   let best = null;
   let rollTooFast = false; // a path passed every other check but asked a faster roll than the T-6A has
   const gCap = Math.max(...LAG_ROLL.pullG);
   for (let T = LAG_ROLL.rollSec[0]; T <= LAG_ROLL.rollSec[1]; T += 1) {
     for (let H = LAG_ROLL.climbFt[0]; H <= LAG_ROLL.climbFt[1]; H += 100) {
-      for (let fb = LAG_ROLL.fallBackFt[0]; fb <= LAG_ROLL.fallBackFt[1]; fb += 100) {
-        const P = { ...base, T, H, fE: base.fs - fb, T2: fb > 0 ? (2 * fb) / closeFtps : 0 };
+      for (const zs of endUps) for (let fb = LAG_ROLL.fallBackFt[0]; fb <= LAG_ROLL.fallBackFt[1]; fb += 100) {
+        const fE = base.fs - fb;
+        const fc = Math.max(fE, Math.min(base.fs, inBandFwd)); // landing in the band he is in position (the whole cone; Patrick 5 Oct 08:58Z), else he closes into it
+        const P = { ...base, zs, T, H, fE, fc, T2: fc > fE ? (2 * (fc - fE)) / closeFtps : 0 };
         if (!landsInCone(P)) break; // he lands in the cone (Patrick 08:54Z): a longer fall-back only lands further out
         const m = measure(P, lead0, vL, heightFt, gCap, close);
         if (m === 'roll') rollTooFast = true;
@@ -299,7 +312,7 @@ export function planLagRoll(aircraft, options = {}, t0 = 0) {
   const setUpWords = P.T0 > 0 ? `moves forward and high in the cone (${Math.round(P.T0)} s), then ` : '';
   const note = `Lag roll ${fromWords}to fighting wing ${sideWord}: #2 ${setUpWords}pulls up to ${sc.maxG.toFixed(1)} G, nose about ${Math.round(sc.maxClimbDeg)}° up, `
     + `rolls toward Lead and passes over his six inverted at about ${Math.round(sc.topRange).toLocaleString('en-CA')} ft, `
-    + `slowest ${Math.round(sc.minKias)} KIAS, then down into the cone on the ${sideWord} and closes at ${LAG_ROLL.closeOvertakeKias} kt to the slot. `
+    + `slowest ${Math.round(sc.minKias)} KIAS, then down into the cone on the ${sideWord}${P.T2 > 0 ? ` and closes at ${LAG_ROLL.closeOvertakeKias} kt into its band` : ''}, at full power throughout. `
     + `The SMM does not name the lag roll (nearest: SMM 12.29 para 69, 12.30-12.31 para 74, 14.8 paras 18-19); the numbers are estimates.${flag}`;
   return {
     ok: true,
