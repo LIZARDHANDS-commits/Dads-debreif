@@ -282,7 +282,7 @@ export function formatTag(tag, a, lead, show, closure = null) {
   // #2's error against his place and what he is doing about it (Patrick 5 Oct 22:54Z), only while he is off his place.
   if (show.tagError && tag.error) lines.push({ text: tag.error }, ...(tag.fix ? [{ text: tag.fix }] : []));
   const upFt = (a.altAboveFt ?? 0) - (lead?.altAboveFt ?? 0);
-  const liftBank = liftBankDeg(a.bankDeg ?? 0, a.nz ?? 1);
+  const liftBank = a.attitudeDeg ?? liftBankDeg(a.bankDeg ?? 0, a.nz ?? 1);
   const flight = [
     show.tagSpeed && `${Math.round(a.kias)} KIAS`,
     show.tagHeight && a.id !== 1 && `${upFt >= 0 ? '+' : '\u2212'}${ft(upFt)}`, // against Lead: +150 ft above, \u2212200 ft below
