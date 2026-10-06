@@ -223,7 +223,6 @@ export function planRollingRejoin(pair, to, options = {}, t0 = 0) {
     to,
     side: sTo,
     rejoinKind: 'into',
-    decisionSec: null,
     leadTurnDeg: Math.round(lp.turned / DEG),
     laneFwdFt: Math.max(m.laneFwdFt, run.laneFwdFt ?? -Infinity),
     maxBankDeg: Math.max(m.maxBankDeg, restBankDeg),

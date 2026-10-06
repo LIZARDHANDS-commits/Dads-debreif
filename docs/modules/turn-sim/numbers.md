@@ -66,7 +66,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | REJOIN.idealBearingDeg | `45` | Lead at 10:30 or 1:30 (SMM 12.24 para 56) |
 | REJOIN.hotBearingDeg | `60` | hot and cold are drawn but not numbered in SMM Fig 12.16: 60 and 30 are estimates |
 | REJOIN.coldBearingDeg | `30` |  |
-| REJOIN.turnAnglesDeg | `[30, 45, 20, 60]` | how far Lead turns into #2; estimates (a gentle turn, AFM8 brief p.19). Since V2.59 the 2-ship's Lead holds his turn until #2 is in (Patrick 06:16Z item 3, RULED_REJOIN; hand-over.js leadTurnInto): these are only the 2-ship tracker's fallback, and the 4-ship's (step 3, not yet changed) |
+| REJOIN.turnAnglesDeg | `[30, 45, 20, 60]` | how far Lead turns into #2; estimates (a gentle turn, AFM8 brief p.19). Since V2.59 the 2-ship's Lead holds his turn until #2 is in (Patrick 06:16Z item 3; hand-over.js leadTurnInto): these are only the 2-ship tracker's fallback, and the 4-ship's (step 3, not yet changed) |
 | TURNING_REJOIN |  | The turning rejoin (V2.59, TS-68; flown as held bank and power since V2.63, TS-69; Patrick 5 Oct 07:14Z, card "Yes, as written" 07:31Z, 07:32Z, 08:12Z-08:20Z): one rule for every turning rejoin, from line abreast (hot: #2 starts ahead of the line and gets colder to reach it) or fighting wing (cold: he turns hotter to reach it). #2 gets onto the rejoin line, Lead at his 10:30 or 1:30 with about hal |
 | TURNING_REJOIN.lineDeg | `45` | the rejoin line, degrees behind Lead's 3/9 line: Lead at 10:30 or 1:30 (SMM 12.24 para 56; Patrick's card 07:31Z). It passes through the fighting wing place (16.20 para 66) and the corner behind echelon (para 58's latest point) |
 | TURNING_REJOIN.lineUpFt | `-30` | #2's height on the line, below Lead: "just slightly below lead" (SMM 12.24 para 58); 30 ft is an estimate |
@@ -129,10 +129,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | KINEMATIC.followLateralG | `0.2` | ... and swings its track at no more than this much sideways G (estimate) |
 | KINEMATIC.followAccelKtps | `2.5` | ... or longer, so a wingman following a roll of Lead speeds up or slows at no more than this (estimate; inside the 3 kt/s the smoothness tests allow) |
 | KINEMATIC.startBlendSec | `3` | a station change starts moving over this long |
-| RULED_REJOIN | `Object.freeze({ bankCapDeg: null, reverseBanksDeg: null, leadTurnsUntilIn: true, descentFtps: null, overshootRangeFt: 200 })` | Patrick's 06:16Z rulings on the rejoin's estimates (5 Oct 06:16Z), flown since V2.59 (TS-67) in the numbers above (REJOIN.bankCapDeg) and hand-over.js leadTurnInto; the hot rejoin's numbers for items 2, 4 and 5 went with it (TS-94): 1. "Unlimitd bank. they can roll and dive if they want/need to and it ameks sense": no bank cap on #2 in a rejoin (REJOIN.bankCapDeg); bank follows the G the move need |
 | FW_TURN |  | The numbers of the fighting wing turns. Estimates unless a source is given. |
-| FW_TURN.gentleBankDeg | `30` | AFM7 brief p.14 item 5a's gentle check turn: no longer flown since step 3 (every turn at WING_BANKS.fwTurnBankDeg, Patrick 06:16Z) |
-| FW_TURN.turnBankDeg | `45` | item 5b's moderate turn: no longer flown since step 3 (WING_BANKS.fwTurnBankDeg) |
 | FW_TURN.collapseFromDeg | `32` | #2 starts collapsing once Lead's bank passes this ... |
 | FW_TURN.collapseFullDeg | `42` | ... and goes all the way to Lead's six by this |
 | FW_TURN.collapseMinTurnDeg | `45` |  |

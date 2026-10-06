@@ -770,7 +770,6 @@ export function planTurningRejoin(pair, to, options = {}, t0 = 0) {
     // position (Patrick 6 Oct 04:43Z: "Lead needs to maintain the turn for a TRJ until 2 is in position (Eschelon or
     // fighting wing) right now they roll out early"; TS-112). The re-plan there (spec F1, TS-81) planned Lead on straight
     // and level, so he rolled out early and #2 slid in from where he was.
-    decisionSec: null,
     leadTurnDeg: turnDeg,
     laneFwdFt: run.laneFwdFt,
     laneWarnFt: run.laneFwdFt > best.slotFwdFt + TURNING_REJOIN.laneTolFt ? run.laneFwdFt - best.slotFwdFt : null,

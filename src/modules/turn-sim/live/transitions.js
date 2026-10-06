@@ -1,7 +1,7 @@
 // Changing formation, 2-ship (Turn Sim spec section 10, TS-53): the planner behind the
 // "Change formation" buttons. Press one and the pair flies the manuals' transition from
 // wherever it is now, planned at the press in the same style as the manoeuvres: each
-// aircraft flies a pre-planned path through flight.js, roll 90°/s, smooth hand-overs.
+// aircraft flies a pre-planned path through flight.js, at the T-6A's roll rate (flight.js gateRoll), smooth hand-overs.
 //
 // How it plans. Lead's part is a short list of ordinary segments (a speed change, and for
 // a turning rejoin a 30° turn into #2). #2's part is worked out in a dry run: the tracker
@@ -33,7 +33,7 @@ import { applyPose } from './kinematic.js';
 import { fullPowerKtps, speedSegFor } from './slow-down.js';
 import { setKias, stepCommanded, phase, trackTwice, PLAN_MAX_SEC } from './tracker.js';
 import { FORMATIONS, LANE, fwShapeNow, pairSlot } from './slots.js';
-import { KIAS_OUTSIDE_LAB, KIAS_LAB, REJOIN, RULED_REJOIN, STOP_KT, FW_FOLLOW, closureNow, rejoinClosureNow } from './tuning.js';
+import { KIAS_OUTSIDE_LAB, KIAS_LAB, REJOIN, STOP_KT, FW_FOLLOW, closureNow, rejoinClosureNow } from './tuning.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { onClosure, leadTurnInto, trackTail } from './hand-over.js';
 import { fwGoal } from './formation-turns.js';
@@ -361,7 +361,7 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
   const laneOk = (attempt) => attempt.run.laneFwdFt <= LANE.marginFt && attempt.run.minBelowFt > 0;
   /** @type {any} */
   let best = null;
-  if (rejoinKind === 'into' && RULED_REJOIN.leadTurnsUntilIn) {
+  if (rejoinKind === 'into') {
     // Lead holds his 30° turn until #2 is IN POSITION, then rolls out (Patrick 5 Oct 06:16Z item 3: "until 2 is on";
     // V2.59, TS-67): a first run against Lead turning on finds when #2 settles, the second flies against Lead rolling out
     // then (hand-over.js leadTurnInto, trackTail).

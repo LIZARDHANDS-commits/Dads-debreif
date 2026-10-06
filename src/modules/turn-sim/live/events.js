@@ -1,5 +1,5 @@
 // The events of a 2-ship change in flight (refactor PR 5, TS-97; moved from formation.js unchanged in what they do): the
-// decision point and the picture breaking, which plan the change again from where the pair is (spec F1); a turn button
+// picture breaking, which plans the change again from where the pair is (spec F1); a turn button
 // pressed mid-change (spec F11); how Lead flies on when a change is pressed mid-move; and "done", in band and steady
 // (TS-78). formation.js keeps the public surface (reset, press, change, step and the rest) and calls these each step.
 // A change whose plan says `holdsPlan` (the 4-ship's, the lag roll's, a move in the band's) flies its plan with no re-plan;
@@ -9,7 +9,6 @@ import { STEP_SEC, planDone } from './flight.js';
 import { relativeTo } from './manoeuvres.js';
 import { judge } from './judge.js';
 import { refsFor } from './slots.js';
-import { TIE_SEC } from './chooser.js';
 import { leadTurnPlan } from './formation-turns.js';
 import { REJOIN, STEADY } from './tuning.js';
 
@@ -32,22 +31,17 @@ export function createEvents({ state, startChange, labelFor }) {
   const replans = (c) => Boolean(c?.change) && !c.change.holdsPlan;
 
   /**
-   * The events that plan a 2-ship change again from where the pair is (spec F1; the press and the hand-over are planned
-   * again elsewhere): the decision point (a turning rejoin's, where a stop with the torque floor and the boards just fits), taken only when the new plan
-   * ends sooner (by more than the chooser's tie); and the picture breaking, Lead or #2 more than PICTURE_BREAK_FT from where
-   * the plan has him now, taken whenever the new plan passes.
+   * The event that plans a 2-ship change again from where the pair is (spec F1; the press and the hand-over are planned
+   * again elsewhere): the picture breaking, Lead or #2 more than PICTURE_BREAK_FT from where the plan has him now, taken
+   * whenever the new plan passes. (The decision point's re-plan, TS-81, went with TS-112: both 2-ship turning rejoins
+   * plan Lead's turn on until #2 is in, so there is nothing to re-plan there.)
    */
   function replanAtEvents() {
     const c = state.current;
     if (!replans(c)) return;
-    if (c.decisionSec != null && !c.decided && state.tSec >= c.decisionSec - STEP_SEC / 2) {
-      c.decided = true;
-      replanChange('the decision point', true);
-      return;
-    }
     if (state.tSec < (c.pictureRetrySec ?? -Infinity)) return;
     if (state.aircraft.some((a) => offPlanFt(a) > PICTURE_BREAK_FT)) {
-      if (!replanChange('the picture breaking', false)) c.pictureRetrySec = state.tSec + PICTURE_RETRY_SEC;
+      if (!replanChange('the picture breaking')) c.pictureRetrySec = state.tSec + PICTURE_RETRY_SEC;
     }
   }
 
@@ -65,21 +59,19 @@ export function createEvents({ state, startChange, labelFor }) {
 
   /**
    * The change planned again from where the pair is, Lead flying on as midPress says (the chooser's mid-move candidates).
-   * quicker: keep the old plan unless the new one ends sooner. Returns true when the new plan is flown; otherwise nothing
-   * changes.
+   * Returns true when the new plan is flown; otherwise nothing changes.
    */
-  function replanChange(why, quicker) {
+  function replanChange(why) {
     const c = state.current;
     const was = { current: c, plans: state.plans, planned: state.planned, refusal: state.refusal, judged: state.judged, errorOutcome: state.errorOutcome };
     const side = c.change.side > 0 ? 'left' : c.change.side < 0 ? 'right' : 'keep';
     const ok = startChange(c.change.to, { ...c.change.options, side });
-    if (!ok || (quicker && state.current.endSec > c.endSec - TIE_SEC)) {
+    if (!ok) {
       Object.assign(state, was);
       return false;
     }
     state.current.label = c.label;
     state.current.startSec = c.startSec;
-    state.current.decided = true;
     state.current.note = `${state.current.note} Planned again at ${why}.`;
     return true;
   }
