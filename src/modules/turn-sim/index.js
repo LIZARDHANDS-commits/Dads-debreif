@@ -129,7 +129,7 @@ function cardFor(state, wingSide) {
     ships: state.aircraft.map((a) => ({
       id: a.id,
       name: a.name,
-      text: `${Math.round(a.kias)} KIAS, ${String(compassDeg(a.headingRad)).padStart(3, '0')}, ${bankText(liftBankDeg(a.bankDeg, a.nz ?? 1))}, ${a.g.toFixed(1)} G`, // the Speed/power fix changes #2's speed
+      text: `${Math.round(a.kias)} KIAS, ${String(compassDeg(a.headingRad)).padStart(3, '0')}, ${bankText(a.attitudeDeg ?? liftBankDeg(a.bankDeg, a.nz ?? 1))}, ${a.g.toFixed(1)} G`, // the Speed/power fix changes #2's speed
     })),
   };
 }
@@ -333,7 +333,7 @@ function mount(root, app) {
       tags: dataTags,
       leadLinks,
       placeBox: () => changeUi.placeBox(),
-      onPick: (x, y) => changeUi.pickAt(x, y),
+      onPick: (x, y, at) => changeUi.pickAt(x, y, at),
       rejoin: () => {
         if (!state.current?.change?.rejoining || state.aircraft.length !== 2) return null;
         const r = rejoinReadout(state.aircraft[0], state.aircraft[1]);
@@ -359,7 +359,7 @@ function mount(root, app) {
       leadLinks,
       // The band's box and Change position's click, in 3D as in 2D (Patrick, 6 Oct: no yellow box in 3D).
       placeBox: () => changeUi.placeBox(),
-      onPick: (x, y) => changeUi.pickAt(x, y),
+      onPick: (x, y, at) => changeUi.pickAt(x, y, at),
       look: camLook,
       focus: () => {
         if (freeCamera()) return null; // the 3D view keeps its own centre, moved by shift-drag or right-drag
