@@ -158,9 +158,15 @@ function flyWith({ lead, wing, rec, s, to, sTo, spacingFt, blockFt, t0, cutDeg, 
   const descentSec = Math.max(TR.heightSec, Math.abs(wing.altAboveFt - wakeFt) / TR.descentFtps);
   const heightLeg = (sec) => (Math.abs(wing.altAboveFt - wakeFt) > 0.5 ? [{ t0, t1: t0 + sec, fromFt: wing.altAboveFt, toFt: wakeFt }] : []);
   const args = { wing, rec, s, route, cutDeg, aimFt, overtakeKt, blockFt, t0 };
-  let part = flyToDecision({ ...args, profile: heightLeg(descentSec) });
+  // The height the part was flown with is the one the plan flies (partSec): a different one changes the G he pulls and so,
+  // near the G rule, his turn (the replay then left the planned path: 6 Oct 05:13Z, #2 ended 250 ft back on Lead's other side).
+  let partSec = descentSec;
+  let part = flyToDecision({ ...args, profile: heightLeg(partSec) });
   if (!part) return null;
-  if (part.steps * dt < descentSec) part = flyToDecision({ ...args, profile: heightLeg(Math.max(part.steps * dt, dt)) });
+  if (part.steps * dt < descentSec) {
+    partSec = Math.max(part.steps * dt, dt);
+    part = flyToDecision({ ...args, profile: heightLeg(partSec) });
+  }
   if (!part || part.ahead) return null;
   const n1 = part.steps;
   const W1 = { ...part.end, altAboveFt: wakeFt, climbFtps: 0 };
@@ -176,7 +182,7 @@ function flyWith({ lead, wing, rec, s, to, sTo, spacingFt, blockFt, t0, cutDeg, 
   if (!run.ok) return null;
   // Passing more than TR.laneTolFt ahead of the slot is a warning on the card, not a refusal (Patrick 6 Oct 03:45Z; TS-110).
   const slotFwdFt = Math.max(0, pairSlot(to, sTo || s, spacingFt).fwd);
-  return { part, run, slotFwdFt, profile: [...heightLeg(Math.min(descentSec, Math.max(n1 * dt, dt))), ...profile], durationSec: (n1 + run.points.length) * dt };
+  return { part, run, slotFwdFt, profile: [...heightLeg(partSec), ...profile], durationSec: (n1 + run.points.length) * dt };
 }
 
 /**
