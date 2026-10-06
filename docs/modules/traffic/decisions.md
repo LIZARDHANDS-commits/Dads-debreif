@@ -202,3 +202,4 @@ Moved from files that are being archived (file register, section 5). They were r
 
 - **Never repeat** (from `archive/tasks/traffic/plan.md:86`): shadow position variables, the Hermite blend, exact float checks in tests, and several agents editing `sim.js` at once.
 - **Don't retry** (from `archive/agent-memory/graveyard.md:9-11`): Bezier turns, the dual spawner, and the SPL1 to SPL4 routes.
+| TR-111 | Runway 29L/11R is drawn as a flat grey runway (#262b30, the painted stand-in's runway grey before TR-107) over the satellite photo, threshold bar to threshold bar and out to the side stripes' outer edges (about ±80 ft, photo), under its TR-98 paint. Only 29L/11R; the other runways stay as the photo shows them. | The photo's own concrete under the paint | Patrick 6 Oct: "I wanted that grey runway to show on the picture layer"; "just 29L for now". TR-107 still holds for the stand-in ground under the photo. Seen in 3D. |

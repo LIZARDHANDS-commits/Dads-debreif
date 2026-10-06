@@ -101,6 +101,12 @@ export function runwayMarkingPolygons() {
     quad('white', place, s0, s1, n0, n1);
   };
 
+  // The grey runway under the paint (Patrick, 6 Oct: "I wanted that grey runway to show on the picture layer ... just 29L
+  // for now"): threshold bar to threshold bar, out to the side stripes' outer edges (the photo's pavement edge, about
+  // ±80 ft), in the painted stand-in's grey from before TR-107. First, so everything else draws over it.
+  const edgeFt = EDGE_STRIPE.centreFt + EDGE_STRIPE.widthFt / 2 + OUTLINE_FT;
+  quad('asphalt', at29, BAR_29L_FT - END_PAINT.bar.to, len + BAR_11R_PAST_END_FT - END_PAINT.bar.from, -edgeFt, edgeFt);
+
   const P = END_PAINT;
   const ends = [
     { place: (s, n) => at29(BAR_29L_FT + s, n), letter: 'L', number: '29' },
@@ -147,11 +153,16 @@ export function runwayMarkingPolygons() {
   return shapes;
 }
 
-/** The paint's colours: the outlines' black (drawn first, under the rest), white, and the pad chevrons' yellow (photo). */
-const PAINT = Object.freeze({ black: '#141414', white: '#f2f2ee', yellow: '#e9c349' });
+/**
+ * The colours, bottom first: the runway's grey (the stand-in ground's runway grey before TR-107), the outlines' black,
+ * white, and the pad chevrons' yellow (photo).
+ */
+const PAINT = Object.freeze({ asphalt: '#262b30', black: '#141414', white: '#f2f2ee', yellow: '#e9c349' });
+/** Each colour's place in the drawing order: the grey first, then the outlines, then the paint. */
+const ORDER = Object.freeze({ asphalt: -0.6, black: -0.55, white: -0.5, yellow: -0.5 });
 
 /**
- * The paint as a three.js group of three flat meshes (black outlines, white and yellow), at height 0; the 3D view lifts it to just over
+ * The paint as a three.js group of four flat meshes (the grey runway, black outlines, white and yellow), at height 0; the 3D view lifts it to just over
  * the photo. It draws after the ground photos and before everything else.
  */
 export function createRunwayMarkings(THREE) {
@@ -174,7 +185,7 @@ export function createRunwayMarkings(THREE) {
     // Marked see-through (fully opaque) so it sorts with the see-through photos and draws after them.
     const material = new THREE.MeshBasicMaterial({ color: PAINT[color], transparent: true, side: THREE.DoubleSide, depthWrite: false, fog: false });
     const mesh = new THREE.Mesh(geometry, material);
-    mesh.renderOrder = color === 'black' ? -0.55 : -0.5;
+    mesh.renderOrder = ORDER[color];
     group.add(mesh);
   }
   return group;
