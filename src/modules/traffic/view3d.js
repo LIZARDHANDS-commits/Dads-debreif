@@ -25,6 +25,7 @@ import { createTileLayer, ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { makeLocalRef, latLonToLocalFt } from '../../core/geo.js';
 import { createAirfieldScenery, disposeAirfieldScenery, DEFAULT_FLOOR_FT, RUNWAY_TOP_FT } from './scenery3d.js';
 import { createLandmarks, disposeLandmarks, createWindsocks, updateWindsocks, disposeWindsocks } from './landmarks3d.js';
+import { createRunwayMarkings, disposeRunwayMarkings } from './runway-markings.js';
 import { createBaseBuildings, disposeBaseBuildings } from './base-buildings3d.js';
 import { createRiverGeometry } from './rivers3d.js';
 import { ejectionAt, EJECTION } from './ejection.js';
@@ -649,6 +650,10 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   coreMesh.visible = false;
   coreMesh.position.set(AIRFIELD_CORE_BOUNDS_FT.centerX, AIRFIELD_CORE_BOUNDS_FT.centerY, 0);
   root.add(coreMesh);
+  // Runway 29L/11R's paint as flat shapes over the photo, sharp at any range (TR-98)
+  const runwayPaint = createRunwayMarkings(THREE);
+  runwayPaint.visible = false;
+  root.add(runwayPaint);
 
   // 3D Airfield Scenery: Control Tower, 4 Arch Hangars, South Apron
   const scenery = createAirfieldScenery(THREE);
@@ -1033,6 +1038,10 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
       }
     }
 
+    // The paint lies just over the sharpest photo, and shows with it.
+    runwayPaint.visible = options.layerPhoto !== false;
+    runwayPaint.position.set(0, 0, floor - 1);
+
     if (scenery) {
       scenery.visible = options.layerBuildings !== false;
       scenery.position.set(0, 0, floor - DEFAULT_FLOOR_FT);
@@ -1187,6 +1196,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
       shadowMaterial.dispose();
       coreGeometry.dispose();
       coreMaterial.dispose();
+      disposeRunwayMarkings(runwayPaint);
       if (scenery) {
         disposeAirfieldScenery(scenery);
         scenery.removeFromParent();
