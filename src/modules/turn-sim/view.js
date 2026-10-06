@@ -12,6 +12,7 @@ import { ktToFtps, formatNm } from '../../core/units.js';
 import { distance } from '../../core/geo.js';
 import { SHIP_COLORS, OUTLINED_SHIPS } from './layout.js';
 import { FW_TURN } from './live/tuning.js';
+import { placeBoxOutline } from './live/move-in-band.js';
 
 const FT_PER_NM = 6076.11549;
 const MINUS = '−';
@@ -132,6 +133,10 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
         if (layers.lead39 && layers[`l39_${a.id}`]) drawLead39(ctx, map, a);
         if (layers.lead75 && layers[`l75_${a.id}`]) drawLead75(ctx, map, a);
       }
+      // The band's box for Change position (TS-104): blue, yellow while a spot is being picked.
+      const box = source.placeBox?.();
+      if (box && lead) drawPlaceBox(ctx, map, lead, box);
+      canvas.style.cursor = box?.picking ? 'crosshair' : '';
       const { trail, marks } = source.trails();
       if (layers.tracks !== false) drawTrails(ctx, map, trailSince(trail, state.tSec, layers.trackSec));
       if (layers.planned && source.planned) drawPlanned(ctx, map, source.planned(), state.tSec);
@@ -154,6 +159,25 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
     },
   });
 
+  // A click (a press and release that moves under CLICK_PX) while Change position is picking picks the spot (TS-104).
+  // The canvas view's own drag-to-pan still runs underneath; a click moves the picture by less than CLICK_PX.
+  const CLICK_PX = 5;
+  let press = null;
+  const onDown = (e) => {
+    press = e.button === 0 ? { id: e.pointerId, x: e.clientX, y: e.clientY } : null;
+  };
+  const onUp = (e) => {
+    const p = press;
+    press = null;
+    if (!p || e.pointerId !== p.id || Math.hypot(e.clientX - p.x, e.clientY - p.y) >= CLICK_PX) return;
+    if (!source.placeBox?.()?.picking || !source.onPick) return;
+    const rect = canvas.getBoundingClientRect();
+    const [x, y] = map.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    source.onPick(x, y);
+  };
+  canvas.addEventListener('pointerdown', onDown);
+  canvas.addEventListener('pointerup', onUp);
+
   return {
     map,
     requestDraw: map.requestDraw,
@@ -168,7 +192,11 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
       needsFit = bounds;
       map.requestDraw();
     },
-    dispose: () => map.dispose(),
+    dispose: () => {
+      canvas.removeEventListener('pointerdown', onDown);
+      canvas.removeEventListener('pointerup', onUp);
+      map.dispose();
+    },
   };
 }
 
@@ -276,6 +304,51 @@ function drawCone(ctx, map, a) {
     ctx.globalAlpha = 0.14;
     ctx.fill();
     ctx.globalAlpha = 0.45;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** The band box's colours (TS-104, Patrick 6 Oct 02:14Z): blue normally, yellow while Change position is picking. */
+const PLACE_BOX_BLUE = '#4da3ff';
+const PLACE_BOX_YELLOW = '#ffd23f';
+
+/**
+ * The band's box in Lead's frame, on #2's side (live/move-in-band.js placeBoxOutline: the fighting wing cone or the line
+ * abreast band), translucent, and the picked spot as a ring and cross.
+ */
+function drawPlaceBox(ctx, map, lead, { key, side, picking, spot }) {
+  const c = Math.cos(lead.headingRad);
+  const s = Math.sin(lead.headingRad);
+  const toScreen = (p) => map.worldToScreen(lead.xFt + p.fwd * c - p.left * s, lead.yFt + p.fwd * s + p.left * c);
+  const outline = placeBoxOutline(key, side);
+  if (!outline.length) return;
+  const color = picking ? PLACE_BOX_YELLOW : PLACE_BOX_BLUE;
+  ctx.save();
+  ctx.beginPath();
+  outline.forEach((p, i) => {
+    const [x, y] = toScreen(p);
+    if (i) ctx.lineTo(x, y);
+    else ctx.moveTo(x, y);
+  });
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = picking ? 2 : 1;
+  ctx.globalAlpha = picking ? 0.22 : 0.12;
+  ctx.fill();
+  ctx.globalAlpha = 0.8;
+  ctx.stroke();
+  if (spot) {
+    const [x, y] = toScreen(spot);
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, 7, 0, Math.PI * 2);
+    ctx.moveTo(x - 11, y);
+    ctx.lineTo(x + 11, y);
+    ctx.moveTo(x, y - 11);
+    ctx.lineTo(x, y + 11);
     ctx.stroke();
   }
   ctx.restore();
