@@ -225,7 +225,7 @@ export function createLayout({ settings, controls, on }) {
   };
 
   // ── Fight setup column ──────────────────────────────────────────────
-  const versionBadge = h('div', { class: 'tf-version-badge' }, "PAT'S FIGHT AND TURN SIM v2.17", h('span', { class: 'tf-version-sub' }, '• Smart pilot & Harvard 5.0 G'));
+  const versionBadge = h('div', { class: 'tf-version-badge' }, "PAT'S FIGHT AND TURN SIM v2.18", h('span', { class: 'tf-version-sub' }, '• Smart pilot & Harvard 5.0 G'));
   const intro = h('p', { class: 'tf-intro' }, versionBadge, h('br'), 'Two aircraft start apart and turn, at the pass or at once: who gets their nose on the other first?');
   const presetSelect = h(
     'select',

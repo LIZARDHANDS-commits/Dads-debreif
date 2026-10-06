@@ -1,5 +1,5 @@
-// The T-6 as a CT-156 Harvard II (Moose Jaw, RCAF), drawn in code only: procedural
-// materials plus small CanvasTexture decals. No image files, no models.
+// The T-6 as a CT-156 Harvard II (Moose Jaw, RCAF), drawn in code only: a lofted fuselage, aerofoil
+// wings and tail, glossy paint and small CanvasTexture decals. No image files, no models. Fine detail shows up close.
 // Standalone on purpose: it imports nothing from the app, and three.js is passed in
 // (never imported here, so the home screen bundle stays free of it; see three-aircraft.js
 // `loadThree`). Spec: specs/SPEC-ui-kit.md, "3D aircraft (three.js, D138)".
@@ -37,25 +37,129 @@ export const CT156_UNIT_LENGTH = 1.44; // x from -0.78 (tail) to 0.66 (spinner t
 const NAVY = '#151d31';
 const rad = (d) => (d * Math.PI) / 180;
 
-// Fuselage lathe profile: [radius, axial x].
-const PROFILE = [
-  [0.004, -0.78], [0.024, -0.72], [0.045, -0.55], [0.062, -0.35], [0.076, -0.1],
-  [0.086, 0.15], [0.088, 0.3], [0.085, 0.42], [0.07, 0.5], [0.06, 0.52], [0.001, 0.52],
-];
-function radiusAt(x) {
-  for (let i = 1; i < PROFILE.length; i++) {
-    const [r0, x0] = PROFILE[i - 1];
-    const [r1, x1] = PROFILE[i];
-    if (x1 > x0 && x <= x1) return r0 + ((r1 - r0) * (Math.max(x, x0) - x0)) / (x1 - x0);
-  }
-  return 0.06;
-}
-// Cheat line height along the fuselage (rises toward the tail).
-const cheatZ = (x) => 0.015 - (0.03 * (x + 0.66)) / 1.16;
+// ---------- the shape ----------
+// Redrawn (Patrick, 6 Oct: "make the model better ... make it look more like the side profile of a Harvard", with his
+// photos of the navy CT-156). The side profile is measured off Patrick's side-on photo of CT-156 156101, scaled so
+// nose to tail is the T-6A's 33 ft 4 in (1.44 units; the photo's fin top then sits 10.6 ft above the wheels, against
+// the published 10.7 ft). Widths seen from above are estimates. x is along the nose, z up from the spinner's axis.
 
-const WING_Z = -0.045;
-const WING_T = 0.012;
+// Fuselage stations, nose to tail: [x, half-width, top, bottom, squareness]. The spinner sits high: the top line runs
+// almost flat from the spinner back to the fin, and the belly hangs deep under it. Squareness 2 is an ellipse,
+// higher is boxier (flat sides at the cockpit).
+const STATIONS = [
+  [0.578, 0.034, 0.028, -0.032, 2.2],
+  [0.55, 0.048, 0.031, -0.06, 2.3],
+  [0.518, 0.058, 0.034, -0.088, 2.4],
+  [0.437, 0.068, 0.038, -0.118, 2.5],
+  [0.329, 0.075, 0.042, -0.139, 2.6],
+  [0.268, 0.078, 0.043, -0.149, 2.7],
+  [0.167, 0.08, 0.043, -0.162, 2.7],
+  [-0.009, 0.08, 0.04, -0.169, 2.7],
+  [-0.158, 0.077, 0.034, -0.169, 2.7],
+  [-0.32, 0.066, 0.026, -0.162, 2.6],
+  [-0.482, 0.05, 0.023, -0.149, 2.5],
+  [-0.59, 0.038, 0.022, -0.128, 2.4],
+  [-0.685, 0.026, 0.0, -0.118, 2.3],
+  [-0.75, 0.014, -0.04, -0.11, 2.2],
+  [-0.78, 0.004, -0.06, -0.1, 2.0],
+];
+// The canopy, windscreen foot to its fairing on the spine: [x, half-width, top]. Long and low, about 2 ft above the
+// top line (Patrick, 6 Oct: the cockpit was too tall).
+const CANOPY = [
+  [0.268, 0.02, 0.046],
+  [0.23, 0.042, 0.076],
+  [0.194, 0.052, 0.101],
+  [0.14, 0.058, 0.12],
+  [0.059, 0.06, 0.131],
+  [-0.076, 0.06, 0.132],
+  [-0.185, 0.057, 0.124],
+  [-0.239, 0.05, 0.105],
+  [-0.293, 0.032, 0.064],
+  [-0.354, 0.008, 0.028],
+];
+/** A table's row at x (rows run from high x to low), each number straight-line between the rows either side. */
+function rowAt(rows, x) {
+  if (x >= rows[0][0]) return rows[0];
+  for (let i = 1; i < rows.length; i++) {
+    if (x >= rows[i][0]) {
+      const a = rows[i - 1], b = rows[i];
+      const t = (a[0] - x) / (a[0] - b[0]);
+      return a.map((v, k) => v + (b[k] - v) * t);
+    }
+  }
+  return rows[rows.length - 1];
+}
+/** A section's middle height and half-height. */
+const middleOf = (top, bottom) => [(top + bottom) / 2, (top - bottom) / 2];
+/** A point round a fuselage section: theta 0 the left side (+y), pi/2 the top. */
+function sectionPoint(sec, theta) {
+  const [, w, top, bottom, n] = sec;
+  const [zc, h] = middleOf(top, bottom);
+  const c = Math.cos(theta), s = Math.sin(theta);
+  return [w * Math.sign(c) * Math.abs(c) ** (2 / n), zc + h * Math.sign(s) * Math.abs(s) ** (2 / n)];
+}
+/** The fuselage's half-width at (x, z), for the decals that hug its side. */
+function fuseSurf(x, z) {
+  const [, w, top, bottom, n] = rowAt(STATIONS, x);
+  const [zc, h] = middleOf(top, bottom);
+  const s = Math.min(0.999, Math.abs(z - zc) / h) ** (n / 2);
+  return w * Math.sqrt(Math.max(1 - s * s, 1e-6)) ** (2 / n) + 0.0025;
+}
+/** The height where the fuselage is a given half-width, on its upper side: the canopy's sill. */
+function sillZ(x, halfWidth) {
+  const [, w, top, bottom, n] = rowAt(STATIONS, x);
+  const [zc, h] = middleOf(top, bottom);
+  const c = Math.min(1, halfWidth / w) ** (n / 2);
+  return zc + h * Math.sqrt(Math.max(1 - c * c, 0)) ** (2 / n);
+}
+// The cheat line's height along the fuselage: just below the canopy's sill at the nose, falling a little to the tail.
+const cheatZ = (x) => -0.045 + (x - 0.48) * 0.0202;
+
+// Wings: a low wing on the belly line, 3° dihedral. Root chord 0.33 units (7.6 ft, the photo's root with its fillet),
+// tip 0.16 (3.7 ft), 15 % thick at the root and 12 % at the tip (estimates); the tip at 0.722 units (Patrick, 5 Oct: the real span).
+const WING_Z = -0.135;
 const DIHEDRAL = rad(3);
+const TIP = 0.722;
+const WING = [{ le: 0.19, s: 0, chord: 0.33, t: 0.15, z: WING_Z }, { le: 0.13, s: TIP, chord: 0.16, t: 0.12, z: WING_Z }];
+// The tailplane low on the tail cone, its tips swept back past the tail (photo); the span an estimate.
+const STAB = [
+  { le: -0.7, s: -0.3, chord: 0.15, t: 0.1, z: -0.095 },
+  { le: -0.52, s: -0.04, chord: 0.25, t: 0.1, z: -0.095 },
+  { le: -0.52, s: 0.04, chord: 0.25, t: 0.1, z: -0.095 },
+  { le: -0.7, s: 0.3, chord: 0.15, t: 0.1, z: -0.095 },
+];
+// The fin: its root buried in the tail cone, its top 0.192 units (4.5 ft) above the spinner's axis (photo).
+const FIN = [{ le: -0.575, s: -0.03, chord: 0.21, t: 0.09, z: 0 }, { le: -0.644, s: 0.192, chord: 0.1, t: 0.09, z: 0 }];
+/** A symmetric NACA 4-digit section's half-thickness at xc (0 the leading edge, 1 the trailing edge), per chord. */
+const thick = (xc, t) => 5 * t * (0.2969 * Math.sqrt(xc) - 0.126 * xc - 0.3516 * xc ** 2 + 0.2843 * xc ** 3 - 0.1036 * xc ** 4);
+const clamp01 = (v) => Math.min(1, Math.max(0, v));
+/** A lofted surface's section at span position s (straight-line between its two nearest sections). */
+function sectionOf(sections, s) {
+  for (let i = 1; i < sections.length; i++) {
+    const a = sections[i - 1], b = sections[i];
+    if (s <= b.s || i === sections.length - 1) {
+      const f = clamp01((s - a.s) / (b.s - a.s || 1));
+      return { le: a.le + (b.le - a.le) * f, chord: a.chord + (b.chord - a.chord) * f, t: a.t + (b.t - a.t) * f, z: a.z + (b.z - a.z) * f };
+    }
+  }
+  return sections[0];
+}
+/** A wing's surface height at (x, y) in its own frame, upper (+1) or lower (-1), for the decals on it. */
+function wingSurfZ(x, y, side) {
+  const sec = sectionOf(WING, Math.abs(y));
+  const xc = clamp01((sec.le - x) / sec.chord);
+  return sec.z + side * (thick(xc, sec.t) * sec.chord + 0.0015);
+}
+/** The fin's half-thickness at (x, z), for the tail decals. */
+function finSurf(x, z) {
+  const sec = sectionOf(FIN, z);
+  const xc = clamp01((sec.le - x) / sec.chord);
+  return thick(xc, sec.t) * sec.chord + 0.0015;
+}
+
+// The fine detail (decals, the cockpit, the canopy frames, the prop blades, the exhausts) shows only when the aircraft
+// is at least this long on screen, in CSS pixels, and goes again below the lower number (estimates, tuned by eye).
+export const CT156_DETAIL_PX = Object.freeze({ show: 70, hide: 55 });
 
 // ---------- canvas decals ----------
 
@@ -70,16 +174,21 @@ function canvasTexture(THREE, w, h, draw) {
   return t;
 }
 
-// Maple leaf, tip up, centred on (cx, cy), half-height s.
+// The maple leaf of the Flag of Canada: the flag's own 11-point outline (Patrick, 6 Oct: "needs to look exactly like a
+// maple leaf"), tip up, centred on (cx, cy), half-height s. The outline runs from y -2000 (the top point) to 2030 (the
+// stem's foot), x -1860 to 1860, in its own units.
+const LEAF_OUTLINE = 'm-90 2030 45-863a95 95 0 0 0-111-98l-859 151 116-320a65 65 0 0 0-20-73l-941-762 212-99a65 65 0 0 0 34-79l-186-572 542 115a65 65 0 0 0 73-38l105-247 423 454a65 65 0 0 0 111-57l-204-1052 327 189a65 65 0 0 0 91-27l332-652 332 652a65 65 0 0 0 91 27l327-189-204 1052a65 65 0 0 0 111 57l423-454 105 247a65 65 0 0 0 73 38l542-115-186 572a65 65 0 0 0 34 79l212 99-941 762a65 65 0 0 0-20 73l116 320-859-151a95 95 0 0 0-111 98l45 863z';
+let leafPath = null;
 function leaf(ctx, cx, cy, s, fill) {
-  const R = [[0, 1], [0.1, 0.78], [0.21, 0.84], [0.18, 0.55], [0.36, 0.68], [0.4, 0.58], [0.32, 0.44], [0.58, 0.52], [0.55, 0.34], [0.8, 0.18], [0.72, 0.1], [0.76, -0.02], [0.3, 0.02], [0.28, -0.12], [0.08, -0.26], [0.04, -0.3], [0.03, -0.62]];
-  cy += 0.19 * s; // centre the leaf's bounding box on (cx, cy)
-  ctx.beginPath();
-  R.forEach(([x, y], i) => (i ? ctx.lineTo(cx + x * s, cy - y * s) : ctx.moveTo(cx + x * s, cy - y * s)));
-  for (let i = R.length - 1; i >= 0; i--) ctx.lineTo(cx - R[i][0] * s, cy - R[i][1] * s);
-  ctx.closePath();
+  leafPath ??= new Path2D(LEAF_OUTLINE);
+  const k = s / 2015;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(k, k);
+  ctx.translate(0, -15);
   ctx.fillStyle = fill;
-  ctx.fill();
+  ctx.fill(leafPath);
+  ctx.restore();
 }
 
 function roundelCanvas(ctx, w) {
@@ -88,7 +197,7 @@ function roundelCanvas(ctx, w) {
   ctx.beginPath(); ctx.arc(c, c, c - 1, 0, 7); ctx.fill();
   ctx.fillStyle = '#f4f6f8';
   ctx.beginPath(); ctx.arc(c, c, c * 0.72, 0, 7); ctx.fill();
-  leaf(ctx, c, c, c * 0.52, '#d2202c');
+  leaf(ctx, c, c, c * 0.56, '#d2202c');
 }
 
 function natoStar(ctx, cx, cy, r) {
@@ -149,10 +258,171 @@ function flatXZ(THREE, pts, thickness) {
   return g;
 }
 
-function flatXY(THREE, pts, depth, z0) {
-  const shape = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y)));
-  const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false });
-  g.translate(0, 0, z0);
+/** An indexed geometry from points and triangles, smooth-shaded. */
+function meshOf(THREE, pos, idx, groups = null) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  if (groups) for (const [start, count, m] of groups) g.addGroup(start, count, m);
+  g.computeVertexNormals();
+  return g;
+}
+
+/** The fuselage: rings round the stations, closed at the nose (behind the spinner) and the tail. */
+function fuselageGeometry(THREE) {
+  const RING = 36, N = 52;
+  const x0 = STATIONS[0][0], x1 = STATIONS[STATIONS.length - 1][0];
+  const pos = [], idx = [];
+  for (let i = 0; i <= N; i++) {
+    const x = x0 + ((x1 - x0) * i) / N;
+    const sec = rowAt(STATIONS, x);
+    for (let k = 0; k < RING; k++) {
+      const [y, z] = sectionPoint(sec, (k / RING) * Math.PI * 2);
+      pos.push(x, y, z);
+    }
+  }
+  for (let i = 0; i < N; i++) {
+    for (let k = 0; k < RING; k++) {
+      const a = i * RING + k, b = i * RING + ((k + 1) % RING), c = a + RING, d = b + RING;
+      idx.push(a, c, b, b, c, d);
+    }
+  }
+  const nose = pos.length / 3;
+  pos.push(x0, 0, (STATIONS[0][2] + STATIONS[0][3]) / 2);
+  const tail = pos.length / 3;
+  const last = STATIONS[STATIONS.length - 1];
+  pos.push(x1, 0, (last[2] + last[3]) / 2);
+  for (let k = 0; k < RING; k++) {
+    idx.push(nose, k, (k + 1) % RING);
+    idx.push(tail, N * RING + ((k + 1) % RING), N * RING + k);
+  }
+  return meshOf(THREE, pos, idx);
+}
+
+/** The canopy: a rounded hood from sill to sill along its length. */
+function canopyAt(x, grow = 0) {
+  const [, w, top] = rowAt(CANOPY, x);
+  return { w: w + grow, top: top + grow, base: sillZ(x, w) };
+}
+function canopyPoint(c, phi) {
+  const cp = Math.cos(phi), sp = Math.sin(phi);
+  return [c.w * Math.sign(cp) * Math.abs(cp) ** 0.85, c.base + (c.top - c.base) * Math.max(sp, 0) ** 0.75];
+}
+function canopyGeometry(THREE) {
+  const N = 40, M = 20;
+  const x0 = CANOPY[0][0], x1 = CANOPY[CANOPY.length - 1][0];
+  const pos = [], idx = [];
+  for (let i = 0; i <= N; i++) {
+    const x = x0 + ((x1 - x0) * i) / N;
+    const c = canopyAt(x);
+    for (let j = 0; j <= M; j++) {
+      const [y, z] = canopyPoint(c, (Math.PI * j) / M);
+      pos.push(x, y, z);
+    }
+  }
+  for (let i = 0; i < N; i++) {
+    for (let j = 0; j < M; j++) {
+      const a = i * (M + 1) + j, b = a + 1, c = a + M + 1, d = c + 1;
+      idx.push(a, b, c, b, d, c);
+    }
+  }
+  return meshOf(THREE, pos, idx);
+}
+/** A frame hoop over the canopy at x. */
+function hoopGeometry(THREE, x) {
+  const c = canopyAt(x, 0.0015);
+  const pts = [];
+  for (let j = 0; j <= 16; j++) {
+    const [y, z] = canopyPoint(c, (Math.PI * j) / 16);
+    pts.push(new THREE.Vector3(x, y, z));
+  }
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.0035, 6, false);
+}
+/** A sill rail along one side of the canopy. */
+function railGeometry(THREE, side) {
+  const pts = [];
+  for (let i = 0; i <= 12; i++) {
+    const x = 0.25 - (0.55 * i) / 12;
+    const c = canopyAt(x, 0.001);
+    pts.push(new THREE.Vector3(x, side * c.w, c.base));
+  }
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.003, 5, false);
+}
+
+/**
+ * A lofted aerofoil surface through its sections ({ le, s, chord, t, z }): span along y (wings, tailplane) or z (fin),
+ * closed at both ends. With leBand, the first part of the chord top and bottom is its own group (the white leading edge).
+ */
+function airfoilGeometry(THREE, sections, { span = 'y', leBand = 0 } = {}) {
+  const K = 14;
+  const xs = [];
+  for (let k = 0; k <= K; k++) xs.push((1 - Math.cos((Math.PI * k) / K)) / 2); // closer together at the nose
+  const ring = [];
+  for (let k = K; k >= 0; k--) ring.push([xs[k], 1]); // upper surface, trailing edge to leading edge
+  for (let k = 1; k < K; k++) ring.push([xs[k], -1]); // lower surface back to the trailing edge
+  const R = ring.length;
+  const pos = [];
+  for (const sec of sections) {
+    for (const [xc, side] of ring) {
+      const x = sec.le - xc * sec.chord;
+      const off = sec.z + side * thick(xc, sec.t) * sec.chord;
+      if (span === 'y') pos.push(x, sec.s, off);
+      else pos.push(x, off, sec.s);
+    }
+  }
+  const body = [], band = [];
+  for (let i = 0; i < sections.length - 1; i++) {
+    for (let k = 0; k < R; k++) {
+      const a = i * R + k, b = i * R + ((k + 1) % R), c = a + R, d = b + R;
+      const inBand = leBand > 0 && ring[k][0] <= leBand && ring[(k + 1) % R][0] <= leBand;
+      (inBand ? band : body).push(a, b, c, b, d, c);
+    }
+  }
+  // End caps: a fan from the middle of the first and last sections.
+  for (const i of [0, sections.length - 1]) {
+    const sec = sections[i];
+    const centre = pos.length / 3;
+    const x = sec.le - 0.4 * sec.chord;
+    if (span === 'y') pos.push(x, sec.s, sec.z);
+    else pos.push(x, sec.z, sec.s);
+    for (let k = 0; k < R; k++) body.push(centre, i * R + k, i * R + ((k + 1) % R));
+  }
+  return meshOf(THREE, pos, [...body, ...band], band.length ? [[0, body.length, 0], [body.length, band.length, 1]] : null);
+}
+
+/**
+ * Joins several geometries into one, so parts sharing a paint are one draw call. parts: [{ geometry, materials }]:
+ * materials gives, for each of the part's groups (or the whole part), the joined geometry's material slot. The
+ * parts are freed; the joined geometry has one group per slot.
+ */
+function joinGeometries(THREE, parts) {
+  const bySlot = new Map();
+  for (const { geometry, materials } of parts) {
+    const flat = geometry.index ? geometry.toNonIndexed() : geometry;
+    if (!flat.attributes.normal) flat.computeVertexNormals();
+    const p = flat.attributes.position.array, n = flat.attributes.normal.array;
+    const ranges = flat.groups.length ? flat.groups.map((gr) => [gr.start, gr.count, materials[gr.materialIndex] ?? materials[0]]) : [[0, p.length / 3, materials[0]]];
+    for (const [start, count, slot] of ranges) {
+      if (!bySlot.has(slot)) bySlot.set(slot, { pos: [], nor: [] });
+      const into = bySlot.get(slot);
+      for (let v = start; v < start + count; v++) {
+        into.pos.push(p[v * 3], p[v * 3 + 1], p[v * 3 + 2]);
+        into.nor.push(n[v * 3], n[v * 3 + 1], n[v * 3 + 2]);
+      }
+    }
+    if (flat !== geometry) flat.dispose();
+    geometry.dispose();
+  }
+  const pos = [], nor = [];
+  const g = new THREE.BufferGeometry();
+  for (const slot of [...bySlot.keys()].sort((a, b) => a - b)) {
+    const { pos: sp, nor: sn } = bySlot.get(slot);
+    g.addGroup(pos.length / 3, sp.length / 3, slot);
+    for (const v of sp) pos.push(v);
+    for (const v of sn) nor.push(v);
+  }
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   return g;
 }
 
@@ -185,14 +455,42 @@ function patch(THREE, xc, zc, w, h, side, surf) {
   return g;
 }
 
-const fuseSurf = (x, z) => Math.sqrt(Math.max(radiusAt(x) ** 2 - z * z, 1e-6)) + 0.0025;
-const finSurf = () => 0.0078;
+/**
+ * A decal that hugs a wing, upper (+1) or lower (-1): w along ax and h along ay (unit vectors in the wing's plane),
+ * centred at (x, y); tilted with the wing's dihedral.
+ */
+function wingPatch(THREE, x, y, w, h, ax, ay, side, tilt) {
+  const n = 10;
+  const pos = [], uv = [], idx = [];
+  for (let j = 0; j <= n; j++) {
+    for (let i = 0; i <= n; i++) {
+      const u = i / n - 0.5, v = j / n - 0.5;
+      const px = x + u * w * ax[0] + v * h * ay[0];
+      const py = y + u * w * ax[1] + v * h * ay[1];
+      pos.push(px, py, wingSurfZ(px, py, side));
+      uv.push(i / n, j / n);
+    }
+  }
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      const p = j * (n + 1) + i;
+      idx.push(p, p + 1, p + n + 2, p, p + n + 2, p + n + 1);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  g.rotateX(tilt);
+  return g;
+}
 
 // Cheat line: a thin white ribbon on both sides, nose to tail.
 function cheatLine(THREE) {
   const pos = [], idx = [];
   const N = 48, half = 0.0032;
-  const x0 = 0.5, x1 = -0.66;
+  const x0 = 0.395, x1 = -0.75; // from just behind the nose number to the tail (photo)
   for (const side of [1, -1]) {
     const base = pos.length / 3;
     for (let k = 0; k <= N; k++) {
@@ -219,82 +517,76 @@ function ellipsoid(THREE, cx, cy, cz, rx, ry, rz) {
   return g;
 }
 
-// An oriented plane (local x, y, normal z given by x cross y), for wing decals.
-function orientedPlane(THREE, w, h, ax, ay, at) {
-  const g = new THREE.PlaneGeometry(w, h);
-  const az = new THREE.Vector3().crossVectors(ax, ay);
-  g.applyMatrix4(new THREE.Matrix4().makeBasis(ax, ay, az).setPosition(at));
-  return g;
-}
-
 function buildKit(THREE) {
   const own = []; // everything to dispose with the kit
   const keep = (o) => (own.push(o), o);
   const geo = {};
 
-  // Sky/ground gradient for reflections (chrome, gloss). Auto-converted by the renderer.
+  // The sky above and the prairie below, for the reflections in the paint, the glass and the chrome: the same blues
+  // as the 3D views' sky (ui-kit/sky-clouds.js), with the sun's bright patch. Auto-converted by the renderer.
   const env = keep(canvasTexture(THREE, 256, 128, (ctx, w, h) => {
     const g = ctx.createLinearGradient(0, 0, 0, h);
-    g.addColorStop(0, '#4a5866'); g.addColorStop(0.44, '#b9c2cc');
-    g.addColorStop(0.5, '#ffffff'); g.addColorStop(0.53, '#2a323a'); g.addColorStop(1, '#0b0e12');
+    g.addColorStop(0, '#2f6aa8'); g.addColorStop(0.3, '#6f9fd2'); g.addColorStop(0.49, '#dde9f3');
+    g.addColorStop(0.51, '#8a8a62'); g.addColorStop(0.7, '#5d6440'); g.addColorStop(1, '#2c3220');
     ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillRect(w * 0.1, h * 0.12, w * 0.12, h * 0.1);
+    ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fillRect(w * 0.1, h * 0.12, w * 0.1, h * 0.08);
   }));
   env.mapping = THREE.EquirectangularReflectionMapping;
 
-  const fuselage = new THREE.LatheGeometry(PROFILE.map(([r, x]) => new THREE.Vector2(r, x)), 40);
-  fuselage.rotateZ(-Math.PI / 2);
-  geo.fuselage = fuselage;
-
-  const wingShape = (side, pts) => pts.map(([x, y]) => [x, side * y]);
-  // Wingtip at 0.722 units (was 0.66, a span 8% short): span 1.444 units against the 1.44 length, the T-6A's 33 ft 5 in
-  // against 33 ft 4 in (published T-6A dimensions, an estimate until a manual page backs it; Patrick, 5 Oct).
-  const TIP = 0.722;
-  const wingPlan = [[0.26, 0], [0.14, TIP], [0.06, TIP], [-0.06, 0]];
-  const wingLe = [[0.262, 0], [0.142, TIP], [0.137, TIP], [0.257, 0]];
-  geo.wing = { 1: flatXY(THREE, wingShape(1, wingPlan), WING_T, WING_Z), '-1': flatXY(THREE, wingShape(-1, wingPlan), WING_T, WING_Z) };
-  geo.wingLe = { 1: flatXY(THREE, wingShape(1, wingLe), WING_T + 0.002, WING_Z - 0.001), '-1': flatXY(THREE, wingShape(-1, wingLe), WING_T + 0.002, WING_Z - 0.001) };
-  geo.stab = flatXY(THREE, [[-0.48, 0.04], [-0.6, 0.3], [-0.68, 0.3], [-0.72, 0.04], [-0.72, -0.04], [-0.68, -0.3], [-0.6, -0.3], [-0.48, -0.04]], 0.012, -0.006);
-  geo.strake = new THREE.BoxGeometry(0.08, 0.008, 0.07);
-  geo.fin = flatXZ(THREE, [[-0.38, 0.03], [-0.58, 0.3], [-0.69, 0.3], [-0.72, 0.03]], 0.014);
-  geo.ventral = flatXZ(THREE, [[-0.5, 0.0], [-0.58, -0.075], [-0.68, -0.075], [-0.7, 0.0]], 0.01);
-  geo.spine = ellipsoid(THREE, -0.22, 0, 0.058, 0.25, 0.042, 0.04);
-  geo.glassFront = ellipsoid(THREE, 0.245, 0, 0.078, 0.1, 0.058, 0.06);
-  geo.glassRear = ellipsoid(THREE, 0.075, 0, 0.078, 0.115, 0.058, 0.06);
-  // One long canopy over both seats, from the rear glass's back to the front glass's front, for the plain ship paint (Patrick, 5 Oct).
-  geo.glassOne = ellipsoid(THREE, 0.1525, 0, 0.078, 0.1925, 0.058, 0.06);
+  geo.fuselage = fuselageGeometry(THREE);
+  // Wings, tailplane and ventral fin in one geometry (the wings' leading edges a second slot), so the
+  // airframe is one draw call; the dihedral is built in.
+  const wing = (side) => {
+    const g = airfoilGeometry(THREE, side > 0 ? WING : WING.map((s) => ({ ...s, s: -s.s })).reverse(), { leBand: 0.07 });
+    g.rotateX(side * DIHEDRAL);
+    return g;
+  };
+  geo.airframe = joinGeometries(THREE, [
+    { geometry: wing(1), materials: [0, 1] },
+    { geometry: wing(-1), materials: [0, 1] },
+    { geometry: airfoilGeometry(THREE, STAB), materials: [0] },
+    { geometry: flatXZ(THREE, [[-0.51, -0.13], [-0.54, -0.19], [-0.67, -0.19], [-0.69, -0.11]], 0.01), materials: [0] },
+  ]);
+  geo.fin = airfoilGeometry(THREE, FIN, { span: 'z' });
+  geo.canopy = canopyGeometry(THREE);
+  geo.frames = joinGeometries(THREE, [
+    ...[0.16, -0.022, -0.239].map((x) => ({ geometry: hoopGeometry(THREE, x), materials: [0] })),
+    { geometry: railGeometry(THREE, 1), materials: [0] },
+    { geometry: railGeometry(THREE, -1), materials: [0] },
+    // The seat backs.
+    ...[0.06, -0.13].map((x) => ({ geometry: new THREE.BoxGeometry(0.014, 0.05, 0.05).translate(x - 0.035, 0, 0.07), materials: [0] })),
+    // The chin intake under the spinner.
+    { geometry: ellipsoid(THREE, 0.545, 0, -0.058, 0.03, 0.032, 0.016), materials: [0] },
+  ]);
   const floor = new THREE.CircleGeometry(1, 24);
-  floor.scale(0.29, 0.056, 1);
-  floor.translate(0.165, 0, 0.0895);
+  floor.scale(0.2, 0.05, 1);
+  floor.translate(-0.035, 0, 0.046);
   geo.floor = floor;
-  geo.helmet = new THREE.SphereGeometry(0.02, 12, 8);
-  geo.seat = new THREE.BoxGeometry(0.014, 0.05, 0.05);
-  const arch = new THREE.TorusGeometry(0.062, 0.0045, 6, 20, Math.PI);
-  arch.rotateX(Math.PI / 2);
-  arch.rotateZ(Math.PI / 2);
-  arch.translate(0, 0, 0.078);
-  geo.arch = arch;
-  geo.rail = new THREE.CylinderGeometry(0.0038, 0.0038, 0.33, 6).rotateZ(Math.PI / 2);
-  geo.stub = { 1: new THREE.CylinderGeometry(0.017, 0.011, 0.07, 10).rotateZ(Math.PI / 2).translate(0.46, 0.082, 0.01), '-1': new THREE.CylinderGeometry(0.017, 0.011, 0.07, 10).rotateZ(Math.PI / 2).translate(0.46, -0.082, 0.01) };
-  const spin = new THREE.LatheGeometry([[0.001, 0.66], [0.012, 0.645], [0.028, 0.615], [0.04, 0.575], [0.045, 0.52]].map(([r, x]) => new THREE.Vector2(r, x)), 24);
+  geo.helmets = joinGeometries(THREE, [0.06, -0.13].map((x) => ({ geometry: new THREE.SphereGeometry(0.02, 12, 8).translate(x, 0, 0.098), materials: [0] })));
+  // The exhaust stacks either side of the nose, just under the top line (photo).
+  const stubY = fuseSurf(0.5, -0.012) - 0.003;
+  geo.stubs = joinGeometries(THREE, [1, -1].map((s) => ({ geometry: new THREE.CylinderGeometry(0.012, 0.009, 0.06, 10).rotateZ(Math.PI / 2).translate(0.5, s * stubY, -0.012), materials: [0] })));
+  const spin = new THREE.LatheGeometry([[0.001, 0.66], [0.01, 0.65], [0.02, 0.635], [0.028, 0.61], [0.033, 0.585], [0.034, 0.575]].map(([r, x]) => new THREE.Vector2(r, x)), 24);
   spin.rotateZ(-Math.PI / 2);
   geo.spinner = spin;
-  const disc = new THREE.CircleGeometry(0.26, 32);
+  // The prop: 97 in across (published T-6A figure; an estimate until a manual page backs it), 0.175 units each side.
+  const disc = new THREE.CircleGeometry(0.175, 32);
   disc.rotateY(Math.PI / 2);
-  disc.translate(0.53, 0, 0);
+  disc.translate(0.585, 0, 0);
   geo.disc = disc;
-  const blade = (v0, v1, w0, w1) => {
+  // The four blades as one geometry and their red tips as another (Traffic's turning prop hides both: blurProp).
+  const blade = (v0, v1, w0, w1) => joinGeometries(THREE, [0, 1, 2, 3].map((k) => {
     const s = new THREE.Shape([[-w0, v0], [w0, v0], [w1, v1], [-w1, v1]].map(([a, b]) => new THREE.Vector2(a, b)));
     const g = new THREE.ExtrudeGeometry(s, { depth: 0.004, bevelEnabled: false });
     g.rotateY(Math.PI / 2); // depth along x, radial along y
-    g.translate(0.532, 0, 0);
-    return g;
-  };
-  geo.blade = blade(0.03, 0.22, 0.016, 0.012);
-  geo.bladeTip = blade(0.22, 0.26, 0.012, 0.011);
+    g.translate(0.587, 0, 0);
+    g.rotateX((k * Math.PI) / 2);
+    return { geometry: g, materials: [0] };
+  }));
+  geo.blade = blade(0.03, 0.15, 0.016, 0.013);
+  geo.bladeTip = blade(0.15, 0.175, 0.013, 0.012);
   geo.cheat = cheatLine(THREE);
-  for (const o of [geo.fuselage, geo.stab, geo.strake, geo.fin, geo.ventral, geo.spine, geo.glassFront, geo.glassRear, geo.glassOne, geo.floor, geo.helmet, geo.seat, geo.arch, geo.rail, geo.spinner, geo.disc, geo.blade, geo.bladeTip, geo.cheat]) keep(o);
-  for (const s of ['1', '-1']) { keep(geo.wing[s]); keep(geo.wingLe[s]); keep(geo.stub[s]); }
+  for (const o of Object.values(geo)) keep(o);
 
   // Shared decal textures and geometry.
   const tex = {};
@@ -310,37 +602,43 @@ function buildKit(THREE) {
     ctx.fillStyle = '#d2202c'; ctx.beginPath(); ctx.moveTo(15, 17); ctx.lineTo(49, 17); ctx.lineTo(32, 47); ctx.closePath(); ctx.fill();
   }));
 
+  const both = (make) => ({ 1: make(1), '-1': make(-1) });
   const decalGeo = {
-    roundelSide: { 1: patch(THREE, -0.3, -0.018, 0.055, 0.055, 1, fuseSurf), '-1': patch(THREE, -0.3, -0.018, 0.055, 0.055, -1, fuseSurf) },
-    canada: { 1: patch(THREE, 0.33, cheatZ(0.33) + 0.024, 0.1, 0.028, 1, fuseSurf), '-1': patch(THREE, 0.33, cheatZ(0.33) + 0.024, 0.1, 0.028, -1, fuseSurf) },
-    triA: { 1: patch(THREE, 0.06, cheatZ(0.06) + 0.03, 0.024, 0.024, 1, fuseSurf), '-1': patch(THREE, 0.06, cheatZ(0.06) + 0.03, 0.024, 0.024, -1, fuseSurf) },
-    triB: { 1: patch(THREE, 0.19, cheatZ(0.19) + 0.03, 0.024, 0.024, 1, fuseSurf), '-1': patch(THREE, 0.19, cheatZ(0.19) + 0.03, 0.024, 0.024, -1, fuseSurf) },
-    nose: { 1: patch(THREE, 0.39, -0.05, 0.05, 0.062, 1, fuseSurf), '-1': patch(THREE, 0.39, -0.05, 0.05, 0.062, -1, fuseSurf) },
-    tail: { 1: patch(THREE, -0.633, 0.165, 0.16, 0.256, 1, finSurf), '-1': patch(THREE, -0.633, 0.165, 0.16, 0.256, -1, finSurf) },
+    roundelSide: both((side) => patch(THREE, -0.333, cheatZ(-0.333), 0.05, 0.05, side, fuseSurf)),
+    canada: both((side) => patch(THREE, 0.194, -0.02, 0.085, 0.024, side, fuseSurf)),
+    triA: both((side) => patch(THREE, 0.082, -0.016, 0.022, 0.022, side, fuseSurf)),
+    triB: both((side) => patch(THREE, -0.151, -0.016, 0.022, 0.022, side, fuseSurf)),
+    triC: both((side) => patch(THREE, -0.033, -0.016, 0.015, 0.015, side, fuseSurf)),
+    nose: both((side) => patch(THREE, 0.425, cheatZ(0.425), 0.036, 0.045, side, fuseSurf)),
+    tail: both((side) => patch(THREE, -0.687, 0.108, 0.105, 0.165, side, finSurf)),
     // Upper left wing: seen from above, nose up, right = -Y.
-    roundelWing: orientedPlane(THREE, 0.14, 0.14, new THREE.Vector3(0, -1, 0), new THREE.Vector3(1, 0, 0), new THREE.Vector3(0.1, 0.4, WING_Z + WING_T + 0.001)),
+    roundelWing: wingPatch(THREE, 0.04, 0.42, 0.14, 0.14, [0, -1], [1, 0], 1, DIHEDRAL),
     // Under the right wing: seen from below with the nose up, it reads left to right.
-    wingNum: orientedPlane(THREE, 0.27, 0.09, new THREE.Vector3(0, 1, 0), new THREE.Vector3(1, 0, 0), new THREE.Vector3(0.09, -0.4, WING_Z - 0.001)),
+    wingNum: wingPatch(THREE, 0.04, -0.42, 0.27, 0.09, [0, 1], [1, 0], -1, -DIHEDRAL),
   };
   for (const v of Object.values(decalGeo)) {
     if (v.isBufferGeometry) keep(v);
     else { keep(v[1]); keep(v['-1']); }
   }
 
+  const two = THREE.DoubleSide; // both faces lit the right way round, whichever way a part's triangles were wound
   const mat = (params) => keep(new THREE.MeshStandardMaterial({ fog: false, ...params }));
+  // Glossy paint: a clear coat over the colour, as on the real aircraft (Patrick's photos).
+  const gloss = (params) => keep(new THREE.MeshPhysicalMaterial({ fog: false, side: two, clearcoat: 1, clearcoatRoughness: 0.12, envMap: env, ...params }));
   const decalMat = (map) => keep(new THREE.MeshStandardMaterial({
     map, transparent: true, side: THREE.DoubleSide, depthWrite: false, roughness: 0.55, metalness: 0, emissive: '#ffffff', emissiveMap: map, emissiveIntensity: 0.6, fog: false,
     polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
   }));
   const mats = {
-    navy: mat({ color: NAVY, roughness: 0.34, metalness: 0.2, envMap: env, envMapIntensity: 0.55 }),
-    cheat: mat({ color: '#f1f4f8', roughness: 0.45, emissive: '#ffffff', emissiveIntensity: 0.3, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
-    wingLe: mat({ color: '#f1f4f8', roughness: 0.5, emissive: '#ffffff', emissiveIntensity: 0.25 }),
+    env,
+    navy: gloss({ color: NAVY, roughness: 0.42, metalness: 0.15, envMapIntensity: 0.8 }),
+    cheat: mat({ color: '#f1f4f8', roughness: 0.45, emissive: '#ffffff', emissiveIntensity: 0.3, side: two, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
+    wingLe: gloss({ color: '#f1f4f8', roughness: 0.4, emissive: '#ffffff', emissiveIntensity: 0.2, envMapIntensity: 0.5 }),
     chrome: mat({ color: '#f2f5f8', roughness: 0.1, metalness: 1, envMap: env, envMapIntensity: 1.2 }),
     exhaust: mat({ color: '#4a4d54', roughness: 0.45, metalness: 0.8, envMap: env, envMapIntensity: 0.6 }),
-    glass: mat({ color: '#3e556a', transparent: true, opacity: 0.32, roughness: 0.05, metalness: 0.5, envMap: env, envMapIntensity: 0.9, depthWrite: false }),
-    frame: mat({ color: '#0c1017', roughness: 0.5 }),
-    floor: mat({ color: '#0d1118', roughness: 0.9, side: THREE.DoubleSide }),
+    glass: mat({ color: '#1d2a36', transparent: true, opacity: 0.4, roughness: 0.04, metalness: 0.6, envMap: env, envMapIntensity: 1.4, depthWrite: false, side: two }),
+    frame: mat({ color: '#0c1017', roughness: 0.5, side: two }),
+    floor: mat({ color: '#0d1118', roughness: 0.9, side: two }),
     helmet: mat({ color: '#d4d8de', roughness: 0.35 }),
     blade: mat({ color: '#0a0c10', roughness: 0.6 }),
     tip: mat({ color: '#d2202c', roughness: 0.5 }),
@@ -358,16 +656,46 @@ function getKit(THREE) {
   return k;
 }
 
-// ---------- the per-ship model ----------
+// ---------- near and far ----------
 
-function wingGroup(THREE, kit, side, materials) {
-  const g = new THREE.Group();
-  g.rotation.x = side * DIHEDRAL;
-  const key = String(side);
-  g.add(new THREE.Mesh(kit.geo.wing[key], materials.wing));
-  if (materials.wingLe) g.add(new THREE.Mesh(kit.geo.wingLe[key], materials.wingLe));
-  return g;
+/** How long the aircraft looks on screen, in CSS pixels, from this camera. */
+function onScreenPx(THREE, obj, camera, renderer) {
+  const size = renderer.getSize(new THREE.Vector2());
+  const lengthWorld = CT156_UNIT_LENGTH * obj.matrixWorld.getMaxScaleOnAxis();
+  if (camera.isOrthographicCamera) return (lengthWorld * camera.zoom * size.y) / Math.max(camera.top - camera.bottom, 1e-9);
+  const eye = new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld);
+  const d = eye.distanceTo(new THREE.Vector3().setFromMatrixPosition(obj.matrixWorld));
+  return (lengthWorld * size.y * (camera.zoom ?? 1)) / (2 * Math.max(d, 1e-9) * Math.tan(rad(camera.fov ?? 50) / 2));
 }
+
+/** Shows or hides a ship's fine detail by its size on screen, with a gap between the two numbers so it doesn't flicker. */
+function setDetail(THREE, root, camera, renderer) {
+  const d = root.userData.ct156;
+  if (!d?.detail) return;
+  const px = onScreenPx(THREE, root, camera, renderer);
+  if (px >= CT156_DETAIL_PX.show) d.detail.visible = true;
+  else if (px < CT156_DETAIL_PX.hide) d.detail.visible = false;
+}
+
+/**
+ * Each scene a ship is drawn in checks every ship's detail once per picture, before three.js lists what to draw,
+ * so a change shows in the same picture. Installed the first time a ship is drawn there; it keeps any hook the scene had.
+ */
+function watchScene(THREE, scene) {
+  if (!scene?.isScene || scene.userData.ct156Ships) return;
+  const ships = new Set();
+  scene.userData.ct156Ships = ships;
+  const before = scene.onBeforeRender;
+  scene.onBeforeRender = function (renderer, s, camera, target) {
+    before.call(this, renderer, s, camera, target);
+    for (const ship of ships) {
+      if (!ship.userData.ct156) ships.delete(ship);
+      else setDetail(THREE, ship, camera, renderer);
+    }
+  };
+}
+
+// ---------- the per-ship model ----------
 
 /**
  * Returns a THREE.Group: nose +X, left +Y, up +Z, nose-to-tail length lengthFt.
@@ -387,27 +715,25 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
   const g = new THREE.Group(); // scaled to lengthFt
   g.scale.setScalar(lengthFt / CT156_UNIT_LENGTH);
   root.add(g);
+  const detail = new THREE.Group(); // the fine detail, shown only up close (near and far, above)
+  g.add(detail);
   const add = (geometry, material, parent = g) => {
     const m = new THREE.Mesh(geometry, material);
     parent.add(m);
     return m;
   };
 
+  let fuselage;
   if (paint === 'ship') {
     const base = new THREE.Color(color);
-    const m = (c, extra) => own(new THREE.MeshStandardMaterial({ color: c, flatShading: true, roughness: 0.55, metalness: 0.1, fog: false, ...extra }));
+    const m = (c, extra) => own(new THREE.MeshStandardMaterial({ color: c, roughness: 0.45, metalness: 0.1, envMap: mats.env, envMapIntensity: 0.4, side: THREE.DoubleSide, fog: false, ...extra }));
     const body = m(base);
     const light = m(base.clone().multiplyScalar(0.82));
-    add(geo.fuselage, body);
-    for (const s of [1, -1]) g.add(wingGroup(THREE, kit, s, { wing: light }));
-    add(geo.stab, light);
-    add(geo.strake, light).position.set(-0.64, 0.3, 0.005);
-    add(geo.strake, light).position.set(-0.64, -0.3, 0.005);
+    fuselage = add(geo.fuselage, body);
+    add(geo.airframe, [light, light]);
     add(geo.fin, m(base.clone().lerp(new THREE.Color('#ffffff'), 0.15)));
-    add(geo.ventral, light);
-    add(geo.spine, body);
     // Solid dark glass, one canopy (Patrick, 5 Oct: the two see-through bubbles overlapped as a "ghost double canopy").
-    add(geo.glassOne, m('#2c4a66', { roughness: 0.12, metalness: 0.45 }));
+    add(geo.canopy, m('#2c4a66', { roughness: 0.12, metalness: 0.45 }));
     add(geo.spinner, m('#20242a', { roughness: 0.4 }));
     add(geo.disc, mats.disc);
   } else {
@@ -419,57 +745,48 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
       map: tx, transparent: true, side: THREE.DoubleSide, depthWrite: false, roughness: 0.55, metalness: 0, emissive: '#ffffff', emissiveMap: tx, emissiveIntensity: 0.6, fog: false,
       polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
     }));
-    const finMat = own(new THREE.MeshStandardMaterial({ color, fog: false, roughness: 0.4, metalness: 0.1, envMap: mats.navy.envMap, envMapIntensity: 0.4 }));
+    const finMat = own(new THREE.MeshPhysicalMaterial({ color, fog: false, side: THREE.DoubleSide, roughness: 0.4, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.12, envMap: mats.env, envMapIntensity: 0.5 }));
 
-    add(geo.fuselage, mats.navy);
-    add(geo.cheat, mats.cheat);
-    for (const s of [1, -1]) {
-      const wg = wingGroup(THREE, kit, s, { wing: mats.navy, wingLe: mats.wingLe });
-      g.add(wg);
-      if (s === 1) add(decalGeo.roundelWing, mats.roundel, wg);
-      else add(decalGeo.wingNum, decal(wingTex), wg);
-    }
-    add(geo.stab, mats.navy);
-    add(geo.strake, mats.navy).position.set(-0.64, 0.3, 0.005);
-    add(geo.strake, mats.navy).position.set(-0.64, -0.3, 0.005);
-    add(geo.ventral, mats.navy);
-    add(geo.spine, mats.navy);
+    // Always drawn: the airframe, the canopy glass, the cheat line, the spinner and the prop disc.
+    fuselage = add(geo.fuselage, mats.navy);
+    add(geo.airframe, [mats.navy, mats.wingLe]);
     add(geo.fin, finMat);
+    add(geo.cheat, mats.cheat);
+    add(geo.spinner, mats.chrome);
+    add(geo.disc, mats.disc);
+    // Up close only: the decals, the cockpit, the frames, the exhausts and the blades.
+    add(decalGeo.roundelWing, mats.roundel, detail);
+    add(decalGeo.wingNum, decal(wingTex), detail);
     const tailMat = decal(tailTex);
     const noseMat = decal(noseTex);
     for (const s of ['1', '-1']) {
-      add(decalGeo.tail[s], tailMat);
-      add(decalGeo.nose[s], noseMat);
-      add(decalGeo.roundelSide[s], mats.roundel);
-      add(decalGeo.canada[s], mats.canada);
-      add(decalGeo.triA[s], mats.tri);
-      add(decalGeo.triB[s], mats.tri);
-      add(geo.stub[s], mats.exhaust);
+      add(decalGeo.tail[s], tailMat, detail);
+      add(decalGeo.nose[s], noseMat, detail);
+      add(decalGeo.roundelSide[s], mats.roundel, detail);
+      add(decalGeo.canada[s], mats.canada, detail);
+      add(decalGeo.triA[s], mats.tri, detail);
+      add(decalGeo.triB[s], mats.tri, detail);
+      add(decalGeo.triC[s], mats.tri, detail);
     }
-    // Cockpits: dark floor, seat backs, helmets, then glass, arches and rails.
-    add(geo.floor, mats.floor);
-    for (const x of [0.25, 0.08]) {
-      add(geo.seat, mats.frame).position.set(x - 0.03, 0, 0.115);
-      add(geo.helmet, mats.helmet).position.set(x, 0, 0.116);
-    }
-    add(geo.glassFront, mats.glass);
-    add(geo.glassRear, mats.glass);
-    for (const x of [0.335, 0.165, -0.03]) add(geo.arch, mats.frame).position.x = x;
-    for (const s of [1, -1]) add(geo.rail, mats.frame).position.set(0.165, s * 0.059, 0.083);
-    add(geo.spinner, mats.chrome);
-    add(geo.disc, mats.disc);
+    add(geo.stubs, mats.exhaust, detail);
+    add(geo.floor, mats.floor, detail);
+    add(geo.frames, mats.frame, detail);
+    add(geo.helmets, mats.helmet, detail);
     const prop = new THREE.Group();
     prop.rotation.x = rad(22);
-    for (let k = 0; k < 4; k++) {
-      const b = new THREE.Group();
-      b.rotation.x = (k * Math.PI) / 2;
-      add(geo.blade, mats.blade, b);
-      add(geo.bladeTip, mats.tip, b);
-      prop.add(b);
-    }
-    g.add(prop);
+    add(geo.blade, mats.blade, prop);
+    add(geo.bladeTip, mats.tip, prop);
+    detail.add(prop);
+    // The glass last, so the cockpit shows through it.
+    add(geo.canopy, mats.glass);
   }
-  root.userData.ct156 = { kit, mine, paint };
+  // The first time the ship is drawn, its scene starts checking its detail (near and far, above).
+  fuselage.onBeforeRender = (renderer, scene, camera) => {
+    watchScene(THREE, scene);
+    scene?.userData?.ct156Ships?.add(root);
+    setDetail(THREE, root, camera, renderer);
+  };
+  root.userData.ct156 = { kit, mine, paint, detail };
   return root;
 }
 

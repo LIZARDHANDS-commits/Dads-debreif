@@ -78,7 +78,7 @@ export function createLayout({ bar, listen, on = {}, available = {}, filterSplit
     { class: 'traffic-stage', 'aria-label': 'Map and playback' },
     bar.element,
     h('div', { class: 'traffic-map-wrap' }, canvas, stage3d, hint, credit, note3d),
-    h('p', { class: 'traffic-note' }, SIMPLIFIED_NOTE),
+    // The "Simplified: ..." line under the map is gone (Patrick, 6 Oct: "get rid of the simplified aircraft line").
   );
 
   // Right column: the spawner (Spawn aircraft, a box that opens and closes), then the aircraft list and the conflicts.
