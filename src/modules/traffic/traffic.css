@@ -1328,3 +1328,135 @@
   }
 }
 
+/* The glass cockpit look (Patrick, 6 Oct: picked look B of four, "sleeker" buttons and outlines; Traffic first):
+   frosted see-through panels without hard outlines, round pill buttons, and the cyan accent kept for what is on.
+   Placed last so it wins over the plainer styles above; the other sims keep the shared look until moved over. */
+[data-module='traffic'] {
+  --glass: rgb(16 24 32 / 0.55);
+  --glass-line: rgb(255 255 255 / 0.08);
+  --glass-fill: rgb(255 255 255 / 0.07);
+  --glass-fill-hover: rgb(255 255 255 / 0.14);
+  --glass-edge: rgb(255 255 255 / 0.12);
+}
+
+[data-module='traffic'] .traffic-col .panel,
+[data-module='traffic'] .traffic-bar {
+  border: 1px solid var(--glass-line);
+  background: var(--glass);
+  backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+}
+
+[data-module='traffic'] .traffic-col .panel {
+  border-radius: 14px;
+}
+
+[data-module='traffic'] .traffic-bar {
+  padding: 5px;
+  border-radius: 999px;
+}
+
+/* A box inside a box: a faint fill, no edge, no second shadow. */
+[data-module='traffic'] .traffic-col .panel .panel {
+  border: 0;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 0.04);
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+[data-module='traffic'] button,
+[data-module='traffic'] .button {
+  border: 1px solid var(--glass-edge);
+  border-radius: 999px;
+  background: var(--glass-fill);
+}
+
+[data-module='traffic'] button:hover,
+[data-module='traffic'] .button:hover {
+  border-color: var(--glass-edge);
+  background: var(--glass-fill-hover);
+}
+
+[data-module='traffic'] button.primary,
+[data-module='traffic'] .button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+/* Panel headers: no edge, rounded; the Setup and Aircraft headers keep their pop with a cyan tint. */
+[data-module='traffic'] .panel-toggle,
+[data-module='traffic'] .panel-toggle:hover {
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+}
+
+[data-module='traffic'] .panel-toggle:hover {
+  background: var(--glass-fill);
+}
+
+[data-module='traffic'] .panel-pop > .panel-header > .panel-toggle {
+  border: 0;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow: none;
+}
+
+[data-module='traffic'] .panel-pop > .panel-header > .panel-toggle:hover {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+[data-module='traffic'] select,
+[data-module='traffic'] input[type='number'],
+[data-module='traffic'] input[type='text'] {
+  border: 1px solid var(--glass-edge);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 0.06);
+  color: var(--text);
+}
+
+[data-module='traffic'] select option {
+  background: #10181f;
+}
+
+/* Two- or three-way choices (2D | 3D): one pill, the chosen part filled. */
+[data-module='traffic'] .control-choice {
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--glass-fill);
+}
+
+[data-module='traffic'] .control-choice .choice-option span,
+[data-module='traffic'] .control-choice .choice-option:first-of-type span,
+[data-module='traffic'] .control-choice .choice-option:last-of-type span {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+}
+
+[data-module='traffic'] .control-choice .choice-option input:checked + span {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* The aircraft list: soft cards instead of ruled lines. */
+[data-module='traffic'] .aircraft-row {
+  margin-top: 4px;
+  padding: 6px 8px;
+  border-bottom: 0;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 0.05);
+}
+
+[data-module='traffic'] .pfl-badge {
+  border: 0;
+  border-radius: 999px;
+  background: rgb(90 209 255 / 0.12);
+}
+
+[data-module='traffic'] .pfl-badge.badge-crash {
+  background: rgb(239 68 68 / 0.22);
+}
+
