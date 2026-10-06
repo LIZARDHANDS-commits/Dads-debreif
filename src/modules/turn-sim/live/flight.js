@@ -137,29 +137,32 @@ export function liftBankDeg(bankDeg, nz = 1) {
   return (Math.sign(bankDeg) * Math.atan2(side, nz) * 180) / Math.PI;
 }
 
+/** The push is taken only when its wings are this much nearer than the pull's: positive G is the pilot's way (estimate). */
+const PUSH_MARGIN_DEG = 45;
+
 /**
  * The wings' attitude, drawn and read out (a.attitudeDeg): where the lift points (liftBankDeg, TS-108), flown as a roll.
- * Of the pull (positive G) and the push (negative G) that give the same lift line, the one nearer the attitude a step ago,
- * turned to no faster than the aircraft rolls (rollLimitAt), so a descending turn that reverses rolls through, smoothly,
- * never flipping 180° in a step (Patrick 6 Oct 06:01Z: "2's bank angle snaps unrealistically 180 degrees and studders").
- * Until V2.133 every step chose afresh by the lift's sign alone, which flips back and forth near zero lift. Sets a.g's
- * sign to the one chosen. prevDeg: the attitude a step ago (none: the lift's own, as liftBankDeg).
+ * Of the pull (positive G) and the push (negative G) that give the same lift line: the pull whenever the lift points above
+ * the horizon (nz above zero, the wings then upright); otherwise the one whose wings are nearer the wings a step ago, the push
+ * only when PUSH_MARGIN_DEG nearer, so a descending turn that reverses rolls through and a wings-level push over stays
+ * upright. The wings turn no faster than twice the aircraft's roll (rollLimitAt). Patrick 6 Oct 06:01Z: "2's bank angle
+ * snaps unrealistically 180 degrees and studders". Until V2.133 every step chose afresh by the lift's sign alone; in V2.133
+ * a pull-out after a push could lock the wings inverted at negative G. Sets a.g's sign to the one chosen. prev:
+ * { attitudeDeg } a step ago.
  */
-export function flyAttitude(a, prevDeg, dt, roll = ROLL) {
+export function flyAttitude(a, prev, dt, roll = ROLL) {
   const bank = a.bankDeg ?? 0;
   const nz = a.nz ?? 1;
   const side = Math.sign(bank) * Math.tan((Math.min(Math.abs(bank), 89.9) * Math.PI) / 180);
-  const prev = Number.isFinite(prevDeg) ? prevDeg : liftBankDeg(bank, nz);
-  if (Math.hypot(side, nz) < 1e-6) {
-    a.attitudeDeg = prev;
-    return;
-  }
+  const mag = Math.hypot(side, nz);
+  const att0 = Number.isFinite(prev?.attitudeDeg) ? prev.attitudeDeg : liftBankDeg(bank, nz);
   const pull = (Math.atan2(side, nz) * 180) / Math.PI;
   const push = wrapDeg180(pull + 180);
-  const usePull = Math.abs(wrapDeg180(pull - prev)) <= Math.abs(wrapDeg180(push - prev));
-  const maxStep = rollLimitAt(a.tasFtps, roll).maxRateDps * dt;
-  const turn = Math.max(-maxStep, Math.min(maxStep, wrapDeg180((usePull ? pull : push) - prev)));
-  a.attitudeDeg = wrapDeg180(prev + turn);
+  const usePull = nz > 0 || Math.abs(wrapDeg180(pull - att0)) <= Math.abs(wrapDeg180(push - att0)) + PUSH_MARGIN_DEG;
+  const lift = usePull ? pull : push;
+  const target = mag < 1e-6 ? att0 : lift;
+  const maxStep = 2 * rollLimitAt(a.tasFtps, roll).maxRateDps * dt;
+  a.attitudeDeg = wrapDeg180(att0 + Math.max(-maxStep, Math.min(maxStep, wrapDeg180(target - att0))));
   a.g = (usePull ? 1 : -1) * Math.abs(a.g ?? 1);
 }
 
@@ -209,6 +212,8 @@ export const smootherSlope = (u) => 30 * u * u * (1 - u) * (1 - u);
 export const smootherCurve = (u) => 60 * u * (1 - u) * (1 - 2 * u);
 /** The smootherstep's steepest slope is this many times its average one (at the middle). */
 export const SMOOTHER_PEAK = 1.875;
+/** The smootherstep's greatest curvature (at u = 1/2 - 1/sqrt(12)): a height leg's greatest vertical acceleration is rise x this / span². */
+export const SMOOTHER_CURVE_PEAK = 10 / Math.sqrt(3);
 
 /**
  * Height on a smooth profile: legs { t0, t1, fromFt, toFt } in formation seconds. Each leg
@@ -334,7 +339,7 @@ export function stepAircraft(a, plan, t) {
   }
 
   const bankBefore = a.bankDeg;
-  const attitudeBefore = a.attitudeDeg;
+  const attitudeBefore = { attitudeDeg: a.attitudeDeg };
   const headingBefore = a.headingRad;
   const climbBefore = a.climbFtps;
   const tasBefore = a.tasFtps;
@@ -371,7 +376,7 @@ export function stepAircraft(a, plan, t) {
     // its sign (G-warm's push over). The sign is the lift's, along the wings' up axis (the vertical share times cos bank
     // plus the sideways share times sin bank), so a banked aircraft easing its descent through zero vertical G keeps
     // positive G; until V2.92 the sign was the vertical share's alone, a 2 G jump in one step (Fable's review, section 17).
-    // flyAttitude then keeps whichever of pull or push is nearer the wings' attitude (V2.133).
+    // flyAttitude then keeps whichever of pull or push follows on from the step before (V2.133-V2.135).
     if (height.nz !== undefined) {
       const side = Math.max(0, a.g * a.g - 1);
       const b = (Math.abs(a.bankDeg) * Math.PI) / 180;

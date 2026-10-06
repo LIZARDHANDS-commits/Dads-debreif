@@ -36,7 +36,7 @@ import { classify, judge } from './judge.js';
 import { FORMATIONS, fwShapeNow, pairSlot, downTheLine, LINE_BACK_PER_OUT, LENGTH_FT } from './slots.js';
 import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, TURNING_REJOIN, TRACKER, CLOSURE, FW_FOLLOW, G_RULE, closureNow, closeInFtps } from './tuning.js';
 import { onClosure, leadTurnInto, fromStep } from './hand-over.js';
-import { STEP_SEC, copyAircraft } from './flight.js';
+import { STEP_SEC, copyAircraft, SMOOTHER_CURVE_PEAK } from './flight.js';
 import { stepCommanded, setKias, trackTwice, phase } from './tracker.js';
 import { fwGoal } from './formation-turns.js';
 import { acrossSixLegs } from './replan.js';
@@ -473,10 +473,11 @@ export function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, 
   // With the vertical (upFt, TS-82): up upFt first, then down onto the line, each at no more than the descent rate.
   const upSec = upFt > 0 ? Math.max(TR.heightSec / 2, upFt / TR.descentFtps) : 0;
   const downSec = upFt > 0 ? Math.max(TR.heightSec / 2, Math.abs(wing.altAboveFt + upFt - lineFt) / TR.descentFtps) : 0;
-  const descentSec = upFt > 0 ? upSec + downSec : Math.max(TR.heightSec, Math.abs(wing.altAboveFt - lineFt) / TR.descentFtps); // no quicker than the rejoin's descent rate
+  const dropFt = wing.altAboveFt - lineFt;
+  const steadySec = upFt > 0 ? upSec + downSec : Math.max(TR.heightSec, Math.abs(dropFt) / TR.descentFtps); // no quicker than the rejoin's descent rate
   const heightLeg = (sec) => {
     if (upFt > 0) {
-      const tUp = t0 + (sec * upSec) / descentSec;
+      const tUp = t0 + (sec * upSec) / steadySec;
       return [{ t0, t1: tUp, fromFt: wing.altAboveFt, toFt: wing.altAboveFt + upFt }, { t0: tUp, t1: t0 + sec, fromFt: wing.altAboveFt + upFt, toFt: lineFt }];
     }
     return Math.abs(wing.altAboveFt - lineFt) > 0.5 ? [{ t0, t1: t0 + sec, fromFt: wing.altAboveFt, toFt: lineFt }] : [];
@@ -487,13 +488,31 @@ export function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, 
   const fly1 = onX ? (a) => (hardSec > 0 ? hardThenX(a, hardSec) : farThenX(a, aimFt)) : flyToDecision;
   // The height the part was flown with is the one the plan flies (partSec): a different one changes the G he pulls and so,
   // near the G rule, his turn (the replay then left the planned path: 6 Oct 05:13Z, #2 ended 250 ft back on Lead's other side).
-  let partSec = descentSec;
-  let part = fly1({ ...args, profile: heightLeg(partSec) });
-  if (!part) return null;
-  if (part.steps * dt < descentSec) {
-    partSec = Math.max(part.steps * dt, dt);
-    part = fly1({ ...args, profile: heightLeg(partSec) });
+  const partOver = (descentSec) => {
+    let sec = descentSec;
+    let p = fly1({ ...args, profile: heightLeg(sec) });
+    if (p && p.steps * dt < descentSec) {
+      sec = Math.max(p.steps * dt, dt);
+      p = fly1({ ...args, profile: heightLeg(sec) });
+    }
+    return p ? { part: p, partSec: sec } : null;
+  };
+  // Line first (TS-124; Patrick 6 Oct 06:14Z): from above, his height comes off first, over the shortest smooth leg whose
+  // push and pull stay within each of TR.diveGs of level flight (a deeper roll, harder pull, steeper dive), the hardest that
+  // costs no more than TR.diveSlackSec on the steady descent; the dive's G shares the G rule with the turn.
+  const steady = partOver(steadySec);
+  let best = steady;
+  if (upFt === 0 && dropFt > 0) {
+    for (const g of TR.diveGs) {
+      const dive = partOver(Math.max(dt, Math.sqrt((SMOOTHER_CURVE_PEAK * dropFt) / (g * G_FTPS2))));
+      if (dive && !dive.part.ahead && (!steady || dive.part.steps * dt <= steady.part.steps * dt + TR.diveSlackSec)) {
+        best = dive;
+        break;
+      }
+    }
   }
+  if (!best) return null;
+  const { part, partSec } = best;
   // minG: the least G a vertical may push to (the 4-ship's #2 from his stack); none for the 2-ship.
   if (!part || part.ahead || (upFt > 0 && (part.maxG > G_RULE.normalG || (minG !== null && part.minG < minG)))) return null;
   // Not stable by the window's near edge, only the overshoot is left (Patrick 03:35Z: the last resort).

@@ -64,6 +64,8 @@ export const TURNING_REJOIN = Object.freeze({
   descentFtps: 30, // a height difference comes off no quicker than this, 1,800 ft/min (estimate)
   captureFt: 150, // he is on the line within this many feet of it; only then does he start taking out the overtake for the decision point (estimate)
   lineTauSec: 4, // his heading comes onto the one the line asks over about this long, so the bank changes smoothly (estimate)
+  diveGs: Object.freeze([2, 1]), // line first (Patrick 6 Oct 06:14Z: "a deeper roll, harder pull, steper dive ... get to leads altitude faster"; TS-124): from above, his height comes off over the shortest smooth leg whose push and pull stay within this many g of level flight, the first that costs no more than diveSlackSec (estimates)
+  diveSlackSec: 8, // a dive that brings him in no more than this much later than the steady descent is flown (estimate)
   heightSec: 10, // #2 settles slightly low on the line over this long, or over his part to the decision point if shorter (estimate)
   // The vertical as a candidate (Patrick 5 Oct 17:44Z "we can use the vertical too", 19:51Z "if it scores high enough"; TS-82):
   // #2 goes this much higher than he starts early in the rejoin, then comes down onto the line, the climb and descent at no more
@@ -86,7 +88,7 @@ export const TURNING_REJOIN = Object.freeze({
   xWindowDeg: 10, // Lead is on the X picture within this many degrees of it, 35-55° off his tail (card 03:15Z "Closure or bearing"; the figure is an estimate)
   bearingTauSec: 6, // his bearing off Lead's tail comes onto the X over about this long (estimate, the design)
   hardPullsSec: Object.freeze([2, 4, 6]), // hot, he may first pull this long at his most bank with idle and the boards, then hold the X (Patrick 6 Oct 04:02Z: "pull like 5 g and 90 deg bank to the line with the power less than max"; the times are estimates)
-  xFromFt: 750, // a hot start further out flies onto the rejoin line as before, and holds Lead on the X only from this far down it (Patrick 6 Oct 03:58Z: "you can make x inside 750 feet if it helps thats the whole idea")
+  xFromFt: 1200, // a hot start further out flies onto the rejoin line as before, and holds Lead on the X only from this far down it (Patrick 6 Oct 03:58Z: "you can make x inside 750 feet if it helps thats the whole idea")
   lowEnergyFt: 100, // more than this below Lead, and beyond 1,000 ft, the rejoin is at MAX (Patrick 6 Oct 05:29Z: "full power for a while"; the 100 ft is an estimate)
   slowFtps2: 3.5, // the slowing curve down to the window's closure: about power back at 200 KIAS, 8,000 ft (slow-down.js; an estimate)
   insideFloorFt: 500, // inside this range his least speed is his place's own speed inside Lead's turn, about 196-198 KIAS (estimate)
