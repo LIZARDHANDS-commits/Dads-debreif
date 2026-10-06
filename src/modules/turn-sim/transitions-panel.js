@@ -7,7 +7,7 @@
 // The 4-ship has its own buttons (spec section 8, TS-54; live/four-plan.js): setShips swaps them.
 import { h, clear } from '../../ui-kit/dom.js';
 import { rejoinReadout } from './live/judge.js';
-import { REJOIN, KIAS_OUTSIDE_LAB, RATE_CHOICES, RATE_WORDS, CLOSE_IN_SEC, REJOIN_CLOSURE_KT, setRates, ratesNow } from './live/tuning.js';
+import { REJOIN, TURNING_REJOIN, G_RULE_BANK_DEG, KIAS_OUTSIDE_LAB, RATE_CHOICES, RATE_WORDS, CLOSE_IN_SEC, REJOIN_CLOSURE_KT, setRates, ratesNow } from './live/tuning.js';
 import { slowWord } from './live/slow-down.js';
 import { FORMATIONS, FOUR_FORMATIONS, fourWords } from './live/slots.js';
 import { MOVE_IN_BAND_KEY, MOVE_IN_BAND_FORMATIONS, PLACE_BOX_FORMATIONS, PLACE_HEIGHT, placeNow, nearestInBox } from './live/move-in-band.js';
@@ -71,7 +71,9 @@ export function changeFlags(state, where) {
     const r = rejoinReadout(lead, wing);
     if (r.rangeFt < 2000 && r.aboveLead) flags.push('#2 is at or above Lead\'s height; a rejoin stays below him (SMM 12.27 para 65).');
   }
-  if (c && Math.abs(wing.bankDeg) >= REJOIN.bankCapDeg - 0.5 && c.rejoining) flags.push(`#2 is at ${Math.round(REJOIN.bankCapDeg)}° of bank, 5 G in a level turn: the G rule's normal limit (Patrick 06:16Z; SMM 16.17 para 44a); flown anyway.`);
+  if (c && Math.abs(wing.bankDeg) >= G_RULE_BANK_DEG - 0.5 && c.rejoining) flags.push(`#2 is past ${Math.round(G_RULE_BANK_DEG)}° of bank, 5 G in a level turn: the G rule's normal limit (Patrick 06:16Z; SMM 16.17 para 44a); flown anyway, with no bank cap in a rejoin (Patrick 6 Oct 04:07Z).`);
+  // The check ahead of the slot is a warning, not a refusal (Patrick 6 Oct 03:45Z; TS-110).
+  if (c?.laneWarnFt) flags.push(`On the way in #2 passes about ${Math.round(c.laneWarnFt)} ft ahead of his slot, more than ${TURNING_REJOIN.laneTolFt} ft; if he can't stop, he overshoots (Patrick 6 Oct 03:45Z).`);
   return flags;
 }
 

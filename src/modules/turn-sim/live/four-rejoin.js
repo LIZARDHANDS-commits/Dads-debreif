@@ -31,12 +31,15 @@ const FAR_OVERTAKE_KIAS = 25;
 const CROSS_LOW_FT = 15;
 const FOUR_LOWER_FT = 10;
 /**
- * Where #3 and #4 wait outside Lead's turn until the one ahead is in: 300 and 600 ft behind their places in Lead's frame
- * (estimates: far enough back that no one closes on the aircraft ahead while waiting). The turning rejoin to finger's
+ * Where #3 and #4 wait outside Lead's turn until the one ahead is in: a window behind their places in Lead's frame, still
+ * closing slowly, #3 anywhere 250-550 ft back and #4 600-900 ft (Patrick 6 Oct 03:42Z, card 03:45Z: "#3 and #4 wait anywhere
+ * 250-550 ft and 600-900 ft behind their places, still closing slowly, and come in one at a time"; TS-110; 300 and 600 ft
+ * points until V2.122). Each closes to the window's far edge, then creeps toward its near edge at creepKt (an estimate) and
+ * holds there only if the one ahead is still not in; anywhere in it, he goes on in once that one is. The turning rejoin to finger's
  * crossing (SMM 16.34 para 96; AFM7 brief p.21): #3 and #4 pass about two aircraft lengths behind Lead, slightly lower, and
  * wait on the inside behind #2 (150 and 300 ft behind Lead, 20 and 30 ft low; estimates).
  */
-const TRJ = Object.freeze({ outsideBehindFt: { 3: 300, 4: 600 }, passBehindLengths: 2, waitBehindFt: { 3: 150, 4: 300 }, waitLowFt: { 3: 20, 4: 30 } });
+const TRJ = Object.freeze({ outsideWindowFt: { 3: [250, 550], 4: [600, 900] }, creepKt: 5, passBehindLengths: 2, waitBehindFt: { 3: 150, 4: 300 }, waitLowFt: { 3: 20, 4: 30 } });
 
 /** The least G #2's vertical may push to on the way down from his stack (an estimate). */
 const VERTICAL_MIN_G = 0.5;
@@ -76,6 +79,19 @@ function twoTurning(c, into, s, to, sTo, hot) {
   };
 }
 
+/**
+ * The wait outside behind a place (p, in Lead's frame) as two legs: to the window's far edge, then creeping toward its near
+ * edge until gateAt (TRJ above). over: the rejoin leg's own options.
+ */
+function waitInWindow(c, id, p, alt, gateAt, over) {
+  const [nearFt, farFt] = TRJ.outsideWindowFt[id];
+  return [
+    rejoinTo(place(c, p.fwd - farFt, p.left, alt), { track: 1, advanceTol: 60, ...over }),
+    // anywhere in the window counts: he goes on in the moment the one ahead is in
+    rejoinTo(place(c, p.fwd - nearFt, p.left, alt), { track: 1, ...over, advanceTol: farFt - nearFt + 60, closureCapFtps: TRJ.creepKt * KT_FTPS, holdUntil: gateAt }),
+  ];
+}
+
 /** When an earlier wingman's part was in: his planner's own time, else his tracker's last arrival. */
 const inAt = (done, id) => done[id].inSec ?? done[id].times[done[id].times.length - 1].arrive;
 
@@ -90,14 +106,10 @@ export function rejoinToFw(start, t0, opts, s, from) {
     if (slots[2].alt >= 0) slots[2] = { ...slots[2], alt: -FW_STEP_DOWN_FT };
     const lead = c.start[0];
     const far = (id) => (Math.abs(relativeTo(lead, c.by.get(id)).left) > 3000 ? FAR_OVERTAKE_KIAS : REJOIN.overtakeKias);
-    const waitAt = (id) => {
-      const p = inLeadFrame(slots, id);
-      return place(c, p.fwd - TRJ.outsideBehindFt[id], p.left, p.alt);
-    };
     const outside = (id, gateId) => ({
       id,
       phases: (done) => [
-        rejoinTo(waitAt(id), { track: 1, overtakeKias: far(id), advanceTol: 60, holdUntil: inAt(done, gateId), bankCapDeg: TURNING_REJOIN.bankCapDeg }),
+        ...waitInWindow(c, id, inLeadFrame(slots, id), slots[id].alt, inAt(done, gateId), { overtakeKias: far(id), bankCapDeg: TURNING_REJOIN.bankCapDeg }),
         // into the cone off the aircraft he flies off, settling where he arrives in it (the whole cone, Patrick 5 Oct 08:58Z;
         // TS-75), his stack held as the separation
         { ...toSlot(c, sweepOut, slots[id]), ...FW_FOLLOW, coneAlt: false, goal: (R, W) => fwGoal(R, W, -s, false) },
@@ -144,7 +156,7 @@ export function turningToFinger(start, t0, opts, s, from) {
         const p = inLeadFrame(fin, id);
         const stackAlt = c.by.get(id).altAboveFt - c.leadAlt;
         return [
-          rejoinTo(place(c, p.fwd - TRJ.outsideBehindFt[id], p.left, stackAlt), { track: 1, overtakeKias: far(id), advanceTol: 60, holdUntil: inAt(done, gateId), bankCapDeg: TURNING_REJOIN.bankCapDeg }),
+          ...waitInWindow(c, id, p, stackAlt, inAt(done, gateId), { overtakeKias: far(id), bankCapDeg: TURNING_REJOIN.bankCapDeg }),
           toSlot(c, closeThrough, { ...route[id], alt: route[id].alt - 25 }, { advanceTol: 6 }),
           toSlot(c, slide, fin[id]),
         ];
