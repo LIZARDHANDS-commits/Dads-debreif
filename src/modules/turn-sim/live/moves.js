@@ -106,7 +106,6 @@ export const STRAIGHT_REJOIN = Object.freeze({
   aimsFt: [600, 1200, 2400], // how sharply he comes onto the six line: off it by this much he cuts at half the angle (estimates, as TURNING_REJOIN.aimsFt; gentler than the turning rejoin's so he doesn't swing through the six)
   lineTauSec: 2, // his heading comes onto the one the cut asks over about this long (estimate; the turning rejoin's 4 s swings him through the six)
   captureFt: 100, // he is on Lead's six within this many feet of it; until then full power, from then the overtake (estimate)
-  decisionBehindFt: 100, // the decision point, this far behind route on the line up to it: the tracker flows him through route from there. Coming straight up from behind, all of his closure is fore and aft, so he needs more room to stop than the turning rejoin's 45° line (about 22 ft behind route) gives (estimate)
 });
 
 // ---- the kinematic moves: close moves and following Lead (from kinematic-moves.js) ---------------------------------

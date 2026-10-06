@@ -506,8 +506,11 @@ export function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, 
   if (!first.run.ok) return null;
   const lp = into.planTo(n1 + first.run.points.length);
   const { run, profile } = fly(lp.rec, false);
-  if (!run.ok || run.laneFwdFt > Math.max(0, pairSlot(to, sTo || s, spacingFt).fwd) + TR.laneTolFt) return null; // never ahead of Lead's 3/9 line on the way in (Patrick 08:04Z)
-  return { part, run, profile: [...heightLeg(Math.min(descentSec, Math.max(n1 * dt, dt))), ...profile], lp, durationSec: (n1 + run.points.length) * dt, overshoot: onX && overshoot };
+  if (!run.ok) return null;
+  // Passing more than TR.laneTolFt ahead of the slot is a warning on the card, not a refusal (Patrick 6 Oct 03:45Z; TS-110;
+  // a refusal from 5 Oct 08:04Z until V2.122).
+  const slotFwdFt = Math.max(0, pairSlot(to, sTo || s, spacingFt).fwd);
+  return { part, run, slotFwdFt, profile: [...heightLeg(Math.min(descentSec, Math.max(n1 * dt, dt))), ...profile], lp, durationSec: (n1 + run.points.length) * dt, overshoot: onX && overshoot };
 }
 
 /**
@@ -632,6 +635,7 @@ export function planTurningRejoin(pair, to, options = {}, t0 = 0) {
     decisionSec: to === 'fw' || !best.overshoot ? t0 + part.steps * dt : null,
     leadTurnDeg: turnDeg,
     laneFwdFt: run.laneFwdFt,
+    laneWarnFt: run.laneFwdFt > best.slotFwdFt + TURNING_REJOIN.laneTolFt ? run.laneFwdFt - best.slotFwdFt : null,
     maxBankDeg: Math.max(part.maxBankDeg, run.maxBankDeg),
     judged,
     endSec: t0 + best.durationSec,

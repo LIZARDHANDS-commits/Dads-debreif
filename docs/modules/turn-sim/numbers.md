@@ -111,7 +111,6 @@ Every number the Formation Sim's planners use, with the source written beside it
 | STRAIGHT_REJOIN.aimsFt | `[600, 1200, 2400]` | how sharply he comes onto the six line: off it by this much he cuts at half the angle (estimates, as TURNING_REJOIN.aimsFt; gentler than the turning rejoin's so he doesn't swing through the six) |
 | STRAIGHT_REJOIN.lineTauSec | `2` | his heading comes onto the one the cut asks over about this long (estimate; the turning rejoin's 4 s swings him through the six) |
 | STRAIGHT_REJOIN.captureFt | `100` | he is on Lead's six within this many feet of it; until then full power, from then the overtake (estimate) |
-| STRAIGHT_REJOIN.decisionBehindFt | `100` | the decision point, this far behind route on the line up to it: the tracker flows him through route from there. Coming straight up from behind, all of his closure is fore and aft, so he needs more room to stop than the turning rejoin's 45° line (about 22 ft behind route) gives (estimate) |
 | KINEMATIC |  | The numbers of the kinematic moves. All estimates unless a source is given. |
 | KINEMATIC.lateralFtps | `RATE_SETS.close.frame.lateralFtps` | 140 ft/s across Lead's heading: about a 25° heading difference at 200 KIAS (estimate; SMM 16.18 para 51 gives no angle) |
 | KINEMATIC.foreAftFtps | `RATE_SETS.close.frame.foreAftFtps` | 25 ft/s along it: about 15 KIAS of overtake or undertake, the middle of EFIG p.374's 10-20 KIAS |
