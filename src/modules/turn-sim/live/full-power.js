@@ -21,7 +21,7 @@ import { excessThrustPerWeight, iasToTasKt, stallLimitG, tasToIasKt } from '../.
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { wrapPi } from '../../../core/angles.js';
 import { STEP_SEC } from './flight.js';
-import { fullPowerKtps, excessPerWeight } from './slow-down.js';
+import { fullPowerKtps, excessPerWeight, slowKtps } from './slow-down.js';
 import { powerFor, powerFrom } from './power.js';
 import { makeTrack, posesFrom, settleLast, slotInWorld, smoothest } from './kinematic.js';
 import { relativeTo } from './manoeuvres.js';
@@ -80,6 +80,10 @@ export function firstOverPower(poses, blockFt, from = 1) {
     const alt = blockFt + (p.alt ?? 0);
     const up = speedUpLimitKtps(p.kias, alt, p.g ?? 1, p.climb, p.tas);
     if (r[k] > up + Math.abs(up) * HOLD.margin.share + HOLD.margin.ktps || (p.g ?? 1) > wallG(p.kias)) return k;
+    // The slow-down twin (TS-148, Patrick 6 Oct "do both now"): a line that slows faster than idle and the boards give
+    // (plus what its climb costs) is held the same way; the loop below already keeps him inside idle and the boards.
+    const down = slowKtps('idleBoards', p.kias, alt, p.g ?? 1, 0) + climbKtps(p.climb, p.tas, p.kias);
+    if (-r[k] > down + Math.abs(down) * HOLD.margin.share + HOLD.margin.ktps) return k;
   }
   return -1;
 }

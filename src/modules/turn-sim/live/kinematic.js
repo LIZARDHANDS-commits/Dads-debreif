@@ -22,7 +22,7 @@ import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, smoother, flyAttitude } from './flight.js';
 import { powerFrom, powerFor } from './power.js';
 import { STAGES, stageFor, slowKtps, fullPowerKtps } from './slow-down.js';
-import { closeRates } from './tuning.js';
+import { closeRates, RATE_SET_SEC } from './tuning.js';
 
 const DEG = Math.PI / 180;
 const dt = STEP_SEC;
@@ -591,5 +591,19 @@ export function labelStages(poses, from, needs) {
     for (let j = Math.max(0, k - hold); j <= Math.min(poses.length - 1, k + hold); j++) r = Math.max(r, ranks[j]);
     poses[k].stage = r >= 1 ? STAGES[r] : r === 0 ? 'power' : null;
     poses[k].power = powerFor(rates[k] ?? 0, poses[k].kias, blockFt, poses[k].g, 0, poses[k].stage);
+  }
+  // A slowing stage once named is held at least RATE_SET_SEC (TS-148, as pilot.js pilotPower; the jitters), unless a
+  // slower one is needed. The speed is the line's either way; only the stage named differs.
+  const keep = Math.round(RATE_SET_SEC / dt);
+  let since = -Infinity;
+  for (let k = Math.max(1, from); k < poses.length; k++) {
+    const prev = poses[k - 1].stage;
+    const cur = poses[k].stage;
+    if (cur === prev) continue;
+    const slowPrev = STAGES.indexOf(prev) >= 1;
+    if (slowPrev && k - since < keep && STAGES.indexOf(cur) < STAGES.indexOf(prev)) {
+      poses[k].stage = prev;
+      poses[k].power = powerFor(rates[k] ?? 0, poses[k].kias, blockFt, poses[k].g, 0, prev);
+    } else since = k;
   }
 }
