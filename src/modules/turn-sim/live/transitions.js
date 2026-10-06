@@ -33,10 +33,11 @@ import { applyPose } from './kinematic.js';
 import { fullPowerKtps, speedSegFor } from './slow-down.js';
 import { setKias, stepCommanded, phase, trackTwice, PLAN_MAX_SEC } from './tracker.js';
 import { FORMATIONS, fwShapeNow, pairSlot } from './slots.js';
-import { KIAS_OUTSIDE_LAB, KIAS_LAB, REJOIN, RULED_REJOIN, STOP_KT, closureNow, rejoinClosureNow } from './tuning.js';
+import { KIAS_OUTSIDE_LAB, KIAS_LAB, REJOIN, RULED_REJOIN, STOP_KT, FW_FOLLOW, closureNow, rejoinClosureNow } from './tuning.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { onClosure, leadTurnInto, trackTail } from './hand-over.js';
 import { fwGoal } from './formation-turns.js';
+import { fwSwitch } from './fw-switch.js';
 
 // ---- the numbers -----------------------------------------------------------------------
 
@@ -241,16 +242,17 @@ export function legsFor(from, s, to, sTo, spacingFt) {
     phases.push(stopAt(corner(at, side)), stopAt(corner(at, sTo)), slide(slot(at, sTo), { fwdRate: 5 }));
     side = sTo;
   };
+  let switched = false;
   const closeTarget = to === 'echelon' || to === 'route';
   if (at !== 'astern' && to !== 'astern' && side !== sTo && !(at === 'fw' && closeTarget)) {
     if (at === 'fw') {
-      // drop back to the fighting wing spacing astern (750 ft by default), flow across behind Lead, then to the other side's
-      // slot; 30 ft/s across is an estimate
-      const flow = { latRate: 30, vrel0: 32, advanceTol: 25 };
-      const fw = slot('fw', side);
-      const back = -fwShapeNow().rangeFt;
-      phases.push(dropBack({ ...fw, fwd: back }, flow), dropBack({ fwd: back, left: 0, alt: fw.alt }, flow), dropBack({ ...slot('fw', sTo), fwd: back }, flow));
-      if (to !== 'fw') phases.push(dropBack(slot('fw', sTo), { advanceTol: 25 }));
+      // The fast side switch (fw-switch.js, TS-102; Patrick 6 Oct 01:04Z): an S-turn behind Lead at the switch bank, power
+      // back, into the far cone, where the band goal settles him (the whole cone, TS-75). Until V2.98: three slides at
+      // 30 ft/s through the point astern.
+      const fw = slot('fw', sTo);
+      phases.push(phase({ fwd: -fwShapeNow().rangeFt, left: 0, alt: fw.alt }, { ...FW_FOLLOW, ...fwSwitch(sTo) }));
+      if (to !== 'fw') phases.push(dropBack(fw, { advanceTol: 25 }));
+      switched = true;
       side = sTo;
     } else {
       crossClose();
@@ -263,7 +265,7 @@ export function legsFor(from, s, to, sTo, spacingFt) {
     const fw = slot('fw', sTo);
     if (at === 'fw') {
       if (!phases.length) return phases;
-      phases.push(dropBack(fw, { advanceTol: 6, finalTol: 6, vrel0: 16 }));
+      if (!switched) phases.push(dropBack(fw, { advanceTol: 6, finalTol: 6, vrel0: 16 })); // after the switch he settles where he is in the cone
     } else {
       // drop back and sweep out in one expeditious move, about 7-15 s to the band (Patrick 19:03Z, TS-55); SMM 16.32 para 92 says
       // "slowly drop back", and Patrick's ruling wins (rule book, What wins). Speed changes stay near 2 kt/s.
