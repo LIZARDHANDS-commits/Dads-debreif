@@ -148,7 +148,7 @@ const PUSH_MARGIN_DEG = 45;
  * upright. The wings turn no faster than twice the aircraft's roll (rollLimitAt). Patrick 6 Oct 06:01Z: "2's bank angle
  * snaps unrealistically 180 degrees and studders". Until V2.133 every step chose afresh by the lift's sign alone; in V2.133
  * a pull-out after a push could lock the wings inverted at negative G. Sets a.g's sign to the one chosen. prev:
- * { attitudeDeg } a step ago.
+ * { attitudeDeg } a step ago. On a big dive (a.invertDive) the pull down is flown inverted, never a push (TS-129).
  */
 export function flyAttitude(a, prev, dt, roll = ROLL) {
   const bank = a.bankDeg ?? 0;
@@ -158,7 +158,8 @@ export function flyAttitude(a, prev, dt, roll = ROLL) {
   const att0 = Number.isFinite(prev?.attitudeDeg) ? prev.attitudeDeg : liftBankDeg(bank, nz);
   const pull = (Math.atan2(side, nz) * 180) / Math.PI;
   const push = wrapDeg180(pull + 180);
-  const usePull = nz > 0 || Math.abs(wrapDeg180(pull - att0)) <= Math.abs(wrapDeg180(push - att0)) + PUSH_MARGIN_DEG;
+  // A big dive's pull down (a.invertDive, TS-129) is always the pull: the wings roll past 90° and he pulls the nose down.
+  const usePull = nz > 0 || a.invertDive || Math.abs(wrapDeg180(pull - att0)) <= Math.abs(wrapDeg180(push - att0)) + PUSH_MARGIN_DEG;
   const lift = usePull ? pull : push;
   const target = mag < 1e-6 ? att0 : lift;
   const maxStep = 2 * rollLimitAt(a.tasFtps, roll).maxRateDps * dt;
@@ -215,6 +216,59 @@ export const SMOOTHER_PEAK = 1.875;
 /** The smootherstep's greatest curvature (at u = 1/2 - 1/sqrt(12)): a height leg's greatest vertical acceleration is rise x this / span². */
 export const SMOOTHER_CURVE_PEAK = 10 / Math.sqrt(3);
 
+/** The smootherstep's integral from 0 to u (its value at 1 is one half): the height a smooth change of rate covers. */
+const smootherArea = (u) => u * u * u * u * (2.5 - 3 * u + u * u);
+
+/**
+ * A big dive flown as a pilot flies it (TS-129; Patrick 6 Oct 15:29Z: "Can straight down be a hesitation roll with power and g
+ * and roll managed to roll out near the desired spot?"): the rate of descent builds up smoothly with the nose pulled down
+ * inverted (the push of inG g below level flight, flown as a pull with the wings past 90°), holds, and comes off with the
+ * pull-out (outG g above level flight). T: seconds, H: feet (positive). Returns { vd, ta, to } (the steady rate and the two
+ * changes' seconds), or null when T is too short for H at these G.
+ */
+export function diveShape(T, H, inG, outG) {
+  const k = (SMOOTHER_PEAK / (2 * G_FTPS2)) * (1 / inG + 1 / outG); // the time the two changes cost, per ft/s of rate
+  const disc = T * T - 4 * k * H;
+  if (!(H > 0) || disc < 0) return null;
+  const vd = (T - Math.sqrt(disc)) / (2 * k);
+  return { vd, ta: (SMOOTHER_PEAK * vd) / (inG * G_FTPS2), to: (SMOOTHER_PEAK * vd) / (outG * G_FTPS2) };
+}
+
+/** The shortest dive of H feet within inG and outG whose steady rate is no more than vMax ft/s (diveShape). */
+export function diveMinSec(H, inG, outG, vMax) {
+  const k = (SMOOTHER_PEAK / (2 * G_FTPS2)) * (1 / inG + 1 / outG);
+  return vMax < Math.sqrt(H / k) ? H / vMax + k * vMax : 2 * Math.sqrt(k * H);
+}
+
+/** A dive leg (leg.dive: { inG, outG }) at time t: { altAboveFt, climbFtps, nz, invert }, or null when it does not fit. */
+function diveAt(leg, t) {
+  const T = leg.t1 - leg.t0;
+  const H = leg.fromFt - leg.toFt;
+  const shape = diveShape(T, H, leg.dive.inG, leg.dive.outG);
+  if (!shape) return null;
+  const { vd, ta, to } = shape;
+  const x = Math.min(T, Math.max(0, t - leg.t0));
+  let down;
+  let rate;
+  let acc;
+  if (x < ta) {
+    const u = x / ta;
+    down = vd * ta * smootherArea(u);
+    rate = vd * smoother(u);
+    acc = -(vd * smootherSlope(u)) / ta;
+  } else if (x <= T - to) {
+    down = vd * ta * 0.5 + vd * (x - ta);
+    rate = vd;
+    acc = 0;
+  } else {
+    const u = (x - (T - to)) / to;
+    down = vd * ta * 0.5 + vd * (T - to - ta) + vd * to * (u - smootherArea(u));
+    rate = vd * (1 - smoother(u));
+    acc = (vd * smootherSlope(u)) / to;
+  }
+  return { altAboveFt: leg.fromFt - down, climbFtps: -rate, nz: 1 + acc / G_FTPS2, invert: true };
+}
+
 /**
  * Height on a smooth profile: legs { t0, t1, fromFt, toFt } in formation seconds. Each leg
  * starts and ends with no climb and no vertical acceleration (the smootherstep curve), so
@@ -225,6 +279,10 @@ export function heightAt(profile, t) {
   for (const leg of profile ?? []) {
     if (t < leg.t0 || t > leg.t1) continue;
     if (leg.table) return tableAt(leg, t);
+    if (leg.dive) {
+      const d = diveAt(leg, t);
+      if (d) return d;
+    }
     const span = Math.max(leg.t1 - leg.t0, 1e-9);
     const u = (t - leg.t0) / span;
     const rise = leg.toFt - leg.fromFt;
@@ -373,6 +431,7 @@ export function stepAircraft(a, plan, t) {
 
   const height = heightAt(plan.profile, t + dt);
   a.nz = height?.nz ?? 1;
+  a.invertDive = Boolean(height?.invert); // a big dive's pull down is flown inverted (TS-129, flyAttitude)
   if (height) {
     a.altAboveFt = height.altAboveFt;
     a.climbFtps = height.climbFtps;

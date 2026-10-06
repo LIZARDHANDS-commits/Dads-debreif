@@ -137,6 +137,8 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
       // The band's box for Change position (TS-104): blue, yellow while a spot is being picked.
       const box = source.placeBox?.();
       if (box && lead) drawPlaceBox(ctx, map, lead, box);
+      // In fighting wing the far side of the cone lights too while picking: a click there switches sides (TS-130).
+      if (box?.otherSide && lead) drawPlaceBox(ctx, map, lead, { key: box.key, side: -box.side, picking: true, spot: null });
       canvas.style.cursor = box?.picking ? 'crosshair' : '';
       const { trail, marks } = source.trails();
       if (layers.tracks !== false) drawTrails(ctx, map, trailSince(trail, state.tSec, layers.trackSec));

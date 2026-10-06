@@ -294,7 +294,8 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       floatHeight.style.top = `${Math.max(4, Math.min(pick.at.y + 14, window.innerHeight - 70))}px`;
     }
     if (!pick.place) {
-      pickHint.textContent = pick.fromArea ? 'Click where #2 goes, inside the yellow box. Set the height at the pointer. Escape or a click outside cancels.' : 'Click a spot in the yellow box on the picture.';
+      const far = key === 'fw' ? ' A click in the other side of the cone switches sides.' : '';
+      pickHint.textContent = pick.fromArea ? `Click where #2 goes, inside the yellow box. Set the height at the pointer. Escape or a click outside cancels.${far}` : `Click a spot in the yellow box on the picture.${far}`;
       return;
     }
     pickHint.textContent = `${placeWords(key, { ...pick.place, alt: pick.alt }).replace('#2:', 'Spot:')}${pick.atEdge ? '. Your click was outside the band: moved to its nearest edge' : ''}. Click again to move it, or Go.`;
@@ -370,11 +371,12 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     onPickChanged: (fn) => (handlers.pickChanged = fn),
     /**
      * The band's box for the picture (TS-104), or null: { key, side, picking, spot } with spot { fwd, left } in Lead's
-     * frame. Blue whenever #2 is in fighting wing or line abreast (2-ship), yellow while Change position is picking.
+     * frame. Blue whenever #2 is in fighting wing or line abreast (2-ship), yellow while Change position is picking. otherSide:
+     * in fighting wing while picking the far side of the cone is lit too, and a click there switches sides (TS-130).
      */
     placeBox() {
       if (four || !stateNow || stateNow.aircraft.length !== 2 || !whereNow || !PLACE_BOX_FORMATIONS.includes(whereNow.key)) return null;
-      return { key: whereNow.key, side: boxSide(), picking: !!pick, spot: pick?.place ?? null };
+      return { key: whereNow.key, side: boxSide(), picking: !!pick, spot: pick?.place ?? null, otherSide: whereNow.key === 'fw' && !!pick };
     },
     /** A click on the picture at (xFt, yFt) while picking: the spot in Lead's frame, moved to the box's nearest edge if outside. */
     pickAt(xFt, yFt, at) {
@@ -387,6 +389,15 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       const here = { fwd: dx * c + dy * sn, left: -dx * sn + dy * c };
       // Not picking yet: a click inside the box picks it up (yellow), flat areas going live when clicked (TS-121).
       if (!pick) return insideBox(whereNow.key, boxSide(), here) && startPick(true, at);
+      // In fighting wing a click in the far side of the cone (lit while picking) switches sides: the same change as the R or
+      // L button, the flow behind Lead (SMM 12.29 para 69; Patrick 6 Oct 15:29Z: "I want both sides of the cone to light up
+      // yellow so I can click the other side too"; TS-130).
+      if (whereNow.key === 'fw' && insideBox('fw', -boxSide(), here)) {
+        const toSide = -boxSide() > 0 ? 'left' : 'right';
+        endPick();
+        onChange('fw', { side: toSide, rejoin });
+        return true;
+      }
       if (pick.fromArea && !insideBox(whereNow.key, boxSide(), here)) {
         cancelPick(); // a click outside cancels a click-started pick
         return true;

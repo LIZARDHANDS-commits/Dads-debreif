@@ -18,7 +18,7 @@ import { KIAS_LAB, KIAS_OUTSIDE_LAB, TURNING_REJOIN } from './tuning.js';
 import { onClosure } from './hand-over.js';
 import { trackTwice, phase, climbCostKtps, PLAN_MAX_SEC } from './tracker.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
-import { copyAircraft, SMOOTHER_PEAK, SMOOTHER_CURVE_PEAK } from './flight.js';
+import { copyAircraft, SMOOTHER_PEAK, SMOOTHER_CURVE_PEAK, diveShape, diveMinSec } from './flight.js';
 import { G_FTPS2 } from '../../../core/units.js';
 
 /** The chooser key for the move (formation.change(MOVE_IN_BAND_KEY, { target })), like the lag roll's. */
@@ -105,12 +105,23 @@ export const MOVE_ALT_RATE_FTPS = 2000 / 60;
  */
 export const OPEN_MOVE = Object.freeze({ vsShare: 0.8, climbSwingKt: 40, diveSwingKt: 80 });
 
+/**
+ * A big height loss in the box is flown as a pilot flies it (TS-129; Patrick 6 Oct 15:29Z: "Can straight down be a hesitation
+ * roll with power and g and roll managed to roll out near the desired spot? Same with any large altitude loss near present
+ * position?"): he rolls past 90°, pulls the nose down inverted at inG g below level flight, rolls upright in the steady dive and
+ * pulls out at outG g above it (flight.js diveShape). Only for a loss of at least minFt whose steady dive is at least
+ * minShare of his true airspeed; a gentler one stays a smooth push over. All estimates.
+ */
+export const DIVE_ROLL = Object.freeze({ inG: 3, outG: 3, minFt: 500, minShare: 0.3 });
+
 /** The seconds a hard height change of dAlt feet (up positive) takes for wing (OPEN_MOVE above). blockFt: the height block. */
 export function openMoveAltSec(dAlt, wing, blockFt) {
   const h = Math.abs(dAlt);
   if (!(h > 0)) return 0;
   const byG = Math.sqrt((SMOOTHER_CURVE_PEAK * h) / (TURNING_REJOIN.diveGs[0] * G_FTPS2));
   const bySpeed = (SMOOTHER_PEAK * h) / (OPEN_MOVE.vsShare * wing.tasFtps);
+  // A big dive (DIVE_ROLL) is flown inverted and pulled through, so its shortest time is the dive shape's.
+  const byDive = dAlt < 0 && h >= DIVE_ROLL.minFt ? diveMinSec(h, DIVE_ROLL.inG, DIVE_ROLL.outG, OPEN_MOVE.vsShare * wing.tasFtps) : null;
   // Energy: knots per second per foot per second of climb, so a swing of k knots is k / per feet of height.
   const per = climbCostKtps(wing, 1);
   const up = dAlt > 0;
@@ -118,7 +129,7 @@ export function openMoveAltSec(dAlt, wing, blockFt) {
   // ...then on at what the engine or the boards give at the speed the swing leaves him.
   const sustainFtps = (up ? fullPowerKtps(wing.kias - OPEN_MOVE.climbSwingKt, blockFt) : slowKtps('idleBoards', wing.kias + OPEN_MOVE.diveSwingKt, blockFt)) / per;
   const byEnergy = h > freeFt ? (h - freeFt) / Math.max(sustainFtps, 1) : 0;
-  return Math.max(byG, bySpeed, byEnergy);
+  return Math.max(byDive ?? Math.max(byG, bySpeed), byEnergy);
 }
 
 /** #2's place now in Lead's frame: { fwd, left, alt } (alt above Lead, negative below), the control's starting point. */
@@ -206,10 +217,16 @@ export function planMoveInBand(pair, target, options = {}, t0 = 0) {
     : null;
   const across = level?.ok ? level.durationSec : 0;
   const tries = dAlt > 0 ? (open ? [openMoveAltSec(target.alt - now.alt, wing, blockFt), ...(target.alt > now.alt ? [dAlt / MOVE_ALT_RATE_FTPS] : [])] : [dAlt / MOVE_ALT_RATE_FTPS]) : [0];
+  // A big loss (DIVE_ROLL) steep enough is rolled inverted and pulled down, then rolled out and pulled through near the spot.
+  const bigDive = (sec) => {
+    if (!(target.alt < now.alt - DIVE_ROLL.minFt)) return {};
+    const shape = diveShape(sec, dAlt, DIVE_ROLL.inG, DIVE_ROLL.outG);
+    return shape && shape.vd >= DIVE_ROLL.minShare * wing.tasFtps ? { dive: { inG: DIVE_ROLL.inG, outG: DIVE_ROLL.outG } } : {};
+  };
   let best = null;
   for (const t of tries) {
     const altSec = Math.max(t, dAlt > 0 ? across : 0);
-    const hard = open && t !== dAlt / MOVE_ALT_RATE_FTPS ? { altRateFtps: Infinity } : {};
+    const hard = open && t !== dAlt / MOVE_ALT_RATE_FTPS ? { altRateFtps: Infinity, ...bigDive(altSec) } : {};
     const phases = onClosure([phase({ fwd: target.fwd, left: target.left, alt: target.alt }, altSec > 0 ? { altSec, holdUntil: t0 + altSec, ...hard } : {})], { closeIn });
     // The run goes on past settled to match Lead's speed and heading (the tracker's align), so #2 holds the spot afterwards;
     // until V2.108 it stopped at settled and drifted on at up to a couple of feet a second (seen in the V2.108 dry run).

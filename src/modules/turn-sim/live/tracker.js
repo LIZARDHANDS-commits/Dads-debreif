@@ -375,6 +375,7 @@ export function phase(slot, over = {}) {
     altRateFtps: null, // when set, the height change takes at least |change| / this many seconds (the 4-ship's stack; null: no floor)
     stopFtps: null, // when set, a real stop: the next phase starts only once #2's speed against the slot is under this...
     dwellSec: 0, // ...and has been for this long (the station change's "stabilize", SMM 12.20 para 45)
+    dive: null, // { inG, outG }: a descent flown as a big dive, rolled inverted to pull down (flight.js diveShape; TS-129)
     closureFtps: null, // when set, the power profile at this closure rate (runTracker; the 2-ship since step 2)
     ...over,
   };
@@ -410,7 +411,7 @@ export function heightProfile(alt0, phases, times, t0) {
       // 10 s, about 12,000 ft/min, from low in line abreast; no floor until V2.124).
       const floor = Math.abs(target - alt) / (ph.altRateFtps ?? TRACKER.height.maxRateFtps);
       const t1 = Math.max(ph.altSec ? start + ph.altSec : end, start + TRACKER.height.minSec, start + floor);
-      legs.push({ t0: start, t1, fromFt: alt, toFt: target });
+      legs.push({ t0: start, t1, fromFt: alt, toFt: target, ...(ph.dive && target < alt ? { dive: ph.dive } : {}) });
       alt = target;
       from = t1;
     }
