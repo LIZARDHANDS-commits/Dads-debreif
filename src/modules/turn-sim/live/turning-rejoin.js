@@ -39,10 +39,10 @@ import { onClosure, leadTurnInto, fromStep } from './hand-over.js';
 import { STEP_SEC, copyAircraft, SMOOTHER_CURVE_PEAK, smoother } from './flight.js';
 import { RATE_SETS } from './rates.js';
 import { laggedBank } from './kinematic.js';
-import { stepCommanded, setKias, trackTwice, runTracker, phase } from './tracker.js';
+import { stepCommanded, setKias, trackTwice, runTracker, phase, climbCostKtps } from './tracker.js';
 import { fwGoal } from './formation-turns.js';
 import { acrossSixLegs } from './replan.js';
-import { fullPowerKtps, slowKtps } from './slow-down.js';
+import { fullPowerKtps, slowKtps, stallBankDeg } from './slow-down.js';
 import { powerFor, powerFrom, throttleAtTorque } from './power.js';
 import { bankDegFromTurnRate, turnRadiusFromBankFt } from '../../../core/flight-math.js';
 import { wrapPi } from '../../../core/angles.js';
@@ -151,14 +151,14 @@ export function flyToDecision({ allowAcross = false, maxWhenLow = true, wing, re
     // place's own while there is room above, and the zoom's climb, flown below, gives the slowing beyond power back (the
     // tracker's cone energy, TS-136). Otherwise a climb costs speed and a descent gives it as always.
     if (lagging && placeKias != null && !zoom) zoom = { t0: t, alt: [W.altAboveFt], climb: [W.climbFtps ?? 0], nz: [1] };
-    const perFtps = G_FTPS2 / Math.max(W.tasFtps, 1) / ratio; // KIAS per second per ft/s of climb (standard energy)
+    const perFtps = climbCostKtps(W, 1); // KIAS per second per ft/s of climb (standard energy, tracker.js)
     const roomUpFt = Math.max(0, L.altAboveFt + FW_ENERGY.coneUpFt - W.altAboveFt);
     const zoomFtps = zoom ? Math.min(FW_BUBBLE.diveFtps, Math.sqrt(2 * FW_BUBBLE.pullFtps2 * roomUpFt)) : 0;
     const zoomKtps = zoomFtps * perFtps;
     const leastKias = zoom && roomUpFt > 1 ? Math.min(floorKias, placeKias) : floorKias;
     const climbKtps = zoom ? 0 : perFtps * W.climbFtps;
     // Never past the stall line at the speed he has; near his least speed, no more bank than MAX holds the speed at (TS-75).
-    let cap = Math.min(bankCapDeg, Math.acos(1 / Math.max(1, availableG(W.kias))) / DEG);
+    let cap = Math.min(bankCapDeg, stallBankDeg(W.kias));
     if (W.kias < floorKias + TR.floorMarginKias) cap = Math.min(cap, sustainedBankDeg(W.kias, blockFt, climbKtps));
     const bank = Math.max(-cap, Math.min(cap, bankDegFromTurnRate(W.tasFtps, rate)));
 
@@ -333,9 +333,9 @@ export function flyOnTheX({ allowAcross = false, wing, rec, s, tauSec, bankCapDe
     psiPrev = psi;
     const rate = ff + wrapPi(psi - W.headingRad) / TR.lineTauSec;
     const ratio = W.tasFtps / W.kias;
-    const climbKtps = (G_FTPS2 * W.climbFtps) / Math.max(W.tasFtps, 1) / ratio;
+    const climbKtps = climbCostKtps(W, W.climbFtps);
     // Never past the stall line at the speed he has; near his least speed, no more bank than MAX holds the speed at (TS-75).
-    let cap = Math.min(bankCapDeg, Math.acos(1 / Math.max(1, availableG(W.kias))) / DEG);
+    let cap = Math.min(bankCapDeg, stallBankDeg(W.kias));
     // His least speed (TS-75): inside TR.insideFloorFt, the speed of his place inside Lead's turn (nearer the turn's centre,
     // the same turn rate is a lower speed), no more than floorKias.
     const cx = L.xFt + s * l.x * leadR;
@@ -442,7 +442,7 @@ function hardThenX(args, hardSec) {
   const n0 = Math.round(hardSec / dt);
   for (let n = 0; n < n0; n++) {
     const t = t0 + n * dt;
-    const cap = Math.min(bankCapDeg, Math.acos(1 / Math.max(1, availableG(W.kias))) / DEG);
+    const cap = Math.min(bankCapDeg, stallBankDeg(W.kias));
     const bank = -s * cap; // the way Lead turns into him
     const aAll = slowKtps('idleBoards', W.kias, blockFt, W.g);
     const aCmd = Math.max(-aAll, Math.min(0, G.speedLoop * (floorKias - W.kias)));

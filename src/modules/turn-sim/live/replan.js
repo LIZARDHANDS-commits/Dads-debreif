@@ -12,7 +12,7 @@
 import { relativeTo } from './manoeuvres.js';
 import { recordFlight, speedSeg, legsFor, rejoinTo, closeThrough, slide, openOut, cornerBehind, CHANGE_LIMIT_SEC } from './transitions.js';
 import { judge } from './judge.js';
-import { FORMATIONS, FW_BAND, pairSlot } from './slots.js';
+import { FORMATIONS, FW_BAND, LANE, pairSlot } from './slots.js';
 import { KIAS_LAB, KIAS_OUTSIDE_LAB, HAND_OVER_FT, FW_FOLLOW, TURNING_REJOIN } from './tuning.js';
 import { crossBehindFwd } from './kinematic-moves.js';
 import { onClosure, leadTurnInto, trackTail } from './hand-over.js';
@@ -21,8 +21,6 @@ import { STEP_SEC } from './flight.js';
 import { fwGoal, slideInPlane } from './formation-turns.js';
 import { wingFromPose } from './hand-over.js';
 
-/** The overshoot lane: inside 1,000 ft #2 stays behind Lead's 3/9 line, within the shared 100 ft margin (as chooser.js). */
-const LANE_MARGIN_FT = 100;
 /** Further than this from the new place, #2 closes on it with a rejoin's leg rather than a station change's (feet, an estimate: about route's spacing). */
 const CLOSE_LEG_FT = 100;
 
@@ -157,7 +155,7 @@ export function planFromHere(pair, to, options = {}, t0 = 0) {
       };
     }
   }
-  const laneFt = Math.max(0, toSlot.fwd) + LANE_MARGIN_FT;
+  const laneFt = Math.max(0, toSlot.fwd) + LANE.marginFt; // the overshoot lane (slots.js LANE); a slot behind Lead counts as 0 here, unlike chooser.js
   const judgeRun = (r) => judge([r.end.lead, r.end.wing], { key: to, side: sTo }, { spacingFt });
   const good = (r) => r.ok && r.durationSec <= CHANGE_LIMIT_SEC && judgeRun(r).inBand;
   const fly = (leadPlan) => ({ leadPlan, ...trackTwice({ refs: { [lead.id]: recordFlight(lead, leadPlan, t0) }, wing0: wing, t0, phases, blockFt }) });

@@ -25,14 +25,13 @@
 import { relativeTo, DEG } from './manoeuvres.js';
 import { recordFlight, speedSeg, CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
-import { FORMATIONS, pairSlot } from './slots.js';
+import { FORMATIONS, pairSlot, LANE } from './slots.js';
 import { KIAS_OUTSIDE_LAB, REJOIN, TURNING_REJOIN, LAG_ROLL, G_RULE_BANK_DEG } from './tuning.js';
 import { leadTurnInto, fromStep, wingFromPose } from './hand-over.js';
 import { searchTurningRejoin } from './turning-rejoin.js';
 import { STEP_SEC, smoother } from './flight.js';
 import { leadStateOf, stepLead, nosePath, followNose, noseAt } from './fluid-lead.js';
 import { poseOf3d } from './attitude.js';
-import { LANE_MARGIN_FT } from './chooser.js'; // read at plan time only (chooser.js imports this file)
 
 const dt = STEP_SEC;
 
@@ -101,7 +100,7 @@ function flyRoll(c, wing, rec, s, blockFt) {
     if (range >= LAG_ROLL.bubbleFt) out = true;
     if (out && range < LAG_ROLL.bubbleFt) return null; // never inside 500 ft of Lead (SMM 16.23, the fluid bubble)
     if (out) minRangeFt = Math.min(minRangeFt, range);
-    if (Math.hypot(rel.fwd, rel.left) < 1000) laneFwdFt = Math.max(laneFwdFt, rel.fwd);
+    if (Math.hypot(rel.fwd, rel.left) < LANE.rangeFt) laneFwdFt = Math.max(laneFwdFt, rel.fwd);
     minKias = Math.min(minKias, st.kias);
     maxG = Math.max(maxG, st.g);
     maxBankDeg = Math.max(maxBankDeg, Math.abs(pose.bank));
@@ -176,7 +175,7 @@ export function planRollingRejoin(pair, to, options = {}, t0 = 0) {
   flown.sort((a, b) => a.score - b.score);
   // The overshoot lane (chooser.js's check, SMM 12.27 para 65): inside 1,000 ft he stays behind his slot toward Lead's 3/9
   // line; a roll that keeps it beats one that doesn't, whatever its time.
-  const laneLimitFt = Math.max(0, pairSlot(to, sTo || s, spacingFt)?.fwd ?? 0) + LANE_MARGIN_FT;
+  const laneLimitFt = Math.max(0, pairSlot(to, sTo || s, spacingFt)?.fwd ?? 0) + LANE.marginFt;
   const better = (x, y) => (x.laneOk !== y.laneOk ? x.laneOk : x.durationSec < y.durationSec - 0.5);
   let best = null;
   let since = 0;

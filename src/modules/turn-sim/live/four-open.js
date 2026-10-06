@@ -7,15 +7,14 @@
 // through the one envelope gate (flight.js gateRoll, TS-93). Until V2.100 these were four-ship-moves.js's, with a kinematic
 // line in front of each long leg: its replayed poses were where the 8-12 G and 80-100 G/s of these moves came from.
 import { turnSeg, wholeDegree, TURN_BANK_DEG } from './manoeuvres.js';
-import { rejoinTo, openOut, sweepOut } from './transitions.js';
+import { rejoinTo, openOut } from './transitions.js';
 import { flyOut, OPEN_OUT_HELD } from './open-out.js';
 import { onClosure, fromStep } from './hand-over.js';
 import { trackTwice } from './tracker.js';
 import { STEP_SEC } from './flight.js';
-import { REJOIN, TURNING_REJOIN, FW_FOLLOW, FOUR_OPEN, OPEN_OUT } from './tuning.js';
-import { fwGoal } from './formation-turns.js';
+import { REJOIN, TURNING_REJOIN, FOUR_OPEN, OPEN_OUT } from './tuning.js';
 import { slotsFor } from './slots.js';
-import { legsInTurn, place, hold, toSlot, inLeadFrame, toSpeed, FOUR_CHANGE_LIMIT_SEC } from './four-legs.js';
+import { legsInTurn, place, hold, toSlot, inLeadFrame, toSpeed, inCone, FOUR_CHANGE_LIMIT_SEC } from './four-legs.js';
 
 /** #3 starts opening out this long after #4 when finger goes to Spread 4 ("#3 waits for #4 to begin moving out first", SMM 16.42 para 114): an estimate. */
 const THREE_WAITS_SEC = 10;
@@ -80,8 +79,6 @@ function heldOut(c, { wing, recs, t0, blockFt }, slots, id) {
   };
 }
 
-/** Fighting wing kept off the aircraft he flies off, anywhere in the cone (formation-turns.js fwGoal, the whole cone, TS-75), his stack held. */
-const inCone = (c, slot, side, over = {}) => ({ ...toSlot(c, sweepOut, slot), ...FW_FOLLOW, coneAlt: false, goal: (R, W) => fwGoal(R, W, side, false), ...over });
 
 /**
  * Fighting wing (or finger) to Spread 4: the entry to line abreast (AFM7 brief p.15, AFM8 brief p.15; SMM 16.18 para 51,

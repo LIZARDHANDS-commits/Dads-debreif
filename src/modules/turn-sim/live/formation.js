@@ -10,7 +10,7 @@ import { iasToTasKt } from '../../../core/t6-performance.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { createEvents } from './events.js';
 import { STEP_SEC, makeAircraft, stepAircraft, planDone } from './flight.js';
-import { MANOEUVRES, planManoeuvre, relativeTo, dryRun, TURN_BANK_DEG, TURN_G } from './manoeuvres.js';
+import { MANOEUVRES, planManoeuvre, relativeTo, dryRun, TURN_BANK_DEG, TURN_G, DEG } from './manoeuvres.js';
 import { flyStep, dryRunT } from './transitions.js';
 import { resolveErrors, resolveFixTools, applyStartErrors, planWithErrors, outcomeOf, offStandardOutcome, responseOf } from './errors.js';
 import { FOUR_SHIP_KEYS, fourShipStart, planFour } from './four-ship.js';
@@ -53,7 +53,6 @@ const TRACK_MAX_POINTS = 20000; // over 80 minutes at 0.25 s
 const RECORD_SEC = 600;
 const RECORD_MAX = Math.round(RECORD_SEC / STEP_SEC);
 
-const DEG = Math.PI / 180;
 /** A change pressed in fluid manoeuvring is planned only with Lead within this of level (TS-86; estimates). */
 const FLUID_CHANGE_MAX_BANK_DEG = 90;
 const FLUID_CHANGE_MAX_CLIMB_DEG = 30;

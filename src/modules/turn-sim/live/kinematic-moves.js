@@ -15,12 +15,12 @@
 //    p.18. Drop back to fighting wing: SMM 16.32 para 92, 16.38 para 105. Entry to line abreast: SMM 16.18 para 51.
 // Numbers with no source beside them are estimates and say so.
 import { wrapPi } from '../../../core/angles.js';
-import { G_FTPS2 } from '../../../core/units.js';
+import { G_FTPS2, KT_TO_FTPS as KT_FTPS } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
 import { relativeTo } from './manoeuvres.js';
 import { recordFlight, speedSeg, describe } from './transitions.js';
 import { KIAS_LAB, KIAS_OUTSIDE_LAB, KINEMATIC, OPEN_OUT, LAG_ROLL } from './tuning.js';
-import { FORMATIONS, FW_BAND, fwShapeNow, pairSlot } from './slots.js';
+import { FORMATIONS, FW_BAND, LANE, fwShapeNow, pairSlot } from './slots.js';
 import { speedSegFor } from './slow-down.js';
 import { makeTrack, seedTrack, posesFrom, settleLast, followInto, rollStarts, relPath, timeLaw, slotInWorld, poseOf, laggedBank, relSpeedLimit } from './kinematic.js';
 
@@ -200,8 +200,6 @@ export function rollEvents(leadRec, slotAt, from, horizon, baseSec) {
 }
 /** The steepest speed change of a septic blend away from a line drifting at a steady rate, as a multiple of drift / blend (worked out from the blend's shape). */
 const BLEND_PEAK = 5.8;
-/** One knot in feet per second. */
-const KT_FTPS = 1.6878;
 
 /** The last step a list of roll events still blends at. */
 export const eventsEnd = (events) => events.reduce((m, e) => Math.max(m, e.k + Math.ceil(e.blendSec / dt)), 0);
@@ -228,8 +226,8 @@ export function laneAndBelow(leadRec, track, n) {
     const r = k + 3;
     const rel = relativeTo(L, { xFt: track.x[r], yFt: track.y[r] });
     const range = Math.hypot(rel.fwd, rel.left);
-    if (range < 1000) laneFwdFt = Math.max(laneFwdFt, rel.fwd);
-    if (range < 2000) minBelowFt = Math.min(minBelowFt, L.altAboveFt - track.z[r]);
+    if (range < LANE.rangeFt) laneFwdFt = Math.max(laneFwdFt, rel.fwd);
+    if (range < LANE.belowRangeFt) minBelowFt = Math.min(minBelowFt, L.altAboveFt - track.z[r]);
   }
   return { laneFwdFt, minBelowFt };
 }

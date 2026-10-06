@@ -19,6 +19,7 @@
 //
 // Turns in the close formations (spec section 10.2; Patrick 18:11Z: "do turns in any of these formations") are planned here
 // too: planCloseTurn, below. planFormationTurn picks the planner for the formation the aircraft are in.
+import { turnRadiusFromBankFt } from '../../../core/flight-math.js';
 import { STEP_SEC, SMOOTHER_PEAK, rollLimitAt, gateRoll } from './flight.js';
 import { MANOEUVRES, relativeTo, DEG, planManoeuvre } from './manoeuvres.js';
 import { recordFlight, dryRunT } from './transitions.js';
@@ -60,7 +61,7 @@ export function fwGoal(L, W, side, collapse = true) {
   const c = collapse ? smoothest((Math.abs(L.bankDeg) - FW_TURN.collapseFromDeg) / (FW_TURN.collapseFullDeg - FW_TURN.collapseFromDeg)) : 0;
   if (c <= 0) return bandGoal;
   const r = clamp(range, band.minFt + FW_TURN.aimInsideFt, band.maxFt - FW_TURN.aimInsideFt);
-  const turnRadius = L.tasFtps ** 2 / (G_FTPS2 * Math.tan(Math.max(Math.abs(L.bankDeg), 1) * DEG));
+  const turnRadius = turnRadiusFromBankFt(L.tasFtps, Math.max(Math.abs(L.bankDeg), 1));
   const theta = Math.min(r / turnRadius, Math.PI / 2);
   const six = { fwd: -turnRadius * Math.sin(theta), left: Math.sign(L.bankDeg) * turnRadius * (1 - Math.cos(theta)) };
   return { fwd: bandGoal.fwd + (six.fwd - bandGoal.fwd) * c, left: bandGoal.left + (six.left - bandGoal.left) * c };

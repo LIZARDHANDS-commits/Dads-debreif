@@ -23,7 +23,6 @@ import { setKias, trackTwice, climbCostKtps } from './tracker.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
 import { powerFor, powerFrom } from './power.js';
 import { wrapPi } from '../../../core/angles.js';
-import { G_FTPS2 } from '../../../core/units.js';
 import { availableG } from '../../../core/t6-performance.js';
 
 const dt = STEP_SEC;
@@ -79,8 +78,7 @@ export function flyOut({ wing, rec, s, outAimFt, slotFwd, bankDeg, offDeg, block
     // bring him level with the slot's distance back, power back as he turns back parallel. His limits are full power's and
     // idle's at the G he pulls, plus what the dive gives or less what the climb costs (standard aerodynamics, dV/dt =
     // g (T - D) / W - g sin(climb angle); echelon-to-fw.js).
-    const ratio = W.tasFtps / W.kias;
-    const climbKtps = (G_FTPS2 * W.climbFtps) / Math.max(W.tasFtps, 1) / ratio;
+    const climbKtps = climbCostKtps(W, W.climbFtps);
     const aMax = fullPowerKtps(W.kias, blockFt, W.g) - climbKtps;
     const aIdle = slowKtps('power', W.kias, blockFt, W.g) + climbKtps;
     const rel = relativeTo(L, W);
