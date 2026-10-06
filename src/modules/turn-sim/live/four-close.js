@@ -1,7 +1,7 @@
 // The 4-ship's close moves (refactor PR 6; the ratified moves table, project files turn-sim-review/four-ship/
 // moves-from-the-manuals.md, Patrick 5 Oct 23:03Z-23:04Z): finger, echelon, box, line astern and route to each other, and
 // out of them to fighting wing. Each wingman flies the 2-ship's close technique off the aircraft he flies off: the station
-// change's corners and stops (SMM 12.20 paras 44-47, Figs 12.12-12.13; transitions.js stopAt, slide, cornerBehind), on the
+// change's corners and stops (SMM 12.20 paras 44-47, Figs 12.12-12.13; recipes.js stopAt, slide, cornerBehind), on the
 // 2-ship's close-in rate (the Rates choice, hand-over.js onClosure, four-legs.js), with the manuals' gates: each waits for
 // the one ahead (SMM 16.32 paras 85-86). Lead holds heading and speed in every one (the manuals are silent; inferred).
 //
@@ -11,7 +11,7 @@
 // The move numbers (M1 to M12) are the ratified table's. Numbers with no manual page or ruling beside them are estimates.
 import { STEP_SEC } from './flight.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
-import { stopAt, slide, cornerBehind, sweepOut } from './transitions.js';
+import { stopAt, slide, cornerBehind, sweepOut } from './recipes.js';
 import { relativeTo } from './manoeuvres.js';
 import { slotsFor } from './slots.js';
 import { closureNow } from './rates.js';
@@ -36,7 +36,7 @@ const TRIPLE_ACROSS_SHARE = 0.5;
 const MAKE_ROOM = Object.freeze({ outFt: 15, backFt: 25, downFt: 5 });
 
 /**
- * The close station change's technique, the 2-ship's (SMM 12.20 paras 44-45; transitions.js legsFor's crossClose), for one
+ * The close station change's technique, the 2-ship's (SMM 12.20 paras 44-45; recipes.js legsFor's crossClose), for one
  * wingman: back and down into the corner behind where it is and stop; across at a steady rate to directly behind its new
  * place and stop; then forward and up into it (`last`). The corner is in the frame of `track`: back, the fore-aft place;
  * fromLeft, toLeft, the lateral places now and at the end; low, the height against Lead. first: extra settings for the
@@ -62,7 +62,7 @@ function onTheLine(c, recs, ahead, k, alt, until, over = {}) {
   };
   return slide(place(c, 0, 0, alt), { track: ahead, holdUntil: until, goal, ...over });
 }
-/** The corner behind a close place (the 2-ship's, transitions.js cornerBehind): { fwd, alt } in the frame flown off. */
+/** The corner behind a close place (the 2-ship's, recipes.js cornerBehind): { fwd, alt } in the frame flown off. */
 const corner = (c) => cornerBehind(ech(), c.spacingFt);
 /** Up into a close place from directly behind it (SMM 12.20 para 45: "move forward and up"). */
 const upInto = (c, slot) => toSlot(c, slide, slot);

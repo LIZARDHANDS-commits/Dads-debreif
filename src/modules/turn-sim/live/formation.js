@@ -11,7 +11,7 @@ import { KT_TO_FTPS } from '../../../core/units.js';
 import { createEvents } from './events.js';
 import { STEP_SEC, makeAircraft, stepAircraft, planDone } from './flight.js';
 import { MANOEUVRES, planManoeuvre, relativeTo, dryRun, TURN_BANK_DEG, TURN_G, DEG } from './manoeuvres.js';
-import { flyStep, dryRunT } from './transitions.js';
+import { flyStep, dryRunT } from './replay.js';
 import { resolveErrors, resolveFixTools, applyStartErrors, planWithErrors, outcomeOf, offStandardOutcome, responseOf } from './errors.js';
 import { FOUR_SHIP_KEYS, fourShipStart, planFour } from './four-ship.js';
 import { OFFSET_BOX_KEYS, planOffsetBoxTurn } from './offset-box-turns.js';
@@ -25,6 +25,7 @@ import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
 import { LAG_ROLL_KEY } from './lag-roll.js';
 import { MOVE_IN_BAND_KEY, placeNow } from './move-in-band.js';
+import { labelFor, gFlownWords } from './formation-words.js';
 
 /**
  * The first version's fixed numbers. Speeds name their kind (rule book): kias is
@@ -57,13 +58,7 @@ const RECORD_MAX = Math.round(RECORD_SEC / STEP_SEC);
 const FLUID_CHANGE_MAX_BANK_DEG = 90;
 const FLUID_CHANGE_MAX_CLIMB_DEG = 30;
 
-/** Compass heading (degrees, 000 to 359) from math radians. */
-export function compassDeg(headingRad) {
-  const d = Math.round(90 - headingRad / DEG);
-  return ((d % 360) + 360) % 360;
-}
-
-/** Math radians from a compass heading in degrees. */
+/** Math radians from a compass heading in degrees (formation-words.js compassDeg is the other way). */
 export function headingRadFromCompass(deg) {
   return (90 - deg) * DEG;
 }
@@ -609,7 +604,7 @@ export function createFormation(options = {}) {
         if (f.session.done) finishFluid();
         return true;
       }
-      // ctx: the live formation, so a line's tracker run-in is planned again at the hand-over (transitions.js flyStep, step 2)
+      // ctx: the live formation, so a line's tracker run-in is planned again at the hand-over (replay.js flyStep, step 2)
       const ctx = { live: true, aircraft: state.aircraft, plans: state.plans };
       for (const a of state.aircraft) flyStep(a, state.plans[a.id] ?? (state.plans[a.id] = { segments: [] }), state.tSec, ctx);
       state.tSec = Math.round((state.tSec + STEP_SEC) / STEP_SEC) * STEP_SEC;
@@ -635,29 +630,6 @@ export function createFormation(options = {}) {
 const MOVES_FROM = ['lab', 'other'];
 /** The same for the four: Spread 4, or a wide picture that is none of the formations (a column after an in-place turn). */
 const MOVES_FROM_FOUR = ['spread4', 'other'];
-
-/** G-warm's G flown against each call (design section 7): "in place 90 3.0 G (3 called), push over 0.5 G (0.5), …". */
-function gFlownWords(g) {
-  const parts = g.steps.map((st, i) => {
-    const f = g.flown[i];
-    if (st.g === 1 || !Number.isFinite(f.max)) return null;
-    const flown = st.g < 1 ? f.min : f.max;
-    return `${st.name} ${flown.toFixed(1)} G (${st.g} called)`;
-  }).filter(Boolean);
-  return `G flown: ${parts.join(', ')}.`;
-}
-
-/** The words for a press: "Hook right", "Shackle". */
-export function labelFor(key, dir) {
-  const m = MANOEUVRES[key] ?? (key === G_WARM.key ? G_WARM : null);
-  return m.sided ? `${m.label} ${dir > 0 ? 'left' : 'right'}` : m.label;
-}
-
-/** Into or away from the wingman, for a sided button, with #2 on `wingSide` of Lead (SMM 16.19 paras 53-57 name them from Lead's side). */
-export function intoOrAway(dir, wingSide) {
-  const wingDir = wingSide === 'left' ? 1 : -1;
-  return dir === wingDir ? 'into #2' : 'away from #2';
-}
 
 /** The fixed line under Setup. */
 export function fixedLine(opts = LIVE_DEFAULTS) {

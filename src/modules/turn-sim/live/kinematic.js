@@ -205,7 +205,7 @@ function motionAt(track, k) {
 
 /**
  * Fills a track from step `from` (whose earlier rows are already set) to n + PAD with the wingman following its slot.
- *  ref: the reference's recorded flight (transitions.js recordFlight), step 0 at the track's step 0.
+ *  ref: the reference's recorded flight (replay.js recordFlight), step 0 at the track's step 0.
  *  slotAt(k, R): { fwd, left, up, plane } the slot in R's frame at step k (R = ref.at(k)); up is height above R.
  *  events: step indices at which the wingman re-bases (`from` is always one): from there it blends from "carry on as I am,
  *    turning as the reference turns" to the slot over blendSec, so a roll of the reference reaches it smoothly.

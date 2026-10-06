@@ -79,7 +79,7 @@ export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, roll, tasFtps, kia
 }
 
 /**
- * The envelope gate for a replayed planned pose (transitions.js flyStep's poseTrack): the wings follow the pose's bank
+ * The envelope gate for a replayed planned pose (replay.js flyStep's poseTrack): the wings follow the pose's bank
  * through gateRoll, the near way round, until they catch it up; the path flown is the pose's. seg keeps whether the wings
  * are still catching up; bank0, rate0: the aircraft's before the pose.
  */

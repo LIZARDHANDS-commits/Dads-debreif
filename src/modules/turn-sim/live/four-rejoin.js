@@ -4,7 +4,7 @@
 // Turning rejoins (M11, M16, M22; Patrick 5 Oct 05:34Z: "number 1 turns into number 2 who does a hot turning rejoin, then 3
 // and 4 immediately go full power and towards number 1's turn circle, then rejoin on the outside of the turn one at a
 // time"): Lead turns into #2 at the press at 30° of bank, slowing to 200 KIAS, and holds the turn until the last wingman is
-// in (hand-over.js leadTurnInto; SMM 16.20 para 65b, Patrick 5 Oct 22:35Z). #2 flies the 2-ship's turning rejoin against
+// in (lead-turn-in.js leadTurnInto; SMM 16.20 para 65b, Patrick 5 Oct 22:35Z). #2 flies the 2-ship's turning rejoin against
 // Lead's turn (turning-rejoin.js searchTurningRejoin, the same search and the same rules: 220 KIAS down the line, never
 // below 200 unless close in and hot, the whole cone to fighting wing). #3 and #4 close on the outside of Lead's turn, wait
 // behind their places, and come in one at a time (SMM 16.34 paras 95-96; AFM8 brief pp.19, 25): #3 once #2 is in, #4 once
@@ -16,12 +16,13 @@
 // Every step goes through the one envelope gate (flight.js gateRoll, TS-93); the tracker legs fly the 2-ship's power profile
 // (four-legs.js onProfile). Until V2.98 these were four-ship-moves.js's, with a kinematic line in front of each long leg.
 import { DEG, relativeTo, turnSeg, wholeDegree } from './manoeuvres.js';
-import { recordFlight, slide, closeThrough, rejoinTo, straightAhead } from './transitions.js';
+import { recordFlight } from './replay.js';
+import { slide, closeThrough, rejoinTo, straightAhead } from './recipes.js';
 import { REJOIN, TURNING_REJOIN, STRAIGHT_REJOIN } from './tuning.js';
 import { RATE_SETS } from './rates.js';
 import { KT_TO_FTPS as KT_FTPS } from '../../../core/units.js';
-import { leadTurnInto } from './hand-over.js';
-import { searchTurningRejoin, flyWith } from './turning-rejoin.js';
+import { leadTurnInto } from './lead-turn-in.js';
+import { searchTurningRejoin, flyTurningRejoinWith } from './turning-rejoin.js';
 import { LENGTH_FT, slotsFor, pairSlot, FW_STEP_DOWN_FT } from './slots.js';
 import { legsInTurn, place, hold, toSlot, inLeadFrame, ech, toSpeed, inCone, GENTLE_ALT_FTPS } from './four-legs.js';
 
@@ -68,7 +69,7 @@ function comeOffFirst(c, id, track) {
 /**
  * #2's part of a turning rejoin to `to` on side sTo: the 2-ship's turning rejoin against Lead's turn. The 2-ship's search
  * (turning-rejoin.js searchTurningRejoin, Lead rolling out once #2 is in) picks how he flies it and when he is in, once;
- * that rejoin is then flown against Lead's turn as the four fly it (flyWith): in flyLeg's first pass Lead turning on, in
+ * that rejoin is then flown against Lead's turn as the four fly it (flyTurningRejoinWith): in flyLeg's first pass Lead turning on, in
  * its second Lead's real flight, rolling out once the last wingman is in. hot: from line abreast. Null (his tracker legs
  * fly it) when no turning rejoin plans from here.
  */
@@ -82,7 +83,7 @@ function twoTurning(c, into, s, to, sTo, hot) {
     pick ??= searchTurningRejoin({ ...args, into, hot, verticalMinG: VERTICAL_MIN_G, xLaw: false }) ?? false;
     if (!pick) return null;
     const rec = recs[1];
-    const flown = flyWith({ ...args, into: { longRec: rec, planTo: () => ({ rec, segments: [], turned: 0 }) }, aimFt: pick.aimFt, bankCapDeg: pick.bankCapDeg, overtakeKt: pick.overtakeKt, lowFloor: pick.lowFloor, upFt: pick.upFt, minG: VERTICAL_MIN_G, xLaw: false });
+    const flown = flyTurningRejoinWith({ ...args, into: { longRec: rec, planTo: () => ({ rec, segments: [], turned: 0 }) }, aimFt: pick.aimFt, bankCapDeg: pick.bankCapDeg, overtakeKt: pick.overtakeKt, lowFloor: pick.lowFloor, upFt: pick.upFt, minG: VERTICAL_MIN_G, xLaw: false });
     if (!flown) return null;
     return { plan: { segments: [{ kind: 'bankTrack', points: [...flown.part.points, ...flown.run.points] }], profile: flown.profile }, durationSec: flown.durationSec, inSec: t0 + pick.durationSec };
   };
@@ -163,7 +164,7 @@ export function turningToFinger(start, t0, opts, s, from) {
     const into = leadInto(c, s, 'finger');
     const two = { id: 2, fly: twoTurning(c, into, s, 'echelon', s, hot), phases: () => [...comeOffFirst(c, 2, 1), toSlot(c, rejoinTo, fin[2], { advanceTol: 10 })] };
     const far = (id) => (Math.abs(relativeTo(c.start[0], c.by.get(id)).left) > 3000 ? FAR_OVERTAKE_KIAS : REJOIN.overtakeKias);
-    // From Spread 4: outside, then in through route (transitions.js closeThrough: close level or slightly low, then up).
+    // From Spread 4: outside, then in through route (recipes.js closeThrough: close level or slightly low, then up).
     const outside = (id, gateId) => ({
       id,
       phases: (done) => {
@@ -208,7 +209,7 @@ export function closeFromFw(start, t0, opts, s, to) {
   return legsInTurn(start, t0, opts, [(c) => {
     const route = slotsFor('route', s, { ships: 4 });
     const fin = slotsFor(to === 'route' ? 'route' : 'finger', s, { ships: 4 });
-    const low = (slot) => ({ ...slot, alt: slot.alt - 25 }); // close level or slightly low, then up into place (transitions.js closeThrough)
+    const low = (slot) => ({ ...slot, alt: slot.alt - 25 }); // close level or slightly low, then up into place (recipes.js closeThrough)
     const legsFor = (id) => [toSlot(c, closeThrough, low(route[id]), { advanceTol: 6 }), toSlot(c, slide, fin[id])];
     const off2 = comeOffFirst(c, 2, 1);
     const gateOn = (id, prev) => (done) => [hold(c, id, id === 4 ? 3 : 1, { holdUntil: done[prev].times[prev === 2 ? off2.length : 0].arrive }), ...legsFor(id)];

@@ -6,7 +6,7 @@
 // 18-19, Fig 14.1, Table 14.1 (the barrel roll). Every number is in tuning.js LAG_ROLL with its source or "estimate".
 //
 // How it is planned (the first version, Lead straight and level only). Like the barrel roll's nose path (fluid-lead.js),
-// it is #2's own 3D manoeuvre worked out at the press and played as a poseTrack segment (transitions.js flyStep). Here the
+// it is #2's own 3D manoeuvre worked out at the press and played as a poseTrack segment (replay.js flyStep). Here the
 // path is drawn in Lead's frame (Lead flies straight at constant speed, so that frame does not accelerate): #2's place off
 // Lead goes round half a turn from his fighting wing place to the fighting wing slot on the other side, through a point
 // above and behind Lead's six, then he closes back up to the slot at a small overtake. The speed is what that path needs
