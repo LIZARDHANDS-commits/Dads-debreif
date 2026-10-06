@@ -99,6 +99,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | TURNING_REJOIN.bearingTauSec | `6` | his bearing off Lead's tail comes onto the X over about this long (estimate, the design) |
 | TURNING_REJOIN.hardPullsSec | `Object.freeze([2, 4, 6])` | hot, he may first pull this long at his most bank with idle and the boards, then hold the X (Patrick 6 Oct 04:02Z: "pull like 5 g and 90 deg bank to the line with the power less than max"; the times are estimates) |
 | TURNING_REJOIN.xFromFt | `750` | a hot start further out flies onto the rejoin line as before, and holds Lead on the X only from this far down it (Patrick 6 Oct 03:58Z: "you can make x inside 750 feet if it helps thats the whole idea") |
+| TURNING_REJOIN.lowEnergyFt | `100` | short of Lead's energy by more than this (height plus speed as height), and beyond 1,000 ft, the rejoin is at MAX (Patrick 6 Oct 05:29Z: "full power for a while"; the 100 ft is an estimate) |
 | TURNING_REJOIN.slowFtps2 | `3.5` | the slowing curve down to the window's closure: about power back at 200 KIAS, 8,000 ft (slow-down.js; an estimate) |
 | TURNING_REJOIN.insideFloorFt | `500` | inside this range his least speed is his place's own speed inside Lead's turn, about 196-198 KIAS (estimate) |
 | TURNING_REJOIN.onXDeg | `5` | he is on the X within this many degrees of it (for the card's speed on the line; estimate) |

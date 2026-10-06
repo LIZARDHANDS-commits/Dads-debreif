@@ -72,7 +72,7 @@ function sustainedBankDeg(kias, blockFt, climbKtps) {
  * points are [bank, kias, power] a step (transitions.js flyStep's bankTrack); ahead is true when he passed ahead of Lead's 3/9
  * line inside 1,000 ft (Patrick 08:04Z: he must not); lineKias is his speed when he got onto the line.
  */
-export function flyToDecision({ wing, rec, s, aimFt, bankCapDeg, decisionFt, arriveFtps, overtakeKt, floorKias, lineAtKias, blockFt, t0, profile, lineDeg = TURNING_REJOIN.lineDeg }) {
+export function flyToDecision({ allowAcross = false, maxWhenLow = true, wing, rec, s, aimFt, bankCapDeg, decisionFt, arriveFtps, overtakeKt, floorKias, lineAtKias, blockFt, t0, profile, lineDeg = TURNING_REJOIN.lineDeg }) {
   const TR = TURNING_REJOIN;
   const W = copyAircraft(wing);
   const sinL = Math.sin(lineDeg * DEG);
@@ -106,7 +106,10 @@ export function flyToDecision({ wing, rec, s, aimFt, bankCapDeg, decisionFt, arr
     const r = Math.hypot(dx, dy);
     const rel = relativeTo(L, W);
     const along = rel.fwd * u.fwd + rel.left * u.left;
-    if (rel.left * s < 0) return null; // across to Lead's other side: not a rejoin on this side
+    // Across to Lead's other side is not a rejoin on this side, except well behind him (allowAcross: a later pass of searchTurningRejoin,
+    // only when nothing else plans), where Lead's turn can carry #2 across his six on the way (Patrick 6 Oct 05:16Z: "planned from anywhere
+    // and 'did their best'"; from far out and low, until V2.130 every try failed here and the turning rejoin was refused).
+    if (rel.left * s < 0 && !(allowAcross && r >= TRACKER.laneRangeFt)) return null;
     if (along <= decisionFt && Math.abs(rel.fwd * nrm.fwd + rel.left * nrm.left) <= TR.captureFt) return { points, steps: n, end: W, accelKtps: accel, maxBankDeg: maxBank, ahead, minKias, maxG, minG, lineKias: lineKias ?? W.kias };
 
     // Where he steers, in Lead's turning frame: down the line toward Lead once on it; off it, across toward it at up to
@@ -177,7 +180,14 @@ export function flyToDecision({ wing, rec, s, aimFt, bankCapDeg, decisionFt, arr
       // 17:29Z: "never below 200 knots unless massively high on energy and tight, and when they hit the line it needs to be
       // at 210-200 knots"; TS-75). On the line, or behind it, the line's speed.
       const lineCmd = Math.min(targetKias, lineAtKias);
-      const kiasCmd = cross > TR.captureFt ? lineCmd - (lineCmd - floorKias) * Math.min(1, (cross - TR.captureFt) / TR.hotFt) : targetKias;
+      // Cold (behind the line) he is at MAX until he is on it, with no top speed, and down the line he keeps what he has
+      // until the run-in takes it out (Patrick 6 Oct 05:29Z: "would just bne full power for a while. we only need a MINIMUM
+      // of 200 knots on the line. its unlimited until then"; until V2.130 he held targetKias both ways).
+      // Short of Lead's energy (height and speed together) he is at MAX too, hot or not: from low and far out he never comes
+      // back on the power while he still has to climb to Lead (Patrick 6 Oct 05:00Z, 05:29Z).
+      const esFt = W.altAboveFt - L.altAboveFt + (W.tasFtps * W.tasFtps - L.tasFtps * L.tasFtps) / (2 * G_FTPS2);
+      const low = maxWhenLow && r > TRACKER.laneRangeFt && esFt < -TR.lowEnergyFt;
+      const kiasCmd = low ? Infinity : cross > TR.captureFt ? lineCmd - (lineCmd - floorKias) * Math.min(1, (cross - TR.captureFt) / TR.hotFt) : onLine ? Math.max(targetKias, W.kias) : Infinity;
       const aMin = cross > TR.captureFt ? aAll : aPower;
       aCmd = Math.max(-aMin, Math.min(aMax, G.speedLoop * (kiasCmd - W.kias)));
     }
@@ -221,7 +231,7 @@ const xArriveFtps = () => ((TURNING_REJOIN.stableKt[0] + TURNING_REJOIN.stableKt
  * para 58; card 03:33Z rule 4): the power does. Returns flyToDecision's shape plus { bearingDeg, closureFtps, stable } where
  * he moves over, or at nearFt with stable false when he is not stable by then, or null.
  */
-export function flyOnTheX({ wing, rec, s, tauSec, bankCapDeg, farFt, nearFt, overtakeKt, floorKias, blockFt, t0, profile, lineDeg = TURNING_REJOIN.lineDeg }) {
+export function flyOnTheX({ allowAcross = false, wing, rec, s, tauSec, bankCapDeg, farFt, nearFt, overtakeKt, floorKias, blockFt, t0, profile, lineDeg = TURNING_REJOIN.lineDeg }) {
   const TR = TURNING_REJOIN;
   const W = copyAircraft(wing);
   const bX = lineDeg * DEG;
@@ -250,7 +260,7 @@ export function flyOnTheX({ wing, rec, s, tauSec, bankCapDeg, farFt, nearFt, ove
     const dx = L.xFt - W.xFt; // from #2 to Lead
     const dy = L.yFt - W.yFt;
     const r = Math.hypot(dx, dy);
-    if (relativeTo(L, W).left * s < 0) return null; // across to Lead's other side: not a rejoin on this side
+    if (relativeTo(L, W).left * s < 0 && !(allowAcross && r >= TRACKER.laneRangeFt)) return null; // across to Lead's other side (flyToDecision's allowAcross)
     const f = { x: Math.cos(L.headingRad), y: Math.sin(L.headingRad) };
     const l = { x: -f.y, y: f.x };
     const p = { x: -dx / r, y: -dy / r }; // from Lead to #2
@@ -439,7 +449,7 @@ function farThenX(args, aimFt) {
  * the bearing onto the X, seconds (flyOnTheX, TS-106). overshoot: to a close formation, he overshoots from where his part ends
  * (searchTurningRejoin's last resort); otherwise he must be stable in the window.
  */
-export function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, upFt = 0, minG = null, overshoot = false, xLaw = true, hardSec = 0 }) {
+export function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, upFt = 0, minG = null, overshoot = false, xLaw = true, hardSec = 0, allowAcross = false, maxWhenLow = true }) {
   const TR = TURNING_REJOIN;
   // To a close formation (TS-106): the X law to the window, TR.windowFarFt to windowNearFt from Lead (Patrick 03:32Z card,
   // 03:34Z). To fighting wing, as before: where the line reaches its range.
@@ -472,8 +482,8 @@ export function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, 
     return Math.abs(wing.altAboveFt - lineFt) > 0.5 ? [{ t0, t1: t0 + sec, fromFt: wing.altAboveFt, toFt: lineFt }] : [];
   };
   const args = onX
-    ? { wing, rec: into.longRec, s, tauSec: TR.bearingTauSec, bankCapDeg, farFt: TR.windowFarFt, nearFt: TR.windowNearFt, overtakeKt, floorKias, blockFt, t0 }
-    : { wing, rec: into.longRec, s, aimFt, bankCapDeg, decisionFt, arriveFtps: to === 'fw' ? TR.fwArriveFtps : Math.min(closureNow().ftps, closeInFtps(TR.decisionArriveRates)), overtakeKt, floorKias, lineAtKias: leastKias + TR.lineOverKias, blockFt, t0 };
+    ? { allowAcross, maxWhenLow, wing, rec: into.longRec, s, tauSec: TR.bearingTauSec, bankCapDeg, farFt: TR.windowFarFt, nearFt: TR.windowNearFt, overtakeKt, floorKias, blockFt, t0 }
+    : { allowAcross, maxWhenLow, wing, rec: into.longRec, s, aimFt, bankCapDeg, decisionFt, arriveFtps: to === 'fw' ? TR.fwArriveFtps : Math.min(closureNow().ftps, closeInFtps(TR.decisionArriveRates)), overtakeKt, floorKias, lineAtKias: leastKias + TR.lineOverKias, blockFt, t0 };
   const fly1 = onX ? (a) => (hardSec > 0 ? hardThenX(a, hardSec) : farThenX(a, aimFt)) : flyToDecision;
   // The height the part was flown with is the one the plan flies (partSec): a different one changes the G he pulls and so,
   // near the G rule, his turn (the replay then left the planned path: 6 Oct 05:13Z, #2 ended 250 ft back on Lead's other side).
@@ -547,18 +557,23 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
   // (Patrick 17:29Z: "unless massively high on energy and tight"; TS-75).
   // To a close formation, the overshoot is the last resort (Patrick 03:35Z: "only overshoot if there is no other option
   // (instead of giving an error that a rejoin isnt possible)"): the same search with it, only when nothing else plans.
-  for (const overshoot of to !== 'fw' && xLaw ? [false, true] : [false]) {
-    for (const lowFloor of [false, true]) {
-      for (const overtakeKt of overtakes) {
-        // Medium banks first (hot, also Lead's own 30° and the gentlest capture: lagging while Lead's turn brings the aspect
-        // round, the review's worst-case answer), then the G rule only when none of those keeps him behind Lead's 3/9 line.
-        for (const caps of [hot ? TURNING_REJOIN.hotBanksDeg : [TURNING_REJOIN.bankCapDeg], [REJOIN.bankCapDeg]]) {
-          const aims = hot ? [...TURNING_REJOIN.aimsFt, TURNING_REJOIN.lagAimFt] : TURNING_REJOIN.aimsFt;
-          // Hot to a close formation, also the hard pull with the power back first (hardThenX; Patrick 04:02Z).
-          const tries = [...aims.map((aimFt) => ({ aimFt, hardSec: 0 })), ...(hot && to !== 'fw' && xLaw ? TURNING_REJOIN.hardPullsSec.map((hardSec) => ({ aimFt: aims[0], hardSec })) : [])];
-          for (const bankCapDeg of caps) for (const { aimFt, hardSec } of tries) {
-            const flown = flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, overshoot, xLaw, hardSec });
-            if (flown && (!best || flown.durationSec < best.durationSec - 0.5)) best = { ...flown, overtakeKt, lowFloor, aimFt, bankCapDeg, hardSec, upFt: 0 };
+  // Later passes only when the earlier find nothing: Lead's turn may carry #2 across his six well behind him (allowAcross),
+  // then without MAX while short of Lead's energy (maxWhenLow), so a rejoin is planned from anywhere it can be.
+  for (const { allowAcross, maxWhenLow } of [{ allowAcross: false, maxWhenLow: true }, { allowAcross: true, maxWhenLow: true }, { allowAcross: false, maxWhenLow: false }, { allowAcross: true, maxWhenLow: false }]) {
+    for (const overshoot of to !== 'fw' && xLaw ? [false, true] : [false]) {
+      for (const lowFloor of [false, true]) {
+        for (const overtakeKt of overtakes) {
+          // Medium banks first (hot, also Lead's own 30° and the gentlest capture: lagging while Lead's turn brings the aspect
+          // round, the review's worst-case answer), then the G rule only when none of those keeps him behind Lead's 3/9 line.
+          for (const caps of [hot ? TURNING_REJOIN.hotBanksDeg : [TURNING_REJOIN.bankCapDeg], [REJOIN.bankCapDeg]]) {
+            const aims = hot ? [...TURNING_REJOIN.aimsFt, TURNING_REJOIN.lagAimFt] : TURNING_REJOIN.aimsFt;
+            // Hot to a close formation, also the hard pull with the power back first (hardThenX; Patrick 04:02Z).
+            const tries = [...aims.map((aimFt) => ({ aimFt, hardSec: 0 })), ...(hot && to !== 'fw' && xLaw ? TURNING_REJOIN.hardPullsSec.map((hardSec) => ({ aimFt: aims[0], hardSec })) : [])];
+            for (const bankCapDeg of caps) for (const { aimFt, hardSec } of tries) {
+              const flown = flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, overshoot, xLaw, hardSec, allowAcross, maxWhenLow });
+              if (flown && (!best || flown.durationSec < best.durationSec - 0.5)) best = { ...flown, overtakeKt, lowFloor, aimFt, bankCapDeg, hardSec, upFt: 0, allowAcross, maxWhenLow };
+            }
+            if (best) break;
           }
           if (best) break;
         }
@@ -572,8 +587,8 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
   // when it brings him in sooner, by more than the chooser's half-second tie, within the G rule with its pull charged.
   if (best && vertical) {
     for (const upFt of TURNING_REJOIN.verticalUpFt) {
-      const flown = flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, upFt, minG: verticalMinG, overshoot: best.overshoot, xLaw, hardSec: best.hardSec });
-      if (flown && flown.durationSec < best.durationSec - 0.5) best = { ...flown, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, hardSec: best.hardSec, upFt };
+      const flown = flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, upFt, minG: verticalMinG, overshoot: best.overshoot, xLaw, hardSec: best.hardSec, allowAcross: best.allowAcross, maxWhenLow: best.maxWhenLow });
+      if (flown && flown.durationSec < best.durationSec - 0.5) best = { ...flown, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, hardSec: best.hardSec, upFt, allowAcross: best.allowAcross, maxWhenLow: best.maxWhenLow };
     }
   }
   return best;
