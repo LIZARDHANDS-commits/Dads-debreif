@@ -17,11 +17,13 @@
 // (four-legs.js onProfile). Until V2.98 these were four-ship-moves.js's, with a kinematic line in front of each long leg.
 import { DEG, relativeTo, turnSeg, wholeDegree } from './manoeuvres.js';
 import { recordFlight, slide, closeThrough, rejoinTo, straightAhead, sweepOut } from './transitions.js';
-import { REJOIN, TURNING_REJOIN, FW_FOLLOW } from './tuning.js';
+import { REJOIN, TURNING_REJOIN, FW_FOLLOW, STRAIGHT_REJOIN } from './tuning.js';
+import { onTheLine } from './straight-rejoin.js';
+import { KT_TO_FTPS as KT_FTPS } from '../../../core/units.js';
 import { fwGoal } from './formation-turns.js';
 import { leadTurnInto } from './hand-over.js';
 import { searchTurningRejoin, flyWith } from './turning-rejoin.js';
-import { LENGTH_FT, slotsFor, pairSlot, FW_STEP_DOWN_FT } from './slots.js';
+import { LENGTH_FT, slotsFor, FW_STEP_DOWN_FT } from './slots.js';
 import { legsInTurn, place, hold, toSlot, inLeadFrame, ech, toSpeed, GENTLE_ALT_FTPS } from './four-legs.js';
 
 /** The overtake the rear wingmen use to close from far out (estimate: the straight-ahead rejoin's 20 to 30 KIAS, EFIG p.371). */
@@ -197,7 +199,7 @@ export function closeFromFw(start, t0, opts, s, to) {
  * Fighting wing to echelon as a straight-ahead rejoin (M10; Patrick 4 Oct 19:04Z, TS-55; SMM 12.26 paras 62-63, Fig 12.17;
  * EFIG p.371). Each wingman rejoins on the one it will fly off in echelon: lines up on its six about 1,000 ft back just
  * below the wake (Fig 12.17; Patrick's card 19:54Z), closes with overtake, takes the small vector to the echelon side at
- * about 500 ft, stabilises in route and moves up the wing-tip line to echelon. #2 comes off the stack first (19:11Z). Safe
+ * about 500 ft, joins the wing-tip line and flows up it into echelon without stopping (V2.106). #2 comes off the stack first (19:11Z). Safe
  * separation until the one ahead is stable (SMM 16.34 para 95; AFM7 brief p.21): #3 holds its place off #2 until #2 has
  * reached its vector point, then lines up 1,000 ft behind #2 and stays there until #2 is stable in echelon; #4 the same on
  * #3. The first gate is an estimate.
@@ -205,12 +207,16 @@ export function closeFromFw(start, t0, opts, s, to) {
 export function straightToEchelon(start, t0, opts, sTo) {
   return legsInTurn(start, t0, opts, [(c) => {
     const ech4 = slotsFor('echelon', sTo, { ships: 4 });
-    const route = pairSlot('route', sTo);
+    // Each joins the spinner-to-wingtip line of the one it flies off and flows up it into echelon, never stopping short
+    // (Patrick 6 Oct 02:01Z; the 2-ship's SARJ since V2.105). Until V2.106 they stopped in route, nearly abreast, then slid in.
+    const line = onTheLine(sTo);
+    const flowFtps = STRAIGHT_REJOIN.lineArriveKt * KT_FTPS;
     const legsFor = (id, holdLineUpUntil) => {
       const { ref } = ech4[id];
       const refAlt = ref === 1 ? 0 : ech4[ref].alt;
       const at = (fwd, left, alt) => place(c, fwd, left, refAlt + alt);
-      return [...straightAhead(at, place(c, route.fwd, route.left, ech4[id].alt), { track: ref, holdLineUpUntil }), toSlot(c, slide, ech4[id])];
+      const [lineUp, close, toLine] = straightAhead(at, place(c, line.fwd, line.left, ech4[id].alt), { track: ref, holdLineUpUntil, advanceTol: STRAIGHT_REJOIN.lineFlowFt });
+      return [lineUp, close, { ...toLine, closureCapFtps: flowFtps }, toSlot(c, slide, ech4[id], { closureCapFtps: flowFtps })];
     };
     const off2 = comeOffFirst(c, 2, 1);
     const vectorIndex = 1; // straightAhead's second phase (the closing leg) arrives at the vector point
