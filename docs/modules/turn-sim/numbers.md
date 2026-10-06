@@ -232,7 +232,8 @@ Every number the Formation Sim's planners use, with the source written beside it
 | HOLD.aimSec | `1` | and the offset's aim is eased over about 1 s, so a new turn or a reversal never jerks his G (estimate) |
 | HOLD.powerSec | `2` | the PCL's full travel, MAX to idle and the boards, takes at least 2 s (estimate) |
 | HOLD.floorKias | `70` | his speed is never shown below 70 KIAS, a guard only: the planned line keeps him well above it (estimate) |
-| OPEN_OUT |  | The opening out to line abreast (line-moves.js; Patrick 5 Oct 20:39Z: "rejoins and transitions between tactical formations should be assertive and smooth and quick"; card 20:41Z "Me, this PR"; TS-78). SMM 16.18 para 51 says only that #2 "manoeuvres into position while lead flies straight and level", so the numbers are estimates. Until V2.78 the line opened out at KINEMATIC.lateralFtps (140 ft/s),  |
+| FOUR_OPEN |  | The 4-ship's opening out (four-open.js: fighting wing or finger to Spread 4, the Fluid 4 split, the offset box spread): each wingman turns away and back at this bank at most. Patrick 6 Oct 01:44Z: "nah keep it sporty at 60 deg" (it was the G rule alone, about 78° and 5 G at the press: 5 Oct 06:16Z item 12, TS-66 (4)). |
+| FOUR_OPEN.bankDeg | `60` | the opening-out bank, held (Patrick 6 Oct 01:44Z) |
 | OPEN_OUT.reserveKtps | `0.4` | #2 opens out up to the speed where full power still has this much in hand (estimate) |
 | OPEN_OUT.gainKtPerSqrtFt | `0.45` | KIAS gained per square root of the range from Lead on the way out: full power plus the dive, about 1 KIAS per second from 200 (estimate fitted to the core T-6 curve, kept under it so the line stays inside full power) |
 | OPEN_OUT.leadHolds | `true` | Lead holds his speed until #2 is out, then speeds up to line abreast speed (estimate needing Patrick's yes; false: he speeds up at once) |

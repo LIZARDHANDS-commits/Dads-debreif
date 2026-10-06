@@ -41,12 +41,15 @@ export const ast = () => pairSlot('astern', 0); // { fwd: -43.4, left: 0, alt: -
 /**
  * One wingman's part as tracker legs: the phases on the 2-ship's power profile (hand-over.js onClosure; a leg marked
  * `closeIn`, a settle after a held part, at the close-in rate throughout), except legs held in world axes (an in-place
- * turn), which fly as they are. Height changes no quicker than GENTLE_ALT_FTPS unless the leg says.
+ * turn), which fly as they are. Height changes no quicker than GENTLE_ALT_FTPS unless the leg says. A leg with `heldBankDeg`
+ * keeps that bank cap over the profile's (the 4-ship's opening out, moves.js FOUR_OPEN).
  */
 function onProfile(phases) {
   return phases.map((ph) => {
     const p = { ...ph, altRateFtps: ph.altRateFtps ?? GENTLE_ALT_FTPS };
-    return p.world ? p : onClosure([p], { closeIn: Boolean(p.closeIn) })[0];
+    if (p.world) return p;
+    const q = onClosure([p], { closeIn: Boolean(p.closeIn) })[0];
+    return p.heldBankDeg != null ? { ...q, bankCapDeg: p.heldBankDeg } : q;
   });
 }
 
