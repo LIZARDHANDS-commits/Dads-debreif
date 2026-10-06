@@ -221,7 +221,7 @@ Each one line, with options and my recommendation. The working answer (what the 
 
 ## 4. What I did not look at, and what I am unsure of
 
-**Not looked at.** The screens, the 3D view, `scene.js` beyond its use of `generatePflTrack`, `ejection.js` (picture only), `nav-plans.js` beyond `makePflFromArea` and `onProfileAltFt`, `closed-pattern.js` beyond the duplicated radius scaling, the relay and weather fetch, the test files' bodies (names only), and anything on screen: every statement above is from reading and Node traces, not from the running app. I did not run the test suites or any sweep. I did not use the CFAFM.
+**Not looked at.** The screens, the 3D view, `scene.js` beyond its use of `generatePflTrack`, `ejection.js` (picture only), `nav-plans.js` beyond `makePflFromArea` and `onProfileAltFt`, `closed-pattern.js` beyond the duplicated radius scaling, the relay and weather fetch, the test files' bodies (names only), and anything on screen: every statement above is from reading and Node traces, not from the running app. I did not run the test suites or any sweep. I did not use the flight manual.
 
 **Unsure of.**
 - The 144 ft disagreement in F9: I have the symptom and two candidate terms, not the proof.

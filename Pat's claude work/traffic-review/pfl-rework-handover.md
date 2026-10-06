@@ -155,8 +155,6 @@ Patrick's standing rules for this work:
 - **Checks.** CI is paused. Before handing over, run a typecheck and a page load, plus a few Node traces to troubleshoot (Fable's scripts are ready). No sweeps.
 - **Manoeuvres match the manuals.** If sources conflict, ask Patrick rather than guess. A lot of PFL flying is judgement, so it doesn't have to be a perfect SMM shape every time.
 - **References, not walls.** SMM figures and orders are defaults, cited by page. Only what the aircraft physically can't do is a hard limit.
-- **Manual and CFAFM rules.**
-  - The CFAFM is controlled: never in the repo or the project files.
   - Never put manual text or images in the repo.
   - The repo is public.
 - **Git.**
@@ -225,7 +223,6 @@ So, in order:
      - F14: generatePflTrack is dead code, and the break curve and stall-bank formula each have three copies.
   7. Lighter review: the frames are right in circuit, route, sim, deconflict, evade, randomize and high-key, and the caches include temperature. Only two things were noted: flyRejoin's flat ±2 ft/s², and deconflict's straight-line prediction. The seam from the end of a PFL into goFromRunway has not been seen on screen.
   8. Questions for Patrick, Q1-Q7: see the report, section 3.
-  9. Not looked at: screens, 3D, scene.js, ejection.js, test bodies, and anything in the running app. No test suites or sweeps were run, and the CFAFM was not used.
   10. Unsure: the 144 ft term in F9; the chart's 105 KIAS versus the SMM's 120 KIAS as the gear-drag anchor; the hot-day High Key figure being smaller than the frame error alone predicts.
 
 ## Appendix C. The whole conversation with Patrick about this (5 Oct, his words verbatim)

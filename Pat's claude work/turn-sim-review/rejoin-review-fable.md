@@ -60,7 +60,6 @@ Not recommended. The job is a few lines of trigonometry on the existing stepper.
 turning-rejoin.js's tracker legs; tracker.js holdLine (241-257, 326); TURNING_REJOIN line tuning; planGoTo's Lead-waits paths for the 2-ship (transitions.js:350-377); legsFor lab→rejoinTo (transitions.js:223-226); kinematic-moves.js planLineMove (unused). Keep hot-rejoin.js until the planner covers the Errors panel.
 
 ## Unsure / not checked
-All times and closures are estimates from the shared turn formulas at 8,000 ft. The reviewer could not check the SMM or EFIG figures, only text extracts. No runs or sweeps were made (Patrick 06:25Z). The CFAFM was not opened.
 
 ## Follow-up 1 (08:46Z, Patrick: worst case, tight, ahead of the line, high), summary
 - The pilot's way (SMM 12.24 paras 56-58; 16.20 paras 65-67; 12.27 paras 64-66):

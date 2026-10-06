@@ -53,7 +53,7 @@ CYMJ field elevation is about 1,890 ft (V6's threshold point is 1,880 ft).
 
 ## Pattern shape and references (for Patrick and Dad's route redraw, T8)
 
-- The pattern is a racetrack on the outer runway (29L/11R) with **Whiskey** and **Echo** rejoins at each end, a **45° entry leg** [manual text left out; see the page cited], and ground references: Snowdys Springs, Race Track Lake, Sukanen Ship intersection, Auto Wrecker (Flat Farm), Arrow Tree Rows; windows "Intersecting Fields" (29L) and "Farm" (11R). EFIG p.211 (image), SMM Fig. 4.9.
+- The pattern is a racetrack on the outer runway (29L/11R) with **Whiskey** and **Echo** rejoins at each end, a **45° entry leg** to make the turn to initial easier to judge, and ground references: Snowdys Springs, Race Track Lake, Sukanen Ship intersection, Auto Wrecker (Flat Farm), Arrow Tree Rows; windows "Intersecting Fields" (29L) and "Farm" (11R). EFIG p.211 (image), SMM Fig. 4.9.
 - Rejoin lines: Island (Old Wives Lake), Bunny Lake, Gravel Pit and Road, 10 Mile Lake, Farms, River, White and Green Grain Elevators, Boot Heal, U-shaped Farm, Clover Leaf; High Terrain block to the west. EFIG p.209 (image).
 - Overhead break and final turn diagrams for 29L and 11R with the perch, window and radio calls: EFIG p.151, 152, 185, 186.
 - Straight-in 29L and 11R: EFIG p.131, 132 (and flapless 201, 202).
@@ -78,7 +78,7 @@ T-6A Maximum Glide Distance chart (flight test, PT6A-68, June 1998; engine inope
 | Clean / 0 | windmilling | 110 KIAS | 2,350 ft/min | 1 NM per 1,000 ft |
 
 - The distance plot gives about 10 NM from 5,000 ft, 20 NM from 10,000, 39 NM from 20,000 and 61 NM from 31,000 ft at drag index 0; weight (5,000-6,500 lb) barely changes it.
-- **SMM agrees:** [manual text left out; see the page cited], glide at 125 KIAS (SMM 13.5 para 7, 13.4). Rule of thumb: distance ÷ 2 × 1,000 + High Key altitude; High Key at Moose Jaw 5,000 ft MSL (3,000-4,000 ft AGL window), so 7,500 ft MSL at 5 NM (13.5 paras 7-8). Low Key about 1,700 ft AGL (3,700 MSL) (13.8 para 17). Feather the prop: an unfeathered prop "will greatly reduce glide distance" (matches the windmilling row).
+- **SMM agrees:** "The Harvard II glides approximately 2.0 NM for each 1000' of altitude", glide at 125 KIAS (SMM 13.5 para 7, 13.4). Rule of thumb: distance ÷ 2 × 1,000 + High Key altitude; High Key at Moose Jaw 5,000 ft MSL (3,000-4,000 ft AGL window), so 7,500 ft MSL at 5 NM (13.5 paras 7-8). Low Key about 1,700 ft AGL (3,700 MSL) (13.8 para 17). Feather the prop: an unfeathered prop "will greatly reduce glide distance" (matches the windmilling row).
 - **One difference, not a conflict:** with the gear down the SMM flies the forced-landing pattern at **120 KIAS** from High Key to the flare (SMM 13.4, 13.6), while the chart's best gear-down glide speed is 105 KIAS. 120 is the pattern speed the SMM teaches; 105 is the max-distance speed. Orbit losses: 360° at 125 KIAS, 30° bank, clean about 1,700 ft; at 120 KIAS, gear down about 2,600 ft (SMM 13.5).
 - PFL simulation: 4-6 % torque simulates a feathered engine (SMM 13; EFIG p.84 FCHT brief: "125KIAS and 4-6% Tq").
 

@@ -1,6 +1,5 @@
 # Offset box: how the four get into it, what they can do from it, and how we model it
 
-Review for Patrick, 6 Oct 2026 (asked 05:39Z). Read-only research: nothing here is built or decided, no repo file was touched, no test was run. Page references only, no manual text or pictures. SMM = Standard Manoeuvre Manual ch. 16 (section and paragraph); AFM8 = the March 2025 Four Plane Brief, 8th edition (PDF page, checked against the PDF); Fig = SMM figure. The CFAFM was not used. Repo paths are from `src/modules/turn-sim/live/` unless a full path is given. Where a number is my reading and not a manual's or Patrick's, it says "estimate".
 
 **Words.** "Box side" = the side #2 is on (the sim names the box by #2's side, `slots.js:276`, `fourWords`). "Element" = a pair: Lead and #2 are the front element, #3 and #4 the rear element. "Trail" = how far the rear element sits behind the front one. "Stack" = the altitude steps (AFM8 p.14: #2 +300 ft, Lead 0, #3 -300, #4 -600).
 

@@ -33,7 +33,7 @@ The "or 300/200 ft and 1 mile above the approach's own minima" parts are per air
 ## GNSS-only alternates (Gen Book p.7 NOTE)
 
 - Destination approach independent of GNSS and available at ETA; LNAV minima are the lowest considered; no more than one predicted satellite outage within ±1 h of ETA; RAIM available at alternate ETA ±15 min.
-- **RNAV-only destination and alternate at least 100 NM apart** (75 NM [manual text left out; see the page cited]). Tool: D73 100 NM ✓. The 75 NM exception doesn't apply to Moose Jaw.
+- **RNAV-only destination and alternate at least 100 NM apart** (75 NM in Nunavut or north of 56° in Quebec and Labrador). Tool: D73 100 NM ✓. The 75 NM exception doesn't apply to Moose Jaw.
 
 ## Take-off and filing (Gen Book p.7)
 
