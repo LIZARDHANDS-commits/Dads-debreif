@@ -80,6 +80,7 @@ export function planLineChange(pair, to, options = {}, t0 = 0) {
   const sTo = to === 'astern' ? 0 : want === 'left' ? 1 : want === 'right' ? -1 : sCur;
   if (from.key === to && (to === 'astern' || sTo === sCur)) return null;
   if (from.key === 'other' || (from.key === 'lab' && to === 'lab')) return null;
+  if (from.key === 'fw' && to === 'fw') return null; // the side switch is the tracker's S-turn (fw-switch.js, TS-102), not a line
   const straightFromLab = from.key === 'lab' && (options.rejoin ?? 'into') === 'straight';
   if (from.key === 'lab' && !straightFromLab) return null; // the turning rejoin (turning-rejoin.js) or the tracker's
   const rel = relativeTo(lead, wing);
