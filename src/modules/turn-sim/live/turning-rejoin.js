@@ -34,7 +34,7 @@ import { relativeTo, DEG } from './manoeuvres.js';
 import { recordFlight, speedSeg, closeThrough, rejoinTo, slide, stopAt, legsFor, CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
 import { FORMATIONS, fwShapeNow, pairSlot, downTheLine, LINE_BACK_PER_OUT, LENGTH_FT } from './slots.js';
-import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, TURNING_REJOIN, TRACKER, CLOSURE, FW_FOLLOW, G_RULE, KINEMATIC, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
+import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, TURNING_REJOIN, TRACKER, CLOSURE, FW_FOLLOW, FW_BUBBLE, FW_ENERGY, G_RULE, KINEMATIC, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
 import { onClosure, leadTurnInto, fromStep } from './hand-over.js';
 import { STEP_SEC, copyAircraft, SMOOTHER_CURVE_PEAK, smoother } from './flight.js';
 import { RATE_SETS } from './rates.js';
@@ -74,7 +74,7 @@ function sustainedBankDeg(kias, blockFt, climbKtps) {
  * points are [bank, kias, power] a step (transitions.js flyStep's bankTrack); ahead is true when he passed ahead of Lead's 3/9
  * line inside 1,000 ft (Patrick 08:04Z: he must not); lineKias is his speed when he got onto the line.
  */
-export function flyToDecision({ allowAcross = false, maxWhenLow = true, wing, rec, s, aimFt, bankCapDeg, decisionFt, arriveFtps, overtakeKt, floorKias, lineAtKias, blockFt, t0, profile, lineDeg = TURNING_REJOIN.lineDeg }) {
+export function flyToDecision({ allowAcross = false, maxWhenLow = true, wing, rec, s, aimFt, bankCapDeg, decisionFt, arriveFtps, overtakeKt, floorKias, lineAtKias, blockFt, t0, profile, lineDeg = TURNING_REJOIN.lineDeg, lagCut = false, placeKias = null }) {
   const TR = TURNING_REJOIN;
   const W = copyAircraft(wing);
   const sinL = Math.sin(lineDeg * DEG);
@@ -96,6 +96,8 @@ export function flyToDecision({ allowAcross = false, maxWhenLow = true, wing, re
   let psiPrev = null;
   let ff = 0;
   let lineKias = null;
+  let placePrev = null;
+  let zoom = null; // lagging the cut, the heights of his zoom toward the cone's top: { t0, alt: [], climb: [], nz: [] }
   let minKias = W.kias;
   let maxG = W.g ?? 1;
   let minG = W.g ?? 1;
@@ -112,14 +114,21 @@ export function flyToDecision({ allowAcross = false, maxWhenLow = true, wing, re
     // only when nothing else plans), where Lead's turn can carry #2 across his six on the way (Patrick 6 Oct 05:16Z: "planned from anywhere
     // and 'did their best'"; from far out and low, until V2.130 every try failed here and the turning rejoin was refused).
     if (rel.left * s < 0 && !(allowAcross && r >= TRACKER.laneRangeFt)) return null;
-    if (along <= decisionFt && Math.abs(rel.fwd * nrm.fwd + rel.left * nrm.left) <= TR.captureFt) return { points, steps: n, end: W, accelKtps: accel, maxBankDeg: maxBank, ahead, minKias, maxG, minG, lineKias: lineKias ?? W.kias };
+    // Lagging the cut (to fighting wing, lagCut; Patrick 6 Oct 17:11Z card "Lag the cut"): hot and within lagCutFt of the
+    // place down the line, he flies at the place itself (on the line at decisionFt), so the cut ends there, not inside it.
+    const place = { fwd: u.fwd * decisionFt - rel.fwd, left: u.left * decisionFt - rel.left };
+    const placeFt = Math.hypot(place.fwd, place.left);
+    const lagging = lagCut && rel.fwd * nrm.fwd + rel.left * nrm.left > TR.captureFt && along < decisionFt + TR.lagCutFt;
+    if (along <= decisionFt && Math.abs(rel.fwd * nrm.fwd + rel.left * nrm.left) <= TR.captureFt) return { points, steps: n, end: W, accelKtps: accel, maxBankDeg: maxBank, ahead, minKias, maxG, minG, lineKias: lineKias ?? W.kias, zoomLeg: zoomLegOf(zoom) };
 
     // Where he steers, in Lead's turning frame: down the line toward Lead once on it; off it, across toward it at up to
     // TURNING_REJOIN.approachDeg, the angle growing with the distance off (the further off, the more directly he heads for
     // it; aimFt sets how quickly: a smaller one is a sharper capture, a larger one a gentler, longer one).
     const cross = rel.fwd * nrm.fwd + rel.left * nrm.left;
     const chi = TR.approachDeg * DEG * (2 / Math.PI) * Math.atan(Math.abs(cross) / aimFt);
-    const way = { fwd: -u.fwd * Math.cos(chi) - Math.sign(cross) * nrm.fwd * Math.sin(chi), left: -u.left * Math.cos(chi) - Math.sign(cross) * nrm.left * Math.sin(chi) };
+    const way = lagging
+      ? { fwd: place.fwd / Math.max(placeFt, 1), left: place.left / Math.max(placeFt, 1) }
+      : { fwd: -u.fwd * Math.cos(chi) - Math.sign(cross) * nrm.fwd * Math.sin(chi), left: -u.left * Math.cos(chi) - Math.sign(cross) * nrm.left * Math.sin(chi) };
     const f = { x: Math.cos(L.headingRad), y: Math.sin(L.headingRad) };
     const l = { x: -f.y, y: f.x };
     const d = { x: way.fwd * f.x + way.left * l.x, y: way.fwd * f.y + way.left * l.y };
@@ -137,7 +146,17 @@ export function flyToDecision({ allowAcross = false, maxWhenLow = true, wing, re
     const ratio = W.tasFtps / W.kias;
     // Speed changes at the G he is pulling, less what a climb costs or plus what a descent gives (standard aerodynamics,
     // dV/dt = g (T - D) / W - g sin(climb angle)); KIAS per second times ratio is true ft/s².
-    const climbKtps = (G_FTPS2 * W.climbFtps) / Math.max(W.tasFtps, 1) / ratio;
+    // Lagging the cut, he soaks up the speed the place doesn't need with a zoom toward the cone's top (Patrick 6 Oct 16:58Z:
+    // "we can ALWAYS use the cone to soak up speed in TRJ to fighting wing"; card "Zoom in the cut"): his least speed is the
+    // place's own while there is room above, and the zoom's climb, flown below, gives the slowing beyond power back (the
+    // tracker's cone energy, TS-136). Otherwise a climb costs speed and a descent gives it as always.
+    if (lagging && placeKias != null && !zoom) zoom = { t0: t, alt: [W.altAboveFt], climb: [W.climbFtps ?? 0], nz: [1] };
+    const perFtps = G_FTPS2 / Math.max(W.tasFtps, 1) / ratio; // KIAS per second per ft/s of climb (standard energy)
+    const roomUpFt = Math.max(0, L.altAboveFt + FW_ENERGY.coneUpFt - W.altAboveFt);
+    const zoomFtps = zoom ? Math.min(FW_BUBBLE.diveFtps, Math.sqrt(2 * FW_BUBBLE.pullFtps2 * roomUpFt)) : 0;
+    const zoomKtps = zoomFtps * perFtps;
+    const leastKias = zoom && roomUpFt > 1 ? Math.min(floorKias, placeKias) : floorKias;
+    const climbKtps = zoom ? 0 : perFtps * W.climbFtps;
     // Never past the stall line at the speed he has; near his least speed, no more bank than MAX holds the speed at (TS-75).
     let cap = Math.min(bankCapDeg, Math.acos(1 / Math.max(1, availableG(W.kias))) / DEG);
     if (W.kias < floorKias + TR.floorMarginKias) cap = Math.min(cap, sustainedBankDeg(W.kias, blockFt, climbKtps));
@@ -149,22 +168,24 @@ export function flyToDecision({ allowAcross = false, maxWhenLow = true, wing, re
     // the room left needs more (SMM 12.24 para 58; TS-61's order). About 0.7 of a speed change shows in the closure with Lead
     // 45° off the nose. The closure is the one down the line (not the range rate: hot, the range comes down fast across it
     // while he is still getting on).
-    const closure = alongPrev === null ? 0 : (alongPrev - along) / dt;
+    // Lagging the cut, the closure and the room are toward the place, not down the line.
+    const closure = lagging ? (placePrev === null ? 0 : (placePrev - placeFt) / dt) : alongPrev === null ? 0 : (alongPrev - along) / dt;
     alongPrev = along;
+    placePrev = placeFt;
     if (!onLine && Math.abs(cross) <= TR.captureFt) lineKias = W.kias;
     onLine ||= Math.abs(cross) <= TR.captureFt;
     const floorThr = throttleAtTorque(REJOIN.floorTorquePct, W.kias, blockFt); // the rejoin's torque floor (TS-108)
-    const aStop = slowKtps(REJOIN.stopStage, W.kias, blockFt, W.g, floorThr) + climbKtps;
+    const aStop = slowKtps(REJOIN.stopStage, W.kias, blockFt, W.g, floorThr) + climbKtps + zoomKtps;
     // The room left, less what he covers while the slowing builds up at the rate the acceleration can change (TS-75).
     const rampFt = (closure * CLOSURE.stopShare * aStop) / G.jerkKtps2 / 2;
-    const room = along - decisionFt;
+    const room = lagging ? placeFt : along - decisionFt;
     const needKtps = room - rampFt > 1 && closure > closeFtps ? (closure * closure - closeFtps * closeFtps) / (2 * (room - rampFt)) / (cosL * ratio) : 0;
     const aMax = fullPowerKtps(W.kias, blockFt, W.g) - climbKtps;
-    const aPower = slowKtps('power', W.kias, blockFt, W.g, floorThr) + climbKtps;
-    const aAll = slowKtps('idleBoards', W.kias, blockFt, W.g) + climbKtps;
+    const aPower = slowKtps('power', W.kias, blockFt, W.g, floorThr) + climbKtps + zoomKtps;
+    const aAll = slowKtps('idleBoards', W.kias, blockFt, W.g) + climbKtps + zoomKtps;
     // The decision point: where the stop with the torque floor and the boards just fits (TS-108) the room left (Patrick 17:55Z: "then slow down at the decision
     // point"; TS-75). Until then he holds the line's speed.
-    if (!runIn && onLine && closure > closeFtps && needKtps >= CLOSURE.stopShare * aStop) runIn = true;
+    if (!runIn && (onLine || lagging) && closure > closeFtps && needKtps >= CLOSURE.stopShare * aStop) runIn = true;
     // Lead's turn's closure dies away as the range comes down, so the slowing may leave him short of the stopping curve: then
     // the line's speed again until it needs taking out, rather than crawling the rest of the line at the close-in rate.
     else if (runIn && room > closeFtps * TR.runInHoldSec && needKtps < TR.runInReleaseShare * CLOSURE.stopShare * aStop) runIn = false;
@@ -189,16 +210,29 @@ export function flyToDecision({ allowAcross = false, maxWhenLow = true, wing, re
       // climb to Lead (Patrick 6 Oct 05:00Z, 05:29Z). Height only: counting speed too (V2.130) put him at MAX from a level
       // start as his turn bled a few knots, and line abreast to fighting wing took 5-10 s longer.
       const low = maxWhenLow && r > TRACKER.laneRangeFt && W.altAboveFt < L.altAboveFt - TR.lowEnergyFt;
-      const kiasCmd = low ? Infinity : cross > TR.captureFt ? lineCmd - (lineCmd - floorKias) * Math.min(1, (cross - TR.captureFt) / TR.hotFt) : onLine ? Math.max(targetKias, W.kias) : Infinity;
+      const kiasCmd = low ? Infinity : cross > TR.captureFt ? lineCmd - (lineCmd - leastKias) * Math.min(1, (cross - TR.captureFt) / TR.hotFt) : onLine ? Math.max(targetKias, W.kias) : Infinity;
       const aMin = cross > TR.captureFt ? aAll : aPower;
       aCmd = Math.max(-aMin, Math.min(aMax, G.speedLoop * (kiasCmd - W.kias)));
     }
     // The slowing eases off in time to stop at his least speed, at the rate the acceleration can change (TS-75).
-    aCmd = Math.min(aMax, Math.max(aCmd, -Math.sqrt(2 * G.jerkKtps2 * Math.max(0, W.kias - floorKias))));
+    aCmd = Math.min(aMax, Math.max(aCmd, -Math.sqrt(2 * G.jerkKtps2 * Math.max(0, W.kias - leastKias))));
     accel += Math.max(-G.jerkKtps2 * dt, Math.min(G.jerkKtps2 * dt, aCmd - accel));
     const kias = W.kias + accel * dt;
     setKias(W, kias);
-    stepCommanded(W, bank, t, profile);
+    let stepProfile = profile;
+    if (zoom) {
+      // The zoom's climb: the slowing he flies, as height, up to zoomFtps, eased in and out at the bubble's pull.
+      const v0 = W.climbFtps ?? 0;
+      const want = accel < 0 ? Math.min(zoomFtps, -accel / perFtps) : 0;
+      const v1 = v0 + Math.max(-FW_BUBBLE.pullFtps2 * dt, Math.min(FW_BUBBLE.pullFtps2 * dt, want - v0));
+      const nz = 1 + (v1 - v0) / dt / G_FTPS2;
+      const a1 = W.altAboveFt + ((v0 + v1) / 2) * dt;
+      zoom.alt.push(a1);
+      zoom.climb.push(v1);
+      zoom.nz.push(nz);
+      stepProfile = [{ t0: t, t1: t + dt, table: { dt, alt: [W.altAboveFt, a1], climb: [v0, v1], nz: [nz, nz] } }];
+    }
+    stepCommanded(W, bank, t, stepProfile);
     const power = accel >= aMax * 0.985 ? powerFrom(null, 1, W.kias, blockFt) : powerFor(accel, W.kias, blockFt, W.g, W.climbFtps, runIn || cross > TR.captureFt ? 'idleBoards' : null, floorThr);
     points.push([bank, kias, power]);
     minKias = Math.min(minKias, W.kias);
@@ -212,6 +246,11 @@ export function flyToDecision({ allowAcross = false, maxWhenLow = true, wing, re
     else if ((wasBehind || startFt >= TRACKER.laneRangeFt) && Math.hypot(after.fwd, after.left) < TRACKER.laneRangeFt) ahead = true;
   }
   return null;
+}
+
+/** A zoom's heights as a height leg (flight.js heightAt's table), or null. */
+function zoomLegOf(zoom) {
+  return zoom ? { t0: zoom.t0, t1: zoom.t0 + (zoom.alt.length - 1) * dt, table: { dt, alt: zoom.alt, climb: zoom.climb, nz: zoom.nz } } : null;
 }
 
 /** The closure the window's middle overtake gives on the X: along a 45° line about 1.4 times the overtake (estimate). */
@@ -486,7 +525,7 @@ export function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, 
   };
   const args = onX
     ? { allowAcross, maxWhenLow, wing, rec: into.longRec, s, tauSec: TR.bearingTauSec, bankCapDeg, farFt: TR.windowFarFt, nearFt: TR.windowNearFt, overtakeKt, floorKias, blockFt, t0 }
-    : { allowAcross, maxWhenLow, wing, rec: into.longRec, s, aimFt, bankCapDeg, decisionFt, arriveFtps: to === 'fw' ? TR.fwArriveFtps : Math.min(closureNow().ftps, closeInFtps(TR.decisionArriveRates)), overtakeKt, floorKias, lineAtKias: leastKias + TR.lineOverKias, blockFt, t0 };
+    : { allowAcross, maxWhenLow, wing, rec: into.longRec, s, aimFt, bankCapDeg, decisionFt, lagCut: to === 'fw', placeKias: to === 'fw' ? leastKias : null, arriveFtps: to === 'fw' ? TR.fwArriveFtps : Math.min(closureNow().ftps, closeInFtps(TR.decisionArriveRates)), overtakeKt, floorKias, lineAtKias: leastKias + TR.lineOverKias, blockFt, t0 };
   const fly1 = onX ? (a) => (hardSec > 0 ? hardThenX(a, hardSec) : farThenX(a, aimFt)) : flyToDecision;
   // The height the part was flown with is the one the plan flies (partSec): a different one changes the G he pulls and so,
   // near the G rule, his turn (the replay then left the planned path: 6 Oct 05:13Z, #2 ended 250 ft back on Lead's other side).
@@ -566,7 +605,7 @@ export function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, 
   // a refusal from 5 Oct 08:04Z until V2.122).
   const slotFwdFt = Math.max(0, pairSlot(to, sTo || s, spacingFt).fwd);
   const steps = n1 + run.points.length;
-  const flown = close ? inPlane(run) : [...heightLeg(partSec), ...profile];
+  const flown = close ? inPlane(run) : [...(part.zoomLeg ? [part.zoomLeg] : []), ...heightLeg(partSec), ...profile];
   return { part, run, slotFwdFt, profile: flown, lp, durationSec: steps * dt, overshoot: onX && overshoot };
 }
 

@@ -62,6 +62,7 @@ export const TURNING_REJOIN = Object.freeze({
   lagAimFt: 2400, // and, hot, the gentlest capture too: lagging while Lead's turn brings the aspect round (estimate)
   descentFtps: 30, // a height difference comes off no quicker than this, 1,800 ft/min (estimate)
   captureFt: 150, // he is on the line within this many feet of it; only then does he start taking out the overtake for the decision point (estimate)
+  lagCutFt: 1500, // to fighting wing, hot and within this far of the place down the line he flies at the place itself, lagging the cut so it ends there (Patrick 6 Oct 17:11Z card "Lag the cut"; the distance an estimate)
   lineTauSec: 4, // his heading comes onto the one the line asks over about this long, so the bank changes smoothly (estimate)
   diveGs: Object.freeze([2, 1]), // line first (Patrick 6 Oct 06:14Z: "a deeper roll, harder pull, steper dive ... get to leads altitude faster"; TS-124): from above, his height comes off over the shortest smooth leg whose push and pull stay within this many g of level flight, the first that costs no more than diveSlackSec (estimates)
   planeEaseSec: 4, // from the move over, #2's height eases into Lead's wing plane over at least this long (TS-126; estimate)
