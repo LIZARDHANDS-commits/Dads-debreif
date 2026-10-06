@@ -11,7 +11,7 @@
 // A move that starts inside 500 ft is the tracker's alone. This file holds the pieces the 2-ship's planners
 // share (line-moves.js and hot-rejoin.js); it changes no flight physics: the line is read off positions as every planned
 // line is, and the tracker flies the unchanged flight.js step. Numbers are tuning.js's.
-import { G_FTPS2 } from '../../../core/units.js';
+import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { wrapPi } from '../../../core/angles.js';
 import { STEP_SEC, copyAircraft, smoother } from './flight.js';
 import { relativeTo, leadTurnSegs, DEG } from './manoeuvres.js';
@@ -34,6 +34,12 @@ export const RUN_IN = Object.freeze({ ...RATE_SETS.close.law, blendSec: 1 }); //
 
 /** A leg whose slot is further than this from the aircraft flown off is a long move's (fighting wing, line abreast). */
 const LONG_SLOT_FT = 300; // the close formations all sit inside about 230 ft (route, 5 wingspans out); fighting wing starts at 500 ft
+// A move to a place more than this far from the aircraft he flies off has no closure cap: full power, then a smooth stop
+// with power and the boards (Patrick 6 Oct 15:18Z: "Get rid of the closure rate when moving anywhere further than 100 feet
+// from the aircraft ... as long as it's realistic and smooth"; TS-128). A rejoin's legs keep their own rules (TS-75).
+export const FREE_MOVE_FT = 100;
+// The closure such a move is planned to: more than the T-6 reaches over these distances, so it is no cap (an estimate).
+export const FREE_CLOSURE_KT = 150;
 
 /**
  * The phases flown on the power profile at the Rates choice's closures (tracker.js closureFtps; Patrick 06:09Z, 06:11Z):
@@ -43,7 +49,8 @@ const LONG_SLOT_FT = 300; // the close formations all sit inside about 230 ft (r
  *    corner) at the close-in rate (tuning.js CLOSE_IN_SEC, closeInFtps).
  * Banks: a close leg up to 60° (Patrick 06:43Z); a kick out to fighting wing or line abreast, or a move in its band, with no cap
  * (Patrick 6 Oct 04:07Z); a rejoin's legs keep their own (REJOIN.bankCapDeg: no cap, Patrick 6 Oct 04:07Z). Each slot is chased at once, not
- * through a sliding reference, and the closure is never capped below the rate chosen. With `closeIn` (the tracker's run-in after a hand-over, or a move that starts inside
+ * through a sliding reference, and the closure is never capped below the rate chosen. Since V2.145 a leg to a place more than
+ * FREE_MOVE_FT from the aircraft he flies off, not a rejoin's, has no closure cap and slows with power and the boards (TS-128). With `closeIn` (the tracker's run-in after a hand-over, or a move that starts inside
  * the hand-over range) every leg is at the close-in rate (Patrick 06:24Z). `rejoinBankDeg` replaces a rejoin leg's own cap
  * (the 4-ship's: the G rule only, Patrick 06:16Z item 1).
  */
@@ -51,10 +58,12 @@ export function onClosure(phases, { closeIn: allCloseIn = false, rejoinBankDeg =
   const closeIn = closureNow().ftps;
   const rejoin = rejoinClosureNow().ftps;
   return phases.map((p) => {
-    const long = Math.hypot(p.slot.fwd, p.slot.left) > LONG_SLOT_FT;
-    const closureFtps = !allCloseIn && (p.rejoin || long) ? rejoin : closeIn;
-    const bankCapDeg = p.rejoin ? rejoinBankDeg ?? p.bankCapDeg : long ? WING_BANKS.kickOutBankCapDeg : WING_BANKS.closeBankCapDeg;
-    return { ...p, closureFtps, bankCapDeg, fwdRate: Infinity, latRate: Infinity, vrelMax: Math.max(p.vrelMax, closureFtps) };
+    const out = Math.hypot(p.slot.fwd, p.slot.left);
+    const long = out > LONG_SLOT_FT;
+    const free = !allCloseIn && !p.rejoin && out > FREE_MOVE_FT;
+    const closureFtps = free ? FREE_CLOSURE_KT * KT_TO_FTPS : !allCloseIn && (p.rejoin || long) ? rejoin : closeIn;
+    const bankCapDeg = p.rejoin ? rejoinBankDeg ?? p.bankCapDeg : long || free ? WING_BANKS.kickOutBankCapDeg : WING_BANKS.closeBankCapDeg;
+    return { ...p, closureFtps, bankCapDeg, fwdRate: Infinity, latRate: Infinity, vrelMax: Math.max(p.vrelMax, closureFtps), ...(free ? { slowStage: p.slowStage ?? 'boards' } : {}) };
   });
 }
 
