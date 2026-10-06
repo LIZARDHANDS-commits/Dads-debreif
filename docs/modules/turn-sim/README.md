@@ -2,24 +2,26 @@
 
 On screen this module is called **Pat's Formation Simulator** (from V2.14). Its code name stays `turn-sim`, in the folder names, the decision prefix TS- and the tests.
 
-This folder is the formation turn sim. From V2.6 it shows the first version of live mode: a 2-ship in line abreast that flies along, with a button for each SMM line abreast manoeuvre. From V2.7 a Setup option makes it a 4-ship (Spread 4, `spec.md` section 8). Start here, then read only the file you need.
+This folder is the formation turn sim. From V2.6 it shows the first version of live mode: a 2-ship in line abreast that flies along, with a button for each SMM line abreast manoeuvre. From V2.7 a Setup option makes it a 4-ship (Spread 4, `spec.md` section 14). Start here, then read only the file you need.
 
 ## Where it stands
 
-Live as a PROTOTYPE. The Turn Sim review is done (4 Oct): Patrick chose a new flying core with planned, kinematically accurate paths, and approved the first version's spec (`spec.md` Part 1; decisions TS-35 to TS-49). The first version is built (`src/modules/turn-sim/live/`); the plan-mode code stays in the repo, unused, until Patrick agrees to retire it.
+Live as a PROTOTYPE, Formation V2.96 on main. The Turn Sim review is done (4 Oct): Patrick chose a new flying core with planned, kinematically accurate paths, and approved the first version's spec (`spec.md` Part 1; decisions TS-35 to TS-49). The flying core is in `src/modules/turn-sim/live/`. The plan-mode code was retired in #407 (Patrick's yes, 5 Oct 01:36Z). Nothing since V2.91 has been flown by Patrick yet (as of 6 Oct).
 
-Since clean-up step 2 (TS-65, V2.22) every 2-ship change the line rules cover is a kinematic line at the rejoin closure to about 500 ft from the slot, then the tracker at the close-in rate, planned again at the hand-over (`live/line-moves.js`, `live/hand-over.js`); the Rates setting (Student, Instructor, AI) is under More. Since step 3 (TS-66) the 4-ship flies the same closures and banks, with lines for its single-leg moves. Since V2.59 (TS-67, TS-68) every 2-ship turning rejoin, from line abreast or fighting wing, flies the rejoin line (`live/turning-rejoin.js`): onto the line with Lead at 10:30 or 1:30, down it, and through route into the slot in one motion; since V2.63 (TS-69) with held bank and power at the Rates overtake, the tracker only from the decision point; "Rejoin kind" under More picks it or the straight-ahead rejoin. Rejoins fly Patrick's 06:16Z rulings, and fluid entry is quick with #2 held to full power and cutting inside when behind.
+The refactor plan's steps 1 to 5 are merged: V2.92 envelope gate (#495, TS-93); V2.93 one candidate shape, hot rejoin retired (#496, TS-94); V2.94 numbers register (#501, TS-95); V2.95 Smart wingman, fighting wing cone energy and move #2 in the band (#505, TS-96, TS-98); V2.96 events file (#506, TS-97). The four-ship rebuild (refactor PRs 6 to 8) is with a new thread; until it lands, `spec.md` section 14 describes the 4-ship as it flies now.
 
-Where things live since clean-up step 1 (TS-64): the slots for the 2- and 4-ship in `live/slots.js`, the one classifier and judge (card, roll-out verdict and tags) in `live/judge.js`, every closure rate, bank, timing and speed in `live/tuning.js`, and the tracker (the fallback for odd starts) in `live/tracker.js`.
+How #2 is flown, in one line: every 2-ship change of formation is planned by one chooser, flown as a kinematic line then the tracker, and planned again at events (the section below, and `spec.md`). The Rates setting (Student, Instructor, AI) is under More.
 
-## How #2 is planned now (V2.75 to V2.84)
+Where things live (TS-64, TS-95, TS-97): the slots for the 2- and 4-ship in `live/slots.js`, the one classifier and judge (card, roll-out verdict and tags) in `live/judge.js`, the numbers in `live/rates.js`, `live/bands.js` and `live/moves.js` (listed with sources in `numbers.md`; `live/tuning.js` only re-exports them), the tracker (the fallback for odd starts) in `live/tracker.js`, and the events that plan a change again in `live/events.js`.
+
+## How #2 is planned now (V2.75 to V2.96)
 
 Read this before changing any 2-ship move. The decisions say why; this is the picture.
 
-- **One chooser** (`live/chooser.js`, TS-76): every "Change formation" press runs every planner that applies (turning rejoin, straight-ahead rejoin, drop back, line then tracker, tracker), checks each like a pilot would (G rule, never ahead of Lead's 3/9 line inside 1,000 ft, never through Lead), and flies the quickest that passes. The vertical is one of the turning rejoin's tries (TS-82).
-- **Re-planned at events, never queued** (spec F1 and F11): at the press, the hand-over, the decision point and when the picture breaks, the change is planned again from where the pair is (`live/replan.js`, `formation.js` replanAtEvents). A turn or a new change pressed mid-move flies at once (TS-78, TS-79).
+- **One chooser** (`live/chooser.js`, TS-76): every "Change formation" press runs every planner that applies (turning rejoin, straight-ahead rejoin, drop back, line then tracker, tracker, and "from here", TS-94), checks each like a pilot would (the aircraft's envelope, the G rule, never ahead of Lead's 3/9 line inside 1,000 ft, never through Lead; TS-93), and flies the quickest that passes. The vertical is one of the turning rejoin's tries (TS-82).
+- **Re-planned at events, never queued** (spec F1 and F11): at the press, the hand-over, the decision point and when the picture breaks, the change is planned again from where the pair is (`live/replan.js`, `live/events.js`). A turn or a new change pressed mid-move flies at once (TS-78, TS-79).
 - **Done when in the band, not on a spot** (TS-78, TS-80): tactical formations anywhere in their band (fighting wing anywhere in the cone, line abreast 4,000-6,000 ft, 0-10°, 2,000 ft stack); close formations within 5 ft and 5 kt. Fighting wing legs aim for the cone, not a slot (TS-83).
-- **Two rate sets** (`live/tuning.js` `RATE_SETS`, TS-84): holding close formation is slow and smooth so #2 can stay in place (echelon turns about 4-5 s to 60°, 2 G); everything tactical is unrestricted, the aircraft's own handling.
+- **Two rate sets** (`live/rates.js` `RATE_SETS`, TS-84): holding close formation is slow and smooth so #2 can stay in place (echelon turns about 4-5 s to 60°, 2 G); everything tactical is unrestricted, the aircraft's own handling.
 - **Energy is real:** a climb costs speed, a descent gives it, and the pull of a height change is charged as G (TS-82). Power is worked out at the G and climb being flown.
 
 ## Lessons (Fable's reviews and the Formation thread, 5 Oct)
@@ -36,7 +38,7 @@ The full notes, outside the repo: `turn-sim-review/fable-compiled.md` and `turn-
 
 ## What is next
 
-The plan's steps, in order: Step 1: the review (done); Step 2: the first version (built; waiting for Patrick to fly every button); Step 3: retire the plan-mode code (Patrick decides); Step 4: next features one at a time on the same core; Step 5: sign-off. Only what is in `plan.md` gets built.
+The plan's steps, in order: Step 1: the review (done); Step 2: the first version (built); Step 3: retire the plan-mode code (done, #407); Step 4: next features one at a time on the same core; Step 5: sign-off. The refactor plan's remaining pieces are the four-ship rebuild (PRs 6 to 8, with a new thread). Only what is in `plan.md` gets built.
 
 ## The files
 
@@ -48,6 +50,30 @@ The plan's steps, in order: Step 1: the review (done); Step 2: the first version
 | `testing.md` | This module's testing rules, its sign-off checklist and its list of tests |
 | `plan.md` | The ordered steps and checkboxes; the last step is the sign-off |
 | `future.md` | Ideas not being built until Patrick moves them up |
+| `numbers.md` | Every flying number with its source; made by `tools/turn-sim-numbers.mjs`, not edited by hand |
+
+The flying core, `src/modules/turn-sim/live/` (each file's header says its job):
+
+| File | Its job |
+|---|---|
+| `formation.js` | The pair: presses, tracks, rolling record, roll-out judging; calls `events.js` each step |
+| `events.js` | The events that plan a change again (decision point, picture breaking), a turn pressed mid-change, and "done" in band and steady (TS-97) |
+| `chooser.js` | One chooser: scores every planner and flies the quickest that passes (TS-76) |
+| `replan.js` | The "from here" candidate: a press mid-move is planned again at once, nothing queued (TS-78, TS-79) |
+| `flight.js` | One aircraft per step; the envelope gate (TS-85, TS-93) |
+| `judge.js`, `slots.js` | The one judge and classifier; the formations' places and bands |
+| `rates.js` | The G rule, the two rate sets, the Rates setting, roll and bank limits (TS-95) |
+| `bands.js` | What "in position" and "done" mean (TS-95) |
+| `moves.js` | Each move's numbers: speeds, rejoins, lines, fighting wing turns, tracker, fluid, opening out, lag roll (TS-95) |
+| `tuning.js` | Re-exports `rates.js`, `bands.js` and `moves.js`; holds no numbers |
+| `move-in-band.js` | Moves #2 anywhere in the band when he is in position (TS-98) |
+| `turning-rejoin.js`, `straight-rejoin.js`, `echelon-to-fw.js`, `open-out.js`, `lag-roll.js` | The planners the chooser tries |
+| `kinematic.js`, `kinematic-moves.js`, `line-moves.js`, `hand-over.js`, `tracker.js` | Lines, hand-overs and the tracker |
+| `fluid.js`, `fluid-lead.js`, `fluid-wing.js` | Fluid manoeuvring |
+| `four-ship.js`, `four-ship-moves.js`, `four-ship-card.js`, `g-warm.js` | The 4-ship, to be rebuilt in refactor PRs 6 to 8 |
+| `errors.js` | Training errors and the Smart wingman (TS-52, TS-96) |
+
+Files not named here (`attitude.js`, `full-power.js`, `power.js`, `slow-down.js`, `formation-turns.js`, `manoeuvres.js`, `transitions.js`) are flight helpers and move builders; read the header of the one you need.
 
 ## Open questions
 
@@ -63,11 +89,11 @@ Each has a working answer that the tool uses until it is settled.
 - **Fly fluid manoeuvring, the baseline** (V2.17, built 4 Oct; `testing.md`, "Sign-off checklist, TS-57"): entry from fighting wing, level turns, reversal, wings level, Terminate back to fighting wing, #2 in the cone. Then confirm the estimates in TS-57 and say where #2 should sit in a turn away from him. Also try the fighting wing spacing and sweep settings ("Sign-off checklist, TS-58").
 - **Fly fluid climb, descend and the loop** (V2.18, built 4 Oct; `testing.md`, "Sign-off checklist, TS-59"), with #2 holding 15° off Lead's tail (your 22:28Z ruling); you kept the loop's 20° off parallel (23:00Z). Also confirm the TS-59 estimates (15° and 2,000 ft climb, loop numbers).
 - **Fly fluid vertical piece 2** (V2.19, built 4 Oct; `testing.md`, "Sign-off checklist, TS-60"): #2's side swap, the Wingovers, the Barrel roll and the Standard sequence; the cone as the wingman's aim and the distance-only tags while Lead manoeuvres (your 23:00Z-23:08Z rulings). Then confirm the TS-60 estimates, and say whether the barrel roll's bank of about 75° at the 45° points (the SMM says 90°) is right.
-- **Retire the plan-mode code and its tests?** (`plan.md` Step 3).
+- ~~**Retire the plan-mode code and its tests?** (`plan.md` Step 3).~~ Answered: Patrick approved (card "Approve, all 4", 5 Oct 01:36Z) and it was retired in #407.
 - **The low block height** for the IAS-to-TAS conversion (8,000 ft is an estimate, TS-38), and whether the wingman passes above (the working answer) or below in the crossing turns (TS-42).
 - **The hook's G change** at the 90° point is not flown when on speed and spacing (TS-48); confirm.
 - **Training errors (TS-52, built 4 Oct, behind "Errors (training)")**: fly them (`testing.md`, "Sign-off checklist, training errors"); confirm which way "sucked" and "acute" go (working reading: acute = ahead, sucked = behind, the usual formation meaning); confirm "Fix it" as the default response; the fix may use bank 50 to 75° (estimate) and a roll-in delay but not a speed change (TS-38): a speed lever is your call. The settings proposal is in the project files (`turn-sim-review/errors/settings-proposal.md`).
-- **Fix tools (V2.10, built 4 Oct from your 11:42Z ask)**: confirm the draft wording and limits in `spec.md` section 9 (Geometry, Vertical, Lateral spacing, Speed/power, all ticked; ±20 KIAS, slowing on power (TS-61; 1.5 kt/s until V2.20), 500 ft dive or zoom, 10° heading change: estimates). One finding: the standard 300 ft crossing-miss climb (shackle, cross turn) is flown at constant speed and at its 60 ft/s peak needs about 27 ft/s of excess power, a little more than the T-6A's full power gives at 220 KIAS and 8,000 ft (about 26). Options: leave it (it is brief), stretch the climb, or let #2 lose a knot or two in it. Working answer: leave it.
+- **Fix tools (V2.10, built 4 Oct from your 11:42Z ask)**: confirm the draft wording and limits in `spec.md` section 10 (Geometry, Vertical, Lateral spacing, Speed/power, all ticked; ±20 KIAS, slowing on power (TS-61; 1.5 kt/s until V2.20), 500 ft dive or zoom, 10° heading change: estimates). One finding: the standard 300 ft crossing-miss climb (shackle, cross turn) is flown at constant speed and at its 60 ft/s peak needs about 27 ft/s of excess power, a little more than the T-6A's full power gives at 220 KIAS and 8,000 ft (about 26). Options: leave it (it is brief), stretch the climb, or let #2 lose a knot or two in it. Working answer: leave it.
 - **The two PC-only reports** (Turn Sim and Turn Fight architecture reports): where in the repo their content lands (`pf/reset/2-inventory/file-register.md:194`).
 
 ### Deferred to the Turn Sim review
