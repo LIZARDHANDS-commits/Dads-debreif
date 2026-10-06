@@ -182,7 +182,7 @@ export function excessThrustPerWeight(kias, altFt, g) {
  * this model's full-power climb angles (SMM 3.14 para 35; EFIG p.126). It then
  * gives about 2° at 220 KIAS level. An estimate until checked on screen.
  */
-export const T6A_PITCH = Object.freeze({ aoa180Deg: 2.8 });
+export const T6A_PITCH = Object.freeze({ aoa180Deg: 2.8, datumDeg: 2.6 });
 
 /**
  * Pitch attitude in degrees, nose up positive: flight path angle (climb rate ÷
@@ -191,6 +191,17 @@ export const T6A_PITCH = Object.freeze({ aoa180Deg: 2.8 });
 export function pitchDegFromClimb(climbFtps, tasFtps, kias, g = 1) {
   const gamma = Math.asin(Math.max(-1, Math.min(1, climbFtps / Math.max(tasFtps, 1)))) * 180 / Math.PI;
   return gamma + T6A_PITCH.aoa180Deg * g * (180 / Math.max(kias, 60)) ** 2;
+}
+
+/**
+ * The pitch attitude the pilot sees, in degrees nose up: pitchDegFromClimb less T6A_PITCH.datumDeg, the angle the
+ * fuselage sits nose-down from the wing's zero-lift line. 2.6° is fitted to Patrick's 220 KIAS level attitude of
+ * -0.5 to -1° (6 Oct 2026 06:17Z; card "Both modules" 06:20Z), an estimate; it gives about 8.5° in the model's
+ * 180 KIAS full-power climb (Patrick: about 10°). For display and attitude targets; pitchDegFromClimb itself is
+ * unchanged for the code that already uses it.
+ */
+export function attitudeDegFromClimb(climbFtps, tasFtps, kias, g = 1) {
+  return pitchDegFromClimb(climbFtps, tasFtps, kias, g) - T6A_PITCH.datumDeg;
 }
 
 /** excessThrustPerWeight as stepPointMass's excessFn, which passes true airspeed. */
