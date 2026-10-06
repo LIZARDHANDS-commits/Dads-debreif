@@ -19,7 +19,7 @@ import { relativeBearingDeg } from '../../../core/angles.js';
 import { FTPS_TO_KT } from '../../../core/units.js';
 import { relativeTo, DEG } from './manoeuvres.js';
 import { rangeWord } from './fluid.js';
-import { FORMATIONS, WINGSPAN_FT, ROUTE_SPANS, LENGTH_FT, FW_BAND, FW_REGION, BOX_DEPTH_BAND_FT, slotsFor, fourWords, pairSlot } from './slots.js';
+import { FORMATIONS, WINGSPAN_FT, ROUTE_SPANS, LENGTH_FT, FW_BAND, FW_REGION, NEAREST, BOX_DEPTH_BAND_FT, slotsFor, fourWords, pairSlot } from './slots.js';
 import { REJOIN, IN_POSITION } from './tuning.js';
 
 /** Margins for the roll-out judgement: the shared table's ±100 ft (docs/TESTING.md). */
@@ -50,12 +50,13 @@ function classifyLink(lead, wing) {
   const range = Math.hypot(rel.fwd, rel.left);
   const side = Math.sign(rel.left);
   const sweep = Math.atan2(back, Math.max(across, 1e-6)) / DEG;
-  if (across >= 1500 && sweep <= 25 && sweep >= -15) return { key: 'lab', side };
+  const N = NEAREST;
+  if (across >= N.lab.minAcrossFt && sweep >= N.lab.sweepDeg[0] && sweep <= N.lab.sweepDeg[1]) return { key: 'lab', side };
   if (range >= FW_REGION.rangeFt[0] && range <= FW_REGION.rangeFt[1] && sweep >= FW_REGION.sweepDeg[0] && sweep <= FW_REGION.sweepDeg[1]) return { key: 'fw', side };
-  if (range < 300) { // inside about 300 ft: the close formations (route reaches about 230 ft out since step 2)
-    if (across < 22 && back > 0) return { key: 'astern', side: 0 };
-    if (across < 56 && rel.fwd < 40 && rel.fwd > -90) return { key: 'echelon', side };
-    if (across <= (ROUTE_SPANS.max + 2) * WINGSPAN_FT && rel.fwd < 60 && rel.fwd > -200) return { key: 'route', side }; // route is on the spinner-to-wingtip line, about 143 ft back (TS-103): out and back past the route band (Patrick 06:11Z)
+  if (range < N.closeRangeFt) {
+    if (across < N.astern.maxAcrossFt && back > 0) return { key: 'astern', side: 0 };
+    if (across < N.echelon.maxAcrossFt && rel.fwd < N.echelon.fwdFt[1] && rel.fwd > N.echelon.fwdFt[0]) return { key: 'echelon', side };
+    if (across <= (ROUTE_SPANS.max + N.route.extraSpans) * WINGSPAN_FT && rel.fwd < N.route.fwdFt[1] && rel.fwd > N.route.fwdFt[0]) return { key: 'route', side }; // route is on the spinner-to-wingtip line, about 143 ft back (TS-103)
   }
   return { key: 'other', side };
 }
