@@ -261,7 +261,7 @@ export function paintCoreAirfieldVector(ctx, { width = 2048, height = 2048, boun
   ctx.stroke?.();
 
   // 4. Runway Rendering Helper
-  function renderRunway({ p1, p2, widthFt = 150, num1, num2 }) {
+  function renderRunway({ p1, p2, widthFt = 150 }) {
     const rdx = p2.x - p1.x;
     const rdy = p2.y - p1.y;
     const rlen = Math.hypot(rdx, rdy);
@@ -272,26 +272,17 @@ export function paintCoreAirfieldVector(ctx, { width = 2048, height = 2048, boun
 
     const halfW = widthFt / 2;
 
-    // Asphalt runway slab
+    // The runway's four corners
     const c1 = [p1.x - halfW * rnX, p1.y - halfW * rnY];
     const c2 = [p1.x + halfW * rnX, p1.y + halfW * rnY];
     const c3 = [p2.x + halfW * rnX, p2.y + halfW * rnY];
     const c4 = [p2.x - halfW * rnX, p2.y - halfW * rnY];
 
     if (!overlayOnly) {
-      // Runway shoulders
-      const shoulderExtra = 25;
-      ctx.fillStyle = '#262b30';
-      ctx.beginPath?.();
-      ctx.moveTo?.(toPxX(p1.x - (halfW + shoulderExtra) * rnX), toPxY(p1.y - (halfW + shoulderExtra) * rnY));
-      ctx.lineTo?.(toPxX(p1.x + (halfW + shoulderExtra) * rnX), toPxY(p1.y + (halfW + shoulderExtra) * rnY));
-      ctx.lineTo?.(toPxX(p2.x + (halfW + shoulderExtra) * rnX), toPxY(p2.y + (halfW + shoulderExtra) * rnY));
-      ctx.lineTo?.(toPxX(p2.x - (halfW + shoulderExtra) * rnX), toPxY(p2.y - (halfW + shoulderExtra) * rnY));
-      ctx.closePath?.();
-      ctx.fill?.();
-
-      // Main dark asphalt runway surface
-      ctx.fillStyle = '#1e2226';
+      // The runway surface in the photo's own concrete colour (Esri's photo, 29L, 6 Oct), flat, so the stand-in that
+      // shows while the photo loads looks like the photo's runway (Patrick, 6 Oct 08:07Z; TR-107). Its paint is the
+      // sharp layer drawn over the photo (runway-markings.js, 29L/11R), not drawn here.
+      ctx.fillStyle = '#c6bca5';
       ctx.beginPath?.();
       ctx.moveTo?.(toPxX(c1[0]), toPxY(c1[1]));
       ctx.lineTo?.(toPxX(c2[0]), toPxY(c2[1]));
@@ -300,102 +291,6 @@ export function paintCoreAirfieldVector(ctx, { width = 2048, height = 2048, boun
       ctx.closePath?.();
       ctx.fill?.();
     }
-
-    // Threshold bars and white "piano keys" stripes
-    const drawThresholdPianoKeys = (tPoint, uVec, nVec) => {
-      // Threshold transverse bar (10 ft thick)
-      ctx.fillStyle = '#f0f6fc';
-      ctx.beginPath?.();
-      const b1 = [tPoint.x - (halfW - 5) * nVec.x, tPoint.y - (halfW - 5) * nVec.y];
-      const b2 = [tPoint.x + (halfW - 5) * nVec.x, tPoint.y + (halfW - 5) * nVec.y];
-      const b3 = [b2[0] + 12 * uVec.x, b2[1] + 12 * uVec.y];
-      const b4 = [b1[0] + 12 * uVec.x, b1[1] + 12 * uVec.y];
-      ctx.moveTo?.(toPxX(b1[0]), toPxY(b1[1]));
-      ctx.lineTo?.(toPxX(b2[0]), toPxY(b2[1]));
-      ctx.lineTo?.(toPxX(b3[0]), toPxY(b3[1]));
-      ctx.lineTo?.(toPxX(b4[0]), toPxY(b4[1]));
-      ctx.closePath?.();
-      ctx.fill?.();
-
-      // 8 longitudinal piano key stripes (each 100 ft long, 6 ft wide)
-      const numKeys = 8;
-      const stripeSpan = (widthFt - 40) / numKeys;
-      const stripeLen = 100;
-      for (let k = 0; k < numKeys; k++) {
-        const offsetN = -(halfW - 20) + k * stripeSpan + stripeSpan * 0.5;
-        const kStart = [tPoint.x + 25 * uVec.x + offsetN * nVec.x, tPoint.y + 25 * uVec.y + offsetN * nVec.y];
-        const kEnd = [kStart[0] + stripeLen * uVec.x, kStart[1] + stripeLen * uVec.y];
-        ctx.strokeStyle = '#f0f6fc';
-        ctx.lineWidth = Math.max(1.5, 6 * taxiScale);
-        ctx.beginPath?.();
-        ctx.moveTo?.(toPxX(kStart[0]), toPxY(kStart[1]));
-        ctx.lineTo?.(toPxX(kEnd[0]), toPxY(kEnd[1]));
-        ctx.stroke?.();
-      }
-    };
-
-    drawThresholdPianoKeys(p1, { x: ruX, y: ruY }, { x: rnX, y: rnY });
-    drawThresholdPianoKeys(p2, { x: -ruX, y: -ruY }, { x: rnX, y: rnY });
-
-    // Aiming point markers (1,000 ft from threshold, two broad blocks)
-    const drawAimingPoints = (tPoint, uVec, nVec) => {
-      ctx.fillStyle = '#f0f6fc';
-      for (const side of [-1, 1]) {
-        const ax = tPoint.x + 1000 * uVec.x + side * 35 * nVec.x;
-        const ay = tPoint.y + 1000 * uVec.y + side * 35 * nVec.y;
-        const ab1 = [ax - 12 * nVec.x, ay - 12 * nVec.y];
-        const ab2 = [ax + 12 * nVec.x, ay + 12 * nVec.y];
-        const ab3 = [ab2[0] + 140 * uVec.x, ab2[1] + 140 * uVec.y];
-        const ab4 = [ab1[0] + 140 * uVec.x, ab1[1] + 140 * uVec.y];
-        ctx.beginPath?.();
-        ctx.moveTo?.(toPxX(ab1[0]), toPxY(ab1[1]));
-        ctx.lineTo?.(toPxX(ab2[0]), toPxY(ab2[1]));
-        ctx.lineTo?.(toPxX(ab3[0]), toPxY(ab3[1]));
-        ctx.lineTo?.(toPxX(ab4[0]), toPxY(ab4[1]));
-        ctx.closePath?.();
-        ctx.fill?.();
-      }
-    };
-
-    drawAimingPoints(p1, { x: ruX, y: ruY }, { x: rnX, y: rnY });
-    drawAimingPoints(p2, { x: -ruX, y: -ruY }, { x: rnX, y: rnY });
-
-    // Dashed Centerline: 100 ft dashes, 50 ft gaps
-    ctx.strokeStyle = '#f0f6fc';
-    ctx.lineWidth = Math.max(1.5, 5 * taxiScale);
-    ctx.beginPath?.();
-    for (let s = 250; s <= rlen - 350; s += 150) {
-      const sx1 = p1.x + s * ruX;
-      const sy1 = p1.y + s * ruY;
-      const sx2 = p1.x + Math.min(s + 100, rlen - 250) * ruX;
-      const sy2 = p1.y + Math.min(s + 100, rlen - 250) * ruY;
-      ctx.moveTo?.(toPxX(sx1), toPxY(sy1));
-      ctx.lineTo?.(toPxX(sx2), toPxY(sy2));
-    }
-    ctx.stroke?.();
-
-    // Runway Designation Numbers
-    const drawRunwayNumber = (tPoint, uVec, label) => {
-      if (!label) return;
-      const numX = toPxX(tPoint.x + 360 * uVec.x);
-      const numY = toPxY(tPoint.y + 360 * uVec.y);
-      const targetX = toPxX(tPoint.x + 370 * uVec.x);
-      const targetY = toPxY(tPoint.y + 370 * uVec.y);
-      const rot = Math.atan2(targetY - numY, targetX - numX) + Math.PI / 2;
-
-      ctx.save?.();
-      ctx.translate?.(numX, numY);
-      ctx.rotate?.(rot);
-      ctx.fillStyle = '#f0f6fc';
-      ctx.font = 'bold 22px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText?.(label, 0, 0);
-      ctx.restore?.();
-    };
-
-    drawRunwayNumber(p1, { x: ruX, y: ruY }, num1);
-    drawRunwayNumber(p2, { x: -ruX, y: -ruY }, num2);
   }
 
   // Runway 29L / 11R: width 150 ft, centreline from the 29L threshold to the 11R threshold (airfield.js)
@@ -403,8 +298,6 @@ export function paintCoreAirfieldVector(ctx, { width = 2048, height = 2048, boun
     p1: { x: TH.x, y: TH.y },
     p2: { x: DEP.x, y: DEP.y },
     widthFt: RUNWAY_WIDTH_FT['29L'],
-    num1: '29L',
-    num2: '11R',
   });
 
   // Runway 29R / 11L on its measured thresholds (airfield.js; the old copy sat 1,000 ft north of 29L, about 800 ft
@@ -413,8 +306,6 @@ export function paintCoreAirfieldVector(ctx, { width = 2048, height = 2048, boun
     p1: THRESHOLD_29R,
     p2: DEPARTURE_END_29R,
     widthFt: RUNWAY_WIDTH_FT['29R'],
-    num1: '29R',
-    num2: '11L',
   });
 
   // Cross runway 03/21 on the NE-SW strip the photo shows (airfield.js; the old 04/22 copy sat about 1,500 ft west of it)
@@ -422,8 +313,6 @@ export function paintCoreAirfieldVector(ctx, { width = 2048, height = 2048, boun
     p1: RUNWAY_03,
     p2: RUNWAY_21,
     widthFt: RUNWAY_WIDTH_FT['03'],
-    num1: '03',
-    num2: '21',
   });
 }
 

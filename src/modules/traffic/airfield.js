@@ -52,8 +52,8 @@ export const DEPARTURE_END_29R = Object.freeze({ x: -3628, y: 2769 });
 export const RUNWAY_03 = Object.freeze({ x: 55, y: -1284 });
 export const RUNWAY_21 = Object.freeze({ x: 2175, y: 929 });
 
-/** Runway widths, ft: 29L 150 (the painted ground's figure, which the photo matches), 29R about 200, 03/21 about 100 (photo). Estimates. */
-export const RUNWAY_WIDTH_FT = Object.freeze({ '29L': 150, '29R': 200, '03': 100 });
+/** Runway widths, ft: 29L 150 (the painted ground's figure, which the photo matches), 29R about 150 (measured on Esri's photo, 6 Oct; was 200), 03/21 about 100 (photo). Estimates. */
+export const RUNWAY_WIDTH_FT = Object.freeze({ '29L': 150, '29R': 150, '03': 100 });
 
 /**
  * Runway 29L heading, degrees true: Patrick's CYMJ ground truth (D373, D378; TR-24), the same as the CAP chart's
