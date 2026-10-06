@@ -4,7 +4,7 @@
 
 **What it may touch:** nothing in the repo. It reads, and it may run small Node traces of single flights to check a mechanism (no test suites, no sweeps, no long runs). It writes one file: `/mnt/project-files/traffic-review/fable-report.md`. No edits, no commits, no branches.
 
-**Read first:** `AGENTS.md`, `docs/PLAN.md`, then `docs/modules/traffic/` (README, spec 4.5 for the PFL, decisions TR-39 to TR-53 and TR-75), `docs/modules/shared/flight-math.md` and `src/core/` (search for existing flight math before proposing any new formula). For background, also read the Formation Sim review's lessons: `/mnt/project-files/turn-sim-review/fable-compiled.md`, sections 1 and 5. The manuals are in `/mnt/project-files/manuals/`: cite pages only and never quote them. The CFAFM is not available and must not be used.
+**Read first:** `AGENTS.md`, `docs/PLAN.md`, then `docs/modules/traffic/` (README, spec 4.5 for the PFL, decisions TR-39 to TR-53 and TR-75), `docs/modules/shared/flight-math.md` and `src/core/` (search for existing flight math before proposing any new formula). For background, also read the Formation Sim review's lessons: `/mnt/project-files/turn-sim-review/fable-compiled.md`, sections 1 and 5. The manuals are in `/mnt/project-files/manuals/`: cite pages only and never quote them. The flight manual is not available and must not be used.
 
 **Code:** `src/modules/traffic/` on main. The PFL is `pfl.js` (about 1,040 lines), started from `sim.js`, with `high-key.js`, `ejection.js`, `weather.js` and the shared `src/core/t6-performance.js` glide numbers. The screens and 3D files are out of scope.
 

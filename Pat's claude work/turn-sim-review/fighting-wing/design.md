@@ -29,7 +29,7 @@ Pictures beside this file (all drawn by scripts in this folder, nothing installe
 | Position | #2 holds a 30 to 60° sweep from Lead at 500 to 1,000 ft | SMM 12.29 para 69, Fig 12.19; EFIG p.391 |
 | Sweep is measured | back from Lead's 3/9 line, so a 30° sweep is 60° off Lead's tail and a 60° sweep is 30° off the tail (read from Fig 12.19) | SMM Fig 12.19 |
 | Range | "work toward the near end of the range" | AFM7 brief p.14 |
-| [manual text left out; see the page cited] the opposite side | AFM7 brief p.14 |
+| Side | No. 2 sets the side; Nos. 3 and 4 fly the opposite side | AFM7 brief p.14 |
 | Visibility | other than turns, make sure Lead can see you | AFM7 brief p.14 |
 | After roll-out | sweep enough that Lead can manoeuvre aggressively into the wingman | EFIG p.391 |
 | When Lead manoeuvres | #2 is free to do what it takes to stay behind Lead and keep separation: collapse to Lead's six o'clock, flow to the other side, use the vertical, adjust power, or any mix. When it stops, #2 goes back to the swept position, not necessarily on the same side | SMM 12.29 para 69 |
@@ -51,8 +51,8 @@ Pictures beside this file (all drawn by scripts in this folder, nothing installe
 | Out of position at the start | use the first planned manoeuvre to get into the parameters | SMM 16.17 para 43 |
 | Restrictions | structural limits plus **5 G at all times**; never more than 90° of aspect together with more than 90° of HCA and low line of sight; a **500 ft bubble** at all times | SMM 16.17 para 44; Gen Book p.11 (500 ft bubble, lead +4 G, wingmen +5 G) |
 | Terminate | "TERMINATE" if a restriction is broken (all manoeuvring stops, each aircraft acknowledges); "TERMINATE FOR POSITION" if the wingman is outside the parameters and cannot regain them quickly (Lead then flies a predictable turn until "Cleared to manoeuvre") | SMM 16.17 paras 45 and 46 |
-| Wingover | entry about 230 KIAS; about 45° [manual text left out; see the page cited]° of bank, about 3 G; exits about 180° from the entry heading; then another wingover rolling the other way. Predictability is Lead's main job | SMM 16.17 para 47 |
-| Adjustments | pursuit may need changes to speed, G and bank, while respecting CFAFM limits | SMM 16.17 para 47 note |
+| Wingover | entry about 230 KIAS; about 45° of pitch above and below the horizon, up to 120° of bank, about 3 G; exits about 180° from the entry heading; then another wingover rolling the other way. Predictability is Lead's main job | SMM 16.17 para 47 |
+| Adjustments | pursuit may need changes to speed, G and bank, while respecting flight manual limits | SMM 16.17 para 47 note |
 | After the exercise | Lead flies a gentle turn while the wingman re-establishes FW spacing | AFM7 brief p.17 |
 | Orders | Lead not above +4 G in FW and FM and keeps positive G; two aircraft in FW/FM have no bank or pitch limits; more than three aircraft: no bank limit, 60° pitch maximum; minimum height for formation wingovers and aerobatics in FM 3,000 ft AGL | Orders B2 ch 8 pp.98-99 (page numbers read from the text extract, check against the PDF) |
 
@@ -64,19 +64,19 @@ Pictures beside this file (all drawn by scripts in this folder, nothing installe
 | Pure pursuit | nose on Lead; closure (less than lead pursuit); aspect goes up; line of sight zero | SMM 12.30 para 73 |
 | Lag pursuit | nose behind Lead; less closure, more separation, lower aspect | SMM 12.30 para 74 |
 | The aim | fly on, or around, Lead's turn circle; lead or lag as required to stay on it | SMM 12.30 para 74 |
-| Turn circle factors | radius (from true airspeed and G), [manual text left out; see the page cited] | SMM 16.16 para 39 |
+| Turn circle factors | radius (from true airspeed and G), flight path, plane of motion, lift vector, turn rate, total G | SMM 16.16 para 39 |
 | Plane of motion | a change from a level turn to a vertical or oblique manoeuvre can keep the radius but changes the plane, so the pursuer's flight path must change too | SMM 16.16 para 39c |
 | Aspect | angle from Lead's tail to the wingman, 0° directly behind, 180° in front of Lead | SMM 16.16 para 40b, Fig 16.9 |
 | HCA | difference between the two headings | SMM 16.16 para 40c, Fig 16.9 |
 | On the same turn circle | aspect = X, HCA about 2X, line of sight zero, closure zero | SMM Fig 16.10 |
 | Line of sight, closure | how fast Lead crosses the windscreen; how fast range changes; judged by how fast Lead's image grows | SMM 16.16 para 40d, e |
 | Inside / outside | lead pursuit uses bank and pitch to put the flight path ahead of Lead, inside its circle; lag puts it behind Lead, outside the circle. Once in position, keep range by following Lead's flight path | EFIG p.391 |
-| When Lead is aggressive | [manual text left out; see the page cited] | EFIG p.391 |
+| When Lead is aggressive | "go to where Lead was and do what Lead did" | EFIG p.391 |
 | Lift vector | shows where the aircraft will go; place it on the point you want | SMM 16.16 para 39e |
 
 **High plane and low plane.** The manuals I read do not use these words. They say only "utilizing the vertical" (SMM 12.29 para 69) and that pursuit must follow a changed plane of motion (SMM 16.16 para 39c). What I build is standard fighter technique and is an **estimate to confirm with Dad**: a wingman too close in a turn goes above Lead's plane (a lag move that turns speed into height and cuts closure); a wingman too far back goes below it (a lead-pursuit move that gains speed). The controller does this by itself because its aim point has a height part (section 5.2); there is no separate "yo-yo" mode.
 
-**Four aircraft (not in this design).** [manual text left out; see the page cited] (AFM7 brief p.14); No. 3 must stay clear of No. 2 (p.14). Offset box via fluid 4: No. 3 diverges to wide line abreast (6,000 ft), Nos. 2 and 4 hold fighting wing on the outside (AFM8 brief pp.20-22). The controller below takes "the aircraft I miss" as an input so a four-ship can reuse it.
+**Four aircraft (not in this design).** "Four misses three, who misses two, who misses lead" (AFM7 brief p.14); No. 3 must stay clear of No. 2 (p.14). Offset box via fluid 4: No. 3 diverges to wide line abreast (6,000 ft), Nos. 2 and 4 hold fighting wing on the outside (AFM8 brief pp.20-22). The controller below takes "the aircraft I miss" as an input so a four-ship can reuse it.
 
 ## 3. How the wingman stays in the cone (the rules the controller follows)
 
@@ -110,7 +110,7 @@ The current Turn Sim flies fixed paths worked out at the button press (TS-36, Pa
 
 **Recommendation: (c).** It keeps Lead predictable and previewable as today, gives the wingman the problem the exercise is about, and uses one flight model so energy is honest. Because it changes TS-36 for the wingman it needs Patrick's yes (Q2). A cheaper stepping stone inside (c): build and prove the wingman controller on Lead's level turns, reversals and climbs first (the toy suggests it works there), then add the three-dimensional Lead scripts.
 
-**What the wingman must not know.** It reacts to Lead's present state (position, velocity, bank, turn rate), not to Lead's planned path. A pilot reacts to what he sees: [manual text left out; see the page cited] (SMM 16.17 para 42). The only advance warning is what Lead calls and shows: "standby", the 30° bank stage in FM entry (AFM7 p.17), and [manual text left out; see the page cited] (SMM 12.31 para 75). The sim can show these as a short on-screen cue before the manoeuvre starts (about 2 s, estimate).
+**What the wingman must not know.** It reacts to Lead's present state (position, velocity, bank, turn rate), not to Lead's planned path. A pilot reacts to what he sees: "the wingman is expected to react to the preceding aircraft" (SMM 16.17 para 42). The only advance warning is what Lead calls and shows: "standby", the 30° bank stage in FM entry (AFM7 p.17), and "significant power changes should be prefaced with the power reduction signal" (SMM 12.31 para 75). The sim can show these as a short on-screen cue before the manoeuvre starts (about 2 s, estimate).
 
 ## 5. The design
 
@@ -236,7 +236,7 @@ What I own: Lead's manoeuvres in FW and FM, the wingman controller, the FW to FM
 
 What the other agent owns, and the facts I found for them:
 
-- LAB to FW and back: check turns over 30° and in-place turns [manual text left out; see the page cited] (SMM 16.19 para 58). Rejoins from LAB go to fighting wing first, on the same side the wingman left; the call is "BLACKS ... FIGHTING WING" or one wing rock (SMM 16.20 para 65; turning rejoin: lead holds 30° bank and a briefed speed).
+- LAB to FW and back: check turns over 30° and in-place turns "transition from LAB to fighting wing formation or vice-versa" (SMM 16.19 para 58). Rejoins from LAB go to fighting wing first, on the same side the wingman left; the call is "BLACKS ... FIGHTING WING" or one wing rock (SMM 16.20 para 65; turning rejoin: lead holds 30° bank and a briefed speed).
 - FW to echelon: a straight-ahead rejoin or closing through route, level or slightly below Lead (SMM 16.15 para 38).
 - Echelon to FW: wingman keeps visual separation through the transition (EFIG p.390).
 - Four-ship: Spread 4 from FW and back (AFM7 pp.13, 17), offset box via fluid 4 (AFM8 pp.20-22).

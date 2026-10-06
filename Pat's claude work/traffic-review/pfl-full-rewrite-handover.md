@@ -79,4 +79,3 @@ These apply whatever structure is used:
 - The AGENTS.md testing lines.
 - Every number has a manual page or Patrick's ruling.
 - Manual text never goes in the repo.
-- The CFAFM is never used.

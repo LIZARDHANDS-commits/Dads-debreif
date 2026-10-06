@@ -1,6 +1,5 @@
 # Traffic Sim: automatic deconfliction (design on paper)
 
-Written 4 Oct 2026 for Patrick. Paper only: nothing in the repo was changed, nothing was built, no test was run. Code read at `e1111bb` (main with the Turn Fight split, #271, in it). Manual references are page or paragraph only, never manual text: "SMM 4.28 para 67" is the section and paragraph the way `manuals/README.md` cites them, with the split-PDF page where it helps ("part 2 p.26"). "WFO" is the 15 Wing Flying Orders AL 6.2. The CFAFM was not opened.
 
 ---
 

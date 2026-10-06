@@ -1,6 +1,5 @@
 # Four-ship moves, as the manuals describe them (for Patrick to ratify)
 
-Draft of 5 Oct 2026. Read-only research: nothing here is built or decided. Background is `design.md` in this folder (sections 3, 5, 6); where it records a ruling by Patrick I keep it and say so. Page references only, never manual text. SMM = Standard Manoeuvre Manual ch.16 (cited by section and paragraph); AFM7 and AFM8 = the March 2025 Four Plane briefs (cited by PDF page); Fig = SMM figure. I looked at SMM Figs 16.27, 16.29-16.35 and the brief pictures on AFM7 pp.14, 19, 20 and AFM8 pp.14, 20-22. The CFAFM was not looked for. The Orders (B2 ch 8) were not re-read; design.md finding 8 holds their limits.
 
 **Words:** "Lead's frame" means left and right as Lead sees it. Speeds are KIAS. "Estimate" or "inferred" means the manual does not say; it is my reading, nothing more. **Directness tags:** DIRECT = the manual describes this move; IMPLIED = a manual gives it for the reverse, or for two aircraft, or says only "as in two-plane"; NOT IN MANUALS = no source at all.
 
@@ -75,7 +74,7 @@ Rows: where the four are. Columns: what Lead calls. Cell = the move number from 
 
 - Agrees: the formation table, M1-M9, M10-M11 gating, M13 (#3 waits for #4), M16/M22, M18-M19, the finger-left layout (#3 and #4 on Lead's left; checked on Fig 16.27), the offset box slot (checked on Fig 16.30 and AFM8 pp.21-22), the "#3/#4 opposite #2" fighting wing sides (checked on Fig 16.29 and AFM7 p.14).
 - Patrick's rulings kept (design.md "Patrick's answers" and section 3): two buttons, Fluid 4 and Fluid manoeuvring (4 Oct 11:43Z); fighting wing slots #2 at 45 degrees, #3 and #4 at 30 degrees, all 650 ft, #3 and #4 opposite #2, estimates until Dad answers (11:44Z); 200 KIAS outside line abreast (11:08Z); build planned moves first, live fighting wing last (11:44Z); offset box trail 7,000 ft plus or minus 1,000 (ruled earlier; follows the text of SMM 16.41 para 109 over the 8,000-12,000 ft arrow on Fig 16.30 and AFM8 pp.21-22).
-- My additions: design.md has no mention of the SMM's wording that #3 and #4 "alternate" on the side opposite #2 (SMM 16.38 para 104) next to the AFM7 [manual text left out; see the page cited] (p.14 item 4); I read them as the same. Design.md R2 treats the Spread 4 turning rejoin as a manual move; the manuals only say "same as two-plane" (SMM 16.34 para 94), so I tag it IMPLIED.
+- My additions: design.md has no mention of the SMM's wording that #3 and #4 "alternate" on the side opposite #2 (SMM 16.38 para 104) next to the AFM7 "No. 2 sets the side, Nos. 3 and 4 fly opposite side" (p.14 item 4); I read them as the same. Design.md R2 treats the Spread 4 turning rejoin as a manual move; the manuals only say "same as two-plane" (SMM 16.34 para 94), so I tag it IMPLIED.
 - Small slips in the sources, noted not raised: the Fig 16.34 left-turn note says "turn to the Right" under a "90 LEFT" call; the SMM 16.41 para 112 delayed-turn text and Figs 16.30-16.32 give no start point for the 10-15 s.
 
 ## 6. Questions for Patrick
