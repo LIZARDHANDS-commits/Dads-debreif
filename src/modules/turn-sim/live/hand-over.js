@@ -215,15 +215,17 @@ export function lineRunIn({ wing, leadRec, points, finalSlot, blockFt = 8000, cr
  * with the turn (withNext); s: the way he turns (toward #2); record: transitions.js recordFlight (passed in, so this file
  * needs no import of it). Returns { longRec, planTo }: longRec, the turn held on (four near-half circles, for planning);
  * planTo(step), his real plan, rolling out on the whole degree once he has turned what longRec turned by that step
- * ({ segments, turned, rec }): trackTail's leadPlanFor.
+ * ({ segments, turned, rec }): trackTail's leadPlanFor. rollOutRoll: a gentler roll-out (a close wingman in his wing plane).
  */
 export function leadTurnInto({ lead, pre = [], s, bankDeg, t0, record }) {
   const h0 = lead.headingRad;
   const longRec = record(lead, { segments: [...pre, ...leadTurnSegs(h0, s, 4 * 170 * DEG, bankDeg, false)] }, t0);
-  const planTo = (inStep) => {
+  const planTo = (inStep, rollOutRoll = null) => {
     let turned = 0;
     for (let i = 1; i <= inStep; i++) turned += wrapPi(longRec.at(i).headingRad - longRec.at(i - 1).headingRad) * s;
-    const segments = [...pre, ...leadTurnSegs(h0, s, Math.round(turned / DEG) * DEG, bankDeg, true)];
+    const segs = leadTurnSegs(h0, s, Math.round(turned / DEG) * DEG, bankDeg, true);
+    if (rollOutRoll) segs[segs.length - 1] = { ...segs[segs.length - 1], rollOutRoll };
+    const segments = [...pre, ...segs];
     return { segments, turned, rec: record(lead, { segments }, t0) };
   };
   return { longRec, planTo };

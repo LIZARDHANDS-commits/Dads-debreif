@@ -65,6 +65,8 @@ export const TURNING_REJOIN = Object.freeze({
   captureFt: 150, // he is on the line within this many feet of it; only then does he start taking out the overtake for the decision point (estimate)
   lineTauSec: 4, // his heading comes onto the one the line asks over about this long, so the bank changes smoothly (estimate)
   diveGs: Object.freeze([2, 1]), // line first (Patrick 6 Oct 06:14Z: "a deeper roll, harder pull, steper dive ... get to leads altitude faster"; TS-124): from above, his height comes off over the shortest smooth leg whose push and pull stay within this many g of level flight, the first that costs no more than diveSlackSec (estimates)
+  planeEaseSec: 4, // from the move over, #2's height eases into Lead's wing plane over at least this long (TS-126; estimate)
+  planeEaseG: 0.3, // ...and longer where the step is big, so the ease asks no more than this many g off level flight (TS-126; estimate)
   diveSlackSec: 8, // a dive that brings him in no more than this much later than the steady descent is flown (estimate)
   heightSec: 10, // #2 settles slightly low on the line over this long, or over his part to the decision point if shorter (estimate)
   // The vertical as a candidate (Patrick 5 Oct 17:44Z "we can use the vertical too", 19:51Z "if it scores high enough"; TS-82):
