@@ -165,7 +165,6 @@ The one list. Each line is a question; the working answer applies until he says 
 - [ ] **Formation bank in rejoins and station moves (TS-107):** confirm the wording of TS-107 (no bank cap on rejoins or moves around a station; Change position climbs while it moves) and fly V2.116.
 - [ ] **Formation power and boards (TS-108):** confirm the wording of TS-108 (power in 0.2 s, instant boards, 5% torque floor on rejoins, drawn bank follows the lift vector) and fly V2.119.
 - [ ] **Formation side switch (TS-102):** fly V2.102's side switch, which now holds spacing geometry first, then power; say if the overtake after the switch still looks wrong.
-- [ ] **Formation far-side fighting wing rejoin:** #2 ends about 400 ft behind Lead; say whether that is right.
 - [ ] **Formation Sim speed brake:** your deceleration number, if you have one. Until then V2.20 uses an estimate, a perforated plate of about 5 sq ft (TS-61, [Turn Sim decisions](modules/turn-sim/decisions.md)).
 - [ ] **DB-Q4:** no smoothing of the estimated G (D219) or a 3-point median filter (D383); neither is built (`pf/reset/1-requirements/questions.md:17`, `docs/modules/debrief/plan.md:37`).
 - [ ] **The two PC-only reports** (Turn Sim and Turn Fight architecture reports): where in the repo their content lands (`pf/reset/2-inventory/file-register.md:194`).
