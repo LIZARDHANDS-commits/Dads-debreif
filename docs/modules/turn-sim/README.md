@@ -70,7 +70,8 @@ The flying core, `src/modules/turn-sim/live/` (each file's header says its job):
 | `turning-rejoin.js`, `straight-rejoin.js`, `echelon-to-fw.js`, `open-out.js`, `lag-roll.js` | The planners the chooser tries |
 | `kinematic.js`, `kinematic-moves.js`, `line-moves.js`, `hand-over.js`, `tracker.js` | Lines, hand-overs and the tracker |
 | `fluid.js`, `fluid-lead.js`, `fluid-wing.js` | Fluid manoeuvring |
-| `four-ship.js`, `four-ship-moves.js`, `four-ship-card.js`, `g-warm.js` | The 4-ship, to be rebuilt in refactor PRs 6 to 8 |
+| `four-ship.js`, `four-ship-card.js`, `g-warm.js` | The 4-ship's screen pieces |
+| `four-plan.js`, `four-legs.js`, `four-close.js`, `four-rejoin.js`, `four-open.js` | The 4-ship's moves on the 2-ship's planners (refactor PRs 6 to 8): the from-to graph, the legs, close moves, rejoins, opening out |
 | `errors.js` | Training errors and the Smart wingman (TS-52, TS-96) |
 
 Files not named here (`attitude.js`, `full-power.js`, `power.js`, `slow-down.js`, `formation-turns.js`, `manoeuvres.js`, `transitions.js`) are flight helpers and move builders; read the header of the one you need.

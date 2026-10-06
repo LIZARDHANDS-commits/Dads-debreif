@@ -8,15 +8,15 @@
 // another, the fewest that get there (MOVES' rough seconds pick the route; estimates).
 //
 // Sources for each move are in the file that flies it: four-close.js (finger, echelon, box, line astern, route, and out of
-// them to fighting wing) and four-rejoin.js (the turning and straight-ahead rejoins, V2.98). Opening out to Spread 4, Fluid
-// 4 and the offset box still fly the V2.96 code in four-ship-moves.js until refactor PR 8 rebuilds them.
+// them to fighting wing), four-rejoin.js (the turning and straight-ahead rejoins, V2.99) and four-open.js (opening out to
+// Spread 4, Fluid 4 and the offset box, V2.100).
 import { copyAircraft, planDone } from './flight.js';
 import { classify, judge } from './judge.js';
 import { FOUR_FORMATIONS, refsFor, fourWords } from './slots.js';
 import { FOUR_CHANGE_LIMIT_SEC, statesAt, joinLegs } from './four-legs.js';
 import { fingerToEchelon, echelonToFinger, fingerBox, fingerTrail, slideTo, openToFw } from './four-close.js';
 import { rejoinToFw, turningToFinger, closeFromFw, straightToEchelon } from './four-rejoin.js';
-import { LEGACY } from './four-ship-moves.js';
+import { entryToSpread, fwFluid, fluidToBox } from './four-open.js';
 
 export { FOUR_CHANGE_LIMIT_SEC };
 
@@ -44,12 +44,12 @@ const MOVES = [
   { from: 'fw', to: 'finger', m: 'M10/M11', cost: 70, sides: 'same', fly: (st, t, o, s) => (o.rejoin === 'straight' ? { ...closeFromFw(st, t, o, s, 'finger'), how: 'straight-ahead rejoin to finger, through route' } : turningToFinger(st, t, o, s, 'fw')), how: 'turning rejoin to finger' },
   { from: 'spread4', to: 'finger', m: 'M11 (Q5)', cost: 150, sides: 'same', fly: (st, t, o, s) => turningToFinger(st, t, o, s, 'spread4'), how: 'turning rejoin to finger' },
   { from: 'fw', to: 'echelon', m: 'M10', cost: 90, sides: 'any', fly: (st, t, o, s, sTo) => straightToEchelon(st, t, o, sTo), how: 'straight-ahead rejoin to echelon' },
-  // still V2.96's (four-ship-moves.js), until refactor PR 8
-  { from: 'fw', to: 'spread4', m: 'M13', cost: 90, sides: 'same', fly: (st, t, o, s) => LEGACY.entryToSpread(st, t, o, s, false), how: 'entry to Spread 4' },
-  { from: 'finger', to: 'spread4', m: 'M13', cost: 90, sides: 'same', fly: (st, t, o, s) => LEGACY.entryToSpread(st, t, o, s, true), how: 'open out to Spread 4' },
-  { from: 'fw', to: 'fluid4', m: 'M18', cost: 60, sides: 'same', fly: (st, t, o, s) => LEGACY.fwFluid(st, t, o, s, true), how: '"Fluid 4, go"' },
-  { from: 'fluid4', to: 'fw', m: 'not in the manuals', cost: 60, sides: 'same', fly: (st, t, o, s) => LEGACY.fwFluid(st, t, o, s, false), how: 'back to fighting wing' },
-  { from: 'fluid4', to: 'offsetBox', m: 'M19', cost: 120, sides: 'same', fly: (st, t, o, s) => LEGACY.fluidToBox(st, t, o, s), how: 'in place 90, then spread to the box' },
+  // opening out (four-open.js)
+  { from: 'fw', to: 'spread4', m: 'M13', cost: 90, sides: 'same', fly: (st, t, o, s) => entryToSpread(st, t, o, s, false), how: 'entry to Spread 4' },
+  { from: 'finger', to: 'spread4', m: 'M13', cost: 90, sides: 'same', fly: (st, t, o, s) => entryToSpread(st, t, o, s, true), how: 'open out to Spread 4' },
+  { from: 'fw', to: 'fluid4', m: 'M18', cost: 60, sides: 'same', fly: (st, t, o, s) => fwFluid(st, t, o, s, true), how: '"Fluid 4, go"' },
+  { from: 'fluid4', to: 'fw', m: 'not in the manuals', cost: 60, sides: 'same', fly: (st, t, o, s) => fwFluid(st, t, o, s, false), how: 'back to fighting wing' },
+  { from: 'fluid4', to: 'offsetBox', m: 'M19', cost: 120, sides: 'same', fly: (st, t, o, s) => fluidToBox(st, t, o, s), how: 'in place 90, then spread to the box' },
 ];
 
 /** The fewest-seconds route from (key, side) to (to, sTo) through MOVES: [{ move, s, sTo }…], or null. */
