@@ -1,0 +1,115 @@
+=== B. PFL on inner downwind, abeam threshold, 3500/140 hdg 118 ===  wind 360/0
+  gate 2100: ok=true off 0 deg kias 120 flags []
+  touchdown: 1816 ft along, 120 KIAS, path angle at touchdown 9.0 deg, cross 27 ft
+  min KIAS 119  max G(bank) 2.01  notes: widened at 3410 ft
+=== B2. same, wind 269/15 ===  wind 269/15
+  gate 2100: ok=true off 0 deg kias 120 flags []
+  touchdown: 2037 ft along, 120 KIAS, path angle at touchdown 8.9 deg, cross 22 ft
+  min KIAS 119  max G(bank) 2.01  notes: 
+=== C. PFL at the perch 3500/120 hdg 118 ===  wind 360/0
+  gate 2100: ok=true off 8 deg kias 119 flags [no T/O flap]
+  touchdown: 2379 ft along, 120 KIAS, path angle at touchdown 8.4 deg, cross 51 ft
+  min KIAS 114  max G(bank) 2.00  notes: apex: changed to Join circle | went direct at 3336 ft
+=== D. PFL mid final turn (hdg 208, 2,900 ft, 120, bank 35) ===  wind 360/0
+  eject at alt 2383 (-4784 along, -3463 cross from threshold)
+  min KIAS 119  max G(bank) 2.00  notes: short of the runway at 2384 ft
+=== D2. PFL late final turn (hdg 250, 2,500 ft, 120, bank 35) ===  wind 360/0
+  eject at alt 2349 (-5065 along, -1769 cross from threshold)
+  min KIAS 119  max G(bank) 2.00  notes: short of the runway at 2353 ft
+=== E. PFL on initial 1 NM short of threshold, 3500/220 hdg 298 ===  wind 360/0
+  gate 2100: ok=true off 5 deg kias 120 flags []
+  touchdown: 1150 ft along, 120 KIAS, path angle at touchdown -90.0 deg, cross 50 ft
+  min KIAS 116  max G(bank) 1.66  notes: 
+=== E2. PFL in the break (hdg 240, 3500/190, bank -60) 2000 ft past thr ===  wind 360/0
+  gate 2100: ok=true off 5 deg kias 120 flags []
+  touchdown: 1182 ft along, 120 KIAS, path angle at touchdown 8.2 deg, cross 48 ft
+  min KIAS 111  max G(bank) 2.00  notes: 
+=== F. PFL on the outer downwind (abeam dep end) 3500/220 hdg 118 ===  wind 360/0
+  gate 2100: ok=true off 2 deg kias 120 flags []
+  touchdown: 2435 ft along, 120 KIAS, path angle at touchdown 0.5 deg, cross 6 ft
+  min KIAS 114  max G(bank) 2.01  notes: gear early before the join at 4636 ft | widened at 3613 ft | widened at 3404 ft
+=== F2. same in 269/15 ===  wind 269/15
+  gate 2100: ok=true off 2 deg kias 120 flags []
+  touchdown: 3142 ft along, 120 KIAS, path angle at touchdown -90.0 deg, cross -1 ft
+  min KIAS 114  max G(bank) 2.00  notes: gear early before the join at 4587 ft | widened at 3722 ft
+=== G. High Key button at 5,500 ft (practice) ===  wind 360/0
+  gate 2100: ok=true off 5 deg kias 120 flags []
+  touchdown: 1188 ft along, 120 KIAS, path angle at touchdown -90.0 deg, cross 48 ft
+  min KIAS 119  max G(bank) 1.13  notes: gear early before the join at 5500 ft
+=== G2. High Key at 6,500 ft (practice, above window) ===  wind 360/0
+  gate 2100: ok=true off 5 deg kias 120 flags []
+  touchdown: 1198 ft along, 120 KIAS, path angle at touchdown -90.0 deg, cross 48 ft
+  min KIAS 119  max G(bank) 1.14  notes: gear early: an orbit would end below the High Key window
+=== G3. High Key at 5,900 ft (practice, top of window) ===  wind 360/0
+  gate 2100: ok=true off 5 deg kias 120 flags []
+  touchdown: 1223 ft along, 120 KIAS, path angle at touchdown 6.6 deg, cross 47 ft
+  min KIAS 119  max G(bank) 1.13  notes: gear early before the join at 5900 ft
+=== G4. Low Key start, 3,700, hdg 118 (spec test case) ===  wind 360/0
+  gate 2100: ok=true off 6 deg kias 120 flags []
+  touchdown: 1115 ft along, 120 KIAS, path angle at touchdown 7.9 deg, cross 51 ft
+  min KIAS 119  max G(bank) 1.23  notes: gear early before the join at 3700 ft
+=== G5. Low Key start 3,700 in 20 kt from 208 ===  wind 208/20
+  gate 2100: ok=true off 1 deg kias 120 flags []
+  touchdown: 2196 ft along, 120 KIAS, path angle at touchdown 5.7 deg, cross 19 ft
+  min KIAS 119  max G(bank) 1.75  notes: gear early before the join at 3700 ft | widened at 3277 ft
+=== G6. Low Key start high: 4,300 ft ===  wind 360/0
+  gate 2100: ok=true off 1 deg kias 120 flags []
+  touchdown: 2008 ft along, 120 KIAS, path angle at touchdown 6.6 deg, cross 17 ft
+  min KIAS 119  max G(bank) 2.00  notes: gear early before the join at 4300 ft | widened at 4180 ft | widened at 3736 ft
+=== H. Area PFL 3 NM, 10,000 ft from 120 ===  wind 360/0
+  gate 2100: ok=false off 97 deg kias 120 flags [bank over 45°]
+  touchdown: 5195 ft along, 120 KIAS, path angle at touchdown 14.4 deg, cross -18 ft
+  min KIAS 119  max G(bank) 2.01  notes: gear early before the join at 10000 ft | went direct at 5506 ft
+=== H2. Pattern PFL high: inner downwind 4,600 ft 140 kt (after a go-around climb) ===  wind 360/0
+  gate 2100: ok=false off 65 deg kias 119 flags [bank over 45°]
+  eject at alt 1880 (5069 along, -1182 cross from threshold)
+  min KIAS 119  max G(bank) 2.01  notes: gear early before the join at 4599 ft | widened at 4205 ft | went direct at 3895 ft
+=== I. Area PFL 8 NM 5,000 ft (too far) ===  wind 360/0
+  eject at alt 3700 (-28488 along, -76 cross from threshold)
+  min KIAS 124  max G(bank) 1.00  notes: short of the runway at 5000 ft | apex: changed to Eject
+=== I2. Area PFL 3 NM south 3,000 ft heading north (toward LK) ===  wind 360/0
+  eject at alt 2380 (19 along, -5814 cross from threshold)
+  min KIAS 124  max G(bank) 1.00  notes: short of the runway at 2381 ft
+=== I3. PFL on final 2 NM out 2,500 ft 120 kt ===  wind 360/0
+  eject at alt 2381 (-11069 along, 0 cross from threshold)
+  min KIAS 120  max G(bank) 1.00  notes: short of the runway at 2500 ft | obviously short at 2500 ft | apex: changed to Eject
+=== I4. PFL 2 NM east of threshold heading away (hdg 118) 3,500 ft 140 ===  wind 360/0
+  gate 2100: ok=true off 1 deg kias 120 flags []
+  touchdown: 1200 ft along, 120 KIAS, path angle at touchdown 5.3 deg, cross -14 ft
+  min KIAS 120  max G(bank) 2.01  notes: 
+=== I5. Area 6 NM 8000 in 30 kt headwind-ish (wind 299/30) ===  wind 299/30
+  gate 2100: ok=true off 3 deg kias 120 flags []
+  touchdown: 1225 ft along, 120 KIAS, path angle at touchdown 8.8 deg, cross 33 ft
+  min KIAS 120  max G(bank) 1.40  notes: 
+=== T. area PFL 120/6/8000, standard day ===  wind 269/15
+  gate 2100: ok=true off 5 deg kias 120 flags []
+  touchdown: 1167 ft along, 120 KIAS, path angle at touchdown -90.0 deg, cross 48 ft
+  min KIAS 120  max G(bank) 1.12  notes: gear early before the join at 5119 ft
+=== T. area PFL 120/6/8000, hot 30C ===  wind 269/15 temp 30C
+  gate 2100: ok=true off 6 deg kias 120 flags []
+  touchdown: 1192 ft along, 120 KIAS, path angle at touchdown 6.5 deg, cross 53 ft
+  min KIAS 120  max G(bank) 1.13  notes: gear early before the join at 6280 ft
+=== T. area PFL 120/6/8000, cold -30C ===  wind 269/15 temp -30C
+  gate 2100: ok=true off 3 deg kias 120 flags []
+  touchdown: 1217 ft along, 120 KIAS, path angle at touchdown 4.4 deg, cross 33 ft
+  min KIAS 120  max G(bank) 1.40  notes: 
+=== T. Low Key start std ===  wind 360/0
+  gate 2100: ok=true off 6 deg kias 120 flags []
+  touchdown: 1115 ft along, 120 KIAS, path angle at touchdown 7.9 deg, cross 51 ft
+  min KIAS 119  max G(bank) 1.23  notes: gear early before the join at 3700 ft
+=== T. Low Key start cold -30C ===  wind 360/0 temp -30C
+  gate 2100: ok=true off 3 deg kias 120 flags []
+  touchdown: 1180 ft along, 120 KIAS, path angle at touchdown 5.9 deg, cross 36 ft
+  min KIAS 120  max G(bank) 1.45  notes: 
+=== T. Low Key start hot 30C ===  wind 360/0 temp 30C
+  gate 2100: ok=true off 2 deg kias 120 flags []
+  touchdown: 1559 ft along, 120 KIAS, path angle at touchdown 4.2 deg, cross 37 ft
+  min KIAS 119  max G(bank) 1.24  notes: gear early before the join at 3700 ft | widened at 3584 ft
+=== A. Busy circuit area PFL (120°, 6 NM, 8,000 ft) ===  wind 269/15
+  gate 2100: ok=true off 5 deg kias 120 flags []
+  touchdown: 1167 ft along, 120 KIAS, path angle at touchdown -90.0 deg, cross 48 ft
+  min KIAS 120  max G(bank) 1.12  notes: gear early before the join at 5119 ft
+=== A2. same, calm ===  wind 360/0
+  gate 2100: ok=true off 5 deg kias 120 flags []
+  touchdown: 1210 ft along, 120 KIAS, path angle at touchdown 4.9 deg, cross 47 ft
+  min KIAS 120  max G(bank) 1.13  notes: gear early before the join at 6765 ft

@@ -1,0 +1,94 @@
+# Offset box: how the four get into it, what they can do from it, and how we model it
+
+Review for Patrick, 6 Oct 2026 (asked 05:39Z). Read-only research: nothing here is built or decided, no repo file was touched, no test was run. Page references only, no manual text or pictures. SMM = Standard Manoeuvre Manual ch. 16 (section and paragraph); AFM8 = the March 2025 Four Plane Brief, 8th edition (PDF page, checked against the PDF); Fig = SMM figure. The CFAFM was not used. Repo paths are from `src/modules/turn-sim/live/` unless a full path is given. Where a number is my reading and not a manual's or Patrick's, it says "estimate".
+
+**Words.** "Box side" = the side #2 is on (the sim names the box by #2's side, `slots.js:276`, `fourWords`). "Element" = a pair: Lead and #2 are the front element, #3 and #4 the rear element. "Trail" = how far the rear element sits behind the front one. "Stack" = the altitude steps (AFM8 p.14: #2 +300 ft, Lead 0, #3 -300, #4 -600).
+
+**Short answer.** The manuals give exactly one way into the offset box that has steps (fighting wing, then "Fluid 4, go", then "offset box, in place 90"). We have that, plus a way out (turning rejoin to fighting wing). We chain everything else through fighting wing. The big gap is in the box itself: **we have no manoeuvres at all from the offset box** (no turns, no hook, no shackle, no check turn). The buttons are switched off there and a press is refused.
+
+---
+
+## 1. Entries into the offset box
+
+| # | Entry (plain words) | What the manuals say (paraphrase) | How our code does it now |
+|---|---|---|---|
+| E1 | **Fighting wing to Fluid 4 to offset box, the one the brief teaches.** Lead calls "Fluid 4, go". Then "for offset box right (or left), in place 90". | **Fluid 4 go:** from fighting wing, #3 moves out to a wide line abreast on Lead, about 6,000 ft; #2 and #4 stay in fighting wing on the outside; the stack goes on once in position (AFM8 p.20). **In place 90 call:** both elements turn in place in fighting wing to the new heading; once steady on it, the elements spread to line abreast; #3 calls "IN" when the rear element is ready to manoeuvre (AFM8 p.21 right box, p.22 left box). The pictures end with the rear element in trail behind the front, #3 in the gap, #4 outside #2 (design.md F9; not re-viewed here). | **Two moves, `four-plan.js:51` then `:53`.** (a) `fwFluid` (`four-open.js:122`): Lead flies straight at 200 KIAS, #3 opens out to line abreast on Lead at the Spacing setting (default 5,000 ft, `formation.js:33`, not the brief's 6,000 ft), #2 and #4 stay in the fighting wing cone on the outside, stack goes on. (b) `fluidToBox` (`four-open.js:153`): leg 1, Lead turns 90 toward #2's side at 60 deg bank (`TURN_BANK_DEG`); #2 and #4 fly fighting wing off their leaders through the turn; #3 holds his place in Lead's frame. This leaves the pairs in trail. Leg 2, Lead speeds to 220 KIAS and all three wingmen open out to the box slots (#3 sinks back at a set rate to reach 7,000 ft behind Lead). "IN" is not modelled (no call). |
+| E2 | **Finger to offset box** ("VENOMS, OFFSET BOX EAST/WEST" from finger). | Offset box can be set up from fighting wing or from finger; on the call the element leaders start "as briefed" and #3 manoeuvres to the briefed spacing on the front element (SMM 16.41 para 110). No steps, no speeds. | **Not a direct move.** `routeFour` (`four-plan.js:57`) finds the cheapest chain: finger to fighting wing (M9 drop back, `:39`) then E1. The card names every leg. Estimated about 60 + 60 + 120 s, a pick-a-route estimate only (`four-plan.js` costs). |
+| E3 | **Fighting wing to offset box on the SMM call alone** (skipping Fluid 4). | Same para 110: from fighting wing, on the call, leaders go "as briefed". | **Not built** (spec.md:413, "not built"). A press of Offset box from fighting wing flies E1 (Fluid 4 first). Whether the Fluid 4 stop is flown or only passed through is not shown: it is two flown moves. |
+| E4 | **Spread 4 to offset box.** | Not described. The brief's air plan lists Spread 4 and the offset box as separate exercises and joins them only through fighting wing (AFM8 p.13 air plan; Spread 4 returns to fighting wing by turning rejoin, AFM8 p.19). | **Composed route, not a manual move:** Spread 4 to fighting wing (turning rejoin, M16, `four-plan.js:41`), then E1. About 150 + 60 + 120 s estimated, so over five minutes of flying; the plan limit is 8 minutes (`four-legs.js:28`). |
+| E5 | **Any other close formation (echelon, box, line astern, route) to offset box.** | Not described. | **Composed route** through fighting wing (M9 drop back, `four-plan.js:39`) then E1. |
+| E6 | **From "no formation"** (for example a column after an in-place turn). | Not described. | `rejoinToFw` from 'other' (`four-plan.js:43`) then E1. |
+| E7 | **Start the sim already in the offset box** (set-up choice). | A trainer idea: V6 let you pick the box as a set-up formation (spec.md:457). The manuals do not speak to a starting picture. | **We do not have it.** The four start only in Spread 4 (`four-ship.js:56`, `fourShipStart`). The box is reached only by pressing the Offset box button. |
+| E8 | **Left box via "in place 90 right" as printed on AFM8 p.22.** | The left-box page prints the same call words as the right-box page but its pictures end with the wingmen on the other side of their leaders (AFM8 p.21 vs p.22). | Patrick ratified reading it as a misprint: the left box is the mirror of the right (Q2, 5 Oct 23:03Z, `four-open.js:151`). Left and right both fly "in place 90 toward #2's side". Flagged, not shown on the card. |
+| E9 | **Reverse of "Fluid 4, go"** (back from Fluid 4 to fighting wing). | Not in the manuals. | Ours: `fwFluid(..., false)` (`four-plan.js:52`), marked "not in the manuals". Needed only as a leg of other routes. |
+
+**Entries the manuals have that we do not:** E2 and E3 as the SMM calls them (direct, "as briefed"); the "IN" call (E1 step 4). There are no manual steps for E2 or E3, so these cannot be built from the manuals without Patrick or Dad saying what "as briefed" means.
+
+**Entries we have that the manuals do not:** E4, E5, E6 (long chains through fighting wing), E9.
+
+**Not checked against a picture:** I did not re-open the AFM8 pictures on pp.20-22 for this review; the end-picture description comes from `design.md` F9 and `moves-from-the-manuals.md` M19, which say they checked them.
+
+---
+
+## 2. Manoeuvres from the offset box
+
+SMM 16.41 para 112 (printed on SMM part 7 PDF pages 28-29, Figs 16.30-16.32) lists what the box flies, and AFM8 pp.23-24 gives the calls. Para 111 says the rear element owns separation from the front element. Para 109 says each element uses the line abreast manoeuvring and lookout rules.
+
+| Manoeuvre | Manual reference | What we have now | Gap |
+|---|---|---|---|
+| **Delayed 90** | SMM 16.41 para 112a, Fig 16.30 (shows a right 90). #3 and #4 wait 10-15 s and miss #1 and #2 so the rear element flows back to trail in the right place. AFM8 pp.13, 23 ("90, hook"). The note under Fig 16.30 has #4 turn at the standard line abreast cue (README Fig 16.30 note). | **None.** Buttons are greyed with "These manoeuvres fly in Spread 4, fighting wing and the close formations" (`index.js:457-459`); a press is refused "flies in Spread 4 only" (`formation.js:431`, `MOVES_FROM_FOUR` at `:626`). The five Spread 4 turns (`four-ship.js:33`) exist but only for Spread 4. Spec: "Not built" (spec.md:413). | **Whole manoeuvre.** Needs: front element flies the LAB turn (reuse Spread 4's `delayedChain`, `four-ship.js:92`), rear element flies the same turn behind a delay. What the 10-15 s is counted from is not said (design.md F10). My earlier arithmetic: to reform the same box #3 needs about 10 s for a delayed 90 at 7,000 ft trail (estimate). |
+| **Delayed 45** | SMM 16.41 para 112a, Fig 16.31 (right 45). #2 turns 45, Lead checks 10-15 deg into #2; the rear element then delays 10-15 s and does the same (README Fig 16.31 note). | None (as above). | Whole manoeuvre, including the check turn for each element. The rear element's check turn is not in AFM8 pp.23-24 at all (only the SMM figure). |
+| **Hook** | SMM 16.41 para 112a, Fig 16.32. Rear element delays 10-15 s; the outside aircraft of each element aims for aligned fuselages at the 90 deg point (Fig 16.32 note, same rule as SMM 16.45 para 121). AFM8 p.24: watch for the other element during the hook and hold the stack exactly. | None. | Whole manoeuvre. Also the crossing: the rear element passes the front element's track, so the stack (300 ft steps) matters more here. Old code flagged a 31 ft flat nose-to-nose pass (TS-24, decisions.md:36) and a vertical step is on `future.md:70`. |
+| **In-place turn** (90 to the side) | SMM 16.41 para 112b: no delay for in-place, shackle and check turns. AFM8 pp.21-22 fly "in place 90" from Fluid 4 into the box, not out of it. | None from the box. The in-place move exists only as leg 1 of E1 (`four-open.js:157-170`) and from Fluid 4 (`formation-turns.js` `planFluid4Turn`, TS-113). | Whole manoeuvre from the box; the rear element must turn with no delay. The result is two pairs in a column (not an offset box). |
+| **Check turn** | SMM 16.41 para 112b (no delay); 2-ship check turn is up to 30 deg, both turn together (SMM 16.19 para 58). | None from the box. | Whole manoeuvre, the simplest of the lot: all four turn together, no delay. |
+| **Shackle** | SMM 16.41 para 112b names the shackle (no delay) even though SMM 16.43 para 118 leaves it out of Spread 4. The 2-ship shackle is SMM 16.19 paras 61-62. | None. Shackle and cross turn are two-ship only (TS-16, decisions.md:28; D169 "for review", decisions.md:183; TS-Q9 open, README.md:119, "recommended: two-ship only"). | **A ruling is waiting:** this review's Q1. The SMM text allows it; the old decisions kept it out while the question stayed open. |
+| **Cross turn** | Not named in the box paragraph. | None. | None needed (not listed for the box). |
+| **Rear-element check** (V6's "#3 and #4 turn a few degrees away, hold, turn back to look behind") | Not in the box paragraphs I read; it is V6's idea (spec.md:508, `future.md:88`). | None. | Idea only, on `future.md`. |
+| **Return to fighting wing (turning rejoin)** | AFM8 p.25: Lead pauses so #2 gets closure, then turns gently toward #2; #2 joins inside, #3 and #4 outside, stack held; #3 clear of #2, #4 clear of #3. | **Built.** `four-plan.js:42` (M22) to `rejoinToFw(..., 'offsetBox')` (`four-rejoin.js:102`, "hot" turning rejoin at `:121`). A straight-ahead variant is also offered by the Rejoin setting. Estimated about 200 s (cost table; the rear element has 7,000 ft more to close, design.md F11). | Works. Not yet flown by Patrick (README: nothing since V2.91). |
+| **Exit to Spread 4 / finger / echelon / route / box / line astern** | No direct exit is given. The brief goes box to fighting wing only (AFM8 p.25). | Chained through fighting wing by `routeFour` (e.g. box to finger is M22 then M10/M11; Spread 4 is M22 then M13). The Spread 4 to finger direct rejoin was ratified (Q5) but there is no box equivalent. | Not a gap against the manuals. A pilot would not expect a direct call from the box. |
+| **Fighting wing manoeuvres** (wingovers, barrel rolls, level turns) | Not flown in the box; fighting wing is where the box goes to afterward. | n/a | n/a |
+| **Altitude stack changes** ("stack back on once in position", "return to stack when Lead anticipates a turn") | AFM8 p.14 items 3-5, pp.23-24 item 2. | The stack is held in the slots (`slots.js:200-203`) and judged "OFF STACK" at +-100 ft (`judge.js:323`). No planner moves #2, #3, #4 off the stack and back for a turn (needed because the turn buttons do not exist). | Comes with the turns above; "use the vertical for station keeping once on a heading" (AFM8 p.14 item 4) is not modelled either. |
+
+**What the buttons do today in the box.** With the four in the box (`whereAll.key === 'offsetBox'`) the manoeuvre buttons are switched off for the four (`index.js:447-459`: the box is not in `TURN_FORMATIONS[4]`, `formation-turns.js:327`, and is not in the "line abreast" test at `:457`). Change formation still works: every formation button flies out of the box through fighting wing. The Offset box button is lit when the four are in it (`transitions-panel.js:29, 281`). The classifier recognises the box if #3 is 3,000-13,000 ft behind Lead, between Lead and #2 side to side, and #4 abreast of #3 on #2's side (`judge.js:109`), so a box reached any way is named.
+
+---
+
+## 3. The shape of the offset box
+
+Our slots (`slots.js:197-203`, `BOX_DEPTH_FT` at `:156`), with #2 on side s, S the Spacing setting (default 5,000 ft, `formation.js:33`; Patrick 5 Oct 22:46Z), all in feet:
+
+| Aircraft | Flies off | Our slot | Source and status |
+|---|---|---|---|
+| Lead | Lead | the origin | n/a |
+| #2 | Lead | 0 ahead or behind, S abeam on box side, +300 ft | Abeam spacing: front element is a line abreast, 4,000-6,000 ft (note on SMM Fig 16.30, README Fig 16.30; SMM 16.18 para 49 for the 2-ship band). Stack +300: AFM8 p.14. |
+| #3 | Lead (judged against Lead) | **7,000 ft behind**, **S/2 abeam** toward #2's side (2,500 ft at default), -300 ft | Depth: SMM 16.41 para 109 says the second element trails 6,000-8,000 ft (1.0-1.2 NM); Fig 16.30's and AFM8 pp.21-22's arrows print 8,000-12,000 ft; **Patrick's ruling TS-18 / D114 keeps 7,000 +-1,000** (decisions.md:30; formation-and-turn-numbers.md line for the offset box). Side: "#3 in the slot between Lead and #2" from the Fig 16.30 note and the AFM8 end pictures; **half a spacing is an estimate** (the manuals draw it between but give no number; V6 used a 1,000 ft stagger, dropped to 0, TS-22). Stack -300: AFM8 p.14. |
+| #4 | #3 | 0 fore-aft, S abeam of #3 on box side (so 1.5 S from Lead, S/2 outside #2: 2,500 ft at default), -600 ft | "#4 outside #2": SMM Fig 16.30 and AFM8 pp.21-22. The old V6 plan had #4 3,000 ft outside #2 (spec.md:539); ours is S/2 outside, which is 2,500 at 5,000 spacing. Estimate. |
+
+**How we judge the box** (`judge.js:326-340`, `:32`): #2 and #4 are judged as a line abreast on the one they fly off, at the spacing, and on the right side (labels WRONG SIDE, OFF STACK); #3 is judged 6,000-8,000 ft behind Lead (SHORT or DEEP outside it) and within **500 ft** sideways of his slot (OFF SLOT; the 500 ft is an estimate in `judge.js`, from design.md section 7), and on the stack within the shared +-100 ft. Shown to the pilot as "x ft behind (6,000-8,000), y ft off the slot".
+
+**Where the manuals and our shape could disagree** (not settled):
+1. **What the 6,000-8,000 ft is measured between.** The text says the second element trails the first; we measure #3 behind Lead. If Dad measures element to element on the leaders (same thing), fine; if he means rear element's centre against the front element's centre, #3 and #4 straddle that line and the difference is up to half the spacing in fore-aft terms only if the box is skewed (it is not), so I believe no difference. Marked "my reading".
+2. **Lateral position of #3.** The manuals show #3 offset toward the gap and #4 outside #2 but give no feet. Our S/2 means #3's wingtip-to-wingtip clearance to the front aircraft is huge (7,000 ft fore-aft), so no collision risk; the point of the offset is only to keep Lead and #2 visible (SMM 16.41 para 109). Whether Dad's box has #3 nearer Lead's line or nearer the middle of Lead and #2 is not in any manual.
+3. **Spacing.** Front element 4,000-6,000 ft by the Fig 16.30 note; our default is 5,000 (inside it). The brief's wide Fluid 4 value (6,000 ft, AFM8 p.20) is not used because Q1 ratified the Spacing setting instead (Patrick 5 Oct 23:03Z).
+4. **Speed.** 220 KIAS is an estimate ("two line abreasts", Q6; `slots.js:47`); no manual gives a box speed.
+
+---
+
+## 4. Questions for Patrick
+
+1. **Do we allow the shackle in the offset box?** SMM 16.41 para 112b names it but no figure or brief flies it, and the old ruling kept it two-ship only while TS-Q9 stayed open. Options: (a) no, delayed 90 and 45, hook, in place and check only (recommended: it matches what AFM8 pp.23-24 and Figs 16.30-16.32 draw); (b) also the shackle, in the box as the para reads; (c) yours.
+2. **Which box manoeuvres do we build first?** Options: (a) the easy ones first, check turn and in-place turn (no delay, all four together), then delayed 90, delayed 45 and hook with the 10-15 s delay for the rear element (recommended); (b) delayed 90 and hook only, the two the brief names (AFM8 pp.13, 23); (c) all five at once; (d) yours.
+3. **What should the rear element's delay count from?** The SMM says 10-15 s but not from what (Lead's roll-in? #2's?). Options: (a) fly the manual's 10-15 s from Lead's roll-in, and show on the card if the box comes out of shape (recommended: matches the book, keeps it a reference); (b) work out the delay from the geometry so the box always reforms (about 10 s for a delayed 90, 17 s for a hook at 7,000 ft trail, my estimate) and show it against the 10-15 s band; (c) yours.
+4. **Do we add a direct "offset box" call from finger and from fighting wing?** SMM 16.41 para 110 allows it but gives no steps. Options: (a) keep going through Fluid 4 as AFM8 teaches, no new move (recommended: only what has steps); (b) build a direct move with steps you or Dad supply; (c) yours.
+5. **Where does #3 sit sideways in the box?** Today half a spacing toward #2 (estimate), #4 half a spacing outside #2. Options: (a) keep it and mark it an estimate until Dad says (recommended); (b) #3 on Lead's line, so the rear element is a line abreast directly behind with #4 one spacing out; (c) your number for how far #3 is off Lead's line and how far #4 is outside #2.
+
+---
+
+## Not found and unsure
+
+- **What East and West mean in "OFFSET BOX EAST/WEST".** The SMM list labels the Fig 16.30 layout "West / left" (README Fig 16.30 row), so East is probably right and West left; no text says so. Our box is named left or right by #2's side. My inference.
+- **Whether #3 or the whole rear element is meant by "trailing 6,000-8,000 ft"** (section 3, item 1).
+- **No manual number** for the box speed, the lateral offset of #3, the time the spread takes, or what the 10-15 s counts from.
+- **I did not re-open the pictures** on SMM Figs 16.30-16.32 or AFM8 pp.20-22; the layout facts come from the earlier four-ship reviews (`design.md` sections 2 and 5.3, `moves-from-the-manuals.md` M19-M22) and the figure notes in `/mnt/project-files/manuals/README.md`. The text pages (SMM 16.41, AFM8 pp.23-25) I checked against the text extracts and the PDF.
+- Line references are to the checked-out tree at the time of writing (Formation V2.129 era); they drift with every edit.
+- The old code and V6 notes (decisions.md TS-19, D86, D87, D124, D147, D148) describe a solved #4 delay and a rear check from the retired engine; I treated them as history, not as what the live code does.
