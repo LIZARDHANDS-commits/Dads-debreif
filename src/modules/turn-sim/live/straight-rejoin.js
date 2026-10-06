@@ -142,7 +142,7 @@ function flyToDecision({ wing, rec, s, route, cutDeg, aimFt, overtakeKt, arriveF
  * same). He aims for it STRAIGHT_REJOIN.lineJoinEchelons times echelon's distance out, then flows up it into the slot without stopping. Until
  * V2.105 he aimed for route itself, 25 ft behind Lead, so he ran up nearly abreast and wide, then slid back in.
  */
-function onTheLine(s, spacingFt) {
+export function onTheLine(s, spacingFt) {
   const ech = pairSlot('echelon', s, spacingFt);
   const out = STRAIGHT_REJOIN.lineJoinEchelons * Math.abs(ech.left);
   return { fwd: ech.fwd - (out - Math.abs(ech.left)) * (LENGTH_FT / WINGSPAN_FT), left: s * out, alt: ech.alt };
