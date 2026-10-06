@@ -191,6 +191,8 @@ export const FW_PURSUIT = Object.freeze({
  */
 export const FW_SWITCH = Object.freeze({
   bankDeg: 60, // the bank he switches at, both ways: at least 60° (Patrick 6 Oct 01:04Z)
+  deepFromFt: 750, // from this range or more (the middle of the cone, SMM 12.29 para 69) the switch is full power and a dive for energy, not a bleed (Patrick 6 Oct 01:23Z; the figure is an estimate)
+  pushKias: 25, // the speed above Lead he asks for through a switch from deep in the cone: full power, and the cone's energy law dives for it (Patrick 6 Oct 01:23Z; the figure is an estimate)
   bleedKias: 10, // the speed below Lead he asks for through the switch: power back to bleed energy (Patrick 6 Oct 01:04Z: "used to bleed energy"; the figure is an estimate)
   aimSweepDeg: 35, // the S-turn aims 35° off Lead's tail line in the far cone: inside the band's 30° edge (SMM 12.29 para 69, Fig 12.19) with the least turn in, since every degree of turn in drops him back (estimate)
   rollOutDeg: 3, // the switch is over once his heading is back within this many degrees of Lead's: the band goal settles him in the far cone from there (estimate)

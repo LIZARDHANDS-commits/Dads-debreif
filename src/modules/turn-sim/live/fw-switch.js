@@ -5,7 +5,8 @@
 // roll-out arc will just reach the mirror of his place on the other side of the cone, reverses to the same bank the other
 // way, and rolls out parallel to Lead again in the far cone. Power is back through it (he asks for less speed than Lead),
 // so the switch bleeds energy, which is what it is used for (Patrick 01:04Z; 5 Oct 23:02Z: "a common way to bleed energy
-// is to S turn left and right"). The crossing is behind Lead: the turn in drops him back (his speed is off Lead's heading)
+// is to S turn left and right"); from the back of the cone it is full power and a dive instead, to keep the spacing
+// (Patrick 01:23Z). The crossing is behind Lead: the turn in drops him back (his speed is off Lead's heading)
 // and he is never nearer than where he started. The SMM does not draw the switch; the nearest pages are SMM 12.29 para
 // 69 (the cone, 500-1,000 ft, 30-60° of sweep) and 12.30 paras 72-74 (pursuit). Numbers: tuning.js FW_SWITCH (estimates
 // unless a source is named).
@@ -32,11 +33,17 @@ export function fwSwitch(sTo) {
   const S = FW_SWITCH;
   const s = sTo;
   let stage = 'in';
+  let deep = null; // decided at the press: from the back of the cone the switch is full power and a dive, not a bleed
   const pursuit = (L, W) => {
     if (stage === 'done') return null;
     const rel = relativeTo(L, W);
     const off = s * wrapPi(W.headingRad - L.headingRad); // how far his heading has turned toward the far side, radians
-    const kiasCmd = L.kias - S.bleedKias;
+    // Energy (Patrick 6 Oct 01:23Z: "if he's S turning from the back of the cone he probably needs full power and to dive
+    // for energy to maintain his spacing"): with spacing to spare he bleeds (power back); deep in the cone he asks for more
+    // speed than Lead, which the tracker flies at full power and, on the cone's energy law (TS-96), as a dive inside the
+    // cone's height, so the turn in costs him less spacing.
+    deep ??= Math.hypot(rel.fwd, rel.left) >= S.deepFromFt;
+    const kiasCmd = deep ? L.kias + S.pushKias : L.kias - S.bleedKias;
     if (stage === 'in') {
       if (-rel.fwd < S.minBehindFt) return null; // too close behind Lead to cross: the slot law drops him back first
       // Where the roll-out would end if it started now: the arc at the same bank the other way, plus the reversal itself
