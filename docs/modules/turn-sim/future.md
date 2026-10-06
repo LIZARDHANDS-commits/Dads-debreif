@@ -42,7 +42,7 @@ The second wave of live mode (rejoins, fighting wing and fluid manoeuvring, old 
 
 ## The 4-ship
 
-The four-ship rebuild (refactor PRs 6-8, with a separate thread) will change much of this; keep it in step.
+The four-ship rebuild (refactor PRs 6-8, V2.97 to V2.101, TS-99, TS-101) is built; the items below are what it left.
 - **The 4-ship build's source is the moves table Patrick ratified on 5 Oct**: project files `turn-sim-review/four-ship/moves-from-the-manuals.md`, sections 7 and 8. Build from it, not from the items below. Fluid 4's #3 now sits abeam at the Setup's spacing (TS-90).
 - The 4-ship's other order (2134). Spread 4 (V2.7, TS-50) and the offset box as a formation (V2.13, TS-54) are built, each wingman flying off its reference aircraft.
 - Four-ship design asked for (Patrick, 4 Oct 11:14Z, list agreed 11:15Z), designed in the project files `turn-sim-review/four-ship/`. The planned part is built (V2.13, TS-54: G-warm, close position changes, rejoins, Fluid 4 and the offset box in and out, the fighting wing places). Still here: manoeuvring inside the offset box and Fluid 4 (Fluid 4 and Fluid manoeuvring are two buttons, Patrick 11:43Z); live fighting wing and fluid manoeuvring for the four; fighting wing to echelon direct (the straight-ahead rejoin flies it since TS-55; a direct turning rejoin is not built); finger to offset box direct and "offset box east/west" from fighting wing (design question 4); the left offset box crossing (Dad question 3); #2 choosing the stack; lost sight, overshoot and contingencies (with the training errors); take-offs and the initial recovery (the Traffic Sim).
@@ -91,5 +91,5 @@ The first Turn Sim engine (plan mode, ported from V6) was removed in clean-up st
 
 ## Refactor leftovers (Fable, 5 Oct 22:12Z; Patrick 22:13Z "execute")
 
-Built as refactor PRs 1 to 5 (TS-85, TS-93 to TS-97) and the docs rewrite (PR 9); PRs 6 to 8, the four-ship rebuild, are with another thread. Still here:
+Built as refactor PRs 1 to 5 (TS-85, TS-93 to TS-97) and the docs rewrite (PR 9); PRs 6 to 8, the four-ship rebuild, are merged (V2.101). Still here:
 - Project files: condense the `turn-sim-review` notes into the README's "How #2 is planned now" and archive the rest.
