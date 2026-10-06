@@ -99,3 +99,4 @@ The first Turn Sim engine (plan mode, ported from V6) was removed in clean-up st
   - spec.md rewritten by topic (how #2 is planned, rejoins, lines, bands and "in position", rate sets, 4-ship), each paragraph citing its TS decision, history to decisions.md. Sonnet, after Patrick has flown V2.75 onward.
   - testing.md: only the current sign-off checklist; per-version sign-off lines to archive/. Same timing.
   - Project files: condense the turn-sim-review notes into the README's "How #2 is planned now" and archive the rest.
+- Fighting wing S-turns to bleed energy (Patrick 5 Oct 23:02Z: "in fighting wing a common way to bleed energy is to S turn left and right if required"): after the cone's height (TS-96) and before power. Not built in V2.95; the tracker uses height, then power.

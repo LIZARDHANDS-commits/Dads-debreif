@@ -13,7 +13,7 @@ import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
 import { relativeTo, unit } from './manoeuvres.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
 import { throttleFor, powerFrom } from './power.js';
-import { TRACKER, CLOSURE, HAND_OVER_FT } from './tuning.js';
+import { TRACKER, CLOSURE, HAND_OVER_FT, FW_ENERGY } from './tuning.js';
 
 /** The longest the tracker flies one plan before giving up (a guard only; the spec's limits are tighter). */
 export const PLAN_MAX_SEC = 300;
@@ -79,10 +79,17 @@ function closureCap(ph, L, W, ex, ey, d, blockFt, farFromFt) {
  * idle can't give the slowing wanted (Patrick 05:47Z, 05:54Z, 06:13Z; slow-down.js, TS-61).
  */
 function powerOf(accel, aMax, W, blockFt) {
-  if (accel >= aMax * 0.985) return powerFrom(null, 1, W.kias, blockFt);
-  if (accel >= -slowKtps('power', W.kias, blockFt, W.g)) return powerFrom(null, Math.max(0, throttleFor(accel, W.kias, blockFt, W.g, W.climbFtps)), W.kias, blockFt);
-  if (accel >= -slowKtps('idle', W.kias, blockFt, W.g)) return powerFrom('idle', 0, W.kias, blockFt);
+  // What the engine has to give: the speed change and the climb's cost (a climb at v ft/s costs g·v / TAS; TS-96).
+  const aEngine = accel + climbCostKtps(W, W.climbFtps ?? 0);
+  if (aEngine >= aMax * 0.985) return powerFrom(null, 1, W.kias, blockFt);
+  if (aEngine >= -slowKtps('power', W.kias, blockFt, W.g)) return powerFrom(null, Math.max(0, throttleFor(accel, W.kias, blockFt, W.g, W.climbFtps)), W.kias, blockFt);
+  if (aEngine >= -slowKtps('idle', W.kias, blockFt, W.g)) return powerFrom('idle', 0, W.kias, blockFt);
   return powerFrom('idleBoards', 0, W.kias, blockFt);
+}
+
+/** The speed a climb of climbFtps costs, KIAS per second (standard energy: g·v / TAS, in KIAS). */
+export function climbCostKtps(W, climbFtps) {
+  return (G_FTPS2 * climbFtps) / Math.max(W.tasFtps, 1) / Math.max(W.tasFtps / Math.max(W.kias, 1), 1e-6);
 }
 
 /**
@@ -102,6 +109,10 @@ function powerOf(accel, aMax, W, blockFt) {
  * heading loop on its present turn, so a hand-over from a kinematic line (hand-over.js) has no step in bank or speed; and
  * `stopWhenSettled` ends the run once #2 has settled on the last slot, without waiting for Lead to finish his plan (the
  * first pass of a run whose Lead rolls out once #2 is in).
+ * Fighting wing energy with the cone (TS-96): on a phase with `coneAlt` and `closureFtps`, #2's height is flown here, not
+ * from `profile`: the speed loop's slowing is taken first as a climb and its speeding up as a descent, inside the cone's
+ * height (tuning.js FW_ENERGY), so the power moves only for what the height can't give. The heights flown come back as
+ * `heightLeg` (a table leg, flight.js heightAt), for trackTwice to put in the profile.
  */
 export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec = PLAN_MAX_SEC, init = null, stopWhenSettled = false }) {
   const T = TRACKER;
@@ -130,6 +141,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
   let ok = false;
   let reentered = false; // a phase change re-reads the step it happened in, with no reference turn rate for it
   let stoppedAt = null; // when #2 first came to a stop in a phase with `stopFtps` (a real stop: SMM 12.20 para 45)
+  let cone = null; // the heights flown with the cone's energy (TS-96): { t0, alt: [], climb: [], nz: [] }
 
   for (let n = 0; n < Math.round(maxSec / STEP_SEC); n++) {
     // Both aircraft are read at the same instant (the start of the step).
@@ -273,8 +285,31 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       kias = L.kias;
       accel = 0;
     }
+    // Fighting wing energy with the cone (TS-96): the climb that gives the slowing the speed loop flies (or the descent that
+    // gives its speeding up), inside the cone's height above or below Lead, eased in and out at FW_ENERGY.pullFtps2.
+    let stepProfile = profile;
+    if (cone || (ph.coneAlt && ph.closureFtps)) {
+      const E = FW_ENERGY;
+      const v0 = W.climbFtps ?? 0;
+      cone ??= { t0: t, alt: [W.altAboveFt], climb: [v0], nz: [1] };
+      const perFtps = climbCostKtps(W, 1);
+      const want = ph.coneAlt ? -accel / perFtps : 0;
+      const up = Math.max(0, L.altAboveFt + E.coneUpFt - W.altAboveFt);
+      const down = Math.max(0, W.altAboveFt - (L.altAboveFt - E.coneUpFt));
+      const lo = -Math.min(E.climbFtps, Math.sqrt(2 * E.pullFtps2 * down));
+      const hi = Math.min(E.climbFtps, Math.sqrt(2 * E.pullFtps2 * up));
+      // Outside the cone's height (a vertical rejoin's top) he comes back into it first.
+      const wantIn = up <= 0 && W.altAboveFt > L.altAboveFt + E.coneUpFt ? lo : down <= 0 && W.altAboveFt < L.altAboveFt - E.coneUpFt ? hi : Math.max(lo, Math.min(hi, want));
+      const v1 = v0 + Math.max(-E.pullFtps2 * STEP_SEC, Math.min(E.pullFtps2 * STEP_SEC, wantIn - v0));
+      const nz = 1 + (v1 - v0) / STEP_SEC / G_FTPS2;
+      const a1 = W.altAboveFt + ((v0 + v1) / 2) * STEP_SEC;
+      cone.alt.push(a1);
+      cone.climb.push(v1);
+      cone.nz.push(nz);
+      stepProfile = [{ t0: t, t1: t + STEP_SEC, table: { dt: STEP_SEC, alt: [W.altAboveFt, a1], climb: [v0, v1], nz: [nz, nz] } }];
+    }
     setKias(W, kias);
-    stepCommanded(W, bank, t, profile);
+    stepCommanded(W, bank, t, stepProfile);
     points.push(ph.closureFtps ? [bank, kias, powerOf(accel, aMax, W, blockFt)] : [bank, kias]);
     m++;
     const Lafter = R.at(m);
@@ -291,7 +326,8 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       break;
     }
   }
-  return { points, end: { lead: { ...R.at(m) }, wing: W }, times, maxBankDeg: maxBank, ok, durationSec: t - t0, ranges, laneFwdFt, minBelowFt };
+  const heightLeg = cone && { t0: cone.t0, t1: cone.t0 + (cone.alt.length - 1) * STEP_SEC, table: { dt: STEP_SEC, alt: cone.alt, climb: cone.climb, nz: cone.nz } };
+  return { points, end: { lead: { ...R.at(m) }, wing: W }, times, maxBankDeg: maxBank, ok, durationSec: t - t0, ranges, laneFwdFt, minBelowFt, heightLeg };
 }
 
 /**
@@ -322,7 +358,8 @@ export function trackTwice({ refs, wing0, t0, phases, blockFt, maxSec = PLAN_MAX
   const first = runTracker({ ...common, profile: undefined });
   const profile = heightProfile(wing0.altAboveFt, phases, first.times, t0);
   const run = profile.length ? runTracker({ ...common, profile }) : first;
-  return { run, profile };
+  // The cone's heights (TS-96) first: from where they start they are the ones flown.
+  return { run, profile: run.heightLeg ? [run.heightLeg, ...profile] : profile };
 }
 
 /** #2's height: from where it is, smooth legs to each leg's slot height (smootherstep, no climb rate at the ends: spec F7, F12). */
@@ -331,6 +368,9 @@ export function heightProfile(alt0, phases, times, t0) {
   let alt = alt0;
   let from = t0;
   phases.forEach((ph, i) => {
+    // In fighting wing his height is his own anywhere in the cone (Patrick 08:58Z); on the power profile the tracker flies
+    // it with the cone's energy (TS-96).
+    if (ph.coneAlt) return;
     const target = ph.slot.alt;
     const start = Math.max(times[i].t0 ?? from, from);
     const end = times[i].t1 ?? start + TRACKER.height.unknownLegSec;

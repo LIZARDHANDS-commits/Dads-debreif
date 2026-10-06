@@ -295,7 +295,7 @@ export function legsFor(from, s, to, sTo, spacingFt) {
   // V2.80's band, TS-80): the tracker aims for the nearest point of the cone, and inside it holds where he arrives (fwGoal).
   if (to === 'fw' && phases.length) {
     const last = phases[phases.length - 1];
-    phases[phases.length - 1] = { ...last, goal: (L, W) => fwGoal(L, W, sTo, false) };
+    phases[phases.length - 1] = { ...last, coneAlt: true, goal: (L, W) => fwGoal(L, W, sTo, false) };
   }
   return phases;
 }

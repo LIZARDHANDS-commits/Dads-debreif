@@ -118,6 +118,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | FW_TURN.aimInsideDeg | `5` | ... and in sweep, so it ends clearly in it (the shared ±100 ft and ±5° margins would also pass the edge) |
 | FW_TURN.turnDeg | `{ check: 20, delayed45: 45, delayed90: 90, inPlace90: 90, hook: 180 }` | each turn button's turn, in fighting wing |
 | FW_FOLLOW |  | The tracker's settings for a wingman following its goal in a fighting wing turn (estimates; the bank cap is flagged on screen, never a wall). What each does to the flying (tracker.js; Patrick 05:27Z asked for the gains in plain words): |
+| FW_FOLLOW.coneAlt | `true` | his height is his own anywhere in the cone, and on the power profile he manages energy with it (FW_ENERGY, tracker.js) |
 | FW_FOLLOW.goalTolFt | `3` | the moving goal counts as reached once the target slot is within 3 ft of it (estimate) |
 | FW_FOLLOW.fwdRate | `40` | how fast the target slot slides fore and aft toward the goal, ft/s (estimate) |
 | FW_FOLLOW.latRate | `60` | how fast the target slot slides sideways toward the goal, ft/s (estimate) |
@@ -131,6 +132,10 @@ Every number the Formation Sim's planners use, with the source written beside it
 | FW_FOLLOW.undertakeKias | `15` | the most speed below Lead, KIAS (estimate) |
 | FW_FOLLOW.advanceTol | `25` | within this many feet of the goal a leg counts as flown (estimate) |
 | FW_FOLLOW.finalTol | `6` | within this many feet of the last goal, and slow against it, #2 is settled (estimate) |
+| FW_ENERGY |  | Fighting wing energy with the cone (TS-96; Patrick 5 Oct 22:45Z: "energy can be managed with the cone", 23:02Z: "Use the cone as required, power as a last resort"): on the power profile in fighting wing (tracker.js), #2 takes a slowing first as a climb and a speeding up as a descent, inside the cone's height, so the throttle moves only for what the height can't give. The horizontal path and the sp |
+| FW_ENERGY.coneUpFt | `IN_POSITION.fwStackFt - 50` | he uses the cone's height up to this far above or below Lead, 50 ft inside the in-position band (estimate) |
+| FW_ENERGY.climbFtps | `TURNING_REJOIN.descentFtps` | no quicker than the rejoin's height changes, 1,800 ft/min (estimate) |
+| FW_ENERGY.pullFtps2 | `8` | the climb rate changes no quicker than this, about a quarter G, charged as G (estimate) |
 | FW_FOLLOW_FOUR |  | The 4-ship's wingmen moving to fighting wing (four-ship-moves.js): FW_FOLLOW's tracker settings with a slower sideways and fore-aft slide (40 ft/s, against FW_FOLLOW's 60 and 40) and more power (25 KIAS each way), as it has flown since V2.1x. All estimates; one named entry (clean-up step 2); since step 3 the closure law sets its closing speed (four-ship-moves.js). |
 | FW_FOLLOW_FOUR.fwdRate | `40` |  |
 | FW_FOLLOW_FOUR.latRate | `40` |  |

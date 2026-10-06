@@ -26,6 +26,7 @@ import { relativeTo } from './manoeuvres.js';
 import { G_RULE_BANK_DEG, HAND_OVER_FT } from './tuning.js';
 import { planGoTo } from './transitions.js';
 import { planLagRoll, LAG_ROLL_KEY } from './lag-roll.js';
+import { planMoveInBand, MOVE_IN_BAND_KEY } from './move-in-band.js';
 import { planLineChange } from './line-moves.js';
 import { planTurningRejoin } from './turning-rejoin.js';
 import { planStraightRejoin } from './straight-rejoin.js';
@@ -63,6 +64,8 @@ const PLANNERS = Object.freeze([
 const FROM_HERE = Object.freeze({ name: 'from here', plan: planFromHere, rejoin: null, fallback: true });
 /** #2's lag roll (lag-roll.js, TS-71): a button of its own, so it is the only candidate when pressed and never raced otherwise. */
 const LAG_ROLL = Object.freeze({ name: 'lag roll', plan: (pair, _to, options, t0) => planLagRoll(pair, options, t0), rejoin: null, fallback: false });
+/** #2 moving inside the band of the formation he is in (move-in-band.js, TS-98): a control of its own, the only candidate when pressed. */
+const MOVE_IN_BAND = Object.freeze({ name: 'move in the band', plan: (pair, _to, options, t0) => planMoveInBand(pair, options.target, options, t0), rejoin: null, fallback: false });
 const MID_PLANNERS = Object.freeze([FROM_HERE, ...PLANNERS.filter((p) => p.plan !== planLineChange)]);
 
 /**
@@ -146,7 +149,8 @@ export function chooseChange(pair, to, options = {}, t0 = 0) {
   const auto = (options.rejoin ?? 'into') === 'auto';
   const mid = options.mid ?? null;
   const lag = to === LAG_ROLL_KEY;
-  const longMove = !lag && rangeToSlotFt(pair, to, options) > HAND_OVER_FT;
+  const nudge = to === MOVE_IN_BAND_KEY;
+  const longMove = !lag && !nudge && rangeToSlotFt(pair, to, options) > HAND_OVER_FT;
   const candidates = [];
   let refusal = null;
   // Lead's turn into #2 held with #2 going to the other side: only "from here" keeps Lead turning until #2 is in there
@@ -154,7 +158,7 @@ export function chooseChange(pair, to, options = {}, t0 = 0) {
   const sNow = Math.sign(relativeTo(pair[0], wing).left);
   const across = mid?.lead?.kind === 'hold' && to !== 'lab' && ((options.side === 'left' && sNow < 0) || (options.side === 'right' && sNow > 0));
   // A training error's start (TS-62) joins "from here" to the race, which reads where the error put #2.
-  const planners = lag ? [LAG_ROLL] : !mid ? (options.errors ? MID_PLANNERS : PLANNERS) : mid.lead?.kind === 'carry' || across ? [FROM_HERE] : MID_PLANNERS;
+  const planners = lag ? [LAG_ROLL] : nudge ? [MOVE_IN_BAND] : !mid ? (options.errors ? MID_PLANNERS : PLANNERS) : mid.lead?.kind === 'carry' || across ? [FROM_HERE] : MID_PLANNERS;
   for (const p of planners) {
     // Each planner refuses a Rejoin kind that is not its own; under 'auto' each rejoin planner is given its own kind.
     const opts = auto && p.rejoin !== null ? { ...options, rejoin: p.rejoin } : options;
@@ -164,7 +168,7 @@ export function chooseChange(pair, to, options = {}, t0 = 0) {
       refusal ??= r;
       continue;
     }
-    candidates.push(candidateOf(p.name, r, lag ? 'fw' : to, spacingFt, t0, wing.id, p.fallback && longMove));
+    candidates.push(candidateOf(p.name, r, lag ? 'fw' : nudge ? /** @type {any} */ (r).to : to, spacingFt, t0, wing.id, p.fallback && longMove));
   }
   // Out to line abreast the full power opening out replaces the line (Patrick 5 Oct 22:39Z: "should start at FULL POWER";
   // TS-88): the line is raced only when it doesn't apply.
@@ -176,6 +180,6 @@ export function chooseChange(pair, to, options = {}, t0 = 0) {
   const compared = candidates.map((c) => ({ name: c.name, durationSec: c.durationSec, passes: c.passes, fallback: c.fallback, gRuleOk: c.gRuleOk, roughness: c.roughness }));
   const line = others.length ? ` Chosen: ${best.words}, over ${others.map((c) => c.words).join(', ')}.` : '';
   // With a training error set, the card says how #2 dealt with it when the move ends (errors.js offStandardOutcome).
-  const offStandard = options.errors && !lag ? { mode: options.errors.response === 'reference' ? 'reference' : 'fix' } : null;
+  const offStandard = options.errors && !lag && !nudge ? { mode: options.errors.response === 'reference' ? 'reference' : 'fix' } : null;
   return { ...best.plan, note: `${best.plan.note}${line}`, chooser: { picked: best.name, compared }, ...(offStandard ? { offStandard } : {}) };
 }

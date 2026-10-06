@@ -11,7 +11,7 @@ import { KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, makeAircraft, stepAircraft, planDone } from './flight.js';
 import { MANOEUVRES, planManoeuvre, relativeTo, dryRun, TURN_BANK_DEG, TURN_G } from './manoeuvres.js';
 import { flyStep, dryRunT } from './transitions.js';
-import { resolveErrors, resolveFixTools, applyStartErrors, planWithErrors, outcomeOf, offStandardOutcome } from './errors.js';
+import { resolveErrors, resolveFixTools, applyStartErrors, planWithErrors, outcomeOf, offStandardOutcome, responseOf } from './errors.js';
 import { FOUR_SHIP_KEYS, fourShipStart, planFour } from './four-ship.js';
 import { G_WARM, planGWarm } from './g-warm.js';
 import { classify, judge } from './judge.js';
@@ -22,7 +22,11 @@ import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFwMove,
 import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
 import { LAG_ROLL_KEY } from './lag-roll.js';
+import { MOVE_IN_BAND_KEY, placeNow } from './move-in-band.js';
 import { REJOIN, STEADY } from './tuning.js';
+
+/** #2's own moves (the lag roll, a move in the band): they start in band, so they fly their plan to the end with no re-plan or early finish. */
+const ownMove = (c) => c.key === `change:${LAG_ROLL_KEY}` || c.key === `change:${MOVE_IN_BAND_KEY}`;
 
 /**
  * The first version's fixed numbers. Speeds name their kind (rule book): kias is
@@ -159,6 +163,9 @@ export function createFormation(options = {}) {
     state.fluid = null;
     record = [];
     keepTrack(true);
+    // Smart wingman, fix now (TS-96; Patrick 5 Oct 23:33Z): #2 flies back into line abreast from where the error put him at
+    // once, by the chooser's race ("from here" among them); the timing error, a roll-in's, still waits for the next turn.
+    if (state.errors?.fixNow) startChange('lab', {});
   }
 
   function keepTrack(force = false) {
@@ -304,7 +311,7 @@ export function createFormation(options = {}) {
    */
   function replanAtEvents() {
     const c = state.current;
-    if (!c?.change || c.change.four || c.key === `change:${LAG_ROLL_KEY}`) return;
+    if (!c?.change || c.change.four || ownMove(c)) return;
     if (c.decisionSec != null && !c.decided && state.tSec >= c.decisionSec - STEP_SEC / 2) {
       c.decided = true;
       replanChange('the decision point', true);
@@ -357,7 +364,7 @@ export function createFormation(options = {}) {
    */
   function turnMidChange(key, dir) {
     const c = state.current;
-    if (!c?.change || c.change.four || c.key === `change:${LAG_ROLL_KEY}`) return false;
+    if (!c?.change || c.change.four || ownMove(c)) return false;
     const leadPlan = leadTurnPlan(state.aircraft[0], c.change.to, key, dir);
     if (!leadPlan) return false;
     const side = c.change.side > 0 ? 'left' : c.change.side < 0 ? 'right' : 'keep';
@@ -464,6 +471,13 @@ export function createFormation(options = {}) {
       state.judged = { label: state.current.label, shape: 'formation', labels: j.inBand ? ['IN POSITION'] : j.labels, text: j.text, tone: j.tone, ...(c.four ? { ships: j.ships } : {}) };
       // A change flown from a training error's start (TS-62) says on the card how #2 dealt with it.
       if (c.offStandard) state.errorOutcome = offStandardOutcome(c.offStandard, j.inBand, state.current.label);
+      // A line abreast move in the band (TS-98) leaves #2 off the 5,000 ft picture; the next turn treats that as where he
+      // starts from, and Smart wingman fixes it there or carries it, as for a set error (Patrick 23:54Z: the next move ends in position).
+      if (state.current.key === `change:${MOVE_IN_BAND_KEY}` && c.to === 'lab') {
+        const at = placeNow(lead, wing);
+        const side = Math.sign(state.slot.left) || 1;
+        state.errors = { ...(state.errors ?? { timingSec: 0, speedKias: 0, random: false }), foreFt: at.fwd - state.slot.fwd, spacingFt: side * at.left - Math.abs(state.slot.left), heightFt: at.alt, response: responseOf(opts), fixNow: false };
+      }
     } else if (state.current.gWarm) {
       // G-warm ends in line abreast at the tightened gap (AFM8 brief p.16 item 5); that gap is the four's from now on.
       const g = state.current.gWarm;
@@ -504,7 +518,7 @@ export function createFormation(options = {}) {
    */
   function inBandAndSteady() {
     const c = state.current;
-    if (!c?.change || c.change.four || c.key === `change:${LAG_ROLL_KEY}`) return false;
+    if (!c?.change || c.change.four || ownMove(c)) return false;
     const [lead, wing] = state.aircraft;
     // Line abreast is a wide band: once #2 is in it and steady, Lead finishing his speed-up to 220 KIAS is ordinary formation
   // keeping, not part of the change (estimate pending Patrick's card, 21:15Z; the other changes wait for Lead's plan).
@@ -514,7 +528,9 @@ export function createFormation(options = {}) {
     c.relPrev = { fwd: rel.fwd, left: rel.left, up: wing.altAboveFt - lead.altAboveFt, tSec: state.tSec };
     if (!prev) return false;
     const dtSec = Math.max(STEP_SEC, state.tSec - prev.tSec);
-    const closureFtps = Math.hypot(rel.fwd - prev.fwd, rel.left - prev.left, c.relPrev.up - prev.up) / dtSec;
+    // In fighting wing his climb or descent inside the cone is energy, not closure (the cone's height is his: TS-96).
+    const upFt = c.change.to === 'fw' ? 0 : c.relPrev.up - prev.up;
+    const closureFtps = Math.hypot(rel.fwd - prev.fwd, rel.left - prev.left, upFt) / dtSec;
     if (closureFtps > STEADY.closureKt * KT_TO_FTPS) return false;
     if (Math.abs(wing.bankDeg - lead.bankDeg) > STEADY.bankOffDeg) return false;
     // The judge's band is sideless for the pair: a change of side is done only on the new side.
