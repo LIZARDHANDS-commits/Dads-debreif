@@ -27,6 +27,8 @@ const FOUR_LOWER_FT = 10;
  * estimates, about half a wingspan out, most of a length back and 5 ft down.
  */
 const MAKE_ROOM = Object.freeze({ outFt: 15, backFt: 25, downFt: 5 });
+/** From echelon to fighting wing, how far behind Lead #3 drops back before #2 sweeps out, #4 twice as far (an estimate). */
+const ECHELON_CLEAR_FT = 300;
 
 /**
  * The close station change's technique, the 2-ship's (SMM 12.20 paras 44-45; transitions.js legsFor's crossClose), for one
@@ -242,8 +244,24 @@ export function slideTo(start, t0, opts, s, to) {
  * Flown off Lead until the last few feet, nobody chases a wingman who is still moving, so nothing compounds down the chain
  * (until V2.97 each chased the one ahead from the press: #4 reversed bank by up to 125° and the change took 86 s).
  */
-export function openToFw(start, t0, opts, s) {
-  return legsInTurn(start, t0, opts, [(c) => {
+export function openToFw(start, t0, opts, s, from) {
+  return legsInTurn(start, t0, opts, [
+    // From echelon #3 and #4 sit outboard of #2, where his drop back sweeps out: they first drop back and down in their own
+    // lanes, clear behind him, while he holds (SMM 16.32 para 92: "drop back ... until each is steady behind the aircraft
+    // ahead; then a sideways move"). Until V2.97's first build #2 swept out through #3's place and passed 12 ft from him.
+    (c) => {
+      if (from !== 'echelon') return null;
+      const slots = slotsFor('fw', s, { ships: 4, stacked: false });
+      const lane = (id) => relativeTo(c.start[0], c.by.get(id)).left;
+      return {
+        lead: toSpeed(c, 'fw'),
+        wings: [
+          { id: 2, phases: () => [hold(c, 2, 1)] },
+          ...[3, 4].map((id) => ({ id, phases: () => [sweepOut(place(c, -ECHELON_CLEAR_FT * (id - 2), lane(id), slots[id].alt), { track: 1 })] })),
+        ],
+      };
+    },
+    (c) => {
     const slots = slotsFor('fw', s, { ships: 4, stacked: false });
     const lead = c.start[0];
     const two = {
@@ -274,5 +292,6 @@ export function openToFw(start, t0, opts, s) {
       },
     });
     return { lead: toSpeed(c, 'fw'), wings: [two, behind(3), behind(4)] };
-  }]);
+  },
+  ]);
 }
