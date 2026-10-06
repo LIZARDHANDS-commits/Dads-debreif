@@ -43,9 +43,13 @@ export function fwGoal(L, W, side, collapse = true) {
   const { band } = FW_TURN;
   const q = relativeTo(L, W);
   const range = Math.hypot(q.fwd, q.left);
-  // The band: stay put inside it; outside, its nearest point on #2's side (aiming a little inside the edge).
+  // The band: stay put inside it; outside, its nearest point on #2's side (aiming a little inside the edge). "Inside" is
+  // the band less that aim margin, so the goal meets #2 where he is as he gets there: judged on the band's own edge, the goal
+  // jumped the aim margin onto him as he crossed it and his heading flicked (a 30° roll, copied by #3 and #4 behind; V2.121).
+  const sw0 = sweepOf(q);
   const inside =
-    range >= band.minFt && range <= band.maxFt && Math.sign(q.left) === side && sweepOf(q) >= band.minSweepDeg && sweepOf(q) <= band.maxSweepDeg;
+    range >= band.minFt + FW_TURN.aimInsideFt && range <= band.maxFt - FW_TURN.aimInsideFt && Math.sign(q.left) === side &&
+    sw0 >= band.minSweepDeg + FW_TURN.aimInsideDeg && sw0 <= band.maxSweepDeg - FW_TURN.aimInsideDeg;
   let bandGoal = { fwd: q.fwd, left: q.left };
   if (!inside) {
     const r = clamp(range, band.minFt + FW_TURN.aimInsideFt, band.maxFt - FW_TURN.aimInsideFt);
@@ -100,6 +104,8 @@ function fwExit(exitAt, keepSide = null) {
       fwdRate: Infinity,
       latRate: Infinity,
       feedForward: false,
+      refTurn: false,
+      alignBankDeg: FW_EXIT.alignBankDeg,
       goal: (L, W, t) => {
         if (keepSide === null && (side === null || t <= exitAt + STEP_SEC / 2)) side = fwExitSide(L, W);
         return fwGoal(L, W, side, false);
@@ -181,9 +187,10 @@ export function planFwTurn(aircraft, key, dir, t0 = 0, { blockFt = 8000 } = {}) 
     // #2 only: #3 and #4 fly off a wingman who is himself manoeuvring, so they keep the band goal (an estimate; the four-ship
     // rebuild may extend the law to them).
     const pursuit = collapse && wing.ref === lead.id ? { pursuit: pursuitOf(dir * bank) } : {};
-    // The turn exit (Fig 12.23) once Lead rolls out, after the bigger turns #2 collapses in: #2 only, as the pursuit, keeping
-    // the side he started on (as before). #3 and #4 fly as before (an estimate, as the pursuit).
-    const outAt = collapse && wing.ref === lead.id ? rollOutAt(refs[wing.ref], t0) : null;
+    // The turn exit (Fig 12.23) once the aircraft he flies off rolls out, keeping the side he started on: every wingman after
+    // every turn (V2.121; until then #2 only, after the bigger turns he collapses in: #3 and #4 kept chasing a place that
+    // swung with the one ahead's heading and hunted, up to 17 bank reversals at 78° with Lead wings level).
+    const outAt = rollOutAt(refs[wing.ref], t0);
     const exit = outAt !== null ? fwExit(outAt, side) : {};
     const goalPhase = phase({ fwd: rel0.fwd, left: rel0.left, alt: wing.altAboveFt }, { ...follow, ...pursuit, ...exit, track: wing.ref, goal: (L, W) => fwGoal(L, W, side, collapse) });
     const { run, profile } = trackTwice({ refs, wing0: wing, t0, phases: [goalPhase], blockFt });
