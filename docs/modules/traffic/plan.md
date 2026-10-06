@@ -156,3 +156,4 @@ The three old task folders show about 120 unticked boxes; most are old acceptanc
 
 - [ ] Sign-off: anyone runs the checklist in `testing.md` and sends Patrick the result; the next module starts only after his yes (`pf/reset/4-decisions/answers.md:13`).
 - [ ] Remove the PROTOTYPE flag from the Traffic card only if Patrick says so at sign-off (roadmap Task 5.2; ALL-R4) (`archive/docs/REMEDIATION_ROADMAP.md:388`, `pf/reset/1-requirements/requirements.md:20`).
+- [ ] **Sky and clouds in 3D** (Patrick, 6 Oct, from the Formation Sim screen session): a light blue gradient sky and basic clouds, cheap for performance (a gradient texture behind everything, and a few dozen soft billboard clouds in one batch; no volumetric clouds). For the session that owns Traffic's 3D view; the Formation Sim gets the same look.
