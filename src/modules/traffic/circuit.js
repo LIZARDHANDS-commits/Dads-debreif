@@ -386,7 +386,9 @@ export function buildCircuit(points, windFromDeg = 360, windKt = 0) {
  * estimate) if it is higher, until the upwind end (Patrick, 4 Oct 19:01Z).
  * `holdKias`, when given, is the speed it slows or speeds up to and holds until
  * the upwind end, the overshoot (the move-over's 120 KIAS: Patrick, 4 Oct
- * 19:52Z); without it a go-around speeds up toward pattern speed.
+ * 19:52Z); without it a go-around speeds up toward pattern speed. Past the
+ * upwind end a move-over eases back onto the runway centreline and flies the
+ * circuit's own climb-out line (Patrick, 6 Oct 06:43Z; TR-94).
  * Returns the path [{ x, y, alt, kt, g, src, phase, headingDeg }].
  */
 export function buildGoAround(points, from, windFromDeg = 360, windKt = 0, sideFt = 0, levelAltFt = null, holdKias = null) {
@@ -394,7 +396,7 @@ export function buildGoAround(points, from, windFromDeg = 360, windKt = 0, sideF
   const r = (rwy.trackDeg + 90) * Math.PI / 180;
   const shift = (p) => ({ ...p, x: p.x + sideFt * Math.sin(r), y: p.y + sideFt * Math.cos(r) });
   const centre = sideFt ? lineOf(shift(points[0]), shift(points[1])) : rwy;
-  const start = { x: from.x, y: from.y, alt: from.alt, ias: from.kias, hdg: from.headingDeg, bank: from.bankDeg ?? 0, levelAltFt, holdKias };
+  const start = { x: from.x, y: from.y, alt: from.alt, ias: from.kias, hdg: from.headingDeg, bank: from.bankDeg ?? 0, levelAltFt, holdKias, backTo: rwy };
   return flyOuter(points, centre, 0, { windFromDeg, windKt }, start).track;
 }
 
@@ -521,7 +523,9 @@ function flyOuter(points, centre, breakAlong, wind, goAround = null) {
 
     // Where to point.
     if (stage === 'climbOut' || stage === 'goAround' || stage === 'zoom') {
-      bank = bankFor(pilot.headingFor(trackForLine(centre, s, HOLD_RADIUS_FT)), s, 30);
+      // Past the upwind end a move-over comes back across to the runway centreline (TR-94).
+      const line = stage !== 'goAround' && goAround?.backTo ? goAround.backTo : centre;
+      bank = bankFor(pilot.headingFor(trackForLine(line, s, HOLD_RADIUS_FT)), s, 30);
       if (stage === 'climbOut' && s.ias >= CIRCUIT.patternKias - 0.5 && s.alt >= PATTERN_ALT_FT - 50) { stage = 'crosswindTurn'; phase('crosswind'); pilot.mark({ src: 3 }); }
     } else if (stage === 'crosswindTurn' || stage === 'crosswind') {
       bank = bankFor(pilot.headingFor(crosswindTrack), s, CIRCUIT.patternBankDeg, 'left');

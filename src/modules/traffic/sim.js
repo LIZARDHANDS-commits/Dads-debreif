@@ -81,6 +81,11 @@ export const TYPE_FALLBACK_KT = Object.freeze({
 export const DEFAULT_CONFLICT_LIMITS = Object.freeze({ latFt: 200, vertFt: 200, cautionLatFt: 500, cautionVertFt: 500 });
 
 /** Trails: a point every 0.5 s of sim time for the last 2 minutes, whatever the frame rate. */
+/**
+ * The landing tag (T+GO, STOP, GO AROUND) shows only once lined up and no more than this above the window's height, ft
+ * (an estimate: 300 ft), so the initial at pattern height over the same line keeps its own tag (TR-94).
+ */
+const FINAL_TAG_ABOVE_WINDOW_FT = 300;
 const TRAIL_EVERY_STEPS = 10;
 const TRAIL_POINTS = 240;
 
@@ -1367,7 +1372,10 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           const ux = (rwy.up.x - rwy.th.x) / rwy.len, uy = (rwy.up.y - rwy.th.y) / rwy.len;
           const along = (x - rwy.th.x) * ux + (y - rwy.th.y) * uy, across = Math.abs((x - rwy.th.x) * uy - (y - rwy.th.y) * ux);
           const off = Math.abs(wrapDeg180((a.trackDeg ?? a.headingDeg ?? 0) - compassDegFromVector(ux, uy)));
-          onFinal = along < 0 && across < 2000 && off < 30;
+          // Low as well as lined up: an aircraft on initial at pattern height over the same line is not landing yet
+          // (Patrick, 6 Oct 06:43Z: "T+GO ... shouldn't happen until they are low and landing"; TR-94).
+          const low = Number.isFinite(alt) && alt <= (win?.alt ?? PATTERN_ALT_FT) + FINAL_TAG_ABOVE_WINDOW_FT;
+          onFinal = along < 0 && across < 2000 && off < 30 && low;
           toThresholdFt = Math.hypot(x - rwy.th.x, y - rwy.th.y);
         }
         const b = behaviourOf({ ...a, kt, alt, leg, siPattern: onSiPattern(a) }, { route, fieldElevFt: FIELD_ELEV_FT, onFinal, toThresholdFt, windowFt });
