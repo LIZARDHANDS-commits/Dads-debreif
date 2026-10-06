@@ -553,14 +553,14 @@ export function drawScene(ctx, map, scene, settings, palette, layers = {}) {
       if (showSmm) {
         ctx.save();
         ctx.globalAlpha = 0.45;
-        line(route.calmPath, route.color, 2, [6, 6], true);
+        line(route.calmPath, route.color, 2, [6, 6], !route.open);
         ctx.restore();
       }
       if (showWind) {
         const chosen = route.id === picked;
         ctx.save();
         ctx.globalAlpha = (picked !== null && !chosen ? 0.55 : 1) * lineOpacity(route);
-        line(route.path, route.color, (chosen ? 4.5 : 3) * lineScale(route), [], true);
+        line(route.path, route.color, (chosen ? 4.5 : 3) * lineScale(route), [], !route.open);
         ctx.restore();
       }
     } else {
@@ -568,11 +568,11 @@ export function drawScene(ctx, map, scene, settings, palette, layers = {}) {
       const chosen = route.id === picked;
       ctx.save();
       ctx.globalAlpha = (picked !== null && !chosen ? 0.55 : 1) * lineOpacity(route);
-      line(path, route.color, (chosen ? style.width + 1.5 : style.width) * lineScale(route), style.dash, route.kind === 'pattern');
+      line(path, route.color, (chosen ? style.width + 1.5 : style.width) * lineScale(route), style.dash, route.kind === 'pattern' && !route.open);
       ctx.restore();
     }
 
-    const name = labelAnchor(path, route.kind === 'pattern');
+    const name = labelAnchor(path, route.kind === 'pattern' && !route.open);
     if (name) {
       const [x, y] = at(name);
       text(route.name, x + 6, y - 6, route.color, { size: 12, bold: route.id === picked, anchor: x });

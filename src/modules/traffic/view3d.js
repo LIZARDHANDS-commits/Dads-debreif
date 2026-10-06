@@ -460,7 +460,7 @@ export function routeSignature(route) {
   path.forEach((p, i) => {
     sum += (i + 1) * (finite(p.x) * 1.3 + finite(p.y) * 1.7 + finite(p.alt) * 2.3);
   });
-  return `${route.kind}|${route.color}|${path.length}|${sum.toFixed(3)}|${route.lineScale ?? 1}|${route.lineOpacity ?? 1}|${route.onGround ? 'g' : 'h'}`;
+  return `${route.kind}|${route.open ? 'o' : 'c'}|${route.color}|${path.length}|${sum.toFixed(3)}|${route.lineScale ?? 1}|${route.lineOpacity ?? 1}|${route.onGround ? 'g' : 'h'}`;
 }
 
 // A pattern is a closed loop, entries and splits open lines. Entries are dashed and splits dotted, as on the 2D map.
@@ -702,7 +702,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
           const dash = DASH_FT[route.kind];
           if (fatLines) {
             geometry.dispose(); // the wide line keeps its own copy of the points
-            const closed = route.kind === 'pattern';
+            const closed = route.kind === 'pattern' && !route.open; // Pattern 1 is open over the runway (scene.js)
             const widthPx = (closed ? ROUTE_LINE_PX.pattern : ROUTE_LINE_PX.other) * scale;
             // Both see-through, the edge drawn first (render order goes before three's sorting of see-through lines).
             const seeThrough = (opacity) => ({ transparent: true, opacity, depthWrite: false });
@@ -714,7 +714,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
             const material = dash
               ? new THREE.LineDashedMaterial({ color: route.color, dashSize: dash[0], gapSize: dash[1], fog: false, transparent: fade < 1, opacity: fade })
               : new THREE.LineBasicMaterial({ color: route.color, fog: false, transparent: fade < 1, opacity: fade });
-            const line = route.kind === 'pattern' ? new THREE.LineLoop(geometry, material) : new THREE.Line(geometry, material);
+            const line = route.kind === 'pattern' && !route.open ? new THREE.LineLoop(geometry, material) : new THREE.Line(geometry, material);
             if (dash) line.computeLineDistances();
             line.frustumCulled = false;
             root.add(line);
@@ -735,7 +735,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
           const geometry = new THREE.BufferGeometry();
           geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
           const material = new THREE.LineDashedMaterial({ color: '#8b949e', dashSize: 400, gapSize: 300, transparent: true, opacity: 0.6, fog: false });
-          const line = new THREE.LineLoop(geometry, material);
+          const line = route.open ? new THREE.Line(geometry, material) : new THREE.LineLoop(geometry, material);
           line.computeLineDistances();
           line.frustumCulled = false;
           root.add(line);

@@ -10,6 +10,19 @@ import { temperatureKey } from './weather.js';
 
 const isShowing = (route) => route.visible !== false;
 
+/**
+ * Pattern 1's line without the runway part (Patrick, 6 Oct: "hide the traffic pattern lines from the window to the departure
+ * end, we don't need those there"): from the departure end round to the window, drawn open. For drawing only; the aircraft
+ * still fly the whole circuit. A track without the departure end and the window marked comes back whole.
+ */
+function windowToDeparture(track) {
+  if (!Array.isArray(track)) return { path: track, cut: false };
+  const from = track.findIndex((p) => p.src === 1);
+  const to = track.findIndex((p) => p.phase === 'final');
+  if (from < 0 || to <= from) return { path: track, cut: false };
+  return { path: track.slice(from, to + 1), cut: true };
+}
+
 /** The SI pattern's line on the map (Patrick, 4 Oct): its id, name and colour as the routes list shows them. */
 export const SI_PATTERN = Object.freeze({ id: 'SI_PATTERN', name: 'SI pattern', kind: 'entry', color: '#ffa657' });
 const siLines = new WeakMap(); // Pattern 1's route → { key, ent2, path }: flown once per wind, not every frame
@@ -77,17 +90,20 @@ export function buildScene({ setup, state, selectedRouteId, trailOf }) {
     const decisions = decisionPoints(route, setup.routes);
     const isPat1 = route.id === 'PAT1' && route.points?.length >= 4;
     const isPat1Wind = isPat1 && windKt > 0;
+    const pat1 = isPat1 && isShowing(route) && route.points.length > 1 ? windowToDeparture(generateWindAdjustedTrack(route, windFromDeg, windKt, options)) : null;
+    const calm = isShowing(route) && isPat1Wind ? windowToDeparture(generateWindAdjustedTrack(route, 360, 0, options)) : null;
     return {
       id: route.id, name: route.name, kind: route.kind, color: route.color, visible: isShowing(route),
       points: route.points.map((p, i) => ({ ...p, decision: decisions.has(i), ...pointTurn(route, i, options) })),
       path: isShowing(route) && route.points.length > 1
         ? (isPat1
-            ? generateWindAdjustedTrack(route, windFromDeg, windKt, options)
+            ? pat1.path
             : (route.id === 'ENT4' || route.kind === 'pfl' || /pfl/i.test(route.name)
                 ? generatePflTrack(route, windFromDeg, windKt, options)
                 : drawPath(route, options)))
         : undefined,
-      calmPath: isShowing(route) && isPat1Wind ? generateWindAdjustedTrack(route, 360, 0, options) : undefined,
+      calmPath: calm ? calm.path : undefined,
+      open: Boolean(pat1?.cut), // drawn as an open line, not a loop
       windPerch: isShowing(route) && isPat1Wind ? computeWindPerch(route, windFromDeg, windKt, options) : null,
     };
   });
