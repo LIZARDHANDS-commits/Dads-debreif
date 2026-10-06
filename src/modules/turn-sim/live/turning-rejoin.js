@@ -339,9 +339,16 @@ function tailLegs(s, to, sTo, spacingFt, at = null) {
   }
   const ech = pairSlot('echelon', s, spacingFt);
   const rest = legsFor('echelon', s, to, sTo, spacingFt);
-  // The nearest point of the line to where he is: the distance down it from echelon (its direction: LINE_BACK_PER_OUT back per foot out).
-  const alongFt = Math.max(0, ((at.fwd - ech.fwd) * -LINE_BACK_PER_OUT + (Math.abs(at.left) - Math.abs(ech.left))) / Math.hypot(1, LINE_BACK_PER_OUT));
-  return [closeThrough(downTheLine(ech, s, alongFt), { advanceTol: TURNING_REJOIN.routeFlowFt }), ...(rest.length ? rest : [slide(ech)])];
+  // Where he is against the line: how far down it from echelon (its direction: LINE_BACK_PER_OUT back per foot out) and how
+  // far off it. He joins it as far up again as he is off it, so the move over keeps him closing up the line in one movement
+  // (Patrick 6 Oct 04:43Z: "2 goes behind lead and stagnates there instead of following the line"); to the nearest point of
+  // the line, as until V2.123, the move over held his closure up the line at nothing.
+  const n = Math.hypot(1, LINE_BACK_PER_OUT);
+  const dF = at.fwd - ech.fwd;
+  const dO = Math.abs(at.left) - Math.abs(ech.left);
+  const alongFt = (-dF * LINE_BACK_PER_OUT + dO) / n;
+  const offFt = Math.abs(dF + dO * LINE_BACK_PER_OUT) / n;
+  return [closeThrough(downTheLine(ech, s, Math.max(0, alongFt - offFt)), { advanceTol: TURNING_REJOIN.routeFlowFt }), ...(rest.length ? rest : [slide(ech)])];
 }
 
 /**
@@ -629,10 +636,11 @@ export function planTurningRejoin(pair, to, options = {}, t0 = 0) {
     side: sTo,
     rejoinKind: 'into',
     verticalUpFt: best.upFt,
-    // The decision point: to fighting wing, formation.js plans the change again there (spec F1, TS-81). To a close
-    // formation the X's decision point is flown through as planned (TS-106; Patrick 02:50Z: "one smooth movement"): the
-    // re-plan there slid #2 straight in from where he was instead.
-    decisionSec: to === 'fw' || !best.overshoot ? t0 + part.steps * dt : null,
+    // No re-plan at the decision point: the rejoin is flown through as planned, Lead holding his turn until #2 is in
+    // position (Patrick 6 Oct 04:43Z: "Lead needs to maintain the turn for a TRJ until 2 is in position (Eschelon or
+    // fighting wing) right now they roll out early"; TS-112). The re-plan there (spec F1, TS-81) planned Lead on straight
+    // and level, so he rolled out early and #2 slid in from where he was.
+    decisionSec: null,
     leadTurnDeg: turnDeg,
     laneFwdFt: run.laneFwdFt,
     laneWarnFt: run.laneFwdFt > best.slotFwdFt + TURNING_REJOIN.laneTolFt ? run.laneFwdFt - best.slotFwdFt : null,
