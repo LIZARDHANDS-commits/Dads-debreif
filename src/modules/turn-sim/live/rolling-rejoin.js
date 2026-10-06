@@ -6,7 +6,7 @@
 // Fig 14.1, Table 14.1 (the barrel roll). Every number in ROLLING_REJOIN is an estimate unless a page or ruling is named
 // beside it. Approach and dry runs: turn-sim-review/rolling-rejoin/approach.md (project files).
 //
-// How it is planned. Lead turns into #2 exactly as in the plain turning rejoin (hand-over.js leadTurnInto, 30° of bank held
+// How it is planned. Lead turns into #2 exactly as in the plain turning rejoin (lead-turn-in.js leadTurnInto, 30° of bank held
 // until #2 is in). #2 flies a roll from the press, then the plain turning rejoin's own search (turning-rejoin.js
 // searchTurningRejoin) from where he rolls out. The roll is flown the way fluid manoeuvring flies Lead's barrel roll
 // (fluid-lead.js): a planned nose path followed at a set G on the point mass (core point-mass.js: full power, the T-6A's
@@ -23,11 +23,13 @@
 // Conventions as the rest of the live code: x east, y north, z up, feet and seconds; heading in math radians (0 east,
 // counter-clockwise); fwd and left in Lead's frame (left positive); bank left wing down positive.
 import { relativeTo, DEG } from './manoeuvres.js';
-import { recordFlight, speedSeg, CHANGE_LIMIT_SEC } from './transitions.js';
+import { recordFlight, speedSeg } from './replay.js';
+import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
-import { FORMATIONS, pairSlot, LANE } from './slots.js';
+import { FORMATIONS, pairSlot, LANE, sideFor } from './slots.js';
 import { KIAS_OUTSIDE_LAB, REJOIN, TURNING_REJOIN, LAG_ROLL, G_RULE_BANK_DEG } from './tuning.js';
-import { leadTurnInto, fromStep, wingFromPose } from './hand-over.js';
+import { fromStep, wingFromPose } from './hand-over.js';
+import { leadTurnInto } from './lead-turn-in.js';
 import { searchTurningRejoin } from './turning-rejoin.js';
 import { STEP_SEC, smoother } from './flight.js';
 import { leadStateOf, stepLead, nosePath, followNose, noseAt } from './fluid-lead.js';
@@ -154,7 +156,7 @@ export function planRollingRejoin(pair, to, options = {}, t0 = 0) {
   const blockFt = options.blockFt ?? 8000;
   const s = from.side || Math.sign(relativeTo(lead, wing).left) || (options.lastSide ?? -1);
   const want = options.side ?? 'keep';
-  const sTo = to === 'astern' ? 0 : want === 'left' ? 1 : want === 'right' ? -1 : s;
+  const sTo = sideFor(to, want, s);
   const pre = Math.abs(lead.kias - KIAS_OUTSIDE_LAB) > 0.5 ? [{ ...speedSeg(lead.kias, KIAS_OUTSIDE_LAB, blockFt), withNext: true }] : [];
   const into = leadTurnInto({ lead, pre, s, bankDeg: REJOIN.leadBankDeg, t0, record: recordFlight });
   const rec = into.longRec;

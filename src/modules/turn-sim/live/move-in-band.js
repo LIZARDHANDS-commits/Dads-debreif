@@ -9,7 +9,8 @@
 // close bands and, since V2.145, with no closure cap and a hard dive or climb in line abreast and fighting wing (TS-128).
 // Written by Fable (turn-sim-review/move-in-band/), folded into V2.95 (TS-98).
 import { relativeTo, DEG } from './manoeuvres.js';
-import { recordFlight, speedSeg, CHANGE_LIMIT_SEC } from './transitions.js';
+import { recordFlight, speedSeg } from './replay.js';
+import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { judge, classify } from './judge.js';
 import { FORMATIONS, FW_BAND } from './slots.js';
 import { IN_POSITION } from './bands.js';

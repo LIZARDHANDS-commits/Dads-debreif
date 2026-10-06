@@ -18,9 +18,11 @@
 // Chosen, the quickest first: the cut and how sharply he comes onto the line (STRAIGHT_REJOIN.cutsDeg, aimsFt), and the overtake
 // asked before a smaller one. #2 is flown through the same flight.js step as Lead. Numbers are tuning.js STRAIGHT_REJOIN's.
 import { relativeTo, DEG } from './manoeuvres.js';
-import { recordFlight, speedSeg, closeThrough, legsFor, STRAIGHT_AHEAD, CHANGE_LIMIT_SEC } from './transitions.js';
+import { recordFlight, speedSeg } from './replay.js';
+import { closeThrough, legsFor, STRAIGHT_AHEAD } from './recipes.js';
+import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
-import { FORMATIONS, pairSlot } from './slots.js';
+import { FORMATIONS, pairSlot, sideFor } from './slots.js';
 import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, STRAIGHT_REJOIN, TURNING_REJOIN, TRACKER, CLOSURE, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
 import { onClosure, fromStep } from './hand-over.js';
 import { STEP_SEC, copyAircraft } from './flight.js';
@@ -38,7 +40,7 @@ const CLOSE_TARGETS = new Set(['echelon', 'route', 'astern']);
  * #2's part, from the press to the decision point, against Lead's recorded flight `rec` (Lead straight). s: the side he starts
  * on; route: the route slot he flows through; cutDeg, aimFt: the cut and how sharply he comes onto the line; overtakeKt: KIAS
  * over Lead's 200. Returns { points, steps, end, accelKtps, maxBankDeg, ahead, sixFt } or null when he does not reach it in
- * time: points are [bank, kias, power] a step (transitions.js flyStep's bankTrack); ahead is true when he passed ahead of
+ * time: points are [bank, kias, power] a step (replay.js flyStep's bankTrack); ahead is true when he passed ahead of
  * Lead's 3/9 line inside 1,000 ft; sixFt how far back he was when he got onto Lead's six.
  */
 function flyToDecision({ wing, rec, s, route, cutDeg, aimFt, overtakeKt, blockFt, t0, profile }) {
@@ -142,7 +144,7 @@ function flyToDecision({ wing, rec, s, route, cutDeg, aimFt, overtakeKt, blockFt
 }
 
 /** The whole rejoin with one cut: #2's part to the decision point, then the tracker through route into the slot. */
-function flyWith({ lead, wing, rec, s, to, sTo, spacingFt, blockFt, t0, cutDeg, aimFt, overtakeKt }) {
+function flyStraightRejoinWith({ lead, wing, rec, s, to, sTo, spacingFt, blockFt, t0, cutDeg, aimFt, overtakeKt }) {
   const TR = TURNING_REJOIN;
   const A = STRAIGHT_AHEAD;
   const sRoute = sTo || s;
@@ -199,7 +201,7 @@ export function planStraightRejoin(pair, to, options = {}, t0 = 0) {
   const blockFt = options.blockFt ?? 8000;
   const s = from.side || Math.sign(relativeTo(lead, wing).left) || (options.lastSide ?? -1);
   const want = options.side ?? 'keep';
-  const sTo = to === 'astern' ? 0 : want === 'left' ? 1 : want === 'right' ? -1 : s;
+  const sTo = sideFor(to, want, s);
   const leadSegs = Math.abs(lead.kias - KIAS_OUTSIDE_LAB) > 0.5 ? [speedSeg(lead.kias, KIAS_OUTSIDE_LAB, blockFt)] : [];
   const rec = recordFlight(lead, { segments: leadSegs }, t0);
 
@@ -209,7 +211,7 @@ export function planStraightRejoin(pair, to, options = {}, t0 = 0) {
   for (const overtakeKt of overtakes) {
     for (const cutDeg of STRAIGHT_REJOIN.cutsDeg) {
       for (const aimFt of STRAIGHT_REJOIN.aimsFt) {
-        const flown = flyWith({ lead, wing, rec, s, to, sTo, spacingFt, blockFt, t0, cutDeg, aimFt, overtakeKt });
+        const flown = flyStraightRejoinWith({ lead, wing, rec, s, to, sTo, spacingFt, blockFt, t0, cutDeg, aimFt, overtakeKt });
         if (flown && (!best || flown.durationSec < best.durationSec - 0.5)) best = { ...flown, overtakeKt, cutDeg };
       }
     }

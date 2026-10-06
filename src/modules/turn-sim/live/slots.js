@@ -275,6 +275,14 @@ export function pairSlot(key, s, spacingFt = 6000) {
   return at;
 }
 
+/**
+ * The side #2 ends on for a 2-ship change to formation `to` (+1 left of Lead, -1 right, 0 for line astern): the side asked
+ * for (`want`: 'left', 'right' or 'keep'), or, kept, the side he is on now (`sNow`). The one copy of the planners' side choice.
+ */
+export function sideFor(to, want, sNow) {
+  return to === 'astern' ? 0 : want === 'left' ? 1 : want === 'right' ? -1 : sNow;
+}
+
 /** Who flies off whom in a 4-ship formation: { 2: id, 3: id, 4: id }. */
 export function refsFor(key) {
   const slots = slotsFor(key, -1, { ships: 4 });

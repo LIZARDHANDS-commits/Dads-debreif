@@ -1,7 +1,7 @@
 // The 4-ship's legs (refactor PR 6, the four rebuilt on the 2-ship's planners; Fable's plan, chooser/plan.md section 20;
 // Patrick "agreed" 5 Oct 23:18Z): the machinery every 4-ship move is built from. A move is one or more legs; a leg plans
 // Lead first, then each wingman in an order where the aircraft he flies off is already planned (#4 off #3 "flies through
-// #3", SMM 16.37 para 103), each against the others' recorded flights (transitions.js recordFlight), through the same
+// #3", SMM 16.37 para 103), each against the others' recorded flights (replay.js recordFlight), through the same
 // flight step as every other aircraft, so the path drawn is the path flown (spec F1).
 //
 // A wingman's part is either tracker legs (`phases`, the 2-ship's own leg recipes on the 2-ship's power profile,
@@ -18,7 +18,8 @@
 // baseline), so they are not used here.
 import { STEP_SEC, copyAircraft } from './flight.js';
 import { relativeTo } from './manoeuvres.js';
-import { recordFlight, flyStep, dryRunT, speedSeg, sweepOut } from './transitions.js';
+import { recordFlight, flyStep, dryRunT, speedSeg } from './replay.js';
+import { sweepOut } from './recipes.js';
 import { FW_FOLLOW } from './tuning.js';
 import { fwGoal } from './formation-turns.js';
 import { trackTwice, runTracker, phase } from './tracker.js';

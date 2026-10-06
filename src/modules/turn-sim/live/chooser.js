@@ -21,7 +21,7 @@
 // The chooser changes no flight physics and no planner: it only picks between them.
 // What re-plans when (the press, the hand-over, the decision point, the picture breaking: spec F1 and F11 as reworded by
 // TS-76) is formation.js's and hand-over.js's; this file only chooses.
-import { pairSlot, LANE } from './slots.js';
+import { pairSlot, LANE, sideFor } from './slots.js';
 import { relativeTo } from './manoeuvres.js';
 import { G_RULE_BANK_DEG, HAND_OVER_FT } from './tuning.js';
 import { planGoTo } from './transitions.js';
@@ -125,7 +125,7 @@ export function rangeToSlotFt(pair, to, options = {}) {
   const rel = relativeTo(lead, wing);
   const s = Math.sign(rel.left) || options.lastSide || -1;
   const want = options.side ?? 'keep';
-  const sTo = to === 'astern' ? 0 : want === 'left' ? 1 : want === 'right' ? -1 : s;
+  const sTo = sideFor(to, want, s);
   const slot = pairSlot(to, sTo || s, options.spacingFt ?? 6000);
   return slot ? Math.hypot(rel.fwd - slot.fwd, rel.left - slot.left) : Infinity;
 }

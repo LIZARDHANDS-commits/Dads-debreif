@@ -18,7 +18,8 @@ import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS as KT_FTPS } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
 import { relativeTo } from './manoeuvres.js';
-import { recordFlight, speedSeg, describe } from './transitions.js';
+import { recordFlight, speedSeg } from './replay.js';
+import { describe } from './transitions.js';
 import { KIAS_LAB, KIAS_OUTSIDE_LAB, KINEMATIC, OPEN_OUT, LAG_ROLL } from './tuning.js';
 import { FORMATIONS, FW_BAND, LANE, fwShapeNow, pairSlot } from './slots.js';
 import { speedSegFor } from './slow-down.js';
@@ -277,7 +278,7 @@ export function planLineMove(pair, from, s, to, sTo, { spacingFt = 6000, blockFt
 }
 
 // leadTurnSegs (a long turn as flight.js turn segments) lives in manoeuvres.js since V2.59, so transitions.js and
-// hand-over.js can use it without an import loop; it is re-exported here for the files that read it from here.
+// lead-turn-in.js can use it without an import loop; it is re-exported here for the files that read it from here.
 export { leadTurnSegs } from './manoeuvres.js';
 
 // The hot turning rejoin from line abreast lived in hot-rejoin.js until V2.93 (TS-94: a training error's start is now raced by the chooser).

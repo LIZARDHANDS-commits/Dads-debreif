@@ -59,6 +59,7 @@ The flying core, `src/modules/turn-sim/live/` (each file's header says its job):
 | File | Its job |
 |---|---|
 | `formation.js` | The pair: presses, tracks, rolling record, roll-out judging; calls `events.js` each step |
+| `formation-words.js` | The screen words: a press's label, into or away from #2, the compass heading and G-warm's G flown (clean-up step 3, from `formation.js`) |
 | `events.js` | The events that plan a change again (decision point, picture breaking), a turn pressed mid-change, and "done" in band and steady (TS-97) |
 | `chooser.js` | One chooser: scores every planner and flies the quickest that passes (TS-76) |
 | `replan.js` | The "from here" candidate: a press mid-move is planned again at once, nothing queued (TS-78, TS-79) |
@@ -71,12 +72,16 @@ The flying core, `src/modules/turn-sim/live/` (each file's header says its job):
 | `move-in-band.js` | Moves #2 anywhere in the band when he is in position (TS-98) |
 | `turning-rejoin.js`, `straight-rejoin.js`, `echelon-to-fw.js`, `open-out.js`, `lag-roll.js`, `rolling-rejoin.js` | The planners the chooser tries |
 | `kinematic.js`, `kinematic-moves.js`, `line-moves.js`, `hand-over.js`, `tracker.js` | Lines, hand-overs and the tracker |
+| `replay.js` | Flying a planned move one step (the replayed bank track and pose track), the dry run, recorded flights and the speed segment (clean-up step 3, from `transitions.js`) |
+| `recipes.js` | The tracker's leg recipes for each move (slide, stop at a corner, close through route, rejoin, open out, drop back, sweep out, straight ahead) and `legsFor`, the legs from one formation to another (clean-up step 3, from `transitions.js`) |
+| `lead-turn-in.js` | Lead's turn into #2 in a turning rejoin, held until #2 is in, and the tracker's part behind it (clean-up step 3, from `hand-over.js`) |
+| `transitions.js` | The change limit, the words for a change, and `planGoTo`, the tracker-only planner kept as a fallback |
 | `fluid.js`, `fluid-lead.js`, `fluid-wing.js` | Fluid manoeuvring |
 | `four-ship.js`, `four-ship-card.js`, `g-warm.js` | The 4-ship's screen pieces |
 | `four-plan.js`, `four-legs.js`, `four-close.js`, `four-rejoin.js`, `four-open.js` | The 4-ship's moves on the 2-ship's planners (refactor PRs 6 to 8): the from-to graph, the legs, close moves, rejoins, opening out |
 | `errors.js` | Training errors and the Smart wingman (TS-52, TS-96) |
 
-Files not named here (`attitude.js`, `full-power.js`, `power.js`, `slow-down.js`, `formation-turns.js`, `manoeuvres.js`, `transitions.js`) are flight helpers and move builders; read the header of the one you need.
+Files not named here (`attitude.js`, `full-power.js`, `power.js`, `slow-down.js`, `formation-turns.js`, `manoeuvres.js`) are flight helpers and move builders; read the header of the one you need.
 
 ## Open questions
 

@@ -12,7 +12,9 @@
 // Lead speeds up to line abreast speed at the press (OPEN_OUT_HELD.leadHolds).
 
 import { relativeTo, turnSeg, DEG } from './manoeuvres.js';
-import { recordFlight, speedSeg, describe, openOut, CHANGE_LIMIT_SEC } from './transitions.js';
+import { recordFlight, speedSeg } from './replay.js';
+import { openOut } from './recipes.js';
+import { describe, CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
 import { FORMATIONS, pairSlot } from './slots.js';
 import { KIAS_LAB, OPEN_OUT, TRACKER } from './tuning.js';
