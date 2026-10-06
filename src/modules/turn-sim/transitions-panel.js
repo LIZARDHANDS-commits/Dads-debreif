@@ -4,7 +4,7 @@
 // button it can never use is hidden; one that is only busy for a moment is greyed), a Side switch (Keep, L or R), "More" with Line astern and the rejoin kind, and the card's
 // "Now:", the rejoin block (range, closure, Lead's clock position, ON LINE / HOT / COLD, height
 // against Lead) and the flags. Flags are never walls: the sim flies on and says so.
-// The 4-ship has its own buttons (spec section 8, TS-54; live/four-ship-moves.js): setShips swaps them.
+// The 4-ship has its own buttons (spec section 8, TS-54; live/four-plan.js): setShips swaps them.
 import { h, clear } from '../../ui-kit/dom.js';
 import { rejoinReadout } from './live/judge.js';
 import { REJOIN, KIAS_OUTSIDE_LAB, RATE_CHOICES, RATE_WORDS, CLOSE_IN_SEC, REJOIN_CLOSURE_KT, setRates, ratesNow } from './live/tuning.js';

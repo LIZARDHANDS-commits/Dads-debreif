@@ -332,7 +332,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
 
 /**
  * One leg for the tracker: chase `slot` (in the frame of the aircraft the leg names in `track`, or Lead) with
- * tuning.js TRACKER.phase's settings, changed by `over` (the leg recipes in transitions.js, four-ship-moves.js and
+ * tuning.js TRACKER.phase's settings, changed by `over` (the leg recipes in transitions.js, four-close.js and
  * formation-turns.js). Fields beyond those: altSec, altRateFtps, stopFtps, dwellSec (below), goal, goalTolFt, holdUntil,
  * world, track (runTracker).
  */
