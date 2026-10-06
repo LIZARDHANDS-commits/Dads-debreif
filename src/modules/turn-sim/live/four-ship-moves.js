@@ -1,36 +1,30 @@
-// Changing formation, 4-ship (Turn Sim spec section 8, decision TS-54; design: project files
-// turn-sim-review/four-ship/design.md sections 4 to 6 and 9). Press a formation and the four fly the manuals'
-// way there from wherever they are, planned at the press: Lead flies ordinary segments, and each wingman's path is a
-// recorded dry run of the 2-ship's tracker (tracker.js runTracker) flying to its slot in the frame of the aircraft
-// it flies off, through the same flight step as every other aircraft, so the path drawn is the path flown (spec F1).
+// The 4-ship's moves still flown by the V2.96 code (Turn Sim spec section 8, decision TS-54; design: project files
+// turn-sim-review/four-ship/design.md sections 4 to 6 and 9): the rejoins, the opening out to Spread 4 and Fluid 4, and the
+// offset box. Refactor PRs 7 and 8 rebuild them on the 2-ship's planners and this file goes; until then four-plan.js calls
+// them through LEGACY. The close moves, the route between moves and the press's plan moved to four-close.js and
+// four-plan.js (refactor PR 6, V2.97).
 //
-// How it plans.
-//  - The slots are slots.js's one table.
-//  - The route is the cheapest way through the from-to graph (design section 6): every formation joins fighting wing or
-//    finger by a move the manuals give; anything else goes through them. Each edge is one or more legs.
-//  - A leg plans Lead first, then the wingmen in an order where the aircraft each flies off is already planned
-//    (#4 off #3 "flies through #3", SMM 16.37 para 103), each against the others' recorded flights.
-//  - "Wait for the one ahead" (SMM 16.32 para 86, 16.34 paras 95-96; AFM7 brief p.18 item 2d) is a gate: a start
-//    time from the earlier aircraft's planned arrival (`holdUntil`), or a new leg that starts when every aircraft of
-//    the last one is settled. Legs join on the exact step they were planned from (flight.js hold thenNext).
-//  - Speeds: 200 KIAS outside line abreast, 220 in it (Patrick, 4 Oct 11:08Z), changed only inside a change with the
-//    smooth speed segment (full power up, power back down: slow-down.js, TS-61).
+// How these plan: each wingman's path is a recorded dry run of the 2-ship's tracker (tracker.js runTracker), with a
+// kinematic line in front of it where a single long leg allows (lineFirst), flying to its slot in the frame of the
+// aircraft it flies off. A leg plans Lead first, then the wingmen in an order where the aircraft each flies off is
+// already planned (#4 off #3 "flies through #3", SMM 16.37 para 103), each against the others' recorded flights.
+// "Wait for the one ahead" (SMM 16.32 para 86, 16.34 paras 95-96; AFM7 brief p.18 item 2d) is a gate (`holdUntil`).
+// Speeds: 200 KIAS outside line abreast, 220 in it (Patrick, 4 Oct 11:08Z).
 //
 // Sources for each move are beside it. Numbers with no manual or ruling behind them say "estimate".
-import { STEP_SEC, copyAircraft, planDone } from './flight.js';
+import { STEP_SEC, copyAircraft } from './flight.js';
 import { relativeTo, turnSeg, wholeDegree, DEG, TURN_BANK_DEG } from './manoeuvres.js';
 import {
-  recordFlight, flyStep, dryRunT, speedSeg, slide, dropBack, closeThrough, rejoinTo, openOut,
-  straightAhead, sweepOut, stopAt, cornerBehind,
+  recordFlight, flyStep, dryRunT, speedSeg, slide, dropBack, closeThrough, rejoinTo, openOut, straightAhead,
 } from './transitions.js';
 import { REJOIN, FW_FOLLOW_FOUR, WING_BANKS } from './tuning.js';
 import { onClosure, lineRunIn, fromStep, wingFromPose, replanFor } from './hand-over.js';
 import { trackTwice, phase } from './tracker.js';
-import { isStacked, classify, judge } from './judge.js';
-import { FOUR_FORMATIONS, LENGTH_FT, slotsFor, pairSlot, refsFor, fourWords, FW_STEP_DOWN_FT } from './slots.js';
+import { isStacked } from './judge.js';
+import { FOUR_FORMATIONS, LENGTH_FT, slotsFor, pairSlot, FW_STEP_DOWN_FT } from './slots.js';
 
 /** A generous limit on one 4-ship change (design section 9: Spread 4 to finger is estimated at 4 to 6 minutes); it only catches a plan that never ends. */
-export const FOUR_CHANGE_LIMIT_SEC = 480;
+const FOUR_CHANGE_LIMIT_SEC = 480;
 /** #3 starts opening out this long after #4 when finger goes to Spread 4 ("#3 waits for #4 to begin moving out first", SMM 16.42 para 114): an estimate. */
 const THREE_WAITS_SEC = 10;
 /** Lead's turn into the others in a turning rejoin from fighting wing to finger: 90° at 30° bank (an estimate; SMM 16.34 para 96 gives the 30° bank, not the angle). */
@@ -51,8 +45,6 @@ const NAMES = Object.freeze({ 1: 'Lead', 2: '#2', 3: '#3', 4: '#4' });
 // here may call into transitions.js while the modules are still loading.
 const ech = () => pairSlot('echelon', 1); // { fwd: -25, left: 45, alt: -5 }
 const ast = () => pairSlot('astern', 0); // { fwd: -43.4, left: 0, alt: -8 }
-/** Behind an aircraft far enough to pass under its tail: line astern plus 12 ft (the 2-ship's crossing, transitions.js). */
-const behind = () => ast().fwd - 12;
 
 // ---- one leg ---------------------------------------------------------------------------------
 
@@ -147,32 +139,6 @@ function statesAt(start, leg, T) {
     }
     return a;
   });
-}
-
-/** Joins legs flown one after another into one plan per aircraft, each leg starting on the step it was planned from. */
-function joinLegs(legs, ids) {
-  const plans = {};
-  for (const id of ids) {
-    const segments = [];
-    const profile = [];
-    let at = legs[0].t0; // where this aircraft's recorded points reach
-    legs.forEach((leg, k) => {
-      const p = leg.plans[id] ?? { segments: [] };
-      if (id === 1) {
-        if (k > 0) segments.push({ kind: 'hold', untilSec: leg.t0, thenNext: true });
-        segments.push(...p.segments.map((s) => ({ ...s })));
-      } else {
-        const gap = Math.round((leg.t0 - at) / STEP_SEC);
-        if (gap > 0) segments.push({ kind: 'bankTrack', points: Array.from({ length: gap }, () => [0, null]) });
-        for (const s of p.segments) segments.push({ ...s });
-        const n = p.segments.reduce((sum, s) => sum + (s.points?.length ?? s.poses?.length ?? 0), 0); // a line's poses count too (step 3)
-        at = leg.t0 + n * STEP_SEC;
-      }
-      profile.push(...(p.profile ?? []));
-    });
-    plans[id] = { segments, profile };
-  }
-  return plans;
 }
 
 // ---- the places, in feet against Lead's height --------------------------------------------------
@@ -330,23 +296,6 @@ function entryToSpread(start, t0, opts, s, fromFinger) {
 }
 
 /**
- * F6: finger, echelon, box, line astern or route to fighting wing (SMM 16.32 para 92, 16.38 para 105): the wingmen drop
- * back, each behind the one it flies off, then move across into place; no stack from a close formation. Expeditious
- * (Patrick 4 Oct 19:03Z, "about 7-15 seconds", TS-55; the SMM's "slowly" gives way to his ruling): the quick sweep of
- * the 2-ship (transitions.js sweepOut), still in two steps so no one cuts across the wingman beside it.
- */
-function openToFw(start, t0, opts, s) {
-  return legsInTurn(start, t0, opts, [(c) => {
-    const slots = slotsFor('fw', s, { ships: 4, stacked: false });
-    const wing = (id) => {
-      const rel = relativeTo(c.by.get(slots[id].ref), c.by.get(id));
-      return { id, phases: () => [sweepOut(place(c, slots[id].fwd, rel.left, slots[id].alt), { track: slots[id].ref, advanceTol: 60 }), toSlot(c, sweepOut, slots[id])] };
-    };
-    return { lead: toSpeed(c, 'fw'), wings: [wing(2), wing(3), wing(4)] };
-  }]);
-}
-
-/**
  * Fighting wing to route or finger, straight ahead (R1; SMM 16.34 para 95, 16.15 para 38; AFM7 brief p.18 item 2): each
  * closes through route in turn, #2 first, #3 once #2 has route spacing, #4 once #3 has; the stack comes off as they close.
  */
@@ -447,222 +396,6 @@ function turningToFinger(start, t0, opts, s) {
   }]);
 }
 
-/** Finger and route, either way: a slide in or out at the same time (AFM8 brief p.9: anticipate the collapse to route). */
-function slideTo(start, t0, opts, s, to) {
-  return legsInTurn(start, t0, opts, [(c) => {
-    const slots = slotsFor(to, s, { ships: 4 });
-    return { lead: toSpeed(c, to), wings: [2, 3, 4].map((id) => ({ id, phases: () => [toSlot(c, slide, slots[id])] })) };
-  }]);
-}
-
-/**
- * The close station change's technique, the 2-ship's (SMM 12.20 paras 44-45, Figs 12.12-12.13; transitions.js legsFor's
- * crossClose), for one wingman: back and down into the corner behind where it is and stop; across at a steady rate to
- * directly behind its new place and stop; then forward and up into it (`last`, a phase onto the new place). The corner is
- * in the frame of `track`: back, the fore-aft place; fromLeft, toLeft, the lateral places now and at the end; low, the
- * height against Lead. first: extra settings for the first phase (a gate). The phases are in that order, so a later
- * wingman can gate on times[0] (in the corner), [1] (across) or [2] (in place).
- */
-function crossTo(c, track, fromLeft, toLeft, back, low, last, first = {}) {
-  return [stopAt(place(c, back, fromLeft, low), { track, ...first }), stopAt(place(c, back, toLeft, low), { track }), last];
-}
-/** The corner behind a close place (the 2-ship's, transitions.js cornerBehind): { fwd, alt } in the frame flown off. */
-const corner = (c) => cornerBehind(ech(), c.spacingFt);
-/** Up into a close place from directly behind it (SMM 12.20 para 45: "move forward and up"): a slow slide, as the 2-ship's. */
-const upInto = (c, slot) => toSlot(c, slide, slot, { fwdRate: 5 });
-/**
- * Finger to echelon on #3's side: how far #3 (with #4 on its wing) moves out, back and slightly down beyond its echelon
- * place to make room for #2 (SMM 16.32 para 87; AFM7 brief p.19 item 1, frame 2). The manuals give no distance: these are
- * estimates, about half a wingspan out, most of a length back and 5 ft down.
- */
-const MAKE_ROOM = Object.freeze({ outFt: 15, backFt: 25, downFt: 5 });
-
-/**
- * F1 and F2: finger to echelon (SMM 16.32 paras 87-88; AFM7 brief p.19), each wingman flying the 2-ship's crossing technique.
- * Echelon on #3's side (F1, para 87; AFM7 p.19 item 1): #3, with #4 on its wing, moves out, back and slightly down to make
- * room while #2 moves back and down into the corner behind Lead (frame 2); #2 crosses behind and below Lead and moves up
- * into echelon (frame 3); then #3 and #4 regain normal spacing (frame 4). Echelon on #2's side (F2, para 88 reversed; AFM7
- * p.19 item 2): crossThreeFour.
- */
-function fingerToEchelon(start, t0, opts, s, e) {
-  if (e === s) return crossThreeFour(start, t0, opts, -s, s, 'echelon');
-  const ech4 = slotsFor('echelon', -s, { ships: 4 });
-  return legsInTurn(start, t0, opts, [
-    (c) => ({
-      lead: [],
-      wings: [
-        { id: 2, phases: () => [stopAt(place(c, corner(c).fwd, s * ech().left, corner(c).alt), { track: 1 })] },
-        { id: 3, phases: () => [stopAt(place(c, 2 * ech().fwd - MAKE_ROOM.backFt, -s * (2 * ech().left + MAKE_ROOM.outFt), 2 * ech().alt - MAKE_ROOM.downFt), { track: 1 })] },
-        { id: 4, phases: () => [hold(c, 4, 3)] },
-      ],
-    }),
-    (c) => ({
-      lead: [],
-      wings: [
-        { id: 2, phases: () => [stopAt(place(c, corner(c).fwd, -s * ech().left, corner(c).alt), { track: 1 }), upInto(c, ech4[2])] },
-        { id: 3, phases: () => [hold(c, 3, 1)] },
-        { id: 4, phases: () => [hold(c, 4, 3)] },
-      ],
-    }),
-    (c) => ({
-      lead: [],
-      wings: [
-        { id: 2, phases: () => [hold(c, 2, 1)] },
-        { id: 3, phases: () => [upInto(c, ech4[3])] },
-        { id: 4, phases: () => [toSlot(c, slide, ech4[4])] },
-      ],
-    }),
-  ]);
-}
-
-/**
- * #3 and #4 change sides together, #2 holding (SMM 16.32 para 88; AFM7 brief p.19 item 2): #3 moves back and down into the
- * corner behind #2 and Lead and stops, crosses at a steady rate to directly behind its new place and stops, then moves up
- * into it; #4 moves into a column behind and lower than #3 (frame 3) and crosses with it, then, once #3 is across, out and
- * up into echelon on #3. from, to: #3's side now and at the end (+1 left, -1 right); key: the formation at the end,
- * 'echelon' (all on #2's side, #2 on side `to`) or 'finger' (#2 on side -to).
- */
-function crossThreeFour(start, t0, opts, from, to, key) {
-  const slots = slotsFor(key, key === 'echelon' ? to : -to, { ships: 4 });
-  return legsInTurn(start, t0, opts, [(c) => {
-    const back3 = corner(c).fwd + ech().fwd; // behind #2 as well as Lead
-    const low3 = -CROSS_LOW_FT - 5;
-    const low4 = low3 - FOUR_LOWER_FT - 5;
-    const fromLeft3 = from * (key === 'echelon' ? 1 : 2) * ech().left; // #3 is one echelon out in finger, two in echelon
-    const toLeft3 = to * (key === 'echelon' ? 2 : 1) * ech().left;
-    return {
-      lead: [],
-      wings: [
-        { id: 2, phases: () => [hold(c, 2, 1)] },
-        { id: 3, phases: () => crossTo(c, 1, fromLeft3, toLeft3, back3, low3, upInto(c, slots[3])) },
-        {
-          id: 4,
-          phases: (done) => [
-            // into the column behind and below #3, held against #3 so it crosses with it, and left only once #3 is across
-            stopAt(place(c, corner(c).fwd, 0, low4), { track: 3, holdUntil: done[3].times[1].t1 }),
-            stopAt(place(c, corner(c).fwd, to * ech().left, low4), { track: 3 }),
-            upInto(c, slots[4]),
-          ],
-        },
-      ],
-    };
-  }]);
-}
-
-/**
- * F3: echelon to finger. With #2 staying (finger on #2's side, the echelon's #3 and #4 to the other side) it is SMM 16.32
- * para 88 itself: crossThreeFour. With #2 changing sides (finger on the far side from the echelon) the manuals give no
- * picture (para 87's mirror, an estimate): #2 moves back and down into the corner, crosses behind and below Lead and moves
- * up into echelon on the other side; then #3 and #4 move in a place to finger. e: the echelon's side; s: #2's side at the end.
- */
-function echelonToFinger(start, t0, opts, e, s) {
-  if (e === s) return crossThreeFour(start, t0, opts, s, -s, 'finger');
-  const fin = slotsFor('finger', s, { ships: 4 });
-  return legsInTurn(start, t0, opts, [
-    (c) => ({
-      lead: [],
-      wings: [
-        { id: 2, phases: () => crossTo(c, 1, -s * ech().left, s * ech().left, corner(c).fwd, corner(c).alt, upInto(c, fin[2])) },
-        { id: 3, phases: () => [hold(c, 3, 1)] },
-        { id: 4, phases: () => [hold(c, 4, 3)] },
-      ],
-    }),
-    (c) => ({
-      lead: [],
-      wings: [
-        { id: 2, phases: () => [hold(c, 2, 1)] },
-        { id: 3, phases: () => [upInto(c, fin[3])] },
-        { id: 4, phases: () => [toSlot(c, slide, fin[4])] },
-      ],
-    }),
-  ]);
-}
-
-/**
- * F4: finger to box and back (SMM 16.32 para 91; AFM7 brief p.20): #2 and #3 hold; #4 moves back and down to pass behind
- * #3 and stops, across to behind Lead and stops ("stabilize in a loose line astern"), then power moves it up into line
- * astern on Lead. Back: the same way reversed, to its echelon on #3 (an estimate: the manuals give one way).
- */
-function fingerBox(start, t0, opts, s, toBox) {
-  return legsInTurn(start, t0, opts, [(c) => {
-    const back = corner(c).fwd + ech().fwd; // behind #3 as well as Lead
-    const low = -CROSS_LOW_FT - 5;
-    const fin4Left = -s * 2 * ech().left; // #4's lateral place in finger, in Lead's frame
-    const four = toBox
-      ? crossTo(c, 1, fin4Left, 0, back, low, upInto(c, slotsFor('box', s, { ships: 4 })[4]))
-      : crossTo(c, 1, 0, fin4Left, back, low, upInto(c, slotsFor('finger', s, { ships: 4 })[4]));
-    return { lead: [], wings: [{ id: 2, phases: () => [hold(c, 2, 1)] }, { id: 3, phases: () => [hold(c, 3, 1)] }, { id: 4, phases: () => four }] };
-  }]);
-}
-
-/**
- * F5: finger to line astern and back (SMM 16.32 paras 86, 89-90). To line astern: #2 and #3 (with #4 on its wing) move
- * back and slightly down together, #3 far enough back for #2 to take position first; #2 crosses behind Lead and moves up
- * into line astern; only then does #3 move across behind #2, and as it does, #4 moves into line astern on #3 (para 86: #3
- * does not move laterally until #2 is in). Back (para 90): #2 moves to its side and up into echelon; once it is out of line
- * astern, #3 moves to the other side and up into echelon on Lead; then #4 regains echelon on #3.
- */
-function fingerTrail(start, t0, opts, s, toTrail) {
-  const trail = slotsFor('trail', 0, { ships: 4 });
-  if (toTrail) {
-    // #3's corner: back far enough that #2's crossing passes well ahead of it (two line astern places, plus 15 ft: estimates)
-    const back3 = 2 * ast().fwd - 15;
-    return legsInTurn(start, t0, opts, [
-      (c) => ({
-        lead: [],
-        wings: [
-          { id: 2, phases: () => [stopAt(place(c, corner(c).fwd, s * ech().left, corner(c).alt), { track: 1 })] },
-          { id: 3, phases: () => [stopAt(place(c, back3, -s * ech().left, 2 * ast().alt), { track: 1 })] },
-          { id: 4, phases: () => [hold(c, 4, 3)] },
-        ],
-      }),
-      (c) => ({
-        lead: [],
-        wings: [
-          { id: 2, phases: () => [stopAt(place(c, corner(c).fwd, 0, corner(c).alt), { track: 1 }), upInto(c, trail[2])] },
-          { id: 3, phases: () => [hold(c, 3, 1)] },
-          { id: 4, phases: () => [hold(c, 4, 3)] },
-        ],
-      }),
-      (c) => ({
-        lead: [],
-        wings: [
-          { id: 2, phases: () => [hold(c, 2, 1)] },
-          { id: 3, phases: () => [stopAt(place(c, back3, 0, 2 * ast().alt), { track: 1 }), upInto(c, trail[3])] },
-          { id: 4, phases: () => [stopAt(place(c, corner(c).fwd, 0, 3 * ast().alt), { track: 3 }), upInto(c, trail[4])] },
-        ],
-      }),
-    ]);
-  }
-  const fin = slotsFor('finger', s, { ships: 4 });
-  return legsInTurn(start, t0, opts, [
-    (c) => ({
-      lead: [],
-      wings: [
-        { id: 2, phases: () => [stopAt(place(c, corner(c).fwd, s * ech().left, ast().alt), { track: 1 }), upInto(c, fin[2])] },
-        { id: 3, phases: () => [hold(c, 3, 1)] },
-        { id: 4, phases: () => [hold(c, 4, 3)] },
-      ],
-    }),
-    (c) => ({
-      lead: [],
-      wings: [
-        { id: 2, phases: () => [hold(c, 2, 1)] },
-        { id: 3, phases: () => [stopAt(place(c, 2 * ast().fwd, -s * ech().left, 2 * ast().alt), { track: 1 }), upInto(c, fin[3])] },
-        { id: 4, phases: () => [hold(c, 4, 3)] },
-      ],
-    }),
-    (c) => ({
-      lead: [],
-      wings: [
-        { id: 2, phases: () => [hold(c, 2, 1)] },
-        { id: 3, phases: () => [hold(c, 3, 1)] },
-        { id: 4, phases: () => [stopAt(place(c, ast().fwd, -s * ech().left, fin[4].alt), { track: 3 }), upInto(c, fin[4])] },
-      ],
-    }),
-  ]);
-}
-
 /**
  * F8: fighting wing to Fluid 4, "FLUID 4, GO" (AFM8 brief p.20): Lead flies straight at 200 KIAS; #3 diverges to a wide
  * line abreast on Lead, 6,000 ft, while #2 and #4 stay in fighting wing on the outside, #4 off #3; the stack goes on once
@@ -728,37 +461,6 @@ function fluidToBox(start, t0, opts, s) {
   ]);
 }
 
-// ---- the from-to graph ----------------------------------------------------------------------------
-
-/**
- * The edges (design section 6), each with a rough cost in seconds (estimates, for choosing a route only) and its move.
- * `sides` says which sides the far end may take: 'same' keeps #2's side, 'any' may change it (finger and echelon, through
- * the crossunder), 'none' has no side (line astern).
- */
-const EDGES = [
-  { from: 'spread4', to: 'fw', cost: 150, sides: 'same', fly: (st, t, o, s) => rejoinToFw(st, t, o, s), how: 'turning rejoin to fighting wing' },
-  { from: 'offsetBox', to: 'fw', cost: 200, sides: 'same', fly: (st, t, o, s) => rejoinToFw(st, t, o, s), how: 'turning rejoin to fighting wing' },
-  { from: 'other', to: 'fw', cost: 150, sides: 'same', fly: (st, t, o, s) => rejoinToFw(st, t, o, s), how: 'rejoin to fighting wing' },
-  { from: 'fw', to: 'spread4', cost: 90, sides: 'same', fly: (st, t, o, s) => entryToSpread(st, t, o, s, false), how: 'entry to Spread 4' },
-  { from: 'finger', to: 'spread4', cost: 90, sides: 'same', fly: (st, t, o, s) => entryToSpread(st, t, o, s, true), how: 'open out to Spread 4' },
-  { from: 'fw', to: 'fluid4', cost: 60, sides: 'same', fly: (st, t, o, s) => fwFluid(st, t, o, s, true), how: '"Fluid 4, go"' },
-  { from: 'fluid4', to: 'fw', cost: 60, sides: 'same', fly: (st, t, o, s) => fwFluid(st, t, o, s, false), how: 'back to fighting wing' },
-  { from: 'fluid4', to: 'offsetBox', cost: 120, sides: 'same', fly: (st, t, o, s) => fluidToBox(st, t, o, s), how: 'in place 90, then spread to the box' },
-  { from: 'fw', to: 'route', cost: 60, sides: 'same', fly: (st, t, o, s) => closeFromFw(st, t, o, s, 'route'), how: 'close through route' },
-  { from: 'fw', to: 'finger', cost: 70, sides: 'same', fly: (st, t, o, s) => (o.rejoin === 'straight' ? { ...closeFromFw(st, t, o, s, 'finger'), how: 'straight-ahead rejoin to finger, through route' } : turningOrStraight(st, t, o, s)), how: 'turning rejoin to finger' },
-  { from: 'route', to: 'finger', cost: 15, sides: 'same', fly: (st, t, o, s) => slideTo(st, t, o, s, 'finger'), how: 'in from route' },
-  { from: 'finger', to: 'route', cost: 15, sides: 'same', fly: (st, t, o, s) => slideTo(st, t, o, s, 'route'), how: 'out to route' },
-  { from: 'fw', to: 'echelon', cost: 90, sides: 'any', fly: (st, t, o, s, sTo) => straightToEchelon(st, t, o, sTo), how: 'straight-ahead rejoin to echelon' },
-  { from: 'finger', to: 'echelon', cost: 40, sides: 'any', fly: (st, t, o, s, sTo) => fingerToEchelon(st, t, o, s, sTo), how: 'crossunder to echelon' },
-  { from: 'echelon', to: 'finger', cost: 40, sides: 'any', fly: (st, t, o, s, sTo) => echelonToFinger(st, t, o, s, sTo), how: 'crossunder to finger' },
-  { from: 'finger', to: 'box', cost: 40, sides: 'same', fly: (st, t, o, s) => fingerBox(st, t, o, s, true), how: '#4 into the box' },
-  { from: 'box', to: 'finger', cost: 40, sides: 'same', fly: (st, t, o, s) => fingerBox(st, t, o, s, false), how: '#4 back to finger' },
-  { from: 'finger', to: 'trail', cost: 60, sides: 'none', fly: (st, t, o, s) => fingerTrail(st, t, o, s, true), how: 'into line astern' },
-  { from: 'trail', to: 'finger', cost: 60, sides: 'any', fly: (st, t, o, s, sTo) => fingerTrail(st, t, o, sTo, false), how: 'back to finger' },
-  { from: 'finger', to: 'fw', cost: 60, sides: 'same', fly: (st, t, o, s) => openToFw(st, t, o, s), how: 'drop back to fighting wing' },
-  { from: 'echelon', to: 'fw', cost: 60, sides: 'same', fly: (st, t, o, s) => openToFw(st, t, o, s), how: 'drop back to fighting wing' },
-];
-
 /** R2 with R1 behind it: the turning rejoin to finger, or straight ahead if the turning one does not plan from here. */
 function turningOrStraight(start, t0, opts, s) {
   const turning = turningToFinger(start, t0, opts, s);
@@ -766,93 +468,5 @@ function turningOrStraight(start, t0, opts, s) {
   return { ...closeFromFw(start, t0, opts, s, 'finger'), straightFallback: true, how: 'rejoin to finger through route' };
 }
 
-/** The cheapest route from (key, side) to (to, sTo) through EDGES: [{ edge, s, sTo }…], or null. */
-export function routeFour(from, s, to, sTo) {
-  const node = (k, side) => `${k}:${k === 'trail' ? 0 : side}`;
-  const goal = node(to, sTo);
-  const best = new Map([[node(from, s), { cost: 0, path: [] }]]);
-  const open = [{ key: from, side: s, cost: 0, path: [] }];
-  while (open.length) {
-    open.sort((a, b) => a.cost - b.cost);
-    const cur = open.shift();
-    if (node(cur.key, cur.side) === goal) return cur.path;
-    for (const e of EDGES.filter((x) => x.from === cur.key)) {
-      const sides = e.sides === 'any' ? [1, -1] : e.sides === 'none' ? [cur.side] : [cur.side];
-      for (const side of sides) {
-        const cost = cur.cost + e.cost;
-        const id = node(e.to, side);
-        if ((best.get(id)?.cost ?? Infinity) <= cost) continue;
-        const path = [...cur.path, { edge: e, s: cur.side, sTo: side }];
-        best.set(id, { cost, path });
-        open.push({ key: e.to, side, cost, path });
-      }
-    }
-  }
-  return null;
-}
-
-// ---- the plan for a button press ----------------------------------------------------------------------
-
-/**
- * Plans a change of formation for the four as they are now. to: a FOUR_FORMATIONS key. options: { side: 'keep' | 'left' |
- * 'right' (#2's side at the end), spacingFt, blockFt, rejoin: 'into' | 'straight', lastSide }. Returns { ok, reason?, plans,
- * note, label, flying, from, fromSide, to, side, refs, endSec, judged, legs } — when ok is false nothing should be flown and `reason` says
- * why in one line (design section 9).
- */
-export function planChangeFour(aircraft, to, options = {}, t0 = 0) {
-  /** @type {{ spacingFt: number, blockFt: number, rejoin: string, side?: string, lastSide?: number }} */
-  const opts = { spacingFt: 6000, blockFt: 8000, rejoin: 'into', ...options };
-  const f = FOUR_FORMATIONS[to];
-  if (!f) return { ok: false, reason: `There is no four-ship formation called ${to}.` };
-  if (f.later) return { ok: false, reason: `${f.label} is the live build, coming later.` };
-  const from = classify(aircraft);
-  const sNow = from.side || opts.lastSide || -1;
-  const want = opts.side ?? 'keep';
-  const sTo = to === 'trail' ? 0 : want === 'left' ? 1 : want === 'right' ? -1 : sNow;
-  if (from.key === to && (to === 'trail' || from.side === sTo)) return { ok: false, reason: `Already in ${f.label.toLowerCase()}.` };
-  const path = routeFour(from.key, from.key === 'trail' ? 0 : sNow, to, sTo);
-  if (!path) return { ok: false, reason: `No way from ${fourWords(from).toLowerCase()} to ${f.label.toLowerCase()} the manuals give.` };
-
-  // Fly each edge from where the last one ended.
-  const legs = [];
-  let now = aircraft.map((a) => copyAircraft(a));
-  let t = t0;
-  const hows = [];
-  for (const step of path) {
-    const s = step.s === 0 ? (step.sTo || sNow) : step.s;
-    const r = step.edge.fly(now, t, opts, s, step.sTo);
-    if (!r.ok) return { ok: false, reason: `No safe change from here: ${r.reason}`, from: from.key, to };
-    hows.push(r.straightFallback ? `${r.how ?? step.edge.how} (straight ahead: no turn kept the lane)` : r.how ?? step.edge.how);
-    legs.push(...r.legs);
-    const last = r.legs[r.legs.length - 1];
-    now = r.end ?? statesAt(now, last, last.endSec); // a move of several legs hands back where its last leg ended
-    t = last.endSec;
-    if (t - t0 > FOUR_CHANGE_LIMIT_SEC) return { ok: false, reason: `No safe change from here: it would take more than ${Math.round(FOUR_CHANGE_LIMIT_SEC / 60)} minutes.`, from: from.key, to };
-  }
-  // Each later leg's start states came from flying the earlier legs, so the joined plan flies exactly that.
-  const plans = joinLegs(legs, aircraft.map((a) => a.id));
-  const judged = judge(now, { key: to, side: sTo }, { spacingFt: opts.spacingFt });
-  if (!judged.inBand) return { ok: false, reason: `No safe change from here: it would end ${judged.labels.join(', ')}.`, from: from.key, to, end: now, judged };
-  const fromWords = fourWords(from);
-  const toWords = fourWords({ key: to, side: sTo });
-  const label = toWords;
-  return {
-    ok: true,
-    plans,
-    // Finger to finger is the one change not authorized (SMM 16.33 para 93): the route goes through echelon instead.
-    note: `${fromWords} to ${toWords}: ${hows.join(', then ')}${from.key === 'finger' && to === 'finger' ? ' (finger to finger is not flown directly, SMM 16.33 para 93)' : ''}.`,
-    label,
-    flying: `${fromWords} to ${toWords} (${hows.join(', then ')})`,
-    from: from.key,
-    fromSide: sNow,
-    to,
-    side: sTo,
-    refs: refsFor(to),
-    endSec: t,
-    judged,
-    legs: legs.map((leg) => ({ t0: leg.t0, endSec: leg.endSec })),
-  };
-}
-
-/** True once every aircraft has flown its plan (for a caller checking a plan by flying it). */
-export const allDone = (aircraft, plans) => aircraft.every((a) => planDone(a, plans[a.id]));
+/** The moves four-plan.js still flies from here (refactor PRs 7 and 8 replace them). */
+export const LEGACY = Object.freeze({ rejoinToFw, entryToSpread, closeFromFw, straightToEchelon, turningOrStraight, fwFluid, fluidToBox });

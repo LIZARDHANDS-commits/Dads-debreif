@@ -68,11 +68,11 @@ function sustainedBankDeg(kias, blockFt, climbKtps) {
  * points are [bank, kias, power] a step (transitions.js flyStep's bankTrack); ahead is true when he passed ahead of Lead's 3/9
  * line inside 1,000 ft (Patrick 08:04Z: he must not); lineKias is his speed when he got onto the line.
  */
-function flyToDecision({ wing, rec, s, aimFt, bankCapDeg, decisionFt, arriveFtps, overtakeKt, floorKias, lineAtKias, blockFt, t0, profile }) {
+export function flyToDecision({ wing, rec, s, aimFt, bankCapDeg, decisionFt, arriveFtps, overtakeKt, floorKias, lineAtKias, blockFt, t0, profile, lineDeg = TURNING_REJOIN.lineDeg }) {
   const TR = TURNING_REJOIN;
   const W = copyAircraft(wing);
-  const sinL = Math.sin(TR.lineDeg * DEG);
-  const cosL = Math.cos(TR.lineDeg * DEG);
+  const sinL = Math.sin(lineDeg * DEG);
+  const cosL = Math.cos(lineDeg * DEG);
   const u = { fwd: -sinL, left: s * cosL }; // down the line outward from Lead, in his frame
   const nrm = { fwd: cosL, left: s * sinL }; // across it, toward Lead's nose (positive: ahead of the line, hot)
   const targetKias = KIAS_OUTSIDE_LAB + overtakeKt; // Lead's planned speed plus the overtake: KIAS against KIAS
