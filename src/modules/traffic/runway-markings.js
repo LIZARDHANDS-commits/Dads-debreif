@@ -38,6 +38,8 @@ const BAR_11R_PAST_END_FT = 4;
 /** The centreline dashes, 98 ft long and 3 ft wide, by their starts in ft along 29L from its threshold point (photo). */
 const CENTRELINE_DASH_FT = 98;
 const CENTRELINE_WIDTH_FT = 3;
+/** The black outline round the piano keys, letters, numbers and centreline dashes, ft (an estimate, to make them stand out; Patrick, 6 Oct 07:24Z). */
+const OUTLINE_FT = 1.5;
 const CENTRELINE_STARTS_FT = Object.freeze([
   271, 467, 663, 859, 1055, 1251, 1449, 1645, 1840, 2037, 2232, 2429, 2626, 2823, 3019, 3216, 3413, 3609, 3802, 4000,
   4197, 4393, 4589, 4786, 4983, 5178, 5366, 5556, 5747, 5936, 6126, 6316, 6505, 6695, 6884,
@@ -60,7 +62,7 @@ function glyphLines(ch) {
 }
 
 /**
- * The paint as filled shapes: [{ color: 'white' | 'yellow', pts: [{ x, y }, ...] }], each a convex quadrilateral in map ft.
+ * The paint as filled shapes: [{ color: 'black' | 'white' | 'yellow', pts: [{ x, y }, ...] }], each a convex quadrilateral in map ft.
  */
 export function runwayMarkingPolygons() {
   const a = THRESHOLD_29L, b = DEPARTURE_END_29L;
@@ -83,6 +85,12 @@ export function runwayMarkingPolygons() {
     shapes.push({ color, pts: [place(s0 - es + ps, n0 - en + pn), place(s1 + es + ps, n1 + en + pn), place(s1 + es - ps, n1 + en - pn), place(s0 - es - ps, n0 - en - pn)] });
   };
 
+  /** A white rectangle with a black outline OUTLINE_FT wide drawn under it. */
+  const outlinedQuad = (place, s0, s1, n0, n1) => {
+    quad('black', place, s0 - OUTLINE_FT, s1 + OUTLINE_FT, n0 - OUTLINE_FT, n1 + OUTLINE_FT);
+    quad('white', place, s0, s1, n0, n1);
+  };
+
   const P = END_PAINT;
   const ends = [
     { place: (s, n) => at29(BAR_29L_FT + s, n), letter: 'L', number: '29' },
@@ -92,7 +100,7 @@ export function runwayMarkingPolygons() {
     quad('white', place, P.bar.from, P.bar.to, -P.bar.halfWidth, P.bar.halfWidth);
     for (let k = 0; k < P.keys.perSide; k++) {
       const c = P.keys.innerCentre + k * P.keys.pitch;
-      for (const side of [-1, 1]) quad('white', place, P.keys.from, P.keys.to, side * c - P.keys.width / 2, side * c + P.keys.width / 2);
+      for (const side of [-1, 1]) outlinedQuad(place, P.keys.from, P.keys.to, side * c - P.keys.width / 2, side * c + P.keys.width / 2);
     }
     for (const side of [-1, 1]) {
       quad('white', place, P.aim.from, P.aim.to, side * P.aim.inner, side * P.aim.outer);
@@ -107,6 +115,7 @@ export function runwayMarkingPolygons() {
         for (const line of glyphLines(ch)) {
           for (let j = 1; j < line.length; j++) {
             const [x0, y0] = line[j - 1], [x1, y1] = line[j];
+            stroke('black', place, from + y0, left - x0, from + y1, left - x1, G.stroke + 2 * OUTLINE_FT);
             stroke('white', place, from + y0, left - x0, from + y1, left - x1, G.stroke);
           }
         }
@@ -120,15 +129,15 @@ export function runwayMarkingPolygons() {
       for (const side of [-1, 1]) stroke('yellow', place, apex - t0, side * C.slope * t0, apex - t1, side * C.slope * t1, C.width);
     }
   }
-  for (const s0 of CENTRELINE_STARTS_FT) quad('white', at29, s0, s0 + CENTRELINE_DASH_FT, -CENTRELINE_WIDTH_FT / 2, CENTRELINE_WIDTH_FT / 2);
+  for (const s0 of CENTRELINE_STARTS_FT) outlinedQuad(at29, s0, s0 + CENTRELINE_DASH_FT, -CENTRELINE_WIDTH_FT / 2, CENTRELINE_WIDTH_FT / 2);
   return shapes;
 }
 
-/** The paint's colours: white, and the pad chevrons' yellow (photo). */
-const PAINT = Object.freeze({ white: '#f2f2ee', yellow: '#e9c349' });
+/** The paint's colours: the outlines' black (drawn first, under the rest), white, and the pad chevrons' yellow (photo). */
+const PAINT = Object.freeze({ black: '#141414', white: '#f2f2ee', yellow: '#e9c349' });
 
 /**
- * The paint as a three.js group of two flat meshes (white and yellow), at height 0; the 3D view lifts it to just over
+ * The paint as a three.js group of three flat meshes (black outlines, white and yellow), at height 0; the 3D view lifts it to just over
  * the photo. It draws after the ground photos and before everything else.
  */
 export function createRunwayMarkings(THREE) {
@@ -151,7 +160,7 @@ export function createRunwayMarkings(THREE) {
     // Marked see-through (fully opaque) so it sorts with the see-through photos and draws after them.
     const material = new THREE.MeshBasicMaterial({ color: PAINT[color], transparent: true, side: THREE.DoubleSide, depthWrite: false, fog: false });
     const mesh = new THREE.Mesh(geometry, material);
-    mesh.renderOrder = -0.5;
+    mesh.renderOrder = color === 'black' ? -0.55 : -0.5;
     group.add(mesh);
   }
   return group;
