@@ -75,7 +75,8 @@ export const TIGHT_CENTER_FT = Object.freeze({ x: -400, y: -125 }); // divided b
 export const CAMERA_LIMITS = Object.freeze({ pitch: [0, 85], zoom: [0.3, 4000] });
 
 /** The pitch of each camera button: Fit, High look-down and Low chase. */
-export const PRESET_PITCH_DEG = Object.freeze({ fit: 45, high: 20, low: 72 });
+// Chase looks 10° below level (an estimate): with the perspective camera that keeps the horizon in the picture.
+export const PRESET_PITCH_DEG = Object.freeze({ fit: 45, high: 20, low: 80 });
 /** How much ground the chase camera shows across the screen, in feet. */
 const CHASE_SPAN_FT = 3000;
 const CHASE_LERP = 0.15; // how fast the chase camera swings behind a turning aircraft, a share of the gap each frame
@@ -354,6 +355,44 @@ export function chaseCamera(ac, size) {
     // The camera looks along the world direction (sin yaw, cos yaw): a compass heading is exactly that yaw.
     cam: { yawDeg: wrapDeg(finite(ac.headingDeg)), pitchDeg: PRESET_PITCH_DEG.low, zoom: clamp((Math.max(size.width, 1) / CHASE_SPAN_FT) * 1000, CAMERA_LIMITS.zoom), altScale: ALT_SCALE },
   };
+}
+
+/**
+ * Cockpit and Chase are drawn with a true perspective camera (Patrick, 6 Oct 06:07Z, card "Build now"): nearer is
+ * bigger, so the runway's shape on final changes with the glide angle as a pilot sees it. Every other view stays
+ * orthographic. 60° across is a natural field of view (an estimate); nothing nearer than 40 ft is drawn, so the far
+ * ground stays steady; the haze starts at 12,000 ft and is full at 45,000 ft, short of where the photo ends (estimates).
+ */
+export const PERSPECTIVE = Object.freeze({ fovAcrossDeg: 60, nearFt: 40, farFt: 400_000, hazeFromFt: 12_000, hazeToFt: 45_000 });
+/** The views drawn in perspective. */
+export const PERSPECTIVE_VIEWS = Object.freeze(new Set(['cockpit', 'low']));
+
+/** The vertical field of view, in degrees, that gives PERSPECTIVE.fovAcrossDeg across a canvas of `size` (never more than that). */
+export function perspectiveFovDeg(size) {
+  const across = rad(PERSPECTIVE.fovAcrossDeg / 2);
+  const tall = Math.max(size.height, 1) / Math.max(size.width, 1);
+  return Math.min(PERSPECTIVE.fovAcrossDeg, 2 * deg(Math.atan(Math.tan(across) * tall)));
+}
+
+/**
+ * How far behind its aircraft the perspective Chase camera sits, in feet: a fifth of the ground the flat Chase showed
+ * across the screen at that zoom (600 ft at the opening zoom; an estimate), so the wheel still brings it in and out.
+ */
+export function chaseDistanceFt(cam, size) {
+  const acrossFt = (Math.max(size.width, 1) / Math.max(finite(cam.zoom, 1), 1e-3)) * 1000;
+  return clamp(acrossFt / 5, [100, 30_000]);
+}
+
+/**
+ * The perspective Chase camera: `distanceFt` behind the aircraft along the look (`cam`'s yaw, a compass bearing, and
+ * pitch, degrees from straight down), looking at it. Returns { eye, at } in feet ({ x, y, z }).
+ */
+export function chaseEye(ac, cam, distanceFt) {
+  const yaw = rad(finite(cam.yawDeg));
+  const down = rad(90 - finite(cam.pitchDeg, 90));
+  const at = { x: finite(ac.x), y: finite(ac.y), z: altToZ(finite(ac.alt), ALT_SCALE) };
+  const f = { x: Math.sin(yaw) * Math.cos(down), y: Math.cos(yaw) * Math.cos(down), z: -Math.sin(down) };
+  return { eye: { x: at.x - f.x * distanceFt, y: at.y - f.y * distanceFt, z: at.z - f.z * distanceFt }, at };
 }
 
 /** A camera change from a drag of (dx, dy) pixels. */
@@ -1597,13 +1636,15 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     }
     const scene = new THREE.Scene();
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 2);
+    const perspective = new THREE.PerspectiveCamera(50, 1, PERSPECTIVE.nearFt, PERSPECTIVE.farFt); // Cockpit and Chase
     const lights = addTrafficLights(THREE, scene);
     const sky = addSky(THREE, scene);
+    const flatHaze = scene.fog ? { near: scene.fog.near, far: scene.fog.far } : null;
     const kit = createSceneKit(THREE, { fatLines });
     scene.add(kit.root);
     const style = win.getComputedStyle?.(canvas);
     const palette = paletteFrom((name) => style?.getPropertyValue(name).trim() ?? '');
-    gl = { canvas, labels, ctx: labels.getContext('2d'), renderer, scene, camera, sky, lights, kit, palette };
+    gl = { canvas, labels, ctx: labels.getContext('2d'), renderer, scene, camera, perspective, flatHaze, shownCamera: camera, sky, lights, kit, palette };
     if (win.__traffic3dLeakCheck) probeMemory(renderer, camera);
     for (const [type, fn] of hands) canvas.addEventListener(type, fn, type === 'wheel' ? { passive: false } : undefined);
     canvas.addEventListener('webglcontextlost', contextLost);
@@ -1778,6 +1819,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     cameraBar?.setNote(noteText);
     const shown = dragging?.isPan ? view.cam : (dragging?.cam ?? view.cam);
     const focus = dragging?.isPan ? dragging.center : view.center;
+    // Cockpit and Chase on an aircraft are drawn in perspective; everything else is flat.
+    const povTarget = follow && PERSPECTIVE_VIEWS.has(viewMode) ? (data.aircraft.find((a) => a.id === follow.id && isFlying(a)) ?? null) : null;
 
     const photoTex = ensurePhotoTexture(options);
     const outerTex = outerTier.ensure(options);
@@ -1793,7 +1836,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       layerCautionRings: options.layerCautionRings,
       cautionLatFt: options.cautionLatFt,
       aircraftScale: options.aircraftScale,
-      zoom: shown.zoom, groundFt: floor, time: source.time(),
+      zoom: povTarget ? CAMERA_LIMITS.zoom[1] : shown.zoom, groundFt: floor, time: source.time(), // in perspective, aircraft at their close-up size
       fullModels: options.fullModels ?? true,
       layerHeightLines: options.layerHeightLines !== false,
       layerEngineReach: options.layerEngineReach,
@@ -1811,13 +1854,21 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       coreTexture: coreTex,
       photoOpacityPct: options.photoOpacityPct,
     });
-    kit.placeGrid(focus, floor);
     kit.setResolution(size.width, size.height);
-    matchProjection(THREE, camera, focus, shown, size, 1);
+    const pov = povTarget && !dragging?.isPan ? aimPerspective(povTarget, shown, size) : null;
+    kit.placeGrid(pov ? pov.eye : focus, floor);
+    kit.grid.visible = !pov; // the grid under the photo shows through at the horizon in perspective, as stripes
+    if (!pov) matchProjection(THREE, camera, focus, shown, size, 1);
+    if (threeScene.fog && gl.flatHaze) {
+      threeScene.fog.near = pov ? PERSPECTIVE.hazeFromFt : gl.flatHaze.near;
+      threeScene.fog.far = pov ? PERSPECTIVE.hazeToFt : gl.flatHaze.far;
+    }
+    gl.shownCamera = pov ? gl.perspective : camera;
     const facing = { yawDeg: Math.round(finite(shown.yawDeg)), tiltDeg: Math.round(finite(shown.pitchDeg)) };
     if (facing.yawDeg !== lastFacing?.yawDeg || facing.tiltDeg !== lastFacing?.tiltDeg) { lastFacing = facing; onFacing(facing.yawDeg, facing.tiltDeg); }
-    renderer.render(threeScene, camera);
-    drawLabels(ctx, labels, size, ratio, data, options, palette, { zoom: shown.zoom, floor });
+    renderer.render(threeScene, gl.shownCamera);
+    if (pov?.hidden) pov.hidden.visible = true;
+    drawLabels(ctx, labels, size, ratio, data, options, palette, { zoom: pov ? pov.labelZoom : shown.zoom, floor, skipId: pov?.hidden ? povTarget.id : null });
 
     drawn++;
     const ms = (win.performance?.now() ?? 0) - started;
@@ -1833,11 +1884,53 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
   // The callsigns and, with the layer on, heights and speeds, written over the picture; a word for a conflict too (colour is never the only signal).
   // A ring in the aircraft's colour round each one, and a thick dark edge on the words, so they stand out on the photo
   // (Patrick, 4 Oct 10:55Z). With the PFL layer on, the keys and each PFL aircraft's glide distance are named as on the map.
-  function drawLabels(ctx, labelCanvas, size, ratio, data, options, palette, { zoom = 20, floor = 0 } = {}) {
+  /**
+   * Points the perspective camera for Cockpit or Chase on `target` and returns { eye, hidden, labelZoom }. Cockpit sits
+   * at the aircraft looking along its nose, banked with it, and hides its own model for the frame (`hidden`, shown
+   * again after drawing); Chase sits behind it along the look, at chaseDistanceFt. labelZoom is the pixels to 1,000 ft
+   * at the followed aircraft, for the label sizes.
+   */
+  function aimPerspective(target, cam, size) {
+    const p = gl.perspective;
+    p.fov = perspectiveFovDeg(size);
+    p.aspect = Math.max(size.width, 1) / Math.max(size.height, 1);
+    const pxPerKft = (distFt) => ((Math.max(size.height, 1) / 2) / Math.tan(rad(p.fov / 2)) / Math.max(distFt, 1)) * 1000;
+    let eye, hidden = null, labelZoom;
+    if (viewMode === 'cockpit') {
+      eye = { x: finite(target.x), y: finite(target.y), z: altToZ(finite(target.alt), ALT_SCALE) };
+      const mesh = gl.kit.aircraftMesh(target.id);
+      const nose = new THREE.Vector3(Math.sin(rad(finite(target.headingDeg))), Math.cos(rad(finite(target.headingDeg))), 0);
+      const up = new THREE.Vector3(0, 0, 1);
+      if (mesh) {
+        // The model's nose is +X and its top +Z (applyPose), so its turn gives the pilot's look and the bank.
+        nose.set(1, 0, 0).applyQuaternion(mesh.quaternion);
+        up.set(0, 0, 1).applyQuaternion(mesh.quaternion);
+        mesh.visible = false;
+        hidden = mesh;
+      }
+      p.position.set(eye.x, eye.y, eye.z);
+      p.up.copy(up);
+      p.lookAt(eye.x + nose.x * 1000, eye.y + nose.y * 1000, eye.z + nose.z * 1000);
+      labelZoom = CAMERA_LIMITS.zoom[1];
+    } else {
+      const distanceFt = chaseDistanceFt(cam, size);
+      const look = chaseEye(target, cam, distanceFt);
+      eye = look.eye;
+      p.position.set(eye.x, eye.y, eye.z);
+      p.up.set(0, 0, 1);
+      p.lookAt(look.at.x, look.at.y, look.at.z);
+      labelZoom = pxPerKft(distanceFt);
+    }
+    p.updateProjectionMatrix();
+    p.updateMatrixWorld(true);
+    return { eye, hidden, labelZoom };
+  }
+
+  function drawLabels(ctx, labelCanvas, size, ratio, data, options, palette, { zoom = 20, floor = 0, skipId = null } = {}) {
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.clearRect(0, 0, size.width, size.height);
     const levels = conflictLevels(data.conflicts ?? []);
-    const camera = gl.camera;
+    const camera = gl.shownCamera ?? gl.camera;
     ctx.lineJoin = 'round';
     ctx.textBaseline = 'alphabetic';
     const write = (text, x, y, colour, bold = false, px = 12) => {
@@ -1848,7 +1941,11 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       ctx.fillStyle = colour;
       ctx.fillText(text, x, y);
     };
-    const screenOf = (x, y, alt) => worldToScreen(THREE, camera, { x, y, z: altToZ(alt, ALT_SCALE) }, size.width, size.height);
+    // A point behind the perspective camera, or past its clip planes, has no place on the screen.
+    const screenOf = (x, y, alt) => {
+      const depth = new THREE.Vector3(x, y, altToZ(alt, ALT_SCALE)).project(camera).z;
+      return depth < -1 || depth > 1 ? { x: NaN, y: NaN } : worldToScreen(THREE, camera, { x, y, z: altToZ(alt, ALT_SCALE) }, size.width, size.height);
+    };
     const onScreen = (p, margin = 50) => p.x > -margin && p.y > -margin && p.x < size.width + margin && p.y < size.height + margin;
 
     // The window and the 3° intercept, named (TR-78).
@@ -1886,7 +1983,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
 
     const planeRadiusPx = Math.max(LOCATOR_MIN_PX, (planeLengthFt(zoom, options.aircraftScale) * zoom) / 1000 / 2 + LOCATOR_GAP_PX);
     for (const ac of data.aircraft) {
-      if (!isFlying(ac)) continue;
+      if (!isFlying(ac) || ac.id === skipId) continue; // not the one the Cockpit view is sitting in
       const p = screenOf(ac.x, ac.y, ac.alt);
       if (!onScreen(p)) continue;
       const colour = aircraftColor(ac);
