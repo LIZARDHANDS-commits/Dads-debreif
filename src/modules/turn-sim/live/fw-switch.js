@@ -5,7 +5,8 @@
 // roll-out arc will just reach the mirror of his place on the other side of the cone, reverses to the same bank the other
 // way, and rolls out parallel to Lead again in the far cone. Power is back through it (he asks for less speed than Lead),
 // so the switch bleeds energy, which is what it is used for (Patrick 01:04Z; 5 Oct 23:02Z: "a common way to bleed energy
-// is to S turn left and right"). The crossing is behind Lead: the turn in drops him back (his speed is off Lead's heading)
+// is to S turn left and right"); from the back of the cone it is full power and a dive instead, to keep the spacing
+// (Patrick 01:23Z). The crossing is behind Lead: the turn in drops him back (his speed is off Lead's heading)
 // and he is never nearer than where he started. The SMM does not draw the switch; the nearest pages are SMM 12.29 para
 // 69 (the cone, 500-1,000 ft, 30-60° of sweep) and 12.30 paras 72-74 (pursuit). Numbers: tuning.js FW_SWITCH (estimates
 // unless a source is named).
@@ -32,11 +33,21 @@ export function fwSwitch(sTo) {
   const S = FW_SWITCH;
   const s = sTo;
   let stage = 'in';
+  let range0 = null; // the spacing at the press, held through the switch
   const pursuit = (L, W) => {
     if (stage === 'done') return null;
     const rel = relativeTo(L, W);
     const off = s * wrapPi(W.headingRad - L.headingRad); // how far his heading has turned toward the far side, radians
-    const kiasCmd = L.kias - S.bleedKias;
+    // Speed (Patrick 6 Oct 01:24Z: "if they want to swap sides they have to do what they need to with geometry, then
+    // power, to maintain position. this is fundamental for any formation movement"): the switch holds the spacing he had
+    // at the press. Geometry first (the turn in, no more than turnInMaxDeg, and the aim near the tail line); then power,
+    // in proportion to how far the range has opened or closed from where it started, up to holdKias each way. Opening asks
+    // for more speed, which the tracker flies at full power and the cone's energy law (TS-96) dives for; closing asks
+    // for less, a climb: the vertical is geometry too (Patrick 01:25Z), so height in the cone comes before power, which is
+    // the order the energy law flies. Bleeding energy through the switch is only an option (Patrick 01:24Z), not a control.
+    range0 ??= Math.hypot(rel.fwd, rel.left);
+    const opened = Math.hypot(rel.fwd, rel.left) - range0;
+    const kiasCmd = L.kias + Math.max(-1, Math.min(1, opened / S.holdScaleFt)) * S.holdKias;
     if (stage === 'in') {
       if (-rel.fwd < S.minBehindFt) return null; // too close behind Lead to cross: the slot law drops him back first
       // Where the roll-out would end if it started now: the arc at the same bank the other way, plus the reversal itself
