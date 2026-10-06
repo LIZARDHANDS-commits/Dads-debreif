@@ -17,39 +17,34 @@
 //     moves Patrick says work well (08:28Z).
 // Chosen, the quickest first: the cut and how sharply he comes onto the line (STRAIGHT_REJOIN.cutsDeg, aimsFt), and the overtake
 // asked before a smaller one. #2 is flown through the same flight.js step as Lead. Numbers are tuning.js STRAIGHT_REJOIN's.
-import { relativeTo, DEG } from './manoeuvres.js';
+import { relativeTo } from './manoeuvres.js';
 import { recordFlight, speedSeg } from './replay.js';
 import { closeThrough, legsFor, STRAIGHT_AHEAD } from './recipes.js';
 import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
 import { FORMATIONS, pairSlot, sideFor } from './slots.js';
-import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, STRAIGHT_REJOIN, TURNING_REJOIN, TRACKER, CLOSURE, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
+import { KIAS_OUTSIDE_LAB, REJOIN_CLOSURE_KT, STRAIGHT_REJOIN, TURNING_REJOIN, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
 import { onClosure, fromStep } from './hand-over.js';
-import { STEP_SEC, copyAircraft } from './flight.js';
-import { stepCommanded, setKias, trackTwice, climbCostKtps } from './tracker.js';
-import { fullPowerKtps, slowKtps, stallBankDeg } from './slow-down.js';
-import { powerFor, powerFrom, throttleAtTorque } from './power.js';
-import { bankDegFromTurnRate } from '../../../core/flight-math.js';
-import { wrapPi } from '../../../core/angles.js';
+import { STEP_SEC } from './flight.js';
+import { trackTwice } from './tracker.js';
+import { flyRejoinLine } from './rejoin-law.js';
 import { KT_TO_FTPS as KT_FTPS } from '../../../core/units.js';
 
 const dt = STEP_SEC;
 const CLOSE_TARGETS = new Set(['echelon', 'route', 'astern']);
 
 /**
- * #2's part, from the press to the decision point, against Lead's recorded flight `rec` (Lead straight). s: the side he starts
- * on; route: the route slot he flows through; cutDeg, aimFt: the cut and how sharply he comes onto the line; overtakeKt: KIAS
- * over Lead's 200. Returns { points, steps, end, accelKtps, maxBankDeg, ahead, sixFt } or null when he does not reach it in
- * time: points are [bank, kias, power] a step (replay.js flyStep's bankTrack); ahead is true when he passed ahead of
- * Lead's 3/9 line inside 1,000 ft; sixFt how far back he was when he got onto Lead's six.
+ * #2's part, from the press to the decision point, against Lead's recorded flight `rec` (Lead straight): the one rejoin law
+ * (rejoin-law.js flyRejoinLine, TS-139) with Lead flying straight on. s: the side he starts on; route: the route slot he
+ * flows through; cutDeg, aimFt: the cut and how sharply he comes onto the line; overtakeKt: KIAS over Lead's 200. Returns
+ * flyRejoinLine's result with sixFt (how far back he was when he got onto Lead's six), or null when he does not reach the
+ * window in time.
+ * @returns {Record<string, any> | null}
  */
 function flyToDecision({ wing, rec, s, route, cutDeg, aimFt, overtakeKt, blockFt, t0, profile }) {
   const SR = STRAIGHT_REJOIN;
   const A = STRAIGHT_AHEAD;
   const TR = TURNING_REJOIN;
-  const G = TRACKER.gain;
-  const W = copyAircraft(wing);
-  const targetKias = KIAS_OUTSIDE_LAB + overtakeKt;
   // The window (Patrick 6 Oct 03:45Z, card wording: "A rejoin plans only to the window: #2 arrives 250-100 ft from Lead,
   // measured along the rejoin line, 10-20 KIAS faster than Lead"; TS-110): the overtake comes off to the window's middle
   // by its far edge, and the plan ends at the first point in it with no more than its top overtake.
@@ -57,90 +52,25 @@ function flyToDecision({ wing, rec, s, route, cutDeg, aimFt, overtakeKt, blockFt
   const midKt = (TR.stableKt[0] + TR.stableKt[1]) / 2;
   const vectorLen = Math.max(1, A.vectorAtFt + route.fwd);
   // Where on Lead's six line he aims to be, sideways, at a distance back: on the six, then from about 500 ft the small vector
-  // toward route (Fig 12.17 point 2).
+  // toward route (Fig 12.17 point 2). Lead flies straight, so his track is the line's own direction.
   const lineLeft = (back) => (back >= A.vectorAtFt ? 0 : route.left * Math.min(1, (A.vectorAtFt - back) / vectorLen));
-  const points = [];
-  let onSix = false;
-  let runIn = false;
-  let backPrev = null;
-  let accel = 0;
-  let maxBank = 0;
-  let ahead = false;
-  let wasBehind = false;
-  let sixFt = null;
-  const startFt = Math.hypot(rec.at(0).xFt - W.xFt, rec.at(0).yFt - W.yFt);
-  for (let n = 0; n < Math.round(CHANGE_LIMIT_SEC / dt); n++) {
-    const L = rec.at(n);
-    const Lnext = rec.at(n + 1);
-    const t = t0 + n * dt;
-    const rel = relativeTo(L, W);
-    const back = -rel.fwd;
-    if (!onSix && rel.left * s < -SR.captureFt) return null; // through Lead's six to the other side before getting onto it
-    if (!onSix && back > 0 && Math.abs(rel.left) <= SR.captureFt) {
-      onSix = true;
-      sixFt = back;
-    }
-    // Onto Lead's six first, however close he starts (SMM 12.26 para 62, Fig 12.17 point 1), then up it and the vector.
-    const cross = rel.left - (onSix ? lineLeft(back) : 0);
-    if (onSix && back <= decisionFt && Math.abs(cross) <= SR.captureFt && W.kias - L.kias <= TR.stableKt[1]) return { points, steps: n, end: W, accelKtps: accel, maxBankDeg: maxBank, ahead, sixFt };
-    if (onSix && back < TR.windowNearFt) return null; // not in the window by its near edge: the overshoot, the last resort (formation.js's other planners)
-
-    // Where he steers: across Lead's track toward the line at up to the cut, less the nearer he is to it. Lead flies straight,
-    // so his track is the line's own direction.
-    const psi = L.headingRad - Math.sign(cross) * cutDeg * DEG * (2 / Math.PI) * Math.atan(Math.abs(cross) / aimFt);
-    const rate = wrapPi(psi - W.headingRad) / SR.lineTauSec;
-    const cap = Math.min(TR.bankCapDeg, stallBankDeg(W.kias)); // never past the stall line at the speed he has
-    const bank = Math.max(-cap, Math.min(cap, bankDegFromTurnRate(W.tasFtps, rate)));
-
-    // The power: full power until he is on Lead's six (Patrick 08:40Z); then the overtake, set with power back if he has more,
-    // and taken out where power back alone just brings the closure down to the arrival rate by the decision point, idle and
-    // the boards only when the room left needs them (turning-rejoin.js's order; SMM 12.24 para 58).
-    const closure = backPrev === null ? 0 : (backPrev - back) / dt;
-    backPrev = back;
-    const ratio = W.tasFtps / W.kias;
-    const arriveFtps = midKt * ratio; // the window's middle overtake as a closure (Lead straight: all of it fore and aft)
-    const climbKtps = climbCostKtps(W, W.climbFtps);
-    const floorThr = throttleAtTorque(REJOIN.floorTorquePct, W.kias, blockFt); // the rejoin's torque floor (TS-108)
-    const aStop = slowKtps(REJOIN.stopStage, W.kias, blockFt, W.g, floorThr) + climbKtps;
-    // The room left, less what he covers while the slowing builds up at the rate the acceleration can change (TS-75).
-    const rampFt = (closure * CLOSURE.stopShare * aStop) / G.jerkKtps2 / 2;
-    const room = back - decisionFt;
-    const needKtps = room - rampFt > 1 && closure > arriveFtps ? (closure * closure - arriveFtps * arriveFtps) / (2 * (room - rampFt)) / ratio : 0;
-    const aMax = fullPowerKtps(W.kias, blockFt, W.g) - climbKtps;
-    const aPower = slowKtps('power', W.kias, blockFt, W.g, floorThr) + climbKtps;
-    const aAll = slowKtps('idleBoards', W.kias, blockFt, W.g) + climbKtps;
-    // The decision point: where the stop with the torque floor and the boards just fits (TS-108) the room left (Patrick 17:55Z: "then slow down at the decision
-    // point for eithe SARJ or TRJ"; TS-75).
-    if (onSix && !runIn && closure > arriveFtps && needKtps >= CLOSURE.stopShare * aStop) runIn = true;
-    const floorKias = KIAS_OUTSIDE_LAB; // never below Lead's 200 KIAS (Patrick 17:29Z; TS-75)
-    let aCmd;
-    if (!onSix) {
-      aCmd = aMax;
-    } else if (runIn) {
-      aCmd = closure > arriveFtps
-        ? -Math.min(needKtps, aAll)
-        : Math.max(-aAll, Math.min(aMax, G.speedLoop * Math.min(targetKias - W.kias, (arriveFtps - closure) / ratio)));
-      // Easing off in time to stop the slowing at the arrival rate, and never below Lead's speed (TS-75).
-      aCmd = Math.max(aCmd, -Math.sqrt(2 * G.jerkKtps2 * Math.max(0, (closure - arriveFtps) / ratio)), -Math.sqrt(2 * G.jerkKtps2 * Math.max(0, W.kias - floorKias)));
-    } else {
-      // Up Lead's six at least the line speed asked (lineKiasNow, TS-133): MAX to it, and no power back if he has more (Patrick 17:55Z: "the minimum
-      // closure up the line to be 220 knots for expeidiousness"; TS-75).
-      aCmd = Math.min(aMax, Math.max(0, G.speedLoop * (targetKias - W.kias)));
-    }
-    accel += Math.max(-G.jerkKtps2 * dt, Math.min(G.jerkKtps2 * dt, aCmd - accel));
-    const kias = W.kias + accel * dt;
-    setKias(W, kias);
-    stepCommanded(W, bank, t, profile);
-    const power = accel >= aMax * 0.985 ? powerFrom(null, 1, W.kias, blockFt) : powerFor(accel, W.kias, blockFt, W.g, W.climbFtps, runIn ? 'idleBoards' : null, floorThr);
-    points.push([bank, kias, power]);
-    maxBank = Math.max(maxBank, Math.abs(W.bankDeg));
-    const after = relativeTo(Lnext, W);
-    // Never ahead of Lead's 3/9 line inside laneRangeFt (Patrick 08:04Z), except a start that begins there, until he has been
-    // behind it once.
-    if (after.fwd <= 0) wasBehind = true;
-    else if ((wasBehind || startFt >= TRACKER.laneRangeFt) && Math.hypot(after.fwd, after.left) < TRACKER.laneRangeFt) ahead = true;
-  }
-  return null;
+  // Onto Lead's six first, however close he starts (SMM 12.26 para 62, Fig 12.17 point 1), then up it and the vector.
+  const line = { u: { fwd: -1, left: 0 }, nrm: { fwd: 0, left: 1 }, closureShare: 1, at: (rel, onLine) => ({ along: -rel.fwd, cross: rel.left - (onLine ? lineLeft(-rel.fwd) : 0) }) };
+  const done = (geo, W, L, onSix) => {
+    if (!onSix) return null;
+    if (geo.along <= decisionFt && Math.abs(geo.cross) <= SR.captureFt && W.kias - L.kias <= TR.stableKt[1]) return 'done';
+    return geo.along < TR.windowNearFt ? 'fail' : null; // not in the window by its near edge: the overshoot, the last resort (formation.js's other planners)
+  };
+  const part = flyRejoinLine({
+    leadTurning: false, line, done, wing, rec, s, aimFt, approachDeg: cutDeg, tauSec: SR.lineTauSec, captureFt: SR.captureFt,
+    // Through Lead's six to the other side before getting onto it is not this rejoin; once on it, the vector may go there.
+    acrossTolFt: SR.captureFt, acrossOnlyOffLine: true,
+    bankCapDeg: TR.bankCapDeg, decisionFt,
+    arriveFtps: (W) => midKt * (W.tasFtps / W.kias), // the window's middle overtake as a closure (Lead straight: all of it fore and aft)
+    overtakeKt, floorKias: KIAS_OUTSIDE_LAB, // never below Lead's 200 KIAS (Patrick 17:29Z; TS-75)
+    blockFt, t0, profile,
+  });
+  return part ? { ...part, sixFt: part.lineFt } : null;
 }
 
 /** The whole rejoin with one cut: #2's part to the decision point, then the tracker through route into the slot. */
