@@ -295,4 +295,10 @@ Every number the Formation Sim's planners use, with the source written beside it
 | LAG_ROLL.coneSweepDeg | `Object.freeze([20, 70])` | the same region's sweep (judge.js classifier; estimate) |
 | LAG_ROLL.closeOvertakeKias | `20` | closing back up to the slot after the roll: the top of EFIG p.374's 10-20 KIAS overtake (estimate choice) |
 | LAG_ROLL.rollingAboveDps | `10` | above this roll rate the rolling G limit (core availableG, rolling) is the one checked (estimate) |
+| LAG_ROLL.setUpSweepInDeg | `2` | from fighting wing he first moves to the front of the cone, this far inside its 30° edge, and to its top (FW_ENERGY.coneUpFt), so the roll ends in position (Patrick 6 Oct 22:33Z, TS-143; the margin an estimate) |
+| LAG_ROLL.setUpRangeFt | `600` | ... at this range, 100 ft outside the cone's 500 ft inside edge and the bubble, its most forward corner (estimate) |
+| LAG_ROLL.setUpMinFt | `50` | a set-up shorter than this is skipped (estimate) |
+| LAG_ROLL.setUpMinSec | `4` | the set-up takes at least this long (estimate) ... |
+| LAG_ROLL.setUpOvertakeKias | `30` | ... moving at up to this relative to Lead, briskly (estimate) |
+| LAG_ROLL.fallBackCostFt | `20` | the search's cost per foot of ending behind the slot is 1 per this many feet (was 100; TS-143: end in position; estimate) |
 | LAG_ROLL.rollMissG | `0.3` | #2's wings roll no faster than the T-6A (TS-85): a path asking more is used only while the lift they don't yet point stays under this (estimate) |
