@@ -20,7 +20,7 @@
 import { relativeTo, DEG } from './manoeuvres.js';
 import { recordFlight, speedSeg, closeThrough, legsFor, STRAIGHT_AHEAD, CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
-import { FORMATIONS, pairSlot } from './slots.js';
+import { FORMATIONS, pairSlot, LENGTH_FT, WINGSPAN_FT } from './slots.js';
 import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, STRAIGHT_REJOIN, TURNING_REJOIN, TRACKER, CLOSURE, closureNow, closeInFtps } from './tuning.js';
 import { onClosure, fromStep } from './hand-over.js';
 import { STEP_SEC, copyAircraft } from './flight.js';
@@ -29,7 +29,7 @@ import { fullPowerKtps, slowKtps } from './slow-down.js';
 import { powerFor, powerFrom } from './power.js';
 import { bankDegFromTurnRate } from '../../../core/flight-math.js';
 import { wrapPi } from '../../../core/angles.js';
-import { G_FTPS2 } from '../../../core/units.js';
+import { G_FTPS2, KT_TO_FTPS as KT_FTPS } from '../../../core/units.js';
 import { availableG } from '../../../core/t6-performance.js';
 
 const dt = STEP_SEC;
@@ -135,19 +135,32 @@ function flyToDecision({ wing, rec, s, route, cutDeg, aimFt, overtakeKt, arriveF
   return null;
 }
 
-/** The whole rejoin with one cut: #2's part to the decision point, then the tracker through route into the slot. */
+/**
+ * Into echelon he joins "the line" (Patrick 6 Oct 02:01Z: "SARJ shuold hit 'The line' (drawn between the prop spinner and
+ * wingtip, as per smm) and fluildly transition their motion up that line in to position"): the line from Lead's spinner
+ * through his wingtip, which runs back through the echelon slot about 45° behind abeam (LENGTH_FT and WINGSPAN_FT are the
+ * same). He aims for it STRAIGHT_REJOIN.lineJoinEchelons times echelon's distance out, then flows up it into the slot without stopping. Until
+ * V2.105 he aimed for route itself, 25 ft behind Lead, so he ran up nearly abreast and wide, then slid back in.
+ */
+function onTheLine(s, spacingFt) {
+  const ech = pairSlot('echelon', s, spacingFt);
+  const out = STRAIGHT_REJOIN.lineJoinEchelons * Math.abs(ech.left);
+  return { fwd: ech.fwd - (out - Math.abs(ech.left)) * (LENGTH_FT / WINGSPAN_FT), left: s * out, alt: ech.alt };
+}
+
+/** The whole rejoin with one cut: #2's part to the decision point, then the tracker through route (on the line, into echelon) into the slot. */
 function flyWith({ lead, wing, rec, s, to, sTo, spacingFt, blockFt, t0, cutDeg, aimFt, overtakeKt }) {
   const TR = TURNING_REJOIN;
   const A = STRAIGHT_AHEAD;
   const sRoute = sTo || s;
-  const route = pairSlot('route', sRoute, spacingFt);
+  const route = to === 'echelon' ? onTheLine(sRoute, spacingFt) : pairSlot('route', sRoute, spacingFt);
   // Heights are against Lead's at the press: just below his wake is A.belowWakeFt below him, wherever he is (until V2.99
   // they were read as heights against the block's zero, so with Lead off it #2 flew to the wrong height).
   const leadAlt = rec.at(0).altAboveFt;
   const wakeFt = leadAlt + A.belowWakeFt;
   const descentSec = Math.max(TR.heightSec, Math.abs(wing.altAboveFt - wakeFt) / TR.descentFtps);
   const heightLeg = (sec) => (Math.abs(wing.altAboveFt - wakeFt) > 0.5 ? [{ t0, t1: t0 + sec, fromFt: wing.altAboveFt, toFt: wakeFt }] : []);
-  const args = { wing, rec, s, route, cutDeg, aimFt, overtakeKt, arriveFtps: Math.min(closureNow().ftps, closeInFtps(TR.decisionArriveRates)), blockFt, t0 };
+  const args = { wing, rec, s, route, cutDeg, aimFt, overtakeKt, arriveFtps: Math.min(closureNow().ftps, closeInFtps(TR.decisionArriveRates), to === 'echelon' ? STRAIGHT_REJOIN.lineArriveKt * KT_FTPS : Infinity), blockFt, t0 };
   let part = flyToDecision({ ...args, profile: heightLeg(descentSec) });
   if (!part) return null;
   if (part.steps * dt < descentSec) part = flyToDecision({ ...args, profile: heightLeg(Math.max(part.steps * dt, dt)) });
@@ -155,9 +168,13 @@ function flyWith({ lead, wing, rec, s, to, sTo, spacingFt, blockFt, t0, cutDeg, 
   const n1 = part.steps;
   const W1 = { ...part.end, altAboveFt: wakeFt, climbFtps: 0 };
   // Through route without stopping, at no more than the decision point's arrival rate, on into the slot.
+  // Into echelon: one flow up the line into the slot, no stop on the way (Patrick 6 Oct 02:01Z: "a rejoin should never
+  // stagnate (stop) until it's in position").
   const rest = legsFor('route', sRoute, to, sTo, spacingFt);
-  const flowFtps = closeInFtps(TR.decisionArriveRates);
-  const phases = onClosure([closeThrough(route, rest.length ? { advanceTol: TR.routeFlowFt } : {}), ...rest]).map((p, i) => ({ ...p, slot: { ...p.slot, alt: p.slot.alt + leadAlt }, ...(i === 0 ? { closureFtps: Math.min(p.closureFtps, flowFtps) } : {}) }));
+  const flowFtps = Math.min(closeInFtps(TR.decisionArriveRates), to === 'echelon' ? STRAIGHT_REJOIN.lineArriveKt * KT_FTPS : Infinity);
+  const onLine = to === 'echelon';
+  const legs = [closeThrough(route, rest.length ? { advanceTol: onLine ? STRAIGHT_REJOIN.lineFlowFt : TR.routeFlowFt } : {}), ...rest];
+  const phases = onClosure(legs).map((p, i) => ({ ...p, slot: { ...p.slot, alt: p.slot.alt + leadAlt }, ...(i === 0 || onLine ? { closureFtps: Math.min(p.closureFtps, flowFtps) } : {}) }));
   const { run, profile } = trackTwice({ refs: { [lead.id]: fromStep(rec, n1) }, wing0: W1, t0: t0 + n1 * dt, phases, blockFt, init: { accelKtps: part.accelKtps }, stopWhenSettled: false });
   if (!run.ok || run.laneFwdFt > Math.max(0, pairSlot(to, sTo || s, spacingFt).fwd) + TR.laneTolFt) return null; // never ahead of Lead's 3/9 line on the way in
   return { part, run, profile: [...heightLeg(Math.min(descentSec, Math.max(n1 * dt, dt))), ...profile], durationSec: (n1 + run.points.length) * dt };
