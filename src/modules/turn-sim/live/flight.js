@@ -220,7 +220,7 @@ export const SMOOTHER_CURVE_PEAK = 10 / Math.sqrt(3);
 const smootherArea = (u) => u * u * u * u * (2.5 - 3 * u + u * u);
 
 /**
- * A big dive flown as a pilot flies it (TS-129; Patrick 6 Oct 15:29Z: "Can straight down be a hesitation roll with power and g
+ * A big dive flown as a pilot flies it, the lateral roll (TS-129, TS-131; Patrick 6 Oct 15:29Z: "Can straight down be a hesitation roll with power and g
  * and roll managed to roll out near the desired spot?"): the rate of descent builds up smoothly with the nose pulled down
  * inverted (the push of inG g below level flight, flown as a pull with the wings past 90°), holds, and comes off with the
  * pull-out (outG g above level flight). T: seconds, H: feet (positive). Returns { vd, ta, to } (the steady rate and the two

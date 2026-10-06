@@ -109,19 +109,21 @@ export const OPEN_MOVE = Object.freeze({ vsShare: 0.8, climbSwingKt: 40, diveSwi
  * A big height loss in the box is flown as a pilot flies it (TS-129; Patrick 6 Oct 15:29Z: "Can straight down be a hesitation
  * roll with power and g and roll managed to roll out near the desired spot? Same with any large altitude loss near present
  * position?"): he rolls past 90°, pulls the nose down inverted at inG g below level flight, rolls upright in the steady dive and
- * pulls out at outG g above it (flight.js diveShape). Only for a loss of at least minFt whose steady dive is at least
- * minShare of his true airspeed; a gentler one stays a smooth push over. All estimates.
+ * pulls out at outG g above it (flight.js diveShape). Only where it makes sense (Patrick 15:34Z: "it just has to trigger when
+ * it makes sense not all the time"): a loss of at least minFt, near where he is (the move across no more than acrossPerFt
+ * feet per foot of loss; a long move across stays a descending turn), whose steady dive is at least minShare of his true
+ * airspeed; anything else stays a smooth push over. All estimates.
  */
-export const DIVE_ROLL = Object.freeze({ inG: 3, outG: 3, minFt: 500, minShare: 0.3 });
+export const DIVE_ROLL = Object.freeze({ inG: 3, outG: 3, minFt: 500, minShare: 0.3, acrossPerFt: 1 });
 
-/** The seconds a hard height change of dAlt feet (up positive) takes for wing (OPEN_MOVE above). blockFt: the height block. */
-export function openMoveAltSec(dAlt, wing, blockFt) {
+/** The seconds a hard height change of dAlt feet (up positive) takes for wing (OPEN_MOVE above). blockFt: the height block; across: the move across, feet. */
+export function openMoveAltSec(dAlt, wing, blockFt, across = 0) {
   const h = Math.abs(dAlt);
   if (!(h > 0)) return 0;
   const byG = Math.sqrt((SMOOTHER_CURVE_PEAK * h) / (TURNING_REJOIN.diveGs[0] * G_FTPS2));
   const bySpeed = (SMOOTHER_PEAK * h) / (OPEN_MOVE.vsShare * wing.tasFtps);
   // A big dive (DIVE_ROLL) is flown inverted and pulled through, so its shortest time is the dive shape's.
-  const byDive = dAlt < 0 && h >= DIVE_ROLL.minFt ? diveMinSec(h, DIVE_ROLL.inG, DIVE_ROLL.outG, OPEN_MOVE.vsShare * wing.tasFtps) : null;
+  const byDive = dAlt < 0 && h >= DIVE_ROLL.minFt && !(across > DIVE_ROLL.acrossPerFt * h) ? diveMinSec(h, DIVE_ROLL.inG, DIVE_ROLL.outG, OPEN_MOVE.vsShare * wing.tasFtps) : null;
   // Energy: knots per second per foot per second of climb, so a swing of k knots is k / per feet of height.
   const per = climbCostKtps(wing, 1);
   const up = dAlt > 0;
@@ -216,10 +218,10 @@ export function planMoveInBand(pair, target, options = {}, t0 = 0) {
     ? trackTwice({ refs, wing0: wing, t0, phases: onClosure([phase({ fwd: target.fwd, left: target.left, alt: now.alt })], { closeIn }), blockFt, stopWhenSettled: true }).run
     : null;
   const across = level?.ok ? level.durationSec : 0;
-  const tries = dAlt > 0 ? (open ? [openMoveAltSec(target.alt - now.alt, wing, blockFt), ...(target.alt > now.alt ? [dAlt / MOVE_ALT_RATE_FTPS] : [])] : [dAlt / MOVE_ALT_RATE_FTPS]) : [0];
+  const tries = dAlt > 0 ? (open ? [openMoveAltSec(target.alt - now.alt, wing, blockFt, Math.hypot(target.fwd - now.fwd, target.left - now.left)), ...(target.alt > now.alt ? [dAlt / MOVE_ALT_RATE_FTPS] : [])] : [dAlt / MOVE_ALT_RATE_FTPS]) : [0];
   // A big loss (DIVE_ROLL) steep enough is rolled inverted and pulled down, then rolled out and pulled through near the spot.
   const bigDive = (sec) => {
-    if (!(target.alt < now.alt - DIVE_ROLL.minFt)) return {};
+    if (!(target.alt < now.alt - DIVE_ROLL.minFt) || Math.hypot(target.fwd - now.fwd, target.left - now.left) > DIVE_ROLL.acrossPerFt * dAlt) return {};
     const shape = diveShape(sec, dAlt, DIVE_ROLL.inG, DIVE_ROLL.outG);
     return shape && shape.vd >= DIVE_ROLL.minShare * wing.tasFtps ? { dive: { inG: DIVE_ROLL.inG, outG: DIVE_ROLL.outG } } : {};
   };
