@@ -12,7 +12,7 @@ The refactor plan's steps 1 to 5 are merged: V2.92 envelope gate (#495, TS-93); 
 
 How #2 is flown, in one line: every 2-ship change of formation is planned by one chooser, flown as a kinematic line then the tracker, and planned again at events (the section below, and `spec.md`). The Rates setting (Student, Instructor, AI) is under More.
 
-Where things live (TS-64, TS-95, TS-97): the slots for the 2- and 4-ship in `live/slots.js`, the one classifier and judge (card, roll-out verdict and tags) in `live/judge.js`, the numbers in `live/rates.js`, `live/bands.js` and `live/moves.js` (listed with sources in `numbers.md`; `live/tuning.js` only re-exports them), the tracker (the fallback for odd starts) in `live/tracker.js`, and the events that plan a change again in `live/events.js`.
+Where things live (TS-64, TS-95, TS-97): the slots for the 2- and 4-ship in `live/slots.js`, the one classifier and judge (card, roll-out verdict and tags) in `live/judge.js`, the numbers in `live/rates.js` (with the Rates experience profile, TS-141), `live/bands.js` and `live/moves.js` (with the one speed table, TS-141) (listed with sources in `numbers.md`; `live/tuning.js` only re-exports them), the tracker (the fallback for odd starts) in `live/tracker.js`, and the events that plan a change again in `live/events.js`.
 
 ## How #2 is planned now (V2.75 to V2.101)
 
@@ -72,6 +72,7 @@ The flying core, `src/modules/turn-sim/live/` (each file's header says its job):
 | `move-in-band.js` | Moves #2 anywhere in the band when he is in position (TS-98) |
 | `turning-rejoin.js`, `straight-rejoin.js`, `echelon-to-fw.js`, `open-out.js`, `lag-roll.js`, `rolling-rejoin.js` | The planners the chooser tries |
 | `rejoin-law.js` | The one rejoin law both rejoins fly down the line to the decision point, and the one check for Lead's 3/9 line (clean-up step 4, TS-139) |
+| `pilot.js` | The one pilot model every held-command planner and the tracker fly through: speed from the power at the G flown, one jerk limit, power hysteresis, shaped roll (clean-up step 5, TS-141) |
 | `kinematic.js`, `kinematic-moves.js`, `line-moves.js`, `hand-over.js`, `tracker.js` | Lines, hand-overs and the tracker |
 | `replay.js` | Flying a planned move one step (the replayed bank track and pose track), the dry run, recorded flights and the speed segment (clean-up step 3, from `transitions.js`) |
 | `recipes.js` | The tracker's leg recipes for each move (slide, stop at a corner, close through route, rejoin, open out, drop back, sweep out, straight ahead) and `legsFor`, the legs from one formation to another (clean-up step 3, from `transitions.js`) |

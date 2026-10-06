@@ -3,7 +3,8 @@
 // posision"; 22:43Z: "see? idle boards to LAB from esch"; TS-88). The line of TS-78 (line-moves.js) worked his power out
 // from its path, and its first leg drifts him aft in Lead's frame, so it flew its first 10 s at idle and the boards.
 // This flies it as held commands instead (the review's design: the opening out as a held-command planner, as
-// echelon-to-fw.js flies the drop back):
+// echelon-to-fw.js flies the drop back); since clean-up step 5 (TS-141) as a tracker recipe, the held part the tracker's
+// pursuit (openPursuit) and the settle its next phase, one run flown by the one pilot model (pilot.js):
 //  1. MAX from the press, held all the way out (the full power dive to start, Patrick 21:06Z; OPEN_OUT.diveFt).
 //  2. Roll away from Lead at a held bank to a held heading off his, and down to OPEN_OUT.diveFt below him.
 //  3. Hold that heading until a turn back at the same bank would put him level with line abreast's distance out; he falls
@@ -11,21 +12,19 @@
 //  4. Turn back parallel to Lead; the tracker settles him in the band (judge.js: in position is in the band, TS-80).
 // Lead speeds up to line abreast speed at the press (OPEN_OUT_HELD.leadHolds).
 
-import { relativeTo, turnSeg, DEG } from './manoeuvres.js';
+import { relativeTo, DEG } from './manoeuvres.js';
 import { recordFlight, speedSeg } from './replay.js';
 import { openOut } from './recipes.js';
 import { describe, CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
 import { FORMATIONS, pairSlot } from './slots.js';
 import { KIAS_LAB, OPEN_OUT, TRACKER } from './tuning.js';
-import { fromStep, onClosure } from './hand-over.js';
+import { onClosure } from './hand-over.js';
 import { outAfterTurnBack } from './echelon-to-fw.js';
-import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
-import { setKias, trackTwice, climbCostKtps } from './tracker.js';
-import { fullPowerKtps, slowKtps } from './slow-down.js';
-import { powerFor, powerFrom } from './power.js';
+import { STEP_SEC } from './flight.js';
+import { phase, runTracker, climbCostKtps } from './tracker.js';
 import { wrapPi } from '../../../core/angles.js';
-import { availableG } from '../../../core/t6-performance.js';
+import { bankDegFromTurnRate } from '../../../core/flight-math.js';
 
 const dt = STEP_SEC;
 
@@ -38,73 +37,64 @@ export const OPEN_OUT_HELD = Object.freeze({
   offHeadingsDeg: Object.freeze([15, 20, 25, 30, 35]), // how far off Lead's heading he holds; the one that settles soonest is flown (estimates)
   diveSec: 10, // down to OPEN_OUT.diveFt below Lead over at least this long (OPEN_OUT.verticalFtps's 40 ft/s for 400 ft) ...
   climbSec: 10, // ... and back up to Lead's height over this long, ending as he turns back parallel (estimate)
-  speedLoop: TRACKER.gain.speedLoop, // 1/s: onto the speed he needs (the tracker's own, an estimate)
   trimKtPerFt: 0.05, // KIAS more (or less) per foot he is behind (or ahead of) the slot's distance back (estimate) ...
   trimMaxKias: 25, // ... up to this (estimate: the rejoin overtakes of REJOIN_CLOSURE_KT, Instructor)
-  jerkKtps2: 6, // his acceleration follows the power at up to this (echelon-to-fw.js's; estimate)
+  parallelDeg: 0.5, // he is back parallel once within this of Lead's heading, wings within this of level (estimate); since TS-141 his speed loop and jerk are the one pilot model's (pilot.js, the tracker's; until then 6 kt/s², its own)
   startTol: Object.freeze({ kias: 5, headingDeg: 1, fwHeadingDeg: 5 }), // the pair this close to Lead's speed and heading, Lead straight (estimate, echelon-to-fw.js's); in fighting wing anywhere in the cone, still settling (estimate)
 });
 
 /**
- * #2's held-command part against Lead's recorded straight flight `rec`: MAX, away at bankDeg to offDeg off Lead's heading,
- * back parallel. Returns { points, steps, end, accelKtps, maxBankDeg, laneFwdFt, turnBackStep } or null. The 4-ship's
- * opening out flies each wingman on it too (four-open.js).
+ * #2's held part as a tracker recipe (clean-up step 5, TS-141): a `pursuit` the tracker flies through the one pilot model
+ * (pilot.js). Each step it asks for a heading (offDeg off Lead's on his side, then back parallel once a turn back at
+ * bankDeg brings him level with line abreast's distance out), the bank to turn to it (the heading loop's, no more than
+ * bankDeg) and a speed: MAX from the press until he has the speed the heading off needs to keep level with Lead (KIAS
+ * against KIAS: Lead's over the cosine of the heading off, the geometry), then that speed, trimmed to bring him level with
+ * the slot's distance back. Done once parallel; gives up if he comes back in toward Lead. st: { turnBackT, doneT }.
  */
-export function flyOut({ wing, rec, s, outAimFt, slotFwd, bankDeg, offDeg, blockFt, t0, profile }) {
+function openPursuit({ s, outAimFt, slotFwd, bankDeg, offDeg, startFt }) {
   const H = OPEN_OUT_HELD;
-  const W = copyAircraft(wing);
-  const L0 = rec.at(0);
-  const plan = { segments: [turnSeg(wrapPi(L0.headingRad + s * offDeg * DEG), s, bankDeg)], profile };
-  let leg = 'away'; // away, hold, back, parallel
-  let accel = 0;
-  let maxBank = 0;
-  let laneFwdFt = -Infinity;
-  let turnBackStep = null;
-  let maxDone = false; // MAX from the press until he has the speed he needs
-  const points = [];
-  const r0 = relativeTo(L0, W);
-  const startFt = Math.hypot(r0.fwd, r0.left);
-  for (let n = 0; n < Math.round(CHANGE_LIMIT_SEC / dt); n++) {
-    const L = rec.at(n);
-    const t = t0 + n * dt;
-    if ((leg === 'away' || leg === 'hold') && outAfterTurnBack(W, L, s, bankDeg, t) >= outAimFt) {
-      plan.segments = [turnSeg(L.headingRad, -s, bankDeg)];
-      leg = 'back';
-      turnBackStep = n;
-    } else if (leg === 'away' && !plan.segments.length) leg = 'hold';
-    else if (leg === 'back' && !plan.segments.length) leg = 'parallel';
-    if (leg === 'parallel') return { points, steps: n, end: W, accelKtps: accel, maxBankDeg: maxBank, laneFwdFt, turnBackStep };
-
-    // The power: MAX from the press until he has the speed the heading off needs to keep level with Lead (KIAS against
-    // KIAS: Lead's over the cosine of the heading off, the geometry), then power as required for that speed, trimmed to
-    // bring him level with the slot's distance back, power back as he turns back parallel. His limits are full power's and
-    // idle's at the G he pulls, plus what the dive gives or less what the climb costs (standard aerodynamics, dV/dt =
-    // g (T - D) / W - g sin(climb angle); echelon-to-fw.js).
-    const climbKtps = climbCostKtps(W, W.climbFtps);
-    const aMax = fullPowerKtps(W.kias, blockFt, W.g) - climbKtps;
-    const aIdle = slowKtps('power', W.kias, blockFt, W.g) + climbKtps;
+  const st = { leg: 'out', maxDone: false, turnBackT: null, doneT: null };
+  const pursuit = (L, W, t) => {
     const rel = relativeTo(L, W);
-    const offNow = Math.abs(wrapPi(W.headingRad - L.headingRad));
-    const trim = Math.max(-H.trimMaxKias, Math.min(H.trimMaxKias, -H.trimKtPerFt * (rel.fwd - slotFwd)));
-    const aimKias = (leg === 'away' ? L.kias / Math.cos(offDeg * DEG) : L.kias / Math.cos(offNow)) + trim;
-    if (W.kias >= aimKias) maxDone = true;
-    const aCmd = maxDone ? Math.max(-aIdle, Math.min(aMax, H.speedLoop * (aimKias - W.kias))) : aMax;
-    accel += Math.max(-H.jerkKtps2 * dt, Math.min(H.jerkKtps2 * dt, aCmd - accel));
-    const kias = W.kias + accel * dt;
-    setKias(W, kias);
-    const seg = plan.segments[0];
-    stepAircraft(W, plan, t);
-    const bank = seg && !seg.rollingOut ? seg.dir * seg.bankDeg : 0;
-    points.push([bank, kias, accel >= aMax * 0.985 ? powerFrom(null, 1, W.kias, blockFt) : powerFor(accel, W.kias, blockFt, W.g, W.climbFtps, null)]);
-    maxBank = Math.max(maxBank, Math.abs(W.bankDeg));
-    const after = relativeTo(rec.at(n + 1), W);
-    if (Math.hypot(after.fwd, after.left) < TRACKER.laneRangeFt) laneFwdFt = Math.max(laneFwdFt, after.fwd);
     // Moving out, never back in toward Lead (from echelon he may come level with Lead's 3/9 line as he speeds up and turns
     // away: line abreast is on that line anyway).
-    const range = Math.hypot(after.fwd, after.left);
-    if (range < startFt - 5) return null;
-  }
-  return null;
+    if (Math.hypot(rel.fwd, rel.left) < startFt - 5) return { abort: true };
+    if (st.leg === 'out' && outAfterTurnBack(W, L, s, bankDeg, t) >= outAimFt) {
+      st.leg = 'back';
+      st.turnBackT = t;
+    } else if (st.leg === 'back' && Math.abs(wrapPi(W.headingRad - L.headingRad)) < H.parallelDeg * DEG && Math.abs(W.bankDeg) < H.parallelDeg) st.leg = 'parallel';
+    if (st.leg === 'parallel') {
+      st.doneT = t;
+      return { done: true };
+    }
+    const psiCmd = st.leg === 'out' ? wrapPi(L.headingRad + s * offDeg * DEG) : L.headingRad;
+    const want = bankDegFromTurnRate(W.tasFtps, TRACKER.gain.heading * wrapPi(psiCmd - W.headingRad));
+    const offNow = Math.abs(wrapPi(W.headingRad - L.headingRad));
+    const trim = Math.max(-H.trimMaxKias, Math.min(H.trimMaxKias, -H.trimKtPerFt * (rel.fwd - slotFwd)));
+    const aimKias = (st.leg === 'out' ? L.kias / Math.cos(offDeg * DEG) : L.kias / Math.cos(offNow)) + trim;
+    if (W.kias >= aimKias) st.maxDone = true;
+    return { psiCmd, kiasCmd: st.maxDone ? aimKias : Infinity, bankDeg: Math.max(-bankDeg, Math.min(bankDeg, want)), slowStage: 'power' };
+  };
+  return { pursuit, st };
+}
+
+/** The held part's tracker phase (openPursuit's), against Lead's recorded flight; its pursuit's st comes with it. */
+function heldPhase(args, slot) {
+  const held = openPursuit(args);
+  return { held, phase: phase(slot, { pursuit: held.pursuit, pursuitEnds: true, bankCapDeg: args.bankDeg }) };
+}
+
+/**
+ * #2's held part alone against Lead's recorded straight flight `rec`: MAX, away at bankDeg to offDeg off Lead's heading,
+ * back parallel (openPursuit, flown by the tracker). Returns { points, steps, end, accelKtps, maxBankDeg, laneFwdFt,
+ * turnBackStep } or null. The 4-ship's opening out flies each wingman on it too (four-open.js).
+ */
+export function flyOut({ wing, rec, s, outAimFt, slotFwd, bankDeg, offDeg, blockFt, t0, profile }) {
+  const r0 = relativeTo(rec.at(0), wing);
+  const { held, phase: ph } = heldPhase({ s, outAimFt, slotFwd, bankDeg, offDeg, startFt: Math.hypot(r0.fwd, r0.left) }, { fwd: slotFwd, left: s * outAimFt, alt: 0 });
+  const run = runTracker({ refs: { ref: rec }, wing0: wing, t0, phases: [ph], profile, blockFt, maxSec: CHANGE_LIMIT_SEC });
+  if (!run.ok || held.st.doneT === null || held.st.turnBackT === null) return null;
+  return { points: run.points, steps: run.points.length, end: run.end.wing, accelKtps: run.accelKtps, maxBankDeg: run.maxBankDeg, laneFwdFt: run.laneFwdFt, turnBackStep: Math.round((held.st.turnBackT - t0) / dt) };
 }
 
 /**
@@ -150,35 +140,42 @@ export function planOpenOut(pair, to, options = {}, t0 = 0) {
   const speedSegs = Math.abs(lead.kias - targetKias) > 0.5 ? [speedSeg(lead.kias, targetKias, blockFt)] : [];
   let best = null;
   const outRec = H.leadHolds ? holdRec : recordFlight(lead, { segments: speedSegs.map((x) => ({ ...x })) }, t0);
+  const r0 = relativeTo(lead, wing);
+  const startFt = Math.hypot(r0.fwd, r0.left);
+  const settle = onClosure([openOut(slot)])[0];
   for (const bankDeg of H.banksDeg) for (const offDeg of H.offHeadingsDeg) {
     const first = flyOut({ wing, rec: outRec, s, outAimFt, slotFwd: slot.fwd, bankDeg, offDeg, blockFt, t0, profile: profileFor(null) });
     if (!first) continue;
     const profile = profileFor(first);
-    const part = flyOut({ wing, rec: outRec, s, outAimFt, slotFwd: slot.fwd, bankDeg, offDeg, blockFt, t0, profile });
-    if (!part) continue;
-    const n1 = part.steps;
-    // Lead speeds up to line abreast speed at the press (OPEN_OUT_HELD.leadHolds).
-    const leadSegs = H.leadHolds && speedSegs.length ? [{ kind: 'hold', untilSec: t0 + n1 * dt, thenNext: true }, ...speedSegs] : speedSegs;
+    // Lead speeds up to line abreast speed at the press (OPEN_OUT_HELD.leadHolds); held, he waits until #2 is out.
+    /** @type {any[]} */
+    let leadSegs = speedSegs;
+    if (H.leadHolds && speedSegs.length) {
+      const part = flyOut({ wing, rec: outRec, s, outAimFt, slotFwd: slot.fwd, bankDeg, offDeg, blockFt, t0, profile });
+      if (!part) continue;
+      leadSegs = [{ kind: 'hold', untilSec: t0 + part.steps * dt, thenNext: true }, ...speedSegs];
+    }
     const leadRec = recordFlight(lead, { segments: leadSegs.map((x) => ({ ...x })) }, t0);
-    const W1 = { ...part.end, altAboveFt: upFt, climbFtps: 0 };
-    const settle = onClosure([openOut(slot)]);
-    const { run, profile: runProfile } = trackTwice({ refs: { [lead.id]: fromStep(leadRec, n1) }, wing0: W1, t0: t0 + n1 * dt, phases: settle, blockFt, init: { accelKtps: part.accelKtps } });
-    const durationSec = (n1 + run.points.length) * dt;
-    if (!run.ok || durationSec > CHANGE_LIMIT_SEC) continue;
+    // The held part and the settle in the band (judge.js: in position is in the band, TS-80) as one tracker run (TS-141).
+    const { held, phase: ph } = heldPhase({ s, outAimFt, slotFwd: slot.fwd, bankDeg, offDeg, startFt }, slot);
+    const run = runTracker({ refs: { [lead.id]: leadRec }, wing0: wing, t0, phases: [ph, settle], profile, blockFt, maxSec: CHANGE_LIMIT_SEC });
+    const durationSec = run.points.length * dt;
+    if (!run.ok || held.st.doneT === null || durationSec > CHANGE_LIMIT_SEC) continue;
     const judged = judge([run.end.lead, run.end.wing], { key: 'lab' }, { spacingFt });
     if (!judged.inBand) continue;
-    if (!best || durationSec < best.durationSec - 0.5) best = { bankDeg, part, run, profile: [...profile, ...(runProfile ?? [])], leadSegs, judged, durationSec, offDeg };
+    const heldSteps = Math.round((held.st.doneT - t0) / dt);
+    if (!best || durationSec < best.durationSec - 0.5) best = { bankDeg, heldSteps, run, profile: run.heightLeg ? [run.heightLeg, ...profile] : profile, leadSegs, judged, durationSec, offDeg };
   }
   if (!best) return null;
-  const { part, run, judged, durationSec } = best;
+  const { run, judged, durationSec } = best;
 
   const fromWord = FORMATIONS[from.key].label;
   const sideWord = s > 0 ? ' left' : ' right';
   const how = describe(from.key, 'lab', 'none');
-  const topKias = Math.max(...part.points.map((p) => p[1]));
+  const topKias = Math.max(...run.points.slice(0, best.heldSteps).map((p) => p[1]));
   return {
     ok: true,
-    plans: { [lead.id]: { segments: best.leadSegs.map((x) => ({ ...x })) }, [wing.id]: { segments: [{ kind: 'bankTrack', points: [...part.points, ...run.points] }], profile: best.profile } },
+    plans: { [lead.id]: { segments: best.leadSegs.map((x) => ({ ...x })) }, [wing.id]: { segments: [{ kind: 'bankTrack', points: run.points }], profile: best.profile } },
     note: `${fromWord}${sideWord} to Line abreast${sideWord}: ${how}. #2 sets MAX at the press and holds it (Patrick 5 Oct 22:39Z), rolls away at ${best.bankDeg}° to ${best.offDeg}° off Lead's heading and dives to about ${OPEN_OUT.diveFt} ft below him, falling back by geometry only, up to about ${Math.round(topKias)} KIAS; climbs back as he turns back parallel at about ${outAimFt.toLocaleString('en-CA')} ft out, then the tracker settles him in the band (SMM 16.18 para 49). Lead speeds up to ${KIAS_LAB} KIAS at the press (estimate). About ${Math.round(durationSec)} s.`,
     label: `${FORMATIONS.lab.label}${sideWord}`,
     flying: `${fromWord}${sideWord} to ${FORMATIONS.lab.label}${sideWord} (${how})`,
@@ -188,8 +185,8 @@ export function planOpenOut(pair, to, options = {}, t0 = 0) {
     side: s,
     rejoinKind: 'none',
     leadTurnDeg: 0,
-    laneFwdFt: Math.max(part.laneFwdFt, run.laneFwdFt),
-    maxBankDeg: Math.max(part.maxBankDeg, run.maxBankDeg),
+    laneFwdFt: run.laneFwdFt,
+    maxBankDeg: run.maxBankDeg,
     judged,
     endSec: t0 + durationSec,
     rejoining: false,

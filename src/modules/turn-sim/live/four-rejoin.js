@@ -18,7 +18,7 @@
 import { DEG, relativeTo, turnSeg, wholeDegree } from './manoeuvres.js';
 import { recordFlight } from './replay.js';
 import { slide, closeThrough, rejoinTo, straightAhead } from './recipes.js';
-import { REJOIN, TURNING_REJOIN, STRAIGHT_REJOIN } from './tuning.js';
+import { REJOIN, TURNING_REJOIN, STRAIGHT_REJOIN, WING_BANKS } from './tuning.js';
 import { RATE_SETS } from './rates.js';
 import { KT_TO_FTPS as KT_FTPS } from '../../../core/units.js';
 import { leadTurnInto } from './lead-turn-in.js';
@@ -178,7 +178,7 @@ export function turningToFinger(start, t0, opts, s, from) {
       },
     });
     // From fighting wing: the cut-off line inside, then across behind Lead.
-    const across = { track: 1, bankCapDeg: 45, overtakeKias: 10, undertakeKias: 10 }; // enough bank to stay with Lead's 30° turn (estimate)
+    const across = { track: 1, bankCapDeg: WING_BANKS.rejoinBankCapDeg, overtakeKias: 10, undertakeKias: 10 }; // no bank cap on a rejoin, only physics (Patrick 6 Oct 04:07Z; 45° until TS-141, an estimate), rolled smoothly by the one pilot model
     const crossing = (id, gateId) => ({
       id,
       phases: (done) => {
@@ -189,7 +189,7 @@ export function turningToFinger(start, t0, opts, s, from) {
           rejoinTo(place(c, -TRJ.waitBehindFt[id], s * ech().left, -TRJ.waitLowFt[id]), { track: 1, advanceTol: 10, overtakeKias: REJOIN.overtakeKias, holdUntil: inAt(done, gateId) }),
           slide(place(c, back, 0, low), across),
           slide(place(c, back, slot.left, low), across),
-          toSlot(c, slide, fin[id], { bankCapDeg: 45, overtakeKias: 10, undertakeKias: 10 }),
+          toSlot(c, slide, fin[id], { bankCapDeg: WING_BANKS.rejoinBankCapDeg, overtakeKias: 10, undertakeKias: 10 }),
         ];
       },
     });
