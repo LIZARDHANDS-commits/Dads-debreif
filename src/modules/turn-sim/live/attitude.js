@@ -8,7 +8,7 @@
 // bank are Euler angles: straight up or down they turn over by 180° together, which is the same attitude, so the 3D
 // view (rotation heading, pitch, bank) draws it without a jump. Roll rate is measured on the aircraft itself (how fast
 // the up vector tilts toward the left wing), so it has no jump there either.
-import { pitchDegFromClimb } from '../../../core/t6-performance.js';
+import { attitudeDegFromClimb } from '../../../core/t6-performance.js';
 import { G_FTPS2 } from '../../../core/units.js';
 
 export const dot3 = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;
@@ -72,7 +72,7 @@ export function poseOf3d({ x, y, altAbove, vel, up, kias, g, rollDps }) {
   const nose = scale3(vel, 1 / Math.max(tas, 1e-9));
   const e = eulerOf(nose, up);
   const climb = vel.z;
-  const pitch = pitchDegFromClimb(climb, tas, kias, g * Math.cos(e.bank * DEG));
+  const pitch = attitudeDegFromClimb(climb, tas, kias, g * Math.cos(e.bank * DEG));
   return { x, y, alt: altAbove, h: e.h, bank: e.bank, roll: rollDps, kias, tas, climb, pitch, g };
 }
 
