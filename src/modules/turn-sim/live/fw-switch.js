@@ -33,17 +33,20 @@ export function fwSwitch(sTo) {
   const S = FW_SWITCH;
   const s = sTo;
   let stage = 'in';
-  let deep = null; // decided at the press: from the back of the cone the switch is full power and a dive, not a bleed
+  let range0 = null; // the spacing at the press, held through the switch
   const pursuit = (L, W) => {
     if (stage === 'done') return null;
     const rel = relativeTo(L, W);
     const off = s * wrapPi(W.headingRad - L.headingRad); // how far his heading has turned toward the far side, radians
-    // Energy (Patrick 6 Oct 01:23Z: "if he's S turning from the back of the cone he probably needs full power and to dive
-    // for energy to maintain his spacing"): with spacing to spare he bleeds (power back); deep in the cone he asks for more
-    // speed than Lead, which the tracker flies at full power and, on the cone's energy law (TS-96), as a dive inside the
-    // cone's height, so the turn in costs him less spacing.
-    deep ??= Math.hypot(rel.fwd, rel.left) >= S.deepFromFt;
-    const kiasCmd = deep ? L.kias + S.pushKias : L.kias - S.bleedKias;
+    // Speed (Patrick 6 Oct 01:24Z: "if they want to swap sides they have to do what they need to with geometry, then
+    // power, to maintain position. this is fundamental for any formation movement"): the switch holds the spacing he had
+    // at the press. Geometry first (the turn in, no more than turnInMaxDeg, and the aim near the tail line); then power,
+    // in proportion to how far the range has opened or closed from where it started, up to holdKias each way. Opening asks
+    // for more speed, which the tracker flies at full power and the cone's energy law (TS-96) dives for; closing asks
+    // for less, a climb. Bleeding energy through the switch is only an option (Patrick 01:24Z), not built as a control.
+    range0 ??= Math.hypot(rel.fwd, rel.left);
+    const opened = Math.hypot(rel.fwd, rel.left) - range0;
+    const kiasCmd = L.kias + Math.max(-1, Math.min(1, opened / S.holdScaleFt)) * S.holdKias;
     if (stage === 'in') {
       if (-rel.fwd < S.minBehindFt) return null; // too close behind Lead to cross: the slot law drops him back first
       // Where the roll-out would end if it started now: the arc at the same bank the other way, plus the reversal itself
