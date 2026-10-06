@@ -13,7 +13,7 @@
 // counter-clockwise). Bank is signed, left wing down positive, so a positive
 // bank turns the heading the positive (left) way.
 import { easeRoll, turnRateFromBankRadPerSec, gFromBankDeg } from '../../../core/flight-math.js';
-import { pitchDegFromClimb, rollWithinT6A, stallLimitG, T6A_G_ONSET } from '../../../core/t6-performance.js';
+import { attitudeDegFromClimb, rollWithinT6A, stallLimitG, T6A_G_ONSET } from '../../../core/t6-performance.js';
 import { wrapPi, wrapDeg180 } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { powerFor, POWER_BLOCK_FT } from './power.js';
@@ -114,7 +114,7 @@ export function makeAircraft({ id, xFt, yFt, headingRad, kias, tasFtps }) {
     g: 1,
     nz: 1, // the vertical share of the G (1 + vertical acceleration / g): with bankDeg, where the lift points (liftBankDeg)
     climbFtps: 0,
-    pitchDeg: pitchDegFromClimb(0, tasFtps, kias, 1),
+    pitchDeg: attitudeDegFromClimb(0, tasFtps, kias, 1),
     turning: false,
     slowStage: null, // how it is slowing now (slow-down.js, TS-61), or null
     power: null, // its power setting for the tag (power.js, TS-62), or null when nothing sets it
@@ -406,10 +406,11 @@ export function stepAircraft(a, plan, t) {
  * The nose above the horizon: the climb angle plus the angle of attack, which in a
  * banked turn is tilted with the wings, so only its cos(bank) share lifts the nose.
  * The shared formula's angle of attack grows with G, so passing G x cos(bank) gives
- * that share (1 in a level turn, where G = 1 / cos(bank)).
+ * that share (1 in a level turn, where G = 1 / cos(bank)). Shown as the pilot's picture, less the fuselage datum (core
+ * attitudeDegFromClimb; Patrick 6 Oct 06:20Z, "Both modules", TR-91): about -0.5 to -1° level at 220 KIAS.
  */
 function pitchAboveHorizonDeg(a) {
-  return pitchDegFromClimb(a.climbFtps, a.tasFtps, a.kias, a.g * Math.cos((a.bankDeg * Math.PI) / 180));
+  return attitudeDegFromClimb(a.climbFtps, a.tasFtps, a.kias, a.g * Math.cos((a.bankDeg * Math.PI) / 180));
 }
 
 /** True when the aircraft has flown every segment, its wings are level and no speed change is still running. */

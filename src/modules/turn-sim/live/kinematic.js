@@ -16,7 +16,7 @@
 // Units: feet, seconds; x east, y north; headings math radians (0 east, counter-clockwise); bank signed, left wing down
 // positive (flight.js). Every number with no manual or ruling beside it is an estimate and says so.
 import { bankDegFromTurnRate } from '../../../core/flight-math.js';
-import { pitchDegFromClimb } from '../../../core/t6-performance.js';
+import { attitudeDegFromClimb } from '../../../core/t6-performance.js';
 import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, smoother, flyAttitude } from './flight.js';
@@ -109,7 +109,7 @@ export function seedTrack(track, a) {
 /**
  * Poses for steps 1..n of a track: heading and speed from the central difference of the positions, bank from the turn
  * rate (coordinated, standard aerodynamics), roll rate from the bank, G from the turn and the vertical acceleration,
- * pitch from the shared formula (core pitchDegFromClimb, as flight.js). kiasPerTas turns true airspeed into indicated
+ * pitch from the shared formula (core attitudeDegFromClimb, the pilot's picture, as flight.js). kiasPerTas turns true airspeed into indicated
  * (the ratio at the block height, F3/F4). Returns { poses, maxBankDeg, minKias, maxKias }.
  */
 export function posesFrom(track, kiasPerTas) {
@@ -141,7 +141,7 @@ export function posesFrom(track, kiasPerTas) {
     const az = (z[r + 1] - 2 * z[r] + z[r - 1]) / (dt * dt);
     const g = Math.hypot((tas[r] * omega[r]) / G_FTPS2, 1 + az / G_FTPS2);
     const kias = tas[r] * kiasPerTas;
-    const pitch = pitchDegFromClimb(climb[r], tas[r], kias, g * Math.cos(bank[r] * DEG));
+    const pitch = attitudeDegFromClimb(climb[r], tas[r], kias, g * Math.cos(bank[r] * DEG));
     poses.push({ x: x[r], y: y[r], alt: z[r], h: h[r], bank: bank[r], roll, kias, tas: tas[r], climb: climb[r], pitch, g, nz: 1 + az / G_FTPS2 });
     maxBankDeg = Math.max(maxBankDeg, Math.abs(bank[r]));
     minKias = Math.min(minKias, kias);
@@ -159,7 +159,7 @@ export function settleLast(poses, ref) {
   const p = poses[poses.length - 1];
   if (!p) return;
   Object.assign(p, { h: ref.headingRad, bank: 0, roll: 0, kias: ref.kias, tas: ref.tasFtps, climb: 0, g: 1, nz: 1 });
-  p.pitch = pitchDegFromClimb(0, p.tas, p.kias, 1);
+  p.pitch = attitudeDegFromClimb(0, p.tas, p.kias, 1);
 }
 
 // ---- the slot: where a wingman sits in the reference's frame --------------------------------------
