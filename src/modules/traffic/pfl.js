@@ -124,6 +124,8 @@ export const PFL = Object.freeze({
   lookaheadFt: 1000,
   /** When low, the look-ahead grows by this many feet per foot of deficit, so the path cuts inside the circle. An estimate. */
   cutFtPerFtLow: 8,
+  /** Down to this far below the profile it follows the pattern and doesn't cut inside (Patrick 6 Oct 07:44Z: "if its within 100 feet of the key, just follow the pattern"). */
+  followPatternLowFt: 100,
   maxLookaheadFt: 6000,
   /** A pattern PFL high by more than this even with all the drag out widens the circle before Final Key (Patrick 10:10Z, 17:10Z). An estimate. */
   widenAboveFt: 100,
@@ -971,9 +973,12 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
       }
     }
 
-    // Guidance: fly at a point ahead on the path; look further ahead when low, so it cuts inside the circle (spec 4.5 item 7).
+    // Guidance: fly at a point ahead on the path; look further ahead only when very low, so it cuts inside the circle to
+    // reach the runway. Within about 100 ft of the profile it follows the pattern: the keys have fudge built in (Patrick
+    // 6 Oct 07:44Z, spec 4.5 item 7).
     let ahead = /** @type {number} */ (PFL.lookaheadFt);
-    if (state === 'glide' && margin < 0) ahead = Math.min(PFL.maxLookaheadFt, ahead + PFL.cutFtPerFtLow * -margin);
+    const lowFt = -margin - PFL.followPatternLowFt;
+    if (state === 'glide' && lowFt > 0) ahead = Math.min(PFL.maxLookaheadFt, ahead + PFL.cutFtPerFtLow * lowFt);
     const c = carrot(path, project(path, seg, s), ahead);
     const wantTrack = bearing(s, c);
     const stallBank = Math.acos(clamp(1 / Math.max(stallG(s.ias, cfg), 1.0001), 0, 1)) / DEG;
