@@ -266,10 +266,17 @@ export function glideRatio(config) {
  * down about 2,000 ft (SMM about 2,600, a difference not yet settled).
  */
 export function glideDragPerWeight(config, kias, altFt, g = 1) {
-  const f = T6A_FIT;
-  const k = (glideRatio('clean') / glideRatio(config)) ** 2;
-  return f.dragA * k * kias * kias + f.dragB * g * g / (kias * kias);
+  const chart = (c) => T6A_FIT.dragA * (glideRatio('clean') / glideRatio(c)) ** 2 * kias * kias + T6A_FIT.dragB * g * g / (kias * kias);
+  // With the gear down, the gear's drag is raised to the SMM's orbit; the flaps' steps from the chart go on top of it.
+  return chart(config) + (['gearDown', 'flapsTakeoff', 'landing'].includes(config) ? (GEAR_DRAG_FACTOR - 1) * chart('gearDown') : 0);
 }
+
+/**
+ * Gear-down drag ÷ the max glide chart's: a 30° orbit at 120 KIAS, gear down, then loses about 2,600 ft (SMM 13.5
+ * para 11) instead of the chart's about 1,980 (Patrick, 6 Oct 08:24Z: "base it on the drag that's required to lose
+ * 2600 in a 30 deg orbit with gear no flaps"). Fitted, an estimate; best glide stays near 105 KIAS.
+ */
+export const GEAR_DRAG_FACTOR = 1.322;
 
 /**
  * The flight manual's zoom data (NFM Fig 3-4, p.3-12): height gained after an
