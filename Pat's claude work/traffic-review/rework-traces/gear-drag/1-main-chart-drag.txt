@@ -1,0 +1,564 @@
+
+=== A. Busy circuit area PFL (120°, 6 NM, 8,000 ft) ===  wind 269/15
+  start: alt 8000 kias 125 hdg 300 at (31572, -18228); dist to threshold 5.38 NM
+  plan: highKey  outcome: landed  apex alt 8000 (gain 0) at t~0s  steps/ms 77
+  gate 2100: ok=true off 5 deg kias 120 flags []
+  touchdown: 1167 ft along, 120 KIAS, path angle at touchdown -90.0 deg, cross 48 ft
+  min KIAS 120  max G(bank) 1.12  notes: gear early before the join at 5119 ft
+  t~0s alt 8000 kt 125 Clean: "Slow to 125: join at high key"
+  t~0s alt 8000: config -> Clean
+  t~0s alt 8000 kt 125 Clean: "Join at High Key"
+  t~155s alt 5115: config -> Gear
+  t~155s alt 5111 kt 125 Gear: "False High Key"
+  t~155s alt 5111 kt 125: KEY high_key
+  t~156s alt 5100 kt 124 Gear: "Join at High Key"
+  t~158s alt 5074 kt 122 Gear: "False High Key"
+  t~206s alt 3897: config -> Gear + T/O flap
+  t~211s alt 3752 kt 120 Gear + T/O flap: "False Low Key"
+  t~213s alt 3711 kt 120: KEY low_key
+  t~213s alt 3693 kt 120 Gear + T/O flap: "To Final Key, on profile"
+  t~219s alt 3515: config -> Gear + landing flap
+  t~235s alt 2943 kt 120: KEY final_key
+  t~235s alt 2921 kt 120 Gear + landing flap: "To threshold, on profile"
+  t~264s alt 1880 kt 120 Gear + landing flap: "Touchdown"
+
+=== A2. same, calm ===  wind 360/0
+  start: alt 8000 kias 125 hdg 300 at (31572, -18228); dist to threshold 5.38 NM
+  plan: highKey  outcome: landed  apex alt 8000 (gain 0) at t~0s  steps/ms 48
+  gate 2100: ok=true off 5 deg kias 120 flags []
+  touchdown: 1210 ft along, 120 KIAS, path angle at touchdown 4.9 deg, cross 47 ft
+  min KIAS 120  max G(bank) 1.13  notes: gear early before the join at 6765 ft
+  t~0s alt 8000 kt 125 Clean: "Slow to 125: join at high key"
+  t~0s alt 8000: config -> Clean
+  t~0s alt 8000 kt 125 Clean: "Join at High Key"
+  t~66s alt 6761: config -> Gear
+  t~143s alt 4960 kt 120: KEY high_key
+  t~145s alt 4916 kt 120 Gear: "To Low Key, high"
+  t~159s alt 4553: config -> Gear + T/O flap
+  t~160s alt 4526 kt 120 Gear + T/O flap: "To Low Key, on profile"
+  t~188s alt 3685 kt 120: KEY low_key
+  t~188s alt 3679 kt 120 Gear + T/O flap: "To Final Key, on profile"
+  t~197s alt 3410: config -> Gear + landing flap
+  t~211s alt 2910 kt 120: KEY final_key
+  t~211s alt 2896 kt 120 Gear + landing flap: "To threshold, on profile"
+  t~239s alt 1882 kt 120 Gear + landing flap: "Final, on profile"
+  t~239s alt 1880 kt 120 Gear + landing flap: "Touchdown"
+
+=== T. area PFL 120/6/8000, standard day ===  wind 269/15
+  start: alt 8000 kias 125 hdg 300 at (31572, -18228); dist to threshold 5.38 NM
+  plan: highKey  outcome: landed  apex alt 8000 (gain 0) at t~0s  steps/ms 54
+  gate 2100: ok=true off 5 deg kias 120 flags []
+  touchdown: 1167 ft along, 120 KIAS, path angle at touchdown -90.0 deg, cross 48 ft
+  min KIAS 120  max G(bank) 1.12  notes: gear early before the join at 5119 ft
+  t~0s alt 8000 kt 125 Clean: "Slow to 125: join at high key"
+  t~0s alt 8000: config -> Clean
+  t~0s alt 8000 kt 125 Clean: "Join at High Key"
+  t~155s alt 5115: config -> Gear
+  t~155s alt 5111 kt 125 Gear: "False High Key"
+  t~155s alt 5111 kt 125: KEY high_key
+  t~156s alt 5100 kt 124 Gear: "Join at High Key"
+  t~158s alt 5074 kt 122 Gear: "False High Key"
+  t~206s alt 3897: config -> Gear + T/O flap
+  t~211s alt 3752 kt 120 Gear + T/O flap: "False Low Key"
+  t~213s alt 3711 kt 120: KEY low_key
+  t~213s alt 3693 kt 120 Gear + T/O flap: "To Final Key, on profile"
+  t~219s alt 3515: config -> Gear + landing flap
+  t~235s alt 2943 kt 120: KEY final_key
+  t~235s alt 2921 kt 120 Gear + landing flap: "To threshold, on profile"
+  t~264s alt 1880 kt 120 Gear + landing flap: "Touchdown"
+
+=== T. area PFL 120/6/8000, hot 30C ===  wind 269/15 temp 30C
+  start: alt 8000 kias 125 hdg 300 at (31572, -18228); dist to threshold 5.38 NM
+  plan: highKey  outcome: landed  apex alt 8000 (gain 0) at t~0s  steps/ms 52
+  gate 2100: ok=true off 6 deg kias 120 flags []
+  touchdown: 1192 ft along, 120 KIAS, path angle at touchdown 6.5 deg, cross 53 ft
+  min KIAS 120  max G(bank) 1.13  notes: gear early before the join at 6280 ft
+  t~0s alt 8000 kt 125 Clean: "Slow to 125: join at high key"
+  t~0s alt 8000: config -> Clean
+  t~0s alt 8000 kt 125 Clean: "Join at High Key"
+  t~95s alt 6276: config -> Gear
+  t~152s alt 5012 kt 120 Gear: "False High Key"
+  t~152s alt 5012 kt 120: KEY high_key
+  t~152s alt 5008 kt 120 Gear: "Join at High Key"
+  t~153s alt 4984 kt 120 Gear: "False High Key"
+  t~176s alt 4433: config -> Gear + T/O flap
+  t~204s alt 3621 kt 120: KEY low_key
+  t~204s alt 3609 kt 120 Gear + T/O flap: "To Final Key, on profile"
+  t~209s alt 3462: config -> Gear + landing flap
+  t~225s alt 2884 kt 120: KEY final_key
+  t~226s alt 2848 kt 120 Gear + landing flap: "To threshold, on profile"
+  t~253s alt 1898 kt 120 Gear + landing flap: "Final, on profile"
+  t~254s alt 1880 kt 120 Gear + landing flap: "Touchdown"
+
+=== T. area PFL 120/6/8000, cold -30C ===  wind 269/15 temp -30C
+  start: alt 8000 kias 125 hdg 300 at (31572, -18228); dist to threshold 5.38 NM
+  plan: circle  outcome: landed  apex alt 8000 (gain 0) at t~0s  steps/ms 65
+  gate 2100: ok=true off 3 deg kias 120 flags []
+  touchdown: 1205 ft along, 120 KIAS, path angle at touchdown 6.7 deg, cross 33 ft
+  min KIAS 120  max G(bank) 2.00  notes: 
+  t~0s alt 8000 kt 125 Clean: "Slow to 125: join circle"
+  t~0s alt 8000: config -> Clean
+  t~0s alt 8000 kt 125 Clean: "Join circle"
+  t~188s alt 4149 kt 124 Gear: "To Low Key, on profile"
+  t~188s alt 4149: config -> Gear
+  t~196s alt 3903 kt 120: KEY low_key
+  t~197s alt 3878 kt 120 Gear + T/O flap: "To Final Key, on profile"
+  t~197s alt 3878: config -> Gear + T/O flap
+  t~216s alt 3264: config -> Gear + landing flap
+  t~220s alt 3120 kt 120: KEY final_key
+  t~220s alt 3112 kt 120 Gear + landing flap: "To threshold, on profile"
+  t~251s alt 1904 kt 120 Gear + landing flap: "Final, on profile"
+  t~252s alt 1880 kt 120 Gear + landing flap: "Touchdown"
+
+=== T. Low Key start std ===  wind 360/0
+  start: alt 3700 kias 120 hdg 118 at (-109, -8113); dist to threshold 1.00 NM
+  plan: circle  outcome: landed  apex alt 3700 (gain 0) at t~0s  steps/ms 17
+  gate 2100: ok=true off 6 deg kias 120 flags []
+  touchdown: 1115 ft along, 120 KIAS, path angle at touchdown 7.9 deg, cross 51 ft
+  min KIAS 119  max G(bank) 1.23  notes: gear early before the join at 3700 ft
+  t~0s alt 3700 kt 120 Clean: "Slow to 125: join at low key"
+  t~0s alt 3700: config -> Clean
+  t~0s alt 3700 kt 120 Gear: "Join at Low Key"
+  t~0s alt 3700: config -> Gear
+  t~2s alt 3672 kt 119 Gear + T/O flap: "To Final Key, high"
+  t~2s alt 3672: config -> Gear + T/O flap
+  t~3s alt 3645: config -> Gear + landing flap
+  t~4s alt 3611 kt 119 Gear + landing flap: "To Final Key, on profile"
+  t~23s alt 2898 kt 120: KEY final_key
+  t~23s alt 2890 kt 120 Gear + landing flap: "To threshold, on profile"
+  t~51s alt 1880 kt 120 Gear + landing flap: "Touchdown"
+
+=== T. Low Key start cold -30C ===  wind 360/0 temp -30C
+  start: alt 3700 kias 120 hdg 118 at (-109, -8113); dist to threshold 1.00 NM
+  plan: circle  outcome: landed  apex alt 3700 (gain 0) at t~0s  steps/ms 13
+  gate 2100: ok=true off 3 deg kias 120 flags []
+  touchdown: 1180 ft along, 120 KIAS, path angle at touchdown 5.9 deg, cross 36 ft
+  min KIAS 120  max G(bank) 1.45  notes: 
+  t~0s alt 3700 kt 120 Clean: "Slow to 125: join at low key"
+  t~0s alt 3700: config -> Clean
+  t~0s alt 3700 kt 120 Clean: "Join at Low Key"
+  t~2s alt 3658 kt 121 Clean: "To Final Key, low"
+  t~12s alt 3384 kt 125 Gear: "To Final Key, on profile"
+  t~12s alt 3384: config -> Gear
+  t~13s alt 3368: config -> Gear + T/O flap
+  t~21s alt 3166: config -> Gear + landing flap
+  t~24s alt 3069 kt 120: KEY final_key
+  t~24s alt 3053 kt 120 Gear + landing flap: "To threshold, on profile"
+  t~54s alt 1882 kt 120 Gear + landing flap: "Final, on profile"
+  t~54s alt 1880 kt 120 Gear + landing flap: "Touchdown"
+
+=== T. Low Key start hot 30C ===  wind 360/0 temp 30C
+  start: alt 3700 kias 120 hdg 118 at (-109, -8113); dist to threshold 1.00 NM
+  plan: circle  outcome: landed  apex alt 3700 (gain 0) at t~0s  steps/ms 16
+  gate 2100: ok=true off 2 deg kias 120 flags []
+  touchdown: 1559 ft along, 120 KIAS, path angle at touchdown 4.2 deg, cross 37 ft
+  min KIAS 119  max G(bank) 1.24  notes: gear early before the join at 3700 ft | widened at 3584 ft
+  t~0s alt 3700 kt 120 Clean: "Slow to 125: join at low key"
+  t~0s alt 3700: config -> Clean
+  t~0s alt 3700 kt 120 Gear: "Join at Low Key"
+  t~0s alt 3700: config -> Gear
+  t~2s alt 3673 kt 119 Gear + T/O flap: "To Final Key, high"
+  t~2s alt 3673: config -> Gear + T/O flap
+  t~3s alt 3647: config -> Gear + landing flap
+  t~4s alt 3614 kt 119 Gear + landing flap: "To Final Key, on profile"
+  t~23s alt 2902 kt 120: KEY final_key
+  t~24s alt 2867 kt 120 Gear + landing flap: "To threshold, on profile"
+  t~50s alt 1955 kt 120 Gear + landing flap: "Final, on profile"
+  t~53s alt 1880 kt 120 Gear + landing flap: "Touchdown"
+
+=== B. PFL on inner downwind, abeam threshold, 3500/140 hdg 118 ===  wind 360/0
+  start: alt 3500 kias 140 hdg 118 at (2300, -6450); dist to threshold 0.61 NM
+  plan: circle  outcome: landed  apex alt 3500 (gain 0) at t~0s  steps/ms 8
+  gate 2100: ok=true off 0 deg kias 120 flags []
+  touchdown: 1751 ft along, 120 KIAS, path angle at touchdown 4.9 deg, cross 30 ft
+  min KIAS 119  max G(bank) 2.01  notes: widened at 3418 ft
+  t~0s alt 3500 kt 140 Clean: "Slow to 125: join circle"
+  t~0s alt 3500: config -> Clean
+  t~7s alt 3500 kt 125 Clean: "Join circle"
+  t~7s alt 3500 kt 124 Gear: "To Final Key, high"
+  t~7s alt 3500: config -> Gear
+  t~8s alt 3485: config -> Gear + T/O flap
+  t~9s alt 3454: config -> Gear + landing flap
+  t~11s alt 3353 kt 119 Gear + landing flap: "To Final Key, on profile"
+  t~12s alt 3293 kt 119 Gear + landing flap: "To Final Key, high"
+  t~13s alt 3232 kt 120 Gear + landing flap: "To Final Key, on profile"
+  t~17s alt 2984 kt 120 Gear + landing flap: "To Final Key, low"
+  t~18s alt 2927 kt 121 Gear + landing flap: "To threshold, on profile"
+  t~44s alt 1985 kt 120 Gear + landing flap: "Final, on profile"
+  t~47s alt 1880 kt 120 Gear + landing flap: "Touchdown"
+
+=== B2. same, wind 269/15 ===  wind 269/15
+  start: alt 3500 kias 140 hdg 118 at (2300, -6450); dist to threshold 0.61 NM
+  plan: circle  outcome: landed  apex alt 3500 (gain 0) at t~0s  steps/ms 7
+  gate 2100: ok=true off 3 deg kias 120 flags []
+  touchdown: 1578 ft along, 120 KIAS, path angle at touchdown 3.7 deg, cross 38 ft
+  min KIAS 119  max G(bank) 2.01  notes: 
+  t~0s alt 3500 kt 140 Clean: "Slow to 125: join circle"
+  t~0s alt 3500: config -> Clean
+  t~7s alt 3500 kt 125 Clean: "Join circle"
+  t~7s alt 3499 kt 124 Gear: "To Final Key, high"
+  t~7s alt 3499: config -> Gear
+  t~8s alt 3480: config -> Gear + T/O flap
+  t~9s alt 3447: config -> Gear + landing flap
+  t~12s alt 3321 kt 119: KEY final_key
+  t~12s alt 3285 kt 119 Gear + landing flap: "To threshold, high"
+  t~19s alt 2888 kt 121 Gear + landing flap: "To threshold, on profile"
+  t~45s alt 1978 kt 120 Gear + landing flap: "Final, on profile"
+  t~48s alt 1880 kt 120 Gear + landing flap: "Touchdown"
+
+=== C. PFL at the perch 3500/120 hdg 118 ===  wind 360/0
+  start: alt 3500 kias 120 hdg 118 at (6148, -8688); dist to threshold 1.12 NM
+  plan: direct  outcome: landed  apex alt 3500 (gain 0) at t~0s  steps/ms 23
+  gate 2100: ok=true off 8 deg kias 119 flags [no T/O flap]
+  touchdown: 2379 ft along, 120 KIAS, path angle at touchdown 8.4 deg, cross 51 ft
+  min KIAS 114  max G(bank) 2.00  notes: apex: changed to Join circle | went direct at 3336 ft
+  t~0s alt 3500 kt 120 Clean: "Slow to 125: join circle"
+  t~0s alt 3500: config -> Clean
+  t~0s alt 3500 kt 120 Clean: "Join circle"
+  t~5s alt 3325 kt 123 Clean: "Direct threshold"
+  t~46s alt 2387: config -> Gear
+  t~50s alt 2330 kt 117 Gear: "Trading speed"
+  t~57s alt 2162 kt 118 Gear: "Direct threshold"
+  t~63s alt 1994: config -> Gear + T/O flap
+  t~64s alt 1969: config -> Gear + landing flap
+  t~67s alt 1880 kt 120 Gear + landing flap: "Touchdown"
+
+=== D. PFL mid final turn (hdg 208, 2,900 ft, 120, bank 35) ===  wind 360/0
+  start: alt 2900 kias 120 hdg 208 at (7600, -8000); dist to threshold 1.17 NM
+  plan: direct  outcome: landed  apex alt 2900 (gain 0) at t~0s  steps/ms 17
+  gate 2100: ok=false off 15 deg kias 96 flags [no T/O flap]
+  touchdown: 2346 ft along, 99 KIAS, path angle at touchdown 5.0 deg, cross 10 ft
+  min KIAS 92  max G(bank) 2.00  notes: 
+  t~0s alt 2900 kt 120 Clean: "Slow to 125: direct threshold"
+  t~0s alt 2900: config -> Clean
+  t~0s alt 2900 kt 120 Clean: "Direct threshold"
+  t~31s alt 2197 kt 116 Clean: "Trading speed"
+  t~34s alt 2206: config -> Gear
+  t~55s alt 1950: config -> Gear + T/O flap
+  t~56s alt 1927: config -> Gear + landing flap
+  t~58s alt 1880 kt 99 Gear + landing flap: "Touchdown"
+
+=== D2. PFL late final turn (hdg 250, 2,500 ft, 120, bank 35) ===  wind 360/0
+  start: alt 2500 kias 120 hdg 250 at (7400, -6400); dist to threshold 0.96 NM
+  plan: direct  outcome: landed  apex alt 2500 (gain 0) at t~0s  steps/ms 37
+  gate 2100: ok=true off 20 deg kias 125 flags [gear up, no T/O flap]
+  touchdown: 2422 ft along, 92 KIAS, path angle at touchdown -90.0 deg, cross -10 ft
+  min KIAS 91  max G(bank) 2.00  notes: 
+  t~0s alt 2500 kt 120 Clean: "Slow to 125: direct threshold"
+  t~0s alt 2500: config -> Clean
+  t~0s alt 2500 kt 120 Clean: "Direct threshold"
+  t~19s alt 2099 kt 116 Clean: "Trading speed"
+  t~35s alt 2095: config -> Gear
+  t~46s alt 1901: config -> Gear + T/O flap
+  t~47s alt 1880 kt 92 Gear + T/O flap: "Touchdown past the first third"
+
+=== E. PFL on initial 1 NM short of threshold, 3500/220 hdg 298 ===  wind 360/0
+  start: alt 3500 kias 220 hdg 298.6 at (8133, -5681); dist to threshold 1.00 NM
+  plan: circle  outcome: landed  apex alt 4683 (gain 1183) at t~14s  steps/ms 37
+  gate 2100: ok=true off 5 deg kias 120 flags []
+  touchdown: 1158 ft along, 120 KIAS, path angle at touchdown 6.0 deg, cross 49 ft
+  min KIAS 114  max G(bank) 1.99  notes: 
+  t~0s alt 3500 kt 220 Clean: "Zoom: join circle"
+  t~0s alt 3500: config -> Clean
+  t~11s alt 4597 kt 124 Clean: "Join circle"
+  t~37s alt 4095 kt 125 Clean: "To Low Key, low"
+  t~42s alt 3970 kt 125 Gear: "To Low Key, on profile"
+  t~42s alt 3970: config -> Gear
+  t~59s alt 3585 kt 120: KEY low_key
+  t~59s alt 3575 kt 120 Gear + T/O flap: "To Final Key, on profile"
+  t~59s alt 3575: config -> Gear + T/O flap
+  t~79s alt 2984: config -> Gear + landing flap
+  t~81s alt 2909 kt 120: KEY final_key
+  t~82s alt 2880 kt 120 Gear + landing flap: "To threshold, on profile"
+  t~110s alt 1880 kt 120 Gear + landing flap: "Touchdown"
+
+=== E2. PFL in the break (hdg 240, 3500/190, bank -60) 2000 ft past thr ===  wind 360/0
+  start: alt 3500 kias 190 hdg 240 at (439, -2220); dist to threshold 0.40 NM
+  plan: circle  outcome: landed  apex alt 4223 (gain 723) at t~11s  steps/ms 24
+  gate 2100: ok=true off 5 deg kias 120 flags []
+  touchdown: 1208 ft along, 120 KIAS, path angle at touchdown -90.0 deg, cross 47 ft
+  min KIAS 112  max G(bank) 2.00  notes: 
+  t~0s alt 3500 kt 190 Clean: "Zoom: join circle"
+  t~0s alt 3500: config -> Clean
+  t~9s alt 4118 kt 125 Clean: "Join circle"
+  t~9s alt 4149 kt 122 Gear: "To Low Key, on profile"
+  t~9s alt 4149: config -> Gear
+  t~31s alt 3641 kt 120: KEY low_key
+  t~32s alt 3621 kt 120 Gear + T/O flap: "To Final Key, on profile"
+  t~32s alt 3621: config -> Gear + T/O flap
+  t~46s alt 3205: config -> Gear + landing flap
+  t~54s alt 2914 kt 120: KEY final_key
+  t~55s alt 2877 kt 120 Gear + landing flap: "To threshold, on profile"
+  t~82s alt 1898 kt 120 Gear + landing flap: "Final, on profile"
+  t~83s alt 1880 kt 120 Gear + landing flap: "Touchdown"
+
+=== F. PFL on the outer downwind (abeam dep end) 3500/220 hdg 118 ===  wind 360/0
+  start: alt 3500 kias 220 hdg 118 at (-9395, -10008); dist to threshold 2.33 NM
+  plan: circle  outcome: landed  apex alt 4667 (gain 1167) at t~13s  steps/ms 20
+  gate 2100: ok=true off 0 deg kias 120 flags []
+  touchdown: 1753 ft along, 120 KIAS, path angle at touchdown 2.7 deg, cross 29 ft
+  min KIAS 114  max G(bank) 2.01  notes: gear early before the join at 4636 ft | widened at 3613 ft | widened at 3393 ft
+  t~0s alt 3500 kt 220 Clean: "Zoom: join circle"
+  t~0s alt 3500: config -> Clean
+  t~11s alt 4589 kt 124 Clean: "Join circle"
+  t~12s alt 4644: config -> Gear
+  t~52s alt 3696 kt 120 Gear + T/O flap: "To Final Key, high"
+  t~52s alt 3696: config -> Gear + T/O flap
+  t~53s alt 3670: config -> Gear + landing flap
+  t~56s alt 3570 kt 120 Gear + landing flap: "To Final Key, on profile"
+  t~60s alt 3384 kt 120 Gear + landing flap: "To Final Key, high"
+  t~61s alt 3339 kt 120 Gear + landing flap: "To Final Key, on profile"
+  t~63s alt 3229 kt 120 Gear + landing flap: "To Final Key, high"
+  t~64s alt 3169 kt 120 Gear + landing flap: "To Final Key, on profile"
+  t~68s alt 2927 kt 121 Gear + landing flap: "To threshold, on profile"
+  t~94s alt 1991 kt 120 Gear + landing flap: "Final, on profile"
+  t~98s alt 1880 kt 120 Gear + landing flap: "Touchdown"
+
+=== F2. same in 269/15 ===  wind 269/15
+  start: alt 3500 kias 220 hdg 118 at (-9395, -10008); dist to threshold 2.33 NM
+  plan: circle  outcome: landed  apex alt 4670 (gain 1170) at t~13s  steps/ms 19
+  gate 2100: ok=true off 2 deg kias 120 flags []
+  touchdown: 3089 ft along, 120 KIAS, path angle at touchdown 3.1 deg, cross -1 ft
+  min KIAS 114  max G(bank) 2.00  notes: gear early before the join at 4587 ft | widened at 3722 ft
+  t~0s alt 3500 kt 220 Clean: "Zoom: join circle"
+  t~0s alt 3500: config -> Clean
+  t~11s alt 4601 kt 124 Gear: "Join circle"
+  t~11s alt 4601: config -> Gear
+  t~46s alt 3842 kt 120 Gear + T/O flap: "To Final Key, high"
+  t~46s alt 3842: config -> Gear + T/O flap
+  t~47s alt 3816: config -> Gear + landing flap
+  t~51s alt 3677 kt 120 Gear + landing flap: "To Final Key, on profile"
+  t~53s alt 3591 kt 119 Gear + landing flap: "To Final Key, high"
+  t~58s alt 3340 kt 119 Gear + landing flap: "To threshold, high"
+  t~87s alt 2234 kt 120 Gear + landing flap: "Final, high"
+  t~94s alt 1992 kt 120 Gear + landing flap: "Final, on profile"
+  t~98s alt 1880 kt 120 Gear + landing flap: "Touchdown past the first third"
+
+=== G. High Key button at 5,500 ft (practice) ===  wind 360/0
+  start: alt 5500 kias 120 hdg 298.6 at (2796, -2776); dist to threshold 0.00 NM
+  plan: highKey  outcome: landed  apex alt 5500 (gain 0) at t~0s  steps/ms 27
+  gate 2100: ok=true off 5 deg kias 120 flags []
+  touchdown: 1188 ft along, 120 KIAS, path angle at touchdown -90.0 deg, cross 48 ft
+  min KIAS 119  max G(bank) 1.13  notes: gear early before the join at 5500 ft
+  t~0s alt 5500 kt 120 Clean: "Slow to 125: at high key"
+  t~0s alt 5500: config -> Clean
+  t~0s alt 5500 kt 120 Gear: "At High Key"
+  t~0s alt 5500: config -> Gear
+  t~0s alt 5500 kt 120: KEY high_key
+  t~11s alt 5244 kt 120 Gear: "False High Key"
+  t~29s alt 4777: config -> Gear + T/O flap
+  t~55s alt 3992 kt 120 Gear + T/O flap: "False Low Key"
+  t~66s alt 3693 kt 120: KEY low_key
+  t~66s alt 3682 kt 120 Gear + T/O flap: "To Final Key, on profile"
+  t~72s alt 3508: config -> Gear + landing flap
+  t~88s alt 2908 kt 120: KEY final_key
+  t~89s alt 2879 kt 120 Gear + landing flap: "To threshold, on profile"
+  t~116s alt 1901 kt 120 Gear + landing flap: "Final, on profile"
+  t~117s alt 1880 kt 120 Gear + landing flap: "Touchdown"
+
+=== G2. High Key at 6,500 ft (practice, above window) ===  wind 360/0
+  start: alt 6500 kias 120 hdg 298.6 at (2796, -2776); dist to threshold 0.00 NM
+  plan: highKey  outcome: landed  apex alt 6500 (gain 0) at t~0s  steps/ms 22
+  gate 2100: ok=true off 5 deg kias 120 flags []
+  touchdown: 1198 ft along, 120 KIAS, path angle at touchdown -90.0 deg, cross 48 ft
+  min KIAS 119  max G(bank) 1.14  notes: gear early: an orbit would end below the High Key window
+  t~0s alt 6500 kt 120 Clean: "Slow to 125: at high key"
+  t~0s alt 6500: config -> Clean
+  t~0s alt 6500 kt 120 Gear: "At High Key"
+  t~0s alt 6500: config -> Gear
+  t~0s alt 6500 kt 120: KEY high_key
+  t~31s alt 5756 kt 120 Gear: "False High Key"
+  t~72s alt 4688: config -> Gear + T/O flap
+  t~75s alt 4603 kt 120 Gear + T/O flap: "False Low Key"
+  t~107s alt 3707 kt 120: KEY low_key
+  t~107s alt 3696 kt 120 Gear + T/O flap: "To Final Key, on profile"
+  t~112s alt 3551: config -> Gear + landing flap
+  t~129s alt 2914 kt 120: KEY final_key
+  t~130s alt 2885 kt 120 Gear + landing flap: "To threshold, on profile"
+  t~158s alt 1880 kt 120 Gear + landing flap: "Touchdown"
+
+=== G3. High Key at 5,900 ft (practice, top of window) ===  wind 360/0
+  start: alt 5900 kias 120 hdg 298.6 at (2796, -2776); dist to threshold 0.00 NM
+  plan: highKey  outcome: landed  apex alt 5900 (gain 0) at t~0s  steps/ms 22
+  gate 2100: ok=true off 5 deg kias 120 flags []
+  touchdown: 1223 ft along, 120 KIAS, path angle at touchdown 6.6 deg, cross 47 ft
+  min KIAS 119  max G(bank) 1.13  notes: gear early before the join at 5900 ft
+  t~0s alt 5900 kt 120 Clean: "Slow to 125: at high key"
+  t~0s alt 5900: config -> Clean
+  t~0s alt 5900 kt 120 Gear: "At High Key"
+  t~0s alt 5900: config -> Gear
+  t~0s alt 5900 kt 120: KEY high_key
+  t~19s alt 5450 kt 120 Gear: "False High Key"
+  t~46s alt 4749: config -> Gear + T/O flap
+  t~64s alt 4207 kt 120 Gear + T/O flap: "False Low Key"
+  t~82s alt 3700 kt 120: KEY low_key
+  t~83s alt 3671 kt 120 Gear + T/O flap: "To Final Key, on profile"
+  t~89s alt 3496: config -> Gear + landing flap
+  t~105s alt 2918 kt 120: KEY final_key
+  t~105s alt 2903 kt 120 Gear + landing flap: "To threshold, on profile"
+  t~133s alt 1889 kt 120 Gear + landing flap: "Final, on profile"
+  t~134s alt 1880 kt 120 Gear + landing flap: "Touchdown"
+
+=== G4. Low Key start, 3,700, hdg 118 (spec test case) ===  wind 360/0
+  start: alt 3700 kias 120 hdg 118 at (-109, -8113); dist to threshold 1.00 NM
+  plan: circle  outcome: landed  apex alt 3700 (gain 0) at t~0s  steps/ms 10
+  gate 2100: ok=true off 6 deg kias 120 flags []
+  touchdown: 1115 ft along, 120 KIAS, path angle at touchdown 7.9 deg, cross 51 ft
+  min KIAS 119  max G(bank) 1.23  notes: gear early before the join at 3700 ft
+  t~0s alt 3700 kt 120 Clean: "Slow to 125: join at low key"
+  t~0s alt 3700: config -> Clean
+  t~0s alt 3700 kt 120 Gear: "Join at Low Key"
+  t~0s alt 3700: config -> Gear
+  t~2s alt 3672 kt 119 Gear + T/O flap: "To Final Key, high"
+  t~2s alt 3672: config -> Gear + T/O flap
+  t~3s alt 3645: config -> Gear + landing flap
+  t~4s alt 3611 kt 119 Gear + landing flap: "To Final Key, on profile"
+  t~23s alt 2898 kt 120: KEY final_key
+  t~23s alt 2890 kt 120 Gear + landing flap: "To threshold, on profile"
+  t~51s alt 1880 kt 120 Gear + landing flap: "Touchdown"
+
+=== G5. Low Key start 3,700 in 20 kt from 208 ===  wind 208/20
+  start: alt 3700 kias 120 hdg 118 at (-109, -8113); dist to threshold 1.00 NM
+  plan: circle  outcome: landed  apex alt 3700 (gain 0) at t~0s  steps/ms 10
+  gate 2100: ok=true off 1 deg kias 120 flags []
+  touchdown: 1789 ft along, 120 KIAS, path angle at touchdown 2.8 deg, cross 36 ft
+  min KIAS 119  max G(bank) 1.64  notes: gear early before the join at 3700 ft | widened at 3468 ft
+  t~0s alt 3700 kt 120 Clean: "Slow to 125: join circle"
+  t~0s alt 3700: config -> Clean
+  t~0s alt 3700 kt 120 Gear: "Join circle"
+  t~0s alt 3700: config -> Gear
+  t~10s alt 3461 kt 120 Gear + T/O flap: "To Final Key, high"
+  t~10s alt 3461: config -> Gear + T/O flap
+  t~11s alt 3426 kt 120 Gear + landing flap: "To Final Key, on profile"
+  t~11s alt 3426: config -> Gear + landing flap
+  t~22s alt 2984 kt 121: KEY final_key
+  t~22s alt 2962 kt 121 Gear + landing flap: "To threshold, on profile"
+  t~49s alt 1985 kt 120 Gear + landing flap: "Final, on profile"
+  t~52s alt 1880 kt 120 Gear + landing flap: "Touchdown"
+
+=== G6. Low Key start high: 4,300 ft ===  wind 360/0
+  start: alt 4300 kias 120 hdg 118 at (-109, -8113); dist to threshold 1.00 NM
+  plan: circle  outcome: landed  apex alt 4300 (gain 0) at t~0s  steps/ms 12
+  gate 2100: ok=true off 0 deg kias 120 flags []
+  touchdown: 1779 ft along, 120 KIAS, path angle at touchdown -90.0 deg, cross 25 ft
+  min KIAS 119  max G(bank) 2.00  notes: gear early before the join at 4300 ft | widened at 4180 ft
+  t~0s alt 4300 kt 120 Clean: "Slow to 125: join at low key"
+  t~0s alt 4300: config -> Clean
+  t~0s alt 4300 kt 120 Gear: "Join at Low Key"
+  t~0s alt 4300: config -> Gear
+  t~2s alt 4272 kt 119 Gear + T/O flap: "To Final Key, high"
+  t~2s alt 4272: config -> Gear + T/O flap
+  t~3s alt 4245: config -> Gear + landing flap
+  t~6s alt 4132 kt 119 Gear + landing flap: "To Final Key, on profile"
+  t~33s alt 2979 kt 120: KEY final_key
+  t~33s alt 2965 kt 120 Gear + landing flap: "To threshold, on profile"
+  t~60s alt 1995 kt 120 Gear + landing flap: "Final, on profile"
+  t~64s alt 1880 kt 120 Gear + landing flap: "Touchdown"
+
+=== H. Area PFL 3 NM, 10,000 ft from 120 ===  wind 360/0
+  start: alt 10000 kias 125 hdg 300 at (15786, -9114); dist to threshold 2.38 NM
+  plan: direct  outcome: landed  apex alt 10000 (gain 0) at t~0s  steps/ms 43
+  gate 2100: ok=false off 97 deg kias 120 flags [bank over 45°]
+  touchdown: 5195 ft along, 120 KIAS, path angle at touchdown 14.4 deg, cross -18 ft
+  min KIAS 119  max G(bank) 2.01  notes: gear early before the join at 10000 ft | went direct at 5506 ft
+  t~0s alt 10000 kt 125 Clean: "Slow to 125: join at high key"
+  t~0s alt 10000: config -> Clean
+  t~0s alt 10000 kt 125 Gear: "Join at High Key"
+  t~0s alt 10000: config -> Gear
+  t~62s alt 8508 kt 120 Gear: "Orbit at High Key, gear early"
+  t~62s alt 8508 kt 120: KEY high_key
+  t~64s alt 8451: config -> Gear + T/O flap
+  t~105s alt 7144 kt 120: KEY low_key
+  t~117s alt 6743: config -> Gear + landing flap
+  t~126s alt 6385 kt 120: KEY final_key
+  t~148s alt 5537 kt 120 Gear + landing flap: "False High Key"
+  t~148s alt 5537 kt 120: KEY high_key
+  t~149s alt 5499 kt 120 Gear + landing flap: "Direct threshold"
+  t~220s alt 1880 kt 121 Gear + landing flap: "Touchdown past the first third"
+
+=== H2. Pattern PFL high: inner downwind 4,600 ft 140 kt (after a go-around climb) ===  wind 360/0
+  start: alt 4600 kias 140 hdg 118 at (2300, -6450); dist to threshold 0.61 NM
+  plan: direct  outcome: landed  apex alt 4600 (gain 0) at t~0s  steps/ms 29
+  gate 2100: ok=false off 0 deg kias 99 flags []
+  touchdown: 1018 ft along, 102 KIAS, path angle at touchdown 7.1 deg, cross 2 ft
+  min KIAS 94  max G(bank) 2.01  notes: widened at 3443 ft | went direct at 3001 ft
+  t~0s alt 4600 kt 140 Clean: "Slow to 125: turn round to rejoin the profile"
+  t~0s alt 4600: config -> Clean
+  t~6s alt 4600 kt 124 Clean: "Turn round to rejoin the profile"
+  t~44s alt 3472 kt 124 Gear: "To Final Key, high"
+  t~44s alt 3472: config -> Gear
+  t~45s alt 3437: config -> Gear + T/O flap
+  t~46s alt 3412 kt 123 Gear + landing flap: "To Final Key, on profile"
+  t~46s alt 3412: config -> Gear + landing flap
+  t~53s alt 3050 kt 120 Gear + landing flap: "To Final Key, low"
+  t~54s alt 2989 kt 120 Gear + landing flap: "Direct threshold"
+  t~65s alt 2583 kt 117 Gear + landing flap: "Trading speed"
+  t~96s alt 1880 kt 102 Gear + landing flap: "Touchdown"
+
+=== I. Area PFL 8 NM 5,000 ft (too far) ===  wind 360/0
+  start: alt 5000 kias 125 hdg 300 at (42097, -24304); dist to threshold 7.37 NM
+  plan: none  outcome: eject  apex alt 5000 (gain 0) at t~0s  steps/ms 50
+  eject at alt 3700 (-28488 along, -76 cross from threshold)
+  min KIAS 124  max G(bank) 1.00  notes: short of the runway at 5000 ft | apex: changed to Eject
+  t~0s alt 5000 kt 125 Clean: "Slow to 125: eject"
+  t~0s alt 5000: config -> Clean
+  t~0s alt 5000 kt 125 Clean: "Eject"
+
+=== I2. Area PFL 3 NM south 3,000 ft heading north (toward LK) ===  wind 360/0
+  start: alt 3200 kias 125 hdg 0 at (0, -18228); dist to threshold 2.58 NM
+  plan: direct  outcome: landed  apex alt 3200 (gain 0) at t~0s  steps/ms 23
+  gate 2100: ok=false off 25 deg kias 103 flags [no T/O flap]
+  touchdown: 2413 ft along, 106 KIAS, path angle at touchdown 8.4 deg, cross 43 ft
+  min KIAS 98  max G(bank) 1.14  notes: 
+  t~0s alt 3200 kt 125 Clean: "Slow to 125: direct threshold"
+  t~0s alt 3200: config -> Clean
+  t~0s alt 3200 kt 125 Clean: "Direct threshold"
+  t~61s alt 2209 kt 116 Clean: "Trading speed"
+  t~69s alt 2229: config -> Gear
+  t~83s alt 1921: config -> Gear + T/O flap
+  t~84s alt 1896: config -> Gear + landing flap
+  t~85s alt 1880 kt 106 Gear + landing flap: "Touchdown"
+
+=== I3. PFL on final 2 NM out 2,500 ft 120 kt ===  wind 360/0
+  start: alt 2500 kias 120 hdg 298.6 at (13470, -8585); dist to threshold 2.00 NM
+  plan: none  outcome: eject  apex alt 2500 (gain 0) at t~0s  steps/ms 40
+  eject at alt 2381 (-11069 along, 0 cross from threshold)
+  min KIAS 120  max G(bank) 1.00  notes: short of the runway at 2500 ft | obviously short at 2500 ft | apex: changed to Eject
+  t~0s alt 2500 kt 120 Clean: "Slow to 125: eject"
+  t~0s alt 2500: config -> Clean
+  t~0s alt 2500 kt 120 Clean: "Eject"
+
+=== I4. PFL 2 NM east of threshold heading away (hdg 118) 3,500 ft 140 ===  wind 360/0
+  start: alt 3500 kias 140 hdg 118 at (14948, -3776); dist to threshold 2.01 NM
+  plan: direct  outcome: landed  apex alt 3500 (gain 0) at t~0s  steps/ms 12
+  gate 2100: ok=true off 1 deg kias 120 flags []
+  touchdown: 1200 ft along, 120 KIAS, path angle at touchdown 5.3 deg, cross -14 ft
+  min KIAS 120  max G(bank) 2.01  notes: 
+  t~0s alt 3500 kt 140 Clean: "Slow to 125: direct threshold"
+  t~0s alt 3500: config -> Clean
+  t~6s alt 3500 kt 125 Clean: "Direct threshold"
+  t~58s alt 2450: config -> Gear
+  t~65s alt 2341: config -> Gear + T/O flap
+  t~66s alt 2318: config -> Gear + landing flap
+  t~79s alt 1880 kt 120 Gear + landing flap: "Touchdown"
+
+=== I5. Area 6 NM 8000 in 30 kt headwind-ish (wind 299/30) ===  wind 299/30
+  start: alt 8000 kias 125 hdg 300 at (31572, -18228); dist to threshold 5.38 NM
+  plan: circle  outcome: landed  apex alt 8000 (gain 0) at t~0s  steps/ms 61
+  gate 2100: ok=true off 3 deg kias 120 flags []
+  touchdown: 1225 ft along, 120 KIAS, path angle at touchdown 8.8 deg, cross 33 ft
+  min KIAS 120  max G(bank) 1.40  notes: 
+  t~0s alt 8000 kt 125 Clean: "Slow to 125: join at high key"
+  t~0s alt 8000: config -> Clean
+  t~0s alt 8000 kt 125 Clean: "Join at High Key"
+  t~200s alt 4295 kt 125 Clean: "To Low Key, low"
+  t~225s alt 3757 kt 125 Gear: "To Low Key, on profile"
+  t~225s alt 3757: config -> Gear
+  t~230s alt 3679 kt 121: KEY low_key
+  t~230s alt 3666 kt 121 Gear + T/O flap: "To Final Key, on profile"
+  t~230s alt 3666: config -> Gear + T/O flap
+  t~249s alt 3104: config -> Gear + landing flap
+  t~251s alt 3029 kt 120: KEY final_key
+  t~252s alt 3000 kt 120 Gear + landing flap: "To threshold, on profile"
+  t~282s alt 1920 kt 120 Gear + landing flap: "Final, on profile"
+  t~283s alt 1880 kt 120 Gear + landing flap: "Touchdown"

@@ -1,0 +1,237 @@
+diff --git a/src/modules/turn-sim/live/chooser.js b/src/modules/turn-sim/live/chooser.js
+index 6a48147..3e03087 100644
+--- a/src/modules/turn-sim/live/chooser.js
++++ b/src/modules/turn-sim/live/chooser.js
+@@ -28,6 +28,7 @@ import { planLineChange } from './line-moves.js';
+ import { planTurningRejoin } from './turning-rejoin.js';
+ import { planStraightRejoin } from './straight-rejoin.js';
+ import { planEchelonToFw } from './echelon-to-fw.js';
++import { planFromHere } from './replan.js';
+ 
+ /** The overshoot lane's margin: inside 1,000 ft #2 may pass this far ahead of his slot toward Lead's 3/9 line, never more (the shared 100 ft margin, design section 10). */
+ export const LANE_MARGIN_FT = 100;
+@@ -49,6 +50,15 @@ const PLANNERS = Object.freeze([
+   { name: 'tracker', plan: planGoTo, rejoin: 'into', fallback: true }, // the fallback on a long move (rule 2 above)
+ ]);
+ 
++/**
++ * A press while a move is still flown (spec F11, replan.js): "from here" joins the race, the tracker from where #2 is
++ * against Lead flying on. The line is left out (it starts #2 at rest in Lead's frame), and so is a training error's rejoin
++ * (its lesson starts from line abreast). In a turn of Lead's own only "from here" runs: every other planner flies Lead
++ * straight, and a formation command for #2 doesn't change Lead's flying.
++ */
++const FROM_HERE = Object.freeze({ name: 'from here', plan: planFromHere, rejoin: null, fallback: true });
++const MID_PLANNERS = Object.freeze([FROM_HERE, ...PLANNERS.filter((p) => p.plan !== planLineChange)]);
++
+ /**
+  * How rough #2's track is: bank reversals (the bank crossing from one side to the other, past the deadband) plus power
+  * changes (a change of the stage the tag shows: MAX, power, idle, boards), counted along the recorded bank track or the
+@@ -121,15 +131,17 @@ const words = (c) => `${c.name} ${Math.round(c.durationSec)} s${c.passes ? '' :
+ export function chooseChange(pair, to, options = {}, t0 = 0) {
+   const wing = pair[1];
+   const spacingFt = options.spacingFt ?? 6000;
+-  // A training error's response is the lesson, not a race (TS-62).
+-  const hot = planHotRejoinChange(pair, to, options, t0);
++  const auto = (options.rejoin ?? 'into') === 'auto';
++  const mid = options.mid ?? null;
++  // A training error's response is the lesson, not a race (TS-62); it is a turning rejoin, so 'auto' flies it too.
++  const hot = mid ? null : planHotRejoinChange(pair, to, auto ? { ...options, rejoin: 'into' } : options, t0);
+   if (hot?.ok) return hot;
+ 
+-  const auto = (options.rejoin ?? 'into') === 'auto';
+   const longMove = rangeToSlotFt(pair, to, options) > HAND_OVER_FT;
+   const candidates = [];
+   let refusal = null;
+-  for (const p of PLANNERS) {
++  const planners = !mid ? PLANNERS : mid.lead?.kind === 'carry' ? [FROM_HERE] : MID_PLANNERS;
++  for (const p of planners) {
+     // Each planner refuses a Rejoin kind that is not its own; under 'auto' each rejoin planner is given its own kind.
+     const opts = auto && p.rejoin !== null ? { ...options, rejoin: p.rejoin } : options;
+     const r = p.plan(pair, to, opts, t0);
+diff --git a/src/modules/turn-sim/live/formation-turns.js b/src/modules/turn-sim/live/formation-turns.js
+index eaaf2e6..4ffd66e 100644
+--- a/src/modules/turn-sim/live/formation-turns.js
++++ b/src/modules/turn-sim/live/formation-turns.js
+@@ -191,9 +191,13 @@ function holdInPlane(leadRec, lead, wing, body, leadSteps) {
+   const vel = (a) => [Math.cos(a.headingRad) * a.tasFtps, Math.sin(a.headingRad) * a.tasFtps, a.climbFtps ?? 0];
+   const vl = vel(lead);
+   const vw = vel(wing);
+-  let r = placeAt(0);
++  let r = [wing.xFt - lead.xFt, wing.yFt - lead.yFt, wing.altAboveFt - lead.altAboveFt]; // where he is (his place, in a turn)
+   let v = [vw[0] - vl[0], vw[1] - vl[1], vw[2] - vl[2]];
+-  let acc = [0, 0, 0];
++  // His turn and Lead's as they are (none at a close turn's press; a press mid-turn, replan.js), so his bank carries on.
++  const turnAcc = (a) => [-Math.sin(a.headingRad) * G_FTPS2 * Math.tan(a.bankDeg * DEG), Math.cos(a.headingRad) * G_FTPS2 * Math.tan(a.bankDeg * DEG), 0];
++  const aw = turnAcc(wing);
++  const al = turnAcc(lead);
++  let acc = [aw[0] - al[0], aw[1] - al[1], 0];
+   const rel = [{ x: r[0], y: r[1], z: r[2] }];
+   const last = leadSteps + Math.ceil(30 / dt);
+   let prev = placeAt(0);
+@@ -237,6 +241,35 @@ function holdInPlane(leadRec, lead, wing, body, leadSteps) {
+   return { rel };
+ }
+ 
++/** A held wingman's poses for steps 1..n: his offsets from Lead (holdInPlane's rel) laid on Lead's flight, his bank his own. */
++function heldPoses(leadRec, wing, rel, n) {
++  const track = makeTrack(n);
++  seedTrack(track, wing);
++  for (let k = 1; k <= n + TRACK_PAD; k++) {
++    const L = leadRec.at(k);
++    const r = rel[Math.min(k, rel.length - 1)]; // once he is settled and Lead is wings level, the same offset
++    setTrackStep(track, k, L.xFt + r.x, L.yFt + r.y, L.altAboveFt + r.z);
++  }
++  const line = posesFrom(track, wing.kias / wing.tasFtps);
++  ownBank(line.poses);
++  settleLast(line.poses, leadRec.at(n));
++  return line.poses;
++}
++
++/**
++ * #2 from where he is to a close place on his side (echelon or route), held in Lead's real wing plane the way the close
++ * turns hold him (holdInPlane): a press mid-move (spec F11, replan.js), so a station change in a turn moves along Lead's
++ * wing line instead of chasing a level place. leadPlan: Lead's { segments, profile } from here; slot: the place
++ * ({ fwd, left, alt }, slots.js). Returns { poses, steps, leadRec }: poses for steps 1..steps, the last settled on Lead.
++ */
++export function slideInPlane(lead, wing, leadPlan, slot, t0 = 0) {
++  const leadSteps = Math.round(dryRunT(lead, leadPlan, t0).durationSec / STEP_SEC);
++  const leadRec = recordFlight(lead, leadPlan, t0);
++  const { rel } = holdInPlane(leadRec, lead, wing, { fwd: slot.fwd, left: slot.left, up: slot.alt }, leadSteps);
++  const steps = Math.max(leadSteps, rel.length - 1);
++  return { poses: heldPoses(leadRec, wing, rel, steps), steps, leadRec };
++}
++
+ /**
+  * Bank and roll rate from a wingman's own path: the direction of the lift that turns him and lifts or lowers him (standard
+  * aerodynamics: tan bank = V turn rate / (g + vertical acceleration)), so he rolls with Lead and pulls or unloads to stay in
+@@ -293,18 +326,9 @@ export function planCloseTurn(aircraft, formation, key, dir, t0 = 0) {
+   });
+   const n = held.reduce((m, h) => Math.max(m, h.rel.length - 1), leadSteps);
+   for (const { wing, rel } of held) {
+-    const track = makeTrack(n);
+-    seedTrack(track, wing);
+-    for (let k = 1; k <= n + TRACK_PAD; k++) {
+-      const L = leadRec.at(k);
+-      const r = rel[Math.min(k, rel.length - 1)]; // once he is settled and Lead is wings level, the same offset
+-      setTrackStep(track, k, L.xFt + r.x, L.yFt + r.y, L.altAboveFt + r.z);
+-    }
+-    const line = posesFrom(track, wing.kias / wing.tasFtps);
+-    ownBank(line.poses);
+-    settleLast(line.poses, leadRec.at(n));
+-    plans[wing.id] = { segments: [{ kind: 'poseTrack', poses: line.poses }] };
+-    for (const p of line.poses) maxBankDeg = Math.max(maxBankDeg, Math.abs(p.bank));
++    const poses = heldPoses(leadRec, wing, rel, n);
++    plans[wing.id] = { segments: [{ kind: 'poseTrack', poses }] };
++    for (const p of poses) maxBankDeg = Math.max(maxBankDeg, Math.abs(p.bank));
+   }
+   // Which way each is stepped: the wingmen on the turn's side are on the inside (stepped down), the others on the outside (up).
+   const two = by.get(2);
+diff --git a/src/modules/turn-sim/live/formation.js b/src/modules/turn-sim/live/formation.js
+index 74b4b30..3157abf 100644
+--- a/src/modules/turn-sim/live/formation.js
++++ b/src/modules/turn-sim/live/formation.js
+@@ -23,6 +23,7 @@ import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFwMove
+ import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
+ import { FLUID_MOVES } from './fluid-lead.js';
+ import { LAG_ROLL_KEY, planLagRoll } from './lag-roll.js';
++import { REJOIN } from './tuning.js';
+ 
+ /**
+  * The first version's fixed numbers. Speeds name their kind (rule book): kias is
+@@ -239,7 +240,7 @@ export function createFormation(options = {}) {
+     whereNow();
+     const four = state.aircraft.length > 2;
+     // A training error set (TS-62) makes the hot turning rejoin start from wherever #2 is, flown as its response says.
+-    const planOpts = { ...changeOptions, spacingFt: state.spacingFt, blockFt: opts.blockFt, lastSide: state.lastSide, errors: four ? null : state.errors };
++    const planOpts = { ...changeOptions, spacingFt: state.spacingFt, blockFt: opts.blockFt, lastSide: state.lastSide, errors: four ? null : state.errors, mid: state.current ? midPress(state.current) : null };
+     // The 2-ship: the chooser (chooser.js, TS-76) runs every planner that applies (a training error's rejoin first, TS-62;
+     // the turning rejoin, TS-68; the straight-ahead rejoin, TS-72; echelon or route out to fighting wing, TS-73; a line then
+     // the tracker, TS-65; the tracker alone) and flies the one that passes the pilot's checks quickest. Until V2.75 they were
+@@ -282,6 +283,18 @@ export function createFormation(options = {}) {
+     return true;
+   }
+ 
++  /**
++   * How Lead flies on when a change is pressed mid-move (spec F11, replan.js): the rest of his own move (a turn, a fighting
++   * wing move, a line abreast manoeuvre); in a turning rejoin, his turn into #2 held until #2 is in; otherwise straight.
++   */
++  function midPress(c) {
++    const lead = state.aircraft[0];
++    const plan = state.plans[lead.id] ?? { segments: [] };
++    if (!c.change) return { lead: { kind: 'carry', plan: { segments: plan.segments.map((x) => ({ ...x })), profile: plan.profile } } };
++    if (c.change.rejoining && c.change.rejoinKind === 'into' && Math.abs(lead.bankDeg) > 1) return { lead: { kind: 'hold', s: Math.sign(lead.bankDeg), bankDeg: REJOIN.leadBankDeg } };
++    return { lead: { kind: 'straight' } };
++  }
++
+   /**
+    * Fluid manoeuvring (spec section 10.3, TS-57): from fighting wing only, 2-ship only for now. The session flies both
+    * aircraft until Terminate brings #2 back to his fighting wing slot. Returns false with state.refusal when it can't start.
+@@ -432,8 +445,8 @@ export function createFormation(options = {}) {
+         state.refusal = 'Terminate fluid manoeuvring first; it ends in fighting wing.';
+         return 'refused';
+       }
+-      if (state.current) {
+-        const label = state.aircraft.length > 2 ? FOUR_FORMATIONS[to]?.label ?? to : FORMATIONS[to]?.label ?? to;
++      if (state.current && state.aircraft.length > 2) {
++        const label = FOUR_FORMATIONS[to]?.label ?? to;
+         state.queued = { key: `change:${to}`, dir: 0, label, change: { to, options } };
+         return 'queued';
+       }
+diff --git a/src/modules/turn-sim/transitions-panel.js b/src/modules/turn-sim/transitions-panel.js
+index 99eaf1d..40a431b 100644
+--- a/src/modules/turn-sim/transitions-panel.js
++++ b/src/modules/turn-sim/transitions-panel.js
+@@ -38,9 +38,11 @@ const SIDE_CHANGE_FORMATIONS = Object.freeze(['fw', 'echelon', 'route']);
+ const SIDES = Object.freeze([{ value: 'keep', label: 'Keep' }, { value: 'left', label: 'Left' }, { value: 'right', label: 'Right' }]); // written out (Patrick, 5 Oct)
+ // The Rejoin kind, from line abreast and (since V2.59, TS-67; Patrick 5 Oct 05:13Z: "FW-Esch you can pick TRJ or SARJ.
+ // Obviously TRJ is faster") from fighting wing to echelon or route: the turning rejoin (TRJ, the default) or straight ahead (SARJ).
++// Auto (TS-76, the chooser): both are flown ahead as dry runs and the quicker that passes the checks is flown; 2-ship only.
+ const REJOIN_OPTIONS = Object.freeze([
+   { value: 'into', label: 'Turning (TRJ), Lead turns into #2' },
+   { value: 'straight', label: 'Straight ahead (SARJ)' },
++  { value: 'auto', label: 'Auto, the quicker of the two' },
+ ]);
+ 
+ 
+@@ -125,7 +127,11 @@ export function createChangeUi({ onChange, fluidUi = null }) {
+   }, o.label));
+   // The rejoin switch under Formation (Patrick, 5 Oct 07:35Z: "a switch on the left under "Formations" that has TRJ or SARJ
+   // and you can toggle which will happen with the formation change"): the same choice as Rejoin kind in Settings.
+-  const REJOIN_SWITCH = Object.freeze([{ value: 'into', label: 'TRJ', title: 'Turning rejoin' }, { value: 'straight', label: 'SARJ', title: 'Straight-ahead rejoin' }]);
++  const REJOIN_SWITCH = Object.freeze([
++    { value: 'into', label: 'TRJ', title: 'Turning rejoin' },
++    { value: 'straight', label: 'SARJ', title: 'Straight-ahead rejoin' },
++    { value: 'auto', label: 'Auto', title: 'Both rejoins are tried ahead; the quicker one is flown' },
++  ]);
+   const rejoinButtons = REJOIN_SWITCH.map((o) => h('button', {
+     type: 'button',
+     class: 'button ts-side-button',
+@@ -145,7 +151,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
+   const rejoinSelect = h('select', { 'aria-label': 'Rejoin kind', onchange: () => setRejoin(rejoinSelect.value) },
+     REJOIN_OPTIONS.map((o) => h('option', { value: o.value, selected: o.value === rejoin }, o.label)));
+   const rejoinLabel = h('span', { class: 'ts-hint' }, 'Rejoin kind');
+-  const PAIR_REJOIN_HINT = `From line abreast or fighting wing. Turning (TRJ): Lead turns into #2 at the press at ${REJOIN.leadBankDeg}° of bank, slowing to ${KIAS_OUTSIDE_LAB} KIAS, and holds it until #2 is in (SMM 16.20 para 65); #2 gets onto the rejoin line, Lead at his 10:30 or 1:30 and slightly high, closes down it and flows through route into the slot (SMM 12.24 paras 56-58). Straight ahead (SARJ): #2 drops onto Lead's six and runs up it (SMM 12.26 paras 62-63).`;
++  const PAIR_REJOIN_HINT = `From line abreast or fighting wing. Turning (TRJ): Lead turns into #2 at the press at ${REJOIN.leadBankDeg}° of bank, slowing to ${KIAS_OUTSIDE_LAB} KIAS, and holds it until #2 is in (SMM 16.20 para 65); #2 gets onto the rejoin line, Lead at his 10:30 or 1:30 and slightly high, closes down it and flows through route into the slot (SMM 12.24 paras 56-58). Straight ahead (SARJ): #2 drops onto Lead's six and runs up it (SMM 12.26 paras 62-63). Auto: both are tried ahead and the quicker one is flown; the card says which.`;
+   const FOUR_REJOIN_HINT = `A turning rejoin: Lead turns into #2 at the press, slowing to ${KIAS_OUTSIDE_LAB} KIAS; #3 and #4 close at once and come in on the outside one at a time, #3 once #2 is in and #4 once #3 is (SMM 16.34 paras 95-96). Straight ahead, each closes through route in turn.`;
+   const rejoinHint = h('p', { class: 'ts-hint' }, PAIR_REJOIN_HINT);
+   const rejoinField = h('label', { class: 'ts-field' }, rejoinLabel, rejoinSelect);
+@@ -178,7 +184,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
+     pairGrid,
+     fourGrid,
+     h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Station: the side #2 ends on' }, h('span', { class: 'ts-hint' }, 'Station'), sideButtons), // "Station", was "Side" (Patrick, 5 Oct)
+-    h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Rejoin: turning or straight ahead' }, h('span', { class: 'ts-hint' }, 'Rejoin'), rejoinButtons),
++    h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Rejoin: turning, straight ahead or auto' }, h('span', { class: 'ts-hint' }, 'Rejoin'), rejoinButtons),
+     refusal,
+     fluidUi?.element ?? null,
+   );
+@@ -210,6 +216,10 @@ export function createChangeUi({ onChange, fluidUi = null }) {
+       rejoinHint.hidden = false;
+       rejoinLabel.textContent = four ? 'Rejoin to fighting wing or finger' : 'Rejoin kind';
+       rejoinSelect.options[0].textContent = four ? 'Turning, Lead turns into the others' : REJOIN_OPTIONS[0].label;
++      // Auto races the 2-ship's rejoins (chooser.js); the 4-ship has no race, so it goes back to the turning rejoin.
++      if (four && rejoin === 'auto') setRejoin('into');
++      for (const o of rejoinSelect.options) if (o.value === 'auto') o.disabled = four;
++      for (const b of rejoinButtons) if (b.dataset.rejoin === 'auto') b.hidden = four;
+       rejoinHint.textContent = four ? FOUR_REJOIN_HINT : PAIR_REJOIN_HINT;
+     },
+     /** Greys the button for the formation the pair is in (and, for a sided one, on the side the switch asks for), and shows a refusal. */

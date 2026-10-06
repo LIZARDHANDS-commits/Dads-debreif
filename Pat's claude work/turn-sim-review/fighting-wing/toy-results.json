@@ -1,0 +1,167 @@
+[
+ {
+  "name": "a-level180-away",
+  "label": "A. Fighting wing, Lead 60/2 level turn 180 deg to the left, wingman on the right (turn is away: wingman is on the outside)",
+  "mode": "FW",
+  "seconds": 90,
+  "percentTime": {
+   "rangeIn500to1000": 99,
+   "rangeAbove500": 100,
+   "offTail60OrLess_and_range": 84,
+   "offTail30OrLess_and_range": 38
+  },
+  "minRangeFt": 516,
+  "maxRangeFt": 1024,
+  "maxOffTailDeg": 63,
+  "maxHcaDeg": 14,
+  "leadPeakG": 2.02,
+  "wingPeakG": 2.12,
+  "leadMaxGRate": 4,
+  "wingMaxGRate": 3.2,
+  "leadMaxRollRate": 90,
+  "wingMaxRollRate": 90,
+  "wingMaxRollAccel": 360,
+  "minKias": {
+   "lead": 220,
+   "wing": 213
+  },
+  "endKias": {
+   "lead": 221,
+   "wing": 214
+  },
+  "endRange": 656,
+  "endOffTail": 45
+ },
+ {
+  "name": "b-level180-into",
+  "label": "B. Fighting wing, Lead 60/2 level turn 180 deg to the left, wingman on the LEFT (turn is toward the wingman: inside)",
+  "mode": "FW",
+  "seconds": 90,
+  "percentTime": {
+   "rangeIn500to1000": 90,
+   "rangeAbove500": 100,
+   "offTail60OrLess_and_range": 81,
+   "offTail30OrLess_and_range": 45
+  },
+  "minRangeFt": 508,
+  "maxRangeFt": 1024,
+  "maxOffTailDeg": 64,
+  "maxHcaDeg": 32,
+  "leadPeakG": 2.02,
+  "wingPeakG": 4.73,
+  "leadMaxGRate": 4,
+  "wingMaxGRate": 4,
+  "leadMaxRollRate": 90,
+  "wingMaxRollRate": 90,
+  "wingMaxRollAccel": 360,
+  "minKias": {
+   "lead": 220,
+   "wing": 214
+  },
+  "endKias": {
+   "lead": 221,
+   "wing": 221
+  },
+  "endRange": 508,
+  "endOffTail": 64
+ },
+ {
+  "name": "c-reversal",
+  "label": "C. Fighting wing, Lead reversal (90 right, then 180 left, at 60 deg bank)",
+  "mode": "FW",
+  "seconds": 100,
+  "percentTime": {
+   "rangeIn500to1000": 74,
+   "rangeAbove500": 98,
+   "offTail60OrLess_and_range": 68,
+   "offTail30OrLess_and_range": 42
+  },
+  "minRangeFt": 494,
+  "maxRangeFt": 1070,
+  "maxOffTailDeg": 68,
+  "maxHcaDeg": 32,
+  "leadPeakG": 2.03,
+  "wingPeakG": 4.73,
+  "leadMaxGRate": 4,
+  "wingMaxGRate": 4,
+  "leadMaxRollRate": 90,
+  "wingMaxRollRate": 90,
+  "wingMaxRollAccel": 360,
+  "minKias": {
+   "lead": 220,
+   "wing": 214
+  },
+  "endKias": {
+   "lead": 222,
+   "wing": 225
+  },
+  "endRange": 494,
+  "endOffTail": 68
+ },
+ {
+  "name": "d-climb-descend",
+  "label": "D. Fighting wing, Lead climbing left turn then descending right reversal (3-D)",
+  "mode": "FW",
+  "seconds": 90,
+  "percentTime": {
+   "rangeIn500to1000": 50,
+   "rangeAbove500": 89,
+   "offTail60OrLess_and_range": 50,
+   "offTail30OrLess_and_range": 12
+  },
+  "minRangeFt": 431,
+  "maxRangeFt": 1470,
+  "maxOffTailDeg": 55,
+  "maxHcaDeg": 24,
+  "leadPeakG": 4.15,
+  "wingPeakG": 4.16,
+  "leadMaxGRate": 4,
+  "wingMaxGRate": 4,
+  "leadMaxRollRate": 90,
+  "wingMaxRollRate": 90,
+  "wingMaxRollAccel": 360,
+  "minKias": {
+   "lead": 158,
+   "wing": 121
+  },
+  "endKias": {
+   "lead": 233,
+   "wing": 246
+  },
+  "endRange": 588,
+  "endOffTail": 55
+ },
+ {
+  "name": "e-fm-level",
+  "label": "E. Fluid manoeuvring (same power as Lead), 60/2 level turn left, wingman on the right",
+  "mode": "FM",
+  "seconds": 90,
+  "percentTime": {
+   "rangeIn500to1000": 79,
+   "rangeAbove500": 100,
+   "offTail60OrLess_and_range": 79,
+   "offTail30OrLess_and_range": 79
+  },
+  "minRangeFt": 846,
+  "maxRangeFt": 1088,
+  "maxOffTailDeg": 18,
+  "maxHcaDeg": 18,
+  "leadPeakG": 2.02,
+  "wingPeakG": 2.75,
+  "leadMaxGRate": 4,
+  "wingMaxGRate": 4,
+  "leadMaxRollRate": 90,
+  "wingMaxRollRate": 90,
+  "wingMaxRollAccel": 360,
+  "minKias": {
+   "lead": 220,
+   "wing": 218
+  },
+  "endKias": {
+   "lead": 221,
+   "wing": 222
+  },
+  "endRange": 848,
+  "endOffTail": 15
+ }
+]

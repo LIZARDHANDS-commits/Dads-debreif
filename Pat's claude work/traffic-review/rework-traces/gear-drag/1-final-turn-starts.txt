@@ -1,0 +1,10 @@
+FTa base 2,600 wind 0: landed td 1008 ft at 120 | gate ok 3° no T/O flap | min 118 kt | gear 2388 |  | last "Touchdown" cfg Gear
+FTb mid final turn 420 AGL wind 0: landed td 1005 ft at 120 | gate ok 22° no T/O flap | min 118 kt | gear 2300 |  | last "Touchdown" cfg Gear
+FTc late final turn wind 0: landed td 862 ft at 115 | gate MISSED 11° no T/O flap | min 111 kt | gear 2150 |  | last "Touchdown" cfg Gear
+FTd final turn 600 AGL wind 0: landed td 1769 ft at 120 | gate ok 6° no T/O flap | min 119 kt | gear 2375 |  | last "Touchdown" cfg Gear + landing flap
+FTe too low far wind 0: eject eject 2039 | gate MISSED 24° no T/O flap | min 119 kt | gear 2150 | short of the runway at 2150 ft; obviously short at 2150 ft; apex: changed to Eject | last "Eject" cfg Gear
+FTa base 2,600 wind 15: landed td 1005 ft at 114 | gate MISSED 2° no T/O flap | min 111 kt | gear 2395 |  | last "Touchdown" cfg Gear
+FTb mid final turn 420 AGL wind 15: landed td 904 ft at 117 | gate MISSED 18° no T/O flap | min 115 kt | gear 2300 |  | last "Touchdown" cfg Gear
+FTc late final turn wind 15: landed td 655 ft at 114 | gate MISSED 11° no T/O flap | min 111 kt | gear 2150 |  | last "Touchdown" cfg Gear
+FTd final turn 600 AGL wind 15: landed td 1453 ft at 120 | gate ok 9° no T/O flap | min 119 kt | gear 2373 |  | last "Touchdown" cfg Gear + landing flap
+FTe too low far wind 15: eject eject 2031 | gate MISSED 27° no T/O flap | min 118 kt | gear 2150 | short of the runway at 2150 ft; obviously short at 2150 ft; apex: changed to Eject | last "Eject" cfg Gear
