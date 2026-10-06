@@ -43,7 +43,8 @@ export function fwSwitch(sTo) {
     // at the press. Geometry first (the turn in, no more than turnInMaxDeg, and the aim near the tail line); then power,
     // in proportion to how far the range has opened or closed from where it started, up to holdKias each way. Opening asks
     // for more speed, which the tracker flies at full power and the cone's energy law (TS-96) dives for; closing asks
-    // for less, a climb. Bleeding energy through the switch is only an option (Patrick 01:24Z), not built as a control.
+    // for less, a climb: the vertical is geometry too (Patrick 01:25Z), so height in the cone comes before power, which is
+    // the order the energy law flies. Bleeding energy through the switch is only an option (Patrick 01:24Z), not a control.
     range0 ??= Math.hypot(rel.fwd, rel.left);
     const opened = Math.hypot(rel.fwd, rel.left) - range0;
     const kiasCmd = L.kias + Math.max(-1, Math.min(1, opened / S.holdScaleFt)) * S.holdKias;
