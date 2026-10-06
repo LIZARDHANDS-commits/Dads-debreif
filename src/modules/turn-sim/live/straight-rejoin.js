@@ -8,7 +8,7 @@
 //     as he nears the line. Turning in costs ground along Lead's track, so he falls back as he cuts (Patrick 08:40Z); full power
 //     keeps that small.
 //  2. On Lead's six, just below his wake (EFIG p.371; SMM 12.26 para 62), he holds at least 220 KIAS (tuning.js
-//     REJOIN.lineKias, whatever the Rates choice; Patrick 17:55Z, TS-75), and from the decision point, where a stop with the torque floor and the
+//     the Rates choice's line speed, lineKiasNow: a target, geometry first, TS-133; 220 for all until V2.149, TS-75), and from the decision point, where a stop with the torque floor and the
 //     boards just fits (TS-108), takes it out, idle only when the room left needs it, to arrive closing at no more than Instructor's
 //     close-in rate.
 //  3. From about 500 ft back he takes the small vector toward the side wanted (SMM 12.26 para 63, Fig 12.17 point 2): the line
@@ -21,7 +21,7 @@ import { relativeTo, DEG } from './manoeuvres.js';
 import { recordFlight, speedSeg, closeThrough, legsFor, STRAIGHT_AHEAD, CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
 import { FORMATIONS, pairSlot } from './slots.js';
-import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, STRAIGHT_REJOIN, TURNING_REJOIN, TRACKER, CLOSURE, closureNow, closeInFtps } from './tuning.js';
+import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, STRAIGHT_REJOIN, TURNING_REJOIN, TRACKER, CLOSURE, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
 import { onClosure, fromStep } from './hand-over.js';
 import { STEP_SEC, copyAircraft } from './flight.js';
 import { stepCommanded, setKias, trackTwice } from './tracker.js';
@@ -122,7 +122,7 @@ function flyToDecision({ wing, rec, s, route, cutDeg, aimFt, overtakeKt, blockFt
       // Easing off in time to stop the slowing at the arrival rate, and never below Lead's speed (TS-75).
       aCmd = Math.max(aCmd, -Math.sqrt(2 * G.jerkKtps2 * Math.max(0, (closure - arriveFtps) / ratio)), -Math.sqrt(2 * G.jerkKtps2 * Math.max(0, W.kias - floorKias)));
     } else {
-      // Up Lead's six at least REJOIN.lineKias: MAX to it, and no power back if he has more (Patrick 17:55Z: "the minimum
+      // Up Lead's six at least the line speed asked (lineKiasNow, TS-133): MAX to it, and no power back if he has more (Patrick 17:55Z: "the minimum
       // closure up the line to be 220 knots for expeidiousness"; TS-75).
       aCmd = Math.min(aMax, Math.max(0, G.speedLoop * (targetKias - W.kias)));
     }
@@ -205,7 +205,7 @@ export function planStraightRejoin(pair, to, options = {}, t0 = 0) {
   const rec = recordFlight(lead, { segments: leadSegs }, t0);
 
   let best = null;
-  const asked = REJOIN.lineKias - KIAS_OUTSIDE_LAB; // REJOIN.lineKias up Lead's six, whatever the Rates choice (Patrick 17:54Z, 17:55Z; TS-75)
+  const asked = lineKiasNow() - KIAS_OUTSIDE_LAB; // the Rates choice's line speed up Lead's six, a target: smaller overtakes after it (TS-133)
   const overtakes = [asked, ...Object.values(REJOIN_CLOSURE_KT).filter((kt) => kt < asked).sort((a, b) => b - a)];
   for (const overtakeKt of overtakes) {
     for (const cutDeg of STRAIGHT_REJOIN.cutsDeg) {

@@ -88,6 +88,19 @@ const CLOSE_IN_BAND_FT = 15;
  * abreast or fighting wing to a close formation, a close formation out to fighting wing or line abreast) closes at it too.
  */
 export const REJOIN_CLOSURE_KT = Object.freeze({ student: 15, instructor: 25, ai: 50 });
+/**
+ * The speed a rejoin aims for down the line (or up Lead's six) to the decision point, KIAS, by Rates choice (Patrick 6 Oct
+ * 15:54Z: "Let's do 210 220 235 . These are targets not requirements. Gemoetry first and speed if possible for
+ * rffecicney"; TS-133): turning rejoins and the straight-ahead rejoin both. A target, not a requirement: where the geometry
+ * has no room for it, the rejoin searches flies a smaller overtake (searchTurningRejoin, straight-rejoin.js). Lead's 200
+ * KIAS stays the least, a hot start keeps 200 and gets colder with geometry (15:54Z: "Hot starts can keep 200"), and #2
+ * comes back to Lead's 200 to join. Until V2.149 every choice aimed for 220 (TS-75).
+ */
+export const REJOIN_LINE_KIAS = Object.freeze({ student: 210, instructor: 220, ai: 235 });
+/** The rejoin's line speed for the Rates choice now, KIAS (REJOIN_LINE_KIAS). */
+export function lineKiasNow(choice = ratesChoice) {
+  return REJOIN_LINE_KIAS[choice] ?? REJOIN_LINE_KIAS[DEFAULT_RATES];
+}
 /** The Rates choices in screen order, and their words. */
 export const RATE_CHOICES = Object.freeze(Object.keys(CLOSE_IN_SEC));
 export const RATE_WORDS = Object.freeze({ student: 'Student', instructor: 'Instructor', ai: 'AI' });

@@ -7,7 +7,7 @@
 //
 //  1. Lead turns into #2 at the press, at 30° of bank, slowing to 200 KIAS, and holds it until #2 is in (SMM 16.20 para
 //     65b; Patrick 05:29Z, 06:16Z item 3; hand-over.js leadTurnInto).
-//  2. #2 aims for 220 KIAS down the line, whatever the Rates choice (tuning.js REJOIN.lineKias; Patrick 17:54Z-17:55Z, TS-75):
+//  2. #2 aims for the Rates choice's line speed down the line, 210, 220 or 235 KIAS (tuning.js lineKiasNow; TS-133; 220 for all until V2.149, TS-75):
 //     MAX until he has it. Hot (ahead of the line) he gets colder with geometry, not speed: never below Lead's 200 KIAS
 //     (to fighting wing, its place's own speed inside Lead's turn), reaching the line at 200-210 (Patrick 17:29Z). Only when
 //     no rejoin at that keeps him behind Lead's 3/9 line (close in and hot) does he dip below, then MAX again as he meets
@@ -34,7 +34,7 @@ import { relativeTo, DEG } from './manoeuvres.js';
 import { recordFlight, speedSeg, closeThrough, rejoinTo, slide, stopAt, legsFor, CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
 import { FORMATIONS, fwShapeNow, pairSlot, downTheLine, LINE_BACK_PER_OUT, LENGTH_FT } from './slots.js';
-import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, TURNING_REJOIN, TRACKER, CLOSURE, FW_FOLLOW, G_RULE, KINEMATIC, closureNow, closeInFtps } from './tuning.js';
+import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, TURNING_REJOIN, TRACKER, CLOSURE, FW_FOLLOW, G_RULE, KINEMATIC, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
 import { onClosure, leadTurnInto, fromStep } from './hand-over.js';
 import { STEP_SEC, copyAircraft, SMOOTHER_CURVE_PEAK, smoother } from './flight.js';
 import { RATE_SETS } from './rates.js';
@@ -619,9 +619,9 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
   // When even that can't keep him behind Lead's 3/9 line, the most overtake that can (the review's: fit the overtake to the
   // room; Student's 15 kt is the least): the note says which he flew.
   let best = null;
-  // Down the line he holds REJOIN.lineKias, whatever the Rates choice (Patrick 17:54Z, 17:55Z: "the minimum closure up the line
+  // Down the line he aims for the Rates choice's line speed (lineKiasNow, TS-133: a target, geometry first; until V2.149 220 for all, Patrick 17:54Z, 17:55Z: "the minimum closure up the line
   // to be 220 knots"), or a smaller Rates overtake only when that one would put him ahead of Lead's 3/9 line (TS-75).
-  const asked = REJOIN.lineKias - KIAS_OUTSIDE_LAB;
+  const asked = lineKiasNow() - KIAS_OUTSIDE_LAB;
   const overtakes = [asked, ...Object.values(REJOIN_CLOSURE_KT).filter((kt) => kt < asked).sort((a, b) => b - a)];
   // Every overtake and bank at his least speed first; slower only when none of them keeps him behind Lead's 3/9 line
   // (Patrick 17:29Z: "unless massively high on energy and tight"; TS-75).
@@ -685,7 +685,7 @@ export function planTurningRejoin(pair, to, options = {}, t0 = 0) {
 
   const hot = from.key === 'lab';
   const best = searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, hot });
-  const asked = REJOIN.lineKias - KIAS_OUTSIDE_LAB;
+  const asked = lineKiasNow() - KIAS_OUTSIDE_LAB;
   if (!best || best.durationSec > CHANGE_LIMIT_SEC) return null;
   const { part, run, profile, lp } = best;
   const judged = judge([run.end.lead, run.end.wing], { key: to }, { spacingFt });
