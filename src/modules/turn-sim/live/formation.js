@@ -638,5 +638,5 @@ export function intoOrAway(dir, wingSide) {
 
 /** The fixed line under Setup. */
 export function fixedLine(opts = LIVE_DEFAULTS) {
-  return `${opts.kias} KIAS · ${opts.blockFt.toLocaleString('en-CA')} ft · ${TURN_G} G turns (${Math.round(TURN_BANK_DEG)}° bank) · still air · roll 90°/s`;
+  return `${opts.kias} KIAS · ${opts.blockFt.toLocaleString('en-CA')} ft · ${TURN_G} G turns (${Math.round(TURN_BANK_DEG)}° bank) · still air · roll up to 180°/s`;
 }
