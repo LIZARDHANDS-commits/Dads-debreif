@@ -1900,7 +1900,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     if (facing.yawDeg !== lastFacing?.yawDeg || facing.tiltDeg !== lastFacing?.tiltDeg) { lastFacing = facing; onFacing(facing.yawDeg, facing.tiltDeg); }
     renderer.render(threeScene, gl.shownCamera);
     if (pov?.hidden) pov.hidden.visible = true;
-    drawLabels(ctx, labels, size, ratio, data, options, palette, { zoom: pov ? pov.labelZoom : shown.zoom, floor, skipId: pov?.hidden ? povTarget.id : null });
+    drawLabels(ctx, labels, size, ratio, data, options, palette, { zoom: pov ? pov.labelZoom : shown.zoom, floor, skipId: pov?.hidden ? povTarget.id : null, noLocator: Boolean(pov) && PERSPECTIVE_VIEWS.has(viewMode) });
 
     drawn++;
     const ms = (win.performance?.now() ?? 0) - started;
@@ -2033,7 +2033,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     return { x: c.x - f.x * acrossFt, y: c.y - f.y * acrossFt, z: Math.max(c.z - f.z * acrossFt, floor + FREE_MIN_AGL_FT), yawDeg: wrapDeg(finite(cam.yawDeg)), elevDeg, track: false };
   }
 
-  function drawLabels(ctx, labelCanvas, size, ratio, data, options, palette, { zoom = 20, floor = 0, skipId = null } = {}) {
+  function drawLabels(ctx, labelCanvas, size, ratio, data, options, palette, { zoom = 20, floor = 0, skipId = null, noLocator = false } = {}) {
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.clearRect(0, 0, size.width, size.height);
     const levels = conflictLevels(data.conflicts ?? []);
@@ -2096,7 +2096,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       const colour = aircraftColor(ac);
       // The locator circle: round the selected aircraft only (Patrick, 4 Oct: "the default to be no circles anywhere,
       // and when you click an aircraft THAT aircraft has a green circle").
-      if (ac.id === (data.selectedAircraftId ?? null)) {
+      // Not in Cockpit, Chase or Padlock, where the aircraft are drawn true size (Patrick, 6 Oct 06:33Z; TR-93).
+      if (!noLocator && ac.id === (data.selectedAircraftId ?? null)) {
         ctx.beginPath();
         ctx.arc(p.x, p.y, planeRadiusPx, 0, Math.PI * 2);
         ctx.lineWidth = LOCATOR_PX + 2;

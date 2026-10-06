@@ -418,11 +418,11 @@ function createSouthApron(THREE, floor) {
 }
 
 /**
- * How far the runway slabs stand above the field floor, ft: a drawing choice (Patrick, 5 Oct 02:38Z: "raised runway
- * graphics"), not a real height. Aircraft on the runway are drawn on the slab top (view3d.js).
+ * How far above the field floor aircraft on the runway are drawn, ft. The raised runway slabs (Patrick, 5 Oct 02:38Z)
+ * went (Patrick, 6 Oct 06:41Z: "get rid of the 3d printed runways"; TR-93): the photo's own runways show, and
+ * aircraft roll on the photo.
  */
-export const RUNWAY_TOP_FT = 3;
-const RUNWAY_SLAB_DEPTH_FT = 6; // top to bottom; the bottom sits under the photo (floor - 2)
+export const RUNWAY_TOP_FT = 0;
 
 /** The two runways as their measured ends and widths (airfield.js). */
 export const CYMJ_RUNWAYS = Object.freeze([
@@ -430,30 +430,6 @@ export const CYMJ_RUNWAYS = Object.freeze([
   Object.freeze({ id: 'runway-29R', a: THRESHOLD_29R, b: DEPARTURE_END_29R, widthFt: RUNWAY_WIDTH_FT['29R'] }),
   Object.freeze({ id: 'runway-03', a: RUNWAY_03, b: RUNWAY_21, widthFt: RUNWAY_WIDTH_FT['03'] }),
 ]);
-
-/**
- * Raised runway slabs: concrete side walls standing RUNWAY_TOP_FT proud of the photo, and a faint see-through top so the
- * photo's own runway paint (numbers, piano keys, centreline) shows through.
- */
-function createRunwaySlabs(THREE, floor) {
-  const group = new THREE.Group();
-  group.name = 'runway-slabs';
-  const wallMat = new THREE.MeshStandardMaterial({ color: '#b9bec3', roughness: 0.85, metalness: 0.05 });
-  const topMat = new THREE.MeshBasicMaterial({ color: '#d4d8dc', transparent: true, opacity: 0.12, depthWrite: false });
-  for (const rw of CYMJ_RUNWAYS) {
-    const len = Math.hypot(rw.b.x - rw.a.x, rw.b.y - rw.a.y);
-    const geo = new THREE.BoxGeometry(len, rw.widthFt, RUNWAY_SLAB_DEPTH_FT);
-    geo.translate(0, 0, RUNWAY_TOP_FT - RUNWAY_SLAB_DEPTH_FT / 2);
-    // Box faces: +x, -x, +y, -y (the walls), +z (top), -z (bottom, never seen).
-    const mesh = new THREE.Mesh(geo, [wallMat, wallMat, wallMat, wallMat, topMat, wallMat]);
-    mesh.name = rw.id;
-    mesh.userData = { type: 'runway', ...rw };
-    mesh.position.set((rw.a.x + rw.b.x) / 2, (rw.a.y + rw.b.y) / 2, floor);
-    mesh.rotation.z = Math.atan2(rw.b.y - rw.a.y, rw.b.x - rw.a.x);
-    group.add(mesh);
-  }
-  return group;
-}
 
 /**
  * The airfield radar mid-field: a white radome on a lattice-grey mast with its equipment hut, placed off Esri's
@@ -901,8 +877,6 @@ export function createAirfieldScenery(THREE, { floor = DEFAULT_FLOOR_FT, anchor 
   const apron = createSouthApron(THREE, floor);
   root.add(apron);
 
-  const runways = createRunwaySlabs(THREE, floor);
-  root.add(runways);
   root.add(createRadarDome(THREE, floor));
 
   const tower = createControlTower(THREE, floor, kit);

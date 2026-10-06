@@ -51,7 +51,7 @@ export const DEFAULTS = Object.freeze({
   layerLabels: true,
   layerPoints: false,
   layerBubbles: false,
-  layerCautionRings: true,
+  layerCautionRings: false, // off by default (Patrick, 6 Oct 06:33Z; TR-93)
   layerHeightLines: true, // in Clean Operational for the 3D view (Patrick, 4 Oct)
   layerPhoto: true,
   layerWindTrack: true,
