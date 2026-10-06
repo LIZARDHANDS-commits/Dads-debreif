@@ -541,7 +541,16 @@ function mount(root, app) {
   });
 
   // Setup changes start again from t = 0 (spec section 4), 2-ship or 4-ship too. A spacing outside the SMM band is flown and flagged.
+  // The 4-ship's Delayed 45 check turn is read only when a Delayed 45 is planned, so ticking it doesn't start again
+  // (Patrick, 6 Oct: "this should not reset the environment"); every other Setup change still does.
+  let setupWas = { ...setup.get() };
   const stopSetup = setup.subscribe((values) => {
+    const changed = Object.keys(values).filter((k) => values[k] !== setupWas[k]);
+    setupWas = { ...values };
+    if (changed.length && changed.every((k) => k === 'check45')) {
+      formation.setOptions({ check45: values.check45 });
+      return;
+    }
     ui.setShips(values.ships, fourShipLine());
     ui.setFixTools(values.errSmart !== false);
     ui.setSide(values.wingSide);

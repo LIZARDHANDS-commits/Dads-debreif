@@ -437,6 +437,10 @@ export function createFormation(options = {}) {
       opts = { ...opts, ...next };
       build();
     },
+    /** Changes options read only when a manoeuvre is planned (the 4-ship check turn), without starting again. */
+    setOptions(next = {}) {
+      opts = { ...opts, ...next };
+    },
     /**
      * A button press. Flown at once when nothing is being flown; a turn button while #2 is changing formation (2-ship) is
      * flown at once too, the change planned again around it (turnMidChange); otherwise queued and flown the moment the
