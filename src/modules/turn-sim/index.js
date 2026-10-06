@@ -333,7 +333,7 @@ function mount(root, app) {
       tags: dataTags,
       leadLinks,
       placeBox: () => changeUi.placeBox(),
-      onPick: (x, y) => changeUi.pickAt(x, y),
+      onPick: (x, y, at) => changeUi.pickAt(x, y, at),
       rejoin: () => {
         if (!state.current?.change?.rejoining || state.aircraft.length !== 2) return null;
         const r = rejoinReadout(state.aircraft[0], state.aircraft[1]);
@@ -359,7 +359,7 @@ function mount(root, app) {
       leadLinks,
       // The band's box and Change position's click, in 3D as in 2D (Patrick, 6 Oct: no yellow box in 3D).
       placeBox: () => changeUi.placeBox(),
-      onPick: (x, y) => changeUi.pickAt(x, y),
+      onPick: (x, y, at) => changeUi.pickAt(x, y, at),
       look: camLook,
       focus: () => {
         if (freeCamera()) return null; // the 3D view keeps its own centre, moved by shift-drag or right-drag

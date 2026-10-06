@@ -457,7 +457,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
 
   /** A click while Change position is picking: where it meets the level of Lead's height, in world feet, to the picker. */
   function pickAt(clientX, clientY) {
-    if (!gl || !source.placeBox?.()?.picking || !source.onPick) return;
+    if (!gl || !source.placeBox?.() || !source.onPick) return; // a box is showing: a click inside picks it up, or places #2 (TS-121)
     const lead = source.state().aircraft.find((a) => a.id === 1);
     if (!lead) return;
     const rect = canvas.getBoundingClientRect();
@@ -465,7 +465,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     const ray = new THREE.Raycaster();
     ray.setFromCamera(ndc, gl.camera);
     const hit = new THREE.Vector3();
-    if (ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), -aircraftPose(lead).z), hit)) source.onPick(hit.x, hit.y);
+    if (ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), -aircraftPose(lead).z), hit)) source.onPick(hit.x, hit.y, { x: clientX, y: clientY });
   }
 
   /** Each aircraft's path still to fly, dashed in its colour (the 2D view's planned paths; Patrick, 5 Oct: in 3D too). */

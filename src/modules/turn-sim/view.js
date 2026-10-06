@@ -172,10 +172,10 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
     const p = press;
     press = null;
     if (!p || e.pointerId !== p.id || Math.hypot(e.clientX - p.x, e.clientY - p.y) >= CLICK_PX) return;
-    if (!source.placeBox?.()?.picking || !source.onPick) return;
+    if (!source.placeBox?.() || !source.onPick) return; // a box is showing: a click inside picks it up, or places #2 (TS-121)
     const rect = canvas.getBoundingClientRect();
     const [x, y] = map.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-    source.onPick(x, y);
+    source.onPick(x, y, { x: e.clientX, y: e.clientY });
   };
   canvas.addEventListener('pointerdown', onDown);
   canvas.addEventListener('pointerup', onUp);

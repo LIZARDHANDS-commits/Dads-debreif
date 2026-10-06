@@ -816,3 +816,21 @@
 /* FORMATION and MANOEUVRES centred, a little more room above MANOEUVRES (Patrick, 5 Oct). */
 [data-module='turn-sim'] .ts-controls .ts-section-bar { justify-content: center; }
 [data-module='turn-sim'] .ts-controls .ts-change + .ts-section-bar { margin-top: var(--space-5); }
+
+/* The height slider that floats next to the pointer while #2's spot is being picked (TS-121). */
+[data-module='turn-sim'] .ts-float-height {
+  position: fixed;
+  z-index: 30;
+  width: 216px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--surface, #1c2430);
+  border: 1px solid #ffd23f;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+[data-module='turn-sim'] .ts-float-height input[type='range'] {
+  width: 100%;
+}
+[data-module='turn-sim'] .ts-float-height[hidden] {
+  display: none;
+}

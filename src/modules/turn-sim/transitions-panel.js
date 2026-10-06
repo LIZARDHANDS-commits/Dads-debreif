@@ -10,7 +10,7 @@ import { rejoinReadout } from './live/judge.js';
 import { REJOIN, TURNING_REJOIN, G_RULE_BANK_DEG, KIAS_OUTSIDE_LAB, RATE_CHOICES, RATE_WORDS, CLOSE_IN_SEC, REJOIN_CLOSURE_KT, setRates, ratesNow } from './live/tuning.js';
 import { slowWord } from './live/slow-down.js';
 import { FORMATIONS, FOUR_FORMATIONS, fourWords } from './live/slots.js';
-import { MOVE_IN_BAND_KEY, MOVE_IN_BAND_FORMATIONS, PLACE_BOX_FORMATIONS, PLACE_HEIGHT, placeNow, nearestInBox } from './live/move-in-band.js';
+import { MOVE_IN_BAND_KEY, MOVE_IN_BAND_FORMATIONS, PLACE_BOX_FORMATIONS, PLACE_HEIGHT, placeNow, nearestInBox, placeBoxOutline } from './live/move-in-band.js';
 
 /** The main buttons, in screen order. Fluid manoeuvring starts from fighting wing only (spec section 10.3, TS-57). */
 export const CHANGE_BUTTONS = Object.freeze([
@@ -171,6 +171,17 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   // (live/move-in-band.js), Lead straight. Cancel leaves #2 where he is. The next move plans from where he is. 2-ship only.
   let stateNow = null;
   let pick = null; // null, or picking: { place: null | { fwd, left }, atEdge, alt } in Lead's frame
+  /** True when `p` (Lead's frame) is inside the band's box outline (live/move-in-band.js placeBoxOutline). */
+  const insideBox = (key, side, p) => {
+    const poly = placeBoxOutline(key, side);
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const a = poly[i];
+      const b = poly[j];
+      if (a.left > p.left !== b.left > p.left && p.fwd < ((b.fwd - a.fwd) * (p.left - a.left)) / (b.left - a.left) + a.fwd) inside = !inside;
+    }
+    return inside;
+  };
   const pickChanged = () => handlers.pickChanged?.();
   const placeLine = h('p', { class: 'ts-hint ts-position-now', role: 'status' });
   const heightWords = (alt) => (Math.abs(alt) < 1 ? 'level with Lead' : `${Math.round(Math.abs(alt)).toLocaleString('en-CA')} ft ${alt < 0 ? 'below' : 'above'} Lead`);
@@ -178,12 +189,27 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     type: 'button',
     class: 'button',
     onclick: () => {
-      if (!whereNow || !PLACE_BOX_FORMATIONS.includes(whereNow.key)) return;
-      pick = { place: null, atEdge: false, alt: PLACE_HEIGHT[whereNow.key].startFt };
-      showPick();
-      pickChanged();
+      const r = changeButton.getBoundingClientRect();
+      startPick(false, { x: r.right + 12, y: r.top });
     },
   }, 'Change position');
+  /**
+   * Starts picking, from the Change position button or (TS-121) from a click on the box. `fromArea` picking places #2 and
+   * flies it at the next click inside the box, and a click outside or Escape cancels; the button's way keeps its Go and
+   * Cancel. `at` is where the floating height slider appears (client pixels).
+   */
+  function startPick(fromArea, at) {
+    if (pick || !whereNow || !PLACE_BOX_FORMATIONS.includes(whereNow.key)) return false;
+    pick = { place: null, atEdge: false, alt: PLACE_HEIGHT[whereNow.key].startFt, fromArea, at };
+    document.addEventListener('keydown', onPickKey);
+    showPick();
+    pickChanged();
+    return true;
+  }
+  function onPickKey(e) {
+    if (!element.isConnected) document.removeEventListener('keydown', onPickKey);
+    else if (e.key === 'Escape') cancelPick();
+  }
   const pickHint = h('p', { class: 'ts-hint', role: 'status' });
   const heightLabel = h('span', { class: 'ts-hint' });
   const heightSlider = h('input', {
@@ -196,28 +222,43 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     },
   });
   const heightField = h('label', { class: 'ts-field', hidden: true }, heightLabel, heightSlider);
+  // The same height control, floating next to the pointer while picking (TS-121); both sliders set pick.alt.
+  const floatLabel = h('span', { class: 'ts-hint' });
+  const floatSlider = h('input', {
+    type: 'range',
+    'aria-label': 'Height off Lead',
+    oninput: () => {
+      if (!pick) return;
+      pick.alt = Number(floatSlider.value);
+      showPick();
+    },
+  });
+  const floatHeight = h('div', { class: 'ts-float-height', role: 'group', 'aria-label': 'Height off Lead', hidden: true }, floatLabel, floatSlider);
   const goButton = h('button', {
     type: 'button',
     class: 'button',
     disabled: true,
-    onclick: () => {
-      if (!pick?.place || !whereNow || !PLACE_BOX_FORMATIONS.includes(whereNow.key)) return;
-      const target = { fwd: pick.place.fwd, left: pick.place.left, alt: pick.alt };
-      const formation = whereNow.key;
-      const wingSide = boxSide();
-      pick = null;
-      showPick();
-      pickChanged();
-      onChange(MOVE_IN_BAND_KEY, { target, formation, side: wingSide });
-    },
+    onclick: () => commitPick(),
   }, 'Go');
+  /** Flies the picked spot as a move in the band (Go's code path; a click on the box uses it too, TS-121). */
+  function commitPick() {
+    if (!pick?.place || !whereNow || !PLACE_BOX_FORMATIONS.includes(whereNow.key)) return;
+    const target = { fwd: pick.place.fwd, left: pick.place.left, alt: pick.alt };
+    const formation = whereNow.key;
+    const wingSide = boxSide();
+    endPick();
+    onChange(MOVE_IN_BAND_KEY, { target, formation, side: wingSide });
+  }
+  function endPick() {
+    pick = null;
+    document.removeEventListener('keydown', onPickKey);
+    showPick();
+    pickChanged();
+  }
   const cancelButton = h('button', { type: 'button', class: 'button', onclick: () => cancelPick() }, 'Cancel');
   const pickRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Go or cancel', hidden: true }, goButton, cancelButton);
   function cancelPick() {
-    if (!pick) return;
-    pick = null;
-    showPick();
-    pickChanged();
+    if (pick) endPick();
   }
   /** #2's side for the box: the judge's, else the side he is on (+1 left, -1 right). */
   function boxSide() {
@@ -228,8 +269,9 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   function showPick() {
     const key = whereNow?.key;
     changeButton.hidden = !!pick || !PLACE_BOX_FORMATIONS.includes(key);
-    pickRow.hidden = !pick;
-    heightField.hidden = !pick?.place;
+    pickRow.hidden = !pick || pick.fromArea;
+    heightField.hidden = !pick?.place || pick.fromArea; // a click-started pick has its slider at the pointer
+    floatHeight.hidden = !pick;
     goButton.disabled = !pick?.place;
     if (!pick) {
       pickHint.textContent = PLACE_BOX_FORMATIONS.includes(key) ? '' : 'No box in the close formations: their band is ±5 ft.';
@@ -237,16 +279,24 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       return;
     }
     pickHint.hidden = false;
+    const h0 = PLACE_HEIGHT[key];
+    for (const sl of [heightSlider, floatSlider]) {
+      sl.min = String(-h0.maxFt);
+      sl.max = String(h0.maxFt);
+      sl.step = String(h0.stepFt);
+      if (sl.value !== String(pick.alt)) sl.value = String(pick.alt);
+    }
+    heightLabel.textContent = `Height: ${heightWords(pick.alt)} (${h0.maxFt.toLocaleString('en-CA')} ft below to ${h0.maxFt.toLocaleString('en-CA')} ft above)`;
+    floatLabel.textContent = `Height: ${heightWords(pick.alt)}`;
+    floatHeight.hidden = false;
+    if (pick.at) {
+      floatHeight.style.left = `${Math.max(4, Math.min(pick.at.x + 14, window.innerWidth - 230))}px`;
+      floatHeight.style.top = `${Math.max(4, Math.min(pick.at.y + 14, window.innerHeight - 70))}px`;
+    }
     if (!pick.place) {
-      pickHint.textContent = 'Click a spot in the yellow box on the picture.';
+      pickHint.textContent = pick.fromArea ? 'Click where #2 goes, inside the yellow box. Set the height at the pointer. Escape or a click outside cancels.' : 'Click a spot in the yellow box on the picture.';
       return;
     }
-    const h0 = PLACE_HEIGHT[key];
-    heightSlider.min = String(-h0.maxFt);
-    heightSlider.max = String(h0.maxFt);
-    heightSlider.step = String(h0.stepFt);
-    if (heightSlider.value !== String(pick.alt)) heightSlider.value = String(pick.alt);
-    heightLabel.textContent = `Height: ${heightWords(pick.alt)} (${h0.maxFt.toLocaleString('en-CA')} ft below to ${h0.maxFt.toLocaleString('en-CA')} ft above)`;
     pickHint.textContent = `${placeWords(key, { ...pick.place, alt: pick.alt }).replace('#2:', 'Spot:')}${pick.atEdge ? '. Your click was outside the band: moved to its nearest edge' : ''}. Click again to move it, or Go.`;
   }
   const positionGroup = h('div', { class: 'ts-change-group ts-position', hidden: true },
@@ -297,6 +347,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     rejoinRow,
     positionGroup,
     refusal,
+    floatHeight,
     fluidUi?.element ?? null,
     fluidUi?.lagElement ?? null, // "#2": the lag roll, in its own small group
   );
@@ -326,16 +377,28 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       return { key: whereNow.key, side: boxSide(), picking: !!pick, spot: pick?.place ?? null };
     },
     /** A click on the picture at (xFt, yFt) while picking: the spot in Lead's frame, moved to the box's nearest edge if outside. */
-    pickAt(xFt, yFt) {
-      if (!pick || !stateNow || !whereNow || !PLACE_BOX_FORMATIONS.includes(whereNow.key)) return false;
+    pickAt(xFt, yFt, at) {
+      if (!stateNow || !whereNow || !PLACE_BOX_FORMATIONS.includes(whereNow.key) || positionGroup.hidden) return false;
       const lead = stateNow.aircraft[0];
       const dx = xFt - lead.xFt;
       const dy = yFt - lead.yFt;
       const c = Math.cos(lead.headingRad);
       const sn = Math.sin(lead.headingRad);
-      const near = nearestInBox(whereNow.key, boxSide(), { fwd: dx * c + dy * sn, left: -dx * sn + dy * c });
+      const here = { fwd: dx * c + dy * sn, left: -dx * sn + dy * c };
+      // Not picking yet: a click inside the box picks it up (yellow), flat areas going live when clicked (TS-121).
+      if (!pick) return insideBox(whereNow.key, boxSide(), here) && startPick(true, at);
+      if (pick.fromArea && !insideBox(whereNow.key, boxSide(), here)) {
+        cancelPick(); // a click outside cancels a click-started pick
+        return true;
+      }
+      const near = nearestInBox(whereNow.key, boxSide(), here);
       pick.place = { fwd: near.fwd, left: near.left };
       pick.atEdge = near.atEdge;
+      if (at) pick.at = at;
+      if (pick.fromArea) {
+        commitPick(); // the same code as Go
+        return true;
+      }
       showPick();
       pickChanged();
       return true;
