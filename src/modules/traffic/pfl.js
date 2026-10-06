@@ -167,7 +167,7 @@ export function glideFootprint(a, windFromDeg = 360, windKt = 0) {
   const alt = Number.isFinite(a?.alt) ? /** @type {number} */ (a.alt) : FIELD_ELEV_FT;
   const altDiff = Math.max(0, alt - FIELD_ELEV_FT) * heightFactor(alt); // true height: further on a hot day (TR-77)
   const cfgIndex = Math.max(0, PFL_CONFIG_LABELS.indexOf(a?.config ?? ''));
-  const rGlide = altDiff * glideRatio(PFL_CONFIGS[cfgIndex]);
+  const rGlide = altDiff * flownGlideRatio(cfgIndex, alt);
   const kias = cfgIndex > 0 ? PFL.glideGearKias : PFL.glideCleanKias;
   const tasFtps = iasToTasKt(kias, (alt + FIELD_ELEV_FT) / 2) * FT_PER_NM / 3600;
   const tGlide = rGlide / tasFtps;
@@ -447,6 +447,9 @@ function directPathFrom(geo, from, aimAlongFt, gearAtJoin) {
 
 function glideKias(cfg) { return cfg > 0 ? PFL.glideGearKias : PFL.glideCleanKias; }
 
+/** Glide ratio through the air at a configuration's PFL glide speed, from the drag it flies with (gear down raised to the SMM's orbit, TR-109). */
+function flownGlideRatio(cfg, altFt) { return 1 / glideDragPerWeight(PFL_CONFIGS[cfg], glideKias(cfg), altFt, 1); }
+
 /**
  * Height needed, altimeter ft, to fly the path from `pos` (on segment `seg`) to the
  * touchdown point: each piece's air distance (ground distance × TAS ÷ ground
@@ -562,7 +565,7 @@ export function chooseJoin(geo, from, availFt, trackDeg, wind, { allowHighKey = 
       const pick = { turn: score(path), turnDeg: path.turnDeg ?? 0, th, path };
       // A high join still has to put it on the runway: room before Final Key to widen and stage the drag, or the
       // excess with all the drag out (at the landing-flap glide) still lands in the first third.
-      const longFt = (hAtJoin - most - ground) * glideRatio('landing');
+      const longFt = (hAtJoin - most - ground) * flownGlideRatio(3, ground);
       const landable = th <= PFL.highJoinRoomDeg || geo.aimAlongFt + longFt <= geo.lenFt / 3;
       if (hAtJoin - most - ground <= 0) { if (!best || pick.turn < best.turn - 1e-6) best = pick; }
       else if (landable && (!bestHigh || pick.turn < bestHigh.turn - 1e-6)) bestHigh = pick;
@@ -955,8 +958,10 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
         } else if (s.alt > PFL.highKeyMinFt) {
           if (lapPath && cfg < 1) { cfg = 1; notes.push('gear early: an orbit would end below the High Key window'); }
           // Carry on down the runway until half the excess is gone, turn, and lose the other half coming back (SMM 13.7 para 16, Fig 13.4).
-          const excess = s.alt - PFL.highKeyMinFt;
-          const d = Math.max(0, excess / 2 * heightFactor(s.alt) * glideRatio(PFL_CONFIGS[Math.max(cfg, 1)]));
+          // The excess is over the height the circle needs from High Key (gear down), or the window's bottom if that is higher.
+          const hkProfile = ground + neededFt([{ x: geo.th.x, y: geo.th.y, plan: 1 }, ...arcToAim(geo, PFL.joinStepDeg)], 0, geo.th, s.alt, 1, wind, false, 'aim', 2);
+          const excess = Math.max(0, s.alt - Math.max(PFL.highKeyMinFt, hkProfile));
+          const d = Math.max(0, excess / 2 * heightFactor(s.alt) * flownGlideRatio(Math.max(cfg, 1), s.alt));
           const off = { x: geo.u.x * d, y: geo.u.y * d };
           const fhk = { x: geo.th.x + off.x, y: geo.th.y + off.y };
           const semi = [];
