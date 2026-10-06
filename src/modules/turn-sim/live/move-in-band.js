@@ -1,6 +1,7 @@
 // Move #2 anywhere in the band (Patrick 5 Oct 23:54Z; refactor PR 3 piece; decision TS-98): when #2 is in position, the
-// Position control (transitions-panel.js) nudges him forward or back, out or in, up or down, to the edge of the band or
-// of the envelope, and the sim flies it as a move: the tracker takes him to that spot, Lead flying straight. Every move
+// Position control (transitions-panel.js) moves him to a spot in the band, and the sim flies it as a move: the tracker
+// takes him to that spot, Lead flying straight. Since V2.108 the spot is clicked in the band's box on the picture and its
+// height set on a slider (TS-104, Patrick 6 Oct 02:14Z, wording confirmed 02:54Z); the box and the click's nearest edge are here. Every move
 // after it plans from where he is (chooser.js "from here", TS-94) and the judge says IN POSITION anywhere in the band,
 // so "in position" is the band, not where he started (Patrick: "the 'in position' doesn't have to be 'exactly where it
 // started'"). The band is the judge's (judge.js, TS-80): this file asks the judge, it keeps no second copy of the numbers.
@@ -9,7 +10,9 @@
 import { relativeTo } from './manoeuvres.js';
 import { recordFlight, speedSeg, CHANGE_LIMIT_SEC } from './transitions.js';
 import { judge, classify } from './judge.js';
-import { FORMATIONS } from './slots.js';
+import { FORMATIONS, FW_BAND } from './slots.js';
+import { IN_POSITION } from './bands.js';
+import { SWEEP_MAX_DEG } from './judge.js';
 import { KIAS_LAB, KIAS_OUTSIDE_LAB } from './tuning.js';
 import { onClosure } from './hand-over.js';
 import { trackTwice, phase } from './tracker.js';
@@ -21,18 +24,68 @@ export const MOVE_IN_BAND_KEY = 'moveInBand';
 /** The formations the control works in (2-ship). Fluid has its own flying. */
 export const MOVE_IN_BAND_FORMATIONS = Object.freeze(['fw', 'lab', 'echelon', 'route', 'astern']);
 
+/** The formations with a click-to-place box (TS-104): the tactical bands. Echelon, route and line astern have none (their band is ±5 ft). */
+export const PLACE_BOX_FORMATIONS = Object.freeze(['fw', 'lab']);
+
 /**
- * One tap's step per formation, in feet, forward or back, out or in, up or down. Estimates picked for the hand: a few
- * taps cross the band (fighting wing's cone is 500 ft deep and 30° wide, line abreast's 2,000 ft wide and ±2,000 ft
- * high, the close bands ±5 ft).
+ * The height slider for each box (TS-104, Patrick 6 Oct 02:54Z): the band's height either side of Lead (fighting wing
+ * ±200 ft, line abreast ±2,000 ft, IN_POSITION, TS-80) and where it starts (fighting wing 60 ft low, line abreast level).
+ * stepFt is the slider's step, an estimate for the hand.
  */
-export const MOVE_STEP_FT = Object.freeze({
-  fw: Object.freeze({ fwd: 50, out: 50, up: 50 }),
-  lab: Object.freeze({ fwd: 100, out: 250, up: 200 }),
-  echelon: Object.freeze({ fwd: 5, out: 5, up: 5 }),
-  route: Object.freeze({ fwd: 5, out: 5, up: 5 }),
-  astern: Object.freeze({ fwd: 5, out: 5, up: 5 }),
+export const PLACE_HEIGHT = Object.freeze({
+  fw: Object.freeze({ maxFt: IN_POSITION.fwStackFt, startFt: -60, stepFt: 10 }),
+  lab: Object.freeze({ maxFt: IN_POSITION.labStackFt, startFt: 0, stepFt: 100 }),
 });
+
+const DEG = Math.PI / 180;
+
+/**
+ * The box's outline in Lead's frame, on #2's side (side +1 left, -1 right): [{ fwd, left }]. Fighting wing: the cone,
+ * 500-1,000 ft from Lead, 30-60° back from his 3/9 line (SMM 12.29 para 69; FW_BAND). Line abreast: 4,000-6,000 ft out,
+ * 0-10° back (SMM 16.18 para 49; IN_POSITION.labBandFt, SWEEP_MAX_DEG).
+ */
+export function placeBoxOutline(key, side, steps = 12) {
+  const s = side >= 0 ? 1 : -1;
+  if (key === 'fw') {
+    const [rMin, rMax] = FW_BAND.rangeFt;
+    const [dMin, dMax] = FW_BAND.sweepDeg;
+    const at = (r, d) => ({ fwd: -r * Math.sin(d * DEG), left: s * r * Math.cos(d * DEG) });
+    const out = [];
+    for (let i = 0; i <= steps; i++) out.push(at(rMax, dMin + ((dMax - dMin) * i) / steps));
+    for (let i = steps; i >= 0; i--) out.push(at(rMin, dMin + ((dMax - dMin) * i) / steps));
+    return out;
+  }
+  if (key === 'lab') {
+    const [aMin, aMax] = IN_POSITION.labBandFt;
+    const t = Math.tan(SWEEP_MAX_DEG * DEG);
+    return [{ fwd: 0, left: s * aMin }, { fwd: 0, left: s * aMax }, { fwd: -aMax * t, left: s * aMax }, { fwd: -aMin * t, left: s * aMin }];
+  }
+  return [];
+}
+
+/**
+ * The nearest spot in the box to a clicked spot `p` ({ fwd, left } in Lead's frame), on #2's side: { fwd, left, atEdge }.
+ * atEdge says the click was outside the box and was moved to its nearest edge (TS-104: "the card says so").
+ */
+export function nearestInBox(key, side, p) {
+  const s = side >= 0 ? 1 : -1;
+  const across = s * p.left;
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  let place = { fwd: p.fwd, left: p.left };
+  if (key === 'fw') {
+    const [rMin, rMax] = FW_BAND.rangeFt;
+    const [dMin, dMax] = FW_BAND.sweepDeg;
+    const r = clamp(Math.hypot(p.fwd, p.left), rMin, rMax);
+    const d = clamp(Math.atan2(-p.fwd, across) / DEG, dMin, dMax);
+    place = { fwd: -r * Math.sin(d * DEG), left: s * r * Math.cos(d * DEG) };
+  } else if (key === 'lab') {
+    const [aMin, aMax] = IN_POSITION.labBandFt;
+    const a = clamp(across, aMin, aMax);
+    place = { fwd: clamp(p.fwd, -a * Math.tan(SWEEP_MAX_DEG * DEG), 0), left: s * a };
+  }
+  const atEdge = Math.hypot(place.fwd - p.fwd, place.left - p.left) > 0.5;
+  return { ...place, atEdge };
+}
 
 /** A height-only nudge climbs or descends at about this rate (feet per second; 1,000 ft/min, an estimate for the hand: brisk, not a zoom). */
 export const MOVE_ALT_RATE_FTPS = 1000 / 60;
@@ -108,7 +161,9 @@ export function planMoveInBand(pair, target, options = {}, t0 = 0) {
   // differs): the leg is held open for it, so the profile has the seconds it needs.
   const altSec = Math.abs(target.alt - now.alt) / MOVE_ALT_RATE_FTPS;
   const phases = onClosure([phase({ fwd: target.fwd, left: target.left, alt: target.alt }, altSec > 0 ? { altSec, holdUntil: t0 + altSec } : {})], { closeIn: true });
-  const { run, profile } = trackTwice({ refs: { [lead.id]: recordFlight(lead, leadPlan, t0) }, wing0: wing, t0, phases, blockFt, stopWhenSettled: true });
+  // The run goes on past settled to match Lead's speed and heading (the tracker's align), so #2 holds the spot afterwards;
+  // until V2.108 it stopped at settled and drifted on at up to a couple of feet a second (seen in the V2.108 dry run).
+  const { run, profile } = trackTwice({ refs: { [lead.id]: recordFlight(lead, leadPlan, t0) }, wing0: wing, t0, phases, blockFt, stopWhenSettled: false });
   const judged = judge([run.end.lead, run.end.wing], { key, side }, { spacingFt });
   if (!run.ok || !run.points?.length || run.durationSec > CHANGE_LIMIT_SEC) return { ok: false, reason: 'No safe move to that spot: it does not settle.' };
 

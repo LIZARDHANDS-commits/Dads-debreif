@@ -10,7 +10,7 @@ import { rejoinReadout } from './live/judge.js';
 import { REJOIN, KIAS_OUTSIDE_LAB, RATE_CHOICES, RATE_WORDS, CLOSE_IN_SEC, REJOIN_CLOSURE_KT, setRates, ratesNow } from './live/tuning.js';
 import { slowWord } from './live/slow-down.js';
 import { FORMATIONS, FOUR_FORMATIONS, fourWords } from './live/slots.js';
-import { MOVE_IN_BAND_KEY, MOVE_IN_BAND_FORMATIONS, MOVE_STEP_FT, placeNow, clampToBand } from './live/move-in-band.js';
+import { MOVE_IN_BAND_KEY, MOVE_IN_BAND_FORMATIONS, PLACE_BOX_FORMATIONS, PLACE_HEIGHT, placeNow, nearestInBox } from './live/move-in-band.js';
 
 /** The main buttons, in screen order. Fluid manoeuvring starts from fighting wing only (spec section 10.3, TS-57). */
 export const CHANGE_BUTTONS = Object.freeze([
@@ -163,64 +163,97 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   }
   const handlers = {};
 
-  // Position (TS-98; Patrick 5 Oct 23:54Z, 23:56Z, 6 Oct 00:04Z): #2's place against Lead, and buttons that move him inside the band of
-  // the formation he is in (live/move-in-band.js). Each tap is a move the sim flies; taps stop at the band's edge and say so;
-  // the next move plans from where he is. Shown in fighting wing, line abreast, echelon, route and line astern, 2-ship.
+  // Position (TS-98, TS-104; Patrick 5 Oct 23:54Z, 6 Oct 02:14Z, wording confirmed 02:54Z): #2's place against Lead, and in
+  // fighting wing and line abreast "Change position": the band's box on the picture turns yellow, a click picks the spot
+  // (a click outside goes to the nearest edge), a slider sets the height in the band, and Go flies it as a move in the band
+  // (live/move-in-band.js), Lead straight. Cancel leaves #2 where he is. The next move plans from where he is. 2-ship only.
   let stateNow = null;
-  let target = null; // where the taps have asked for, in Lead's frame, while a move in the band is flown
-  let edgeUntil = -Infinity; // the "at the band's edge" word shows until this formation time
+  let pick = null; // null, or picking: { place: null | { fwd, left }, atEdge, alt } in Lead's frame
+  const pickChanged = () => handlers.pickChanged?.();
   const placeLine = h('p', { class: 'ts-hint ts-position-now', role: 'status' });
-  const tap = (axis, sign) => {
-    if (!stateNow || !whereNow || !MOVE_IN_BAND_FORMATIONS.includes(whereNow.key)) return;
-    const [lead, wing] = stateNow.aircraft;
-    const key = whereNow.key;
-    const from = target ?? placeNow(lead, wing);
-    const step = MOVE_STEP_FT[key][axis] * sign;
-    const want = { ...from };
-    if (axis === 'fwd') want.fwd += step;
-    else if (axis === 'out') want.left += Math.sign(from.left || whereNow.side || -1) * step; // out: away from Lead on #2's side
-    else want.alt += step;
-    const c = clampToBand(lead, wing, key, whereNow.side, from, want, stateNow.spacingFt);
-    const moved = Math.hypot(c.place.fwd - from.fwd, c.place.left - from.left, c.place.alt - from.alt) > 0.5;
-    target = c.place;
-    edgeUntil = c.atEdge ? stateNow.tSec + 4 : -Infinity;
-    if (moved || !c.atEdge) onChange(MOVE_IN_BAND_KEY, { target, formation: key, side: key === 'astern' ? 0 : whereNow.side });
-    return moved;
-  };
-  // Tap and hold (Patrick 6 Oct 00:04Z): a tap is one step; holding takes another step every HOLD_REPEAT_MS (an estimate for
-  // the hand) until the button is let go or #2 is at the band's edge. Each step re-plans at once from where #2 is.
-  const HOLD_REPEAT_MS = 250;
-  let holdTimer = null;
-  const stopHold = () => {
-    if (holdTimer !== null) clearInterval(holdTimer);
-    holdTimer = null;
-  };
-  const holdButton = (axis, sign, words) => h('button', {
+  const heightWords = (alt) => (Math.abs(alt) < 1 ? 'level with Lead' : `${Math.round(Math.abs(alt)).toLocaleString('en-CA')} ft ${alt < 0 ? 'below' : 'above'} Lead`);
+  const changeButton = h('button', {
     type: 'button',
-    class: 'button ts-side-button',
-    onpointerdown: (e) => {
-      e.preventDefault();
-      stopHold();
-      if (tap(axis, sign)) holdTimer = setInterval(() => { if (!tap(axis, sign)) stopHold(); }, HOLD_REPEAT_MS);
+    class: 'button',
+    onclick: () => {
+      if (!whereNow || !PLACE_BOX_FORMATIONS.includes(whereNow.key)) return;
+      pick = { place: null, atEdge: false, alt: PLACE_HEIGHT[whereNow.key].startFt };
+      showPick();
+      pickChanged();
     },
-    onpointerup: stopHold,
-    onpointerleave: stopHold,
-    onpointercancel: stopHold,
-    onclick: (e) => { if (e.detail === 0) tap(axis, sign); }, // Enter or Space: one step (a pointer's step was taken on pointerdown)
-  }, words);
-  const POSITION_ROWS = Object.freeze([
-    { axis: 'fwd', minus: 'Aft', plus: 'Fore' },
-    { axis: 'out', minus: 'In', plus: 'Out' },
-    { axis: 'up', minus: 'Down', plus: 'Up' },
-  ]);
-  const positionRows = POSITION_ROWS.map((r) => h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': `${r.minus} or ${r.plus}`, dataset: { axis: r.axis } },
-    holdButton(r.axis, -1, r.minus),
-    holdButton(r.axis, 1, r.plus)));
+  }, 'Change position');
+  const pickHint = h('p', { class: 'ts-hint', role: 'status' });
+  const heightLabel = h('span', { class: 'ts-hint' });
+  const heightSlider = h('input', {
+    type: 'range',
+    'aria-label': 'Height off Lead',
+    oninput: () => {
+      if (!pick) return;
+      pick.alt = Number(heightSlider.value);
+      showPick();
+    },
+  });
+  const heightField = h('label', { class: 'ts-field', hidden: true }, heightLabel, heightSlider);
+  const goButton = h('button', {
+    type: 'button',
+    class: 'button',
+    disabled: true,
+    onclick: () => {
+      if (!pick?.place || !whereNow || !PLACE_BOX_FORMATIONS.includes(whereNow.key)) return;
+      const target = { fwd: pick.place.fwd, left: pick.place.left, alt: pick.alt };
+      const formation = whereNow.key;
+      const wingSide = boxSide();
+      pick = null;
+      showPick();
+      pickChanged();
+      onChange(MOVE_IN_BAND_KEY, { target, formation, side: wingSide });
+    },
+  }, 'Go');
+  const cancelButton = h('button', { type: 'button', class: 'button', onclick: () => cancelPick() }, 'Cancel');
+  const pickRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Go or cancel', hidden: true }, goButton, cancelButton);
+  function cancelPick() {
+    if (!pick) return;
+    pick = null;
+    showPick();
+    pickChanged();
+  }
+  /** #2's side for the box: the judge's, else the side he is on (+1 left, -1 right). */
+  function boxSide() {
+    if (whereNow?.side) return whereNow.side;
+    const [lead, wing] = stateNow?.aircraft ?? [];
+    return lead && wing ? Math.sign(placeNow(lead, wing).left) || -1 : -1;
+  }
+  function showPick() {
+    const key = whereNow?.key;
+    changeButton.hidden = !!pick || !PLACE_BOX_FORMATIONS.includes(key);
+    pickRow.hidden = !pick;
+    heightField.hidden = !pick?.place;
+    goButton.disabled = !pick?.place;
+    if (!pick) {
+      pickHint.textContent = PLACE_BOX_FORMATIONS.includes(key) ? '' : 'No box in the close formations: their band is ±5 ft.';
+      pickHint.hidden = !pickHint.textContent;
+      return;
+    }
+    pickHint.hidden = false;
+    if (!pick.place) {
+      pickHint.textContent = 'Click a spot in the yellow box on the picture.';
+      return;
+    }
+    const h0 = PLACE_HEIGHT[key];
+    heightSlider.min = String(-h0.maxFt);
+    heightSlider.max = String(h0.maxFt);
+    heightSlider.step = String(h0.stepFt);
+    if (heightSlider.value !== String(pick.alt)) heightSlider.value = String(pick.alt);
+    heightLabel.textContent = `Height: ${heightWords(pick.alt)} (${h0.maxFt.toLocaleString('en-CA')} ft below to ${h0.maxFt.toLocaleString('en-CA')} ft above)`;
+    pickHint.textContent = `${placeWords(key, { ...pick.place, alt: pick.alt }).replace('#2:', 'Spot:')}${pick.atEdge ? '. Your click was outside the band: moved to its nearest edge' : ''}. Click again to move it, or Go.`;
+  }
   const positionGroup = h('div', { class: 'ts-change-group ts-position', hidden: true },
     h('h4', { class: 'ts-change-subtitle' }, 'Position'),
     placeLine,
-    positionRows,
-    h('p', { class: 'ts-hint' }, 'Moves #2 inside the band; the next move starts from there.'));
+    changeButton,
+    pickHint,
+    heightField,
+    pickRow);
 
   const refusal = h('p', { class: 'ts-warning', role: 'status', hidden: true });
   const rejoinSelect = h('select', { 'aria-label': 'Rejoin kind', onchange: () => setRejoin(rejoinSelect.value) },
@@ -280,12 +313,40 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     /** The rejoin choice and its note, for the Settings box. */
     rejoinSettings,
     onSideChanged: (fn) => (handlers.sideChanged = fn),
+    /** Called when Change position starts, a spot is picked, or it ends (the picture redraws the box). */
+    onPickChanged: (fn) => (handlers.pickChanged = fn),
+    /**
+     * The band's box for the picture (TS-104), or null: { key, side, picking, spot } with spot { fwd, left } in Lead's
+     * frame. Blue whenever #2 is in fighting wing or line abreast (2-ship), yellow while Change position is picking.
+     */
+    placeBox() {
+      if (four || !stateNow || stateNow.aircraft.length !== 2 || !whereNow || !PLACE_BOX_FORMATIONS.includes(whereNow.key)) return null;
+      return { key: whereNow.key, side: boxSide(), picking: !!pick, spot: pick?.place ?? null };
+    },
+    /** A click on the picture at (xFt, yFt) while picking: the spot in Lead's frame, moved to the box's nearest edge if outside. */
+    pickAt(xFt, yFt) {
+      if (!pick || !stateNow || !whereNow || !PLACE_BOX_FORMATIONS.includes(whereNow.key)) return false;
+      const lead = stateNow.aircraft[0];
+      const dx = xFt - lead.xFt;
+      const dy = yFt - lead.yFt;
+      const c = Math.cos(lead.headingRad);
+      const sn = Math.sin(lead.headingRad);
+      const near = nearestInBox(whereNow.key, boxSide(), { fwd: dx * c + dy * sn, left: -dx * sn + dy * c });
+      pick.place = { fwd: near.fwd, left: near.left };
+      pick.atEdge = near.atEdge;
+      showPick();
+      pickChanged();
+      return true;
+    },
     values: () => ({ side, rejoin }),
     /** 2-ship or 4-ship: shows that formation's buttons and words. */
     setShips(ships) {
       four = ships === 4;
       pairGrid.hidden = four;
-      if (four) positionGroup.hidden = true; // the pair's only (move-in-band.js)
+      if (four) {
+        positionGroup.hidden = true; // the pair's only (move-in-band.js)
+        cancelPick();
+      }
       fourGrid.hidden = !four;
       hint.textContent = four ? FOUR_HINT : PAIR_HINT;
       if (fluidUi) fluidUi.element.hidden = true; // the pair's shows in fluid manoeuvring and fighting wing only (update); the four's is a later piece
@@ -317,19 +378,17 @@ export function createChangeUi({ onChange, fluidUi = null }) {
         return;
       }
       fluidUi?.update(state, where);
-      // Position: only in a formation it works in, with nothing else flying (or the move in the band itself, so taps add up).
+      // Position: only in a formation it works in, with nothing else flying (or a move in the band, so a new spot can be picked).
       stateNow = state;
-      const nudging = state.current?.key === `change:${MOVE_IN_BAND_KEY}`;
-      const showPosition = MOVE_IN_BAND_FORMATIONS.includes(where.key) && !where.manoeuvring && (!state.current || nudging);
+      const moving = state.current?.key === `change:${MOVE_IN_BAND_KEY}`;
+      const showPosition = MOVE_IN_BAND_FORMATIONS.includes(where.key) && !where.manoeuvring && (!state.current || moving);
       positionGroup.hidden = !showPosition;
-      if (!showPosition) stopHold();
-      if (!nudging) target = null; // once he is there, the next taps start from where he is
+      if (!showPosition || !PLACE_BOX_FORMATIONS.includes(where.key)) cancelPick();
       if (showPosition) {
         const [lead, wing] = state.aircraft;
-        const words = `${placeWords(where.key, placeNow(lead, wing))}${state.tSec < edgeUntil ? ": at the band's edge" : ''}`;
+        const words = placeWords(where.key, placeNow(lead, wing));
         if (placeLine.textContent !== words) placeLine.textContent = words;
-        // No Up or Down in the close formations: a 5 ft step is under the tracker's least height change (move-in-band.js).
-        for (const row of positionRows) row.hidden = row.dataset.axis === 'up' && ['echelon', 'route', 'astern'].includes(where.key);
+        showPick();
       }
       // Only what the formation the pair is in can use shows (Patrick, 5 Oct, fly-through item 6): the fluid manoeuvring
       // buttons while it runs; in fighting wing Lead's level turns, climbs and descents (TS-70); the lag roll in its own "#2"
@@ -392,6 +451,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
         if (how.length) rejoinBlock.append(h('li', { class: 'tone-caution' }, `#2: ${how.join('; ')}`));
       }
       const flags = where.key === 'fluid' ? [] : [...changeFlags(state, where), ...stretchedFlags(state)]; // fluid has its own flags (fluid-panel.js)
+      if (!four && pick?.atEdge) flags.push("Change position: your click was outside the band, so #2's spot is moved to its nearest edge.");
       flagList.hidden = flags.length === 0;
       for (const f of flags) flagList.append(h('li', { class: 'tone-caution' }, f));
       fluidUi?.renderCard(state);

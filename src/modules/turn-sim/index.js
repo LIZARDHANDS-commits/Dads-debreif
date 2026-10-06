@@ -316,6 +316,8 @@ function mount(root, app) {
       follow,
       planned: shownPlan,
       tags: dataTags,
+      placeBox: () => changeUi.placeBox(),
+      onPick: (x, y) => changeUi.pickAt(x, y),
       rejoin: () => {
         if (!state.current?.change?.rejoining || state.aircraft.length !== 2) return null;
         const r = rejoinReadout(state.aircraft[0], state.aircraft[1]);
@@ -523,6 +525,10 @@ function mount(root, app) {
 
   ui.onPress(press);
   changeUi.onSideChanged(renderCard);
+  changeUi.onPickChanged(() => {
+    renderCard();
+    redraw();
+  });
   ui.onPlayPause(() => (playing ? pause() : play()));
   ui.onResetRun(resetRun);
   ui.onFit(fitNow);

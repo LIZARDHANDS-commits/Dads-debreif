@@ -24,7 +24,7 @@ Pictures: `turn-sim-review/first-version/screen-mockup.png` in the project files
 **Top bar.** Play/Pause, Reset, playback speed (0.25× to 4×), time, Fit (comes back to the Auto zoom picture after a drag), 2D/3D, and the Camera, Layers and Data tag menus.
 
 **Left column, three boxes** (Patrick, 5 Oct; V2.26, TS-89):
-- **Controls** (open). A FORMATION bar and a MANOEUVRES bar (V2.44). Under FORMATION, the Change formation buttons in two groups, three to a row: Tactical (line abreast, fighting wing, Fluid; the four's Spread 4, Fluid 4, offset box) and Close formation (echelon, route, line astern; the four's finger, box), with the formation flown now lit (V2.41, V2.44). Then the Station switch (Keep, Left, Right, V2.45, V2.48) and, when the formation allows it, the Position group (section 11). Under MANOEUVRES, one line per manoeuvre with small L and R (shackle and cross turn side by side), Lead's fighting wing moves, the Lag roll (#2) group, and the fluid buttons. The 4-ship's "Delayed 45 with the check turn" tick is here too.
+- **Controls** (open). A FORMATION bar and a MANOEUVRES bar (V2.44). Under FORMATION, the Change formation buttons in two groups, three to a row: Tactical (line abreast, fighting wing, Fluid; the four's Spread 4, Fluid 4, offset box) and Close formation (echelon, route, line astern; the four's finger, box), with the formation flown now lit (V2.41, V2.44). Then the Station switch (Keep, Left, Right, V2.45, V2.48) and, when the formation allows it, the Change position button (section 11). Under MANOEUVRES, one line per manoeuvre with small L and R (shackle and cross turn side by side), Lead's fighting wing moves, the Lag roll (#2) group, and the fluid buttons. The 4-ship's "Delayed 45 with the check turn" tick is here too.
 - **Scenario** (closed). 2-ship or 4-ship, Spacing, "#2 on Lead's" Right or Left, and the training errors (section 10).
 - **Settings** (closed). Fighting wing spacing and sweep, the fluid settings, Rejoin kind, Rates, Track length, and the fixed line.
 
@@ -304,10 +304,15 @@ Nothing is clipped or snapped: every fix is a flown path with smooth hand-overs.
 
 Patrick 5 Oct 23:54Z: "when an aircraft is 'in the slot' its current 'position relative to lead' is on the screen, and I can move that position around ... to the edge of the envelope ... the simulator treats that as a move, the wingman moves to that position, and then it flies from there ... the 'in position' doesn't have to be 'exactly where it started'". Written by Fable (`turn-sim-review/move-in-band/`); `live/move-in-band.js`, `transitions-panel.js`.
 
-- **The Position group** (left panel, under the formation controls; 2-ship; in fighting wing, line abreast, echelon, route and line astern; Patrick 23:56Z) shows #2's place against Lead and moves him Aft or Fore, In or Out, Down or Up (6 Oct 00:04Z words). A tap is one step and holding keeps him moving (00:04Z). Each step is a move the tracker flies at the close-in closure with Lead straight, re-planned at once from where he is.
-- **He stops at the band's edge** (the judge's band, TS-80) and the panel says so. Fighting wing's Up and Down cover the whole cone (±200 ft); the close formations have no Up or Down (a 5 ft step is under the tracker's least height change).
+- **Click to place #2** (TS-104, V2.108; Patrick 6 Oct 02:14Z, wording confirmed 02:54Z):
+  1. The band shows as a translucent box. Fighting wing: the cone, 500-1,000 ft from Lead, 30-60° back from his 3/9 line (SMM 12.29 para 69). Line abreast: 4,000-6,000 ft out, 0-10° back (SMM 16.18 para 49). Blue whenever #2 is in that formation.
+  2. "Change position" turns the box yellow. Click a spot in it. A click outside goes to the nearest edge, and the card says so.
+  3. A height slider then shows that spot's lowest and highest heights in the band (FW ±200 ft, LAB ±2,000 ft). It starts 60 ft low in FW and level in LAB.
+  4. Go: #2 flies there as a move in the band, Lead straight, and the box turns blue again. Cancel leaves him where he is.
+  5. It replaces the Fore/Aft, Out/In and Up/Down buttons. Echelon, route and line astern have no box (their band is ±5 ft).
+- **The move** is one tracker phase flown at the close-in closure with Lead straight (2-ship only), and he stops at the band's edge (the judge's band, TS-80).
 - **The next move plans from where he is** (TS-94). In line abreast the next turn treats his offset from the 5,000 ft picture as where he starts: Smart wingman fixes it on that turn or carries it, as for a set error (section 10).
-- **Not a physics change:** it is one tracker phase; the move holds its plan to the end (no event re-plans, section 12). Step sizes, the 250 ms hold repeat and the 1,000 ft/min height rate are estimates.
+- **Not a physics change:** it is one tracker phase; the move holds its plan to the end (no event re-plans, section 12). The 1,000 ft/min height rate is an estimate.
 
 ## 12. Events: when a plan is made again
 
@@ -408,7 +413,7 @@ Every number the planners use has its source beside it in the code, in three fil
 - Saved screen choices from the plan-mode screen are not read (the layout's version changed); the defaults are used. A layout saved by an earlier Formation Sim build keeps every choice except the ones that build changed.
 - No outside data is used, so there are no stale-data cases. A bad error amount is treated as the default (section 10).
 - A press with no safe plan: nothing changes and the card says why in one line (sections 6.3 and 14). A planning search is bounded (a press plans in under about 5 s on a desktop, most in 1 s).
-- A manoeuvre that cannot be flown from where the pair is (fluid outside fighting wing, the lag roll with Lead banked, a reversal from wings level, a Position step at the band's edge) is refused with its reason and nothing moves.
+- A manoeuvre that cannot be flown from where the pair is (fluid outside fighting wing, the lag roll with Lead banked, a reversal from wings level, a place outside the band (moved to its edge)) is refused with its reason and nothing moves.
 - A wingman that cannot settle is flown on until he does (close turns: up to 30 s after Lead rolls out); the tracker is the fallback for starts no line rule covers.
 - Limits are flagged, never walls (section 4); physical limits (the stall line, the stick shaker, the aircraft's roll) always hold.
 
