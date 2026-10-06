@@ -180,6 +180,122 @@ export function readyToTurnOnto(line, s, trackDeg, radiusFt, groundSpeedFtps, li
   return closing && Math.abs(crossFt) <= lead + 1;
 }
 
+/** A planned turn onto a line ends once the track is within this of the line's and the wings are this level (estimates). */
+const CAPTURE_DONE_DEG = 0.3;
+const CAPTURE_LEVEL_DEG = 2;
+/** Longest a planned turn is looked ahead, seconds. */
+const CAPTURE_MOST_SEC = 60;
+
+/** Heading change, degrees (signed as the bank), while the wings roll level from bank `bankDeg` and roll rate `rollRateDps`. */
+const rollOutMemo = new Map();
+function rollOutTurnDeg(bankDeg, rollRateDps, tasFtps) {
+  // The same few states come back every step of a steady turn: kept, to the nearest 0.1° of bank, 1°/s and 1 ft/s.
+  const key = `${Math.round(bankDeg * 10)}|${Math.round(rollRateDps)}|${Math.round(tasFtps)}`;
+  const known = rollOutMemo.get(key);
+  if (known !== undefined) return known;
+  const turned = rollOutTurnDegFresh(bankDeg, rollRateDps, tasFtps);
+  if (rollOutMemo.size > 20000) rollOutMemo.clear();
+  rollOutMemo.set(key, turned);
+  return turned;
+}
+function rollOutTurnDegFresh(bankDeg, rollRateDps, tasFtps) {
+  let bank = bankDeg, rate = rollRateDps, turned = 0;
+  for (let n = 0; n < 100 && (Math.abs(bank) > 0.05 || Math.abs(rate) > 0.5); n++) {
+    const r = easeRoll(bank, rate, 0, DT, ROLL);
+    turned += turnRateFromBankRadPerSec(Math.max(tasFtps, 1), (bank + r.bankDeg) / 2) * 180 / Math.PI * DT;
+    bank = r.bankDeg;
+    rate = r.rollRateDps;
+  }
+  return turned;
+}
+
+/**
+ * The bank for a planned turn to `wantedHdg` (TR-95): the whole turn at `bankMax`, then the roll-out started just when
+ * the heading still to go is what rolling level will turn, so the wings come level on the heading; once level, small
+ * corrections as bankFor makes. `s.rollingOut` remembers that the roll-out has begun, so it is never rolled back in.
+ */
+export function plannedBank(wantedHdg, s, bankMax, dir = 'left') {
+  let err = wrapDeg180(wantedHdg - s.hdg);
+  if (dir === 'left' && err > 30) err -= 360;
+  if (dir === 'right' && err < -30) err += 360;
+  const tas = ktToFtps(iasToTasKt(s.ias, s.alt));
+  if (!s.rollingOut && Math.abs(err) > 2) {
+    // Rolling level from 60° turns some 10-15°: far from the heading there is nothing to work out yet.
+    if (Math.abs(err) > 30) return Math.sign(err) * bankMax;
+    // Plus half a step of today's turn, so the roll-out starts on whichever step is nearer the exact moment.
+    const lead = rollOutTurnDeg(s.bank, s.rollRate, tas) + turnRateFromBankRadPerSec(Math.max(tas, 1), s.bank) * 180 / Math.PI * DT / 2;
+    if (Math.sign(lead) === Math.sign(err) && Math.abs(err) <= Math.abs(lead)) s.rollingOut = true;
+    else return Math.sign(err) * bankMax;
+  }
+  if (s.rollingOut && Math.abs(s.bank) > CAPTURE_LEVEL_DEG) return 0;
+  s.rollingOut = true;
+  return bankFor(wantedHdg, s, Math.min(bankMax, 15), dir);
+}
+
+/**
+ * Plans a turn onto `line` (Patrick, 6 Oct 06:45Z, card "Plan the turns"; TR-95): flies the turn ahead of time from
+ * the pilot's state `s` (place, heading, bank, roll rate, speed, height) in `wind`, rolling in at the roll rate to
+ * `bankMax` toward the line's track and out again as bankFor does, and returns how far off the line it would roll out,
+ * ft, signed as legOffsetsFt's crossFt (Infinity if it never settles). The circuit starts each turn when this crosses
+ * zero, so the roll-out ends on the line on its track with no S-turn back.
+ */
+export function plannedTurnEndCrossFt(line, s, wind, bankMax, dir = 'left', straightFirst = 0) {
+  // A light copy of the pilot: level, at today's true airspeed, no points recorded.
+  const g = { x: s.x, y: s.y, hdg: s.hdg, bank: s.bank, rollRate: s.rollRate, ias: s.ias, alt: s.alt, rollingOut: false };
+  const tasKt = iasToTasKt(s.ias, s.alt);
+  const v = ktToFtps(tasKt);
+  const w = windVectorFtps(wind.windFromDeg, wind.windKt);
+  const wt = windTriangle(line.trackDeg, tasKt, wind.windFromDeg, wind.windKt);
+  const wantHdg = wt.canHoldTrack ? wt.headingDeg : line.trackDeg;
+  const steps = Math.round(CAPTURE_MOST_SEC / DT);
+  for (let n = 0; n < steps; n++) {
+    const bank = n < straightFirst ? s.bank : plannedBank(wantHdg, g, bankMax, dir);
+    const roll = easeRoll(g.bank, g.rollRate, bank, DT, ROLL);
+    g.bank = roll.bankDeg;
+    g.rollRate = roll.rollRateDps;
+    g.hdg = wrapDeg360(g.hdg + turnRateFromBankRadPerSec(Math.max(v, 1), g.bank) * 180 / Math.PI * DT);
+    const h = g.hdg * Math.PI / 180;
+    const gx = v * Math.sin(h) + w.x, gy = v * Math.cos(h) + w.y;
+    g.x += gx * DT;
+    g.y += gy * DT;
+    if (n >= straightFirst && Math.abs(wrapDeg180(line.trackDeg - compassDegFromVector(gx, gy))) < CAPTURE_DONE_DEG && Math.abs(g.bank) < CAPTURE_LEVEL_DEG) {
+      return legOffsetsFt(line.a, line.b, g).crossFt;
+    }
+  }
+  return Infinity;
+}
+
+/** When each line's turn is next worth planning (timeToTurnOnto), by the pilot's step count. */
+const planWaits = new WeakMap();
+/** The longest wait between looks, steps (2 s): the closing speed changes while a turn onto the leg before it is still going. */
+const PLAN_MOST_WAIT_STEPS = 20;
+
+/**
+ * Whether to start the planned turn onto `line` now: the aircraft is closing on it inside a generous look-ahead
+ * (readyToTurnOnto's lead with some to spare, so the planning runs only near the turn), and the planned turn would roll out on the
+ * line or past it.
+ */
+export function timeToTurnOnto(line, s, wind, bankMax, trackDeg, radiusFt, groundSpeedFtps, lineGroundSpeedFtps) {
+  if (!readyToTurnOnto(line, s, trackDeg, radiusFt * 1.3, groundSpeedFtps * 1.5, lineGroundSpeedFtps * 1.5)) return false;
+  const side = Math.sign(legOffsetsFt(line.a, line.b, s).crossFt || 1);
+  // Far from the moment, the next look waits for about the steps it takes to close the gap (only the planning, not the flying).
+  const wait = planWaits.get(line);
+  if (wait && wait.k > s.k) return false;
+  // The circuit's loop has set this step's bank already, so a turn chosen now starts on the next step.
+  const endNow = plannedTurnEndCrossFt(line, s, wind, bankMax, 'left', 1);
+  if (!Number.isFinite(endNow)) return false;
+  if (endNow * side <= 0) return true;
+  const closingPerStep = groundSpeedFtps * Math.abs(Math.sin(wrapDeg180(trackDeg - line.trackDeg) * Math.PI / 180)) * DT;
+  const steps = closingPerStep > 1e-3 ? Math.min(PLAN_MOST_WAIT_STEPS, Math.floor(Math.abs(endNow) / closingPerStep) - 3) : 0;
+  if (steps > 0) {
+    planWaits.set(line, { k: s.k + steps });
+    return false;
+  }
+  // Turning one step later would roll out past the line: start now if now is the nearer of the two.
+  const endLater = plannedTurnEndCrossFt(line, s, wind, bankMax, 'left', 2);
+  return Number.isFinite(endLater) && endLater * side <= 0 && Math.abs(endNow) <= Math.abs(endLater);
+}
+
 /**
  * A simulated pilot: flies the T-6 in the air mass with the wind adding to its
  * ground velocity, and records the path. `step` takes the wanted bank and the
@@ -464,9 +580,10 @@ function flyOuter(points, centre, breakAlong, wind, goAround = null) {
     const gsOn = (line) => ktToFtps(Math.max(10, windTriangle(line.trackDeg, tasKt, wind.windFromDeg, wind.windKt).groundSpeedKt));
     // Turning onto a new line: a steady pattern-bank turn to its track, then hold the line.
     const onto = (line) => {
-      if (capturing && Math.abs(wrapDeg180(line.trackDeg - pilot.trackDeg())) < 15) capturing = false;
+      // The planned turn flies on to its roll-out, wings level on the line's track (TR-95), then holds the line.
+      if (capturing && Math.abs(wrapDeg180(line.trackDeg - pilot.trackDeg())) < CAPTURE_DONE_DEG && Math.abs(s.bank) < CAPTURE_LEVEL_DEG) capturing = false;
       return capturing
-        ? bankFor(pilot.headingFor(line.trackDeg), s, CIRCUIT.patternBankDeg, 'left')
+        ? plannedBank(pilot.headingFor(line.trackDeg), s, CIRCUIT.patternBankDeg, 'left')
         : bankFor(pilot.headingFor(trackForLine(line, s, HOLD_RADIUS_FT)), s, 30);
     };
     let climb = 0, accel = 0, bank = 0;
@@ -530,19 +647,19 @@ function flyOuter(points, centre, breakAlong, wind, goAround = null) {
     } else if (stage === 'crosswindTurn' || stage === 'crosswind') {
       bank = bankFor(pilot.headingFor(crosswindTrack), s, CIRCUIT.patternBankDeg, 'left');
       if (stage === 'crosswindTurn' && Math.abs(bank) < 3 && Math.abs(s.bank) < 3) { stage = 'crosswind'; }
-      if (readyToTurnOnto(downwind, s, pilot.trackDeg(), R, gs, gsOn(downwind))) { stage = 'downwind'; capturing = true; phase('downwind'); pilot.mark({ src: 4 }); }
+      if (timeToTurnOnto(downwind, s, wind, CIRCUIT.patternBankDeg, pilot.trackDeg(), R, gs, gsOn(downwind))) { stage = 'downwind'; capturing = true; s.rollingOut = false; phase('downwind'); pilot.mark({ src: 4 }); }
     } else if (stage === 'downwind') {
       bank = onto(downwind);
       // A go-around ends once settled on the downwind line: Pattern 1 carries on from there.
       if (goAround && !capturing && Math.abs(legOffsetsFt(downwind.a, downwind.b, s).crossFt) < 20 && Math.abs(s.bank) < 2) break;
       if (s.src < 5 && legOffsetsFt(downwind.a, downwind.b, s).alongFt >= 0) pilot.mark({ src: 5 });
-      if (readyToTurnOnto(base, s, pilot.trackDeg(), R, gs, gsOn(base))) { stage = 'base'; capturing = true; pilot.mark({ src: 6 }); }
+      if (timeToTurnOnto(base, s, wind, CIRCUIT.patternBankDeg, pilot.trackDeg(), R, gs, gsOn(base))) { stage = 'base'; capturing = true; s.rollingOut = false; pilot.mark({ src: 6 }); }
     } else if (stage === 'base') {
       bank = onto(base);
-      if (readyToTurnOnto(leg45, s, pilot.trackDeg(), R, gs, gsOn(leg45))) { stage = 'leg45'; capturing = true; phase('initial'); pilot.mark({ src: 7 }); }
+      if (timeToTurnOnto(leg45, s, wind, CIRCUIT.patternBankDeg, pilot.trackDeg(), R, gs, gsOn(leg45))) { stage = 'leg45'; capturing = true; s.rollingOut = false; phase('initial'); pilot.mark({ src: 7 }); }
     } else if (stage === 'leg45') {
       bank = onto(leg45);
-      if (readyToTurnOnto(centre, s, pilot.trackDeg(), R, gs, gsOn(centre))) { stage = 'initial'; capturing = true; pilot.mark({ src: 8 }); }
+      if (timeToTurnOnto(centre, s, wind, CIRCUIT.patternBankDeg, pilot.trackDeg(), R, gs, gsOn(centre))) { stage = 'initial'; capturing = true; s.rollingOut = false; pilot.mark({ src: 8 }); }
     } else if (stage === 'initial') {
       // The last turn onto initial: up to 60°, then hold the centreline (SMM 4.14 para 33: 45-60° as needed).
       bank = onto(centre);
