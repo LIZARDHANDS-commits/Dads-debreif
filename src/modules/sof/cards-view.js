@@ -3,8 +3,14 @@
 // comes from outside, only ever goes in as text (h() and textContent), never as HTML.
 // A card is redrawn only when what it says has changed, so a screen left open all
 // day does no work between refreshes.
+//
+// SOF-38: a card is short to begin with: its header, one METAR line, one TAF line and the result in words, with
+// "Full brief" to open everything the card used to show (the raw reports with their marked words, the limits and every
+// note). On a short window (1366 x 768) the METAR and TAF lines wait behind Full brief too, and the card is the
+// header and the result. Whether a card is open is kept for the visit, not stored.
 import { h } from '../../ui-kit/dom.js';
 import { segments } from './marks.js';
+import { tafHeadline } from './taf-line.js';
 
 // Beside the words of the result, never instead of them.
 const LEVEL_SYMBOL = { below: '▼', 'at-limit': '●', within: '✓', unknown: '?', none: '–' };
@@ -48,7 +54,33 @@ function waveResult(line) {
     line.reason ? h('span', { class: 'sof-wave-result-reason' }, `. ${line.reason}`) : null);
 }
 
-function children(card) {
+// A line's words with the marked ones in <mark>s, as text (the same marks as the full report).
+const marked = (text, marks) => segments(text, marks).map((seg) => (seg.level ? h('mark', { class: `sof-mark is-${seg.level}` }, seg.text) : seg.text));
+
+// One of the card's short lines: its label, then the report's own words in a single line (cut with "…" when long; all of
+// it is in Full brief and in the hover words).
+function shortLine(kind, label, flag, body, { tone = null, title = '' } = {}) {
+  return h('p', { class: `sof-line sof-line-${kind}${tone ? ` is-${tone}` : ''}`, title },
+    h('span', { class: 'sof-line-label' }, label),
+    flag ? h('span', { class: 'sof-line-flag' }, ` ${flag}`) : null,
+    body ? h('span', { class: 'sof-line-body' }, ' ', body) : null);
+}
+
+function metarLine(metar) {
+  const label = metar.label ?? 'METAR';
+  if (!metar.raw) return shortLine('metar', label === 'METAR' ? '' : label, null, metar.words, { tone: 'bad', title: metar.words ?? '' });
+  const stale = metar.state === 'stale' || metar.state === 'closed';
+  return shortLine('metar', label, metar.staleText, h('span', { class: `sof-line-raw${stale ? ' is-stale' : ''}` }, ...marked(metar.raw, metar.marks)), { title: metar.raw });
+}
+
+function tafLine(taf) {
+  const { text, marks, tone } = tafHeadline(taf);
+  // "TAF 1740Z", the issue time only: the valid period is in Full brief.
+  const label = taf.label ? `${taf.label.split(',')[0]}:` : 'TAF:';
+  return shortLine('taf', label, null, h('span', { class: 'sof-line-raw' }, ...marked(text, marks)), { tone, title: taf.raw ?? text });
+}
+
+function children(card, { expanded, onToggle }) {
   // The category and colour chips are the METAR's: a stale one, or one from a closed field's last observation, is grey, its words kept.
   const staleChips = card.metar?.state === 'stale' || card.metar?.state === 'closed';
   const badges = h(
@@ -62,27 +94,59 @@ function children(card) {
       ? h('span', { class: `sof-badge sof-nato${staleChips ? ' is-stale' : ''}` }, h('span', { class: 'visually-hidden' }, 'NATO colour state '), card.nato)
       : null,
   );
-  const parts = [
-    h('header', { class: 'sof-card-head' },
-      h('h2', { class: 'sof-card-title' }, h('span', { class: 'sof-icao' }, card.icao), card.name ? h('span', { class: 'sof-name' }, ` ${card.name}`) : null),
-      badges),
-    h('p', { class: 'sof-limits' }, `${card.limitsLabel}: `, h('span', {}, card.limitsText)),
-    note(card.limitsNote, 'info'),
-    report('METAR', card.metar),
-    report('TAF', card.taf),
+  const more = h('button', { type: 'button', class: 'sof-card-more', 'aria-expanded': String(expanded), onclick: onToggle }, expanded ? 'Full brief ▾' : 'Full brief ▸');
+  const result = h('div', { class: 'sof-result-row' },
     h('p', { class: `sof-result level-${card.result.level}` }, h('span', { class: 'sof-result-symbol', 'aria-hidden': 'true' }, LEVEL_SYMBOL[card.result.level] ?? ''), ' ', card.result.words),
-    // An alternate's result for the selected wave (waves-view-model.js's altLines), in words with its symbol.
-    card.waveLine ? waveResult(card.waveLine) : null,
-    ...card.cautionReasons.map((reason) => h('p', { class: 'sof-caution' }, `Caution: ${reason}`)),
-    note(card.watchText, 'info'),
-  ];
-  return parts.filter(Boolean); // replaceChildren would turn a null into the text "null"
+    more);
+  const head = h('header', { class: 'sof-card-head' },
+    h('h2', { class: 'sof-card-title' }, h('span', { class: 'sof-icao' }, card.icao), card.name ? h('span', { class: 'sof-name' }, ` ${card.name}`) : null),
+    badges);
+  // An alternate's result for the selected wave (waves-view-model.js's altLines), in words with its symbol.
+  const wave = card.waveLine ? waveResult(card.waveLine) : null;
+  if (expanded) {
+    // The result and its button come first, as in the short card, so the button stays where it was to close the card again.
+    return [
+      head,
+      result,
+      wave,
+      ...card.cautionReasons.map((reason) => h('p', { class: 'sof-caution' }, `Caution: ${reason}`)),
+      h('p', { class: 'sof-limits' }, `${card.limitsLabel}: `, h('span', {}, card.limitsText)),
+      note(card.limitsNote, 'info'),
+      report('METAR', card.metar),
+      report('TAF', card.taf),
+      note(card.watchText, 'info'),
+    ].filter(Boolean); // replaceChildren would turn a null into the text "null"
+  }
+  // Short: a caution is never left behind the button, so the first is said here (all of them are in Full brief).
+  const [firstCaution, ...otherCautions] = card.cautionReasons;
+  return [
+    head,
+    h('div', { class: 'sof-card-lines' }, metarLine(card.metar), tafLine(card.taf)),
+    result,
+    wave,
+    firstCaution ? h('p', { class: 'sof-caution' }, `Caution: ${firstCaution}${otherCautions.length ? ` (+${otherCautions.length} more in Full brief)` : ''}`) : null,
+  ].filter(Boolean);
 }
 
 /** The cards' container and its render(cards): one article per airfield, kept in order. */
 export function createCardsView() {
   const element = h('section', { class: 'sof-cards', 'aria-label': 'Airfields' });
-  const entries = new Map(); // ICAO to { article, signature }
+  const entries = new Map(); // ICAO to { article, signature, card, expanded }
+
+  function draw(entry) {
+    const { card } = entry;
+    const hadFocus = entry.article.contains(document.activeElement) && document.activeElement?.classList.contains('sof-card-more');
+    entry.article.className = `sof-card is-${card.role.toLowerCase()} level-${card.result.level}${card.metar.state === 'stale' || card.metar.state === 'closed' ? ' is-stale' : ''}${entry.expanded ? ' is-open' : ''}`;
+    entry.article.replaceChildren(...children(card, {
+      expanded: entry.expanded,
+      onToggle: () => {
+        entry.expanded = !entry.expanded;
+        draw(entry);
+      },
+    }));
+    // The button is drawn again with the card: focus goes to the new one, never to the page.
+    if (hadFocus) entry.article.querySelector('.sof-card-more')?.focus({ preventScroll: true });
+  }
 
   function render(cards) {
     const keep = new Set(cards.map((c) => c.icao));
@@ -94,15 +158,15 @@ export function createCardsView() {
     cards.forEach((card, index) => {
       let entry = entries.get(card.icao);
       if (!entry) {
-        entry = { article: h('article', { class: 'sof-card', dataset: { icao: card.icao } }), signature: null };
+        entry = { article: h('article', { class: 'sof-card', dataset: { icao: card.icao } }), signature: null, card, expanded: false };
         entries.set(card.icao, entry);
       }
       if (element.children[index] !== entry.article) element.insertBefore(entry.article, element.children[index] ?? null);
       const signature = JSON.stringify(card);
       if (signature === entry.signature) return;
       entry.signature = signature;
-      entry.article.className = `sof-card is-${card.role.toLowerCase()} level-${card.result.level}${card.metar.state === 'stale' || card.metar.state === 'closed' ? ' is-stale' : ''}`;
-      entry.article.replaceChildren(...children(card));
+      entry.card = card;
+      draw(entry);
     });
   }
 

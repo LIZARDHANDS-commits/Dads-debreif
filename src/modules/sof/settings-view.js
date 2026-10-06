@@ -1,5 +1,6 @@
 // The SOF's one settings menu (R22, Patrick's rule): every tuning number sits
-// behind it and it starts closed, so the screen shows only the essentials. This
+// behind it and it starts closed, so the screen shows only the essentials. On the one-screen SOF (SOF-38) it
+// opens from the SOF bar's "SOF settings" button, as a drop-down over the screen. This
 // only fills ui-kit's shared Settings menu with the SOF's controls; the values
 // and their defaults are in settings-model.js.
 import { h } from '../../ui-kit/dom.js';
@@ -9,12 +10,15 @@ import { TRIGGER_OPTIONS, BANNER_HINT, MAX_RELAY_CHARS, relayAccepted, withTrigg
 
 const hint = (text) => h('p', { class: 'sof-hint' }, text);
 
-/** settings: the SOF's settings (createSofSettings). Returns { element, dispose }. */
-export function createSettingsView({ settings }) {
+/**
+ * settings: the SOF's settings (createSofSettings). onToggle(collapsed): called when the menu's own header or Escape closes it.
+ * Returns { element, setOpen(open), dispose }: the menu opens from the SOF bar's button as a drop-down (layout.js).
+ */
+export function createSettingsView({ settings, onToggle }) {
   // The boxes see the numbers as typed; everything else sees them snapped (settings-model.js).
   const view = withTrigger(settings.editing);
   const controls = createControls(view);
-  const menu = createSettingsMenu({ title: 'SOF settings', onReset: () => settings.reset() });
+  const menu = createSettingsMenu({ title: 'SOF settings', onReset: () => settings.reset(), onToggle });
 
   const trigger = controls.select('trigger', { label: 'Trigger', options: TRIGGER_OPTIONS });
   // Custom is only ever what the two numbers say: it's not offered in the list, and if it is chosen anyway
@@ -60,6 +64,7 @@ export function createSettingsView({ settings }) {
 
   return {
     element: menu.element,
+    setOpen: (open) => menu.setCollapsed(!open),
     dispose() {
       relay.dispose();
       controls.dispose();

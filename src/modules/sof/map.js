@@ -52,7 +52,8 @@ const extraUrl = ({ layer, request, time }) => extraMapUrl({ layer, bbox: reques
 /**
  * app: the module's app object (scheduler, storage, time, airfields, listen). settings: createSofSettings.
  * onLightning: called when the near-home lightning caution changes (so the banner can be redrawn).
- * Returns { element, update({ snapshot, screen }), lightning(now), wake(), dispose() }.
+ * Returns { element, credits, update({ snapshot, screen }), lightning(now), wake(), dispose() }. `credits` is the line of the map's
+ * credits, for the screen's Sources note (the map keeps no height for it).
  */
 export function createSofMap({ app, settings, onLightning = () => {} }) {
   const timers = app.scheduler;
@@ -117,10 +118,10 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     h('h2', { class: 'visually-hidden' }, 'Map'),
     controls.bar,
     stage,
-    controls.status,
-    controls.legend,
+    // SOF-38: the status strip and the key are one line under the map. The map's credits are in the screen's Sources
+    // note at the bottom (layout.js), so they take no height from the map.
+    h('div', { class: 'sof-map-foot' }, controls.status, controls.legend),
     controls.note,
-    controls.credits,
   );
 
   // ---- Pictures --------------------------------------------------------------------------------------
@@ -539,6 +540,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
 
   return {
     element,
+    credits: controls.credits,
     /**
      * The screen changed (a report, the settings, the airfields, the clock). `snapshot` is the weather
      * snapshot and `screen` what buildScreen made from it. Redraws only when something the map shows differs.

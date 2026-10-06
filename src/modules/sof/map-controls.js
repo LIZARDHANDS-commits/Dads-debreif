@@ -191,6 +191,7 @@ export function createMapControls(handlers) {
     },
     /** Items: [{ id, text, symbol, tone }]. Rows are kept and only their words change. */
     setStatus(items) {
+      status.title = items.map((i) => `${i.text} ${i.symbol}`).join('. '); // one line on the screen: all of it on hover
       const wanted = new Set(items.map((i) => i.id));
       for (const [id, el] of itemEls) {
         if (!wanted.has(id)) {
