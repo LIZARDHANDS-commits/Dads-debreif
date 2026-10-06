@@ -1,7 +1,8 @@
 /* The Traffic Pattern Sim's screen (SPEC-traffic: The screen). Everything is
    scoped to the sim, so nothing here reaches another module. Colours, spacing
-   and type come from the ui-kit tokens. Three columns that never cover one
-   another (R2): Routes, the map with the playback bar above it, and Aircraft. */
+   and type come from the ui-kit tokens. Three columns: Setup, the map with the
+   playback bar, and Aircraft. On a wide screen the map fills it all and the columns sit over it (TR-R29, Patrick 6 Oct;
+   the overlay rules are at the end of this file). */
 
 [data-module='traffic'] .traffic {
   display: grid;
@@ -1239,3 +1240,91 @@
   background: color-mix(in srgb, var(--accent) 28%, var(--bg-raised));
   border-color: var(--accent-strong);
 }
+
+/* The map fills the whole screen and the menus sit over it (Patrick, 6 Oct: "the map 'always' fills the whole screen and
+   the menus just cover a part of it ... make the parts of the menus that don't have clickable buttons a bit transparent").
+   Wide screens only; below 900 px the columns still stack under the map. The columns are only as tall as what is in
+   them, so the map shows below a short one, and clicks outside the panels reach the map. Buttons, menus and the
+   aircraft rows keep their own solid backgrounds; the panels' plain parts are see-through. */
+@media (min-width: 901px) {
+  [data-module='traffic'] .traffic {
+    position: relative;
+    display: block;
+    padding: 0;
+  }
+
+  [data-module='traffic'] .traffic-stage {
+    position: absolute;
+    inset: 0;
+    gap: 0;
+  }
+
+  [data-module='traffic'] .traffic-map-wrap {
+    border: 0;
+    border-radius: 0;
+  }
+
+  [data-module='traffic'] .traffic-col {
+    position: absolute;
+    top: var(--space-3);
+    z-index: 3;
+    max-height: calc(100% - 2 * var(--space-3));
+    pointer-events: none;
+  }
+
+  [data-module='traffic'] .traffic-col-routes {
+    left: var(--space-3);
+  }
+
+  [data-module='traffic'] .traffic-col-aircraft {
+    right: var(--space-3);
+  }
+
+  [data-module='traffic'] .traffic-col > * {
+    pointer-events: auto;
+  }
+
+  [data-module='traffic'] .traffic-col .panel {
+    background: color-mix(in srgb, var(--bg-raised) 72%, transparent);
+    backdrop-filter: blur(6px);
+    box-shadow: 0 4px 14px rgb(0 0 0 / 0.35);
+  }
+
+  /* A box inside a box adds no second layer of shade. */
+  [data-module='traffic'] .traffic-col .panel .panel {
+    background: color-mix(in srgb, var(--bg-raised) 35%, transparent);
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+
+  /* The playback bar floats over the top of the map, between the two columns; it wraps where it has to. */
+  [data-module='traffic'] .traffic-bar {
+    position: absolute;
+    top: var(--space-3);
+    left: 50%;
+    z-index: 2;
+    width: max-content;
+    max-width: calc(100% - 2 * clamp(16rem, 20vw, 22rem) - 4 * var(--space-3));
+    padding: var(--space-1);
+    transform: translateX(-50%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--bg-raised) 72%, transparent);
+    backdrop-filter: blur(6px);
+  }
+
+  /* The one-line note sits at the foot of the map, quiet. */
+  [data-module='traffic'] .traffic-note {
+    position: absolute;
+    bottom: var(--space-1);
+    left: 50%;
+    z-index: 1;
+    transform: translateX(-50%);
+    padding: 0 var(--space-2);
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--bg-raised) 55%, transparent);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+}
+
