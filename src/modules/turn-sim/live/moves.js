@@ -275,7 +275,7 @@ export const FW_SWITCH = Object.freeze({
  * a climb at v ft/s costs g·v / TAS of speed). Estimates, inside IN_POSITION's ±200 ft (Patrick 21:26Z).
  */
 export const FW_ENERGY = Object.freeze({
-  coneUpFt: IN_POSITION.fwStackFt - 50, // he uses the cone's height up to this far above or below Lead, 50 ft inside the in-position band (estimate)
+  coneUpFt: IN_POSITION.fwStackFt - 25, // he uses the cone's height up to this far above or below Lead, 25 ft inside the in-position band: the top of the cone (Patrick 6 Oct 16:58Z; the margin an estimate)
   climbFtps: TURNING_REJOIN.descentFtps, // no quicker than the rejoin's height changes, 1,800 ft/min (estimate)
   pullFtps2: 8, // the climb rate changes no quicker than this, about a quarter G, charged as G (estimate)
 });
