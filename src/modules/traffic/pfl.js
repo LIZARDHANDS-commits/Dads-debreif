@@ -1143,6 +1143,19 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
         replan(re);
         notes.push(`apex: changed to ${re.label}`);
       }
+      // A pattern PFL still well high at the top of its zoom takes the gear and flaps there, as much as it needs to be
+      // no more than about 100 ft high (Patrick 6 Oct 07:47Z: "pattern PFL can take the flaps and gear at the top of their
+      // zoom if they need to").
+      if (patternPfl && plan.kind !== 'direct') {
+        const high = (d) => s.alt - ground - neededFt(path.map((p) => ({ ...p, plan: Math.max(p.plan ?? 0, d) })), seg, proj.pt, s.alt, d, wind, false, 'aim', 2);
+        if (high(cfg) > PFL.keysCarryHighFt) {
+          let d = cfg + 1;
+          while (d < 3 && high(d) > PFL.keysCarryHighFt) d += 1;
+          path = path.map((p) => ({ ...p, plan: Math.max(p.plan ?? 0, d) }));
+          plan = { ...plan, dragBefore: Math.max(plan.dragBefore ?? 0, d) };
+          notes.push(`apex: drag to ${PFL_CONFIG_LABELS[d]} at ${Math.round(s.alt)} ft`);
+        }
+      }
       setRec(plan.label);
     }
 
