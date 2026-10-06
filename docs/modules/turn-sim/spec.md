@@ -107,7 +107,7 @@ One slot table (`live/slots.js`), one classifier and one judge (`live/judge.js`)
 |---|---|---|
 | Line abreast | anywhere in the SMM's band: 4,000-6,000 ft abeam, 0-10° sweep, up to 2,000 ft above or below Lead; the spacing setting is the aim, a setting outside the band is judged within 100 ft of itself | SMM 16.18 para 49; Patrick 5 Oct 21:38Z; TS-80 |
 | Fighting wing | anywhere in the cone: 500-1,000 ft, 30-60° sweep measured back from Lead's wing line (0° abeam), up to 200 ft above or below Lead, judged only with Lead straight and level (within 5° of bank and 300 ft/min, estimate); default place 750 ft and 45° (estimate; a setting, section 8) | SMM 12.29 para 69, Fig 12.19; Patrick 5 Oct 21:26Z; TS-80 |
-| Route | 4 to 6 wingspans out on the wing-tip line, the slot 5 (about 167 ft out, 25 ft back, 5 ft low); the SMM gives 1 to 3, the manual is the reference and Patrick's practice the default. Within 5 ft of the place and 5 kt | SMM 12.6 para 15; Patrick 5 Oct 06:11Z, 21:26Z; TS-65, TS-80 |
+| Route | On the spinner-to-wingtip line, the slot 5 wingspans down it from echelon (about 163 ft out, 143 ft back, 5 ft low; TS-103, Patrick 6 Oct 02:11Z: "Route IS on the line"; until V2.107 25 ft back); the SMM gives 1 to 3, the manual is the reference and Patrick's practice the default. Within 5 ft of the place and 5 kt | SMM 12.6 para 15; Patrick 5 Oct 06:11Z, 21:26Z, 6 Oct 02:11Z; TS-65, TS-80, TS-103 |
 | Echelon | about 45 ft out, 25 ft back, 5 ft down (estimate; the manual gives sight references, not feet). Within 5 ft of the place and 5 kt (±15 ft until V2.80) | SMM 12.4 paras 11-12; Patrick 21:26Z; TS-80 |
 | Line astern | directly behind and below, about 10 ft nose to tail (43 ft centre to centre, 8 ft low; estimates). Within 5 ft of the place and 5 kt | SMM 12.5 para 13; Patrick 21:26Z; TS-80 |
 
@@ -143,7 +143,7 @@ The wording of this section was confirmed by Patrick on 4 Oct at 11:45Z ("Agreed
 - **Pressing Echelon from line abreast** flies the turning rejoin straight to echelon through the fighting wing place (SMM 16.20 para 66).
 - **Lead's part** is ordinary segments: a speed change and, in a turning rejoin, a turn into #2.
 - **#2's overtake** in a turning rejoin is 10-20 KIAS (EFIG p.374) and 20-30 KIAS straight ahead (EFIG p.371), and he stays below Lead (SMM 12.27 para 65). From TS-75 the line speeds are those in 6.3.
-- **The slots** (all estimates inside the table's bands unless sourced; `live/slots.js`): fighting wing 750 ft at 45° (a setting, section 8), the slot 60 ft below Lead when entered from a close formation (anywhere in the cone his height is his own, TS-96); route 5 wingspans (about 167 ft) out, 25 ft back, 5 ft low (Patrick 5 Oct 06:11Z, TS-65; 2 wingspans until V2.22); echelon 45 ft out, 25 ft back, 5 ft down; line astern 43 ft centre to centre (10 ft nose to tail), 8 ft low; line abreast the Spacing setting.
+- **The slots** (all estimates inside the table's bands unless sourced; `live/slots.js`): fighting wing 750 ft at 45° (a setting, section 8), the slot 60 ft below Lead when entered from a close formation (anywhere in the cone his height is his own, TS-96); route on the spinner-to-wingtip line 5 wingspans down it from echelon, about 163 ft out, 143 ft back, 5 ft low (Patrick 6 Oct 02:11Z, TS-103; 5 Oct 06:11Z, TS-65; 2 wingspans until V2.22); echelon 45 ft out, 25 ft back, 5 ft down; line astern 43 ft centre to centre (10 ft nose to tail), 8 ft low; line abreast the Spacing setting.
 
 ### 6.2 One chooser (TS-76, TS-94)
 

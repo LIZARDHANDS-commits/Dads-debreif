@@ -74,8 +74,7 @@ export const TURNING_REJOIN = Object.freeze({
  */
 export const STRAIGHT_REJOIN = Object.freeze({
   lineArriveKt: 8, // he joins the line and flows up it closing at about this, slow enough to stop on the slot with power back, never stopping short of it (estimate)
-  lineFlowFt: 40, // he flows on up the line once within this many feet of the join point, never stopping there (estimate)
-  lineJoinEchelons: 2, // into echelon he joins the spinner-to-wingtip line this many echelon distances out (90 ft), then flows up it (Patrick 6 Oct 02:01Z: "hit 'The line' ... and fluildly transition their motion up that line in to position"; the distance is an estimate)
+  lineFlowFt: 40, // he flows on up the line once within this many feet of route (on the line, TS-103), never stopping there (estimate)
   cutsDeg: [30, 45, 60], // far off Lead's six line he heads across it at up to this angle to Lead's track; the one that brings him in soonest is flown (estimates: a bigger cut gets across sooner and falls back further)
   aimsFt: [600, 1200, 2400], // how sharply he comes onto the six line: off it by this much he cuts at half the angle (estimates, as TURNING_REJOIN.aimsFt; gentler than the turning rejoin's so he doesn't swing through the six)
   lineTauSec: 2, // his heading comes onto the one the cut asks over about this long (estimate; the turning rejoin's 4 s swings him through the six)
