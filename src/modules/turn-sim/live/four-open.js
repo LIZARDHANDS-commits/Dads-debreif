@@ -8,7 +8,7 @@
 // line in front of each long leg: its replayed poses were where the 8-12 G and 80-100 G/s of these moves came from.
 import { turnSeg, wholeDegree, TURN_BANK_DEG } from './manoeuvres.js';
 import { rejoinTo, openOut, sweepOut } from './transitions.js';
-import { REJOIN, TURNING_REJOIN, FW_FOLLOW } from './tuning.js';
+import { REJOIN, TURNING_REJOIN, FW_FOLLOW, FOUR_OPEN } from './tuning.js';
 import { fwGoal } from './formation-turns.js';
 import { slotsFor } from './slots.js';
 import { legsInTurn, place, hold, toSlot, inLeadFrame, toSpeed } from './four-legs.js';
@@ -17,10 +17,10 @@ import { legsInTurn, place, hold, toSlot, inLeadFrame, toSpeed } from './four-le
 const THREE_WAITS_SEC = 10;
 
 /**
- * Opening out to a wide place: the kick-out, no cap but the G rule (Patrick 5 Oct 06:16Z item 12: "they can use unlimited
- * bank to dive away and get in position quickly"; TS-66 (4)).
+ * Opening out to a wide place: the kick-out at 60° of bank (Patrick 6 Oct 01:44Z: "keep it sporty at 60 deg"; until V2.103
+ * the G rule alone, 5 Oct 06:16Z item 12, TS-66 (4)).
  */
-const outTo = (c, slot, over = {}) => toSlot(c, openOut, slot, over);
+const outTo = (c, slot, over = {}) => toSlot(c, openOut, slot, { heldBankDeg: FOUR_OPEN.bankDeg, ...over });
 
 /** Fighting wing kept off the aircraft he flies off, anywhere in the cone (formation-turns.js fwGoal, the whole cone, TS-75), his stack held. */
 const inCone = (c, slot, side, over = {}) => ({ ...toSlot(c, sweepOut, slot), ...FW_FOLLOW, coneAlt: false, goal: (R, W) => fwGoal(R, W, side, false), ...over });

@@ -353,6 +353,15 @@ export const HOLD = Object.freeze({
  *  - nearPerSec, nearMinFtps: the line slows only over the last few hundred feet (the band is ±100 ft);
  *  - handOverFt: the tracker takes the last part at a rejoin's closure, not the close-in rate.
  */
+/**
+ * The 4-ship's opening out (four-open.js: fighting wing or finger to Spread 4, the Fluid 4 split, the offset box spread):
+ * each wingman turns away and back at this bank at most. Patrick 6 Oct 01:44Z: "nah keep it sporty at 60 deg" (it was the
+ * G rule alone, about 78° and 5 G at the press: 5 Oct 06:16Z item 12, TS-66 (4)).
+ */
+export const FOUR_OPEN = Object.freeze({
+  bankDeg: 60, // the opening-out bank, held (Patrick 6 Oct 01:44Z)
+});
+
 export const OPEN_OUT = Object.freeze({
   reserveKtps: 0.4, // #2 opens out up to the speed where full power still has this much in hand (estimate)
   gainKtPerSqrtFt: 0.45, // KIAS gained per square root of the range from Lead on the way out: full power plus the dive, about 1 KIAS per second from 200 (estimate fitted to the core T-6 curve, kept under it so the line stays inside full power)
