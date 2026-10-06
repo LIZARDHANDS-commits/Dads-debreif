@@ -12,7 +12,7 @@ import { flyOut, OPEN_OUT_HELD } from './open-out.js';
 import { onClosure, fromStep } from './hand-over.js';
 import { trackTwice } from './tracker.js';
 import { STEP_SEC } from './flight.js';
-import { REJOIN, TURNING_REJOIN, FOUR_OPEN, OPEN_OUT } from './tuning.js';
+import { REJOIN, TURNING_REJOIN, FOUR_OPEN, OPEN_OUT, WING_BANKS } from './tuning.js';
 import { slotsFor } from './slots.js';
 import { legsInTurn, place, hold, toSlot, inLeadFrame, toSpeed, inCone, FOUR_CHANGE_LIMIT_SEC } from './four-legs.js';
 
@@ -151,7 +151,7 @@ export function fluidToBox(start, t0, opts, s) {
   return legsInTurn(start, t0, opts, [
     (c) => {
       const f4 = slotsFor('fluid4', s, { ships: 4, spacingFt: c.spacingFt });
-      const turn = { bankCapDeg: 75, overtakeKias: 25, undertakeKias: 25 };
+      const turn = { bankCapDeg: WING_BANKS.kickOutBankCapDeg, overtakeKias: 25, undertakeKias: 25 }; // no bank cap moving round a station, only physics (Patrick 6 Oct 04:07Z; 75° until TS-141)
       return {
         lead: [turnSeg(wholeDegree(c.start[0].headingRad + s * Math.PI / 2), s, TURN_BANK_DEG)],
         wings: [

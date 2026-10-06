@@ -16,11 +16,11 @@
 // holds the speed at (TS-75; for the straight rejoin from TS-139, Patrick 6 Oct 21:27Z card "Same as TRJ").
 import { relativeTo, DEG } from './manoeuvres.js';
 import { CHANGE_LIMIT_SEC } from './transitions.js';
-import { KIAS_OUTSIDE_LAB, REJOIN, TURNING_REJOIN, TRACKER, CLOSURE, FW_BUBBLE, FW_ENERGY } from './tuning.js';
+import { KIAS_OUTSIDE_LAB, REJOIN, TURNING_REJOIN, TRACKER, CLOSURE, FW_BUBBLE } from './tuning.js';
 import { STEP_SEC, copyAircraft } from './flight.js';
-import { stepCommanded, setKias, climbCostKtps } from './tracker.js';
+import { climbCostKtps, createPilot, pilotSpeed, pilotFly, pilotPower, pilotJerkKtps2, coneUpFtNow } from './pilot.js';
 import { fullPowerKtps, slowKtps, stallBankDeg } from './slow-down.js';
-import { powerFor, powerFrom, throttleAtTorque } from './power.js';
+import { throttleAtTorque } from './power.js';
 import { bankDegFromTurnRate } from '../../../core/flight-math.js';
 import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2 } from '../../../core/units.js';
@@ -112,6 +112,7 @@ export function flyRejoinLine({
   let runIn = false;
   let onLine = false;
   let alongPrev = null;
+  const pilot = createPilot(W); // the one pilot model (pilot.js, TS-141)
   let accel = 0;
   let maxBank = 0;
   let ahead = false;
@@ -192,7 +193,7 @@ export function flyRejoinLine({
     // card "Zoom in the cut"; the tracker's cone energy, TS-136).
     if (lagging && placeKias != null && !zoom) zoom = { t0: t, alt: [W.altAboveFt], climb: [W.climbFtps ?? 0], nz: [1] };
     const perFtps = climbCostKtps(W, 1); // KIAS per second per ft/s of climb (standard energy, tracker.js)
-    const roomUpFt = Math.max(0, L.altAboveFt + FW_ENERGY.coneUpFt - W.altAboveFt);
+    const roomUpFt = Math.max(0, L.altAboveFt + coneUpFtNow() - W.altAboveFt); // the cone's height his experience uses (TS-141)
     const zoomFtps = zoom ? Math.min(FW_BUBBLE.diveFtps, Math.sqrt(2 * FW_BUBBLE.pullFtps2 * roomUpFt)) : 0;
     const zoomKtps = zoomFtps * perFtps;
     const leastKias = zoom && roomUpFt > 1 ? Math.min(floorKias, placeKias) : floorKias;
@@ -215,7 +216,8 @@ export function flyRejoinLine({
     const floorThr = throttleAtTorque(REJOIN.floorTorquePct, W.kias, blockFt); // the rejoin's torque floor (TS-108)
     const aStop = slowKtps(REJOIN.stopStage, W.kias, blockFt, W.g, floorThr) + climbKtps + zoomKtps;
     // The room left, less what he covers while the slowing builds up at the rate the acceleration can change (TS-75).
-    const rampFt = (closure * CLOSURE.stopShare * aStop) / G.jerkKtps2 / 2;
+    const jerk = pilotJerkKtps2(); // the one jerk limit (pilot.js)
+    const rampFt = (closure * CLOSURE.stopShare * aStop) / jerk / 2;
     const room = lagging ? placeFt : along - decisionFt;
     const needKtps = room - rampFt > 1 && closure > closeFtps ? (closure * closure - closeFtps * closeFtps) / (2 * (room - rampFt)) / (closureShare * ratio) : 0;
     const aMax = fullPowerKtps(W.kias, blockFt, W.g) - climbKtps;
@@ -232,7 +234,7 @@ export function flyRejoinLine({
         ? -Math.min(needKtps, aAll)
         : Math.max(-aAll, Math.min(aMax, G.speedLoop * Math.min(targetKias - W.kias, (closeFtps - closure) / (closureShare * ratio))));
       // ... easing off in time to stop the slowing at the close-in rate, not below it (TS-75).
-      aCmd = Math.max(aCmd, -Math.sqrt(2 * G.jerkKtps2 * Math.max(0, (closure - closeFtps) / (closureShare * ratio))));
+      aCmd = Math.max(aCmd, -Math.sqrt(2 * jerk * Math.max(0, (closure - closeFtps) / (closureShare * ratio))));
     } else {
       // Hot (ahead of the line), he gets colder with geometry, not with speed: he slows no further than his least speed, and
       // comes up to lineAtKias as he reaches the line (Patrick 17:29Z; TS-75). Off the line and cold he is at MAX with no top
@@ -246,10 +248,12 @@ export function flyRejoinLine({
       aCmd = Math.max(-aMin, Math.min(aMax, G.speedLoop * (kiasCmd - W.kias)));
     }
     // The slowing eases off in time to stop at his least speed, at the rate the acceleration can change (TS-75).
-    aCmd = Math.min(aMax, Math.max(aCmd, -Math.sqrt(2 * G.jerkKtps2 * Math.max(0, W.kias - leastKias))));
-    accel += Math.max(-G.jerkKtps2 * dt, Math.min(G.jerkKtps2 * dt, aCmd - accel));
-    const kias = W.kias + accel * dt;
-    setKias(W, kias);
+    aCmd = Math.min(aMax, Math.max(aCmd, -Math.sqrt(2 * jerk * Math.max(0, W.kias - leastKias))));
+    // The one pilot model (pilot.js, TS-141): the speed from the power at the G he pulls, at the one jerk limit; the slowing
+    // within runIn's or hot's idle and the boards, else power back to the torque floor.
+    const top = runIn || hot ? 'idleBoards' : 'power';
+    const kias = pilotSpeed(pilot, W, aCmd, { blockFt, top, floorThr, climbKtps, extraSlowKtps: zoomKtps });
+    accel = pilot.accel;
     let stepProfile = profile;
     if (zoom) {
       // The zoom's climb: the slowing he flies, as height, up to zoomFtps, eased in and out at the bubble's pull.
@@ -263,9 +267,8 @@ export function flyRejoinLine({
       zoom.nz.push(nz);
       stepProfile = [{ t0: t, t1: t + dt, table: { dt, alt: [W.altAboveFt, a1], climb: [v0, v1], nz: [nz, nz] } }];
     }
-    stepCommanded(W, bank, t, stepProfile);
-    const power = accel >= aMax * 0.985 ? powerFrom(null, 1, W.kias, blockFt) : powerFor(accel, W.kias, blockFt, W.g, W.climbFtps, runIn || hot ? 'idleBoards' : null, floorThr);
-    points.push([bank, kias, power]);
+    const flown = pilotFly(pilot, W, bank, t, stepProfile);
+    points.push([flown, kias, pilotPower(pilot, W, blockFt, t)]);
     minKias = Math.min(minKias, W.kias);
     maxG = Math.max(maxG, W.g);
     minG = Math.min(minG, W.g);

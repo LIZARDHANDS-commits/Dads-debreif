@@ -42,12 +42,13 @@ import { leadTurnInto } from './lead-turn-in.js';
 import { STEP_SEC, copyAircraft, SMOOTHER_CURVE_PEAK, smoother, smoothLegSec } from './flight.js';
 import { RATE_SETS } from './rates.js';
 import { laggedBank } from './kinematic.js';
-import { stepCommanded, setKias, trackTwice, runTracker, phase, climbCostKtps } from './tracker.js';
+import { trackTwice, runTracker, phase, climbCostKtps } from './tracker.js';
+import { createPilot, pilotSpeed, pilotFly, pilotPower, pilotStep, pilotJerkKtps2 } from './pilot.js';
 import { fwGoal } from './formation-turns.js';
 import { acrossSixLegs } from './replan.js';
 import { fullPowerKtps, slowKtps, stallBankDeg } from './slow-down.js';
 import { flyRejoinLine, fixedLine, aheadWatch, sustainedBankDeg, sustainsBank } from './rejoin-law.js';
-import { powerFor, powerFrom, throttleAtTorque } from './power.js';
+import { throttleAtTorque } from './power.js';
 import { bankDegFromTurnRate, turnRadiusFromBankFt } from '../../../core/flight-math.js';
 import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
@@ -100,7 +101,7 @@ const xArriveFtps = () => ((TURNING_REJOIN.stableKt[0] + TURNING_REJOIN.stableKt
  * para 58; card 03:33Z rule 4): the power does. Returns flyTurningLine's shape plus { bearingDeg, closureFtps, stable } where
  * he moves over, or at nearFt with stable false when he is not stable by then, or null.
  */
-export function flyOnTheX({ allowAcross = false, wing, rec, s, tauSec, bankCapDeg, farFt, nearFt, overtakeKt, floorKias, blockFt, t0, profile, lineDeg = TURNING_REJOIN.lineDeg, stopAtSec = Infinity, cutAheadFromSec = Infinity }) {
+export function flyOnTheX({ allowAcross = false, wing, rec, s, tauSec, bankCapDeg, farFt, nearFt, overtakeKt, floorKias, blockFt, t0, profile, lineDeg = TURNING_REJOIN.lineDeg, stopAtSec = Infinity, cutAheadFromSec = Infinity, accel0 = 0 }) {
   const TR = TURNING_REJOIN;
   const W = copyAircraft(wing);
   const bX = lineDeg * DEG;
@@ -110,7 +111,8 @@ export function flyOnTheX({ allowAcross = false, wing, rec, s, tauSec, bankCapDe
   // Lead's turn into #2 (REJOIN.leadBankDeg at his planned speed), for the speed of the place inside it near the end.
   const leadR = turnRadiusFromBankFt(iasToTasKt(KIAS_OUTSIDE_LAB, blockFt) * KT_TO_FTPS, REJOIN.leadBankDeg);
   const points = [];
-  let accel = 0;
+  const pilot = createPilot(W, { accelKtps: accel0 }); // the one pilot model (pilot.js, TS-141), from the acceleration he has
+  let accel = accel0;
   let maxBank = 0;
   let ahead = false;
   const watch = aheadWatch(Math.hypot(rec.at(0).xFt - W.xFt, rec.at(0).yFt - W.yFt));
@@ -184,13 +186,12 @@ export function flyOnTheX({ allowAcross = false, wing, rec, s, tauSec, bankCapDe
     const aAll = slowKtps('idleBoards', W.kias, blockFt, W.g) + climbKtps;
     let aCmd = Math.max(-aAll, Math.min(aMax, G.speedLoop * (kiasCmd - W.kias)));
     // The slowing eases off in time to stop at his least speed, at the rate the acceleration can change (TS-75).
-    aCmd = Math.min(aMax, Math.max(aCmd, -Math.sqrt(2 * G.jerkKtps2 * Math.max(0, W.kias - floorNow))));
-    accel += Math.max(-G.jerkKtps2 * dt, Math.min(G.jerkKtps2 * dt, aCmd - accel));
-    const kias = W.kias + accel * dt;
-    setKias(W, kias);
-    stepCommanded(W, bank, t, profile);
-    const power = accel >= aMax * 0.985 ? powerFrom(null, 1, W.kias, blockFt) : powerFor(accel, W.kias, blockFt, W.g, W.climbFtps, 'idleBoards', throttleAtTorque(REJOIN.floorTorquePct, W.kias, blockFt));
-    points.push([bank, kias, power]);
+    aCmd = Math.min(aMax, Math.max(aCmd, -Math.sqrt(2 * pilotJerkKtps2() * Math.max(0, W.kias - floorNow))));
+    // The one pilot model (pilot.js, TS-141): speed from the power at the G he pulls, the roll shaped, the power held.
+    const kias = pilotSpeed(pilot, W, aCmd, { blockFt, top: 'idleBoards', floorThr: throttleAtTorque(REJOIN.floorTorquePct, W.kias, blockFt), climbKtps });
+    accel = pilot.accel;
+    const flown = pilotFly(pilot, W, bank, t, profile);
+    points.push([flown, kias, pilotPower(pilot, W, blockFt, t)]);
     minKias = Math.min(minKias, W.kias);
     maxG = Math.max(maxG, W.g);
     minG = Math.min(minG, W.g);
@@ -266,7 +267,7 @@ function hardThenX(args, hardSec) {
   const W = copyAircraft(wing);
   const points = [];
   const G = TRACKER.gain;
-  let accel = 0;
+  const pilot = createPilot(W); // the one pilot model (pilot.js, TS-141)
   let maxBank = 0;
   let minKias = W.kias;
   let maxG = W.g ?? 1;
@@ -275,18 +276,14 @@ function hardThenX(args, hardSec) {
     const t = t0 + n * dt;
     const cap = Math.min(bankCapDeg, stallBankDeg(W.kias));
     const bank = -s * cap; // the way Lead turns into him
-    const aAll = slowKtps('idleBoards', W.kias, blockFt, W.g);
-    const aCmd = Math.max(-aAll, Math.min(0, G.speedLoop * (floorKias - W.kias)));
-    accel += Math.max(-G.jerkKtps2 * dt, Math.min(G.jerkKtps2 * dt, aCmd - accel));
-    const kias = W.kias + accel * dt;
-    setKias(W, kias);
-    stepCommanded(W, bank, t, profile);
-    points.push([bank, kias, powerFor(accel, W.kias, blockFt, W.g, W.climbFtps, 'idleBoards')]);
+    const p = pilotStep(pilot, W, t, { bankDeg: bank, aWant: Math.min(0, G.speedLoop * (floorKias - W.kias)), profile, blockFt, top: 'idleBoards' });
+    points.push([p.bank, p.kias, p.power]);
     maxBank = Math.max(maxBank, Math.abs(W.bankDeg));
     minKias = Math.min(minKias, W.kias);
     maxG = Math.max(maxG, W.g);
   }
-  const near = flyOnTheX({ ...args, ...laterBy(args, n0), wing: W, rec: fromStep(rec, n0), t0: t0 + n0 * dt, profile });
+  // The X law goes on from the pull's acceleration (no step in the power at the join; TS-141).
+  const near = flyOnTheX({ ...args, ...laterBy(args, n0), wing: W, rec: fromStep(rec, n0), t0: t0 + n0 * dt, profile, accel0: pilot.accel });
   if (!near) return null;
   return { ...near, points: [...points, ...near.points], steps: n0 + near.steps, maxBankDeg: Math.max(maxBank, near.maxBankDeg), minKias: Math.min(minKias, near.minKias), maxG: Math.max(maxG, near.maxG) };
 }
@@ -300,7 +297,7 @@ function farThenX(args, aimFt) {
   const far = flyTurningLine({ ...args, aimFt, decisionFt: TR.xFromFt, arriveFtps, lineAtKias: KIAS_OUTSIDE_LAB + args.overtakeKt });
   if (!far || far.ahead) return far;
   const n0 = far.steps;
-  const near = flyOnTheX({ ...args, ...laterBy(args, n0), wing: far.end, rec: fromStep(rec, n0), t0: t0 + n0 * dt, profile });
+  const near = flyOnTheX({ ...args, ...laterBy(args, n0), wing: far.end, rec: fromStep(rec, n0), t0: t0 + n0 * dt, profile, accel0: far.accelKtps });
   if (!near) return null;
   return {
     ...near,

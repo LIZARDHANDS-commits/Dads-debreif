@@ -9,30 +9,18 @@
 import { bankDegFromTurnRate } from '../../../core/flight-math.js';
 import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2 } from '../../../core/units.js';
-import { STEP_SEC, stepAircraft, copyAircraft, smoothLegSec } from './flight.js';
+import { STEP_SEC, copyAircraft, smoothLegSec } from './flight.js';
 import { relativeTo, unit } from './manoeuvres.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
-import { throttleFor, powerFrom, throttleAtTorque } from './power.js';
+import { throttleAtTorque } from './power.js';
 import { TRACKER, CLOSURE, HAND_OVER_FT, FW_ENERGY, FW_BUBBLE, REJOIN } from './tuning.js';
+import { setKias, stepCommanded, climbCostKtps, createPilot, pilotSpeed, pilotFly, pilotPower, coneUpFtNow } from './pilot.js';
+
+// The one pilot model's step (pilot.js, clean-up step 5, TS-141) is used here and re-exported for the files that read it from here.
+export { setKias, stepCommanded, climbCostKtps };
 
 /** The longest the tracker flies one plan before giving up (a guard only; the spec's limits are tighter). */
 export const PLAN_MAX_SEC = 300;
-
-/** Sets the indicated airspeed and keeps the true airspeed in proportion (the height is held, so the ratio is constant). */
-export function setKias(a, kias) {
-  const ratio = a.tasFtps / a.kias;
-  a.kias = kias;
-  a.tasFtps = kias * ratio;
-}
-
-/** One step flown at a commanded bank, by the unchanged flight.js step (a never-finishing turn segment holds the bank target). */
-export function stepCommanded(a, targetBankDeg, t, profile) {
-  const dir = targetBankDeg < 0 ? -1 : 1;
-  const segments = Math.abs(targetBankDeg) < 1e-9
-    ? []
-    : [{ kind: 'turn', toRad: a.headingRad + dir * Math.PI / 2, dir, bankDeg: Math.abs(targetBankDeg), rollOut: false }];
-  stepAircraft(a, { segments, profile }, t);
-}
 
 /** The point a phase's reference sits at, and its velocity, in the world: { px, py, vpx, vpy }. */
 function refPoint(R, Rprev, ref, world, refTurn = true) {
@@ -74,28 +62,6 @@ function closureCap(ph, L, W, ex, ey, d, blockFt, farFromFt) {
 }
 
 /**
- * The power a tracker step was flown with (power.js; the tag's MAX, PWR nn%, IDLE or IDLE+BOARDS): full power while the
- * acceleration is at full power's, part power down to the power floor, then idle, then idle and the speed brake only when
- * idle can't give the slowing wanted (Patrick 05:47Z, 05:54Z, 06:13Z; slow-down.js, TS-61). A rejoin's leg keeps its torque
- * floor (`floorThr`, 5%) and the boards, idle a last resort (Patrick 6 Oct 03:17-03:20Z, TS-108).
- */
-function powerOf(accel, aMax, W, blockFt, stage = 'power', floorThr = 0) {
-  // What the engine has to give: the speed change and the climb's cost (a climb at v ft/s costs g·v / TAS; TS-96).
-  const aEngine = accel + climbCostKtps(W, W.climbFtps ?? 0);
-  if (aEngine >= aMax * 0.985) return powerFrom(null, 1, W.kias, blockFt);
-  if (aEngine >= -slowKtps('power', W.kias, blockFt, W.g, floorThr)) return powerFrom(null, Math.max(floorThr, throttleFor(accel, W.kias, blockFt, W.g, W.climbFtps)), W.kias, blockFt);
-  // A phase slowing with power back and the speed brake (slowStage 'boards'): the boards out, power at its floor.
-  if (stage === 'boards') return powerFrom('boards', floorThr, W.kias, blockFt);
-  if (aEngine >= -slowKtps('idle', W.kias, blockFt, W.g)) return powerFrom('idle', 0, W.kias, blockFt);
-  return powerFrom('idleBoards', 0, W.kias, blockFt);
-}
-
-/** The speed a climb of climbFtps costs, KIAS per second (standard energy: g·v / TAS, in KIAS). */
-export function climbCostKtps(W, climbFtps) {
-  return (G_FTPS2 * climbFtps) / Math.max(W.tasFtps, 1) / Math.max(W.tasFtps / Math.max(W.kias, 1), 1e-6);
-}
-
-/**
  * Runs the dry run: #2 (wing0) flies the phases in turn, each a slot in the frame of the aircraft it names (`track`, a
  * key of `refs`, recorded flights). For the 2-ship: refs = { [Lead's id]: Lead's recorded flight }. profile: the
  * wingman's height profile (or undefined). A phase with `holdUntil` is not left (nor, the last one, finished) before
@@ -108,14 +74,19 @@ export function climbCostKtps(W, climbFtps) {
  * gives; the speed loop is the tracker's own (Patrick 06:24Z: test it as is first; the power technique of 06:13Z is the
  * line's, hand-over.js). Each point carries the power it was flown with ([bank, kias, power]) for the tags. Phases without
  * it fly as before (the 4-ship's, until step 3).
- * Since step 2 also: `init` ({ accelKtps }) starts the speed loop at the acceleration the aircraft already has and its
- * heading loop on its present turn, so a hand-over from a kinematic line (hand-over.js) has no step in bank or speed; and
+ * Since step 2 also: `init` ({ accelKtps }) starts the speed loop at the acceleration the aircraft already has (since
+ * step 5 every run starts its heading loop on his present turn and its roll from his bank), so a hand-over from a kinematic
+ * line (hand-over.js) has no step in bank or speed; and
  * `stopWhenSettled` ends the run once #2 has settled on the last slot, without waiting for Lead to finish his plan (the
  * first pass of a run whose Lead rolls out once #2 is in).
  * Fighting wing energy with the cone (TS-96): on a phase with `coneAlt` and `closureFtps`, #2's height is flown here, not
  * from `profile`: the speed loop's slowing is taken first as a climb and its speeding up as a descent, inside the cone's
  * height (tuning.js FW_ENERGY), so the power moves only for what the height can't give. The heights flown come back as
  * `heightLeg` (a table leg, flight.js heightAt), for trackTwice to put in the profile.
+ * Since step 5 (TS-141) every step goes through the one pilot model (pilot.js: speed from the power at the G flown, one jerk
+ * limit, power hysteresis, shaped roll), every point carries its power, and a `pursuit` may also ask for a slowing stage
+ * (`slowStage`) and, on a phase with `pursuitEnds`, end the phase (`done`) or give up the run (`abort`). The result also
+ * carries the acceleration he ends with (`accelKtps`).
  */
 export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec = PLAN_MAX_SEC, init = null, stopWhenSettled = false }) {
   const T = TRACKER;
@@ -132,9 +103,13 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
   const ref = phases[0].world
     ? { f: W.xFt - R.at(0).xFt, l: W.yFt - R.at(0).yFt, vf: 0, vl: 0 }
     : { f: rel0.fwd, l: rel0.left, vf: 0, vl: 0 };
-  let accel = init?.accelKtps ?? 0; // KIAS per second, filtered by the jerk limit
-  let psiCmdPrev = init ? null : W.headingRad; // with init, the first commanded heading is its own previous one (no feed-forward kick)
-  let omegaFf = init ? (G_FTPS2 * Math.tan((W.bankDeg * Math.PI) / 180)) / Math.max(W.tasFtps, 1) : 0;
+  // The one pilot model (pilot.js, TS-141): it starts from the aircraft as it is, its bank, roll and (init) acceleration.
+  const pilot = createPilot(W, { accelKtps: init?.accelKtps ?? 0 });
+  // Every leg starts in motion (the review's report 6.4 C, legs joined on a step; Patrick 05:29Z "stable means controlled,
+  // not stopped"): the first commanded heading is its own previous one (no feed-forward kick) and the heading loop starts
+  // on the turn he already has; until step 5 only a hand-over (init) started this way.
+  let psiCmdPrev = null;
+  let omegaFf = (G_FTPS2 * Math.tan((W.bankDeg * Math.PI) / 180)) / Math.max(W.tasFtps, 1);
   const farFromFt = HAND_OVER_FT; // beyond the hand-over range a closure phase may close faster (odd starts only)
   let maxBank = 0;
   let laneFwdFt = -Infinity; // furthest ahead of Lead's 3/9 line inside 1,000 ft (the overshoot lane)
@@ -186,6 +161,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     let kiasCmd;
     let bankOwn = null; // a bank a `pursuit` phase commands outright (fw-switch.js, TS-102), else the heading loop's
     let belowOwn = null; // a height below the aircraft flown off a `pursuit` phase asks for (the fighting wing bubble's dive, TS-134)
+    let stageOwn = null; // a slowing stage a `pursuit` phase asks for this step (echelon-to-fw.js's idle and the boards), else the phase's
     if (aligning) {
       psiCmd = L.headingRad;
       kiasCmd = L.kias;
@@ -197,7 +173,17 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       // A phase with stopFtps is a real stop: #2 must have stopped on it (relative speed under stopFtps) and held there dwellSec.
       if (ph.stopFtps && arrived && d <= ph.advanceTol && relVel <= ph.stopFtps) stoppedAt ??= t;
       const stopDone = !ph.stopFtps || (stoppedAt !== null && t - stoppedAt >= (ph.dwellSec ?? 0) - 1e-9);
-      if (arrived && !last && d <= ph.advanceTol && gateOpen && stopDone) {
+      // A phase flown by its own `pursuit` with `pursuitEnds` (a tracker recipe's held part: echelon-to-fw.js, open-out.js;
+      // TS-141) ends when its pursuit says `done` (the last phase then ends the run) and gives up the run on `abort`.
+      const early = ph.pursuit && ph.pursuitEnds ? ph.pursuit(L, W, t) : undefined;
+      if (early?.abort) break;
+      const pursuitDone = early?.done === true;
+      if (pursuitDone && last) {
+        times[k].t1 = t;
+        ok = true;
+        break;
+      }
+      if (!last && (pursuitDone || (arrived && d <= ph.advanceTol && gateOpen && stopDone))) {
         stoppedAt = null;
         times[k].t1 = t;
         k++;
@@ -237,9 +223,10 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       // A phase with `pursuit` (fw-pursuit.js, TS-100) commands its own heading and speed each step; the bank and speed loops
       // below fly it. Null hands the step back to the slot law.
       // One with keepBase asks only for a height (belowFt) and leaves the steering to the slot law.
-      const asked = ph.pursuit ? ph.pursuit(L, W, t) : null;
+      const asked = early !== undefined ? early : ph.pursuit ? ph.pursuit(L, W, t) : null;
       belowOwn = asked?.belowFt ?? null;
       const own = asked?.keepBase ? null : asked;
+      stageOwn = own?.slowStage ?? null;
       let pullX;
       let pullY;
       if (own) {
@@ -297,17 +284,14 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     // level in a step or two instead of creeping for ten seconds (the heading left is inside alignHeadingRad).
     if (aligning && ph.closureFtps && Math.abs(bank) < T.alignDeadbandDeg) bank = 0;
 
-    // Speed loop: acceleration follows the speed error, limited to what the T-6 can do (full power up, power back down:
-    // slow-down.js, TS-61) and built up by a jerk limit. The tracker keeps its own speed loop on every phase, a closure
-    // phase too (Patrick 5 Oct 06:24Z: "I think it needs a different power module.... Maybe we should test it as is first?").
-    const aMax = fullPowerKtps(W.kias, blockFt);
+    // Speed loop: acceleration follows the speed error; the one pilot model (pilot.js, TS-141) holds it to what the T-6 gives
+    // at the G he pulls (full power up, power back down: slow-down.js, TS-61) and builds it up at the one jerk limit.
     // A phase may slow with more than power back (slowStage, slow-down.js; the turning rejoin's run-in: power back and the
     // speed brake, card 03:33Z rule 4: "torque and speed brake first").
     // A rejoin's leg slows with its torque floor and the boards as needed (Patrick 6 Oct 03:17-03:20Z, TS-108).
     const rejoinLeg = ph.rejoin || ph.slowStage === 'boards';
     const floorThr = rejoinLeg ? throttleAtTorque(REJOIN.floorTorquePct, W.kias, blockFt) : 0;
-    const slowStage = ph.slowStage ?? (ph.rejoin ? 'boards' : 'power');
-    const aMin = slowKtps(slowStage, W.kias, blockFt, 1, floorThr);
+    const slowStage = stageOwn ?? ph.slowStage ?? (ph.rejoin ? 'boards' : 'power');
     // The climb he is flying costs speed and a descent gives it (standard energy, dV/dt = g (T - D) / W - g sin(climb
     // angle): climbCostKtps), so the engine's range is shifted by it: climbing at MAX he slows (Patrick 6 Oct 05:00Z: "This
     // climb is unrealistic to not lose speed on"; until V2.124 the height was flown free and only the power read showed it).
@@ -318,13 +302,11 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     // the extra speed. we can ALWAYS use the cone to soak up speed"): while there is room above, a zoom up to FW_BUBBLE's
     // climb rate slows him beyond what power back gives (standard energy, climbCostKtps); the climb itself is flown below.
     const zoomFtps = energy && belowOwn == null ? zoomRoomFtps(L, W) : 0;
-    const aCmd = Math.max(-aMin - climbKtps - (zoomFtps > 0 ? climbCostKtps(W, zoomFtps) : 0), Math.min(aMax - climbKtps, GAIN.speedLoop * (kiasCmd - W.kias)));
-    accel += Math.max(-GAIN.jerkKtps2 * STEP_SEC, Math.min(GAIN.jerkKtps2 * STEP_SEC, aCmd - accel));
-    let kias = W.kias + accel * STEP_SEC;
-    if (aligning && Math.abs(L.kias - kias) < T.kiasSnap) { // the last few thousandths of a knot, so the speed has no step
-      kias = L.kias;
-      accel = 0;
-    }
+    // Lining up, the last few thousandths of a knot are taken out at once (snapKias), so the speed has no step.
+    const kias = pilotSpeed(pilot, W, GAIN.speedLoop * (kiasCmd - W.kias), {
+      blockFt, top: slowStage, floorThr, climbKtps, extraSlowKtps: zoomFtps > 0 ? climbCostKtps(W, zoomFtps) : 0, snapKias: aligning ? L.kias : null, snapTol: T.kiasSnap,
+    });
+    const accel = pilot.accel;
     // Fighting wing energy with the cone (TS-96): the climb that gives the slowing the speed loop flies (or the descent that
     // gives its speeding up), inside the cone's height above or below Lead, eased in and out at FW_ENERGY.pullFtps2.
     let stepProfile = profile;
@@ -334,8 +316,9 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       cone ??= { t0: t, alt: [W.altAboveFt], climb: [v0], nz: [1] };
       const perFtps = climbCostKtps(W, 1);
       const want = ph.coneAlt ? -accel / perFtps : 0;
-      const up = Math.max(0, L.altAboveFt + E.coneUpFt - W.altAboveFt);
-      const down = Math.max(0, W.altAboveFt - (L.altAboveFt - E.coneUpFt));
+      const coneUpFt = coneUpFtNow(); // the share of the cone's height his experience uses (rates.js EXPERIENCE, TS-141)
+      const up = Math.max(0, L.altAboveFt + coneUpFt - W.altAboveFt);
+      const down = Math.max(0, W.altAboveFt - (L.altAboveFt - coneUpFt));
       const lo = -Math.sqrt(2 * E.pullFtps2 * down); // no rate cap, only the pull (TS-140)
       const hi = Math.sqrt(2 * E.pullFtps2 * up);
       // Outside the cone's height (a vertical rejoin's top, the bubble's dive) he comes back into it first, and the fighting
@@ -343,8 +326,8 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       // assertively (Patrick 6 Oct 15:59Z: "When the fighting wing turn ends 2 needs to assertively move back into the cone").
       // Inside the cone, the energy's climb or descent at FW_ENERGY's gentler pull (a quick dive still coming out at the bubble's pull).
       const D = FW_BUBBLE;
-      const topFt = L.altAboveFt + E.coneUpFt;
-      const bottomFt = L.altAboveFt - E.coneUpFt;
+      const topFt = L.altAboveFt + coneUpFt;
+      const bottomFt = L.altAboveFt - coneUpFt;
       const toward = (ft) => Math.max(-D.diveFtps, Math.min(D.diveFtps, (ft - W.altAboveFt) * D.altGain));
       const quick = belowOwn != null || W.altAboveFt > topFt || W.altAboveFt < bottomFt;
       // Slowing faster than the gentle climb gives, he zooms (up to zoomFtps, at the bubble's pull) toward the cone's top.
@@ -359,9 +342,9 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       cone.nz.push(nz);
       stepProfile = [{ t0: t, t1: t + STEP_SEC, table: { dt: STEP_SEC, alt: [W.altAboveFt, a1], climb: [v0, v1], nz: [nz, nz] } }];
     }
-    setKias(W, kias);
-    stepCommanded(W, bank, t, stepProfile);
-    points.push(ph.closureFtps ? [bank, kias, powerOf(accel, aMax, W, blockFt, slowStage, floorThr)] : [bank, kias]);
+    // The roll shaped and the step flown (pilot.js); the bank recorded is the one commanded, so the replay flies the same.
+    const flown = pilotFly(pilot, W, bank, t, stepProfile);
+    points.push([flown, kias, pilotPower(pilot, W, blockFt, t)]);
     m++;
     const Lafter = R.at(m);
     maxBank = Math.max(maxBank, Math.abs(W.bankDeg));
@@ -378,12 +361,12 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     }
   }
   const heightLeg = cone && { t0: cone.t0, t1: cone.t0 + (cone.alt.length - 1) * STEP_SEC, table: { dt: STEP_SEC, alt: cone.alt, climb: cone.climb, nz: cone.nz } };
-  return { points, end: { lead: { ...R.at(m) }, wing: W }, times, maxBankDeg: maxBank, ok, durationSec: t - t0, ranges, laneFwdFt, minBelowFt, heightLeg };
+  return { points, end: { lead: { ...R.at(m) }, wing: W }, times, maxBankDeg: maxBank, ok, durationSec: t - t0, ranges, laneFwdFt, minBelowFt, heightLeg, accelKtps: pilot.accel };
 }
 
 /** The climb rate the room left above him in the cone allows, at FW_BUBBLE's climb rate and pull (the cone energy's zoom). */
 function zoomRoomFtps(L, W) {
-  const up = Math.max(0, L.altAboveFt + FW_ENERGY.coneUpFt - W.altAboveFt);
+  const up = Math.max(0, L.altAboveFt + coneUpFtNow() - W.altAboveFt);
   return Math.min(FW_BUBBLE.diveFtps, Math.sqrt(2 * FW_BUBBLE.pullFtps2 * up));
 }
 

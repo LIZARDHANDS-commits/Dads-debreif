@@ -101,6 +101,35 @@ export const REJOIN_LINE_KIAS = Object.freeze({ student: 210, instructor: 220, a
 export function lineKiasNow(choice = ratesChoice) {
   return REJOIN_LINE_KIAS[choice] ?? REJOIN_LINE_KIAS[DEFAULT_RATES];
 }
+/**
+ * The Rates setting as an experience profile (clean-up step 5, TS-141; the review's report 6.4 A, Patrick 6 Oct 21:58Z):
+ * one row per level that every move reads, setting how boldly he uses the aircraft, never what the aircraft can do. The
+ * envelope gate (flight.js, TS-93), the windows and the bands (the manuals', TS-110) are the same for every level. Bank and G
+ * are not set by Rates (Patrick 5 Oct 06:07Z: "No on bank and g"; the review's per-level G aims and "uses power before
+ * geometry" were dropped, Patrick 6 Oct 21:25Z): geometry first, power as needed, for every level.
+ *  - closeInSec, rejoinClosureKt, lineKias: CLOSE_IN_SEC, REJOIN_CLOSURE_KT and REJOIN_LINE_KIAS above (Patrick's, built);
+ *  - rollShare: the share of the roll rate he asks for, of the pilot's 180°/s within the T-6A's own (flight.js
+ *    rollLimitAt; the roll onset stays the aircraft's). 1 for every level for now: the review's 0.5 and 0.75 left the
+ *    tracker's close settle hunting (the 4-ship's trail and finger could not settle #4 in the crash check, 6 Oct), so a
+ *    slower student roll waits for the cause to be found and for Patrick's word; estimate;
+ *  - gOnsetGps: how fast he builds G rolling into a turn, G per second (the T-6A's normal pull is 4 G/s, core T6A_G_ONSET,
+ *    an estimate; the gate's 8 G/s ceiling stays for all); estimates;
+ *  - coneShare: how much of the fighting wing cone's height (moves.js FW_ENERGY.coneUpFt, TS-96, TS-136) he uses to trade
+ *    speed for height; estimates;
+ *  - leverShare: his throttle style, how quickly he moves the power: the share of the torque's full travel rate (moves.js
+ *    POWER.jerkKtps2) his acceleration builds at. The student eases it, the AI slams it (Patrick 5 Oct 04:58Z, 05:47Z:
+ *    power "assertively" sets the rate); estimates.
+ * pilot.js reads the roll, G onset and lever shares; tracker.js and rejoin-law.js the cone share.
+ */
+export const EXPERIENCE = Object.freeze({
+  student: Object.freeze({ closeInSec: CLOSE_IN_SEC.student, rejoinClosureKt: REJOIN_CLOSURE_KT.student, lineKias: REJOIN_LINE_KIAS.student, rollShare: 1, gOnsetGps: 2, coneShare: 0.5, leverShare: 0.5 }),
+  instructor: Object.freeze({ closeInSec: CLOSE_IN_SEC.instructor, rejoinClosureKt: REJOIN_CLOSURE_KT.instructor, lineKias: REJOIN_LINE_KIAS.instructor, rollShare: 1, gOnsetGps: 3, coneShare: 0.8, leverShare: 0.75 }),
+  ai: Object.freeze({ closeInSec: CLOSE_IN_SEC.ai, rejoinClosureKt: REJOIN_CLOSURE_KT.ai, lineKias: REJOIN_LINE_KIAS.ai, rollShare: 1, gOnsetGps: 4, coneShare: 1, leverShare: 1 }),
+});
+/** The experience profile for the Rates choice now (EXPERIENCE). */
+export function experienceNow(choice = ratesChoice) {
+  return EXPERIENCE[choice] ?? EXPERIENCE[DEFAULT_RATES];
+}
 /** The Rates choices in screen order, and their words. */
 export const RATE_CHOICES = Object.freeze(Object.keys(CLOSE_IN_SEC));
 export const RATE_WORDS = Object.freeze({ student: 'Student', instructor: 'Instructor', ai: 'AI' });

@@ -4,8 +4,8 @@
 // every number with its source. Numbers with no manual page or ruling beside them are estimates and say so. Moved
 // unchanged from tuning.js, except the retired hot rejoin's (TS-94), which went with it.
 import { FW_BAND, LANE } from './slots.js';
-import { RATE_SETS, G_RULE_BANK_DEG, NO_BANK_CAP_DEG, CLOSE_BANK_DEG, rejoinClosureNow } from './rates.js';
-import { IN_POSITION } from './bands.js';
+import { RATE_SETS, G_RULE_BANK_DEG, NO_BANK_CAP_DEG, CLOSE_BANK_DEG, rejoinClosureNow, REJOIN_LINE_KIAS, REJOIN_CLOSURE_KT } from './rates.js';
+import { IN_POSITION, STOP_KT } from './bands.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 
 /**
@@ -112,6 +112,26 @@ export const STRAIGHT_REJOIN = Object.freeze({
   lineTauSec: 2, // his heading comes onto the one the cut asks over about this long (estimate; the turning rejoin's 4 s swings him through the six)
   captureFt: 100, // he is on Lead's six within this many feet of it; until then full power, from then the overtake (estimate)
 });
+
+// ---- the one speed table (clean-up step 5, TS-141; the review's report 6.4 B) -----------------------------------------
+
+/**
+ * Every speed the wingmen fly to, in one table, each row marked a limit (physics, the 200 KIAS rejoin floor, the overshoot
+ * call: never planned past) or a target (an aim: may be missed, and the card says so; references, not walls, the rule
+ * book). The values are read from their one home (the constant named); this table adds what kind each is and its source.
+ */
+export const SPEEDS = Object.freeze([
+  Object.freeze({ name: 'Formation speed outside line abreast', kias: KIAS_OUTSIDE_LAB, kind: 'target', source: 'SMM 12.23 para 53; Patrick 11:08Z (KIAS_OUTSIDE_LAB)' }),
+  Object.freeze({ name: 'Line abreast speed', kias: KIAS_LAB, kind: 'target', source: 'SMM 16.18 para 49 (KIAS_LAB)' }),
+  Object.freeze({ name: 'Rejoin least speed', kias: KIAS_OUTSIDE_LAB, kind: 'limit', source: 'TS-75 (Patrick 5 Oct 17:29Z); a brief dip only close in and hot, flagged' }),
+  Object.freeze({ name: 'Rejoin line speed by Rates', kias: REJOIN_LINE_KIAS, kind: 'target', source: 'Patrick 6 Oct 15:54Z, TS-133 (REJOIN_LINE_KIAS): "targets not requirements"' }),
+  Object.freeze({ name: 'Rejoin closure by Rates, kt', kias: REJOIN_CLOSURE_KT, kind: 'target', source: 'Patrick 5 Oct 06:09Z; AI an estimate (REJOIN_CLOSURE_KT)' }),
+  Object.freeze({ name: 'Closure at the window, kt', kias: TURNING_REJOIN.stableKt, kind: 'target', source: 'Patrick 6 Oct 03:34Z, TS-106 (TURNING_REJOIN.stableKt)' }),
+  Object.freeze({ name: 'Overtake on the turning rejoin, KIAS over Lead', kias: REJOIN.overtakeKias, kind: 'target', source: 'EFIG p.374 (REJOIN.overtakeKias)' }),
+  Object.freeze({ name: 'Overshoot call: not stable at the decision point', kias: null, kind: 'limit', source: 'SMM 12.27 para 65; TS-110 (TURNING_REJOIN.windowNearFt, the decision point)' }),
+  Object.freeze({ name: 'Stop speed in the slot, kt', kias: STOP_KT, kind: 'target', source: 'bands.js STOP_KT' }),
+  Object.freeze({ name: 'Stall and the stick shaker', kias: null, kind: 'limit', source: 'physics: core t6-performance.js availableG, the 86 KIAS 1 G stall' }),
+]);
 
 // ---- the kinematic moves: close moves and following Lead (from kinematic-moves.js) ---------------------------------
 
