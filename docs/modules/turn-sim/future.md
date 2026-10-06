@@ -2,79 +2,71 @@
 
 Ideas for the Turn Sim that are not being built. The review decided on 4 Oct (a new flying core, `decisions.md` TS-35); each item here is built on that core, one at a time, only once Patrick moves it into `plan.md`. An idea moves into `plan.md` only with Patrick's yes (TQ-1), and a new idea goes on this list the same day it is asked for. "Feature Ideas" numbers are from the researched list of 54 ideas, kept at https://claude.ai/artifact/6PMvFiKigB29hBvVSoJ2op (`pf/reset/2-inventory/agents/sources/feature-ideas.md:30`). "FF" numbers are from the old plan's future-features list (`archive/docs/records/future-ideas.md:5`).
 
-The second wave of live mode (rejoins, fighting wing and fluid manoeuvring, old FF39 to FF41) is not listed here: Patrick put it in the plan, in the order the review sets, so its single home is `plan.md` Step 4 (`pf/reset/1-requirements/questions.md:165`). The G-warm exercise (two-ship and four-ship) is also in the plan: its question is TS-Q19 and the four-ship picture check is a Step 1 item (`pf/reset/1-requirements/questions.md:164`).
+The second wave of live mode (rejoins, fighting wing and fluid manoeuvring, old FF39 to FF41) is not listed here: Patrick put it in the plan, in the order the review sets, so its single home is `plan.md` Step 4 (`pf/reset/1-requirements/questions.md:165`). The G-warm exercise (two-ship and four-ship) is also in the plan: its question is TS-Q19 and the four-ship picture check is a Step 1 item (`pf/reset/1-requirements/questions.md:164`). Items below are grouped by topic; the ones that were built since this list was last tidied (6 Oct, refactor PR 9) are gone from it and are recorded in `decisions.md`.
 
-## From the old future lists
+## Rejoins and changing formation (2-ship)
 
-- The vertical fluid manoeuvres (loop, wingovers, barrel roll; SMM 16.17), which could reuse Turn Fight's Energy 3D model (old FF38). The Turn Sim is flat today (`pf/reset/2-inventory/agents/sources/plan-doc-future-features.md:41`).
-- A vertical step in the offset-box hook (old FF46, old decision D207): separate the 31 ft flat nose-to-nose pass with the SMM's own vertical separation or an offset, instead of only a caution flag. The requirement TS-R11 already says the screen warns that real aircraft would be stacked 300 ft apart where aircraft cross by design (`archive/docs/records/future-ideas.md:22`, `pf/reset/1-requirements/requirements.md:338`).
-- A lead +4 G, wingmen +5 G advanced-formation limits check, as a flag with no flight change (Gen Book p.11); a requirement candidate (`pf/reset/1-requirements/scope-and-ideas.md:244`).
+- The Overshoot button and rejoin mistakes (too hot, too much bank), SMM 12.27; break and rejoin (design M7); the turning rejoin with Lead turning away from #2 (SMM Fig 16.24) and the in-place-turn rejoin (M9); the hot or cold line choice, an overtake box and a bank-cap box under More.
+- The dynamic entry to line abreast (both turn onto a new heading together, design M8).
+- The straight-ahead rejoin's overshoot (SMM 12.27 para 66: vertical separation and turn away), with training errors applied to the straight-ahead rejoin.
+- **What the retired hot rejoin did that is not flown now** (refactor PR 2, TS-94): the decision-point overshoot from a training error's start (behind and below Lead, stable on the outside, cross back and join; SMM 12.27 para 65, Fig 12.18) and its card words naming the stage used (boards, idle). With Smart wingman off (TS-96) #2 keeps the error, so the overshoot can come back there as a lesson if Patrick wants it.
+- **Ahead of the 3/9 line in a hot rejoin** (Patrick 5 Oct 03:02Z: "What if he does idle boards 6g descending turn ?"; with 03:05Z: "Yeah over 5 g is a last resort and must stay below 7 in all cases"): for a start that leaves #2 ahead of Lead's 3/9 line once Lead turns into him (ahead, ahead and tight, or fast at the normal reference), today the tracker's rejoin flies it (a question for Patrick). The idea: idle and boards and a descending turn with only the G he needs (over 5 G as a last resort, never 7), Lead passing ahead and above, #2 rejoining from behind and below. Not built (Patrick 03:49Z: get it to testing first).
+- Holding every planned speed-up to full power (TS-63 held only the off-standard capture lines): the planned capture lines may ask up to 3 kt/s (the standard rejoin's already ask 2.2-2.7), and a little more where nothing else fits.
+- The moves into a close place while Lead is banked (the hot rejoin's capture, the station changes, the hand-over's run-in) still follow Lead's wing plane 3 s late (`KINEMATIC.planeLagSec`). Give them TS-77's hold (`formation-turns.js` `holdInPlane`) if Patrick sees the same drift there.
+- Route, line astern and the 4-ship's turns at the slow close formation roll (Patrick 20:50Z: not now).
+- Pressing a manoeuvre button while another manoeuvre flies and re-planning from the banked state (it queues, TS-45; a formation press mid-move re-plans since TS-78 and a turn mid-change since TS-79).
+- Fighting wing S-turns to bleed energy (Patrick 5 Oct 23:02Z: "in fighting wing a common way to bleed energy is to S turn left and right if required"): after the cone's height (TS-96) and before power. Not built in V2.95; the tracker uses height, then power.
 - A pitchout and rejoin exercise sits with the rejoins in Step 4 of the plan, not here (`pf/reset/1-requirements/scope-and-ideas.md:237`).
 
-## Feature Ideas for the Turn Sim
+## Fighting wing and fluid manoeuvring
 
-- **Formation position trainer**: top-down and sight-picture views of fingertip, echelon, route, fighting wing and trail, with a quiz mode; pairs with the Formation Turn Sim (Feature Ideas idea 28; value medium, effort small; `pf/reset/2-inventory/agents/sources/feature-ideas.md:30`)
+- Terminate for position (SMM 16.17 para 46; Patrick 23:02Z): #2 calls it when he is outside the parameters and can't regain them quickly; Lead acknowledges and flies a predictable turn, #2 repositions and calls "Cleared to Manoeuvre", Lead restarts. A button for it, with Lead's predictable turn, waits for Patrick's yes.
+- Turning #2 toward parallel over the top of a wingover or barrel roll (V2.19 leaves him 30-45° off at 600 ft; Patrick 23:00Z calls parallel a loose aim). Turning him in Lead's turning plane, as in the loop, gave G spikes far over 5 G because that plane swings round as Lead rolls; it would need its own design.
+- #2's planned place in the loop at long range (TS-74, V2.69; TS-63 (4) asked for the loop at a long distance setting under 5 G): at the 1,000 ft setting the place is turned about Lead on a 1,000 ft lever. Over the top it runs faster than any aircraft can there and jumps once, so #2 opens to about 1,700 ft with a one-step G spike to about 6.9 (about 7.8 G before TS-74). A loop place built in the loop's own frame, not turned about Lead's nose, would fix it.
+- The Live wingman as a setting (Patrick 18:03Z 4 Oct: a setting, Planned the default; 22:04Z: live as a future feature): superseded by TS-76 (5 Oct). There is one pilot, run ahead and replayed; the plan is re-made at events (F1, F11). Running the chosen technique live every step (so #2 also answers things nobody named: a gust, an error given mid-move, a Lead flown by hand) is a build step inside TS-76, taken only when such a thing exists in the tool; the review's options are in `/mnt/project-files/turn-sim-review/chooser/options.md`.
+- Fluid 4 manoeuvring (AFM8 brief pp.20-22; SMM 16.40 para 108), with #3 and #4 opposite #2 (Fig 16.29) and 6,000 ft spacing (setting 4,000-6,000; Patrick's picks rows 8-9).
+- Cloverleaf, Cuban eight and Immelmann (design 5.1; not in the baseline or the next pieces).
 
-## Live mode: V6's features and other asks, on the new core
+## Power, speed and the aircraft
 
-Patrick, 4 Oct (review thread): he wants all of V6's features eventually, added one at a time on the working 2-ship model (`spec.md` Part 1, section 6). The order of the first few is in `plan.md` Step 4; the rest wait here.
+- A torque curve from the NFM (torque against PCL, speed and height) in place of the model's throttle and the 0.81 efficiency behind TQ % (Patrick 02:05Z).
+- Power on the tags for the tracker's rejoin and the other planned lines (they set no power, so none shows).
+- Speed and block height: a low or mid block choice (220 or 200 KIAS, TS-R6), the real low block height (8,000 ft is an estimate, TS-38), and a simple speed bleed in 3 G turns (constant for now, TS-38).
+- Wind (TS-R10; still air for now).
+- Vertical G shown on every height leg (only the push over shows its G on the card today).
+- A lead +4 G, wingmen +5 G advanced-formation limits check is flagged in fighting wing and fluid manoeuvring (TS-53, TS-57, TS-60); the same flag for other formations is not built (Gen Book p.11).
 
-- The 4-ship's other orders (2134) and the offset box, each wingman flying off its reference aircraft. The Spread 4 itself is built (V2.7, TS-50).
-- **The 4-ship build's source is the moves table Patrick ratified on 5 Oct**: project files `turn-sim-review/four-ship/moves-from-the-manuals.md`, sections 7 and 8. Build from it, not from the items below. It waits until the refactor's items 1 and 2 are done. Fluid 4's #3 now sits abeam at the Setup's spacing (TS-90).
-- Four-ship design asked for (Patrick, 4 Oct 11:14Z, list agreed 11:15Z), designed in the project files `turn-sim-review/four-ship/`. The planned part is built (V2.13, TS-54: G-warm, close position changes, rejoins, Fluid 4 and the offset box in and out, the fighting wing places). Still here: manoeuvring inside the offset box and Fluid 4 (Fluid 4 and Fluid manoeuvring are two buttons, Patrick 11:43Z); live fighting wing and fluid manoeuvring for the four (the next piece); fighting wing to echelon direct (now through finger); finger to offset box direct and "offset box east/west" from fighting wing (design question 4); the left offset box crossing (Dad question 3); #2 choosing the stack; lost sight, overshoot and contingencies (with the training errors); take-offs and the initial recovery (the Traffic Sim).
-- The 2-ship G-warm (the four-ship's is built, TS-54); vertical G shown on every height leg (only the push over shows its G on the card today).
+## Training errors and faults
+
+- Errors and faults (TS-R8): the first layer is built (TS-52: late or early, wide, tight, fore or aft, high or low, fast or slow; carried or fixed; the Fix tools; Smart wingman, TS-96). Still here: more or less G as an error; one-click faults (TS-Q16); injecting an error between presses (during a flying manoeuvre or in line abreast); hiding the error until after the roll-out so it can be spotted; errors for the 4-ship.
+
+## The 4-ship
+
+The four-ship rebuild (refactor PRs 6-8, with a separate thread) will change much of this; keep it in step.
+- **The 4-ship build's source is the moves table Patrick ratified on 5 Oct**: project files `turn-sim-review/four-ship/moves-from-the-manuals.md`, sections 7 and 8. Build from it, not from the items below. Fluid 4's #3 now sits abeam at the Setup's spacing (TS-90).
+- The 4-ship's other order (2134). Spread 4 (V2.7, TS-50) and the offset box as a formation (V2.13, TS-54) are built, each wingman flying off its reference aircraft.
+- Four-ship design asked for (Patrick, 4 Oct 11:14Z, list agreed 11:15Z), designed in the project files `turn-sim-review/four-ship/`. The planned part is built (V2.13, TS-54: G-warm, close position changes, rejoins, Fluid 4 and the offset box in and out, the fighting wing places). Still here: manoeuvring inside the offset box and Fluid 4 (Fluid 4 and Fluid manoeuvring are two buttons, Patrick 11:43Z); live fighting wing and fluid manoeuvring for the four; fighting wing to echelon direct (the straight-ahead rejoin flies it since TS-55; a direct turning rejoin is not built); finger to offset box direct and "offset box east/west" from fighting wing (design question 4); the left offset box crossing (Dad question 3); #2 choosing the stack; lost sight, overshoot and contingencies (with the training errors); take-offs and the initial recovery (the Traffic Sim).
+- The 2-ship G-warm (the four-ship's is built, TS-54).
 - The mid-flight transition between 2-ship and 4-ship (V2.7 restarts from the default start of the mode chosen); being designed in another thread.
 - The 4-ship's delayed 45 as the brief draws it: all the aircraft after #2 check together right after #2 starts its turn, then turn in sequence (AFM8 brief p.18). That cannot roll out in exact line abreast, which is what the brief's own note admits ("quickly fix any spacing or sweep errors on roll out"), so it waits for the errors layer; V2.7 flies each check and turn in sequence instead, which is exact except for a little tight on the first aircraft to check.
 - The 4-ship's altitude stack chosen by #2 (the SMM: #2 sets it, #3 and #4 take the opposite block, so #2 can be below Lead) and a stack-change step before a turn ("return to stack promptly when directed by Lead", AFM8 brief p.14). V2.7 keeps the brief's stack all the time.
+- The 4-ship rejoins still fly the old tracker: from spread, #2 drops to about 178 KIAS and the rejoin takes minutes. Give them TS-75's rule when the 4-ship turning rejoin is built.
+- The 4-ship's overshoot and off-standard rejoins (SMM 16.34 paras 94-96).
+- Finish the one-candidate shape (TS-94) for the 4-ship: every planner returns the same { plans, endSec, judged } for the chooser; the 4-ship still sits outside it.
+
+## Screen, setups and V6's features
+
+Patrick, 4 Oct (review thread): he wants all of V6's features eventually, added one at a time on the working 2-ship model (`spec.md` section 1). The order of the first few is in `plan.md` Step 4; the rest wait here.
+
 - Plan mode on the same core: pick a start and a manoeuvre, press Play (TS-R1).
-- Errors and faults (TS-R8): the first layer is built (TS-52: late or early, wide, tight, fore or aft, high or low; carried or fixed). Still here: more or less G as an error; one-click faults (TS-Q16); (the roll-out fix with a speed and heading change is built as the Fix tools, V2.10); injecting an error between presses (during a flying manoeuvre or in line abreast); hiding the error until after the roll-out so it can be spotted; errors for the 4-ship.
-- **What the retired hot rejoin did that is not flown now** (refactor PR 2, TS-94): the decision-point overshoot from a training error's start (behind and below Lead, stable on the outside, cross back and join; SMM 12.27 para 65, Fig 12.18) and its card words naming the stage used (boards, idle). With Smart wingman off (refactor PR 3) #2 keeps the error, so the overshoot can come back there as a lesson if Patrick wants it.
-- Pressing a button mid-turn and re-planning from the banked state (the first version queues it, TS-45).
 - The clock cue drawn as a picture (where the other aircraft is at the turn point), and a Clock cue timing option (TS-R7, TS-40).
 - An angle box for the check turn (5 to 30°; the first version flies 20°, TS-46).
 - The wingman passing below instead of above in the shackle and cross turn (TS-42's working answer is above).
-- Speed and block height: a low or mid block choice (220 or 200 KIAS, TS-R6), the real low block height (8,000 ft is an estimate, TS-38), and a simple speed bleed in 3 G turns (constant for now, TS-38).
-- Wind (TS-R10; still air for now).
 - Saved setups (TS-R18), the CSV export (TS-R19, TS-Q13), the spacing graph (TS-Q14), which read the rolling record.
-- Dragging a wingman to a new start (TS-R17).
-- G-warm (two-ship and four-ship; TS-Q19), entry to line abreast, rejoins (TS-Q20): first in `plan.md` Step 4.
+- Dragging a wingman to a new start (TS-R17). (Moving #2 around inside the band with the Position buttons is built, TS-98.)
+- A vertical step in the offset-box hook (old FF46, old decision D207): separate the 31 ft flat nose-to-nose pass with the SMM's own vertical separation or an offset, instead of only a caution flag. The requirement TS-R11 already says the screen warns that real aircraft would be stacked 300 ft apart where aircraft cross by design (`archive/docs/records/future-ideas.md:22`, `pf/reset/1-requirements/requirements.md:338`).
 - V6's other layers: breadcrumbs with time stamps, spacing lines, clock marks, NM labels (the drawing code is still in `view.js`).
-
-## Changing formation: what the 2-ship build left out (TS-53)
-
-- ~~Fluid manoeuvring: its button is greyed ("coming later")~~: the baseline is built (V2.17, TS-57), entered from fighting wing only (Patrick 21:44Z). Entering from echelon by the 2 s break and from line abreast are dropped, not deferred.
-- ~~**Lag roll to fighting wing** (Patrick 5 Oct 08:54Z: "you hit "lag roll" and the airplane flips up and rolls canopy to canopy to lead then lands in the cone on the other side, power pitch and bank as required"): a move button; #2 pulls up, rolls over the top canopy to canopy with Lead and comes down into the cone on Lead's other side. Lead's barrel roll (fluid-lead.js, attitude.js) already flies through inverted and could be the base. The fighting wing place is anywhere in the cone, high or low, not on Lead's plane (Patrick 08:54Z).~~ Moved up and built 5 Oct: `decisions.md` TS-71, `spec.md` section 10.8.
-- ~~**Fighting wing manoeuvres**~~ built V2.66 (TS-70, `spec.md` 10.7) (Patrick 5 Oct 09:03Z: "as SOON as "fighting wing" is clicked and the aircraft is in the cone (can still be moving) Lead can start manoeuvring. The manoeuvres are currently listed as the same from line abreast -- they should be normal clearhood turns and climbs etc. Fluid manoeuvring is just fighting wing aerobatics."): (a) Lead's buttons show as soon as #2 is in the cone on a change to fighting wing, still moving or not (today they wait until the change is flown); (b) in fighting wing the buttons are normal clear-hood turns, climbs and descents, in place of the line abreast turns (Delayed 90 and 45, Check, In place 90, Hook) that turn the formation today (TS-55). Overlaps the Turn the formation row (`plan.md` item 5).
-
-## Fluid manoeuvring: what the baseline leaves out (TS-57, Patrick 21:44Z)
-
-- ~~Climb and descend~~: built (V2.18, TS-59).
-- ~~The wingover, the barrel roll, #2's side swap, the standard sequence, entry and exit speeds on the card~~: built (V2.18 and V2.19, TS-59, TS-60).
-- Terminate for position (SMM 16.17 para 46; Patrick 23:02Z): #2 calls it when he is outside the parameters and can't regain them quickly; Lead acknowledges and flies a predictable turn, #2 repositions and calls "Cleared to Manoeuvre", Lead restarts. A button for it, with Lead's predictable turn, waits for Patrick's yes.
-- Turning #2 toward parallel over the top of a wingover or barrel roll (V2.19 leaves him 30-45° off at 600 ft; Patrick 23:00Z calls parallel a loose aim). Turning him in Lead's turning plane, as in the loop, gave G spikes far over 5 G because that plane swings round as Lead rolls; it would need its own design.
-- ~~The Live wingman as a setting~~ (Patrick 18:03Z 4 Oct: a setting, Planned the default; 22:04Z: live as a future feature): superseded by TS-76 (5 Oct). There is one pilot, run ahead and replayed; the plan is re-made at events (F1, F11). Running the chosen technique live every step (so #2 also answers things nobody named: a gust, an error given mid-move, a Lead flown by hand) is a build step inside TS-76, taken only when such a thing exists in the tool; the review's options are in `/mnt/project-files/turn-sim-review/chooser/options.md`.
-- The 4-ship rejoins still fly the old tracker: from spread, #2 drops to about 178 KIAS and the rejoin takes minutes. Give them TS-75's rule when the 4-ship turning rejoin is built.
-- The moves into a close place while Lead is banked (the hot rejoin's capture, the station changes, the hand-over's run-in) still follow Lead's wing plane 3 s late (`KINEMATIC.planeLagSec`). Give them TS-77's hold (`formation-turns.js` `holdInPlane`) if Patrick sees the same drift there.
-- #2's planned place in the loop at long range (TS-74, V2.69): at the 1,000 ft setting the place is turned about Lead on a 1,000 ft lever. Over the top it runs faster than any aircraft can there and jumps once, so #2 opens to about 1,700 ft with a one-step G spike to about 6.9. A loop place built in the loop's own frame, not turned about Lead's nose, would fix it.
-- Fluid 4 manoeuvring (AFM8 brief pp.20-22; SMM 16.40 para 108), with #3 and #4 opposite #2 (Fig 16.29) and 6,000 ft spacing (setting 4,000-6,000; Patrick's picks rows 8-9).
-- Cloverleaf, Cuban eight and Immelmann (design 5.1; not in the baseline or the next pieces).
-- Live fighting wing: #2 holding the cone while Lead turns and climbs; the manoeuvre buttons from fighting wing, echelon and route (greyed outside line abreast for now).
-- The Overshoot button and rejoin mistakes (too hot, too much bank), SMM 12.27; break and rejoin (design M7); the turning rejoin with Lead turning away from #2 (SMM Fig 16.24) and the in-place-turn rejoin (M9); the hot or cold line choice, an overtake box and a bank-cap box under More.
-- The dynamic entry to line abreast (both turn onto a new heading together, design M8); the 4-ship changes (design section 5).
-- Training errors flown through a change (they apply to the manoeuvres, and from V2.20 to the 2-ship hot turning rejoin from line abreast, TS-62; not yet to the other changes).
-- Speed bled in the turns. Idle and speed-brake slowing moved up: settled in TS-61 for the off-standard hot turning rejoin piece.
-
-## Off-standard hot turning rejoin and the overshoot: what V2.20 leaves out (TS-62)
-
-- The straight-ahead rejoin's overshoot (SMM 12.27 para 66: vertical separation and turn away), with training errors applied to the straight-ahead rejoin.
-- The 4-ship's overshoot and off-standard rejoins (SMM 16.34 paras 94-96).
-- What #2 does when Lead's turn into him puts him ahead of the 3/9 line (ahead, ahead and tight, or fast at the normal reference): today the section 10 tracker's rejoin flies it (a question for Patrick).
-- **Ahead of the 3/9 line in a hot rejoin** (Patrick 5 Oct 03:02Z: "What if he does idle boards 6g descending turn ?"; with 03:05Z: "Yeah over 5 g is a last resort and must stay below 7 in all cases"): for a start that leaves #2 ahead of Lead's 3/9 line once Lead turns into him, idle and boards and a descending turn with only the G he needs (over 5 G as a last resort, never 7), Lead passing ahead and above, #2 rejoining from behind and below, in place of the tracker's rejoin. Not built in V2.21 (Patrick 03:49Z: get it to testing first).
-- The loop at a long distance setting under 5 G (TS-63 (4)): at 1,000 ft #2 reaches about 7.8 G at the top from his swing across it; the open-path rule does not reach that.
-- Holding every planned speed-up to full power (V2.21 holds only the off-standard capture lines, TS-63): the planned capture lines may ask up to 3 kt/s (the standard rejoin's already ask 2.2-2.7), and a little more where nothing else fits.
-- ~~A finer geometry search off the standard start, so Fix it could keep #2 on his own side more often before it settles for the slide to the outside~~: superseded (V2.59, TS-67): the slide to the outside is never flown; #2 lines up on his own side or the decision overshoot flies.
-- A torque curve from the NFM (torque against PCL, speed and height) in place of the model's throttle and the 0.81 efficiency behind TQ % (Patrick 02:05Z).
-- Power on the tags for the tracker's rejoin and the other planned lines (they set no power, so none shows).
+- **Formation position trainer**: top-down and sight-picture views of fingertip, echelon, route, fighting wing and trail, with a quiz mode; pairs with the Formation Turn Sim (Feature Ideas idea 28; value medium, effort small; `pf/reset/2-inventory/agents/sources/feature-ideas.md:30`)
 
 ## Ideas kept from the retired plan-mode code (clean-up step 4; Patrick, card "Approve, all 4" 5 Oct 01:36Z)
 
@@ -88,15 +80,8 @@ The first Turn Sim engine (plan mode, ported from V6) was removed in clean-up st
 - **Auto timing and the G correction** (plan.js, step.js): turn starts timed to keep spacing; a wingman's G corrected toward his slot.
 - **V6's formation slots and position errors, settings and input boxes** (engine/formation.js, settings.js, fields.js) and the old Formation card rows (readouts.js).
 - Two shared helpers in `src/core` were used only by plan mode and are now unused by the Formation Sim: `turnSimG` (flight-math.js) and `classifyTurnSimPosition` (standards.js). They stay until a `src/core` change is agreed.
-- Refactor (Patrick 21:06Z "Should we refactor the code after all this?"): its own pull request with no change to how anything flies; one place for the two rate sets, holding close formation and tactical (unrestricted, 21:11Z), which each planner now carries in its own limits (`KINEMATIC`, `OPEN_OUT`, `RUN_IN`, `CLOSE_TURN`).
-- A turn button pressed mid-change re-plans instead of queuing: every planner takes Lead's remaining plan (TS-78 leaves it queued).
-- Route, line astern and the 4-ship's turns at the slow close formation roll (Patrick 20:50Z: not now).
-- Move #2 around inside a formation's band with the controls (Patrick 21:38Z: "Ideally i'd like to be able to tell the aircraft to move around in 'the band' with those controls"). Today each formation has one place (the slot) as the aim and the judge uses the band (TS-80).
-- **Refactor list** (Fable, 5 Oct 22:12Z; Patrick 22:13Z "execute"). Item 1, one envelope gate at the aircraft, is built in V2.85 (TS-85). The rest wait here until Patrick moves them up; Fable's advice is to wait until the module is signed off, since a refactor before anything is seen on screen is where earlier work was lost (rule book, lesson 5).
-  - Finish the one-candidate shape: every planner returns the same { plans, endSec, judged } for the chooser. The lag roll, training-error rejoins (errors.js), hot-rejoin.js and the 4-ship still sit outside; hot-rejoin and errors repeat rejoin logic the turning rejoin and chooser now own. Retire or fold them after listing what each did.
-  - Split tuning.js by rate set and by move family (close, tactical, rejoin, bands), keeping RATE_SETS as the one home, plus a generated numbers register (each number's value and source or "estimate") so the spec stops repeating them.
-  - formation.js: the press, re-plan and finish events into one small events file; the state machine stays.
-  - spec.md rewritten by topic (how #2 is planned, rejoins, lines, bands and "in position", rate sets, 4-ship), each paragraph citing its TS decision, history to decisions.md. Sonnet, after Patrick has flown V2.75 onward.
-  - testing.md: only the current sign-off checklist; per-version sign-off lines to archive/. Same timing.
-  - Project files: condense the turn-sim-review notes into the README's "How #2 is planned now" and archive the rest.
-- Fighting wing S-turns to bleed energy (Patrick 5 Oct 23:02Z: "in fighting wing a common way to bleed energy is to S turn left and right if required"): after the cone's height (TS-96) and before power. Not built in V2.95; the tracker uses height, then power.
+
+## Refactor leftovers (Fable, 5 Oct 22:12Z; Patrick 22:13Z "execute")
+
+Built as refactor PRs 1 to 5 (TS-85, TS-93 to TS-97) and the docs rewrite (PR 9); PRs 6 to 8, the four-ship rebuild, are with another thread. Still here:
+- Project files: condense the `turn-sim-review` notes into the README's "How #2 is planned now" and archive the rest.
