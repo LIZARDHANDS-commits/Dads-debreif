@@ -13,7 +13,7 @@
 // height (iasToTasKt) in every wind, and ground speed from the wind triangle.
 import { ktToFtps, G_FTPS2 } from '../../core/units.js';
 import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
-import { bankDegFromTurnRate, easeRoll, gFromBankDeg } from '../../core/flight-math.js';
+import { bankDegFromTurnRate, easeRoll, easeValue, gFromBankDeg } from '../../core/flight-math.js';
 import { windTriangle } from '../../core/wind.js';
 import { attitudeDegFromClimb, glideDragPerWeight, glideRatio } from '../../core/t6-performance.js';
 import { THRESHOLD_DATA_ELEV_FT } from './airfield.js';
@@ -24,6 +24,13 @@ import { ROLL } from './circuit.js';
 /** The attitude on the wheels, degrees nose up (Patrick, 6 Oct 06:17Z), and how close to the runway's height counts as on them (an estimate). */
 const GROUND_ATTITUDE_DEG = 2.5;
 const ON_WHEELS_FT = 0.5; // under the flare's last few feet (TR-96)
+
+/**
+ * The drawn attitude (TR-97, Patrick 6 Oct): bank and climb are read off the path this many seconds either side, and
+ * the nose eases toward its attitude at most this pitch rate and its change. Estimates, tuned by eye.
+ */
+const ATTITUDE_HALF_SEC = 1;
+const PITCH_EASE = Object.freeze({ maxRateDps: 10, maxAccelDps2: 20 });
 
 /**
  * Half the window the track is read across, in feet. Longer than the pieces a
@@ -289,8 +296,18 @@ export function followRoute(a, route, env, dt, options = DEFAULT_ROUTE_OPTIONS) 
   a.headingDeg = wt.headingDeg;
   a.trackDeg = trackDeg;
 
-  // Bank: what this heading rate needs (right positive), reached by a smooth roll.
-  const rateRadPerSec = (prevHeading === null || !(dt > 0)) ? 0 : (wrapDeg180(a.headingDeg - prevHeading) * Math.PI / 180) / dt;
+  // Bank: what this heading rate needs (right positive), reached by a smooth roll. The rate is read off the path a
+  // second either side (TR-97), not the last step, which is near nothing along each straight piece of a drawn turn and
+  // spikes at its corners (the wing rock Patrick saw in the final turn). Joins and side steps aren't on the path, so
+  // they keep the step's own rate.
+  const aheadFt = ktToFtps(a.gsKt) * ATTITUDE_HALF_SEC;
+  let rateRadPerSec;
+  if (joinRate) {
+    rateRadPerSec = (prevHeading === null || !(dt > 0)) ? 0 : (wrapDeg180(a.headingDeg - prevHeading) * Math.PI / 180) / dt;
+  } else {
+    const headingThere = (d) => windTriangle(trackAt(route, d, options), tasKt, windFromDeg, windKt).headingDeg;
+    rateRadPerSec = (wrapDeg180(headingThere(a.distFt + aheadFt) - headingThere(a.distFt - aheadFt)) * Math.PI / 180) / (2 * ATTITUDE_HALF_SEC);
+  }
   a.targetBankDeg = bankDegFromTurnRate(tasFtps, rateRadPerSec);
   const roll = easeRoll(a.bankDeg ?? 0, a.rollRateDps ?? 0, a.targetBankDeg, dt, ROLL);
   a.bankDeg = roll.bankDeg;
@@ -299,8 +316,23 @@ export function followRoute(a, route, env, dt, options = DEFAULT_ROUTE_OPTIONS) 
 
   // Pitch: the attitude the pilot sees, the climb angle plus the angle of attack at this G less the fuselage datum;
   // on the wheels, the 2.5° nose up the gear holds it at (Patrick, 6 Oct 06:17Z).
+  // The climb is read off the path a second either side too, and the nose eased toward it (TR-97), so each height
+  // step on the path no longer shows as a pitch step. a.climbFtps stays the step's own (the 3D aim line and the
+  // deconfliction read it).
   const climbFtps = (prevAlt === null || !(dt > 0)) ? 0 : (a.alt - prevAlt) / dt;
   a.climbFtps = climbFtps;
-  a.pitchDeg = a.alt <= THRESHOLD_DATA_ELEV_FT + ON_WHEELS_FT ? GROUND_ATTITUDE_DEG : attitudeDegFromClimb(climbFtps, tasFtps, a.iasKt, a.g);
+  const pathClimbFtps = joinRate
+    ? climbFtps
+    : ((posOnRoute(route, a.distFt + aheadFt, options).alt ?? a.alt) - (posOnRoute(route, a.distFt - aheadFt, options).alt ?? a.alt)) / (2 * ATTITUDE_HALF_SEC);
+  const onWheels = a.alt <= THRESHOLD_DATA_ELEV_FT + ON_WHEELS_FT;
+  const targetPitch = onWheels ? GROUND_ATTITUDE_DEG : attitudeDegFromClimb(pathClimbFtps, tasFtps, a.iasKt, a.g);
+  if (!Number.isFinite(a.pitchDeg) || !(dt > 0)) {
+    a.pitchDeg = targetPitch;
+    a.pitchRateDps = 0;
+  } else {
+    const nose = easeValue(a.pitchDeg, a.pitchRateDps ?? 0, targetPitch, dt, PITCH_EASE);
+    a.pitchDeg = nose.bankDeg;
+    a.pitchRateDps = nose.rollRateDps;
+  }
   return p;
 }
