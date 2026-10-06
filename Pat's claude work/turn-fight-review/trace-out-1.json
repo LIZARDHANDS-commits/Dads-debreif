@@ -1,0 +1,553 @@
+{
+ "name": "m140",
+ "setup": {
+  "kias": [
+   140,
+   140
+  ],
+  "alt": [
+   10000,
+   10000
+  ],
+  "moves": [
+   "tactical",
+   "tactical"
+  ],
+  "sep": 1.2,
+  "ata": 5
+ },
+ "result": {
+  "timeSec": 240,
+  "firstNose": null,
+  "chase": null,
+  "stopped": false
+ },
+ "compute": {
+  "createMs": 487,
+  "runMs": 1031,
+  "steps": 12000,
+  "msPerSimSec": 4.3
+ },
+ "blue": {
+  "seq": "0.0s MPT[pending] | 13.3s MPT | 34.3s Slice | 34.8s MPT | 38.3s Slice | 45.6s Slice[mpt] | 49.0s Pitch back | 50.5s Pitch back[mpt] | 53.9s Slice | 61.1s Slice[mpt] | 64.5s Pitch back | 65.9s Pitch back[mpt] | 69.4s Slice | 76.4s Level MPT[mpt]",
+  "minAlt": 5981,
+  "belowDeckSec": 160.4,
+  "kias": "140-202",
+  "maxG": 5.12,
+  "mptSec": 202,
+  "pursuitSec": 0,
+  "overG": false,
+  "stall": false,
+  "maxGRate": "70 G/s at 37.7s (2.00->3.39 MPT)",
+  "maxRollAccel": "4500 deg/s2 at 34.8s (MPT)",
+  "maxPitchAccel": "219 deg/s2 at 37.7s (MPT)",
+  "posJumpFt": 0
+ },
+ "red": {
+  "seq": "0.0s MPT[pending] | 13.3s MPT | 34.3s Slice | 34.8s MPT | 38.3s Slice | 45.6s Slice[mpt] | 49.0s Pitch back | 50.5s Pitch back[mpt] | 53.9s Slice | 61.1s Slice[mpt] | 64.5s Pitch back | 65.9s Pitch back[mpt] | 69.4s Slice | 76.4s Level MPT[mpt]",
+  "minAlt": 5981,
+  "belowDeckSec": 160.4,
+  "kias": "140-202",
+  "maxG": 5.12,
+  "mptSec": 202,
+  "pursuitSec": 0,
+  "overG": false,
+  "stall": false,
+  "maxGRate": "70 G/s at 37.7s (2.00->3.39 MPT)",
+  "maxRollAccel": "4500 deg/s2 at 34.8s (MPT)",
+  "maxPitchAccel": "219 deg/s2 at 37.7s (MPT)",
+  "posJumpFt": 0
+ }
+}
+{
+ "name": "m180",
+ "setup": {
+  "kias": [
+   180,
+   180
+  ],
+  "alt": [
+   10000,
+   10000
+  ],
+  "moves": [
+   "tactical",
+   "tactical"
+  ],
+  "sep": 1.2,
+  "ata": 5
+ },
+ "result": {
+  "timeSec": 240,
+  "firstNose": null,
+  "chase": null,
+  "stopped": false
+ },
+ "compute": {
+  "createMs": 464,
+  "runMs": 458,
+  "steps": 12000,
+  "msPerSimSec": 1.9
+ },
+ "blue": {
+  "seq": "0.0s Pitch back[pending] | 10.3s Pitch back | 11.2s Pitch back[mpt] | 14.6s Slice | 22.0s Slice[mpt] | 25.5s Pitch back | 26.9s Pitch back[mpt] | 30.4s Slice | 37.6s Slice[mpt] | 41.1s Pitch back | 42.5s Pitch back[mpt] | 46.0s Slice | 53.1s Slice[mpt] | 69.9s MPT | ...(15 changes)",
+  "minAlt": 6000,
+  "belowDeckSec": 0,
+  "kias": "146-202",
+  "maxG": 5,
+  "mptSec": 204.4,
+  "pursuitSec": 0,
+  "overG": false,
+  "stall": false,
+  "maxGRate": "15 G/s at 23.0s (4.70->5.00 Slice[mpt])",
+  "maxRollAccel": "4500 deg/s2 at 11.2s (Pitch back[mpt])",
+  "maxPitchAccel": "74 deg/s2 at 55.1s (Slice[mpt])",
+  "posJumpFt": 0
+ },
+ "red": {
+  "seq": "0.0s Pitch back[pending] | 10.3s Pitch back | 11.2s Pitch back[mpt] | 14.6s Slice | 22.0s Slice[mpt] | 25.5s Pitch back | 26.9s Pitch back[mpt] | 30.4s Slice | 37.6s Slice[mpt] | 41.1s Pitch back | 42.5s Pitch back[mpt] | 46.0s Slice | 53.1s Slice[mpt] | 69.9s MPT | ...(15 changes)",
+  "minAlt": 6000,
+  "belowDeckSec": 0,
+  "kias": "146-202",
+  "maxG": 5,
+  "mptSec": 204.4,
+  "pursuitSec": 0,
+  "overG": false,
+  "stall": false,
+  "maxGRate": "15 G/s at 23.0s (4.70->5.00 Slice[mpt])",
+  "maxRollAccel": "4500 deg/s2 at 11.2s (Pitch back[mpt])",
+  "maxPitchAccel": "74 deg/s2 at 55.1s (Slice[mpt])",
+  "posJumpFt": 0
+ }
+}
+{
+ "name": "m260",
+ "setup": {
+  "kias": [
+   260,
+   260
+  ],
+  "alt": [
+   10000,
+   10000
+  ],
+  "moves": [
+   "tactical",
+   "tactical"
+  ],
+  "sep": 1.2,
+  "ata": 5
+ },
+ "result": {
+  "timeSec": 39.6,
+  "firstNose": "red @36.5s",
+  "chase": "red @32.7s",
+  "kill": "red @39.6s",
+  "stopped": false
+ },
+ "compute": {
+  "createMs": 532,
+  "runMs": 289,
+  "steps": 1981,
+  "msPerSimSec": 7.3
+ },
+ "blue": {
+  "seq": "0.0s Immelmann[pending] | 7.1s Immelmann | 19.4s MPT | 22.8s Slice | 23.9s Slice[mpt] | 27.4s MPT | 30.9s Low Yo-Yo | 39.0s Low Yo-Yo[mpt]",
+  "minAlt": 10000,
+  "belowDeckSec": 0,
+  "kias": "137-260",
+  "maxG": 5,
+  "mptSec": 11.1,
+  "pursuitSec": 0,
+  "overG": false,
+  "stall": false,
+  "maxGRate": "135 G/s at 39.0s (2.00->4.70 Low Yo-Yo[mpt])",
+  "maxRollAccel": "4500 deg/s2 at 15.3s (Immelmann)",
+  "maxPitchAccel": "1109 deg/s2 at 12.3s (Immelmann)",
+  "posJumpFt": 0
+ },
+ "red": {
+  "seq": "0.0s MPT[pending] | 7.1s MPT | 21.1s Slice | 28.5s Slice[mpt] | 32.0s Pitch back | 32.7s Pursuit",
+  "minAlt": 9451,
+  "belowDeckSec": 0,
+  "kias": "137-260",
+  "maxG": 5,
+  "mptSec": 17.5,
+  "pursuitSec": 7,
+  "overG": false,
+  "stall": false,
+  "maxGRate": "152 G/s at 7.8s (1.97->5.00 MPT)",
+  "maxRollAccel": "4500 deg/s2 at 28.5s (Slice[mpt])",
+  "maxPitchAccel": "275 deg/s2 at 7.8s (MPT)",
+  "posJumpFt": 0
+ }
+}
+{
+ "name": "m300",
+ "setup": {
+  "kias": [
+   300,
+   300
+  ],
+  "alt": [
+   10000,
+   10000
+  ],
+  "moves": [
+   "tactical",
+   "tactical"
+  ],
+  "sep": 1.2,
+  "ata": 5
+ },
+ "result": {
+  "timeSec": 240,
+  "firstNose": "red @19.4s",
+  "chase": "red @19.4s",
+  "stopped": false
+ },
+ "compute": {
+  "createMs": 195,
+  "runMs": 217,
+  "steps": 12000,
+  "msPerSimSec": 0.9
+ },
+ "blue": {
+  "seq": "0.0s MPT[pending] | 6.2s MPT | 19.7s Pursuit",
+  "minAlt": 6030,
+  "belowDeckSec": 0,
+  "kias": "129-300",
+  "maxG": 7,
+  "mptSec": 13.5,
+  "pursuitSec": 220.3,
+  "overG": false,
+  "stall": false,
+  "maxGRate": "193 G/s at 34.3s (0.73->4.60 Pursuit)",
+  "maxRollAccel": "4500 deg/s2 at 19.7s (Pursuit)",
+  "maxPitchAccel": "745 deg/s2 at 34.3s (Pursuit)",
+  "posJumpFt": 0.01
+ },
+ "red": {
+  "seq": "0.0s MPT[pending] | 6.2s MPT | 19.4s Pursuit",
+  "minAlt": 6030,
+  "belowDeckSec": 0,
+  "kias": "126-300",
+  "maxG": 5.71,
+  "mptSec": 13.2,
+  "pursuitSec": 220.6,
+  "overG": false,
+  "stall": false,
+  "maxGRate": "154 G/s at 6.9s (1.93->5.00 MPT)",
+  "maxRollAccel": "4500 deg/s2 at 19.5s (Pursuit)",
+  "maxPitchAccel": "242 deg/s2 at 6.9s (MPT)",
+  "posJumpFt": 0.01
+ }
+}
+{
+ "name": "auto300",
+ "setup": {
+  "kias": [
+   300,
+   300
+  ],
+  "alt": [
+   10000,
+   10000
+  ],
+  "moves": [
+   "auto",
+   "auto"
+  ],
+  "sep": 1.2,
+  "ata": 5
+ },
+ "result": {
+  "timeSec": 32.9,
+  "firstNose": "red @18.2s",
+  "chase": "red @18.2s",
+  "collision": "@32.9s",
+  "stopped": false
+ },
+ "compute": {
+  "createMs": 35,
+  "runMs": 15,
+  "steps": 1643,
+  "msPerSimSec": 0.5
+ },
+ "blue": {
+  "seq": "0.0s Pitch back[pending] | 6.2s Pitch back | 11.6s Pitch back[mpt] | 16.5s MPT | 18.5s Pursuit | 32.9s Collision Tumble",
+  "minAlt": 10000,
+  "belowDeckSec": 0,
+  "kias": "136-300",
+  "maxG": 5,
+  "mptSec": 6.9,
+  "pursuitSec": 14.3,
+  "overG": false,
+  "stall": false,
+  "maxGRate": "104 G/s at 20.9s (1.39->3.47 Pursuit)",
+  "maxRollAccel": "4500 deg/s2 at 11.6s (Pitch back[mpt])",
+  "maxPitchAccel": "456 deg/s2 at 20.9s (Pursuit)",
+  "posJumpFt": 0
+ },
+ "red": {
+  "seq": "0.0s Pitch back[pending] | 6.2s Pitch back | 11.6s Pitch back[mpt] | 16.5s MPT | 18.2s Pursuit | 32.9s Collision Tumble",
+  "minAlt": 10000,
+  "belowDeckSec": 0,
+  "kias": "147-300",
+  "maxG": 5,
+  "mptSec": 6.6,
+  "pursuitSec": 14.6,
+  "overG": false,
+  "stall": false,
+  "maxGRate": "47 G/s at 18.5s (2.38->1.44 Pursuit)",
+  "maxRollAccel": "4500 deg/s2 at 11.6s (Pitch back[mpt])",
+  "maxPitchAccel": "169 deg/s2 at 18.5s (Pursuit)",
+  "posJumpFt": 0
+ }
+}
+{
+ "name": "auto140",
+ "setup": {
+  "kias": [
+   140,
+   140
+  ],
+  "alt": [
+   10000,
+   10000
+  ],
+  "moves": [
+   "auto",
+   "auto"
+  ],
+  "sep": 1.2,
+  "ata": 5
+ },
+ "result": {
+  "timeSec": 34.2,
+  "firstNose": "red @32.7s",
+  "chase": "red @32.7s",
+  "collision": "@34.2s",
+  "stopped": false
+ },
+ "compute": {
+  "createMs": 0,
+  "runMs": 15,
+  "steps": 1710,
+  "msPerSimSec": 0.4
+ },
+ "blue": {
+  "seq": "0.0s Slice[pending] | 13.3s Slice | 16.4s Slice[mpt] | 20.8s MPT | 33.0s Pursuit | 34.2s Collision Tumble",
+  "minAlt": 9374,
+  "belowDeckSec": 0,
+  "kias": "139-159",
+  "maxG": 3.23,
+  "mptSec": 16.6,
+  "pursuitSec": 1.2,
+  "overG": false,
+  "stall": false,
+  "maxGRate": "0 G/s at 16.7s (2.73->2.73 Slice[mpt])",
+  "maxRollAccel": "4500 deg/s2 at 16.4s (Slice[mpt])",
+  "maxPitchAccel": "29 deg/s2 at 33.0s (Pursuit)",
+  "posJumpFt": 0
+ },
+ "red": {
+  "seq": "0.0s Slice[pending] | 13.3s Slice | 16.4s Slice[mpt] | 20.8s MPT | 32.7s Pursuit | 34.2s Collision Tumble",
+  "minAlt": 9364,
+  "belowDeckSec": 0,
+  "kias": "139-163",
+  "maxG": 3.36,
+  "mptSec": 16.3,
+  "pursuitSec": 1.5,
+  "overG": false,
+  "stall": false,
+  "maxGRate": "108 G/s at 32.7s (3.03->0.87 Pursuit)",
+  "maxRollAccel": "4500 deg/s2 at 16.4s (Slice[mpt])",
+  "maxPitchAccel": "533 deg/s2 at 33.5s (Pursuit)",
+  "posJumpFt": 0
+ }
+}
+{
+ "name": "unequal",
+ "setup": {
+  "kias": [
+   250,
+   180
+  ],
+  "alt": [
+   10000,
+   10000
+  ],
+  "moves": [
+   "tactical",
+   "tactical"
+  ],
+  "sep": 1.2,
+  "ata": 5
+ },
+ "result": {
+  "timeSec": 240,
+  "firstNose": null,
+  "chase": "red @56.3s",
+  "stopped": false
+ },
+ "compute": {
+  "createMs": 422,
+  "runMs": 757,
+  "steps": 12000,
+  "msPerSimSec": 3.2
+ },
+ "blue": {
+  "seq": "0.0s MPT[pending] | 8.6s MPT | 19.1s Pitch back | 20.4s Pitch back[mpt] | 23.8s Slice | 31.2s Slice[mpt] | 34.7s Pitch back | 36.2s Pitch back[mpt] | 39.6s Slice | 46.9s Slice[mpt] | 50.4s Pitch back | 51.8s Pitch back[mpt] | 55.3s Low Yo-Yo | 63.3s Low Yo-Yo[mpt] | ...(22 changes)",
+  "minAlt": 6000,
+  "belowDeckSec": 0,
+  "kias": "146-250",
+  "maxG": 5,
+  "mptSec": 195.2,
+  "pursuitSec": 0,
+  "overG": false,
+  "stall": false,
+  "maxGRate": "154 G/s at 9.3s (1.91->5.00 MPT)",
+  "maxRollAccel": "4500 deg/s2 at 20.4s (Pitch back[mpt])",
+  "maxPitchAccel": "291 deg/s2 at 9.3s (MPT)",
+  "posJumpFt": 0
+ },
+ "red": {
+  "seq": "0.0s Pitch back[pending] | 8.6s Pitch back | 9.5s Pitch back[mpt] | 13.0s Slice | 20.3s Slice[mpt] | 27.3s Pitch back | 28.5s Pitch back[mpt] | 32.0s Slice | 39.2s Slice[mpt] | 46.2s Pitch back | 47.4s Pitch back[mpt] | 50.9s Pitch back | 51.7s Pitch back[mpt] | 52.0s MPT | ...(15 changes)",
+  "minAlt": 6030,
+  "belowDeckSec": 0,
+  "kias": "146-201",
+  "maxG": 5,
+  "mptSec": 29,
+  "pursuitSec": 183.8,
+  "overG": false,
+  "stall": false,
+  "maxGRate": "15 G/s at 21.3s (4.70->5.00 Slice[mpt])",
+  "maxRollAccel": "4500 deg/s2 at 9.5s (Pitch back[mpt])",
+  "maxPitchAccel": "73 deg/s2 at 41.3s (Slice[mpt])",
+  "posJumpFt": 0
+ }
+}
+{
+ "name": "low",
+ "setup": {
+  "kias": [
+   220,
+   220
+  ],
+  "alt": [
+   7000,
+   7000
+  ],
+  "moves": [
+   "tactical",
+   "tactical"
+  ],
+  "sep": 1.2,
+  "ata": 5
+ },
+ "result": {
+  "timeSec": 240,
+  "firstNose": null,
+  "chase": "red @20.7s",
+  "stopped": false
+ },
+ "compute": {
+  "createMs": 528,
+  "runMs": 279,
+  "steps": 12000,
+  "msPerSimSec": 1.2
+ },
+ "blue": {
+  "seq": "0.0s High Yo-Yo[pending] | 8.8s High Yo-Yo | 8.9s High Yo-Yo[mpt] | 12.3s Pitch back | 13.7s Pitch back[mpt] | 17.2s Pitch back | 18.2s Pitch back[mpt] | 19.9s MPT | 25.1s Slice | 32.2s Level MPT[mpt]",
+  "minAlt": 5989,
+  "belowDeckSec": 203.9,
+  "kias": "146-220",
+  "maxG": 5.1,
+  "mptSec": 221.8,
+  "pursuitSec": 0,
+  "overG": false,
+  "stall": false,
+  "maxGRate": "20 G/s at 33.3s (5.10->4.70 Level MPT[mpt])",
+  "maxRollAccel": "4500 deg/s2 at 9.1s (High Yo-Yo[mpt])",
+  "maxPitchAccel": "100 deg/s2 at 33.3s (Level MPT[mpt])",
+  "posJumpFt": 0
+ },
+ "red": {
+  "seq": "0.0s High Yo-Yo[pending] | 8.8s High Yo-Yo | 8.9s High Yo-Yo[mpt] | 15.8s Pitch back | 17.1s Pitch back[mpt] | 20.7s Pursuit",
+  "minAlt": 6030,
+  "belowDeckSec": 0,
+  "kias": "146-220",
+  "maxG": 5,
+  "mptSec": 10.6,
+  "pursuitSec": 219.4,
+  "overG": false,
+  "stall": false,
+  "maxGRate": "110 G/s at 25.1s (3.32->1.11 Pursuit)",
+  "maxRollAccel": "4500 deg/s2 at 9.1s (High Yo-Yo[mpt])",
+  "maxPitchAccel": "340 deg/s2 at 25.1s (Pursuit)",
+  "posJumpFt": 0
+ }
+}
+{
+ "name": "heights",
+ "setup": {
+  "kias": [
+   220,
+   220
+  ],
+  "alt": [
+   10000,
+   12000
+  ],
+  "moves": [
+   "tactical",
+   "tactical"
+  ],
+  "sep": 1.2,
+  "ata": 5
+ },
+ "result": {
+  "timeSec": 38.3,
+  "firstNose": null,
+  "chase": "red @20.0s",
+  "kill": "red @38.3s",
+  "stopped": false
+ },
+ "compute": {
+  "createMs": 533,
+  "runMs": 281,
+  "steps": 1917,
+  "msPerSimSec": 7.3
+ },
+ "blue": {
+  "seq": "0.0s Immelmann[pending] | 8.0s Immelmann | 19.9s MPT",
+  "minAlt": 10000,
+  "belowDeckSec": 0,
+  "kias": "106-220",
+  "maxG": 5,
+  "mptSec": 18.5,
+  "pursuitSec": 0,
+  "overG": false,
+  "stall": false,
+  "maxGRate": "47 G/s at 18.5s (1.00->0.06 Immelmann)",
+  "maxRollAccel": "4500 deg/s2 at 16.5s (Immelmann)",
+  "maxPitchAccel": "1515 deg/s2 at 12.9s (Immelmann)",
+  "posJumpFt": 0
+ },
+ "red": {
+  "seq": "0.0s MPT[pending] | 8.0s MPT | 15.0s Pitch back | 16.4s Pitch back[mpt] | 19.8s Pitch back | 20.0s Pursuit",
+  "minAlt": 11112,
+  "belowDeckSec": 0,
+  "kias": "164-220",
+  "maxG": 5,
+  "mptSec": 10.5,
+  "pursuitSec": 18.3,
+  "overG": false,
+  "stall": false,
+  "maxGRate": "153 G/s at 8.7s (1.94->5.00 MPT)",
+  "maxRollAccel": "4500 deg/s2 at 9.9s (MPT)",
+  "maxPitchAccel": "343 deg/s2 at 10.7s (MPT)",
+  "posJumpFt": 0
+ }
+}

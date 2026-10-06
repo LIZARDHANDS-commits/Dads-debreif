@@ -1,0 +1,17 @@
+== fw start {"fwd":-313,"left":-406,"alt":-58} | Fighting wing right: IN POSITION, 513 ft (500-1,00
+   up 6 target {"fwd":-313,"left":-406,"alt":198} EDGE | 15 s, maxBank 14 pts 307 | flown to {"fwd":-313,"left":-406,"alt":198} miss 1 ft | IN BAND
+   out 4 target {"fwd":-313,"left":-541,"alt":198} EDGE | 8 s, maxBank 53 pts 162 | flown to {"fwd":-313,"left":-539,"alt":198} miss 1 ft | IN BAND
+   fwd -4 target {"fwd":-513,"left":-539,"alt":198}      | 21 s, maxBank 7 pts 423 | flown to {"fwd":-514,"left":-539,"alt":198} miss 1 ft | IN BAND
+   fwd 6 target {"fwd":-314,"left":-539,"alt":198} EDGE | 20 s, maxBank 0 pts 408 | flown to {"fwd":-312,"left":-539,"alt":198} miss 1 ft | IN BAND
+   up -8 target {"fwd":-312,"left":-539,"alt":-197} EDGE | 24 s, maxBank 0 pts 474 | flown to {"fwd":-312,"left":-539,"alt":-197} miss 0 ft | IN BAND
+== lab start {"fwd":0,"left":-5000,"alt":0} | Line abreast, right: IN POSITION, 5,000 ft abeam, 
+   out 4 target {"fwd":0,"left":-6000,"alt":0}      | 34 s, maxBank 68 pts 673 | flown to {"fwd":1,"left":-5999,"alt":0} miss 1 ft | IN BAND
+   up 10 target {"fwd":1,"left":-5999,"alt":2000}      | 120 s, maxBank 8 pts 2400 | flown to {"fwd":1,"left":-5999,"alt":2000} miss 0 ft | IN BAND
+   fwd -3 target {"fwd":-299,"left":-5999,"alt":2000}      | 22 s, maxBank 0 pts 438 | flown to {"fwd":-300,"left":-5999,"alt":2000} miss 0 ft | IN BAND
+   out -8 target {"fwd":-300,"left":-3999,"alt":2000}      | 50 s, maxBank 68 pts 1006 | flown to {"fwd":-299,"left":-4000,"alt":2000} miss 1 ft | IN BAND
+== echelon start {"fwd":-28,"left":-41,"alt":-5} | Echelon right: IN POSITION, 41 ft out (45 (±5 ft))
+   out 2 target {"fwd":-28,"left":-50,"alt":-5} EDGE | 6 s, maxBank 20 pts 130 | flown to {"fwd":-26,"left":-50,"alt":-5} miss 1 ft | IN BAND
+   up -1 target {"fwd":-26,"left":-50,"alt":-9} EDGE | 0 s, maxBank 0 pts 6 | flown to {"fwd":-26,"left":-50,"alt":-5} miss 4 ft | IN BAND
+   fwd -2 target {"fwd":-29,"left":-50,"alt":-5} EDGE | 2 s, maxBank 0 pts 44 | flown to {"fwd":-28,"left":-50,"alt":-5} miss 1 ft | IN BAND
+== route start {"fwd":-28,"left":-163,"alt":-5} | Route right: IN POSITION, 163 ft out (167 (±5 ft):
+   out 3 target {"fwd":-28,"left":-171,"alt":-5} EDGE | 6 s, maxBank 19 pts 120 | flown to {"fwd":-27,"left":-171,"alt":-5} miss 1 ft | IN BAND

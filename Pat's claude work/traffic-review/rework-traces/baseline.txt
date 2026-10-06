@@ -1,0 +1,148 @@
+=== B. PFL on inner downwind, abeam threshold, 3500/140 hdg 118 ===  wind 360/0
+  plan: circle  outcome: landed  apex alt 3500 (gain 0) at t~0s  steps/ms 111
+  gate 2100: ok=true off 0 deg kias 120 flags []
+  touchdown: 1838 ft along, 120 KIAS, path angle at touchdown 0.0 deg, cross 26 ft
+  min KIAS 119  max G(bank) 2.01  notes: widened at 3410 ft
+=== B2. same, wind 269/15 ===  wind 269/15
+  plan: circle  outcome: landed  apex alt 3500 (gain 0) at t~0s  steps/ms 15
+  gate 2100: ok=true off 0 deg kias 120 flags []
+  touchdown: 2037 ft along, 120 KIAS, path angle at touchdown 8.9 deg, cross 22 ft
+  min KIAS 119  max G(bank) 2.01  notes: 
+=== C. PFL at the perch 3500/120 hdg 118 ===  wind 360/0
+  plan: direct  outcome: landed  apex alt 3500 (gain 0) at t~0s  steps/ms 21
+  gate 2100: ok=true off 2 deg kias 120 flags []
+  touchdown: 2356 ft along, 120 KIAS, path angle at touchdown -90.0 deg, cross 14 ft
+  min KIAS 120  max G(bank) 1.99  notes: went direct at 3500 ft
+=== D. PFL mid final turn (hdg 208, 2,900 ft, 120, bank 35) ===  wind 360/0
+  plan: direct  outcome: landed  apex alt 2900 (gain 0) at t~0s  steps/ms 19
+  gate 2100: ok=false off 13 deg kias 101 flags [no T/O flap]
+  touchdown: 2306 ft along, 104 KIAS, path angle at touchdown 9.3 deg, cross 25 ft
+  min KIAS 95  max G(bank) 2.00  notes: 
+=== D2. PFL late final turn (hdg 250, 2,500 ft, 120, bank 35) ===  wind 360/0
+  plan: direct  outcome: landed  apex alt 2500 (gain 0) at t~0s  steps/ms 17
+  gate 2100: ok=true off 20 deg kias 125 flags [gear up, no T/O flap]
+  touchdown: 2247 ft along, 96 KIAS, path angle at touchdown -90.0 deg, cross -14 ft
+  min KIAS 91  max G(bank) 2.00  notes: 
+=== E. PFL on initial 1 NM short of threshold, 3500/220 hdg 298 ===  wind 360/0
+  plan: circle  outcome: landed  apex alt 4667 (gain 1167) at t~13s  steps/ms 52
+  gate 2100: ok=true off 5 deg kias 120 flags []
+  touchdown: 1150 ft along, 120 KIAS, path angle at touchdown -90.0 deg, cross 50 ft
+  min KIAS 116  max G(bank) 1.66  notes: 
+=== E2. PFL in the break (hdg 240, 3500/190, bank -60) 2000 ft past thr ===  wind 360/0
+  plan: circle  outcome: landed  apex alt 4220 (gain 720) at t~11s  steps/ms 39
+  gate 2100: ok=true off 5 deg kias 120 flags []
+  touchdown: 1210 ft along, 120 KIAS, path angle at touchdown -90.0 deg, cross 47 ft
+  min KIAS 112  max G(bank) 2.00  notes: 
+=== F. PFL on the outer downwind (abeam dep end) 3500/220 hdg 118 ===  wind 360/0
+  plan: circle  outcome: landed  apex alt 4670 (gain 1170) at t~13s  steps/ms 36
+  gate 2100: ok=true off 2 deg kias 120 flags []
+  touchdown: 3256 ft along, 120 KIAS, path angle at touchdown -90.0 deg, cross -4 ft
+  min KIAS 115  max G(bank) 2.01  notes: widened at 3810 ft
+=== F2. same in 269/15 ===  wind 269/15
+  plan: direct  outcome: landed  apex alt 4691 (gain 1191) at t~13s  steps/ms 28
+  gate 2100: ok=true off 7 deg kias 120 flags []
+  touchdown: 1839 ft along, 120 KIAS, path angle at touchdown 0.0 deg, cross 52 ft
+  min KIAS 115  max G(bank) 2.01  notes: widened at 4001 ft | widened at 3612 ft | went direct at 3198 ft
+=== G. High Key button at 5,500 ft (practice) ===  wind 360/0
+  plan: highKey  outcome: landed  apex alt 5500 (gain 0) at t~0s  steps/ms 83
+  gate 2100: ok=true off 4 deg kias 120 flags []
+  touchdown: 1241 ft along, 120 KIAS, path angle at touchdown 5.1 deg, cross 46 ft
+  min KIAS 120  max G(bank) 1.13  notes: 
+=== G2. High Key at 6,500 ft (practice, above window) ===  wind 360/0
+  plan: highKey  outcome: landed  apex alt 6500 (gain 0) at t~0s  steps/ms 39
+  gate 2100: ok=true off 5 deg kias 120 flags []
+  touchdown: 1198 ft along, 120 KIAS, path angle at touchdown -90.0 deg, cross 48 ft
+  min KIAS 119  max G(bank) 1.14  notes: gear early: an orbit would end below the High Key window
+=== G3. High Key at 5,900 ft (practice, top of window) ===  wind 360/0
+  plan: highKey  outcome: landed  apex alt 5900 (gain 0) at t~0s  steps/ms 32
+  gate 2100: ok=true off 5 deg kias 120 flags []
+  touchdown: 1225 ft along, 120 KIAS, path angle at touchdown 8.2 deg, cross 47 ft
+  min KIAS 120  max G(bank) 1.14  notes: 
+=== G4. Low Key start, 3,700, hdg 118 (spec test case) ===  wind 360/0
+  plan: circle  outcome: landed  apex alt 3700 (gain 0) at t~0s  steps/ms 18
+  gate 2100: ok=true off 4 deg kias 120 flags []
+  touchdown: 1231 ft along, 120 KIAS, path angle at touchdown -90.0 deg, cross 46 ft
+  min KIAS 120  max G(bank) 1.24  notes: 
+=== G5. Low Key start 3,700 in 20 kt from 208 ===  wind 208/20
+  plan: circle  outcome: landed  apex alt 3700 (gain 0) at t~0s  steps/ms 20
+  gate 2100: ok=true off 2 deg kias 120 flags []
+  touchdown: 2553 ft along, 120 KIAS, path angle at touchdown 2.2 deg, cross 9 ft
+  min KIAS 120  max G(bank) 1.91  notes: widened at 3317 ft
+=== G6. Low Key start high: 4,300 ft ===  wind 360/0
+  plan: direct  outcome: landed  apex alt 4300 (gain 0) at t~0s  steps/ms 36
+  gate 2100: ok=true off 3 deg kias 120 flags []
+  touchdown: 2861 ft along, 120 KIAS, path angle at touchdown -90.0 deg, cross 19 ft
+  min KIAS 120  max G(bank) 2.00  notes: went direct at 3316 ft
+=== H. Area PFL 3 NM, 10,000 ft from 120 ===  wind 360/0
+  plan: direct  outcome: landed  apex alt 10000 (gain 0) at t~0s  steps/ms 43
+  gate 2100: ok=false off 91 deg kias 120 flags [bank over 45°]
+  touchdown: 5291 ft along, 120 KIAS, path angle at touchdown -90.0 deg, cross 60 ft
+  min KIAS 119  max G(bank) 2.00  notes: gear early to make the High Key window | went direct at 5545 ft
+=== H2. Pattern PFL high: inner downwind 4,600 ft 140 kt (after a go-around climb) ===  wind 360/0
+  plan: direct  outcome: eject  apex alt 4600 (gain 0) at t~0s  steps/ms 24
+  gate 2100: ok=true off 2 deg kias 120 flags []
+  eject at alt 1880 (6221 along, 435 cross from threshold)
+  min KIAS 119  max G(bank) 2.01  notes: widened at 4206 ft | went direct at 4101 ft
+=== I. Area PFL 8 NM 5,000 ft (too far) ===  wind 360/0
+  plan: none  outcome: eject  apex alt 5000 (gain 0) at t~0s  steps/ms 64
+  eject at alt 3700 (-28488 along, -76 cross from threshold)
+  min KIAS 124  max G(bank) 1.00  notes: short of the runway at 5000 ft | apex: changed to Eject
+=== I2. Area PFL 3 NM south 3,000 ft heading north (toward LK) ===  wind 360/0
+  plan: direct  outcome: landed  apex alt 3200 (gain 0) at t~0s  steps/ms 41
+  gate 2100: ok=false off 24 deg kias 105 flags [no T/O flap]
+  touchdown: 2419 ft along, 108 KIAS, path angle at touchdown 9.3 deg, cross 49 ft
+  min KIAS 99  max G(bank) 1.14  notes: 
+=== I3. PFL on final 2 NM out 2,500 ft 120 kt ===  wind 360/0
+  plan: none  outcome: eject  apex alt 2500 (gain 0) at t~0s  steps/ms 41
+  eject at alt 2381 (-11069 along, 0 cross from threshold)
+  min KIAS 120  max G(bank) 1.00  notes: short of the runway at 2500 ft | obviously short at 2500 ft | apex: changed to Eject
+=== I4. PFL 2 NM east of threshold heading away (hdg 118) 3,500 ft 140 ===  wind 360/0
+  plan: direct  outcome: landed  apex alt 3500 (gain 0) at t~0s  steps/ms 16
+  gate 2100: ok=true off 1 deg kias 121 flags []
+  touchdown: 2872 ft along, 120 KIAS, path angle at touchdown -90.0 deg, cross -12 ft
+  min KIAS 120  max G(bank) 2.01  notes: 
+=== I5. Area 6 NM 8000 in 30 kt headwind-ish (wind 299/30) ===  wind 299/30
+  plan: circle  outcome: landed  apex alt 8000 (gain 0) at t~0s  steps/ms 99
+  gate 2100: ok=true off 3 deg kias 120 flags []
+  touchdown: 1219 ft along, 120 KIAS, path angle at touchdown 9.9 deg, cross 33 ft
+  min KIAS 120  max G(bank) 1.39  notes: 
+=== T. area PFL 120/6/8000, standard day ===  wind 269/15
+  plan: highKey  outcome: landed  apex alt 8000 (gain 0) at t~0s  steps/ms 122
+  gate 2100: ok=true off 5 deg kias 120 flags []
+  touchdown: 1158 ft along, 120 KIAS, path angle at touchdown 9.8 deg, cross 48 ft
+  min KIAS 120  max G(bank) 1.12  notes: 
+=== T. area PFL 120/6/8000, hot 30C ===  wind 269/15 temp 30C
+  plan: highKey  outcome: landed  apex alt 8000 (gain 0) at t~0s  steps/ms 74
+  gate 2100: ok=true off 1 deg kias 120 flags []
+  touchdown: 1893 ft along, 120 KIAS, path angle at touchdown -90.0 deg, cross 24 ft
+  min KIAS 120  max G(bank) 1.20  notes: 
+=== T. area PFL 120/6/8000, cold -30C ===  wind 269/15 temp -30C
+  plan: direct  outcome: landed  apex alt 8000 (gain 0) at t~0s  steps/ms 70
+  gate 2100: ok=false off 25 deg kias 119 flags []
+  touchdown: 934 ft along, 118 KIAS, path angle at touchdown -90.0 deg, cross 46 ft
+  min KIAS 110  max G(bank) 1.95  notes: went direct at 2967 ft
+=== T. Low Key start std ===  wind 360/0
+  plan: circle  outcome: landed  apex alt 3700 (gain 0) at t~0s  steps/ms 23
+  gate 2100: ok=true off 4 deg kias 120 flags []
+  touchdown: 1231 ft along, 120 KIAS, path angle at touchdown -90.0 deg, cross 46 ft
+  min KIAS 120  max G(bank) 1.24  notes: 
+=== T. Low Key start cold -30C ===  wind 360/0 temp -30C
+  plan: direct  outcome: landed  apex alt 3700 (gain 0) at t~0s  steps/ms 24
+  gate 2100: ok=false off 20 deg kias 109 flags []
+  touchdown: 867 ft along, 111 KIAS, path angle at touchdown 3.5 deg, cross 10 ft
+  min KIAS 109  max G(bank) 1.80  notes: went direct at 2663 ft
+=== T. Low Key start hot 30C ===  wind 360/0 temp 30C
+  plan: circle  outcome: landed  apex alt 3700 (gain 0) at t~0s  steps/ms 15
+  gate 2100: ok=true off 1 deg kias 120 flags []
+  touchdown: 1927 ft along, 120 KIAS, path angle at touchdown 4.0 deg, cross 22 ft
+  min KIAS 120  max G(bank) 1.24  notes: 
+=== A. Busy circuit area PFL (120°, 6 NM, 8,000 ft) ===  wind 269/15
+  plan: highKey  outcome: landed  apex alt 8000 (gain 0) at t~0s  steps/ms 98
+  gate 2100: ok=true off 5 deg kias 120 flags []
+  touchdown: 1158 ft along, 120 KIAS, path angle at touchdown 9.8 deg, cross 48 ft
+  min KIAS 120  max G(bank) 1.12  notes: 
+=== A2. same, calm ===  wind 360/0
+  plan: highKey  outcome: landed  apex alt 8000 (gain 0) at t~0s  steps/ms 66
+  gate 2100: ok=true off 4 deg kias 120 flags []
+  touchdown: 1256 ft along, 120 KIAS, path angle at touchdown 9.1 deg, cross 45 ft
+  min KIAS 120  max G(bank) 1.14  notes: 
