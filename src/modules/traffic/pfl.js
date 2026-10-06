@@ -83,8 +83,8 @@ export const PFL = Object.freeze({
   gateAltFt: 2100,
   gateTrackDeg: 35,
   gateKias: 120,
-  /** Aim a third down the runway until the landing flap goes down (SMM 13.9 para 18; Patrick 06:35Z, 09:49Z). */
-  aimFractionOfRunway: 1 / 3,
+  /** Aim a fifth down the runway until the landing flap goes down (Patrick 6 Oct 07:55Z; the SMM's third, SMM 13.9 para 18, landed long). */
+  aimFractionOfRunway: 1 / 5,
   /** With landing flap, touch down in the first 1,000 ft: closer is better (Patrick 09:49Z, 09:56Z). */
   touchdownFt: 1000,
   /** The latest touchdown point, short of the far end. An estimate. */
@@ -561,9 +561,9 @@ export function chooseJoin(geo, from, availFt, trackDeg, wind, { allowHighKey = 
       const most = neededFt(path.map((p) => ({ ...p, plan: 3 })), toJoinIdx, path[toJoinIdx], hAtJoin, 0, wind);
       const pick = { turn: score(path), turnDeg: path.turnDeg ?? 0, th, path };
       // A high join still has to put it on the runway: room before Final Key to widen and stage the drag, or the
-      // excess with all the drag out (at the landing-flap glide) lands before the far end's stopping margin.
+      // excess with all the drag out (at the landing-flap glide) still lands in the first third.
       const longFt = (hAtJoin - most - ground) * glideRatio('landing');
-      const landable = th <= PFL.highJoinRoomDeg || geo.aimAlongFt + longFt <= geo.lenFt - PFL.stopMarginFt;
+      const landable = th <= PFL.highJoinRoomDeg || geo.aimAlongFt + longFt <= geo.lenFt / 3;
       if (hAtJoin - most - ground <= 0) { if (!best || pick.turn < best.turn - 1e-6) best = pick; }
       else if (landable && (!bestHigh || pick.turn < bestHigh.turn - 1e-6)) bestHigh = pick;
     }
@@ -1196,7 +1196,7 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
       if (onRunway) touchdown = { x: s.x, y: s.y, alongFt: o.alongFt, kias: s.ias };
       else eject = { x: s.x, y: s.y, alt: s.alt };
       // Landing past the first third (it carried on its turn, or turned early to land long) is shown (Fable Q2, working answer (c)).
-      setRec(onRunway ? (o.alongFt > geo.aimAlongFt ? 'Touchdown past the first third' : 'Touchdown') : 'Eject');
+      setRec(onRunway ? (o.alongFt > geo.lenFt / 3 ? 'Touchdown past the first third' : 'Touchdown') : 'Eject');
       pilot.record();
       break;
     }
