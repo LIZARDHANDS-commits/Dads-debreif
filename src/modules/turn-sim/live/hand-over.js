@@ -9,7 +9,7 @@
 //    It is planned at the press as a look-ahead (refusals) and planned again when the line ends from where #2 and Lead
 //    really are (Patrick 06:24Z; replanFor below, transitions.js flyStep).
 // A move that starts inside 500 ft is the tracker's alone. This file holds the pieces the 2-ship's planners
-// share (line-moves.js and hot-rejoin.js); it changes no flight physics: the line is read off positions as every planned
+// share (line-moves.js and the rejoins); it changes no flight physics: the line is read off positions as every planned
 // line is, and the tracker flies the unchanged flight.js step. Numbers are tuning.js's.
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { wrapPi } from '../../../core/angles.js';
@@ -220,7 +220,7 @@ export function lineRunIn({ wing, leadRec, points, finalSlot, blockFt = 8000, cr
 
 /**
  * Lead's turn into #2 in a turning rejoin, held until #2 is IN POSITION, then rolled out (Patrick 5 Oct 06:16Z item 3:
- * "until 2 is on"; RULED_REJOIN; SMM 16.20 para 65b: 30° of bank, constant bank and speed). pre: his speed change, flown
+ * "until 2 is on"; SMM 16.20 para 65b: 30° of bank, constant bank and speed). pre: his speed change, flown
  * with the turn (withNext); s: the way he turns (toward #2); record: transitions.js recordFlight (passed in, so this file
  * needs no import of it). Returns { longRec, planTo }: longRec, the turn held on (four near-half circles, for planning);
  * planTo(step), his real plan, rolling out on the whole degree once he has turned what longRec turned by that step

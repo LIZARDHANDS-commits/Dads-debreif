@@ -4,8 +4,8 @@
 // at the press; the bank and speed it commanded are recorded and replayed by the real aircraft (transitions.js flyStep's
 // 'bankTrack' segment), so the path drawn ahead is the path flown (spec F1). It stays as the fallback for starts that no
 // kinematic-line rule covers; until step 1 it lived in transitions.js. Its numbers are tuning.js TRACKER (all estimates:
-// they shape how smoothly the wingman flies, not where the formations are). The leg recipes that call it (slide, stopAt,
-// dropBack, sweepOut, closeThrough, rejoinTo, openOut, straightAhead) stay with the moves in transitions.js.
+// they shape how smoothly the wingman flies, not where the formations are). Its phase defaults are here; the leg recipes that call it
+// (slide, stopAt, dropBack, sweepOut, closeThrough, rejoinTo, openOut, straightAhead) stay with the moves in transitions.js.
 import { bankDegFromTurnRate } from '../../../core/flight-math.js';
 import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2 } from '../../../core/units.js';

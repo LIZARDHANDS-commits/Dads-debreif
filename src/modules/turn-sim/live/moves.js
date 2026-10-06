@@ -35,7 +35,7 @@ export const REJOIN = Object.freeze({
   idealBearingDeg: 45, // Lead at 10:30 or 1:30 (SMM 12.24 para 56)
   hotBearingDeg: 60, // hot and cold are drawn but not numbered in SMM Fig 12.16: 60 and 30 are estimates
   coldBearingDeg: 30,
-  turnAnglesDeg: [30, 45, 20, 60], // how far Lead turns into #2; estimates (a gentle turn, AFM8 brief p.19). Since V2.59 the 2-ship's Lead holds his turn until #2 is in (Patrick 06:16Z item 3, RULED_REJOIN; hand-over.js leadTurnInto): these are only the 2-ship tracker's fallback, and the 4-ship's (step 3, not yet changed)
+  turnAnglesDeg: [30, 45, 20, 60], // how far Lead turns into #2; estimates (a gentle turn, AFM8 brief p.19). Since V2.59 the 2-ship's Lead holds his turn until #2 is in (Patrick 06:16Z item 3; hand-over.js leadTurnInto): these are only the 2-ship tracker's fallback, and the 4-ship's (step 3, not yet changed)
 });
 
 /**
@@ -149,25 +149,22 @@ export function closeRates(foreAftFtps = rejoinClosureNow().ftps) {
 
 /**
  * Patrick's 06:16Z rulings on the rejoin's estimates (5 Oct 06:16Z), flown since V2.59 (TS-67) in the numbers above
- * (REJOIN.bankCapDeg) and hand-over.js leadTurnInto; the hot rejoin's numbers for items 2, 4 and 5 went with it (TS-94):
+ * (REJOIN.bankCapDeg) and hand-over.js leadTurnInto (RULED_REJOIN, its table of the rulings, retired in clean-up step 2); the hot rejoin's numbers for items 2, 4 and 5 went with it (TS-94):
  *  1. "Unlimitd bank. they can roll and dive if they want/need to and it ameks sense": no bank cap on #2 in a rejoin
  *     (REJOIN.bankCapDeg); bank follows the G the move needs, inside the G rule, past 90° where the
  *     path needs it.
  *  2. "Unlimited": the reversal may take any bank the G rule allows (the hot rejoin's reversal, retired with it, TS-94).
- *  3. "until 2 is on": Lead holds his 30° turn until #2 is IN POSITION, then rolls out (replaces REJOIN.turnAnglesDeg).
+ *  3. "until 2 is on": Lead holds his 30° turn until #2 is IN POSITION, then rolls out (REJOIN.turnAnglesDeg is now only planGoTo's fallback).
  *  4. "unlimited as it can be controlled?": no fixed descent rate; any smooth descent
  *     inside the G rule, still off Lead's height before 2,000 ft (SMM 12.27 para 65).
- *  5. "Decision point would be when the AI would usually tansition to a rate so clser to 200 feet": RULED_REJOIN.overshootRangeFt,
- *     about 200 ft.
+ *  5. "Decision point would be when the AI would usually tansition to a rate so clser to 200 feet": about 200 ft
+ *     (the window's 250-100 ft since TS-106).
  */
-export const RULED_REJOIN = Object.freeze({ bankCapDeg: null, reverseBanksDeg: null, leadTurnsUntilIn: true, descentFtps: null, overshootRangeFt: 200 });
 
 // ---- fighting wing turns (from formation-turns.js) -----------------------------------------------------------------
 
 /** The numbers of the fighting wing turns. Estimates unless a source is given. */
 export const FW_TURN = Object.freeze({
-  gentleBankDeg: 30, // AFM7 brief p.14 item 5a's gentle check turn: no longer flown since step 3 (every turn at WING_BANKS.fwTurnBankDeg, Patrick 06:16Z)
-  turnBankDeg: 45, // item 5b's moderate turn: no longer flown since step 3 (WING_BANKS.fwTurnBankDeg)
   collapseFromDeg: 32, // #2 starts collapsing once Lead's bank passes this ...
   collapseFullDeg: 42, // ... and goes all the way to Lead's six by this
   // ... but only in turns of this size or more: the check turn (20°) keeps #2's side and sweep (AFM7 brief p.14 item 5a).

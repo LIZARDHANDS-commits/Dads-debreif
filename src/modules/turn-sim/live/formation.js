@@ -293,7 +293,6 @@ export function createFormation(options = {}) {
     state.current = {
       key: `change:${to}`,
       change: { to: plan.to ?? to, side: plan.side, from: plan.from, holdsPlan: four || Boolean(plan.holdsPlan), rejoining: plan.rejoining, rejoinKind: plan.rejoinKind, flying: plan.flying, maxBankDeg: plan.maxBankDeg, four, offStandard: plan.offStandard ?? null, chooser: plan.chooser ?? null, options: changeOptions },
-      decisionSec: plan.decisionSec ?? null,
       dir: 0,
       label: plan.label,
       note: plan.note,
