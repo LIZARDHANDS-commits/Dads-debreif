@@ -34,10 +34,12 @@ import { relativeTo, DEG } from './manoeuvres.js';
 import { recordFlight, speedSeg, closeThrough, rejoinTo, slide, stopAt, legsFor, CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
 import { FORMATIONS, fwShapeNow, pairSlot, downTheLine, LINE_BACK_PER_OUT, LENGTH_FT } from './slots.js';
-import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, TURNING_REJOIN, TRACKER, CLOSURE, FW_FOLLOW, G_RULE, closureNow, closeInFtps } from './tuning.js';
+import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, TURNING_REJOIN, TRACKER, CLOSURE, FW_FOLLOW, G_RULE, KINEMATIC, closureNow, closeInFtps } from './tuning.js';
 import { onClosure, leadTurnInto, fromStep } from './hand-over.js';
-import { STEP_SEC, copyAircraft, SMOOTHER_CURVE_PEAK } from './flight.js';
-import { stepCommanded, setKias, trackTwice, phase } from './tracker.js';
+import { STEP_SEC, copyAircraft, SMOOTHER_CURVE_PEAK, smoother } from './flight.js';
+import { RATE_SETS } from './rates.js';
+import { laggedBank } from './kinematic.js';
+import { stepCommanded, setKias, trackTwice, runTracker, phase } from './tracker.js';
 import { fwGoal } from './formation-turns.js';
 import { acrossSixLegs } from './replan.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
@@ -546,13 +548,62 @@ export function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, 
   const fly = (rec, stopWhenSettled) => trackTwice({ refs: { [lead.id]: fromStep(rec, n1) }, wing0: W1, t0: t1, phases, blockFt, init: { accelKtps: part.accelKtps }, stopWhenSettled });
   const first = fly(into.longRec, true);
   if (!first.run.ok) return null;
-  const lp = into.planTo(n1 + first.run.points.length);
-  const { run, profile } = fly(lp.rec, false);
+  // To a close formation #2 eases into Lead's wing plane from the move over, and Lead keeps turning until he is in it, then
+  // rolls out as gently as in an echelon turn, so #2 can stay in the plane (TS-126).
+  const close = to !== 'fw';
+  const easeSec = close ? planeEaseSec(rel1, into.longRec.at(n1)) : 0;
+  const lp = into.planTo(n1 + Math.max(first.run.points.length, Math.ceil(easeSec / dt)), close ? RATE_SETS.close.echelonRoll : null);
+  let { run, profile } = fly(lp.rec, false);
   if (!run.ok) return null;
+  // In the wing plane his heights change near Lead, and a climb costs speed: the tracker flies once more with them, so its
+  // power pays for them and he still ends on his place (TS-126).
+  const inPlane = (r) => inLeadsPlane(wing, { segments: [{ kind: 'bankTrack', points: [...part.points, ...r.points] }], profile: [...heightLeg(partSec), ...profile] }, lp.rec, t0, n1, n1 + r.points.length, easeSec);
+  if (close) {
+    const again = runTracker({ refs: { [lead.id]: fromStep(lp.rec, n1) }, wing0: W1, t0: t1, phases, profile: inPlane(run), blockFt, init: { accelKtps: part.accelKtps } });
+    if (again.ok) run = again;
+  }
   // Passing more than TR.laneTolFt ahead of the slot is a warning on the card, not a refusal (Patrick 6 Oct 03:45Z; TS-110;
   // a refusal from 5 Oct 08:04Z until V2.122).
   const slotFwdFt = Math.max(0, pairSlot(to, sTo || s, spacingFt).fwd);
-  return { part, run, slotFwdFt, profile: [...heightLeg(partSec), ...profile], lp, durationSec: (n1 + run.points.length) * dt, overshoot: onX && overshoot };
+  const steps = n1 + run.points.length;
+  const flown = close ? inPlane(run) : [...heightLeg(partSec), ...profile];
+  return { part, run, slotFwdFt, profile: flown, lp, durationSec: steps * dt, overshoot: onX && overshoot };
+}
+
+/**
+ * How long #2 takes to ease into Lead's wing plane from the move over (TS-126): at least TURNING_REJOIN.planeEaseSec, and
+ * longer for a big step so the pull stays within TURNING_REJOIN.planeEaseG (smootherstep's peak pull is SMOOTHER_CURVE_PEAK
+ * times the step over the time squared). rel: #2 in Lead's frame there; L: Lead there.
+ */
+function planeEaseSec(rel, L) {
+  const step = Math.abs(rel.left * Math.sin(L.bankDeg * DEG));
+  return Math.max(TURNING_REJOIN.planeEaseSec, Math.sqrt((SMOOTHER_CURVE_PEAK * step) / (TURNING_REJOIN.planeEaseG * G_FTPS2)));
+}
+
+/**
+ * #2's heights from where he moves over on, in Lead's wing plane (TS-126; Patrick 6 Oct 07:10Z: "2 is above the line,
+ * almost co-altitude with lead"; SMM 12.19 and Fig 12.11: in a close formation turn the wingman holds Lead's wing plane,
+ * stepped down on the inside of the turn and up on the outside). Lead's bank tilts #2's place by his distance out times
+ * the sine of his bank, lagged as in the close turns; it eases in over easeSec from the move over (planeEaseSec), and
+ * comes off as Lead rolls out.
+ * Until V2.142 the heights were held against Lead's height, so on the inside of Lead's 30° turn #2 sat about half his
+ * distance out above the wing plane. wing: #2 at t0; plan: his bank track and heights; leadRec: Lead's real flight; from:
+ * the move-over step; easeSec: planeEaseSec. Returns the heights as one table leg (flight.js tableAt).
+ */
+function inLeadsPlane(wing, plan, leadRec, t0, from, steps, easeSec) {
+  const rec = recordFlight(wing, plan, t0);
+  // His place follows Lead's bank with the close turns' lag (he lags the roll, SMM 12.19 para 43).
+  const ref = laggedBank(leadRec, KINEMATIC.planeLagSec);
+  const tilt = (n) => -relativeTo(ref.at(n), rec.at(n)).left * Math.sin(ref.at(n).bankDeg * DEG);
+  const alt = [];
+  for (let n = 0; n <= steps; n++) {
+    const ease = n < from ? 0 : smoother(Math.min(1, ((n - from) * dt) / easeSec));
+    alt.push(rec.at(n).altAboveFt + tilt(n) * ease);
+  }
+  const at = (n) => alt[Math.max(0, Math.min(steps, n))];
+  const climb = alt.map((_, n) => (at(n + 1) - at(n - 1)) / (2 * dt));
+  const nz = alt.map((_, n) => 1 + (at(n + 1) - 2 * at(n) + at(n - 1)) / (dt * dt * G_FTPS2));
+  return [{ t0, t1: t0 + steps * dt, table: { dt, alt, climb, nz } }];
 }
 
 /**

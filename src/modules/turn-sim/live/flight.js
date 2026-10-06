@@ -265,6 +265,12 @@ export function speedAt(leg, t) {
 }
 
 /**
+ * A turn's gentler roll-out (seg.rollOutRoll: Lead's, with a close wingman in his wing plane; TS-126), once his roll-in has
+ * settled to no faster than it: until then his own roll, so the gentle stop is never planned from a quick roll-in.
+ */
+const outRoll = (seg, a) => (seg?.rollOutRoll && Math.abs(a.rollRateDps ?? 0) <= seg.rollOutRoll.maxRateDps + 1e-9 ? seg.rollOutRoll : null);
+
+/**
  * Flies one step. `plan` is the aircraft's { segments, profile } and is used up as
  * it goes (finished segments are shifted off). `t` is the formation's time at the
  * start of the step. Segments:
@@ -324,7 +330,7 @@ export function stepAircraft(a, plan, t) {
         }
       } else {
         // Roll out early enough that the wings come level on the target heading.
-        const rollOutChange = Math.abs(headingChangeRollingOut(a.bankDeg, a.rollRateDps, a.tasFtps, seg.roll));
+        const rollOutChange = Math.abs(headingChangeRollingOut(a.bankDeg, a.rollRateDps, a.tasFtps, outRoll(seg, a) ?? seg.roll));
         const thisStep = Math.abs(turnRateFromBankRadPerSec(a.tasFtps, a.bankDeg)) * dt;
         if (seg.started && (toGo <= rollOutChange + thisStep / 2 || toGo > 1.5 * Math.PI)) seg.rollingOut = true;
       }
@@ -357,7 +363,7 @@ export function stepAircraft(a, plan, t) {
   const tas = (tasBefore + a.tasFtps) / 2;
   // A turn segment may roll gentler (a close formation Lead); never past the envelope gate (gateRoll: the T-6A's roll at
   // this speed, TS-85; G onset and stall, TS-93).
-  const rolled = gateRoll(a.bankDeg, a.rollRateDps, targetBank, dt, seg?.roll ?? ROLL, tasBefore, a.kias);
+  const rolled = gateRoll(a.bankDeg, a.rollRateDps, targetBank, dt, (seg?.rollingOut && outRoll(seg, a)) || seg?.roll || ROLL, tasBefore, a.kias);
   a.bankDeg = Math.abs(rolled.bankDeg) < 1e-9 ? 0 : rolled.bankDeg;
   a.rollRateDps = Math.abs(rolled.rollRateDps) < 1e-9 ? 0 : rolled.rollRateDps;
   const turned = stepTurnRad(tas, bankBefore, a.bankDeg);
