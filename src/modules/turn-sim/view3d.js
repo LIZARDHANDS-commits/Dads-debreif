@@ -22,7 +22,7 @@ import { createCt156Model, CT156_UNIT_LENGTH } from '../../ui-kit/ct156-model.js
 /** The formation's height in the picture (feet). An aircraft with altAboveFt is drawn that far above or below it (the vertical miss). */
 export const FLIGHT_ALT_FT = 0;
 /** The ground grid sits this far below the aircraft, so there is something to judge the view against. */
-const GROUND_BELOW_FT = 1500;
+const GROUND_BELOW_FT = 8000; // the ground, at the block height below (LIVE_DEFAULTS.blockFt, an estimate; was a grid 1,500 ft down)
 const GRID_STEP_FT = 5000;
 const GRID_CELLS = 40;
 const ALT_SCALE = 1;
@@ -183,7 +183,11 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     // A light blue sky and a cloud layer below the formation (Patrick, 6 Oct; ui-kit/sky-clouds.js). 2D keeps the slate.
     const skyClouds = addSkyAndClouds(THREE, scene);
     scene.fog?.color.set(SKY_COLOURS.horizon);
-    const grid = new THREE.GridHelper(GRID_STEP_FT * GRID_CELLS, GRID_CELLS, '#a9c3dc', '#8fb0cf'); // pale on the blue
+    // The ground under the formation (Patrick, 6 Oct: "the sky is sky, the ground is ground"): a muted prairie plane with the
+    // grid on it, following the camera; the sky shows toward the horizon and above.
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(GRID_STEP_FT * GRID_CELLS * 3, GRID_STEP_FT * GRID_CELLS * 3), new THREE.MeshBasicMaterial({ color: '#56664a', fog: true }));
+    scene.add(ground);
+    const grid = new THREE.GridHelper(GRID_STEP_FT * GRID_CELLS, GRID_CELLS, '#7d8f6b', '#6a7b5a'); // a little lighter than the ground
     grid.rotation.x = Math.PI / 2; // GridHelper is flat in X-Z; the sim's ground is X-Y
     grid.material.fog = false;
     scene.add(grid);
@@ -201,7 +205,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     placeBox.visible = false;
     for (const o of placeBox.children) o.frustumCulled = false;
     scene.add(placeBox);
-    gl = { renderer, scene, camera, sky, skyClouds, grid, planes: new Map(), trails: new Map(), plans: new Map(), guideLines, cones: new Map(), coneGeometry: {}, placeBox, boxShape: '' };
+    gl = { renderer, scene, camera, sky, skyClouds, ground, grid, planes: new Map(), trails: new Map(), plans: new Map(), guideLines, cones: new Map(), coneGeometry: {}, placeBox, boxShape: '' };
   }
 
   function planeFor(id) {
@@ -598,8 +602,10 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       Math.round(focus.y / GRID_STEP_FT) * GRID_STEP_FT,
       altToZ(FLIGHT_ALT_FT, ALT_SCALE) - GROUND_BELOW_FT,
     );
+    gl.ground.position.set(gl.grid.position.x, gl.grid.position.y, gl.grid.position.z - 2); // just under the grid
 
-    gl.skyClouds.update({ x: focus.x, y: focus.y, z: altToZ(FLIGHT_ALT_FT + (focus.z ?? 0), ALT_SCALE) });
+    // Clouds above the formation, faded out as the view turns toward straight down so they don't cover the aircraft.
+    gl.skyClouds.update({ x: focus.x, y: focus.y, z: altToZ(FLIGHT_ALT_FT + (focus.z ?? 0), ALT_SCALE) }, (shown.pitchDeg - 25) / 30);
     matchProjection(THREE, camera, { x: focus.x, y: focus.y, z: FLIGHT_ALT_FT + (focus.z ?? 0) }, shown, box, 1); // at the formation's height
     // A depth range round the formation only (the shared one spans Traffic's 30-mile scene), so close up the aircraft's
     // near-touching surfaces don't flicker through each other (Patrick, 5 Oct: the striped tails).
@@ -809,6 +815,8 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       gl.grid.material.dispose();
       gl.sky.dispose();
       gl.skyClouds.dispose();
+      gl.ground.geometry.dispose();
+      gl.ground.material.dispose();
       gl.renderer.dispose();
       gl.renderer.forceContextLoss?.();
       gl = null;

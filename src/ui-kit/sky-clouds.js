@@ -7,8 +7,9 @@
 
 /** The sky, deeper blue overhead to a pale haze at the horizon, so lines and tags still read where the aircraft fly. */
 export const SKY_COLOURS = Object.freeze({ top: '#2f6aa8', middle: '#6f9fd2', horizon: '#c9dcec' });
-/** The cloud layer: how far below the centre it sits, the size of a tile and how many clouds each holds (estimates). */
-export const CLOUD_LAYER = Object.freeze({ belowFt: 3000, tileFt: 40_000, perTile: 7, sizeFt: [3000, 7000] });
+/** The cloud layer: how far above the centre it sits (Patrick, 6 Oct: clouds above, ground below), the size of a tile and
+ * how many clouds each holds (estimates). */
+export const CLOUD_LAYER = Object.freeze({ aboveFt: 2500, tileFt: 40_000, perTile: 7, sizeFt: [3000, 7000] });
 
 /** A small repeatable random number generator, so the clouds sit in the same places every time. */
 function seeded(seed) {
@@ -62,9 +63,10 @@ function cloudTexture(THREE, doc) {
 }
 
 /**
- * Adds the sky (as the scene's background) and the cloud layer. Returns { update(centre), setVisible(on), dispose() }:
- * update({ x, y, z }) moves the layer with the camera's centre (z is the height it is measured from, in the scene's
- * units), setVisible hides the clouds, dispose removes both and frees them.
+ * Adds the sky (as the scene's background) and the cloud layer. Returns { update(centre, show), setVisible(on), dispose() }:
+ * update({ x, y, z }, show) moves the layer with the camera's centre (z is the height it is measured from, in the scene's
+ * units) and fades it by `show` (0 to 1; a view looking straight down passes 0 so the clouds don't cover the aircraft),
+ * setVisible hides the clouds, dispose removes both and frees them.
  */
 export function addSkyAndClouds(THREE, scene, { doc = globalThis.document, seed = 7 } = {}) {
   const sky = gradientTexture(THREE, doc);
@@ -91,14 +93,16 @@ export function addSkyAndClouds(THREE, scene, { doc = globalThis.document, seed 
   }
   scene.add(group);
   return {
-    update(centre) {
+    update(centre, show = 1) {
+      material.opacity = 0.85 * Math.max(0, Math.min(1, show));
+      group.visible = material.opacity > 0.02;
       const T = CLOUD_LAYER.tileFt;
       const ox = Math.floor(centre.x / T) * T;
       const oy = Math.floor(centre.y / T) * T;
       for (const { s, c, t } of sprites) {
         const tx = (t % 3) - 1;
         const ty = Math.floor(t / 3) - 1;
-        s.position.set(ox + tx * T + c.dx, oy + ty * T + c.dy, centre.z - CLOUD_LAYER.belowFt);
+        s.position.set(ox + tx * T + c.dx, oy + ty * T + c.dy, centre.z + CLOUD_LAYER.aboveFt);
       }
     },
     setVisible(on) {
