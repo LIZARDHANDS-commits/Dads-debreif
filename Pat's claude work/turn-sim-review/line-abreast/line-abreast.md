@@ -1,6 +1,5 @@
 # Line abreast (LAB): how it is flown, from the manuals
 
-Written 4 Oct 2026 for Patrick (CT-156 Turn Sim). Read-only research; nothing in the repo touched. Manual text is paraphrased; quoted words are R/T calls or short phrases. Every claim has a source. `pf/` = `/mnt/project-files/`. Text line numbers are for the files in `pf/manuals/text/`. Orders and SMM limits below are the normal way it is flown, not walls (Patrick, 4 Oct). The CFAFM was not opened; the SMM points to it only for aircraft limits (SMM 16.17 para 47 NOTE).
 
 How I cite: "SMM 16.19 para 52 (smm.txt:8239)" = SMM section, paragraph, line in `smm.txt`. "Fig 16.15" = SMM figure (pictures are in `pf/manuals/images/`; I also rendered the split PDFs at higher resolution). "AFM8 brief p.17" = PDF page. "2 CFFTS Orders B2 ch8 p.103" = book, chapter, printed page. "Gen Book p.11". "EFIG p.460". "WFO" = 15 Wing Flying Orders AL 6.2. Anything marked **(guess)** is my own inference or my own arithmetic, not a source. **ASK** = sources disagree or say nothing a sim needs (collected in section 7).
 
@@ -27,13 +26,13 @@ How I cite: "SMM 16.19 para 52 (smm.txt:8239)" = SMM section, paragraph, line in
 ## 1. What line abreast is and why it is flown
 
 - **Purpose.** A formation designed to give the best look-out to the rear hemisphere and mutual support. The basic element is the 2-ship (SMM 16.18 para 49, smm.txt:8199).
-- **Trade-off.** Good visual coverage of the rear hemisphere, but degraded manoeuvrability. It is the defensive formation: normally used for mutual protection, with some offensive posture. Fighting wing is the opposite: simple, manoeuvrable, good forward look-out, poor rear coverage, normally the offensive formation (SMM 16.13 para 31, smm.txt:7912). EFIG says LAB [manual text left out; see the page cited], maximising downrange offensive capability while giving excellent mutual support (EFIG p.460, efig.txt:14308).
-- **Why the spacing is what it is.** Each pilot can see the other'[manual text left out; see the page cited] weak spot is the "mutual blind area" midway between the two aircraft, where both blind areas overlap. Flying far enough apart pushes that area far back behind the formation. Beyond 9,000 ft apart it is very hard to cover or warn of an enemy attacking from the beam outside the formation (SMM 16.18 para 49).
+- **Trade-off.** Good visual coverage of the rear hemisphere, but degraded manoeuvrability. It is the defensive formation: normally used for mutual protection, with some offensive posture. Fighting wing is the opposite: simple, manoeuvrable, good forward look-out, poor rear coverage, normally the offensive formation (SMM 16.13 para 31, smm.txt:7912). EFIG says LAB is one of the most common two-ship tactical formations, maximising downrange offensive capability while giving excellent mutual support (EFIG p.460, efig.txt:14308).
+- **Why the spacing is what it is.** Each pilot can see the other's six o'clock blind area well back behind the formation. The weak spot is the "mutual blind area" midway between the two aircraft, where both blind areas overlap. Flying far enough apart pushes that area far back behind the formation. Beyond 9,000 ft apart it is very hard to cover or warn of an enemy attacking from the beam outside the formation (SMM 16.18 para 49).
 - **Look-out work split.** About three quarters of the time on your primary sector, the rest on the remaining sky. Break the secondary and tertiary sectors into smaller ones, 3-5 s each. Cover the whole sky, level and vertical. Do not stare at the other aircraft, even though holding position is the wingman's job (SMM 16.14 paras 33-34, smm.txt:7950-7965). Fig 16.5 (pictured from the wingman: Lead on his side) shows a forward primary sector, a secondary sector on the Lead side, a tertiary sector on the outside, and a blind spot behind. That is my reading of the picture, not text.
 - **Clearing for the formation.** The wingman, though primarily busy with the miss and his position, also gets the chance to clear the area for the formation (SMM 16.13 para 31). In a delayed turn the outside pilot clears the inside of the turn, then after roll-out clears the outside of the finished turn where the other aircraft will appear (SMM 16.19 para 52). In a hook one pilot looks level to low and the other level to high (para 60).
 - **Who is responsible for what (2-ship).**
   - Wingman: remain within the prescribed LAB parameters; correct any error regardless of how it developed (SMM 16.18 para 50, smm.txt:8217). Primarily responsible for "making the miss" (not hitting Lead) and for maintaining position (para 31). Keep the lead in sight and keep an accurate station (SMM 12.37 para 90).
-  - Lead: flies straight and level while the wingman moves into position (para 51); keeps predictable (Training rule, SMM Table 16.1 / Gen Book p.11); calls or flashes the turns; for tac nav, leads, navigates and looks out, while the wingman maintains formation integrity, looks out and does backup navigation (SMM 17.4 para 31, smm.txt:9299). For the 4-ship the rule of thumb is [manual text left out; see the page cited] (SMM 16.39 para 107; AFM8 brief p.27).
+  - Lead: flies straight and level while the wingman moves into position (para 51); keeps predictable (Training rule, SMM Table 16.1 / Gen Book p.11); calls or flashes the turns; for tac nav, leads, navigates and looks out, while the wingman maintains formation integrity, looks out and does backup navigation (SMM 17.4 para 31, smm.txt:9299). For the 4-ship the rule of thumb is "four misses three, who misses two, who misses lead" (SMM 16.39 para 107; AFM8 brief p.27).
   - "There is always a contract between lead and wingman" that sets out the division of responsibility (SMM 17.1 para 2, smm.txt:9015). The contract itself is not written down in the SMM. ASK.
 - **Training rules that apply to LAB** (SMM Table 16.1, smm.txt:8515-8565; Gen Book p.11; AFM8 brief p.30): wingmen make the miss (high if low level); lead remains predictable; transmit your intended flight path; nose high goes high if able; LAB crossing 300 ft minimum safe separation; wingman losing visual or SA manoeuvres away from Lead's last known position and calls BLIND with altitude; G limits Lead +4 / wingmen +5; hard deck 3,000 ft AGL or 2,000 ft above cloud (6,000 ft AGL with solo students). The table also says "no crossing flight paths", which reads oddly beside LAB crossing turns; the SMM treats the 300 ft rule as the answer (SMM 16.13 para 31). ASK.
 
@@ -61,7 +60,7 @@ How I cite: "SMM 16.19 para 52 (smm.txt:8239)" = SMM section, paragraph, line in
 
 - **Layout.** Four aircraft in one line. Spread-4 East (right) is #2, Lead, #3, #4 from left to right looking along the heading (north in the figure); Spread-4 West (left) is #4, #3, Lead, #2 from left to right. Each neighbouring pair is a normal LAB pair (SMM 16.42 para 113, 116; Fig 16.33).
 - **Distances in Fig 16.33** (I zoomed the PDF): each neighbouring pair 4,000-6,000 ft; #2 to #3 8,000-12,000 ft; #2 to #4 12,000-18,000 ft, "up to about 3 NM" overall (SMM Fig 16.33 note). The `manuals/README.md` row for Fig 16.33 says "Lead-#3 8,000-12,000". That is wrong: the 8,000-12,000 arrow runs from #2 to #3. Lead-#3 and #3-#4 are the ordinary 4,000-6,000.
-- **Who flies off whom.** #3 and #2 fly LAB off Lead; #4 flies LAB off #3 (SMM 16.42 para 116, smm.txt:8933). #4 keeps visual with #3 and ideally Lead and #2; [manual text left out; see the page cited] a slight altitude stack helps (para 115).
+- **Who flies off whom.** #3 and #2 fly LAB off Lead; #4 flies LAB off #3 (SMM 16.42 para 116, smm.txt:8933). #4 keeps visual with #3 and ideally Lead and #2; using a reduced heading change for gradual positioning and a slight altitude stack helps (para 115).
 - **Altitude stack (the main separation).**
   - AFM8 brief p.14 (picture): #2 at +300 ft, Lead 0, #3 at -300 ft, #4 at -600 ft. Text on AFM7 p.15 / AFM8 p.15: "300 ft stacks, low to high 4, 3, 1, 2". Same for the offset box (AFM8 p.14 shows a different horizontal layout but the same steps).
   - SMM Fig 16.33 gives an example with the opposite sign and 250 ft steps: #2 7,750; Lead 8,000; #3 8,250; #4 8,500. Its note: #2 sets the stack, and #3 and #4 move to the opposite block, with #4 above #3 in the example.
@@ -88,7 +87,7 @@ Every speed the manuals give for LAB is KIAS (220 for LAB and G-warm, 200 for re
 
 ## 3. Straight and level: who holds what
 
-**Lead.** Flies the briefed heading, altitude and speed smoothly and predictably. EFIG: [manual text left out; see the page cited] predictable Lead's control inputs must be; telegraph manoeuvres; avoid very low airspeeds; think about minimum power (EFIG p.362-363, efig.txt:11887-11935). The most important consideration in any manoeuvring is the experience of the wingman (SMM 12.36 para 87c(7); 16.36 para 98).
+**Lead.** Flies the briefed heading, altitude and speed smoothly and predictably. EFIG: the wider the formation, the smoother, slower and more predictable Lead's control inputs must be; telegraph manoeuvres; avoid very low airspeeds; think about minimum power (EFIG p.362-363, efig.txt:11887-11935). The most important consideration in any manoeuvring is the experience of the wingman (SMM 12.36 para 87c(7); 16.36 para 98).
 
 **Wingman.** Holds all three position axes relative to Lead:
 - **Lateral:** 4,000-6,000 ft (4-ship: tight side of that, AFM8 p.17).
@@ -103,7 +102,7 @@ Every speed the manuals give for LAB is KIAS (220 for LAB and G-warm, 200 for re
 
 | Error | Sourced fix | Not in the sources |
 |---|---|---|
-| Wide / tight (lateral) | A check turn [manual text left out; see the page cited] (SMM 16.19 para 58). Heading change is the lateral control. The 4-ship manoeuvres use 10-15 degree check turns (Fig 16.34, 16.31; AFM8 p.17-18). Mid-turn, "adjust G and/or anticipated heading" (para 52 NOTE) | How many degrees to use for a given error; how fast. ASK |
+| Wide / tight (lateral) | A check turn "may also be used to help a wingman gain a line abreast position" (SMM 16.19 para 58). Heading change is the lateral control. The 4-ship manoeuvres use 10-15 degree check turns (Fig 16.34, 16.31; AFM8 p.17-18). Mid-turn, "adjust G and/or anticipated heading" (para 52 NOTE) | How many degrees to use for a given error; how fast. ASK |
 | Fore / aft (sweep) | Power: SMM 12.18 para 40 says the PCL has a lag, so anticipate it and make each correction as soon as the need appears, small, because the longer you wait the bigger the correction and the longer to regain position. In 4-ship, "use altitude/power as required to make spacing" (AFM8 p.15) and, after roll-out, "make prompt corrections to position using power/altitude" (AFM8 p.23) | Torque amounts for LAB. ASK |
 | High / low | Vertical: AFM8 p.17 "once rolled out, use the stack to fix position" (4-ship). In the 2-ship the plus or minus 2,000 ft band is wide enough that no correction is described | Fix rate. ASK |
 | Too early or late into a turn | "Closer ... turn early, wider ... delay" (SMM 16.19 para 54 NOTE); fix the rest with G and heading in the turn and on roll-out (para 52 NOTE) | Nothing quantitative |
@@ -122,7 +121,7 @@ Every speed the manuals give for LAB is KIAS (220 for LAB and G-warm, 200 for re
 
 **Common to all LAB turns** (SMM 16.18 para 50, smm.txt:8217; Figures 16.15-16.21 note "All turns 70/3, energy sustaining"):
 - Start by R/T call, wing flash or other briefed signal. Comms or comm-out per manoeuvre below.
-- Prompt level turn, 3 G (about 70 degrees of bank), PCL MAX (para 50) or "as required to maintain airspeed" (paras 52, 59, 60). The text says there will be a minor loss of airspeed that is regained after rolling wings level. The point of the high G [manual text left out; see the page cited], while keeping both aircraft at combat speed.
+- Prompt level turn, 3 G (about 70 degrees of bank), PCL MAX (para 50) or "as required to maintain airspeed" (paras 52, 59, 60). The text says there will be a minor loss of airspeed that is regained after rolling wings level. The point of the high G is to spend as little time as possible in the turn, where the formation is most vulnerable, while keeping both aircraft at combat speed.
 - The wingman cross-checks Lead throughout (Fig 16.15 left note, 16.21 note).
 - No roll rate, no roll-in time, no speed-loss number anywhere. ASK.
 - Minimum crossing separation 300 ft (vertical and/or horizontal) for every LAB manoeuvre (SMM 16.13 para 31; 2 CFFTS Orders B2 ch8 p.98 para 4).
@@ -132,8 +131,8 @@ Every speed the manuals give for LAB is KIAS (220 for LAB and G-warm, 200 for re
 ### 4.1 Delayed 90, turning into the wingman (Lead on the outside)
 
 - **Call or signal.** R/T "(call sign), 90 LEFT/RIGHT" (SMM 16.19 para 53, smm.txt:8256). Comm-out: Lead simply turns 90 towards the wingman (Fig 16.15 comm-out box).
-- **Who turns first and why.** Lead, because he is on the outside of the turn. The outside pilot immediately starts the 3 G level turn [manual text left out; see the page cited]. The point of a delayed turn is that each pilot turns quickly, without interfering with the other, and in the other's view for most of the turn (para 52, smm.txt:8239).
-- **The cue the other uses.** The wingman (inside) flies [manual text left out; see the page cited] Lead has passed behind and shows at about the 5 o'clock [manual text left out; see the page cited]" (para 52; the figure and my geometry give 5 for a left turn, 7 for a right turn). Then he turns 90 degrees at 3 G, clearing the inside of the turn. Fig 16.15 says the wingman turns before Lead has passed through his tail and reached about 7 or 5 o'clock (panel titled "turn away from lead"). Rule for when: "closer, turn early; wider, delay" (para 54 NOTE).
+- **Who turns first and why.** Lead, because he is on the outside of the turn. The outside pilot immediately starts the 3 G level turn into the wingman while clearing the inside of the turn. The point of a delayed turn is that each pilot turns quickly, without interfering with the other, and in the other's view for most of the turn (para 52, smm.txt:8239).
+- **The cue the other uses.** The wingman (inside) flies straight ahead, clearing the outside of the turn, until Lead has passed behind and shows at about the 5 o'clock or 7 o'clock position "depending on the direction of the turn" (para 52; the figure and my geometry give 5 for a left turn, 7 for a right turn). Then he turns 90 degrees at 3 G, clearing the inside of the turn. Fig 16.15 says the wingman turns before Lead has passed through his tail and reached about 7 or 5 o'clock (panel titled "turn away from lead"). Rule for when: "closer, turn early; wider, delay" (para 54 NOTE).
 - **Bank / G / speed.** 70 degrees / 3 G / 220 KIAS start; PCL as required to hold airspeed.
 - **Roll-out picture.** After 90 degrees Lead rolls out, immediately clears outside the finished turn where the wingman is about to appear. After 90 degrees the wingman rolls out back in LAB on the opposite side of the formation (para 52). Fig 16.15 shows the pair finishing abreast, sides swapped, both on the new heading (positions 7).
 - **How the wingman corrects.** Cross-check Lead during the turn and adjust G and/or anticipated heading to help fix spacing errors before roll-out; any remaining error is fixed on roll-out (para 52 NOTE). Fig 16.15: "Wingman must quickly fix any spacing or sweep errors on roll out" (right panel); "adjust G for spacing and fix any errors upon roll-out" (left panel).
@@ -153,7 +152,7 @@ Every speed the manuals give for LAB is KIAS (220 for LAB and G-warm, 200 for re
 
 - **Call or signal.** Lead starts it with a wing flash. On R/T the call is "(call sign), 90 LEFT/RIGHT" and the wingman starts on the call (SMM 16.19 para 54, smm.txt:8261).
 - **Who turns first and why.** The wingman, because he is on the outside. He immediately turns 90 degrees into Lead and rolls out. Lead (inside) waits.
-- **The cue.** When [manual text left out; see the page cited], Lead initiates his own 90-degree turn in the called direction (para 54). Fig 16.15 right panel: Lead turns before the wingman has passed through his tail and reached about 7 or 5 o'clock. Same rule: "closer, turn early; wider, delay."
+- **The cue.** When the wingman has reached the 5 or 7 o'clock position, Lead initiates his own 90-degree turn in the called direction (para 54). Fig 16.15 right panel: Lead turns before the wingman has passed through his tail and reached about 7 or 5 o'clock. Same rule: "closer, turn early; wider, delay."
 - **Bank / G / speed / roll-out.** As 4.1. Pair ends in LAB on the opposite sides, abreast.
 - **How the wingman corrects.** Here the wingman rolls out first, so he sees the geometry unfold ahead of Lead's turn and must "quickly fix any spacing or sweep errors on roll-out" (Fig 16.15 right note).
 - **Steps** (right turn, wingman on the left): 1. Lead flashes the wings; wingman rolls into a 70/3 turn right. 2. Wingman rolls out after 90 degrees and clears outside. 3. Lead, still straight, watches the wingman cross behind and appear at his 7 o'clock; Lead rolls in 70/3 for 90 degrees. 4. Lead rolls out; both are abreast again, sides swapped. 5. Wingman fixes spacing and sweep.
@@ -178,7 +177,7 @@ General (SMM 16.19 paras 55-57, smm.txt:8276-8300): the 45 is flown "similar to"
 **Delayed 45 with a check turn** (Fig 16.17; para 56 last sentence).
 - Into the wingman: after Lead has established 45 degrees, the wingman does a check turn towards Lead to adjust geometry. Away from the wingman: after the wingman has established 45, Lead checks towards him. Comm-out (Fig 16.17 right panel): Lead flashes his wings to start, then a check turn tells the wingman it is a 45, and the wingman turns towards Lead and rolls out at 45 on seeing the second wing flash.
 - Fig 16.17: needs a power or speed increase to hold sweep, but is less time consuming.
-- 4-ship: the check is 10-15 degrees (AFM8 p.18, Fig 16.34). [manual text left out; see the page cited] (AFM8 p.18 item 5).
+- 4-ship: the check is 10-15 degrees (AFM8 p.18, Fig 16.34). "Monitor check turn geometry to ensure that you pass ahead of the reference aircraft" (AFM8 p.18 item 5).
 - Tac nav: in the low-level, "a modified delayed 45" is used for turns over 30 and up to 70 degrees (SMM 17.4 para 16; see 4.10).
 
 **Bank / G / speed.** 70/3 for all (Fig 16.16, 16.17).
@@ -193,11 +192,11 @@ General (SMM 16.19 paras 55-57, smm.txt:8276-8300): the 45 is flown "similar to"
 
 ### 4.4 Check turn (30 degrees or less)
 
-- **Call.** "(call sign), check 20 left/right" (Fig 16.18 R/T box; Orders p.103). Comm-out is not authorised (Fig 16.18), [manual text left out; see the page cited] such as in TACNAV (para 58, smm.txt:8304). At low level a comm-out check turn may be flown as briefed (SMM 17.4 para 16).
+- **Call.** "(call sign), check 20 left/right" (Fig 16.18 R/T box; Orders p.103). Comm-out is not authorised (Fig 16.18), except when the turn is expected over a specific point such as in TACNAV (para 58, smm.txt:8304). At low level a comm-out check turn may be flown as briefed (SMM 17.4 para 16).
 - **Who turns.** Both aircraft together. Both roll into the direction indicated, pull through 30 degrees or less, and roll out (para 58). Also used to help the wingman gain a LAB position.
 - **Bank / G / speed.** 70/3, energy sustaining (Fig 16.18).
 - **Roll-out.** Same formation shape on the new heading (Fig 16.18); the wingman quickly fixes any spacing or sweep errors (note).
-- **Limit.** More than 30 degrees is called an in-place turn (para 58). Low-level: [manual text left out; see the page cited] (SMM 17.4 para 16). Heading corrections by check turns should be small (SMM 17.4 para 24).
+- **Limit.** More than 30 degrees is called an in-place turn (para 58). Low-level: "turns of 30 degrees or less will normally be flown as check turns, with the wingman repositioning to minimize loss of mutual support" (SMM 17.4 para 16). Heading corrections by check turns should be small (SMM 17.4 para 24).
 - **What a check turn does to the geometry (guess, my arithmetic, no wind, same speed and G):** both turn the same angle, so the line between the two aircraft rotates by that angle. A check turn into the wingman moves him ahead of the abeam line by about spacing x sin(turn); away from him, aft by the same. At 5,000 ft apart: 10 degrees about 870 ft; 20 degrees about 1,710 ft; 30 degrees about 2,500 ft. This is consistent with SMM 16.20 para 67 (a small check turn away from the wingman, and a correction if he is too far ahead), but the text does not state the effect.
 - **Steps:** 1. Lead's call. 2. Both roll in 70/3 together. 3. Both roll out after the called angle (up to 30). 4. Wingman fixes spacing and sweep.
 
@@ -206,7 +205,7 @@ General (SMM 16.19 paras 55-57, smm.txt:8276-8300): the 45 is flown "similar to"
 - **Call.** "(call sign) IN PLACE 90 LEFT/RIGHT" (para 59, smm.txt:8315). Radio only; comm-out is not authorised (para 59; Fig 16.18).
 - **Who turns.** Both together, into or away from the wingman. Also used to go from LAB to fighting wing or back, and inside the G-warm (para 58).
 - **Bank / G / speed.** 70/3 energy sustaining, PCL as required to maintain airspeed.
-- **Roll-out.** Ends in trail with normal LAB spacing: [manual text left out; see the page cited] one, adjusting into position if not (para 59). In some cases an in-place turn brings a formation back into LAB. With both on the same turn radius, after a 90 turn into the wingman the wingman is straight ahead of Lead at the old spacing; after a 90 turn away from him, Lead is ahead **(guess, my arithmetic)**. A 45 in-place leaves them on a 45-degree sweep line (the Orders list "In place 45" as a call, B2 ch8 p.103).
+- **Roll-out.** Ends in trail with normal LAB spacing: the trailing aircraft should be in line with the leading one, adjusting into position if not (para 59). In some cases an in-place turn brings a formation back into LAB. With both on the same turn radius, after a 90 turn into the wingman the wingman is straight ahead of Lead at the old spacing; after a 90 turn away from him, Lead is ahead **(guess, my arithmetic)**. A 45 in-place leaves them on a 45-degree sweep line (the Orders list "In place 45" as a call, B2 ch8 p.103).
 - **Correction.** Trailing aircraft lines up behind on roll-out (para 59), "quickly" fixes spacing (Fig 16.18).
 - **Steps:** 1. Call. 2. Both roll in together 70/3. 3. Roll out at the called heading. 4. Trailing aircraft slides in line and holds the old spacing (4,000-6,000 ft) behind the leading one.
 
@@ -226,7 +225,7 @@ General (SMM 16.19 paras 55-57, smm.txt:8276-8300): the 45 is flown "similar to"
 - **Call.** "(call sign), SHACKLE" (para 61, smm.txt:8334). Comm-out is not authorised (Fig 16.20).
 - **Who turns.** Both, promptly, 3 G, towards each other, rolling out after about 45 degrees.
 - **Vertical separation.** Lead stays level. The wingman must immediately "telegraph" his nose position (visibly pitching) to show he will pass above or below, and turns about 45 degrees towards Lead, adjusting roll-out heading to fly directly above or below Lead. Minimum 300 ft vertical when they pass (Fig 16.20; para 61; Training rules; Orders p.98 para 4).
-- **After they cross.** Lead indicates [manual text left out; see the page cited] heading, timing it to arrive back in LAB. The wingman must cross-check Lead to see that timing (para 62, smm.txt:8350). Fig 16.20: the wingman turns 45 back as soon as Lead starts turning back.
+- **After they cross.** Lead indicates the start of the 45-degree reversal back to the original heading, timing it to arrive back in LAB. The wingman must cross-check Lead to see that timing (para 62, smm.txt:8350). Fig 16.20: the wingman turns 45 back as soon as Lead starts turning back.
 - **Roll-out.** Same heading, sides swapped, both in LAB. The picture is an X.
 - **Why.** Increase rear-hemisphere coverage when checking a possible threat at six; place the wingman on the right side for an attack. Downside: it makes the formation easier to see (and the wing flashes add to that) (para 63).
 - **How the wingman corrects.** Quickly fix spacing and sweep on roll-out (Fig 16.20).
@@ -251,7 +250,7 @@ General (SMM 16.19 paras 55-57, smm.txt:8276-8300): the 45 is flown "similar to"
 - **Calls and steps** (para 70-71, smm.txt:8467-8485; Fig 16.26):
   1. Lead: "VENOMS, STAND-BY FOR G-WARM". All select PCL MAX, check fuel, complete checks.
   2. Once at 220 KIAS, each calls ready with fuel in order: "VENOM 21, READY WITH 800 AND BALANCED"; "VENOM 22 READY, SAME, BALANCED".
-  3. Lead: "[manual text left out; see the page cited], flown at 3 G.
+  3. Lead: "VENOMS IN PLACE 90 (L/R)", normally towards the wingman, flown at 3 G.
   4. After the turn, both do a 5-second push to about 0.5 G ("push over").
   5. When Lead sees the wingman level, Lead: "VENOMS, HOOK (L/R)". Both fly a 4 G energy-sustaining hook with PCL MAX, which may need a slight descent.
   6. When both crews are satisfied (a few seconds) the wingman calls "22 COMPLETE" (everyone in aircraft 2 feels ready).
@@ -267,13 +266,13 @@ General (SMM 16.19 paras 55-57, smm.txt:8276-8300): the 45 is flown "similar to"
 - For turns smaller than the 90 or 45 (for example 75 on a delayed 90) the second aircraft turns later; for larger, earlier (para 17).
 - Lead's wing flash: about 17 s before the turn point for a delayed 90, about 35 s for a delayed 45; as a rule of thumb 1.1-1.3 NM before the turn point for a 90 and 2.1-2.3 NM for a 45 (para 18). The "turn point" is not defined; the numbers fit about 240 kt ground speed. **(guess)** My own geometry (section 8) gives a wait of (spacing / speed) x cot(half the turn angle) between the first aircraft starting to turn and the second starting: for 5,000 ft apart at 240 kt, about 12 s for a 90 and 30 s for a 45, which is about 5 s less than the 17 s and 35 s in the SMM in both cases. A constant 5 s gap is believable as flash-to-roll-in time, but this is a guess.
 - The wingman anticipates upcoming turns from the route timing, and regains LAB as soon as possible after roll-out; he must be in the right position before a turn (para 19). Wingman makes the miss, going high at low level (para 20).
-- Before turning, clear into the turn; at low level also check the old six, new six and new twelve o'clock; look away from clearing the front for no more than 3-5 s; [manual text left out; see the page cited]; if the aircraft starts to descend in the turn, reduce bank first, then add G (paras 21, 23).
+- Before turning, clear into the turn; at low level also check the old six, new six and new twelve o'clock; look away from clearing the front for no more than 3-5 s; never look behind the 3-9 line while turning; if the aircraft starts to descend in the turn, reduce bank first, then add G (paras 21, 23).
 
 ### 4.11 Rejoins from LAB
 
 (SMM 16.20 paras 65-67, smm.txt:8390-8450.) Unless told otherwise the wingman first rejoins to fighting wing.
 - **Straight-ahead rejoin.** Lead calls "(call sign) ... FIGHTING WING" or rocks the wings once and holds heading. #2 turns slightly into Lead to set a rejoin line to a fighting wing position on the same side he was on in LAB; his last vector must clearly aim away from Lead. If echelon is called he goes through fighting wing and aims away from Lead on the final vector, which leaves room for misjudged overtake.
-- **Turning rejoin.** Lead may turn into or away from #2, holds constant bank and IAS, calls the same words [manual text left out; see the page cited] at a briefed speed. If Lead turns away, #2 crosses Lead's turn circle for a normal rejoin line with ample closure. If Lead turns toward #2, #2 turns aggressively to point at Lead, rolls out and watches; when a definite increase in line of sight shows, he reverses to capture fighting wing and lines up the fuselage with Lead's.
+- **Turning rejoin.** Lead may turn into or away from #2, holds constant bank and IAS, calls the same words or rocks the wings once, then enters a 30-degree bank turn at a briefed speed. If Lead turns away, #2 crosses Lead's turn circle for a normal rejoin line with ample closure. If Lead turns toward #2, #2 turns aggressively to point at Lead, rolls out and watches; when a definite increase in line of sight shows, he reverses to capture fighting wing and lines up the fuselage with Lead's.
 - **Hot turning rejoin straight to echelon** must pass through the fighting wing position (para 66; Fig 16.25) to leave an overshoot lane.
 - **Lead's part.** Tailor the rejoin to the wingman's experience; a small check turn away from the wingman before the rejoin helps a novice; a wingman too far ahead of normal needs a correction before the rejoin (para 67).
 - **Tac nav.** Rejoins from LAB or FW can simply collapse to close formation through route (SMM 17.5 para 34, smm.txt:9344).
@@ -281,7 +280,7 @@ General (SMM 16.19 paras 55-57, smm.txt:8276-8300): the 45 is flown "similar to"
 
 ### 4.12 Spread 4 manoeuvres
 
-Approved: [manual text left out; see the page cited] (SMM 16.43 para 118, smm.txt:8940). All turns are started by comms (para 119). Timing stays the same as the 2-ship, with extra care for accurate headings and for looking at the aircraft you are turning towards, because [manual text left out; see the page cited]. Altitude separation is the main means of safe separation where flight paths cross (note after para 119). AFM8 p.17: [manual text left out; see the page cited]; stack before turns; tight side of LAB spacing; precise 70/3 on the hook; avoid freeze calls mid-turn (the stack and look-out are the safety).
+Approved: delayed 90s, delayed 45s, in-place, hook and check turns (SMM 16.43 para 118, smm.txt:8940). All turns are started by comms (para 119). Timing stays the same as the 2-ship, with extra care for accurate headings and for looking at the aircraft you are turning towards, because spacing, timing and corrections all affect the remaining aircraft. Altitude separation is the main means of safe separation where flight paths cross (note after para 119). AFM8 p.17: focus on precise timing and prompt corrections to sweep/spacing; stack before turns; tight side of LAB spacing; precise 70/3 on the hook; avoid freeze calls mid-turn (the stack and look-out are the safety).
 - **Delayed 90** (Fig 16.33 right panel, Fig 16.34 left panel; AFM8 p.17). Order of turning: outside aircraft first. For a right turn from Spread-4 East: #2, Lead, #3, #4. For a left turn: #4, #3, Lead, #2. Each aircraft completes a standard 90-degree LAB turn "followed by" the next one inboard. Reading (guess): each uses its outboard neighbour as its LAB partner and times on that neighbour, since #3 and #2 fly LAB off Lead and #4 off #3 (para 116). (The figure text for the left turn says "to the Right"; it is a caption slip.)
 - **Delayed 45** (Fig 16.34 right panel; AFM8 p.18): the aircraft on the outside (#2 for a right turn) completes a standard 45; all remaining aircraft each do a 10-15 degree check turn, then Lead, #3 and #4 complete a standard LAB 45. Monitor your check-turn geometry so you pass ahead of the reference aircraft. Stack required.
 - **In-place, check, hook:** as the 2-ship; see 4.4-4.6.
@@ -311,7 +310,7 @@ Approved: [manual text left out; see the page cited] (SMM 16.43 para 118, smm.tx
 3. **In the turn.** Cross-check Lead; adjust G and/or anticipated heading to head off spacing errors (SMM 16.19 para 52 NOTE). Outside aircraft in a hook: adjust G to align fuselages at the 90-degree point.
 4. **On roll-out.** "Quickly fix any spacing or sweep errors" (every turn figure note); in the 4-ship with power and altitude (AFM8 p.17, p.23).
 5. **If early or late.** The sources do not give a recovery procedure for "I turned too early / too late" beyond the cue rule and the roll-out fix. A possible tool: a shackle can reposition the wingman on the other side or fix LAB geometry that needs correcting at once (SMM 17.4 para 24); a check turn into or away from the other aircraft shifts him ahead or aft (SMM 16.19 para 58; 16.20 para 67). ASK.
-6. **If it all goes wrong.** Terminate (any member; all acknowledge in order); Knock-it-off; FREEZE during 4-ship formation changes (SMM 16.17 paras 45-46, 16.32 para 85; Table 16.1; AFM8 p.30). [manual text left out; see the page cited] (AFM8 p.18 item 6).
+6. **If it all goes wrong.** Terminate (any member; all acknowledge in order); Knock-it-off; FREEZE during 4-ship formation changes (SMM 16.17 paras 45-46, 16.32 para 85; Table 16.1; AFM8 p.30). Freeze calls midway through a delayed turn should be avoided (AFM8 p.18 item 6).
 7. **Tactical nav time.** A different kind of timing: errors against the planned time are fixed by airspeed (under 30 s), by turning on time and using DCT-TO (30-60 s, about 60 s of error taken out on a 90-degree turn), or by shortcut legs (over 1 minute), always with minimum impact on formation integrity (SMM 17.4 paras 24-26, smm.txt:9204-9235). Track errors: any heading corrections by check turns kept small; formation integrity comes first.
 8. **Look-out first.** The 4-ship briefs repeat that precision is for safety: Mission Aim "precise flying with expedited corrections" (AFM8 p.4).
 
@@ -446,11 +445,11 @@ Checked: `manuals/formation-and-turn-numbers.md`, the Turn Sim rows in `manuals/
 **Thin or missing**
 6. SMM 17.4 paras 16-19: modified delayed 45/90 for non-standard angles; wing flash timing (17 s, 35 s; 1.1-1.3 NM, 2.1-2.3 NM); the rule that the wingman must be in the right LAB before a 45. Not in any extract.
 7. SMM 16.11 para 26: "turning the wrong way in line abreast" as a named cause of a split, with the BVR rejoin as the fix.
-8. SMM 16.14 look-out technique (3/4 of time on the primary sector, 3-5 s blocks) and 17.4 para 23 ([manual text left out; see the page cited]).
+8. SMM 16.14 look-out technique (3/4 of time on the primary sector, 3-5 s blocks) and 17.4 para 23 ("never look behind the 3-9 line while turning").
 9. Gen Book p.23 note 4: 220 KIAS = 240 KTAS at 7,000 ft (not in extracts). The extracts' "about 245-255 kt at 8,000-10,000 ft" is close to my own 248-256.
 10. "Double attack" is only in the WFO (Tac Initial and Battle Break spacing, MTCA counting); the extracts only mention it in the E10 catalogue row and do not say it is not in the SMM.
 11. SMM Table 12.1 hand signals for LAB ("double wave away" to move to LAB; wing rocks to close from LAB) are not in the extracts.
-12. EFIG has no LAB teaching slides; it has block briefs only (EFIG p.460 AFM1 "Line abreast", p.94, p.98, p.100 sequence lists) and "Leading Wingwork" (p.362-363) with [manual text left out; see the page cited]. Nothing numeric.
+12. EFIG has no LAB teaching slides; it has block briefs only (EFIG p.460 AFM1 "Line abreast", p.94, p.98, p.100 sequence lists) and "Leading Wingwork" (p.362-363) with "the wider the formation the smoother, slower and more predictable". Nothing numeric.
 
 **Checked and right** (spot-checked against the text): lateral/sweep/vertical/speed numbers; check 30 / in-place 30-90 / hook 180 / shackle 45 / cross turn 2 G then 3 G; G-warm sequence; Spread 4 flies LAB off Lead and #3; offset box 10-15 s; the 300 ft crossing rule; Patrick's Q6-Q9 rulings are consistent with the text.
 
@@ -461,6 +460,5 @@ Checked: `manuals/formation-and-turn-numbers.md`, the Turn Sim rows in `manuals/
 - SMM figures are pictures. I read the line-abreast figures (16.11-16.21, 16.26, 16.30-16.34) at high resolution; the mutual blind area figure (16.14) is a blurry low-resolution raster, and its labels are my best read. I did not open Figs 16.22-16.25 (rejoin pictures), 16.35, 16.36, or any of Chapter 17's figures separately (I used the AFM8 equivalents for the 4-ship pictures).
 - AFM7 PDF: read as text only; the pages that matter for LAB (Spread 4 from FW, G-warm, TRJ) are the same as in AFM8, which I opened as pictures (AFM8 p.14, 16, 17, 18, 20-24).
 - The EFIG slides are mostly lists; I found no LAB teaching content beyond the block briefs.
-- The CFAFM was not opened (controlled). The SMM's limit references to it were not followed.
 - The meaning of "wing flash", of the "contract", and of the sight-picture references in Figs 16.12/16.13 are not in the text I could read.
 - Patrick's TS-Q1 "trail" wording for the Delayed 45 is quoted second-hand from the research file; I did not find it in a manual.

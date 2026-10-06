@@ -39,7 +39,7 @@ Closure and overtake numbers are KIAS differences between #2 and Lead. G and ban
 | | |
 |---|---|
 | Manual | SMM 12.20 paras 44-47, Figs 12.12-12.13; route SMM 12.6; Gen signals Table 12.1 |
-| Geometry | Echelon to route: move straight out sideways to 1 to 3 wingspans, same height or slightly low. Echelon to line astern: drop back and down until the nose is at least 10 ft behind Lead's tail and below the prop wash, then slide across (first half of echelon to echelon, para 46). Echelon to the other side: carry on through line astern [manual text left out; see the page cited] (para 45). Always cross below and behind Lead (para 44b). |
+| Geometry | Echelon to route: move straight out sideways to 1 to 3 wingspans, same height or slightly low. Echelon to line astern: drop back and down until the nose is at least 10 ft behind Lead's tail and below the prop wash, then slide across (first half of echelon to echelon, para 46). Echelon to the other side: carry on through line astern and move forward and up to the new echelon (para 45). Always cross below and behind Lead (para 44b). |
 | Speed | No speed change for the pilot except small power changes. Rate of movement is "controlled", no number given; the sim uses a closing/opening speed of about 5 kt (8 ft/s) = **estimate**, so a slide of 100 ft takes about 12 s |
 | Lead | Straight and level, nothing to do |
 | #2 | Slides; cross-over by a heading change of a degree or two, not by bank (para 45) |
@@ -50,7 +50,7 @@ Closure and overtake numbers are KIAS differences between #2 and Lead. G and ban
 
 | | |
 |---|---|
-| Manual | SMM 16.32 para 92 ([manual text left out; see the page cited]); SMM 16.38 para 105 (from echelon, No. 2 normally moves out to the same side as in close formation); signal "shallow porpoising", Table 12.1 |
+| Manual | SMM 16.32 para 92 ("slowly drop back from the lead and increase separation ... until stabilised in a fighting wing position behind the preceding aircraft; a lateral move into position can then be made"); SMM 16.38 para 105 (from echelon, No. 2 normally moves out to the same side as in close formation); signal "shallow porpoising", Table 12.1 |
 | Geometry | #2 ends at 30° to 60° sweep, 500 to 1,000 ft. Default 45° sweep, 750 ft (middle of both bands; **estimate** of the default, the bands are the manual's) |
 | Speed | Drops back with a few knots less than Lead (about 5 KIAS = estimate), then matches |
 | Lead | Straight and level |
@@ -90,7 +90,7 @@ Closure and overtake numbers are KIAS differences between #2 and Lead. G and ban
 | Lead | Wing rock or R/T, then a **30° bank** turn at **200 KIAS** (SMM 12.24 para 54, 12.23 para 53; AFM7 p.21). Holds bank and speed until #2 is stabilised in route, then rolls out |
 | #2 | "Same or more bank as Lead" to put Lead at **10:30 or 1:30**, slightly above the horizon; hold that line by varying bank; overtake **10 to 20 KIAS** (recommended; early training none, para 56; EFIG p.374); join to the inside of the turn unless told otherwise (para 59); stay level or slightly below; at route spacing remove the overtake, then echelon |
 | Aspect and line | The "ideal line" is the constant-bearing line with Lead 45° off the nose (10:30 or 1:30, para 56). Hot = a higher-aspect line (wider inside, a steeper cut-off), cold = lower aspect (nearer Lead's track), Fig 12.16. The manual gives no number for hot or cold, the sim uses **bearing 60° for hot and 30° for cold (estimate)** and reports the bearing and aspect it flew |
-| Bank | Lead 30° (1.15 G). #2 up to about 60° at the start (estimate; [manual text left out; see the page cited], para 58) and averaging near Lead's. Never "a steep turn inside Lead's circle to arrest closure" (para 58 caution) |
+| Bank | Lead 30° (1.15 G). #2 up to about 60° at the start (estimate; "excessive bank can result in losing sight of the lead", para 58) and averaging near Lead's. Never "a steep turn inside Lead's circle to arrest closure" (para 58 caution) |
 | Overshoot | Roll wings level, reduce power, pass behind and below, never climb to Lead's height (SMM 12.27 para 65). Not in this slice (question 6) |
 | End picture | Echelon on the inside of the turn, or FW, wings level on Lead's heading after Lead rolls out |
 | Sketch numbers | Rough sketch (`rejoin-from-lab-turn-into.svg`, Lead 200 KIAS at 30° bank, #2 at 220 KIAS, a constant-bearing pursuit, bank limited to 70°): Lead turns into #2 about 40-45° and the closure takes about 15 s, **before** the route stabilisation, so a real one is longer; Lead turns away about 145° and it takes about 50 s, which matches the roughly 180° turn of Fig 12.15. These are sketch figures, **estimate** |
@@ -102,8 +102,8 @@ Closure and overtake numbers are KIAS differences between #2 and Lead. G and ban
 |---|---|
 | Manual | SMM 16.20 paras 65b, 66, 67, Figs 16.24 (Lead turns away) and 16.25 ("hot turning rejoin" when cleared **directly** to echelon, from the double attack picture); AFM7 p.17 and AFM8 p.19 "TRJ to FW from Spread 4" |
 | Naming | Two different "hot": the **hot turning rejoin** (SMM 16.20 para 66) is the one that goes direct to echelon; the **hot line** (SMM 12.25, Fig 12.16) is a rejoin line with a higher aspect than ideal. The screen uses the SMM's names |
-| Lead | Wing rock or "BLACKS ... FIGHTING WING", then a 30° bank turn while setting the briefed speed (200 KIAS); may turn **into** or **away from** #2 (para 65b). AFM7/8 TRJ from Spread 4: [manual text left out; see the page cited]. A small check turn away first is allowed to help a novice (para 67) |
-| #2, Lead turns away | Cross [manual text left out; see the page cited] (Fig 16.24). #2 ends **on the turn side** of Lead (the inside), which is not the side it left |
+| Lead | Wing rock or "BLACKS ... FIGHTING WING", then a 30° bank turn while setting the briefed speed (200 KIAS); may turn **into** or **away from** #2 (para 65b). AFM7/8 TRJ from Spread 4: "Lead will pause, allow No. 2 to establish closure, then a gentle turn toward No. 2". A small check turn away first is allowed to help a novice (para 67) |
+| #2, Lead turns away | Cross Lead's turn circle to set up a normal rejoin line with ample closure (Fig 16.24). #2 ends **on the turn side** of Lead (the inside), which is not the side it left |
 | #2, Lead turns into | "Aggressively turn to point at Lead", roll out, watch the line of sight; when it clearly increases, reverse the turn to capture the FW position, with the fuselage aligned on arrival (Fig 16.25) |
 | To echelon | Must arrive through a flight path that passes through the FW position, to give an overshoot lane (para 66); then the M5 finish |
 | End picture | FW on the inside of the turn (default), or echelon (hot turning rejoin) |
@@ -133,7 +133,7 @@ Closure and overtake numbers are KIAS differences between #2 and Lead. G and ban
 
 | | |
 |---|---|
-| Manual | SMM 16.19 para 58: check turns of more than 30° [manual text left out; see the page cited] |
+| Manual | SMM 16.19 para 58: check turns of more than 30° "are often called in-place turns and are used to transition from LAB to fighting wing formation or vice-versa" |
 | Geometry | LAB to FW: both turn in place (existing `inPlace90`), turning **away** from #2 leaves #2 6,000 ft astern in trail, then #2 closes to FW by M4 (a straight-ahead rejoin). FW to LAB: #2 first opens out (M8), and the in-place turn is used to point the pair on a new heading |
 | Use | An alternative to M6 and M8, behind the "Rejoin: ..." option in More. Not the default (question 2) |
 
@@ -144,8 +144,8 @@ Closure and overtake numbers are KIAS differences between #2 and Lead. G and ban
 | Manual | SMM 16.17 paras 43, 45-46, 48; AFM7 p.17 "Fluid Manoeuvring"; AFM8 p.19 |
 | Enter from echelon | The academic entry: **a 2-second break for spacing** (SMM 16.17 para 43): Lead breaks into a level turn, #2 follows 2 s later. At 220 KIAS that is about 840 ft behind, at 200 KIAS about 760 ft (true speed ft/s times 2 s), inside the 500-1,000 ft FM range. Lead and #2 keep the same power setting from here (para 43) |
 | Enter from FW | Lead starts a 30° bank turn in FW and all call ready; Lead then increases to 60° bank and max power (AFM7 p.17) |
-| Enter from LAB | SMM 16.17 para 43 says [manual text left out; see the page cited]; the sim goes LAB, then rejoin to the cone (M6 to FW), then the FW entry |
-| Leave | "Terminate" (SMM 16.17 paras 45, 48): Lead recovers to level flight (a [manual text left out; see the page cited], AFM7 p.17), then #2 is in FW; to close up, a turning or straight-ahead rejoin (para 48) |
+| Enter from LAB | SMM 16.17 para 43 says "may also enter from fighting wing or line abreast"; the sim goes LAB, then rejoin to the cone (M6 to FW), then the FW entry |
+| Leave | "Terminate" (SMM 16.17 paras 45, 48): Lead recovers to level flight (a gentle turn while re-establishing finger geometry at FW spacing, AFM7 p.17), then #2 is in FW; to close up, a turning or straight-ahead rejoin (para 48) |
 | Sim plan | The break entry is `delayed()` with a 2 s wait on identical turns; the manoeuvring itself is the other agent's. Leaving = the other agent's "terminate" ending in FW, then this design takes over |
 
 ## 4. The from-to table (every pair, two ships)

@@ -27,7 +27,7 @@ SMM chapter 16 (advanced formation) and 14.3-14.7 (energy management) read 2026-
 ## Energy management (SMM 14.3-14.7), for the Turn Fight energy mode
 
 - Max-performance parameters for training: **160 KIAS and 17 units AOA**; best turn rate at max power and 17 AOA (14.3 para 6, 14.4 para 8).
-- Entry parameters (Table 14.1): Barrel roll 230 KIAS, 3 G; Vertical roll and Vertical 8 280 KIAS, 4-5 G; [manual text left out; see the page cited]; Immelmann 200-250 KIAS, about 4 G; **Split-S 100-120 KIAS, about 4 G; Pitch back 160-220 KIAS, about 4 G; Slice 100-160 KIAS**, all max power. Entry speeds assume about 10,000 ft MSL (14.5 para 10).
+- Entry parameters (Table 14.1): Barrel roll 230 KIAS, 3 G; Vertical roll and Vertical 8 280 KIAS, 4-5 G; slow-speed loop/roll min 200/180 KIAS, 3-4 G; Immelmann 200-250 KIAS, about 4 G; **Split-S 100-120 KIAS, about 4 G; Pitch back 160-220 KIAS, about 4 G; Slice 100-160 KIAS**, all max power. Entry speeds assume about 10,000 ft MSL (14.5 para 10).
 - Bank for the entry: **slice: roll the lift vector past horizontal, about 90-135° of bank, depending on entry speed**, then pull smoothly to the shaker (SMM 14.18 para 46; start from at least 10,000 ft, para 45). **Pitch back: no number**, only "roll to place your lift vector as required" (SMM 14.17 para 43), with lower speed meaning more bank (EFIG p.441). The Turn Fight spec's pitch-back 60° at 160 KIAS down to 30° at 220 KIAS is its own default, for Dad. Caution above 190 KIAS: easy to exceed the 4.7 G asymmetric limit (SMM 14.17).
 - Roll rate: not in the Gen Book, EFIG or SMM.
 - Hard deck in the Moose Jaw areas 3,000 ft AGL (about 6,000 ft MSL); soft deck at least 1,000 ft above it (14.6-14.7).
@@ -45,11 +45,11 @@ Compared with V6_STANDARDS (src/core/standards.js, main f7e8008), SPEC-turn-sim 
 | Line astern | about 10 ft clearance; stabilator 1/3 to 1/2 above canopy bow | EFIG p.383 | - | info |
 | Fighting wing | 30-60° sweep, 500-1,000 ft range | EFIG p.391 | - | info |
 | Interval take-off | as briefed, minimum 5 s | EFIG p.386 | - | info |
-| Stream landing | minimum landing spacing 2,000 ft; [manual text left out; see the page cited] through the final turn; ~1/2° steeper than lead, not more than 1° | EFIG p.393 | - | info |
+| Stream landing | minimum landing spacing 2,000 ft; perch when lead is 1/2 to 2/3 through the final turn; ~1/2° steeper than lead, not more than 1° | EFIG p.393 | - | info |
 | Formation descent | lead minimum torque 20 % | EFIG p.395 | - | info |
 | Advanced formation G limits | **lead +4 G, wingmen +5 G** | Gen Book p.11 | Turn Sim lead target G 1.0 ± 0.2 (level turns); no max-G check | info (possible later check) |
 | Advanced formation separation | high-aspect / FM: 500 ft bubble; line-abreast crossing: 300 ft minimum safe separation; hard deck 3,000 ft AGL or 2,000 ft above cloud (6,000 ft AGL with solo students) | Gen Book p.11 | - | info |
-| Lost wingman (IMC) | brief item "[manual text left out; see the page cited]: roll out 20 s; inside: continue turn, reduce torque, tell lead to roll out | Gen Book p.10 | - | info |
+| Lost wingman (IMC) | brief item "W/L - 10 deg - 10 sec - 10 AOB"; outside: roll out 20 s; inside: continue turn, reduce torque, tell lead to roll out | Gen Book p.10 | - | info |
 | Formation crosswind | dry 15 kt, wet 10 kt, icy 5 kt | Gen Book p.10 | - | info |
 
 ## Turns and G (for the Turn Fight and Turn Sim)

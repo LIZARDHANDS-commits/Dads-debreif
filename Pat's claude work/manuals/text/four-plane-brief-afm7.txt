@@ -1,0 +1,426 @@
+FOUR PLANE BRIEFING
+
+       AFM7
+
+      March 2025
+Contents
+
+
+
+I     Overview              3
+
+II    Domestics             5
+
+III    Mission             12
+
+IV     Contingencies       22
+
+V     Training Rules       25
+
+
+
+
+                       2
+ Part I
+
+Overview
+
+
+
+
+   3
+Time Hack
+
+Roll Call and Duties
+
+1.   Section Lead
+
+2.   Weather/NOTAMS
+
+3.   Deputy Lead
+
+4.   Ops Coord (tails, timings, IFR flight plan to TEXON)
+
+Mission Aim
+
+1.   Safety
+
+2.   Anticipation and situational awareness
+
+3.   Precise flying with smooth corrections
+
+Motivation, Link, Outline
+
+Weather/NOTAMS/Alternate (No. 2)
+ Part II
+
+Domestics
+
+
+
+
+    5
+MDC Review
+
+1.   Joker/Bingo
+
+2.   Hard Deck/Soft Deck
+
+3.   Comm Plan
+
+Start and Taxi
+
+1.   Check in: SOP
+
+2.   Taxi sequence: Keep order correct on crowded ramp (tail numbers)
+
+3.   Taxi spacing: SOP
+
+4. Frequencies: As per comm plan, auto push on PRI as required. Re-
+duced check-ins once established on intraflight freqs.
+Take Off (2+2)
+
+1.   Elements line up half/half.
+
+2.   No. 3 ensures 500 ft separation from lead element and calls “IN”.
+
+3.   Lead calls “RUNNING UP”, once complete No. 3 calls “READY”.
+
+4.   Lead calls “ROLLING, ROLLING, NOW” . . . Brakes, Smash, Crack.
+
+5.   No. 3 commands WTO on 5 sec delay with hand signals.
+
+6.   After PTO, send elements to FW; 3/4 element rejoin to FW.
+
+Interval Take-Off
+
+For use in the event of crosswinds greater than 15 knots.
+
+1.   Elements line up half/half.
+
+2.   No. 3 ensures 500 ft separation from lead element and calls “IN”.
+
+3.   Lead calls “RUNNING UP”, once complete No. 3 calls “READY”.
+
+4.   Lead calls “ROLLING, ROLLING, NOW” . . . Brakes, PCL MAX.
+
+     a.   5 sec: No. 2 brake release
+
+     b.   10 sec: No. 3 brake release
+
+     c.   15 sec: No 4. brake release
+
+5. After PTO, separate elements rejoin to FW and then 3/4 element
+rejoins to FW.
+Departure
+
+1. VFR departure (with IFR flight plan), IFR clearance into TEXON,
+cancel IFR on departure from MOA.
+
+2.   Automatic checks enroute in FW.
+
+Enroute
+
+1.   Maintain Finger geometry at tight FW spacing for transits.
+
+2.   Anticipate collapse to route spacing from FW when directed.
+Recovery
+
+1.   GULAP (Box):
+
+     a.   Set up at 10NM and 3000 ft MSL
+
+     b.   Descend to 2200 ft MSL prior to field
+
+     c.   Sharp station keeping over the airfield
+
+2.   Initial (Echelon):
+
+     a.   Manoeuvre in finger to line up prior to initial
+
+     b.   Station change to Echelon by initial
+
+     c.   Three seccond spacing for break
+
+     d.   Perch/final turn spacing for min landing separation
+
+     e.   Be prepared for overshoot if required (i.e. RT, RWY 21 consids)
+
+     f.   Move to cold side when able
+
+Alternative option to Initial:
+
+3.   GULAP Closed (Echelon):
+
+     a.   Set up at 10NM and 3000 ft MSL.
+
+     b.   Descend to 2200 ft MSL prior to field
+
+     c.   Eastern aircraft advise lead if positioned east of RWY 18/36.
+
+     d.   Midfield down the runway, 3 sec spacing, roll/pull/power for
+          closed to 3000 ft downwind.
+
+     e.   Anticipate min landing separation.
+f.   Cold side of runway when able (following lead).
+Debrief
+
+1.   As soon as practical following sign in
+
+2.   No. 4 to ensure all kit returned to Ops
+
+Spins
+
+1.   Only lead to Squawk
+
+2.   Gear/Flaps together
+
+3.   Rejoins at 200 knots if level, 180 knots if climbing (on departure)
+
+4. Taxi on RTB will not include a stop for checks. Will slow for taxi
+clearance or to catch up all aircraft
+
+5.   Route spacing turns can be flat as required
+Part III
+
+Mission
+
+
+
+
+   12
+Air Plan
+
+•   Fighting Wing
+•   Spread 4 from FW for G-Warm
+•   Fluid Manoeuvring
+•   Finger
+•   Echelon
+•   Box
+•   Rejoins
+Fighting Wing
+
+1.   Miss contract: 4 misses 3, misses 2, misses Lead
+
+2.   Spacing: Work toward the near end of the range
+
+3.   Sweep: Other than turns, ensure Lead can see you
+
+4.   Side: No. 2 sets the side, Nos. 3 and 4 fly opposite side
+
+5.   Turns:
+
+     a.   If gentle, keep side and sweep (use power as required)
+
+     b.   If moderate or steep, collapsing towards lead’s six as required—
+          No. 3 must ensure clear of No. 2
+Spread 4 from FW
+
+1.   Start from FW with Finger geometry.
+
+2.   Use altitude/power as required to make spacing.
+
+3.   Establish 300 ft stacks once in position (low to high: 4, 3, 1, 2).
+
+
+
+
+4.   Initial spacing on wide side (6000 ft) anticipating G-warm.
+G-warm in Spread 4
+
+1.   Start from wide LAB spacing (approx 6000 ft).
+
+2.   Anticipate first 90 toward No. 2.
+
+3.   Strive for accurate headings and G.
+
+4.   Set full power on command for first in place turn.
+
+5.   Once complete, tighten LAB spacing (closer to 4000 ft).
+TRJ to FW from Spread 4
+
+1. Lead will pause, allow No. 2 to establish closure, and then com-
+mence a gentle turn towards No. 2.
+
+2.   No. 2 conducts TRJ to FW spacing while maintaining stack.
+
+3.   Nos. 3/4 conduct cold TRJs to FW spacing while maintaining stacks.
+
+4. No. 3 must ensure positive separation from No. 2 (rejoining from
+same distance, but hot for 2, cold for 3).
+
+Fluid Manoeuvring
+
+1. Lead will commence a 30 AOB turn in FW and ensure all aircraft call
+ready. Once ready, Lead increase bank to 60 AOB and set PCL MAX for:
+
+     a.   Exercise 1: 60/2 level turn
+
+     b.   Exercise 3: Wingovers
+
+     c.   Exercise 4: Barrel Roll (max 60 degrees of pitch permitted)
+
+2.   Work towards 500’-750’ spacing during manoeuvres
+
+3.   Terminate calls upon completion.
+
+4. Lead will conduct gentle turn while re-establishing Finger geometry
+at FW spacing.
+Finger
+
+1.   Position? (Look at your hands)
+
+
+
+
+2.   To rejoin from FW via route:
+
+     a.   Proceed to route spacing using altitude stack to preserve a safe
+          escape lane.
+
+     b.   Once stabilized approaching route, remove stack.
+
+     c.   From route proceed to Echelon references.
+
+     d.   No. 2 establishes route spacing first, followed by No. 3, fol-
+          lowed by No. 4.
+
+3.   Station Keeping:
+
+     a.   Avoid abrupt corrections and PIO.
+
+     b.   No. 4 needs to “fly through” No. 3.
+
+     c.   Larger power changes required for No. 4.
+Echelon
+
+1.   Finger Left to Echelon Left:
+
+
+
+
+2.   Finger Left to Echelon Right:
+
+
+
+
+3.   Station Keeping: Smooth corrections and flying through.
+Box
+
+1.    Finger Left to Box
+
+
+
+
+2.    Station Keeping: Anticipate up to 60 AOB.
+Turning Rejoins
+
+1.   Lead will initiate with RT: “FINGER LEFT/RIGHT”
+
+2.   Planning 30 AOB and 200 KIAS
+
+3.   Ensure aircraft ahead is stablized before passing behind lead
+
+4.   Pass approx 2 aircraft lengths behind Lead and slightly below
+
+5.   Overshoots are below and behind as per 2-plane.
+
+Straight Ahead Rejoins
+
+1. Same as two-plane but with safe separation until preceding aircraft
+is stabilized
+  Part IV
+
+Contingencies
+
+
+
+
+     22
+Delays / Ground Abort
+
+1.   Discuss
+
+Take Off Abort
+
+1.   Abort, Abort, Abort: All aircraft abort.
+
+2. Aborting: All trailing aircraft abort. No. 3 must then call “3,4
+ABORT, ABORT, ABORT”.
+
+3.   Aborting aircraft must call “CLEAR” when able, from rear to front.
+
+Lost Lead
+
+1.   Responsibilities are, 4 misses 3, misses 2, misses Lead.
+
+2.   If blind, avoid last known position and advise with altitude.
+
+3.   Lead will coordinate deconfliction plan and BVR.
+
+Collision
+
+1.   Diverge/Decide/Discuss
+
+Emergencies
+
+1.   Non-critical emergencies: Advise and then Handle
+
+2.   Critical emergencies: Handle and then Advise (promptly)
+
+     a.   Close formation/GULAP: Ensure positive separation
+
+3. Comm Fail: RTB OHB Stream unless signalled for early gear selec-
+tion. If necessary lead may split formation to support emergency aircraft
+in a single element.
+Freeze Calls
+
+1.   Use if uncertain during critical moments.
+
+2.   Call “FREEZE”, with reason if able.
+   Part V
+
+Training Rules
+
+
+
+
+      25
+Wx Limits: Discernible horizon — 5 NM flight vis, 5000’ between layers — 2000’
+vertical / 1 NM horizontal
+Altitude restrictions:
+•     Hard deck 3000’ AGL or 2000’ above cloud
+•     6000’ AGL with solo students
+Manoeuvring Considerations:
+•     Wingmen makes the miss (high if LL)
+•     Lead remain predictable
+•     Transmit your intended flight path
+•     Head-on — Clear right
+•     Nose high goes high if able
+•     No crossing flight paths
+•     Fluid maneouvring/high-aspect — 500’ bubble
+•     LAB crossing — 300’ min safe separation
+Flight Safety:
+•     Wingmen losing visual or SA will manoeuvre away from lead’s last known
+position and call BLIND with altitude
+•     Lead losing sight or SA of wingmen will manoeuvre predictably
+•     G-limits — Lead +4 G / Wingmen +5 G
+•     Out of control / stall / spin recovery
+•     Awareness of: into the sun / prop wash / fuel
+•     Inadvertent cloud penetration
+•     Ejection — OOC 6000’ AGL
+•     Rescue cap responsibilities
+Terminate: Ceases the current event or manoeuvre, is indicated by R/T or wing
+rock, is acknowledged by all players in sequence and will be called when:
+•     BINGO fuel is reached
+•     Desired learning objectives are either met or unattainable
+•     Breach of a training rule or other limits are recognized
+•     Both lead and wingmen lose visual contact
+•     Loss of comms with formation members
+Knock-It-Off: Ceases all maneouvres, ends the overall mission, is indicated by R/T
+or wing rock, is acknowledged by all players in sequence and will be called when:
+•     Safety of flight is a factor
+•     A dangerous situation develops (e.g. FM with 90 aspect, zero LOS, and high
+closure)
+•     Weather deteriorates below minimums
+

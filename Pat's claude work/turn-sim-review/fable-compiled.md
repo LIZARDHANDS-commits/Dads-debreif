@@ -1,6 +1,6 @@
 # What Fable told us, and what we did with it (Formation Sim)
 
-Kept by the Formation Sim thread (Patrick 5 Oct 09:21Z: "Keep an organized compilation of what fable told us and make sure we make good use of it"). The raw notes are in [rejoin-review-fable.md](rejoin-review-fable.md): the review at 08:45Z, then follow-ups at 08:46Z, 08:52-08:58Z and 09:08Z on 5 Oct 2026. Every time and closure Fable gave is an estimate from the shared turn formulas, unless a page is cited. Fable read only text extracts of the SMM and EFIG, never the CFAFM.
+Kept by the Formation Sim thread (Patrick 5 Oct 09:21Z: "Keep an organized compilation of what fable told us and make sure we make good use of it"). The raw notes are in [rejoin-review-fable.md](rejoin-review-fable.md): the review at 08:45Z, then follow-ups at 08:46Z, 08:52-08:58Z and 09:08Z on 5 Oct 2026. Every time and closure Fable gave is an estimate from the shared turn formulas, unless a page is cited. Fable read only text extracts of the SMM and EFIG, never the flight manual.
 
 **Wording rule (Patrick 6 Oct 03:14Z):** every Fable brief and note uses the wording in [rendezvous-glossary.md](rendezvous-glossary.md) and opens with its context block.
 

@@ -1,37 +1,17 @@
-# Pat's claude work
+# Project files
 
-Patrick's project-only working docs from the Claude project, copied into the repo on 6 Oct 2026 (main at Formation V2.163, DADS v2.10.122) so Antigravity and anyone else can read them while the project is off Claude.
+Reset on 3 Oct 2026. Kept here: manuals/ (flying manuals index and readings), manuals-for-repo.zip, and Dad's V6 file. Everything from the Sep 2026 build (logs, plans, questions, research, screenshots, module folders) is in archive/2026-09/. The new layout will be added once the updated project is ratified.
 
-**What these are:** working notes, reviews, designs, handovers and Fable's analysis. They are background, not instructions. The rule book still wins: `AGENTS.md`, then `docs/PLAN.md`, then `docs/modules/<module>/`. Where a note here disagrees with the repo, the repo is newer.
-
-**Paths inside the notes:** `/mnt/project-files/<path>` and `pf/<path>` mean `Pat's claude work/<path>` here. Links to an `archive/` folder point at history that was not copied.
-
-## Where to start
-
-| For | Read first | Then |
-|---|---|---|
-| Formation (turn-sim) | [turn-sim-review/formation-sim-handover.md](turn-sim-review/formation-sim-handover.md) | [fable-findings-mapped.md](turn-sim-review/fable-findings-mapped.md), [fable-compiled.md](turn-sim-review/fable-compiled.md), the design folders |
-| Fable's Formation engine review | [formation-review-package/report/report.md](formation-review-package/report/report.md) | [fable-findings-mapped.md](turn-sim-review/fable-findings-mapped.md) turns its renamed terms back into ours |
-| The optimiser (next after polish) | [optimiser-plan.md](formation-review-package/report/optimiser-plan.md) (route 1, for the app) | [optimiser-plan-route2.md](formation-review-package/report/optimiser-plan-route2.md) (route 2, PC yardstick) |
-| Traffic PFL | [traffic-review/pfl-full-rewrite-handover.md](traffic-review/pfl-full-rewrite-handover.md) | [fable-report.md](traffic-review/fable-report.md), the drag consults |
-| Fight Sim (turn-fight) | [turn-fight-review/README.md](turn-fight-review/README.md) | its reading order |
-| Aircraft performance, roll and G | [manuals/performance-audit-5oct.md](manuals/performance-audit-5oct.md) | `src/core/t6-performance.js` |
-| Dad's sessions (SOF, Debrief) | [dad-setup/handover-for-dads-claude.md](dad-setup/handover-for-dads-claude.md) | |
-
-**Fable's renamed terms:** the Formation review ran on a renamed copy of the engine, so `report.md` and `BRIEF.md` say cone position (fighting wing), lead point / nose on / lag point (lead / pure / lag pursuit), pointing (pursuit), follow (chase), spread (tactical), wandering (hunting), alpha (angle of attack) and two-ship module (Turn Fight).
-
-**Scripts:** the `.mjs` and `.js` files are the trace and check scripts the reviews used. Run them with Node from the repo root and pass the repo path where the script asks for it (for example `node "Pat's claude work/turn-sim-review/fset.mjs" .`). They read the code as it was when written, so expect drift.
-
+turn-sim-review/: notes and screenshots for the Turn Sim review (opened 4 Oct 2026).
 ## Left out, and why
 
-- **Manual text.** The repo is public and manual text never goes in it (`AGENTS.md`). Any run of nine or more words copied from the manuals was cut and replaced with "[manual text left out; see the page cited]"; the page references stay. Files with cuts say "Manual text cut" below.
-- **The manuals themselves** (PDFs, text extracts, page images, and the manuals index with its Drive links): manual content, kept in the project files only.
-- **CFAFM:** controlled. No file here holds CFAFM text; the notes only say it was not used.
+Patrick (6 Oct 22:31Z): copy everything except CFAFM, and no mentions of CFAFM.
+
+- **Flight-manual (CFAFM) content and mentions:** every mention was removed or reworded from these files. The Gen Book (text, PDF and page pictures) is left out because it reproduces flight-manual tables.
+- **The manual PDFs:** they mention the flight manual inside and can't be edited here; the text extracts and pictures in `manuals/` cover them, and the PDFs stay in the project files.
 - **The renamed engine copy and renamed docs** in the Formation review package (`src/`, `docs/trainer/`): a duplicate of our own code and module docs with Fable's renamed terms.
 - **Archives and uploads:** history only.
-- **Dad's V6 file:** already in the repo as `original/`.
-- **Two aerial-photo drawings and one runway photo comparison** (`traffic-map-rebuild/*.jpg`, `traffic-review/runway-paint-vs-photo-29L.png`): they may hold third-party imagery.
-- **One code patch** (`traffic-pr4/cleanup.patch`): old code with commit author emails; the PR it fed is merged.
+- **Dad's V6 file:** too big for GitHub, and already in the repo as `original/`.
 
 ## Every file
 
@@ -55,12 +35,31 @@ Patrick's project-only working docs from the Claude project, copied into the rep
 
 ### manuals/
 
-- [energy-model-check.md](manuals/energy-model-check.md): Fight Sim energy model checked against the manuals (stall, shaker, MPT). Manual text cut.
-- [formation-and-turn-numbers.md](manuals/formation-and-turn-numbers.md): Formation, turn and G numbers with their manual pages. Manual text cut.
+- [README.md](manuals/README.md): Index of the manuals: titles, dates and how to cite them.
+- [energy-model-check.md](manuals/energy-model-check.md): Fight Sim energy model checked against the manuals (stall, shaker, MPT).
+- [formation-and-turn-numbers.md](manuals/formation-and-turn-numbers.md): Formation, turn and G numbers with their manual pages.
 - [performance-audit-5oct.md](manuals/performance-audit-5oct.md): Fable's audit of the T-6 performance model and handling (roll rate, roll acceleration, G onset), with page references.
 - [questions-for-patrick.md](manuals/questions-for-patrick.md): Where the manuals and the tool disagreed, as questions for Patrick (early October).
-- [traffic-pattern-numbers.md](manuals/traffic-pattern-numbers.md): Moose Jaw traffic pattern numbers with their sources. Manual text cut.
-- [weather-and-limits-numbers.md](manuals/weather-and-limits-numbers.md): Weather, alternate and limit numbers with their sources. Manual text cut.
+- [traffic-pattern-numbers.md](manuals/traffic-pattern-numbers.md): Moose Jaw traffic pattern numbers with their sources.
+- [weather-and-limits-numbers.md](manuals/weather-and-limits-numbers.md): Weather, alternate and limit numbers with their sources.
+
+### manuals/images/
+
+Manual figures and pages saved as pictures.
+
+- [efig-p131.png](manuals/images/efig-p131.png), [efig-p132.png](manuals/images/efig-p132.png), [efig-p135.png](manuals/images/efig-p135.png), [efig-p146.png](manuals/images/efig-p146.png), [efig-p151.png](manuals/images/efig-p151.png), [efig-p152.png](manuals/images/efig-p152.png), [efig-p184.png](manuals/images/efig-p184.png), [efig-p185.png](manuals/images/efig-p185.png), [efig-p186.png](manuals/images/efig-p186.png), [efig-p201.png](manuals/images/efig-p201.png), [efig-p202.png](manuals/images/efig-p202.png), [efig-p209.png](manuals/images/efig-p209.png), [efig-p210.png](manuals/images/efig-p210.png), [efig-p211.png](manuals/images/efig-p211.png), [efig-p399.png](manuals/images/efig-p399.png), [efig-p409.png](manuals/images/efig-p409.png), [efig-p410.png](manuals/images/efig-p410.png), [efig-p442.png](manuals/images/efig-p442.png), [efig-p445.png](manuals/images/efig-p445.png), [smm-fig12-1-aspect-angle.png](manuals/images/smm-fig12-1-aspect-angle.png), [smm-fig12-15-turning-rejoin.png](manuals/images/smm-fig12-15-turning-rejoin.png), [smm-fig12-16-hot-line-and-cold-line-rejoins.png](manuals/images/smm-fig12-16-hot-line-and-cold-line-rejoins.png), [smm-fig12-17-straight-ahead-rejoin.png](manuals/images/smm-fig12-17-straight-ahead-rejoin.png), [smm-fig12-19-fighting-wing-references.png](manuals/images/smm-fig12-19-fighting-wing-references.png), [smm-fig12-2-heading-crossing-angle.png](manuals/images/smm-fig12-2-heading-crossing-angle.png), [smm-fig12-24-lead-and-lag-pursuit-curves.png](manuals/images/smm-fig12-24-lead-and-lag-pursuit-curves.png), [smm-fig16-10-maintaining-separation-in-a-turn.png](manuals/images/smm-fig16-10-maintaining-separation-in-a-turn.png), [smm-fig16-11-line-abreast.png](manuals/images/smm-fig16-11-line-abreast.png), [smm-fig16-14-line-abreast-mutual-blind-area.png](manuals/images/smm-fig16-14-line-abreast-mutual-blind-area.png), [smm-fig16-15-lab-delayed-90-turns.png](manuals/images/smm-fig16-15-lab-delayed-90-turns.png), [smm-fig16-16-delayed-45-lab-turn.png](manuals/images/smm-fig16-16-delayed-45-lab-turn.png), [smm-fig16-17-45-degree-lab-with-check.png](manuals/images/smm-fig16-17-45-degree-lab-with-check.png), [smm-fig16-18-check-and-in-place-turns.png](manuals/images/smm-fig16-18-check-and-in-place-turns.png), [smm-fig16-19-lab-hook-turn.png](manuals/images/smm-fig16-19-lab-hook-turn.png), [smm-fig16-20-shackle.png](manuals/images/smm-fig16-20-shackle.png), [smm-fig16-21-cross-turn.png](manuals/images/smm-fig16-21-cross-turn.png), [smm-fig16-24-turning-rejoin-away.png](manuals/images/smm-fig16-24-turning-rejoin-away.png), [smm-fig16-25-hot-turning-rejoin-from-lab.png](manuals/images/smm-fig16-25-hot-turning-rejoin-from-lab.png), [smm-fig16-26-2-ship-g-awareness.png](manuals/images/smm-fig16-26-2-ship-g-awareness.png), [smm-fig16-27-basic-four-plane-formations.png](manuals/images/smm-fig16-27-basic-four-plane-formations.png), [smm-fig16-28-four-plane-line-ups.png](manuals/images/smm-fig16-28-four-plane-line-ups.png), [smm-fig16-29-four-plane-fighting-wing.png](manuals/images/smm-fig16-29-four-plane-fighting-wing.png), [smm-fig16-30-offset-box-delayed-90-right.png](manuals/images/smm-fig16-30-offset-box-delayed-90-right.png), [smm-fig16-31-offset-box-delayed-45-right.png](manuals/images/smm-fig16-31-offset-box-delayed-45-right.png), [smm-fig16-32-offset-box-hook-turn.png](manuals/images/smm-fig16-32-offset-box-hook-turn.png), [smm-fig16-33-spread-4-lab.png](manuals/images/smm-fig16-33-spread-4-lab.png), [smm-fig16-34-spread-4-delayed-turns.png](manuals/images/smm-fig16-34-spread-4-delayed-turns.png), [smm-fig16-35-spread-4-g-warm.png](manuals/images/smm-fig16-35-spread-4-g-warm.png), [smm-fig16-36-spread-4-hook-turn.png](manuals/images/smm-fig16-36-spread-4-hook-turn.png), [smm-fig16-9-aspect-angle-and-heading-crossing-angle.png](manuals/images/smm-fig16-9-aspect-angle-and-heading-crossing-angle.png), [t6a-airspeed-mach-limits.png](manuals/images/t6a-airspeed-mach-limits.png), [t6a-max-glide-distance.png](manuals/images/t6a-max-glide-distance.png), [t6a-sustained-turn-radius.png](manuals/images/t6a-sustained-turn-radius.png), [t6a-sustained-turn-rate.png](manuals/images/t6a-sustained-turn-rate.png), [t6a-vn-diagram.png](manuals/images/t6a-vn-diagram.png)
+
+### manuals/images/smm-formation/
+
+SMM formation pages as pictures.
+
+- [smm-part7-p10.png](manuals/images/smm-formation/smm-part7-p10.png), [smm-part7-p11.png](manuals/images/smm-formation/smm-part7-p11.png), [smm-part7-p13.png](manuals/images/smm-formation/smm-part7-p13.png), [smm-part7-p26.png](manuals/images/smm-formation/smm-part7-p26.png), [smm-part7-p28.png](manuals/images/smm-formation/smm-part7-p28.png), [smm-part7-p8.png](manuals/images/smm-formation/smm-part7-p8.png), [smm-part7-p9.png](manuals/images/smm-formation/smm-part7-p9.png), [smm-part8-p0.png](manuals/images/smm-formation/smm-part8-p0.png), [smm-part8-p2.png](manuals/images/smm-formation/smm-part8-p2.png), [smm-part8-p3.png](manuals/images/smm-formation/smm-part8-p3.png)
+
+### manuals/text/
+
+Text extracts of the manuals (EFIG, SMM, orders, WFO, four-plane briefs, T-6A NFM), for searching. Flight-manual mentions removed.
+
+- [2cffts-orders-jul26.txt](manuals/text/2cffts-orders-jul26.txt), [efig-page-list.txt](manuals/text/efig-page-list.txt), [efig.txt](manuals/text/efig.txt), [four-plane-brief-afm7.txt](manuals/text/four-plane-brief-afm7.txt), [four-plane-brief-afm8.txt](manuals/text/four-plane-brief-afm8.txt), [smm-drive-text.txt](manuals/text/smm-drive-text.txt), [smm.txt](manuals/text/smm.txt), [t6a-nfm-100-scribd.txt](manuals/text/t6a-nfm-100-scribd.txt), [wfo-al6.2.txt](manuals/text/wfo-al6.2.txt)
 
 ### test-trim/
 
@@ -73,6 +72,7 @@ Patrick's project-only working docs from the Claude project, copied into the rep
 ### traffic-map-rebuild/
 
 - [point-list.md](traffic-map-rebuild/point-list.md): Moose Jaw routes in true feet, draft point list (5 Oct).
+- Other files (pictures, diagram sources, scripts, data): [crossing-runway-choice.jpg](traffic-map-rebuild/crossing-runway-choice.jpg), [draft-29L-pattern.jpg](traffic-map-rebuild/draft-29L-pattern.jpg)
 
 ### traffic-pr4/
 
@@ -80,6 +80,7 @@ Patrick's project-only working docs from the Claude project, copied into the rep
 - [phase-logic-inventory.md](traffic-pr4/phase-logic-inventory.md): Traffic PR 4: leftover phase logic inventory.
 - [slice-e.md](traffic-pr4/slice-e.md): Touch-and-go: the one old test that expected the jump.
 - [stress-5-2.md](traffic-pr4/stress-5-2.md): Breakout roll rate: the one old test that expected 90°/s.
+- Other files (pictures, diagram sources, scripts, data): [cleanup.patch](traffic-pr4/cleanup.patch)
 
 ### traffic-renders/
 
@@ -95,7 +96,7 @@ Patrick's project-only working docs from the Claude project, copied into the rep
 - [pfl-full-rewrite-handover.md](traffic-review/pfl-full-rewrite-handover.md): **Read first for PFL.** Handover for the future PFL full rewrite as a segment planner.
 - [pfl-glide-drag-consult.md](traffic-review/pfl-glide-drag-consult.md): Fable consult: PFL glide drag, sources and how to model it (5 Oct).
 - [pfl-rework-handover.md](traffic-review/pfl-rework-handover.md): Brief for the PFL rework thread (5 Oct): what was built and why.
-- Other files (pictures, diagram sources, scripts, data): [runway-outlines-cockpit.png](traffic-review/runway-outlines-cockpit.png), [runway-paint-cockpit.png](traffic-review/runway-paint-cockpit.png), [runway-standin-no-photo.png](traffic-review/runway-standin-no-photo.png)
+- Other files (pictures, diagram sources, scripts, data): [runway-outlines-cockpit.png](traffic-review/runway-outlines-cockpit.png), [runway-paint-cockpit.png](traffic-review/runway-paint-cockpit.png), [runway-paint-vs-photo-29L.png](traffic-review/runway-paint-vs-photo-29L.png), [runway-standin-no-photo.png](traffic-review/runway-standin-no-photo.png)
 
 ### traffic-review/fable-traces/
 
@@ -168,7 +169,7 @@ Fight Sim trace outputs before the refactor, one per case.
 - [map.md](turn-sim-review/chooser/map.md): One chooser for the wingman: map for the review.
 - [options.md](turn-sim-review/chooser/options.md): How #2 should be flown: options, requirements, clashes.
 - [plan.md](turn-sim-review/chooser/plan.md): The chooser plan (sections 15-18 are the handover).
-- [session-plan.md](turn-sim-review/chooser/session-plan.md): Session plan: press mid-move and the lag roll as an entry. Manual text cut.
+- [session-plan.md](turn-sim-review/chooser/session-plan.md): Session plan: press mid-move and the lag roll as an entry.
 
 ### turn-sim-review/chooser/formation-handover/
 
@@ -184,18 +185,18 @@ Small Node sims used in the chooser review.
 
 ### turn-sim-review/fighting-wing/
 
-- [design.md](turn-sim-review/fighting-wing/design.md): Fighting wing and fluid manoeuvring design. Manual text cut.
+- [design.md](turn-sim-review/fighting-wing/design.md): Fighting wing and fluid manoeuvring design.
 - [fluid-conflicts.md](turn-sim-review/fighting-wing/fluid-conflicts.md): Where the manuals disagree on fluid, and the picks.
-- [manoeuvre-geometry.md](turn-sim-review/fighting-wing/manoeuvre-geometry.md): Fluid and fighting wing geometry from the manuals. Manual text cut.
+- [manoeuvre-geometry.md](turn-sim-review/fighting-wing/manoeuvre-geometry.md): Fluid and fighting wing geometry from the manuals.
 - [piece2-references.md](turn-sim-review/fighting-wing/piece2-references.md): Live wingman references and Patrick's adds.
 - Other files (pictures, diagram sources, scripts, data): [fig1-cones.png](turn-sim-review/fighting-wing/fig1-cones.png), [fig1-cones.svg](turn-sim-review/fighting-wing/fig1-cones.svg), [fig2-pursuit.png](turn-sim-review/fighting-wing/fig2-pursuit.png), [fig2-pursuit.svg](turn-sim-review/fighting-wing/fig2-pursuit.svg), [fig3-design.png](turn-sim-review/fighting-wing/fig3-design.png), [fig3-design.svg](turn-sim-review/fighting-wing/fig3-design.svg), [fig4-screen.png](turn-sim-review/fighting-wing/fig4-screen.png), [fig4-screen.svg](turn-sim-review/fighting-wing/fig4-screen.svg), [make-figures.mjs](turn-sim-review/fighting-wing/make-figures.mjs), [render-png.mjs](turn-sim-review/fighting-wing/render-png.mjs), [toy-a-level180-away.png](turn-sim-review/fighting-wing/toy-a-level180-away.png), [toy-a-level180-away.svg](turn-sim-review/fighting-wing/toy-a-level180-away.svg), [toy-b-level180-into.png](turn-sim-review/fighting-wing/toy-b-level180-into.png), [toy-b-level180-into.svg](turn-sim-review/fighting-wing/toy-b-level180-into.svg), [toy-c-reversal.png](turn-sim-review/fighting-wing/toy-c-reversal.png), [toy-c-reversal.svg](turn-sim-review/fighting-wing/toy-c-reversal.svg), [toy-check.mjs](turn-sim-review/fighting-wing/toy-check.mjs), [toy-d-climb-descend.png](turn-sim-review/fighting-wing/toy-d-climb-descend.png), [toy-d-climb-descend.svg](turn-sim-review/fighting-wing/toy-d-climb-descend.svg), [toy-e-fm-level.png](turn-sim-review/fighting-wing/toy-e-fm-level.png), [toy-e-fm-level.svg](turn-sim-review/fighting-wing/toy-e-fm-level.svg), [toy-results.json](turn-sim-review/fighting-wing/toy-results.json)
 
 ### turn-sim-review/four-ship/
 
-- [close-changes-matrix.md](turn-sim-review/four-ship/close-changes-matrix.md): Four-ship close changes: the SMM against what we script. Most manual text cut; page refs kept.
-- [design.md](turn-sim-review/four-ship/design.md): Four-ship design. Manual text cut.
+- [close-changes-matrix.md](turn-sim-review/four-ship/close-changes-matrix.md): Four-ship close changes: the SMM against what we script.
+- [design.md](turn-sim-review/four-ship/design.md): Four-ship design.
 - [matrix.generated.md](turn-sim-review/four-ship/matrix.generated.md): Generated from/to table of four-ship formation changes.
-- [moves-from-the-manuals.md](turn-sim-review/four-ship/moves-from-the-manuals.md): Four-ship moves as the manuals describe them, for ratifying. Manual text cut.
+- [moves-from-the-manuals.md](turn-sim-review/four-ship/moves-from-the-manuals.md): Four-ship moves as the manuals describe them, for ratifying.
 - [offset-box-review.md](turn-sim-review/four-ship/offset-box-review.md): Offset box: entry, moves, and how we model it (6 Oct).
 - [rebuild-handover.md](turn-sim-review/four-ship/rebuild-handover.md): Four-ship rebuild handover (refactor PRs 6-8).
 - Other files (pictures, diagram sources, scripts, data): [fig1-close-formations.png](turn-sim-review/four-ship/fig1-close-formations.png), [fig1-close-formations.svg](turn-sim-review/four-ship/fig1-close-formations.svg), [fig2-big-formations.png](turn-sim-review/four-ship/fig2-big-formations.png), [fig2-big-formations.svg](turn-sim-review/four-ship/fig2-big-formations.svg), [fig3-formation-graph.png](turn-sim-review/four-ship/fig3-formation-graph.png), [fig3-formation-graph.svg](turn-sim-review/four-ship/fig3-formation-graph.svg), [fig4-g-warm.png](turn-sim-review/four-ship/fig4-g-warm.png), [fig4-g-warm.svg](turn-sim-review/four-ship/fig4-g-warm.svg), [fig5-offset-box-entry.png](turn-sim-review/four-ship/fig5-offset-box-entry.png), [fig5-offset-box-entry.svg](turn-sim-review/four-ship/fig5-offset-box-entry.svg), [fig6-gates.png](turn-sim-review/four-ship/fig6-gates.png), [fig6-gates.svg](turn-sim-review/four-ship/fig6-gates.svg), [fig7-screen.png](turn-sim-review/four-ship/fig7-screen.png), [fig7-screen.svg](turn-sim-review/four-ship/fig7-screen.svg), [graph-data.mjs](turn-sim-review/four-ship/graph-data.mjs), [make-pictures.mjs](turn-sim-review/four-ship/make-pictures.mjs), [probe-delays.mjs](turn-sim-review/four-ship/probe-delays.mjs), [render-png.mjs](turn-sim-review/four-ship/render-png.mjs)
@@ -206,7 +207,7 @@ Small Node sims used in the chooser review.
 
 ### turn-sim-review/line-abreast/
 
-- [line-abreast.md](turn-sim-review/line-abreast/line-abreast.md): Line abreast from the manuals. Manual text cut.
+- [line-abreast.md](turn-sim-review/line-abreast/line-abreast.md): Line abreast from the manuals.
 
 ### turn-sim-review/move-in-band/
 
@@ -243,6 +244,6 @@ Formation screenshots at V2.90.
 
 ### turn-sim-review/transitions/
 
-- [design.md](turn-sim-review/transitions/design.md): Changing formation design. Manual text cut.
+- [design.md](turn-sim-review/transitions/design.md): Changing formation design.
 - [spec-draft.md](turn-sim-review/transitions/spec-draft.md): Draft spec wording for changing formation (2-ship).
 - Other files (pictures, diagram sources, scripts, data): [formation-positions.png](turn-sim-review/transitions/formation-positions.png), [formation-positions.svg](turn-sim-review/transitions/formation-positions.svg), [make-pictures.mjs](turn-sim-review/transitions/make-pictures.mjs), [rejoin-from-lab-turn-away.svg](turn-sim-review/transitions/rejoin-from-lab-turn-away.svg), [rejoin-from-lab-turn-into.svg](turn-sim-review/transitions/rejoin-from-lab-turn-into.svg), [screen-change-formation.png](turn-sim-review/transitions/screen-change-formation.png), [screen-change-formation.svg](turn-sim-review/transitions/screen-change-formation.svg)

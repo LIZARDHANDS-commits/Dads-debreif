@@ -2,7 +2,7 @@
 
 **Wording for Fable briefs and notes:** use [rendezvous-glossary.md](rendezvous-glossary.md) (Patrick 6 Oct 03:14Z).
 
-Read this first. It replaces reading the whole folder. Detail lives in the files it points to; the repo wins where they differ (`AGENTS.md`, then `docs/modules/turn-sim/`). Every number here is an estimate unless a manual page or Patrick's ruling is beside it. Manual text and the CFAFM never go in the repo or these files; cite pages only.
+Read this first. It replaces reading the whole folder. Detail lives in the files it points to; the repo wins where they differ (`AGENTS.md`, then `docs/modules/turn-sim/`). Every number here is an estimate unless a manual page or Patrick's ruling is beside it. Manual text and the flight manual never go in the repo or these files; cite pages only.
 
 ## 1. Where it stands (main at V2.84, 5 Oct 21:56Z)
 
