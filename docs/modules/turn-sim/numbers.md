@@ -79,7 +79,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | TURNING_REJOIN.fwArriveFtps | `5` | to fighting wing he arrives at its place on the line at about this closure, and the tracker settles him there (estimate) |
 | TURNING_REJOIN.hotBanksDeg | `[30, 60]` | hot (from line abreast) he tries Lead's own 30° and the medium 60° first (the review's estimates, rejoin-review-fable.md follow-up 1) |
 | TURNING_REJOIN.lagAimFt | `2400` | and, hot, the gentlest capture too: lagging while Lead's turn brings the aspect round (estimate) |
-| TURNING_REJOIN.descentFtps | `30` | a height difference comes off no quicker than this, 1,800 ft/min (estimate) |
+| TURNING_REJOIN.heightG | `1` | a height change is one smooth leg whose push and pull stay within this many g of level flight: no rate cap, only the physics (the G is charged in flight.js) and smoothness (Patrick 6 Oct 21:30Z: "there shouldnt be a limit within the physics and smoothness"; TS-140; the 1 g an estimate) |
 | TURNING_REJOIN.captureFt | `150` | he is on the line within this many feet of it; only then does he start taking out the overtake for the decision point (estimate) |
 | TURNING_REJOIN.lagCutFt | `1500` | to fighting wing, hot and within this far of the place down the line he flies at the place itself, lagging the cut so it ends there (Patrick 6 Oct 17:11Z card "Lag the cut"; the distance an estimate) |
 | TURNING_REJOIN.lineTauSec | `4` | his heading comes onto the one the line asks over about this long, so the bank changes smoothly (estimate) |
@@ -179,7 +179,6 @@ Every number the Formation Sim's planners use, with the source written beside it
 | FW_SWITCH.minBehindFt | `300` | the S-turn is flown only while he is at least this far behind Lead: nearer, he drops straight back first, never crossing close behind Lead (estimate; SMM 12.29 para 69 keeps fighting wing 500-1,000 ft back) |
 | FW_ENERGY |  | Fighting wing energy with the cone (TS-96; Patrick 5 Oct 22:45Z: "energy can be managed with the cone", 23:02Z: "Use the cone as required, power as a last resort"): on the power profile in fighting wing (tracker.js), #2 takes a slowing first as a climb and a speeding up as a descent, inside the cone's height, so the throttle moves only for what the height can't give. The horizontal path and the sp |
 | FW_ENERGY.coneUpFt | `IN_POSITION.fwStackFt - 25` | he uses the cone's height up to this far above or below Lead, 25 ft inside the in-position band: the top of the cone (Patrick 6 Oct 16:58Z; the margin an estimate) |
-| FW_ENERGY.climbFtps | `TURNING_REJOIN.descentFtps` | no quicker than the rejoin's height changes, 1,800 ft/min (estimate) |
 | FW_ENERGY.pullFtps2 | `8` | the climb rate changes no quicker than this, about a quarter G, charged as G (estimate) |
 | TRACKER |  | The tracker's own numbers (tracker.js): a small control loop that chases a moving target slot in the frame of the aircraft flown off, flown once at the press and replayed. It stays as the fallback for starts no kinematic-line rule covers (Patrick 5 Oct 05:27Z: "Tracker for fallback, and refractor the tracker"). All estimates: they shape how smoothly the wingman flies, not where the formations are. |
 | TRACKER.gain | `Object.freeze({` |  |
@@ -217,7 +216,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | TRACKER.height | `Object.freeze({` |  |
 | TRACKER.…minChangeFt | `0.5` | a smaller change is left out |
 | TRACKER.…minSec | `4` | no height change takes less than 4 s (estimate) |
-| TRACKER.…maxRateFtps | `TURNING_REJOIN.descentFtps` | nor at more than the rejoin's height-change rate on average, 1,800 ft/min (estimate) |
+| TRACKER.…heightG | `TURNING_REJOIN.heightG` | nor quicker than one smooth leg within the rejoin's height-change g (TS-140; estimate) |
 | TRACKER.…unknownLegSec | `6` | a leg whose end was never learned is given 6 s (estimate) |
 | WING |  | #2's numbers. Sources beside each; "estimate" where none. |
 | WING.pursuitShare | `0.1` | the lag or lead offset as a share of the range (estimate) |

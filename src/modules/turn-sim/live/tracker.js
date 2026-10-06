@@ -9,7 +9,7 @@
 import { bankDegFromTurnRate } from '../../../core/flight-math.js';
 import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2 } from '../../../core/units.js';
-import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
+import { STEP_SEC, stepAircraft, copyAircraft, smoothLegSec } from './flight.js';
 import { relativeTo, unit } from './manoeuvres.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
 import { throttleFor, powerFrom, throttleAtTorque } from './power.js';
@@ -336,17 +336,17 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       const want = ph.coneAlt ? -accel / perFtps : 0;
       const up = Math.max(0, L.altAboveFt + E.coneUpFt - W.altAboveFt);
       const down = Math.max(0, W.altAboveFt - (L.altAboveFt - E.coneUpFt));
-      const lo = -Math.min(E.climbFtps, Math.sqrt(2 * E.pullFtps2 * down));
-      const hi = Math.min(E.climbFtps, Math.sqrt(2 * E.pullFtps2 * up));
+      const lo = -Math.sqrt(2 * E.pullFtps2 * down); // no rate cap, only the pull (TS-140)
+      const hi = Math.sqrt(2 * E.pullFtps2 * up);
       // Outside the cone's height (a vertical rejoin's top, the bubble's dive) he comes back into it first, and the fighting
       // wing bubble's dive (TS-134) takes him to belowOwn under the aircraft flown off: both at FW_BUBBLE's rate and pull,
       // assertively (Patrick 6 Oct 15:59Z: "When the fighting wing turn ends 2 needs to assertively move back into the cone").
-      // Inside the cone, the energy's climb or descent at FW_ENERGY's gentler ones (a quick dive still coming out at the bubble's pull).
+      // Inside the cone, the energy's climb or descent at FW_ENERGY's gentler pull (a quick dive still coming out at the bubble's pull).
       const D = FW_BUBBLE;
       const topFt = L.altAboveFt + E.coneUpFt;
       const bottomFt = L.altAboveFt - E.coneUpFt;
       const toward = (ft) => Math.max(-D.diveFtps, Math.min(D.diveFtps, (ft - W.altAboveFt) * D.altGain));
-      const quick = belowOwn != null || W.altAboveFt > topFt || W.altAboveFt < bottomFt || Math.abs(v0) > E.climbFtps;
+      const quick = belowOwn != null || W.altAboveFt > topFt || W.altAboveFt < bottomFt;
       // Slowing faster than the gentle climb gives, he zooms (up to zoomFtps, at the bubble's pull) toward the cone's top.
       const zoom = belowOwn == null && want > hi && zoomFtps > hi;
       const wantV = belowOwn != null ? toward(L.altAboveFt - belowOwn) : W.altAboveFt > topFt ? toward(topFt) : W.altAboveFt < bottomFt ? toward(bottomFt) : Math.max(lo, Math.min(zoom ? zoomFtps : hi, want));
@@ -433,9 +433,9 @@ export function heightProfile(alt0, phases, times, t0) {
     const start = Math.max(times[i].t0 ?? from, from);
     const end = times[i].t1 ?? start + TRACKER.height.unknownLegSec;
     if (Math.abs(target - alt) > TRACKER.height.minChangeFt) {
-      // No quicker than the leg's own rate, or else TRACKER.height.maxRateFtps (Patrick 6 Oct 05:00Z: a 2,000 ft climb in
+      // No quicker than the leg's own rate, or else one smooth leg within TRACKER.height.heightG (TS-140) (Patrick 6 Oct 05:00Z: a 2,000 ft climb in
       // 10 s, about 12,000 ft/min, from low in line abreast; no floor until V2.124).
-      const floor = Math.abs(target - alt) / (ph.altRateFtps ?? TRACKER.height.maxRateFtps);
+      const floor = ph.altRateFtps ? Math.abs(target - alt) / ph.altRateFtps : smoothLegSec(target - alt, TRACKER.height.heightG);
       const t1 = Math.max(ph.altSec ? start + ph.altSec : end, start + TRACKER.height.minSec, start + floor);
       legs.push({ t0: start, t1, fromFt: alt, toFt: target, ...(ph.dive && target < alt ? { dive: ph.dive } : {}) });
       alt = target;
