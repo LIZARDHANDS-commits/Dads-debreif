@@ -20,6 +20,7 @@ import { G_WARM } from './live/g-warm.js';
 import { rejoinReadout } from './live/judge.js';
 import { FW2, FW4, checkFwShape } from './live/slots.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS } from './live/formation-turns.js';
+import { OFFSET_BOX_KEYS } from './live/offset-box-turns.js';
 import { createChangeUi } from './transitions-panel.js';
 import { createFluidUi } from './fluid-panel.js';
 import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, LAYOUT_VERSION, SHIP_COLORS, migrateLayout } from './layout.js';
@@ -45,7 +46,7 @@ const BUTTONS = ['delayed90', 'delayed45', 'check', 'inPlace90', 'hook', 'shackl
   key,
   label: MANOEUVRES[key].label,
   sided: MANOEUVRES[key].sided,
-  ships: FOUR_SHIP_KEYS.includes(key) ? [2, 4] : [2], // the shackle and cross turn are not approved in Spread 4 (SMM 16.43 para 118)
+  ships: OFFSET_BOX_KEYS.includes(key) ? [2, 4] : [2], // the cross turn is not approved in the four; the shackle only in the offset box (SMM 16.43 para 118, 16.41 para 112b)
 }));
 // G-warm, from Spread 4 (SMM 16.44 para 120; AFM8 brief p.16): one button, the four-ship's only for now.
 BUTTONS.push({ key: G_WARM.key, label: G_WARM.label, sided: false, ships: [4] });
@@ -476,7 +477,9 @@ function mount(root, app) {
       const where = whereAll.key;
       // In Fluid 4 the two elements fly Spread 4's turns (planFluid4Turn; Patrick 6 Oct card 04:59Z "Spread 4's five").
       const lineAbreast = where === 'spread4' || where === 'other' || where === 'fluid4';
-      ui.setMovesEnabled(lineAbreast, (key) => key !== G_WARM.key || where === 'spread4', 'These manoeuvres fly in Spread 4, fighting wing and the close formations. Change formation first.');
+      // In the offset box: Spread 4's five and the shackle (SMM 16.41 para 112; TS-135).
+      if (where === 'offsetBox') ui.setMovesEnabled(true, (key) => OFFSET_BOX_KEYS.includes(key));
+      else ui.setMovesEnabled(lineAbreast, (key) => (key !== G_WARM.key || where === 'spread4') && FOUR_SHIP_KEYS.concat(G_WARM.key).includes(key), 'These manoeuvres fly in Spread 4, fighting wing, the offset box and the close formations. Change formation first.');
     }
   }
   function queueCard() {

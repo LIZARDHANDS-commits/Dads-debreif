@@ -14,6 +14,7 @@ import { MANOEUVRES, planManoeuvre, relativeTo, dryRun, TURN_BANK_DEG, TURN_G } 
 import { flyStep, dryRunT } from './transitions.js';
 import { resolveErrors, resolveFixTools, applyStartErrors, planWithErrors, outcomeOf, offStandardOutcome, responseOf } from './errors.js';
 import { FOUR_SHIP_KEYS, fourShipStart, planFour } from './four-ship.js';
+import { OFFSET_BOX_KEYS, planOffsetBoxTurn } from './offset-box-turns.js';
 import { G_WARM, planGWarm } from './g-warm.js';
 import { classify, judge, judgeFluid4 } from './judge.js';
 import { FORMATIONS, FOUR_FORMATIONS, setFwShape, setFw4Shape } from './slots.js';
@@ -188,8 +189,12 @@ export function createFormation(options = {}) {
     const where = whereNow();
     // In Fluid 4 the two elements turn: Lead and #3 in line abreast, #2 and #4 in fighting wing on them (planFluid4Turn).
     const fluid4 = four && where.key === 'fluid4' && FOUR_SHIP_KEYS.includes(key);
-    const turnIn = fluid4 || (FW_TURN_KEYS.includes(key) && TURN_FORMATIONS[four ? 4 : 2].includes(where.key)) ? { key: where.key, side: where.side } : null;
-    const plan = fluid4
+    // In the offset box each element flies the line abreast manoeuvre, the rear one after its delay (offset-box-turns.js, TS-135).
+    const box = four && where.key === 'offsetBox' && OFFSET_BOX_KEYS.includes(key);
+    const turnIn = fluid4 || box || (FW_TURN_KEYS.includes(key) && TURN_FORMATIONS[four ? 4 : 2].includes(where.key)) ? { key: where.key, side: where.side } : null;
+    const plan = box
+      ? planOffsetBoxTurn(state.aircraft, key, dir, state.tSec, { spacingFt: state.spacingFt ?? opts.spacingFt })
+      : fluid4
       ? planFluid4Turn(state.aircraft, key, dir, state.tSec, { blockFt: opts.blockFt })
       : turnIn
       ? planFormationTurn(state.aircraft, turnIn, key, dir, state.tSec, { blockFt: opts.blockFt })
@@ -234,6 +239,12 @@ export function createFormation(options = {}) {
     state.refusal = null;
     state.errorOutcome = null;
     return true;
+  }
+
+  /** The side #2 is on now, +1 left of Lead, -1 right. */
+  function sideOfTwo() {
+    const [lead, two] = state.aircraft;
+    return Math.sign(relativeTo(lead, two).left) || state.lastSide || -1;
   }
 
   /** Where the formation is now (judge.js classify, 2- or 4-ship), remembering which side #2 is on. */
@@ -397,7 +408,7 @@ export function createFormation(options = {}) {
       const four = state.aircraft.length > 2;
       // Fluid 4: the elements against the line abreast roll-out, the wingmen in the cone on their leaders (judgeFluid4).
       const f4 = ft.key === 'fluid4' ? judgeFluid4(state.aircraft, MANOEUVRES[state.current.key]?.kind === 'together' && MANOEUVRES[state.current.key].turnDeg > 30 && MANOEUVRES[state.current.key].turnDeg < 180 ? 'trail' : 'abreast', state.spacingFt) : null;
-      const j = f4 ? { inBand: f4.labels[0] === 'IN POSITION', labels: f4.labels, text: `Fluid 4: ${f4.labels.join(', ')}.`, tone: f4.labels[0] === 'IN POSITION' ? 'good' : 'caution', ships: f4.ships } : judge(state.aircraft, { key: ft.key, side: ft.side }, { spacingFt: state.spacingFt });
+      const j = f4 ? { inBand: f4.labels[0] === 'IN POSITION', labels: f4.labels, text: `Fluid 4: ${f4.labels.join(', ')}.`, tone: f4.labels[0] === 'IN POSITION' ? 'good' : 'caution', ships: f4.ships } : judge(state.aircraft, { key: ft.key, side: ft.key === 'offsetBox' ? sideOfTwo() : ft.side }, { spacingFt: state.spacingFt }); // the box's turns swap #2's side (TS-135)
       state.judged = { label: state.current.label, shape: 'formation', labels: j.inBand ? ['IN POSITION'] : j.labels, text: j.text, tone: j.tone, ...(four ? { ships: j.ships } : {}) };
     } else {
       state.judged = { label: state.current.label, ...judge(state.aircraft, { shape: state.current.shape }, { spacingFt: state.spacingFt }) };
@@ -428,6 +439,8 @@ export function createFormation(options = {}) {
     if (FW_TURN_KEYS.includes(key) && TURN_FORMATIONS[four ? 4 : 2].includes(where)) return null;
     // Fluid 4: Spread 4's five turns, flown by the two elements (Patrick 6 Oct 04:56Z; card 04:59Z "Spread 4's five").
     if (four && where === 'fluid4') return FOUR_SHIP_KEYS.includes(key) ? null : `${labelFor(key, dir)} is not flown in Fluid 4.`;
+    // The offset box: Spread 4's five and the shackle (SMM 16.41 para 112; TS-135).
+    if (four && where === 'offsetBox') return OFFSET_BOX_KEYS.includes(key) ? null : `${labelFor(key, dir)} is not flown in the offset box.`;
     if (four) return MOVES_FROM_FOUR.includes(where) ? null : `${labelFor(key, dir)} flies in Spread 4 only; change to Spread 4 first.`;
     return MOVES_FROM.includes(where) ? null : `${labelFor(key, dir)} flies in line abreast only; change formation first.`;
   }
@@ -462,7 +475,7 @@ export function createFormation(options = {}) {
       const four = state.aircraft.length > 2;
       if (key === G_WARM.key && !four) throw new Error('G-warm is a four-ship manoeuvre for now (it starts from Spread 4)');
       if (!MANOEUVRES[key] && key !== G_WARM.key) throw new Error(`No manoeuvre called ${key}`);
-      if (four && !FOUR_SHIP_KEYS.includes(key) && key !== G_WARM.key) throw new Error(`${key} is not a four-ship manoeuvre`);
+      if (four && !OFFSET_BOX_KEYS.includes(key) && key !== G_WARM.key) throw new Error(`${key} is not a four-ship manoeuvre`); // the shackle only in the offset box (refuseMove)
       // The manoeuvres are line abreast manoeuvres (spec sections 8 and 10); the turn buttons also fly in fighting wing and the close formations (10.2).
       if (!state.current) {
         const why = refuseMove(key, dir);
