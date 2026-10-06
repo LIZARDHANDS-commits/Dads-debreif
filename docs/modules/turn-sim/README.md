@@ -6,15 +6,15 @@ This folder is the formation turn sim. From V2.6 it shows the first version of l
 
 ## Where it stands
 
-Live as a PROTOTYPE, Formation V2.96 on main. The Turn Sim review is done (4 Oct): Patrick chose a new flying core with planned, kinematically accurate paths, and approved the first version's spec (`spec.md` Part 1; decisions TS-35 to TS-49). The flying core is in `src/modules/turn-sim/live/`. The plan-mode code was retired in #407 (Patrick's yes, 5 Oct 01:36Z). Nothing since V2.91 has been flown by Patrick yet (as of 6 Oct).
+Live as a PROTOTYPE, Formation V2.102 on main. The Turn Sim review is done (4 Oct): Patrick chose a new flying core with planned, kinematically accurate paths, and approved the first version's spec (`spec.md` Part 1; decisions TS-35 to TS-49). The flying core is in `src/modules/turn-sim/live/`. The plan-mode code was retired in #407 (Patrick's yes, 5 Oct 01:36Z). Nothing since V2.91 has been flown by Patrick yet (as of 6 Oct).
 
-The refactor plan's steps 1 to 5 are merged: V2.92 envelope gate (#495, TS-93); V2.93 one candidate shape, hot rejoin retired (#496, TS-94); V2.94 numbers register (#501, TS-95); V2.95 Smart wingman, fighting wing cone energy and move #2 in the band (#505, TS-96, TS-98); V2.96 events file (#506, TS-97). The four-ship rebuild (refactor PRs 6 to 8) is with a new thread; until it lands, `spec.md` section 14 describes the 4-ship as it flies now.
+The refactor plan's steps 1 to 5 are merged: V2.92 envelope gate (#495, TS-93); V2.93 one candidate shape, hot rejoin retired (#496, TS-94); V2.94 numbers register (#501, TS-95); V2.95 Smart wingman, fighting wing cone energy and move #2 in the band (#505, TS-96, TS-98); V2.96 events file (#506, TS-97). The four-ship rebuild, refactor PRs 6 to 8, is merged too: V2.97 close moves (#510, TS-99), V2.99 rejoins and the rejoin height fix (#515, TS-101), V2.101 opening out, `four-ship-moves.js` retired (#518, TS-99). Fable's fighting wing fixes in between: V2.98 fighting wing turns on pursuit curves (#512, TS-100) and V2.100 the fast side switch (#517, TS-102), which holds its spacing geometry first since V2.102 (#521). The refactor plan is complete.
 
 How #2 is flown, in one line: every 2-ship change of formation is planned by one chooser, flown as a kinematic line then the tracker, and planned again at events (the section below, and `spec.md`). The Rates setting (Student, Instructor, AI) is under More.
 
 Where things live (TS-64, TS-95, TS-97): the slots for the 2- and 4-ship in `live/slots.js`, the one classifier and judge (card, roll-out verdict and tags) in `live/judge.js`, the numbers in `live/rates.js`, `live/bands.js` and `live/moves.js` (listed with sources in `numbers.md`; `live/tuning.js` only re-exports them), the tracker (the fallback for odd starts) in `live/tracker.js`, and the events that plan a change again in `live/events.js`.
 
-## How #2 is planned now (V2.75 to V2.96)
+## How #2 is planned now (V2.75 to V2.101)
 
 Read this before changing any 2-ship move. The decisions say why; this is the picture.
 
@@ -23,6 +23,8 @@ Read this before changing any 2-ship move. The decisions say why; this is the pi
 - **Done when in the band, not on a spot** (TS-78, TS-80): tactical formations anywhere in their band (fighting wing anywhere in the cone, line abreast 4,000-6,000 ft, 0-10°, 2,000 ft stack); close formations within 5 ft and 5 kt. Fighting wing legs aim for the cone, not a slot (TS-83).
 - **Two rate sets** (`live/rates.js` `RATE_SETS`, TS-84): holding close formation is slow and smooth so #2 can stay in place (echelon turns about 4-5 s to 60°, 2 G); everything tactical is unrestricted, the aircraft's own handling.
 - **Energy is real:** a climb costs speed, a descent gives it, and the pull of a height change is charged as G (TS-82). Power is worked out at the G and climb being flown.
+- **Geometry first, power as needed** (Patrick 6 Oct 01:24Z: "if they want to swap sides they have to do what they need to with geometry, then power, to maintain position. this is fundamental for any formation movement"; 01:25Z: "geometry includes the vertical"). Fighting wing turns fly pursuit curves (TS-100) and the side switch is a fast S-turn at 60° (TS-102).
+- **The 4-ship flies on the same planners** (TS-99, TS-101): every wingman's legs go through the one envelope gate, off the aircraft he flies off.
 
 ## Lessons (Fable's reviews and the Formation thread, 5 Oct)
 
@@ -38,7 +40,7 @@ The full notes, outside the repo: `turn-sim-review/fable-compiled.md` and `turn-
 
 ## What is next
 
-The plan's steps, in order: Step 1: the review (done); Step 2: the first version (built); Step 3: retire the plan-mode code (done, #407); Step 4: next features one at a time on the same core; Step 5: sign-off. The refactor plan's remaining pieces are the four-ship rebuild (PRs 6 to 8, with a new thread). Only what is in `plan.md` gets built.
+The plan's steps, in order: Step 1: the review (done); Step 2: the first version (built); Step 3: retire the plan-mode code (done, #407); Step 4: next features one at a time on the same core; Step 5: sign-off. The refactor plan is complete (V2.101). Next, once Patrick has flown it: click to place #2 (`future.md`, queued by Fable with Patrick, 6 Oct). Only what is in `plan.md` gets built.
 
 ## The files
 
@@ -82,6 +84,8 @@ Each has a working answer that the tool uses until it is settled.
 
 ### Waiting on Patrick now (also on the list in `../../PLAN.md`)
 
+- **Fly the rebuilt 4-ship** (V2.101): every Change formation press from Spread 4, fighting wing, finger and Fluid 4, against `testing.md`'s 4-ship list.
+- **Confirm the TS-99 and TS-101 wording** (`decisions.md`): TS-99 has not been put to you yet; TS-101's vertical sentence changed after your 6 Oct 01:14Z note.
 - **Fly the first version** from the default start, every button both ways (`testing.md`, "First version" checklist, a draft for Patrick's own words), and the **4-ship** (V2.7; `testing.md`, "4-ship" checklist). The 4-ship's working answers to confirm (TS-50): the delayed 45's check turn is 10°, the altitude stack is the brief's on either side, and the check leaves the first aircraft to check about 200 ft tight.
 - **Fly the Change formation buttons** (TS-53, built 4 Oct, `testing.md`, "Sign-off checklist, changing formation"), and confirm the estimates: fighting wing default 750 ft at 45° and 60 ft below Lead, Lead's pause then 30° turn into #2, #2's 60° bank cap and 15 KIAS overtake, hot and cold line at 60° and 30°, the close-formation offsets.
 - **Fly G-warm and the 4-ship Change formation buttons** (TS-54, V2.13, built 4 Oct; `testing.md`, "Sign-off checklist, 4-ship G-warm and changes"), and confirm the estimates in TS-54. The stack conflict is settled: you chose "come off first" (19:11Z, TS-55).
