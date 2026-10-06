@@ -360,6 +360,7 @@ export const HOLD = Object.freeze({
  */
 export const FOUR_OPEN = Object.freeze({
   bankDeg: 60, // the opening-out bank, held (Patrick 6 Oct 01:44Z)
+  offHeadingsDeg: Object.freeze([20, 25, 30, 35, 40, 45]), // how far off Lead's heading each holds on the way out to Spread 4; the one that settles soonest is flown (estimates; open-out.js's search)
 });
 
 export const OPEN_OUT = Object.freeze({

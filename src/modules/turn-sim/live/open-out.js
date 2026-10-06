@@ -46,9 +46,10 @@ export const OPEN_OUT_HELD = Object.freeze({
 
 /**
  * #2's held-command part against Lead's recorded straight flight `rec`: MAX, away at bankDeg to offDeg off Lead's heading,
- * back parallel. Returns { points, steps, end, accelKtps, maxBankDeg, laneFwdFt, turnBackStep } or null.
+ * back parallel. Returns { points, steps, end, accelKtps, maxBankDeg, laneFwdFt, turnBackStep } or null. The 4-ship's
+ * opening out flies each wingman on it too (four-open.js).
  */
-function flyOut({ wing, rec, s, outAimFt, slotFwd, bankDeg, offDeg, blockFt, t0, profile }) {
+export function flyOut({ wing, rec, s, outAimFt, slotFwd, bankDeg, offDeg, blockFt, t0, profile }) {
   const H = OPEN_OUT_HELD;
   const W = copyAircraft(wing);
   const L0 = rec.at(0);

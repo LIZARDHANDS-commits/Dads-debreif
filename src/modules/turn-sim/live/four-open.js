@@ -8,10 +8,14 @@
 // line in front of each long leg: its replayed poses were where the 8-12 G and 80-100 G/s of these moves came from.
 import { turnSeg, wholeDegree, TURN_BANK_DEG } from './manoeuvres.js';
 import { rejoinTo, openOut, sweepOut } from './transitions.js';
-import { REJOIN, TURNING_REJOIN, FW_FOLLOW, FOUR_OPEN } from './tuning.js';
+import { flyOut, OPEN_OUT_HELD } from './open-out.js';
+import { onClosure, fromStep } from './hand-over.js';
+import { trackTwice } from './tracker.js';
+import { STEP_SEC } from './flight.js';
+import { REJOIN, TURNING_REJOIN, FW_FOLLOW, FOUR_OPEN, OPEN_OUT } from './tuning.js';
 import { fwGoal } from './formation-turns.js';
 import { slotsFor } from './slots.js';
-import { legsInTurn, place, hold, toSlot, inLeadFrame, toSpeed } from './four-legs.js';
+import { legsInTurn, place, hold, toSlot, inLeadFrame, toSpeed, FOUR_CHANGE_LIMIT_SEC } from './four-legs.js';
 
 /** #3 starts opening out this long after #4 when finger goes to Spread 4 ("#3 waits for #4 to begin moving out first", SMM 16.42 para 114): an estimate. */
 const THREE_WAITS_SEC = 10;
@@ -22,6 +26,60 @@ const THREE_WAITS_SEC = 10;
  */
 const outTo = (c, slot, over = {}) => toSlot(c, openOut, slot, { heldBankDeg: FOUR_OPEN.bankDeg, ...over });
 
+/**
+ * One wingman opening out to his Spread 4 place as the 2-ship's held commands (open-out.js flyOut, TS-88): MAX from the
+ * press, a full power dive to OPEN_OUT.diveFt below his place, away from Lead at FOUR_OPEN's 60° to a held heading off his
+ * (the one that settles soonest), falling back by geometry only, climbing back as he turns back parallel at his distance
+ * out; then the tracker settles him in the band off the aircraft he flies off. Flown against Lead's recorded flight (Lead
+ * holds his speed meanwhile), with his place taken in Lead's frame. Returns a four-legs.js part, or null (the tracker
+ * legs fly it instead).
+ */
+function heldOut(c, { wing, recs, t0, blockFt }, slots, id) {
+  const H = OPEN_OUT_HELD;
+  const dt = STEP_SEC;
+  const rec = recs[1];
+  const lf = inLeadFrame(slots, id);
+  const s = Math.sign(lf.left);
+  const outAimFt = Math.abs(lf.left);
+  const upFt = c.leadAlt + lf.alt;
+  const downFt = Math.min(upFt, wing.altAboveFt) - OPEN_OUT.diveFt;
+  const diveSec = Math.max(H.diveSec, Math.abs(wing.altAboveFt - downFt) / OPEN_OUT.verticalFtps);
+  const dive = { t0, t1: t0 + diveSec, fromFt: wing.altAboveFt, toFt: downFt };
+  const profileFor = (part) => {
+    if (!part) return [dive];
+    const t1 = t0 + part.turnBackStep * dt;
+    const c0 = Math.max(dive.t1, t1 - H.climbSec);
+    return [dive, { t0: c0, t1: Math.max(c0 + dt, t1), fromFt: downFt, toFt: upFt }];
+  };
+  const bankDeg = FOUR_OPEN.bankDeg;
+  let best = null;
+  for (const offDeg of FOUR_OPEN.offHeadingsDeg) {
+    const args = { wing, rec, s, outAimFt, slotFwd: lf.fwd, bankDeg, offDeg, blockFt, t0 };
+    const first = flyOut({ ...args, profile: profileFor(null) });
+    if (!first) continue;
+    const profile = profileFor(first);
+    const part = flyOut({ ...args, profile });
+    if (!part) continue;
+    const n1 = part.steps;
+    const refs = Object.fromEntries(Object.entries(recs).map(([k, r]) => [k, fromStep(r, n1)]));
+    const settle = onClosure([outTo(c, slots[id])]).map((p) => ({ ...p, bankCapDeg: bankDeg }));
+    const W1 = { ...part.end, altAboveFt: upFt, climbFtps: 0 };
+    const { run, profile: runProfile } = trackTwice({ refs, wing0: W1, t0: t0 + n1 * dt, phases: settle, blockFt, init: { accelKtps: part.accelKtps }, maxSec: FOUR_CHANGE_LIMIT_SEC });
+    const durationSec = (n1 + run.points.length) * dt;
+    if (!run.ok || durationSec > FOUR_CHANGE_LIMIT_SEC) continue;
+    if (!best || durationSec < best.durationSec - 0.5) best = { part, run, profile: [...profile, ...(runProfile ?? [])], durationSec };
+  }
+  if (!best) return null;
+  const { part, run, profile, durationSec } = best;
+  return {
+    plan: { segments: [{ kind: 'bankTrack', points: [...part.points, ...run.points] }], profile },
+    durationSec,
+    inSec: t0 + durationSec,
+    times: run.times,
+    maxBankDeg: Math.max(part.maxBankDeg, run.maxBankDeg),
+  };
+}
+
 /** Fighting wing kept off the aircraft he flies off, anywhere in the cone (formation-turns.js fwGoal, the whole cone, TS-75), his stack held. */
 const inCone = (c, slot, side, over = {}) => ({ ...toSlot(c, sweepOut, slot), ...FW_FOLLOW, coneAlt: false, goal: (R, W) => fwGoal(R, W, side, false), ...over });
 
@@ -31,17 +89,29 @@ const inCone = (c, slot, side, over = {}) => ({ ...toSlot(c, sweepOut, slot), ..
  * there. From finger, #3 waits for #4 to begin moving out first.
  */
 export function entryToSpread(start, t0, opts, s, fromFinger) {
-  return legsInTurn(start, t0, opts, [(c) => {
-    const slots = slotsFor('spread4', s, { ships: 4, spacingFt: c.spacingFt });
-    return {
-      lead: toSpeed(c, 'spread4'),
-      wings: [
-        { id: 2, phases: () => [outTo(c, slots[2])] },
-        { id: 3, phases: () => [...(fromFinger ? [hold(c, 3, 1, { holdUntil: c.t0 + THREE_WAITS_SEC })] : []), outTo(c, slots[3])] },
-        { id: 4, phases: () => [outTo(c, slots[4])] },
-      ],
-    };
-  }]);
+  const wide = (c) => slotsFor('spread4', s, { ships: 4, spacingFt: c.spacingFt });
+  return legsInTurn(start, t0, opts, [
+    (c) => {
+      const slots = wide(c);
+      return {
+        lead: [],
+        wings: [
+          { id: 2, fly: (ctx) => heldOut(c, ctx, slots, 2), phases: () => [outTo(c, slots[2])] },
+          fromFinger
+            ? { id: 3, phases: () => [hold(c, 3, 1, { holdUntil: c.t0 + THREE_WAITS_SEC }), outTo(c, slots[3])] }
+            : { id: 3, fly: (ctx) => heldOut(c, ctx, slots, 3), phases: () => [outTo(c, slots[3])] },
+          { id: 4, fly: (ctx) => heldOut(c, ctx, slots, 4), phases: () => [outTo(c, slots[4])] },
+        ],
+      };
+    },
+    (c) => {
+      const slots = wide(c);
+      return {
+        lead: toSpeed(c, 'spread4'),
+        wings: [2, 3, 4].map((id) => ({ id, phases: () => [outTo(c, slots[id])] })),
+      };
+    },
+  ]);
 }
 
 /**
