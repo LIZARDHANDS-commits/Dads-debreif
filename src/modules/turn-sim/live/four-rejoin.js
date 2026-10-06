@@ -66,10 +66,11 @@ function twoTurning(c, into, s, to, sTo, hot) {
     const args = { lead: c.start[0], wing, s, to, sTo, spacingFt: c.spacingFt, blockFt: c.blockFt, t0 };
     // The vertical too (TS-82; Patrick 6 Oct 01:14Z: "they can use the vertical if they need to"), but from his +300 ft
     // stack the climb and the dive through Lead's height pushed to -0.5 G in the dry runs: none below VERTICAL_MIN_G.
-    pick ??= searchTurningRejoin({ ...args, into, hot, verticalMinG: VERTICAL_MIN_G }) ?? false;
+    // He keeps the line law to route (xLaw false): the 2-ship's X to the 250-100 ft window (TS-106) is for the 2-ship only so far.
+    pick ??= searchTurningRejoin({ ...args, into, hot, verticalMinG: VERTICAL_MIN_G, xLaw: false }) ?? false;
     if (!pick) return null;
     const rec = recs[1];
-    const flown = flyWith({ ...args, into: { longRec: rec, planTo: () => ({ rec, segments: [], turned: 0 }) }, aimFt: pick.aimFt, bankCapDeg: pick.bankCapDeg, overtakeKt: pick.overtakeKt, lowFloor: pick.lowFloor, upFt: pick.upFt, minG: VERTICAL_MIN_G });
+    const flown = flyWith({ ...args, into: { longRec: rec, planTo: () => ({ rec, segments: [], turned: 0 }) }, aimFt: pick.aimFt, bankCapDeg: pick.bankCapDeg, overtakeKt: pick.overtakeKt, lowFloor: pick.lowFloor, upFt: pick.upFt, minG: VERTICAL_MIN_G, xLaw: false });
     if (!flown) return null;
     return { plan: { segments: [{ kind: 'bankTrack', points: [...flown.part.points, ...flown.run.points] }], profile: flown.profile }, durationSec: flown.durationSec, inSec: t0 + pick.durationSec };
   };

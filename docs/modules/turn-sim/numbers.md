@@ -88,6 +88,18 @@ Every number the Formation Sim's planners use, with the source written beside it
 | TURNING_REJOIN.floorMarginKias | `5` | within this of his least speed, he banks no more than MAX holds the speed at, so he doesn't bleed below it (estimate; TS-75) |
 | TURNING_REJOIN.crossFlowFt | `150` | crossing Lead's six to the other side, he flows through the crossing point within this many feet (estimate) |
 | TURNING_REJOIN.routeFlowFt | `20` | he flows through route without stopping, within this many feet of it, on into the slot (estimate; Patrick 07:14Z: "in one motion") |
+| TURNING_REJOIN.windowFarFt | `250` | he moves out to the line and up it to echelon anywhere from this far from Lead... (Patrick 6 Oct 03:32Z card, 03:34Z) |
+| TURNING_REJOIN.windowNearFt | `100` | ...down to this far, the decision point (Patrick 02:30Z); not stable by here, he overshoots, only when nothing else works (03:35Z) |
+| TURNING_REJOIN.stableKt | `Object.freeze([10, 20])` | his closure, range rate in knots, is stable in this window (Patrick 03:34Z: "10-20 knots at 100 feet"); the slowing aims at its middle, and slower is cold, not unstable |
+| TURNING_REJOIN.stableShare | `1.5` | ...and closing at no more than this times the closure that middle overtake gives on the X, about 32 kt, so he is holding the X, not sweeping through it (card 03:15Z "Closure or bearing"; the figure is an estimate) |
+| TURNING_REJOIN.xWindowDeg | `10` | Lead is on the X picture within this many degrees of it, 35-55° off his tail (card 03:15Z "Closure or bearing"; the figure is an estimate) |
+| TURNING_REJOIN.bearingTauSec | `6` | his bearing off Lead's tail comes onto the X over about this long (estimate, the design) |
+| TURNING_REJOIN.xFromFt | `750` | a hot start further out flies onto the rejoin line as before, and holds Lead on the X only from this far down it (Patrick 6 Oct 03:58Z: "you can make x inside 750 feet if it helps thats the whole idea") |
+| TURNING_REJOIN.slowFtps2 | `3.5` | the slowing curve down to the window's closure: about power back at 200 KIAS, 8,000 ft (slow-down.js; an estimate) |
+| TURNING_REJOIN.insideFloorFt | `500` | inside this range his least speed is his place's own speed inside Lead's turn, about 196-198 KIAS (estimate) |
+| TURNING_REJOIN.onXDeg | `5` | he is on the X within this many degrees of it (for the card's speed on the line; estimate) |
+| TURNING_REJOIN.overshootBankDeg | `15` | the overshoot: wings near level, no more than this bank... (SMM 12.27 para 65; card 03:33Z rule 5; estimate) |
+| TURNING_REJOIN.overshootLevelSec | `3` | ...for this long, then he stabilizes on the outside of Lead's turn (estimate) |
 | STRAIGHT_REJOIN |  | The straight-ahead rejoin, flown the way a pilot flies it (straight-rejoin.js, TS-72; Patrick 5 Oct 08:40Z: "SARJ should start at full power until it gets back on leads six, then set an overtake. The geometry of moving makes it fall back"; the review's SARJ, fable-compiled.md section 3). All estimates unless a source is given. |
 | STRAIGHT_REJOIN.lineArriveKt | `8` | he joins the line and flows up it closing at about this, slow enough to stop on the slot with power back, never stopping short of it (estimate) |
 | STRAIGHT_REJOIN.lineFlowFt | `40` | he flows on up the line once within this many feet of route (on the line, TS-103), never stopping there (estimate) |
