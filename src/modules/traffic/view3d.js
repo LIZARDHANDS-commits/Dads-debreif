@@ -16,6 +16,8 @@
 import {
   loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addSky, createStandInMesh, createAircraftMesh, disposeAircraftMesh,
 } from '../../ui-kit/three-aircraft.js';
+import { drawHud } from '../../ui-kit/hud.js';
+import { gFromBankDeg } from '../../core/flight-math.js';
 import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
 import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT } from '../../ui-kit/ct156-model.js';
 import { KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../core/units.js';
@@ -1930,6 +1932,15 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     renderer.render(threeScene, gl.shownCamera);
     if (pov?.hidden) pov.hidden.visible = true;
     drawLabels(ctx, labels, size, ratio, data, options, palette, { zoom: pov ? pov.labelZoom : shown.zoom, floor, skipId: pov?.hidden ? povTarget.id : null, noLocator: Boolean(pov) && PERSPECTIVE_VIEWS.has(viewMode) });
+    // The HUD (Patrick, 6 Oct; ui-kit/hud.js) for the aircraft the camera follows: attitude, height MSL, G (from the bank, a
+    // level turn's, as the flying code works it out) and indicated airspeed.
+    const hudAc = follow ? data.aircraft.find((a) => a.id === follow.id && isFlying(a)) : null;
+    if (hudAc) {
+      ctx.save();
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      drawHud(ctx, size, { label: hudAc.id, pitchDeg: hudAc.pitchDeg ?? 0, bankDeg: hudAc.bankDeg ?? 0, altFt: hudAc.alt, g: gFromBankDeg(Math.min(80, Math.abs(hudAc.bankDeg ?? 0))), kias: hudAc.kt, headingDeg: hudAc.headingDeg });
+      ctx.restore();
+    }
 
     drawn++;
     const ms = (win.performance?.now() ?? 0) - started;
