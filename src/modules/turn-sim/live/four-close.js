@@ -21,6 +21,8 @@ import { legsInTurn, place, hold, toSlot, ech, ast, toSpeed } from './four-legs.
 /** Close-formation crossings go behind and below (SMM 16.32 paras 87-88): 15 ft below Lead, #4 a further 10 ft below #3 (estimates). */
 const CROSS_LOW_FT = 15;
 const FOUR_LOWER_FT = 10;
+/** #4 in line with Lead and #3 aims at the line as it will be this far ahead, so he swings with #3, not after him (estimate). */
+const LINE_LEAD_SEC = 1;
 /**
  * Finger to echelon on #3's side: how far #3 (with #4 on its wing) moves out, back and slightly down beyond its echelon
  * place to make room for #2 (SMM 16.32 para 87; AFM7 brief p.19 item 1, frame 2). The manuals give no distance: these are
@@ -84,9 +86,10 @@ export function fingerToEchelon(start, t0, opts, s, e) {
 /**
  * #3 and #4 change sides together, #2 holding (SMM 16.32 para 88; AFM7 brief p.19 item 2): #3 moves back and down into the
  * corner behind #2 and Lead and stops, crosses at a steady rate to directly behind its new place and stops, then moves up
- * into it; #4 moves into a column behind and lower than #3 and crosses with it, then, once #3 is across, out and up into
- * echelon on #3. from, to: #3's side now and at the end (+1 left, -1 right); key: the formation at the end, 'echelon' (all on
- * #2's side, #2 on side `to`) or 'finger' (#2 on side -to).
+ * into it; #4 holds on the line from Lead through #3, one place further out and lower, and crosses with it (one column
+ * under Lead's track, Patrick 6 Oct 05:16Z), then, once #3 is across, out and up into echelon on #3. from, to: #3's side
+ * now and at the end (+1 left, -1 right); key: the formation at the end, 'echelon' (all on #2's side, #2 on side `to`) or
+ * 'finger' (#2 on side -to).
  */
 function crossThreeFour(start, t0, opts, from, to, key) {
   const slots = slotsFor(key, key === 'echelon' ? to : -to, { ships: 4 });
@@ -94,6 +97,7 @@ function crossThreeFour(start, t0, opts, from, to, key) {
     const back3 = corner(c).fwd + ech().fwd; // behind #2 as well as Lead
     const low3 = -CROSS_LOW_FT - 5;
     const low4 = low3 - FOUR_LOWER_FT - 5;
+    const spokeFt = Math.hypot(ech().fwd, ech().left); // #4's spacing behind #3 along the line from Lead: one echelon place
     const fromLeft3 = from * (key === 'echelon' ? 1 : 2) * ech().left; // #3 is one echelon out in finger, two in echelon
     const toLeft3 = to * (key === 'echelon' ? 2 : 1) * ech().left;
     return {
@@ -102,15 +106,20 @@ function crossThreeFour(start, t0, opts, from, to, key) {
         { id: 3, phases: () => crossTo(c, 1, fromLeft3, toLeft3, back3, low3, upInto(c, slots[3])) },
         {
           id: 4,
-          phases: (done) => [
-            // back and down behind where he is first (SMM 12.20 para 45: never across before he is back; until V2.97 he slid
-            // across and back at once and passed 26 ft from #3's tail), then into the column behind and below #3, held against
-            // #3 so it crosses with it, and left only once #3 is across
-            stopAt(place(c, corner(c).fwd, from * ech().left, low4), { track: 3 }),
-            stopAt(place(c, corner(c).fwd, 0, low4), { track: 3, holdUntil: done[3].times[1].t1 }),
-            stopAt(place(c, corner(c).fwd, to * ech().left, low4), { track: 3 }),
-            upInto(c, slots[4]),
-          ],
+          // In one column with #3 under Lead's track (Patrick 6 Oct 05:16Z, "Column"; SMM 16.32 para 88): #4 holds on the line
+          // from Lead through #3, one echelon spacing further out and lower, so the two stay in line with Lead as they move
+          // back, cross under his track together (#4 directly behind and below #3, moving faster sideways) and stop across.
+          // Until V2.126 #4 moved into a column behind #3 and lagged its crossing by about a second, 50 ft outboard.
+          phases: (done, recs) => {
+            const lineOut = (t, alt) => {
+              const n = Math.max(0, Math.round((t - recs[3].t0 + LINE_LEAD_SEC) / STEP_SEC));
+              const p3 = relativeTo(recs[1].at(n), recs[3].at(n)); // #3 from Lead, a moment ahead
+              const r = Math.hypot(p3.fwd, p3.left) || 1;
+              return { fwd: (p3.fwd / r) * spokeFt, left: (p3.left / r) * spokeFt, alt }; // off #3, in his frame
+            };
+            const inLine = (alt, until) => slide(place(c, 0, 0, alt), { track: 3, holdUntil: until, goal: (L, W, t) => lineOut(t, c.leadAlt + alt) });
+            return [inLine(low4, done[3].times[0].t1), inLine(low4, done[3].times[1].t1), upInto(c, slots[4])];
+          },
         },
       ],
     };
