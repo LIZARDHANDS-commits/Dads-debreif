@@ -549,6 +549,18 @@ function mount(root, app) {
     resetRun();
   });
   let autoFitWas = layout.get().autoFit;
+  // A click on any Camera menu choice, even the one already picked, locks the camera back on, as Fit does after a drag
+  // (Patrick, 6 Oct: "I want it to also follow when I click Follow"). Free stays free.
+  app.listen(ui.element, 'click', (e) => {
+    const input = e.target?.closest?.('#ts-camera input[type=radio]');
+    if (!input || !cameraPaused) return;
+    app.scheduler.after(0, () => {
+      if (layout.get().camOn === 'free') return;
+      cameraPaused = false;
+      showFit();
+      redraw();
+    }); // after the choice itself has been saved
+  });
   const stopLayout = layout.subscribe((values) => {
     ui.applyLayout(values);
     if (values.autoFit !== autoFitWas) {
