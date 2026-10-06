@@ -94,22 +94,34 @@ export const FW2 = Object.freeze({ rangeFt: 750, sweepDeg: 45 });
 /**
  * Fighting wing's band, the one table every planner, the judge and the bubble read (Fable review step 1).
  * rangeFt, sweepDeg: SMM 12.29 para 69, Fig 12.19. A desired place outside it is flown and flagged, never refused.
- * flyMarginFt/Deg: what the sim will fly at all, the band widened by this (FW_LIMITS; estimates, not manual limits).
- * seeMarginFt/Deg: where the pair is still recognised as fighting wing, the band widened by this (FW_REGION, judge.js
- * classifier; estimates). bubbleFt: never inside this of Lead (SMM 16.17 para 44c, SMM 16.23, Gen Book p.11).
+ * flyMarginFt [near, far]/Deg: what the sim will fly at all, the band widened by this (FW_LIMITS; estimates, not manual
+ * limits). seeMarginFt [near, far]/Deg: where the pair is still recognised as fighting wing, the band widened by this
+ * (FW_REGION, judge.js classifier; estimates). The far edge is wider than the near one, as before V2.155 (450-1,250 and
+ * 400-1,300 ft); step 1 had made both 50/100 ft by mistake (TS-142). bubbleFt: never inside this of Lead (SMM 16.17 para 44c, SMM 16.23, Gen Book p.11).
  */
 export const FW_BAND = Object.freeze({
   rangeFt: Object.freeze([500, 1000]), sweepDeg: Object.freeze([30, 60]),
-  flyMarginFt: 50, flyMarginDeg: 5, seeMarginFt: 100, seeMarginDeg: 10, bubbleFt: 500,
+  flyMarginFt: Object.freeze([50, 250]), flyMarginDeg: 5, seeMarginFt: Object.freeze([100, 300]), seeMarginDeg: 10, bubbleFt: 500,
 });
 const widen = (marginFt, marginDeg) => Object.freeze({
-  rangeFt: Object.freeze([FW_BAND.rangeFt[0] - marginFt, FW_BAND.rangeFt[1] + marginFt]),
+  rangeFt: Object.freeze([FW_BAND.rangeFt[0] - marginFt[0], FW_BAND.rangeFt[1] + marginFt[1]]),
   sweepDeg: Object.freeze([FW_BAND.sweepDeg[0] - marginDeg, FW_BAND.sweepDeg[1] + marginDeg]),
 });
 /** What the sim will fly at all (450-1,250 ft, 25-65°): 50 ft and 5° inside FW_REGION, so the fighting wing buttons keep working. */
 export const FW_LIMITS = widen(FW_BAND.flyMarginFt, FW_BAND.flyMarginDeg);
 /** Where the pair is still recognised as fighting wing (400-1,300 ft, 20-70°; judge.js classifier). */
 export const FW_REGION = widen(FW_BAND.seeMarginFt, FW_BAND.seeMarginDeg);
+/**
+ * The judge's other regions, where a pair is recognised as nearest to line abreast or a close formation (judge.js
+ * classifier; generous on purpose, estimates; TS-142). In position is judged separately, on the bands and IN_POSITION.
+ */
+export const NEAREST = Object.freeze({
+  lab: Object.freeze({ minAcrossFt: 1500, sweepDeg: Object.freeze([-15, 25]) }),
+  closeRangeFt: 300, // inside about 300 ft: the close formations (route reaches about 230 ft out)
+  astern: Object.freeze({ maxAcrossFt: 22 }),
+  echelon: Object.freeze({ maxAcrossFt: 56, fwdFt: Object.freeze([-90, 40]) }),
+  route: Object.freeze({ extraSpans: 2, fwdFt: Object.freeze([-200, 60]) }), // out and back past the route band (Patrick 06:11Z; TS-103)
+});
 
 /**
  * The overshoot lane, one rule (SMM 12.27 para 65; Fable review step 1). A plan passes if #2 never gets more than
