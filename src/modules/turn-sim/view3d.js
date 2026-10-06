@@ -605,7 +605,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     gl.ground.position.set(gl.grid.position.x, gl.grid.position.y, gl.grid.position.z - 2); // just under the grid
 
     // Clouds above the formation, faded out as the view turns toward straight down so they don't cover the aircraft.
-    gl.skyClouds.update({ x: focus.x, y: focus.y, z: altToZ(FLIGHT_ALT_FT + (focus.z ?? 0), ALT_SCALE) }, (shown.pitchDeg - 25) / 30);
+    gl.skyClouds.update({ x: focus.x, y: focus.y, z: altToZ(FLIGHT_ALT_FT + (focus.z ?? 0), ALT_SCALE) }, (shown.pitchDeg - 55) / 20);
     matchProjection(THREE, camera, { x: focus.x, y: focus.y, z: FLIGHT_ALT_FT + (focus.z ?? 0) }, shown, box, 1); // at the formation's height
     // A depth range round the formation only (the shared one spans Traffic's 30-mile scene), so close up the aircraft's
     // near-touching surfaces don't flicker through each other (Patrick, 5 Oct: the striped tails).

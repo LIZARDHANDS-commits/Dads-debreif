@@ -16,6 +16,7 @@
 import {
   loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addSky, createStandInMesh, createAircraftMesh, disposeAircraftMesh,
 } from '../../ui-kit/three-aircraft.js';
+import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
 import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT } from '../../ui-kit/ct156-model.js';
 import { KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../core/units.js';
 import { T6_LENGTH_FT, CLOSE_UP_DRAW_FT } from './types.js';
@@ -1665,12 +1666,15 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     const perspective = new THREE.PerspectiveCamera(50, 1, PERSPECTIVE.nearFt, PERSPECTIVE.farFt); // Cockpit and Chase
     const lights = addTrafficLights(THREE, scene);
     const sky = addSky(THREE, scene);
+    // A light blue sky with clouds above the pattern (Patrick, 6 Oct: "there's no sky in traffic sim"; ui-kit/sky-clouds.js).
+    const skyClouds = addSkyAndClouds(THREE, scene);
+    scene.fog?.color.set(SKY_COLOURS.horizon);
     const flatHaze = scene.fog ? { near: scene.fog.near, far: scene.fog.far } : null;
     const kit = createSceneKit(THREE, { fatLines });
     scene.add(kit.root);
     const style = win.getComputedStyle?.(canvas);
     const palette = paletteFrom((name) => style?.getPropertyValue(name).trim() ?? '');
-    gl = { canvas, labels, ctx: labels.getContext('2d'), renderer, scene, camera, perspective, flatHaze, shownCamera: camera, sky, lights, kit, palette };
+    gl = { canvas, labels, ctx: labels.getContext('2d'), renderer, scene, camera, perspective, flatHaze, shownCamera: camera, sky, skyClouds, lights, kit, palette };
     if (win.__traffic3dLeakCheck) probeMemory(renderer, camera);
     for (const [type, fn] of hands) canvas.addEventListener(type, fn, type === 'wheel' ? { passive: false } : undefined);
     canvas.addEventListener('webglcontextlost', contextLost);
@@ -1739,7 +1743,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     resizer = null;
     dragging = null;
     if (!gl) return;
-    const { canvas, labels, renderer, kit, sky, lights } = gl;
+    const { canvas, labels, renderer, kit, sky, skyClouds, lights } = gl;
     for (const [type, fn] of hands) canvas.removeEventListener(type, fn);
     canvas.removeEventListener('webglcontextlost', contextLost);
     cameraBar?.dispose();
@@ -1747,6 +1751,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     gl = null;
     kit.dispose();
     sky.dispose();
+    skyClouds.dispose();
     lights.dispose();
     outerTier.dispose();
     farTier.dispose();
@@ -1905,6 +1910,9 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       threeScene.fog.far = pov ? PERSPECTIVE.hazeToFt : gl.flatHaze.far;
     }
     gl.shownCamera = pov ? gl.perspective : camera;
+    // Clouds at 8,000 ft MSL (an estimate; CLOUD_LAYER.aboveFt over 5,500 ft), fully shown in Cockpit and Chase and faded
+    // out as a flat view turns toward straight down, so they never cover the pattern from above.
+    gl.skyClouds.update({ x: focus.x, y: focus.y, z: altToZ(5500, ALT_SCALE) }, pov ? 1 : (shown.pitchDeg - 55) / 20);
     const facing = freeOn
       ? { yawDeg: Math.round(finite(freeCam.yawDeg)), tiltDeg: Math.round(90 + finite(freeCam.elevDeg)) }
       : { yawDeg: Math.round(finite(shown.yawDeg)), tiltDeg: Math.round(finite(shown.pitchDeg)) };
