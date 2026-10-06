@@ -5,7 +5,8 @@
 // after it plans from where he is (chooser.js "from here", TS-94) and the judge says IN POSITION anywhere in the band,
 // so "in position" is the band, not where he started (Patrick: "the 'in position' doesn't have to be 'exactly where it
 // started'"). The band is the judge's (judge.js, TS-80): this file asks the judge, it keeps no second copy of the numbers.
-// It changes no flight physics and no planner: the move is one tracker phase (tracker.js) at the close-in closure.
+// It changes no flight physics and no planner: the move is one tracker phase (tracker.js), at the close-in closure in the
+// close bands and, since V2.145, with no closure cap and a hard dive or climb in line abreast and fighting wing (TS-128).
 // Written by Fable (turn-sim-review/move-in-band/), folded into V2.95 (TS-98).
 import { relativeTo } from './manoeuvres.js';
 import { recordFlight, speedSeg, CHANGE_LIMIT_SEC } from './transitions.js';
@@ -13,10 +14,12 @@ import { judge, classify } from './judge.js';
 import { FORMATIONS, FW_BAND } from './slots.js';
 import { IN_POSITION } from './bands.js';
 import { SWEEP_MAX_DEG } from './judge.js';
-import { KIAS_LAB, KIAS_OUTSIDE_LAB } from './tuning.js';
+import { KIAS_LAB, KIAS_OUTSIDE_LAB, TURNING_REJOIN } from './tuning.js';
 import { onClosure } from './hand-over.js';
-import { trackTwice, phase } from './tracker.js';
-import { copyAircraft } from './flight.js';
+import { trackTwice, phase, climbCostKtps, PLAN_MAX_SEC } from './tracker.js';
+import { fullPowerKtps, slowKtps } from './slow-down.js';
+import { copyAircraft, SMOOTHER_PEAK, SMOOTHER_CURVE_PEAK } from './flight.js';
+import { G_FTPS2 } from '../../../core/units.js';
 
 /** The chooser key for the move (formation.change(MOVE_IN_BAND_KEY, { target })), like the lag roll's. */
 export const MOVE_IN_BAND_KEY = 'moveInBand';
@@ -87,8 +90,36 @@ export function nearestInBox(key, side, p) {
   return { ...place, atEdge };
 }
 
-/** A move in the band climbs or descends at no more than this rate (feet per second; 2,000 ft/min, an estimate: brisk, not a zoom), over the time the move across takes when that is longer. */
+/** A move in a close band (echelon, route, line astern) climbs or descends at no more than this rate (feet per second; 2,000 ft/min, an estimate: brisk, not a zoom), over the time the move across takes when that is longer. */
 export const MOVE_ALT_RATE_FTPS = 2000 / 60;
+
+/**
+ * In line abreast and fighting wing a move around the box is flown hard (Patrick 6 Oct 15:10Z: "unrestricted bank angle and
+ * power and dives ... a full power over 90 degree dive down and across"; TS-128): the height change takes the shortest smooth
+ * leg whose push and pull stay within TURNING_REJOIN.diveGs[0] of level flight (the line-first dive, TS-124), whose steepest
+ * climb or dive is no more than vsShare of his true airspeed, and that the energy allows (Patrick 15:18Z: no climb or dive
+ * rate cap, physics only): a climb may trade climbSwingKt of his speed and beyond that climbs at what full power gives at the
+ * slower speed; a dive may gain diveSwingKt (220 KIAS to about 300, under the 316 KIAS limit) and beyond that descends at
+ * what idle and the boards take off (slow-down.js). Or the time the move across takes, when that is longer. Across, he closes with no
+ * closure cap (hand-over.js FREE_MOVE_FT; Patrick 15:18Z). All estimates.
+ */
+export const OPEN_MOVE = Object.freeze({ vsShare: 0.8, climbSwingKt: 40, diveSwingKt: 80 });
+
+/** The seconds a hard height change of dAlt feet (up positive) takes for wing (OPEN_MOVE above). blockFt: the height block. */
+export function openMoveAltSec(dAlt, wing, blockFt) {
+  const h = Math.abs(dAlt);
+  if (!(h > 0)) return 0;
+  const byG = Math.sqrt((SMOOTHER_CURVE_PEAK * h) / (TURNING_REJOIN.diveGs[0] * G_FTPS2));
+  const bySpeed = (SMOOTHER_PEAK * h) / (OPEN_MOVE.vsShare * wing.tasFtps);
+  // Energy: knots per second per foot per second of climb, so a swing of k knots is k / per feet of height.
+  const per = climbCostKtps(wing, 1);
+  const up = dAlt > 0;
+  const freeFt = (up ? OPEN_MOVE.climbSwingKt : OPEN_MOVE.diveSwingKt) / per;
+  // ...then on at what the engine or the boards give at the speed the swing leaves him.
+  const sustainFtps = (up ? fullPowerKtps(wing.kias - OPEN_MOVE.climbSwingKt, blockFt) : slowKtps('idleBoards', wing.kias + OPEN_MOVE.diveSwingKt, blockFt)) / per;
+  const byEnergy = h > freeFt ? (h - freeFt) / Math.max(sustainFtps, 1) : 0;
+  return Math.max(byG, bySpeed, byEnergy);
+}
 
 /** #2's place now in Lead's frame: { fwd, left, alt } (alt above Lead, negative below), the control's starting point. */
 export function placeNow(lead, wing) {
@@ -162,18 +193,34 @@ export function planMoveInBand(pair, target, options = {}, t0 = 0) {
   // Position and height together (Patrick 6 Oct 04:07Z: "position and altitude at the same time instead of flying there
   // level and then going up"): the height change is spread over the time the move across takes, at no more than
   // MOVE_ALT_RATE_FTPS; until V2.114 it ran at 1,000 ft/min whatever the move, so a short move went level, then up.
+  // In line abreast and fighting wing (TS-128) the move closes with no closure cap (onClosure: past FREE_MOVE_FT) and no bank
+  // cap, and a height change is a hard dive or climb as far as the energy allows (openMoveAltSec), not the close bands'
+  // 2,000 ft/min. A climb costs speed the engine pays back slowly, so a big climb also tries the steady 2,000 ft/min and keeps
+  // whichever brings him in first (a 3,800 ft zoom left him slow for minutes in the dry runs).
+  const open = PLACE_BOX_FORMATIONS.includes(key);
+  const closeIn = !open;
   const refs = { [lead.id]: recordFlight(lead, leadPlan, t0) };
   const dAlt = Math.abs(target.alt - now.alt);
   const level = dAlt > 0 && Math.hypot(target.fwd - now.fwd, target.left - now.left) >= 1
-    ? trackTwice({ refs, wing0: wing, t0, phases: onClosure([phase({ fwd: target.fwd, left: target.left, alt: now.alt })], { closeIn: true }), blockFt, stopWhenSettled: true }).run
+    ? trackTwice({ refs, wing0: wing, t0, phases: onClosure([phase({ fwd: target.fwd, left: target.left, alt: now.alt })], { closeIn }), blockFt, stopWhenSettled: true }).run
     : null;
-  const altSec = dAlt > 0 ? Math.max(dAlt / MOVE_ALT_RATE_FTPS, level?.ok ? level.durationSec : 0) : 0;
-  const phases = onClosure([phase({ fwd: target.fwd, left: target.left, alt: target.alt }, altSec > 0 ? { altSec, holdUntil: t0 + altSec } : {})], { closeIn: true });
-  // The run goes on past settled to match Lead's speed and heading (the tracker's align), so #2 holds the spot afterwards;
-  // until V2.108 it stopped at settled and drifted on at up to a couple of feet a second (seen in the V2.108 dry run).
-  const { run, profile } = trackTwice({ refs, wing0: wing, t0, phases, blockFt, stopWhenSettled: false });
+  const across = level?.ok ? level.durationSec : 0;
+  const tries = dAlt > 0 ? (open ? [openMoveAltSec(target.alt - now.alt, wing, blockFt), ...(target.alt > now.alt ? [dAlt / MOVE_ALT_RATE_FTPS] : [])] : [dAlt / MOVE_ALT_RATE_FTPS]) : [0];
+  let best = null;
+  for (const t of tries) {
+    const altSec = Math.max(t, dAlt > 0 ? across : 0);
+    const hard = open && t !== dAlt / MOVE_ALT_RATE_FTPS ? { altRateFtps: Infinity } : {};
+    const phases = onClosure([phase({ fwd: target.fwd, left: target.left, alt: target.alt }, altSec > 0 ? { altSec, holdUntil: t0 + altSec, ...hard } : {})], { closeIn });
+    // The run goes on past settled to match Lead's speed and heading (the tracker's align), so #2 holds the spot afterwards;
+    // until V2.108 it stopped at settled and drifted on at up to a couple of feet a second (seen in the V2.108 dry run).
+    const flown = trackTwice({ refs, wing0: wing, t0, phases, blockFt, stopWhenSettled: false });
+    if (flown.run.ok && (!best || flown.run.durationSec < best.run.durationSec)) best = flown;
+  }
+  const { run, profile } = best ?? { run: { ok: false } };
+  // In the tactical boxes a big climb takes what the engine needs, not the change limit (planners do their best, Patrick 6 Oct
+  // 05:16Z): the T-6 at 220 KIAS climbs about 850 ft/min at full power for good (slow-down.js), so 3,800 ft is minutes.
+  if (!run.ok || !run.points?.length || run.durationSec > (open ? PLAN_MAX_SEC : CHANGE_LIMIT_SEC)) return { ok: false, reason: 'No safe move to that spot: it does not settle.' };
   const judged = judge([run.end.lead, run.end.wing], { key, side }, { spacingFt });
-  if (!run.ok || !run.points?.length || run.durationSec > CHANGE_LIMIT_SEC) return { ok: false, reason: 'No safe move to that spot: it does not settle.' };
 
   const label = `${FORMATIONS[key].label}${key === 'astern' ? '' : side > 0 ? ' left' : ' right'}`;
   const dirWords = [];
