@@ -9,6 +9,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | CLOSE_BANK_DEG | `60` | A close move's bank cap, every Rates choice (Patrick 5 Oct 06:43Z: "lets do up to 60 for all as requird for now"; it was 30°, 06:16Z item 12, which left the AI's 2.5 s route to echelon out of reach); WING_BANKS below. A slower rate banks less. |
 | G_RULE | `Object.freeze({ normalG: 5, lastResortG: 7 })` | The G rule: 5 G is the normal aim (SMM 16.17 para 44a; Gen Book p.11), more only as a last resort and never 7 (TS-60 amendment). Flagged on screen, never a wall; 7 G is the physical limit the planners keep under. |
 | G_RULE_BANK_DEG | `bankDegFromG(G_RULE.normalG)` | "No bank cap" (Patrick 06:16Z): the bank of a level turn at the G rule's normal 5 G, about 78°. |
+| NO_BANK_CAP_DEG | `bankDegFromG(T6A_LIMITS.maxG)` | No bank cap (Patrick 6 Oct 04:07Z: "there is NO LIMIT on bank angle in formation"; 04:07:49Z: "no bank cap on rejoins or movements around a station"): only the aircraft's own limits hold: the bank of a level 7 G turn, about 82° (t6-performance.js T6A_LIMITS.maxG; the stall line too, availableG); the G rule is flagged, never a wall. |
 | RATE_SETS |  | Every move flies one of two sets of rates, and this is their one home (Patrick 5 Oct 21:06Z, 21:11Z: the near-Lead throttle is only for holding close formation, "as soon as a tactical formation is selected, unrestricted attitude changes and power"; 20:50Z: "Escelon is smooth to allow 2 to stay in position in tight formation", while "Fithging wing, rejoins, tactical formations, line abreast etc is  |
 | RATE_SETS.close | `Object.freeze({` |  |
 | RATE_SETS.…leadRoll | `Object.freeze({ maxRateDps: 30, maxAccelDps2: 20 })` |  |
@@ -34,9 +35,9 @@ Every number the Formation Sim's planners use, with the source written beside it
 | HAND_OVER_FT | `500` | The hand-over from a kinematic line to the tracker, and the change from a rejoin's closure to the close-in rate, together at about 500 ft from the slot (Patrick 5 Oct 06:24Z; before it, card "Lines, then tracker" 05:41Z and 05:44Z: "within 500-1000 feet, dpending on whats going on. becuase we start to see the aspect change and the clusre visually and adjust to that"). The line flies the big move a |
 | WING_BANKS |  | The wingmen's banks, 2-ship (step 2) and 4-ship (step 3) (Patrick 5 Oct 06:16Z). Item 12: "30 is probably more accurate" for a close move's bank cap (the tracker's 25° until step 2); "When the aircraft is kicked off to fighting wing or line abreast they can use unlimited bank to dive away and get in position quickly": no cap there but the G rule. Item 11: "No, unlimitedf": a wingman following in a |
 | WING_BANKS.closeBankCapDeg | `CLOSE_BANK_DEG` | Patrick 06:43Z: up to 60° as required (30° from 06:16Z item 12 until then) |
-| WING_BANKS.kickOutBankCapDeg | `G_RULE_BANK_DEG` | Patrick 06:16Z item 12: the G rule only |
+| WING_BANKS.kickOutBankCapDeg | `NO_BANK_CAP_DEG` | moves around a station: no cap (Patrick 6 Oct 04:07Z; the G rule only, 5 Oct 06:16Z item 12, until V2.115) |
 | WING_BANKS.fwFollowBankCapDeg | `G_RULE_BANK_DEG` | Patrick 06:16Z item 11: the G rule only |
-| WING_BANKS.rejoinBankCapDeg | `G_RULE_BANK_DEG` | Patrick 06:16Z item 1: the G rule only (the 4-ship's rejoin legs since step 3) |
+| WING_BANKS.rejoinBankCapDeg | `NO_BANK_CAP_DEG` | rejoins: no cap (Patrick 6 Oct 04:07Z; the G rule only, 5 Oct 06:16Z item 1, until V2.115) (the 4-ship's rejoin legs since step 3) |
 | WING_BANKS.fwTurnBankDeg | `60` | Patrick 06:16Z item 9: 60° of bank, 2 G level, every fighting wing turn |
 | ROLL | `RATE_SETS.tactical.roll` | Roll limits: up to 180°/s (Patrick 5 Oct 06:07Z: "Roll rate can be 180 degrees per second"; 90°/s until step 2, Patrick 4 Oct 08:54Z), building and dying away at 720°/s² (an estimate, step 2: 180°/s is reached in 0.25 s and within a 45° roll; it was 360°/s², Patrick card 4 Oct 09:54Z, which reaches 180°/s only in a roll of 90° or more). |
 
@@ -56,7 +57,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | KIAS_LAB | `220` |  |
 | REJOIN |  | Defaults for rejoins. |
 | REJOIN.overtakeKias | `15` | the middle of EFIG p.374's 10 to 20 KIAS for a turning rejoin |
-| REJOIN.bankCapDeg | `G_RULE_BANK_DEG` | #2 in a rejoin: no bank cap but the G rule, about 78° level (Patrick 5 Oct 06:16Z item 1: "Unlimitd bank", RULED_REJOIN; flown since V2.59, TS-67; 60°, an estimate, until then) |
+| REJOIN.bankCapDeg | `NO_BANK_CAP_DEG` | #2 in a rejoin: no bank cap, only the aircraft's own limits (Patrick 6 Oct 04:07Z: "there is NO LIMIT on bank angle in formation"; the G rule, about 78° level, from V2.59 until V2.115, TS-67; 60°, an estimate, until then) |
 | REJOIN.leadBankDeg | `30` | Lead's turn in a turning rejoin (SMM 12.24 para 54; AFM7 p.21) |
 | REJOIN.lineKias | `220` | every rejoin, turning or straight ahead: at least this down the line (or Lead's six) to the decision point, whatever the Rates choice; Rates sets only the close-in rate after it (Patrick 5 Oct 17:54Z: "aim for 220 up the line for both"; 17:55Z: "in all rejoins id like the minimum closure up the line to be 220 knots for expeidiousness, then slow down at the decision point"; TS-75) |
 | REJOIN.stopStage | `/** @type {'idle'} */ ('idle')` | from the decision point the overtake comes off at idle, planned at CLOSURE.stopShare of what idle gives, the boards only when the room left needs more; the decision point is where that stop just fits (Patrick 17:55Z; TS-75; slow-down.js's stages) |

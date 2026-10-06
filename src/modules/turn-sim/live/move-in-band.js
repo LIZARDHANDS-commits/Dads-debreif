@@ -87,8 +87,8 @@ export function nearestInBox(key, side, p) {
   return { ...place, atEdge };
 }
 
-/** A height-only nudge climbs or descends at about this rate (feet per second; 1,000 ft/min, an estimate for the hand: brisk, not a zoom). */
-export const MOVE_ALT_RATE_FTPS = 1000 / 60;
+/** A move in the band climbs or descends at no more than this rate (feet per second; 2,000 ft/min, an estimate: brisk, not a zoom), over the time the move across takes when that is longer. */
+export const MOVE_ALT_RATE_FTPS = 2000 / 60;
 
 /** #2's place now in Lead's frame: { fwd, left, alt } (alt above Lead, negative below), the control's starting point. */
 export function placeNow(lead, wing) {
@@ -159,11 +159,19 @@ export function planMoveInBand(pair, target, options = {}, t0 = 0) {
   // One tracker leg at the close-in closure (the Rates setting; hand-over.js onClosure), ending settled on the spot.
   // A height change takes its own time (the tracker settles on the spot horizontally at once when only the height
   // differs): the leg is held open for it, so the profile has the seconds it needs.
-  const altSec = Math.abs(target.alt - now.alt) / MOVE_ALT_RATE_FTPS;
+  // Position and height together (Patrick 6 Oct 04:07Z: "position and altitude at the same time instead of flying there
+  // level and then going up"): the height change is spread over the time the move across takes, at no more than
+  // MOVE_ALT_RATE_FTPS; until V2.114 it ran at 1,000 ft/min whatever the move, so a short move went level, then up.
+  const refs = { [lead.id]: recordFlight(lead, leadPlan, t0) };
+  const dAlt = Math.abs(target.alt - now.alt);
+  const level = dAlt > 0 && Math.hypot(target.fwd - now.fwd, target.left - now.left) >= 1
+    ? trackTwice({ refs, wing0: wing, t0, phases: onClosure([phase({ fwd: target.fwd, left: target.left, alt: now.alt })], { closeIn: true }), blockFt, stopWhenSettled: true }).run
+    : null;
+  const altSec = dAlt > 0 ? Math.max(dAlt / MOVE_ALT_RATE_FTPS, level?.ok ? level.durationSec : 0) : 0;
   const phases = onClosure([phase({ fwd: target.fwd, left: target.left, alt: target.alt }, altSec > 0 ? { altSec, holdUntil: t0 + altSec } : {})], { closeIn: true });
   // The run goes on past settled to match Lead's speed and heading (the tracker's align), so #2 holds the spot afterwards;
   // until V2.108 it stopped at settled and drifted on at up to a couple of feet a second (seen in the V2.108 dry run).
-  const { run, profile } = trackTwice({ refs: { [lead.id]: recordFlight(lead, leadPlan, t0) }, wing0: wing, t0, phases, blockFt, stopWhenSettled: false });
+  const { run, profile } = trackTwice({ refs, wing0: wing, t0, phases, blockFt, stopWhenSettled: false });
   const judged = judge([run.end.lead, run.end.wing], { key, side }, { spacingFt });
   if (!run.ok || !run.points?.length || run.durationSec > CHANGE_LIMIT_SEC) return { ok: false, reason: 'No safe move to that spot: it does not settle.' };
 
