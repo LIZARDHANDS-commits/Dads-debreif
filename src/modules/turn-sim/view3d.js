@@ -210,8 +210,11 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     const boxFill = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide, depthWrite: false, fog: false }));
     const boxEdge = new THREE.LineLoop(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ transparent: true, opacity: 0.8, fog: false }));
     const boxSpot = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: PLACE_BOX.yellow, fog: false }));
+    // The far side of the fighting wing cone, lit too while picking so a click there switches sides (TS-130).
+    const otherFill = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: PLACE_BOX.yellow, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false, fog: false }));
+    const otherEdge = new THREE.LineLoop(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: PLACE_BOX.yellow, transparent: true, opacity: 0.8, fog: false }));
     const placeBox = new THREE.Group();
-    placeBox.add(boxFill, boxEdge, boxSpot);
+    placeBox.add(boxFill, boxEdge, boxSpot, otherFill, otherEdge);
     placeBox.rotation.order = 'ZYX';
     placeBox.visible = false;
     for (const o of placeBox.children) o.frustumCulled = false;
@@ -403,15 +406,19 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     gl.placeBox.visible = outline.length > 2;
     canvas.style.cursor = box?.picking ? 'crosshair' : '';
     if (!gl.placeBox.visible) return;
-    const [fill, edge, spot] = gl.placeBox.children;
+    const [fill, edge, spot, otherFill, otherEdge] = gl.placeBox.children;
     const shapeKey = `${box.key}|${box.side}`;
     if (gl.boxShape !== shapeKey) {
       gl.boxShape = shapeKey;
-      fill.geometry.dispose();
-      fill.geometry = new THREE.ShapeGeometry(new THREE.Shape(outline.map((p) => new THREE.Vector2(p.fwd, p.left))));
-      edge.geometry.dispose();
-      edge.geometry = new THREE.BufferGeometry().setFromPoints(outline.map((p) => new THREE.Vector3(p.fwd, p.left, 0)));
+      const far = placeBoxOutline(box.key, -box.side);
+      for (const [f, e, line] of [[fill, edge, outline], [otherFill, otherEdge, far]]) {
+        f.geometry.dispose();
+        f.geometry = new THREE.ShapeGeometry(new THREE.Shape(line.map((p) => new THREE.Vector2(p.fwd, p.left))));
+        e.geometry.dispose();
+        e.geometry = new THREE.BufferGeometry().setFromPoints(line.map((p) => new THREE.Vector3(p.fwd, p.left, 0)));
+      }
     }
+    otherFill.visible = otherEdge.visible = Boolean(box.otherSide);
     const colour = box.picking ? PLACE_BOX.yellow : PLACE_BOX.blue;
     fill.material.color.set(colour);
     fill.material.opacity = box.picking ? 0.22 : 0.12;
