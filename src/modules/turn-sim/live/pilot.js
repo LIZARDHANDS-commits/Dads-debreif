@@ -125,9 +125,20 @@ export function pilotPower(p, W, blockFt, t) {
   if (p.accel >= p.aMax * MAX_SHARE) return note(p, powerFrom(null, 1, W.kias, blockFt), t);
   const climbFtps = W.climbFtps ?? 0;
   let power = powerFor(p.accel, W.kias, blockFt, Math.abs(W.g ?? 1), climbFtps, p.top, p.floorThr);
-  if (p.stage === 'boards' && (power?.stage ?? null) === null && t - p.stageSince < RATE_SET_SEC - 1e-9) {
+  const held = t - p.stageSince < RATE_SET_SEC - 1e-9;
+  if (held && p.stage === 'boards' && (power?.stage ?? null) === null) {
     const thr = throttleFor(p.accel, W.kias, blockFt, Math.abs(W.g ?? 1), climbFtps, 'boards');
     if (thr >= p.floorThr && thr <= 1) power = powerFrom('boards', thr, W.kias, blockFt);
+  }
+  // Between the slowing stages (the boards, idle, idle and the boards) he doesn't flick either (Patrick 6 Oct 22:45Z, the
+  // jitters; TS-145): once in one he stays at least RATE_SET_SEC. Seen at the start of close moves as boards, idle, idle and
+  // boards, idle, boards inside a quarter of a second. The speed is the physics' (pilotSpeed) either way; only the stage named differs.
+  const SLOW = ['boards', 'idle', 'idleBoards'];
+  if (held && SLOW.includes(p.stage) && SLOW.includes(power?.stage) && power.stage !== p.stage) {
+    if (p.stage === 'boards') {
+      const thr = throttleFor(p.accel, W.kias, blockFt, Math.abs(W.g ?? 1), climbFtps, 'boards');
+      power = powerFrom('boards', Math.max(p.floorThr, Math.min(1, thr)), W.kias, blockFt);
+    } else power = powerFrom(p.stage, 0, W.kias, blockFt);
   }
   return note(p, power, t);
 }
