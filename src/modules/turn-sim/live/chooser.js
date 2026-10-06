@@ -63,9 +63,10 @@ const PLANNERS = Object.freeze([
  */
 const FROM_HERE = Object.freeze({ name: 'from here', plan: planFromHere, rejoin: null, fallback: true });
 /** #2's lag roll (lag-roll.js, TS-71): a button of its own, so it is the only candidate when pressed and never raced otherwise. */
-const LAG_ROLL = Object.freeze({ name: 'lag roll', plan: (pair, _to, options, t0) => planLagRoll(pair, options, t0), rejoin: null, fallback: false });
+// holdsPlan: the move flies its plan to the end, with no re-plan at its events (events.js; it ends on its own).
+const LAG_ROLL = Object.freeze({ name: 'lag roll', plan: (pair, _to, options, t0) => planLagRoll(pair, options, t0), rejoin: null, fallback: false, holdsPlan: true });
 /** #2 moving inside the band of the formation he is in (move-in-band.js, TS-98): a control of its own, the only candidate when pressed. */
-const MOVE_IN_BAND = Object.freeze({ name: 'move in the band', plan: (pair, _to, options, t0) => planMoveInBand(pair, options.target, options, t0), rejoin: null, fallback: false });
+const MOVE_IN_BAND = Object.freeze({ name: 'move in the band', plan: (pair, _to, options, t0) => planMoveInBand(pair, options.target, options, t0), rejoin: null, fallback: false, holdsPlan: true });
 const MID_PLANNERS = Object.freeze([FROM_HERE, ...PLANNERS.filter((p) => p.plan !== planLineChange)]);
 
 /**
@@ -168,7 +169,7 @@ export function chooseChange(pair, to, options = {}, t0 = 0) {
       refusal ??= r;
       continue;
     }
-    candidates.push(candidateOf(p.name, r, lag ? 'fw' : nudge ? /** @type {any} */ (r).to : to, spacingFt, t0, wing.id, p.fallback && longMove));
+    candidates.push({ ...candidateOf(p.name, r, lag ? 'fw' : nudge ? /** @type {any} */ (r).to : to, spacingFt, t0, wing.id, p.fallback && longMove), holdsPlan: 'holdsPlan' in p && p.holdsPlan === true });
   }
   // Out to line abreast the full power opening out replaces the line (Patrick 5 Oct 22:39Z: "should start at FULL POWER";
   // TS-88): the line is raced only when it doesn't apply.
@@ -181,5 +182,5 @@ export function chooseChange(pair, to, options = {}, t0 = 0) {
   const line = others.length ? ` Chosen: ${best.words}, over ${others.map((c) => c.words).join(', ')}.` : '';
   // With a training error set, the card says how #2 dealt with it when the move ends (errors.js offStandardOutcome).
   const offStandard = options.errors && !lag && !nudge ? { mode: options.errors.response === 'reference' ? 'reference' : 'fix' } : null;
-  return { ...best.plan, note: `${best.plan.note}${line}`, chooser: { picked: best.name, compared }, ...(offStandard ? { offStandard } : {}) };
+  return { ...best.plan, note: `${best.plan.note}${line}`, chooser: { picked: best.name, compared }, holdsPlan: best.holdsPlan, ...(offStandard ? { offStandard } : {}) };
 }
