@@ -1,4 +1,4 @@
-// Move #2 anywhere in the band (Patrick 5 Oct 23:54Z; refactor PR 3 piece; decision TS-9x): when #2 is in position, the
+// Move #2 anywhere in the band (Patrick 5 Oct 23:54Z; refactor PR 3 piece; decision TS-98): when #2 is in position, the
 // Position control (transitions-panel.js) nudges him forward or back, out or in, up or down, to the edge of the band or
 // of the envelope, and the sim flies it as a move: the tracker takes him to that spot, Lead flying straight. Every move
 // after it plans from where he is (chooser.js "from here", TS-94) and the judge says IN POSITION anywhere in the band,

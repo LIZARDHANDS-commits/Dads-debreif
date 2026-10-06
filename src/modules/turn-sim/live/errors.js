@@ -20,7 +20,7 @@
 // The planner reuses the standard builders in manoeuvres.js: it plans the manoeuvre
 // for #2 standing in his slot, which is the SMM picture, then changes only #2's
 // own plan. Both fly through flight.js, so every path is the kinematic path of the
-// rest of the Turn Sim: roll 90°/s, hand-overs smooth, banks inside FIX_LIMITS.
+// rest of the Turn Sim: roll up to 180°/s inside the T-6A's ceiling (TS-85, TS-93), hand-overs smooth, banks inside FIX_LIMITS.
 //
 // What a fix may use is set by the four "Fix tools" (Patrick, 4 Oct 11:42Z: "an options
 // menu on the tools 2 can use to fix including geometry, vertical, speed/power, and

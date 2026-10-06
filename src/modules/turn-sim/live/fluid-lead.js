@@ -2,7 +2,7 @@
 // simplified"). Every Lead button is planned at the press as a path, flown by the shared point-mass step (core
 // stepPointMass: G along the lift, bank from the horizon) with the T-6A's full-power thrust and drag (core t6aExcessFn).
 // Each button is a small "pilot" that asks for a G and a bank every step; the G builds at no more than 4 G/s (an
-// estimate, design 5.3) and the roll at the ruled 90°/s built at 360°/s² (TS-37), so nothing jumps. The path is worked
+// estimate, design 5.3) and the roll inside the T-6A's ceiling at this speed (TS-85; the ruled 90°/s of TS-37 until then), so nothing jumps. The path is worked
 // out ahead of time and replayed (the planned path drawn is the path flown, spec F1).
 //
 // Power: PCL MAX for the whole exercise (AFM7 brief p.17; SMM 16.17 paras 42-43, both aircraft the same power), except the
