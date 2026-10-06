@@ -44,6 +44,7 @@ const REJOIN_OPTIONS = Object.freeze([
   { value: 'into', label: 'Turning (TRJ), Lead turns into #2' },
   { value: 'straight', label: 'Straight ahead (SARJ)' },
   { value: 'auto', label: 'Auto, the quicker of the two' },
+  { value: 'roll', label: 'Turning with a roll (TRJ + roll), when it is quicker' },
 ]);
 
 
@@ -147,6 +148,8 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     { value: 'into', label: 'TRJ', title: 'Turning rejoin' },
     { value: 'straight', label: 'SARJ', title: 'Straight-ahead rejoin' },
     { value: 'auto', label: 'Auto', title: 'Both rejoins are tried ahead; the quicker one is flown' },
+    // The rolling rejoin (rolling-rejoin.js; Patrick 6 Oct 16:02Z, 16:22Z: its own button, a roll only when pressed).
+    { value: 'roll', label: 'TRJ + roll', title: 'A turning rejoin that starts with a barrel roll or high yo-yo, flown only when it gets #2 in quicker than the plain turning rejoin' },
   ]);
   const rejoinButtons = REJOIN_SWITCH.map((o) => h('button', {
     type: 'button',
@@ -157,7 +160,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     onclick: () => setRejoin(o.value),
   }, o.label));
   // The rejoin kind matters only where a rejoin starts: line abreast, and fighting wing to a close formation (update).
-  const rejoinRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Rejoin: turning, straight ahead or auto' }, h('span', { class: 'ts-hint' }, 'Rejoin'), rejoinButtons);
+  const rejoinRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Rejoin: turning, straight ahead, auto or turning with a roll' }, h('span', { class: 'ts-hint' }, 'Rejoin'), rejoinButtons);
   function setRejoin(value) {
     rejoin = value;
     for (const b of rejoinButtons) b.setAttribute('aria-pressed', String(b.dataset.rejoin === rejoin));
@@ -312,7 +315,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   const rejoinSelect = h('select', { 'aria-label': 'Rejoin kind', onchange: () => setRejoin(rejoinSelect.value) },
     REJOIN_OPTIONS.map((o) => h('option', { value: o.value, selected: o.value === rejoin }, o.label)));
   const rejoinLabel = h('span', { class: 'ts-hint' }, 'Rejoin kind');
-  const PAIR_REJOIN_HINT = `From line abreast or fighting wing. Turning (TRJ): Lead turns into #2 at the press at ${REJOIN.leadBankDeg}° of bank, slowing to ${KIAS_OUTSIDE_LAB} KIAS, and holds it until #2 is in (SMM 16.20 para 65); #2 gets onto the rejoin line, Lead at his 10:30 or 1:30 and slightly high, closes down it and flows through route into the slot (SMM 12.24 paras 56-58). Straight ahead (SARJ): #2 drops onto Lead's six and runs up it (SMM 12.26 paras 62-63). Auto: both are tried ahead and the quicker one is flown; the card says which.`;
+  const PAIR_REJOIN_HINT = `From line abreast or fighting wing. Turning (TRJ): Lead turns into #2 at the press at ${REJOIN.leadBankDeg}° of bank, slowing to ${KIAS_OUTSIDE_LAB} KIAS, and holds it until #2 is in (SMM 16.20 para 65); #2 gets onto the rejoin line, Lead at his 10:30 or 1:30 and slightly high, closes down it and flows through route into the slot (SMM 12.24 paras 56-58). Straight ahead (SARJ): #2 drops onto Lead's six and runs up it (SMM 12.26 paras 62-63). Auto: both are tried ahead and the quicker one is flown; the card says which. TRJ + roll: #2 starts with a barrel roll or high yo-yo, flown only when it gets him in quicker than the plain turning rejoin (it pays when he is hot, forward of abeam); the card says which.`;
   const FOUR_REJOIN_HINT = `A turning rejoin: Lead turns into #2 at the press, slowing to ${KIAS_OUTSIDE_LAB} KIAS; #3 and #4 close at once and come in on the outside one at a time, #3 once #2 is in and #4 once #3 is (SMM 16.34 paras 95-96). Straight ahead, each closes through route in turn.`;
   const rejoinHint = h('p', { class: 'ts-hint' }, PAIR_REJOIN_HINT);
   const rejoinField = h('label', { class: 'ts-field' }, rejoinLabel, rejoinSelect);
@@ -432,10 +435,11 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       rejoinHint.hidden = false;
       rejoinLabel.textContent = four ? 'Rejoin to fighting wing or finger' : 'Rejoin kind';
       rejoinSelect.options[0].textContent = four ? 'Turning, Lead turns into the others' : REJOIN_OPTIONS[0].label;
-      // Auto races the 2-ship's rejoins (chooser.js); the 4-ship has no race, so it goes back to the turning rejoin.
-      if (four && rejoin === 'auto') setRejoin('into');
-      for (const o of rejoinSelect.options) if (o.value === 'auto') o.disabled = four;
-      for (const b of rejoinButtons) if (b.dataset.rejoin === 'auto') b.hidden = four;
+      // Auto and TRJ + roll race the 2-ship's rejoins (chooser.js); the 4-ship has no race, so it goes back to the turning rejoin.
+      const pairOnly = (v) => v === 'auto' || v === 'roll';
+      if (four && pairOnly(rejoin)) setRejoin('into');
+      for (const o of rejoinSelect.options) if (pairOnly(o.value)) o.disabled = four;
+      for (const b of rejoinButtons) if (pairOnly(b.dataset.rejoin)) b.hidden = four;
       rejoinHint.textContent = four ? FOUR_REJOIN_HINT : PAIR_REJOIN_HINT;
     },
     /** Greys the button for the formation the pair is in (and, for a sided one, on the side the switch asks for), and shows a refusal. */

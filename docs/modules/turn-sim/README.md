@@ -69,7 +69,7 @@ The flying core, `src/modules/turn-sim/live/` (each file's header says its job):
 | `moves.js` | Each move's numbers: speeds, rejoins, lines, fighting wing turns, tracker, fluid, opening out, lag roll (TS-95) |
 | `tuning.js` | Re-exports `rates.js`, `bands.js` and `moves.js`; holds no numbers |
 | `move-in-band.js` | Moves #2 anywhere in the band when he is in position (TS-98) |
-| `turning-rejoin.js`, `straight-rejoin.js`, `echelon-to-fw.js`, `open-out.js`, `lag-roll.js` | The planners the chooser tries |
+| `turning-rejoin.js`, `straight-rejoin.js`, `echelon-to-fw.js`, `open-out.js`, `lag-roll.js`, `rolling-rejoin.js` | The planners the chooser tries |
 | `kinematic.js`, `kinematic-moves.js`, `line-moves.js`, `hand-over.js`, `tracker.js` | Lines, hand-overs and the tracker |
 | `fluid.js`, `fluid-lead.js`, `fluid-wing.js` | Fluid manoeuvring |
 | `four-ship.js`, `four-ship-card.js`, `g-warm.js` | The 4-ship's screen pieces |

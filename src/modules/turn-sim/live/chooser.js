@@ -33,6 +33,7 @@ import { planStraightRejoin } from './straight-rejoin.js';
 import { planEchelonToFw } from './echelon-to-fw.js';
 import { planOpenOut } from './open-out.js';
 import { planFromHere } from './replan.js';
+import { planRollingRejoin, ROLLING_REJOIN_KIND } from './rolling-rejoin.js';
 
 /** The overshoot lane's margin: inside 1,000 ft #2 may pass this far ahead of his slot toward Lead's 3/9 line, never more (the shared 100 ft margin, design section 10). */
 export const LANE_MARGIN_FT = 100;
@@ -67,6 +68,12 @@ const FROM_HERE = Object.freeze({ name: 'from here', plan: planFromHere, rejoin:
 const LAG_ROLL = Object.freeze({ name: 'lag roll', plan: (pair, _to, options, t0) => planLagRoll(pair, options, t0), rejoin: null, fallback: false, holdsPlan: true });
 /** #2 moving inside the band of the formation he is in (move-in-band.js, TS-98): a control of its own, the only candidate when pressed. */
 const MOVE_IN_BAND = Object.freeze({ name: 'move in the band', plan: (pair, _to, options, t0) => planMoveInBand(pair, options.target, options, t0), rejoin: null, fallback: false, holdsPlan: true });
+/**
+ * The turning rejoin with a roll (rolling-rejoin.js; Patrick 6 Oct 16:22Z: "the rolls are their own separate buttons, only
+ * roll if those are pressed, otherwise it's a normal rejoin"): raced only with the Rejoin kind 'roll', against the plain
+ * turning rejoin's planners, so the roll is flown only when it is quicker ("if it makes sense", 16:02Z).
+ */
+const ROLLING = Object.freeze({ name: 'turning rejoin with a roll', plan: planRollingRejoin, rejoin: ROLLING_REJOIN_KIND, fallback: false, holdsPlan: true });
 const MID_PLANNERS = Object.freeze([FROM_HERE, ...PLANNERS.filter((p) => p.plan !== planLineChange)]);
 
 /**
@@ -107,7 +114,8 @@ export function candidateOf(name, plan, to, spacingFt, t0, wingId, fallback = fa
   const laneOk = (plan.laneFwdFt ?? -Infinity) <= slotFwd + LANE_MARGIN_FT;
   const bank = Math.min(89, Math.abs(plan.maxBankDeg ?? 0));
   const maxG = plan.maxG ?? plan.lagRoll?.maxG ?? 1 / Math.cos((bank * Math.PI) / 180);
-  const gRuleOk = plan.lagRoll ? true : (plan.maxBankDeg ?? 0) <= G_RULE_BANK_DEG + 0.5; // the lag roll rolls through the inverted: its pull is its own (TS-71)
+  // The lag roll rolls through the inverted: its pull is its own (TS-71); a plan that judges its own G rule (the rolling rejoin) says so.
+  const gRuleOk = plan.gRuleOk ?? (plan.lagRoll ? true : (plan.maxBankDeg ?? 0) <= G_RULE_BANK_DEG + 0.5);
   const durationSec = Math.max(0, (plan.endSec ?? t0) - t0);
   const c = { name, plan, inBand, laneOk, passes: inBand && laneOk, fallback, gRuleOk, durationSec, maxG, roughness: roughness(plan.plans?.[wingId]) };
   return { ...c, words: words(c) };
@@ -148,6 +156,7 @@ export function chooseChange(pair, to, options = {}, t0 = 0) {
   const wing = pair[1];
   const spacingFt = options.spacingFt ?? 6000;
   const auto = (options.rejoin ?? 'into') === 'auto';
+  const roll = options.rejoin === ROLLING_REJOIN_KIND;
   const mid = options.mid ?? null;
   const lag = to === LAG_ROLL_KEY;
   const nudge = to === MOVE_IN_BAND_KEY;
@@ -159,10 +168,11 @@ export function chooseChange(pair, to, options = {}, t0 = 0) {
   const sNow = Math.sign(relativeTo(pair[0], wing).left);
   const across = mid?.lead?.kind === 'hold' && to !== 'lab' && ((options.side === 'left' && sNow < 0) || (options.side === 'right' && sNow > 0));
   // A training error's start (TS-62) joins "from here" to the race, which reads where the error put #2.
-  const planners = lag ? [LAG_ROLL] : nudge ? [MOVE_IN_BAND] : !mid ? (options.errors ? MID_PLANNERS : PLANNERS) : mid.lead?.kind === 'carry' || across ? [FROM_HERE] : MID_PLANNERS;
+  const planners = lag ? [LAG_ROLL] : nudge ? [MOVE_IN_BAND] : !mid ? (options.errors ? MID_PLANNERS : roll ? [ROLLING, ...PLANNERS] : PLANNERS) : mid.lead?.kind === 'carry' || across ? [FROM_HERE] : MID_PLANNERS;
   for (const p of planners) {
     // Each planner refuses a Rejoin kind that is not its own; under 'auto' each rejoin planner is given its own kind.
-    const opts = auto && p.rejoin !== null ? { ...options, rejoin: p.rejoin } : options;
+    // With a roll asked for, the turning rejoin's own planners race it as the turning rejoin.
+    const opts = auto && p.rejoin !== null ? { ...options, rejoin: p.rejoin } : roll && p.rejoin === 'into' ? { ...options, rejoin: 'into' } : options;
     const r = p.plan(pair, to, opts, t0);
     if (!r) continue;
     if (!r.ok) {

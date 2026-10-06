@@ -220,7 +220,7 @@ const wrapDeg = (d) => wrapPi(d * DEG) / DEG;
 const level = (st) => Math.abs(st.gammaRad) < 0.3 * DEG && Math.abs(wrapDeg(st.bank)) < 0.5 && Math.abs(st.g - 1) < 0.03;
 
 /** A nose direction from a heading and a climb angle (radians). */
-const noseAt = (h, th) => ({ x: Math.cos(th) * Math.cos(h), y: Math.cos(th) * Math.sin(h), z: Math.sin(th) });
+export const noseAt = (h, th) => ({ x: Math.cos(th) * Math.cos(h), y: Math.cos(th) * Math.sin(h), z: Math.sin(th) });
 
 /**
  * A planned nose path (the wingovers and the barrel roll): the nose direction as a function of u over [0, uEnd],
@@ -228,7 +228,7 @@ const noseAt = (h, th) => ({ x: Math.cos(th) * Math.cos(h), y: Math.cos(th) * Ma
  * (the SMM's own words for the barrel roll: "keep the nose moving at a constant rate", 14.8 para 19).
  * Returns { total (radians), at(s) -> { nose, tangent, u } }.
  */
-function nosePath(N, uEnd, steps = 4000) {
+export function nosePath(N, uEnd, steps = 4000) {
   const us = [0];
   const ss = [0];
   let prev = N(0);
@@ -272,7 +272,7 @@ function nosePath(N, uEnd, steps = 4000) {
  * turn at that rate plus a steer back onto it (LEAD.noseSteerPerSec), plus gravity's share square to the path (core
  * gAndBankForLift gives the G and the bank). mem: { s, rate }. Returns { g, bank, u, end }.
  */
-function followNose(st, path, mem, gWant) {
+export function followNose(st, path, mem, gWant) {
   const p = path.at(mem.s);
   const w = perp3(Z, st.nose); // gravity's share square to the path, in G
   const k = st.V / G_FTPS2;
