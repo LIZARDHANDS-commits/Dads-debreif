@@ -111,7 +111,7 @@ export function aircraftPose(a, sign = 1) {
     y: a.yFt,
     z: altToZ(FLIGHT_ALT_FT + (a.altAboveFt ?? 0), ALT_SCALE),
     headingRad: a.headingRad,
-    bankRad: rad(liftBankDeg(a.bankDeg, a.nz ?? 1)) * (sign < 0 ? -1 : 1), // where the lift points (TS-108)
+    bankRad: rad(a.attitudeDeg ?? liftBankDeg(a.bankDeg, a.nz ?? 1)) * (sign < 0 ? -1 : 1), // where the lift points (TS-108)
     pitchRad: rad(a.pitchDeg ?? 0),
   };
 }

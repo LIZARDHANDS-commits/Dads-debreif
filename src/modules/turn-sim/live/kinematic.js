@@ -19,7 +19,7 @@ import { bankDegFromTurnRate } from '../../../core/flight-math.js';
 import { pitchDegFromClimb } from '../../../core/t6-performance.js';
 import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2 } from '../../../core/units.js';
-import { STEP_SEC, smoother } from './flight.js';
+import { STEP_SEC, smoother, flyAttitude } from './flight.js';
 import { powerFrom, powerFor } from './power.js';
 import { STAGES, stageFor, slowKtps, fullPowerKtps } from './slow-down.js';
 import { closeRates } from './tuning.js';
@@ -52,6 +52,7 @@ export function applyPose(a, p) {
   a.pitchDeg = p.pitch;
   a.g = p.g;
   a.nz = p.nz ?? 1;
+  flyAttitude(a, a.attitudeDeg, STEP_SEC); // the wings follow the lift as a roll (flight.js)
   a.turning = true;
   a.slowStage = p.stage ?? null; // how the line's slow-down is flown (slow-down.js, TS-61): BOARDS or IDLE on the card and tags
   a.overshooting = Boolean(p.over); // on an overshoot (TS-62): OVERSHOOTING on the card and tags

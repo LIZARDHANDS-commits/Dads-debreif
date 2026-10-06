@@ -129,7 +129,7 @@ function cardFor(state, wingSide) {
     ships: state.aircraft.map((a) => ({
       id: a.id,
       name: a.name,
-      text: `${Math.round(a.kias)} KIAS, ${String(compassDeg(a.headingRad)).padStart(3, '0')}, ${bankText(liftBankDeg(a.bankDeg, a.nz ?? 1))}, ${a.g.toFixed(1)} G`, // the Speed/power fix changes #2's speed
+      text: `${Math.round(a.kias)} KIAS, ${String(compassDeg(a.headingRad)).padStart(3, '0')}, ${bankText(a.attitudeDeg ?? liftBankDeg(a.bankDeg, a.nz ?? 1))}, ${a.g.toFixed(1)} G`, // the Speed/power fix changes #2's speed
     })),
   };
 }
