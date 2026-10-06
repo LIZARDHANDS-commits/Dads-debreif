@@ -23,7 +23,7 @@ import { ROLL } from './circuit.js';
 
 /** The attitude on the wheels, degrees nose up (Patrick, 6 Oct 06:17Z), and how close to the runway's height counts as on them (an estimate). */
 const GROUND_ATTITUDE_DEG = 2.5;
-const ON_WHEELS_FT = 3;
+const ON_WHEELS_FT = 0.5; // under the flare's last few feet (TR-96)
 
 /**
  * Half the window the track is read across, in feet. Longer than the pieces a

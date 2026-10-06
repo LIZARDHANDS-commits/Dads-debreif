@@ -9,7 +9,7 @@
 
 import { isaDensityRatio } from '../../core/flight-math.js';
 import { M_PER_FT } from '../../core/units.js';
-import { FIELD_ELEV_FT, THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_DATA_ELEV_FT, NUMBER_BASE_PAST_THRESHOLD_FT } from './airfield.js';
+import { FIELD_ELEV_FT, THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_DATA_ELEV_FT, NUMBER_BASE_PAST_THRESHOLD_FT, FLARE_FROM_FT, TOUCHDOWN_PAST_NUMBERS_FT } from './airfield.js';
 
 const T0_K = 288.15;
 const LAPSE_K_PER_M = 0.0065;
@@ -102,7 +102,7 @@ export function interceptOutFt(slope, levelAltFt) {
  * The straight-in starts down at the 3° intercept (Patrick's card "Follow the mark", 5 Oct 07:29Z; TR-80): moves the
  * SI Rejoin's (ENT2) "Glide path" point along the centreline to today's intercept, so it flies a true 3° to the runway.
  * It stays at least 1,000 ft outside the window and 500 ft inside the point before it (estimates, to keep the route's
- * order on an extreme day). Its last point moves from the threshold to the base of the numbers. `routes` is the
+ * order on an extreme day). Its last point moves from the threshold to the touchdown point past the numbers, after a flare. `routes` is the
  * setup's routes, changed in place.
  */
 export function placeStraightInDescent(routes) {
@@ -117,10 +117,17 @@ export function placeStraightInDescent(routes) {
   const x = Math.round((th.x + ux * outFt) * 10) / 10, y = Math.round((th.y + uy * outFt) * 10) / 10;
   if (p.x !== x) p.x = x;
   if (p.y !== y) p.y = y;
-  // Its last point, at the threshold, moves up to the base of the numbers, where the 3° line ends (TR-93).
+  // Its last point, at the threshold, moves to the touchdown point past the numbers, with the flare before it: from
+  // FLARE_FROM_FT on the 3° line to the numbers, through the flare's middle, onto the runway (TR-93, TR-96). Once only.
   const end = ent2.points[ent2.points.length - 1];
   if (end && Math.hypot(end.x - th.x, end.y - th.y) < 1) {
-    end.x = Math.round((th.x - ux * NUMBER_BASE_PAST_THRESHOLD_FT) * 10) / 10;
-    end.y = Math.round((th.y - uy * NUMBER_BASE_PAST_THRESHOLD_FT) * 10) / 10;
+    const at = (pastFt, alt, label) => ({ ...end, label, alt, kt: end.kt,
+      x: Math.round((th.x - ux * pastFt) * 10) / 10, y: Math.round((th.y - uy * pastFt) * 10) / 10 });
+    const flareFromFt = NUMBER_BASE_PAST_THRESHOLD_FT - FLARE_FROM_FT / slope; // before the numbers on the 3° line
+    const touchFt = NUMBER_BASE_PAST_THRESHOLD_FT + TOUCHDOWN_PAST_NUMBERS_FT;
+    // Halfway through the flare it is about a quarter of the way down (the circuit's flare curve, circuit.js).
+    const mid = at((flareFromFt + touchFt) / 2, THRESHOLD_DATA_ELEV_FT + FLARE_FROM_FT * 0.27, 'Flare');
+    ent2.points.splice(ent2.points.length - 1, 1,
+      at(flareFromFt, THRESHOLD_DATA_ELEV_FT + FLARE_FROM_FT, 'Round-out'), mid, at(touchFt, THRESHOLD_DATA_ELEV_FT, end.label ?? 'Merge'));
   }
 }
