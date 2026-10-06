@@ -19,6 +19,7 @@ import { createWavesView } from './waves-view.js';
 import { buildTimelineView } from './timeline-view-model.js';
 import { tafNotes } from './taf-state.js';
 import { createTimelineView } from './timeline-view.js';
+import { createDropdowns } from './dropdown.js';
 
 const STYLESHEET = new URL('./sof.css', import.meta.url).href;
 /** Ages and the DTG are minutes; the screen is checked this often and touches the page only when a word changes. */
@@ -29,7 +30,9 @@ function mount(root, app) {
   document.head.append(stylesheet);
 
   const settings = createSofSettings(app.storage);
-  const settingsView = createSettingsView({ settings });
+  // The drop-downs over the screen (SOF settings, the clocks, the caution list, a wave's boxes): one open at a time (SOF-38).
+  const dropdowns = createDropdowns({ listen: app.listen });
+  const settingsView = createSettingsView({ settings, onToggle: () => ui.closeSettings() });
   const weather = createWeather({
     stations: () => app.airfields.stations(),
     fetch: (url, init) => globalThis.fetch(url, init),
@@ -47,35 +50,30 @@ function mount(root, app) {
     onAcknowledge: (key) => keepAcks(acksAfterOne(banner, key), memoryAfterOne(banner, key)),
     onAcknowledgeAll: () => keepAcks(acksAfterAll(banner), memoryAfterAll(banner)),
     focusAfter: () => ui.focusAfterBanner(),
+    dropdowns,
   });
   // The waves (task 4): the daily plan in home local time, kept in the module's storage.
   const plan = createPlanStore({ store: app.storage, context: () => ({ now: app.time.now(), timeZone: app.time.zone }) });
   let selectedId; // undefined is the first wave with a call; the alternate cards show this wave's result
-  let detailOpen = false; // the list of every hit, opened by pressing a wave's chip
-  let selectedNow = null; // the wave selected as last drawn
   const wavesView = createWavesView({
     onAdd: () => plan.add(),
     onEdit: (id, patch) => plan.edit(id, patch),
     onRemove: (id) => plan.remove(id),
     onDay: (day) => plan.setDay(day),
-    // Pressing a chip selects its wave and opens its hits; pressing the selected wave's chip again closes them.
+    // Pressing a chip selects its wave (the view opens its boxes and hits in a panel over the screen).
     onSelect: (id) => {
-      if (id === selectedNow && detailOpen) detailOpen = false;
-      else {
-        selectedId = id;
-        detailOpen = true;
-      }
+      selectedId = id;
       render();
     },
+    dropdowns,
   });
-  // The 24-hour timeline (task 5). Open or closed is kept as a convenience, open to begin with.
-  const timelineView = createTimelineView({
-    collapsed: app.storage.get('timelineCollapsed', false) === true,
-    onToggle: (collapsed) => app.storage.set('timelineCollapsed', collapsed),
-  });
+  // The 24-hour timeline (task 5): always open on this screen (SOF-38), the waves in its header.
+  const timelineView = createTimelineView({ header: wavesView.element });
   const ui = createLayout({
-    settingsElement: settingsView.element,
+    settings: settingsView,
+    dropdowns,
     mapElement: map.element,
+    mapCredits: map.credits,
     onRefresh: () => weather.refresh(),
     bannerElement: bannerView.element,
     wavesElement: wavesView.element,
@@ -115,8 +113,7 @@ function mount(root, app) {
     if (banner.write) app.storage.set(ACKS_KEY, banner.acks); // only when it changed, and only when it can be told which day
     shownKeys = banner.show ? banner.lines.map((l) => l.key) : [];
     bannerView.render(banner);
-    selectedNow = waves.selectedId;
-    wavesView.render(waves, { detailOpen });
+    wavesView.render(waves);
     // Redrawn only when its picture changes (its signature); the now line moves on its own.
     timelineView.render(buildTimelineView({
       airfields: app.airfields,
