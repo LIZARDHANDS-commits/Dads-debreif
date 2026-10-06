@@ -219,17 +219,21 @@ export function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, 
   // To fighting wing he never slows below Lead's 200 KIAS: where its place needs less, the extra goes into height in the
   // cone as he settles (Patrick 5 Oct 22:45Z; the tracker's cone energy, TS-96).
   const floorKias = lowFloor ? KIAS_OUTSIDE_LAB - TR.undertakeKias : Math.max(leastKias, KIAS_OUTSIDE_LAB);
+  // Heights are against Lead's at the press: slightly low on the line is TR.lineUpFt below him, wherever he is (until V2.99
+  // they were read as heights against the block's zero, as in the straight-ahead rejoin).
+  const leadAlt = into.longRec.at(0).altAboveFt;
+  const lineFt = leadAlt + TR.lineUpFt;
   // #2's height: from where he is to slightly low on the line over heightSec, or over his part if that is shorter.
   // With the vertical (upFt, TS-82): up upFt first, then down onto the line, each at no more than the descent rate.
   const upSec = upFt > 0 ? Math.max(TR.heightSec / 2, upFt / TR.descentFtps) : 0;
-  const downSec = upFt > 0 ? Math.max(TR.heightSec / 2, Math.abs(wing.altAboveFt + upFt - TR.lineUpFt) / TR.descentFtps) : 0;
-  const descentSec = upFt > 0 ? upSec + downSec : Math.max(TR.heightSec, Math.abs(wing.altAboveFt - TR.lineUpFt) / TR.descentFtps); // no quicker than the rejoin's descent rate
+  const downSec = upFt > 0 ? Math.max(TR.heightSec / 2, Math.abs(wing.altAboveFt + upFt - lineFt) / TR.descentFtps) : 0;
+  const descentSec = upFt > 0 ? upSec + downSec : Math.max(TR.heightSec, Math.abs(wing.altAboveFt - lineFt) / TR.descentFtps); // no quicker than the rejoin's descent rate
   const heightLeg = (sec) => {
     if (upFt > 0) {
       const tUp = t0 + (sec * upSec) / descentSec;
-      return [{ t0, t1: tUp, fromFt: wing.altAboveFt, toFt: wing.altAboveFt + upFt }, { t0: tUp, t1: t0 + sec, fromFt: wing.altAboveFt + upFt, toFt: TR.lineUpFt }];
+      return [{ t0, t1: tUp, fromFt: wing.altAboveFt, toFt: wing.altAboveFt + upFt }, { t0: tUp, t1: t0 + sec, fromFt: wing.altAboveFt + upFt, toFt: lineFt }];
     }
-    return Math.abs(wing.altAboveFt - TR.lineUpFt) > 0.5 ? [{ t0, t1: t0 + sec, fromFt: wing.altAboveFt, toFt: TR.lineUpFt }] : [];
+    return Math.abs(wing.altAboveFt - lineFt) > 0.5 ? [{ t0, t1: t0 + sec, fromFt: wing.altAboveFt, toFt: lineFt }] : [];
   };
   const args = { wing, rec: into.longRec, s, aimFt, bankCapDeg, decisionFt, arriveFtps: to === 'fw' ? TR.fwArriveFtps : Math.min(closureNow().ftps, closeInFtps(TR.decisionArriveRates)), overtakeKt, floorKias, lineAtKias: leastKias + TR.lineOverKias, blockFt, t0 };
   let part = flyToDecision({ ...args, profile: heightLeg(descentSec) });
@@ -237,7 +241,7 @@ export function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, 
   if (part.steps * dt < descentSec) part = flyToDecision({ ...args, profile: heightLeg(Math.max(part.steps * dt, dt)) });
   if (!part || part.ahead || (upFt > 0 && part.maxG > G_RULE.normalG)) return null;
   const n1 = part.steps;
-  const W1 = { ...part.end, altAboveFt: TR.lineUpFt, climbFtps: 0 };
+  const W1 = { ...part.end, altAboveFt: lineFt, climbFtps: 0 };
   // The flow through route at no more than the decision point's arrival rate (AI's close-in rate overran the slot from there).
   const flowFtps = closeInFtps(TR.decisionArriveRates);
   // To fighting wing on his own side, the whole cone is his place: inside it he stays where he is (fwGoal, as echelon to
@@ -245,12 +249,13 @@ export function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, 
   // back to it.
   const rel1 = relativeTo(into.longRec.at(n1), W1);
   // To the other side, on across Lead's six in one motion, Lead turning until #2 is in there (replan.js acrossSixLegs; TS-87).
+  const onLead = (list) => list.map((p) => ({ ...p, slot: { ...p.slot, alt: p.slot.alt + leadAlt } })); // the table's heights, against Lead
   const phases =
     sTo !== s && sTo !== 0
-      ? onClosure(acrossSixLegs(rel1, s, to, sTo, spacingFt))
+      ? onLead(onClosure(acrossSixLegs(rel1, s, to, sTo, spacingFt)))
       : to === 'fw'
-      ? onClosure([phase({ fwd: rel1.fwd, left: rel1.left, alt: TR.lineUpFt }, { ...FW_FOLLOW, goal: (L, W) => fwGoal(L, W, s, false) })], { closeIn: true })
-      : onClosure(tailLegs(s, to, sTo, spacingFt)).map((p, i) => (i === 0 && to !== 'fw' ? { ...p, closureFtps: Math.min(p.closureFtps, flowFtps) } : p));
+      ? onClosure([phase({ fwd: rel1.fwd, left: rel1.left, alt: lineFt }, { ...FW_FOLLOW, goal: (L, W) => fwGoal(L, W, s, false) })], { closeIn: true })
+      : onLead(onClosure(tailLegs(s, to, sTo, spacingFt))).map((p, i) => (i === 0 && to !== 'fw' ? { ...p, closureFtps: Math.min(p.closureFtps, flowFtps) } : p));
   const fly = (rec, stopWhenSettled) => trackTwice({ refs: { [lead.id]: fromStep(rec, n1) }, wing0: W1, t0: t0 + n1 * dt, phases, blockFt, init: { accelKtps: part.accelKtps }, stopWhenSettled });
   const first = fly(into.longRec, true);
   if (!first.run.ok) return null;
