@@ -71,6 +71,7 @@ The flying core, `src/modules/turn-sim/live/` (each file's header says its job):
 | `tuning.js` | Re-exports `rates.js`, `bands.js` and `moves.js`; holds no numbers |
 | `move-in-band.js` | Moves #2 anywhere in the band when he is in position (TS-98) |
 | `turning-rejoin.js`, `straight-rejoin.js`, `echelon-to-fw.js`, `open-out.js`, `lag-roll.js`, `rolling-rejoin.js` | The planners the chooser tries |
+| `rejoin-law.js` | The one rejoin law both rejoins fly down the line to the decision point, and the one check for Lead's 3/9 line (clean-up step 4, TS-139) |
 | `kinematic.js`, `kinematic-moves.js`, `line-moves.js`, `hand-over.js`, `tracker.js` | Lines, hand-overs and the tracker |
 | `replay.js` | Flying a planned move one step (the replayed bank track and pose track), the dry run, recorded flights and the speed segment (clean-up step 3, from `transitions.js`) |
 | `recipes.js` | The tracker's leg recipes for each move (slide, stop at a corner, close through route, rejoin, open out, drop back, sweep out, straight ahead) and `legsFor`, the legs from one formation to another (clean-up step 3, from `transitions.js`) |
