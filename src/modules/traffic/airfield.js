@@ -14,6 +14,14 @@
 export const THRESHOLD_29L = Object.freeze({ x: 2796, y: -2776 });
 
 /**
+ * Runway 29L number base, map feet: where the 3° glide path ends, the aim point (Patrick, 6 Oct 06:33Z: "three degree
+ * goes to the base of the numbers"). Patrick's point, 50.322977 N 105.547962 W (5 Oct 00:35Z), lies on the centreline
+ * 207 ft past the threshold bar on Esri's true-scale photo.
+ */
+export const NUMBER_BASE_29L = Object.freeze({ x: 2614, y: -2677 });
+export const NUMBER_BASE_PAST_THRESHOLD_FT = 207;
+
+/**
  * Runway 29L departure end (the 11R threshold bar), map feet (data/moose-jaw.json
  * point 1), measured the same way: 7,250 ft from the 29L threshold at 298.6° true.
  * The CAP aerodrome chart gives 7,280 ft (TR-67).

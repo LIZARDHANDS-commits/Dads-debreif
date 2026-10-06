@@ -41,7 +41,7 @@ import { buildFlinch, buildClimbAhead, EVADE, spacingExtensionFt, extendLimitFt 
 import { buildBreakout, gateLegOf, ENT1_ROUTE, BREAKOUT_TRAFFIC_BANK_DEG } from './breakout.js';
 import { RANDOM, rollFor, pick, oddsFor, buildDownwindStraightIn } from './randomize.js';
 import { behaviourOf, behaviourLabel } from './behaviour.js';
-import { PATTERN_ALT_FT, RUNWAY_29L_HDG_DEG, DEPARTURE_END_29L, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
+import { PATTERN_ALT_FT, RUNWAY_29L_HDG_DEG, DEPARTURE_END_29L, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT, NUMBER_BASE_PAST_THRESHOLD_FT } from './airfield.js';
 import { iasToTasKt } from './weather.js';
 import { setFieldTemperature, placeStraightInDescent } from './weather.js';
 import { windTriangle } from '../../core/wind.js';
@@ -834,7 +834,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const p0 = pat.points[0], p1 = pat.points[1] ?? p0;
     const d0 = pointDistFt(pat, 0, opt), d1 = pointDistFt(pat, 1, opt);
     const legFt = Math.hypot(p1.x - p0.x, p1.y - p0.y) || 1;
-    const along = ((a.x - p0.x) * (p1.x - p0.x) + (a.y - p0.y) * (p1.y - p0.y)) / legFt;
+    // The circuit's climb-out starts at the base of the numbers, not the threshold point (TR-93).
+    const along = ((a.x - p0.x) * (p1.x - p0.x) + (a.y - p0.y) * (p1.y - p0.y)) / legFt - NUMBER_BASE_PAST_THRESHOLD_FT;
     // The circuit's climb-out passes close to, not exactly through, the touchdown point: join it smoothly.
     startJoin(a, pat, d0 + Math.max(0, Math.min(along, d1 - d0)), { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 }, opt);
     a.mode = 'RAIL';

@@ -9,7 +9,7 @@
 
 import { isaDensityRatio } from '../../core/flight-math.js';
 import { M_PER_FT } from '../../core/units.js';
-import { FIELD_ELEV_FT, THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
+import { FIELD_ELEV_FT, THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_DATA_ELEV_FT, NUMBER_BASE_PAST_THRESHOLD_FT } from './airfield.js';
 
 const T0_K = 288.15;
 const LAPSE_K_PER_M = 0.0065;
@@ -77,8 +77,8 @@ const WINDOW_FALLBACK_OUT_FT = 0.75 * 6076;
 
 /**
  * The 29L approach: { ux, uy } the unit vector out from the threshold (away from the departure end), windowOutFt how far
- * out the window is (Pattern 1's point 12), and slope the sim's own glide path through the window, rise per foot out
- * (about 3°, SMM 4.7 para 12; 3° without a pattern). `pattern` is Pattern 1's route or null.
+ * out the window is (Pattern 1's point 12), and slope the sim's own glide path through the window to the base of the
+ * numbers, rise per foot (about 3°, SMM 4.7 para 12; 3° without a pattern; aim point TR-93). `pattern` is Pattern 1's route or null.
  */
 export function approachLine(pattern) {
   const th = THRESHOLD_29L;
@@ -86,23 +86,24 @@ export function approachLine(pattern) {
   const ux = (th.x - DEPARTURE_END_29L.x) / len, uy = (th.y - DEPARTURE_END_29L.y) / len;
   const w = pattern?.points?.[12];
   const windowOutFt = w ? (w.x - th.x) * ux + (w.y - th.y) * uy : WINDOW_FALLBACK_OUT_FT;
-  const slope = w && windowOutFt > 0 && w.alt > THRESHOLD_DATA_ELEV_FT ? (w.alt - THRESHOLD_DATA_ELEV_FT) / windowOutFt : Math.tan(3 * Math.PI / 180);
+  const slope = w && windowOutFt > 0 && w.alt > THRESHOLD_DATA_ELEV_FT ? (w.alt - THRESHOLD_DATA_ELEV_FT) / (windowOutFt + NUMBER_BASE_PAST_THRESHOLD_FT) : Math.tan(3 * Math.PI / 180);
   return { ux, uy, windowOutFt, slope };
 }
 
 /**
- * How far out from the 29L threshold, ft, a straight-in level at levelAltFt on the altimeter meets the 3° line: where
- * the line reaches its true height today, so further out on a hot day and closer in on a cold one.
+ * How far out from the 29L threshold, ft, a straight-in level at levelAltFt on the altimeter meets the 3° line to the
+ * base of the numbers: where the line reaches its true height today, so further out on a hot day and closer in on a cold one.
  */
 export function interceptOutFt(slope, levelAltFt) {
-  return (trueAltFt(levelAltFt) - THRESHOLD_DATA_ELEV_FT) / slope;
+  return (trueAltFt(levelAltFt) - THRESHOLD_DATA_ELEV_FT) / slope - NUMBER_BASE_PAST_THRESHOLD_FT;
 }
 
 /**
  * The straight-in starts down at the 3° intercept (Patrick's card "Follow the mark", 5 Oct 07:29Z; TR-80): moves the
  * SI Rejoin's (ENT2) "Glide path" point along the centreline to today's intercept, so it flies a true 3° to the runway.
  * It stays at least 1,000 ft outside the window and 500 ft inside the point before it (estimates, to keep the route's
- * order on an extreme day). `routes` is the setup's routes, changed in place.
+ * order on an extreme day). Its last point moves from the threshold to the base of the numbers. `routes` is the
+ * setup's routes, changed in place.
  */
 export function placeStraightInDescent(routes) {
   const ent2 = routes?.find((r) => r?.id === 'ENT2');
@@ -116,4 +117,10 @@ export function placeStraightInDescent(routes) {
   const x = Math.round((th.x + ux * outFt) * 10) / 10, y = Math.round((th.y + uy * outFt) * 10) / 10;
   if (p.x !== x) p.x = x;
   if (p.y !== y) p.y = y;
+  // Its last point, at the threshold, moves up to the base of the numbers, where the 3° line ends (TR-93).
+  const end = ent2.points[ent2.points.length - 1];
+  if (end && Math.hypot(end.x - th.x, end.y - th.y) < 1) {
+    end.x = Math.round((th.x - ux * NUMBER_BASE_PAST_THRESHOLD_FT) * 10) / 10;
+    end.y = Math.round((th.y - uy * NUMBER_BASE_PAST_THRESHOLD_FT) * 10) / 10;
+  }
 }
