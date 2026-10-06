@@ -18,6 +18,7 @@
 import { DEG, relativeTo, turnSeg, wholeDegree } from './manoeuvres.js';
 import { recordFlight, slide, closeThrough, rejoinTo, straightAhead, sweepOut } from './transitions.js';
 import { REJOIN, TURNING_REJOIN, FW_FOLLOW, STRAIGHT_REJOIN } from './tuning.js';
+import { RATE_SETS } from './rates.js';
 import { KT_TO_FTPS as KT_FTPS } from '../../../core/units.js';
 import { fwGoal } from './formation-turns.js';
 import { leadTurnInto } from './hand-over.js';
@@ -193,7 +194,9 @@ export function turningToFinger(start, t0, opts, s, from) {
       },
     });
     const wing = hot ? outside : crossing;
-    return { lead: { hold: into, until: [2, 3, 4] }, wings: [two, wing(3, 2), wing(4, 3)] };
+    // Each ends in Lead's wing plane, and Lead rolls out as gently as in an echelon turn once all are in it (TS-126, TS-127).
+    const inPlane = (w) => ({ ...w, plane: true });
+    return { lead: { hold: into, until: [2, 3, 4], rollOutRoll: RATE_SETS.close.echelonRoll }, wings: [inPlane(two), inPlane(wing(3, 2)), inPlane(wing(4, 3))] };
   }]);
 }
 

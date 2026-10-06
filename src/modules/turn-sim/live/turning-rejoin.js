@@ -575,7 +575,7 @@ export function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, 
  * longer for a big step so the pull stays within TURNING_REJOIN.planeEaseG (smootherstep's peak pull is SMOOTHER_CURVE_PEAK
  * times the step over the time squared). rel: #2 in Lead's frame there; L: Lead there.
  */
-function planeEaseSec(rel, L) {
+export function planeEaseSec(rel, L) {
   const step = Math.abs(rel.left * Math.sin(L.bankDeg * DEG));
   return Math.max(TURNING_REJOIN.planeEaseSec, Math.sqrt((SMOOTHER_CURVE_PEAK * step) / (TURNING_REJOIN.planeEaseG * G_FTPS2)));
 }
@@ -587,10 +587,10 @@ function planeEaseSec(rel, L) {
  * the sine of his bank, lagged as in the close turns; it eases in over easeSec from the move over (planeEaseSec), and
  * comes off as Lead rolls out.
  * Until V2.142 the heights were held against Lead's height, so on the inside of Lead's 30° turn #2 sat about half his
- * distance out above the wing plane. wing: #2 at t0; plan: his bank track and heights; leadRec: Lead's real flight; from:
+ * distance out above the wing plane. The 4-ship's close turning rejoins use it too (four-legs.js). wing: #2 at t0; plan: his bank track and heights; leadRec: Lead's real flight; from:
  * the move-over step; easeSec: planeEaseSec. Returns the heights as one table leg (flight.js tableAt).
  */
-function inLeadsPlane(wing, plan, leadRec, t0, from, steps, easeSec) {
+export function inLeadsPlane(wing, plan, leadRec, t0, from, steps, easeSec) {
   const rec = recordFlight(wing, plan, t0);
   // His place follows Lead's bank with the close turns' lag (he lags the roll, SMM 12.19 para 43).
   const ref = laggedBank(leadRec, KINEMATIC.planeLagSec);

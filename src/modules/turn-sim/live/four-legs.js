@@ -19,7 +19,8 @@
 import { STEP_SEC, copyAircraft } from './flight.js';
 import { relativeTo } from './manoeuvres.js';
 import { recordFlight, flyStep, dryRunT, speedSeg } from './transitions.js';
-import { trackTwice, phase } from './tracker.js';
+import { trackTwice, runTracker, phase } from './tracker.js';
+import { inLeadsPlane, planeEaseSec } from './turning-rejoin.js';
 import { onClosure } from './hand-over.js';
 import { isStacked } from './judge.js';
 import { FOUR_FORMATIONS, pairSlot } from './slots.js';
@@ -58,9 +59,28 @@ function onProfile(phases) {
 }
 
 /**
+ * A tracker wingman's last leg into a close place, in Lead's wing plane (TS-127, as the 2-ship's turning rejoin, TS-126;
+ * SMM 12.19 paras 41-43, Fig 12.11; Patrick 6 Oct 07:18Z: "All rejoins should do this"): from the start of his last leg his
+ * height eases into the plane (turning-rejoin.js inLeadsPlane), and the tracker flies once more with those heights so its
+ * power pays for them. Returns { run, profile, planeInSec } (planeInSec: when he is in the plane, for Lead's roll-out).
+ */
+function intoLeadsPlane(wing0, leadRec, recs, phases, run, profile, t0, blockFt) {
+  const last = run.times[run.times.length - 1];
+  const from = Math.max(0, Math.round(((last.t0 ?? t0) - t0) / STEP_SEC));
+  const plan = (r, p) => ({ segments: [{ kind: 'bankTrack', points: r.points }], profile: p });
+  const W = recordFlight(wing0, plan(run, profile), t0).at(from);
+  const easeSec = planeEaseSec(relativeTo(leadRec.at(from), W), leadRec.at(from));
+  const inPlane = (r) => inLeadsPlane(wing0, plan(r, profile), leadRec, t0, from, r.points.length, easeSec);
+  const again = runTracker({ refs: recs, wing0, t0, phases, profile: inPlane(run), blockFt, maxSec: FOUR_CHANGE_LIMIT_SEC });
+  const r = again.ok ? again : run;
+  return { run: r, profile: inPlane(r), planeInSec: t0 + from * STEP_SEC + easeSec };
+}
+
+/**
  * Plans one leg from `start` (the four as they are at t0). lead: Lead's segments, or a held turn ({ hold: leadTurnInto's
- * { longRec, planTo }, until: ids }: Lead turns on until those wingmen are in, then rolls out on the whole degree). wings:
- * [{ id, phases(done, recs) } | { id, fly(ctx), phases? }] in an order where the aircraft each flies off is planned first;
+ * { longRec, planTo }, until: ids, rollOutRoll? }: Lead turns on until those wingmen are in, then rolls out on the whole
+ * degree, at rollOutRoll if given). wings: [{ id, phases(done, recs), plane? } | { id, fly(ctx), phases?, plane? }] (plane: his
+ * last leg ends in Lead's wing plane, intoLeadsPlane) in an order where the aircraft each flies off is planned first;
  * `done[id]` holds an earlier wingman's { times, inSec, endSec } for gates, `recs[id]` his recorded flight. fly(ctx) gets
  * { wing, recs, done, t0, blockFt } and returns { plan, inSec, durationSec, times? }, { ok: false, reason }, or null when
  * it does not apply from here (then `phases`, if given, flies it).
@@ -83,10 +103,13 @@ export function flyLeg(start, t0, lead, wings, blockFt) {
       if (!part && !w.phases) return { ok: false, reason: `${NAMES[w.id]} found no way into its place.`, id: w.id };
       if (!part) {
         // Tracker legs (or the fallback when a held planner does not apply from here).
-        const { run, profile } = trackTwice({ refs: recs, wing0, t0, phases: onProfile(w.phases(done, recs)), blockFt, maxSec: FOUR_CHANGE_LIMIT_SEC });
+        const phases = onProfile(w.phases(done, recs));
+        let { run, profile } = trackTwice({ refs: recs, wing0, t0, phases, blockFt, maxSec: FOUR_CHANGE_LIMIT_SEC });
         if (!run.ok) return { ok: false, reason: `${NAMES[w.id]} could not settle in its place inside ${Math.round(FOUR_CHANGE_LIMIT_SEC / 60)} minutes.`, id: w.id };
+        let planeInSec = t0;
+        if (w.plane) ({ run, profile, planeInSec } = intoLeadsPlane(wing0, leadRec, recs, phases, run, profile, t0, blockFt));
         const last = run.times[run.times.length - 1];
-        part = { plan: { segments: [{ kind: 'bankTrack', points: run.points }], profile }, durationSec: run.durationSec, inSec: last.arrive ?? t0 + run.durationSec, times: run.times, maxBankDeg: run.maxBankDeg };
+        part = { plan: { segments: [{ kind: 'bankTrack', points: run.points }], profile }, durationSec: run.durationSec, inSec: Math.max(last.arrive ?? t0 + run.durationSec, planeInSec), times: run.times, maxBankDeg: run.maxBankDeg };
         part.profileEnd = Math.max(t0, ...profile.map((leg) => leg.t1));
       }
       plans[w.id] = part.plan;
@@ -107,7 +130,7 @@ export function flyLeg(start, t0, lead, wings, blockFt) {
     const first = planWings(held.hold.longRec);
     if (!first.ok) return first;
     const inStep = Math.round((Math.max(...held.until.map((id) => first.done[id].inSec)) - t0) / STEP_SEC);
-    const lp = held.hold.planTo(inStep);
+    const lp = held.hold.planTo(inStep, held.rollOutRoll ?? null);
     leadSegs = lp.segments;
     leadTurnDeg = Math.round((lp.turned * 180) / Math.PI);
     flown = planWings(lp.rec);
