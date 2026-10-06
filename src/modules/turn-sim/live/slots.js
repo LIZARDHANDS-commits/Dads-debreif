@@ -269,7 +269,8 @@ export function fourWords(where) {
   switch (where.key) {
     case 'finger':
     case 'route':
-      return `${f.label} ${w(-where.side)} (#3 and #4 ${w(-where.side)})`;
+      // named by #2's side, as echelon is (Patrick 6 Oct 05:39Z: "left and right are just backwards"; by #3 and #4's side until V2.129)
+      return `${f.label} ${w(where.side)} (#2 ${w(where.side)})`;
     case 'echelon':
       return `${f.label} ${w(where.side)}`;
     case 'offsetBox':
