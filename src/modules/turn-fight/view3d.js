@@ -22,6 +22,8 @@ import { wrapPi, headingRad, degToRad } from '../../core/angles.js';
 import {
   loadThree, matchProjection, worldToScreen, altToZ, addLights, addSky, webglSupported,
 } from '../../ui-kit/three-aircraft.js';
+import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
+import { drawHud } from '../../ui-kit/hud.js';
 import { createCt156Model, disposeCt156Model, CT156_UNIT_LENGTH } from '../../ui-kit/ct156-model.js';
 import { FT_PER_NM } from '../../core/units.js';
 import { FIGHT_MAX_SEC } from './sim.js';
@@ -69,7 +71,27 @@ const DASH_PX = [7, 5];
 /** Energy mode's hard deck: a flat, see-through plane at the deck's height, the colour of the first nose-on line, so it does not hide the aircraft or their trails. */
 export const DECK_OPACITY = 0.16;
 
-const VIEW_LABELS = Object.freeze({ overhead: 'Overhead', blue: 'Chase Blue', red: 'Chase Red' });
+const VIEW_LABELS = Object.freeze({
+  overhead: 'Overhead',
+  blue: 'Chase Blue', red: 'Chase Red',
+  cockpitBlue: 'Cockpit Blue', cockpitRed: 'Cockpit Red',
+  padlockBlue: 'Padlock Blue', padlockRed: 'Padlock Red',
+});
+/**
+ * The perspective views (Patrick, 6 Oct: "give turn fight the same sky and chase/cockpit cameras", as the Formation Sim's):
+ * Chase behind and above its aircraft, Cockpit from the pilot's eye along the nose rolling with the wings, Padlock from
+ * the eye on the other aircraft. 60° across, nothing nearer than 2 ft; the eye 4 ft ahead and 3 ft above the centre;
+ * Chase 300 ft back and 12° up (estimates). A drag turns the head or swings round the aircraft; the wheel moves Chase in and out.
+ */
+const POV = Object.freeze({ fovAcrossDeg: 60, nearFt: 2, farFt: 400_000, eyeFwdFt: 4, eyeUpFt: 3, chaseFt: 300, chaseFtRange: [60, 5000], chaseUpDeg: 12, degPerPx: 0.3 });
+const HEAD = Object.freeze({ yawDeg: [-160, 160], pitchDeg: [-60, 80], chaseUpDeg: [-10, 80] });
+/** The perspective view a camera mode asks for: { kind, who, other } or null for the flat views. */
+function povOf(mode) {
+  const m = /^(?:(cockpit|padlock)(Blue|Red)|(blue|red))$/.exec(mode ?? '');
+  if (!m) return null;
+  const who = m[3] ?? m[2].toLowerCase();
+  return { kind: m[1] ?? 'chase', who, other: who === 'blue' ? 'red' : 'blue' };
+}
 /** The three one-click views, in the order of their buttons: { id: { label } }. */
 export const VIEWS = Object.freeze(Object.fromEntries(Object.entries(VIEW_LABELS).map(([id, label]) => [id, Object.freeze({ label })])));
 
@@ -305,7 +327,7 @@ export function planeLengthFt(zoom) {
 
 /** The camera a one-click view sets: 'overhead' (straight down, north up, as the 2D picture), 'blue' or 'red' (chase). */
 export function cameraForButton(name) {
-  if (name === 'blue' || name === 'red') return { mode: name, yawDeg: 0, pitchDeg: CHASE_PITCH_DEG, zoom: CHASE_ZOOM, zoomAuto: false };
+  if (povOf(name)) return { mode: name, yawDeg: 0, pitchDeg: CHASE_PITCH_DEG, zoom: CHASE_ZOOM, zoomAuto: false };
   return { mode: 'fit', yawDeg: 0, pitchDeg: 0, zoom: DEFAULT_CAMERA.zoom, zoomAuto: true };
 }
 
@@ -383,6 +405,8 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
   let drawn = 0;
   let resizer = null;
   let cam = { ...DEFAULT_CAMERA };
+  let head = { yawDeg: 0, pitchDeg: 0 }; // the person's head turn (Cockpit, Padlock) or swing round the aircraft (Chase)
+  let chaseFt = POV.chaseFt;
   const pointers = new Map(); // id -> { x, y }, the fingers or the mouse now down
   let pinchDistance = 0;
 
@@ -448,11 +472,19 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 2);
     addLights(THREE, scene);
     const sky = addSky(THREE, scene);
+    // A light blue sky, clouds above the fight and the ground below (Patrick, 6 Oct; ui-kit/sky-clouds.js); the grid hidden.
+    const skyClouds = addSkyAndClouds(THREE, scene);
+    scene.fog?.color.set(SKY_COLOURS.horizon);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(GRID_STEP_FT * GRID_CELLS * 3, GRID_STEP_FT * GRID_CELLS * 3), new THREE.MeshBasicMaterial({ color: '#56664a', fog: true }));
+    scene.add(ground);
+    const persp = new THREE.PerspectiveCamera(60, 1, POV.nearFt, POV.farFt);
+    persp.up.set(0, 0, 1);
 
     // The ground: one-NM squares that follow the view in whole squares, so it looks endless and still.
     const grid = new THREE.GridHelper(GRID_STEP_FT * GRID_CELLS, GRID_CELLS, '#2c5a44', '#1c3a30');
     grid.rotation.x = Math.PI / 2; // GridHelper is flat in X-Z; the fight's ground is X-Y
     grid.material.fog = false;
+    grid.visible = false; // hidden (Patrick, 6 Oct: the grid is distracting); kept to place the ground
     scene.add(grid);
 
     // The MERGE mark: a cross at the merge point, a fixed size on screen.
@@ -568,14 +600,84 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
       firstNose: label('', 'tf-3d-first-nose'),
       deck: label('HARD DECK', 'tf-3d-label-deck'),
     };
-    host.replaceChildren(canvas, labels.blue, labels.red, labels.merge, labels.firstNose, labels.deck);
+    // The HUD's own canvas over the picture (ui-kit/hud.js), so the aircraft's labels stay as they are.
+    const hud = doc.createElement('canvas');
+    hud.className = 'tf-3d-hud';
+    hud.setAttribute('aria-hidden', 'true');
+    Object.assign(hud.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', pointerEvents: 'none' });
+    host.replaceChildren(canvas, labels.blue, labels.red, labels.merge, labels.firstNose, labels.deck, hud);
     gl = {
-      canvas, renderer, scene, camera, sky, grid, mark, deck, lines, plumbLines, shadowDiscs, labels,
+      canvas, renderer, scene, camera, persp, active: camera, sky, skyClouds, ground, hud, grid, mark, deck, lines, plumbLines, shadowDiscs, labels,
       liftVectors, wezCone,
       planes: {}, paint: null, nose: null, noseFor: null, ratio: 0, width: 0, height: 0,
       data: null, // what has been read from the current run: its trails, bounds, and how much of each is written
       directions: { blue: 0, red: 0 },
     };
+  }
+
+  /** Points the perspective camera for Chase, Cockpit or Padlock from the aircraft's model (as the Formation Sim's aimPov). */
+  function aimPov(pov, box) {
+    const me = gl.planes[pov.who];
+    me.updateMatrixWorld(true);
+    const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(me.quaternion);
+    const up = new THREE.Vector3(0, 0, 1).applyQuaternion(me.quaternion);
+    const p = gl.persp;
+    p.aspect = box.width / Math.max(box.height, 1);
+    p.fov = Math.min(POV.fovAcrossDeg, 2 * deg(Math.atan(Math.tan(degToRad(POV.fovAcrossDeg / 2)) / p.aspect)));
+    p.updateProjectionMatrix();
+    if (pov.kind === 'chase') {
+      const yaw = Math.atan2(fwd.y, fwd.x) + degToRad(head.yawDeg);
+      const upAng = degToRad(clamp(POV.chaseUpDeg + head.pitchDeg, HEAD.chaseUpDeg));
+      p.position.set(
+        me.position.x - Math.cos(yaw) * Math.cos(upAng) * chaseFt,
+        me.position.y - Math.sin(yaw) * Math.cos(upAng) * chaseFt,
+        me.position.z + Math.sin(upAng) * chaseFt,
+      );
+      p.up.set(0, 0, 1);
+      p.lookAt(me.position);
+      return;
+    }
+    const eye = me.position.clone().addScaledVector(fwd, POV.eyeFwdFt).addScaledVector(up, POV.eyeUpFt);
+    me.visible = false; // the pilot doesn't see his own aircraft from inside it
+    p.position.copy(eye);
+    p.up.copy(up);
+    if (pov.kind === 'padlock' && gl.planes[pov.other]) {
+      p.lookAt(gl.planes[pov.other].position);
+      return;
+    }
+    const dir = fwd.clone().applyAxisAngle(up, degToRad(head.yawDeg));
+    const right = dir.clone().cross(up).normalize();
+    dir.applyAxisAngle(right, degToRad(head.pitchDeg));
+    p.lookAt(eye.clone().add(dir));
+  }
+
+  /** The HUD (ui-kit/hud.js) for the aircraft the camera is on, or Blue in the overhead view. */
+  function drawHudOver(fight, box, ratio, pov) {
+    const c = gl.hud;
+    const w = Math.round(box.width * ratio);
+    const h = Math.round(box.height * ratio);
+    if (c.width !== w || c.height !== h) {
+      c.width = w;
+      c.height = h;
+    }
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const who = pov?.who ?? 'blue';
+    const a = fight?.[who];
+    if (!a) return;
+    const pose = aircraftPose(fight, who, gl.directions[who]);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    drawHud(ctx, box, {
+      label: who === 'blue' ? 'Blue' : 'Red',
+      pitchDeg: deg(pose.pitchRad),
+      bankDeg: -deg(pose.bankRad), // the pose's bank is left positive; the HUD's right
+      altFt: a.zFt,
+      g: a.g ?? fight.perf?.[who]?.g,
+      kias: a.kias ?? a.speedKt ?? a.ktas,
+      headingDeg: 90 - deg(a.headingRad),
+    });
   }
 
   /** Paints the aircraft anew when the paint has changed, or they do not exist yet. */
@@ -750,12 +852,25 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
       gl.nose.material.gapSize = DASH_PX[1] / pxPerFt;
     }
 
-    matchProjection(THREE, camera, view.center, view.camera, box, 1);
-    renderer.render(scene, camera);
+    gl.ground.position.set(gridX, gridY, altToZ(groundZ, ALT_SCALE) - 2);
+    const pov = povOf(cam.mode);
+    for (const who of SHIPS) gl.planes[who].visible = true;
+    if (pov && gl.planes[pov.who]) {
+      // Perspective: the aircraft at their real size, and the camera from the aircraft's own attitude.
+      for (const who of SHIPS) gl.planes[who].scale.setScalar(T6_LENGTH_FT / CT156_UNIT_LENGTH);
+      aimPov(pov, box);
+      gl.active = gl.persp;
+    } else {
+      matchProjection(THREE, camera, view.center, view.camera, box, 1);
+      gl.active = camera;
+    }
+    gl.skyClouds.update({ x: view.center.x, y: view.center.y, z: altToZ(view.center.z, ALT_SCALE) }, pov ? 1 : (view.camera.pitchDeg - 55) / 20);
+    renderer.render(scene, gl.active);
+    drawHudOver(fight, box, ratio, pov);
 
     // The letters and the MERGE word ride over the picture at the point they name.
     const at = (point, dx, dy, el) => {
-      const s = worldToScreen(THREE, camera, point, box.width, box.height);
+      const s = worldToScreen(THREE, gl.active, point, box.width, box.height);
       el.style.transform = `translate(${Math.round(s.x + dx)}px, ${Math.round(s.y + dy)}px)`;
     };
     const showDataTags = Boolean(options?.()?.dataTags);
@@ -867,6 +982,9 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
       scene.nose.material.dispose();
     }
     scene.sky.dispose();
+    scene.skyClouds.dispose();
+    scene.ground.geometry.dispose();
+    scene.ground.material.dispose();
     scene.renderer.dispose();
     if (!lost) scene.renderer.forceContextLoss?.(); // a context the browser already took is not released again
     host.replaceChildren();
@@ -903,14 +1021,30 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
         if (pinchDistance > 0) moved(zoomByRatio(cam, now / pinchDistance));
         pinchDistance = now;
       } else if (pointers.size === 1) {
-        moved(orbit(cam, dx, dy));
+        if (povOf(cam.mode)) {
+          // Perspective views: a drag turns the head, or swings round the aircraft in Chase.
+          const chase = povOf(cam.mode).kind === 'chase';
+          head = {
+            yawDeg: clamp(head.yawDeg - dx * POV.degPerPx, HEAD.yawDeg),
+            pitchDeg: clamp(head.pitchDeg - dy * POV.degPerPx, chase ? [HEAD.chaseUpDeg[0] - POV.chaseUpDeg, HEAD.chaseUpDeg[1] - POV.chaseUpDeg] : HEAD.pitchDeg),
+          };
+          requestDraw();
+        } else {
+          moved(orbit(cam, dx, dy));
+        }
       }
     }],
     ['pointerup', (e) => endPointer(e)],
     ['pointercancel', (e) => endPointer(e)],
     ['wheel', (e) => {
       e.preventDefault();
-      if (e.deltaY) moved(zoomBy(cam, e.deltaY));
+      if (!e.deltaY) return;
+      if (povOf(cam.mode)) {
+        if (povOf(cam.mode).kind === 'chase') chaseFt = clamp(chaseFt * (e.deltaY < 0 ? 0.85 : 1.18), POV.chaseFtRange);
+        requestDraw();
+        return;
+      }
+      moved(zoomBy(cam, e.deltaY));
     }],
     ['keydown', (e) => {
       if (e.altKey || e.ctrlKey || e.metaKey) return;
@@ -974,6 +1108,7 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
     requestDraw,
     /** One of the three one-click views: 'overhead', 'blue' or 'red'. */
     setView(name) {
+      head = { yawDeg: 0, pitchDeg: 0 }; // a new view starts looking ahead
       moved(cameraForButton(name));
     },
     stats: () => ({ active: Boolean(gl), drawn, pending: Boolean(pendingFrame), camera: { ...cam } }),
