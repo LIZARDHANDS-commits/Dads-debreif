@@ -169,6 +169,21 @@ export const FW_FOLLOW = Object.freeze({
 });
 
 /**
+ * The pursuit curves #2 flies in a fighting wing turn (fw-pursuit.js, TS-100; SMM 12.29 para 69, 12.30 paras 71-73,
+ * Figs 12.20-12.23). Every number is an estimate unless a page is named beside it.
+ */
+export const FW_PURSUIT = Object.freeze({
+  minBankDeg: 5, // Lead banked less than this is not turning: the tracker's band goal flies #2 instead (estimate)
+  aimRangeFt: 750, // the range aimed for on the circle: the middle of the cone's 500-1,000 ft (SMM 12.29 para 69, Fig 12.19)
+  arcScaleFt: 250, // the arc ahead of or behind the aim point that asks for the full angle off the tangent: the cone's edges, 250 ft either side of the aim (estimate)
+  leadMaxDeg: 30, // the most #2's nose points inside the circle when behind the aim point (lead) or outside it when ahead (lag), degrees (estimate)
+  lagMaxDeg: 20, // the most his nose points outside the circle when ahead of the aim point and inside it (turned into, tight: the miss, Fig 12.22), degrees (estimate)
+  circleScaleFt: 500, // how far outside or inside Lead's circle asks for the full extra lead or lag, ft (estimate)
+  circleDeg: 20, // that extra lead (outside the circle) or lag (inside it), degrees (estimate)
+  closeKias: 10, // the most speed above or below Lead the arc error asks for; power last, geometry first (Patrick 5 Oct 23:02Z; estimate)
+});
+
+/**
  * Fighting wing energy with the cone (TS-96; Patrick 5 Oct 22:45Z: "energy can be managed with the cone", 23:02Z: "Use the
  * cone as required, power as a last resort"): on the power profile in fighting wing (tracker.js), #2 takes a slowing first
  * as a climb and a speeding up as a descent, inside the cone's height, so the throttle moves only for what the height can't

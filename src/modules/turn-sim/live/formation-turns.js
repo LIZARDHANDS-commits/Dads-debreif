@@ -24,6 +24,7 @@ import { recordFlight, dryRunT } from './transitions.js';
 import { trackTwice, phase } from './tracker.js';
 import { smoothest, makeTrack, seedTrack, setTrackStep, TRACK_PAD, posesFrom, settleLast, slotInWorld } from './kinematic.js';
 import { leadTurnSegs } from './kinematic-moves.js';
+import { fwPursuitCommand } from './fw-pursuit.js';
 import { FW_TURN, FW_FOLLOW, WING_BANKS, ROLL, RATE_SETS } from './tuning.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { wrapPi } from '../../../core/angles.js';
@@ -66,6 +67,20 @@ function sweepOf(q) {
 }
 
 
+
+/**
+ * #2's pursuit-curve command in a fighting wing turn (fw-pursuit.js, TS-100), from the press: until the aircraft flown off
+ * has rolled to the bank its plan turns at, the pursuit is flown against that planned bank (signed, + left), so #2 turns
+ * into the circle as Lead rolls in rather than a second or two later; after that, against the bank flown.
+ */
+function pursuitOf(plannedBankDeg) {
+  let reachedAt = Infinity;
+  return (L, W, t) => {
+    if (plannedBankDeg != null && t < reachedAt && Math.abs(L.bankDeg) >= Math.abs(plannedBankDeg) - 1) reachedAt = t;
+    return fwPursuitCommand(L, W, t < reachedAt ? plannedBankDeg : null);
+  };
+}
+
 const NAMES = Object.freeze({ 1: 'Lead', 2: '#2', 3: '#3', 4: '#4' });
 /** The wingmen in an order where the aircraft each flies off comes first (#4 off #3 after #3, SMM 16.37 para 103). */
 const inRefOrder = (aircraft) => aircraft.filter((a) => a.ref != null).sort((a, b) => a.id - b.id);
@@ -99,7 +114,12 @@ export function planFwTurn(aircraft, key, dir, t0 = 0, { blockFt = 8000 } = {}) 
     const ref = by.get(wing.ref);
     const rel0 = relativeTo(ref, wing);
     const side = Math.sign(rel0.left) || -1;
-    const goalPhase = phase({ fwd: rel0.fwd, left: rel0.left, alt: wing.altAboveFt }, { ...follow, track: wing.ref, goal: (L, W) => fwGoal(L, W, side, collapse) });
+    // Collapsing, each wingman flies the pursuit curves against the one ahead while he is banked (fw-pursuit.js, TS-100), from
+    // the press (the planned bank), and the band goal once he rolls out (Fig 12.23).
+    // #2 only: #3 and #4 fly off a wingman who is himself manoeuvring, so they keep the band goal (an estimate; the four-ship
+    // rebuild may extend the law to them).
+    const pursuit = collapse && wing.ref === lead.id ? { pursuit: pursuitOf(dir * bank) } : {};
+    const goalPhase = phase({ fwd: rel0.fwd, left: rel0.left, alt: wing.altAboveFt }, { ...follow, ...pursuit, track: wing.ref, goal: (L, W) => fwGoal(L, W, side, collapse) });
     const { run, profile } = trackTwice({ refs, wing0: wing, t0, phases: [goalPhase], blockFt });
     if (!run.ok) return { ok: false, reason: `No safe ${m.label.toLowerCase()} in fighting wing from here: ${NAMES[wing.id]} could not settle back into the band.` };
     const plan = { segments: [{ kind: 'bankTrack', points: run.points }], profile };
@@ -462,7 +482,9 @@ export function planFwMove(aircraft, key, dir, t0 = 0, { blockFt = 8000, bankDeg
   const rel0 = relativeTo(lead, wing);
   const side = Math.sign(rel0.left) || -1;
   const follow = { ...FW_FOLLOW, bankCapDeg: WING_BANKS.fwFollowBankCapDeg };
-  const goalPhase = phase({ fwd: rel0.fwd, left: rel0.left, alt: wing.altAboveFt }, { ...follow, track: lead.id, goal: (L, W) => fwGoal(L, W, side, true) });
+  // #2 flies the pursuit curves while Lead is banked (fw-pursuit.js, TS-100), from the press at the bank Lead's plan turns at.
+  const plannedBank = key === 'levelTurn' ? dir * bankDeg : key === 'reversal' ? -nowDir * Math.max(bankDeg, Math.abs(lead.bankDeg)) : turning ? nowDir * Math.abs(lead.bankDeg) : null;
+  const goalPhase = phase({ fwd: rel0.fwd, left: rel0.left, alt: wing.altAboveFt }, { ...follow, pursuit: pursuitOf(plannedBank), track: lead.id, goal: (L, W) => fwGoal(L, W, side, true) });
   const { run } = trackTwice({ refs, wing0: wing, t0, phases: [goalPhase], blockFt });
   if (!run.ok) return { ok: false, reason: `No safe ${FW_MOVES[key].label.toLowerCase()} in fighting wing from here: #2 could not stay in the cone.` };
   // #2 climbs and descends with Lead, keeping the height he has from Lead (the whole cone, high or low: Patrick 08:58Z).

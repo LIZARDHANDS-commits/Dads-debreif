@@ -225,9 +225,15 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
         aligning = true;
       }
       const ratio = W.tasFtps / W.kias;
+      // A phase with `pursuit` (fw-pursuit.js, TS-100) commands its own heading and speed each step; the bank and speed loops
+      // below fly it. Null hands the step back to the slot law.
+      const own = ph.pursuit ? ph.pursuit(L, W, t) : null;
       let pullX;
       let pullY;
-      if (ph.closureFtps) {
+      if (own) {
+        psiCmd = own.psiCmd;
+        kiasCmd = own.kiasCmd;
+      } else if (ph.closureFtps) {
         // The closure, dying away near the slot in proportion to the distance: fore and aft at the tracker's own position
         // gain (power is the slow axis), sideways at CLOSURE.nearGain (bank is quick). One gain of 1/s on both left #2
         // hunting about 20 ft fore and aft of the slot, never settling (V2.22-V2.23: the refusals Patrick saw 5 Oct 07:06Z).
@@ -247,18 +253,20 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
         pullX = d > 1e-6 ? (ex / d) * pull : 0;
         pullY = d > 1e-6 ? (ey / d) * pull : 0;
       }
-      const vdx = vpx + pullX;
-      const vdy = vpy + pullY;
+      const vdx = vpx + (pullX ?? 0);
+      const vdy = vpy + (pullY ?? 0);
       const speed = Math.hypot(vdx, vdy);
-      psiCmd = speed > T.minSpeedFtps ? Math.atan2(vdy, vdx) : L.headingRad;
+      if (!own) psiCmd = speed > T.minSpeedFtps ? Math.atan2(vdy, vdx) : L.headingRad;
       // A closure phase may be faster or slower than the aircraft flown off by the closure rate (it replaces the 15 KIAS
       // rejoin overtake, Patrick 05:46Z).
       const over = ph.closureFtps ? ph.closureFtps / ratio : ph.overtakeKias;
       const under = ph.closureFtps ? ph.closureFtps / ratio : ph.undertakeKias;
       // Centred on the reference point's own speed, not Lead's: in a turn a place inside it moves slower than Lead and one
       // outside faster, so holding it takes none of the closure (the review, V2.65); in straight flight the two are the same.
-      const refKias = Math.hypot(vpx, vpy) / ratio;
-      kiasCmd = Math.max(refKias - under, Math.min(refKias + over, speed / ratio));
+      if (!own) {
+        const refKias = Math.hypot(vpx, vpy) / ratio;
+        kiasCmd = Math.max(refKias - under, Math.min(refKias + over, speed / ratio));
+      }
     }
 
     // Heading loop: turn rate toward the commanded heading, with its own rate fed forward; bank from the turn rate.
