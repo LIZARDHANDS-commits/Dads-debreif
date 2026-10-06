@@ -5,9 +5,9 @@ Reset on 3 Oct 2026. Kept here: manuals/ (flying manuals index and readings), ma
 turn-sim-review/: notes and screenshots for the Turn Sim review (opened 4 Oct 2026).
 ## Left out, and why
 
-Patrick (6 Oct 22:31Z): copy everything except CFAFM, and no mentions of CFAFM.
+Patrick (6 Oct 22:31Z): copy everything except the controlled flight manual, with no mentions of it.
 
-- **Flight-manual (CFAFM) content and mentions:** every mention was removed or reworded from these files. The Gen Book (text, PDF and page pictures) is left out because it reproduces flight-manual tables.
+- **Controlled flight-manual content and mentions:** every mention was removed or reworded from these files. The Gen Book (text, PDF and page pictures) is left out because it reproduces flight-manual tables.
 - **The manual PDFs and full-text extracts:** held in the project files until Patrick decides; the Gen Book also holds a staff contact list.
 - **The renamed engine copy and renamed docs** in the Formation review package (`src/`, `docs/trainer/`): a duplicate of our own code and module docs with Fable's renamed terms.
 - **Archives and uploads:** history only.
