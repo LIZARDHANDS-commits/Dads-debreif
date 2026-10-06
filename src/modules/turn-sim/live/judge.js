@@ -55,7 +55,7 @@ function classifyLink(lead, wing) {
   if (range < 300) { // inside about 300 ft: the close formations (route reaches about 230 ft out since step 2)
     if (across < 22 && back > 0) return { key: 'astern', side: 0 };
     if (across < 56 && rel.fwd < 40 && rel.fwd > -90) return { key: 'echelon', side };
-    if (across <= (ROUTE_SPANS.max + 1) * WINGSPAN_FT && rel.fwd < 60 && rel.fwd > -120) return { key: 'route', side }; // out to a wingspan past the route band (Patrick 06:11Z)
+    if (across <= (ROUTE_SPANS.max + 2) * WINGSPAN_FT && rel.fwd < 60 && rel.fwd > -200) return { key: 'route', side }; // route is on the spinner-to-wingtip line, about 143 ft back (TS-103): out and back past the route band (Patrick 06:11Z)
   }
   return { key: 'other', side };
 }
@@ -204,7 +204,7 @@ export function judgeLink(kind, ref, wing, { spacingFt = 6000, wingPlane = false
     else if (downErr > C) labels.push('LOW');
     const within = `(±${C} ft)`;
     if (kind === 'echelon') numbers = `${ft(across)} out (${Math.abs(slot.left)} ${within}), ${ft(-rel.fwd)} back (${-slot.fwd} ${within}), ${ft(down)} ${down >= 0 ? 'below' : 'above'} (${-slot.alt} ${within})`;
-    else if (kind === 'route') numbers = `${ft(across)} out (${Math.round(Math.abs(slot.left))} ${within}: ${ROUTE_SPANS.slot ?? 5} wingspans), ${ft(-rel.fwd)} back (${-slot.fwd} ${within}), ${ft(down)} ${down >= 0 ? 'below' : 'above'} (${-slot.alt} ${within})`;
+    else if (kind === 'route') numbers = `${ft(across)} out (${Math.round(Math.abs(slot.left))} ${within}: ${ROUTE_SPANS.slot ?? 5} wingspans down the line from echelon), ${ft(-rel.fwd)} back (${Math.round(-slot.fwd)} ${within}), ${ft(down)} ${down >= 0 ? 'below' : 'above'} (${-slot.alt} ${within})`;
     else numbers = `${ft(-rel.fwd - LENGTH_FT)} nose to tail (${Math.round(-slot.fwd - LENGTH_FT)} ${within}), ${ft(across)} off line, ${ft(down)} ${down >= 0 ? 'below' : 'above'} (${-slot.alt} ${within})`;
   } else {
     throw new Error(`No link judgement called ${kind}`);

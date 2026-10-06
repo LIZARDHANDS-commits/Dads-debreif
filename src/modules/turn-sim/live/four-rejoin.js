@@ -18,12 +18,11 @@
 import { DEG, relativeTo, turnSeg, wholeDegree } from './manoeuvres.js';
 import { recordFlight, slide, closeThrough, rejoinTo, straightAhead, sweepOut } from './transitions.js';
 import { REJOIN, TURNING_REJOIN, FW_FOLLOW, STRAIGHT_REJOIN } from './tuning.js';
-import { onTheLine } from './straight-rejoin.js';
 import { KT_TO_FTPS as KT_FTPS } from '../../../core/units.js';
 import { fwGoal } from './formation-turns.js';
 import { leadTurnInto } from './hand-over.js';
 import { searchTurningRejoin, flyWith } from './turning-rejoin.js';
-import { LENGTH_FT, slotsFor, FW_STEP_DOWN_FT } from './slots.js';
+import { LENGTH_FT, slotsFor, pairSlot, FW_STEP_DOWN_FT } from './slots.js';
 import { legsInTurn, place, hold, toSlot, inLeadFrame, ech, toSpeed, GENTLE_ALT_FTPS } from './four-legs.js';
 
 /** The overtake the rear wingmen use to close from far out (estimate: the straight-ahead rejoin's 20 to 30 KIAS, EFIG p.371). */
@@ -207,9 +206,10 @@ export function closeFromFw(start, t0, opts, s, to) {
 export function straightToEchelon(start, t0, opts, sTo) {
   return legsInTurn(start, t0, opts, [(c) => {
     const ech4 = slotsFor('echelon', sTo, { ships: 4 });
-    // Each joins the spinner-to-wingtip line of the one it flies off and flows up it into echelon, never stopping short
-    // (Patrick 6 Oct 02:01Z; the 2-ship's SARJ since V2.105). Until V2.106 they stopped in route, nearly abreast, then slid in.
-    const line = onTheLine(sTo);
+    // Each joins the spinner-to-wingtip line of the one it flies off at route (on the line since V2.107, TS-103) and flows up
+    // it into echelon, never stopping short (Patrick 6 Oct 02:01Z, 02:11Z). Until V2.106 they stopped in route, then nearly
+    // abreast, and slid in.
+    const line = pairSlot('route', sTo);
     const flowFtps = STRAIGHT_REJOIN.lineArriveKt * KT_FTPS;
     const legsFor = (id, holdLineUpUntil) => {
       const { ref } = ech4[id];

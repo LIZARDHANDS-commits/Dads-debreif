@@ -20,7 +20,7 @@
 import { relativeTo, DEG } from './manoeuvres.js';
 import { recordFlight, speedSeg, closeThrough, legsFor, STRAIGHT_AHEAD, CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
-import { FORMATIONS, pairSlot, LENGTH_FT, WINGSPAN_FT } from './slots.js';
+import { FORMATIONS, pairSlot } from './slots.js';
 import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, STRAIGHT_REJOIN, TURNING_REJOIN, TRACKER, CLOSURE, closureNow, closeInFtps } from './tuning.js';
 import { onClosure, fromStep } from './hand-over.js';
 import { STEP_SEC, copyAircraft } from './flight.js';
@@ -135,25 +135,15 @@ function flyToDecision({ wing, rec, s, route, cutDeg, aimFt, overtakeKt, arriveF
   return null;
 }
 
-/**
- * Into echelon he joins "the line" (Patrick 6 Oct 02:01Z: "SARJ shuold hit 'The line' (drawn between the prop spinner and
- * wingtip, as per smm) and fluildly transition their motion up that line in to position"): the line from Lead's spinner
- * through his wingtip, which runs back through the echelon slot about 45° behind abeam (LENGTH_FT and WINGSPAN_FT are the
- * same). He aims for it STRAIGHT_REJOIN.lineJoinEchelons times echelon's distance out, then flows up it into the slot without stopping. Until
- * V2.105 he aimed for route itself, 25 ft behind Lead, so he ran up nearly abreast and wide, then slid back in.
- */
-export function onTheLine(s, spacingFt) {
-  const ech = pairSlot('echelon', s, spacingFt);
-  const out = STRAIGHT_REJOIN.lineJoinEchelons * Math.abs(ech.left);
-  return { fwd: ech.fwd - (out - Math.abs(ech.left)) * (LENGTH_FT / WINGSPAN_FT), left: s * out, alt: ech.alt };
-}
-
-/** The whole rejoin with one cut: #2's part to the decision point, then the tracker through route (on the line, into echelon) into the slot. */
+/** The whole rejoin with one cut: #2's part to the decision point, then the tracker through route into the slot. */
 function flyWith({ lead, wing, rec, s, to, sTo, spacingFt, blockFt, t0, cutDeg, aimFt, overtakeKt }) {
   const TR = TURNING_REJOIN;
   const A = STRAIGHT_AHEAD;
   const sRoute = sTo || s;
-  const route = to === 'echelon' ? onTheLine(sRoute, spacingFt) : pairSlot('route', sRoute, spacingFt);
+  // Route is on the spinner-to-wingtip line (TS-103), so into echelon he joins the line at route and flows on up it into the
+  // slot without stopping (Patrick 6 Oct 02:01Z: "SARJ shuold hit 'The line' ... and fluildly transition their motion up
+  // that line in to position"; 02:11Z: "It should move through route and stop at eschalon").
+  const route = pairSlot('route', sRoute, spacingFt);
   // Heights are against Lead's at the press: just below his wake is A.belowWakeFt below him, wherever he is (until V2.99
   // they were read as heights against the block's zero, so with Lead off it #2 flew to the wrong height).
   const leadAlt = rec.at(0).altAboveFt;
