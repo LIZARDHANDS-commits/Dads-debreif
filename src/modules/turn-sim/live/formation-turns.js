@@ -12,8 +12,9 @@
 //    the tracker's pursuit geometry on the turn in and the turn out (Figs 12.21, 12.22), with power only as far as the
 //    tracker's small overtake and undertake allow.
 //  - A gentle turn (the check turn) is not manoeuvring: #2 keeps its side and sweep (AFM7 brief p.14 item 5a).
-//  - Once Lead rolls out, #2 moves back out into the band on the side it started (Fig 12.23, "pick the side you want and
-//    regain position").
+//  - Once Lead rolls out, #2 moves back out into the band (Fig 12.23): on the side it started after a turn button, and
+//    after Wings level on the side fwExitSide picks (stretched: the inside of the turn; tight: the outside; otherwise the
+//    side his nose is carrying him to, "pick the side you want and regain position"), with no pursuit curve on the exit.
 // Numbers with no source beside them are estimates and say so.
 //
 // Turns in the close formations (spec section 10.2; Patrick 18:11Z: "do turns in any of these formations") are planned here
@@ -25,7 +26,7 @@ import { trackTwice, phase } from './tracker.js';
 import { smoothest, makeTrack, seedTrack, setTrackStep, TRACK_PAD, posesFrom, settleLast, slotInWorld } from './kinematic.js';
 import { leadTurnSegs } from './kinematic-moves.js';
 import { fwPursuitCommand } from './fw-pursuit.js';
-import { FW_TURN, FW_FOLLOW, WING_BANKS, ROLL, RATE_SETS } from './tuning.js';
+import { FW_TURN, FW_FOLLOW, FW_EXIT, WING_BANKS, ROLL, RATE_SETS } from './tuning.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { wrapPi } from '../../../core/angles.js';
 
@@ -59,6 +60,67 @@ export function fwGoal(L, W, side, collapse = true) {
   const theta = Math.min(r / turnRadius, Math.PI / 2);
   const six = { fwd: -turnRadius * Math.sin(theta), left: Math.sign(L.bankDeg) * turnRadius * (1 - Math.cos(theta)) };
   return { fwd: bandGoal.fwd + (six.fwd - bandGoal.fwd) * c, left: bandGoal.left + (six.left - bandGoal.left) * c };
+}
+
+/**
+ * The side of the cone #2 flows to when Lead rolls out of a fighting wing turn (SMM 12.30, Fig 12.23; FW_EXIT), +1 left or
+ * -1 right. The range a few seconds on, at the present opening or closing, against the cone (500-1,000 ft, SMM 12.29
+ * para 69): past it, stretched, the inside of the turn (the shortest path); short of it, tight, the outside (the longer
+ * path); in it, the side #2's nose points to off Lead's heading (lagging Lead's turn, the outside), so he rolls out with
+ * Lead and drifts there without a reversal. Exported for the dry runs.
+ */
+export function fwExitSide(L, W) {
+  const turn = Math.sign(L.bankDeg) || 1; // +1 a left turn: the inside is left
+  const dx = W.xFt - L.xFt;
+  const dy = W.yFt - L.yFt;
+  const range = Math.hypot(dx, dy);
+  const vx = W.tasFtps * Math.cos(W.headingRad) - L.tasFtps * Math.cos(L.headingRad);
+  const vy = W.tasFtps * Math.sin(W.headingRad) - L.tasFtps * Math.sin(L.headingRad);
+  const ahead = range + ((dx * vx + dy * vy) / Math.max(range, 1)) * FW_EXIT.lookAheadSec;
+  if (ahead > FW_TURN.band.maxFt) return turn;
+  if (ahead < FW_TURN.band.minFt) return -turn;
+  const nose = Math.sign(wrapPi(W.headingRad - L.headingRad)); // +1 his nose is left of Lead's heading
+  return nose || Math.sign(relativeTo(L, W).left) || -1;
+}
+
+/**
+ * The turn exit for a fighting wing goal phase (Fig 12.23), as the tracker's `exitAt` and `exit` (tracker.js): from the
+ * moment the aircraft flown off rolls out, #2 picks his side (fwExitSide, at that moment, afresh on each pass of the dry
+ * run; keepSide instead holds a given side, as after a turn button), flies no pursuit curve and no collapse, takes the band's nearest point on that side as his place at once (no
+ * slide toward it), and steers on the heading error alone. Until V2.109 the pursuit and the collapse ran on while the one
+ * flown off rolled out, the place slid across, and the heading loop fed forward the dying turn: #2 rolled up to 78° further
+ * into the old turn, then through 60° the other way to his side, then back (the roll-out hunting, about 3 s).
+ */
+function fwExit(exitAt, keepSide = null) {
+  let side = keepSide;
+  return {
+    exitAt,
+    exit: {
+      pursuit: null,
+      fwdRate: Infinity,
+      latRate: Infinity,
+      feedForward: false,
+      goal: (L, W, t) => {
+        if (keepSide === null && (side === null || t <= exitAt + STEP_SEC / 2)) side = fwExitSide(L, W);
+        return fwGoal(L, W, side, false);
+      },
+    },
+  };
+}
+
+/**
+ * When the aircraft a wingman flies off rolls out of a fighting wing turn: the first moment after it has been manoeuvring
+ * (banked past FW_TURN.collapseFromDeg, the bank #2 starts collapsing at) that it is back under that bank for good. Null if
+ * it never manoeuvres. rec: a recorded flight (transitions.js recordFlight).
+ */
+function rollOutAt(rec, t0, maxSec = 300) {
+  let last = null;
+  for (let n = 0; n < Math.round(maxSec / STEP_SEC); n++) {
+    const s = rec.at(n);
+    if (Math.abs(s.bankDeg) >= FW_TURN.collapseFromDeg) last = n;
+    if (s.free && Math.abs(s.bankDeg) < 0.1) break;
+  }
+  return last === null ? null : t0 + (last + 1) * STEP_SEC;
 }
 
 /** Sweep back from Lead's 3/9 line, degrees (0 abeam, 90 straight behind). */
@@ -119,7 +181,11 @@ export function planFwTurn(aircraft, key, dir, t0 = 0, { blockFt = 8000 } = {}) 
     // #2 only: #3 and #4 fly off a wingman who is himself manoeuvring, so they keep the band goal (an estimate; the four-ship
     // rebuild may extend the law to them).
     const pursuit = collapse && wing.ref === lead.id ? { pursuit: pursuitOf(dir * bank) } : {};
-    const goalPhase = phase({ fwd: rel0.fwd, left: rel0.left, alt: wing.altAboveFt }, { ...follow, ...pursuit, track: wing.ref, goal: (L, W) => fwGoal(L, W, side, collapse) });
+    // The turn exit (Fig 12.23) once Lead rolls out, after the bigger turns #2 collapses in: #2 only, as the pursuit, keeping
+    // the side he started on (as before). #3 and #4 fly as before (an estimate, as the pursuit).
+    const outAt = collapse && wing.ref === lead.id ? rollOutAt(refs[wing.ref], t0) : null;
+    const exit = outAt !== null ? fwExit(outAt, side) : {};
+    const goalPhase = phase({ fwd: rel0.fwd, left: rel0.left, alt: wing.altAboveFt }, { ...follow, ...pursuit, ...exit, track: wing.ref, goal: (L, W) => fwGoal(L, W, side, collapse) });
     const { run, profile } = trackTwice({ refs, wing0: wing, t0, phases: [goalPhase], blockFt });
     if (!run.ok) return { ok: false, reason: `No safe ${m.label.toLowerCase()} in fighting wing from here: ${NAMES[wing.id]} could not settle back into the band.` };
     const plan = { segments: [{ kind: 'bankTrack', points: run.points }], profile };
@@ -480,12 +546,14 @@ export function planFwMove(aircraft, key, dir, t0 = 0, { blockFt = 8000, bankDeg
   const leadPlan = { segments, profile };
   const refs = { [lead.id]: recordFlight(lead, leadPlan, t0) };
   const rel0 = relativeTo(lead, wing);
+  // Wings level out of a turn is the turn exit (Fig 12.23, fwExit) from the press.
+  const exit = key === 'wingsLevel' && turning;
   const side = Math.sign(rel0.left) || -1;
   const follow = { ...FW_FOLLOW, bankCapDeg: WING_BANKS.fwFollowBankCapDeg };
   // #2 flies the pursuit curves while Lead is banked (fw-pursuit.js, TS-100), from the press at the bank Lead's plan turns at.
   const plannedBank = key === 'levelTurn' ? dir * bankDeg : key === 'reversal' ? -nowDir * Math.max(bankDeg, Math.abs(lead.bankDeg)) : turning ? nowDir * Math.abs(lead.bankDeg) : null;
-  const goalPhase = phase({ fwd: rel0.fwd, left: rel0.left, alt: wing.altAboveFt }, { ...follow, pursuit: pursuitOf(plannedBank), track: lead.id, goal: (L, W) => fwGoal(L, W, side, true) });
-  const { run } = trackTwice({ refs, wing0: wing, t0, phases: [goalPhase], blockFt });
+  const goalPhase = phase({ fwd: rel0.fwd, left: rel0.left, alt: wing.altAboveFt }, { ...follow, pursuit: pursuitOf(plannedBank), ...(exit ? fwExit(t0) : {}), track: lead.id, goal: (L, W) => fwGoal(L, W, side, true) });
+  const { run } = trackTwice({ refs, wing0: wing, t0, phases: [goalPhase], blockFt, init: exit ? { accelKtps: 0 } : null });
   if (!run.ok) return { ok: false, reason: `No safe ${FW_MOVES[key].label.toLowerCase()} in fighting wing from here: #2 could not stay in the cone.` };
   // #2 climbs and descends with Lead, keeping the height he has from Lead (the whole cone, high or low: Patrick 08:58Z).
   const dh = wing.altAboveFt - lead.altAboveFt;

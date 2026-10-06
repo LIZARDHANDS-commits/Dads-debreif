@@ -186,6 +186,16 @@ export const FW_PURSUIT = Object.freeze({
 });
 
 /**
+ * The fighting wing turn exit (formation-turns.js fwExitSide; SMM 12.30, Fig 12.23): when Lead rolls out, #2 picks the side
+ * of the cone he flows to from the range he will have a few seconds on. Past the cone (stretched or opening): the inside
+ * of the turn, the shortest path. Inside it (tight or closing hard): the outside, the longer path. In between: the side his
+ * nose is already carrying him to, so he rolls out with Lead with no reversal ("pick the side you want and regain position").
+ */
+export const FW_EXIT = Object.freeze({
+  lookAheadSec: 5, // the range is judged this far ahead at the present opening or closing (estimate)
+});
+
+/**
  * The fighting wing side switch (fw-switch.js, TS-102; Patrick 6 Oct 2026 01:04Z: "the station change from side to side in
  * fighting wing should be at least 60 deg bank. it's a fast switch over that can be used to bleed energy. right now its
  * very slow"). An S-turn behind Lead: into the tail line at the switch bank, then the other way until he is parallel to

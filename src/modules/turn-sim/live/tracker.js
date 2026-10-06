@@ -145,7 +145,9 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
 
   for (let n = 0; n < Math.round(maxSec / STEP_SEC); n++) {
     // Both aircraft are read at the same instant (the start of the step).
-    const ph = phases[k];
+    // A phase with `exitAt` (a time) and `exit` (overrides) flies those overrides from that time on: the fighting wing turn
+    // exit once the aircraft flown off rolls out (formation-turns.js fwExit, Fig 12.23).
+    const ph = phases[k].exitAt != null && t >= phases[k].exitAt - 1e-9 ? { ...phases[k], ...phases[k].exit } : phases[k];
     const L = R.at(m);
     const Lprev = m > 0 && !reentered ? R.at(m - 1) : null;
     reentered = false;
@@ -276,7 +278,9 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     const psiStep = wrapPi(psiCmd - psiCmdPrev);
     psiCmdPrev = psiCmd;
     omegaFf += GAIN.ffFilter * (psiStep / STEP_SEC - omegaFf);
-    const omegaCmd = GAIN.heading * wrapPi(psiCmd - W.headingRad) + omegaFf;
+    // A phase with `feedForward: false` (the fighting wing turn exit, formation-turns.js fwExit) steers on the heading error alone:
+    // as Lead rolls out the turn of the place #2 flies to dies away, and fed forward it rolled #2 past his heading and back.
+    const omegaCmd = GAIN.heading * wrapPi(psiCmd - W.headingRad) + (ph.feedForward === false ? 0 : omegaFf);
     const cap = aligning ? T.alignBankDeg : ph.bankCapDeg;
     let bank = Math.max(-cap, Math.min(cap, bankDegFromTurnRate(W.tasFtps, omegaCmd)));
     if (bankOwn != null) bank = Math.max(-cap, Math.min(cap, bankOwn)); // the switch's own bank, inside the phase's cap (the G rule)
