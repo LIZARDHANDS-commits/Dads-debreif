@@ -23,8 +23,8 @@ import { G_FTPS2, FTPS_TO_KT } from '../../../core/units.js';
 import { STEP_SEC, rollLimitAt } from './flight.js';
 import { classify } from './judge.js';
 import { relativeTo, DEG } from './manoeuvres.js';
-import { pairSlot } from './slots.js';
-import { LAG_ROLL } from './tuning.js';
+import { pairSlot, FW_BAND } from './slots.js';
+import { LAG_ROLL, FW_ENERGY } from './tuning.js';
 import { add3, scale3, perp3, len3, unit3, dot3, cross3, liftOf, poseOf3d } from './attitude.js';
 import { easeRoll } from '../../../core/flight-math.js';
 
@@ -47,6 +47,19 @@ function smooth(u) {
  * other side), H (how far above the straight line he goes) }.
  */
 function relAt(t, P) {
+  // The set-up (Patrick 6 Oct 22:33Z, TS-143): first forward and high in the cone on his own side, smoothly, so the roll
+  // starts from there and ends in position (or as near as it can).
+  if (P.T0 > 0) {
+    if (t < P.T0) {
+      const m = smooth(Math.max(0, t / P.T0));
+      const k = (from, to) => ({ p: from + (to - from) * m.s, v: ((to - from) * m.d) / P.T0, a: ((to - from) * m.dd) / (P.T0 * P.T0) });
+      const fwd = k(P.s0.fwd, P.f0);
+      const left = k(P.s0.left, P.L0);
+      const up = k(P.s0.up, P.z0);
+      return { p: { fwd: fwd.p, left: left.p, up: up.p }, v: { fwd: fwd.v, left: left.v, up: up.v }, a: { fwd: fwd.a, left: left.a, up: up.a } };
+    }
+    t -= P.T0;
+  }
   if (t <= P.T) {
     const m = smooth(Math.max(0, t / P.T));
     const th = Math.PI * m.s;
@@ -126,8 +139,9 @@ function measure(P, lead0, vL, heightFt, gCap, close = false) {
   let maxClimbDeg = -90;
   let minRange = Infinity;
   let out = !close; // from echelon the 500 ft bubble counts once #2 has left his close place (TS-78)
+  const T0 = P.T0 ?? 0; // the roll itself is measured; the set-up before it stays in the cone
   for (let t = 0; t <= P.T + 1e-9; t += dt) {
-    const s = groundAt(t, P, lead0, vL);
+    const s = groundAt(T0 + t, P, lead0, vL);
     const tas = len3(s.vel);
     const nose = scale3(s.vel, 1 / tas);
     const g = gOf(s.acc, nose);
@@ -143,7 +157,7 @@ function measure(P, lead0, vL, heightFt, gCap, close = false) {
     if (range >= LAG_ROLL.bubbleFt) out = true;
     if (out) minRange = Math.min(minRange, range);
   }
-  const top = groundAt(P.T / 2, P, lead0, vL);
+  const top = groundAt(T0 + P.T / 2, P, lead0, vL);
   const liftUpZ = top.acc.z + G_FTPS2; // canopy to canopy: the lift points down, toward Lead, over his six
   const topRange = Math.hypot(top.rel.fwd, top.rel.left, top.rel.up);
   if (liftUpZ >= 0 || minRange < LAG_ROLL.bubbleFt) return null;
@@ -169,7 +183,7 @@ function landsInCone(P) {
 function score(m, P, pullG, noseUpDeg) {
   if (m.maxG > pullG + 0.05) return null;
   const noseMiss = Math.abs(m.maxClimbDeg - noseUpDeg);
-  const cost = Math.abs(m.minKias - LAG_ROLL.topKias) + noseMiss * (noseMiss > LAG_ROLL.noseUpSlopDeg ? 3 : 1) + 10 * Math.abs(pullG - m.maxG) + (P.fs - P.fE) / 100 + P.T / 4;
+  const cost = Math.abs(m.minKias - LAG_ROLL.topKias) + noseMiss * (noseMiss > LAG_ROLL.noseUpSlopDeg ? 3 : 1) + 10 * Math.abs(pullG - m.maxG) + (P.fs - P.fE) / LAG_ROLL.fallBackCostFt + P.T / 4;
   return { ...m, cost, pullG, noseUpDeg };
 }
 
@@ -197,8 +211,21 @@ export function planLagRoll(aircraft, options = {}, t0 = 0) {
   const vL = lead.tasFtps;
   const lead0 = { x: lead.xFt, y: lead.yFt, h: lead.headingRad };
   const heightFt = blockFt + lead.altAboveFt;
-  const base = { f0: rel.fwd, L0: rel.left, z0: wing.altAboveFt - lead.altAboveFt, fs: slot.fwd, L1: slot.left, zs: slot.alt };
   const closeFtps = (LAG_ROLL.closeOvertakeKias / FTPS_TO_KT) * (vL / Math.max(1, lead.kias / FTPS_TO_KT)); // the overtake as true airspeed
+  // From fighting wing he first moves to the front and top of the cone on his own side (TS-143), the cone's most forward
+  // corner; from echelon he rolls from where he is.
+  const s0 = { fwd: rel.fwd, left: rel.left, up: wing.altAboveFt - lead.altAboveFt };
+  let start = s0;
+  let T0 = 0;
+  if (!close) {
+    const range = LAG_ROLL.setUpRangeFt; // the cone's front, near its inside edge: as far forward as the cone goes, outside the bubble
+    const sweep = (FW_BAND.sweepDeg[0] + LAG_ROLL.setUpSweepInDeg) * DEG;
+    start = { fwd: -range * Math.sin(sweep), left: s * range * Math.cos(sweep), up: FW_ENERGY.coneUpFt };
+    const moveFt = Math.hypot(start.fwd - s0.fwd, start.left - s0.left, start.up - s0.up);
+    if (moveFt > LAG_ROLL.setUpMinFt) T0 = Math.max(LAG_ROLL.setUpMinSec, (2 * moveFt) / (closeFtps * LAG_ROLL.setUpOvertakeKias / LAG_ROLL.closeOvertakeKias)); // the smooth move's peak rate is twice its mean
+    else start = s0;
+  }
+  const base = { T0, s0, f0: start.fwd, L0: start.left, z0: start.up, fs: slot.fwd, L1: slot.left, zs: slot.alt };
 
   // The search: pull G x nose-up (the design's set), and for each the roll's length, height and fall-back (LAG_ROLL).
   let best = null;
@@ -228,7 +255,7 @@ export function planLagRoll(aircraft, options = {}, t0 = 0) {
 
   // The flown path, one pose a step (attitude.js), and the checks again on it at the sim's own step.
   const { P } = best;
-  const total = P.T + P.T2;
+  const total = P.T0 + P.T + P.T2;
   const n = Math.max(1, Math.round(total / STEP_SEC));
   const poses = [];
   let wings = { up: { x: 0, y: 0, z: 1 }, rollDps: 0, missG: 0 }; // wings level
@@ -255,7 +282,7 @@ export function planLagRoll(aircraft, options = {}, t0 = 0) {
     if (lift.g > availableG(kias, Math.abs(roll) > LAG_ROLL.rollingAboveDps)) overAvailable = true;
     // Lead in the top half of #2's canopy (the design's flag): Lead's side of #2's wing plane.
     const toLead = unit3(add3(st.leadPos, scale3(st.pos, -1)));
-    if (t <= P.T && dot3(toLead, wings.up) < 0) leadOutOfTopHalfSec += total / n;
+    if (t >= P.T0 && t <= P.T0 + P.T && dot3(toLead, wings.up) < 0) leadOutOfTopHalfSec += total / n;
     maxBankDeg = Math.max(maxBankDeg, Math.abs(pose.bank));
     maxG = Math.max(maxG, lift.g);
     maxRollDps = Math.max(maxRollDps, Math.abs(roll));
@@ -269,7 +296,8 @@ export function planLagRoll(aircraft, options = {}, t0 = 0) {
   const sc = best.sc;
   const flag = leadOutOfTopHalfSec > 0 ? ` Lead leaves the top half of #2's canopy for about ${leadOutOfTopHalfSec.toFixed(1)} s.` : '';
   const fromWords = close ? `from echelon ${s > 0 ? 'left' : 'right'} ` : '';
-  const note = `Lag roll ${fromWords}to fighting wing ${sideWord}: #2 pulls up to ${sc.maxG.toFixed(1)} G, nose about ${Math.round(sc.maxClimbDeg)}° up, `
+  const setUpWords = P.T0 > 0 ? `moves forward and high in the cone (${Math.round(P.T0)} s), then ` : '';
+  const note = `Lag roll ${fromWords}to fighting wing ${sideWord}: #2 ${setUpWords}pulls up to ${sc.maxG.toFixed(1)} G, nose about ${Math.round(sc.maxClimbDeg)}° up, `
     + `rolls toward Lead and passes over his six inverted at about ${Math.round(sc.topRange).toLocaleString('en-CA')} ft, `
     + `slowest ${Math.round(sc.minKias)} KIAS, then down into the cone on the ${sideWord} and closes at ${LAG_ROLL.closeOvertakeKias} kt to the slot. `
     + `The SMM does not name the lag roll (nearest: SMM 12.29 para 69, 12.30-12.31 para 74, 14.8 paras 18-19); the numbers are estimates.${flag}`;
@@ -291,6 +319,7 @@ export function planLagRoll(aircraft, options = {}, t0 = 0) {
     endSec: t0 + total,
     rejoining: false,
     lagRoll: {
+      setUpSec: P.T0,
       rollSec: P.T,
       closeSec: P.T2,
       climbFt: P.H,
