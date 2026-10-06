@@ -19,8 +19,8 @@ import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
 import { relativeTo } from './manoeuvres.js';
 import { recordFlight, speedSeg, describe } from './transitions.js';
-import { KIAS_LAB, KIAS_OUTSIDE_LAB, KINEMATIC, OPEN_OUT } from './tuning.js';
-import { FORMATIONS, fwShapeNow, pairSlot } from './slots.js';
+import { KIAS_LAB, KIAS_OUTSIDE_LAB, KINEMATIC, OPEN_OUT, LAG_ROLL } from './tuning.js';
+import { FORMATIONS, FW_BAND, fwShapeNow, pairSlot } from './slots.js';
 import { speedSegFor } from './slow-down.js';
 import { makeTrack, seedTrack, posesFrom, settleLast, followInto, rollStarts, relPath, timeLaw, slotInWorld, poseOf, laggedBank, relSpeedLimit } from './kinematic.js';
 
@@ -33,6 +33,13 @@ export function slotPoint(key, side, spacingFt) {
   const s = pairSlot(key, side, spacingFt);
   return { fwd: s.fwd, left: s.left, up: s.alt, plane: CLOSE.has(key) ? 1 : 0 };
 }
+
+/** A fighting wing side swap (TS-86): how far outside the bubble #2 crosses Lead's six, and how far he drifts back for each foot across (about the tangent of half a 20-25° angle off; both estimates). */
+const SWAP_CROSS_MARGIN_FT = 100;
+const SWAP_LAG_RATIO = 0.2;
+
+/** Where a crossing behind Lead passes his six, fwd ft: outside the 500 ft bubble by SWAP_CROSS_MARGIN_FT (estimates). */
+export const crossBehindFwd = (rangeFt) => -(Math.max(LAG_ROLL.bubbleFt, rangeFt * 0.9) + SWAP_CROSS_MARGIN_FT);
 
 /**
  * The places #2's line passes on its way from `from` (side s, where it is now: `cur`) to `to` (side sTo), in Lead's frame,
@@ -77,8 +84,17 @@ export function routePoints(from, s, to, sTo, cur, spacingFt) {
   }
   if (to === 'fw') {
     if (at === 'fw') {
-      // flow to the other side behind Lead (SMM 12.29 para 69)
-      pts.push({ fwd: fwBack, left: side * 300, up: -60, plane: 0 }, { fwd: fwBack, left: 0, up: -60, plane: 0 }, { fwd: fwBack, left: sTo * 300, up: -60, plane: 0 });
+      // flow to the other side behind Lead (SMM 12.29 para 69), lag then across (Patrick 22:29Z: the side swap is fast;
+      // TS-86): #2 angles off across Lead's six at his own speed, so he drifts back as he crosses and needs no overtake,
+      // and ends where that leaves him in the cone on the other side (fighting wing ends anywhere in the cone, TS-83). His
+      // drift back is SWAP_LAG_RATIO of the way across; the cross stays SWAP_CROSS_MARGIN_FT outside the 500 ft bubble
+      // (both estimates), and the end stays inside the band's far edge.
+      const across = 2 * Math.abs(cur.left);
+      const range = Math.hypot(cur.fwd, cur.left);
+      const endFwd = -Math.min(-cur.fwd + SWAP_LAG_RATIO * across, Math.sqrt(Math.max(0, (FW_BAND.rangeFt[1] - 50) ** 2 - cur.left ** 2)));
+      const crossFwd = Math.min((cur.fwd + endFwd) / 2, crossBehindFwd(range));
+      pts.push({ fwd: crossFwd, left: 0, up: cur.up, plane: 0 }, { fwd: Math.min(endFwd, cur.fwd), left: -cur.left, up: cur.up, plane: 0 });
+      return pts;
     } else {
       if (side !== sTo) crossClose('echelon');
       // drop back first, then sweep out (SMM 16.32 para 92; 16.38 para 105)
@@ -266,4 +282,4 @@ export function planLineMove(pair, from, s, to, sTo, { spacingFt = 6000, blockFt
 // hand-over.js can use it without an import loop; it is re-exported here for the files that read it from here.
 export { leadTurnSegs } from './manoeuvres.js';
 
-// The hot turning rejoin from line abreast (standard and off-standard starts, and the overshoot) is in hot-rejoin.js.
+// The hot turning rejoin from line abreast lived in hot-rejoin.js until V2.93 (TS-94: a training error's start is now raced by the chooser).

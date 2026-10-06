@@ -2,7 +2,7 @@
 // simplified"). Every Lead button is planned at the press as a path, flown by the shared point-mass step (core
 // stepPointMass: G along the lift, bank from the horizon) with the T-6A's full-power thrust and drag (core t6aExcessFn).
 // Each button is a small "pilot" that asks for a G and a bank every step; the G builds at no more than 4 G/s (an
-// estimate, design 5.3) and the roll at the ruled 90°/s built at 360°/s² (TS-37), so nothing jumps. The path is worked
+// estimate, design 5.3) and the roll inside the T-6A's ceiling at this speed (TS-85; the ruled 90°/s of TS-37 until then), so nothing jumps. The path is worked
 // out ahead of time and replayed (the planned path drawn is the path flown, spec F1).
 //
 // Power: PCL MAX for the whole exercise (AFM7 brief p.17; SMM 16.17 paras 42-43, both aircraft the same power), except the
@@ -46,10 +46,10 @@
 //    position (the distance setting, 15° off Lead's tail) during it; then each manoeuvre's own speed set-up leads on.
 import { stepPointMass, gAndBankForLift } from '../../../core/point-mass.js';
 import { easeValue, dampedClimbG } from '../../../core/flight-math.js';
-import { t6aExcessFn, tasToIasKt, shakerG, dragPerWeight, thrustPerWeight } from '../../../core/t6-performance.js';
+import { t6aExcessFn, tasToIasKt, shakerG, dragPerWeight, thrustPerWeight, T6A_G_ONSET } from '../../../core/t6-performance.js';
 import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
-import { STEP_SEC, headingChangeRollingOut } from './flight.js';
+import { STEP_SEC, headingChangeRollingOut, rollLimitAt } from './flight.js';
 import { ROLL, WING } from './tuning.js';
 import { excessPerWeight } from './slow-down.js';
 import { add3, sub3, scale3, len3, cross3, unit3, perp3, dot3 } from './attitude.js';
@@ -59,9 +59,14 @@ const Z = Object.freeze({ x: 0, y: 0, z: 1 });
 
 /** The numbers Lead flies. Every one has its source; "estimate" where no manual or ruling gives it. */
 export const LEAD = Object.freeze({
-  gOnset: Object.freeze({ maxRateDps: 4, maxAccelDps2: 16 }), // G per second and per second², design 5.3 (estimate)
+  gOnset: T6A_G_ONSET, // G per second and per second²: the T-6A's in core (estimate, design 5.3; TS-85)
   levelBanks: Object.freeze({ gentle: 30, medium: 60, steep: 70.5 }), // AFM7 p.17 (30, 60/2); SMM 16.18 para 50 (70/3, estimate as "steep")
   entryHoldSec: 5, // the entry's 30° bank stage while "all call ready" (AFM7 p.17): 5 s is an estimate
+  // The entry turn (AFM7 brief p.17: 30° away, then the chosen bank at MAX) is off: Lead flies straight and level while #2
+  // moves into the fluid picture, and the 360 waits for the Standard sequence (Patrick 5 Oct 22:30Z: "fluid manoeuvring
+  // should just move into position to begin, not start a turn yet. the 360 happens when we hit sequence"; TS-86). true
+  // flies AFM7's entry turn as before.
+  entryTurn: false,
   terminateBankDeg: 30, // "gentle" (AFM7 p.17), "predictable" (SMM 16.17 para 46): 30° is an estimate
   terminateTurnDeg: 90, // how far the terminate turn goes before rolling out: an estimate
   fwKias: 200, // fighting wing speed (TS-53; SMM 12.23 para 53)
@@ -196,7 +201,7 @@ export function stepLead(st, ask) {
   for (let i = 0; i < 2; i++) {
     const g = easeValue(s.g, s.gRate, Math.min(ask.g, shakerG(s.kias)), half, LEAD.gOnset);
     const target = s.bank + wrapPi((ask.bank - s.bank) * DEG) / DEG; // the near way round
-    const r = easeValue(s.bank, s.rollRate, target, half, ROLL);
+    const r = easeValue(s.bank, s.rollRate, target, half, rollLimitAt(s.V, ROLL)); // never faster than the T-6A at this speed (TS-85)
     const pm = stepPointMass(s.pm, { g: g.bankDeg, bankRad: r.bankDeg * DEG }, half, excess);
     s = finish({ pm, bank: wrapDeg(r.bankDeg), rollRate: r.rollRateDps, g: g.bankDeg, gRate: g.rollRateDps, blockFt: s.blockFt });
   }
@@ -623,8 +628,26 @@ function wingoverPath(h0, dir, A) {
   }, 2));
 }
 
-/** The entry from fighting wing (AFM7 brief p.17): a 30° bank turn away from #2 while all call ready, then 60° and PCL MAX. */
+/**
+ * The entry from fighting wing. By default (Patrick 22:30Z, LEAD.entryTurn false) Lead flies straight and level at his
+ * speed while #2 moves into the fluid picture, and the entry ends once he is in it; Lead then holds straight and level until
+ * the next press. With LEAD.entryTurn, AFM7 brief p.17's entry: a 30° bank turn away from #2 while all call ready, then
+ * the chosen bank and PCL MAX.
+ */
 export function entry(dir, bankDeg) {
+  if (!LEAD.entryTurn) {
+    return {
+      key: 'entry',
+      label: 'Entry: #2 into position, Lead straight and level',
+      interruptible: false,
+      init: (st) => ({ t: 0, fwKias: st.kias }),
+      step(st, mem, ctx) {
+        mem.t += STEP_SEC;
+        const blendSec = ctx?.blendInSec ?? WING.blendInSec;
+        return { g: gForClimb(st, 0), bank: 0, holdKias: mem.fwKias, phase: '#2 into position', cue: { mode: 'pure', latDeg: 15, blend: 1 }, done: mem.t > blendSec + 1 };
+      },
+    };
+  }
   const turn = levelTurn(dir, bankDeg);
   return {
     key: 'entry',

@@ -11,8 +11,10 @@
 import {
   loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addLights, addSky, disposeAircraftMesh,
 } from '../../ui-kit/three-aircraft.js';
-import { drawTags, T6_LENGTH_FT, trailSince, BACKGROUND, CLOCK_LINE_RED } from './view.js';
+import { drawTags, drawLeadArrows, T6_LENGTH_FT, trailSince, BACKGROUND, CLOCK_LINE_RED } from './view.js';
 import { FW_TURN } from './live/tuning.js';
+import { placeBoxOutline } from './live/move-in-band.js';
+import { liftBankDeg } from './live/flight.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH } from '../../ui-kit/ct156-model.js';
 
@@ -50,6 +52,10 @@ const PLAN_DASH_PX = Object.freeze({ on: 7, off: 6 });
 /** Room for the 3D guides (the 3/9 and 7/5 lines and the turn circles), in points. */
 const GUIDE_LINE_POINTS = 4000;
 const CIRCLE_STEPS = 48;
+/** The band box's colours, as the 2D view's (view.js): blue normally, yellow while Change position is picking. */
+const PLACE_BOX = Object.freeze({ blue: '#4da3ff', yellow: '#ffd23f' });
+/** A press and release that moves less than this many pixels is a click, not a drag. */
+const CLICK_PX = 5;
 /** Half the depth range the 3D camera keeps round the formation, feet (the grid beyond it simply isn't drawn). */
 const DEPTH_HALF_FT = 60_000;
 /** The 3D cone's facets: round the tail, and across the 30-60° band. */
@@ -105,7 +111,7 @@ export function aircraftPose(a, sign = 1) {
     y: a.yFt,
     z: altToZ(FLIGHT_ALT_FT + (a.altAboveFt ?? 0), ALT_SCALE),
     headingRad: a.headingRad,
-    bankRad: rad(a.bankDeg) * (sign < 0 ? -1 : 1),
+    bankRad: rad(liftBankDeg(a.bankDeg, a.nz ?? 1)) * (sign < 0 ? -1 : 1), // where the lift points (TS-108)
     pitchRad: rad(a.pitchDeg ?? 0),
   };
 }
@@ -183,7 +189,17 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     const guideLines = new THREE.LineSegments(guideGeometry(GUIDE_LINE_POINTS), new THREE.LineDashedMaterial({ vertexColors: true, transparent: true, opacity: 0.6, fog: false }));
     guideLines.frustumCulled = false;
     scene.add(guideLines);
-    gl = { renderer, scene, camera, sky, grid, planes: new Map(), trails: new Map(), plans: new Map(), guideLines, cones: new Map(), coneGeometry: {} };
+    // The band's box for Change position (TS-104), flat at Lead's height and turned with his heading, and the picked spot.
+    const boxFill = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide, depthWrite: false, fog: false }));
+    const boxEdge = new THREE.LineLoop(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ transparent: true, opacity: 0.8, fog: false }));
+    const boxSpot = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: PLACE_BOX.yellow, fog: false }));
+    const placeBox = new THREE.Group();
+    placeBox.add(boxFill, boxEdge, boxSpot);
+    placeBox.rotation.order = 'ZYX';
+    placeBox.visible = false;
+    for (const o of placeBox.children) o.frustumCulled = false;
+    scene.add(placeBox);
+    gl = { renderer, scene, camera, sky, grid, planes: new Map(), trails: new Map(), plans: new Map(), guideLines, cones: new Map(), coneGeometry: {}, placeBox, boxShape: '' };
   }
 
   function planeFor(id) {
@@ -357,6 +373,101 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     }
   }
 
+  /**
+   * The band's box (TS-104) in 3D, as the 2D view draws it: blue whenever #2 is in fighting wing or line abreast, yellow
+   * while Change position is picking, with a cross at the picked spot. Built in Lead's frame (x forward, y left).
+   */
+  function syncPlaceBox(state, ftPerPx) {
+    const box = source.placeBox?.();
+    const lead = state.aircraft.find((a) => a.id === 1);
+    const outline = box && lead ? placeBoxOutline(box.key, box.side) : [];
+    gl.placeBox.visible = outline.length > 2;
+    canvas.style.cursor = box?.picking ? 'crosshair' : '';
+    if (!gl.placeBox.visible) return;
+    const [fill, edge, spot] = gl.placeBox.children;
+    const shapeKey = `${box.key}|${box.side}`;
+    if (gl.boxShape !== shapeKey) {
+      gl.boxShape = shapeKey;
+      fill.geometry.dispose();
+      fill.geometry = new THREE.ShapeGeometry(new THREE.Shape(outline.map((p) => new THREE.Vector2(p.fwd, p.left))));
+      edge.geometry.dispose();
+      edge.geometry = new THREE.BufferGeometry().setFromPoints(outline.map((p) => new THREE.Vector3(p.fwd, p.left, 0)));
+    }
+    const colour = box.picking ? PLACE_BOX.yellow : PLACE_BOX.blue;
+    fill.material.color.set(colour);
+    fill.material.opacity = box.picking ? 0.22 : 0.12;
+    edge.material.color.set(colour);
+    spot.visible = Boolean(box.spot);
+    if (box.spot) {
+      const r = 9 * ftPerPx; // the cross's arm, about 9 px on screen at any zoom
+      const { fwd: x, left: y } = box.spot;
+      spot.geometry.dispose();
+      spot.geometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(x - r, y, 1), new THREE.Vector3(x + r, y, 1), new THREE.Vector3(x, y - r, 1), new THREE.Vector3(x, y + r, 1),
+      ]);
+    }
+    const pose = aircraftPose(lead);
+    gl.placeBox.position.set(pose.x, pose.y, pose.z);
+    gl.placeBox.rotation.set(0, 0, lead.headingRad); // level, turned with Lead's heading
+  }
+
+  /**
+   * Elevation lines (Patrick, 6 Oct; Traffic's height lines, with Lead's height as the reference): from each wingman
+   * straight up or down to Lead's level, ending in a circle on that level, in the wingman's colour.
+   */
+  function syncElevation(state, layers, ftPerPx) {
+    if (!gl.elevation) {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(4 * 70 * 3), 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(4 * 70 * 3), 3));
+      gl.elevation = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.7, fog: false }));
+      gl.elevation.frustumCulled = false;
+      gl.scene.add(gl.elevation);
+    }
+    const geo = gl.elevation.geometry;
+    const lead = state.aircraft.find((a) => a.id === 1);
+    let n = 0;
+    if (layers.tagElevation && lead) {
+      const leadZ = aircraftPose(lead).z;
+      const colour = new THREE.Color();
+      const r = 7 * ftPerPx; // the circle, about 7 px on screen at any zoom
+      const put = (x, y, z) => {
+        geo.attributes.position.setXYZ(n, x, y, z);
+        geo.attributes.color.setXYZ(n, colour.r, colour.g, colour.b);
+        n++;
+      };
+      for (const a of state.aircraft) {
+        if (a.id === 1) continue;
+        colour.set(source.colors[a.id] ?? '#ffffff');
+        const z = aircraftPose(a).z;
+        put(a.xFt, a.yFt, z);
+        put(a.xFt, a.yFt, leadZ);
+        for (let i = 0; i < 32; i++) {
+          const t0 = (2 * Math.PI * i) / 32;
+          const t1 = (2 * Math.PI * (i + 1)) / 32;
+          put(a.xFt + Math.cos(t0) * r, a.yFt + Math.sin(t0) * r, leadZ);
+          put(a.xFt + Math.cos(t1) * r, a.yFt + Math.sin(t1) * r, leadZ);
+        }
+      }
+    }
+    geo.attributes.position.needsUpdate = true;
+    geo.attributes.color.needsUpdate = true;
+    geo.setDrawRange(0, n);
+  }
+
+  /** A click while Change position is picking: where it meets the level of Lead's height, in world feet, to the picker. */
+  function pickAt(clientX, clientY) {
+    if (!gl || !source.placeBox?.()?.picking || !source.onPick) return;
+    const lead = source.state().aircraft.find((a) => a.id === 1);
+    if (!lead) return;
+    const rect = canvas.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(ndc, gl.camera);
+    const hit = new THREE.Vector3();
+    if (ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), -aircraftPose(lead).z), hit)) source.onPick(hit.x, hit.y);
+  }
+
   /** Each aircraft's path still to fly, dashed in its colour (the 2D view's planned paths; Patrick, 5 Oct: in 3D too). */
   function planFor(id) {
     let line = gl.plans.get(id);
@@ -467,6 +578,8 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       line.material.gapSize = PLAN_DASH_PX.off * ftPerPx;
     }
     drawGuides(state, layers, (Math.max(box.width, box.height) * ftPerPx) * 0.75);
+    syncPlaceBox(state, ftPerPx);
+    syncElevation(state, layers, ftPerPx);
     gl.guideLines.material.dashSize = 8 * ftPerPx;
     gl.guideLines.material.gapSize = 24 * ftPerPx; // quieter: half the dashes, wider gaps (Patrick, 5 Oct)
     for (const [id, line] of gl.plans) {
@@ -511,7 +624,8 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, w, h);
     const tags = layers.tags ? source.tags?.() : null;
-    if (!tags) return;
+    const links = source.leadLinks?.();
+    if (!tags && !links) return;
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     const screenOf = (a) => {
       const pose = aircraftPose(a, signs[a.id] ?? 1);
@@ -523,7 +637,8 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       const p = worldToScreen(THREE, gl.camera, { x: pose.x + Math.cos(a.headingRad) * 100, y: pose.y + Math.sin(a.headingRad) * 100, z: pose.z }, box.width, box.height);
       return [p.x, p.y];
     };
-    drawTags(ctx, { screenOf, noseOf, size: box }, state, tags);
+    if (links) drawLeadArrows(ctx, { screenOf, size: box }, state, links);
+    if (tags) drawTags(ctx, { screenOf, noseOf, size: box }, state, tags);
   }
 
   function requestDraw() {
@@ -543,6 +658,8 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
   // ---- the person's hands: drag to orbit, wheel or + and - to zoom -------------------------
   const endDrag = (e) => {
     if (!dragging || e.pointerId !== dragging.id) return;
+    // A press that hardly moved is a click: while Change position is picking, it picks the spot (TS-104).
+    if (e.type === 'pointerup' && Math.hypot(e.clientX - dragging.startX, e.clientY - dragging.startY) < CLICK_PX) pickAt(e.clientX, e.clientY);
     cam = dragging.camera;
     dragging = null;
     canvas.classList.remove('is-dragging');
@@ -558,7 +675,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     ['contextmenu', (e) => e.preventDefault()], // right-drag pans
     ['pointerdown', (e) => {
       if (e.button !== 0 && e.button !== 2) return;
-      dragging = { id: e.pointerId, x: e.clientX, y: e.clientY, camera: cam, pan: e.button === 2 || e.shiftKey };
+      dragging = { id: e.pointerId, x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, camera: cam, pan: e.button === 2 || e.shiftKey };
       canvas.setPointerCapture?.(e.pointerId);
       canvas.classList.add('is-dragging');
     }],
@@ -673,6 +790,14 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
         line.material.dispose();
       }
       for (const cone of gl.cones.values()) for (const o of cone.children) o.material.dispose();
+      if (gl.elevation) {
+        gl.elevation.geometry.dispose();
+        gl.elevation.material.dispose();
+      }
+      for (const o of gl.placeBox.children) {
+        o.geometry.dispose();
+        o.material.dispose();
+      }
       for (const geo of Object.values(gl.coneGeometry)) {
         geo.fill.dispose();
         geo.lines.dispose();

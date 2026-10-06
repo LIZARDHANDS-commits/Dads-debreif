@@ -20,7 +20,7 @@
 // The planner reuses the standard builders in manoeuvres.js: it plans the manoeuvre
 // for #2 standing in his slot, which is the SMM picture, then changes only #2's
 // own plan. Both fly through flight.js, so every path is the kinematic path of the
-// rest of the Turn Sim: roll 90°/s, hand-overs smooth, banks inside FIX_LIMITS.
+// rest of the Turn Sim: roll up to 180°/s inside the T-6A's ceiling (TS-85, TS-93), hand-overs smooth, banks inside FIX_LIMITS.
 //
 // What a fix may use is set by the four "Fix tools" (Patrick, 4 Oct 11:42Z: "an options
 // menu on the tools 2 can use to fix including geometry, vertical, speed/power, and
@@ -55,7 +55,11 @@ import { planManoeuvre, dryRun, relativeTo, missProfile, onStep, turnSeg, VERTIC
  *   errTiming    #2 rolls in 'early' or 'late' against the standard time
  *   errSpeed     #2 starts 'fast' or 'slow' against Lead (V2.20, TS-62: the off-standard hot turning rejoin starts,
  *                Patrick 19:15Z "wide or close, ahead of line, high, tight, fast")
- *   errResponse  'fix' or 'reference' (see the top of this file)
+ *   errSmart     Smart wingman (Patrick 5 Oct 23:33Z: "smart wingman means they CORRECT THE ERROR (Now or on next
+ *                manouver, two options)"; TS-96): on (the default) #2 fixes the error, off he turns at the normal
+ *                references and the error carries ('reference' at the top of this file)
+ *   errFixWhen   with Smart wingman on: 'next' (the default, Patrick 23:34Z) fixes it in the next manoeuvre ('fix' at the
+ *                top of this file), 'now' flies back into the band from where he is at once (the chooser, "from here")
  *   errRandom    one random error at every Reset instead of the choices above
  * Amount defaults are estimates (docs/modules/turn-sim/decisions.md TS-52): each puts the
  * default error clearly outside the SMM's band at the default 6,000 ft spacing.
@@ -71,7 +75,8 @@ export const ERROR_DEFAULTS = /** @type {Record<string, any>} */ (Object.freeze(
   errTimingSec: 2, // estimate: about 840 ft of flight at 248 KTAS
   errSpeed: 'none',
   errSpeedKias: 20, // estimate: the top of EFIG p.374's 10-20 KIAS rejoin overtake, so "fast" is a clearly hot start
-  errResponse: 'fix', // the wingman corrects "regardless of how it developed" (SMM 16.18 para 50)
+  errSmart: true, // Smart wingman on: the wingman corrects "regardless of how it developed" (SMM 16.18 para 50; Patrick 23:33Z)
+  errFixWhen: 'next', // ... on the next manoeuvre (Patrick 23:34Z)
   errRandom: false,
   // The Fix tools, all ticked (Patrick, 4 Oct 11:42Z; draft wording in the project files, turn-sim-review/errors/fix-tools-draft.md)
   fixGeometry: true,
@@ -104,7 +109,7 @@ export const ERROR_ALLOWED = /** @type {Record<string, any[]>} */ (Object.freeze
   errHeight: ['none', 'high', 'low'],
   errTiming: ['none', 'early', 'late'],
   errSpeed: ['none', 'fast', 'slow'],
-  errResponse: ['fix', 'reference'],
+  errFixWhen: ['next', 'now'],
 }));
 
 /**
@@ -119,7 +124,10 @@ export const ERROR_FIELDS = Object.freeze([
   { key: 'errSpeed', label: 'Speed', amountKey: 'errSpeedKias', unit: 'KIAS', min: 5, max: 40, step: 5, options: [{ value: 'none', label: 'None' }, { value: 'fast', label: 'Fast' }, { value: 'slow', label: 'Slow' }] },
   { key: 'errTiming', label: 'Roll-in', amountKey: 'errTimingSec', unit: 's', min: 0.5, max: 10, step: 0.5, options: [{ value: 'none', label: 'On time' }, { value: 'early', label: 'Early' }, { value: 'late', label: 'Late' }] },
 ]);
-export const RESPONSE_OPTIONS = Object.freeze([{ value: 'fix', label: 'Fix it' }, { value: 'reference', label: 'Turn at normal reference' }]);
+/** When the Smart wingman fixes the error (TS-96). */
+export const FIX_WHEN_OPTIONS = Object.freeze([{ value: 'next', label: 'On the next manoeuvre' }, { value: 'now', label: 'Now' }]);
+/** The response the settings ask for: 'reference' with Smart wingman off (an old saved errResponse 'reference' too), else 'fix'. */
+export const responseOf = (o) => (o.errSmart === false || o.errResponse === 'reference' ? 'reference' : 'fix');
 
 /**
  * What a fix may use: every number of the Fix tools in one place (all pending Patrick's
@@ -168,15 +176,16 @@ const ftText = (n) => `${Math.round(n).toLocaleString('en-CA')} ft`;
  * spacingFt + wide, heightFt + high, timingSec + late, speedKias + fast.
  * @param {Record<string, any>} [options]  formation options holding the err* keys
  * @param {() => number} [rng]  a random number in [0, 1), for the random option
- * @returns {null | { foreFt: number, spacingFt: number, heightFt: number, timingSec: number, speedKias: number, response: 'fix' | 'reference', random: boolean }}
+ * @returns {null | { foreFt: number, spacingFt: number, heightFt: number, timingSec: number, speedKias: number, response: 'fix' | 'reference', random: boolean, fixNow: boolean }}
  */
 export function resolveErrors(options = {}, rng = Math.random) {
   const o = { ...ERROR_DEFAULTS };
   for (const key of Object.keys(ERROR_DEFAULTS)) if (options[key] !== undefined) o[key] = options[key];
-  const response = o.errResponse === 'reference' ? 'reference' : 'fix';
-  if (o.errRandom === true) return randomError(rng, response);
+  const response = responseOf({ ...o, errResponse: options.errResponse });
+  const fixNow = response === 'fix' && o.errFixWhen === 'now';
+  if (o.errRandom === true) return { ...randomError(rng, response), fixNow };
   const signed = (choice, plus, minus, amount) => (choice === plus ? 1 : choice === minus ? -1 : 0) * Math.abs(num(amount, 0));
-  /** @type {{ foreFt: number, spacingFt: number, heightFt: number, timingSec: number, speedKias: number, response: 'fix' | 'reference', random: boolean }} */
+  /** @type {{ foreFt: number, spacingFt: number, heightFt: number, timingSec: number, speedKias: number, response: 'fix' | 'reference', random: boolean, fixNow: boolean }} */
   const spec = {
     foreFt: signed(o.errFore, 'ahead', 'behind', o.errForeFt),
     spacingFt: signed(o.errSpacing, 'wide', 'tight', o.errSpacingFt),
@@ -185,6 +194,7 @@ export function resolveErrors(options = {}, rng = Math.random) {
     speedKias: signed(o.errSpeed, 'fast', 'slow', o.errSpeedKias),
     response,
     random: false,
+    fixNow,
   };
   return spec.foreFt || spec.spacingFt || spec.heightFt || spec.timingSec || spec.speedKias ? spec : null;
 }
@@ -217,7 +227,7 @@ export function describeErrors(spec) {
   if (spec.heightFt) parts.push(`${ftText(Math.abs(spec.heightFt))} ${spec.heightFt > 0 ? 'high' : 'low'}`);
   if (spec.speedKias) parts.push(`${Math.abs(spec.speedKias)} KIAS ${spec.speedKias > 0 ? 'fast' : 'slow'}`);
   if (spec.timingSec) parts.push(`rolls in ${Math.abs(spec.timingSec)} s ${spec.timingSec > 0 ? 'late' : 'early'}`);
-  const how = spec.response === 'fix' ? 'Fix it' : 'Turn at normal reference';
+  const how = spec.response === 'fix' ? (spec.fixNow ? 'Smart wingman, fix now' : 'Smart wingman, fix on the next manoeuvre') : 'Smart wingman off: turn at normal references';
   return `${spec.random ? 'Random error' : 'Error'}: #2 ${parts.join(', ')}. Response: ${how}.`;
 }
 
@@ -814,6 +824,17 @@ function wordsFor(res, target) {
     else parts.push(`${ftText(Math.abs(res.left))} off line to ${res.left > 0 ? 'Lead\'s left' : 'Lead\'s right'}`);
   }
   return parts;
+}
+
+/**
+ * The Errors line on the card once a change of formation flown from a training error's start ends (TS-62; TS-94): whether
+ * #2 joined. off: the chooser's { mode } ('fix' or 'reference'). Since V2.93 the chooser plans it from where the error put
+ * him (until then hot-rejoin.js flew it, with the overshoot); the response switch is refactor PR 3's Smart wingman.
+ */
+export function offStandardOutcome(off, inBand, label) {
+  const how = off.mode === 'reference' ? 'flew the change from where the error left him' : 'fixed it from where the error left him';
+  const end = inBand ? 'ended in position' : 'ended outside the band (see the judged line)';
+  return { label, response: off.mode, fixed: off.mode === 'fix', text: `${label}: #2 ${how}, and ${end}.`, tone: inBand ? 'good' : 'caution' };
 }
 
 /**

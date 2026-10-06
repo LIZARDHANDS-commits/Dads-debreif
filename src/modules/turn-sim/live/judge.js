@@ -19,8 +19,8 @@ import { relativeBearingDeg } from '../../../core/angles.js';
 import { FTPS_TO_KT } from '../../../core/units.js';
 import { relativeTo, DEG } from './manoeuvres.js';
 import { rangeWord } from './fluid.js';
-import { FORMATIONS, WINGSPAN_FT, ROUTE_SPANS, LENGTH_FT, FW_BAND, BOX_DEPTH_BAND_FT, FLUID4_ABEAM_FT, slotsFor, fourWords } from './slots.js';
-import { REJOIN } from './tuning.js';
+import { FORMATIONS, WINGSPAN_FT, ROUTE_SPANS, LENGTH_FT, FW_BAND, BOX_DEPTH_BAND_FT, slotsFor, fourWords, pairSlot } from './slots.js';
+import { REJOIN, IN_POSITION } from './tuning.js';
 
 /** Margins for the roll-out judgement: the shared table's ±100 ft (docs/TESTING.md). */
 export const JUDGE_MARGIN_FT = 100;
@@ -55,7 +55,7 @@ function classifyLink(lead, wing) {
   if (range < 300) { // inside about 300 ft: the close formations (route reaches about 230 ft out since step 2)
     if (across < 22 && back > 0) return { key: 'astern', side: 0 };
     if (across < 56 && rel.fwd < 40 && rel.fwd > -90) return { key: 'echelon', side };
-    if (across <= (ROUTE_SPANS.max + 1) * WINGSPAN_FT && rel.fwd < 60 && rel.fwd > -120) return { key: 'route', side }; // out to a wingspan past the route band (Patrick 06:11Z)
+    if (across <= (ROUTE_SPANS.max + 2) * WINGSPAN_FT && rel.fwd < 60 && rel.fwd > -200) return { key: 'route', side }; // route is on the spinner-to-wingtip line, about 143 ft back (TS-103): out and back past the route band (Patrick 06:11Z)
   }
   return { key: 'other', side };
 }
@@ -122,18 +122,22 @@ export function closeLinkKind(key, id) {
 
 /**
  * One wingman judged against the aircraft he flies off (ref). kind:
- *  - 'abreast': line abreast at spacingFt, ±100 ft, FORE more than 100 ft ahead of ref's 3/9 line, AFT past 10° of sweep
- *    (SMM 16.18 para 49);
+ *  - 'abreast': line abreast in the SMM's band, 4,000-6,000 ft (IN_POSITION.labBandFt; the spacing setting ±100 ft when the
+ *    setting is outside it), FORE more than 100 ft ahead of ref's 3/9 line, AFT past 10° of sweep, and with stackFt HIGH or
+ *    LOW past it (SMM 16.18 para 49: ±2,000 ft);
  *  - 'trail': in trail at spacingFt along ref's heading, ±100 ft, OFFSET more than 100 ft off line (SMM 16.19 para 59);
  *  - 'fw': SMM 12.29 para 69's band, 500-1,000 ft and 30-60°, widened by marginFt and marginDeg (0 unless the caller says
- *    why), and with needBelow NOT BELOW LEAD when not below ref;
- *  - 'echelon', 'route', 'astern': the close bands of the spec table (section 10). wingPlane: measure out and down in ref's
+ *    why), and with needBelow NOT BELOW LEAD when not below ref (the four's links); the pair is in position anywhere in the
+ *    cone, within IN_POSITION.fwStackFt above or below ref with ref straight and level (Patrick 5 Oct 21:26Z, TS-80);
+ *  - 'echelon', 'route', 'astern': within IN_POSITION.closeFt of the place in each direction (Patrick 21:26Z, TS-80: "close
+ *    formation within 5 feet and 5 knots"; the bands were ±15 ft and ±10 ft, estimates beside sight references, until
+ *    V2.80). wingPlane: measure out and down in ref's
  *    wing plane, not level, so a wingman stepped up or down with ref's bank in a close turn (SMM 12.19 paras 41-43,
  *    Fig 12.11) reads as in place. Ref's bank only tilts the frame; level, it is the same.
  * Returns { labels (empty when in position), numbers (the card's words for the measurements, where one formation's card
  * shows them), rel, down, … the measurements }.
  */
-export function judgeLink(kind, ref, wing, { spacingFt = 6000, wingPlane = false, marginFt = 0, marginDeg = 0, needBelow = true } = {}) {
+export function judgeLink(kind, ref, wing, { spacingFt = 6000, wingPlane = false, marginFt = 0, marginDeg = 0, needBelow = true, stackFt = null } = {}) {
   const rel = { ...relativeTo(ref, wing) };
   let down = ref.altAboveFt - wing.altAboveFt; // positive: the wingman is below ref
   if (wingPlane && ref.bankDeg) {
@@ -147,11 +151,18 @@ export function judgeLink(kind, ref, wing, { spacingFt = 6000, wingPlane = false
   const labels = [];
   const M = JUDGE_MARGIN_FT;
   if (kind === 'abreast') {
-    if (across < spacingFt - M) labels.push('TIGHT');
-    else if (across > spacingFt + M) labels.push('WIDE');
+    // The SMM's band (16.18 para 49: 4,000-6,000 ft lateral, 0-10° sweep, ±2,000 ft vertical), not the spacing setting
+    // ±100 ft (Patrick 5 Oct 21:38Z, TS-80); the setting is the aim. A setting outside the band is judged ±100 ft of itself.
+    const [bMin, bMax] = IN_POSITION.labBandFt;
+    const outside = spacingFt < bMin || spacingFt > bMax;
+    const lo = (outside ? spacingFt : bMin) - M; // the band's edges carry the shared ±100 ft margin (the default spacing sits on its far edge)
+    const hi = (outside ? spacingFt : bMax) + M;
+    if (across < lo) labels.push('TIGHT');
+    else if (across > hi) labels.push('WIDE');
     const sweepDeg = Math.atan2(-rel.fwd, Math.max(across, 1)) / DEG;
     if (rel.fwd > M) labels.push('FORE');
     else if (sweepDeg > SWEEP_MAX_DEG) labels.push('AFT');
+    stack(labels, down, stackFt, ref);
     return { labels, rel, down, acrossFt: across, foreAftFt: rel.fwd, sweepDeg, side: rel.left > 0 ? 'left' : 'right' };
   }
   if (kind === 'trail') {
@@ -171,39 +182,42 @@ export function judgeLink(kind, ref, wing, { spacingFt = 6000, wingPlane = false
     if (sweepDeg < dMin - marginDeg) labels.push('TOO FLAT');
     else if (sweepDeg > dMax + marginDeg) labels.push('TOO FAR BACK');
     if (needBelow && down <= 0) labels.push('NOT BELOW LEAD');
+    stack(labels, down, stackFt, ref);
     const numbers = `${ft(rangeFt)} (${rMin}-${rMax.toLocaleString('en-CA')}), sweep ${Math.round(sweepDeg)}° (${dMin}-${dMax}°)`;
     return { labels, numbers, rel, down, rangeFt, sweepDeg };
   }
   let numbers;
-  if (kind === 'echelon') {
-    const back = -rel.fwd;
-    if (across < 30) labels.push('TIGHT');
-    else if (across > 60) labels.push('WIDE');
-    if (back < 10) labels.push('FORE');
-    else if (back > 40) labels.push('AFT');
-    if (down < -5) labels.push('HIGH');
-    else if (down > 15) labels.push('LOW');
-    numbers = `${ft(across)} out (45 ±15), ${ft(back)} back (25 ±15), ${ft(down)} ${down >= 0 ? 'below' : 'above'} (5 ±10)`;
-  } else if (kind === 'route') {
-    // ROUTE_SPANS: 4 to 6 wingspans, the slot 5 (Patrick 06:11Z; SMM 12.6 para 15's 1 to 3 until step 2)
-    if (across < ROUTE_SPANS.min * WINGSPAN_FT) labels.push('TIGHT');
-    else if (across > ROUTE_SPANS.max * WINGSPAN_FT) labels.push('WIDE');
-    if (rel.fwd < -75) labels.push('AFT');
-    else if (rel.fwd > 25) labels.push('FORE');
-    if (down < -10) labels.push('HIGH');
-    else if (down > 40) labels.push('LOW');
-    numbers = `${ft(across)} out (${Math.round(ROUTE_SPANS.min * WINGSPAN_FT)}-${Math.round(ROUTE_SPANS.max * WINGSPAN_FT)} ft: ${ROUTE_SPANS.min} to ${ROUTE_SPANS.max} wingspans), ${ft(rel.fwd)} ${rel.fwd >= 0 ? 'ahead' : 'back'}, ${ft(down)} ${down >= 0 ? 'below' : 'above'}`;
-  } else if (kind === 'astern') {
-    const gap = -rel.fwd - LENGTH_FT; // nose to tail
-    if (across > 10) labels.push('OFF LINE');
-    if (gap < 0) labels.push('TOO CLOSE');
-    else if (gap > 20) labels.push('TOO FAR BACK');
-    if (down < 0) labels.push('HIGH');
-    numbers = `${ft(gap)} nose to tail (10 ±10), ${ft(across)} off line, ${ft(down)} ${down >= 0 ? 'below' : 'above'}`;
+  if (kind === 'echelon' || kind === 'route' || kind === 'astern') {
+    // Within IN_POSITION.closeFt of the place (slots.js pairSlot) out, back and down, on the side he is on.
+    const slot = pairSlot(kind, rel.left >= 0 ? 1 : -1, spacingFt);
+    const C = IN_POSITION.closeFt;
+    const outErr = across - Math.abs(slot.left);
+    const fwdErr = rel.fwd - slot.fwd;
+    const downErr = down + slot.alt; // slot.alt is above ref (negative: below)
+    if (kind === 'astern') {
+      if (across > C) labels.push('OFF LINE');
+    } else if (outErr < -C) labels.push('TIGHT');
+    else if (outErr > C) labels.push('WIDE');
+    if (fwdErr > C) labels.push(kind === 'astern' ? 'TOO CLOSE' : 'FORE');
+    else if (fwdErr < -C) labels.push(kind === 'astern' ? 'TOO FAR BACK' : 'AFT');
+    if (downErr < -C) labels.push('HIGH');
+    else if (downErr > C) labels.push('LOW');
+    const within = `(±${C} ft)`;
+    if (kind === 'echelon') numbers = `${ft(across)} out (${Math.abs(slot.left)} ${within}), ${ft(-rel.fwd)} back (${-slot.fwd} ${within}), ${ft(down)} ${down >= 0 ? 'below' : 'above'} (${-slot.alt} ${within})`;
+    else if (kind === 'route') numbers = `${ft(across)} out (${Math.round(Math.abs(slot.left))} ${within}: ${ROUTE_SPANS.slot ?? 5} wingspans down the line from echelon), ${ft(-rel.fwd)} back (${Math.round(-slot.fwd)} ${within}), ${ft(down)} ${down >= 0 ? 'below' : 'above'} (${-slot.alt} ${within})`;
+    else numbers = `${ft(-rel.fwd - LENGTH_FT)} nose to tail (${Math.round(-slot.fwd - LENGTH_FT)} ${within}), ${ft(across)} off line, ${ft(down)} ${down >= 0 ? 'below' : 'above'} (${-slot.alt} ${within})`;
   } else {
     throw new Error(`No link judgement called ${kind}`);
   }
   return { labels, numbers, rel, down };
+}
+
+/** HIGH or LOW past stackFt above or below ref, judged only with ref straight and level (within 5° of bank and 300 ft/min); null: no stack check. */
+function stack(labels, down, stackFt, ref) {
+  if (stackFt == null) return;
+  if (Math.abs(ref.bankDeg ?? 0) > 5 || Math.abs(ref.climbFtps ?? 0) > 5) return;
+  if (down < -stackFt) labels.push('HIGH');
+  else if (down > stackFt) labels.push('LOW');
 }
 
 // ---- the judge: the verdict for the formation -------------------------------------------------------------------------
@@ -219,6 +233,24 @@ export function judge(aircraft, what, { spacingFt = 6000, wingPlane = false } = 
   const four = aircraft.length > 2;
   if (what.shape) return four ? rollOutFour(aircraft, what.shape, spacingFt) : judgePair(aircraft[0], aircraft[1], spacingFt, what.shape);
   return four ? formationFour(what.key, aircraft, what.side, spacingFt) : formationPair(what.key, aircraft[0], aircraft[1], spacingFt, wingPlane);
+}
+
+/**
+ * A Fluid 4 turn's roll-out (formation-turns.js planFluid4Turn): Lead and #3 against the line abreast manoeuvre's roll-out
+ * (judgePair: abreast, or in trail after the in-place turn), and #2 on Lead and #4 on #3 anywhere in the fighting wing cone,
+ * on either side (the stack's heights are not judged here). Returns { labels (['IN POSITION'] when all three are in), ships }.
+ */
+export function judgeFluid4(aircraft, shape, spacingFt) {
+  const by = new Map(aircraft.map((a) => [a.id, a]));
+  const pair = judgePair(by.get(1), by.get(3), spacingFt, shape);
+  const ok = shape === 'trail' ? 'IN TRAIL' : 'ON SPACING';
+  const ships = {
+    3: pair.labels.filter((x) => x !== ok),
+    2: judgeLink('fw', by.get(1), by.get(2), { needBelow: false }).labels,
+    4: judgeLink('fw', by.get(3), by.get(4), { needBelow: false }).labels,
+  };
+  const labels = Object.entries(ships).flatMap(([id, l]) => l.map((x) => `#${id} ${x}`));
+  return { labels: labels.length ? labels : ['IN POSITION'], ships };
 }
 
 /**
@@ -251,12 +283,12 @@ function formationPair(key, lead, wing, spacingFt, wingPlane) {
   let numbers;
   let left;
   if (key === 'lab') {
-    const j = judgeLink('abreast', lead, wing, { spacingFt });
+    const j = judgeLink('abreast', lead, wing, { spacingFt, stackFt: IN_POSITION.labStackFt });
     labels = j.labels;
     numbers = `${ft(j.acrossFt)} abeam, ${ft(j.foreAftFt)} ${j.foreAftFt >= 0 ? 'ahead of' : 'behind'} Lead's 3/9 line, sweep ${Math.round(Math.max(0, j.sweepDeg))}° (0-${SWEEP_MAX_DEG}°)`;
     left = wingPlane ? judgeLink('abreast', lead, wing, { spacingFt, wingPlane }).rel.left : j.rel.left; // the spacing is judged level, the side in the wing plane
   } else if (key === 'fw') {
-    const j = judgeLink('fw', lead, wing, { wingPlane });
+    const j = judgeLink('fw', lead, wing, { wingPlane, needBelow: false, stackFt: IN_POSITION.fwStackFt });
     labels = j.labels;
     numbers = `${j.numbers}, ${ft(j.down)} ${j.down >= 0 ? 'below' : 'above'} Lead`;
     left = j.rel.left;
@@ -292,11 +324,10 @@ function formationFour(key, aircraft, s, spacingFt) {
       if (Math.abs(wing.altAboveFt - lead.altAboveFt - want.alt) > JUDGE_MARGIN_FT) labels.push('OFF STACK');
     };
     if (key === 'spread4' || (key === 'offsetBox' && id !== 3) || (key === 'fluid4' && id === 3)) {
-      const gap = key === 'fluid4' ? FLUID4_ABEAM_FT : spacingFt;
-      const j = judgeLink('abreast', ref, wing, { spacingFt: gap });
+      const j = judgeLink('abreast', ref, wing, { spacingFt });
       labels = [...j.labels];
       if (Math.sign(rel.left) !== Math.sign(want.left)) labels.push('WRONG SIDE');
-      numbers = `${ft(j.acrossFt)} abeam (${ft(gap)}), ${ft(j.foreAftFt)} ${j.foreAftFt >= 0 ? 'ahead' : 'behind'}`;
+      numbers = `${ft(j.acrossFt)} abeam (${ft(spacingFt)}), ${ft(j.foreAftFt)} ${j.foreAftFt >= 0 ? 'ahead' : 'behind'}`;
       stackOff();
     } else if (key === 'offsetBox') {
       const depth = -rel.fwd;

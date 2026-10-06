@@ -60,11 +60,25 @@ export const WINGSPAN_FT = 33.4;
 export const LENGTH_FT = 33.4;
 
 /**
- * Route spacing in wingspans out on the wing-tip line: the slot 5 out, judged in route between 4 and 6 (Patrick 5 Oct 06:11Z:
- * "Lets use a 5 plane spacing route, yours is too tight right now"; the thread reads "5 plane" as five wingspans). It is
- * wider than SMM 12.6 para 15's 1 to 3 wingspans (2 until step 2): the manual is the reference, Patrick's practice the default.
+ * Route spacing in wingspans: the slot 5 wingspans further out than echelon along the spinner-to-wingtip line, judged in
+ * route out to max (Patrick 5 Oct 06:11Z: "Lets use a 5 plane spacing route, yours is too tight right now"; 6 Oct 02:11Z:
+ * "Route IS on the line. Just moved down from eschalon 5 wingspans"; TS-103). It is wider than SMM 12.6 para 15's 1 to 3
+ * wingspans (2 until step 2): the manual is the reference, Patrick's practice the default. Until V2.107 route was 5
+ * wingspans out but only echelon's 25 ft back, nearly abreast, off the line.
  */
 export const ROUTE_SPANS = Object.freeze({ slot: 5, min: 4, max: 6 });
+
+/**
+ * The spinner-to-wingtip line (SMM 12.4 paras 11-12, 12.6 para 15): from Lead's spinner, half a length ahead of his centre,
+ * through his wingtip, half a span out, so it runs LENGTH_FT back for every WINGSPAN_FT out (about 45°). Echelon sits on it.
+ */
+export const LINE_BACK_PER_OUT = LENGTH_FT / WINGSPAN_FT;
+
+/** The place alongFt further out along the spinner-to-wingtip line from `from` (a place on it), on side s. */
+export function downTheLine(from, s, alongFt) {
+  const out = alongFt / Math.hypot(1, LINE_BACK_PER_OUT);
+  return { fwd: from.fwd - out * LINE_BACK_PER_OUT, left: s * (Math.abs(from.left) + out), alt: from.alt };
+}
 
 /** Heights above the formation's block, feet, by aircraft id (AFM8 brief p.14-15: low to high 4, 3, 1, 2; 300 ft stacks). */
 export const STACK_FT = Object.freeze({ 1: 0, 2: 300, 3: -300, 4: -600 });
@@ -141,8 +155,6 @@ export const FW_STEP_DOWN_FT = 60;
 /** The offset box's second element sits this far behind the first (TS-18; SMM 16.41 para 109 gives 6,000-8,000 ft). */
 export const BOX_DEPTH_FT = 7000;
 export const BOX_DEPTH_BAND_FT = Object.freeze([6000, 8000]);
-/** Fluid 4: #3 this far abeam of Lead, the wide LAB (AFM8 brief p.20). */
-export const FLUID4_ABEAM_FT = 6000;
 
 // ---- the table ---------------------------------------------------------------------------------------------------------
 
@@ -156,8 +168,9 @@ function link(key, s, spacingFt) {
     case 'fw': return { fwd: -fwShape.rangeFt * Math.sin(fwShape.sweepDeg * DEG), left: s * fwShape.rangeFt * Math.cos(fwShape.sweepDeg * DEG), alt: -60 };
     // about 45 ft out, 25 ft back, 5 ft down: estimates, the manual gives sight references (SMM 12.4 paras 11-12)
     case 'echelon': return { fwd: -25, left: s * 45, alt: -5 };
-    // five wingspans out on the wing-tip line (Patrick 06:11Z, ROUTE_SPANS; SMM 12.6 para 15 gives 1 to 3), level or slightly low
-    case 'route': return { fwd: -25, left: s * ROUTE_SPANS.slot * WINGSPAN_FT, alt: -5 };
+    // on the spinner-to-wingtip line, five wingspans further out along it than echelon (Patrick 6 Oct 02:11Z, ROUTE_SPANS,
+    // TS-103; SMM 12.6 para 15 gives 1 to 3): about 163 ft out and 143 ft back, level or slightly low
+    case 'route': return downTheLine(link('echelon', s, spacingFt), s, ROUTE_SPANS.slot * WINGSPAN_FT);
     // nose to tail about 10 ft (SMM 12.5 para 13): centre to centre is that plus a fuselage length; below the prop wash (estimate)
     case 'astern': return { fwd: -(LENGTH_FT + 10), left: 0, alt: -8 };
     default: throw new Error(`No formation called ${key}`);
@@ -191,7 +204,7 @@ export function slotsFor(key, s, { ships = 2, spacingFt = 6000, stacked = true }
       // #4 flies fighting wing off #3 as #2 does off Lead: #2's spacing and sweep setting (FW4: 650 ft at 45° by default, an estimate).
       return {
         2: { ref: 1, ...fwAt(fw4.twoRangeFt, fw4.twoDeg, s), alt: STACK_FT[2] },
-        3: { ref: 1, fwd: 0, left: -s * FLUID4_ABEAM_FT, alt: STACK_FT[3] },
+        3: { ref: 1, fwd: 0, left: -s * spacingFt, alt: STACK_FT[3] }, // abeam of Lead at the Setup's line abreast spacing (AFM8 brief p.20; Patrick ratified the 4-ship moves table, 5 Oct)
         4: { ref: 3, ...fwAt(fw4.twoRangeFt, fw4.twoDeg, -s), alt: STACK_FT[4] },
       };
     case 'fw':
@@ -256,7 +269,8 @@ export function fourWords(where) {
   switch (where.key) {
     case 'finger':
     case 'route':
-      return `${f.label} ${w(-where.side)} (#3 and #4 ${w(-where.side)})`;
+      // named by #2's side, as echelon is (Patrick 6 Oct 05:39Z: "left and right are just backwards"; by #3 and #4's side until V2.129)
+      return `${f.label} ${w(where.side)} (#2 ${w(where.side)})`;
     case 'echelon':
       return `${f.label} ${w(where.side)}`;
     case 'offsetBox':

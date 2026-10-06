@@ -1,0 +1,69 @@
+// The pursuit curves #2 flies in a fighting wing turn (TS-100; Patrick 6 Oct 2026 00:35Z: "#2 makes their spacing worse by
+// flying well outside the turn circle instead of capturing it quickly by turning into it"; 00:37Z: "look at the SMM
+// pictures of how fighting wing turns work depending on your spacing").
+//
+// SMM 12.29 para 69 and 12.30 paras 71-73, Figs 12.20-12.22 (turn entry in position, stretched, tight), Fig 12.23 (turn
+// exit): once Lead manoeuvres, #2 collapses to Lead's six on his turn circle with lead, lag and pure pursuit. Turned away
+// from, he aims inside the turn circle at once (lead pursuit), which stops the range growing and starts closure; in
+// position he captures the circle by matching Lead's turn (pure pursuit); tight, he makes the miss with lag pursuit (the
+// vertical miss is not built: decisions.md TS-100).
+//
+// Until V2.96 #2 flew these turns on the tracker's station-keeping law (match the speed of a point fixed in Lead's frame,
+// nudge toward the six at the closure law's rate). On the outside of a 60° turn that point runs at about 280 kt true,
+// so from the back of the cone #2 chased it round the outside to 1,245 ft (Fable's dry runs, 6 Oct,
+// turn-sim-review/fw-turn-entry/fw-turn-entry.md). This law replaces it while Lead is banked: each step #2's commanded
+// heading is the tangent of the circle he is on about Lead's turn centre (matching Lead's turn), plus a lead angle toward
+// the centre when he is stretched or outside the circle and a lag angle away from it when he is tight. The tracker's own
+// heading and speed loops, bank cap and flight step fly the command (tracker.js, a phase with `pursuit`), so the path is
+// recorded and replayed like every other 2-ship move. Numbers: tuning.js FW_PURSUIT (estimates unless a page is named).
+import { G_FTPS2 } from '../../../core/units.js';
+import { DEG } from './manoeuvres.js';
+import { FW_PURSUIT } from './tuning.js';
+
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+/**
+ * The command for one step: { psiCmd, kiasCmd } in the tracker's terms, or null when the aircraft flown off is not
+ * turning (the tracker's band goal then flies #2 back into the cone: formation-turns.js fwGoal, Fig 12.23).
+ * L: the aircraft flown off (Lead, or the one ahead in the 4-ship) at this step; W: this wingman; plannedBankDeg: the bank
+ * Lead's plan turns at, signed (+ left), so the pursuit starts at the press while he is still rolling in, or null.
+ */
+export function fwPursuitCommand(L, W, plannedBankDeg = null) {
+  const P = FW_PURSUIT;
+  // The turn #2 flies against: Lead's bank now, or the plan's while he rolls in to it.
+  let bank = L.bankDeg;
+  if (plannedBankDeg != null && Math.abs(plannedBankDeg) > Math.abs(bank) && Math.sign(plannedBankDeg) === (Math.sign(bank) || Math.sign(plannedBankDeg))) bank = plannedBankDeg;
+  if (Math.abs(bank) < P.minBankDeg) return null;
+  const s = Math.sign(bank); // +1 a left turn (heading grows), -1 right
+  const radiusFt = L.tasFtps ** 2 / (G_FTPS2 * Math.tan(Math.abs(bank) * DEG));
+  // Lead's turn centre, off his left or right wing.
+  const cx = L.xFt - s * Math.sin(L.headingRad) * radiusFt;
+  const cy = L.yFt + s * Math.cos(L.headingRad) * radiusFt;
+  const ux = W.xFt - cx;
+  const uy = W.yFt - cy;
+  const rho = Math.hypot(ux, uy); // #2's own radius about that centre
+  // The tangent of #2's circle about the centre, in Lead's turn sense: matching Lead's turn (pure pursuit on the circle).
+  const psiTan = Math.atan2(s * ux, -s * uy);
+  // Where #2 is against the aim point, Lead's six on the circle at the aim range: the arc he is ahead of it (+) or behind
+  // it (-), ft, from the angles about the centre; and how far outside (+) or inside (-) the circle he is.
+  const aimAngle = P.aimRangeFt / radiusFt; // the aim point's angle behind Lead about the centre
+  const leadAngle = Math.atan2(L.yFt - cy, L.xFt - cx);
+  const wingAngle = Math.atan2(uy, ux);
+  let behind = s * (leadAngle - wingAngle); // #2's angle behind Lead about the centre, in the turn's sense
+  behind = ((behind + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+  const aheadFt = (aimAngle - behind) * radiusFt;
+  const outsideFt = rho - radiusFt;
+  // The angle off the tangent, toward the centre (+) or away from it (-): aim inside the circle when behind the aim point
+  // or outside the circle (the SMM's lead), aim outside it when ahead or inside (the SMM's lag); on the aim point, none:
+  // #2 matches Lead's turn (Figs 12.20-12.22).
+  // Outside the circle (turned away from) and ahead of the aim point, #2 is tight: he holds the bigger circle he is on
+  // (aiming at Lead's tail, Fig 12.22), and the extra distance opens the range; no angle away from the centre there.
+  const arc = clamp(aheadFt / P.arcScaleFt, -1, 1);
+  const arcEff = outsideFt > 0 ? Math.min(0, arc) : arc;
+  const arcDeg = -arcEff * (arcEff < 0 ? P.leadMaxDeg : P.lagMaxDeg);
+  const offDeg = arcDeg + clamp(outsideFt / P.circleScaleFt, -1, 1) * P.circleDeg;
+  const psiCmd = psiTan + s * offDeg * DEG;
+  // Power last (Patrick 5 Oct 23:02Z): a little speed with the arc error, inside the fighting wing overtake.
+  const kiasCmd = L.kias - clamp(aheadFt / P.arcScaleFt, -1, 1) * P.closeKias;
+  return { psiCmd, kiasCmd };
+}

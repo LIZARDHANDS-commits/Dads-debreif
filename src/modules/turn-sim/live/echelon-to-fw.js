@@ -51,7 +51,9 @@ export const ECHELON_TO_FW = Object.freeze({
   matchedKias: 0.3, // he hands the settle to the tracker within this of Lead's speed ... (estimate)
   matchedKtps: 0.3, // ... with his speed this steady (estimate)
   preferSec: 0.5, // a sharper choice is kept only if it reaches the cone at least this much sooner (estimate; turning-rejoin.js's 0.5 s)
-  startTol: Object.freeze({ kias: 2, headingDeg: 1 }), // a pair this close to Lead's speed and heading, Lead straight and level at 200 KIAS, is the case built (estimate)
+  // A pair this close to Lead's speed and heading, Lead straight and level at 200 KIAS, is the case built (estimate). The speed is
+  // "steady"'s 5 kt (STEADY.closureKt, TS-78): a change that ends in band and steady can carry up to that into this one.
+  startTol: Object.freeze({ kias: 5, headingDeg: 1 }),
 });
 
 /** In the cone: SMM 12.29 para 69, Fig 12.19 (500-1,000 ft, 30-60° of sweep back from Lead's wing line), on side s. */
@@ -77,12 +79,12 @@ function aimFor(s, spacingFt) {
 }
 
 /** How far out from Lead's straight track (ft, positive on side s) #2 is: Lead flies straight, so his track is a line. */
-function outFt(L, W, s) {
+export function outFt(L, W, s) {
   return s * (-(W.xFt - L.xFt) * Math.sin(L.headingRad) + (W.yFt - L.yFt) * Math.cos(L.headingRad));
 }
 
 /** How far out #2 ends if he turns back parallel to Lead now at bankDeg (flight.js's own turn and roll-out, speed held). */
-function outAfterTurnBack(W, L, s, bankDeg, t) {
+export function outAfterTurnBack(W, L, s, bankDeg, t) {
   const c = copyAircraft(W);
   const plan = { segments: [turnSeg(L.headingRad, -s, bankDeg)] };
   for (let i = 0; i < 400 && plan.segments.length; i++) stepAircraft(c, plan, t + i * dt);
@@ -227,7 +229,7 @@ export function planEchelonToFw(pair, to, options = {}, t0 = 0) {
   const W1 = { ...part.end, altAboveFt: toFt, climbFtps: 0 };
   const rel1 = relativeTo(rec.at(n1), W1);
   const settle = onClosure([phase({ fwd: rel1.fwd, left: rel1.left, alt: W1.altAboveFt }, { ...FW_FOLLOW, goal: (L, W) => fwGoal(L, W, s, false) })], { closeIn: true });
-  const { run } = trackTwice({ refs: { [lead.id]: fromStep(rec, n1) }, wing0: W1, t0: t0 + n1 * dt, phases: settle, blockFt, init: { accelKtps: part.accelKtps } });
+  const { run, profile: settleProfile } = trackTwice({ refs: { [lead.id]: fromStep(rec, n1) }, wing0: W1, t0: t0 + n1 * dt, phases: settle, blockFt, init: { accelKtps: part.accelKtps } });
   const durationSec = (n1 + run.points.length) * dt;
   if (!run.ok || durationSec > CHANGE_LIMIT_SEC) return null;
   const judged = judge([run.end.lead, run.end.wing], { key: 'fw' }, { spacingFt });
@@ -240,7 +242,7 @@ export function planEchelonToFw(pair, to, options = {}, t0 = 0) {
   const power = part.maxSet ? 'MAX' : 'power';
   return {
     ok: true,
-    plans: { [lead.id]: { segments: [] }, [wing.id]: { segments: [{ kind: 'bankTrack', points: [...part.points, ...run.points] }], profile } },
+    plans: { [lead.id]: { segments: [] }, [wing.id]: { segments: [{ kind: 'bankTrack', points: [...part.points, ...run.points] }], profile: [...settleProfile, ...profile] } },
     note: `${fromWord}${sideWord} to Fighting wing${sideWord}: ${how} (SMM 16.32 para 92, 16.38 para 105; Patrick 4 Oct 19:03Z). #2 rolls away from Lead at ${best.bankDeg}° to ${best.offDeg}° off his heading, idle and boards, no more than ${undertakeKias} KIAS below Lead's ${KIAS_OUTSIDE_LAB} KIAS (Rates ${RATE_WORDS[ratesNow()]}; lowest ${Math.round(part.minKias)} KIAS), and eases down to fighting wing height; turns back parallel and sets ${power} to stop his drop back in the cone (SMM 12.29 para 69): in the cone in about ${Math.round(coneSec)} s (Patrick 5 Oct 08:40Z: about 10 s), settled in about ${Math.round(durationSec)} s.`,
     label: `${FORMATIONS.fw.label}${sideWord}`,
     flying: `${fromWord}${sideWord} to ${FORMATIONS.fw.label}${sideWord} (${how})`,

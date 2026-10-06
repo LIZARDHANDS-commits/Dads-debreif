@@ -26,16 +26,18 @@
 // 11:08Z-11:09Z (200 KIAS outside line abreast, Lead turns into #2, speed only in
 // transitions) and 11:45Z (wording agreed). Numbers with no manual or ruling behind them are
 // labelled "estimate" beside them.
-import { STEP_SEC, stepAircraft, copyAircraft, planDone } from './flight.js';
+import { STEP_SEC, stepAircraft, copyAircraft, planDone, holdToEnvelope } from './flight.js';
 import { wholeDegree, turnSeg, DEG } from './manoeuvres.js';
 import { classify, judge } from './judge.js';
 import { applyPose } from './kinematic.js';
 import { fullPowerKtps, speedSegFor } from './slow-down.js';
 import { setKias, stepCommanded, phase, trackTwice, PLAN_MAX_SEC } from './tracker.js';
 import { FORMATIONS, fwShapeNow, pairSlot } from './slots.js';
-import { KIAS_OUTSIDE_LAB, KIAS_LAB, REJOIN, RULED_REJOIN, STOP_KT, closureNow, rejoinClosureNow } from './tuning.js';
+import { KIAS_OUTSIDE_LAB, KIAS_LAB, REJOIN, RULED_REJOIN, STOP_KT, FW_FOLLOW, closureNow, rejoinClosureNow } from './tuning.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { onClosure, leadTurnInto, trackTail } from './hand-over.js';
+import { fwGoal } from './formation-turns.js';
+import { fwSwitch } from './fw-switch.js';
 
 // ---- the numbers -----------------------------------------------------------------------
 
@@ -61,7 +63,11 @@ export function flyStep(a, plan, t, ctx = null) {
   if (seg?.kind === 'poseTrack') {
     // A kinematic pre-planned line (kinematic.js, TS-55): the pose for each step was worked out at the press.
     seg.i ??= 0;
-    applyPose(a, seg.poses[seg.i++]);
+    const bank0 = a.bankDeg;
+    const rate0 = a.rollRateDps ?? 0;
+    const p = seg.poses[seg.i++];
+    applyPose(a, p);
+    holdToEnvelope(a, seg, p, bank0, rate0);
     if (seg.i >= seg.poses.length) {
       plan.segments.shift();
       // Lines, then tracker (step 2, Patrick 06:24Z): in the live formation (ctx, from formation.js) the tracker's run-in is
@@ -119,7 +125,7 @@ export function speedSeg(from, to, blockFt = 8000) {
 /**
  * A recorded flight: an aircraft flown through its plan by flyStep, one state per step from t0, extended on demand (once
  * its plan is done it flies straight on). It is the moving reference a tracker flies off, so a wingman can fly off Lead
- * or off another wingman whose own path was planned first (the 4-ship, four-ship-moves.js). at(n) is the state at the
+ * or off another wingman whose own path was planned first (the 4-ship, four-legs.js). at(n) is the state at the
  * start of step n: { xFt, yFt, headingRad, tasFtps, kias, altAboveFt, bankDeg, free } where free means its plan has no
  * segments left.
  */
@@ -147,11 +153,13 @@ export function recordFlight(aircraft, plan, t0) {
 /** A station change in close formation (SMM 12.20 paras 44-47): about 5 kt, wings level but for a degree or two of heading. */
 export const slide = (slot, over = {}) => phase(slot, { advanceTol: 6, ...over });
 /**
- * A station change's corner or end point, flown as a real stop (SMM 12.20 para 45: "stabilize in this position", "stop the
- * aircraft", "stabilize directly behind the echelon position"): #2 stops on it and holds 2 s before moving on. The 1 ft/s
- * and 2 s are estimates; the stop is within STOP_KT (Patrick 20:41Z: "stabilize" is within 5 knots, not exactly zero).
+ * A station change's corner or end point (SMM 12.20 para 45: "stabilize in this position", "stabilize directly behind the
+ * echelon position"). Stabilize means under control, not stopped (Patrick 6 Oct 05:29Z: "can be moving 5 knots thru
+ * corners"): #2 flows through it once within CORNER_FLOW_FT and no faster against it than STOP_KT (Patrick 20:41Z: 5
+ * knots). Until V2.128 he stopped on it and held 2 s. The 5 ft is an estimate.
  */
-export const stopAt = (slot, over = {}) => slide(slot, { fwdRate: 5, advanceTol: 2, stopFtps: STOP_KT * KT_TO_FTPS, dwellSec: 2, ...over });
+const CORNER_FLOW_FT = 5;
+export const stopAt = (slot, over = {}) => slide(slot, { fwdRate: 5, advanceTol: CORNER_FLOW_FT, stopFtps: STOP_KT * KT_TO_FTPS, dwellSec: 0, ...over });
 /**
  * The corner behind a close slot (SMM 12.20 para 45; Figs 12.12-12.13): back until #2's nose is at least 10 ft behind Lead's
  * tail (line astern's own spacing, plus 12 ft so it does not fall short: an estimate), at the slot's own lateral, and low
@@ -236,16 +244,17 @@ export function legsFor(from, s, to, sTo, spacingFt) {
     phases.push(stopAt(corner(at, side)), stopAt(corner(at, sTo)), slide(slot(at, sTo), { fwdRate: 5 }));
     side = sTo;
   };
+  let switched = false;
   const closeTarget = to === 'echelon' || to === 'route';
   if (at !== 'astern' && to !== 'astern' && side !== sTo && !(at === 'fw' && closeTarget)) {
     if (at === 'fw') {
-      // drop back to the fighting wing spacing astern (750 ft by default), flow across behind Lead, then to the other side's
-      // slot; 30 ft/s across is an estimate
-      const flow = { latRate: 30, vrel0: 32, advanceTol: 25 };
-      const fw = slot('fw', side);
-      const back = -fwShapeNow().rangeFt;
-      phases.push(dropBack({ ...fw, fwd: back }, flow), dropBack({ fwd: back, left: 0, alt: fw.alt }, flow), dropBack({ ...slot('fw', sTo), fwd: back }, flow));
-      if (to !== 'fw') phases.push(dropBack(slot('fw', sTo), { advanceTol: 25 }));
+      // The fast side switch (fw-switch.js, TS-102; Patrick 6 Oct 01:04Z): an S-turn behind Lead at the switch bank, power
+      // back, into the far cone, where the band goal settles him (the whole cone, TS-75). Until V2.98: three slides at
+      // 30 ft/s through the point astern.
+      const fw = slot('fw', sTo);
+      phases.push(phase({ fwd: -fwShapeNow().rangeFt, left: 0, alt: fw.alt }, { ...FW_FOLLOW, ...fwSwitch(sTo) }));
+      if (to !== 'fw') phases.push(dropBack(fw, { advanceTol: 25 }));
+      switched = true;
       side = sTo;
     } else {
       crossClose();
@@ -258,7 +267,7 @@ export function legsFor(from, s, to, sTo, spacingFt) {
     const fw = slot('fw', sTo);
     if (at === 'fw') {
       if (!phases.length) return phases;
-      phases.push(dropBack(fw, { advanceTol: 6, finalTol: 6, vrel0: 16 }));
+      if (!switched) phases.push(dropBack(fw, { advanceTol: 6, finalTol: 6, vrel0: 16 })); // after the switch he settles where he is in the cone
     } else {
       // drop back and sweep out in one expeditious move, about 7-15 s to the band (Patrick 19:03Z, TS-55); SMM 16.32 para 92 says
       // "slowly drop back", and Patrick's ruling wins (rule book, What wins). Speed changes stay near 2 kt/s.
@@ -285,6 +294,12 @@ export function legsFor(from, s, to, sTo, spacingFt) {
     } else if (at !== to || side !== sTo) {
       phases.push(slide(slot(to, sTo)));
     }
+  }
+  // Fighting wing's last leg ends anywhere in the cone, not on its one slot (Patrick 08:58Z: "the whole cone can be used";
+  // V2.80's band, TS-80): the tracker aims for the nearest point of the cone, and inside it holds where he arrives (fwGoal).
+  if (to === 'fw' && phases.length) {
+    const last = phases[phases.length - 1];
+    phases[phases.length - 1] = { ...last, coneAlt: true, goal: (L, W) => fwGoal(L, W, sTo, false) };
   }
   return phases;
 }

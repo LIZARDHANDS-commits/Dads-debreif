@@ -63,6 +63,10 @@ export const PFL = Object.freeze({
   /** Up to 60° of bank until the 2,100 ft gate (Patrick 08:34Z); the stall line still holds. Bank over 45° below the gate is flagged (SMM 13.14). */
   maxBankDeg: 60,
   gateFlagBankDeg: 45,
+  /** An orbit to lose height is flown at 30° of bank (SMM 13.5 para 11, p.46; Patrick 5 Oct 23:29Z). */
+  orbitBankDeg: 30,
+  /** High by up to this at the keys is carried round, not taken off with an early T/O flap (Patrick 5 Oct 23:49Z, 23:51Z). */
+  keysCarryHighFt: 100,
   /** The High Key window, ft MSL (WFO S2 art 403 para 1a; Patrick C4 06:30Z). */
   highKeyMinFt: 5000,
   highKeyMaxFt: 6000,
@@ -105,6 +109,11 @@ export const PFL = Object.freeze({
   inTurnBankDeg: 10,
   /** Gliding in from the area the gear stays up until this close to the field: about 5 NM (Patrick 5 Oct 18:39Z, "difficult to manage"). */
   earlyGearWithinFt: 5 * FT_PER_NM,
+  /** Meeting the circle from inside it: no more than this turn first, and a left turn onto it of no more than the second. Estimates. */
+  interceptTurnDeg: 60,
+  interceptOntoDeg: 120,
+  /** Turning round to rejoin the profile, a join this close to the planned profile is preferred to a smaller turn. An estimate. */
+  turnRoundOnProfileFt: 150,
   /** Straight run onto a join point along its tangent, so the aircraft arrives on the circle's line. An estimate. */
   joinLeadFt: 1500,
   /** Run-in to High Key along the extended centreline from the area. An estimate. */
@@ -347,6 +356,14 @@ function glideJoinMinRadiusFt() {
 }
 
 /**
+ * Radius of an orbit to lose height: 30° of bank at 120 KIAS at about 4,000 ft, the SMM's orbit (SMM 13.5 para 11, p.46),
+ * tighter than the 1 NM pattern, which stays as it is (Patrick 5 Oct 23:29Z).
+ */
+function orbitRadiusFt() {
+  return turnRadiusFromBankFt(ktToFtps(iasToTasKt(PFL.glideGearKias, 4000)), PFL.orbitBankDeg);
+}
+
+/**
  * Radius of the turn onto final when going direct: 45° of bank at 120 KIAS at about 2,500 ft (SMM 13.14 flags more
  * than 45°), at today's true airspeed (a hot day turns wider, F2).
  */
@@ -530,6 +547,7 @@ export function chooseJoin(geo, from, availFt, trackDeg, wind, { allowHighKey = 
     let best = null, bestHigh = null;
     for (let th = 0; th <= PFL.lastJoinDeg + 1e-6; th += PFL.joinStepDeg) {
       const tries = oneTurn ? [-1, 1].map((side) => joinPath(geo, from, th, trackDeg, turnRadiusFt, minTurnRadiusFt, side)) : [joinPath(geo, from, th)];
+      if (oneTurn) tries.push(interceptPath(geo, from, th, trackDeg, turnRadiusFt));
       const score = (p) => (oneTurn ? p.turnDeg + p.straightFt / 1000 + 1000 * (turnRadiusFt - p.turnRadiusFt) / turnRadiusFt : Math.abs(wrapDeg180(geo.trackAt(th) - trackDeg)));
       const path = tries.filter((p, k) => p && (!oneTurn || p.turnDeg <= (k === 0 ? leftMaxDeg : 180))).sort((x, y) => score(x) - score(y))[0];
       if (!path) continue;
@@ -555,16 +573,89 @@ export function chooseJoin(geo, from, availFt, trackDeg, wind, { allowHighKey = 
   };
   // One turn and in range first; then one turn but high, which early gear, the drag and the runway take; then a
   // straight run onto the line (an S-turn is the unrealistic manoeuvre, Patrick 17:51Z, so it comes after a high join).
-  const one = search(true), run = search(false);
+  const one = search(true);
+  // Every join within 180° too high to land: turn round to rejoin the profile, with drag as required (Patrick 22:11Z).
+  if (!one.best && !one.high) { const round = turnRoundJoin(geo, from, availFt, trackDeg, wind, { turnRadiusFt, minTurnRadiusFt }); if (round) return round; }
+  const run = search(false);
   const join = one.best ?? one.high ?? run.best ?? run.high ?? chooseDirect(geo, from, availFt, PFL.glideCleanKias, wind, trackDeg);
   if (join) return join;
   return { kind: 'none', path: directPath(geo, from, geo.aimAlongFt, true, trackDeg), aimAlongFt: geo.aimAlongFt, label: 'Eject' };
 }
 
-/** Height to fly from `from` along the path to point `idx`, clean. */
-function neededTo(path, idx, from, altFt, wind) {
+/**
+ * Meeting the circle from inside it, where there is no one-turn tangent join (Patrick 5 Oct 22:07Z, "intercept the
+ * profile"): a turn of at most PFL.interceptTurnDeg toward the circle point at `theta`, straight to it, then left onto
+ * the circle, as a pilot extends a little and turns onto the profile. Null if the turns are bigger than that.
+ */
+function interceptPath(geo, from, theta, trackDeg, turnRadiusFt) {
+  if (!Number.isFinite(trackDeg)) return null;
+  const p = geo.at(theta);
+  const lineTrk = bearing(from, p);
+  const first = Math.abs(wrapDeg180(lineTrk - trackDeg));
+  const onto = wrapDeg180(geo.trackAt(theta) - lineTrk);
+  if (first > PFL.interceptTurnDeg || onto > 10 || onto < -PFL.interceptOntoDeg) return null;
+  return Object.assign([{ x: from.x, y: from.y, plan: 0 }, ...arcToAim(geo, theta)], { turnDeg: first + Math.abs(onto), straightFt: dist(from, p), turnRadiusFt });
+}
+
+/** One full left turn at radius `r` from `from` on `trackDeg`, flown at its held bank (Fable F16), back where it began. */
+function orbitPath(from, trackDeg, r) {
+  const h = { x: Math.sin(trackDeg * DEG), y: Math.cos(trackDeg * DEG) };
+  const c = { x: from.x - r * h.y, y: from.y + r * h.x };
+  const turn = { cx: c.x, cy: c.y, r, side: -1 };
+  const pts = [{ x: from.x, y: from.y, plan: 0, arc: turn }];
+  for (let k = PFL.joinStepDeg; k < 360 - 1e-6; k += PFL.joinStepDeg) {
+    const a = (trackDeg - k) * DEG;
+    pts.push({ x: c.x + r * Math.cos(a), y: c.y - r * Math.sin(a), plan: 0, arc: turn });
+  }
+  return pts;
+}
+
+/**
+ * Turn round to rejoin the profile (Patrick 5 Oct 22:11Z, "Agree", to the rule: if every join within 180° of turn
+ * leaves it too high to land, it may turn round onto the circle, up to one full turn, with drag as required; the SMM's
+ * High Key orbit used wherever the circle can't otherwise take the height; his 22:07Z idea of drag before the join is
+ * the "as required"). Of the joins with up to 360° of turn, either way, and from inside the circle the turn out to meet
+ * it (interceptPath), the least turn that it makes with no more drag out before the join than it needs (clean, gear, or
+ * all of it; close in only, PFL.earlyGearWithinFt) and that isn't high with all the drag out after the join. Returns
+ * a 'circle' join with `dragBefore` (the configuration to have out before the join), or null.
+ */
+function turnRoundJoin(geo, from, availFt, trackDeg, wind, { turnRadiusFt = directTurnRadiusFt(), minTurnRadiusFt = glideJoinMinRadiusFt() } = {}) {
+  const ground = THRESHOLD_DATA_ELEV_FT;
+  const close = dist(from, geo.th) <= PFL.earlyGearWithinFt;
+  // Better on the planned profile at the join (within PFL.turnRoundOnProfileFt), then the earliest join, so it is on
+  // the profile with the most of the circle still to fly, then the least turn.
+  let pick = null;
+  const better = (a, b) => !b || a.off < b.off || (a.off === b.off && (a.th < b.th || (a.th === b.th && a.path.turnDeg < b.path.turnDeg - 1e-6)));
+  for (let th = 0; th <= PFL.lastJoinDeg + 1e-6; th += PFL.joinStepDeg) {
+    const tries = [-1, 1].map((side) => joinPath(geo, from, th, trackDeg, turnRadiusFt, minTurnRadiusFt, side)).filter(Boolean);
+    const meet = interceptPath(geo, from, th, trackDeg, turnRadiusFt);
+    if (meet) tries.push(meet);
+    // Inside the circle: one full left turn where it is first (the High Key orbit's way round), then out to meet the circle.
+    if (meet) tries.push(Object.assign([...orbitPath(from, trackDeg, orbitRadiusFt()), ...meet], { turnDeg: 360 + meet.turnDeg }));
+    for (const raw of tries) {
+      for (const dragBefore of close ? [0, 1, 3] : [0]) {
+        const path = Object.assign(raw.map((p) => ({ ...p, plan: Math.max(p.plan ?? 0, dragBefore) })), { turnDeg: raw.turnDeg });
+        const idx = path.findIndex((p) => p.theta === th);
+        const hAtJoin = availFt - neededTo(path, idx, from, availFt, wind, dragBefore);
+        if (hAtJoin - neededFt(minDragPlan(path), idx, path[idx], hAtJoin, dragBefore, wind) - ground < 0) break; // short: more drag won't help
+        const most = neededFt(path.map((p) => ({ ...p, plan: 3 })), idx, path[idx], hAtJoin, 0, wind);
+        if (hAtJoin - most - ground > 0) continue; // still too high: more drag first
+        const planned = hAtJoin - neededFt(path, idx, path[idx], hAtJoin, dragBefore, wind, false, 'aim', 2) - ground;
+        const cand = { path, th, dragBefore, off: Math.abs(planned) <= PFL.turnRoundOnProfileFt ? 0 : 1 };
+        if (better(cand, pick)) pick = cand;
+        break;
+      }
+    }
+  }
+  if (!pick) return null;
+  const label = pick.path.turnDeg > 180 ? 'Turn round to rejoin the profile' : joinLabel(pick.th);
+  return { kind: 'circle', path: pick.path, theta: pick.th, label, dragBefore: pick.dragBefore };
+}
+
+/** Height to fly from `from` along the path to point `idx`, clean (or in configuration `cfg`). */
+function neededTo(path, idx, from, altFt, wind, cfg = 0) {
   const part = path.slice(0, idx + 1).map((p, i) => (i === idx ? { ...p, key: '__end' } : p));
-  return neededFt(part, 0, from, altFt, 0, wind, false, '__end');
+  return neededFt(part, 0, from, altFt, cfg, wind, false, '__end');
 }
 
 /**
@@ -677,7 +768,13 @@ function turnOntoRunway(geo, from, trackDeg, kias, altFt, wind) {
  */
 function widenPath(geo, path, seg, s, altFt, wind, tdKey) {
   const ground = THRESHOLD_DATA_ELEV_FT;
-  const th0 = path[seg].theta;
+  // From where the aircraft is round the circle, not where the path says: inside the circle it can be well round
+  // from its point on the path, and a widen built from behind it turned it round (Fable's H2).
+  const own = bearing(geo.centre, s);
+  let thOwn = 0;
+  for (let th = 0; th < 360; th += 1) if (Math.abs(wrapDeg180(bearing(geo.centre, geo.at(th)) - own)) < Math.abs(wrapDeg180(bearing(geo.centre, geo.at(thOwn)) - own))) thOwn = th;
+  const th0 = Math.max(path[seg].theta, thOwn);
+  if (th0 >= PFL.lastJoinDeg - PFL.joinStepDeg) return null;
   const fk = path.findIndex((p, i) => i > seg && p.theta !== undefined && p.theta >= PFL.lastJoinDeg);
   if (fk < 0) return null;
   const out = (p) => { const d = dist(geo.centre, p); return { x: (p.x - geo.centre.x) / d, y: (p.y - geo.centre.y) / d }; };
@@ -843,8 +940,9 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
         // then the gear goes early and it extends to a false High Key instead.
         let lapPath = null, lapClean = Infinity;
         if (s.alt > PFL.highKeyMaxFt) {
-          const lap = arcToAim(geo, PFL.joinStepDeg).filter((p) => p.theta !== undefined);
-          lapPath = [{ x: s.x, y: s.y, plan: cfg }, ...lap.map((p) => ({ ...p, plan: 0 })), { x: geo.th.x, y: geo.th.y, theta: 0, plan: 0, key: 'high_key', highKeyCheck: true }];
+          // One orbit at 30° of bank from High Key back to it, inside the pattern (SMM 13.5 para 11; Patrick 5 Oct 23:29Z).
+          const lap = orbitPath(s, geo.rwyDeg, orbitRadiusFt());
+          lapPath = [...lap.map((p, i) => ({ ...p, plan: i ? 0 : cfg })), { x: geo.th.x, y: geo.th.y, theta: 0, plan: 0, key: 'high_key', highKeyCheck: true }];
           lapClean = neededFt(lapPath, 0, s, s.alt, 0, wind);
         }
         if (lapPath && s.alt - lapClean >= PFL.highKeyMinFt) {
@@ -959,12 +1057,17 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
       // (Patrick 17:51Z, 18:39Z: "gear can come early", but not before about 5 miles gliding in). Flaps wait for the circle.
       const gearEarly = cfg === 0 && !onCircle() && plan.kind !== 'direct' && dist(s, geo.th) <= PFL.earlyGearWithinFt
         && s.alt - ground - neededFt(path, seg, proj.pt, s.alt, cfg, wind, true, 'aim', 2) >= PFL.dragBufferFt;
-      if (mustGear) cfg = 1;
+      if (!onCircle() && cfg < (plan.dragBefore ?? 0)) { cfg += 1; notes.push(`${PFL_CONFIG_LABELS[cfg]} before the join at ${Math.round(s.alt)} ft`); }
+      else if (mustGear) cfg = 1;
       else if (gearEarly) { cfg = 1; notes.push(`gear early before the join at ${Math.round(s.alt)} ft`); }
       else if (dragOk && cfg < 2) {
-        // Gear and T/O flap: at their planned point unless low; before it only with height to spare.
+        // Gear and T/O flap: at their planned point unless low; before it only with height to spare. Before Low Key the
+        // T/O flap goes early only when more than about 100 ft high: a little high is carried round, and the landing flap
+        // takes it off early after Low Key (Patrick 5 Oct 23:49Z "keys about 100 ft high, take land flap early";
+        // 23:51Z "if ... i see that im going to be very high at low key i will take takeoff flaps early").
         const due = (path[seg]?.plan ?? 0) > cfg;
-        if (due ? margin >= -PFL.onProfileFt : s.alt - ground - neededFt(path, seg, proj.pt, s.alt, cfg, wind, true, 'aim', 2) >= PFL.dragBufferFt) cfg += 1;
+        const earlyOk = cfg === 0 || (path[seg]?.theta ?? 360) >= 180 || margin > PFL.keysCarryHighFt;
+        if (due ? margin >= -PFL.onProfileFt : earlyOk && s.alt - ground - neededFt(path, seg, proj.pt, s.alt, cfg, wind, true, 'aim', 2) >= PFL.dragBufferFt) cfg += 1;
       } else if (dragOk && cfg === 2) {
         // Landing flap as soon as it still touches down in the first 1,000 ft: closer is better (Patrick 09:56Z).
         if (s.alt - ground - neededFt(path, seg, proj.pt, s.alt, 3, wind, false, tdKey) >= 0) cfg = 3;

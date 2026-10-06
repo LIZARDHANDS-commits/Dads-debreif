@@ -10,7 +10,7 @@
 // the same times give the same picture at any frame rate.
 import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
-import { STEP_SEC } from './live/flight.js';
+import { STEP_SEC, liftBankDeg } from './live/flight.js';
 import { MANOEUVRES, relativeTo } from './live/manoeuvres.js';
 import { createFormation, LIVE_DEFAULTS, checkSpacing, compassDeg, fixedLine, intoOrAway, labelFor } from './live/formation.js';
 import { ERROR_DEFAULTS, ERROR_ALLOWED, errorCardLines } from './live/errors.js';
@@ -24,7 +24,7 @@ import { createChangeUi } from './transitions-panel.js';
 import { createFluidUi } from './fluid-panel.js';
 import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, LAYOUT_VERSION, SHIP_COLORS, migrateLayout } from './layout.js';
 import { createTurnSimView } from './view.js';
-import { tagLines, formatTag } from './tags.js';
+import { tagLines, formatTag, closeTagsOff } from './tags.js';
 import { createView3d, yawBehind } from './view3d.js';
 
 const STYLESHEET = new URL('./turn-sim.css', import.meta.url).href;
@@ -70,8 +70,8 @@ const FW_DEFAULTS = Object.freeze({
   fw4OtherRangeFt: FW4.rangeFt,
   fw4OtherDeg: FW4.otherDeg,
 });
-/** The screen starts line abreast at 4,000 ft (Patrick, 5 Oct), the close side of the 4,000 to 6,000 ft band (SMM 16.18 para 49). */
-const START_SPACING_FT = 4000;
+/** The screen starts line abreast at 5,000 ft (Patrick 5 Oct 22:46Z: "5000"), the middle of the 4,000 to 6,000 ft band (SMM 16.18 para 49); any spacing can be set. */
+const START_SPACING_FT = 5000;
 const SETUP_DEFAULTS = Object.freeze({ ships: LIVE_DEFAULTS.ships, check45: LIVE_DEFAULTS.check45, spacingFt: START_SPACING_FT, wingSide: LIVE_DEFAULTS.wingSide, ...FW_DEFAULTS, ...ERROR_DEFAULTS });
 
 /** The flags for fighting wing places outside the SMM band (SMM 12.29 para 69), for the ships flown: flown anyway, never refused. */
@@ -129,7 +129,7 @@ function cardFor(state, wingSide) {
     ships: state.aircraft.map((a) => ({
       id: a.id,
       name: a.name,
-      text: `${Math.round(a.kias)} KIAS, ${String(compassDeg(a.headingRad)).padStart(3, '0')}, ${bankText(a.bankDeg)}, ${a.g.toFixed(1)} G`, // the Speed/power fix changes #2's speed
+      text: `${Math.round(a.kias)} KIAS, ${String(compassDeg(a.headingRad)).padStart(3, '0')}, ${bankText(liftBankDeg(a.bankDeg, a.nz ?? 1))}, ${a.g.toFixed(1)} G`, // the Speed/power fix changes #2's speed
     })),
   };
 }
@@ -271,13 +271,31 @@ function mount(root, app) {
     return planFrozen;
   }
 
+  /**
+   * Each wingman's link to Lead for the Data tag's arrow (Patrick, 6 Oct): distance and closure (judge.js rejoinReadout),
+   * or null when the arrow is off.
+   */
+  function leadLinks() {
+    if (!layout.get().tagArrow) return null;
+    const lead = state.aircraft[0];
+    return state.aircraft.slice(1).map((a) => {
+      const r = rejoinReadout(lead, a);
+      const kt = Math.abs(r.closureKt) < 1 ? '0 kt' : `${r.closureKt > 0 ? '+' : ''}${Math.round(r.closureKt)} kt`;
+      return { id: a.id, text: `${Math.round(r.rangeFt).toLocaleString('en-CA')} ft · ${kt}` };
+    });
+  }
+
   function dataTags() {
+    // In close formation a wingman's tag goes once he is IN POSITION there; Lead's always stays (TS-92, Patrick 6 Oct:
+    // "Only show lead's tag", "2's tag only goes away once green is IN POSITION in echelon").
+    const settledClose = closeTagsOff(state, formation.where()) && !state.current;
     const tags = tagLines(state, formation.where());
-    const show = layout.get();
+    // The 2D view shows no height, so its tags always carry each wingman's height off Lead ("+150 ft"); 3D follows the Data tag tick.
+    const show = shown === '2d' ? { ...layout.get(), tagHeight: true } : layout.get();
     const lead = state.aircraft[0];
     const out = {};
     for (const a of state.aircraft) {
-      if (!tags[a.id]) continue;
+      if (!tags[a.id] || (settledClose && a.id !== 1 && tags[a.id].position === 'IN POSITION')) continue;
       let closure = null;
       if (a.id !== 1 && state.current?.change?.rejoining) {
         const r = rejoinReadout(lead, a);
@@ -313,6 +331,9 @@ function mount(root, app) {
       follow,
       planned: shownPlan,
       tags: dataTags,
+      leadLinks,
+      placeBox: () => changeUi.placeBox(),
+      onPick: (x, y) => changeUi.pickAt(x, y),
       rejoin: () => {
         if (!state.current?.change?.rejoining || state.aircraft.length !== 2) return null;
         const r = rejoinReadout(state.aircraft[0], state.aircraft[1]);
@@ -335,6 +356,10 @@ function mount(root, app) {
       layers: () => layout.get(),
       planned: shownPlan,
       tags: dataTags,
+      leadLinks,
+      // The band's box and Change position's click, in 3D as in 2D (Patrick, 6 Oct: no yellow box in 3D).
+      placeBox: () => changeUi.placeBox(),
+      onPick: (x, y) => changeUi.pickAt(x, y),
       look: camLook,
       focus: () => {
         if (freeCamera()) return null; // the 3D view keeps its own centre, moved by shift-drag or right-drag
@@ -428,7 +453,8 @@ function mount(root, app) {
     } else {
       // The four's manoeuvres fly from Spread 4 (or a column after an in-place turn); G-warm from Spread 4 only.
       const where = whereAll.key;
-      const lineAbreast = where === 'spread4' || where === 'other';
+      // In Fluid 4 the two elements fly Spread 4's turns (planFluid4Turn; Patrick 6 Oct card 04:59Z "Spread 4's five").
+      const lineAbreast = where === 'spread4' || where === 'other' || where === 'fluid4';
       ui.setMovesEnabled(lineAbreast, (key) => key !== G_WARM.key || where === 'spread4', 'These manoeuvres fly in Spread 4, fighting wing and the close formations. Change formation first.');
     }
   }
@@ -520,6 +546,10 @@ function mount(root, app) {
 
   ui.onPress(press);
   changeUi.onSideChanged(renderCard);
+  changeUi.onPickChanged(() => {
+    renderCard();
+    redraw();
+  });
   ui.onPlayPause(() => (playing ? pause() : play()));
   ui.onResetRun(resetRun);
   ui.onFit(fitNow);
@@ -528,15 +558,36 @@ function mount(root, app) {
   });
 
   // Setup changes start again from t = 0 (spec section 4), 2-ship or 4-ship too. A spacing outside the SMM band is flown and flagged.
+  // The 4-ship's Delayed 45 check turn is read only when a Delayed 45 is planned, so ticking it doesn't start again
+  // (Patrick, 6 Oct: "this should not reset the environment"); every other Setup change still does.
+  let setupWas = { ...setup.get() };
   const stopSetup = setup.subscribe((values) => {
+    const changed = Object.keys(values).filter((k) => values[k] !== setupWas[k]);
+    setupWas = { ...values };
+    if (changed.length && changed.every((k) => k === 'check45')) {
+      formation.setOptions({ check45: values.check45 });
+      return;
+    }
     ui.setShips(values.ships, fourShipLine());
-    ui.setFixTools(values.errResponse !== 'reference');
+    ui.setFixTools(values.errSmart !== false);
     ui.setSide(values.wingSide);
     ui.setSpacingFlag(checkSpacing(values.spacingFt).flag);
     ui.setFwFlag(fwFlags(values));
     resetRun();
   });
   let autoFitWas = layout.get().autoFit;
+  // A click on any Camera menu choice, even the one already picked, locks the camera back on, as Fit does after a drag
+  // (Patrick, 6 Oct: "I want it to also follow when I click Follow"). Free stays free.
+  app.listen(ui.element, 'click', (e) => {
+    const input = e.target?.closest?.('#ts-camera input[type=radio]');
+    if (!input || !cameraPaused) return;
+    app.scheduler.after(0, () => {
+      if (layout.get().camOn === 'free') return;
+      cameraPaused = false;
+      showFit();
+      redraw();
+    }); // after the choice itself has been saved
+  });
   const stopLayout = layout.subscribe((values) => {
     ui.applyLayout(values);
     if (values.autoFit !== autoFitWas) {
@@ -569,10 +620,13 @@ function mount(root, app) {
   });
 
   ui.setShips(setup.get().ships, fourShipLine());
-  ui.setFixTools(setup.get().errResponse !== 'reference');
+  ui.setFixTools(setup.get().errSmart !== false);
   ui.setSide(setup.get().wingSide);
   ui.setSpacingFlag(checkSpacing(setup.get().spacingFt).flag);
   ui.setFwFlag(fwFlags(setup.get()));
+  // Free (follow nothing) is for the moment it's picked; every visit starts with the camera on the formation (Patrick, 6 Oct:
+  // a Free remembered from an earlier visit left the camera not following).
+  if (layout.get().camOn === 'free') layout.update({ camOn: 'formation' });
   ui.applyLayout(layout.get());
   showFit();
   refresh();

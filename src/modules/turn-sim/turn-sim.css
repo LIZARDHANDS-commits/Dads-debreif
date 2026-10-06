@@ -553,6 +553,14 @@
   text-align: center;
 }
 
+/* A button's display would beat the hidden attribute, so say it: a button this formation cannot use is hidden, not greyed
+   (Patrick, 5 Oct, fly-through item 6). */
+[data-module='turn-sim'] .ts-change-button[hidden],
+[data-module='turn-sim'] .ts-change-group[hidden],
+[data-module='turn-sim'] .ts-side-row[hidden] {
+  display: none;
+}
+
 [data-module='turn-sim'] .ts-side {
   display: flex;
   align-items: center;

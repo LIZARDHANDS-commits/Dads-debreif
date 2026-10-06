@@ -8,29 +8,29 @@
 // the first aircraft and the one the others are judged from.
 import { iasToTasKt } from '../../../core/t6-performance.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
+import { createEvents } from './events.js';
 import { STEP_SEC, makeAircraft, stepAircraft, planDone } from './flight.js';
 import { MANOEUVRES, planManoeuvre, relativeTo, dryRun, TURN_BANK_DEG, TURN_G } from './manoeuvres.js';
 import { flyStep, dryRunT } from './transitions.js';
-import { resolveErrors, resolveFixTools, applyStartErrors, planWithErrors, outcomeOf } from './errors.js';
+import { resolveErrors, resolveFixTools, applyStartErrors, planWithErrors, outcomeOf, offStandardOutcome, responseOf } from './errors.js';
 import { FOUR_SHIP_KEYS, fourShipStart, planFour } from './four-ship.js';
 import { G_WARM, planGWarm } from './g-warm.js';
-import { classify, judge } from './judge.js';
+import { classify, judge, judgeFluid4 } from './judge.js';
 import { FORMATIONS, FOUR_FORMATIONS, setFwShape, setFw4Shape } from './slots.js';
-import { planChangeFour } from './four-ship-moves.js';
-import { offStandardOutcome } from './hot-rejoin.js';
+import { planChangeFour } from './four-plan.js';
 import { chooseChange } from './chooser.js';
-import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFwMove, leadTurnPlan } from './formation-turns.js';
+import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFluid4Turn, planFwMove } from './formation-turns.js';
 import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
 import { FLUID_MOVES } from './fluid-lead.js';
-import { LAG_ROLL_KEY, planLagRoll } from './lag-roll.js';
-import { REJOIN, STEADY } from './tuning.js';
+import { LAG_ROLL_KEY } from './lag-roll.js';
+import { MOVE_IN_BAND_KEY, placeNow } from './move-in-band.js';
 
 /**
  * The first version's fixed numbers. Speeds name their kind (rule book): kias is
  * indicated, and the aircraft fly it as true airspeed at the block height.
  */
 export const LIVE_DEFAULTS = Object.freeze({
-  spacingFt: 6000, // the briefs' wide side of the 4,000 to 6,000 ft band (SMM 16.18 para 49)
+  spacingFt: 5000, // the middle of the 4,000 to 6,000 ft band (SMM 16.18 para 49; Patrick 5 Oct 22:46Z: "5000")
   wingSide: /** @type {'right' | 'left'} */ ('right'), // #2 on Lead's right
   kias: 220, // SMM 16.18 para 50
   blockFt: 8000, // estimate until Patrick gives the low block height
@@ -53,6 +53,9 @@ const RECORD_SEC = 600;
 const RECORD_MAX = Math.round(RECORD_SEC / STEP_SEC);
 
 const DEG = Math.PI / 180;
+/** A change pressed in fluid manoeuvring is planned only with Lead within this of level (TS-86; estimates). */
+const FLUID_CHANGE_MAX_BANK_DEG = 90;
+const FLUID_CHANGE_MAX_CLIMB_DEG = 30;
 
 /** Compass heading (degrees, 000 to 359) from math radians. */
 export function compassDeg(headingRad) {
@@ -112,6 +115,9 @@ export function createFormation(options = {}) {
     fluid: null, // fluid manoeuvring while it runs: { session, readouts, prev } (fluid.js, TS-57), else null
   };
   let record = [];
+  // The events of a change in flight: the decision point, the picture breaking, a turn pressed mid-change, done (events.js).
+  const events = createEvents({ state, startChange: (to, o, midLead) => startChange(to, o, midLead), labelFor });
+  const { midPress, turnMidChange, replanAtEvents, inBandAndSteady } = events;
 
   function build() {
     // The fighting wing desired places (TS-58): a missing value takes the default (slots.js FW2, FW4).
@@ -148,6 +154,9 @@ export function createFormation(options = {}) {
     state.fluid = null;
     record = [];
     keepTrack(true);
+    // Smart wingman, fix now (TS-96; Patrick 5 Oct 23:33Z): #2 flies back into line abreast from where the error put him at
+    // once, by the chooser's race ("from here" among them); the timing error, a roll-in's, still waits for the next turn.
+    if (state.errors?.fixNow) startChange('lab', {});
   }
 
   function keepTrack(force = false) {
@@ -177,8 +186,12 @@ export function createFormation(options = {}) {
     // In fighting wing and the close formations the turn buttons turn the formation (TS-55, spec section 10.2): Lead turns,
     // the wingmen keep their places (the fighting wing band, or their place in Lead's wing plane).
     const where = whereNow();
-    const turnIn = FW_TURN_KEYS.includes(key) && TURN_FORMATIONS[four ? 4 : 2].includes(where.key) ? { key: where.key, side: where.side } : null;
-    const plan = turnIn
+    // In Fluid 4 the two elements turn: Lead and #3 in line abreast, #2 and #4 in fighting wing on them (planFluid4Turn).
+    const fluid4 = four && where.key === 'fluid4' && FOUR_SHIP_KEYS.includes(key);
+    const turnIn = fluid4 || (FW_TURN_KEYS.includes(key) && TURN_FORMATIONS[four ? 4 : 2].includes(where.key)) ? { key: where.key, side: where.side } : null;
+    const plan = fluid4
+      ? planFluid4Turn(state.aircraft, key, dir, state.tSec, { blockFt: opts.blockFt })
+      : turnIn
       ? planFormationTurn(state.aircraft, turnIn, key, dir, state.tSec, { blockFt: opts.blockFt })
       : key === G_WARM.key
       ? planGWarm(state.aircraft, state.tSec)
@@ -232,23 +245,22 @@ export function createFormation(options = {}) {
 
   /**
    * Plans and starts a change of formation from the formation as it is now: transitions.js for the pair,
-   * four-ship-moves.js for the four. Returns false, with state.refusal saying why in one line, when there is no safe
+   * four-plan.js for the four. Returns false, with state.refusal saying why in one line, when there is no safe
    * plan; nothing then changes.
    */
   function startChange(to, changeOptions, midLead = null) {
     if (to === 'fluid') return startFluid();
     whereNow();
     const four = state.aircraft.length > 2;
-    // A training error set (TS-62) makes the hot turning rejoin start from wherever #2 is, flown as its response says.
+    // A training error set (TS-62): the chooser races "from here" too, from wherever the error put #2.
     // midLead: Lead's own flying when a turn button is pressed mid-change (turnMidChange); otherwise how the press leaves him.
     const mid = midLead ? { lead: { kind: 'carry', plan: midLead } } : state.current ? midPress(state.current) : null;
     const planOpts = { ...changeOptions, spacingFt: state.spacingFt, blockFt: opts.blockFt, lastSide: state.lastSide, errors: four ? null : state.errors, mid };
-    // The 2-ship: the chooser (chooser.js, TS-76) runs every planner that applies (a training error's rejoin first, TS-62;
-    // the turning rejoin, TS-68; the straight-ahead rejoin, TS-72; echelon or route out to fighting wing, TS-73; a line then
-    // the tracker, TS-65; the tracker alone) and flies the one that passes the pilot's checks quickest. Until V2.75 they were
-    // tried in that fixed order and the first that accepted the case flew it.
-    const plan = to === LAG_ROLL_KEY ? planLagRoll(state.aircraft, planOpts, state.tSec) // #2's lag roll (lag-roll.js, TS-71)
-      : four
+    // The 2-ship: the chooser (chooser.js, TS-76) runs every planner that applies (the turning rejoin, TS-68; the
+    // straight-ahead rejoin, TS-72; echelon or route out to fighting wing, TS-73; opening out at full power, TS-88; a line
+    // then the tracker, TS-65; "from here" after a training error's start or a press mid-move; the tracker alone) and flies
+    // the one that passes the pilot's checks quickest; #2's lag roll (TS-71) is its own button and only candidate (TS-94).
+    const plan = four
       ? planChangeFour(state.aircraft, to, planOpts, state.tSec)
       : chooseChange(state.aircraft, to, planOpts, state.tSec);
     if (!plan.ok) {
@@ -270,7 +282,8 @@ export function createFormation(options = {}) {
     if (four) for (const a of state.aircraft) if (a.ref != null) a.ref = plan.refs[a.id];
     state.current = {
       key: `change:${to}`,
-      change: { to: plan.to ?? to, side: plan.side, from: plan.from, rejoining: plan.rejoining, rejoinKind: plan.rejoinKind, flying: plan.flying, maxBankDeg: plan.maxBankDeg, four, offStandard: plan.offStandard ?? null, chooser: plan.chooser ?? null },
+      change: { to: plan.to ?? to, side: plan.side, from: plan.from, holdsPlan: four || Boolean(plan.holdsPlan), rejoining: plan.rejoining, rejoinKind: plan.rejoinKind, flying: plan.flying, maxBankDeg: plan.maxBankDeg, four, offStandard: plan.offStandard ?? null, chooser: plan.chooser ?? null, options: changeOptions },
+      decisionSec: plan.decisionSec ?? null,
       dir: 0,
       label: plan.label,
       note: plan.note,
@@ -283,40 +296,6 @@ export function createFormation(options = {}) {
     state.judged = null;
     state.errorOutcome = null;
     return true;
-  }
-
-  /**
-   * A turn button pressed while #2 is still changing formation, 2-ship (spec F11; Fable's handover item 1): Lead flies the
-   * turn now, as he would in the formation #2 is going to, and #2's change is planned again from where he is against it
-   * (replan.js, the chooser's "from here"), so nothing waits in the queue. Not the lag roll, a training error's rejoin or a
-   * change to line abreast (its turns are both aircraft's manoeuvres). Returns true when it started, false to queue as before.
-   */
-  function turnMidChange(key, dir) {
-    const c = state.current;
-    if (!c?.change || c.change.four || c.change.offStandard || c.key === `change:${LAG_ROLL_KEY}`) return false;
-    const leadPlan = leadTurnPlan(state.aircraft[0], c.change.to, key, dir);
-    if (!leadPlan) return false;
-    const side = c.change.side > 0 ? 'left' : c.change.side < 0 ? 'right' : 'keep';
-    const was = { refusal: state.refusal };
-    if (!startChange(c.change.to, { side }, leadPlan)) {
-      state.refusal = was.refusal;
-      return false;
-    }
-    state.current.label = `${labelFor(key, dir)}, ${state.current.label.toLowerCase()}`;
-    state.queued = null;
-    return true;
-  }
-
-  /**
-   * How Lead flies on when a change is pressed mid-move (spec F11, replan.js): the rest of his own move (a turn, a fighting
-   * wing move, a line abreast manoeuvre); in a turning rejoin, his turn into #2 held until #2 is in; otherwise straight.
-   */
-  function midPress(c) {
-    const lead = state.aircraft[0];
-    const plan = state.plans[lead.id] ?? { segments: [] };
-    if (!c.change) return { lead: { kind: 'carry', plan: { segments: plan.segments.map((x) => ({ ...x })), profile: plan.profile } } };
-    if (c.change.rejoining && c.change.rejoinKind === 'into' && Math.abs(lead.bankDeg) > 1) return { lead: { kind: 'hold', s: Math.sign(lead.bankDeg), bankDeg: REJOIN.leadBankDeg } };
-    return { lead: { kind: 'straight' } };
   }
 
   /**
@@ -355,6 +334,29 @@ export function createFormation(options = {}) {
     return true;
   }
 
+  /**
+   * A Change formation press in fluid manoeuvring or its Terminate (Patrick 5 Oct 22:32Z: "after fluid manoeuvring the
+   * planes seem to get stuck in that I can't rejoin"; TS-86): the session ends and the change is planned from where the
+   * pair is, like any press mid-move (TS-78). Refused, with fluid going on, only while Lead is far from level (a loop's
+   * top, a wingover): planned from there the change would start from an attitude the planners don't fly.
+   */
+  function changeFromFluid(to, options) {
+    const lead = state.aircraft[0];
+    const climbDeg = Math.atan2(lead.climbFtps ?? 0, Math.max(lead.tasFtps, 1)) / DEG;
+    if (Math.abs(lead.bankDeg) > FLUID_CHANGE_MAX_BANK_DEG || Math.abs(climbDeg) > FLUID_CHANGE_MAX_CLIMB_DEG) {
+      state.refusal = 'Lead is in the vertical; press again once he is back near level.';
+      return 'refused';
+    }
+    const f = state.fluid;
+    const cur = state.current;
+    state.fluid = null;
+    state.current = null;
+    if (startChange(to, options)) return 'started';
+    state.fluid = f;
+    state.current = cur;
+    return 'refused';
+  }
+
   /** The end of fluid manoeuvring: back in fighting wing, judged against its band (spec section 10 table). */
   function finishFluid() {
     state.fluid = null;
@@ -375,8 +377,15 @@ export function createFormation(options = {}) {
       const c = state.current.change;
       const j = judge(state.aircraft, { key: c.to, side: c.side }, { spacingFt: state.spacingFt });
       state.judged = { label: state.current.label, shape: 'formation', labels: j.inBand ? ['IN POSITION'] : j.labels, text: j.text, tone: j.tone, ...(c.four ? { ships: j.ships } : {}) };
-      // An off-standard hot turning rejoin (TS-62) says on the card how #2 dealt with the start.
+      // A change flown from a training error's start (TS-62) says on the card how #2 dealt with it.
       if (c.offStandard) state.errorOutcome = offStandardOutcome(c.offStandard, j.inBand, state.current.label);
+      // A line abreast move in the band (TS-98) leaves #2 off the 5,000 ft picture; the next turn treats that as where he
+      // starts from, and Smart wingman fixes it there or carries it, as for a set error (Patrick 23:54Z: the next move ends in position).
+      if (state.current.key === `change:${MOVE_IN_BAND_KEY}` && c.to === 'lab') {
+        const at = placeNow(lead, wing);
+        const side = Math.sign(state.slot.left) || 1;
+        state.errors = { ...(state.errors ?? { timingSec: 0, speedKias: 0, random: false }), foreFt: at.fwd - state.slot.fwd, spacingFt: side * at.left - Math.abs(state.slot.left), heightFt: at.alt, response: responseOf(opts), fixNow: false };
+      }
     } else if (state.current.gWarm) {
       // G-warm ends in line abreast at the tightened gap (AFM8 brief p.16 item 5); that gap is the four's from now on.
       const g = state.current.gWarm;
@@ -386,7 +395,9 @@ export function createFormation(options = {}) {
       // A turn in fighting wing or a close formation ends judged against that formation (spec section 10 table; the four, link by link).
       const ft = state.current.formationTurn;
       const four = state.aircraft.length > 2;
-      const j = judge(state.aircraft, { key: ft.key, side: ft.side }, { spacingFt: state.spacingFt });
+      // Fluid 4: the elements against the line abreast roll-out, the wingmen in the cone on their leaders (judgeFluid4).
+      const f4 = ft.key === 'fluid4' ? judgeFluid4(state.aircraft, MANOEUVRES[state.current.key]?.kind === 'together' && MANOEUVRES[state.current.key].turnDeg > 30 && MANOEUVRES[state.current.key].turnDeg < 180 ? 'trail' : 'abreast', state.spacingFt) : null;
+      const j = f4 ? { inBand: f4.labels[0] === 'IN POSITION', labels: f4.labels, text: `Fluid 4: ${f4.labels.join(', ')}.`, tone: f4.labels[0] === 'IN POSITION' ? 'good' : 'caution', ships: f4.ships } : judge(state.aircraft, { key: ft.key, side: ft.side }, { spacingFt: state.spacingFt });
       state.judged = { label: state.current.label, shape: 'formation', labels: j.inBand ? ['IN POSITION'] : j.labels, text: j.text, tone: j.tone, ...(four ? { ships: j.ships } : {}) };
     } else {
       state.judged = { label: state.current.label, ...judge(state.aircraft, { shape: state.current.shape }, { spacingFt: state.spacingFt }) };
@@ -408,34 +419,6 @@ export function createFormation(options = {}) {
     }
   }
 
-  /**
-   * A 2-ship change of formation is done once #2 is IN POSITION (the judge's band) and steady, not when the tracker has
-   * settled on the exact slot (Patrick 5 Oct 20:39Z card "In band and steady"; TS-78): the tracker's plan keeps flying
-   * underneath and goes on holding the slot. Steady is #2's speed against the slot under STEADY.closureKt ("stabilize"
-   * means within 5 knots, Patrick 20:41Z), his bank within STEADY.bankOffDeg of Lead's, and Lead's own plan done (his
-   * speed change, his turn-in rolled out). Not the lag roll (it ends on its own), the 4-ship or a training error's rejoin.
-   */
-  function inBandAndSteady() {
-    const c = state.current;
-    if (!c?.change || c.change.four || c.change.offStandard || c.key === `change:${LAG_ROLL_KEY}`) return false;
-    const [lead, wing] = state.aircraft;
-    // Line abreast is a wide band: once #2 is in it and steady, Lead finishing his speed-up to 220 KIAS is ordinary formation
-  // keeping, not part of the change (estimate pending Patrick's card, 21:15Z; the other changes wait for Lead's plan).
-  if (c.change.to !== 'lab' && !planDone(lead, state.plans[lead.id])) return false;
-    const rel = relativeTo(lead, wing);
-    const prev = c.relPrev;
-    c.relPrev = { fwd: rel.fwd, left: rel.left, up: wing.altAboveFt - lead.altAboveFt, tSec: state.tSec };
-    if (!prev) return false;
-    const dtSec = Math.max(STEP_SEC, state.tSec - prev.tSec);
-    const closureFtps = Math.hypot(rel.fwd - prev.fwd, rel.left - prev.left, c.relPrev.up - prev.up) / dtSec;
-    if (closureFtps > STEADY.closureKt * KT_TO_FTPS) return false;
-    if (Math.abs(wing.bankDeg - lead.bankDeg) > STEADY.bankOffDeg) return false;
-    // The judge's band is sideless for the pair: a change of side is done only on the new side.
-    const side = c.change.side ?? 0;
-    if (side !== 0 && Math.sign(rel.left) !== side) return false;
-    return judge(state.aircraft, { key: c.change.to, side }, { spacingFt: state.spacingFt }).inBand;
-  }
-
   /** Why a manoeuvre can't be flown from where the formation is now, or null (spec sections 8 and 10: line abreast only). */
   function refuseMove(key, dir) {
     const where = whereNow().key;
@@ -443,6 +426,8 @@ export function createFormation(options = {}) {
     if (four && key === G_WARM.key) return where === 'spread4' ? null : 'G-warm starts from Spread 4; change to Spread 4 first.';
     // The turns fly in fighting wing (TS-55) and the close formations too (spec section 10.2).
     if (FW_TURN_KEYS.includes(key) && TURN_FORMATIONS[four ? 4 : 2].includes(where)) return null;
+    // Fluid 4: Spread 4's five turns, flown by the two elements (Patrick 6 Oct 04:56Z; card 04:59Z "Spread 4's five").
+    if (four && where === 'fluid4') return FOUR_SHIP_KEYS.includes(key) ? null : `${labelFor(key, dir)} is not flown in Fluid 4.`;
     if (four) return MOVES_FROM_FOUR.includes(where) ? null : `${labelFor(key, dir)} flies in Spread 4 only; change to Spread 4 first.`;
     return MOVES_FROM.includes(where) ? null : `${labelFor(key, dir)} flies in line abreast only; change formation first.`;
   }
@@ -459,6 +444,10 @@ export function createFormation(options = {}) {
     reset(next = {}) {
       opts = { ...opts, ...next };
       build();
+    },
+    /** Changes options read only when a manoeuvre is planned (the 4-ship check turn), without starting again. */
+    setOptions(next = {}) {
+      opts = { ...opts, ...next };
     },
     /**
      * A button press. Flown at once when nothing is being flown; a turn button while #2 is changing formation (2-ship) is
@@ -489,15 +478,12 @@ export function createFormation(options = {}) {
     },
     /**
      * A "Change formation" press (spec section 10, transitions.js): to is 'lab', 'fw', 'echelon', 'route' or 'astern';
-     * for the four (spec section 8, four-ship-moves.js) one of slots.js FOUR_FORMATIONS' keys;
+     * for the four (spec section 8, four-plan.js) one of slots.js FOUR_FORMATIONS' keys;
      * options: { side: 'keep' | 'left' | 'right', rejoin: 'into' | 'straight' }. Flown at once when nothing is being
      * flown, otherwise queued like a manoeuvre. Returns 'started', 'queued' or 'refused' (state.refusal says why).
      */
     change(to, options = {}) {
-      if (state.fluid) {
-        state.refusal = 'Terminate fluid manoeuvring first; it ends in fighting wing.';
-        return 'refused';
-      }
+      if (state.fluid) return changeFromFluid(to, options);
       if (state.current && state.aircraft.length > 2) {
         const label = FOUR_FORMATIONS[to]?.label ?? to;
         state.queued = { key: `change:${to}`, dir: 0, label, change: { to, options } };
@@ -628,6 +614,7 @@ export function createFormation(options = {}) {
       }
       if (state.current && state.aircraft.every((a) => planDone(a, state.plans[a.id]) && (state.tSec >= state.current.endSec - STEP_SEC / 2))) finish();
       else if (state.current && inBandAndSteady()) finish();
+      else if (state.current) replanAtEvents();
       return true;
     },
   };
@@ -663,5 +650,5 @@ export function intoOrAway(dir, wingSide) {
 
 /** The fixed line under Setup. */
 export function fixedLine(opts = LIVE_DEFAULTS) {
-  return `${opts.kias} KIAS · ${opts.blockFt.toLocaleString('en-CA')} ft · ${TURN_G} G turns (${Math.round(TURN_BANK_DEG)}° bank) · still air · roll 90°/s`;
+  return `${opts.kias} KIAS · ${opts.blockFt.toLocaleString('en-CA')} ft · ${TURN_G} G turns (${Math.round(TURN_BANK_DEG)}° bank) · still air · roll up to 180°/s`;
 }

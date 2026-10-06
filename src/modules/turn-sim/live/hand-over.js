@@ -13,13 +13,13 @@
 // line is, and the tracker flies the unchanged flight.js step. Numbers are tuning.js's.
 import { G_FTPS2 } from '../../../core/units.js';
 import { wrapPi } from '../../../core/angles.js';
-import { STEP_SEC, copyAircraft } from './flight.js';
+import { STEP_SEC, copyAircraft, smoother } from './flight.js';
 import { relativeTo, leadTurnSegs, DEG } from './manoeuvres.js';
-import { applyPose, makeTrack, seedTrack, posesFrom, followInto, laggedBank, relPath, powerLaw, relSpeedLimitFor, speedNeeds, labelStages } from './kinematic.js';
+import { applyPose, makeTrack, seedTrack, posesFrom, followInto, laggedBank, relPath, powerLaw, relSpeedLimitFor, speedNeeds, labelStages, slotInWorld, TRACK_PAD } from './kinematic.js';
 import { trackTwice } from './tracker.js';
 import { holdToPower } from './full-power.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
-import { KIAS_OUTSIDE_LAB, KINEMATIC, WING_BANKS, HAND_OVER_FT, RATE_SET_SEC, closureNow, rejoinClosureNow } from './tuning.js';
+import { KIAS_OUTSIDE_LAB, KINEMATIC, WING_BANKS, HAND_OVER_FT, RATE_SET_SEC, RATE_SETS, closureNow, rejoinClosureNow } from './tuning.js';
 
 const dt = STEP_SEC;
 
@@ -30,7 +30,7 @@ const dt = STEP_SEC;
  * what the aircraft can do and the line is never STRETCHED by its own shape; sideways about 0.3 G of turn (a gentle heading
  * change); up or down 3 ft/s²; a 1 s blend at the start. At the formation's 200 KIAS and the block height.
  */
-export const RUN_IN = Object.freeze({ powerShare: 0.65, turnShare: 0.35, latG: 0.3, vertFtps2: 3, blendSec: 1 });
+export const RUN_IN = Object.freeze({ ...RATE_SETS.close.law, blendSec: 1 }); // the close set's law (tuning.js RATE_SETS)
 
 /** A leg whose slot is further than this from the aircraft flown off is a long move's (fighting wing, line abreast). */
 const LONG_SLOT_FT = 300; // the close formations all sit inside about 230 ft (route, 5 wingspans out); fighting wing starts at 500 ft
@@ -41,8 +41,8 @@ const LONG_SLOT_FT = 300; // the close formations all sit inside about 230 ft (r
  *    (a slot out at fighting wing or line abreast range), at REJOIN_CLOSURE_KT;
  *  - every close leg (station changes, echelon and route both ways, line astern, the run-in from a rejoin's route or
  *    corner) at the close-in rate (tuning.js CLOSE_IN_SEC, closeInFtps).
- * Banks (Patrick 06:16Z item 12): a close leg up to 30°; a kick out to fighting wing or line abreast with no cap but the G
- * rule; a rejoin's legs keep their own (REJOIN.bankCapDeg: the G rule since V2.59, Patrick 06:16Z item 1). Each slot is chased at once, not
+ * Banks: a close leg up to 60° (Patrick 06:43Z); a kick out to fighting wing or line abreast, or a move in its band, with no cap
+ * (Patrick 6 Oct 04:07Z); a rejoin's legs keep their own (REJOIN.bankCapDeg: no cap, Patrick 6 Oct 04:07Z). Each slot is chased at once, not
  * through a sliding reference, and the closure is never capped below the rate chosen. With `closeIn` (the tracker's run-in after a hand-over, or a move that starts inside
  * the hand-over range) every leg is at the close-in rate (Patrick 06:24Z). `rejoinBankDeg` replaces a rejoin leg's own cap
  * (the 4-ship's: the G rule only, Patrick 06:16Z item 1).
@@ -89,6 +89,9 @@ function runInLaw(kiasPerTas, blockFt, over = null) {
   };
 }
 
+/** The integral of the smootherstep (flight.js smoother) from 0 to u (u from 0 to 1): 1/2 at u = 1. */
+const rampIntegral = (u) => u ** 4 * (2.5 - 3 * u + u * u);
+
 /**
  * Where the line hands over to the tracker (the one place the rule lives, so it can be switched): about HAND_OVER_FT from
  * the final slot, the same for every Rates choice (Patrick 5 Oct 06:24Z). Returns { slot, withinFt }.
@@ -125,15 +128,22 @@ export function lineRunIn({ wing, leadRec, points, finalSlot, blockFt = 8000, cr
   const kiasPerTas = wing.kias / wing.tasFtps;
   const { accel, decel, turnFtps2 } = runInLaw(kiasPerTas, blockFt, law);
   const timeLaw = powerLaw(path, { accel, decel, turnFtps2, limit: relSpeedLimitFor(cruiseFtps, rates), endAt: sH, endFtps, rateSetSec: RATE_SET_SEC });
-  const steps = Math.ceil(timeLaw.durationSec / dt);
+  // The line's clock starts slow and runs at its own rate after RUN_IN.blendSec (its rate the smoothstep, so the line's
+  // acceleration in the frame builds from none instead of starting at the law's full value). A line that starts at full
+  // sideways acceleration made the start blend swing #2's bank one way, the other and back (Fable's review 22:10Z, mid
+  // case 6, about 740°/s; TS-85). The whole line is half the onset later.
+  const onset = RUN_IN.blendSec;
+  const clock = (t) => (t >= onset ? t - onset / 2 : onset * rampIntegral(t / onset));
+  const steps = Math.ceil((timeLaw.durationSec + onset / 2) / dt);
   // Sampled once a step, past the hand-over too, then lightly smoothed (three passes of a one-second running mean, as
   // kinematic-moves.js movingSlot) so the bank and roll read off the line have no tiny corners.
   const HALF = 10;
   const pad = 3 * HALF;
   const extra = Math.round(KINEMATIC.startBlendSec / dt) + 40;
   const keys = ['fwd', 'left', 'up', 'plane'];
-  let rows = [];
-  for (let i = -pad; i <= steps + extra + pad; i++) rows.push(path.at(timeLaw.sAt(Math.max(0, i) * dt)));
+  const raw = [];
+  for (let i = -pad; i <= steps + extra + pad; i++) raw.push(path.at(timeLaw.sAt(clock(Math.max(0, i) * dt))));
+  let rows = raw;
   for (let pass = 0; pass < 3; pass++) {
     rows = rows.map((_, i) => {
       const o = {};
@@ -147,12 +157,34 @@ export function lineRunIn({ wing, leadRec, points, finalSlot, blockFt = 8000, cr
       return o;
     });
   }
+  // The smoothing reaches 1.5 s each way, so near the start it would set the line moving before the press; it fades in over
+  // that reach instead, and the line starts where #2 is, at rest in the frame (TS-85).
+  rows = rows.map((o, i) => {
+    const w = smoother(Math.min(1, Math.max(0, (i - pad) / pad)));
+    const q = {};
+    for (const key of keys) q[key] = (raw[i][key] ?? 0) + w * (o[key] - (raw[i][key] ?? 0));
+    return q;
+  });
   const slotAt = (k) => rows[Math.max(0, Math.min(rows.length - 1, k + pad))];
   const n = steps + extra;
   const track = makeTrack(n);
   seedTrack(track, wing);
-  // The line starts where #2 is, at rest in the frame, so it needs only a short blend for the acceleration's onset.
-  followInto(track, { ref: laggedBank(leadRec, KINEMATIC.planeLagSec), from: 0, slotAt, blendSec: RUN_IN.blendSec });
+  // The line starts where #2 is, at rest in the frame, its acceleration building over the onset (clock above). The short
+  // blend takes up only #2's own motion against the frame (onto his start point carried with Lead); the line's own
+  // movement from there is added whole, so a line moving off during the blend no longer swings the bank (TS-85).
+  const ref = laggedBank(leadRec, KINEMATIC.planeLagSec);
+  const start = slotAt(0);
+  followInto(track, { ref, from: 0, slotAt: () => start, blendSec: RUN_IN.blendSec });
+  for (let k = 1; k <= n + TRACK_PAD; k++) {
+    const R = ref.at(k);
+    const q = slotAt(k);
+    const p = slotInWorld(R, q.fwd, q.left, q.up, q.plane ?? 0);
+    const p0 = slotInWorld(R, start.fwd, start.left, start.up, start.plane ?? 0);
+    const r = k + TRACK_PAD;
+    track.x[r] += p.x - p0.x;
+    track.y[r] += p.y - p0.y;
+    track.z[r] += p.z - p0.z;
+  }
   const line = posesFrom(track, kiasPerTas);
   const held = holdToPower(line.poses, { refAt: (i) => leadRec.at(i + 1), blockFt, kiasPerTas, from: 1 });
   const poses = held.poses;
