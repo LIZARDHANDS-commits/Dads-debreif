@@ -18,7 +18,7 @@
 // recorded and replayed like every other 2-ship move. Numbers: tuning.js FW_PURSUIT (estimates unless a page is named).
 import { G_FTPS2 } from '../../../core/units.js';
 import { DEG } from './manoeuvres.js';
-import { FW_PURSUIT } from './tuning.js';
+import { FW_PURSUIT, FW_BUBBLE } from './tuning.js';
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -66,4 +66,63 @@ export function fwPursuitCommand(L, W, plannedBankDeg = null) {
   // Power last (Patrick 5 Oct 23:02Z): a little speed with the arc error, inside the fighting wing overtake.
   const kiasCmd = L.kias - clamp(aheadFt / P.arcScaleFt, -1, 1) * P.closeKias;
   return { psiCmd, kiasCmd };
+}
+
+const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+
+/**
+ * Where #2 and L will be over the next horizonSec if L keeps his present turn and #2 turns onto heading psi at
+ * turnRateDegS, then flies straight: the least range and the last. A steady turn for L and a straight line for #2: an
+ * estimate, refreshed every step.
+ */
+function predict(L, W, psi) {
+  const B = FW_BUBBLE;
+  const omegaL = (G_FTPS2 * Math.tan(L.bankDeg * DEG)) / Math.max(L.tasFtps, 1); // + left, heading grows
+  const wMax = B.turnRateDegS * DEG;
+  const dt = B.stepSec;
+  let [lx, ly, lh] = [L.xFt, L.yFt, L.headingRad];
+  let [wx, wy, wh] = [W.xFt, W.yFt, W.headingRad];
+  let least = Infinity;
+  let last = 0;
+  for (let t = dt; t <= B.horizonSec + 1e-9; t += dt) {
+    lh += omegaL * dt;
+    lx += L.tasFtps * Math.cos(lh) * dt;
+    ly += L.tasFtps * Math.sin(lh) * dt;
+    wh += clamp(wrap(psi - wh), -wMax * dt, wMax * dt);
+    wx += W.tasFtps * Math.cos(wh) * dt;
+    wy += W.tasFtps * Math.sin(wh) * dt;
+    last = Math.hypot(wx - lx, wy - ly);
+    least = Math.min(least, last);
+  }
+  return { least, last };
+}
+
+/**
+ * The fighting wing bubble's outer edge (TS-132; tuning.js FW_BUBBLE; Patrick 15:32Z: "If far and lead turns away assertive
+ * pull of lead pursuit to stay within 1000"): wraps a step's command through a turn, its entry and its exit. base: the
+ * pursuit's command for this step, or null (the tracker's band goal flies it). Each step #2 looks horizonSec ahead
+ * (predict); if the heading he is flying to would take him past 1,000 ft less marginFt, he takes the nearest heading that
+ * keeps him in (toward where Lead is going: lead pursuit) without closing inside 500 ft plus marginFt, and adds up to
+ * closeKias of power. With no heading that works, the one that misses least. Returns { psiCmd, kiasCmd } or base.
+ * Not built yet: the inner edge, turned into from near the front (lag, then capture the circle): four tries made it worse.
+ */
+export function fwBubbleCommand(L, W, base) {
+  const B = FW_BUBBLE;
+  const psi0 = base?.psiCmd ?? W.headingRad;
+  const lo = B.minFt + B.marginFt;
+  const hi = B.maxFt - B.marginFt;
+  const miss = (p) => Math.max(0, p.last - hi) + Math.max(0, lo - p.least);
+  const p0 = predict(L, W, psi0);
+  if (p0.last <= hi) return base;
+  let best = { psi: psi0, p: p0, m: miss(p0) };
+  for (let k = 1; k * B.searchStepDeg <= 180 && best.m > 0; k++) {
+    for (const sgn of [1, -1]) {
+      const psi = psi0 + sgn * k * B.searchStepDeg * DEG;
+      const p = predict(L, W, psi);
+      const m = miss(p);
+      if (m < best.m - 1e-6) best = { psi, p, m };
+    }
+  }
+  const share = clamp((best.p.last - hi) / B.marginFt + 0.5, 0, 1);
+  return { psiCmd: best.psi, kiasCmd: (base?.kiasCmd ?? L.kias) + B.closeKias * share };
 }

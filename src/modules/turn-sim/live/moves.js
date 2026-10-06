@@ -217,6 +217,17 @@ export const FW_PURSUIT = Object.freeze({
 });
 
 /**
+ * The fighting wing bubble through a turn (Patrick 6 Oct 15:32Z: "When flying turns in fighting wing including entering and
+ * exit 2 must stay between 500 and 1000 feet ... on a turn in to 2 when 2 is near the front they may have to turn opposite of
+ * lead for a second to fly lag the capture the turn circle without busting that bubbles. If far and lead turns away assertive
+ * pull of lead pursuit to stay within 1000"; TS-132). Built: the outer edge. #2 looks horizonSec ahead (Lead holding his
+ * turn, #2 turning at turnRateDegS onto a heading, sampled every stepSec); if his heading would take him within marginFt of
+ * 1,000 ft (SMM 12.29 para 69: 500-1,000 ft) he takes the nearest heading, searched in searchStepDeg steps, that keeps him
+ * in, with up to closeKias of power. Estimates.
+ */
+export const FW_BUBBLE = Object.freeze({ minFt: 500, maxFt: 1000, marginFt: 60, horizonSec: 3, stepSec: 0.5, turnRateDegS: 15, searchStepDeg: 3, closeKias: 15 });
+
+/**
  * The fighting wing turn exit (formation-turns.js fwExitSide; SMM 12.30, Fig 12.23): when Lead rolls out, #2 picks the side
  * of the cone he flows to from the range he will have a few seconds on. Past the cone (stretched or opening): the inside
  * of the turn, the shortest path. Inside it (tight or closing hard): the outside, the longer path. In between: the side his

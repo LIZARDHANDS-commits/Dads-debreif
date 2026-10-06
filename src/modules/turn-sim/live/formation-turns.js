@@ -25,7 +25,7 @@ import { recordFlight, dryRunT } from './transitions.js';
 import { trackTwice, phase } from './tracker.js';
 import { smoothest, makeTrack, seedTrack, setTrackStep, TRACK_PAD, posesFrom, settleLast, slotInWorld } from './kinematic.js';
 import { leadTurnSegs } from './kinematic-moves.js';
-import { fwPursuitCommand } from './fw-pursuit.js';
+import { fwPursuitCommand, fwBubbleCommand } from './fw-pursuit.js';
 import { FW_TURN, FW_FOLLOW, FW_EXIT, WING_BANKS, ROLL, RATE_SETS } from './tuning.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { wrapPi } from '../../../core/angles.js';
@@ -186,7 +186,10 @@ export function planFwTurn(aircraft, key, dir, t0 = 0, { blockFt = 8000 } = {}) 
     // the press (the planned bank), and the band goal once he rolls out (Fig 12.23).
     // #2 only: #3 and #4 fly off a wingman who is himself manoeuvring, so they keep the band goal (an estimate; the four-ship
     // rebuild may extend the law to them).
-    const pursuit = collapse && wing.ref === lead.id ? { pursuit: pursuitOf(dir * bank) } : {};
+    // Every turn, collapse or not, keeps #2 inside 1,000 ft of Lead (TS-132): the pursuit or the band goal, wrapped by
+    // fwBubbleCommand.
+    const base = collapse && wing.ref === lead.id ? pursuitOf(dir * bank) : null;
+    const pursuit = wing.ref === lead.id ? { pursuit: (L, W, t) => fwBubbleCommand(L, W, base ? base(L, W, t) : null) } : base ? { pursuit: base } : {};
     // The turn exit (Fig 12.23) once the aircraft he flies off rolls out, keeping the side he started on: every wingman after
     // every turn (V2.121; until then #2 only, after the bigger turns he collapses in: #3 and #4 kept chasing a place that
     // swung with the one ahead's heading and hunted, up to 17 bank reversals at 78° with Lead wings level).
