@@ -434,7 +434,7 @@ function flyPmRoll(c, w0, ctx) {
     const rel = relToLead(lead0, vL, t, st.pm.x, st.pm.y, st.pm.z - blockFt - ctx.leadAlt);
     const range = Math.hypot(rel.fwd, rel.left, rel.up);
     if (range >= LAG_ROLL.bubbleFt) out = true;
-    if (out && range < LAG_ROLL.bubbleFt) return null; // never inside 500 ft of Lead once outside
+    if (out && !close && range < LAG_ROLL.bubbleFt) return null; // never inside 500 ft once outside; from echelon he may pass inside it (Patrick 6 Oct 23:12Z, TS-149)
     if (out) minRange = Math.min(minRange, range);
     if (st.g < LAG_ROLL.minG) return null; // canopy to canopy: positive G throughout
     minKias = Math.min(minKias, st.kias);
@@ -442,9 +442,14 @@ function flyPmRoll(c, w0, ctx) {
     maxG = Math.max(maxG, st.g);
     maxClimbDeg = Math.max(maxClimbDeg, st.gammaRad / DEG);
     const side = Math.sign(rel.left);
-    if (topRange === null && side !== 0 && side !== side0) { // crossing Lead's track: over his six, inverted, lift toward him
+    if (close && !inverted && st.bodyUp.z < 0 && rel.fwd < 0) { // from echelon: inverted behind Lead at the top (TS-149)
+      topRange = range;
+      inverted = true;
+    }
+    if (!close && !inverted && side !== 0 && side !== side0) { // crossing Lead's track: over his six, inverted, lift toward him
       topRange = range;
       inverted = st.bodyUp.z < 0 && rel.fwd < 0;
+      if (!inverted) break;
     }
     if (r.end) break;
   }
