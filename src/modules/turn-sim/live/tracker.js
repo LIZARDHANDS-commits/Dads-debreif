@@ -35,9 +35,9 @@ export function stepCommanded(a, targetBankDeg, t, profile) {
 }
 
 /** The point a phase's reference sits at, and its velocity, in the world: { px, py, vpx, vpy }. */
-function refPoint(R, Rprev, ref, world) {
+function refPoint(R, Rprev, ref, world, refTurn = true) {
   if (world) return { px: R.xFt + ref.f, py: R.yFt + ref.l, vpx: R.tasFtps * Math.cos(R.headingRad) + ref.vf, vpy: R.tasFtps * Math.sin(R.headingRad) + ref.vl };
-  const omega = Rprev ? wrapPi(R.headingRad - Rprev.headingRad) / STEP_SEC : 0;
+  const omega = Rprev && refTurn ? wrapPi(R.headingRad - Rprev.headingRad) / STEP_SEC : 0;
   const lf = unit(R.headingRad);
   const lleft = { x: -lf.y, y: lf.x };
   const px = R.xFt + lf.x * ref.f + lleft.x * ref.l;
@@ -174,7 +174,9 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     const arrived = ph.goal ? Math.hypot(ref.f - slot.fwd, ref.l - slot.left) < (ph.goalTolFt ?? T.goalTolFt) : ref.f === ph.slot.fwd && ref.l === ph.slot.left;
 
     // The reference point and its velocity: attached to the aircraft it flies off, so it turns with it (v = vRef + ω × r + the reference's own motion).
-    const { px, py, vpx, vpy } = refPoint(L, Lprev, ref, ph.world);
+    // A phase with `refTurn: false` (the fighting wing turn exit) leaves out the ω × r: the place goes with the aircraft flown
+    // off but not round with its heading's wiggles, so a wingman in the cone holds parallel instead of swinging with them.
+    const { px, py, vpx, vpy } = refPoint(L, Lprev, ref, ph.world, ph.refTurn !== false);
     const ex = px - W.xFt;
     const ey = py - W.yFt;
     const d = Math.hypot(ex, ey);
@@ -284,7 +286,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     // A phase with `feedForward: false` (the fighting wing turn exit, formation-turns.js fwExit) steers on the heading error alone:
     // as Lead rolls out the turn of the place #2 flies to dies away, and fed forward it rolled #2 past his heading and back.
     const omegaCmd = GAIN.heading * wrapPi(psiCmd - W.headingRad) + (ph.feedForward === false ? 0 : omegaFf);
-    const cap = aligning ? T.alignBankDeg : ph.bankCapDeg;
+    const cap = aligning ? ph.alignBankDeg ?? T.alignBankDeg : ph.bankCapDeg;
     let bank = Math.max(-cap, Math.min(cap, bankDegFromTurnRate(W.tasFtps, omegaCmd)));
     if (bankOwn != null) bank = Math.max(-cap, Math.min(cap, bankOwn)); // the switch's own bank, inside the phase's cap (the G rule)
     // Lining up on a closure phase, the last few hundredths of a degree of bank are taken out at once, so the wings come

@@ -220,6 +220,7 @@ export const FW_PURSUIT = Object.freeze({
  */
 export const FW_EXIT = Object.freeze({
   lookAheadSec: 5, // the range is judged this far ahead at the present opening or closing (estimate)
+  alignBankDeg: 10, // once in the cone, he eases his heading onto the one flown off's with no more than this bank, not the tracker's 30°, so a few degrees left over come off over a few seconds instead of a 30° flick that the wingmen behind copy (estimate)
 });
 
 /**
