@@ -13,10 +13,10 @@ The weather screen a Supervisor of Flying keeps open on a desk: the weather now 
 | `feeds.js` | Radar and lightning addresses and feed ages (task 1). Not used by the screen yet: the map comes in task 6. |
 | `settings-model.js` | The SOF's settings and their defaults, range-checked on read; limits snapped up to their step; how the trigger choice and the two limit numbers stay in step. Tested in Node. |
 | `settings-view.js` | Fills ui-kit's shared "SOF settings" menu with the controls. |
-| `layout.js` | The screen: SOF bar, the settings menu, the every-feed-failing message, the cards and the credits line. Touches the page only when a word changes. |
+| `layout.js` | The one-screen layout (SOF-38): SOF bar with world clocks and the settings drop-down, the every-feed-failing line, caution strip, timeline, the cards beside the map, and the one-line credits with the map's credits in view. Touches the page only when a word changes. |
 | `cards-view.js` | The airfield cards' DOM. Report text goes in as text only, never as HTML. |
 | `banner-model.js` | The caution banner as data: one line per caution in words (cautions.js `evaluate`, TAF cautions, wave results, and an `extra` hook), what is new since last drawn, and the acknowledgements to keep (only when `storable`). Tested in Node. |
-| `banner-view.js` | The banner's DOM: in page flow, `role=alert` only when a caution is new, Acknowledge per line and Acknowledge all, focus handed on when a line goes. |
+| `banner-view.js` | The one-line caution strip (lead caution, "+N more", Show all, Acknowledge) and its list that drops over the screen with Acknowledge per line and Acknowledge all; `role=alert` on the strip; focus handed on when a line goes. |
 | `plan-store.js` | The wave plan as kept in the browser (key `plan`): up to 5 waves, Today or Tomorrow, checked on read. A Tomorrow chosen on an earlier home-zone day reads as Today. |
 | `waves-view-model.js` | The waves list as data: each wave's home-local times with the zone, its chip (call in words, tone, first reason), the list of every hit, and each alternate's result for the selected wave. |
 | `waves-view.js` | The waves' DOM. Every input is made once per wave and never rewritten, so typing never loses focus. |

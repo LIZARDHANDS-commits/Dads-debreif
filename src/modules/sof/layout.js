@@ -29,9 +29,10 @@ export function createLayout({ settings, mapElement = null, mapCredits = null, o
   const refresh = h('button', { type: 'button', class: 'sof-refresh', onclick: () => onRefresh() }, 'Refresh');
   const alert = h('p', { class: 'sof-alert', role: 'alert', hidden: true });
   // The credits are one line at the bottom, "Not for flight planning" first; the Sources note opens over the screen with every credit in full.
+  // The map's own credits (Esri imagery and the rest) also stay in view on that line, as the imagery's terms ask.
   const credits = h('p', { class: 'sof-credits' });
   const sourcesWords = h('p', { class: 'sof-sources-words' });
-  const sources = h('details', { class: 'sof-sources' }, h('summary', {}, 'Sources'), h('div', { class: 'sof-sources-body' }, sourcesWords, mapCredits));
+  const sources = h('details', { class: 'sof-sources' }, h('summary', {}, 'Sources'), h('div', { class: 'sof-sources-body' }, sourcesWords));
   const cards = createCardsView();
 
   // The world clocks: in the bar on a wide window, and behind "Clocks" below 1440 px wide (sof.css decides which).
@@ -74,7 +75,7 @@ export function createLayout({ settings, mapElement = null, mapCredits = null, o
     timelineElement, // the 24-hour timeline across the full width, the waves in its header
     // The cards and the map side by side; the map comes first when the screen is narrow.
     h('div', { class: 'sof-main' }, cards.element, mapElement),
-    h('div', { class: 'sof-credits-row' }, sources, credits),
+    h('div', { class: 'sof-credits-row' }, sources, credits, mapCredits),
   );
 
   // Text nodes are only touched when they change, so the once-a-second-or-slower tick costs nothing.

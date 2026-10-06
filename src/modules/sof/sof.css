@@ -589,7 +589,8 @@ main[data-module='sof'] {
   gap: var(--space-3);
 }
 
-[data-module='sof'] .sof-credits {
+[data-module='sof'] .sof-credits,
+[data-module='sof'] .sof-credits-row .sof-map-credits {
   flex: 1 1 0;
   min-width: 0;
   margin: 0;
@@ -1774,5 +1775,11 @@ main[data-module='sof'] {
 
   [data-module='sof'] .sof-tl-scroll {
     max-height: 34vh;
+  }
+
+  /* Short windows: less room kept round the bands for their labels, so the map keeps more height. */
+  [data-module='sof'] .sof-tl-rows {
+    margin-top: 0.9rem;
+    padding-bottom: 0.9rem;
   }
 }
