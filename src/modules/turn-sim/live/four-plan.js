@@ -14,7 +14,7 @@ import { copyAircraft, planDone } from './flight.js';
 import { classify, judge } from './judge.js';
 import { FOUR_FORMATIONS, refsFor, fourWords } from './slots.js';
 import { FOUR_CHANGE_LIMIT_SEC, statesAt, joinLegs } from './four-legs.js';
-import { fingerToEchelon, echelonToFinger, fingerBox, fingerTrail, slideTo, openToFw } from './four-close.js';
+import { fingerToEchelon, echelonToFinger, echelonToEchelon, fingerBox, fingerTrail, slideTo, openToFw } from './four-close.js';
 import { rejoinToFw, turningToFinger, closeFromFw, straightToEchelon } from './four-rejoin.js';
 import { entryToSpread, fwFluid, fluidToBox } from './four-open.js';
 
@@ -29,6 +29,7 @@ const MOVES = [
   // close (four-close.js)
   { from: 'finger', to: 'echelon', m: 'M1/M2', cost: 40, sides: 'any', fly: (st, t, o, s, sTo) => fingerToEchelon(st, t, o, s, sTo), how: 'crossunder to echelon' },
   { from: 'echelon', to: 'finger', m: 'M3', cost: 40, sides: 'any', fly: (st, t, o, s, sTo) => echelonToFinger(st, t, o, s, sTo), how: 'crossunder to finger' },
+  { from: 'echelon', to: 'echelon', m: 'not in the manuals (Patrick 6 Oct 05:29Z)', cost: 30, sides: 'any', fly: (st, t, o, s, sTo) => echelonToEchelon(st, t, o, s, sTo), how: 'triple station change, all four in line' },
   { from: 'finger', to: 'box', m: 'M4', cost: 40, sides: 'same', fly: (st, t, o, s) => fingerBox(st, t, o, s, true), how: '#4 into the box' },
   { from: 'box', to: 'finger', m: 'M5', cost: 40, sides: 'same', fly: (st, t, o, s) => fingerBox(st, t, o, s, false), how: '#4 back to finger' },
   { from: 'finger', to: 'trail', m: 'M6', cost: 60, sides: 'none', fly: (st, t, o, s) => fingerTrail(st, t, o, s, true), how: 'into line astern' },

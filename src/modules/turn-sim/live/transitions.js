@@ -153,11 +153,13 @@ export function recordFlight(aircraft, plan, t0) {
 /** A station change in close formation (SMM 12.20 paras 44-47): about 5 kt, wings level but for a degree or two of heading. */
 export const slide = (slot, over = {}) => phase(slot, { advanceTol: 6, ...over });
 /**
- * A station change's corner or end point, flown as a real stop (SMM 12.20 para 45: "stabilize in this position", "stop the
- * aircraft", "stabilize directly behind the echelon position"): #2 stops on it and holds 2 s before moving on. The 1 ft/s
- * and 2 s are estimates; the stop is within STOP_KT (Patrick 20:41Z: "stabilize" is within 5 knots, not exactly zero).
+ * A station change's corner or end point (SMM 12.20 para 45: "stabilize in this position", "stabilize directly behind the
+ * echelon position"). Stabilize means under control, not stopped (Patrick 6 Oct 05:29Z: "can be moving 5 knots thru
+ * corners"): #2 flows through it once within CORNER_FLOW_FT and no faster against it than STOP_KT (Patrick 20:41Z: 5
+ * knots). Until V2.128 he stopped on it and held 2 s. The 5 ft is an estimate.
  */
-export const stopAt = (slot, over = {}) => slide(slot, { fwdRate: 5, advanceTol: 2, stopFtps: STOP_KT * KT_TO_FTPS, dwellSec: 2, ...over });
+const CORNER_FLOW_FT = 5;
+export const stopAt = (slot, over = {}) => slide(slot, { fwdRate: 5, advanceTol: CORNER_FLOW_FT, stopFtps: STOP_KT * KT_TO_FTPS, dwellSec: 0, ...over });
 /**
  * The corner behind a close slot (SMM 12.20 para 45; Figs 12.12-12.13): back until #2's nose is at least 10 ft behind Lead's
  * tail (line astern's own spacing, plus 12 ft so it does not fall short: an estimate), at the slot's own lateral, and low
