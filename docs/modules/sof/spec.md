@@ -78,32 +78,38 @@ export function homeCall(wave, homeTaf, homeLimits) {
 
 ## The screen
 
-One screen, no tabs, sized for a 1920 × 1080 desk monitor and still with nothing overlapping at 1366 × 768 (R2). No side rails, no Tab-key tricks, and nothing fixed on top of the controls (#10, #34, #35). The app's header, with its Zulu and local clock, stays above it as on every screen.
+One screen, no tabs, sized for a 1920 × 1080 desk monitor and still with nothing overlapping and nothing to scroll at 1366 × 768 (R2). No side rails, no Tab-key tricks, and nothing fixed on top of the controls (#10, #34, #35). The app's header, with its Zulu and local clock, stays above it as on every screen. The layout is decision SOF-38 (Dad, 6 Oct 2026, from the mock-up at https://claude.ai/artifact/QxFm9JcKzwmfVXDzon3YYP).
 
 ```
 ┌ SOF bar ───────────────────────────────────────────────────────────────────────────────────┐
-│ 301842Z SEP 26    Weather 2 min ago ✓  Radar 4 min ✓  Lightning 8 min ✓    ⟳ Refresh           │
-├ ⚠ NEW CAUTION  CYMJ TAF: TEMPO 1/2SM FG 16–20Z  CYQR METAR: VCTS           [Acknowledge]  ┤
-├ Waves  Today ▾ ───────────────────────────────────────────────────────────────────────────┤
-│ W1 0800–0930 CST  No alternate needed │ W2 1030–1200 CST  ALTERNATE REQUIRED: CYMJ below │ + Wave │
-├ Airfields ──────────────────────┬ Map ──────────────────────────────────────────────────────┤
-│ CYMJ Moose Jaw   HOME  IFR  YLO1│                                                           │
-│ METAR 1800Z (42 min)  ⚠ below   │      radar, lightning, home and alternates as dots        │
-│ 301800Z 27012KT 2SM BR OVC008 … │      coloured by flight category, 25 and 50 NM rings      │
-│ TAF 1740Z  TEMPO 1/2SM FG …     │                                                           │
-│ CYQR Regina      ALT   MVFR GRN │                                                           │
-│ …                               │                                                           │
-│ ▸ Other airfields               │ Rain ▾  ☐ Loop last hour  Opacity ─○─   Lightning map ↗   │
-├ 24-hour timeline (today, CST) ──┴───────────────────────────────────────────────────────────┤
-│ CYMJ ████ GRN ████▒▒ YLO1 ▒▒████  (TEMPO row)  ▕wave 1▏  ▕wave 2▏   │now                      │
-│ CYQR …                                                                                      │
+│ 061742Z OCT 26  PDT 10:42 · MDT 11:42 · EDT 13:42  Weather 2 min ✓ Radar 4 min ✓ Lightning 8 min ✓  [SOF settings ▸] [Refresh] │
+├ ⚠ 2 NEW CAUTIONS  CYMJ TAF: TEMPO 1/2SM FG 16–20Z   +1 more        [Show all ▾] [Acknowledge] ┤  one line only
+├ Timeline  Tue 6 Oct, CST  (Today) Tomorrow   WAVES [W1 0800–0930 ✓ No alternate needed] [W2 1030–1200 ⚠ ALTERNATE REQUIRED …] [+ Wave] ┤
+│ Zulu/CST axis                                                                               │
+│ CYMJ ████ BLU ████████████████████████████  ▕W1▏ ▕W2▏ │now                                    │
+│      (TEMPO row)        ▒▒ ▼ RED TEMPO 1/2SM FG ▒▒                                           │
+│ CYQR … CYYN … CYXE …                                                                        │
+├ Airfields (short cards) ─────────┬ Map (fills the rest) ────────────────────────────────────┤
+│ CYMJ Moose Jaw HOME   VFR  BLU   │ [Layers ▾] [Home] [+] [−] Radar [Rain ▾] [ADS-B Exchange view] │
+│ METAR 1700Z (42 min) 061700Z …   │                                                          │
+│ TAF 1540Z: TEMPO 1/2SM FG 16–20Z │   radar, lightning, airfields, 25 and 50 NM rings        │
+│ Within limits    Full brief ▸    │                                                          │
+│ CYQR … CYYN … CYXE …             │ Radar 1736Z ✓  Lightning 1730Z ✓  …         Map key ▸    │
+├──────────────────────────────────┴──────────────────────────────────────────────────────────┤
+│ Not for flight planning. Confirm with NAV CANADA. Sources …                About this screen │
 └─────────────────────────────────────────────────────────────────────────────────────────────┘
-  Not for flight planning. Confirm with NAV CANADA. Weather: MET Norway (CC BY 4.0), NOAA via Datamask; radar and lightning: ECCC; map: Esri imagery, VNC © NAV CANADA (not for navigation).
 ```
+
+- **Caution strip:** one line. It shows the newest unacknowledged caution, "+N more", **Show all ▾** (a list that drops over the screen, never pushing it down) and **Acknowledge**. With no caution it is gone and takes no room.
+- **Timeline header holds the waves:** each wave is a chip with its times and its home call in words; selecting a chip opens its edit and its full list of hits. **+ Wave** adds one. Today or Tomorrow sits beside them. The timeline is always open on this screen.
+- **SOF settings** is a button in the bar that opens the same menu below the bar, over the screen.
+- **Airfield cards** show the header, the METAR line, one TAF line (the group that matters most, else "no changes") and the result in words. **Full brief ▸** opens the whole METAR and TAF with the marked words and every line the card used to show.
+- **The map** fills the height left; the cards scroll inside their own column if they ever need to, never the page.
+- **At 1366 × 768** the cards show two lines each (header, result), the clocks go behind a **Clocks ▾** button, and the full card opens on click.
 
 | Shown by default | Behind a checkbox (off) or a collapsed "More …" panel (R22) |
 |---|---|
-| **SOF bar:** the date-time group (DTG), each feed's age and state in words, and Refresh | **World clocks:** Pacific, Mountain and Eastern, as V6's top bar had them (the header already shows Zulu and home local) |
+| **SOF bar:** the date-time group (DTG), each feed's age and state in words, and Refresh | **World clocks:** Pacific, Mountain and Eastern, as V6's top bar had them, now in the SOF bar (SOF-38) |
 | **Caution banner** when there's something new to acknowledge; it takes its own row and pushes the screen down, never covering it | **Other airfields:** the rest of V6's 15 fields as short rows (ICAO, name, category, ceiling and visibility, age). Fetched only while the panel is open |
 | **Waves:** today's waves, each with its alternate call and the reason in words; Today or Tomorrow; add, edit and remove a wave | **NATO colour state chart:** V6's grid with each airfield placed on it, and a hover or focus card with its ceiling, visibility and wind |
 | **Airfield cards** for home and each alternate: name and role, flight category and NATO colour state as words, report times and age, the raw METAR and TAF with the words behind a limit marked, the limit result in words, and for alternates their result over the arrival window | **Radar loop:** the last hour of ECCC frames, played in a loop (off: the latest frame only) |
