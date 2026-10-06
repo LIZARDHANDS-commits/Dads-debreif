@@ -15,6 +15,7 @@ import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
 import { drawTags, drawLeadArrows, T6_LENGTH_FT, trailSince, CLOCK_LINE_RED } from './view.js';
 import { FW_TURN } from './live/tuning.js';
 import { placeBoxOutline } from './live/move-in-band.js';
+import { drawHud } from '../../ui-kit/hud.js';
 import { liftBankDeg } from './live/flight.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH } from '../../ui-kit/ct156-model.js';
@@ -706,7 +707,8 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     ctx.clearRect(0, 0, w, h);
     const tags = layers.tags ? source.tags?.() : null;
     const links = source.leadLinks?.();
-    if (!tags && !links) return;
+    const hud = source.hud?.();
+    if (!tags && !links && !hud) return;
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     const screenOf = (a) => {
       const pose = aircraftPose(a, signs[a.id] ?? 1);
@@ -723,6 +725,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     const seen = inside === null ? state : { ...state, aircraft: state.aircraft.filter((a) => a.id !== inside) };
     if (links && inside === null) drawLeadArrows(ctx, { screenOf, size: box }, state, links);
     if (tags) drawTags(ctx, { screenOf, noseOf, size: box }, seen, tags);
+    drawHud(ctx, box, hud); // the HUD, bottom left (Patrick, 6 Oct)
   }
 
   function requestDraw() {

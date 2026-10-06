@@ -7,6 +7,7 @@
 // are math radians (0 = east, counter-clockwise). It draws only when asked
 // (a step, a setting, the view or the size), so a paused sim draws nothing.
 import { createCanvasView } from '../../ui-kit/canvas-view.js';
+import { drawHud } from '../../ui-kit/hud.js';
 import { turnRadiusFt, turnRadiusFromBankFt, limitG, MIN_TURN_G } from '../../core/flight-math.js';
 import { ktToFtps, formatNm } from '../../core/units.js';
 import { distance } from '../../core/geo.js';
@@ -158,6 +159,7 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
       for (const a of state.aircraft) drawAircraft(ctx, map, a, !tags, symbolPx);
       if (tags) drawTags(ctx, map, state, tags);
       if (layers.errorLabels) drawErrorLabels(ctx, map, state, source.labels(), tags);
+      drawHud(ctx, map.size, source.hud?.()); // the HUD, bottom left (Patrick, 6 Oct)
     },
   });
 

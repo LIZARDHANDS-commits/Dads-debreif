@@ -284,6 +284,26 @@ function mount(root, app) {
     });
   }
 
+  /**
+   * The HUD (Patrick, 6 Oct: attitude and altimeter live, and G) for the aircraft the camera is on, or Lead: its drawn
+   * attitude (where the lift points, TS-108; bank turned to right-wing-down positive), its height (the block height plus
+   * its height off the block), G, indicated airspeed and heading. Null when the HUD is off.
+   */
+  function hudData() {
+    if (!layout.get().tagHud) return null;
+    const a = camAircraft() ?? state.aircraft[0];
+    if (!a) return null;
+    return {
+      label: a.id === 1 ? 'Lead' : `#${a.id}`,
+      pitchDeg: a.pitchDeg ?? 0,
+      bankDeg: -(a.attitudeDeg ?? liftBankDeg(a.bankDeg ?? 0, a.nz ?? 1)),
+      altFt: LIVE_DEFAULTS.blockFt + (a.altAboveFt ?? 0),
+      g: a.g ?? a.nz ?? 1,
+      kias: a.kias,
+      headingDeg: compassDeg(a.headingRad),
+    };
+  }
+
   function dataTags() {
     // In close formation a wingman's tag goes once he is IN POSITION there; Lead's always stays (TS-92, Patrick 6 Oct:
     // "Only show lead's tag", "2's tag only goes away once green is IN POSITION in echelon").
@@ -331,6 +351,7 @@ function mount(root, app) {
       planned: shownPlan,
       tags: dataTags,
       leadLinks,
+      hud: hudData,
       placeBox: () => changeUi.placeBox(),
       onPick: (x, y, at) => changeUi.pickAt(x, y, at),
       rejoin: () => {
@@ -356,6 +377,7 @@ function mount(root, app) {
       planned: shownPlan,
       tags: dataTags,
       leadLinks,
+      hud: hudData,
       // The band's box and Change position's click, in 3D as in 2D (Patrick, 6 Oct: no yellow box in 3D).
       placeBox: () => changeUi.placeBox(),
       onPick: (x, y, at) => changeUi.pickAt(x, y, at),
