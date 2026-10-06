@@ -23,7 +23,7 @@
 import { ktToFtps, KT_TO_FTPS, G_FTPS2 } from '../../core/units.js';
 import { wrapDeg180, compassDegFromVector, wrapDeg360 } from '../../core/angles.js';
 import { turnRateFromBankRadPerSec, turnRadiusFromBankFt, gFromBankDeg, easeRoll } from '../../core/flight-math.js';
-import { excessThrustPerWeight, dragPerWeight, pitchDegFromClimb } from '../../core/t6-performance.js';
+import { excessThrustPerWeight, dragPerWeight, attitudeDegFromClimb } from '../../core/t6-performance.js';
 import { iasToTasKt, tasToIasKt, heightFactor, temperatureKey } from './weather.js';
 import { windTriangle, windVectorFtps } from '../../core/wind.js';
 import { legOffsetsFt } from '../../core/geo.js';
@@ -473,7 +473,7 @@ function flyOuter(points, centre, breakAlong, wind, goAround = null) {
     }
     // Speed and height: the climb-out schedule, then 220 KIAS level.
     if (stage === 'goAround') {
-      const aoa = pitchDegFromClimb(0, ktToFtps(tasKt), s.ias, g);
+      const aoa = attitudeDegFromClimb(0, ktToFtps(tasKt), s.ias, g); // the level attitude: the takeoff attitude less it is the climb angle
       const takeoffClimb = ktToFtps(tasKt) * sinDeg(Math.max(0, CIRCUIT.takeoffPitchDeg - aoa));
       // A go-around never comes down to its height from above; a move-over comes down to its own on a 3° path.
       const levelAlt = goAround.levelAltFt ?? CIRCUIT.goAroundAltFt;
@@ -492,7 +492,7 @@ function flyOuter(points, centre, breakAlong, wind, goAround = null) {
       climb = Math.min(v * (excessThrustPerWeight(s.ias, s.alt, g) - decel / G_FTPS2), Math.max(0, (PATTERN_ALT_FT - s.alt) / LEVEL_OFF_SEC));
       accel = accelFor(s.ias, s.alt, g, climb);
     } else if (s.ias < CIRCUIT.climbKias - 0.01 && stage === 'climbOut' && s.src < 2) {
-      const aoa = pitchDegFromClimb(0, ktToFtps(tasKt), s.ias, g);
+      const aoa = attitudeDegFromClimb(0, ktToFtps(tasKt), s.ias, g); // the level attitude: the takeoff attitude less it is the climb angle
       const gamma = Math.max(0, CIRCUIT.takeoffPitchDeg - aoa);
       climb = ktToFtps(tasKt) * sinDeg(gamma);
       accel = accelFor(s.ias, s.alt, g, climb);
