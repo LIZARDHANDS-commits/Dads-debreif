@@ -38,8 +38,12 @@ const BAR_11R_PAST_END_FT = 4;
 /** The centreline dashes, 98 ft long and 3 ft wide, by their starts in ft along 29L from its threshold point (photo). */
 const CENTRELINE_DASH_FT = 98;
 const CENTRELINE_WIDTH_FT = 3;
-/** The black outline round the piano keys, letters, numbers and centreline dashes, ft (an estimate, to make them stand out; Patrick, 6 Oct 07:24Z). */
-const OUTLINE_FT = 1.5;
+/**
+ * The black outline round the piano keys, letters, numbers and centreline dashes, ft (Patrick, 6 Oct 07:24Z: "outline ... in
+ * black"; 07:29Z: 1.5 ft "too thick"). 6 in, the black border real paint on light concrete gets (FAA AC 150/5340-1, standard
+ * practice, not a Canadian source).
+ */
+const OUTLINE_FT = 0.5;
 const CENTRELINE_STARTS_FT = Object.freeze([
   271, 467, 663, 859, 1055, 1251, 1449, 1645, 1840, 2037, 2232, 2429, 2626, 2823, 3019, 3216, 3413, 3609, 3802, 4000,
   4197, 4393, 4589, 4786, 4983, 5178, 5366, 5556, 5747, 5936, 6126, 6316, 6505, 6695, 6884,
