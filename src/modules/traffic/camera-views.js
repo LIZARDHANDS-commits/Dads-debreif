@@ -2,7 +2,7 @@
 // Padlock. Pure functions, no three.js: each returns the same { center, cam: { yawDeg, pitchDeg, zoom, altScale } }
 // the rest of view3d.js uses, so matchProjection (an OrthographicCamera) draws them with no extra state.
 //
-// The camera is orthographic, so a viewpoint is a look direction plus what sits in the middle of the screen. yaw is
+// The camera is orthographic (Cockpit and Chase are drawn in perspective in view3d.js, TR-90), so a viewpoint is a look direction plus what sits in the middle of the screen. yaw is
 // a compass bearing (the camera looks along (sin yaw, cos yaw)); pitch is degrees from straight down (0 looks down,
 // 90 is level), clamped to the view's limits. Display only: no flight math.
 import { THRESHOLD_29L, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
