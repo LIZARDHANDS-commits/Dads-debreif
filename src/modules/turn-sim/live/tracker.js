@@ -13,7 +13,7 @@ import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
 import { relativeTo, unit } from './manoeuvres.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
 import { throttleFor, powerFrom, throttleAtTorque } from './power.js';
-import { TRACKER, CLOSURE, HAND_OVER_FT, FW_ENERGY, REJOIN } from './tuning.js';
+import { TRACKER, CLOSURE, HAND_OVER_FT, FW_ENERGY, FW_BUBBLE, REJOIN } from './tuning.js';
 
 /** The longest the tracker flies one plan before giving up (a guard only; the spec's limits are tighter). */
 export const PLAN_MAX_SEC = 300;
@@ -185,6 +185,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     let psiCmd;
     let kiasCmd;
     let bankOwn = null; // a bank a `pursuit` phase commands outright (fw-switch.js, TS-102), else the heading loop's
+    let belowOwn = null; // a height below the aircraft flown off a `pursuit` phase asks for (the fighting wing bubble's dive, TS-134)
     if (aligning) {
       psiCmd = L.headingRad;
       kiasCmd = L.kias;
@@ -235,7 +236,10 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       const ratio = W.tasFtps / W.kias;
       // A phase with `pursuit` (fw-pursuit.js, TS-100) commands its own heading and speed each step; the bank and speed loops
       // below fly it. Null hands the step back to the slot law.
-      const own = ph.pursuit ? ph.pursuit(L, W, t) : null;
+      // One with keepBase asks only for a height (belowFt) and leaves the steering to the slot law.
+      const asked = ph.pursuit ? ph.pursuit(L, W, t) : null;
+      belowOwn = asked?.belowFt ?? null;
+      const own = asked?.keepBase ? null : asked;
       let pullX;
       let pullY;
       if (own) {
@@ -308,7 +312,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     // angle): climbCostKtps), so the engine's range is shifted by it: climbing at MAX he slows (Patrick 6 Oct 05:00Z: "This
     // climb is unrealistic to not lose speed on"; until V2.124 the height was flown free and only the power read showed it).
     // Not on fighting wing's cone energy (TS-96, below), which picks the climb from the speed change and so already counts it.
-    const climbKtps = cone || (ph.coneAlt && ph.closureFtps) ? 0 : climbCostKtps(W, W.climbFtps ?? 0);
+    const climbKtps = cone || (ph.coneAlt && (ph.closureFtps || ph.coneEnergy)) ? 0 : climbCostKtps(W, W.climbFtps ?? 0);
     const aCmd = Math.max(-aMin - climbKtps, Math.min(aMax - climbKtps, GAIN.speedLoop * (kiasCmd - W.kias)));
     accel += Math.max(-GAIN.jerkKtps2 * STEP_SEC, Math.min(GAIN.jerkKtps2 * STEP_SEC, aCmd - accel));
     let kias = W.kias + accel * STEP_SEC;
@@ -319,7 +323,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     // Fighting wing energy with the cone (TS-96): the climb that gives the slowing the speed loop flies (or the descent that
     // gives its speeding up), inside the cone's height above or below Lead, eased in and out at FW_ENERGY.pullFtps2.
     let stepProfile = profile;
-    if (cone || (ph.coneAlt && ph.closureFtps)) {
+    if (cone || (ph.coneAlt && (ph.closureFtps || ph.coneEnergy)) || belowOwn != null) {
       const E = FW_ENERGY;
       const v0 = W.climbFtps ?? 0;
       cone ??= { t0: t, alt: [W.altAboveFt], climb: [v0], nz: [1] };
@@ -329,9 +333,18 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       const down = Math.max(0, W.altAboveFt - (L.altAboveFt - E.coneUpFt));
       const lo = -Math.min(E.climbFtps, Math.sqrt(2 * E.pullFtps2 * down));
       const hi = Math.min(E.climbFtps, Math.sqrt(2 * E.pullFtps2 * up));
-      // Outside the cone's height (a vertical rejoin's top) he comes back into it first.
-      const wantIn = up <= 0 && W.altAboveFt > L.altAboveFt + E.coneUpFt ? lo : down <= 0 && W.altAboveFt < L.altAboveFt - E.coneUpFt ? hi : Math.max(lo, Math.min(hi, want));
-      const v1 = v0 + Math.max(-E.pullFtps2 * STEP_SEC, Math.min(E.pullFtps2 * STEP_SEC, wantIn - v0));
+      // Outside the cone's height (a vertical rejoin's top, the bubble's dive) he comes back into it first, and the fighting
+      // wing bubble's dive (TS-134) takes him to belowOwn under the aircraft flown off: both at FW_BUBBLE's rate and pull,
+      // assertively (Patrick 6 Oct 15:59Z: "When the fighting wing turn ends 2 needs to assertively move back into the cone").
+      // Inside the cone, the energy's climb or descent at FW_ENERGY's gentler ones (a quick dive still coming out at the bubble's pull).
+      const D = FW_BUBBLE;
+      const topFt = L.altAboveFt + E.coneUpFt;
+      const bottomFt = L.altAboveFt - E.coneUpFt;
+      const toward = (ft) => Math.max(-D.diveFtps, Math.min(D.diveFtps, (ft - W.altAboveFt) * D.altGain));
+      const quick = belowOwn != null || W.altAboveFt > topFt || W.altAboveFt < bottomFt || Math.abs(v0) > E.climbFtps;
+      const wantV = belowOwn != null ? toward(L.altAboveFt - belowOwn) : W.altAboveFt > topFt ? toward(topFt) : W.altAboveFt < bottomFt ? toward(bottomFt) : Math.max(lo, Math.min(hi, want));
+      const pull = quick ? D.pullFtps2 : E.pullFtps2;
+      const v1 = v0 + Math.max(-pull * STEP_SEC, Math.min(pull * STEP_SEC, wantV - v0));
       const nz = 1 + (v1 - v0) / STEP_SEC / G_FTPS2;
       const a1 = W.altAboveFt + ((v0 + v1) / 2) * STEP_SEC;
       cone.alt.push(a1);

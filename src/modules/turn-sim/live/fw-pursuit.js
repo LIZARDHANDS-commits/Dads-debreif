@@ -75,7 +75,7 @@ const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
  * turnRateDegS, then flies straight: the least range and the last. A steady turn for L and a straight line for #2: an
  * estimate, refreshed every step.
  */
-function predict(L, W, psi) {
+function predict(L, W, psi, horizonSec = FW_BUBBLE.horizonSec) {
   const B = FW_BUBBLE;
   const omegaL = (G_FTPS2 * Math.tan(L.bankDeg * DEG)) / Math.max(L.tasFtps, 1); // + left, heading grows
   const wMax = B.turnRateDegS * DEG;
@@ -84,7 +84,7 @@ function predict(L, W, psi) {
   let [wx, wy, wh] = [W.xFt, W.yFt, W.headingRad];
   let least = Infinity;
   let last = 0;
-  for (let t = dt; t <= B.horizonSec + 1e-9; t += dt) {
+  for (let t = dt; t <= horizonSec + 1e-9; t += dt) {
     lh += omegaL * dt;
     lx += L.tasFtps * Math.cos(lh) * dt;
     ly += L.tasFtps * Math.sin(lh) * dt;
@@ -98,13 +98,14 @@ function predict(L, W, psi) {
 }
 
 /**
- * The fighting wing bubble's outer edge (TS-132; tuning.js FW_BUBBLE; Patrick 15:32Z: "If far and lead turns away assertive
+ * The fighting wing bubble (TS-132, TS-134; tuning.js FW_BUBBLE; Patrick 15:32Z: "If far and lead turns away assertive
  * pull of lead pursuit to stay within 1000"): wraps a step's command through a turn, its entry and its exit. base: the
  * pursuit's command for this step, or null (the tracker's band goal flies it). Each step #2 looks horizonSec ahead
  * (predict); if the heading he is flying to would take him past 1,000 ft less marginFt, he takes the nearest heading that
  * keeps him in (toward where Lead is going: lead pursuit) without closing inside 500 ft plus marginFt, and adds up to
  * closeKias of power. With no heading that works, the one that misses least. Returns { psiCmd, kiasCmd } or base.
- * Not built yet: the inner edge, turned into from near the front (lag, then capture the circle): four tries made it worse.
+ * The inner edge first (TS-134): closing across inside 500 ft plus marginFt within tightHorizonSec, he keeps the heading
+ * and dives away under Lead (belowFt; the tracker flies the height). Vertical first, then heading, then power.
  */
 export function fwBubbleCommand(L, W, base) {
   const B = FW_BUBBLE;
@@ -112,6 +113,13 @@ export function fwBubbleCommand(L, W, base) {
   const lo = B.minFt + B.marginFt;
   const hi = B.maxFt - B.marginFt;
   const miss = (p) => Math.max(0, p.last - hi) + Math.max(0, lo - p.least);
+  // The inner edge (TS-134): closing across inside 500 ft, he rolls and dives away below Lead (Patrick 15:56Z, 15:57Z), the
+  // height that keeps the slant range; his heading and power stay the pursuit's (or the band goal's).
+  const near = predict(L, W, psi0, B.tightHorizonSec);
+  if (near.least < lo) {
+    const belowFt = Math.min(B.maxBelowFt, Math.sqrt(lo * lo - near.least * near.least));
+    return { psiCmd: psi0, kiasCmd: base?.kiasCmd ?? null, belowFt, keepBase: !base };
+  }
   const p0 = predict(L, W, psi0);
   if (p0.last <= hi) return base;
   let best = { psi: psi0, p: p0, m: miss(p0) };

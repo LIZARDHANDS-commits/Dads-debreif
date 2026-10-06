@@ -224,7 +224,15 @@ export const FW_PURSUIT = Object.freeze({
  * 1,000 ft (SMM 12.29 para 69: 500-1,000 ft) he takes the nearest heading, searched in searchStepDeg steps, that keeps him
  * in, with up to closeKias of power. Estimates.
  */
-export const FW_BUBBLE = Object.freeze({ minFt: 500, maxFt: 1000, marginFt: 60, horizonSec: 3, stepSec: 0.5, turnRateDegS: 15, searchStepDeg: 3, closeKias: 15 });
+export const FW_BUBBLE = Object.freeze({
+  minFt: 500, maxFt: 1000, marginFt: 60, horizonSec: 3, stepSec: 0.5, turnRateDegS: 15, searchStepDeg: 3, closeKias: 15,
+  // The inner edge (Patrick 6 Oct 15:56Z: "For the tight turn towards 2, 2 can pull up into the vecitcal or dive towards
+  // lead to avoid the bubble as required"; 15:57Z: "Roll and dive away I mean"; TS-134): looking tightHorizonSec ahead, if
+  // the range across would come inside minFt plus marginFt, #2 rolls and dives to the height below Lead that keeps that
+  // slant range, at up to diveFtps (9,000 ft/min), the rate changing at up to pullFtps2 (about 1.9 G), altGain 1/s toward
+  // it; no deeper than maxBelowFt. Estimates.
+  tightHorizonSec: 8, diveFtps: 150, pullFtps2: 60, altGain: 1.5, maxBelowFt: 500,
+});
 
 /**
  * The fighting wing turn exit (formation-turns.js fwExitSide; SMM 12.30, Fig 12.23): when Lead rolls out, #2 picks the side
@@ -234,6 +242,10 @@ export const FW_BUBBLE = Object.freeze({ minFt: 500, maxFt: 1000, marginFt: 60, 
  */
 export const FW_EXIT = Object.freeze({
   lookAheadSec: 5, // the range is judged this far ahead at the present opening or closing (estimate)
+  // Back into the cone assertively after the turn (Patrick 6 Oct 15:59Z: "When the fighting wing turn ends 2 needs to
+  // assertively move back into the cone (it's too slow right now)"; TS-134): the tracker's closure law at these, not
+  // FW_FOLLOW's gentler ones; the height part is the cone energy at the bubble's rates (tracker.js). Estimates.
+  reset: Object.freeze({ vrel0: 150, kcap: 0.3, vrelMax: 300, decel: 20, overtakeKias: 30, undertakeKias: 30 }),
   alignBankDeg: 10, // once in the cone, he eases his heading onto the one flown off's with no more than this bank, not the tracker's 30°, so a few degrees left over come off over a few seconds instead of a 30° flick that the wingmen behind copy (estimate)
 });
 

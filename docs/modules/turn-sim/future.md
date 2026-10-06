@@ -96,3 +96,7 @@ The first Turn Sim engine (plan mode, ported from V6) was removed in clean-up st
 
 Built as refactor PRs 1 to 5 (TS-85, TS-93 to TS-97) and the docs rewrite (PR 9); PRs 6 to 8, the four-ship rebuild, are merged (V2.101). Still here:
 - Project files: condense the `turn-sim-review` notes into the README's "How #2 is planned now" and archive the rest.
+
+## TRJ + roll (Patrick 6 Oct 16:02Z)
+
+"I want to add "barrel/lag roll" turning rejoin, where 2 does the "most efficient " rolling aerobatic to get on the line faster ... a button next to TRJ? It won't always work so it can just be a "if it makes sense" move?" A turning rejoin where #2 flies a barrel or lag roll to reach the rejoin line sooner, on its own button next to TRJ, flown only when it beats the plain TRJ (the card says which and why). Show Patrick the shape against the SMM picture before coding; reuse the lag-roll code where it fits.

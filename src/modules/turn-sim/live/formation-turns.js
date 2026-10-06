@@ -106,6 +106,7 @@ function fwExit(exitAt, keepSide = null) {
       feedForward: false,
       refTurn: false,
       alignBankDeg: FW_EXIT.alignBankDeg,
+      ...FW_EXIT.reset,
       goal: (L, W, t) => {
         if (keepSide === null && (side === null || t <= exitAt + STEP_SEC / 2)) side = fwExitSide(L, W);
         return fwGoal(L, W, side, false);
@@ -186,8 +187,8 @@ export function planFwTurn(aircraft, key, dir, t0 = 0, { blockFt = 8000 } = {}) 
     // the press (the planned bank), and the band goal once he rolls out (Fig 12.23).
     // #2 only: #3 and #4 fly off a wingman who is himself manoeuvring, so they keep the band goal (an estimate; the four-ship
     // rebuild may extend the law to them).
-    // Every turn, collapse or not, keeps #2 inside 1,000 ft of Lead (TS-132): the pursuit or the band goal, wrapped by
-    // fwBubbleCommand.
+    // Every turn, collapse or not, keeps #2 in the 500-1,000 ft bubble (TS-132, TS-134): the pursuit or the band goal, wrapped
+    // by fwBubbleCommand, with the cone energy (coneEnergy: his speed changes taken as height first, TS-96) through the turn.
     const base = collapse && wing.ref === lead.id ? pursuitOf(dir * bank) : null;
     const pursuit = wing.ref === lead.id ? { pursuit: (L, W, t) => fwBubbleCommand(L, W, base ? base(L, W, t) : null) } : base ? { pursuit: base } : {};
     // The turn exit (Fig 12.23) once the aircraft he flies off rolls out, keeping the side he started on: every wingman after
@@ -195,7 +196,7 @@ export function planFwTurn(aircraft, key, dir, t0 = 0, { blockFt = 8000 } = {}) 
     // swung with the one ahead's heading and hunted, up to 17 bank reversals at 78° with Lead wings level).
     const outAt = rollOutAt(refs[wing.ref], t0);
     const exit = outAt !== null ? fwExit(outAt, side) : {};
-    const goalPhase = phase({ fwd: rel0.fwd, left: rel0.left, alt: wing.altAboveFt }, { ...follow, ...pursuit, ...exit, track: wing.ref, goal: (L, W) => fwGoal(L, W, side, collapse) });
+    const goalPhase = phase({ fwd: rel0.fwd, left: rel0.left, alt: wing.altAboveFt }, { ...follow, ...pursuit, ...exit, coneEnergy: wing.ref === lead.id, track: wing.ref, goal: (L, W) => fwGoal(L, W, side, collapse) });
     const { run, profile } = trackTwice({ refs, wing0: wing, t0, phases: [goalPhase], blockFt });
     if (!run.ok) return { ok: false, reason: `No safe ${m.label.toLowerCase()} in fighting wing from here: ${NAMES[wing.id]} could not settle back into the band.` };
     const plan = { segments: [{ kind: 'bankTrack', points: run.points }], profile };
