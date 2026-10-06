@@ -34,8 +34,13 @@ const ALT_SCALE = 1;
  */
 export const CAMERA_LIMITS = Object.freeze({ pitch: [5, 80], zoom: [0.5, 8000] });
 export const CAMERA_START_PITCH_DEG = 5; // top down at the start (Patrick, 5 Oct; was 35°); 5° is the closest to straight down the camera allows
-/** Padlock may tilt the camera past level to look up at the other aircraft (90° is level; more looks up from below). */
-const PADLOCK_PITCH = Object.freeze([5, 175]);
+/**
+ * The perspective views (Patrick, 6 Oct): Chase, Cockpit and Padlock on an aircraft, as Traffic's (TR-90, TR-92). 60° across,
+ * nothing nearer than 2 ft (estimates). The pilot's eye sits 4 ft ahead of and 3 ft above the aircraft's centre; Chase
+ * starts 300 ft behind and 12° above; a drag turns the head (Cockpit, Padlock) or swings round the aircraft (Chase).
+ */
+const POV = Object.freeze({ fovAcrossDeg: 60, nearFt: 2, farFt: 400_000, eyeFwdFt: 4, eyeUpFt: 3, chaseFt: 300, chaseFtRange: [60, 5000], chaseUpDeg: 12, degPerPx: 0.3 });
+const HEAD = Object.freeze({ yawDeg: [-160, 160], pitchDeg: [-60, 80], chaseUpDeg: [-10, 80] });
 const ORBIT_DEG_PER_PX = Object.freeze({ yaw: 0.4, pitch: 0.25 });
 const WHEEL_ZOOM = Object.freeze({ in: 1.12, out: 0.89 });
 /** How far the fit-all zoom moves toward the zoom it wants, each frame (the 2D view's ease). */
@@ -170,6 +175,10 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
   let waitingFit = null; // a fit asked before three had loaded, or before the canvas had a size
   let paintNow = null;
   let userZoom = 1; // the person's wheel zoom on top of the fit-all zoom (Patrick, 5 Oct: the zoom keeps following the formation)
+  let povNow = null; // the perspective view drawn last ('chase', 'cockpit', 'padlock') or null for the flat camera
+  let povKey = '';
+  let head = { yawDeg: 0, pitchDeg: 0 }; // the person's head turn (Cockpit, Padlock) or swing round the aircraft (Chase)
+  let chaseFt = POV.chaseFt;
 
   const size = () => ({ width: Math.max(1, canvas.clientWidth), height: Math.max(1, canvas.clientHeight) });
 
@@ -190,6 +199,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     const grid = new THREE.GridHelper(GRID_STEP_FT * GRID_CELLS, GRID_CELLS, '#7d8f6b', '#6a7b5a'); // a little lighter than the ground
     grid.rotation.x = Math.PI / 2; // GridHelper is flat in X-Z; the sim's ground is X-Y
     grid.material.fog = false;
+    grid.visible = false; // hidden (Patrick, 6 Oct: "hide the grid ... it's distracting"); kept for placing the ground
     scene.add(grid);
     // The guides (Patrick, 5 Oct: every layer in 3D too): dashed lines in each aircraft's colour. The Cone is its own object (syncCones).
     const guideLines = new THREE.LineSegments(guideGeometry(GUIDE_LINE_POINTS), new THREE.LineDashedMaterial({ vertexColors: true, transparent: true, opacity: 0.6, fog: false }));
@@ -205,7 +215,9 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     placeBox.visible = false;
     for (const o of placeBox.children) o.frustumCulled = false;
     scene.add(placeBox);
-    gl = { renderer, scene, camera, sky, skyClouds, ground, grid, planes: new Map(), trails: new Map(), plans: new Map(), guideLines, cones: new Map(), coneGeometry: {}, placeBox, boxShape: '' };
+    const persp = new THREE.PerspectiveCamera(60, 1, POV.nearFt, POV.farFt);
+    persp.up.set(0, 0, 1);
+    gl = { renderer, scene, camera, persp, active: camera, sky, skyClouds, ground, grid, planes: new Map(), trails: new Map(), plans: new Map(), guideLines, cones: new Map(), coneGeometry: {}, placeBox, boxShape: '' };
   }
 
   function planeFor(id) {
@@ -461,6 +473,52 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     geo.setDrawRange(0, n);
   }
 
+  /**
+   * Points the perspective camera for Chase, Cockpit or Padlock from the aircraft's own attitude (its model's rotation):
+   * Chase behind and above it, looking at it; Cockpit from the pilot's eye along the nose, rolling with the wings;
+   * Padlock from the pilot's eye at the other aircraft. The person's head turn is added. False if there is nothing to aim at.
+   */
+  function aimPov(pov, box) {
+    const me = gl.planes.get(pov.id)?.mesh;
+    if (!me) return false;
+    me.updateMatrixWorld(true);
+    const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(me.quaternion);
+    const up = new THREE.Vector3(0, 0, 1).applyQuaternion(me.quaternion);
+    const p = gl.persp;
+    p.aspect = box.width / Math.max(box.height, 1);
+    const across = rad(POV.fovAcrossDeg / 2);
+    p.fov = Math.min(POV.fovAcrossDeg, 2 * deg(Math.atan(Math.tan(across) / p.aspect)));
+    p.near = POV.nearFt;
+    p.far = POV.farFt;
+    p.updateProjectionMatrix();
+    if (pov.pov === 'chase') {
+      const yaw = Math.atan2(fwd.y, fwd.x) + rad(head.yawDeg);
+      const upAng = rad(clamp(POV.chaseUpDeg + head.pitchDeg, HEAD.chaseUpDeg));
+      p.position.set(
+        me.position.x - Math.cos(yaw) * Math.cos(upAng) * chaseFt,
+        me.position.y - Math.sin(yaw) * Math.cos(upAng) * chaseFt,
+        me.position.z + Math.sin(upAng) * chaseFt,
+      );
+      p.up.set(0, 0, 1);
+      p.lookAt(me.position);
+      return true;
+    }
+    const eye = me.position.clone().addScaledVector(fwd, POV.eyeFwdFt).addScaledVector(up, POV.eyeUpFt);
+    me.visible = false; // the pilot doesn't see his own aircraft from inside it
+    p.position.copy(eye);
+    p.up.copy(up);
+    const other = pov.pov === 'padlock' ? gl.planes.get(pov.otherId)?.mesh : null;
+    if (other) {
+      p.lookAt(other.position);
+      return true;
+    }
+    const dir = fwd.clone().applyAxisAngle(up, rad(head.yawDeg));
+    const right = dir.clone().cross(up).normalize();
+    dir.applyAxisAngle(right, rad(head.pitchDeg));
+    p.lookAt(eye.clone().add(dir));
+    return true;
+  }
+
   /** A click while Change position is picking: where it meets the level of Lead's height, in world feet, to the picker. */
   function pickAt(clientX, clientY) {
     if (!gl || !source.placeBox?.() || !source.onPick) return; // a box is showing: a click inside picks it up, or places #2 (TS-121)
@@ -469,7 +527,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     const rect = canvas.getBoundingClientRect();
     const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     const ray = new THREE.Raycaster();
-    ray.setFromCamera(ndc, gl.camera);
+    ray.setFromCamera(ndc, gl.active);
     const hit = new THREE.Vector3();
     if (ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), -aircraftPose(lead).z), hit)) source.onPick(hit.x, hit.y, { x: clientX, y: clientY });
   }
@@ -512,12 +570,19 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     }
     const state = source.state();
     const lead = state.aircraft.find((a) => a.id === 1);
-    // Follow or Padlock (Patrick, 5 Oct): the camera's yaw comes from the aircraft it is on; the pitch stays the person's.
-    const look = !dragging && source.look?.();
-    if (look) cam = { ...cam, yawDeg: look.yawDeg };
-    const held = dragging?.camera ?? cam;
-    // Padlock tilts by the other aircraft's elevation on top of the person's tilt, so it looks up when the other is above.
-    const shown = look?.pitchUpDeg ? { ...held, pitchDeg: clamp(held.pitchDeg + look.pitchUpDeg, PADLOCK_PITCH) } : held;
+    // Chase on the formation: the overhead camera's yaw follows Lead (Patrick, 5 Oct). On an aircraft, Chase, Cockpit and
+    // Padlock are perspective views (pov), drawn below.
+    const lookNow = source.look?.();
+    const pov = lookNow?.pov && state.aircraft.some((a) => a.id === lookNow.id) ? lookNow : null;
+    const key = pov ? `${pov.pov}|${pov.id}` : '';
+    if (key !== povKey) {
+      povKey = key;
+      head = { yawDeg: 0, pitchDeg: 0 }; // a new view starts looking ahead
+    }
+    povNow = pov?.pov ?? null;
+    const look = !dragging && !pov ? lookNow : null;
+    if (look?.yawDeg !== undefined) cam = { ...cam, yawDeg: look.yawDeg };
+    const shown = dragging?.camera ?? cam;
     const wanted = source.focus?.();
     // Free (Patrick, 5 Oct): nothing to follow, so the camera stays where it last was, and shift-drag or right-drag pans it.
     if (wanted) center = { x: wanted.x, y: wanted.y };
@@ -526,7 +591,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
 
     const signs = source.bankSigns();
     const sizing = source.layers();
-    const lengthFt = planeLengthFt(shown.zoom, { real: Boolean(sizing.realSize), scale: sizing.planeScale ?? 1 });
+    const lengthFt = pov ? T6_LENGTH_FT : planeLengthFt(shown.zoom, { real: Boolean(sizing.realSize), scale: sizing.planeScale ?? 1 }); // real size in perspective
     const present = new Set();
     for (const a of state.aircraft) {
       present.add(a.id);
@@ -535,6 +600,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       mesh.position.set(pose.x, pose.y, pose.z);
       mesh.scale.setScalar(lengthFt / CT156_UNIT_LENGTH);
       mesh.rotation.set(-pose.bankRad, -pose.pitchRad, pose.headingRad);
+      mesh.visible = true;
     }
     for (const [id, entry] of gl.planes) {
       if (present.has(id)) continue;
@@ -605,15 +671,21 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     gl.ground.position.set(gl.grid.position.x, gl.grid.position.y, gl.grid.position.z - 2); // just under the grid
 
     // Clouds above the formation, faded out as the view turns toward straight down so they don't cover the aircraft.
-    gl.skyClouds.update({ x: focus.x, y: focus.y, z: altToZ(FLIGHT_ALT_FT + (focus.z ?? 0), ALT_SCALE) }, (shown.pitchDeg - 55) / 20);
-    matchProjection(THREE, camera, { x: focus.x, y: focus.y, z: FLIGHT_ALT_FT + (focus.z ?? 0) }, shown, box, 1); // at the formation's height
-    // A depth range round the formation only (the shared one spans Traffic's 30-mile scene), so close up the aircraft's
-    // near-touching surfaces don't flicker through each other (Patrick, 5 Oct: the striped tails).
-    const mid = (camera.near + camera.far) / 2;
-    camera.near = mid - DEPTH_HALF_FT;
-    camera.far = mid + DEPTH_HALF_FT;
-    camera.updateProjectionMatrix();
-    renderer.render(scene, camera);
+    gl.skyClouds.update({ x: focus.x, y: focus.y, z: altToZ(FLIGHT_ALT_FT + (focus.z ?? 0), ALT_SCALE) }, pov ? 1 : (shown.pitchDeg - 55) / 20);
+    if (pov && aimPov(pov, box)) {
+      gl.active = gl.persp;
+    } else {
+      povNow = null;
+      matchProjection(THREE, camera, { x: focus.x, y: focus.y, z: FLIGHT_ALT_FT + (focus.z ?? 0) }, shown, box, 1); // at the formation's height
+      // A depth range round the formation only (the shared one spans Traffic's 30-mile scene), so close up the aircraft's
+      // near-touching surfaces don't flicker through each other (Patrick, 5 Oct: the striped tails).
+      const mid = (camera.near + camera.far) / 2;
+      camera.near = mid - DEPTH_HALF_FT;
+      camera.far = mid + DEPTH_HALF_FT;
+      camera.updateProjectionMatrix();
+      gl.active = camera;
+    }
+    renderer.render(scene, gl.active);
     drawTagsOver(state, layers, box, ratio, signs);
     drawn++;
     canvas.dataset.draws = String(drawn);
@@ -638,16 +710,19 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     const screenOf = (a) => {
       const pose = aircraftPose(a, signs[a.id] ?? 1);
-      const p = worldToScreen(THREE, gl.camera, { x: pose.x, y: pose.y, z: pose.z }, box.width, box.height);
+      const p = worldToScreen(THREE, gl.active, { x: pose.x, y: pose.y, z: pose.z }, box.width, box.height);
       return [p.x, p.y];
     };
     const noseOf = (a) => {
       const pose = aircraftPose(a, signs[a.id] ?? 1);
-      const p = worldToScreen(THREE, gl.camera, { x: pose.x + Math.cos(a.headingRad) * 100, y: pose.y + Math.sin(a.headingRad) * 100, z: pose.z }, box.width, box.height);
+      const p = worldToScreen(THREE, gl.active, { x: pose.x + Math.cos(a.headingRad) * 100, y: pose.y + Math.sin(a.headingRad) * 100, z: pose.z }, box.width, box.height);
       return [p.x, p.y];
     };
-    if (links) drawLeadArrows(ctx, { screenOf, size: box }, state, links);
-    if (tags) drawTags(ctx, { screenOf, noseOf, size: box }, state, tags);
+    // From inside an aircraft (Cockpit, Padlock) its own tag and the arrows would be drawn from behind the eye: left out.
+    const inside = (povNow === 'cockpit' || povNow === 'padlock') ? Number(povKey.split('|')[1]) : null;
+    const seen = inside === null ? state : { ...state, aircraft: state.aircraft.filter((a) => a.id !== inside) };
+    if (links && inside === null) drawLeadArrows(ctx, { screenOf, size: box }, state, links);
+    if (tags) drawTags(ctx, { screenOf, noseOf, size: box }, seen, tags);
   }
 
   function requestDraw() {
@@ -674,6 +749,12 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     canvas.classList.remove('is-dragging');
   };
   const zoomTo = (deltaY) => {
+    if (povNow) {
+      // In Chase the wheel brings the camera in and out; in Cockpit and Padlock the eye stays in the seat.
+      if (povNow === 'chase') chaseFt = clamp(chaseFt * (deltaY < 0 ? 0.85 : 1.18), POV.chaseFtRange);
+      requestDraw();
+      return;
+    }
     const was = cam.zoom;
     cam = zoomBy(cam, deltaY);
     if (source.fitBounds?.()) userZoom *= cam.zoom / was; // following: the wheel sets how close, the fit keeps adjusting
@@ -700,6 +781,17 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
         dragging.x = e.clientX;
         dragging.y = e.clientY;
         onUserMove('pan');
+        requestDraw();
+        return;
+      }
+      if (povNow) {
+        // Perspective views: a drag turns the head, or swings round the aircraft in Chase.
+        head = {
+          yawDeg: clamp(head.yawDeg - (e.clientX - dragging.x) * POV.degPerPx, HEAD.yawDeg),
+          pitchDeg: clamp(head.pitchDeg - (e.clientY - dragging.y) * POV.degPerPx, povNow === 'chase' ? [HEAD.chaseUpDeg[0] - POV.chaseUpDeg, HEAD.chaseUpDeg[1] - POV.chaseUpDeg] : HEAD.pitchDeg),
+        };
+        dragging.x = e.clientX;
+        dragging.y = e.clientY;
         requestDraw();
         return;
       }

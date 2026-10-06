@@ -1912,7 +1912,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     kit.setResolution(size.width, size.height);
     const pov = freeOn ? aimFree(data, size, floor) : povTarget && !dragging?.isPan ? aimPerspective(povTarget, shown, size, floor) : null;
     kit.placeGrid(pov ? pov.eye : focus, floor);
-    kit.grid.visible = !pov; // the grid under the photo shows through at the horizon in perspective, as stripes
+    kit.grid.visible = false; // hidden (Patrick, 6 Oct: "hide the grid in both traffic sim and form sim, it's distracting")
     // The flat views never look above level, whatever a perspective view left in the camera.
     if (!pov) matchProjection(THREE, camera, focus, { ...shown, pitchDeg: Math.min(shown.pitchDeg, CAMERA_LIMITS.pitch[1]) }, size, 1);
     if (threeScene.fog && gl.flatHaze) {

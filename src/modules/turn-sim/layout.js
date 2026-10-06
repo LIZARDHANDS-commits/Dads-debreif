@@ -63,7 +63,7 @@ export const LAYOUT_ALLOWED = /** @type {Record<string, any[]>} */ (Object.freez
   camOn: ['formation', '1', '2', '3', '4', 'free'],
   trackSec: [0, 30, 60, 120, 300, 600],
   coneShape: ['3d', 'flat'],
-  camLook: ['chase', 'free', 'padlock'],
+  camLook: ['chase', 'cockpit', 'padlock', 'free'],
 }));
 
 /** Layers that only the 2D picture draws; they are greyed out in 3D. */
@@ -303,7 +303,8 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   const cameraMenu = menu('Camera', 'ts-camera', [
     camOnChoice,
     lc.choice('camLook', { label: 'Look (3D)', options: [
-      { value: 'chase', label: 'Chase' }, { value: 'free', label: 'Follow (free look)' }, { value: 'padlock', label: 'Padlock' },
+      { value: 'chase', label: 'Chase' }, { value: 'cockpit', label: 'Cockpit' }, { value: 'padlock', label: 'Padlock' },
+      { value: 'free', label: 'Follow (free look)' },
     ] }),
     lc.checkbox('autoFit', { label: 'Auto zoom' }),
   ]);

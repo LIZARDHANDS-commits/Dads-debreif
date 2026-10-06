@@ -198,20 +198,19 @@ function mount(root, app) {
    * the other is above or below (pitchUpDeg, added to the person's tilt). Null for the formation.
    */
   function camLook() {
-    const on = camAircraft();
     const mode = layout.get().camLook;
-    // On the formation, Chase turns the view with Lead's heading (Patrick, 5 Oct); Follow and Padlock leave it to the person.
-    if (!on) return mode === 'chase' && layout.get().camOn === 'formation' && state.aircraft[0] ? { yawDeg: yawBehind(state.aircraft[0].headingRad) } : null;
     if (mode === 'free') return null;
-    if (mode === 'padlock') {
-      const other = state.aircraft.find((a) => a.id === padlockOf(on.id));
-      const across = other ? Math.hypot(other.xFt - on.xFt, other.yFt - on.yFt) : 0;
-      if (other && across > 0) {
-        const upFt = (other.altAboveFt ?? 0) - (on.altAboveFt ?? 0);
-        return { yawDeg: yawBehind(Math.atan2(other.yFt - on.yFt, other.xFt - on.xFt)), pitchUpDeg: (Math.atan2(upFt, across) * 180) / Math.PI };
-      }
+    let on = camAircraft();
+    if (!on) {
+      // On the formation, Chase turns the overhead view with Lead's heading (Patrick, 5 Oct); Cockpit and Padlock ride in Lead.
+      const lead = state.aircraft[0];
+      if (!lead) return null;
+      if (mode === 'chase') return { yawDeg: yawBehind(lead.headingRad) };
+      on = lead;
     }
-    return { yawDeg: yawBehind(on.headingRad) };
+    // On an aircraft, Chase, Cockpit and Padlock are true perspective views (Patrick, 6 Oct; as Traffic's TR-90, TR-92).
+    if (mode === 'padlock') return { pov: 'padlock', id: on.id, otherId: padlockOf(on.id) };
+    return { pov: mode === 'cockpit' ? 'cockpit' : 'chase', id: on.id };
   }
   const fitBounds = () => {
     const b = fitBox();
