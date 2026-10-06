@@ -29,6 +29,7 @@ import { add3, scale3, perp3, len3, unit3, dot3, cross3, liftOf, poseOf3d } from
 import { easeRoll } from '../../../core/flight-math.js';
 import { speedUpLimitKtps, climbKtps } from './full-power.js';
 import { slowKtps } from './slow-down.js';
+import { leadStateOf, stepLead, nosePath, followNose, noseAt } from './fluid-lead.js';
 
 const Z = Object.freeze({ x: 0, y: 0, z: 1 });
 
@@ -238,6 +239,9 @@ export function planLagRoll(aircraft, options = {}, t0 = 0) {
     else start = s0;
   }
   const base = { T0, s0, f0: start.fwd, L0: start.left, z0: start.up, fs: slot.fwd, L1: slot.left, zs: slot.alt };
+  // The roll flown on the T-6A point mass (TS-147): physical by construction. The drawn search below stays as the fallback.
+  const pm = planOnPointMass({ lead, wing, s, base, lead0, vL, blockFt, close, where, t0 });
+  if (pm) return pm;
 
   // He may land anywhere down to the cone's bottom (Patrick 6 Oct 22:40Z, TS-144): the slot's height or the bottom.
   const endUps = [slot.alt, -FW_ENERGY.coneUpFt];
@@ -353,6 +357,165 @@ export function planLagRoll(aircraft, options = {}, t0 = 0) {
       minRangeFt: sc.minRange,
       maxRollDps,
       leadOutOfTopHalfSec,
+    },
+  };
+}
+
+// ---- the roll on the point mass (TS-147; Patrick 6 Oct 22:53Z "Do it on the point mass model", 22:56Z "fix it") ----------
+//
+// The drawn path above sets #2's place and reads his speed off it, so it could lose more speed than full power would (flown
+// on the point mass, the same nose path kept 10 kt more and ended 300 ft further forward). Here, as the rejoin rolls
+// (rolling-rejoin.js flyRoll) and Lead's barrel roll (fluid-lead.js), the roll is a nose path followed at a set G on the
+// T-6A point mass at full power: the speed, height and energy are the aircraft's own, the G held under the stick shaker
+// and the roll at the T-6A's rate (stepLead). The nose circles a point off his heading toward Lead (SMM 14.8 para 19's
+// barrel roll circle), up first, over Lead's six inverted, and back to Lead's heading and the horizon. Then he flies
+// wings level back to Lead's speed (power back). The set-up before it (TS-143) is the drawn smooth move above.
+
+/** #2's place off Lead (straight and level from lead0 at vL) at time t: { fwd, left, up }. */
+function relToLead(lead0, vL, t, x, y, z) {
+  const f = { x: Math.cos(lead0.h), y: Math.sin(lead0.h) };
+  const dx = x - (lead0.x + vL * t * f.x);
+  const dy = y - (lead0.y + vL * t * f.y);
+  return { fwd: dx * f.x + dy * f.y, left: -dx * f.y + dy * f.x, up: z };
+}
+
+/** True when a place off Lead is inside fighting wing's band on side `side` (TS-144's margins), any height in the cone. */
+function inBandOn(r, side) {
+  const range = Math.hypot(r.fwd, r.left);
+  const sweep = Math.atan2(-r.fwd, Math.abs(r.left)) / DEG;
+  return Math.sign(r.left) === side && Math.abs(r.up) <= FW_ENERGY.coneUpFt + 25
+    && range >= FW_BAND.rangeFt[0] && range <= FW_BAND.rangeFt[1] - LAG_ROLL.inBandMarginFt
+    && sweep >= FW_BAND.sweepDeg[0] && sweep <= FW_BAND.sweepDeg[1] - LAG_ROLL.inBandMarginDeg;
+}
+
+/** How far a place is from the band (0 inside), ft, for choosing the nearest when none lands in it. */
+function bandMissFt(r, side) {
+  if (inBandOn(r, side)) return 0;
+  const range = Math.hypot(r.fwd, r.left);
+  const sweep = Math.atan2(-r.fwd, Math.abs(r.left)) / DEG;
+  const rc = Math.max(FW_BAND.rangeFt[0], Math.min(FW_BAND.rangeFt[1] - LAG_ROLL.inBandMarginFt, range));
+  const sc = Math.max(FW_BAND.sweepDeg[0], Math.min(FW_BAND.sweepDeg[1] - LAG_ROLL.inBandMarginDeg, sweep)) * DEG;
+  const near = { fwd: -rc * Math.sin(sc), left: side * rc * Math.cos(sc) }; // the nearest place in the band, on his side
+  return Math.hypot(r.fwd - near.fwd, r.left - near.left) + Math.max(0, Math.abs(r.up) - FW_ENERGY.coneUpFt - 25);
+}
+
+/** Flies one candidate roll from the state at the roll's start. Returns its poses and numbers, or null when a check fails. */
+function flyPmRoll(c, w0, ctx) {
+  const { lead0, vL, blockFt, s, tStart, leadKias, close } = ctx;
+  const h0 = lead0.h;
+  const off = -s * c.offDeg * DEG; // the circle's centre toward Lead (he is on side s, Lead on -s)
+  const path = nosePath((u) => noseAt(h0 + off * (1 - Math.cos(2 * Math.PI * u)), c.pitchDeg * DEG * Math.sin(2 * Math.PI * u)), 1, 1200);
+  const mem = { s: 0, rate: 0 };
+  let st = leadStateOf(w0, blockFt);
+  const tasPerKias = w0.tasFtps / w0.kias;
+  const poses = [];
+  let t = tStart;
+  let minKias = Infinity;
+  let minG = Infinity;
+  let maxG = 0;
+  let maxClimbDeg = -90;
+  let minRange = Infinity;
+  let topRange = null;
+  let inverted = false;
+  let out = !close;
+  let side0 = Math.sign(relToLead(lead0, vL, t, st.pm.x, st.pm.y, 0).left);
+  let rollSec = 0;
+  const push = () => {
+    const pose = poseOf3d({ x: st.pm.x, y: st.pm.y, altAbove: st.pm.z - blockFt, vel: st.vel, up: st.bodyUp, kias: st.V / tasPerKias, g: st.g, rollDps: -st.rollRate });
+    pose.pwr = 1;
+    poses.push(pose);
+  };
+  for (let n = 0; n < Math.round(LAG_ROLL.rollSec[1] / STEP_SEC); n++) {
+    const r = followNose(st, path, mem, c.pullG);
+    st = stepLead(st, { g: r.g, bank: r.bank });
+    t += STEP_SEC;
+    rollSec += STEP_SEC;
+    push();
+    const rel = relToLead(lead0, vL, t, st.pm.x, st.pm.y, st.pm.z - blockFt - ctx.leadAlt);
+    const range = Math.hypot(rel.fwd, rel.left, rel.up);
+    if (range >= LAG_ROLL.bubbleFt) out = true;
+    if (out && range < LAG_ROLL.bubbleFt) return null; // never inside 500 ft of Lead once outside
+    if (out) minRange = Math.min(minRange, range);
+    if (st.g < LAG_ROLL.minG) return null; // canopy to canopy: positive G throughout
+    minKias = Math.min(minKias, st.kias);
+    minG = Math.min(minG, st.g);
+    maxG = Math.max(maxG, st.g);
+    maxClimbDeg = Math.max(maxClimbDeg, st.gammaRad / DEG);
+    const side = Math.sign(rel.left);
+    if (topRange === null && side !== 0 && side !== side0) { // crossing Lead's track: over his six, inverted, lift toward him
+      topRange = range;
+      inverted = st.bodyUp.z < 0 && rel.fwd < 0;
+    }
+    if (r.end) break;
+  }
+  if (minKias < LAG_ROLL.topKiasBand[0] || topRange === null || !inverted) return null;
+  // Back to Lead's speed, wings level on Lead's heading (power back at the slowing slow-down.js allows; stepLead holdKias).
+  for (let n = 0; n < Math.round(LAG_ROLL.settleMaxSec / STEP_SEC); n++) {
+    if (Math.abs(st.kias - leadKias) < 1 && Math.abs(st.gammaRad) < 0.5 * DEG && Math.abs(st.bank) < 1) break;
+    const g = Math.max(0.3, Math.cos(st.gammaRad) - 0.6 * st.gammaRad * st.V / G_FTPS2);
+    st = stepLead(st, { g, bank: 0, holdKias: leadKias });
+    t += STEP_SEC;
+    push();
+    poses[poses.length - 1].pwr = null;
+  }
+  const end = relToLead(lead0, vL, t, st.pm.x, st.pm.y, st.pm.z - blockFt - ctx.leadAlt);
+  return { poses, end, t, rollSec, minKias, minG, maxG, maxClimbDeg, minRange, topRange };
+}
+
+function planOnPointMass({ lead, wing, s, base, lead0, vL, blockFt, close, where, t0 }) {
+  const P = { ...base, T: 0, T2: 0, H: 0, fE: base.f0 };
+  const T0 = base.T0;
+  const poses = [];
+  for (let i = 1; i <= Math.round(T0 / STEP_SEC); i++) { // the set-up, drawn smooth (TS-143)
+    const st = groundAt(Math.min(i * STEP_SEC, T0 - 1e-6), P, lead0, vL);
+    const tas = len3(st.vel);
+    poses.push(poseOf3d({ x: st.pos.x, y: st.pos.y, altAbove: lead.altAboveFt + st.pos.z, vel: st.vel, up: Z, kias: lead.kias * tas / vL, g: 1, rollDps: 0 }));
+  }
+  const tStart = Math.round(T0 / STEP_SEC) * STEP_SEC;
+  const fx = Math.cos(lead0.h);
+  const fy = Math.sin(lead0.h);
+  const along = vL * tStart + base.f0; // the set-up's end: at rest in Lead's frame at its place (or where he is, from echelon)
+  const w0 = { ...wing, xFt: lead0.x + along * fx - base.L0 * fy, yFt: lead0.y + along * fy + base.L0 * fx, altAboveFt: lead.altAboveFt + base.z0, headingRad: lead.headingRad, tasFtps: vL, kias: lead.kias, climbFtps: 0, bankDeg: 0, rollRateDps: 0, g: 1 };
+  const ctx = { lead0, vL, blockFt, s, tStart, leadKias: lead.kias, close, leadAlt: lead.altAboveFt };
+  let best = null;
+  for (const offDeg of LAG_ROLL.pmOffDeg) for (const pitchDeg of LAG_ROLL.pmNoseUpDeg) for (const pullG of LAG_ROLL.pullG) {
+    const m = flyPmRoll({ offDeg, pitchDeg, pullG }, w0, ctx);
+    if (!m) continue;
+    const miss = bandMissFt(m.end, -s);
+    const key = miss > 0 ? 1e6 + miss : m.t; // in the band soonest, else nearest the band
+    if (!best || key < best.key) best = { key, m, c: { offDeg, pitchDeg, pullG } };
+  }
+  if (!best || best.key >= 1e6) return null; // none lands in the band: the drawn search flies it (and closes into the band)
+  const { m, c } = best;
+  poses.push(...m.poses);
+  const last = poses[poses.length - 1];
+  Object.assign(last, { bank: 0, roll: 0 });
+  const total = m.t;
+  const sideWord = -s > 0 ? 'left' : 'right';
+  const fromWords = close ? `from echelon ${s > 0 ? 'left' : 'right'} ` : '';
+  const setUpWords = T0 > 0 ? `moves forward and high in the cone (${Math.round(T0)} s), then ` : '';
+  const note = `Lag roll ${fromWords}to fighting wing ${sideWord}: #2 ${setUpWords}flies a barrel roll toward Lead at full power, `
+    + `${m.maxG.toFixed(1)} G, nose about ${Math.round(m.maxClimbDeg)}° up, over his six inverted at about ${Math.round(m.topRange).toLocaleString('en-CA')} ft, `
+    + `slowest ${Math.round(m.minKias)} KIAS, down into the cone on the ${sideWord}, then power back to Lead's speed. Flown on the T-6A model (speed, height and G are the aircraft's own). `
+    + 'The SMM does not name the lag roll (nearest: SMM 12.29 para 69, 12.30-12.31 para 74, 14.8 paras 18-19); the shape numbers are estimates.';
+  return {
+    ok: true,
+    plans: { [lead.id]: { segments: [] }, [wing.id]: { segments: [{ kind: 'poseTrack', poses }] } },
+    note,
+    label: `Lag roll to fighting wing ${sideWord}`,
+    flying: `${close ? 'Echelon' : 'Fighting wing'} ${s > 0 ? 'left' : 'right'} to fighting wing ${sideWord} (lag roll)`,
+    from: where.key,
+    fromSide: s,
+    to: 'fw',
+    side: -s,
+    rejoinKind: 'none',
+    maxBankDeg: poses.reduce((a, p) => Math.max(a, Math.abs(p.bank)), 0),
+    endSec: t0 + total,
+    rejoining: false,
+    lagRoll: {
+      pointMass: true, setUpSec: T0, rollSec: m.rollSec, closeSec: total - T0 - m.rollSec, climbFt: null, fallBackFt: null,
+      pullG: c.pullG, noseUpDeg: c.pitchDeg, offDeg: c.offDeg, maxG: m.maxG, minG: m.minG, maxClimbDeg: m.maxClimbDeg, minKias: m.minKias,
+      topRangeFt: m.topRange, minRangeFt: m.minRange, maxRollDps: null, leadOutOfTopHalfSec: 0, end: m.end,
     },
   };
 }
