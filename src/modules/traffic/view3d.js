@@ -31,11 +31,13 @@ import { trueAltFt } from './weather.js';
 import { createEjectionModel, poseEjectionModel, disposeEjectionModel } from './ejection3d.js';
 import { approachMarks, createApproachMarks, updateApproachMarks, disposeApproachMarks } from './approach3d.js';
 import { AIRFIELD_CORE_BOUNDS_FT, paintCoreAirfieldVector, getCoreCorners, getOptimalCoreTileZoom } from './airfield-core-ground.js';
-import { fieldCamera, topDownCamera, towerCamera, cockpitCamera, padlockCamera, NEEDS_AIRCRAFT } from './camera-views.js';
+import { fieldCamera, topDownCamera, towerCamera, cockpitCamera, padlockCamera, NEEDS_AIRCRAFT, RWY_29L_THRESHOLD, towerFree, freeAim, freeLookVector, freeStepFt, moveFree, turnFree, FREE_MIN_AGL_FT } from './camera-views.js';
 import { createCameraBar } from './camera-bar.js';
 
-/** The viewpoints worked out from a place (the tower) or an aircraft each frame, rather than framed once. */
-const POV_VIEWS = new Set(['tower', 'cockpit', 'padlock']);
+/** The viewpoints worked out from an aircraft each frame, rather than framed once. */
+const POV_VIEWS = new Set(['cockpit', 'padlock']);
+/** The free-flying perspective camera, and Tower, which starts it in the cab (TR-92). */
+const FREE_VIEWS = new Set(['tower', 'free']);
 
 /** The camera for a Tower, Cockpit or Padlock view; `target` is the followed aircraft, or null (Tower only). */
 export function povCamera(name, target, size, floorFt) {
@@ -365,7 +367,17 @@ export function chaseCamera(ac, size) {
  */
 export const PERSPECTIVE = Object.freeze({ fovAcrossDeg: 60, nearFt: 40, farFt: 400_000, hazeFromFt: 12_000, hazeToFt: 45_000 });
 /** The views drawn in perspective. */
-export const PERSPECTIVE_VIEWS = Object.freeze(new Set(['cockpit', 'low']));
+export const PERSPECTIVE_VIEWS = Object.freeze(new Set(['cockpit', 'low', 'padlock']));
+/**
+ * Looking up (Patrick, 6 Oct 06:26Z; TR-92). Chase may tilt to 60° above level (150° from straight down); its eye is
+ * kept at least CHASE_MIN_AGL_FT over the ground. In Cockpit the head turns 160° either way, up 80° and down 60° from
+ * the nose (estimates for a pilot's head in the seat); C brings it back to the nose.
+ */
+export const CHASE_PITCH_DEG = Object.freeze([0, 150]);
+export const CHASE_MIN_AGL_FT = 10;
+export const HEAD_LOOK_DEG = Object.freeze({ yaw: [-160, 160], pitch: [-60, 80] });
+/** Free camera keys: W/S forward and back along the look, A/D sideways, R/F up and down (shift moves four times as far). */
+const FREE_MOVE_KEYS = Object.freeze({ w: { forward: 1 }, s: { forward: -1 }, d: { right: 1 }, a: { right: -1 }, r: { up: 1 }, f: { up: -1 } });
 
 /** The vertical field of view, in degrees, that gives PERSPECTIVE.fovAcrossDeg across a canvas of `size` (never more than that). */
 export function perspectiveFovDeg(size) {
@@ -395,12 +407,12 @@ export function chaseEye(ac, cam, distanceFt) {
   return { eye: { x: at.x - f.x * distanceFt, y: at.y - f.y * distanceFt, z: at.z - f.z * distanceFt }, at };
 }
 
-/** A camera change from a drag of (dx, dy) pixels. */
-export function orbit(cam, dx, dy) {
+/** A camera change from a drag of (dx, dy) pixels; `pitchLimits` are CAMERA_LIMITS.pitch except in Chase (CHASE_PITCH_DEG). */
+export function orbit(cam, dx, dy, /** @type {readonly number[]} */ pitchLimits = CAMERA_LIMITS.pitch) {
   return {
     ...cam,
     yawDeg: wrapDeg(cam.yawDeg + dx * ORBIT_DEG_PER_PX.yaw),
-    pitchDeg: clamp(cam.pitchDeg - dy * ORBIT_DEG_PER_PX.pitch, CAMERA_LIMITS.pitch),
+    pitchDeg: clamp(cam.pitchDeg - dy * ORBIT_DEG_PER_PX.pitch, pitchLimits),
   };
 }
 
@@ -1346,7 +1358,10 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
   let wantPreset = null; // a camera button pressed before there was something to frame
   let follow = null; // { id, autoYaw }: the chase camera
   let chasePending = false; // Low chase was asked for with nothing flying: it starts on the first aircraft that does
-  let viewMode = 'field'; // the Camera menu's choice: field (Over the field), fit, high, top, tower, low (Chase), cockpit or padlock
+  let viewMode = 'field'; // the Camera menu's choice: field (Over the field), fit, high, top, tower, free, low (Chase), cockpit or padlock
+  let freeCam = null; // the free camera, { x, y, z, yawDeg, elevDeg, track } (camera-views.js), in Tower and Free camera
+  let headLook = { yawDeg: 0, pitchDeg: 0 }; // Cockpit: where the pilot's head is turned from the nose
+  let padlockFrom = 'cockpit'; // Padlock keeps the eye of the view it was picked from: cockpit or low (Chase)
   let noteText = ''; // a short word in the 3D bar, such as why Cockpit fell back to Fit
   let cameraBar = null; // the 3D bar (camera-bar.js), made with the canvas and freed with it
   let coreCanvas = null;
@@ -1772,9 +1787,19 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       wantPreset = null;
       fitted = true;
       chasePending = false;
+      if (name === 'padlock' && (viewMode === 'cockpit' || viewMode === 'low')) padlockFrom = viewMode;
+      if (name === 'cockpit') headLook = { yawDeg: 0, pitchDeg: 0 };
+      const was = viewMode;
       viewMode = name;
       noteText = '';
       if (name === 'low') startChase(data, box, size);
+      else if (name === 'tower') {
+        const target = follow ? (data.aircraft.find((a) => a.id === follow.id && isFlying(a)) ?? null) : null;
+        freeCam = towerFree(floor, target);
+      } else if (name === 'free') {
+        freeCam = freeFromView(was, size, floor);
+        follow = null;
+      }
       else if (name === 'field') {
         follow = null;
         view = fieldCamera(size);
@@ -1790,7 +1815,10 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
           view = cameraFor('fit', box, size);
           noteText = `${name === 'cockpit' ? 'Cockpit' : 'Padlock'} needs an aircraft: choose one in Follow, or press ].`;
         } else {
+          // Padlock from Chase keeps Chase's distance behind the aircraft (the zoom); otherwise the opening Chase distance.
+          const chaseZoom = was === 'low' ? view.cam.zoom : chaseCamera(target, size).cam.zoom;
           view = povCamera(name, target, size, floor);
+          if (name === 'padlock') view = { ...view, cam: { ...view.cam, zoom: chaseZoom } };
           if (follow) follow.autoYaw = false;
         }
       } else {
@@ -1821,6 +1849,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     const focus = dragging?.isPan ? dragging.center : view.center;
     // Cockpit and Chase on an aircraft are drawn in perspective; everything else is flat.
     const povTarget = follow && PERSPECTIVE_VIEWS.has(viewMode) ? (data.aircraft.find((a) => a.id === follow.id && isFlying(a)) ?? null) : null;
+    const freeOn = FREE_VIEWS.has(viewMode) && freeCam !== null;
 
     const photoTex = ensurePhotoTexture(options);
     const outerTex = outerTier.ensure(options);
@@ -1836,7 +1865,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       layerCautionRings: options.layerCautionRings,
       cautionLatFt: options.cautionLatFt,
       aircraftScale: options.aircraftScale,
-      zoom: povTarget ? CAMERA_LIMITS.zoom[1] : shown.zoom, groundFt: floor, time: source.time(), // in perspective, aircraft at their close-up size
+      zoom: povTarget || freeOn ? CAMERA_LIMITS.zoom[1] : shown.zoom, groundFt: floor, time: source.time(), // in perspective, aircraft at their close-up size
       fullModels: options.fullModels ?? true,
       layerHeightLines: options.layerHeightLines !== false,
       layerEngineReach: options.layerEngineReach,
@@ -1855,16 +1884,19 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       photoOpacityPct: options.photoOpacityPct,
     });
     kit.setResolution(size.width, size.height);
-    const pov = povTarget && !dragging?.isPan ? aimPerspective(povTarget, shown, size) : null;
+    const pov = freeOn ? aimFree(data, size, floor) : povTarget && !dragging?.isPan ? aimPerspective(povTarget, shown, size, floor) : null;
     kit.placeGrid(pov ? pov.eye : focus, floor);
     kit.grid.visible = !pov; // the grid under the photo shows through at the horizon in perspective, as stripes
-    if (!pov) matchProjection(THREE, camera, focus, shown, size, 1);
+    // The flat views never look above level, whatever a perspective view left in the camera.
+    if (!pov) matchProjection(THREE, camera, focus, { ...shown, pitchDeg: Math.min(shown.pitchDeg, CAMERA_LIMITS.pitch[1]) }, size, 1);
     if (threeScene.fog && gl.flatHaze) {
       threeScene.fog.near = pov ? PERSPECTIVE.hazeFromFt : gl.flatHaze.near;
       threeScene.fog.far = pov ? PERSPECTIVE.hazeToFt : gl.flatHaze.far;
     }
     gl.shownCamera = pov ? gl.perspective : camera;
-    const facing = { yawDeg: Math.round(finite(shown.yawDeg)), tiltDeg: Math.round(finite(shown.pitchDeg)) };
+    const facing = freeOn
+      ? { yawDeg: Math.round(finite(freeCam.yawDeg)), tiltDeg: Math.round(90 + finite(freeCam.elevDeg)) }
+      : { yawDeg: Math.round(finite(shown.yawDeg)), tiltDeg: Math.round(finite(shown.pitchDeg)) };
     if (facing.yawDeg !== lastFacing?.yawDeg || facing.tiltDeg !== lastFacing?.tiltDeg) { lastFacing = facing; onFacing(facing.yawDeg, facing.tiltDeg); }
     renderer.render(threeScene, gl.shownCamera);
     if (pov?.hidden) pov.hidden.visible = true;
@@ -1884,46 +1916,121 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
   // The callsigns and, with the layer on, heights and speeds, written over the picture; a word for a conflict too (colour is never the only signal).
   // A ring in the aircraft's colour round each one, and a thick dark edge on the words, so they stand out on the photo
   // (Patrick, 4 Oct 10:55Z). With the PFL layer on, the keys and each PFL aircraft's glide distance are named as on the map.
-  /**
-   * Points the perspective camera for Cockpit or Chase on `target` and returns { eye, hidden, labelZoom }. Cockpit sits
-   * at the aircraft looking along its nose, banked with it, and hides its own model for the frame (`hidden`, shown
-   * again after drawing); Chase sits behind it along the look, at chaseDistanceFt. labelZoom is the pixels to 1,000 ft
-   * at the followed aircraft, for the label sizes.
-   */
-  function aimPerspective(target, cam, size) {
+  /** Sets the perspective camera's field of view for the canvas; returns pixels to 1,000 ft at `distFt` from the eye. */
+  function shapePerspective(size) {
     const p = gl.perspective;
     p.fov = perspectiveFovDeg(size);
     p.aspect = Math.max(size.width, 1) / Math.max(size.height, 1);
-    const pxPerKft = (distFt) => ((Math.max(size.height, 1) / 2) / Math.tan(rad(p.fov / 2)) / Math.max(distFt, 1)) * 1000;
+    return (distFt) => ((Math.max(size.height, 1) / 2) / Math.tan(rad(p.fov / 2)) / Math.max(distFt, 1)) * 1000;
+  }
+
+  function finishPerspective() {
+    gl.perspective.updateProjectionMatrix();
+    gl.perspective.updateMatrixWorld(true);
+  }
+
+  /**
+   * Points the perspective camera for Cockpit, Chase or Padlock on `target` and returns { eye, hidden, labelZoom }.
+   * Cockpit sits at the aircraft looking along its nose (turned by the pilot's head, headLook), banked with it, and
+   * hides its own model for the frame (`hidden`, shown again after drawing); Chase sits behind it along the look, at
+   * chaseDistanceFt. Padlock keeps the eye of the view it came from and looks at the 29L threshold: from the cockpit
+   * banked with the aircraft, from Chase over the aircraft's shoulder. labelZoom is the pixels to 1,000 ft at the
+   * followed aircraft, for the label sizes.
+   */
+  function aimPerspective(target, cam, size, floor) {
+    const p = gl.perspective;
+    const pxPerKft = shapePerspective(size);
+    const at = { x: finite(target.x), y: finite(target.y), z: altToZ(finite(target.alt), ALT_SCALE) };
+    const threshold = new THREE.Vector3(RWY_29L_THRESHOLD.x, RWY_29L_THRESHOLD.y, altToZ(RWY_29L_THRESHOLD.alt, ALT_SCALE));
     let eye, hidden = null, labelZoom;
-    if (viewMode === 'cockpit') {
-      eye = { x: finite(target.x), y: finite(target.y), z: altToZ(finite(target.alt), ALT_SCALE) };
+    if (viewMode === 'cockpit' || (viewMode === 'padlock' && padlockFrom !== 'low')) {
+      eye = at;
       const mesh = gl.kit.aircraftMesh(target.id);
-      const nose = new THREE.Vector3(Math.sin(rad(finite(target.headingDeg))), Math.cos(rad(finite(target.headingDeg))), 0);
-      const up = new THREE.Vector3(0, 0, 1);
+      const turn = new THREE.Quaternion();
       if (mesh) {
         // The model's nose is +X and its top +Z (applyPose), so its turn gives the pilot's look and the bank.
-        nose.set(1, 0, 0).applyQuaternion(mesh.quaternion);
-        up.set(0, 0, 1).applyQuaternion(mesh.quaternion);
+        turn.copy(mesh.quaternion);
         mesh.visible = false;
         hidden = mesh;
-      }
+      } else turn.setFromAxisAngle(new THREE.Vector3(0, 0, 1), rad(90 - finite(target.headingDeg)));
+      const up = new THREE.Vector3(0, 0, 1).applyQuaternion(turn);
       p.position.set(eye.x, eye.y, eye.z);
       p.up.copy(up);
-      p.lookAt(eye.x + nose.x * 1000, eye.y + nose.y * 1000, eye.z + nose.z * 1000);
+      if (viewMode === 'padlock') p.lookAt(threshold);
+      else {
+        // The head turns left-right about the aircraft's top (positive to the right), then up-down.
+        const yaw = rad(-headLook.yawDeg);
+        const pitch = rad(headLook.pitchDeg);
+        const look = new THREE.Vector3(Math.cos(yaw) * Math.cos(pitch), Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch)).applyQuaternion(turn);
+        p.lookAt(eye.x + look.x * 1000, eye.y + look.y * 1000, eye.z + look.z * 1000);
+      }
       labelZoom = CAMERA_LIMITS.zoom[1];
+    } else if (viewMode === 'padlock') {
+      // Over the shoulder: behind the aircraft on the line from the threshold, a little above, looking at the threshold.
+      const distanceFt = chaseDistanceFt(cam, size);
+      const toward = new THREE.Vector3(threshold.x - at.x, threshold.y - at.y, 0);
+      if (toward.lengthSq() < 1) toward.set(Math.sin(rad(finite(target.headingDeg))), Math.cos(rad(finite(target.headingDeg))), 0);
+      toward.normalize();
+      eye = { x: at.x - toward.x * distanceFt, y: at.y - toward.y * distanceFt, z: Math.max(at.z + distanceFt * 0.3, floor + CHASE_MIN_AGL_FT) };
+      p.position.set(eye.x, eye.y, eye.z);
+      p.up.set(0, 0, 1);
+      p.lookAt(threshold);
+      labelZoom = pxPerKft(distanceFt);
     } else {
       const distanceFt = chaseDistanceFt(cam, size);
       const look = chaseEye(target, cam, distanceFt);
-      eye = look.eye;
+      eye = { ...look.eye, z: Math.max(look.eye.z, floor + CHASE_MIN_AGL_FT) };
       p.position.set(eye.x, eye.y, eye.z);
       p.up.set(0, 0, 1);
       p.lookAt(look.at.x, look.at.y, look.at.z);
       labelZoom = pxPerKft(distanceFt);
     }
-    p.updateProjectionMatrix();
-    p.updateMatrixWorld(true);
+    finishPerspective();
     return { eye, hidden, labelZoom };
+  }
+
+  /**
+   * Points the perspective camera from the free camera (Tower or Free camera). While it tracks, it looks at the
+   * followed aircraft and its bearing and look angle follow, so turning it by hand starts from what was shown.
+   */
+  function aimFree(data, size, floor) {
+    const p = gl.perspective;
+    const pxPerKft = shapePerspective(size);
+    freeCam = { ...freeCam, z: Math.max(freeCam.z, floor + FREE_MIN_AGL_FT) };
+    const eye = { x: freeCam.x, y: freeCam.y, z: freeCam.z };
+    const target = freeCam.track && follow ? data.aircraft.find((a) => a.id === follow.id && isFlying(a)) : null;
+    let distFt = 3000; // labels sized as if 3,000 ft away when nothing is tracked (an estimate)
+    if (target) {
+      const at = { x: finite(target.x), y: finite(target.y), z: altToZ(finite(target.alt), ALT_SCALE) };
+      freeCam = { ...freeCam, ...freeAim(eye, at) };
+      distFt = Math.hypot(at.x - eye.x, at.y - eye.y, at.z - eye.z);
+    }
+    const f = freeLookVector(freeCam.yawDeg, freeCam.elevDeg);
+    p.position.set(eye.x, eye.y, eye.z);
+    p.up.set(0, 0, 1);
+    p.lookAt(eye.x + f.x * 1000, eye.y + f.y * 1000, eye.z + f.z * 1000);
+    finishPerspective();
+    return { eye, hidden: null, labelZoom: pxPerKft(distFt) };
+  }
+
+  /**
+   * The free camera starting from the view `was`: from the perspective camera's own eye and look when that view was in
+   * perspective, else from a point back along the flat view's look, as far as about the ground across the screen.
+   */
+  function freeFromView(was, size, floor) {
+    if ((PERSPECTIVE_VIEWS.has(was) || FREE_VIEWS.has(was)) && gl?.perspective && gl.shownCamera === gl.perspective) {
+      const p = gl.perspective;
+      const dir = new THREE.Vector3();
+      p.getWorldDirection(dir);
+      const eye = { x: p.position.x, y: p.position.y, z: p.position.z };
+      return { ...eye, ...freeAim(eye, { x: eye.x + dir.x, y: eye.y + dir.y, z: eye.z + dir.z }), track: false };
+    }
+    const cam = view.cam;
+    const acrossFt = (Math.max(size.width, 1) / Math.max(finite(cam.zoom, 1), 1e-3)) * 1000;
+    const elevDeg = Math.min(finite(cam.pitchDeg, 90), 89) - 90;
+    const f = freeLookVector(cam.yawDeg, elevDeg);
+    const c = view.center;
+    return { x: c.x - f.x * acrossFt, y: c.y - f.y * acrossFt, z: Math.max(c.z - f.z * acrossFt, floor + FREE_MIN_AGL_FT), yawDeg: wrapDeg(finite(cam.yawDeg)), elevDeg, track: false };
   }
 
   function drawLabels(ctx, labelCanvas, size, ratio, data, options, palette, { zoom = 20, floor = 0, skipId = null } = {}) {
@@ -2012,7 +2119,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
   }
 
   function startChase(data, box, size) {
-    const target = data.aircraft.find(isFlying);
+    // The followed aircraft stays chosen (Cockpit or Padlock back to Chase); else the first one flying.
+    const target = (follow && data.aircraft.find((a) => a.id === follow.id && isFlying(a))) || data.aircraft.find(isFlying);
     if (!target) {
       follow = null;
       chasePending = true;
@@ -2073,7 +2181,9 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     const ac = data.aircraft?.find((a) => a.id === id && isFlying(a));
     if (ac) {
       const size = gl?.canvas ? sizeOf(gl.canvas) : { width: 900, height: 600 };
-      if (POV_VIEWS.has(viewMode)) {
+      if (FREE_VIEWS.has(viewMode) && freeCam) {
+        freeCam = { ...freeCam, track: true }; // Tower and the free camera watch the aircraft from where they are
+      } else if (POV_VIEWS.has(viewMode)) {
         follow.autoYaw = false;
         view = povCamera(viewMode, ac, size, groundFt(data.routes ?? []));
       } else {
@@ -2145,9 +2255,64 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     gl?.canvas.classList.remove('is-dragging', 'is-panning');
   };
   const zoomTo = (deltaY) => {
-    view = { ...view, cam: zoomBy(view.cam, deltaY) };
+    if (FREE_VIEWS.has(viewMode) && freeCam) moveFreeBy({ forward: deltaY < 0 ? 3 : -3 });
+    else view = { ...view, cam: zoomBy(view.cam, deltaY) };
     requestDraw();
   };
+  const floorNow = () => groundFt(source.scene?.()?.routes ?? []);
+  /** Moves the free camera by steps of freeStepFt ({ forward, right, up }). */
+  function moveFreeBy(steps) {
+    const floor = floorNow();
+    const step = freeStepFt(freeCam, floor);
+    freeCam = moveFree(freeCam, { forward: (steps.forward ?? 0) * step, right: (steps.right ?? 0) * step, up: (steps.up ?? 0) * step }, floor);
+  }
+  /** Chase may look up; the flat views stop at CAMERA_LIMITS.pitch. */
+  const pitchLimits = () => (viewMode === 'low' && follow ? CHASE_PITCH_DEG : CAMERA_LIMITS.pitch);
+  /**
+   * Turns the view by a drag or arrow key of (dx, dy) pixels: the free camera's look, the pilot's head in Cockpit, or
+   * the orbit round the middle (or the aircraft) in every other view. Returns the orbited camera, or null when the
+   * free camera or the head was turned instead.
+   */
+  function turnBy(cam, dx, dy) {
+    if (FREE_VIEWS.has(viewMode) && freeCam) {
+      freeCam = turnFree(freeCam, dx * ORBIT_DEG_PER_PX.yaw, -dy * ORBIT_DEG_PER_PX.pitch);
+      return null;
+    }
+    if (viewMode === 'cockpit' && follow) {
+      headLook = {
+        yawDeg: clamp(headLook.yawDeg + dx * ORBIT_DEG_PER_PX.yaw, HEAD_LOOK_DEG.yaw),
+        pitchDeg: clamp(headLook.pitchDeg - dy * ORBIT_DEG_PER_PX.pitch, HEAD_LOOK_DEG.pitch),
+      };
+      return null;
+    }
+    if (follow) follow.autoYaw = false; // turned by hand: the chase camera stops swinging behind
+    return orbit(cam, dx, dy, pitchLimits());
+  }
+  /** P: Padlock on the runway from Chase or Cockpit, and back. C: the look back to the nose (Cockpit) or behind (Chase). */
+  function cameraLetter(key) {
+    if (key === 'p') {
+      if (viewMode === 'padlock') api.preset(padlockFrom);
+      else if (viewMode === 'cockpit' || viewMode === 'low') api.preset('padlock');
+      else return false;
+      return true;
+    }
+    if (key === 'c') {
+      if (viewMode === 'cockpit') headLook = { yawDeg: 0, pitchDeg: 0 };
+      else if (viewMode === 'low' && follow) {
+        follow.autoYaw = true;
+        view = { ...view, cam: { ...view.cam, pitchDeg: PRESET_PITCH_DEG.low } };
+      } else return false;
+      requestDraw();
+      return true;
+    }
+    const move = FREE_MOVE_KEYS[key];
+    if (move && FREE_VIEWS.has(viewMode) && freeCam) {
+      moveFreeBy(move);
+      requestDraw();
+      return true;
+    }
+    return false;
+  }
   function onWindowKeydown(e) {
     if (!visible || !gl || disposed) return;
     if (e.altKey || e.ctrlKey || e.metaKey || e.defaultPrevented) return;
@@ -2159,6 +2324,13 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     } else if (e.key === ']') {
       e.preventDefault();
       nextTarget(1);
+    } else if (typeof e.key === 'string' && e.key.length === 1) {
+      const key = e.key.toLowerCase();
+      // Shift moves the free camera four times as far.
+      const times = e.shiftKey && FREE_MOVE_KEYS[key] ? 4 : 1;
+      let used = false;
+      for (let i = 0; i < times; i++) used = cameraLetter(key) || used;
+      if (used) e.preventDefault();
     }
   }
 
@@ -2181,13 +2353,17 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       if (!dragging || e.pointerId !== dragging.id) return;
       const dx = e.clientX - dragging.x;
       const dy = e.clientY - dragging.y;
-      if (dragging.isPan) {
+      if (dragging.isPan && FREE_VIEWS.has(viewMode) && freeCam) {
+        // The free camera slides sideways and up with the ground under the pointer.
+        const floor = floorNow();
+        const ftPerPx = freeStepFt(freeCam, floor) / 40;
+        freeCam = moveFree(freeCam, { right: -dx * ftPerPx, up: dy * ftPerPx }, floor);
+      } else if (dragging.isPan) {
         if (follow) follow = null; // user panned: detach chase
         dragging.center = panCamera(dragging.center, view.cam, dx, dy);
         view.center = dragging.center;
       } else {
-        dragging.cam = orbit(dragging.cam, dx, dy);
-        if (follow) follow.autoYaw = false; // turned by hand: the chase camera stops swinging behind
+        dragging.cam = turnBy(dragging.cam, dx, dy) ?? dragging.cam;
       }
       dragging.x = e.clientX;
       dragging.y = e.clientY;
@@ -2217,12 +2393,15 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       const turn = KEY_ORBIT_PX[e.key];
       if (turn) {
         e.preventDefault();
-        if (e.shiftKey) {
+        if (e.shiftKey && FREE_VIEWS.has(viewMode) && freeCam) {
+          moveFreeBy({ right: Math.sign(turn[0]), up: -Math.sign(turn[1]) });
+        } else if (e.shiftKey) {
           if (follow) follow = null;
           view = { ...view, center: panCamera(view.center, view.cam, -turn[0], -turn[1]) };
+        } else if (FREE_VIEWS.has(viewMode) && freeCam) {
+          turnBy(view.cam, turn[0], turn[1]);
         } else {
-          if (follow) follow.autoYaw = false;
-          view = { ...view, cam: orbit(view.cam, turn[0], turn[1]) };
+          view = { ...view, cam: turnBy(view.cam, turn[0], turn[1]) ?? view.cam };
         }
         requestDraw();
         return;

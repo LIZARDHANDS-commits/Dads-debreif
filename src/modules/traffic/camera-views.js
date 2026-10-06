@@ -2,7 +2,8 @@
 // Padlock. Pure functions, no three.js: each returns the same { center, cam: { yawDeg, pitchDeg, zoom, altScale } }
 // the rest of view3d.js uses, so matchProjection (an OrthographicCamera) draws them with no extra state.
 //
-// The camera is orthographic (Cockpit and Chase are drawn in perspective in view3d.js, TR-90), so a viewpoint is a look direction plus what sits in the middle of the screen. yaw is
+// The camera is orthographic (Cockpit, Chase, Padlock, Tower and the free camera are drawn in perspective in view3d.js,
+// TR-90, TR-92), so a viewpoint is a look direction plus what sits in the middle of the screen. yaw is
 // a compass bearing (the camera looks along (sin yaw, cos yaw)); pitch is degrees from straight down (0 looks down,
 // 90 is level), clamped to the view's limits. Display only: no flight math.
 import { THRESHOLD_29L, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
@@ -20,6 +21,7 @@ export const CAMERA_VIEWS = Object.freeze([
   { id: 'high', label: 'High look-down' },
   { id: 'top', label: 'Top-down' },
   { id: 'tower', label: 'Tower' },
+  { id: 'free', label: 'Free camera' },
   { id: 'low', label: 'Chase' },
   { id: 'cockpit', label: 'Cockpit' },
   { id: 'padlock', label: 'Padlock (runway)' },
@@ -106,4 +108,64 @@ export function padlockCamera(ac, size) {
     center: { x: (eye.x + RWY_29L_THRESHOLD.x) / 2, y: (eye.y + RWY_29L_THRESHOLD.y) / 2, z: (eye.alt + RWY_29L_THRESHOLD.alt) / 2 },
     cam: { yawDeg: look.yawDeg, pitchDeg: look.pitchDeg, zoom: zoomFor(size.width, Math.max(3000, look.distanceFt * 1.3)), altScale: 1 },
   };
+}
+
+/**
+ * The free-flying perspective camera (Patrick, 6 Oct 06:26Z; TR-92): an eye in local feet ({ x, y, z }, z in ft MSL),
+ * a compass bearing and a look angle above level (negative is down). Tower starts it in the cab. It keeps looking at
+ * the followed aircraft while `track` is on; turning the view by hand switches tracking off.
+ */
+export const FREE_LOOK_DEG = Object.freeze([-89, 89]);
+/** Nothing flies the eye closer to the ground than this, in feet (an estimate: about a person's eye height). */
+export const FREE_MIN_AGL_FT = 6;
+
+/** The free camera in the tower cab, looking at `target` ({ x, y, alt }) or the 29L threshold. */
+export function towerFree(floorFt, target = null) {
+  const eye = { x: TOWER_FT.x, y: TOWER_FT.y, z: finite(floorFt, RWY_29L_THRESHOLD.alt) + TOWER_EYE_AGL_FT };
+  const at = target ?? RWY_29L_THRESHOLD;
+  return { ...eye, ...freeAim(eye, { x: at.x, y: at.y, z: at.alt }), track: Boolean(target) };
+}
+
+/** The unit look of a bearing and an angle above level, in local feet axes (x east, y north, z up). */
+export function freeLookVector(yawDeg, elevDeg) {
+  const yaw = rad(finite(yawDeg));
+  const elev = rad(finite(elevDeg));
+  return { x: Math.sin(yaw) * Math.cos(elev), y: Math.cos(yaw) * Math.cos(elev), z: Math.sin(elev) };
+}
+
+/** The bearing and the angle above level from `eye` to `at` (both { x, y, z }). */
+export function freeAim(eye, at) {
+  const dx = finite(at.x) - finite(eye.x);
+  const dy = finite(at.y) - finite(eye.y);
+  const horiz = Math.hypot(dx, dy);
+  return {
+    yawDeg: horiz < 1e-6 ? 0 : wrapDeg(deg(Math.atan2(dx, dy))),
+    elevDeg: clamp(deg(Math.atan2(finite(at.z) - finite(eye.z), Math.max(horiz, 1e-6))), FREE_LOOK_DEG),
+  };
+}
+
+/** How far one key press or wheel notch moves the free camera: a tenth of its height above the ground, 30 to 2,000 ft. */
+export function freeStepFt(free, floorFt) {
+  return clamp((finite(free.z) - finite(floorFt)) / 10, [30, 2000]);
+}
+
+/**
+ * The free camera moved `forward` along its look (climbing or descending with it), `right` across it and `up`, all in
+ * feet; never below FREE_MIN_AGL_FT over the floor.
+ */
+export function moveFree(free, { forward = 0, right = 0, up = 0 }, floorFt) {
+  const f = freeLookVector(free.yawDeg, free.elevDeg);
+  const yaw = rad(finite(free.yawDeg));
+  const r = { x: Math.cos(yaw), y: -Math.sin(yaw) };
+  return {
+    ...free,
+    x: finite(free.x) + f.x * forward + r.x * right,
+    y: finite(free.y) + f.y * forward + r.y * right,
+    z: Math.max(finite(floorFt) + FREE_MIN_AGL_FT, finite(free.z) + f.z * forward + up),
+  };
+}
+
+/** The free camera turned by hand: `dYawDeg` round, `dElevDeg` up. */
+export function turnFree(free, dYawDeg, dElevDeg) {
+  return { ...free, yawDeg: wrapDeg(finite(free.yawDeg) + dYawDeg), elevDeg: clamp(finite(free.elevDeg) + dElevDeg, FREE_LOOK_DEG), track: false };
 }
