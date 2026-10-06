@@ -1,8 +1,8 @@
 // The 4-ship's moves still flown by the V2.96 code (Turn Sim spec section 8, decision TS-54; design: project files
-// turn-sim-review/four-ship/design.md sections 4 to 6 and 9): the rejoins, the opening out to Spread 4 and Fluid 4, and the
-// offset box. Refactor PRs 7 and 8 rebuild them on the 2-ship's planners and this file goes; until then four-plan.js calls
-// them through LEGACY. The close moves, the route between moves and the press's plan moved to four-close.js and
-// four-plan.js (refactor PR 6, V2.97).
+// turn-sim-review/four-ship/design.md sections 4 to 6 and 9): the opening out to Spread 4 and Fluid 4, and the offset box.
+// Refactor PR 8 rebuilds them on the 2-ship's planners and this file goes; until then four-plan.js calls them through
+// LEGACY. The close moves, the route between moves and the press's plan moved to four-close.js and four-plan.js (refactor
+// PR 6, V2.97), the rejoins to four-rejoin.js (refactor PR 7, V2.98, TS-101).
 //
 // How these plan: each wingman's path is a recorded dry run of the 2-ship's tracker (tracker.js runTracker), with a
 // kinematic line in front of it where a single long leg allows (lineFirst), flying to its slot in the frame of the
@@ -15,36 +15,25 @@
 import { STEP_SEC, copyAircraft } from './flight.js';
 import { relativeTo, turnSeg, wholeDegree, DEG, TURN_BANK_DEG } from './manoeuvres.js';
 import {
-  recordFlight, flyStep, dryRunT, speedSeg, slide, dropBack, closeThrough, rejoinTo, openOut, straightAhead,
+  recordFlight, flyStep, dryRunT, speedSeg, slide, dropBack, rejoinTo, openOut,
 } from './transitions.js';
 import { REJOIN, FW_FOLLOW_FOUR, WING_BANKS } from './tuning.js';
 import { onClosure, lineRunIn, fromStep, wingFromPose, replanFor } from './hand-over.js';
 import { trackTwice, phase } from './tracker.js';
 import { isStacked } from './judge.js';
-import { FOUR_FORMATIONS, LENGTH_FT, slotsFor, pairSlot, FW_STEP_DOWN_FT } from './slots.js';
+import { FOUR_FORMATIONS, slotsFor, pairSlot } from './slots.js';
 
 /** A generous limit on one 4-ship change (design section 9: Spread 4 to finger is estimated at 4 to 6 minutes); it only catches a plan that never ends. */
 const FOUR_CHANGE_LIMIT_SEC = 480;
 /** #3 starts opening out this long after #4 when finger goes to Spread 4 ("#3 waits for #4 to begin moving out first", SMM 16.42 para 114): an estimate. */
 const THREE_WAITS_SEC = 10;
-/** Lead's turn into the others in a turning rejoin from fighting wing to finger: 90° at 30° bank (an estimate; SMM 16.34 para 96 gives the 30° bank, not the angle). */
-const FINGER_TURN_DEG = 90;
-/** The overtake the rear wingmen use to close from far out (estimate: the straight-ahead rejoin's 20 to 30 KIAS, EFIG p.371). */
-const FAR_OVERTAKE_KIAS = 25;
 /**
  * Height changes (the stack coming on or off) average no more than this: 15 ft/s, 900 ft/min, so about 1,700 ft/min at
  * the steepest point of the smooth leg (an estimate; the manuals give no rate).
  */
 const GENTLE_ALT_FTPS = 15;
-/** Close-formation crossings go behind and below (SMM 16.32 paras 87-88): 15 ft below Lead, #4 a further 10 ft below #3 (estimates). */
-const CROSS_LOW_FT = 15;
-const FOUR_LOWER_FT = 10;
 
 const NAMES = Object.freeze({ 1: 'Lead', 2: '#2', 3: '#3', 4: '#4' });
-// The 2-ship's close places (transitions.js), read when a move is planned: these modules import each other, so nothing
-// here may call into transitions.js while the modules are still loading.
-const ech = () => pairSlot('echelon', 1); // { fwd: -25, left: 45, alt: -5 }
-const ast = () => pairSlot('astern', 0); // { fwd: -43.4, left: 0, alt: -8 }
 
 // ---- one leg ---------------------------------------------------------------------------------
 
@@ -167,18 +156,6 @@ const toSlot = (c, kind, slot, over = {}) => kind(place(c, slot.fwd, slot.left, 
 const fwFollow = (slot, over = {}) => phase(slot, { ...FW_FOLLOW_FOUR, ...over }); // tuning.js FW_FOLLOW_FOUR (the 4-ship's, until step 3)
 /** Settle onto a slot off the formation reference after closing on a point near it (a short slide). */
 const settle = (slot, over = {}) => dropBack(slot, { advanceTol: 6, finalTol: 6, vrel0: 16, ...over });
-/**
- * A rejoining wingman comes off its stack first (Patrick 4 Oct 19:11Z, "come off first"; SMM 12.27 para 65): one at or above
- * Lead's height holds where it is while it steps down to FW_STEP_DOWN_FT below Lead, at the gentle stack rate, and only then
- * closes, so it is never at or above Lead while closing. Returns the hold phase, or nothing when it is below Lead already.
- */
-function comeOffFirst(c, id, track) {
-  const me = c.by.get(id);
-  const above = me.altAboveFt - c.leadAlt;
-  if (above < 0) return [];
-  const sec = Math.max(4, (above + FW_STEP_DOWN_FT) / GENTLE_ALT_FTPS);
-  return [hold(c, id, track, { holdUntil: c.t0 + sec, altSec: sec }, c.leadAlt - FW_STEP_DOWN_FT)];
-}
 /** Where a slot off #2 or #3 is in Lead's frame once everyone is in place (all on one heading, so the offsets add). */
 function inLeadFrame(slots, id) {
   let fwd = 0;
@@ -215,68 +192,6 @@ function legsInTurn(start, t0, opts, makers) {
 const toSpeed = (c, key) => (Math.abs(c.start[0].kias - FOUR_FORMATIONS[key].kias) > 0.5 ? [speedSeg(c.start[0].kias, FOUR_FORMATIONS[key].kias, c.blockFt)] : []);
 
 /**
- * R3 (and F11): Spread 4, the offset box or any wide picture to fighting wing, the turning rejoin of AFM7 brief p.17 and
- * AFM8 brief pp.19, 25. Since clean-up step 3 (TS-66; Patrick 5 Oct 05:29Z, 05:34Z: "lead should just turn towards number2
- * who does a hot turning rejoin, then 3 and 4 immediately go full power and towards number 1's turn circle, then rejoin on
- * the outside of the turn one at a time"): Lead turns toward #2 at the press (30° bank), slowing to 200 KIAS as he turns;
- * #2 (inside, hot) rejoins to its fighting wing slot; #3 and #4 close at once at a rejoin's closure toward Lead's turn, wait
- * a little behind their places on the outside of the turn, and come in one at a time: #3 once #2 is in, #4 once #3 is
- * (SMM 16.34 paras 95-96). The stack is kept as the separation (AFM8 brief p.18 item 6). With rejoin 'straight' Lead holds
- * straight (the straight-ahead rejoin).
- */
-function rejoinToFw(start, t0, opts, s) {
-  const c = context(start, t0, opts);
-  const slots = { ...slotsFor('fw', s, { ships: 4, stacked: c.stacked }) };
-  // #2's +300 ft comes off before it closes: it rejoins to fighting wing below Lead, starting down at once (Patrick 19:11Z).
-  if (slots[2].alt >= 0) slots[2] = { ...slots[2], alt: -FW_STEP_DOWN_FT };
-  const speed = toSpeed(c, 'fw');
-  const far = (id) => FAR_OVERTAKE_KIAS * (Math.abs(relativeTo(c.start[0], c.by.get(id)).left) > 3000 ? 1 : 0) || REJOIN.overtakeKias;
-  // #3 and #4 wait this far behind their places (in Lead's frame) until the one ahead is in (estimates, TRJ's spacing).
-  const waitAt = (id) => {
-    const p = inLeadFrame(slots, id);
-    return place(c, p.fwd - TRJ.waitBehindFt[id] * 2, p.left, p.alt);
-  };
-  const gateOf = (done, id) => done[id].times[done[id].times.length - 1].arrive;
-  const wings = [
-    { id: 2, phases: () => [toSlot(c, rejoinTo, slots[2], { overtakeKias: far(2) })] },
-    {
-      id: 3,
-      phases: (done) => [
-        rejoinTo(waitAt(3), { track: 1, overtakeKias: far(3), advanceTol: 60, holdUntil: gateOf(done, 2) }),
-        rejoinTo(place(c, ...Object.values(inLeadFrame(slots, 3))), { track: 1, advanceTol: 60 }),
-        toSlot(c, settle, slots[3]),
-      ],
-    },
-    {
-      id: 4,
-      phases: (done) => [
-        rejoinTo(waitAt(4), { track: 1, overtakeKias: far(4), advanceTol: 60, holdUntil: gateOf(done, 3) }),
-        rejoinTo(place(c, ...Object.values(inLeadFrame(slots, 4))), { track: 1, advanceTol: 60 }),
-        toSlot(c, settle, slots[4]),
-      ],
-    },
-  ];
-  const tryLead = (leadSegs) => flyLeg(start, t0, leadSegs, wings, opts.blockFt);
-  if (opts.rejoin === 'straight') return wrap(tryLead(speed), { how: 'straight-ahead rejoin to fighting wing' });
-  // Lead turns at the press, slowing as he turns (Patrick 05:29Z: never waits for closure); the first turn that keeps the
-  // overshoot lane, else the first that flies (REJOIN.turnAnglesDeg until the V2.22 rejoin work: Lead holds his turn until
-  // #2 is in, RULED_REJOIN).
-  const slowWhileTurning = speed.map((x) => ({ ...x, withNext: true }));
-  let first = null;
-  for (const turnDeg of REJOIN.turnAnglesDeg) {
-    const leg = tryLead([...slowWhileTurning, turnSeg(wholeDegree(c.start[0].headingRad + s * turnDeg * DEG), s, REJOIN.leadBankDeg)]);
-    if (leg.ok && laneKept(leg)) return wrap(leg, { leadTurnDeg: turnDeg });
-    if (leg.ok && !first) first = { leg, turnDeg };
-  }
-  if (first) return wrap(first.leg, { leadTurnDeg: first.turnDeg });
-  // Nothing settles with Lead turning: Lead holds straight (the straight-ahead rejoin, SMM 12.26 paras 62-63).
-  return wrap(tryLead(speed), { straightFallback: true, how: 'rejoin to fighting wing' });
-}
-const wrap = (leg, extra = {}) => (leg.ok ? { ok: true, legs: [leg], ...extra } : { ok: false, reason: leg.reason, legs: [] });
-/** The overshoot lane (transitions.js): inside 1,000 ft of the aircraft it flies off, no wingman more than 100 ft ahead of its 3/9 line. */
-const laneKept = (leg) => [2, 3, 4].every((id) => (leg.done[id]?.run.laneFwdFt ?? -Infinity) <= 100);
-
-/**
  * Fighting wing (or finger) to Spread 4: the entry to line abreast (AFM7 brief p.15, AFM8 brief p.15; SMM 16.18 para 51,
  * 16.42 para 114). Lead speeds up to 220 KIAS at full power; the wingmen open out to one spacing each, the stack going on
  * as they get there. From finger, #3 waits for #4 to begin moving out first.
@@ -290,107 +205,6 @@ function entryToSpread(start, t0, opts, s, fromFinger) {
         { id: 2, phases: () => [toSlot(c, openOut, slots[2])] },
         { id: 3, phases: () => [...(fromFinger ? [hold(c, 3, 1, { holdUntil: c.t0 + THREE_WAITS_SEC })] : []), toSlot(c, openOut, slots[3])] },
         { id: 4, phases: () => [toSlot(c, openOut, slots[4])] },
-      ],
-    };
-  }]);
-}
-
-/**
- * Fighting wing to route or finger, straight ahead (R1; SMM 16.34 para 95, 16.15 para 38; AFM7 brief p.18 item 2): each
- * closes through route in turn, #2 first, #3 once #2 has route spacing, #4 once #3 has; the stack comes off as they close.
- */
-function closeFromFw(start, t0, opts, s, to) {
-  return legsInTurn(start, t0, opts, [(c) => {
-    const route = slotsFor('route', s, { ships: 4 });
-    const fin = slotsFor(to === 'route' ? 'route' : 'finger', s, { ships: 4 });
-    const low = (slot) => ({ ...slot, alt: slot.alt - 25 }); // close level or slightly low, then up into place (transitions.js closeThrough)
-    const legsFor = (id) => [toSlot(c, closeThrough, low(route[id]), { advanceTol: 6 }), toSlot(c, slide, fin[id])];
-    const off2 = comeOffFirst(c, 2, 1);
-    const gateOn = (id, prev) => (done) => [hold(c, id, id === 4 ? 3 : 1, { holdUntil: done[prev].times[prev === 2 ? off2.length : 0].arrive }), ...legsFor(id)];
-    return {
-      lead: toSpeed(c, to),
-      wings: [
-        { id: 2, phases: () => [...off2, ...legsFor(2)] },
-        { id: 3, phases: gateOn(3, 2) },
-        { id: 4, phases: (done) => gateOn(4, 3)({ 3: { times: [done[3].times[1]] } }) },
-      ],
-    };
-  }]);
-}
-
-/**
- * Fighting wing to echelon as a straight-ahead rejoin (Patrick 4 Oct 19:04Z, TS-55; SMM 12.26 paras 62-63, Fig 12.17; EFIG
- * p.371), replacing the route through finger. Each wingman rejoins on the one it will fly off in echelon: lines up on its
- * six about 1,000 ft back just below the wake (Fig 12.17; Patrick's card 19:54Z), closes with overtake, takes the small
- * vector to the echelon side at about 500 ft, stabilises in route and moves up the wing-tip line to echelon. #2 comes off
- * the stack first (19:11Z). Safe separation until the one ahead is stable (SMM 16.34 para 95; AFM7 brief p.21, "Straight
- * Ahead Rejoins"): #3 holds its place off #2 until #2 has reached its vector point, then lines up 1,000 ft behind #2 and
- * stays there until #2 is stable in echelon before it closes; #4 does the same on #3. The first gate is an estimate.
- */
-function straightToEchelon(start, t0, opts, sTo) {
-  return legsInTurn(start, t0, opts, [(c) => {
-    const ech4 = slotsFor('echelon', sTo, { ships: 4 });
-    const route = pairSlot('route', sTo);
-    const legsFor = (id, holdLineUpUntil) => {
-      const { ref } = ech4[id];
-      const refAlt = ref === 1 ? 0 : ech4[ref].alt;
-      const at = (fwd, left, alt) => place(c, fwd, left, refAlt + alt);
-      return [...straightAhead(at, place(c, route.fwd, route.left, ech4[id].alt), { track: ref, holdLineUpUntil }), toSlot(c, slide, ech4[id])];
-    };
-    const off2 = comeOffFirst(c, 2, 1);
-    const vectorIndex = 1; // straightAhead's second phase (the closing leg) arrives at the vector point
-    const stableIndex = 3; // the last phase (the move up into echelon) arrives: that wingman is stable in position
-    return {
-      lead: toSpeed(c, 'echelon'),
-      wings: [
-        { id: 2, phases: () => [...off2, ...legsFor(2)] },
-        { id: 3, phases: (done) => [hold(c, 3, 2, { holdUntil: done[2].times[off2.length + vectorIndex].arrive }), ...legsFor(3, done[2].times[off2.length + stableIndex].arrive)] },
-        { id: 4, phases: (done) => [hold(c, 4, 3, { holdUntil: done[3].times[1 + vectorIndex].arrive }), ...legsFor(4, done[3].times[1 + stableIndex].arrive)] },
-      ],
-    };
-  }]);
-}
-
-/**
- * The turning rejoin's crossing (SMM 16.34 para 96; AFM7 brief p.21, "Turning Rejoins"): #3 and #4 pass about two aircraft
- * lengths behind Lead and slightly lower. Two lengths is centre to centre here; 15 ft lower is the crossings' estimate
- * (CROSS_LOW_FT). Where #3 and #4 wait on the cut-off line, behind #2 on the inside, until the one ahead is stable: 150 and
- * 300 ft behind Lead, 20 and 30 ft low (estimates: far enough back that no one closes on the aircraft ahead while waiting).
- */
-const TRJ = Object.freeze({ passBehindLengths: 2, waitBehindFt: { 3: 150, 4: 300 }, waitLowFt: { 3: 20, 4: 30 } });
-
-/**
- * R2: fighting wing to finger, turning (SMM 16.34 para 96, 16.38 para 106; AFM7 brief p.21). Lead turns into #2 at 30° of
- * bank at 200 KIAS; #2 joins the inside first. #3 and #4 take the same cut-off line as #2 and close on Lead, aiming to pass
- * about two aircraft lengths behind him and slightly lower; they wait on the inside, behind #2, and only once #2 is stable in
- * position does #3 cross behind Lead to echelon on the outer wing; #4 crosses (behind Lead and #3) only once #3 is stable.
- */
-function turningToFinger(start, t0, opts, s) {
-  return legsInTurn(start, t0, opts, [(c) => {
-    const fin = slotsFor('finger', s, { ships: 4 });
-    const join = (id) => toSlot(c, rejoinTo, fin[id], { advanceTol: 10, overtakeKias: REJOIN.overtakeKias });
-    const off2 = comeOffFirst(c, 2, 1);
-    const across = { track: 1, bankCapDeg: 45, overtakeKias: 10, undertakeKias: 10 }; // enough bank to stay with Lead's 30° turn (estimate)
-    // #3 and #4's paths, in Lead's frame: wait on the inside behind #2, cross under Lead's tail two lengths back, then forward and up.
-    const waitAt = (id) => place(c, -TRJ.waitBehindFt[id], s * ech().left, -TRJ.waitLowFt[id]);
-    const crossFor = (id) => {
-      const slot = inLeadFrame(fin, id); // #3 on Lead's outer wing, #4 on #3's
-      const back = -TRJ.passBehindLengths * LENGTH_FT + (id === 4 ? ech().fwd : 0); // #4 passes behind #3 as well (#3 sits an echelon's step back)
-      const low = -CROSS_LOW_FT - (id === 4 ? FOUR_LOWER_FT : 0);
-      return [
-        slide(place(c, back, 0, low), across),
-        slide(place(c, back, slot.left, low), across),
-        toSlot(c, slide, fin[id], { bankCapDeg: 45, overtakeKias: 10, undertakeKias: 10 }),
-      ];
-    };
-    const waitFor = (id, gate) => rejoinTo(waitAt(id), { track: 1, advanceTol: 10, overtakeKias: REJOIN.overtakeKias, holdUntil: gate });
-    return {
-      lead: [...toSpeed(c, 'finger'), turnSeg(wholeDegree(c.start[0].headingRad + s * FINGER_TURN_DEG * DEG), s, REJOIN.leadBankDeg)],
-      wings: [
-        { id: 2, phases: () => [...off2, join(2)] },
-        // #3 closes on the same cut-off line, then waits behind #2 until #2 is in place; #4 the same, further back, until #3 is.
-        { id: 3, phases: (done) => [waitFor(3, done[2].times[off2.length].arrive), ...crossFor(3)] },
-        { id: 4, phases: (done) => [waitFor(4, done[3].times[3].arrive), ...crossFor(4)] },
       ],
     };
   }]);
@@ -461,12 +275,5 @@ function fluidToBox(start, t0, opts, s) {
   ]);
 }
 
-/** R2 with R1 behind it: the turning rejoin to finger, or straight ahead if the turning one does not plan from here. */
-function turningOrStraight(start, t0, opts, s) {
-  const turning = turningToFinger(start, t0, opts, s);
-  if (turning.ok && turning.legs.every(laneKept)) return turning;
-  return { ...closeFromFw(start, t0, opts, s, 'finger'), straightFallback: true, how: 'rejoin to finger through route' };
-}
-
-/** The moves four-plan.js still flies from here (refactor PRs 7 and 8 replace them). */
-export const LEGACY = Object.freeze({ rejoinToFw, entryToSpread, closeFromFw, straightToEchelon, turningOrStraight, fwFluid, fluidToBox });
+/** The moves four-plan.js still flies from here (refactor PR 8 replaces them). */
+export const LEGACY = Object.freeze({ entryToSpread, fwFluid, fluidToBox });

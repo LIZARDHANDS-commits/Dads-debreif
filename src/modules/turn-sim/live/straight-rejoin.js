@@ -141,19 +141,23 @@ function flyWith({ lead, wing, rec, s, to, sTo, spacingFt, blockFt, t0, cutDeg, 
   const A = STRAIGHT_AHEAD;
   const sRoute = sTo || s;
   const route = pairSlot('route', sRoute, spacingFt);
-  const descentSec = Math.max(TR.heightSec, Math.abs(wing.altAboveFt - A.belowWakeFt) / TR.descentFtps);
-  const heightLeg = (sec) => (Math.abs(wing.altAboveFt - A.belowWakeFt) > 0.5 ? [{ t0, t1: t0 + sec, fromFt: wing.altAboveFt, toFt: A.belowWakeFt }] : []);
+  // Heights are against Lead's at the press: just below his wake is A.belowWakeFt below him, wherever he is (until V2.99
+  // they were read as heights against the block's zero, so with Lead off it #2 flew to the wrong height).
+  const leadAlt = rec.at(0).altAboveFt;
+  const wakeFt = leadAlt + A.belowWakeFt;
+  const descentSec = Math.max(TR.heightSec, Math.abs(wing.altAboveFt - wakeFt) / TR.descentFtps);
+  const heightLeg = (sec) => (Math.abs(wing.altAboveFt - wakeFt) > 0.5 ? [{ t0, t1: t0 + sec, fromFt: wing.altAboveFt, toFt: wakeFt }] : []);
   const args = { wing, rec, s, route, cutDeg, aimFt, overtakeKt, arriveFtps: Math.min(closureNow().ftps, closeInFtps(TR.decisionArriveRates)), blockFt, t0 };
   let part = flyToDecision({ ...args, profile: heightLeg(descentSec) });
   if (!part) return null;
   if (part.steps * dt < descentSec) part = flyToDecision({ ...args, profile: heightLeg(Math.max(part.steps * dt, dt)) });
   if (!part || part.ahead) return null;
   const n1 = part.steps;
-  const W1 = { ...part.end, altAboveFt: A.belowWakeFt, climbFtps: 0 };
+  const W1 = { ...part.end, altAboveFt: wakeFt, climbFtps: 0 };
   // Through route without stopping, at no more than the decision point's arrival rate, on into the slot.
   const rest = legsFor('route', sRoute, to, sTo, spacingFt);
   const flowFtps = closeInFtps(TR.decisionArriveRates);
-  const phases = onClosure([closeThrough(route, rest.length ? { advanceTol: TR.routeFlowFt } : {}), ...rest]).map((p, i) => (i === 0 ? { ...p, closureFtps: Math.min(p.closureFtps, flowFtps) } : p));
+  const phases = onClosure([closeThrough(route, rest.length ? { advanceTol: TR.routeFlowFt } : {}), ...rest]).map((p, i) => ({ ...p, slot: { ...p.slot, alt: p.slot.alt + leadAlt }, ...(i === 0 ? { closureFtps: Math.min(p.closureFtps, flowFtps) } : {}) }));
   const { run, profile } = trackTwice({ refs: { [lead.id]: fromStep(rec, n1) }, wing0: W1, t0: t0 + n1 * dt, phases, blockFt, init: { accelKtps: part.accelKtps }, stopWhenSettled: false });
   if (!run.ok || run.laneFwdFt > Math.max(0, pairSlot(to, sTo || s, spacingFt).fwd) + TR.laneTolFt) return null; // never ahead of Lead's 3/9 line on the way in
   return { part, run, profile: [...heightLeg(Math.min(descentSec, Math.max(n1 * dt, dt))), ...profile], durationSec: (n1 + run.points.length) * dt };
