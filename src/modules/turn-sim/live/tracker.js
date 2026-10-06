@@ -78,11 +78,13 @@ function closureCap(ph, L, W, ex, ey, d, blockFt, farFromFt) {
  * acceleration is at full power's, part power down to the power floor, then idle, then idle and the speed brake only when
  * idle can't give the slowing wanted (Patrick 05:47Z, 05:54Z, 06:13Z; slow-down.js, TS-61).
  */
-function powerOf(accel, aMax, W, blockFt) {
+function powerOf(accel, aMax, W, blockFt, stage = 'power') {
   // What the engine has to give: the speed change and the climb's cost (a climb at v ft/s costs g·v / TAS; TS-96).
   const aEngine = accel + climbCostKtps(W, W.climbFtps ?? 0);
   if (aEngine >= aMax * 0.985) return powerFrom(null, 1, W.kias, blockFt);
   if (aEngine >= -slowKtps('power', W.kias, blockFt, W.g)) return powerFrom(null, Math.max(0, throttleFor(accel, W.kias, blockFt, W.g, W.climbFtps)), W.kias, blockFt);
+  // A phase slowing with power back and the speed brake (slowStage 'boards'): the boards out, power at its floor.
+  if (stage === 'boards') return powerFrom('boards', 0, W.kias, blockFt);
   if (aEngine >= -slowKtps('idle', W.kias, blockFt, W.g)) return powerFrom('idle', 0, W.kias, blockFt);
   return powerFrom('idleBoards', 0, W.kias, blockFt);
 }
@@ -292,7 +294,9 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     // slow-down.js, TS-61) and built up by a jerk limit. The tracker keeps its own speed loop on every phase, a closure
     // phase too (Patrick 5 Oct 06:24Z: "I think it needs a different power module.... Maybe we should test it as is first?").
     const aMax = fullPowerKtps(W.kias, blockFt);
-    const aMin = slowKtps('power', W.kias, blockFt);
+    // A phase may slow with more than power back (slowStage, slow-down.js; the turning rejoin's run-in: power back and the
+    // speed brake, card 03:33Z rule 4: "torque and speed brake first").
+    const aMin = slowKtps(ph.slowStage ?? 'power', W.kias, blockFt);
     const aCmd = Math.max(-aMin, Math.min(aMax, GAIN.speedLoop * (kiasCmd - W.kias)));
     accel += Math.max(-GAIN.jerkKtps2 * STEP_SEC, Math.min(GAIN.jerkKtps2 * STEP_SEC, aCmd - accel));
     let kias = W.kias + accel * STEP_SEC;
@@ -325,7 +329,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     }
     setKias(W, kias);
     stepCommanded(W, bank, t, stepProfile);
-    points.push(ph.closureFtps ? [bank, kias, powerOf(accel, aMax, W, blockFt)] : [bank, kias]);
+    points.push(ph.closureFtps ? [bank, kias, powerOf(accel, aMax, W, blockFt, ph.slowStage)] : [bank, kias]);
     m++;
     const Lafter = R.at(m);
     maxBank = Math.max(maxBank, Math.abs(W.bankDeg));
