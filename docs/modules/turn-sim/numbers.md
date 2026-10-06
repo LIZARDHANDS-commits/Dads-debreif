@@ -141,9 +141,10 @@ Every number the Formation Sim's planners use, with the source written beside it
 | FW_PURSUIT.circleScaleFt | `500` | how far outside or inside Lead's circle asks for the full extra lead or lag, ft (estimate) |
 | FW_PURSUIT.circleDeg | `20` | that extra lead (outside the circle) or lag (inside it), degrees (estimate) |
 | FW_PURSUIT.closeKias | `10` | the most speed above or below Lead the arc error asks for; power last, geometry first (Patrick 5 Oct 23:02Z; estimate) |
-| FW_SWITCH |  | The fighting wing side switch (fw-switch.js, TS-102; Patrick 6 Oct 2026 01:04Z: "the station change from side to side in fighting wing should be at least 60 deg bank. it's a fast switch over that can be used to bleed energy. right now its very slow"). An S-turn behind Lead: into the tail line at the switch bank, then the other way until he is parallel to Lead again on the other side of the cone, p |
+| FW_SWITCH |  | The fighting wing side switch (fw-switch.js, TS-102; Patrick 6 Oct 2026 01:04Z: "the station change from side to side in fighting wing should be at least 60 deg bank. it's a fast switch over that can be used to bleed energy. right now its very slow"). An S-turn behind Lead: into the tail line at the switch bank, then the other way until he is parallel to Lead again on the other side of the cone, h |
 | FW_SWITCH.bankDeg | `60` | the bank he switches at, both ways: at least 60° (Patrick 6 Oct 01:04Z) |
-| FW_SWITCH.bleedKias | `10` | the speed below Lead he asks for through the switch: power back to bleed energy (Patrick 6 Oct 01:04Z: "used to bleed energy"; the figure is an estimate) |
+| FW_SWITCH.holdKias | `25` | the most speed above or below Lead he uses to hold his spacing through the switch: geometry first, then power (Patrick 6 Oct 01:24Z; the figure is an estimate) |
+| FW_SWITCH.holdScaleFt | `150` | the range opened or closed from the press that asks for all of holdKias, ft (estimate) |
 | FW_SWITCH.aimSweepDeg | `35` | the S-turn aims 35° off Lead's tail line in the far cone: inside the band's 30° edge (SMM 12.29 para 69, Fig 12.19) with the least turn in, since every degree of turn in drops him back (estimate) |
 | FW_SWITCH.rollOutDeg | `3` | the switch is over once his heading is back within this many degrees of Lead's: the band goal settles him in the far cone from there (estimate) |
 | FW_SWITCH.reverseSec | `1.2` | about how long the roll from the switch bank one way to the other takes, allowed for when picking the reversal point (estimate from the T-6A roll ceiling, t6-performance.js) |
