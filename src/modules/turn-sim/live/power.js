@@ -52,19 +52,31 @@ export function torquePct(throttle, kias, altFt = POWER_BLOCK_FT) {
   return Math.min(100, (100 * shp) / (TORQUE.eta * TORQUE.ratedShp));
 }
 
+/**
+ * The throttle (share of full-power thrust) that gives `pct` % torque at kias and altFt: the torque formula above turned
+ * round, not capped (a rejoin's 5% torque floor, REJOIN.floorTorquePct).
+ */
+export function throttleAtTorque(pct, kias, altFt = POWER_BLOCK_FT) {
+  const k = Math.max(kias, 1);
+  const shp = (pct / 100) * TORQUE.eta * TORQUE.ratedShp;
+  const thrustLb = (shp * FT_LB_PER_S_PER_HP) / Math.max(iasToTasKt(k, altFt) * KT_TO_FTPS, 1);
+  return thrustLb / (thrustPerWeight(k, altFt) * TORQUE.weightLb);
+}
+
 const RANK = Object.freeze({ power: 0, boards: 1, idle: 2, idleBoards: 3 });
 
 /**
  * The power that flies an indicated-speed rate ktps (with climb and G) using no more than `top` (the planned way of
  * slowing, slow-down.js; null is power): the least in Patrick's order of use that gives it (TS-61), so the ends of a
  * planned slow-down, where it barely slows, read as power and not as boards or idle. Where even `top` can't give it, `top`.
+ * `floorThrottle`: the least throttle before the boards (0, or a rejoin's 5% torque, throttleAtTorque).
  */
-export function powerFor(ktps, kias, altFt = POWER_BLOCK_FT, g = 1, climbFtps = 0, top = null) {
+export function powerFor(ktps, kias, altFt = POWER_BLOCK_FT, g = 1, climbFtps = 0, top = null, floorThrottle = 0) {
   const r = RANK[top ?? 'power'] ?? 0;
   const onPower = throttleFor(ktps, kias, altFt, g, climbFtps);
-  if (onPower >= 0 || r === 0) return powerFrom(null, onPower, kias, altFt);
+  if (onPower >= floorThrottle || r === 0) return powerFrom(null, Math.max(onPower, floorThrottle), kias, altFt);
   const withBoards = throttleFor(ktps, kias, altFt, g, climbFtps, 'boards');
-  if (withBoards >= 0 || r === 1) return powerFrom('boards', withBoards, kias, altFt);
+  if (withBoards >= floorThrottle || r === 1) return powerFrom('boards', Math.max(withBoards, floorThrottle), kias, altFt);
   // At idle there is no throttle: idle alone if the slowing asked is no more than idle gives, else idle and the boards.
   const k = Math.max(kias, 1);
   const ktas = iasToTasKt(k, altFt);

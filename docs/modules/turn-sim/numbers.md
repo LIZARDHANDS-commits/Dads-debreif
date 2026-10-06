@@ -35,9 +35,9 @@ Every number the Formation Sim's planners use, with the source written beside it
 | HAND_OVER_FT | `500` | The hand-over from a kinematic line to the tracker, and the change from a rejoin's closure to the close-in rate, together at about 500 ft from the slot (Patrick 5 Oct 06:24Z; before it, card "Lines, then tracker" 05:41Z and 05:44Z: "within 500-1000 feet, dpending on whats going on. becuase we start to see the aspect change and the clusre visually and adjust to that"). The line flies the big move a |
 | WING_BANKS |  | The wingmen's banks, 2-ship (step 2) and 4-ship (step 3) (Patrick 5 Oct 06:16Z). Item 12: "30 is probably more accurate" for a close move's bank cap (the tracker's 25° until step 2); "When the aircraft is kicked off to fighting wing or line abreast they can use unlimited bank to dive away and get in position quickly": no cap there but the G rule. Item 11: "No, unlimitedf": a wingman following in a |
 | WING_BANKS.closeBankCapDeg | `CLOSE_BANK_DEG` | Patrick 06:43Z: up to 60° as required (30° from 06:16Z item 12 until then) |
-| WING_BANKS.kickOutBankCapDeg | `NO_BANK_CAP_DEG` | moves around a station: no cap (Patrick 6 Oct 04:07Z; the G rule only, 5 Oct 06:16Z item 12, until V2.115) |
+| WING_BANKS.kickOutBankCapDeg | `NO_BANK_CAP_DEG` | moves around a station: no cap (Patrick 6 Oct 04:07Z; the G rule only, 5 Oct 06:16Z item 12, until V2.116) |
 | WING_BANKS.fwFollowBankCapDeg | `G_RULE_BANK_DEG` | Patrick 06:16Z item 11: the G rule only |
-| WING_BANKS.rejoinBankCapDeg | `NO_BANK_CAP_DEG` | rejoins: no cap (Patrick 6 Oct 04:07Z; the G rule only, 5 Oct 06:16Z item 1, until V2.115) (the 4-ship's rejoin legs since step 3) |
+| WING_BANKS.rejoinBankCapDeg | `NO_BANK_CAP_DEG` | rejoins: no cap (Patrick 6 Oct 04:07Z; the G rule only, 5 Oct 06:16Z item 1, until V2.116) (the 4-ship's rejoin legs since step 3) |
 | WING_BANKS.fwTurnBankDeg | `60` | Patrick 06:16Z item 9: 60° of bank, 2 G level, every fighting wing turn |
 | ROLL | `RATE_SETS.tactical.roll` | Roll limits: up to 180°/s (Patrick 5 Oct 06:07Z: "Roll rate can be 180 degrees per second"; 90°/s until step 2, Patrick 4 Oct 08:54Z), building and dying away at 720°/s² (an estimate, step 2: 180°/s is reached in 0.25 s and within a 45° roll; it was 360°/s², Patrick card 4 Oct 09:54Z, which reaches 180°/s only in a roll of 90° or more). |
 
@@ -53,14 +53,16 @@ Every number the Formation Sim's planners use, with the source written beside it
 
 | Number | Value | Source and note |
 |---|---|---|
+| POWER | `Object.freeze({ torqueSec: 0.2, jerkKtps2: 25 })` | How fast the power answers (Patrick 6 Oct 03:17Z: torque 0 to 100% in about 0.2 s; 03:18Z: the speed brakes are instant; TS-108). torqueSec: the torque's full travel. jerkKtps2: the most the acceleration changes per second, so the full torque's span (about 4.5 kt/s from throttle 0 to MAX at 150 KIAS, 3.7 at 200; slow-down.js) is covered in about 0.2 s; the boards' 1-2.5 kt/s then comes in under 0. |
 | KIAS_OUTSIDE_LAB | `200` | The pair flies 200 KIAS outside line abreast (SMM 12.23 para 53; Patrick 11:08Z) and 220 in it (SMM 16.18 para 49). |
 | KIAS_LAB | `220` |  |
 | REJOIN |  | Defaults for rejoins. |
 | REJOIN.overtakeKias | `15` | the middle of EFIG p.374's 10 to 20 KIAS for a turning rejoin |
-| REJOIN.bankCapDeg | `NO_BANK_CAP_DEG` | #2 in a rejoin: no bank cap, only the aircraft's own limits (Patrick 6 Oct 04:07Z: "there is NO LIMIT on bank angle in formation"; the G rule, about 78° level, from V2.59 until V2.115, TS-67; 60°, an estimate, until then) |
+| REJOIN.bankCapDeg | `NO_BANK_CAP_DEG` | #2 in a rejoin: no bank cap, only the aircraft's own limits (Patrick 6 Oct 04:07Z: "there is NO LIMIT on bank angle in formation"; the G rule, about 78° level, from V2.59 until V2.116, TS-67; 60°, an estimate, until then) |
 | REJOIN.leadBankDeg | `30` | Lead's turn in a turning rejoin (SMM 12.24 para 54; AFM7 p.21) |
 | REJOIN.lineKias | `220` | every rejoin, turning or straight ahead: at least this down the line (or Lead's six) to the decision point, whatever the Rates choice; Rates sets only the close-in rate after it (Patrick 5 Oct 17:54Z: "aim for 220 up the line for both"; 17:55Z: "in all rejoins id like the minimum closure up the line to be 220 knots for expeidiousness, then slow down at the decision point"; TS-75) |
-| REJOIN.stopStage | `/** @type {'idle'} */ ('idle')` | from the decision point the overtake comes off at idle, planned at CLOSURE.stopShare of what idle gives, the boards only when the room left needs more; the decision point is where that stop just fits (Patrick 17:55Z; TS-75; slow-down.js's stages) |
+| REJOIN.stopStage | `/** @type {'boards'} */ ('boards')` | from the decision point the overtake comes off with the torque floor and the boards, planned at CLOSURE.stopShare of what they give, idle only when the room left needs more (the last resort); the decision point is where that stop just fits (Patrick 6 Oct 03:17-03:20Z, TS-108; idle from 5 Oct 17:55Z, TS-75, until V2.117; slow-down.js's stages) |
+| REJOIN.floorTorquePct | `5` | a rejoin keeps at least 5% torque, the boards as needed; idle is a last resort (Patrick 6 Oct 03:17-03:20Z, TS-108) |
 | REJOIN.idealBearingDeg | `45` | Lead at 10:30 or 1:30 (SMM 12.24 para 56) |
 | REJOIN.hotBearingDeg | `60` | hot and cold are drawn but not numbered in SMM Fig 12.16: 60 and 30 are estimates |
 | REJOIN.coldBearingDeg | `30` |  |
@@ -178,7 +180,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | TRACKER.…heading | `1.5` | 1/s: heading error to turn rate |
 | TRACKER.…refRate | `0.5` | 1/s: how fast the moving reference closes on its target |
 | TRACKER.…speedLoop | `0.8` | 1/s: speed error to acceleration |
-| TRACKER.…jerkKtps2 | `1.0` | kt/s²: acceleration builds over about a second and a half, so the speed has no corners |
+| TRACKER.…jerkKtps2 | `POWER_JERK_KTPS2` | kt/s²: the acceleration follows the torque, 0 to 100% in about 0.2 s (Patrick 6 Oct 03:17Z, TS-108; 1.0 until V2.117) |
 | TRACKER.…ffFilter | `0.2` | how much of the commanded heading's own turn rate is fed forward each step (a smoothing share; estimate) |
 | TRACKER.refAccelShare | `0.25` | the target slot builds up to its slide rate over 4 s (a quarter of the rate per second; estimate) |
 | TRACKER.snapFt | `0.05` | the target slot snaps onto its place within this many feet (estimate) |
@@ -238,7 +240,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | HOLD.overtakeKias | `15` |  |
 | HOLD.closeDecelFtps2 | `1` |  |
 | HOLD.gain | `0.6` |  |
-| HOLD.jerkFtps3 | `1.7` |  |
+| HOLD.jerkFtps3 | `POWER_JERK_KTPS2 * KT_TO_FTPS` |  |
 | HOLD.margin | `Object.freeze({ share: 0.05, ktps: 0.05 })` |  |
 | HOLD.extraSec | `120` |  |
 | HOLD.cutShare | `0.25` | the most offset inside Lead's turn, as a share of the range: about sin 15°, the lag line's angle, so he goes toward pure pursuit and stays inside the 30° cone (estimate) |
@@ -248,7 +250,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | HOLD.bubbleMarginFt | `50` | with Lead at MAX, #2 takes power off only within about 50 ft of the 500 ft bubble (estimate) |
 | HOLD.offsetAccFtps2 | `10` | and moves with at most about 0.3 G of its own, so the lag or lead adds little to the G he pulls (estimate) |
 | HOLD.aimSec | `1` | and the offset's aim is eased over about 1 s, so a new turn or a reversal never jerks his G (estimate) |
-| HOLD.powerSec | `2` | the PCL's full travel, MAX to idle and the boards, takes at least 2 s (estimate) |
+| HOLD.powerSec | `POWER.torqueSec` | the torque's full travel, 0 to 100%, takes about 0.2 s; the boards are instant (Patrick 6 Oct 03:17Z, 03:18Z, TS-108; 2 s, an estimate, until V2.117) |
 | HOLD.floorKias | `70` | his speed is never shown below 70 KIAS, a guard only: the planned line keeps him well above it (estimate) |
 | FOUR_OPEN |  | The 4-ship's opening out (four-open.js: fighting wing or finger to Spread 4, the Fluid 4 split, the offset box spread): each wingman turns away and back at this bank at most. Patrick 6 Oct 01:44Z: "nah keep it sporty at 60 deg" (it was the G rule alone, about 78° and 5 G at the press: 5 Oct 06:16Z item 12, TS-66 (4)). |
 | FOUR_OPEN.bankDeg | `60` | the opening-out bank, held (Patrick 6 Oct 01:44Z) |
