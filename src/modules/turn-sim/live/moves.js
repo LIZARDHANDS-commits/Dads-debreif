@@ -74,6 +74,7 @@ export const TURNING_REJOIN = Object.freeze({
   stableShare: 1.5, // ...and closing at no more than this times the closure that middle overtake gives on the X, about 32 kt, so he is holding the X, not sweeping through it (card 03:15Z "Closure or bearing"; the figure is an estimate)
   xWindowDeg: 10, // Lead is on the X picture within this many degrees of it, 35-55° off his tail (card 03:15Z "Closure or bearing"; the figure is an estimate)
   bearingTauSec: 6, // his bearing off Lead's tail comes onto the X over about this long (estimate, the design)
+  hardPullsSec: Object.freeze([2, 4, 6]), // hot, he may first pull this long at his most bank with idle and the boards, then hold the X (Patrick 6 Oct 04:02Z: "pull like 5 g and 90 deg bank to the line with the power less than max"; the times are estimates)
   xFromFt: 750, // a hot start further out flies onto the rejoin line as before, and holds Lead on the X only from this far down it (Patrick 6 Oct 03:58Z: "you can make x inside 750 feet if it helps thats the whole idea")
   slowFtps2: 3.5, // the slowing curve down to the window's closure: about power back at 200 KIAS, 8,000 ft (slow-down.js; an estimate)
   insideFloorFt: 500, // inside this range his least speed is his place's own speed inside Lead's turn, about 196-198 KIAS (estimate)

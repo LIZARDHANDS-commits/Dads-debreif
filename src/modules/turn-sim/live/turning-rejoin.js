@@ -366,6 +366,41 @@ function overshootLegs(s, to, sTo, spacingFt) {
  * he is TURNING_REJOIN.xFromFt down it: Lead need only be on the X from there in (estimate; Patrick's card 03:47Z), so a hot
  * start from line abreast cuts across freely instead of turning hard to hold the X from the press.
  */
+/**
+ * A hot start's hard pull (Patrick 6 Oct 04:02Z: "pull like 5 g and 90 deg bank to the line with the power less than max";
+ * 04:04Z: "geometry first, power if required"): for hardSec #2 turns the way Lead turns at his most bank (the G rule, within
+ * the stall line), idle and the boards down to his least speed, then the X law flies on from there.
+ */
+function hardThenX(args, hardSec) {
+  const { wing, rec, s, bankCapDeg, floorKias, blockFt, t0, profile } = args;
+  const W = copyAircraft(wing);
+  const points = [];
+  const G = TRACKER.gain;
+  let accel = 0;
+  let maxBank = 0;
+  let minKias = W.kias;
+  let maxG = W.g ?? 1;
+  const n0 = Math.round(hardSec / dt);
+  for (let n = 0; n < n0; n++) {
+    const t = t0 + n * dt;
+    const cap = Math.min(bankCapDeg, Math.acos(1 / Math.max(1, availableG(W.kias))) / DEG);
+    const bank = -s * cap; // the way Lead turns into him
+    const aAll = slowKtps('idleBoards', W.kias, blockFt, W.g);
+    const aCmd = Math.max(-aAll, Math.min(0, G.speedLoop * (floorKias - W.kias)));
+    accel += Math.max(-G.jerkKtps2 * dt, Math.min(G.jerkKtps2 * dt, aCmd - accel));
+    const kias = W.kias + accel * dt;
+    setKias(W, kias);
+    stepCommanded(W, bank, t, profile);
+    points.push([bank, kias, powerFor(accel, W.kias, blockFt, W.g, W.climbFtps, 'idleBoards')]);
+    maxBank = Math.max(maxBank, Math.abs(W.bankDeg));
+    minKias = Math.min(minKias, W.kias);
+    maxG = Math.max(maxG, W.g);
+  }
+  const near = flyOnTheX({ ...args, wing: W, rec: fromStep(rec, n0), t0: t0 + n0 * dt, profile });
+  if (!near) return null;
+  return { ...near, points: [...points, ...near.points], steps: n0 + near.steps, maxBankDeg: Math.max(maxBank, near.maxBankDeg), minKias: Math.min(minKias, near.minKias), maxG: Math.max(maxG, near.maxG) };
+}
+
 function farThenX(args, aimFt) {
   const TR = TURNING_REJOIN;
   const { wing, rec, t0, profile } = args;
@@ -396,7 +431,7 @@ function farThenX(args, aimFt) {
  * the bearing onto the X, seconds (flyOnTheX, TS-106). overshoot: to a close formation, he overshoots from where his part ends
  * (searchTurningRejoin's last resort); otherwise he must be stable in the window.
  */
-export function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, upFt = 0, minG = null, overshoot = false, xLaw = true }) {
+export function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, upFt = 0, minG = null, overshoot = false, xLaw = true, hardSec = 0 }) {
   const TR = TURNING_REJOIN;
   // To a close formation (TS-106): the X law to the window, TR.windowFarFt to windowNearFt from Lead (Patrick 03:32Z card,
   // 03:34Z). To fighting wing, as before: where the line reaches its range.
@@ -431,7 +466,7 @@ export function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, 
   const args = onX
     ? { wing, rec: into.longRec, s, tauSec: TR.bearingTauSec, bankCapDeg, farFt: TR.windowFarFt, nearFt: TR.windowNearFt, overtakeKt, floorKias, blockFt, t0 }
     : { wing, rec: into.longRec, s, aimFt, bankCapDeg, decisionFt, arriveFtps: to === 'fw' ? TR.fwArriveFtps : Math.min(closureNow().ftps, closeInFtps(TR.decisionArriveRates)), overtakeKt, floorKias, lineAtKias: leastKias + TR.lineOverKias, blockFt, t0 };
-  const fly1 = onX ? (a) => farThenX(a, aimFt) : flyToDecision;
+  const fly1 = onX ? (a) => (hardSec > 0 ? hardThenX(a, hardSec) : farThenX(a, aimFt)) : flyToDecision;
   let part = fly1({ ...args, profile: heightLeg(descentSec) });
   if (!part) return null;
   if (part.steps * dt < descentSec) part = fly1({ ...args, profile: heightLeg(Math.max(part.steps * dt, dt)) });
@@ -502,9 +537,11 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
         // round, the review's worst-case answer), then the G rule only when none of those keeps him behind Lead's 3/9 line.
         for (const caps of [hot ? TURNING_REJOIN.hotBanksDeg : [TURNING_REJOIN.bankCapDeg], [REJOIN.bankCapDeg]]) {
           const aims = hot ? [...TURNING_REJOIN.aimsFt, TURNING_REJOIN.lagAimFt] : TURNING_REJOIN.aimsFt;
-          for (const bankCapDeg of caps) for (const aimFt of aims) {
-            const flown = flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, overshoot, xLaw });
-            if (flown && (!best || flown.durationSec < best.durationSec - 0.5)) best = { ...flown, overtakeKt, lowFloor, aimFt, bankCapDeg, upFt: 0 };
+          // Hot to a close formation, also the hard pull with the power back first (hardThenX; Patrick 04:02Z).
+          const tries = [...aims.map((aimFt) => ({ aimFt, hardSec: 0 })), ...(hot && to !== 'fw' && xLaw ? TURNING_REJOIN.hardPullsSec.map((hardSec) => ({ aimFt: aims[0], hardSec })) : [])];
+          for (const bankCapDeg of caps) for (const { aimFt, hardSec } of tries) {
+            const flown = flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, overshoot, xLaw, hardSec });
+            if (flown && (!best || flown.durationSec < best.durationSec - 0.5)) best = { ...flown, overtakeKt, lowFloor, aimFt, bankCapDeg, hardSec, upFt: 0 };
           }
           if (best) break;
         }
@@ -518,8 +555,8 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
   // when it brings him in sooner, by more than the chooser's half-second tie, within the G rule with its pull charged.
   if (best && vertical) {
     for (const upFt of TURNING_REJOIN.verticalUpFt) {
-      const flown = flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, upFt, minG: verticalMinG, overshoot: best.overshoot, xLaw });
-      if (flown && flown.durationSec < best.durationSec - 0.5) best = { ...flown, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, upFt };
+      const flown = flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, upFt, minG: verticalMinG, overshoot: best.overshoot, xLaw, hardSec: best.hardSec });
+      if (flown && flown.durationSec < best.durationSec - 0.5) best = { ...flown, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, hardSec: best.hardSec, upFt };
     }
   }
   return best;
