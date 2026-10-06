@@ -35,7 +35,7 @@ export const REJOIN = Object.freeze({
   idealBearingDeg: 45, // Lead at 10:30 or 1:30 (SMM 12.24 para 56)
   hotBearingDeg: 60, // hot and cold are drawn but not numbered in SMM Fig 12.16: 60 and 30 are estimates
   coldBearingDeg: 30,
-  turnAnglesDeg: [30, 45, 20, 60], // how far Lead turns into #2; estimates (a gentle turn, AFM8 brief p.19). Since V2.59 the 2-ship's Lead holds his turn until #2 is in (Patrick 06:16Z item 3; hand-over.js leadTurnInto): these are only the 2-ship tracker's fallback, and the 4-ship's (step 3, not yet changed)
+  turnAnglesDeg: [30, 45, 20, 60], // how far Lead turns into #2; estimates (a gentle turn, AFM8 brief p.19). Since V2.59 the 2-ship's Lead holds his turn until #2 is in (Patrick 06:16Z item 3; lead-turn-in.js leadTurnInto): these are only the 2-ship tracker's fallback, and the 4-ship's (step 3, not yet changed)
 });
 
 /**
@@ -149,7 +149,7 @@ export function closeRates(foreAftFtps = rejoinClosureNow().ftps) {
 
 /**
  * Patrick's 06:16Z rulings on the rejoin's estimates (5 Oct 06:16Z), flown since V2.59 (TS-67) in the numbers above
- * (REJOIN.bankCapDeg) and hand-over.js leadTurnInto (RULED_REJOIN, its table of the rulings, retired in clean-up step 2); the hot rejoin's numbers for items 2, 4 and 5 went with it (TS-94):
+ * (REJOIN.bankCapDeg) and lead-turn-in.js leadTurnInto (RULED_REJOIN, its table of the rulings, retired in clean-up step 2); the hot rejoin's numbers for items 2, 4 and 5 went with it (TS-94):
  *  1. "Unlimitd bank. they can roll and dive if they want/need to and it ameks sense": no bank cap on #2 in a rejoin
  *     (REJOIN.bankCapDeg); bank follows the G the move needs, inside the G rule, past 90° where the
  *     path needs it.
