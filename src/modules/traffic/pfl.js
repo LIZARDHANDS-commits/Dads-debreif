@@ -1060,6 +1060,10 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
       if (!onCircle() && cfg < (plan.dragBefore ?? 0)) { cfg += 1; notes.push(`${PFL_CONFIG_LABELS[cfg]} before the join at ${Math.round(s.alt)} ft`); }
       else if (mustGear) cfg = 1;
       else if (gearEarly) { cfg = 1; notes.push(`gear early before the join at ${Math.round(s.alt)} ft`); }
+      // Runway made: with all the drag out from here it still reaches the first 1,000 ft, so the drag goes out, a step a
+      // second, to land as short as it can (Patrick 6 Oct 07:19Z: "as soon as its obvious they are going to make the
+      // runway, they should be taking full drag to land as short as possible").
+      else if (dragOk && cfg < 3 && s.alt - ground - neededFt(path, seg, proj.pt, s.alt, 3, wind, false, tdKey) >= 0) cfg += 1;
       else if (dragOk && cfg < 2) {
         // Gear and T/O flap: at their planned point unless low; before it only with height to spare. Before Low Key the
         // T/O flap goes early only when more than about 100 ft high: a little high is carried round, and the landing flap
