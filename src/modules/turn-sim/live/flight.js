@@ -216,6 +216,11 @@ export const SMOOTHER_PEAK = 1.875;
 /** The smootherstep's greatest curvature (at u = 1/2 - 1/sqrt(12)): a height leg's greatest vertical acceleration is rise x this / span². */
 export const SMOOTHER_CURVE_PEAK = 10 / Math.sqrt(3);
 
+/** The shortest smooth height leg for a change of riseFt whose push and pull stay within g of level flight, seconds. */
+export function smoothLegSec(riseFt, g) {
+  return Math.sqrt((SMOOTHER_CURVE_PEAK * Math.abs(riseFt)) / (g * G_FTPS2));
+}
+
 /** The smootherstep's integral from 0 to u (its value at 1 is one half): the height a smooth change of rate covers. */
 const smootherArea = (u) => u * u * u * u * (2.5 - 3 * u + u * u);
 

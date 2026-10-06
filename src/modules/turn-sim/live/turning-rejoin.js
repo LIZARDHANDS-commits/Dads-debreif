@@ -39,7 +39,7 @@ import { FORMATIONS, fwShapeNow, pairSlot, downTheLine, LINE_BACK_PER_OUT, LENGT
 import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, TURNING_REJOIN, TRACKER, CLOSURE, FW_FOLLOW, FW_BUBBLE, FW_ENERGY, G_RULE, KINEMATIC, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
 import { onClosure, fromStep } from './hand-over.js';
 import { leadTurnInto } from './lead-turn-in.js';
-import { STEP_SEC, copyAircraft, SMOOTHER_CURVE_PEAK, smoother } from './flight.js';
+import { STEP_SEC, copyAircraft, SMOOTHER_CURVE_PEAK, smoother, smoothLegSec } from './flight.js';
 import { RATE_SETS } from './rates.js';
 import { laggedBank } from './kinematic.js';
 import { stepCommanded, setKias, trackTwice, runTracker, phase, climbCostKtps } from './tracker.js';
@@ -342,11 +342,11 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   const leadAlt = into.longRec.at(0).altAboveFt;
   const lineFt = leadAlt + TR.lineUpFt;
   // #2's height: from where he is to slightly low on the line over heightSec, or over his part if that is shorter.
-  // With the vertical (upFt, TS-82): up upFt first, then down onto the line, each at no more than the descent rate.
-  const upSec = upFt > 0 ? Math.max(TR.heightSec / 2, upFt / TR.descentFtps) : 0;
-  const downSec = upFt > 0 ? Math.max(TR.heightSec / 2, Math.abs(wing.altAboveFt + upFt - lineFt) / TR.descentFtps) : 0;
+  // With the vertical (upFt, TS-82): up upFt first, then down onto the line, each one smooth leg within heightG.
+  const upSec = upFt > 0 ? Math.max(TR.heightSec / 2, smoothLegSec(upFt, TR.heightG)) : 0;
+  const downSec = upFt > 0 ? Math.max(TR.heightSec / 2, smoothLegSec(wing.altAboveFt + upFt - lineFt, TR.heightG)) : 0;
   const dropFt = wing.altAboveFt - lineFt;
-  const steadySec = upFt > 0 ? upSec + downSec : Math.max(TR.heightSec, Math.abs(dropFt) / TR.descentFtps); // no quicker than the rejoin's descent rate
+  const steadySec = upFt > 0 ? upSec + downSec : Math.max(TR.heightSec, smoothLegSec(dropFt, TR.heightG)); // no quicker than one smooth leg within heightG (TS-140)
   const heightLeg = (sec) => {
     if (upFt > 0) {
       const tUp = t0 + (sec * upSec) / steadySec;

@@ -31,7 +31,7 @@ import { FORMATIONS, FW_BAND, fwShapeNow, pairSlot } from './slots.js';
 import { KIAS_OUTSIDE_LAB, REJOIN_CLOSURE_KT, FW_FOLLOW, FW_TURN, TRACKER, TURNING_REJOIN, ratesNow, RATE_WORDS } from './tuning.js';
 import { fromStep, onClosure } from './hand-over.js';
 import { fwGoal } from './formation-turns.js';
-import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
+import { STEP_SEC, stepAircraft, copyAircraft, smoothLegSec } from './flight.js';
 import { setKias, phase, trackTwice, climbCostKtps } from './tracker.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
 import { powerFor, powerFrom } from './power.js';
@@ -45,7 +45,7 @@ export const ECHELON_TO_FW = Object.freeze({
   banksDeg: Object.freeze([45, 60]), // the held bank to roll away and back, gentlest first: 60° is the review's (fable-compiled.md 3.2, estimate), 45° a gentler choice (estimate)
   offHeadingsDeg: Object.freeze([15, 20, 25, 30]), // how far off Lead's heading he holds: the review's 15-30° (estimate)
   heightSec: 6, // he eases down to the fighting wing slot's height over this long (estimate: recipes.js sweepOut's 6 s) ...
-  descentFtps: TURNING_REJOIN.descentFtps, // ... and no quicker than this on average (the rejoin's 30 ft/s, an estimate)
+  heightG: TURNING_REJOIN.heightG, // ... and no quicker than one smooth leg within the rejoin's height-change g (TS-140; estimate)
   stopShare: 0.85, // the stop is planned at this share of what full power gives (wings level, at the speed halfway back to Lead's), so he stops a little short of the slot's distance back, never long (estimate)
   jerkKtps2: 6, // his acceleration follows the power at up to this, so idle and the boards to MAX takes about 1.5 s (estimate: the engine answers in about 0.25 s, Patrick 5 Oct 06:02Z, tuning.js ENGINE_RESPONSE_SEC; the speed brake's travel time is a guess)
   speedLoop: TRACKER.gain.speedLoop, // 1/s: the last knots onto a held speed (the tracker's own, an estimate)
@@ -205,9 +205,9 @@ export function planEchelonToFw(pair, to, options = {}, t0 = 0) {
   const slot = aimFor(s, spacingFt);
   if (!slot) return null;
   const rec = recordFlight(lead, { segments: [] }, t0);
-  // #2's height: down to the fighting wing slot's, smoothly, over heightSec or no quicker than the descent rate.
+  // #2's height: down to the fighting wing slot's, smoothly, over heightSec or no quicker than one smooth leg within heightG.
   const toFt = lead.altAboveFt + slot.alt;
-  const heightSec = Math.max(E.heightSec, Math.abs(wing.altAboveFt - toFt) / E.descentFtps);
+  const heightSec = Math.max(E.heightSec, smoothLegSec(wing.altAboveFt - toFt, E.heightG));
   const profile = Math.abs(wing.altAboveFt - toFt) > 0.5 ? [{ t0, t1: t0 + heightSec, fromFt: wing.altAboveFt, toFt }] : [];
   const heightEndSec = profile.length ? t0 + heightSec : t0;
   // Rates: how far below Lead's speed he lets it fall, Patrick's 15/25/50 kt (TS-69 flies them as overtake; here the
