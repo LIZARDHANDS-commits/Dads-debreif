@@ -29,6 +29,7 @@ Patrick (6 Oct 22:31Z): copy everything except the controlled flight manual, wit
 
 ### formation-review-package/report/
 
+- [lines-removal-report.md](formation-review-package/report/lines-removal-report.md): Fable's report on removing the kinematic lines (6 Oct, at Patrick's ask). Uses the renamed terms.
 - [optimiser-plan-route2.md](formation-review-package/report/optimiser-plan-route2.md): **Optimiser route 2**: collocation with a solver, phase A as a Python yardstick on the PC. Kept alongside route 1 (Patrick "keep both").
 - [optimiser-plan.md](formation-review-package/report/optimiser-plan.md): **Optimiser route 1** (the one for the app): shooting on the existing step, Nelder-Mead on a score, modes by the book / chosen restrictions / unrestricted. Patrick: build after the polish.
 - [report.md](formation-review-package/report/report.md): **Fable's Formation engine review (6 Oct).** Sections 1-7: faults, refactor steps, follow-up answers. Uses the renamed terms; read with turn-sim-review/fable-findings-mapped.md.
