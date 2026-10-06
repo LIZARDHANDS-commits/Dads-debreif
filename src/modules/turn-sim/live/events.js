@@ -2,11 +2,13 @@
 // decision point and the picture breaking, which plan the change again from where the pair is (spec F1); a turn button
 // pressed mid-change (spec F11); how Lead flies on when a change is pressed mid-move; and "done", in band and steady
 // (TS-78). formation.js keeps the public surface (reset, press, change, step and the rest) and calls these each step.
-// A change whose plan says `holdsPlan` (the 4-ship's, the lag roll's, a move in the band's) flies its plan to the end with none of them.
+// A change whose plan says `holdsPlan` (the 4-ship's, the lag roll's, a move in the band's) flies its plan with no re-plan;
+// the 4-ship's is still done once every wingman is in band and steady (TS-99).
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, planDone } from './flight.js';
 import { relativeTo } from './manoeuvres.js';
 import { judge } from './judge.js';
+import { refsFor } from './slots.js';
 import { TIE_SEC } from './chooser.js';
 import { leadTurnPlan } from './formation-turns.js';
 import { REJOIN, STEADY } from './tuning.js';
@@ -125,6 +127,7 @@ export function createEvents({ state, startChange, labelFor }) {
    */
   function inBandAndSteady() {
     const c = state.current;
+    if (c?.change?.four) return fourInBandAndSteady(c);
     if (!replans(c)) return false;
     const [lead, wing] = state.aircraft;
     // Line abreast is a wide band: once #2 is in it and steady, Lead finishing his speed-up to 220 KIAS is ordinary formation
@@ -144,6 +147,37 @@ export function createEvents({ state, startChange, labelFor }) {
     const side = c.change.side ?? 0;
     if (side !== 0 && Math.sign(rel.left) !== side) return false;
     return judge(state.aircraft, { key: c.change.to, side }, { spacingFt: state.spacingFt }).inBand;
+  }
+
+  /**
+   * The four's change is done the same way, link by link (refactor PR 6, TS-99; Fable's plan "one judge"): every wingman in
+   * his band off the aircraft he flies off (judge.js) and steady against it (STEADY: within 5 kt, his bank within 10° of
+   * his reference's), with Lead's own plan done. Until V2.97 it waited for every tracker to settle on its exact slot, which
+   * added about a minute to every change after the four were already in position.
+   */
+  function fourInBandAndSteady(c) {
+    const lead = state.aircraft[0];
+    if (!planDone(lead, state.plans[lead.id])) return false;
+    const refs = refsFor(c.change.to);
+    const by = new Map(state.aircraft.map((a) => [a.id, a]));
+    const links = {};
+    for (const a of state.aircraft.slice(1)) {
+      const ref = by.get(refs[a.id]);
+      const rel = relativeTo(ref, a);
+      links[a.id] = { fwd: rel.fwd, left: rel.left, up: a.altAboveFt - ref.altAboveFt, bankOff: Math.abs(a.bankDeg - ref.bankDeg) };
+    }
+    const prev = c.relPrev;
+    c.relPrev = { links, tSec: state.tSec };
+    if (!prev?.links) return false;
+    const dtSec = Math.max(STEP_SEC, state.tSec - prev.tSec);
+    const fw = c.change.to === 'fw' || c.change.to === 'fluid4';
+    for (const [id, l] of Object.entries(links)) {
+      const p = prev.links[id];
+      // In fighting wing his climb or descent inside the cone is energy, not closure (TS-96), as for the pair.
+      const closureFtps = Math.hypot(l.fwd - p.fwd, l.left - p.left, fw ? 0 : l.up - p.up) / dtSec;
+      if (closureFtps > STEADY.closureKt * KT_TO_FTPS || l.bankOff > STEADY.bankOffDeg) return false;
+    }
+    return judge(state.aircraft, { key: c.change.to, side: c.change.side ?? 0 }, { spacingFt: state.spacingFt }).inBand;
   }
 
   return { replanAtEvents, turnMidChange, midPress, inBandAndSteady };

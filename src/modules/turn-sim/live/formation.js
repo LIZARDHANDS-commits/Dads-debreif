@@ -17,7 +17,7 @@ import { FOUR_SHIP_KEYS, fourShipStart, planFour } from './four-ship.js';
 import { G_WARM, planGWarm } from './g-warm.js';
 import { classify, judge } from './judge.js';
 import { FORMATIONS, FOUR_FORMATIONS, setFwShape, setFw4Shape } from './slots.js';
-import { planChangeFour } from './four-ship-moves.js';
+import { planChangeFour } from './four-plan.js';
 import { chooseChange } from './chooser.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS, FW_MOVES, planFormationTurn, planFwMove } from './formation-turns.js';
 import { createFluidSession, fluidReadouts, bankDegFor } from './fluid.js';
@@ -241,7 +241,7 @@ export function createFormation(options = {}) {
 
   /**
    * Plans and starts a change of formation from the formation as it is now: transitions.js for the pair,
-   * four-ship-moves.js for the four. Returns false, with state.refusal saying why in one line, when there is no safe
+   * four-plan.js for the four. Returns false, with state.refusal saying why in one line, when there is no safe
    * plan; nothing then changes.
    */
   function startChange(to, changeOptions, midLead = null) {
@@ -466,7 +466,7 @@ export function createFormation(options = {}) {
     },
     /**
      * A "Change formation" press (spec section 10, transitions.js): to is 'lab', 'fw', 'echelon', 'route' or 'astern';
-     * for the four (spec section 8, four-ship-moves.js) one of slots.js FOUR_FORMATIONS' keys;
+     * for the four (spec section 8, four-plan.js) one of slots.js FOUR_FORMATIONS' keys;
      * options: { side: 'keep' | 'left' | 'right', rejoin: 'into' | 'straight' }. Flown at once when nothing is being
      * flown, otherwise queued like a manoeuvre. Returns 'started', 'queued' or 'refused' (state.refusal says why).
      */
