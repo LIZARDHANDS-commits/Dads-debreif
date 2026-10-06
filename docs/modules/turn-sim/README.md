@@ -85,7 +85,7 @@ Each has a working answer that the tool uses until it is settled.
 ### Waiting on Patrick now (also on the list in `../../PLAN.md`)
 
 - **Fly the rebuilt 4-ship** (V2.101): every Change formation press from Spread 4, fighting wing, finger and Fluid 4, against `testing.md`'s 4-ship list.
-- **Confirm the TS-99 and TS-101 wording** (`decisions.md`): TS-99 has not been put to you yet; TS-101's vertical sentence changed after your 6 Oct 01:14Z note.
+- **Confirm the TS-99 wording** (`decisions.md`). TS-101's is confirmed (6 Oct 01:40Z).
 - **Fly the first version** from the default start, every button both ways (`testing.md`, "First version" checklist, a draft for Patrick's own words), and the **4-ship** (V2.7; `testing.md`, "4-ship" checklist). The 4-ship's working answers to confirm (TS-50): the delayed 45's check turn is 10°, the altitude stack is the brief's on either side, and the check leaves the first aircraft to check about 200 ft tight.
 - **Fly the Change formation buttons** (TS-53, built 4 Oct, `testing.md`, "Sign-off checklist, changing formation"), and confirm the estimates: fighting wing default 750 ft at 45° and 60 ft below Lead, Lead's pause then 30° turn into #2, #2's 60° bank cap and 15 KIAS overtake, hot and cold line at 60° and 30°, the close-formation offsets.
 - **Fly G-warm and the 4-ship Change formation buttons** (TS-54, V2.13, built 4 Oct; `testing.md`, "Sign-off checklist, 4-ship G-warm and changes"), and confirm the estimates in TS-54. The stack conflict is settled: you chose "come off first" (19:11Z, TS-55).

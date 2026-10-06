@@ -125,7 +125,7 @@ export function speedSeg(from, to, blockFt = 8000) {
 /**
  * A recorded flight: an aircraft flown through its plan by flyStep, one state per step from t0, extended on demand (once
  * its plan is done it flies straight on). It is the moving reference a tracker flies off, so a wingman can fly off Lead
- * or off another wingman whose own path was planned first (the 4-ship, four-ship-moves.js). at(n) is the state at the
+ * or off another wingman whose own path was planned first (the 4-ship, four-legs.js). at(n) is the state at the
  * start of step n: { xFt, yFt, headingRad, tasFtps, kias, altAboveFt, bankDeg, free } where free means its plan has no
  * segments left.
  */
