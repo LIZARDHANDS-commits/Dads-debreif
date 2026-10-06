@@ -24,13 +24,12 @@ import { FORMATIONS, pairSlot } from './slots.js';
 import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, STRAIGHT_REJOIN, TURNING_REJOIN, TRACKER, CLOSURE, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
 import { onClosure, fromStep } from './hand-over.js';
 import { STEP_SEC, copyAircraft } from './flight.js';
-import { stepCommanded, setKias, trackTwice } from './tracker.js';
-import { fullPowerKtps, slowKtps } from './slow-down.js';
+import { stepCommanded, setKias, trackTwice, climbCostKtps } from './tracker.js';
+import { fullPowerKtps, slowKtps, stallBankDeg } from './slow-down.js';
 import { powerFor, powerFrom, throttleAtTorque } from './power.js';
 import { bankDegFromTurnRate } from '../../../core/flight-math.js';
 import { wrapPi } from '../../../core/angles.js';
-import { G_FTPS2, KT_TO_FTPS as KT_FTPS } from '../../../core/units.js';
-import { availableG } from '../../../core/t6-performance.js';
+import { KT_TO_FTPS as KT_FTPS } from '../../../core/units.js';
 
 const dt = STEP_SEC;
 const CLOSE_TARGETS = new Set(['echelon', 'route', 'astern']);
@@ -88,7 +87,7 @@ function flyToDecision({ wing, rec, s, route, cutDeg, aimFt, overtakeKt, blockFt
     // so his track is the line's own direction.
     const psi = L.headingRad - Math.sign(cross) * cutDeg * DEG * (2 / Math.PI) * Math.atan(Math.abs(cross) / aimFt);
     const rate = wrapPi(psi - W.headingRad) / SR.lineTauSec;
-    const cap = Math.min(TR.bankCapDeg, Math.acos(1 / Math.max(1, availableG(W.kias))) / DEG); // never past the stall line at the speed he has
+    const cap = Math.min(TR.bankCapDeg, stallBankDeg(W.kias)); // never past the stall line at the speed he has
     const bank = Math.max(-cap, Math.min(cap, bankDegFromTurnRate(W.tasFtps, rate)));
 
     // The power: full power until he is on Lead's six (Patrick 08:40Z); then the overtake, set with power back if he has more,
@@ -98,7 +97,7 @@ function flyToDecision({ wing, rec, s, route, cutDeg, aimFt, overtakeKt, blockFt
     backPrev = back;
     const ratio = W.tasFtps / W.kias;
     const arriveFtps = midKt * ratio; // the window's middle overtake as a closure (Lead straight: all of it fore and aft)
-    const climbKtps = (G_FTPS2 * W.climbFtps) / Math.max(W.tasFtps, 1) / ratio;
+    const climbKtps = climbCostKtps(W, W.climbFtps);
     const floorThr = throttleAtTorque(REJOIN.floorTorquePct, W.kias, blockFt); // the rejoin's torque floor (TS-108)
     const aStop = slowKtps(REJOIN.stopStage, W.kias, blockFt, W.g, floorThr) + climbKtps;
     // The room left, less what he covers while the slowing builds up at the rate the acceleration can change (TS-75).

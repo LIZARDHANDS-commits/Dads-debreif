@@ -14,11 +14,10 @@ import { KT_TO_FTPS } from '../../../core/units.js';
 import { stopAt, slide, cornerBehind, sweepOut } from './transitions.js';
 import { relativeTo } from './manoeuvres.js';
 import { slotsFor } from './slots.js';
-import { FW_FOLLOW } from './tuning.js';
 import { closureNow } from './rates.js';
 import { fwGoal } from './formation-turns.js';
 import { planEchelonToFw } from './echelon-to-fw.js';
-import { legsInTurn, place, hold, toSlot, inLeadFrame, ech, ast, toSpeed } from './four-legs.js';
+import { legsInTurn, place, hold, toSlot, inLeadFrame, ech, ast, toSpeed, inCone } from './four-legs.js';
 
 /** Close-formation crossings go behind and below (SMM 16.32 paras 87-88): 15 ft below Lead, #4 a further 10 ft below #3 (estimates). */
 const CROSS_LOW_FT = 15;
@@ -340,7 +339,7 @@ export function openToFw(start, t0, opts, s, from) {
         return [
           sweepOut(place(c, p.fwd, now.left, slots[id].alt), { track: 1, advanceTol: 150, ...DROP_FAST }),
           sweepOut(place(c, p.fwd, p.left, slots[id].alt), { track: 1, advanceTol: 150, closureMinFtps: DROP_FAST.closureMinFtps, undertakeKias: DROP_FAST.undertakeKias, slowStage: DROP_FAST.slowStage }),
-          { ...toSlot(c, sweepOut, slots[id]), ...FW_FOLLOW, coneAlt: false, closeIn: true, goal: (R, W) => fwGoal(R, W, -s, false) },
+          inCone(c, slots[id], -s, { closeIn: true }),
         ];
       },
     });

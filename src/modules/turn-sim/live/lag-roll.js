@@ -22,13 +22,12 @@ import { availableG, tasToIasKt } from '../../../core/t6-performance.js';
 import { G_FTPS2, FTPS_TO_KT } from '../../../core/units.js';
 import { STEP_SEC, rollLimitAt } from './flight.js';
 import { classify } from './judge.js';
-import { relativeTo } from './manoeuvres.js';
+import { relativeTo, DEG } from './manoeuvres.js';
 import { pairSlot } from './slots.js';
 import { LAG_ROLL } from './tuning.js';
 import { add3, scale3, perp3, len3, unit3, dot3, cross3, liftOf, poseOf3d } from './attitude.js';
 import { easeRoll } from '../../../core/flight-math.js';
 
-const DEG = Math.PI / 180;
 const Z = Object.freeze({ x: 0, y: 0, z: 1 });
 
 /** The key formation.js uses for the lag roll in its change machinery. */

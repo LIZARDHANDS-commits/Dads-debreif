@@ -32,7 +32,7 @@ import { classify, judge } from './judge.js';
 import { applyPose } from './kinematic.js';
 import { fullPowerKtps, speedSegFor } from './slow-down.js';
 import { setKias, stepCommanded, phase, trackTwice, PLAN_MAX_SEC } from './tracker.js';
-import { FORMATIONS, fwShapeNow, pairSlot } from './slots.js';
+import { FORMATIONS, LANE, fwShapeNow, pairSlot } from './slots.js';
 import { KIAS_OUTSIDE_LAB, KIAS_LAB, REJOIN, RULED_REJOIN, STOP_KT, FW_FOLLOW, closureNow, rejoinClosureNow } from './tuning.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { onClosure, leadTurnInto, trackTail } from './hand-over.js';
@@ -45,8 +45,6 @@ import { fwSwitch } from './fw-switch.js';
 // change slows with power only (a set, controlled overtake held with power, Patrick 23:37Z); the speed brake and idle are
 // for the off-standard rejoins (kinematic-moves.js).
 export { fullPowerKtps };
-/** The overshoot lane: inside 1,000 ft #2 stays behind Lead's 3/9 line, within the shared 100 ft margin (design section 10). */
-const LANE_MARGIN_FT = 100;
 /** A generous cap on how long one change may take (the spec's 3 minutes, an estimate): it only catches a planner that never finishes. */
 export const CHANGE_LIMIT_SEC = 180;
 
@@ -360,7 +358,7 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
   const judgeEnd = (attempt) => judge([attempt.run.end.lead, attempt.run.end.wing], { key: to }, { spacingFt });
   const finished = (attempt) => attempt.run.ok && judgeEnd(attempt).inBand && attempt.run.durationSec <= CHANGE_LIMIT_SEC;
   // A rejoin has to keep the overshoot lane (never ahead of Lead's 3/9 line inside 1,000 ft, +-100 ft) and stay under Lead (SMM 12.27 para 65).
-  const laneOk = (attempt) => attempt.run.laneFwdFt <= LANE_MARGIN_FT && attempt.run.minBelowFt > 0;
+  const laneOk = (attempt) => attempt.run.laneFwdFt <= LANE.marginFt && attempt.run.minBelowFt > 0;
   /** @type {any} */
   let best = null;
   if (rejoinKind === 'into' && RULED_REJOIN.leadTurnsUntilIn) {

@@ -17,7 +17,7 @@
 // (heading, speed, and here the bank outright); the tracker's roll limit, speed loop and flight step fly it, so the path
 // is recorded and replayed like every other 2-ship move. Once he is parallel to Lead it hands back (null) and the phase's
 // band goal (formation-turns.js fwGoal) settles him where he arrives in the far cone (the whole cone, TS-75).
-import { G_FTPS2 } from '../../../core/units.js';
+import { turnRadiusFromBankFt } from '../../../core/flight-math.js';
 import { wrapPi } from '../../../core/angles.js';
 import { DEG, relativeTo } from './manoeuvres.js';
 import { FW_SWITCH } from './tuning.js';
@@ -53,7 +53,7 @@ export function fwSwitch(sTo) {
       // Where the roll-out would end if it started now: the arc at the same bank the other way, plus the reversal itself
       // (about reverseSec at his present heading). He reverses as soon as that landing is at the far cone's middle
       // (aimSweepDeg off Lead's tail) at the depth he will be at then; the turn in drops him back, so the sooner the better.
-      const radiusFt = W.tasFtps ** 2 / (G_FTPS2 * Math.tan(S.bankDeg * DEG));
+      const radiusFt = turnRadiusFromBankFt(W.tasFtps, S.bankDeg);
       const phi = Math.max(0, off);
       const acrossFt = radiusFt * (1 - Math.cos(phi)) + W.tasFtps * Math.sin(phi) * S.reverseSec;
       const backFt = radiusFt * (phi - Math.sin(phi)) + W.tasFtps * (1 - Math.cos(phi)) * S.reverseSec;

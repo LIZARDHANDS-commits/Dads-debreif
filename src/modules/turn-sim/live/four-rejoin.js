@@ -16,15 +16,14 @@
 // Every step goes through the one envelope gate (flight.js gateRoll, TS-93); the tracker legs fly the 2-ship's power profile
 // (four-legs.js onProfile). Until V2.98 these were four-ship-moves.js's, with a kinematic line in front of each long leg.
 import { DEG, relativeTo, turnSeg, wholeDegree } from './manoeuvres.js';
-import { recordFlight, slide, closeThrough, rejoinTo, straightAhead, sweepOut } from './transitions.js';
-import { REJOIN, TURNING_REJOIN, FW_FOLLOW, STRAIGHT_REJOIN } from './tuning.js';
+import { recordFlight, slide, closeThrough, rejoinTo, straightAhead } from './transitions.js';
+import { REJOIN, TURNING_REJOIN, STRAIGHT_REJOIN } from './tuning.js';
 import { RATE_SETS } from './rates.js';
 import { KT_TO_FTPS as KT_FTPS } from '../../../core/units.js';
-import { fwGoal } from './formation-turns.js';
 import { leadTurnInto } from './hand-over.js';
 import { searchTurningRejoin, flyWith } from './turning-rejoin.js';
 import { LENGTH_FT, slotsFor, pairSlot, FW_STEP_DOWN_FT } from './slots.js';
-import { legsInTurn, place, hold, toSlot, inLeadFrame, ech, toSpeed, GENTLE_ALT_FTPS } from './four-legs.js';
+import { legsInTurn, place, hold, toSlot, inLeadFrame, ech, toSpeed, inCone, GENTLE_ALT_FTPS } from './four-legs.js';
 
 /** The overtake the rear wingmen use to close from far out (estimate: the straight-ahead rejoin's 20 to 30 KIAS, EFIG p.371). */
 const FAR_OVERTAKE_KIAS = 25;
@@ -128,7 +127,7 @@ export function rejoinToFw(start, t0, opts, s, from) {
         rejoinTo(place(c, inLeadFrame(slots, id).fwd - TRJ.outsideWindowFt[id][1], inLeadFrame(slots, id).left, slots[id].alt), { track: 1, advanceTol: FW_PASS_FT, overtakeKias: far(id), bankCapDeg: TURNING_REJOIN.bankCapDeg, ...max }),
         // into the cone off the aircraft he flies off, settling where he arrives in it (the whole cone, Patrick 5 Oct 08:58Z;
         // TS-75), his stack held as the separation
-        { ...toSlot(c, sweepOut, slots[id]), ...FW_FOLLOW, coneAlt: false, goal: (R, W) => fwGoal(R, W, -s, false) },
+        inCone(c, slots[id], -s),
       ],
     });
     const two = { id: 2, phases: () => [toSlot(c, rejoinTo, slots[2], { overtakeKias: far(2), ...max })] };

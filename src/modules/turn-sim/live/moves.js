@@ -3,7 +3,7 @@
 // of three number files with rates.js and bands.js (tuning.js only re-exports them); docs/modules/turn-sim/numbers.md lists
 // every number with its source. Numbers with no manual page or ruling beside them are estimates and say so. Moved
 // unchanged from tuning.js, except the retired hot rejoin's (TS-94), which went with it.
-import { FW_BAND } from './slots.js';
+import { FW_BAND, LANE } from './slots.js';
 import { RATE_SETS, G_RULE_BANK_DEG, NO_BANK_CAP_DEG, CLOSE_BANK_DEG, rejoinClosureNow } from './rates.js';
 import { IN_POSITION } from './bands.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
@@ -226,7 +226,7 @@ export const FW_PURSUIT = Object.freeze({
  * in, with up to closeKias of power. Estimates.
  */
 export const FW_BUBBLE = Object.freeze({
-  minFt: 500, maxFt: 1000, marginFt: 60, horizonSec: 3, stepSec: 0.5, turnRateDegS: 15, searchStepDeg: 3, closeKias: 15,
+  minFt: FW_BAND.bubbleFt, maxFt: FW_BAND.rangeFt[1], marginFt: 60, horizonSec: 3, stepSec: 0.5, turnRateDegS: 15, searchStepDeg: 3, closeKias: 15,
   // The inner edge (Patrick 6 Oct 15:56Z: "For the tight turn towards 2, 2 can pull up into the vecitcal or dive towards
   // lead to avoid the bubble as required"; 15:57Z: "Roll and dive away I mean"; TS-134): looking tightHorizonSec ahead, if
   // the range across would come inside minFt plus marginFt, #2 rolls and dives to the height below Lead that keeps that
@@ -310,8 +310,8 @@ export const TRACKER = Object.freeze({
   kiasSnap: 0.003, // the last few thousandths of a knot are taken out at once, so the speed has no step
   alignHeadingRad: 1.5e-4, // aligned: within this of Lead's heading (about 0.01°)
   alignDeadbandDeg: 0.05, // a closure phase lining up commands no bank under this (step 2): at 1.5/s of heading gain it is a heading error of about 0.003°, inside alignHeadingRad
-  laneRangeFt: 1000, // the overshoot lane is measured inside this range (SMM 12.27 para 65; design section 10)
-  belowRangeFt: 2000, // the height under Lead is measured inside this range (SMM 12.27 para 65)
+  laneRangeFt: LANE.rangeFt, // the overshoot lane is measured inside this range (slots.js LANE)
+  belowRangeFt: LANE.belowRangeFt, // the height under Lead is measured inside this range (slots.js LANE)
   /** Every leg's settings before its recipe changes them, and what each does to the flying. */
   phase: Object.freeze({
     latRate: 8, // how fast the target slot slides sideways, ft/s: station changes close or open at about 5 kt, an estimate (the SMM says only "controlled", 12.20 para 44)
@@ -470,7 +470,7 @@ export const LAG_ROLL = Object.freeze({
   topKiasBand: Object.freeze([150, 185]), // a plan whose slowest speed is outside this is not used (estimate)
   topRangeFt: Object.freeze([900, 1400]), // range from Lead passing over his six, about 1,000-1,300 ft (estimate, widened 100 ft each way)
   closeTopRangeFt: Object.freeze([500, 1400]), // from echelon (TS-78): over Lead's six at 500-1,400 ft, the bubble's edge to the same far end (estimate)
-  bubbleFt: 500, // a plan that comes inside 500 ft of Lead is refused (SMM 16.23, the fluid bubble; FW_BAND's inner edge, SMM 12.29 para 69)
+  bubbleFt: FW_BAND.bubbleFt, // a plan that comes inside 500 ft of Lead is refused (slots.js FW_BAND.bubbleFt)
   minG: 0.3, // canopy to canopy means positive G throughout: no plan pushes (estimate)
   rollSec: Object.freeze([8, 30]), // the roll's length searched, in whole seconds (estimate)
   climbFt: Object.freeze([200, 2000]), // how far above the straight line from start to end he goes, searched in 100 ft steps (estimate)
