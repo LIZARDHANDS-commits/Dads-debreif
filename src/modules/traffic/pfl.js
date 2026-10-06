@@ -83,8 +83,25 @@ export const PFL = Object.freeze({
   gateAltFt: 2100,
   gateTrackDeg: 35,
   gateKias: 120,
-  /** Aim a fifth down the runway until the landing flap goes down (Patrick 6 Oct 07:55Z; the SMM's third, SMM 13.9 para 18, landed long). */
-  aimFractionOfRunway: 1 / 5,
+  /** Two-stage round-out (SMM 13.10 para 19, part 5 p.49-50): from this height above the runway, lined up, the descent is
+   *  checked to a 3° path (Patrick 6 Oct 08:00Z: "a 'pre flare' at 200 feet where they transition to a 3 degree"), held
+   *  until the threshold crossing speed for the flaps down (SMM Table 4.1: clean or gear 110, T/O flap 105, landing 100),
+   *  then that speed is held to the normal round-out/flare (SMM 4.9 para 15; Patrick 08:03Z "whichever of the two lands
+   *  shorter"). Touchdown normally comes at 80-90 KIAS (SMM 13.10 para 19). */
+  preFlareFt: 200,
+  preFlareDeg: 3,
+  thresholdKias: [110, 110, 105, 100],
+  /** The flare from about 15 ft (SMM 4.9 para 15); the sink is height ÷ flareTauSec, so it shallows as the runway comes up,
+   *  and coming down steeper it starts higher, as it must to round out. The 2 s is an estimate. */
+  flareFromFt: 15,
+  flareTauSec: 2,
+  /** Sink at the wheels after the flare, ft/s (an estimate: about 120 ft/min, as the circuit's, TR-96). */
+  flareTouchSinkFtps: 2,
+  /** Lined up for the round-out: track within this of the runway heading. An estimate. */
+  roundOutTrackDeg: 30,
+  /** The glide aims at the threshold; the pre-flare and flare carry it on down the runway (Patrick 6 Oct 15:09Z: "Include
+   *  the pre flare. Make the aim point the threshold"). Was a fifth (07:55Z), and the SMM's third (SMM 13.9 para 18) before. */
+  aimFractionOfRunway: 0,
   /** With landing flap, touch down in the first 1,000 ft: closer is better (Patrick 09:49Z, 09:56Z). */
   touchdownFt: 1000,
   /** The latest touchdown point, short of the far end. An estimate. */
@@ -146,8 +163,9 @@ export const PFL = Object.freeze({
 export const PFL_CONFIGS = Object.freeze(['clean', 'gearDown', 'flapsTakeoff', 'landing']);
 /** What the tag shows for each configuration. */
 export const PFL_CONFIG_LABELS = Object.freeze(['Clean', 'Gear', 'Gear + T/O flap', 'Gear + landing flap']);
-/** The planned drag (Patrick 08:32Z): gear near High Key, T/O flap near Low Key, landing flap near Final Key; degrees round the circle. */
-const PLAN_DEG = [-Infinity, 0, 180, 270];
+/** The planned drag, degrees round the circle: gear near High Key, T/O flap halfway to Low Key, landing flap at Low Key
+ *  (Patrick 6 Oct 15:09Z: "The flaps can be taken earlier on the profile"; was Low Key and Final Key, Patrick 4 Oct 08:32Z). */
+const PLAN_DEG = [-Infinity, 0, 90, 180];
 
 /**
  * The glide ring (Traffic spec 4.5 item 14; Patrick 4 Oct 08:33Z): how far the
@@ -907,6 +925,7 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
   let nz = 1, nzRate = 0; // G in the vertical plane (lift × cos bank) and how fast it is changing, per second
   let pullDone = false;
   let margin = 0;
+  let roundOut = null; // the two-stage round-out, once lined up below 200 ft
   let lastKey = undefined;
   let gate = null;
   let outcome = null;
@@ -1030,10 +1049,22 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
       // Drag from the whole G: the turn's (bank) and the pitch's together.
       const turnG = Math.tan(s.bank * DEG) * Math.cos(gamma);
       const dw = glideDragPerWeight(PFL_CONFIGS[cfg], s.ias, s.alt, Math.max(Math.hypot(nz, turnG), 0.5));
+      // The two-stage round-out (SMM 13.10 para 19): lined up below 200 ft, first a 3° path while the speed bleeds to the
+      // threshold crossing speed, then that speed; then the flare, the sink dying away to the touchdown's.
+      const hAgl = s.alt - ground;
+      const linedUp = hAgl <= PFL.preFlareFt && Math.abs(wrapDeg180(pilot.trackDeg() - geo.rwyDeg)) <= PFL.roundOutTrackDeg;
+      if (linedUp && !roundOut) { roundOut = { flare: false }; notes.push(`round-out at ${Math.round(s.ias)} KIAS`); }
+      if (roundOut) want = Math.min(want, PFL.thresholdKias[cfg]);
       const wantTas = ktToFtps(iasToTasKt(want, s.alt));
       const wantAccel = clamp((wantTas - tas) / 3, -PFL.maxAccelG * G_FTPS2, PFL.maxAccelG * G_FTPS2);
       // The flight path it wants: level while slowing at or below 150 KIAS, otherwise the glide that gives the wanted speed change.
-      const wantGamma = state === 'slow' ? 0 : Math.asin(clamp(-dw - wantAccel / G_FTPS2, -1, 1));
+      let wantGamma = state === 'slow' ? 0 : Math.asin(clamp(-dw - wantAccel / G_FTPS2, -1, 1));
+      if (roundOut) {
+        const sinkNow = -tas * Math.sin(gamma);
+        if (!roundOut.flare && hAgl <= Math.max(PFL.flareFromFt, sinkNow * PFL.flareTauSec)) { roundOut.flare = true; notes.push(`flare at ${Math.round(hAgl)} ft, ${Math.round(s.ias)} KIAS`); }
+        if (roundOut.flare) wantGamma = -Math.asin(clamp(Math.max(PFL.flareTouchSinkFtps, hAgl / PFL.flareTauSec) / tas, 0, 1));
+        else if (s.ias > PFL.thresholdKias[cfg] + 0.5) wantGamma = Math.max(wantGamma, -PFL.preFlareDeg * DEG);
+      }
       // The nose goes there with the G easing in and out (Patrick 17:49Z), up to 2 G in all (Patrick 17:52Z),
       // never past the stall line and never below 0 G; what the path doesn't take, the speed does, so the energy still adds up.
       const nzHigh = Math.sqrt(Math.max(0, Math.min(PFL.glideMaxG, stallG(s.ias, cfg)) ** 2 - turnG ** 2));
