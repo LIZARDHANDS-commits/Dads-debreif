@@ -206,7 +206,7 @@ function tailLegs(s, to, sTo, spacingFt) {
 }
 
 /** The whole rejoin with one point bank: #2's part to the decision point, then the tracker against Lead turning until #2 is in. */
-function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, upFt = 0 }) {
+export function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, upFt = 0 }) {
   const TR = TURNING_REJOIN;
   const route = pairSlot('route', s, spacingFt);
   const decisionFt = to === 'fw' ? fwShapeNow().rangeFt : Math.abs(route.left) / Math.cos(TR.lineDeg * DEG); // where the line reaches route's spacing
@@ -261,25 +261,11 @@ function flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, 
 }
 
 /**
- * The turning rejoin as a "Change formation" plan (planGoTo's shape, transitions.js), or null when it does not apply or does
- * not settle (formation.js then tries the line and tracker planners). It applies to the 2-ship with the turning rejoin chosen,
- * from line abreast to fighting wing or a close formation, and from fighting wing to a close formation.
- * options: { side, spacingFt, blockFt, rejoin, lastSide }, as planGoTo's.
+ * The search for the most efficient turning rejoin (planTurningRejoin's, also the 4-ship's #2 against Lead's held turn,
+ * four-rejoin.js): every overtake, bank and aim in the order below, then the vertical. into: leadTurnInto's { longRec,
+ * planTo }. hot: from line abreast. vertical: false leaves out the vertical (the 4-ship: #2 starts on his stack). Returns flyWith's result with { overtakeKt, lowFloor, aimFt, bankCapDeg, upFt }, or null.
  */
-export function planTurningRejoin(pair, to, options = {}, t0 = 0) {
-  const [lead, wing] = pair;
-  if (!FORMATIONS[to] || to === 'lab' || (options.rejoin ?? 'into') !== 'into') return null;
-  const from = classify([lead, wing]);
-  if (!(from.key === 'lab' || (from.key === 'fw' && to !== 'fw'))) return null;
-  const spacingFt = options.spacingFt ?? 6000;
-  const blockFt = options.blockFt ?? 8000;
-  const s = from.side || Math.sign(relativeTo(lead, wing).left) || (options.lastSide ?? -1);
-  const want = options.side ?? 'keep';
-  const sTo = to === 'astern' ? 0 : want === 'left' ? 1 : want === 'right' ? -1 : s;
-  const pre = Math.abs(lead.kias - KIAS_OUTSIDE_LAB) > 0.5 ? [{ ...speedSeg(lead.kias, KIAS_OUTSIDE_LAB, blockFt), withNext: true }] : [];
-  const into = leadTurnInto({ lead, pre, s, bankDeg: REJOIN.leadBankDeg, t0, record: recordFlight });
-
-  const hot = from.key === 'lab';
+export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, hot, vertical = true }) {
   // How far ahead down the line he aims: the one that brings him in soonest (Patrick 08:20Z: "find a way to make the most
   // efficient": smaller inputs for longer, or larger for shorter).
   // A medium bank first; more, up to the G rule, only when no medium-bank rejoin keeps him behind Lead's 3/9 line.
@@ -309,12 +295,37 @@ export function planTurningRejoin(pair, to, options = {}, t0 = 0) {
   }
   // The vertical as a candidate (TS-82): the same rejoin with #2 going high early and coming down onto the line, flown only
   // when it brings him in sooner, by more than the chooser's half-second tie, within the G rule with its pull charged.
-  if (best) {
+  if (best && vertical) {
     for (const upFt of TURNING_REJOIN.verticalUpFt) {
       const flown = flyWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, upFt });
       if (flown && flown.durationSec < best.durationSec - 0.5) best = { ...flown, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, upFt };
     }
   }
+  return best;
+}
+
+/**
+ * The turning rejoin as a "Change formation" plan (planGoTo's shape, transitions.js), or null when it does not apply or does
+ * not settle (formation.js then tries the line and tracker planners). It applies to the 2-ship with the turning rejoin chosen,
+ * from line abreast to fighting wing or a close formation, and from fighting wing to a close formation.
+ * options: { side, spacingFt, blockFt, rejoin, lastSide }, as planGoTo's.
+ */
+export function planTurningRejoin(pair, to, options = {}, t0 = 0) {
+  const [lead, wing] = pair;
+  if (!FORMATIONS[to] || to === 'lab' || (options.rejoin ?? 'into') !== 'into') return null;
+  const from = classify([lead, wing]);
+  if (!(from.key === 'lab' || (from.key === 'fw' && to !== 'fw'))) return null;
+  const spacingFt = options.spacingFt ?? 6000;
+  const blockFt = options.blockFt ?? 8000;
+  const s = from.side || Math.sign(relativeTo(lead, wing).left) || (options.lastSide ?? -1);
+  const want = options.side ?? 'keep';
+  const sTo = to === 'astern' ? 0 : want === 'left' ? 1 : want === 'right' ? -1 : s;
+  const pre = Math.abs(lead.kias - KIAS_OUTSIDE_LAB) > 0.5 ? [{ ...speedSeg(lead.kias, KIAS_OUTSIDE_LAB, blockFt), withNext: true }] : [];
+  const into = leadTurnInto({ lead, pre, s, bankDeg: REJOIN.leadBankDeg, t0, record: recordFlight });
+
+  const hot = from.key === 'lab';
+  const best = searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, hot });
+  const asked = REJOIN.lineKias - KIAS_OUTSIDE_LAB;
   if (!best || best.durationSec > CHANGE_LIMIT_SEC) return null;
   const { part, run, profile, lp } = best;
   const judged = judge([run.end.lead, run.end.wing], { key: to }, { spacingFt });
