@@ -177,6 +177,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
 
     let psiCmd;
     let kiasCmd;
+    let bankOwn = null; // a bank a `pursuit` phase commands outright (fw-switch.js, TS-102), else the heading loop's
     if (aligning) {
       psiCmd = L.headingRad;
       kiasCmd = L.kias;
@@ -233,6 +234,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       if (own) {
         psiCmd = own.psiCmd;
         kiasCmd = own.kiasCmd;
+        bankOwn = own.bankDeg ?? null;
       } else if (ph.closureFtps) {
         // The closure, dying away near the slot in proportion to the distance: fore and aft at the tracker's own position
         // gain (power is the slow axis), sideways at CLOSURE.nearGain (bank is quick). One gain of 1/s on both left #2
@@ -277,6 +279,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     const omegaCmd = GAIN.heading * wrapPi(psiCmd - W.headingRad) + omegaFf;
     const cap = aligning ? T.alignBankDeg : ph.bankCapDeg;
     let bank = Math.max(-cap, Math.min(cap, bankDegFromTurnRate(W.tasFtps, omegaCmd)));
+    if (bankOwn != null) bank = Math.max(-cap, Math.min(cap, bankOwn)); // the switch's own bank, inside the phase's cap (the G rule)
     // Lining up on a closure phase, the last few hundredths of a degree of bank are taken out at once, so the wings come
     // level in a step or two instead of creeping for ten seconds (the heading left is inside alignHeadingRad).
     if (aligning && ph.closureFtps && Math.abs(bank) < T.alignDeadbandDeg) bank = 0;
