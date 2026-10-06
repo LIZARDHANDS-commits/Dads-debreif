@@ -753,7 +753,12 @@ function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = nu
       const hNow = finalTurnFtGuess && ftDist > finalTurnFtGuess && endRate > 0
         ? ftEndAlt - glideSlope * (ftDist - finalTurnFtGuess)
         : ftFromAlt - dropFt * easedFraction(u, FINAL_TURN_EASE, endRate);
-      climb = (hNow - s.alt) / DT;
+      // An extended final turn (no turn distance from a last try) never goes under the 3° line to the numbers: where
+      // its steady descent would, it rides that line for the rest of the turn and rolls out on it, coming down, instead
+      // of levelling off under it until the rollout (Patrick, 6 Oct 07:42Z; TR-104).
+      const onGlideFt = THRESHOLD_DATA_ELEV_FT + glideSlope * Math.hypot(s.x - aim.x, s.y - aim.y);
+      const hTurn = opts.finalTurnEndAlt != null && !finalTurnFtGuess ? Math.max(hNow, Math.min(onGlideFt, ftFromAlt)) : hNow;
+      climb = (hTurn - s.alt) / DT;
       if (Math.abs(wrapDeg180(finalHdg - s.hdg)) < 0.5 && Math.abs(s.bank) < 2) {
         rollout = { x: s.x, y: s.y };
         rolloutSec = s.k * DT;
