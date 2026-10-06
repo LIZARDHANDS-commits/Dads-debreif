@@ -297,6 +297,8 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     lc.checkbox('tagHeight', { label: 'Height off Lead' }),
     lc.checkbox('tagHeading', { label: 'Heading' }),
     lc.checkbox('tagBankG', { label: 'Bank and G' }),
+    lc.checkbox('tagArrow', { label: 'Arrow to Lead (distance, closure)' }),
+    lc.checkbox('tagElevation', { label: "Elevation lines to Lead's level (3D)" }),
   ]);
   const cameraMenu = menu('Camera', 'ts-camera', [
     camOnChoice,

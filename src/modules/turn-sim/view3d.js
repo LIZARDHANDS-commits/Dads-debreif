@@ -11,7 +11,7 @@
 import {
   loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addLights, addSky, disposeAircraftMesh,
 } from '../../ui-kit/three-aircraft.js';
-import { drawTags, T6_LENGTH_FT, trailSince, BACKGROUND, CLOCK_LINE_RED } from './view.js';
+import { drawTags, drawLeadArrows, T6_LENGTH_FT, trailSince, BACKGROUND, CLOCK_LINE_RED } from './view.js';
 import { FW_TURN } from './live/tuning.js';
 import { placeBoxOutline } from './live/move-in-band.js';
 import { liftBankDeg } from './live/flight.js';
@@ -411,6 +411,50 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     gl.placeBox.rotation.set(0, 0, lead.headingRad); // level, turned with Lead's heading
   }
 
+  /**
+   * Elevation lines (Patrick, 6 Oct; Traffic's height lines, with Lead's height as the reference): from each wingman
+   * straight up or down to Lead's level, ending in a circle on that level, in the wingman's colour.
+   */
+  function syncElevation(state, layers, ftPerPx) {
+    if (!gl.elevation) {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(4 * 70 * 3), 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(4 * 70 * 3), 3));
+      gl.elevation = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.7, fog: false }));
+      gl.elevation.frustumCulled = false;
+      gl.scene.add(gl.elevation);
+    }
+    const geo = gl.elevation.geometry;
+    const lead = state.aircraft.find((a) => a.id === 1);
+    let n = 0;
+    if (layers.tagElevation && lead) {
+      const leadZ = aircraftPose(lead).z;
+      const colour = new THREE.Color();
+      const r = 7 * ftPerPx; // the circle, about 7 px on screen at any zoom
+      const put = (x, y, z) => {
+        geo.attributes.position.setXYZ(n, x, y, z);
+        geo.attributes.color.setXYZ(n, colour.r, colour.g, colour.b);
+        n++;
+      };
+      for (const a of state.aircraft) {
+        if (a.id === 1) continue;
+        colour.set(source.colors[a.id] ?? '#ffffff');
+        const z = aircraftPose(a).z;
+        put(a.xFt, a.yFt, z);
+        put(a.xFt, a.yFt, leadZ);
+        for (let i = 0; i < 32; i++) {
+          const t0 = (2 * Math.PI * i) / 32;
+          const t1 = (2 * Math.PI * (i + 1)) / 32;
+          put(a.xFt + Math.cos(t0) * r, a.yFt + Math.sin(t0) * r, leadZ);
+          put(a.xFt + Math.cos(t1) * r, a.yFt + Math.sin(t1) * r, leadZ);
+        }
+      }
+    }
+    geo.attributes.position.needsUpdate = true;
+    geo.attributes.color.needsUpdate = true;
+    geo.setDrawRange(0, n);
+  }
+
   /** A click while Change position is picking: where it meets the level of Lead's height, in world feet, to the picker. */
   function pickAt(clientX, clientY) {
     if (!gl || !source.placeBox?.()?.picking || !source.onPick) return;
@@ -535,6 +579,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     }
     drawGuides(state, layers, (Math.max(box.width, box.height) * ftPerPx) * 0.75);
     syncPlaceBox(state, ftPerPx);
+    syncElevation(state, layers, ftPerPx);
     gl.guideLines.material.dashSize = 8 * ftPerPx;
     gl.guideLines.material.gapSize = 24 * ftPerPx; // quieter: half the dashes, wider gaps (Patrick, 5 Oct)
     for (const [id, line] of gl.plans) {
@@ -579,7 +624,8 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, w, h);
     const tags = layers.tags ? source.tags?.() : null;
-    if (!tags) return;
+    const links = source.leadLinks?.();
+    if (!tags && !links) return;
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     const screenOf = (a) => {
       const pose = aircraftPose(a, signs[a.id] ?? 1);
@@ -591,7 +637,8 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       const p = worldToScreen(THREE, gl.camera, { x: pose.x + Math.cos(a.headingRad) * 100, y: pose.y + Math.sin(a.headingRad) * 100, z: pose.z }, box.width, box.height);
       return [p.x, p.y];
     };
-    drawTags(ctx, { screenOf, noseOf, size: box }, state, tags);
+    if (links) drawLeadArrows(ctx, { screenOf, size: box }, state, links);
+    if (tags) drawTags(ctx, { screenOf, noseOf, size: box }, state, tags);
   }
 
   function requestDraw() {
@@ -743,6 +790,10 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
         line.material.dispose();
       }
       for (const cone of gl.cones.values()) for (const o of cone.children) o.material.dispose();
+      if (gl.elevation) {
+        gl.elevation.geometry.dispose();
+        gl.elevation.material.dispose();
+      }
       for (const o of gl.placeBox.children) {
         o.geometry.dispose();
         o.material.dispose();

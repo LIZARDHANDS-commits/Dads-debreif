@@ -271,6 +271,20 @@ function mount(root, app) {
     return planFrozen;
   }
 
+  /**
+   * Each wingman's link to Lead for the Data tag's arrow (Patrick, 6 Oct): distance and closure (judge.js rejoinReadout),
+   * or null when the arrow is off.
+   */
+  function leadLinks() {
+    if (!layout.get().tagArrow) return null;
+    const lead = state.aircraft[0];
+    return state.aircraft.slice(1).map((a) => {
+      const r = rejoinReadout(lead, a);
+      const kt = Math.abs(r.closureKt) < 1 ? '0 kt' : `${r.closureKt > 0 ? '+' : ''}${Math.round(r.closureKt)} kt`;
+      return { id: a.id, text: `${Math.round(r.rangeFt).toLocaleString('en-CA')} ft · ${kt}` };
+    });
+  }
+
   function dataTags() {
     // In close formation a wingman's tag goes once he is IN POSITION there; Lead's always stays (TS-92, Patrick 6 Oct:
     // "Only show lead's tag", "2's tag only goes away once green is IN POSITION in echelon").
@@ -317,6 +331,7 @@ function mount(root, app) {
       follow,
       planned: shownPlan,
       tags: dataTags,
+      leadLinks,
       placeBox: () => changeUi.placeBox(),
       onPick: (x, y) => changeUi.pickAt(x, y),
       rejoin: () => {
@@ -341,6 +356,7 @@ function mount(root, app) {
       layers: () => layout.get(),
       planned: shownPlan,
       tags: dataTags,
+      leadLinks,
       // The band's box and Change position's click, in 3D as in 2D (Patrick, 6 Oct: no yellow box in 3D).
       placeBox: () => changeUi.placeBox(),
       onPick: (x, y) => changeUi.pickAt(x, y),

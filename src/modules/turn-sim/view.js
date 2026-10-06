@@ -153,6 +153,8 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
       if (layers.clockMarks) for (const a of state.aircraft) drawClockMarks(ctx, map, a);
       // Real aircraft size (Patrick, 5 Oct): a T-6's real length at this zoom, or the usual size times the Scale slider.
       const symbolPx = layers.realSize ? (T6_LENGTH_FT * map.view.scale) / SYMBOL_LENGTH_UNITS : SYMBOL_PX * (layers.planeScale ?? 1);
+      const links = source.leadLinks?.();
+      if (links) drawLeadArrows(ctx, map, state, links);
       for (const a of state.aircraft) drawAircraft(ctx, map, a, !tags, symbolPx);
       if (tags) drawTags(ctx, map, state, tags);
       if (layers.errorLabels) drawErrorLabels(ctx, map, state, source.labels(), tags);
@@ -733,6 +735,55 @@ function drawLinesTag(ctx, map, x, y, tag, colour, pad, placed = [], centre = nu
     ctx.fillStyle = l.red ? POWER_RED : colour;
     ctx.fillText(l.text, tx + pad, ty + 22 + i * 11);
   });
+}
+
+/** The Data tag's arrow (Patrick, 6 Oct): yellow, from each wingman toward Lead, with the distance and closure on it. */
+const LEAD_ARROW_YELLOW = '#ffd23f';
+export function drawLeadArrows(ctx, map, state, links) {
+  const at = (a) => (map.screenOf ? map.screenOf(a) : map.worldToScreen(a.xFt, a.yFt));
+  const lead = state.aircraft.find((a) => a.id === 1);
+  if (!lead) return;
+  const [lx, ly] = at(lead);
+  ctx.save();
+  ctx.font = `11px ${FONT}`;
+  for (const link of links) {
+    const a = state.aircraft.find((p) => p.id === link.id);
+    if (!a) continue;
+    const [wx, wy] = at(a);
+    const len = Math.hypot(lx - wx, ly - wy);
+    if (len < 30) continue; // too close on the picture for an arrow
+    const ux = (lx - wx) / len;
+    const uy = (ly - wy) / len;
+    const x0 = wx + ux * 12; // clear of the wingman
+    const y0 = wy + uy * 12;
+    const x1 = lx - ux * 14; // and of Lead
+    const y1 = ly - uy * 14;
+    ctx.strokeStyle = LEAD_ARROW_YELLOW;
+    ctx.fillStyle = LEAD_ARROW_YELLOW;
+    ctx.globalAlpha = 0.9;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+    ctx.beginPath(); // the head, at Lead's end
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x1 - ux * 9 - uy * 5, y1 - uy * 9 + ux * 5);
+    ctx.lineTo(x1 - ux * 9 + uy * 5, y1 - uy * 9 - ux * 5);
+    ctx.closePath();
+    ctx.fill();
+    const mx = (x0 + x1) / 2;
+    const my = (y0 + y1) / 2;
+    const tw = ctx.measureText(link.text).width + 6;
+    ctx.globalAlpha = 0.75;
+    ctx.fillStyle = 'rgba(10, 18, 28, 0.8)';
+    ctx.fillRect(mx - tw / 2, my - 8, tw, 15);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = LEAD_ARROW_YELLOW;
+    ctx.textAlign = 'center';
+    ctx.fillText(link.text, mx, my + 3);
+  }
+  ctx.restore();
 }
 
 export function drawTags(ctx, map, state, tags) {
