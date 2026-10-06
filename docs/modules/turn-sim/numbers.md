@@ -210,6 +210,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | TRACKER.height | `Object.freeze({` |  |
 | TRACKER.…minChangeFt | `0.5` | a smaller change is left out |
 | TRACKER.…minSec | `4` | no height change takes less than 4 s (estimate) |
+| TRACKER.…maxRateFtps | `TURNING_REJOIN.descentFtps` | nor at more than the rejoin's height-change rate on average, 1,800 ft/min (estimate) |
 | TRACKER.…unknownLegSec | `6` | a leg whose end was never learned is given 6 s (estimate) |
 | WING |  | #2's numbers. Sources beside each; "estimate" where none. |
 | WING.pursuitShare | `0.1` | the lag or lead offset as a share of the range (estimate) |

@@ -303,6 +303,7 @@ export const TRACKER = Object.freeze({
   height: Object.freeze({
     minChangeFt: 0.5, // a smaller change is left out
     minSec: 4, // no height change takes less than 4 s (estimate)
+    maxRateFtps: TURNING_REJOIN.descentFtps, // nor at more than the rejoin's height-change rate on average, 1,800 ft/min (estimate)
     unknownLegSec: 6, // a leg whose end was never learned is given 6 s (estimate)
   }),
 });
