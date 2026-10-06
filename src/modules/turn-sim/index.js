@@ -340,6 +340,9 @@ function mount(root, app) {
       layers: () => layout.get(),
       planned: shownPlan,
       tags: dataTags,
+      // The band's box and Change position's click, in 3D as in 2D (Patrick, 6 Oct: no yellow box in 3D).
+      placeBox: () => changeUi.placeBox(),
+      onPick: (x, y) => changeUi.pickAt(x, y),
       look: camLook,
       focus: () => {
         if (freeCamera()) return null; // the 3D view keeps its own centre, moved by shift-drag or right-drag
