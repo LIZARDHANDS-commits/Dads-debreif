@@ -34,6 +34,10 @@ It runs on a free Cloudflare account (the Workers free plan allows 100,000 reque
 4. Copy the Worker's address (it ends in `workers.dev`). That address goes into the SOF's build setting, and into the page's Content Security Policy (through the app frame, see SPEC-sof).
 5. Optional: to allow a different site, set a variable named `ALLOWED_ORIGINS` on the Worker to a comma-separated list of exact origins. If it is left out, or holds nothing usable, the defaults above apply. It can never be set to "allow all".
 
+**User-Agent:** adsb.lol refuses a generic User-Agent ("include valid contact info", seen 7 Oct 2026), so the relay sends `DadsOODALoop-SOF-traffic-relay/1.0 (+https://github.com/LIZARDHANDS-commits/Dads-debreif)`.
+
+**Live now (7 Oct 2026):** `https://dads-sof-relay.netlify.app`, deployed from Dad's computer session with `npx netlify-cli deploy --prod --site dads-sof-relay --dir netlify/public --functions netlify/functions --no-build` run in `relay/`. It is not linked to GitHub (the repository is Patrick's), so a change to the relay needs that command run again.
+
 **Keys and secrets:** the relay needs none today. If adsb.lol ever asks for a key, it goes in a Worker environment variable or secret in the Cloudflare dashboard, never in this file or anywhere in the repository.
 
 Things to know:
@@ -43,6 +47,19 @@ Things to know:
 - **Shared origin.** Every GitHub Pages project under the same account shares the origin `https://lizardhands-commits.github.io`, so any of them can read the relay from a browser.
 
 To limit abuse further, Cloudflare's dashboard can add a rate-limiting rule on the Worker's address. That is an account setting, not code.
+
+## Running it on Netlify (decision SOF-40, the way it runs now)
+
+The same relay also runs as a Netlify Function: `netlify/functions/traffic.mjs` wraps the same handler from `lib.js`, and `netlify.toml` sets it up. Nothing is installed or built.
+
+1. Sign in at netlify.com (Dad's account).
+2. **Add new site → Import an existing project → GitHub**, and pick `LIZARDHANDS-commits/Dads-debreif`.
+3. Set **Branch to deploy** to `main` and **Base directory** to `relay`. Leave the build command empty. Netlify reads the rest from `relay/netlify.toml`.
+4. Deploy. Optional: rename the site under **Site configuration → Change site name**, for example `dads-sof-relay`.
+5. Check it: opening `https://<site>.netlify.app/traffic?lat=50.33&lon=-105.56&nm=50` in a browser tab should answer with aircraft. A plain tab sends no origin, which the relay allows.
+6. In the tool, open the SOF → **SOF settings** → **Traffic relay address** and enter `https://<site>.netlify.app` (nothing after it). The Traffic switch then appears on the map.
+
+`ALLOWED_ORIGINS` can be set under **Site configuration → Environment variables**, the same as on Cloudflare. Netlify only rebuilds when something in `relay/` changes. The free plan allows 125,000 function calls a month; one SOF screen open for a 10-hour day at one call every 10 s is about 3,600 a day, so about 20 SOF-days a month before the limit (estimate). Keep the screen closed when not in use, or raise the interval, if it is open all day every day.
 
 ## Credit and terms for adsb.lol
 

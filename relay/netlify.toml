@@ -1,0 +1,10 @@
+# Netlify settings for the SOF traffic relay (decision SOF-40). In Netlify, set the site's
+# base directory to "relay"; these paths are then inside relay/. Nothing is installed or built.
+[build]
+  command = ""
+  publish = "netlify/public"
+  # Skip a rebuild when nothing in relay/ changed.
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- ."
+
+[functions]
+  directory = "netlify/functions"

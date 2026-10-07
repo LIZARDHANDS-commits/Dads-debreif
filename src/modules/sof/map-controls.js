@@ -8,13 +8,18 @@ import { RADAR_COLOURS } from './map-model.js';
 
 let nextId = 1;
 
+const SHOW_3D = 'Show the weather round home in 3D';
+const SHOW_2D = 'Back to the map';
+
 const setText = (el, text) => {
   if (el.textContent !== text) el.textContent = text;
 };
 
 /**
  * handlers: { onLayer(id, on), onOpacity(id, percent), onBase(id), onPrecip('rain' | 'snow'), onHome(),
- * onZoom(factor), onAdsb(on), onTraffic(on), onTrafficLabel(id), onMilitaryOnly(on) }.
+ * onZoom(factor), onAdsb(on), onThree(on), threeReason(), onTraffic(on), onTrafficLabel(id), onMilitaryOnly(on) }.
+ * `threeReason()` is asked the first time the 3D button is hovered, focused or pressed: why 3D cannot be used here (a sentence), or
+ * null when it can. The button stays in the bar either way (SPEC-sof, "3D view").
  * Returns { bar, panel, status, legend, credits, note, sync(state), setStatus(items), setCredits(text),
  * setNote(text), setLegend(items), escape(event), closePanel() }. `panel` is inside `bar`, straight after the Layers button, so the menu is
  * next in the tab order after its button; CSS draws it over the top left of the map (F8 of sof-recheck-207).
@@ -33,9 +38,30 @@ export function createMapControls(handlers) {
     h('option', { value: 'rain' }, 'Rain'), h('option', { value: 'snow' }, 'Snow'));
   const precipField = h('div', { class: 'sof-map-field' }, h('label', { for: precipId }, 'Radar shows'), precip);
   const adsb = h('button', { type: 'button', class: 'sof-map-btn', 'aria-pressed': 'false', onclick: () => handlers.onAdsb(adsb.getAttribute('aria-pressed') !== 'true') }, 'ADS-B Exchange view');
+  // 3D swaps the map area for the 3D view; in 3D the same button reads 2D and swaps back (SOF-39). No aria-pressed: its words change.
+  const three = h('button', { type: 'button', class: 'sof-map-btn sof-map-3d-btn', title: SHOW_3D, onclick: () => {
+    probeThree();
+    handlers.onThree(three.textContent === '3D');
+  } }, '3D');
+  const threeWhy = h('span', { class: 'visually-hidden', id: `${uid}-3d-why` });
+  let probed = false;
+  function probeThree() {
+    if (probed) return;
+    probed = true;
+    const why = handlers.threeReason?.() ?? null;
+    if (why) {
+      // Not disabled: it stays pressable so it can say why again (a notice over the map); the words are its hover text and its description.
+      three.dataset.unavailable = 'true';
+      three.title = why;
+      threeWhy.textContent = why;
+      three.setAttribute('aria-describedby', threeWhy.id);
+    }
+  }
+  three.addEventListener('pointerenter', probeThree);
+  three.addEventListener('focus', probeThree);
   const traffic = h('button', { type: 'button', class: 'sof-map-btn', 'aria-pressed': 'false', hidden: true, onclick: () => handlers.onTraffic(traffic.getAttribute('aria-pressed') !== 'true') }, 'Traffic');
   // The Layers menu (`panel`, below) is put in the bar straight after its button, so Tab goes from the button into the menu (F8).
-  const bar = h('div', { class: 'sof-map-bar', role: 'toolbar', 'aria-label': 'Map controls' }, layersButton, home, zoomIn, zoomOut, precipField, traffic, adsb);
+  const bar = h('div', { class: 'sof-map-bar', role: 'toolbar', 'aria-label': 'Map controls' }, layersButton, home, zoomIn, zoomOut, precipField, traffic, three, threeWhy, adsb);
 
   // ---- The Layers menu ------------------------------------------------------------------------------
   const baseRadios = new Map();
@@ -159,8 +185,8 @@ export function createMapControls(handlers) {
       if (shown) drawLegend(items);
       else legendBody.replaceChildren();
     },
-    /** The state to show: { layers, relay, adsbOn }. Only what differs is touched. */
-    sync({ layers, relay, adsbOn }) {
+    /** The state to show: { layers, relay, adsbOn, threeOn }. Only what differs is touched. */
+    sync({ layers, relay, adsbOn, threeOn = false }) {
       if (builtWithRelay !== relay) {
         builtWithRelay = relay;
         buildRows(menuRows(layers, { relay }));
@@ -185,9 +211,12 @@ export function createMapControls(handlers) {
       if (milBox.checked !== layers.traffic.militaryOnly) milBox.checked = layers.traffic.militaryOnly;
       traffic.setAttribute('aria-pressed', String(layers.on.traffic === true));
       adsb.setAttribute('aria-pressed', String(adsbOn));
+      setText(three, threeOn ? '2D' : '3D');
+      if (three.dataset.unavailable !== 'true') three.title = threeOn ? SHOW_2D : SHOW_3D;
       // Under ADS-B Exchange's own map these do nothing, so they are switched off rather than left to look live.
       // (The Layers menu stays: its choices are kept for when the view is switched back.)
-      for (const el of [precip, home, zoomIn, zoomOut, traffic]) el.disabled = adsbOn;
+      for (const el of [precip, home, zoomIn, zoomOut]) el.disabled = adsbOn;
+      traffic.disabled = adsbOn; // the same switch drives the 2D layer and the 3D view's aircraft
     },
     /** Items: [{ id, text, symbol, tone }]. Rows are kept and only their words change. */
     setStatus(items) {
