@@ -538,7 +538,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     for (const f of live) {
       if (f.phase !== 'downwind') delete f.perchRoll; // rolled once each time round the downwind
       if (f.routeId !== pat.id || f.phase !== 'downwind' || f.mode !== 'RAIL' || f.deconflict) continue;
-      if (f.goAroundFlight || f.pflFlight || f.pflRail || f.highKeyFlight || f.sideStep) continue;
+      if (f.goAroundFlight || f.pflFlight || f.highKeyFlight || f.sideStep) continue;
       const ahead = leaders.filter((l) => l.a !== f);
       if (!ahead.length) continue;
       // Flown once without extending, all the way to the threshold: when and where it would roll out, and how fast
@@ -594,7 +594,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const roll = (a, odds) => pick(odds, rollFor(seed, a.id, a.rndCount = (a.rndCount ?? 0) + 1));
     for (const a of aircraft) {
       if (!a.active || a.landed || t < a.startsAt || !Number.isFinite(a.x) || !Number.isFinite(a.y)) continue;
-      if (a.pflFlight || a.pflRail || a.highKeyFlight || a.engineFailed || a.deconflict) continue;
+      if (a.pflFlight || a.highKeyFlight || a.engineFailed || a.deconflict) continue;
       const along = (a.x - th.x) * ux + (a.y - th.y) * uy, across = Math.abs((a.x - th.x) * uy - (a.y - th.y) * ux);
       const off = Math.abs(wrapDeg180((a.trackDeg ?? a.headingDeg ?? rwyTrack) - rwyTrack));
       const route = routeOf(a);
@@ -661,7 +661,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (a.phase === 'climb') { a.siLap = false; continue; }
       if (a.siLap || !a.active || a.landed || t < a.startsAt || !Number.isFinite(a.x) || !Number.isFinite(a.y)) continue;
       if (a.routeId !== pat.id || a.mode !== 'RAIL' || a.phase !== 'outer_downwind') continue;
-      if (a.goAroundFlight || a.pflFlight || a.pflRail || a.highKeyFlight || a.engineFailed || a.deconflict) continue;
+      if (a.goAroundFlight || a.pflFlight || a.highKeyFlight || a.engineFailed || a.deconflict) continue;
       const o = legOffsetsFt(pat.points[5], pat.points[6], a);
       if (o.alongFt < 0 || o.alongFt > RANDOM.downwindWindowFt) continue;
       a.siLap = true;
@@ -759,8 +759,10 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.active = true;
     a.phase = 'climb_high_key';
     a.config = 'Clean';
-    delete a.pflRail;
-    delete a.pflRailIndex;
+    a.pflSegment = null;
+    a.pflDecision = null;
+    a.pflMarginFt = null;
+    a.pflMarginTag = null;
     delete a.pflFlight;
     delete a.goAroundFlight;
     delete a.joinOffset;
@@ -882,10 +884,18 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     if (done === 'landed') {
       goFromRunway(a);
       a.pflDecision = null;
+      a.pflSegment = null;
+      a.pflMarginFt = null;
+      a.pflMarginTag = null;
       a.config = undefined;
       a.tag = undefined;
     } else if (done === 'go_around') {
       a.pflDecision = null;
+      a.pflSegment = null;
+      a.pflMarginFt = null;
+      a.pflMarginTag = null;
+      a.config = undefined;
+      a.tag = undefined;
       startGoAround(a);
     } else {
       a.active = false;
@@ -895,6 +905,10 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       // Where, when and how fast it was going, for the ejection and the abandoned aircraft on screen (ejection.js).
       a.ejectAt = { x: a.x, y: a.y, alt: a.alt, t, headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG, kias: a.iasKt ?? a.kt ?? 125 };
       a.pflDecision = 'Eject';
+      a.pflSegment = null;
+      a.pflMarginFt = null;
+      a.pflMarginTag = null;
+      a.config = undefined;
     }
   }
 
@@ -918,7 +932,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (sideStepping && !a.sideStep && a.pflFlight && !a.pflDone) resumePflFlight(a, wind, setup.settings);
       if (a.pflDone) pflEnded(a);
       if (a.goAroundDone) goAroundEnded(a);
-      if (a.mode === 'RAIL' && route && !a.pflRail && !a.pflFlight && !a.goAroundFlight && !a.highKeyFlight && !a.pflEndedThisStep) {
+      if (a.mode === 'RAIL' && route && !a.pflFlight && !a.goAroundFlight && !a.highKeyFlight && !a.pflEndedThisStep) {
         const len = routeLengthFt(route, opt);
         if (route.kind === 'pattern' && a.distFt >= beforeDist) {
           checkDecisions(a, beforeDist, a.distFt);
@@ -1321,6 +1335,17 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       }
       // A new command stops the flown climb to High Key; the command then flies from where the aircraft is.
       delete a.highKeyFlight;
+      // A new command stops the flown PFL glide; the command then flies from where the aircraft is.
+      if (action !== 'touch_and_go' && action !== 'pfl_current' && action !== 'engine_fail') {
+        delete a.pflFlight;
+        delete a.pflDone;
+        a.engineFailed = false;
+        a.pflSegment = null;
+        a.pflDecision = null;
+        a.pflMarginFt = null;
+        a.pflMarginTag = null;
+        a.config = undefined;
+      }
       if (action === 'breakout') {
         startBreakout(a);
       } else if (action === 'closed_pattern') {
@@ -1402,7 +1427,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       };
       const list = aircraft.map((a) => {
         const route = routeOf(a);
-        const p = a.pflRail ? a : whereIs(a);
+        const p = whereIs(a);
         const iasKt = a.iasKt ?? (p.kt ?? a.fallbackKt);
         const altFt = a.landed ? (a.alt ?? p.alt ?? FIELD_ELEV_FT) : (a.alt ?? (p.alt ?? a.fallbackAlt));
         const x = a.x ?? p.x;
@@ -1431,9 +1456,12 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           pattern: onSiPattern(a) ? 'si' : 'ohb',
           closedPatternBankDeg: a.closedPatternBankDeg,
           config: a.config,
-          pflRail: a.pflRail ?? null,
+          pflSegment: a.pflSegment ?? null,
           pflDecision: a.pflDecision ?? null,
+          pflMarginFt: a.pflMarginFt ?? null,
+          pflMarginTag: a.pflMarginTag ?? null,
           pflFlight: Boolean(a.pflFlight),
+          pflRoute: a.pflFlight?.route ?? null,
           highKeyFlight: Boolean(a.highKeyFlight),
           ejectAt: a.ejectAt ?? null,
           deconflict: a.deconflict?.label ?? null,

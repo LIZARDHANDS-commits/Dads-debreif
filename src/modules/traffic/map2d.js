@@ -24,7 +24,7 @@ import { createCanvasView } from '../../ui-kit/canvas-view.js';
 import { createTileLayer, ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { makeLocalRef, localFtToLatLon, latLonToLocalFt } from '../../core/geo.js';
 import { FT_PER_NM } from '../../core/units.js';
-import { PFL, PFL_CONFIGS, PFL_CONFIG_LABELS } from './pfl.js';
+import { PFL, PFL_CONFIGS, PFL_CONFIG_LABELS, calculateGlideFootprint } from './pfl.js';
 import { ejectionAt } from './ejection.js';
 import { trueAltFt } from './weather.js';
 import { FIELD_ELEV_FT, THRESHOLD_29L, PFL_CIRCLE_RADIUS_FT, PATTERN_ALT_FT, trueToMagnetic } from './airfield.js';
@@ -280,8 +280,8 @@ export function conflictLevels(conflicts) {
 export const isFlying = (ac) => ac.status === 'flying';
 export const aircraftColor = (ac) => ac.color ?? TYPE_COLORS[ac.type] ?? FLEET_COLORS[ac.type] ?? FALLBACK_COLOR;
 
-// The glide ring lives with the PFL's numbers in pfl.js (glideFootprint), so the PFL's own ejection check uses the same ring.
-export { glideFootprint as calculateGlideFootprint } from './pfl.js';
+// The glide ring lives with the PFL segment planner's numbers (calculateGlideFootprint).
+export { calculateGlideFootprint };
 
 /**
  * Checks if an aircraft has engine failure or PFL active.
@@ -292,9 +292,13 @@ export { glideFootprint as calculateGlideFootprint } from './pfl.js';
 export function isPflActive(a) {
   if (!a) return false;
   if (a.engineFailed === true) return true;
-  if (typeof a.phase === 'string' && (a.phase.startsWith('pfl') || a.phase === 'crash_short' || a.phase === 'crashed')) return true;
-  if (a.command === 'pfl_current' || a.command === 'engine_fail' || a.command === 'climb_high_key' || a.command === 'climb_low_key') return true;
-  if (a.pflActive === true) return true;
+  const phase = typeof a.phase === 'string' ? a.phase.toLowerCase() : '';
+  const status = typeof a.status === 'string' ? a.status.toLowerCase() : '';
+  const command = typeof a.command === 'string' ? a.command.toLowerCase() : '';
+  if (phase.startsWith('pfl') || phase === 'crash_short' || phase === 'crashed' || phase === 'crash' || phase.includes('eject')) return true;
+  if (status === 'crashed' || status === 'ejected') return true;
+  if (command === 'pfl_current' || command === 'engine_fail' || command === 'climb_high_key' || command === 'climb_low_key' || command.startsWith('pfl')) return true;
+  if (a.pflActive === true || Boolean(a.pflFlight) || Boolean(a.pflRoute) || Boolean(a.pflSegment) || Boolean(a.pflDecision)) return true;
   return false;
 }
 
@@ -325,49 +329,87 @@ export function shouldShowGlideFootprint(a, selectedAircraftId = null) {
  * - `[PFL: LOW KEY]` (joining Low Key downwind)
  * - `[PFL: BASE KEY]` (joining Final Key; the old name)
  * - `[PFL: DIRECT]` (gliding direct to threshold)
+ * - `[EJECT]` (pilot ejected / ejection initiated)
  *
  * @param {any} ac
  * @returns {string|null}
  */
 export function getPflBadge(ac) {
   if (!ac) return null;
-  if (ac.status === 'ejected') return '[EJECT]';
-  if (ac.pflDecision) return ac.config ? `[PFL: ${ac.pflDecision} · ${ac.config}]` : `[PFL: ${ac.pflDecision}]`;
-  // The behaviour tag (behaviour.js, TR-60): the pattern, what is next and the configuration, or what the automatic
-  // deconfliction is doing with it (deconflict.js) with the configuration added.
-  const gliding = ac.engineFailed === true || (typeof ac.phase === 'string' && (ac.phase.startsWith('pfl') || ac.phase.includes('crash')));
-  if (ac.behaviour && !gliding) return ac.behaviour;
-  if (ac.deconflict) return ac.deconflict;
-  const active = ac.engineFailed === true ||
-    ac.command === 'pfl_current' ||
-    ac.command === 'engine_fail' ||
-    ac.command === 'climb_high_key' ||
-    ac.command === 'climb_low_key' ||
-    ac.pflActive === true ||
-    (typeof ac.phase === 'string' && (
-      ac.phase.startsWith('pfl') ||
-      ac.phase.includes('high_key') ||
-      ac.phase.includes('low_key') ||
-      ac.phase.includes('base_key') ||
-      ac.phase.includes('crash')
-    ));
+  const status = typeof ac.status === 'string' ? ac.status.toLowerCase() : '';
+  const phase = typeof ac.phase === 'string' ? ac.phase.toLowerCase() : '';
+  const segment = typeof ac.pflSegment === 'string' ? ac.pflSegment.toLowerCase() : '';
+  const command = typeof ac.command === 'string' ? ac.command.toLowerCase() : '';
 
-  if (!active) return null;
+  // Ejected (checked first: an ejected crew marker or abandoned aircraft always bears [EJECT])
+  if (
+    status === 'ejected' ||
+    phase === 'ejected' ||
+    phase === 'eject' ||
+    phase === 'ejection' ||
+    phase === 'pfl_eject' ||
+    segment === 'eject' ||
+    segment === 'ejected'
+  ) {
+    return '[EJECT]';
+  }
 
-  const phase = (ac.phase || '').toLowerCase();
-  const status = (ac.status || '').toLowerCase();
-
-  // 1. Crash short / unrecoverable
-  if (status === 'crashed' || phase === 'crash_short' || phase === 'pfl_crash' || phase === 'crashed') {
+  // Crash short / unrecoverable
+  if (
+    status === 'crashed' ||
+    phase === 'crash_short' ||
+    phase === 'pfl_crash' ||
+    phase === 'crashed' ||
+    phase === 'crash' ||
+    segment === 'crash' ||
+    segment === 'crash_short'
+  ) {
     return '[CRASH SHORT]';
   }
 
-  // 2. Zoom climb / decel
-  if (phase === 'pfl_zoom' || phase === 'zoom' || phase === 'pfl_decel') {
+  const marginStr = Number.isFinite(ac.pflMarginFt) ? ` (${ac.pflMarginFt >= 0 ? '+' : ''}${Math.round(ac.pflMarginFt)} ft)` : '';
+  if (ac.pflDecision) return ac.config ? `[PFL: ${ac.pflDecision}${marginStr} · ${ac.config}]` : `[PFL: ${ac.pflDecision}${marginStr}]`;
+
+  // The behaviour tag (behaviour.js, TR-60): the pattern, what is next and the configuration, or what the automatic
+  // deconfliction is doing with it (deconflict.js) with the configuration added.
+  const gliding = ac.engineFailed === true ||
+    phase.startsWith('pfl') ||
+    phase.includes('crash') ||
+    phase.includes('eject') ||
+    Boolean(ac.pflFlight) ||
+    Boolean(ac.pflRoute) ||
+    Boolean(ac.pflSegment);
+
+  if (ac.behaviour && !gliding) return ac.behaviour;
+  if (ac.deconflict) return ac.deconflict;
+
+  const active = gliding ||
+    command === 'pfl_current' ||
+    command === 'engine_fail' ||
+    command === 'climb_high_key' ||
+    command === 'climb_low_key' ||
+    command.startsWith('pfl') ||
+    ac.pflActive === true ||
+    phase.includes('high_key') ||
+    phase.includes('low_key') ||
+    phase.includes('base_key') ||
+    phase.includes('direct') ||
+    phase.includes('zoom') ||
+    segment.includes('high_key') ||
+    segment.includes('low_key') ||
+    segment.includes('base_key') ||
+    segment.includes('direct') ||
+    segment.includes('zoom') ||
+    segment.includes('decel');
+
+  if (!active) return null;
+
+  // 1. Zoom climb / decel
+  if (phase === 'pfl_zoom' || phase === 'zoom' || phase === 'pfl_decel' || phase === 'decel' || segment === 'zoom' || segment === 'decel') {
     return '[PFL: ZOOM]';
   }
 
-  // 3. High Key or Orbit
+  // 2. High Key or Orbit
   if (
     phase === 'pfl_high_key' ||
     phase === 'high_key' ||
@@ -375,35 +417,42 @@ export function getPflBadge(ac) {
     phase === 'pfl_orbit' ||
     phase === 'orbit' ||
     phase === 'pfl_inbound' ||
-    ac.command === 'climb_high_key'
+    command === 'climb_high_key' ||
+    segment === 'high_key'
   ) {
     return '[PFL: HIGH KEY]';
   }
 
-  // 4. Low Key
-  if (phase === 'pfl_low_key' || phase === 'low_key' || ac.command === 'climb_low_key') {
+  // 3. Low Key
+  if (phase === 'pfl_low_key' || phase === 'low_key' || command === 'climb_low_key' || segment === 'low_key') {
     return '[PFL: LOW KEY]';
   }
 
-  // 5. Base Key
-  if (phase === 'pfl_base_key' || phase === 'base_key') {
+  // 4. Base Key
+  if (phase === 'pfl_base_key' || phase === 'base_key' || segment === 'base_key') {
     return '[PFL: BASE KEY]';
   }
 
-  // 6. Direct to threshold
+  // 5. Direct to threshold
   if (
     phase === 'pfl_direct' ||
     phase === 'direct_threshold' ||
     phase === 'pfl_direct_threshold' ||
     phase === 'pfl_final' ||
-    phase === 'direct'
+    phase === 'direct' ||
+    phase === 'final' ||
+    segment === 'direct' ||
+    segment === 'straight' ||
+    segment === 'arc' ||
+    segment === 'roundout' ||
+    segment === 'flare'
   ) {
     return '[PFL: DIRECT]';
   }
 
   // Fallback heuristic based on altitude / speed if phase is generic ('pfl' or not yet refined)
-  const alt = ac.altFt ?? ac.alt ?? PATTERN_ALT_FT;
-  const kt = ac.kt ?? 120;
+  const alt = Number.isFinite(ac.altFt) ? ac.altFt : (Number.isFinite(ac.alt) ? ac.alt : PATTERN_ALT_FT);
+  const kt = Number.isFinite(ac.kt) ? ac.kt : 120;
   if (alt <= FIELD_ELEV_FT && (status === 'crashed' || status === 'landed')) {
     return '[CRASH SHORT]';
   }

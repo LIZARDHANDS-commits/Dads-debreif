@@ -61,8 +61,11 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
     const p = followRoute(a, fl.route, env, stepDt, PFL_ROUTE_OPTIONS);
     const pt = fl.route.points[Math.min(p.seg ?? 0, fl.route.points.length - 1)];
     a.phase = pt?.phase ?? 'pfl';
+    a.pflSegment = pt?.segmentType ?? pt?.segment ?? pt?.phase ?? 'pfl';
     a.pflDecision = pt?.decision ?? a.pflDecision;
     a.config = pt?.config ?? a.config;
+    a.pflMarginFt = pt?.marginFt ?? a.pflMarginFt ?? null;
+    a.pflMarginTag = pt?.marginTag ?? a.pflMarginTag ?? null;
     // The tag holds the last key passed (High Key until Low Key, and so on).
     if (pt?.tag) a.tag = pt.tag;
     a.engineFailed = true;

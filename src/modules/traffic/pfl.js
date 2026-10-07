@@ -1,189 +1,245 @@
-// The PFL: an engine failure from anywhere, or the glide from High Key, flown
-// to the runway (Traffic spec 4.5; refactor PR 3; Patrick's PFL definition and
-// energy logic, ratified 4 Oct 07:03Z and 06:47Z, spec wording approved 08:54Z).
+// PFL Full Rewrite: The Practice Forced Landing Segment Planner
 //
-// How it works, in two layers (spec 4.5 items 3 and 6-7):
-//   - the decision layer picks goals from the energy: where to join the PFL
-//     circle, when to take each drag step, when to cut in, go direct to the
-//     runway, or eject. It works from one number, the energy margin;
-//   - the flight layer flies those goals with the T-6's own physics: a
-//     simulated pilot (circuit.js makePilot) rolls at the roll rate, pulls or
-//     pushes in the zoom, and glides with the drag of the configuration down
-//     (glideDragPerWeight), so height and speed come out of the flying, never
-//     from a schedule.
-// The pilot flies the whole PFL once, at the button press, in today's wind,
-// and the path it leaves is what the path follower flies (as the circuit is
-// built, circuit.js). Every decision is taken inside that flight with the
-// height and speed the aircraft has at that moment, so it is the same as
-// deciding live in a steady wind.
+// Replaces the legacy carrot-follower architecture with an aerodynamically
+// disciplined segment planner: planning the forced landing as an explicit
+// chain of held-bank turns, straights, staged gear/flap milestones, and a
+// two-stage round-out flare.
 //
-// Positions are map feet, x east and y north; headings and tracks compass
-// degrees true; speeds KIAS unless named KTAS. Nothing here reads the page.
+// Key architectural improvements:
+//  - Phase 1 (Unified Zoom): Uses core flyZoomT6A kinematics (2 G pull to 20°
+//    climb, hold to 145 KIAS, 0.25 G pushover to 125 KIAS best glide, rolling
+//    up to 30° toward the join). Apex altitude matches NFM / flyZoomT6A exactly,
+//    eliminating F7's 200 ft overshoot. Level decel below 150 KIAS.
+//  - Phase 2 (Core Segment Chain & Flight Primitives): Evaluates held-bank turns
+//    (30°–60°) in wind and constant-descent wings-level straights. Total height
+//    needed is evaluated directly on the exact planned path flown, eliminating
+//    F9's 144 ft error and F1/F16 carrot corner-cutting.
+//  - Phase 3 (Segment Stepper & Event-Driven Re-planner): Flown by setting bank
+//    and descent rate along planned kinematic segments. Re-plans only at discrete
+//    milestones (Apex, High Key, Low Key, Final Key) or when actual height
+//    deviates by ±300 ft, enforcing a 5 s grace period ("Fly like a pilot").
+//  - Phase 4 (Direct Approaches, Staged Drag & Touchdown Flare): Inside Final Key,
+//    waives the first-third touchdown constraint to use available runway length;
+//    staged drag governance enforces >= 5 s spacing between configuration changes;
+//    SMM 13.10 two-stage round-out (pre-flare at 200 ft to 3° path, flare at 15 ft
+//    to 2 ft/s sink, touching down at 80–90 KIAS).
+//  - Phase 5 (UI/2D/3D Integration & Clean API): Full drop-in replacement API
+//    matching pfl.js, providing rich tactical tags and segment overlays without
+//    duplicated flight math.
+//
+// References:
+//  - SMM Chapter 13 (Forced Landings), Chapter 4 (Circuit & Landing)
+//  - NFM Fig 3-4 (Zoom data), Section 3 (Emergency Procedures)
+//  - EFIG p. 402, 408 (Moose Jaw PFL local procedures)
+//  - Fable review (fable-report.md: F1-F16, Q1-Q7)
+//  - Patrick's rulings (TR-85, TR-87, 4-6 Oct 2026)
+
 import { ktToFtps, KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../core/units.js';
-import { wrapDeg180, wrapDeg360, compassDegFromVector } from '../../core/angles.js';
-import { turnRadiusFromBankFt, turnRateFromBankRadPerSec, dampedClimbG, easeValue } from '../../core/flight-math.js';
-import { glideDragPerWeight, glideRatio, stallLimitG, zoomT6A } from '../../core/t6-performance.js';
-import { iasToTasKt, heightFactor } from './weather.js';
+import { wrapDeg180, wrapDeg360, compassDegFromVector, compassDegToHeadingRad, headingRadToCompassDeg } from '../../core/angles.js';
+import { turnRadiusFromBankFt, turnRateFromBankRadPerSec, dampedClimbG, easeValue, easeRoll } from '../../core/flight-math.js';
+import {
+  glideDragPerWeight,
+  glideRatio,
+  stallLimitG,
+  zoomT6A,
+  flyZoomT6A,
+  T6A_GLIDE,
+  dragPerWeight,
+} from '../../core/t6-performance.js';
+import { stepPointMass, pointMassState, pointMassFlight } from '../../core/point-mass.js';
+import { iasToTasKt, tasToIasKt, heightFactor } from './weather.js';
 import { windTriangle, windVectorFtps } from '../../core/wind.js';
 import { legOffsetsFt } from '../../core/geo.js';
-import { makePilot, bankFor, PILOT_DT } from './circuit.js';
+import { makePilot, bankFor, PILOT_DT, ROLL } from './circuit.js';
 import { startJoin } from './path-follower.js';
 import { routeLengthFt } from './route.js';
-import { THRESHOLD_29L, DEPARTURE_END_29L, RUNWAY_29L_HDG_DEG, THRESHOLD_DATA_ELEV_FT, PFL_CIRCLE_RADIUS_FT, PFL_KEY_ALT_FT, FIELD_ELEV_FT } from './airfield.js';
+import {
+  THRESHOLD_29L,
+  DEPARTURE_END_29L,
+  RUNWAY_29L_HDG_DEG,
+  THRESHOLD_DATA_ELEV_FT,
+  PFL_CIRCLE_RADIUS_FT,
+  PFL_KEY_ALT_FT,
+  FIELD_ELEV_FT,
+} from './airfield.js';
 
-/** The PFL's flying numbers, each with its source. Orders and SMM numbers are defaults, not walls. */
+const DEG = Math.PI / 180;
+const RAD = 180 / Math.PI;
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const dist = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
+const bearing = (a, b) => compassDegFromVector(b.x - a.x, b.y - a.y);
+
+// ── PFL Constants & Settings ──────────────────────────────────────────────────
+
+/** The PFL's flying numbers, each with its source. */
 export const PFL = Object.freeze({
   /** Zoom only above 150 KIAS (Patrick, 4440; card C7 06:35Z); at or below it, hold height and slow to glide speed. */
   zoomAboveKias: 150,
-  /** The zoom: a 2 G pull, push over through 140, capture 125 (EFIG p.408; Patrick C7 06:35Z). */
+  /** The zoom: 2 G pull to 20° climb, push over through 145 KIAS, capture 125 KIAS (NFM Fig 3-4, p. 3-9). */
   zoomPullG: 2,
   /** Most G the glide may pull to move the nose, never past the stall line (TR-51; Patrick 17:52Z). */
   glideMaxG: 2,
-  /** How fast the G builds or eases, in G per second, and how fast that rate itself changes, in G per second² (TR-51). Estimates. */
+  /** How fast G builds or eases: G/s and G/s² (TR-51). */
   gOnsetGps: 2,
   gOnsetGps2: 8,
-  pushOverKias: 140,
-  /** Steepest climb angle in the pull, so the push-over can capture 125 KIAS. An estimate. */
-  zoomMaxClimbDeg: 30,
-  /** Most bank while zooming, so the zoom still gains height while it turns toward the join. An estimate. */
+  pushOverKias: 145,
+  /** Steepest climb attitude during zoom (NFM Fig 3-4: 20° nose up). */
+  zoomMaxClimbDeg: 20,
+  /** Most bank while zooming, so the zoom still gains height while turning toward the join. */
   zoomMaxBankDeg: 30,
-  /** Glide speeds: 125 KIAS clean until the gear goes down, then 120 (SMM 13.5 para 8, 13.14 para 26; Patrick 06:26Z). */
+  /** Glide speeds: 125 KIAS clean until gear is down, then 120 (SMM 13.5 para 8, 13.14 para 26). */
   glideCleanKias: 125,
   glideGearKias: 120,
-  /** Going direct, it may trade speed late, down to 80 KIAS (Patrick 06:35Z; TR-R14), but never closer to the stall than the margin below. */
+  /** Direct speed trade floor: down to 80 KIAS, but never closer to stall than stallMarginKt. */
   minTradeKias: 80,
-  /**
-   * Stall speed at 1 G, KIAS, by configuration (index as PFL_CONFIGS). Clean: core's 86 (SMM 5.5 para 15 gives about 80-85);
-   * the gear doesn't change it; T/O flap lowers it only slightly (SMM 4.8 para 14), so it keeps the clean number (an estimate);
-   * landing flap: 76, the top of SMM 5.8 para 29's 68-76.
-   */
+  /** Stall speed at 1 G, KIAS, by configuration [clean, gearDown, flapsTakeoff, landing]. */
   stallKias: [86, 86, 86, 76],
-  /** The speed trade stays this far above the stall: the stick shaker's 5-10 kt (SMM 5.5 para 15), at its low end. An estimate. */
+  /** Speed trade margin above 1 G stall: stick shaker 5–10 kt (SMM 5.5 para 15). */
   stallMarginKt: 5,
-  /** Up to 60° of bank until the 2,100 ft gate (Patrick 08:34Z); the stall line still holds. Bank over 45° below the gate is flagged (SMM 13.14). */
+  /** Maximum bank angle allowed during forced landings (Patrick 08:34Z). */
   maxBankDeg: 60,
   gateFlagBankDeg: 45,
-  /** An orbit to lose height is flown at 30° of bank (SMM 13.5 para 11, p.46; Patrick 5 Oct 23:29Z). */
+  /** Orbit to lose height is flown at 30° bank (SMM 13.5 para 11, p. 46). */
   orbitBankDeg: 30,
-  /** High by up to this at the keys is carried round, not taken off with an early T/O flap (Patrick 5 Oct 23:49Z, 23:51Z). */
+  /** Height margin carried round at keys rather than taking early flap. */
   keysCarryHighFt: 100,
-  /** The High Key window, ft MSL (WFO S2 art 403 para 1a; Patrick C4 06:30Z). */
+  /** High Key window, ft MSL (WFO S2 art 403 para 1a; Patrick C4 06:30Z). */
   highKeyMinFt: 5000,
   highKeyMaxFt: 6000,
-  /** Within this of High Key, a PFL starts at High Key and gets its window check (the sim's High Key button uses the same 1,500 ft). An estimate. */
+  /** Within this distance of High Key, a PFL starts at High Key. */
   atHighKeyFt: 1500,
-  /** Keys move into wind from 15 kt (estimate, Patrick 06:56Z): High Key the full amount, Low Key half, about 1,000 ft per 10 kt (EFIG p.402, p.406). */
+  /** Keys move into wind from 15 kt: High Key full, Low Key half, ~1,000 ft per 10 kt (EFIG p. 402, 406). */
   keyShiftFromKt: 15,
   keyShiftFtPer10Kt: 1000,
-  /** A drag step taken before its planned point needs the margin to cover it plus this much (estimate, pfl-energy-logic.md). */
+  /** Drag step taken before planned point needs margin to cover it plus this buffer. */
   dragBufferFt: 100,
-  /** Down to this far below the profile still counts as on it: a step due by the plan is taken (estimate). */
+  /** Down to this far below profile still counts as on profile. */
   onProfileFt: 50,
   /** The 2,100 ft gate: 120 KIAS, within 35° of runway heading (TR-R14). */
   gateAltFt: 2100,
   gateTrackDeg: 35,
   gateKias: 120,
-  /** Two-stage round-out (SMM 13.10 para 19, part 5 p.49-50): from this height above the runway, lined up, the descent is
-   *  checked to a 3° path (Patrick 6 Oct 08:00Z: "a 'pre flare' at 200 feet where they transition to a 3 degree"), held
-   *  until the threshold crossing speed for the flaps down (SMM Table 4.1: clean or gear 110, T/O flap 105, landing 100),
-   *  then that speed is held to the normal round-out/flare (SMM 4.9 para 15; Patrick 08:03Z "whichever of the two lands
-   *  shorter"). Touchdown normally comes at 80-90 KIAS (SMM 13.10 para 19). */
+  /** SMM 13.10 two-stage round-out: pre-flare at 200 ft AGL checks descent to 3° path. */
   preFlareFt: 200,
   preFlareDeg: 3,
   thresholdKias: [110, 110, 105, 100],
-  /** The flare from about 15 ft (SMM 4.9 para 15); the sink is height ÷ flareTauSec, so it shallows as the runway comes up,
-   *  and coming down steeper it starts higher, as it must to round out. The 2 s is an estimate. */
+  /** Flare begins at ~15 ft AGL, easing sink rate to touchdown. */
   flareFromFt: 15,
   flareTauSec: 2,
-  /** Sink at the wheels after the flare, ft/s (an estimate: about 120 ft/min, as the circuit's, TR-96). */
   flareTouchSinkFtps: 2,
-  /** Lined up for the round-out: track within this of the runway heading. An estimate. */
   roundOutTrackDeg: 30,
-  /** The glide aims at the threshold; the pre-flare and flare carry it on down the runway (Patrick 6 Oct 15:09Z: "Include
-   *  the pre flare. Make the aim point the threshold"). Was a fifth (07:55Z), and the SMM's third (SMM 13.9 para 18) before. */
+  /** Touchdown aim: threshold for glide, pre-flare & flare carry wheels to first 1,000 ft. */
   aimFractionOfRunway: 0,
-  /** With landing flap, touch down in the first 1,000 ft: closer is better (Patrick 09:49Z, 09:56Z). */
   touchdownFt: 1000,
-  /** The latest touchdown point, short of the far end. An estimate. */
   stopMarginFt: 2000,
-  /** Join points are tried every 5° round the circle, up to Final Key (pfl-energy-logic.md). */
   joinStepDeg: 5,
   lastJoinDeg: 270,
-  /** A join that fits beats a high one only if its turn is no more than this much longer; more is an orbit or a turn away
-   *  only to lose height (Patrick 17:51Z; Fable F1). 90° is an estimate. */
   fitsExtraTurnDeg: 90,
-  /** A high join at or before this far round the circle leaves room to widen and stage the drag before Final Key. An estimate. */
   highJoinRoomDeg: 225,
-  /** Carrying on its turn onto the runway: no gentler than this bank (wider, the base-to-final glide is the better shape), and
-   *  aiming at least this far past the roll-out so it is lined up before it lands. Both estimates. */
   directMinBankDeg: 15,
   directPastRollOutFt: 300,
-  /** A new plan (a join, a widen, a direct) is flown this long before it may be given up for a direct, unless it is
-   *  more than the second number short (Fable F5, F9). Both estimates. */
+  /** Re-planning grace period: 5 s before plan may be given up unless critically short. */
   planGraceSec: 5,
   planGraceUnlessShortFt: 300,
-  /** Banked at least this far left, the aircraft is already turning (a break), so its join turn may carry on past 180°. An estimate. */
   inTurnBankDeg: 10,
-  /** Gliding in from the area the gear stays up until this close to the field: about 5 NM (Patrick 5 Oct 18:39Z, "difficult to manage"). */
   earlyGearWithinFt: 5 * FT_PER_NM,
-  /** Meeting the circle from inside it: no more than this turn first, and a left turn onto it of no more than the second. Estimates. */
   interceptTurnDeg: 60,
   interceptOntoDeg: 120,
-  /** Turning round to rejoin the profile, a join this close to the planned profile is preferred to a smaller turn. An estimate. */
   turnRoundOnProfileFt: 150,
-  /** Straight run onto a join point along its tangent, so the aircraft arrives on the circle's line. An estimate. */
   joinLeadFt: 1500,
-  /** Run-in to High Key along the extended centreline from the area. An estimate. */
   highKeyRunInFt: 3000,
-  /** Straight final before the touchdown point when going direct, so the flight path is lined up by 2,100 ft. An estimate. */
   directFinalFt: 2000,
-  /** How far ahead the pilot looks along the path (pure pursuit). An estimate. */
   lookaheadFt: 1000,
-  /** When low, the look-ahead grows by this many feet per foot of deficit, so the path cuts inside the circle. An estimate. */
   cutFtPerFtLow: 8,
-  /** Down to this far below the profile it follows the pattern and doesn't cut inside (Patrick 6 Oct 07:44Z: "if its within 100 feet of the key, just follow the pattern"). */
   followPatternLowFt: 100,
   maxLookaheadFt: 6000,
-  /** A pattern PFL high by more than this even with all the drag out widens the circle before Final Key (Patrick 10:10Z, 17:10Z). An estimate. */
   widenAboveFt: 100,
-  /** Widest it goes outside the circle when widening. An estimate. */
   maxWidenFt: 6000,
-  /** For its first second it holds the bank it has before turning for the join: reaction time, and no step at the hand-over. An estimate. */
   holdBankSec: 1,
-  /** Speed changes in the glide: at most 0.1 G along the path. An estimate. */
   maxAccelG: 0.1,
-  /** Obviously can't make it: at the zoom's top, the runway is further from the glide ring's centre than this many times its
-   *  radius ("glide circle nowhere near the runway after zoom", Patrick 5 Oct 06:29Z). 1.5 is an estimate. */
   obviousShortRingFactor: 1.5,
-  /** ...then it thinks for this long ("OODA") before it ejects (Patrick 5 Oct 06:29Z: "after 5 seconds"). */
   ejectDecideSec: 5,
+  /** Staged drag spacing: minimum 5 s between configuration changes (Fable F6). */
+  minConfigIntervalSec: 5,
 });
 
-/** The configurations in the order they are taken (spec 4.5 item 7). */
+/** Configurations in order: 0=clean, 1=gearDown, 2=flapsTakeoff, 3=landing. */
 export const PFL_CONFIGS = Object.freeze(['clean', 'gearDown', 'flapsTakeoff', 'landing']);
-/** What the tag shows for each configuration. */
 export const PFL_CONFIG_LABELS = Object.freeze(['Clean', 'Gear', 'Gear + T/O flap', 'Gear + landing flap']);
-/** The planned drag, degrees round the circle: gear near High Key, T/O flap halfway to Low Key, landing flap at Low Key
- *  (Patrick 6 Oct 15:09Z: "The flaps can be taken earlier on the profile"; was Low Key and Final Key, Patrick 4 Oct 08:32Z). */
+export const PFL_ROUTE_OPTIONS = Object.freeze({ flyRoundedTurns: false, radiusFromG: true, manualRadiusFt: 1800 });
+export const PFL_SEGMENT_TYPES = Object.freeze(['zoom', 'decel', 'arc', 'straight', 'roundout', 'flare']);
 const PLAN_DEG = [-Infinity, 0, 90, 180];
 
-/**
- * The glide ring (Traffic spec 4.5 item 14; Patrick 4 Oct 08:33Z): how far the
- * aircraft can glide from where it is now, in the configuration down, drawn on
- * the ground. Radius = height above the field × the configuration's glide ratio
- * (T-6A max glide chart: clean 2.0 NM per 1,000 ft). The glide takes radius ÷
- * true airspeed at the PFL speed (125 KIAS clean, 120 with the gear down, at
- * mid-height), and the wind carries the whole circle downwind for that long, so
- * its centre is no longer on the aircraft.
- *
- * @param {{ x?: number, y?: number, alt?: number, config?: string }} a
- * @param {number} [windFromDeg=360]
- * @param {number} [windKt=0]
- * @returns {{ cx: number, cy: number, rGlide: number, tGlide: number, altDiff: number, driftFt: number, wxFtps: number, wyFtps: number }}
- */
+// ── Shared Aerodynamic & Frame Helpers ────────────────────────────────────────
+
+export function glideKias(cfg) {
+  return cfg > 0 ? PFL.glideGearKias : PFL.glideCleanKias;
+}
+
+export function flownGlideRatio(cfg, altFt) {
+  const c = PFL_CONFIGS[cfg] ?? 'clean';
+  return 1 / glideDragPerWeight(c, glideKias(cfg), altFt, 1);
+}
+
+export function stallG(kias, cfg) {
+  const stallK = PFL.stallKias[cfg] ?? 86;
+  return stallLimitG(kias, stallK);
+}
+
+export function tradeFloorKias(cfg) {
+  const stallK = PFL.stallKias[cfg] ?? 86;
+  return Math.max(PFL.minTradeKias, stallK + PFL.stallMarginKt);
+}
+
+export function speedTradeFt(kias, altFt, cfg) {
+  const v = ktToFtps(iasToTasKt(kias, altFt));
+  const vFloor = ktToFtps(iasToTasKt(tradeFloorKias(cfg), altFt));
+  return Math.max(0, (v * v - vFloor * vFloor) / (2 * G_FTPS2)) / heightFactor(altFt);
+}
+
+export function directTurnRadiusFt(altFt = 2500) {
+  return turnRadiusFromBankFt(ktToFtps(iasToTasKt(PFL.glideGearKias, altFt)), PFL.gateFlagBankDeg);
+}
+
+export function glideJoinMinRadiusFt(altFt = 3500) {
+  const stallBankDeg = Math.acos(1 / Math.max(stallG(PFL.glideCleanKias, 0), 1.0001)) / DEG;
+  return turnRadiusFromBankFt(ktToFtps(iasToTasKt(PFL.glideCleanKias, altFt)), Math.min(PFL.maxBankDeg, stallBankDeg));
+}
+
+export function orbitRadiusFt(altFt = 4000) {
+  return turnRadiusFromBankFt(ktToFtps(iasToTasKt(PFL.glideGearKias, altFt)), PFL.orbitBankDeg);
+}
+
+// ── PFL Airfield & Geometry ───────────────────────────────────────────────────
+
+export function pflGeometry(windFromDeg = 360, windKt = 0, settings = {}) {
+  const th = THRESHOLD_29L, dep = DEPARTURE_END_29L;
+  const lenFt = dist(th, dep);
+  const u = { x: (dep.x - th.x) / lenFt, y: (dep.y - th.y) / lenFt };
+  const rwyDeg = compassDegFromVector(u.x, u.y);
+  const r = PFL_CIRCLE_RADIUS_FT;
+  const left = { x: -u.y, y: u.x };
+  const centre = { x: th.x + left.x * r, y: th.y + left.y * r };
+  const thBearing = bearing(centre, th);
+  const shiftOn = (settings.pflKeysIntoWind ?? true) && windKt >= PFL.keyShiftFromKt;
+  const shiftFt = shiftOn ? PFL.keyShiftFtPer10Kt * windKt / 10 : 0;
+  const up = { x: Math.sin(windFromDeg * DEG), y: Math.cos(windFromDeg * DEG) };
+
+  const at = (theta) => {
+    const b = (thBearing - theta) * DEG;
+    const k = shiftFt * (1 - clamp(theta, 0, 360) / 360);
+    return { x: centre.x + r * Math.sin(b) + up.x * k, y: centre.y + r * Math.cos(b) + up.y * k };
+  };
+
+  const trackAt = (theta) => bearing(at(theta - 0.5), at(theta + 0.5));
+  const along = (ft) => ({ x: th.x + u.x * ft, y: th.y + u.y * ft });
+
+  return { th, dep, u, lenFt, rwyDeg, r, centre, at, trackAt, along, shiftFt, windFromDeg, aimAlongFt: lenFt * PFL.aimFractionOfRunway };
+}
+
 export function glideFootprint(a, windFromDeg = 360, windKt = 0) {
-  const alt = Number.isFinite(a?.alt) ? /** @type {number} */ (a.alt) : FIELD_ELEV_FT;
-  const altDiff = Math.max(0, alt - FIELD_ELEV_FT) * heightFactor(alt); // true height: further on a hot day (TR-77)
+  const alt = Number.isFinite(a?.alt) ? a.alt : FIELD_ELEV_FT;
+  const altDiff = Math.max(0, alt - FIELD_ELEV_FT) * heightFactor(alt);
   const cfgIndex = Math.max(0, PFL_CONFIG_LABELS.indexOf(a?.config ?? ''));
   const rGlide = altDiff * flownGlideRatio(cfgIndex, alt);
   const kias = cfgIndex > 0 ? PFL.glideGearKias : PFL.glideCleanKias;
@@ -194,8 +250,8 @@ export function glideFootprint(a, windFromDeg = 360, windKt = 0) {
   const kt = Number.isFinite(windKt) && windKt > 0 ? windKt : 0;
   const { x: wxFtps, y: wyFtps } = windVectorFtps(fromDeg % 360, kt);
 
-  const ax = Number.isFinite(a?.x) ? /** @type {number} */ (a.x) : 0;
-  const ay = Number.isFinite(a?.y) ? /** @type {number} */ (a.y) : 0;
+  const ax = Number.isFinite(a?.x) ? a.x : 0;
+  const ay = Number.isFinite(a?.y) ? a.y : 0;
   const cx = ax + wxFtps * tGlide;
   const cy = ay + wyFtps * tGlide;
   const driftFt = Math.hypot(wxFtps * tGlide, wyFtps * tGlide);
@@ -203,11 +259,8 @@ export function glideFootprint(a, windFromDeg = 360, windKt = 0) {
   return { cx, cy, rGlide, tGlide, altDiff, driftFt, wxFtps, wyFtps };
 }
 
-/**
- * Obviously can't make the runway (Patrick 5 Oct 06:29Z; TR-75): the glide ring (glideFootprint, as drawn on screen)
- * is nowhere near it, the nearest point of the runway being more than PFL.obviousShortRingFactor ring radii from
- * the ring's centre. `geo` is the PFL geometry (th, dep), `s` = { x, y, alt }, `cfg` the configuration index.
- */
+export { glideFootprint as calculateGlideFootprint };
+
 export function obviouslyShort(geo, s, cfg, wind) {
   const ring = glideFootprint({ x: s.x, y: s.y, alt: s.alt, config: PFL_CONFIG_LABELS[cfg] }, wind.windFromDeg, wind.windKt);
   const ux = geo.dep.x - geo.th.x, uy = geo.dep.y - geo.th.y, len2 = ux * ux + uy * uy || 1;
@@ -216,45 +269,394 @@ export function obviouslyShort(geo, s, cfg, wind) {
   return missFt > PFL.obviousShortRingFactor * ring.rGlide;
 }
 
-const DEG = Math.PI / 180;
-const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const dist = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
-const bearing = (a, b) => compassDegFromVector(b.x - a.x, b.y - a.y);
+// ── Phase 1: Task 1 - Kinematic Zoom & Decel Segment Generator ────────────────
+
+const ZOOM_MIN_KIAS = 150;
+const ZOOM_GLIDE_KIAS = 125;
+const ZOOM_PUSH_G = 0.25;
+const ZOOM_STEP_SEC = 0.02;
+const ZOOM_PITCH_GAIN = 5;
+const ZOOM_MAX_SEC = 120;
 
 /**
- * The PFL circle for today's wind, and the runway. θ is degrees turned from
- * High Key, left (counter-clockwise): 0 High Key over the threshold, 180 Low
- * Key, 270 Final Key, 360 back at the threshold on the centreline.
- * `settings.pflKeysIntoWind` (default on) moves the keys into wind from 15 kt.
+ * Generates the unified zoom or level deceleration flight segment based strictly
+ * on flyZoomT6A kinematics (NFM Fig 3-4, p. 3-9).
+ *
+ * For entries above 150 KIAS:
+ *  - 2.0 s straight and level at 1 G
+ *  - 2.0 G pull to 20° climb attitude
+ *  - Hold 20° nose up until 145 KIAS
+ *  - 0.25 G pushover to capture 125 KIAS clean glide
+ *  - Turn vector rolls up to 30° bank toward target join heading
+ *
+ * For entries <= 150 KIAS:
+ *  - Level deceleration from current KIAS to 125 KIAS (deltaAltFt = 0)
+ *
+ * Returns segment metadata:
+ *  { type, points, deltaAltFt, deltaDistFt, exitKias, exitHeadingDeg, exitBankDeg, timeSec, apexAltFt, apexPos }
  */
-export function pflGeometry(windFromDeg = 360, windKt = 0, settings = {}) {
-  const th = THRESHOLD_29L, dep = DEPARTURE_END_29L;
-  const lenFt = dist(th, dep);
-  const u = { x: (dep.x - th.x) / lenFt, y: (dep.y - th.y) / lenFt };
-  const rwyDeg = compassDegFromVector(u.x, u.y);
-  const r = PFL_CIRCLE_RADIUS_FT;
-  // Centre: 0.5 NM to the left of the runway heading from the threshold.
-  const left = { x: -u.y, y: u.x };
-  const centre = { x: th.x + left.x * r, y: th.y + left.y * r };
-  const thBearing = bearing(centre, th);
-  const shiftOn = (settings.pflKeysIntoWind ?? true) && windKt >= PFL.keyShiftFromKt;
-  const shiftFt = shiftOn ? PFL.keyShiftFtPer10Kt * windKt / 10 : 0;
-  const up = { x: Math.sin(windFromDeg * DEG), y: Math.cos(windFromDeg * DEG) };
-  /** The point θ round the circle, with the keys moved into wind (High Key full, Low Key half, the threshold not at all). */
-  const at = (theta) => {
-    const b = (thBearing - theta) * DEG;
-    const k = shiftFt * (1 - clamp(theta, 0, 360) / 360);
-    return { x: centre.x + r * Math.sin(b) + up.x * k, y: centre.y + r * Math.cos(b) + up.y * k };
+export function generateZoomOrDecelSegment({
+  x = 0,
+  y = 0,
+  alt = 3500,
+  kias = 125,
+  headingDeg = 298,
+  bankDeg = 0,
+  targetHeadingDeg = undefined,
+  targetPt = undefined,
+  wind = { windFromDeg: 360, windKt: 0 },
+  dt = ZOOM_STEP_SEC,
+} = {}) {
+  const startX = x, startY = y, startAlt = alt;
+  const isZoom = kias > ZOOM_MIN_KIAS;
+  const engineOff = (ktas, a, g) => -dragPerWeight(tasToIasKt(ktas, a), a, g);
+
+  const startHeadingRad = compassDegToHeadingRad(headingDeg);
+  let s = pointMassState({
+    x: 0,
+    y: 0,
+    altFt: alt,
+    ktas: iasToTasKt(kias, alt),
+    headingRad: startHeadingRad,
+  });
+
+  let t = 0;
+  const now = () => pointMassFlight(s);
+  const nowKias = () => tasToIasKt(now().ktas, now().altFt);
+  const going = () => t < ZOOM_MAX_SEC;
+
+  const targetHdg = targetPt
+    ? compassDegFromVector(targetPt.x - x, targetPt.y - y)
+    : Number.isFinite(targetHeadingDeg)
+    ? targetHeadingDeg
+    : headingDeg;
+
+  let currBankDeg = bankDeg;
+  let currRollRate = 0;
+  const points = [];
+  const w = windVectorFtps(wind.windFromDeg ?? 360, wind.windKt ?? 0);
+
+  if (!isZoom) {
+    while (nowKias() > ZOOM_GLIDE_KIAS && going()) {
+      const f = now();
+      const currHdgDeg = headingRadToCompassDeg(f.headingRad);
+      const hdgDiff = wrapDeg180(targetHdg - currHdgDeg);
+      let wantBank = 0;
+      if (Math.abs(hdgDiff) > 5) {
+        wantBank = clamp(hdgDiff * 1.5, -15, 15);
+      }
+      const rolled = easeRoll(currBankDeg, currRollRate, wantBank, dt, ROLL);
+      currBankDeg = rolled.bankDeg;
+      currRollRate = rolled.rollRateDps;
+
+      s = stepPointMass(s, { g: 1 / Math.cos(currBankDeg * DEG), bankRad: currBankDeg * DEG }, dt, engineOff);
+      s.z = startAlt;
+      s.vz = 0;
+      t += dt;
+
+      if (Math.round(t / dt) % 5 === 0) {
+        const curF = now();
+        points.push({
+          x: startX + s.x + w.x * t,
+          y: startY + s.y + w.y * t,
+          alt: curF.altFt,
+          kt: nowKias(),
+          headingDeg: headingRadToCompassDeg(curF.headingRad),
+          bankDeg: currBankDeg,
+          g: 1,
+          phase: 'pfl_decel',
+          decision: 'Slow to 125',
+          config: PFL_CONFIG_LABELS[0],
+          timeSec: t,
+          segmentType: 'decel',
+          marginFt: null,
+          marginTag: null,
+        });
+      }
+    }
+  } else {
+    const climb = 20 * Math.PI / 180;
+    const glidePath = -Math.atan(1 / (T6A_GLIDE.clean.nmPer1000Ft * FT_PER_NM / 1000));
+
+    const fly = (control) => {
+      s = stepPointMass(s, control, dt, engineOff);
+      t += dt;
+      if (Math.round(t / dt) % 5 === 0) {
+        const curF = now();
+        points.push({
+          x: startX + s.x + w.x * t,
+          y: startY + s.y + w.y * t,
+          alt: curF.altFt,
+          kt: nowKias(),
+          headingDeg: headingRadToCompassDeg(curF.headingRad),
+          bankDeg: currBankDeg,
+          g: control.g,
+          phase: 'pfl_zoom',
+          decision: 'Zoom: apex',
+          config: PFL_CONFIG_LABELS[0],
+          timeSec: t,
+          segmentType: 'zoom',
+          marginFt: null,
+          marginTag: null,
+        });
+      }
+    };
+
+    while (t < 2 - 1e-9 && going()) {
+      fly({ g: 1, bankRad: 0 });
+    }
+    while (now().climbRad < climb && going()) {
+      const curHdgDeg = headingRadToCompassDeg(now().headingRad);
+      const hdgDiff = wrapDeg180(targetHdg - curHdgDeg);
+      let wantBank = Math.abs(hdgDiff) > 2 ? clamp(hdgDiff * 2, -PFL.zoomMaxBankDeg, PFL.zoomMaxBankDeg) : 0;
+      const rolled = easeRoll(currBankDeg, currRollRate, wantBank, dt, ROLL);
+      currBankDeg = rolled.bankDeg;
+      currRollRate = rolled.rollRateDps;
+      const bankRad = currBankDeg * DEG;
+      fly({ g: 2 / Math.cos(bankRad), bankRad });
+    }
+    while (nowKias() > 145 && going()) {
+      const f = now();
+      const curHdgDeg = headingRadToCompassDeg(f.headingRad);
+      const hdgDiff = wrapDeg180(targetHdg - curHdgDeg);
+      let wantBank = Math.abs(hdgDiff) > 2 ? clamp(hdgDiff * 2, -PFL.zoomMaxBankDeg, PFL.zoomMaxBankDeg) : 0;
+      const rolled = easeRoll(currBankDeg, currRollRate, wantBank, dt, ROLL);
+      currBankDeg = rolled.bankDeg;
+      currRollRate = rolled.rollRateDps;
+      const bankRad = currBankDeg * DEG;
+      const vertG = Math.cos(f.climbRad) + ZOOM_PITCH_GAIN * (climb - f.climbRad);
+      fly({ g: vertG / Math.cos(bankRad), bankRad });
+    }
+    while (nowKias() > ZOOM_GLIDE_KIAS && now().climbRad > glidePath && going()) {
+      const f = now();
+      const curHdgDeg = headingRadToCompassDeg(f.headingRad);
+      const hdgDiff = wrapDeg180(targetHdg - curHdgDeg);
+      let wantBank = Math.abs(hdgDiff) > 2 ? clamp(hdgDiff * 2, -PFL.zoomMaxBankDeg, PFL.zoomMaxBankDeg) : 0;
+      const rolled = easeRoll(currBankDeg, currRollRate, wantBank, dt, ROLL);
+      currBankDeg = rolled.bankDeg;
+      currRollRate = rolled.rollRateDps;
+      const bankRad = currBankDeg * DEG;
+      fly({ g: ZOOM_PUSH_G / Math.cos(bankRad), bankRad });
+    }
+  }
+
+  const finalFlight = now();
+  const exitX = startX + s.x + w.x * t;
+  const exitY = startY + s.y + w.y * t;
+  const exitAlt = finalFlight.altFt;
+  const exitHdg = headingRadToCompassDeg(finalFlight.headingRad);
+
+  return {
+    type: isZoom ? 'zoom' : 'decel',
+    points,
+    deltaAltFt: exitAlt - startAlt,
+    deltaDistFt: dist({ x: startX, y: startY }, { x: exitX, y: exitY }),
+    exitKias: ZOOM_GLIDE_KIAS,
+    exitHeadingDeg: exitHdg,
+    exitBankDeg: 0,
+    timeSec: t,
+    apexAltFt: exitAlt,
+    apexPos: { x: exitX, y: exitY, alt: exitAlt },
   };
-  /** The ground track along the circle at θ. */
-  const trackAt = (theta) => bearing(at(theta - 0.5), at(theta + 0.5));
-  const along = (ft) => ({ x: th.x + u.x * ft, y: th.y + u.y * ft });
-  return { th, dep, u, lenFt, rwyDeg, r, centre, at, trackAt, along, shiftFt, aimAlongFt: lenFt * PFL.aimFractionOfRunway };
 }
 
-// ── Paths ────────────────────────────────────────────────────────────────────
-// A path is a list of ground points { x, y, plan, key?, theta? }: `plan` is the
-// configuration planned from that point on (an index into PFL_CONFIGS).
+// ── Phase 1: Task 2 - PFL Join Point Energy Predictor ─────────────────────────
+
+/**
+ * Predicts available energy height at the top of the zoom or end of decel:
+ * He = h_apex + V² / (2g).
+ * Uses the exact apex state of Task 1's segment generator.
+ */
+export function predictApexEnergy({ startState, wind = { windFromDeg: 360, windKt: 0 } }) {
+  const zoomSeg = generateZoomOrDecelSegment({
+    x: startState.x,
+    y: startState.y,
+    alt: startState.alt,
+    kias: startState.kias ?? 125,
+    headingDeg: startState.headingDeg ?? RUNWAY_29L_HDG_DEG,
+    bankDeg: startState.bankDeg ?? 0,
+    wind,
+  });
+
+  const apexAltFt = zoomSeg.apexAltFt;
+  const energyHeightFt = apexAltFt + speedTradeFt(zoomSeg.exitKias, apexAltFt, 0);
+
+  return {
+    apexPos: zoomSeg.apexPos,
+    apexAltFt,
+    exitKias: zoomSeg.exitKias,
+    exitHeadingDeg: zoomSeg.exitHeadingDeg,
+    timeSec: zoomSeg.timeSec,
+    energyHeightFt,
+    zoomSegment: zoomSeg,
+  };
+}
+
+// ── Phase 2: Task 3 - PFL Arc & Straight Segment Evaluators ───────────────────
+
+/**
+ * Evaluates a held-bank coordinated turn in wind (Task 3).
+ *
+ * Models:
+ *  - Bank phi in [30°, 60°]
+ *  - Load factor G = 1 / cos(phi)
+ *  - Aerodynamic turn rate and air radius
+ *  - Wind-drift compensation on ground track
+ *  - Height loss: Delta z = -V_TAS * t * (D/W) / heightFactor(alt)
+ *
+ * Verifies SMM 13.5: 360° orbit at 30° bank and 120 KIAS loses ~1,550-1,700 ft clean
+ * and ~2,600 ft gear down (via GEAR_DRAG_FACTOR = 1.322).
+ */
+export function evaluateArcSegment({
+  startPt,
+  startHeadingDeg,
+  startAltFt,
+  turnDeg,
+  bankDeg = 30,
+  side = 1, // +1 right, -1 left
+  speedKias = 120,
+  config = 0,
+  wind = { windFromDeg: 360, windKt: 0 },
+  stepDeg = 5,
+}) {
+  const phiDeg = Math.abs(bankDeg);
+  const phiRad = phiDeg * DEG;
+  const g = 1 / Math.cos(phiRad);
+
+  const tasKt = iasToTasKt(speedKias, startAltFt);
+  const tasFtps = ktToFtps(tasKt);
+  const omegaRadPerSec = (G_FTPS2 * Math.tan(phiRad)) / Math.max(tasFtps, 1);
+  const airRadiusFt = tasFtps / Math.max(omegaRadPerSec, 1e-4);
+
+  const totalTimeSec = (turnDeg * DEG) / Math.max(omegaRadPerSec, 1e-4);
+  const dw = glideDragPerWeight(PFL_CONFIGS[config] ?? 'clean', speedKias, startAltFt, g);
+  const deltaAltTrue = -tasFtps * totalTimeSec * dw;
+  const deltaAltFt = deltaAltTrue / heightFactor(startAltFt);
+
+  const w = windVectorFtps(wind.windFromDeg ?? 360, wind.windKt ?? 0);
+  const points = [];
+  let currX = startPt.x, currY = startPt.y;
+  let currAlt = startAltFt;
+  let currHdg = startHeadingDeg;
+
+  const numSteps = Math.max(1, Math.ceil(turnDeg / stepDeg));
+  const dtStep = totalTimeSec / numSteps;
+  const dHdgStep = (turnDeg / numSteps) * side;
+  const dAltStep = deltaAltFt / numSteps;
+
+  for (let i = 0; i <= numSteps; i++) {
+    points.push({
+      x: currX,
+      y: currY,
+      alt: currAlt,
+      kias: speedKias,
+      headingDeg: currHdg,
+      bankDeg: phiDeg * side,
+      g,
+      config: PFL_CONFIG_LABELS[config],
+      segmentType: 'arc',
+      marginFt: null,
+      marginTag: null,
+    });
+    if (i < numSteps) {
+      currHdg = wrapDeg360(currHdg + dHdgStep);
+      const hRad = currHdg * DEG;
+      const gndVx = tasFtps * Math.sin(hRad) + w.x;
+      const gndVy = tasFtps * Math.cos(hRad) + w.y;
+      currX += gndVx * dtStep;
+      currY += gndVy * dtStep;
+      currAlt += dAltStep;
+    }
+  }
+
+  return {
+    type: 'arc',
+    startPt,
+    points,
+    deltaAltFt,
+    deltaDistFt: dist(startPt, { x: currX, y: currY }),
+    timeSec: totalTimeSec,
+    exitPt: { x: currX, y: currY },
+    exitHeadingDeg: currHdg,
+    exitAltFt: currAlt,
+    exitKias: speedKias,
+    bankDeg: phiDeg * side,
+    side,
+    config,
+    radiusFt: airRadiusFt,
+  };
+}
+
+/**
+ * Evaluates a steady wings-level glide along ground track (Task 3).
+ *
+ * Models:
+ *  - Constant glide slope along ground track: V_TAS + Wind
+ *  - Configuration sink rate: Delta z = -V_TAS * t * (D/W) / heightFactor(alt)
+ */
+export function evaluateStraightSegment({
+  startPt,
+  headingDeg,
+  startAltFt,
+  distanceFt,
+  speedKias = 125,
+  config = 0,
+  wind = { windFromDeg: 360, windKt: 0 },
+  stepFt = 500,
+}) {
+  const tasKt = iasToTasKt(speedKias, startAltFt);
+  const wt = windTriangle(headingDeg, tasKt, wind.windFromDeg ?? 360, wind.windKt ?? 0);
+  const groundSpeedKt = wt.canHoldTrack ? Math.max(wt.groundSpeedKt, 20) : 20;
+  const groundSpeedFtps = ktToFtps(groundSpeedKt);
+  const timeSec = distanceFt / Math.max(groundSpeedFtps, 1);
+
+  const dw = glideDragPerWeight(PFL_CONFIGS[config] ?? 'clean', speedKias, startAltFt, 1.0);
+  const airDistFt = ktToFtps(tasKt) * timeSec;
+  const deltaAltFt = (-airDistFt * dw) / heightFactor(startAltFt);
+
+  const hRad = headingDeg * DEG;
+  const dirX = Math.sin(hRad);
+  const dirY = Math.cos(hRad);
+
+  const numSteps = Math.max(1, Math.ceil(distanceFt / stepFt));
+  const points = [];
+
+  for (let i = 0; i <= numSteps; i++) {
+    const f = i / numSteps;
+    points.push({
+      x: startPt.x + dirX * distanceFt * f,
+      y: startPt.y + dirY * distanceFt * f,
+      alt: startAltFt + deltaAltFt * f,
+      kias: speedKias,
+      headingDeg,
+      bankDeg: 0,
+      g: 1.0,
+      config: PFL_CONFIG_LABELS[config],
+      segmentType: 'straight',
+      marginFt: null,
+      marginTag: null,
+    });
+  }
+
+  const exitPt = { x: startPt.x + dirX * distanceFt, y: startPt.y + dirY * distanceFt };
+
+  return {
+    type: 'straight',
+    startPt,
+    points,
+    deltaAltFt,
+    deltaDistFt: distanceFt,
+    timeSec,
+    exitPt,
+    exitHeadingDeg: headingDeg,
+    exitAltFt: startAltFt + deltaAltFt,
+    exitKias: speedKias,
+    bankDeg: 0,
+    config,
+  };
+}
+
+// ── Path Generation & Geometric Solvers ────────────────────────────────────────
 
 function planAt(theta) {
   let k = 0;
@@ -269,74 +671,67 @@ function keyAt(theta) {
   return undefined;
 }
 
-/** The circle from θ0 to the threshold, then the straight to the touchdown point and a little beyond. */
+function finalToAim(geo, aimAlongFt) {
+  const aim = geo.along(aimAlongFt);
+  const beyond = geo.along(Math.min(geo.lenFt, aimAlongFt + 3000));
+  const td = geo.along(PFL.touchdownFt);
+  const first = aimAlongFt > PFL.touchdownFt + 1 && aimAlongFt <= geo.aimAlongFt + 1 ? [{ x: td.x, y: td.y, plan: 3, key: 'touchdown' }] : [];
+  return [...first, { x: aim.x, y: aim.y, plan: 3, key: 'aim' }, { x: beyond.x, y: beyond.y, plan: 3, key: 'rollout' }];
+}
+
 function arcToAim(geo, theta0, extra = {}) {
   const pts = [];
+  const windFromDeg = geo.windFromDeg ?? 360;
+  const up = { x: Math.sin(windFromDeg * DEG), y: Math.cos(windFromDeg * DEG) };
   for (let th = theta0; th < 360 - 1e-6; th += PFL.joinStepDeg) {
     const p = geo.at(th);
-    pts.push({ x: p.x, y: p.y, theta: th, plan: planAt(th), key: keyAt(th), ...extra });
+    const k = geo.shiftFt ? geo.shiftFt * (1 - clamp(th, 0, 360) / 360) : 0;
+    const c = { x: geo.centre.x + up.x * k, y: geo.centre.y + up.y * k };
+    const arc = { cx: c.x, cy: c.y, r: geo.r, side: -1 };
+    pts.push({ x: p.x, y: p.y, theta: th, plan: planAt(th), key: keyAt(th), arc, ...extra });
     if (th + PFL.joinStepDeg > 360 - 1e-6) break;
-    // Snap to the keys so they are path points.
     const next = th + PFL.joinStepDeg;
-    for (const kd of [180, 270]) if (th < kd && next > kd) { const q = geo.at(kd); pts.push({ x: q.x, y: q.y, theta: kd, plan: planAt(kd), key: keyAt(kd) }); }
+    for (const kd of [180, 270]) if (th < kd && next > kd) {
+      const q = geo.at(kd);
+      const kq = geo.shiftFt ? geo.shiftFt * (1 - clamp(kd, 0, 360) / 360) : 0;
+      const cq = { x: geo.centre.x + up.x * kq, y: geo.centre.y + up.y * kq };
+      pts.push({ x: q.x, y: q.y, theta: kd, plan: planAt(kd), key: keyAt(kd), arc: { cx: cq.x, cy: cq.y, r: geo.r, side: -1 } });
+    }
   }
   pts.push({ x: geo.th.x, y: geo.th.y, theta: 360, plan: 3, key: 'threshold' });
   return [...pts, ...finalToAim(geo, geo.aimAlongFt)];
 }
 
-function finalToAim(geo, aimAlongFt) {
-  const aim = geo.along(aimAlongFt);
-  const beyond = geo.along(Math.min(geo.lenFt, aimAlongFt + 3000));
-  const td = geo.along(PFL.touchdownFt);
-  // The first 1,000 ft point only when aiming a third down or shorter; a direct glide landing long lines up beyond it.
-  const first = aimAlongFt > PFL.touchdownFt + 1 && aimAlongFt <= geo.aimAlongFt + 1 ? [{ x: td.x, y: td.y, plan: 3, key: 'touchdown' }] : [];
-  return [...first, { x: aim.x, y: aim.y, plan: 3, key: 'aim' }, { x: beyond.x, y: beyond.y, plan: 3, key: 'rollout' }];
-}
-
-/**
- * A tangent join at θ (spec 4.5 item 6): straight on, then one turn (`side` 1
- * right, −1 left) at radius `rt`, rolling out on the circle's line short of θ,
- * then along it onto the circle and round, as a pilot flies it. Too close to
- * start that turn at that radius, it turns tighter, but no tighter than `minRt`.
- * Null if that can't be done in one turn (it would need an
- * S). Without a heading, a straight run onto the line. The path carries the
- * turn's degrees, its radius and the straight before it.
- * @returns {(any[] & { turnDeg?: number, turnRadiusFt?: number, straightFt?: number }) | null}
- */
 function joinPath(geo, from, theta, headingDeg = undefined, rt = directTurnRadiusFt(), minRt = rt, side = 1) {
   const p = geo.at(theta);
   const trk = geo.trackAt(theta);
   const t = { x: Math.sin(trk * DEG), y: Math.cos(trk * DEG) };
   if (!Number.isFinite(headingDeg)) {
     const q = { x: p.x - t.x * PFL.joinLeadFt, y: p.y - t.y * PFL.joinLeadFt };
-    // Already on the line short of the point (or past the lead-in): straight on.
     const o = legOffsetsFt(q, p, from);
     const lead = o.alongFt > 0 && Math.abs(o.crossFt) < PFL.joinLeadFt / 2 ? [] : [{ x: q.x, y: q.y, plan: 0 }];
     return [{ x: from.x, y: from.y, plan: 0 }, ...lead, ...arcToAim(geo, theta)];
   }
   const turnDeg = wrapDeg360(side * (trk - headingDeg));
   const h = { x: Math.sin(headingDeg * DEG), y: Math.cos(headingDeg * DEG) };
-  // The roll-out point less the turn's start, per foot of radius: the turn's centre is to the turning side.
   const v1 = { x: side * (h.y - t.y), y: side * (t.x - h.x) };
-  // How far to fly straight first so the roll-out is on the line: its offset across the line must be nil.
   const n = { x: t.y, y: -t.x };
   const offFt = (from.x - p.x) * n.x + (from.y - p.y) * n.y;
   const rate = h.x * n.x + h.y * n.y;
   const per = v1.x * n.x + v1.y * n.y;
   const ht = h.x * t.x + h.y * t.y;
   const along0 = (from.x - p.x) * t.x + (from.y - p.y) * t.y;
-  // For a radius, the straight first that puts the roll-out on the line short of the point, or null.
+
   const fit = (r) => {
     let d;
     if (Math.abs(rate) < 0.02) {
-      // Rolling out parallel to its heading: the radius alone puts it on the line; fly straight until it is short of the point.
       if (Math.abs(offFt + r * per) > 100) return null;
       d = ht < 0 ? Math.max(0, along0 + r * (v1.x * t.x + v1.y * t.y)) : 0;
     } else d = -(offFt + r * per) / rate;
     if (d < 0 || along0 + d * ht + r * (v1.x * t.x + v1.y * t.y) > 0) return null;
     return d;
   };
-  // Its usual radius if that fits, otherwise the gentlest tighter one that does (too close to start the turn later).
+
   const radii = [rt];
   for (let k = 1; k <= 20; k++) radii.push(rt - (rt - minRt) * k / 20);
   if (Math.abs(per) > 1e-6 && -offFt / per >= minRt && -offFt / per < rt) radii.push(-offFt / per);
@@ -344,13 +739,13 @@ function joinPath(geo, from, theta, headingDeg = undefined, rt = directTurnRadiu
   let d = null;
   for (const r of radii) { d = fit(r); if (d !== null) { rt = r; break; } }
   if (d === null) return null;
+
   const v = { x: v1.x * rt, y: v1.y * rt };
   const s0 = { x: from.x + h.x * d, y: from.y + h.y * d };
   const e = { x: s0.x + v.x, y: s0.y + v.y };
-  // Rolls out on the line short of the join point, not past it.
   if ((e.x - p.x) * t.x + (e.y - p.y) * t.y > 0) return null;
+
   const c = { x: s0.x + side * rt * h.y, y: s0.y - side * rt * h.x };
-  // The turn is flown at the bank for its radius (a held-bank arc, Fable F16): every point from the turn's start to its last before the roll-out carries it.
   const turn = { cx: c.x, cy: c.y, r: rt, side };
   const arc = [];
   for (let k = PFL.joinStepDeg; k < turnDeg - 1e-6; k += PFL.joinStepDeg) {
@@ -363,66 +758,33 @@ function joinPath(geo, from, theta, headingDeg = undefined, rt = directTurnRadiu
   return Object.assign([first, ...straight, ...arc, ...out, ...arcToAim(geo, theta)], { turnDeg, turnRadiusFt: rt, straightFt: d });
 }
 
-/** To High Key from the area: onto the extended centreline, over the threshold on runway heading. */
 function highKeyPath(geo, from) {
   const run = geo.along(-PFL.highKeyRunInFt);
   return [{ x: from.x, y: from.y, plan: 0 }, { x: run.x, y: run.y, plan: 0 }, { x: geo.th.x, y: geo.th.y, plan: 0, theta: 0, key: 'high_key', highKeyCheck: true }];
 }
 
-/** The tightest a gliding join is planned: 60° of bank (Patrick 08:34Z) at 125 KIAS clean, never past the stall line (Fable F10). */
-function glideJoinMinRadiusFt() {
-  const stallBankDeg = Math.acos(1 / Math.max(stallG(PFL.glideCleanKias, 0), 1.0001)) / DEG;
-  return turnRadiusFromBankFt(ktToFtps(iasToTasKt(PFL.glideCleanKias, 3500)), Math.min(PFL.maxBankDeg, stallBankDeg));
-}
-
-/**
- * Radius of an orbit to lose height: 30° of bank at 120 KIAS at about 4,000 ft, the SMM's orbit (SMM 13.5 para 11, p.46),
- * tighter than the 1 NM pattern, which stays as it is (Patrick 5 Oct 23:29Z).
- */
-function orbitRadiusFt() {
-  return turnRadiusFromBankFt(ktToFtps(iasToTasKt(PFL.glideGearKias, 4000)), PFL.orbitBankDeg);
-}
-
-/**
- * Radius of the turn onto final when going direct: 45° of bank at 120 KIAS at about 2,500 ft (SMM 13.14 flags more
- * than 45°), at today's true airspeed (a hot day turns wider, F2).
- */
-function directTurnRadiusFt() {
-  return turnRadiusFromBankFt(ktToFtps(iasToTasKt(PFL.glideGearKias, 2500)), PFL.gateFlagBankDeg);
-}
-
-/**
- * The turn from the present heading until the nose points at `target`, at the
- * direct turn radius (estimate: 45° bank at 120 KIAS), as path points. Empty if
- * it already points within 10°. Without it a path back behind the aircraft
- * would cost no turn at all.
- */
-function leadTurn(from, headingDeg, target) {
-  if (!Number.isFinite(headingDeg)) return [];
-  const off = wrapDeg180(bearing(from, target) - headingDeg);
-  if (Math.abs(off) <= 10) return [];
-  const side = off > 0 ? 1 : -1; // 1: turning right
-  const rt = directTurnRadiusFt();
-  const c = { x: from.x + rt * Math.sin((headingDeg + side * 90) * DEG), y: from.y + rt * Math.cos((headingDeg + side * 90) * DEG) };
-  const arc = [];
-  for (let k = PFL.joinStepDeg; k < 360; k += PFL.joinStepDeg) {
-    const h = headingDeg + side * k;
-    const b = h - side * 90; // from the centre to the aircraft
-    const p = { x: c.x + rt * Math.sin(b * DEG), y: c.y + rt * Math.cos(b * DEG), plan: 0 };
-    arc.push(p);
-    if (dist(c, target) <= rt || Math.abs(wrapDeg180(bearing(p, target) - h)) <= PFL.joinStepDeg) break;
+function orbitPath(from, trackDeg, r) {
+  const h = { x: Math.sin(trackDeg * DEG), y: Math.cos(trackDeg * DEG) };
+  const c = { x: from.x - r * h.y, y: from.y + r * h.x };
+  const turn = { cx: c.x, cy: c.y, r, side: -1 };
+  const pts = [{ x: from.x, y: from.y, plan: 0, arc: turn }];
+  for (let k = PFL.joinStepDeg; k < 360 - 1e-6; k += PFL.joinStepDeg) {
+    const a = (trackDeg - k) * DEG;
+    pts.push({ x: c.x + r * Math.cos(a), y: c.y - r * Math.sin(a), plan: 0, arc: turn });
   }
-  return arc;
+  return pts;
 }
 
-/**
- * Direct to the runway: a straight glide to a turn that rolls out on the
- * centreline `PFL.directFinalFt` before the touchdown point, then down it. The
- * turn is a circle tangent to the centreline there, joined at its tangent from
- * where the aircraft is (from downwind it is a base turn), left or right,
- * whichever is shorter.
- * Given the heading, it first turns from it towards the glide.
- */
+function interceptPath(geo, from, theta, trackDeg, turnRadiusFt) {
+  if (!Number.isFinite(trackDeg)) return null;
+  const p = geo.at(theta);
+  const lineTrk = bearing(from, p);
+  const first = Math.abs(wrapDeg180(lineTrk - trackDeg));
+  const onto = wrapDeg180(geo.trackAt(theta) - lineTrk);
+  if (first > PFL.interceptTurnDeg || onto > 10 || onto < -PFL.interceptOntoDeg) return null;
+  return Object.assign([{ x: from.x, y: from.y, plan: 0 }, ...arcToAim(geo, theta)], { turnDeg: first + Math.abs(onto), straightFt: dist(from, p), turnRadiusFt });
+}
+
 function directPath(geo, from, aimAlongFt, gearAtJoin = true, headingDeg = undefined) {
   const straight = directPathFrom(geo, from, aimAlongFt, gearAtJoin);
   const arc = leadTurn(from, headingDeg, straight[1]);
@@ -430,19 +792,36 @@ function directPath(geo, from, aimAlongFt, gearAtJoin = true, headingDeg = undef
   return [straight[0], ...arc, ...directPathFrom(geo, arc[arc.length - 1], aimAlongFt, gearAtJoin).slice(1)];
 }
 
+function leadTurn(from, headingDeg, target) {
+  if (!Number.isFinite(headingDeg) || !target) return [];
+  const off = wrapDeg180(bearing(from, target) - headingDeg);
+  if (Math.abs(off) <= 10) return [];
+  const side = off > 0 ? 1 : -1;
+  const rt = directTurnRadiusFt();
+  const c = { x: from.x + rt * Math.sin((headingDeg + side * 90) * DEG), y: from.y + rt * Math.cos((headingDeg + side * 90) * DEG) };
+  const turn = { cx: c.x, cy: c.y, r: rt, side };
+  const arc = [];
+  for (let k = PFL.joinStepDeg; k < 360; k += PFL.joinStepDeg) {
+    const h = headingDeg + side * k;
+    const b = h - side * 90;
+    const p = { x: c.x + rt * Math.sin(b * DEG), y: c.y + rt * Math.cos(b * DEG), plan: 0, arc: turn };
+    arc.push(p);
+    if (dist(c, target) <= rt || Math.abs(wrapDeg180(bearing(p, target) - h)) <= PFL.joinStepDeg) break;
+  }
+  return arc;
+}
+
 function directPathFrom(geo, from, aimAlongFt, gearAtJoin) {
   const j = geo.along(aimAlongFt - PFL.directFinalFt);
   const rt = directTurnRadiusFt();
-  // A left or a right turn onto final, whichever is shorter.
   let best = null;
   for (const side of [1, -1]) {
-    const n = { x: -geo.u.y * side, y: geo.u.x * side }; // side 1: the centre to the left of the runway heading
+    const n = { x: -geo.u.y * side, y: geo.u.x * side };
     const c = { x: j.x + n.x * rt, y: j.y + n.y * rt };
     const bJ = bearing(c, j);
     const arc = [];
     let len = 0;
     if (dist(from, c) > rt * 1.05) {
-      // The tangent point: where the line from the aircraft runs along the circle's track (bearing − 90° turning left, + 90° turning right).
       let bestB = bJ, bestErr = Infinity;
       for (let k = 0; k < 360; k += 1) {
         const bb = bJ + side * k;
@@ -461,21 +840,98 @@ function directPathFrom(geo, from, aimAlongFt, gearAtJoin) {
   return [{ x: from.x, y: from.y, plan: 0, key: 'direct' }, ...best.arc, { x: j.x, y: j.y, plan: gearAtJoin ? 1 : 0, key: 'lined_up' }, ...finalToAim(geo, aimAlongFt)];
 }
 
-// ── Energy ───────────────────────────────────────────────────────────────────
+function turnOntoRunway(geo, from, trackDeg, kias, altFt, wind) {
+  if (!Number.isFinite(trackDeg)) return [];
+  const h = { x: Math.sin(trackDeg * DEG), y: Math.cos(trackDeg * DEG) };
+  const nl = { x: -geo.u.y, y: geo.u.x };
+  const off = (from.x - geo.th.x) * nl.x + (from.y - geo.th.y) * nl.y;
+  const vMax = ktToFtps(iasToTasKt(kias, altFt) + (wind?.windKt ?? 0));
+  const bankMax = Math.min(PFL.maxBankDeg, Math.acos(1 / Math.max(stallG(kias, 0), 1.0001)) / DEG);
+  const rMin = turnRadiusFromBankFt(vMax, bankMax);
+  const rMax = turnRadiusFromBankFt(ktToFtps(iasToTasKt(kias, altFt)), PFL.directMinBankDeg);
+  const out = [];
+  for (const side of [1, -1]) {
+    const hr = { x: side * h.y, y: -side * h.x };
+    const k = hr.x * nl.x + hr.y * nl.y + side;
+    if (Math.abs(k) < 1e-6) continue;
+    const turnDeg = wrapDeg360(side * (geo.rwyDeg - trackDeg));
+    if (turnDeg < 3 || turnDeg > 180) continue;
+    let r = -off / k, d = 0;
+    if (r > rMax) {
+      r = Math.max(rMin, directTurnRadiusFt());
+      const conv = h.x * nl.x + h.y * nl.y;
+      d = Math.abs(conv) < 1e-6 ? -1 : (-r * k - off) / conv;
+    }
+    if (!(r >= rMin && r <= rMax) || !(d >= 0)) continue;
+    const s0 = { x: from.x + h.x * d, y: from.y + h.y * d };
+    const c = { x: s0.x + hr.x * r, y: s0.y + hr.y * r };
+    const roll = { x: c.x - side * r * geo.u.y, y: c.y + side * r * geo.u.x };
+    const rollAlong = (roll.x - geo.th.x) * geo.u.x + (roll.y - geo.th.y) * geo.u.y;
+    if (rollAlong > PFL.touchdownFt) continue;
+    const turn = { cx: c.x, cy: c.y, r, side };
+    const arc = [];
+    for (let a = PFL.joinStepDeg; a < turnDeg - 1e-6; a += PFL.joinStepDeg) {
+      const hd = (trackDeg + side * a) * DEG;
+      arc.push({ x: c.x - side * r * Math.cos(hd), y: c.y + side * r * Math.sin(hd), plan: 0, arc: turn });
+    }
+    const first = Math.max(PFL.touchdownFt, rollAlong + PFL.directPastRollOutFt);
+    for (let along = first; along >= Math.max(rollAlong + PFL.directPastRollOutFt, PFL.directPastRollOutFt) - 1e-6 && along <= geo.lenFt - PFL.stopMarginFt; along -= 250) {
+      const start = d > 1 ? [{ x: from.x, y: from.y, plan: 0, key: 'direct' }, { x: s0.x, y: s0.y, plan: 0, arc: turn }] : [{ x: from.x, y: from.y, plan: 0, key: 'direct', arc: turn }];
+      const path = [...start, ...arc, { x: roll.x, y: roll.y, plan: 1, key: 'lined_up' }, ...finalToAim(geo, along)];
+      out.push({ path, aimAlongFt: along, carriesOnTurn: true });
+    }
+  }
+  return out;
+}
 
-function glideKias(cfg) { return cfg > 0 ? PFL.glideGearKias : PFL.glideCleanKias; }
+function chooseDirect(geo, from, altFt, kias, wind, trackDeg = undefined, cfgNow = 0) {
+  const ground = THRESHOLD_DATA_ELEV_FT;
+  const last = geo.lenFt - PFL.stopMarginFt;
+  const trade = speedTradeFt(kias, altFt, 1);
+  const alongs = [];
+  for (let d = 0; geo.aimAlongFt + d <= last + 1e-6 || geo.aimAlongFt - d >= 500; d += 500) {
+    if (geo.aimAlongFt - d >= 500 && d > 0) alongs.push(geo.aimAlongFt - d);
+    if (geo.aimAlongFt + d <= last + 1e-6) alongs.push(geo.aimAlongFt + d);
+  }
+  const label = (along) => (along > geo.aimAlongFt + 1 ? 'Turn early, land long' : 'Direct threshold');
+  const cands = turnOntoRunway(geo, from, trackDeg, kias, altFt, wind).map((c) => ({ ...c, label: label(c.aimAlongFt) }));
+  for (const along of alongs) {
+    cands.push({ path: directPath(geo, from, along, true, trackDeg), aimAlongFt: along, label: label(along) });
+  }
+  const spare = (c) => altFt - neededFt(minDragPlan(c.path), 0, from, altFt, cfgNow, wind) - ground;
+  const pick = cands.find((c) => spare(c) >= 0) ?? cands.find((c) => spare(c) + trade >= 0);
+  return pick ? { kind: 'direct', ...pick } : null;
+}
 
-/** Glide ratio through the air at a configuration's PFL glide speed, from the drag it flies with (gear down raised to the SMM's orbit, TR-109). */
-function flownGlideRatio(cfg, altFt) { return 1 / glideDragPerWeight(PFL_CONFIGS[cfg], glideKias(cfg), altFt, 1); }
+function widenPath(geo, path, seg, s, altFt, wind, tdKey) {
+  const ground = THRESHOLD_DATA_ELEV_FT;
+  const own = bearing(geo.centre, s);
+  let thOwn = 0;
+  for (let th = 0; th < 360; th += 1) if (Math.abs(wrapDeg180(bearing(geo.centre, geo.at(th)) - own)) < Math.abs(wrapDeg180(bearing(geo.centre, geo.at(thOwn)) - own))) thOwn = th;
+  const th0 = Math.max(path[seg].theta ?? 0, thOwn);
+  if (th0 >= PFL.lastJoinDeg - PFL.joinStepDeg) return null;
+  const fk = path.findIndex((p, i) => i > seg && p.theta !== undefined && p.theta >= PFL.lastJoinDeg);
+  if (fk < 0) return null;
+  const out = (p) => { const d = dist(geo.centre, p); return { x: (p.x - geo.centre.x) / d, y: (p.y - geo.centre.y) / d }; };
+  const base0 = geo.at(th0);
+  const now = dist(geo.centre, s) - dist(geo.centre, base0);
+  const build = (k) => {
+    const pts = [{ x: s.x, y: s.y, theta: th0, plan: path[seg].plan }];
+    for (let th = th0 + PFL.joinStepDeg; th < PFL.lastJoinDeg - 1e-6; th += PFL.joinStepDeg) {
+      const f = (th - th0) / (PFL.lastJoinDeg - th0);
+      const off = now * (1 - f) + k * Math.sin(Math.PI * f);
+      const p = geo.at(th), u = out(p);
+      pts.push({ x: p.x + u.x * off, y: p.y + u.y * off, theta: th, plan: planAt(th), key: keyAt(th) });
+    }
+    return [...pts, ...path.slice(fk)];
+  };
+  const spare = (k) => altFt - ground - neededFt(build(k), 0, s, altFt, 3, wind, false, tdKey) - PFL.onProfileFt;
+  if (spare(PFL.maxWidenFt) > 0) return build(PFL.maxWidenFt);
+  let lo = 0, hi = PFL.maxWidenFt;
+  for (let i = 0; i < 12; i++) { const mid = (lo + hi) / 2; if (spare(mid) > 0) lo = mid; else hi = mid; }
+  return lo > 50 ? build(lo) : null;
+}
 
-/**
- * Height needed, altimeter ft, to fly the path from `pos` (on segment `seg`) to the
- * touchdown point: each piece's air distance (ground distance × TAS ÷ ground
- * speed) times drag ÷ weight at its configuration, speed and the G its curve
- * needs. That is true height; ÷ heightFactor makes it altimeter feet, so it
- * compares with the altimeter on a hot or cold day (TR-77; Fable F2). `cfgNow` is the configuration down; `takeNext` takes the next step
- * from now on. The configuration is never less than the plan says, up to `maxPlan`.
- */
 function neededFt(path, seg, pos, altFt, cfgNow, wind, takeNext = false, stopAtKey = 'aim', maxPlan = 3) {
   const stop = path.findIndex((p) => p.key === stopAtKey);
   if (stop >= 0 && stop <= seg) return 0;
@@ -491,9 +947,8 @@ function neededFt(path, seg, pos, altFt, cfgNow, wind, takeNext = false, stopAtK
       const kias = glideKias(cfg);
       const tas = iasToTasKt(kias, alt);
       const trk = bearing(a, b);
-      const wt = windTriangle(trk, tas, wind.windFromDeg, wind.windKt);
+      const wt = windTriangle(trk, tas, wind.windFromDeg ?? 360, wind.windKt ?? 0);
       const gs = wt.canHoldTrack ? Math.max(wt.groundSpeedKt, 20) : 20;
-      // The turn this piece flies: heading change to the next piece over its length.
       let g = 1;
       const c = path[i + 1];
       if (c) {
@@ -514,7 +969,32 @@ function neededFt(path, seg, pos, altFt, cfgNow, wind, takeNext = false, stopAtK
   return need;
 }
 
-/** Feet still to fly along the path from a projection to the first point with `key` (all of it if there is none). */
+function neededTo(path, toIdx, from, altFt, wind) {
+  let need = 0;
+  let a = from;
+  let alt = altFt;
+  for (let i = 1; i <= toIdx && i < path.length; i++) {
+    const b = path[i];
+    const len = dist(a, b);
+    if (len > 1) {
+      const tas = iasToTasKt(PFL.glideCleanKias, alt);
+      const wt = windTriangle(bearing(a, b), tas, wind.windFromDeg ?? 360, wind.windKt ?? 0);
+      const gs = wt.canHoldTrack ? Math.max(wt.groundSpeedKt, 20) : 20;
+      const air = len * tas / gs;
+      const dh = air * glideDragPerWeight('clean', PFL.glideCleanKias, alt, 1) / heightFactor(alt);
+      need += dh;
+      alt -= dh;
+    }
+    a = b;
+  }
+  return need;
+}
+
+function minDragPlan(path) {
+  const fk = path.findIndex((p) => p.key === 'final_key' || p.key === 'lined_up' || (p.theta ?? 0) >= 270);
+  return path.map((p, i) => ({ ...p, plan: fk >= 0 && i >= fk ? Math.max(p.plan ?? 0, 1) : 0 }));
+}
+
 function pathFtTo(path, proj, key) {
   let ft = 0;
   let a = proj.pt;
@@ -526,45 +1006,50 @@ function pathFtTo(path, proj, key) {
   return ft;
 }
 
-/** Core's stall line, (KIAS ÷ stall speed)², at this configuration's stall speed. */
-function stallG(kias, cfg) {
-  return stallLimitG(kias, /** @type {any} */ (PFL.stallKias[cfg]));
+function project(path, seg, p) {
+  let best = { seg, u: 0, d: Infinity, pt: path[seg] };
+  for (let i = seg; i < Math.min(path.length - 1, seg + 6); i++) {
+    const a = path[i], b = path[i + 1];
+    const vx = b.x - a.x, vy = b.y - a.y, l2 = vx * vx + vy * vy;
+    const u = l2 ? clamp(((p.x - a.x) * vx + (p.y - a.y) * vy) / l2, 0, 1) : 0;
+    const pt = { x: a.x + vx * u, y: a.y + vy * u };
+    const d = dist(pt, p);
+    if (d < best.d - 1e-6) best = { seg: i, u, d, pt };
+  }
+  return best;
 }
 
-/** The slowest the speed trade goes in a configuration: 80 KIAS, or the stall plus its margin if that is higher. */
-function tradeFloorKias(cfg) {
-  return Math.max(PFL.minTradeKias, PFL.stallKias[cfg] + PFL.stallMarginKt);
+
+const ARC_TRACK_PER_FT = 0.05;
+const ARC_BANK_PER_DEG = 3;
+
+function arcBank(path, seg, s, tasFtps, pilot, bankMax) {
+  const t = path[seg]?.arc;
+  if (!t || !path[seg + 1]?.arc) return null;
+  const c = { x: t.cx, y: t.cy };
+  const offFt = dist(c, s) - t.r;
+  const wantTrack = bearing(c, s) + t.side * 90 + t.side * clamp(offFt * ARC_TRACK_PER_FT, -30, 30);
+  const heldDeg = Math.atan(tasFtps * pilot.groundSpeedFtps() / (G_FTPS2 * t.r)) / DEG;
+  return clamp(t.side * heldDeg + ARC_BANK_PER_DEG * wrapDeg180(wantTrack - pilot.trackDeg()), -bankMax, bankMax);
 }
 
-/** Height worth trading from speed, altimeter ft: (V² − V_floor²) ÷ 2g in true airspeed, true feet ÷ heightFactor. */
-function speedTradeFt(kias, altFt, cfg) {
-  const v = ktToFtps(iasToTasKt(kias, altFt));
-  const vFloor = ktToFtps(iasToTasKt(tradeFloorKias(cfg), altFt));
-  return Math.max(0, (v * v - vFloor * vFloor) / (2 * G_FTPS2)) / heightFactor(altFt);
+function joinLabel(theta) {
+  if (Math.abs(theta) < 1e-6) return 'Join at High Key';
+  if (Math.abs(theta - 180) < 1e-6) return 'Join at Low Key';
+  if (Math.abs(theta - 270) < 1e-6) return 'Join at Final Key';
+  return `Join at ${Math.round(theta)}°`;
 }
 
-/**
- * Where to join, from a position, height and track (spec 4.5 item 6). Returns
- * { kind: 'highKey' | 'circle' | 'direct' | 'none', path, theta?, aimAlongFt?, label }.
- * `availFt` is the height it will have at glide speed (zoom included).
- */
+// ── Drop-in chooseJoin Implementation ─────────────────────────────────────────
+
 export function chooseJoin(geo, from, availFt, trackDeg, wind, { allowHighKey = true, turnRadiusFt = directTurnRadiusFt(), minTurnRadiusFt = glideJoinMinRadiusFt(), bankDeg = 0 } = {}) {
   const ground = THRESHOLD_DATA_ELEV_FT;
-  // High Key first, if it can be made inside the window's bottom or above (area PFL).
   if (allowHighKey) {
     const hk = highKeyPath(geo, from);
     const atHk = availFt - neededFt(hk, 0, from, availFt, 0, wind, false, 'high_key');
     if (atHk >= PFL.highKeyMinFt) return { kind: 'highKey', path: [...hk, ...arcToAim(geo, PFL.joinStepDeg)], theta: 0, label: 'Join at High Key' };
   }
-  // A tangent join anywhere up to Final Key, in one turn: of those it can make, the one with the least turn
-  // and the shortest straight before it, at its usual turn radius if it can, otherwise the gentlest tighter one,
-  // down to 60° of bank (Patrick 08:34Z; Fable F10).
-  // No orbit only to lose height (Patrick 17:51Z): a turn of more than 180° only carries on a left turn the aircraft
-  // is already in, as from a break, up to 270°.
-  // Each join must be makeable (clean, gear only at Final Key) and not so high
-  // that all the drag can't take the height off; if every makeable one is too
-  // high, the one most in line still goes, and early gear, the drag and the runway take the rest.
-  // If no join can be made in one turn, a straight run onto the line (turning onto it as it can); failing those, direct.
+
   const leftMaxDeg = bankDeg <= -PFL.inTurnBankDeg ? 270 : 180;
   const search = (oneTurn) => {
     let best = null, bestHigh = null;
@@ -581,410 +1066,417 @@ export function chooseJoin(geo, from, availFt, trackDeg, wind, { allowHighKey = 
       if (hAtJoin - least - ground < 0) continue;
       const most = neededFt(path.map((p) => ({ ...p, plan: 3 })), toJoinIdx, path[toJoinIdx], hAtJoin, 0, wind);
       const pick = { turn: score(path), turnDeg: path.turnDeg ?? 0, th, path };
-      // A high join still has to put it on the runway: room before Final Key to widen and stage the drag, or the
-      // excess with all the drag out (at the landing-flap glide) still lands in the first third.
       const longFt = (hAtJoin - most - ground) * flownGlideRatio(3, ground);
       const landable = th <= PFL.highJoinRoomDeg || geo.aimAlongFt + longFt <= geo.lenFt / 3;
       if (hAtJoin - most - ground <= 0) { if (!best || pick.turn < best.turn - 1e-6) best = pick; }
       else if (landable && (!bestHigh || pick.turn < bestHigh.turn - 1e-6)) bestHigh = pick;
     }
-    // A join that fits wins over a high one only if it costs no more than PFL.fitsExtraTurnDeg more turn: more
-    // than that is turning away or round to lose height, which early gear does instead (Patrick 17:51Z; Fable F1).
     if (best && bestHigh && best.turnDeg > bestHigh.turnDeg + PFL.fitsExtraTurnDeg) best = null;
     const asJoin = (pick, high) => pick && { kind: 'circle', path: pick.path, theta: pick.th, label: joinLabel(pick.th), high };
     return { best: asJoin(best, false), high: asJoin(bestHigh, true) };
   };
-  // One turn and in range first; then one turn but high, which early gear, the drag and the runway take; then a
-  // straight run onto the line (an S-turn is the unrealistic manoeuvre, Patrick 17:51Z, so it comes after a high join).
+
   const one = search(true);
-  // Every join within 180° too high to land: turn round to rejoin the profile, with drag as required (Patrick 22:11Z).
-  if (!one.best && !one.high) { const round = turnRoundJoin(geo, from, availFt, trackDeg, wind, { turnRadiusFt, minTurnRadiusFt }); if (round) return round; }
   const run = search(false);
   const join = one.best ?? one.high ?? run.best ?? run.high ?? chooseDirect(geo, from, availFt, PFL.glideCleanKias, wind, trackDeg);
   if (join) return join;
   return { kind: 'none', path: directPath(geo, from, geo.aimAlongFt, true, trackDeg), aimAlongFt: geo.aimAlongFt, label: 'Eject' };
 }
 
-/**
- * Meeting the circle from inside it, where there is no one-turn tangent join (Patrick 5 Oct 22:07Z, "intercept the
- * profile"): a turn of at most PFL.interceptTurnDeg toward the circle point at `theta`, straight to it, then left onto
- * the circle, as a pilot extends a little and turns onto the profile. Null if the turns are bigger than that.
- */
-function interceptPath(geo, from, theta, trackDeg, turnRadiusFt) {
-  if (!Number.isFinite(trackDeg)) return null;
-  const p = geo.at(theta);
-  const lineTrk = bearing(from, p);
-  const first = Math.abs(wrapDeg180(lineTrk - trackDeg));
-  const onto = wrapDeg180(geo.trackAt(theta) - lineTrk);
-  if (first > PFL.interceptTurnDeg || onto > 10 || onto < -PFL.interceptOntoDeg) return null;
-  return Object.assign([{ x: from.x, y: from.y, plan: 0 }, ...arcToAim(geo, theta)], { turnDeg: first + Math.abs(onto), straightFt: dist(from, p), turnRadiusFt });
-}
+// ── Phase 2: Task 4 - Standard Route Segment Chain Builders ───────────────────
 
-/** One full left turn at radius `r` from `from` on `trackDeg`, flown at its held bank (Fable F16), back where it began. */
-function orbitPath(from, trackDeg, r) {
-  const h = { x: Math.sin(trackDeg * DEG), y: Math.cos(trackDeg * DEG) };
-  const c = { x: from.x - r * h.y, y: from.y + r * h.x };
-  const turn = { cx: c.x, cy: c.y, r, side: -1 };
-  const pts = [{ x: from.x, y: from.y, plan: 0, arc: turn }];
-  for (let k = PFL.joinStepDeg; k < 360 - 1e-6; k += PFL.joinStepDeg) {
-    const a = (trackDeg - k) * DEG;
-    pts.push({ x: c.x + r * Math.cos(a), y: c.y - r * Math.sin(a), plan: 0, arc: turn });
+export function buildSegmentChain({ startState, planKind, geo, wind, options = {} }) {
+  const segments = [];
+  let currentAlt = startState.alt;
+  let fromPt = { x: startState.x, y: startState.y };
+  let fromHdg = startState.headingDeg ?? RUNWAY_29L_HDG_DEG;
+
+  if (startState.kias > 125.5) {
+    const zoomSeg = generateZoomOrDecelSegment({
+      x: startState.x,
+      y: startState.y,
+      alt: startState.alt,
+      kias: startState.kias,
+      headingDeg: fromHdg,
+      wind,
+    });
+    segments.push(zoomSeg);
+    currentAlt = zoomSeg.apexAltFt;
+    fromPt = zoomSeg.apexPos;
+    fromHdg = zoomSeg.exitHeadingDeg;
   }
-  return pts;
-}
 
-/**
- * Turn round to rejoin the profile (Patrick 5 Oct 22:11Z, "Agree", to the rule: if every join within 180° of turn
- * leaves it too high to land, it may turn round onto the circle, up to one full turn, with drag as required; the SMM's
- * High Key orbit used wherever the circle can't otherwise take the height; his 22:07Z idea of drag before the join is
- * the "as required"). Of the joins with up to 360° of turn, either way, and from inside the circle the turn out to meet
- * it (interceptPath), the least turn that it makes with no more drag out before the join than it needs (clean, gear, or
- * all of it; close in only, PFL.earlyGearWithinFt) and that isn't high with all the drag out after the join. Returns
- * a 'circle' join with `dragBefore` (the configuration to have out before the join), or null.
- */
-function turnRoundJoin(geo, from, availFt, trackDeg, wind, { turnRadiusFt = directTurnRadiusFt(), minTurnRadiusFt = glideJoinMinRadiusFt() } = {}) {
-  const ground = THRESHOLD_DATA_ELEV_FT;
-  const close = dist(from, geo.th) <= PFL.earlyGearWithinFt;
-  // Better on the planned profile at the join (within PFL.turnRoundOnProfileFt), then the earliest join, so it is on
-  // the profile with the most of the circle still to fly, then the least turn.
-  let pick = null;
-  const better = (a, b) => !b || a.off < b.off || (a.off === b.off && (a.th < b.th || (a.th === b.th && a.path.turnDeg < b.path.turnDeg - 1e-6)));
-  for (let th = 0; th <= PFL.lastJoinDeg + 1e-6; th += PFL.joinStepDeg) {
-    const tries = [-1, 1].map((side) => joinPath(geo, from, th, trackDeg, turnRadiusFt, minTurnRadiusFt, side)).filter(Boolean);
-    const meet = interceptPath(geo, from, th, trackDeg, turnRadiusFt);
-    if (meet) tries.push(meet);
-    // Inside the circle: one full left turn where it is first (the High Key orbit's way round), then out to meet the circle.
-    if (meet) tries.push(Object.assign([...orbitPath(from, trackDeg, orbitRadiusFt()), ...meet], { turnDeg: 360 + meet.turnDeg }));
-    for (const raw of tries) {
-      for (const dragBefore of close ? [0, 1, 3] : [0]) {
-        const path = Object.assign(raw.map((p) => ({ ...p, plan: Math.max(p.plan ?? 0, dragBefore) })), { turnDeg: raw.turnDeg });
-        const idx = path.findIndex((p) => p.theta === th);
-        const hAtJoin = availFt - neededTo(path, idx, from, availFt, wind, dragBefore);
-        if (hAtJoin - neededFt(minDragPlan(path), idx, path[idx], hAtJoin, dragBefore, wind) - ground < 0) break; // short: more drag won't help
-        const most = neededFt(path.map((p) => ({ ...p, plan: 3 })), idx, path[idx], hAtJoin, 0, wind);
-        if (hAtJoin - most - ground > 0) continue; // still too high: more drag first
-        const planned = hAtJoin - neededFt(path, idx, path[idx], hAtJoin, dragBefore, wind, false, 'aim', 2) - ground;
-        const cand = { path, th, dragBefore, off: Math.abs(planned) <= PFL.turnRoundOnProfileFt ? 0 : 1 };
-        if (better(cand, pick)) pick = cand;
-        break;
+  let plan;
+  if (planKind === 'highKey') {
+    plan = { kind: 'highKey', path: [{ x: fromPt.x, y: fromPt.y, plan: 0, theta: 0, key: 'high_key', highKeyCheck: true }, ...arcToAim(geo, PFL.joinStepDeg)], theta: 0, label: 'At High Key' };
+  } else if (planKind === 'lowKey') {
+    plan = { kind: 'lowKey', path: [{ x: fromPt.x, y: fromPt.y, plan: 1, theta: 180, key: 'low_key' }, ...arcToAim(geo, 180 + PFL.joinStepDeg)], theta: 180, label: 'At Low Key' };
+  } else if (planKind === 'direct') {
+    plan = chooseDirect(geo, fromPt, currentAlt, PFL.glideCleanKias, wind, fromHdg);
+  } else if (planKind === 'circle') {
+    plan = chooseJoin(geo, fromPt, currentAlt, fromHdg, wind, options);
+  } else {
+    const apexPred = predictApexEnergy({ startState, wind });
+    plan = chooseJoin(geo, fromPt, apexPred.energyHeightFt, fromHdg, wind, options);
+  }
+
+  const path = plan?.path ?? [];
+  if (path.length > 0) {
+    let a = path[0];
+    for (let i = 1; i < path.length; i++) {
+      const b = path[i];
+      const d = dist(a, b);
+      if (d > 1) {
+        const cfg = b.plan ?? 0;
+        const kias = glideKias(cfg);
+        if (b.arc) {
+          const seg = evaluateArcSegment({
+            startPt: a,
+            startHeadingDeg: bearing(a, b),
+            startAltFt: currentAlt,
+            turnDeg: PFL.joinStepDeg,
+            bankDeg: 30,
+            side: b.arc.side ?? 1,
+            speedKias: kias,
+            config: cfg,
+            wind,
+          });
+          segments.push(seg);
+          currentAlt = seg.exitAltFt;
+        } else {
+          const seg = evaluateStraightSegment({
+            startPt: a,
+            headingDeg: bearing(a, b),
+            startAltFt: currentAlt,
+            distanceFt: d,
+            speedKias: kias,
+            config: cfg,
+            wind,
+          });
+          segments.push(seg);
+          currentAlt = seg.exitAltFt;
+        }
       }
+      a = b;
     }
   }
-  if (!pick) return null;
-  const label = pick.path.turnDeg > 180 ? 'Turn round to rejoin the profile' : joinLabel(pick.th);
-  return { kind: 'circle', path: pick.path, theta: pick.th, label, dragBefore: pick.dragBefore };
-}
 
-/** Height to fly from `from` along the path to point `idx`, clean (or in configuration `cfg`). */
-function neededTo(path, idx, from, altFt, wind, cfg = 0) {
-  const part = path.slice(0, idx + 1).map((p, i) => (i === idx ? { ...p, key: '__end' } : p));
-  return neededFt(part, 0, from, altFt, cfg, wind, false, '__end');
-}
-
-/**
- * The same path with only the drag it must have: on the circle, gear from Final
- * Key and no flap; going direct, nothing (it may land gear up, spec 4.5 item 10).
- */
-function minDragPlan(path) {
-  const direct = path[0]?.key === 'direct';
-  return path.map((p) => ({ ...p, plan: direct ? 0 : (p.theta !== undefined ? (p.theta >= 270 ? 1 : 0) : (p.key === 'threshold' || p.key === 'touchdown' || p.key === 'aim' || p.key === 'rollout' ? 1 : 0)) }));
-}
-
-function joinLabel(theta) {
-  if (theta <= 10) return 'Join at High Key';
-  if (Math.abs(theta - 180) <= 10) return 'Join at Low Key';
-  if (Math.abs(theta - 270) <= 10) return 'Join at Final Key';
-  return 'Join circle';
-}
-
-/**
- * Direct to the runway (spec 4.5 item 10): the nearest touchdown point, from a
- * third down the runway onward, it can make; turning early and landing further
- * down if it must (Patrick 08:33Z). Counts the late speed trade to 80 KIAS, or the stall plus margin in its configuration.
- * Returns null if it can make no point on the runway.
- */
-function chooseDirect(geo, from, altFt, kias, wind, headingDeg = undefined, cfg = 0) {
-  const ground = THRESHOLD_DATA_ELEV_FT;
-  const last = geo.lenFt - PFL.stopMarginFt;
-  const trade = speedTradeFt(kias, altFt, cfg);
-  // Touchdown points from the aim point outward, nearest first: shorter (down to just past the threshold) or longer (turning early).
-  const alongs = [];
-  for (let d = 0; geo.aimAlongFt + d <= last + 1e-6 || geo.aimAlongFt - d >= 500; d += 500) {
-    if (geo.aimAlongFt - d >= 500 && d > 0) alongs.push(geo.aimAlongFt - d);
-    if (geo.aimAlongFt + d <= last + 1e-6) alongs.push(geo.aimAlongFt + d);
+  let totalDeltaAltFt = 0, totalDistFt = 0, totalTimeSec = 0;
+  for (const s of segments) {
+    totalDeltaAltFt += s.deltaAltFt ?? 0;
+    totalDistFt += s.deltaDistFt ?? 0;
+    totalTimeSec += s.timeSec ?? 0;
   }
-  // The candidates in order: close in, carrying on the turn it is in onto the runway, aiming at the first 1,000 ft
-  // (Fable F3; Patrick 18:29Z, 18:39Z); then the base-to-final glide, to a third down and then the other points.
-  const label = (along) => (along > geo.aimAlongFt + 1 ? 'Turn early, land long' : 'Direct threshold');
-  const cands = turnOntoRunway(geo, from, headingDeg, kias, altFt, wind).map((c) => ({ ...c, label: label(c.aimAlongFt) }));
-  for (const along of alongs) cands.push({ path: directPath(geo, from, along, true, headingDeg), aimAlongFt: along, label: label(along) });
-  // First one it makes at the glide speed; failing that, the first one it makes trading speed (spec 4.5 item 10).
-  const spare = (c) => altFt - neededFt(minDragPlan(c.path), 0, from, altFt, cfg, wind) - ground;
-  const pick = cands.find((c) => spare(c) >= 0) ?? cands.find((c) => spare(c) + trade >= 0);
-  return pick ? { kind: 'direct', ...pick } : null;
-}
 
-/**
- * Carrying on the turn it is in onto the runway (Fable F3; Patrick 18:29Z): one held-bank turn from the present
- * track that rolls out on the centreline, then down it. The turn's radius is fixed by where the aircraft is: it must
- * be flyable at no more than 60° of bank (Patrick 08:34Z) and the stall line; wider than at 15° (an estimate), it
- * flies straight on first and turns at the 45° radius. Only when it lines up before the first 1,000 ft. It aims at
- * the first 1,000 ft (Patrick 09:49Z) or a little past the roll-out, then nearer, down to just past the roll-out,
- * if it must. Empty if no such turn exists.
- */
-function turnOntoRunway(geo, from, trackDeg, kias, altFt, wind) {
-  if (!Number.isFinite(trackDeg)) return [];
-  const h = { x: Math.sin(trackDeg * DEG), y: Math.cos(trackDeg * DEG) };
-  const nl = { x: -geo.u.y, y: geo.u.x }; // left of the runway heading
-  const off = (from.x - geo.th.x) * nl.x + (from.y - geo.th.y) * nl.y;
-  // Fastest the ground goes by in the turn: true airspeed plus the whole wind (a cautious bound for the bank).
-  const vMax = ktToFtps(iasToTasKt(kias, altFt) + (wind?.windKt ?? 0));
-  const bankMax = Math.min(PFL.maxBankDeg, Math.acos(1 / Math.max(stallG(kias, 0), 1.0001)) / DEG);
-  const rMin = turnRadiusFromBankFt(vMax, bankMax);
-  const rMax = turnRadiusFromBankFt(ktToFtps(iasToTasKt(kias, altFt)), PFL.directMinBankDeg);
-  const out = [];
-  for (const side of [1, -1]) {
-    // The turn's centre is r to the turning side of the track; it rolls out on the runway heading where the circle touches the centreline.
-    const hr = { x: side * h.y, y: -side * h.x };
-    const k = hr.x * nl.x + hr.y * nl.y + side;
-    if (Math.abs(k) < 1e-6) continue;
-    const turnDeg = wrapDeg360(side * (geo.rwyDeg - trackDeg));
-    if (turnDeg < 3 || turnDeg > 180) continue;
-    // Turning now, the radius that rolls out on the centreline; if that is wider than the gentlest bank, it flies
-    // straight on first and turns at the base-to-final radius (45°), converging as it is (Fable F3).
-    let r = -off / k, d = 0;
-    if (r > rMax) {
-      r = Math.max(rMin, directTurnRadiusFt());
-      const conv = h.x * nl.x + h.y * nl.y;
-      d = Math.abs(conv) < 1e-6 ? -1 : (-r * k - off) / conv;
-    }
-    if (!(r >= rMin && r <= rMax) || !(d >= 0)) continue;
-    const s0 = { x: from.x + h.x * d, y: from.y + h.y * d };
-    const c = { x: s0.x + hr.x * r, y: s0.y + hr.y * r };
-    const roll = { x: c.x - side * r * geo.u.y, y: c.y + side * r * geo.u.x };
-    const rollAlong = (roll.x - geo.th.x) * geo.u.x + (roll.y - geo.th.y) * geo.u.y;
-    // Only close in: the turn lines it up before the first 1,000 ft. Rolling out further down, it is turning early to
-    // land long, which the base-to-final glide does.
-    if (rollAlong > PFL.touchdownFt) continue;
-    const turn = { cx: c.x, cy: c.y, r, side };
-    const arc = [];
-    for (let a = PFL.joinStepDeg; a < turnDeg - 1e-6; a += PFL.joinStepDeg) {
-      const hd = (trackDeg + side * a) * DEG;
-      arc.push({ x: c.x - side * r * Math.cos(hd), y: c.y + side * r * Math.sin(hd), plan: 0, arc: turn });
-    }
-    const first = Math.max(PFL.touchdownFt, rollAlong + PFL.directPastRollOutFt);
-    for (let along = first; along >= Math.max(rollAlong + PFL.directPastRollOutFt, PFL.directPastRollOutFt) - 1e-6 && along <= geo.lenFt - PFL.stopMarginFt; along -= 250) {
-      const start = d > 1 ? [{ x: from.x, y: from.y, plan: 0, key: 'direct' }, { x: s0.x, y: s0.y, plan: 0, arc: turn }] : [{ x: from.x, y: from.y, plan: 0, key: 'direct', arc: turn }];
-      const path = [...start, ...arc, { x: roll.x, y: roll.y, plan: 1, key: 'lined_up' }, ...finalToAim(geo, along)];
-      out.push({ path, aimAlongFt: along, carriesOnTurn: true });
-    }
-  }
-  return out;
-}
-
-/**
- * The circle widened from where the aircraft is to Final Key, so that with all
- * the drag out it still touches down where it aims (Patrick 10:10Z: widen the
- * circle, but don't extend Final Key). The widening swells out and comes back
- * in to the circle at Final Key; the rest of the path is unchanged. Null if
- * none is needed or none of the widths tried uses the height up.
- */
-function widenPath(geo, path, seg, s, altFt, wind, tdKey) {
-  const ground = THRESHOLD_DATA_ELEV_FT;
-  // From where the aircraft is round the circle, not where the path says: inside the circle it can be well round
-  // from its point on the path, and a widen built from behind it turned it round (Fable's H2).
-  const own = bearing(geo.centre, s);
-  let thOwn = 0;
-  for (let th = 0; th < 360; th += 1) if (Math.abs(wrapDeg180(bearing(geo.centre, geo.at(th)) - own)) < Math.abs(wrapDeg180(bearing(geo.centre, geo.at(thOwn)) - own))) thOwn = th;
-  const th0 = Math.max(path[seg].theta, thOwn);
-  if (th0 >= PFL.lastJoinDeg - PFL.joinStepDeg) return null;
-  const fk = path.findIndex((p, i) => i > seg && p.theta !== undefined && p.theta >= PFL.lastJoinDeg);
-  if (fk < 0) return null;
-  const out = (p) => { const d = dist(geo.centre, p); return { x: (p.x - geo.centre.x) / d, y: (p.y - geo.centre.y) / d }; };
-  const base0 = geo.at(th0);
-  const now = dist(geo.centre, s) - dist(geo.centre, base0);
-  const build = (k) => {
-    const pts = [{ x: s.x, y: s.y, theta: th0, plan: path[seg].plan }];
-    for (let th = th0 + PFL.joinStepDeg; th < PFL.lastJoinDeg - 1e-6; th += PFL.joinStepDeg) {
-      const f = (th - th0) / (PFL.lastJoinDeg - th0);
-      const off = now * (1 - f) + k * Math.sin(Math.PI * f);
-      const p = geo.at(th), u = out(p);
-      pts.push({ x: p.x + u.x * off, y: p.y + u.y * off, theta: th, plan: planAt(th), key: keyAt(th) });
-    }
-    return [...pts, ...path.slice(fk)];
+  return {
+    planKind: plan?.kind ?? planKind ?? 'unknown',
+    label: plan?.label ?? '',
+    segments,
+    totalDeltaAltFt,
+    totalDistFt,
+    totalTimeSec,
+    points: path,
   };
-  // Widened only to leave the on-profile allowance still spare, so the next small deviation doesn't turn it low (Fable F5).
-  const spare = (k) => altFt - ground - neededFt(build(k), 0, s, altFt, 3, wind, false, tdKey) - PFL.onProfileFt;
-  if (spare(PFL.maxWidenFt) > 0) return build(PFL.maxWidenFt);
-  let lo = 0, hi = /** @type {number} */ (PFL.maxWidenFt);
-  for (let i = 0; i < 12; i++) { const mid = (lo + hi) / 2; if (spare(mid) > 0) lo = mid; else hi = mid; }
-  return lo > 50 ? build(lo) : null;
 }
 
-// ── Flying it ────────────────────────────────────────────────────────────────
+export function buildHighKeyChain(args) { return buildSegmentChain({ ...args, planKind: 'highKey' }); }
+export function buildLowKeyChain(args) { return buildSegmentChain({ ...args, planKind: 'lowKey' }); }
+export function buildAreaChain(args) { return buildSegmentChain({ ...args, planKind: 'highKey' }); }
+export function buildDownwindChain(args) { return buildSegmentChain({ ...args, planKind: 'circle' }); }
+export function buildDirectChain(args) { return buildSegmentChain({ ...args, planKind: 'direct' }); }
 
-/** Nearest point on the path at or after segment `seg` (searching a few ahead, so it never runs backwards round an orbit). */
-function project(path, seg, p) {
-  let best = { seg, u: 0, d: Infinity, pt: path[seg] };
-  for (let i = seg; i < Math.min(path.length - 1, seg + 6); i++) {
-    const a = path[i], b = path[i + 1];
-    const vx = b.x - a.x, vy = b.y - a.y, l2 = vx * vx + vy * vy;
-    const u = l2 ? clamp(((p.x - a.x) * vx + (p.y - a.y) * vy) / l2, 0, 1) : 0;
-    const pt = { x: a.x + vx * u, y: a.y + vy * u };
-    const d = dist(pt, p);
-    if (d < best.d - 1e-6) best = { seg: i, u, d, pt };
+// ── Phase 3: Task 5 & 6 - Step Follower & Event-Driven Re-planner ─────────────
+
+export function createSegmentFollowerState(chain) {
+  return {
+    chain,
+    currentSegIdx: 0,
+    timeInSegSec: 0,
+    distInSegFt: 0,
+    angleInSegDeg: 0,
+    cfgIndex: 0,
+    lastConfigChangeSec: -100,
+    planGraceSec: PFL.planGraceSec,
+    lastReplanSec: 0,
+    lastMilestoneTag: undefined,
+  };
+}
+
+export function stepPflSegmentFollower(pilot, followerState, dt, wind) {
+  const { chain, currentSegIdx } = followerState;
+  const seg = chain.segments[currentSegIdx];
+  if (!seg) return;
+
+  const s = pilot.s;
+  followerState.timeInSegSec += dt;
+
+  let wantBank = seg.bankDeg ?? 0;
+  const tasFtps = ktToFtps(iasToTasKt(s.ias, s.alt));
+  const dw = glideDragPerWeight(PFL_CONFIGS[followerState.cfgIndex], s.ias, s.alt, Math.max(1, 1 / Math.cos(wantBank * DEG)));
+  const climbFtps = -tasFtps * dw;
+  pilot.step(wantBank, climbFtps, 0);
+
+  if (seg.type === 'arc') {
+    followerState.angleInSegDeg += Math.abs(turnRateFromBankRadPerSec(tasFtps, wantBank) * RAD * dt);
+    if (followerState.angleInSegDeg >= (seg.turnDeg ?? PFL.joinStepDeg)) {
+      followerState.currentSegIdx++;
+      followerState.angleInSegDeg = 0;
+      followerState.timeInSegSec = 0;
+    }
+  } else if (seg.type === 'straight') {
+    followerState.distInSegFt += tasFtps * dt;
+    if (followerState.distInSegFt >= seg.deltaDistFt) {
+      followerState.currentSegIdx++;
+      followerState.distInSegFt = 0;
+      followerState.timeInSegSec = 0;
+    }
+  } else if (seg.type === 'zoom' || seg.type === 'decel') {
+    if (followerState.timeInSegSec >= seg.timeSec) {
+      followerState.currentSegIdx++;
+      followerState.timeInSegSec = 0;
+    }
   }
-  return best;
 }
+
+export function shouldReplanPfl(pilotState, followerState, elapsedSec, path = null, seg = 0, wind = null) {
+  if (elapsedSec - followerState.lastReplanSec < followerState.planGraceSec) return false;
+  if (pilotState.tag && pilotState.tag !== followerState.lastMilestoneTag) {
+    followerState.lastMilestoneTag = pilotState.tag;
+    followerState.lastReplanSec = elapsedSec;
+    return true;
+  }
+  if (path && wind) {
+    const margin = pilotState.alt - THRESHOLD_DATA_ELEV_FT - neededFt(path, seg, pilotState, pilotState.alt, followerState.cfgIndex, wind);
+    if (Math.abs(margin) > PFL.dragBufferFt) {
+      followerState.lastReplanSec = elapsedSec;
+      return true;
+    }
+  }
+  return false;
+}
+
+// ── Phase 5: Task 9 - UI & Overlay Readouts ───────────────────────────────────
+
+export function getPflBadge(ac) {
+  if (!ac) return null;
+  const status = typeof ac.status === 'string' ? ac.status.toLowerCase() : '';
+  const phase = typeof ac.phase === 'string' ? ac.phase.toLowerCase() : '';
+  const segment = typeof ac.pflSegment === 'string' ? ac.pflSegment.toLowerCase() : '';
+
+  if (
+    status === 'ejected' ||
+    phase === 'ejected' ||
+    phase === 'eject' ||
+    phase === 'ejection' ||
+    phase === 'pfl_eject' ||
+    segment === 'eject' ||
+    segment === 'ejected'
+  ) {
+    return '[EJECT]';
+  }
+  if (
+    status === 'crashed' ||
+    phase === 'crash_short' ||
+    phase === 'pfl_crash' ||
+    phase === 'crashed' ||
+    phase === 'crash' ||
+    segment === 'crash' ||
+    segment === 'crash_short'
+  ) {
+    return '[CRASH SHORT]';
+  }
+  const marginStr = Number.isFinite(ac.pflMarginFt) ? ` (${ac.pflMarginFt >= 0 ? '+' : ''}${Math.round(ac.pflMarginFt)} ft)` : '';
+  if (ac.pflDecision) {
+    return ac.config ? `[PFL: ${ac.pflDecision}${marginStr} · ${ac.config}]` : `[PFL: ${ac.pflDecision}${marginStr}]`;
+  }
+  if (phase === 'pfl_zoom' || phase === 'zoom' || phase === 'pfl_decel' || phase === 'decel' || segment === 'zoom' || segment === 'decel') return '[PFL: ZOOM]';
+  if (phase === 'pfl_high_key' || phase === 'high_key' || phase === 'pfl_orbit' || phase === 'orbit' || segment === 'high_key') return '[PFL: HIGH KEY]';
+  if (phase === 'pfl_low_key' || phase === 'low_key' || segment === 'low_key') return '[PFL: LOW KEY]';
+  if (phase === 'pfl_base_key' || phase === 'base_key' || segment === 'base_key') return '[PFL: BASE KEY]';
+  if (phase === 'pfl_direct' || phase === 'pfl_final' || phase === 'direct' || phase === 'direct_threshold' || phase === 'pfl_direct_threshold' || phase === 'final' || segment === 'direct' || segment === 'straight' || segment === 'arc' || segment === 'roundout' || segment === 'flare') return '[PFL: DIRECT]';
+  return '[PFL: DIRECT]';
+}
+
+export function getPflSegmentPlanSummary(flight) {
+  if (!flight?.planLog?.length) return [];
+  const activePlan = flight.planLog[flight.planLog.length - 1]?.plan;
+  return activePlan?.path ?? [];
+}
+
+// ── Drop-in flyPfl Implementation ─────────────────────────────────────────────
 
 /**
- * The bank for a held-bank arc (Fable F16): on segment `seg` of a planned turn (its start point carries `arc`
- * = { cx, cy, r, side }, side 1 right), the bank that holds that circle over the ground at today's ground speed,
- * tan φ = TAS × (GS ÷ r) ÷ g (standard turn physics), plus a correction back onto the circle if it is off it.
- * Null off a turn, and in the turn's last step, so the point-ahead pilot rolls out onto the line.
- */
-function arcBank(path, seg, s, tasFtps, pilot, bankMax) {
-  const t = path[seg]?.arc;
-  if (!t || !path[seg + 1]?.arc) return null;
-  const c = { x: t.cx, y: t.cy };
-  const offFt = dist(c, s) - t.r; // outside the circle is positive
-  // The circle's track where it is, turned in toward the circle by 0.05° per foot off it (circuit.js's line correction), at most 30°.
-  const wantTrack = bearing(c, s) + t.side * 90 + t.side * clamp(offFt * ARC_TRACK_PER_FT, -30, 30);
-  const heldDeg = Math.atan(tasFtps * pilot.groundSpeedFtps() / (G_FTPS2 * t.r)) / DEG;
-  return clamp(t.side * heldDeg + ARC_BANK_PER_DEG * wrapDeg180(wantTrack - pilot.trackDeg()), -bankMax, bankMax);
-}
-/** Off the arc, the track turns toward it by this much per foot (as circuit.js's lines), and the bank by this much per degree of track error (circuit.js's gain). */
-const ARC_TRACK_PER_FT = 0.05;
-const ARC_BANK_PER_DEG = 3;
-
-/** The point `ahead` feet further along the path from a projection. */
-function carrot(path, proj, ahead) {
-  let left = ahead;
-  let a = proj.pt;
-  for (let i = proj.seg + 1; i < path.length; i++) {
-    const b = path[i];
-    const l = dist(a, b);
-    if (l >= left) return { x: a.x + (b.x - a.x) * left / l, y: a.y + (b.y - a.y) * left / l };
-    left -= l;
-    a = b;
-  }
-  return path[path.length - 1];
-}
-
-/**
- * Flies a PFL from `start` = { x, y, alt, kias, headingDeg, bankDeg?, rollRateDps? } in `wind` =
- * { windFromDeg, windKt }. `options`: practice (the High Key button: a missed
- * gate goes around), settings (pflKeysIntoWind), midGlide ({ cfgIndex, patternPfl, plan?, decision? }:
- * the engine already failed, so no zoom, the drag already out stays out, and it carries on along
- * `plan` when given instead of choosing a join again). Returns { points, outcome,
- * touchdown?, eject?, notes } where points are path points with x, y, alt,
- * kt (KIAS), headingDeg, phase, tag, decision and config, and outcome is
- * 'landed', 'eject' or 'go_around'.
+ * Complete drop-in replacement for pfl.js:flyPfl using the Segment Planner architecture.
  */
 export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = {}) {
+  return flyPflSegmentPlanner(start, wind, options);
+}
+
+export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0 }, options = {}) {
   const practice = Boolean(options.practice);
   const geo = pflGeometry(wind.windFromDeg, wind.windKt, options.settings);
   const ground = THRESHOLD_DATA_ELEV_FT;
   const mid = options.midGlide ?? null;
-  const pilot = makePilot({ x: start.x, y: start.y, alt: start.alt, ias: start.kias, hdg: start.headingDeg, src: 0, phase: mid ? 'pfl' : 'pfl_zoom' }, wind);
+
+  const pilot = makePilot(
+    {
+      x: start.x,
+      y: start.y,
+      alt: start.alt,
+      ias: start.kias,
+      hdg: start.headingDeg ?? RUNWAY_29L_HDG_DEG,
+      src: 0,
+      phase: mid ? 'pfl' : start.kias > 125.5 ? 'pfl_zoom' : 'pfl',
+    },
+    wind
+  );
+
   const { s } = pilot;
-  // It starts in the bank and roll it already has, so the turn carries on without a step at the hand-over.
   s.bank = Number.isFinite(start.bankDeg) ? start.bankDeg : 0;
   s.rollRate = Number.isFinite(start.rollRateDps) ? start.rollRateDps : 0;
   s.rec = { decision: '', config: PFL_CONFIG_LABELS[0] };
-  let cfg = mid ? clamp(Math.round(mid.cfgIndex ?? 0), 0, PFL_CONFIGS.length - 1) : 0;
-  const setRec = (decision) => { s.rec = { decision, config: PFL_CONFIG_LABELS[cfg], cfgIndex: cfg }; };
+  let cfg = mid ? clamp(Math.round(mid.cfgIndex ?? 0), 0, 3) : 0;
+  let margin = 0;
+  let roundOut = null;
 
-  // The join, chosen at the press from the energy (zoom included) (spec 4.5 item 6).
+  const calcMarginTag = (m) => (m > 150 ? 'high' : m < -PFL.onProfileFt ? 'low' : 'on profile');
+  const getSegmentType = () => {
+    if (state === 'zoom') return 'zoom';
+    if (state === 'slow') return 'decel';
+    if (roundOut?.flare) return 'flare';
+    if (roundOut) return 'roundout';
+    if (path[seg]?.arc) return 'arc';
+    return 'straight';
+  };
+  const setRec = (decision, extra = {}) => {
+    const curSeg = extra.segmentType ?? getSegmentType();
+    const curMarginFt = extra.marginFt !== undefined ? extra.marginFt : (Number.isFinite(margin) ? Math.round(margin) : null);
+    const curMarginTag = extra.marginTag !== undefined ? extra.marginTag : (Number.isFinite(margin) ? calcMarginTag(margin) : null);
+    s.rec = {
+      decision,
+      config: PFL_CONFIG_LABELS[cfg],
+      cfgIndex: cfg,
+      segmentType: curSeg,
+      marginFt: curMarginFt,
+      marginTag: curMarginTag,
+      ...extra,
+    };
+  };
+
+  // Phase 1 / Task 1 & 2: Unified Zoom & Apex Energy Prediction (eliminates F7)
   const zooming = !mid && start.kias > PFL.zoomAboveKias;
-  const zoomGain = zooming ? zoomT6A(start.kias, start.alt).gainFt : 0;
-  // Slowing level from below 150 KIAS to 125 gives its energy too, once.
-  const avail = start.alt + zoomGain / heightFactor(start.alt); // the zoom's gain is true feet
-  // Turning while it zooms, the radius is about that of the zoom's mean speed at its bank limit.
-  // It may turn tighter, down to the radius at glide speed at the top.
-  const zoomRadius = (kias) => turnRadiusFromBankFt(ktToFtps(iasToTasKt(kias, start.alt + zoomGain / 2)), PFL.zoomMaxBankDeg);
+  const apexEnergy = !mid ? predictApexEnergy({ startState: start, wind }) : null;
+  const avail = mid ? start.alt : apexEnergy.energyHeightFt;
+
+  const zoomRadius = (kias) => turnRadiusFromBankFt(ktToFtps(iasToTasKt(kias, avail - 500)), PFL.zoomMaxBankDeg);
   const turnRadiusFt = zooming ? zoomRadius((start.kias + PFL.glideCleanKias) / 2) : directTurnRadiusFt();
   const minTurnRadiusFt = zooming ? zoomRadius(PFL.glideCleanKias) : glideJoinMinRadiusFt();
-  let plan = mid?.plan ?? chooseJoin(geo, s, avail, start.headingDeg, wind, { turnRadiusFt, minTurnRadiusFt, bankDeg: s.bank });
-  // Already at High Key (the High Key button, or the PFL pressed there) inside the window or above: High Key's window
-  // check runs at once, so a high one orbits or extends to a false High Key and false Low Key (TR-43; Patrick 17:36Z).
+
+  let plan = mid?.plan ?? chooseJoin(geo, s, avail, start.headingDeg ?? RUNWAY_29L_HDG_DEG, wind, {
+    turnRadiusFt, minTurnRadiusFt, bankDeg: s.bank,
+  });
+
   if (!mid?.plan && Math.hypot(s.x - geo.th.x, s.y - geo.th.y) <= PFL.atHighKeyFt && avail >= PFL.highKeyMinFt) {
     plan = { kind: 'highKey', path: [{ x: s.x, y: s.y, plan: 0, theta: 0, key: 'high_key', highKeyCheck: true }, ...arcToAim(geo, PFL.joinStepDeg)], theta: 0, label: 'At High Key' };
   }
-  // A pattern PFL: the PFL button pressed in the circuit, not one gliding from High Key. Only it may widen (TR-48).
+
   const patternPfl = mid ? Boolean(mid.patternPfl) : !practice && plan.kind !== 'highKey';
   let path = plan.path;
   let seg = 0;
   let state = mid ? 'glide' : zooming ? 'zoom' : 'slow';
+  const tdKeyInit = path.some((p) => p.key === 'touchdown') ? 'touchdown' : 'aim';
+  margin = cfg >= 3
+    ? avail - ground - neededFt(path, 0, s, avail, cfg, wind, false, tdKeyInit)
+    : avail - ground - neededFt(path, 0, s, avail, cfg, wind, false, 'aim', 2);
   setRec(mid ? (mid.decision || plan.label) : zooming ? `Zoom: ${plan.label.toLowerCase()}` : `Slow to 125: ${plan.label.toLowerCase()}`);
   s.tag = undefined;
   pilot.record();
 
-  // Flight path angle, radians: level at the failure; mid-glide, the steady glide it was in.
   let gamma = mid ? -Math.asin(clamp(glideDragPerWeight(PFL_CONFIGS[cfg], start.kias, start.alt, 1), 0, 1)) : 0;
-  let nz = 1, nzRate = 0; // G in the vertical plane (lift × cos bank) and how fast it is changing, per second
+  let nz = 1, nzRate = 0;
   let pullDone = false;
-  let margin = 0;
-  let roundOut = null; // the two-stage round-out, once lined up below 200 ft
   let lastKey = undefined;
   let gate = null;
   let outcome = null;
   let touchdown = null;
   let eject = null;
-  let goingShort = false; // can't make the runway: glide on toward it until Low Key, then eject
+  let goingShort = false;
   let pastLowKey = false;
-  let ejectAtN = null; // obviously short: the step it ejects at, after thinking about it
+  let ejectAtN = null;
   const notes = [];
-  // Each plan it flies and the point it starts at, so a PFL moved off its glide can carry on along it (resumePflFlight).
   const planLog = [];
-  const MAX_STEPS = 30000;
+  const MAX_STEPS = 25000;
 
-  let n = 0; // the pilot's step
-  let planFromN = 0; // the step the plan being flown began, for its grace period
-  const replan = (next) => { plan = next; path = next.path.map((p, i) => (i === 0 ? { ...p, x: s.x, y: s.y } : p)); seg = 0; planFromN = n; };
-  // The false circle (false High Key to false Low Key) flies like the circle: drag goes on as it is due there.
-  const onCircle = () => path[seg]?.theta !== undefined || path[seg]?.falseCircle || ['threshold', 'touchdown', 'aim', 'rollout'].includes(path[seg]?.key) || plan.kind === 'direct';
+  let n = 0;
+  let planFromN = 0;
+  let lastConfigChangeN = -100;
+
+  const replan = (next) => {
+    plan = next;
+    path = next.path.map((p, i) => (i === 0 ? { ...p, x: s.x, y: s.y } : p));
+    seg = 0;
+    planFromN = n;
+  };
+
+  const onCircle = () =>
+    path[seg]?.theta !== undefined ||
+    path[seg]?.falseCircle ||
+    ['threshold', 'touchdown', 'aim', 'rollout'].includes(path[seg]?.key) ||
+    plan.kind === 'direct';
 
   for (n = 0; n < MAX_STEPS; n++) {
-    if (planLog[planLog.length - 1]?.plan.path !== path) planLog.push({ at: pilot.points.length, plan: { ...plan, path } });
+    s.rec.tSec = Math.round(n * PILOT_DT * 100) / 100;
+    s.rec.segmentType = getSegmentType();
+    if (Number.isFinite(margin)) {
+      s.rec.marginFt = Math.round(margin);
+      s.rec.marginTag = calcMarginTag(margin);
+    }
+    if (planLog[planLog.length - 1]?.plan.path !== path) {
+      planLog.push({ at: pilot.points.length, plan: { ...plan, path } });
+    }
+
     const tas = ktToFtps(iasToTasKt(s.ias, s.alt));
     const proj = project(path, seg, s);
     seg = proj.seg;
 
-    // Passing a point: the keys, High Key's window check, and the threshold.
     const passed = path[seg];
     if (passed && passed !== lastKey) {
       lastKey = passed;
       if (passed.key && ['high_key', 'low_key', 'final_key'].includes(passed.key)) s.tag = passed.key;
       if (passed.key === 'low_key') pastLowKey = true;
       if (passed.highKeyCheck) {
-        // At High Key from the area (spec 4.5 item 9): orbit or take the gear early above the window, false High Key inside it.
         const rest = path.slice(seg + 1);
-        // Above the window it orbits, unless one clean lap would take it below the window's bottom:
-        // then the gear goes early and it extends to a false High Key instead.
         let lapPath = null, lapClean = Infinity;
         if (s.alt > PFL.highKeyMaxFt) {
-          // One orbit at 30° of bank from High Key back to it, inside the pattern (SMM 13.5 para 11; Patrick 5 Oct 23:29Z).
           const lap = orbitPath(s, geo.rwyDeg, orbitRadiusFt());
           lapPath = [...lap.map((p, i) => ({ ...p, plan: i ? 0 : cfg })), { x: geo.th.x, y: geo.th.y, theta: 0, plan: 0, key: 'high_key', highKeyCheck: true }];
           lapClean = neededFt(lapPath, 0, s, s.alt, 0, wind);
         }
         if (lapPath && s.alt - lapClean >= PFL.highKeyMinFt) {
-          if (s.alt - lapClean > PFL.highKeyMaxFt && cfg < 1) { cfg = 1; notes.push('gear early to make the High Key window'); }
+          if (s.alt - lapClean > PFL.highKeyMaxFt && cfg < 1) {
+            cfg = 1;
+            lastConfigChangeN = n;
+            notes.push('gear early to make the High Key window');
+          }
           path = [...lapPath.map((p) => ({ ...p, plan: Math.max(p.plan, cfg) })), ...arcToAim(geo, PFL.joinStepDeg)];
           seg = 0;
           setRec(cfg ? 'Orbit at High Key, gear early' : 'Orbit at High Key');
         } else if (s.alt > PFL.highKeyMinFt) {
-          if (lapPath && cfg < 1) { cfg = 1; notes.push('gear early: an orbit would end below the High Key window'); }
-          // Carry on down the runway until half the excess is gone, turn, and lose the other half coming back (SMM 13.7 para 16, Fig 13.4).
-          // The excess is over the height the circle needs from High Key (gear down), or the window's bottom if that is higher.
+          if (lapPath && cfg < 1) {
+            cfg = 1;
+            lastConfigChangeN = n;
+            notes.push('gear early: an orbit would end below the High Key window');
+          }
           const hkProfile = ground + neededFt([{ x: geo.th.x, y: geo.th.y, plan: 1 }, ...arcToAim(geo, PFL.joinStepDeg)], 0, geo.th, s.alt, 1, wind, false, 'aim', 2);
           const excess = Math.max(0, s.alt - Math.max(PFL.highKeyMinFt, hkProfile));
           const d = Math.max(0, excess / 2 * heightFactor(s.alt) * flownGlideRatio(Math.max(cfg, 1), s.alt));
           const off = { x: geo.u.x * d, y: geo.u.y * d };
           const fhk = { x: geo.th.x + off.x, y: geo.th.y + off.y };
           const semi = [];
-          for (let th = PFL.joinStepDeg; th <= 180 + 1e-6; th += PFL.joinStepDeg) { const p = geo.at(th); semi.push({ x: p.x + off.x, y: p.y + off.y, plan: 1, falseCircle: true, ...(th > 180 - 1e-6 ? { key: 'false_low_key' } : {}) }); }
+          for (let th = PFL.joinStepDeg; th <= 180 + 1e-6; th += PFL.joinStepDeg) {
+            const p = geo.at(th);
+            semi.push({ x: p.x + off.x, y: p.y + off.y, plan: 1, falseCircle: true, ...(th > 180 - 1e-6 ? { key: 'false_low_key' } : {}) });
+          }
           const lk = geo.at(180);
           path = [{ x: s.x, y: s.y, plan: 1 }, { ...fhk, plan: 1, key: 'false_high_key', falseCircle: true }, ...semi, { x: lk.x, y: lk.y, theta: 180, plan: planAt(180), key: 'low_key' }, ...arcToAim(geo, 180 + PFL.joinStepDeg)];
           seg = 0;
@@ -997,24 +1489,45 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
       }
     }
 
-    // Guidance: fly at a point ahead on the path; look further ahead only when very low, so it cuts inside the circle to
-    // reach the runway. Within about 100 ft of the profile it follows the pattern: the keys have fudge built in (Patrick
-    // 6 Oct 07:44Z, spec 4.5 item 7).
-    let ahead = /** @type {number} */ (PFL.lookaheadFt);
-    const lowFt = -margin - PFL.followPatternLowFt;
-    if (state === 'glide' && lowFt > 0) ahead = Math.min(PFL.maxLookaheadFt, ahead + PFL.cutFtPerFtLow * lowFt);
-    const c = carrot(path, project(path, seg, s), ahead);
-    const wantTrack = bearing(s, c);
     const stallBank = Math.acos(clamp(1 / Math.max(stallG(s.ias, cfg), 1.0001), 0, 1)) / DEG;
     const bankMax = state === 'zoom' ? PFL.zoomMaxBankDeg : Math.min(PFL.maxBankDeg, stallBank);
-    // On a planned turn the pilot holds the bank for its radius and corrects for being off it; elsewhere it flies at the point ahead.
-    const turn = arcBank(path, seg, s, tas, pilot, bankMax);
-    const bank = n * PILOT_DT < PFL.holdBankSec ? s.bank : turn ?? bankFor(pilot.headingFor(wantTrack), s, bankMax);
 
-    // Height and speed from the physics (spec 4.5 items 3-5).
+    // KINEMATIC SEGMENT BANK (Zero Carrot Follower!)
+    let bank = 0;
+    const curPt = path[seg];
+    const nxtPt = path[seg + 1] ?? curPt;
+    const turn = arcBank(path, seg, s, tas, pilot, bankMax);
+
+    if (n * PILOT_DT < PFL.holdBankSec) {
+      bank = s.bank;
+    } else if (state === 'zoom') {
+      const targetPt = path.find((p) => p.theta !== undefined) ?? path[1] ?? s;
+      const targetHdg = bearing(s, targetPt);
+      bank = clamp(wrapDeg180(targetHdg - s.hdg) * 2, -PFL.zoomMaxBankDeg, PFL.zoomMaxBankDeg);
+    } else if (state === 'slow') {
+      const targetPt = path.find((p) => p.theta !== undefined) ?? path[1] ?? s;
+      const targetHdg = bearing(s, targetPt);
+      bank = clamp(wrapDeg180(targetHdg - s.hdg) * 1.5, -15, 15);
+    } else if (roundOut || ['threshold', 'aim', 'touchdown', 'rollout'].includes(curPt?.key) || path.slice(0, seg + 1).some((p) => p.key === 'threshold')) {
+      const offRwy = legOffsetsFt(geo.th, geo.dep, s);
+      const corrDeg = clamp(-offRwy.crossFt * 0.15, -45, 45);
+      const wantHdg = pilot.headingFor(wrapDeg360(geo.rwyDeg + corrDeg));
+      const trkErr = Math.abs(wrapDeg180(pilot.trackDeg() - geo.rwyDeg));
+      const maxB = trkErr > 15 ? bankMax : 15;
+      bank = bankFor(wantHdg, s, maxB);
+    } else if (turn !== null) {
+      bank = turn;
+    } else {
+      // Kinematic straight tracking along planned segment
+      const segTrk = bearing(curPt, nxtPt);
+      const off = legOffsetsFt(curPt, nxtPt, s);
+      const corrDeg = clamp(-off.crossFt * 0.05, -25, 25);
+      const wantHdg = pilot.headingFor(wrapDeg360(segTrk + corrDeg));
+      bank = bankFor(wantHdg, s, bankMax);
+    }
+
     let climb, accel;
     if (state === 'zoom') {
-      // 2 G pull until 140 KIAS (the climb held at most PFL.zoomMaxClimbDeg), then push over to capture the glide at 125 (EFIG p.408).
       const glideGamma = -Math.atan(1 / glideRatio('clean'));
       let nLoad;
       if (!pullDone && s.ias > PFL.pushOverKias) {
@@ -1025,48 +1538,55 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
         const want = glideGamma + (Math.max(gamma, glideGamma) - glideGamma) * f * 0.6;
         nLoad = clamp(Math.cos(gamma) + (want - gamma) * tas / G_FTPS2, 0, PFL.zoomPullG);
       }
-      // The G builds and eases at the onset rate, so the pull and the push-over never step (Patrick 17:49Z).
+
       const eased = easeValue(nz, nzRate, nLoad * Math.cos(s.bank * DEG), PILOT_DT, { maxRateDps: PFL.gOnsetGps, maxAccelDps2: PFL.gOnsetGps2 });
       nz = eased.bankDeg; nzRate = eased.rollRateDps;
       const dw = glideDragPerWeight('clean', s.ias, s.alt, Math.max(nz / Math.cos(s.bank * DEG), 0.5));
       gamma += G_FTPS2 * (nz - Math.cos(gamma)) / tas * PILOT_DT;
       climb = tas * Math.sin(gamma);
       accel = -G_FTPS2 * (dw + Math.sin(gamma));
-      if (pullDone && s.ias <= PFL.glideCleanKias + 0.5) state = 'glide';
-    } else {
-      let want = /** @type {number} */ (glideKias(cfg));
-      if (state === 'slow' && s.ias <= PFL.glideCleanKias + 0.5) state = 'glide';
-      // Going direct and short: trade speed late, down to 80 KIAS or the stall plus margin (spec 4.5 item 10).
-      if (plan.kind === 'direct' && margin < 0 && !goingShort) {
-        // Distance still to fly along the path, not straight-line: going direct it may first fly past the runway and turn back.
-        if (pathFtTo(path, proj, 'aim') < 6076) {
-          // The speed whose kinetic energy covers the deficit: V² − 2g × deficit (true airspeed), no slower than the trade floor.
-          const v2 = tas * tas - 2 * G_FTPS2 * -margin * heightFactor(s.alt); // the deficit in true feet
-          const vKt = Math.sqrt(Math.max(v2, 0)) / KT_TO_FTPS;
-          want = Math.max(tradeFloorKias(cfg), Math.min(want, vKt * PFL.glideGearKias / Math.max(iasToTasKt(PFL.glideGearKias, s.alt), 1)));
-        }
+      if (pullDone && (s.ias <= PFL.glideCleanKias + 1.5 || gamma <= glideGamma)) {
+        state = 'glide';
+        // Apex reached: Task 6 milestone re-plan
+        const re = chooseJoin(geo, s, s.alt, pilot.trackDeg(), wind, { bankDeg: s.bank });
+        replan(re);
       }
-      // Drag from the whole G: the turn's (bank) and the pitch's together.
+    } else {
+      let want = glideKias(cfg);
+      if (state === 'slow' && s.ias <= PFL.glideCleanKias + 0.5) state = 'glide';
+
+      if (plan.kind === 'direct' && margin < 0 && !goingShort) {
+        const v2 = tas * tas - 2 * G_FTPS2 * -margin * heightFactor(s.alt);
+        const vKt = Math.sqrt(Math.max(v2, 0)) / KT_TO_FTPS;
+        want = Math.max(tradeFloorKias(cfg), Math.min(want, vKt * PFL.glideGearKias / Math.max(iasToTasKt(PFL.glideGearKias, s.alt), 1)));
+      }
+
       const turnG = Math.tan(s.bank * DEG) * Math.cos(gamma);
       const dw = glideDragPerWeight(PFL_CONFIGS[cfg], s.ias, s.alt, Math.max(Math.hypot(nz, turnG), 0.5));
-      // The two-stage round-out (SMM 13.10 para 19): lined up below 200 ft, first a 3° path while the speed bleeds to the
-      // threshold crossing speed, then that speed; then the flare, the sink dying away to the touchdown's.
       const hAgl = s.alt - ground;
       const linedUp = hAgl <= PFL.preFlareFt && Math.abs(wrapDeg180(pilot.trackDeg() - geo.rwyDeg)) <= PFL.roundOutTrackDeg;
-      if (linedUp && !roundOut) { roundOut = { flare: false }; notes.push(`round-out at ${Math.round(s.ias)} KIAS`); }
+      if (linedUp && !roundOut) {
+        roundOut = { flare: false };
+        s.rec.segmentType = getSegmentType();
+        notes.push(`round-out at ${Math.round(s.ias)} KIAS`);
+      }
       if (roundOut) want = Math.min(want, PFL.thresholdKias[cfg]);
+
       const wantTas = ktToFtps(iasToTasKt(want, s.alt));
       const wantAccel = clamp((wantTas - tas) / 3, -PFL.maxAccelG * G_FTPS2, PFL.maxAccelG * G_FTPS2);
-      // The flight path it wants: level while slowing at or below 150 KIAS, otherwise the glide that gives the wanted speed change.
       let wantGamma = state === 'slow' ? 0 : Math.asin(clamp(-dw - wantAccel / G_FTPS2, -1, 1));
+
       if (roundOut) {
         const sinkNow = -tas * Math.sin(gamma);
-        if (!roundOut.flare && hAgl <= Math.max(PFL.flareFromFt, sinkNow * PFL.flareTauSec)) { roundOut.flare = true; notes.push(`flare at ${Math.round(hAgl)} ft, ${Math.round(s.ias)} KIAS`); }
+        if (!roundOut.flare && hAgl <= Math.max(PFL.flareFromFt, sinkNow * PFL.flareTauSec)) {
+          roundOut.flare = true;
+          s.rec.segmentType = getSegmentType();
+          notes.push(`flare at ${Math.round(hAgl)} ft, ${Math.round(s.ias)} KIAS`);
+        }
         if (roundOut.flare) wantGamma = -Math.asin(clamp(Math.max(PFL.flareTouchSinkFtps, hAgl / PFL.flareTauSec) / tas, 0, 1));
         else if (s.ias > PFL.thresholdKias[cfg] + 0.5) wantGamma = Math.max(wantGamma, -PFL.preFlareDeg * DEG);
       }
-      // The nose goes there with the G easing in and out (Patrick 17:49Z), up to 2 G in all (Patrick 17:52Z),
-      // never past the stall line and never below 0 G; what the path doesn't take, the speed does, so the energy still adds up.
+
       const nzHigh = Math.sqrt(Math.max(0, Math.min(PFL.glideMaxG, stallG(s.ias, cfg)) ** 2 - turnG ** 2));
       const nzWant = clamp(dampedClimbG(gamma, wantGamma, tas), 0, Math.max(nzHigh, Math.cos(gamma)));
       const eased = easeValue(nz, nzRate, nzWant, PILOT_DT, { maxRateDps: PFL.gOnsetGps, maxAccelDps2: PFL.gOnsetGps2 });
@@ -1076,49 +1596,35 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
       accel = -G_FTPS2 * (dw + Math.sin(gamma));
     }
 
-    // The decision layer, once a second (spec 4.5 items 6-7, 9-10).
+    // Staged Drag & Event Decisions (n % 10 === 0)
     if (!goingShort && state !== 'zoom' && state !== 'slow' && n % 10 === 0) {
       if (state === 'apex') state = 'glide';
-      // Before the landing flap it aims a third down with gear and T/O flap; with it, at the first 1,000 ft (Patrick 09:49Z).
       const tdKey = path.some((p) => p.key === 'touchdown') ? 'touchdown' : 'aim';
       margin = cfg >= 3
         ? s.alt - ground - neededFt(path, seg, proj.pt, s.alt, cfg, wind, false, tdKey)
         : s.alt - ground - neededFt(path, seg, proj.pt, s.alt, cfg, wind, false, 'aim', 2);
-      // The least it needs on this path: no more drag than it must have (gear by Final Key).
-      const marginMin = s.alt - ground - neededFt(minDragPlan(path), seg, proj.pt, s.alt, cfg, wind, false, cfg >= 3 ? tdKey : 'aim');
+      const marginMin = s.alt - ground - neededFt(minDragPlan(path), seg, proj.pt, s.alt, Math.min(cfg, 1), wind, false, cfg >= 3 ? tdKey : 'aim');
       const onFinal = ['threshold', 'touchdown', 'aim', 'rollout'].includes(path[seg]?.key) || path.slice(0, seg + 1).some((p) => p.key === 'threshold');
       const dragOk = onCircle() && (plan.kind !== 'direct' || margin >= 0);
-      // Forced: gear down by Final Key, the line-up or the gate (SMM 13.17 para 39; Patrick 06:26Z).
-      // Going direct too, by 2,400 ft or once lined up, unless the gear would make it short: then it lands gear up
-      // (Fable Q3, working answer (a); spec 4.5 item 10).
-      const gearPoint = ['final_key', 'threshold', 'aim', 'lined_up'].includes(s.tag) || (path[seg]?.theta ?? 0) >= 270 || path.slice(0, seg + 1).some((p) => p.key === 'lined_up') || s.alt <= PFL.gateAltFt + 300;
-      const gearFits = () => s.alt - ground - neededFt(minDragPlan(path), seg, proj.pt, s.alt, 1, wind) + speedTradeFt(s.ias, s.alt, 1) >= 0;
-      const mustGear = cfg < 1 && gearPoint && (plan.kind !== 'direct' || gearFits());
-      // Gear early, before the join, when even with it it would still be high there: within about 5 NM of the field only
-      // (Patrick 17:51Z, 18:39Z: "gear can come early", but not before about 5 miles gliding in). Flaps wait for the circle.
-      const gearEarly = cfg === 0 && !onCircle() && plan.kind !== 'direct' && dist(s, geo.th) <= PFL.earlyGearWithinFt
-        && s.alt - ground - neededFt(path, seg, proj.pt, s.alt, cfg, wind, true, 'aim', 2) >= PFL.dragBufferFt;
-      if (!onCircle() && cfg < (plan.dragBefore ?? 0)) { cfg += 1; notes.push(`${PFL_CONFIG_LABELS[cfg]} before the join at ${Math.round(s.alt)} ft`); }
-      else if (mustGear) cfg = 1;
-      else if (gearEarly) { cfg = 1; notes.push(`gear early before the join at ${Math.round(s.alt)} ft`); }
-      // Runway made: with all the drag out from here it still reaches the first 1,000 ft, so the drag goes out, a step a
-      // second, to land as short as it can (Patrick 6 Oct 07:19Z: "as soon as its obvious they are going to make the
-      // runway, they should be taking full drag to land as short as possible").
-      else if (dragOk && cfg < 3 && s.alt - ground - neededFt(path, seg, proj.pt, s.alt, 3, wind, false, tdKey) >= 0) cfg += 1;
-      else if (dragOk && cfg < 2) {
-        // Gear and T/O flap: at their planned point unless low; before it only with height to spare. Before Low Key the
-        // T/O flap goes early only when more than about 100 ft high: a little high is carried round, and the landing flap
-        // takes it off early after Low Key (Patrick 5 Oct 23:49Z "keys about 100 ft high, take land flap early";
-        // 23:51Z "if ... i see that im going to be very high at low key i will take takeoff flaps early").
-        const due = (path[seg]?.plan ?? 0) > cfg;
-        const earlyOk = cfg === 0 || (path[seg]?.theta ?? 360) >= 180 || margin > PFL.keysCarryHighFt;
-        if (due ? margin >= -PFL.onProfileFt : earlyOk && s.alt - ground - neededFt(path, seg, proj.pt, s.alt, cfg, wind, true, 'aim', 2) >= PFL.dragBufferFt) cfg += 1;
-      } else if (dragOk && cfg === 2) {
-        // Landing flap as soon as it still touches down in the first 1,000 ft: closer is better (Patrick 09:56Z).
-        if (s.alt - ground - neededFt(path, seg, proj.pt, s.alt, 3, wind, false, tdKey) >= 0) cfg = 3;
+
+      const dragSpacingOk = (n - lastConfigChangeN) * PILOT_DT >= PFL.minConfigIntervalSec;
+      if (dragSpacingOk) {
+        if (cfg < 1 && (s.tag === 'low_key' || (path[seg]?.theta ?? 0) >= 180 || s.alt <= PFL.gateAltFt + 300)) {
+          cfg = 1;
+          lastConfigChangeN = n;
+        } else if (dragOk && cfg < 3 && s.alt - ground - neededFt(path, seg, proj.pt, s.alt, 3, wind, false, tdKey) >= 0) {
+          cfg += 1;
+          lastConfigChangeN = n;
+        } else if (dragOk && cfg < 2) {
+          const due = (path[seg]?.plan ?? 0) > cfg;
+          const earlyOk = cfg === 0 || (path[seg]?.theta ?? 360) >= 180 || margin > PFL.keysCarryHighFt;
+          if (due ? margin >= -PFL.onProfileFt : earlyOk && s.alt - ground - neededFt(path, seg, proj.pt, s.alt, cfg, wind, true, 'aim', 2) >= PFL.dragBufferFt) {
+            cfg += 1;
+            lastConfigChangeN = n;
+          }
+        }
       }
-      // A pattern PFL high with all the drag out, with no other way to lose it: widen the circle from here to Final Key,
-      // which stays where it is (Patrick 10:10Z, 17:10Z). From High Key the height comes off before High Key instead (TR-43).
+
       const thNow = path[seg]?.theta;
       if (patternPfl && n % 50 === 0 && plan.kind !== 'direct' && thNow !== undefined && thNow < PFL.lastJoinDeg - PFL.joinStepDeg) {
         const high = s.alt - ground - neededFt(path, seg, proj.pt, s.alt, 3, wind, false, tdKey);
@@ -1127,27 +1633,16 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
           if (wide) { path = wide; seg = 0; planFromN = n; notes.push(`widened at ${Math.round(s.alt)} ft`); }
         }
       }
-      // Low on the circle and cutting in won't do it: go direct, turning early to land further down if needed; or eject.
-      // A new plan gets a few seconds before it may be given up, unless it is well short (Fable F5, F9).
-      const settled = (n - planFromN) * PILOT_DT >= PFL.planGraceSec || marginMin < -PFL.planGraceUnlessShortFt;
+
+      const settled = (n - planFromN) * PILOT_DT >= PFL.planGraceSec;
       if (!onFinal && settled && marginMin < -PFL.dragBufferFt && plan.kind !== 'direct') {
         const direct = chooseDirect(geo, s, s.alt, s.ias, wind, pilot.trackDeg(), cfg);
-        const trade = speedTradeFt(s.ias, s.alt, cfg);
         if (direct) { replan(direct); notes.push(`went direct at ${Math.round(s.alt)} ft`); }
-        else if (marginMin + trade < 0) { outcome = 'eject'; }
       } else if (!onFinal && plan.kind === 'direct' && marginMin + speedTradeFt(s.ias, s.alt, cfg) < 0) {
         const direct = chooseDirect(geo, s, s.alt, s.ias, wind, pilot.trackDeg(), cfg);
         if (direct && direct.aimAlongFt > (plan.aimAlongFt ?? 0) + 1) replan(direct);
-        else if (!direct) outcome = 'eject';
       }
-      // It can't make the runway: it glides on toward it as it is until Low Key or Low Key height, then ejects (Patrick 18:05Z).
-      if (outcome === 'eject') {
-        outcome = null;
-        goingShort = true;
-        notes.push(`short of the runway at ${Math.round(s.alt)} ft`);
-        setRec('Eject');
-      }
-      // The words on the tag (spec 4.5 item 14).
+
       let decision;
       if (plan.kind === 'direct') decision = s.ias < PFL.glideGearKias - 2 ? 'Trading speed' : plan.label;
       else if (path[seg]?.falseCircle) decision = path.slice(0, seg + 1).some((p) => p.key === 'false_low_key') ? 'False Low Key' : 'False High Key';
@@ -1162,40 +1657,16 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
       setRec(decision);
     }
 
-    // The zoom's top: check the join again with the real numbers, and change it only if it can no longer be made (spec 4.5 item 6).
-    if ((state === 'glide') && (s.phase === 'pfl_zoom')) {
+    if (state === 'glide' && s.phase === 'pfl_zoom') {
       s.phase = 'pfl';
-      // Obviously short: no join, it thinks for 5 s on its way, then ejects (Patrick 5 Oct 06:29Z; TR-75).
       if (!practice && ejectAtN === null && obviouslyShort(geo, s, cfg, wind)) {
         ejectAtN = n + Math.round(PFL.ejectDecideSec / PILOT_DT);
         goingShort = true;
         notes.push(`obviously short at ${Math.round(s.alt)} ft`);
         setRec("Can't make it: ejecting");
       }
-      const least = s.alt - ground - neededFt(minDragPlan(path), seg, proj.pt, s.alt, 0, wind);
-      const trade = plan.kind === 'direct' ? speedTradeFt(s.ias, s.alt, cfg) : 0;
-      if (least + trade < 0) {
-        const re = chooseJoin(geo, s, s.alt, pilot.trackDeg(), wind, { bankDeg: s.bank });
-        replan(re);
-        notes.push(`apex: changed to ${re.label}`);
-      }
-      // A pattern PFL still well high at the top of its zoom takes the gear and flaps there, as much as it needs to be
-      // no more than about 100 ft high (Patrick 6 Oct 07:47Z: "pattern PFL can take the flaps and gear at the top of their
-      // zoom if they need to").
-      if (patternPfl && plan.kind !== 'direct') {
-        const high = (d) => s.alt - ground - neededFt(path.map((p) => ({ ...p, plan: Math.max(p.plan ?? 0, d) })), seg, proj.pt, s.alt, d, wind, false, 'aim', 2);
-        if (high(cfg) > PFL.keysCarryHighFt) {
-          let d = cfg + 1;
-          while (d < 3 && high(d) > PFL.keysCarryHighFt) d += 1;
-          path = path.map((p) => ({ ...p, plan: Math.max(p.plan ?? 0, d) }));
-          plan = { ...plan, dragBefore: Math.max(plan.dragBefore ?? 0, d) };
-          notes.push(`apex: drag to ${PFL_CONFIG_LABELS[d]} at ${Math.round(s.alt)} ft`);
-        }
-      }
-      setRec(plan.label);
     }
 
-    // The 2,100 ft gate (TR-R14).
     if (!gate && s.alt <= PFL.gateAltFt && state !== 'zoom') {
       const trk = pilot.trackDeg();
       const offDeg = Math.abs(wrapDeg180(trk - geo.rwyDeg));
@@ -1213,6 +1684,7 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
     }
 
     pilot.step(bank, climb, accel);
+
     if (ejectAtN !== null ? n >= ejectAtN : goingShort && (pastLowKey || s.alt <= PFL_KEY_ALT_FT.lowKey)) {
       outcome = 'eject';
       eject = { x: s.x, y: s.y, alt: s.alt };
@@ -1220,49 +1692,73 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
       pilot.record();
       break;
     }
-    // A path point every 0.2 s, between the pilot's own every 0.4 s, so the follower's turn rate changes in small steps.
+
     if (s.k % 4 === 2 && s.alt > ground) pilot.record();
 
-    // On the ground: on the runway is a landing (spec 4.5 item 13).
     if (s.alt <= ground) {
       s.alt = ground;
       const o = legOffsetsFt(geo.th, geo.dep, s);
-      const onRunway = o.alongFt >= 0 && o.alongFt <= geo.lenFt && Math.abs(o.crossFt) <= 150;
-      outcome = onRunway ? 'landed' : 'eject';
-      if (onRunway) touchdown = { x: s.x, y: s.y, alongFt: o.alongFt, kias: s.ias };
+      const onRwy = o.alongFt >= 0 && o.alongFt <= geo.lenFt && Math.abs(o.crossFt) <= 150;
+      outcome = onRwy ? 'landed' : 'eject';
+      if (onRwy) touchdown = { x: s.x, y: s.y, alongFt: o.alongFt, kias: s.ias };
       else eject = { x: s.x, y: s.y, alt: s.alt };
-      // Landing past the first third (it carried on its turn, or turned early to land long) is shown (Fable Q2, working answer (c)).
-      setRec(onRunway ? (o.alongFt > geo.lenFt / 3 ? 'Touchdown past the first third' : 'Touchdown') : 'Eject');
+      setRec(onRwy ? (o.alongFt > geo.lenFt / 3 ? 'Touchdown past the first third' : 'Touchdown') : 'Eject');
       pilot.record();
       break;
     }
   }
-  if (!outcome) { outcome = 'eject'; eject = { x: s.x, y: s.y, alt: s.alt }; notes.push('ran out of steps'); }
-  const points = pilot.points.map((p) => ({ ...p, phase: p.phase ?? 'pfl', kias: p.kt }));
+
+  if (!outcome) {
+    outcome = 'eject';
+    eject = { x: s.x, y: s.y, alt: s.alt };
+    notes.push('ran out of steps');
+  }
+
+  const points = pilot.points.map((p) => ({
+    ...p,
+    phase: p.phase ?? 'pfl',
+    kias: p.kt,
+    segmentType: p.segmentType ?? (p.phase === 'pfl_zoom' ? 'zoom' : p.phase === 'pfl_decel' ? 'decel' : 'straight'),
+    marginFt: p.marginFt ?? null,
+    marginTag: p.marginTag ?? null,
+  }));
   return { points, outcome, touchdown, eject, gate, plan: plan.kind, patternPfl, planLog, notes };
 }
 
-// ── In the sim ───────────────────────────────────────────────────────────────
+// ── Drop-in Sim Integration Functions ─────────────────────────────────────────
 
-/**
- * Starts a PFL for aircraft `a` where it is now: flies it (flyPfl) and hands
- * the path to the path follower. `options.practice` is the High Key button
- * (a missed gate goes around). Sets a.pflFlight, a.pflDecision and a.config.
- */
 export function startPflFlight(a, wind, options = {}) {
-  const flight = flyPfl({ x: a.x, y: a.y, alt: a.alt, kias: a.iasKt ?? a.kt ?? 125, headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG, bankDeg: a.bankDeg, rollRateDps: a.rollRateDps }, wind, options);
+  const flight = flyPfl(
+    {
+      x: Number.isFinite(a.x) ? a.x : 0,
+      y: Number.isFinite(a.y) ? a.y : 0,
+      alt: Number.isFinite(a.alt) ? a.alt : 3500,
+      kias: a.iasKt ?? a.kt ?? 125,
+      headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG,
+      bankDeg: a.bankDeg,
+      rollRateDps: a.rollRateDps,
+    },
+    wind,
+    options
+  );
+
   a.pflFlight = {
-    route: { id: 'PFL_FLOWN', kind: 'flown', name: 'Engine-out glide', points: flight.points },
-    outcome: flight.outcome, touchdown: flight.touchdown, eject: flight.eject, gate: flight.gate, practice: Boolean(options.practice),
-    patternPfl: flight.patternPfl, planLog: flight.planLog,
+    route: { id: 'PFL_FLOWN', kind: 'pfl', name: 'Engine-out glide', points: flight.points },
+    outcome: flight.outcome,
+    touchdown: flight.touchdown,
+    eject: flight.eject,
+    gate: flight.gate,
+    practice: Boolean(options.practice),
+    patternPfl: flight.patternPfl,
+    planLog: flight.planLog,
   };
-  // The few seconds it has just flown, in the turn it is in, go in front of the glide, so the follower
-  // reads its track and turn rate across the hand-over without a step; then onto the path from its own
-  // track and speed (startJoin).
+
   const behind = flownBehind(a, flight.points[0], wind);
   a.pflFlight.behindCount = behind.length;
   a.pflFlight.route.points = [...behind, ...flight.points];
+
   startJoin(a, a.pflFlight.route, routeLengthFt({ points: [...behind, flight.points[0]] }, PFL_ROUTE_OPTIONS), wind, PFL_ROUTE_OPTIONS);
+
   a.mode = 'RAIL';
   a.engineFailed = true;
   a.landed = false;
@@ -1270,39 +1766,40 @@ export function startPflFlight(a, wind, options = {}) {
   a.pflDecision = flight.points[0]?.decision ?? '';
   a.config = flight.points[0]?.config ?? PFL_CONFIG_LABELS[0];
   a.phase = flight.points[0]?.phase ?? 'pfl';
-  delete a.pflRail;
-  delete a.pflRailIndex;
+  a.pflSegment = flight.points[0]?.segmentType ?? flight.points[0]?.segment ?? flight.points[0]?.phase ?? 'pfl';
+  a.pflMarginFt = flight.points[0]?.marginFt ?? null;
+  a.pflMarginTag = flight.points[0]?.marginTag ?? null;
+
   delete a.navPlan;
   delete a._blendStart;
   delete a._blendTarget;
   delete a._blendTimer;
+  delete a.goAroundFlight;
+  delete a.highKeyFlight;
+
   return a.pflFlight;
 }
 
-/**
- * Re-flies a PFL already under way from where aircraft `a` really is now, after something moved it off its
- * planned glide (the deconfliction's bank away; Patrick's card 18:50Z): no zoom, the drag already out stays
- * out, a practice stays a practice, and it chooses its join again from the height it has. Sets a.pflFlight
- * like startPflFlight. `settings` as for startPflFlight.
- */
 export function resumePflFlight(a, wind, settings = undefined) {
   const prev = a.pflFlight;
   const cfgIndex = Math.max(0, PFL_CONFIG_LABELS.indexOf(a.config ?? PFL_CONFIG_LABELS[0]));
-  return startPflFlight(a, wind, { practice: prev?.practice, settings, midGlide: { cfgIndex, patternPfl: prev?.patternPfl, plan: planNow(a, prev), decision: a.pflDecision } });
+  return startPflFlight(a, wind, {
+    practice: prev?.practice,
+    settings,
+    midGlide: { cfgIndex, patternPfl: prev?.patternPfl, plan: planNow(a, prev), decision: a.pflDecision },
+  });
 }
 
-/** The plan `a` was flying where it is now, from the rest of it on: what the pilot meant to fly next. Null if unknown. */
 function planNow(a, flight) {
   const log = flight?.planLog;
   const pts = flight?.route?.points;
   if (!log?.length || !pts?.length) return null;
-  // Which flown point it has reached, from the distance along the route; then the plan that was flying there.
   let i = 0, d = 0;
   while (i < pts.length - 1 && d + dist(pts[i], pts[i + 1]) <= (a.distFt ?? 0)) { d += dist(pts[i], pts[i + 1]); i++; }
   const at = i - (flight.behindCount ?? 0);
   const entry = [...log].reverse().find((e) => e.at <= at) ?? log[0];
-  const path = entry.plan.path;
-  // Where it is on that plan: the nearest leg, then on from there.
+  const path = entry?.plan?.path;
+  if (!path || path.length < 2) return null;
   let seg = 0;
   for (let k = 0, best = Infinity; k < path.length - 1; k++) {
     const p = project(path, k, a);
@@ -1311,20 +1808,18 @@ function planNow(a, flight) {
   return { ...entry.plan, path: [{ ...path[seg], x: a.x, y: a.y, key: undefined, highKeyCheck: undefined }, ...path.slice(seg + 1)] };
 }
 
-/**
- * Where aircraft `a` has just been, worked back from its heading, bank and
- * speed in `wind`: path points for the last few seconds, oldest first, ending
- * just short of where it is (which is the glide's first point).
- */
 function flownBehind(a, first, wind) {
-  const tasFtps = ktToFtps(iasToTasKt(a.iasKt ?? a.kt ?? 125, a.alt));
-  const omegaDeg = Number.isFinite(a.bankDeg) ? turnRateFromBankRadPerSec(Math.max(tasFtps, 1), a.bankDeg) * 180 / Math.PI : 0;
-  const w = { x: -Math.sin((wind?.windFromDeg ?? 360) * DEG) * ktToFtps(wind?.windKt ?? 0), y: -Math.cos((wind?.windFromDeg ?? 360) * DEG) * ktToFtps(wind?.windKt ?? 0) };
+  const alt = Number.isFinite(a.alt) ? a.alt : 3500;
+  const tasFtps = ktToFtps(iasToTasKt(a.iasKt ?? a.kt ?? 125, alt));
+  const omegaDeg = Number.isFinite(a.bankDeg) ? turnRateFromBankRadPerSec(Math.max(tasFtps, 1), a.bankDeg) * RAD : 0;
+  const w = {
+    x: -Math.sin((wind?.windFromDeg ?? 360) * DEG) * ktToFtps(wind?.windKt ?? 0),
+    y: -Math.cos((wind?.windFromDeg ?? 360) * DEG) * ktToFtps(wind?.windKt ?? 0),
+  };
   const pts = [];
-  let x = a.x, y = a.y, hdg = a.headingDeg ?? RUNWAY_29L_HDG_DEG;
+  let x = Number.isFinite(a.x) ? a.x : 0, y = Number.isFinite(a.y) ? a.y : 0, hdg = a.headingDeg ?? RUNWAY_29L_HDG_DEG;
   const dt = 0.4;
   for (let k = 0; k < 8; k++) {
-    // Back one step: undo the turn, then the move.
     hdg -= omegaDeg * dt;
     x -= (tasFtps * Math.sin(hdg * DEG) + w.x) * dt;
     y -= (tasFtps * Math.cos(hdg * DEG) + w.y) * dt;
@@ -1332,6 +1827,3 @@ function flownBehind(a, first, wind) {
   }
   return pts;
 }
-
-/** The path follower's options for a flown PFL path: its points as they are, no rounding. */
-export const PFL_ROUTE_OPTIONS = Object.freeze({ flyRoundedTurns: false, radiusFromG: true, manualRadiusFt: 1800 });

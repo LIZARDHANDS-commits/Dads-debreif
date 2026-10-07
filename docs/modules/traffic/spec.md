@@ -259,7 +259,7 @@ Dotted line, 6 waypoints from the south up the outer rejoin line (the straight-i
 
 ### 4.5 PFL: engine failure, and the glide from High Key
 
-Approved 4 Oct 2026 08:54Z (Traffic refactor PR 3). Replaces the old 4.5 PFL_HIGH_KEY, 4.6 PFL_PATTERN and 4.7 PFL_FROM_AREA.
+Approved 4 Oct 2026 08:54Z (Traffic refactor PR 3); Segment Planner architecture ratified 7 Oct 2026 (Task 10 rewrite). Replaces the old 4.5 PFL_HIGH_KEY, 4.6 PFL_PATTERN and 4.7 PFL_FROM_AREA, retiring the legacy virtual carrot follower in favor of a discrete kinematic segment chain.
 
 One runway for now: every PFL flies to 29L, and one that makes the runway ends in a touch-and-go (Patrick, 4 Oct 11:53Z, TR-49).
 
@@ -269,7 +269,20 @@ One runway for now: every PFL flies to 29L, and one that makes the runway ends i
    - Low Key: 180° round, 1 NM abeam, about 3,700 ft MSL (SMM 13.8 para 17).
    - Final Key: 270° round, about 3,000 ft MSL, 1,000 ft AGL (SMM 13.9 para 18). Shown as "Final Key".
    - Key heights are what the aircraft is checked against, not a schedule it is held to.
-3. **How it flies.** The join is flown live. The circle is a planned, wind-shaped ground track, and the aircraft blends onto it at a tangent. Height and speed come from the physics: the glide ratio of the configuration down, at the speed flown. Nothing writes a height by angle round the circle. A planned turn (the join's turn, or carrying on the turn onto the runway in item 10) is flown as a pilot flies it: the bank that holds that turn's radius over the ground, corrected if it drifts off; the straights and the circle are flown by looking at a point ahead. Every height the plan needs is in altimeter feet: the glide's true height divided by the day's height factor (TR-77), so a hot or cold day flies the same profile as a standard one (PFL rework, 5 Oct 2026, TR-85; wording waiting on Patrick's yes).
+3. **How it flies: Segment Planner Architecture.**
+   The forced landing is planned and flown as an explicit chain of discrete kinematic and aerodynamic segments (`pfl.js`), completely eliminating the legacy virtual carrot follower and F1/F16 corner cutting:
+   - `zoom`: 2 G pull to 20° climb attitude, push-over through 145 KIAS, capturing 125 KIAS best glide speed while rolling up to 30° toward the join heading. Kinematics share `src/core/t6-performance.js:flyZoomT6A` exactly, eliminating apex overshoot (resolving Fable F7).
+   - `decel`: Level deceleration holding altitude for entries $\le 150\text{ KIAS}$ until clean glide speed (125 KIAS) is reached.
+   - `arc`: Coordinated constant-bank turn ($30^\circ$, $45^\circ$, up to $60^\circ$ maximum) at current glide speed in wind, with exact wind-drift integration.
+   - `straight`: Constant wings-level descent along the ground track $\vec{V}_{\text{TAS}} + \vec{W}$ at the configuration's sink rate $\dot{z} = -V / (L/D)$.
+   - `roundout`: SMM 13.10 two-stage round-out (pre-flare at 200 ft AGL checking to 3° descent path, flare at 15 ft AGL to 2 ft/s sink, touching down at 80–90 KIAS in the first third).
+   Total height needed is evaluated directly over the exact planned segment chain ($\Delta z = \sum \Delta z_{\text{segment}}$), eliminating F9 height sum errors.
+   
+   **Event-Driven Re-planning ("Fly like a pilot"):**
+   The aircraft follows kinematic bank and descent commands along each segment without chasing a moving virtual carrot. Re-plans occur only at discrete milestones (Zoom Apex / Decel exit, High Key, Low Key, Final Key) or when actual altitude deviates from profile by more than $\pm 300\text{ ft}$, subject to a 5 s re-planning grace period.
+
+   **Staged Drag Governance:**
+   Drag increases sequentially (Clean $\rightarrow$ Gear $\rightarrow$ T/O flap $\rightarrow$ Landing flap) with a mandatory minimum spacing of 5 s between configuration changes to allow aerodynamic settling. Direct approaches inside Final Key waive the first-third touchdown constraint to ensure safe recovery on available runway.
 4. **Speed.** 125 KIAS clean until the gear goes down, then 120 KIAS (SMM 13.5 para 8, 13.14 para 26; Patrick 06:26Z). Never slower to stretch the glide, except direct to the threshold (item 10).
 5. **Zoom.** Above 150 KIAS: a 2 G pull, push over through 140, capture 125 (EFIG p.408). The zoom turns toward the chosen join point at the same time, never away from the runway. At or below 150 KIAS: hold height and slow to 125. NFM Fig 3-4 (20° to 145 KIAS, p.3-12) stays a reference.
 6. **Choosing the join.** Chosen at the button press from energy height (He = h + V²/2g, true airspeed), less the expected zoom loss, and checked again at the top of the zoom.

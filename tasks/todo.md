@@ -177,9 +177,9 @@
 ### Task 9A: Wire Simulation Stepper to Segment Planner
 **Description:** Connect `startPflFlight`, `resumePflFlight`, and `tickAircraft` in `sim.js` and `tick-aircraft.js` to use the segment planner flight engine. Forward rich segment telemetry (`pflSegment`, `pflDecision`, `pflMarginFt`, `pflMarginTag`, `config`) to the active aircraft state each step so downstream visualization layers receive live energy and phase data.
 **Acceptance criteria:**
-- [ ] `startPflFlight` and `resumePflFlight` initialize and step using the segment planner trajectory
-- [ ] Aircraft state updates `pflSegment`, `pflDecision`, `pflMarginFt`, and `config` on every simulation tick
-- [ ] Emergency ejections and successful landings hand off to `pflEnded` with zero coordinate discontinuity
+- [x] `startPflFlight` and `resumePflFlight` initialize and step using the segment planner trajectory
+- [x] Aircraft state updates `pflSegment`, `pflDecision`, `pflMarginFt`, and `config` on every simulation tick
+- [x] Emergency ejections and successful landings hand off to `pflEnded` with zero coordinate discontinuity
 **Verification:**
 - [ ] Syntax check: `node --check src/modules/traffic/sim.js` and `node --check src/modules/traffic/tick-aircraft.js`
 - [ ] Standalone test script verifies `createSim(setup).command(acId, 'pfl_current')` advances through segments and populates telemetry
@@ -194,12 +194,12 @@
 ### Task 9B: 2D Map Overlays, Tactical Badges & Planned Track
 **Description:** Update `map2d.js` and `scene.js` to render live segment planner telemetry and ground tracks. Format `getPflBadge(ac)` to output standard tactical badges (e.g., `[PFL: High Key (+250 ft) • Clean]`, `[PFL: Zoom • Clean]`, `[PFL: Direct Runway]`). In `scene.js`, supply the planned segment chain to `scene.routes` with `kind: 'pfl'` (dash-dot styling `[10, 4, 2, 4]`) when a PFL aircraft is selected or active.
 **Acceptance criteria:**
-- [ ] `getPflBadge(ac)` displays active milestone, energy margin in feet, and configuration label
-- [ ] 2D map renders the planned segment chain with dash-dot style `[10, 4, 2, 4]` when PFL is active
-- [ ] Glide footprint ring matches segment planner configuration drag (L/D) and ambient temperature
+- [x] `getPflBadge(ac)` displays active milestone, energy margin in feet, and configuration label
+- [x] 2D map renders the planned segment chain with dash-dot style `[10, 4, 2, 4]` when PFL is active
+- [x] Glide footprint ring matches segment planner configuration drag (L/D) and ambient temperature
 **Verification:**
-- [ ] Syntax check: `node --check src/modules/traffic/map2d.js` and `node --check src/modules/traffic/scene.js`
-- [ ] Verification script checks badge string outputs across all segment types and energy conditions
+- [x] Syntax check: `node --check src/modules/traffic/map2d.js` and `node --check src/modules/traffic/scene.js`
+- [x] Verification script checks badge string outputs across all segment types and energy conditions
 **Dependencies:** Task 9A
 **Files likely touched:**
 - `src/modules/traffic/map2d.js`
@@ -211,12 +211,12 @@
 ### Task 9C: 3D Scene Visualization & Telemetry Hooks
 **Description:** Integrate segment planner readouts and path displays into `view3d.js`. Connect the 3D aircraft label writer to display the updated tactical PFL badge with theme palette styling, ensure the 3D ground glide ring reflects current configuration reach, and align PFL key markers with wind-adjusted geometry.
 **Acceptance criteria:**
-- [ ] 3D aircraft text label renders tactical PFL badge with proper vertical offset and color
-- [ ] 3D ground glide ring dynamically scales with configuration drag from the segment planner
-- [ ] Zero WebGL/three.js console errors during PFL flight execution in 3D mode
+- [x] 3D aircraft text label renders tactical PFL badge with proper vertical offset and color
+- [x] 3D ground glide ring dynamically scales with configuration drag from the segment planner
+- [x] Zero WebGL/three.js console errors during PFL flight execution in 3D mode
 **Verification:**
-- [ ] Syntax check: `node --check src/modules/traffic/view3d.js`
-- [ ] Standalone node script verifies 3D badge text formatting and ground circle coordinates
+- [x] Syntax check: `node --check src/modules/traffic/view3d.js`
+- [x] Standalone node script verifies 3D badge text formatting and ground circle coordinates
 **Dependencies:** Task 9B
 **Files likely touched:**
 - `src/modules/traffic/view3d.js`
@@ -227,12 +227,12 @@
 ### Task 10: Retire Legacy Carrot Follower & F14 Dead Code Cleanup
 **Description:** Retire the legacy carrot follower (`carrot()`, proportional heading tracking, virtual lookahead) and promote `pfl-segment-planner.js` to the canonical `src/modules/traffic/pfl.js`. Clean dead code identified in Fable audit F14 (`generatePflTrack` in `route.js`, unused `pflRail` references in `sim.js`/`behaviour.js`, duplicate stall-bank formulas), and update module documentation.
 **Acceptance criteria:**
-- [ ] Legacy carrot follower is completely excised and replaced by kinematic segment follower
-- [ ] `route.js:generatePflTrack` and legacy `pflRail` fields are removed without regression
-- [ ] `docs/modules/traffic/spec.md`, `docs/modules/traffic/plan.md`, and `docs/modules/traffic/decisions.md` are updated and ticked
+- [x] Legacy carrot follower is completely excised and replaced by kinematic segment follower
+- [x] `route.js:generatePflTrack` and legacy `pflRail` fields are removed without regression
+- [x] `docs/modules/traffic/spec.md`, `docs/modules/traffic/plan.md`, and `docs/modules/traffic/decisions.md` are updated and ticked
 **Verification:**
-- [ ] Run `verify-pfl-planner.mjs` asserting all 27 failure combinations pass across all wind conditions
-- [ ] `git diff` confirms complete removal of dead code and zero duplicate flight maths
+- [x] Run `verify-pfl-planner.mjs` asserting all 27 failure combinations pass across all wind conditions
+- [x] `git diff` confirms complete removal of dead code and zero duplicate flight maths
 **Dependencies:** Task 9C
 **Files likely touched:**
 - `src/modules/traffic/pfl.js`
@@ -245,8 +245,8 @@
 ---
 
 ## Checkpoint 5: Full System Integration, Visualization & Sign-Off (Tasks 9A-10)
-- [ ] All 27 failure combinations land safely or eject cleanly across calm and 20 kt winds
-- [ ] 2D map displays live segment badges, margins, and planned dash-dot path
-- [ ] 3D view renders tactical badges and glide rings without WebGL errors
-- [ ] Legacy carrot follower and F14 dead code completely eliminated
-- [ ] Ready for Patrick's flight evaluation
+- [x] All 27 failure combinations land safely or eject cleanly across calm and 20 kt winds
+- [x] 2D map displays live segment badges, margins, and planned dash-dot path
+- [x] 3D view renders tactical badges and glide rings without WebGL errors
+- [x] Legacy carrot follower and F14 dead code completely eliminated
+- [x] Ready for Patrick's flight evaluation

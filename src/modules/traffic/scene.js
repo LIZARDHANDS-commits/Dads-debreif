@@ -4,7 +4,7 @@
 //
 // Pure: it reads the engine's setup and state and returns plain data. It changes nothing
 // and works out no flight math of its own (radius, bank and the drawn path are the engine's).
-import { DEFAULT_ROUTE_OPTIONS, drawPath, legDistances, pointTurn, computeWindPerch, generateWindAdjustedTrack, generatePflTrack } from './route.js';
+import { DEFAULT_ROUTE_OPTIONS, drawPath, legDistances, pointTurn, computeWindPerch, generateWindAdjustedTrack } from './route.js';
 import { buildDownwindStraightIn } from './randomize.js';
 import { temperatureKey } from './weather.js';
 
@@ -98,11 +98,7 @@ export function buildScene({ setup, state, selectedRouteId, trailOf }) {
       id: route.id, name: route.name, kind: route.kind, color: route.color, visible: isShowing(route),
       points: route.points.map((p, i) => ({ ...p, decision: decisions.has(i), ...pointTurn(route, i, options) })),
       path: isShowing(route) && route.points.length > 1
-        ? (isPat1
-            ? pat1.path
-            : (route.id === 'ENT4' || route.kind === 'pfl' || /pfl/i.test(route.name)
-                ? generatePflTrack(route, windFromDeg, windKt, options)
-                : drawPath(route, options)))
+        ? (isPat1 ? pat1.path : drawPath(route, options))
         : undefined,
       calmPath: calm ? calm.path : undefined,
       open: Boolean(pat1?.cut), // drawn as an open line, not a loop
@@ -110,7 +106,20 @@ export function buildScene({ setup, state, selectedRouteId, trailOf }) {
       windPerch: isShowing(route) && isPat1Wind ? computeWindPerch(route, windFromDeg, windKt, options) : null,
     };
   });
+  for (const a of state.aircraft ?? []) {
+    if (a.pflRoute?.points?.length > 1) {
+      routes.push({
+        id: `PFL_${a.id}`,
+        name: `PFL Glide (${a.id})`,
+        kind: 'pfl',
+        color: '#38bdf8',
+        visible: true,
+        points: a.pflRoute.points,
+        path: a.pflRoute.points,
+      });
+    }
+  }
   const trails = Object.create(null); // keyed by callsign: a callsign like __proto__ is an ordinary key here
-  for (const a of state.aircraft) trails[a.id] = trailOf(a.id);
-  return { routes, selectedRouteId, aircraft: state.aircraft, conflicts: state.conflicts, trails, legs: legMarks(setup.routes), windFromDeg, windKt, t: state.t };
+  for (const a of state.aircraft ?? []) trails[a.id] = typeof trailOf === 'function' ? trailOf(a.id) : [];
+  return { routes, selectedRouteId, aircraft: state.aircraft ?? [], conflicts: state.conflicts, trails, legs: legMarks(setup.routes), windFromDeg, windKt, t: state.t };
 }

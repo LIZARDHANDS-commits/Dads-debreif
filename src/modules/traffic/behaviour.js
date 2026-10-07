@@ -55,7 +55,7 @@ export function behaviourLabel(b, deconflictLabel = null) {
 
 /** The pattern and next step, from the move it is flying, then the route and phase. */
 function patternOf(a, ctx) {
-  if (!a.active || a.landed || a.pflFlight || a.pflRail || a.engineFailed) return null;
+  if (!a.active || a.landed || a.pflFlight || a.engineFailed) return null;
   const flown = a.goAroundFlight?.route.id;
   // Lined up on final and past the window: what it will do at the runway (Patrick, 4 Oct).
   const pastWindow = ctx.onFinal && Number.isFinite(ctx.toThresholdFt) && Number.isFinite(ctx.windowFt) && ctx.toThresholdFt <= ctx.windowFt;

@@ -19,7 +19,7 @@ import { limitG, turnRadiusFt, bankDegFromG, gFromBankDeg, turnRateFromBankRadPe
 import { unitVectorFromCompassDeg, compassDegFromVector } from '../../core/angles.js';
 import { iasToTasKt, temperatureKey } from './weather.js';
 import { windTriangle, windVectorFtps } from '../../core/wind.js';
-import { RUNWAY_29L_HDG_DEG, THRESHOLD_29L, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT, PFL_CIRCLE_RADIUS_FT, PATTERN_ALT_FT, PFL_KEY_ALT_FT } from './airfield.js';
+import { RUNWAY_29L_HDG_DEG, THRESHOLD_29L, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT, PATTERN_ALT_FT } from './airfield.js';
 import { buildCircuit } from './circuit.js';
 
 /**
@@ -279,10 +279,7 @@ function buildPath(route, options) {
   let points;
   const isPat1 = route.id === 'PAT1';
   const isCompactPat1 = isPat1 && (route.points?.length ?? 0) < 10;
-  const isPfl = route.id === 'ENT4' || route.id === 'PFL' || route.id === 'PFL_HIGH_KEY' || route.kind === 'pfl' || /pfl/i.test(route.name);
-  if (options.flyRoundedTurns !== false && isPfl) {
-    points = generatePflTrack(route, options.windFromDeg ?? 360, options.windKt ?? 0, options);
-  } else if (options.flyRoundedTurns !== false && (isCompactPat1 || (isPat1 && (options.trueArcs || (options.windKt ?? 0) > 0)))) {
+  if (options.flyRoundedTurns !== false && (isCompactPat1 || (isPat1 && (options.trueArcs || (options.windKt ?? 0) > 0)))) {
     points = generateWindAdjustedTrack(route, options.windFromDeg ?? 360, options.windKt ?? 0, options);
   } else {
     points = buildRoundedPoints(route, options);
@@ -714,145 +711,4 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
   return buildCircuit(route.points, windFromDeg, windKt).track;
 }
 
-/**
- * Generates continuous 4-segment Practice Forced Landing (PFL) gliding track from High Key (5,000 ft MSL)
- * over the threshold facing down the runway (298°), through Low Key (~3,700 ft, wind-compensated perch),
- * Base Key (~2,900 ft), to final rollout and threshold touchdown (1,892 ft MSL).
- *
- * Segment 1 (High Key Turn): 180° descending turn from 5,000 ft -> 3,700 ft MSL, 125 -> 120 KIAS.
- * Segment 2 (Downwind Leg to Low Key): Straight leg heading ~118° (wind crabbed) to dynamic Low Key.
- * Segment 3 (Low Key to Final Approach): Smooth descending turn (35° bank) with crab boundary matching.
- * Segment 4 (Final to Touchdown): Straight glide along runway centerline terminating exactly at threshold.
- */
-export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options = DEFAULT_ROUTE_OPTIONS) {
-  const pts = route?.points || route?.waypoints || [];
-  const th = pts.find((p) => p.tag === 'threshold' || /threshold/i.test(p.label)) ?? pts.find((p) => (p.alt ?? 0) <= 2000) ?? pts[pts.length - 1] ?? THRESHOLD_29L;
-  const rwyHeadingDeg = RUNWAY_29L_HDG_DEG;
-  const radiusFt = PFL_CIRCLE_RADIUS_FT; // 0.5 NM radius (1.0 NM diameter)
-
-  // 90° LEFT of Runway 29L heading is bearing 208° True (South-Southwest)
-  const rad208 = (208 * Math.PI) / 180;
-  const nLeftX = Math.sin(rad208); // -0.469472 (West)
-  const nLeftY = Math.cos(rad208); // -0.882948 (South)
-
-  // Center of circle: 0.5 NM at 208° from threshold
-  const cxFt = th.x + radiusFt * nLeftX;
-  const cyFt = th.y + radiusFt * nLeftY;
-
-  const totalSteps = 120; // 3° per step for smooth high-density trajectory
-  const track = [];
-
-  for (let k = 0; k <= totalSteps; k++) {
-    const u = k / totalSteps;
-    const turnDeg = u * 360;
-
-    // Angle from circle center to aircraft position on circle:
-    // Starts at bearing 028° (threshold), rotates counter-clockwise (left turn)
-    const posAngleDeg = (28 - turnDeg + 360) % 360;
-    const radPos = (posAngleDeg * Math.PI) / 180;
-
-    // Position on circle in calm air
-    const calmX = cxFt + radiusFt * Math.sin(radPos);
-    const calmY = cyFt + radiusFt * Math.cos(radPos);
-
-    // Flown track heading (tangent to circle pointing counter-clockwise):
-    const trackHdgDeg = ((rwyHeadingDeg - turnDeg) % 360 + 360) % 360;
-
-    // Altitude descent schedule:
-    // High Key (5,000') -> Low Key (3,700') at u=0.5 -> Base Key (2,900') at u=0.75 -> Threshold (1,892') at u=1.0
-    let alt;
-    if (u <= 0.5) {
-      alt = Math.round(PFL_KEY_ALT_FT.highKey - (PFL_KEY_ALT_FT.highKey - PFL_KEY_ALT_FT.lowKey) * (u / 0.5));
-    } else if (u <= 0.75) {
-      alt = Math.round(PFL_KEY_ALT_FT.lowKey - (PFL_KEY_ALT_FT.lowKey - 2900) * ((u - 0.5) / 0.25));
-    } else {
-      alt = Math.round(2900 - (2900 - FIELD_ELEV_FT) * ((u - 0.75) / 0.25));
-    }
-
-    // Airspeed schedule:
-    // 125 KIAS (High Key) -> 120 KIAS (Low Key & Base Key) -> 100 KIAS (Threshold flare)
-    let kt;
-    if (u <= 0.5) {
-      kt = Math.round(125 - 5 * (u / 0.5));
-    } else if (u <= 0.75) {
-      kt = 120;
-    } else {
-      kt = Math.round(120 - 20 * ((u - 0.75) / 0.25));
-    }
-
-    // Phase and semantic tags:
-    let phase = 'pfl_high_key';
-    let tag = 'high_key';
-    let src = 0;
-    if (u === 0) {
-      phase = 'pfl_high_key';
-      tag = 'high_key';
-      src = 0;
-    } else if (u < 0.5) {
-      phase = 'pfl_high_key';
-      tag = 'high_key';
-      src = 0;
-    } else if (u === 0.5 || (u >= 0.48 && u <= 0.52)) {
-      phase = 'pfl_low_key';
-      tag = 'low_key';
-      src = 1;
-    } else if (u < 0.75) {
-      phase = 'pfl_base_key';
-      tag = 'base_key';
-      src = 2;
-    } else if (u === 0.75) {
-      phase = 'pfl_base_key';
-      tag = 'base_key';
-      src = 2;
-    } else if (u < 1.0) {
-      phase = 'pfl_final';
-      tag = 'final';
-      src = 3;
-    } else {
-      phase = 'pfl_final';
-      tag = 'threshold';
-      src = 3;
-    }
-
-    // Wind crab angle calculation
-    const tasKt = iasToTasKt(kt, alt);
-    const wt = windTriangle(trackHdgDeg, tasKt, windFromDeg, windKt);
-    const headingDeg = wt.canHoldTrack ? wt.headingDeg : trackHdgDeg;
-
-    // Configuration schedule:
-    // Clean (High Key) -> Gear Down (Low Key) -> Landing Flaps (Base Key & Final)
-    let config = 'clean';
-    if (u >= 0.5 && u < 0.75) config = 'gearDown';
-    else if (u >= 0.75) config = 'landing';
-
-    // Nominal coordinated bank for 0.5 NM radius circle at 120 kt is ~25°–30° (1.15 G)
-    const bankDeg = (u === 0 || u === 1.0) ? 0 : 30;
-    const g = (u === 0 || u === 1.0) ? 1.0 : 1.15;
-
-    // Coordinates: clamped exactly to threshold at end
-    const x = (k === totalSteps) ? th.x : Math.round(calmX * 10) / 10;
-    const y = (k === totalSteps) ? th.y : Math.round(calmY * 10) / 10;
-
-    track.push({
-      x,
-      y,
-      alt,
-      kt,
-      kias: kt,
-      headingDeg,
-      bankDeg,
-      g,
-      src,
-      phase,
-      tag,
-      config,
-    });
-  }
-
-  // Ensure semantic tags exist on key indices for lookup helpers
-  if (!track.some(p => p.tag === 'low_key')) track[Math.round(totalSteps * 0.5)].tag = 'low_key';
-  if (!track.some(p => p.tag === 'base_key')) track[Math.round(totalSteps * 0.75)].tag = 'base_key';
-
-  return track;
-}
 

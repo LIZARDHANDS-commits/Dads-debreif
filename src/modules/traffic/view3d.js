@@ -469,7 +469,7 @@ export function routeSignature(route) {
 }
 
 // A pattern is a closed loop, entries and splits open lines. Entries are dashed and splits dotted, as on the 2D map.
-const DASH_FT = Object.freeze({ entry: [500, 350], split: [120, 380] });
+export const DASH_FT = Object.freeze({ entry: [500, 350], split: [120, 380], pfl: [500, 250] });
 /**
  * How wide and how solid the routes are drawn in 3D, in pixels and 0-1, with a thin dark edge either side so they
  * stand out on the photo (Patrick, 4 Oct 10:55Z: more contrast). Patrick, 17:50Z: the first wide lines (3 px with a
@@ -483,9 +483,17 @@ const ROUTE_EDGE_COLOR = '#0b1620';
 /** The PFL circle on the 3D ground (layer "PFL ground circle"), drawn as on the map: pink circle, red spoke to Low Key. */
 const PFL_CIRCLE_COLOR = '#ff9bce';
 const PFL_SPOKE_COLOR = '#ff6b6b';
-const GLIDE_RING_COLOR = '#38bdf8';
+export const GLIDE_RING_COLOR = '#38bdf8';
 /** Feet above the ground the PFL lines are drawn, so the photo doesn't hide them. */
-const GROUND_LINE_LIFT_FT = 8;
+export const GROUND_LINE_LIFT_FT = 8;
+
+/**
+ * Resolves the 3D overlay color for an aircraft's PFL badge.
+ * Badges [CRASH SHORT] and [EJECT] use palette.bad; active PFL badges use GLIDE_RING_COLOR.
+ */
+export function pflBadgeColor(pfl, palette = {}) {
+  return pfl === '[CRASH SHORT]' || pfl === '[EJECT]' ? (palette?.bad ?? '#ff4d4f') : GLIDE_RING_COLOR;
+}
 
 let fatLinesPromise = null;
 /**
@@ -802,14 +810,17 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   const glideRings = new Map(); // aircraft id -> LineLoop
   const glideMaterial = new THREE.LineBasicMaterial({ color: GLIDE_RING_COLOR, transparent: true, opacity: 0.8, fog: false });
 
-  function syncPflGround(scene, options) {
-    const lift = altToZ((options.groundFt ?? 0) + GROUND_LINE_LIFT_FT, ALT_SCALE);
-    pflGround.visible = options.layerPflCircle !== false;
+  function syncPflGround(scene, options = {}) {
+    const opt = options ?? {};
+    const lift = altToZ((opt.groundFt ?? 0) + GROUND_LINE_LIFT_FT, ALT_SCALE);
+    pflGround.visible = opt.layerPflCircle !== false;
     pflGround.position.z = lift;
     const present = new Set();
-    for (const ac of scene.aircraft) {
-      if (options.layerEngineReach === false || !isFlying(ac) || !shouldShowGlideFootprint(ac, scene.selectedAircraftId ?? null)) continue; // the Engine-out reach tick, selected aircraft only
-      const footprint = calculateGlideFootprint(ac, scene.windFromDeg ?? 360, scene.windKt ?? 0);
+    const windFromDeg = opt.windFromDeg ?? scene?.windFromDeg ?? 360;
+    const windKt = opt.windKt ?? scene?.windKt ?? 0;
+    for (const ac of scene?.aircraft ?? []) {
+      if (opt.layerEngineReach === false || !isFlying(ac) || !shouldShowGlideFootprint(ac, scene?.selectedAircraftId ?? null)) continue; // the Engine-out reach tick, selected aircraft only
+      const footprint = calculateGlideFootprint(ac, windFromDeg, windKt);
       if (!(footprint.rGlide > 0)) continue;
       present.add(ac.id);
       let ring = glideRings.get(ac.id);
@@ -1078,7 +1089,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     root,
     grid,
     /** Brings the objects in line with `scene` (routes, aircraft, conflicts) and options: { paint, layerCautionRings, cautionLatFt, zoom, groundFt, time }. */
-    sync(scene, options) {
+    sync(scene, options = {}) {
       if (disposed) return;
       lastScene = scene;
       syncRoutes(scene.routes, options);
@@ -2133,6 +2144,10 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
         const p = screenOf(pt.x, pt.y, floor + GROUND_LINE_LIFT_FT);
         if (onScreen(p)) write(words, p.x, p.y - 6, colour, true, 11);
       }
+    }
+
+    if (options.layerEngineReach !== false) {
+      ctx.textAlign = 'center';
       for (const [, ring] of gl.kit.glideRingsNow()) {
         const p = screenOf(ring.x, ring.y + ring.rFt, floor + GROUND_LINE_LIFT_FT);
         if (onScreen(p)) write(`PFL GLIDE (${(ring.rFt / FT_PER_NM).toFixed(1)} NM)`, p.x, p.y - 6, GLIDE_RING_COLOR, true, 11);
@@ -2140,7 +2155,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     }
 
     const planeRadiusPx = Math.max(LOCATOR_MIN_PX, (planeLengthFt(zoom, options.aircraftScale) * zoom) / 1000 / 2 + LOCATOR_GAP_PX);
-    for (const ac of data.aircraft) {
+    for (const ac of data.aircraft ?? []) {
       if (!isFlying(ac) || ac.id === skipId) continue; // not the one the Cockpit view is sitting in
       const p = screenOf(ac.x, ac.y, ac.alt);
       if (!onScreen(p)) continue;
@@ -2166,7 +2181,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       if (level) write(LEVEL_MARKS[level], x, p.y + 22, level === 'conflict' ? palette.bad : palette.caution, true);
       // The PFL tag, its decision and configuration, as on the map (TR-R35).
       const pfl = getPflBadge(ac);
-      if (pfl) write(pfl, x, p.y + (level ? 36 : options.layerLabels ? 22 : 8), pfl === '[CRASH SHORT]' ? palette.bad : GLIDE_RING_COLOR, true, 12);
+      if (pfl) write(pfl, x, p.y + (level ? 36 : options.layerLabels ? 22 : 8), pfl === '[CRASH SHORT]' || pfl === '[EJECT]' ? palette.bad : GLIDE_RING_COLOR, true, 12);
     }
   }
 
