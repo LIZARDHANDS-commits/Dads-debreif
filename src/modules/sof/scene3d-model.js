@@ -8,8 +8,12 @@ import { FT_PER_NM } from './map-view.js';
 import { AIRPORTS } from './airports-data.js';
 import { velocityFt } from './traffic-motion.js';
 
-/** The square the view shows: 250 NM on a side, centred on home, so the usual alternates (CYYN, CYXE about 110 NM out) are inside (SOF-39). */
-export const AREA_NM = 250;
+/**
+ * The square the view shows: 450 NM on a side, centred on home (Dad, 7 Oct: "grow it by 100 NM each way so no empty corners show while orbiting"; it was 250), so the
+ * usual alternates (CYYN, CYXE about 110 NM out) are well inside (SOF-39). Everything that scales with it takes `AREA_FT`: the model grid, the ground canvases, the
+ * cloud sheets, the camera's fit.
+ */
+export const AREA_NM = 450;
 export const AREA_FT = AREA_NM * FT_PER_NM;
 /** A cloud deck is a flat round disc this wide at its base (SOF-39). */
 export const DECK_NM = 10;
@@ -90,7 +94,7 @@ export const CATEGORY_TOKENS = Object.freeze({
  *   never drawn as the sky now.
  * - A layer with no base is not drawn, and the pin adds "base unknown".
  *
- * An airfield outside the square (`outside`: true; Saskatoon is some 110 NM from Moose Jaw, past the 75 NM half-width) is not drawn:
+ * An airfield outside the square (`outside`: true; Saskatoon is some 110 NM from Moose Jaw, past the half-width) is not drawn:
  * a pin hanging in the air past the edge of the ground would be misleading, so the view names it instead.
  *
  * Each: { icao, home, x, y, outside, groundFt, category, key, result, old, lines, title, decks } where `lines` are the pin's words, `title` is the same as a sentence for hover, `key` is a
@@ -239,10 +243,11 @@ export const PITCH_LIMITS = Object.freeze([5, 85]);
 export const ORBIT_DEG_PER_PX = Object.freeze({ yaw: 0.4, pitch: 0.25 });
 export const ZOOM_STEP = 1.25;
 /**
- * The zoom limits as a share of the start (fit) zoom: out to half of it, in to 300 times it (was 20). At 20 times, Moose Jaw's 150 ft wide runway is
- * about 2 px across, so the airports' markings and numbers (airports3d.js) could never be read; at 300 times it is about 30 px. An estimate for readability, SOF-39.
+ * The zoom limits as a share of the start (fit) zoom: out to half of it, in to 540 times it (was 20, then 300 over the 250 NM square). At 20 times, Moose Jaw's 150 ft wide
+ * runway is about 2 px across, so the airports' markings and numbers (airports3d.js) could never be read; at 300 times over 250 NM it was about 30 px, and the square grew
+ * to 450 NM (the fit zoom fell by 1.8), so 540 keeps the same closest view. An estimate for readability, SOF-39.
  */
-export const ZOOM_RANGE = Object.freeze([0.5, 300]);
+export const ZOOM_RANGE = Object.freeze([0.5, 540]);
 export const KEY_ORBIT_PX = Object.freeze({ ArrowLeft: [-30, 0], ArrowRight: [30, 0], ArrowUp: [0, -30], ArrowDown: [0, 30] });
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));

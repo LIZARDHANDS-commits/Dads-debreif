@@ -143,7 +143,7 @@ function fullCard(card, { onClose }) {
  * (Escape closes a hover card). Without them the hover card is off and only a click opens the card.
  * Returns { element, render(cards) }: one `article.sof-card` per airfield, kept in order.
  */
-export function createCardsView({ dropdowns, timers = null, listen = null } = {}) {
+export function createCardsView({ dropdowns = undefined, timers = null, listen = null } = /** @type {any} */ ({})) {
   const list = h('section', { class: 'sof-cards', 'aria-label': 'Airfields' });
   const full = h('article', { class: 'sof-card is-open sof-card-full', id: 'sof-card-full', 'aria-label': 'Airfield card' });
   const drop = h('div', { class: 'sof-card-drop', hidden: true }, full);

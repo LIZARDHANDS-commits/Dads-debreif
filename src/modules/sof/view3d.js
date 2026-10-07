@@ -1,6 +1,6 @@
 // The SOF's 3D view of the weather (SPEC-sof, "3D view", SOF-39, phase 1): the map area swapped for a three.js picture of
-// the 250 NM square round home. The satellite picture is the ground, with the radar and lightning pictures the 2D map already holds laid
-// on it; home and the alternates stand on it as pins with their category in words; the METAR cloud layers hang over them as flat
+// the 450 NM square round home (Dad, 7 Oct; it was 250). The satellite picture is the ground (two tiers, ground3d.js: the whole square at a modest zoom with a sharp patch
+// round home), with the radar and lightning pictures laid on it; home and the alternates stand on it as pins with their category in words; the METAR cloud layers hang over them as flat
 // round decks at their reported bases; the 25 and 50 NM rings run round home. Phase 2 (SOF-39) adds the model layers: a cloud-cover
 // sheet at each model level (see-through, smooth, stacked from the surface up, like ForeFlight's cloud maps), wind barbs at three levels
 // and the freezing level, from Open-Meteo's GEM forecast, with a time slider, a toggle for each and a Layer picker for one level at a time.
@@ -14,6 +14,9 @@
 // the browser refuses), an Orbit toggle that turns the camera slowly round home (the one case where the view draws every frame, through the
 // scheduler's frame, and only while Orbit is on and the view is shown; any camera input turns it off), and the Airspace log panel (airspace-log-view.js)
 // with an amber tag that stays on for each aircraft that is not a T-6 inside a watched area.
+// Weather that looks right in 3D (Dad, 7 Oct): radar shafts up to the model cloud base, lightning bolts, a faint satellite cloud sheet, surface fronts with H and L marks, and a
+// gentle wind flow (weather3d-layers.js builds them, weather3d.js draws, weather3d-model.js decides); the wind barbs are smaller and behind a Barbs toggle (off). Full screen is
+// the whole SOF picture's (fullscreen.js), shared with the 2D map's button.
 //
 // What is drawn and what the words say is decided in scene3d-model.js and model-clouds.js (tested in Node); model-layers3d.js builds the
 // model layers' three.js objects, traffic3d.js the aircraft's and airspace3d.js the airspace's (airspace-model.js decides what is fit to
@@ -28,10 +31,11 @@
 // the height scale (the "3D height scale" setting); the ground is the home field's elevation.
 import { h } from '../../ui-kit/dom.js';
 import { loadThree, webglSupported, matchProjection, worldToScreen } from '../../ui-kit/three-aircraft.js';
-import { createTileLayer, ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
-import { cornersOf, RING_NM, FT_PER_NM } from './map-view.js';
-import { drawGeoImage } from './map-draw.js';
-import { BASE_DIM } from './map-layers.js';
+import { ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
+import { RING_NM, FT_PER_NM } from './map-view.js';
+import { createGround3d, MAX_GROUND_TILES, INNER_NM } from './ground3d.js';
+import { createWeather3dLayers, weatherKeyWords } from './weather3d-layers.js';
+import { FRONTS_CREDIT } from './fronts.js';
 import {
   AREA_NM, AREA_FT, DECK_FT, CATEGORY_TOKENS, START_CAMERA, ZOOM_STEP, KEY_ORBIT_PX, ORBIT_DEG_PER_PX, fitZoom, orbitBy, zoomCamera, sceneSignature, formatFeet,
 } from './scene3d-model.js';
@@ -46,15 +50,15 @@ import { AIRPORTS } from './airports-data.js';
 import { checkedAirspace, KIND_WORDS, tacnavNote, AIRSPACE_FILL_OPACITY, VIEW_TOP_FT } from './airspace-model.js';
 import {
   hourIndex, maxAhead, hourWords, meanLayerCover, unavailableWords, refreshFailedWords, LOADING_WORDS, CREDIT_WORDS, MAX_AHEAD_HOURS, CLOUD_STAGES_FT_AGL,
-  CLOUD_COVER_THRESHOLD_PCT, MAG_VARIATION_DEG_E, GRID_SPACING_NM,
+  CLOUD_COVER_THRESHOLD_PCT, MAG_VARIATION_DEG_E, barbStep,
 } from './model-clouds.js';
 
-/** The ground picture is one square canvas this many pixels across (about 1,480 ft a pixel over 250 NM). */
-const GROUND_PX = 1024;
-/** The Esri tiles are asked for no finer than this zoom: about 16 to 25 tiles for the whole square, so it loads fast. An estimate. */
-const GROUND_ZOOM = 8;
-const GROUND_COLOUR = '#1b2a35'; // the plain ground when no satellite picture arrives
 const BACKGROUND = '#0a141d';
+/** The depth range the camera is given after `matchProjection` (feet along the view): wide enough for the 450 NM square at any tilt, with its tallest layers. */
+const CAMERA_NEAR_FT = -3_500_000;
+const CAMERA_FAR_FT = 5_500_000;
+/** The model credit: Open-Meteo and whichever model answered (the finer HRDPS, or the global GEM). */
+const creditWords3d = (model) => `Model clouds and winds: Open-Meteo, ${model?.sourceName ?? 'ECCC GEM'} (model estimate)`;
 /** A pin's line and head are this many screen pixels tall and wide at any zoom (they are scaled with the camera). */
 const PIN_PX = Object.freeze({ line: 34, head: 5 });
 /** Lines lie this far (scene feet) above what they follow, so the ground never hides them. */
@@ -85,7 +89,10 @@ const isColour = (v) => typeof v === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d\s.
 
 /**
  * options: { timers (a scheduler scope), getProjection() (the SOF map's projection: toXY and a reference, for the corners of the
- * square), getPictures() (the 2D map's pictures: { sig, list: [{ image, bbox, alpha }] }, read when it draws), onLost() (the graphics
+ * square), getPictures() (the ground's pictures, radar and lightning over the whole 3D area: { sig, list: [{ image, bbox, alpha }] }, read when it draws),
+ * getWeather() (the weather layers' inputs, read when it draws and when `touch()` says something may have changed: { sig, radar, lightning, satellite, fronts, lines },
+ * each picture null or { id, image, bbox, stale }, `fronts` as fronts.js `frontsView` with a `key`, `lines` the status strip's words; see map.js `weather3d`), fullScreen
+ * (fullscreen.js's object, for the Full screen button), onLost() (the graphics
  * context was lost: the caller goes back to 2D), routes (the TACNAV routes to draw, from the Debrief's `ROUTES` as `map.js` gives them:
  * { name, paths: [[[lon, lat], ...]] }), airspace (the entries to draw, airspace-data.js `AIRSPACE` unless a test gives its own), onAirspaceLogOptions
  * ({ showT6, showAll }: the log panel's two ticks changed), now() (the clock in milliseconds, for gliding the aircraft between answers), onTrails(on)
@@ -94,14 +101,17 @@ const isColour = (v) => typeof v === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d\s.
  * touch(), home(), zoomBy(factor), isShown(), dispose() }.
  * `show()` resolves { ok: true } or { ok: false, reason: 'gl' | 'load' | 'closed' }.
  */
-export function createSofView3d({ timers, getProjection, getPictures, fullScreen = null, onLost = () => {}, routes = [], airspace = AIRSPACE, onAirspaceLogOptions = /** @type {(options: { showT6: boolean, showAll: boolean }) => void} */ (() => {}), now = () => Date.now(), onTrails = /** @type {(on: boolean) => void} */ (() => {}), win = globalThis }) {
+export function createSofView3d({ timers, getProjection, getPictures, getWeather = () => ({ sig: 'none', radar: null, lightning: null, satellite: null, fronts: null, lines: [] }), fullScreen = null, onLost = () => {}, routes = [], airspace = AIRSPACE, onAirspaceLogOptions = /** @type {(options: { showT6: boolean, showAll: boolean }) => void} */ (() => {}), now = () => Date.now(), onTrails = /** @type {(on: boolean) => void} */ (() => {}), win = globalThis }) {
   const labels = h('div', { class: 'sof-3d-labels' });
   // The airspace volume under the pointer: its name and limits float beside the pointer (Dad, 7 Oct); nothing is written on the volumes themselves.
   const spaceTip = h('p', { class: 'sof-3d-space-tip', hidden: true });
   labels.append(spaceTip);
   const corner = h('p', { class: 'sof-3d-corner' });
   const credit = h('p', { class: 'sof-3d-credit' }, ESRI_IMAGERY.credit);
-  const creditWords = (aircraft) => (aircraft ? `${ESRI_IMAGERY.credit}. ${AIRCRAFT_CREDIT}` : ESRI_IMAGERY.credit);
+  // The credit line: the imagery's, then the aircraft's while they are drawn and the fronts' while they are (Dad, 7 Oct: "Fronts (WPC, whole-degree positions)").
+  let creditAircraft = false;
+  let creditFronts = false;
+  const updateCredit = () => setText(credit, [ESRI_IMAGERY.credit, creditAircraft ? AIRCRAFT_CREDIT : null, creditFronts ? FRONTS_CREDIT : null].filter(Boolean).join('. '));
   const outside = h('p', { class: 'sof-3d-outside', hidden: true });
   const note = h('p', { class: 'sof-3d-note', role: 'status', hidden: true });
   const tag = h('p', { class: 'sof-3d-tag', role: 'status', hidden: true });
@@ -111,21 +121,29 @@ export function createSofView3d({ timers, getProjection, getPictures, fullScreen
     ['low', 'Low', `Low cloud: model cloud sheets below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft above the ground`],
     ['mid', 'Mid', `Mid cloud: model cloud sheets ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} to ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft above the ground`],
     ['high', 'High', `High cloud: model cloud sheets above ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft above the ground`],
-    ['winds', 'Winds', 'Winds aloft at 850, 700 and 500 hPa, as barbs'],
+    ['winds', 'Barbs', 'Winds aloft at 850, 700 and 500 hPa, as small barbs (off to begin with: the Wind flow shows the winds gently)'],
     ['freezing', 'Freezing level', 'The 0 °C level, a faint sheet across the area'],
+    ['flow', 'Wind flow', 'Faint streaks drifting with the model wind at 850, 700 and 500 hPa, like Windy: they move only while this view is shown (they step every 2 seconds with reduced motion)'],
+    ['satellite', 'Satellite', 'ECCC GOES-West cloud picture as a faint sheet at the highest model cloud level'],
+    ['radar', 'Radar', 'Radar as see-through shafts from the ground up to the model cloud base (the radar picture on the ground has its own switch in the map’s Layers menu)'],
+    ['lightning', 'Lightning', 'Lightning cells as thin bolts from the ground to the model cloud top'],
+    ['fronts', 'Fronts', `${FRONTS_CREDIT}: surface fronts on the ground with a faint wall, and the H and L pressure centres`],
   ]);
-  const toggles = Object.fromEntries(MODEL_GROUPS.map((key) => [key, true])); // all on to begin with
+  const toggles = { ...Object.fromEntries(MODEL_GROUPS.map((key) => [key, true])), winds: false, flow: true, satellite: true, radar: true, lightning: true, fronts: true }; // all on to begin with but the barbs
   const toggleButtons = new Map();
   for (const [key, text, title] of TOGGLES) {
     const button = h('button', {
       type: 'button',
       class: 'sof-3d-toggle',
       title,
-      'aria-pressed': 'true',
+      'aria-pressed': String(toggles[key]),
       onclick: () => setToggle(key, button.getAttribute('aria-pressed') !== 'true'),
     }, text);
     toggleButtons.set(key, { button, title });
   }
+  // The model's own buttons sit with its controls (they go when the model is unavailable); the weather layers' buttons stand on their own, as they do not need the model.
+  const MODEL_BUTTONS = ['low', 'mid', 'high', 'winds', 'freezing'];
+  const WEATHER_BUTTONS = ['flow', 'satellite', 'radar', 'lightning', 'fronts'];
   const sliderId = `sof-3d-time-${nextViewId++}`;
   const slider = h('input', {
     type: 'range', id: sliderId, class: 'sof-3d-slider', min: '0', max: String(MAX_AHEAD_HOURS), step: '1', 'aria-label': 'Model time, hours ahead of now',
@@ -138,13 +156,20 @@ export function createSofView3d({ timers, getProjection, getPictures, fullScreen
   const modelStatus = h('p', { class: 'sof-3d-model-status', role: 'status' }, LOADING_WORDS);
   const modelWarn = h('p', { class: 'sof-3d-model-warn', role: 'status', hidden: true });
   const modelControls = h('div', { class: 'sof-3d-model-controls' },
-    h('div', { class: 'sof-3d-model-row', role: 'group', 'aria-label': 'Model layers' }, [...toggleButtons.values()].map((t) => t.button)),
+    h('div', { class: 'sof-3d-model-row', role: 'group', 'aria-label': 'Model layers' }, MODEL_BUTTONS.map((k) => toggleButtons.get(k).button)),
     h('div', { class: 'sof-3d-model-row' }, h('label', { for: sliderId }, 'Model time'), slider, sliderWords),
     h('div', { class: 'sof-3d-model-row' }, h('label', { for: layerId }, 'Layer'), layerSelect));
-  const modelNote = h('p', { class: 'sof-3d-model-note' }, 'METAR decks, radar and lightning stay at now.');
+  const modelNote = h('p', { class: 'sof-3d-model-note' }, 'METAR decks, radar, lightning, satellite and fronts stay at now.');
   const keyBody = h('div', { class: 'sof-3d-model-key-body' });
   const modelKey = h('details', { class: 'sof-3d-model-key' }, h('summary', {}, 'Model key'), keyBody);
-  const modelCredit = h('p', { class: 'sof-3d-model-credit' }, CREDIT_WORDS);
+  const modelCredit = h('p', { class: 'sof-3d-model-credit' }, creditWords3d(null));
+  // The weather layers (Dad, 7 Oct): their buttons, a line for each picture's age (or failure), and a key that names every estimate.
+  const weatherStatus = h('ul', { class: 'sof-3d-wx-status', 'aria-label': 'Weather pictures in 3D' });
+  const weatherKeyBody = h('div', { class: 'sof-3d-model-key-body' });
+  const weatherKey = h('details', { class: 'sof-3d-model-key' }, h('summary', {}, 'Weather key'), weatherKeyBody);
+  const weatherPanel = h('div', { class: 'sof-3d-model sof-3d-wx', role: 'group', 'aria-label': 'Weather layers' },
+    h('div', { class: 'sof-3d-model-row' }, WEATHER_BUTTONS.map((k) => toggleButtons.get(k).button), weatherKey),
+    weatherStatus);
   const modelFoot = h('div', { class: 'sof-3d-model-row' }, modelNote, modelKey);
   const modelPanel = h('div', { class: 'sof-3d-model', role: 'group', 'aria-label': 'Model clouds and winds' }, modelStatus, modelWarn, modelControls, modelFoot, modelCredit);
   const trafficStatus = h('p', { class: 'sof-3d-traffic-status', role: 'status', hidden: true });
@@ -185,7 +210,7 @@ export function createSofView3d({ timers, getProjection, getPictures, fullScreen
   const spaceKey = h('details', { class: 'sof-3d-model-key' }, h('summary', {}, 'Airspace key'), spaceKeyBody);
   const spacePanel = h('div', { class: 'sof-3d-model sof-3d-space', role: 'group', 'aria-label': 'Airspace and TACNAV routes' },
     h('div', { class: 'sof-3d-model-row' }, [...spaceButtons.values()], spaceKey));
-  const bottom = h('div', { class: 'sof-3d-bottom' }, trafficStatus, modelPanel, spacePanel, credit);
+  const bottom = h('div', { class: 'sof-3d-bottom' }, trafficStatus, modelPanel, weatherPanel, spacePanel, credit);
   const acTag = h('p', { class: 'sof-3d-tag sof-3d-actag-facts', role: 'status', hidden: true });
   const logView = createAirspaceLogView({ onOptions: (options) => onAirspaceLogOptions(options) });
 
@@ -208,6 +233,8 @@ export function createSofView3d({ timers, getProjection, getPictures, fullScreen
   let sceneDirty = true;
   let groundDirty = true;
   let picturesSig = null;
+  let weatherSig = null; // the weather layers' inputs as last built
+  let weatherDirty = true;
   let cam = { ...START_CAMERA, zoom: 1 }; // zoom is relative to the fitting zoom: 1 shows the whole square
   let THREE = null;
   let gl = null; // everything three.js made, while the view is shown
@@ -219,7 +246,7 @@ export function createSofView3d({ timers, getProjection, getPictures, fullScreen
   let tilesFailed = false;
   let noTiles = false; // a tile the browser would not let three.js read: the ground is drawn plain instead
   let loadingNote = false;
-  let modelState = { status: 'loading', model: null, lastGoodAt: null, failedAt: null, incomplete: false, now: new Date(0), timeZone: null }; // what the map last gave setModel
+  let modelState = { status: 'loading', model: null, lastGoodAt: null, failedAt: null, incomplete: false, refining: false, now: new Date(0), timeZone: null }; // what the map last gave setModel
   let ahead = 0; // the slider: hours past now
   let modelSig = '';
   let modelDirty = true;
@@ -293,7 +320,7 @@ export function createSofView3d({ timers, getProjection, getPictures, fullScreen
     const rings = [];
     const decks = [];
 
-    gl.ground.position.z = planeZ;
+    gl.ground.setHeight(planeZ);
 
     // Rings: dashed lines on the ground, round home.
     for (const nm of RING_NM) {
@@ -381,40 +408,15 @@ export function createSofView3d({ timers, getProjection, getPictures, fullScreen
     gl.objects = null;
   }
 
-  // ---- The ground: satellite, then radar and lightning on it ------------------------------------------
+  // ---- The ground: satellite in two tiers (ground3d.js), then radar and lightning on it ----------------
   function paintGround() {
-    const { ctx, imagery, texture } = gl;
-    const projection = getProjection();
-    const k = GROUND_PX / AREA_FT;
-    const half = AREA_FT / 2;
-    const toPx = (lat, lon) => {
-      const [x, y] = projection.toXY(lat, lon);
-      return [(x + half) * k, (half - y) * k];
-    };
-    ctx.fillStyle = GROUND_COLOUR;
-    ctx.fillRect(0, 0, GROUND_PX, GROUND_PX);
-    if (!noTiles) {
-      const corners = cornersOf(projection, { minX: -half, minY: -half, maxX: half, maxY: half });
-      imagery.draw(ctx, { corners, pxPerFt: k, toScreen: toPx });
-      const s = imagery.state();
-      const failed = s.wanted > 0 && s.ready === 0 && s.failed > 0;
-      if (failed !== tilesFailed) {
-        tilesFailed = failed;
-        showNote();
-      }
+    const pictures = getPictures();
+    picturesSig = pictures.sig;
+    const { failed } = gl.ground.paint({ projection: getProjection(), pictures, noTiles });
+    if (!noTiles && failed !== tilesFailed) {
+      tilesFailed = failed;
+      showNote();
     }
-    ctx.fillStyle = `rgba(5, 10, 18, ${BASE_DIM})`; // dimmed a little under the pictures, as the 2D map does
-    ctx.fillRect(0, 0, GROUND_PX, GROUND_PX);
-    const { sig, list } = getPictures();
-    picturesSig = sig;
-    for (const picture of list) {
-      try {
-        drawGeoImage(ctx, picture.image, picture.bbox, toPx, picture.alpha);
-      } catch {
-        // A picture the 2D map has just let go of: the next change draws the new one.
-      }
-    }
-    texture.needsUpdate = true;
     groundDirty = false;
   }
 
@@ -431,6 +433,7 @@ export function createSofView3d({ timers, getProjection, getPictures, fullScreen
   function applyToggles() {
     const groups = gl?.model?.built.root.userData.groups;
     if (groups) for (const key of MODEL_GROUPS) groups[key].visible = toggles[key];
+    gl?.weather?.setToggles(toggles);
     for (const [key, { button, title }] of toggleButtons) {
       const sheets = gl?.model?.counts?.[key]; // only the three cloud stages have a count of sheets
       button.title = sheets === undefined ? title : `${title}. ${sheets} ${sheets === 1 ? 'sheet' : 'sheets'} with cloud this hour.`;
@@ -467,6 +470,7 @@ export function createSofView3d({ timers, getProjection, getPictures, fullScreen
     modelControls.hidden = !ok;
     modelFoot.hidden = !ok;
     modelCredit.hidden = !ok;
+    if (ok) setText(modelCredit, `${creditWords3d(model)}${modelState.refining ? '. The finer HRDPS model is still loading…' : ''}`);
     modelStatus.classList.toggle('is-bad', status === 'unavailable');
     // A refresh that failed while the answer held is still young enough: the layers stay and the panel says so.
     const stillShown = ok && failedAt !== null;
@@ -489,6 +493,7 @@ export function createSofView3d({ timers, getProjection, getPictures, fullScreen
     if (sig === modelSig) return;
     modelSig = sig;
     modelDirty = true;
+    weatherDirty = true; // the shafts, bolts, sheet and flow take their heights and winds from the model
     requestRender();
   }
 
@@ -525,13 +530,40 @@ export function createSofView3d({ timers, getProjection, getPictures, fullScreen
     const cover = meanLayerCover(model, hour);
     const pct = (v) => (v === null ? 'no data' : `${v} %`);
     keyBody.replaceChildren(
-      h('p', {}, `${CREDIT_WORDS}.`),
-      h('p', {}, `Clouds: one see-through sheet at each model level, 1000 to 300 hPa, at the level's mean height. The model's cover at its 9 × 9 points is smoothed over the sheet: clear at ${CLOUD_COVER_THRESHOLD_PCT} % or less, then white to grey and more solid as cover rises, to about 85 % opaque at 100 %. A level under the ground has no sheet. Low, mid and high are by the sheet's height above the ground (below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft, up to ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft, above). The Layer picker shows one level at a time. The model's own mean cover this hour: low ${pct(cover.low)}, mid ${pct(cover.mid)}, high ${pct(cover.high)}.`),
+      h('p', {}, `${creditWords3d(model)}. ${model.source === 'hrdps' ? 'HRDPS is ECCC\'s 2.5 km model; the global GEM is the fallback and the quick first picture.' : 'This is the global GEM: the finer HRDPS model has not answered (it is slow, or failed).'}`),
+      h('p', {}, `Clouds: one see-through sheet at each model level (${model.cloudLevels.length} levels, ${model.cloudLevels[0]} to ${model.cloudLevels.at(-1)} hPa), at the level's mean height. The model's cover at its ${model.gridSize} × ${model.gridSize} points (${Math.round(AREA_NM / (model.gridSize - 1) * 10) / 10} NM apart) is smoothed over the sheet: clear at ${CLOUD_COVER_THRESHOLD_PCT} % or less, then white to grey and more solid as cover rises, to about 85 % opaque at 100 %. A level under the ground has no sheet. Low, mid and high are by the sheet's height above the ground (below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft, up to ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft, above). The Layer picker shows one level at a time. The model's own mean cover this hour: low ${pct(cover.low)}, mid ${pct(cover.mid)}, high ${pct(cover.high)}.`),
       h('ul', {}, summary.sheets.map((x) => h('li', {}, `${x.words}: ${x.drawn ? `cover up to ${Math.round(x.maxCover)} %, mean ${Math.round(x.meanCover)} %` : 'no cloud'}`))),
-      h('p', {}, `Winds: barbs at 850, 700 and 500 hPa at every other grid point (${Math.round(GRID_SPACING_NM * 2)} NM apart): pennant 50 kt, full feather 10, half 5. Direction in °M (${MAG_VARIATION_DEG_E}° E variation), speed in kt.`),
+      h('p', {}, `Winds: barbs (behind the Barbs button, off to begin with) at 850, 700 and 500 hPa at every ${barbStep(model.gridSize)}${barbStep(model.gridSize) === 2 ? 'nd' : 'rd'} grid point (${Math.round(model.gridSize > 1 ? (AREA_NM / (model.gridSize - 1)) * barbStep(model.gridSize) : 0)} NM apart): pennant 50 kt, full feather 10, half 5. Direction in °M (${MAG_VARIATION_DEG_E}° E variation), speed in kt.`),
       h('ul', {}, summary.windsOverHome.map((words) => h('li', {}, `Over home, ${words}`))),
       h('p', {}, `${summary.freezingText ? `${summary.freezingText}: the mean over the grid for the hour shown` : 'Freezing level: the model has none for this hour'}. Heights are feet above sea level, ×${scale}.`),
     );
+  }
+
+  // ---- The weather layers: radar shafts, bolts, satellite sheet, fronts, wind flow (Dad, 7 Oct) ----------------
+  /** The weather layers, made again where what they are built from changed (weather3d-layers.js keeps each until then), with the status words, the key and the credit. */
+  function rebuildWeather(wx) {
+    weatherSig = wx.sig;
+    weatherDirty = false;
+    if (!gl?.weather) return;
+    const { status, model, now } = modelState;
+    const ok = status === 'ok' && model !== null;
+    gl.weather.update({ weather: wx, model: ok ? model : null, hour: ok ? hourIndex(model, +now, ahead) : 0, scale, groundFt: groundFt(), projection: getProjection() });
+    const lines = (wx.lines ?? []).map((l) => `${l.tone}|${l.text} ${l.symbol}`);
+    const statusSig = lines.join('\n');
+    if (statusSig !== weatherStatus.dataset.sig) {
+      weatherStatus.dataset.sig = statusSig;
+      weatherStatus.replaceChildren(...(wx.lines ?? []).map((l) => h('li', { class: `sof-3d-wx-line is-${l.tone}` }, `${l.text} `, h('span', { 'aria-hidden': 'true' }, l.symbol))));
+    }
+    weatherKeyBody.replaceChildren(
+      h('p', {}, `Ground: Esri satellite imagery in two tiers: the whole ${AREA_NM} NM square at a modest zoom, and a sharper patch about ${INNER_NM} NM square round home on top of it (at most ${MAX_GROUND_TILES} tiles, loaded as they arrive).`),
+      ...weatherKeyWords(gl.weather.summary(), scale).map((t) => h('p', {}, t)),
+      h('p', {}, 'A picture for situational awareness: heights marked as estimates are not measurements, and nothing here raises or clears a caution.'),
+    );
+    const fronts = Boolean(gl.weather.credit());
+    if (fronts !== creditFronts) {
+      creditFronts = fronts;
+      updateCredit();
+    }
   }
 
   // ---- Airspace and the TACNAV routes (phase 3) -----------------------------------------------------------
@@ -794,9 +826,13 @@ export function createSofView3d({ timers, getProjection, getPictures, fullScreen
       gl.objects = buildObjects();
       sceneDirty = false;
       trafficDirty = true; // the ground's height or the scale may have changed: the aircraft stand on the same ground
+      weatherDirty = true; // and so do the shafts, bolts and fronts
       if (selected && !airfields.some((a) => a.icao === selected && !a.outside)) select(null);
     }
     if (modelDirty) rebuildModel();
+    const wx = getWeather();
+    if (wx.sig !== weatherSig) weatherDirty = true;
+    if (weatherDirty) rebuildWeather(wx);
     const nextSpaceSig = `${scale}|${groundFt()}|${getProjection().lat},${getProjection().lon}`;
     if (!gl.space || nextSpaceSig !== spaceSig) rebuildSpace(nextSpaceSig);
     if (trafficDirty) syncTraffic();
@@ -807,6 +843,11 @@ export function createSofView3d({ timers, getProjection, getPictures, fullScreen
     const size = { width, height };
     const zoom = fitZoom(size) * cam.zoom;
     matchProjection(THREE, camera, { x: 0, y: 0, z: planeZ / scale }, { yawDeg: cam.yawDeg, pitchDeg: cam.pitchDeg, zoom, altScale: scale }, size);
+    // The square is 450 NM across: its far corners lie further from the view's middle than the shared camera's depth range reaches (ui-kit `matchProjection` is for 250 NM and
+    // less), so the range is widened here. An orthographic camera has no perspective to spoil, only depth precision (24 bits over some 8 million ft is about half a foot).
+    camera.near = CAMERA_NEAR_FT;
+    camera.far = CAMERA_FAR_FT;
+    camera.updateProjectionMatrix();
     const ftPerPx = 1000 / zoom;
     for (const { pin } of pins) pin.scale.setScalar(ftPerPx);
     gl.traffic.fit(ftPerPx);
@@ -872,6 +913,12 @@ export function createSofView3d({ timers, getProjection, getPictures, fullScreen
     for (const { el, group, hPa, p } of modelWords) {
       const s = boxFor(el, 0, 0);
       put(el, clearOf({ ...s, x: group === 'freezing' || hPa !== undefined ? p.x - s.w - 6 : p.x + 8, y: p.y - s.h / 2 }));
+    }
+    for (const { el, point } of gl.weather?.items() ?? []) { // the fronts' pressure centres: "H 1024", "L 995"
+      if (el.hidden) continue;
+      const s = boxFor(el, 0, 0);
+      const p = at(point);
+      put(el, clearOf({ ...s, x: p.x - s.w / 2, y: p.y - s.h / 2 }));
     }
     placeAircraft({ at, put, boxFor, isClear, reserve, phase: 'others' });
     const chosen = selected && pins.find((q) => q.field.icao === selected);
@@ -1115,29 +1162,23 @@ export function createSofView3d({ timers, getProjection, getPictures, fullScreen
     const scene = new THREE.Scene();
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 2);
 
-    const groundCanvas = win.document.createElement('canvas');
-    groundCanvas.width = GROUND_PX;
-    groundCanvas.height = GROUND_PX;
-    const ctx = groundCanvas.getContext('2d');
-    const texture = new THREE.CanvasTexture(groundCanvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy?.() ?? 1);
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(AREA_FT, AREA_FT), new THREE.MeshBasicMaterial({ map: texture }));
-    scene.add(ground);
+    // The ground in two tiers: the whole square, and a sharp patch round home (ground3d.js); a tile arriving asks for the ground to be painted again.
+    const ground = createGround3d({
+      T: THREE,
+      timers,
+      doc: win.document,
+      onChange: () => {
+        groundDirty = true;
+        requestRender();
+      },
+    });
+    scene.add(ground.group);
     // The aircraft are lit models (the ground and the weather layers are not): a bright sky-and-ground light and a sun from the south-west,
     // stronger than the Debrief's, because these small aircraft must read against a dark ground. Estimates for readability, SOF-39.
     const sun = new THREE.DirectionalLight('#fff3dd', 2.6);
     sun.position.set(-0.5, -0.7, 1).normalize().multiplyScalar(1000);
     scene.add(new THREE.HemisphereLight('#e4eeff', '#8296a8', 2.4), sun, sun.target);
 
-    const imagery = createTileLayer({
-      source: { ...ESRI_IMAGERY, maxZoom: GROUND_ZOOM },
-      timers,
-      onChange: () => {
-        groundDirty = true;
-        requestRender();
-      },
-    });
     let resizer = null;
     if (win.ResizeObserver) {
       resizer = new win.ResizeObserver(() => requestRender());
@@ -1148,8 +1189,12 @@ export function createSofView3d({ timers, getProjection, getPictures, fullScreen
     labels.addEventListener('keydown', onLabelKey);
     stopFullSync = fullScreen?.subscribe(syncFull) ?? null;
     const traffic = createTraffic3d(THREE, { scene, labels, onHover: setHover, onPick: (hex) => selectAircraft(selectedAc === hex ? null : hex) });
-    gl = { THREE, canvas, renderer, scene, camera, ctx, texture, ground, imagery, resizer, objects: null, traffic, palette: paletteFor(canvas) };
+    const weather = createWeather3dLayers({ T: THREE, scene, timers, win, labels, requestRender, reducedMotion });
+    weather.setToggles(toggles);
+    gl = { THREE, canvas, renderer, scene, camera, ground, resizer, objects: null, traffic, weather, palette: paletteFor(canvas) };
     sceneDirty = true;
+    weatherDirty = true;
+    weatherSig = null;
     trafficDirty = true;
     groundDirty = true;
     modelDirty = true;
@@ -1175,7 +1220,8 @@ export function createSofView3d({ timers, getProjection, getPictures, fullScreen
     drag = null;
     pinch = null;
     if (!gl) return;
-    const { canvas, renderer, scene, texture, ground, imagery, resizer } = gl;
+    const { canvas, renderer, scene, ground, resizer } = gl;
+    gl.weather.dispose();
     freeModel();
     freeSpace();
     freeObjects();
@@ -1186,10 +1232,7 @@ export function createSofView3d({ timers, getProjection, getPictures, fullScreen
     stopFullSync?.();
     stopFullSync = null;
     resizer?.disconnect();
-    imagery.dispose();
-    ground.geometry.dispose();
-    ground.material.dispose();
-    texture.dispose();
+    ground.dispose();
     scene.clear();
     renderer.dispose();
     if (!lost) renderer.forceContextLoss?.();
@@ -1284,8 +1327,8 @@ export function createSofView3d({ timers, getProjection, getPictures, fullScreen
      * 'unavailable', model, lastGoodAt, failedAt, incomplete, now, timeZone }. The layers are built again only when the answer, the hour, the scale or the ground
      * changed. With no usable answer they are taken away and the view says why.
      */
-    setModel({ status = 'loading', model = null, lastGoodAt = null, failedAt = null, incomplete = false, now = new Date(), timeZone = null } = {}) {
-      modelState = { status, model, lastGoodAt, failedAt, incomplete, now, timeZone };
+    setModel({ status = 'loading', model = null, lastGoodAt = null, failedAt = null, incomplete = false, refining = false, now = new Date(), timeZone = null } = {}) {
+      modelState = { status, model, lastGoodAt, failedAt, incomplete, refining, now, timeZone };
       applyModel();
     },
     /**
@@ -1298,7 +1341,8 @@ export function createSofView3d({ timers, getProjection, getPictures, fullScreen
       trafficStatus.hidden = !next.shown;
       setText(trafficStatus, next.shown ? next.statusText : '');
       trafficStatus.classList.toggle('is-bad', next.shown && next.status === 'unavailable');
-      setText(credit, creditWords(next.shown));
+      creditAircraft = next.shown === true;
+      updateCredit();
       trailsButton.hidden = !next.shown;
       trailsButton.setAttribute('aria-pressed', String(next.trailsOn === true));
       syncGlide();
@@ -1323,10 +1367,13 @@ export function createSofView3d({ timers, getProjection, getPictures, fullScreen
     /** The 2D map's pictures or their fading may have changed: the ground is painted again if they did. */
     touch() {
       if (!gl || !wanted) return;
+      let changed = false;
       if (getPictures().sig !== picturesSig) {
         groundDirty = true;
-        requestRender();
+        changed = true;
       }
+      if (getWeather().sig !== weatherSig) changed = true; // render() sees it and builds the layers again
+      if (changed) requestRender();
     },
     /** Back to the start view: from the south-east, 45 degrees down, the whole square in view. */
     home() {

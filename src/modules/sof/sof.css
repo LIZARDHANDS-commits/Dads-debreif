@@ -2365,6 +2365,44 @@ main[data-module='sof'] {
   vertical-align: baseline;
 }
 
+/* The weather layers' panel (Dad, 7 Oct): the layer buttons, a line for each picture's age, and the fronts' H and L pressure marks. */
+[data-module='sof'] .sof-3d-wx-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: #b8cfdb;
+}
+
+[data-module='sof'] .sof-3d-wx-line.is-bad {
+  color: var(--caution);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-3d-wx-mark {
+  padding: 0 var(--space-1);
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  background: rgb(5 10 18 / 0.75);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+[data-module='sof'] .sof-3d-wx-mark.is-high {
+  color: #8fc7ff;
+}
+
+[data-module='sof'] .sof-3d-wx-mark.is-low {
+  color: #ff9b8f;
+}
+
+[data-module='sof'] .sof-3d-wx-mark[hidden] {
+  display: none;
+}
+
 [data-module='sof'] .sof-3d-model-label.is-freezing {
   color: #9fe3ff;
 }

@@ -37,7 +37,8 @@ import { createMapControls } from './map-controls.js';
 import { createAdsbFrame, adsbExchangeUrl, zoomForScale } from './adsbx.js';
 import { webglSupported } from '../../ui-kit/three-aircraft.js';
 import { createSofView3d } from './view3d.js';
-import { sceneAirfields, sceneTraffic } from './scene3d-model.js';
+import { sceneAirfields, sceneTraffic, AREA_FT } from './scene3d-model.js';
+import { createFrontsFeed, frontsUrl, frontsView } from './fronts.js';
 import { tacnavRoutes, checkedAirspace } from './airspace-model.js';
 import { AIRSPACE } from './airspace-data.js';
 import { createAirspaceLog } from './airspace-log.js';
@@ -48,6 +49,8 @@ const BACKGROUND = '#05090d';
 const STALE_ALPHA = 0.4; // a stale picture is drawn faint, and its line says STALE
 const HOVER_PX = 14;
 const MAX_REMEMBERED_REQUESTS = 12;
+/** The 3D view's pictures (radar, lightning, satellite) are asked for over the whole 450 NM square at about this many pixels across (the request adds a fifth), under the 2,048 the feeds allow. */
+const PICTURE_3D_PX = 900;
 const OFFLINE_WORDS = 'Map and radar need a connection';
 const NO_WEBGL_WORDS = 'The 3D view needs WebGL, which this browser does not have. The map stays.';
 const NO_3D_LOAD_WORDS = 'The 3D view could not load (it needs a connection the first time). The map stays.';
@@ -152,6 +155,7 @@ export function createSofMap({ app, settings, onLightning = () => {}, fullScreen
     timers,
     getProjection: () => projection,
     getPictures: pictures3d,
+    getWeather: weather3d,
     fullScreen,
     routes: tacnavRoutes(ROUTES), // the Debrief's routes with TAC in the name, drawn at 500 ft above the ground in 3D (SOF-39 phase 3)
     onAirspaceLogOptions: (options) => airspaceLog.setOptions(options), // the panel's two ticks: what the log records from now on
@@ -161,6 +165,7 @@ export function createSofMap({ app, settings, onLightning = () => {}, fullScreen
       if (!threeOn) return;
       threeOn = false;
       modelFeed.stop();
+      stop3dFeeds();
       canvas.hidden = false;
       applyLayers();
       sync();
@@ -171,7 +176,7 @@ export function createSofMap({ app, settings, onLightning = () => {}, fullScreen
 
   // The model clouds, winds and freezing level (Open-Meteo's GEM forecast) are asked for only while the 3D view is shown (SOF-39, phase 2).
   const modelFeed = createModelFeed({
-    points: () => gridPoints(projection.toLatLon),
+    points: (size) => gridPoints(projection.toLatLon, size),
     fetch: fetchNet,
     timers,
     now,
@@ -255,6 +260,45 @@ export function createSofMap({ app, settings, onLightning = () => {}, fullScreen
       refreshStatus();
     },
   });
+
+  // ---- The 3D view's own pictures (Dad, 7 Oct) --------------------------------------------------------------
+  // The 3D view covers 450 NM, more than the 2D map's picture usually does, so radar, lightning and the GOES cloud picture are asked for again over the 3D square, only while the
+  // 3D view is shown. They lay on the 3D ground and, read on a grid, make the radar shafts, the lightning bolts and the satellite sheet (weather3d-layers.js). The fronts come from
+  // the relay's /fronts, every 30 minutes, also only while 3D is shown.
+  const feeds3d = {
+    radar: createImageFeed({ layer: () => (layers.precip === 'snow' ? LAYERS.radarSnow : LAYERS.radarRain), kind: 'radar', urlFor: ecccUrl, decode, refreshMs: REFRESH_MS.radar, paused, ...shared }),
+    lightning: createImageFeed({ layer: LAYERS.lightning, kind: 'lightning', urlFor: ecccUrl, decode: decodeLightning, refreshMs: REFRESH_MS.lightning, paused, ...shared }),
+    cloud: createImageFeed({ layer: EXTRA_LAYERS.cloud, kind: 'cloud', urlFor: extraUrl, decode, refreshMs: REFRESH_MS.lightning, paused, ...shared }),
+  };
+  const requests3d = new Map(); // request key → the request, so a picture is laid where it was asked for
+  const frontsFeed = createFrontsFeed({
+    address: () => frontsUrl(settings.get().trafficRelay),
+    paused: () => document.hidden,
+    fetch: fetchNet,
+    timers,
+    now,
+    onChange: () => {
+      if (threeOn && !disposed) view3d.touch();
+    },
+  });
+
+  /** Asks the 3D feeds for pictures over the square round home (a new home gives a new request). */
+  function syncFeeds3d() {
+    const half = AREA_FT / 2;
+    const request = radarImageRequest(cornersOf(projection, { minX: -half, minY: -half, maxX: half, maxY: half }), { width: PICTURE_3D_PX, height: PICTURE_3D_PX });
+    if (request) requests3d.set(request.key, request);
+    while (requests3d.size > MAX_REMEMBERED_REQUESTS) requests3d.delete(requests3d.keys().next().value);
+    for (const feed of Object.values(feeds3d)) feed.setRequest(request);
+  }
+  function start3dFeeds() {
+    syncFeeds3d();
+    for (const feed of Object.values(feeds3d)) feed.enable(true);
+    frontsFeed.start();
+  }
+  function stop3dFeeds() {
+    for (const feed of Object.values(feeds3d)) feed.enable(false);
+    frontsFeed.stop();
+  }
 
   const imagery = createTileLayer({ source: ESRI_IMAGERY, timers, onChange: () => view.requestDraw() });
   const charts = createVncLayer({ base: document.baseURI, onChange: () => view.requestDraw() });
@@ -621,31 +665,74 @@ export function createSofMap({ app, settings, onLightning = () => {}, fullScreen
     if (trafficFeed.view(now()).aircraft.some(canGlide)) view.requestDraw();
   }
 
-  /** The pictures the 2D map already holds, for the 3D ground: ECCC radar and lightning, with the same stale fading. Not fetched again. */
+  /**
+   * The pictures for the 3D ground: ECCC radar and lightning over the whole 3D square (the 3D view's own feeds, above), each only when its 2D layer is on, with the same
+   * stale fading. The backup radar's tiles (RainViewer) are not drawn in 3D.
+   */
   const imageIds = new WeakMap();
   let imageCount = 0;
+  const idOf = (image) => {
+    if (!imageIds.has(image)) imageIds.set(image, ++imageCount);
+    return imageIds.get(image);
+  };
+  /** One 3D feed's line for the 3D view's status strip: words and a symbol, never colour alone (feedLine, as the 2D map's strip). */
+  function line3d(id, t) {
+    const s = feeds3d[id].state();
+    const label = { radar: 'Radar', lightning: 'Lightning', cloud: 'Satellite' }[id];
+    return feedLine({ label, kind: id, on: true, hasImage: Boolean(s.image), layerTime: s.layerTime, failed: s.failures > 0 && !s.busy, busy: s.busy, now: t });
+  }
   function pictures3d() {
     const t = now();
     const list = [];
     const parts = [`${home.lat},${home.lon}`];
     for (const id of ['radar', 'lightning']) {
       if (!layers.on[id]) continue;
-      const s = id === 'radar' ? radar.state() : feeds.lightning.state();
-      const req = s.image && s.imageKey ? requests.get(s.imageKey) : null;
-      if (!req) continue; // no picture yet, or the backup radar's tiles (RainViewer), which the 3D view does not draw
-      const stale = id === 'radar' ? radar.line(t).stale : feedStale('lightning');
-      const alpha = ((layers.opacity[id] ?? 100) / 100) * (stale ? STALE_ALPHA : 1);
-      if (!imageIds.has(s.image)) imageIds.set(s.image, ++imageCount);
+      const s = feeds3d[id].state();
+      const req = s.image && s.imageKey ? requests3d.get(s.imageKey) : null;
+      if (!req) continue; // no picture yet
+      const alpha = ((layers.opacity[id] ?? 100) / 100) * (line3d(id, t).stale ? STALE_ALPHA : 1);
       list.push({ id, image: s.image, bbox: req.bbox, alpha });
-      parts.push(`${id}:${imageIds.get(s.image)}:${req.key}:${alpha}`);
+      parts.push(`${id}:${idOf(s.image)}:${req.key}:${alpha}`);
     }
     return { sig: parts.join('|'), list };
+  }
+
+  /**
+   * What the 3D weather layers are built from (weather3d-layers.js): the radar, lightning and satellite pictures over the 3D square with whether each is stale (feeds.js ages),
+   * the fronts (fronts.js `frontsView`), and the status strip's lines. `sig` changes when a picture, its staleness, the fronts or the minute does, so the layers are built
+   * again only then.
+   */
+  function weather3d() {
+    const t = now();
+    const parts = [`${home.lat},${home.lon}`, Math.floor(+t / 60_000)];
+    const lines = [];
+    const pic = (id) => {
+      const line = line3d(id, t);
+      lines.push({ id, text: line.text, symbol: line.symbol, tone: line.tone });
+      const s = feeds3d[id].state();
+      const req = s.image && s.imageKey ? requests3d.get(s.imageKey) : null;
+      if (!req) {
+        parts.push(`${id}:none`);
+        return null;
+      }
+      parts.push(`${id}:${idOf(s.image)}:${line.stale}`);
+      return { id: idOf(s.image), image: s.image, bbox: req.bbox, stale: line.stale };
+    };
+    const radar = pic('radar');
+    const lightning = pic('lightning');
+    const satellite = pic('cloud');
+    const fs = frontsFeed.state();
+    const fronts = { ...frontsView(fs, t), key: `${fs.lastGood?.receivedAt ?? 'none'}` };
+    parts.push(`fronts:${fronts.status}:${fronts.key}`);
+    lines.push({ id: 'fronts', text: fronts.words, symbol: fronts.status === 'ok' ? (fs.failed ? '⚠' : '✓') : fronts.status === 'loading' ? '⟳' : '⚠', tone: fronts.status === 'ok' && !fs.failed ? 'ok' : fronts.status === 'loading' ? 'busy' : 'bad' });
+    return { sig: parts.join('|'), radar, lightning, satellite, fronts, lines };
   }
 
   function stopThree() {
     if (!threeOn) return;
     threeOn = false;
     modelFeed.stop(); // nothing is asked for while the 3D view is not shown
+    stop3dFeeds(); // nor are its pictures or the fronts
     view3d.hide(); // frees the aircraft too; the traffic feed itself is the 2D layer's and goes on while its switch is on
     view3d.setTraffic();
   }
@@ -675,6 +762,7 @@ export function createSofMap({ app, settings, onLightning = () => {}, fullScreen
     hideTip();
     pushScene();
     modelFeed.start(); // asks for the model clouds and winds at once, then once an hour while the view is open
+    start3dFeeds(); // and the 3D view's own radar, lightning and satellite pictures and the fronts, which also stop when it is closed
     pushModel();
     applyLayers();
     pushTraffic();
@@ -684,6 +772,7 @@ export function createSofMap({ app, settings, onLightning = () => {}, fullScreen
       if (result.ok || !threeOn) return;
       threeOn = false;
       modelFeed.stop();
+      stop3dFeeds();
       canvas.hidden = false;
       applyLayers();
       sync();
@@ -806,6 +895,8 @@ export function createSofMap({ app, settings, onLightning = () => {}, fullScreen
         updateAirspaceLog();
         watch.setPlace();
         modelFeed.setPlace(); // the grid is round the new home
+        requests3d.clear();
+        if (threeOn) syncFeeds3d(); // and so are the 3D pictures
         goHome();
       }
       const radius = settings.get().lightningNm;
@@ -850,6 +941,10 @@ export function createSofMap({ app, settings, onLightning = () => {}, fullScreen
       watch.wake();
       trafficFeed.wake();
       modelFeed.wake();
+      if (threeOn) {
+        for (const feed of Object.values(feeds3d)) feed.wake();
+        frontsFeed.wake();
+      }
       view.requestDraw();
     },
     /** Stops every request and timer, drops the frame and the pictures. */
@@ -864,6 +959,8 @@ export function createSofMap({ app, settings, onLightning = () => {}, fullScreen
       cancelGlide2d?.();
       cancelNotice?.();
       modelFeed.stop();
+      for (const feed of Object.values(feeds3d)) feed.stop();
+      frontsFeed.stop();
       view3d.dispose();
       adsbFrame.dispose();
       imagery.dispose();
