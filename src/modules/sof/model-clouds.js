@@ -58,7 +58,8 @@ const RANGES = Object.freeze([
   ['cloud_cover', 0, 100],
   ['geopotential_height', -500, 20_000],
   ['wind_speed', 0, 300],
-  ['wind_direction', 0, 360],
+  // The live GEM reply gives 361 for a wind just past north (seen 7 Oct 2026), so up to 720 is taken; trueToMagnetic wraps it.
+  ['wind_direction', 0, 720],
   ['freezing_level_height', -500, 10_000],
 ]);
 const rangeOf = (variable) => RANGES.find(([prefix]) => variable.startsWith(prefix));
