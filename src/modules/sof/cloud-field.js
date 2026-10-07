@@ -435,20 +435,25 @@ export function heightSheetWords(sheet, heightFt, { groundFt = -Infinity, thresh
 
 /** A station's observed base pulls the model's low cloud base towards it out to this distance, fading smoothly to nothing. Estimate, SOF-39 (Fable review). */
 export const ANCHOR_NM = 15; // estimate, SOF-39
+/**
+ * Only a METAR ceiling below this, in feet above the field, moves the model's low cloud base (Dad's ruling, 7 Oct 2026, SOF-47: "Lower, 5,000 ft"; it was the 6,500 ft
+ * low-stage top). A ceiling from here up to the low-stage top leaves the model's low cloud alone (neither moved nor thinned); above that it counts as no low ceiling.
+ */
+export const ANCHOR_CEILING_AGL_FT = 5000;
 
 /**
  * The low slab pulled towards what the reporting stations see, near each one (`anchors`: scene3d-model.js `stationAnchors`, fresh reports only; the view uses this at the
  * model hour "now" only). Within `anchorNm` of a station the weight is w = smoothstep(1 − d / anchorNm) (1 at the station, 0 at the edge); where two stations reach, the
  * nearer one counts. Low stage only:
- * - a ceiling (BKN, OVC or VV) whose base is in the low stage (below CLOUD_STAGES_FT_AGL.lowTopFt above the field): base' = base × (1 − w) + observed × w, and the top is
- *   kept at least MIN_SLAB_FT above it;
+ * - a ceiling (BKN, OVC or VV) below ANCHOR_CEILING_AGL_FT above the field: base' = base × (1 − w) + observed × w, and the top is kept at least MIN_SLAB_FT above it;
+ * - a ceiling from ANCHOR_CEILING_AGL_FT up to the low stage's top (CLOUD_STAGES_FT_AGL.lowTopFt): nothing changes (use 'none', reason 'mid-low');
  * - no low ceiling (a clear sky, only FEW or SCT, or a ceiling above the low stage): low cover' = cover × (1 − w);
  * - a stale or missing report, an unknown ceiling or an unknown field elevation: nothing changes.
  *
- * Returns { slabs, stations } where `stations` are the anchors with `use` ('base', 'thin' or 'none'), `reason` (for 'none': 'stale', 'unknown', 'elevation' or
- * 'outside') and `modelBaseFt` (the model's own low base at the station before anchoring, or null with no low cloud there over `threshold`).
+ * Returns { slabs, stations } where `stations` are the anchors with `use` ('base', 'thin' or 'none'), `reason` (for 'none': 'stale', 'unknown', 'elevation',
+ * 'mid-low' or 'outside') and `modelBaseFt` (the model's own low base at the station before anchoring, or null with no low cloud there over `threshold`).
  */
-export function anchorLowSlab(slabs, anchors, { anchorNm = ANCHOR_NM, threshold = CLOUD_COVER_THRESHOLD_PCT, lowTopFt = CLOUD_STAGES_FT_AGL.lowTopFt } = {}) {
+export function anchorLowSlab(slabs, anchors, { anchorNm = ANCHOR_NM, threshold = CLOUD_COVER_THRESHOLD_PCT, ceilingBelowFt = ANCHOR_CEILING_AGL_FT, lowTopFt = CLOUD_STAGES_FT_AGL.lowTopFt } = {}) {
   const low = slabs?.low ?? null;
   const px = slabs?.px ?? 0;
   const half = AREA_FT / 2;
@@ -462,10 +467,11 @@ export function anchorLowSlab(slabs, anchors, { anchorNm = ANCHOR_NM, threshold 
     if (!inside) reason = 'outside';
     else if (!a.fresh) reason = 'stale';
     else if (a.unknown) reason = 'unknown';
-    else if (a.ceiling && a.ceiling.baseAglFt < lowTopFt) {
+    else if (a.ceiling && a.ceiling.baseAglFt < ceilingBelowFt) {
       if (a.baseMslFt === null) reason = 'elevation';
       else use = 'base';
-    } else use = 'thin';
+    } else if (a.ceiling && a.ceiling.baseAglFt < lowTopFt) reason = 'mid-low';
+    else use = 'thin';
     return { ...a, use, reason, modelBaseFt };
   });
   if (!low || !px) return { slabs, stations };
@@ -515,6 +521,7 @@ export function anchorWords(station, { anchorNm = ANCHOR_NM } = {}) {
   if (station.reason === 'stale') return `${icao}: no fresh METAR`;
   if (station.reason === 'outside') return `${icao}: outside the square`;
   if (station.reason === 'unknown') return `${icao}: ceiling not known (no base reported); not used`;
+  if (station.reason === 'mid-low') return `${icao}: METAR ${station.ceiling.group}${station.baseMslFt === null ? '' : ` → ${formatFeet(station.baseMslFt)} ft`}, not below ${formatFeet(ANCHOR_CEILING_AGL_FT)} ft above the field; ${model}, left as the model has it`;
   if (station.reason === 'elevation') return `${icao}: METAR ${station.ceiling.group}, field elevation not known; not used`;
   if (station.use === 'base') {
     if (station.modelBaseFt === null) return `${icao}: METAR ${station.ceiling.group} → ${formatFeet(station.baseMslFt)} ft; ${model}`;

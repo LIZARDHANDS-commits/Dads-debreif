@@ -61,7 +61,7 @@ import {
 import { buildModelLayers, MODEL_GROUPS } from './model-layers3d.js';
 import {
   slabColumnAt, highestSlabTopFt, cloudSlabs, maskSlabs, anchorLowSlab, anchorWords, heightSheet, heightSheetWords, SHEET_HEIGHTS_FT, SLAB_SHEETS, MIN_SLAB_FT,
-  NT_MAX_GAIN, NT_OLD_FADE, ANCHOR_NM,
+  NT_MAX_GAIN, NT_OLD_FADE, ANCHOR_NM, ANCHOR_CEILING_AGL_FT,
 } from './cloud-field.js';
 import { buildHeightSheet } from './cloud-slabs3d.js';
 import { createTraffic3d } from './traffic3d.js';
@@ -820,7 +820,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     if (observed.state === 'loading') return [h('p', {}, 'Observed bases loading: the low cloud is the model alone until the stations\' METARs arrive.')];
     if (observed.state === 'unavailable') return [h('p', {}, 'Observed bases unavailable, model alone: no station in the square has a fresh METAR.')];
     return [
-      h('p', {}, `Observed bases (now only): within ${ANCHOR_NM} NM of each reporting station (an estimate), the low cloud's base is pulled to the METAR's lowest BKN, OVC or VV base below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft above the field (plus the field's elevation), fully at the station and fading smoothly to nothing at ${ANCHOR_NM} NM. Where the METAR has no low ceiling (clear, FEW or SCT only, or its ceiling is higher), the model's low cloud there is thinned the same way. FEW and SCT never move a base. A station with no fresh METAR (older than 75 minutes) is not used.`),
+      h('p', {}, `Observed bases (now only): within ${ANCHOR_NM} NM of each reporting station (an estimate), the low cloud's base is pulled to the METAR's lowest BKN, OVC or VV base below ${formatFeet(ANCHOR_CEILING_AGL_FT)} ft above the field (plus the field's elevation; Dad's ruling), fully at the station and fading smoothly to nothing at ${ANCHOR_NM} NM. A ceiling from ${formatFeet(ANCHOR_CEILING_AGL_FT)} to ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft above the field leaves the model's low cloud alone. Where the METAR has no low ceiling (clear, FEW or SCT only, or its ceiling is higher), the model's low cloud there is thinned the same way. FEW and SCT never move a base. A station with no fresh METAR (older than 75 minutes) is not used.`),
       h('ul', {}, observed.stations.filter((st) => st.reason !== 'outside').map((st) => h('li', {}, anchorWords(st)))),
     ];
   }
