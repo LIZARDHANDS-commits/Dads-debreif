@@ -27,7 +27,7 @@ import {
 } from './scene3d-model.js';
 import { buildModelLayers, MODEL_GROUPS } from './model-layers3d.js';
 import {
-  hourIndex, maxAhead, hourWords, meanLayerCover, unavailableWords, LOADING_WORDS, CREDIT_WORDS, MAX_AHEAD_HOURS, CLOUD_STAGES_FT_AGL,
+  hourIndex, maxAhead, hourWords, meanLayerCover, unavailableWords, refreshFailedWords, LOADING_WORDS, CREDIT_WORDS, MAX_AHEAD_HOURS, CLOUD_STAGES_FT_AGL,
   CLOUD_COVER_THRESHOLD_PCT, MAG_VARIATION_DEG_E, GRID_SPACING_NM,
 } from './model-clouds.js';
 
@@ -95,6 +95,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
   });
   const sliderWords = h('output', { class: 'sof-3d-model-time', for: sliderId });
   const modelStatus = h('p', { class: 'sof-3d-model-status', role: 'status' }, LOADING_WORDS);
+  const modelWarn = h('p', { class: 'sof-3d-model-warn', role: 'status', hidden: true });
   const modelControls = h('div', { class: 'sof-3d-model-controls' },
     h('div', { class: 'sof-3d-model-row', role: 'group', 'aria-label': 'Model layers' }, [...toggleButtons.values()].map((t) => t.button)),
     h('div', { class: 'sof-3d-model-row' }, h('label', { for: sliderId }, 'Model time'), slider, sliderWords));
@@ -103,7 +104,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
   const modelKey = h('details', { class: 'sof-3d-model-key' }, h('summary', {}, 'Model key'), keyBody);
   const modelCredit = h('p', { class: 'sof-3d-model-credit' }, CREDIT_WORDS);
   const modelFoot = h('div', { class: 'sof-3d-model-row' }, modelNote, modelKey);
-  const modelPanel = h('div', { class: 'sof-3d-model', role: 'group', 'aria-label': 'Model clouds and winds' }, modelStatus, modelControls, modelFoot, modelCredit);
+  const modelPanel = h('div', { class: 'sof-3d-model', role: 'group', 'aria-label': 'Model clouds and winds' }, modelStatus, modelWarn, modelControls, modelFoot, modelCredit);
   const bottom = h('div', { class: 'sof-3d-bottom' }, modelPanel, credit);
   const element = h('div', { class: 'sof-3d', hidden: true }, labels, corner, outside, bottom, note, tag);
 
@@ -124,7 +125,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
   let tilesFailed = false;
   let noTiles = false; // a tile the browser would not let three.js read: the ground is drawn plain instead
   let loadingNote = false;
-  let modelState = { status: 'loading', model: null, lastGoodAt: null, now: new Date(0), timeZone: null }; // what the map last gave setModel
+  let modelState = { status: 'loading', model: null, lastGoodAt: null, failedAt: null, incomplete: false, now: new Date(0), timeZone: null }; // what the map last gave setModel
   let ahead = 0; // the slider: hours past now
   let modelSig = '';
   let modelDirty = true;
@@ -334,15 +335,19 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
 
   /** The words, the controls and whether the model layers must be built again, from what the map last gave `setModel`. */
   function applyModel() {
-    const { status, model, lastGoodAt, now, timeZone } = modelState;
+    const { status, model, lastGoodAt, failedAt, incomplete, now, timeZone } = modelState;
     const ok = status === 'ok' && model !== null;
     modelStatus.hidden = ok;
     modelControls.hidden = !ok;
     modelFoot.hidden = !ok;
     modelCredit.hidden = !ok;
     modelStatus.classList.toggle('is-bad', status === 'unavailable');
+    // A refresh that failed while the answer held is still young enough: the layers stay and the panel says so.
+    const stillShown = ok && failedAt !== null;
+    modelWarn.hidden = !stillShown;
+    if (stillShown) setText(modelWarn, refreshFailedWords({ failedAt, lastGoodAt, now, incomplete }));
     if (!ok) {
-      setText(modelStatus, status === 'unavailable' ? unavailableWords(lastGoodAt) : LOADING_WORDS);
+      setText(modelStatus, status === 'unavailable' ? unavailableWords(lastGoodAt, incomplete) : LOADING_WORDS);
     } else {
       const nowMs = +now;
       const limit = maxAhead(model, nowMs);
@@ -390,12 +395,13 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
   function drawKey(summary, hour) {
     const { model } = modelState;
     const cover = meanLayerCover(model, hour);
+    const pct = (v) => (v === null ? 'no data' : `${v} %`);
     keyBody.replaceChildren(
       h('p', {}, `${CREDIT_WORDS}.`),
-      h('p', {}, `Clouds: a model level with over ${CLOUD_COVER_THRESHOLD_PCT} % cover is cloud from halfway down to the level below to halfway up to the level above; neighbouring cloudy levels join into one block. Low, mid and high are by the block's base above the ground (below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft, up to ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft, above). The model's own mean cover this hour: low ${cover.low} %, mid ${cover.mid} %, high ${cover.high} %.`),
+      h('p', {}, `Clouds: a model level with over ${CLOUD_COVER_THRESHOLD_PCT} % cover is cloud from halfway down to the level below to halfway up to the level above; neighbouring cloudy levels join into one block. Low, mid and high are by the block's base above the ground (below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft, up to ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft, above). The model's own mean cover this hour: low ${pct(cover.low)}, mid ${pct(cover.mid)}, high ${pct(cover.high)}.`),
       h('p', {}, `Winds: barbs at 850, 700 and 500 hPa at every other grid point (${Math.round(GRID_SPACING_NM * 2)} NM apart): pennant 50 kt, full feather 10, half 5. Direction in °M (${MAG_VARIATION_DEG_E}° E variation), speed in kt.`),
       h('ul', {}, summary.windsOverHome.map((words) => h('li', {}, `Over home, ${words}`))),
-      h('p', {}, `${summary.freezingText}: the mean over the grid for the hour shown. Heights are feet above sea level, ×${scale}.`),
+      h('p', {}, `${summary.freezingText ? `${summary.freezingText}: the mean over the grid for the hour shown` : 'Freezing level: the model has none for this hour'}. Heights are feet above sea level, ×${scale}.`),
     );
   }
 
@@ -756,11 +762,11 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     },
     /**
      * What the model feed says now (model-clouds.js `createModelFeed().view()`, with the clock and home's time zone): { status: 'ok' | 'loading' |
-     * 'unavailable', model, lastGoodAt, now, timeZone }. The layers are built again only when the answer, the hour, the scale or the ground
+     * 'unavailable', model, lastGoodAt, failedAt, incomplete, now, timeZone }. The layers are built again only when the answer, the hour, the scale or the ground
      * changed. With no usable answer they are taken away and the view says why.
      */
-    setModel({ status = 'loading', model = null, lastGoodAt = null, now = new Date(), timeZone = null } = {}) {
-      modelState = { status, model, lastGoodAt, now, timeZone };
+    setModel({ status = 'loading', model = null, lastGoodAt = null, failedAt = null, incomplete = false, now = new Date(), timeZone = null } = {}) {
+      modelState = { status, model, lastGoodAt, failedAt, incomplete, now, timeZone };
       applyModel();
     },
     /** The 2D map's pictures or their fading may have changed: the ground is painted again if they did. */

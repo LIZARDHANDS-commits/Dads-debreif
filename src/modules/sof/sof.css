@@ -1975,7 +1975,8 @@ main[data-module='sof'] {
   margin: 0;
 }
 
-[data-module='sof'] .sof-3d-model-status.is-bad {
+[data-module='sof'] .sof-3d-model-status.is-bad,
+[data-module='sof'] .sof-3d-model-warn {
   padding: 2px var(--space-2);
   border: 1px solid var(--caution);
   border-radius: var(--radius);

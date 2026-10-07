@@ -8,10 +8,14 @@
 //
 // Failure and stale behaviour (SPEC-sof "3D view", "When data fails" and "Untrusted replies"):
 // - The reply is untrusted. It must be an array of exactly one object per grid point, each with `hourly.time` (ISO times) and every
-//   requested variable as an array of the same length, every number finite and in its range. Anything else makes the WHOLE reply a
-//   failure; nothing of it is kept.
-// - A failed request, or a last good answer older than STALE_MS, means there is no model data: the layers are removed, never frozen,
-//   and the view says so with the time of the last good answer ("not yet" if there never was one).
+//   requested variable as an array of the same length. Every value must be a finite number in its range, or null (Open-Meteo's "no
+//   data" for that one hour and variable). Any other shape, length, non-number or out-of-range number makes the WHOLE reply a failure,
+//   and so do nulls in more than half of all the values ("Model data incomplete"); nothing of a failed reply is kept.
+// - A null is no data for that one value: cloud cover null is not cloudy; a null geopotential height leaves that level out of the column;
+//   a null wind speed or direction draws no barb there; a null freezing level leaves that point out of the mean.
+// - A failed refresh keeps the last good answer, and the view says "Model refresh failed at 1030Z, showing the 0900Z answer (90 min old)".
+//   Once the held answer is older than STALE_MS (or there never was one) the layers are removed, never frozen, and the view says so with
+//   the time of the last good answer ("not yet" if there never was one).
 import { guardedFetch, bytesToText, FETCH_LIMITS } from './map-fetch.js';
 import { FT_PER_NM } from './map-view.js';
 import { AREA_NM, AREA_FT, formatFeet } from './scene3d-model.js';
@@ -46,6 +50,9 @@ export const HOURLY_VARIABLES = Object.freeze([
   'cloud_cover_high',
 ]);
 
+/** More than this share of the reply's values null and the whole reply is thrown away (SOF-39). */
+export const MAX_NULL_SHARE = 0.5;
+
 /** Each variable's range, from its name's start: [lowest, highest] in the units the request asks for (%, m, kt, degrees). Anything outside fails the reply. */
 const RANGES = Object.freeze([
   ['cloud_cover', 0, 100],
@@ -56,7 +63,7 @@ const RANGES = Object.freeze([
 ]);
 const rangeOf = (variable) => RANGES.find(([prefix]) => variable.startsWith(prefix));
 
-/** The model data is kept this long: older than this, or a failed request, and the layers are removed (SOF-39). */
+/** The last good answer is kept and shown this long, even while refreshes fail; older than this and the layers are removed (SOF-39). */
 export const STALE_MS = 3 * 60 * 60 * 1000;
 /** Asked again this often while the 3D view is open (SOF-39), or this soon after a failure (an estimate, SOF-39: not in the spec). */
 export const REFRESH_MS = 60 * 60 * 1000;
@@ -131,17 +138,20 @@ const parseTime = (text) => (typeof text === 'string' && ISO_TIME.test(text) ? D
 let nextModelId = 1;
 
 /**
- * Checks Open-Meteo's reply field by field (it is untrusted). `points` are the grid points that were asked for. Returns
- * { ok: true, model } or { ok: false, reason }. A single wrong value fails the whole reply.
+ * Checks Open-Meteo's reply field by field (it is untrusted); this is the one place it is checked. `points` are the grid points that
+ * were asked for. Returns { ok: true, model } or { ok: false, reason, incomplete }. A single wrong value fails the whole reply.
+ * A null is allowed as "no data" for that value, unless more than MAX_NULL_SHARE of all the values are null (`incomplete: true`).
  *
- * model: { id, receivedAt, times: [ms], points: [{ ...gridPoint, series: { variable: [numbers] } }] }; the numbers are as the reply gave
- * them (metres, percent, knots, degrees true), converted when read (`columnAt`).
+ * model: { id, receivedAt, times: [ms], points: [{ ...gridPoint, series: { variable: [number or null] } }] }; the numbers are as the
+ * reply gave them (metres, percent, knots, degrees true), converted when read (`columnAt`).
  */
 export function checkModelReply(reply, { points, receivedAt = Date.now() } = /** @type {any} */ ({})) {
-  const fail = (reason) => ({ ok: false, reason });
+  const fail = (reason, incomplete = false) => ({ ok: false, reason, incomplete });
   if (!Array.isArray(reply)) return fail('not a list of points');
   if (reply.length !== points.length) return fail(`${reply.length} points, not ${points.length}`);
   let times = null;
+  let nulls = 0;
+  let total = 0;
   const out = [];
   for (let n = 0; n < reply.length; n++) {
     const hourly = reply[n] && typeof reply[n] === 'object' ? reply[n].hourly : null;
@@ -156,11 +166,16 @@ export function checkModelReply(reply, { points, receivedAt = Date.now() } = /**
       const values = hourly[variable];
       if (!Array.isArray(values) || values.length !== times.length) return fail(`point ${n}: ${variable} is not ${times.length} values`);
       const [, lo, hi] = rangeOf(variable);
-      for (const v of values) if (!isNumber(v) || v < lo || v > hi) return fail(`point ${n}: ${variable} has a value out of range`);
+      for (const v of values) {
+        total += 1;
+        if (v === null) nulls += 1;
+        else if (!isNumber(v) || v < lo || v > hi) return fail(`point ${n}: ${variable} has a value out of range`);
+      }
       series[variable] = values.slice();
     }
     out.push({ ...points[n], series });
   }
+  if (nulls > total * MAX_NULL_SHARE) return fail(`${nulls} of ${total} values are null`, true);
   return { ok: true, model: { id: nextModelId++, receivedAt, times, points: out } };
 }
 
@@ -181,15 +196,22 @@ export function maxAhead(model, nowMs) {
   return Math.min(MAX_AHEAD_HOURS, model.times.length - 1 - hourIndex(model, nowMs, 0));
 }
 
-/** One grid column at one hour: the cloud levels bottom first ({ hPa, cover, heightFt }) and the freezing level in feet above sea level. */
+/**
+ * One grid column at one hour: the cloud levels bottom first ({ hPa, cover, heightFt }) and the freezing level in feet above sea level.
+ * A level with no height (null) is left out of the column; a level with no cover (null) has `cover: null`, which is not cloudy. The
+ * freezing level and the low, mid and high cover are null when there is no data.
+ */
 export function columnAt(point, hour) {
+  const levels = [];
+  for (const hPa of CLOUD_LEVELS_HPA) {
+    const metres = point.series[`geopotential_height_${hPa}hPa`][hour];
+    if (metres === null) continue;
+    levels.push({ hPa, cover: point.series[`cloud_cover_${hPa}hPa`][hour], heightFt: metres * FT_PER_M });
+  }
+  const freezing = point.series.freezing_level_height[hour];
   return {
-    levels: CLOUD_LEVELS_HPA.map((hPa) => ({
-      hPa,
-      cover: point.series[`cloud_cover_${hPa}hPa`][hour],
-      heightFt: point.series[`geopotential_height_${hPa}hPa`][hour] * FT_PER_M,
-    })),
-    freezingFt: point.series.freezing_level_height[hour] * FT_PER_M,
+    levels,
+    freezingFt: freezing === null ? null : freezing * FT_PER_M,
     low: point.series.cloud_cover_low[hour],
     mid: point.series.cloud_cover_mid[hour],
     high: point.series.cloud_cover_high[hour],
@@ -256,17 +278,21 @@ export function modelCloudBlocks(model, hour, { groundFt = 0 } = {}) {
   return out;
 }
 
-/** The model's own low, mid and high cover for the hour, averaged over the grid (percent): { low, mid, high }. */
+/** The model's own low, mid and high cover for the hour, averaged over the grid (percent; null when no point has data): { low, mid, high }. */
 export function meanLayerCover(model, hour) {
   const sum = { low: 0, mid: 0, high: 0 };
+  const count = { low: 0, mid: 0, high: 0 };
   for (const point of model.points) {
     const c = columnAt(point, hour);
-    sum.low += c.low;
-    sum.mid += c.mid;
-    sum.high += c.high;
+    for (const key of ['low', 'mid', 'high']) {
+      if (c[key] !== null) {
+        sum[key] += c[key];
+        count[key] += 1;
+      }
+    }
   }
-  const n = model.points.length || 1;
-  return { low: Math.round(sum.low / n), mid: Math.round(sum.mid / n), high: Math.round(sum.high / n) };
+  const mean = (key) => (count[key] ? Math.round(sum[key] / count[key]) : null);
+  return { low: mean('low'), mid: mean('mid'), high: mean('high') };
 }
 
 // ---- Winds aloft -----------------------------------------------------------------------------------
@@ -290,11 +316,16 @@ export function levelWindWords({ hPa, heightFt, dirMag, kt }) {
   return `${hPa} hPa ≈ ${height} ft: ${wind}`;
 }
 
-/** One wind at a grid point and a level at an hour: { x, y, hPa, heightFt, dirTrue, dirMag, kt, barb, words }. */
+/**
+ * One wind at a grid point and a level at an hour: { x, y, hPa, heightFt, dirTrue, dirMag, kt, barb, words }, or null when the model has
+ * no speed, direction or height there (no barb is drawn).
+ */
 export function windAt(point, hour, hPa) {
   const kt = point.series[`wind_speed_${hPa}hPa`][hour];
   const dirTrue = point.series[`wind_direction_${hPa}hPa`][hour];
-  const heightFt = point.series[`geopotential_height_${hPa}hPa`][hour] * FT_PER_M;
+  const metres = point.series[`geopotential_height_${hPa}hPa`][hour];
+  if (kt === null || dirTrue === null || metres === null) return null;
+  const heightFt = metres * FT_PER_M;
   const dirMag = trueToMagnetic(dirTrue);
   return { x: point.x, y: point.y, i: point.i, j: point.j, hPa, heightFt, dirTrue, dirMag, kt, barb: windBarb(kt), words: levelWindWords({ hPa, heightFt, dirMag, kt }) };
 }
@@ -303,7 +334,10 @@ export function windAt(point, hour, hPa) {
 export function modelWinds(model, hour) {
   const out = [];
   for (const hPa of WIND_LEVELS_HPA) {
-    for (const point of model.points) if (point.i % 2 === 0 && point.j % 2 === 0) out.push(windAt(point, hour, hPa));
+    for (const point of model.points) {
+      const wind = point.i % 2 === 0 && point.j % 2 === 0 ? windAt(point, hour, hPa) : null;
+      if (wind) out.push(wind);
+    }
   }
   return out;
 }
@@ -311,16 +345,23 @@ export function modelWinds(model, hour) {
 /** The winds over home (the centre grid point), one per level, for the key and the labels. */
 export function windsOverHome(model, hour) {
   const centre = model.points.find((p) => p.i === (GRID_SIZE - 1) / 2 && p.j === (GRID_SIZE - 1) / 2);
-  return centre ? WIND_LEVELS_HPA.map((hPa) => windAt(centre, hour, hPa)) : [];
+  return centre ? WIND_LEVELS_HPA.map((hPa) => windAt(centre, hour, hPa)).filter((w) => w !== null) : [];
 }
 
 // ---- Freezing level --------------------------------------------------------------------------------
 
-/** The mean freezing level over the grid at the hour, feet above sea level. */
+/** The mean freezing level over the grid at the hour, feet above sea level; points with no data are left out, and null when none has any. */
 export function meanFreezingFt(model, hour) {
   let sum = 0;
-  for (const point of model.points) sum += columnAt(point, hour).freezingFt;
-  return sum / (model.points.length || 1);
+  let count = 0;
+  for (const point of model.points) {
+    const { freezingFt } = columnAt(point, hour);
+    if (freezingFt !== null) {
+      sum += freezingFt;
+      count += 1;
+    }
+  }
+  return count ? sum / count : null;
 }
 
 /** "Freezing level ≈ 7,200 ft" (nearest 100 ft above sea level), or says so when it is at or below the ground the view draws. */
@@ -345,8 +386,14 @@ export function hourWords(model, hour, nowMs, timeZone) {
 /** The time of a good answer as "1430Z", or "not yet" when there has not been one. */
 export const lastGoodWords = (lastGoodAt) => (lastGoodAt === null || lastGoodAt === undefined ? 'not yet' : `${two(new Date(lastGoodAt).getUTCHours())}${two(new Date(lastGoodAt).getUTCMinutes())}Z`);
 
-/** What the view says when there is no model data to draw. */
-export const unavailableWords = (lastGoodAt) => `Model clouds unavailable, showing METAR decks only (last good answer: ${lastGoodWords(lastGoodAt)}).`;
+/** What the view says when there is no model data to draw. `incomplete`: the last reply had nulls in over half its values. */
+export const unavailableWords = (lastGoodAt, incomplete = false) => `${incomplete ? 'Model data incomplete. ' : ''}Model clouds unavailable, showing METAR decks only (last good answer: ${lastGoodWords(lastGoodAt)}).`;
+
+/** What the view says when a refresh failed but the answer held is still young enough to show: "Model refresh failed at 1030Z, showing the 0900Z answer (90 min old)." */
+export function refreshFailedWords({ failedAt, lastGoodAt, now, incomplete = false }) {
+  const age = Math.max(0, Math.round((+now - lastGoodAt) / 60_000));
+  return `Model refresh failed at ${lastGoodWords(failedAt)}${incomplete ? ' (model data incomplete)' : ''}, showing the ${lastGoodWords(lastGoodAt)} answer (${age} min old).`;
+}
 export const LOADING_WORDS = 'Loading model clouds and winds…';
 export const CREDIT_WORDS = 'Model clouds and winds: Open-Meteo, ECCC GEM (model estimate)';
 
@@ -364,7 +411,7 @@ export const CREDIT_WORDS = 'Model clouds and winds: Open-Meteo, ECCC GEM (model
 export function createModelFeed({ points, fetch, timers, now = () => new Date(), onChange = () => {} }) {
   let model = null;
   let lastGoodAt = null;
-  let failed = false;
+  let failure = null; // { at, incomplete } while the last refresh has failed
   let busy = false;
   let askedAt = null;
   let running = false;
@@ -381,7 +428,7 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
     busy = true;
     askedAt = +now();
     changed();
-    /** @type {{ ok: boolean, reason?: string, model?: any }} */
+    /** @type {{ ok: boolean, reason?: string, incomplete?: boolean, model?: any }} */
     let result = { ok: false, reason: 'request failed' };
     try {
       const reply = await guardedFetch(fetch, modelUrl(asked), { timers, signal: mine.signal, accept: 'application/json', ...FETCH_LIMITS.model });
@@ -394,9 +441,9 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
     if (result.ok) {
       model = result.model;
       lastGoodAt = result.model.receivedAt;
-      failed = false;
+      failure = null;
     } else {
-      failed = true;
+      failure = { at: +now(), incomplete: result.incomplete === true }; // the answer held, if any, stays until it is too old
     }
     changed();
   }
@@ -404,7 +451,7 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
   function tick() {
     if (!running || busy) return;
     const t = +now();
-    if (askedAt === null || t - askedAt >= (failed ? RETRY_MS : REFRESH_MS)) ask();
+    if (askedAt === null || t - askedAt >= (failure ? RETRY_MS : REFRESH_MS)) ask();
   }
 
   return {
@@ -434,7 +481,7 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
       controller = new AbortController();
       model = null;
       lastGoodAt = null;
-      failed = false;
+      failure = null;
       busy = false;
       askedAt = null;
       if (running) {
@@ -443,14 +490,17 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
       }
     },
     /**
-     * What to draw and say at `at`: { status, model, lastGoodAt }. 'ok' has the model; 'loading' is the first ask still out (or about to
-     * go); 'unavailable' is a failed request or an answer older than STALE_MS, with no model (never a frozen one).
+     * What to draw and say at `at`: { status, model, lastGoodAt, failedAt, incomplete }.
+     * - 'ok': the model to draw. `failedAt` is the time of a failed refresh (the answer held is still under STALE_MS old), else null.
+     * - 'loading': the first ask is still out (or about to go).
+     * - 'unavailable': no answer, or the one held is older than STALE_MS; no model (never a frozen one). `incomplete`: the last reply had too many nulls.
      */
     view(at = now()) {
       const old = lastGoodAt !== null && +at - lastGoodAt > STALE_MS;
-      if (model && !failed && !old) return { status: 'ok', model, lastGoodAt };
-      if (!failed && !model) return { status: 'loading', model: null, lastGoodAt };
-      return { status: 'unavailable', model: null, lastGoodAt };
+      const incomplete = failure?.incomplete === true;
+      if (model && !old) return { status: 'ok', model, lastGoodAt, failedAt: failure?.at ?? null, incomplete };
+      if (!failure && !model) return { status: 'loading', model: null, lastGoodAt, failedAt: null, incomplete: false };
+      return { status: 'unavailable', model: null, lastGoodAt, failedAt: failure?.at ?? null, incomplete };
     },
   };
 }

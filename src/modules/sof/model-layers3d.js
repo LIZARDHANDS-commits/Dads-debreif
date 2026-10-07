@@ -34,7 +34,8 @@ const quantise = (v) => Math.round(v / OPACITY_STEP) * OPACITY_STEP;
  * Returns { root, labels, summary, dispose() } where
  * - root: a Group holding one Group per MODEL_GROUPS entry (`root.userData.groups`);
  * - labels: [{ group, text, point: { x, y, z } }], words to put beside points (the freezing level, the winds over home);
- * - summary: { blocks: { low, mid, high } (counts), barbs, freezingFt, freezingText, windsOverHome: [words] }.
+ * - summary: { blocks: { low, mid, high } (counts), barbs, freezingFt, freezingText, windsOverHome: [words] }; the freezing level
+ *   is null (no sheet, no label) when the model has no freezing level anywhere for the hour.
  */
 export function buildModelLayers(T, { model, hour, scale, groundFt }) {
   const root = new T.Group();
@@ -103,19 +104,24 @@ export function buildModelLayers(T, { model, hour, scale, groundFt }) {
 
   // ---- The freezing level: one faint sheet across the area at the mean for the hour, with its border ----
   const freezingFt = meanFreezingFt(model, hour);
-  const z = freezingFt * scale;
-  const sheetGeometry = own(new T.PlaneGeometry(AREA_FT, AREA_FT));
-  const sheet = new T.Mesh(sheetGeometry, own(new T.MeshBasicMaterial({ color: FREEZING_COLOUR, transparent: true, opacity: SHEET_OPACITY, side: T.DoubleSide, depthWrite: false })));
-  sheet.position.set(0, 0, z);
-  sheet.renderOrder = 0;
-  const h2 = AREA_FT / 2;
-  const border = new T.LineLoop(
-    own(new T.BufferGeometry().setFromPoints([new T.Vector3(-h2, -h2, z), new T.Vector3(h2, -h2, z), new T.Vector3(h2, h2, z), new T.Vector3(-h2, h2, z)])),
-    own(new T.LineBasicMaterial({ color: FREEZING_COLOUR, transparent: true, opacity: 0.55 })),
-  );
-  groups.freezing.add(sheet, border);
-  const freezingText = freezingWords(freezingFt, groundFt);
-  labels.push({ group: 'freezing', text: freezingText, point: { x: -h2, y: -h2, z } }); // the south-west corner: the left of the picture from the start view
+  let freezingText = null;
+  if (freezingFt !== null) {
+    const z = freezingFt * scale;
+    const sheet = new T.Mesh(
+      own(new T.PlaneGeometry(AREA_FT, AREA_FT)),
+      own(new T.MeshBasicMaterial({ color: FREEZING_COLOUR, transparent: true, opacity: SHEET_OPACITY, side: T.DoubleSide, depthWrite: false })),
+    );
+    sheet.position.set(0, 0, z);
+    sheet.renderOrder = 0;
+    const h2 = AREA_FT / 2;
+    const border = new T.LineLoop(
+      own(new T.BufferGeometry().setFromPoints([new T.Vector3(-h2, -h2, z), new T.Vector3(h2, -h2, z), new T.Vector3(h2, h2, z), new T.Vector3(-h2, h2, z)])),
+      own(new T.LineBasicMaterial({ color: FREEZING_COLOUR, transparent: true, opacity: 0.55 })),
+    );
+    groups.freezing.add(sheet, border);
+    freezingText = freezingWords(freezingFt, groundFt);
+    labels.push({ group: 'freezing', text: freezingText, point: { x: -h2, y: -h2, z } }); // the south-west corner: the left of the picture from the start view
+  }
 
   return {
     root,
