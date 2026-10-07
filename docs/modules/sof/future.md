@@ -17,7 +17,7 @@ Ideas for the SOF that are not being built. An idea moves into `plan.md` only wi
 ## Asked by Dad (6 Oct)
 
 - **Live aircraft plotted on our own map** from ADS-B sites. This is the relay layer above (SOF-R17, SOF-7); it still waits on whose account runs the relay. V6 used Dad's own Netlify function for this (`v6/sof.html:727`), so that account is one option to put to Patrick.
-- **A 3D SOF picture, like the pattern sim:** Moose Jaw's airspace drawn in 3D, with clouds, fronts, storms, radar and winds, and live aircraft in it. Clouds are built from reported and forecast bases and tops and the low, medium and high layers. Long-term goal; not proposed to Patrick yet. It needs new outside data sources, so it waits for his yes.
+- **Moved to the plan (Step 2b, SOF-39) on 7 Oct.** Fronts on the 3D view stay here until a free data source is found. Was: **A 3D SOF picture, like the pattern sim:** Moose Jaw's airspace drawn in 3D, with clouds, fronts, storms, radar and winds, and live aircraft in it. Clouds are built from reported and forecast bases and tops and the low, medium and high layers. Long-term goal; not proposed to Patrick yet. It needs new outside data sources, so it waits for his yes.
 
 ## Feature Ideas for the SOF
 
