@@ -181,7 +181,7 @@ export function createMemoryCache({ now = Date.now, ttlMs = CACHE_MS, max = MEMO
 // --- CORS and replies --------------------------------------------------------
 
 /** The allowed origins: env.ALLOWED_ORIGINS (comma separated, exact origins only), else the defaults. */
-function allowedOrigins(env) {
+export function allowedOrigins(env) {
   const wanted = typeof env?.ALLOWED_ORIGINS === 'string' ? env.ALLOWED_ORIGINS.split(',') : [];
   const good = [];
   for (const raw of wanted) {
@@ -195,7 +195,7 @@ function allowedOrigins(env) {
   return good.length ? good : DEFAULT_ORIGINS;
 }
 
-function reply(status, body, { origin = null, cache = 'no-store', extra = {}, vary = true } = {}) {
+export function reply(status, body, { origin = null, cache = 'no-store', extra = {}, vary = true } = {}) {
   /** @type {Record<string, string>} */
   const headers = {
     'content-type': 'application/json; charset=utf-8',
@@ -212,7 +212,7 @@ function reply(status, body, { origin = null, cache = 'no-store', extra = {}, va
 
 class Unusable extends Error {}
 
-async function readCapped(res, max) {
+export async function readCapped(res, max) {
   const announced = Number(res.headers.get('content-length'));
   if (announced > max) throw new Unusable('too large');
   if (!res.body) {

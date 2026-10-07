@@ -61,6 +61,12 @@ The same relay also runs as a Netlify Function: `netlify/functions/traffic.mjs` 
 
 `ALLOWED_ORIGINS` can be set under **Site configuration → Environment variables**, the same as on Cloudflare. Netlify only rebuilds when something in `relay/` changes. The free plan allows 125,000 function calls a month; one SOF screen open for a 10-hour day at one call every 10 s is about 3,600 a day, so about 20 SOF-days a month before the limit (estimate). Keep the screen closed when not in use, or raise the interval, if it is open all day every day.
 
+## Two more answers: NOTAMs and fronts (`wx.js`, Dad, 7 Oct 2026)
+
+- `GET /notam?sites=CYMJ,CYQR` (1 to 8 ICAO ids): NOTAMs from NAV CANADA's flight weather site (`plan.navcanada.ca/weather/api/alpha/`), rebuilt as `{ source, fetched, sites, notams: [{ id, location, start, end, raw }] }`, kept 5 minutes. A page cannot read NAV CANADA directly (no CORS header). NAV CANADA's terms for automated reading of that site were not found on 7 Oct; Patrick to confirm before daily use.
+- `GET /fronts`: the US Weather Prediction Center's coded surface fronts bulletin (CODSUS, public domain, `tgftp.nws.noaa.gov`), parsed to `{ valid, highs, lows, fronts: [{ type: COLD|WARM|STNRY|OCFNT|TROF, points: [[lat, lon], ...] }] }`, kept 15 minutes. Positions are whole degrees, as the bulletin codes them.
+- Netlify functions `netlify/functions/notam.mjs` and `fronts.mjs`; same allowed origins and rules as `/traffic`. Live at `https://dads-sof-relay.netlify.app/notam` and `/fronts` since 7 Oct.
+
 ## Credit and terms for adsb.lol
 
 Read on 2026-09-30 from adsb.lol's API page (`https://api.adsb.lol/docs`, its OpenAPI text) and `https://www.adsb.lol/docs/open-data/api/`:
