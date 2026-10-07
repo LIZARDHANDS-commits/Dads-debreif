@@ -30,6 +30,11 @@
 // sits still (but for Orbit, above). Hiding it, or closing the module, frees everything three.js made and removes its canvas, because a canvas whose
 // WebGL context has been let go can't be given another.
 //
+// Real terrain (Dad, 7 Oct): the ground is a height-mapped mesh from the public Terrarium elevation tiles (terrain3d.js loads them, terrain-model.js decodes and shades them, ground3d.js
+// draws them), heights times the same height scale. Radar shafts, lightning bolts, front walls, pins, drop lines and rings stand on it; runways stay at their field elevation, METAR decks at
+// field elevation plus base, and aircraft at their reported altitude whatever the ground does (one under the terrain is drawn just above it, tagged "below terrain?"). A Terrain switch
+// flattens it back to the old plane. The ground starts flat at home's elevation and rises as tiles arrive.
+//
 // World frame (ui-kit three-aircraft.js): X east, Y north, Z up, in the map's local feet. A height is feet above sea level times
 // the height scale (the "3D height scale" setting); the ground is the home field's elevation.
 import { h } from '../../ui-kit/dom.js';
@@ -37,6 +42,8 @@ import { loadThree, webglSupported, matchProjection, worldToScreen } from '../..
 import { ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { RING_NM, FT_PER_NM } from './map-view.js';
 import { createGround3d, MAX_GROUND_TILES, INNER_NM } from './ground3d.js';
+import { createTerrain3d } from './terrain3d.js';
+import { terrainWords, TERRAIN_CREDIT } from './terrain-model.js';
 import { createWeather3dLayers, weatherKeyWords } from './weather3d-layers.js';
 import { FRONTS_CREDIT } from './fronts.js';
 import {
@@ -74,7 +81,7 @@ const PIN_PX = Object.freeze({ line: 34, head: 5 });
 const LIFT_FT = 400;
 const WHEEL_ZOOM = 0.0015; // per wheel pixel, as the 2D map
 const CLICK_PX = 4; // a press that moves less than this is a click, not a drag
-const RING_SEGMENTS = 128;
+const RING_SEGMENTS = 360; // enough that a ring follows the terrain under it
 const DECK_SEGMENTS = 64;
 const DECK_COLOUR = '#f2f7fb';
 const RING_COLOUR = '#8adfff';
@@ -88,6 +95,10 @@ export const ORBIT_STEP = Object.freeze({ deg: 15, ms: 2000 });
 const ORBIT_MAX_FRAME_MS = 250;
 /** The tour's clock counts real time, but a frame longer than this (the computer slept) counts as no more than this. */
 const TOUR_MAX_FRAME_MS = 2000;
+/** The ground's heights are read from the elevation tiles at most this often while they arrive (milliseconds); an estimate that keeps the page quick. */
+const TERRAIN_APPLY_MS = 400;
+/** Things that stand on the ground (shafts, bolts, fronts, pins, rings) are made again for new terrain at most this often while tiles are still coming (milliseconds), and once all are in. */
+const TERRAIN_DEPS_MS = 4000;
 /** The aircraft's credit, always said while the layer is on (adsb.lol's data is ODbL 1.0). */
 const AIRCRAFT_CREDIT = 'Aircraft: adsb.lol (ODbL 1.0)';
 
@@ -124,7 +135,8 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   // The credit line: the imagery's, then the aircraft's while they are drawn and the fronts' while they are (Dad, 7 Oct: "Fronts (WPC, whole-degree positions)").
   let creditAircraft = false;
   let creditFronts = false;
-  const updateCredit = () => setText(credit, [ESRI_IMAGERY.credit, creditAircraft ? AIRCRAFT_CREDIT : null, creditFronts ? FRONTS_CREDIT : null].filter(Boolean).join('. '));
+  let creditTerrain = false;
+  const updateCredit = () => setText(credit, [ESRI_IMAGERY.credit, creditTerrain ? TERRAIN_CREDIT : null, creditAircraft ? AIRCRAFT_CREDIT : null, creditFronts ? FRONTS_CREDIT : null].filter(Boolean).join('. '));
   const outside = h('p', { class: 'sof-3d-outside', hidden: true });
   const note = h('p', { class: 'sof-3d-note', role: 'status', hidden: true });
   const tag = h('p', { class: 'sof-3d-tag', role: 'status', hidden: true });
@@ -195,9 +207,10 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     ['airspace', noAirspace ? 'Airspace (no data yet)' : 'Airspace', 'Airspace volumes round home, each from its floor to its ceiling, see-through', noAirspace ? 'No airspace data yet: its floors, ceilings and outlines are added once each has a source' : null],
     ['tacnav', 'TACNAV', 'The TACNAV routes, as lines 500 ft above the ground (ground taken as flat, an estimate)', noRoutes ? 'No TACNAV routes to draw' : null],
     ['airports', 'Airports', `The runways of ${AIRPORTS.map((a) => a.icao).join(', ')} at their true places and sizes, with schematic buildings`, null],
+    ['terrain', 'Terrain', `The real ground: heights from the Terrarium elevation tiles, ×the height scale, so the valleys, the Coteau and the Cypress Hills show. Off lays the ground flat at home’s elevation. ${TERRAIN_CREDIT}.`, null],
     ['alerts', 'SIGMET/PIREP', 'SIGMETs (red-orange) and AIRMETs (yellow) as see-through volumes from base to top, PIREPs as small diamonds at their level (amber turbulence, blue icing, white other), from NAV CANADA through the relay. Put the pointer on one for its words.', null],
   ]);
-  const spaceToggles = { airspace: !noAirspace, tacnav: !noRoutes, airports: true, alerts: true };
+  const spaceToggles = { airspace: !noAirspace, tacnav: !noRoutes, airports: true, terrain: true, alerts: true };
   const spaceButtons = new Map();
   for (const [key, text, title, reason] of SPACE_TOGGLES) {
     const button = h('button', {
@@ -225,7 +238,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   // SIGMETs, AIRMETs and PIREPs (Dad, 7 Oct): a line saying when they cannot be shown (never frozen: with no fresh answer none are drawn).
   const alertsStatus = h('p', { class: 'sof-3d-traffic-status is-bad', role: 'status', hidden: true });
   const alertsKey = h('div', {});
-  const spacePanel = h('div', { class: 'sof-3d-model sof-3d-space', role: 'group', 'aria-label': 'Airspace, TACNAV routes, airports and SIGMETs' },
+  const spacePanel = h('div', { class: 'sof-3d-model sof-3d-space', role: 'group', 'aria-label': 'Airspace, TACNAV routes, airports, terrain and SIGMETs' },
     h('div', { class: 'sof-3d-model-row' }, [...spaceButtons.values()], spaceKey), alertsStatus);
   const bottom = h('div', { class: 'sof-3d-bottom' }, trafficStatus, modelPanel, weatherPanel, spacePanel, credit);
   const acTag = h('p', { class: 'sof-3d-tag sof-3d-actag-facts', role: 'status', hidden: true });
@@ -274,6 +287,20 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   let disposed = false;
   let pending = null;
   let selected = null;
+  let terrainOn = true; // the Terrain switch
+  let terrainRev = 0; // changes when what stands on the ground (pins, rings, shafts, bolts, fronts, aircraft) must be made again for new terrain
+  let terrainSeen = 0; // the terrainRev the scene was last built for
+  let terrainAppliedAt = -Infinity; // when the grids were last re-read from the tiles (performance.now)
+  let terrainDepsAt = -Infinity; // when terrainRev last moved
+  let terrainDepsOn = true; // the Terrain switch as terrainRev last moved
+  let terrainDepsWaiting = false; // new terrain has come that the things on it have not been told of yet
+  let terrainDepsDue = false; // that wait is over
+  let terrainTimer = null; // the timer that draws again when the next re-read is allowed
+  let terrainDepsTimer = null;
+  let reliefSig = '';
+  let terrainWordsSig = '';
+  let terrainPartly = false; // some tiles failed or were left out
+  const terrainKey = h('p', { class: 'sof-3d-terrain-words' });
   let tilesFailed = false;
   let noTiles = false; // a tile the browser would not let three.js read: the ground is drawn plain instead
   let loadingNote = false;
@@ -310,6 +337,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     const parts = [];
     if (loadingNote) parts.push('Loading the 3D view…');
     if (tilesFailed || noTiles) parts.push('Satellite ground unavailable: plain ground shown.');
+    if (terrainPartly) parts.push('Terrain partly unavailable: flat there.');
     note.hidden = parts.length === 0;
     setText(note, parts.join(' '));
   };
@@ -358,19 +386,23 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
 
     gl.ground.setHeight(planeZ);
 
-    // Rings: dashed lines on the ground, round home.
+    // Rings: dashed lines on the ground, round home (on the terrain under them when the view has it).
+    const { terrain } = gl;
+    const groundZ = (x, y) => terrain.heightFt(x, y) * scale;
     for (const nm of RING_NM) {
       const pts = [];
       for (let i = 0; i < RING_SEGMENTS; i++) {
         const a = (i / RING_SEGMENTS) * Math.PI * 2;
-        pts.push(new T.Vector3(Math.cos(a) * nm * FT_PER_NM, Math.sin(a) * nm * FT_PER_NM, planeZ + LIFT_FT));
+        const x = Math.cos(a) * nm * FT_PER_NM;
+        const y = Math.sin(a) * nm * FT_PER_NM;
+        pts.push(new T.Vector3(x, y, groundZ(x, y) + LIFT_FT));
       }
       const line = new T.LineLoop(new T.BufferGeometry().setFromPoints(pts), new T.LineDashedMaterial({ color: RING_COLOUR, dashSize: 14_000, gapSize: 9_000 }));
       line.computeLineDistances();
       root.add(line);
       const el = h('span', { class: 'sof-3d-ring-label' }, `${nm} NM`);
       labels.append(el);
-      rings.push({ el, point: { x: 0, y: nm * FT_PER_NM, z: planeZ + LIFT_FT } });
+      rings.push({ el, point: { x: 0, y: nm * FT_PER_NM, z: groundZ(0, nm * FT_PER_NM) + LIFT_FT } });
     }
 
     const deckGeometry = new T.CircleGeometry(DECK_FT / 2, DECK_SEGMENTS);
@@ -387,7 +419,8 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
 
       // The pin: a thin line and a head, kept the same size on the screen at any zoom (scaled in `render`).
       const pin = new T.Group();
-      pin.position.set(field.x, field.y, planeZ);
+      const baseZ = groundZ(field.x, field.y); // a pin stands on the terrain under its field
+      pin.position.set(field.x, field.y, baseZ);
       pin.add(new T.Line(
         new T.BufferGeometry().setFromPoints([new T.Vector3(0, 0, 0), new T.Vector3(0, 0, PIN_PX.line)]),
         new T.LineBasicMaterial({ color: colour, transparent: opacity < 1, opacity }),
@@ -406,7 +439,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
         onclick: () => select(selected === field.icao ? null : field.icao),
       }, field.lines.map((line, i) => h('span', { class: i === 0 ? 'sof-3d-pin-main' : 'sof-3d-pin-extra' }, line)));
       labels.append(button);
-      pins.push({ field, pin, button, point: { x: field.x, y: field.y } });
+      pins.push({ field, pin, button, point: { x: field.x, y: field.y }, baseZ });
 
       // The decks: flat round discs at the reported bases, and a thin line from the ground up through them.
       let top = null;
@@ -426,7 +459,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       }
       if (top !== null) {
         root.add(new T.Line(
-          new T.BufferGeometry().setFromPoints([new T.Vector3(field.x, field.y, planeZ), new T.Vector3(field.x, field.y, top)]),
+          new T.BufferGeometry().setFromPoints([new T.Vector3(field.x, field.y, baseZ), new T.Vector3(field.x, field.y, top)]),
           new T.LineBasicMaterial({ color: DECK_COLOUR, transparent: true, opacity: 0.45 }),
         ));
       }
@@ -583,7 +616,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     if (!gl?.weather) return;
     const { status, model, now } = modelState;
     const ok = status === 'ok' && model !== null;
-    gl.weather.update({ weather: wx, model: ok ? model : null, hour: ok ? hourIndex(model, +now, ahead) : 0, scale, groundFt: groundFt(), projection: getProjection() });
+    gl.weather.update({ weather: wx, model: ok ? model : null, hour: ok ? hourIndex(model, +now, ahead) : 0, scale, groundFt: groundFt(), projection: getProjection(), terrain: { heightFt: gl.terrain.heightFt, key: terrainOn ? terrainRev : 'flat' } });
     const lines = (wx.lines ?? []).map((l) => `${l.tone}|${l.text} ${l.symbol}`);
     const statusSig = lines.join('\n');
     if (statusSig !== weatherStatus.dataset.sig) {
@@ -609,6 +642,10 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     if (spaceButtons.get(key)?.disabled) return;
     spaceToggles[key] = on;
     spaceButtons.get(key)?.setAttribute('aria-pressed', String(on));
+    if (key === 'terrain') {
+      terrainOn = on; // render() lays the ground flat or raises it, and moves what stands on it
+      terrainAppliedAt = -Infinity; // at once, not after the throttle
+    }
     applySpaceToggles();
     requestRender();
   }
@@ -797,6 +834,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       if (skipped.length) notes.push(h('p', { class: 'sof-3d-model-warn' }, `Not drawn, entry fails its checks: ${skipped.map((x) => `${x.id} (${x.reason})`).join('; ')}.`));
     }
     const drawn = gl?.space?.airports.summary ?? [];
+    notes.push(terrainKey);
     notes.push(
       h('p', {}, drawn.length
         ? `Airports: ${drawn.map((a) => `${a.icao} (${a.ends.join(', ')})`).join('; ')}. Each runway is drawn between its two thresholds at their true places, length and width (OurAirports, public domain: for drawing only, check the Canada Flight Supplement), at the field’s elevation ×${scale}. Far out, a field is drawn larger and a runway wider so it stays visible (about ${RUNWAY_MIN_PX.length} px long at least); closer in they are true size, and the stripes, centreline and numbers appear once a runway is ${RUNWAY_MIN_PX.detail} px long. The numbers read from the approach end. The terminal and hangars are schematic: buildings are schematic, drawn for orientation only.`
@@ -836,7 +874,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     trafficDirty = false;
     if (!gl) return;
     const items = trafficState.shown ? trafficState.aircraft : [];
-    gl.traffic.set(items, { scale, groundFt: groundFt(), intruders: intruderHexes, nowMs: +now(), trailsOn: trafficState.trailsOn === true });
+    gl.traffic.set(items, { scale, groundFt: groundFt(), intruders: intruderHexes, nowMs: +now(), trailsOn: trafficState.trailsOn === true, terrain: gl.terrain });
     if (hoverHex && !gl.traffic.get(hoverHex)) hoverHex = null;
     if (selectedAc && !gl.traffic.get(selectedAc)) selectAircraft(null);
     else if (selectedAc) setText(acTag, gl.traffic.get(selectedAc).item.description);
@@ -922,6 +960,90 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     }
   }
 
+  // ---- The terrain (Dad, 7 Oct) --------------------------------------------------------------------------
+  /** The key's words and the credit for how much terrain has come, and the note when some did not. Cheap: it only writes what changed. */
+  function updateTerrainWords() {
+    const st = gl.terrain.state();
+    const sig = `${st.wanted}|${st.ready}|${st.failed}|${st.pending}|${st.capped}|${terrainOn}|${scale}`;
+    if (sig === terrainWordsSig) return;
+    terrainWordsSig = sig;
+    setText(terrainKey, `${terrainWords(st, { on: terrainOn, tilesCapped: st.capped })} ${TERRAIN_CREDIT}. Heights are ×${scale}, as everything else. Runways stay at their field’s elevation and the METAR decks at the field’s elevation plus their base; aircraft stay at their reported height above sea level and are never moved by the terrain (one reported under the ground below it is drawn just above the ground and says “below terrain?”). Airspace floors marked AGL or SFC, the TACNAV routes and the SIGMETs are still measured from home’s elevation, not the terrain.`);
+    const credited = terrainOn && st.ready > 0;
+    if (credited !== creditTerrain) {
+      creditTerrain = credited;
+      updateCredit();
+    }
+    const partly = terrainOn && (st.failed > 0 || st.capped);
+    if (partly !== terrainPartly) {
+      terrainPartly = partly;
+      showNote();
+    }
+  }
+
+  /**
+   * Keeps the ground's heights up to date, once a frame when something may have changed: the terrain's grids are re-read from the tiles at most every TERRAIN_APPLY_MS while tiles
+   * arrive, the ground meshes are given them (or laid flat when the Terrain switch is off), and what stands on the ground is told (terrainRev) when the new terrain has settled or
+   * TERRAIN_DEPS_MS have passed, so the shafts, bolts, fronts, pins, rings and aircraft are not rebuilt for every tile.
+   */
+  function syncTerrain() {
+    const t = gl.terrain;
+    t.setView(getProjection(), groundFt());
+    t.setEnabled(terrainOn);
+    const clock = win.performance.now();
+    if (terrainDepsDue) {
+      terrainDepsDue = false;
+      if (terrainDepsWaiting) {
+        terrainDepsWaiting = false;
+        terrainRev += 1;
+        terrainDepsAt = clock;
+      }
+    }
+    if (t.isDirty()) {
+      const wait = TERRAIN_APPLY_MS - (clock - terrainAppliedAt);
+      if (wait > 0) {
+        if (!terrainTimer) {
+          terrainTimer = timers.after(wait, () => {
+            terrainTimer = null;
+            requestRender();
+          });
+        }
+      } else {
+        terrainAppliedAt = clock;
+        t.refresh();
+        const switched = terrainOn !== terrainDepsOn;
+        if (terrainOn || switched) {
+          if (switched || t.state().pending === 0 || clock - terrainDepsAt >= TERRAIN_DEPS_MS) {
+            terrainRev += 1;
+            terrainDepsAt = clock;
+            terrainDepsOn = terrainOn;
+            terrainDepsWaiting = false;
+          } else if (!terrainDepsWaiting) {
+            terrainDepsWaiting = true;
+            terrainDepsTimer?.();
+            terrainDepsTimer = timers.after(TERRAIN_DEPS_MS, () => {
+              terrainDepsTimer = null;
+              terrainDepsDue = true;
+              requestRender();
+            });
+          }
+        }
+        terrainDepsOn = terrainOn;
+      }
+    }
+    const sig = `${t.revision}|${scale}|${terrainOn}|${groundFt()}`;
+    if (sig !== reliefSig) {
+      reliefSig = sig;
+      gl.ground.setRelief({ grids: t.grids, on: terrainOn, scale, homeFt: groundFt() });
+    }
+    if (terrainRev !== terrainSeen) {
+      terrainSeen = terrainRev;
+      sceneDirty = true; // the pins, drop lines and rings stand on the new ground
+      weatherDirty = true; // so do the shafts, bolts and fronts
+      trafficDirty = true; // and the aircraft's ground, their drop lines and their "below terrain?"
+    }
+    updateTerrainWords();
+  }
+
   // ---- One frame -----------------------------------------------------------------------------------
   function render() {
     if (!gl || !wanted || disposed) return;
@@ -933,6 +1055,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     if (renderer.getPixelRatio() !== ratio) renderer.setPixelRatio(ratio);
     if (canvas.width !== Math.floor(width * ratio) || canvas.height !== Math.floor(height * ratio)) renderer.setSize(width, height, false);
 
+    syncTerrain();
     if (sceneDirty) {
       freeObjects();
       gl.objects = buildObjects();
@@ -978,7 +1101,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     gl.alerts?.fit(ftPerPx);
 
     // Labels go beside their points, and a deck's label steps down past any label already there, so words never sit on words.
-    const headZ = planeZ + (PIN_PX.line + PIN_PX.head) * ftPerPx;
+    const headAbove = (PIN_PX.line + PIN_PX.head) * ftPerPx;
     const placed = [];
     const put = (el, box) => {
       const text = `translate(${Math.round(box.x)}px, ${Math.round(box.y)}px)`;
@@ -1001,8 +1124,8 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       for (let tries = 0; tries < 12 && placed.some((b) => overlaps(box, b)); tries++) box.y += box.h + 1;
       return box;
     };
-    for (const { button, point } of pins) { // home first: it keeps its place and the others step down past it
-      const p = at({ ...point, z: headZ });
+    for (const { button, point, baseZ } of pins) { // home first: it keeps its place and the others step down past it
+      const p = at({ ...point, z: baseZ + headAbove });
       const s = boxFor(button, 0, 0);
       put(button, clearOf({ ...s, x: p.x + 10, y: p.y - s.h / 2 }));
     }
@@ -1037,7 +1160,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     placeAircraft({ at, put, boxFor, isClear, reserve, phase: 'others' });
     const chosen = selected && pins.find((q) => q.field.icao === selected);
     if (chosen) {
-      const p = at({ ...chosen.point, z: headZ });
+      const p = at({ ...chosen.point, z: chosen.baseZ + headAbove });
       tag.style.transform = `translate(${Math.round(p.x + 10)}px, ${Math.round(p.y + 28)}px)`;
     }
 
@@ -1384,6 +1507,8 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       },
     });
     scene.add(ground.group);
+    // The real terrain's heights (terrain3d.js): the ground meshes and everything that stands on the ground read them. A tile arriving asks for a picture; syncTerrain throttles the rest.
+    const terrain = createTerrain3d({ timers, doc: win.document, onChange: () => requestRender() });
     // The aircraft are lit models (the ground and the weather layers are not): a bright sky-and-ground light and a sun from the south-west,
     // stronger than the Debrief's, because these small aircraft must read against a dark ground. Estimates for readability, SOF-39.
     const sun = new THREE.DirectionalLight('#fff3dd', 2.6);
@@ -1402,7 +1527,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     const traffic = createTraffic3d(THREE, { scene, labels, onHover: setHover, onPick: (hex) => selectAircraft(selectedAc === hex ? null : hex) });
     const weather = createWeather3dLayers({ T: THREE, scene, timers, win, labels, requestRender, reducedMotion });
     weather.setToggles(toggles);
-    gl = { THREE, canvas, renderer, scene, camera, ground, resizer, objects: null, traffic, weather, palette: paletteFor(canvas) };
+    gl = { THREE, canvas, renderer, scene, camera, ground, terrain, resizer, objects: null, traffic, weather, palette: paletteFor(canvas) };
     sceneDirty = true;
     weatherDirty = true;
     weatherSig = null;
@@ -1412,6 +1537,17 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     spaceSig = '';
     tilesFailed = false;
     noTiles = false;
+    reliefSig = '';
+    terrainWordsSig = '';
+    terrainSeen = -1; // the first frame builds everything for the terrain as it is
+    terrainRev = 0;
+    terrainDepsOn = terrainOn;
+    terrainDepsWaiting = false;
+    terrainDepsDue = false;
+    terrainAppliedAt = -Infinity;
+    terrainDepsAt = -Infinity;
+    creditTerrain = false;
+    updateCredit();
     syncFull(); // the button's words for a fresh start
     syncGlide();
     if (orbitOn) { // Orbit was pressed while three.js was still loading
@@ -1432,6 +1568,11 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     pinch = null;
     if (!gl) return;
     const { canvas, renderer, scene, ground, resizer } = gl;
+    terrainTimer?.();
+    terrainTimer = null;
+    terrainDepsTimer?.();
+    terrainDepsTimer = null;
+    gl.terrain.dispose();
     gl.weather.dispose();
     freeModel();
     freeSpace();
@@ -1452,6 +1593,9 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     gl = null;
     tilesFailed = false;
     noTiles = false;
+    terrainPartly = false;
+    creditTerrain = false;
+    updateCredit();
     tag.hidden = true;
     acTag.hidden = true;
     selected = null;

@@ -105,23 +105,26 @@ export function thin(list, max) {
 
 /**
  * The precipitation shafts: one per radar cell, from the ground up to the model cloud base above it (`column(u, v)` gives { baseFt, topFt } above sea level or null; cloudColumnAt),
- * or RADAR_DEFAULT_AGL_FT above the ground with no model cloud. `groundFt` is the ground the view draws. Returns [{ x, y, baseFt (the ground), topFt, colour: [r, g, b] 0-255,
+ * or RADAR_DEFAULT_AGL_FT above the ground with no model cloud. `groundFt` is the ground the view draws; `groundAt(x, y)` (feet above sea level) gives the real terrain under a cell
+ * when the view has it, else every cell stands on `groundFt`. Returns [{ x, y, baseFt (the ground), topFt, colour: [r, g, b] 0-255,
  * alpha (the radar's own opacity), modelTop: whether the model gave the height }], at most MAX_SHAFTS.
  */
-export function shafts(cells, { column = /** @type {(u: number, v: number) => any} */ (() => null), groundFt = 0, max = MAX_SHAFTS } = {}) {
+export function shafts(cells, { column = /** @type {(u: number, v: number) => any} */ (() => null), groundFt = 0, groundAt = /** @type {(x: number, y: number) => number} */ (() => groundFt), max = MAX_SHAFTS } = {}) {
   return thin(cells, max).map((c) => {
     const cloud = column(c.u, c.v);
-    const top = cloud && isNumber(cloud.baseFt) ? Math.max(cloud.baseFt, groundFt + SHAFT_MIN_FT) : groundFt + RADAR_DEFAULT_AGL_FT;
-    return { x: c.x, y: c.y, baseFt: groundFt, topFt: top, colour: [c.r, c.g, c.b], alpha: c.a, modelTop: Boolean(cloud) };
+    const ground = groundAt(c.x, c.y);
+    const top = cloud && isNumber(cloud.baseFt) ? Math.max(cloud.baseFt, ground + SHAFT_MIN_FT) : ground + RADAR_DEFAULT_AGL_FT;
+    return { x: c.x, y: c.y, baseFt: ground, topFt: top, colour: [c.r, c.g, c.b], alpha: c.a, modelTop: Boolean(cloud) };
   });
 }
 
-/** The lightning bolts: one per lit cell, from the ground to the model cloud top above it, or LIGHTNING_DEFAULT_AGL_FT above the ground with none. At most MAX_BOLTS. */
-export function bolts(cells, { column = /** @type {(u: number, v: number) => any} */ (() => null), groundFt = 0, max = MAX_BOLTS } = {}) {
+/** The lightning bolts: one per lit cell, from the ground to the model cloud top above it, or LIGHTNING_DEFAULT_AGL_FT above the ground with none. At most MAX_BOLTS. `groundAt` as for `shafts`. */
+export function bolts(cells, { column = /** @type {(u: number, v: number) => any} */ (() => null), groundFt = 0, groundAt = /** @type {(x: number, y: number) => number} */ (() => groundFt), max = MAX_BOLTS } = {}) {
   return thin(cells, max).map((c) => {
     const cloud = column(c.u, c.v);
-    const top = cloud && isNumber(cloud.topFt) && cloud.topFt > groundFt + 2000 ? cloud.topFt : groundFt + LIGHTNING_DEFAULT_AGL_FT;
-    return { x: c.x, y: c.y, baseFt: groundFt, topFt: top, modelTop: Boolean(cloud) };
+    const ground = groundAt(c.x, c.y);
+    const top = cloud && isNumber(cloud.topFt) && cloud.topFt > ground + 2000 ? cloud.topFt : ground + LIGHTNING_DEFAULT_AGL_FT;
+    return { x: c.x, y: c.y, baseFt: ground, topFt: top, modelTop: Boolean(cloud) };
   });
 }
 

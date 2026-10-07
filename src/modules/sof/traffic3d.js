@@ -30,8 +30,10 @@ import { glideXY, trailAlpha, TRAIL_WINDOW_S } from './traffic-motion.js';
 export const SIZE_PX = Object.freeze({ t6: 44, other: 22, dot: 9 });
 /** The colours: the T-6's highlight (the 2D layer's own accent), muted for the rest, amber for military (the 2D layer's caution colour). */
 export const COLOURS = Object.freeze({ t6: '#8adfff', other: '#9fb0bd', mil: '#f5c542', outline: '#0b1620', drop: '#8adfff' });
-/** An aircraft on the ground, or at a pressure altitude under the field's elevation, stands this far (scene feet) above the ground so it is seen. */
+/** An aircraft on the ground, or at a pressure altitude under the ground below it, stands this far (scene feet) above the ground so it is seen. */
 const LIFT_FT = 400;
+/** What an aircraft whose height is under the terrain below it says in its tag: the reported height is probably off (a pressure altitude, a wrong barometer), not the aircraft down. */
+export const BELOW_TERRAIN_WORDS = 'below terrain?';
 /** The stand-in is about this long in its own units (createStandInMesh), a dot 1. */
 const STANDIN_UNITS = 1.38;
 const RING_SEGMENTS = 40;
@@ -52,7 +54,7 @@ export const kindFor = (item) => (item.isT6 ? 'ct156' : item.trackDeg === null ?
 
 /**
  * `T` is three.js; `scene` takes the aircraft; `labels` is the element the tags' buttons go in; `onHover(hex | null)` and `onPick(hex)` hear the tags'
- * pointer and click. Returns { set(items, { scale, groundFt, intruders }), fit(ftPerPx), entries(), get(hex), dispose() }.
+ * pointer and click. Returns { set(items, { scale, groundFt, intruders, terrain }), fit(ftPerPx), entries(), get(hex), dispose() }.
  */
 export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick = () => {} }) {
   const root = new T.Group();
@@ -144,7 +146,7 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
       mats.push({ m: drop.material, opacity: 1, transparent: false, copied: false });
     }
     root.add(group);
-    const entry = { hex: item.hex, kind, group, model, ring, halo, drop, mats, unit, px, item, fade: 1, intruder: false, tagEl: null, screen: { x: 0, y: 0 }, trail: null };
+    const entry = { hex: item.hex, kind, group, model, ring, halo, drop, mats, unit, px, item, fade: 1, lifted: false, intruder: false, tagEl: null, screen: { x: 0, y: 0 }, trail: null };
     entry.tagEl = h('button', {
       type: 'button',
       class: `sof-3d-actag${item.isT6 ? ' is-t6' : ''}${item.mil ? ' is-mil' : ''}`,
@@ -176,7 +178,9 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
   }
 
   const COLOUR_RGB = { t6: trailRgb(T, COLOURS.t6), mil: trailRgb(T, COLOURS.mil), other: trailRgb(T, COLOURS.other) };
-  const planeOf = { z: 0, scale: 1, groundFt: 0, trailsOn: true }; // what `set` last knew, for `glide`
+  const planeOf = { z: 0, scale: 1, groundFt: 0, trailsOn: true, terrain: null }; // what `set` last knew, for `glide`
+  /** The ground under a point, feet above sea level: the real terrain when the view has it, else home's elevation. */
+  const groundAt = (x, y) => (planeOf.terrain ? planeOf.terrain.heightFt(x, y) : planeOf.groundFt);
 
   function freeTrail(entry) {
     if (!entry.trail) return;
@@ -186,7 +190,10 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
     entry.trail = null;
   }
 
-  const zOf = (altFt) => (altFt === 'ground' || altFt === null || altFt === undefined || altFt <= planeOf.groundFt ? planeOf.z + LIFT_FT : altFt * planeOf.scale);
+  const zOf = (altFt, x, y) => {
+    const ground = groundAt(x, y);
+    return altFt === 'ground' || altFt === null || altFt === undefined || altFt <= ground ? ground * planeOf.scale + LIFT_FT : altFt * planeOf.scale;
+  };
 
   /**
    * The trail of one aircraft for the moment `nowMs`: its reported positions in the window at their own heights, then the aircraft where it is now,
@@ -217,7 +224,7 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
     let lastAlt = null;
     points.forEach((p, i) => {
       lastAlt = p.altFt ?? lastAlt;
-      pos.setXYZ(i, p.x, p.y, zOf(lastAlt));
+      pos.setXYZ(i, p.x, p.y, zOf(lastAlt, p.x, p.y));
       col.setXYZW(i, colour[0], colour[1], colour[2], trailAlpha(p.t, nowMs));
     });
     const n = points.length;
@@ -235,11 +242,13 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
      * Brings the drawing in line with the items (scene3d-model.js `sceneTraffic`'s aircraft): new ones are made, known ones moved, and gone ones
      * freed. `scale` is the height scale, `groundFt` the ground the view draws (feet above sea level), `intruders` a Map from the hex id of each aircraft that is
      * not a T-6 inside a watched area to the area(s) it is in ("CYA304"): each gets the amber ⚠ tag. `nowMs` is the clock for gliding each aircraft
-     * to where it should be by now (see `glide`); `trailsOn` shows the trails (the items carry their positions).
+     * to where it should be by now (see `glide`); `trailsOn` shows the trails (the items carry their positions). `terrain` is the view's { heightFt(x, y), known(x, y) } (terrain3d.js):
+     * an aircraft stays at its reported height above sea level whatever the ground does; one on the ground, with no height, or reported under the terrain below it is drawn just
+     * above the terrain there, and the last of those says "below terrain?" in its tag (the data is off; it has not crashed). Its drop line goes to the terrain.
      */
-    set(items, { scale, groundFt, intruders = new Map(), nowMs = Date.now(), trailsOn = true }) {
+    set(items, { scale, groundFt, intruders = new Map(), nowMs = Date.now(), trailsOn = true, terrain = null }) {
       const planeZ = groundFt * scale;
-      Object.assign(planeOf, { z: planeZ, scale, groundFt, trailsOn });
+      Object.assign(planeOf, { z: planeZ, scale, groundFt, trailsOn, terrain });
       const seen = new Set();
       for (const item of items) {
         seen.add(item.hex);
@@ -255,23 +264,28 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
         }
         entry.item = item;
         const alt = item.altFt === 'ground' ? null : item.altFt;
-        // A pressure altitude can read a little under the field's elevation: stand the aircraft on the ground rather than hide it under it.
-        const z = alt === null || alt <= groundFt ? planeZ + LIFT_FT : alt * scale;
         const here = glideXY(item, nowMs);
+        const ground = groundAt(here.x, here.y);
+        // A pressure altitude can read a little under the ground: stand the aircraft just above it rather than hide it under it.
+        const lifted = alt === null || alt <= ground;
+        entry.lifted = lifted;
+        const z = lifted ? ground * scale + LIFT_FT : alt * scale;
+        const below = alt !== null && alt <= ground && terrain?.known(here.x, here.y) === true;
         entry.group.position.set(here.x, here.y, z);
         entry.group.rotation.z = rad(90 - (item.trackDeg ?? 0));
         if (entry.drop) {
-          entry.drop.position.set(here.x, here.y, planeZ);
-          entry.drop.scale.z = Math.max(1, z - planeZ);
+          entry.drop.position.set(here.x, here.y, ground * scale);
+          entry.drop.scale.z = Math.max(1, z - ground * scale);
         }
         applyFade(entry, item.opacity);
         const area = intruders.get(item.hex);
         entry.intruder = area !== undefined;
         entry.tagEl.classList.toggle('is-intruder', entry.intruder);
         drawTrail(entry, nowMs);
-        const words = entry.intruder ? `⚠ ${item.labelText}` : item.labelText;
+        const words = `${entry.intruder ? '⚠ ' : ''}${item.labelText}${below ? ` ${BELOW_TERRAIN_WORDS}` : ''}`;
         if (entry.tagEl.textContent !== words) entry.tagEl.textContent = words;
-        const title = entry.intruder ? `Not a T-6, inside ${area}. Information only. Advisory area activity is not a SOF caution. Press to show this aircraft’s facts.` : 'Show this aircraft’s facts';
+        const facts = below ? `Reported height is under the terrain below it, so it is drawn just above the ground: the height data is off, not the aircraft down. ` : '';
+        const title = entry.intruder ? `${facts}Not a T-6, inside ${area}. Information only. Advisory area activity is not a SOF caution. Press to show this aircraft’s facts.` : `${facts}Show this aircraft’s facts`;
         if (entry.tagEl.title !== title) entry.tagEl.title = title;
       }
       for (const [hex, entry] of entries) {
@@ -292,7 +306,15 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
         const here = glideXY(item, nowMs);
         entry.group.position.x = here.x;
         entry.group.position.y = here.y;
-        if (entry.drop) {
+        // Over rising ground an aircraft standing on it (no height, or under the terrain) keeps just above it as it moves, and a drop line keeps to the ground under it.
+        if (planeOf.terrain && (entry.lifted || entry.drop)) {
+          const ground = groundAt(here.x, here.y) * planeOf.scale;
+          if (entry.lifted) entry.group.position.z = ground + LIFT_FT;
+          if (entry.drop) {
+            entry.drop.position.set(here.x, here.y, ground);
+            entry.drop.scale.z = Math.max(1, entry.group.position.z - ground);
+          }
+        } else if (entry.drop) {
           entry.drop.position.x = here.x;
           entry.drop.position.y = here.y;
         }

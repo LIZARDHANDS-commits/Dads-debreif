@@ -118,52 +118,67 @@ export function buildSatelliteSheet(T, { canvas, heightFt, scale }) {
 
 // ---- Fronts ---------------------------------------------------------------------------------------------------------
 
-/** Pushes a ribbon (two triangles) along a-b, `w` wide, lying flat at height z. */
-function pushRibbon(out, a, b, w, z) {
+/** Pushes a ribbon (two triangles) along a-b, `w` wide, lying at height za at a and zb at b. */
+function pushRibbon(out, a, b, w, za, zb = za) {
   const dx = b[0] - a[0];
   const dy = b[1] - a[1];
   const len = Math.hypot(dx, dy) || 1;
   const nx = (-dy / len) * (w / 2);
   const ny = (dx / len) * (w / 2);
-  const p = [[a[0] + nx, a[1] + ny], [a[0] - nx, a[1] - ny], [b[0] - nx, b[1] - ny], [b[0] + nx, b[1] + ny]];
-  for (const k of [0, 1, 2, 0, 2, 3]) out.push(p[k][0], p[k][1], z);
+  const p = [[a[0] + nx, a[1] + ny, za], [a[0] - nx, a[1] - ny, za], [b[0] - nx, b[1] - ny, zb], [b[0] + nx, b[1] + ny, zb]];
+  for (const k of [0, 1, 2, 0, 2, 3]) out.push(p[k][0], p[k][1], p[k][2]);
 }
 
-/** Pushes a vertical quad up from a-b, from height z0 to z1. */
-function pushWall(out, a, b, z0, z1) {
-  const q = [[a[0], a[1], z0], [b[0], b[1], z0], [b[0], b[1], z1], [a[0], a[1], z1]];
+/** Pushes a vertical quad up from a-b, from height z0 to z1 at a and from z0b to z1b at b (the same at both unless the ground slopes). */
+function pushWall(out, a, b, z0, z1, z0b = z0, z1b = z1) {
+  const q = [[a[0], a[1], z0], [b[0], b[1], z0b], [b[0], b[1], z1b], [a[0], a[1], z1]];
   for (const k of [0, 1, 2, 0, 2, 3]) out.push(...q[k]);
 }
 
-/** A triangle standing on the line: its base on the line (centred on the point) and its tip towards the normal. */
-function pushTriangle(out, s, z) {
+/** A triangle standing on the line: its base on the line (centred on the point) and its tip towards the normal. `zAt(x, y)` gives each corner's height. */
+function pushTriangle(out, s, zAt) {
   const half = SYMBOL_FT / 2;
-  out.push(s.x - s.dx * half, s.y - s.dy * half, z, s.x + s.dx * half, s.y + s.dy * half, z, s.x + s.nx * SYMBOL_FT * 0.9, s.y + s.ny * SYMBOL_FT * 0.9, z);
+  for (const [x, y] of [[s.x - s.dx * half, s.y - s.dy * half], [s.x + s.dx * half, s.y + s.dy * half], [s.x + s.nx * SYMBOL_FT * 0.9, s.y + s.ny * SYMBOL_FT * 0.9]]) out.push(x, y, zAt(x, y));
 }
 
 /** A half circle standing on the line: its flat side on the line (centred on the point), bulging towards the normal. */
-function pushSemicircle(out, s, z, pieces = 10) {
+function pushSemicircle(out, s, zAt, pieces = 10) {
   const r = SYMBOL_FT / 2;
   let prev = [s.x - s.dx * r, s.y - s.dy * r];
   for (let k = 1; k <= pieces; k++) {
     const a = Math.PI - (k / pieces) * Math.PI; // from the line's start, over the bulge, to its end
     const next = [s.x + s.dx * r * Math.cos(a) + s.nx * r * Math.sin(a), s.y + s.dy * r * Math.cos(a) + s.ny * r * Math.sin(a)];
-    out.push(s.x, s.y, z, prev[0], prev[1], z, next[0], next[1], z);
+    out.push(s.x, s.y, zAt(s.x, s.y), prev[0], prev[1], zAt(prev[0], prev[1]), next[0], next[1], zAt(next[0], next[1]));
     prev = next;
   }
 }
 
+/** A segment as pieces no longer than `step` feet (or itself when it is already short or `step` is infinite): [[a, b], ...]. */
+function pieces(a, b, step) {
+  const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / step));
+  const out = [];
+  for (let k = 0; k < n; k++) {
+    out.push([[a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n], [a[0] + ((b[0] - a[0]) * (k + 1)) / n, a[1] + ((b[1] - a[1]) * (k + 1)) / n]]);
+  }
+  return out;
+}
+
+/** With terrain, a front's line is cut into pieces this long so each lies on the ground under it (feet, about 3 NM). An estimate for the look. */
+const FRONT_FOLLOW_STEP_FT = 18_000;
+
 /**
  * The fronts (`frontGeometry` from weather3d-model.js) on the ground at `groundFt`: each as a ribbon in its colour, the cold triangles and warm half circles along it, and a
  * faint wall FRONT_WALL_FT tall (×scale) along it. Returns { root, count, dispose } and `root.userData.groups` = { lines, walls }, so the wall can be switched off.
+ * With `groundAt(x, y)` (feet above sea level; the view's terrain) the ribbons, symbols and walls stand on the ground under them, the line cut into short pieces to do so;
+ * without it everything stands on the flat ground at `groundFt`.
  */
-export function buildFronts(T, { geometry, scale, groundFt }) {
+export function buildFronts(T, { geometry, scale, groundFt, groundAt = null }) {
   const owned = [];
   const root = new T.Group();
   root.name = 'fronts';
-  const z = groundFt * scale + LIFT_FT;
-  const z0 = groundFt * scale;
-  const z1 = z0 + FRONT_WALL_FT * scale;
+  const ground = groundAt ?? (() => groundFt);
+  const step = groundAt ? FRONT_FOLLOW_STEP_FT : Infinity;
+  const zAt = (x, y) => ground(x, y) * scale + LIFT_FT;
   const lines = new Map(); // colour -> positions
   const walls = new Map();
   const fills = new Map();
@@ -174,13 +189,17 @@ export function buildFronts(T, { geometry, scale, groundFt }) {
   for (const line of geometry.lines) {
     line.segments.forEach((seg, n) => {
       const colour = line.colours?.[n] ?? line.colour;
-      pushRibbon(add(lines, colour), seg[0], seg[1], FRONT_LINE_FT, z);
-      pushWall(add(walls, line.colour), seg[0], seg[1], z0, z1);
+      for (const [a, b] of pieces(seg[0], seg[1], step)) {
+        const ga = ground(a[0], a[1]) * scale;
+        const gb = ground(b[0], b[1]) * scale;
+        pushRibbon(add(lines, colour), a, b, FRONT_LINE_FT, ga + LIFT_FT, gb + LIFT_FT);
+        pushWall(add(walls, line.colour), a, b, ga, ga + FRONT_WALL_FT * scale, gb, gb + FRONT_WALL_FT * scale);
+      }
     });
   }
   for (const s of geometry.symbols) {
-    if (s.shape === 'tri') pushTriangle(add(fills, s.colour), s, z);
-    else pushSemicircle(add(fills, s.colour), s, z);
+    if (s.shape === 'tri') pushTriangle(add(fills, s.colour), s, zAt);
+    else pushSemicircle(add(fills, s.colour), s, zAt);
   }
   const mesh = (positions, colour, opacity, order) => {
     const g = own(owned, new T.BufferGeometry());

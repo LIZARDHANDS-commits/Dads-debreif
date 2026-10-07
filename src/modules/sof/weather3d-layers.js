@@ -33,7 +33,7 @@ const SHEET_FADE_MIN = 0.2;
 
 /**
  * T: three.js; scene; timers (a scheduler scope); win (the window: its document makes the canvases); labels (the element the H and L marks go in); requestRender(); reducedMotion().
- * Returns { update({ weather, model, hour, scale, groundFt, projection }), setToggles(toggles), items(), summary(), credit(), dispose() }.
+ * Returns { update({ weather, model, hour, scale, groundFt, projection, terrain }), setToggles(toggles), items(), summary(), credit(), dispose() }.
  * - weather: { radar, lightning, satellite } each null or { id, image, bbox, stale, on }, and { fronts } as fronts.js `frontsView` (status, data, words); see map.js `weather3d`.
  * - model (model-clouds.js, or null) and `hour`: the cloud levels and winds behind the heights and the flow.
  * - items(): the H and L marks to place: [{ el, point: { x, y, z }, kind }]. summary(): what is drawn, for the key.
@@ -164,9 +164,13 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
 
   return {
     /** The layers, rebuilt only where what they are made from changed. See the factory's words. */
-    update({ weather, model, hour, scale, groundFt, projection }) {
+    update({ weather, model, hour, scale, groundFt, projection, terrain = null }) {
       const modelKey = model ? `${model.id}|${hour}` : 'none';
       const common = `${scale}|${groundFt}|${projection.lat},${projection.lon}`;
+      // The layers that stand on the ground (shafts, bolts, fronts) follow the real terrain when the view has it: `terrain` is { heightFt(x, y), key }, and they are made again
+      // when its key changes (more tiles, the Terrain switch). The cloud sheets, satellite sheet and flow are at heights above sea level and ignore it.
+      const standing = `${common}|${terrain ? terrain.key : 'flat'}`;
+      const groundAt = terrain ? terrain.heightFt : null;
       const levels = model ? cloudSheetLevels(model, hour) : [];
       const column = (u, v) => cloudColumnAt(levels, u, v, groundFt);
       const cellsOf = (picture, accept) => {
@@ -177,14 +181,14 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
       // Radar shafts
       const radar = weather.radar;
       const radarOn = Boolean(radar && radar.image && radar.on !== false && !radar.stale);
-      place('radar', radarOn ? `${radar.id}|${modelKey}|${common}` : 'off', () => {
+      place('radar', radarOn ? `${radar.id}|${modelKey}|${standing}` : 'off', () => {
         if (!radarOn) {
           facts.radar = null;
           return null;
         }
         const cells = cellsOf(radar);
         if (!cells) return null;
-        const list = shafts(cells, { column, groundFt });
+        const list = shafts(cells, { column, groundFt, ...(groundAt ? { groundAt } : {}) });
         facts.radar = { count: list.length, withModelTop: list.filter((s) => s.modelTop).length };
         return buildShafts(T, { shafts: list, scale });
       });
@@ -192,14 +196,14 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
       // Lightning bolts: the lit cells of the 2D mark (its yellow fill), not its dark outline
       const lightning = weather.lightning;
       const lightningOn = Boolean(lightning && lightning.image && lightning.on !== false && !lightning.stale);
-      place('lightning', lightningOn ? `${lightning.id}|${modelKey}|${common}` : 'off', () => {
+      place('lightning', lightningOn ? `${lightning.id}|${modelKey}|${standing}` : 'off', () => {
         if (!lightningOn) {
           facts.lightning = null;
           return null;
         }
         const cells = cellsOf(lightning, (r, g, b) => r > 200 && g > 150 && b < 100);
         if (!cells) return null;
-        const list = bolts(cells, { column, groundFt });
+        const list = bolts(cells, { column, groundFt, ...(groundAt ? { groundAt } : {}) });
         facts.lightning = { count: list.length };
         return buildBolts(T, { bolts: list, scale });
       });
@@ -227,7 +231,7 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
       // The fronts
       const fronts = weather.fronts;
       const frontsOn = Boolean(fronts && fronts.status === 'ok' && fronts.data);
-      place('fronts', frontsOn ? `${fronts.key}|${common}` : 'off', () => {
+      place('fronts', frontsOn ? `${fronts.key}|${standing}` : 'off', () => {
         freeMarks();
         if (!frontsOn) {
           facts.fronts = null;
@@ -237,10 +241,10 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
         marks = geometry.marks.map((m) => {
           const el = h('span', { class: `sof-3d-wx-mark is-${m.kind === 'H' ? 'high' : 'low'}`, title: m.kind === 'H' ? `High pressure centre, ${m.hPa} hPa` : `Low pressure centre, ${m.hPa} hPa` }, m.text);
           labels.append(el);
-          return { el, kind: m.kind, point: { x: m.x, y: m.y, z: groundFt * scale + 900 } };
+          return { el, kind: m.kind, point: { x: m.x, y: m.y, z: (groundAt ? groundAt(m.x, m.y) : groundFt) * scale + 900 } };
         });
         facts.fronts = { fronts: geometry.counts.fronts, drawn: geometry.counts.drawn, highs: geometry.marks.filter((m) => m.kind === 'H').length, lows: geometry.marks.filter((m) => m.kind === 'L').length, symbols: geometry.symbols.length };
-        return buildFronts(T, { geometry, scale, groundFt });
+        return buildFronts(T, { geometry, scale, groundFt, groundAt });
       });
 
       // The flow follows the model's winds at the hour shown
