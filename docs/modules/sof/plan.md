@@ -55,11 +55,12 @@ Dad and Patrick agreed it on 7 Oct. Each phase is its own pull request and is us
 - [ ] **Sun and moon panel (item 9):** sunrise, sunset, civil twilight, last-land cue, moonrise, moonset and moon phase and illumination for home, from standard astronomical formulas.
 - Not wanted: recording the day for the Debrief (item 7). Not chosen: spoken alerts (item 8).
 
-- [ ] **Weather fidelity 2: real cloud bases and tops (Dad, 7 Oct: "the clouds seem to not have the best data"; Fable review 7 Oct, built with Opus):**
+- [x] **Weather fidelity 2: real cloud bases and tops (Dad, 7 Oct: "the clouds seem to not have the best data"; Fable review 7 Oct, built with Opus):**
   1. Cloud slabs with a base and a top per model column (from the HRDPS levels already fetched, 925 hPa added), drawn as a few stacked, softly textured sheets per low/mid/high stage; today's per-level sheets kept behind a "3D cloud style" setting.
   2. 2.5 km horizontal detail from ECCC GeoMet's `HRDPS.CONTINENTAL_NT` total-cloud picture for the hour shown (an existing source, a new layer; 25 KB a picture), masking the slabs so clear sky is clear.
   3. Observed bases: METARs from 13+ stations in the area (existing `wx` sources) pull the low cloud's base to the reported ceiling within 15 NM (estimate) of each station, now only.
   Failure and stale words for each piece; Open-Meteo retries back off 10, 20, 40 min to stay inside the free daily limit.
+  Built in V2.183 (SOF-45).
 
 ## Step 3. Build the safety and limits gaps between decided and built
 
