@@ -18,6 +18,8 @@ import {
   FLOW_FT_PER_S_PER_KT, pictureCells, reduceToCells, shafts, bolts, satellitePixels, frontGeometry, createFlow,
 } from './weather3d-model.js';
 import { buildShafts, buildBolts, buildSatelliteSheet, buildFronts, buildFlow } from './weather3d.js';
+import { readTotalCloud } from './cloud-field.js';
+import { CLOUD_SHEET_PX } from './model-clouds.js';
 import { FRONTS_CREDIT } from './fronts.js';
 
 /** The names the view's toggles use for these layers. */
@@ -272,6 +274,15 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
     },
     /** The H and L marks, for view3d.js to place beside their points each frame. */
     items: () => marks,
+    /**
+     * The HRDPS total-cloud picture ({ image, bbox }, map.js `weather3d().modelCloud`) drawn onto a CLOUD_SHEET_PX square over the area and read as percent for the cloud
+     * slabs (cloud-field.js `readTotalCloud`: { px, percent }, row 0 south), or null when there is no picture or it cannot be drawn.
+     */
+    totalCloud(picture, projection) {
+      if (!picture?.image || !picture.bbox) return null;
+      const read = readPicture(picture, projection, CLOUD_SHEET_PX);
+      return read ? readTotalCloud(read.image) : null;
+    },
     /** What is drawn, for the key: { radar, lightning, satellite, fronts, flow }, each null when not drawn. */
     summary: () => ({ ...facts }),
     /** The fronts' credit while they are drawn. */

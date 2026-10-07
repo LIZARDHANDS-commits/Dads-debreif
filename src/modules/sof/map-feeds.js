@@ -137,7 +137,9 @@ export function feedLine({ label, kind = 'radar', on = true, hasImage = false, l
  * - onAttempt(ok): after each try, for radar's switch to its backup.
  * - fetch, timers (scheduler scope), now (clock), onChange().
  *
- * `request` is what to ask for: { bbox, width, height, key } (map-view.js radarImageRequest, or the lightning box).
+ * `request` is what to ask for: { bbox, width, height, key } (map-view.js radarImageRequest, or the lightning box), and optionally
+ * `time` (a Date): the hour to ask for instead of the layer's latest (the 3D view's model hour, for the HRDPS cloud picture; its key
+ * then names the hour too). An hour outside the layer's own range (from its capabilities) is never asked for: that try fails.
  * A changed request is asked for after VIEW_SETTLE_MS. Returns { setRequest, enable, refresh, wake, stop, reset, state }.
  */
 export function createImageFeed({
@@ -150,6 +152,7 @@ export function createImageFeed({
   let request = null;
   let held = null; // { image, key, layer, time } the picture on screen, with its own layer time
   let latestTime = null; // the newest layer time ECCC has given, for asking again for the same picture
+  let range = null; // the layer's own { start, end, referenceTime } from its capabilities (feeds.js parseLayerTimes), for a request with its own time
   let failures = 0;
   let lastAttemptAt = null;
   let busy = false;
@@ -202,13 +205,21 @@ export function createImageFeed({
       let time = latestTime;
       if (!timeless && (full || !time)) {
         const reply = await guardedFetch(fetch, capabilitiesUrl(name), { timers, signal: closing.signal, accept: 'text/xml', ...FETCH_LIMITS.layerTimes });
-        time = layerTimeOf(bytesToText(reply.bytes), name);
+        const xml = bytesToText(reply.bytes);
+        time = layerTimeOf(xml, name);
         if (!time) throw new Error('no layer time');
         if (stopped) return;
         latestTime = time;
+        const times = EXTRA_NAMES.has(name) ? null : parseLayerTimes(xml, name);
+        range = times ? { start: times.start, end: times.end, referenceTime: times.referenceTime } : null;
       }
       if (request) {
         const asked = request;
+        if (!timeless && asked.time instanceof Date) {
+          // The request's own hour: only inside the layer's range (never an hour ECCC does not have).
+          if (!range || +asked.time < +range.start || +asked.time > +range.end) throw new Error('hour outside the layer');
+          time = asked.time;
+        }
         const url = urlFor({ layer: name, request: asked, time: timeless ? undefined : time });
         const reply = await guardedFetch(fetch, url, { timers, signal: closing.signal, accept: 'image/png', ...FETCH_LIMITS.image });
         if (!isPng(reply.contentType, reply.bytes, { width: asked.width, height: asked.height })) throw new Error('not a picture');
@@ -219,7 +230,7 @@ export function createImageFeed({
           return;
         }
         release(held?.image);
-        held = { image, key: asked.key, layer: name, time: timeless ? null : time, at: now() };
+        held = { image, key: asked.key, layer: name, time: timeless ? null : time, at: now(), referenceTime: range?.referenceTime ?? null };
       }
       ok = true;
       failures = 0;
@@ -263,6 +274,7 @@ export function createImageFeed({
         release(held?.image);
         held = null;
         latestTime = null;
+        range = null;
         failures = 0;
         changed();
       }
@@ -285,6 +297,7 @@ export function createImageFeed({
       release(held?.image);
       held = null;
       latestTime = null;
+      range = null;
       failures = 0;
       changed();
       if (enabled) {
@@ -301,10 +314,10 @@ export function createImageFeed({
       release(held?.image);
       held = null;
     },
-    /** { enabled, busy, failures, layerTime (of the picture on screen), fetchedAt, image, imageKey, layer } */
+    /** { enabled, busy, failures, layerTime (of the picture on screen), fetchedAt, image, imageKey, layer, referenceTime (a model layer's run, or null) } */
     state: () => ({
       enabled, busy, failures, layerTime: held?.time ?? null, fetchedAt: held?.at ?? null,
-      image: held?.image ?? null, imageKey: held?.key ?? null, layer: held?.layer ?? null,
+      image: held?.image ?? null, imageKey: held?.key ?? null, layer: held?.layer ?? null, referenceTime: held?.referenceTime ?? null,
     }),
   };
 }

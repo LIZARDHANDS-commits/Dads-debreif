@@ -58,7 +58,7 @@ import {
   TOUR_TARGETS, TOUR_DWELL_S, TOUR_FLY_S, TOUR_PITCH_DEG, TOUR_FIELD_AGL_FT, tourStops, nextStopIndex, tourCaption, nextInWords, framingZoom, flyPose,
 } from './tour-model.js';
 import { buildModelLayers, MODEL_GROUPS } from './model-layers3d.js';
-import { slabColumnAt, highestSlabTopFt, SLAB_SHEETS, MIN_SLAB_FT } from './cloud-field.js';
+import { slabColumnAt, highestSlabTopFt, cloudSlabs, maskSlabs, SLAB_SHEETS, MIN_SLAB_FT, NT_MAX_GAIN, NT_OLD_FADE } from './cloud-field.js';
 import { createTraffic3d } from './traffic3d.js';
 import { AIRSPACE } from './airspace-data.js';
 import { buildAirspace, AIRSPACE_GROUPS, KIND_COLOURS } from './airspace3d.js';
@@ -69,7 +69,7 @@ import { AIRPORTS } from './airports-data.js';
 import { checkedAirspace, KIND_WORDS, tacnavNote, AIRSPACE_FILL_OPACITY, VIEW_TOP_FT } from './airspace-model.js';
 import {
   hourIndex, maxAhead, hourWords, meanLayerCover, unavailableWords, refreshFailedWords, LOADING_WORDS, CREDIT_WORDS, MAX_AHEAD_HOURS, CLOUD_STAGES_FT_AGL,
-  CLOUD_COVER_THRESHOLD_PCT, MAG_VARIATION_DEG_E, barbStep,
+  CLOUD_COVER_THRESHOLD_PCT, MAG_VARIATION_DEG_E, barbStep, CLOUD_SHEET_PX,
 } from './model-clouds.js';
 
 const BACKGROUND = '#0a141d';
@@ -109,6 +109,9 @@ const TERRAIN_APPLY_MS = 400;
 const TERRAIN_DEPS_MS = 4000;
 /** The aircraft's credit, always said while the layer is on (adsb.lol's data is ODbL 1.0). */
 const AIRCRAFT_CREDIT = 'Aircraft: adsb.lol (ODbL 1.0)';
+/** The cloud detail's credit, said while the 2.5 km picture shapes the slabs. */
+const DETAIL_CREDIT = 'Cloud detail: ECCC MSC GeoMet, HRDPS total cloud';
+const hhmm = (ms) => `${new Date(ms).toISOString().slice(11, 16).replace(':', '')}Z`;
 
 /** A TACNAV route's name shows while the pointer is within this many pixels of its line (Dad, 7 Oct: names only under the pointer). An estimate for feel. */
 const ROUTE_HOVER_PX = 10;
@@ -128,12 +131,12 @@ const isColour = (v) => typeof v === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d\s.
  * context was lost: the caller goes back to 2D), routes (the TACNAV routes to draw, from the Debrief's `ROUTES` as `map.js` gives them:
  * { name, paths: [[[lon, lat], ...]] }), airspace (the entries to draw, airspace-data.js `AIRSPACE` unless a test gives its own), onAirspaceLogOptions
  * ({ showT6, showAll }: the log panel's two ticks changed), now() (the clock in milliseconds, for gliding the aircraft between answers), onTrails(on)
- * (the Trails button was pressed), win }.
+ * (the Trails button was pressed), onModelHour(ms) (the model hour shown changed, or null with no model: the map asks for the HRDPS cloud picture at that hour), win }.
  * Returns { element, show(), hide(), setScene({ airfields, heightScale }), setModel({ status, model, lastGoodAt, now, timeZone }), setAirspaceLog(view),
  * touch(), home(), zoomBy(factor), isShown(), dispose() }.
  * `show()` resolves { ok: true } or { ok: false, reason: 'gl' | 'load' | 'closed' }.
  */
-export function createSofView3d({ timers, getProjection, getPictures, getWeather = () => ({ sig: 'none', radar: null, lightning: null, satellite: null, fronts: null, lines: [] }), fullScreen = null, onLost = () => {}, routes = [], airspace = AIRSPACE, onAirspaceLogOptions = /** @type {(options: { showT6: boolean, showAll: boolean }) => void} */ (() => {}), now = () => Date.now(), onTrails = /** @type {(on: boolean) => void} */ (() => {}), win = globalThis }) {
+export function createSofView3d({ timers, getProjection, getPictures, getWeather = () => ({ sig: 'none', radar: null, lightning: null, satellite: null, fronts: null, lines: [] }), fullScreen = null, onLost = () => {}, routes = [], airspace = AIRSPACE, onAirspaceLogOptions = /** @type {(options: { showT6: boolean, showAll: boolean }) => void} */ (() => {}), now = () => Date.now(), onTrails = /** @type {(on: boolean) => void} */ (() => {}), onModelHour = /** @type {(ms: number | null) => void} */ (() => {}), win = globalThis }) {
   const labels = h('div', { class: 'sof-3d-labels' });
   // The airspace volume under the pointer: its name and limits float beside the pointer (Dad, 7 Oct); nothing is written on the volumes themselves.
   const spaceTip = h('p', { class: 'sof-3d-space-tip', hidden: true });
@@ -144,7 +147,8 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   let creditAircraft = false;
   let creditFronts = false;
   let creditTerrain = false;
-  const updateCredit = () => setText(credit, [ESRI_IMAGERY.credit, creditTerrain ? TERRAIN_CREDIT : null, creditAircraft ? AIRCRAFT_CREDIT : null, creditFronts ? FRONTS_CREDIT : null].filter(Boolean).join('. '));
+  let creditDetail = false;
+  const updateCredit = () => setText(credit, [ESRI_IMAGERY.credit, creditTerrain ? TERRAIN_CREDIT : null, creditAircraft ? AIRCRAFT_CREDIT : null, creditFronts ? FRONTS_CREDIT : null, creditDetail ? DETAIL_CREDIT : null].filter(Boolean).join('. '));
   const outside = h('p', { class: 'sof-3d-outside', hidden: true });
   const note = h('p', { class: 'sof-3d-note', role: 'status', hidden: true });
   const tag = h('p', { class: 'sof-3d-tag', role: 'status', hidden: true });
@@ -187,6 +191,8 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   const layerSelect = h('select', { id: layerId, class: 'sof-3d-layer', title: 'Show one model cloud level at a time, or all of them', onchange: () => setLayer(layerSelect.value) },
     h('option', { value: 'all' }, 'All'));
   const modelStatus = h('p', { class: 'sof-3d-model-status', role: 'status' }, LOADING_WORDS);
+  // The slabs' 2.5 km detail (Fable review, 7 Oct): one line in words and a symbol, shown with slabs only.
+  const modelDetail = h('p', { class: 'sof-3d-model-note sof-3d-model-detail', role: 'status', hidden: true });
   const modelWarn = h('p', { class: 'sof-3d-model-warn', role: 'status', hidden: true });
   // The Layer picker is for the old per-level sheets only; with slabs (the default "3D cloud style") it is hidden.
   const layerRow = h('div', { class: 'sof-3d-model-row' }, h('label', { for: layerId }, 'Layer'), layerSelect);
@@ -206,7 +212,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     h('div', { class: 'sof-3d-model-row' }, WEATHER_BUTTONS.map((k) => toggleButtons.get(k).button), weatherKey),
     weatherStatus);
   const modelFoot = h('div', { class: 'sof-3d-model-row' }, modelNote, modelKey);
-  const modelPanel = h('div', { class: 'sof-3d-model', role: 'group', 'aria-label': 'Model clouds and winds' }, modelStatus, modelWarn, modelControls, modelFoot, modelCredit);
+  const modelPanel = h('div', { class: 'sof-3d-model', role: 'group', 'aria-label': 'Model clouds and winds' }, modelStatus, modelWarn, modelControls, modelDetail, modelFoot, modelCredit);
   const trafficStatus = h('p', { class: 'sof-3d-traffic-status', role: 'status', hidden: true });
 
   // The airspace controls (phase 3): a toggle for the volumes and one for the TACNAV routes, and a key. With no airspace data the first
@@ -337,6 +343,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   let modelDirty = true;
   let layerChoice = 'all'; // the Layer picker: 'all', or a pressure level as text ('850')
   let cloudStyle = 'slabs'; // the setting "3D cloud style": 'slabs' or 'levels' (the old per-level sheets)
+  let lastWx = null; // the weather layers' inputs as last read (the slabs take the HRDPS cloud picture from them)
   let trafficState = { shown: false, aircraft: [], labelsOn: false, trailsOn: false, signature: 'off' }; // what the map last gave setTraffic
   let trafficSig = '';
   let trafficDirty = true;
@@ -588,7 +595,9 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       slider.setAttribute('aria-valuetext', words);
     }
     layerRow.hidden = cloudStyle === 'slabs';
+    modelDetail.hidden = !ok || cloudStyle !== 'slabs';
     const hour = ok ? hourIndex(model, +now, ahead) : -1;
+    onModelHour(ok ? model.times[hour] : null);
     const sig = ok ? `${model.id}|${hour}|${scale}|${groundFt()}|${cloudStyle}` : 'none';
     if (sig === modelSig) return;
     modelSig = sig;
@@ -609,20 +618,72 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     freeModel();
     modelDirty = false;
     const { status, model, now } = modelState;
-    if (!gl || status !== 'ok' || !model) return;
+    if (!gl || status !== 'ok' || !model) {
+      showDetail(null, null);
+      return;
+    }
     const hour = hourIndex(model, +now, ahead);
-    const built = buildModelLayers(gl.THREE, { model, hour, scale, groundFt: groundFt(), style: cloudStyle });
+    const wx = lastWx ?? getWeather();
+    let slabs = null;
+    let fade = 1;
+    let detail = null;
+    if (cloudStyle === 'slabs') {
+      // The slabs from the 37.5 NM grid, then shaped by the 2.5 km total-cloud picture for this hour when there is one (cloud-field.js `maskSlabs`).
+      slabs = cloudSlabs(model, hour, groundFt());
+      detail = detailOf(wx, model, hour);
+      if (detail.state === 'ok' || detail.state === 'old') {
+        const total = gl.weather.totalCloud(detail.picture, getProjection());
+        if (total) {
+          const masked = maskSlabs(slabs, total);
+          slabs = masked.slabs;
+          detail.unplacedShare = masked.unplacedShare;
+          if (detail.state === 'old') fade = NT_OLD_FADE;
+        } else detail = { state: 'failed', lastGoodAt: detail.picture.lastGoodAt, key: 'unreadable' };
+      }
+    }
+    showDetail(detail, model);
+    const built = buildModelLayers(gl.THREE, { model, hour, scale, groundFt: groundFt(), style: cloudStyle, slabs, fade });
     gl.scene.add(built.root);
     const items = built.labels.map((l) => {
       const el = h('span', { class: `sof-3d-model-label is-${l.group}` }, l.text);
       labels.append(el);
       return { el, group: l.group, point: l.point, hPa: l.hPa, side: l.side };
     });
-    gl.model = { built, items, counts: built.summary.layers, key: modelSig, fields: built.fields };
+    gl.model = { built, items, counts: built.summary.layers, key: `${modelSig}|${detail?.key ?? 'none'}`, fields: built.fields, inputs: detail?.key ?? 'none', detail };
     drawLayerPicker(built.summary.sheets);
     built.showLayer(layerChoice === 'all' ? null : Number(layerChoice));
     applyToggles();
     drawKey(built.summary, hour);
+  }
+
+  /**
+   * What the slabs can take from the HRDPS total-cloud picture (map.js `weather3d().modelCloud`) for the hour shown: { state, picture?, lastGoodAt?, key } with state
+   * 'ok' (a picture for this hour), 'old' (one from a model run over 12 hours old: drawn fainter), 'loading' (asked, not here yet) or 'failed' (the last try failed and
+   * nothing for this hour is held: the slabs come from the grid alone). `key` changes when what the slabs would be built from does.
+   */
+  function detailOf(wx, model, hour) {
+    const mc = wx?.modelCloud;
+    if (!mc) return { state: 'loading', key: 'loading' };
+    if (mc.image && mc.time === model.times[hour]) return { state: mc.stale ? 'old' : 'ok', picture: mc, key: `${mc.id}|${mc.stale}` };
+    if (mc.failed) return { state: 'failed', lastGoodAt: mc.lastGoodAt, key: 'failed' };
+    return { state: 'loading', key: 'loading' };
+  }
+
+  /** The detail's line in the model panel and its credit (words and a symbol, never colour alone). */
+  function showDetail(detail, model) {
+    const grid = model ? `${Math.round((AREA_NM / ((model.gridSize ?? 13) - 1)) * 10) / 10} NM grid` : 'grid';
+    let words = '';
+    if (detail?.state === 'ok') words = `2.5 km cloud detail: ECCC HRDPS total cloud for ${hhmm(detail.picture.time)}${detail.picture.referenceTime ? ` (run ${hhmm(detail.picture.referenceTime)})` : ''} ✓`;
+    else if (detail?.state === 'old') words = `2.5 km cloud detail: old model run${detail.picture.referenceTime ? ` (${hhmm(detail.picture.referenceTime)})` : ''}, over 12 h old: drawn fainter ⚠`;
+    else if (detail?.state === 'failed') words = `2.5 km cloud detail unavailable (last good ${detail.lastGoodAt ? hhmm(detail.lastGoodAt) : 'not yet'}); drawn from the ${grid} alone ⚠`;
+    else if (detail?.state === 'loading') words = '2.5 km detail loading… ⟳';
+    setText(modelDetail, words);
+    modelDetail.classList.toggle('is-bad', detail?.state === 'failed' || detail?.state === 'old');
+    const on = detail?.state === 'ok' || detail?.state === 'old';
+    if (on !== creditDetail) {
+      creditDetail = on;
+      updateCredit();
+    }
   }
 
   function drawKey(summary, hour) {
@@ -647,7 +708,17 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     return [
       h('p', {}, `Clouds: slabs with a base and a top. In each of the model's ${model.gridSize} × ${model.gridSize} columns (${spacing} NM apart), each level over ${CLOUD_COVER_THRESHOLD_PCT} % cover (an estimate) is cloud from halfway down to the level below to halfway up to the level above (${model.cloudLevels.length} levels, ${model.cloudLevels[0]} to ${model.cloudLevels.at(-1)} hPa), and cloudy levels next to each other join. The lowest such block in each stage is that stage's slab (low, mid and high by its base above the ground: below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft, up to ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft, above). Base, top and cover are smoothed between the columns and drawn as ${SLAB_SHEETS} stacked sheets from base to top (an estimate), never thinner than ${formatFeet(MIN_SLAB_FT)} ft, white to grey by cover and as solid from above as the old one-sheet-per-level style would stack its levels (so deeper cloud reads denser; an estimate), with a soft texture that is a picture, not data. The real cloud's thickness between the model's levels is not known. The model's own mean cover this hour: low ${pct(cover.low)}, mid ${pct(cover.mid)}, high ${pct(cover.high)}.`),
       h('ul', {}, ['low', 'mid', 'high'].map((stage) => h('li', {}, summary.slabs.words[stage]))),
+      ...detailKey(gl?.model?.detail ?? null, spacing),
     ];
+  }
+
+  /** The key's words for the 2.5 km detail: how it shapes the slabs, the estimates named, and what it cannot place. */
+  function detailKey(detail, spacing) {
+    if (!detail) return [];
+    if (detail.state === 'failed') return [h('p', {}, `2.5 km cloud detail unavailable (last good ${detail.lastGoodAt ? hhmm(detail.lastGoodAt) : 'not yet'}); drawn from the ${spacing} NM grid alone.`)];
+    if (detail.state === 'loading') return [h('p', {}, '2.5 km detail loading: the slabs are drawn from the grid alone until the picture for this hour arrives.')];
+    const pct = detail.unplacedShare === null || detail.unplacedShare === undefined ? null : Math.round(detail.unplacedShare * 100);
+    return [h('p', {}, `2.5 km cloud detail: ECCC's HRDPS total-cloud picture (GeoMet layer HRDPS.CONTINENTAL_NT) for ${hhmm(detail.picture.time)}${detail.picture.referenceTime ? `, model run ${hhmm(detail.picture.referenceTime)}` : ''}, read on a ${CLOUD_SHEET_PX} px grid over the square (about ${Math.round((AREA_NM * 1.852) / CLOUD_SHEET_PX * 10) / 10} km a pixel), says where the cloud is. Its grey is read as percent (a straight line fitted to ECCC's own values; see-through is 0 %). Each slab's cover is scaled so the most of the three stages matches the picture's total (the most-overlap rule, an estimate; at most ×${NT_MAX_GAIN}); where the picture has ${CLOUD_COVER_THRESHOLD_PCT} % or less, no cloud is drawn.${pct === null ? '' : ` ${pct} % of the square has cloud in the picture where the ${spacing} NM grid has none at any level: it has no height, so it is not drawn.`}${detail.state === 'old' ? ' Old model run (over 12 hours): drawn fainter.' : ''}`)];
   }
 
   // ---- The weather layers: radar shafts, bolts, satellite sheet, fronts, wind flow (Dad, 7 Oct) ----------------
@@ -1168,7 +1239,6 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       weatherDirty = true; // and so do the shafts, bolts and fronts
       if (selected && !airfields.some((a) => a.icao === selected && !a.outside)) select(null);
     }
-    if (modelDirty) rebuildModel();
     // The inputs' signatures are looked at once a second at most (the wind flow draws about thirty frames a second, and each look reads every feed's state); `touch()` asks for
     // a picture the moment something does change.
     const looked = win.performance.now();
@@ -1177,9 +1247,17 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       signaturesAt = looked;
       if (!groundDirty && getPictures().sig !== picturesSig) groundDirty = true;
       wx = getWeather();
+      lastWx = wx;
       if (wx.sig !== weatherSig) weatherDirty = true;
+      // The slabs are built again when the HRDPS cloud picture for the hour shown comes, goes or fails.
+      const { status, model, now: at } = modelState;
+      if (gl.model && cloudStyle === 'slabs' && status === 'ok' && model && detailOf(wx, model, hourIndex(model, +at, ahead)).key !== gl.model.inputs) modelDirty = true;
     }
-    if (weatherDirty) rebuildWeather(wx ?? getWeather());
+    if (modelDirty) {
+      rebuildModel();
+      weatherDirty = true; // the shafts, bolts and satellite sheet stand on the slabs
+    }
+    if (weatherDirty) rebuildWeather(wx ?? lastWx ?? getWeather());
     const nextSpaceSig = `${scale}|${groundFt()}|${getProjection().lat},${getProjection().lon}`;
     if (!gl.space || nextSpaceSig !== spaceSig) rebuildSpace(nextSpaceSig);
     const nextAlertsSig = `${nextSpaceSig}|${alertsView.signature}`;
@@ -1714,6 +1792,8 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     noTiles = false;
     terrainPartly = false;
     creditTerrain = false;
+    creditDetail = false;
+    lastWx = null;
     updateCredit();
     tag.hidden = true;
     acTag.hidden = true;

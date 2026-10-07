@@ -286,3 +286,76 @@ export function noiseMean(pixels) {
   for (let n = 1; n < pixels.length; n += 4) sum += pixels[n];
   return pixels.length ? sum / (pixels.length / 4) / 255 : 1;
 }
+
+// ---- The 2.5 km detail: ECCC's HRDPS total-cloud picture (Fable review, 7 Oct) --------------------------------------
+
+/**
+ * How ECCC draws HRDPS total cloud cover (GeoMet layer HRDPS.CONTINENTAL_NT, default style): fully see-through where the cover is 0 %, else grey from about `zero` (0 %) to
+ * `full` (100 %), a straight line. Source: 28 points of the 7 Oct 2026 2100Z picture read against GeoMet's own GetFeatureInfo values (a straight-line fit, grey ≈ 35 + 2.19 ×
+ * percent, scatter about 4 %, the legend's 5 % steps), with the layer's legend (dark grey at 0 %, near white at 100 %). The brief's "grey / 255 = percent" was checked and
+ * did not match (grey 42 is 4.7 %), and a see-through pixel is 0 % cloud, not "no data" (GetFeatureInfo: "0% cloud coverage").
+ */
+export const NT_GREY = Object.freeze({ zero: 35, full: 254 });
+/** The mask scales a stage's cover by at most this much (the most-overlap rule below). Estimate, SOF-39 (Fable review). */
+export const NT_MAX_GAIN = 1.5; // estimate, SOF-39
+/** Where the 37.5 NM grid has less than this cover (percent) in every stage, the picture's cloud has no height to stand at and is not drawn. Estimate, SOF-39. */
+export const NT_MIN_GRID_PCT = 5; // estimate, SOF-39
+/** A picture from a model run older than this is drawn at this share of its opacity: the 2D map's own stale share (STALE_ALPHA, map.js). */
+export const NT_OLD_FADE = 0.4;
+
+/**
+ * The total-cloud picture drawn onto a square canvas over the 3D area (`image` as getImageData gives, row 0 the north edge) as percent: { px, percent } with `percent` a
+ * Float32Array laid as the slab fields are (row 0 the south edge). A pixel's grey reads as percent by NT_GREY, times its own opacity (an edge pixel half see-through is half
+ * way to 0 %). Returns null for anything that is not a square picture of the right length.
+ */
+export function readTotalCloud(image) {
+  const px = image?.width;
+  if (!image?.data || !Number.isInteger(px) || px < 2 || image.height !== px || image.data.length !== px * px * 4) return null;
+  const percent = new Float32Array(px * px);
+  const { data } = image;
+  for (let row = 0; row < px; row++) {
+    const out = (px - 1 - row) * px;
+    for (let col = 0; col < px; col++) {
+      const k = (row * px + col) * 4;
+      const a = data[k + 3] / 255;
+      if (a <= 0) continue;
+      const grey = 0.2126 * data[k] + 0.7152 * data[k + 1] + 0.0722 * data[k + 2];
+      const pct = Math.min(100, Math.max(0, ((grey - NT_GREY.zero) / (NT_GREY.full - NT_GREY.zero)) * 100));
+      percent[out + col] = a * pct;
+    }
+  }
+  return { px, percent };
+}
+
+/**
+ * The slabs with the 2.5 km total cloud laid over them, the most-overlap rule (an estimate, SOF-39): the total cover of stacked layers is taken as the most of the three, so
+ * at each pixel each stage's cover is scaled by k = total / most (at most NT_MAX_GAIN) where the grid has at least NT_MIN_GRID_PCT somewhere in the column, and kept at
+ * most 100. Where the picture has `threshold` or less every stage is clear. Where the picture has cloud but the grid has less than NT_MIN_GRID_PCT in every stage, there is
+ * no height for it and nothing is drawn: `unplacedShare` (0 to 1 of the square) says how much. Returns { slabs, unplacedShare }; with no picture or one of another size, the
+ * slabs as they were and `unplacedShare` null.
+ */
+export function maskSlabs(slabs, total, { threshold = CLOUD_COVER_THRESHOLD_PCT, maxGain = NT_MAX_GAIN, minGridPct = NT_MIN_GRID_PCT } = {}) {
+  if (!slabs || !total || total.px !== slabs.px) return { slabs, unplacedShare: null };
+  const covers = STAGES.map((stage) => (slabs[stage] ? new Float32Array(slabs[stage].cover) : null));
+  let unplaced = 0;
+  for (let n = 0; n < total.percent.length; n++) {
+    const t = total.percent[n];
+    let most = 0;
+    for (const c of covers) if (c && c[n] > most) most = c[n];
+    if (!(t > threshold)) {
+      for (const c of covers) if (c) c[n] = 0;
+      continue;
+    }
+    if (most < minGridPct) {
+      unplaced += 1;
+      continue;
+    }
+    const k = Math.min(maxGain, Math.max(0, t / most));
+    for (const c of covers) if (c) c[n] = Math.min(100, c[n] * k);
+  }
+  const out = { ...slabs };
+  STAGES.forEach((stage, s) => {
+    if (slabs[stage]) out[stage] = { ...slabs[stage], cover: covers[s] };
+  });
+  return { slabs: out, unplacedShare: unplaced / total.percent.length };
+}

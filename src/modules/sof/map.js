@@ -19,7 +19,7 @@ import { createTileLayer, ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { createVncLayer, VNC_CHOICES, VNC_DEFAULT_ALIGN } from '../debrief/map2d/vnc.js';
 import { projectRoute, drawRoute } from '../debrief/map2d/overlays.js';
 import { ROUTES } from '../debrief/data/routes.js';
-import { LAYERS, getMapUrl, rainViewerTileUrl, REFRESH_MS } from './feeds.js';
+import { LAYERS, getMapUrl, rainViewerTileUrl, REFRESH_MS, feedAge } from './feeds.js';
 import { createImageFeed, createRadarFeed, extraMapUrl, feedLine, EXTRA_LAYERS } from './map-feeds.js';
 import { createLightningWatch, createTrafficFeed } from './map-loops.js';
 import { recolourLightning } from './map-lightning.js';
@@ -52,6 +52,11 @@ const HOVER_PX = 14;
 const MAX_REMEMBERED_REQUESTS = 12;
 /** The 3D view's pictures (radar, lightning, satellite) are asked for over the whole 450 NM square at about this many pixels across (the request adds a fifth), under the 2,048 the feeds allow. */
 const PICTURE_3D_PX = 900;
+/** The HRDPS total-cloud picture (the 3D slabs' 2.5 km detail) is asked for at 512 pixels across the square (the request adds a fifth to this): about 25 KB in under half a second (checked 7 Oct 2026). */
+const MODEL_CLOUD_PX = Math.round(512 / 1.2);
+/** It is asked for again once an hour (its layer has hourly times and a new run every 6 hours), and for a new hour as soon as the slider settles. Estimate, SOF-39. */
+const MODEL_CLOUD_REFRESH_MS = 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
 const OFFLINE_WORDS = 'Map and radar need a connection';
 const NO_WEBGL_WORDS = 'The 3D view needs WebGL, which this browser does not have. The map stays.';
 const NO_3D_LOAD_WORDS = 'The 3D view could not load (it needs a connection the first time). The map stays.';
@@ -163,6 +168,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     onAirspaceLogOptions: (options) => airspaceLog.setOptions(options), // the panel's two ticks: what the log records from now on
     now: () => +now(),
     onTrails: (trails) => change(setTrafficOption(layers, { trails })),
+    onModelHour: (ms) => setModelHour(ms), // the 3D slider's model hour: the HRDPS cloud picture follows it
     onLost() {
       if (!threeOn) return;
       threeOn = false;
@@ -271,8 +277,11 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     radar: createImageFeed({ layer: () => (layers.precip === 'snow' ? LAYERS.radarSnow : LAYERS.radarRain), kind: 'radar', urlFor: ecccUrl, decode, refreshMs: REFRESH_MS.radar, paused, ...shared }),
     lightning: createImageFeed({ layer: LAYERS.lightning, kind: 'lightning', urlFor: ecccUrl, decode: decodeLightning, refreshMs: REFRESH_MS.lightning, paused, ...shared }),
     cloud: createImageFeed({ layer: EXTRA_LAYERS.cloud, kind: 'cloud', urlFor: extraUrl, decode, refreshMs: REFRESH_MS.lightning, paused, ...shared }),
+    // HRDPS total cloud for the model hour shown (Fable review, 7 Oct): the 3D slabs' 2.5 km detail. Its own request (512 px, with the hour), not the others'.
+    modelCloud: createImageFeed({ layer: LAYERS.modelCloud, kind: 'modelCloud', urlFor: ecccUrl, decode, refreshMs: MODEL_CLOUD_REFRESH_MS, paused, ...shared }),
   };
   const requests3d = new Map(); // request key → the request, so a picture is laid where it was asked for
+  let modelHourMs = null; // the 3D slider's model hour (ms), or null before the model has answered: then the hour now
   const frontsFeed = createFrontsFeed({
     address: () => frontsUrl(settings.get().trafficRelay),
     paused: () => document.hidden,
@@ -287,10 +296,30 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
   /** Asks the 3D feeds for pictures over the square round home (a new home gives a new request). */
   function syncFeeds3d() {
     const half = AREA_FT / 2;
-    const request = radarImageRequest(cornersOf(projection, { minX: -half, minY: -half, maxX: half, maxY: half }), { width: PICTURE_3D_PX, height: PICTURE_3D_PX });
+    const corners = cornersOf(projection, { minX: -half, minY: -half, maxX: half, maxY: half });
+    const request = radarImageRequest(corners, { width: PICTURE_3D_PX, height: PICTURE_3D_PX });
     if (request) requests3d.set(request.key, request);
+    for (const [id, feed] of Object.entries(feeds3d)) if (id !== 'modelCloud') feed.setRequest(request);
+    syncModelCloud(corners);
     while (requests3d.size > MAX_REMEMBERED_REQUESTS) requests3d.delete(requests3d.keys().next().value);
-    for (const feed of Object.values(feeds3d)) feed.setRequest(request);
+  }
+  /** The HRDPS cloud picture's request: the square at MODEL_CLOUD_PX, at the model hour shown (the whole hour; now's hour before the model has answered). */
+  function syncModelCloud(corners) {
+    const half = AREA_FT / 2;
+    const base = radarImageRequest(corners ?? cornersOf(projection, { minX: -half, minY: -half, maxX: half, maxY: half }), { width: MODEL_CLOUD_PX, height: MODEL_CLOUD_PX });
+    if (!base) return feeds3d.modelCloud.setRequest(null);
+    const hour = new Date(Math.floor((modelHourMs ?? +now()) / HOUR_MS) * HOUR_MS);
+    const request = { ...base, time: hour, key: `${base.key}@${hour.toISOString().slice(0, 13)}Z` };
+    requests3d.set(request.key, request);
+    feeds3d.modelCloud.setRequest(request);
+  }
+  /** The 3D slider moved to another model hour (or the model came or went): a picture for that hour is asked for once the slider has settled (the feed's own delay). */
+  function setModelHour(ms) {
+    const next = Number.isFinite(ms) ? ms : null;
+    if (next === modelHourMs) return;
+    modelHourMs = next;
+    if (threeOn) syncModelCloud();
+    while (requests3d.size > MAX_REMEMBERED_REQUESTS) requests3d.delete(requests3d.keys().next().value);
   }
   function start3dFeeds() {
     syncFeeds3d();
@@ -729,11 +758,26 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     const radar = pic('radar');
     const lightning = pic('lightning');
     const satellite = pic('cloud');
+    // The HRDPS cloud picture for the slabs: the hour it is for, its model run, whether that run is old, and whether the last try failed (no status-strip line: the model panel says it).
+    const mc = feeds3d.modelCloud.state();
+    const mcReq = mc.image && mc.imageKey ? requests3d.get(mc.imageKey) : null;
+    const modelCloud = {
+      id: mcReq ? idOf(mc.image) : null,
+      image: mcReq ? mc.image : null,
+      bbox: mcReq ? mcReq.bbox : null,
+      time: mcReq && mc.layerTime ? +mc.layerTime : null,
+      referenceTime: mc.referenceTime ? +mc.referenceTime : null,
+      stale: mcReq ? feedAge({ kind: 'modelCloud', layerTime: mc.referenceTime, now: t }).stale : false,
+      failed: mc.failures > 0 && !mc.busy,
+      busy: mc.busy,
+      lastGoodAt: mc.fetchedAt ? +mc.fetchedAt : null,
+    };
+    parts.push(`modelCloud:${modelCloud.id}:${modelCloud.time}:${modelCloud.stale}:${modelCloud.failed}:${modelCloud.busy}`);
     const fs = frontsFeed.state();
     const fronts = { ...frontsView(fs, t), key: `${fs.lastGood?.receivedAt ?? 'none'}` };
     parts.push(`fronts:${fronts.status}:${fronts.key}`);
     lines.push({ id: 'fronts', text: fronts.words, symbol: fronts.status === 'ok' ? (fs.failed ? '⚠' : '✓') : fronts.status === 'loading' ? '⟳' : '⚠', tone: fronts.status === 'ok' && !fs.failed ? 'ok' : fronts.status === 'loading' ? 'busy' : 'bad' });
-    return { sig: parts.join('|'), radar, lightning, satellite, fronts, lines };
+    return { sig: parts.join('|'), radar, lightning, satellite, fronts, lines, modelCloud };
   }
 
   function stopThree() {
