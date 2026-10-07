@@ -868,7 +868,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     canvas.hidden = true;
     hideTip();
     pushScene();
-    modelFeed.start(); // asks for the model clouds and winds at once, then once an hour while the view is open
+    modelFeed.start(); // asks for the model clouds and winds at once, then when a newer HRDPS run can be out (about 0500, 1100, 1700, 2300Z) while the view is open
     start3dFeeds(); // and the 3D view's own radar, lightning and satellite pictures and the fronts, which also stop when it is closed
     pushModel();
     applyLayers();
