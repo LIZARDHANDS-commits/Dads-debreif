@@ -11,6 +11,8 @@
 // tests run without a network.
 
 const UPSTREAM = 'https://api.adsb.lol/v2/point';
+// adsb.lol refuses a generic User-Agent ("include valid contact info", seen 7 Oct 2026), so the relay names itself and the project page.
+const USER_AGENT = 'DadsOODALoop-SOF-traffic-relay/1.0 (+https://github.com/LIZARDHANDS-commits/Dads-debreif)';
 const TIMEOUT_MS = 8000;
 
 /** Origins allowed to read the relay from a browser: the live site and local development (vite's port). */
@@ -243,7 +245,7 @@ async function readCapped(res, max) {
 async function askUpstream(fetchFn, q) {
   const url = `${UPSTREAM}/${q.lat}/${q.lon}/${q.nm}`;
   const signal = typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(TIMEOUT_MS) : undefined;
-  const res = await fetchFn(url, { method: 'GET', headers: { accept: 'application/json' }, redirect: 'manual', signal });
+  const res = await fetchFn(url, { method: 'GET', headers: { accept: 'application/json', 'user-agent': USER_AGENT }, redirect: 'manual', signal });
   if (!res.ok) throw new Error('upstream status');
   const text = await readCapped(res, MAX_UPSTREAM_BYTES);
   let parsed;

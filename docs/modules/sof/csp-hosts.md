@@ -8,7 +8,8 @@ For the app frame thread, which owns `index.html` and the page's policy. `index.
 | | `https://datamask.org` | NOAA NWS reports for a station MET Norway lacks (task 2) |
 | | `https://geo.weather.gc.ca` | ECCC GeoMet: radar, radar coverage, lightning density, GOES cloud, warnings, and each layer's time (`GetCapabilities`) |
 | | `https://api.rainviewer.com` | RainViewer's list of radar frames, the radar backup |
-| | the traffic relay's origin | Live traffic (SOF-7). Not known yet: it is the address Patrick types into "Traffic relay address" in the SOF settings, e.g. `https://traffic.<name>.workers.dev`. Until there is a relay the layer is hidden and asks for nothing. Add the origin once it exists; the setting only accepts an `https://` address with nothing after the host (or `http://` on localhost). |
+| | `https://api.open-meteo.com` | Model clouds, winds aloft and freezing level for the 3D view (SOF-39 phase 2), asked only while the 3D view is open |
+| | the traffic relay's origin | Live traffic (SOF-7). Not known yet: it is the address Patrick types into "Traffic relay address" in the SOF settings, now on Netlify (SOF-40), e.g. `https://<site>.netlify.app`. Until there is a relay the layer is hidden and asks for nothing. Add the origin once it exists; the setting only accepts an `https://` address with nothing after the host (or `http://` on localhost). |
 | `img-src` | `'self'` | The VNC charts, once they move under the site |
 | | `https://services.arcgisonline.com` | Esri satellite tiles (`ui-kit/map-tiles.js`); also Traffic's photo layer (PR C) |
 | | `https://tilecache.rainviewer.com` | RainViewer radar tiles (the host in RainViewer's own list reply) |

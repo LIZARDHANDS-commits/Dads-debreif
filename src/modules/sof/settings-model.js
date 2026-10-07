@@ -20,6 +20,7 @@ const LOCAL = triggerLimits('local');
  * banner: the new-caution banner (V6's "New-alert caution box"); its switch is in the menu (task 3).
  * lightningNm: the radius for lightning near home (V6's `lightningNm`), used from task 7.
  * trafficRelay: the address of our traffic relay (SPEC-sof, Live traffic layer); empty, so the Traffic layer is hidden.
+ * heightScale3d: how many times taller than the ground the 3D view draws heights (SOF-39); 5 is an estimate for readability, not from a source.
  */
 export const SETTINGS_DEFAULTS = Object.freeze({
   ceilingFt: LOCAL.ceilingFt,
@@ -27,6 +28,7 @@ export const SETTINGS_DEFAULTS = Object.freeze({
   banner: true,
   lightningNm: 20,
   trafficRelay: '',
+  heightScale3d: 5,
 });
 
 /** The hint under the banner switch. Lightning near home is not on the airfield cards (it is not a report), so it says where it shows instead (F6). */
@@ -43,6 +45,7 @@ const RANGES = Object.freeze({
   ceilingFt: { min: 0, max: 10000, step: 100 },
   visSm: { min: 0, max: 10, step: 0.25 },
   lightningNm: { min: 5, max: 50, step: 1 },
+  heightScale3d: { min: 1, max: 20, step: 1 }, // SOF-39: 1 to 20 times
 });
 
 const isNumber = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -74,6 +77,7 @@ export function cleanSettings(values, { snap = true } = {}) {
   if (inRange('ceilingFt', v.ceilingFt)) out.ceilingFt = snap ? snapCeiling(v.ceilingFt) : v.ceilingFt;
   if (inRange('visSm', v.visSm)) out.visSm = snap ? snapVisibility(v.visSm) : v.visSm;
   if (inRange('lightningNm', v.lightningNm)) out.lightningNm = v.lightningNm;
+  if (inRange('heightScale3d', v.heightScale3d)) out.heightScale3d = v.heightScale3d;
   if (typeof v.banner === 'boolean') out.banner = v.banner;
   if (typeof v.trafficRelay === 'string' && v.trafficRelay.length <= MAX_RELAY_CHARS) out.trafficRelay = snap ? v.trafficRelay.trim() : v.trafficRelay;
   return Object.freeze(out);

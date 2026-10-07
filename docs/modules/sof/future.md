@@ -5,7 +5,7 @@ Ideas for the SOF that are not being built. An idea moves into `plan.md` only wi
 ## Decided for the future list by Patrick (4 Oct)
 
 - Large text for a desk screen across the room, the NATO colour chart, and the "Runway view" and "Lightning map" links: left out of the essentials-now list (`pf/reset/1-requirements/questions.md:65`).
-- Live traffic on our own map through a small relay (a Cloudflare worker, code already in `relay/`): the ADS-B Exchange switch stays; the relay layer waits for an account Patrick owns; it was queued as PPQ-12 (`pf/reset/1-requirements/questions.md:72`, `archive/docs/records/verification/swarm/POST_PROTOTYPE_QUEUE.md:56`, `archive/HANDOVER.md:112`).
+- Live traffic on our own map through a small relay: **now on the plan** (Step 2b phase 4) and running on Dad's Netlify account (SOF-40, 7 Oct). Was: a Cloudflare worker, code already in `relay/`; the ADS-B Exchange switch stays; the relay layer waits for an account Patrick owns; it was queued as PPQ-12 (`pf/reset/1-requirements/questions.md:72`, `archive/docs/records/verification/swarm/POST_PROTOTYPE_QUEUE.md:56`, `archive/HANDOVER.md:112`).
 - NOTAMs on the SOF's detail pages: they need the relay too, so they wait (`pf/reset/1-requirements/questions.md:79`).
 - A beep when a new caution appears (`pf/reset/1-requirements/questions.md:67`).
 - Wind checks (SOF-R27, decision SOF-37): crosswind per runway (amber over 15 kt dry, 10 wet, 5 icy; red over 25 kt dry), a 30 kt wind or gust warning and a 35 kt cease-flying caution, each an editable setting with its page reference. Moved here by Patrick on 4 Oct 09:22Z; it was on the plan from his SOF-Q15 answer (00:56Z). Also Feature Ideas item 8.
@@ -17,7 +17,7 @@ Ideas for the SOF that are not being built. An idea moves into `plan.md` only wi
 ## Asked by Dad (6 Oct)
 
 - **Live aircraft plotted on our own map** from ADS-B sites. This is the relay layer above (SOF-R17, SOF-7); it still waits on whose account runs the relay. V6 used Dad's own Netlify function for this (`v6/sof.html:727`), so that account is one option to put to Patrick.
-- **A 3D SOF picture, like the pattern sim:** Moose Jaw's airspace drawn in 3D, with clouds, fronts, storms, radar and winds, and live aircraft in it. Clouds are built from reported and forecast bases and tops and the low, medium and high layers. Long-term goal; not proposed to Patrick yet. It needs new outside data sources, so it waits for his yes.
+- **Moved to the plan (Step 2b, SOF-39) on 7 Oct.** Fronts on the 3D view stay here until a free data source is found. Was: **A 3D SOF picture, like the pattern sim:** Moose Jaw's airspace drawn in 3D, with clouds, fronts, storms, radar and winds, and live aircraft in it. Clouds are built from reported and forecast bases and tops and the low, medium and high layers. Long-term goal; not proposed to Patrick yet. It needs new outside data sources, so it waits for his yes.
 
 ## Feature Ideas for the SOF
 

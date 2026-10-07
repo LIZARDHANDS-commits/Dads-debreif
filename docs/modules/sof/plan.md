@@ -23,6 +23,15 @@ How to read this plan: steps are in the order to do them. Only what is in a step
 - [ ] Fix map labels piling up at the default zoom (SOF-R14, SOF-R28); keep the extra map layers (VNC chart bases, GOES satellite cloud, Environment Canada warnings, training routes, radar-coverage hatching), each off by default except radar coverage (SOF-Q11, keep all) (`pf/reset/1-requirements/requirements.md:154`, `pf/reset/1-requirements/questions.md:74`).
 - [ ] Keep the ADS-B Exchange switch; the relay layer on our own map is on the future list (SOF-Q9) (`pf/reset/1-requirements/requirements.md:156`).
 
+## Step 2b. 3D view of the weather (SOF-39)
+
+Dad and Patrick agreed it on 7 Oct. Each phase is its own pull request and is usable on its own. The spec is "3D view" in `spec.md`.
+
+- [ ] **Phase 1, the scene (tonight):** a **3D** button in the map controls swaps the map area for a 3D view and back, as the ADS-B Exchange view does. In it: the satellite ground round home (the map's own tiles), home and the alternates as coloured pins with their ICAO and category, the 25 and 50 NM rings, each airfield's METAR cloud layers as flat decks at their reported bases, the latest radar and lightning pictures laid on the ground, and an orbit camera (drag to turn, wheel to zoom, Home to reset). Heights are exaggerated ×5 by default (a setting, 1 to 20), and the view says so.
+- [ ] **Phase 2, model clouds and winds:** a grid of points over the area from Open-Meteo's GEM model: cloud cover at each pressure level with its height, so clouds get real bases and tops and the low, mid and high layers show; winds at 850, 700 and 500 hPa as barbs at their heights; the freezing level as a faint sheet. A time slider follows the timeline (now by default, up to 24 h ahead).
+- [ ] **Phase 3, airspace:** the Moose Jaw control zone, the training areas and the routes the Debrief already carries, drawn as see-through volumes. Waits for floors and ceilings with a source (Patrick or the chart/CFS page); until then the routes show flat on the ground.
+- [ ] **Phase 4, live aircraft:** the traffic relay's aircraft as small models at their altitude with callsign tags, on the relay running on Dad's Netlify account (SOF-40). The 2D traffic layer comes on at the same time, when its address goes into SOF settings.
+
 ## Step 3. Build the safety and limits gaps between decided and built
 
 - [ ] Amber "Incomplete" for any airfield whose approaches or landing minima are not filled in, never a green tick, including a PROB group below the alternate limits with minima unset (old decision D388, new decision SOF-32; SOF-R12). The code does not do it yet (`pf/reset/4-decisions/partb-sof.md:74`, `pf/reset/1-requirements/requirements.md:144`, `src/wx/alternates.js:163`).

@@ -14,8 +14,8 @@ import { SETTINGS_DEFAULTS, TRIGGER_OPTIONS, BANNER_HINT, MAX_RELAY_CHARS, relay
 
 const fresh = () => createSofSettings(createStore(null).scope('sof'));
 
-test('every setting starts at its default: Local (MTCA) 2000/3, banner on, lightning 20 NM, no traffic relay', () => {
-  assert.deepEqual({ ...fresh().get() }, { ceilingFt: 2000, visSm: 3, banner: true, lightningNm: 20, trafficRelay: '' });
+test('every setting starts at its default: Local (MTCA) 2000/3, banner on, lightning 20 NM, no traffic relay, 3D heights x5', () => {
+  assert.deepEqual({ ...fresh().get() }, { ceilingFt: 2000, visSm: 3, banner: true, lightningNm: 20, trafficRelay: '', heightScale3d: 5 });
 });
 
 test('the trigger options are named from the numbers they fill in (D59, D111)', () => {
@@ -121,7 +121,7 @@ test('stored settings out of range or of the wrong type fall back to their defau
 test('a stored value in range but not on the step is snapped up, and one on the range is kept', () => {
   const store = createStore(null).scope('sof');
   store.set('settings', { version: 1, values: { ceilingFt: 2049, visSm: 2.8, lightningNm: 50, banner: false } });
-  assert.deepEqual({ ...createSofSettings(store).get() }, { ceilingFt: 2100, visSm: 3, banner: false, lightningNm: 50, trafficRelay: '' });
+  assert.deepEqual({ ...createSofSettings(store).get() }, { ceilingFt: 2100, visSm: 3, banner: false, lightningNm: 50, trafficRelay: '', heightScale3d: 5 });
 });
 
 test('an update with an out-of-range number is dropped; the rest of it applies', () => {

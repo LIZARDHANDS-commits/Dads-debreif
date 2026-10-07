@@ -1783,3 +1783,318 @@ main[data-module='sof'] {
     padding-bottom: 0.9rem;
   }
 }
+
+/*
+ * The 3D view of the weather (SOF-39) takes the map's place, as the ADS-B Exchange view does. The labels are words over the picture:
+ * a pin says its airfield and category (never colour alone), a deck says its cover and base, and the colours are only a second cue.
+ * The labels stay readable on any ground, so they carry their own dark backing.
+ */
+[data-module='sof'] .sof-3d {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--bg-sunken);
+}
+
+[data-module='sof'] .sof-3d[hidden],
+[data-module='sof'] .sof-3d-note[hidden],
+[data-module='sof'] .sof-3d-tag[hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-3d-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+[data-module='sof'] .sof-3d-canvas.is-dragging {
+  cursor: grabbing;
+}
+
+[data-module='sof'] .sof-3d-labels {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+[data-module='sof'] .sof-3d-labels > * {
+  position: absolute;
+  top: 0;
+  left: 0;
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-3d-pin {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 2px var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-left-width: 4px;
+  border-radius: var(--radius);
+  background: rgb(5 10 18 / 0.85);
+  color: #e3eef5;
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+[data-module='sof'] .sof-3d-pin[data-key='VFR'] {
+  border-left-color: var(--sof-vfr);
+}
+
+[data-module='sof'] .sof-3d-pin[data-key='MVFR'] {
+  border-left-color: var(--sof-mvfr);
+}
+
+[data-module='sof'] .sof-3d-pin[data-key='IFR'] {
+  border-left-color: var(--sof-ifr);
+}
+
+[data-module='sof'] .sof-3d-pin[data-key='LIFR'] {
+  border-left-color: var(--sof-lifr);
+}
+
+[data-module='sof'] .sof-3d-pin[data-key='none'] {
+  border-left-color: var(--text-muted);
+}
+
+[data-module='sof'] .sof-3d-pin[aria-pressed='true'] {
+  border-color: var(--accent-strong);
+  box-shadow: 0 0 0 1px var(--accent-strong);
+}
+
+[data-module='sof'] .sof-3d-pin-main {
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+[data-module='sof'] .sof-3d-pin-extra {
+  color: #b8cfdb;
+}
+
+[data-module='sof'] .sof-3d-deck-label,
+[data-module='sof'] .sof-3d-ring-label {
+  padding: 0 var(--space-1);
+  border-radius: 3px;
+  background: rgb(5 10 18 / 0.75);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-3d-deck-label {
+  color: #f2f7fb;
+}
+
+[data-module='sof'] .sof-3d-ring-label {
+  color: var(--accent-strong);
+}
+
+[data-module='sof'] .sof-3d-corner,
+[data-module='sof'] .sof-3d-outside,
+[data-module='sof'] .sof-3d-credit,
+[data-module='sof'] .sof-3d-note,
+[data-module='sof'] .sof-3d-tag {
+  position: absolute;
+  margin: 0;
+  border-radius: var(--radius);
+  background: rgb(5 10 18 / 0.85);
+  color: #e3eef5;
+  font-size: var(--text-sm);
+}
+
+[data-module='sof'] .sof-3d-corner {
+  top: var(--space-2);
+  right: var(--space-2);
+  padding: 2px var(--space-2);
+  font-weight: 700;
+}
+
+[data-module='sof'] .sof-3d-outside {
+  top: calc(var(--space-2) + 1.7rem);
+  right: var(--space-2);
+  max-width: 16rem;
+  padding: 2px var(--space-2);
+}
+
+[data-module='sof'] .sof-3d-outside[hidden] {
+  display: none;
+}
+
+/* The bottom left is a stack: the model controls (phase 2) above the ground's credit. */
+[data-module='sof'] .sof-3d-bottom {
+  position: absolute;
+  bottom: var(--space-1);
+  left: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  max-width: calc(100% - 2 * var(--space-2));
+  max-height: calc(100% - 2 * var(--space-2));
+  pointer-events: none;
+}
+
+[data-module='sof'] .sof-3d-credit {
+  position: static;
+  max-width: 100%;
+  padding: 0 var(--space-2);
+  color: #b8cfdb;
+}
+
+[data-module='sof'] .sof-3d-model {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: min(34rem, 100%);
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: rgb(5 10 18 / 0.85);
+  color: #e3eef5;
+  font-size: var(--text-sm);
+  pointer-events: auto;
+}
+
+[data-module='sof'] .sof-3d-model [hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-3d-model p {
+  margin: 0;
+}
+
+[data-module='sof'] .sof-3d-model-status.is-bad,
+[data-module='sof'] .sof-3d-model-warn {
+  padding: 2px var(--space-2);
+  border: 1px solid var(--caution);
+  border-radius: var(--radius);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-3d-model-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+[data-module='sof'] .sof-3d-model-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+/* The one "on" look: an accent border and a light accent tint, with aria-pressed (screen-layout-and-style, section 4). */
+[data-module='sof'] .sof-3d-toggle {
+  min-height: 1.75rem;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: transparent;
+  color: #e3eef5;
+  font: inherit;
+  cursor: pointer;
+}
+
+[data-module='sof'] .sof-3d-toggle[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: rgb(66 191 233 / 0.22);
+}
+
+[data-module='sof'] .sof-3d-slider {
+  flex: 1 1 8rem;
+  min-width: 6rem;
+}
+
+[data-module='sof'] .sof-3d-model-time {
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+[data-module='sof'] .sof-3d-model-note,
+[data-module='sof'] .sof-3d-model-credit {
+  color: #b8cfdb;
+}
+
+[data-module='sof'] .sof-3d-model-key summary {
+  cursor: pointer;
+}
+
+[data-module='sof'] .sof-3d-model-key[open] {
+  flex: 1 1 100%;
+}
+
+[data-module='sof'] .sof-3d-model-key-body {
+  max-height: 9rem;
+  overflow-y: auto;
+  color: #b8cfdb;
+}
+
+[data-module='sof'] .sof-3d-model-key-body ul {
+  margin: 0 0 var(--space-1);
+  padding-left: var(--space-3);
+}
+
+[data-module='sof'] .sof-3d-model-label {
+  padding: 0 var(--space-1);
+  border-radius: 3px;
+  background: rgb(5 10 18 / 0.75);
+  color: #ffe9a8;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-3d-model-label.is-freezing {
+  color: #9fe3ff;
+}
+
+[data-module='sof'] .sof-3d-model-label[hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-3d-note {
+  top: var(--space-2);
+  left: var(--space-2);
+  max-width: calc(100% - 9rem);
+  padding: 2px var(--space-2);
+  border: 1px solid var(--caution);
+  font-weight: 600;
+}
+
+/* Where a pin's result line shows: beside the pin, never moving the camera. */
+[data-module='sof'] .sof-3d-tag {
+  top: 0;
+  left: 0;
+  z-index: 2;
+  max-width: 20rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  pointer-events: none;
+}
+
+/* A notice about the 3D view sits under the map's own message, so the two never cover each other. */
+[data-module='sof'] .sof-map-notice {
+  top: calc(var(--space-2) + 2.6rem);
+  max-width: 24rem;
+}
+
+[data-module='sof'] .sof-map-notice[hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-map-btn[data-unavailable='true'] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
