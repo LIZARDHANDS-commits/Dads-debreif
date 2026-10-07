@@ -1,5 +1,5 @@
 // The SOF's 3D view of the weather (SPEC-sof, "3D view", SOF-39, phase 1): the map area swapped for a three.js picture of
-// the 150 NM round home. The satellite picture is the ground, with the radar and lightning pictures the 2D map already holds laid
+// the 250 NM square round home. The satellite picture is the ground, with the radar and lightning pictures the 2D map already holds laid
 // on it; home and the alternates stand on it as pins with their category in words; the METAR cloud layers hang over them as flat
 // round decks at their reported bases; the 25 and 50 NM rings run round home. It is for situational awareness only: it checks no
 // limit and never raises or clears a caution.
@@ -21,10 +21,10 @@ import { cornersOf, RING_NM, FT_PER_NM } from './map-view.js';
 import { drawGeoImage } from './map-draw.js';
 import { BASE_DIM } from './map-layers.js';
 import {
-  AREA_FT, DECK_FT, CATEGORY_TOKENS, START_CAMERA, ZOOM_STEP, KEY_ORBIT_PX, fitZoom, orbitBy, zoomCamera, sceneSignature,
+  AREA_NM, AREA_FT, DECK_FT, CATEGORY_TOKENS, START_CAMERA, ZOOM_STEP, KEY_ORBIT_PX, fitZoom, orbitBy, zoomCamera, sceneSignature,
 } from './scene3d-model.js';
 
-/** The ground picture is one square canvas this many pixels across (about 890 ft a pixel over 150 NM). */
+/** The ground picture is one square canvas this many pixels across (about 1,480 ft a pixel over 250 NM). */
 const GROUND_PX = 1024;
 /** The Esri tiles are asked for no finer than this zoom: about 16 to 25 tiles for the whole square, so it loads fast. An estimate. */
 const GROUND_ZOOM = 8;
@@ -584,7 +584,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
       airfields = next;
       const far = next.filter((a) => a.outside).map((a) => a.icao);
       outside.hidden = far.length === 0;
-      setText(outside, far.length ? `Not shown, outside this 150 NM square: ${far.join(', ')}` : '');
+      setText(outside, far.length ? `Not shown, outside this ${AREA_NM} NM square: ${far.join(', ')}` : '');
       if (heightScale !== scale) {
         scale = heightScale;
         setCorner();

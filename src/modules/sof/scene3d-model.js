@@ -6,8 +6,8 @@
 // and nothing in it raises or clears a caution.
 import { FT_PER_NM } from './map-view.js';
 
-/** The square the view shows: 150 NM on a side, centred on home (SOF-39). */
-export const AREA_NM = 150;
+/** The square the view shows: 250 NM on a side, centred on home, so the usual alternates (CYYN, CYXE about 110 NM out) are inside (SOF-39). */
+export const AREA_NM = 250;
 export const AREA_FT = AREA_NM * FT_PER_NM;
 /** A cloud deck is a flat round disc this wide at its base (SOF-39). */
 export const DECK_NM = 10;
