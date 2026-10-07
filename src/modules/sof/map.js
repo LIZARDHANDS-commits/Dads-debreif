@@ -68,13 +68,13 @@ const ecccUrl = ({ layer, request, time }) => getMapUrl({ layer, bbox: request.b
 const extraUrl = ({ layer, request, time }) => extraMapUrl({ layer, bbox: request.bbox, width: request.width, height: request.height, time });
 
 /**
- * app: the module's app object (scheduler, storage, time, airfields, listen). settings: createSofSettings.
+ * app: the module's app object (scheduler, storage, time, airfields, listen). settings: createSofSettings. view3dSettings: createView3dSettings (the 3D cloud style), or left out (slabs).
  * onLightning: called when the near-home lightning caution changes (so the banner can be redrawn). fullScreen: fullscreen.js's object, shared with the 3D view:
  * the map bar's Full screen button (2D) and the 3D view's own both toggle it (the whole SOF picture, with the airfield column and the timeline strip).
  * Returns { element, credits, update({ snapshot, screen, alerts }), lightning(now), wake(), dispose() }. `credits` is the line of the map's
  * credits, for the screen's Sources note (the map keeps no height for it).
  */
-export function createSofMap({ app, settings, onLightning = () => {}, fullScreen = null }) {
+export function createSofMap({ app, settings, view3dSettings = null, onLightning = () => {}, fullScreen = null }) {
   const timers = app.scheduler;
   const now = () => app.time.now();
   const fetchNet = (url, init) => globalThis.fetch(url, init);
@@ -599,7 +599,7 @@ export function createSofMap({ app, settings, onLightning = () => {}, fullScreen
   /** What the 3D view is given: each airfield's pin words, colour and METAR cloud decks, and the height scale. */
   function pushScene() {
     if (!scene3d) return;
-    view3d.setScene({ airfields: sceneAirfields({ ...scene3d, toXY: projection.toXY }), heightScale: settings.get().heightScale3d });
+    view3d.setScene({ airfields: sceneAirfields({ ...scene3d, toXY: projection.toXY }), heightScale: settings.get().heightScale3d, cloudStyle: view3dSettings?.get().cloudStyle3d ?? 'slabs' });
   }
 
   /** The SIGMETs, AIRMETs and PIREPs for the 3D view (alerts.js `alerts3dView`), their SFC at home's elevation as the 3D ground. Built again there only when they change. */

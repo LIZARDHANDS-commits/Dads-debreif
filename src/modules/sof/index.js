@@ -5,7 +5,7 @@
 // when the module closes, because every timer is on the module's scheduler scope and every request is
 // cancelled by unmount (R4, audit #11).
 import { h } from '../../ui-kit/dom.js';
-import { createSofSettings, createCrosswindSettings } from './settings-model.js';
+import { createSofSettings, createCrosswindSettings, createView3dSettings } from './settings-model.js';
 import { crosswindFor } from './crosswind.js';
 import { createSettingsView } from './settings-view.js';
 import { createWeather } from './weather.js';
@@ -36,9 +36,10 @@ function mount(root, app) {
 
   const settings = createSofSettings(app.storage);
   const crosswind = createCrosswindSettings(app.storage); // the crosswind levels and the runway state (SOF-43), in their own stored document
+  const view3d = createView3dSettings(app.storage); // the 3D view's cloud style (SOF-39), in its own stored document
   // The drop-downs over the screen (SOF settings, the clocks, the caution list, a wave's boxes): one open at a time (SOF-38).
   const dropdowns = createDropdowns({ listen: app.listen });
-  const settingsView = createSettingsView({ settings, crosswind, onToggle: () => ui.closeSettings() });
+  const settingsView = createSettingsView({ settings, crosswind, view3d, onToggle: () => ui.closeSettings() });
   const weather = createWeather({
     stations: () => app.airfields.stations(),
     fetch: (url, init) => globalThis.fetch(url, init),
@@ -49,7 +50,7 @@ function mount(root, app) {
   });
   // Full screen holds the whole SOF picture (Dad, 7 Oct): the map (2D or 3D), the airfield column and the timeline strip. One state, shared by the 2D and 3D buttons.
   const fullScreen = createFullScreen({ target: () => ui.body, listen: app.listen });
-  const map = createSofMap({ app, settings, onLightning: () => render(), fullScreen });
+  const map = createSofMap({ app, settings, view3dSettings: view3d, onLightning: () => render(), fullScreen });
   // NOTAMs for home and the alternates, through the relay (SOF-42): every 5 minutes while open, paused while the tab is hidden. They need the relay address.
   const notamFeed = createNotamFeed({
     address: () => notamUrl({ baseUrl: settings.get().trafficRelay, sites: app.airfields.stations() }),
@@ -188,6 +189,7 @@ function mount(root, app) {
   const stops = [
     settings.subscribe(render),
     crosswind.subscribe(render),
+    view3d.subscribe(render),
     plan.subscribe(render),
     ...(app.settings ? [app.settings.subscribe(render)] : []), // the app-wide time order (Zulu or local first) sets the timeline's axis
     // New stations mean a new list to ask for; anything else (minima, names) only changes the cards.

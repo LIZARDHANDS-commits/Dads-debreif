@@ -11,7 +11,7 @@
 import { h } from '../../ui-kit/dom.js';
 import { drawGeoImage } from './map-draw.js';
 import { AREA_FT } from './scene3d-model.js';
-import { windGrid, sampleWind, cloudSheetLevels, cloudColumnAt } from './model-clouds.js';
+import { windGrid, sampleWind, cloudSheetLevels, cloudColumnAt, CLOUD_COVER_THRESHOLD_PCT } from './model-clouds.js';
 import { formatFeet } from './scene3d-model.js';
 import {
   CELL_PX, CELL_SUPERSAMPLE, SATELLITE_PX, SATELLITE_DEFAULT_FT, RADAR_DEFAULT_AGL_FT, LIGHTNING_DEFAULT_AGL_FT, FRONT_WALL_FT, FLOW_PARTICLES, FLOW_STEP_MS,
@@ -33,7 +33,9 @@ const SHEET_FADE_MIN = 0.2;
 
 /**
  * T: three.js; scene; timers (a scheduler scope); win (the window: its document makes the canvases); labels (the element the H and L marks go in); requestRender(); reducedMotion().
- * Returns { update({ weather, model, hour, scale, groundFt, projection, terrain }), setToggles(toggles), items(), summary(), credit(), dispose() }.
+ * Returns { update({ weather, model, hour, scale, groundFt, projection, terrain, clouds }), setToggles(toggles), items(), summary(), credit(), dispose() }.
+ * - clouds (optional): the cloud slabs' own heights when the view draws slabs (Fable review, 7 Oct): { key, column(u, v), topFt } where `column` stands in for the
+ *   per-level `cloudColumnAt` (cloud-field.js `slabColumnAt`), `topFt` is the highest slab top (the satellite sheet's height, or null) and `key` changes when they do.
  * - weather: { radar, lightning, satellite } each null or { id, image, bbox, stale, on }, and { fronts } as fronts.js `frontsView` (status, data, words); see map.js `weather3d`.
  * - model (model-clouds.js, or null) and `hour`: the cloud levels and winds behind the heights and the flow.
  * - items(): the H and L marks to place: [{ el, point: { x, y, z }, kind }]. summary(): what is drawn, for the key.
@@ -164,15 +166,15 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
 
   return {
     /** The layers, rebuilt only where what they are made from changed. See the factory's words. */
-    update({ weather, model, hour, scale, groundFt, projection, terrain = null }) {
-      const modelKey = model ? `${model.id}|${hour}` : 'none';
+    update({ weather, model, hour, scale, groundFt, projection, terrain = null, clouds = null }) {
+      const modelKey = model ? `${model.id}|${hour}|${clouds ? clouds.key : 'levels'}` : 'none';
       const common = `${scale}|${groundFt}|${projection.lat},${projection.lon}`;
       // The layers that stand on the ground (shafts, bolts, fronts) follow the real terrain when the view has it: `terrain` is { heightFt(x, y), key }, and they are made again
       // when its key changes (more tiles, the Terrain switch). The cloud sheets, satellite sheet and flow are at heights above sea level and ignore it.
       const standing = `${common}|${terrain ? terrain.key : 'flat'}`;
       const groundAt = terrain ? terrain.heightFt : null;
-      const levels = model ? cloudSheetLevels(model, hour) : [];
-      const column = (u, v) => cloudColumnAt(levels, u, v, groundFt);
+      const levels = model && !clouds ? cloudSheetLevels(model, hour) : [];
+      const column = model && clouds ? clouds.column : (u, v) => cloudColumnAt(levels, u, v, groundFt);
       const cellsOf = (picture, accept) => {
         const read = readPicture(picture, projection, CELL_PX * CELL_SUPERSAMPLE);
         return read ? pictureCells(reduceToCells(read.image, CELL_SUPERSAMPLE, accept)) : null;
@@ -208,10 +210,12 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
         return buildBolts(T, { bolts: list, scale });
       });
 
-      // The satellite sheet: at the highest model cloud level present, else SATELLITE_DEFAULT_FT
+      // The satellite sheet: at the highest model cloud level present (the highest slab top with slabs), else SATELLITE_DEFAULT_FT
       const sat = weather.satellite;
       const satOn = Boolean(sat && sat.image && sat.on !== false);
-      const highest = levels.filter((l) => l.heightFt > groundFt && l.maxCover > 30).map((l) => l.heightFt);
+      const highest = model && clouds
+        ? (clouds.topFt === null ? [] : [clouds.topFt])
+        : levels.filter((l) => l.heightFt > groundFt && l.maxCover > CLOUD_COVER_THRESHOLD_PCT).map((l) => l.heightFt);
       const sheetFt = highest.length ? Math.max(...highest) : SATELLITE_DEFAULT_FT;
       place('satellite', satOn ? `${sat.id}|${sat.stale}|${Math.round(sheetFt)}|${common}` : 'off', () => {
         if (!satOn) {
@@ -221,7 +225,7 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
         const read = readPicture(sat, projection, SATELLITE_PX);
         if (!read) return null;
         const { data, drawn } = satellitePixels(read.image);
-        facts.satellite = { heightFt: sheetFt, modelHeight: highest.length > 0, drawn, stale: sat.stale === true };
+        facts.satellite = { heightFt: sheetFt, modelHeight: highest.length > 0, slabs: Boolean(model && clouds), drawn, stale: sat.stale === true };
         if (!drawn) return null;
         if (sat.stale) for (let n = 3; n < data.length; n += 4) data[n] = Math.round(data[n] * STALE_SHARE);
         read.ctx.putImageData(new win.ImageData(data, SATELLITE_PX, SATELLITE_PX), 0, 0);
@@ -301,7 +305,7 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
 export function weatherKeyWords(summary, scale) {
   const out = [];
   if (summary.satellite) {
-    out.push(`Satellite: ECCC's GOES-West picture (day visible, night infrared) laid as a faint sheet where it is bright (cloud) at ${formatFeet(Math.round(summary.satellite.heightFt / 100) * 100)} ft${summary.satellite.modelHeight ? ', the highest model cloud level' : ` (${formatFeet(SATELLITE_DEFAULT_FT)} ft where the model has no cloud: an estimate)`}.${summary.satellite.stale ? ' STALE: drawn fainter.' : ''}`);
+    out.push(`Satellite: ECCC's GOES-West picture (day visible, night infrared) laid as a faint sheet where it is bright (cloud) at ${formatFeet(Math.round(summary.satellite.heightFt / 100) * 100)} ft${summary.satellite.modelHeight ? (summary.satellite.slabs ? ', the highest model cloud top' : ', the highest model cloud level') : ` (${formatFeet(SATELLITE_DEFAULT_FT)} ft where the model has no cloud: an estimate)`}.${summary.satellite.stale ? ' STALE: drawn fainter.' : ''}`);
   }
   if (summary.radar) {
     out.push(`Radar: a see-through column for each radar cell (about 5 NM), in the radar's colour, from the ground up to the model cloud base above it${summary.radar.withModelTop < summary.radar.count ? `, or ${formatFeet(RADAR_DEFAULT_AGL_FT)} ft above the ground where the model has no cloud (an estimate)` : ''}. ${summary.radar.count} drawn. Not drawn when the radar picture is stale.`);

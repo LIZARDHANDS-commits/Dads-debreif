@@ -187,3 +187,42 @@ export function createCrosswindSettings(store) {
     subscribe: (fn) => inner.subscribe(() => fn(cleanCrosswind(inner.get()))),
   };
 }
+
+// ---- The 3D view's cloud style (SOF-39; Fable review, 7 Oct) ----------------------------------------------------------
+
+/**
+ * How the 3D view draws the model's cloud: 'slabs' (the default: each stage as a slab with a base and a top per model column) or 'levels' (the old style: one flat
+ * sheet at each pressure level's mean height). Kept behind the setting "3D cloud style" so the old sheets stay reachable.
+ */
+export const CLOUD_STYLES = Object.freeze([
+  Object.freeze({ value: 'slabs', label: 'Slabs with a base and top' }),
+  Object.freeze({ value: 'levels', label: 'One sheet per model level (old)' }),
+]);
+const STYLE_VALUES = Object.freeze(CLOUD_STYLES.map((s) => s.value));
+export const VIEW3D_DEFAULTS = Object.freeze({ cloudStyle3d: 'slabs' });
+
+/** The 3D view's settings checked: a style not offered is the default. */
+export function cleanView3d(values) {
+  const v = values ?? {};
+  return Object.freeze({ cloudStyle3d: STYLE_VALUES.includes(v.cloudStyle3d) ? v.cloudStyle3d : VIEW3D_DEFAULTS.cloudStyle3d });
+}
+
+/**
+ * The 3D view's cloud style, kept in its own document in the SOF's storage ("view3d"), apart from the settings above so those stay as they were (as the crosswind
+ * settings are). { get, update, reset, subscribe } like createSofSettings; a value not offered is dropped on the way in and is the default on the way out.
+ */
+export function createView3dSettings(store) {
+  const renamed = {
+    get: (name, fallback) => store.get(name === 'settings' ? 'view3d' : name, fallback),
+    set: (name, value) => store.set(name === 'settings' ? 'view3d' : name, value),
+  };
+  const inner = createSettings(renamed, VIEW3D_DEFAULTS, { allowed: { cloudStyle3d: [...STYLE_VALUES] } });
+  return {
+    get: () => cleanView3d(inner.get()),
+    update(patch = {}) {
+      if (STYLE_VALUES.includes(patch.cloudStyle3d)) inner.update({ cloudStyle3d: patch.cloudStyle3d });
+    },
+    reset: () => inner.reset(),
+    subscribe: (fn) => inner.subscribe(() => fn(cleanView3d(inner.get()))),
+  };
+}

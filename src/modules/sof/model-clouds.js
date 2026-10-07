@@ -40,9 +40,11 @@ export const CLOUD_LEVELS_HPA = Object.freeze([1000, 925, 850, 700, 600, 500, 40
  * endpoint: it answered cloud cover and geopotential height at 1000, 950, 925, 900, 850, 800, 750, 700, 650, 600, 550, 500, 450, 400, 350, 300 and 250 hPa;
  * 975 hPa came back all null (so it is never asked for) and `freezing_level_height` is null for HRDPS (the freezing level comes from a small global GEM request,
  * see `FREEZING_STEP`). Asking for all 17 levels at 169 points took over a minute to stream (HRDPS is slow, about 0.5 s a point with 17 levels; the global GEM
- * answers the same grid in about 5 s), so these 12 are asked for, an estimate for a wait of about 40 s: 650, 550, 450 and 350 hPa are left out.
+ * answers the same grid in about 5 s), so these 13 are asked for, an estimate for a wait of about 40 s: 650, 550, 450 and 350 hPa are left out. 925 hPa (about 2,600 ft
+ * above sea level, some 700 ft above the Moose Jaw field) was added back on 7 Oct (Fable review, SOF-39): it answered, and between 950 and 900 it gives the low cloud's base
+ * one more step to stand on, which the cloud slabs (cloud-field.js) need near the ground.
  */
-export const HRDPS_CLOUD_LEVELS_HPA = Object.freeze([1000, 950, 900, 850, 800, 750, 700, 600, 500, 400, 300, 250]);
+export const HRDPS_CLOUD_LEVELS_HPA = Object.freeze([1000, 950, 925, 900, 850, 800, 750, 700, 600, 500, 400, 300, 250]);
 /** The levels to try, for the record (see above): the ones that came back with data on 7 Oct 2026, and the one that did not. */
 export const HRDPS_TRIED_HPA = Object.freeze({ answered: [1000, 950, 925, 900, 850, 800, 750, 700, 650, 600, 550, 500, 450, 400, 350, 300, 250], null: [975] });
 /** HRDPS has no freezing level: a small global GEM request over every third grid point each way (25 of the 169) gives the mean the sheet uses. */
@@ -117,6 +119,13 @@ export const STALE_MS = 3 * 60 * 60 * 1000;
 /** Asked again this often while the 3D view is open (SOF-39), or this soon after a failure (an estimate, SOF-39: not in the spec). */
 export const REFRESH_MS = 60 * 60 * 1000;
 export const RETRY_MS = 10 * 60 * 1000;
+/**
+ * After failures in a row the wait grows: 10, then 20, then 40 minutes (and stays at 40), so a run of failures stays well inside Open-Meteo's free daily limit (a 429
+ * "Daily API request limit exceeded" was seen on 7 Oct 2026). Estimate, SOF-39 (Fable review, 7 Oct). A good answer starts the count again.
+ */
+export const RETRY_STEPS_MS = Object.freeze([RETRY_MS, 2 * RETRY_MS, 4 * RETRY_MS]);
+/** The wait before asking again after `failures` failed asks in a row (1 or more). */
+export const retryDelayMs = (failures) => RETRY_STEPS_MS[Math.min(RETRY_STEPS_MS.length, Math.max(1, failures)) - 1];
 /** How often the feed looks at the clock to see whether it is due (so a sleeping computer is caught up within this). */
 const TICK_MS = 30 * 1000;
 const MAX_HOURS_IN_REPLY = 72;
@@ -277,14 +286,14 @@ export function columnAt(point, hour, cloudLevels = CLOUD_LEVELS_HPA) {
 // ---- Cloud ----------------------------------------------------------------------------------------
 
 /**
- * The cloud in one column, as blocks with a base and a top. The 3D view no longer draws these (it draws a cover sheet at each level, see
- * `cloudSheetLevel`, Dad 7 Oct); the function stays because it is tested and says where a column's cloud lies between its levels.
+ * The cloud in one column, as blocks with a base and a top. The 3D view's cloud slabs (cloud-field.js, the default "3D cloud style") are built from these; the old
+ * style draws a cover sheet at each level instead (`cloudSheetLevel`, Dad 7 Oct).
  * Each level whose cover is over `threshold` is cloud from halfway down to the level below to halfway up to the level above,
  * by geopotential height (the lowest and highest levels use the same half-gap on their open side). Cloudy levels
  * next to each other join into one block. A block's base is never drawn below `floorFt` (the ground the view draws).
  *
- * `levels`: [{ cover (percent), heightFt (above sea level) }]. Returns [{ baseFt, topFt, cover }] bottom first, where cover is the
- * mean of the levels in the block (percent), and `baseFt` and `topFt` are feet above sea level.
+ * `levels`: [{ cover (percent), heightFt (above sea level) }]. Returns [{ baseFt, topFt, cover, levels }] bottom first, where cover is the
+ * mean of the levels in the block (percent), `levels` how many model levels it holds, and `baseFt` and `topFt` are feet above sea level.
  */
 export function cloudBlocks(levels, { threshold = CLOUD_COVER_THRESHOLD_PCT, floorFt = -Infinity } = {}) {
   const sorted = [...levels].sort((a, b) => a.heightFt - b.heightFt);
@@ -299,7 +308,7 @@ export function cloudBlocks(levels, { threshold = CLOUD_COVER_THRESHOLD_PCT, flo
   const close = () => {
     if (!open) return;
     const baseFt = Math.max(open.baseFt, floorFt);
-    if (open.topFt > baseFt) blocks.push({ baseFt, topFt: open.topFt, cover: open.sum / open.count });
+    if (open.topFt > baseFt) blocks.push({ baseFt, topFt: open.topFt, cover: open.sum / open.count, levels: open.count });
     open = null;
   };
   for (let i = 0; i < sorted.length; i++) {
@@ -393,10 +402,11 @@ function cellOf(position, size) {
 }
 
 /**
- * The cover on the whole `px` by `px` sheet, smoothly (bicubic, Catmull-Rom) between the grid's own values (row 0 the south edge, kept 0 to 100):
- * across each grid row first, then up the columns, which is the same as a one-point bicubic but quick enough to redo for each hour of the slider.
+ * A grid's values on the whole `px` by `px` sheet, smoothly (bicubic, Catmull-Rom) between the grid's own values (row 0 the south edge, kept `lo` to `hi`; cover is 0 to
+ * 100, the default, and a height is unclamped): across each grid row first, then up the columns, which is the same as a one-point bicubic but quick enough to redo for each
+ * hour of the slider. The cloud sheets smooth their cover with it and the cloud slabs (cloud-field.js) their cover, base and top.
  */
-function coverField(values, size, px) {
+export function smoothField(values, size, px, lo = 0, hi = 100) {
   const at = (a, b) => values[Math.min(size - 1, Math.max(0, b)) * size + Math.min(size - 1, Math.max(0, a))];
   const across = Array.from({ length: size }, () => new Float32Array(px)); // each grid row, smoothed across
   for (let x = 0; x < px; x++) {
@@ -409,16 +419,20 @@ function coverField(values, size, px) {
     const { cell, t } = cellOf(y / (px - 1), size);
     const w = catmullWeights(t);
     const rows = [-1, 0, 1, 2].map((d) => across[Math.min(size - 1, Math.max(0, cell + d))]);
-    for (let x = 0; x < px; x++) field[y * px + x] = Math.min(100, Math.max(0, w[0] * rows[0][x] + w[1] * rows[1][x] + w[2] * rows[2][x] + w[3] * rows[3][x]));
+    for (let x = 0; x < px; x++) field[y * px + x] = Math.min(hi, Math.max(lo, w[0] * rows[0][x] + w[1] * rows[1][x] + w[2] * rows[2][x] + w[3] * rows[3][x]));
   }
   return field;
 }
+const coverField = (values, size, px) => smoothField(values, size, px);
 
 /**
  * Cover at a place on the grid, smoothly (bicubic, Catmull-Rom) between the grid's own values. `u` and `v` run 0 to 1 across the
  * square, west to east and south to north. The grid's own values are met exactly at the grid points; the result is kept 0 to 100.
  */
-export function sampleCover(values, size, u, v) {
+export const sampleCover = (values, size, u, v) => sampleField(values, size, u, v);
+
+/** Any grid's value at a place, as `sampleCover` (bicubic, Catmull-Rom), kept `lo` to `hi` (cover's 0 to 100 by default; a height passes -Infinity and Infinity). */
+export function sampleField(values, size, u, v, lo = 0, hi = 100) {
   const at = (a, b) => values[Math.min(size - 1, Math.max(0, b)) * size + Math.min(size - 1, Math.max(0, a))];
   const { cell: i, t: tx } = cellOf(u, size);
   const { cell: j, t: ty } = cellOf(v, size);
@@ -426,11 +440,11 @@ export function sampleCover(values, size, u, v) {
   const wy = catmullWeights(ty);
   let sum = 0;
   for (let dj = 0; dj < 4; dj++) for (let di = 0; di < 4; di++) sum += wy[dj] * wx[di] * at(i - 1 + di, j - 1 + dj);
-  return Math.min(100, Math.max(0, sum));
+  return Math.min(hi, Math.max(lo, sum));
 }
 
 /** A box blur of a square field of `px` by `px` numbers, `radius` pixels each way, edges clamped; one horizontal then one vertical pass. */
-function blur(field, px, radius) {
+export function blur(field, px, radius) {
   if (radius < 1) return field;
   const span = radius * 2 + 1;
   const pass = (from, along) => {
@@ -675,7 +689,7 @@ export const CREDIT_WORDS = 'Model clouds and winds: Open-Meteo, ECCC GEM (model
 
 /**
  * The model feed: asks Open-Meteo for the whole grid while it is running, keeps the last good answer in memory only, and says what
- * there is to draw. `start()` asks at once and then once an hour (ten minutes after a failure); `stop()` ends the request and the timer.
+ * there is to draw. `start()` asks at once and then once an hour (10, 20, then 40 minutes after failures in a row, RETRY_STEPS_MS); `stop()` ends the request and the timer.
  * It is started only while the 3D view is shown.
  *
  * Which model (Dad, 7 Oct): the finer HRDPS 2.5 km model is asked for first; the global GEM is the fallback when HRDPS fails or comes back with more than half nulls.
@@ -691,6 +705,7 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
   let model = null;
   let lastGoodAt = null;
   let failure = null; // { at, incomplete } while the last refresh has failed
+  let failures = 0; // failed asks in a row, for the growing wait (RETRY_STEPS_MS)
   let busy = false;
   let refining = false; // the global answer is showing while HRDPS is on its way
   let askedAt = null;
@@ -783,14 +798,17 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
       }
     }
     busy = false;
-    if (finished) failure = finished;
+    if (finished) {
+      failure = finished;
+      failures += 1;
+    } else failures = 0;
     changed();
   }
 
   function tick() {
     if (!running || busy) return;
     const t = +now();
-    if (askedAt === null || t - askedAt >= (failure ? RETRY_MS : REFRESH_MS)) ask();
+    if (askedAt === null || t - askedAt >= (failure ? retryDelayMs(failures) : REFRESH_MS)) ask();
   }
 
   return {
@@ -823,6 +841,7 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
       model = null;
       lastGoodAt = null;
       failure = null;
+      failures = 0;
       busy = false;
       refining = false;
       askedAt = null;
