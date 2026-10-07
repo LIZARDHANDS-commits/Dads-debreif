@@ -22,6 +22,8 @@ The weather screen a Supervisor of Flying keeps open on a desk: the weather now 
 | `waves-view.js` | The waves' DOM. Every input is made once per wave and never rewritten, so typing never loses focus. |
 | `timeline-view-model.js` | The 24-hour timeline as data, from timeline.js's model: pieces as percentages of the day, lanes, hatch, cards in words, wave bands, the now line, keyboard stepping. |
 | `timeline-view.js` | The timeline's DOM. Redrawn only when the signature changes; the now line moves on its own. One tab stop, arrow keys step through the pieces. |
+| `scene3d-model.js` | What the 3D view (SOF-39) shows, as plain data: each airfield's METAR cloud layers as flat decks (`cloudDecks`, base above the field plus its elevation, opacity by cover), the pins with their words (`sceneAirfields`), and the camera's numbers. The cloud-deck rule is tested in Node. |
+| `view3d.js` | The 3D view's three.js objects and camera hands: satellite ground with the 2D map's radar and lightning pictures laid on it, pins, decks, the 25 and 50 NM rings, drag to turn, wheel or pinch to zoom, arrow keys. three.js loads when it is first opened; it draws only on change and frees everything when hidden or when the module closes. `map.js` swaps it with the map. |
 | `sof.css` | The styles, all under `[data-module='sof']`. Loaded when the SOF opens and removed when it closes. |
 
 ## What the screen shows
@@ -34,9 +36,13 @@ The weather screen a Supervisor of Flying keeps open on a desk: the weather now 
 - **Caution banner:** one line per caution with its level in words and a symbol; Acknowledge and Acknowledge all. Marked words inside the report are not built yet (wx exposes no word positions). "Show the new-caution banner" in SOF settings turns it off (on by default); cautions are still worked out and acknowledgements pruned. The lightning hook is `screen.extraCautions`.
 - **Waves:** up to 5, home local time with the zone, Today or Tomorrow. Each has a chip; pressing it lists every hit and shows that wave's result on each alternate card. New waves start with blank times.
 - **24-hour timeline:** a row per airfield, Zulu axis first (Local first follows the app setting) with a local row, NATO-state pieces labelled in words, hatched when below limits, wave bands with landing and +1 h marks, the METAR mark and the now line. Hover or focus shows the card in words. Open by default; the choice is kept under `timelineCollapsed`.
+- **3D view (SOF-39, phase 1):** the **3D** button in the map controls swaps the map area for a 3D picture of the 150 NM round home (it reads **2D** while shown, and the ADS-B Exchange view and 3D never show together). Satellite ground, radar and lightning on it with the same stale fading, home and alternates as pins with their category in words, each METAR's cloud layers as flat decks 10 NM across, the 25 and 50 NM rings, and "Heights ×5" in the corner. Drag to turn, wheel or pinch to zoom, Home (or the Home key) resets. A pin is a button that shows its card's result line, and the camera never moves on a click. An airfield outside the square is named, not drawn. No WebGL: the button stays and says why on hover. Nothing in it raises or clears a caution.
 
 ## Changing something
 
+- **The 3D height scale:** "3D height scale" in SOF settings (`heightScale3d`, 5 by default, 1 to 20; an estimate for readability, SOF-39). The view's corner says the number in use.
+- **How solid a cloud deck is:** `COVER_OPACITY` in `scene3d-model.js` (FEW 25 %, SCT 45 %, BKN 70 %, OVC 90 %; estimates, SOF-39). The deck width is `DECK_NM` (10) and the square is `AREA_NM` (150).
+- **How sharp the 3D ground is:** `GROUND_ZOOM` and `GROUND_PX` in `view3d.js` (Esri zoom 8, a 1,024 px square: about 16 to 25 tiles, so it loads fast; an estimate).
 - **How often the weather is asked for:** `REFRESH_MS` in `weather.js` (5 minutes, D67). `wake()` refreshes at once when the tab comes back and a round is due.
 - **When the weather feed reads STALE:** `STALE_FEED_MIN` in `screen-model.js` (15 minutes, three missed rounds). A single report's own staleness (75 minutes for a METAR, a TAF past its end) is wx's, through `cards.js`.
 - **How long a kept report is still shown:** `MAX_KEEP_MS` in `reports-store.js` (3 days). It shows with its age and STALE.
@@ -48,6 +54,7 @@ The weather screen a Supervisor of Flying keeps open on a desk: the weather now 
 ## Things to know
 
 - **What's kept in the browser** (through `app.storage`, scope `sof`): the settings, the last good reports, the wave plan (`plan`), the acknowledged cautions (`cautionAcks`) and whether the timeline is closed (`timelineCollapsed`). If the browser blocks storage they last for the visit only.
+- **The 3D view reads the 2D map's pictures** (`pictures3d` in `map.js`): the radar and lightning feeds keep running while 3D is shown and nothing is fetched twice. The picture covers what the 2D map last asked for, which is wider than the 150 NM square at the opening zoom; if the 2D map was zoomed in far before 3D was opened, the picture on the 3D ground covers only that part. The backup radar (RainViewer tiles) is not drawn in 3D.
 - **Timers** come only from the module's scheduler scope: the refresh's 5-minute timer (via wx's `startRefresh`) and one 15-second tick that redraws ages and the DTG. Requests are made with an abort signal that unmount fires.
 - **Chrome logs a 404 as a console error.** Datamask answers 404 for a station it doesn't have, and that is logged by the browser, not by this code. It only happens when MET Norway has no report for a station, which is also when the card says `No METAR from MET Norway or Datamask`.
 

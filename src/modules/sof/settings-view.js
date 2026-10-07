@@ -52,6 +52,13 @@ export function createSettingsView({ settings, onToggle }) {
     hint('A caution is raised when ECCC\'s 10-minute lightning map shows lightning within this distance of home. It is an estimate on a 2.5 km grid, not individual strikes.'),
   );
 
+  // The 3D view's height scale (SOF-39): heights are drawn this many times taller than distances on the ground.
+  const heightScale = controls.number('heightScale3d', { label: '3D height scale', min: 1, max: 20, step: /** @type {any} */ (1) });
+  menu.section('3D view').append(
+    heightScale,
+    hint('The 3D view draws heights this many times taller than distances on the ground, so cloud decks are easy to see. It is an estimate for readability; the corner of the 3D view says the number in use.'),
+  );
+
   // Traffic relay (SOF-7): empty until Patrick's relay is set up; the Traffic layer stays hidden until it is a good address.
   const relay = relayField(settings);
   menu.section('Traffic').append(relay.element, hint('Leave empty to keep the Traffic layer hidden. The address is the relay only, such as https://traffic.example.workers.dev.'));

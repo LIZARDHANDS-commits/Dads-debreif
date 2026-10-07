@@ -14,8 +14,8 @@ import { SETTINGS_DEFAULTS, TRIGGER_OPTIONS, BANNER_HINT, MAX_RELAY_CHARS, relay
 
 const fresh = () => createSofSettings(createStore(null).scope('sof'));
 
-test('every setting starts at its default: Local (MTCA) 2000/3, banner on, lightning 20 NM, no traffic relay', () => {
-  assert.deepEqual({ ...fresh().get() }, { ceilingFt: 2000, visSm: 3, banner: true, lightningNm: 20, trafficRelay: '' });
+test('every setting starts at its default: Local (MTCA) 2000/3, banner on, lightning 20 NM, no traffic relay, 3D heights x5', () => {
+  assert.deepEqual({ ...fresh().get() }, { ceilingFt: 2000, visSm: 3, banner: true, lightningNm: 20, trafficRelay: '', heightScale3d: 5 });
 });
 
 test('the trigger options are named from the numbers they fill in (D59, D111)', () => {
