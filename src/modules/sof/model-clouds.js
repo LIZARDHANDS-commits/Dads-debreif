@@ -59,6 +59,17 @@ export const HRDPS_TRIED_HPA = Object.freeze({ answered: [1000, 950, 925, 900, 8
  */
 export const HRDPS_CHUNKS = 6; // estimate, SOF-39
 /**
+ * Open-Meteo's free tier allows 600 calls a minute (its pricing page, read 7 Oct 2026), and a request costs max(1, variables / 10) calls per point, so the whole
+ * HRDPS grid (169 points x 43 variables, about 727) and the quick global GEM (about 439) together are about twice that. Sent all at once from Dad's browser on 7 Oct,
+ * three of the six bands came back missing. So the feed spreads its requests: no 61 seconds hold more than CALLS_PER_MINUTE (kept under 600 for a margin, estimate).
+ * The full HRDPS picture then lands about two minutes after opening, with the quick GEM picture shown meanwhile.
+ */
+export const CALLS_PER_MINUTE = 500;
+/** The window the budget is counted over: a minute and a second, so a fixed clock minute never holds two batches. */
+export const CALL_WINDOW_MS = 61 * 1000;
+/** What Open-Meteo counts for one request (its pricing page): max(1, variables / 10) for each point. */
+export const callCost = (pointCount, variableCount) => Math.max(1, variableCount / 10) * pointCount;
+/**
  * HRDPS runs at 00, 06, 12 and 18Z (ECCC). A newer run is taken to be on Open-Meteo this long after its start: an estimate from Open-Meteo's own record for the
  * 7 Oct 2026 1200Z run (its `meta.json` for cmc_gem_hrdps: started 1200Z, available 1642Z, 4 h 42 min), rounded up. So the model is asked again at about 0500,
  * 1100, 1700 and 2300Z, not every hour.
@@ -831,7 +842,7 @@ function asHrdpsEntry(entry) {
  * once, then when a newer HRDPS run can be out (`nextRunAt`), or 10, 20, then 40 minutes after failures in a row (RETRY_STEPS_MS). `stop()` ends the request and the
  * timer. It is started only while the 3D view is shown.
  *
- * Which model (Dad, 7 Oct): the finer HRDPS 2.5 km model, every level it answers, asked in HRDPS_CHUNKS bands of rows at once. When nothing is held yet, the global
+ * Which model (Dad, 7 Oct): the finer HRDPS 2.5 km model, every level it answers, asked in HRDPS_CHUNKS bands of rows, spread so no minute goes over Open-Meteo's free per-minute limit (CALLS_PER_MINUTE). When nothing is held yet, the global
  * GEM (about 3 s) is asked at the same time and drawn at once as the quick first picture, and the HRDPS answer replaces it when every band is in (`refining` says so
  * meanwhile). A band that fails is filled from the global GEM at its points (the quick answer when there is one, else a small GEM request for those points only), and
  * `model.filled` says where; with no GEM to fill it the HRDPS answer fails whole and the global GEM is the fallback, as before. HRDPS has no freezing level, so a small
@@ -858,10 +869,54 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
   let cancelTick = null;
   let controller = new AbortController();
 
+  const spent = []; // { at, cost } of the requests sent in the last CALL_WINDOW_MS, for Open-Meteo's per-minute limit
+
   const changed = () => {
     if (running) onChange();
   };
   const gone = (mine) => mine !== controller || !running;
+
+  /** Waits `ms` on the feed's timers, or less if the feed stops or moves on. */
+  const wait = (ms, mine) => new Promise((resolve) => {
+    if (gone(mine)) return resolve(undefined);
+    const onAbort = () => {
+      cancel();
+      resolve(undefined);
+    };
+    const cancel = timers.after(Math.max(0, ms), () => {
+      mine.signal.removeEventListener('abort', onAbort);
+      resolve(undefined);
+    });
+    mine.signal.addEventListener('abort', onAbort, { once: true });
+  });
+
+  /** Holds a request of `cost` calls until it fits in the per-minute budget (CALLS_PER_MINUTE over CALL_WINDOW_MS); one bigger than the budget goes alone. */
+  async function pace(cost, mine) {
+    for (;;) {
+      if (gone(mine)) return;
+      const t = +now();
+      while (spent.length && t - spent[0].at >= CALL_WINDOW_MS) spent.shift();
+      const used = spent.reduce((sum, e) => sum + e.cost, 0);
+      if (!spent.length || used + cost <= CALLS_PER_MINUTE) {
+        spent.push({ at: t, cost });
+        return;
+      }
+      await wait(spent[0].at + CALL_WINDOW_MS - t, mine);
+    }
+  }
+
+  /** One request to Open-Meteo for `pts` with `variables`, sent when the per-minute budget has room. A 429 is asked once more, a minute later. */
+  async function askPaced(pts, profile, variables, limits, mine) {
+    let got = { ok: false, limited: false };
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt) await wait(CALL_WINDOW_MS, mine);
+      await pace(callCost(pts.length, variables.length), mine);
+      if (gone(mine)) return { ok: false, limited: false };
+      got = await getJson(modelUrl(pts, profile, variables), limits, mine);
+      if (got.ok || !got.limited) return got;
+    }
+    return got;
+  }
 
   /** One request: { ok: true, json } or { ok: false, limited } (limited: a 429, Open-Meteo's free limit). A reply that is not JSON is a failure. */
   async function getJson(url, limits, mine) {
@@ -875,7 +930,7 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
 
   /** The global GEM for every grid point: checkModelReply's result plus `raw` (the reply, for filling HRDPS bands) and `limited`; `stale` when the feed moved on. */
   async function askGem(asked, mine) {
-    const got = await getJson(modelUrl(asked, GEM_PROFILE), FETCH_LIMITS.model, mine);
+    const got = await askPaced(asked, GEM_PROFILE, GEM_PROFILE.askedVariables, FETCH_LIMITS.model, mine);
     if (gone(mine)) return { ok: false, stale: true };
     if (!got.ok) return { ok: false, reason: 'request failed', limited: got.limited };
     const result = checkModelReply(got.json, { points: asked, receivedAt: +now(), profile: GEM_PROFILE });
@@ -886,7 +941,7 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
   async function askFreezing(asked, mine) {
     const sample = asked.filter((p) => p.i % FREEZING_STEP === 0 && p.j % FREEZING_STEP === 0);
     const byIndex = new Map();
-    const got = await getJson(modelUrl(sample, GEM_PROFILE, ['freezing_level_height']), FETCH_LIMITS.model, mine);
+    const got = await askPaced(sample, GEM_PROFILE, ['freezing_level_height'], FETCH_LIMITS.model, mine);
     if (got.ok && Array.isArray(got.json) && got.json.length === sample.length) {
       got.json.forEach((entry, n) => {
         const series = entry?.hourly?.freezing_level_height;
@@ -897,14 +952,14 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
   }
 
   /**
-   * HRDPS in bands of rows, all at once, with the freezing level alongside. `quick` is the global GEM's answer on its way (first opening), or null. Returns
+   * HRDPS in bands of rows, each sent when the per-minute budget has room (`pace`), with the freezing level alongside. `quick` is the global GEM's answer on its way (first opening), or null. Returns
    * checkModelReply's result with `model.filled` ({ points, total, bands: [[first row, last row]] } or null), `limited` when a band met the free limit, `stale` when
    * the feed moved on.
    */
   async function askHrdps(asked, mine, quick) {
     const bands = rowBands(asked);
     const freezingP = askFreezing(asked, mine);
-    const replies = await Promise.all(bands.map((band) => getJson(modelUrl(band.points, HRDPS_PROFILE), FETCH_LIMITS.modelHrdps, mine)));
+    const replies = await Promise.all(bands.map((band) => askPaced(band.points, HRDPS_PROFILE, HRDPS_PROFILE.askedVariables, FETCH_LIMITS.modelHrdps, mine)));
     if (gone(mine)) return { ok: false, stale: true };
     const limited = replies.some((r) => !r.ok && r.limited);
     const missing = bands.filter((band, k) => !(replies[k].ok && fitsPoints(replies[k].json, band.points)));
@@ -920,7 +975,7 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
       if (gone(mine)) return { ok: false, stale: true };
       let fill = held?.ok && held.raw ? want.map((p) => held.raw[asked.indexOf(p)]) : null;
       if (!fill) {
-        const got = await getJson(modelUrl(want, GEM_PROFILE), FETCH_LIMITS.model, mine);
+        const got = await askPaced(want, GEM_PROFILE, GEM_PROFILE.askedVariables, FETCH_LIMITS.model, mine);
         if (gone(mine)) return { ok: false, stale: true };
         fill = got.ok && fitsPoints(got.json, want) ? got.json : null;
       }
