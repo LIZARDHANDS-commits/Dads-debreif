@@ -881,6 +881,12 @@ main[data-module='sof'] {
   color: var(--text-muted);
 }
 
+/* Airspace log count (information only, never a caution): amber, with the warning symbol and the words beside it. */
+[data-module='sof'] .sof-map-feed.is-caution {
+  color: var(--caution);
+  font-weight: 600;
+}
+
 [data-module='sof'] .sof-map-credits,
 [data-module='sof'] .sof-map-note {
   margin: 0;
@@ -1919,7 +1925,7 @@ main[data-module='sof'] {
 }
 
 [data-module='sof'] .sof-3d-outside {
-  top: calc(var(--space-2) + 1.7rem);
+  top: calc(var(--space-2) + 2.4rem);
   right: var(--space-2);
   max-width: 16rem;
   padding: 2px var(--space-2);
@@ -1927,6 +1933,42 @@ main[data-module='sof'] {
 
 [data-module='sof'] .sof-3d-outside[hidden] {
   display: none;
+}
+
+/* Top right (Dad, 7 Oct): Orbit and Full screen beside "Heights x5". They are the one "on" look and the same size as the other toggles,
+   with a dark backing because they sit over the picture. */
+[data-module='sof'] .sof-3d-tools {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  max-width: calc(100% - var(--space-4));
+}
+
+[data-module='sof'] .sof-3d-tools .sof-3d-corner {
+  position: static;
+}
+
+[data-module='sof'] .sof-3d-tools .sof-3d-toggle {
+  background: rgb(5 10 18 / 0.85);
+  font-size: var(--text-sm);
+}
+
+[data-module='sof'] .sof-3d-tools .sof-3d-toggle[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: rgb(31 78 98 / 0.95);
+}
+
+/* Full screen without the browser's help (the Fullscreen API was refused): a fixed layer over the whole window. */
+[data-module='sof'] .sof-3d.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
 }
 
 /* The bottom left is a stack: the model controls (phase 2) above the ground's credit. */
@@ -2179,8 +2221,108 @@ main[data-module='sof'] {
   font-weight: 700;
 }
 
+/* An aircraft that is not a T-6 inside CYA304, 305 or 307: its tag stays on, in amber, with the warning symbol and the words (information only). */
+[data-module='sof'] .sof-3d-actag.is-intruder {
+  border: 2px solid var(--caution);
+  background: rgb(5 10 18 / 0.92);
+  color: var(--caution);
+  font-weight: 700;
+}
+
 [data-module='sof'] .sof-3d-canvas.is-over-aircraft {
   cursor: pointer;
+}
+
+/* The Airspace log (Dad, 7 Oct): bottom right of the 3D view. The summary line always shows; the body opens under it. */
+[data-module='sof'] .sof-3d-log {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-1);
+  box-sizing: border-box;
+  width: min(26rem, 46%);
+  max-height: 50%;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: rgb(5 10 18 / 0.88);
+  color: #e3eef5;
+  font-size: var(--text-sm);
+}
+
+[data-module='sof'] .sof-3d-log[hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-log-summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+[data-module='sof'] .sof-log-summary.is-alert {
+  color: var(--caution);
+}
+
+[data-module='sof'] .sof-log-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding-top: var(--space-1);
+}
+
+[data-module='sof'] .sof-log-body [hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-log-body p {
+  margin: 0;
+}
+
+[data-module='sof'] .sof-log-status {
+  padding: 2px var(--space-2);
+  border: 1px solid var(--caution);
+  border-radius: var(--radius);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-log-heading {
+  margin-top: var(--space-1);
+  color: #b8cfdb;
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-log-empty {
+  color: #b8cfdb;
+}
+
+[data-module='sof'] .sof-log-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-module='sof'] .sof-log-line {
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+[data-module='sof'] .sof-log-line.is-alert {
+  color: var(--caution);
+  font-weight: 700;
+}
+
+[data-module='sof'] .sof-log-ticks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin-top: var(--space-1);
+}
+
+[data-module='sof'] .sof-log-tick {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 [data-module='sof'] .sof-3d-note {

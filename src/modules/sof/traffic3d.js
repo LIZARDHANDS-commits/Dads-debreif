@@ -8,6 +8,8 @@
 // - Every other aircraft is a small stand-in (ui-kit three-aircraft.js `createStandInMesh`) in a muted colour; one with no track is a small
 //   dot, because a model pointing somewhere would say a heading nobody gave. Military aircraft are amber with a ring, as in 2D. Their tags
 //   show on hover or focus, or all the time when the layer's Labels choice is on.
+// - An aircraft that is not a T-6 inside a watched airspace area (airspace-log.js) gets an amber tag with ⚠ that stays on, whatever its kind (Dad, 7 Oct).
+//   Its words say so (⚠ and the area in its hover text), the colour is only the second cue.
 // - Size is on the screen, not in feet: at 250 NM across a real T-6 (33 ft) would be less than a pixel, so each is scaled by the camera's
 //   feet per pixel (`fit`), as the pins are. The sizes are estimates for readability (SOF-39), named below.
 // - Stale aircraft fade with traffic.js's own opacity. Materials the CT-156 shares between ships are copied for each T-6 so fading one never
@@ -39,7 +41,7 @@ export const kindFor = (item) => (item.isT6 ? 'ct156' : item.trackDeg === null ?
 
 /**
  * `T` is three.js; `scene` takes the aircraft; `labels` is the element the tags' buttons go in; `onHover(hex | null)` and `onPick(hex)` hear the tags'
- * pointer and click. Returns { set(items, { scale, groundFt }), fit(ftPerPx), entries(), get(hex), dispose() }.
+ * pointer and click. Returns { set(items, { scale, groundFt, intruders }), fit(ftPerPx), entries(), get(hex), dispose() }.
  */
 export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick = () => {} }) {
   const root = new T.Group();
@@ -131,7 +133,7 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
       mats.push({ m: drop.material, opacity: 1, transparent: false, copied: false });
     }
     root.add(group);
-    const entry = { hex: item.hex, kind, group, model, ring, halo, drop, mats, unit, px, item, fade: 1, tagEl: null, screen: { x: 0, y: 0 } };
+    const entry = { hex: item.hex, kind, group, model, ring, halo, drop, mats, unit, px, item, fade: 1, intruder: false, tagEl: null, screen: { x: 0, y: 0 } };
     entry.tagEl = h('button', {
       type: 'button',
       class: `sof-3d-actag${item.isT6 ? ' is-t6' : ''}${item.mil ? ' is-mil' : ''}`,
@@ -164,9 +166,10 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
   return {
     /**
      * Brings the drawing in line with the items (scene3d-model.js `sceneTraffic`'s aircraft): new ones are made, known ones moved, and gone ones
-     * freed. `scale` is the height scale, `groundFt` the ground the view draws (feet above sea level).
+     * freed. `scale` is the height scale, `groundFt` the ground the view draws (feet above sea level), `intruders` a Map from the hex id of each aircraft that is
+     * not a T-6 inside a watched area to the area(s) it is in ("CYA304"): each gets the amber ⚠ tag.
      */
-    set(items, { scale, groundFt }) {
+    set(items, { scale, groundFt, intruders = new Map() }) {
       const planeZ = groundFt * scale;
       const seen = new Set();
       for (const item of items) {
@@ -192,7 +195,13 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
           entry.drop.scale.z = Math.max(1, z - planeZ);
         }
         applyFade(entry, item.opacity);
-        if (entry.tagEl.textContent !== item.labelText) entry.tagEl.textContent = item.labelText;
+        const area = intruders.get(item.hex);
+        entry.intruder = area !== undefined;
+        entry.tagEl.classList.toggle('is-intruder', entry.intruder);
+        const words = entry.intruder ? `⚠ ${item.labelText}` : item.labelText;
+        if (entry.tagEl.textContent !== words) entry.tagEl.textContent = words;
+        const title = entry.intruder ? `Not a T-6, inside ${area}. Information only. Advisory area activity is not a SOF caution. Press to show this aircraft’s facts.` : 'Show this aircraft’s facts';
+        if (entry.tagEl.title !== title) entry.tagEl.title = title;
       }
       for (const [hex, entry] of entries) {
         if (seen.has(hex)) continue;

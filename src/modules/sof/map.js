@@ -23,7 +23,7 @@ import { LAYERS, getMapUrl, rainViewerTileUrl, REFRESH_MS } from './feeds.js';
 import { createImageFeed, createRadarFeed, extraMapUrl, feedLine, EXTRA_LAYERS } from './map-feeds.js';
 import { createLightningWatch, createTrafficFeed } from './map-loops.js';
 import { recolourLightning } from './map-lightning.js';
-import { trafficUrl } from './traffic.js';
+import { trafficUrl, layerModel } from './traffic.js';
 import {
   createProjection, homeView, cornersOf, radarImageRequest, imageStillFits, nearestWithin, RING_NM, SPAN_LIMITS,
 } from './map-view.js';
@@ -37,7 +37,9 @@ import { createAdsbFrame, adsbExchangeUrl, zoomForScale } from './adsbx.js';
 import { webglSupported } from '../../ui-kit/three-aircraft.js';
 import { createSofView3d } from './view3d.js';
 import { sceneAirfields, sceneTraffic } from './scene3d-model.js';
-import { tacnavRoutes } from './airspace-model.js';
+import { tacnavRoutes, checkedAirspace } from './airspace-model.js';
+import { AIRSPACE } from './airspace-data.js';
+import { createAirspaceLog } from './airspace-log.js';
 import { createModelFeed, gridPoints } from './model-clouds.js';
 
 const LAYERS_KEY = 'map-layers';
@@ -85,6 +87,9 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
   let hits = { airfields: [], traffic: [] };
   let selectedHex = null;
   let trafficSig = '';
+  const airspaceLog = createAirspaceLog(); // who is in the watched advisory areas; reads each new traffic answer once (airspace-log.js), information only
+  let logAnswer = null; // when the traffic answer the log last read arrived
+  let logVolumes = null; // { key, volumes }: the airspace checked for home's elevation
   let lastRadius = null;
   let lastRelay = null;
 
@@ -140,6 +145,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     getProjection: () => projection,
     getPictures: pictures3d,
     routes: tacnavRoutes(ROUTES), // the Debrief's routes with TAC in the name, drawn at 500 ft above the ground in 3D (SOF-39 phase 3)
+    onAirspaceLogOptions: (options) => airspaceLog.setOptions(options), // the panel's two ticks: what the log records from now on
     onLost() {
       if (!threeOn) return;
       threeOn = false;
@@ -227,6 +233,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     paused, // nothing asked while the tab is hidden or the ADS-B Exchange view has the map; the 3D view uses the same feed, so it keeps running
     ...shared,
     onChange() {
+      updateAirspaceLog();
       const v = trafficFeed.view();
       if (v.signature !== trafficSig) {
         trafficSig = v.signature;
@@ -541,6 +548,32 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     view3d.setTraffic(sceneTraffic({ view: trafficFeed.view(now()), toXY: projection.toXY, label: layers.traffic.label }));
   }
 
+  /**
+   * The airspace log reads the traffic feed's answer, once for each new answer (never per frame, and in 2D as well as 3D): every aircraft the relay
+   * gave (the Military only choice hides aircraft from the picture, not from this), checked against the airspace volumes at home's elevation. With
+   * no current traffic (the layer off, loading, or the relay failing) nobody is listed as inside; the lines already logged stay.
+   */
+  function updateAirspaceLog() {
+    if (disposed) return;
+    const st = trafficFeed.state();
+    const stop = (reason) => {
+      airspaceLog.pause(reason);
+      logAnswer = null; // after a break the next answer is read afresh
+    };
+    if (!layers.on.traffic || !relayOn() || adsbOn || !st.on) stop('off');
+    else if (st.failed) stop('unavailable');
+    else if (!st.lastGood) stop('loading');
+    else if (st.receivedAt !== logAnswer) {
+      logAnswer = st.receivedAt;
+      const groundFt = Number.isFinite(home.elevationFt) ? home.elevationFt : 0;
+      const key = `${home.icao}|${groundFt}`;
+      if (logVolumes?.key !== key) logVolumes = { key, volumes: checkedAirspace(AIRSPACE, groundFt).volumes };
+      const answer = layerModel({ reply: st.lastGood, receivedAt: st.receivedAt, now: st.receivedAt, militaryOnly: false });
+      airspaceLog.update({ aircraft: answer.aircraft, volumes: logVolumes.volumes, groundFt, at: st.receivedAt });
+    }
+    view3d.setAirspaceLog(airspaceLog.view());
+  }
+
   /** The pictures the 2D map already holds, for the 3D ground: ECCC radar and lightning, with the same stale fading. Not fetched again. */
   const imageIds = new WeakMap();
   let imageCount = 0;
@@ -655,6 +688,9 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
       lines.traffic = { text: tv.statusText, symbol: tv.status === 'unavailable' ? '⚠' : tv.status === 'ok' ? '✓' : '⟳', tone: tv.status === 'unavailable' ? 'bad' : tv.status === 'ok' ? 'ok' : 'busy' };
     }
     const items = statusItems({ ...lines, nearhome: nearHome(t) }, { ...layers.on, nearhome: true, traffic: layers.on.traffic && relayOn() });
+    const space = airspaceLog.view();
+    // Information only, never a caution: it is on the traffic line's side of the strip, in amber with the ⚠ symbol and the words.
+    if (layers.on.traffic && relayOn() && space.count > 0) items.push({ id: 'airspace', text: space.countWords, symbol: '⚠', tone: 'caution' });
     controls.setStatus(items);
     controls.setCredits(mapCredits(layers, { radarBackup: radar.state().source === 'rainviewer', trafficOn: layers.on.traffic && relayOn() }));
     controls.setNote(baseNote(layers));
@@ -717,6 +753,9 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
         routes = null;
         asked.clear();
         requests.clear();
+        airspaceLog.reset(); // the volumes are checked for the new home's elevation, and nobody has been seen yet
+        logAnswer = null;
+        updateAirspaceLog();
         watch.setPlace();
         modelFeed.setPlace(); // the grid is round the new home
         goHome();

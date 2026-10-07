@@ -8,6 +8,10 @@
 // the live aircraft from the 2D layer's own relay feed (traffic3d.js), the T-6 drawn large. Phase 3 (SOF-39) adds the airspace volumes
 // from a sourced data file (airspace-data.js, drawn in airspace3d.js) and the TACNAV routes at 500 ft above the ground, each with a toggle.
 // It is for situational awareness only: it checks no limit and never raises or clears a caution.
+// Three more things (SOF-39, Dad 7 Oct): a Full screen button (the browser's fullscreen on the 3D view, or a fixed layer over the whole window when
+// the browser refuses), an Orbit toggle that turns the camera slowly round home (the one case where the view draws every frame, through the
+// scheduler's frame, and only while Orbit is on and the view is shown; any camera input turns it off), and the Airspace log panel (airspace-log-view.js)
+// with an amber tag that stays on for each aircraft that is not a T-6 inside a watched area.
 //
 // What is drawn and what the words say is decided in scene3d-model.js and model-clouds.js (tested in Node); model-layers3d.js builds the
 // model layers' three.js objects, traffic3d.js the aircraft's and airspace3d.js the airspace's (airspace-model.js decides what is fit to
@@ -15,7 +19,7 @@
 //
 // three.js is loaded only when the view is first opened (ui-kit `loadThree`). It draws only while shown, and only when something
 // changed (a new report or picture, a tile arriving, the camera moving), through the scheduler's frame: nothing runs while it
-// sits still. Hiding it, or closing the module, frees everything three.js made and removes its canvas, because a canvas whose
+// sits still (but for Orbit, above). Hiding it, or closing the module, frees everything three.js made and removes its canvas, because a canvas whose
 // WebGL context has been let go can't be given another.
 //
 // World frame (ui-kit three-aircraft.js): X east, Y north, Z up, in the map's local feet. A height is feet above sea level times
@@ -27,8 +31,9 @@ import { cornersOf, RING_NM, FT_PER_NM } from './map-view.js';
 import { drawGeoImage } from './map-draw.js';
 import { BASE_DIM } from './map-layers.js';
 import {
-  AREA_NM, AREA_FT, DECK_FT, CATEGORY_TOKENS, START_CAMERA, ZOOM_STEP, KEY_ORBIT_PX, fitZoom, orbitBy, zoomCamera, sceneSignature, formatFeet,
+  AREA_NM, AREA_FT, DECK_FT, CATEGORY_TOKENS, START_CAMERA, ZOOM_STEP, KEY_ORBIT_PX, ORBIT_DEG_PER_PX, fitZoom, orbitBy, zoomCamera, sceneSignature, formatFeet,
 } from './scene3d-model.js';
+import { createAirspaceLogView } from './airspace-log-view.js';
 import { buildModelLayers, MODEL_GROUPS } from './model-layers3d.js';
 import { createTraffic3d } from './traffic3d.js';
 import { AIRSPACE } from './airspace-data.js';
@@ -57,6 +62,12 @@ const DECK_COLOUR = '#f2f7fb';
 const RING_COLOUR = '#8adfff';
 /** An aircraft is under the pointer when its middle is this close on the screen (the 2D map's own HOVER_PX). */
 const AIRCRAFT_HOVER_PX = 14;
+/** One turn of Orbit takes this many seconds: "about one turn per 2 minutes" (Dad, 7 Oct). An estimate for feel. */
+export const ORBIT_SECONDS_PER_TURN = 120; // estimate, SOF-39
+/** With reduced motion, Orbit steps this many degrees every this many milliseconds instead of turning smoothly (Dad, 7 Oct). */
+export const ORBIT_STEP = Object.freeze({ deg: 15, ms: 2000 });
+/** A frame longer than this (a stalled tab) turns the camera no further than this long a frame would. */
+const ORBIT_MAX_FRAME_MS = 250;
 /** The aircraft's credit, always said while the layer is on (adsb.lol's data is ODbL 1.0). */
 const AIRCRAFT_CREDIT = 'Aircraft: adsb.lol (ODbL 1.0)';
 
@@ -68,12 +79,13 @@ const isColour = (v) => typeof v === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d\s.
  * options: { timers (a scheduler scope), getProjection() (the SOF map's projection: toXY and a reference, for the corners of the
  * square), getPictures() (the 2D map's pictures: { sig, list: [{ image, bbox, alpha }] }, read when it draws), onLost() (the graphics
  * context was lost: the caller goes back to 2D), routes (the TACNAV routes to draw, from the Debrief's `ROUTES` as `map.js` gives them:
- * { name, paths: [[[lon, lat], ...]] }), airspace (the entries to draw, airspace-data.js `AIRSPACE` unless a test gives its own), win }.
- * Returns { element, show(), hide(), setScene({ airfields, heightScale }), setModel({ status, model, lastGoodAt, now, timeZone }), touch(), home(),
- * zoomBy(factor), isShown(), dispose() }.
+ * { name, paths: [[[lon, lat], ...]] }), airspace (the entries to draw, airspace-data.js `AIRSPACE` unless a test gives its own), onAirspaceLogOptions
+ * ({ showT6, showAll }: the log panel's two ticks changed), win }.
+ * Returns { element, show(), hide(), setScene({ airfields, heightScale }), setModel({ status, model, lastGoodAt, now, timeZone }), setAirspaceLog(view),
+ * touch(), home(), zoomBy(factor), isShown(), dispose() }.
  * `show()` resolves { ok: true } or { ok: false, reason: 'gl' | 'load' | 'closed' }.
  */
-export function createSofView3d({ timers, getProjection, getPictures, onLost = () => {}, routes = [], airspace = AIRSPACE, win = globalThis }) {
+export function createSofView3d({ timers, getProjection, getPictures, onLost = () => {}, routes = [], airspace = AIRSPACE, onAirspaceLogOptions = /** @type {(options: { showT6: boolean, showAll: boolean }) => void} */ (() => {}), win = globalThis }) {
   const labels = h('div', { class: 'sof-3d-labels' });
   const corner = h('p', { class: 'sof-3d-corner' });
   const credit = h('p', { class: 'sof-3d-credit' }, ESRI_IMAGERY.credit);
@@ -152,7 +164,20 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     h('div', { class: 'sof-3d-model-row' }, [...spaceButtons.values()], spaceKey));
   const bottom = h('div', { class: 'sof-3d-bottom' }, trafficStatus, modelPanel, spacePanel, credit);
   const acTag = h('p', { class: 'sof-3d-tag sof-3d-actag-facts', role: 'status', hidden: true });
-  const element = h('div', { class: 'sof-3d', hidden: true }, labels, corner, outside, bottom, note, tag, acTag);
+  const logView = createAirspaceLogView({ onOptions: (options) => onAirspaceLogOptions(options) });
+
+  // Orbit and Full screen sit in the top right, beside "Heights ×5" (Dad, 7 Oct). Orbit is an on/off button (aria-pressed); Full screen's words change
+  // instead, so it has no aria-pressed.
+  const orbitButton = h('button', {
+    type: 'button',
+    class: 'sof-3d-toggle sof-3d-orbit',
+    'aria-pressed': 'false',
+    title: `Turn the camera slowly round home, one turn in about ${ORBIT_SECONDS_PER_TURN / 60} minutes, at the zoom and tilt you have. A drag, the wheel, an arrow key or Home stops it.`,
+    onclick: () => setOrbit(orbitButton.getAttribute('aria-pressed') !== 'true'),
+  }, 'Orbit');
+  const fullButton = h('button', { type: 'button', class: 'sof-3d-toggle sof-3d-fullscreen', onclick: () => toggleFullScreen() }, 'Full screen');
+  const tools = h('div', { class: 'sof-3d-tools' }, orbitButton, fullButton, corner);
+  const element = h('div', { class: 'sof-3d', hidden: true }, labels, tools, outside, bottom, logView.element, note, tag, acTag);
 
   let airfields = [];
   let scale = 5;
@@ -184,6 +209,11 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
   let focusSpace = null;
   let hoverHex = null; // the aircraft under the pointer, or whose tag the pointer is on
   let selectedAc = null; // the aircraft whose facts are showing
+  let intruderHexes = new Map(); // hex -> the watched areas it is in: the aircraft that are not T-6s in a watched area, whose tags stay on (airspace-log.js)
+  let intruderSig = '';
+  let orbitOn = false;
+  let stopOrbit = null; // ends the orbit's frame loop (or its steps)
+  let fallbackFull = false; // Full screen is the CSS fallback (the browser refused the Fullscreen API)
   const sizes = new WeakMap(); // each label's size, read once (a read of the page's layout each frame would slow the drag)
 
   const setText = (el, text) => {
@@ -576,7 +606,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     trafficDirty = false;
     if (!gl) return;
     const items = trafficState.shown ? trafficState.aircraft : [];
-    gl.traffic.set(items, { scale, groundFt: groundFt() });
+    gl.traffic.set(items, { scale, groundFt: groundFt(), intruders: intruderHexes });
     if (hoverHex && !gl.traffic.get(hoverHex)) hoverHex = null;
     if (selectedAc && !gl.traffic.get(selectedAc)) selectAircraft(null);
     else if (selectedAc) setText(acTag, gl.traffic.get(selectedAc).item.description);
@@ -636,7 +666,8 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
   function placeAircraft({ at, put, boxFor, isClear, reserve, phase }) {
     const list = [...gl.traffic.entries()];
     if (phase === 't6') for (const e of list) e.screen = at(e.group.position);
-    const wanted = (e) => e.item.isT6 || trafficState.labelsOn || e.hex === hoverHex || e.hex === selectedAc;
+    const wanted = (e) => e.item.isT6 || e.intruder || trafficState.labelsOn || e.hex === hoverHex || e.hex === selectedAc;
+    const early = (e) => e.item.isT6 || e.intruder; // a T-6's tag and an intruder's keep their places; the others step round them
     if (phase === 't6') {
       for (const e of list) {
         const on = wanted(e);
@@ -645,7 +676,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
         if (e.item.isT6) reserve({ x: e.screen.x - 0.7 * e.px, y: e.screen.y - 0.55 * e.px, w: 1.4 * e.px, h: 1.1 * e.px });
       }
     }
-    for (const e of list.filter((x) => (phase === 't6') === x.item.isT6 && wanted(x))) {
+    for (const e of list.filter((x) => (phase === 't6') === early(x) && wanted(x))) {
       const s = boxFor(e.tagEl, 0, 0);
       const r = e.px * 0.7 + 4;
       const { x, y } = e.screen;
@@ -821,6 +852,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
       held.x = e.clientX;
       held.y = e.clientY;
       if (pointers.size >= 2 && pinch) {
+        setOrbit(false); // a pinch is the SOF taking the camera
         const now = spread();
         if (now > 0) cam = zoomCamera(cam, now / pinch, 1);
         pinch = now;
@@ -830,6 +862,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
         drag.moved += Math.abs(dx) + Math.abs(dy);
         drag.x = e.clientX;
         drag.y = e.clientY;
+        if (drag.moved >= CLICK_PX) setOrbit(false); // a drag is the SOF taking the camera; a click on an aircraft is not
         cam = orbitBy(cam, dx, dy);
       }
       requestRender();
@@ -841,15 +874,19 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
       const turn = KEY_ORBIT_PX[e.key];
       if (turn) {
         e.preventDefault();
+        setOrbit(false);
         cam = orbitBy(cam, turn[0], turn[1]);
       } else if (e.key === '+' || e.key === '=') {
         e.preventDefault();
+        setOrbit(false);
         cam = zoomCamera(cam, ZOOM_STEP, 1);
       } else if (e.key === '-' || e.key === '_') {
         e.preventDefault();
+        setOrbit(false);
         cam = zoomCamera(cam, 1 / ZOOM_STEP, 1);
       } else if (e.key === 'Home') {
         e.preventDefault();
+        setOrbit(false);
         cam = { ...START_CAMERA, zoom: 1 };
       } else if ((e.key === ']' || e.key === '[') && gl?.traffic) {
         if (!stepAircraft(e.key === ']' ? 1 : -1)) return; // none to step through: the key is left alone
@@ -886,6 +923,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
   function onWheel(e) {
     e.preventDefault(); // the page does not scroll while the pointer is over the view
     if (!e.deltaY) return;
+    setOrbit(false);
     cam = zoomCamera(cam, Math.exp(-e.deltaY * WHEEL_ZOOM), 1);
     requestRender();
   }
@@ -910,6 +948,95 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
       const [p] = pointers.values();
       drag = { x: p.x, y: p.y, moved: CLICK_PX };
     }
+  }
+
+  // ---- Orbit (Dad, 7 Oct) --------------------------------------------------------------------------------
+  /** Reduced motion, by the Settings choice (data-motion on the page) or else the computer's own setting. */
+  function reducedMotion() {
+    const choice = win.document?.documentElement?.dataset?.motion;
+    if (choice === 'reduced') return true;
+    if (choice === 'full') return false;
+    return win.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
+  }
+
+  /** Turns the camera round home by `deg` (at the zoom and tilt it has). */
+  const orbitTurn = (deg) => {
+    cam = orbitBy(cam, deg / ORBIT_DEG_PER_PX.yaw, 0);
+  };
+
+  /**
+   * Orbit on or off. While on and shown, the camera turns one round in ORBIT_SECONDS_PER_TURN: smoothly on the scheduler's frame (the one case where the
+   * view draws every frame), or, with reduced motion, ORBIT_STEP.deg every ORBIT_STEP.ms. The loop ends the moment it is off, the view is hidden or the
+   * module closes. Any camera input from the SOF turns it off.
+   */
+  function setOrbit(on) {
+    if (on === orbitOn) return;
+    orbitOn = on;
+    orbitButton.setAttribute('aria-pressed', String(on));
+    stopOrbit?.();
+    stopOrbit = null;
+    if (!on || !gl || !wanted || disposed) return;
+    if (reducedMotion()) {
+      stopOrbit = timers.every(ORBIT_STEP.ms, () => {
+        orbitTurn(ORBIT_STEP.deg);
+        requestRender();
+      });
+    } else {
+      const degPerMs = 360 / (ORBIT_SECONDS_PER_TURN * 1000);
+      stopOrbit = timers.frame((dt) => {
+        if (!gl || !wanted) return;
+        orbitTurn(Math.min(dt, ORBIT_MAX_FRAME_MS) * degPerMs);
+        render();
+      });
+    }
+  }
+
+  // ---- Full screen (Dad, 7 Oct) ----------------------------------------------------------------------------
+  const doc = () => /** @type {any} */ (win.document); // `any`: the prefixed fullscreen names older Safari has
+  const fullElement = () => doc()?.fullscreenElement ?? doc()?.webkitFullscreenElement ?? null;
+  const isFull = () => fallbackFull || fullElement() === element;
+
+  /** The button's words and the fallback's class follow the state, and the picture is drawn again at its new size. */
+  function syncFull() {
+    const on = isFull();
+    setText(fullButton, on ? 'Exit full screen' : 'Full screen');
+    fullButton.title = on ? 'Back to the page. Escape does the same.' : 'Fill the whole window with the 3D view. Escape or Exit full screen brings the page back.';
+    element.classList.toggle('is-fullscreen', fallbackFull);
+    requestRender(); // the resize observer would also catch the new size; this makes sure
+  }
+
+  function onFullKey(e) {
+    if (e.key === 'Escape' && fallbackFull) exitFullScreen();
+  }
+
+  async function enterFullScreen() {
+    const request = element.requestFullscreen ?? element.webkitRequestFullscreen;
+    if (request && doc()?.fullscreenEnabled !== false) {
+      try {
+        await request.call(element);
+        return; // fullscreenchange does the rest
+      } catch {
+        // The browser refused (an iframe without permission, or a browser with no fullscreen): fill the window with CSS instead.
+      }
+    }
+    if (disposed || !wanted) return;
+    fallbackFull = true;
+    doc()?.addEventListener('keydown', onFullKey);
+    syncFull();
+  }
+
+  function exitFullScreen() {
+    if (fallbackFull) {
+      fallbackFull = false;
+      doc()?.removeEventListener('keydown', onFullKey);
+      syncFull();
+    }
+    if (fullElement() === element) (doc().exitFullscreen ?? doc().webkitExitFullscreen)?.call(doc())?.catch?.(() => {});
+  }
+
+  function toggleFullScreen() {
+    if (isFull()) exitFullScreen();
+    else enterFullScreen();
   }
 
   // ---- Building and tearing down the view -------------------------------------------------------------
@@ -962,6 +1089,8 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     for (const [type, fn] of hands) canvas.addEventListener(type, fn);
     element.addEventListener('wheel', onWheel, { passive: false });
     labels.addEventListener('keydown', onLabelKey);
+    doc().addEventListener('fullscreenchange', syncFull);
+    doc().addEventListener('webkitfullscreenchange', syncFull);
     const traffic = createTraffic3d(THREE, { scene, labels, onHover: setHover, onPick: (hex) => selectAircraft(selectedAc === hex ? null : hex) });
     gl = { THREE, canvas, renderer, scene, camera, ctx, texture, ground, imagery, resizer, objects: null, traffic, palette: paletteFor(canvas) };
     sceneDirty = true;
@@ -971,9 +1100,16 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     spaceSig = '';
     tilesFailed = false;
     noTiles = false;
+    syncFull(); // the button's words for a fresh start
+    if (orbitOn) { // Orbit was pressed while three.js was still loading
+      orbitOn = false;
+      setOrbit(true);
+    }
   }
 
   function teardown({ lost = false } = {}) {
+    setOrbit(false); // no loop outlives the view
+    exitFullScreen();
     pending?.();
     pending = null;
     pointers.clear();
@@ -988,6 +1124,8 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     for (const [type, fn] of hands) canvas.removeEventListener(type, fn);
     element.removeEventListener('wheel', onWheel);
     labels.removeEventListener('keydown', onLabelKey);
+    doc().removeEventListener('fullscreenchange', syncFull);
+    doc().removeEventListener('webkitfullscreenchange', syncFull);
     resizer?.disconnect();
     imagery.dispose();
     ground.geometry.dispose();
@@ -1107,6 +1245,19 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
       trafficDirty = true;
       requestRender();
     },
+    /**
+     * The airspace log (airspace-log.js `view()`): the panel is drawn from it (only when it changed), and the aircraft in it that are not T-6s inside a
+     * watched area keep an amber tag with ⚠ (words, not colour alone). Called when a new traffic answer arrives, never each frame.
+     */
+    setAirspaceLog(view) {
+      logView.render(view);
+      const sig = [...view.hexes].map(([hex, ids]) => `${hex}:${ids}`).sort().join(',');
+      if (sig === intruderSig) return;
+      intruderSig = sig;
+      intruderHexes = view.hexes;
+      trafficDirty = true;
+      requestRender();
+    },
     /** The 2D map's pictures or their fading may have changed: the ground is painted again if they did. */
     touch() {
       if (!gl || !wanted) return;
@@ -1117,10 +1268,12 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     },
     /** Back to the start view: from the south-east, 45 degrees down, the whole square in view. */
     home() {
+      setOrbit(false); // the bar's Home button: the SOF takes the camera, as the Home key does
       cam = { ...START_CAMERA, zoom: 1 };
       requestRender();
     },
     zoomBy(factor) {
+      setOrbit(false);
       cam = zoomCamera(cam, factor, 1);
       requestRender();
     },
