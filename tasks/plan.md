@@ -50,9 +50,11 @@ This plan implements the complete architectural rewrite of Practice Forced Landi
 - [ ] Checkpoint 4: Complete Failure Matrix Verification (Calm, 20 kt Wind, Hot/Cold Days)
 
 ### Phase 5: UI/2D/3D Integration & Dead Code Cleanup
-- [ ] Task 9: Update PFL Overlays, Margin Tags, and Decision Readouts
-- [ ] Task 10: Retire Legacy PFL Carrot Follower and Duplicate Calculations
-- [ ] Checkpoint 5: Final Review and Sign-Off
+- [ ] Task 9A: Wire Simulation Stepper to Segment Planner (`sim.js`, `tick-aircraft.js`)
+- [ ] Task 9B: 2D Map Overlays, Tactical Badges & Planned Track (`map2d.js`, `scene.js`)
+- [ ] Task 9C: 3D Scene Visualization & Telemetry Hooks (`view3d.js`)
+- [ ] Task 10: Retire Legacy Carrot Follower & F14 Dead Code Cleanup (`pfl.js`, `route.js`, `sim.js`)
+- [ ] Checkpoint 5: Full System Integration, Visualization & Sign-Off
 
 ---
 
