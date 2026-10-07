@@ -44,6 +44,19 @@ Things to know:
 
 To limit abuse further, Cloudflare's dashboard can add a rate-limiting rule on the Worker's address. That is an account setting, not code.
 
+## Running it on Netlify (decision SOF-40, the way it runs now)
+
+The same relay also runs as a Netlify Function: `netlify/functions/traffic.mjs` wraps the same handler from `lib.js`, and `netlify.toml` sets it up. Nothing is installed or built.
+
+1. Sign in at netlify.com (Dad's account).
+2. **Add new site → Import an existing project → GitHub**, and pick `LIZARDHANDS-commits/Dads-debreif`.
+3. Set **Branch to deploy** to `main` and **Base directory** to `relay`. Leave the build command empty. Netlify reads the rest from `relay/netlify.toml`.
+4. Deploy. Optional: rename the site under **Site configuration → Change site name**, for example `dads-sof-relay`.
+5. Check it: opening `https://<site>.netlify.app/traffic?lat=50.33&lon=-105.56&nm=50` in a browser tab should answer with aircraft. A plain tab sends no origin, which the relay allows.
+6. In the tool, open the SOF → **SOF settings** → **Traffic relay address** and enter `https://<site>.netlify.app` (nothing after it). The Traffic switch then appears on the map.
+
+`ALLOWED_ORIGINS` can be set under **Site configuration → Environment variables**, the same as on Cloudflare. Netlify only rebuilds when something in `relay/` changes. The free plan allows 125,000 function calls a month; one SOF screen open for a 10-hour day at one call every 10 s is about 3,600 a day, so about 20 SOF-days a month before the limit (estimate). Keep the screen closed when not in use, or raise the interval, if it is open all day every day.
+
 ## Credit and terms for adsb.lol
 
 Read on 2026-09-30 from adsb.lol's API page (`https://api.adsb.lol/docs`, its OpenAPI text) and `https://www.adsb.lol/docs/open-data/api/`:

@@ -5,7 +5,7 @@ Ideas for the SOF that are not being built. An idea moves into `plan.md` only wi
 ## Decided for the future list by Patrick (4 Oct)
 
 - Large text for a desk screen across the room, the NATO colour chart, and the "Runway view" and "Lightning map" links: left out of the essentials-now list (`pf/reset/1-requirements/questions.md:65`).
-- Live traffic on our own map through a small relay (a Cloudflare worker, code already in `relay/`): the ADS-B Exchange switch stays; the relay layer waits for an account Patrick owns; it was queued as PPQ-12 (`pf/reset/1-requirements/questions.md:72`, `archive/docs/records/verification/swarm/POST_PROTOTYPE_QUEUE.md:56`, `archive/HANDOVER.md:112`).
+- Live traffic on our own map through a small relay: **now on the plan** (Step 2b phase 4) and running on Dad's Netlify account (SOF-40, 7 Oct). Was: a Cloudflare worker, code already in `relay/`; the ADS-B Exchange switch stays; the relay layer waits for an account Patrick owns; it was queued as PPQ-12 (`pf/reset/1-requirements/questions.md:72`, `archive/docs/records/verification/swarm/POST_PROTOTYPE_QUEUE.md:56`, `archive/HANDOVER.md:112`).
 - NOTAMs on the SOF's detail pages: they need the relay too, so they wait (`pf/reset/1-requirements/questions.md:79`).
 - A beep when a new caution appears (`pf/reset/1-requirements/questions.md:67`).
 - Wind checks (SOF-R27, decision SOF-37): crosswind per runway (amber over 15 kt dry, 10 wet, 5 icy; red over 25 kt dry), a 30 kt wind or gust warning and a 35 kt cease-flying caution, each an editable setting with its page reference. Moved here by Patrick on 4 Oct 09:22Z; it was on the plan from his SOF-Q15 answer (00:56Z). Also Feature Ideas item 8.
