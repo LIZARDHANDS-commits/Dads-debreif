@@ -11,8 +11,10 @@
 // It is a model estimate, never an observation: no limit is checked here and nothing here raises or clears a caution.
 import {
   columnAt, cloudBlocks, cloudStage, smoothField, blur, sheetAlpha, CLOUD_COVER_THRESHOLD_PCT, CLOUD_SHEET_PX, CLOUD_SHEET_BLUR_PX, CLOUD_SHEET_COLOURS, GRID_SIZE,
+  CLOUD_STAGES_FT_AGL,
 } from './model-clouds.js';
-import { formatFeet } from './scene3d-model.js';
+import { formatFeet, AREA_FT } from './scene3d-model.js';
+import { FT_PER_NM } from './map-view.js';
 
 /** The three stages, bottom first (model-clouds.js `cloudStage`). */
 export const STAGES = Object.freeze(['low', 'mid', 'high']);
@@ -358,4 +360,99 @@ export function maskSlabs(slabs, total, { threshold = CLOUD_COVER_THRESHOLD_PCT,
     if (slabs[stage]) out[stage] = { ...slabs[stage], cover: covers[s] };
   });
   return { slabs: out, unplacedShare: unplaced / total.percent.length };
+}
+
+// ---- Observed bases: METARs anchor the low cloud near their stations (Fable review, 7 Oct) ------------------------------------
+
+/** A station's observed base pulls the model's low cloud base towards it out to this distance, fading smoothly to nothing. Estimate, SOF-39 (Fable review). */
+export const ANCHOR_NM = 15; // estimate, SOF-39
+
+/**
+ * The low slab pulled towards what the reporting stations see, near each one (`anchors`: scene3d-model.js `stationAnchors`, fresh reports only; the view uses this at the
+ * model hour "now" only). Within `anchorNm` of a station the weight is w = smoothstep(1 − d / anchorNm) (1 at the station, 0 at the edge); where two stations reach, the
+ * nearer one counts. Low stage only:
+ * - a ceiling (BKN, OVC or VV) whose base is in the low stage (below CLOUD_STAGES_FT_AGL.lowTopFt above the field): base' = base × (1 − w) + observed × w, and the top is
+ *   kept at least MIN_SLAB_FT above it;
+ * - no low ceiling (a clear sky, only FEW or SCT, or a ceiling above the low stage): low cover' = cover × (1 − w);
+ * - a stale or missing report, an unknown ceiling or an unknown field elevation: nothing changes.
+ *
+ * Returns { slabs, stations } where `stations` are the anchors with `use` ('base', 'thin' or 'none'), `reason` (for 'none': 'stale', 'unknown', 'elevation' or
+ * 'outside') and `modelBaseFt` (the model's own low base at the station before anchoring, or null with no low cloud there over `threshold`).
+ */
+export function anchorLowSlab(slabs, anchors, { anchorNm = ANCHOR_NM, threshold = CLOUD_COVER_THRESHOLD_PCT, lowTopFt = CLOUD_STAGES_FT_AGL.lowTopFt } = {}) {
+  const low = slabs?.low ?? null;
+  const px = slabs?.px ?? 0;
+  const half = AREA_FT / 2;
+  const toPixel = (ft) => ((ft + half) / AREA_FT) * (px - 1);
+  const stations = (anchors ?? []).map((a) => {
+    const inside = Math.abs(a.x) <= half && Math.abs(a.y) <= half;
+    const n = px ? pixelAt(px, a.x / AREA_FT + 0.5, a.y / AREA_FT + 0.5) : -1;
+    const modelBaseFt = inside && low && low.cover[n] > threshold ? low.base[n] : null;
+    let use = 'none';
+    let reason = null;
+    if (!inside) reason = 'outside';
+    else if (!a.fresh) reason = 'stale';
+    else if (a.unknown) reason = 'unknown';
+    else if (a.ceiling && a.ceiling.baseAglFt < lowTopFt) {
+      if (a.baseMslFt === null) reason = 'elevation';
+      else use = 'base';
+    } else use = 'thin';
+    return { ...a, use, reason, modelBaseFt };
+  });
+  if (!low || !px) return { slabs, stations };
+  const radius = anchorNm * FT_PER_NM;
+  const best = new Float32Array(px * px);
+  const which = new Int16Array(px * px).fill(-1);
+  const pxFt = AREA_FT / (px - 1);
+  stations.forEach((a, k) => {
+    if (a.use === 'none') return;
+    const cx = toPixel(a.x);
+    const cy = toPixel(a.y);
+    const reach = radius / pxFt;
+    for (let row = Math.max(0, Math.floor(cy - reach)); row <= Math.min(px - 1, Math.ceil(cy + reach)); row++) {
+      for (let col = Math.max(0, Math.floor(cx - reach)); col <= Math.min(px - 1, Math.ceil(cx + reach)); col++) {
+        const d = Math.hypot(col - cx, row - cy) * pxFt;
+        const w = smoothstep(1 - d / radius);
+        const n = row * px + col;
+        if (w > best[n]) {
+          best[n] = w;
+          which[n] = k;
+        }
+      }
+    }
+  });
+  const base = new Float32Array(low.base);
+  const top = new Float32Array(low.top);
+  const cover = new Float32Array(low.cover);
+  for (let n = 0; n < best.length; n++) {
+    const w = best[n];
+    if (!(w > 0)) continue;
+    const a = stations[which[n]];
+    if (a.use === 'base') {
+      base[n] = base[n] * (1 - w) + a.baseMslFt * w;
+      top[n] = Math.max(top[n], base[n] + MIN_SLAB_FT);
+    } else cover[n] *= 1 - w;
+  }
+  return { slabs: { ...slabs, low: { ...low, base, top, cover } }, stations };
+}
+
+/**
+ * One station's line for the key: "CYMJ: METAR BKN045 → 6,392 ft; model low base 5,900 ft (model 500 ft lower)", "CYQR: no low ceiling reported; model low cloud: none",
+ * "KMIB: no fresh METAR". Heights are feet above sea level; the observed base exactly (the METAR's hundreds of feet plus the field), the model's to the nearest 100.
+ */
+export function anchorWords(station, { anchorNm = ANCHOR_NM } = {}) {
+  const { icao } = station;
+  const model = station.modelBaseFt === null ? 'model low cloud: none' : `model low base ${nearest100(station.modelBaseFt)} ft`;
+  if (station.reason === 'stale') return `${icao}: no fresh METAR`;
+  if (station.reason === 'outside') return `${icao}: outside the square`;
+  if (station.reason === 'unknown') return `${icao}: ceiling not known (no base reported); not used`;
+  if (station.reason === 'elevation') return `${icao}: METAR ${station.ceiling.group}, field elevation not known; not used`;
+  if (station.use === 'base') {
+    if (station.modelBaseFt === null) return `${icao}: METAR ${station.ceiling.group} → ${formatFeet(station.baseMslFt)} ft; ${model}`;
+    const d = Math.round((station.modelBaseFt - station.baseMslFt) / 100) * 100;
+    const diff = d === 0 ? 'the same to 100 ft' : `model ${formatFeet(Math.abs(d))} ft ${d < 0 ? 'lower' : 'higher'}`;
+    return `${icao}: METAR ${station.ceiling.group} → ${formatFeet(station.baseMslFt)} ft; ${model} (${diff}); pulled to the METAR within ${anchorNm} NM`;
+  }
+  const above = station.ceiling ? ` (${station.ceiling.group}${station.baseMslFt === null ? '' : ` → ${formatFeet(station.baseMslFt)} ft`} is above the low stage)` : '';
+  return `${icao}: no low ceiling reported${above}; ${model}${station.modelBaseFt === null ? '' : `, thinned within ${anchorNm} NM`}`;
 }

@@ -7,6 +7,8 @@
 import { FT_PER_NM } from './map-view.js';
 import { AIRPORTS } from './airports-data.js';
 import { velocityFt } from './traffic-motion.js';
+import { staleness } from '../../wx/sources.js';
+import { ceilingFt, ceilingUnknown } from '../../wx/conditions.js';
 
 /**
  * The square the view shows: 450 NM on a side, centred on home (Dad, 7 Oct: "grow it by 100 NM each way so no empty corners show while orbiting"; it was 250), so the
@@ -71,6 +73,42 @@ export function cloudDecks({ sky = [], elevationFt = null } = /** @type {any} */
   }
   decks.sort((a, b) => a.baseMslFt - b.baseMslFt);
   return { decks, baseUnknown, obscured, elevationKnown };
+}
+
+/**
+ * What each reporting station's METAR says about the cloud base over it, for anchoring the 3D view's low cloud (SOF-39; Fable review, 7 Oct). `reports` are wx's
+ * `fetchReports('metar', ...)` reports ({ ICAO: { raw, report, source } }, read by wx, never here); `stations` are stations-data.js's ({ icao, lat, lon, elevationFt });
+ * `toXY(lat, lon)` gives [x, y] in the map's local feet; `now` is the clock (a report's freshness is wx's own rule, 75 minutes, checked again against it each time, so an
+ * old report is never kept).
+ *
+ * Returns [{ icao, x, y, fresh, ceiling, baseMslFt, clear, unknown }] in the stations' order:
+ * - ceiling: the lowest BKN, OVC or VV layer with a base (wx `ceilingFt`), as { group ('BKN085', 'VV002'), baseAglFt, baseMslFt (null when the field elevation is not
+ *   known) }, or null. FEW and SCT layers are not a ceiling, so they never move a base.
+ * - baseMslFt: the ceiling's base in feet above sea level, or null.
+ * - clear: a fresh report with no ceiling whose sky is known (SKC, CLR, or only FEW and SCT): the low cloud near it is thinned.
+ * - unknown: a fresh report whose ceiling cannot be known (BKN///, or no cloud group at all): it is not used.
+ */
+export function stationAnchors({ reports = {}, stations = [], toXY, now = new Date() } = /** @type {any} */ ({})) {
+  return stations.map((station) => {
+    const [x, y] = toXY(station.lat, station.lon);
+    const entry = reports?.[station.icao];
+    const fresh = Boolean(entry?.report) && staleness('metar', entry.report, now) === 'fresh';
+    const conditions = fresh ? entry.report.conditions : null;
+    const elevationFt = isNumber(station.elevationFt) ? station.elevationFt : null;
+    const base = fresh ? ceilingFt(conditions) : null;
+    let ceiling = null;
+    if (base !== null) {
+      const layer = (conditions?.sky ?? []).find((l) => (l.cover === 'BKN' || l.cover === 'OVC' || l.cover === 'VV') && l.baseFt === base);
+      const deck = layer?.cover === 'VV' ? null : cloudDecks({ sky: [layer], elevationFt }).decks[0];
+      ceiling = {
+        group: `${layer?.cover ?? 'BKN'}${String(Math.round(base / 100)).padStart(3, '0')}`,
+        baseAglFt: base,
+        baseMslFt: elevationFt === null ? null : (deck?.baseMslFt ?? base + elevationFt),
+      };
+    }
+    const unknown = fresh && base === null && ceilingUnknown(conditions);
+    return { icao: station.icao, x, y, fresh, ceiling, baseMslFt: ceiling?.baseMslFt ?? null, clear: fresh && base === null && !unknown, unknown };
+  });
 }
 
 /** The category colour tokens (the SOF page's own), with their fallbacks; `none` is for a field with no current METAR. */

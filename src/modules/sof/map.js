@@ -38,7 +38,9 @@ import { createAdsbFrame, adsbExchangeUrl, zoomForScale } from './adsbx.js';
 import { webglSupported } from '../../ui-kit/three-aircraft.js';
 import { createSofView3d } from './view3d.js';
 import { alerts3dView } from './alerts.js';
-import { sceneAirfields, sceneTraffic, AREA_FT } from './scene3d-model.js';
+import { sceneAirfields, sceneTraffic, stationAnchors, AREA_FT } from './scene3d-model.js';
+import { ANCHOR_STATIONS } from './stations-data.js';
+import { fetchReports } from '../../wx/sources.js';
 import { createFrontsFeed, frontsUrl, frontsView } from './fronts.js';
 import { tacnavRoutes, checkedAirspace } from './airspace-model.js';
 import { AIRSPACE } from './airspace-data.js';
@@ -57,6 +59,8 @@ const MODEL_CLOUD_PX = Math.round(512 / 1.2);
 /** It is asked for again once an hour (its layer has hourly times and a new run every 6 hours), and for a new hour as soon as the slider settles. Estimate, SOF-39. */
 const MODEL_CLOUD_REFRESH_MS = 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
+/** The stations' METARs that anchor the 3D low cloud are asked for this often while the 3D view is shown (Fable review, 7 Oct; METARs come hourly, specials between). */
+const ANCHOR_REFRESH_MS = 10 * 60 * 1000;
 const OFFLINE_WORDS = 'Map and radar need a connection';
 const NO_WEBGL_WORDS = 'The 3D view needs WebGL, which this browser does not have. The map stays.';
 const NO_3D_LOAD_WORDS = 'The 3D view could not load (it needs a connection the first time). The map stays.';
@@ -282,6 +286,10 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
   };
   const requests3d = new Map(); // request key → the request, so a picture is laid where it was asked for
   let modelHourMs = null; // the 3D slider's model hour (ms), or null before the model has answered: then the hour now
+  // The reporting stations' METARs for the 3D low cloud's observed bases (wx's fetchReports: MET Norway in one call, Datamask for the rest): in memory only.
+  let anchorReports = {}; // ICAO -> wx report entry, the latest each station gave (each one's freshness is checked against the clock when used, so none is frozen)
+  let anchorRound = { busy: false, at: null, failedAt: null, home: null };
+  let cancelAnchors = null;
   const frontsFeed = createFrontsFeed({
     address: () => frontsUrl(settings.get().trafficRelay),
     paused: () => document.hidden,
@@ -325,10 +333,55 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     syncFeeds3d();
     for (const feed of Object.values(feeds3d)) feed.enable(true);
     frontsFeed.start();
+    askAnchors();
+    cancelAnchors ??= timers.every(ANCHOR_REFRESH_MS, askAnchors);
   }
   function stop3dFeeds() {
     for (const feed of Object.values(feeds3d)) feed.enable(false);
     frontsFeed.stop();
+    cancelAnchors?.();
+    cancelAnchors = null;
+  }
+
+  /** The anchor stations inside the 3D square round home (stations-data.js). */
+  function anchorStations() {
+    const half = AREA_FT / 2;
+    return ANCHOR_STATIONS.filter((st) => {
+      const [x, y] = projection.toXY(st.lat, st.lon);
+      return Math.abs(x) <= half && Math.abs(y) <= half;
+    });
+  }
+
+  /** One round of the stations' METARs (only while 3D is shown and the tab is visible). A station missing from a round keeps its last report until wx calls it stale. */
+  async function askAnchors() {
+    if (disposed || !threeOn || document.hidden || anchorRound.busy) return;
+    const asked = home.icao;
+    anchorRound = { ...anchorRound, busy: true };
+    let got = 0;
+    try {
+      const result = await fetchReports('metar', anchorStations().map((st) => st.icao), { fetch: fetchNet, now: now() });
+      if (disposed || asked !== home.icao) return;
+      got = Object.keys(result.reports).length;
+      anchorReports = { ...anchorReports, ...result.reports };
+    } catch {
+      // fetchReports does not throw; anything else is a failed round
+    } finally {
+      if (!disposed && asked === home.icao) {
+        anchorRound = { busy: false, at: got ? +now() : anchorRound.at, failedAt: got ? null : +now(), home: asked };
+        if (threeOn) view3d.touch();
+      } else anchorRound = { ...anchorRound, busy: false };
+    }
+  }
+
+  /**
+   * The observed bases for the 3D view: { status, anchors, failedAt } where status is 'loading' (no round yet), 'ok' or 'unavailable' (no station has a fresh report),
+   * and anchors are scene3d-model.js `stationAnchors` for the stations inside the square (freshness checked against the clock now).
+   */
+  function anchorsView(t) {
+    const anchors = stationAnchors({ reports: anchorReports, stations: anchorStations(), toXY: projection.toXY, now: t });
+    const anyFresh = anchors.some((a) => a.fresh);
+    const status = anyFresh ? 'ok' : anchorRound.at === null && anchorRound.failedAt === null ? 'loading' : 'unavailable';
+    return { status, anchors, failedAt: anchorRound.failedAt };
   }
 
   const imagery = createTileLayer({ source: ESRI_IMAGERY, timers, onChange: () => view.requestDraw() });
@@ -773,11 +826,13 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
       lastGoodAt: mc.fetchedAt ? +mc.fetchedAt : null,
     };
     parts.push(`modelCloud:${modelCloud.id}:${modelCloud.time}:${modelCloud.stale}:${modelCloud.failed}:${modelCloud.busy}`);
+    const anchors = anchorsView(t);
+    parts.push(`anchors:${anchors.status}:${anchors.anchors.map((a) => `${a.icao}${a.fresh ? `+${a.baseMslFt ?? ''}${a.clear ? 'c' : ''}${a.unknown ? 'u' : ''}` : '-'}`).join(',')}`);
     const fs = frontsFeed.state();
     const fronts = { ...frontsView(fs, t), key: `${fs.lastGood?.receivedAt ?? 'none'}` };
     parts.push(`fronts:${fronts.status}:${fronts.key}`);
     lines.push({ id: 'fronts', text: fronts.words, symbol: fronts.status === 'ok' ? (fs.failed ? '⚠' : '✓') : fronts.status === 'loading' ? '⟳' : '⚠', tone: fronts.status === 'ok' && !fs.failed ? 'ok' : fronts.status === 'loading' ? 'busy' : 'bad' });
-    return { sig: parts.join('|'), radar, lightning, satellite, fronts, lines, modelCloud };
+    return { sig: parts.join('|'), radar, lightning, satellite, fronts, lines, modelCloud, anchors };
   }
 
   function stopThree() {
@@ -951,7 +1006,12 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
         watch.setPlace();
         modelFeed.setPlace(); // the grid is round the new home
         requests3d.clear();
-        if (threeOn) syncFeeds3d(); // and so are the 3D pictures
+        anchorReports = {}; // and the stations round it
+        anchorRound = { busy: false, at: null, failedAt: null, home: null };
+        if (threeOn) {
+          syncFeeds3d(); // and so are the 3D pictures
+          askAnchors();
+        }
         goHome();
       }
       const radius = settings.get().lightningNm;
@@ -1000,6 +1060,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
       if (threeOn) {
         for (const feed of Object.values(feeds3d)) feed.wake();
         frontsFeed.wake();
+        if (anchorRound.at === null || +now() - anchorRound.at >= ANCHOR_REFRESH_MS) askAnchors();
       }
       view.requestDraw();
     },
@@ -1017,6 +1078,8 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
       modelFeed.stop();
       for (const feed of Object.values(feeds3d)) feed.stop();
       frontsFeed.stop();
+      cancelAnchors?.();
+      cancelAnchors = null;
       view3d.dispose();
       adsbFrame.dispose();
       imagery.dispose();

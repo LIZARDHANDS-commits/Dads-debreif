@@ -58,7 +58,9 @@ import {
   TOUR_TARGETS, TOUR_DWELL_S, TOUR_FLY_S, TOUR_PITCH_DEG, TOUR_FIELD_AGL_FT, tourStops, nextStopIndex, tourCaption, nextInWords, framingZoom, flyPose,
 } from './tour-model.js';
 import { buildModelLayers, MODEL_GROUPS } from './model-layers3d.js';
-import { slabColumnAt, highestSlabTopFt, cloudSlabs, maskSlabs, SLAB_SHEETS, MIN_SLAB_FT, NT_MAX_GAIN, NT_OLD_FADE } from './cloud-field.js';
+import {
+  slabColumnAt, highestSlabTopFt, cloudSlabs, maskSlabs, anchorLowSlab, anchorWords, SLAB_SHEETS, MIN_SLAB_FT, NT_MAX_GAIN, NT_OLD_FADE, ANCHOR_NM,
+} from './cloud-field.js';
 import { createTraffic3d } from './traffic3d.js';
 import { AIRSPACE } from './airspace-data.js';
 import { buildAirspace, AIRSPACE_GROUPS, KIND_COLOURS } from './airspace3d.js';
@@ -111,6 +113,8 @@ const TERRAIN_DEPS_MS = 4000;
 const AIRCRAFT_CREDIT = 'Aircraft: adsb.lol (ODbL 1.0)';
 /** The cloud detail's credit, said while the 2.5 km picture shapes the slabs. */
 const DETAIL_CREDIT = 'Cloud detail: ECCC MSC GeoMet, HRDPS total cloud';
+/** The observed bases' credit, said while METARs anchor the low cloud. */
+const ANCHOR_CREDIT = 'Observed bases: METARs (MET Norway, NOAA)';
 const hhmm = (ms) => `${new Date(ms).toISOString().slice(11, 16).replace(':', '')}Z`;
 
 /** A TACNAV route's name shows while the pointer is within this many pixels of its line (Dad, 7 Oct: names only under the pointer). An estimate for feel. */
@@ -148,7 +152,8 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   let creditFronts = false;
   let creditTerrain = false;
   let creditDetail = false;
-  const updateCredit = () => setText(credit, [ESRI_IMAGERY.credit, creditTerrain ? TERRAIN_CREDIT : null, creditAircraft ? AIRCRAFT_CREDIT : null, creditFronts ? FRONTS_CREDIT : null, creditDetail ? DETAIL_CREDIT : null].filter(Boolean).join('. '));
+  let creditAnchors = false;
+  const updateCredit = () => setText(credit, [ESRI_IMAGERY.credit, creditTerrain ? TERRAIN_CREDIT : null, creditAircraft ? AIRCRAFT_CREDIT : null, creditFronts ? FRONTS_CREDIT : null, creditDetail ? DETAIL_CREDIT : null, creditAnchors ? ANCHOR_CREDIT : null].filter(Boolean).join('. '));
   const outside = h('p', { class: 'sof-3d-outside', hidden: true });
   const note = h('p', { class: 'sof-3d-note', role: 'status', hidden: true });
   const tag = h('p', { class: 'sof-3d-tag', role: 'status', hidden: true });
@@ -620,6 +625,10 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     const { status, model, now } = modelState;
     if (!gl || status !== 'ok' || !model) {
       showDetail(null, null);
+      if (creditAnchors) {
+        creditAnchors = false;
+        updateCredit();
+      }
       return;
     }
     const hour = hourIndex(model, +now, ahead);
@@ -642,6 +651,18 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       }
     }
     showDetail(detail, model);
+    // Observed bases (METARs) pull the low cloud near their stations, at the model hour "now" only: the reports are now, not a forecast.
+    const observed = cloudStyle === 'slabs' ? anchorsOf(wx, model, hour) : null;
+    if (observed?.state === 'ok') {
+      const anchored = anchorLowSlab(slabs, observed.list);
+      slabs = anchored.slabs;
+      observed.stations = anchored.stations;
+    }
+    const anchorsOn = observed?.state === 'ok' && observed.stations.some((st) => st.use !== 'none');
+    if (anchorsOn !== creditAnchors) {
+      creditAnchors = anchorsOn;
+      updateCredit();
+    }
     const built = buildModelLayers(gl.THREE, { model, hour, scale, groundFt: groundFt(), style: cloudStyle, slabs, fade });
     gl.scene.add(built.root);
     const items = built.labels.map((l) => {
@@ -649,7 +670,8 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       labels.append(el);
       return { el, group: l.group, point: l.point, hPa: l.hPa, side: l.side };
     });
-    gl.model = { built, items, counts: built.summary.layers, key: `${modelSig}|${detail?.key ?? 'none'}`, fields: built.fields, inputs: detail?.key ?? 'none', detail };
+    const inputs = `${detail?.key ?? 'none'}|${observed?.key ?? 'none'}`;
+    gl.model = { built, items, counts: built.summary.layers, key: `${modelSig}|${inputs}`, fields: built.fields, inputs, detail, observed };
     drawLayerPicker(built.summary.sheets);
     built.showLayer(layerChoice === 'all' ? null : Number(layerChoice));
     applyToggles();
@@ -667,6 +689,19 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     if (mc.image && mc.time === model.times[hour]) return { state: mc.stale ? 'old' : 'ok', picture: mc, key: `${mc.id}|${mc.stale}` };
     if (mc.failed) return { state: 'failed', lastGoodAt: mc.lastGoodAt, key: 'failed' };
     return { state: 'loading', key: 'loading' };
+  }
+
+  /**
+   * The observed bases for the slabs (map.js `weather3d().anchors`): { state, list, key } with state 'ok' (fresh reports to anchor with: `list` the fresh ones),
+   * 'later' (the slider is past now: the reports are now, so nothing is anchored), 'loading' or 'unavailable' (no station has a fresh report: the model alone).
+   */
+  function anchorsOf(wx, model, hour) {
+    const view = wx?.anchors;
+    if (hour !== hourIndex(model, +modelState.now, 0)) return { state: 'later', list: [], all: view?.anchors ?? [], key: 'later' };
+    if (!view || view.status === 'loading') return { state: 'loading', list: [], all: [], key: 'loading' };
+    if (view.status !== 'ok') return { state: 'unavailable', list: [], all: view.anchors, key: 'unavailable' };
+    const key = view.anchors.map((a) => `${a.icao}${a.fresh ? `+${a.baseMslFt ?? ''}${a.clear ? 'c' : ''}${a.unknown ? 'u' : ''}` : '-'}`).join(',');
+    return { state: 'ok', list: view.anchors, all: view.anchors, key };
   }
 
   /** The detail's line in the model panel and its credit (words and a symbol, never colour alone). */
@@ -709,6 +744,19 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       h('p', {}, `Clouds: slabs with a base and a top. In each of the model's ${model.gridSize} × ${model.gridSize} columns (${spacing} NM apart), each level over ${CLOUD_COVER_THRESHOLD_PCT} % cover (an estimate) is cloud from halfway down to the level below to halfway up to the level above (${model.cloudLevels.length} levels, ${model.cloudLevels[0]} to ${model.cloudLevels.at(-1)} hPa), and cloudy levels next to each other join. The lowest such block in each stage is that stage's slab (low, mid and high by its base above the ground: below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft, up to ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft, above). Base, top and cover are smoothed between the columns and drawn as ${SLAB_SHEETS} stacked sheets from base to top (an estimate), never thinner than ${formatFeet(MIN_SLAB_FT)} ft, white to grey by cover and as solid from above as the old one-sheet-per-level style would stack its levels (so deeper cloud reads denser; an estimate), with a soft texture that is a picture, not data. The real cloud's thickness between the model's levels is not known. The model's own mean cover this hour: low ${pct(cover.low)}, mid ${pct(cover.mid)}, high ${pct(cover.high)}.`),
       h('ul', {}, ['low', 'mid', 'high'].map((stage) => h('li', {}, summary.slabs.words[stage]))),
       ...detailKey(gl?.model?.detail ?? null, spacing),
+      ...anchorKey(gl?.model?.observed ?? null),
+    ];
+  }
+
+  /** The key's words for the observed bases: the rule with its estimate named, then one line per station. */
+  function anchorKey(observed) {
+    if (!observed) return [];
+    if (observed.state === 'later') return [h('p', {}, 'Observed bases: METARs anchor the low cloud at now only; at later hours the slabs are the model alone (observations stay at now).')];
+    if (observed.state === 'loading') return [h('p', {}, 'Observed bases loading: the low cloud is the model alone until the stations\' METARs arrive.')];
+    if (observed.state === 'unavailable') return [h('p', {}, 'Observed bases unavailable, model alone: no station in the square has a fresh METAR.')];
+    return [
+      h('p', {}, `Observed bases (now only): within ${ANCHOR_NM} NM of each reporting station (an estimate), the low cloud's base is pulled to the METAR's lowest BKN, OVC or VV base below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft above the field (plus the field's elevation), fully at the station and fading smoothly to nothing at ${ANCHOR_NM} NM. Where the METAR has no low ceiling (clear, FEW or SCT only, or its ceiling is higher), the model's low cloud there is thinned the same way. FEW and SCT never move a base. A station with no fresh METAR (older than 75 minutes) is not used.`),
+      h('ul', {}, observed.stations.filter((st) => st.reason !== 'outside').map((st) => h('li', {}, anchorWords(st)))),
     ];
   }
 
@@ -1251,7 +1299,10 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       if (wx.sig !== weatherSig) weatherDirty = true;
       // The slabs are built again when the HRDPS cloud picture for the hour shown comes, goes or fails.
       const { status, model, now: at } = modelState;
-      if (gl.model && cloudStyle === 'slabs' && status === 'ok' && model && detailOf(wx, model, hourIndex(model, +at, ahead)).key !== gl.model.inputs) modelDirty = true;
+      if (gl.model && cloudStyle === 'slabs' && status === 'ok' && model) {
+        const hour = hourIndex(model, +at, ahead);
+        if (`${detailOf(wx, model, hour).key}|${anchorsOf(wx, model, hour).key}` !== gl.model.inputs) modelDirty = true;
+      }
     }
     if (modelDirty) {
       rebuildModel();
@@ -1793,6 +1844,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     terrainPartly = false;
     creditTerrain = false;
     creditDetail = false;
+    creditAnchors = false;
     lastWx = null;
     updateCredit();
     tag.hidden = true;

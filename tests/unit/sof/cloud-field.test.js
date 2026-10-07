@@ -1,15 +1,17 @@
 // Checks: a model column with cloud at 850 and 700 hPa (and thin cover at 925 hPa) becomes one low cloud slab in the SOF's 3D view, whose base lies between the
-//   925 and 850 hPa levels and whose top lies above the 700 hPa level, with no mid or high slab; and the cloud read back above that place (what the radar shafts,
-//   lightning bolts and satellite sheet stand on) has the same base and top.
+//   925 and 850 hPa levels and whose top lies above the 700 hPa level, with no mid or high slab; the cloud read back above that place (what the radar shafts,
+//   lightning bolts and satellite sheet stand on) has the same base and top; and a fresh METAR at that place reporting BKN030 pulls the low cloud's base there to
+//   3,000 ft above the field.
 // Serves: SOF-39 (3D view, model clouds: cloud slabs with a base and a top; plan Step 2b "Weather fidelity 2").
 // Expected values: standard atmosphere heights of the pressure levels (1000 hPa about 110 m, 925 about 770 m, 850 about 1,500 m, 700 about 3,000 m, 600 about 4,200 m,
 //   500 about 5,600 m, 400 about 7,200 m, 300 about 9,200 m); metres to feet with 3.2808 ft per metre; the 1,900 ft field is about Moose Jaw's elevation; the 30 % cloud
-//   threshold is the model's estimate (SOF-39). Not read from V6 or from the code's own output.
-// Margin: ±100 ft, the shared table's height margin, for the base and top read back.
+//   threshold is the model's estimate (SOF-39); a METAR cloud base is in feet above the aerodrome (BKN030 is 3,000 ft), so over the 1,900 ft field it is 4,900 ft above
+//   sea level. Not read from V6 or from the code's own output.
+// Margin: ±100 ft, the shared table's height margin, for the base and top read back and the anchored base.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { slabColumns, slabGrids, slabFields, slabColumnAt } from '../../../src/modules/sof/cloud-field.js';
+import { slabColumns, slabGrids, slabFields, slabColumnAt, anchorLowSlab } from '../../../src/modules/sof/cloud-field.js';
 
 const FT_PER_M = 3.2808;
 const LEVEL_HEIGHT_M = { 1000: 110, 925: 770, 850: 1500, 700: 3000, 600: 4200, 500: 5600, 400: 7200, 300: 9200 };
@@ -30,7 +32,7 @@ function model() {
   return { gridSize: SIZE, cloudLevels: LEVELS, times: [0], points };
 }
 
-test('cloud at 850 and 700 hPa over a 1,900 ft field is one low slab from between 925 and 850 hPa to above 700 hPa, and reads back the same above the place', () => {
+test('cloud at 850 and 700 hPa over a 1,900 ft field is one low slab from between 925 and 850 hPa to above 700 hPa, reads back the same, and a METAR BKN030 there sets its base', () => {
   const columns = slabColumns(model(), 0, FIELD_FT);
   const centre = columns.find((c) => c.i === 1 && c.j === 1);
   assert.ok(centre.low, 'there is a low slab');
@@ -45,4 +47,9 @@ test('cloud at 850 and 700 hPa over a 1,900 ft field is one low slab from betwee
   assert.ok(above, 'there is cloud above the middle of the square');
   assert.ok(Math.abs(above.baseFt - centre.low.baseFt) <= 100, `base read back ${above.baseFt} ft, slab ${centre.low.baseFt} ft`);
   assert.ok(Math.abs(above.topFt - centre.low.topFt) <= 100, `top read back ${above.topFt} ft, slab ${centre.low.topFt} ft`);
+
+  // A fresh METAR at the middle of the square (x, y 0 feet from home) reporting BKN030 over the 1,900 ft field: the base there is 4,900 ft above sea level.
+  const metar = { icao: 'TEST', x: 0, y: 0, fresh: true, ceiling: { group: 'BKN030', baseAglFt: 3000, baseMslFt: 3000 + FIELD_FT }, baseMslFt: 3000 + FIELD_FT, clear: false, unknown: false };
+  const anchored = slabColumnAt(anchorLowSlab(slabs, [metar]).slabs, 0.5, 0.5);
+  assert.ok(Math.abs(anchored.baseFt - (3000 + FIELD_FT)) <= 100, `anchored base ${anchored.baseFt} ft, METAR ${3000 + FIELD_FT} ft`);
 });
