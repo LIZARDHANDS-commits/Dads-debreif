@@ -23,6 +23,7 @@ import { createTimelineStrip } from './timeline-strip.js';
 import { createDropdowns } from './dropdown.js';
 import { createFullScreen } from './fullscreen.js';
 import { createNotamFeed, notamUrl, notamsFor } from './notams.js';
+import { createAlertsFeed, alertsUrl, alertsFor } from './alerts.js';
 
 const STYLESHEET = new URL('./sof.css', import.meta.url).href;
 /** Ages and the DTG are minutes; the screen is checked this often and touches the page only when a word changes. */
@@ -50,6 +51,15 @@ function mount(root, app) {
   // NOTAMs for home and the alternates, through the relay (SOF-42): every 5 minutes while open, paused while the tab is hidden. They need the relay address.
   const notamFeed = createNotamFeed({
     address: () => notamUrl({ baseUrl: settings.get().trafficRelay, sites: app.airfields.stations() }),
+    paused: () => document.hidden,
+    fetch: (url, init) => globalThis.fetch(url, init),
+    timers: app.scheduler,
+    now: () => app.time.now(),
+    onChange: () => render(),
+  });
+  // SIGMETs, AIRMETs and PIREPs near home and the alternates, through the relay (Dad, 7 Oct): every 10 minutes while open, for the cards and the 3D view.
+  const alertsFeed = createAlertsFeed({
+    address: () => alertsUrl({ baseUrl: settings.get().trafficRelay, sites: app.airfields.stations() }),
     paused: () => document.hidden,
     fetch: (url, init) => globalThis.fetch(url, init),
     timers: app.scheduler,
@@ -148,12 +158,21 @@ function mount(root, app) {
     ui.setBusy(snapshot.busy);
     // Each alternate card shows its result for the selected wave, and every card its NOTAMs (never "No NOTAMs" unless a fresh good answer lists none).
     notamFeed.sync();
+    alertsFeed.sync();
     const notamState = notamFeed.state();
+    const alertsState = alertsFeed.state();
+    const fields = new Map([app.airfields.home(), ...app.airfields.alternates()].map((f) => [f.icao, f]));
     ui.render({
       ...screen,
-      cards: screen.cards.map((c) => ({ ...c, ...(waves.altLines.has(c.icao) ? { waveLine: waves.altLines.get(c.icao) } : {}), notams: notamsFor(notamState, c.icao, now) })),
+      cards: screen.cards.map((c) => ({
+        ...c,
+        ...(waves.altLines.has(c.icao) ? { waveLine: waves.altLines.get(c.icao) } : {}),
+        notams: notamsFor(notamState, c.icao, now),
+        // SIGMETs, AIRMETs and PIREPs within 100 NM, after the NOTAMs (never "none" unless a fresh answer has none near the field).
+        alerts: alertsFor(alertsState, fields.get(c.icao) ?? { icao: c.icao }, now),
+      })),
     });
-    map.update({ snapshot, screen });
+    map.update({ snapshot, screen, alerts: alertsState });
   }
 
   const stops = [
@@ -175,6 +194,7 @@ function mount(root, app) {
     if (document.hidden) return;
     weather.wake();
     notamFeed.wake();
+    alertsFeed.wake();
     map.wake();
     render();
   });
@@ -186,6 +206,7 @@ function mount(root, app) {
     map.dispose();
     fullScreen.dispose();
     notamFeed.stop();
+    alertsFeed.stop();
     weather.stop();
     for (const stop of stops) stop();
     settingsView.dispose();

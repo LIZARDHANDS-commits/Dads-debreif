@@ -749,6 +749,58 @@ main[data-module='sof'] {
   font-weight: 600;
 }
 
+/* SIGMETs, AIRMETs and PIREPs within 100 NM, after the NOTAMs (Dad, 7 Oct): one short line each; a SIGMET for severe icing, severe turbulence or
+   thunderstorms over the field is amber with ⚠ and words (colour never alone). */
+[data-module='sof'] .sof-wxalerts {
+  margin: var(--space-2) 0 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+
+[data-module='sof'] .sof-wxalert-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-module='sof'] .sof-wxalert {
+  margin: 0 0 var(--space-1);
+}
+
+[data-module='sof'] .sof-wxalert.is-warn {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--caution);
+  border-left-width: 6px;
+  border-radius: var(--radius);
+  background: rgb(245 197 66 / 0.1);
+}
+
+[data-module='sof'] .sof-wxalert-line {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+[data-module='sof'] .sof-wxalert.is-warn .sof-wxalert-line {
+  color: var(--text);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-wxalert-kind {
+  color: var(--text);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-wxalert-flag {
+  color: var(--caution);
+  font-weight: 700;
+}
+
+[data-module='sof'] .sof-wxalert-note {
+  color: var(--text-faint);
+}
+
 [data-module='sof'] .sof-result-row {
   display: flex;
   align-items: center;

@@ -18,6 +18,7 @@
 import { h } from '../../ui-kit/dom.js';
 import { segments } from './marks.js';
 import { tafHeadline } from './taf-line.js';
+import { ALERT_FIELD_AREA_NM } from './alerts.js';
 
 /** The hover card stays this long after the pointer leaves a row or the card, so the pointer can travel from one to the other (an estimate for feel). */
 const HOVER_GRACE_MS = 250;
@@ -88,6 +89,26 @@ function notamSection(n) {
       notamRaw(x)))));
 }
 
+/**
+ * The SIGMETs, AIRMETs and PIREPs within 100 NM of the field (alerts.js `alertsFor`), after the NOTAMs: one short line each (kind, hazard, levels, time and
+ * how far), a SIGMET for severe icing, severe turbulence or thunderstorms over the field's area first in amber with ⚠ and words, and the message's own
+ * text on request. "SIGMETs/PIREPs unavailable (last good 0612Z)" when they cannot be fetched or are old, never "none".
+ */
+function alertSection(a) {
+  if (!a) return null;
+  const title = h('h3', { class: 'sof-report-title' }, 'SIGMETs/AIRMETs/PIREPs nearby');
+  const section = (...rest) => h('section', { class: 'sof-wxalerts', dataset: { status: a.status } }, title, ...rest);
+  if (a.status === 'unset') return section(note(a.words, 'info'));
+  if (a.status !== 'ok') return section(h('p', { class: 'sof-notam-unavailable' }, '? ', a.words));
+  if (a.list.length === 0) return section(h('p', { class: 'sof-notam-none' }, a.words));
+  return section(h('ul', { class: 'sof-wxalert-list' }, a.list.map((x) => h('li', { class: `sof-wxalert is-${x.kind}${x.warn ? ' is-warn' : ''}` },
+    h('p', { class: 'sof-wxalert-line' },
+      x.warn ? h('span', { class: 'sof-wxalert-flag' }, `⚠ ${x.kindWords} WITHIN ${ALERT_FIELD_AREA_NM} NM: `) : h('span', { class: 'sof-wxalert-kind' }, `${x.kindWords}: `),
+      [x.hazardWords, x.levelWords, x.timeWords, x.where].filter(Boolean).join(', '),
+      x.note ? h('span', { class: 'sof-wxalert-note' }, ` (${x.note})`) : null),
+    h('details', { class: 'sof-notam-raw' }, h('summary', {}, 'Text'), h('pre', { class: 'sof-raw' }, x.text))))));
+}
+
 // The compact row's limits mark, in words beside its symbol (never the symbol alone): "✓ within", "⚠ below", "● at limit", "? old", "? unknown", "– no METAR".
 const MARK = { below: ['⚠', 'below'], 'at-limit': ['●', 'at limit'], within: ['✓', 'within'], none: ['–', 'no METAR'] };
 export function limitsMark(card) {
@@ -133,6 +154,7 @@ function fullCard(card, { onClose }) {
     report('TAF', card.taf),
     note(card.watchText, 'info'),
     notamSection(card.notams),
+    alertSection(card.alerts),
   ].filter(Boolean); // replaceChildren would turn a null into the text "null"
 }
 

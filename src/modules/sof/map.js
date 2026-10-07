@@ -37,6 +37,7 @@ import { createMapControls } from './map-controls.js';
 import { createAdsbFrame, adsbExchangeUrl, zoomForScale } from './adsbx.js';
 import { webglSupported } from '../../ui-kit/three-aircraft.js';
 import { createSofView3d } from './view3d.js';
+import { alerts3dView } from './alerts.js';
 import { sceneAirfields, sceneTraffic, AREA_FT } from './scene3d-model.js';
 import { createFrontsFeed, frontsUrl, frontsView } from './fronts.js';
 import { tacnavRoutes, checkedAirspace } from './airspace-model.js';
@@ -70,7 +71,7 @@ const extraUrl = ({ layer, request, time }) => extraMapUrl({ layer, bbox: reques
  * app: the module's app object (scheduler, storage, time, airfields, listen). settings: createSofSettings.
  * onLightning: called when the near-home lightning caution changes (so the banner can be redrawn). fullScreen: fullscreen.js's object, shared with the 3D view:
  * the map bar's Full screen button (2D) and the 3D view's own both toggle it (the whole SOF picture, with the airfield column and the timeline strip).
- * Returns { element, credits, update({ snapshot, screen }), lightning(now), wake(), dispose() }. `credits` is the line of the map's
+ * Returns { element, credits, update({ snapshot, screen, alerts }), lightning(now), wake(), dispose() }. `credits` is the line of the map's
  * credits, for the screen's Sources note (the map keeps no height for it).
  */
 export function createSofMap({ app, settings, onLightning = () => {}, fullScreen = null }) {
@@ -82,6 +83,7 @@ export function createSofMap({ app, settings, onLightning = () => {}, fullScreen
   let adsbOn = false;
   let threeOn = false; // the 3D view has the map area (never together with adsbOn)
   let scene3d = null; // what the 3D view was last given: { marks, cards, fields, snapshot }
+  let alertsState = null; // the SIGMET/AIRMET/PIREP feed's state (alerts.js, run by the screen for the cards too), for the 3D view
   let cancelNotice = null;
   let disposed = false;
   let online = globalThis.navigator?.onLine !== false;
@@ -600,6 +602,12 @@ export function createSofMap({ app, settings, onLightning = () => {}, fullScreen
     view3d.setScene({ airfields: sceneAirfields({ ...scene3d, toXY: projection.toXY }), heightScale: settings.get().heightScale3d });
   }
 
+  /** The SIGMETs, AIRMETs and PIREPs for the 3D view (alerts.js `alerts3dView`), their SFC at home's elevation as the 3D ground. Built again there only when they change. */
+  function pushAlerts() {
+    if (!threeOn || disposed || !alertsState) return;
+    view3d.setAlerts(alerts3dView(alertsState, now(), Number.isFinite(home.elevationFt) ? home.elevationFt : 0));
+  }
+
   /** What the model feed says now, for the 3D view: it builds the model layers only when the answer, the hour, the scale or the ground changed. */
   function pushModel() {
     if (!threeOn || disposed) return;
@@ -766,6 +774,7 @@ export function createSofMap({ app, settings, onLightning = () => {}, fullScreen
     pushModel();
     applyLayers();
     pushTraffic();
+    pushAlerts();
     sync();
     // three.js loads now, the first time. If it cannot, the map comes back and says why.
     view3d.show().then((result) => {
@@ -879,10 +888,12 @@ export function createSofMap({ app, settings, onLightning = () => {}, fullScreen
     credits: controls.credits,
     /**
      * The screen changed (a report, the settings, the airfields, the clock). `snapshot` is the weather
-     * snapshot and `screen` what buildScreen made from it. Redraws only when something the map shows differs.
+     * snapshot and `screen` what buildScreen made from it; `alerts` the SIGMET/AIRMET/PIREP feed's state (alerts.js), for the 3D view.
+     * Redraws only when something the map shows differs.
      */
-    update({ snapshot, screen }) {
+    update({ snapshot, screen, alerts = null }) {
       if (disposed) return;
+      alertsState = alerts;
       const field = app.airfields.home();
       if (field.icao !== home.icao || field.lat !== home.lat || field.lon !== home.lon) {
         home = field;
@@ -922,6 +933,7 @@ export function createSofMap({ app, settings, onLightning = () => {}, fullScreen
         pushScene();
         pushModel(); // the model's age and the hour "now" are checked on every tick
         pushTraffic(); // so is the traffic's "seconds ago" line
+        pushAlerts(); // and the SIGMETs' end times
         view3d.touch(); // the pictures' fading with age is checked on every tick
       }
       const key = JSON.stringify(marks.map((m) => [m.icao, m.label, m.old, m.wind && [m.wind.dirDeg, m.wind.speedKt], m.lat, m.lon]));

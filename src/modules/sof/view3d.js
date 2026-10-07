@@ -51,6 +51,7 @@ import { createTraffic3d } from './traffic3d.js';
 import { AIRSPACE } from './airspace-data.js';
 import { buildAirspace, AIRSPACE_GROUPS, KIND_COLOURS } from './airspace3d.js';
 import { buildAirports, RUNWAY_MIN_PX } from './airports3d.js';
+import { buildAlerts3d, ALERT_COLOURS, PIREP_COLOURS, ALERT_COLOUR_WORDS, ALERT_FILL_OPACITY } from './alerts3d.js';
 import { GLIDE_3D_MS, TRAIL_WINDOW_S } from './traffic-motion.js';
 import { AIRPORTS } from './airports-data.js';
 import { checkedAirspace, KIND_WORDS, tacnavNote, AIRSPACE_FILL_OPACITY, VIEW_TOP_FT } from './airspace-model.js';
@@ -192,8 +193,9 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     ['airspace', noAirspace ? 'Airspace (no data yet)' : 'Airspace', 'Airspace volumes round home, each from its floor to its ceiling, see-through', noAirspace ? 'No airspace data yet: its floors, ceilings and outlines are added once each has a source' : null],
     ['tacnav', 'TACNAV', 'The TACNAV routes, as lines 500 ft above the ground (ground taken as flat, an estimate)', noRoutes ? 'No TACNAV routes to draw' : null],
     ['airports', 'Airports', `The runways of ${AIRPORTS.map((a) => a.icao).join(', ')} at their true places and sizes, with schematic buildings`, null],
+    ['alerts', 'SIGMET/PIREP', 'SIGMETs (red-orange) and AIRMETs (yellow) as see-through volumes from base to top, PIREPs as small diamonds at their level (amber turbulence, blue icing, white other), from NAV CANADA through the relay. Put the pointer on one for its words.', null],
   ]);
-  const spaceToggles = { airspace: !noAirspace, tacnav: !noRoutes, airports: true };
+  const spaceToggles = { airspace: !noAirspace, tacnav: !noRoutes, airports: true, alerts: true };
   const spaceButtons = new Map();
   for (const [key, text, title, reason] of SPACE_TOGGLES) {
     const button = h('button', {
@@ -218,8 +220,11 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   spaceButtons.set('trails', trailsButton);
   const spaceKeyBody = h('div', { class: 'sof-3d-model-key-body' });
   const spaceKey = h('details', { class: 'sof-3d-model-key' }, h('summary', {}, 'Airspace key'), spaceKeyBody);
-  const spacePanel = h('div', { class: 'sof-3d-model sof-3d-space', role: 'group', 'aria-label': 'Airspace and TACNAV routes' },
-    h('div', { class: 'sof-3d-model-row' }, [...spaceButtons.values()], spaceKey));
+  // SIGMETs, AIRMETs and PIREPs (Dad, 7 Oct): a line saying when they cannot be shown (never frozen: with no fresh answer none are drawn).
+  const alertsStatus = h('p', { class: 'sof-3d-traffic-status is-bad', role: 'status', hidden: true });
+  const alertsKey = h('div', {});
+  const spacePanel = h('div', { class: 'sof-3d-model sof-3d-space', role: 'group', 'aria-label': 'Airspace, TACNAV routes, airports and SIGMETs' },
+    h('div', { class: 'sof-3d-model-row' }, [...spaceButtons.values()], spaceKey), alertsStatus);
   const bottom = h('div', { class: 'sof-3d-bottom' }, trafficStatus, modelPanel, weatherPanel, spacePanel, credit);
   const acTag = h('p', { class: 'sof-3d-tag sof-3d-actag-facts', role: 'status', hidden: true });
   const logView = createAirspaceLogView({ onOptions: (options) => onAirspaceLogOptions(options) });
@@ -279,6 +284,8 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   let trafficSig = '';
   let trafficDirty = true;
   let spaceSig = ''; // what the airspace objects were built for: the height scale, the ground and home
+  let alertsView = { status: 'unset', words: '', alerts: [], notDrawn: 0, signature: 'unset' }; // alerts.js alerts3dView, from the map
+  let alertsSig = ''; // what the SIGMET/PIREP objects were built for
   let spaceHit = null; // the airspace volume the pointer is over (airspace3d.js `picks` entry), whose words float beside the pointer
   let spaceMove = null; // the last pointer place waiting for the throttled pick: { x, y }
   let spaceLast = 0; // when the last pick ran
@@ -608,7 +615,9 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     const groups = gl?.space?.built.root.userData.groups;
     if (groups) for (const key of AIRSPACE_GROUPS) groups[key].visible = spaceToggles[key];
     if (gl?.space?.airports) gl.space.airports.root.visible = spaceToggles.airports;
-    if (!spaceToggles.airspace) setSpaceHit(null);
+    if (gl?.alerts) gl.alerts.root.visible = spaceToggles.alerts;
+    alertsStatus.hidden = alertsView.status !== 'unavailable' || !spaceToggles.alerts;
+    if (!spaceToggles.airspace && !spaceToggles.alerts) setSpaceHit(null);
   }
 
   // ---- The airspace under the pointer (Dad, 7 Oct) ----------------------------------------------------------
@@ -627,8 +636,9 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   /** Which volume is under the pointer: the nearest to the camera along the ray through it (ray-cast on the fills, not every frame). */
   function pickSpace(x, y) {
     spaceLast = win.performance.now();
-    const picks = gl?.space?.built.picks ?? [];
-    if (!picks.length || !spaceToggles.airspace || hoverHex) return setSpaceHit(null);
+    // The SIGMETs, AIRMETs and PIREPs are looked for with the airspace volumes: the nearest under the pointer wins.
+    const picks = [...(spaceToggles.alerts ? gl?.alerts?.picks ?? [] : []), ...(spaceToggles.airspace ? gl?.space?.built.picks ?? [] : [])];
+    if (!picks.length || hoverHex) return setSpaceHit(null);
     const width = gl.canvas.clientWidth;
     const height = gl.canvas.clientHeight;
     if (width < 2 || height < 2) return setSpaceHit(null);
@@ -694,6 +704,45 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     drawSpaceKey(volumes, skipped, ground);
   }
 
+  function freeAlerts() {
+    if (!gl?.alerts) return;
+    if (spaceHit && gl.alerts.picks.includes(spaceHit)) setSpaceHit(null);
+    gl.alerts.dispose();
+    gl.alerts = null;
+  }
+
+  /** The SIGMETs, AIRMETs and PIREPs, built new when the answer, the height scale or home changed (only then). */
+  function rebuildAlerts(sig) {
+    freeAlerts();
+    alertsSig = sig;
+    const projection = getProjection();
+    gl.alerts = buildAlerts3d(gl.THREE, { alerts: alertsView.alerts, toXY: projection.toXY, scale, halfFt: AREA_FT / 2, now: +now() });
+    gl.scene.add(gl.alerts.root);
+    applySpaceToggles();
+    drawAlertsKey();
+  }
+
+  /** The key's words for the SIGMETs, AIRMETs and PIREPs: the colours in words, what is drawn and what is not. */
+  function drawAlertsKey() {
+    const swatch = (colour) => {
+      const el = h('span', { class: 'sof-3d-swatch', 'aria-hidden': 'true' });
+      el.style.background = colour;
+      return el;
+    };
+    const drawn = gl?.alerts?.summary;
+    const outside = drawn?.outside ? ` ${drawn.outside} outside this ${AREA_NM} NM square not drawn.` : '';
+    alertsKey.replaceChildren(
+      h('p', {}, `SIGMETs, AIRMETs and PIREPs (NAV CANADA, through the relay, asked every 10 minutes): a SIGMET or AIRMET is a see-through volume (${Math.round(ALERT_FILL_OPACITY * 100)} % fill, an estimate) from its base to its top over its area; a PIREP is a small diamond at its position and level. Expired ones are not drawn. Levels: FL × 100 read as feet above sea level, SFC as home’s elevation; a message whose position or levels could not be read is listed on the airfield cards only.`),
+      h('ul', {},
+        h('li', {}, swatch(ALERT_COLOURS.sigmet), ` ${ALERT_COLOUR_WORDS.sigmet} edge: SIGMET`),
+        h('li', {}, swatch(ALERT_COLOURS.airmet), ` ${ALERT_COLOUR_WORDS.airmet} edge: AIRMET`),
+        h('li', {}, swatch(PIREP_COLOURS.turb), ` ${ALERT_COLOUR_WORDS.turb} diamond: PIREP of turbulence`),
+        h('li', {}, swatch(PIREP_COLOURS.ice), ` ${ALERT_COLOUR_WORDS.ice} diamond: PIREP of icing`),
+        h('li', {}, swatch(PIREP_COLOURS.other), ` ${ALERT_COLOUR_WORDS.other} diamond: other PIREP`)),
+      h('p', {}, `${alertsView.words || 'SIGMETs/PIREPs: waiting for the first answer.'}${outside}`),
+    );
+  }
+
   function drawSpaceKey(volumes, skipped, ground) {
     const used = (ref) => volumes.some((v) => v.floor.ref === ref || v.ceiling.ref === ref);
     const home = homeIcao();
@@ -720,6 +769,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
         ? `Airports: ${drawn.map((a) => `${a.icao} (${a.ends.join(', ')})`).join('; ')}. Each runway is drawn between its two thresholds at their true places, length and width (OurAirports, public domain: for drawing only, check the Canada Flight Supplement), at the field’s elevation ×${scale}. Far out, a field is drawn larger and a runway wider so it stays visible (about ${RUNWAY_MIN_PX.length} px long at least); closer in they are true size, and the stripes, centreline and numbers appear once a runway is ${RUNWAY_MIN_PX.detail} px long. The numbers read from the approach end. The terminal and hangars are schematic: buildings are schematic, drawn for orientation only.`
         : 'Airports: none inside this area.'),
       h('p', {}, noRoutes ? 'TACNAV: no routes to draw.' : tacnavNote(home)),
+      alertsKey,
       h('p', {}, 'A picture for situational awareness: not a chart, not for navigation or flight planning.'),
     );
     spaceKeyBody.replaceChildren(...notes);
@@ -871,6 +921,8 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     if (weatherDirty) rebuildWeather(wx ?? getWeather());
     const nextSpaceSig = `${scale}|${groundFt()}|${getProjection().lat},${getProjection().lon}`;
     if (!gl.space || nextSpaceSig !== spaceSig) rebuildSpace(nextSpaceSig);
+    const nextAlertsSig = `${nextSpaceSig}|${alertsView.signature}`;
+    if (!gl.alerts || nextAlertsSig !== alertsSig) rebuildAlerts(nextAlertsSig);
     if (trafficDirty) syncTraffic();
     if (groundDirty) paintGround();
 
@@ -889,6 +941,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     for (const { pin } of pins) pin.scale.setScalar(ftPerPx);
     gl.traffic.fit(ftPerPx);
     gl.space?.airports.fit(ftPerPx);
+    gl.alerts?.fit(ftPerPx);
 
     // Labels go beside their points, and a deck's label steps down past any label already there, so words never sit on words.
     const headZ = planeZ + (PIN_PX.line + PIN_PX.head) * ftPerPx;
@@ -1358,6 +1411,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     gl.weather.dispose();
     freeModel();
     freeSpace();
+    freeAlerts();
     freeObjects();
     gl.traffic.dispose();
     for (const [type, fn] of hands) canvas.removeEventListener(type, fn);
@@ -1497,6 +1551,19 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       intruderHexes = view.hexes;
       trafficDirty = true;
       requestRender();
+    },
+    /**
+     * The SIGMETs, AIRMETs and PIREPs to draw (alerts.js `alerts3dView`, worked out by the map for home's elevation): { status, words, alerts, signature }.
+     * They are built again only when the signature differs; with no fresh answer there are none, and the panel says why.
+     */
+    setAlerts(next = { status: 'unset', words: '', alerts: [], notDrawn: 0, signature: 'unset' }) {
+      alertsView = next;
+      alertsStatus.hidden = next.status !== 'unavailable' || !spaceToggles.alerts; // no relay address: the key says so, without a warning line
+      setText(alertsStatus, next.status === 'unavailable' ? next.words : '');
+      const button = spaceButtons.get('alerts');
+      if (button) button.title = `${SPACE_TOGGLES.find((t) => t[0] === 'alerts')[2]} ${next.words}`.trim();
+      if (gl) drawAlertsKey();
+      if (gl && `${spaceSig}|${next.signature}` !== alertsSig) requestRender();
     },
     /** The 2D map's pictures or their fading may have changed: the ground is painted again if they did. */
     touch() {

@@ -221,8 +221,17 @@ export function notamsFor(state, icao, now) {
  * answer (it goes old by itself) and tries again after NOTAM_RETRY_MS. Everything ends with stop() or the module's scheduler scope.
  * Returns { sync(), wake(), stop(), state() } (state: { relay, lastGood, failed, busy }).
  */
-export function createNotamFeed({ address, paused = () => false, fetch, timers, now = () => new Date(), onChange = () => {} }) {
-  let lastGood = null; // { fetched, receivedAt, sites, notams }
+export function createNotamFeed(options) {
+  return createRelayFeed({ ...options, read: readNotamReply, refreshMs: NOTAM_REFRESH_MS, retryMs: NOTAM_RETRY_MS, limits: NOTAM_FETCH_LIMITS });
+}
+
+/**
+ * The relay loop the NOTAMs and the SIGMETs/PIREPs (alerts.js) share: asks `address()` at once and then every `refreshMs` while open, reads each
+ * reply with `read(text, { now })` (null for a bad one), keeps the last good answer as { ...read's answer, receivedAt }, and after a failure tries
+ * again after `retryMs`. `limits` are the request's { timeoutMs, maxBytes }. Otherwise as createNotamFeed.
+ */
+export function createRelayFeed({ address, read, refreshMs, retryMs, limits, paused = () => false, fetch, timers, now = () => new Date(), onChange = () => {} }) {
+  let lastGood = null; // read's answer ({ fetched, sites, notams } for the NOTAMs) and receivedAt
   let failed = false;
   let busy = false;
   let askedUrl = null;
@@ -243,16 +252,16 @@ export function createNotamFeed({ address, paused = () => false, fetch, timers, 
     const mine = controller;
     let text = null;
     try {
-      const reply = await guardedFetch(fetch, url, { timers, signal: mine.signal, accept: 'application/json', ...NOTAM_FETCH_LIMITS });
+      const reply = await guardedFetch(fetch, url, { timers, signal: mine.signal, accept: 'application/json', ...limits });
       text = bytesToText(reply.bytes);
     } catch {
       if (mine.signal.aborted || stopped) return; // the module closed or the address changed: nothing to say
     }
     if (mine !== controller || stopped) return;
     busy = false;
-    const read = text === null ? null : readNotamReply(text, { now: +now() });
-    if (read) {
-      lastGood = { fetched: read.fetched, receivedAt: +now(), sites: read.sites, notams: read.notams };
+    const answer = text === null ? null : read(text, { now: +now() });
+    if (answer) {
+      lastGood = { ...answer, receivedAt: +now() };
       failed = false;
     } else failed = true;
     changed();
@@ -260,7 +269,7 @@ export function createNotamFeed({ address, paused = () => false, fetch, timers, 
 
   function due(url) {
     if (askedAt === null || url !== askedUrl) return true;
-    return +now() - askedAt >= (failed ? NOTAM_RETRY_MS : NOTAM_REFRESH_MS);
+    return +now() - askedAt >= (failed ? retryMs : refreshMs);
   }
 
   function tick() {
