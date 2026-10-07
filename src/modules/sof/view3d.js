@@ -35,6 +35,9 @@
 // field elevation plus base, and aircraft at their reported altitude whatever the ground does (one under the terrain is drawn just above it, tagged "below terrain?"). A Terrain switch
 // flattens it back to the old plane. The ground starts flat at home's elevation and rises as tiles arrive.
 //
+// Towns (Dad, 7 Oct): Moose Jaw, Regina, Swift Current and Saskatoon as clusters of low grey boxes standing on the terrain (towns3d.js builds them from towns-data.js): plainly schematic,
+// the key says so. A Towns toggle (on); each town's name shows when zoomed in, or while the pointer is over the town.
+//
 // World frame (ui-kit three-aircraft.js): X east, Y north, Z up, in the map's local feet. A height is feet above sea level times
 // the height scale (the "3D height scale" setting); the ground is the home field's elevation.
 import { h } from '../../ui-kit/dom.js';
@@ -43,6 +46,7 @@ import { ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { RING_NM, FT_PER_NM } from './map-view.js';
 import { createGround3d, MAX_GROUND_TILES, INNER_NM } from './ground3d.js';
 import { createTerrain3d } from './terrain3d.js';
+import { buildTowns } from './towns3d.js';
 import { terrainWords, TERRAIN_CREDIT } from './terrain-model.js';
 import { createWeather3dLayers, weatherKeyWords } from './weather3d-layers.js';
 import { FRONTS_CREDIT } from './fronts.js';
@@ -95,6 +99,9 @@ export const ORBIT_STEP = Object.freeze({ deg: 15, ms: 2000 });
 const ORBIT_MAX_FRAME_MS = 250;
 /** The tour's clock counts real time, but a frame longer than this (the computer slept) counts as no more than this. */
 const TOUR_MAX_FRAME_MS = 2000;
+/** A town's name shows at this zoom (times the start view) or more, and while the pointer is within its built-up area on the screen (at least TOWN_HOVER_PX). Estimates for feel. */
+const TOWN_LABEL_ZOOM = 5;
+const TOWN_HOVER_PX = 14;
 /** The ground's heights are read from the elevation tiles at most this often while they arrive (milliseconds); an estimate that keeps the page quick. */
 const TERRAIN_APPLY_MS = 400;
 /** Things that stand on the ground (shafts, bolts, fronts, pins, rings) are made again for new terrain at most this often while tiles are still coming (milliseconds), and once all are in. */
@@ -208,9 +215,10 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     ['tacnav', 'TACNAV', 'The TACNAV routes, as lines 500 ft above the ground (ground taken as flat, an estimate)', noRoutes ? 'No TACNAV routes to draw' : null],
     ['airports', 'Airports', `The runways of ${AIRPORTS.map((a) => a.icao).join(', ')} at their true places and sizes, with schematic buildings`, null],
     ['terrain', 'Terrain', `The real ground: heights from the Terrarium elevation tiles, ×the height scale, so the valleys, the Coteau and the Cypress Hills show. Off lays the ground flat at home’s elevation. ${TERRAIN_CREDIT}.`, null],
+    ['towns', 'Towns', 'Moose Jaw, Regina, Swift Current and Saskatoon as schematic blocks standing on the terrain: not real buildings. A name shows when zoomed in, or under the pointer.', null],
     ['alerts', 'SIGMET/PIREP', 'SIGMETs (red-orange) and AIRMETs (yellow) as see-through volumes from base to top, PIREPs as small diamonds at their level (amber turbulence, blue icing, white other), from NAV CANADA through the relay. Put the pointer on one for its words.', null],
   ]);
-  const spaceToggles = { airspace: !noAirspace, tacnav: !noRoutes, airports: true, terrain: true, alerts: true };
+  const spaceToggles = { airspace: !noAirspace, tacnav: !noRoutes, airports: true, terrain: true, towns: true, alerts: true };
   const spaceButtons = new Map();
   for (const [key, text, title, reason] of SPACE_TOGGLES) {
     const button = h('button', {
@@ -238,7 +246,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   // SIGMETs, AIRMETs and PIREPs (Dad, 7 Oct): a line saying when they cannot be shown (never frozen: with no fresh answer none are drawn).
   const alertsStatus = h('p', { class: 'sof-3d-traffic-status is-bad', role: 'status', hidden: true });
   const alertsKey = h('div', {});
-  const spacePanel = h('div', { class: 'sof-3d-model sof-3d-space', role: 'group', 'aria-label': 'Airspace, TACNAV routes, airports, terrain and SIGMETs' },
+  const spacePanel = h('div', { class: 'sof-3d-model sof-3d-space', role: 'group', 'aria-label': 'Airspace, TACNAV routes, airports, terrain, towns and SIGMETs' },
     h('div', { class: 'sof-3d-model-row' }, [...spaceButtons.values()], spaceKey), alertsStatus);
   const bottom = h('div', { class: 'sof-3d-bottom' }, trafficStatus, modelPanel, weatherPanel, spacePanel, credit);
   const acTag = h('p', { class: 'sof-3d-tag sof-3d-actag-facts', role: 'status', hidden: true });
@@ -301,6 +309,9 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   let terrainWordsSig = '';
   let terrainPartly = false; // some tiles failed or were left out
   const terrainKey = h('p', { class: 'sof-3d-terrain-words' });
+  const townsKey = h('p', { class: 'sof-3d-towns-words' });
+  let townsSig = ''; // what the towns were built for: the height scale, the terrain and home
+  let townHover = null; // the id of the town the pointer is over
   let tilesFailed = false;
   let noTiles = false; // a tile the browser would not let three.js read: the ground is drawn plain instead
   let loadingNote = false;
@@ -654,9 +665,69 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     const groups = gl?.space?.built.root.userData.groups;
     if (groups) for (const key of AIRSPACE_GROUPS) groups[key].visible = spaceToggles[key];
     if (gl?.space?.airports) gl.space.airports.root.visible = spaceToggles.airports;
+    if (gl?.towns) {
+      gl.towns.built.root.visible = spaceToggles.towns;
+      for (const { el } of gl.towns.items) if (!spaceToggles.towns) el.hidden = true;
+    }
     if (gl?.alerts) gl.alerts.root.visible = spaceToggles.alerts;
     alertsStatus.hidden = alertsView.status !== 'unavailable' || !spaceToggles.alerts;
     if (!spaceToggles.airspace && !spaceToggles.alerts && !spaceToggles.tacnav) setSpaceHit(null);
+  }
+
+  // ---- The towns (Dad, 7 Oct) --------------------------------------------------------------------------------
+  function freeTowns() {
+    if (!gl?.towns) return;
+    gl.towns.built.dispose();
+    for (const { el } of gl.towns.items) el.remove();
+    gl.towns = null;
+  }
+
+  /** The towns, built new for this height scale, terrain and home (only then). Each name is a label the frame places while it is shown. */
+  function rebuildTowns(sig) {
+    freeTowns();
+    townsSig = sig;
+    const projection = getProjection();
+    const terrain = gl.terrain;
+    const built = buildTowns(gl.THREE, { toXY: projection.toXY, heightFt: terrain.heightFt, scale });
+    gl.scene.add(built.root);
+    const items = built.entries.map((entry) => {
+      const el = h('span', { class: 'sof-3d-town-label', hidden: true }, entry.name);
+      labels.append(el);
+      return { el, entry };
+    });
+    gl.towns = { built, items };
+    setText(townsKey, `Towns are schematic blocks, not real buildings: ${built.summary.map((t) => t.name).join(', ')} are each drawn as a street grid of low grey boxes (taller in a downtown core, low houses at the edge), made up by the program and the same every time, standing on the terrain. A town’s centre is an approximate coordinate and its size an estimate, both for drawing only. A name shows when zoomed in (${TOWN_LABEL_ZOOM}× or more) and while the pointer is over the town.`);
+    applySpaceToggles();
+  }
+
+  /** The id of the town the pointer is over (within its built-up area on the screen, at least TOWN_HOVER_PX), from where the last frame put the camera; null for none. */
+  function townNear(clientX, clientY) {
+    if (!gl?.towns || !spaceToggles.towns) return null;
+    const rect = gl.canvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    const width = gl.canvas.clientWidth;
+    const height = gl.canvas.clientHeight;
+    if (width < 2 || height < 2) return null;
+    gl.camera.updateMatrixWorld();
+    const ftPerPx = 1000 / (fitZoom({ width, height }) * cam.zoom);
+    let best = null;
+    let bestD = Infinity;
+    for (const { entry } of gl.towns.items) {
+      const p = worldToScreen(THREE, gl.camera, { x: entry.x, y: entry.y, z: entry.z }, width, height);
+      const d = Math.hypot(p.x - x, p.y - y);
+      if (d <= Math.max(TOWN_HOVER_PX, entry.radiusFt / ftPerPx) && d < bestD) {
+        best = entry.id;
+        bestD = d;
+      }
+    }
+    return best;
+  }
+
+  function setTownHover(id) {
+    if (id === townHover) return;
+    townHover = id;
+    requestRender();
   }
 
   // ---- The airspace under the pointer (Dad, 7 Oct) ----------------------------------------------------------
@@ -834,7 +905,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       if (skipped.length) notes.push(h('p', { class: 'sof-3d-model-warn' }, `Not drawn, entry fails its checks: ${skipped.map((x) => `${x.id} (${x.reason})`).join('; ')}.`));
     }
     const drawn = gl?.space?.airports.summary ?? [];
-    notes.push(terrainKey);
+    notes.push(terrainKey, townsKey);
     notes.push(
       h('p', {}, drawn.length
         ? `Airports: ${drawn.map((a) => `${a.icao} (${a.ends.join(', ')})`).join('; ')}. Each runway is drawn between its two thresholds at their true places, length and width (OurAirports, public domain: for drawing only, check the Canada Flight Supplement), at the field’s elevation ×${scale}. Far out, a field is drawn larger and a runway wider so it stays visible (about ${RUNWAY_MIN_PX.length} px long at least); closer in they are true size, and the stripes, centreline and numbers appear once a runway is ${RUNWAY_MIN_PX.detail} px long. The numbers read from the approach end. The terminal and hangars are schematic: buildings are schematic, drawn for orientation only.`
@@ -1080,6 +1151,8 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     if (!gl.space || nextSpaceSig !== spaceSig) rebuildSpace(nextSpaceSig);
     const nextAlertsSig = `${nextSpaceSig}|${alertsView.signature}`;
     if (!gl.alerts || nextAlertsSig !== alertsSig) rebuildAlerts(nextAlertsSig);
+    const nextTownsSig = `${scale}|${terrainOn ? terrainRev : 'flat'}|${getProjection().lat},${getProjection().lon}`;
+    if (!gl.towns || nextTownsSig !== townsSig) rebuildTowns(nextTownsSig);
     if (trafficDirty) syncTraffic();
     if (groundDirty) paintGround();
 
@@ -1138,6 +1211,14 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     for (const { el, p } of deckLabels) {
       const s = boxFor(el, 0, 0);
       put(el, clearOf({ ...s, x: p.x - 8 - s.w, y: p.y - s.h / 2 }));
+    }
+    for (const { el, entry } of gl.towns?.items ?? []) { // a town's name: zoomed in, or under the pointer
+      const on = spaceToggles.towns && (cam.zoom >= TOWN_LABEL_ZOOM || townHover === entry.id);
+      if (el.hidden === on) el.hidden = !on;
+      if (!on) continue;
+      const p = at({ x: entry.x, y: entry.y, z: entry.z + entry.tallFt });
+      const s = boxFor(el, 0, 0);
+      put(el, clearOf({ ...s, x: p.x - s.w / 2, y: p.y - s.h - 4 }));
     }
     placeAircraft({ at, put, boxFor, isClear, reserve, phase: 't6' }); // the T-6s' tags keep their places; the model's words step round them
     const modelWords = [];
@@ -1215,6 +1296,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       if (!held) {
         if (pointers.size === 0 && e.pointerType === 'mouse') { // hovering, not dragging
           setHover(aircraftNear(e.clientX, e.clientY));
+          setTownHover(townNear(e.clientX, e.clientY));
           const rect = gl.canvas.getBoundingClientRect();
           onSpaceMove(e.clientX - rect.left, e.clientY - rect.top);
         }
@@ -1272,6 +1354,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     }],
     ['pointerleave', () => {
       setHover(null);
+      setTownHover(null);
       clearSpaceMove();
     }],
     ['contextmenu', (e) => e.preventDefault()],
@@ -1535,6 +1618,8 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     groundDirty = true;
     modelDirty = true;
     spaceSig = '';
+    townsSig = '';
+    townHover = null;
     tilesFailed = false;
     noTiles = false;
     reliefSig = '';
@@ -1577,6 +1662,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     freeModel();
     freeSpace();
     freeAlerts();
+    freeTowns();
     freeObjects();
     gl.traffic.dispose();
     for (const [type, fn] of hands) canvas.removeEventListener(type, fn);

@@ -2240,6 +2240,7 @@ main[data-module='sof'] {
   color: #b8cfdb;
 }
 
+[data-module='sof'] .sof-3d-town-label,
 [data-module='sof'] .sof-3d-deck-label,
 [data-module='sof'] .sof-3d-ring-label {
   padding: 0 var(--space-1);
@@ -2255,6 +2256,14 @@ main[data-module='sof'] {
 
 [data-module='sof'] .sof-3d-ring-label {
   color: var(--accent-strong);
+}
+
+[data-module='sof'] .sof-3d-town-label {
+  color: #dfe7ec;
+}
+
+[data-module='sof'] .sof-3d-town-label[hidden] {
+  display: none;
 }
 
 [data-module='sof'] .sof-3d-corner,
