@@ -32,6 +32,12 @@ Dad and Patrick agreed it on 7 Oct. Each phase is its own pull request and is us
 - [x] **Phase 3, airspace** (built 7 Oct, V2.174, SOF-41): the DAH airspace round Moose Jaw (MTCA, control zones, Regina and Saskatoon control area extensions, CYR303, CYA304 to 316) as see-through volumes, and the TACNAV routes at 500 ft AGL.
 - [x] **Phase 4, live aircraft (built 7 Oct, V2.173):** the traffic relay's aircraft at their altitude with callsign tags, any T-6 (TEX2) as the CT-156 model drawn large, on the relay running on Dad's Netlify account (SOF-40). The 2D traffic layer comes on at the same time, when its address goes into SOF settings.
 
+### Step 2b, more asked by Dad on 7 Oct
+
+- [ ] **Full screen, auto orbit, airspace log (being built):** a Full screen button on the 3D view; an Orbit toggle that slowly circles the field; a log of which aircraft are in which airspace, flagging any aircraft other than a T-6 (TEX2) in CYA304, CYA305 or CYA307 (information only, not a SOF caution).
+- [ ] **Airports modelled like the pattern sim:** CYMJ, CYQR, CYYN and CYXE with their runways at true position and heading, numbers and markings, from a sourced runway list (waits on runway data: OurAirports, public domain, or the CFS page). The Traffic module's Moose Jaw model is not reused unless Patrick agrees to move it to shared code (modules never import each other, and Traffic belongs to other sessions).
+- [ ] **Weather fidelity:** finer model clouds (more pressure levels and a denser grid); radar as 3D precipitation shafts up to the model cloud tops (estimate); lightning as strikes in 3D; fronts once a free data source is found (research first).
+
 ## Step 3. Build the safety and limits gaps between decided and built
 
 - [ ] Amber "Incomplete" for any airfield whose approaches or landing minima are not filled in, never a green tick, including a PROB group below the alternate limits with minima unset (old decision D388, new decision SOF-32; SOF-R12). The code does not do it yet (`pf/reset/4-decisions/partb-sof.md:74`, `pf/reset/1-requirements/requirements.md:144`, `src/wx/alternates.js:163`).
