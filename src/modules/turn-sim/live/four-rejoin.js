@@ -131,7 +131,7 @@ export function rejoinToFw(start, t0, opts, s, from) {
         inCone(c, slots[id], -s),
       ],
     });
-    const two = { id: 2, phases: () => [toSlot(c, rejoinTo, slots[2], { overtakeKias: far(2), ...max })] };
+    const two = { id: 2, phases: () => [...comeOffFirst(c, 2, 1), toSlot(c, rejoinTo, slots[2], { overtakeKias: far(2), ...max })] };
     if (straight) return { lead: toSpeed(c, 'fw'), wings: [two, outside(3), outside(4)], how: 'straight-ahead rejoin to fighting wing' };
     const into = leadInto(c, s, 'fw');
     return {

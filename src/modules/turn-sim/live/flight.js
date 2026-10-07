@@ -281,6 +281,35 @@ function diveAt(leg, t) {
   return { altAboveFt: leg.fromFt - down, climbFtps: -rate, nz: 1 + acc / G_FTPS2, invert: true };
 }
 
+/** A climb leg (leg.climb: { inG, outG }) at time t: { altAboveFt, climbFtps, nz }, or null when it does not fit. */
+function climbAt(leg, t) {
+  const T = leg.t1 - leg.t0;
+  const H = leg.toFt - leg.fromFt;
+  const shape = diveShape(T, H, leg.climb.inG, leg.climb.outG);
+  if (!shape) return null;
+  const { vd, ta, to } = shape;
+  const x = Math.min(T, Math.max(0, t - leg.t0));
+  let up;
+  let rate;
+  let acc;
+  if (x < ta) {
+    const u = x / ta;
+    up = vd * ta * smootherArea(u);
+    rate = vd * smoother(u);
+    acc = (vd * smootherSlope(u)) / ta;
+  } else if (x <= T - to) {
+    up = vd * ta * 0.5 + vd * (x - ta);
+    rate = vd;
+    acc = 0;
+  } else {
+    const u = (x - (T - to)) / to;
+    up = vd * ta * 0.5 + vd * (T - to - ta) + vd * to * (u - smootherArea(u));
+    rate = vd * (1 - smoother(u));
+    acc = -(vd * smootherSlope(u)) / to;
+  }
+  return { altAboveFt: leg.fromFt + up, climbFtps: rate, nz: 1 + acc / G_FTPS2 };
+}
+
 /**
  * Height on a smooth profile: legs { t0, t1, fromFt, toFt } in formation seconds. Each leg
  * starts and ends with no climb and no vertical acceleration (the smootherstep curve), so
@@ -294,6 +323,10 @@ export function heightAt(profile, t) {
     if (leg.dive) {
       const d = diveAt(leg, t);
       if (d) return d;
+    }
+    if (leg.climb) {
+      const c = climbAt(leg, t);
+      if (c) return c;
     }
     const span = Math.max(leg.t1 - leg.t0, 1e-9);
     const u = (t - leg.t0) / span;
@@ -417,7 +450,7 @@ export function stepAircraft(a, plan, t) {
   const bankBefore = a.bankDeg;
   const attitudeBefore = { attitudeDeg: a.attitudeDeg };
   const headingBefore = a.headingRad;
-  const climbBefore = a.climbFtps;
+  const climbBefore = a.climbFtps ?? 0;
   const tasBefore = a.tasFtps;
   const kiasBefore = a.kias;
   const height = heightAt(plan.profile, t + dt);
@@ -425,7 +458,7 @@ export function stepAircraft(a, plan, t) {
   a.invertDive = Boolean(height?.invert); // a big dive's pull down is flown inverted (TS-129, flyAttitude)
   if (height) {
     a.altAboveFt = height.altAboveFt;
-    a.climbFtps = height.climbFtps;
+    a.climbFtps = height.climbFtps ?? 0;
   } else {
     a.climbFtps = 0;
   }

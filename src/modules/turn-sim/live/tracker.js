@@ -212,7 +212,7 @@ function zoomRoomFtps(L, W) {
  * at the G he pulls (full power up, power back down: slow-down.js, TS-61) and builds it up at the one jerk limit.
  * Returns { kias, zoomFtps, accel }.
  */
-function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowOwn, cone, aCmdOwn, floorThrOwn, extraSlowKtpsOwn, energyIntent }) {
+function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowOwn, cone, aCmdOwn, floorThrOwn, extraSlowKtpsOwn, energyIntent, heightState = null, t = 0 }) {
   const T = TRACKER;
   const GAIN = T.gain;
   // A phase may slow with more than power back (slowStage, slow-down.js; the turning rejoin's run-in: power back and the
@@ -260,8 +260,9 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     const perFtps = climbCostKtps(W, 1);
     const want = ph.coneAlt ? -accel / perFtps : 0;
     const coneUpFt = coneUpFtNow(); // the share of the cone's height his experience uses (rates.js EXPERIENCE, TS-141)
+    const isRejoin = Boolean(ph.rejoin || ph.rejoinKind === 'into' || ph.rejoinKind === 'straight');
     const range3DFt = Math.hypot(W.xFt - L.xFt, W.yFt - L.yFt, (W.altAboveFt ?? 0) - (L.altAboveFt ?? 0));
-    const topFt = range3DFt < 2000 ? Math.min((L.altAboveFt ?? 0) - 10, (L.altAboveFt ?? 0) + coneUpFt) : (L.altAboveFt ?? 0) + coneUpFt;
+    const topFt = isRejoin && range3DFt < 2000 ? Math.min((L.altAboveFt ?? 0) - 10, (L.altAboveFt ?? 0) + coneUpFt) : (L.altAboveFt ?? 0) + coneUpFt;
     const bottomFt = (L.altAboveFt ?? 0) - coneUpFt;
     const up = Math.max(0, topFt - W.altAboveFt);
     const down = Math.max(0, W.altAboveFt - bottomFt);
@@ -273,12 +274,12 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     // Inside the cone, the energy's climb or descent at FW_ENERGY's gentler pull (a quick dive still coming out at the bubble's pull).
     const D = FW_BUBBLE;
     const toward = (ft) => Math.max(-D.diveFtps, Math.min(D.diveFtps, (ft - W.altAboveFt) * D.altGain));
-    const quick = belowOwn != null || W.altAboveFt > topFt || W.altAboveFt < bottomFt;
+    const quick = belowOwn != null;
     // Slowing faster than the gentle climb gives, he zooms (up to zoomFtps, at the bubble's pull) toward the cone's top.
     const zoom = range3DFt >= 2000 && belowOwn == null && want > hi && zoomFtps > hi;
     let wantV = belowOwn != null ? toward(L.altAboveFt - belowOwn) : W.altAboveFt > topFt ? toward(topFt) : W.altAboveFt < bottomFt ? toward(bottomFt) : Math.max(lo, Math.min(zoom ? zoomFtps : hi, want));
-    // Step-Down Gate (SMM 12.24 & 16.20): inside 2,000 ft, Wing must not climb above Lead.
-    if (range3DFt < 2000 && W.altAboveFt >= (L.altAboveFt ?? 0)) {
+    // Step-Down Gate (SMM 12.24 & 16.20): inside 2,000 ft, Wing must not climb above Lead during a rejoin.
+    if (isRejoin && range3DFt < 2000 && W.altAboveFt >= (L.altAboveFt ?? 0)) {
       wantV = Math.min(wantV, toward((L.altAboveFt ?? 0) - 10));
     }
     const pull = quick || zoom ? D.pullFtps2 : E.pullFtps2;
@@ -304,8 +305,9 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
   }
   let target = ph.slot?.alt;
   if (target != null && Number.isFinite(target)) {
+    const isRejoin = Boolean(ph.rejoin || ph.rejoinKind === 'into' || ph.rejoinKind === 'straight');
     const range3DFt = Math.hypot(W.xFt - L.xFt, W.yFt - L.yFt, (W.altAboveFt ?? 0) - (L.altAboveFt ?? 0));
-    if (range3DFt < 2000 && target > (L.altAboveFt ?? 0)) {
+    if (isRejoin && range3DFt < 2000 && target > (L.altAboveFt ?? 0)) {
       target = Math.min(target, (L.altAboveFt ?? 0) - 10);
     }
     if (heightState.activeLeg && t >= heightState.activeLeg.t1 - 1e-9) {
@@ -320,19 +322,22 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
       const gFloor = smoothLegSec(rise, TRACKER.height.heightG);
       const vEnergy = rise > 0 ? fullPowerKtps(W.kias, blockFt, W.g ?? 1) / climbCostKtps(W, 1) : 0;
       const energyFloor = vEnergy > 0 ? (SMOOTHER_PEAK * rise) / vEnergy : 0;
-      const span = Math.max(
-        ph.altSec ?? 0,
-        ph.altRateFtps ? Math.abs(rise) / ph.altRateFtps : 0,
-        gFloor,
-        TRACKER.height.minSec,
-        energyFloor
-      );
+      const rawSpan = ph.altSec != null
+        ? Math.max(ph.altSec, ph.altRateFtps ? Math.abs(rise) / ph.altRateFtps : 0, gFloor, TRACKER.height.minSec)
+        : Math.max(
+            ph.altRateFtps ? Math.abs(rise) / ph.altRateFtps : 0,
+            gFloor,
+            TRACKER.height.minSec,
+            energyFloor
+          );
+      const span = Math.ceil(rawSpan / STEP_SEC) * STEP_SEC;
       heightState.activeLeg = {
         t0: t,
         t1: t + span,
         fromFt: W.altAboveFt,
         toFt: target,
         ...(ph.dive && target < W.altAboveFt ? { dive: ph.dive } : {}),
+        ...(ph.climb && target > W.altAboveFt ? { climb: ph.climb } : {}),
       };
       heightState.targetAlt = target;
       heightState.hasHeightChange = true;
@@ -416,6 +421,8 @@ function isAligned(Lafter, W) {
 export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec = PLAN_MAX_SEC, init = null, stopWhenSettled = false }) {
   const T = TRACKER;
   const W = copyAircraft(wing0);
+  W.climbFtps ??= 0;
+  W.altAboveFt ??= 0;
   const points = [];
   const times = phases.map(() => ({ t0: null, arrive: null, t1: null }));
   let k = 0;
@@ -581,6 +588,8 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       floorThrOwn,
       extraSlowKtpsOwn,
       energyIntent: energyIntentOwn,
+      heightState,
+      t,
     });
     const kias = power.kias;
 
@@ -611,7 +620,8 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     }
     const dz = (W.altAboveFt ?? 0) - (Lafter.altAboveFt ?? 0);
     const range3D = Math.hypot(Lafter.xFt - W.xFt, Lafter.yFt - W.yFt, dz);
-    if (range3D < T.belowRangeFt) {
+    const isRejoin = Boolean(ph.rejoin || ph.rejoinKind === 'into' || ph.rejoinKind === 'straight');
+    if (isRejoin && range3D < T.belowRangeFt) {
       minBelowFt = Math.min(minBelowFt, -dz);
       if (dz > 5.0) stepDownOk = false; // inside 2,000 ft step-down gate
     }
@@ -621,7 +631,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     if (!inCanopy) {
       if (range3D < 1200) {
         blindSecInside1200 += STEP_SEC;
-        canopyOk = false; // inside 1,200 ft canopy "X" lock violated
+        if (isRejoin) canopyOk = false; // inside 1,200 ft canopy "X" lock violated
       } else if (range3D >= 2000) {
         blindSecOpenArena += STEP_SEC;
       }

@@ -16,7 +16,7 @@
 // holds the speed at (TS-75; for the straight rejoin from TS-139, Patrick 6 Oct 21:27Z card "Same as TRJ").
 import { relativeTo, DEG } from './manoeuvres.js';
 import { CHANGE_LIMIT_SEC } from './transitions.js';
-import { KIAS_OUTSIDE_LAB, REJOIN, TURNING_REJOIN, TRACKER, CLOSURE, FW_BUBBLE } from './tuning.js';
+import { KIAS_OUTSIDE_LAB, REJOIN, TURNING_REJOIN, TRACKER, CLOSURE, FW_BUBBLE, FW_ENERGY } from './tuning.js';
 import { STEP_SEC, copyAircraft } from './flight.js';
 import { runTracker, phase } from './tracker.js';
 import { climbCostKtps, createPilot, pilotSpeed, pilotFly, pilotPower, pilotJerkKtps2, coneUpFtNow } from './pilot.js';
@@ -253,10 +253,11 @@ export function rejoinLinePhase(options) {
       if (r < 2500 || (aCmd >= 0 && W.altAboveFt > targetAlt)) {
         const diveFt = W.altAboveFt - targetAlt;
         if (diveFt > 0) {
-          wantZ = -Math.min(FW_BUBBLE.diveFtps, diveFt * FW_BUBBLE.altGain);
+          wantZ = -Math.min(2000 / 60, diveFt * 0.5);
         }
       }
-      const v1 = v0 + Math.max(-FW_BUBBLE.pullFtps2 * dt, Math.min(FW_BUBBLE.pullFtps2 * dt, wantZ - v0));
+      const pull = FW_ENERGY.pullFtps2;
+      const v1 = v0 + Math.max(-pull * dt, Math.min(pull * dt, wantZ - v0));
       const nz = 1 + (v1 - v0) / dt / G_FTPS2;
       const a1 = W.altAboveFt + ((v0 + v1) / 2) * dt;
       st.zoom.alt.push(a1);
@@ -288,6 +289,7 @@ export function rejoinLinePhase(options) {
     pursuit,
     pursuitEnds: true,
     bankCapDeg,
+    rejoin: true,
   });
 
   return { phase: ph, st };
@@ -320,6 +322,7 @@ export function flyRejoinLine(options) {
       lineKias: st.lineKias ?? run.end.wing.kias,
       lineFt: st.lineFt,
       zoomLeg: zoomLegOf(st.zoom),
+      stepDownOk: run.stepDownOk,
     };
   }
   if (!st.done || !run.ok) return null;
@@ -336,6 +339,7 @@ export function flyRejoinLine(options) {
     lineKias: st.lineKias ?? run.end.wing.kias,
     lineFt: st.lineFt,
     zoomLeg: zoomLegOf(st.zoom),
+    stepDownOk: run.stepDownOk,
   };
 }
 

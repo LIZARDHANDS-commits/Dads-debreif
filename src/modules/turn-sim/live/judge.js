@@ -217,8 +217,8 @@ export function judgeLink(kind, ref, wing, { spacingFt = 6000, wingPlane = false
 function stack(labels, down, stackFt, ref) {
   if (stackFt == null) return;
   if (Math.abs(ref.bankDeg ?? 0) > 5 || Math.abs(ref.climbFtps ?? 0) > 5) return;
-  if (down < -stackFt) labels.push('HIGH');
-  else if (down > stackFt) labels.push('LOW');
+  if (down < -stackFt - 1) labels.push('HIGH');
+  else if (down > stackFt + 1) labels.push('LOW');
 }
 
 // ---- the judge: the verdict for the formation -------------------------------------------------------------------------

@@ -123,6 +123,7 @@ export function flyOnTheX({ allowAcross = false, wing, rec, s, tauSec, bankCapDe
   let minKias = W.kias;
   let maxG = W.g ?? 1;
   let minG = W.g ?? 1;
+  let stepDownOk = true;
   for (let n = 0; n < Math.round(CHANGE_LIMIT_SEC / dt); n++) {
     if (n * dt >= stopAtSec) return null; // search speed only (flyRejoinLine's stopAtSec)
     const L = rec.at(n);
@@ -132,6 +133,8 @@ export function flyOnTheX({ allowAcross = false, wing, rec, s, tauSec, bankCapDe
     const dy = L.yFt - W.yFt;
     const r = Math.hypot(dx, dy);
     if (relativeTo(L, W).left * s < 0 && !(allowAcross && r >= TRACKER.laneRangeFt)) return null; // across to Lead's other side (flyRejoinLine's allowAcross)
+    const dz = (W.altAboveFt ?? 0) - (L.altAboveFt ?? 0);
+    if (r < TRACKER.belowRangeFt && dz > 5.0) stepDownOk = false;
     const f = { x: Math.cos(L.headingRad), y: Math.sin(L.headingRad) };
     const l = { x: -f.y, y: f.x };
     const p = { x: -dx / r, y: -dy / r }; // from Lead to #2
@@ -139,7 +142,7 @@ export function flyOnTheX({ allowAcross = false, wing, rec, s, tauSec, bankCapDe
     const closure = rPrev === null ? 0 : (rPrev - r) / dt;
     rPrev = r;
     if (lineKias === null && Math.abs(b - bX) <= TR.onXDeg * DEG) lineKias = W.kias;
-    const done = (stable) => ({ points, steps: n, end: W, accelKtps: accel, maxBankDeg: maxBank, ahead, minKias, maxG, minG, lineKias: lineKias ?? W.kias, bearingDeg: b / DEG, closureFtps: closure, rangeFt: r, overKt: W.kias - L.kias, stable });
+    const done = (stable) => ({ points, steps: n, end: W, accelKtps: accel, maxBankDeg: maxBank, ahead, minKias, maxG, minG, lineKias: lineKias ?? W.kias, bearingDeg: b / DEG, closureFtps: closure, rangeFt: r, overKt: W.kias - L.kias, stable, stepDownOk });
     const over = W.kias - L.kias; // KIAS against KIAS (Patrick 03:44Z)
     if (r <= farFt && closure > 0 && closure <= TR.stableShare * arriveFtps && over <= TR.stableKt[1] && Math.abs(b - bX) <= TR.xWindowDeg * DEG) return done(true);
     if (r <= nearFt) return done(false);
@@ -285,7 +288,7 @@ function hardThenX(args, hardSec) {
   // The X law goes on from the pull's acceleration (no step in the power at the join; TS-141).
   const near = flyOnTheX({ ...args, ...laterBy(args, n0), wing: W, rec: fromStep(rec, n0), t0: t0 + n0 * dt, profile, accel0: pilot.accel });
   if (!near) return null;
-  return { ...near, points: [...points, ...near.points], steps: n0 + near.steps, maxBankDeg: Math.max(maxBank, near.maxBankDeg), minKias: Math.min(minKias, near.minKias), maxG: Math.max(maxG, near.maxG) };
+  return { ...near, points: [...points, ...near.points], steps: n0 + near.steps, maxBankDeg: Math.max(maxBank, near.maxBankDeg), minKias: Math.min(minKias, near.minKias), maxG: Math.max(maxG, near.maxG), stepDownOk: near.stepDownOk };
 }
 
 function farThenX(args, aimFt) {
@@ -309,6 +312,7 @@ function farThenX(args, aimFt) {
     maxG: Math.max(far.maxG, near.maxG),
     minG: Math.min(far.minG, near.minG),
     lineKias: far.lineKias,
+    stepDownOk: far.stepDownOk !== false && near.stepDownOk !== false,
   };
 }
 
@@ -377,7 +381,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   // costs no more than TR.diveSlackSec on the steady descent; the dive's G shares the G rule with the turn.
   let steady = partOver(steadySec);
   let best = steady;
-  if (upFt === 0 && dropFt > 0) {
+  if (upFt === 0 && dropFt > 0 && wing.altAboveFt > leadAlt) {
     for (const g of TR.diveGs) {
       const dive = partOver(Math.max(dt, Math.sqrt((SMOOTHER_CURVE_PEAK * dropFt) / (g * G_FTPS2))));
       if (!dive || dive.part.ahead) continue;
@@ -393,7 +397,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   if (!best) return null;
   const { part, partSec } = best;
   // minG: the least G a vertical may push to (the 4-ship's #2 from his stack); none for the 2-ship.
-  if (!part || part.ahead || (upFt > 0 && (part.maxG > G_RULE.normalG || (minG !== null && part.minG < minG)))) return null;
+  if (!part || part.ahead || part.stepDownOk === false || (upFt > 0 && (part.maxG > G_RULE.normalG || (minG !== null && part.minG < minG)))) return null;
   // Not stable by the window's near edge, only the overshoot is left (Patrick 03:35Z: the last resort).
   if (onX && !part.stable && !overshoot) return null;
   const n1 = part.steps;
@@ -422,7 +426,9 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
     // brake first"; Patrick 03:20Z: rejoins keep some power, with the boards as required), not power alone.
     phases = onLead(onClosure(tailLegs(s, to, sTo, spacingFt, rel1))).map((p, i) => ({ ...p, slowStage: 'boards', ...(i === 0 ? { closureFtps: Math.min(p.closureFtps, flowFtps) } : {}) }));
   }
-  const fly = (rec, stopWhenSettled) => trackTwice({ refs: { [lead.id]: fromStep(rec, n1) }, wing0: W1, t0: t1, phases, blockFt, init: { accelKtps: part.accelKtps }, stopWhenSettled });
+  const fly = (rec, stopWhenSettled) => {
+    return trackTwice({ refs: { [lead.id]: fromStep(rec, n1) }, wing0: W1, t0: t1, phases, blockFt, init: { accelKtps: part.points.length ? part.points[part.points.length - 1][3] : part.accelKtps }, stopWhenSettled });
+  };
   const first = fly(into.longRec, true);
   if (!first.run.ok) return null;
   // To a close formation #2 eases into Lead's wing plane from the move over, and Lead keeps turning until he is in it, then
@@ -436,7 +442,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   // power pays for them and he still ends on his place (TS-126).
   const inPlane = (r) => inLeadsPlane(wing, { segments: [{ kind: 'bankTrack', points: [...part.points, ...r.points] }], profile: [...heightLeg(partSec), ...profile] }, lp.rec, t0, n1, n1 + r.points.length, easeSec);
   if (close) {
-    const again = runTracker({ refs: { [lead.id]: fromStep(lp.rec, n1) }, wing0: W1, t0: t1, phases, profile: inPlane(run), blockFt, init: { accelKtps: part.accelKtps } });
+    const again = runTracker({ refs: { [lead.id]: fromStep(lp.rec, n1) }, wing0: W1, t0: t1, phases, profile: inPlane(run), blockFt, init: { accelKtps: part.points.length ? part.points[part.points.length - 1][3] : part.accelKtps } });
     if (again.ok) run = again;
   }
   // Passing more than TR.laneTolFt ahead of the slot is a warning on the card, not a refusal (Patrick 6 Oct 03:45Z; TS-110;
@@ -535,7 +541,7 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
   if (best && vertical) {
     for (const upFt of TURNING_REJOIN.verticalUpFt) {
       const flown = flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, upFt, minG: verticalMinG, overshoot: best.overshoot, xLaw, hardSec: best.hardSec, allowAcross: best.allowAcross, maxWhenLow: best.maxWhenLow, limitSec: best.durationSec - BETTER_BY_SEC });
-      if (flown && flown.run?.stepDownOk !== false && flown.durationSec < best.durationSec - BETTER_BY_SEC) best = { ...flown, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, hardSec: best.hardSec, upFt, allowAcross: best.allowAcross, maxWhenLow: best.maxWhenLow };
+      if (flown && flown.part?.stepDownOk !== false && flown.run?.stepDownOk !== false && flown.durationSec < best.durationSec - BETTER_BY_SEC) best = { ...flown, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, hardSec: best.hardSec, upFt, allowAcross: best.allowAcross, maxWhenLow: best.maxWhenLow };
     }
   }
   return best;

@@ -32,8 +32,10 @@ import { fromStep, wingFromPose } from './hand-over.js';
 import { leadTurnInto } from './lead-turn-in.js';
 import { searchTurningRejoin } from './turning-rejoin.js';
 import { STEP_SEC, smoother } from './flight.js';
-import { leadStateOf, stepLead, nosePath, followNose, noseAt } from './fluid-lead.js';
-import { poseOf3d } from './attitude.js';
+import { leadStateOf, stepLead, nosePath, noseAt } from './fluid-lead.js';
+import { poseOf3d, len3, scale3 } from './attitude.js';
+import { liftTowardAim, gAndBankForLift } from '../../../core/point-mass.js';
+import { G_FTPS2 } from '../../../core/units.js';
 
 const dt = STEP_SEC;
 
@@ -67,7 +69,7 @@ function candidates() {
 
 /**
  * Flies one roll for #2 from the press on the point mass (fluid-lead.js), against Lead's recorded turn `rec`. s: the way
- * Lead turns (+1 left); c.dir: +1 the barrel's circle toward that side, -1 away. Returns { poses, minKias, maxG,
+ * Lead turns (+1 left); c.dir: +1 the barrel's circle toward that side, -1 away. Returns { poses, minKias, minG, maxG,
  * maxBankDeg, minRangeFt, laneFwdFt } or null (inside the 500 ft bubble once outside it, or never back to the horizon).
  */
 function flyRoll(c, wing, rec, s, blockFt) {
@@ -76,26 +78,59 @@ function flyRoll(c, wing, rec, s, blockFt) {
   const h0 = Math.atan2(st.nose.y, st.nose.x);
   const off = c.shape === 'barrel' ? c.dir * s * R.barrelOffDeg * DEG : 0;
   // Heading: swung c.turnDeg the way Lead turns (smoothly), plus the barrel's circle off it; pitch up, then down.
-  const path = nosePath((u) => noseAt(h0 + s * c.turnDeg * DEG * smoother(u) + off * (1 - Math.cos(2 * Math.PI * u)), c.pitchDeg * DEG * Math.sin(2 * Math.PI * u)), 1, R.pathSteps);
-  const mem = { s: 0, rate: 0 };
+  const N = (u) => noseAt(h0 + s * c.turnDeg * DEG * smoother(u) + off * (1 - Math.cos(2 * Math.PI * u)), c.pitchDeg * DEG * Math.sin(2 * Math.PI * u));
+  const path = nosePath(N, 1, R.pathSteps);
   // The live code keeps each aircraft's true to indicated ratio as it is (tracker.js setKias): his KIAS is read with his own
   // ratio, so the rejoin after the roll carries on at the same true airspeed (the point mass's own KIAS, at its height,
   // differs by about 1% a few hundred feet off; the checks use that one).
   const tasPerKias = wing.tasFtps / wing.kias;
   const poses = [];
   let minKias = Infinity;
+  let minG = Infinity;
   let maxG = 0;
   let maxBankDeg = 0;
   let laneFwdFt = -Infinity;
   let minRangeFt = Infinity;
   const L0 = rec.at(0);
   let out = Math.hypot(wing.xFt - L0.xFt, wing.yFt - L0.yFt, wing.altAboveFt - L0.altAboveFt) >= LAG_ROLL.bubbleFt;
+
+  let posS = 0;
+  let rate = 0;
+  const lookahead = 0.08;
+  const gain = 1.0;
+  const noseAccel = 8 * DEG;
+  const noseEnd = 3 * DEG;
+
   for (let n = 1; n <= Math.round(R.maxRollSec / dt); n++) {
-    const r = followNose(st, path, mem, c.pullG);
-    st = stepLead(st, { g: r.g, bank: r.bank });
+    const u = posS / path.total;
+    const uAim = Math.min(1.0, u + lookahead);
+    const toAim = N(uAim);
+    const vHat = st.nose;
+    const { wanted } = liftTowardAim(vHat, toAim, st.V, gain);
+    const wantedLen = len3(wanted);
+    let lift = wanted;
+    if (wantedLen > c.pullG) {
+      lift = scale3(wanted, c.pullG / wantedLen);
+    } else if (wantedLen < 1.0) {
+      lift = scale3(wanted, 1.0 / Math.max(1e-6, wantedLen));
+    }
+    const gb = gAndBankForLift(lift, vHat, st.pm.up, st.bank * DEG);
+    const askG = Math.max(1.0, Math.min(c.pullG, gb.g));
+    const askBank = gb.bankRad / DEG;
+    st = stepLead(st, { g: askG, bank: askBank });
+
+    const wantRate = (Math.sqrt(Math.max(0, c.pullG * c.pullG - 1)) * G_FTPS2) / st.V;
+    const left = path.total - posS;
+    const endCap = Math.sqrt(2 * noseEnd * Math.max(0, left));
+    const maxStep = noseAccel * dt;
+    rate = Math.max(0, Math.min(endCap, rate + Math.max(-maxStep, Math.min(maxStep, wantRate - rate))));
+    posS = Math.min(path.total, posS + rate * dt);
+    const end = posS >= path.total - 1e-6 || (left < 0.5 * DEG && rate < 0.1 * DEG);
+
     const pose = poseOf3d({ x: st.pm.x, y: st.pm.y, altAbove: st.pm.z - blockFt, vel: st.vel, up: st.bodyUp, kias: st.V / tasPerKias, g: st.g, rollDps: -st.rollRate });
     pose.pwr = 1; // full power through the roll (the point mass flies it at MAX)
     poses.push(pose);
+
     const L = rec.at(n);
     const rel = relativeTo(L, { xFt: pose.x, yFt: pose.y });
     const range = Math.hypot(rel.fwd, rel.left, pose.alt - L.altAboveFt);
@@ -104,9 +139,11 @@ function flyRoll(c, wing, rec, s, blockFt) {
     if (out) minRangeFt = Math.min(minRangeFt, range);
     if (Math.hypot(rel.fwd, rel.left) < LANE.rangeFt) laneFwdFt = Math.max(laneFwdFt, rel.fwd);
     minKias = Math.min(minKias, st.kias);
+    minG = Math.min(minG, st.g);
     maxG = Math.max(maxG, st.g);
     maxBankDeg = Math.max(maxBankDeg, Math.abs(pose.bank));
-    if (r.end) return { poses, minKias, maxG, maxBankDeg, minRangeFt, laneFwdFt };
+    if (st.kias < LAG_ROLL.topKiasBand[0]) return null;
+    if (end) return { poses, minKias, minG, maxG, maxBankDeg, minRangeFt, laneFwdFt };
   }
   return null;
 }
@@ -235,6 +272,6 @@ export function planRollingRejoin(pair, to, options = {}, t0 = 0) {
     endSec: t0 + best.durationSec,
     rejoining: true,
     handOverSec: null,
-    rollingRejoin: { shape: c.shape, dir: c.dir, turnDeg: c.turnDeg, pitchDeg: c.pitchDeg, pullG: c.pullG, rollSec, minKias: m.minKias, maxG: m.maxG, maxBankDeg: m.maxBankDeg, minRangeFt: m.minRangeFt },
+    rollingRejoin: { shape: c.shape, dir: c.dir, turnDeg: c.turnDeg, pitchDeg: c.pitchDeg, pullG: c.pullG, rollSec, minKias: m.minKias, minG: m.minG, maxG: m.maxG, maxBankDeg: m.maxBankDeg, minRangeFt: m.minRangeFt },
   };
 }
