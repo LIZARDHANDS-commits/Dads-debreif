@@ -270,7 +270,20 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     title: `Fly the camera round the Moose Jaw circuit, Regina and each airborne T-6 in turn, about ${TOUR_DWELL_S} seconds at each, with Orbit turning. A drag, the wheel, an arrow key or Home stops it.`,
     onclick: () => setTour(tourButton.getAttribute('aria-pressed') !== 'true'),
   }, 'Tour');
-  const tools = h('div', { class: 'sof-3d-tools' }, orbitButton, tourButton, fullButton, corner);
+  // In full screen the layer panels and the airspace log are folded away so the map is clear (Dad, 7 Oct); "Panels" brings them back. The credits
+  // and the traffic line stay. Outside full screen the button is not shown and the panels are always there (sof.css).
+  const panelsButton = h('button', {
+    type: 'button',
+    class: 'sof-3d-toggle sof-3d-panels-toggle',
+    'aria-pressed': 'false',
+    title: 'Show or hide the layer panels and the airspace log while in full screen',
+    onclick: () => {
+      const show = panelsButton.getAttribute('aria-pressed') !== 'true';
+      panelsButton.setAttribute('aria-pressed', String(show));
+      element.classList.toggle('show-panels', show);
+    },
+  }, 'Panels');
+  const tools = h('div', { class: 'sof-3d-tools' }, orbitButton, tourButton, panelsButton, fullButton, corner);
   // What the tour is showing and when it moves on. The words change every stop (announced); the countdown changes every second (not announced).
   const tourWhat = h('span', { class: 'sof-3d-tour-what' });
   const tourNext = h('span', { class: 'sof-3d-tour-next', 'aria-hidden': 'true' });

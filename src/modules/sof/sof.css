@@ -3019,3 +3019,21 @@ main[data-module='sof'] {
   background: var(--bg-raised);
   box-shadow: var(--shadow);
 }
+
+/* Full screen keeps the map clear (Dad, 7 Oct: "the area alert and layers windows cover a lot of map"): the 3D layer panels and the airspace log
+   fold away until "Panels" is pressed; the credits line and the traffic line stay. Outside full screen the Panels button is not shown. */
+[data-module='sof'] .sof-3d-panels-toggle {
+  display: none;
+}
+
+[data-module='sof'] .sof-body:fullscreen .sof-3d-panels-toggle,
+[data-module='sof'] .sof-body.is-fullscreen .sof-3d-panels-toggle {
+  display: inline-flex;
+}
+
+[data-module='sof'] .sof-body:fullscreen .sof-3d:not(.show-panels) .sof-3d-bottom > .sof-3d-model,
+[data-module='sof'] .sof-body.is-fullscreen .sof-3d:not(.show-panels) .sof-3d-bottom > .sof-3d-model,
+[data-module='sof'] .sof-body:fullscreen .sof-3d:not(.show-panels) .sof-3d-log,
+[data-module='sof'] .sof-body.is-fullscreen .sof-3d:not(.show-panels) .sof-3d-log {
+  display: none;
+}
