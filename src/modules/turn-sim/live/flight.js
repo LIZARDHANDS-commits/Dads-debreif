@@ -21,7 +21,9 @@ import { powerFor, POWER_BLOCK_FT } from './power.js';
 import { ROLL } from './tuning.js';
 
 /** Feature flag to route flight step integration through the 3D Runge-Kutta point-mass engine. */
-export const USE_3D_POINT_MASS = process.env.USE_3D_POINT_MASS === '1' || false;
+export const USE_3D_POINT_MASS = typeof window !== 'undefined'
+  ? (window.__USE_3D_POINT_MASS !== false)
+  : (typeof process !== 'undefined' && process.env?.USE_3D_POINT_MASS !== '0');
 
 /** Roll limits (tuning.js ROLL), still read from here by the tests. */
 export { ROLL };
