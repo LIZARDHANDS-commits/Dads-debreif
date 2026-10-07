@@ -136,6 +136,15 @@ export const SWAP_CROSS_MARGIN_FT = 100;
 /** Where a crossing behind Lead passes his six, fwd ft: outside the 500 ft bubble by SWAP_CROSS_MARGIN_FT (SMM 12.29 para 69; estimates). */
 export const crossBehindFwd = (rangeFt) => -(Math.max(FW_BAND.bubbleFt, rangeFt * 0.9) + SWAP_CROSS_MARGIN_FT);
 
+/** The turning rejoin's line: lineDeg off Lead's tail on side s, fixed in his turning frame (SMM 12.24 paras 56-57). Positive cross: ahead of the line, hot. */
+export function fixedLine(lineDeg, s) {
+  const sinL = Math.sin(lineDeg * DEG);
+  const cosL = Math.cos(lineDeg * DEG);
+  const u = { fwd: -sinL, left: s * cosL }; // down the line outward from Lead, in his frame
+  const nrm = { fwd: cosL, left: s * sinL }; // across it, toward Lead's nose (positive: ahead of the line, hot)
+  return { u, nrm, closureShare: cosL, at: (rel) => ({ along: rel.fwd * u.fwd + rel.left * u.left, cross: rel.fwd * nrm.fwd + rel.left * nrm.left }) };
+}
+
 let fwShape = { ...FW2 };
 
 /** Sets the 2-ship's desired fighting wing place ({ rangeFt, sweepDeg }; a missing value takes the default). */

@@ -8,12 +8,13 @@
 // (slide, stopAt, dropBack, sweepOut, closeThrough, rejoinTo, openOut, straightAhead) live in recipes.js.
 import { bankDegFromTurnRate } from '../../../core/flight-math.js';
 import { wrapPi } from '../../../core/angles.js';
-import { G_FTPS2 } from '../../../core/units.js';
+import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, copyAircraft, smoothLegSec, heightAt, SMOOTHER_PEAK } from './flight.js';
-import { relativeTo, unit } from './manoeuvres.js';
+import { relativeTo, unit, DEG } from './manoeuvres.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
 import { throttleAtTorque } from './power.js';
-import { TRACKER, CLOSURE, HAND_OVER_FT, FW_ENERGY, FW_BUBBLE, REJOIN } from './tuning.js';
+import { TRACKER, CLOSURE, HAND_OVER_FT, FW_ENERGY, FW_BUBBLE, REJOIN, TURNING_REJOIN, KIAS_OUTSIDE_LAB } from './tuning.js';
+import { fixedLine } from './slots.js';
 import { setKias, stepCommanded, climbCostKtps, createPilot, pilotSpeed, pilotFly, pilotPower, coneUpFtNow } from './pilot.js';
 import { isLeadInCanopy, checkDoctrinalInvariants } from '../../../core/canopy.js';
 import { liftTowardAim, gAndBankForLift } from '../../../core/point-mass.js';
@@ -57,6 +58,71 @@ function refPoint(R, Rprev, ref, world, refTurn = true) {
 function aimOf(ph, L, Lprev, ref, W, t) {
   const T = TRACKER;
   const GAIN = T.gain;
+
+  if (ph.kind === 'line') {
+    const rel = relativeTo(L, W);
+    const line = ph.line ?? fixedLine(ph.lineDeg ?? 45, ph.side ?? -1);
+    const geo = line.at(rel);
+    const along = geo.along;
+    const cross = geo.cross;
+    const approachDeg = ph.approachDeg ?? 45;
+    const aimFt = ph.aimFt ?? 500;
+    const chi = approachDeg * DEG * (2 / Math.PI) * Math.atan(Math.abs(cross) / aimFt);
+    const wayFwd = -line.u.fwd * Math.cos(chi) - Math.sign(cross) * line.nrm.fwd * Math.sin(chi);
+    const wayLeft = -line.u.left * Math.cos(chi) - Math.sign(cross) * line.nrm.left * Math.sin(chi);
+
+    const f = { x: Math.cos(L.headingRad), y: Math.sin(L.headingRad) };
+    const l = { x: -f.y, y: f.x };
+    const dWorld = { x: wayFwd * f.x + wayLeft * l.x, y: wayFwd * f.y + wayLeft * l.y };
+    const dAim = Math.max(150, Math.min(800, along));
+    const px = W.xFt + dWorld.x * dAim;
+    const py = W.yFt + dWorld.y * dAim;
+    const omegaL = Lprev ? wrapPi(L.headingRad - Lprev.headingRad) / STEP_SEC : 0;
+    const rx = px - L.xFt;
+    const ry = py - L.yFt;
+    const vpx = L.tasFtps * f.x - omegaL * ry;
+    const vpy = L.tasFtps * f.y + omegaL * rx;
+    const ex = px - W.xFt;
+    const ey = py - W.yFt;
+    const d = Math.hypot(ex, ey);
+    const arrived = along <= (ph.decisionFt ?? 750) && Math.abs(cross) <= (ph.captureFt ?? 50);
+    return { px, py, vpx, vpy, ex, ey, d, arrived, along, cross, dWorld, omegaL, slot: ph.slot ?? { fwd: rel.fwd, left: rel.left, alt: ph.slot?.alt ?? 0 } };
+  }
+
+  if (ph.kind === 'x') {
+    const f = { x: Math.cos(L.headingRad), y: Math.sin(L.headingRad) };
+    const l = { x: -f.y, y: f.x };
+    const dx = L.xFt - W.xFt;
+    const dy = L.yFt - W.yFt;
+    const r = Math.hypot(dx, dy);
+    const s = ph.side ?? -1;
+    const p = { x: -dx / Math.max(r, 1), y: -dy / Math.max(r, 1) };
+    const b = Math.atan2(s * (p.x * l.x + p.y * l.y), -(p.x * f.x + p.y * f.y));
+    const bX = (ph.lineDeg ?? 45) * DEG;
+    const tauSec = ph.tauSec ?? (TURNING_REJOIN.bearingTauSec ?? 10);
+    const across = (r * (bX - b)) / tauSec;
+    const tv = { x: f.x * Math.sin(b) + s * l.x * Math.cos(b), y: f.y * Math.sin(b) + s * l.y * Math.cos(b) };
+    const omegaL = Lprev ? wrapPi(L.headingRad - Lprev.headingRad) / STEP_SEC : 0;
+    const vfx = L.tasFtps * f.x + omegaL * dy;
+    const vfy = L.tasFtps * f.y - omegaL * dx;
+    const ax = vfx + across * tv.x;
+    const ay = vfy + across * tv.y;
+    const px = W.xFt + ax * STEP_SEC * 10;
+    const py = W.yFt + ay * STEP_SEC * 10;
+    const vpx = ax;
+    const vpy = ay;
+    const ex = px - W.xFt;
+    const ey = py - W.yFt;
+    const d = Math.hypot(ex, ey);
+    const over = W.kias - L.kias;
+    const farFt = ph.farFt ?? TURNING_REJOIN.windowFarFt;
+    const nearFt = ph.nearFt ?? TURNING_REJOIN.windowNearFt;
+    const xWinRad = (ph.xWinDeg ?? TURNING_REJOIN.xWindowDeg ?? 10) * DEG;
+    const stable = r <= farFt && r >= nearFt && over <= TURNING_REJOIN.stableKt[1] && Math.abs(b - bX) <= xWinRad;
+    const arrived = stable || r <= nearFt;
+    return { px, py, vpx, vpy, ex, ey, d, arrived, stable, rangeFt: r, bearingDeg: b / DEG, bXDeg: bX / DEG, slot: ph.slot ?? { fwd: 0, left: 0, alt: ph.slot?.alt ?? 0 } };
+  }
+
   // The reference slot moves toward the phase's slot at the phase's rates. A phase with a `goal` (a goal-seeking phase,
   // the fighting wing turns of TS-55) works out its slot afresh every step from where Lead and #2 are.
   const slot = ph.goal ? ph.goal(L, W, t) : ph.slot;
@@ -111,14 +177,54 @@ function closureCap(ph, L, W, ex, ey, d, blockFt, farFromFt) {
 function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT) {
   const T = TRACKER;
   const GAIN = T.gain;
-  const { ex, ey, d, vpx, vpy } = aim;
   const ratio = W.tasFtps / W.kias;
+
+  if (ph.kind === 'line') {
+    const room = Math.max(0, (aim.along ?? 0) - (ph.decisionFt ?? 750));
+    const closeFtps = typeof ph.arriveFtps === 'function' ? ph.arriveFtps(W) : (ph.arriveFtps ?? 20 * KT_TO_FTPS);
+    const slowFtps2 = ph.slowFtps2 ?? TURNING_REJOIN.slowFtps2;
+    const wantClosure = Math.sqrt(closeFtps * closeFtps + 2 * slowFtps2 * room);
+    const omegaL = aim.omegaL ?? 0;
+    let psiCmd;
+    if (Math.abs(omegaL) < 1e-4) {
+      psiCmd = Math.atan2(aim.dWorld.y, aim.dWorld.x);
+    } else {
+      const pullX = aim.dWorld.x * wantClosure;
+      const pullY = aim.dWorld.y * wantClosure;
+      const vdx = aim.vpx + pullX;
+      const vdy = aim.vpy + pullY;
+      const speed = Math.hypot(vdx, vdy);
+      psiCmd = speed > T.minSpeedFtps ? Math.atan2(vdy, vdx) : L.headingRad;
+    }
+    const over = ph.overtakeKt != null ? ph.overtakeKt : 20;
+    const floorKias = ph.floorKias ?? KIAS_OUTSIDE_LAB;
+    const kiasCmd = Math.max(floorKias, Math.min(L.kias + over, (L.tasFtps + wantClosure) / ratio));
+    return { pullX: 0, pullY: 0, vdx: W.tasFtps * Math.cos(psiCmd), vdy: W.tasFtps * Math.sin(psiCmd), speed: W.tasFtps, psiCmd, kiasCmd };
+  }
+
+  if (ph.kind === 'x') {
+    const arriveFtps = ph.arriveFtps ?? (((TURNING_REJOIN.stableKt[0] + TURNING_REJOIN.stableKt[1]) / 2) * KT_TO_FTPS * Math.SQRT2);
+    const slowFtps2 = ph.slowFtps2 ?? TURNING_REJOIN.slowFtps2;
+    const r = aim.rangeFt;
+    const farFt = ph.farFt ?? TURNING_REJOIN.windowFarFt;
+    const wantFtps = Math.sqrt(arriveFtps * arriveFtps + 2 * slowFtps2 * Math.max(0, r - farFt));
+    const dx = L.xFt - W.xFt;
+    const dy = L.yFt - W.yFt;
+    const p = { x: -dx / Math.max(r, 1), y: -dy / Math.max(r, 1) };
+    const ad = -(aim.vpx * p.x + aim.vpy * p.y);
+    const disc = ad * ad - (aim.vpx * aim.vpx + aim.vpy * aim.vpy) + W.tasFtps * W.tasFtps;
+    const lam = disc >= 0 ? Math.max(0, Math.sqrt(disc) - ad) : 0;
+    const psiCmd = disc >= 0 ? Math.atan2(aim.vpy - lam * p.y, aim.vpx - lam * p.x) : Math.atan2(aim.vpy, aim.vpx);
+    const kiasCurve = Math.hypot(aim.vpx - wantFtps * p.x, aim.vpy - wantFtps * p.y) / ratio;
+    const floorKias = ph.floorKias ?? KIAS_OUTSIDE_LAB;
+    const kiasCmd = Math.max(floorKias, Math.min(kiasCurve, L.kias + (ph.overtakeKt ?? 20)));
+    return { pullX: 0, pullY: 0, vdx: aim.vpx, vdy: aim.vpy, speed: W.tasFtps, psiCmd, kiasCmd };
+  }
+
+  const { ex, ey, d, vpx, vpy } = aim;
   let pullX;
   let pullY;
   if (ph.closureFtps) {
-    // The closure, dying away near the slot in proportion to the distance: fore and aft at the tracker's own position
-    // gain (power is the slow axis), sideways at CLOSURE.nearGain (bank is quick). One gain of 1/s on both left #2
-    // hunting about 20 ft fore and aft of the slot, never settling (V2.22-V2.23: the refusals Patrick saw 5 Oct 07:06Z).
     const pull = closureCap(ph, L, W, ex, ey, d, blockFt, farFromFt);
     const c = Math.cos(L.headingRad);
     const s = Math.sin(L.headingRad);
@@ -139,12 +245,8 @@ function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT) {
   const vdy = vpy + (pullY ?? 0);
   const speed = Math.hypot(vdx, vdy);
   const psiCmd = speed > T.minSpeedFtps ? Math.atan2(vdy, vdx) : L.headingRad;
-  // A closure phase may be faster or slower than the aircraft flown off by the closure rate (it replaces the 15 KIAS
-  // rejoin overtake, Patrick 05:46Z).
   const over = ph.closureFtps ? ph.closureFtps / ratio : ph.overtakeKias;
   const under = ph.closureFtps ? ph.closureFtps / ratio : ph.undertakeKias;
-  // Centred on the reference point's own speed, not Lead's: in a turn a place inside it moves slower than Lead and one
-  // outside faster, so holding it takes none of the closure (the review, V2.65); in straight flight the two are the same.
   const refKias = Math.hypot(vpx, vpy) / ratio;
   const kiasCmd = Math.max(refKias - under, Math.min(refKias + over, speed / ratio));
   return { pullX, pullY, vdx, vdy, speed, psiCmd, kiasCmd };
@@ -153,7 +255,7 @@ function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT) {
 /**
  * Heading loop: turn rate toward the commanded heading, with its own rate fed forward; bank from the turn rate.
  */
-function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState) {
+function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, aim = null) {
   const T = TRACKER;
   const GAIN = T.gain;
   if (headingState.psiCmdPrev === null) headingState.psiCmdPrev = psiCmd;
@@ -163,7 +265,15 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState) {
   // A phase with `feedForward: false` (the fighting wing turn exit, formation-turns.js fwExit) steers on the heading error alone:
   // as Lead rolls out the turn of the place #2 flies to dies away, and fed forward it rolled #2 past his heading and back.
   const omegaCmd = GAIN.heading * wrapPi(psiCmd - W.headingRad) + (ph.feedForward === false ? 0 : headingState.omegaFf);
-  const cap = aligning ? ph.alignBankDeg ?? T.alignBankDeg : ph.bankCapDeg;
+  let cap = aligning ? ph.alignBankDeg ?? T.alignBankDeg : ph.bankCapDeg;
+  if (ph.coneEase && L && aim?.along != null) {
+    const leadBankMag = Math.abs(L.bankDeg ?? 0);
+    const targetCap = Math.max(leadBankMag + 5, 25);
+    const dFar = ph.coneEaseFarFt ?? 1200;
+    const dNear = ph.decisionFt ?? 750;
+    const frac = Math.max(0, Math.min(1, (aim.along - dNear) / Math.max(1, dFar - dNear)));
+    cap = targetCap + frac * (cap - targetCap);
+  }
   let bank = Math.max(-cap, Math.min(cap, bankDegFromTurnRate(W.tasFtps, omegaCmd)));
   if (bankOwn != null) bank = Math.max(-cap, Math.min(cap, bankOwn)); // the switch's own bank, inside the phase's cap (the G rule)
   // Lining up on a closure phase, the last few hundredths of a degree of bank are taken out at once, so the wings come
@@ -234,7 +344,7 @@ function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowO
   const extraSlowKtps = extraSlowKtpsOwn ?? (zoomFtps > 0 ? climbCostKtps(W, zoomFtps) : 0);
   const aWant = aCmdOwn != null
     ? aCmdOwn
-    : (energyIntent === 'gain' ? Infinity : GAIN.speedLoop * (kiasCmd - W.kias));
+    : (energyIntent === 'gain' && W.kias < kiasCmd ? Infinity : GAIN.speedLoop * (kiasCmd - W.kias));
   // Lining up, the last few thousandths of a knot are taken out at once (snapKias), so the speed has no step.
   const accel = pilotSpeed(pilot, W, aWant, {
     blockFt, top: slowStage, floorThr, climbKtps, extraSlowKtps, snapKias: aligning ? L.kias : null, snapTol: T.kiasSnap,
@@ -259,10 +369,11 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     heightState.cone ??= { t0: t, alt: [W.altAboveFt], climb: [v0], nz: [1] };
     const perFtps = climbCostKtps(W, 1);
     const want = ph.coneAlt ? -accel / perFtps : 0;
-    const coneUpFt = coneUpFtNow(); // the share of the cone's height his experience uses (rates.js EXPERIENCE, TS-141)
+    const coneUpFt = coneUpFtNow();
     const isRejoin = Boolean(ph.rejoin || ph.rejoinKind === 'into' || ph.rejoinKind === 'straight');
     const range3DFt = Math.hypot(W.xFt - L.xFt, W.yFt - L.yFt, (W.altAboveFt ?? 0) - (L.altAboveFt ?? 0));
-    const topFt = isRejoin && range3DFt < 2000 ? Math.min((L.altAboveFt ?? 0) - 10, (L.altAboveFt ?? 0) + coneUpFt) : (L.altAboveFt ?? 0) + coneUpFt;
+    const stayBelow = Boolean((isRejoin && range3DFt < 2000) || ph.coneEnergy || ph.stepDown);
+    const topFt = stayBelow ? Math.min((L.altAboveFt ?? 0) - 10, (L.altAboveFt ?? 0) + coneUpFt) : (L.altAboveFt ?? 0) + coneUpFt;
     const bottomFt = (L.altAboveFt ?? 0) - coneUpFt;
     const up = Math.max(0, topFt - W.altAboveFt);
     const down = Math.max(0, W.altAboveFt - bottomFt);
@@ -278,8 +389,8 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     // Slowing faster than the gentle climb gives, he zooms (up to zoomFtps, at the bubble's pull) toward the cone's top.
     const zoom = range3DFt >= 2000 && belowOwn == null && want > hi && zoomFtps > hi;
     let wantV = belowOwn != null ? toward(L.altAboveFt - belowOwn) : W.altAboveFt > topFt ? toward(topFt) : W.altAboveFt < bottomFt ? toward(bottomFt) : Math.max(lo, Math.min(zoom ? zoomFtps : hi, want));
-    // Step-Down Gate (SMM 12.24 & 16.20): inside 2,000 ft, Wing must not climb above Lead during a rejoin.
-    if (isRejoin && range3DFt < 2000 && W.altAboveFt >= (L.altAboveFt ?? 0)) {
+    // Step-Down Gate (SMM 12.24 & 16.20): inside 2,000 ft or in FW turns, Wing must not climb above Lead.
+    if (stayBelow && W.altAboveFt >= (L.altAboveFt ?? 0) - 10) {
       wantV = Math.min(wantV, toward((L.altAboveFt ?? 0) - 10));
     }
     const pull = quick || zoom ? D.pullFtps2 : E.pullFtps2;
@@ -293,8 +404,11 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     return { stepProfile: [{ t0: t, t1: t + dt, table: { dt, alt: [W.altAboveFt, a1], climb: [v0, v1], nz: [nz, nz] } }] };
   }
 
-  // 2. Caller's explicit profile takes precedence over internal height calculations.
-  const hasExplicit = Boolean(profile && (!Array.isArray(profile) || profile.length > 0));
+  // 2. Caller's explicit profile takes precedence over internal height calculations when active at time t.
+  const hasExplicit = Boolean(
+    profile &&
+    (!Array.isArray(profile) || profile.some((leg) => t >= (leg.t0 ?? -Infinity) && t < (leg.t1 ?? Infinity) + 1e-9))
+  );
   if (hasExplicit) {
     return { stepProfile: profile };
   }
@@ -319,13 +433,15 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
       : Math.abs(target - heightState.targetAlt) > TRACKER.height.minChangeFt;
     if (needNewLeg) {
       const rise = target - W.altAboveFt;
+      const defaultRateFtps = ph.tactical ? 45 : 15;
+      const rateFloor = (SMOOTHER_PEAK * Math.abs(rise)) / (ph.altRateFtps ?? defaultRateFtps);
       const gFloor = smoothLegSec(rise, TRACKER.height.heightG);
       const vEnergy = rise > 0 ? fullPowerKtps(W.kias, blockFt, W.g ?? 1) / climbCostKtps(W, 1) : 0;
       const energyFloor = vEnergy > 0 ? (SMOOTHER_PEAK * rise) / vEnergy : 0;
       const rawSpan = ph.altSec != null
-        ? Math.max(ph.altSec, ph.altRateFtps ? Math.abs(rise) / ph.altRateFtps : 0, gFloor, TRACKER.height.minSec)
+        ? Math.max(ph.altSec, rateFloor, gFloor, TRACKER.height.minSec)
         : Math.max(
-            ph.altRateFtps ? Math.abs(rise) / ph.altRateFtps : 0,
+            rateFloor,
             gFloor,
             TRACKER.height.minSec,
             energyFloor
@@ -353,16 +469,35 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
 function isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt, timesK, early, heightDone = true }) {
   const T = TRACKER;
   const { vpx, vpy, d, arrived } = aim;
-  // Phase bookkeeping: advance when close enough, finish when settled and the reference has finished its own plan.
   const relVel = Math.hypot(W.tasFtps * Math.cos(W.headingRad) - vpx, W.tasFtps * Math.sin(W.headingRad) - vpy);
+  const pursuitResult = early !== undefined ? early : (ph.pursuit && ph.pursuitEnds ? ph.pursuit(L, W, t) : undefined);
+  let newStoppedAt = stoppedAt;
+
+  // Native handling for line and canopy-X phases
+  if (ph.kind === 'line' || ph.kind === 'x') {
+    if (arrived && timesK.arrive === null) timesK.arrive = t;
+    if (arrived && gateOpen) {
+      if (last) return { done: true, early: pursuitResult, stoppedAt: newStoppedAt };
+      return { advance: true, early: pursuitResult, stoppedAt: null };
+    }
+    return {
+      abort: false,
+      done: false,
+      advance: false,
+      settled: false,
+      startAligning: false,
+      early: pursuitResult,
+      stoppedAt: newStoppedAt,
+      relVel,
+    };
+  }
+
   if (arrived && timesK.arrive === null && d <= (last ? Math.max(ph.finalTol, ph.advanceTol) : ph.advanceTol) && (!last || heightDone)) timesK.arrive = t;
   // A phase with stopFtps is a real stop: #2 must have stopped on it (relative speed under stopFtps) and held there dwellSec.
-  let newStoppedAt = stoppedAt;
   if (ph.stopFtps && arrived && d <= ph.advanceTol && relVel <= ph.stopFtps) newStoppedAt ??= t;
   const stopDone = !ph.stopFtps || (newStoppedAt !== null && t - newStoppedAt >= (ph.dwellSec ?? 0) - 1e-9);
   // A phase flown by its own `pursuit` with `pursuitEnds` (a tracker recipe's held part: echelon-to-fw.js, open-out.js;
   // TS-141) ends when its pursuit says `done` (the last phase then ends the run) and gives up the run on `abort`.
-  const pursuitResult = early !== undefined ? early : (ph.pursuit && ph.pursuitEnds ? ph.pursuit(L, W, t) : undefined);
   if (pursuitResult?.abort) return { abort: true, early: pursuitResult, stoppedAt: newStoppedAt };
   const pursuitDone = pursuitResult?.done === true;
   if (pursuitDone) {
@@ -517,7 +652,11 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
         k++;
         const next = phases[k];
         const R2 = recOf(next);
-        if (R2 !== R || Boolean(next.world) !== Boolean(ph.world)) {
+        if (ph.kind === 'line' || ph.kind === 'x') {
+          const L2 = R2.at(m);
+          const relNow = relativeTo(L2, W);
+          Object.assign(ref, { f: relNow.fwd, l: relNow.left, vf: 0, vl: 0 });
+        } else if (R2 !== R || Boolean(next.world) !== Boolean(ph.world)) {
           // A new reference: the same point in the world, now carried by the other aircraft (or in world axes).
           const L2 = R2.at(m);
           const L2prev = m > 0 ? R2.at(m - 1) : null;
@@ -578,7 +717,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       const aim3D = aimLiftVector(W, aim, T.gain.heading);
       bank = bankOwn ?? aim3D.bankDeg;
     } else {
-      bank = headingBank(ph, psiCmd, W, aligning, bankOwn, headingState);
+      bank = headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L, aim);
     }
 
     // 4. Power: speed loop, jerk limit, energy intent

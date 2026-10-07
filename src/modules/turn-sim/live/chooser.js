@@ -29,8 +29,7 @@ import { planLagRoll, LAG_ROLL_KEY } from './lag-roll.js';
 import { planMoveInBand, MOVE_IN_BAND_KEY } from './move-in-band.js';
 import { planTurningRejoin } from './turning-rejoin.js';
 import { planStraightRejoin } from './straight-rejoin.js';
-import { planEchelonToFw } from './echelon-to-fw.js';
-import { planOpenOut } from './open-out.js';
+import { planEchelonToFw, planOpenOut } from './recipes.js';
 import { planFromHere } from './replan.js';
 import { planRollingRejoin, ROLLING_REJOIN_KIND } from './rolling-rejoin.js';
 

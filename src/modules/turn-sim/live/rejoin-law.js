@@ -72,14 +72,7 @@ export function aheadWatch(startFt) {
   };
 }
 
-/** The turning rejoin's line: lineDeg off Lead's tail on side s, fixed in his turning frame (SMM 12.24 paras 56-57). Positive cross: ahead of the line, hot. */
-export function fixedLine(lineDeg, s) {
-  const sinL = Math.sin(lineDeg * DEG);
-  const cosL = Math.cos(lineDeg * DEG);
-  const u = { fwd: -sinL, left: s * cosL }; // down the line outward from Lead, in his frame
-  const nrm = { fwd: cosL, left: s * sinL }; // across it, toward Lead's nose (positive: ahead of the line, hot)
-  return { u, nrm, closureShare: cosL, at: (rel) => ({ along: rel.fwd * u.fwd + rel.left * u.left, cross: rel.fwd * nrm.fwd + rel.left * nrm.left }) };
-}
+export { fixedLine } from './slots.js';
 
 /**
  * #2's part of a rejoin, from the press to the decision point, flown against Lead's recorded flight `rec`. See the file's

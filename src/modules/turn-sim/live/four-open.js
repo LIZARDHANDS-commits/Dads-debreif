@@ -7,8 +7,7 @@
 // through the one envelope gate (flight.js gateRoll, TS-93). Until V2.100 these were four-ship-moves.js's, with a kinematic
 // line in front of each long leg: its replayed poses were where the 8-12 G and 80-100 G/s of these moves came from.
 import { turnSeg, wholeDegree, TURN_BANK_DEG } from './manoeuvres.js';
-import { rejoinTo, openOut } from './recipes.js';
-import { flyOut, OPEN_OUT_HELD } from './open-out.js';
+import { rejoinTo, openOut, flyOut, OPEN_OUT_HELD } from './recipes.js';
 import { onClosure, fromStep } from './hand-over.js';
 import { trackTwice } from './tracker.js';
 import { STEP_SEC } from './flight.js';

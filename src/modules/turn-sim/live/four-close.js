@@ -11,12 +11,11 @@
 // The move numbers (M1 to M12) are the ratified table's. Numbers with no manual page or ruling beside them are estimates.
 import { STEP_SEC } from './flight.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
-import { stopAt, slide, cornerBehind, sweepOut } from './recipes.js';
+import { stopAt, slide, cornerBehind, sweepOut, planEchelonToFw } from './recipes.js';
 import { relativeTo } from './manoeuvres.js';
 import { slotsFor } from './slots.js';
 import { closureNow } from './rates.js';
 import { fwGoal } from './formation-turns.js';
-import { planEchelonToFw } from './echelon-to-fw.js';
 import { legsInTurn, place, hold, toSlot, inLeadFrame, ech, ast, toSpeed, inCone } from './four-legs.js';
 
 /** Close-formation crossings go behind and below (SMM 16.32 paras 87-88): 15 ft below Lead, #4 a further 10 ft below #3 (estimates). */

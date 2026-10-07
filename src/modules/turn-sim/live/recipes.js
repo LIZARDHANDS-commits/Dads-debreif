@@ -13,12 +13,20 @@
 // 11:08Z-11:09Z (200 KIAS outside line abreast, Lead turns into #2, speed only in
 // transitions) and 11:45Z (wording agreed). Numbers with no manual or ruling behind them are
 // labelled "estimate" beside them.
-import { phase } from './tracker.js';
-import { fwShapeNow, pairSlot } from './slots.js';
-import { REJOIN, STOP_KT, FW_FOLLOW } from './tuning.js';
+import { phase, runTracker } from './tracker.js';
+import { FORMATIONS, fwShapeNow, pairSlot } from './slots.js';
+import { REJOIN, STOP_KT, FW_FOLLOW, KIAS_OUTSIDE_LAB, KIAS_LAB, TRACKER } from './tuning.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { fwGoal } from './formation-turns.js';
 import { fwSwitch } from './fw-switch.js';
+import { classify, judge } from './judge.js';
+import { onClosure } from './hand-over.js';
+import { recordFlight, speedSeg } from './replay.js';
+import { describe, CHANGE_LIMIT_SEC } from './transitions.js';
+import { relativeTo, turnSeg, DEG } from './manoeuvres.js';
+import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
+import { wrapPi } from '../../../core/angles.js';
+import { bankDegFromTurnRate } from '../../../core/flight-math.js';
 
 // ---- the legs (phases): the tracker's recipes for each move --------------------------------------
 
@@ -174,4 +182,179 @@ export function legsFor(from, s, to, sTo, spacingFt) {
     phases[phases.length - 1] = { ...last, coneAlt: true, goal: (L, W) => fwGoal(L, W, sTo, false) };
   }
   return phases;
+}
+
+/** How far out from Lead's straight track (ft, positive on side s) #2 is: Lead flies straight, so his track is a line. */
+export function outFt(L, W, s) {
+  return s * (-(W.xFt - L.xFt) * Math.sin(L.headingRad) + (W.yFt - L.yFt) * Math.cos(L.headingRad));
+}
+
+/** How far out #2 ends if he turns back parallel to Lead now at bankDeg (flight.js's own turn and roll-out, speed held). */
+export function outAfterTurnBack(W, L, s, bankDeg, t) {
+  const c = copyAircraft(W);
+  const plan = { segments: [turnSeg(L.headingRad, -s, bankDeg)] };
+  for (let i = 0; i < 400 && plan.segments.length; i++) stepAircraft(c, plan, t + i * STEP_SEC);
+  return outFt(L, c, s);
+}
+
+/** The numbers of the held opening out move for four-open.js compatibility. */
+export const OPEN_OUT_HELD = Object.freeze({
+  banksDeg: Object.freeze([30, 45]),
+  leadHolds: false,
+  offHeadingsDeg: Object.freeze([15, 20, 25, 30, 35]),
+  diveSec: 10,
+  climbSec: 10,
+  trimKtPerFt: 0.05,
+  trimMaxKias: 25,
+  parallelDeg: 0.5,
+  startTol: Object.freeze({ kias: 5, headingDeg: 1, fwHeadingDeg: 5 }),
+});
+
+function openPursuit({ s, outAimFt, slotFwd, bankDeg, offDeg, startFt }) {
+  const H = OPEN_OUT_HELD;
+  const st = { leg: 'out', maxDone: false, turnBackT: null, doneT: null };
+  const pursuit = (L, W, t) => {
+    const rel = relativeTo(L, W);
+    if (Math.hypot(rel.fwd, rel.left) < startFt - 5) return { abort: true };
+    if (st.leg === 'out' && outAfterTurnBack(W, L, s, bankDeg, t) >= outAimFt) {
+      st.leg = 'back';
+      st.turnBackT = t;
+    } else if (st.leg === 'back' && Math.abs(wrapPi(W.headingRad - L.headingRad)) < H.parallelDeg * DEG && Math.abs(W.bankDeg) < H.parallelDeg) st.leg = 'parallel';
+    if (st.leg === 'parallel') {
+      st.doneT = t;
+      return { done: true };
+    }
+    const psiCmd = st.leg === 'out' ? wrapPi(L.headingRad + s * offDeg * DEG) : L.headingRad;
+    const want = bankDegFromTurnRate(W.tasFtps, TRACKER.gain.heading * wrapPi(psiCmd - W.headingRad));
+    const offNow = Math.abs(wrapPi(W.headingRad - L.headingRad));
+    const trim = Math.max(-H.trimMaxKias, Math.min(H.trimMaxKias, -H.trimKtPerFt * (rel.fwd - slotFwd)));
+    const aimKias = (st.leg === 'out' ? L.kias / Math.cos(offDeg * DEG) : L.kias / Math.cos(offNow)) + trim;
+    if (W.kias >= aimKias) st.maxDone = true;
+    return { psiCmd, kiasCmd: st.maxDone ? aimKias : Infinity, bankDeg: Math.max(-bankDeg, Math.min(bankDeg, want)), slowStage: 'power' };
+  };
+  return { pursuit, st };
+}
+
+function heldPhase(args, slot) {
+  const held = openPursuit(args);
+  return { held, phase: phase(slot, { pursuit: held.pursuit, pursuitEnds: true, bankCapDeg: args.bankDeg }) };
+}
+
+/** #2's held part alone against Lead's recorded straight flight, for four-open.js. */
+export function flyOut({ wing, rec, s, outAimFt, slotFwd, bankDeg, offDeg, blockFt, t0, profile }) {
+  const r0 = relativeTo(rec.at(0), wing);
+  const { held, phase: ph } = heldPhase({ s, outAimFt, slotFwd, bankDeg, offDeg, startFt: Math.hypot(r0.fwd, r0.left) }, { fwd: slotFwd, left: s * outAimFt, alt: 0 });
+  const run = runTracker({ refs: { ref: rec }, wing0: wing, t0, phases: [ph], profile, blockFt, maxSec: CHANGE_LIMIT_SEC });
+  if (!run.ok || held.st.doneT === null || held.st.turnBackT === null) return null;
+  return { points: run.points, steps: run.points.length, end: run.end.wing, accelKtps: run.accelKtps, maxBankDeg: run.maxBankDeg, laneFwdFt: run.laneFwdFt, turnBackStep: Math.round((held.st.turnBackT - t0) / STEP_SEC) };
+}
+
+/**
+ * Echelon (or route) to fighting wing on the same side as a tracker recipe (Task 4: retired from echelon-to-fw.js).
+ * Flown by sweepOut with fwGoal to settle in the cone expeditiously.
+ */
+export function planEchelonToFw(pair, to, options = {}, t0 = 0) {
+  if (to !== 'fw' || pair.length !== 2) return null;
+  const [lead, wing] = pair;
+  const from = classify([lead, wing]);
+  if (from.key !== 'echelon' && from.key !== 'route') return null;
+  const s = from.side;
+  const want = options.side ?? 'keep';
+  const sTo = want === 'left' ? 1 : want === 'right' ? -1 : s;
+  if (sTo !== s) return null;
+  const straight = lead.bankDeg === 0 && lead.rollRateDps === 0 && Math.abs(lead.kias - KIAS_OUTSIDE_LAB) <= 0.5;
+  const matched = Math.abs(wing.kias - lead.kias) <= 5 && Math.abs(wrapPi(wing.headingRad - lead.headingRad)) <= DEG;
+  if (!straight || !matched) return null;
+  const spacingFt = options.spacingFt ?? 6000;
+  const blockFt = options.blockFt ?? 8000;
+  const slot = pairSlot('fw', s, spacingFt);
+  if (!slot) return null;
+  const refs = { [lead.id]: recordFlight(lead, { segments: [] }, t0) };
+  const phases = onClosure([sweepOut(slot, { coneAlt: true, goal: (L, W) => fwGoal(L, W, s, false) })]);
+  const run = runTracker({ refs, wing0: wing, t0, phases, blockFt, maxSec: CHANGE_LIMIT_SEC });
+  if (!run.ok) return null;
+  const judged = judge([run.end.lead, run.end.wing], { key: 'fw' }, { spacingFt });
+  if (!judged.inBand) return null;
+  const durationSec = run.durationSec;
+  const fromWord = FORMATIONS[from.key].label;
+  const sideWord = s > 0 ? ' left' : ' right';
+  const how = describe(from.key, 'fw', 'none');
+  return {
+    ok: true,
+    plans: {
+      [lead.id]: { segments: [] },
+      [wing.id]: { segments: [{ kind: 'bankTrack', points: run.points }], profile: run.profile },
+    },
+    note: `${fromWord}${sideWord} to Fighting wing${sideWord}: ${how}. Expeditious tracker recipe with sweepOut to the cone, settled in about ${Math.round(durationSec)} s.`,
+    label: `${FORMATIONS.fw.label}${sideWord}`,
+    flying: `${fromWord}${sideWord} to ${FORMATIONS.fw.label}${sideWord} (${how})`,
+    from: from.key,
+    fromSide: s,
+    to: 'fw',
+    side: s,
+    rejoinKind: 'none',
+    leadTurnDeg: 0,
+    laneFwdFt: run.laneFwdFt,
+    maxBankDeg: run.maxBankDeg,
+    judged,
+    endSec: t0 + durationSec,
+    rejoining: false,
+    handOverSec: null,
+    coneSec: run.times?.[0]?.arrive ?? t0 + durationSec,
+  };
+}
+
+/**
+ * Opening out at full power to line abreast on the same side as a tracker recipe (Task 4: retired from open-out.js).
+ * Flown by openOut with energyIntent 'gain' to reach line abreast swiftly and smoothly.
+ */
+export function planOpenOut(pair, to, options = {}, t0 = 0) {
+  if (to !== 'lab' || pair.length !== 2) return null;
+  const [lead, wing] = pair;
+  const from = classify([lead, wing]);
+  if (from.key !== 'echelon' && from.key !== 'route' && from.key !== 'fw') return null;
+  const s = from.side;
+  const want = options.side ?? 'keep';
+  const sTo = want === 'left' ? 1 : want === 'right' ? -1 : s;
+  if (sTo !== s) return null;
+  const straight = lead.bankDeg === 0 && lead.rollRateDps === 0;
+  if (!straight) return null;
+  const spacingFt = options.spacingFt ?? 6000;
+  const blockFt = options.blockFt ?? 8000;
+  const slot = pairSlot('lab', s, spacingFt);
+  if (!slot) return null;
+  const speedSegs = Math.abs(lead.kias - KIAS_LAB) > 0.5 ? [speedSeg(lead.kias, KIAS_LAB, blockFt)] : [];
+  const leadRec = recordFlight(lead, { segments: speedSegs.map((x) => ({ ...x })) }, t0);
+  const refs = { [lead.id]: leadRec };
+  const phases = onClosure([openOut(slot, { energyIntent: 'gain' })]);
+  const run = runTracker({ refs, wing0: wing, t0, phases, blockFt, maxSec: CHANGE_LIMIT_SEC });
+  if (!run.ok) return null;
+  const judged = judge([run.end.lead, run.end.wing], { key: 'lab' }, { spacingFt });
+  if (!judged.inBand) return null;
+  const durationSec = run.durationSec;
+  const fromWord = FORMATIONS[from.key].label;
+  const sideWord = s > 0 ? ' left' : ' right';
+  const how = describe(from.key, 'lab', 'none');
+  return {
+    ok: true,
+    plans: {
+      [lead.id]: { segments: speedSegs.map((x) => ({ ...x })) },
+      [wing.id]: { segments: [{ kind: 'bankTrack', points: run.points }], profile: run.profile },
+    },
+    note: `${fromWord}${sideWord} to Line abreast${sideWord}: ${how}. #2 sets MAX at the press (energy intent gain), then the tracker settles him in the band. Lead speeds up to ${KIAS_LAB} KIAS at the press. About ${Math.round(durationSec)} s.`,
+    label: `${FORMATIONS.lab.label}${sideWord}`,
+    flying: `${fromWord}${sideWord} to ${FORMATIONS.lab.label}${sideWord} (${how})`,
+    from: from.key,
+    fromSide: s,
+    to: 'lab',
+    side: s,
+    rejoinKind: 'none',
+    leadTurnDeg: 0,
+    laneFwdFt: run.laneFwdFt,
+    maxBankDeg: run.maxBankDeg,
+    judged,
+    endSec: t0 + durationSec,
+    rejoining: false,
+    handOverSec: null,
+  };
 }

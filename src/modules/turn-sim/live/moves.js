@@ -108,7 +108,7 @@ export const STRAIGHT_REJOIN = Object.freeze({
   lineArriveKt: 8, // he joins the line and flows up it closing at about this, slow enough to stop on the slot with power back, never stopping short of it (estimate)
   lineFlowFt: 40, // he flows on up the line once within this many feet of route (on the line, TS-103), never stopping there (estimate)
   cutsDeg: [30, 45, 60], // far off Lead's six line he heads across it at up to this angle to Lead's track; the one that brings him in soonest is flown (estimates: a bigger cut gets across sooner and falls back further)
-  aimsFt: [600, 1200, 2400], // how sharply he comes onto the six line: off it by this much he cuts at half the angle (estimates, as TURNING_REJOIN.aimsFt; gentler than the turning rejoin's so he doesn't swing through the six)
+  aimsFt: [300, 600, 1200], // how sharply he comes onto the six line: off it by this much he cuts at half the angle (estimates, as TURNING_REJOIN.aimsFt; gentler than the turning rejoin's so he doesn't swing through the six)
   lineTauSec: 2, // his heading comes onto the one the cut asks over about this long (estimate; the turning rejoin's 4 s swings him through the six)
   captureFt: 100, // he is on Lead's six within this many feet of it; until then full power, from then the overtake (estimate)
 });
@@ -141,6 +141,7 @@ export const KINEMATIC = Object.freeze({
   lateralFtps: RATE_SETS.close.frame.lateralFtps, // 140 ft/s across Lead's heading: about a 25° heading difference at 200 KIAS (estimate; SMM 16.18 para 51 gives no angle)
   foreAftFtps: RATE_SETS.close.frame.foreAftFtps, // 25 ft/s along it: about 15 KIAS of overtake or undertake, the middle of EFIG p.374's 10-20 KIAS
   verticalFtps: RATE_SETS.close.frame.verticalFtps, // 15 ft/s up or down: 900 ft/min (the 4-ship's stack-change estimate)
+  verticalTacticalFtps: 45, // 45 ft/s up or down: 2,700 ft/min tactical altitude adjustment (Task 5)
   nearPerSec: RATE_SETS.close.frame.nearPerSec, // closing slows with range: 10% of the range per second ...
   nearMinFtps: RATE_SETS.close.frame.nearMinFtps, // 8 ft/s ... but never below about 5 kt, the station-change rate (SMM 12.20 para 44 says "controlled")
   // Patrick 05:12Z: echelon to route about 5 s; since step 2 the fore-aft rate is the Rates choice's closure (closeRates below).
@@ -346,7 +347,7 @@ export const TRACKER = Object.freeze({
   /** The wingman's height changes (tracker.js heightProfile). */
   height: Object.freeze({
     minChangeFt: 0.5, // a smaller change is left out
-    minSec: 4, // no height change takes less than 4 s (estimate)
+    minSec: 6, // no height change takes less than 6 s (estimate)
     heightG: TURNING_REJOIN.heightG, // nor quicker than one smooth leg within the rejoin's height-change g (TS-140; estimate)
     unknownLegSec: 6, // a leg whose end was never learned is given 6 s (estimate)
   }),
