@@ -36,7 +36,7 @@ import { createMapControls } from './map-controls.js';
 import { createAdsbFrame, adsbExchangeUrl, zoomForScale } from './adsbx.js';
 import { webglSupported } from '../../ui-kit/three-aircraft.js';
 import { createSofView3d } from './view3d.js';
-import { sceneAirfields } from './scene3d-model.js';
+import { sceneAirfields, sceneTraffic } from './scene3d-model.js';
 import { createModelFeed, gridPoints } from './model-clouds.js';
 
 const LAYERS_KEY = 'map-layers';
@@ -222,7 +222,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
   const trafficFeed = createTrafficFeed({
     address: relayAddress,
     options: () => layers.traffic,
-    paused: () => paused() || threeOn, // nothing asked while the tab is hidden or the ADS-B or 3D view has the map
+    paused, // nothing asked while the tab is hidden or the ADS-B Exchange view has the map; the 3D view uses the same feed, so it keeps running
     ...shared,
     onChange() {
       const v = trafficFeed.view();
@@ -230,6 +230,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
         trafficSig = v.signature;
         view.requestDraw();
       }
+      pushTraffic();
       refreshStatus();
     },
   });
@@ -462,8 +463,8 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     const on = layers.on;
     radar.enable(on.radar);
     for (const id of Object.keys(feeds)) feeds[id].enable(on[id]);
-    trafficFeed.setOn(on.traffic && relayOn() && !adsbOn && !threeOn);
-    if (!on.traffic || !relayOn() || adsbOn || threeOn) {
+    trafficFeed.setOn(on.traffic && relayOn() && !adsbOn);
+    if (!on.traffic || !relayOn() || adsbOn || threeOn) { // the 2D hover and keyboard hits: not while the 2D canvas is hidden
       selectedHex = null;
       hits.traffic = [];
     }
@@ -529,6 +530,15 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     view3d.setModel({ ...modelFeed.view(t), now: t, timeZone: app.time.zone });
   }
 
+  /**
+   * The live aircraft for the 3D view: the 2D layer's own feed (one poller, the same checks and stale fade), as positions in the map's
+   * local feet. With the layer off, or the relay failing for long enough that every aircraft has faded out, there are none.
+   */
+  function pushTraffic() {
+    if (!threeOn || disposed) return;
+    view3d.setTraffic(sceneTraffic({ view: trafficFeed.view(now()), toXY: projection.toXY, label: layers.traffic.label }));
+  }
+
   /** The pictures the 2D map already holds, for the 3D ground: ECCC radar and lightning, with the same stale fading. Not fetched again. */
   const imageIds = new WeakMap();
   let imageCount = 0;
@@ -554,7 +564,8 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     if (!threeOn) return;
     threeOn = false;
     modelFeed.stop(); // nothing is asked for while the 3D view is not shown
-    view3d.hide();
+    view3d.hide(); // frees the aircraft too; the traffic feed itself is the 2D layer's and goes on while its switch is on
+    view3d.setTraffic();
   }
 
   function setThree(on) {
@@ -584,6 +595,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     modelFeed.start(); // asks for the model clouds and winds at once, then once an hour while the view is open
     pushModel();
     applyLayers();
+    pushTraffic();
     sync();
     // three.js loads now, the first time. If it cannot, the map comes back and says why.
     view3d.show().then((result) => {
@@ -729,6 +741,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
       if (threeOn) {
         pushScene();
         pushModel(); // the model's age and the hour "now" are checked on every tick
+        pushTraffic(); // so is the traffic's "seconds ago" line
         view3d.touch(); // the pictures' fading with age is checked on every tick
       }
       const key = JSON.stringify(marks.map((m) => [m.icao, m.label, m.old, m.wind && [m.wind.dirDeg, m.wind.speedKt], m.lat, m.lon]));

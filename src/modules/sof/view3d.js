@@ -1,13 +1,16 @@
 // The SOF's 3D view of the weather (SPEC-sof, "3D view", SOF-39, phase 1): the map area swapped for a three.js picture of
 // the 250 NM square round home. The satellite picture is the ground, with the radar and lightning pictures the 2D map already holds laid
 // on it; home and the alternates stand on it as pins with their category in words; the METAR cloud layers hang over them as flat
-// round decks at their reported bases; the 25 and 50 NM rings run round home. Phase 2 (SOF-39) adds the model layers: cloud blocks
-// with a base and a top, wind barbs at three levels and the freezing level, from Open-Meteo's GEM forecast, with a time slider and a
-// toggle for each. They are a model estimate, labelled so, and are removed (never frozen) when the forecast fails or is old. It is for
-// situational awareness only: it checks no limit and never raises or clears a caution.
+// round decks at their reported bases; the 25 and 50 NM rings run round home. Phase 2 (SOF-39) adds the model layers: a cloud-cover
+// sheet at each model level (see-through, smooth, stacked from the surface up, like ForeFlight's cloud maps), wind barbs at three levels
+// and the freezing level, from Open-Meteo's GEM forecast, with a time slider, a toggle for each and a Layer picker for one level at a time.
+// They are a model estimate, labelled so, and are removed (never frozen) when the forecast fails or is old. Phase 4 (SOF-39, SOF-40) adds
+// the live aircraft from the 2D layer's own relay feed (traffic3d.js), the T-6 drawn large. It is for situational awareness only: it
+// checks no limit and never raises or clears a caution.
 //
 // What is drawn and what the words say is decided in scene3d-model.js and model-clouds.js (tested in Node); model-layers3d.js builds the
-// model layers' three.js objects. This file builds the rest, the camera's hands and the model controls, and touches the page.
+// model layers' three.js objects and traffic3d.js the aircraft's. This file builds the rest, the camera's hands and the model controls,
+// and touches the page.
 //
 // three.js is loaded only when the view is first opened (ui-kit `loadThree`). It draws only while shown, and only when something
 // changed (a new report or picture, a tile arriving, the camera moving), through the scheduler's frame: nothing runs while it
@@ -26,6 +29,7 @@ import {
   AREA_NM, AREA_FT, DECK_FT, CATEGORY_TOKENS, START_CAMERA, ZOOM_STEP, KEY_ORBIT_PX, fitZoom, orbitBy, zoomCamera, sceneSignature, formatFeet,
 } from './scene3d-model.js';
 import { buildModelLayers, MODEL_GROUPS } from './model-layers3d.js';
+import { createTraffic3d } from './traffic3d.js';
 import {
   hourIndex, maxAhead, hourWords, meanLayerCover, unavailableWords, refreshFailedWords, LOADING_WORDS, CREDIT_WORDS, MAX_AHEAD_HOURS, CLOUD_STAGES_FT_AGL,
   CLOUD_COVER_THRESHOLD_PCT, MAG_VARIATION_DEG_E, GRID_SPACING_NM,
@@ -47,6 +51,10 @@ const RING_SEGMENTS = 128;
 const DECK_SEGMENTS = 64;
 const DECK_COLOUR = '#f2f7fb';
 const RING_COLOUR = '#8adfff';
+/** An aircraft is under the pointer when its middle is this close on the screen (the 2D map's own HOVER_PX). */
+const AIRCRAFT_HOVER_PX = 14;
+/** The aircraft's credit, always said while the layer is on (adsb.lol's data is ODbL 1.0). */
+const AIRCRAFT_CREDIT = 'Aircraft: adsb.lol (ODbL 1.0)';
 
 let nextViewId = 1;
 
@@ -64,15 +72,16 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
   const labels = h('div', { class: 'sof-3d-labels' });
   const corner = h('p', { class: 'sof-3d-corner' });
   const credit = h('p', { class: 'sof-3d-credit' }, ESRI_IMAGERY.credit);
+  const creditWords = (aircraft) => (aircraft ? `${ESRI_IMAGERY.credit}. ${AIRCRAFT_CREDIT}` : ESRI_IMAGERY.credit);
   const outside = h('p', { class: 'sof-3d-outside', hidden: true });
   const note = h('p', { class: 'sof-3d-note', role: 'status', hidden: true });
   const tag = h('p', { class: 'sof-3d-tag', role: 'status', hidden: true });
 
   // The model controls (phase 2): a toggle for each layer, the time slider, the key and the credit, in a stack with the ground's credit.
   const TOGGLES = /** @type {[string, string, string][]} */ ([
-    ['low', 'Low', `Low cloud: model blocks based below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft above the ground`],
-    ['mid', 'Mid', `Mid cloud: model blocks based ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} to ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft above the ground`],
-    ['high', 'High', `High cloud: model blocks based above ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft above the ground`],
+    ['low', 'Low', `Low cloud: model cloud sheets below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft above the ground`],
+    ['mid', 'Mid', `Mid cloud: model cloud sheets ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} to ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft above the ground`],
+    ['high', 'High', `High cloud: model cloud sheets above ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft above the ground`],
     ['winds', 'Winds', 'Winds aloft at 850, 700 and 500 hPa, as barbs'],
     ['freezing', 'Freezing level', 'The 0 °C level, a faint sheet across the area'],
   ]);
@@ -94,19 +103,25 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     value: '0', oninput: () => setAhead(Number(slider.value)),
   });
   const sliderWords = h('output', { class: 'sof-3d-model-time', for: sliderId });
+  const layerId = `sof-3d-layer-${nextViewId++}`;
+  const layerSelect = h('select', { id: layerId, class: 'sof-3d-layer', title: 'Show one model cloud level at a time, or all of them', onchange: () => setLayer(layerSelect.value) },
+    h('option', { value: 'all' }, 'All'));
   const modelStatus = h('p', { class: 'sof-3d-model-status', role: 'status' }, LOADING_WORDS);
   const modelWarn = h('p', { class: 'sof-3d-model-warn', role: 'status', hidden: true });
   const modelControls = h('div', { class: 'sof-3d-model-controls' },
     h('div', { class: 'sof-3d-model-row', role: 'group', 'aria-label': 'Model layers' }, [...toggleButtons.values()].map((t) => t.button)),
-    h('div', { class: 'sof-3d-model-row' }, h('label', { for: sliderId }, 'Model time'), slider, sliderWords));
+    h('div', { class: 'sof-3d-model-row' }, h('label', { for: sliderId }, 'Model time'), slider, sliderWords),
+    h('div', { class: 'sof-3d-model-row' }, h('label', { for: layerId }, 'Layer'), layerSelect));
   const modelNote = h('p', { class: 'sof-3d-model-note' }, 'METAR decks, radar and lightning stay at now.');
   const keyBody = h('div', { class: 'sof-3d-model-key-body' });
   const modelKey = h('details', { class: 'sof-3d-model-key' }, h('summary', {}, 'Model key'), keyBody);
   const modelCredit = h('p', { class: 'sof-3d-model-credit' }, CREDIT_WORDS);
   const modelFoot = h('div', { class: 'sof-3d-model-row' }, modelNote, modelKey);
   const modelPanel = h('div', { class: 'sof-3d-model', role: 'group', 'aria-label': 'Model clouds and winds' }, modelStatus, modelWarn, modelControls, modelFoot, modelCredit);
-  const bottom = h('div', { class: 'sof-3d-bottom' }, modelPanel, credit);
-  const element = h('div', { class: 'sof-3d', hidden: true }, labels, corner, outside, bottom, note, tag);
+  const trafficStatus = h('p', { class: 'sof-3d-traffic-status', role: 'status', hidden: true });
+  const bottom = h('div', { class: 'sof-3d-bottom' }, trafficStatus, modelPanel, credit);
+  const acTag = h('p', { class: 'sof-3d-tag sof-3d-actag-facts', role: 'status', hidden: true });
+  const element = h('div', { class: 'sof-3d', hidden: true }, labels, corner, outside, bottom, note, tag, acTag);
 
   let airfields = [];
   let scale = 5;
@@ -129,6 +144,12 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
   let ahead = 0; // the slider: hours past now
   let modelSig = '';
   let modelDirty = true;
+  let layerChoice = 'all'; // the Layer picker: 'all', or a pressure level as text ('850')
+  let trafficState = { shown: false, aircraft: [], labelsOn: false, signature: 'off' }; // what the map last gave setTraffic
+  let trafficSig = '';
+  let trafficDirty = true;
+  let hoverHex = null; // the aircraft under the pointer, or whose tag the pointer is on
+  let selectedAc = null; // the aircraft whose facts are showing
   const sizes = new WeakMap(); // each label's size, read once (a read of the page's layout each frame would slow the drag)
 
   const setText = (el, text) => {
@@ -323,9 +344,26 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     const groups = gl?.model?.built.root.userData.groups;
     if (groups) for (const key of MODEL_GROUPS) groups[key].visible = toggles[key];
     for (const [key, { button, title }] of toggleButtons) {
-      const blocks = gl?.model?.counts?.[key]; // only the three cloud stages have a count of blocks
-      button.title = blocks === undefined ? title : `${title}. ${blocks} ${blocks === 1 ? 'block' : 'blocks'} this hour.`;
+      const sheets = gl?.model?.counts?.[key]; // only the three cloud stages have a count of sheets
+      button.title = sheets === undefined ? title : `${title}. ${sheets} ${sheets === 1 ? 'sheet' : 'sheets'} with cloud this hour.`;
     }
+  }
+
+  /** The Layer picker: all the cloud levels, or only one (the Low, Mid and High buttons still apply to what is shown). */
+  function setLayer(value) {
+    layerChoice = value;
+    if (layerSelect.value !== value) layerSelect.value = value;
+    gl?.model?.built.showLayer(value === 'all' ? null : Number(value));
+    requestRender();
+  }
+
+  /** The picker's choices for this hour's sheets: "850 hPa ≈ 4,900 ft", with "no cloud" for a level the model has clear. A choice that has gone falls back to All. */
+  function drawLayerPicker(sheets) {
+    const options = [h('option', { value: 'all' }, 'All')];
+    for (const sheet of sheets) options.push(h('option', { value: String(sheet.hPa) }, `${sheet.words}${sheet.drawn ? '' : ', no cloud'}`));
+    layerSelect.replaceChildren(...options);
+    if (layerChoice !== 'all' && !sheets.some((x) => String(x.hPa) === layerChoice)) layerChoice = 'all';
+    layerSelect.value = layerChoice;
   }
 
   function setAhead(hours) {
@@ -385,9 +423,11 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     const items = built.labels.map((l) => {
       const el = h('span', { class: `sof-3d-model-label is-${l.group}` }, l.text);
       labels.append(el);
-      return { el, group: l.group, point: l.point };
+      return { el, group: l.group, point: l.point, hPa: l.hPa };
     });
-    gl.model = { built, items, counts: built.summary.blocks };
+    gl.model = { built, items, counts: built.summary.layers };
+    drawLayerPicker(built.summary.sheets);
+    built.showLayer(layerChoice === 'all' ? null : Number(layerChoice));
     applyToggles();
     drawKey(built.summary, hour);
   }
@@ -398,11 +438,102 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     const pct = (v) => (v === null ? 'no data' : `${v} %`);
     keyBody.replaceChildren(
       h('p', {}, `${CREDIT_WORDS}.`),
-      h('p', {}, `Clouds: a model level with over ${CLOUD_COVER_THRESHOLD_PCT} % cover is cloud from halfway down to the level below to halfway up to the level above; neighbouring cloudy levels join into one block. Low, mid and high are by the block's base above the ground (below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft, up to ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft, above). The model's own mean cover this hour: low ${pct(cover.low)}, mid ${pct(cover.mid)}, high ${pct(cover.high)}.`),
+      h('p', {}, `Clouds: one see-through sheet at each model level, 1000 to 300 hPa, at the level's mean height. The model's cover at its 9 × 9 points is smoothed over the sheet: clear at ${CLOUD_COVER_THRESHOLD_PCT} % or less, then white to grey and more solid as cover rises, to about 85 % opaque at 100 %. A level under the ground has no sheet. Low, mid and high are by the sheet's height above the ground (below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft, up to ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft, above). The Layer picker shows one level at a time. The model's own mean cover this hour: low ${pct(cover.low)}, mid ${pct(cover.mid)}, high ${pct(cover.high)}.`),
+      h('ul', {}, summary.sheets.map((x) => h('li', {}, `${x.words}: ${x.drawn ? `cover up to ${Math.round(x.maxCover)} %, mean ${Math.round(x.meanCover)} %` : 'no cloud'}`))),
       h('p', {}, `Winds: barbs at 850, 700 and 500 hPa at every other grid point (${Math.round(GRID_SPACING_NM * 2)} NM apart): pennant 50 kt, full feather 10, half 5. Direction in °M (${MAG_VARIATION_DEG_E}° E variation), speed in kt.`),
       h('ul', {}, summary.windsOverHome.map((words) => h('li', {}, `Over home, ${words}`))),
       h('p', {}, `${summary.freezingText ? `${summary.freezingText}: the mean over the grid for the hour shown` : 'Freezing level: the model has none for this hour'}. Heights are feet above sea level, ×${scale}.`),
     );
+  }
+
+  // ---- The aircraft (phase 4) ---------------------------------------------------------------------------
+  /** Brings the aircraft objects in line with what the map last gave setTraffic (they are made, moved and freed in traffic3d.js). */
+  function syncTraffic() {
+    trafficDirty = false;
+    if (!gl) return;
+    const items = trafficState.shown ? trafficState.aircraft : [];
+    gl.traffic.set(items, { scale, groundFt: groundFt() });
+    if (hoverHex && !gl.traffic.get(hoverHex)) hoverHex = null;
+    if (selectedAc && !gl.traffic.get(selectedAc)) selectAircraft(null);
+    else if (selectedAc) setText(acTag, gl.traffic.get(selectedAc).item.description);
+    for (const e of gl.traffic.entries()) sizes.delete(e.tagEl); // the words may have changed, so the tag's size is read again
+  }
+
+  /** The aircraft whose middle is nearest to a point of the page, within a few pixels, from where the last picture put them; else null. */
+  function aircraftNear(clientX, clientY) {
+    if (!gl) return null;
+    const rect = gl.canvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    let best = null;
+    let bestD = Infinity;
+    for (const e of gl.traffic.entries()) {
+      const d = Math.hypot(e.screen.x - x, e.screen.y - y);
+      if (d < bestD && d <= Math.max(AIRCRAFT_HOVER_PX, e.px / 2 + 4)) {
+        best = e.hex;
+        bestD = d;
+      }
+    }
+    return best;
+  }
+
+  function setHover(hex) {
+    if (hex === hoverHex) return;
+    hoverHex = hex;
+    gl?.canvas.classList.toggle('is-over-aircraft', hex !== null);
+    requestRender();
+  }
+
+  /** Shows an aircraft's facts (the 2D popup's words) in a small tag beside it, or closes it. The camera never moves. */
+  function selectAircraft(hex) {
+    selectedAc = hex;
+    const entry = hex && gl ? gl.traffic.get(hex) : null;
+    if (hex && !entry) selectedAc = null;
+    acTag.hidden = !entry;
+    if (entry) setText(acTag, entry.item.description);
+    requestRender();
+  }
+
+  /** `]` and `[` step through the aircraft, T-6s first, as they step through the traffic on the 2D map. Returns false when there are none. */
+  function stepAircraft(direction) {
+    const list = gl ? [...gl.traffic.entries()] : [];
+    if (!list.length) return false;
+    const at = list.findIndex((e) => e.hex === selectedAc);
+    selectAircraft(list[(at + direction + list.length) % list.length].hex);
+    return true;
+  }
+
+  /**
+   * Puts each aircraft's tag beside it: a T-6's always, the others' on hover, focus (the selected one) or when the Labels choice is on. Also
+   * fills in where each stands on the screen, for the hover. A tag is tried at a few places round its aircraft and takes the first that
+   * covers no other word, so it never drifts far from what it names. `phase` is 't6' (before the model's words, so they step round the T-6s)
+   * or 'others'.
+   */
+  function placeAircraft({ at, put, boxFor, isClear, reserve, phase }) {
+    const list = [...gl.traffic.entries()];
+    if (phase === 't6') for (const e of list) e.screen = at(e.group.position);
+    const wanted = (e) => e.item.isT6 || trafficState.labelsOn || e.hex === hoverHex || e.hex === selectedAc;
+    if (phase === 't6') {
+      for (const e of list) {
+        const on = wanted(e);
+        if (e.tagEl.hidden === on) e.tagEl.hidden = !on;
+        // A T-6 and its halo are kept clear of every tag, so a tag never lands on the wrong aircraft.
+        if (e.item.isT6) reserve({ x: e.screen.x - 0.7 * e.px, y: e.screen.y - 0.55 * e.px, w: 1.4 * e.px, h: 1.1 * e.px });
+      }
+    }
+    for (const e of list.filter((x) => (phase === 't6') === x.item.isT6 && wanted(x))) {
+      const s = boxFor(e.tagEl, 0, 0);
+      const r = e.px * 0.7 + 4;
+      const { x, y } = e.screen;
+      const spots = [[x + r, y - s.h - 2], [x + r, y + 4], [x - r - s.w, y - s.h - 2], [x - r - s.w, y + 4], [x - s.w / 2, y - r - s.h], [x - s.w / 2, y + r],
+        [x + r, y - 2 * s.h - 6], [x - r - s.w, y - 2 * s.h - 6], [x + r, y + s.h + 8], [x - r - s.w, y + s.h + 8]];
+      const boxes = spots.map(([bx, by]) => ({ ...s, x: bx, y: by }));
+      put(e.tagEl, boxes.find((box) => isClear(box)) ?? boxes[0]);
+    }
+    if (phase === 'others') {
+      const chosen = selectedAc && gl.traffic.get(selectedAc);
+      if (chosen) acTag.style.transform = `translate(${Math.round(chosen.screen.x + chosen.px * 0.7 + 4)}px, ${Math.round(chosen.screen.y + 8)}px)`;
+    }
   }
 
   // ---- One frame -----------------------------------------------------------------------------------
@@ -420,9 +551,11 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
       freeObjects();
       gl.objects = buildObjects();
       sceneDirty = false;
+      trafficDirty = true; // the ground's height or the scale may have changed: the aircraft stand on the same ground
       if (selected && !airfields.some((a) => a.icao === selected && !a.outside)) select(null);
     }
     if (modelDirty) rebuildModel();
+    if (trafficDirty) syncTraffic();
     if (!groundDirty && getPictures().sig !== picturesSig) groundDirty = true;
     if (groundDirty) paintGround();
 
@@ -432,6 +565,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     matchProjection(THREE, camera, { x: 0, y: 0, z: planeZ / scale }, { yawDeg: cam.yawDeg, pitchDeg: cam.pitchDeg, zoom, altScale: scale }, size);
     const ftPerPx = 1000 / zoom;
     for (const { pin } of pins) pin.scale.setScalar(ftPerPx);
+    gl.traffic.fit(ftPerPx);
 
     // Labels go beside their points, and a deck's label steps down past any label already there, so words never sit on words.
     const headZ = planeZ + (PIN_PX.line + PIN_PX.head) * ftPerPx;
@@ -451,6 +585,8 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     };
     const at = (point) => worldToScreen(THREE, camera, point, width, height);
     const overlaps = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+    const reserve = (box) => placed.push(box);
+    const isClear = (box) => !placed.some((b) => overlaps(box, b));
     const clearOf = (box) => {
       for (let tries = 0; tries < 12 && placed.some((b) => overlaps(box, b)); tries++) box.y += box.h + 1;
       return box;
@@ -470,14 +606,19 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
       const s = boxFor(el, 0, 0);
       put(el, clearOf({ ...s, x: p.x - 8 - s.w, y: p.y - s.h / 2 }));
     }
-    for (const { el, group, point } of gl.model?.items ?? []) { // the model's words: the winds over home, then the freezing level
-      const on = toggles[group];
+    placeAircraft({ at, put, boxFor, isClear, reserve, phase: 't6' }); // the T-6s' tags keep their places; the model's words step round them
+    const modelWords = [];
+    for (const { el, group, point, hPa } of gl.model?.items ?? []) { // the model's words: each cloud level, the winds over home, then the freezing level
+      const on = toggles[group] && (hPa === undefined || layerChoice === 'all' || layerChoice === String(hPa));
       if (el.hidden === on) el.hidden = !on;
-      if (!on) continue;
-      const p = at(point);
-      const s = boxFor(el, 0, 0);
-      put(el, clearOf({ ...s, x: group === 'freezing' ? p.x - s.w - 6 : p.x + 8, y: p.y - s.h / 2 }));
+      if (on) modelWords.push({ el, group, hPa, p: at(point) });
     }
+    modelWords.sort((a, b) => a.p.y - b.p.y); // top of the picture first, so a label only ever steps down past the ones above it
+    for (const { el, group, hPa, p } of modelWords) {
+      const s = boxFor(el, 0, 0);
+      put(el, clearOf({ ...s, x: group === 'freezing' || hPa !== undefined ? p.x - s.w - 6 : p.x + 8, y: p.y - s.h / 2 }));
+    }
+    placeAircraft({ at, put, boxFor, isClear, reserve, phase: 'others' });
     const chosen = selected && pins.find((q) => q.field.icao === selected);
     if (chosen) {
       const p = at({ ...chosen.point, z: headZ });
@@ -531,7 +672,10 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     }],
     ['pointermove', (e) => {
       const held = pointers.get(e.pointerId);
-      if (!held) return;
+      if (!held) {
+        if (pointers.size === 0 && e.pointerType === 'mouse') setHover(aircraftNear(e.clientX, e.clientY)); // hovering, not dragging
+        return;
+      }
       held.x = e.clientX;
       held.y = e.clientY;
       if (pointers.size >= 2 && pinch) {
@@ -565,13 +709,18 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
       } else if (e.key === 'Home') {
         e.preventDefault();
         cam = { ...START_CAMERA, zoom: 1 };
-      } else if (e.key === 'Escape' && selected) {
+      } else if ((e.key === ']' || e.key === '[') && gl?.traffic) {
+        if (!stepAircraft(e.key === ']' ? 1 : -1)) return; // none to step through: the key is left alone
+        e.preventDefault();
+      } else if (e.key === 'Escape' && (selected || selectedAc)) {
         e.stopPropagation();
         select(null);
+        selectAircraft(null);
         return;
       } else return;
       requestRender();
     }],
+    ['pointerleave', () => setHover(null)],
     ['contextmenu', (e) => e.preventDefault()],
     ['webglcontextlost', (e) => {
       e.preventDefault();
@@ -581,6 +730,15 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
       onLost();
     }],
   ]);
+
+  // Escape closes a tag from a tag's own button too (focus is there after a click on it), not only from the canvas.
+  function onLabelKey(e) {
+    if (e.key !== 'Escape' || (!selected && !selectedAc) || e.altKey || e.ctrlKey || e.metaKey) return;
+    e.stopPropagation();
+    select(null);
+    selectAircraft(null);
+    gl?.canvas.focus?.();
+  }
 
   // The wheel zooms over the whole view, labels included (a pin's label is a button over the picture).
   function onWheel(e) {
@@ -596,8 +754,15 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     if (pointers.size < 2) pinch = null;
     if (pointers.size === 0) {
       gl?.canvas.classList.remove('is-dragging');
-      // A press that never moved is a click on the ground: it only closes the pin's tag. The camera never moves on a click.
-      if (drag && drag.moved < CLICK_PX && e.type === 'pointerup' && selected) select(null);
+      // A press that never moved is a click: on an aircraft it shows that aircraft's facts, anywhere else it only closes a tag. The camera never moves on a click.
+      if (drag && drag.moved < CLICK_PX && e.type === 'pointerup') {
+        const hit = aircraftNear(e.clientX, e.clientY);
+        if (hit) selectAircraft(selectedAc === hit ? null : hit);
+        else {
+          if (selected) select(null);
+          if (selectedAc) selectAircraft(null);
+        }
+      }
       drag = null;
     } else if (pointers.size === 1) {
       const [p] = pointers.values();
@@ -611,7 +776,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     canvas.className = 'sof-3d-canvas';
     canvas.tabIndex = 0;
     canvas.setAttribute('role', 'img');
-    canvas.setAttribute('aria-label', '3D view of the weather round home. Drag or press the arrow keys to turn it, scroll or press plus and minus to zoom, Home to start again. Each airfield pin is a button that shows its result.');
+    canvas.setAttribute('aria-label', '3D view of the weather round home. Drag or press the arrow keys to turn it, scroll or press plus and minus to zoom, Home to start again. Each airfield pin is a button that shows its result. Press ] and [ to step through the aircraft.');
     element.prepend(canvas);
     let renderer;
     try {
@@ -633,6 +798,11 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy?.() ?? 1);
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(AREA_FT, AREA_FT), new THREE.MeshBasicMaterial({ map: texture }));
     scene.add(ground);
+    // The aircraft are lit models (the ground and the weather layers are not): a bright sky-and-ground light and a sun from the south-west,
+    // stronger than the Debrief's, because these small aircraft must read against a dark ground. Estimates for readability, SOF-39.
+    const sun = new THREE.DirectionalLight('#fff3dd', 2.6);
+    sun.position.set(-0.5, -0.7, 1).normalize().multiplyScalar(1000);
+    scene.add(new THREE.HemisphereLight('#e4eeff', '#8296a8', 2.4), sun, sun.target);
 
     const imagery = createTileLayer({
       source: { ...ESRI_IMAGERY, maxZoom: GROUND_ZOOM },
@@ -649,8 +819,11 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     }
     for (const [type, fn] of hands) canvas.addEventListener(type, fn);
     element.addEventListener('wheel', onWheel, { passive: false });
-    gl = { THREE, canvas, renderer, scene, camera, ctx, texture, ground, imagery, resizer, objects: null, palette: paletteFor(canvas) };
+    labels.addEventListener('keydown', onLabelKey);
+    const traffic = createTraffic3d(THREE, { scene, labels, onHover: setHover, onPick: (hex) => selectAircraft(selectedAc === hex ? null : hex) });
+    gl = { THREE, canvas, renderer, scene, camera, ctx, texture, ground, imagery, resizer, objects: null, traffic, palette: paletteFor(canvas) };
     sceneDirty = true;
+    trafficDirty = true;
     groundDirty = true;
     modelDirty = true;
     tilesFailed = false;
@@ -667,8 +840,10 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     const { canvas, renderer, scene, texture, ground, imagery, resizer } = gl;
     freeModel();
     freeObjects();
+    gl.traffic.dispose();
     for (const [type, fn] of hands) canvas.removeEventListener(type, fn);
     element.removeEventListener('wheel', onWheel);
+    labels.removeEventListener('keydown', onLabelKey);
     resizer?.disconnect();
     imagery.dispose();
     ground.geometry.dispose();
@@ -682,7 +857,10 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     tilesFailed = false;
     noTiles = false;
     tag.hidden = true;
+    acTag.hidden = true;
     selected = null;
+    selectedAc = null;
+    hoverHex = null;
     showNote();
   }
 
@@ -768,6 +946,22 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     setModel({ status = 'loading', model = null, lastGoodAt = null, failedAt = null, incomplete = false, now = new Date(), timeZone = null } = {}) {
       modelState = { status, model, lastGoodAt, failedAt, incomplete, now, timeZone };
       applyModel();
+    },
+    /**
+     * The live aircraft (scene3d-model.js `sceneTraffic`): { shown, statusText, aircraft, labelsOn, signature }. The aircraft are drawn again
+     * only when the signature differs; the words and the credit follow at once. With the layer off (`shown` false) none are drawn, and with the
+     * relay failing the 2D layer's own fade has already taken them away.
+     */
+    setTraffic(next = { shown: false, aircraft: [], labelsOn: false, signature: 'off' }) {
+      trafficState = next;
+      trafficStatus.hidden = !next.shown;
+      setText(trafficStatus, next.shown ? next.statusText : '');
+      trafficStatus.classList.toggle('is-bad', next.shown && next.status === 'unavailable');
+      setText(credit, creditWords(next.shown));
+      if (next.signature === trafficSig) return;
+      trafficSig = next.signature;
+      trafficDirty = true;
+      requestRender();
     },
     /** The 2D map's pictures or their fading may have changed: the ground is painted again if they did. */
     touch() {

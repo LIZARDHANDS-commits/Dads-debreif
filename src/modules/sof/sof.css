@@ -2064,6 +2064,69 @@ main[data-module='sof'] {
   display: none;
 }
 
+[data-module='sof'] .sof-3d-layer {
+  min-height: 1.75rem;
+  max-width: 100%;
+  padding: 0 var(--space-1);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: rgb(5 10 18 / 0.85);
+  color: #e3eef5;
+  font: inherit;
+}
+
+/* The live aircraft (SOF-39 phase 4): the layer's own line above the model controls, and a tag for each aircraft. A T-6's tag is always on and in the
+   highlight colour; the others show on hover, focus, or when the Labels choice is on. Words carry the meaning, colour is only the second cue. */
+[data-module='sof'] .sof-3d-traffic-status {
+  margin: 0;
+  padding: 2px var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: rgb(5 10 18 / 0.85);
+  color: #e3eef5;
+  font-size: var(--text-sm);
+  pointer-events: auto;
+}
+
+[data-module='sof'] .sof-3d-traffic-status[hidden],
+[data-module='sof'] .sof-3d-actag[hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-3d-traffic-status.is-bad {
+  border-color: var(--caution);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-3d-actag {
+  padding: 0 var(--space-1);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: rgb(5 10 18 / 0.8);
+  color: #cfdde7;
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+[data-module='sof'] .sof-3d-actag.is-mil {
+  border-color: #f5c542;
+  color: #f5c542;
+}
+
+[data-module='sof'] .sof-3d-actag.is-t6 {
+  border: 2px solid #8adfff;
+  background: rgb(5 10 18 / 0.92);
+  color: #8adfff;
+  font-weight: 700;
+}
+
+[data-module='sof'] .sof-3d-canvas.is-over-aircraft {
+  cursor: pointer;
+}
+
 [data-module='sof'] .sof-3d-note {
   top: var(--space-2);
   left: var(--space-2);
