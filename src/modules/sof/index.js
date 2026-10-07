@@ -21,6 +21,8 @@ import { tafNotes } from './taf-state.js';
 import { createTimelineView } from './timeline-view.js';
 import { createTimelineStrip } from './timeline-strip.js';
 import { createDropdowns } from './dropdown.js';
+import { createFullScreen } from './fullscreen.js';
+import { createNotamFeed, notamUrl, notamsFor } from './notams.js';
 
 const STYLESHEET = new URL('./sof.css', import.meta.url).href;
 /** Ages and the DTG are minutes; the screen is checked this often and touches the page only when a word changes. */
@@ -42,7 +44,18 @@ function mount(root, app) {
     now: () => app.time.now(),
     onChange: () => render(),
   });
-  const map = createSofMap({ app, settings, onLightning: () => render() });
+  // Full screen holds the whole SOF picture (Dad, 7 Oct): the map (2D or 3D), the airfield column and the timeline strip. One state, shared by the 2D and 3D buttons.
+  const fullScreen = createFullScreen({ target: () => ui.body, listen: app.listen });
+  const map = createSofMap({ app, settings, onLightning: () => render(), fullScreen });
+  // NOTAMs for home and the alternates, through the relay (SOF-42): every 5 minutes while open, paused while the tab is hidden. They need the relay address.
+  const notamFeed = createNotamFeed({
+    address: () => notamUrl({ baseUrl: settings.get().trafficRelay, sites: app.airfields.stations() }),
+    paused: () => document.hidden,
+    fetch: (url, init) => globalThis.fetch(url, init),
+    timers: app.scheduler,
+    now: () => app.time.now(),
+    onChange: () => render(),
+  });
   // The caution banner (task 3). Acknowledgements are kept for the day in the module's storage.
   let banner = null; // the last banner model, for the buttons
   let shownKeys = []; // what was on the banner last time, to announce only what is new
@@ -80,6 +93,8 @@ function mount(root, app) {
     bannerElement: bannerView.element,
     wavesElement: wavesView.element,
     timelineElement: timelineStrip.element,
+    timers: app.scheduler,
+    listen: app.listen,
   });
   root.append(ui.element);
 
@@ -131,8 +146,13 @@ function mount(root, app) {
     timelineView.render(timeline);
     timelineStrip.render(timeline);
     ui.setBusy(snapshot.busy);
-    // Each alternate card shows its result for the selected wave.
-    ui.render({ ...screen, cards: screen.cards.map((c) => (waves.altLines.has(c.icao) ? { ...c, waveLine: waves.altLines.get(c.icao) } : c)) });
+    // Each alternate card shows its result for the selected wave, and every card its NOTAMs (never "No NOTAMs" unless a fresh good answer lists none).
+    notamFeed.sync();
+    const notamState = notamFeed.state();
+    ui.render({
+      ...screen,
+      cards: screen.cards.map((c) => ({ ...c, ...(waves.altLines.has(c.icao) ? { waveLine: waves.altLines.get(c.icao) } : {}), notams: notamsFor(notamState, c.icao, now) })),
+    });
     map.update({ snapshot, screen });
   }
 
@@ -154,6 +174,7 @@ function mount(root, app) {
   app.listen(document, 'visibilitychange', () => {
     if (document.hidden) return;
     weather.wake();
+    notamFeed.wake();
     map.wake();
     render();
   });
@@ -163,6 +184,8 @@ function mount(root, app) {
 
   return () => {
     map.dispose();
+    fullScreen.dispose();
+    notamFeed.stop();
     weather.stop();
     for (const stop of stops) stop();
     settingsView.dispose();

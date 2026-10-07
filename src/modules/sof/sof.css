@@ -216,6 +216,30 @@ main[data-module='sof'] {
   font-size: var(--text-sm);
 }
 
+/* The whole SOF picture (Dad, 7 Oct): the airfield column and the map, the timeline strip and the credits line, in one box, so Full screen can fill the
+   window with all of it. Not full screen, it is just the part of the screen under the bars, as before. */
+[data-module='sof'] .sof-body {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+}
+
+/* Full screen: the browser's own (:fullscreen), or a fixed layer over the window when the browser refused (the class). */
+[data-module='sof'] .sof-body:fullscreen,
+[data-module='sof'] .sof-body.is-fullscreen {
+  box-sizing: border-box;
+  padding: var(--space-2);
+  background: var(--bg);
+}
+
+[data-module='sof'] .sof-body.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+
 /* The airfield column beside the map (Dad, 7 Oct: "the side 10 %"): about a tenth of the width, never under 150 px; its rows stack in a column that
    scrolls inside itself if it must, the map takes the rest of the width and the height that is left; narrow, the map comes first. */
 [data-module='sof'] .sof-main {
@@ -364,6 +388,11 @@ main[data-module='sof'] {
   overflow-y: auto;
   border-radius: var(--radius);
   box-shadow: var(--shadow);
+}
+
+/* The hover card (Dad, 7 Oct): the same panel, shown on hover or focus without a click; a click pins it (the pinned one has an accent outline). */
+[data-module='sof'] .sof-card-drop.is-pinned {
+  border: 1px solid var(--accent);
 }
 
 [data-module='sof'] .sof-card-drop[hidden] {
@@ -618,6 +647,106 @@ main[data-module='sof'] {
 
 [data-module='sof'] .sof-note.is-info {
   color: var(--text-muted);
+}
+
+/* The row's NOTAM chip (Dad, 7 Oct): a small red "⚠ RWY CLSD" for a critical NOTAM, a grey "NOTAMs ?" when they cannot be read. Words, never colour alone. */
+[data-module='sof'] .sof-row-notam {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-row-notam.is-critical {
+  color: var(--bad);
+}
+
+[data-module='sof'] .sof-row-notam.is-unknown {
+  color: var(--text-faint);
+  font-weight: 400;
+}
+
+/* NOTAMs under the weather in the full card: a critical one is large and red, with the ⚠ and words; the rest are plain small text. */
+[data-module='sof'] .sof-notams {
+  margin: var(--space-2) 0 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+
+[data-module='sof'] .sof-notam {
+  margin: 0 0 var(--space-2);
+}
+
+[data-module='sof'] .sof-notam.is-critical {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--bad);
+  border-left-width: 6px;
+  border-radius: var(--radius);
+  background: rgb(255 107 107 / 0.1);
+}
+
+[data-module='sof'] .sof-notam-head {
+  margin: 0;
+  color: var(--bad);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+[data-module='sof'] .sof-notam-head .sof-notam-meta {
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+
+[data-module='sof'] .sof-notam-body {
+  max-height: 10em;
+  margin: var(--space-1) 0 0;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-md);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+[data-module='sof'] .sof-notam-line {
+  max-height: 8em; /* a long NOTAM (a whole list of approach minima) scrolls inside itself; the raw text is below it */
+  margin: 0;
+  overflow-y: auto;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+[data-module='sof'] .sof-notam-meta {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+}
+
+[data-module='sof'] .sof-notam-raw summary {
+  color: var(--text-faint);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+[data-module='sof'] .sof-notam-raw .sof-raw {
+  margin: var(--space-1) 0 0;
+  white-space: pre-wrap;
+  color: var(--text-muted);
+}
+
+[data-module='sof'] .sof-notam-none {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='sof'] .sof-notam-unavailable {
+  margin: 0;
+  color: var(--caution);
+  font-size: var(--text-sm);
+  font-weight: 600;
 }
 
 [data-module='sof'] .sof-result-row {
@@ -2053,13 +2182,6 @@ main[data-module='sof'] {
 [data-module='sof'] .sof-3d-tools .sof-3d-toggle[aria-pressed='true'] {
   border-color: var(--accent);
   background: rgb(31 78 98 / 0.95);
-}
-
-/* Full screen without the browser's help (the Fullscreen API was refused): a fixed layer over the whole window. */
-[data-module='sof'] .sof-3d.is-fullscreen {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
 }
 
 /* The bottom left is a stack: the model controls (phase 2) above the ground's credit. */

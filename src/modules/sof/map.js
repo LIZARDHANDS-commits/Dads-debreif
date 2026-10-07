@@ -65,11 +65,12 @@ const extraUrl = ({ layer, request, time }) => extraMapUrl({ layer, bbox: reques
 
 /**
  * app: the module's app object (scheduler, storage, time, airfields, listen). settings: createSofSettings.
- * onLightning: called when the near-home lightning caution changes (so the banner can be redrawn).
+ * onLightning: called when the near-home lightning caution changes (so the banner can be redrawn). fullScreen: fullscreen.js's object, shared with the 3D view:
+ * the map bar's Full screen button (2D) and the 3D view's own both toggle it (the whole SOF picture, with the airfield column and the timeline strip).
  * Returns { element, credits, update({ snapshot, screen }), lightning(now), wake(), dispose() }. `credits` is the line of the map's
  * credits, for the screen's Sources note (the map keeps no height for it).
  */
-export function createSofMap({ app, settings, onLightning = () => {} }) {
+export function createSofMap({ app, settings, onLightning = () => {}, fullScreen = null }) {
   const timers = app.scheduler;
   const now = () => app.time.now();
   const fetchNet = (url, init) => globalThis.fetch(url, init);
@@ -138,6 +139,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     },
     onAdsb: (on) => setAdsb(on),
     onThree: (on) => setThree(on),
+    onFullScreen: () => fullScreen?.toggle(),
     threeReason: () => (webglSupported() ? null : NO_WEBGL_WORDS),
     onTraffic: (on) => change(setLayerOn(layers, 'traffic', on)),
     onTrafficLabel: (label) => change(setTrafficOption(layers, { label })),
@@ -150,6 +152,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     timers,
     getProjection: () => projection,
     getPictures: pictures3d,
+    fullScreen,
     routes: tacnavRoutes(ROUTES), // the Debrief's routes with TAC in the name, drawn at 500 ft above the ground in 3D (SOF-39 phase 3)
     onAirspaceLogOptions: (options) => airspaceLog.setOptions(options), // the panel's two ticks: what the log records from now on
     now: () => +now(),
@@ -746,7 +749,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
   }
 
   function sync() {
-    controls.sync({ layers, relay: relayOn(), adsbOn, threeOn });
+    controls.sync({ layers, relay: relayOn(), adsbOn, threeOn, fullOn: fullScreen?.isFull() === true });
     refreshStatus();
   }
 
@@ -767,6 +770,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
       syncMessage();
     }),
   ];
+  if (fullScreen) stops.push(fullScreen.subscribe(sync)); // the button's words follow Full screen, however it was entered or left
   const scheme = globalThis.matchMedia?.('(prefers-color-scheme: dark)');
   if (scheme) {
     stops.push(app.listen(scheme, 'change', () => {
@@ -817,7 +821,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
         // and applyLayers turns it on again for the new one (or leaves it off when the address is not one we use).
         trafficFeed.setOn(false);
         applyLayers();
-        controls.sync({ layers, relay: relayOn(), adsbOn, threeOn });
+        controls.sync({ layers, relay: relayOn(), adsbOn, threeOn, fullOn: fullScreen?.isFull() === true });
         view.requestDraw();
       }
       const fields = [home, ...app.airfields.alternates()];

@@ -13,9 +13,11 @@ import { createCardsView } from './cards-view.js';
  * thin strip (timeline-strip.js), which holds the full timeline.
  * wavesElement: the waves part (in the full timeline's header), for where focus goes when the banner empties.
  * mapCredits: the map's credits line, shown in the Sources note beside the one-line credits at the bottom.
- * dropdowns: dropdown.js's createDropdowns. Returns { element, render(screen), setBusy(on), focusAfterBanner(), closeSettings() }.
+ * dropdowns: dropdown.js's createDropdowns. timers, listen: the module's scheduler scope and app.listen (for the airfield rows' hover card).
+ * Returns { element, body, render(screen), setBusy(on), focusAfterBanner(), closeSettings() }. `body` is what Full screen fills the window with (Dad, 7 Oct): the
+ * airfield column, the map and the timeline strip (and the credits line, so the imagery's credit stays in view).
  */
-export function createLayout({ settings, mapElement = null, mapCredits = null, onRefresh, bannerElement = null, wavesElement = null, timelineElement = null, dropdowns }) {
+export function createLayout({ settings, mapElement = null, mapCredits = null, onRefresh, bannerElement = null, wavesElement = null, timelineElement = null, dropdowns, timers = null, listen = null }) {
   const dtg = h('time', { class: 'sof-dtg' });
   const feedWords = h('span', { class: 'sof-feed-words' });
   const feedSymbol = h('span', { class: 'sof-feed-symbol', 'aria-hidden': 'true' });
@@ -34,7 +36,7 @@ export function createLayout({ settings, mapElement = null, mapCredits = null, o
   const credits = h('p', { class: 'sof-credits' });
   const sourcesWords = h('p', { class: 'sof-sources-words' });
   const sources = h('details', { class: 'sof-sources' }, h('summary', {}, 'Sources'), h('div', { class: 'sof-sources-body' }, sourcesWords));
-  const cards = createCardsView({ dropdowns });
+  const cards = createCardsView({ dropdowns, timers, listen });
 
   // The world clocks: in the bar on a wide window, and behind "Clocks" below 1440 px wide (sof.css decides which).
   const clockList = h('div', { class: 'sof-clock-list', id: 'sof-clock-list' });
@@ -66,6 +68,16 @@ export function createLayout({ settings, mapElement = null, mapCredits = null, o
   // The keys and Sources are notes that open over the screen: a press outside closes them.
   for (const note of [sources, timelineElement?.querySelector('.sof-tl-key'), mapElement?.querySelector('.sof-map-legend')]) dropdowns.note(note);
 
+  // The whole SOF picture, which Full screen fills the window with: the airfield column and the map side by side (the map comes first when the screen
+  // is narrow), the thin timeline strip along the bottom (Expand opens the full timeline, the waves in its header) and the credits line.
+  const body = h(
+    'div',
+    { class: 'sof-body' },
+    h('div', { class: 'sof-main' }, cards.element, mapElement),
+    timelineElement,
+    h('div', { class: 'sof-credits-row' }, sources, credits, mapCredits),
+  );
+
   const element = h(
     'div',
     { class: 'sof' },
@@ -73,10 +85,7 @@ export function createLayout({ settings, mapElement = null, mapCredits = null, o
     h('section', { class: 'sof-bar', 'aria-label': 'SOF bar' }, dtg, clocksBox, feed, feedDetail, h('div', { class: 'sof-bar-actions' }, settingsBox, refresh)),
     alert,
     bannerElement, // the one-line caution strip; its list drops over the screen
-    // The airfield column and the map side by side; the map comes first when the screen is narrow.
-    h('div', { class: 'sof-main' }, cards.element, mapElement),
-    timelineElement, // the thin timeline strip along the bottom; Expand opens the full timeline, the waves in its header
-    h('div', { class: 'sof-credits-row' }, sources, credits, mapCredits),
+    body,
   );
 
   // Text nodes are only touched when they change, so the once-a-second-or-slower tick costs nothing.
@@ -100,6 +109,7 @@ export function createLayout({ settings, mapElement = null, mapCredits = null, o
 
   return {
     element,
+    body,
     render(screen) {
       setText(dtg, screen.dtg);
       dtg.dateTime = screen.dtgIso;

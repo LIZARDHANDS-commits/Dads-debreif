@@ -94,7 +94,7 @@ const isColour = (v) => typeof v === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d\s.
  * touch(), home(), zoomBy(factor), isShown(), dispose() }.
  * `show()` resolves { ok: true } or { ok: false, reason: 'gl' | 'load' | 'closed' }.
  */
-export function createSofView3d({ timers, getProjection, getPictures, onLost = () => {}, routes = [], airspace = AIRSPACE, onAirspaceLogOptions = /** @type {(options: { showT6: boolean, showAll: boolean }) => void} */ (() => {}), now = () => Date.now(), onTrails = /** @type {(on: boolean) => void} */ (() => {}), win = globalThis }) {
+export function createSofView3d({ timers, getProjection, getPictures, fullScreen = null, onLost = () => {}, routes = [], airspace = AIRSPACE, onAirspaceLogOptions = /** @type {(options: { showT6: boolean, showAll: boolean }) => void} */ (() => {}), now = () => Date.now(), onTrails = /** @type {(on: boolean) => void} */ (() => {}), win = globalThis }) {
   const labels = h('div', { class: 'sof-3d-labels' });
   // The airspace volume under the pointer: its name and limits float beside the pointer (Dad, 7 Oct); nothing is written on the volumes themselves.
   const spaceTip = h('p', { class: 'sof-3d-space-tip', hidden: true });
@@ -198,7 +198,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     title: `Turn the camera slowly round home, one turn in about ${ORBIT_SECONDS_PER_TURN / 60} minutes, at the zoom and tilt you have. A drag, the wheel, an arrow key or Home stops it.`,
     onclick: () => setOrbit(orbitButton.getAttribute('aria-pressed') !== 'true'),
   }, 'Orbit');
-  const fullButton = h('button', { type: 'button', class: 'sof-3d-toggle sof-3d-fullscreen', onclick: () => toggleFullScreen() }, 'Full screen');
+  const fullButton = h('button', { type: 'button', class: 'sof-3d-toggle sof-3d-fullscreen', hidden: !fullScreen, onclick: () => fullScreen?.toggle() }, 'Full screen');
   const tools = h('div', { class: 'sof-3d-tools' }, orbitButton, fullButton, corner);
   const element = h('div', { class: 'sof-3d', hidden: true }, labels, tools, outside, bottom, logView.element, note, tag, acTag);
 
@@ -238,7 +238,6 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
   let intruderSig = '';
   let orbitOn = false;
   let stopOrbit = null; // ends the orbit's frame loop (or its steps)
-  let fallbackFull = false; // Full screen is the CSS fallback (the browser refused the Fullscreen API)
   const sizes = new WeakMap(); // each label's size, read once (a read of the page's layout each frame would slow the drag)
 
   const setText = (el, text) => {
@@ -1084,52 +1083,18 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
   }
 
   // ---- Full screen (Dad, 7 Oct) ----------------------------------------------------------------------------
-  const doc = () => /** @type {any} */ (win.document); // `any`: the prefixed fullscreen names older Safari has
-  const fullElement = () => doc()?.fullscreenElement ?? doc()?.webkitFullscreenElement ?? null;
-  const isFull = () => fallbackFull || fullElement() === element;
+  // Full screen is the whole SOF picture's (fullscreen.js, shared with the 2D map's button): the map area with the airfield column and the timeline strip.
+  // This view only shows the button's words and draws again at the new size; hiding the view leaves full screen as it is.
+  const isFull = () => fullScreen?.isFull() === true;
 
-  /** The button's words and the fallback's class follow the state, and the picture is drawn again at its new size. */
+  /** The button's words follow the state, and the picture is drawn again at its new size. */
   function syncFull() {
     const on = isFull();
     setText(fullButton, on ? 'Exit full screen' : 'Full screen');
-    fullButton.title = on ? 'Back to the page. Escape does the same.' : 'Fill the whole window with the 3D view. Escape or Exit full screen brings the page back.';
-    element.classList.toggle('is-fullscreen', fallbackFull);
+    fullButton.title = on ? 'Back to the page. Escape does the same.' : 'Fill the whole window with the 3D view, the airfield column and the timeline strip. Escape or Exit full screen brings the page back.';
     requestRender(); // the resize observer would also catch the new size; this makes sure
   }
-
-  function onFullKey(e) {
-    if (e.key === 'Escape' && fallbackFull) exitFullScreen();
-  }
-
-  async function enterFullScreen() {
-    const request = element.requestFullscreen ?? element.webkitRequestFullscreen;
-    if (request && doc()?.fullscreenEnabled !== false) {
-      try {
-        await request.call(element);
-        return; // fullscreenchange does the rest
-      } catch {
-        // The browser refused (an iframe without permission, or a browser with no fullscreen): fill the window with CSS instead.
-      }
-    }
-    if (disposed || !wanted) return;
-    fallbackFull = true;
-    doc()?.addEventListener('keydown', onFullKey);
-    syncFull();
-  }
-
-  function exitFullScreen() {
-    if (fallbackFull) {
-      fallbackFull = false;
-      doc()?.removeEventListener('keydown', onFullKey);
-      syncFull();
-    }
-    if (fullElement() === element) (doc().exitFullscreen ?? doc().webkitExitFullscreen)?.call(doc())?.catch?.(() => {});
-  }
-
-  function toggleFullScreen() {
-    if (isFull()) exitFullScreen();
-    else enterFullScreen();
-  }
+  let stopFullSync = null;
 
   // ---- Building and tearing down the view -------------------------------------------------------------
   function build() {
@@ -1181,8 +1146,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     for (const [type, fn] of hands) canvas.addEventListener(type, fn);
     element.addEventListener('wheel', onWheel, { passive: false });
     labels.addEventListener('keydown', onLabelKey);
-    doc().addEventListener('fullscreenchange', syncFull);
-    doc().addEventListener('webkitfullscreenchange', syncFull);
+    stopFullSync = fullScreen?.subscribe(syncFull) ?? null;
     const traffic = createTraffic3d(THREE, { scene, labels, onHover: setHover, onPick: (hex) => selectAircraft(selectedAc === hex ? null : hex) });
     gl = { THREE, canvas, renderer, scene, camera, ctx, texture, ground, imagery, resizer, objects: null, traffic, palette: paletteFor(canvas) };
     sceneDirty = true;
@@ -1205,7 +1169,6 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     stopGlide?.();
     stopGlide = null;
     clearSpaceMove();
-    exitFullScreen();
     pending?.();
     pending = null;
     pointers.clear();
@@ -1220,8 +1183,8 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     for (const [type, fn] of hands) canvas.removeEventListener(type, fn);
     element.removeEventListener('wheel', onWheel);
     labels.removeEventListener('keydown', onLabelKey);
-    doc().removeEventListener('fullscreenchange', syncFull);
-    doc().removeEventListener('webkitfullscreenchange', syncFull);
+    stopFullSync?.();
+    stopFullSync = null;
     resizer?.disconnect();
     imagery.dispose();
     ground.geometry.dispose();

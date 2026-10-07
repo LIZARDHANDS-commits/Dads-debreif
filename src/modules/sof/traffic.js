@@ -147,7 +147,7 @@ export function readReply(raw) {
 // ---- The request address -------------------------------------------------------------------
 
 /** https only, or http for local development; an origin with nothing after it. Returns the origin or null. */
-function relayOrigin(baseUrl) {
+export function relayOrigin(baseUrl) {
   if (typeof baseUrl !== 'string' || !baseUrl.trim()) return null;
   let url;
   try {
