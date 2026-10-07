@@ -18,6 +18,7 @@ import { relativeTo, DEG } from './manoeuvres.js';
 import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { KIAS_OUTSIDE_LAB, REJOIN, TURNING_REJOIN, TRACKER, CLOSURE, FW_BUBBLE } from './tuning.js';
 import { STEP_SEC, copyAircraft } from './flight.js';
+import { runTracker, phase } from './tracker.js';
 import { climbCostKtps, createPilot, pilotSpeed, pilotFly, pilotPower, pilotJerkKtps2, coneUpFtNow } from './pilot.js';
 import { fullPowerKtps, slowKtps, stallBankDeg } from './slow-down.js';
 import { throttleAtTorque } from './power.js';
@@ -98,68 +99,78 @@ export function fixedLine(lineDeg, s) {
  * @param {Record<string, any>} options
  * @returns {Record<string, any> | null}
  */
-export function flyRejoinLine({
-  leadTurning, line, done, wing, rec, s, aimFt, approachDeg, tauSec, captureFt, bankCapDeg, decisionFt = 0, arriveFtps, overtakeKt, floorKias,
-  lineAtKias = Infinity, blockFt, t0, profile, allowAcross = false, acrossTolFt = 0, acrossOnlyOffLine = false, maxWhenLow = false,
-  lagCut = false, placeKias = null, stopAtSec = Infinity, cutAheadFromSec = Infinity,
-}) {
+/**
+ * Creates the rejoin line tracker phase.
+ * Encapsulates the rejoin line steering, power, speed floors, and zoom as a tracker pursuit phase.
+ */
+export function rejoinLinePhase(options) {
+  const {
+    leadTurning, line, done, wing, rec, s, aimFt, approachDeg, tauSec, captureFt, bankCapDeg, decisionFt = 0, arriveFtps, overtakeKt, floorKias,
+    lineAtKias = Infinity, blockFt, profile, allowAcross = false, acrossTolFt = 0, acrossOnlyOffLine = false, maxWhenLow = false,
+    lagCut = false, placeKias = null, stopAtSec = Infinity, cutAheadFromSec = Infinity,
+  } = options;
+
   const TR = TURNING_REJOIN;
-  const W = copyAircraft(wing);
   const { u, nrm, closureShare } = line;
-  const targetKias = KIAS_OUTSIDE_LAB + overtakeKt; // Lead's planned speed plus the overtake: KIAS against KIAS
+  const targetKias = KIAS_OUTSIDE_LAB + overtakeKt;
   const G = TRACKER.gain;
-  const points = [];
-  let runIn = false;
-  let onLine = false;
-  let alongPrev = null;
-  const pilot = createPilot(W); // the one pilot model (pilot.js, TS-141)
-  let accel = 0;
-  let maxBank = 0;
-  let ahead = false;
-  const watch = aheadWatch(Math.hypot(rec.at(0).xFt - W.xFt, rec.at(0).yFt - W.yFt));
-  let psiPrev = null;
-  let ff = 0;
-  let lineKias = null;
-  let lineFt = null;
-  let placePrev = null;
-  let zoom = null; // lagging the cut, the heights of his zoom toward the cone's top: { t0, alt: [], climb: [], nz: [] }
-  let minKias = W.kias;
-  let maxG = W.g ?? 1;
-  let minG = W.g ?? 1;
-  const result = (n) => ({ points, steps: n, end: W, accelKtps: accel, maxBankDeg: maxBank, ahead, minKias, maxG, minG, lineKias: lineKias ?? W.kias, lineFt, zoomLeg: zoomLegOf(zoom) });
-  for (let n = 0; n < Math.round(CHANGE_LIMIT_SEC / dt); n++) {
-    if (n * dt >= stopAtSec) return null;
-    const L = rec.at(n);
+  const startW = wing ?? options.wing0;
+  const startR = rec ? Math.hypot(rec.at(0).xFt - (startW?.xFt ?? 0), rec.at(0).yFt - (startW?.yFt ?? 0)) : 1000;
+
+  const st = {
+    runIn: false,
+    onLine: false,
+    alongPrev: null,
+    placePrev: null,
+    psiPrev: null,
+    ff: 0,
+    lineKias: null,
+    lineFt: null,
+    zoom: null,
+    minKias: startW?.kias ?? 200,
+    ahead: false,
+    cut: false,
+    stepCount: 0,
+    done: false,
+    watch: aheadWatch(startR),
+  };
+
+  const pursuit = (L, W, t) => {
+    const n = st.stepCount;
+    if (n * dt >= stopAtSec) return { abort: true };
     const Lnext = rec.at(n + 1);
-    const t = t0 + n * dt;
     const dx = L.xFt - W.xFt;
     const dy = L.yFt - W.yFt;
     const r = Math.hypot(dx, dy);
     const rel = relativeTo(L, W);
-    // Across to Lead's other side is not a rejoin on this side, except well behind him (allowAcross: a later pass of the
-    // turning rejoin's search, only when nothing else plans, where Lead's turn can carry #2 across his six; Patrick 6 Oct
-    // 05:16Z), or once on the line when the line itself goes there (the straight rejoin's vector to route on the other side).
-    if (!(acrossOnlyOffLine && onLine) && rel.left * s < -acrossTolFt && !(allowAcross && r >= TRACKER.laneRangeFt)) return null;
-    let geo = line.at(rel, onLine);
-    if (!onLine && geo.along > 0 && Math.abs(geo.cross) <= captureFt) {
-      onLine = true;
-      lineKias = W.kias;
-      lineFt = geo.along;
+
+    if (!(acrossOnlyOffLine && st.onLine) && rel.left * s < -acrossTolFt && !(allowAcross && r >= TRACKER.laneRangeFt)) {
+      return { abort: true };
+    }
+
+    let geo = line.at(rel, st.onLine);
+    if (!st.onLine && geo.along > 0 && Math.abs(geo.cross) <= captureFt) {
+      st.onLine = true;
+      st.lineKias = W.kias;
+      st.lineFt = geo.along;
       geo = line.at(rel, true);
     }
     const { along, cross } = geo;
     const hot = leadTurning && cross > captureFt;
-    // Lagging the cut (to fighting wing, lagCut; Patrick 6 Oct 17:11Z card "Lag the cut"): hot and within lagCutFt of the
-    // place down the line, he flies at the place itself (on the line at decisionFt), so the cut ends there, not inside it.
+
     const place = { fwd: u.fwd * decisionFt - rel.fwd, left: u.left * decisionFt - rel.left };
     const placeFt = Math.hypot(place.fwd, place.left);
     const lagging = lagCut && hot && along < decisionFt + TR.lagCutFt;
-    const verdict = done(geo, W, L, onLine);
-    if (verdict === 'done') return result(n);
-    if (verdict === 'fail') return null;
 
-    // Where he steers: down the line toward Lead once on it; off it, across toward it at up to approachDeg, the angle growing
-    // with the distance off (aimFt sets how quickly: a smaller one is a sharper capture, a larger one a gentler, longer one).
+    const verdict = done(geo, W, L, st.onLine);
+    if (verdict === 'done') {
+      st.done = true;
+      return { done: true };
+    }
+    if (verdict === 'fail') {
+      return { abort: true };
+    }
+
     const chi = approachDeg * DEG * (2 / Math.PI) * Math.atan(Math.abs(cross) / aimFt);
     const way = lagging
       ? { fwd: place.fwd / Math.max(placeFt, 1), left: place.left / Math.max(placeFt, 1) }
@@ -169,8 +180,6 @@ export function flyRejoinLine({
     const d = { x: way.fwd * f.x + way.left * l.x, y: way.fwd * f.y + way.left * l.y };
     let rate;
     if (leadTurning) {
-      // In Lead's turning frame: the frame's motion where #2 is (Lead's velocity plus his turn, ω × r, r from Lead to #2),
-      // and the heading at his own speed that moves him along `way` in it.
       const omegaL = wrapPi(Lnext.headingRad - L.headingRad) / dt;
       const vfx = L.tasFtps * f.x + omegaL * dy;
       const vfy = L.tasFtps * f.y - omegaL * dx;
@@ -178,105 +187,148 @@ export function flyRejoinLine({
       const disc = ad * ad - (vfx * vfx + vfy * vfy) + W.tasFtps * W.tasFtps;
       const lam = disc >= 0 ? Math.max(0, Math.sqrt(disc) - ad) : 0;
       const psi = disc >= 0 ? Math.atan2(vfy + lam * d.y, vfx + lam * d.x) : Math.atan2(d.y, d.x);
-      if (psiPrev === null) psiPrev = psi;
-      ff += G.ffFilter * (wrapPi(psi - psiPrev) / dt - ff);
-      psiPrev = psi;
-      rate = ff + wrapPi(psi - W.headingRad) / tauSec;
+      if (st.psiPrev === null) st.psiPrev = psi;
+      st.ff += G.ffFilter * (wrapPi(psi - st.psiPrev) / dt - st.ff);
+      st.psiPrev = psi;
+      rate = st.ff + wrapPi(psi - W.headingRad) / tauSec;
     } else {
-      // Lead straight: his own heading across Lead's track along `way` (turning in costs ground, so he falls back as he cuts).
       rate = wrapPi(Math.atan2(d.y, d.x) - W.headingRad) / tauSec;
     }
+
     const ratio = W.tasFtps / W.kias;
-    // Speed changes at the G he is pulling, less what a climb costs or plus what a descent gives (standard aerodynamics,
-    // dV/dt = g (T - D) / W - g sin(climb angle)); KIAS per second times ratio is true ft/s².
-    // Lagging the cut, he soaks up the speed the place doesn't need with a zoom toward the cone's top (Patrick 6 Oct 16:58Z;
-    // card "Zoom in the cut"; the tracker's cone energy, TS-136).
-    if (lagging && placeKias != null && !zoom) zoom = { t0: t, alt: [W.altAboveFt], climb: [W.climbFtps ?? 0], nz: [1] };
-    const perFtps = climbCostKtps(W, 1); // KIAS per second per ft/s of climb (standard energy, tracker.js)
-    const roomUpFt = Math.max(0, L.altAboveFt + coneUpFtNow() - W.altAboveFt); // the cone's height his experience uses (TS-141)
-    const zoomFtps = zoom ? Math.min(FW_BUBBLE.diveFtps, Math.sqrt(2 * FW_BUBBLE.pullFtps2 * roomUpFt)) : 0;
+    if (lagging && placeKias != null && !st.zoom) st.zoom = { t0: t, alt: [W.altAboveFt], climb: [W.climbFtps ?? 0], nz: [1] };
+    const perFtps = climbCostKtps(W, 1);
+    const roomUpFt = Math.max(0, L.altAboveFt + coneUpFtNow() - W.altAboveFt);
+    const zoomFtps = st.zoom ? Math.min(FW_BUBBLE.diveFtps, Math.sqrt(2 * FW_BUBBLE.pullFtps2 * roomUpFt)) : 0;
     const zoomKtps = zoomFtps * perFtps;
-    const leastKias = zoom && roomUpFt > 1 ? Math.min(floorKias, placeKias) : floorKias;
-    const climbKtps = zoom ? 0 : perFtps * W.climbFtps;
-    // Never past the stall line at the speed he has; near his least speed, no more bank than MAX holds the speed at (TS-75, TS-139).
+    const leastKias = st.zoom && roomUpFt > 1 ? Math.min(floorKias, placeKias) : floorKias;
+    const climbKtps = st.zoom ? 0 : perFtps * W.climbFtps;
+
     let cap = Math.min(bankCapDeg, stallBankDeg(W.kias));
     const wantBank = bankDegFromTurnRate(W.tasFtps, rate);
-    if (W.kias < floorKias + TR.floorMarginKias && !sustainsBank(Math.abs(wantBank), W.kias, blockFt, climbKtps)) cap = Math.min(cap, sustainedBankDeg(W.kias, blockFt, climbKtps));
+    if (W.kias < floorKias + TR.floorMarginKias && !sustainsBank(Math.abs(wantBank), W.kias, blockFt, climbKtps)) {
+      cap = Math.min(cap, sustainedBankDeg(W.kias, blockFt, climbKtps));
+    }
     const bank = Math.max(-cap, Math.min(cap, wantBank));
 
-    // The power, as a pilot sets it (Patrick 5 Oct 08:48Z): MAX to set the overtake, then held; on the line, the slowing
-    // starts where the stop with the torque floor and the boards just fits the room left (TS-108; Patrick 17:55Z: "then slow
-    // down at the decision point for eithe SARJ or TRJ"), and the close-in rate is held, idle and the boards only when the room
-    // left needs more (SMM 12.24 para 58; TS-61's order). The closure is the one down the line (not the range rate: hot, the
-    // range comes down fast across it while he is still getting on); lagging the cut, toward the place.
     const closeFtps = typeof arriveFtps === 'function' ? arriveFtps(W) : arriveFtps;
-    const closure = lagging ? (placePrev === null ? 0 : (placePrev - placeFt) / dt) : alongPrev === null ? 0 : (alongPrev - along) / dt;
-    alongPrev = along;
-    placePrev = placeFt;
-    const floorThr = throttleAtTorque(REJOIN.floorTorquePct, W.kias, blockFt); // the rejoin's torque floor (TS-108)
+    const closure = lagging ? (st.placePrev === null ? 0 : (st.placePrev - placeFt) / dt) : st.alongPrev === null ? 0 : (st.alongPrev - along) / dt;
+    st.alongPrev = along;
+    st.placePrev = placeFt;
+    const floorThr = throttleAtTorque(REJOIN.floorTorquePct, W.kias, blockFt);
     const aStop = slowKtps(REJOIN.stopStage, W.kias, blockFt, W.g, floorThr) + climbKtps + zoomKtps;
-    // The room left, less what he covers while the slowing builds up at the rate the acceleration can change (TS-75).
-    const jerk = pilotJerkKtps2(); // the one jerk limit (pilot.js)
+    const jerk = pilotJerkKtps2();
     const rampFt = (closure * CLOSURE.stopShare * aStop) / jerk / 2;
     const room = lagging ? placeFt : along - decisionFt;
     const needKtps = room - rampFt > 1 && closure > closeFtps ? (closure * closure - closeFtps * closeFtps) / (2 * (room - rampFt)) / (closureShare * ratio) : 0;
     const aMax = fullPowerKtps(W.kias, blockFt, W.g) - climbKtps;
     const aPower = slowKtps('power', W.kias, blockFt, W.g, floorThr) + climbKtps + zoomKtps;
     const aAll = slowKtps('idleBoards', W.kias, blockFt, W.g) + climbKtps + zoomKtps;
-    if (!runIn && (onLine || lagging) && closure > closeFtps && needKtps >= CLOSURE.stopShare * aStop) runIn = true;
-    // Lead's turn's closure dies away as the range comes down, so the slowing may leave him short of the stopping curve: then
-    // the line's speed again until it needs taking out, rather than crawling the rest of the line at the close-in rate.
-    else if (runIn && room > closeFtps * TR.runInHoldSec && needKtps < TR.runInReleaseShare * CLOSURE.stopShare * aStop) runIn = false;
+    if (!st.runIn && (st.onLine || lagging) && closure > closeFtps && needKtps >= CLOSURE.stopShare * aStop) st.runIn = true;
+    else if (st.runIn && room > closeFtps * TR.runInHoldSec && needKtps < TR.runInReleaseShare * CLOSURE.stopShare * aStop) st.runIn = false;
+
     let aCmd;
-    if (runIn) {
-      // Hold the slowing the room needs; once the closure is down to the close-in rate, the speed that keeps it there.
+    if (st.runIn) {
       aCmd = closure > closeFtps
         ? -Math.min(needKtps, aAll)
         : Math.max(-aAll, Math.min(aMax, G.speedLoop * Math.min(targetKias - W.kias, (closeFtps - closure) / (closureShare * ratio))));
-      // ... easing off in time to stop the slowing at the close-in rate, not below it (TS-75).
       aCmd = Math.max(aCmd, -Math.sqrt(2 * jerk * Math.max(0, (closure - closeFtps) / (closureShare * ratio))));
     } else {
-      // Hot (ahead of the line), he gets colder with geometry, not with speed: he slows no further than his least speed, and
-      // comes up to lineAtKias as he reaches the line (Patrick 17:29Z; TS-75). Off the line and cold he is at MAX with no top
-      // speed (Patrick 6 Oct 05:29Z; the straight rejoin: "full power until it gets back on leads six", 5 Oct 08:40Z); on the
-      // line he keeps what he has, at least the line's speed, until the run-in takes it out (TS-133). Below Lead and far out
-      // he is at MAX too (maxWhenLow; Patrick 6 Oct 05:00Z, 05:29Z).
       const lineCmd = Math.min(targetKias, lineAtKias);
       const low = maxWhenLow && r > TRACKER.laneRangeFt && W.altAboveFt < L.altAboveFt - TR.lowEnergyFt;
-      const kiasCmd = low ? Infinity : hot ? lineCmd - (lineCmd - leastKias) * Math.min(1, (cross - captureFt) / TR.hotFt) : onLine ? Math.max(targetKias, W.kias) : Infinity;
+      const kiasCmd = low ? Infinity : hot ? lineCmd - (lineCmd - leastKias) * Math.min(1, (cross - captureFt) / TR.hotFt) : st.onLine ? Math.max(targetKias, W.kias) : Infinity;
       const aMin = hot ? aAll : aPower;
       aCmd = Math.max(-aMin, Math.min(aMax, G.speedLoop * (kiasCmd - W.kias)));
     }
-    // The slowing eases off in time to stop at his least speed, at the rate the acceleration can change (TS-75).
     aCmd = Math.min(aMax, Math.max(aCmd, -Math.sqrt(2 * jerk * Math.max(0, W.kias - leastKias))));
-    // The one pilot model (pilot.js, TS-141): the speed from the power at the G he pulls, at the one jerk limit; the slowing
-    // within runIn's or hot's idle and the boards, else power back to the torque floor.
-    const top = runIn || hot ? 'idleBoards' : 'power';
-    const kias = pilotSpeed(pilot, W, aCmd, { blockFt, top, floorThr, climbKtps, extraSlowKtps: zoomKtps });
-    accel = pilot.accel;
+
+    const top = st.runIn || hot ? 'idleBoards' : 'power';
+
     let stepProfile = profile;
-    if (zoom) {
-      // The zoom's climb: the slowing he flies, as height, up to zoomFtps, eased in and out at the bubble's pull.
+    if (st.zoom) {
       const v0 = W.climbFtps ?? 0;
-      const want = accel < 0 ? Math.min(zoomFtps, -accel / perFtps) : 0;
-      const v1 = v0 + Math.max(-FW_BUBBLE.pullFtps2 * dt, Math.min(FW_BUBBLE.pullFtps2 * dt, want - v0));
+      const wantZ = aCmd < 0 ? Math.min(zoomFtps, -aCmd / perFtps) : 0;
+      const v1 = v0 + Math.max(-FW_BUBBLE.pullFtps2 * dt, Math.min(FW_BUBBLE.pullFtps2 * dt, wantZ - v0));
       const nz = 1 + (v1 - v0) / dt / G_FTPS2;
       const a1 = W.altAboveFt + ((v0 + v1) / 2) * dt;
-      zoom.alt.push(a1);
-      zoom.climb.push(v1);
-      zoom.nz.push(nz);
+      st.zoom.alt.push(a1);
+      st.zoom.climb.push(v1);
+      st.zoom.nz.push(nz);
       stepProfile = [{ t0: t, t1: t + dt, table: { dt, alt: [W.altAboveFt, a1], climb: [v0, v1], nz: [nz, nz] } }];
     }
-    const flown = pilotFly(pilot, W, bank, t, stepProfile);
-    points.push([flown, kias, pilotPower(pilot, W, blockFt, t)]);
-    minKias = Math.min(minKias, W.kias);
-    maxG = Math.max(maxG, W.g);
-    minG = Math.min(minG, W.g);
-    maxBank = Math.max(maxBank, Math.abs(W.bankDeg));
-    ahead = watch.step(relativeTo(Lnext, W));
-    if (ahead && n * dt >= cutAheadFromSec) return { ...result(n + 1), cut: true };
+
+    st.minKias = Math.min(st.minKias, W.kias);
+    st.ahead = st.watch.step(relativeTo(Lnext, W));
+    if (st.ahead && n * dt >= cutAheadFromSec) {
+      st.cut = true;
+      return { abort: true };
+    }
+    st.stepCount++;
+
+    return {
+      psiCmd: W.headingRad + rate * dt,
+      bankDeg: bank,
+      aCmd,
+      slowStage: top,
+      floorThr,
+      extraSlowKtps: zoomKtps,
+      stepProfile,
+    };
+  };
+
+  const ph = phase({}, {
+    pursuit,
+    pursuitEnds: true,
+    bankCapDeg,
+  });
+
+  return { phase: ph, st };
+}
+
+export function flyRejoinLine(options) {
+  const { phase: ph, st } = rejoinLinePhase(options);
+  const maxSec = Number.isFinite(options.stopAtSec) ? Math.min(CHANGE_LIMIT_SEC, options.stopAtSec) : CHANGE_LIMIT_SEC;
+  const run = runTracker({
+    refs: { ref: options.rec },
+    wing0: options.wing,
+    t0: options.t0,
+    phases: [ph],
+    profile: options.profile,
+    blockFt: options.blockFt,
+    maxSec,
+  });
+  if (st.cut) {
+    return {
+      points: run.points,
+      steps: run.points.length,
+      end: run.end.wing,
+      accelKtps: run.accelKtps,
+      maxBankDeg: run.maxBankDeg,
+      ahead: true,
+      cut: true,
+      minKias: st.minKias,
+      maxG: run.maxG ?? 1,
+      minG: run.minG ?? 1,
+      lineKias: st.lineKias ?? run.end.wing.kias,
+      lineFt: st.lineFt,
+      zoomLeg: zoomLegOf(st.zoom),
+    };
   }
-  return null;
+  if (!st.done || !run.ok) return null;
+  return {
+    points: run.points,
+    steps: run.points.length,
+    end: run.end.wing,
+    accelKtps: run.accelKtps,
+    maxBankDeg: run.maxBankDeg,
+    ahead: st.ahead,
+    minKias: st.minKias,
+    maxG: run.maxG ?? 1,
+    minG: run.minG ?? 1,
+    lineKias: st.lineKias ?? run.end.wing.kias,
+    lineFt: st.lineFt,
+    zoomLeg: zoomLegOf(st.zoom),
+  };
 }
 
 /** A zoom's heights as a height leg (flight.js heightAt's table), or null. */

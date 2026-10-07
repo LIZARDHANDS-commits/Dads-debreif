@@ -181,14 +181,14 @@ function zoomRoomFtps(L, W) {
  * at the G he pulls (full power up, power back down: slow-down.js, TS-61) and builds it up at the one jerk limit.
  * Returns { kias, zoomFtps, accel }.
  */
-function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowOwn, cone }) {
+function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowOwn, cone, aCmdOwn, floorThrOwn, extraSlowKtpsOwn, energyIntent }) {
   const T = TRACKER;
   const GAIN = T.gain;
   // A phase may slow with more than power back (slowStage, slow-down.js; the turning rejoin's run-in: power back and the
   // speed brake, card 03:33Z rule 4: "torque and speed brake first").
   // A rejoin's leg slows with its torque floor and the boards as needed (Patrick 6 Oct 03:17-03:20Z, TS-108).
   const rejoinLeg = ph.rejoin || ph.slowStage === 'boards';
-  const floorThr = rejoinLeg ? throttleAtTorque(REJOIN.floorTorquePct, W.kias, blockFt) : 0;
+  const floorThr = floorThrOwn ?? (rejoinLeg ? throttleAtTorque(REJOIN.floorTorquePct, W.kias, blockFt) : 0);
   const slowStage = stageOwn ?? ph.slowStage ?? (ph.rejoin ? 'boards' : 'power');
   // The climb he is flying costs speed and a descent gives it (standard energy, dV/dt = g (T - D) / W - g sin(climb
   // angle): climbCostKtps), so the engine's range is shifted by it: climbing at MAX he slows (Patrick 6 Oct 05:00Z: "This
@@ -200,9 +200,13 @@ function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowO
   // the extra speed. we can ALWAYS use the cone to soak up speed"): while there is room above, a zoom up to FW_BUBBLE's
   // climb rate slows him beyond what power back gives (standard energy, climbCostKtps); the climb itself is flown below.
   const zoomFtps = energy && belowOwn == null ? zoomRoomFtps(L, W) : 0;
+  const extraSlowKtps = extraSlowKtpsOwn ?? (zoomFtps > 0 ? climbCostKtps(W, zoomFtps) : 0);
+  const aWant = aCmdOwn != null
+    ? aCmdOwn
+    : (energyIntent === 'gain' ? Infinity : GAIN.speedLoop * (kiasCmd - W.kias));
   // Lining up, the last few thousandths of a knot are taken out at once (snapKias), so the speed has no step.
-  const accel = pilotSpeed(pilot, W, GAIN.speedLoop * (kiasCmd - W.kias), {
-    blockFt, top: slowStage, floorThr, climbKtps, extraSlowKtps: zoomFtps > 0 ? climbCostKtps(W, zoomFtps) : 0, snapKias: aligning ? L.kias : null, snapTol: T.kiasSnap,
+  const accel = pilotSpeed(pilot, W, aWant, {
+    blockFt, top: slowStage, floorThr, climbKtps, extraSlowKtps, snapKias: aligning ? L.kias : null, snapTol: T.kiasSnap,
   });
   return { kias: W.kias + accel * STEP_SEC, zoomFtps, accel };
 }
@@ -316,10 +320,11 @@ function isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt, timesK, early, heig
   const pursuitResult = early !== undefined ? early : (ph.pursuit && ph.pursuitEnds ? ph.pursuit(L, W, t) : undefined);
   if (pursuitResult?.abort) return { abort: true, early: pursuitResult, stoppedAt: newStoppedAt };
   const pursuitDone = pursuitResult?.done === true;
-  if (pursuitDone && last && heightDone) {
-    return { done: true, early: pursuitResult, stoppedAt: newStoppedAt };
+  if (pursuitDone) {
+    if (last) return { done: true, early: pursuitResult, stoppedAt: newStoppedAt };
+    return { advance: true, early: pursuitResult, stoppedAt: null };
   }
-  if (!last && (pursuitDone || (arrived && d <= ph.advanceTol && gateOpen && stopDone))) {
+  if (!last && arrived && d <= ph.advanceTol && gateOpen && stopDone) {
     return { advance: true, early: pursuitResult, stoppedAt: null };
   }
   const settled = arrived && last && gateOpen && d <= ph.finalTol && relVel <= Math.max(T.settleMinFtps, T.settleShare * ph.finalTol) && heightDone;
@@ -393,6 +398,9 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
   };
   const farFromFt = HAND_OVER_FT; // beyond the hand-over range a closure phase may close faster (odd starts only)
   let maxBank = 0;
+  let maxG = wing0.g ?? 1;
+  let minG = wing0.g ?? 1;
+  let minKias = wing0.kias ?? 200;
   let laneFwdFt = -Infinity; // furthest ahead of Lead's 3/9 line inside 1,000 ft (the overshoot lane)
   let minBelowFt = Infinity; // least height under Lead inside 2,000 ft
   const ranges = [];
@@ -408,7 +416,8 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     hasHeightChange: false,
   };
 
-  for (let n = 0; n < Math.round(maxSec / STEP_SEC); n++) {
+  const maxSteps = Math.round((Number.isFinite(maxSec) ? maxSec : PLAN_MAX_SEC) / STEP_SEC);
+  for (let n = 0; n < maxSteps; n++) {
     // Both aircraft are read at the same instant (the start of the step).
     // A phase with `exitAt` (a time) and `exit` (overrides) flies those overrides from that time on: the fighting wing turn
     // exit once the aircraft flown off rolls out (formation-turns.js fwExit, Fig 12.23).
@@ -427,18 +436,19 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     let bankOwn = null; // a bank a `pursuit` phase commands outright (fw-switch.js, TS-102), else the heading loop's
     let belowOwn = null; // a height below the aircraft flown off a `pursuit` phase asks for (the fighting wing bubble's dive, TS-134)
     let stageOwn = null; // a slowing stage a `pursuit` phase asks for this step (echelon-to-fw.js's idle and the boards), else the phase's
+    let aCmdOwn = null;
+    let floorThrOwn = null;
+    let extraSlowKtpsOwn = null;
+    let stepProfileOwn = null;
+    let energyIntentOwn = null;
 
     if (aligning) {
       psiCmd = L.headingRad;
       kiasCmd = L.kias;
     } else {
       const last = k === phases.length - 1;
-      const maxExplicitT1 = Array.isArray(profile) && profile.length > 0
-        ? Math.max(...profile.map((l) => l.t1 ?? 0))
-        : (profile?.t1 ?? 0);
       const targetAlt = !ph.coneAlt && ph.slot?.alt != null && Number.isFinite(ph.slot.alt) ? ph.slot.alt : null;
-      const heightDone = (!heightState.activeLeg && (targetAlt == null || Math.abs(targetAlt - W.altAboveFt) <= TRACKER.height.minChangeFt))
-        && (!profile || t >= maxExplicitT1 - 1e-9);
+      const heightDone = !heightState.activeLeg && (targetAlt == null || Math.abs(targetAlt - W.altAboveFt) <= TRACKER.height.minChangeFt);
 
       // 5. In position, settled/steady, and phase completion
       const inPos = isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt, timesK: times[k], heightDone });
@@ -492,6 +502,11 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       belowOwn = asked?.belowFt ?? null;
       const own = asked?.keepBase ? null : asked;
       stageOwn = own?.slowStage ?? null;
+      aCmdOwn = own?.aCmd ?? null;
+      floorThrOwn = own?.floorThr ?? null;
+      extraSlowKtpsOwn = own?.extraSlowKtps ?? null;
+      stepProfileOwn = own?.stepProfile ?? null;
+      energyIntentOwn = own?.energyIntent ?? ph.energyIntent ?? null;
 
       if (own) {
         psiCmd = own.psiCmd;
@@ -511,6 +526,10 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     // 4. Power: speed loop, jerk limit, energy intent
     const power = powerOf(ph, pilot, W, L, kiasCmd, {
       blockFt, aligning, stageOwn, belowOwn, cone: heightState.cone,
+      aCmdOwn: aligning ? null : aCmdOwn,
+      floorThrOwn,
+      extraSlowKtpsOwn,
+      energyIntent: energyIntentOwn,
     });
     const kias = power.kias;
 
@@ -519,7 +538,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       blockFt, belowOwn, t, accel: power.accel, zoomFtps: power.zoomFtps, heightState,
     });
 
-    const stepProfile = height.stepProfile ?? (heightState.activeLeg ? [heightState.activeLeg] : profile);
+    const stepProfile = stepProfileOwn ?? height.stepProfile ?? (heightState.activeLeg ? [heightState.activeLeg] : profile);
     const flown = pilotFly(pilot, W, bank, t, stepProfile, power.accel);
     heightState.table.alt.push(W.altAboveFt);
     heightState.table.climb.push(W.climbFtps);
@@ -529,6 +548,9 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     m++;
     const Lafter = R.at(m);
     maxBank = Math.max(maxBank, Math.abs(W.bankDeg));
+    maxG = Math.max(maxG, W.g ?? 1);
+    minG = Math.min(minG, W.g ?? 1);
+    minKias = Math.min(minKias, W.kias);
     const after = relativeTo(Lafter, W);
     const range = Math.hypot(after.fwd, after.left);
     ranges.push(range);
@@ -536,10 +558,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     if (range < T.belowRangeFt) minBelowFt = Math.min(minBelowFt, Lafter.altAboveFt - W.altAboveFt);
     t += STEP_SEC;
 
-    const maxExplicitT1 = Array.isArray(profile) && profile.length > 0
-      ? Math.max(...profile.map((l) => l.t1 ?? 0))
-      : (profile?.t1 ?? 0);
-    const heightDoneNow = (!heightState.activeLeg || t >= heightState.activeLeg.t1 - 1e-9) && (!profile || t >= maxExplicitT1 - 1e-9);
+    const heightDoneNow = !heightState.activeLeg || t >= heightState.activeLeg.t1 - 1e-9;
     if (aligning && isAligned(Lafter, W) && heightDoneNow) {
       ok = true;
       break;
@@ -566,6 +585,9 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     end: { lead: { ...R.at(m) }, wing: W },
     times,
     maxBankDeg: maxBank,
+    maxG,
+    minG,
+    minKias,
     ok,
     durationSec: t - t0,
     ranges,
