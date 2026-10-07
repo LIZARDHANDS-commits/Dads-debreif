@@ -41,7 +41,8 @@ import { buildFlinch, buildClimbAhead, EVADE, spacingExtensionFt, extendLimitFt 
 import { buildBreakout, gateLegOf, ENT1_ROUTE, BREAKOUT_TRAFFIC_BANK_DEG } from './breakout.js';
 import { RANDOM, rollFor, pick, oddsFor, buildDownwindStraightIn } from './randomize.js';
 import { behaviourOf, behaviourLabel } from './behaviour.js';
-import { PATTERN_ALT_FT, RUNWAY_29L_HDG_DEG, DEPARTURE_END_29L, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT, NUMBER_BASE_PAST_THRESHOLD_FT, TOUCHDOWN_PAST_NUMBERS_FT } from './airfield.js';
+import { PATTERN_ALT_FT, RUNWAY_29L_HDG_DEG, THRESHOLD_29L, DEPARTURE_END_29L, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT, NUMBER_BASE_PAST_THRESHOLD_FT, TOUCHDOWN_PAST_NUMBERS_FT } from './airfield.js';
+import { legOffsetsFt } from '../../core/geo.js';
 import { iasToTasKt } from './weather.js';
 import { setFieldTemperature, placeStraightInDescent } from './weather.js';
 import { windTriangle } from '../../core/wind.js';
@@ -434,6 +435,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     delete a.rejoinRouteId;
     a.phase = 'breakout';
     a.intent = 'overhead';
+    if (toAvoidCollision) a.avoidanceBreakout = true;
   }
 
 
@@ -694,7 +696,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     spacingTick();
     const limits = setup.conflictLimits ?? DEFAULT_CONFLICT_LIMITS;
     const frozen = freeze(aircraft.filter((a) => t >= a.startsAt), pathOf, routeOf);
-    for (const d of decide(frozen, limits)) {
+    const activeDecisions = decide(frozen, limits);
+    for (const d of activeDecisions) {
       const a = aircraft.find((ac) => ac.id === d.id);
       if (!a) continue;
       const other = aircraft.find((ac) => ac.id === d.with) ?? a;
@@ -706,6 +709,23 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       else if (d.move === 'bank_away') startBankAway(a, other);
       else startGoAround(a); // a go-around, or a fly-through: the same flown path from where it is at pattern height
       a.deconflict = { move: d.move, layer: d.layer, rule: d.rule, with: d.with, label: deconflictLabel(d.move, d.layer) };
+    }
+    // If an aircraft in an avoidance breakout near the runway climbs past 2,500 ft and is past the runway:
+    // "if theres no more conflicts it moves back over" (Patrick, 6 Oct).
+    const rwyLen = Math.hypot(DEPARTURE_END_29L.x - THRESHOLD_29L.x, DEPARTURE_END_29L.y - THRESHOLD_29L.y);
+    for (const a of aircraft) {
+      if (a.avoidanceBreakout && a.command === 'breakout') {
+        const off = legOffsetsFt(THRESHOLD_29L, DEPARTURE_END_29L, a);
+        const pastGate = (a.alt ?? 0) >= 2500 && off.alongFt >= rwyLen;
+        if (pastGate) {
+          const hasConflict = activeDecisions.some((d) => d.id === a.id || d.with === a.id);
+          if (!hasConflict) {
+            delete a.avoidanceBreakout;
+            delete a.deconflict;
+            startGoAround(a);
+          }
+        }
+      }
     }
   }
 

@@ -76,3 +76,32 @@ test('a breakout off the rejoin line turns away from the pattern, and an 80° on
   assert.ok(Math.max(...path.map((p) => p.g)) > 3, 'it pulls hard when it can');
   assert.ok(Math.min(...path.map((p) => p.kt)) < 220 - 10, 'the hard turn costs speed');
 });
+
+test('near-runway avoidance breakout climbs straight ahead to 2,500 ft past departure end at 140 KIAS, then turns', async () => {
+  const { buildBreakout, gateLegOf, AVOID_CLIMB_KIAS, BREAKOUT_RUNWAY_SAFE_ALT_FT } = await import('../../../src/modules/traffic/breakout.js');
+  const { THRESHOLD_29L, DEPARTURE_END_29L, RUNWAY_29L_HDG_DEG } = await import('../../../src/modules/traffic/airfield.js');
+  const { legOffsetsFt } = await import('../../../src/core/geo.js');
+
+  const start = { x: THRESHOLD_29L.x, y: THRESHOLD_29L.y, alt: 1900, kias: 110, headingDeg: RUNWAY_29L_HDG_DEG, bankDeg: 0 };
+  const path = buildBreakout(start, { windFromDeg: 260, windKt: 15 }, ent1, gateLegOf(ent1), 50);
+
+  const rwyLen = Math.hypot(DEPARTURE_END_29L.x - THRESHOLD_29L.x, DEPARTURE_END_29L.y - THRESHOLD_29L.y);
+
+  // While below 2,500 ft or before departure end, holds runway track with wings level
+  const lowPoints = path.filter((p) => p.alt < BREAKOUT_RUNWAY_SAFE_ALT_FT || legOffsetsFt(THRESHOLD_29L, DEPARTURE_END_29L, p).alongFt < rwyLen);
+  assert.ok(lowPoints.length > 0, 'has low-level climb points');
+  for (const p of lowPoints) {
+    const offHdg = Math.abs(wrapDeg180(p.headingDeg - RUNWAY_29L_HDG_DEG));
+    assert.ok(offHdg <= 10, `stays on runway heading while low, off by ${offHdg}° at ${p.alt} ft`);
+  }
+
+  // Holds 140 KIAS sporty climb
+  const midClimbPoints = path.filter((p) => p.alt >= 2600 && p.alt <= 4000);
+  assert.ok(midClimbPoints.length > 0, 'has mid-climb points');
+  for (const p of midClimbPoints) {
+    assert.ok(Math.abs(p.kt - AVOID_CLIMB_KIAS) <= 15, `holds 140 KIAS sporty climb, got ${p.kt} at ${p.alt} ft`);
+  }
+
+  // Once past 2,500 ft and departure end, turns toward BREAKOUT_PT (south)
+  assert.ok(path.some((p) => wrapDeg180(p.headingDeg - RUNWAY_29L_HDG_DEG) < -20), 'turns towards BREAKOUT_PT');
+});

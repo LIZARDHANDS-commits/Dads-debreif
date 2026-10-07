@@ -8,6 +8,8 @@ import { bankDegFromG } from '../../core/flight-math.js';
 import { stallLimitG } from '../../core/t6-performance.js';
 import { makePilot, bankFor, powerClimb, CIRCUIT, PILOT_DT } from './circuit.js';
 import { flyRejoin } from './evade.js';
+import { THRESHOLD_29L, DEPARTURE_END_29L, RUNWAY_29L_HDG_DEG } from './airfield.js';
+import { legOffsetsFt } from '../../core/geo.js';
 
 // ── The breakout, flown once (Traffic spec 1a items 15-18 and 22, TR-R34) ──────
 // Patrick's card "Rebuild, then delete" (4 Oct 17:53Z): like the closed pattern, the breakout is flown once
@@ -24,6 +26,10 @@ import { flyRejoin } from './evade.js';
 export const BREAKOUT_ALT_FT = 4500;
 /** A breakout needed so as not to collide (the deconfliction's last-moment one) may bank up to this, degrees (Patrick, 5 Oct 00:08Z and 00:13Z); never past the stall line. */
 export const BREAKOUT_TRAFFIC_BANK_DEG = 80;
+/** Safe climb-ahead gate before turning into a breakout near the runway, ft MSL (Patrick, 6 Oct). */
+export const BREAKOUT_RUNWAY_SAFE_ALT_FT = 2500;
+/** Speed in an avoidance climbing turn, KIAS: sporty climb (Patrick, 6 Oct; Vy best rate). */
+export const AVOID_CLIMB_KIAS = 140;
 /** Within this of the breakout point, the climbing turn is over and it holds its track until level, ft (as the old controller, an estimate). */
 const BREAKOUT_REACHED_FT = 2500;
 const MOST_SEC = 600; // a guard: no breakout climb lasts this long
@@ -33,6 +39,8 @@ const MOST_SEC = 600; // a guard: no breakout climb lasts this long
  * `bankDeg` (never past the stall line: core stallLimitG, a little inside it), then rejoins leg `leg` of
  * `rejoinRoute` (see above). `turnDir` 'left' or 'right' sets which way the first turn goes (an aircraft on
  * the rejoin line turns away from the pattern: Patrick, 5 Oct 00:08Z); null takes the shorter way.
+ * Near the runway / after takeoff, it climbs straight ahead on runway heading to 2,500 ft MSL past the departure
+ * end at 140 KIAS (Patrick, 6 Oct: "for avoidance, 140 sporty climb. climb straight ahead to 2500 past the runway").
  * Returns the path [{ x, y, alt, kt, g, phase, headingDeg }]: phase 'breakout', then 'rejoin'.
  */
 export function buildBreakout(from, wind, rejoinRoute, leg, bankDeg = 50, turnDir = null) {
@@ -41,15 +49,40 @@ export function buildBreakout(from, wind, rejoinRoute, leg, bankDeg = 50, turnDi
   const { s } = pilot;
   s.bank = from.bankDeg ?? 0;
   pilot.record();
+
+  // Runway geometry for climb-ahead check near departure
+  const rwyLen = Math.hypot(DEPARTURE_END_29L.x - THRESHOLD_29L.x, DEPARTURE_END_29L.y - THRESHOLD_29L.y);
+  const rwyTrack = compassDegFromVector(DEPARTURE_END_29L.x - THRESHOLD_29L.x, DEPARTURE_END_29L.y - THRESHOLD_29L.y);
+  const fromOffsets = legOffsetsFt(THRESHOLD_29L, DEPARTURE_END_29L, from);
+  const nearRunway = from.alt < BREAKOUT_RUNWAY_SAFE_ALT_FT || (fromOffsets.alongFt >= -2000 && fromOffsets.alongFt <= rwyLen + 1000 && Math.abs(fromOffsets.crossFt) < 2500);
+
   let heldTrack = null;
   for (let n = 0; n < MOST_SEC / PILOT_DT; n++) {
-    if (heldTrack === null && Math.hypot(BREAKOUT_PT.x - s.x, BREAKOUT_PT.y - s.y) <= BREAKOUT_REACHED_FT) heldTrack = pilot.trackDeg();
+    const offsets = legOffsetsFt(THRESHOLD_29L, DEPARTURE_END_29L, s);
+    const pastRunway = offsets.alongFt >= rwyLen;
+    const pastGate = s.alt >= BREAKOUT_RUNWAY_SAFE_ALT_FT && pastRunway;
+
+    if (heldTrack === null && Math.hypot(BREAKOUT_PT.x - s.x, BREAKOUT_PT.y - s.y) <= BREAKOUT_REACHED_FT) {
+      heldTrack = pilot.trackDeg();
+    }
     if (heldTrack !== null && s.alt >= BREAKOUT_ALT_FT - 50) break;
-    const { climb, accel } = powerClimb(pilot, CIRCUIT.patternKias, BREAKOUT_ALT_FT);
-    const bankMax = Math.min(bankDeg, bankDegFromG(Math.max(1.01, 0.9 * stallLimitG(s.ias))));
-    const bank = heldTrack === null
-      ? bankFor(pilot.headingFor(compassDegFromVector(BREAKOUT_PT.x - s.x, BREAKOUT_PT.y - s.y)), s, bankMax, turnDir)
-      : bankFor(pilot.headingFor(heldTrack), s, 30);
+
+    // 140 KIAS sporty climb (Patrick, 6 Oct); accelerate toward pattern speed (220 KIAS) once leveling off near 4,500 ft
+    const targetKias = (heldTrack !== null || s.alt >= BREAKOUT_ALT_FT - 100) ? CIRCUIT.patternKias : AVOID_CLIMB_KIAS;
+    const { climb, accel } = powerClimb(pilot, targetKias, BREAKOUT_ALT_FT);
+
+    let bank;
+    if (nearRunway && !pastGate) {
+      // Climb straight ahead to 2,500 ft past the runway, wings level (Patrick, 6 Oct)
+      bank = bankFor(pilot.headingFor(rwyTrack), s, 5);
+    } else {
+      // Realistic bank angle in the climbing turn (SMM 4.16: 30-45°; capped at 45° if departing near runway)
+      const allowedBank = nearRunway ? Math.min(bankDeg, 45) : bankDeg;
+      const bankMax = Math.min(allowedBank, bankDegFromG(Math.max(1.01, 0.9 * stallLimitG(s.ias))));
+      bank = heldTrack === null
+        ? bankFor(pilot.headingFor(compassDegFromVector(BREAKOUT_PT.x - s.x, BREAKOUT_PT.y - s.y)), s, bankMax, turnDir)
+        : bankFor(pilot.headingFor(heldTrack), s, 30);
+    }
     pilot.step(bank, climb, accel);
   }
   pilot.mark({ phase: 'rejoin' });

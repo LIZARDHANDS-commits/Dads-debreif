@@ -10,7 +10,6 @@
 // range and builds a new object from what passed, and refuses the profile, in plain words, at
 // the first thing wrong. Pure: no page, no storage, no clock.
 import MOOSE_JAW from './data/moose-jaw.json' with { type: 'json' };
-import MOOSE_JAW_V6 from './data/moose-jaw-v6.json' with { type: 'json' };
 import { DEFAULTS, LIMITS, SPEEDS } from './defaults.js';
 import { TYPE_COLORS } from './sim.js';
 import { newPattern } from './route.js';
@@ -309,7 +308,6 @@ function builtIn(setup, name) {
 /** The setups that come with the page, read-only, in the order the list shows them. `id` is what "the last profile" remembers. */
 export const BUILT_IN = Object.freeze([
   Object.freeze({ id: 'moose-jaw', name: 'Moose Jaw (built-in)', profile: builtIn(MOOSE_JAW, 'Moose Jaw (built-in)') }),
-  Object.freeze({ id: 'moose-jaw-v6', name: 'Moose Jaw (V6 original)', profile: builtIn(MOOSE_JAW_V6, 'Moose Jaw (V6 original)') }),
 ]);
 
 export const isBuiltInName = (name) => BUILT_IN.some((b) => b.name === cleanName(name));
