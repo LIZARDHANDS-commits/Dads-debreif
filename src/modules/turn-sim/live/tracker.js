@@ -201,10 +201,10 @@ function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowO
   // climb rate slows him beyond what power back gives (standard energy, climbCostKtps); the climb itself is flown below.
   const zoomFtps = energy && belowOwn == null ? zoomRoomFtps(L, W) : 0;
   // Lining up, the last few thousandths of a knot are taken out at once (snapKias), so the speed has no step.
-  const kias = pilotSpeed(pilot, W, GAIN.speedLoop * (kiasCmd - W.kias), {
+  const accel = pilotSpeed(pilot, W, GAIN.speedLoop * (kiasCmd - W.kias), {
     blockFt, top: slowStage, floorThr, climbKtps, extraSlowKtps: zoomFtps > 0 ? climbCostKtps(W, zoomFtps) : 0, snapKias: aligning ? L.kias : null, snapTol: T.kiasSnap,
   });
-  return { kias, zoomFtps, accel: pilot.accel };
+  return { kias: W.kias + accel * STEP_SEC, zoomFtps, accel };
 }
 
 /**
@@ -519,13 +519,13 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       blockFt, belowOwn, t, accel: power.accel, zoomFtps: power.zoomFtps, heightState,
     });
 
-    // The roll shaped and the step flown (pilot.js); the bank recorded is the one commanded, so the replay flies the same.
-    const flown = pilotFly(pilot, W, bank, t, height.stepProfile);
+    const stepProfile = height.stepProfile ?? (heightState.activeLeg ? [heightState.activeLeg] : profile);
+    const flown = pilotFly(pilot, W, bank, t, stepProfile, power.accel);
     heightState.table.alt.push(W.altAboveFt);
     heightState.table.climb.push(W.climbFtps);
     heightState.table.nz.push(W.nz);
 
-    points.push([flown, kias, pilotPower(pilot, W, blockFt, t)]);
+    points.push([flown, W.kias, pilotPower(pilot, W, blockFt, t), power.accel]);
     m++;
     const Lafter = R.at(m);
     maxBank = Math.max(maxBank, Math.abs(W.bankDeg));

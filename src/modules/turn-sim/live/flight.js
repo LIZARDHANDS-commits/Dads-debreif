@@ -413,12 +413,25 @@ export function stepAircraft(a, plan, t) {
   const climbBefore = a.climbFtps;
   const tasBefore = a.tasFtps;
   const kiasBefore = a.kias;
+  const height = heightAt(plan.profile, t + dt);
+  a.nz = height?.nz ?? 1;
+  a.invertDive = Boolean(height?.invert); // a big dive's pull down is flown inverted (TS-129, flyAttitude)
+  if (height) {
+    a.altAboveFt = height.altAboveFt;
+    a.climbFtps = height.climbFtps;
+  } else {
+    a.climbFtps = 0;
+  }
   if (plan.speedLeg) {
     const sp = speedAt(plan.speedLeg, t + dt);
     a.kias = sp.kias;
     a.tasFtps = sp.tasFtps;
     a.slowStage = plan.speedLeg.stage ?? null; // how the slow-down is flown (slow-down.js, TS-61): the card and tags say BOARDS or IDLE
     if (t + dt >= plan.speedLeg.t1 - 1e-9) plan.speedLeg = null;
+  } else if (plan.accelKtps !== undefined && plan.accelKtps !== null) {
+    a.kias += plan.accelKtps * dt;
+    a.tasFtps = a.kias * (tasBefore / kiasBefore);
+    a.slowStage = null;
   } else {
     a.slowStage = null;
   }
@@ -434,27 +447,11 @@ export function stepAircraft(a, plan, t) {
   a.g = gFromBankDeg(a.bankDeg);
   a.turning = a.bankDeg !== 0 || plan.segments.length > 0;
 
-  const height = heightAt(plan.profile, t + dt);
-  a.nz = height?.nz ?? 1;
-  a.invertDive = Boolean(height?.invert); // a big dive's pull down is flown inverted (TS-129, flyAttitude)
-  if (height) {
-    a.altAboveFt = height.altAboveFt;
-    a.climbFtps = height.climbFtps;
-    // The pull or push of the height change is charged as G (height as energy; until V2.82 a smooth height leg's pull was
-    // free, so a 700 ft pop-up in 6 s cost nothing): the turn's sideways share (tan bank, in g) and the vertical share
-    // (nz) together, standard mechanics; 1 / cos(bank) in a level turn, nz with the wings level. A push past zero G keeps
-    // its sign (G-warm's push over). The sign is the lift's, along the wings' up axis (the vertical share times cos bank
-    // plus the sideways share times sin bank), so a banked aircraft easing its descent through zero vertical G keeps
-    // positive G; until V2.92 the sign was the vertical share's alone, a 2 G jump in one step (Fable's review, section 17).
-    // flyAttitude then keeps whichever of pull or push follows on from the step before (V2.133-V2.135).
-    if (height.nz !== undefined) {
-      const side = Math.max(0, a.g * a.g - 1);
-      const b = (Math.abs(a.bankDeg) * Math.PI) / 180;
-      const lift = height.nz * Math.cos(b) + Math.sqrt(side) * Math.sin(b);
-      a.g = Math.sign(lift || 1) * Math.sqrt(side + height.nz * height.nz);
-    }
-  } else {
-    a.climbFtps = 0;
+  if (height?.nz !== undefined) {
+    const side = Math.max(0, a.g * a.g - 1);
+    const b = (Math.abs(a.bankDeg) * Math.PI) / 180;
+    const lift = height.nz * Math.cos(b) + Math.sqrt(side) * Math.sin(b);
+    a.g = Math.sign(lift || 1) * Math.sqrt(side + height.nz * height.nz);
   }
   flyAttitude(a, attitudeBefore, dt, seg?.roll ?? ROLL); // the wings follow the lift as a roll, and set the G's sign
   // The path is flown at the aircraft's true airspeed (constant, Patrick card 09:54Z, except in a speed
