@@ -11,7 +11,7 @@
 //
 // Built again only when the list, the height scale, the ground or home changes; the groups are switched with `.visible`, which rebuilds
 // nothing. `dispose()` frees everything.
-import { AIRSPACE_FILL_OPACITY, TACNAV_AGL_FT, outlineXY, routeXY, tacnavFt, airspaceWords, airspaceTitle, CIRCLE_SIDES } from './airspace-model.js';
+import { AIRSPACE_FILL_OPACITY, TACNAV_AGL_FT, KIND_WORDS, outlineXY, routeXY, tacnavFt, airspaceWords, airspaceTitle, CIRCLE_SIDES } from './airspace-model.js';
 
 /** The groups the view's two toggles switch. */
 export const AIRSPACE_GROUPS = Object.freeze(['airspace', 'tacnav']);
@@ -29,17 +29,19 @@ const ROUTE_COLOUR = '#ffcc66'; // the 2D map's route colour (dashed there too)
 const EDGE_OPACITY = 0.85;
 /** A TACNAV line's dashes, in scene feet (as the rings'). An estimate for readability. */
 const ROUTE_DASH = Object.freeze({ dashSize: 7_000, gapSize: 4_000 });
-const VERTICAL_EDGES_ON_CIRCLE = 8;
 
 /**
  * Builds the layers. `T` is three.js; `volumes` are airspace-model.js `checkedAirspace().volumes`; `routes` are the Debrief's routes
  * ({ name, paths: [[[lon, lat], ...]] }, already limited to the TACNAV ones); `toXY(lat, lon)` gives [x, y] in the map's feet; `scale` is the
  * height scale and `groundFt` the ground the view draws, in feet above sea level.
  *
- * Returns { root, labels, summary, dispose() }:
+ * Returns { root, labels, picks, summary, dispose() }:
  * - root: a Group with one Group per AIRSPACE_GROUPS entry (`root.userData.groups`);
- * - labels: [{ group, key, text, compact, title, restricted, point: { x, y, z } }]: a volume's label stands at the middle of its top ring
- *   (text "CYR303 SFC–FL180", compact the id alone), a route's at its first point, at the route's height;
+ * - labels: [{ group: 'tacnav', key, text, compact, title, restricted, point: { x, y, z }, paths: [[{ x, y, z }, ...]] }]: each route's name, its first point
+ *   and its lines at the route's height. Nothing stands in the picture: a route's name, like a volume's words, shows only while the pointer is over it
+ *   (Dad, 7 Oct: "too much clutter"); view3d.js finds the route near the pointer from `paths`;
+ * - picks: [{ mesh, key, text, title }]: each volume's fill, for the view to ray-cast the pointer against; `text` is the words shown beside the pointer
+ *   ("CYA305 6,000 ft AGL–FL190 (Class F advisory area)"), `title` the existing hover sentence;
  * - summary: { volumes, routes } (counts drawn).
  */
 export function buildAirspace(T, { volumes = [], routes = [], toXY, scale, groundFt }) {
@@ -57,6 +59,7 @@ export function buildAirspace(T, { volumes = [], routes = [], toXY, scale, groun
     return thing;
   };
   const labels = [];
+  const picks = [];
   const fills = new Map(); // kind -> material, shared
   const edges = new Map();
   const fillOf = (kind) => {
@@ -94,27 +97,27 @@ export function buildAirspace(T, { volumes = [], routes = [], toXY, scale, groun
     fill.renderOrder = 1;
     fill.name = `airspace-${volume.id}`;
 
-    // Outline: the top and bottom rings, and the vertical edges (every corner of a polygon, eight round a circle).
+    // Outline: the top and bottom rings, and vertical edges at the DAH's own corners only (Dad, 7 Oct: no lines all along the arcs).
+    // A polygon whose data names its corners (`shape.corners`, indices into its points) gets posts there; one without gets a post at
+    // every point; a circle gets none.
     const loop = (z) => own(new T.BufferGeometry().setFromPoints(ring.map(([x, y]) => new T.Vector3(x, y, z))));
     const top = new T.LineLoop(loop(zt), edgeOf(volume.kind));
     const bottom = new T.LineLoop(loop(zb), edgeOf(volume.kind));
-    const step = volume.shape.type === 'circle' ? CIRCLE_SIDES / VERTICAL_EDGES_ON_CIRCLE : 1;
+    const corners = volume.shape.type !== 'polygon' ? []
+      : Array.isArray(volume.shape.corners) && volume.shape.corners.length ? volume.shape.corners.filter((i) => Number.isInteger(i) && i >= 0 && i < n)
+        : ring.map((_, i) => i);
     const posts = [];
-    for (let i = 0; i < n; i += step) posts.push(new T.Vector3(ring[i][0], ring[i][1], zb), new T.Vector3(ring[i][0], ring[i][1], zt));
+    for (const i of corners) posts.push(new T.Vector3(ring[i][0], ring[i][1], zb), new T.Vector3(ring[i][0], ring[i][1], zt));
     const sides = new T.LineSegments(own(new T.BufferGeometry().setFromPoints(posts)), edgeOf(volume.kind));
     for (const line of [top, bottom, sides]) line.renderOrder = 3;
     groups.airspace.add(fill, top, bottom, sides);
 
-    const cx = ring.reduce((sum, p) => sum + p[0], 0) / n;
-    const cy = ring.reduce((sum, p) => sum + p[1], 0) / n;
-    labels.push({
-      group: 'airspace',
+    const kind = KIND_WORDS[volume.kind]?.name ?? 'airspace';
+    picks.push({
+      mesh: fill,
       key: volume.id,
-      text: airspaceWords(volume),
-      compact: volume.id,
+      text: `${airspaceWords(volume)} (${volume.classLetter ? `Class ${volume.classLetter} ` : ''}${kind})`,
       title: airspaceTitle(volume),
-      restricted: volume.kind === 'restricted',
-      point: { x: cx, y: cy, z: zt },
     });
   }
 
@@ -132,12 +135,17 @@ export function buildAirspace(T, { volumes = [], routes = [], toXY, scale, groun
       groups.tacnav.add(line);
     }
     drawnRoutes += 1;
-    labels.push({ group: 'tacnav', key: route.name, text: route.name, compact: route.name, title: `${route.name}: ${TACNAV_AGL_FT} ft above the ground (estimate)`, restricted: false, point: { x: projected.first[0], y: projected.first[1], z: zr } });
+    labels.push({
+      group: 'tacnav', key: route.name, text: route.name, compact: route.name, title: `${route.name}: ${TACNAV_AGL_FT} ft above the ground (estimate)`, restricted: false,
+      point: { x: projected.first[0], y: projected.first[1], z: zr },
+      paths: projected.paths.map((path) => path.map(([x, y]) => ({ x, y, z: zr }))),
+    });
   }
 
   return {
     root,
     labels,
+    picks,
     summary: { volumes: volumes.length, routes: drawnRoutes },
     dispose() {
       root.removeFromParent();

@@ -38,6 +38,8 @@ It runs on a free Cloudflare account (the Workers free plan allows 100,000 reque
 
 **Live now (7 Oct 2026):** `https://dads-sof-relay.netlify.app`, deployed from Dad's computer session with `npx netlify-cli deploy --prod --site dads-sof-relay --dir netlify/public --functions netlify/functions --no-build` run in `relay/`. It is not linked to GitHub (the repository is Patrick's), so a change to the relay needs that command run again.
 
+**Second network (Dad, 7 Oct 2026):** adsb.lol alone missed low aircraft near Regina (ACA1104 on approach at 2,600 ft, STAR9 at 3,950 ft), because its volunteer receivers did not hear them. With `SECOND_FEED=adsb.fi` the relay also asks adsb.fi's open data API (`opendata.adsb.fi`, free for non-commercial use) and merges the two by hex id, keeping the more recent position; either one alone still works if the other fails. The Netlify wrapper turns it on by default (set `SECOND_FEED=none` on the site to turn it off); the Cloudflare version and the tests leave it off. Both aircraft showed once it was on.
+
 **Keys and secrets:** the relay needs none today. If adsb.lol ever asks for a key, it goes in a Worker environment variable or secret in the Cloudflare dashboard, never in this file or anywhere in the repository.
 
 Things to know:
@@ -60,6 +62,13 @@ The same relay also runs as a Netlify Function: `netlify/functions/traffic.mjs` 
 6. In the tool, open the SOF → **SOF settings** → **Traffic relay address** and enter `https://<site>.netlify.app` (nothing after it). The Traffic switch then appears on the map.
 
 `ALLOWED_ORIGINS` can be set under **Site configuration → Environment variables**, the same as on Cloudflare. Netlify only rebuilds when something in `relay/` changes. The free plan allows 125,000 function calls a month; one SOF screen open for a 10-hour day at one call every 10 s is about 3,600 a day, so about 20 SOF-days a month before the limit (estimate). Keep the screen closed when not in use, or raise the interval, if it is open all day every day.
+
+## Two more answers: NOTAMs and fronts (`wx.js`, Dad, 7 Oct 2026)
+
+- `GET /notam?sites=CYMJ,CYQR` (1 to 8 ICAO ids): NOTAMs from NAV CANADA's flight weather site (`plan.navcanada.ca/weather/api/alpha/`), rebuilt as `{ source, fetched, sites, notams: [{ id, location, start, end, raw }] }`, kept 5 minutes. A page cannot read NAV CANADA directly (no CORS header). NAV CANADA's terms for automated reading of that site were not found on 7 Oct; Patrick to confirm before daily use.
+- `GET /fronts`: the US Weather Prediction Center's coded surface fronts bulletin (CODSUS, public domain, `tgftp.nws.noaa.gov`), parsed to `{ valid, highs, lows, fronts: [{ type: COLD|WARM|STNRY|OCFNT|TROF, points: [[lat, lon], ...] }] }`, kept 15 minutes. Positions are whole degrees, as the bulletin codes them.
+- `GET /alerts?sites=CYMJ,CYQR` (1 to 8 ICAO ids): SIGMETs, AIRMETs and PIREPs near those sites from the same NAV CANADA source, as `{ alerts: [{ kind, location, start, end, text }] }`, kept 5 minutes. On 7 Oct none were in force near Moose Jaw; PIREPs seen elsewhere carry their position and level in the text.
+- Netlify functions `netlify/functions/notam.mjs`, `alerts.mjs` and `fronts.mjs`; same allowed origins and rules as `/traffic`. Live at `https://dads-sof-relay.netlify.app/notam` and `/fronts` since 7 Oct.
 
 ## Credit and terms for adsb.lol
 

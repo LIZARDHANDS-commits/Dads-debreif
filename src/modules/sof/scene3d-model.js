@@ -5,9 +5,15 @@
 // The 3D view is a picture for situational awareness. It never decides anything: no limit is checked here
 // and nothing in it raises or clears a caution.
 import { FT_PER_NM } from './map-view.js';
+import { AIRPORTS } from './airports-data.js';
+import { velocityFt } from './traffic-motion.js';
 
-/** The square the view shows: 250 NM on a side, centred on home, so the usual alternates (CYYN, CYXE about 110 NM out) are inside (SOF-39). */
-export const AREA_NM = 250;
+/**
+ * The square the view shows: 450 NM on a side, centred on home (Dad, 7 Oct: "grow it by 100 NM each way so no empty corners show while orbiting"; it was 250), so the
+ * usual alternates (CYYN, CYXE about 110 NM out) are well inside (SOF-39). Everything that scales with it takes `AREA_FT`: the model grid, the ground canvases, the
+ * cloud sheets, the camera's fit.
+ */
+export const AREA_NM = 450;
 export const AREA_FT = AREA_NM * FT_PER_NM;
 /** A cloud deck is a flat round disc this wide at its base (SOF-39). */
 export const DECK_NM = 10;
@@ -21,6 +27,9 @@ export const DECK_FT = DECK_NM * FT_PER_NM;
 export const COVER_OPACITY = Object.freeze({ FEW: 0.25, SCT: 0.45, BKN: 0.7, OVC: 0.9 });
 
 const isNumber = (v) => typeof v === 'number' && Number.isFinite(v);
+
+/** A field's elevation in feet above sea level: airports-data.js (OurAirports) first, then the airfield's own, else null ("elevation unknown"). */
+export const fieldElevationFt = (icao, field) => AIRPORTS.find((a) => a.icao === icao)?.elevationFt ?? (isNumber(field?.elevationFt) ? field.elevationFt : null);
 
 /** A whole number of feet with its comma: 2500 reads "2,500". */
 export const formatFeet = (ft) => String(Math.round(ft)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -85,7 +94,7 @@ export const CATEGORY_TOKENS = Object.freeze({
  *   never drawn as the sky now.
  * - A layer with no base is not drawn, and the pin adds "base unknown".
  *
- * An airfield outside the square (`outside`: true; Saskatoon is some 110 NM from Moose Jaw, past the 75 NM half-width) is not drawn:
+ * An airfield outside the square (`outside`: true; Saskatoon is some 110 NM from Moose Jaw, past the half-width) is not drawn:
  * a pin hanging in the air past the edge of the ground would be misleading, so the view names it instead.
  *
  * Each: { icao, home, x, y, outside, groundFt, category, key, result, old, lines, title, decks } where `lines` are the pin's words, `title` is the same as a sentence for hover, `key` is a
@@ -96,7 +105,7 @@ export function sceneAirfields({ marks = [], cards = [], fields = [], snapshot =
   const byIcao = new Map(fields.map((f) => [f.icao, f]));
   const cardOf = new Map(cards.map((c) => [c.icao, c]));
   const homeMark = marks.find((m) => m.home);
-  const homeElevation = byIcao.get(homeMark?.icao)?.elevationFt;
+  const homeElevation = fieldElevationFt(homeMark?.icao, byIcao.get(homeMark?.icao));
   const out = [];
   for (const mark of marks) {
     const field = byIcao.get(mark.icao);
@@ -105,7 +114,7 @@ export function sceneAirfields({ marks = [], cards = [], fields = [], snapshot =
     const fresh = card?.metar?.state === 'fresh';
     const noMetar = !fresh && !mark.old;
     const sky = fresh ? snapshot.metar?.[mark.icao]?.report?.conditions?.sky : null;
-    const own = isNumber(field?.elevationFt) ? field.elevationFt : null;
+    const own = fieldElevationFt(mark.icao, field);
     const result = cloudDecks({ sky: sky ?? [], elevationFt: own ?? (isNumber(homeElevation) ? homeElevation : null) });
     const lines = [];
     if (noMetar) lines.push(`${mark.icao} No METAR`);
@@ -171,45 +180,57 @@ export function tagWords(a, label = 'off') {
  * - Opacity is traffic.js's own stale fade, and an aircraft the 2D layer has dropped (too old) is gone here too: nothing is frozen.
  * - T-6s ('TEX2') come first, then the relay's order, up to MAX_3D_AIRCRAFT; the words say when some are left out.
  *
- * Returns { shown, status, statusText, aircraft: [{ hex, x, y, altFt, trackDeg, opacity, mil, isT6, name, tag, labelText, description }], noAltitude,
- * leftOut, labelsOn (the Labels choice is not 'off': every tag shows), signature }; `shown` is false when the layer is off.
+ * Smoother traffic (Dad, 7 Oct): `x` and `y` are where the aircraft was reported; `vx` and `vy` (feet a second east and north, from its track and
+ * ground speed; null when it cannot be glided) with `ageS` (the report's age at `t0`, which is `now` in milliseconds) let the view put it where it
+ * should be by now (traffic-motion.js `glideXY`). `trails` is the memory of reported positions (`createTrails`) and `trailsOn` the Trails choice: each
+ * aircraft then carries `trail`, [{ x, y, altFt, t }] oldest first, the positions of the last couple of minutes (t in ms).
+ *
+ * Returns { shown, status, statusText, aircraft: [{ hex, x, y, vx, vy, ageS, t0, trail, altFt, trackDeg, opacity, mil, isT6, name, tag, labelText, description }],
+ * noAltitude, leftOut, labelsOn (the Labels choice is not 'off': every tag shows), trailsOn, signature }; `shown` is false when the layer is off.
  */
-export function sceneTraffic({ view, toXY, label = 'off', max = MAX_3D_AIRCRAFT } = /** @type {any} */ ({})) {
-  if (!view || view.show !== true) return { shown: false, status: view?.status ?? 'off', statusText: '', aircraft: [], noAltitude: 0, leftOut: 0, labelsOn: false, signature: 'off' };
+export function sceneTraffic({ view, toXY, label = 'off', max = MAX_3D_AIRCRAFT, now = null, trails = null, trailsOn = false } = /** @type {any} */ ({})) {
+  if (!view || view.show !== true) return { shown: false, status: view?.status ?? 'off', statusText: '', aircraft: [], noAltitude: 0, leftOut: 0, labelsOn: false, trailsOn: false, signature: 'off' };
   const drawable = [];
   let noAltitude = 0;
+  // An aircraft with no height is still drawn, just above the ground with "height ?" in its tag (Dad, 7 Oct: a low aircraft was missing).
   for (const a of view.aircraft ?? []) {
-    if (a.altitudeFt !== 'ground' && !isNumber(a.altitudeFt)) {
-      noAltitude += 1;
-      continue;
-    }
+    if (a.altitudeFt !== 'ground' && !isNumber(a.altitudeFt)) noAltitude += 1;
     drawable.push(a);
   }
   const ordered = [...drawable.filter((a) => a.type === T6_TYPE), ...drawable.filter((a) => a.type !== T6_TYPE)];
   const leftOut = Math.max(0, ordered.length - max);
   const aircraft = ordered.slice(0, max).map((a) => {
     const [x, y] = toXY(a.lat, a.lon);
+    const v = Number.isFinite(now) ? velocityFt(a) : null;
     return {
       hex: a.hex,
       x,
       y,
-      altFt: a.altitudeFt,
+      vx: v ? v.vx : null,
+      vy: v ? v.vy : null,
+      ageS: a.ageS,
+      t0: Number.isFinite(now) ? now : null,
+      trail: trailsOn && trails ? trails.get(a.hex).map((p) => {
+        const [tx, ty] = toXY(p.lat, p.lon);
+        return { x: tx, y: ty, altFt: p.alt, t: p.t };
+      }) : [],
+      altFt: a.altitudeFt === 'ground' || isNumber(a.altitudeFt) ? a.altitudeFt : null,
       trackDeg: a.hasTrack ? a.rotationDeg : null,
       opacity: a.opacity,
       mil: a.mil === true,
       isT6: a.type === T6_TYPE,
       name: aircraftName(a),
-      tag: tagWords(a, 'off'),
-      labelText: tagWords(a, label),
+      tag: a.altitudeFt === 'ground' || isNumber(a.altitudeFt) ? tagWords(a, 'off') : `${aircraftName(a)} height ?`,
+      labelText: a.altitudeFt === 'ground' || isNumber(a.altitudeFt) ? tagWords(a, label) : `${aircraftName(a)} height ?`,
       description: a.description || `${String(a.hex).toUpperCase()}.`,
     };
   });
   const notes = [];
-  if (noAltitude) notes.push(`${noAltitude} without a height not drawn`);
+  if (noAltitude) notes.push(`${noAltitude} without a height, drawn just above the ground`);
   if (leftOut) notes.push(`nearest ${max} drawn`);
   const statusText = notes.length ? `${view.statusText} (${notes.join(', ')})` : view.statusText;
-  const rows = aircraft.map((a) => [a.hex, Math.round(a.x), Math.round(a.y), a.altFt, a.trackDeg === null ? '' : Math.round(a.trackDeg), a.opacity, a.mil ? 1 : 0, a.tag, a.labelText].join(','));
-  return { shown: true, status: view.status, statusText, aircraft, noAltitude, leftOut, labelsOn: label !== 'off', signature: `${view.status}|${label !== 'off'}|${rows.join(';')}` }; // the words change with the clock, the drawing only when an aircraft does
+  const rows = aircraft.map((a) => [a.hex, Math.round(a.x), Math.round(a.y), a.altFt, a.trackDeg === null ? '' : Math.round(a.trackDeg), a.opacity, a.mil ? 1 : 0, a.tag, a.labelText, a.trail.length, a.trail.at(-1)?.t ?? ''].join(','));
+  return { shown: true, status: view.status, statusText, aircraft, noAltitude, leftOut, labelsOn: label !== 'off', trailsOn, signature: `${view.status}|${label !== 'off'}|${trailsOn}|${rows.join(';')}` }; // the words change with the clock, the drawing only when an aircraft does
 }
 
 // ---- The camera -----------------------------------------------------------------------------------
@@ -221,8 +242,12 @@ export const PITCH_LIMITS = Object.freeze([5, 85]);
 /** A wheel notch, a pinch step and the keys' turn. Estimates for feel. */
 export const ORBIT_DEG_PER_PX = Object.freeze({ yaw: 0.4, pitch: 0.25 });
 export const ZOOM_STEP = 1.25;
-/** The zoom limits as a share of the start (fit) zoom: out to half of it, in to twenty times it. */
-export const ZOOM_RANGE = Object.freeze([0.5, 20]);
+/**
+ * The zoom limits as a share of the start (fit) zoom: out to half of it, in to 540 times it (was 20, then 300 over the 250 NM square). At 20 times, Moose Jaw's 150 ft wide
+ * runway is about 2 px across, so the airports' markings and numbers (airports3d.js) could never be read; at 300 times over 250 NM it was about 30 px, and the square grew
+ * to 450 NM (the fit zoom fell by 1.8), so 540 keeps the same closest view. An estimate for readability, SOF-39.
+ */
+export const ZOOM_RANGE = Object.freeze([0.5, 540]);
 export const KEY_ORBIT_PX = Object.freeze({ ArrowLeft: [-30, 0], ArrowRight: [30, 0], ArrowUp: [0, -30], ArrowDown: [0, 30] });
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));

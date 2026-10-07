@@ -16,7 +16,8 @@ import { cautionList } from './cautions.js';
 /** The line under the screen: what it is not, and where the weather comes from. */
 export const CREDITS = 'Not for flight planning. Confirm with NAV CANADA. '
   + `Weather: ${SOURCES.metno.name} (CC BY 4.0), ${SOURCES.datamask.name}. `
-  + 'Model clouds and winds in the 3D view: Open-Meteo (CC BY 4.0), ECCC GEM (model estimate).';
+  + 'Model clouds and winds in the 3D view: Open-Meteo (CC BY 4.0), ECCC HRDPS and GEM (model estimate). '
+  + '3D fronts: WPC surface analysis; satellite, radar and lightning: ECCC.';
 
 /** The weather feed reads STALE once its last good round is older than this (three missed refreshes). */
 export const STALE_FEED_MIN = 15;

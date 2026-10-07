@@ -204,3 +204,5 @@ The one list. Each line is a question; the working answer applies until he says 
 - [ ] **DB-Q4:** no smoothing of the estimated G (D219) or a 3-point median filter (D383); neither is built (`pf/reset/1-requirements/questions.md:17`, `docs/modules/debrief/plan.md:37`).
 - [ ] **The two PC-only reports** (Turn Sim and Turn Fight architecture reports): where in the repo their content lands (`pf/reset/2-inventory/file-register.md:194`).
 - [ ] **Dad's questions and the screenshots question:** when to send, and the second ask (steps 6 and 7).
+- [ ] **SOF divert aid fuel numbers (Dad, 7 Oct):** give the planning fuel burn and reserve the SOF's recall and divert aid should use (CT-156 performance charts are controlled and never shipped). Working answer: the aid shows distance, bearing and time, and fuel as "needs Patrick's numbers" until then.
+- [ ] **SOF low-level traffic source (Dad, 7 Oct; asked on PR #680):** (a) ask airplanes.live for free non-commercial access, (b) pay for ADS-B Exchange's API, (c) leave as is with the ADS-B Exchange view button. Working answer: (c), the relay merges adsb.lol and adsb.fi.
