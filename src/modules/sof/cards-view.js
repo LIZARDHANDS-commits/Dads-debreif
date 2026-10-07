@@ -89,6 +89,32 @@ function notamSection(n) {
       notamRaw(x)))));
 }
 
+const XW_SYMBOL = { amber: '⚠', red: '⚠' };
+
+/**
+ * The crosswind per runway (crosswind.js `crosswindFor`; SOF-43): the wind in words, then a small table, one row per runway end with its headwind and
+ * crosswind, amber or red with ⚠ and words when over a level, and the favoured end marked "favoured". An old METAR, no METAR or no reported wind says
+ * so instead. A hint when the METAR reports precipitation that the runway may be wet (the setting never changes by itself).
+ */
+function runwaySection(x) {
+  if (!x) return null;
+  const title = h('h3', { class: 'sof-report-title' }, 'Runways');
+  const section = (...rest) => h('section', { class: 'sof-runways', dataset: { status: x.status } }, title, ...rest.filter(Boolean));
+  if (!x.ends.length) return section(h('p', { class: 'sof-notam-none' }, x.note));
+  const head = h('tr', {}, h('th', { scope: 'col' }, 'Runway'), h('th', { scope: 'col' }, 'Head (+) / tail (−)'), h('th', { scope: 'col' }, 'Crosswind'));
+  const rows = x.ends.map((e) => h('tr', { class: `sof-xw-row is-${e.level}${e.favoured ? ' is-favoured' : ''}` },
+    h('th', { scope: 'row' }, h('span', { class: 'sof-xw-name' }, e.name), e.favoured ? h('span', { class: 'sof-xw-favoured' }, ' favoured') : null),
+    h('td', {}, e.head),
+    h('td', {}, e.cross, e.levelWords ? h('span', { class: `sof-xw-level is-${e.level}` }, ` ${XW_SYMBOL[e.level]} ${e.levelWords}`) : null)));
+  return section(
+    h('p', { class: 'sof-xw-wind' }, x.windWords),
+    h('table', { class: 'sof-xw-table' }, h('thead', {}, head), h('tbody', {}, rows)),
+    x.note ? h('p', { class: 'sof-notam-none' }, x.note) : null,
+    x.hint ? note(x.hint, 'info') : null,
+    h('p', { class: 'sof-xw-levels' }, x.levelsWords),
+  );
+}
+
 /**
  * The SIGMETs, AIRMETs and PIREPs within 100 NM of the field (alerts.js `alertsFor`), after the NOTAMs: one short line each (kind, hazard, levels, time and
  * how far), a SIGMET for severe icing, severe turbulence or thunderstorms over the field's area first in amber with ⚠ and words, and the message's own
@@ -153,6 +179,7 @@ function fullCard(card, { onClose }) {
     report('METAR', card.metar),
     report('TAF', card.taf),
     note(card.watchText, 'info'),
+    runwaySection(card.crosswind),
     notamSection(card.notams),
     alertSection(card.alerts),
   ].filter(Boolean); // replaceChildren would turn a null into the text "null"
@@ -290,7 +317,8 @@ export function createCardsView({ dropdowns = undefined, timers = null, listen =
     entry.button.title = `${card.icao}${card.name ? ` ${card.name}` : ''}, ${where}. ${card.result.words}. TAF: ${taf.text}. Press for the full card.`;
     const chip = card.notams?.chip ?? null; // "⚠ RWY CLSD" for a critical NOTAM, a grey "NOTAMs ?" when they are unavailable
     const chipWords = chip ? (chip.level === 'critical' ? `⚠ ${chip.words}` : chip.words) : null;
-    entry.button.setAttribute('aria-label', `${card.icao} ${where}, ${card.category ?? 'no category'}, ${mark.words}${chip ? `, ${chip.level === 'critical' ? `NOTAM: ${chip.words}` : 'NOTAMs unavailable'}` : ''}. Open the full card.`);
+    const xw = card.crosswind?.chip ?? null; // "XW 18 ⚠" when the favoured runway's crosswind is amber or red (SOF-43)
+    entry.button.setAttribute('aria-label', `${card.icao} ${where}, ${card.category ?? 'no category'}, ${mark.words}${chip ? `, ${chip.level === 'critical' ? `NOTAM: ${chip.words}` : 'NOTAMs unavailable'}` : ''}${xw ? `, crosswind ${xw.words.replace(' ⚠', '')} kt, ${xw.level}` : ''}. Open the full card.`);
     entry.button.replaceChildren(
       h('span', { class: 'sof-row-top' },
         h('span', { class: 'sof-icao' }, card.icao),
@@ -300,6 +328,7 @@ export function createCardsView({ dropdowns = undefined, timers = null, listen =
         card.role === 'HOME' ? h('span', { class: 'sof-row-home', 'aria-hidden': 'true' }, 'HOME') : null),
       h('span', { class: `sof-row-mark level-${mark.level}`, 'aria-hidden': 'true' }, h('span', { class: 'sof-result-symbol' }, mark.symbol), ` ${mark.words}`),
       ...(chipWords ? [h('span', { class: `sof-row-notam is-${chip.level}`, 'aria-hidden': 'true' }, chipWords)] : []), // replaceChildren would turn a null into the text "null"
+      ...(xw ? [h('span', { class: `sof-row-xw is-${xw.level}`, 'aria-hidden': 'true', title: `Favoured runway crosswind ${xw.level}` }, xw.words)] : []),
     );
   }
 

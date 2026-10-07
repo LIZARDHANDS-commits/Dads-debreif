@@ -5,7 +5,8 @@
 // when the module closes, because every timer is on the module's scheduler scope and every request is
 // cancelled by unmount (R4, audit #11).
 import { h } from '../../ui-kit/dom.js';
-import { createSofSettings } from './settings-model.js';
+import { createSofSettings, createCrosswindSettings } from './settings-model.js';
+import { crosswindFor } from './crosswind.js';
 import { createSettingsView } from './settings-view.js';
 import { createWeather } from './weather.js';
 import { buildScreen } from './screen-model.js';
@@ -34,9 +35,10 @@ function mount(root, app) {
   document.head.append(stylesheet);
 
   const settings = createSofSettings(app.storage);
+  const crosswind = createCrosswindSettings(app.storage); // the crosswind levels and the runway state (SOF-43), in their own stored document
   // The drop-downs over the screen (SOF settings, the clocks, the caution list, a wave's boxes): one open at a time (SOF-38).
   const dropdowns = createDropdowns({ listen: app.listen });
-  const settingsView = createSettingsView({ settings, onToggle: () => ui.closeSettings() });
+  const settingsView = createSettingsView({ settings, crosswind, onToggle: () => ui.closeSettings() });
   const weather = createWeather({
     stations: () => app.airfields.stations(),
     fetch: (url, init) => globalThis.fetch(url, init),
@@ -123,12 +125,19 @@ function mount(root, app) {
     const screen = buildScreen({ airfields: app.airfields, snapshot, limits, now, lightning: map.lightning(now), timeZone: app.time.zone });
     const tafs = Object.fromEntries(Object.entries(snapshot.taf).map(([icao, entry]) => [icao, entry?.report ?? null]));
     const notes = tafNotes({ snapshot, now }); // a stale or failed TAF is said on the chips and the timeline rows too
+    // Crosswind per runway (SOF-43) for each card from its METAR's wind; red on every runway end at home goes on the banner, amber stays on the card.
+    const xwSettings = crosswind.get();
+    const winds = new Map(screen.cards.map((c) => {
+      const conditions = snapshot.metar[c.icao]?.report?.conditions ?? null;
+      return [c.icao, crosswindFor({ icao: c.icao, role: c.role, metar: c.metar, wind: conditions?.wind ?? null, weather: conditions?.weather ?? [], settings: xwSettings })];
+    }));
+    const xwCautions = [...winds.values()].map((x) => x?.caution).filter(Boolean);
     const waves = buildWaves({ plan: plan.get(), airfields: app.airfields, tafs, limits, now, timeZone: app.time.zone, selectedId, tafNotes: notes });
     banner = buildBanner({
       cards: screen.cards,
       tafs: tafInputs({ tafs, calls: waves.calls, homeIcao: app.airfields.home().icao, homeLimits: limits, now, timeZone: app.time.zone }),
       // Other writers' cautions (lightning near home) arrive on the screen model in cautions.js's shape.
-      extra: screen.extraCautions ?? [],
+      extra: [...(screen.extraCautions ?? []), ...xwCautions],
       acks: app.storage.get(ACKS_KEY, null),
       now,
       timeZone: app.time.zone,
@@ -167,6 +176,7 @@ function mount(root, app) {
       cards: screen.cards.map((c) => ({
         ...c,
         ...(waves.altLines.has(c.icao) ? { waveLine: waves.altLines.get(c.icao) } : {}),
+        crosswind: winds.get(c.icao) ?? null,
         notams: notamsFor(notamState, c.icao, now),
         // SIGMETs, AIRMETs and PIREPs within 100 NM, after the NOTAMs (never "none" unless a fresh answer has none near the field).
         alerts: alertsFor(alertsState, fields.get(c.icao) ?? { icao: c.icao }, now),
@@ -177,6 +187,7 @@ function mount(root, app) {
 
   const stops = [
     settings.subscribe(render),
+    crosswind.subscribe(render),
     plan.subscribe(render),
     ...(app.settings ? [app.settings.subscribe(render)] : []), // the app-wide time order (Zulu or local first) sets the timeline's axis
     // New stations mean a new list to ask for; anything else (minima, names) only changes the cards.
