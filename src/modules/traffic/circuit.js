@@ -24,6 +24,7 @@ import { ktToFtps, KT_TO_FTPS, G_FTPS2 } from '../../core/units.js';
 import { wrapDeg180, compassDegFromVector, wrapDeg360 } from '../../core/angles.js';
 import { turnRateFromBankRadPerSec, turnRadiusFromBankFt, gFromBankDeg, easeRoll } from '../../core/flight-math.js';
 import { excessThrustPerWeight, dragPerWeight, attitudeDegFromClimb } from '../../core/t6-performance.js';
+import { gateRoll } from './envelope.js';
 import { iasToTasKt, tasToIasKt, heightFactor, temperatureKey } from './weather.js';
 import { windTriangle, windVectorFtps } from '../../core/wind.js';
 import { legOffsetsFt } from '../../core/geo.js';
@@ -310,13 +311,14 @@ export function timeToTurnOnto(line, s, wind, bankMax, trackDeg, radiusFt, groun
  */
 export function makePilot(start, wind) {
   const w = windVectorFtps(wind.windFromDeg, wind.windKt);
-  const s = { ...start, bank: 0, rollRate: 0, k: 0, src: start.src ?? 0, phase: start.phase ?? 'initial', tag: undefined };
+  const s = { ...start, bank: start.bank ?? 0, rollRate: start.rollRate ?? 0, k: 0, src: start.src ?? 0, phase: start.phase ?? 'initial', tag: undefined };
   const points = [];
   const tasKt = () => iasToTasKt(s.ias, s.alt);
   const record = (extra = {}) => {
     points.push({
       x: s.x, y: s.y, alt: Math.round(s.alt * 10) / 10, kt: Math.round(s.ias * 10) / 10,
-      g: Math.round(gFromBankDeg(s.bank) * 100) / 100, src: s.src, phase: s.phase, headingDeg: s.hdg, tag: s.tag, ...s.rec, ...extra,
+      g: Math.round(gFromBankDeg(s.bank) * 100) / 100, bankDeg: Math.round(s.bank * 10) / 10,
+      rollRateDps: Math.round(s.rollRate * 10) / 10, src: s.src, phase: s.phase, headingDeg: s.hdg, tag: s.tag, ...s.rec, ...extra,
     });
   };
   const ground = () => {
@@ -330,11 +332,12 @@ export function makePilot(start, wind) {
     const wt = windTriangle(track, tasKt(), wind.windFromDeg, wind.windKt);
     return wt.canHoldTrack ? wt.headingDeg : track;
   };
-  function step(targetBank, climbFtps, accelFtps2) {
-    const roll = easeRoll(s.bank, s.rollRate, targetBank, DT, ROLL);
-    s.bank = roll.bankDeg;
-    s.rollRate = roll.rollRateDps;
-    const v = ktToFtps(tasKt());
+  function step(targetBank, climbFtps, accelFtps2, roll = s.rollLimits ?? ROLL) {
+    const tasFtps = ktToFtps(tasKt());
+    const rolled = gateRoll(s.bank, s.rollRate, targetBank, DT, roll, tasFtps, s.ias);
+    s.bank = Math.abs(rolled.bankDeg) < 1e-9 ? 0 : rolled.bankDeg;
+    s.rollRate = Math.abs(rolled.rollRateDps) < 1e-9 ? 0 : rolled.rollRateDps;
+    const v = tasFtps;
     s.hdg = wrapDeg360(s.hdg + turnRateFromBankRadPerSec(Math.max(v, 1), s.bank) * 180 / Math.PI * DT);
     const g = ground();
     s.x += g.x * DT;

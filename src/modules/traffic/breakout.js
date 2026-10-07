@@ -45,9 +45,10 @@ const MOST_SEC = 600; // a guard: no breakout climb lasts this long
  */
 export function buildBreakout(from, wind, rejoinRoute, leg, bankDeg = 50, turnDir = null) {
   const env = { windFromDeg: wind?.windFromDeg ?? 360, windKt: wind?.windKt ?? 0 };
-  const pilot = makePilot({ x: from.x, y: from.y, alt: from.alt, ias: from.kias, hdg: from.headingDeg, src: 0, phase: 'breakout' }, env);
+  const pilot = makePilot({ x: from.x, y: from.y, alt: from.alt, ias: from.kias, hdg: from.headingDeg, src: 0, phase: 'breakout', bank: from.bankDeg ?? 0, rollRate: from.rollRateDps ?? 0 }, env);
   const { s } = pilot;
   s.bank = from.bankDeg ?? 0;
+  s.rollRate = from.rollRateDps ?? 0;
   pilot.record();
 
   // Runway geometry for climb-ahead check near departure
@@ -57,10 +58,11 @@ export function buildBreakout(from, wind, rejoinRoute, leg, bankDeg = 50, turnDi
   const nearRunway = from.alt < BREAKOUT_RUNWAY_SAFE_ALT_FT || (fromOffsets.alongFt >= -2000 && fromOffsets.alongFt <= rwyLen + 1000 && Math.abs(fromOffsets.crossFt) < 2500);
 
   let heldTrack = null;
+  let clearedGate = false;
   for (let n = 0; n < MOST_SEC / PILOT_DT; n++) {
     const offsets = legOffsetsFt(THRESHOLD_29L, DEPARTURE_END_29L, s);
     const pastRunway = offsets.alongFt >= rwyLen;
-    const pastGate = s.alt >= BREAKOUT_RUNWAY_SAFE_ALT_FT && pastRunway;
+    if (s.alt >= BREAKOUT_RUNWAY_SAFE_ALT_FT && pastRunway) clearedGate = true;
 
     if (heldTrack === null && Math.hypot(BREAKOUT_PT.x - s.x, BREAKOUT_PT.y - s.y) <= BREAKOUT_REACHED_FT) {
       heldTrack = pilot.trackDeg();
@@ -72,11 +74,12 @@ export function buildBreakout(from, wind, rejoinRoute, leg, bankDeg = 50, turnDi
     const { climb, accel } = powerClimb(pilot, targetKias, BREAKOUT_ALT_FT);
 
     let bank;
-    if (nearRunway && !pastGate) {
+    if (nearRunway && !clearedGate) {
       // Climb straight ahead to 2,500 ft past the runway, wings level (Patrick, 6 Oct)
       bank = bankFor(pilot.headingFor(rwyTrack), s, 5);
     } else {
       // Realistic bank angle in the climbing turn (SMM 4.16: 30-45°; capped at 45° if departing near runway)
+      // The envelope gate (gateRoll in pilot.step) holds bank within the dynamic stall bank and G-onset ceiling.
       const allowedBank = nearRunway ? Math.min(bankDeg, 45) : bankDeg;
       const bankMax = Math.min(allowedBank, bankDegFromG(Math.max(1.01, 0.9 * stallLimitG(s.ias))));
       bank = heldTrack === null

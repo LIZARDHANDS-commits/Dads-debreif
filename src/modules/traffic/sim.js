@@ -47,7 +47,6 @@ import { iasToTasKt } from './weather.js';
 import { setFieldTemperature, placeStraightInDescent } from './weather.js';
 import { windTriangle } from '../../core/wind.js';
 import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
-import { legOffsetsFt } from '../../core/geo.js';
 
 /** The step, in seconds of sim time. */
 export const STEP_SEC = 0.05;

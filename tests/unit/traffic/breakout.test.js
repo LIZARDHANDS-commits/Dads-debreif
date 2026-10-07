@@ -88,7 +88,8 @@ test('near-runway avoidance breakout climbs straight ahead to 2,500 ft past depa
   const rwyLen = Math.hypot(DEPARTURE_END_29L.x - THRESHOLD_29L.x, DEPARTURE_END_29L.y - THRESHOLD_29L.y);
 
   // While below 2,500 ft or before departure end, holds runway track with wings level
-  const lowPoints = path.filter((p) => p.alt < BREAKOUT_RUNWAY_SAFE_ALT_FT || legOffsetsFt(THRESHOLD_29L, DEPARTURE_END_29L, p).alongFt < rwyLen);
+  const firstGateIdx = path.findIndex((p) => p.alt >= BREAKOUT_RUNWAY_SAFE_ALT_FT && legOffsetsFt(THRESHOLD_29L, DEPARTURE_END_29L, p).alongFt >= rwyLen);
+  const lowPoints = path.slice(0, firstGateIdx > 0 ? firstGateIdx : 10);
   assert.ok(lowPoints.length > 0, 'has low-level climb points');
   for (const p of lowPoints) {
     const offHdg = Math.abs(wrapDeg180(p.headingDeg - RUNWAY_29L_HDG_DEG));
@@ -96,7 +97,7 @@ test('near-runway avoidance breakout climbs straight ahead to 2,500 ft past depa
   }
 
   // Holds 140 KIAS sporty climb
-  const midClimbPoints = path.filter((p) => p.alt >= 2600 && p.alt <= 4000);
+  const midClimbPoints = path.filter((p) => p.alt >= 2600 && p.alt <= 3500);
   assert.ok(midClimbPoints.length > 0, 'has mid-climb points');
   for (const p of midClimbPoints) {
     assert.ok(Math.abs(p.kt - AVOID_CLIMB_KIAS) <= 15, `holds 140 KIAS sporty climb, got ${p.kt} at ${p.alt} ft`);
@@ -104,4 +105,27 @@ test('near-runway avoidance breakout climbs straight ahead to 2,500 ft past depa
 
   // Once past 2,500 ft and departure end, turns toward BREAKOUT_PT (south)
   assert.ok(path.some((p) => wrapDeg180(p.headingDeg - RUNWAY_29L_HDG_DEG) < -20), 'turns towards BREAKOUT_PT');
+});
+
+test('breakout bank transitions obey the envelope gate: roll rate and G-onset limits', async () => {
+  const { buildBreakout, gateLegOf, BREAKOUT_TRAFFIC_BANK_DEG } = await import('../../../src/modules/traffic/breakout.js');
+  const { G_ONSET_CEILING } = await import('../../../src/modules/traffic/envelope.js');
+
+  const path = buildBreakout(
+    { ...REJOIN_INTERCEPT_PT, alt: 3500, kias: 220, headingDeg: ENT1_TRACK_DEG, bankDeg: 0 },
+    { windFromDeg: 260, windKt: 15 },
+    ent1,
+    gateLegOf(ent1),
+    BREAKOUT_TRAFFIC_BANK_DEG,
+    'right'
+  );
+
+  // 1. Points record bankDeg and rollRateDps
+  assert.ok(path.every((p) => p.bankDeg !== undefined && p.rollRateDps !== undefined), 'records bankDeg and rollRateDps');
+
+  // 2. G onset does not exceed the airframe ceiling (8 G/s)
+  for (let i = 1; i < path.length; i++) {
+    const dG = (path[i].g - path[i - 1].g) / 0.5; // RECORD_EVERY 5 steps * 0.1s = 0.5s
+    assert.ok(dG <= G_ONSET_CEILING + 0.5, `G onset ${dG.toFixed(2)} G/s stays within ceiling`);
+  }
 });

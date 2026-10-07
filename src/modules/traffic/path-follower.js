@@ -16,6 +16,7 @@ import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
 import { bankDegFromTurnRate, easeRoll, easeValue, gFromBankDeg } from '../../core/flight-math.js';
 import { windTriangle } from '../../core/wind.js';
 import { attitudeDegFromClimb, glideDragPerWeight, glideRatio } from '../../core/t6-performance.js';
+import { gateRoll } from './envelope.js';
 import { THRESHOLD_DATA_ELEV_FT } from './airfield.js';
 import { iasToTasKt } from './weather.js';
 import { posOnRoute, routePath, DEFAULT_ROUTE_OPTIONS } from './route.js';
@@ -309,9 +310,9 @@ export function followRoute(a, route, env, dt, options = DEFAULT_ROUTE_OPTIONS) 
     rateRadPerSec = (wrapDeg180(headingThere(a.distFt + aheadFt) - headingThere(a.distFt - aheadFt)) * Math.PI / 180) / (2 * ATTITUDE_HALF_SEC);
   }
   a.targetBankDeg = bankDegFromTurnRate(tasFtps, rateRadPerSec);
-  const roll = easeRoll(a.bankDeg ?? 0, a.rollRateDps ?? 0, a.targetBankDeg, dt, ROLL);
-  a.bankDeg = roll.bankDeg;
-  a.rollRateDps = roll.rollRateDps;
+  const roll = gateRoll(a.bankDeg ?? 0, a.rollRateDps ?? 0, a.targetBankDeg, dt, ROLL, tasFtps, a.iasKt);
+  a.bankDeg = Math.abs(roll.bankDeg) < 1e-9 ? 0 : roll.bankDeg;
+  a.rollRateDps = Math.abs(roll.rollRateDps) < 1e-9 ? 0 : roll.rollRateDps;
   a.g = gFromBankDeg(a.bankDeg);
 
   // Pitch: the attitude the pilot sees, the climb angle plus the angle of attack at this G less the fuselage datum;
