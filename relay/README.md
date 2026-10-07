@@ -34,6 +34,10 @@ It runs on a free Cloudflare account (the Workers free plan allows 100,000 reque
 4. Copy the Worker's address (it ends in `workers.dev`). That address goes into the SOF's build setting, and into the page's Content Security Policy (through the app frame, see SPEC-sof).
 5. Optional: to allow a different site, set a variable named `ALLOWED_ORIGINS` on the Worker to a comma-separated list of exact origins. If it is left out, or holds nothing usable, the defaults above apply. It can never be set to "allow all".
 
+**User-Agent:** adsb.lol refuses a generic User-Agent ("include valid contact info", seen 7 Oct 2026), so the relay sends `DadsOODALoop-SOF-traffic-relay/1.0 (+https://github.com/LIZARDHANDS-commits/Dads-debreif)`.
+
+**Live now (7 Oct 2026):** `https://dads-sof-relay.netlify.app`, deployed from Dad's computer session with `npx netlify-cli deploy --prod --site dads-sof-relay --dir netlify/public --functions netlify/functions --no-build` run in `relay/`. It is not linked to GitHub (the repository is Patrick's), so a change to the relay needs that command run again.
+
 **Keys and secrets:** the relay needs none today. If adsb.lol ever asks for a key, it goes in a Worker environment variable or secret in the Cloudflare dashboard, never in this file or anywhere in the repository.
 
 Things to know:

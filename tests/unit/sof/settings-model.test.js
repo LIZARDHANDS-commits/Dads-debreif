@@ -121,7 +121,7 @@ test('stored settings out of range or of the wrong type fall back to their defau
 test('a stored value in range but not on the step is snapped up, and one on the range is kept', () => {
   const store = createStore(null).scope('sof');
   store.set('settings', { version: 1, values: { ceilingFt: 2049, visSm: 2.8, lightningNm: 50, banner: false } });
-  assert.deepEqual({ ...createSofSettings(store).get() }, { ceilingFt: 2100, visSm: 3, banner: false, lightningNm: 50, trafficRelay: '' });
+  assert.deepEqual({ ...createSofSettings(store).get() }, { ceilingFt: 2100, visSm: 3, banner: false, lightningNm: 50, trafficRelay: '', heightScale3d: 5 });
 });
 
 test('an update with an out-of-range number is dropped; the rest of it applies', () => {
