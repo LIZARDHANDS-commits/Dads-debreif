@@ -21,9 +21,7 @@ import { powerFor, POWER_BLOCK_FT } from './power.js';
 import { ROLL } from './tuning.js';
 
 /** Feature flag to route flight step integration through the 3D Runge-Kutta point-mass engine. */
-export const USE_3D_POINT_MASS = typeof window !== 'undefined'
-  ? (window.__USE_3D_POINT_MASS !== false)
-  : (typeof process !== 'undefined' && process.env?.USE_3D_POINT_MASS !== '0');
+export const USE_3D_POINT_MASS = false;
 
 /** Roll limits (tuning.js ROLL), still read from here by the tests. */
 export { ROLL };
@@ -479,12 +477,14 @@ export function stepAircraft(a, plan, t) {
 
   // True 3D point-mass integration bridge (Phase 4 Step 2).
   if (USE_3D_POINT_MASS) {
+    const blockFt = plan.blockFt ?? POWER_BLOCK_FT;
     if (!a._pm) {
+      const mslAltFt = blockFt + (a.altAboveFt ?? 0);
       const climbRad = Math.asin(Math.max(-1, Math.min(1, (a.climbFtps || 0) / Math.max(1, a.tasFtps || 1))));
       a._pm = pointMassState({
         x: a.xFt,
         y: a.yFt,
-        altFt: a.altAboveFt ?? 0,
+        altFt: mslAltFt,
         ktas: (a.tasFtps || 0) / KT_TO_FTPS,
         headingRad: a.headingRad,
         climbRad,
@@ -499,7 +499,7 @@ export function stepAircraft(a, plan, t) {
     const fl = pointMassFlight(a._pm);
     a.xFt = a._pm.x;
     a.yFt = a._pm.y;
-    a.altAboveFt = a._pm.z;
+    a.altAboveFt = a._pm.z - blockFt;
     a.tasFtps = fl.ktas * KT_TO_FTPS;
     a.kias = tasToIasKt(fl.ktas, a._pm.z);
     a.headingRad = fl.headingRad;
