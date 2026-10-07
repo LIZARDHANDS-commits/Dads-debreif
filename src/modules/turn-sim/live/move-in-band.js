@@ -126,10 +126,9 @@ export function openMoveAltSec(dAlt, wing, blockFt, across = 0) {
   // Energy: knots per second per foot per second of climb, so a swing of k knots is k / per feet of height.
   const per = climbCostKtps(wing, 1);
   const up = dAlt > 0;
-  const freeFt = (up ? OPEN_MOVE.climbSwingKt : OPEN_MOVE.diveSwingKt) / per;
-  // ...then on at what the engine or the boards give at the speed the swing leaves him.
-  const sustainFtps = (up ? fullPowerKtps(wing.kias - OPEN_MOVE.climbSwingKt, blockFt) : slowKtps('idleBoards', wing.kias + OPEN_MOVE.diveSwingKt, blockFt)) / per;
-  const byEnergy = h > freeFt ? (h - freeFt) / Math.max(sustainFtps, 1) : 0;
+  // Sustained full-power climb (TS-128: full power climb rate) or idle-boards descent:
+  const sustainFtps = (up ? fullPowerKtps(wing.kias, blockFt) : slowKtps('idleBoards', wing.kias + OPEN_MOVE.diveSwingKt, blockFt)) / per;
+  const byEnergy = h / Math.max(sustainFtps, 1);
   return Math.max(byDive ?? Math.max(byG, bySpeed), byEnergy);
 }
 
@@ -224,10 +223,16 @@ export function planMoveInBand(pair, target, options = {}, t0 = 0) {
     const shape = diveShape(sec, dAlt, DIVE_ROLL.inG, DIVE_ROLL.outG);
     return shape && shape.vd >= DIVE_ROLL.minShare * wing.tasFtps ? { dive: { inG: DIVE_ROLL.inG, outG: DIVE_ROLL.outG } } : {};
   };
+  // A substantial climb uses trapezoidal climb profile (1 G pitch up into climb, steady full-power climb, 0.5 G pushover):
+  const bigClimb = (sec) => {
+    if (!(target.alt > now.alt + 300)) return {};
+    const shape = diveShape(sec, dAlt, 1, 0.5);
+    return shape ? { climb: { inG: 1, outG: 0.5 } } : {};
+  };
   let best = null;
   for (const t of tries) {
     const altSec = Math.max(t, dAlt > 0 ? across : 0);
-    const hard = open && t !== dAlt / MOVE_ALT_RATE_FTPS ? { altRateFtps: Infinity, ...bigDive(altSec) } : {};
+    const hard = open && t !== dAlt / MOVE_ALT_RATE_FTPS ? { altRateFtps: Infinity, ...bigDive(altSec), ...bigClimb(altSec) } : (target.alt > now.alt + 300 ? bigClimb(altSec) : {});
     const phases = onClosure([phase({ fwd: target.fwd, left: target.left, alt: target.alt }, altSec > 0 ? { altSec, holdUntil: t0 + altSec, ...hard } : {})], { closeIn });
     // The run goes on past settled to match Lead's speed and heading (the tracker's align), so #2 holds the spot afterwards;
     // until V2.108 it stopped at settled and drifted on at up to a couple of feet a second (seen in the V2.108 dry run).
