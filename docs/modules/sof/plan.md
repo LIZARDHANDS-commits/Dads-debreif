@@ -61,6 +61,12 @@ Dad and Patrick agreed it on 7 Oct. Each phase is its own pull request and is us
   3. Observed bases: METARs from 13+ stations in the area (existing `wx` sources) pull the low cloud's base to the reported ceiling within 15 NM (estimate) of each station, now only.
   Failure and stale words for each piece; Open-Meteo retries back off 10, 20, 40 min to stay inside the free daily limit.
   Built in V2.183 (SOF-45).
+- [ ] **Weather fidelity 3: every cloud level, blended (Dad, 7 Oct: "get all the cloud data to plot and blend the best you can"; built with Opus):**
+  1. Ask for every pressure level the HRDPS answers (all 17, 1000 to 250 hPa; 650, 550, 450 and 350 hPa come back), split so the first picture is not slower than today, and refreshed only when a newer model run can be out, so the free daily limit holds.
+  2. Blend between levels: cover read at any height by interpolating between the levels either side, and each slab's base and top where the cover crosses the cloud threshold, not halfway between levels.
+  3. A ForeFlight-style altitude slider: pick a height and see the model's cloud cover at that height as one sheet, with its height in words.
+  4. Any other ECCC or Open-Meteo cloud data found that adds real detail, used only after it is written here first.
+  Failure and stale words for each piece, as in Weather fidelity 2.
 
 ## Step 3. Build the safety and limits gaps between decided and built
 
