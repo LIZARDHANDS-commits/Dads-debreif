@@ -37,8 +37,9 @@ const ROUTE_DASH = Object.freeze({ dashSize: 7_000, gapSize: 4_000 });
  *
  * Returns { root, labels, picks, summary, dispose() }:
  * - root: a Group with one Group per AIRSPACE_GROUPS entry (`root.userData.groups`);
- * - labels: [{ group: 'tacnav', key, text, compact, title, restricted, point: { x, y, z } }]: a route's name stands at its first point, at the route's height.
- *   A volume has no label standing in the picture (Dad, 7 Oct: names and limits show only while the pointer is over it);
+ * - labels: [{ group: 'tacnav', key, text, compact, title, restricted, point: { x, y, z }, paths: [[{ x, y, z }, ...]] }]: each route's name, its first point
+ *   and its lines at the route's height. Nothing stands in the picture: a route's name, like a volume's words, shows only while the pointer is over it
+ *   (Dad, 7 Oct: "too much clutter"); view3d.js finds the route near the pointer from `paths`;
  * - picks: [{ mesh, key, text, title }]: each volume's fill, for the view to ray-cast the pointer against; `text` is the words shown beside the pointer
  *   ("CYA305 6,000 ft AGL–FL190 (Class F advisory area)"), `title` the existing hover sentence;
  * - summary: { volumes, routes } (counts drawn).
@@ -134,7 +135,11 @@ export function buildAirspace(T, { volumes = [], routes = [], toXY, scale, groun
       groups.tacnav.add(line);
     }
     drawnRoutes += 1;
-    labels.push({ group: 'tacnav', key: route.name, text: route.name, compact: route.name, title: `${route.name}: ${TACNAV_AGL_FT} ft above the ground (estimate)`, restricted: false, point: { x: projected.first[0], y: projected.first[1], z: zr } });
+    labels.push({
+      group: 'tacnav', key: route.name, text: route.name, compact: route.name, title: `${route.name}: ${TACNAV_AGL_FT} ft above the ground (estimate)`, restricted: false,
+      point: { x: projected.first[0], y: projected.first[1], z: zr },
+      paths: projected.paths.map((path) => path.map(([x, y]) => ({ x, y, z: zr }))),
+    });
   }
 
   return {

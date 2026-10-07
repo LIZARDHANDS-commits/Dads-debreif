@@ -91,6 +91,8 @@ const TOUR_MAX_FRAME_MS = 2000;
 /** The aircraft's credit, always said while the layer is on (adsb.lol's data is ODbL 1.0). */
 const AIRCRAFT_CREDIT = 'Aircraft: adsb.lol (ODbL 1.0)';
 
+/** A TACNAV route's name shows while the pointer is within this many pixels of its line (Dad, 7 Oct: names only under the pointer). An estimate for feel. */
+const ROUTE_HOVER_PX = 10;
 /** The pointer is looked for under the airspace volumes at most this often (about ten a second), and only while it moves over the view. */
 const SPACE_PICK_MS = 100;
 
@@ -617,7 +619,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     if (gl?.space?.airports) gl.space.airports.root.visible = spaceToggles.airports;
     if (gl?.alerts) gl.alerts.root.visible = spaceToggles.alerts;
     alertsStatus.hidden = alertsView.status !== 'unavailable' || !spaceToggles.alerts;
-    if (!spaceToggles.airspace && !spaceToggles.alerts) setSpaceHit(null);
+    if (!spaceToggles.airspace && !spaceToggles.alerts && !spaceToggles.tacnav) setSpaceHit(null);
   }
 
   // ---- The airspace under the pointer (Dad, 7 Oct) ----------------------------------------------------------
@@ -633,17 +635,55 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     if (gl && gl.canvas.title !== (pick?.title ?? '')) gl.canvas.title = pick?.title ?? ''; // the tag does not take the pointer, so the browser's own tip is on the canvas
   }
 
-  /** Which volume is under the pointer: the nearest to the camera along the ray through it (ray-cast on the fills, not every frame). */
+  /**
+   * The TACNAV route whose line passes within ROUTE_HOVER_PX of the pointer on the screen (the nearest), as a pick { key, text, title }, or null. Its points
+   * are put on the screen only here, at the pick's pace, never each frame.
+   */
+  function routeNear(x, y, width, height) {
+    const routes = gl?.space?.built.labels ?? [];
+    if (!routes.length || !spaceToggles.tacnav) return null;
+    let best = null;
+    let bestD = ROUTE_HOVER_PX;
+    for (const route of routes) {
+      for (const path of route.paths) {
+        let prev = null;
+        for (const point of path) {
+          const p = worldToScreen(THREE, gl.camera, point, width, height);
+          if (prev) {
+            const dx = p.x - prev.x;
+            const dy = p.y - prev.y;
+            const len2 = dx * dx + dy * dy;
+            const t = len2 > 0 ? Math.max(0, Math.min(1, ((x - prev.x) * dx + (y - prev.y) * dy) / len2)) : 0;
+            const d = Math.hypot(x - (prev.x + t * dx), y - (prev.y + t * dy));
+            if (d < bestD) {
+              bestD = d;
+              best = route;
+            }
+          }
+          prev = p;
+        }
+      }
+    }
+    return best ? { key: `route:${best.key}`, text: best.text, title: best.title } : null;
+  }
+
+  /**
+   * What is under the pointer: a TACNAV route's line close to it first (a thin line is easy to miss), else the nearest volume to the camera along the ray
+   * through it (ray-cast on the fills). Not every frame: at most every SPACE_PICK_MS while the pointer moves.
+   */
   function pickSpace(x, y) {
     spaceLast = win.performance.now();
     // The SIGMETs, AIRMETs and PIREPs are looked for with the airspace volumes: the nearest under the pointer wins.
     const picks = [...(spaceToggles.alerts ? gl?.alerts?.picks ?? [] : []), ...(spaceToggles.airspace ? gl?.space?.built.picks ?? [] : [])];
-    if (!picks.length || hoverHex) return setSpaceHit(null);
+    if (!gl || hoverHex) return setSpaceHit(null);
     const width = gl.canvas.clientWidth;
     const height = gl.canvas.clientHeight;
     if (width < 2 || height < 2) return setSpaceHit(null);
-    gl.raycaster ??= new THREE.Raycaster();
     gl.camera.updateMatrixWorld();
+    const route = routeNear(x, y, width, height);
+    if (route) return setSpaceHit(route, x, y);
+    if (!picks.length) return setSpaceHit(null);
+    gl.raycaster ??= new THREE.Raycaster();
     gl.raycaster.setFromCamera(new THREE.Vector2((x / width) * 2 - 1, -(y / height) * 2 + 1), gl.camera);
     const hit = gl.raycaster.intersectObjects(picks.map((p) => p.mesh), false)[0];
     setSpaceHit(hit ? picks.find((p) => p.mesh === hit.object) ?? null : null, x, y);
@@ -677,7 +717,6 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     if (!gl?.space) return;
     gl.space.built.dispose();
     gl.space.airports.dispose();
-    for (const { el } of gl.space.items) el.remove();
     gl.space = null;
     setSpaceHit(null);
   }
@@ -690,16 +729,10 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     const ground = groundFt();
     const { volumes, skipped } = checkedAirspace(airspace, ground);
     const built = buildAirspace(gl.THREE, { volumes, routes, toXY: projection.toXY, scale, groundFt: ground });
-    gl.scene.add(built.root);
-    const items = built.labels.map((label) => { // only the TACNAV routes' names stand in the picture; a volume's words come with the pointer
-      const el = h('span', { class: 'sof-3d-route-label', title: label.title });
-      el.textContent = label.text;
-      labels.append(el);
-      return { el, label };
-    });
+    gl.scene.add(built.root); // nothing stands in the picture: a route's name and a volume's words come with the pointer (pickSpace)
     const airports = buildAirports(gl.THREE, { toXY: projection.toXY, scale, groundFt: ground, doc: win.document });
     gl.scene.add(airports.root);
-    gl.space = { built, items, airports };
+    gl.space = { built, airports };
     applySpaceToggles();
     drawSpaceKey(volumes, skipped, ground);
   }
@@ -768,11 +801,12 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       h('p', {}, drawn.length
         ? `Airports: ${drawn.map((a) => `${a.icao} (${a.ends.join(', ')})`).join('; ')}. Each runway is drawn between its two thresholds at their true places, length and width (OurAirports, public domain: for drawing only, check the Canada Flight Supplement), at the field’s elevation ×${scale}. Far out, a field is drawn larger and a runway wider so it stays visible (about ${RUNWAY_MIN_PX.length} px long at least); closer in they are true size, and the stripes, centreline and numbers appear once a runway is ${RUNWAY_MIN_PX.detail} px long. The numbers read from the approach end. The terminal and hangars are schematic: buildings are schematic, drawn for orientation only.`
         : 'Airports: none inside this area.'),
-      h('p', {}, noRoutes ? 'TACNAV: no routes to draw.' : tacnavNote(home)),
+      h('p', {}, noRoutes ? 'TACNAV: no routes to draw.' : `${tacnavNote(home)} A route’s name shows while the pointer is near its line. The routes:`),
+      noRoutes ? null : h('ul', { class: 'sof-3d-airspace-list' }, (gl?.space?.built.labels ?? []).map((label) => h('li', { title: label.title }, label.text))),
       alertsKey,
       h('p', {}, 'A picture for situational awareness: not a chart, not for navigation or flight planning.'),
     );
-    spaceKeyBody.replaceChildren(...notes);
+    spaceKeyBody.replaceChildren(...notes.filter(Boolean)); // replaceChildren would turn a null into the text "null"
   }
 
   // ---- The aircraft (phase 4) ---------------------------------------------------------------------------
@@ -983,16 +1017,6 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       put(el, clearOf({ ...s, x: p.x - 8 - s.w, y: p.y - s.h / 2 }));
     }
     placeAircraft({ at, put, boxFor, isClear, reserve, phase: 't6' }); // the T-6s' tags keep their places; the model's words step round them
-    for (const { el, label } of gl.space?.items ?? []) { // the TACNAV routes' names (the airspace volumes' words come with the pointer, not from here)
-      const on = spaceToggles[label.group];
-      if (el.hidden === on) el.hidden = !on;
-      if (!on) continue;
-      const s = boxFor(el, 0, 0);
-      const p = at(label.point);
-      const rows = [0, 1, -1, 2, -2, 3, -3].map((k) => k * (s.h + 2));
-      const boxes = rows.flatMap((dy) => [[p.x + 6, p.y - s.h / 2 + dy], [p.x - s.w - 6, p.y - s.h / 2 + dy]]).map(([x, y]) => ({ ...s, x, y }));
-      put(el, boxes.find((box) => isClear(box)) ?? boxes[0]);
-    }
     const modelWords = [];
     for (const { el, group, point, hPa } of gl.model?.items ?? []) { // the model's words: each cloud level, the winds over home, then the freezing level
       const on = toggles[group] && (hPa === undefined || layerChoice === 'all' || layerChoice === String(hPa));
