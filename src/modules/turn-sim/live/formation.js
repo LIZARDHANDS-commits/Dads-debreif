@@ -490,8 +490,9 @@ export function createFormation(options = {}) {
      */
     change(to, options = {}) {
       if (state.fluid) return changeFromFluid(to, options);
-      if (state.current && state.aircraft.length > 2) {
-        const label = FOUR_FORMATIONS[to]?.label ?? to;
+      if (state.current) {
+        const four = state.aircraft.length > 2;
+        const label = (four ? FOUR_FORMATIONS[to]?.label : FORMATIONS[to]?.label) ?? to;
         state.queued = { key: `change:${to}`, dir: 0, label, change: { to, options } };
         return 'queued';
       }

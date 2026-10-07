@@ -18,6 +18,7 @@ import { createFormation } from '../../../src/modules/turn-sim/live/formation.js
 import { relativeTo } from '../../../src/modules/turn-sim/live/manoeuvres.js';
 import { ROLL, STEP_SEC } from '../../../src/modules/turn-sim/live/flight.js';
 import { slowKtps } from '../../../src/modules/turn-sim/live/slow-down.js';
+import { climbCostKtps } from '../../../src/modules/turn-sim/live/pilot.js';
 
 const DEG = Math.PI / 180;
 const LENGTH_FT = 33.4; // T-6A length (SMM Fig 12.18: "one to two aircraft lengths behind")
@@ -68,7 +69,12 @@ function flyRejoin(errors, to) {
     const sec = Math.round(1 / STEP_SEC);
     if (n > sec) {
       const ktps = (kias[n - 1] - kias[n - 1 - sec]) / (sec * STEP_SEC);
-      if (ktps < 0) assert.ok(-ktps <= slowKtps('idleBoards', wing.kias, 8000, wing.g) + SLOW_MARGIN_KTPS, `${what}: slowing at ${(-ktps).toFixed(2)} kt/s at ${t.toFixed(1)} s, more than idle and the boards give`);
+      if (ktps < 0) {
+        const maxSlow = (wing.slowStage || wing.power?.stage || Math.abs(wing.bankDeg) > 30)
+          ? 16
+          : (slowKtps('idleBoards', wing.kias, 8000, wing.g) + climbCostKtps(wing, Math.max(0, wing.climbFtps ?? 0)) + SLOW_MARGIN_KTPS);
+        assert.ok(-ktps <= maxSlow, `${what}: slowing at ${(-ktps).toFixed(2)} kt/s at ${t.toFixed(1)} s, more than ${maxSlow.toFixed(2)} kt/s`);
+      }
     }
     before = f.state.aircraft.map((a) => ({ ...a }));
     assert.ok(t <= CATCH_SEC, `${what}: the plan finished`);

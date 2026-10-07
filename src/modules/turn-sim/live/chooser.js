@@ -27,7 +27,6 @@ import { G_RULE_BANK_DEG, HAND_OVER_FT } from './tuning.js';
 import { planGoTo } from './transitions.js';
 import { planLagRoll, LAG_ROLL_KEY } from './lag-roll.js';
 import { planMoveInBand, MOVE_IN_BAND_KEY } from './move-in-band.js';
-import { planLineChange } from './line-moves.js';
 import { planTurningRejoin } from './turning-rejoin.js';
 import { planStraightRejoin } from './straight-rejoin.js';
 import { planEchelonToFw } from './echelon-to-fw.js';
@@ -50,7 +49,6 @@ const PLANNERS = Object.freeze([
   { name: 'straight-ahead rejoin', plan: planStraightRejoin, rejoin: 'straight', fallback: false },
   { name: 'drop back out to fighting wing', plan: planEchelonToFw, rejoin: null, fallback: false },
   { name: 'opening out at full power', plan: planOpenOut, rejoin: null, fallback: false },
-  { name: 'line, then tracker', plan: planLineChange, rejoin: 'into', fallback: false },
   { name: 'tracker', plan: planGoTo, rejoin: 'into', fallback: true }, // the fallback on a long move (rule 2 above)
 ]);
 
@@ -72,7 +70,7 @@ const MOVE_IN_BAND = Object.freeze({ name: 'move in the band', plan: (pair, _to,
  * turning rejoin's planners, so the roll is flown only when it is quicker ("if it makes sense", 16:02Z).
  */
 const ROLLING = Object.freeze({ name: 'turning rejoin with a roll', plan: planRollingRejoin, rejoin: ROLLING_REJOIN_KIND, fallback: false, holdsPlan: true });
-const MID_PLANNERS = Object.freeze([FROM_HERE, ...PLANNERS.filter((p) => p.plan !== planLineChange)]);
+const MID_PLANNERS = Object.freeze([FROM_HERE, ...PLANNERS]);
 
 /**
  * How rough #2's track is: bank reversals (the bank crossing from one side to the other, past the deadband) plus power
@@ -179,9 +177,6 @@ export function chooseChange(pair, to, options = {}, t0 = 0) {
     }
     candidates.push({ ...candidateOf(p.name, r, lag ? 'fw' : nudge ? /** @type {any} */ (r).to : to, spacingFt, t0, wing.id, p.fallback && longMove), holdsPlan: 'holdsPlan' in p && p.holdsPlan === true });
   }
-  // Out to line abreast the full power opening out replaces the line (Patrick 5 Oct 22:39Z: "should start at FULL POWER";
-  // TS-88): the line is raced only when it doesn't apply.
-  if (candidates.some((c) => c.name === 'opening out at full power')) candidates.splice(0, candidates.length, ...candidates.filter((c) => c.name !== 'line, then tracker'));
   if (!candidates.length) return refusal ?? { ok: false, reason: 'No safe change from here.', from: null, to };
   candidates.sort(compareCandidates);
   const best = candidates[0];

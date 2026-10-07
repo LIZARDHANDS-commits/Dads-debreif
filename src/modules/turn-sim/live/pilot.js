@@ -35,12 +35,12 @@ export function setKias(a, kias) {
 }
 
 /** One step flown at a commanded bank, by the unchanged flight.js step (a never-finishing turn segment holds the bank target). */
-export function stepCommanded(a, targetBankDeg, t, profile) {
+export function stepCommanded(a, targetBankDeg, t, profile, accelKtps = null) {
   const dir = targetBankDeg < 0 ? -1 : 1;
   const segments = Math.abs(targetBankDeg) < 1e-9
     ? []
     : [{ kind: 'turn', toRad: a.headingRad + dir * Math.PI / 2, dir, bankDeg: Math.abs(targetBankDeg), rollOut: false }];
-  stepAircraft(a, { segments, profile }, t);
+  stepAircraft(a, { segments, profile, accelKtps }, t);
 }
 
 /** The speed a climb of climbFtps costs, KIAS per second (standard energy: g·v / TAS, in KIAS). */
@@ -69,9 +69,8 @@ export function createPilot(W, { accelKtps = 0 } = {}) {
 /**
  * The speed part of a step: the acceleration asked for (aWant, KIAS per second) held inside what the aircraft gives (full
  * power up; down, the slowest of `top`, the energy intent: 'power', 'boards', 'idle' or 'idleBoards', with the torque
- * floor `floorThr`), at the G he pulls and less what the climb costs (climbKtps, his own by default; a planner that flies the
- * height as energy passes 0), plus any slowing a zoom gives (extraSlowKtps); built up at the one jerk limit. snapKias:
- * within TRACKER.kiasSnap of it the speed is taken there (the tracker's line up). Sets the aircraft's speed and returns it.
+ * floor `floorThr`), at the G he pulls, plus any slowing a zoom gives (extraSlowKtps); built up at the one jerk limit. snapKias:
+ * within TRACKER.kiasSnap of it the speed is taken there (the tracker's line up). Returns the commanded acceleration.
  */
 export function pilotSpeed(p, W, aWant, { blockFt, top = 'power', floorThr = 0, climbKtps = null, extraSlowKtps = 0, snapKias = null, snapTol = 0 }) {
   const g = Math.max(1, Math.abs(W.g ?? 1));
@@ -84,12 +83,10 @@ export function pilotSpeed(p, W, aWant, { blockFt, top = 'power', floorThr = 0, 
   p.accel = Math.max(-aMin, Math.min(aMax, p.accel)); // never past what the power and drag give now
   let kias = W.kias + p.accel * dt;
   if (snapKias != null && Math.abs(snapKias - kias) < snapTol) {
-    kias = snapKias;
-    p.accel = 0;
+    p.accel = (snapKias - W.kias) / dt;
   }
   Object.assign(p, { aMax, top: top ?? 'power', floorThr, climb });
-  setKias(W, kias);
-  return kias;
+  return p.accel;
 }
 
 /**
@@ -97,7 +94,7 @@ export function pilotSpeed(p, W, aWant, { blockFt, top = 'power', floorThr = 0, 
  * T-6A's, flight.js rollLimitAt; the roll onset the aircraft's own) with the level turn's G built no faster than the profile's G onset; then the step flown
  * through flight.js (and its envelope gate). Returns the bank commanded, for the replay.
  */
-export function pilotFly(p, W, bankDeg, t, profile) {
+export function pilotFly(p, W, bankDeg, t, profile, accelKtps = p?.accel) {
   const X = experienceNow();
   const lim = rollLimitAt(W.tasFtps);
   const limits = { maxRateDps: lim.maxRateDps * X.rollShare, maxAccelDps2: lim.maxAccelDps2 };
@@ -112,7 +109,7 @@ export function pilotFly(p, W, bankDeg, t, profile) {
   if (Math.abs(r.bankDeg - bankDeg) < 1e-6 && Math.abs(r.rollRateDps) <= limits.maxAccelDps2 * dt + 1e-9) r = { bankDeg, rollRateDps: 0 };
   p.bank = r.bankDeg;
   p.rate = r.rollRateDps;
-  stepCommanded(W, p.bank, t, profile);
+  stepCommanded(W, p.bank, t, profile, accelKtps ?? p?.accel);
   return p.bank;
 }
 
@@ -157,7 +154,7 @@ function note(p, power, t) {
  * { bank, kias, power }, the replay's point.
  */
 export function pilotStep(p, W, t, { bankDeg, aWant, profile, blockFt, top = 'power', floorThr = 0, climbKtps = null, extraSlowKtps = 0 }) {
-  const kias = pilotSpeed(p, W, aWant, { blockFt, top, floorThr, climbKtps, extraSlowKtps });
-  const bank = pilotFly(p, W, bankDeg, t, profile);
-  return { bank, kias, power: pilotPower(p, W, blockFt, t) };
+  const accel = pilotSpeed(p, W, aWant, { blockFt, top, floorThr, climbKtps, extraSlowKtps });
+  const bank = pilotFly(p, W, bankDeg, t, profile, accel);
+  return { bank, accel, kias: W.kias, power: pilotPower(p, W, blockFt, t) };
 }

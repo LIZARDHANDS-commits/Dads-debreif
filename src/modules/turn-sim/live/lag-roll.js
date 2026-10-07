@@ -30,6 +30,7 @@ import { easeRoll } from '../../../core/flight-math.js';
 import { speedUpLimitKtps, climbKtps } from './full-power.js';
 import { slowKtps } from './slow-down.js';
 import { leadStateOf, stepLead, nosePath, followNose, noseAt } from './fluid-lead.js';
+import { liftTowardAim, gAndBankForLift } from '../../../core/point-mass.js';
 
 const Z = Object.freeze({ x: 0, y: 0, z: 1 });
 
@@ -401,11 +402,12 @@ function bandMissFt(r, side) {
 
 /** Flies one candidate roll from the state at the roll's start. Returns its poses and numbers, or null when a check fails. */
 function flyPmRoll(c, w0, ctx) {
-  const { lead0, vL, blockFt, s, tStart, leadKias, close } = ctx;
-  const h0 = lead0.h;
-  const off = -s * c.offDeg * DEG; // the circle's centre toward Lead (he is on side s, Lead on -s)
-  const path = nosePath((u) => noseAt(h0 + off * (1 - Math.cos(2 * Math.PI * u)), c.pitchDeg * DEG * Math.sin(2 * Math.PI * u)), 1, 1200);
-  const mem = { s: 0, rate: 0 };
+  const { lead0, vL, blockFt, s, tStart, leadKias, close, base } = ctx;
+  const fx = Math.cos(lead0.h);
+  const fy = Math.sin(lead0.h);
+  const lx = -fy;
+  const ly = fx;
+
   let st = leadStateOf(w0, blockFt);
   const tasPerKias = w0.tasFtps / w0.kias;
   const poses = [];
@@ -425,9 +427,65 @@ function flyPmRoll(c, w0, ctx) {
     pose.pwr = 1;
     poses.push(pose);
   };
-  for (let n = 0; n < Math.round(LAG_ROLL.rollSec[1] / STEP_SEC); n++) {
-    const r = followNose(st, path, mem, c.pullG);
-    st = stepLead(st, { g: r.g, bank: r.bank });
+
+  const f0 = base.f0, L0 = base.L0, z0 = base.z0;
+  const fE = base.fs, L1 = base.L1, zs = base.zs;
+
+  // 3D aim point targeting the dynamic out-and-up lag point above Lead's six transitioning to the fighting wing slot
+  const rollDuration = c.T ?? (8 + (c.offDeg ?? 16) * 0.25);
+  const climbH = c.H ?? (200 + (c.pitchDeg ?? 20) * 10);
+  const pullG = c.pullG ?? 2.5;
+
+  const aimAtU = (u) => {
+    const th = Math.PI * u;
+    const cosTh = Math.cos(th), sinTh = Math.sin(th);
+    const F = (mid, half, bump) => mid + half * cosTh + bump * sinTh;
+    return {
+      fwd: F((f0 + fE) / 2, (f0 - fE) / 2, 0),
+      left: F((L0 + L1) / 2, (L0 - L1) / 2, -(L0 + L1) / 2),
+      up: F((z0 + zs) / 2, (z0 - zs) / 2, climbH),
+    };
+  };
+
+  const nSteps = Math.round(rollDuration / STEP_SEC);
+  for (let n = 0; n < nSteps; n++) {
+    const u = n / nSteps;
+    const uAim = Math.min(1.0, u + 0.08);
+    const aimRel = aimAtU(uAim);
+
+    const leadPos = {
+      x: lead0.x + vL * t * fx,
+      y: lead0.y + vL * t * fy,
+      z: blockFt + ctx.leadAlt,
+    };
+    const aimWorld = {
+      x: leadPos.x + aimRel.fwd * fx + aimRel.left * lx,
+      y: leadPos.y + aimRel.fwd * fy + aimRel.left * ly,
+      z: leadPos.z + aimRel.up,
+    };
+
+    const toAim = {
+      x: aimWorld.x - st.pm.x,
+      y: aimWorld.y - st.pm.y,
+      z: aimWorld.z - st.pm.z,
+    };
+
+    const vHat = st.nose;
+    const { wanted } = liftTowardAim(vHat, toAim, st.V, 1.0);
+
+    const wantedLen = len3(wanted);
+    let lift = wanted;
+    if (wantedLen > pullG) {
+      lift = scale3(wanted, pullG / wantedLen);
+    } else if (wantedLen < 1.0) {
+      lift = scale3(wanted, 1.0 / Math.max(1e-6, wantedLen));
+    }
+
+    const gb = gAndBankForLift(lift, vHat, st.pm.up, st.bank * DEG);
+    const askG = Math.max(1.0, Math.min(pullG, gb.g));
+    const askBank = gb.bankRad / DEG;
+
+    st = stepLead(st, { g: askG, bank: askBank });
     t += STEP_SEC;
     rollSec += STEP_SEC;
     push();
@@ -451,7 +509,6 @@ function flyPmRoll(c, w0, ctx) {
       inverted = st.bodyUp.z < 0 && rel.fwd < 0;
       if (!inverted) break;
     }
-    if (r.end) break;
   }
   if (minKias < LAG_ROLL.topKiasBand[0] || topRange === null || !inverted) return null;
   // Back to Lead's speed, wings level on Lead's heading (power back at the slowing slow-down.js allows; stepLead holdKias).
@@ -481,14 +538,15 @@ function planOnPointMass({ lead, wing, s, base, lead0, vL, blockFt, close, where
   const fy = Math.sin(lead0.h);
   const along = vL * tStart + base.f0; // the set-up's end: at rest in Lead's frame at its place (or where he is, from echelon)
   const w0 = { ...wing, xFt: lead0.x + along * fx - base.L0 * fy, yFt: lead0.y + along * fy + base.L0 * fx, altAboveFt: lead.altAboveFt + base.z0, headingRad: lead.headingRad, tasFtps: vL, kias: lead.kias, climbFtps: 0, bankDeg: 0, rollRateDps: 0, g: 1 };
-  const ctx = { lead0, vL, blockFt, s, tStart, leadKias: lead.kias, close, leadAlt: lead.altAboveFt };
+  const ctx = { lead0, vL, blockFt, s, tStart, leadKias: lead.kias, close, leadAlt: lead.altAboveFt, base };
   let best = null;
-  for (const offDeg of LAG_ROLL.pmOffDeg) for (const pitchDeg of LAG_ROLL.pmNoseUpDeg) for (const pullG of LAG_ROLL.pullG) {
-    const m = flyPmRoll({ offDeg, pitchDeg, pullG }, w0, ctx);
+  for (const T of [10, 11, 12, 13, 14]) for (const H of [300, 400, 500, 600]) for (const pullG of LAG_ROLL.pullG) {
+    const c = { T, H, pullG, pitchDeg: Math.round((H - 200) / 10), offDeg: Math.round((T - 8) * 4) };
+    const m = flyPmRoll(c, w0, ctx);
     if (!m) continue;
     const miss = bandMissFt(m.end, -s);
     const key = miss > 0 ? 1e6 + miss : m.t; // in the band soonest, else nearest the band
-    if (!best || key < best.key) best = { key, m, c: { offDeg, pitchDeg, pullG } };
+    if (!best || key < best.key) best = { key, m, c };
   }
   if (!best || best.key >= 1e6) return null; // none lands in the band: the drawn search flies it (and closes into the band)
   const { m, c } = best;

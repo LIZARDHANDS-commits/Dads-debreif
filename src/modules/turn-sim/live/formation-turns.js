@@ -25,7 +25,7 @@ import { MANOEUVRES, relativeTo, DEG, planManoeuvre } from './manoeuvres.js';
 import { recordFlight, dryRunT } from './replay.js';
 import { trackTwice, phase } from './tracker.js';
 import { smoothest, makeTrack, seedTrack, setTrackStep, TRACK_PAD, posesFrom, settleLast, slotInWorld } from './kinematic.js';
-import { leadTurnSegs } from './kinematic-moves.js';
+import { leadTurnSegs } from './manoeuvres.js';
 import { fwPursuitCommand, fwBubbleCommand } from './fw-pursuit.js';
 import { FW_TURN, FW_FOLLOW, FW_EXIT, WING_BANKS, ROLL, RATE_SETS } from './tuning.js';
 import { G_FTPS2 } from '../../../core/units.js';

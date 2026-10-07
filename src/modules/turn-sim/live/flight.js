@@ -13,11 +13,15 @@
 // counter-clockwise). Bank is signed, left wing down positive, so a positive
 // bank turns the heading the positive (left) way.
 import { easeRoll, turnRateFromBankRadPerSec, gFromBankDeg } from '../../../core/flight-math.js';
-import { attitudeDegFromClimb, rollWithinT6A, stallLimitG, T6A_G_ONSET } from '../../../core/t6-performance.js';
+import { attitudeDegFromClimb, rollWithinT6A, stallLimitG, T6A_G_ONSET, excessFnFor, tasToIasKt } from '../../../core/t6-performance.js';
 import { wrapPi, wrapDeg180 } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
-import { powerFor, POWER_BLOCK_FT } from './power.js';
+import { stepPointMass, pointMassState, pointMassFlight } from '../../../core/point-mass.js';
+import { powerFor, throttleFor, POWER_BLOCK_FT } from './power.js';
 import { ROLL } from './tuning.js';
+
+/** Feature flag to route flight step integration through the 3D Runge-Kutta point-mass engine. */
+export const USE_3D_POINT_MASS = (typeof process !== 'undefined' && process.env?.USE_3D_POINT_MASS === '1') || false;
 
 /** Roll limits (tuning.js ROLL), still read from here by the tests. */
 export { ROLL };
@@ -168,7 +172,10 @@ export function flyAttitude(a, prev, dt, roll = ROLL) {
 }
 
 export function copyAircraft(a) {
-  return { ...a };
+  return {
+    ...a,
+    ...(a._pm ? { _pm: { ...a._pm, up: { ...a._pm.up } } } : {}),
+  };
 }
 
 /**
@@ -274,6 +281,35 @@ function diveAt(leg, t) {
   return { altAboveFt: leg.fromFt - down, climbFtps: -rate, nz: 1 + acc / G_FTPS2, invert: true };
 }
 
+/** A climb leg (leg.climb: { inG, outG }) at time t: { altAboveFt, climbFtps, nz }, or null when it does not fit. */
+function climbAt(leg, t) {
+  const T = leg.t1 - leg.t0;
+  const H = leg.toFt - leg.fromFt;
+  const shape = diveShape(T, H, leg.climb.inG, leg.climb.outG);
+  if (!shape) return null;
+  const { vd, ta, to } = shape;
+  const x = Math.min(T, Math.max(0, t - leg.t0));
+  let up;
+  let rate;
+  let acc;
+  if (x < ta) {
+    const u = x / ta;
+    up = vd * ta * smootherArea(u);
+    rate = vd * smoother(u);
+    acc = (vd * smootherSlope(u)) / ta;
+  } else if (x <= T - to) {
+    up = vd * ta * 0.5 + vd * (x - ta);
+    rate = vd;
+    acc = 0;
+  } else {
+    const u = (x - (T - to)) / to;
+    up = vd * ta * 0.5 + vd * (T - to - ta) + vd * to * (u - smootherArea(u));
+    rate = vd * (1 - smoother(u));
+    acc = -(vd * smootherSlope(u)) / to;
+  }
+  return { altAboveFt: leg.fromFt + up, climbFtps: rate, nz: 1 + acc / G_FTPS2 };
+}
+
 /**
  * Height on a smooth profile: legs { t0, t1, fromFt, toFt } in formation seconds. Each leg
  * starts and ends with no climb and no vertical acceleration (the smootherstep curve), so
@@ -287,6 +323,10 @@ export function heightAt(profile, t) {
     if (leg.dive) {
       const d = diveAt(leg, t);
       if (d) return d;
+    }
+    if (leg.climb) {
+      const c = climbAt(leg, t);
+      if (c) return c;
     }
     const span = Math.max(leg.t1 - leg.t0, 1e-9);
     const u = (t - leg.t0) / span;
@@ -410,15 +450,28 @@ export function stepAircraft(a, plan, t) {
   const bankBefore = a.bankDeg;
   const attitudeBefore = { attitudeDeg: a.attitudeDeg };
   const headingBefore = a.headingRad;
-  const climbBefore = a.climbFtps;
+  const climbBefore = a.climbFtps ?? 0;
   const tasBefore = a.tasFtps;
   const kiasBefore = a.kias;
+  const height = heightAt(plan.profile, t + dt);
+  a.nz = height?.nz ?? 1;
+  a.invertDive = Boolean(height?.invert); // a big dive's pull down is flown inverted (TS-129, flyAttitude)
+  if (height) {
+    a.altAboveFt = height.altAboveFt;
+    a.climbFtps = height.climbFtps ?? 0;
+  } else {
+    a.climbFtps = 0;
+  }
   if (plan.speedLeg) {
     const sp = speedAt(plan.speedLeg, t + dt);
     a.kias = sp.kias;
     a.tasFtps = sp.tasFtps;
     a.slowStage = plan.speedLeg.stage ?? null; // how the slow-down is flown (slow-down.js, TS-61): the card and tags say BOARDS or IDLE
     if (t + dt >= plan.speedLeg.t1 - 1e-9) plan.speedLeg = null;
+  } else if (plan.accelKtps !== undefined && plan.accelKtps !== null) {
+    a.kias += plan.accelKtps * dt;
+    a.tasFtps = a.kias * (tasBefore / kiasBefore);
+    a.slowStage = null;
   } else {
     a.slowStage = null;
   }
@@ -434,27 +487,11 @@ export function stepAircraft(a, plan, t) {
   a.g = gFromBankDeg(a.bankDeg);
   a.turning = a.bankDeg !== 0 || plan.segments.length > 0;
 
-  const height = heightAt(plan.profile, t + dt);
-  a.nz = height?.nz ?? 1;
-  a.invertDive = Boolean(height?.invert); // a big dive's pull down is flown inverted (TS-129, flyAttitude)
-  if (height) {
-    a.altAboveFt = height.altAboveFt;
-    a.climbFtps = height.climbFtps;
-    // The pull or push of the height change is charged as G (height as energy; until V2.82 a smooth height leg's pull was
-    // free, so a 700 ft pop-up in 6 s cost nothing): the turn's sideways share (tan bank, in g) and the vertical share
-    // (nz) together, standard mechanics; 1 / cos(bank) in a level turn, nz with the wings level. A push past zero G keeps
-    // its sign (G-warm's push over). The sign is the lift's, along the wings' up axis (the vertical share times cos bank
-    // plus the sideways share times sin bank), so a banked aircraft easing its descent through zero vertical G keeps
-    // positive G; until V2.92 the sign was the vertical share's alone, a 2 G jump in one step (Fable's review, section 17).
-    // flyAttitude then keeps whichever of pull or push follows on from the step before (V2.133-V2.135).
-    if (height.nz !== undefined) {
-      const side = Math.max(0, a.g * a.g - 1);
-      const b = (Math.abs(a.bankDeg) * Math.PI) / 180;
-      const lift = height.nz * Math.cos(b) + Math.sqrt(side) * Math.sin(b);
-      a.g = Math.sign(lift || 1) * Math.sqrt(side + height.nz * height.nz);
-    }
-  } else {
-    a.climbFtps = 0;
+  if (height?.nz !== undefined) {
+    const side = Math.max(0, a.g * a.g - 1);
+    const b = (Math.abs(a.bankDeg) * Math.PI) / 180;
+    const lift = height.nz * Math.cos(b) + Math.sqrt(side) * Math.sin(b);
+    a.g = Math.sign(lift || 1) * Math.sqrt(side + height.nz * height.nz);
   }
   flyAttitude(a, attitudeBefore, dt, seg?.roll ?? ROLL); // the wings follow the lift as a roll, and set the G's sign
   // The path is flown at the aircraft's true airspeed (constant, Patrick card 09:54Z, except in a speed
@@ -470,6 +507,70 @@ export function stepAircraft(a, plan, t) {
   const blockFt = plan.blockFt ?? POWER_BLOCK_FT;
   a.stretched = false; // a flight.js segment flies its own plan, never behind it (TS-63 marks the planned lines only)
   a.power = powerFor((a.kias - kiasBefore) / dt, a.kias, blockFt, a.g, a.climbFtps, a.slowStage);
+
+  // True 3D point-mass integration bridge (Phase 4 Step 2).
+  if (USE_3D_POINT_MASS) {
+    const blockFt = plan.blockFt ?? POWER_BLOCK_FT;
+    if (!a._pm) {
+      const mslAltFt = blockFt + (a.altAboveFt ?? 0);
+      const climbRad = Math.asin(Math.max(-1, Math.min(1, (a.climbFtps || 0) / Math.max(1, a.tasFtps || 1))));
+      a._pm = pointMassState({
+        x: a.xFt,
+        y: a.yFt,
+        altFt: mslAltFt,
+        ktas: (a.tasFtps || 0) / KT_TO_FTPS,
+        headingRad: a.headingRad,
+        climbRad,
+      });
+    }
+    const control = {
+      g: Math.abs(a.g ?? 1),
+      bankRad: -(a.bankDeg * Math.PI) / 180, // point-mass right positive
+    };
+    // Closed-loop speed controller:
+    // 1. Target airspeed and commanded acceleration from plan.
+    const targetKias = a.kias;
+    const accelCmdKtps = (a.kias - kiasBefore) / dt;
+
+    // 2. Current point-mass airspeed & error
+    const curFlight = pointMassFlight(a._pm);
+    const actualKias = tasToIasKt(curFlight.ktas, a._pm.z);
+    const errKias = targetKias - actualKias;
+
+    // 3. Equilibrium feedforward throttle from power.js
+    const ffThrottle = a.power?.throttle ?? throttleFor(accelCmdKtps, targetKias, a._pm.z, a.g, a.climbFtps, a.slowStage);
+
+    // 4. Feedback trim: PI loop (idle / idleBoards keeps throttle 0)
+    let throttle;
+    if (a.slowStage === 'idle' || a.slowStage === 'idleBoards') {
+      throttle = 0;
+      a._speedI = 0;
+    } else {
+      const KP_THROTTLE = 0.035;
+      const KI_THROTTLE = 0.008;
+      const MAX_I_TRIM = 0.15;
+      if (ffThrottle > 0.01 && ffThrottle < 0.99) {
+        a._speedI = Math.max(-MAX_I_TRIM, Math.min(MAX_I_TRIM, (a._speedI || 0) + errKias * dt * KI_THROTTLE));
+      }
+      const piTrim = (errKias * KP_THROTTLE) + (a._speedI || 0);
+      throttle = Math.max(0, Math.min(1, ffThrottle + piTrim));
+    }
+
+    if (a.power && a.power.stage === null) {
+      a.power.throttle = throttle;
+    }
+
+    a._pm = stepPointMass(a._pm, control, dt, excessFnFor(throttle));
+    const fl = pointMassFlight(a._pm);
+    a.xFt = a._pm.x;
+    a.yFt = a._pm.y;
+    a.altAboveFt = a._pm.z - blockFt;
+    a.tasFtps = fl.ktas * KT_TO_FTPS;
+    a.kias = tasToIasKt(fl.ktas, a._pm.z);
+    a.headingRad = fl.headingRad;
+    a.climbFtps = Math.sin(fl.climbRad) * a.tasFtps;
+    a.pitchDeg = attitudeDegFromClimb(a.climbFtps, a.tasFtps, a.kias, a.g * Math.cos((a.bankDeg * Math.PI) / 180));
+  }
 }
 
 /**

@@ -49,9 +49,18 @@ export function flyStep(a, plan, t, ctx = null) {
   }
   if (seg?.kind === 'bankTrack') {
     seg.i ??= 0;
-    const [bank, kias, power] = seg.points[seg.i++];
-    if (kias !== null && kias !== undefined) setKias(a, kias);
-    stepCommanded(a, bank, t, plan.profile);
+    const pt = seg.points[seg.i++];
+    const bank = pt[0];
+    const accel = pt.length >= 4 ? pt[3] : (pt[1] != null && Math.abs(pt[1]) < 50 ? pt[1] : null);
+    const kias = pt.length >= 4 ? pt[1] : (pt[1] != null && Math.abs(pt[1]) >= 50 ? pt[1] : null);
+    const power = pt.length >= 4 ? pt[2] : (typeof pt[2] === 'object' ? pt[2] : null);
+
+    if (accel !== null && accel !== undefined) {
+      stepCommanded(a, bank, t, plan.profile, accel);
+    } else {
+      if (kias !== null && kias !== undefined) setKias(a, kias);
+      stepCommanded(a, bank, t, plan.profile);
+    }
     // The power the tracker flew it with (its power profile, step 2: MAX, TQ, IDLE or IDLE+BOARDS); a replay that recorded
     // none (the 4-ship's, until step 3) shows none rather than a guess (TS-62).
     a.power = power ?? null;

@@ -130,6 +130,12 @@ export const NEAREST = Object.freeze({
  */
 export const LANE = Object.freeze({ marginFt: 100, rangeFt: 1000, belowRangeFt: 2000 });
 
+/** A fighting wing side swap (TS-86): how far outside the bubble #2 crosses Lead's six (estimate). */
+export const SWAP_CROSS_MARGIN_FT = 100;
+
+/** Where a crossing behind Lead passes his six, fwd ft: outside the 500 ft bubble by SWAP_CROSS_MARGIN_FT (SMM 12.29 para 69; estimates). */
+export const crossBehindFwd = (rangeFt) => -(Math.max(FW_BAND.bubbleFt, rangeFt * 0.9) + SWAP_CROSS_MARGIN_FT);
+
 let fwShape = { ...FW2 };
 
 /** Sets the 2-ship's desired fighting wing place ({ rangeFt, sweepDeg }; a missing value takes the default). */

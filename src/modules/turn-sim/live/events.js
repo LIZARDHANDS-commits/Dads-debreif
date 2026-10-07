@@ -135,6 +135,9 @@ export function createEvents({ state, startChange, labelFor }) {
     const closureFtps = Math.hypot(rel.fwd - prev.fwd, rel.left - prev.left, upFt) / dtSec;
     if (closureFtps > STEADY.closureKt * KT_TO_FTPS) return false;
     if (Math.abs(wing.bankDeg - lead.bankDeg) > STEADY.bankOffDeg) return false;
+    const targetKias = c.change.to === 'lab' ? 220 : 200;
+    if (Math.abs(wing.kias - targetKias) > 0.5) return false;
+    if (c.change.to !== 'fw' && Math.abs(wing.climbFtps ?? 0) > 1.0) return false;
     // The judge's band is sideless for the pair: a change of side is done only on the new side.
     const side = c.change.side ?? 0;
     if (side !== 0 && Math.sign(rel.left) !== side) return false;

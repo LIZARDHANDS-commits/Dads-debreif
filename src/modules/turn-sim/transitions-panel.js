@@ -9,7 +9,10 @@ import { h, clear } from '../../ui-kit/dom.js';
 import { rejoinReadout } from './live/judge.js';
 import { REJOIN, TURNING_REJOIN, G_RULE_BANK_DEG, KIAS_OUTSIDE_LAB, RATE_CHOICES, RATE_WORDS, CLOSE_IN_SEC, REJOIN_CLOSURE_KT, setRates, ratesNow } from './live/tuning.js';
 import { slowWord } from './live/slow-down.js';
-import { FORMATIONS, FOUR_FORMATIONS, fourWords } from './live/slots.js';
+import { FORMATIONS, FOUR_FORMATIONS, fourWords, FW_BAND } from './live/slots.js';
+import { IN_POSITION } from './live/bands.js';
+import { SWEEP_MAX_DEG } from './live/judge.js';
+import { DEG } from './live/manoeuvres.js';
 import { MOVE_IN_BAND_KEY, MOVE_IN_BAND_FORMATIONS, PLACE_BOX_FORMATIONS, PLACE_HEIGHT, placeNow, nearestInBox, placeBoxOutline } from './live/move-in-band.js';
 
 /** The main buttons, in screen order. Fluid manoeuvring starts from fighting wing only (spec section 10.3, TS-57). */
@@ -176,6 +179,22 @@ export function createChangeUi({ onChange, fluidUi = null }) {
   let pick = null; // null, or picking: { place: null | { fwd, left }, atEdge, alt } in Lead's frame
   /** True when `p` (Lead's frame) is inside the band's box outline (live/move-in-band.js placeBoxOutline). */
   const insideBox = (key, side, p) => {
+    const s = side >= 0 ? 1 : -1;
+    const across = s * p.left;
+    if (key === 'fw') {
+      if (across <= 0) return false;
+      const r = Math.hypot(p.fwd, p.left);
+      const d = Math.atan2(-p.fwd, across) / DEG;
+      const [rMin, rMax] = FW_BAND.rangeFt;
+      const [dMin, dMax] = FW_BAND.sweepDeg;
+      // Generous boundary margin (75 ft range, 3° sweep) so clicks on chords/edges/corners are accepted:
+      return r >= rMin - 75 && r <= rMax + 75 && d >= dMin - 3 && d <= dMax + 3;
+    }
+    if (key === 'lab') {
+      const [aMin, aMax] = IN_POSITION.labBandFt;
+      const t = Math.tan(SWEEP_MAX_DEG * DEG);
+      return across >= aMin - 100 && across <= aMax + 100 && p.fwd <= 50 && p.fwd >= -across * t - 100;
+    }
     const poly = placeBoxOutline(key, side);
     let inside = false;
     for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
