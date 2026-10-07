@@ -322,14 +322,14 @@ function zoomRoomFtps(L, W) {
  * at the G he pulls (full power up, power back down: slow-down.js, TS-61) and builds it up at the one jerk limit.
  * Returns { kias, zoomFtps, accel }.
  */
-function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowOwn, cone, aCmdOwn, floorThrOwn, extraSlowKtpsOwn, energyIntent, heightState = null, t = 0 }) {
+function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowOwn, cone, energyIntent, heightState = null, t = 0 }) {
   const T = TRACKER;
   const GAIN = T.gain;
   // A phase may slow with more than power back (slowStage, slow-down.js; the turning rejoin's run-in: power back and the
   // speed brake, card 03:33Z rule 4: "torque and speed brake first").
   // A rejoin's leg slows with its torque floor and the boards as needed (Patrick 6 Oct 03:17-03:20Z, TS-108).
   const rejoinLeg = ph.rejoin || ph.slowStage === 'boards';
-  const floorThr = floorThrOwn ?? (rejoinLeg ? throttleAtTorque(REJOIN.floorTorquePct, W.kias, blockFt) : 0);
+  const floorThr = rejoinLeg ? throttleAtTorque(REJOIN.floorTorquePct, W.kias, blockFt) : 0;
   const slowStage = stageOwn ?? ph.slowStage ?? (ph.rejoin ? 'boards' : 'power');
   // The climb he is flying costs speed and a descent gives it (standard energy, dV/dt = g (T - D) / W - g sin(climb
   // angle): climbCostKtps), so the engine's range is shifted by it: climbing at MAX he slows (Patrick 6 Oct 05:00Z: "This
@@ -341,10 +341,8 @@ function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowO
   // the extra speed. we can ALWAYS use the cone to soak up speed"): while there is room above, a zoom up to FW_BUBBLE's
   // climb rate slows him beyond what power back gives (standard energy, climbCostKtps); the climb itself is flown below.
   const zoomFtps = energy && belowOwn == null ? zoomRoomFtps(L, W) : 0;
-  const extraSlowKtps = extraSlowKtpsOwn ?? (zoomFtps > 0 ? climbCostKtps(W, zoomFtps) : 0);
-  const aWant = aCmdOwn != null
-    ? aCmdOwn
-    : (energyIntent === 'gain' && W.kias < kiasCmd ? Infinity : GAIN.speedLoop * (kiasCmd - W.kias));
+  const extraSlowKtps = zoomFtps > 0 ? climbCostKtps(W, zoomFtps) : 0;
+  const aWant = (energyIntent === 'gain' && W.kias < kiasCmd ? Infinity : GAIN.speedLoop * (kiasCmd - W.kias));
   // Lining up, the last few thousandths of a knot are taken out at once (snapKias), so the speed has no step.
   const accel = pilotSpeed(pilot, W, aWant, {
     blockFt, top: slowStage, floorThr, climbKtps, extraSlowKtps, snapKias: aligning ? L.kias : null, snapTol: T.kiasSnap,
@@ -623,9 +621,6 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     let bankOwn = null; // a bank a `pursuit` phase commands outright (fw-switch.js, TS-102), else the heading loop's
     let belowOwn = null; // a height below the aircraft flown off a `pursuit` phase asks for (the fighting wing bubble's dive, TS-134)
     let stageOwn = null; // a slowing stage a `pursuit` phase asks for this step (echelon-to-fw.js's idle and the boards), else the phase's
-    let aCmdOwn = null;
-    let floorThrOwn = null;
-    let extraSlowKtpsOwn = null;
     let stepProfileOwn = null;
     let energyIntentOwn = null;
 
@@ -693,9 +688,6 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       belowOwn = asked?.belowFt ?? null;
       const own = asked?.keepBase ? null : asked;
       stageOwn = own?.slowStage ?? null;
-      aCmdOwn = own?.aCmd ?? null;
-      floorThrOwn = own?.floorThr ?? null;
-      extraSlowKtpsOwn = own?.extraSlowKtps ?? null;
       stepProfileOwn = own?.stepProfile ?? null;
       energyIntentOwn = own?.energyIntent ?? ph.energyIntent ?? null;
 
@@ -723,9 +715,6 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     // 4. Power: speed loop, jerk limit, energy intent
     const power = powerOf(ph, pilot, W, L, kiasCmd, {
       blockFt, aligning, stageOwn, belowOwn, cone: heightState.cone,
-      aCmdOwn: aligning ? null : aCmdOwn,
-      floorThrOwn,
-      extraSlowKtpsOwn,
       energyIntent: energyIntentOwn,
       heightState,
       t,

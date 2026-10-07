@@ -47,7 +47,7 @@ import { createPilot, pilotSpeed, pilotFly, pilotPower, pilotStep, pilotJerkKtps
 import { fwGoal } from './formation-turns.js';
 import { acrossSixLegs } from './replan.js';
 import { fullPowerKtps, slowKtps, stallBankDeg } from './slow-down.js';
-import { flyRejoinLine, fixedLine, aheadWatch, sustainedBankDeg, sustainsBank } from './rejoin-law.js';
+import { fixedLine, aheadWatch, sustainedBankDeg, sustainsBank } from './rejoin-law.js';
 import { throttleAtTorque } from './power.js';
 import { bankDegFromTurnRate, turnRadiusFromBankFt } from '../../../core/flight-math.js';
 import { wrapPi } from '../../../core/angles.js';
