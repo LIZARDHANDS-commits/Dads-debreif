@@ -22,8 +22,8 @@ export const MODEL_GROUPS = Object.freeze(['low', 'mid', 'high', 'winds', 'freez
 
 const WIND_COLOUR = '#ffe9a8';
 const FREEZING_COLOUR = '#7fd4ff';
-/** The barb, in feet along the ground: staff length, feather length, the gap between feathers, and the line width. Sized to the 31 NM grid. */
-const BARB = Object.freeze({ staff: 62_000, feather: 26_000, gap: 11_000, width: 3_600, station: 8_000 });
+/** The barb, in feet along the ground: staff length, feather length, the gap between feathers, and the line width. Smaller than before (Dad, 7 Oct: "too prominent"; about three quarters of the old size). */
+const BARB = Object.freeze({ staff: 46_000, feather: 19_000, gap: 8_000, width: 2_700, station: 6_000 });
 const SHEET_OPACITY = 0.12;
 const LIFT_FT = 400; // as view3d.js: a line lies a little above what it follows
 

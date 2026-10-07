@@ -3,7 +3,7 @@
 // the base map choice, and the order they stack in. The state is one plain object
 // that is checked on the way in from storage; anything wrong is the default.
 //
-//   { base, precip, on: { radar: true, … }, traffic: { label, militaryOnly }, opacity: { radar: 75, … } }
+//   { base, precip, on: { radar: true, … }, traffic: { label, militaryOnly, trails }, opacity: { radar: 75, … } }
 //
 // The ADS-B Exchange view is not a layer: it swaps the whole map area, always starts
 // off, and is not kept (map.js).
@@ -67,7 +67,7 @@ export function defaultLayers({ now } = /** @type {any} */ ({})) {
     base: 'satellite',
     precip: defaultPrecip(now),
     on: Object.fromEntries(OVERLAYS.map((o) => [o.id, o.on])),
-    traffic: { label: 'off', militaryOnly: false },
+    traffic: { label: 'off', militaryOnly: false, trails: true }, // trails: the fading line behind each aircraft, in 2D and 3D (Dad, 7 Oct), on to begin with
     // The VNC chart's own slider is for when it is over the satellite picture.
     opacity: { ...Object.fromEntries(OVERLAYS.filter((o) => o.opacity !== undefined).map((o) => [o.id, o.opacity])), vnc: VNC_OVER_SATELLITE_PCT },
   };
@@ -91,6 +91,7 @@ export function cleanLayers(raw, { now } = /** @type {any} */ ({})) {
   const t = raw.traffic !== null && typeof raw.traffic === 'object' ? raw.traffic : {};
   if (typeof t.label === 'string' && LABEL_IDS.has(t.label)) out.traffic.label = t.label;
   if (typeof t.militaryOnly === 'boolean') out.traffic.militaryOnly = t.militaryOnly;
+  if (typeof t.trails === 'boolean') out.traffic.trails = t.trails;
   const on = raw.on !== null && typeof raw.on === 'object' ? raw.on : {};
   const opacity = raw.opacity !== null && typeof raw.opacity === 'object' ? raw.opacity : {};
   if (Object.hasOwn(opacity, 'vnc') && isNumber(opacity.vnc)) out.opacity.vnc = snapPct(opacity.vnc);
@@ -118,12 +119,13 @@ export function setBase(state, base) {
   return BASE_IDS.has(base) ? { ...state, base } : state;
 }
 
-/** The traffic layer's label choice, or military only. Anything not on the list changes nothing. */
-export function setTrafficOption(state, { label, militaryOnly } = /** @type {any} */ ({})) {
+/** The traffic layer's label choice, military only, or trails on or off. Anything not on the list changes nothing. */
+export function setTrafficOption(state, { label, militaryOnly, trails } = /** @type {any} */ ({})) {
   const next = { ...state.traffic };
   if (typeof label === 'string' && LABEL_IDS.has(/** @type {any} */ (label))) next.label = /** @type {any} */ (label);
   if (typeof militaryOnly === 'boolean') next.militaryOnly = militaryOnly;
-  return next.label === state.traffic.label && next.militaryOnly === state.traffic.militaryOnly ? state : { ...state, traffic: next };
+  if (typeof trails === 'boolean') next.trails = trails;
+  return next.label === state.traffic.label && next.militaryOnly === state.traffic.militaryOnly && next.trails === state.traffic.trails ? state : { ...state, traffic: next };
 }
 
 /** Rain or Snow. */

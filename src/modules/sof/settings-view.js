@@ -6,19 +6,21 @@
 import { h } from '../../ui-kit/dom.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
-import { TRIGGER_OPTIONS, BANNER_HINT, MAX_RELAY_CHARS, relayAccepted, withTrigger, snapCeiling, snapVisibility } from './settings-model.js';
+import { TRIGGER_OPTIONS, BANNER_HINT, MAX_RELAY_CHARS, relayAccepted, withTrigger, snapCeiling, snapVisibility, CROSSWIND_RANGE } from './settings-model.js';
+import { RUNWAY_STATES, CROSSWIND_SOURCE } from './crosswind.js';
 
 const hint = (text) => h('p', { class: 'sof-hint' }, text);
 
 /**
- * settings: the SOF's settings (createSofSettings). onToggle(collapsed): called when the menu's own header or Escape closes it.
+ * settings: the SOF's settings (createSofSettings); crosswind: the crosswind levels and runway state (createCrosswindSettings), or left out.
+ * onToggle(collapsed): called when the menu's own header or Escape closes it. Reset to defaults resets both.
  * Returns { element, setOpen(open), dispose }: the menu opens from the SOF bar's button as a drop-down (layout.js).
  */
-export function createSettingsView({ settings, onToggle }) {
+export function createSettingsView({ settings, crosswind = null, onToggle }) {
   // The boxes see the numbers as typed; everything else sees them snapped (settings-model.js).
   const view = withTrigger(settings.editing);
   const controls = createControls(view);
-  const menu = createSettingsMenu({ title: 'SOF settings', onReset: () => settings.reset(), onToggle });
+  const menu = createSettingsMenu({ title: 'SOF settings', onReset: () => { settings.reset(); crosswind?.reset(); }, onToggle });
 
   const trigger = controls.select('trigger', { label: 'Trigger', options: TRIGGER_OPTIONS });
   // Custom is only ever what the two numbers say: it's not offered in the list, and if it is chosen anyway
@@ -52,6 +54,21 @@ export function createSettingsView({ settings, onToggle }) {
     hint('A caution is raised when ECCC\'s 10-minute lightning map shows lightning within this distance of home. It is an estimate on a 2.5 km grid, not individual strikes.'),
   );
 
+  // Crosswind per runway (SOF-R27, SOF-43): the runway state and the four levels, each a reference, not a wall.
+  const xwControls = crosswind ? createControls(crosswind) : null;
+  if (xwControls) {
+    const knots = (key, label) => xwControls.number(key, { label, unit: 'kt', min: CROSSWIND_RANGE.min, max: CROSSWIND_RANGE.max, step: /** @type {any} */ (CROSSWIND_RANGE.step) });
+    menu.section('Crosswind (references, not walls)').append(
+      xwControls.select('runwayState', { label: 'Runway state', options: RUNWAY_STATES }),
+      knots('xwAmberDryKt', 'Amber over, dry'),
+      knots('xwAmberWetKt', 'Amber over, wet'),
+      knots('xwAmberIcyKt', 'Amber over, icy'),
+      knots('xwRedDryKt', 'Red over, dry'),
+      hint('Each airfield card shows the headwind and crosswind on every runway from the latest METAR (gust when reported; VRB counts in full), amber over the level for the runway state chosen here and red over the red level. Red on every runway at home puts a line on the caution banner. The runway state never changes by itself; a card says when its METAR reports precipitation.'),
+      hint(`Source: ${CROSSWIND_SOURCE}`),
+    );
+  }
+
   // The 3D view's height scale (SOF-39): heights are drawn this many times taller than distances on the ground.
   const heightScale = controls.number('heightScale3d', { label: '3D height scale', min: 1, max: 20, step: /** @type {any} */ (1) });
   menu.section('3D view').append(
@@ -75,6 +92,7 @@ export function createSettingsView({ settings, onToggle }) {
     dispose() {
       relay.dispose();
       controls.dispose();
+      xwControls?.dispose();
     },
   };
 }

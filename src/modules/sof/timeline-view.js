@@ -6,8 +6,8 @@
 // own, once a minute, without a redraw. A redraw keeps the piece that had focus, and never
 // touches the Waves inputs, which are in its header. Everything is text; nothing is HTML.
 //
-// SOF-38: on the one-screen SOF the timeline is always open, across the full width, and its header holds the
-// waves (waves-view.js hands in its element): there is nothing to collapse. The key to the pieces is one
+// SOF-38, as changed on 7 Oct: this is the full timeline, which opens over the screen from the thin strip along the bottom (timeline-strip.js,
+// whose Expand button shows it). Its header holds the waves (waves-view.js hands in its element). The key to the pieces is one
 // click away, in a note that opens over the screen.
 import { h } from '../../ui-kit/dom.js';
 import { moveFocus } from './timeline-view-model.js';
@@ -48,7 +48,7 @@ export function createTimelineView({ header = null } = {}) {
   // The header holds the title and the waves; the body holds the picture, and scrolls inside itself if there are many airfields.
   const head = h('div', { class: 'sof-tl-head' }, title, header);
   const scroll = h('div', { class: 'sof-tl-scroll' }, problem, axis, rows);
-  const element = h('section', { class: 'sof-timeline', 'aria-labelledby': 'sof-tl-title' }, head, scroll, h('div', { class: 'sof-tl-foot' }, info, key), waveWords);
+  const element = h('section', { class: 'sof-timeline-full', 'aria-labelledby': 'sof-tl-title' }, head, scroll, h('div', { class: 'sof-tl-foot' }, info, key), waveWords);
   title.id = 'sof-tl-title';
 
   let signature = null;

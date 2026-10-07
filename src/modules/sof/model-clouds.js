@@ -26,12 +26,27 @@ import { windBarb } from './map-model.js';
 // ---- What is asked for -----------------------------------------------------------------------------
 
 export const MODEL_URL = 'https://api.open-meteo.com/v1/gem';
-/** The grid: 9 x 9 points over the square, edge to edge, so 250 / 8 = 31.25 NM apart (SOF-39). */
-export const GRID_SIZE = 9;
+/**
+ * The grid: 13 x 13 points over the square, edge to edge, so 450 / 12 = 37.5 NM apart (Dad, 7 Oct: the area grew from 250 to 450 NM; the grid was 9 x 9). A
+ * model object carries its own `gridSize` (it is the square root of the points it was asked for), so a reply over another grid still reads.
+ */
+export const GRID_SIZE = 13;
 export const GRID_SPACING_NM = AREA_NM / (GRID_SIZE - 1);
 export const GRID_SPACING_FT = GRID_SPACING_NM * FT_PER_NM;
-/** Cloud cover and geopotential height are asked at these pressure levels, bottom first. */
+/** Cloud cover and geopotential height are asked at these pressure levels, bottom first (the global GEM request, kept as it was). */
 export const CLOUD_LEVELS_HPA = Object.freeze([1000, 925, 850, 700, 600, 500, 400, 300]);
+/**
+ * The finer HRDPS request (ECCC's 2.5 km model, `models=gem_hrdps_continental` on the same endpoint; Dad, 7 Oct): more levels. Checked 7 Oct 2026 against the live
+ * endpoint: it answered cloud cover and geopotential height at 1000, 950, 925, 900, 850, 800, 750, 700, 650, 600, 550, 500, 450, 400, 350, 300 and 250 hPa;
+ * 975 hPa came back all null (so it is never asked for) and `freezing_level_height` is null for HRDPS (the freezing level comes from a small global GEM request,
+ * see `FREEZING_STEP`). Asking for all 17 levels at 169 points took over a minute to stream (HRDPS is slow, about 0.5 s a point with 17 levels; the global GEM
+ * answers the same grid in about 5 s), so these 12 are asked for, an estimate for a wait of about 40 s: 650, 550, 450 and 350 hPa are left out.
+ */
+export const HRDPS_CLOUD_LEVELS_HPA = Object.freeze([1000, 950, 900, 850, 800, 750, 700, 600, 500, 400, 300, 250]);
+/** The levels to try, for the record (see above): the ones that came back with data on 7 Oct 2026, and the one that did not. */
+export const HRDPS_TRIED_HPA = Object.freeze({ answered: [1000, 950, 925, 900, 850, 800, 750, 700, 650, 600, 550, 500, 450, 400, 350, 300, 250], null: [975] });
+/** HRDPS has no freezing level: a small global GEM request over every third grid point each way (25 of the 169) gives the mean the sheet uses. */
+export const FREEZING_STEP = 3;
 /** Winds are asked at these (and drawn as barbs at each level's own geopotential height). */
 export const WIND_LEVELS_HPA = Object.freeze([850, 700, 500]);
 /** Hourly values asked for: now plus 24 hours ahead. */
@@ -49,6 +64,39 @@ export const HOURLY_VARIABLES = Object.freeze([
   'cloud_cover_mid',
   'cloud_cover_high',
 ]);
+
+const variablesFor = (levels, { freezing = true } = {}) => Object.freeze([
+  ...levels.map((l) => `cloud_cover_${l}hPa`),
+  ...levels.map((l) => `geopotential_height_${l}hPa`),
+  ...WIND_LEVELS_HPA.map((l) => `wind_speed_${l}hPa`),
+  ...WIND_LEVELS_HPA.map((l) => `wind_direction_${l}hPa`),
+  ...(freezing ? ['freezing_level_height'] : []),
+  'cloud_cover_low',
+  'cloud_cover_mid',
+  'cloud_cover_high',
+]);
+
+/**
+ * The two requests (Dad, 7 Oct): the finer HRDPS (2.5 km) first, the global GEM as the fallback when HRDPS fails or comes back mostly null, and also as the quick first
+ * picture while HRDPS (slow) is still on its way. `askedVariables` are the hourly variables put in the address; `variables` are every variable the model must hold after
+ * the checks (HRDPS' freezing level is added from the small global request). `limits` are the request's timeout and byte cap (map-fetch.js: HRDPS streams slowly).
+ */
+export const GEM_PROFILE = Object.freeze({
+  id: 'gem',
+  name: 'ECCC GEM',
+  models: null, // the endpoint's default, the global GEM
+  cloudLevels: CLOUD_LEVELS_HPA,
+  askedVariables: HOURLY_VARIABLES,
+  variables: HOURLY_VARIABLES,
+});
+export const HRDPS_PROFILE = Object.freeze({
+  id: 'hrdps',
+  name: 'ECCC HRDPS 2.5 km',
+  models: 'gem_hrdps_continental',
+  cloudLevels: HRDPS_CLOUD_LEVELS_HPA,
+  askedVariables: variablesFor(HRDPS_CLOUD_LEVELS_HPA, { freezing: false }),
+  variables: variablesFor(HRDPS_CLOUD_LEVELS_HPA),
+});
 
 /** More than this share of the reply's values null and the whole reply is thrown away (SOF-39). */
 export const MAX_NULL_SHARE = 0.5;
@@ -100,12 +148,12 @@ const two = (n) => String(n).padStart(2, '0');
  * local feet from home, and lat and lon (two decimals, about a kilometre, finer than the model's own grid) worked out by the map's
  * projection. `toLatLon(x, y)` is the projection's own ({ lat, lon }).
  */
-export function gridPoints(toLatLon) {
+export function gridPoints(toLatLon, size = GRID_SIZE) {
   const half = AREA_FT / 2;
-  const step = AREA_FT / (GRID_SIZE - 1);
+  const step = AREA_FT / (size - 1);
   const out = [];
-  for (let j = 0; j < GRID_SIZE; j++) {
-    for (let i = 0; i < GRID_SIZE; i++) {
+  for (let j = 0; j < size; j++) {
+    for (let i = 0; i < size; i++) {
       const x = -half + i * step;
       const y = -half + j * step;
       const { lat, lon } = toLatLon(x, y);
@@ -115,15 +163,20 @@ export function gridPoints(toLatLon) {
   return out;
 }
 
-/** The one request for every grid point: comma-separated latitudes and longitudes, the hourly variables, knots, GMT, 25 hours. */
-export function modelUrl(points) {
+/**
+ * The one request for every grid point: comma-separated latitudes and longitudes, the hourly variables, knots, GMT, 25 hours. `profile` says which model and which
+ * variables (GEM_PROFILE, the default; HRDPS_PROFILE adds `models=gem_hrdps_continental`); `variables` overrides the list (the small freezing-level request).
+ * 169 points with the HRDPS variables make an address of about 3,400 characters, under the 8,000 Open-Meteo takes.
+ */
+export function modelUrl(points, profile = GEM_PROFILE, variables = profile.askedVariables) {
   const params = new URLSearchParams({
     latitude: points.map((p) => p.lat).join(','),
     longitude: points.map((p) => p.lon).join(','),
-    hourly: HOURLY_VARIABLES.join(','),
+    hourly: variables.join(','),
     wind_speed_unit: 'kn',
     timezone: 'GMT',
     forecast_hours: String(FORECAST_HOURS),
+    ...(profile.models ? { models: profile.models } : {}),
   });
   // URLSearchParams writes a comma as %2C; the API takes both, but the plain form is shorter and easier to read.
   return `${MODEL_URL}?${params.toString().replaceAll('%2C', ',')}`;
@@ -143,10 +196,11 @@ let nextModelId = 1;
  * were asked for. Returns { ok: true, model } or { ok: false, reason, incomplete }. A single wrong value fails the whole reply.
  * A null is allowed as "no data" for that value, unless more than MAX_NULL_SHARE of all the values are null (`incomplete: true`).
  *
- * model: { id, receivedAt, times: [ms], points: [{ ...gridPoint, series: { variable: [number or null] } }] }; the numbers are as the
- * reply gave them (metres, percent, knots, degrees true), converted when read (`columnAt`).
+ * model: { id, receivedAt, source ('gem' or 'hrdps'), sourceName, gridSize, cloudLevels, times: [ms], points: [{ ...gridPoint, series: { variable: [number or null] } }] };
+ * the numbers are as the reply gave them (metres, percent, knots, degrees true), converted when read (`columnAt`). `profile` (default the global GEM's, as before)
+ * says which variables the reply must hold; `gridSize` is the square root of the number of points asked for.
  */
-export function checkModelReply(reply, { points, receivedAt = Date.now() } = /** @type {any} */ ({})) {
+export function checkModelReply(reply, { points, receivedAt = Date.now(), profile = GEM_PROFILE } = /** @type {any} */ ({})) {
   const fail = (reason, incomplete = false) => ({ ok: false, reason, incomplete });
   if (!Array.isArray(reply)) return fail('not a list of points');
   if (reply.length !== points.length) return fail(`${reply.length} points, not ${points.length}`);
@@ -163,7 +217,7 @@ export function checkModelReply(reply, { points, receivedAt = Date.now() } = /**
     if (times === null) times = own;
     else if (own.length !== times.length || own.some((t, k) => t !== times[k])) return fail(`point ${n} has other times than the first`);
     const series = {};
-    for (const variable of HOURLY_VARIABLES) {
+    for (const variable of profile.variables) {
       const values = hourly[variable];
       if (!Array.isArray(values) || values.length !== times.length) return fail(`point ${n}: ${variable} is not ${times.length} values`);
       const [, lo, hi] = rangeOf(variable);
@@ -177,7 +231,8 @@ export function checkModelReply(reply, { points, receivedAt = Date.now() } = /**
     out.push({ ...points[n], series });
   }
   if (nulls > total * MAX_NULL_SHARE) return fail(`${nulls} of ${total} values are null`, true);
-  return { ok: true, model: { id: nextModelId++, receivedAt, times, points: out } };
+  const gridSize = Math.round(Math.sqrt(points.length));
+  return { ok: true, model: { id: nextModelId++, receivedAt, source: profile.id, sourceName: profile.name, gridSize, cloudLevels: profile.cloudLevels, times, points: out } };
 }
 
 // ---- Reading the model at an hour ------------------------------------------------------------------
@@ -202,9 +257,9 @@ export function maxAhead(model, nowMs) {
  * A level with no height (null) is left out of the column; a level with no cover (null) has `cover: null`, which is not cloudy. The
  * freezing level and the low, mid and high cover are null when there is no data.
  */
-export function columnAt(point, hour) {
+export function columnAt(point, hour, cloudLevels = CLOUD_LEVELS_HPA) {
   const levels = [];
-  for (const hPa of CLOUD_LEVELS_HPA) {
+  for (const hPa of cloudLevels) {
     const metres = point.series[`geopotential_height_${hPa}hPa`][hour];
     if (metres === null) continue;
     levels.push({ hPa, cover: point.series[`cloud_cover_${hPa}hPa`][hour], heightFt: metres * FT_PER_M });
@@ -295,7 +350,7 @@ export function sheetAlpha(coverPct, threshold = CLOUD_COVER_THRESHOLD_PCT) {
  * not cloudy.
  */
 export function cloudSheetLevel(model, hour, hPa) {
-  const size = GRID_SIZE;
+  const size = model.gridSize ?? GRID_SIZE;
   const values = new Array(size * size).fill(0);
   let heightSum = 0;
   let heightCount = 0;
@@ -320,7 +375,7 @@ export function cloudSheetLevel(model, hour, hPa) {
 }
 
 /** Every cloud level at the hour that has a height, bottom first: [cloudSheetLevel]. */
-export const cloudSheetLevels = (model, hour) => CLOUD_LEVELS_HPA.map((hPa) => cloudSheetLevel(model, hour, hPa)).filter((l) => l !== null);
+export const cloudSheetLevels = (model, hour) => (model.cloudLevels ?? CLOUD_LEVELS_HPA).map((hPa) => cloudSheetLevel(model, hour, hPa)).filter((l) => l !== null);
 
 /** The four Catmull-Rom weights for the points p0 to p3 at t (0 to 1) between p1 and p2: the value is w[0] * p0 + w[1] * p1 + w[2] * p2 + w[3] * p3. */
 const catmullWeights = (t) => [
@@ -421,7 +476,7 @@ export function meanLayerCover(model, hour) {
   const sum = { low: 0, mid: 0, high: 0 };
   const count = { low: 0, mid: 0, high: 0 };
   for (const point of model.points) {
-    const c = columnAt(point, hour);
+    const c = columnAt(point, hour, model.cloudLevels);
     for (const key of ['low', 'mid', 'high']) {
       if (c[key] !== null) {
         sum[key] += c[key];
@@ -468,12 +523,16 @@ export function windAt(point, hour, hPa) {
   return { x: point.x, y: point.y, i: point.i, j: point.j, hPa, heightFt, dirTrue, dirMag, kt, barb: windBarb(kt), words: levelWindWords({ hPa, heightFt, dirMag, kt }) };
 }
 
-/** The barbs to draw: every other grid point (each way, so 25 of the 81), at each of the three levels. Bottom level first. */
+/** Every this-many grid points (each way) has a barb: every other point of a 9 x 9 grid, every third of a 13 x 13 (25 barbs a level either way). */
+export const barbStep = (gridSize) => (gridSize > 9 ? 3 : 2);
+
+/** The barbs to draw: every `barbStep` grid point (each way, so 25 a level), at each of the three levels. Bottom level first. */
 export function modelWinds(model, hour) {
   const out = [];
+  const step = barbStep(model.gridSize ?? GRID_SIZE);
   for (const hPa of WIND_LEVELS_HPA) {
     for (const point of model.points) {
-      const wind = point.i % 2 === 0 && point.j % 2 === 0 ? windAt(point, hour, hPa) : null;
+      const wind = point.i % step === 0 && point.j % step === 0 ? windAt(point, hour, hPa) : null;
       if (wind) out.push(wind);
     }
   }
@@ -482,8 +541,85 @@ export function modelWinds(model, hour) {
 
 /** The winds over home (the centre grid point), one per level, for the key and the labels. */
 export function windsOverHome(model, hour) {
-  const centre = model.points.find((p) => p.i === (GRID_SIZE - 1) / 2 && p.j === (GRID_SIZE - 1) / 2);
+  const mid = ((model.gridSize ?? GRID_SIZE) - 1) / 2;
+  const centre = model.points.find((p) => p.i === mid && p.j === mid);
   return centre ? WIND_LEVELS_HPA.map((hPa) => windAt(centre, hour, hPa)).filter((w) => w !== null) : [];
+}
+
+// ---- Wind as a field (the gentle flow, Dad 7 Oct) and the cloud above a place ---------------------------------------
+
+/**
+ * One level's wind over the whole grid at an hour, as east and north components in knots (a wind FROM `dir` blows towards `dir + 180`): { size, u, v, heightFt }
+ * with `u` and `v` as Float32Array (NaN where the model has no value) row by row from the south-west, and `heightFt` the level's mean geopotential height; or null
+ * when no grid point has a wind at this level.
+ */
+export function windGrid(model, hour, hPa) {
+  const size = model.gridSize ?? GRID_SIZE;
+  const u = new Float32Array(size * size).fill(NaN);
+  const v = new Float32Array(size * size).fill(NaN);
+  let heightSum = 0;
+  let heightCount = 0;
+  let any = false;
+  for (const point of model.points) {
+    const kt = point.series[`wind_speed_${hPa}hPa`][hour];
+    const dir = point.series[`wind_direction_${hPa}hPa`][hour];
+    const metres = point.series[`geopotential_height_${hPa}hPa`]?.[hour] ?? null;
+    if (metres !== null) {
+      heightSum += metres * FT_PER_M;
+      heightCount += 1;
+    }
+    if (kt === null || dir === null) continue;
+    const r = (dir * Math.PI) / 180;
+    u[point.j * size + point.i] = -kt * Math.sin(r);
+    v[point.j * size + point.i] = -kt * Math.cos(r);
+    any = true;
+  }
+  return any && heightCount ? { size, u, v, heightFt: heightSum / heightCount } : null;
+}
+
+/**
+ * The wind at a place (`x`, `y` feet from home, inside the square) from a `windGrid`, bilinear between the four grid points round it (a corner with no value is left
+ * out and the others weighted). Returns { u, v, kt } (knots east, north, speed) or null where all four are missing.
+ */
+export function sampleWind(grid, x, y) {
+  const { size } = grid;
+  const gx = Math.min(1, Math.max(0, (x + AREA_FT / 2) / AREA_FT)) * (size - 1);
+  const gy = Math.min(1, Math.max(0, (y + AREA_FT / 2) / AREA_FT)) * (size - 1);
+  const i = Math.min(size - 2, Math.floor(gx));
+  const j = Math.min(size - 2, Math.floor(gy));
+  const tx = gx - i;
+  const ty = gy - j;
+  let su = 0;
+  let sv = 0;
+  let sw = 0;
+  for (const [di, dj, w] of [[0, 0, (1 - tx) * (1 - ty)], [1, 0, tx * (1 - ty)], [0, 1, (1 - tx) * ty], [1, 1, tx * ty]]) {
+    const n = (j + dj) * size + (i + di);
+    if (Number.isNaN(grid.u[n]) || w <= 0) continue;
+    su += grid.u[n] * w;
+    sv += grid.v[n] * w;
+    sw += w;
+  }
+  if (sw <= 0) return null;
+  const uu = su / sw;
+  const vv = sv / sw;
+  return { u: uu, v: vv, kt: Math.hypot(uu, vv) };
+}
+
+/**
+ * The cloud above a place, from the model's cloud levels at an hour (`cloudSheetLevels`): { baseFt, topFt } in feet above sea level, the lowest and the highest level above
+ * the ground whose cover there (smooth, as the sheets are) is over `threshold`; null with no cloud over the place. `u` and `v` run 0 to 1 across the square, west to east
+ * and south to north. A level's own height stands for its cloud, as the sheets do (the cloud's real thickness is not known).
+ */
+export function cloudColumnAt(levels, u, v, groundFt = 0, threshold = CLOUD_COVER_THRESHOLD_PCT) {
+  let baseFt = null;
+  let topFt = null;
+  for (const level of levels) {
+    if (level.heightFt <= groundFt || !(level.maxCover > threshold)) continue;
+    if (!(sampleCover(level.values, level.size, u, v) > threshold)) continue;
+    baseFt ??= level.heightFt;
+    topFt = level.heightFt;
+  }
+  return baseFt === null ? null : { baseFt, topFt };
 }
 
 // ---- Freezing level --------------------------------------------------------------------------------
@@ -493,7 +629,7 @@ export function meanFreezingFt(model, hour) {
   let sum = 0;
   let count = 0;
   for (const point of model.points) {
-    const { freezingFt } = columnAt(point, hour);
+    const { freezingFt } = columnAt(point, hour, model.cloudLevels);
     if (freezingFt !== null) {
       sum += freezingFt;
       count += 1;
@@ -542,7 +678,12 @@ export const CREDIT_WORDS = 'Model clouds and winds: Open-Meteo, ECCC GEM (model
  * there is to draw. `start()` asks at once and then once an hour (ten minutes after a failure); `stop()` ends the request and the timer.
  * It is started only while the 3D view is shown.
  *
- * - points(): the grid points for the current home (`gridPoints`).
+ * Which model (Dad, 7 Oct): the finer HRDPS 2.5 km model is asked for first; the global GEM is the fallback when HRDPS fails or comes back with more than half nulls.
+ * HRDPS is slow (about 40 s for the whole grid, longer the first time), so when nothing is held yet the global GEM (about 5 s) is asked for first and drawn at
+ * once, and the HRDPS answer replaces it when it arrives (`refining` says so meanwhile). HRDPS has no freezing level, so a small global request over every third grid
+ * point gives the sheet its mean (a failure of that request only leaves the freezing level out). An answer is checked whole, exactly as before (checkModelReply).
+ *
+ * - points(size): the grid points for the current home and grid size (`gridPoints`).
  * - fetch, timers (a scheduler scope), now: as the map's other feeds.
  * - onChange(): called when what `view` says has changed.
  */
@@ -551,6 +692,7 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
   let lastGoodAt = null;
   let failure = null; // { at, incomplete } while the last refresh has failed
   let busy = false;
+  let refining = false; // the global answer is showing while HRDPS is on its way
   let askedAt = null;
   let running = false;
   let cancelTick = null;
@@ -560,29 +702,88 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
     if (running) onChange();
   };
 
-  async function ask() {
-    const mine = controller;
-    const asked = points();
-    busy = true;
-    askedAt = +now();
-    changed();
-    /** @type {{ ok: boolean, reason?: string, incomplete?: boolean, model?: any }} */
+  /** One request for one model; { ok, model } or { ok: false, reason, incomplete }. A stopped feed or a changed home (the signal) ends it quietly: `stale: true`. */
+  async function tryProfile(profile, asked, mine) {
+    /** @type {{ ok: boolean, reason?: string, incomplete?: boolean, model?: any, stale?: boolean }} */
     let result = { ok: false, reason: 'request failed' };
     try {
-      const reply = await guardedFetch(fetch, modelUrl(asked), { timers, signal: mine.signal, accept: 'application/json', ...FETCH_LIMITS.model });
-      result = checkModelReply(JSON.parse(bytesToText(reply.bytes)), { points: asked, receivedAt: +now() });
+      const limits = profile.id === 'hrdps' ? FETCH_LIMITS.modelHrdps : FETCH_LIMITS.model;
+      const reply = await guardedFetch(fetch, modelUrl(asked, profile), { timers, signal: mine.signal, accept: 'application/json', ...limits });
+      let json = JSON.parse(bytesToText(reply.bytes));
+      if (profile.id === 'hrdps' && Array.isArray(json)) json = await withFreezing(json, asked, mine);
+      result = checkModelReply(json, { points: asked, receivedAt: +now(), profile });
     } catch {
       // A failed request, or a reply that is not JSON: the same as a wrong reply.
     }
-    if (mine !== controller || !running) return; // stopped, or home changed, while it was on its way
-    busy = false;
-    if (result.ok) {
-      model = result.model;
-      lastGoodAt = result.model.receivedAt;
-      failure = null;
-    } else {
-      failure = { at: +now(), incomplete: result.incomplete === true }; // the answer held, if any, stays until it is too old
+    if (mine !== controller || !running) return { ...result, ok: false, stale: true };
+    return result;
+  }
+
+  /** HRDPS' reply with a freezing level added: the mean comes from a small global request; a point without one has all null, and a failed request leaves every point null. */
+  async function withFreezing(json, asked, mine) {
+    const sample = asked.filter((p) => p.i % FREEZING_STEP === 0 && p.j % FREEZING_STEP === 0);
+    const byIndex = new Map();
+    try {
+      const reply = await guardedFetch(fetch, modelUrl(sample, GEM_PROFILE, ['freezing_level_height']), { timers, signal: mine.signal, accept: 'application/json', ...FETCH_LIMITS.model });
+      const small = JSON.parse(bytesToText(reply.bytes));
+      if (Array.isArray(small) && small.length === sample.length) {
+        small.forEach((entry, n) => {
+          const series = entry?.hourly?.freezing_level_height;
+          if (Array.isArray(series)) byIndex.set(sample[n].index, series);
+        });
+      }
+    } catch {
+      // No freezing level this time.
     }
+    const length = Array.isArray(json[0]?.hourly?.time) ? json[0].hourly.time.length : 0;
+    json.forEach((entry, n) => {
+      if (!entry || typeof entry !== 'object' || !entry.hourly || typeof entry.hourly !== 'object') return;
+      const series = byIndex.get(asked[n]?.index);
+      entry.hourly.freezing_level_height = Array.isArray(series) && series.length === length ? series : new Array(length).fill(null);
+    });
+    return json;
+  }
+
+  function adopt(result) {
+    model = result.model;
+    lastGoodAt = result.model.receivedAt;
+    failure = null;
+  }
+
+  async function ask() {
+    const mine = controller;
+    const asked = points(GRID_SIZE);
+    busy = true;
+    askedAt = +now();
+    changed();
+    let finished = null;
+    if (!model) {
+      // Nothing to show yet: the quick global answer first, then the finer one over it.
+      const quick = await tryProfile(GEM_PROFILE, asked, mine);
+      if (quick.stale) return;
+      if (quick.ok) {
+        adopt(quick);
+        refining = true;
+        changed();
+      }
+      const fine = await tryProfile(HRDPS_PROFILE, asked, mine);
+      if (fine.stale) return;
+      refining = false;
+      if (fine.ok) adopt(fine);
+      else if (!quick.ok) finished = { at: +now(), incomplete: fine.incomplete === true || quick.incomplete === true };
+    } else {
+      const fine = await tryProfile(HRDPS_PROFILE, asked, mine);
+      if (fine.stale) return;
+      if (fine.ok) adopt(fine);
+      else {
+        const fallback = await tryProfile(GEM_PROFILE, asked, mine);
+        if (fallback.stale) return;
+        if (fallback.ok) adopt(fallback);
+        else finished = { at: +now(), incomplete: fallback.incomplete === true || fine.incomplete === true }; // the answer held, if any, stays until it is too old
+      }
+    }
+    busy = false;
+    if (finished) failure = finished;
     changed();
   }
 
@@ -609,7 +810,9 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
       cancelTick = null;
       controller.abort();
       controller = new AbortController();
+      if (busy) askedAt = null; // a request cut off in the middle: opened again, it asks again at once
       busy = false;
+      refining = false;
     },
     /** The tab is back or the computer woke: ask if due. */
     wake: tick,
@@ -621,6 +824,7 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
       lastGoodAt = null;
       failure = null;
       busy = false;
+      refining = false;
       askedAt = null;
       if (running) {
         changed();
@@ -628,17 +832,18 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
       }
     },
     /**
-     * What to draw and say at `at`: { status, model, lastGoodAt, failedAt, incomplete }.
-     * - 'ok': the model to draw. `failedAt` is the time of a failed refresh (the answer held is still under STALE_MS old), else null.
+     * What to draw and say at `at`: { status, model, lastGoodAt, failedAt, incomplete, refining }.
+     * - 'ok': the model to draw (`model.sourceName` says which). `failedAt` is the time of a failed refresh (the answer held is still under STALE_MS old), else null.
+     *   `refining`: the global answer is showing and the finer HRDPS one is on its way.
      * - 'loading': the first ask is still out (or about to go).
      * - 'unavailable': no answer, or the one held is older than STALE_MS; no model (never a frozen one). `incomplete`: the last reply had too many nulls.
      */
     view(at = now()) {
       const old = lastGoodAt !== null && +at - lastGoodAt > STALE_MS;
       const incomplete = failure?.incomplete === true;
-      if (model && !old) return { status: 'ok', model, lastGoodAt, failedAt: failure?.at ?? null, incomplete };
-      if (!failure && !model) return { status: 'loading', model: null, lastGoodAt, failedAt: null, incomplete: false };
-      return { status: 'unavailable', model: null, lastGoodAt, failedAt: failure?.at ?? null, incomplete };
+      if (model && !old) return { status: 'ok', model, lastGoodAt, failedAt: failure?.at ?? null, incomplete, refining };
+      if (!failure && !model) return { status: 'loading', model: null, lastGoodAt, failedAt: null, incomplete: false, refining: false };
+      return { status: 'unavailable', model: null, lastGoodAt, failedAt: failure?.at ?? null, incomplete, refining: false };
     },
   };
 }

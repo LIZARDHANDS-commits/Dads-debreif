@@ -216,11 +216,37 @@ main[data-module='sof'] {
   font-size: var(--text-sm);
 }
 
-/* The cards beside the map: the cards stack in a column that scrolls inside itself if it must, the map takes the height that is left; narrow, the map comes first. */
+/* The whole SOF picture (Dad, 7 Oct): the airfield column and the map, the timeline strip and the credits line, in one box, so Full screen can fill the
+   window with all of it. Not full screen, it is just the part of the screen under the bars, as before. */
+[data-module='sof'] .sof-body {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+}
+
+/* Full screen: the browser's own (:fullscreen), or a fixed layer over the window when the browser refused (the class). */
+[data-module='sof'] .sof-body:fullscreen,
+[data-module='sof'] .sof-body.is-fullscreen {
+  box-sizing: border-box;
+  padding: var(--space-2);
+  background: var(--bg);
+}
+
+[data-module='sof'] .sof-body.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+
+/* The airfield column beside the map (Dad, 7 Oct: "the side 10 %"): about a tenth of the width, never under 150 px; its rows stack in a column that
+   scrolls inside itself if it must, the map takes the rest of the width and the height that is left; narrow, the map comes first. */
 [data-module='sof'] .sof-main {
+  position: relative;
   display: grid;
   flex: 1 1 0;
-  grid-template-columns: minmax(19rem, 27rem) minmax(0, 1fr);
+  grid-template-columns: max(150px, 10%) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   gap: var(--space-2);
   min-height: 10rem;
@@ -238,7 +264,16 @@ main[data-module='sof'] {
   }
 }
 
-/* Airfield cards: short to begin with, each one punched out; Full brief opens the whole card. */
+/* Airfield rows: one compact row each, punched out; pressing a row opens that airfield's whole card over the screen, beside the column. */
+[data-module='sof'] .sof-cards-host {
+  position: relative;
+  min-height: 0;
+}
+
+[data-module='sof'] .sof-cards-host > .sof-cards {
+  height: 100%;
+}
+
 [data-module='sof'] .sof-cards {
   position: relative;
   display: flex;
@@ -275,6 +310,97 @@ main[data-module='sof'] {
 [data-module='sof'] .sof-card.is-stale.level-within,
 [data-module='sof'] .sof-card.is-stale.level-at-limit {
   border-left-color: var(--text-faint);
+}
+
+[data-module='sof'] .sof-cards > .sof-card {
+  padding: 0;
+}
+
+[data-module='sof'] .sof-card-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  min-height: 0;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: transparent;
+  text-align: left;
+}
+
+[data-module='sof'] .sof-card-row:hover {
+  background: var(--bg-sunken);
+}
+
+[data-module='sof'] .sof-card-row[aria-expanded='true'] {
+  background: var(--bg-sunken);
+}
+
+[data-module='sof'] .sof-row-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-1);
+}
+
+[data-module='sof'] .sof-row-top .sof-badge {
+  padding: 0 var(--space-1);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+[data-module='sof'] .sof-row-home {
+  color: var(--accent-strong);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+[data-module='sof'] .sof-row-mark {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-row-mark.level-below .sof-result-symbol {
+  color: var(--bad);
+}
+
+[data-module='sof'] .sof-row-mark.level-at-limit .sof-result-symbol {
+  color: var(--caution);
+}
+
+[data-module='sof'] .sof-row-mark.level-within .sof-result-symbol {
+  color: var(--good);
+}
+
+/* The full card that opens beside the column, over the map (a drop-down, like the others). */
+[data-module='sof'] .sof-card-drop {
+  position: absolute;
+  top: 0;
+  left: calc(100% + var(--space-2));
+  z-index: 30;
+  box-sizing: border-box;
+  width: min(34rem, 80vw);
+  max-height: 100%;
+  overflow-y: auto;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+/* The hover card (Dad, 7 Oct): the same panel, shown on hover or focus without a click; a click pins it (the pinned one has an accent outline). */
+[data-module='sof'] .sof-card-drop.is-pinned {
+  border: 1px solid var(--accent);
+}
+
+[data-module='sof'] .sof-card-drop[hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-card-drop > .sof-card {
+  padding: var(--space-2) var(--space-3);
 }
 
 [data-module='sof'] .sof-card-head {
@@ -404,12 +530,6 @@ main[data-module='sof'] {
   font-family: var(--font);
 }
 
-@media (max-height: 800px) {
-  [data-module='sof'] .sof-card:not(.is-open) .sof-card-lines {
-    display: none;
-  }
-}
-
 [data-module='sof'] .sof-limits {
   margin: 0 0 var(--space-2);
   color: var(--text-muted);
@@ -527,6 +647,239 @@ main[data-module='sof'] {
 
 [data-module='sof'] .sof-note.is-info {
   color: var(--text-muted);
+}
+
+/* The row's NOTAM chip (Dad, 7 Oct): a small red "⚠ RWY CLSD" for a critical NOTAM, a grey "NOTAMs ?" when they cannot be read. Words, never colour alone. */
+[data-module='sof'] .sof-row-notam {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-row-notam.is-critical {
+  color: var(--bad);
+}
+
+[data-module='sof'] .sof-row-notam.is-unknown {
+  color: var(--text-faint);
+  font-weight: 400;
+}
+
+/* The crosswind chip in the narrow row (SOF-43): "XW 18 ⚠" when the favoured runway is amber or red; words and the sign, never colour alone. */
+[data-module='sof'] .sof-row-xw {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-row-xw.is-amber {
+  color: var(--caution);
+}
+
+[data-module='sof'] .sof-row-xw.is-red {
+  color: var(--bad);
+}
+
+/* The Runways table in the full card (SOF-43): one row per runway end, amber or red with ⚠ and words when over a level, the favoured end marked. */
+[data-module='sof'] .sof-runways {
+  margin: var(--space-2) 0 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+
+[data-module='sof'] .sof-xw-wind,
+[data-module='sof'] .sof-xw-levels {
+  margin: 0 0 var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='sof'] .sof-xw-levels {
+  margin: var(--space-1) 0 0;
+  color: var(--text-faint);
+}
+
+[data-module='sof'] .sof-xw-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+[data-module='sof'] .sof-xw-table th,
+[data-module='sof'] .sof-xw-table td {
+  padding: 1px var(--space-1);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
+[data-module='sof'] .sof-xw-table thead th {
+  color: var(--text-faint);
+  font-weight: 400;
+}
+
+[data-module='sof'] .sof-xw-name {
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+[data-module='sof'] .sof-xw-row.is-favoured {
+  background: rgb(80 160 255 / 0.12);
+}
+
+[data-module='sof'] .sof-xw-favoured {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-xw-level {
+  font-weight: 700;
+}
+
+[data-module='sof'] .sof-xw-level.is-amber {
+  color: var(--caution);
+}
+
+[data-module='sof'] .sof-xw-level.is-red {
+  color: var(--bad);
+}
+
+/* NOTAMs under the weather in the full card: a critical one is large and red, with the ⚠ and words; the rest are plain small text. */
+[data-module='sof'] .sof-notams {
+  margin: var(--space-2) 0 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+
+[data-module='sof'] .sof-notam {
+  margin: 0 0 var(--space-2);
+}
+
+[data-module='sof'] .sof-notam.is-critical {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--bad);
+  border-left-width: 6px;
+  border-radius: var(--radius);
+  background: rgb(255 107 107 / 0.1);
+}
+
+[data-module='sof'] .sof-notam-head {
+  margin: 0;
+  color: var(--bad);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+[data-module='sof'] .sof-notam-head .sof-notam-meta {
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+
+[data-module='sof'] .sof-notam-body {
+  max-height: 10em;
+  margin: var(--space-1) 0 0;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-md);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+[data-module='sof'] .sof-notam-line {
+  max-height: 8em; /* a long NOTAM (a whole list of approach minima) scrolls inside itself; the raw text is below it */
+  margin: 0;
+  overflow-y: auto;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+[data-module='sof'] .sof-notam-meta {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+}
+
+[data-module='sof'] .sof-notam-raw summary {
+  color: var(--text-faint);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+[data-module='sof'] .sof-notam-raw .sof-raw {
+  margin: var(--space-1) 0 0;
+  white-space: pre-wrap;
+  color: var(--text-muted);
+}
+
+[data-module='sof'] .sof-notam-none {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='sof'] .sof-notam-unavailable {
+  margin: 0;
+  color: var(--caution);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+/* SIGMETs, AIRMETs and PIREPs within 100 NM, after the NOTAMs (Dad, 7 Oct): one short line each; a SIGMET for severe icing, severe turbulence or
+   thunderstorms over the field is amber with ⚠ and words (colour never alone). */
+[data-module='sof'] .sof-wxalerts {
+  margin: var(--space-2) 0 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+
+[data-module='sof'] .sof-wxalert-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-module='sof'] .sof-wxalert {
+  margin: 0 0 var(--space-1);
+}
+
+[data-module='sof'] .sof-wxalert.is-warn {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--caution);
+  border-left-width: 6px;
+  border-radius: var(--radius);
+  background: rgb(245 197 66 / 0.1);
+}
+
+[data-module='sof'] .sof-wxalert-line {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+[data-module='sof'] .sof-wxalert.is-warn .sof-wxalert-line {
+  color: var(--text);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-wxalert-kind {
+  color: var(--text);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-wxalert-flag {
+  color: var(--caution);
+  font-weight: 700;
+}
+
+[data-module='sof'] .sof-wxalert-note {
+  color: var(--text-faint);
 }
 
 [data-module='sof'] .sof-result-row {
@@ -879,6 +1232,12 @@ main[data-module='sof'] {
 
 [data-module='sof'] .sof-map-feed.is-off {
   color: var(--text-muted);
+}
+
+/* Airspace log count (information only, never a caution): amber, with the warning symbol and the words beside it. */
+[data-module='sof'] .sof-map-feed.is-caution {
+  color: var(--caution);
+  font-weight: 600;
 }
 
 [data-module='sof'] .sof-map-credits,
@@ -1881,6 +2240,7 @@ main[data-module='sof'] {
   color: #b8cfdb;
 }
 
+[data-module='sof'] .sof-3d-town-label,
 [data-module='sof'] .sof-3d-deck-label,
 [data-module='sof'] .sof-3d-ring-label {
   padding: 0 var(--space-1);
@@ -1896,6 +2256,14 @@ main[data-module='sof'] {
 
 [data-module='sof'] .sof-3d-ring-label {
   color: var(--accent-strong);
+}
+
+[data-module='sof'] .sof-3d-town-label {
+  color: #dfe7ec;
+}
+
+[data-module='sof'] .sof-3d-town-label[hidden] {
+  display: none;
 }
 
 [data-module='sof'] .sof-3d-corner,
@@ -1919,7 +2287,7 @@ main[data-module='sof'] {
 }
 
 [data-module='sof'] .sof-3d-outside {
-  top: calc(var(--space-2) + 1.7rem);
+  top: calc(var(--space-2) + 2.4rem);
   right: var(--space-2);
   max-width: 16rem;
   padding: 2px var(--space-2);
@@ -1927,6 +2295,66 @@ main[data-module='sof'] {
 
 [data-module='sof'] .sof-3d-outside[hidden] {
   display: none;
+}
+
+/* Top right (Dad, 7 Oct): Orbit and Full screen beside "Heights x5". They are the one "on" look and the same size as the other toggles,
+   with a dark backing because they sit over the picture. */
+[data-module='sof'] .sof-3d-tools {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  max-width: calc(100% - var(--space-4));
+}
+
+[data-module='sof'] .sof-3d-tools .sof-3d-corner {
+  position: static;
+}
+
+[data-module='sof'] .sof-3d-tools .sof-3d-toggle {
+  background: rgb(5 10 18 / 0.85);
+  font-size: var(--text-sm);
+}
+
+[data-module='sof'] .sof-3d-tools .sof-3d-toggle[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: rgb(31 78 98 / 0.95);
+}
+
+/* The Tour (Dad, 7 Oct): what the camera is showing and when it moves on, in the top right under the buttons; the T-6 it follows has its tag outlined. */
+[data-module='sof'] .sof-3d-tour-caption {
+  position: absolute;
+  top: calc(var(--space-2) + 2.5rem);
+  right: var(--space-2);
+  z-index: 3;
+  margin: 0;
+  padding: 2px var(--space-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: rgb(5 10 18 / 0.85);
+  color: #e3eef5;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  pointer-events: none;
+}
+
+[data-module='sof'] .sof-3d-tour-caption[hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-3d-tour-next {
+  color: #b8cfdb;
+  font-weight: 400;
+}
+
+[data-module='sof'] .sof-3d-actag.is-tour {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 1px;
 }
 
 /* The bottom left is a stack: the model controls (phase 2) above the ground's credit. */
@@ -2056,45 +2484,30 @@ main[data-module='sof'] {
   font-weight: 600;
 }
 
-/* The airspace's words (SOF-39 phase 3): a volume's label is a button, so the pointer and the keyboard can open its limits. */
-[data-module='sof'] .sof-3d-airspace-label,
-[data-module='sof'] .sof-3d-route-label {
-  min-height: 0;
-  padding: 0 var(--space-1);
-  border: 1px solid transparent;
+/* The airspace's words (SOF-39 phase 3; Dad, 7 Oct): nothing stands on a volume or a TACNAV route. A volume's name and limits, or a route's name,
+   float beside the pointer while it is over the volume or near the route's line (one tag, never taking the pointer). */
+
+[data-module='sof'] .sof-3d-space-tip {
+  z-index: 2;
+  margin: 0;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--accent);
   border-radius: 3px;
-  background: rgb(5 10 18 / 0.75);
-  font: inherit;
-  line-height: 1.3;
-  font-size: var(--text-sm);
-  font-weight: 600;
-}
-
-[data-module='sof'] .sof-3d-airspace-label {
-  color: #cfe3ee;
-  cursor: help;
-  pointer-events: auto;
-}
-
-[data-module='sof'] .sof-3d-airspace-label.is-restricted {
-  border-color: #ff6b6b;
-  color: #ffd2d2;
-}
-
-[data-module='sof'] .sof-3d-airspace-label:hover,
-[data-module='sof'] .sof-3d-airspace-label:focus-visible {
-  border-color: var(--accent);
   background: rgb(5 10 18 / 0.92);
   color: #fff;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.4;
+  pointer-events: none;
 }
 
-[data-module='sof'] .sof-3d-route-label {
-  color: #ffcc66;
-}
-
-[data-module='sof'] .sof-3d-airspace-label[hidden],
-[data-module='sof'] .sof-3d-route-label[hidden] {
+[data-module='sof'] .sof-3d-space-tip[hidden] {
   display: none;
+}
+
+[data-module='sof'] .sof-3d-airspace-list {
+  max-height: 14rem;
+  overflow-y: auto;
 }
 
 [data-module='sof'] .sof-3d-toggle:disabled {
@@ -2110,6 +2523,44 @@ main[data-module='sof'] {
   height: 0.8em;
   border-radius: 2px;
   vertical-align: baseline;
+}
+
+/* The weather layers' panel (Dad, 7 Oct): the layer buttons, a line for each picture's age, and the fronts' H and L pressure marks. */
+[data-module='sof'] .sof-3d-wx-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: #b8cfdb;
+}
+
+[data-module='sof'] .sof-3d-wx-line.is-bad {
+  color: var(--caution);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-3d-wx-mark {
+  padding: 0 var(--space-1);
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  background: rgb(5 10 18 / 0.75);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+[data-module='sof'] .sof-3d-wx-mark.is-high {
+  color: #8fc7ff;
+}
+
+[data-module='sof'] .sof-3d-wx-mark.is-low {
+  color: #ff9b8f;
+}
+
+[data-module='sof'] .sof-3d-wx-mark[hidden] {
+  display: none;
 }
 
 [data-module='sof'] .sof-3d-model-label.is-freezing {
@@ -2179,8 +2630,108 @@ main[data-module='sof'] {
   font-weight: 700;
 }
 
+/* An aircraft that is not a T-6 inside CYA304, 305 or 307: its tag stays on, in amber, with the warning symbol and the words (information only). */
+[data-module='sof'] .sof-3d-actag.is-intruder {
+  border: 2px solid var(--caution);
+  background: rgb(5 10 18 / 0.92);
+  color: var(--caution);
+  font-weight: 700;
+}
+
 [data-module='sof'] .sof-3d-canvas.is-over-aircraft {
   cursor: pointer;
+}
+
+/* The Airspace log (Dad, 7 Oct): bottom right of the 3D view. The summary line always shows; the body opens under it. */
+[data-module='sof'] .sof-3d-log {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-1);
+  box-sizing: border-box;
+  width: min(26rem, 46%);
+  max-height: 50%;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: rgb(5 10 18 / 0.88);
+  color: #e3eef5;
+  font-size: var(--text-sm);
+}
+
+[data-module='sof'] .sof-3d-log[hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-log-summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+[data-module='sof'] .sof-log-summary.is-alert {
+  color: var(--caution);
+}
+
+[data-module='sof'] .sof-log-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding-top: var(--space-1);
+}
+
+[data-module='sof'] .sof-log-body [hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-log-body p {
+  margin: 0;
+}
+
+[data-module='sof'] .sof-log-status {
+  padding: 2px var(--space-2);
+  border: 1px solid var(--caution);
+  border-radius: var(--radius);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-log-heading {
+  margin-top: var(--space-1);
+  color: #b8cfdb;
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-log-empty {
+  color: #b8cfdb;
+}
+
+[data-module='sof'] .sof-log-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-module='sof'] .sof-log-line {
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+[data-module='sof'] .sof-log-line.is-alert {
+  color: var(--caution);
+  font-weight: 700;
+}
+
+[data-module='sof'] .sof-log-ticks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin-top: var(--space-1);
+}
+
+[data-module='sof'] .sof-log-tick {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 [data-module='sof'] .sof-3d-note {
@@ -2216,4 +2767,255 @@ main[data-module='sof'] {
 [data-module='sof'] .sof-map-btn[data-unavailable='true'] {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* ---- The timeline strip along the bottom (timeline-strip.js; Dad, 7 Oct: "a very narrow strip on the bottom ... like a TV Guide") ----
+   One slim line: "Timeline ▾" at the left, the miniature picture, "Expand ▾" at the right. About 4.5 % of the window's height, never under 40 px.
+   The picture: the axis ticks along its top edge, then one airfield row (two in a tall window) that slides up to the next every 5 s.
+   The waves, landing marks and the now line lie over the rows. Expand opens the full timeline upward over the screen. */
+[data-module='sof'] .sof-timeline:has(> .sof-strip-main),
+[data-module='sof'] .sof-timeline.is-hidden {
+  --sof-strip-h: max(40px, 4.5vh);
+  --sof-strip-label-w: 3.4rem;
+  display: flex;
+  flex: none;
+  align-items: stretch;
+  gap: var(--space-2);
+  height: var(--sof-strip-h);
+  padding: 2px var(--space-2);
+  overflow: visible;
+}
+
+[data-module='sof'] .sof-timeline.is-hidden {
+  height: auto;
+}
+
+[data-module='sof'] .sof-strip-toggle,
+[data-module='sof'] .sof-strip-expand {
+  flex: none;
+  align-self: center;
+  padding: 2px var(--space-2);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-strip-main {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+[data-module='sof'] .sof-strip-main[hidden],
+[data-module='sof'] .sof-strip-expand[hidden],
+[data-module='sof'] .sof-strip-full[hidden],
+[data-module='sof'] .sof-strip-problem[hidden],
+[data-module='sof'] .sof-strip-now[hidden] {
+  display: none;
+}
+
+/* The axis: tick labels in a 12 px line along the top, placed by percent over the track (right of the airfield names). */
+[data-module='sof'] .sof-strip-axis {
+  position: relative;
+  flex: none;
+  height: 12px;
+  margin-left: var(--sof-strip-label-w);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 12px;
+}
+
+[data-module='sof'] .sof-strip-tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-strip-tick.is-first {
+  transform: none;
+}
+
+[data-module='sof'] .sof-strip-tick.is-last {
+  transform: translateX(-100%);
+}
+
+/* The rows' window: shows --rows rows; the list slides up one row per step (--i). */
+[data-module='sof'] .sof-strip-viewport {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+[data-module='sof'] .sof-strip-list {
+  --row-h: calc(100% / var(--rows, 1));
+  height: 100%;
+  transform: translateY(calc(var(--i, 0) * -100% / var(--rows, 1)));
+  transition: transform var(--motion-duration) ease;
+}
+
+[data-module='sof'] .sof-strip-list.is-instant {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-module='sof'] .sof-strip-list {
+    transition: none;
+  }
+}
+
+:root[data-motion='off'] [data-module='sof'] .sof-strip-list {
+  transition: none;
+}
+
+[data-module='sof'] .sof-strip-row {
+  display: grid;
+  grid-template-columns: var(--sof-strip-label-w) minmax(0, 1fr);
+  align-items: center;
+  height: var(--row-h);
+}
+
+[data-module='sof'] .sof-strip-label {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-strip-track {
+  position: relative;
+  height: max(10px, calc(100% - 4px));
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg-sunken);
+  overflow: hidden;
+}
+
+[data-module='sof'] .sof-strip-cover {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgb(255 255 255 / 0.04);
+}
+
+[data-module='sof'] .sof-strip-piece {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  overflow: hidden;
+  border-right: 1px solid var(--bg-sunken);
+}
+
+[data-module='sof'] .sof-strip-piece.lane-over {
+  top: 50%;
+  outline: 1px solid var(--bg-sunken);
+}
+
+[data-module='sof'] .sof-strip-piece.is-hatched {
+  background-image: repeating-linear-gradient(45deg, rgb(2 10 16 / 0.55) 0 3px, transparent 3px 7px);
+}
+
+[data-module='sof'] .sof-strip-piece-label {
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 0 3px;
+  border-radius: 2px;
+  background: rgb(2 10 16 / 0.7);
+  color: var(--text);
+  font-size: 9px;
+  line-height: 11px;
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-strip-words {
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-strip-metar {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--text);
+  font-size: 9px;
+}
+
+/* Waves, landing marks and the now line, over the tracks only. */
+[data-module='sof'] .sof-strip-overlay {
+  position: absolute;
+  top: 12px;
+  bottom: 0;
+  left: var(--sof-strip-label-w);
+  right: 0;
+  pointer-events: none;
+}
+
+[data-module='sof'] .sof-strip-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px dashed var(--accent);
+  border-right: 1px dashed var(--accent);
+  background: rgb(66 191 233 / 0.14);
+  pointer-events: auto;
+}
+
+[data-module='sof'] .sof-strip-band-label {
+  position: absolute;
+  top: -12px;
+  left: 2px;
+  color: var(--accent-strong);
+  font-size: 9px;
+  line-height: 12px;
+}
+
+[data-module='sof'] .sof-strip-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px dotted var(--text-muted);
+}
+
+[data-module='sof'] .sof-strip-now {
+  position: absolute;
+  top: -12px;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--caution);
+}
+
+[data-module='sof'] .sof-strip-problem {
+  margin: 0;
+  color: var(--bad);
+  font-size: var(--text-sm);
+}
+
+/* The full timeline, opened upward over the screen from the strip. */
+[data-module='sof'] .sof-strip-full {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 4px);
+  z-index: 30;
+  max-height: 70vh;
+  overflow: auto;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow);
 }
