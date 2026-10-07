@@ -9,7 +9,7 @@
 import { bankDegFromTurnRate } from '../../../core/flight-math.js';
 import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2 } from '../../../core/units.js';
-import { STEP_SEC, copyAircraft, smoothLegSec } from './flight.js';
+import { STEP_SEC, copyAircraft, smoothLegSec, heightAt, SMOOTHER_PEAK } from './flight.js';
 import { relativeTo, unit } from './manoeuvres.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
 import { throttleAtTorque } from './power.js';
@@ -179,9 +179,9 @@ function zoomRoomFtps(L, W) {
 /**
  * Speed loop: acceleration follows the speed error; the one pilot model (pilot.js, TS-141) holds it to what the T-6 gives
  * at the G he pulls (full power up, power back down: slow-down.js, TS-61) and builds it up at the one jerk limit.
- * Evaluates climb energy cost, cone energy, and builds the height profile for the step.
+ * Returns { kias, zoomFtps, accel }.
  */
-function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, profile, stageOwn, belowOwn, t, cone }) {
+function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowOwn, cone }) {
   const T = TRACKER;
   const GAIN = T.gain;
   // A phase may slow with more than power back (slowStage, slow-down.js; the turning rejoin's run-in: power back and the
@@ -204,15 +204,24 @@ function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, profile, stageOw
   const kias = pilotSpeed(pilot, W, GAIN.speedLoop * (kiasCmd - W.kias), {
     blockFt, top: slowStage, floorThr, climbKtps, extraSlowKtps: zoomFtps > 0 ? climbCostKtps(W, zoomFtps) : 0, snapKias: aligning ? L.kias : null, snapTol: T.kiasSnap,
   });
-  const accel = pilot.accel;
-  // Fighting wing energy with the cone (TS-96): the climb that gives the slowing the speed loop flies (or the descent that
+  return { kias, zoomFtps, accel: pilot.accel };
+}
+
+/**
+ * Vertical evolution: flies aircraft #2's height in the same pass as bank and speed.
+ * Precedence:
+ * 1. Cone energy in fighting wing (or bubble dive toward belowOwn)
+ * 2. Caller's explicit profile (e.g. wing-plane ease, dive profile)
+ * 3. Internal smooth leg toward phase slot altitude (limited by ~1 G push/pull and climb energy)
+ * Returns { stepProfile }.
+ */
+export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, zoomFtps, heightState }) {
+  // 1. Fighting wing energy with the cone (TS-96): the climb that gives the slowing the speed loop flies (or the descent that
   // gives its speeding up), inside the cone's height above or below Lead, eased in and out at FW_ENERGY.pullFtps2.
-  let stepProfile = profile;
-  let newCone = cone;
-  if (cone || (ph.coneAlt && (ph.closureFtps || ph.coneEnergy)) || belowOwn != null) {
+  if (heightState.cone || (ph.coneAlt && (ph.closureFtps || ph.coneEnergy)) || belowOwn != null) {
     const E = FW_ENERGY;
     const v0 = W.climbFtps ?? 0;
-    newCone ??= { t0: t, alt: [W.altAboveFt], climb: [v0], nz: [1] };
+    heightState.cone ??= { t0: t, alt: [W.altAboveFt], climb: [v0], nz: [1] };
     const perFtps = climbCostKtps(W, 1);
     const want = ph.coneAlt ? -accel / perFtps : 0;
     const coneUpFt = coneUpFtNow(); // the share of the cone's height his experience uses (rates.js EXPERIENCE, TS-141)
@@ -233,26 +242,71 @@ function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, profile, stageOw
     const zoom = belowOwn == null && want > hi && zoomFtps > hi;
     const wantV = belowOwn != null ? toward(L.altAboveFt - belowOwn) : W.altAboveFt > topFt ? toward(topFt) : W.altAboveFt < bottomFt ? toward(bottomFt) : Math.max(lo, Math.min(zoom ? zoomFtps : hi, want));
     const pull = quick || zoom ? D.pullFtps2 : E.pullFtps2;
-    const v1 = v0 + Math.max(-pull * STEP_SEC, Math.min(pull * STEP_SEC, wantV - v0));
-    const nz = 1 + (v1 - v0) / STEP_SEC / G_FTPS2;
-    const a1 = W.altAboveFt + ((v0 + v1) / 2) * STEP_SEC;
-    newCone.alt.push(a1);
-    newCone.climb.push(v1);
-    newCone.nz.push(nz);
-    stepProfile = [{ t0: t, t1: t + STEP_SEC, table: { dt: STEP_SEC, alt: [W.altAboveFt, a1], climb: [v0, v1], nz: [nz, nz] } }];
+    const v1 = v0 + Math.max(-pull * dt, Math.min(pull * dt, wantV - v0));
+    const nz = 1 + (v1 - v0) / dt / G_FTPS2;
+    const a1 = W.altAboveFt + ((v0 + v1) / 2) * dt;
+    heightState.cone.alt.push(a1);
+    heightState.cone.climb.push(v1);
+    heightState.cone.nz.push(nz);
+    heightState.hasHeightChange = true;
+    return { stepProfile: [{ t0: t, t1: t + dt, table: { dt, alt: [W.altAboveFt, a1], climb: [v0, v1], nz: [nz, nz] } }] };
   }
-  return { kias, stepProfile, cone: newCone };
+
+  // 2. Caller's explicit profile takes precedence over internal height calculations.
+  const hasExplicit = Boolean(profile && (!Array.isArray(profile) || profile.length > 0));
+  if (hasExplicit) {
+    return { stepProfile: profile };
+  }
+
+  // 3. Single-pass altitude evolution toward phase slot target (ph.slot.alt).
+  if (ph.coneAlt) {
+    return { stepProfile: undefined };
+  }
+  const target = ph.slot?.alt;
+  if (target != null && Number.isFinite(target)) {
+    if (heightState.activeLeg && t >= heightState.activeLeg.t1 - 1e-9) {
+      heightState.activeLeg = null;
+      heightState.targetAlt = target;
+    }
+    const needNewLeg = !heightState.activeLeg
+      ? Math.abs(target - W.altAboveFt) > TRACKER.height.minChangeFt
+      : Math.abs(target - heightState.targetAlt) > TRACKER.height.minChangeFt;
+    if (needNewLeg) {
+      const rise = target - W.altAboveFt;
+      const gFloor = smoothLegSec(rise, TRACKER.height.heightG);
+      const vEnergy = rise > 0 ? fullPowerKtps(W.kias, blockFt, W.g ?? 1) / climbCostKtps(W, 1) : 0;
+      const energyFloor = vEnergy > 0 ? (SMOOTHER_PEAK * rise) / vEnergy : 0;
+      const span = Math.max(
+        ph.altSec ?? 0,
+        ph.altRateFtps ? Math.abs(rise) / ph.altRateFtps : 0,
+        gFloor,
+        TRACKER.height.minSec,
+        energyFloor
+      );
+      heightState.activeLeg = {
+        t0: t,
+        t1: t + span,
+        fromFt: W.altAboveFt,
+        toFt: target,
+        ...(ph.dive && target < W.altAboveFt ? { dive: ph.dive } : {}),
+      };
+      heightState.targetAlt = target;
+      heightState.hasHeightChange = true;
+    }
+  }
+
+  return { stepProfile: heightState.activeLeg ? [heightState.activeLeg] : undefined };
 }
 
 /**
  * Determines whether #2 is in position, settled/steady, and whether the phase has ended.
  */
-function isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt, timesK, early }) {
+function isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt, timesK, early, heightDone = true }) {
   const T = TRACKER;
   const { vpx, vpy, d, arrived } = aim;
   // Phase bookkeeping: advance when close enough, finish when settled and the reference has finished its own plan.
   const relVel = Math.hypot(W.tasFtps * Math.cos(W.headingRad) - vpx, W.tasFtps * Math.sin(W.headingRad) - vpy);
-  if (arrived && timesK.arrive === null && d <= (last ? Math.max(ph.finalTol, ph.advanceTol) : ph.advanceTol)) timesK.arrive = t;
+  if (arrived && timesK.arrive === null && d <= (last ? Math.max(ph.finalTol, ph.advanceTol) : ph.advanceTol) && (!last || heightDone)) timesK.arrive = t;
   // A phase with stopFtps is a real stop: #2 must have stopped on it (relative speed under stopFtps) and held there dwellSec.
   let newStoppedAt = stoppedAt;
   if (ph.stopFtps && arrived && d <= ph.advanceTol && relVel <= ph.stopFtps) newStoppedAt ??= t;
@@ -262,13 +316,13 @@ function isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt, timesK, early }) {
   const pursuitResult = early !== undefined ? early : (ph.pursuit && ph.pursuitEnds ? ph.pursuit(L, W, t) : undefined);
   if (pursuitResult?.abort) return { abort: true, early: pursuitResult, stoppedAt: newStoppedAt };
   const pursuitDone = pursuitResult?.done === true;
-  if (pursuitDone && last) {
+  if (pursuitDone && last && heightDone) {
     return { done: true, early: pursuitResult, stoppedAt: newStoppedAt };
   }
   if (!last && (pursuitDone || (arrived && d <= ph.advanceTol && gateOpen && stopDone))) {
     return { advance: true, early: pursuitResult, stoppedAt: null };
   }
-  const settled = arrived && last && gateOpen && d <= ph.finalTol && relVel <= Math.max(T.settleMinFtps, T.settleShare * ph.finalTol);
+  const settled = arrived && last && gateOpen && d <= ph.finalTol && relVel <= Math.max(T.settleMinFtps, T.settleShare * ph.finalTol) && heightDone;
   const startAligning = settled && L.free && L.bankDeg === 0;
   return {
     abort: false,
@@ -346,7 +400,13 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
   let ok = false;
   let reentered = false; // a phase change re-reads the step it happened in, with no reference turn rate for it
   let stoppedAt = null; // when #2 first came to a stop in a phase with `stopFtps` (a real stop: SMM 12.20 para 45)
-  let cone = null; // the heights flown with the cone's energy (TS-96): { t0, alt: [], climb: [], nz: [] }
+  const heightState = {
+    activeLeg: null,
+    targetAlt: null,
+    cone: null,
+    table: { t0, alt: [W.altAboveFt], climb: [W.climbFtps ?? 0], nz: [W.nz ?? 1] },
+    hasHeightChange: false,
+  };
 
   for (let n = 0; n < Math.round(maxSec / STEP_SEC); n++) {
     // Both aircraft are read at the same instant (the start of the step).
@@ -373,8 +433,15 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       kiasCmd = L.kias;
     } else {
       const last = k === phases.length - 1;
+      const maxExplicitT1 = Array.isArray(profile) && profile.length > 0
+        ? Math.max(...profile.map((l) => l.t1 ?? 0))
+        : (profile?.t1 ?? 0);
+      const targetAlt = !ph.coneAlt && ph.slot?.alt != null && Number.isFinite(ph.slot.alt) ? ph.slot.alt : null;
+      const heightDone = (!heightState.activeLeg && (targetAlt == null || Math.abs(targetAlt - W.altAboveFt) <= TRACKER.height.minChangeFt))
+        && (!profile || t >= maxExplicitT1 - 1e-9);
+
       // 5. In position, settled/steady, and phase completion
-      const inPos = isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt, timesK: times[k] });
+      const inPos = isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt, timesK: times[k], heightDone });
       stoppedAt = inPos.stoppedAt;
       if (inPos.abort) break;
       if (inPos.done) {
@@ -441,16 +508,23 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     // 3. Heading and bank: heading error loop with feed-forward
     const bank = headingBank(ph, psiCmd, W, aligning, bankOwn, headingState);
 
-    // 4. Power: speed loop, jerk limit, energy intent and cone height profile
+    // 4. Power: speed loop, jerk limit, energy intent
     const power = powerOf(ph, pilot, W, L, kiasCmd, {
-      blockFt, aligning, profile, stageOwn, belowOwn, t, cone,
+      blockFt, aligning, stageOwn, belowOwn, cone: heightState.cone,
     });
     const kias = power.kias;
-    const stepProfile = power.stepProfile;
-    cone = power.cone;
+
+    // 5. Height: explicit profile, cone energy, or slot altitude evolution
+    const height = heightOf(ph, L, W, STEP_SEC, profile, {
+      blockFt, belowOwn, t, accel: power.accel, zoomFtps: power.zoomFtps, heightState,
+    });
 
     // The roll shaped and the step flown (pilot.js); the bank recorded is the one commanded, so the replay flies the same.
-    const flown = pilotFly(pilot, W, bank, t, stepProfile);
+    const flown = pilotFly(pilot, W, bank, t, height.stepProfile);
+    heightState.table.alt.push(W.altAboveFt);
+    heightState.table.climb.push(W.climbFtps);
+    heightState.table.nz.push(W.nz);
+
     points.push([flown, kias, pilotPower(pilot, W, blockFt, t)]);
     m++;
     const Lafter = R.at(m);
@@ -462,13 +536,45 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     if (range < T.belowRangeFt) minBelowFt = Math.min(minBelowFt, Lafter.altAboveFt - W.altAboveFt);
     t += STEP_SEC;
 
-    if (aligning && isAligned(Lafter, W)) {
+    const maxExplicitT1 = Array.isArray(profile) && profile.length > 0
+      ? Math.max(...profile.map((l) => l.t1 ?? 0))
+      : (profile?.t1 ?? 0);
+    const heightDoneNow = (!heightState.activeLeg || t >= heightState.activeLeg.t1 - 1e-9) && (!profile || t >= maxExplicitT1 - 1e-9);
+    if (aligning && isAligned(Lafter, W) && heightDoneNow) {
       ok = true;
       break;
     }
   }
-  const heightLeg = cone && { t0: cone.t0, t1: cone.t0 + (cone.alt.length - 1) * STEP_SEC, table: { dt: STEP_SEC, alt: cone.alt, climb: cone.climb, nz: cone.nz } };
-  return { points, end: { lead: { ...R.at(m) }, wing: W }, times, maxBankDeg: maxBank, ok, durationSec: t - t0, ranges, laneFwdFt, minBelowFt, heightLeg, accelKtps: pilot.accel };
+  const hasExplicit = Boolean(profile && (!Array.isArray(profile) || profile.length > 0));
+  const coneLeg = heightState.cone && {
+    t0: heightState.cone.t0,
+    t1: heightState.cone.t0 + (heightState.cone.alt.length - 1) * STEP_SEC,
+    fromFt: heightState.cone.alt[0],
+    toFt: heightState.cone.alt[heightState.cone.alt.length - 1],
+    table: { dt: STEP_SEC, alt: heightState.cone.alt, climb: heightState.cone.climb, nz: heightState.cone.nz },
+  };
+  const tableLeg = !hasExplicit && heightState.hasHeightChange && heightState.table && heightState.table.alt.length > 1 && {
+    t0: heightState.table.t0,
+    t1: heightState.table.t0 + (heightState.table.alt.length - 1) * STEP_SEC,
+    fromFt: heightState.table.alt[0],
+    toFt: heightState.table.alt[heightState.table.alt.length - 1],
+    table: { dt: STEP_SEC, alt: heightState.table.alt, climb: heightState.table.climb, nz: heightState.table.nz },
+  };
+  const heightLeg = hasExplicit ? coneLeg : (tableLeg || coneLeg || null);
+  return {
+    points,
+    end: { lead: { ...R.at(m) }, wing: W },
+    times,
+    maxBankDeg: maxBank,
+    ok,
+    durationSec: t - t0,
+    ranges,
+    laneFwdFt,
+    minBelowFt,
+    heightLeg,
+    profile: profile ?? null,
+    accelKtps: pilot.accel,
+  };
 }
 
 /**
@@ -492,16 +598,12 @@ export function phase(slot, over = {}) {
 }
 
 /**
- * The tracker run twice (transitions.js trackTwiceOffLead's method, for any set of recorded references): the first run learns when each leg starts and
- * ends, the second flies with the wingman's height profile built from those times. Returns { run, profile }.
+ * The tracker run (previously two passes, now a single pass where #2's height is flown in the same pass
+ * as bank and speed). Returns { run, profile }.
  */
-export function trackTwice({ refs, wing0, t0, phases, blockFt, maxSec = PLAN_MAX_SEC, init = null, stopWhenSettled = false }) {
-  const common = { refs, wing0, t0, phases, blockFt, maxSec, init, stopWhenSettled };
-  const first = runTracker({ ...common, profile: undefined });
-  const profile = heightProfile(wing0.altAboveFt, phases, first.times, t0);
-  const run = profile.length ? runTracker({ ...common, profile }) : first;
-  // The cone's heights (TS-96) first: from where they start they are the ones flown.
-  return { run, profile: run.heightLeg ? [run.heightLeg, ...profile] : profile };
+export function trackTwice({ refs, wing0, t0, phases, profile, blockFt, maxSec = PLAN_MAX_SEC, init = null, stopWhenSettled = false }) {
+  const run = runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec, init, stopWhenSettled });
+  return { run, profile: run.heightLeg ? [run.heightLeg, ...(run.profile ?? [])] : (run.profile ?? []) };
 }
 
 /** #2's height: from where it is, smooth legs to each leg's slot height (smootherstep, no climb rate at the ends: spec F7, F12). */
