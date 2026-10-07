@@ -37,6 +37,7 @@ import { createAdsbFrame, adsbExchangeUrl, zoomForScale } from './adsbx.js';
 import { webglSupported } from '../../ui-kit/three-aircraft.js';
 import { createSofView3d } from './view3d.js';
 import { sceneAirfields, sceneTraffic } from './scene3d-model.js';
+import { tacnavRoutes } from './airspace-model.js';
 import { createModelFeed, gridPoints } from './model-clouds.js';
 
 const LAYERS_KEY = 'map-layers';
@@ -138,6 +139,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     timers,
     getProjection: () => projection,
     getPictures: pictures3d,
+    routes: tacnavRoutes(ROUTES), // the Debrief's routes with TAC in the name, drawn at 500 ft above the ground in 3D (SOF-39 phase 3)
     onLost() {
       if (!threeOn) return;
       threeOn = false;

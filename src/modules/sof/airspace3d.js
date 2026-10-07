@@ -1,0 +1,147 @@
+// Draws the airspace volumes and the TACNAV routes of the SOF's 3D view (SOF-39, phase 3) from the plain data airspace-model.js works out.
+// It only builds three.js objects; the page (labels, buttons, the key) is view3d.js's.
+//
+// World frame as view3d.js: X east, Y north, Z up, in the map's local feet. A height is feet above sea level times the height scale, the
+// same scale and sea-level reference as the cloud decks, so an airspace ceiling and a cloud at the same height sit at the same height.
+//
+// Each volume is a see-through prism from its floor to its ceiling: faint fill on the walls and both caps (opacity AIRSPACE_FILL_OPACITY,
+// no depth writing, so clouds and aircraft read through it), and a thin outline on the top and bottom rings and the vertical edges. Edge
+// colour goes by kind (restricted red, advisory amber, terminal, control zone and MTCA in blue tones), and the page says so in words.
+// The TACNAV routes are dashed lines at home's elevation plus 500 ft, the ground taken as flat (an estimate).
+//
+// Built again only when the list, the height scale, the ground or home changes; the groups are switched with `.visible`, which rebuilds
+// nothing. `dispose()` frees everything.
+import { AIRSPACE_FILL_OPACITY, TACNAV_AGL_FT, outlineXY, routeXY, tacnavFt, airspaceWords, airspaceTitle, CIRCLE_SIDES } from './airspace-model.js';
+
+/** The groups the view's two toggles switch. */
+export const AIRSPACE_GROUPS = Object.freeze(['airspace', 'tacnav']);
+
+/** Edge and fill colour by kind, estimates for readability (SOF-39). Restricted is red because it is a danger area; red means danger only. */
+export const KIND_COLOURS = Object.freeze({
+  restricted: '#ff6b6b',
+  advisory: '#ffb000',
+  terminal: '#3d8bff',
+  'control-zone': '#8ccbff',
+  mtca: '#4fe3f0',
+  other: '#b8cfdb',
+});
+const ROUTE_COLOUR = '#ffcc66'; // the 2D map's route colour (dashed there too)
+const EDGE_OPACITY = 0.85;
+/** A TACNAV line's dashes, in scene feet (as the rings'). An estimate for readability. */
+const ROUTE_DASH = Object.freeze({ dashSize: 7_000, gapSize: 4_000 });
+const VERTICAL_EDGES_ON_CIRCLE = 8;
+
+/**
+ * Builds the layers. `T` is three.js; `volumes` are airspace-model.js `checkedAirspace().volumes`; `routes` are the Debrief's routes
+ * ({ name, paths: [[[lon, lat], ...]] }, already limited to the TACNAV ones); `toXY(lat, lon)` gives [x, y] in the map's feet; `scale` is the
+ * height scale and `groundFt` the ground the view draws, in feet above sea level.
+ *
+ * Returns { root, labels, summary, dispose() }:
+ * - root: a Group with one Group per AIRSPACE_GROUPS entry (`root.userData.groups`);
+ * - labels: [{ group, key, text, compact, title, restricted, point: { x, y, z } }]: a volume's label stands at the middle of its top ring
+ *   (text "CYR303 SFC–FL180", compact the id alone), a route's at its first point, at the route's height;
+ * - summary: { volumes, routes } (counts drawn).
+ */
+export function buildAirspace(T, { volumes = [], routes = [], toXY, scale, groundFt }) {
+  const root = new T.Group();
+  const groups = {};
+  for (const name of AIRSPACE_GROUPS) {
+    groups[name] = new T.Group();
+    groups[name].name = `airspace-${name}`;
+    root.add(groups[name]);
+  }
+  root.userData.groups = groups;
+  const owned = [];
+  const own = (thing) => {
+    owned.push(thing);
+    return thing;
+  };
+  const labels = [];
+  const fills = new Map(); // kind -> material, shared
+  const edges = new Map();
+  const fillOf = (kind) => {
+    if (!fills.has(kind)) fills.set(kind, own(new T.MeshBasicMaterial({ color: KIND_COLOURS[kind], transparent: true, opacity: AIRSPACE_FILL_OPACITY, side: T.DoubleSide, depthWrite: false, fog: false })));
+    return fills.get(kind);
+  };
+  const edgeOf = (kind) => {
+    if (!edges.has(kind)) edges.set(kind, own(new T.LineBasicMaterial({ color: KIND_COLOURS[kind], transparent: true, opacity: EDGE_OPACITY, depthWrite: false })));
+    return edges.get(kind);
+  };
+
+  for (const volume of volumes) {
+    const ring = outlineXY(volume, toXY);
+    const n = ring.length;
+    const zb = volume.floorFt * scale;
+    const zt = volume.ceilingFt * scale;
+
+    // Fill: the walls as two triangles a side, and the two caps (triangulated, so a notched outline is filled right).
+    const positions = [];
+    const tri = (a, b, c) => positions.push(...a, ...b, ...c);
+    for (let i = 0; i < n; i++) {
+      const [x0, y0] = ring[i];
+      const [x1, y1] = ring[(i + 1) % n];
+      tri([x0, y0, zb], [x1, y1, zb], [x1, y1, zt]);
+      tri([x0, y0, zb], [x1, y1, zt], [x0, y0, zt]);
+    }
+    const faces = T.ShapeUtils.triangulateShape(ring.map(([x, y]) => new T.Vector2(x, y)), []);
+    for (const [a, b, c] of faces) {
+      tri([...ring[a], zb], [...ring[b], zb], [...ring[c], zb]);
+      tri([...ring[a], zt], [...ring[b], zt], [...ring[c], zt]);
+    }
+    const fillGeometry = own(new T.BufferGeometry());
+    fillGeometry.setAttribute('position', new T.Float32BufferAttribute(positions, 3));
+    const fill = new T.Mesh(fillGeometry, fillOf(volume.kind));
+    fill.renderOrder = 1;
+    fill.name = `airspace-${volume.id}`;
+
+    // Outline: the top and bottom rings, and the vertical edges (every corner of a polygon, eight round a circle).
+    const loop = (z) => own(new T.BufferGeometry().setFromPoints(ring.map(([x, y]) => new T.Vector3(x, y, z))));
+    const top = new T.LineLoop(loop(zt), edgeOf(volume.kind));
+    const bottom = new T.LineLoop(loop(zb), edgeOf(volume.kind));
+    const step = volume.shape.type === 'circle' ? CIRCLE_SIDES / VERTICAL_EDGES_ON_CIRCLE : 1;
+    const posts = [];
+    for (let i = 0; i < n; i += step) posts.push(new T.Vector3(ring[i][0], ring[i][1], zb), new T.Vector3(ring[i][0], ring[i][1], zt));
+    const sides = new T.LineSegments(own(new T.BufferGeometry().setFromPoints(posts)), edgeOf(volume.kind));
+    for (const line of [top, bottom, sides]) line.renderOrder = 3;
+    groups.airspace.add(fill, top, bottom, sides);
+
+    const cx = ring.reduce((sum, p) => sum + p[0], 0) / n;
+    const cy = ring.reduce((sum, p) => sum + p[1], 0) / n;
+    labels.push({
+      group: 'airspace',
+      key: volume.id,
+      text: airspaceWords(volume),
+      compact: volume.id,
+      title: airspaceTitle(volume),
+      restricted: volume.kind === 'restricted',
+      point: { x: cx, y: cy, z: zt },
+    });
+  }
+
+  // The TACNAV routes: dashed lines at home's elevation plus 500 ft, each named at its first point.
+  const routeMaterial = own(new T.LineDashedMaterial({ color: ROUTE_COLOUR, transparent: true, opacity: 0.95, depthWrite: false, ...ROUTE_DASH }));
+  const zr = tacnavFt(groundFt) * scale;
+  let drawnRoutes = 0;
+  for (const route of routes) {
+    const projected = routeXY(route, toXY);
+    if (!projected) continue;
+    for (const path of projected.paths) {
+      const line = new T.Line(own(new T.BufferGeometry().setFromPoints(path.map(([x, y]) => new T.Vector3(x, y, zr)))), routeMaterial);
+      line.computeLineDistances();
+      line.renderOrder = 3;
+      groups.tacnav.add(line);
+    }
+    drawnRoutes += 1;
+    labels.push({ group: 'tacnav', key: route.name, text: route.name, compact: route.name, title: `${route.name}: ${TACNAV_AGL_FT} ft above the ground (estimate)`, restricted: false, point: { x: projected.first[0], y: projected.first[1], z: zr } });
+  }
+
+  return {
+    root,
+    labels,
+    summary: { volumes: volumes.length, routes: drawnRoutes },
+    dispose() {
+      root.removeFromParent();
+      for (const thing of owned) thing.dispose?.();
+    },
+  };
+}

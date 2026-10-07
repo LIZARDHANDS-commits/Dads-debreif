@@ -5,12 +5,13 @@
 // sheet at each model level (see-through, smooth, stacked from the surface up, like ForeFlight's cloud maps), wind barbs at three levels
 // and the freezing level, from Open-Meteo's GEM forecast, with a time slider, a toggle for each and a Layer picker for one level at a time.
 // They are a model estimate, labelled so, and are removed (never frozen) when the forecast fails or is old. Phase 4 (SOF-39, SOF-40) adds
-// the live aircraft from the 2D layer's own relay feed (traffic3d.js), the T-6 drawn large. It is for situational awareness only: it
-// checks no limit and never raises or clears a caution.
+// the live aircraft from the 2D layer's own relay feed (traffic3d.js), the T-6 drawn large. Phase 3 (SOF-39) adds the airspace volumes
+// from a sourced data file (airspace-data.js, drawn in airspace3d.js) and the TACNAV routes at 500 ft above the ground, each with a toggle.
+// It is for situational awareness only: it checks no limit and never raises or clears a caution.
 //
 // What is drawn and what the words say is decided in scene3d-model.js and model-clouds.js (tested in Node); model-layers3d.js builds the
-// model layers' three.js objects and traffic3d.js the aircraft's. This file builds the rest, the camera's hands and the model controls,
-// and touches the page.
+// model layers' three.js objects, traffic3d.js the aircraft's and airspace3d.js the airspace's (airspace-model.js decides what is fit to
+// draw and what its words say). This file builds the rest, the camera's hands and the model and airspace controls, and touches the page.
 //
 // three.js is loaded only when the view is first opened (ui-kit `loadThree`). It draws only while shown, and only when something
 // changed (a new report or picture, a tile arriving, the camera moving), through the scheduler's frame: nothing runs while it
@@ -30,6 +31,9 @@ import {
 } from './scene3d-model.js';
 import { buildModelLayers, MODEL_GROUPS } from './model-layers3d.js';
 import { createTraffic3d } from './traffic3d.js';
+import { AIRSPACE } from './airspace-data.js';
+import { buildAirspace, AIRSPACE_GROUPS, KIND_COLOURS } from './airspace3d.js';
+import { checkedAirspace, KIND_WORDS, tacnavNote, AIRSPACE_FILL_OPACITY, VIEW_TOP_FT } from './airspace-model.js';
 import {
   hourIndex, maxAhead, hourWords, meanLayerCover, unavailableWords, refreshFailedWords, LOADING_WORDS, CREDIT_WORDS, MAX_AHEAD_HOURS, CLOUD_STAGES_FT_AGL,
   CLOUD_COVER_THRESHOLD_PCT, MAG_VARIATION_DEG_E, GRID_SPACING_NM,
@@ -63,12 +67,13 @@ const isColour = (v) => typeof v === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d\s.
 /**
  * options: { timers (a scheduler scope), getProjection() (the SOF map's projection: toXY and a reference, for the corners of the
  * square), getPictures() (the 2D map's pictures: { sig, list: [{ image, bbox, alpha }] }, read when it draws), onLost() (the graphics
- * context was lost: the caller goes back to 2D), win }.
+ * context was lost: the caller goes back to 2D), routes (the TACNAV routes to draw, from the Debrief's `ROUTES` as `map.js` gives them:
+ * { name, paths: [[[lon, lat], ...]] }), airspace (the entries to draw, airspace-data.js `AIRSPACE` unless a test gives its own), win }.
  * Returns { element, show(), hide(), setScene({ airfields, heightScale }), setModel({ status, model, lastGoodAt, now, timeZone }), touch(), home(),
  * zoomBy(factor), isShown(), dispose() }.
  * `show()` resolves { ok: true } or { ok: false, reason: 'gl' | 'load' | 'closed' }.
  */
-export function createSofView3d({ timers, getProjection, getPictures, onLost = () => {}, win = globalThis }) {
+export function createSofView3d({ timers, getProjection, getPictures, onLost = () => {}, routes = [], airspace = AIRSPACE, win = globalThis }) {
   const labels = h('div', { class: 'sof-3d-labels' });
   const corner = h('p', { class: 'sof-3d-corner' });
   const credit = h('p', { class: 'sof-3d-credit' }, ESRI_IMAGERY.credit);
@@ -119,7 +124,33 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
   const modelFoot = h('div', { class: 'sof-3d-model-row' }, modelNote, modelKey);
   const modelPanel = h('div', { class: 'sof-3d-model', role: 'group', 'aria-label': 'Model clouds and winds' }, modelStatus, modelWarn, modelControls, modelFoot, modelCredit);
   const trafficStatus = h('p', { class: 'sof-3d-traffic-status', role: 'status', hidden: true });
-  const bottom = h('div', { class: 'sof-3d-bottom' }, trafficStatus, modelPanel, credit);
+
+  // The airspace controls (phase 3): a toggle for the volumes and one for the TACNAV routes, and a key. With no airspace data the first
+  // toggle says so and cannot be pressed; with no routes the second does.
+  const noAirspace = airspace.length === 0;
+  const noRoutes = routes.length === 0;
+  const SPACE_TOGGLES = /** @type {[string, string, string, string | null][]} */ ([
+    ['airspace', noAirspace ? 'Airspace (no data yet)' : 'Airspace', 'Airspace volumes round home, each from its floor to its ceiling, see-through', noAirspace ? 'No airspace data yet: its floors, ceilings and outlines are added once each has a source' : null],
+    ['tacnav', 'TACNAV', 'The TACNAV routes, as lines 500 ft above the ground (ground taken as flat, an estimate)', noRoutes ? 'No TACNAV routes to draw' : null],
+  ]);
+  const spaceToggles = { airspace: !noAirspace, tacnav: !noRoutes };
+  const spaceButtons = new Map();
+  for (const [key, text, title, reason] of SPACE_TOGGLES) {
+    const button = h('button', {
+      type: 'button',
+      class: 'sof-3d-toggle',
+      title: reason ?? title,
+      'aria-pressed': String(spaceToggles[key]),
+      disabled: reason !== null,
+      onclick: () => setSpaceToggle(key, button.getAttribute('aria-pressed') !== 'true'),
+    }, text);
+    spaceButtons.set(key, button);
+  }
+  const spaceKeyBody = h('div', { class: 'sof-3d-model-key-body' });
+  const spaceKey = h('details', { class: 'sof-3d-model-key' }, h('summary', {}, 'Airspace key'), spaceKeyBody);
+  const spacePanel = h('div', { class: 'sof-3d-model sof-3d-space', role: 'group', 'aria-label': 'Airspace and TACNAV routes' },
+    h('div', { class: 'sof-3d-model-row' }, [...spaceButtons.values()], spaceKey));
+  const bottom = h('div', { class: 'sof-3d-bottom' }, trafficStatus, modelPanel, spacePanel, credit);
   const acTag = h('p', { class: 'sof-3d-tag sof-3d-actag-facts', role: 'status', hidden: true });
   const element = h('div', { class: 'sof-3d', hidden: true }, labels, corner, outside, bottom, note, tag, acTag);
 
@@ -148,6 +179,9 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
   let trafficState = { shown: false, aircraft: [], labelsOn: false, signature: 'off' }; // what the map last gave setTraffic
   let trafficSig = '';
   let trafficDirty = true;
+  let spaceSig = ''; // what the airspace objects were built for: the height scale, the ground and home
+  let hoverSpace = null; // the airspace label the pointer is on, or that has focus: its limits are shown in full
+  let focusSpace = null;
   let hoverHex = null; // the aircraft under the pointer, or whose tag the pointer is on
   let selectedAc = null; // the aircraft whose facts are showing
   const sizes = new WeakMap(); // each label's size, read once (a read of the page's layout each frame would slow the drag)
@@ -446,6 +480,96 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     );
   }
 
+  // ---- Airspace and the TACNAV routes (phase 3) -----------------------------------------------------------
+  const homeIcao = () => (airfields.find((a) => a.home) ?? airfields[0])?.icao ?? 'home';
+
+  function setSpaceToggle(key, on) {
+    if (spaceButtons.get(key)?.disabled) return;
+    spaceToggles[key] = on;
+    spaceButtons.get(key)?.setAttribute('aria-pressed', String(on));
+    applySpaceToggles();
+    requestRender();
+  }
+
+  function applySpaceToggles() {
+    const groups = gl?.space?.built.root.userData.groups;
+    if (groups) for (const key of AIRSPACE_GROUPS) groups[key].visible = spaceToggles[key];
+  }
+
+  /** A volume's label says its limits in full when it is restricted, or when the pointer or focus is on it; otherwise it is just the id, to keep the picture clear. */
+  const spaceText = ({ label }) => (label.group === 'airspace' && !label.restricted && (hoverSpace ?? focusSpace) !== label.key ? label.compact : label.text);
+
+  function refreshSpaceLabels() {
+    for (const item of gl?.space?.items ?? []) {
+      const text = spaceText(item);
+      if (item.el.textContent !== text) {
+        item.el.textContent = text;
+        sizes.delete(item.el); // the words changed, so the label's size is read again
+      }
+    }
+    requestRender();
+  }
+
+  function freeSpace() {
+    if (!gl?.space) return;
+    gl.space.built.dispose();
+    for (const { el } of gl.space.items) el.remove();
+    gl.space = null;
+    hoverSpace = null;
+    focusSpace = null;
+  }
+
+  /** The airspace volumes and routes, built new for this height scale, ground and home (only then), with the key's words. */
+  function rebuildSpace(sig) {
+    freeSpace();
+    spaceSig = sig;
+    const projection = getProjection();
+    const ground = groundFt();
+    const { volumes, skipped } = checkedAirspace(airspace, ground);
+    const built = buildAirspace(gl.THREE, { volumes, routes, toXY: projection.toXY, scale, groundFt: ground });
+    gl.scene.add(built.root);
+    const items = built.labels.map((label) => {
+      const isVolume = label.group === 'airspace';
+      const el = h(isVolume ? 'button' : 'span', {
+        ...(isVolume ? { type: 'button', onmouseenter: () => { hoverSpace = label.key; refreshSpaceLabels(); }, onmouseleave: () => { hoverSpace = null; refreshSpaceLabels(); }, onfocus: () => { focusSpace = label.key; refreshSpaceLabels(); }, onblur: () => { focusSpace = null; refreshSpaceLabels(); } } : {}),
+        class: `${isVolume ? 'sof-3d-airspace-label' : 'sof-3d-route-label'}${label.restricted ? ' is-restricted' : ''}`,
+        title: label.title,
+      });
+      el.textContent = label.restricted || !isVolume ? label.text : label.compact;
+      labels.append(el);
+      return { el, label };
+    });
+    gl.space = { built, items };
+    applySpaceToggles();
+    drawSpaceKey(volumes, skipped, ground);
+  }
+
+  function drawSpaceKey(volumes, skipped, ground) {
+    const used = (ref) => volumes.some((v) => v.floor.ref === ref || v.ceiling.ref === ref);
+    const home = homeIcao();
+    const colours = Object.entries(KIND_WORDS).map(([kind, words]) => {
+      const swatch = h('span', { class: 'sof-3d-swatch', 'aria-hidden': 'true' });
+      swatch.style.background = KIND_COLOURS[kind];
+      return h('li', {}, swatch, ` ${words.colour}: ${words.name}`);
+    });
+    const notes = [];
+    if (noAirspace) notes.push(h('p', {}, 'Airspace: no data yet. Each volume is added with its floor, ceiling, outline and source (NAV CANADA’s Designated Airspace Handbook); none is drawn from memory.'));
+    else {
+      notes.push(
+        h('p', {}, `Airspace: each volume runs from its floor to its ceiling, see-through (${Math.round(AIRSPACE_FILL_OPACITY * 100)} % fill, an estimate), with a thin outline on its top and bottom and along its corners. Edge colour by kind:`),
+        h('ul', {}, colours),
+        h('p', {}, 'A restricted area’s label always shows its limits; for the others the label is the id, and the limits show when the pointer or focus is on it. Hover text gives the kind and the source.'),
+        h('p', {}, `Heights are feet above sea level, ×${scale}. SFC is the ground at ${home}’s elevation (${Math.round(ground)} ft).${used('AGL') ? ` AGL ≈ over flat prairie, estimate: ${home}’s elevation plus the height.` : ''}${used('FL') ? ' FL is read as feet above sea level (pressure altitude taken as altitude, an approximation).' : ''}${volumes.some((v) => v.ceiling.ref === 'UNL') ? ` UNL is drawn up to ${formatFeet(VIEW_TOP_FT)} ft.` : ''}`),
+      );
+      if (skipped.length) notes.push(h('p', { class: 'sof-3d-model-warn' }, `Not drawn, entry fails its checks: ${skipped.map((x) => `${x.id} (${x.reason})`).join('; ')}.`));
+    }
+    notes.push(
+      h('p', {}, noRoutes ? 'TACNAV: no routes to draw.' : tacnavNote(home)),
+      h('p', {}, 'A picture for situational awareness: not a chart, not for navigation or flight planning.'),
+    );
+    spaceKeyBody.replaceChildren(...notes);
+  }
+
   // ---- The aircraft (phase 4) ---------------------------------------------------------------------------
   /** Brings the aircraft objects in line with what the map last gave setTraffic (they are made, moved and freed in traffic3d.js). */
   function syncTraffic() {
@@ -555,6 +679,8 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
       if (selected && !airfields.some((a) => a.icao === selected && !a.outside)) select(null);
     }
     if (modelDirty) rebuildModel();
+    const nextSpaceSig = `${scale}|${groundFt()}|${getProjection().lat},${getProjection().lon}`;
+    if (!gl.space || nextSpaceSig !== spaceSig) rebuildSpace(nextSpaceSig);
     if (trafficDirty) syncTraffic();
     if (!groundDirty && getPictures().sig !== picturesSig) groundDirty = true;
     if (groundDirty) paintGround();
@@ -607,6 +733,22 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
       put(el, clearOf({ ...s, x: p.x - 8 - s.w, y: p.y - s.h / 2 }));
     }
     placeAircraft({ at, put, boxFor, isClear, reserve, phase: 't6' }); // the T-6s' tags keep their places; the model's words step round them
+    const spaceWords = [];
+    for (const { el, label } of gl.space?.items ?? []) { // the airspace's words: restricted areas first, then the others and the routes
+      const on = spaceToggles[label.group];
+      if (el.hidden === on) el.hidden = !on;
+      if (on) spaceWords.push({ el, label, p: at(label.point) });
+    }
+    spaceWords.sort((a, b) => Number(b.label.restricted) - Number(a.label.restricted) || a.p.y - b.p.y);
+    for (const { el, label, p } of spaceWords) { // each takes the first of a few places round its point that covers no other word, and stays close to it when none is free
+      const s = boxFor(el, 0, 0);
+      const rows = [0, 1, -1, 2, -2, 3, -3].map((k) => k * (s.h + 2));
+      const spots = label.group === 'airspace'
+        ? rows.flatMap((dy) => [[p.x - s.w / 2, p.y - s.h - 2 + dy], [p.x + 6, p.y - s.h - 2 + dy], [p.x - s.w - 6, p.y - s.h - 2 + dy]])
+        : rows.flatMap((dy) => [[p.x + 6, p.y - s.h / 2 + dy], [p.x - s.w - 6, p.y - s.h / 2 + dy]]);
+      const boxes = spots.map(([x, y]) => ({ ...s, x, y }));
+      put(el, boxes.find((box) => isClear(box)) ?? boxes[0]);
+    }
     const modelWords = [];
     for (const { el, group, point, hPa } of gl.model?.items ?? []) { // the model's words: each cloud level, the winds over home, then the freezing level
       const on = toggles[group] && (hPa === undefined || layerChoice === 'all' || layerChoice === String(hPa));
@@ -826,6 +968,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     trafficDirty = true;
     groundDirty = true;
     modelDirty = true;
+    spaceSig = '';
     tilesFailed = false;
     noTiles = false;
   }
@@ -839,6 +982,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     if (!gl) return;
     const { canvas, renderer, scene, texture, ground, imagery, resizer } = gl;
     freeModel();
+    freeSpace();
     freeObjects();
     gl.traffic.dispose();
     for (const [type, fn] of hands) canvas.removeEventListener(type, fn);
