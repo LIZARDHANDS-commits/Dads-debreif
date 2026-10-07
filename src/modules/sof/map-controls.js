@@ -216,7 +216,7 @@ export function createMapControls(handlers) {
       // Under ADS-B Exchange's own map these do nothing, so they are switched off rather than left to look live.
       // (The Layers menu stays: its choices are kept for when the view is switched back.)
       for (const el of [precip, home, zoomIn, zoomOut]) el.disabled = adsbOn;
-      traffic.disabled = adsbOn || threeOn; // the 3D view does not show traffic yet (phase 4)
+      traffic.disabled = adsbOn; // the same switch drives the 2D layer and the 3D view's aircraft
     },
     /** Items: [{ id, text, symbol, tone }]. Rows are kept and only their words change. */
     setStatus(items) {

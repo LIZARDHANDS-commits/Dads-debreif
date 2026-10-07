@@ -1,6 +1,6 @@
 // Model clouds, winds aloft and the freezing level for the SOF's 3D view (SPEC-sof, "3D view", SOF-39, phase 2): the request to
-// Open-Meteo's GEM endpoint (ECCC's GEM model), the checks on its reply, and the plain data the drawing needs (cloud blocks with
-// a base and a top, wind barbs at three pressure levels, the freezing level). No page and no three.js: `fetch`, the clock and the
+// Open-Meteo's GEM endpoint (ECCC's GEM model), the checks on its reply, and the plain data the drawing needs (a cloud-cover sheet
+// at each pressure level, with its pixels worked out here, wind barbs at three pressure levels, the freezing level). No page and no three.js: `fetch`, the clock and the
 // timers (a scheduler scope) come in. model-layers3d.js draws what comes out of here.
 //
 // It is a model estimate, never an observation: it is labelled so wherever it is shown, it checks no limit and it never raises or
@@ -58,7 +58,8 @@ const RANGES = Object.freeze([
   ['cloud_cover', 0, 100],
   ['geopotential_height', -500, 20_000],
   ['wind_speed', 0, 300],
-  ['wind_direction', 0, 360],
+  // The live GEM reply gives 361 for a wind just past north (seen 7 Oct 2026), so up to 720 is taken; trueToMagnetic wraps it.
+  ['wind_direction', 0, 720],
   ['freezing_level_height', -500, 10_000],
 ]);
 const rangeOf = (variable) => RANGES.find(([prefix]) => variable.startsWith(prefix));
@@ -77,8 +78,8 @@ export const CLOUD_COVER_THRESHOLD_PCT = 30; // estimate, SOF-39
 
 /**
  * The cloud stages, in feet above the ground: low below 6,500, mid 6,500 to 20,000, high above 20,000. The standard WMO cloud
- * stages for mid latitudes (low from the surface to about 2 km, mid to about 7 km, high above), approximate. A block is
- * sorted by its base.
+ * stages for mid latitudes (low from the surface to about 2 km, mid to about 7 km, high above), approximate. A cloud sheet is
+ * sorted by its height above the ground.
  */
 export const CLOUD_STAGES_FT_AGL = Object.freeze({ lowTopFt: 6500, midTopFt: 20_000 });
 
@@ -221,8 +222,10 @@ export function columnAt(point, hour) {
 // ---- Cloud ----------------------------------------------------------------------------------------
 
 /**
- * The cloud in one column. Each level whose cover is over `threshold` is cloud from halfway down to the level below to halfway up
- * to the level above, by geopotential height (the lowest and highest levels use the same half-gap on their open side). Cloudy levels
+ * The cloud in one column, as blocks with a base and a top. The 3D view no longer draws these (it draws a cover sheet at each level, see
+ * `cloudSheetLevel`, Dad 7 Oct); the function stays because it is tested and says where a column's cloud lies between its levels.
+ * Each level whose cover is over `threshold` is cloud from halfway down to the level below to halfway up to the level above,
+ * by geopotential height (the lowest and highest levels use the same half-gap on their open side). Cloudy levels
  * next to each other join into one block. A block's base is never drawn below `floorFt` (the ground the view draws).
  *
  * `levels`: [{ cover (percent), heightFt (above sea level) }]. Returns [{ baseFt, topFt, cover }] bottom first, where cover is the
@@ -258,24 +261,159 @@ export function cloudBlocks(levels, { threshold = CLOUD_COVER_THRESHOLD_PCT, flo
   return blocks;
 }
 
-/** Which stage a block is in, by its base above the ground: 'low', 'mid' or 'high' (CLOUD_STAGES_FT_AGL). */
+/** Which stage a height above the ground is in: 'low', 'mid' or 'high' (CLOUD_STAGES_FT_AGL). */
 export function cloudStage(baseAglFt) {
   if (baseAglFt < CLOUD_STAGES_FT_AGL.lowTopFt) return 'low';
   return baseAglFt <= CLOUD_STAGES_FT_AGL.midTopFt ? 'mid' : 'high';
 }
 
+// ---- Cloud sheets (ForeFlight-style cover maps, Dad 7 Oct) ------------------------------------------------
+
+/** Each sheet's texture is this many pixels across, the 9 x 9 grid smoothed up to it. An estimate for smoothness, SOF-39. */
+export const CLOUD_SHEET_PX = 256;
+/** How opaque a sheet is where cover is 100 %: about 85 %. An estimate, SOF-39 (the look, not a measurement). */
+export const CLOUD_SHEET_ALPHA_MAX = 0.85; // estimate, SOF-39
+/** A light blur over the smoothed cover, this many pixels each way (two passes), so the edges of cloud are soft. An estimate, SOF-39. */
+export const CLOUD_SHEET_BLUR_PX = 3;
+/** A sheet's colour runs from this (thin cloud) to this (thick cloud): white to grey. An estimate, SOF-39. */
+export const CLOUD_SHEET_COLOURS = Object.freeze({ thin: Object.freeze([244, 247, 250]), thick: Object.freeze([146, 156, 168]) });
+
 /**
- * Every cloud block over the grid at one hour: [{ x, y, baseFt, topFt, cover, stage, i, j }]. `groundFt` is the ground the view draws
- * (the home field's elevation); stages are measured above it.
+ * How opaque the sheet is at a cover (percent, 0 to 1): clear at or below `threshold`, then easing in (smoothstep) to
+ * CLOUD_SHEET_ALPHA_MAX at 100 %. The one place the curve lives. An estimate, SOF-39.
  */
-export function modelCloudBlocks(model, hour, { groundFt = 0 } = {}) {
-  const out = [];
+export function sheetAlpha(coverPct, threshold = CLOUD_COVER_THRESHOLD_PCT) {
+  if (!isNumber(coverPct) || !(coverPct > threshold)) return 0;
+  const t = Math.min(1, (coverPct - threshold) / (100 - threshold));
+  return CLOUD_SHEET_ALPHA_MAX * t * t * (3 - 2 * t);
+}
+
+/**
+ * One cloud level at one hour as the sheet needs it: { hPa, heightFt, values, size, maxCover, meanCover }, or null when no grid point
+ * has a height for the level. `heightFt` is the mean geopotential height over the points that have one (feet above sea level).
+ * `values` is the 9 x 9 cover (percent) row by row from the south-west (index j * size + i); a null cover is 0, as in a column:
+ * not cloudy.
+ */
+export function cloudSheetLevel(model, hour, hPa) {
+  const size = GRID_SIZE;
+  const values = new Array(size * size).fill(0);
+  let heightSum = 0;
+  let heightCount = 0;
   for (const point of model.points) {
-    for (const block of cloudBlocks(columnAt(point, hour).levels, { floorFt: groundFt })) {
-      out.push({ x: point.x, y: point.y, i: point.i, j: point.j, ...block, stage: cloudStage(block.baseFt - groundFt) });
+    const metres = point.series[`geopotential_height_${hPa}hPa`][hour];
+    if (metres !== null) {
+      heightSum += metres * FT_PER_M;
+      heightCount += 1;
     }
+    const cover = point.series[`cloud_cover_${hPa}hPa`][hour];
+    if (cover !== null) values[point.j * size + point.i] = cover;
   }
-  return out;
+  if (!heightCount) return null;
+  return {
+    hPa,
+    heightFt: heightSum / heightCount,
+    values,
+    size,
+    maxCover: Math.max(...values),
+    meanCover: values.reduce((a, b) => a + b, 0) / values.length,
+  };
+}
+
+/** Every cloud level at the hour that has a height, bottom first: [cloudSheetLevel]. */
+export const cloudSheetLevels = (model, hour) => CLOUD_LEVELS_HPA.map((hPa) => cloudSheetLevel(model, hour, hPa)).filter((l) => l !== null);
+
+/** The four Catmull-Rom weights for the points p0 to p3 at t (0 to 1) between p1 and p2: the value is w[0] * p0 + w[1] * p1 + w[2] * p2 + w[3] * p3. */
+const catmullWeights = (t) => [
+  t * (-0.5 + t * (1 - 0.5 * t)),
+  1 + t * t * (-2.5 + 1.5 * t),
+  t * (0.5 + t * (2 - 1.5 * t)),
+  t * t * (-0.5 + 0.5 * t),
+];
+
+/** Where a position 0 to 1 across the grid lies: the cell it is in (0 to size - 2) and how far through it (0 to 1). */
+function cellOf(position, size) {
+  const g = Math.min(1, Math.max(0, position)) * (size - 1);
+  const cell = Math.min(size - 2, Math.floor(g));
+  return { cell, t: g - cell };
+}
+
+/**
+ * The cover on the whole `px` by `px` sheet, smoothly (bicubic, Catmull-Rom) between the grid's own values (row 0 the south edge, kept 0 to 100):
+ * across each grid row first, then up the columns, which is the same as a one-point bicubic but quick enough to redo for each hour of the slider.
+ */
+function coverField(values, size, px) {
+  const at = (a, b) => values[Math.min(size - 1, Math.max(0, b)) * size + Math.min(size - 1, Math.max(0, a))];
+  const across = Array.from({ length: size }, () => new Float32Array(px)); // each grid row, smoothed across
+  for (let x = 0; x < px; x++) {
+    const { cell, t } = cellOf(x / (px - 1), size);
+    const w = catmullWeights(t);
+    for (let j = 0; j < size; j++) across[j][x] = w[0] * at(cell - 1, j) + w[1] * at(cell, j) + w[2] * at(cell + 1, j) + w[3] * at(cell + 2, j);
+  }
+  const field = new Float32Array(px * px);
+  for (let y = 0; y < px; y++) {
+    const { cell, t } = cellOf(y / (px - 1), size);
+    const w = catmullWeights(t);
+    const rows = [-1, 0, 1, 2].map((d) => across[Math.min(size - 1, Math.max(0, cell + d))]);
+    for (let x = 0; x < px; x++) field[y * px + x] = Math.min(100, Math.max(0, w[0] * rows[0][x] + w[1] * rows[1][x] + w[2] * rows[2][x] + w[3] * rows[3][x]));
+  }
+  return field;
+}
+
+/**
+ * Cover at a place on the grid, smoothly (bicubic, Catmull-Rom) between the grid's own values. `u` and `v` run 0 to 1 across the
+ * square, west to east and south to north. The grid's own values are met exactly at the grid points; the result is kept 0 to 100.
+ */
+export function sampleCover(values, size, u, v) {
+  const at = (a, b) => values[Math.min(size - 1, Math.max(0, b)) * size + Math.min(size - 1, Math.max(0, a))];
+  const { cell: i, t: tx } = cellOf(u, size);
+  const { cell: j, t: ty } = cellOf(v, size);
+  const wx = catmullWeights(tx);
+  const wy = catmullWeights(ty);
+  let sum = 0;
+  for (let dj = 0; dj < 4; dj++) for (let di = 0; di < 4; di++) sum += wy[dj] * wx[di] * at(i - 1 + di, j - 1 + dj);
+  return Math.min(100, Math.max(0, sum));
+}
+
+/** A box blur of a square field of `px` by `px` numbers, `radius` pixels each way, edges clamped; one horizontal then one vertical pass. */
+function blur(field, px, radius) {
+  if (radius < 1) return field;
+  const span = radius * 2 + 1;
+  const pass = (from, along) => {
+    const to = new Float32Array(from.length);
+    const [stepIn, stepAcross] = along ? [1, px] : [px, 1];
+    for (let line = 0; line < px; line++) {
+      const base = line * stepAcross;
+      let sum = 0;
+      for (let k = -radius; k <= radius; k++) sum += from[base + Math.min(px - 1, Math.max(0, k)) * stepIn];
+      for (let n = 0; n < px; n++) {
+        to[base + n * stepIn] = sum / span;
+        sum += from[base + Math.min(px - 1, n + radius + 1) * stepIn] - from[base + Math.max(0, n - radius) * stepIn];
+      }
+    }
+    return to;
+  };
+  return pass(pass(field, true), false);
+}
+
+/**
+ * A sheet's picture: `px` by `px` RGBA bytes (row 0 is the south edge, the left column the west edge, as a three.js DataTexture is laid
+ * on a plane). The 9 x 9 cover is smoothed up (bicubic), blurred a little, then coloured white to grey by cover with the alpha from
+ * `sheetAlpha`. Cover at or below the threshold is fully clear. Returns { pixels, drawn } where `drawn` is false when no pixel has any alpha.
+ */
+export function cloudSheetPixels(values, size, { px = CLOUD_SHEET_PX, threshold = CLOUD_COVER_THRESHOLD_PCT, blurPx = CLOUD_SHEET_BLUR_PX } = {}) {
+  const field = blur(blur(coverField(values, size, px), px, blurPx), px, blurPx);
+  const pixels = new Uint8Array(px * px * 4);
+  const { thin, thick } = CLOUD_SHEET_COLOURS;
+  let drawn = false;
+  for (let n = 0; n < field.length; n++) {
+    const cover = field[n];
+    const alpha = sheetAlpha(cover, threshold);
+    const t = Math.min(1, Math.max(0, cover / 100));
+    for (let c = 0; c < 3; c++) pixels[n * 4 + c] = Math.round(thin[c] + (thick[c] - thin[c]) * t);
+    pixels[n * 4 + 3] = Math.round(alpha * 255);
+    if (alpha > 0) drawn = true;
+  }
+  return { pixels, drawn };
 }
 
 /** The model's own low, mid and high cover for the hour, averaged over the grid (percent; null when no point has data): { low, mid, high }. */

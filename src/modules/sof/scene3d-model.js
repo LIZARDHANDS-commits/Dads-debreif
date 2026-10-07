@@ -137,6 +137,81 @@ export function sceneAirfields({ marks = [], cards = [], fields = [], snapshot =
 /** Whether two scenes would draw the same, so the view is only rebuilt when something it shows changes. */
 export const sceneSignature = (airfields) => JSON.stringify(airfields.map((a) => [a.icao, a.x, a.y, a.outside, a.groundFt, a.key, a.old, a.lines, a.result?.words, a.decks.map((d) => [d.cover, d.baseMslFt])]));
 
+// ---- Live aircraft (SOF-39 phase 4, SOF-40) ---------------------------------------------------------
+
+/** The relay's type code for the T-6 (Harvard II) that Dad wants to see at a glance: drawn large, with its tag always on (Dad, 7 Oct). */
+export const T6_TYPE = 'TEX2';
+/**
+ * Most aircraft drawn at once, T-6s first and then the relay's order (nearest home first). A cap for the drawing's sake (each aircraft is a few
+ * dozen triangles and a tag); the relay's own limit is 1,000. An estimate, SOF-39.
+ */
+export const MAX_3D_AIRCRAFT = 150; // estimate, SOF-39
+
+/** An aircraft's name as the tag says it: callsign, else registration, else the hex id. */
+export const aircraftName = (a) => a.callsign ?? a.reg ?? String(a.hex).toUpperCase();
+
+/**
+ * The words on an aircraft's tag. `a` is traffic.js `layerModel`'s aircraft. The compact form is the name and the height in hundreds of feet
+ * or a flight level from 18,000 ft ("TEX21 5,500", "UAL1 FL350", "GND"); the Labels choice of the 2D layer picks what an always-on tag says:
+ * 'callsign' the name only, 'full' the 2D label (name, height, ground speed, type), anything else the compact form.
+ */
+export function tagWords(a, label = 'off') {
+  const name = aircraftName(a);
+  if (label === 'callsign') return name;
+  if (label === 'full' && a.label) return a.label;
+  return `${name} ${String(a.altitudeWords).replace(/ ft$/, '')}`;
+}
+
+/**
+ * What the 3D view draws for the traffic layer, from `trafficFeed.view()` (traffic.js `trafficView`): the checked, aged and faded aircraft
+ * with positions in the map's local feet. `toXY(lat, lon)` gives [x, y]; `label` is the layer's Labels choice.
+ *
+ * - An aircraft with no height ("altitude unknown") is not drawn, because a height is needed to stand it in the air; the words say how many.
+ * - 'ground' stays 'ground' (the view stands it on the field's elevation).
+ * - Opacity is traffic.js's own stale fade, and an aircraft the 2D layer has dropped (too old) is gone here too: nothing is frozen.
+ * - T-6s ('TEX2') come first, then the relay's order, up to MAX_3D_AIRCRAFT; the words say when some are left out.
+ *
+ * Returns { shown, status, statusText, aircraft: [{ hex, x, y, altFt, trackDeg, opacity, mil, isT6, name, tag, labelText, description }], noAltitude,
+ * leftOut, labelsOn (the Labels choice is not 'off': every tag shows), signature }; `shown` is false when the layer is off.
+ */
+export function sceneTraffic({ view, toXY, label = 'off', max = MAX_3D_AIRCRAFT } = /** @type {any} */ ({})) {
+  if (!view || view.show !== true) return { shown: false, status: view?.status ?? 'off', statusText: '', aircraft: [], noAltitude: 0, leftOut: 0, labelsOn: false, signature: 'off' };
+  const drawable = [];
+  let noAltitude = 0;
+  for (const a of view.aircraft ?? []) {
+    if (a.altitudeFt !== 'ground' && !isNumber(a.altitudeFt)) {
+      noAltitude += 1;
+      continue;
+    }
+    drawable.push(a);
+  }
+  const ordered = [...drawable.filter((a) => a.type === T6_TYPE), ...drawable.filter((a) => a.type !== T6_TYPE)];
+  const leftOut = Math.max(0, ordered.length - max);
+  const aircraft = ordered.slice(0, max).map((a) => {
+    const [x, y] = toXY(a.lat, a.lon);
+    return {
+      hex: a.hex,
+      x,
+      y,
+      altFt: a.altitudeFt,
+      trackDeg: a.hasTrack ? a.rotationDeg : null,
+      opacity: a.opacity,
+      mil: a.mil === true,
+      isT6: a.type === T6_TYPE,
+      name: aircraftName(a),
+      tag: tagWords(a, 'off'),
+      labelText: tagWords(a, label),
+      description: a.description || `${String(a.hex).toUpperCase()}.`,
+    };
+  });
+  const notes = [];
+  if (noAltitude) notes.push(`${noAltitude} without a height not drawn`);
+  if (leftOut) notes.push(`nearest ${max} drawn`);
+  const statusText = notes.length ? `${view.statusText} (${notes.join(', ')})` : view.statusText;
+  const rows = aircraft.map((a) => [a.hex, Math.round(a.x), Math.round(a.y), a.altFt, a.trackDeg === null ? '' : Math.round(a.trackDeg), a.opacity, a.mil ? 1 : 0, a.tag, a.labelText].join(','));
+  return { shown: true, status: view.status, statusText, aircraft, noAltitude, leftOut, labelsOn: label !== 'off', signature: `${view.status}|${label !== 'off'}|${rows.join(';')}` }; // the words change with the clock, the drawing only when an aircraft does
+}
+
 // ---- The camera -----------------------------------------------------------------------------------
 
 /** pitchDeg is degrees from straight down (0 looks straight down, 90 is level), as ui-kit's `matchProjection` takes it. zoom is pixels to 1,000 ft. */
