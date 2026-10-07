@@ -133,7 +133,7 @@
 ---
 
 ### Checkpoint 2: Final Verification & Sign-Off
-- [ ] All 57 flight set presses pass cleanly with no safety violations.
-- [ ] HOTRJ to FW and SARJ are verified in the live browser (`http://localhost:5174/#/turn-sim`).
-- [ ] Station changes in FW and LAB show synchronized, authentic T-6A lateral and vertical kinematics.
-- [ ] Entire test suite passes 100%.
+- [x] All 57 flight set presses pass cleanly with no safety violations.
+- [x] HOTRJ to FW and SARJ are verified in the live browser (`http://localhost:5174/#/turn-sim`).
+- [x] Station changes in FW and LAB show synchronized, authentic T-6A lateral and vertical kinematics.
+- [x] Entire test suite passes 100%.
