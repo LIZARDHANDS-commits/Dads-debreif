@@ -2184,6 +2184,37 @@ main[data-module='sof'] {
   background: rgb(31 78 98 / 0.95);
 }
 
+/* The Tour (Dad, 7 Oct): what the camera is showing and when it moves on, in the top right under the buttons; the T-6 it follows has its tag outlined. */
+[data-module='sof'] .sof-3d-tour-caption {
+  position: absolute;
+  top: calc(var(--space-2) + 2.5rem);
+  right: var(--space-2);
+  z-index: 3;
+  margin: 0;
+  padding: 2px var(--space-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: rgb(5 10 18 / 0.85);
+  color: #e3eef5;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  pointer-events: none;
+}
+
+[data-module='sof'] .sof-3d-tour-caption[hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-3d-tour-next {
+  color: #b8cfdb;
+  font-weight: 400;
+}
+
+[data-module='sof'] .sof-3d-actag.is-tour {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 1px;
+}
+
 /* The bottom left is a stack: the model controls (phase 2) above the ground's credit. */
 [data-module='sof'] .sof-3d-bottom {
   position: absolute;

@@ -94,7 +94,7 @@ export function buildBolts(T, { bolts, scale }) {
 
 /**
  * The satellite sheet: a see-through plane over the whole square at `heightFt` (feet above sea level) with `canvas` as its picture (satellitePixels drawn onto it; its
- * top is north). Returns { root, dispose }.
+ * top is north). Returns { root, setOpacity(0 to 1), dispose }.
  */
 export function buildSatelliteSheet(T, { canvas, heightFt, scale }) {
   const owned = [];
@@ -111,7 +111,9 @@ export function buildSatelliteSheet(T, { canvas, heightFt, scale }) {
   mesh.renderOrder = 1;
   own(owned, mesh);
   root.add(mesh);
-  return finish(T, root, owned);
+  // The whole sheet's opacity, 0 to 1 (the picture's own faintness is in its pixels): the view lowers it as the camera comes close, so a haze high above the ground does
+  // not hide a circuit being looked at.
+  return finish(T, root, owned, { setOpacity: (o) => { mesh.material.opacity = o; } });
 }
 
 // ---- Fronts ---------------------------------------------------------------------------------------------------------

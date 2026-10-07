@@ -27,6 +27,9 @@ const FLOW_FRAME_MS = 33;
 /** A stale satellite picture is drawn at this share of its opacity (the 2D map's own STALE_ALPHA). */
 const STALE_SHARE = 0.4;
 const WIND_LEVELS = Object.freeze([850, 700, 500]);
+/** The satellite sheet is at full strength up to this zoom (times the start view) and thins to SHEET_FADE_MIN beyond. Estimates for the look. */
+const SHEET_FADE_START = 8;
+const SHEET_FADE_MIN = 0.2;
 
 /**
  * T: three.js; scene; timers (a scheduler scope); win (the window: its document makes the canvases); labels (the element the H and L marks go in); requestRender(); reducedMotion().
@@ -46,6 +49,7 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
   let flowStop = null;
   let facts = { radar: null, lightning: null, satellite: null, fronts: null, flow: null };
   let shown = true;
+  let sheetFade = 1;
 
   const canvasOf = (px) => {
     const c = win.document.createElement('canvas');
@@ -87,6 +91,7 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
     if (layer) {
       root.add(layer.root);
       built[name] = { key, layer };
+      layer.setOpacity?.(sheetFade);
     } else built[name] = { key, layer: null };
     applyVisible();
   }
@@ -263,6 +268,17 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
     summary: () => ({ ...facts }),
     /** The fronts' credit while they are drawn. */
     credit: () => (facts.fronts ? FRONTS_CREDIT : null),
+    /**
+     * The camera's zoom (relative to the start view, 1 is the whole square): the satellite sheet is a haze high over the ground, so it fades out as the camera comes in
+     * close (full up to SHEET_FADE_START times, thinning to SHEET_FADE_MIN by four times that), and a close look at a circuit or a T-6 is clear. An estimate for the look.
+     */
+    setZoom(zoom) {
+      const fade = Math.min(1, Math.max(SHEET_FADE_MIN, SHEET_FADE_START / Math.max(1, zoom)));
+      if (fade !== sheetFade) {
+        sheetFade = fade;
+        built.satellite?.layer?.setOpacity?.(fade);
+      }
+    },
     /** Shown or hidden with the whole view (the loops stop while hidden). */
     setShown(on) {
       shown = on;

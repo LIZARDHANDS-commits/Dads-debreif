@@ -14,6 +14,9 @@
 // the browser refuses), an Orbit toggle that turns the camera slowly round home (the one case where the view draws every frame, through the
 // scheduler's frame, and only while Orbit is on and the view is shown; any camera input turns it off), and the Airspace log panel (airspace-log-view.js)
 // with an amber tag that stays on for each aircraft that is not a T-6 inside a watched area.
+// Tour (Dad, 7 Oct): a Tour toggle beside Orbit turns Orbit on and flies the camera round a list of targets (tour-model.js): the Moose Jaw circuit, Regina, then each airborne
+// T-6 in turn (followed, its tag highlighted), about 20 s each; any camera input from the SOF stops it, and Orbit with it. It runs in Orbit's own frame loop, so nothing runs while
+// both are off.
 // Weather that looks right in 3D (Dad, 7 Oct): radar shafts up to the model cloud base, lightning bolts, a faint satellite cloud sheet, surface fronts with H and L marks, and a
 // gentle wind flow (weather3d-layers.js builds them, weather3d.js draws, weather3d-model.js decides); the wind barbs are smaller and behind a Barbs toggle (off). Full screen is
 // the whole SOF picture's (fullscreen.js), shared with the 2D map's button.
@@ -40,6 +43,9 @@ import {
   AREA_NM, AREA_FT, DECK_FT, CATEGORY_TOKENS, START_CAMERA, ZOOM_STEP, KEY_ORBIT_PX, ORBIT_DEG_PER_PX, fitZoom, orbitBy, zoomCamera, sceneSignature, formatFeet,
 } from './scene3d-model.js';
 import { createAirspaceLogView } from './airspace-log-view.js';
+import {
+  TOUR_TARGETS, TOUR_DWELL_S, TOUR_FLY_S, TOUR_PITCH_DEG, TOUR_FIELD_AGL_FT, tourStops, nextStopIndex, tourCaption, nextInWords, framingZoom, flyPose,
+} from './tour-model.js';
 import { buildModelLayers, MODEL_GROUPS } from './model-layers3d.js';
 import { createTraffic3d } from './traffic3d.js';
 import { AIRSPACE } from './airspace-data.js';
@@ -54,6 +60,8 @@ import {
 } from './model-clouds.js';
 
 const BACKGROUND = '#0a141d';
+/** render() looks at whether the pictures or the weather changed at most this often (milliseconds). */
+const SIGNATURE_CHECK_MS = 1000;
 /** The depth range the camera is given after `matchProjection` (feet along the view): wide enough for the 450 NM square at any tilt, with its tallest layers. */
 const CAMERA_NEAR_FT = -3_500_000;
 const CAMERA_FAR_FT = 5_500_000;
@@ -77,6 +85,8 @@ export const ORBIT_SECONDS_PER_TURN = 120; // estimate, SOF-39
 export const ORBIT_STEP = Object.freeze({ deg: 15, ms: 2000 });
 /** A frame longer than this (a stalled tab) turns the camera no further than this long a frame would. */
 const ORBIT_MAX_FRAME_MS = 250;
+/** The tour's clock counts real time, but a frame longer than this (the computer slept) counts as no more than this. */
+const TOUR_MAX_FRAME_MS = 2000;
 /** The aircraft's credit, always said while the layer is on (adsb.lol's data is ODbL 1.0). */
 const AIRCRAFT_CREDIT = 'Aircraft: adsb.lol (ODbL 1.0)';
 
@@ -224,8 +234,20 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     onclick: () => setOrbit(orbitButton.getAttribute('aria-pressed') !== 'true'),
   }, 'Orbit');
   const fullButton = h('button', { type: 'button', class: 'sof-3d-toggle sof-3d-fullscreen', hidden: !fullScreen, onclick: () => fullScreen?.toggle() }, 'Full screen');
-  const tools = h('div', { class: 'sof-3d-tools' }, orbitButton, fullButton, corner);
-  const element = h('div', { class: 'sof-3d', hidden: true }, labels, tools, outside, bottom, logView.element, note, tag, acTag);
+  // Tour (Dad, 7 Oct): beside Orbit, off to begin with; turning it on turns Orbit on, and any camera input from the SOF turns both off.
+  const tourButton = h('button', {
+    type: 'button',
+    class: 'sof-3d-toggle sof-3d-tour',
+    'aria-pressed': 'false',
+    title: `Fly the camera round the Moose Jaw circuit, Regina and each airborne T-6 in turn, about ${TOUR_DWELL_S} seconds at each, with Orbit turning. A drag, the wheel, an arrow key or Home stops it.`,
+    onclick: () => setTour(tourButton.getAttribute('aria-pressed') !== 'true'),
+  }, 'Tour');
+  const tools = h('div', { class: 'sof-3d-tools' }, orbitButton, tourButton, fullButton, corner);
+  // What the tour is showing and when it moves on. The words change every stop (announced); the countdown changes every second (not announced).
+  const tourWhat = h('span', { class: 'sof-3d-tour-what' });
+  const tourNext = h('span', { class: 'sof-3d-tour-next', 'aria-hidden': 'true' });
+  const tourCaptionEl = h('p', { class: 'sof-3d-tour-caption', role: 'status', hidden: true }, tourWhat, ' · ', tourNext);
+  const element = h('div', { class: 'sof-3d', hidden: true }, labels, tools, tourCaptionEl, outside, bottom, logView.element, note, tag, acTag);
 
   let airfields = [];
   let scale = 5;
@@ -233,9 +255,11 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   let sceneDirty = true;
   let groundDirty = true;
   let picturesSig = null;
+  let signaturesAt = -Infinity; // when render() last looked at the pictures' and the weather's signatures
   let weatherSig = null; // the weather layers' inputs as last built
   let weatherDirty = true;
-  let cam = { ...START_CAMERA, zoom: 1 }; // zoom is relative to the fitting zoom: 1 shows the whole square
+  /** The camera: zoom is relative to the fitting zoom (1 shows the whole square); tx, ty and tz are the point looked at when the tour moved it off home (feet from home, feet above sea level). */
+  let cam = /** @type {{ yawDeg: number, pitchDeg: number, zoom: number, tx?: number, ty?: number, tz?: number }} */ ({ ...START_CAMERA, zoom: 1 });
   let THREE = null;
   let gl = null; // everything three.js made, while the view is shown
   let wanted = false;
@@ -265,6 +289,9 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   let intruderSig = '';
   let orbitOn = false;
   let stopOrbit = null; // ends the orbit's frame loop (or its steps)
+  let tourOn = false;
+  let tour = null; // { stop, index, elapsed (ms at this stop), from (the camera's pose when the fly began) } once the tour has picked its first stop
+  let tourHex = null; // the T-6 the tour is following: its tag is highlighted and always on
   const sizes = new WeakMap(); // each label's size, read once (a read of the page's layout each frame would slow the drag)
 
   const setText = (el, text) => {
@@ -785,12 +812,13 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   function placeAircraft({ at, put, boxFor, isClear, reserve, phase }) {
     const list = [...gl.traffic.entries()];
     if (phase === 't6') for (const e of list) e.screen = at(e.group.position);
-    const wanted = (e) => e.item.isT6 || e.intruder || trafficState.labelsOn || e.hex === hoverHex || e.hex === selectedAc;
+    const wanted = (e) => e.item.isT6 || e.intruder || trafficState.labelsOn || e.hex === hoverHex || e.hex === selectedAc || e.hex === tourHex;
     const early = (e) => e.item.isT6 || e.intruder; // a T-6's tag and an intruder's keep their places; the others step round them
     if (phase === 't6') {
       for (const e of list) {
         const on = wanted(e);
         if (e.tagEl.hidden === on) e.tagEl.hidden = !on;
+        e.tagEl.classList.toggle('is-tour', e.hex === tourHex); // the T-6 the tour is following
         // A T-6 and its halo are kept clear of every tag, so a tag never lands on the wrong aircraft.
         if (e.item.isT6) reserve({ x: e.screen.x - 0.7 * e.px, y: e.screen.y - 0.55 * e.px, w: 1.4 * e.px, h: 1.1 * e.px });
       }
@@ -830,25 +858,34 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       if (selected && !airfields.some((a) => a.icao === selected && !a.outside)) select(null);
     }
     if (modelDirty) rebuildModel();
-    const wx = getWeather();
-    if (wx.sig !== weatherSig) weatherDirty = true;
-    if (weatherDirty) rebuildWeather(wx);
+    // The inputs' signatures are looked at once a second at most (the wind flow draws about thirty frames a second, and each look reads every feed's state); `touch()` asks for
+    // a picture the moment something does change.
+    const looked = win.performance.now();
+    let wx = null;
+    if (looked - signaturesAt >= SIGNATURE_CHECK_MS) {
+      signaturesAt = looked;
+      if (!groundDirty && getPictures().sig !== picturesSig) groundDirty = true;
+      wx = getWeather();
+      if (wx.sig !== weatherSig) weatherDirty = true;
+    }
+    if (weatherDirty) rebuildWeather(wx ?? getWeather());
     const nextSpaceSig = `${scale}|${groundFt()}|${getProjection().lat},${getProjection().lon}`;
     if (!gl.space || nextSpaceSig !== spaceSig) rebuildSpace(nextSpaceSig);
     if (trafficDirty) syncTraffic();
-    if (!groundDirty && getPictures().sig !== picturesSig) groundDirty = true;
     if (groundDirty) paintGround();
 
     const { pins, rings, decks, planeZ } = gl.objects;
     const size = { width, height };
     const zoom = fitZoom(size) * cam.zoom;
-    matchProjection(THREE, camera, { x: 0, y: 0, z: planeZ / scale }, { yawDeg: cam.yawDeg, pitchDeg: cam.pitchDeg, zoom, altScale: scale }, size);
+    // The point looked at is home's ground unless the tour moved it (cam.tx, ty, tz: feet from home and feet above sea level).
+    matchProjection(THREE, camera, { x: cam.tx ?? 0, y: cam.ty ?? 0, z: cam.tz ?? planeZ / scale }, { yawDeg: cam.yawDeg, pitchDeg: cam.pitchDeg, zoom, altScale: scale }, size);
     // The square is 450 NM across: its far corners lie further from the view's middle than the shared camera's depth range reaches (ui-kit `matchProjection` is for 250 NM and
     // less), so the range is widened here. An orthographic camera has no perspective to spoil, only depth precision (24 bits over some 8 million ft is about half a foot).
     camera.near = CAMERA_NEAR_FT;
     camera.far = CAMERA_FAR_FT;
     camera.updateProjectionMatrix();
     const ftPerPx = 1000 / zoom;
+    gl.weather.setZoom(cam.zoom);
     for (const { pin } of pins) pin.scale.setScalar(ftPerPx);
     gl.traffic.fit(ftPerPx);
     gl.space?.airports.fit(ftPerPx);
@@ -1113,9 +1150,11 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     orbitButton.setAttribute('aria-pressed', String(on));
     stopOrbit?.();
     stopOrbit = null;
+    if (!on) endTour(); // the Tour rides on Orbit: Orbit off (a drag, the wheel, a key, Home, or its button) is the Tour off
     if (!on || !gl || !wanted || disposed) return;
     if (reducedMotion()) {
       stopOrbit = timers.every(ORBIT_STEP.ms, () => {
+        tourTick(ORBIT_STEP.ms, true);
         orbitTurn(ORBIT_STEP.deg);
         requestRender();
       });
@@ -1123,10 +1162,105 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       const degPerMs = 360 / (ORBIT_SECONDS_PER_TURN * 1000);
       stopOrbit = timers.frame((dt) => {
         if (!gl || !wanted) return;
-        orbitTurn(Math.min(dt, ORBIT_MAX_FRAME_MS) * degPerMs);
+        const ms = Math.min(dt, ORBIT_MAX_FRAME_MS);
+        tourTick(Math.min(dt, TOUR_MAX_FRAME_MS), false); // the tour keeps real time even when frames are slow (the camera's turn above does not jump)
+        orbitTurn(ms * degPerMs);
         render();
       });
     }
+  }
+
+  // ---- Tour (Dad, 7 Oct): the camera visits the targets in tour-model.js's list, one after the other ---------------------
+  /** Where the camera is looking and how, as the tour's fly takes it: { tx, ty, tz, zoom, pitch }. */
+  const poseNow = () => ({ tx: cam.tx ?? 0, ty: cam.ty ?? 0, tz: cam.tz ?? groundFt(), zoom: cam.zoom, pitch: cam.pitchDeg });
+
+  /** The stops there are now (the fields in the scene, the airborne T-6s the traffic feed has). */
+  const tourStopsNow = () => tourStops({ targets: TOUR_TARGETS, airfields, aircraft: trafficState.shown ? trafficState.aircraft : [] });
+
+  /** Where a stop is now, in feet from home (z: feet above sea level), and how closely to frame it; a T-6 is where it is drawn this moment. Null when it has gone. */
+  function tourTarget(stop) {
+    const size = { width: gl.canvas.clientWidth, height: gl.canvas.clientHeight };
+    const zoom = framingZoom({ nm: stop.nm, size, fit: fitZoom(size) });
+    if (stop.kind === 'field') return { tx: stop.x, ty: stop.y, tz: stop.groundFt + TOUR_FIELD_AGL_FT, zoom, pitch: TOUR_PITCH_DEG };
+    const entry = gl.traffic.get(stop.hex);
+    if (!entry) return null;
+    const at = entry.group.position;
+    return { tx: at.x, ty: at.y, tz: at.z / scale, zoom, pitch: TOUR_PITCH_DEG };
+  }
+
+  /** Moves on to the next stop (or the first), the camera flying from where it is. Ends the tour when there is nothing to visit. */
+  function tourAdvance() {
+    const stops = tourStopsNow();
+    const index = nextStopIndex(stops, tour?.stop.key ?? null, tour?.index ?? 0);
+    if (index < 0) {
+      setTourWords(null);
+      tour = null;
+      tourHex = null;
+      return false;
+    }
+    tour = { stop: stops[index], index, elapsed: 0, from: poseNow() };
+    tourHex = tour.stop.kind === 'aircraft' ? tour.stop.hex : null;
+    return true;
+  }
+
+  function setTourWords(words, elapsed = 0) {
+    tourCaptionEl.hidden = !tourOn || words === null;
+    if (words !== null) {
+      setText(tourWhat, words);
+      setText(tourNext, nextInWords(elapsed));
+    }
+  }
+
+  /**
+   * One step of the tour, called by Orbit's loop with the time since the last (milliseconds): the camera flies to the stop's place over TOUR_FLY_S (at once with reduced
+   * motion, `step`), then stays on it (a T-6 is followed as it moves) until TOUR_DWELL_S have passed at the stop. A T-6 that has left the feed is skipped at once. The camera
+   * is only set; Orbit's own turn and the picture follow.
+   */
+  function tourTick(ms, step) {
+    if (!tourOn || !gl) return;
+    if (!tour && !tourAdvance()) return;
+    tour.elapsed += ms;
+    for (let guard = 0; guard < 4; guard++) { // a stop that has gone is skipped on the spot
+      const gone = tour.stop.kind === 'aircraft' && !trafficState.aircraft.some((a) => a.hex === tour.stop.hex && a.isT6 === true && a.altFt !== 'ground');
+      const target = gone ? null : tourTarget(tour.stop);
+      if (target) {
+        const flown = step ? 1 : Math.min(1, tour.elapsed / (TOUR_FLY_S * 1000));
+        const pose = flyPose(tour.from, target, flown);
+        cam = { ...cam, tx: pose.tx, ty: pose.ty, tz: pose.tz, zoom: pose.zoom, pitchDeg: pose.pitch };
+        const aircraft = tour.stop.kind === 'aircraft' ? trafficState.aircraft.find((a) => a.hex === tour.stop.hex) : undefined;
+        setTourWords(tourCaption(tour.stop, aircraft), tour.elapsed);
+        if (tour.elapsed >= TOUR_DWELL_S * 1000) tourAdvance();
+        return;
+      }
+      if (!tourAdvance()) return;
+    }
+  }
+
+  /** The Tour on or off. On: Orbit goes on with it (the tour is its camera), and the first stop is taken at once. Off: the camera stays where it is and Orbit goes on turning. */
+  function setTour(on) {
+    if (on === tourOn) return;
+    if (!on) {
+      endTour();
+      requestRender();
+      return;
+    }
+    setOrbit(true); // before tourOn is set, so it is not read as the tour ending
+    tourOn = true;
+    tour = null;
+    tourButton.setAttribute('aria-pressed', 'true');
+    tourTick(0, reducedMotion());
+    requestRender();
+  }
+
+  /** Ends the tour (no camera change); safe when it is off. */
+  function endTour() {
+    if (!tourOn) return;
+    tourOn = false;
+    tour = null;
+    tourHex = null;
+    tourButton.setAttribute('aria-pressed', 'false');
+    tourCaptionEl.hidden = true;
+    requestRender();
   }
 
   // ---- Full screen (Dad, 7 Oct) ----------------------------------------------------------------------------
