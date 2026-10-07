@@ -41,3 +41,4 @@ Ideas for the SOF that are not being built. An idea moves into `plan.md` only wi
 - Take-off minima and "to file" minima (Gen Book p.7); alternate rules when no forecast exists, radar-only or GNSS-only destination triggers, and flights over 3 hours (`pf/reset/1-requirements/scope-and-ideas.md:87`, `pf/reset/1-requirements/scope-and-ideas.md:88`).
 - A real "SOF attention" badge on the home card, only if Patrick wants it; V6's was fake and always flashing (`pf/reset/1-requirements/scope-and-ideas.md:89`).
 - An information-only lightning line at 50 NM (NFM Sec VII p. 7-4); moving the VNC chart layer into the screen kit; further map extras (`archive/docs/records/future-ideas.md:13`).
+- A 2.5 km cloud picture per level from ECCC GeoMet's HRDPS relative humidity by pressure level (`HRDPS.CONTINENTAL.PRES_HR.<level>`, 28 levels from 1015 to 50 hPa), one picture per level per hour; found while building Weather fidelity 3 (7 Oct 2026). Not built.
