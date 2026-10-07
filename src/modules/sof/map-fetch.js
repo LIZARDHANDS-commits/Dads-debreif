@@ -12,7 +12,10 @@ export const FETCH_LIMITS = Object.freeze({
   image: Object.freeze({ timeoutMs: 20_000, maxBytes: 4 * 1024 * 1024 }), // a 2048 px transparent PNG is far smaller
   json: Object.freeze({ timeoutMs: 15_000, maxBytes: 256 * 1024 }), // RainViewer's list is about 2 KB
   traffic: Object.freeze({ timeoutMs: 30_000, maxBytes: Math.ceil(1.25 * 1024 * 1024) }), // the relay's own cap is 1 MB
-  model: Object.freeze({ timeoutMs: 20_000, maxBytes: 3 * 1024 * 1024 }), // Open-Meteo's 81 points x 26 variables x 25 hours is about 0.4 MB (an estimate, SOF-39)
+  model: Object.freeze({ timeoutMs: 30_000, maxBytes: 3 * 1024 * 1024 }), // Open-Meteo's global GEM, 169 points x 27 variables x 25 hours, is about 0.85 MB and took about 5 s (7 Oct; was 81 points, 0.4 MB)
+  modelHrdps: Object.freeze({ timeoutMs: 180_000, maxBytes: 4 * 1024 * 1024 }), // HRDPS, 169 points x 30 variables: about 1 MB and about 35 s warm, over a minute the first time (7 Oct, an estimate for the wait)
+  image3d: Object.freeze({ timeoutMs: 30_000, maxBytes: 6 * 1024 * 1024 }), // the 3D view's pictures cover 450 NM at about 1,100 px
+  fronts: Object.freeze({ timeoutMs: 20_000, maxBytes: 256 * 1024 }), // the relay's fronts reply is about 5 KB
 });
 
 /** Why a request failed: 'timeout', 'too-big', 'status', 'redirect', 'aborted' or 'network'. */

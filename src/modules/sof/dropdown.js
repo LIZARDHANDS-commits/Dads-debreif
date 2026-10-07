@@ -4,6 +4,9 @@
 // closes it. Each drop-down says how its panel is shown (`onToggle`), so a panel can be hidden, or shown by
 // a class (the world clocks, which sit in the bar when the window is wide). The words on a button end in its
 // marker; each button's own two labels are given to create().
+//
+// A drop-down whose scope sits inside another's (the waves' boxes inside the timeline's Expand panel) is its child: opening it leaves its parent
+// open, and closing the parent closes it too.
 
 /**
  * `listen`: the module's app.listen (so the document listeners go when the module closes).
@@ -42,13 +45,14 @@ export function createDropdowns({ listen }) {
       },
       open() {
         if (isOpen) return;
-        for (const other of all) if (other !== drop && other.isOpen) other.close();
+        for (const other of all) if (other !== drop && other.isOpen && !other.scope.contains(drop.scope)) other.close(); // a parent stays open
         show(true);
       },
       /** `focus`: put focus back where the person opened it (Escape, or pressing the button again). */
       close({ focus = false } = {}) {
         if (!isOpen) return;
         show(false);
+        for (const other of all) if (other !== drop && other.isOpen && drop.scope.contains(other.scope)) other.close(); // its children go with it
         if (focus) (focusTarget?.() ?? button)?.focus({ preventScroll: true });
       },
       /** The button's two labels, when they change with what the panel holds. */

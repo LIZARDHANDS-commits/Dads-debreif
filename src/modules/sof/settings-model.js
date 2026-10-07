@@ -12,6 +12,7 @@
 import { createSettings } from '../../storage/settings.js';
 import { triggerLimits, describeTrigger } from './waves.js';
 import { trafficUrl } from './traffic.js';
+import { CROSSWIND_DEFAULTS, RUNWAY_STATES } from './crosswind.js';
 
 const LOCAL = triggerLimits('local');
 
@@ -142,5 +143,47 @@ export function withTrigger(settings) {
       settings.update({ ...rest, ...(PRESETS.has(trigger) ? triggerLimits(trigger) : {}) });
     },
     subscribe: (fn) => settings.subscribe((values) => fn(view(values))),
+  };
+}
+
+// ---- Crosswind levels and the runway state (SOF-R27, SOF-43) -------------------------------------------------------
+
+/** Each crosswind level is a whole number of knots from 0 to 50 (an estimate of a sensible range: references, not walls). */
+export const CROSSWIND_RANGE = Object.freeze({ min: 0, max: 50, step: 1 });
+const XW_KEYS = Object.freeze(['xwAmberDryKt', 'xwAmberWetKt', 'xwAmberIcyKt', 'xwRedDryKt']);
+const STATES = Object.freeze(RUNWAY_STATES.map((s) => s.value));
+const xwInRange = (v) => isNumber(v) && v >= CROSSWIND_RANGE.min && v <= CROSSWIND_RANGE.max;
+
+/** The crosswind settings checked: a level out of range or not a number is its default, a state not offered is Dry. */
+export function cleanCrosswind(values) {
+  const out = { ...CROSSWIND_DEFAULTS };
+  const v = values ?? {};
+  for (const key of XW_KEYS) if (xwInRange(v[key])) out[key] = v[key];
+  if (STATES.includes(v.runwayState)) out.runwayState = v.runwayState;
+  return Object.freeze(out);
+}
+
+/**
+ * The crosswind levels and the runway state, kept in their own document in the SOF's storage ("crosswind"), apart from the settings above so those
+ * stay as they were. { get, update, reset, subscribe } like createSofSettings; a number out of range is dropped on the way in and is the default on the way out.
+ */
+export function createCrosswindSettings(store) {
+  // storage/settings.js keeps its values under one name; this one is "crosswind".
+  const renamed = {
+    get: (name, fallback) => store.get(name === 'settings' ? 'crosswind' : name, fallback),
+    set: (name, value) => store.set(name === 'settings' ? 'crosswind' : name, value),
+  };
+  const inner = createSettings(renamed, CROSSWIND_DEFAULTS, { allowed: { runwayState: STATES } });
+  return {
+    get: () => cleanCrosswind(inner.get()),
+    update(patch = {}) {
+      const next = {};
+      for (const [key, value] of Object.entries(patch)) {
+        if (XW_KEYS.includes(key) ? xwInRange(value) : key === 'runwayState' && STATES.includes(value)) next[key] = value;
+      }
+      inner.update(next);
+    },
+    reset: () => inner.reset(),
+    subscribe: (fn) => inner.subscribe(() => fn(cleanCrosswind(inner.get()))),
   };
 }

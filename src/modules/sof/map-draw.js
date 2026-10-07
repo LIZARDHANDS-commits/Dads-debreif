@@ -7,6 +7,7 @@
 // ring, a ground aircraft is hollow, an old report is hollow.
 import { imageStrips, FT_PER_NM } from './map-view.js';
 import { windBarb } from './map-model.js';
+import { trailAlpha, TRAIL_WINDOW_S } from './traffic-motion.js';
 
 const FONT = '600 12px system-ui, sans-serif';
 const HALO_WIDTH = 3;
@@ -243,4 +244,51 @@ export function drawTraffic(ctx, aircraft, project, palette, { width, height }, 
   }
   ctx.restore();
   return hits;
+}
+
+/** A trail's alpha is drawn in this many steps, so each kind of trail is a few strokes however many aircraft there are. */
+const TRAIL_STEPS = 6;
+/** The T-6's trail (the highlight colour, a little thicker), the others' (muted) and an intruder's (amber, with the same thickness as a T-6's). */
+const TRAIL_WIDTH = Object.freeze({ t6: 2.5, intruder: 2.5, other: 1.5 });
+
+/**
+ * The fading trails under the aircraft (Dad, 7 Oct): for each aircraft in `aircraft` (traffic.js's, with their glided `lat` and `lon`) that has
+ * positions in `trails` (traffic-motion.js `createTrails`), a line through the last TRAIL_WINDOW_S seconds of reported positions to the aircraft
+ * itself, solid at the aircraft and clear at the end of the window (and as faded as the aircraft is when its report is old). `intruders` is a Map
+ * keyed by hex (the airspace log's aircraft that are not T-6s inside a watched area), `nowMs` the clock. A T-6 (type TEX2) uses `palette.traffic`
+ * (the layer's highlight colour), an intruder `palette.military` (amber), the rest `palette.none` (muted). Returns how many trails were drawn.
+ */
+export function drawTrails(ctx, aircraft, trails, project, palette, { width, height }, nowMs, intruders = new Map()) {
+  const strokes = new Map(); // `${kind}|${step}` -> { colour, widthPx, path }
+  let drawn = 0;
+  for (const a of aircraft) {
+    const history = trails.get(a.hex).filter((p) => nowMs - p.t <= TRAIL_WINDOW_S * 1000);
+    if (!history.length) continue;
+    const kind = intruders.has(a.hex) ? 'intruder' : a.type === 'TEX2' ? 't6' : 'other';
+    const colour = kind === 'intruder' ? palette.military : kind === 't6' ? palette.traffic : palette.none;
+    const pts = [...history.map((p) => ({ xy: project(p.lat, p.lon), t: p.t })), { xy: project(a.lat, a.lon), t: nowMs }];
+    if (pts.every(({ xy: [x, y] }) => x < -20 || y < -20 || x > width + 20 || y > height + 20)) continue; // all of it off the screen
+    for (let i = 1; i < pts.length; i++) {
+      const alpha = trailAlpha((pts[i - 1].t + pts[i].t) / 2, nowMs) * a.opacity;
+      const step = Math.min(TRAIL_STEPS - 1, Math.floor(alpha * TRAIL_STEPS));
+      if (alpha <= 0.01) continue;
+      const key = `${kind}|${step}`;
+      let stroke = strokes.get(key);
+      if (!stroke) strokes.set(key, (stroke = { colour, widthPx: TRAIL_WIDTH[kind], alpha: (step + 1) / TRAIL_STEPS, path: new Path2D() }));
+      stroke.path.moveTo(pts[i - 1].xy[0], pts[i - 1].xy[1]);
+      stroke.path.lineTo(pts[i].xy[0], pts[i].xy[1]);
+    }
+    drawn += 1;
+  }
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  for (const { colour, widthPx, alpha, path } of strokes.values()) {
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = widthPx;
+    ctx.strokeStyle = colour;
+    ctx.stroke(path);
+  }
+  ctx.restore();
+  return drawn;
 }

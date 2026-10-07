@@ -10,6 +10,8 @@ let nextId = 1;
 
 const SHOW_3D = 'Show the weather round home in 3D';
 const SHOW_2D = 'Back to the map';
+const FULL_ON_WORDS = 'Fill the whole window with the map, the airfield column and the timeline strip. Escape or Exit full screen brings the page back.';
+const FULL_OFF_WORDS = 'Back to the page. Escape does the same.';
 
 const setText = (el, text) => {
   if (el.textContent !== text) el.textContent = text;
@@ -17,7 +19,9 @@ const setText = (el, text) => {
 
 /**
  * handlers: { onLayer(id, on), onOpacity(id, percent), onBase(id), onPrecip('rain' | 'snow'), onHome(),
- * onZoom(factor), onAdsb(on), onThree(on), threeReason(), onTraffic(on), onTrafficLabel(id), onMilitaryOnly(on) }.
+ * onZoom(factor), onAdsb(on), onThree(on), threeReason(), onTraffic(on), onTrafficLabel(id), onMilitaryOnly(on), onTrails(on), onFullScreen() }.
+ * `onFullScreen` toggles Full screen for the whole SOF picture (the map, the airfield column and the timeline strip, Dad 7 Oct). The 3D view has its own
+ * Full screen button, which does the same, so this one shows in 2D only.
  * `threeReason()` is asked the first time the 3D button is hovered, focused or pressed: why 3D cannot be used here (a sentence), or
  * null when it can. The button stays in the bar either way (SPEC-sof, "3D view").
  * Returns { bar, panel, status, legend, credits, note, sync(state), setStatus(items), setCredits(text),
@@ -59,9 +63,13 @@ export function createMapControls(handlers) {
   }
   three.addEventListener('pointerenter', probeThree);
   three.addEventListener('focus', probeThree);
+  // Full screen (Dad, 7 Oct): the map with the airfield column and the timeline strip. Its words change, so no aria-pressed.
+  const fullScreen = h('button', { type: 'button', class: 'sof-map-btn sof-map-fullscreen', title: FULL_ON_WORDS, onclick: () => handlers.onFullScreen?.() }, 'Full screen');
   const traffic = h('button', { type: 'button', class: 'sof-map-btn', 'aria-pressed': 'false', hidden: true, onclick: () => handlers.onTraffic(traffic.getAttribute('aria-pressed') !== 'true') }, 'Traffic');
+  // The fading line behind each aircraft, in 2D and in 3D (Dad, 7 Oct): shown with the Traffic button, on to begin with.
+  const trails = h('button', { type: 'button', class: 'sof-map-btn', 'aria-pressed': 'true', hidden: true, title: 'A fading line behind each aircraft: its last 2 minutes of reported positions', onclick: () => handlers.onTrails(trails.getAttribute('aria-pressed') !== 'true') }, 'Trails');
   // The Layers menu (`panel`, below) is put in the bar straight after its button, so Tab goes from the button into the menu (F8).
-  const bar = h('div', { class: 'sof-map-bar', role: 'toolbar', 'aria-label': 'Map controls' }, layersButton, home, zoomIn, zoomOut, precipField, traffic, three, threeWhy, adsb);
+  const bar = h('div', { class: 'sof-map-bar', role: 'toolbar', 'aria-label': 'Map controls' }, layersButton, home, zoomIn, zoomOut, precipField, traffic, trails, three, fullScreen, threeWhy, adsb);
 
   // ---- The Layers menu ------------------------------------------------------------------------------
   const baseRadios = new Map();
@@ -185,8 +193,8 @@ export function createMapControls(handlers) {
       if (shown) drawLegend(items);
       else legendBody.replaceChildren();
     },
-    /** The state to show: { layers, relay, adsbOn, threeOn }. Only what differs is touched. */
-    sync({ layers, relay, adsbOn, threeOn = false }) {
+    /** The state to show: { layers, relay, adsbOn, threeOn, fullOn }. Only what differs is touched. */
+    sync({ layers, relay, adsbOn, threeOn = false, fullOn = false }) {
       if (builtWithRelay !== relay) {
         builtWithRelay = relay;
         buildRows(menuRows(layers, { relay }));
@@ -206,16 +214,22 @@ export function createMapControls(handlers) {
       vncSlider.disabled = layers.base !== 'vnc-satellite';
       if (precip.value !== layers.precip) precip.value = layers.precip;
       traffic.hidden = !relay;
+      trails.hidden = !relay || layers.on.traffic !== true; // only while there are aircraft to trail
+      trails.setAttribute('aria-pressed', String(layers.traffic.trails !== false));
       trafficOptions.hidden = !relay;
       if (labelSelect.value !== layers.traffic.label) labelSelect.value = layers.traffic.label;
       if (milBox.checked !== layers.traffic.militaryOnly) milBox.checked = layers.traffic.militaryOnly;
       traffic.setAttribute('aria-pressed', String(layers.on.traffic === true));
       adsb.setAttribute('aria-pressed', String(adsbOn));
       setText(three, threeOn ? '2D' : '3D');
+      fullScreen.hidden = threeOn; // the 3D view's own Full screen button does the same
+      setText(fullScreen, fullOn ? 'Exit full screen' : 'Full screen');
+      fullScreen.title = fullOn ? FULL_OFF_WORDS : FULL_ON_WORDS;
       if (three.dataset.unavailable !== 'true') three.title = threeOn ? SHOW_2D : SHOW_3D;
       // Under ADS-B Exchange's own map these do nothing, so they are switched off rather than left to look live.
       // (The Layers menu stays: its choices are kept for when the view is switched back.)
       for (const el of [precip, home, zoomIn, zoomOut]) el.disabled = adsbOn;
+      trails.disabled = adsbOn;
       traffic.disabled = adsbOn; // the same switch drives the 2D layer and the 3D view's aircraft
     },
     /** Items: [{ id, text, symbol, tone }]. Rows are kept and only their words change. */
