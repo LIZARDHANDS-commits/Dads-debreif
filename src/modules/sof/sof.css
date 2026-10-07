@@ -216,11 +216,13 @@ main[data-module='sof'] {
   font-size: var(--text-sm);
 }
 
-/* The cards beside the map: the cards stack in a column that scrolls inside itself if it must, the map takes the height that is left; narrow, the map comes first. */
+/* The airfield column beside the map (Dad, 7 Oct: "the side 10 %"): about a tenth of the width, never under 150 px; its rows stack in a column that
+   scrolls inside itself if it must, the map takes the rest of the width and the height that is left; narrow, the map comes first. */
 [data-module='sof'] .sof-main {
+  position: relative;
   display: grid;
   flex: 1 1 0;
-  grid-template-columns: minmax(19rem, 27rem) minmax(0, 1fr);
+  grid-template-columns: max(150px, 10%) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   gap: var(--space-2);
   min-height: 10rem;
@@ -238,7 +240,16 @@ main[data-module='sof'] {
   }
 }
 
-/* Airfield cards: short to begin with, each one punched out; Full brief opens the whole card. */
+/* Airfield rows: one compact row each, punched out; pressing a row opens that airfield's whole card over the screen, beside the column. */
+[data-module='sof'] .sof-cards-host {
+  position: relative;
+  min-height: 0;
+}
+
+[data-module='sof'] .sof-cards-host > .sof-cards {
+  height: 100%;
+}
+
 [data-module='sof'] .sof-cards {
   position: relative;
   display: flex;
@@ -275,6 +286,92 @@ main[data-module='sof'] {
 [data-module='sof'] .sof-card.is-stale.level-within,
 [data-module='sof'] .sof-card.is-stale.level-at-limit {
   border-left-color: var(--text-faint);
+}
+
+[data-module='sof'] .sof-cards > .sof-card {
+  padding: 0;
+}
+
+[data-module='sof'] .sof-card-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  min-height: 0;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: transparent;
+  text-align: left;
+}
+
+[data-module='sof'] .sof-card-row:hover {
+  background: var(--bg-sunken);
+}
+
+[data-module='sof'] .sof-card-row[aria-expanded='true'] {
+  background: var(--bg-sunken);
+}
+
+[data-module='sof'] .sof-row-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-1);
+}
+
+[data-module='sof'] .sof-row-top .sof-badge {
+  padding: 0 var(--space-1);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+[data-module='sof'] .sof-row-home {
+  color: var(--accent-strong);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+[data-module='sof'] .sof-row-mark {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-row-mark.level-below .sof-result-symbol {
+  color: var(--bad);
+}
+
+[data-module='sof'] .sof-row-mark.level-at-limit .sof-result-symbol {
+  color: var(--caution);
+}
+
+[data-module='sof'] .sof-row-mark.level-within .sof-result-symbol {
+  color: var(--good);
+}
+
+/* The full card that opens beside the column, over the map (a drop-down, like the others). */
+[data-module='sof'] .sof-card-drop {
+  position: absolute;
+  top: 0;
+  left: calc(100% + var(--space-2));
+  z-index: 30;
+  box-sizing: border-box;
+  width: min(34rem, 80vw);
+  max-height: 100%;
+  overflow-y: auto;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+[data-module='sof'] .sof-card-drop[hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-card-drop > .sof-card {
+  padding: var(--space-2) var(--space-3);
 }
 
 [data-module='sof'] .sof-card-head {
@@ -402,12 +499,6 @@ main[data-module='sof'] {
 [data-module='sof'] .sof-line.is-ok .sof-line-raw {
   color: var(--text-muted);
   font-family: var(--font);
-}
-
-@media (max-height: 800px) {
-  [data-module='sof'] .sof-card:not(.is-open) .sof-card-lines {
-    display: none;
-  }
 }
 
 [data-module='sof'] .sof-limits {
@@ -2356,4 +2447,255 @@ main[data-module='sof'] {
 [data-module='sof'] .sof-map-btn[data-unavailable='true'] {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* ---- The timeline strip along the bottom (timeline-strip.js; Dad, 7 Oct: "a very narrow strip on the bottom ... like a TV Guide") ----
+   One slim line: "Timeline ▾" at the left, the miniature picture, "Expand ▾" at the right. About 4.5 % of the window's height, never under 40 px.
+   The picture: the axis ticks along its top edge, then one airfield row (two in a tall window) that slides up to the next every 5 s.
+   The waves, landing marks and the now line lie over the rows. Expand opens the full timeline upward over the screen. */
+[data-module='sof'] .sof-timeline:has(> .sof-strip-main),
+[data-module='sof'] .sof-timeline.is-hidden {
+  --sof-strip-h: max(40px, 4.5vh);
+  --sof-strip-label-w: 3.4rem;
+  display: flex;
+  flex: none;
+  align-items: stretch;
+  gap: var(--space-2);
+  height: var(--sof-strip-h);
+  padding: 2px var(--space-2);
+  overflow: visible;
+}
+
+[data-module='sof'] .sof-timeline.is-hidden {
+  height: auto;
+}
+
+[data-module='sof'] .sof-strip-toggle,
+[data-module='sof'] .sof-strip-expand {
+  flex: none;
+  align-self: center;
+  padding: 2px var(--space-2);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-strip-main {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+[data-module='sof'] .sof-strip-main[hidden],
+[data-module='sof'] .sof-strip-expand[hidden],
+[data-module='sof'] .sof-strip-full[hidden],
+[data-module='sof'] .sof-strip-problem[hidden],
+[data-module='sof'] .sof-strip-now[hidden] {
+  display: none;
+}
+
+/* The axis: tick labels in a 12 px line along the top, placed by percent over the track (right of the airfield names). */
+[data-module='sof'] .sof-strip-axis {
+  position: relative;
+  flex: none;
+  height: 12px;
+  margin-left: var(--sof-strip-label-w);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 12px;
+}
+
+[data-module='sof'] .sof-strip-tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-strip-tick.is-first {
+  transform: none;
+}
+
+[data-module='sof'] .sof-strip-tick.is-last {
+  transform: translateX(-100%);
+}
+
+/* The rows' window: shows --rows rows; the list slides up one row per step (--i). */
+[data-module='sof'] .sof-strip-viewport {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+[data-module='sof'] .sof-strip-list {
+  --row-h: calc(100% / var(--rows, 1));
+  height: 100%;
+  transform: translateY(calc(var(--i, 0) * -100% / var(--rows, 1)));
+  transition: transform var(--motion-duration) ease;
+}
+
+[data-module='sof'] .sof-strip-list.is-instant {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-module='sof'] .sof-strip-list {
+    transition: none;
+  }
+}
+
+:root[data-motion='off'] [data-module='sof'] .sof-strip-list {
+  transition: none;
+}
+
+[data-module='sof'] .sof-strip-row {
+  display: grid;
+  grid-template-columns: var(--sof-strip-label-w) minmax(0, 1fr);
+  align-items: center;
+  height: var(--row-h);
+}
+
+[data-module='sof'] .sof-strip-label {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-strip-track {
+  position: relative;
+  height: max(10px, calc(100% - 4px));
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg-sunken);
+  overflow: hidden;
+}
+
+[data-module='sof'] .sof-strip-cover {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgb(255 255 255 / 0.04);
+}
+
+[data-module='sof'] .sof-strip-piece {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  overflow: hidden;
+  border-right: 1px solid var(--bg-sunken);
+}
+
+[data-module='sof'] .sof-strip-piece.lane-over {
+  top: 50%;
+  outline: 1px solid var(--bg-sunken);
+}
+
+[data-module='sof'] .sof-strip-piece.is-hatched {
+  background-image: repeating-linear-gradient(45deg, rgb(2 10 16 / 0.55) 0 3px, transparent 3px 7px);
+}
+
+[data-module='sof'] .sof-strip-piece-label {
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 0 3px;
+  border-radius: 2px;
+  background: rgb(2 10 16 / 0.7);
+  color: var(--text);
+  font-size: 9px;
+  line-height: 11px;
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-strip-words {
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-strip-metar {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--text);
+  font-size: 9px;
+}
+
+/* Waves, landing marks and the now line, over the tracks only. */
+[data-module='sof'] .sof-strip-overlay {
+  position: absolute;
+  top: 12px;
+  bottom: 0;
+  left: var(--sof-strip-label-w);
+  right: 0;
+  pointer-events: none;
+}
+
+[data-module='sof'] .sof-strip-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px dashed var(--accent);
+  border-right: 1px dashed var(--accent);
+  background: rgb(66 191 233 / 0.14);
+  pointer-events: auto;
+}
+
+[data-module='sof'] .sof-strip-band-label {
+  position: absolute;
+  top: -12px;
+  left: 2px;
+  color: var(--accent-strong);
+  font-size: 9px;
+  line-height: 12px;
+}
+
+[data-module='sof'] .sof-strip-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px dotted var(--text-muted);
+}
+
+[data-module='sof'] .sof-strip-now {
+  position: absolute;
+  top: -12px;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--caution);
+}
+
+[data-module='sof'] .sof-strip-problem {
+  margin: 0;
+  color: var(--bad);
+  font-size: var(--text-sm);
+}
+
+/* The full timeline, opened upward over the screen from the strip. */
+[data-module='sof'] .sof-strip-full {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 4px);
+  z-index: 30;
+  max-height: 70vh;
+  overflow: auto;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow);
 }

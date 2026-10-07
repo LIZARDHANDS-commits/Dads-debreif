@@ -4,10 +4,11 @@
 // A card is redrawn only when what it says has changed, so a screen left open all
 // day does no work between refreshes.
 //
-// SOF-38: a card is short to begin with: its header, one METAR line, one TAF line and the result in words, with
-// "Full brief" to open everything the card used to show (the raw reports with their marked words, the limits and every
-// note). On a short window (1366 x 768) the METAR and TAF lines wait behind Full brief too, and the card is the
-// header and the result. Whether a card is open is kept for the visit, not stored.
+// SOF-38, as changed by Dad on 7 Oct ("the side 10 %"): the airfields are a narrow column, one compact row each: the ICAO, the flight
+// category and a limits mark in words (the symbol never alone). Selecting a row opens that airfield's full card over the screen, as a
+// drop-down beside the column: the header, the result for the wave, every caution, the limits and the whole METAR and TAF with their marked
+// words (everything the card used to show, Full brief included). The rows are the `article.sof-card` the page's checks look for. Whether a
+// card is open is kept for the visit, not stored.
 import { h } from '../../ui-kit/dom.js';
 import { segments } from './marks.js';
 import { tafHeadline } from './taf-line.js';
@@ -54,35 +55,20 @@ function waveResult(line) {
     line.reason ? h('span', { class: 'sof-wave-result-reason' }, `. ${line.reason}`) : null);
 }
 
-// A line's words with the marked ones in <mark>s, as text (the same marks as the full report).
-const marked = (text, marks) => segments(text, marks).map((seg) => (seg.level ? h('mark', { class: `sof-mark is-${seg.level}` }, seg.text) : seg.text));
-
-// One of the card's short lines: its label, then the report's own words in a single line (cut with "…" when long; all of
-// it is in Full brief and in the hover words).
-function shortLine(kind, label, flag, body, { tone = null, title = '' } = {}) {
-  return h('p', { class: `sof-line sof-line-${kind}${tone ? ` is-${tone}` : ''}`, title },
-    h('span', { class: 'sof-line-label' }, label),
-    flag ? h('span', { class: 'sof-line-flag' }, ` ${flag}`) : null,
-    body ? h('span', { class: 'sof-line-body' }, ' ', body) : null);
+// The compact row's limits mark, in words beside its symbol (never the symbol alone): "✓ within", "⚠ below", "● at limit", "? old", "? unknown", "– no METAR".
+const MARK = { below: ['⚠', 'below'], 'at-limit': ['●', 'at limit'], within: ['✓', 'within'], none: ['–', 'no METAR'] };
+export function limitsMark(card) {
+  const level = card.result.level;
+  const [symbol, words] = level === 'unknown' ? ['?', card.result.stale ? 'old' : 'unknown'] : MARK[level] ?? ['?', 'unknown'];
+  return { symbol, words, level };
 }
 
-function metarLine(metar) {
-  const label = metar.label ?? 'METAR';
-  if (!metar.raw) return shortLine('metar', label === 'METAR' ? '' : label, null, metar.words, { tone: 'bad', title: metar.words ?? '' });
-  const stale = metar.state === 'stale' || metar.state === 'closed';
-  return shortLine('metar', label, metar.staleText, h('span', { class: `sof-line-raw${stale ? ' is-stale' : ''}` }, ...marked(metar.raw, metar.marks)), { title: metar.raw });
-}
+// The category chip is the METAR's: a stale one, or one from a closed field's last observation, is grey, its words kept.
+const isStaleMetar = (card) => card.metar?.state === 'stale' || card.metar?.state === 'closed';
 
-function tafLine(taf) {
-  const { text, marks, tone } = tafHeadline(taf);
-  // "TAF 1740Z", the issue time only: the valid period is in Full brief.
-  const label = taf.label ? `${taf.label.split(',')[0]}:` : 'TAF:';
-  return shortLine('taf', label, null, h('span', { class: 'sof-line-raw' }, ...marked(text, marks)), { tone, title: taf.raw ?? text });
-}
-
-function children(card, { expanded, onToggle }) {
-  // The category and colour chips are the METAR's: a stale one, or one from a closed field's last observation, is grey, its words kept.
-  const staleChips = card.metar?.state === 'stale' || card.metar?.state === 'closed';
+/** The whole card, as it opens over the screen: everything the card shows (its header, result, cautions, limits and both reports in full). `onClose` is the button's action. */
+function fullCard(card, { onClose }) {
+  const staleChips = isStaleMetar(card);
   const badges = h(
     'div',
     { class: 'sof-badges' },
@@ -94,58 +80,103 @@ function children(card, { expanded, onToggle }) {
       ? h('span', { class: `sof-badge sof-nato${staleChips ? ' is-stale' : ''}` }, h('span', { class: 'visually-hidden' }, 'NATO colour state '), card.nato)
       : null,
   );
-  const more = h('button', { type: 'button', class: 'sof-card-more', 'aria-expanded': String(expanded), onclick: onToggle }, expanded ? 'Full brief ▾' : 'Full brief ▸');
+  const close = h('button', { type: 'button', class: 'sof-card-more', onclick: onClose }, 'Close');
   const result = h('div', { class: 'sof-result-row' },
     h('p', { class: `sof-result level-${card.result.level}` }, h('span', { class: 'sof-result-symbol', 'aria-hidden': 'true' }, LEVEL_SYMBOL[card.result.level] ?? ''), ' ', card.result.words),
-    more);
+    close);
   const head = h('header', { class: 'sof-card-head' },
     h('h2', { class: 'sof-card-title' }, h('span', { class: 'sof-icao' }, card.icao), card.name ? h('span', { class: 'sof-name' }, ` ${card.name}`) : null),
     badges);
   // An alternate's result for the selected wave (waves-view-model.js's altLines), in words with its symbol.
   const wave = card.waveLine ? waveResult(card.waveLine) : null;
-  if (expanded) {
-    // The result and its button come first, as in the short card, so the button stays where it was to close the card again.
-    return [
-      head,
-      result,
-      wave,
-      ...card.cautionReasons.map((reason) => h('p', { class: 'sof-caution' }, `Caution: ${reason}`)),
-      h('p', { class: 'sof-limits' }, `${card.limitsLabel}: `, h('span', {}, card.limitsText)),
-      note(card.limitsNote, 'info'),
-      report('METAR', card.metar),
-      report('TAF', card.taf),
-      note(card.watchText, 'info'),
-    ].filter(Boolean); // replaceChildren would turn a null into the text "null"
-  }
-  // Short: a caution is never left behind the button, so the first is said here (all of them are in Full brief).
-  const [firstCaution, ...otherCautions] = card.cautionReasons;
   return [
     head,
-    h('div', { class: 'sof-card-lines' }, metarLine(card.metar), tafLine(card.taf)),
     result,
     wave,
-    firstCaution ? h('p', { class: 'sof-caution' }, `Caution: ${firstCaution}${otherCautions.length ? ` (+${otherCautions.length} more in Full brief)` : ''}`) : null,
-  ].filter(Boolean);
+    ...card.cautionReasons.map((reason) => h('p', { class: 'sof-caution' }, `Caution: ${reason}`)),
+    h('p', { class: 'sof-limits' }, `${card.limitsLabel}: `, h('span', {}, card.limitsText)),
+    note(card.limitsNote, 'info'),
+    report('METAR', card.metar),
+    report('TAF', card.taf),
+    note(card.watchText, 'info'),
+  ].filter(Boolean); // replaceChildren would turn a null into the text "null"
 }
 
-/** The cards' container and its render(cards): one article per airfield, kept in order. */
-export function createCardsView() {
-  const element = h('section', { class: 'sof-cards', 'aria-label': 'Airfields' });
-  const entries = new Map(); // ICAO to { article, signature, card, expanded }
+/**
+ * The column of compact rows, and the full card that opens beside it. `dropdowns` is dropdown.js's createDropdowns: the full card is a drop-down like the
+ * others (one open at a time; Escape or a press outside closes it and puts focus back on its row).
+ * Returns { element, render(cards) }: one `article.sof-card` per airfield, kept in order.
+ */
+export function createCardsView({ dropdowns } = {}) {
+  const list = h('section', { class: 'sof-cards', 'aria-label': 'Airfields' });
+  const full = h('article', { class: 'sof-card is-open sof-card-full', id: 'sof-card-full', 'aria-label': 'Airfield card' });
+  const drop = h('div', { class: 'sof-card-drop', hidden: true }, full);
+  const element = h('div', { class: 'sof-cards-host' }, list, drop);
+  const entries = new Map(); // ICAO to { article, button, signature, card }
+  let selected = null; // the ICAO whose full card is open
+  let fullSignature = null;
 
-  function draw(entry) {
+  const controller = dropdowns?.create({
+    scope: element,
+    onToggle: (open) => {
+      drop.hidden = !open;
+      if (!open) selected = null;
+      syncRows();
+    },
+    focusTarget: () => entries.get(lastOpened)?.button ?? null,
+  });
+  let lastOpened = null;
+
+  function syncRows() {
+    for (const [icao, entry] of entries) entry.button.setAttribute('aria-expanded', String(controller?.isOpen === true && icao === selected));
+  }
+
+  function drawFull() {
+    const entry = selected ? entries.get(selected) : null;
+    if (!entry) return;
     const { card } = entry;
-    const hadFocus = entry.article.contains(document.activeElement) && document.activeElement?.classList.contains('sof-card-more');
-    entry.article.className = `sof-card is-${card.role.toLowerCase()} level-${card.result.level}${card.metar.state === 'stale' || card.metar.state === 'closed' ? ' is-stale' : ''}${entry.expanded ? ' is-open' : ''}`;
-    entry.article.replaceChildren(...children(card, {
-      expanded: entry.expanded,
-      onToggle: () => {
-        entry.expanded = !entry.expanded;
-        draw(entry);
-      },
-    }));
+    const signature = JSON.stringify(card);
+    if (signature === fullSignature) return;
+    fullSignature = signature;
+    const hadFocus = full.contains(document.activeElement);
+    full.className = `sof-card is-open sof-card-full is-${card.role.toLowerCase()} level-${card.result.level}${isStaleMetar(card) ? ' is-stale' : ''}`;
+    full.setAttribute('aria-label', `${card.icao} airfield card`);
+    full.replaceChildren(...fullCard(card, { onClose: () => controller?.close({ focus: true }) }));
     // The button is drawn again with the card: focus goes to the new one, never to the page.
-    if (hadFocus) entry.article.querySelector('.sof-card-more')?.focus({ preventScroll: true });
+    if (hadFocus) full.querySelector('.sof-card-more')?.focus({ preventScroll: true });
+  }
+
+  function press(icao) {
+    if (!controller) return;
+    if (controller.isOpen && selected === icao) return controller.close({ focus: true });
+    selected = icao;
+    lastOpened = icao;
+    fullSignature = null;
+    controller.open();
+    drop.hidden = false;
+    drawFull();
+    syncRows();
+  }
+
+  /** One compact row: the ICAO, the category chip and the limits mark in words. The whole story is in its hover words and in the full card. */
+  function drawRow(entry) {
+    const { card } = entry;
+    const mark = limitsMark(card);
+    const stale = isStaleMetar(card);
+    entry.article.className = `sof-card is-${card.role.toLowerCase()} level-${card.result.level}${stale ? ' is-stale' : ''}`;
+    const taf = tafHeadline(card.taf);
+    const where = card.role === 'HOME' ? 'home' : 'alternate';
+    entry.button.title = `${card.icao}${card.name ? ` ${card.name}` : ''}, ${where}. ${card.result.words}. TAF: ${taf.text}. Press for the full card.`;
+    entry.button.setAttribute('aria-label', `${card.icao} ${where}, ${card.category ?? 'no category'}, ${mark.words}. Open the full card.`);
+    entry.button.replaceChildren(
+      h('span', { class: 'sof-row-top' },
+        h('span', { class: 'sof-icao' }, card.icao),
+        card.category
+          ? h('span', { class: `sof-badge sof-category cat-${card.category.toLowerCase()}${stale ? ' is-stale' : ''}`, 'aria-hidden': 'true' }, card.category)
+          : null,
+        card.role === 'HOME' ? h('span', { class: 'sof-row-home', 'aria-hidden': 'true' }, 'HOME') : null),
+      h('span', { class: `sof-row-mark level-${mark.level}`, 'aria-hidden': 'true' }, h('span', { class: 'sof-result-symbol' }, mark.symbol), ` ${mark.words}`),
+    );
   }
 
   function render(cards) {
@@ -154,20 +185,24 @@ export function createCardsView() {
       if (keep.has(icao)) continue;
       entry.article.remove();
       entries.delete(icao);
+      if (selected === icao) controller?.close();
     }
     cards.forEach((card, index) => {
       let entry = entries.get(card.icao);
       if (!entry) {
-        entry = { article: h('article', { class: 'sof-card', dataset: { icao: card.icao } }), signature: null, card, expanded: false };
+        const button = h('button', { type: 'button', class: 'sof-card-row', 'aria-expanded': 'false', 'aria-controls': 'sof-card-full', onclick: () => press(card.icao) });
+        entry = { article: h('article', { class: 'sof-card', dataset: { icao: card.icao } }, button), button, signature: null, card };
         entries.set(card.icao, entry);
       }
-      if (element.children[index] !== entry.article) element.insertBefore(entry.article, element.children[index] ?? null);
-      const signature = JSON.stringify(card);
-      if (signature === entry.signature) return;
-      entry.signature = signature;
+      if (list.children[index] !== entry.article) list.insertBefore(entry.article, list.children[index] ?? null);
       entry.card = card;
-      draw(entry);
+      const signature = JSON.stringify(card);
+      if (signature !== entry.signature) {
+        entry.signature = signature;
+        drawRow(entry);
+      }
     });
+    if (selected) drawFull();
   }
 
   return { element, render };

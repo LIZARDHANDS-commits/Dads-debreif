@@ -1,16 +1,17 @@
-// The SOF screen (SPEC-sof, "The screen", SOF-38): one screen that fills the window under the app's header,
-// top to bottom: the SOF bar (date-time group, world clocks, the weather feed's age, SOF settings, Refresh),
-// the every-feed-failing line, the one-line caution strip, the 24-hour timeline across the full width with
-// the waves in its header, then the airfield cards beside the map (which takes the height that is left), and the
-// credits line. It draws what screen-model.js decided. Nothing is fixed over the controls: the settings menu and
-// the clocks (on a narrower window) open as drop-downs over the screen, never pushing it down.
+// The SOF screen (SPEC-sof, "The screen", SOF-38, with Dad's changes of 7 Oct): one screen that fills the window under the app's header, top to
+// bottom: the SOF bar (date-time group, world clocks, the weather feed's age, SOF settings, Refresh), the every-feed-failing line, the one-line
+// caution strip, then the narrow airfield column (about 10 % of the width, one compact row each; a row opens that airfield's full card) beside the map
+// (which takes the rest of the width and the height that is left), then the thin timeline strip (about 4.5 % of the height; Expand opens the full
+// timeline) and the credits line. It draws what screen-model.js decided. Nothing is fixed over the controls: the settings menu, the clocks (on a
+// narrower window), the full card and the full timeline open as drop-downs over the screen, never pushing it.
 import { h } from '../../ui-kit/dom.js';
 import { createCardsView } from './cards-view.js';
 
 /**
  * settings: settings-view.js's { element, setOpen(open) }. mapElement: the map's (map.js). onRefresh: the Refresh button's action.
- * bannerElement, timelineElement: the other screen parts' elements, each in its own place (optional; each part draws itself).
- * wavesElement: the waves part (in the timeline's header), for where focus goes when the banner empties.
+ * bannerElement, timelineElement: the other screen parts' elements, each in its own place (optional; each part draws itself). timelineElement is the
+ * thin strip (timeline-strip.js), which holds the full timeline.
+ * wavesElement: the waves part (in the full timeline's header), for where focus goes when the banner empties.
  * mapCredits: the map's credits line, shown in the Sources note beside the one-line credits at the bottom.
  * dropdowns: dropdown.js's createDropdowns. Returns { element, render(screen), setBusy(on), focusAfterBanner(), closeSettings() }.
  */
@@ -33,7 +34,7 @@ export function createLayout({ settings, mapElement = null, mapCredits = null, o
   const credits = h('p', { class: 'sof-credits' });
   const sourcesWords = h('p', { class: 'sof-sources-words' });
   const sources = h('details', { class: 'sof-sources' }, h('summary', {}, 'Sources'), h('div', { class: 'sof-sources-body' }, sourcesWords));
-  const cards = createCardsView();
+  const cards = createCardsView({ dropdowns });
 
   // The world clocks: in the bar on a wide window, and behind "Clocks" below 1440 px wide (sof.css decides which).
   const clockList = h('div', { class: 'sof-clock-list', id: 'sof-clock-list' });
@@ -72,9 +73,9 @@ export function createLayout({ settings, mapElement = null, mapCredits = null, o
     h('section', { class: 'sof-bar', 'aria-label': 'SOF bar' }, dtg, clocksBox, feed, feedDetail, h('div', { class: 'sof-bar-actions' }, settingsBox, refresh)),
     alert,
     bannerElement, // the one-line caution strip; its list drops over the screen
-    timelineElement, // the 24-hour timeline across the full width, the waves in its header
-    // The cards and the map side by side; the map comes first when the screen is narrow.
+    // The airfield column and the map side by side; the map comes first when the screen is narrow.
     h('div', { class: 'sof-main' }, cards.element, mapElement),
+    timelineElement, // the thin timeline strip along the bottom; Expand opens the full timeline, the waves in its header
     h('div', { class: 'sof-credits-row' }, sources, credits, mapCredits),
   );
 
@@ -117,9 +118,11 @@ export function createLayout({ settings, mapElement = null, mapCredits = null, o
       setText(sourcesWords, screen.credits);
       cards.render(screen.cards);
     },
-    /** Where keyboard focus goes when the banner empties under it: the Waves heading, else the feed status. */
+    /** Where keyboard focus goes when the banner empties under it: the Waves heading when it is showing, else the feed status. */
     focusAfterBanner() {
-      (wavesElement?.querySelector('.sof-waves-title') ?? feed).focus({ preventScroll: true });
+      // The waves live in the full timeline, which is shut until Expand opens it: a heading nobody can see cannot take focus.
+      const title = wavesElement?.querySelector('.sof-waves-title');
+      (title && title.getClientRects().length > 0 ? title : feed).focus({ preventScroll: true });
     },
     /** The settings menu's own header (or Escape inside it) closed it: close the drop-down round it, focus on its button. */
     closeSettings: () => settingsDrop.close({ focus: true }),

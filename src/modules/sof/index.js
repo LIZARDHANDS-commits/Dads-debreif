@@ -19,6 +19,7 @@ import { createWavesView } from './waves-view.js';
 import { buildTimelineView } from './timeline-view-model.js';
 import { tafNotes } from './taf-state.js';
 import { createTimelineView } from './timeline-view.js';
+import { createTimelineStrip } from './timeline-strip.js';
 import { createDropdowns } from './dropdown.js';
 
 const STYLESHEET = new URL('./sof.css', import.meta.url).href;
@@ -67,8 +68,9 @@ function mount(root, app) {
     },
     dropdowns,
   });
-  // The 24-hour timeline (task 5): always open on this screen (SOF-38), the waves in its header.
+  // The 24-hour timeline (task 5): the full one, the waves in its header, opens over the screen from the thin strip along the bottom (SOF-38, Dad 7 Oct).
   const timelineView = createTimelineView({ header: wavesView.element });
+  const timelineStrip = createTimelineStrip({ full: timelineView.element, dropdowns, timers: app.scheduler, listen: app.listen, storage: app.storage });
   const ui = createLayout({
     settings: settingsView,
     dropdowns,
@@ -77,7 +79,7 @@ function mount(root, app) {
     onRefresh: () => weather.refresh(),
     bannerElement: bannerView.element,
     wavesElement: wavesView.element,
-    timelineElement: timelineView.element,
+    timelineElement: timelineStrip.element,
   });
   root.append(ui.element);
 
@@ -115,7 +117,7 @@ function mount(root, app) {
     bannerView.render(banner);
     wavesView.render(waves);
     // Redrawn only when its picture changes (its signature); the now line moves on its own.
-    timelineView.render(buildTimelineView({
+    const timeline = buildTimelineView({
       airfields: app.airfields,
       snapshot,
       limits,
@@ -125,7 +127,9 @@ function mount(root, app) {
       timeZone: app.time.zone,
       tafNotes: notes,
       timePrimary: app.settings?.get().timePrimary, // Settings' time order: Zulu first unless local is chosen
-    }));
+    });
+    timelineView.render(timeline);
+    timelineStrip.render(timeline);
     ui.setBusy(snapshot.busy);
     // Each alternate card shows its result for the selected wave.
     ui.render({ ...screen, cards: screen.cards.map((c) => (waves.altLines.has(c.icao) ? { ...c, waveLine: waves.altLines.get(c.icao) } : c)) });
