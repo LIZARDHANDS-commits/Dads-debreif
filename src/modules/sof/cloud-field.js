@@ -2,15 +2,18 @@
 // column, worked out from the model's cover at each pressure level, smoothed over the square and coloured by cover. Pure: numbers in, numbers out; no page and no three.js.
 // cloud-slabs3d.js draws what comes out of here.
 //
-// Where a column's cloud lies comes from `cloudBlocks` (model-clouds.js, tested): each level over the cloud threshold is cloud from halfway down to the level below to halfway
-// up to the level above, and cloudy levels next to each other join into one block. In each column the lowest block whose base is in a stage (low, mid, high by its base above
+// Where a column's cloud lies comes from `cloudBlocks` (model-clouds.js, tested): each run of levels over the cloud threshold is one block, its base and top where the
+// column's cover, read as a straight line between the levels either side (`coverAtHeight`), crosses the threshold (V2.184; halfway between levels before). In each column the lowest block whose base is in a stage (low, mid, high by its base above
 // the ground, CLOUD_STAGES_FT_AGL) is that stage's slab. Over the square each stage has one slab: its base, top and cover smoothed between the grid points (the same
 // Catmull-Rom smoothing and light blur as the old per-level sheets). A grid point with no cloud in a stage takes its base and top from the nearest point that has some, with
 // cover 0, so the smoothing never pulls a slab's edge down to the ground.
 //
+// The altitude sheet (Dad, 7 Oct, like ForeFlight's cloud forecast at a chosen altitude): the model's cover at one height over the whole square, from `coverAtHeight` in
+// every column, smoothed the same way and shaped by the same 2.5 km picture (`heightSheet`).
+//
 // It is a model estimate, never an observation: no limit is checked here and nothing here raises or clears a caution.
 import {
-  columnAt, cloudBlocks, cloudStage, smoothField, blur, sheetAlpha, CLOUD_COVER_THRESHOLD_PCT, CLOUD_SHEET_PX, CLOUD_SHEET_BLUR_PX, CLOUD_SHEET_COLOURS, GRID_SIZE,
+  columnAt, cloudBlocks, cloudStage, coverAtHeight, smoothField, blur, sheetAlpha, CLOUD_COVER_THRESHOLD_PCT, CLOUD_SHEET_PX, CLOUD_SHEET_BLUR_PX, CLOUD_SHEET_COLOURS, GRID_SIZE,
   CLOUD_STAGES_FT_AGL,
 } from './model-clouds.js';
 import { formatFeet, AREA_FT } from './scene3d-model.js';
@@ -89,6 +92,9 @@ export function slabGrids(columns, size = GRID_SIZE) {
   return out;
 }
 
+/** A grid's values over the square, `px` by `px`: bicubic between the grid points (`smoothField`, kept `lo` to `hi`), then the old sheets' light blur, twice. */
+export const softField = (values, size, px, lo, hi, blurPx = CLOUD_SHEET_BLUR_PX) => blur(blur(smoothField(values, size, px, lo, hi), px, blurPx), px, blurPx);
+
 /**
  * The grids smoothed over the square: { px, groundFt, low, mid, high }, each stage null (no cloud in it anywhere) or { base, top, cover, levels }, Float32Array `px` by `px` with
  * row 0 the south edge and column 0 the west edge (as a three.js DataTexture lies on a plane). Bicubic between the grid points, then the light blur of the old sheets. The
@@ -96,7 +102,7 @@ export function slabGrids(columns, size = GRID_SIZE) {
  */
 export function slabFields(grids, { px = CLOUD_SHEET_PX, groundFt = 0, blurPx = CLOUD_SHEET_BLUR_PX } = {}) {
   const out = { px, groundFt, low: null, mid: null, high: null };
-  const soft = (values, lo, hi) => blur(blur(smoothField(values, grids.size, px, lo, hi), px, blurPx), px, blurPx);
+  const soft = (values, lo, hi) => softField(values, grids.size, px, lo, hi, blurPx);
   for (const stage of STAGES) {
     const g = grids[stage];
     if (!g?.present) continue;
@@ -330,22 +336,24 @@ export function readTotalCloud(image) {
 }
 
 /**
- * The slabs with the 2.5 km total cloud laid over them, the most-overlap rule (an estimate, SOF-39): the total cover of stacked layers is taken as the most of the three, so
- * at each pixel each stage's cover is scaled by k = total / most (at most NT_MAX_GAIN) where the grid has at least NT_MIN_GRID_PCT somewhere in the column, and kept at
- * most 100. Where the picture has `threshold` or less every stage is clear. Where the picture has cloud but the grid has less than NT_MIN_GRID_PCT in every stage, there is
- * no height for it and nothing is drawn: `unplacedShare` (0 to 1 of the square) says how much. Returns { slabs, unplacedShare }; with no picture or one of another size, the
- * slabs as they were and `unplacedShare` null.
+ * The 2.5 km total cloud laid over some cover fields, the most-overlap rule (an estimate, SOF-39): the total cover of stacked layers is taken as the most of them, so at
+ * each pixel each field's cover is scaled by k = total / most (at most NT_MAX_GAIN) where the grid has at least NT_MIN_GRID_PCT somewhere in the column, and kept at
+ * most 100. `most` is the most of `covers` and of `reference` (other fields of the same column that are not scaled: the altitude sheet passes the slabs' covers, so a
+ * sheet at one height is scaled as the column is, not as if it were the whole column). Where the picture has `threshold` or less every field is clear. Where the picture
+ * has cloud but the column has less than NT_MIN_GRID_PCT everywhere, there is no height for it and nothing is drawn: `unplacedShare` (0 to 1 of the square) says how
+ * much. Returns { covers (new Float32Arrays, null kept null), unplacedShare }. The one place the rule lives (`maskSlabs` and `heightSheet` use it).
  */
-export function maskSlabs(slabs, total, { threshold = CLOUD_COVER_THRESHOLD_PCT, maxGain = NT_MAX_GAIN, minGridPct = NT_MIN_GRID_PCT } = {}) {
-  if (!slabs || !total || total.px !== slabs.px) return { slabs, unplacedShare: null };
-  const covers = STAGES.map((stage) => (slabs[stage] ? new Float32Array(slabs[stage].cover) : null));
+export function maskCovers(covers, total, { reference = [], threshold = CLOUD_COVER_THRESHOLD_PCT, maxGain = NT_MAX_GAIN, minGridPct = NT_MIN_GRID_PCT } = {}) {
+  const out = covers.map((c) => (c ? new Float32Array(c) : null));
+  const refs = reference.filter(Boolean);
   let unplaced = 0;
   for (let n = 0; n < total.percent.length; n++) {
     const t = total.percent[n];
     let most = 0;
-    for (const c of covers) if (c && c[n] > most) most = c[n];
+    for (const c of out) if (c && c[n] > most) most = c[n];
+    for (const r of refs) if (r[n] > most) most = r[n];
     if (!(t > threshold)) {
-      for (const c of covers) if (c) c[n] = 0;
+      for (const c of out) if (c) c[n] = 0;
       continue;
     }
     if (most < minGridPct) {
@@ -353,13 +361,74 @@ export function maskSlabs(slabs, total, { threshold = CLOUD_COVER_THRESHOLD_PCT,
       continue;
     }
     const k = Math.min(maxGain, Math.max(0, t / most));
-    for (const c of covers) if (c) c[n] = Math.min(100, c[n] * k);
+    for (const c of out) if (c) c[n] = Math.min(100, c[n] * k);
   }
+  return { covers: out, unplacedShare: unplaced / total.percent.length };
+}
+
+/**
+ * The slabs with the 2.5 km total cloud laid over them (`maskCovers` on the three stages' covers). Returns { slabs, unplacedShare }; with no picture or one of another
+ * size, the slabs as they were and `unplacedShare` null.
+ */
+export function maskSlabs(slabs, total, options = {}) {
+  if (!slabs || !total || total.px !== slabs.px) return { slabs, unplacedShare: null };
+  const { covers, unplacedShare } = maskCovers(STAGES.map((stage) => slabs[stage]?.cover ?? null), total, options);
   const out = { ...slabs };
   STAGES.forEach((stage, s) => {
     if (slabs[stage]) out[stage] = { ...slabs[stage], cover: covers[s] };
   });
-  return { slabs: out, unplacedShare: unplaced / total.percent.length };
+  return { slabs: out, unplacedShare };
+}
+
+// ---- The altitude sheet: the model's cover at one height (Dad, 7 Oct, ForeFlight-style) ------------------------------------
+
+/** The altitude control's heights: 1,000 to 30,000 ft above sea level in 500 ft steps (the brief's range; ForeFlight's cloud forecast offers a similar spread). */
+export const SHEET_HEIGHTS_FT = Object.freeze({ min: 1000, max: 30_000, step: 500 });
+
+/**
+ * The model's cloud cover at `heightFt` (feet above sea level) over the square, at an hour: { px, heightFt, cover, columns, noData, maxCover, share } or null when no
+ * column reaches that height. In each grid column the cover is `coverAtHeight` (between the two levels either side, by height); a column whose levels do not reach that
+ * height has no data there and counts as 0 (`noData` says how many), so the sheet never makes cloud up. Smoothed like the slabs (`softField`), then, with `total` (the
+ * 2.5 km picture, `readTotalCloud`), shaped by it as the slabs are (`maskCovers`, with `reference` the unmasked slabs of the hour, so the most-overlap rule sees the
+ * whole column). `maxCover` is the most anywhere (percent) and `share` the part of the square over `threshold` (0 to 1). `unplacedShare` as `maskCovers` (null with no picture).
+ */
+export function heightSheet(model, hour, heightFt, { px = CLOUD_SHEET_PX, total = null, reference = null, threshold = CLOUD_COVER_THRESHOLD_PCT } = {}) {
+  const size = model.gridSize ?? GRID_SIZE;
+  const values = new Float32Array(size * size);
+  let noData = 0;
+  for (const point of model.points) {
+    const c = coverAtHeight(columnAt(point, hour, model.cloudLevels).levels, heightFt);
+    if (c === null) noData += 1;
+    else values[point.j * size + point.i] = c;
+  }
+  if (noData === model.points.length) return null;
+  let cover = softField(values, size, px, 0, 100);
+  let unplacedShare = null;
+  if (total && total.px === px) {
+    const masked = maskCovers([cover], total, { reference: STAGES.map((stage) => reference?.[stage]?.cover ?? null), threshold });
+    cover = masked.covers[0];
+    unplacedShare = masked.unplacedShare;
+  }
+  let maxCover = 0;
+  let over = 0;
+  for (const c of cover) {
+    if (c > maxCover) maxCover = c;
+    if (c > threshold) over += 1;
+  }
+  return { px, heightFt, cover, columns: model.points.length, noData, maxCover, share: over / cover.length, unplacedShare };
+}
+
+/**
+ * The altitude sheet's line: "Cloud at 6,000 ft (model estimate): up to 85 % cover, over 30 % on 40 % of the square", "Cloud at 6,000 ft (model estimate): none over
+ * 30 %", with "below the ground here" when the height is at or under the ground the view draws, and "no model data at this height" with no sheet. Feet above sea level.
+ */
+export function heightSheetWords(sheet, heightFt, { groundFt = -Infinity, threshold = CLOUD_COVER_THRESHOLD_PCT } = {}) {
+  const head = `Cloud at ${formatFeet(heightFt)} ft (model estimate)`;
+  if (heightFt <= groundFt) return `${head}: ${formatFeet(heightFt)} ft is at or below the ground here (${formatFeet(Math.round(groundFt / 100) * 100)} ft)`;
+  if (!sheet) return `${head}: no model data at this height`;
+  const part = sheet.noData ? `; ${sheet.noData} of ${sheet.columns} model columns do not reach it` : '';
+  if (!(sheet.share > 0)) return `${head}: none over ${threshold} %${part}`;
+  return `${head}: up to ${Math.round(sheet.maxCover)} % cover, over ${threshold} % on ${Math.max(1, Math.round(sheet.share * 100))} % of the square${part}`;
 }
 
 // ---- Observed bases: METARs anchor the low cloud near their stations (Fable review, 7 Oct) ------------------------------------

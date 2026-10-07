@@ -6,6 +6,8 @@
 // share one picture coloured by cover, each with the share of the opacity that makes the stack read as the old single sheet from above (`sheetAlphaShare`); the bottom
 // sheet is a shade darker and the top one whiter (estimates for the look), and a soft noise alpha map, offset differently on each sheet, breaks up the flat look. Drawn
 // without writing depth and from both sides, like the old sheets, so they sort by distance and blend.
+//
+// The altitude sheet (`buildHeightSheet`, V2.184) is drawn here too: one plain see-through plane at a chosen height.
 import { slabPixels, slabSummary, slabWords, noisePixels, noiseMean, sampleBilinear, STAGES, SLAB_SHEETS, NOISE_PX, NOISE_REPEAT } from './cloud-field.js';
 import { AREA_FT } from './scene3d-model.js';
 
@@ -107,6 +109,49 @@ export function buildCloudSlabs(T, { slabs, scale, fade = 1, noise = null }) {
     groups,
     labels,
     summary: { ...stats, drawn, words },
+    dispose() {
+      root.removeFromParent();
+      for (const thing of owned) thing.dispose?.();
+    },
+  };
+}
+
+/**
+ * The altitude sheet (Dad, 7 Oct: like ForeFlight's cloud forecast at a chosen altitude): one flat see-through plane across the square at `sheet.heightFt` (feet above
+ * sea level) times `scale`, its picture cloud-field.js `heightSheet`'s cover coloured and made see-through as one old per-level sheet was (`slabPixels` with one sheet:
+ * clear at or below the threshold, white to grey and more solid as cover rises), times `fade` (an old 2.5 km picture). No noise: it is a reading at one height, so it is
+ * drawn plain. Drawn without writing depth and from both sides, like the other sheets.
+ *
+ * Returns { root, drawn, dispose() }; `drawn` is false (and the plane left out) when no pixel has cloud over the threshold.
+ */
+export function buildHeightSheet(T, { sheet, scale, fade = 1 }) {
+  const root = new T.Group();
+  root.name = 'cloud-height-sheet';
+  const owned = [];
+  let drawn = false;
+  if (sheet) {
+    const { pixels, drawn: any } = slabPixels(sheet.cover, sheet.px, { sheets: 1, fade });
+    drawn = any;
+    if (any) {
+      const texture = new T.DataTexture(pixels, sheet.px, sheet.px, T.RGBAFormat); // row 0 is the plane's south edge, as the fields are laid out
+      texture.colorSpace = T.SRGBColorSpace;
+      texture.magFilter = T.LinearFilter;
+      texture.minFilter = T.LinearFilter;
+      texture.generateMipmaps = false;
+      texture.needsUpdate = true;
+      const geometry = new T.PlaneGeometry(AREA_FT, AREA_FT);
+      const material = new T.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: T.DoubleSide, fog: false });
+      owned.push(texture, geometry, material);
+      const mesh = new T.Mesh(geometry, material);
+      mesh.position.set(0, 0, sheet.heightFt * scale);
+      mesh.renderOrder = 1;
+      mesh.name = `cloud-at-${Math.round(sheet.heightFt)}`;
+      root.add(mesh);
+    }
+  }
+  return {
+    root,
+    drawn,
     dispose() {
       root.removeFromParent();
       for (const thing of owned) thing.dispose?.();

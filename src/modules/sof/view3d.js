@@ -3,7 +3,8 @@
 // round home), with the radar and lightning pictures laid on it; home and the alternates stand on it as pins with their category in words; the METAR cloud layers hang over them as flat
 // round decks at their reported bases; the 25 and 50 NM rings run round home. Phase 2 (SOF-39) adds the model layers: a cloud-cover
 // sheet at each model level (see-through, smooth, stacked from the surface up, like ForeFlight's cloud maps), wind barbs at three levels
-// and the freezing level, from Open-Meteo's GEM forecast, with a time slider, a toggle for each and a Layer picker for one level at a time.
+// and the freezing level, from Open-Meteo's GEM forecast, with a time slider and a toggle for each. A "Cloud at" height control (V2.184, Dad 7 Oct: like ForeFlight's
+// cloud forecast) shows the model's cover at one height as a single sheet instead of the slabs or level sheets; it took over the old Layer picker's job (one level at a time).
 // They are a model estimate, labelled so, and are removed (never frozen) when the forecast fails or is old. Phase 4 (SOF-39, SOF-40) adds
 // the live aircraft from the 2D layer's own relay feed (traffic3d.js), the T-6 drawn large. Phase 3 (SOF-39) adds the airspace volumes
 // from a sourced data file (airspace-data.js, drawn in airspace3d.js) and the TACNAV routes at 500 ft above the ground, each with a toggle.
@@ -59,8 +60,10 @@ import {
 } from './tour-model.js';
 import { buildModelLayers, MODEL_GROUPS } from './model-layers3d.js';
 import {
-  slabColumnAt, highestSlabTopFt, cloudSlabs, maskSlabs, anchorLowSlab, anchorWords, SLAB_SHEETS, MIN_SLAB_FT, NT_MAX_GAIN, NT_OLD_FADE, ANCHOR_NM,
+  slabColumnAt, highestSlabTopFt, cloudSlabs, maskSlabs, anchorLowSlab, anchorWords, heightSheet, heightSheetWords, SHEET_HEIGHTS_FT, SLAB_SHEETS, MIN_SLAB_FT,
+  NT_MAX_GAIN, NT_OLD_FADE, ANCHOR_NM,
 } from './cloud-field.js';
+import { buildHeightSheet } from './cloud-slabs3d.js';
 import { createTraffic3d } from './traffic3d.js';
 import { AIRSPACE } from './airspace-data.js';
 import { buildAirspace, AIRSPACE_GROUPS, KIND_COLOURS } from './airspace3d.js';
@@ -71,7 +74,7 @@ import { AIRPORTS } from './airports-data.js';
 import { checkedAirspace, KIND_WORDS, tacnavNote, AIRSPACE_FILL_OPACITY, VIEW_TOP_FT } from './airspace-model.js';
 import {
   hourIndex, maxAhead, hourWords, meanLayerCover, unavailableWords, refreshFailedWords, LOADING_WORDS, CREDIT_WORDS, MAX_AHEAD_HOURS, CLOUD_STAGES_FT_AGL,
-  CLOUD_COVER_THRESHOLD_PCT, MAG_VARIATION_DEG_E, barbStep, CLOUD_SHEET_PX,
+  CLOUD_COVER_THRESHOLD_PCT, MAG_VARIATION_DEG_E, barbStep, CLOUD_SHEET_PX, filledWords, nextAskWords, HRDPS_CHUNKS, HRDPS_AVAILABLE_AFTER_MS,
 } from './model-clouds.js';
 
 const BACKGROUND = '#0a141d';
@@ -192,19 +195,28 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     value: '0', oninput: () => setAhead(Number(slider.value)),
   });
   const sliderWords = h('output', { class: 'sof-3d-model-time', for: sliderId });
-  const layerId = `sof-3d-layer-${nextViewId++}`;
-  const layerSelect = h('select', { id: layerId, class: 'sof-3d-layer', title: 'Show one model cloud level at a time, or all of them', onchange: () => setLayer(layerSelect.value) },
-    h('option', { value: 'all' }, 'All'));
+  // The "Cloud at" height control (Dad, 7 Oct: ForeFlight-style): Off (0, the default: the slabs or level sheets as before), then 1,000 to 30,000 ft above sea level in
+  // 500 ft steps. A chosen height draws one see-through sheet of the model's cover there, in place of the cloud stages.
+  const heightId = `sof-3d-height-${nextViewId++}`;
+  const HEIGHT_STEPS = Math.round((SHEET_HEIGHTS_FT.max - SHEET_HEIGHTS_FT.min) / SHEET_HEIGHTS_FT.step) + 1;
+  const heightOf = (v) => (v <= 0 ? null : SHEET_HEIGHTS_FT.min + (Math.min(HEIGHT_STEPS, v) - 1) * SHEET_HEIGHTS_FT.step);
+  const heightSlider = h('input', {
+    type: 'range', id: heightId, class: 'sof-3d-slider sof-3d-height', min: '0', max: String(HEIGHT_STEPS), step: '1', value: '0',
+    'aria-label': 'Cloud at a height: off, or feet above sea level', 'aria-valuetext': 'Off',
+    title: `The model's cloud cover at one height, as one sheet over the square (feet above sea level, ${formatFeet(SHEET_HEIGHTS_FT.min)} to ${formatFeet(SHEET_HEIGHTS_FT.max)} ft). Off shows the cloud as before.`,
+    oninput: () => setCloudHeight(heightOf(Number(heightSlider.value))),
+  });
+  const heightValue = h('output', { class: 'sof-3d-model-time', for: heightId }, 'Off');
+  const heightWords = h('p', { class: 'sof-3d-model-note sof-3d-height-words', role: 'status', hidden: true });
   const modelStatus = h('p', { class: 'sof-3d-model-status', role: 'status' }, LOADING_WORDS);
   // The slabs' 2.5 km detail (Fable review, 7 Oct): one line in words and a symbol, shown with slabs only.
   const modelDetail = h('p', { class: 'sof-3d-model-note sof-3d-model-detail', role: 'status', hidden: true });
   const modelWarn = h('p', { class: 'sof-3d-model-warn', role: 'status', hidden: true });
-  // The Layer picker is for the old per-level sheets only; with slabs (the default "3D cloud style") it is hidden.
-  const layerRow = h('div', { class: 'sof-3d-model-row' }, h('label', { for: layerId }, 'Layer'), layerSelect);
   const modelControls = h('div', { class: 'sof-3d-model-controls' },
     h('div', { class: 'sof-3d-model-row', role: 'group', 'aria-label': 'Model layers' }, MODEL_BUTTONS.map((k) => toggleButtons.get(k).button)),
     h('div', { class: 'sof-3d-model-row' }, h('label', { for: sliderId }, 'Model time'), slider, sliderWords),
-    layerRow);
+    h('div', { class: 'sof-3d-model-row' }, h('label', { for: heightId }, 'Cloud at'), heightSlider, heightValue),
+    heightWords);
   const modelNote = h('p', { class: 'sof-3d-model-note' }, 'METAR decks, radar, lightning, satellite and fronts stay at now.');
   const keyBody = h('div', { class: 'sof-3d-model-key-body' });
   const modelKey = h('details', { class: 'sof-3d-model-key' }, h('summary', {}, 'Model key'), keyBody);
@@ -342,11 +354,12 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   let tilesFailed = false;
   let noTiles = false; // a tile the browser would not let three.js read: the ground is drawn plain instead
   let loadingNote = false;
-  let modelState = { status: 'loading', model: null, lastGoodAt: null, failedAt: null, incomplete: false, refining: false, now: new Date(0), timeZone: null }; // what the map last gave setModel
+  let modelState = { status: 'loading', model: null, lastGoodAt: null, failedAt: null, incomplete: false, limited: false, refining: false, nextAt: null, now: new Date(0), timeZone: null }; // what the map last gave setModel
   let ahead = 0; // the slider: hours past now
   let modelSig = '';
   let modelDirty = true;
-  let layerChoice = 'all'; // the Layer picker: 'all', or a pressure level as text ('850')
+  let cloudHeight = null; // the "Cloud at" control: null (off) or feet above sea level
+  let sheetSig = ''; // what the altitude sheet was last built for
   let cloudStyle = 'slabs'; // the setting "3D cloud style": 'slabs' or 'levels' (the old per-level sheets)
   let lastWx = null; // the weather layers' inputs as last read (the slabs take the HRDPS cloud picture from them)
   let trafficState = { shown: false, aircraft: [], labelsOn: false, trailsOn: false, signature: 'off' }; // what the map last gave setTraffic
@@ -539,33 +552,38 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     requestRender();
   }
 
+  /** The cloud stages (Low, Mid, High) are shown by their toggles, but not while a "Cloud at" height is chosen: its one sheet takes their place. */
+  const STAGE_KEYS = ['low', 'mid', 'high'];
+  const shownGroup = (key) => toggles[key] && !(cloudHeight !== null && STAGE_KEYS.includes(key));
+
   function applyToggles() {
     const groups = gl?.model?.built.root.userData.groups;
-    if (groups) for (const key of MODEL_GROUPS) groups[key].visible = toggles[key];
+    if (groups) for (const key of MODEL_GROUPS) groups[key].visible = shownGroup(key);
     gl?.weather?.setToggles(toggles);
     for (const [key, { button, title }] of toggleButtons) {
       const slab = gl?.model?.built.summary.slabs?.words?.[key]; // with slabs, each stage's base and top in words
       const sheets = gl?.model?.counts?.[key]; // only the three cloud stages have a count of sheets
       if (slab) button.title = `${title}. ${slab}.`;
       else button.title = sheets === undefined ? title : `${title}. ${sheets} ${sheets === 1 ? 'sheet' : 'sheets'} with cloud this hour.`;
+      if (STAGE_KEYS.includes(key)) {
+        button.disabled = cloudHeight !== null;
+        if (cloudHeight !== null) button.title = `${title}. Hidden while "Cloud at" shows one height; set it to Off to see the ${key} cloud.`;
+      }
     }
   }
 
-  /** The Layer picker: all the cloud levels, or only one (the Low, Mid and High buttons still apply to what is shown). */
-  function setLayer(value) {
-    layerChoice = value;
-    if (layerSelect.value !== value) layerSelect.value = value;
-    gl?.model?.built.showLayer(value === 'all' ? null : Number(value));
+  /**
+   * The "Cloud at" control (Dad, 7 Oct, ForeFlight-style; it took over the old Layer picker's job of showing one level at a time): null for off (the slabs or level
+   * sheets as before), or a height in feet above sea level, which shows the model's cover at that height as one sheet. It follows the model time slider.
+   */
+  function setCloudHeight(ft) {
+    cloudHeight = ft;
+    const words = ft === null ? 'Off' : `${formatFeet(ft)} ft`;
+    setText(heightValue, words);
+    heightSlider.setAttribute('aria-valuetext', words);
+    applyToggles();
+    applyModel(); // the 2.5 km detail line shows while a height is chosen, in either cloud style
     requestRender();
-  }
-
-  /** The picker's choices for this hour's sheets: "850 hPa ≈ 4,900 ft", with "no cloud" for a level the model has clear. A choice that has gone falls back to All. */
-  function drawLayerPicker(sheets) {
-    const options = [h('option', { value: 'all' }, 'All')];
-    for (const sheet of sheets) options.push(h('option', { value: String(sheet.hPa) }, `${sheet.words}${sheet.drawn ? '' : ', no cloud'}`));
-    layerSelect.replaceChildren(...options);
-    if (layerChoice !== 'all' && !sheets.some((x) => String(x.hPa) === layerChoice)) layerChoice = 'all';
-    layerSelect.value = layerChoice;
   }
 
   function setAhead(hours) {
@@ -575,7 +593,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
 
   /** The words, the controls and whether the model layers must be built again, from what the map last gave `setModel`. */
   function applyModel() {
-    const { status, model, lastGoodAt, failedAt, incomplete, now, timeZone } = modelState;
+    const { status, model, lastGoodAt, failedAt, incomplete, limited, now, timeZone } = modelState;
     const ok = status === 'ok' && model !== null;
     modelStatus.hidden = ok;
     modelControls.hidden = !ok;
@@ -583,12 +601,14 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     modelCredit.hidden = !ok;
     if (ok) setText(modelCredit, `${creditWords3d(model)}${modelState.refining ? '. The finer HRDPS model is still loading…' : ''}`);
     modelStatus.classList.toggle('is-bad', status === 'unavailable');
-    // A refresh that failed while the answer held is still young enough: the layers stay and the panel says so.
+    // A refresh that failed while the answer held is still young enough: the layers stay and the panel says so. So does an HRDPS band filled from the global GEM.
     const stillShown = ok && failedAt !== null;
-    modelWarn.hidden = !stillShown;
-    if (stillShown) setText(modelWarn, refreshFailedWords({ failedAt, lastGoodAt, now, incomplete }));
+    const filled = ok ? filledWords(model) : null;
+    const warn = [stillShown ? refreshFailedWords({ failedAt, lastGoodAt, now, incomplete, limited }) : null, filled].filter(Boolean).join(' ');
+    modelWarn.hidden = warn === '';
+    setText(modelWarn, warn);
     if (!ok) {
-      setText(modelStatus, status === 'unavailable' ? unavailableWords(lastGoodAt, incomplete) : LOADING_WORDS);
+      setText(modelStatus, status === 'unavailable' ? unavailableWords(lastGoodAt, incomplete, limited) : LOADING_WORDS);
     } else {
       const nowMs = +now;
       const limit = maxAhead(model, nowMs);
@@ -599,11 +619,11 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       setText(sliderWords, words);
       slider.setAttribute('aria-valuetext', words);
     }
-    layerRow.hidden = cloudStyle === 'slabs';
-    modelDetail.hidden = !ok || cloudStyle !== 'slabs';
+    modelDetail.hidden = !ok || (cloudStyle !== 'slabs' && cloudHeight === null);
     const hour = ok ? hourIndex(model, +now, ahead) : -1;
     onModelHour(ok ? model.times[hour] : null);
-    const sig = ok ? `${model.id}|${hour}|${scale}|${groundFt()}|${cloudStyle}` : 'none';
+    // In levels style the 2.5 km picture is read only while a "Cloud at" height is chosen, so choosing one builds the layers again.
+    const sig = ok ? `${model.id}|${hour}|${scale}|${groundFt()}|${cloudStyle}|${cloudStyle === 'levels' && cloudHeight !== null ? 'detail' : ''}` : 'none';
     if (sig === modelSig) return;
     modelSig = sig;
     modelDirty = true;
@@ -612,10 +632,51 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   }
 
   function freeModel() {
+    freeSheet();
     if (!gl?.model) return;
     gl.model.built.dispose();
     for (const { el } of gl.model.items) el.remove();
     gl.model = null;
+  }
+
+  function freeSheet() {
+    sheetSig = '';
+    if (!gl?.sheet) return;
+    gl.sheet.built.dispose();
+    for (const { el } of gl.sheet.items) el.remove();
+    gl.sheet = null;
+  }
+
+  /**
+   * The "Cloud at" sheet for the height chosen, at the model hour shown (cloud-field.js `heightSheet`), shaped by the same 2.5 km picture as the slabs when there is one
+   * for the hour, in either cloud style; built again only when the model layers or the height changed. With no height chosen there is none.
+   */
+  function rebuildSheet() {
+    const sig = gl?.model && cloudHeight !== null ? `${gl.model.key}|${cloudHeight}` : 'none';
+    if (sig === sheetSig) return;
+    freeSheet();
+    sheetSig = sig;
+    const { model, now } = modelState;
+    if (!gl?.model || cloudHeight === null || !model) {
+      heightWords.hidden = true;
+      return;
+    }
+    const hour = hourIndex(model, +now, ahead);
+    gl.model.reference ??= cloudSlabs(model, hour, groundFt()); // the column's own cover at every stage, unmasked: the most-overlap rule's reference
+    const sheet = heightSheet(model, hour, cloudHeight, { total: gl.model.total, reference: gl.model.reference });
+    const ground = groundFt();
+    const shown = cloudHeight > ground ? sheet : null;
+    const built = buildHeightSheet(gl.THREE, { sheet: shown, scale, fade: gl.model.fade });
+    gl.scene.add(built.root);
+    const text = heightSheetWords(sheet, cloudHeight, { groundFt: ground });
+    const detail = gl.model.total ? '' : ' Drawn from the model grid alone (no 2.5 km detail for this hour).';
+    setText(heightWords, `${text}.${detail}`);
+    heightWords.hidden = false;
+    const h2 = AREA_FT / 2;
+    const el = h('span', { class: 'sof-3d-model-label is-altitude' }, `Cloud at ${formatFeet(cloudHeight)} ft (model estimate)`);
+    labels.append(el);
+    gl.sheet = { built, items: built.drawn ? [{ el, group: 'altitude', point: { x: h2, y: h2, z: cloudHeight * scale }, side: 'left' }] : [] };
+    if (!built.drawn) el.remove();
   }
 
   /** The model layers, built new for this answer, hour, height scale and ground (or taken away when there is no usable answer). */
@@ -634,20 +695,25 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     const hour = hourIndex(model, +now, ahead);
     const wx = lastWx ?? getWeather();
     let slabs = null;
+    let reference = null; // the slabs before the 2.5 km picture shapes them: the "Cloud at" sheet's reference for the most-overlap rule
     let fade = 1;
-    let detail = null;
+    let total = null;
+    // The 2.5 km total-cloud picture for this hour, when there is one: it shapes the slabs, and the "Cloud at" sheet in either style.
+    const usesDetail = cloudStyle === 'slabs' || cloudHeight !== null;
+    let detail = usesDetail ? detailOf(wx, model, hour) : null;
+    if (detail?.state === 'ok' || detail?.state === 'old') {
+      total = gl.weather.totalCloud(detail.picture, getProjection());
+      if (!total) detail = { state: 'failed', lastGoodAt: detail.picture.lastGoodAt, key: 'unreadable' };
+      else if (detail.state === 'old') fade = NT_OLD_FADE;
+    }
     if (cloudStyle === 'slabs') {
       // The slabs from the 37.5 NM grid, then shaped by the 2.5 km total-cloud picture for this hour when there is one (cloud-field.js `maskSlabs`).
       slabs = cloudSlabs(model, hour, groundFt());
-      detail = detailOf(wx, model, hour);
-      if (detail.state === 'ok' || detail.state === 'old') {
-        const total = gl.weather.totalCloud(detail.picture, getProjection());
-        if (total) {
-          const masked = maskSlabs(slabs, total);
-          slabs = masked.slabs;
-          detail.unplacedShare = masked.unplacedShare;
-          if (detail.state === 'old') fade = NT_OLD_FADE;
-        } else detail = { state: 'failed', lastGoodAt: detail.picture.lastGoodAt, key: 'unreadable' };
+      reference = slabs;
+      if (total) {
+        const masked = maskSlabs(slabs, total);
+        slabs = masked.slabs;
+        detail.unplacedShare = masked.unplacedShare;
       }
     }
     showDetail(detail, model);
@@ -663,7 +729,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       creditAnchors = anchorsOn;
       updateCredit();
     }
-    const built = buildModelLayers(gl.THREE, { model, hour, scale, groundFt: groundFt(), style: cloudStyle, slabs, fade });
+    const built = buildModelLayers(gl.THREE, { model, hour, scale, groundFt: groundFt(), style: cloudStyle, slabs, fade: cloudStyle === 'slabs' ? fade : 1 });
     gl.scene.add(built.root);
     const items = built.labels.map((l) => {
       const el = h('span', { class: `sof-3d-model-label is-${l.group}` }, l.text);
@@ -671,9 +737,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       return { el, group: l.group, point: l.point, hPa: l.hPa, side: l.side };
     });
     const inputs = `${detail?.key ?? 'none'}|${observed?.key ?? 'none'}`;
-    gl.model = { built, items, counts: built.summary.layers, key: `${modelSig}|${inputs}`, fields: built.fields, inputs, detail, observed };
-    drawLayerPicker(built.summary.sheets);
-    built.showLayer(layerChoice === 'all' ? null : Number(layerChoice));
+    gl.model = { built, items, counts: built.summary.layers, key: `${modelSig}|${inputs}`, fields: built.fields, inputs, detail, observed, total, fade, reference };
     applyToggles();
     drawKey(built.summary, hour);
   }
@@ -726,14 +790,15 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     const cover = meanLayerCover(model, hour);
     const pct = (v) => (v === null ? 'no data' : `${v} %`);
     keyBody.replaceChildren(
-      h('p', {}, `${creditWords3d(model)}. ${model.source === 'hrdps' ? 'HRDPS is ECCC\'s 2.5 km model; the global GEM is the fallback and the quick first picture.' : 'This is the global GEM: the finer HRDPS model has not answered (it is slow, or failed).'}`),
+      h('p', {}, `${creditWords3d(model)}. ${model.source === 'hrdps' ? `HRDPS is ECCC's 2.5 km model, asked at every pressure level it answers (${model.cloudLevels.length}, ${model.cloudLevels[0]} to ${model.cloudLevels.at(-1)} hPa) in ${HRDPS_CHUNKS} bands of rows at once; the global GEM is the fallback and the quick first picture.` : 'This is the global GEM: the finer HRDPS model has not answered (it is slow, or failed).'}${filledWords(model) ? ` ${filledWords(model)}` : ''} Asked again when a newer HRDPS run can be out (runs at 00, 06, 12 and 18Z, taken to be ready about ${Math.round(HRDPS_AVAILABLE_AFTER_MS / 3_600_000)} h later, an estimate)${modelState.nextAt ? `: next ${nextAskWords(modelState.nextAt)}` : ''}, so the free daily request limit holds.`),
       ...(summary.slabs ? slabKey(summary, model, cover, pct) : [
-        h('p', {}, `Clouds: one see-through sheet at each model level (${model.cloudLevels.length} levels, ${model.cloudLevels[0]} to ${model.cloudLevels.at(-1)} hPa), at the level's mean height. The model's cover at its ${model.gridSize} × ${model.gridSize} points (${Math.round(AREA_NM / (model.gridSize - 1) * 10) / 10} NM apart) is smoothed over the sheet: clear at ${CLOUD_COVER_THRESHOLD_PCT} % or less, then white to grey and more solid as cover rises, to about 85 % opaque at 100 %. A level under the ground has no sheet. Low, mid and high are by the sheet's height above the ground (below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft, up to ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft, above). The Layer picker shows one level at a time. The model's own mean cover this hour: low ${pct(cover.low)}, mid ${pct(cover.mid)}, high ${pct(cover.high)}.`),
+        h('p', {}, `Clouds: one see-through sheet at each model level (${model.cloudLevels.length} levels, ${model.cloudLevels[0]} to ${model.cloudLevels.at(-1)} hPa), at the level's mean height. The model's cover at its ${model.gridSize} × ${model.gridSize} points (${Math.round(AREA_NM / (model.gridSize - 1) * 10) / 10} NM apart) is smoothed over the sheet: clear at ${CLOUD_COVER_THRESHOLD_PCT} % or less, then white to grey and more solid as cover rises, to about 85 % opaque at 100 %. A level under the ground has no sheet. Low, mid and high are by the sheet's height above the ground (below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft, up to ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft, above). "Cloud at" shows the model's cover at one height instead. The model's own mean cover this hour: low ${pct(cover.low)}, mid ${pct(cover.mid)}, high ${pct(cover.high)}.`),
         h('ul', {}, summary.sheets.map((x) => h('li', {}, `${x.words}: ${x.drawn ? `cover up to ${Math.round(x.maxCover)} %, mean ${Math.round(x.meanCover)} %` : 'no cloud'}`))),
       ]),
       h('p', {}, `Winds: barbs (behind the Barbs button, off to begin with) at 850, 700 and 500 hPa at every ${barbStep(model.gridSize)}${barbStep(model.gridSize) === 2 ? 'nd' : 'rd'} grid point (${Math.round(model.gridSize > 1 ? (AREA_NM / (model.gridSize - 1)) * barbStep(model.gridSize) : 0)} NM apart): pennant 50 kt, full feather 10, half 5. Direction in °M (${MAG_VARIATION_DEG_E}° E variation), speed in kt.`),
       h('ul', {}, summary.windsOverHome.map((words) => h('li', {}, `Over home, ${words}`))),
       h('p', {}, `${summary.freezingText ? `${summary.freezingText}: the mean over the grid for the hour shown` : 'Freezing level: the model has none for this hour'}. Heights are feet above sea level, ×${scale}.`),
+      h('p', {}, `Cloud at a height ("Cloud at", off to begin with; ${formatFeet(SHEET_HEIGHTS_FT.min)} to ${formatFeet(SHEET_HEIGHTS_FT.max)} ft above sea level in ${SHEET_HEIGHTS_FT.step} ft steps): in each model column the cover at that height is read as a straight line by height between the two levels either side, smoothed over the square like the slabs, shaped by the 2.5 km picture for the hour when there is one (the same most-overlap rule), and drawn as one see-through sheet, clear at ${CLOUD_COVER_THRESHOLD_PCT} % or less and whiter and more solid as cover rises. It replaces the Low, Mid and High cloud while chosen, follows the model time slider, and is a model estimate. A column whose levels do not reach the height has no data there, drawn clear and counted in the words. METARs do not move it.`),
     );
   }
 
@@ -741,7 +806,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   function slabKey(summary, model, cover, pct) {
     const spacing = Math.round((AREA_NM / (model.gridSize - 1)) * 10) / 10;
     return [
-      h('p', {}, `Clouds: slabs with a base and a top. In each of the model's ${model.gridSize} × ${model.gridSize} columns (${spacing} NM apart), each level over ${CLOUD_COVER_THRESHOLD_PCT} % cover (an estimate) is cloud from halfway down to the level below to halfway up to the level above (${model.cloudLevels.length} levels, ${model.cloudLevels[0]} to ${model.cloudLevels.at(-1)} hPa), and cloudy levels next to each other join. The lowest such block in each stage is that stage's slab (low, mid and high by its base above the ground: below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft, up to ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft, above). Base, top and cover are smoothed between the columns and drawn as ${SLAB_SHEETS} stacked sheets from base to top (an estimate), never thinner than ${formatFeet(MIN_SLAB_FT)} ft, white to grey by cover and as solid from above as the old one-sheet-per-level style would stack its levels (so deeper cloud reads denser; an estimate), with a soft texture that is a picture, not data. The real cloud's thickness between the model's levels is not known. The model's own mean cover this hour: low ${pct(cover.low)}, mid ${pct(cover.mid)}, high ${pct(cover.high)}.`),
+      h('p', {}, `Clouds: slabs with a base and a top. In each of the model's ${model.gridSize} × ${model.gridSize} columns (${spacing} NM apart), each run of levels over ${CLOUD_COVER_THRESHOLD_PCT} % cover (an estimate) is one block of cloud (${model.cloudLevels.length} levels, ${model.cloudLevels[0]} to ${model.cloudLevels.at(-1)} hPa). Its base and top are where the column's cover crosses ${CLOUD_COVER_THRESHOLD_PCT} %, reading the cover as a straight line by height between the levels either side (a cloudy level at the top or bottom of the model goes half the gap to the next level beyond it, an estimate). The lowest such block in each stage is that stage's slab (low, mid and high by its base above the ground: below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft, up to ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft, above). Base, top and cover are smoothed between the columns and drawn as ${SLAB_SHEETS} stacked sheets from base to top (an estimate), never thinner than ${formatFeet(MIN_SLAB_FT)} ft, white to grey by cover and as solid from above as the old one-sheet-per-level style would stack its levels (so deeper cloud reads denser; an estimate), with a soft texture that is a picture, not data. The real cloud's thickness between the model's levels is not known. The model's own mean cover this hour: low ${pct(cover.low)}, mid ${pct(cover.mid)}, high ${pct(cover.high)}.`),
       h('ul', {}, ['low', 'mid', 'high'].map((stage) => h('li', {}, summary.slabs.words[stage]))),
       ...detailKey(gl?.model?.detail ?? null, spacing),
       ...anchorKey(gl?.model?.observed ?? null),
@@ -1299,7 +1364,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       if (wx.sig !== weatherSig) weatherDirty = true;
       // The slabs are built again when the HRDPS cloud picture for the hour shown comes, goes or fails.
       const { status, model, now: at } = modelState;
-      if (gl.model && cloudStyle === 'slabs' && status === 'ok' && model) {
+      if (gl.model && (cloudStyle === 'slabs' || cloudHeight !== null) && status === 'ok' && model) {
         const hour = hourIndex(model, +at, ahead);
         if (`${detailOf(wx, model, hour).key}|${anchorsOf(wx, model, hour).key}` !== gl.model.inputs) modelDirty = true;
       }
@@ -1308,6 +1373,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       rebuildModel();
       weatherDirty = true; // the shafts, bolts and satellite sheet stand on the slabs
     }
+    rebuildSheet(); // the "Cloud at" sheet, when the model layers or the height changed (nothing to do otherwise)
     if (weatherDirty) rebuildWeather(wx ?? lastWx ?? getWeather());
     const nextSpaceSig = `${scale}|${groundFt()}|${getProjection().lat},${getProjection().lon}`;
     if (!gl.space || nextSpaceSig !== spaceSig) rebuildSpace(nextSpaceSig);
@@ -1384,8 +1450,8 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     }
     placeAircraft({ at, put, boxFor, isClear, reserve, phase: 't6' }); // the T-6s' tags keep their places; the model's words step round them
     const modelWords = [];
-    for (const { el, group, point, hPa, side } of gl.model?.items ?? []) { // the model's words: each cloud level (or slab), the winds over home, then the freezing level
-      const on = toggles[group] && (hPa === undefined || layerChoice === 'all' || layerChoice === String(hPa));
+    for (const { el, group, point, hPa, side } of [...(gl.model?.items ?? []), ...(gl.sheet?.items ?? [])]) { // the model's words: each cloud level (or slab), the winds over home, the freezing level, the "Cloud at" sheet
+      const on = group === 'altitude' || shownGroup(group);
       if (el.hidden === on) el.hidden = !on;
       if (on) modelWords.push({ el, group, hPa, side, p: at(point) });
     }
@@ -1938,8 +2004,8 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
      * 'unavailable', model, lastGoodAt, failedAt, incomplete, now, timeZone }. The layers are built again only when the answer, the hour, the scale or the ground
      * changed. With no usable answer they are taken away and the view says why.
      */
-    setModel({ status = 'loading', model = null, lastGoodAt = null, failedAt = null, incomplete = false, refining = false, now = new Date(), timeZone = null } = {}) {
-      modelState = { status, model, lastGoodAt, failedAt, incomplete, refining, now, timeZone };
+    setModel({ status = 'loading', model = null, lastGoodAt = null, failedAt = null, incomplete = false, limited = false, refining = false, nextAt = null, now = new Date(), timeZone = null } = {}) {
+      modelState = { status, model, lastGoodAt, failedAt, incomplete, limited, refining, nextAt, now, timeZone };
       applyModel();
     },
     /**

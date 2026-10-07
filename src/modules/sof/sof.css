@@ -2567,19 +2567,19 @@ main[data-module='sof'] {
   color: #9fe3ff;
 }
 
-[data-module='sof'] .sof-3d-model-label[hidden] {
+/* The "Cloud at" sheet's label (V2.184): white and bold, so the chosen height reads first. */
+[data-module='sof'] .sof-3d-model-label.is-altitude {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* The "Cloud at" control's words under its slider. */
+[data-module='sof'] .sof-3d-height-words[hidden] {
   display: none;
 }
 
-[data-module='sof'] .sof-3d-layer {
-  min-height: 1.75rem;
-  max-width: 100%;
-  padding: 0 var(--space-1);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  background: rgb(5 10 18 / 0.85);
-  color: #e3eef5;
-  font: inherit;
+[data-module='sof'] .sof-3d-model-label[hidden] {
+  display: none;
 }
 
 /* The live aircraft (SOF-39 phase 4): the layer's own line above the model controls, and a tag for each aircraft. A T-6's tag is always on and in the
