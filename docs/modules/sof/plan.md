@@ -42,6 +42,15 @@ Dad and Patrick agreed it on 7 Oct. Each phase is its own pull request and is us
 - [ ] **Bigger, sharper 3D ground (Dad, 7 Oct):** a higher-resolution satellite picture (sharp near home, coarser further out) and the 3D area grown by 100 NM each way so no empty corners show while orbiting.
 - [ ] **Weather fidelity:** finer model clouds (more pressure levels and a denser grid); radar as 3D precipitation shafts up to the model cloud tops (estimate); lightning as strikes in 3D; fronts once a free data source is found (research first).
 
+- [ ] **SIGMETs, AIRMETs and PIREPs (Dad, 7 Oct, item 1):** from NAV CANADA through the relay, as see-through volumes and points at their heights in 3D, and listed in the airfield cards.
+- [ ] **T-6 area board (item 2):** every airborne TEX2 with callsign, the area it is in, altitude and time airborne; flags a T-6 that leaves the areas or drops out of the feed.
+- [ ] **Lightning rings and stop-work timers (item 3):** 5, 10 and 30 NM rings round home, stop-work and all-clear countdowns from the last strike (was Feature Ideas idea 35 on the future list).
+- [ ] **Show me the wave (item 4):** a wave chip sets the 3D model time to that wave's launch and recovery.
+- [ ] **Recall and divert aid with fuel required (item 5):** for each airborne T-6, distance, bearing, time and fuel required to home and each alternate, with each alternate's category, best divert highlighted. Flight math, so it is checked first; the fuel numbers wait on Patrick (CT-156 performance charts are controlled and never shipped, so the planning burn and reserve need his ruling).
+- [ ] **Crosswind per runway (item 6):** headwind and crosswind on each runway from the METAR wind and the true runway headings (OurAirports), with the SOF-R27 amber and red levels as editable settings. Patrick agreed (Dad, 7 Oct), which brings SOF-R27 back from the future list (SOF-37 changes with it).
+- [ ] **Sun and moon panel (item 9):** sunrise, sunset, civil twilight, last-land cue, moonrise, moonset and moon phase and illumination for home, from standard astronomical formulas.
+- Not wanted: recording the day for the Debrief (item 7). Not chosen: spoken alerts (item 8).
+
 ## Step 3. Build the safety and limits gaps between decided and built
 
 - [ ] Amber "Incomplete" for any airfield whose approaches or landing minima are not filled in, never a green tick, including a PROB group below the alternate limits with minima unset (old decision D388, new decision SOF-32; SOF-R12). The code does not do it yet (`pf/reset/4-decisions/partb-sof.md:74`, `pf/reset/1-requirements/requirements.md:144`, `src/wx/alternates.js:163`).
