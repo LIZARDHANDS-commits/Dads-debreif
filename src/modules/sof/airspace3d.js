@@ -29,7 +29,6 @@ const ROUTE_COLOUR = '#ffcc66'; // the 2D map's route colour (dashed there too)
 const EDGE_OPACITY = 0.85;
 /** A TACNAV line's dashes, in scene feet (as the rings'). An estimate for readability. */
 const ROUTE_DASH = Object.freeze({ dashSize: 7_000, gapSize: 4_000 });
-const VERTICAL_EDGES_ON_CIRCLE = 8;
 
 /**
  * Builds the layers. `T` is three.js; `volumes` are airspace-model.js `checkedAirspace().volumes`; `routes` are the Debrief's routes
@@ -94,13 +93,17 @@ export function buildAirspace(T, { volumes = [], routes = [], toXY, scale, groun
     fill.renderOrder = 1;
     fill.name = `airspace-${volume.id}`;
 
-    // Outline: the top and bottom rings, and the vertical edges (every corner of a polygon, eight round a circle).
+    // Outline: the top and bottom rings, and vertical edges at the DAH's own corners only (Dad, 7 Oct: no lines all along the arcs).
+    // A polygon whose data names its corners (`shape.corners`, indices into its points) gets posts there; one without gets a post at
+    // every point; a circle gets none.
     const loop = (z) => own(new T.BufferGeometry().setFromPoints(ring.map(([x, y]) => new T.Vector3(x, y, z))));
     const top = new T.LineLoop(loop(zt), edgeOf(volume.kind));
     const bottom = new T.LineLoop(loop(zb), edgeOf(volume.kind));
-    const step = volume.shape.type === 'circle' ? CIRCLE_SIDES / VERTICAL_EDGES_ON_CIRCLE : 1;
+    const corners = volume.shape.type !== 'polygon' ? []
+      : Array.isArray(volume.shape.corners) && volume.shape.corners.length ? volume.shape.corners.filter((i) => Number.isInteger(i) && i >= 0 && i < n)
+        : ring.map((_, i) => i);
     const posts = [];
-    for (let i = 0; i < n; i += step) posts.push(new T.Vector3(ring[i][0], ring[i][1], zb), new T.Vector3(ring[i][0], ring[i][1], zt));
+    for (const i of corners) posts.push(new T.Vector3(ring[i][0], ring[i][1], zb), new T.Vector3(ring[i][0], ring[i][1], zt));
     const sides = new T.LineSegments(own(new T.BufferGeometry().setFromPoints(posts)), edgeOf(volume.kind));
     for (const line of [top, bottom, sides]) line.renderOrder = 3;
     groups.airspace.add(fill, top, bottom, sides);
