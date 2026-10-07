@@ -16,6 +16,7 @@ import { throttleAtTorque } from './power.js';
 import { TRACKER, CLOSURE, HAND_OVER_FT, FW_ENERGY, FW_BUBBLE, REJOIN } from './tuning.js';
 import { setKias, stepCommanded, climbCostKtps, createPilot, pilotSpeed, pilotFly, pilotPower, coneUpFtNow } from './pilot.js';
 import { isLeadInCanopy, checkDoctrinalInvariants } from '../../../core/canopy.js';
+import { liftTowardAim, gAndBankForLift } from '../../../core/point-mass.js';
 
 // The one pilot model's step (pilot.js, clean-up step 5, TS-141) is used here and re-exported for the files that read it from here.
 export { setKias, stepCommanded, climbCostKtps, isLeadInCanopy, checkDoctrinalInvariants };
@@ -169,6 +170,35 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState) {
   // level in a step or two instead of creeping for ten seconds (the heading left is inside alignHeadingRad).
   if (aligning && ph.closureFtps && Math.abs(bank) < T.alignDeadbandDeg) bank = 0;
   return bank;
+}
+
+/**
+ * 3D lift guidance toward an aim point: computes the 3D lift vector in G that carries the
+ * aircraft's weight and points its lift directly toward the aim point in 3D space,
+ * resolving it into commanded G and bank angle.
+ * Because lift points out the canopy glass, aiming the lift vector inherently points the
+ * canopy at the target, guaranteeing positive G and preventing belly-masking dives.
+ */
+export function aimLiftVector(W, aimPoint, gainPerSec = 0.5) {
+  const vFtps = Math.max(1, W.tasFtps || 1);
+  const ch = Math.cos(W.headingRad), sh = Math.sin(W.headingRad);
+  const climbRad = Math.asin(Math.max(-1, Math.min(1, (W.climbFtps || 0) / vFtps)));
+  const cg = Math.cos(climbRad), sg = Math.sin(climbRad);
+
+  const vHat = { x: cg * ch, y: cg * sh, z: sg };
+  const up = { x: -sg * ch, y: -sg * sh, z: cg };
+
+  const targetZ = aimPoint.pz ?? ((aimPoint.altAboveFt ?? 0) + (aimPoint.slot?.alt ?? 0));
+  const toAim = {
+    x: (aimPoint.px ?? aimPoint.xFt ?? 0) - W.xFt,
+    y: (aimPoint.py ?? aimPoint.yFt ?? 0) - W.yFt,
+    z: targetZ - (W.altAboveFt ?? 0),
+  };
+
+  const { wanted } = liftTowardAim(vHat, toAim, vFtps, gainPerSec);
+  const fallbackBankRad = -(W.bankDeg * Math.PI) / 180;
+  const { g, bankRad } = gAndBankForLift(wanted, vHat, up, fallbackBankRad);
+  return { g, bankDeg: -(bankRad * 180) / Math.PI, lift: wanted };
 }
 
 /** The climb rate the room left above him in the cone allows, at FW_BUBBLE's climb rate and pull (the cone energy's zoom). */
@@ -535,8 +565,14 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       }
     }
 
-    // 3. Heading and bank: heading error loop with feed-forward
-    const bank = headingBank(ph, psiCmd, W, aligning, bankOwn, headingState);
+    // 3. Heading and bank: 3D lift law or 2D heading error loop with feed-forward
+    let bank;
+    if (ph.use3D) {
+      const aim3D = aimLiftVector(W, aim, T.gain.heading);
+      bank = bankOwn ?? aim3D.bankDeg;
+    } else {
+      bank = headingBank(ph, psiCmd, W, aligning, bankOwn, headingState);
+    }
 
     // 4. Power: speed loop, jerk limit, energy intent
     const power = powerOf(ph, pilot, W, L, kiasCmd, {

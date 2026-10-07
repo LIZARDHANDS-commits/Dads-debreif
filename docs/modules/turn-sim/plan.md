@@ -188,3 +188,15 @@ Checks: the same buttons flown from the default start before and after, screensh
 - [x] The 3D grid is hidden in both sims (Patrick, 6 Oct: "it's distracting"); the 2D map keeps its grid. V2.140, Traffic v2.10.103.
 - [x] **Better CT-156 model** (V2.144): the shared CT-156 model redrawn (`src/ui-kit/ct156-model.js`; Patrick, 6 Oct: "make the model better ... more like the side profile of a Harvard ... cockpit too tall ... the maple leaf needs to look exactly like a maple leaf", with his photos): side profile measured off his side-on photo of 156101 (flat top line, deep belly, long low canopy, low tailplane, 97 in prop), aerofoil wings and tail, glossy clear-coat paint with sky reflections, the Flag of Canada leaf outline, three red triangles; the fine detail (decals, cockpit, frames, blades) shows only when the aircraft is 70 px or more on screen. Widths from above and the wing and tail planforms are estimates. Removed: the two small plates at the tailplane tips (not on the real aircraft). Leak check seen clean; looked at side-on and close up.
 - [x] **No clouds, darker ground** (V2.158): the clouds are off in all three sims (Patrick, 6 Oct: "I want to get rid of the clouds"; `SHOW_CLOUDS` in `src/ui-kit/sky-clouds.js` brings them back); the blue sky stays. The 3D ground is a darker prairie green (#2a3327, was #56664a) so the ships, lines and tags stand out (Patrick, 6 Oct: "better contrast against the ground"). Seen top-down in 3D.
+
+## Step 6. Tracker-Only Migration and Invariant Enforcement (V2.171 - V2.172)
+
+- [x] **Slice 0: Flight set baseline frozen** (V2.170): `fset.mjs` extended with smoothness metrics across all rates.
+- [x] **Slice 1: Tracker split into 5 jobs** (TS-150): `aimOf`, `closureOf`, `headingBank`, `powerOf`, `isIn`.
+- [x] **Slice 2: Line abreast kinematic line removed** (TS-150): opening out to line abreast flown by tracker.
+- [x] **Slice 3: Crossing behind Lead and moving out to FW** (TS-150): `crossBehindFwd` moved to `slots.js`.
+- [x] **Slice 4: Kinematic lines deleted from 2-ship** (TS-150): `line-moves.js` and `kinematic-moves.js` deleted.
+- [x] **Slice 5: Single-pass height integration** (TS-150): `heightOf` integrates altitude alongside bank and speed.
+- [x] **Slice 6: Speed owned by physics** (TS-150): `stepAircraft` integrates commanded acceleration directly.
+- [x] **Slice 7: Rejoin line and opening out unified** (TS-150): all formation changes flown by tracker.
+- [x] **Phase 4 Step 2: Canopy and step-down gates enforced** (TS-151): `src/core/canopy.js`, 2,000 ft step-down gate ($z_{\text{wing}} \le z_{\text{lead}} + 5\text{ ft}$), 1,200 ft canopy "X" lock ($\text{LOS} \cdot \hat{c} \ge 0$), and 3/9 line gate.

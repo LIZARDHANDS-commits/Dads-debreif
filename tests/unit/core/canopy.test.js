@@ -82,3 +82,20 @@ test('checkDoctrinalInvariants: inside 1,200 ft canopy lock enforced', () => {
   assert.equal(resUpright.ok, true);
   assert.equal(resUpright.canopyOk, true);
 });
+
+test('aimLiftVector: computes 1.0 G wings level when aim is straight ahead', async () => {
+  const { aimLiftVector } = await import('../../../src/modules/turn-sim/live/tracker.js');
+  const W = { xFt: 0, yFt: 0, altAboveFt: 5000, tasFtps: 400, headingRad: 0, climbFtps: 0, bankDeg: 0 };
+  const res = aimLiftVector(W, { px: 1000, py: 0, pz: 5000 });
+  assert.ok(Math.abs(res.g - 1.0) < 1e-3, `G was ${res.g}`);
+  assert.ok(Math.abs(res.bankDeg) < 1e-3, `Bank was ${res.bankDeg}`);
+});
+
+test('aimLiftVector: commands positive G and bank into lateral offset', async () => {
+  const { aimLiftVector } = await import('../../../src/modules/turn-sim/live/tracker.js');
+  const W = { xFt: 0, yFt: 0, altAboveFt: 5000, tasFtps: 400, headingRad: 0, climbFtps: 0, bankDeg: 0 };
+  const res = aimLiftVector(W, { px: 1000, py: 500, pz: 5000 });
+  assert.ok(res.g > 1.0, `G was ${res.g}`);
+  assert.ok(res.bankDeg > 0, `Bank was ${res.bankDeg}`);
+});
+
