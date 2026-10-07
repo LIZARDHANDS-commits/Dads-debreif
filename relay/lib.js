@@ -87,7 +87,8 @@ function trimOne(a) {
   const lat = inRange(a.lat, -90, 90);
   const lon = inRange(a.lon, -180, 180);
   if (lat == null || lon == null) return null;
-  const alt = a.alt_baro === 'ground' ? 'ground' : rounded(inRange(a.alt_baro, -2000, 100000), 0);
+  // Barometric altitude first; when an aircraft sends none, its GPS (geometric) height, so a low aircraft is not lost (Dad, 7 Oct).
+  const alt = a.alt_baro === 'ground' ? 'ground' : rounded(inRange(a.alt_baro, -2000, 100000) ?? inRange(a.alt_geom, -2000, 100000), 0);
   const track = rounded(inRange(a.track, 0, 360), 2);
   return {
     hex: a.hex.toLowerCase(),
@@ -242,6 +243,48 @@ export async function readCapped(res, max) {
   return new TextDecoder().decode(all);
 }
 
+// A second free network, asked as well when the site sets SECOND_FEED=adsb.fi (Dad, 7 Oct: low aircraft near Regina were missing from
+// adsb.lol, whose volunteer receivers do not hear them). Its reply has the same readsb fields under "aircraft" instead of "ac".
+const SECOND_UPSTREAM = 'https://opendata.adsb.fi/api/v2/lat';
+
+async function askSecond(fetchFn, q) {
+  const url = `${SECOND_UPSTREAM}/${q.lat}/lon/${q.lon}/dist/${q.nm}`;
+  const signal = typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(TIMEOUT_MS) : undefined;
+  const res = await fetchFn(url, { method: 'GET', headers: { accept: 'application/json', 'user-agent': USER_AGENT }, redirect: 'manual', signal });
+  if (!res.ok) throw new Error('second status');
+  const parsed = JSON.parse(await readCapped(res, MAX_UPSTREAM_BYTES));
+  return isObject(parsed) && Array.isArray(parsed.aircraft) ? parsed.aircraft : null;
+}
+
+/** Both networks merged by hex id, keeping whichever saw the aircraft more recently; either one alone if the other fails. */
+async function askBoth(fetchFn, q) {
+  const [lol, fi] = await Promise.allSettled([askRaw(fetchFn, q), askSecond(fetchFn, q)]);
+  const a = lol.status === 'fulfilled' ? lol.value : null;
+  const b = fi.status === 'fulfilled' ? fi.value : null;
+  if (!a && !b) throw lol.reason ?? new Error('both feeds failed');
+  const byHex = new Map();
+  const age = (x) => (typeof x?.seen_pos === 'number' ? x.seen_pos : typeof x?.seen === 'number' ? x.seen : 999);
+  for (const x of [...(a ?? []), ...(b ?? [])]) {
+    if (!isObject(x) || typeof x.hex !== 'string') continue;
+    const k = x.hex.toLowerCase();
+    const had = byHex.get(k);
+    if (!had || age(x) < age(had)) byHex.set(k, x);
+  }
+  const trimmed = trimAircraft({ ac: [...byHex.values()] }, q);
+  if (!trimmed) throw new Unusable('wrong shape');
+  return trimmed;
+}
+
+async function askRaw(fetchFn, q) {
+  const url = `${UPSTREAM}/${q.lat}/${q.lon}/${q.nm}`;
+  const signal = typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(TIMEOUT_MS) : undefined;
+  const res = await fetchFn(url, { method: 'GET', headers: { accept: 'application/json', 'user-agent': USER_AGENT }, redirect: 'manual', signal });
+  if (!res.ok) throw new Error('upstream status');
+  const parsed = JSON.parse(await readCapped(res, MAX_UPSTREAM_BYTES));
+  if (!isObject(parsed) || !Array.isArray(parsed.ac)) throw new Unusable('wrong shape');
+  return parsed.ac;
+}
+
 async function askUpstream(fetchFn, q) {
   const url = `${UPSTREAM}/${q.lat}/${q.lon}/${q.nm}`;
   const signal = typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(TIMEOUT_MS) : undefined;
@@ -298,7 +341,7 @@ export function createHandler({ fetch: fetchFn = globalThis.fetch, cache, now = 
 
       let trimmed;
       try {
-        trimmed = await askUpstream(fetchFn, q);
+        trimmed = env?.SECOND_FEED === 'adsb.fi' ? await askBoth(fetchFn, q) : await askUpstream(fetchFn, q);
       } catch (e) {
         return e instanceof Unusable
           ? reply(502, { error: 'upstream reply unusable' }, { origin })

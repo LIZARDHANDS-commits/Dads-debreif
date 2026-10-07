@@ -38,6 +38,8 @@ It runs on a free Cloudflare account (the Workers free plan allows 100,000 reque
 
 **Live now (7 Oct 2026):** `https://dads-sof-relay.netlify.app`, deployed from Dad's computer session with `npx netlify-cli deploy --prod --site dads-sof-relay --dir netlify/public --functions netlify/functions --no-build` run in `relay/`. It is not linked to GitHub (the repository is Patrick's), so a change to the relay needs that command run again.
 
+**Second network (Dad, 7 Oct 2026):** adsb.lol alone missed low aircraft near Regina (ACA1104 on approach at 2,600 ft, STAR9 at 3,950 ft), because its volunteer receivers did not hear them. With `SECOND_FEED=adsb.fi` the relay also asks adsb.fi's open data API (`opendata.adsb.fi`, free for non-commercial use) and merges the two by hex id, keeping the more recent position; either one alone still works if the other fails. The Netlify wrapper turns it on by default (set `SECOND_FEED=none` on the site to turn it off); the Cloudflare version and the tests leave it off. Both aircraft showed once it was on.
+
 **Keys and secrets:** the relay needs none today. If adsb.lol ever asks for a key, it goes in a Worker environment variable or secret in the Cloudflare dashboard, never in this file or anywhere in the repository.
 
 Things to know:

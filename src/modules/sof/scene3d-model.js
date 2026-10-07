@@ -188,11 +188,9 @@ export function sceneTraffic({ view, toXY, label = 'off', max = MAX_3D_AIRCRAFT,
   if (!view || view.show !== true) return { shown: false, status: view?.status ?? 'off', statusText: '', aircraft: [], noAltitude: 0, leftOut: 0, labelsOn: false, trailsOn: false, signature: 'off' };
   const drawable = [];
   let noAltitude = 0;
+  // An aircraft with no height is still drawn, just above the ground with "height ?" in its tag (Dad, 7 Oct: a low aircraft was missing).
   for (const a of view.aircraft ?? []) {
-    if (a.altitudeFt !== 'ground' && !isNumber(a.altitudeFt)) {
-      noAltitude += 1;
-      continue;
-    }
+    if (a.altitudeFt !== 'ground' && !isNumber(a.altitudeFt)) noAltitude += 1;
     drawable.push(a);
   }
   const ordered = [...drawable.filter((a) => a.type === T6_TYPE), ...drawable.filter((a) => a.type !== T6_TYPE)];
@@ -212,19 +210,19 @@ export function sceneTraffic({ view, toXY, label = 'off', max = MAX_3D_AIRCRAFT,
         const [tx, ty] = toXY(p.lat, p.lon);
         return { x: tx, y: ty, altFt: p.alt, t: p.t };
       }) : [],
-      altFt: a.altitudeFt,
+      altFt: a.altitudeFt === 'ground' || isNumber(a.altitudeFt) ? a.altitudeFt : null,
       trackDeg: a.hasTrack ? a.rotationDeg : null,
       opacity: a.opacity,
       mil: a.mil === true,
       isT6: a.type === T6_TYPE,
       name: aircraftName(a),
-      tag: tagWords(a, 'off'),
-      labelText: tagWords(a, label),
+      tag: a.altitudeFt === 'ground' || isNumber(a.altitudeFt) ? tagWords(a, 'off') : `${aircraftName(a)} height ?`,
+      labelText: a.altitudeFt === 'ground' || isNumber(a.altitudeFt) ? tagWords(a, label) : `${aircraftName(a)} height ?`,
       description: a.description || `${String(a.hex).toUpperCase()}.`,
     };
   });
   const notes = [];
-  if (noAltitude) notes.push(`${noAltitude} without a height not drawn`);
+  if (noAltitude) notes.push(`${noAltitude} without a height, drawn just above the ground`);
   if (leftOut) notes.push(`nearest ${max} drawn`);
   const statusText = notes.length ? `${view.statusText} (${notes.join(', ')})` : view.statusText;
   const rows = aircraft.map((a) => [a.hex, Math.round(a.x), Math.round(a.y), a.altFt, a.trackDeg === null ? '' : Math.round(a.trackDeg), a.opacity, a.mil ? 1 : 0, a.tag, a.labelText, a.trail.length, a.trail.at(-1)?.t ?? ''].join(','));
