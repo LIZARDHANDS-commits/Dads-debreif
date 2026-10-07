@@ -37,6 +37,7 @@ import { createAdsbFrame, adsbExchangeUrl, zoomForScale } from './adsbx.js';
 import { webglSupported } from '../../ui-kit/three-aircraft.js';
 import { createSofView3d } from './view3d.js';
 import { sceneAirfields } from './scene3d-model.js';
+import { createModelFeed, gridPoints } from './model-clouds.js';
 
 const LAYERS_KEY = 'map-layers';
 const BACKGROUND = '#05090d';
@@ -140,12 +141,22 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     onLost() {
       if (!threeOn) return;
       threeOn = false;
+      modelFeed.stop();
       canvas.hidden = false;
       applyLayers();
       sync();
       view.requestDraw();
       say(LOST_3D_WORDS);
     },
+  });
+
+  // The model clouds, winds and freezing level (Open-Meteo's GEM forecast) are asked for only while the 3D view is shown (SOF-39, phase 2).
+  const modelFeed = createModelFeed({
+    points: () => gridPoints(projection.toLatLon),
+    fetch: fetchNet,
+    timers,
+    now,
+    onChange: () => pushModel(),
   });
 
   const stage = h('div', { class: 'sof-map-stage' }, canvas, adsbFrame.element, view3d.element, tip, message, notice, live);
@@ -511,6 +522,13 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     view3d.setScene({ airfields: sceneAirfields({ ...scene3d, toXY: projection.toXY }), heightScale: settings.get().heightScale3d });
   }
 
+  /** What the model feed says now, for the 3D view: it builds the model layers only when the answer, the hour, the scale or the ground changed. */
+  function pushModel() {
+    if (!threeOn || disposed) return;
+    const t = now();
+    view3d.setModel({ ...modelFeed.view(t), now: t, timeZone: app.time.zone });
+  }
+
   /** The pictures the 2D map already holds, for the 3D ground: ECCC radar and lightning, with the same stale fading. Not fetched again. */
   const imageIds = new WeakMap();
   let imageCount = 0;
@@ -535,6 +553,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
   function stopThree() {
     if (!threeOn) return;
     threeOn = false;
+    modelFeed.stop(); // nothing is asked for while the 3D view is not shown
     view3d.hide();
   }
 
@@ -562,12 +581,15 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     canvas.hidden = true;
     hideTip();
     pushScene();
+    modelFeed.start(); // asks for the model clouds and winds at once, then once an hour while the view is open
+    pushModel();
     applyLayers();
     sync();
     // three.js loads now, the first time. If it cannot, the map comes back and says why.
     view3d.show().then((result) => {
       if (result.ok || !threeOn) return;
       threeOn = false;
+      modelFeed.stop();
       canvas.hidden = false;
       applyLayers();
       sync();
@@ -682,6 +704,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
         asked.clear();
         requests.clear();
         watch.setPlace();
+        modelFeed.setPlace(); // the grid is round the new home
         goHome();
       }
       const radius = settings.get().lightningNm;
@@ -705,6 +728,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
       scene3d = { marks, cards: screen.cards, fields, snapshot };
       if (threeOn) {
         pushScene();
+        pushModel(); // the model's age and the hour "now" are checked on every tick
         view3d.touch(); // the pictures' fading with age is checked on every tick
       }
       const key = JSON.stringify(marks.map((m) => [m.icao, m.label, m.old, m.wind && [m.wind.dirDeg, m.wind.speedKt], m.lat, m.lon]));
@@ -723,6 +747,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
       for (const feed of Object.values(feeds)) feed.wake();
       watch.wake();
       trafficFeed.wake();
+      modelFeed.wake();
       view.requestDraw();
     },
     /** Stops every request and timer, drops the frame and the pictures. */
@@ -735,6 +760,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
       watch.stop();
       trafficFeed.stop();
       cancelNotice?.();
+      modelFeed.stop();
       view3d.dispose();
       adsbFrame.dispose();
       imagery.dispose();

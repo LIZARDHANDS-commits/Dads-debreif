@@ -1929,12 +1929,138 @@ main[data-module='sof'] {
   display: none;
 }
 
-[data-module='sof'] .sof-3d-credit {
+/* The bottom left is a stack: the model controls (phase 2) above the ground's credit. */
+[data-module='sof'] .sof-3d-bottom {
+  position: absolute;
   bottom: var(--space-1);
   left: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
   max-width: calc(100% - 2 * var(--space-2));
+  max-height: calc(100% - 2 * var(--space-2));
+  pointer-events: none;
+}
+
+[data-module='sof'] .sof-3d-credit {
+  position: static;
+  max-width: 100%;
   padding: 0 var(--space-2);
   color: #b8cfdb;
+}
+
+[data-module='sof'] .sof-3d-model {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: min(34rem, 100%);
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: rgb(5 10 18 / 0.85);
+  color: #e3eef5;
+  font-size: var(--text-sm);
+  pointer-events: auto;
+}
+
+[data-module='sof'] .sof-3d-model [hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-3d-model p {
+  margin: 0;
+}
+
+[data-module='sof'] .sof-3d-model-status.is-bad {
+  padding: 2px var(--space-2);
+  border: 1px solid var(--caution);
+  border-radius: var(--radius);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-3d-model-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+[data-module='sof'] .sof-3d-model-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+/* The one "on" look: an accent border and a light accent tint, with aria-pressed (screen-layout-and-style, section 4). */
+[data-module='sof'] .sof-3d-toggle {
+  min-height: 1.75rem;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: transparent;
+  color: #e3eef5;
+  font: inherit;
+  cursor: pointer;
+}
+
+[data-module='sof'] .sof-3d-toggle[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: rgb(66 191 233 / 0.22);
+}
+
+[data-module='sof'] .sof-3d-slider {
+  flex: 1 1 8rem;
+  min-width: 6rem;
+}
+
+[data-module='sof'] .sof-3d-model-time {
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+[data-module='sof'] .sof-3d-model-note,
+[data-module='sof'] .sof-3d-model-credit {
+  color: #b8cfdb;
+}
+
+[data-module='sof'] .sof-3d-model-key summary {
+  cursor: pointer;
+}
+
+[data-module='sof'] .sof-3d-model-key[open] {
+  flex: 1 1 100%;
+}
+
+[data-module='sof'] .sof-3d-model-key-body {
+  max-height: 9rem;
+  overflow-y: auto;
+  color: #b8cfdb;
+}
+
+[data-module='sof'] .sof-3d-model-key-body ul {
+  margin: 0 0 var(--space-1);
+  padding-left: var(--space-3);
+}
+
+[data-module='sof'] .sof-3d-model-label {
+  padding: 0 var(--space-1);
+  border-radius: 3px;
+  background: rgb(5 10 18 / 0.75);
+  color: #ffe9a8;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-3d-model-label.is-freezing {
+  color: #9fe3ff;
+}
+
+[data-module='sof'] .sof-3d-model-label[hidden] {
+  display: none;
 }
 
 [data-module='sof'] .sof-3d-note {

@@ -1,11 +1,13 @@
 // The SOF's 3D view of the weather (SPEC-sof, "3D view", SOF-39, phase 1): the map area swapped for a three.js picture of
 // the 250 NM square round home. The satellite picture is the ground, with the radar and lightning pictures the 2D map already holds laid
 // on it; home and the alternates stand on it as pins with their category in words; the METAR cloud layers hang over them as flat
-// round decks at their reported bases; the 25 and 50 NM rings run round home. It is for situational awareness only: it checks no
-// limit and never raises or clears a caution.
+// round decks at their reported bases; the 25 and 50 NM rings run round home. Phase 2 (SOF-39) adds the model layers: cloud blocks
+// with a base and a top, wind barbs at three levels and the freezing level, from Open-Meteo's GEM forecast, with a time slider and a
+// toggle for each. They are a model estimate, labelled so, and are removed (never frozen) when the forecast fails or is old. It is for
+// situational awareness only: it checks no limit and never raises or clears a caution.
 //
-// What is drawn and what the words say is decided in scene3d-model.js (tested in Node). This file builds the three.js objects and
-// the camera's hands, and touches the page.
+// What is drawn and what the words say is decided in scene3d-model.js and model-clouds.js (tested in Node); model-layers3d.js builds the
+// model layers' three.js objects. This file builds the rest, the camera's hands and the model controls, and touches the page.
 //
 // three.js is loaded only when the view is first opened (ui-kit `loadThree`). It draws only while shown, and only when something
 // changed (a new report or picture, a tile arriving, the camera moving), through the scheduler's frame: nothing runs while it
@@ -21,8 +23,13 @@ import { cornersOf, RING_NM, FT_PER_NM } from './map-view.js';
 import { drawGeoImage } from './map-draw.js';
 import { BASE_DIM } from './map-layers.js';
 import {
-  AREA_NM, AREA_FT, DECK_FT, CATEGORY_TOKENS, START_CAMERA, ZOOM_STEP, KEY_ORBIT_PX, fitZoom, orbitBy, zoomCamera, sceneSignature,
+  AREA_NM, AREA_FT, DECK_FT, CATEGORY_TOKENS, START_CAMERA, ZOOM_STEP, KEY_ORBIT_PX, fitZoom, orbitBy, zoomCamera, sceneSignature, formatFeet,
 } from './scene3d-model.js';
+import { buildModelLayers, MODEL_GROUPS } from './model-layers3d.js';
+import {
+  hourIndex, maxAhead, hourWords, meanLayerCover, unavailableWords, LOADING_WORDS, CREDIT_WORDS, MAX_AHEAD_HOURS, CLOUD_STAGES_FT_AGL,
+  CLOUD_COVER_THRESHOLD_PCT, MAG_VARIATION_DEG_E, GRID_SPACING_NM,
+} from './model-clouds.js';
 
 /** The ground picture is one square canvas this many pixels across (about 1,480 ft a pixel over 250 NM). */
 const GROUND_PX = 1024;
@@ -41,13 +48,16 @@ const DECK_SEGMENTS = 64;
 const DECK_COLOUR = '#f2f7fb';
 const RING_COLOUR = '#8adfff';
 
+let nextViewId = 1;
+
 const isColour = (v) => typeof v === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%/]+\))$/i.test(v.trim());
 
 /**
  * options: { timers (a scheduler scope), getProjection() (the SOF map's projection: toXY and a reference, for the corners of the
  * square), getPictures() (the 2D map's pictures: { sig, list: [{ image, bbox, alpha }] }, read when it draws), onLost() (the graphics
  * context was lost: the caller goes back to 2D), win }.
- * Returns { element, show(), hide(), setScene({ airfields, heightScale }), touch(), home(), zoomBy(factor), isShown(), dispose() }.
+ * Returns { element, show(), hide(), setScene({ airfields, heightScale }), setModel({ status, model, lastGoodAt, now, timeZone }), touch(), home(),
+ * zoomBy(factor), isShown(), dispose() }.
  * `show()` resolves { ok: true } or { ok: false, reason: 'gl' | 'load' | 'closed' }.
  */
 export function createSofView3d({ timers, getProjection, getPictures, onLost = () => {}, win = globalThis }) {
@@ -57,7 +67,45 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
   const outside = h('p', { class: 'sof-3d-outside', hidden: true });
   const note = h('p', { class: 'sof-3d-note', role: 'status', hidden: true });
   const tag = h('p', { class: 'sof-3d-tag', role: 'status', hidden: true });
-  const element = h('div', { class: 'sof-3d', hidden: true }, labels, corner, outside, credit, note, tag);
+
+  // The model controls (phase 2): a toggle for each layer, the time slider, the key and the credit, in a stack with the ground's credit.
+  const TOGGLES = /** @type {[string, string, string][]} */ ([
+    ['low', 'Low', `Low cloud: model blocks based below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft above the ground`],
+    ['mid', 'Mid', `Mid cloud: model blocks based ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} to ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft above the ground`],
+    ['high', 'High', `High cloud: model blocks based above ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft above the ground`],
+    ['winds', 'Winds', 'Winds aloft at 850, 700 and 500 hPa, as barbs'],
+    ['freezing', 'Freezing level', 'The 0 °C level, a faint sheet across the area'],
+  ]);
+  const toggles = Object.fromEntries(MODEL_GROUPS.map((key) => [key, true])); // all on to begin with
+  const toggleButtons = new Map();
+  for (const [key, text, title] of TOGGLES) {
+    const button = h('button', {
+      type: 'button',
+      class: 'sof-3d-toggle',
+      title,
+      'aria-pressed': 'true',
+      onclick: () => setToggle(key, button.getAttribute('aria-pressed') !== 'true'),
+    }, text);
+    toggleButtons.set(key, { button, title });
+  }
+  const sliderId = `sof-3d-time-${nextViewId++}`;
+  const slider = h('input', {
+    type: 'range', id: sliderId, class: 'sof-3d-slider', min: '0', max: String(MAX_AHEAD_HOURS), step: '1', 'aria-label': 'Model time, hours ahead of now',
+    value: '0', oninput: () => setAhead(Number(slider.value)),
+  });
+  const sliderWords = h('output', { class: 'sof-3d-model-time', for: sliderId });
+  const modelStatus = h('p', { class: 'sof-3d-model-status', role: 'status' }, LOADING_WORDS);
+  const modelControls = h('div', { class: 'sof-3d-model-controls' },
+    h('div', { class: 'sof-3d-model-row', role: 'group', 'aria-label': 'Model layers' }, [...toggleButtons.values()].map((t) => t.button)),
+    h('div', { class: 'sof-3d-model-row' }, h('label', { for: sliderId }, 'Model time'), slider, sliderWords));
+  const modelNote = h('p', { class: 'sof-3d-model-note' }, 'METAR decks, radar and lightning stay at now.');
+  const keyBody = h('div', { class: 'sof-3d-model-key-body' });
+  const modelKey = h('details', { class: 'sof-3d-model-key' }, h('summary', {}, 'Model key'), keyBody);
+  const modelCredit = h('p', { class: 'sof-3d-model-credit' }, CREDIT_WORDS);
+  const modelFoot = h('div', { class: 'sof-3d-model-row' }, modelNote, modelKey);
+  const modelPanel = h('div', { class: 'sof-3d-model', role: 'group', 'aria-label': 'Model clouds and winds' }, modelStatus, modelControls, modelFoot, modelCredit);
+  const bottom = h('div', { class: 'sof-3d-bottom' }, modelPanel, credit);
+  const element = h('div', { class: 'sof-3d', hidden: true }, labels, corner, outside, bottom, note, tag);
 
   let airfields = [];
   let scale = 5;
@@ -76,6 +124,10 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
   let tilesFailed = false;
   let noTiles = false; // a tile the browser would not let three.js read: the ground is drawn plain instead
   let loadingNote = false;
+  let modelState = { status: 'loading', model: null, lastGoodAt: null, now: new Date(0), timeZone: null }; // what the map last gave setModel
+  let ahead = 0; // the slider: hours past now
+  let modelSig = '';
+  let modelDirty = true;
   const sizes = new WeakMap(); // each label's size, read once (a read of the page's layout each frame would slow the drag)
 
   const setText = (el, text) => {
@@ -256,6 +308,97 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     groundDirty = false;
   }
 
+  // ---- The model layers (phase 2) ---------------------------------------------------------------------
+  const groundFt = () => (airfields.find((a) => a.home) ?? airfields[0])?.groundFt ?? 0;
+
+  function setToggle(key, on) {
+    toggles[key] = on;
+    toggleButtons.get(key)?.button.setAttribute('aria-pressed', String(on));
+    applyToggles();
+    requestRender();
+  }
+
+  function applyToggles() {
+    const groups = gl?.model?.built.root.userData.groups;
+    if (groups) for (const key of MODEL_GROUPS) groups[key].visible = toggles[key];
+    for (const [key, { button, title }] of toggleButtons) {
+      const blocks = gl?.model?.counts?.[key]; // only the three cloud stages have a count of blocks
+      button.title = blocks === undefined ? title : `${title}. ${blocks} ${blocks === 1 ? 'block' : 'blocks'} this hour.`;
+    }
+  }
+
+  function setAhead(hours) {
+    ahead = Math.max(0, Math.min(MAX_AHEAD_HOURS, Math.round(hours)));
+    applyModel();
+  }
+
+  /** The words, the controls and whether the model layers must be built again, from what the map last gave `setModel`. */
+  function applyModel() {
+    const { status, model, lastGoodAt, now, timeZone } = modelState;
+    const ok = status === 'ok' && model !== null;
+    modelStatus.hidden = ok;
+    modelControls.hidden = !ok;
+    modelFoot.hidden = !ok;
+    modelCredit.hidden = !ok;
+    modelStatus.classList.toggle('is-bad', status === 'unavailable');
+    if (!ok) {
+      setText(modelStatus, status === 'unavailable' ? unavailableWords(lastGoodAt) : LOADING_WORDS);
+    } else {
+      const nowMs = +now;
+      const limit = maxAhead(model, nowMs);
+      if (ahead > limit) ahead = limit;
+      if (slider.max !== String(limit)) slider.max = String(limit);
+      if (slider.value !== String(ahead)) slider.value = String(ahead);
+      const words = hourWords(model, hourIndex(model, nowMs, ahead), nowMs, timeZone);
+      setText(sliderWords, words);
+      slider.setAttribute('aria-valuetext', words);
+    }
+    const hour = ok ? hourIndex(model, +now, ahead) : -1;
+    const sig = ok ? `${model.id}|${hour}|${scale}|${groundFt()}` : 'none';
+    if (sig === modelSig) return;
+    modelSig = sig;
+    modelDirty = true;
+    requestRender();
+  }
+
+  function freeModel() {
+    if (!gl?.model) return;
+    gl.model.built.dispose();
+    for (const { el } of gl.model.items) el.remove();
+    gl.model = null;
+  }
+
+  /** The model layers, built new for this answer, hour, height scale and ground (or taken away when there is no usable answer). */
+  function rebuildModel() {
+    freeModel();
+    modelDirty = false;
+    const { status, model, now } = modelState;
+    if (!gl || status !== 'ok' || !model) return;
+    const hour = hourIndex(model, +now, ahead);
+    const built = buildModelLayers(gl.THREE, { model, hour, scale, groundFt: groundFt() });
+    gl.scene.add(built.root);
+    const items = built.labels.map((l) => {
+      const el = h('span', { class: `sof-3d-model-label is-${l.group}` }, l.text);
+      labels.append(el);
+      return { el, group: l.group, point: l.point };
+    });
+    gl.model = { built, items, counts: built.summary.blocks };
+    applyToggles();
+    drawKey(built.summary, hour);
+  }
+
+  function drawKey(summary, hour) {
+    const { model } = modelState;
+    const cover = meanLayerCover(model, hour);
+    keyBody.replaceChildren(
+      h('p', {}, `${CREDIT_WORDS}.`),
+      h('p', {}, `Clouds: a model level with over ${CLOUD_COVER_THRESHOLD_PCT} % cover is cloud from halfway down to the level below to halfway up to the level above; neighbouring cloudy levels join into one block. Low, mid and high are by the block's base above the ground (below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft, up to ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft, above). The model's own mean cover this hour: low ${cover.low} %, mid ${cover.mid} %, high ${cover.high} %.`),
+      h('p', {}, `Winds: barbs at 850, 700 and 500 hPa at every other grid point (${Math.round(GRID_SPACING_NM * 2)} NM apart): pennant 50 kt, full feather 10, half 5. Direction in °M (${MAG_VARIATION_DEG_E}° E variation), speed in kt.`),
+      h('ul', {}, summary.windsOverHome.map((words) => h('li', {}, `Over home, ${words}`))),
+      h('p', {}, `${summary.freezingText}: the mean over the grid for the hour shown. Heights are feet above sea level, ×${scale}.`),
+    );
+  }
+
   // ---- One frame -----------------------------------------------------------------------------------
   function render() {
     if (!gl || !wanted || disposed) return;
@@ -273,6 +416,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
       sceneDirty = false;
       if (selected && !airfields.some((a) => a.icao === selected && !a.outside)) select(null);
     }
+    if (modelDirty) rebuildModel();
     if (!groundDirty && getPictures().sig !== picturesSig) groundDirty = true;
     if (groundDirty) paintGround();
 
@@ -319,6 +463,14 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     for (const { el, p } of deckLabels) {
       const s = boxFor(el, 0, 0);
       put(el, clearOf({ ...s, x: p.x - 8 - s.w, y: p.y - s.h / 2 }));
+    }
+    for (const { el, group, point } of gl.model?.items ?? []) { // the model's words: the winds over home, then the freezing level
+      const on = toggles[group];
+      if (el.hidden === on) el.hidden = !on;
+      if (!on) continue;
+      const p = at(point);
+      const s = boxFor(el, 0, 0);
+      put(el, clearOf({ ...s, x: group === 'freezing' ? p.x - s.w - 6 : p.x + 8, y: p.y - s.h / 2 }));
     }
     const chosen = selected && pins.find((q) => q.field.icao === selected);
     if (chosen) {
@@ -494,6 +646,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     gl = { THREE, canvas, renderer, scene, camera, ctx, texture, ground, imagery, resizer, objects: null, palette: paletteFor(canvas) };
     sceneDirty = true;
     groundDirty = true;
+    modelDirty = true;
     tilesFailed = false;
     noTiles = false;
   }
@@ -506,6 +659,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     pinch = null;
     if (!gl) return;
     const { canvas, renderer, scene, texture, ground, imagery, resizer } = gl;
+    freeModel();
     freeObjects();
     for (const [type, fn] of hands) canvas.removeEventListener(type, fn);
     element.removeEventListener('wheel', onWheel);
@@ -592,12 +746,22 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
       if (sig === sceneSig) return;
       sceneSig = sig;
       sceneDirty = true;
+      applyModel(); // the ground's height or the scale may have changed: the model layers stand on the same ground
       if (selected) {
         const field = next.find((a) => a.icao === selected && !a.outside);
         if (field) setText(tag, `${field.icao}: ${field.result?.words ?? field.lines.join(', ')}`);
         else select(null);
       }
       requestRender();
+    },
+    /**
+     * What the model feed says now (model-clouds.js `createModelFeed().view()`, with the clock and home's time zone): { status: 'ok' | 'loading' |
+     * 'unavailable', model, lastGoodAt, now, timeZone }. The layers are built again only when the answer, the hour, the scale or the ground
+     * changed. With no usable answer they are taken away and the view says why.
+     */
+    setModel({ status = 'loading', model = null, lastGoodAt = null, now = new Date(), timeZone = null } = {}) {
+      modelState = { status, model, lastGoodAt, now, timeZone };
+      applyModel();
     },
     /** The 2D map's pictures or their fading may have changed: the ground is painted again if they did. */
     touch() {
