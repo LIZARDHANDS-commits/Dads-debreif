@@ -12,6 +12,10 @@
 //   Its words say so (⚠ and the area in its hover text), the colour is only the second cue.
 // - Size is on the screen, not in feet: at 250 NM across a real T-6 (33 ft) would be less than a pixel, so each is scaled by the camera's
 //   feet per pixel (`fit`), as the pins are. The sizes are estimates for readability (SOF-39), named below.
+// - Smoother traffic (Dad, 7 Oct): between answers `glide(items, nowMs)` moves each aircraft along its track at its ground speed (traffic-motion.js),
+//   only moving the objects that already exist. Each aircraft also trails a line behind it: the last couple of minutes of reported positions at their
+//   own heights, ending at the aircraft, fading from solid at the aircraft to clear at the end of the window (a vertex colour with alpha; a line is one
+//   pixel wide, so it is a thin fading thread). A T-6's is in the highlight colour, an intruder's amber, the rest muted.
 // - Stale aircraft fade with traffic.js's own opacity. Materials the CT-156 shares between ships are copied for each T-6 so fading one never
 //   fades another.
 //
@@ -20,6 +24,7 @@
 import { h } from '../../ui-kit/dom.js';
 import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT } from '../../ui-kit/ct156-model.js';
 import { createStandInMesh, disposeAircraftMesh } from '../../ui-kit/three-aircraft.js';
+import { glideXY, trailAlpha, TRAIL_WINDOW_S } from './traffic-motion.js';
 
 /** How long each kind is drawn on the screen, in CSS pixels, nose to tail. A T-6 is at least about 40 px (Dad, 7 Oct). Estimates, SOF-39. */
 export const SIZE_PX = Object.freeze({ t6: 44, other: 22, dot: 9 });
@@ -35,6 +40,12 @@ const RING_RADIUS_UNITS = 0.95;
 const HALO = Object.freeze({ inner: 0.86, opacity: 0.2, ringOpacity: 0.85 });
 
 const rad = (d) => (d * Math.PI) / 180;
+/** The most vertices a trail has: the reported positions of the window (one every few seconds) and the aircraft itself. A trail with more drops its oldest. */
+const TRAIL_MAX_POINTS = 64;
+const trailRgb = (T, hex) => {
+  const c = new T.Color(hex);
+  return [c.r, c.g, c.b];
+};
 
 /** Which model an aircraft gets: a T-6 the CT-156, one with a track a stand-in, one without a dot. */
 export const kindFor = (item) => (item.isT6 ? 'ct156' : item.trackDeg === null ? 'dot' : 'standin');
@@ -133,7 +144,7 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
       mats.push({ m: drop.material, opacity: 1, transparent: false, copied: false });
     }
     root.add(group);
-    const entry = { hex: item.hex, kind, group, model, ring, halo, drop, mats, unit, px, item, fade: 1, intruder: false, tagEl: null, screen: { x: 0, y: 0 } };
+    const entry = { hex: item.hex, kind, group, model, ring, halo, drop, mats, unit, px, item, fade: 1, intruder: false, tagEl: null, screen: { x: 0, y: 0 }, trail: null };
     entry.tagEl = h('button', {
       type: 'button',
       class: `sof-3d-actag${item.isT6 ? ' is-t6' : ''}${item.mil ? ' is-mil' : ''}`,
@@ -157,20 +168,78 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
     } else {
       entry.model.material.dispose();
     }
+    freeTrail(entry);
     entry.ring?.material.dispose();
     for (const part of entry.halo ?? []) part.material.dispose();
     entry.drop?.material.dispose();
     entry.tagEl.remove();
   }
 
+  const COLOUR_RGB = { t6: trailRgb(T, COLOURS.t6), mil: trailRgb(T, COLOURS.mil), other: trailRgb(T, COLOURS.other) };
+  const planeOf = { z: 0, scale: 1, groundFt: 0, trailsOn: true }; // what `set` last knew, for `glide`
+
+  function freeTrail(entry) {
+    if (!entry.trail) return;
+    root.remove(entry.trail.line);
+    entry.trail.line.geometry.dispose();
+    entry.trail.line.material.dispose();
+    entry.trail = null;
+  }
+
+  const zOf = (altFt) => (altFt === 'ground' || altFt === null || altFt === undefined || altFt <= planeOf.groundFt ? planeOf.z + LIFT_FT : altFt * planeOf.scale);
+
+  /**
+   * The trail of one aircraft for the moment `nowMs`: its reported positions in the window at their own heights, then the aircraft where it is now,
+   * each vertex solid to clear by its age. Only vertex buffers are rewritten; the line is made the first time it is wanted.
+   */
+  function drawTrail(entry, nowMs) {
+    const item = entry.item;
+    const points = planeOf.trailsOn ? (item.trail ?? []).filter((p) => nowMs - p.t <= TRAIL_WINDOW_S * 1000).slice(-(TRAIL_MAX_POINTS - 1)) : [];
+    if (points.length === 0) {
+      if (entry.trail) entry.trail.line.visible = false;
+      return;
+    }
+    if (!entry.trail) {
+      const geometry = new T.BufferGeometry();
+      geometry.setAttribute('position', new T.BufferAttribute(new Float32Array(TRAIL_MAX_POINTS * 3), 3));
+      geometry.setAttribute('color', new T.BufferAttribute(new Float32Array(TRAIL_MAX_POINTS * 4), 4));
+      const line = new T.Line(geometry, new T.LineBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false }));
+      line.frustumCulled = false; // its bounds are never worked out, and it is always near the aircraft
+      line.renderOrder = 2;
+      root.add(line);
+      entry.trail = { line };
+    }
+    const { line } = entry.trail;
+    const rgb = entry.item.mil ? COLOUR_RGB.mil : entry.item.isT6 ? COLOUR_RGB.t6 : COLOUR_RGB.other;
+    const colour = entry.intruder ? COLOUR_RGB.mil : rgb; // an intruder (not a T-6 in a watched area) is amber, whatever its kind
+    const pos = line.geometry.attributes.position;
+    const col = line.geometry.attributes.color;
+    let lastAlt = null;
+    points.forEach((p, i) => {
+      lastAlt = p.altFt ?? lastAlt;
+      pos.setXYZ(i, p.x, p.y, zOf(lastAlt));
+      col.setXYZW(i, colour[0], colour[1], colour[2], trailAlpha(p.t, nowMs));
+    });
+    const n = points.length;
+    pos.setXYZ(n, entry.group.position.x, entry.group.position.y, entry.group.position.z);
+    col.setXYZW(n, colour[0], colour[1], colour[2], 1);
+    pos.needsUpdate = true;
+    col.needsUpdate = true;
+    line.geometry.setDrawRange(0, n + 1);
+    line.material.opacity = entry.fade;
+    line.visible = true;
+  }
+
   return {
     /**
      * Brings the drawing in line with the items (scene3d-model.js `sceneTraffic`'s aircraft): new ones are made, known ones moved, and gone ones
      * freed. `scale` is the height scale, `groundFt` the ground the view draws (feet above sea level), `intruders` a Map from the hex id of each aircraft that is
-     * not a T-6 inside a watched area to the area(s) it is in ("CYA304"): each gets the amber ⚠ tag.
+     * not a T-6 inside a watched area to the area(s) it is in ("CYA304"): each gets the amber ⚠ tag. `nowMs` is the clock for gliding each aircraft
+     * to where it should be by now (see `glide`); `trailsOn` shows the trails (the items carry their positions).
      */
-    set(items, { scale, groundFt, intruders = new Map() }) {
+    set(items, { scale, groundFt, intruders = new Map(), nowMs = Date.now(), trailsOn = true }) {
       const planeZ = groundFt * scale;
+      Object.assign(planeOf, { z: planeZ, scale, groundFt, trailsOn });
       const seen = new Set();
       for (const item of items) {
         seen.add(item.hex);
@@ -188,16 +257,18 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
         const alt = item.altFt === 'ground' ? null : item.altFt;
         // A pressure altitude can read a little under the field's elevation: stand the aircraft on the ground rather than hide it under it.
         const z = alt === null || alt <= groundFt ? planeZ + LIFT_FT : alt * scale;
-        entry.group.position.set(item.x, item.y, z);
+        const here = glideXY(item, nowMs);
+        entry.group.position.set(here.x, here.y, z);
         entry.group.rotation.z = rad(90 - (item.trackDeg ?? 0));
         if (entry.drop) {
-          entry.drop.position.set(item.x, item.y, planeZ);
+          entry.drop.position.set(here.x, here.y, planeZ);
           entry.drop.scale.z = Math.max(1, z - planeZ);
         }
         applyFade(entry, item.opacity);
         const area = intruders.get(item.hex);
         entry.intruder = area !== undefined;
         entry.tagEl.classList.toggle('is-intruder', entry.intruder);
+        drawTrail(entry, nowMs);
         const words = entry.intruder ? `⚠ ${item.labelText}` : item.labelText;
         if (entry.tagEl.textContent !== words) entry.tagEl.textContent = words;
         const title = entry.intruder ? `Not a T-6, inside ${area}. Information only. Advisory area activity is not a SOF caution. Press to show this aircraft’s facts.` : 'Show this aircraft’s facts';
@@ -208,6 +279,27 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
         free(entry);
         entries.delete(hex);
       }
+    },
+    /**
+     * Moves each aircraft along its track to where it should be by `nowMs` (the items are the scene's latest, which may be newer than the ones `set` last
+     * drew; a hex without an object yet is skipped), and stretches its trail to meet it. Moves existing objects only. Returns how many were moved.
+     */
+    glide(items, nowMs) {
+      let moved = 0;
+      for (const item of items) {
+        const entry = entries.get(item.hex);
+        if (!entry || !Number.isFinite(item.vx)) continue;
+        const here = glideXY(item, nowMs);
+        entry.group.position.x = here.x;
+        entry.group.position.y = here.y;
+        if (entry.drop) {
+          entry.drop.position.x = here.x;
+          entry.drop.position.y = here.y;
+        }
+        drawTrail(entry, nowMs);
+        moved += 1;
+      }
+      return moved;
     },
     /** The camera's scene feet per screen pixel: each aircraft is scaled to its size on the screen. */
     fit(ftPerPx) {

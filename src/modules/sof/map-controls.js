@@ -17,7 +17,7 @@ const setText = (el, text) => {
 
 /**
  * handlers: { onLayer(id, on), onOpacity(id, percent), onBase(id), onPrecip('rain' | 'snow'), onHome(),
- * onZoom(factor), onAdsb(on), onThree(on), threeReason(), onTraffic(on), onTrafficLabel(id), onMilitaryOnly(on) }.
+ * onZoom(factor), onAdsb(on), onThree(on), threeReason(), onTraffic(on), onTrafficLabel(id), onMilitaryOnly(on), onTrails(on) }.
  * `threeReason()` is asked the first time the 3D button is hovered, focused or pressed: why 3D cannot be used here (a sentence), or
  * null when it can. The button stays in the bar either way (SPEC-sof, "3D view").
  * Returns { bar, panel, status, legend, credits, note, sync(state), setStatus(items), setCredits(text),
@@ -60,8 +60,10 @@ export function createMapControls(handlers) {
   three.addEventListener('pointerenter', probeThree);
   three.addEventListener('focus', probeThree);
   const traffic = h('button', { type: 'button', class: 'sof-map-btn', 'aria-pressed': 'false', hidden: true, onclick: () => handlers.onTraffic(traffic.getAttribute('aria-pressed') !== 'true') }, 'Traffic');
+  // The fading line behind each aircraft, in 2D and in 3D (Dad, 7 Oct): shown with the Traffic button, on to begin with.
+  const trails = h('button', { type: 'button', class: 'sof-map-btn', 'aria-pressed': 'true', hidden: true, title: 'A fading line behind each aircraft: its last 2 minutes of reported positions', onclick: () => handlers.onTrails(trails.getAttribute('aria-pressed') !== 'true') }, 'Trails');
   // The Layers menu (`panel`, below) is put in the bar straight after its button, so Tab goes from the button into the menu (F8).
-  const bar = h('div', { class: 'sof-map-bar', role: 'toolbar', 'aria-label': 'Map controls' }, layersButton, home, zoomIn, zoomOut, precipField, traffic, three, threeWhy, adsb);
+  const bar = h('div', { class: 'sof-map-bar', role: 'toolbar', 'aria-label': 'Map controls' }, layersButton, home, zoomIn, zoomOut, precipField, traffic, trails, three, threeWhy, adsb);
 
   // ---- The Layers menu ------------------------------------------------------------------------------
   const baseRadios = new Map();
@@ -206,6 +208,8 @@ export function createMapControls(handlers) {
       vncSlider.disabled = layers.base !== 'vnc-satellite';
       if (precip.value !== layers.precip) precip.value = layers.precip;
       traffic.hidden = !relay;
+      trails.hidden = !relay || layers.on.traffic !== true; // only while there are aircraft to trail
+      trails.setAttribute('aria-pressed', String(layers.traffic.trails !== false));
       trafficOptions.hidden = !relay;
       if (labelSelect.value !== layers.traffic.label) labelSelect.value = layers.traffic.label;
       if (milBox.checked !== layers.traffic.militaryOnly) milBox.checked = layers.traffic.militaryOnly;
@@ -216,6 +220,7 @@ export function createMapControls(handlers) {
       // Under ADS-B Exchange's own map these do nothing, so they are switched off rather than left to look live.
       // (The Layers menu stays: its choices are kept for when the view is switched back.)
       for (const el of [precip, home, zoomIn, zoomOut]) el.disabled = adsbOn;
+      trails.disabled = adsbOn;
       traffic.disabled = adsbOn; // the same switch drives the 2D layer and the 3D view's aircraft
     },
     /** Items: [{ id, text, symbol, tone }]. Rows are kept and only their words change. */

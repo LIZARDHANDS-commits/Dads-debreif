@@ -41,6 +41,7 @@ import { createTraffic3d } from './traffic3d.js';
 import { AIRSPACE } from './airspace-data.js';
 import { buildAirspace, AIRSPACE_GROUPS, KIND_COLOURS } from './airspace3d.js';
 import { buildAirports, RUNWAY_MIN_PX } from './airports3d.js';
+import { GLIDE_3D_MS, TRAIL_WINDOW_S } from './traffic-motion.js';
 import { AIRPORTS } from './airports-data.js';
 import { checkedAirspace, KIND_WORDS, tacnavNote, AIRSPACE_FILL_OPACITY, VIEW_TOP_FT } from './airspace-model.js';
 import {
@@ -87,12 +88,13 @@ const isColour = (v) => typeof v === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d\s.
  * square), getPictures() (the 2D map's pictures: { sig, list: [{ image, bbox, alpha }] }, read when it draws), onLost() (the graphics
  * context was lost: the caller goes back to 2D), routes (the TACNAV routes to draw, from the Debrief's `ROUTES` as `map.js` gives them:
  * { name, paths: [[[lon, lat], ...]] }), airspace (the entries to draw, airspace-data.js `AIRSPACE` unless a test gives its own), onAirspaceLogOptions
- * ({ showT6, showAll }: the log panel's two ticks changed), win }.
+ * ({ showT6, showAll }: the log panel's two ticks changed), now() (the clock in milliseconds, for gliding the aircraft between answers), onTrails(on)
+ * (the Trails button was pressed), win }.
  * Returns { element, show(), hide(), setScene({ airfields, heightScale }), setModel({ status, model, lastGoodAt, now, timeZone }), setAirspaceLog(view),
  * touch(), home(), zoomBy(factor), isShown(), dispose() }.
  * `show()` resolves { ok: true } or { ok: false, reason: 'gl' | 'load' | 'closed' }.
  */
-export function createSofView3d({ timers, getProjection, getPictures, onLost = () => {}, routes = [], airspace = AIRSPACE, onAirspaceLogOptions = /** @type {(options: { showT6: boolean, showAll: boolean }) => void} */ (() => {}), win = globalThis }) {
+export function createSofView3d({ timers, getProjection, getPictures, onLost = () => {}, routes = [], airspace = AIRSPACE, onAirspaceLogOptions = /** @type {(options: { showT6: boolean, showAll: boolean }) => void} */ (() => {}), now = () => Date.now(), onTrails = /** @type {(on: boolean) => void} */ (() => {}), win = globalThis }) {
   const labels = h('div', { class: 'sof-3d-labels' });
   // The airspace volume under the pointer: its name and limits float beside the pointer (Dad, 7 Oct); nothing is written on the volumes themselves.
   const spaceTip = h('p', { class: 'sof-3d-space-tip', hidden: true });
@@ -169,6 +171,16 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     }, text);
     spaceButtons.set(key, button);
   }
+  // Trails (Dad, 7 Oct): shown only while the aircraft are; the same choice as the map bar's Trails button.
+  const trailsButton = h('button', {
+    type: 'button',
+    class: 'sof-3d-toggle',
+    title: `A fading line behind each aircraft: its last ${TRAIL_WINDOW_S / 60} minutes of reported positions, at their own heights`,
+    'aria-pressed': 'true',
+    hidden: true,
+    onclick: () => onTrails(trailsButton.getAttribute('aria-pressed') !== 'true'),
+  }, 'Trails');
+  spaceButtons.set('trails', trailsButton);
   const spaceKeyBody = h('div', { class: 'sof-3d-model-key-body' });
   const spaceKey = h('details', { class: 'sof-3d-model-key' }, h('summary', {}, 'Airspace key'), spaceKeyBody);
   const spacePanel = h('div', { class: 'sof-3d-model sof-3d-space', role: 'group', 'aria-label': 'Airspace and TACNAV routes' },
@@ -212,7 +224,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
   let modelSig = '';
   let modelDirty = true;
   let layerChoice = 'all'; // the Layer picker: 'all', or a pressure level as text ('850')
-  let trafficState = { shown: false, aircraft: [], labelsOn: false, signature: 'off' }; // what the map last gave setTraffic
+  let trafficState = { shown: false, aircraft: [], labelsOn: false, trailsOn: false, signature: 'off' }; // what the map last gave setTraffic
   let trafficSig = '';
   let trafficDirty = true;
   let spaceSig = ''; // what the airspace objects were built for: the height scale, the ground and home
@@ -656,12 +668,33 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
   }
 
   // ---- The aircraft (phase 4) ---------------------------------------------------------------------------
+  // Gliding (Dad, 7 Oct): between the relay's answers each aircraft is moved along its track at its ground speed. It runs on the scheduler's frame,
+  // but acts at most every GLIDE_3D_MS (about ten a second), moves only objects that already exist, and then asks for one picture. It exists only while the
+  // Traffic layer is on and the view is shown, and ends with the view (teardown) or when the layer goes off.
+  let stopGlide = null;
+  function syncGlide() {
+    const should = Boolean(gl) && wanted && !disposed && trafficState.shown === true && trafficState.aircraft.some((a) => Number.isFinite(a.vx));
+    if (!should) {
+      stopGlide?.();
+      stopGlide = null;
+      return;
+    }
+    if (stopGlide) return;
+    let waited = GLIDE_3D_MS; // the first frame acts
+    stopGlide = timers.frame((dt) => {
+      waited += dt;
+      if (waited < GLIDE_3D_MS || !gl || !wanted) return;
+      waited = 0;
+      if (gl.traffic.glide(trafficState.aircraft, +now()) > 0) requestRender();
+    });
+  }
+
   /** Brings the aircraft objects in line with what the map last gave setTraffic (they are made, moved and freed in traffic3d.js). */
   function syncTraffic() {
     trafficDirty = false;
     if (!gl) return;
     const items = trafficState.shown ? trafficState.aircraft : [];
-    gl.traffic.set(items, { scale, groundFt: groundFt(), intruders: intruderHexes });
+    gl.traffic.set(items, { scale, groundFt: groundFt(), intruders: intruderHexes, nowMs: +now(), trailsOn: trafficState.trailsOn === true });
     if (hoverHex && !gl.traffic.get(hoverHex)) hoverHex = null;
     if (selectedAc && !gl.traffic.get(selectedAc)) selectAircraft(null);
     else if (selectedAc) setText(acTag, gl.traffic.get(selectedAc).item.description);
@@ -1160,6 +1193,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     tilesFailed = false;
     noTiles = false;
     syncFull(); // the button's words for a fresh start
+    syncGlide();
     if (orbitOn) { // Orbit was pressed while three.js was still loading
       orbitOn = false;
       setOrbit(true);
@@ -1168,6 +1202,8 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
 
   function teardown({ lost = false } = {}) {
     setOrbit(false); // no loop outlives the view
+    stopGlide?.();
+    stopGlide = null;
     clearSpaceMove();
     exitFullScreen();
     pending?.();
@@ -1290,16 +1326,19 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
       applyModel();
     },
     /**
-     * The live aircraft (scene3d-model.js `sceneTraffic`): { shown, statusText, aircraft, labelsOn, signature }. The aircraft are drawn again
+     * The live aircraft (scene3d-model.js `sceneTraffic`): { shown, statusText, aircraft, labelsOn, trailsOn, signature }. The aircraft are drawn again
      * only when the signature differs; the words and the credit follow at once. With the layer off (`shown` false) none are drawn, and with the
      * relay failing the 2D layer's own fade has already taken them away.
      */
-    setTraffic(next = { shown: false, aircraft: [], labelsOn: false, signature: 'off' }) {
+    setTraffic(next = { shown: false, aircraft: [], labelsOn: false, trailsOn: false, signature: 'off' }) {
       trafficState = next;
       trafficStatus.hidden = !next.shown;
       setText(trafficStatus, next.shown ? next.statusText : '');
       trafficStatus.classList.toggle('is-bad', next.shown && next.status === 'unavailable');
       setText(credit, creditWords(next.shown));
+      trailsButton.hidden = !next.shown;
+      trailsButton.setAttribute('aria-pressed', String(next.trailsOn === true));
+      syncGlide();
       if (next.signature === trafficSig) return;
       trafficSig = next.signature;
       trafficDirty = true;

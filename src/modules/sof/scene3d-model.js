@@ -6,6 +6,7 @@
 // and nothing in it raises or clears a caution.
 import { FT_PER_NM } from './map-view.js';
 import { AIRPORTS } from './airports-data.js';
+import { velocityFt } from './traffic-motion.js';
 
 /** The square the view shows: 250 NM on a side, centred on home, so the usual alternates (CYYN, CYXE about 110 NM out) are inside (SOF-39). */
 export const AREA_NM = 250;
@@ -175,11 +176,16 @@ export function tagWords(a, label = 'off') {
  * - Opacity is traffic.js's own stale fade, and an aircraft the 2D layer has dropped (too old) is gone here too: nothing is frozen.
  * - T-6s ('TEX2') come first, then the relay's order, up to MAX_3D_AIRCRAFT; the words say when some are left out.
  *
- * Returns { shown, status, statusText, aircraft: [{ hex, x, y, altFt, trackDeg, opacity, mil, isT6, name, tag, labelText, description }], noAltitude,
- * leftOut, labelsOn (the Labels choice is not 'off': every tag shows), signature }; `shown` is false when the layer is off.
+ * Smoother traffic (Dad, 7 Oct): `x` and `y` are where the aircraft was reported; `vx` and `vy` (feet a second east and north, from its track and
+ * ground speed; null when it cannot be glided) with `ageS` (the report's age at `t0`, which is `now` in milliseconds) let the view put it where it
+ * should be by now (traffic-motion.js `glideXY`). `trails` is the memory of reported positions (`createTrails`) and `trailsOn` the Trails choice: each
+ * aircraft then carries `trail`, [{ x, y, altFt, t }] oldest first, the positions of the last couple of minutes (t in ms).
+ *
+ * Returns { shown, status, statusText, aircraft: [{ hex, x, y, vx, vy, ageS, t0, trail, altFt, trackDeg, opacity, mil, isT6, name, tag, labelText, description }],
+ * noAltitude, leftOut, labelsOn (the Labels choice is not 'off': every tag shows), trailsOn, signature }; `shown` is false when the layer is off.
  */
-export function sceneTraffic({ view, toXY, label = 'off', max = MAX_3D_AIRCRAFT } = /** @type {any} */ ({})) {
-  if (!view || view.show !== true) return { shown: false, status: view?.status ?? 'off', statusText: '', aircraft: [], noAltitude: 0, leftOut: 0, labelsOn: false, signature: 'off' };
+export function sceneTraffic({ view, toXY, label = 'off', max = MAX_3D_AIRCRAFT, now = null, trails = null, trailsOn = false } = /** @type {any} */ ({})) {
+  if (!view || view.show !== true) return { shown: false, status: view?.status ?? 'off', statusText: '', aircraft: [], noAltitude: 0, leftOut: 0, labelsOn: false, trailsOn: false, signature: 'off' };
   const drawable = [];
   let noAltitude = 0;
   for (const a of view.aircraft ?? []) {
@@ -193,10 +199,19 @@ export function sceneTraffic({ view, toXY, label = 'off', max = MAX_3D_AIRCRAFT 
   const leftOut = Math.max(0, ordered.length - max);
   const aircraft = ordered.slice(0, max).map((a) => {
     const [x, y] = toXY(a.lat, a.lon);
+    const v = Number.isFinite(now) ? velocityFt(a) : null;
     return {
       hex: a.hex,
       x,
       y,
+      vx: v ? v.vx : null,
+      vy: v ? v.vy : null,
+      ageS: a.ageS,
+      t0: Number.isFinite(now) ? now : null,
+      trail: trailsOn && trails ? trails.get(a.hex).map((p) => {
+        const [tx, ty] = toXY(p.lat, p.lon);
+        return { x: tx, y: ty, altFt: p.alt, t: p.t };
+      }) : [],
       altFt: a.altitudeFt,
       trackDeg: a.hasTrack ? a.rotationDeg : null,
       opacity: a.opacity,
@@ -212,8 +227,8 @@ export function sceneTraffic({ view, toXY, label = 'off', max = MAX_3D_AIRCRAFT 
   if (noAltitude) notes.push(`${noAltitude} without a height not drawn`);
   if (leftOut) notes.push(`nearest ${max} drawn`);
   const statusText = notes.length ? `${view.statusText} (${notes.join(', ')})` : view.statusText;
-  const rows = aircraft.map((a) => [a.hex, Math.round(a.x), Math.round(a.y), a.altFt, a.trackDeg === null ? '' : Math.round(a.trackDeg), a.opacity, a.mil ? 1 : 0, a.tag, a.labelText].join(','));
-  return { shown: true, status: view.status, statusText, aircraft, noAltitude, leftOut, labelsOn: label !== 'off', signature: `${view.status}|${label !== 'off'}|${rows.join(';')}` }; // the words change with the clock, the drawing only when an aircraft does
+  const rows = aircraft.map((a) => [a.hex, Math.round(a.x), Math.round(a.y), a.altFt, a.trackDeg === null ? '' : Math.round(a.trackDeg), a.opacity, a.mil ? 1 : 0, a.tag, a.labelText, a.trail.length, a.trail.at(-1)?.t ?? ''].join(','));
+  return { shown: true, status: view.status, statusText, aircraft, noAltitude, leftOut, labelsOn: label !== 'off', trailsOn, signature: `${view.status}|${label !== 'off'}|${trailsOn}|${rows.join(';')}` }; // the words change with the clock, the drawing only when an aircraft does
 }
 
 // ---- The camera -----------------------------------------------------------------------------------

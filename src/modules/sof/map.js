@@ -31,7 +31,8 @@ import {
   cleanLayers, setLayerOn, setLayerOpacity, setBase, setPrecip, setTrafficOption, stackOrder, baseLayers, BASE_DIM,
 } from './map-layers.js';
 import { airfieldMarks, mapCredits, baseNote, statusItems, nearHomeItem, legendItems } from './map-model.js';
-import { drawGeoImage, drawRings, drawAirfields, drawTraffic } from './map-draw.js';
+import { drawGeoImage, drawRings, drawAirfields, drawTraffic, drawTrails } from './map-draw.js';
+import { createTrails, glideLatLon, canGlide, GLIDE_2D_MS } from './traffic-motion.js';
 import { createMapControls } from './map-controls.js';
 import { createAdsbFrame, adsbExchangeUrl, zoomForScale } from './adsbx.js';
 import { webglSupported } from '../../ui-kit/three-aircraft.js';
@@ -89,6 +90,10 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
   let trafficSig = '';
   const airspaceLog = createAirspaceLog(); // who is in the watched advisory areas; reads each new traffic answer once (airspace-log.js), information only
   let logAnswer = null; // when the traffic answer the log last read arrived
+  const trailMemory = createTrails(); // the last couple of minutes of each aircraft's reported positions, for the fading trails (2D and 3D)
+  let trailAnswer = null; // when the traffic answer the trails last took arrived
+  let intruderHexes = new Map(); // the aircraft that are not T-6s inside a watched area (the log's), whose trails are amber
+  let cancelGlide2d = null; // the 2D layer's once-a-second redraw while aircraft glide
   let logVolumes = null; // { key, volumes }: the airspace checked for home's elevation
   let lastRadius = null;
   let lastRelay = null;
@@ -137,6 +142,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     onTraffic: (on) => change(setLayerOn(layers, 'traffic', on)),
     onTrafficLabel: (label) => change(setTrafficOption(layers, { label })),
     onMilitaryOnly: (militaryOnly) => change(setTrafficOption(layers, { militaryOnly })),
+    onTrails: (trails) => change(setTrafficOption(layers, { trails })), // one choice for the 2D layer and the 3D view
   });
 
   // The 3D view reads the 2D map's own pictures (radar, lightning) and its projection, so nothing is fetched twice.
@@ -146,6 +152,8 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     getPictures: pictures3d,
     routes: tacnavRoutes(ROUTES), // the Debrief's routes with TAC in the name, drawn at 500 ft above the ground in 3D (SOF-39 phase 3)
     onAirspaceLogOptions: (options) => airspaceLog.setOptions(options), // the panel's two ticks: what the log records from now on
+    now: () => +now(),
+    onTrails: (trails) => change(setTrafficOption(layers, { trails })),
     onLost() {
       if (!threeOn) return;
       threeOn = false;
@@ -234,6 +242,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     ...shared,
     onChange() {
       updateAirspaceLog();
+      updateTrails();
       const v = trafficFeed.view();
       if (v.signature !== trafficSig) {
         trafficSig = v.signature;
@@ -380,7 +389,13 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
           hits.airfields = drawAirfields(ctx, marks, project, pal, size);
           break;
         case 'traffic':
-          hits.traffic = drawTraffic(ctx, trafficFeed.view(t).aircraft, project, pal, size, selectedHex);
+          // Between answers each aircraft is drawn where its track and ground speed put it by now (traffic-motion.js), with its fading trail behind it.
+          const list = trafficFeed.view(t).aircraft.map((a) => {
+            const g = glideLatLon(a);
+            return g.glided ? { ...a, lat: g.lat, lon: g.lon } : a;
+          });
+          if (layers.traffic.trails !== false) drawTrails(ctx, list, trailMemory, project, pal, size, +t, intruderHexes);
+          hits.traffic = drawTraffic(ctx, list, project, pal, size, selectedHex);
           break;
         default:
       }
@@ -473,6 +488,12 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     radar.enable(on.radar);
     for (const id of Object.keys(feeds)) feeds[id].enable(on[id]);
     trafficFeed.setOn(on.traffic && relayOn() && !adsbOn);
+    const gliding = on.traffic && relayOn() && !adsbOn;
+    if (gliding && !cancelGlide2d) cancelGlide2d = timers.every(GLIDE_2D_MS, glide2dTick);
+    else if (!gliding && cancelGlide2d) {
+      cancelGlide2d();
+      cancelGlide2d = null;
+    }
     if (!on.traffic || !relayOn() || adsbOn || threeOn) { // the 2D hover and keyboard hits: not while the 2D canvas is hidden
       selectedHex = null;
       hits.traffic = [];
@@ -545,7 +566,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
    */
   function pushTraffic() {
     if (!threeOn || disposed) return;
-    view3d.setTraffic(sceneTraffic({ view: trafficFeed.view(now()), toXY: projection.toXY, label: layers.traffic.label }));
+    view3d.setTraffic(sceneTraffic({ view: trafficFeed.view(now()), toXY: projection.toXY, label: layers.traffic.label, now: +now(), trails: trailMemory, trailsOn: layers.traffic.trails !== false }));
   }
 
   /**
@@ -571,7 +592,30 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
       const answer = layerModel({ reply: st.lastGood, receivedAt: st.receivedAt, now: st.receivedAt, militaryOnly: false });
       airspaceLog.update({ aircraft: answer.aircraft, volumes: logVolumes.volumes, groundFt, at: st.receivedAt });
     }
-    view3d.setAirspaceLog(airspaceLog.view());
+    const logView = airspaceLog.view();
+    intruderHexes = logView.hexes;
+    view3d.setAirspaceLog(logView);
+  }
+
+  /** The trails take each new traffic answer once; with the layer off (or the relay not in use) they are forgotten, so nothing old comes back. */
+  function updateTrails() {
+    if (disposed) return;
+    const st = trafficFeed.state();
+    if (!layers.on.traffic || !relayOn() || adsbOn || !st.on || !st.lastGood) {
+      trailMemory.clear();
+      trailAnswer = null;
+      return;
+    }
+    if (st.receivedAt === trailAnswer) return;
+    trailAnswer = st.receivedAt;
+    const answer = layerModel({ reply: st.lastGood, receivedAt: st.receivedAt, now: st.receivedAt, militaryOnly: false });
+    trailMemory.record(answer.aircraft, st.receivedAt);
+  }
+
+  /** The 2D layer is redrawn once a second while an aircraft glides (and its trail ages); nothing runs while the layer is off or another view has the map. */
+  function glide2dTick() {
+    if (disposed || threeOn || adsbOn || document.hidden) return;
+    if (trafficFeed.view(now()).aircraft.some(canGlide)) view.requestDraw();
   }
 
   /** The pictures the 2D map already holds, for the 3D ground: ECCC radar and lightning, with the same stale fading. Not fetched again. */
@@ -813,6 +857,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
       for (const feed of Object.values(feeds)) feed.stop();
       watch.stop();
       trafficFeed.stop();
+      cancelGlide2d?.();
       cancelNotice?.();
       modelFeed.stop();
       view3d.dispose();

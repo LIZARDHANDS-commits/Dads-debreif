@@ -26,7 +26,10 @@ const MAX_REPLY_CHARS = 1.25 * 1024 * 1024; // the relay's own cap is 1 MB
 /**
  * The layer's fixed numbers and starting options.
  * - nm: search radius, V6's 100 NM (the relay takes 5 to 150).
- * - refreshMs: V6's 10 s.
+ * - refreshMs: 5 s (Dad, 7 Oct: "how fast can we update"; V6 asked every 10 s). The relay keeps each answer for 5 s (relay/lib.js), so
+ *   asking faster would only get the same answer back, and asking every 5 s gets a fresh one each time. Netlify calls, an estimate: one open
+ *   tab asks 12 times a minute, 720 an hour, about 7,200 in a 10-hour day (each extra open tab adds its own share). Between answers the
+ *   aircraft glide along their tracks (traffic-motion.js), so 5 s looks smooth.
  * - fadeStartS: positions older than this are stale (V6, 20 s); they fade over the next
  *   (fadeEndS - fadeStartS) seconds down to minOpacity, and are gone after goneAfterS
  *   (not in the spec, chosen so a failed relay never leaves frozen aircraft for long).
@@ -38,7 +41,7 @@ const MAX_REPLY_CHARS = 1.25 * 1024 * 1024; // the relay's own cap is 1 MB
  */
 export const TRAFFIC_DEFAULTS = Object.freeze({
   nm: 100,
-  refreshMs: 10 * SECOND_MS,
+  refreshMs: 5 * SECOND_MS, // the relay's own cache time: see the note above
   fadeStartS: 20,
   fadeEndS: 40,
   goneAfterS: 60,
@@ -367,7 +370,7 @@ export function trafficRequested(state, { now } = {}) {
 const answers = (state, id) => state?.on === true && state.pendingId !== null && id === state.pendingId;
 
 /**
- * A failed request: keep the last good aircraft (they fade and go), try again in 10 s. `id` is the
+ * A failed request: keep the last good aircraft (they fade and go), try again after refreshMs. `id` is the
  * `pendingId` of the request; an answer to any other request, or while off, is ignored.
  * @param {any} state
  * @param {{ now?: any, id?: any }} [input]
