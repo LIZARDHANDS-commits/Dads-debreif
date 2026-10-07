@@ -65,7 +65,8 @@ The same relay also runs as a Netlify Function: `netlify/functions/traffic.mjs` 
 
 - `GET /notam?sites=CYMJ,CYQR` (1 to 8 ICAO ids): NOTAMs from NAV CANADA's flight weather site (`plan.navcanada.ca/weather/api/alpha/`), rebuilt as `{ source, fetched, sites, notams: [{ id, location, start, end, raw }] }`, kept 5 minutes. A page cannot read NAV CANADA directly (no CORS header). NAV CANADA's terms for automated reading of that site were not found on 7 Oct; Patrick to confirm before daily use.
 - `GET /fronts`: the US Weather Prediction Center's coded surface fronts bulletin (CODSUS, public domain, `tgftp.nws.noaa.gov`), parsed to `{ valid, highs, lows, fronts: [{ type: COLD|WARM|STNRY|OCFNT|TROF, points: [[lat, lon], ...] }] }`, kept 15 minutes. Positions are whole degrees, as the bulletin codes them.
-- Netlify functions `netlify/functions/notam.mjs` and `fronts.mjs`; same allowed origins and rules as `/traffic`. Live at `https://dads-sof-relay.netlify.app/notam` and `/fronts` since 7 Oct.
+- `GET /alerts?sites=CYMJ,CYQR` (1 to 8 ICAO ids): SIGMETs, AIRMETs and PIREPs near those sites from the same NAV CANADA source, as `{ alerts: [{ kind, location, start, end, text }] }`, kept 5 minutes. On 7 Oct none were in force near Moose Jaw; PIREPs seen elsewhere carry their position and level in the text.
+- Netlify functions `netlify/functions/notam.mjs`, `alerts.mjs` and `fronts.mjs`; same allowed origins and rules as `/traffic`. Live at `https://dads-sof-relay.netlify.app/notam` and `/fronts` since 7 Oct.
 
 ## Credit and terms for adsb.lol
 

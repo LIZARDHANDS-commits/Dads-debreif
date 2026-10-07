@@ -1,6 +1,7 @@
 // Two more relay answers for the SOF (Dad, 7 Oct 2026), beside the traffic one in lib.js:
 //   GET /notam?sites=CYMJ,CYQR   NOTAMs from NAV CANADA's flight weather site (plan.navcanada.ca), which a page cannot read
 //                                directly (no CORS header, seen 7 Oct 2026).
+//   GET /alerts?sites=CYMJ,...   SIGMETs, AIRMETs and PIREPs near those sites from the same NAV CANADA source.
 //   GET /fronts                  The US Weather Prediction Center's coded surface fronts bulletin (CODSUS), public domain,
 //                                from tgftp.nws.noaa.gov; also unreadable by a page directly.
 // Same rules as the traffic relay: only fixed upstream addresses, checked query values, size caps, every upstream field
@@ -99,6 +100,42 @@ export function parseCodsus(text) {
   return out;
 }
 
+const ALERT_KINDS = Object.freeze(['sigmet', 'airmet', 'pirep']);
+const LOCATION = /^[A-Z0-9]{4,12}$/;
+
+/**
+ * SIGMETs, AIRMETs and PIREPs rebuilt: [{ kind, location, start, end, text }]. The text is kept as plain text for the page to read
+ * (a PIREP's position and level are in it); NAV CANADA gives SIGMET and AIRMET text the same way (not seen live on 7 Oct, when
+ * none were in force, so a JSON-wrapped text is also accepted).
+ */
+export function trimAlerts(upstream) {
+  if (!upstream || typeof upstream !== 'object' || !Array.isArray(upstream.data)) return null;
+  const out = [];
+  for (const n of upstream.data.slice(0, 2000)) {
+    if (!n || !ALERT_KINDS.includes(n.type)) continue;
+    let text = typeof n.text === 'string' ? n.text : null;
+    if (text && text.trim().startsWith('{')) {
+      try {
+        const inner = JSON.parse(text);
+        text = typeof inner?.raw === 'string' ? inner.raw : typeof inner?.text === 'string' ? inner.text : null;
+      } catch {
+        text = null;
+      }
+    }
+    text = cleanText(text);
+    if (!text) continue;
+    out.push({
+      kind: n.type,
+      location: typeof n.location === 'string' && LOCATION.test(n.location) ? n.location : null,
+      start: typeof n.startValidity === 'string' && ISO.test(n.startValidity) ? n.startValidity : null,
+      end: typeof n.endValidity === 'string' && ISO.test(n.endValidity) ? n.endValidity : null,
+      text,
+    });
+    if (out.length >= MAX_NOTAMS) break;
+  }
+  return out;
+}
+
 async function ask(fetchFn, url) {
   const signal = typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(TIMEOUT_MS) : undefined;
   const res = await fetchFn(url, { method: 'GET', headers: { 'user-agent': USER_AGENT }, redirect: 'manual', signal });
@@ -125,6 +162,7 @@ function memo(ttlMs, now) {
 export function createWxHandler({ fetch: fetchFn = globalThis.fetch, now = Date.now } = {}) {
   const notams = memo(NOTAM_CACHE_MS, now);
   const fronts = memo(FRONTS_CACHE_MS, now);
+  const alerts = memo(NOTAM_CACHE_MS, now);
   return async function handle(request, env = {}) {
     try {
       const sent = request.headers.get('origin');
@@ -152,6 +190,28 @@ export function createWxHandler({ fetch: fetchFn = globalThis.fetch, now = Date.
           if (!list) return reply(502, { error: 'upstream reply unusable' }, { origin });
           body = JSON.stringify({ source: 'NAV CANADA', fetched: now(), sites: q.sites, notams: list });
           notams.put(key, body);
+        }
+        return reply(200, body, { origin, cache: 'public, max-age=60' });
+      }
+
+      if (url.pathname === '/alerts') {
+        const q = parseSites(url);
+        if (!q.ok) return reply(400, { error: q.error }, { origin });
+        const key = q.sites.join(',');
+        let body = alerts.get(key);
+        if (!body) {
+          const list = [];
+          try {
+            for (const kind of ALERT_KINDS) {
+              const part = trimAlerts(JSON.parse(await ask(fetchFn, `${NOTAM_UPSTREAM}?${q.sites.map((s) => `site=${s}`).join('&')}&alpha=${kind}`)));
+              if (!part) return reply(502, { error: 'upstream reply unusable' }, { origin });
+              list.push(...part);
+            }
+          } catch {
+            return reply(502, { error: 'upstream unavailable' }, { origin });
+          }
+          body = JSON.stringify({ source: 'NAV CANADA', fetched: now(), sites: q.sites, alerts: list });
+          alerts.put(key, body);
         }
         return reply(200, body, { origin, cache: 'public, max-age=60' });
       }
