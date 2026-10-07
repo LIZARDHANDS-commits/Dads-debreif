@@ -535,7 +535,7 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
   if (best && vertical) {
     for (const upFt of TURNING_REJOIN.verticalUpFt) {
       const flown = flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, upFt, minG: verticalMinG, overshoot: best.overshoot, xLaw, hardSec: best.hardSec, allowAcross: best.allowAcross, maxWhenLow: best.maxWhenLow, limitSec: best.durationSec - BETTER_BY_SEC });
-      if (flown && flown.durationSec < best.durationSec - BETTER_BY_SEC) best = { ...flown, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, hardSec: best.hardSec, upFt, allowAcross: best.allowAcross, maxWhenLow: best.maxWhenLow };
+      if (flown && flown.run?.stepDownOk !== false && flown.durationSec < best.durationSec - BETTER_BY_SEC) best = { ...flown, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, hardSec: best.hardSec, upFt, allowAcross: best.allowAcross, maxWhenLow: best.maxWhenLow };
     }
   }
   return best;

@@ -198,7 +198,8 @@ export function rejoinLinePhase(options) {
     const ratio = W.tasFtps / W.kias;
     if (lagging && placeKias != null && !st.zoom) st.zoom = { t0: t, alt: [W.altAboveFt], climb: [W.climbFtps ?? 0], nz: [1] };
     const perFtps = climbCostKtps(W, 1);
-    const roomUpFt = Math.max(0, L.altAboveFt + coneUpFtNow() - W.altAboveFt);
+    const maxAllowedAlt = r < 2000 ? L.altAboveFt : L.altAboveFt + coneUpFtNow();
+    const roomUpFt = Math.max(0, maxAllowedAlt - W.altAboveFt);
     const zoomFtps = st.zoom ? Math.min(FW_BUBBLE.diveFtps, Math.sqrt(2 * FW_BUBBLE.pullFtps2 * roomUpFt)) : 0;
     const zoomKtps = zoomFtps * perFtps;
     const leastKias = st.zoom && roomUpFt > 1 ? Math.min(floorKias, placeKias) : floorKias;
@@ -247,7 +248,14 @@ export function rejoinLinePhase(options) {
     let stepProfile = profile;
     if (st.zoom) {
       const v0 = W.climbFtps ?? 0;
-      const wantZ = aCmd < 0 ? Math.min(zoomFtps, -aCmd / perFtps) : 0;
+      let wantZ = aCmd < 0 && r >= 2500 ? Math.min(zoomFtps, -aCmd / perFtps) : 0;
+      const targetAlt = L.altAboveFt - 30; // lineUpFt below Lead
+      if (r < 2500 || (aCmd >= 0 && W.altAboveFt > targetAlt)) {
+        const diveFt = W.altAboveFt - targetAlt;
+        if (diveFt > 0) {
+          wantZ = -Math.min(FW_BUBBLE.diveFtps, diveFt * FW_BUBBLE.altGain);
+        }
+      }
       const v1 = v0 + Math.max(-FW_BUBBLE.pullFtps2 * dt, Math.min(FW_BUBBLE.pullFtps2 * dt, wantZ - v0));
       const nz = 1 + (v1 - v0) / dt / G_FTPS2;
       const a1 = W.altAboveFt + ((v0 + v1) / 2) * dt;
