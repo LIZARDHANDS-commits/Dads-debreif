@@ -36,23 +36,18 @@ import { closeThrough, rejoinTo, slide, stopAt, legsFor } from './recipes.js';
 import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
 import { FORMATIONS, fwShapeNow, pairSlot, downTheLine, LINE_BACK_PER_OUT, LENGTH_FT, sideFor } from './slots.js';
-import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, TURNING_REJOIN, TRACKER, CLOSURE, FW_FOLLOW, FW_BUBBLE, FW_ENERGY, G_RULE, KINEMATIC, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
-import { onClosure, fromStep } from './hand-over.js';
+import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, TURNING_REJOIN, FW_FOLLOW, KINEMATIC, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
+import { onClosure } from './hand-over.js';
 import { leadTurnInto } from './lead-turn-in.js';
 import { STEP_SEC, copyAircraft, SMOOTHER_CURVE_PEAK, smoother, smoothLegSec } from './flight.js';
 import { RATE_SETS } from './rates.js';
 import { laggedBank } from './kinematic.js';
-import { trackTwice, runTracker, phase, climbCostKtps } from './tracker.js';
-import { createPilot, pilotSpeed, pilotFly, pilotPower, pilotStep, pilotJerkKtps2 } from './pilot.js';
+import { trackTwice, runTracker, phase } from './tracker.js';
 import { fwGoal } from './formation-turns.js';
 import { acrossSixLegs } from './replan.js';
-import { fullPowerKtps, slowKtps, stallBankDeg } from './slow-down.js';
-import { fixedLine, aheadWatch, sustainedBankDeg, sustainsBank } from './rejoin-law.js';
-import { throttleAtTorque } from './power.js';
-import { bankDegFromTurnRate, turnRadiusFromBankFt } from '../../../core/flight-math.js';
-import { wrapPi } from '../../../core/angles.js';
+import { turnRadiusFromBankFt } from '../../../core/flight-math.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
-import { availableG, iasToTasKt } from '../../../core/t6-performance.js';
+import { iasToTasKt } from '../../../core/t6-performance.js';
 
 const dt = STEP_SEC;
 /** A search try replaces the best so far only when quicker by more than this (the chooser's half-second tie, chooser.js TIE_SEC). */
