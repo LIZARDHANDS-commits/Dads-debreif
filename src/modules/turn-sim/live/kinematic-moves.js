@@ -20,8 +20,8 @@ import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
 import { relativeTo } from './manoeuvres.js';
 import { recordFlight, speedSeg } from './replay.js';
 import { describe } from './transitions.js';
-import { KIAS_LAB, KIAS_OUTSIDE_LAB, KINEMATIC, OPEN_OUT, LAG_ROLL } from './tuning.js';
-import { FORMATIONS, FW_BAND, LANE, fwShapeNow, pairSlot } from './slots.js';
+import { KIAS_LAB, KIAS_OUTSIDE_LAB, KINEMATIC, OPEN_OUT } from './tuning.js';
+import { FORMATIONS, FW_BAND, LANE, fwShapeNow, pairSlot, crossBehindFwd, SWAP_CROSS_MARGIN_FT } from './slots.js';
 import { speedSegFor } from './slow-down.js';
 import { makeTrack, seedTrack, posesFrom, settleLast, followInto, rollStarts, relPath, timeLaw, slotInWorld, poseOf, laggedBank, relSpeedLimit } from './kinematic.js';
 
@@ -35,12 +35,10 @@ export function slotPoint(key, side, spacingFt) {
   return { fwd: s.fwd, left: s.left, up: s.alt, plane: CLOSE.has(key) ? 1 : 0 };
 }
 
-/** A fighting wing side swap (TS-86): how far outside the bubble #2 crosses Lead's six, and how far he drifts back for each foot across (about the tangent of half a 20-25° angle off; both estimates). */
-const SWAP_CROSS_MARGIN_FT = 100;
-const SWAP_LAG_RATIO = 0.2;
+export { crossBehindFwd, SWAP_CROSS_MARGIN_FT };
 
-/** Where a crossing behind Lead passes his six, fwd ft: outside the 500 ft bubble by SWAP_CROSS_MARGIN_FT (estimates). */
-export const crossBehindFwd = (rangeFt) => -(Math.max(LAG_ROLL.bubbleFt, rangeFt * 0.9) + SWAP_CROSS_MARGIN_FT);
+/** A fighting wing side swap (TS-86): how far he drifts back for each foot across (about the tangent of half a 20-25° angle off; estimate). */
+const SWAP_LAG_RATIO = 0.2;
 
 /**
  * The places #2's line passes on its way from `from` (side s, where it is now: `cur`) to `to` (side sTo), in Lead's frame,

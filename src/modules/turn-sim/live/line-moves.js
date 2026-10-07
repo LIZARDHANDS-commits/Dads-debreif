@@ -40,9 +40,6 @@ function lineFor(from, s, to, sTo, cur, spacingFt, straightFromLab) {
   const A = STRAIGHT_AHEAD;
   const six = (fwd) => ({ fwd, left: 0, up: A.belowWakeFt, plane: 0 });
   if (from === 'fw' && CLOSE.has(to)) return { points: [cur, six(A.sixFt), six(A.closeTowardFt)], tail: 1 };
-  if (CLOSE.has(from) && to === 'fw' && (from === 'astern' || s === sTo)) return { points: routePoints(from, s, 'fw', sTo, cur, spacingFt), tail: -1 };
-  if (from === 'fw' && to === 'fw' && s !== sTo) return { points: routePoints('fw', s, 'fw', sTo, cur, spacingFt), tail: -1 };
-  if (straightFromLab && to === 'fw' && s === sTo) return { points: routePoints('lab', s, 'fw', s, cur, spacingFt), tail: -1 };
   if (straightFromLab && CLOSE.has(to)) return { points: [...routePoints('lab', s, 'fw', s, cur, spacingFt), six(A.sixFt), six(A.closeTowardFt)], tail: 2 };
   return null;
 }
