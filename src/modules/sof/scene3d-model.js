@@ -5,6 +5,7 @@
 // The 3D view is a picture for situational awareness. It never decides anything: no limit is checked here
 // and nothing in it raises or clears a caution.
 import { FT_PER_NM } from './map-view.js';
+import { AIRPORTS } from './airports-data.js';
 
 /** The square the view shows: 250 NM on a side, centred on home, so the usual alternates (CYYN, CYXE about 110 NM out) are inside (SOF-39). */
 export const AREA_NM = 250;
@@ -21,6 +22,9 @@ export const DECK_FT = DECK_NM * FT_PER_NM;
 export const COVER_OPACITY = Object.freeze({ FEW: 0.25, SCT: 0.45, BKN: 0.7, OVC: 0.9 });
 
 const isNumber = (v) => typeof v === 'number' && Number.isFinite(v);
+
+/** A field's elevation in feet above sea level: airports-data.js (OurAirports) first, then the airfield's own, else null ("elevation unknown"). */
+export const fieldElevationFt = (icao, field) => AIRPORTS.find((a) => a.icao === icao)?.elevationFt ?? (isNumber(field?.elevationFt) ? field.elevationFt : null);
 
 /** A whole number of feet with its comma: 2500 reads "2,500". */
 export const formatFeet = (ft) => String(Math.round(ft)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -96,7 +100,7 @@ export function sceneAirfields({ marks = [], cards = [], fields = [], snapshot =
   const byIcao = new Map(fields.map((f) => [f.icao, f]));
   const cardOf = new Map(cards.map((c) => [c.icao, c]));
   const homeMark = marks.find((m) => m.home);
-  const homeElevation = byIcao.get(homeMark?.icao)?.elevationFt;
+  const homeElevation = fieldElevationFt(homeMark?.icao, byIcao.get(homeMark?.icao));
   const out = [];
   for (const mark of marks) {
     const field = byIcao.get(mark.icao);
@@ -105,7 +109,7 @@ export function sceneAirfields({ marks = [], cards = [], fields = [], snapshot =
     const fresh = card?.metar?.state === 'fresh';
     const noMetar = !fresh && !mark.old;
     const sky = fresh ? snapshot.metar?.[mark.icao]?.report?.conditions?.sky : null;
-    const own = isNumber(field?.elevationFt) ? field.elevationFt : null;
+    const own = fieldElevationFt(mark.icao, field);
     const result = cloudDecks({ sky: sky ?? [], elevationFt: own ?? (isNumber(homeElevation) ? homeElevation : null) });
     const lines = [];
     if (noMetar) lines.push(`${mark.icao} No METAR`);
@@ -221,8 +225,11 @@ export const PITCH_LIMITS = Object.freeze([5, 85]);
 /** A wheel notch, a pinch step and the keys' turn. Estimates for feel. */
 export const ORBIT_DEG_PER_PX = Object.freeze({ yaw: 0.4, pitch: 0.25 });
 export const ZOOM_STEP = 1.25;
-/** The zoom limits as a share of the start (fit) zoom: out to half of it, in to twenty times it. */
-export const ZOOM_RANGE = Object.freeze([0.5, 20]);
+/**
+ * The zoom limits as a share of the start (fit) zoom: out to half of it, in to 300 times it (was 20). At 20 times, Moose Jaw's 150 ft wide runway is
+ * about 2 px across, so the airports' markings and numbers (airports3d.js) could never be read; at 300 times it is about 30 px. An estimate for readability, SOF-39.
+ */
+export const ZOOM_RANGE = Object.freeze([0.5, 300]);
 export const KEY_ORBIT_PX = Object.freeze({ ArrowLeft: [-30, 0], ArrowRight: [30, 0], ArrowUp: [0, -30], ArrowDown: [0, 30] });
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));

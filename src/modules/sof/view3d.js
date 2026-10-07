@@ -7,6 +7,8 @@
 // They are a model estimate, labelled so, and are removed (never frozen) when the forecast fails or is old. Phase 4 (SOF-39, SOF-40) adds
 // the live aircraft from the 2D layer's own relay feed (traffic3d.js), the T-6 drawn large. Phase 3 (SOF-39) adds the airspace volumes
 // from a sourced data file (airspace-data.js, drawn in airspace3d.js) and the TACNAV routes at 500 ft above the ground, each with a toggle.
+// Also (Dad, 7 Oct): the airports' runways modelled at true size (airports3d.js, an Airports toggle), and an airspace volume's name and limits are not written
+// on it any more: they float beside the pointer while it is over the volume (a ray-cast on the fills, at most ten a second and only while the pointer moves).
 // It is for situational awareness only: it checks no limit and never raises or clears a caution.
 // Three more things (SOF-39, Dad 7 Oct): a Full screen button (the browser's fullscreen on the 3D view, or a fixed layer over the whole window when
 // the browser refuses), an Orbit toggle that turns the camera slowly round home (the one case where the view draws every frame, through the
@@ -38,6 +40,8 @@ import { buildModelLayers, MODEL_GROUPS } from './model-layers3d.js';
 import { createTraffic3d } from './traffic3d.js';
 import { AIRSPACE } from './airspace-data.js';
 import { buildAirspace, AIRSPACE_GROUPS, KIND_COLOURS } from './airspace3d.js';
+import { buildAirports, RUNWAY_MIN_PX } from './airports3d.js';
+import { AIRPORTS } from './airports-data.js';
 import { checkedAirspace, KIND_WORDS, tacnavNote, AIRSPACE_FILL_OPACITY, VIEW_TOP_FT } from './airspace-model.js';
 import {
   hourIndex, maxAhead, hourWords, meanLayerCover, unavailableWords, refreshFailedWords, LOADING_WORDS, CREDIT_WORDS, MAX_AHEAD_HOURS, CLOUD_STAGES_FT_AGL,
@@ -71,6 +75,9 @@ const ORBIT_MAX_FRAME_MS = 250;
 /** The aircraft's credit, always said while the layer is on (adsb.lol's data is ODbL 1.0). */
 const AIRCRAFT_CREDIT = 'Aircraft: adsb.lol (ODbL 1.0)';
 
+/** The pointer is looked for under the airspace volumes at most this often (about ten a second), and only while it moves over the view. */
+const SPACE_PICK_MS = 100;
+
 let nextViewId = 1;
 
 const isColour = (v) => typeof v === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%/]+\))$/i.test(v.trim());
@@ -87,6 +94,9 @@ const isColour = (v) => typeof v === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d\s.
  */
 export function createSofView3d({ timers, getProjection, getPictures, onLost = () => {}, routes = [], airspace = AIRSPACE, onAirspaceLogOptions = /** @type {(options: { showT6: boolean, showAll: boolean }) => void} */ (() => {}), win = globalThis }) {
   const labels = h('div', { class: 'sof-3d-labels' });
+  // The airspace volume under the pointer: its name and limits float beside the pointer (Dad, 7 Oct); nothing is written on the volumes themselves.
+  const spaceTip = h('p', { class: 'sof-3d-space-tip', hidden: true });
+  labels.append(spaceTip);
   const corner = h('p', { class: 'sof-3d-corner' });
   const credit = h('p', { class: 'sof-3d-credit' }, ESRI_IMAGERY.credit);
   const creditWords = (aircraft) => (aircraft ? `${ESRI_IMAGERY.credit}. ${AIRCRAFT_CREDIT}` : ESRI_IMAGERY.credit);
@@ -144,8 +154,9 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
   const SPACE_TOGGLES = /** @type {[string, string, string, string | null][]} */ ([
     ['airspace', noAirspace ? 'Airspace (no data yet)' : 'Airspace', 'Airspace volumes round home, each from its floor to its ceiling, see-through', noAirspace ? 'No airspace data yet: its floors, ceilings and outlines are added once each has a source' : null],
     ['tacnav', 'TACNAV', 'The TACNAV routes, as lines 500 ft above the ground (ground taken as flat, an estimate)', noRoutes ? 'No TACNAV routes to draw' : null],
+    ['airports', 'Airports', `The runways of ${AIRPORTS.map((a) => a.icao).join(', ')} at their true places and sizes, with schematic buildings`, null],
   ]);
-  const spaceToggles = { airspace: !noAirspace, tacnav: !noRoutes };
+  const spaceToggles = { airspace: !noAirspace, tacnav: !noRoutes, airports: true };
   const spaceButtons = new Map();
   for (const [key, text, title, reason] of SPACE_TOGGLES) {
     const button = h('button', {
@@ -205,8 +216,10 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
   let trafficSig = '';
   let trafficDirty = true;
   let spaceSig = ''; // what the airspace objects were built for: the height scale, the ground and home
-  let hoverSpace = null; // the airspace label the pointer is on, or that has focus: its limits are shown in full
-  let focusSpace = null;
+  let spaceHit = null; // the airspace volume the pointer is over (airspace3d.js `picks` entry), whose words float beside the pointer
+  let spaceMove = null; // the last pointer place waiting for the throttled pick: { x, y }
+  let spaceLast = 0; // when the last pick ran
+  let cancelSpaceMove = null; // the trailing pick's timer
   let hoverHex = null; // the aircraft under the pointer, or whose tag the pointer is on
   let selectedAc = null; // the aircraft whose facts are showing
   let intruderHexes = new Map(); // hex -> the watched areas it is in: the aircraft that are not T-6s in a watched area, whose tags stay on (airspace-log.js)
@@ -524,29 +537,69 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
   function applySpaceToggles() {
     const groups = gl?.space?.built.root.userData.groups;
     if (groups) for (const key of AIRSPACE_GROUPS) groups[key].visible = spaceToggles[key];
+    if (gl?.space?.airports) gl.space.airports.root.visible = spaceToggles.airports;
+    if (!spaceToggles.airspace) setSpaceHit(null);
   }
 
-  /** A volume's label says its limits in full when it is restricted, or when the pointer or focus is on it; otherwise it is just the id, to keep the picture clear. */
-  const spaceText = ({ label }) => (label.group === 'airspace' && !label.restricted && (hoverSpace ?? focusSpace) !== label.key ? label.compact : label.text);
-
-  function refreshSpaceLabels() {
-    for (const item of gl?.space?.items ?? []) {
-      const text = spaceText(item);
-      if (item.el.textContent !== text) {
-        item.el.textContent = text;
-        sizes.delete(item.el); // the words changed, so the label's size is read again
-      }
+  // ---- The airspace under the pointer (Dad, 7 Oct) ----------------------------------------------------------
+  /** Shows the volume's words beside the pointer (`x`, `y` in the view), or takes them away. The sentence behind it is the title, on the tag and on the canvas. */
+  function setSpaceHit(pick, x = 0, y = 0) {
+    spaceHit = pick;
+    spaceTip.hidden = !pick;
+    if (pick) {
+      setText(spaceTip, pick.text);
+      spaceTip.title = pick.title;
+      spaceTip.style.transform = `translate(${Math.round(x + 14)}px, ${Math.round(y + 16)}px)`;
     }
-    requestRender();
+    if (gl && gl.canvas.title !== (pick?.title ?? '')) gl.canvas.title = pick?.title ?? ''; // the tag does not take the pointer, so the browser's own tip is on the canvas
+  }
+
+  /** Which volume is under the pointer: the nearest to the camera along the ray through it (ray-cast on the fills, not every frame). */
+  function pickSpace(x, y) {
+    spaceLast = win.performance.now();
+    const picks = gl?.space?.built.picks ?? [];
+    if (!picks.length || !spaceToggles.airspace || hoverHex) return setSpaceHit(null);
+    const width = gl.canvas.clientWidth;
+    const height = gl.canvas.clientHeight;
+    if (width < 2 || height < 2) return setSpaceHit(null);
+    gl.raycaster ??= new THREE.Raycaster();
+    gl.camera.updateMatrixWorld();
+    gl.raycaster.setFromCamera(new THREE.Vector2((x / width) * 2 - 1, -(y / height) * 2 + 1), gl.camera);
+    const hit = gl.raycaster.intersectObjects(picks.map((p) => p.mesh), false)[0];
+    setSpaceHit(hit ? picks.find((p) => p.mesh === hit.object) ?? null : null, x, y);
+  }
+
+  /** The pointer moved over the view: look under it now, or once the last look is SPACE_PICK_MS old (the last place wins). No timer runs while it is still. */
+  function onSpaceMove(x, y) {
+    spaceMove = { x, y };
+    const wait = SPACE_PICK_MS - (win.performance.now() - spaceLast);
+    if (wait <= 0) {
+      cancelSpaceMove?.();
+      cancelSpaceMove = null;
+      pickSpace(x, y);
+    } else if (!cancelSpaceMove) {
+      cancelSpaceMove = timers.after(wait, () => {
+        cancelSpaceMove = null;
+        if (spaceMove && gl) pickSpace(spaceMove.x, spaceMove.y);
+      });
+    }
+  }
+
+  /** The pointer left, pressed to drag or the camera moved: no words, and no look waiting. */
+  function clearSpaceMove() {
+    spaceMove = null;
+    cancelSpaceMove?.();
+    cancelSpaceMove = null;
+    if (spaceHit) setSpaceHit(null);
   }
 
   function freeSpace() {
     if (!gl?.space) return;
     gl.space.built.dispose();
+    gl.space.airports.dispose();
     for (const { el } of gl.space.items) el.remove();
     gl.space = null;
-    hoverSpace = null;
-    focusSpace = null;
+    setSpaceHit(null);
   }
 
   /** The airspace volumes and routes, built new for this height scale, ground and home (only then), with the key's words. */
@@ -558,18 +611,15 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     const { volumes, skipped } = checkedAirspace(airspace, ground);
     const built = buildAirspace(gl.THREE, { volumes, routes, toXY: projection.toXY, scale, groundFt: ground });
     gl.scene.add(built.root);
-    const items = built.labels.map((label) => {
-      const isVolume = label.group === 'airspace';
-      const el = h(isVolume ? 'button' : 'span', {
-        ...(isVolume ? { type: 'button', onmouseenter: () => { hoverSpace = label.key; refreshSpaceLabels(); }, onmouseleave: () => { hoverSpace = null; refreshSpaceLabels(); }, onfocus: () => { focusSpace = label.key; refreshSpaceLabels(); }, onblur: () => { focusSpace = null; refreshSpaceLabels(); } } : {}),
-        class: `${isVolume ? 'sof-3d-airspace-label' : 'sof-3d-route-label'}${label.restricted ? ' is-restricted' : ''}`,
-        title: label.title,
-      });
-      el.textContent = label.restricted || !isVolume ? label.text : label.compact;
+    const items = built.labels.map((label) => { // only the TACNAV routes' names stand in the picture; a volume's words come with the pointer
+      const el = h('span', { class: 'sof-3d-route-label', title: label.title });
+      el.textContent = label.text;
       labels.append(el);
       return { el, label };
     });
-    gl.space = { built, items };
+    const airports = buildAirports(gl.THREE, { toXY: projection.toXY, scale, groundFt: ground, doc: win.document });
+    gl.scene.add(airports.root);
+    gl.space = { built, items, airports };
     applySpaceToggles();
     drawSpaceKey(volumes, skipped, ground);
   }
@@ -588,12 +638,17 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
       notes.push(
         h('p', {}, `Airspace: each volume runs from its floor to its ceiling, see-through (${Math.round(AIRSPACE_FILL_OPACITY * 100)} % fill, an estimate), with a thin outline on its top and bottom and along its corners. Edge colour by kind:`),
         h('ul', {}, colours),
-        h('p', {}, 'A restricted area’s label always shows its limits; for the others the label is the id, and the limits show when the pointer or focus is on it. Hover text gives the kind and the source.'),
+        h('p', {}, 'Nothing is written on the volumes: put the pointer over one and its name and limits float beside it (the nearest one under the pointer when several overlap), with the kind and the source on hover. Every volume is listed here with its limits:'),
+        h('ul', { class: 'sof-3d-airspace-list' }, (gl?.space?.built.picks ?? []).map((pick) => h('li', { title: pick.title }, pick.text))),
         h('p', {}, `Heights are feet above sea level, ×${scale}. SFC is the ground at ${home}’s elevation (${Math.round(ground)} ft).${used('AGL') ? ` AGL ≈ over flat prairie, estimate: ${home}’s elevation plus the height.` : ''}${used('FL') ? ' FL is read as feet above sea level (pressure altitude taken as altitude, an approximation).' : ''}${volumes.some((v) => v.ceiling.ref === 'UNL') ? ` UNL is drawn up to ${formatFeet(VIEW_TOP_FT)} ft.` : ''}`),
       );
       if (skipped.length) notes.push(h('p', { class: 'sof-3d-model-warn' }, `Not drawn, entry fails its checks: ${skipped.map((x) => `${x.id} (${x.reason})`).join('; ')}.`));
     }
+    const drawn = gl?.space?.airports.summary ?? [];
     notes.push(
+      h('p', {}, drawn.length
+        ? `Airports: ${drawn.map((a) => `${a.icao} (${a.ends.join(', ')})`).join('; ')}. Each runway is drawn between its two thresholds at their true places, length and width (OurAirports, public domain: for drawing only, check the Canada Flight Supplement), at the field’s elevation ×${scale}. Far out, a field is drawn larger and a runway wider so it stays visible (about ${RUNWAY_MIN_PX.length} px long at least); closer in they are true size, and the stripes, centreline and numbers appear once a runway is ${RUNWAY_MIN_PX.detail} px long. The numbers read from the approach end. The terminal and hangars are schematic: buildings are schematic, drawn for orientation only.`
+        : 'Airports: none inside this area.'),
       h('p', {}, noRoutes ? 'TACNAV: no routes to draw.' : tacnavNote(home)),
       h('p', {}, 'A picture for situational awareness: not a chart, not for navigation or flight planning.'),
     );
@@ -723,6 +778,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     const ftPerPx = 1000 / zoom;
     for (const { pin } of pins) pin.scale.setScalar(ftPerPx);
     gl.traffic.fit(ftPerPx);
+    gl.space?.airports.fit(ftPerPx);
 
     // Labels go beside their points, and a deck's label steps down past any label already there, so words never sit on words.
     const headZ = planeZ + (PIN_PX.line + PIN_PX.head) * ftPerPx;
@@ -764,20 +820,14 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
       put(el, clearOf({ ...s, x: p.x - 8 - s.w, y: p.y - s.h / 2 }));
     }
     placeAircraft({ at, put, boxFor, isClear, reserve, phase: 't6' }); // the T-6s' tags keep their places; the model's words step round them
-    const spaceWords = [];
-    for (const { el, label } of gl.space?.items ?? []) { // the airspace's words: restricted areas first, then the others and the routes
+    for (const { el, label } of gl.space?.items ?? []) { // the TACNAV routes' names (the airspace volumes' words come with the pointer, not from here)
       const on = spaceToggles[label.group];
       if (el.hidden === on) el.hidden = !on;
-      if (on) spaceWords.push({ el, label, p: at(label.point) });
-    }
-    spaceWords.sort((a, b) => Number(b.label.restricted) - Number(a.label.restricted) || a.p.y - b.p.y);
-    for (const { el, label, p } of spaceWords) { // each takes the first of a few places round its point that covers no other word, and stays close to it when none is free
+      if (!on) continue;
       const s = boxFor(el, 0, 0);
+      const p = at(label.point);
       const rows = [0, 1, -1, 2, -2, 3, -3].map((k) => k * (s.h + 2));
-      const spots = label.group === 'airspace'
-        ? rows.flatMap((dy) => [[p.x - s.w / 2, p.y - s.h - 2 + dy], [p.x + 6, p.y - s.h - 2 + dy], [p.x - s.w - 6, p.y - s.h - 2 + dy]])
-        : rows.flatMap((dy) => [[p.x + 6, p.y - s.h / 2 + dy], [p.x - s.w - 6, p.y - s.h / 2 + dy]]);
-      const boxes = spots.map(([x, y]) => ({ ...s, x, y }));
+      const boxes = rows.flatMap((dy) => [[p.x + 6, p.y - s.h / 2 + dy], [p.x - s.w - 6, p.y - s.h / 2 + dy]]).map(([x, y]) => ({ ...s, x, y }));
       put(el, boxes.find((box) => isClear(box)) ?? boxes[0]);
     }
     const modelWords = [];
@@ -836,6 +886,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       gl?.canvas.setPointerCapture?.(e.pointerId);
+      clearSpaceMove(); // a press is for dragging or clicking, not for reading
       if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, moved: 0 };
       else {
         drag = null;
@@ -846,7 +897,11 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
     ['pointermove', (e) => {
       const held = pointers.get(e.pointerId);
       if (!held) {
-        if (pointers.size === 0 && e.pointerType === 'mouse') setHover(aircraftNear(e.clientX, e.clientY)); // hovering, not dragging
+        if (pointers.size === 0 && e.pointerType === 'mouse') { // hovering, not dragging
+          setHover(aircraftNear(e.clientX, e.clientY));
+          const rect = gl.canvas.getBoundingClientRect();
+          onSpaceMove(e.clientX - rect.left, e.clientY - rect.top);
+        }
         return;
       }
       held.x = e.clientX;
@@ -899,7 +954,10 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
       } else return;
       requestRender();
     }],
-    ['pointerleave', () => setHover(null)],
+    ['pointerleave', () => {
+      setHover(null);
+      clearSpaceMove();
+    }],
     ['contextmenu', (e) => e.preventDefault()],
     ['webglcontextlost', (e) => {
       e.preventDefault();
@@ -923,6 +981,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
   function onWheel(e) {
     e.preventDefault(); // the page does not scroll while the pointer is over the view
     if (!e.deltaY) return;
+    clearSpaceMove();
     setOrbit(false);
     cam = zoomCamera(cam, Math.exp(-e.deltaY * WHEEL_ZOOM), 1);
     requestRender();
@@ -1109,6 +1168,7 @@ export function createSofView3d({ timers, getProjection, getPictures, onLost = (
 
   function teardown({ lost = false } = {}) {
     setOrbit(false); // no loop outlives the view
+    clearSpaceMove();
     exitFullScreen();
     pending?.();
     pending = null;

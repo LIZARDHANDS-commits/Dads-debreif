@@ -11,7 +11,7 @@
 //
 // Built again only when the list, the height scale, the ground or home changes; the groups are switched with `.visible`, which rebuilds
 // nothing. `dispose()` frees everything.
-import { AIRSPACE_FILL_OPACITY, TACNAV_AGL_FT, outlineXY, routeXY, tacnavFt, airspaceWords, airspaceTitle, CIRCLE_SIDES } from './airspace-model.js';
+import { AIRSPACE_FILL_OPACITY, TACNAV_AGL_FT, KIND_WORDS, outlineXY, routeXY, tacnavFt, airspaceWords, airspaceTitle, CIRCLE_SIDES } from './airspace-model.js';
 
 /** The groups the view's two toggles switch. */
 export const AIRSPACE_GROUPS = Object.freeze(['airspace', 'tacnav']);
@@ -35,10 +35,12 @@ const ROUTE_DASH = Object.freeze({ dashSize: 7_000, gapSize: 4_000 });
  * ({ name, paths: [[[lon, lat], ...]] }, already limited to the TACNAV ones); `toXY(lat, lon)` gives [x, y] in the map's feet; `scale` is the
  * height scale and `groundFt` the ground the view draws, in feet above sea level.
  *
- * Returns { root, labels, summary, dispose() }:
+ * Returns { root, labels, picks, summary, dispose() }:
  * - root: a Group with one Group per AIRSPACE_GROUPS entry (`root.userData.groups`);
- * - labels: [{ group, key, text, compact, title, restricted, point: { x, y, z } }]: a volume's label stands at the middle of its top ring
- *   (text "CYR303 SFC–FL180", compact the id alone), a route's at its first point, at the route's height;
+ * - labels: [{ group: 'tacnav', key, text, compact, title, restricted, point: { x, y, z } }]: a route's name stands at its first point, at the route's height.
+ *   A volume has no label standing in the picture (Dad, 7 Oct: names and limits show only while the pointer is over it);
+ * - picks: [{ mesh, key, text, title }]: each volume's fill, for the view to ray-cast the pointer against; `text` is the words shown beside the pointer
+ *   ("CYA305 6,000 ft AGL–FL190 (Class F advisory area)"), `title` the existing hover sentence;
  * - summary: { volumes, routes } (counts drawn).
  */
 export function buildAirspace(T, { volumes = [], routes = [], toXY, scale, groundFt }) {
@@ -56,6 +58,7 @@ export function buildAirspace(T, { volumes = [], routes = [], toXY, scale, groun
     return thing;
   };
   const labels = [];
+  const picks = [];
   const fills = new Map(); // kind -> material, shared
   const edges = new Map();
   const fillOf = (kind) => {
@@ -108,16 +111,12 @@ export function buildAirspace(T, { volumes = [], routes = [], toXY, scale, groun
     for (const line of [top, bottom, sides]) line.renderOrder = 3;
     groups.airspace.add(fill, top, bottom, sides);
 
-    const cx = ring.reduce((sum, p) => sum + p[0], 0) / n;
-    const cy = ring.reduce((sum, p) => sum + p[1], 0) / n;
-    labels.push({
-      group: 'airspace',
+    const kind = KIND_WORDS[volume.kind]?.name ?? 'airspace';
+    picks.push({
+      mesh: fill,
       key: volume.id,
-      text: airspaceWords(volume),
-      compact: volume.id,
+      text: `${airspaceWords(volume)} (${volume.classLetter ? `Class ${volume.classLetter} ` : ''}${kind})`,
       title: airspaceTitle(volume),
-      restricted: volume.kind === 'restricted',
-      point: { x: cx, y: cy, z: zt },
     });
   }
 
@@ -141,6 +140,7 @@ export function buildAirspace(T, { volumes = [], routes = [], toXY, scale, groun
   return {
     root,
     labels,
+    picks,
     summary: { volumes: volumes.length, routes: drawnRoutes },
     dispose() {
       root.removeFromParent();
