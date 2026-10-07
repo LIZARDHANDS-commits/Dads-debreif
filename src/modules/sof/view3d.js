@@ -1366,7 +1366,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       const { status, model, now: at } = modelState;
       if (gl.model && (cloudStyle === 'slabs' || cloudHeight !== null) && status === 'ok' && model) {
         const hour = hourIndex(model, +at, ahead);
-        if (`${detailOf(wx, model, hour).key}|${anchorsOf(wx, model, hour).key}` !== gl.model.inputs) modelDirty = true;
+        if (`${detailOf(wx, model, hour).key}|${cloudStyle === 'slabs' ? anchorsOf(wx, model, hour).key : 'none'}` !== gl.model.inputs) modelDirty = true; // as rebuildModel makes `inputs`
       }
     }
     if (modelDirty) {
