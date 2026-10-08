@@ -174,7 +174,7 @@ function measure(P, lead0, vL, heightFt, gCap, close = false) {
   const top = groundAt(T0 + P.T / 2, P, lead0, vL);
   const liftUpZ = top.acc.z + G_FTPS2; // canopy to canopy: the lift points down, toward Lead, over his six
   const topRange = Math.hypot(top.rel.fwd, top.rel.left, top.rel.up);
-  if (liftUpZ >= 0 || minRange < LAG_ROLL.bubbleFt) return null;
+  if (liftUpZ >= 0 || (!close && minRange < LAG_ROLL.bubbleFt)) return null;
   const topBand = close ? LAG_ROLL.closeTopRangeFt : LAG_ROLL.topRangeFt;
   if (topRange < topBand[0] || topRange > topBand[1]) return null;
   if (minKias < LAG_ROLL.topKiasBand[0]) return null; // the top of the band is now the energy check above (TS-144)
@@ -540,7 +540,9 @@ function planOnPointMass({ lead, wing, s, base, lead0, vL, blockFt, close, where
   const w0 = { ...wing, xFt: lead0.x + along * fx - base.L0 * fy, yFt: lead0.y + along * fy + base.L0 * fx, altAboveFt: lead.altAboveFt + base.z0, headingRad: lead.headingRad, tasFtps: vL, kias: lead.kias, climbFtps: 0, bankDeg: 0, rollRateDps: 0, g: 1 };
   const ctx = { lead0, vL, blockFt, s, tStart, leadKias: lead.kias, close, leadAlt: lead.altAboveFt, base };
   let best = null;
-  for (const T of [10, 11, 12, 13, 14]) for (const H of [300, 400, 500, 600]) for (const pullG of LAG_ROLL.pullG) {
+  const rollTs = close ? [5, 6, 7, 8, 9, 10] : [10, 11, 12, 13, 14];
+  const climbHs = close ? [150, 200, 250, 300, 400] : [300, 400, 500, 600];
+  for (const T of rollTs) for (const H of climbHs) for (const pullG of LAG_ROLL.pullG) {
     const c = { T, H, pullG, pitchDeg: Math.round((H - 200) / 10), offDeg: Math.round((T - 8) * 4) };
     const m = flyPmRoll(c, w0, ctx);
     if (!m) continue;
@@ -548,7 +550,7 @@ function planOnPointMass({ lead, wing, s, base, lead0, vL, blockFt, close, where
     const key = miss > 0 ? 1e6 + miss : m.t; // in the band soonest, else nearest the band
     if (!best || key < best.key) best = { key, m, c };
   }
-  if (!best || best.key >= 1e6) return null; // none lands in the band: the drawn search flies it (and closes into the band)
+  if (!best || (!close && best.key >= 1e6)) return null; // none lands in the band: the drawn search flies it (and closes into the band)
   const { m, c } = best;
   poses.push(...m.poses);
   const last = poses[poses.length - 1];
