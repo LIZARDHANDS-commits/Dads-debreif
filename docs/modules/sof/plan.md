@@ -101,6 +101,8 @@ Open: whether MET Norway and NOAA via Datamask return all seven fields' TAFs (co
 
 - [ ] **Traffic further out (Dad, 8 Oct 2026: "can we draw aircraft further out from the base"; he approved 250 NM, the relay test change and the redeploy):** the relay accepts 5 to 250 NM (adsb.lol's and adsb.fi's own maximum, was 150) and its range test is rewritten to match; the SOF asks for half the 3D area, capped at 250 NM (225 at 450 NM, 250 at 600 and 900; 2D keeps 100 unless the map shows more); the 3D aircraft cap goes from 150 to 300 (T-6s first); the reply size is measured against the relay's 1 MB cap; the relay is redeployed once checked.
 
+- [ ] **Traffic display settings (Dad, 8 Oct 2026: "the callsign and aircraft display should be more customizable.. smaller icons... bigger text etc"):** in SOF settings (stored in the SOF's own `view3d` document), for 2D and 3D: aircraft icon size (small, medium, large; default today's), tag text size (small, medium, large; default today's V2.199 sizes), what the tag shows (callsign; callsign and altitude; callsign, altitude, speed and type), and whether T-6s get the larger, always-on tag. Built with the traffic range change.
+
 ## Step 3. Build the safety and limits gaps between decided and built
 
 - [ ] Amber "Incomplete" for any airfield whose approaches or landing minima are not filled in, never a green tick, including a PROB group below the alternate limits with minima unset (old decision D388, new decision SOF-32; SOF-R12). The code does not do it yet (`pf/reset/4-decisions/partb-sof.md:74`, `pf/reset/1-requirements/requirements.md:144`, `src/wx/alternates.js:163`).
