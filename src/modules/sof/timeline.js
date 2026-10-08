@@ -93,8 +93,14 @@ export function axisTicks({ from, to, timeZone, stepHours = 3, first = 'utc', sh
  * not the minima that alternate uses.
  * `noLimits` (a home base with no weather limits, plan Step 2c part B): wx still reads the TAF (its status and problems), but nothing is
  * below or unchecked, so no piece is hatched or says "below".
+ * `assess(taf, window)` (a USAF base's rule, plan Step 2c part F): the row's own check, answering in wx's shape, in place of the above.
  */
 function assessRow(entry, parsed, window) {
+  // A row with its own check (a USAF base, plan Step 2c part F; usaf-limits.js): its answer, in wx's shape, is used as it is.
+  if (entry?.noLimits !== true && typeof entry?.assess === 'function') {
+    const result = entry.assess(parsed, window);
+    return { status: result.status, problems: result.problems ?? [], hits: result.hits ?? [], unchecked: result.probUnchecked ?? [] };
+  }
   if (entry?.noLimits === true) {
     const result = entry.role === 'HOME' ? homeAlternateTrigger(parsed, window, describeTrigger(null)) : assessAlternate(parsed, window, {});
     return { status: result.status, problems: result.problems ?? [], hits: [], unchecked: [] };
@@ -199,7 +205,8 @@ function rowModel(entry, axis) {
     : parsed.cancelled ? ['cancelled', 'TAF cancelled']
       : parsed.nil ? ['nil', 'TAF NIL: none issued']
         : !validDate(parsed.validFrom) || !validDate(parsed.validTo) ? ['no-valid-period', 'TAF valid period unknown'] : null;
-  if (unusable) return { ...base, state: unusable[0], words: unusable[1] };
+  // A row with its own note (a USAF alternate with no weather reports, plan Step 2c part F) says that rather than "No TAF".
+  if (unusable) return { ...base, state: unusable[0], words: unusable[0] === 'no-taf' && typeof entry?.note === 'string' ? entry.note : unusable[1] };
 
   const span = +axis.to - +axis.from;
   const covers = +parsed.validTo > +axis.from && +parsed.validFrom < +axis.to;
@@ -212,7 +219,8 @@ function rowModel(entry, axis) {
     state: incomplete ? 'incomplete' : 'ok',
     status: found.status,
     problems: found.problems,
-    words: incomplete ? (found.problems[0] ?? "A ceiling or visibility in the TAF can't be read") : null,
+    // `note`: what a row says when nothing else is said (a USAF alternate that is not suitable or incomplete).
+    words: incomplete ? (found.problems[0] ?? "A ceiling or visibility in the TAF can't be read") : (typeof entry?.note === 'string' ? entry.note : null),
     validFrom: parsed.validFrom,
     validTo: parsed.validTo,
     coverage: covers ? { x0: (+from - +axis.from) / span, x1: (+to - +axis.from) / span, from, to } : null,

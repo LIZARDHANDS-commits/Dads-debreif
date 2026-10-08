@@ -250,9 +250,11 @@ export function createTimelineStrip({ full, dropdowns, timers, listen, storage }
         signature = view.signature;
         problem.hidden = !view.problem;
         setText(problem, view.problem ?? '');
-        setText(notSet, view.limitsNote?.words ?? '');
-        notSet.title = view.limitsNote?.title ?? '';
-        notSet.hidden = !view.limitsNote;
+        // "Limits not set for KNSE", or at a USAF base the rule's source line (plan Step 2c part F), in the same place.
+        const baseNote = view.limitsNote ?? view.sourceNote ?? null;
+        setText(notSet, baseNote?.words ?? '');
+        notSet.title = baseNote?.title ?? '';
+        notSet.hidden = !baseNote;
         axis.replaceChildren(...makeAxis(view));
         overlay.replaceChildren(...makeOverlay(view));
         const words = view.waves.map((w) => w.text).join(' ');

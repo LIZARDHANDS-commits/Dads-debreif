@@ -27,6 +27,7 @@ import { createNotamFeed, notamUrl, notamsFor } from './notams.js';
 import { createAlertsFeed, alertsUrl, alertsFor } from './alerts.js';
 import { siteFor } from './sites/index.js';
 import { limitsSet } from './limits-not-set.js';
+import { usafStandards, noReportStations } from './usaf-limits.js';
 
 const STYLESHEET = new URL('./sof.css', import.meta.url).href;
 /** Ages and the DTG are minutes; the screen is checked this often and touches the page only when a word changes. */
@@ -139,15 +140,20 @@ function mount(root, app) {
     // the levels are Moose Jaw's. The wave calls already have no hits there (waves-view-model.js); dangerous weather still raises.
     const homeLimitsSet = limitsSet(site());
     const homeIcao = app.airfields.home().icao;
+    // A USAF base (plan Step 2c part F): AFMAN 11-202V3's limits (usaf-limits.js), and the T-6A crosswind levels of Dad's ruling (8 Oct 2026) on the cards.
+    const usaf = usafStandards(site());
     const winds = new Map(screen.cards.map((c) => {
       const conditions = snapshot.metar[c.icao]?.report?.conditions ?? null;
-      return [c.icao, crosswindFor({ icao: c.icao, role: c.role, metar: c.metar, wind: conditions?.wind ?? null, weather: conditions?.weather ?? [], settings: xwSettings, levels: homeLimitsSet, homeIcao })];
+      return [c.icao, crosswindFor({ icao: c.icao, role: c.role, metar: c.metar, wind: conditions?.wind ?? null, weather: conditions?.weather ?? [], settings: xwSettings, levels: homeLimitsSet, homeIcao, usaf: usaf?.crosswind ?? null })];
     }));
     const xwCautions = homeLimitsSet ? [...winds.values()].map((x) => x?.caution).filter(Boolean) : [];
-    const waves = buildWaves({ plan: plan.get(), airfields: app.airfields, tafs, limits, now, timeZone: app.time.zone, selectedId, tafNotes: notes });
+    const noReports = usaf ? noReportStations(snapshot, app.airfields.alternates().map((f) => f.icao)) : undefined;
+    const waves = buildWaves({ plan: plan.get(), airfields: app.airfields, tafs, limits, now, timeZone: app.time.zone, selectedId, tafNotes: notes, noReports });
+    // The home forecast below the home limits with no wave entered: the SOF settings' trigger, or at a USAF base its 4.16.2.1 trigger.
+    const bannerHomeLimits = usaf ? { ceilingFt: usaf.homeTrigger.ceilingFt, visSm: usaf.homeTrigger.visSm } : homeLimitsSet ? limits : null;
     banner = buildBanner({
       cards: screen.cards,
-      tafs: tafInputs({ tafs, calls: waves.calls, homeIcao: app.airfields.home().icao, homeLimits: homeLimitsSet ? limits : null, now, timeZone: app.time.zone }),
+      tafs: tafInputs({ tafs, calls: waves.calls, homeIcao: app.airfields.home().icao, homeLimits: bannerHomeLimits, now, timeZone: app.time.zone }),
       // Other writers' cautions (lightning near home) arrive on the screen model in cautions.js's shape.
       extra: [...(screen.extraCautions ?? []), ...xwCautions],
       acks: app.storage.get(ACKS_KEY, null),

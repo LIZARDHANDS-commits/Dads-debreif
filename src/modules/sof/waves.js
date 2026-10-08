@@ -222,6 +222,7 @@ const ALT_WORDS = {
 };
 
 const two = (n) => String(n).padStart(2, '0');
+const byTime = (a, b) => +a.from - +b.from;
 
 /** A time as the SOF says it: "16Z", or "1630Z" when the minutes matter. */
 function zulu(date) {
@@ -288,25 +289,34 @@ function whyUnknown(result, window, endWord) {
  * The home call for a wave: wx's homeAlternateTrigger over takeoff to landing
  * plus one hour, against the home limits (default Local (MTCA) 2000/3).
  * `result` is wx's own answer, unchanged; the rest is words for the screen.
+ * `opts` is for a base with another rule (usaf-limits.js; plan Step 2c part F): `window` (in place of takeoff to landing + 1 h), `label` (in place of
+ * the trigger's name), `span` (what the window is called in the words, default 'wave') and `windowWords` (how "TAF doesn't cover" names the window's
+ * ends), and `extraHits` (more pieces below a limit, in wx's hit shape, such as a forecast crosswind). Without them the call is today's, word for word.
  */
-export function homeCall(wave, homeTaf, limits, icao = homeTaf?.station ?? 'HOME') {
+export function homeCall(wave, homeTaf, limits, icao = homeTaf?.station ?? 'HOME', opts = {}) {
   const used = describeTrigger(limits);
-  const window = waveWindow(wave);
-  const result = homeAlternateTrigger(homeTaf, window, { ceilingFt: used.ceilingFt, visSm: used.visSm });
+  const window = opts.window ?? waveWindow(wave);
+  const span = opts.span ?? 'wave';
+  const trigger = homeAlternateTrigger(homeTaf, window, { ceilingFt: used.ceilingFt, visSm: used.visSm });
+  // More pieces that call for an alternate (a USAF base's forecast crosswind, 4.16.2.3), in wx's hit shape: they join the hits, so the status is 'below'.
+  const extra = Array.isArray(opts.extraHits) ? opts.extraHits : [];
+  const result = extra.length ? { ...trigger, status: 'below', hits: [...trigger.hits, ...extra].sort(byTime) } : trigger;
   let [words, tone] = HOME_WORDS[result.status] ?? HOME_WORDS['no-time'];
+  if (result.status === 'not-covered' && opts.span) words = `TAF doesn't cover the ${span}`;
   // A hit in the part the TAF covers can only get worse with more TAF, so it is
   // never reported as unknown. At-limit pieces alone stay unknown.
-  if (result.covered === false && result.hits.length) [words, tone] = ["ALTERNATE REQUIRED (TAF doesn't cover the whole wave)", 'required'];
+  if (result.covered === false && result.hits.length) [words, tone] = [`ALTERNATE REQUIRED (TAF doesn't cover the whole ${span})`, 'required'];
   const details = detailLines(icao, result, window.from);
+  const windowWords = opts.windowWords ?? { start: 'wave starts', end: 'window ends', at: window.to, suffix: ' (landing + 1 h)' };
   return {
     status: result.status,
     words,
     tone,
-    label: used.label,
+    label: opts.label ?? used.label,
     limits: { ceilingFt: used.ceilingFt, visSm: used.visSm },
     firstReason: firstReason(details),
     hasHit: result.hits.length > 0,
-    why: whyUnknown(result, window, { start: 'wave starts', end: 'window ends', at: window.to, suffix: ' (landing + 1 h)' }),
+    why: whyUnknown(result, window, { ...windowWords, at: window.to }),
     details,
     problems: result.problems,
     result,
@@ -318,16 +328,18 @@ export function homeCall(wave, homeTaf, limits, icao = homeTaf?.station ?? 'HOME
  * plus or minus 60 minutes (D70), with the options from
  * the airfields' `checkOptions(icao)`. `note` says when the approaches aren't set
  * and 600-2 was used (D95).
+ * `opts` is for a base with another rule (usaf-limits.js; plan Step 2c part F): `assess(taf, window)` in place of wx's assessAlternate with
+ * `options` (it must answer in assessAlternate's shape), and `minimaText` in place of the words for `options`' minima. Without them the call is today's.
  */
-export function alternateCall(wave, icao, taf, options = {}) {
+export function alternateCall(wave, icao, taf, options = {}, opts = {}) {
   const window = arrivalWindow([wave.land]);
-  const result = assessAlternate(taf, window, options);
+  const result = typeof opts.assess === 'function' ? opts.assess(taf, window) : assessAlternate(taf, window, options);
   let [words, tone] = ALT_WORDS[result.status] ?? ALT_WORDS['no-time'];
   if (result.covered === false && result.hits.length) [words, tone] = ["Below minima (TAF doesn't cover the whole arrival)", 'below'];
   const descent = options.visualDescent;
   const minima = options.minima ?? [DEFAULT_LIMITS.alternate];
-  const usedText = descent ? descentText(descent) : minimaText(minima);
-  const notSet = !descent && options.minimaChecked !== true;
+  const usedText = opts.minimaText ?? (descent ? descentText(descent) : minimaText(minima));
+  const notSet = opts.minimaText == null && !descent && options.minimaChecked !== true;
   const details = detailLines(icao, result, window?.from ?? wave.land);
   return {
     icao,

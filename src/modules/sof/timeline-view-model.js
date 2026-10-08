@@ -10,6 +10,7 @@ import { withTafNote } from './taf-state.js';
 import { zoneSpan, dayZones } from './zone-words.js';
 import { siteFor } from './sites/index.js';
 import { limitsSet, notSetWords, NOT_SET_KEY } from './limits-not-set.js';
+import { usafStandards, usafAlternateMinima, assessUsafAlternate, usafHomeAssess, noReportStations, noReportsState, SOURCE_LINE, homeLabel } from './usaf-limits.js';
 
 const two = (n) => String(n).padStart(2, '0');
 const hhmm = (d) => `${two(d.getUTCHours())}${two(d.getUTCMinutes())}`;
@@ -21,10 +22,15 @@ const pct = (x) => Math.round(x * 100 * 1e6) / 1e6; // a fraction of the day as 
  * `options`, so its minima, landing minima and visual descent are the ones the calls use.
  * `snapshot` is the weather's (`taf` and `metar` map ICAO to `{ report }`).
  * At a home base with no weather limits (its site profile's `standards` is null) every row is `noLimits`: no piece is hatched or says "below".
+ * At a USAF base (plan Step 2c part F) each row has its own check (`assess`, usaf-limits.js): home the 4.16.2.1 trigger and the forecast crosswind
+ * (4.16.2.3), an alternate its 4.16.4.1 minima; an alternate whose minima can't be used is `noLimits` with a `note` saying why in words.
  */
 export function timelineRows({ airfields, snapshot, limits }) {
   const home = airfields.home();
-  const noLimits = !limitsSet(siteFor(home.icao));
+  const site = siteFor(home.icao);
+  const noLimits = !limitsSet(site);
+  const usaf = usafStandards(site);
+  const noReports = usaf ? noReportStations(snapshot, airfields.alternates().map((f) => f.icao)) : new Set();
   const rows = [];
   const seen = new Set();
   for (const field of [home, ...airfields.alternates()]) {
@@ -38,9 +44,18 @@ export function timelineRows({ airfields, snapshot, limits }) {
       metar: snapshot.metar?.[field.icao]?.report ?? null,
       ...(isHome ? { limits: snapLimits(limits) } : { options: airfields.checkOptions(field.icao) }),
       ...(noLimits ? { noLimits: true } : {}),
+      ...(usaf ? usafRow(field, isHome, usaf, noReports) : {}),
     });
   }
   return rows;
+}
+
+/** A row's own check at a USAF base: home's trigger and crosswind, an alternate's minima, or no check and a note in words. */
+function usafRow(field, isHome, std, noReports) {
+  if (isHome) return { limits: { ceilingFt: std.homeTrigger.ceilingFt, visSm: std.homeTrigger.visSm }, assess: usafHomeAssess(field.icao, std) };
+  const state = noReports.has(field.icao) ? noReportsState(field.icao, std) : usafAlternateMinima(field, std);
+  if (state.state !== 'ok') return { noLimits: true, note: state.state === 'incomplete' && state.short ? `${state.words}: ${state.short}` : state.words };
+  return { assess: (taf, window) => assessUsafAlternate(taf, window, state.minima) };
 }
 
 // Overlays go on lines under the prevailing one, each on the first line where it doesn't touch another.
@@ -123,7 +138,11 @@ function waveView(w, timeZone) {
  */
 export function buildTimelineView({ airfields, snapshot, limits, waves = [], day = 'today', now, timeZone, timePrimary = 'zulu', tafNotes = {} } = {}) {
   const homeIcao = airfields.home().icao;
-  const limitsNote = limitsSet(siteFor(homeIcao)) ? null : { words: notSetWords(homeIcao), title: NOT_SET_KEY };
+  const site = siteFor(homeIcao);
+  const limitsNote = limitsSet(site) ? null : { words: notSetWords(homeIcao), title: NOT_SET_KEY };
+  // At a USAF base the timeline names its rule's source (plan Step 2c part F), where Moose Jaw's names none.
+  const usaf = usafStandards(site);
+  const sourceNote = usaf ? { words: SOURCE_LINE, title: `Home: ${homeLabel(usaf)} at any time of the day shown (the wave calls use ETA ± 1 h); alternates: their AFMAN 4.16.4.1 minima.` } : null;
   const model = timelineModel({
     rows: timelineRows({ airfields, snapshot, limits }),
     waves,
@@ -135,8 +154,8 @@ export function buildTimelineView({ airfields, snapshot, limits, waves = [], day
   // What the notes say is part of the picture, so it is redrawn when one appears or goes.
   const said = Object.entries(tafNotes).filter(([, n]) => n?.note).map(([icao, n]) => [icao, n.note]);
   const drawn = timelineSignature(model, { now: false });
-  const signature = [said.length ? JSON.stringify([drawn, said]) : drawn, limitsNote?.words].filter(Boolean).join('|');
-  if (model.problem) return { problem: model.problem, title: '24-hour timeline', signature, axis: [], rows: [], waves: [], now: null, limitsNote };
+  const signature = [said.length ? JSON.stringify([drawn, said]) : drawn, limitsNote?.words, sourceNote?.words].filter(Boolean).join('|');
+  if (model.problem) return { problem: model.problem, title: '24-hour timeline', signature, axis: [], rows: [], waves: [], now: null, limitsNote, sourceNote };
   // The day's zone name, or both names on the day the clocks change.
   const zone = dayZones(model.axis.from, model.axis.to, timeZone);
   return {
@@ -152,6 +171,7 @@ export function buildTimelineView({ airfields, snapshot, limits, waves = [], day
     waves: model.waves.map((w) => waveView(w, timeZone)),
     now: model.now ? { left: pct(model.now.x), minute: model.now.minute, label: `Now ${hhmm(model.now.at)}Z` } : null,
     limitsNote,
+    sourceNote,
   };
 }
 

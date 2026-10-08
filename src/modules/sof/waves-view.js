@@ -265,6 +265,7 @@ export function createWavesView({ onAdd, onEdit, onRemove, onDay, onSelect, drop
         h('span', { class: 'sof-detail-symbol', 'aria-hidden': 'true' }, model.home.symbol), ' ',
         h('strong', {}, model.home.limits ? `Home, ${model.home.limits}: ` : 'Home: '), model.home.words),
       model.home.why ? h('p', { class: 'sof-note' }, model.home.why) : null,
+      model.home.note ? h('p', { class: 'sof-note' }, model.home.note) : null,
       hits(model.home.lines),
       model.alternates.length
         ? h('p', { class: 'sof-detail-alts-title' }, h('strong', {}, `Alternates: ${model.summary}`))
