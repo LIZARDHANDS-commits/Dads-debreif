@@ -154,6 +154,8 @@ After Traffic is signed off, the Turn Sim review runs before any Turn Sim buildi
 
 SOF items below are Dad's to decide (SOF-47, 7 Oct 2026); they stay listed here until he answers.
 
+- [ ] **Offline cache and the US airspace files (Dad's session, 8 Oct; SOF-53):** `tools/service-worker.mjs` (shared tooling) keeps every built file for offline use, so first visits still fetch all eight airspace files (about 525 KB gzipped) in the background. A skip rule like the one for `examples/` would stop it. Working answer: left as is.
+
 - [ ] **Shell: let the SOF's Home base choice set home and alternates (Dad's session, 8 Oct; SOF-49):** `src/shell/host.js` hands modules a read-only airfields object. One line, `update: ({ home, alternates } = {}) => airfields.update({ home, alternates }),` in its module airfields object, would make the SOF's Home base select work; it only sets home and alternates, which the shared setting already checks. Working answer: the SOF shows the base in words and points to Settings → Airfields.
 
 The one list. Each line is a question; the working answer applies until he says otherwise (`AGENTS.md:103`). Updated 5 Oct 2026, 04:10Z.
