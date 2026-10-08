@@ -1400,9 +1400,8 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
   const turnRadiusFt = zooming ? zoomRadius((start.kias + PFL.glideCleanKias) / 2) : directTurnRadiusFt();
   const minTurnRadiusFt = zooming ? zoomRadius(PFL.glideCleanKias) : glideJoinMinRadiusFt();
 
-  const fromPt = zooming ? apexEnergy.apexPos : s;
-  const fromHdg = zooming ? apexEnergy.exitHeadingDeg : (start.headingDeg ?? RUNWAY_29L_HDG_DEG);
-  let plan = mid?.plan ?? chooseJoin(geo, fromPt, avail, fromHdg, wind, {
+  const fromHdg = start.headingDeg ?? RUNWAY_29L_HDG_DEG;
+  let plan = mid?.plan ?? chooseJoin(geo, s, avail, fromHdg, wind, {
     turnRadiusFt, minTurnRadiusFt, bankDeg: s.bank,
   });
 
@@ -1411,7 +1410,7 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
   }
 
   const patternPfl = mid ? Boolean(mid.patternPfl) : !practice && plan.kind !== 'highKey' && plan.kind !== 'direct';
-  let path = zooming ? [{ x: s.x, y: s.y, plan: 0 }, ...plan.path] : plan.path;
+  let path = plan.path;
   let seg = 0;
   let state = mid ? 'glide' : zooming ? 'zoom' : 'slow';
   const tdKeyInit = path.some((p) => p.key === 'touchdown') ? 'touchdown' : 'aim';
@@ -1543,9 +1542,15 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
     if (n * PILOT_DT < PFL.holdBankSec) {
       bank = s.bank;
     } else if (state === 'zoom') {
-      const targetPt = path[seg + 1] ?? path[1] ?? s;
-      const targetHdg = bearing(s, targetPt);
-      bank = clamp(wrapDeg180(targetHdg - s.hdg) * 2, -PFL.zoomMaxBankDeg, PFL.zoomMaxBankDeg);
+      if (turn !== null) {
+        bank = turn;
+      } else {
+        const segTrk = bearing(curPt, nxtPt);
+        const off = legOffsetsFt(curPt, nxtPt, s);
+        const corrDeg = clamp(-off.crossFt * 0.05, -25, 25);
+        const wantHdg = pilot.headingFor(wrapDeg360(segTrk + corrDeg));
+        bank = bankFor(wantHdg, s, PFL.zoomMaxBankDeg);
+      }
     } else if (state === 'slow') {
       const targetPt = path.find((p) => p.theta !== undefined) ?? path[1] ?? s;
       const targetHdg = bearing(s, targetPt);
@@ -1596,24 +1601,13 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
       accel = -G_FTPS2 * (dw + Math.sin(gamma));
       if (pullDone && (s.ias <= PFL.glideCleanKias + 1.5 || gamma <= glideGamma)) {
         state = 'glide';
-        // Apex reached: Task 6 milestone re-plan
-        const re = chooseJoin(geo, s, s.alt, pilot.trackDeg(), wind, { bankDeg: s.bank });
-        if (!re || re.kind === 'none' || re.label === 'Eject') {
+        if (plan.kind === 'none' || plan.label === 'Eject') {
           outcome = 'eject';
           eject = { x: s.x, y: s.y, alt: s.alt };
           setRec('Eject at top of zoom');
           notes.push(`ejected at top of zoom (${Math.round(s.alt)} ft MSL)`);
           pilot.record();
           break;
-        } else if (re.kind === 'circle') {
-          const curTh = plan.theta;
-          if (curTh !== undefined && re.theta !== undefined && curTh <= 180 && re.theta > 180) {
-            // Keep intercepting downwind before Low Key rather than cutting straight to Base Key
-          } else {
-            replan(re);
-          }
-        } else {
-          replan(re);
         }
       }
     } else {
