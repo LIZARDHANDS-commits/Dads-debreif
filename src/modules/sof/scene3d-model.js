@@ -234,7 +234,7 @@ export function tagWords(a, label = 'off') {
  * should be by now (traffic-motion.js `glideXY`). `trails` is the memory of reported positions (`createTrails`) and `trailsOn` the Trails choice: each
  * aircraft then carries `trail`, [{ x, y, altFt, t }] oldest first, the positions of the last couple of minutes (t in ms).
  *
- * Returns { shown, status, statusText, aircraft: [{ hex, x, y, vx, vy, ageS, t0, trail, altFt, trackDeg, opacity, mil, isT6, name, tag, labelText, description }],
+ * Returns { shown, status, statusText, aircraft: [{ hex, x, y, vx, vy, ageS, t0, trail, altFt, trackDeg, opacity, mil, isT6, helicopter, name, tag, labelText, description }],
  * noAltitude, leftOut, labelsOn (the Labels choice is not 'off': every tag shows), trailsOn, signature }; `shown` is false when the layer is off.
  */
 export function sceneTraffic({ view, toXY, label = 'off', max = MAX_3D_AIRCRAFT, now = null, trails = null, trailsOn = false } = /** @type {any} */ ({})) {
@@ -268,6 +268,7 @@ export function sceneTraffic({ view, toXY, label = 'off', max = MAX_3D_AIRCRAFT,
       opacity: a.opacity,
       mil: a.mil === true,
       isT6: a.type === T6_TYPE,
+      helicopter: a.helicopter === true && a.type !== T6_TYPE, // traffic.js marks it (helicopters.js); drawn as a helicopter (Dad, 8 Oct 2026)
       name: aircraftName(a),
       tag: a.altitudeFt === 'ground' || isNumber(a.altitudeFt) ? tagWords(a, 'off') : `${aircraftName(a)} height ?`,
       labelText: a.altitudeFt === 'ground' || isNumber(a.altitudeFt) ? tagWords(a, label) : `${aircraftName(a)} height ?`,
@@ -276,9 +277,11 @@ export function sceneTraffic({ view, toXY, label = 'off', max = MAX_3D_AIRCRAFT,
   });
   const notes = [];
   if (noAltitude) notes.push(`${noAltitude} without a height, drawn just above the ground`);
+  const helicopters = aircraft.filter((a) => a.helicopter).length;
+  if (helicopters) notes.push(`${helicopters} ${helicopters === 1 ? 'helicopter' : 'helicopters'}, drawn with a rotor`);
   if (leftOut) notes.push(`nearest ${max} drawn`);
   const statusText = notes.length ? `${view.statusText} (${notes.join(', ')})` : view.statusText;
-  const rows = aircraft.map((a) => [a.hex, Math.round(a.x), Math.round(a.y), a.altFt, a.trackDeg === null ? '' : Math.round(a.trackDeg), a.opacity, a.mil ? 1 : 0, a.tag, a.labelText, a.trail.length, a.trail.at(-1)?.t ?? ''].join(','));
+  const rows = aircraft.map((a) => [a.hex, Math.round(a.x), Math.round(a.y), a.altFt, a.trackDeg === null ? '' : Math.round(a.trackDeg), a.opacity, a.mil ? 1 : 0, a.helicopter ? 1 : 0, a.tag, a.labelText, a.trail.length, a.trail.at(-1)?.t ?? ''].join(','));
   return { shown: true, status: view.status, statusText, aircraft, noAltitude, leftOut, labelsOn: label !== 'off', trailsOn, signature: `${view.status}|${label !== 'off'}|${trailsOn}|${rows.join(';')}` }; // the words change with the clock, the drawing only when an aircraft does
 }
 

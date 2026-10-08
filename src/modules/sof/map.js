@@ -1030,7 +1030,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     // A base with no lightning picture of its own may have an outside map to look at instead (us-base.js): a plain link under the map, labelled as not checked.
     controls.setNote(site.charts.vnc ? baseNote(layers) : null, lightningMapLink(site.lightningLink, home));
     // The key explains only the layers this base has a source for.
-    controls.setLegend(legendItems({ ...layers, on: { ...layers.on, radar: layers.on.radar && hasSource('radar'), lightning: layers.on.lightning && hasSource('lightning') } }, { radarBackup: radar.state().source === 'rainviewer', radarScale: site.sources.radar?.scale ?? null, lightningRing: hasSource('lightning') }));
+    controls.setLegend(legendItems({ ...layers, on: { ...layers.on, radar: layers.on.radar && hasSource('radar'), lightning: layers.on.lightning && hasSource('lightning'), traffic: layers.on.traffic === true && relayOn() } }, { radarBackup: radar.state().source === 'rainviewer', radarScale: site.sources.radar?.scale ?? null, lightningRing: hasSource('lightning') }));
   }
 
   function nearHome(t) {

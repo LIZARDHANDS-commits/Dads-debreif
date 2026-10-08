@@ -6,7 +6,8 @@
 // - A T-6 (relay type TEX2) is the shared CT-156 model (ui-kit ct156-model.js, Harvard paint), drawn large at a fixed size on the screen, with
 //   its tag always on in the highlight colour and a drop line to the ground (Dad, 7 Oct: "a noticeable T6 for any aircraft with TEX2").
 // - Every other aircraft is a small stand-in (ui-kit three-aircraft.js `createStandInMesh`) in a muted colour; one with no track is a small
-//   dot, because a model pointing somewhere would say a heading nobody gave. Military aircraft are amber with a ring, as in 2D. Their tags
+//   dot, because a model pointing somewhere would say a heading nobody gave. A helicopter (traffic.js marks it, helicopters.js) is a small
+//   helicopter (helicopter3d.js: cabin, tail boom, rotor disc; Dad, 8 Oct 2026), and one with no track keeps its cabin and rotor but no tail. Military aircraft are amber with a ring, as in 2D. Their tags
 //   show on hover or focus, or all the time when the layer's Labels choice is on.
 // - An aircraft that is not a T-6 inside a watched airspace area (airspace-log.js) gets an amber tag with ⚠ that stays on, whatever its kind (Dad, 7 Oct).
 //   Its words say so (⚠ and the area in its hover text), the colour is only the second cue.
@@ -24,10 +25,11 @@
 import { h } from '../../ui-kit/dom.js';
 import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT } from '../../ui-kit/ct156-model.js';
 import { createStandInMesh, disposeAircraftMesh } from '../../ui-kit/three-aircraft.js';
+import { createHelicopterMesh } from './helicopter3d.js';
 import { glideXY, trailAlpha, TRAIL_WINDOW_S } from './traffic-motion.js';
 
-/** How long each kind is drawn on the screen, in CSS pixels, nose to tail. A T-6 is at least about 40 px (Dad, 7 Oct). Estimates, SOF-39. */
-export const SIZE_PX = Object.freeze({ t6: 44, other: 22, dot: 9 });
+/** How long each kind is drawn on the screen, in CSS pixels, nose to tail. A T-6 is at least about 40 px (Dad, 7 Oct); a helicopter a little longer than a stand-in so its rotor reads (about 21 px across). Estimates, SOF-39. */
+export const SIZE_PX = Object.freeze({ t6: 44, other: 22, heli: 24, dot: 9 });
 /** The colours: the T-6's highlight (the 2D layer's own accent), muted for the rest, amber for military (the 2D layer's caution colour). */
 export const COLOURS = Object.freeze({ t6: '#8adfff', other: '#9fb0bd', mil: '#f5c542', outline: '#0b1620', drop: '#8adfff' });
 /** An aircraft on the ground, or at a pressure altitude under the ground below it, stands this far (scene feet) above the ground so it is seen. */
@@ -49,8 +51,8 @@ const trailRgb = (T, hex) => {
   return [c.r, c.g, c.b];
 };
 
-/** Which model an aircraft gets: a T-6 the CT-156, one with a track a stand-in, one without a dot. */
-export const kindFor = (item) => (item.isT6 ? 'ct156' : item.trackDeg === null ? 'dot' : 'standin');
+/** Which model an aircraft gets: a T-6 the CT-156; a helicopter the helicopter ('heli', or 'heli-still' with no tail when it has no track); any other with a track a stand-in, one without a dot. */
+export const kindFor = (item) => (item.isT6 ? 'ct156' : item.helicopter ? (item.trackDeg === null ? 'heli-still' : 'heli') : item.trackDeg === null ? 'dot' : 'standin');
 
 /**
  * `T` is three.js; `scene` takes the aircraft; `labels` is the element the tags' buttons go in; `onHover(hex | null)` and `onPick(hex)` hear the tags'
@@ -116,6 +118,10 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
     } else if (kind === 'standin') {
       model = createStandInMesh(T, { color: colour, outline: COLOURS.outline });
       mats = fadeList(model, { copy: false });
+    } else if (kind === 'heli' || kind === 'heli-still') {
+      model = createHelicopterMesh(T, { color: colour, outline: COLOURS.outline, tail: kind === 'heli' });
+      mats = fadeList(model, { copy: false });
+      px = SIZE_PX.heli;
     } else {
       model = new T.Mesh(dotGeometry, new T.MeshBasicMaterial({ color: colour }));
       mats = fadeList(model, { copy: false });
@@ -165,7 +171,7 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
     if (entry.kind === 'ct156') {
       for (const f of entry.mats) if (f.copied) f.m.dispose();
       disposeAircraftMesh(entry.model); // hands a CT-156 to its own counted disposer
-    } else if (entry.kind === 'standin') {
+    } else if (entry.kind === 'standin' || entry.kind === 'heli' || entry.kind === 'heli-still') {
       disposeAircraftMesh(entry.model);
     } else {
       entry.model.material.dispose();
@@ -253,7 +259,7 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
       for (const item of items) {
         seen.add(item.hex);
         let entry = entries.get(item.hex);
-        if (entry && (entry.kind !== kindFor(item) || entry.item.mil !== item.mil)) {
+        if (entry && (entry.kind !== kindFor(item) || entry.item.mil !== item.mil)) { // a new kind (a helicopter found, a track lost) is made again
           free(entry);
           entries.delete(item.hex);
           entry = undefined;
@@ -285,7 +291,8 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
         const words = `${entry.intruder ? '⚠ ' : ''}${item.labelText}${below ? ` ${BELOW_TERRAIN_WORDS}` : ''}`;
         if (entry.tagEl.textContent !== words) entry.tagEl.textContent = words;
         const facts = below ? `Reported height is under the terrain below it, so it is drawn just above the ground: the height data is off, not the aircraft down. ` : '';
-        const title = entry.intruder ? `${facts}Not a T-6, inside ${area}. Information only. Advisory area activity is not a SOF caution. Press to show this aircraft’s facts.` : `${facts}Show this aircraft’s facts`;
+        const heli = item.helicopter ? 'Helicopter. ' : '';
+        const title = entry.intruder ? `${facts}${heli}Not a T-6, inside ${area}. Information only. Advisory area activity is not a SOF caution. Press to show this aircraft’s facts.` : `${facts}${heli}Show this aircraft’s facts`;
         if (entry.tagEl.title !== title) entry.tagEl.title = title;
       }
       for (const [hex, entry] of entries) {

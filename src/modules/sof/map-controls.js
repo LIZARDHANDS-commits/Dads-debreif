@@ -170,6 +170,7 @@ export function createMapControls(handlers) {
       parts.push(h('div', { class: 'sof-legend-item sof-legend-row' }, h('span', { class: 'sof-legend-lightning', 'aria-hidden': 'true' }), h('p', {}, items.lightning)));
     }
     if (items.rings) parts.push(h('div', { class: 'sof-legend-item' }, h('p', {}, items.rings)));
+    if (items.traffic) parts.push(h('div', { class: 'sof-legend-item' }, h('p', {}, items.traffic)));
     legendBody.replaceChildren(...parts);
   }
 
@@ -185,7 +186,7 @@ export function createMapControls(handlers) {
     escape: closeOnEscape,
     /** The key for what is showing (map-model.js `legendItems`), or null to hide it (the ADS-B Exchange view). Redrawn only when it changes. */
     setLegend(items) {
-      const shown = items && (items.radar || items.lightning || items.rings);
+      const shown = items && (items.radar || items.lightning || items.rings || items.traffic);
       legend.hidden = !shown;
       const sig = shown ? JSON.stringify(items) : '';
       if (sig === legendSig) return;
