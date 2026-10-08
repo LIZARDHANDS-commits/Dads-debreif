@@ -2536,7 +2536,8 @@ main[data-module='sof'] {
   color: #b8cfdb;
 }
 
-[data-module='sof'] .sof-3d-wx-line.is-bad {
+[data-module='sof'] .sof-3d-wx-line.is-bad,
+[data-module='sof'] .sof-3d-wx-line.is-caution {
   color: var(--caution);
   font-weight: 600;
 }
@@ -2567,19 +2568,19 @@ main[data-module='sof'] {
   color: #9fe3ff;
 }
 
-[data-module='sof'] .sof-3d-model-label[hidden] {
+/* The "Cloud at" sheet's label (V2.184): white and bold, so the chosen height reads first. */
+[data-module='sof'] .sof-3d-model-label.is-altitude {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* The "Cloud at" control's words under its slider. */
+[data-module='sof'] .sof-3d-height-words[hidden] {
   display: none;
 }
 
-[data-module='sof'] .sof-3d-layer {
-  min-height: 1.75rem;
-  max-width: 100%;
-  padding: 0 var(--space-1);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  background: rgb(5 10 18 / 0.85);
-  color: #e3eef5;
-  font: inherit;
+[data-module='sof'] .sof-3d-model-label[hidden] {
+  display: none;
 }
 
 /* The live aircraft (SOF-39 phase 4): the layer's own line above the model controls, and a tag for each aircraft. A T-6's tag is always on and in the
@@ -3018,4 +3019,22 @@ main[data-module='sof'] {
   border-radius: var(--radius);
   background: var(--bg-raised);
   box-shadow: var(--shadow);
+}
+
+/* Full screen keeps the map clear (Dad, 7 Oct: "the area alert and layers windows cover a lot of map"): the 3D layer panels and the airspace log
+   fold away until "Panels" is pressed; the credits line and the traffic line stay. Outside full screen the Panels button is not shown. */
+[data-module='sof'] .sof-3d-panels-toggle {
+  display: none;
+}
+
+[data-module='sof'] .sof-body:fullscreen .sof-3d-panels-toggle,
+[data-module='sof'] .sof-body.is-fullscreen .sof-3d-panels-toggle {
+  display: inline-flex;
+}
+
+[data-module='sof'] .sof-body:fullscreen .sof-3d:not(.show-panels) .sof-3d-bottom > .sof-3d-model,
+[data-module='sof'] .sof-body.is-fullscreen .sof-3d:not(.show-panels) .sof-3d-bottom > .sof-3d-model,
+[data-module='sof'] .sof-body:fullscreen .sof-3d:not(.show-panels) .sof-3d-log,
+[data-module='sof'] .sof-body.is-fullscreen .sof-3d:not(.show-panels) .sof-3d-log {
+  display: none;
 }

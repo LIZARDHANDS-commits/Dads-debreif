@@ -13,12 +13,16 @@ const MINUTE_MS = 60_000;
 export const GEOMET_URL = 'https://geo.weather.gc.ca/geomet';
 const RAINVIEWER_HOST = 'https://tilecache.rainviewer.com';
 
-/** ECCC layer names the SOF draws (SPEC-sof, Layers menu). */
+/**
+ * ECCC layer names the SOF draws (SPEC-sof, Layers menu). `modelCloud` is HRDPS total cloud cover (2.5 km, hourly to 48 h ahead, a new run every 6 hours; checked
+ * 7 Oct 2026), the 3D view's cloud detail (Fable review, SOF-39); it is asked for at the model hour shown, never as a map layer.
+ */
 export const LAYERS = Object.freeze({
   radarRain: 'RADAR_1KM_RRAI',
   radarSnow: 'RADAR_1KM_RSNO',
   lightning: 'Lightning_2.5km_Density',
   coverage: 'RADAR_COVERAGE_RRAI.INV',
+  modelCloud: 'HRDPS.CONTINENTAL_NT',
 });
 const LAYER_NAMES = new Set(Object.values(LAYERS));
 
@@ -26,8 +30,10 @@ const LAYER_NAMES = new Set(Object.values(LAYERS));
  * Radar stale after 20 minutes (D67), lightning after 40 and the GOES cloud picture after 60; the age is the layer's own.
  * Lightning's real lag is 12 to 18 minutes plus the 10-minute refresh, so 30 was reached in normal running; cloud's real
  * lag is 25 to 38 minutes (sof-recheck-207 F3), so it has its own, longer limit and nothing else depends on it.
+ * The HRDPS total-cloud picture is a forecast, so its age is its model run's (its reference time): older than 12 hours is an
+ * old run (two runs missed; ECCC runs HRDPS every 6 hours). Estimate, SOF-39.
  */
-export const STALE_MS = Object.freeze({ radar: 20 * MINUTE_MS, lightning: 40 * MINUTE_MS, cloud: 60 * MINUTE_MS });
+export const STALE_MS = Object.freeze({ radar: 20 * MINUTE_MS, lightning: 40 * MINUTE_MS, cloud: 60 * MINUTE_MS, modelCloud: 12 * 60 * MINUTE_MS });
 /** How often each feed is asked again (D67). */
 export const REFRESH_MS = Object.freeze({ radar: 6 * MINUTE_MS, lightning: 10 * MINUTE_MS });
 
@@ -121,9 +127,10 @@ function periodMs(text) {
 
 /**
  * A layer's times from its GetCapabilities reply (asked for with &layer=NAME, never the
- * whole list). Returns { layer, latest, start, end, stepMs } (Dates; stepMs or null), or
+ * whole list). Returns { layer, latest, start, end, stepMs, referenceTime } (Dates; stepMs or null), or
  * null if the reply is too big, is about another layer, or holds no readable time.
  * `latest` is the layer's own "default" time, ECCC's current one, else the end of its list.
+ * `referenceTime` is a model layer's run (its `reference_time` dimension's default, exact ISO seconds), else null.
  */
 export function parseLayerTimes(xml, layer) {
   if (typeof xml !== 'string' || xml.length > MAX_REPLY_CHARS || !LAYER_NAMES.has(layer)) return null;
@@ -161,7 +168,13 @@ export function parseLayerTimes(xml, layer) {
   // ECCC's default is its current time; believe it only when it lies inside the layer's own range.
   const given = isoTime(/\bdefault="([^"]*)"/.exec(attrs)?.[1]);
   const inside = given && given >= start && given <= end;
-  return Object.freeze({ layer, latest: inside ? given : end, start, end, stepMs });
+  let referenceTime = null;
+  for (const m of section.matchAll(/<Dimension(?:\s([^<>]{0,1000}))?>/g)) {
+    if (!/\bname="reference_time"/.test(m[1] ?? '')) continue;
+    referenceTime = isoTime(/\bdefault="([^"]*)"/.exec(m[1] ?? '')?.[1]);
+    break;
+  }
+  return Object.freeze({ layer, latest: inside ? given : end, start, end, stepMs, referenceTime });
 }
 
 // --- RainViewer, the backup radar --------------------------------------------
@@ -239,7 +252,7 @@ export function nextFeedSource(state, ecccOk, { after = 2 } = {}) {
 
 /**
  * A feed's age, taken from the layer's own time (not when it was fetched).
- * kind 'radar' (default; also the coverage layer), 'lightning' or 'cloud'; layerTime a Date or ms.
+ * kind 'radar' (default; also the coverage layer), 'lightning', 'cloud' or 'modelCloud' (layerTime its run); layerTime a Date or ms.
  * Returns { ageMs, ageMin, stale, state } with state 'fresh', 'stale' or 'unknown'
  * (no usable time: age null, and counted stale so it is never shown as current).
  * A time up to 5 minutes ahead of the clock is age 0; further ahead is 'unknown'. Throws RangeError for another kind.
@@ -247,7 +260,7 @@ export function nextFeedSource(state, ecccOk, { after = 2 } = {}) {
  */
 export function feedAge({ kind = 'radar', layerTime, now = new Date() } = {}) {
   const limit = STALE_MS[kind];
-  if (limit === undefined || !Object.hasOwn(STALE_MS, kind)) throw new RangeError('kind must be radar, lightning or cloud');
+  if (limit === undefined || !Object.hasOwn(STALE_MS, kind)) throw new RangeError('kind must be radar, lightning, cloud or modelCloud');
   const then = layerTime instanceof Date ? +layerTime : layerTime;
   const clock = +now;
   if (!isNumber(then) || !isNumber(clock)) return { ageMs: null, ageMin: null, stale: true, state: 'unknown' };

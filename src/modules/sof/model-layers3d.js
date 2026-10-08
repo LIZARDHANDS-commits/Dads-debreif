@@ -11,11 +11,17 @@
 // level at or below the ground the view draws is under the ground (the model extends below the terrain), so it gets no sheet.
 //
 // Built once for each answer, hour, height scale or ground height, with materials reused; `dispose()` frees everything. The groups are
-// switched on and off with `.visible`, which does not rebuild anything; the Layer picker shows one sheet at a time with `showLayer`.
+// switched on and off with `.visible`, which does not rebuild anything. (The old Layer picker, which showed one level's sheet at a time through `showLayer`, was replaced
+// in V2.184 by the view's "Cloud at" height sheet, cloud-slabs3d.js `buildHeightSheet`, which reads the cover at any height, between levels too.)
+//
+// Two cloud styles (setting "3D cloud style", Fable review 7 Oct): 'slabs' (the default) draws each stage as a slab with a base and a top per model column
+// (cloud-field.js works them out, cloud-slabs3d.js draws them); 'levels' keeps the per-level sheets above unchanged. Barbs and the freezing level are the same in both.
 import {
   cloudSheetLevels, cloudSheetPixels, cloudStage, modelWinds, windsOverHome, meanFreezingFt, freezingWords, CLOUD_SHEET_PX,
 } from './model-clouds.js';
 import { AREA_FT, formatFeet } from './scene3d-model.js';
+import { buildCloudSlabs } from './cloud-slabs3d.js';
+import { cloudSlabs } from './cloud-field.js';
 
 /** The groups the view's toggles switch. */
 export const MODEL_GROUPS = Object.freeze(['low', 'mid', 'high', 'winds', 'freezing']);
@@ -32,18 +38,22 @@ export const sheetWords = (hPa, heightFt) => `${hPa} hPa ≈ ${formatFeet(Math.r
 
 /**
  * Builds the layers. `T` is three.js; `model`, `hour` (index into model.times), `scale` (the height scale) and `groundFt` (the ground
- * the view draws, feet above sea level) as the view has them.
+ * the view draws, feet above sea level) as the view has them. `style` is 'slabs' or 'levels' (the default here, the old sheets); for slabs, `slabs` are the
+ * cloud-field.js fields to draw (masked and anchored by the view; worked out from the model when left out) and `fade` dims them (0 to 1). `magVarDegE` is the home
+ * base's magnetic variation (its site profile), for the winds' degrees magnetic; Moose Jaw's when left out.
  *
- * Returns { root, labels, summary, showLayer(hPa | null), dispose() } where
+ * In slabs style `summary.sheets` is empty, `summary.slabs` is cloud-slabs3d.js's summary, `fields` are the slabs drawn, and
+ * `summary.layers` counts 1 for each stage with a slab drawn.
+ *
+ * Returns { root, labels, summary, fields, dispose() } where
  * - root: a Group holding one Group per MODEL_GROUPS entry (`root.userData.groups`);
  * - labels: [{ group, text, point: { x, y, z }, hPa? }], words to put beside points (a sheet's level, the freezing level, the winds over
- *   home); a sheet's label carries its `hPa` so the Layer picker can hide it with the sheet;
+ *   home); a sheet's label carries its `hPa` (the view puts it on the left of its point);
  * - summary: { sheets: [{ hPa, heightFt, stage, meanCover, maxCover, drawn, words }] (every level above the ground, bottom first; `drawn` is
  *   false for a level with no cloud, which has no sheet), layers: { low, mid, high } (counts of drawn sheets), barbs, freezingFt,
- *   freezingText, windsOverHome: [words] }; the freezing level is null (no sheet, no label) when the model has none anywhere for the hour;
- * - showLayer(hPa): shows only that level's sheet and label, or all of them for null (the stage toggles still apply, being groups).
+ *   freezingText, windsOverHome: [words] }; the freezing level is null (no sheet, no label) when the model has none anywhere for the hour.
  */
-export function buildModelLayers(T, { model, hour, scale, groundFt }) {
+export function buildModelLayers(T, { model, hour, scale, groundFt, style = 'levels', slabs = null, fade = 1, magVarDegE = undefined }) {
   const root = new T.Group();
   const groups = {};
   for (const name of MODEL_GROUPS) {
@@ -59,13 +69,27 @@ export function buildModelLayers(T, { model, hour, scale, groundFt }) {
   };
   const labels = [];
 
-  // ---- Cloud sheets: one see-through plane across the square at each level above the ground ----
-  const sheetGeometry = own(new T.PlaneGeometry(AREA_FT, AREA_FT));
   const sheets = [];
-  const meshes = new Map(); // hPa -> mesh
   const layers = { low: 0, mid: 0, high: 0 };
   const h2 = AREA_FT / 2;
-  for (const level of cloudSheetLevels(model, hour)) {
+  let slabSummary = null;
+  let fields = null;
+  if (style === 'slabs') {
+    // ---- Cloud slabs: a base and a top in every column, a few stacked sheets per stage ----
+    fields = slabs ?? cloudSlabs(model, hour, groundFt);
+    const built = buildCloudSlabs(T, { slabs: fields, scale, fade });
+    for (const stage of ['low', 'mid', 'high']) {
+      groups[stage].add(built.groups[stage]);
+      layers[stage] = built.summary.drawn[stage] ? 1 : 0;
+    }
+    owned.push({ dispose: () => built.dispose() });
+    labels.push(...built.labels);
+    slabSummary = built.summary;
+  }
+
+  // ---- Cloud sheets: one see-through plane across the square at each level above the ground ----
+  const sheetGeometry = own(new T.PlaneGeometry(AREA_FT, AREA_FT));
+  for (const level of style === 'slabs' ? [] : cloudSheetLevels(model, hour)) {
     if (level.heightFt <= groundFt) continue; // under the ground the view draws
     const stage = cloudStage(level.heightFt - groundFt);
     const words = sheetWords(level.hPa, level.heightFt);
@@ -84,13 +108,12 @@ export function buildModelLayers(T, { model, hour, scale, groundFt }) {
     mesh.renderOrder = 1;
     mesh.name = `cloud-${level.hPa}`;
     groups[stage].add(mesh);
-    meshes.set(level.hPa, mesh);
     layers[stage] += 1;
     labels.push({ group: stage, text: words, point: { x: h2, y: h2, z: level.heightFt * scale }, hPa: level.hPa }); // the east corner, the right of the picture from the start view
   }
 
 // ---- Wind barbs: flat on the plane at each level's own height, one mesh for all the barbs of a level ----
-  const winds = modelWinds(model, hour);
+  const winds = modelWinds(model, hour, magVarDegE);
   const windMaterial = own(new T.MeshBasicMaterial({ color: WIND_COLOUR, side: T.DoubleSide, depthWrite: false, transparent: true, opacity: 0.95 }));
   const byLevel = new Map();
   for (const w of winds) {
@@ -106,7 +129,7 @@ export function buildModelLayers(T, { model, hour, scale, groundFt }) {
     mesh.renderOrder = 4;
     groups.winds.add(mesh);
   }
-  const over = windsOverHome(model, hour);
+  const over = windsOverHome(model, hour, magVarDegE);
   for (const w of over) labels.push({ group: 'winds', text: w.words, point: { x: w.x, y: w.y, z: w.heightFt * scale + LIFT_FT } });
 
   // ---- The freezing level: one faint sheet across the area at the mean for the hour, with its border ----
@@ -132,10 +155,8 @@ export function buildModelLayers(T, { model, hour, scale, groundFt }) {
   return {
     root,
     labels,
-    summary: { sheets, layers, barbs: winds.length, freezingFt, freezingText, windsOverHome: over.map((w) => w.words) },
-    showLayer(hPa) {
-      for (const [level, mesh] of meshes) mesh.visible = hPa === null || hPa === level;
-    },
+    summary: { sheets, layers, barbs: winds.length, freezingFt, freezingText, windsOverHome: over.map((w) => w.words), slabs: slabSummary },
+    fields,
     dispose() {
       root.removeFromParent();
       for (const thing of owned) thing.dispose?.();

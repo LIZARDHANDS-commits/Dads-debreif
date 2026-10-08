@@ -6,21 +6,21 @@
 import { h } from '../../ui-kit/dom.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
-import { TRIGGER_OPTIONS, BANNER_HINT, MAX_RELAY_CHARS, relayAccepted, withTrigger, snapCeiling, snapVisibility, CROSSWIND_RANGE } from './settings-model.js';
+import { TRIGGER_OPTIONS, BANNER_HINT, MAX_RELAY_CHARS, relayAccepted, withTrigger, snapCeiling, snapVisibility, CROSSWIND_RANGE, CLOUD_STYLES } from './settings-model.js';
 import { RUNWAY_STATES, CROSSWIND_SOURCE } from './crosswind.js';
 
 const hint = (text) => h('p', { class: 'sof-hint' }, text);
 
 /**
- * settings: the SOF's settings (createSofSettings); crosswind: the crosswind levels and runway state (createCrosswindSettings), or left out.
- * onToggle(collapsed): called when the menu's own header or Escape closes it. Reset to defaults resets both.
+ * settings: the SOF's settings (createSofSettings); crosswind: the crosswind levels and runway state (createCrosswindSettings), or left out; view3d: the 3D view's
+ * cloud style (createView3dSettings), or left out. onToggle(collapsed): called when the menu's own header or Escape closes it. Reset to defaults resets them all.
  * Returns { element, setOpen(open), dispose }: the menu opens from the SOF bar's button as a drop-down (layout.js).
  */
-export function createSettingsView({ settings, crosswind = null, onToggle }) {
+export function createSettingsView({ settings, crosswind = null, view3d = null, onToggle }) {
   // The boxes see the numbers as typed; everything else sees them snapped (settings-model.js).
   const view = withTrigger(settings.editing);
   const controls = createControls(view);
-  const menu = createSettingsMenu({ title: 'SOF settings', onReset: () => { settings.reset(); crosswind?.reset(); }, onToggle });
+  const menu = createSettingsMenu({ title: 'SOF settings', onReset: () => { settings.reset(); crosswind?.reset(); view3d?.reset(); }, onToggle });
 
   const trigger = controls.select('trigger', { label: 'Trigger', options: TRIGGER_OPTIONS });
   // Custom is only ever what the two numbers say: it's not offered in the list, and if it is chosen anyway
@@ -71,10 +71,19 @@ export function createSettingsView({ settings, crosswind = null, onToggle }) {
 
   // The 3D view's height scale (SOF-39): heights are drawn this many times taller than distances on the ground.
   const heightScale = controls.number('heightScale3d', { label: '3D height scale', min: 1, max: 20, step: /** @type {any} */ (1) });
-  menu.section('3D view').append(
+  const view3dSection = menu.section('3D view');
+  view3dSection.append(
     heightScale,
     hint('The 3D view draws heights this many times taller than distances on the ground, so cloud decks are easy to see. It is an estimate for readability; the corner of the 3D view says the number in use.'),
   );
+  // The 3D view's cloud style (SOF-39, Fable review 7 Oct): slabs with a base and a top (the default), or the old one sheet per model level.
+  const styleControls = view3d ? createControls(view3d) : null;
+  if (styleControls) {
+    view3dSection.append(
+      styleControls.select('cloudStyle3d', { label: '3D cloud style', options: CLOUD_STYLES }),
+      hint('Slabs: the model cloud in each stage (low, mid, high) drawn from its base to its top in every model column. One sheet per model level: the old flat sheets at each pressure level, with the Layer picker. Both are model estimates.'),
+    );
+  }
 
   // Traffic relay (SOF-7): empty until Patrick's relay is set up; the Traffic layer stays hidden until it is a good address.
   const relay = relayField(settings);
@@ -93,6 +102,7 @@ export function createSettingsView({ settings, crosswind = null, onToggle }) {
       relay.dispose();
       controls.dispose();
       xwControls?.dispose();
+      styleControls?.dispose();
     },
   };
 }

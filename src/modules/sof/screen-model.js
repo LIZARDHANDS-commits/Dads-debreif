@@ -12,12 +12,19 @@ import { cardModel, formatAge, formatDuration } from './cards.js';
 import { REFRESH_MS } from './weather.js';
 import { snapLimits } from './settings-model.js';
 import { cautionList } from './cautions.js';
+import { CYMJ, siteFor } from './sites/index.js';
 
-/** The line under the screen: what it is not, and where the weather comes from. */
-export const CREDITS = 'Not for flight planning. Confirm with NAV CANADA. '
-  + `Weather: ${SOURCES.metno.name} (CC BY 4.0), ${SOURCES.datamask.name}. `
-  + 'Model clouds and winds in the 3D view: Open-Meteo (CC BY 4.0), ECCC HRDPS and GEM (model estimate). '
-  + '3D fronts: WPC surface analysis; satellite, radar and lightning: ECCC.';
+/**
+ * The line under the screen: what it is not, and where the weather comes from. The weather feeds (MET Norway, Datamask) are the same at every base;
+ * the rest is the home base's site profile (sites/): "Confirm with NAV CANADA" and the ECCC and WPC credits are Canada's, so a base without them says nothing of them.
+ */
+export function creditsFor(site) {
+  const c = site?.credits ?? {};
+  return ['Not for flight planning.', c.confirm, `Weather: ${SOURCES.metno.name} (CC BY 4.0), ${SOURCES.datamask.name}.`, c.model, c.pictures].filter(Boolean).join(' ');
+}
+
+/** Moose Jaw's credits line, as it has always read. */
+export const CREDITS = creditsFor(CYMJ);
 
 /** The weather feed reads STALE once its last good round is older than this (three missed refreshes). */
 export const STALE_FEED_MIN = 15;
@@ -159,7 +166,7 @@ export function buildScreen({ airfields, snapshot, limits, now, lightning = null
     feed: feedStatus(snapshot, now),
     alert: alertText(snapshot, now),
     cards,
-    credits: CREDITS,
+    credits: creditsFor(siteFor(home.icao)),
     lightning,
     // Cautions from outside the weather reports, in cautions.js's shape: the banner adds these to what it builds from the cards and TAFs.
     extraCautions,

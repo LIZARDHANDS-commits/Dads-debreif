@@ -14,8 +14,12 @@
 // - A null is no data for that one value: cloud cover null is not cloudy; a null geopotential height leaves that level out of the column;
 //   a null wind speed or direction draws no barb there; a null freezing level leaves that point out of the mean.
 // - A failed refresh keeps the last good answer, and the view says "Model refresh failed at 1030Z, showing the 0900Z answer (90 min old)".
-//   Once the held answer is older than STALE_MS (or there never was one) the layers are removed, never frozen, and the view says so with
-//   the time of the last good answer ("not yet" if there never was one).
+//   The model is asked again only when a newer HRDPS run can be out (`nextRunAt`), so an answer is current until then; once a newer run should have been
+//   asked for and STALE_MS has passed without one (or there never was an answer) the layers are removed, never frozen, and the view says so with the time of the
+//   last good answer ("not yet" if there never was one). An answer is never shown more than STALE_MS past the time it should have been replaced.
+// - The HRDPS grid comes in bands of rows (HRDPS_CHUNKS). A band that fails is filled from the global GEM at its points and the view says which band and how many
+//   points ("HRDPS part missing: ... taken from the global GEM"); if the GEM cannot fill it either, the whole HRDPS answer counts as failed (never drawn clear where
+//   there is no data). A 429 reply (Open-Meteo's free limit) is said in words.
 import { guardedFetch, bytesToText, FETCH_LIMITS } from './map-fetch.js';
 import { FT_PER_NM } from './map-view.js';
 import { AREA_NM, AREA_FT, formatFeet } from './scene3d-model.js';
@@ -36,21 +40,66 @@ export const GRID_SPACING_FT = GRID_SPACING_NM * FT_PER_NM;
 /** Cloud cover and geopotential height are asked at these pressure levels, bottom first (the global GEM request, kept as it was). */
 export const CLOUD_LEVELS_HPA = Object.freeze([1000, 925, 850, 700, 600, 500, 400, 300]);
 /**
- * The finer HRDPS request (ECCC's 2.5 km model, `models=gem_hrdps_continental` on the same endpoint; Dad, 7 Oct): more levels. Checked 7 Oct 2026 against the live
- * endpoint: it answered cloud cover and geopotential height at 1000, 950, 925, 900, 850, 800, 750, 700, 650, 600, 550, 500, 450, 400, 350, 300 and 250 hPa;
- * 975 hPa came back all null (so it is never asked for) and `freezing_level_height` is null for HRDPS (the freezing level comes from a small global GEM request,
- * see `FREEZING_STEP`). Asking for all 17 levels at 169 points took over a minute to stream (HRDPS is slow, about 0.5 s a point with 17 levels; the global GEM
- * answers the same grid in about 5 s), so these 12 are asked for, an estimate for a wait of about 40 s: 650, 550, 450 and 350 hPa are left out.
+ * The finer HRDPS request (ECCC's 2.5 km model, `models=gem_hrdps_continental` on the same endpoint; Dad, 7 Oct: "get all the cloud data to plot and blend the best you
+ * can"): every pressure level it answers. Checked 7 Oct 2026 against the live endpoint: it answered cloud cover and geopotential height at all 17 of these; 975 hPa came
+ * back all null (so it is never asked for) and `freezing_level_height` is null for HRDPS (the freezing level comes from a small global GEM request, see `FREEZING_STEP`).
+ * One request for all 169 points with 17 levels took over a minute to stream, so 650, 550, 450 and 350 hPa were left out until V2.184; now the grid is asked for in
+ * HRDPS_CHUNKS parallel bands of rows (see there), which answers in seconds.
  */
-export const HRDPS_CLOUD_LEVELS_HPA = Object.freeze([1000, 950, 900, 850, 800, 750, 700, 600, 500, 400, 300, 250]);
+export const HRDPS_CLOUD_LEVELS_HPA = Object.freeze([1000, 950, 925, 900, 850, 800, 750, 700, 650, 600, 550, 500, 450, 400, 350, 300, 250]);
 /** The levels to try, for the record (see above): the ones that came back with data on 7 Oct 2026, and the one that did not. */
 export const HRDPS_TRIED_HPA = Object.freeze({ answered: [1000, 950, 925, 900, 850, 800, 750, 700, 650, 600, 550, 500, 450, 400, 350, 300, 250], null: [975] });
+/**
+ * The HRDPS grid is asked for in this many requests at once, each a band of whole rows (13 rows: 3, 2, 2, 2, 2, 2; 39 or 26 points), so the first finer picture is
+ * not slower than before. Measured 7 Oct 2026 about 2150Z through this build's proxy, all 17 levels: a band of 29 points answered in 3.3 to 3.8 s (three bands); the
+ * global GEM for all 169 points in 2.8 s; one band once stalled and Open-Meteo ended it after 96 s with "Unexpected error while streaming data: timeoutReached" (a 200
+ * reply that is not JSON, so a failed band). One request for all 169 points with 17 levels had taken over a minute (7 Oct, earlier). Asking in bands does not cost more of
+ * the free daily limit: Open-Meteo counts each location of a request (see CALLS below), however the locations are split. Six is an estimate: enough that each band is a
+ * few seconds, few enough that a browser runs them all at once (six connections to one host).
+ */
+export const HRDPS_CHUNKS = 6; // estimate, SOF-39
+/**
+ * Open-Meteo's free tier allows 600 calls a minute (its pricing page, read 7 Oct 2026), and a request costs max(1, variables / 10) calls per point, so the whole
+ * HRDPS grid (169 points x 43 variables, about 727) and the quick global GEM (about 439) together are about twice that. Sent all at once from Dad's browser on 7 Oct,
+ * three of the six bands came back missing. So the feed spreads its requests: no 61 seconds hold more than CALLS_PER_MINUTE (kept under 600 for a margin, estimate).
+ * The full HRDPS picture then lands about two minutes after opening, with the quick GEM picture shown meanwhile.
+ */
+export const CALLS_PER_MINUTE = 500;
+/** The window the budget is counted over: a minute and a second, so a fixed clock minute never holds two batches. */
+export const CALL_WINDOW_MS = 61 * 1000;
+/** What Open-Meteo counts for one request (its pricing page): max(1, variables / 10) for each point. */
+export const callCost = (pointCount, variableCount) => Math.max(1, variableCount / 10) * pointCount;
+/**
+ * HRDPS runs at 00, 06, 12 and 18Z (ECCC). A newer run is taken to be on Open-Meteo this long after its start: an estimate from Open-Meteo's own record for the
+ * 7 Oct 2026 1200Z run (its `meta.json` for cmc_gem_hrdps: started 1200Z, available 1642Z, 4 h 42 min), rounded up. So the model is asked again at about 0500,
+ * 1100, 1700 and 2300Z, not every hour.
+ */
+export const HRDPS_RUN_EVERY_MS = 6 * 60 * 60 * 1000;
+export const HRDPS_AVAILABLE_AFTER_MS = 5 * 60 * 60 * 1000; // estimate, SOF-39
+/**
+ * Open-Meteo's free tier, from its pricing page (source checked 7 Oct 2026, open-meteo-website `src/routes/en/pricing/+page.svelte`): 600 calls a minute, 5,000 an hour,
+ * 10,000 a day; "requests for data covering more than 10 weather variables ... count as multiple API calls", fractional, and each location counts: a request weighs
+ * max(1, variables / 10) x locations (its calculator). So:
+ * - HRDPS, 169 points x 43 variables (17 levels x 2, winds 3 x 2, low, mid, high): 169 x 4.3 = about 727 calls, however it is split into bands;
+ * - the freezing level, 25 points x 1 variable: 25 calls;
+ * - the global GEM, 169 points x 26 variables: 169 x 2.6 = about 439 calls (asked on first opening only, as the quick first picture, or as the fallback).
+ * Opening the 3D view: about 1,191. Each new run while it stays open: about 752, four a day, so about 4,200 a day for a view left open all day (each reload of the page
+ * adds about 1,191; a band that fails adds a GEM request for its points only, and a degraded answer is asked again once, 10 minutes later). Before V2.184 it was asked
+ * every hour: 24 x (592 + 25) + 439 = about 15,250 a day, over the free 10,000, which is why "Daily API request limit exceeded" was seen on 7 Oct. The minute's 600
+ * is not met by one HRDPS ask (727): whether Open-Meteo counts a request when it starts or as it streams is not known here (untested).
+ */
+export const CALLS = Object.freeze({ hrdps: 727, freezing: 25, gem: 439, perDayOpenAllDay: 1191 + 4 * 752, freeDaily: 10_000 }); // worked out above; Open-Meteo's own counting is not seen from here
 /** HRDPS has no freezing level: a small global GEM request over every third grid point each way (25 of the 169) gives the mean the sheet uses. */
 export const FREEZING_STEP = 3;
 /** Winds are asked at these (and drawn as barbs at each level's own geopotential height). */
 export const WIND_LEVELS_HPA = Object.freeze([850, 700, 500]);
-/** Hourly values asked for: now plus 24 hours ahead. */
+/** Hourly values the slider shows: now plus 24 hours ahead. */
 export const FORECAST_HOURS = 25;
+/**
+ * Hourly values asked for: 9 more than the slider shows, so it still reaches 24 hours ahead when the answer is up to 9 hours old (6 hours to the next run's ask, and
+ * the 3 hours a failed refresh may keep it, STALE_MS). The extra hours cost no extra calls (Open-Meteo counts time only past 2 weeks).
+ */
+export const ASK_HOURS = FORECAST_HOURS + 9;
 /** The most hours the slider goes ahead of now. */
 export const MAX_AHEAD_HOURS = FORECAST_HOURS - 1;
 
@@ -112,11 +161,29 @@ const RANGES = Object.freeze([
 ]);
 const rangeOf = (variable) => RANGES.find(([prefix]) => variable.startsWith(prefix));
 
-/** The last good answer is kept and shown this long, even while refreshes fail; older than this and the layers are removed (SOF-39). */
+/**
+ * The last good answer is kept and shown this long past the time a newer run should have replaced it (`nextRunAt`), even while refreshes fail; after that the layers
+ * are removed (SOF-39). Before V2.184 the model was asked every hour and this counted from the answer itself; it now counts from when the answer stopped being the
+ * newest run there could be, so a good answer is never removed just for waiting for the next run.
+ */
 export const STALE_MS = 3 * 60 * 60 * 1000;
-/** Asked again this often while the 3D view is open (SOF-39), or this soon after a failure (an estimate, SOF-39: not in the spec). */
-export const REFRESH_MS = 60 * 60 * 1000;
+/** Asked again this soon after a failure (an estimate, SOF-39: not in the spec), growing as below. */
 export const RETRY_MS = 10 * 60 * 1000;
+/**
+ * After failures in a row the wait grows: 10, then 20, then 40 minutes (and stays at 40), so a run of failures stays well inside Open-Meteo's free daily limit (a 429
+ * "Daily API request limit exceeded" was seen on 7 Oct 2026). Estimate, SOF-39 (Fable review, 7 Oct). A good answer starts the count again.
+ */
+export const RETRY_STEPS_MS = Object.freeze([RETRY_MS, 2 * RETRY_MS, 4 * RETRY_MS]);
+/** The wait before asking again after `failures` failed asks in a row (1 or more). */
+export const retryDelayMs = (failures) => RETRY_STEPS_MS[Math.min(RETRY_STEPS_MS.length, Math.max(1, failures)) - 1];
+/**
+ * When the model is next asked, after an ask at `ms`: the first time after it that a newer HRDPS run can be on Open-Meteo (a run at 00, 06, 12 or 18Z plus
+ * HRDPS_AVAILABLE_AFTER_MS, an estimate), so 0500, 1100, 1700 or 2300Z. Milliseconds.
+ */
+export function nextRunAt(ms) {
+  const k = Math.floor((ms - HRDPS_AVAILABLE_AFTER_MS) / HRDPS_RUN_EVERY_MS);
+  return (k + 1) * HRDPS_RUN_EVERY_MS + HRDPS_AVAILABLE_AFTER_MS;
+}
 /** How often the feed looks at the clock to see whether it is due (so a sleeping computer is caught up within this). */
 const TICK_MS = 30 * 1000;
 const MAX_HOURS_IN_REPLY = 72;
@@ -132,8 +199,8 @@ export const CLOUD_COVER_THRESHOLD_PCT = 30; // estimate, SOF-39
 export const CLOUD_STAGES_FT_AGL = Object.freeze({ lowTopFt: 6500, midTopFt: 20_000 });
 
 /**
- * Magnetic variation at Moose Jaw, degrees East (magnetic = true - this): Patrick's ruling, 4 Oct (TR-65). The same number as
- * Traffic's `MAG_VARIATION_DEG_E`; modules do not import each other and there is no shared copy yet, so it is stated again here, for
+ * Magnetic variation at Moose Jaw, degrees East (magnetic = true - this): Patrick's ruling, 4 Oct (TR-65). It is also the Moose Jaw site profile's
+ * (sites/cymj.js points here), and the default where nothing else is passed. The same number as Traffic's `MAG_VARIATION_DEG_E`; modules do not import each other and there is no shared copy yet, so it is stated again here, for
  * showing winds in degrees magnetic only.
  */
 export const MAG_VARIATION_DEG_E = 9;
@@ -166,7 +233,7 @@ export function gridPoints(toLatLon, size = GRID_SIZE) {
 /**
  * The one request for every grid point: comma-separated latitudes and longitudes, the hourly variables, knots, GMT, 25 hours. `profile` says which model and which
  * variables (GEM_PROFILE, the default; HRDPS_PROFILE adds `models=gem_hrdps_continental`); `variables` overrides the list (the small freezing-level request).
- * 169 points with the HRDPS variables make an address of about 3,400 characters, under the 8,000 Open-Meteo takes.
+ * 169 points with the HRDPS variables make an address of about 3,500 characters, under the 8,000 Open-Meteo takes (a band of rows is shorter).
  */
 export function modelUrl(points, profile = GEM_PROFILE, variables = profile.askedVariables) {
   const params = new URLSearchParams({
@@ -175,7 +242,7 @@ export function modelUrl(points, profile = GEM_PROFILE, variables = profile.aske
     hourly: variables.join(','),
     wind_speed_unit: 'kn',
     timezone: 'GMT',
-    forecast_hours: String(FORECAST_HOURS),
+    forecast_hours: String(ASK_HOURS),
     ...(profile.models ? { models: profile.models } : {}),
   });
   // URLSearchParams writes a comma as %2C; the API takes both, but the plain form is shorter and easier to read.
@@ -276,43 +343,76 @@ export function columnAt(point, hour, cloudLevels = CLOUD_LEVELS_HPA) {
 
 // ---- Cloud ----------------------------------------------------------------------------------------
 
+/** A level's cover as a number: null (no data) is 0, not cloudy, as everywhere in this file. */
+const coverOf = (level) => (isNumber(level?.cover) ? level.cover : 0);
+
 /**
- * The cloud in one column, as blocks with a base and a top. The 3D view no longer draws these (it draws a cover sheet at each level, see
- * `cloudSheetLevel`, Dad 7 Oct); the function stays because it is tested and says where a column's cloud lies between its levels.
- * Each level whose cover is over `threshold` is cloud from halfway down to the level below to halfway up to the level above,
- * by geopotential height (the lowest and highest levels use the same half-gap on their open side). Cloudy levels
- * next to each other join into one block. A block's base is never drawn below `floorFt` (the ground the view draws).
+ * The model's cloud cover at any height in one column (Dad, 7 Oct: "blend the best you can"): a straight line between the two levels either side, by geopotential
+ * height (feet). Between two pressure levels a few hundred metres to a kilometre apart, height and the log of pressure go almost in step (the hypsometric equation), so
+ * interpolating by height or by log-pressure gives nearly the same answer; height is used because it is what the slider and the slabs are in. Exactly at a level it is
+ * that level's cover. Below the lowest level or above the highest there is no data: null (nothing is made up outside the model's levels).
  *
- * `levels`: [{ cover (percent), heightFt (above sea level) }]. Returns [{ baseFt, topFt, cover }] bottom first, where cover is the
- * mean of the levels in the block (percent), and `baseFt` and `topFt` are feet above sea level.
+ * `levels`: [{ cover (percent, or null), heightFt (feet above sea level) }], any order. Returns percent 0 to 100, or null.
+ */
+export function coverAtHeight(levels, heightFt) {
+  const sorted = [...levels].filter((l) => isNumber(l.heightFt)).sort((a, b) => a.heightFt - b.heightFt);
+  if (!sorted.length || !isNumber(heightFt) || heightFt < sorted[0].heightFt || heightFt > sorted.at(-1).heightFt) return null;
+  for (let k = 1; k < sorted.length; k++) {
+    const lo = sorted[k - 1];
+    const hi = sorted[k];
+    if (heightFt > hi.heightFt) continue;
+    const span = hi.heightFt - lo.heightFt;
+    const t = span > 0 ? (heightFt - lo.heightFt) / span : 0;
+    return coverOf(lo) + (coverOf(hi) - coverOf(lo)) * t;
+  }
+  return coverOf(sorted[0]); // one level only, and the height is exactly at it
+}
+
+/**
+ * The height between two levels where the straight-line cover (as `coverAtHeight`) crosses `threshold`: one of them over it and the other not. Feet above sea level.
+ */
+function crossingFt(a, b, threshold) {
+  const ca = coverOf(a);
+  const cb = coverOf(b);
+  if (ca === cb) return (a.heightFt + b.heightFt) / 2; // cannot happen with one over and one not; kept safe
+  const t = Math.min(1, Math.max(0, (threshold - ca) / (cb - ca)));
+  return a.heightFt + (b.heightFt - a.heightFt) * t;
+}
+
+/**
+ * The cloud in one column, as blocks with a base and a top. The 3D view's cloud slabs (cloud-field.js, the default "3D cloud style") are built from these; the old
+ * style draws a cover sheet at each level instead (`cloudSheetLevel`, Dad 7 Oct).
+ * Each run of levels whose cover is over `threshold` is one block. Its base and top are where the column's cover crosses the threshold (V2.184, Dad 7 Oct: "blend"):
+ * between the last clear level and the first cloudy one, at the height where the straight line between their covers (`coverAtHeight`) meets the threshold; so a
+ * 20 % level under an 80 % level puts the base a sixth of the way up the gap, not halfway (it was halfway between levels before V2.184). At the open ends (the lowest
+ * or highest level cloudy) there is nothing to cross to, so the block goes half the gap to the next level inward, beyond it, as before (an estimate). A block's base
+ * is never drawn below `floorFt` (the ground the view draws).
+ *
+ * `levels`: [{ cover (percent), heightFt (above sea level) }]. Returns [{ baseFt, topFt, cover, levels }] bottom first, where cover is the
+ * mean of the levels in the block (percent), `levels` how many model levels it holds, and `baseFt` and `topFt` are feet above sea level.
  */
 export function cloudBlocks(levels, { threshold = CLOUD_COVER_THRESHOLD_PCT, floorFt = -Infinity } = {}) {
   const sorted = [...levels].sort((a, b) => a.heightFt - b.heightFt);
+  const cloudy = (k) => coverOf(sorted[k]) > threshold;
+  /** The block's edge beyond level i, going `direction` (-1 down, +1 up): the crossing to the clear level there, or half a gap past an open end. */
   const edge = (i, direction) => {
     const next = sorted[i + direction];
-    if (next) return (sorted[i].heightFt + next.heightFt) / 2;
+    if (next) return crossingFt(next, sorted[i], threshold);
     const inner = sorted[i - direction];
     return inner ? sorted[i].heightFt + (direction * Math.abs(sorted[i].heightFt - inner.heightFt)) / 2 : sorted[i].heightFt;
   };
   const blocks = [];
-  let open = null;
-  const close = () => {
-    if (!open) return;
-    const baseFt = Math.max(open.baseFt, floorFt);
-    if (open.topFt > baseFt) blocks.push({ baseFt, topFt: open.topFt, cover: open.sum / open.count });
-    open = null;
-  };
   for (let i = 0; i < sorted.length; i++) {
-    if (!(sorted[i].cover > threshold)) {
-      close();
-      continue;
-    }
-    if (!open) open = { baseFt: edge(i, -1), topFt: 0, sum: 0, count: 0 };
-    open.topFt = edge(i, 1);
-    open.sum += sorted[i].cover;
-    open.count += 1;
+    if (!cloudy(i)) continue;
+    let last = i;
+    let sum = 0;
+    while (last < sorted.length && cloudy(last)) sum += coverOf(sorted[last++]);
+    last -= 1;
+    const baseFt = Math.max(edge(i, -1), floorFt);
+    const topFt = edge(last, 1);
+    if (topFt > baseFt) blocks.push({ baseFt, topFt, cover: sum / (last - i + 1), levels: last - i + 1 });
+    i = last;
   }
-  close();
   return blocks;
 }
 
@@ -393,10 +493,11 @@ function cellOf(position, size) {
 }
 
 /**
- * The cover on the whole `px` by `px` sheet, smoothly (bicubic, Catmull-Rom) between the grid's own values (row 0 the south edge, kept 0 to 100):
- * across each grid row first, then up the columns, which is the same as a one-point bicubic but quick enough to redo for each hour of the slider.
+ * A grid's values on the whole `px` by `px` sheet, smoothly (bicubic, Catmull-Rom) between the grid's own values (row 0 the south edge, kept `lo` to `hi`; cover is 0 to
+ * 100, the default, and a height is unclamped): across each grid row first, then up the columns, which is the same as a one-point bicubic but quick enough to redo for each
+ * hour of the slider. The cloud sheets smooth their cover with it and the cloud slabs (cloud-field.js) their cover, base and top.
  */
-function coverField(values, size, px) {
+export function smoothField(values, size, px, lo = 0, hi = 100) {
   const at = (a, b) => values[Math.min(size - 1, Math.max(0, b)) * size + Math.min(size - 1, Math.max(0, a))];
   const across = Array.from({ length: size }, () => new Float32Array(px)); // each grid row, smoothed across
   for (let x = 0; x < px; x++) {
@@ -409,16 +510,20 @@ function coverField(values, size, px) {
     const { cell, t } = cellOf(y / (px - 1), size);
     const w = catmullWeights(t);
     const rows = [-1, 0, 1, 2].map((d) => across[Math.min(size - 1, Math.max(0, cell + d))]);
-    for (let x = 0; x < px; x++) field[y * px + x] = Math.min(100, Math.max(0, w[0] * rows[0][x] + w[1] * rows[1][x] + w[2] * rows[2][x] + w[3] * rows[3][x]));
+    for (let x = 0; x < px; x++) field[y * px + x] = Math.min(hi, Math.max(lo, w[0] * rows[0][x] + w[1] * rows[1][x] + w[2] * rows[2][x] + w[3] * rows[3][x]));
   }
   return field;
 }
+const coverField = (values, size, px) => smoothField(values, size, px);
 
 /**
  * Cover at a place on the grid, smoothly (bicubic, Catmull-Rom) between the grid's own values. `u` and `v` run 0 to 1 across the
  * square, west to east and south to north. The grid's own values are met exactly at the grid points; the result is kept 0 to 100.
  */
-export function sampleCover(values, size, u, v) {
+export const sampleCover = (values, size, u, v) => sampleField(values, size, u, v);
+
+/** Any grid's value at a place, as `sampleCover` (bicubic, Catmull-Rom), kept `lo` to `hi` (cover's 0 to 100 by default; a height passes -Infinity and Infinity). */
+export function sampleField(values, size, u, v, lo = 0, hi = 100) {
   const at = (a, b) => values[Math.min(size - 1, Math.max(0, b)) * size + Math.min(size - 1, Math.max(0, a))];
   const { cell: i, t: tx } = cellOf(u, size);
   const { cell: j, t: ty } = cellOf(v, size);
@@ -426,11 +531,11 @@ export function sampleCover(values, size, u, v) {
   const wy = catmullWeights(ty);
   let sum = 0;
   for (let dj = 0; dj < 4; dj++) for (let di = 0; di < 4; di++) sum += wy[dj] * wx[di] * at(i - 1 + di, j - 1 + dj);
-  return Math.min(100, Math.max(0, sum));
+  return Math.min(hi, Math.max(lo, sum));
 }
 
 /** A box blur of a square field of `px` by `px` numbers, `radius` pixels each way, edges clamped; one horizontal then one vertical pass. */
-function blur(field, px, radius) {
+export function blur(field, px, radius) {
   if (radius < 1) return field;
   const span = radius * 2 + 1;
   const pass = (from, along) => {
@@ -490,9 +595,12 @@ export function meanLayerCover(model, hour) {
 
 // ---- Winds aloft -----------------------------------------------------------------------------------
 
-/** A true bearing as magnetic, 1 to 360 (360, never 0, for north), whole degrees. Magnetic = true - 9 (TR-65). */
-export const trueToMagnetic = (trueDeg) => {
-  const m = ((Math.round(trueDeg - MAG_VARIATION_DEG_E) % 360) + 360) % 360;
+/**
+ * A true bearing as magnetic, 1 to 360 (360, never 0, for north), whole degrees. Magnetic = true - the variation: Moose Jaw's 9 (TR-65) unless the home base's
+ * site profile gives its own (`magVarDegE`, degrees East; sites/).
+ */
+export const trueToMagnetic = (trueDeg, magVarDegE = MAG_VARIATION_DEG_E) => {
+  const m = ((Math.round(trueDeg - magVarDegE) % 360) + 360) % 360;
   return m === 0 ? 360 : m;
 };
 
@@ -513,13 +621,13 @@ export function levelWindWords({ hPa, heightFt, dirMag, kt }) {
  * One wind at a grid point and a level at an hour: { x, y, hPa, heightFt, dirTrue, dirMag, kt, barb, words }, or null when the model has
  * no speed, direction or height there (no barb is drawn).
  */
-export function windAt(point, hour, hPa) {
+export function windAt(point, hour, hPa, magVarDegE = MAG_VARIATION_DEG_E) {
   const kt = point.series[`wind_speed_${hPa}hPa`][hour];
   const dirTrue = point.series[`wind_direction_${hPa}hPa`][hour];
   const metres = point.series[`geopotential_height_${hPa}hPa`][hour];
   if (kt === null || dirTrue === null || metres === null) return null;
   const heightFt = metres * FT_PER_M;
-  const dirMag = trueToMagnetic(dirTrue);
+  const dirMag = trueToMagnetic(dirTrue, magVarDegE);
   return { x: point.x, y: point.y, i: point.i, j: point.j, hPa, heightFt, dirTrue, dirMag, kt, barb: windBarb(kt), words: levelWindWords({ hPa, heightFt, dirMag, kt }) };
 }
 
@@ -527,12 +635,12 @@ export function windAt(point, hour, hPa) {
 export const barbStep = (gridSize) => (gridSize > 9 ? 3 : 2);
 
 /** The barbs to draw: every `barbStep` grid point (each way, so 25 a level), at each of the three levels. Bottom level first. */
-export function modelWinds(model, hour) {
+export function modelWinds(model, hour, magVarDegE = MAG_VARIATION_DEG_E) {
   const out = [];
   const step = barbStep(model.gridSize ?? GRID_SIZE);
   for (const hPa of WIND_LEVELS_HPA) {
     for (const point of model.points) {
-      const wind = point.i % step === 0 && point.j % step === 0 ? windAt(point, hour, hPa) : null;
+      const wind = point.i % step === 0 && point.j % step === 0 ? windAt(point, hour, hPa, magVarDegE) : null;
       if (wind) out.push(wind);
     }
   }
@@ -540,10 +648,10 @@ export function modelWinds(model, hour) {
 }
 
 /** The winds over home (the centre grid point), one per level, for the key and the labels. */
-export function windsOverHome(model, hour) {
+export function windsOverHome(model, hour, magVarDegE = MAG_VARIATION_DEG_E) {
   const mid = ((model.gridSize ?? GRID_SIZE) - 1) / 2;
   const centre = model.points.find((p) => p.i === mid && p.j === mid);
-  return centre ? WIND_LEVELS_HPA.map((hPa) => windAt(centre, hour, hPa)).filter((w) => w !== null) : [];
+  return centre ? WIND_LEVELS_HPA.map((hPa) => windAt(centre, hour, hPa, magVarDegE)).filter((w) => w !== null) : [];
 }
 
 // ---- Wind as a field (the gentle flow, Dad 7 Oct) and the cloud above a place ---------------------------------------
@@ -660,28 +768,91 @@ export function hourWords(model, hour, nowMs, timeZone) {
 /** The time of a good answer as "1430Z", or "not yet" when there has not been one. */
 export const lastGoodWords = (lastGoodAt) => (lastGoodAt === null || lastGoodAt === undefined ? 'not yet' : `${two(new Date(lastGoodAt).getUTCHours())}${two(new Date(lastGoodAt).getUTCMinutes())}Z`);
 
-/** What the view says when there is no model data to draw. `incomplete`: the last reply had nulls in over half its values. */
-export const unavailableWords = (lastGoodAt, incomplete = false) => `${incomplete ? 'Model data incomplete. ' : ''}Model clouds unavailable, showing METAR decks only (last good answer: ${lastGoodWords(lastGoodAt)}).`;
+/** Open-Meteo's free limit in words, said when a reply was 429 ("Daily API request limit exceeded" was seen on 7 Oct 2026). */
+const LIMIT_WORDS = 'Open-Meteo\'s free request limit was reached';
+
+/** What the view says when there is no model data to draw. `incomplete`: the last reply had nulls in over half its values; `limited`: a 429 (the free limit). */
+export const unavailableWords = (lastGoodAt, incomplete = false, limited = false) => `${incomplete ? 'Model data incomplete. ' : ''}${limited ? `${LIMIT_WORDS}. ` : ''}Model clouds unavailable, showing METAR decks only (last good answer: ${lastGoodWords(lastGoodAt)}).`;
 
 /** What the view says when a refresh failed but the answer held is still young enough to show: "Model refresh failed at 1030Z, showing the 0900Z answer (90 min old)." */
-export function refreshFailedWords({ failedAt, lastGoodAt, now, incomplete = false }) {
+export function refreshFailedWords({ failedAt, lastGoodAt, now, incomplete = false, limited = false }) {
   const age = Math.max(0, Math.round((+now - lastGoodAt) / 60_000));
-  return `Model refresh failed at ${lastGoodWords(failedAt)}${incomplete ? ' (model data incomplete)' : ''}, showing the ${lastGoodWords(lastGoodAt)} answer (${age} min old).`;
+  const why = [incomplete ? 'model data incomplete' : null, limited ? LIMIT_WORDS : null].filter(Boolean).join('; ');
+  return `Model refresh failed at ${lastGoodWords(failedAt)}${why ? ` (${why})` : ''}, showing the ${lastGoodWords(lastGoodAt)} answer (${age} min old).`;
 }
 export const LOADING_WORDS = 'Loading model clouds and winds…';
 export const CREDIT_WORDS = 'Model clouds and winds: Open-Meteo, ECCC GEM (model estimate)';
 
+/** "about 2300Z": when the model is asked again (`nextRunAt`), for the key. */
+export const nextAskWords = (ms) => `about ${lastGoodWords(ms)}`;
+
+/** Where a band of grid rows lies, in words: "150 NM S to 75 NM S of home" (row 0 is the south edge, rows GRID_SPACING_NM apart). */
+function bandPlaceWords([first, last], size) {
+  const spacing = AREA_NM / (size - 1);
+  const at = (j) => {
+    const nm = Math.round(-AREA_NM / 2 + j * spacing);
+    return nm === 0 ? 'home' : `${Math.abs(nm)} NM ${nm < 0 ? 'S' : 'N'}`;
+  };
+  return first === last ? `${at(first)} of home` : `${at(first)} to ${at(last)} of home`;
+}
+
+/**
+ * The words for an HRDPS answer that had bands filled from the global GEM (`model.filled`), or null when there were none: "HRDPS part missing: 26 of 169 points
+ * (the band 150 NM N to 188 NM N of home), taken from the global GEM (8 levels there, not 17)."
+ */
+export function filledWords(model) {
+  const f = model?.filled;
+  if (!f || !f.points) return null;
+  const where = f.bands.map((b) => bandPlaceWords(b, model.gridSize ?? GRID_SIZE)).join('; ');
+  return `HRDPS part missing: ${f.points} of ${f.total} points (${f.bands.length === 1 ? 'the band' : 'the bands'} ${where}), taken from the global GEM (${CLOUD_LEVELS_HPA.length} levels there, not ${HRDPS_CLOUD_LEVELS_HPA.length}).`;
+}
+
 // ---- The feed --------------------------------------------------------------------------------------
 
 /**
- * The model feed: asks Open-Meteo for the whole grid while it is running, keeps the last good answer in memory only, and says what
- * there is to draw. `start()` asks at once and then once an hour (ten minutes after a failure); `stop()` ends the request and the timer.
- * It is started only while the 3D view is shown.
+ * The grid's points in `chunks` bands of whole rows, south first, as near equal as can be (13 rows in 6: 3, 2, 2, 2, 2, 2): [{ rows: [first j, last j], points }].
+ * A whole row is a band's smallest piece, so a band that fails is a strip across the square, easy to say in words.
+ */
+export function rowBands(points, chunks = HRDPS_CHUNKS) {
+  const rows = [...new Set(points.map((p) => p.j))].sort((a, b) => a - b);
+  const n = Math.max(1, Math.min(chunks, rows.length));
+  const bands = [];
+  let start = 0;
+  for (let c = 0; c < n; c++) {
+    const count = Math.floor(rows.length / n) + (c < rows.length % n ? 1 : 0);
+    const these = new Set(rows.slice(start, start + count));
+    start += count;
+    const list = points.filter((p) => these.has(p.j));
+    if (list.length) bands.push({ rows: [Math.min(...these), Math.max(...these)], points: list });
+  }
+  return bands;
+}
+
+/** A reply that has the shape asked for: one object per point, each with an `hourly` object and a list of times. The values are checked later (checkModelReply). */
+const fitsPoints = (json, points) => Array.isArray(json) && json.length === points.length
+  && json.every((entry) => entry && typeof entry === 'object' && entry.hourly && typeof entry.hourly === 'object' && Array.isArray(entry.hourly.time));
+
+/** A global GEM entry in the HRDPS reply's shape: the levels it has are kept, the ones it does not have are null (no data, so they are left out of the column). */
+function asHrdpsEntry(entry) {
+  const { hourly } = entry;
+  const out = { time: hourly.time };
+  for (const variable of HRDPS_PROFILE.variables) out[variable] = Array.isArray(hourly[variable]) ? hourly[variable] : new Array(hourly.time.length).fill(null);
+  return { hourly: out };
+}
+
+/**
+ * The model feed: asks Open-Meteo for the whole grid while it is running, keeps the last good answer in memory only, and says what there is to draw. `start()` asks at
+ * once, then when a newer HRDPS run can be out (`nextRunAt`), or 10, 20, then 40 minutes after failures in a row (RETRY_STEPS_MS). `stop()` ends the request and the
+ * timer. It is started only while the 3D view is shown.
  *
- * Which model (Dad, 7 Oct): the finer HRDPS 2.5 km model is asked for first; the global GEM is the fallback when HRDPS fails or comes back with more than half nulls.
- * HRDPS is slow (about 40 s for the whole grid, longer the first time), so when nothing is held yet the global GEM (about 5 s) is asked for first and drawn at
- * once, and the HRDPS answer replaces it when it arrives (`refining` says so meanwhile). HRDPS has no freezing level, so a small global request over every third grid
- * point gives the sheet its mean (a failure of that request only leaves the freezing level out). An answer is checked whole, exactly as before (checkModelReply).
+ * Which model (Dad, 7 Oct): the finer HRDPS 2.5 km model, every level it answers, asked in HRDPS_CHUNKS bands of rows, spread so no minute goes over Open-Meteo's free per-minute limit (CALLS_PER_MINUTE). When nothing is held yet, the global
+ * GEM (about 3 s) is asked at the same time and drawn at once as the quick first picture, and the HRDPS answer replaces it when every band is in (`refining` says so
+ * meanwhile). A band that fails is filled from the global GEM at its points (the quick answer when there is one, else a small GEM request for those points only), and
+ * `model.filled` says where; with no GEM to fill it the HRDPS answer fails whole and the global GEM is the fallback, as before. HRDPS has no freezing level, so a small
+ * global request over every third grid point, asked alongside, gives the sheet its mean (a failure of that request only leaves the freezing level out). An answer is
+ * checked whole, exactly as before (checkModelReply).
+ *
+ * An answer that is the global GEM, or HRDPS with a band filled, is asked for again once, RETRY_MS later, in each run's time; otherwise the next ask waits for the next run.
  *
  * - points(size): the grid points for the current home and grid size (`gridPoints`).
  * - fetch, timers (a scheduler scope), now: as the map's other feeds.
@@ -690,58 +861,143 @@ export const CREDIT_WORDS = 'Model clouds and winds: Open-Meteo, ECCC GEM (model
 export function createModelFeed({ points, fetch, timers, now = () => new Date(), onChange = () => {} }) {
   let model = null;
   let lastGoodAt = null;
-  let failure = null; // { at, incomplete } while the last refresh has failed
+  let failure = null; // { at, incomplete, limited } while the last refresh has failed
+  let failures = 0; // failed asks in a row, for the growing wait (RETRY_STEPS_MS)
   let busy = false;
   let refining = false; // the global answer is showing while HRDPS is on its way
   let askedAt = null;
+  let dueAt = null; // when the next ask is due
+  let degradedRetry = null; // the run (nextRunAt) in whose time a degraded answer was asked for again
   let running = false;
   let cancelTick = null;
   let controller = new AbortController();
 
+  const spent = []; // { at, cost } of the requests sent in the last CALL_WINDOW_MS, for Open-Meteo's per-minute limit
+
   const changed = () => {
     if (running) onChange();
   };
+  const gone = (mine) => mine !== controller || !running;
 
-  /** One request for one model; { ok, model } or { ok: false, reason, incomplete }. A stopped feed or a changed home (the signal) ends it quietly: `stale: true`. */
-  async function tryProfile(profile, asked, mine) {
-    /** @type {{ ok: boolean, reason?: string, incomplete?: boolean, model?: any, stale?: boolean }} */
-    let result = { ok: false, reason: 'request failed' };
-    try {
-      const limits = profile.id === 'hrdps' ? FETCH_LIMITS.modelHrdps : FETCH_LIMITS.model;
-      const reply = await guardedFetch(fetch, modelUrl(asked, profile), { timers, signal: mine.signal, accept: 'application/json', ...limits });
-      let json = JSON.parse(bytesToText(reply.bytes));
-      if (profile.id === 'hrdps' && Array.isArray(json)) json = await withFreezing(json, asked, mine);
-      result = checkModelReply(json, { points: asked, receivedAt: +now(), profile });
-    } catch {
-      // A failed request, or a reply that is not JSON: the same as a wrong reply.
+  /** Waits `ms` on the feed's timers, or less if the feed stops or moves on. */
+  const wait = (ms, mine) => new Promise((resolve) => {
+    if (gone(mine)) return resolve(undefined);
+    const onAbort = () => {
+      cancel();
+      resolve(undefined);
+    };
+    const cancel = timers.after(Math.max(0, ms), () => {
+      mine.signal.removeEventListener('abort', onAbort);
+      resolve(undefined);
+    });
+    mine.signal.addEventListener('abort', onAbort, { once: true });
+  });
+
+  /** Holds a request of `cost` calls until it fits in the per-minute budget (CALLS_PER_MINUTE over CALL_WINDOW_MS); one bigger than the budget goes alone. */
+  async function pace(cost, mine) {
+    for (;;) {
+      if (gone(mine)) return;
+      const t = +now();
+      while (spent.length && t - spent[0].at >= CALL_WINDOW_MS) spent.shift();
+      const used = spent.reduce((sum, e) => sum + e.cost, 0);
+      if (!spent.length || used + cost <= CALLS_PER_MINUTE) {
+        spent.push({ at: t, cost });
+        return;
+      }
+      await wait(spent[0].at + CALL_WINDOW_MS - t, mine);
     }
-    if (mine !== controller || !running) return { ...result, ok: false, stale: true };
-    return result;
   }
 
-  /** HRDPS' reply with a freezing level added: the mean comes from a small global request; a point without one has all null, and a failed request leaves every point null. */
-  async function withFreezing(json, asked, mine) {
+  /** One request to Open-Meteo for `pts` with `variables`, sent when the per-minute budget has room. A 429 is asked once more, a minute later. */
+  async function askPaced(pts, profile, variables, limits, mine) {
+    let got = { ok: false, limited: false };
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt) await wait(CALL_WINDOW_MS, mine);
+      await pace(callCost(pts.length, variables.length), mine);
+      if (gone(mine)) return { ok: false, limited: false };
+      got = await getJson(modelUrl(pts, profile, variables), limits, mine);
+      if (got.ok || !got.limited) return got;
+    }
+    return got;
+  }
+
+  /** One request: { ok: true, json } or { ok: false, limited } (limited: a 429, Open-Meteo's free limit). A reply that is not JSON is a failure. */
+  async function getJson(url, limits, mine) {
+    try {
+      const reply = await guardedFetch(fetch, url, { timers, signal: mine.signal, accept: 'application/json', ...limits });
+      return { ok: true, json: JSON.parse(bytesToText(reply.bytes)) };
+    } catch (err) {
+      return { ok: false, limited: /\b429\b/.test(String(err?.message ?? '')) };
+    }
+  }
+
+  /** The global GEM for every grid point: checkModelReply's result plus `raw` (the reply, for filling HRDPS bands) and `limited`; `stale` when the feed moved on. */
+  async function askGem(asked, mine) {
+    const got = await askPaced(asked, GEM_PROFILE, GEM_PROFILE.askedVariables, FETCH_LIMITS.model, mine);
+    if (gone(mine)) return { ok: false, stale: true };
+    if (!got.ok) return { ok: false, reason: 'request failed', limited: got.limited };
+    const result = checkModelReply(got.json, { points: asked, receivedAt: +now(), profile: GEM_PROFILE });
+    return { ...result, raw: result.ok ? got.json : null };
+  }
+
+  /** The freezing level from a small global request over every FREEZING_STEP-th point: a Map of point index to its series (empty when the request fails). */
+  async function askFreezing(asked, mine) {
     const sample = asked.filter((p) => p.i % FREEZING_STEP === 0 && p.j % FREEZING_STEP === 0);
     const byIndex = new Map();
-    try {
-      const reply = await guardedFetch(fetch, modelUrl(sample, GEM_PROFILE, ['freezing_level_height']), { timers, signal: mine.signal, accept: 'application/json', ...FETCH_LIMITS.model });
-      const small = JSON.parse(bytesToText(reply.bytes));
-      if (Array.isArray(small) && small.length === sample.length) {
-        small.forEach((entry, n) => {
-          const series = entry?.hourly?.freezing_level_height;
-          if (Array.isArray(series)) byIndex.set(sample[n].index, series);
-        });
-      }
-    } catch {
-      // No freezing level this time.
+    const got = await askPaced(sample, GEM_PROFILE, ['freezing_level_height'], FETCH_LIMITS.model, mine);
+    if (got.ok && Array.isArray(got.json) && got.json.length === sample.length) {
+      got.json.forEach((entry, n) => {
+        const series = entry?.hourly?.freezing_level_height;
+        if (Array.isArray(series)) byIndex.set(sample[n].index, series);
+      });
     }
-    const length = Array.isArray(json[0]?.hourly?.time) ? json[0].hourly.time.length : 0;
+    return byIndex;
+  }
+
+  /**
+   * HRDPS in bands of rows, each sent when the per-minute budget has room (`pace`), with the freezing level alongside. `quick` is the global GEM's answer on its way (first opening), or null. Returns
+   * checkModelReply's result with `model.filled` ({ points, total, bands: [[first row, last row]] } or null), `limited` when a band met the free limit, `stale` when
+   * the feed moved on.
+   */
+  async function askHrdps(asked, mine, quick) {
+    const bands = rowBands(asked);
+    const freezingP = askFreezing(asked, mine);
+    const replies = await Promise.all(bands.map((band) => askPaced(band.points, HRDPS_PROFILE, HRDPS_PROFILE.askedVariables, FETCH_LIMITS.modelHrdps, mine)));
+    if (gone(mine)) return { ok: false, stale: true };
+    const limited = replies.some((r) => !r.ok && r.limited);
+    const missing = bands.filter((band, k) => !(replies[k].ok && fitsPoints(replies[k].json, band.points)));
+    if (missing.length === bands.length) return { ok: false, reason: 'every HRDPS band failed', limited };
+    const entries = new Map(); // point index -> reply entry
+    bands.forEach((band, k) => {
+      if (!missing.includes(band)) band.points.forEach((p, n) => entries.set(p.index, replies[k].json[n]));
+    });
+    if (missing.length) {
+      // The missing bands from the global GEM at the same points: the quick answer when it came, else a small request for those points only.
+      const want = missing.flatMap((band) => band.points);
+      const held = quick ? await quick : null;
+      if (gone(mine)) return { ok: false, stale: true };
+      let fill = held?.ok && held.raw ? want.map((p) => held.raw[asked.indexOf(p)]) : null;
+      if (!fill) {
+        const got = await askPaced(want, GEM_PROFILE, GEM_PROFILE.askedVariables, FETCH_LIMITS.model, mine);
+        if (gone(mine)) return { ok: false, stale: true };
+        fill = got.ok && fitsPoints(got.json, want) ? got.json : null;
+      }
+      if (!fill || !fitsPoints(fill, want)) return { ok: false, reason: 'an HRDPS band failed and the global GEM could not fill it', limited };
+      want.forEach((p, n) => entries.set(p.index, asHrdpsEntry(fill[n])));
+    }
+    const freezing = await freezingP;
+    if (gone(mine)) return { ok: false, stale: true };
+    const json = asked.map((p) => entries.get(p.index));
+    const filledAt = new Set(missing.flatMap((band) => band.points.map((p) => p.index)));
+    const length = json[0]?.hourly?.time?.length ?? 0;
     json.forEach((entry, n) => {
-      if (!entry || typeof entry !== 'object' || !entry.hourly || typeof entry.hourly !== 'object') return;
-      const series = byIndex.get(asked[n]?.index);
+      if (filledAt.has(asked[n].index)) return; // a GEM entry keeps its own freezing level
+      const series = freezing.get(asked[n].index);
       entry.hourly.freezing_level_height = Array.isArray(series) && series.length === length ? series : new Array(length).fill(null);
     });
-    return json;
+    const result = checkModelReply(json, { points: asked, receivedAt: +now(), profile: HRDPS_PROFILE });
+    if (result.ok) result.model.filled = missing.length ? { points: filledAt.size, total: asked.length, bands: missing.map((band) => band.rows) } : null;
+    return { ...result, limited };
   }
 
   function adopt(result) {
@@ -758,39 +1014,52 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
     changed();
     let finished = null;
     if (!model) {
-      // Nothing to show yet: the quick global answer first, then the finer one over it.
-      const quick = await tryProfile(GEM_PROFILE, asked, mine);
+      // Nothing to show yet: the quick global answer and the finer bands are asked for together; the quick one is drawn first.
+      const quickP = askGem(asked, mine);
+      const fineP = askHrdps(asked, mine, quickP);
+      const quick = await quickP;
       if (quick.stale) return;
       if (quick.ok) {
         adopt(quick);
         refining = true;
         changed();
       }
-      const fine = await tryProfile(HRDPS_PROFILE, asked, mine);
+      const fine = await fineP;
       if (fine.stale) return;
       refining = false;
       if (fine.ok) adopt(fine);
-      else if (!quick.ok) finished = { at: +now(), incomplete: fine.incomplete === true || quick.incomplete === true };
+      else if (!quick.ok) finished = { at: +now(), incomplete: fine.incomplete === true || quick.incomplete === true, limited: Boolean(fine.limited || quick.limited) };
     } else {
-      const fine = await tryProfile(HRDPS_PROFILE, asked, mine);
+      const fine = await askHrdps(asked, mine, null);
       if (fine.stale) return;
       if (fine.ok) adopt(fine);
       else {
-        const fallback = await tryProfile(GEM_PROFILE, asked, mine);
+        const fallback = await askGem(asked, mine);
         if (fallback.stale) return;
         if (fallback.ok) adopt(fallback);
-        else finished = { at: +now(), incomplete: fallback.incomplete === true || fine.incomplete === true }; // the answer held, if any, stays until it is too old
+        else finished = { at: +now(), incomplete: fallback.incomplete === true || fine.incomplete === true, limited: Boolean(fine.limited || fallback.limited) }; // the answer held, if any, stays until it is too old
       }
     }
     busy = false;
-    if (finished) failure = finished;
+    if (finished) {
+      failure = finished;
+      failures += 1;
+      dueAt = askedAt + retryDelayMs(failures);
+    } else {
+      failures = 0;
+      const run = nextRunAt(askedAt);
+      const degraded = model.source !== 'hrdps' || Boolean(model.filled);
+      if (degraded && degradedRetry !== run) {
+        degradedRetry = run; // once in each run's time: a band that stalled, or HRDPS that was slow, is often there 10 minutes later
+        dueAt = Math.min(run, askedAt + RETRY_MS);
+      } else dueAt = run;
+    }
     changed();
   }
 
   function tick() {
     if (!running || busy) return;
-    const t = +now();
-    if (askedAt === null || t - askedAt >= (failure ? RETRY_MS : REFRESH_MS)) ask();
+    if (askedAt === null || dueAt === null || +now() >= dueAt) ask();
   }
 
   return {
@@ -823,27 +1092,33 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
       model = null;
       lastGoodAt = null;
       failure = null;
+      failures = 0;
       busy = false;
       refining = false;
       askedAt = null;
+      dueAt = null;
+      degradedRetry = null;
       if (running) {
         changed();
         tick();
       }
     },
     /**
-     * What to draw and say at `at`: { status, model, lastGoodAt, failedAt, incomplete, refining }.
-     * - 'ok': the model to draw (`model.sourceName` says which). `failedAt` is the time of a failed refresh (the answer held is still under STALE_MS old), else null.
-     *   `refining`: the global answer is showing and the finer HRDPS one is on its way.
+     * What to draw and say at `at`: { status, model, lastGoodAt, failedAt, incomplete, limited, refining, nextAt }.
+     * - 'ok': the model to draw (`model.sourceName` says which; `model.filled` any HRDPS band taken from the GEM). `failedAt` is the time of a failed refresh (the
+     *   answer held is still young enough, STALE_MS), else null. `refining`: the global answer is showing and the finer HRDPS one is on its way.
      * - 'loading': the first ask is still out (or about to go).
-     * - 'unavailable': no answer, or the one held is older than STALE_MS; no model (never a frozen one). `incomplete`: the last reply had too many nulls.
+     * - 'unavailable': no answer, or the one held is too old (STALE_MS past the time a newer run should have replaced it); no model (never a frozen one).
+     *   `incomplete`: the last reply had too many nulls; `limited`: it was refused by Open-Meteo's free limit (429).
+     * `nextAt`: when the model is asked again (ms), or null.
      */
     view(at = now()) {
-      const old = lastGoodAt !== null && +at - lastGoodAt > STALE_MS;
+      const old = lastGoodAt !== null && +at > nextRunAt(lastGoodAt) + STALE_MS;
       const incomplete = failure?.incomplete === true;
-      if (model && !old) return { status: 'ok', model, lastGoodAt, failedAt: failure?.at ?? null, incomplete, refining };
-      if (!failure && !model) return { status: 'loading', model: null, lastGoodAt, failedAt: null, incomplete: false, refining: false };
-      return { status: 'unavailable', model: null, lastGoodAt, failedAt: failure?.at ?? null, incomplete, refining: false };
+      const limited = failure?.limited === true;
+      if (model && !old) return { status: 'ok', model, lastGoodAt, failedAt: failure?.at ?? null, incomplete, limited, refining, nextAt: dueAt };
+      if (!failure && !model) return { status: 'loading', model: null, lastGoodAt, failedAt: null, incomplete: false, limited: false, refining: false, nextAt: dueAt };
+      return { status: 'unavailable', model: null, lastGoodAt, failedAt: failure?.at ?? null, incomplete, limited, refining: false, nextAt: dueAt };
     },
   };
 }
