@@ -214,10 +214,20 @@ assert.ok(pflRouteEntry, 'Dynamic PFL route appended to scene.routes');
 assert.equal(pflRouteEntry.name, 'PFL Glide (PFL_AC1)', 'Route name matches specification');
 assert.equal(pflRouteEntry.kind, 'pfl', 'Route kind is pfl');
 assert.equal(pflRouteEntry.color, '#38bdf8', 'Route color is #38bdf8');
-assert.equal(pflRouteEntry.visible, true, 'Route is visible');
+assert.equal(pflRouteEntry.visible, false, 'Route is not visible by default when unselected');
+
+const sceneWithPflSelected = buildScene({
+  setup: MOOSE_JAW,
+  state: stateWithPfl,
+  selectedRouteId: 'PFL_PFL_AC1',
+  trailOf: () => [],
+});
+const pflRouteSelected = sceneWithPflSelected.routes.find((r) => r.id === 'PFL_PFL_AC1');
+assert.equal(pflRouteSelected.visible, true, 'Route is visible when selected');
+
 assert.equal(pflRouteEntry.points.length, 3, 'Route points length is 3');
 assert.equal(pflRouteEntry.path.length, 3, 'Route path length is 3');
-console.log('✓ Dynamic PFL route correctly appended to scene.routes');
+console.log('✓ Dynamic PFL route correctly appended to scene.routes (hidden by default, shown when selected)');
 
 // Test resilient buildScene call with empty aircraft and missing trailOf
 const emptyScene = buildScene({

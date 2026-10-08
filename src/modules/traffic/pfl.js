@@ -479,7 +479,7 @@ export function predictApexEnergy({ startState, wind = { windFromDeg: 360, windK
   });
 
   const apexAltFt = zoomSeg.apexAltFt;
-  const energyHeightFt = apexAltFt + speedTradeFt(zoomSeg.exitKias, apexAltFt, 0);
+  const energyHeightFt = apexAltFt;
 
   return {
     apexPos: zoomSeg.apexPos,
@@ -780,9 +780,13 @@ function interceptPath(geo, from, theta, trackDeg, turnRadiusFt) {
   const p = geo.at(theta);
   const lineTrk = bearing(from, p);
   const first = Math.abs(wrapDeg180(lineTrk - trackDeg));
-  const onto = wrapDeg180(geo.trackAt(theta) - lineTrk);
-  if (first > PFL.interceptTurnDeg || onto > 10 || onto < -PFL.interceptOntoDeg) return null;
-  return Object.assign([{ x: from.x, y: from.y, plan: 0 }, ...arcToAim(geo, theta)], { turnDeg: first + Math.abs(onto), straightFt: dist(from, p), turnRadiusFt });
+  const onto = Math.abs(wrapDeg180(geo.trackAt(theta) - lineTrk));
+  if (first > 120 || onto > PFL.interceptOntoDeg) return null;
+  const arc = leadTurn(from, trackDeg, p);
+  const exitArc = arc.length ? arc[arc.length - 1] : { x: from.x, y: from.y };
+  const straightLeg = dist(exitArc, p) > 10 ? [{ x: exitArc.x, y: exitArc.y, plan: 0 }] : [];
+  const startPts = arc.length ? [{ x: from.x, y: from.y, plan: 0, arc: arc[0].arc }, ...arc, ...straightLeg] : [{ x: from.x, y: from.y, plan: 0 }];
+  return Object.assign([...startPts, ...arcToAim(geo, theta)], { turnDeg: first + onto, straightFt: dist(from, p), turnRadiusFt });
 }
 
 function directPath(geo, from, aimAlongFt, gearAtJoin = true, headingDeg = undefined) {
@@ -884,16 +888,17 @@ function turnOntoRunway(geo, from, trackDeg, kias, altFt, wind) {
   return out;
 }
 
-function chooseDirect(geo, from, altFt, kias, wind, trackDeg = undefined, cfgNow = 0) {
+export function chooseDirect(geo, from, altFt, kias, wind, trackDeg = undefined, cfgNow = 0) {
   const ground = THRESHOLD_DATA_ELEV_FT;
   const last = geo.lenFt - PFL.stopMarginFt;
   const trade = speedTradeFt(kias, altFt, 1);
+  const baseAlong = Math.max(500, geo.aimAlongFt);
   const alongs = [];
-  for (let d = 0; geo.aimAlongFt + d <= last + 1e-6 || geo.aimAlongFt - d >= 500; d += 500) {
-    if (geo.aimAlongFt - d >= 500 && d > 0) alongs.push(geo.aimAlongFt - d);
-    if (geo.aimAlongFt + d <= last + 1e-6) alongs.push(geo.aimAlongFt + d);
+  for (let d = 0; baseAlong + d <= last + 1e-6 || baseAlong - d >= 500; d += 500) {
+    if (baseAlong - d >= 500 && d > 0) alongs.push(baseAlong - d);
+    if (baseAlong + d <= last + 1e-6) alongs.push(baseAlong + d);
   }
-  const label = (along) => (along > geo.aimAlongFt + 1 ? 'Turn early, land long' : 'Direct threshold');
+  const label = (along) => (along > baseAlong + 1 ? 'Turn early, land long' : 'Direct runway');
   const cands = turnOntoRunway(geo, from, trackDeg, kias, altFt, wind).map((c) => ({ ...c, label: label(c.aimAlongFt) }));
   for (const along of alongs) {
     cands.push({ path: directPath(geo, from, along, true, trackDeg), aimAlongFt: along, label: label(along) });
@@ -908,27 +913,45 @@ function widenPath(geo, path, seg, s, altFt, wind, tdKey) {
   const own = bearing(geo.centre, s);
   let thOwn = 0;
   for (let th = 0; th < 360; th += 1) if (Math.abs(wrapDeg180(bearing(geo.centre, geo.at(th)) - own)) < Math.abs(wrapDeg180(bearing(geo.centre, geo.at(thOwn)) - own))) thOwn = th;
-  const th0 = Math.max(path[seg].theta ?? 0, thOwn);
+  const th0 = Math.max(path[seg]?.theta ?? 0, thOwn);
   if (th0 >= PFL.lastJoinDeg - PFL.joinStepDeg) return null;
   const fk = path.findIndex((p, i) => i > seg && p.theta !== undefined && p.theta >= PFL.lastJoinDeg);
   if (fk < 0) return null;
   const out = (p) => { const d = dist(geo.centre, p); return { x: (p.x - geo.centre.x) / d, y: (p.y - geo.centre.y) / d }; };
   const base0 = geo.at(th0);
   const now = dist(geo.centre, s) - dist(geo.centre, base0);
+  const windFromDeg = geo.windFromDeg ?? 360;
+  const up = { x: Math.sin(windFromDeg * DEG), y: Math.cos(windFromDeg * DEG) };
   const build = (k) => {
-    const pts = [{ x: s.x, y: s.y, theta: th0, plan: path[seg].plan }];
+    const pts = [{ x: s.x, y: s.y, theta: th0, plan: path[seg]?.plan ?? 3 }];
     for (let th = th0 + PFL.joinStepDeg; th < PFL.lastJoinDeg - 1e-6; th += PFL.joinStepDeg) {
       const f = (th - th0) / (PFL.lastJoinDeg - th0);
       const off = now * (1 - f) + k * Math.sin(Math.PI * f);
       const p = geo.at(th), u = out(p);
-      pts.push({ x: p.x + u.x * off, y: p.y + u.y * off, theta: th, plan: planAt(th), key: keyAt(th) });
+      const kShift = geo.shiftFt ? geo.shiftFt * (1 - clamp(th, 0, 360) / 360) : 0;
+      const c = { x: geo.centre.x + up.x * kShift, y: geo.centre.y + up.y * kShift };
+      const arc = { cx: c.x, cy: c.y, r: geo.r + off, side: -1 };
+      const pt = { x: p.x + u.x * off, y: p.y + u.y * off, theta: th, plan: planAt(th), key: keyAt(th), arc };
+      // Centerline boundary guard: Pattern side must never cross over runway centerline
+      const offRwy = legOffsetsFt(geo.th, geo.dep, pt);
+      if (offRwy.crossFt > -300) return null;
+      pts.push(pt);
     }
-    return [...pts, ...path.slice(fk)];
+    const full = [...pts, ...path.slice(fk)];
+    return full;
   };
-  const spare = (k) => altFt - ground - neededFt(build(k), 0, s, altFt, 3, wind, false, tdKey) - PFL.onProfileFt;
-  if (spare(PFL.maxWidenFt) > 0) return build(PFL.maxWidenFt);
+  const spare = (k) => {
+    const b = build(k);
+    if (!b) return -Infinity;
+    return altFt - ground - neededFt(b, 0, s, altFt, 3, wind, false, tdKey) - PFL.onProfileFt;
+  };
+  const maxW = build(PFL.maxWidenFt);
+  if (maxW && spare(PFL.maxWidenFt) > 0) return maxW;
   let lo = 0, hi = PFL.maxWidenFt;
-  for (let i = 0; i < 12; i++) { const mid = (lo + hi) / 2; if (spare(mid) > 0) lo = mid; else hi = mid; }
+  for (let i = 0; i < 12; i++) {
+    const mid = (lo + hi) / 2;
+    if (spare(mid) > 0) lo = mid; else hi = mid;
+  }
   return lo > 50 ? build(lo) : null;
 }
 
@@ -1014,7 +1037,7 @@ function project(path, seg, p) {
     const u = l2 ? clamp(((p.x - a.x) * vx + (p.y - a.y) * vy) / l2, 0, 1) : 0;
     const pt = { x: a.x + vx * u, y: a.y + vy * u };
     const d = dist(pt, p);
-    if (d < best.d - 1e-6) best = { seg: i, u, d, pt };
+    if (d <= best.d + 1e-4) best = { seg: i, u, d, pt };
   }
   return best;
 }
@@ -1044,19 +1067,22 @@ function joinLabel(theta) {
 
 export function chooseJoin(geo, from, availFt, trackDeg, wind, { allowHighKey = true, turnRadiusFt = directTurnRadiusFt(), minTurnRadiusFt = glideJoinMinRadiusFt(), bankDeg = 0 } = {}) {
   const ground = THRESHOLD_DATA_ELEV_FT;
-  if (allowHighKey) {
-    const hk = highKeyPath(geo, from);
-    const atHk = availFt - neededFt(hk, 0, from, availFt, 0, wind, false, 'high_key');
-    if (atHk >= PFL.highKeyMinFt) return { kind: 'highKey', path: [...hk, ...arcToAim(geo, PFL.joinStepDeg)], theta: 0, label: 'Join at High Key' };
+  const hk = highKeyPath(geo, from);
+  const atHk = availFt - neededFt(hk, 0, from, availFt, 0, wind, false, 'high_key');
+  if (allowHighKey && atHk >= PFL.highKeyMinFt) {
+    return { kind: 'highKey', path: [...hk, ...arcToAim(geo, PFL.joinStepDeg)], theta: 0, label: 'Join at High Key' };
   }
 
   const leftMaxDeg = bankDeg <= -PFL.inTurnBankDeg ? 270 : 180;
+  const isDownwindTrack = Math.abs(wrapDeg180(trackDeg - (geo.rwyDeg - 180))) <= 35;
   const search = (oneTurn) => {
     let best = null, bestHigh = null;
     for (let th = 0; th <= PFL.lastJoinDeg + 1e-6; th += PFL.joinStepDeg) {
+      if (th < 45 && (!allowHighKey || atHk < PFL.highKeyMinFt)) continue;
       const tries = oneTurn ? [-1, 1].map((side) => joinPath(geo, from, th, trackDeg, turnRadiusFt, minTurnRadiusFt, side)) : [joinPath(geo, from, th)];
       if (oneTurn) tries.push(interceptPath(geo, from, th, trackDeg, turnRadiusFt));
-      const score = (p) => (oneTurn ? p.turnDeg + p.straightFt / 1000 + 1000 * (turnRadiusFt - p.turnRadiusFt) / turnRadiusFt : Math.abs(wrapDeg180(geo.trackAt(th) - trackDeg)));
+      const downwindPref = isDownwindTrack && th <= 180 ? -120 : 0;
+      const score = (p) => (oneTurn ? p.turnDeg + p.straightFt / 1000 + 1000 * (turnRadiusFt - p.turnRadiusFt) / turnRadiusFt + downwindPref : Math.abs(wrapDeg180(geo.trackAt(th) - trackDeg)) + downwindPref);
       const path = tries.filter((p, k) => p && (!oneTurn || p.turnDeg <= (k === 0 ? leftMaxDeg : 180))).sort((x, y) => score(x) - score(y))[0];
       if (!path) continue;
       const toJoinIdx = path.findIndex((p) => p.theta === th);
@@ -1078,7 +1104,7 @@ export function chooseJoin(geo, from, availFt, trackDeg, wind, { allowHighKey = 
 
   const one = search(true);
   const run = search(false);
-  const join = one.best ?? one.high ?? run.best ?? run.high ?? chooseDirect(geo, from, availFt, PFL.glideCleanKias, wind, trackDeg);
+  const join = one.best ?? one.high ?? chooseDirect(geo, from, availFt, PFL.glideCleanKias, wind, trackDeg) ?? run.best ?? run.high;
   if (join) return join;
   return { kind: 'none', path: directPath(geo, from, geo.aimAlongFt, true, trackDeg), aimAlongFt: geo.aimAlongFt, label: 'Eject' };
 }
@@ -1372,7 +1398,9 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
   const turnRadiusFt = zooming ? zoomRadius((start.kias + PFL.glideCleanKias) / 2) : directTurnRadiusFt();
   const minTurnRadiusFt = zooming ? zoomRadius(PFL.glideCleanKias) : glideJoinMinRadiusFt();
 
-  let plan = mid?.plan ?? chooseJoin(geo, s, avail, start.headingDeg ?? RUNWAY_29L_HDG_DEG, wind, {
+  const fromPt = zooming ? apexEnergy.apexPos : s;
+  const fromHdg = zooming ? apexEnergy.exitHeadingDeg : (start.headingDeg ?? RUNWAY_29L_HDG_DEG);
+  let plan = mid?.plan ?? chooseJoin(geo, fromPt, avail, fromHdg, wind, {
     turnRadiusFt, minTurnRadiusFt, bankDeg: s.bank,
   });
 
@@ -1380,8 +1408,8 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
     plan = { kind: 'highKey', path: [{ x: s.x, y: s.y, plan: 0, theta: 0, key: 'high_key', highKeyCheck: true }, ...arcToAim(geo, PFL.joinStepDeg)], theta: 0, label: 'At High Key' };
   }
 
-  const patternPfl = mid ? Boolean(mid.patternPfl) : !practice && plan.kind !== 'highKey';
-  let path = plan.path;
+  const patternPfl = mid ? Boolean(mid.patternPfl) : !practice && plan.kind !== 'highKey' && plan.kind !== 'direct';
+  let path = zooming ? [{ x: s.x, y: s.y, plan: 0 }, ...plan.path] : plan.path;
   let seg = 0;
   let state = mid ? 'glide' : zooming ? 'zoom' : 'slow';
   const tdKeyInit = path.some((p) => p.key === 'touchdown') ? 'touchdown' : 'aim';
@@ -1391,6 +1419,15 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
   setRec(mid ? (mid.decision || plan.label) : zooming ? `Zoom: ${plan.label.toLowerCase()}` : `Slow to 125: ${plan.label.toLowerCase()}`);
   s.tag = undefined;
   pilot.record();
+
+  if (!zooming && state === 'glide' && (plan.kind === 'none' || plan.label === 'Eject')) {
+    outcome = 'eject';
+    eject = { x: s.x, y: s.y, alt: s.alt };
+    setRec('Eject');
+    notes.push(`ejected immediately (${Math.round(s.alt)} ft MSL)`);
+    pilot.record();
+    return { points: pilot.points, outcome, touchdown: null, eject, gate: null, plan: 'none', patternPfl, planLog, notes };
+  }
 
   let gamma = mid ? -Math.asin(clamp(glideDragPerWeight(PFL_CONFIGS[cfg], start.kias, start.alt, 1), 0, 1)) : 0;
   let nz = 1, nzRate = 0;
@@ -1460,8 +1497,9 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
           }
           path = [...lapPath.map((p) => ({ ...p, plan: Math.max(p.plan, cfg) })), ...arcToAim(geo, PFL.joinStepDeg)];
           seg = 0;
+          planFromN = n;
           setRec(cfg ? 'Orbit at High Key, gear early' : 'Orbit at High Key');
-        } else if (s.alt > PFL.highKeyMinFt) {
+        } else if (lapPath && s.alt > PFL.highKeyMinFt) {
           if (lapPath && cfg < 1) {
             cfg = 1;
             lastConfigChangeN = n;
@@ -1480,10 +1518,12 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
           const lk = geo.at(180);
           path = [{ x: s.x, y: s.y, plan: 1 }, { ...fhk, plan: 1, key: 'false_high_key', falseCircle: true }, ...semi, { x: lk.x, y: lk.y, theta: 180, plan: planAt(180), key: 'low_key' }, ...arcToAim(geo, 180 + PFL.joinStepDeg)];
           seg = 0;
+          planFromN = n;
           setRec('False High Key');
         } else {
           path = [{ x: s.x, y: s.y, plan: cfg }, ...rest];
           seg = 0;
+          planFromN = n;
         }
         lastKey = path[0];
       }
@@ -1501,19 +1541,25 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
     if (n * PILOT_DT < PFL.holdBankSec) {
       bank = s.bank;
     } else if (state === 'zoom') {
-      const targetPt = path.find((p) => p.theta !== undefined) ?? path[1] ?? s;
+      const targetPt = path[seg + 1] ?? path[1] ?? s;
       const targetHdg = bearing(s, targetPt);
       bank = clamp(wrapDeg180(targetHdg - s.hdg) * 2, -PFL.zoomMaxBankDeg, PFL.zoomMaxBankDeg);
     } else if (state === 'slow') {
       const targetPt = path.find((p) => p.theta !== undefined) ?? path[1] ?? s;
       const targetHdg = bearing(s, targetPt);
       bank = clamp(wrapDeg180(targetHdg - s.hdg) * 1.5, -15, 15);
-    } else if (roundOut || ['threshold', 'aim', 'touchdown', 'rollout'].includes(curPt?.key) || path.slice(0, seg + 1).some((p) => p.key === 'threshold')) {
+    } else if (
+      roundOut ||
+      ['threshold', 'aim', 'touchdown', 'rollout'].includes(curPt?.key) ||
+      path.slice(0, seg + 1).some((p) => p.key === 'threshold') ||
+      ((curPt?.theta ?? 0) >= 335 && legOffsetsFt(geo.th, geo.dep, s).crossFt > -500) ||
+      ((curPt?.theta ?? 0) >= 270 && margin > 150 && legOffsetsFt(geo.th, geo.dep, s).alongFt <= -1000)
+    ) {
       const offRwy = legOffsetsFt(geo.th, geo.dep, s);
       const corrDeg = clamp(-offRwy.crossFt * 0.15, -45, 45);
       const wantHdg = pilot.headingFor(wrapDeg360(geo.rwyDeg + corrDeg));
       const trkErr = Math.abs(wrapDeg180(pilot.trackDeg() - geo.rwyDeg));
-      const maxB = trkErr > 15 ? bankMax : 15;
+      const maxB = Math.abs(offRwy.crossFt) > 50 || trkErr > 15 ? bankMax : 15;
       bank = bankFor(wantHdg, s, maxB);
     } else if (turn !== null) {
       bank = turn;
@@ -1549,11 +1595,40 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
         state = 'glide';
         // Apex reached: Task 6 milestone re-plan
         const re = chooseJoin(geo, s, s.alt, pilot.trackDeg(), wind, { bankDeg: s.bank });
-        replan(re);
+        if (!re || re.kind === 'none' || re.label === 'Eject') {
+          outcome = 'eject';
+          eject = { x: s.x, y: s.y, alt: s.alt };
+          setRec('Eject at top of zoom');
+          notes.push(`ejected at top of zoom (${Math.round(s.alt)} ft MSL)`);
+          pilot.record();
+          break;
+        } else if (re.kind === 'circle') {
+          const curTh = plan.theta;
+          if (curTh !== undefined && re.theta !== undefined && curTh <= 180 && re.theta > 180) {
+            // Keep intercepting downwind before Low Key rather than cutting straight to Base Key
+          } else {
+            replan(re);
+          }
+        } else {
+          replan(re);
+        }
       }
     } else {
       let want = glideKias(cfg);
-      if (state === 'slow' && s.ias <= PFL.glideCleanKias + 0.5) state = 'glide';
+      if (state === 'slow' && s.ias <= PFL.glideCleanKias + 0.5) {
+        state = 'glide';
+        if (plan.kind === 'none' || plan.label === 'Eject') {
+          const re = chooseJoin(geo, s, s.alt, pilot.trackDeg(), wind, { bankDeg: s.bank });
+          if (!re || re.kind === 'none' || re.label === 'Eject') {
+            outcome = 'eject';
+            eject = { x: s.x, y: s.y, alt: s.alt };
+            setRec('Eject');
+            notes.push(`ejected after decel (${Math.round(s.alt)} ft MSL)`);
+            pilot.record();
+            break;
+          }
+        }
+      }
 
       if (plan.kind === 'direct' && margin < 0 && !goingShort) {
         const v2 = tas * tas - 2 * G_FTPS2 * -margin * heightFactor(s.alt);
@@ -1605,42 +1680,64 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
         : s.alt - ground - neededFt(path, seg, proj.pt, s.alt, cfg, wind, false, 'aim', 2);
       const marginMin = s.alt - ground - neededFt(minDragPlan(path), seg, proj.pt, s.alt, Math.min(cfg, 1), wind, false, cfg >= 3 ? tdKey : 'aim');
       const onFinal = ['threshold', 'touchdown', 'aim', 'rollout'].includes(path[seg]?.key) || path.slice(0, seg + 1).some((p) => p.key === 'threshold');
-      const dragOk = onCircle() && (plan.kind !== 'direct' || margin >= 0);
+      const settled = (n - planFromN) * PILOT_DT >= PFL.planGraceSec;
+      const inOrbit = s.rec.decision?.startsWith('Orbit') || s.rec.decision?.startsWith('False High Key') || s.alt > PFL.highKeyMaxFt;
+      if (!onFinal && settled && !inOrbit && marginMin < -PFL.dragBufferFt && plan.kind !== 'direct') {
+        const direct = chooseDirect(geo, s, s.alt, s.ias, wind, pilot.trackDeg(), cfg);
+        if (direct) { replan(direct); notes.push(`went direct at ${Math.round(s.alt)} ft`); }
+      } else if (!onFinal && plan.kind === 'direct' && marginMin + speedTradeFt(s.ias, s.alt, cfg) < 0) {
+        const direct = chooseDirect(geo, s, s.alt, s.ias, wind, pilot.trackDeg(), cfg);
+        if (direct && direct.aimAlongFt > (plan.aimAlongFt ?? 0) + 1) replan(direct);
+      }
 
+      const directDragOk = plan.kind === 'direct' && (path[seg]?.key === 'lined_up' || onFinal || s.alt <= ground + 200 || dist(geo.th, s) <= 4 * 6076.12);
+      const circleDragOk = plan.kind !== 'direct' && onCircle();
+      const dragOk = directDragOk || circleDragOk;
+      const notLow = marginMin >= -PFL.dragBufferFt;
       const dragSpacingOk = (n - lastConfigChangeN) * PILOT_DT >= PFL.minConfigIntervalSec;
-      if (dragSpacingOk) {
-        if (cfg < 1 && (s.tag === 'low_key' || (path[seg]?.theta ?? 0) >= 180 || s.alt <= PFL.gateAltFt + 300)) {
-          cfg = 1;
-          lastConfigChangeN = n;
-        } else if (dragOk && cfg < 3 && s.alt - ground - neededFt(path, seg, proj.pt, s.alt, 3, wind, false, tdKey) >= 0) {
-          cfg += 1;
-          lastConfigChangeN = n;
-        } else if (dragOk && cfg < 2) {
+      if (dragSpacingOk && notLow) {
+        if (cfg < 1) {
+          const directOk = plan.kind === 'direct' && (path[seg]?.key === 'lined_up' || onFinal || s.alt <= ground + 200 || (dist(geo.th, s) <= 4 * 6076.12 && s.alt - ground - neededFt(path, seg, proj.pt, s.alt, 1, wind, true, 'aim', 2) >= PFL.dragBufferFt));
+          const circleOk = plan.kind !== 'direct' && (
+            ((s.tag === 'low_key' || (path[seg]?.theta ?? 0) >= 180) && margin >= -PFL.onProfileFt) ||
+            (s.alt <= PFL.gateAltFt + 300) ||
+            (patternPfl && state === 'glide' && margin > PFL.keysCarryHighFt && dist(geo.th, s) <= PFL.earlyGearWithinFt)
+          );
+          if (directOk || circleOk) {
+            cfg = 1;
+            lastConfigChangeN = n;
+          }
+        } else if (dragOk && cfg === 2) {
+          const offRwy = legOffsetsFt(geo.th, geo.dep, s);
+          const canLandingFlap = onFinal || (path[seg]?.theta !== undefined && path[seg].theta >= 225) || (plan.kind === 'direct' && path[seg]?.key === 'lined_up') || (offRwy.alongFt <= -1000 && Math.abs(offRwy.crossFt) <= 500);
+          if (canLandingFlap && s.alt - ground - neededFt(path, seg, proj.pt, s.alt, 3, wind, false, tdKey) >= 0) {
+            cfg = 3;
+            lastConfigChangeN = n;
+          }
+        } else if (dragOk && cfg === 1) {
           const due = (path[seg]?.plan ?? 0) > cfg;
-          const earlyOk = cfg === 0 || (path[seg]?.theta ?? 360) >= 180 || margin > PFL.keysCarryHighFt;
+          const earlyOk = (path[seg]?.theta !== undefined && path[seg].theta >= 180) || onFinal || (margin > PFL.keysCarryHighFt && dist(geo.th, s) <= 3 * 6076.12) || (margin > PFL.dragBufferFt && state === 'glide');
           if (due ? margin >= -PFL.onProfileFt : earlyOk && s.alt - ground - neededFt(path, seg, proj.pt, s.alt, cfg, wind, true, 'aim', 2) >= PFL.dragBufferFt) {
-            cfg += 1;
+            cfg = 2;
             lastConfigChangeN = n;
           }
         }
       }
 
       const thNow = path[seg]?.theta;
-      if (patternPfl && n % 50 === 0 && plan.kind !== 'direct' && thNow !== undefined && thNow < PFL.lastJoinDeg - PFL.joinStepDeg) {
+      const canWiden = onCircle() && Math.abs(s.bank) <= 30 && n % 50 === 0 && plan.kind !== 'direct' && thNow !== undefined && thNow < PFL.lastJoinDeg - PFL.joinStepDeg;
+      if (canWiden) {
         const high = s.alt - ground - neededFt(path, seg, proj.pt, s.alt, 3, wind, false, tdKey);
         if (high > PFL.widenAboveFt) {
           const wide = widenPath(geo, path, seg, s, s.alt, wind, tdKey);
-          if (wide) { path = wide; seg = 0; planFromN = n; notes.push(`widened at ${Math.round(s.alt)} ft`); }
+          if (wide) {
+            const pWide = project(wide, 0, s);
+            path = wide;
+            seg = pWide.seg;
+            planFromN = n;
+            notes.push(`widened at ${Math.round(s.alt)} ft`);
+          }
         }
-      }
-
-      const settled = (n - planFromN) * PILOT_DT >= PFL.planGraceSec;
-      if (!onFinal && settled && marginMin < -PFL.dragBufferFt && plan.kind !== 'direct') {
-        const direct = chooseDirect(geo, s, s.alt, s.ias, wind, pilot.trackDeg(), cfg);
-        if (direct) { replan(direct); notes.push(`went direct at ${Math.round(s.alt)} ft`); }
-      } else if (!onFinal && plan.kind === 'direct' && marginMin + speedTradeFt(s.ias, s.alt, cfg) < 0) {
-        const direct = chooseDirect(geo, s, s.alt, s.ias, wind, pilot.trackDeg(), cfg);
-        if (direct && direct.aimAlongFt > (plan.aimAlongFt ?? 0) + 1) replan(direct);
       }
 
       let decision;
@@ -1651,7 +1748,8 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
       else {
         const word = margin > 150 ? 'high' : margin < -PFL.onProfileFt ? 'low' : 'on profile';
         const th = path[seg]?.theta;
-        const leg = th === undefined ? 'Final' : th < 180 ? 'To Low Key' : th < 270 ? 'To Final Key' : 'To threshold';
+        const offRwy = legOffsetsFt(geo.th, geo.dep, s);
+        const leg = th === undefined ? 'Final' : th < 180 ? 'To Low Key' : th < 270 ? 'To Final Key' : (margin > 150 && offRwy.alongFt <= -1000 ? 'Dogleg final' : 'To threshold');
         decision = `${leg}, ${word}`;
       }
       setRec(decision);
