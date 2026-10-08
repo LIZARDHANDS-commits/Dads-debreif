@@ -152,6 +152,8 @@ After Traffic is signed off, the Turn Sim review runs before any Turn Sim buildi
 
 ## Waiting on Patrick
 
+- [ ] **Home field shared by the SOF and Traffic (Dad, 8 Oct 2026; asked on PR #684):** setting home to a US base for the SOF also moved the Traffic pattern sim, which opens V6's generic pattern away from CYMJ (`src/modules/traffic/profile.js:327`), not a USAF pattern. Options: (a) the SOF keeps its own home base (recommended), (b) Traffic opens Moose Jaw unless chosen in Traffic, (c) a USAF pattern later from AFMAN 11-248. Working answer: nothing changed; the #684 shell line waits.
+
 - [ ] **Dad's whole-tool ideas (8 Oct 2026; `docs/FUTURE.md`):** (1) remove the Dad/Pat tags and credit both as co-founders and co-creators in About; (2) a new name for the tool that works for both; (3) AFMAN 11-248 (USAF T-6) as an option throughout, beside the RCAF references. Working answer: nothing changes until Patrick decides.
 
 SOF items below are Dad's to decide (SOF-47, 7 Oct 2026); they stay listed here until he answers.
