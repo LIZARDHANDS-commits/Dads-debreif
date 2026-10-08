@@ -32,7 +32,10 @@ import {
   cleanLayers, setLayerOn, setLayerOpacity, setBase, setPrecip, setTrafficOption, stackOrder, baseLayers, BASE_DIM,
 } from './map-layers.js';
 import { airfieldMarks, mapCredits, baseNote, statusItems, nearHomeItem, legendItems, noSourceLine, coverageNotShownLine, lightningMapLink } from './map-model.js';
-import { drawGeoImage, drawRings, drawAirfields, drawTraffic, drawTrails } from './map-draw.js';
+import { drawGeoImage, drawRings, drawAirfields, drawTraffic, drawTrails, drawApproaches2d } from './map-draw.js';
+import { fieldApproaches, finalCourse2d, publishedLine } from './approaches-model.js';
+import { approachesOf, loadApproachesFor } from './sites/approaches-load.js';
+import { AIRPORTS } from './airports-data.js';
 import { createTrails, glideLatLon, canGlide, GLIDE_2D_MS } from './traffic-motion.js';
 import { createMapControls } from './map-controls.js';
 import { createAdsbFrame, adsbExchangeUrl, zoomForScale } from './adsbx.js';
@@ -97,7 +100,7 @@ const MIN_FILLED_SHARE = 0.5;
  * Returns { element, credits, update({ snapshot, screen, alerts }), lightning(now), wake(), dispose() }. `credits` is the line of the map's
  * credits, for the screen's Sources note (the map keeps no height for it).
  */
-export function createSofMap({ app, settings, view3dSettings = null, onLightning = () => {}, fullScreen = null }) {
+export function createSofMap({ app, settings, view3dSettings = null, onLightning = () => {}, fullScreen = null, onApproaches = () => {} }) {
   const timers = app.scheduler;
   const now = () => app.time.now();
   const fetchNet = (url, init) => globalThis.fetch(url, init);
@@ -136,6 +139,8 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
   let logVolumes = null; // { key, volumes }: the airspace checked for home's elevation
   let lastRadius = null;
   let lastRelay = null;
+  let corridors = new Map(); // the 3D view's arrival corridor check, icao -> { results, summary, estimate } (information only, for the cards)
+  let approachKey2d = ''; // what the 2D approaches were last drawn for
 
   // ---- Where home is ---------------------------------------------------------------------------------
   let projection = createProjection(home);
@@ -198,6 +203,15 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     onTrails: (trails) => change(setTrafficOption(layers, { trails })),
     onModelHour: (ms) => setModelHour(ms), // the 3D slider's model hour: the HRDPS cloud picture follows it
     onRainToGround: (on) => view3dSettings?.update({ rainToGround3d: on }), // the Rain to ground button, kept in the SOF's "view3d" settings
+    // The Approaches button and its field picker, kept in the same settings; the 2D map draws the same field's final courses.
+    onApproaches: ({ on, field }) => {
+      view3dSettings?.update({ approaches3d: on, approachField3d: field });
+      view.requestDraw();
+    },
+    onCorridors: (results) => {
+      corridors = results;
+      onApproaches(); // the cards' corridor line
+    },
     onLost() {
       if (!threeOn) return;
       threeOn = false;
@@ -607,6 +621,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
         default:
       }
     }
+    drawApproaches(ctx, pal, size); // over the overlays, under nothing: thin lines and small points
     if (!layers.on.airfields) hits.airfields = [];
     if (!layers.on.traffic || !relayOn()) hits.traffic = [];
   }
@@ -758,7 +773,42 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
   /** What the 3D view is given: each airfield's pin words, colour and METAR cloud decks, and the height scale. */
   function pushScene() {
     if (!scene3d) return;
-    view3d.setScene({ airfields: sceneAirfields({ ...scene3d, toXY: projection.toXY }), heightScale: settings.get().heightScale3d, cloudStyle: view3dSettings?.get().cloudStyle3d ?? 'slabs', rainToGround: view3dSettings?.get().rainToGround3d ?? true });
+    view3d.setScene({ airfields: sceneAirfields({ ...scene3d, toXY: projection.toXY }), heightScale: settings.get().heightScale3d, cloudStyle: view3dSettings?.get().cloudStyle3d ?? 'slabs', rainToGround: view3dSettings?.get().rainToGround3d ?? true, approaches: approachChoice() });
+  }
+
+  /** The Approaches choice (the "view3d" settings): { on, field } with field 'home', 'all' or an ICAO. Off by default, so the start view is as it was. */
+  function approachChoice() {
+    const v = view3dSettings?.get();
+    return { on: v?.approaches3d === true, field: typeof v?.approachField3d === 'string' ? v.approachField3d : 'home' };
+  }
+
+  /** The fields the Approaches choice names, of the home base's 3D airports (home first). */
+  function approachIcaos() {
+    const list = site.airports3d ?? [home.icao];
+    const { field } = approachChoice();
+    if (field === 'all') return list;
+    return list.includes(field) ? [field] : list.slice(0, 1);
+  }
+
+  /** A US base's approaches file (FAA CIFP), loaded once when the SOF shows that base: the alternate cards list their published approaches from it. */
+  function askApproaches() {
+    if (approachesOf(site).status !== 'idle') return;
+    loadApproachesFor(site, () => {
+      if (disposed) return;
+      view.requestDraw();
+      view3d.refreshApproaches();
+      onApproaches();
+    });
+  }
+
+  /** The 2D lines: the chosen field's final approach courses (FAF to threshold) and its fixes as small labelled points, while the Approaches are on. */
+  function drawApproaches(ctx, pal, size) {
+    if (!approachChoice().on) return;
+    const held = approachesOf(site);
+    if (held.status === 'loading' || held.status === 'idle') return;
+    const fields = fieldApproaches({ icaos: approachIcaos(), file: held.fields, airports: AIRPORTS });
+    const courses = fields.flatMap((f) => f.approaches.map(finalCourse2d)).filter(Boolean);
+    drawApproaches2d(ctx, courses, project, pal, size);
   }
 
   /** The SIGMETs, AIRMETs and PIREPs for the 3D view (alerts.js `alerts3dView`), their SFC at home's elevation as the 3D ground. Built again there only when they change. */
@@ -1143,7 +1193,23 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
         marksKey = key;
         view.requestDraw();
       }
+      askApproaches();
+      const apprKey = JSON.stringify([approachChoice(), site.icao, approachesOf(site).status]);
+      if (apprKey !== approachKey2d) {
+        approachKey2d = apprKey;
+        view.requestDraw();
+      }
       refreshStatus();
+    },
+    /**
+     * The approach lines for a field's card (information only): { published } "Published approaches: ILS 13R, VOR-A ...; non-GPS: yes" at a base with an
+     * approaches file (a US base; none at Moose Jaw, whose cards stay as they were), and { corridor } the 3D view's arrival corridor summary for that field
+     * while it is checked. Either is null when there is nothing to say.
+     */
+    approachLines(icao) {
+      const held = approachesOf(site);
+      const published = held.status === 'ok' ? publishedLine(fieldApproaches({ icaos: [icao], file: held.fields, airports: AIRPORTS })[0] ?? null) : null;
+      return { published, corridor: corridors.get(icao)?.summary ?? null };
     },
     /** lightning.js's answer now, for the screen model's cautions. */
     lightning: (t) => watch.result(t),

@@ -56,6 +56,8 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
   let sheetFade = 1;
   // The radar and lightning cells last read, one picture each: { key, cells }. A model-hour or terrain change re-works only the heights and the drawing, not the picture.
   const cellCache = { radar: null, lightning: null };
+  // The radar blocks and lightning bolts last drawn (weather3d-model.js `shafts` and `bolts`, feet), for the approaches' corridor check (approaches-model.js); null when not drawn.
+  const drawnLists = { radar: null, lightning: null };
 
   const canvasOf = (px) => {
     const c = win.document.createElement('canvas');
@@ -200,6 +202,7 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
       const radar = weather.radar;
       const radarOn = Boolean(radar && radar.image && radar.on !== false && !radar.stale);
       place('radar', radarOn ? `${radar.id}|${modelKey}|${standing}` : 'off', () => {
+        drawnLists.radar = null;
         if (!radarOn) {
           facts.radar = null;
           return null;
@@ -207,6 +210,7 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
         const cells = cellsOf('radar', radar);
         if (!cells) return null;
         const list = shafts(cells, { column, groundFt, ...(groundAt ? { groundAt } : {}) });
+        drawnLists.radar = list;
         facts.radar = { count: list.length, cells: cells.length, blocks: list.length, withModelTop: list.filter((s) => s.modelTop).length, rain: list.filter((s) => s.rain).length };
         return buildShafts(T, { shafts: list, scale });
       });
@@ -215,6 +219,7 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
       const lightning = weather.lightning;
       const lightningOn = Boolean(lightning && lightning.image && lightning.on !== false && !lightning.stale);
       place('lightning', lightningOn ? `${lightning.id}|${modelKey}|${standing}` : 'off', () => {
+        drawnLists.lightning = null;
         if (!lightningOn) {
           facts.lightning = null;
           return null;
@@ -222,6 +227,7 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
         const cells = cellsOf('lightning', lightning, (r, g, b) => r > 200 && g > 150 && b < 100);
         if (!cells) return null;
         const list = bolts(cells, { column, groundFt, ...(groundAt ? { groundAt } : {}) });
+        drawnLists.lightning = list;
         facts.lightning = { count: list.length };
         return buildBolts(T, { bolts: list, scale });
       });
@@ -299,6 +305,11 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
     },
     /** What is drawn, for the key: { radar, lightning, satellite, fronts, flow }, each null when not drawn; the radar's says whether its rain curtains are shown (`rainShown`). */
     summary: () => ({ ...facts, radar: facts.radar ? { ...facts.radar, rainShown: toggles.rain !== false } : null }),
+    /**
+     * The radar blocks and lightning bolts as last built, for the approaches' corridor check: { radar: [block] | null, lightning: [bolt] | null } (null: not drawn,
+     * because there is no fresh picture). They are built whatever the Radar and Lightning buttons show, so the check does not depend on what is switched on.
+     */
+    drawn: () => ({ radar: drawnLists.radar, lightning: drawnLists.lightning }),
     /** The fronts' credit while they are drawn. */
     credit: () => (facts.fronts ? FRONTS_CREDIT : null),
     /**
@@ -323,6 +334,8 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
       freeMarks();
       cellCache.radar = null;
       cellCache.lightning = null;
+      drawnLists.radar = null;
+      drawnLists.lightning = null;
       root.removeFromParent();
     },
   };

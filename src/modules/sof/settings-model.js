@@ -205,16 +205,23 @@ const STYLE_VALUES = Object.freeze(CLOUD_STYLES.map((s) => s.value));
  * 13 x 13 points, so they are further apart on a bigger square (37.5, 50 or 75 NM); the 3D view's key says so.
  */
 export const AREA_OPTIONS = Object.freeze(AREA_CHOICES_NM.map((nm) => Object.freeze({ value: nm, label: `${nm} NM${nm === DEFAULT_AREA_NM ? ' (default)' : ''}` })));
-/** rainToGround3d: the radar blocks' faint rain curtains to the ground, on by default (Dad, 8 Oct 2026: the blocks sit in the cloud; the curtain keeps the rain reaching the ground). */
-export const VIEW3D_DEFAULTS = Object.freeze({ cloudStyle3d: 'slabs', area3dNm: DEFAULT_AREA_NM, rainToGround3d: true });
+/**
+ * rainToGround3d: the radar blocks' faint rain curtains to the ground, on by default (Dad, 8 Oct 2026: the blocks sit in the cloud; the curtain keeps the rain reaching the ground).
+ * approaches3d and approachField3d: the instrument approaches (Dad, 8 Oct 2026), off by default so the start view stays as it was, and the field they are drawn for:
+ * 'home' (the default), 'all', or an alternate's ICAO (one not among the base's fields is read as home by the view).
+ */
+export const VIEW3D_DEFAULTS = Object.freeze({ cloudStyle3d: 'slabs', area3dNm: DEFAULT_AREA_NM, rainToGround3d: true, approaches3d: false, approachField3d: 'home' });
+const APPROACH_FIELD_RE = /^(home|all|[A-Z][A-Z0-9]{3})$/;
 
-/** The 3D view's settings checked: a style or an area not offered is the default, and Rain to ground is on unless it is false. */
+/** The 3D view's settings checked: a style or an area not offered is the default, Rain to ground is on unless it is false, and the Approaches are off unless true. */
 export function cleanView3d(values) {
   const v = values ?? {};
   return Object.freeze({
     cloudStyle3d: STYLE_VALUES.includes(v.cloudStyle3d) ? v.cloudStyle3d : VIEW3D_DEFAULTS.cloudStyle3d,
     area3dNm: AREA_CHOICES_NM.includes(v.area3dNm) ? v.area3dNm : VIEW3D_DEFAULTS.area3dNm,
     rainToGround3d: typeof v.rainToGround3d === 'boolean' ? v.rainToGround3d : VIEW3D_DEFAULTS.rainToGround3d,
+    approaches3d: typeof v.approaches3d === 'boolean' ? v.approaches3d : VIEW3D_DEFAULTS.approaches3d,
+    approachField3d: typeof v.approachField3d === 'string' && APPROACH_FIELD_RE.test(v.approachField3d) ? v.approachField3d : VIEW3D_DEFAULTS.approachField3d,
   });
 }
 
@@ -235,6 +242,8 @@ export function createView3dSettings(store) {
       if (STYLE_VALUES.includes(patch.cloudStyle3d)) next.cloudStyle3d = patch.cloudStyle3d;
       if (AREA_CHOICES_NM.includes(patch.area3dNm)) next.area3dNm = patch.area3dNm;
       if (typeof patch.rainToGround3d === 'boolean') next.rainToGround3d = patch.rainToGround3d;
+      if (typeof patch.approaches3d === 'boolean') next.approaches3d = patch.approaches3d;
+      if (typeof patch.approachField3d === 'string' && APPROACH_FIELD_RE.test(patch.approachField3d)) next.approachField3d = patch.approachField3d;
       if (Object.keys(next).length) inner.update(next);
     },
     reset: () => inner.reset(),

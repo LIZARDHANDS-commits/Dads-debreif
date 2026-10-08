@@ -333,3 +333,57 @@ export function drawTrails(ctx, aircraft, trails, project, palette, { width, hei
   ctx.restore();
   return drawn;
 }
+
+/** The approaches' 2D look: a final course's width and dash, a fix's dot radius and the words' font, in CSS pixels (estimates for readability). */
+const APPROACH_2D = Object.freeze({ width: 2, dash: [6, 4], dotPx: 3, font: '600 9px system-ui, sans-serif', labelFromPx: 70 });
+
+/**
+ * The chosen field's final approach courses and fixes (Dad, 8 Oct 2026; approaches-model.js `finalCourse2d`): each final course a line from the FAF to the
+ * threshold in its approach group's colour (RNAV fainter, an estimate dashed white), each fix a small dot with its words ("ALAMO FAF 2,200+") once the map is
+ * zoomed in far enough for the final course to be APPROACH_2D.labelFromPx long. Colours are
+ * `APPROACH_GROUPS`' (passed in on each course as `colour` and `opacity`), and the words say the rest.
+ */
+export function drawApproaches2d(ctx, courses, project, palette, { width, height }) {
+  if (!courses.length) return;
+  ctx.save();
+  ctx.font = APPROACH_2D.font;
+  ctx.textBaseline = 'middle';
+  const seen = new Set();
+  for (const c of courses) {
+    const [a, b] = c.line.map(([lat, lon]) => project(lat, lon));
+    ctx.globalAlpha = c.opacity;
+    ctx.setLineDash(c.group === 'estimate' ? APPROACH_2D.dash : []);
+    ctx.lineWidth = APPROACH_2D.width + 2;
+    ctx.strokeStyle = palette.halo;
+    ctx.beginPath();
+    ctx.moveTo(a[0], a[1]);
+    ctx.lineTo(b[0], b[1]);
+    ctx.stroke();
+    ctx.lineWidth = APPROACH_2D.width;
+    ctx.strokeStyle = c.colour;
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  for (const c of courses) {
+    // A fix's words only once its final course is long enough on the screen to read them apart (zoomed in); before that, the lines alone.
+    const [a, b] = c.line.map(([lat, lon]) => project(lat, lon));
+    if (Math.hypot(b[0] - a[0], b[1] - a[1]) < APPROACH_2D.labelFromPx) continue;
+    ctx.globalAlpha = Math.max(0.6, c.opacity);
+    for (const f of c.fixes) {
+      const key = `${f.text}|${f.lat}|${f.lon}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const [x, y] = project(f.lat, f.lon);
+      if (x < -40 || y < -40 || x > width + 40 || y > height + 40) continue;
+      ctx.beginPath();
+      ctx.arc(x, y, APPROACH_2D.dotPx, 0, Math.PI * 2);
+      ctx.fillStyle = c.colour;
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = palette.halo;
+      ctx.stroke();
+      label(ctx, f.text, x + 5, y - 6, palette);
+    }
+  }
+  ctx.restore();
+}

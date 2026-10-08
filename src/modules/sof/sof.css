@@ -2272,6 +2272,30 @@ main[data-module='sof'] {
   display: none;
 }
 
+/* The approach fixes' words (Dad, 8 Oct 2026): "ALAMO FAF 2,200+", small, as the traffic tags are; they never take the pointer (a path's words come with the pointer near its line). */
+[data-module='sof'] .sof-3d-appr-label {
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgb(5 10 18 / 0.7);
+  color: #d9fff4;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-3d-appr-label[hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-3d-appr-field {
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+/* An approach with weather in its corridor reads in the caution colour, with its words saying what and where (never colour alone). */
+[data-module='sof'] .sof-3d-appr-hit {
+  color: var(--caution, #f5c542);
+}
+
 [data-module='sof'] .sof-3d-corner,
 [data-module='sof'] .sof-3d-outside,
 [data-module='sof'] .sof-3d-credit,
