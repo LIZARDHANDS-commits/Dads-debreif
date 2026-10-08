@@ -10,6 +10,7 @@
 // relay address set it says where to put one. A NOTAM that is not yet in force is shown with its start; one that has ended is not shown.
 import { guardedFetch, bytesToText, FETCH_LIMITS } from './map-fetch.js';
 import { relayOrigin } from './traffic.js';
+import { noSourceWords } from './sites/words.js';
 
 const MINUTE_MS = 60_000;
 /** Asked this often while the SOF is open (Dad, 7 Oct: every 5 minutes). */
@@ -192,6 +193,8 @@ export function validityWords(start, end, now) {
  */
 export function notamsFor(state, icao, now) {
   const at = +now;
+  // The base's site profile has no NOTAM source (`state.noSource`): it can't tell, and says so, never "No NOTAMs".
+  if (state.noSource) return { status: 'unavailable', words: noSourceWords('NOTAMs'), chip: { words: 'NOTAMs ?', level: 'unknown' }, list: [] };
   if (!state.relay) {
     return { status: 'unset', words: 'NOTAMs need the relay address in SOF settings', chip: null, list: [] };
   }

@@ -199,8 +199,8 @@ export const CLOUD_COVER_THRESHOLD_PCT = 30; // estimate, SOF-39
 export const CLOUD_STAGES_FT_AGL = Object.freeze({ lowTopFt: 6500, midTopFt: 20_000 });
 
 /**
- * Magnetic variation at Moose Jaw, degrees East (magnetic = true - this): Patrick's ruling, 4 Oct (TR-65). The same number as
- * Traffic's `MAG_VARIATION_DEG_E`; modules do not import each other and there is no shared copy yet, so it is stated again here, for
+ * Magnetic variation at Moose Jaw, degrees East (magnetic = true - this): Patrick's ruling, 4 Oct (TR-65). It is also the Moose Jaw site profile's
+ * (sites/cymj.js points here), and the default where nothing else is passed. The same number as Traffic's `MAG_VARIATION_DEG_E`; modules do not import each other and there is no shared copy yet, so it is stated again here, for
  * showing winds in degrees magnetic only.
  */
 export const MAG_VARIATION_DEG_E = 9;
@@ -595,9 +595,12 @@ export function meanLayerCover(model, hour) {
 
 // ---- Winds aloft -----------------------------------------------------------------------------------
 
-/** A true bearing as magnetic, 1 to 360 (360, never 0, for north), whole degrees. Magnetic = true - 9 (TR-65). */
-export const trueToMagnetic = (trueDeg) => {
-  const m = ((Math.round(trueDeg - MAG_VARIATION_DEG_E) % 360) + 360) % 360;
+/**
+ * A true bearing as magnetic, 1 to 360 (360, never 0, for north), whole degrees. Magnetic = true - the variation: Moose Jaw's 9 (TR-65) unless the home base's
+ * site profile gives its own (`magVarDegE`, degrees East; sites/).
+ */
+export const trueToMagnetic = (trueDeg, magVarDegE = MAG_VARIATION_DEG_E) => {
+  const m = ((Math.round(trueDeg - magVarDegE) % 360) + 360) % 360;
   return m === 0 ? 360 : m;
 };
 
@@ -618,13 +621,13 @@ export function levelWindWords({ hPa, heightFt, dirMag, kt }) {
  * One wind at a grid point and a level at an hour: { x, y, hPa, heightFt, dirTrue, dirMag, kt, barb, words }, or null when the model has
  * no speed, direction or height there (no barb is drawn).
  */
-export function windAt(point, hour, hPa) {
+export function windAt(point, hour, hPa, magVarDegE = MAG_VARIATION_DEG_E) {
   const kt = point.series[`wind_speed_${hPa}hPa`][hour];
   const dirTrue = point.series[`wind_direction_${hPa}hPa`][hour];
   const metres = point.series[`geopotential_height_${hPa}hPa`][hour];
   if (kt === null || dirTrue === null || metres === null) return null;
   const heightFt = metres * FT_PER_M;
-  const dirMag = trueToMagnetic(dirTrue);
+  const dirMag = trueToMagnetic(dirTrue, magVarDegE);
   return { x: point.x, y: point.y, i: point.i, j: point.j, hPa, heightFt, dirTrue, dirMag, kt, barb: windBarb(kt), words: levelWindWords({ hPa, heightFt, dirMag, kt }) };
 }
 
@@ -632,12 +635,12 @@ export function windAt(point, hour, hPa) {
 export const barbStep = (gridSize) => (gridSize > 9 ? 3 : 2);
 
 /** The barbs to draw: every `barbStep` grid point (each way, so 25 a level), at each of the three levels. Bottom level first. */
-export function modelWinds(model, hour) {
+export function modelWinds(model, hour, magVarDegE = MAG_VARIATION_DEG_E) {
   const out = [];
   const step = barbStep(model.gridSize ?? GRID_SIZE);
   for (const hPa of WIND_LEVELS_HPA) {
     for (const point of model.points) {
-      const wind = point.i % step === 0 && point.j % step === 0 ? windAt(point, hour, hPa) : null;
+      const wind = point.i % step === 0 && point.j % step === 0 ? windAt(point, hour, hPa, magVarDegE) : null;
       if (wind) out.push(wind);
     }
   }
@@ -645,10 +648,10 @@ export function modelWinds(model, hour) {
 }
 
 /** The winds over home (the centre grid point), one per level, for the key and the labels. */
-export function windsOverHome(model, hour) {
+export function windsOverHome(model, hour, magVarDegE = MAG_VARIATION_DEG_E) {
   const mid = ((model.gridSize ?? GRID_SIZE) - 1) / 2;
   const centre = model.points.find((p) => p.i === mid && p.j === mid);
-  return centre ? WIND_LEVELS_HPA.map((hPa) => windAt(centre, hour, hPa)).filter((w) => w !== null) : [];
+  return centre ? WIND_LEVELS_HPA.map((hPa) => windAt(centre, hour, hPa, magVarDegE)).filter((w) => w !== null) : [];
 }
 
 // ---- Wind as a field (the gentle flow, Dad 7 Oct) and the cloud above a place ---------------------------------------

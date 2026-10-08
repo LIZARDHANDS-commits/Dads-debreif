@@ -39,6 +39,8 @@ const episodeSig = (e) => (e ? `${e.id}|${e.lastNearAt}|${e.place}` : '');
  * read every 10 minutes whether or not the lightning layer is showing.
  *
  * - home(): { icao, lat, lon }. radiusNm(): the setting. enabled: SOF-3's switch (default on).
+ * - hasSource(): false when the home base's site profile has no lightning source (sites/). Then nothing is asked for, the answer is lightning.js's
+ *   'unknown' with `noSource` ("Lightning: no source for this base, can't tell"), and no caution is raised: it can never say clear. Default: always true.
  * - readPixels(bytes): the picture as { data, width, height } (a canvas's getImageData), a promise.
  * - fetch, timers, now, onChange as createImageFeed.
  * - store: the module's storage ({ get, set }), optional. The lightning episode (when it began, when lightning was last seen near,
@@ -60,7 +62,7 @@ const episodeSig = (e) => (e ? `${e.id}|${e.lastNearAt}|${e.place}` : '');
  * episode gap (lightning.js) is a new caution that re-raises whatever was acknowledged before.
  * Returns { start, setPlace, refresh, wake, stop, result, line, state }.
  */
-export function createLightningWatch({ home, radiusNm, enabled = true, readPixels, fetch, timers, now = () => new Date(), store = null, onChange = () => {} }) {
+export function createLightningWatch({ home, radiusNm, enabled = true, hasSource = () => true, readPixels, fetch, timers, now = () => new Date(), store = null, onChange = () => {} }) {
   let box = null;
   let episode = loadEpisode(store); // { id, lastNearAt, place } from before a reload, or null; checked against the place at the first answer
   let saved = episodeSig(episode);
@@ -118,6 +120,7 @@ export function createLightningWatch({ home, radiusNm, enabled = true, readPixel
       now: at,
       enabled,
       episode,
+      hasSource: hasSource(),
     });
     episode = found.episode ? { ...found.episode, place } : null; // lightning.js's own two fields, and where they were seen
     const sig = episodeSig(episode);
@@ -141,6 +144,14 @@ export function createLightningWatch({ home, radiusNm, enabled = true, readPixel
       lastNear = null;
       gaveReading = true;
       lastGoodAt = +at;
+      outageSince = null;
+      return found;
+    }
+    if ('noSource' in found && found.noSource) {
+      // No lightning source for this base: nothing is held over, nothing is claimed.
+      lastNear = null;
+      gaveReading = false;
+      lastGoodAt = null;
       outageSince = null;
       return found;
     }
@@ -188,7 +199,7 @@ export function createLightningWatch({ home, radiusNm, enabled = true, readPixel
     return found;
   }
 
-  function setPlace() {
+  function readBox() {
     const next = lightningBox({ home: home(), radiusNm: radiusNm() });
     const same = next && box && next.width === box.width && next.bounds.west === box.bounds.west && next.bounds.south === box.bounds.south;
     if (same) return;
@@ -201,11 +212,22 @@ export function createLightningWatch({ home, radiusNm, enabled = true, readPixel
     feed.setRequest({ bbox: [west, south, east, north], width: box.width, height: box.height, key: `${west},${south},${east},${north},${box.width}`, box });
   }
 
+  function setPlace() {
+    if (!hasSource()) {
+      // A base with no lightning source asks for nothing, and lets go of a picture held from another base's.
+      box = null;
+      feed.setRequest(null);
+      feed.enable(false);
+      return;
+    }
+    readBox();
+    feed.enable(enabled); // asks at once the first time; nothing changes when it is already on
+  }
+
   return {
     /** Starts asking now, and every 10 minutes. */
     start() {
       setPlace();
-      feed.enable(enabled);
     },
     /** Home or the radius changed: read the new box. */
     setPlace,

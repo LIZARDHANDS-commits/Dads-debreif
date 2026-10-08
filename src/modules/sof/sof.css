@@ -2536,7 +2536,8 @@ main[data-module='sof'] {
   color: #b8cfdb;
 }
 
-[data-module='sof'] .sof-3d-wx-line.is-bad {
+[data-module='sof'] .sof-3d-wx-line.is-bad,
+[data-module='sof'] .sof-3d-wx-line.is-caution {
   color: var(--caution);
   font-weight: 600;
 }

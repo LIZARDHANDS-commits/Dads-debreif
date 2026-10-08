@@ -25,6 +25,7 @@ import { CATALOG } from '../../airfields/catalog.js';
 import { makeLocalRef, latLonToLocalFt, localFtToLatLon } from '../../core/geo.js';
 import { FT_PER_NM } from '../../core/units.js';
 import { MAG_VARIATION_DEG_E } from './model-clouds.js';
+import { noSourceWords } from './sites/words.js';
 import { VIEW_TOP_FT } from './airspace-model.js';
 
 const MINUTE_MS = 60_000;
@@ -115,12 +116,13 @@ export function stationPoint(id) {
 }
 
 /**
- * The point `distanceNm` along `radialDeg` from a station. A PIREP radial is magnetic (as a VOR's), so it is turned to true with the SOF's 9° E
- * variation (Patrick's ruling for Moose Jaw, TR-65; across the 450 NM area the real variation differs by a few degrees, so the point is approximate).
+ * The point `distanceNm` along `radialDeg` from a station. A PIREP radial is magnetic (as a VOR's), so it is turned to true with the home base's
+ * variation: the SOF's 9° E by default (Patrick's ruling for Moose Jaw, TR-65), or the site profile's `magVarDegE` where the caller passes it; across
+ * the 450 NM area the real variation differs by a few degrees, so the point is approximate.
  * The distance is laid off on the flat local map round the station (core/geo.js), which is close enough at PIREP distances.
  */
-export function radialPoint(station, radialDeg, distanceNm) {
-  const trueDeg = ((radialDeg + MAG_VARIATION_DEG_E) * Math.PI) / 180;
+export function radialPoint(station, radialDeg, distanceNm, magVarDegE = MAG_VARIATION_DEG_E) {
+  const trueDeg = ((radialDeg + magVarDegE) * Math.PI) / 180;
   const ref = makeLocalRef(station.lat, station.lon);
   const ft = distanceNm * FT_PER_NM;
   return localFtToLatLon(ref, ft * Math.sin(trueDeg), ft * Math.cos(trueDeg));
@@ -326,7 +328,7 @@ function pirepFields(text) {
 }
 
 /** Where a PIREP's /OV puts it: { lat, lon, how } or null. */
-function overPoint(ov) {
+function overPoint(ov, magVarDegE) {
   if (!ov) return null;
   const first = ov.split(/\s*-\s*/)[0];
   const coords = findPoints(first);
@@ -339,7 +341,7 @@ function overPoint(ov) {
   const radial = Number(m[2]);
   const dist = Number(m[3]);
   if (radial > 360) return null;
-  return { ...radialPoint(station, radial % 360, dist), how: `${dist} NM on the ${m[2]} radial of ${station.station} (approximate)` };
+  return { ...radialPoint(station, radial % 360, dist, magVarDegE), how: `${dist} NM on the ${m[2]} radial of ${station.station} (approximate)` };
 }
 
 /** A PIREP flight level ("080", "FL080", "080-120", "DURD") as a level, or null. */
@@ -389,7 +391,7 @@ function pirepHazards(fields, text, urgent) {
  *   drawable, note } where `area` (SIGMET/AIRMET) or `point` (PIREP) is null when the position can't be read, `levels` is null when the heights
  *   can't be, and `note` says what was not read ("position not read, see text").
  */
-export function parseAlert(item, { now = Date.now() } = {}) {
+export function parseAlert(item, { now = Date.now(), magVarDegE = MAG_VARIATION_DEG_E } = {}) {
   const text = String(item.text ?? '');
   const flat = text.toUpperCase().replace(/\s+/g, ' ');
   const kind = item.kind;
@@ -409,7 +411,7 @@ export function parseAlert(item, { now = Date.now() } = {}) {
       const f = /\bF(\d{3})\b/.exec(flat);
       if (f) levels = { ft: Number(f[1]) * 100, fl: true };
     } else {
-      point = overPoint(fields.OV);
+      point = overPoint(fields.OV, magVarDegE);
       levels = pirepLevel(fields.FL);
     }
     if (!point && item.location) { // the relay's location: a lat/lon or a station
@@ -495,7 +497,7 @@ function readOne(n) {
  * believable), sites: ['CYMJ', ...], alerts: [parsed] }. The same message twice is kept once; a cancelled SIGMET or AIRMET (a later "CNCL SIGMET A1"
  * from the same FIR) is dropped with its cancellation. Returns null for anything that is not the expected shape. Never throws.
  */
-export function readAlertsReply(input, { now = Date.now() } = {}) {
+export function readAlertsReply(input, { now = Date.now(), magVarDegE = MAG_VARIATION_DEG_E } = {}) {
   try {
     let json = input;
     if (typeof input === 'string') {
@@ -516,7 +518,7 @@ export function readAlertsReply(input, { now = Date.now() } = {}) {
     for (const n of list.slice(0, MAX_ALERTS)) {
       const one = readOne(n);
       if (!one) continue;
-      const parsed = parseAlert(one, { now: +now });
+      const parsed = parseAlert(one, { now: +now, magVarDegE });
       const same = `${parsed.kind}|${parsed.text.toUpperCase().replace(/\s+/g, ' ')}`;
       if (seen.has(same)) continue;
       seen.add(same);
@@ -620,6 +622,8 @@ const KIND_RANK = { sigmet: 0, airmet: 1, pirep: 2 };
  */
 export function alertsFor(state, field, now) {
   const at = +now;
+  // The base's site profile has no SIGMET/AIRMET/PIREP source (`state.noSource`): it can't tell, and says so, never "No SIGMETs".
+  if (state.noSource) return { status: 'unavailable', words: noSourceWords('SIGMETs/PIREPs'), list: [] };
   if (!state.relay) return { status: 'unset', words: 'SIGMETs/PIREPs need the relay address in SOF settings', list: [] };
   const good = state.lastGood;
   const dataTime = good ? Math.min(good.fetched ?? good.receivedAt, good.receivedAt) : null;
@@ -660,6 +664,7 @@ export function alertsFor(state, field, now) {
  */
 export function alerts3dView(state, now, groundFt = 0) {
   const at = +now;
+  if (state.noSource) return { status: 'unavailable', words: noSourceWords('SIGMETs/PIREPs'), alerts: [], notDrawn: 0, signature: 'nosource' };
   if (!state.relay) return { status: 'unset', words: 'SIGMETs/PIREPs need the relay address in SOF settings', alerts: [], notDrawn: 0, signature: 'unset' };
   const good = state.lastGood;
   const dataTime = good ? Math.min(good.fetched ?? good.receivedAt, good.receivedAt) : null;
@@ -690,5 +695,7 @@ export function alerts3dView(state, now, groundFt = 0) {
  * keeping of the last good answer and retry after a failure. Returns { sync(), wake(), stop(), state() } (state: { relay, lastGood, failed, busy }).
  */
 export function createAlertsFeed(options) {
-  return createRelayFeed({ ...options, read: readAlertsReply, refreshMs: ALERTS_REFRESH_MS, retryMs: ALERTS_RETRY_MS, limits: ALERTS_FETCH_LIMITS });
+  // `options.magVarDegE()` is the home base's variation (its site profile), read each time a reply is read; Moose Jaw's when left out.
+  const magVarDegE = options.magVarDegE ?? (() => MAG_VARIATION_DEG_E);
+  return createRelayFeed({ ...options, read: (text, ctx) => readAlertsReply(text, { ...ctx, magVarDegE: magVarDegE() }), refreshMs: ALERTS_REFRESH_MS, retryMs: ALERTS_RETRY_MS, limits: ALERTS_FETCH_LIMITS });
 }

@@ -2,6 +2,7 @@
 // their category in words and their wind barb, the credits line, and the status strip's
 // words. Pure: the screen's cards, the weather snapshot and the feeds' lines go in; plain
 // data comes out. map-draw.js only paints it.
+import { noSourceWords } from './sites/words.js';
 
 const isNumber = (v) => typeof v === 'number' && Number.isFinite(v);
 
@@ -80,12 +81,13 @@ export function airfieldMarks({ cards = [], fields = [], snapshot = {} } = /** @
 /**
  * The map's credits line: the base map in use, ECCC for radar and lightning, and what else is showing
  * (RainViewer while it is the radar, adsb.lol's data while traffic is on). VNC carries "not for navigation".
- * `layers` is the layers state; `radarBackup` and `trafficOn` say what is in use.
+ * `layers` is the layers state; `radarBackup` and `trafficOn` say what is in use. `feedsCredit` is the site profile's words for its radar, lightning,
+ * cloud and warnings sources (profile `credits.mapFeeds`); null or left out when the base has none, then none are credited.
  */
-export function mapCredits(layers, { radarBackup = false, trafficOn = false } = {}) {
+export function mapCredits(layers, { radarBackup = false, trafficOn = false, feedsCredit = null } = {}) {
   const parts = ['Map: Esri, Maxar, Earthstar Geographics, and the GIS User Community imagery'];
   if (layers?.base === 'vnc' || layers?.base === 'vnc-satellite') parts.push('VNC charts © NAV CANADA (not for navigation)');
-  parts.push('radar, lightning, cloud and warnings: ECCC (Open Government Licence)');
+  if (feedsCredit) parts.push(feedsCredit);
   if (radarBackup) parts.push('backup radar: RainViewer');
   if (trafficOn) parts.push('traffic: adsb.lol (ODbL)');
   return `${parts.join('. ')}.`;
@@ -143,11 +145,16 @@ const ORDER = ['radar', 'coverage', 'lightning', 'nearhome', 'cloud', 'warnings'
  * and "No lightning within 20 NM ✓" side by side. A warning is never softened.
  */
 export function nearHomeItem(result, mapLine = null) {
+  // A base with no lightning source (the site profile's `null`): amber, a warning symbol and "can't tell", never a tick.
+  if (result.noSource) return { id: 'nearhome', text: result.words, symbol: '⚠', tone: 'caution' };
   const near = result.state === 'near';
   const clear = result.state === 'clear';
   if (clear && mapLine?.stale === true) return { id: 'nearhome', text: `${result.words} (the lightning map is STALE)`, symbol: '?', tone: 'busy' };
   return { id: 'nearhome', text: result.words, symbol: near ? '⚠' : clear ? '✓' : '?', tone: near ? 'bad' : clear ? 'ok' : 'busy' };
 }
+
+/** The line for a feed the base's site profile has no source for: "Radar: no source for this base, can't tell" ⚠, amber, never a tick. */
+export const noSourceLine = (label) => ({ text: noSourceWords(label), symbol: '⚠', tone: 'caution', stale: false });
 
 /**
  * The strip's items, in a fixed order, only for what is switched on: { id, text, symbol, tone }.

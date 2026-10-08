@@ -30,6 +30,7 @@ import { CATALOG, DEFAULT_HOME } from '../../airfields/catalog.js';
 import { greatCircleNm } from '../../airfields/distance.js';
 import { EARTH_RADIUS_M } from '../../core/units.js';
 import { feedAge } from './feeds.js';
+import { noSourceWords } from './sites/words.js';
 
 /**
  * SOF-3's answers: on, 20 NM (V6's `lightningNm`), 5 to 50 NM. `clearHoldMs` is how long
@@ -152,6 +153,9 @@ function covers(coverage, home, radius) {
  * - `layerTime`: the lightning layer's own time, a Date or ms (from ECCC's layer time,
  *   not when it was fetched). `now`: the clock. Stale after 40 min by feeds.js `feedAge`.
  * - `enabled`: default true (SOF-3); false says nothing and raises nothing.
+ * - `hasSource`: default true. False when the base's site profile has no lightning source (sites/): then it can never say clear. `state` is 'unknown'
+ *   with `noSource: true` and the words "Lightning: no source for this base, can't tell", whatever `samples` hold (an ECCC picture outside Canada is
+ *   empty, and an empty picture is not "no lightning").
  * - `episode`: what the last call returned, so the same lightning keeps the same key.
  * - `clearHoldMs`: see LIGHTNING_DEFAULTS.
  *
@@ -164,11 +168,12 @@ function covers(coverage, home, radius) {
 export function lightningNearHome(args = {}) {
   const {
     samples, coverage, home = { icao: DEFAULT_HOME, ...CATALOG[DEFAULT_HOME] }, radiusNm, layerTime, now,
-    enabled = LIGHTNING_DEFAULTS.enabled, episode, clearHoldMs = LIGHTNING_DEFAULTS.clearHoldMs,
+    enabled = LIGHTNING_DEFAULTS.enabled, episode, clearHoldMs = LIGHTNING_DEFAULTS.clearHoldMs, hasSource = true,
   } = isObject(args) ? args : {};
   const radius = clampRadius(radiusNm);
   const base = { near: null, radiusNm: radius, nearestNm: null, bearingDeg: null, bearingWords: null, cells: 0, ageMin: null, caution: null };
   if (enabled === false) return { ...base, state: 'off', words: 'Lightning check is off', episode: null };
+  if (hasSource === false) return { ...base, state: 'unknown', noSource: true, words: noSourceWords('Lightning'), episode: null };
 
   const clock = ms(now);
   // An episode not seen near for longer than this is over, however long the data couldn't tell:

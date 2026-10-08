@@ -39,7 +39,8 @@ export const sheetWords = (hPa, heightFt) => `${hPa} hPa ≈ ${formatFeet(Math.r
 /**
  * Builds the layers. `T` is three.js; `model`, `hour` (index into model.times), `scale` (the height scale) and `groundFt` (the ground
  * the view draws, feet above sea level) as the view has them. `style` is 'slabs' or 'levels' (the default here, the old sheets); for slabs, `slabs` are the
- * cloud-field.js fields to draw (masked and anchored by the view; worked out from the model when left out) and `fade` dims them (0 to 1).
+ * cloud-field.js fields to draw (masked and anchored by the view; worked out from the model when left out) and `fade` dims them (0 to 1). `magVarDegE` is the home
+ * base's magnetic variation (its site profile), for the winds' degrees magnetic; Moose Jaw's when left out.
  *
  * In slabs style `summary.sheets` is empty, `summary.slabs` is cloud-slabs3d.js's summary, `fields` are the slabs drawn, and
  * `summary.layers` counts 1 for each stage with a slab drawn.
@@ -52,7 +53,7 @@ export const sheetWords = (hPa, heightFt) => `${hPa} hPa ≈ ${formatFeet(Math.r
  *   false for a level with no cloud, which has no sheet), layers: { low, mid, high } (counts of drawn sheets), barbs, freezingFt,
  *   freezingText, windsOverHome: [words] }; the freezing level is null (no sheet, no label) when the model has none anywhere for the hour.
  */
-export function buildModelLayers(T, { model, hour, scale, groundFt, style = 'levels', slabs = null, fade = 1 }) {
+export function buildModelLayers(T, { model, hour, scale, groundFt, style = 'levels', slabs = null, fade = 1, magVarDegE = undefined }) {
   const root = new T.Group();
   const groups = {};
   for (const name of MODEL_GROUPS) {
@@ -112,7 +113,7 @@ export function buildModelLayers(T, { model, hour, scale, groundFt, style = 'lev
   }
 
 // ---- Wind barbs: flat on the plane at each level's own height, one mesh for all the barbs of a level ----
-  const winds = modelWinds(model, hour);
+  const winds = modelWinds(model, hour, magVarDegE);
   const windMaterial = own(new T.MeshBasicMaterial({ color: WIND_COLOUR, side: T.DoubleSide, depthWrite: false, transparent: true, opacity: 0.95 }));
   const byLevel = new Map();
   for (const w of winds) {
@@ -128,7 +129,7 @@ export function buildModelLayers(T, { model, hour, scale, groundFt, style = 'lev
     mesh.renderOrder = 4;
     groups.winds.add(mesh);
   }
-  const over = windsOverHome(model, hour);
+  const over = windsOverHome(model, hour, magVarDegE);
   for (const w of over) labels.push({ group: 'winds', text: w.words, point: { x: w.x, y: w.y, z: w.heightFt * scale + LIFT_FT } });
 
   // ---- The freezing level: one faint sheet across the area at the mean for the hour, with its border ----

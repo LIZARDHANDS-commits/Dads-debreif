@@ -325,14 +325,15 @@ export function createImageFeed({
 // ---- Radar: ECCC first, RainViewer after two failures -----------------------------------------------
 
 /**
- * Radar (rain or snow) with its backup. `precip()` says 'rain' or 'snow'. `decode`, `urlFor`-less:
+ * Radar (rain or snow) with its backup. `precip()` says 'rain' or 'snow'. `layers()` gives the layer names, { rain, snow } (the home base's site profile,
+ * `sources.radar.layers`; ECCC's two radar layers by default); it is only read while the feed is on, so a base with no radar source can return nothing. `decode`, `urlFor`-less:
  * the addresses are built here from feeds.js. `fetch`, `timers`, `now`, `onChange` as createImageFeed.
  *
  * Returns { setRequest, enable, setPrecip, refresh, wake, stop, state, line }:
  * `state()` is { source: 'eccc' | 'rainviewer', failures, image, frame, layerTime, failed, busy };
  * `frame` is RainViewer's newest { time, path } while it is the source; `line(now)` is feedLine's.
  */
-export function createRadarFeed({ precip = () => 'rain', decode, paused, fetch, timers, now = () => new Date(), onChange = () => {} }) {
+export function createRadarFeed({ precip = () => 'rain', layers = () => ({ rain: LAYERS.radarRain, snow: LAYERS.radarSnow }), decode, paused, fetch, timers, now = () => new Date(), onChange = () => {} }) {
   let source = initialFeedSource();
   let backup = null; // { frame, generated }
   let backupFailed = false;
@@ -355,7 +356,7 @@ export function createRadarFeed({ precip = () => 'rain', decode, paused, fetch, 
   }
 
   const feed = createImageFeed({
-    layer: () => (precip() === 'snow' ? LAYERS.radarSnow : LAYERS.radarRain),
+    layer: () => (precip() === 'snow' ? layers()?.snow : layers()?.rain),
     kind: 'radar',
     urlFor: ({ layer, request, time }) => getMapUrl({ layer, bbox: request.bbox, width: request.width, height: request.height, time }),
     decode,

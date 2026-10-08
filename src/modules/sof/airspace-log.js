@@ -41,16 +41,18 @@ export function areasWords(watched = WATCHED_AREAS) {
 const who = (rec) => `${rec.name} (${rec.type ?? 'type unknown'})`;
 
 /**
- * Makes a log. options: { watched (area ids), max (lines kept) }. Returns { update(answer), pause(reason), setOptions({ showT6, showAll }), view(), reset() }.
+ * Makes a log. options: { watched (area ids), max (lines kept) }. Returns { update(answer), pause(reason), setOptions({ showT6, showAll }), setWatched(ids), view(), reset() }.
+ * The watched areas are the home base's site profile's (sites/); `setWatched` changes them when home changes (then call `reset()`).
  */
-export function createAirspaceLog({ watched = WATCHED_AREAS, max = LOG_MAX } = {}) {
+export function createAirspaceLog({ watched: firstWatched = WATCHED_AREAS, max = LOG_MAX } = {}) {
+  let watched = firstWatched;
   let inside = new Map(); // hex -> Map(id -> { name, type, t6, ft, possible, since })
   let known = new Set(); // the hexes of the last answer, to tell "entered" from "first seen in"
   let lines = []; // newest first: { id, at, text, alert }
   let lineCount = 0; // numbers each line once, so a line keeps its key as newer ones are added
   let state = 'off'; // 'off' | 'loading' | 'unavailable' | 'live'
   let options = { showT6: false, showAll: false };
-  const words = areasWords(watched);
+  let words = areasWords(watched);
 
   function shownLine({ id, t6 }) {
     return (watched.includes(id) || options.showAll) && (!t6 || options.showT6);
@@ -128,7 +130,7 @@ export function createAirspaceLog({ watched = WATCHED_AREAS, max = LOG_MAX } = {
       const live = state === 'live';
       const count = hexes.size;
       const stateWords = live ? null : state === 'unavailable' ? 'Traffic unavailable: the airspace log is not being updated, and nobody is listed as inside.' : state === 'loading' ? 'Waiting for the first traffic answer.' : null;
-      const countWords = !live ? `Airspace log: no current traffic` : count ? `${count} non-T-6 in ${words}` : `No non-T-6 in ${words}`;
+      const countWords = !watched.length ? 'Airspace log: no watched areas for this base' : !live ? `Airspace log: no current traffic` : count ? `${count} non-T-6 in ${words}` : `No non-T-6 in ${words}`;
       const shownLines = lines.map((l) => ({ key: String(l.id), text: l.text, alert: l.alert }));
       return {
         shown: state !== 'off',
@@ -141,6 +143,11 @@ export function createAirspaceLog({ watched = WATCHED_AREAS, max = LOG_MAX } = {
         hexes,
         signature: [state, count, intruders.map((i) => i.text).join(';'), lines[0]?.id ?? 0].join('|'),
       };
+    },
+    /** The areas to watch for aircraft that are not T-6s (the site profile's `watchedAreas`); none for a base without any. */
+    setWatched(/** @type {readonly string[]} */ ids = []) {
+      watched = Array.isArray(ids) ? [...ids] : [];
+      words = areasWords(watched);
     },
     /** Starts over (the module's home field changed, or a test). */
     reset() {

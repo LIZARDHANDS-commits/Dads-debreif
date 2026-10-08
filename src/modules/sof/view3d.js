@@ -56,7 +56,7 @@ import {
 } from './scene3d-model.js';
 import { createAirspaceLogView } from './airspace-log-view.js';
 import {
-  TOUR_TARGETS, TOUR_DWELL_S, TOUR_FLY_S, TOUR_PITCH_DEG, TOUR_FIELD_AGL_FT, tourStops, nextStopIndex, tourCaption, nextInWords, framingZoom, flyPose,
+  TOUR_DWELL_S, TOUR_FLY_S, TOUR_PITCH_DEG, TOUR_FIELD_AGL_FT, tourStops, nextStopIndex, tourCaption, nextInWords, framingZoom, flyPose,
 } from './tour-model.js';
 import { buildModelLayers, MODEL_GROUPS } from './model-layers3d.js';
 import {
@@ -65,7 +65,7 @@ import {
 } from './cloud-field.js';
 import { buildHeightSheet } from './cloud-slabs3d.js';
 import { createTraffic3d } from './traffic3d.js';
-import { AIRSPACE } from './airspace-data.js';
+import { CYMJ, magVarWords, noSourceWords } from './sites/index.js';
 import { buildAirspace, AIRSPACE_GROUPS, KIND_COLOURS } from './airspace3d.js';
 import { buildAirports, RUNWAY_MIN_PX } from './airports3d.js';
 import { buildAlerts3d, ALERT_COLOURS, PIREP_COLOURS, ALERT_COLOUR_WORDS, ALERT_FILL_OPACITY } from './alerts3d.js';
@@ -74,7 +74,7 @@ import { AIRPORTS } from './airports-data.js';
 import { checkedAirspace, KIND_WORDS, tacnavNote, AIRSPACE_FILL_OPACITY, VIEW_TOP_FT } from './airspace-model.js';
 import {
   hourIndex, maxAhead, hourWords, meanLayerCover, unavailableWords, refreshFailedWords, LOADING_WORDS, CREDIT_WORDS, MAX_AHEAD_HOURS, CLOUD_STAGES_FT_AGL,
-  CLOUD_COVER_THRESHOLD_PCT, MAG_VARIATION_DEG_E, barbStep, CLOUD_SHEET_PX, filledWords, nextAskWords, HRDPS_CHUNKS, HRDPS_AVAILABLE_AFTER_MS,
+  CLOUD_COVER_THRESHOLD_PCT, barbStep, CLOUD_SHEET_PX, filledWords, nextAskWords, HRDPS_CHUNKS, HRDPS_AVAILABLE_AFTER_MS,
 } from './model-clouds.js';
 
 const BACKGROUND = '#0a141d';
@@ -135,15 +135,16 @@ const isColour = (v) => typeof v === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d\s.
  * getWeather() (the weather layers' inputs, read when it draws and when `touch()` says something may have changed: { sig, radar, lightning, satellite, fronts, lines },
  * each picture null or { id, image, bbox, stale }, `fronts` as fronts.js `frontsView` with a `key`, `lines` the status strip's words; see map.js `weather3d`), fullScreen
  * (fullscreen.js's object, for the Full screen button), onLost() (the graphics
- * context was lost: the caller goes back to 2D), routes (the TACNAV routes to draw, from the Debrief's `ROUTES` as `map.js` gives them:
- * { name, paths: [[[lon, lat], ...]] }), airspace (the entries to draw, airspace-data.js `AIRSPACE` unless a test gives its own), onAirspaceLogOptions
+ * context was lost: the caller goes back to 2D), getSite() (the home base's site profile, sites/: its airspace, towns, tour targets and magnetic variation; Moose Jaw's
+ * unless the caller gives it), routes (the TACNAV routes to draw, or a function that gives them, from the Debrief's `ROUTES` as `map.js` gives them:
+ * { name, paths: [[[lon, lat], ...]] }), airspace (the entries to draw instead of the site profile's, for a test), onAirspaceLogOptions
  * ({ showT6, showAll }: the log panel's two ticks changed), now() (the clock in milliseconds, for gliding the aircraft between answers), onTrails(on)
  * (the Trails button was pressed), onModelHour(ms) (the model hour shown changed, or null with no model: the map asks for the HRDPS cloud picture at that hour), win }.
  * Returns { element, show(), hide(), setScene({ airfields, heightScale }), setModel({ status, model, lastGoodAt, now, timeZone }), setAirspaceLog(view),
  * touch(), home(), zoomBy(factor), isShown(), dispose() }.
  * `show()` resolves { ok: true } or { ok: false, reason: 'gl' | 'load' | 'closed' }.
  */
-export function createSofView3d({ timers, getProjection, getPictures, getWeather = () => ({ sig: 'none', radar: null, lightning: null, satellite: null, fronts: null, lines: [] }), fullScreen = null, onLost = () => {}, routes = [], airspace = AIRSPACE, onAirspaceLogOptions = /** @type {(options: { showT6: boolean, showAll: boolean }) => void} */ (() => {}), now = () => Date.now(), onTrails = /** @type {(on: boolean) => void} */ (() => {}), onModelHour = /** @type {(ms: number | null) => void} */ (() => {}), win = globalThis }) {
+export function createSofView3d({ timers, getProjection, getPictures, getWeather = () => ({ sig: 'none', radar: null, lightning: null, satellite: null, fronts: null, lines: [] }), fullScreen = null, onLost = () => {}, getSite = /** @type {() => any} */ (() => CYMJ), routes = /** @type {any} */ ([]), airspace = /** @type {any} */ (null), onAirspaceLogOptions = /** @type {(options: { showT6: boolean, showAll: boolean }) => void} */ (() => {}), now = () => Date.now(), onTrails = /** @type {(on: boolean) => void} */ (() => {}), onModelHour = /** @type {(ms: number | null) => void} */ (() => {}), win = globalThis }) {
   const labels = h('div', { class: 'sof-3d-labels' });
   // The airspace volume under the pointer: its name and limits float beside the pointer (Dad, 7 Oct); nothing is written on the volumes themselves.
   const spaceTip = h('p', { class: 'sof-3d-space-tip', hidden: true });
@@ -234,17 +235,26 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
 
   // The airspace controls (phase 3): a toggle for the volumes and one for the TACNAV routes, and a key. With no airspace data the first
   // toggle says so and cannot be pressed; with no routes the second does.
-  const noAirspace = airspace.length === 0;
-  const noRoutes = routes.length === 0;
+  // What is drawn comes from the home base's site profile (read each time it is built, so a new home gets its own); `airspace` and `routes` can still be given.
+  const airspaceNow = () => airspace ?? getSite().airspace;
+  const routesNow = () => (typeof routes === 'function' ? routes() : routes);
+  const noAirspace = () => airspaceNow().length === 0;
+  const noRoutes = () => routesNow().length === 0;
+  /** The first two toggles' words, by what the home base has: [text, title, reason it cannot be pressed or null]. Read again when the airspace is built for a new home. */
+  const spaceToggleWords = () => ({
+    airspace: [noAirspace() ? 'Airspace (no data yet)' : 'Airspace', 'Airspace volumes round home, each from its floor to its ceiling, see-through', noAirspace() ? 'No airspace data yet: its floors, ceilings and outlines are added once each has a source' : null],
+    tacnav: ['TACNAV', 'The TACNAV routes, as lines 500 ft above the ground (ground taken as flat, an estimate)', noRoutes() ? 'No TACNAV routes to draw' : null],
+  });
+  const firstWords = spaceToggleWords();
   const SPACE_TOGGLES = /** @type {[string, string, string, string | null][]} */ ([
-    ['airspace', noAirspace ? 'Airspace (no data yet)' : 'Airspace', 'Airspace volumes round home, each from its floor to its ceiling, see-through', noAirspace ? 'No airspace data yet: its floors, ceilings and outlines are added once each has a source' : null],
-    ['tacnav', 'TACNAV', 'The TACNAV routes, as lines 500 ft above the ground (ground taken as flat, an estimate)', noRoutes ? 'No TACNAV routes to draw' : null],
+    ['airspace', ...firstWords.airspace],
+    ['tacnav', ...firstWords.tacnav],
     ['airports', 'Airports', `The runways of ${AIRPORTS.map((a) => a.icao).join(', ')} at their true places and sizes, with schematic buildings`, null],
     ['terrain', 'Terrain', `The real ground: heights from the Terrarium elevation tiles, ×the height scale, so the valleys, the Coteau and the Cypress Hills show. Off lays the ground flat at home’s elevation. ${TERRAIN_CREDIT}.`, null],
     ['towns', 'Towns', 'Moose Jaw, Regina, Swift Current and Saskatoon as schematic blocks standing on the terrain: not real buildings. A name shows when zoomed in, or under the pointer.', null],
     ['alerts', 'SIGMET/PIREP', 'SIGMETs (red-orange) and AIRMETs (yellow) as see-through volumes from base to top, PIREPs as small diamonds at their level (amber turbulence, blue icing, white other), from NAV CANADA through the relay. Put the pointer on one for its words.', null],
   ]);
-  const spaceToggles = { airspace: !noAirspace, tacnav: !noRoutes, airports: true, terrain: true, towns: true, alerts: true };
+  const spaceToggles = { airspace: !noAirspace(), tacnav: !noRoutes(), airports: true, terrain: true, towns: true, alerts: true };
   const spaceButtons = new Map();
   for (const [key, text, title, reason] of SPACE_TOGGLES) {
     const button = h('button', {
@@ -354,7 +364,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   let tilesFailed = false;
   let noTiles = false; // a tile the browser would not let three.js read: the ground is drawn plain instead
   let loadingNote = false;
-  let modelState = { status: 'loading', model: null, lastGoodAt: null, failedAt: null, incomplete: false, limited: false, refining: false, nextAt: null, now: new Date(0), timeZone: null }; // what the map last gave setModel
+  let modelState = { status: 'loading', model: null, lastGoodAt: null, failedAt: null, incomplete: false, limited: false, refining: false, nextAt: null, noSource: false, now: new Date(0), timeZone: null }; // what the map last gave setModel
   let ahead = 0; // the slider: hours past now
   let modelSig = '';
   let modelDirty = true;
@@ -608,7 +618,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     modelWarn.hidden = warn === '';
     setText(modelWarn, warn);
     if (!ok) {
-      setText(modelStatus, status === 'unavailable' ? unavailableWords(lastGoodAt, incomplete, limited) : LOADING_WORDS);
+      setText(modelStatus, modelState.noSource ? noSourceWords('Model clouds') : status === 'unavailable' ? unavailableWords(lastGoodAt, incomplete, limited) : LOADING_WORDS);
     } else {
       const nowMs = +now;
       const limit = maxAhead(model, nowMs);
@@ -729,7 +739,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       creditAnchors = anchorsOn;
       updateCredit();
     }
-    const built = buildModelLayers(gl.THREE, { model, hour, scale, groundFt: groundFt(), style: cloudStyle, slabs, fade: cloudStyle === 'slabs' ? fade : 1 });
+    const built = buildModelLayers(gl.THREE, { model, hour, scale, groundFt: groundFt(), style: cloudStyle, slabs, fade: cloudStyle === 'slabs' ? fade : 1, magVarDegE: getSite().magVarDegE.value });
     gl.scene.add(built.root);
     const items = built.labels.map((l) => {
       const el = h('span', { class: `sof-3d-model-label is-${l.group}` }, l.text);
@@ -795,7 +805,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
         h('p', {}, `Clouds: one see-through sheet at each model level (${model.cloudLevels.length} levels, ${model.cloudLevels[0]} to ${model.cloudLevels.at(-1)} hPa), at the level's mean height. The model's cover at its ${model.gridSize} × ${model.gridSize} points (${Math.round(AREA_NM / (model.gridSize - 1) * 10) / 10} NM apart) is smoothed over the sheet: clear at ${CLOUD_COVER_THRESHOLD_PCT} % or less, then white to grey and more solid as cover rises, to about 85 % opaque at 100 %. A level under the ground has no sheet. Low, mid and high are by the sheet's height above the ground (below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft, up to ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft, above). "Cloud at" shows the model's cover at one height instead. The model's own mean cover this hour: low ${pct(cover.low)}, mid ${pct(cover.mid)}, high ${pct(cover.high)}.`),
         h('ul', {}, summary.sheets.map((x) => h('li', {}, `${x.words}: ${x.drawn ? `cover up to ${Math.round(x.maxCover)} %, mean ${Math.round(x.meanCover)} %` : 'no cloud'}`))),
       ]),
-      h('p', {}, `Winds: barbs (behind the Barbs button, off to begin with) at 850, 700 and 500 hPa at every ${barbStep(model.gridSize)}${barbStep(model.gridSize) === 2 ? 'nd' : 'rd'} grid point (${Math.round(model.gridSize > 1 ? (AREA_NM / (model.gridSize - 1)) * barbStep(model.gridSize) : 0)} NM apart): pennant 50 kt, full feather 10, half 5. Direction in °M (${MAG_VARIATION_DEG_E}° E variation), speed in kt.`),
+      h('p', {}, `Winds: barbs (behind the Barbs button, off to begin with) at 850, 700 and 500 hPa at every ${barbStep(model.gridSize)}${barbStep(model.gridSize) === 2 ? 'nd' : 'rd'} grid point (${Math.round(model.gridSize > 1 ? (AREA_NM / (model.gridSize - 1)) * barbStep(model.gridSize) : 0)} NM apart): pennant 50 kt, full feather 10, half 5. Direction in °M (${magVarWords(getSite())}), speed in kt.`),
       h('ul', {}, summary.windsOverHome.map((words) => h('li', {}, `Over home, ${words}`))),
       h('p', {}, `${summary.freezingText ? `${summary.freezingText}: the mean over the grid for the hour shown` : 'Freezing level: the model has none for this hour'}. Heights are feet above sea level, ×${scale}.`),
       h('p', {}, `Cloud at a height ("Cloud at", off to begin with; ${formatFeet(SHEET_HEIGHTS_FT.min)} to ${formatFeet(SHEET_HEIGHTS_FT.max)} ft above sea level in ${SHEET_HEIGHTS_FT.step} ft steps): in each model column the cover at that height is read as a straight line by height between the two levels either side, smoothed over the square like the slabs, shaped by the 2.5 km picture for the hour when there is one (the same most-overlap rule), and drawn as one see-through sheet, clear at ${CLOUD_COVER_THRESHOLD_PCT} % or less and whiter and more solid as cover rises. It replaces the Low, Mid and High cloud while chosen, follows the model time slider, and is a model estimate. A column whose levels do not reach the height has no data there, drawn clear and counted in the words. METARs do not move it.`),
@@ -905,7 +915,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     townsSig = sig;
     const projection = getProjection();
     const terrain = gl.terrain;
-    const built = buildTowns(gl.THREE, { toXY: projection.toXY, heightFt: terrain.heightFt, scale });
+    const built = buildTowns(gl.THREE, { toXY: projection.toXY, heightFt: terrain.heightFt, scale, towns: getSite().towns });
     gl.scene.add(built.root);
     const items = built.entries.map((entry) => {
       const el = h('span', { class: 'sof-3d-town-label', hidden: true }, entry.name);
@@ -1050,16 +1060,32 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   function rebuildSpace(sig) {
     freeSpace();
     spaceSig = sig;
+    syncSpaceAvailability();
     const projection = getProjection();
     const ground = groundFt();
-    const { volumes, skipped } = checkedAirspace(airspace, ground);
-    const built = buildAirspace(gl.THREE, { volumes, routes, toXY: projection.toXY, scale, groundFt: ground });
+    const { volumes, skipped } = checkedAirspace(airspaceNow(), ground);
+    const built = buildAirspace(gl.THREE, { volumes, routes: routesNow(), toXY: projection.toXY, scale, groundFt: ground });
     gl.scene.add(built.root); // nothing stands in the picture: a route's name and a volume's words come with the pointer (pickSpace)
     const airports = buildAirports(gl.THREE, { toXY: projection.toXY, scale, groundFt: ground, doc: win.document });
     gl.scene.add(airports.root);
     gl.space = { built, airports };
     applySpaceToggles();
     drawSpaceKey(volumes, skipped, ground);
+  }
+
+  /** The airspace and TACNAV buttons follow what the home base has: pressable when there is something to draw, and switched on when it first appears. */
+  function syncSpaceAvailability() {
+    for (const [key, [text, title, reason]] of Object.entries(spaceToggleWords())) {
+      const button = spaceButtons.get(key);
+      if (!button) continue;
+      const wasDisabled = button.disabled;
+      button.disabled = reason !== null;
+      button.title = reason ?? title;
+      setText(button, text);
+      if (reason !== null) spaceToggles[key] = false;
+      else if (wasDisabled) spaceToggles[key] = true;
+      button.setAttribute('aria-pressed', String(spaceToggles[key]));
+    }
   }
 
   function freeAlerts() {
@@ -1110,7 +1136,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       return h('li', {}, swatch, ` ${words.colour}: ${words.name}`);
     });
     const notes = [];
-    if (noAirspace) notes.push(h('p', {}, 'Airspace: no data yet. Each volume is added with its floor, ceiling, outline and source (NAV CANADA’s Designated Airspace Handbook); none is drawn from memory.'));
+    if (noAirspace()) notes.push(h('p', {}, 'Airspace: no data yet. Each volume is added with its floor, ceiling, outline and source (NAV CANADA’s Designated Airspace Handbook); none is drawn from memory.'));
     else {
       notes.push(
         h('p', {}, `Airspace: each volume runs from its floor to its ceiling, see-through (${Math.round(AIRSPACE_FILL_OPACITY * 100)} % fill, an estimate), with a thin outline on its top and bottom and along its corners. Edge colour by kind:`),
@@ -1127,8 +1153,8 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       h('p', {}, drawn.length
         ? `Airports: ${drawn.map((a) => `${a.icao} (${a.ends.join(', ')})`).join('; ')}. Each runway is drawn between its two thresholds at their true places, length and width (OurAirports, public domain: for drawing only, check the Canada Flight Supplement), at the field’s elevation ×${scale}. Far out, a field is drawn larger and a runway wider so it stays visible (about ${RUNWAY_MIN_PX.length} px long at least); closer in they are true size, and the stripes, centreline and numbers appear once a runway is ${RUNWAY_MIN_PX.detail} px long. The numbers read from the approach end. The terminal and hangars are schematic: buildings are schematic, drawn for orientation only.`
         : 'Airports: none inside this area.'),
-      h('p', {}, noRoutes ? 'TACNAV: no routes to draw.' : `${tacnavNote(home)} A route’s name shows while the pointer is near its line. The routes:`),
-      noRoutes ? null : h('ul', { class: 'sof-3d-airspace-list' }, (gl?.space?.built.labels ?? []).map((label) => h('li', { title: label.title }, label.text))),
+      h('p', {}, noRoutes() ? 'TACNAV: no routes to draw.' : `${tacnavNote(home)} A route’s name shows while the pointer is near its line. The routes:`),
+      noRoutes() ? null : h('ul', { class: 'sof-3d-airspace-list' }, (gl?.space?.built.labels ?? []).map((label) => h('li', { title: label.title }, label.text))),
       alertsKey,
       h('p', {}, 'A picture for situational awareness: not a chart, not for navigation or flight planning.'),
     );
@@ -1686,7 +1712,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   const poseNow = () => ({ tx: cam.tx ?? 0, ty: cam.ty ?? 0, tz: cam.tz ?? groundFt(), zoom: cam.zoom, pitch: cam.pitchDeg });
 
   /** The stops there are now (the fields in the scene, the airborne T-6s the traffic feed has). */
-  const tourStopsNow = () => tourStops({ targets: TOUR_TARGETS, airfields, aircraft: trafficState.shown ? trafficState.aircraft : [] });
+  const tourStopsNow = () => tourStops({ targets: getSite().tourTargets, airfields, aircraft: trafficState.shown ? trafficState.aircraft : [] });
 
   /** Where a stop is now, in feet from home (z: feet above sea level), and how closely to frame it; a T-6 is where it is drawn this moment. Null when it has gone. */
   function tourTarget(stop) {
@@ -2004,8 +2030,8 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
      * 'unavailable', model, lastGoodAt, failedAt, incomplete, now, timeZone }. The layers are built again only when the answer, the hour, the scale or the ground
      * changed. With no usable answer they are taken away and the view says why.
      */
-    setModel({ status = 'loading', model = null, lastGoodAt = null, failedAt = null, incomplete = false, limited = false, refining = false, nextAt = null, now = new Date(), timeZone = null } = {}) {
-      modelState = { status, model, lastGoodAt, failedAt, incomplete, limited, refining, nextAt, now, timeZone };
+    setModel({ status = 'loading', model = null, lastGoodAt = null, failedAt = null, incomplete = false, limited = false, refining = false, nextAt = null, noSource = false, now = new Date(), timeZone = null } = {}) {
+      modelState = { status, model, lastGoodAt, failedAt, incomplete, limited, refining, nextAt, noSource, now, timeZone };
       applyModel();
     },
     /**
