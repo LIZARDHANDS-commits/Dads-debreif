@@ -1,0 +1,23 @@
+// The Sheppard AFB site profile (plan Step 2c, part B): the SOF's own data for KSPS. The parts every US base shares, and their sources, are in us-base.js.
+// No weather standards yet (Limits not set), no airspace yet, and no picture or report source except the WPC fronts.
+import { usBase, towns } from './us-base.js';
+
+export const KSPS = usBase({
+  icao: 'KSPS',
+  name: 'Sheppard AFB',
+  shortName: 'Sheppard',
+  // The usual alternates: a guess Dad said to use for now.
+  usualAlternates: ['KLAW', 'KDFW'],
+  alternatesSource: 'a guess (nearby fields with an ILS) that Dad said to use for now, 7 Oct 2026; Dad to confirm',
+  // [id, name, lat, lon (GeoNames, for drawing only), built-up radius NM (estimate), tallest block ft (estimate)]
+  towns: towns([
+    ['wichita-falls', 'Wichita Falls', 33.9137, -98.4934, 3.5, 200],
+    ['burkburnett', 'Burkburnett', 34.0979, -98.5706, 1.2, 40],
+    ['iowa-park', 'Iowa Park', 33.9515, -98.6687, 1, 30],
+    ['electra', 'Electra', 34.0293, -98.919, 0.8, 30],
+    ['lawton', 'Lawton', 34.6087, -98.3903, 3, 150],
+  ]),
+  tourField: { icao: 'KLAW', label: 'Lawton' },
+  // 3.6° E: NOAA WMM2025 at the field for 8 Oct 2026 (3.55°), to a tenth (us-base.js).
+  magVarDeg: 3.6,
+});
