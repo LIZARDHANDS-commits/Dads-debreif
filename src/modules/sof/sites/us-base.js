@@ -107,9 +107,11 @@ export const towns = (list) => Object.freeze(list.map((t) => town(...t)));
  * - magVarDeg: degrees East (West negative), from US_MAGVAR_SOURCE.
  * - loadAirspace: a function that imports the base's generated FAA file (faa-airspace/<icao>.js, a module: { AIRSPACE, SOURCE }) when it is needed
  *   (airspace-load.js); the profile's own `airspace` is empty, and the 3D view adds the file's entries once it has come.
+ * - loadApproaches: a function that imports the base's generated approaches file (approaches/<icao>.js, tools/cifp-approaches.mjs: the FAA CIFP's
+ *   approaches for the base and its usual alternates; a module { FIELDS, SOURCE, CYCLE }) when it is needed (approaches-load.js), or null for none.
  * - standards: the base's weather standards (usaf-standards.js at the USAF bases), or null (the default) for "Limits not set".
  */
-export function usBase({ icao, name, shortName, usualAlternates, alternatesSource, towns: townList, tourField, magVarDeg, loadAirspace, standards = null }) {
+export function usBase({ icao, name, shortName, usualAlternates, alternatesSource, towns: townList, tourField, magVarDeg, loadAirspace, loadApproaches = null, standards = null }) {
   return Object.freeze({
     icao,
     name,
@@ -118,6 +120,8 @@ export function usBase({ icao, name, shortName, usualAlternates, alternatesSourc
     alternatesSource,
     airspace: Object.freeze([]),
     loadAirspace,
+    // The instrument approaches to the base and its usual alternates (FAA CIFP, public domain; loaded when the 3D view opens or the cards need them).
+    ...(loadApproaches ? { loadApproaches } : {}),
     airspaceNote: `${FAA_AIRSPACE_WORDS}; ${AP1_CROSS_CHECK}`,
     // The 3D key's source line for this base's airspace (the file's own dataset and dates are said with it once it has loaded).
     airspaceSource: `${FAA_AIRSPACE_WORDS}; ${AP1_CROSS_CHECK}`,
