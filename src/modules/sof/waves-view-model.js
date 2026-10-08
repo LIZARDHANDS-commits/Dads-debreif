@@ -7,6 +7,8 @@ import { planToUtc, waveCalls, localToUtc, MAX_WAVES } from './waves.js';
 import { withTafNote } from './taf-state.js';
 import { dayZones } from './zone-words.js';
 import { zoneAbbreviation } from '../../core/time.js';
+import { siteFor } from './sites/index.js';
+import { limitsSet, notSetCall, NOT_SET_KEY, incompleteWhy } from './limits-not-set.js';
 
 const two = (n) => String(n).padStart(2, '0');
 const HOUR_MS = 3_600_000;
@@ -25,8 +27,9 @@ export function dayLabel(date) {
   return `${WEEKDAYS[weekday]} ${date.day} ${MONTHS[date.month - 1]}`;
 }
 
-// A symbol beside the words of every call, never instead of them.
-const SYMBOL = { ok: '✓', required: '⚠', below: '▼', 'at-limit': '●', unknown: '?' };
+// A symbol beside the words of every call, never instead of them. 'not-set' is home at a base with no weather limits (grey), 'incomplete' an
+// alternate there (amber, SOF-32): limits-not-set.js.
+const SYMBOL = { ok: '✓', required: '⚠', below: '▼', 'at-limit': '●', unknown: '?', 'not-set': '–', incomplete: '⚠' };
 const symbolOf = (tone) => SYMBOL[tone] ?? '?';
 
 const LEVEL_WORDS = { below: 'Below limits', 'at-limit': 'At the limit', caution: 'Caution', unchecked: 'PROB not checked against landing minima' };
@@ -55,9 +58,11 @@ function chipOf(row, call, notes, homeIcao) {
     words: home.words,
     tone,
     symbol: symbolOf(tone),
-    reason: withTafNote(reasonOf(home), state),
+    // With no limits the key line is the hover words (`keyLine`), not a reason on the chip; a stale or failed TAF is still said.
+    reason: withTafNote(call.limitsNotSet ? null : reasonOf(home), state),
     limits: home.label,
     alternates: call.of ? alternatesWords(call) : null,
+    keyLine: call.limitsNotSet ? NOT_SET_KEY : null,
   };
 }
 
@@ -66,6 +71,8 @@ const meetsWithCaution = (a) => (a.status === 'meets' || a.status === 'at-limit'
 
 /** "2 of 3 alternates meet", with "(1 with caution)" for those that meet but have dangerous weather forecast. */
 function alternatesWords(call) {
+  // At a base with no limits nothing is counted as meeting: none was checked (SOF-32).
+  if (call.limitsNotSet) return `${call.of} alternate${call.of === 1 ? '' : 's'} incomplete`;
   const cautioned = call.alternates.filter(meetsWithCaution).length;
   return `${call.meeting} of ${call.of} alternate${call.of === 1 ? '' : 's'} meet${cautioned ? ` (${cautioned} with caution)` : ''}`;
 }
@@ -96,6 +103,9 @@ function detailOf(row, call, notes, homeIcao) {
       lines: a.details.map(lineOf),
     })),
     summary: call.of ? alternatesWords(call) : 'No alternates set',
+    // At a base with no limits, why every alternate reads "Incomplete", said once under the summary.
+    summaryNote: call.limitsNotSet && call.of ? incompleteWhy(homeIcao) : null,
+    keyLine: call.limitsNotSet ? NOT_SET_KEY : null,
   };
 }
 
@@ -134,7 +144,10 @@ export function buildWaves({ plan, airfields, tafs = {}, limits, now, timeZone, 
   const entries = plan.waves;
   const planned = planToUtc(entries, { now, timeZone, day: plan.day });
   const skipped = new Map(planned.skipped.map((s) => /** @type {[number, any]} */ ([s.index, s])));
-  const calls = planned.problem ? [] : waveCalls({ waves: planned.waves, airfields, tafs, limits });
+  const made = planned.problem ? [] : waveCalls({ waves: planned.waves, airfields, tafs, limits });
+  // A home base with no weather limits (its site profile's `standards` is null): home "Limits not set", alternates "Incomplete", only dangerous
+  // weather kept (limits-not-set.js). These calls also feed the banner, so it raises no limit caution either.
+  const calls = limitsSet(siteFor(homeIcao)) ? made : made.map((call) => notSetCall(call, homeIcao));
 
   let placed = 0;
   const rows = entries.slice(0, MAX_WAVES).map((entry, index) => {

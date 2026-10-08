@@ -229,7 +229,8 @@ export function createWavesView({ onAdd, onEdit, onRemove, onDay, onSelect, drop
       row.reason.hidden = !chip.reason;
       setText(row.alts, chip.alternates ?? '');
       row.alts.hidden = !chip.alternates;
-      row.chip.title = [m.title, `${chip.words}${chip.reason ? `: ${chip.reason}` : ''}`, chip.alternates].filter(Boolean).join(' ');
+      // At a base with no weather limits the key line says what "Limits not set" means.
+      row.chip.title = [m.title, `${chip.words}${chip.reason ? `: ${chip.reason}` : ''}`, chip.alternates, chip.keyLine].filter(Boolean).join(' ');
     });
     empty.hidden = model.rows.length > 0;
     if (model.canAdd) add.removeAttribute('aria-disabled');
@@ -262,12 +263,13 @@ export function createWavesView({ onAdd, onEdit, onRemove, onDay, onSelect, drop
       h('h3', { class: 'sof-detail-title' }, model.title),
       h('p', { class: `sof-detail-home is-${model.home.tone}` },
         h('span', { class: 'sof-detail-symbol', 'aria-hidden': 'true' }, model.home.symbol), ' ',
-        h('strong', {}, `Home, ${model.home.limits}: `), model.home.words),
+        h('strong', {}, model.home.limits ? `Home, ${model.home.limits}: ` : 'Home: '), model.home.words),
       model.home.why ? h('p', { class: 'sof-note' }, model.home.why) : null,
       hits(model.home.lines),
       model.alternates.length
         ? h('p', { class: 'sof-detail-alts-title' }, h('strong', {}, `Alternates: ${model.summary}`))
         : h('p', { class: 'sof-note' }, 'No alternates are set. Add them in Settings, under Airfields.'),
+      model.summaryNote ? h('p', { class: 'sof-note' }, model.summaryNote) : null,
       h('ul', { class: 'sof-alt-list' }, model.alternates.map((a) => h('li', { class: `sof-alt is-${a.tone}` },
         h('span', { class: 'sof-detail-symbol', 'aria-hidden': 'true' }, a.symbol), ' ',
         h('strong', {}, `${a.icao}, ${a.minima}: `), a.words,

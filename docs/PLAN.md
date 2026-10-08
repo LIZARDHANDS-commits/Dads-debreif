@@ -154,6 +154,8 @@ After Traffic is signed off, the Turn Sim review runs before any Turn Sim buildi
 
 SOF items below are Dad's to decide (SOF-47, 7 Oct 2026); they stay listed here until he answers.
 
+- [ ] **Shell: let the SOF's Home base choice set home and alternates (Dad's session, 8 Oct; SOF-49):** `src/shell/host.js` hands modules a read-only airfields object. One line, `update: ({ home, alternates } = {}) => airfields.update({ home, alternates }),` in its module airfields object, would make the SOF's Home base select work; it only sets home and alternates, which the shared setting already checks. Working answer: the SOF shows the base in words and points to Settings → Airfields.
+
 The one list. Each line is a question; the working answer applies until he says otherwise (`AGENTS.md:103`). Updated 5 Oct 2026, 04:10Z.
 
 - [ ] **See Traffic and the PFL on screen** (DADS v2.10.122) from the default start: the Busy circuit, the refactored flying, the move-over, Spawn a conflict, the PFL from downwind, base and upwind, the High Key button, an area PFL at 8,000 ft, calm and 20 kt, and the step 5 quick items (Remove, ground speed and crab, Harvard only, 11R hidden), spacing on final, Randomize behaviour, the straight-in off the outer downwind, the full SI pattern lap after lap, the behaviour tags and the aircraft card's Pattern / Landing behaviour / Manoeuvres menu, the breakouts, the true-scale map, its landmarks, the 3D base, the rivers and the 30 NM photo ([Traffic plan](modules/traffic/plan.md) Steps 1 and 2; spec 1a "Check on screen").

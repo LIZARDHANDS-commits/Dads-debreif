@@ -1,0 +1,23 @@
+// The NAS Whiting Field North site profile (plan Step 2c, part B): the SOF's own data for KNSE. The parts every US base shares, and their sources, are in us-base.js.
+// No weather standards yet (Limits not set), no airspace yet, and no picture or report source except the WPC fronts.
+import { usBase, towns } from './us-base.js';
+
+export const KNSE = usBase({
+  icao: 'KNSE',
+  name: 'NAS Whiting Field North',
+  shortName: 'Whiting Field',
+  // The usual alternates: a guess Dad said to use for now.
+  usualAlternates: ['KNPA', 'KPNS'],
+  alternatesSource: 'a guess (nearby fields with an ILS) that Dad said to use for now, 7 Oct 2026; Dad to confirm',
+  // [id, name, lat, lon (GeoNames, for drawing only), built-up radius NM (estimate), tallest block ft (estimate)]
+  towns: towns([
+    ['milton', 'Milton', 30.6324, -87.0397, 1.2, 40],
+    ['pace', 'Pace', 30.5994, -87.1611, 1.8, 40],
+    ['pensacola', 'Pensacola', 30.4213, -87.2169, 3.5, 200],
+    ['navarre', 'Navarre', 30.4016, -86.8636, 1.5, 40],
+    ['crestview', 'Crestview', 30.7621, -86.5705, 2, 60],
+  ]),
+  tourField: { icao: 'KNPA', label: 'NAS Pensacola' },
+  // 3.6° W: NOAA WMM2025 at the field for 8 Oct 2026 (-3.63°), to a tenth (us-base.js).
+  magVarDeg: -3.6,
+});

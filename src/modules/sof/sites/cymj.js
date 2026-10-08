@@ -18,10 +18,15 @@ import { MAG_VARIATION_DEG_E } from '../model-clouds.js';
 import { LIGHTNING_DEFAULTS } from '../lightning.js';
 import { CROSSWIND_DEFAULTS, CROSSWIND_SOURCE } from '../crosswind.js';
 import { DEFAULT_LIMITS, HOME_TRIGGERS } from '../../../wx/limits.js';
+import { DEFAULT_ALTERNATES } from '../../../airfields/catalog.js';
 
 export const CYMJ = Object.freeze({
   icao: 'CYMJ',
   name: '15 Wing Moose Jaw',
+  shortName: 'Moose Jaw', // the Home base choice says "Moose Jaw (CYMJ)"
+  // The usual alternates the Home base choice sets: the airfields' defaults (Regina, Swift Current, Saskatoon; V6's WX SETUP), by reference.
+  usualAlternates: DEFAULT_ALTERNATES,
+  alternatesSource: "the airfields' default alternates (src/airfields/catalog.js)",
   // NAV CANADA's Designated Airspace Handbook, each entry with its page (SOF-41); the shape is written at the top of airspace-data.js.
   airspace: AIRSPACE,
   watchedAreas: WATCHED_AREAS, // CYA304, CYA305, CYA307 (Dad, 7 Oct)

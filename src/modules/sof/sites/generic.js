@@ -6,6 +6,9 @@
 export const GENERIC = Object.freeze({
   icao: null,
   name: 'No site profile',
+  shortName: null,
+  usualAlternates: Object.freeze([]),
+  alternatesSource: null,
   airspace: Object.freeze([]),
   watchedAreas: Object.freeze([]),
   towns: Object.freeze([]),

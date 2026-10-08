@@ -91,8 +91,14 @@ export function axisTicks({ from, to, timeZone, stepHours = 3, first = 'utc', sh
  * A visual descent that can't be worked out (no MEA or elevation) is incomplete,
  * and nothing is hatched: wx would fall back to 600-2 for the hits, which is
  * not the minima that alternate uses.
+ * `noLimits` (a home base with no weather limits, plan Step 2c part B): wx still reads the TAF (its status and problems), but nothing is
+ * below or unchecked, so no piece is hatched or says "below".
  */
 function assessRow(entry, parsed, window) {
+  if (entry?.noLimits === true) {
+    const result = entry.role === 'HOME' ? homeAlternateTrigger(parsed, window, describeTrigger(null)) : assessAlternate(parsed, window, {});
+    return { status: result.status, problems: result.problems ?? [], hits: [], unchecked: [] };
+  }
   if (entry?.role === 'HOME') {
     const used = describeTrigger(Array.isArray(entry.limits) ? entry.limits[0] : entry.limits);
     const result = homeAlternateTrigger(parsed, window, { ceilingFt: used.ceilingFt, visSm: used.visSm });
@@ -252,7 +258,8 @@ function waveModel(wave, index, axis, timeZone) {
  *   `checkOptions(icao)` object (minima, landing minima, visual descent), which
  *   wx reads; 600-2 when none. Each row carries wx's `status` and `problems`; an
  *   `incomplete` row (a visual descent with no MEA, or a ceiling or visibility
- *   that can't be read) has `state: 'incomplete'` and `words` saying why.
+ *   that can't be read) has `state: 'incomplete'` and `words` saying why. `noLimits: true` (a home base with no weather limits) marks no piece
+ *   below or unchecked.
  * - `waves`: `planToUtc(...).waves`, as they are.
  * - `now` (a Date) and `timeZone` (the home field's IANA zone) are required:
  *   there is no hidden clock and no default zone. Without them nothing is

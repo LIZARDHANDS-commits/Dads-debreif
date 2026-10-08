@@ -8,19 +8,25 @@ import { createControls } from '../../ui-kit/controls.js';
 import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
 import { TRIGGER_OPTIONS, BANNER_HINT, MAX_RELAY_CHARS, relayAccepted, withTrigger, snapCeiling, snapVisibility, CROSSWIND_RANGE, CLOUD_STYLES } from './settings-model.js';
 import { RUNWAY_STATES, CROSSWIND_SOURCE } from './crosswind.js';
+import { HOME_BASE_OPTIONS, OTHER_HOME, homeBaseSetting, homeBaseNote, canChooseHomeBase, homeBaseWords } from './home-base.js';
 
 const hint = (text) => h('p', { class: 'sof-hint' }, text);
 
 /**
  * settings: the SOF's settings (createSofSettings); crosswind: the crosswind levels and runway state (createCrosswindSettings), or left out; view3d: the 3D view's
- * cloud style (createView3dSettings), or left out. onToggle(collapsed): called when the menu's own header or Escape closes it. Reset to defaults resets them all.
+ * cloud style (createView3dSettings), or left out. airfields: app.airfields, for the Home base choice (it sets home and the base's usual alternates
+ * there, and stores nothing of its own), or left out. onToggle(collapsed): called when the menu's own header or Escape closes it. Reset to defaults resets
+ * the SOF's own settings; the home field and alternates are the shared airfields setting's and are left as they are.
  * Returns { element, setOpen(open), dispose }: the menu opens from the SOF bar's button as a drop-down (layout.js).
  */
-export function createSettingsView({ settings, crosswind = null, view3d = null, onToggle }) {
+export function createSettingsView({ settings, crosswind = null, view3d = null, airfields = null, onToggle }) {
   // The boxes see the numbers as typed; everything else sees them snapped (settings-model.js).
   const view = withTrigger(settings.editing);
   const controls = createControls(view);
   const menu = createSettingsMenu({ title: 'SOF settings', onReset: () => { settings.reset(); crosswind?.reset(); view3d?.reset(); }, onToggle });
+
+  // The Home base choice (plan Step 2c, part B): first, since everything below is about this base.
+  const home = airfields ? homeBase(airfields, menu) : null;
 
   const trigger = controls.select('trigger', { label: 'Trigger', options: TRIGGER_OPTIONS });
   // Custom is only ever what the two numbers say: it's not offered in the list, and if it is chosen anyway
@@ -103,8 +109,67 @@ export function createSettingsView({ settings, crosswind = null, view3d = null, 
       controls.dispose();
       xwControls?.dispose();
       styleControls?.dispose();
+      home?.dispose();
     },
   };
+}
+
+/**
+ * The Home base section: a "Home base" choice bound to the airfields setting (home-base.js), "Other (set in Airfields)" shown only while home is a field
+ * with no profile of its own, and a line that says when the base has no weather limits. It follows a home field changed in Settings → Airfields.
+ * When the SOF is handed the airfields read-only (no `update`), the section names the home base and says where to change it instead of offering a
+ * choice that cannot work.
+ */
+function homeBase(airfields, menu) {
+  if (!canChooseHomeBase(airfields)) return homeBaseReadOnly(airfields, menu);
+  const setting = homeBaseSetting(airfields);
+  const controls = createControls(setting);
+  const choice = controls.select('homeBase', { label: 'Home base', options: HOME_BASE_OPTIONS });
+  const select = choice.querySelector('select');
+  const other = select.querySelectorAll('option')[HOME_BASE_OPTIONS.findIndex((o) => o.value === OTHER_HOME)];
+  const note = h('p', { class: 'sof-hint sof-home-note' });
+  const show = () => {
+    const icao = airfields.home().icao;
+    other.hidden = setting.get().homeBase !== OTHER_HOME;
+    const words = homeBaseNote(icao) ?? '';
+    if (note.textContent !== words) note.textContent = words;
+    note.hidden = !words;
+  };
+  // Choosing Other does nothing (it is only ever what Airfields says): the choice goes back to what home is.
+  select.addEventListener('change', () => {
+    select.value = String(HOME_BASE_OPTIONS.findIndex((o) => o.value === setting.get().homeBase));
+  });
+  show();
+  const stop = airfields.subscribe(show);
+  menu.section('Home base').append(
+    choice,
+    hint('Choosing a base sets the home field and that base\'s usual alternates in Settings, under Airfields, where each can still be changed.'),
+    note,
+  );
+  return {
+    dispose() {
+      stop();
+      controls.dispose();
+    },
+  };
+}
+
+// The home base in words, with where to change it, and the "Limits not set" line: for when the SOF cannot change the airfields setting itself.
+function homeBaseReadOnly(airfields, menu) {
+  const line = h('p', { class: 'sof-home-base' });
+  const note = h('p', { class: 'sof-hint sof-home-note' });
+  const show = () => {
+    const home = airfields.home();
+    const words = `Home base: ${homeBaseWords(home)}`;
+    if (line.textContent !== words) line.textContent = words;
+    const extra = homeBaseNote(home.icao) ?? '';
+    if (note.textContent !== extra) note.textContent = extra;
+    note.hidden = !extra;
+  };
+  show();
+  const stop = airfields.subscribe(show);
+  menu.section('Home base').append(line, hint('The home field and its alternates are set in Settings, under Airfields.'), note);
+  return { dispose: stop };
 }
 
 let nextRelayId = 1;
