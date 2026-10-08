@@ -99,6 +99,8 @@ Open: whether MET Norway and NOAA via Datamask return all seven fields' TAFs (co
 
 - [ ] **Approaches for the runway in use (Dad, 8 Oct 2026: "The runway in use should load the directional approaches, if possible based on winds"):** for each field, the runway in use is the runway end with the most headwind in the latest METAR (crosswind.js's per-runway numbers; at the selected model hour later, if wanted); calm or light wind (under 5 kt, estimate) keeps all ends shown and says so; a manual override per field in the Approaches key. By default only the approaches to the runway in use are drawn and checked for corridor weather, with a choice to show all.
 
+- [ ] **Traffic further out (Dad, 8 Oct 2026: "can we draw aircraft further out from the base"; he approved 250 NM, the relay test change and the redeploy):** the relay accepts 5 to 250 NM (adsb.lol's and adsb.fi's own maximum, was 150) and its range test is rewritten to match; the SOF asks for half the 3D area, capped at 250 NM (225 at 450 NM, 250 at 600 and 900; 2D keeps 100 unless the map shows more); the 3D aircraft cap goes from 150 to 300 (T-6s first); the reply size is measured against the relay's 1 MB cap; the relay is redeployed once checked.
+
 ## Step 3. Build the safety and limits gaps between decided and built
 
 - [ ] Amber "Incomplete" for any airfield whose approaches or landing minima are not filled in, never a green tick, including a PROB group below the alternate limits with minima unset (old decision D388, new decision SOF-32; SOF-R12). The code does not do it yet (`pf/reset/4-decisions/partb-sof.md:74`, `pf/reset/1-requirements/requirements.md:144`, `src/wx/alternates.js:163`).
