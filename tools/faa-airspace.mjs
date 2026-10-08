@@ -7,18 +7,20 @@
 // Behind a proxy, Node's fetch needs NODE_USE_ENV_PROXY=1 (Node 22.21 or later) to use HTTPS_PROXY.
 //
 // What it keeps, inside each base's 450 NM square (the 3D view's, scene3d-model.js AREA_NM):
-// - Class airspace: Class B, C and D, and Class E only where it starts at the surface (surface areas and their extensions); every shelf is its own
-//   entry, as the FAA gives it. Kinds: B and C 'terminal', D and surface E 'control-zone'.
+// - Class airspace: Class B, C and D; every shelf is its own entry, as the FAA gives it. Kinds: B and C 'terminal', D 'control-zone'. Class E is
+//   left out: the FAA gives even its surface areas up to 18,000 ft MSL (-9998), which would stand as tall columns over every small field.
 // - Special use airspace: MOAs ('moa'), restricted and prohibited areas ('restricted'), warning areas ('warning') and alert areas ('alert').
-// - Military training routes (IR, VR, SR), when the FAA publishes them as a feature service: each route's centreline as a line ('mtr'), cut to the
-//   square, with its floor and ceiling where the data gives them; with none it is drawn on the ground and says "altitudes not given".
+// - Military training routes (IR and VR; the FAA's MTR_Segment layer, one feature per segment): each route's centreline as a line ('mtr'), its
+//   segments of one height band joined, cut to the square, with its floor and ceiling (a single altitude is a line at that height; with none it
+//   is drawn on the ground and says "altitudes not given"). Pieces marked EXCLUSION (cut-outs) are left out.
 // Every entry is the shape airspace-data.js describes, checked with airspace-model.js `checkAirspace` (one copy of the rules); one that fails is left
 // out and named here. Its `source` names the FAA dataset and the date the FAA last edited it. The DoD FLIP AP/1 (AP/1A special use airspace, AP/1B
 // training routes) is the cross-check (Dad, 8 Oct): each profile's note says "cross-check against AP/1A / AP/1B (pages to be added)"; nothing of AP/1
 // is copied.
 //
 // Kept small: each outline is thinned (Douglas-Peucker on the flat map round the base) so no point is more than SIMPLIFY_NM off the FAA's line, which
-// is under a pixel at the 3D view's scale; positions are rounded to 4 decimals (about 10 m). Holes in an outline (rare: an exclusion cut out of a
+// is under a pixel at the 3D view's scale; positions are rounded to 4 decimals (about 10 m). The file is written compactly (one short row per entry,
+// points as a flat list, each dataset name once) and expanded to the airspace-data.js shape as it loads. Holes in an outline (rare: an exclusion cut out of a
 // shelf) are not drawn, and the count is printed. Vertical edges are drawn only at corners that turn by CORNER_DEG or more (none round a circle).
 //
 // Field names are the FAA's (UPPER_VAL, UPPER_UOM, UPPER_CODE, LOWER_..., CLASS, LOCAL_TYPE, TYPE_CODE, NAME, IDENT); the tool reads each layer's
@@ -35,8 +37,11 @@ const ROOT = 'https://services6.arcgis.com/ssFJjBXIUyZDrSYZ/arcgis/rest/services
 const OUT_DIR = 'src/modules/sof/sites/faa-airspace';
 /** The seven US T-6 bases with a site profile (sites/index.js PROFILES). */
 const BASES = ['KDLF', 'KEND', 'KRND', 'KCBM', 'KSPS', 'KNSE', 'KNGP'];
-/** No kept point is further than this from the FAA's outline (0.1 NM, about 185 m): an estimate, well under a pixel across 450 NM. */
-const SIMPLIFY_NM = 0.1;
+/**
+ * No kept point is further than this from the FAA's outline, by kind (estimates): 0.1 NM (about 185 m) for the small Class B, C and D shapes round the
+ * fields, 0.25 NM for the large special use areas and the training routes. Both are under a pixel with the whole 450 NM square in view.
+ */
+const SIMPLIFY_NM = Object.freeze({ small: 0.1, large: 0.25 });
 /** A point where the outline turns by this much or more gets a vertical edge (an estimate: a circle drawn in 15 or more sides turns less). */
 const CORNER_DEG = 30;
 const PAGE = 1000;
@@ -47,7 +52,13 @@ const args = new Set(process.argv.slice(2));
 // ---- Asking the FAA ------------------------------------------------------------------------------------------------
 
 async function getJson(url) {
-  const res = await fetch(url, { headers: { accept: 'application/json', 'user-agent': USER_AGENT } });
+  let res;
+  // ArcGIS answers a busy moment with 503 or 504: asked again up to three times, 5, 10 and 20 s apart.
+  for (let attempt = 0; ; attempt++) {
+    res = await fetch(url, { headers: { accept: 'application/json', 'user-agent': USER_AGENT } });
+    if (res.ok || ![429, 502, 503, 504].includes(res.status) || attempt === 3) break;
+    await new Promise((done) => setTimeout(done, 5000 * 2 ** attempt));
+  }
   if (!res.ok) throw new Error(`${res.status} from ${url}`);
   const json = await res.json();
   if (json?.error) throw new Error(`ArcGIS error from ${url}: ${JSON.stringify(json.error).slice(0, 300)}`);
@@ -72,6 +83,8 @@ async function findLayers() {
       continue;
     }
     const info = await getJson(`${ROOT}/${service}/FeatureServer?f=json`);
+    // The 56-day cycle, where the service says it ("Current Effective Date: 0901Z 03 Sep 2026 to 0901Z 29 Oct 2026"); otherwise the edit date.
+    const effective = /Effective Date:\s*([^<]+?)\s*</.exec(info.description ?? '')?.[1] ?? null;
     for (const layer of info.layers ?? []) {
       const meta = await getJson(`${ROOT}/${service}/FeatureServer/${layer.id}?f=json`);
       const edited = meta.editingInfo?.dataLastEditDate ?? meta.editingInfo?.lastEditDate ?? null;
@@ -81,7 +94,7 @@ async function findLayers() {
         layer: layer.id,
         title: (meta.name ?? service).replace(/_/g, ' '),
         geometry: meta.geometryType,
-        date: Number.isFinite(edited) ? new Date(edited).toISOString().slice(0, 10) : 'edit date not given',
+        date: effective ? `effective ${effective}` : Number.isFinite(edited) ? `last edited ${new Date(edited).toISOString().slice(0, 10)}` : 'edit date not given',
         fields: (meta.fields ?? []).map((f) => f.name),
       });
     }
@@ -124,26 +137,29 @@ const text = (v) => (v === undefined ? '' : String(v).trim());
 
 /**
  * One limit from the FAA's VAL, UOM and CODE fields as an airspace-data.js limit ({ ft, ref }), or { error }.
- * - CODE SFC (or a 0 with no code) is the surface; MSL is ASL; AGL and SFC as written; UOM FL is a flight level (VAL × 100); STD with UOM FT is a
- *   pressure altitude, read as a flight level.
- * - VAL -9998 is read as "to but not including 18,000 ft MSL" (the floor of Class A); an assumption not checked against the FAA's own description,
- *   so it is printed when used. Anything else negative is an error.
+ * - A 0 with CODE SFC, AGL, HEI or none is the surface; a number above 0 with SFC, AGL or HEI (the MTRs' height) is feet above the ground;
+ *   MSL and ALT (the MTRs') are feet above sea level; UOM FL, or STD with a number under 1,000, is a flight level (VAL × 100).
+ * - VAL -9998 with CODE UNLTD (restricted areas such as R-2915A) is unlimited (UNL, drawn to the top of the view). On Class E it comes with DESC
+ *   "AA" and no code (read 8 Oct 2026) and would be read as up to the floor of Class A, 18,000 ft MSL (14 CFR 71.71), printed when used; Class E is
+ *   left out anyway. Anything else negative is an error.
  */
 function limit(props, side) {
   const raw = field(props, `${side}_VAL`);
   const uom = text(field(props, `${side}_UOM`)).toUpperCase();
   const code = text(field(props, `${side}_CODE`)).toUpperCase();
   const desc = text(field(props, `${side}_DESC`)).toUpperCase();
-  if (/UNL/.test(desc) || /UNL/.test(text(raw).toUpperCase())) return side === 'UPPER' ? { ft: 0, ref: 'UNL' } : { error: `${side} unlimited` };
+  if (/UNL/.test(desc) || /UNL/.test(code) || /UNL/.test(text(raw).toUpperCase())) return side === 'UPPER' ? { ft: 0, ref: 'UNL' } : { error: `${side} unlimited` };
   const val = Number(raw);
   if (!Number.isFinite(val)) return code === 'SFC' && side === 'LOWER' ? { ft: 0, ref: 'SFC' } : { error: `${side}_VAL not a number (${raw})` };
-  if (val === -9998) return { ft: 18000, ref: 'ASL', assumed: '-9998 read as up to 18,000 ft MSL' };
+  if (val === -9998) return { ft: 18000, ref: 'ASL', assumed: `-9998 (${desc || 'no description'}) read as up to the floor of Class A, 18,000 ft MSL` };
   if (val < 0) return { error: `${side}_VAL ${val}` };
-  if (code === 'SFC' || (val === 0 && (code === '' || code === 'AGL'))) return side === 'LOWER' ? { ft: 0, ref: 'SFC' } : { error: 'ceiling at the surface' };
-  if (uom === 'FL') return { ft: val * 100, ref: 'FL' };
+  // SFC with a number above 0 is a height above the surface (the FAA's Class E5 "700 SFC" is 700 ft AGL); HEI is the MTRs' height above ground.
+  if (val === 0 && (code === 'SFC' || code === '' || code === 'AGL' || code === 'HEI')) return side === 'LOWER' ? { ft: 0, ref: 'SFC' } : { error: 'ceiling at the surface' };
+  if (code === 'SFC' || code === 'AGL' || code === 'HEI') return { ft: val, ref: 'AGL' };
+  // A flight level: UOM FL, or a pressure altitude (STD) given as a flight level number (the MTRs' "180 STD") or in feet.
+  if (uom === 'FL' || (code === 'STD' && val < 1000)) return { ft: val * 100, ref: 'FL' };
   if (code === 'STD') return { ft: val, ref: 'FL' };
-  if (code === 'MSL' || code === '') return { ft: val, ref: 'ASL' };
-  if (code === 'AGL') return { ft: val, ref: 'AGL' };
+  if (code === 'MSL' || code === 'ALT' || code === '') return { ft: val, ref: 'ASL' };
   return { error: `${side}_CODE ${code}` };
 }
 
@@ -179,12 +195,12 @@ function simplify(xy, tolFt) {
 const round4 = (v) => Math.round(v * 1e4) / 1e4;
 
 /** A GeoJSON ring ([[lon, lat], ...], closed) thinned: { points: [[lat, lon], ...] (not closed), corners }, or null when under 3 points are left. */
-function ring(coords, toFt, closed) {
+function ring(coords, toFt, closed, tolNm) {
   const pts = coords.map(([lon, lat]) => [lat, lon]);
   if (closed && pts.length > 1 && pts[0][0] === pts.at(-1)[0] && pts[0][1] === pts.at(-1)[1]) pts.pop();
   const xy = pts.map(([lat, lon]) => toFt(lat, lon));
   // A closed ring is thinned as a path that comes back to its start, so its first point stays.
-  const kept = simplify(closed ? [...xy, xy[0]] : xy, SIMPLIFY_NM * FT_PER_NM).filter((i) => i < pts.length);
+  const kept = simplify(closed ? [...xy, xy[0]] : xy, tolNm * FT_PER_NM).filter((i) => i < pts.length);
   const out = kept.map((i) => [round4(pts[i][0]), round4(pts[i][1])]);
   if (out.length < (closed ? 3 : 2)) return null;
   const corners = [];
@@ -242,6 +258,32 @@ function outerRings(geometry) {
   return { rings: [], holes: 0 };
 }
 
+/** Line pieces ([[lon, lat], ...]) joined end to start wherever one ends where another begins (to about 1 m), so a route's segments become one line. */
+function chain(pieces) {
+  const same = (a, b) => Math.abs(a[0] - b[0]) < 1e-5 && Math.abs(a[1] - b[1]) < 1e-5;
+  const left = pieces.filter((p) => p.length >= 2).map((p) => [...p]);
+  const out = [];
+  while (left.length) {
+    let line = left.shift();
+    for (let joined = true; joined; ) {
+      joined = false;
+      for (let i = 0; i < left.length; i++) {
+        const p = left[i];
+        if (same(line.at(-1), p[0])) line = [...line, ...p.slice(1)];
+        else if (same(p.at(-1), line[0])) line = [...p, ...line.slice(1)];
+        else if (same(line.at(-1), p.at(-1))) line = [...line, ...[...p].reverse().slice(1)];
+        else if (same(p[0], line[0])) line = [...[...p].reverse(), ...line.slice(1)];
+        else continue;
+        left.splice(i, 1);
+        joined = true;
+        break;
+      }
+    }
+    out.push(line);
+  }
+  return out;
+}
+
 const lines = (geometry) => (geometry?.type === 'LineString' ? [geometry.coordinates] : geometry?.type === 'MultiLineString' ? geometry.coordinates : []);
 
 // ---- One base ------------------------------------------------------------------------------------------------------
@@ -269,6 +311,7 @@ async function forBase(icao, layers) {
   const dropped = [];
   const notes = [];
   let holes = 0;
+  let excluded = 0;
   const ids = new Map();
   const uniqueId = (id) => {
     const n = (ids.get(id) ?? 0) + 1;
@@ -281,16 +324,22 @@ async function forBase(icao, layers) {
     else dropped.push(`${entry.id} (${verdict.reason})`);
   };
 
+  const routes = new Map(); // MTR segments by route and height band
   for (const layer of layers) {
     const need = layer.key === 'mtr' ? [] : ['UPPER_VAL', 'LOWER_VAL', 'NAME'];
     const missing = need.filter((n) => !layer.fields.includes(n));
     if (missing.length) throw new Error(`${layer.title}: field(s) ${missing.join(', ')} not found (fields: ${layer.fields.join(', ')})`);
-    const source = `FAA ${layer.title} (AIS open data, last edited ${layer.date})`;
+    const source = `FAA ${layer.title} (AIS open data, ${layer.date})`;
     for (const f of await features(layer, box)) {
       const props = f.properties ?? {};
       const name = text(field(props, 'NAME', 'IDENT')) || 'unnamed';
       if (layer.key === 'mtr') {
-        const ident = text(field(props, 'IDENT', 'NAME', 'MTR_IDENT')) || name;
+        // MTR_TYPE 0 is IR and 1 is VR: inferred from the data (8 Oct 2026), since only type 0 has segments at flight levels (STD, up to FL290)
+        // and VFR flight is not allowed in Class A (14 CFR 91.135); the FAA's layer gives no names for the two values.
+        const type = { 0: 'IR', 1: 'VR' }[String(field(props, 'MTR_TYPE'))] ?? 'MTR';
+        const number = text(field(props, 'IDENT', 'NAME', 'MTR_IDENT')) || name;
+        const ident = /^\d+$/.test(number) ? `${type}${number}` : number;
+        const widths = [Number(field(props, 'WIDTHLEFT')), Number(field(props, 'WIDTHRIGHT'))].filter(Number.isFinite);
         const hasHeights = field(props, 'UPPER_VAL') !== undefined && field(props, 'LOWER_VAL') !== undefined;
         const floor = hasHeights ? limit(props, 'LOWER') : { ft: 0, ref: 'SFC' };
         const ceiling = hasHeights ? limit(props, 'UPPER') : null;
@@ -298,21 +347,27 @@ async function forBase(icao, layers) {
           dropped.push(`${ident} (${floor.error ?? ceiling.error})`);
           continue;
         }
-        for (const part of lines(f.geometry).flatMap((c) => clipLine(c, toFt, halfNm * FT_PER_NM))) {
-          const shape = ring(part, toFt, false);
-          if (shape) add({ id: uniqueId(ident), name: `${ident} military training route`, kind: 'mtr', classLetter: null, floor, ceiling, shape: { type: 'line', points: shape.points }, source });
-        }
+        // Segments are joined into one line per route and height band below (the FAA gives one feature per segment).
+        const key = `${ident}|${JSON.stringify(floor)}|${JSON.stringify(ceiling)}`;
+        if (!routes.has(key)) routes.set(key, { ident, floor, ceiling, widths: [], parts: [], source });
+        const route = routes.get(key);
+        route.widths.push(...widths);
+        route.parts.push(...lines(f.geometry));
         continue;
       }
       let kind;
       let classLetter = null;
       let id;
+      if (text(field(props, 'EXCLUSION')) === '1') { // a cut-out ("EXCLUDES R-2103"), not airspace of its own
+        excluded += 1;
+        continue;
+      }
       if (layer.key === 'class') {
         const { cls, local } = classOf(props);
-        if (!['B', 'C', 'D', 'E'].includes(cls)) continue;
+        if (!['B', 'C', 'D'].includes(cls)) continue;
         classLetter = cls;
-        kind = cls === 'B' || cls === 'C' ? 'terminal' : 'control-zone';
-        id = `${text(field(props, 'ICAO_ID', 'IDENT')) || name} ${cls}${cls === 'E' && local ? ` (${local.replace('CLASS_', '')})` : ''}`;
+        kind = cls === 'D' ? 'control-zone' : 'terminal';
+        id = `${text(field(props, 'ICAO_ID', 'IDENT')) || name} ${cls}${local && local !== `CLASS_${cls}` ? ` (${local.replace('CLASS_', '')})` : ''}`;
       } else {
         const type = text(field(props, 'TYPE_CODE')).toUpperCase();
         kind = SUA_KINDS[type];
@@ -321,7 +376,6 @@ async function forBase(icao, layers) {
       }
       const floor = limit(props, 'LOWER');
       const ceiling = limit(props, 'UPPER');
-      if (layer.key === 'class' && classLetter === 'E' && floor.ref !== 'SFC') continue; // Class E only where it reaches the surface
       if (floor.error || ceiling.error) {
         dropped.push(`${id} (${floor.error ?? ceiling.error})`);
         continue;
@@ -330,7 +384,7 @@ async function forBase(icao, layers) {
       const { rings, holes: h } = outerRings(f.geometry);
       holes += h;
       for (const coords of rings) {
-        const shape = ring(coords, toFt, true);
+        const shape = ring(coords, toFt, true, layer.key === 'class' ? SIMPLIFY_NM.small : SIMPLIFY_NM.large);
         if (!shape) continue;
         add({
           id: uniqueId(id),
@@ -345,7 +399,16 @@ async function forBase(icao, layers) {
       }
     }
   }
-  return { icao, entries, dropped, notes, holes, box };
+  for (const r of routes.values()) {
+    const lo = Math.min(...r.widths);
+    const hi = Math.max(...r.widths);
+    const width = r.widths.length ? `, ${lo === hi ? lo : `${lo} to ${hi}`} NM either side of the centreline` : '';
+    for (const part of chain(r.parts).flatMap((c) => clipLine(c, toFt, halfNm * FT_PER_NM))) {
+      const shape = ring(part, toFt, false, SIMPLIFY_NM.large);
+      if (shape) add({ id: uniqueId(r.ident), name: `${r.ident} military training route${width}`, kind: 'mtr', classLetter: null, floor: r.floor, ceiling: r.ceiling, shape: { type: 'line', points: shape.points }, source: r.source });
+    }
+  }
+  return { icao, entries, dropped, notes, holes, excluded, box };
 }
 
 // ---- Writing ---------------------------------------------------------------------------------------------------------
@@ -353,12 +416,46 @@ async function forBase(icao, layers) {
 function fileText(icao, entries, source) {
   const head = [
     `// ${icao}'s airspace for the SOF's 3D view: GENERATED by tools/faa-airspace.mjs (do not edit by hand; run it again each 56-day cycle).`,
-    "// From the FAA's open aeronautical data (AIS ArcGIS feature services, public domain), inside the base's 450 NM square; the shape is the one",
-    '// airspace-data.js describes. Outlines thinned to within 0.1 NM and rounded to 4 decimals; for a picture, not for navigation.',
-    `// Cross-check against AP/1A / AP/1B (pages to be added).`,
+    "// From the FAA's open aeronautical data (AIS ArcGIS feature services, public domain), inside the base's 450 NM square. Outlines thinned to within",
+    '// 0.1 NM (Class B, C, D) or 0.25 NM (special use areas, training routes) and rounded to 4 decimals; for a picture, not for navigation.',
+    '// Cross-check against AP/1A / AP/1B (pages to be added).',
+    '// Each row is [id, name (null: the same as id), kind, class letter, floor [ft, ref], ceiling [ft, ref] or null, shape type, points as a flat',
+    '// list lat, lon, lat, lon ..., corners or null, dataset index]; `row()` expands it into the entry shape airspace-data.js describes.',
   ].join('\n');
-  const body = entries.map((e) => `  ${JSON.stringify(e)},`).join('\n');
-  return `${head}\n\n/** The dataset(s) and their FAA edit dates, for the profile's note. */\nexport const SOURCE = ${JSON.stringify(source)};\n\nexport const AIRSPACE = Object.freeze([\n${body}${body ? '\n' : ''}]);\n`;
+  const sources = [...new Set(entries.map((e) => e.source))];
+  const rows = entries.map((e) => JSON.stringify([
+    e.id,
+    e.name === e.id ? null : e.name,
+    e.kind,
+    e.classLetter,
+    [e.floor.ft, e.floor.ref],
+    e.ceiling ? [e.ceiling.ft, e.ceiling.ref] : null,
+    e.shape.type,
+    e.shape.points.flat(),
+    e.shape.corners ?? null,
+    sources.indexOf(e.source),
+  ]));
+  return `${head}
+
+/** The dataset(s) and their FAA dates, for the profile's note. */
+export const SOURCE = ${JSON.stringify(source)};
+
+const DATASETS = ${JSON.stringify(sources)};
+const pairs = (flat) => Array.from({ length: flat.length / 2 }, (_, i) => [flat[2 * i], flat[2 * i + 1]]);
+const row = ([id, name, kind, classLetter, floor, ceiling, type, points, corners, dataset]) => ({
+  id,
+  name: name ?? id,
+  kind,
+  classLetter,
+  floor: { ft: floor[0], ref: floor[1] },
+  ceiling: ceiling ? { ft: ceiling[0], ref: ceiling[1] } : null,
+  shape: corners ? { type, points: pairs(points), corners } : { type, points: pairs(points) },
+  source: DATASETS[dataset],
+});
+
+export const AIRSPACE = Object.freeze([
+${rows.map((r) => `  ${r},`).join('\n')}${rows.length ? '\n' : ''}].map(row));
+`;
 }
 
 async function main() {
@@ -369,8 +466,8 @@ async function main() {
     return;
   }
   const layers = await findLayers();
-  for (const l of layers) console.log(`${l.title}: ${l.service} layer ${l.layer} (${l.geometry}), last edited ${l.date}`);
-  const source = `FAA open aeronautical data: ${[...new Set(layers.map((l) => `${l.title}, last edited ${l.date}`))].join('; ')}`;
+  for (const l of layers) console.log(`${l.title}: ${l.service} layer ${l.layer} (${l.geometry}), ${l.date}`);
+  const source = `FAA open aeronautical data: ${[...new Set(layers.map((l) => `${l.title}, ${l.date}`))].join('; ')}`;
   for (const icao of BASES) {
     const r = await forBase(icao, layers);
     const out = fileText(icao, r.entries, source);
@@ -379,6 +476,7 @@ async function main() {
     if (r.dropped.length) console.log(`  left out (fail their checks): ${r.dropped.join('; ')}`);
     if (r.notes.length) console.log(`  assumptions used: ${r.notes.join('; ')}`);
     if (r.holes) console.log(`  holes not drawn: ${r.holes}`);
+    if (r.excluded) console.log(`  exclusion pieces left out (cut-outs, not airspace): ${r.excluded}`);
     if (!args.has('--dry')) writeFileSync(`${OUT_DIR}/${icao.toLowerCase()}.js`, out);
   }
 }

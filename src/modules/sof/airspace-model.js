@@ -71,7 +71,11 @@ export function limitWords(limit) {
 }
 
 /** The label's words: "CYR303 SFC–FL180", or "IR123 altitudes not given" for a route whose data has none. */
-export const airspaceWords = (entry) => (heightsNotGiven(entry) ? `${entry.id} altitudes not given` : `${entry.id} ${limitWords(entry.floor)}–${limitWords(entry.ceiling)}`);
+export const airspaceWords = (entry) => {
+  if (heightsNotGiven(entry)) return `${entry.id} altitudes not given`;
+  const [floor, ceiling] = [limitWords(entry.floor), limitWords(entry.ceiling)];
+  return floor === ceiling ? `${entry.id} at ${floor}` : `${entry.id} ${floor}–${ceiling}`;
+};
 
 /**
  * A line entry (a military training route's centreline, `shape: { type: 'line', points }`) may have no heights in its data: its floor is then SFC and
@@ -110,7 +114,10 @@ export function checkAirspace(entry, groundFt = 0) {
     if (!isLatLon(shape.centre)) return bad('centre is not [lat, lon]');
     if (!isNumber(shape.radiusNm) || shape.radiusNm <= 0) return bad('radius is not above 0');
   } else return bad('unknown shape');
-  if (limitFt(ceiling, groundFt).ft <= limitFt(floor, groundFt).ft) return bad('ceiling is not above the floor');
+  // A route flown at one altitude (a line whose floor and ceiling are the same, as some FAA IR segments are) is a line at that height.
+  const top = limitFt(ceiling, groundFt).ft;
+  const bottom = limitFt(floor, groundFt).ft;
+  if (shape.type === 'line' ? top < bottom : top <= bottom) return bad('ceiling is not above the floor');
   return { ok: true };
 }
 
@@ -169,7 +176,8 @@ export function airspaceTitle(entry) {
   const kind = KIND_WORDS[entry.kind];
   const cls = entry.classLetter ? `, class ${entry.classLetter}` : '';
   const est = entry.approx ? ' AGL heights are taken from the home field’s elevation and FL as feet ASL (estimates).' : '';
-  const limits = heightsNotGiven(entry) ? 'Altitudes not given in the data: drawn on the ground at home’s elevation.' : `${limitWords(entry.floor)} to ${limitWords(entry.ceiling)}.`;
+  const limits = heightsNotGiven(entry) ? 'Altitudes not given in the data: drawn on the ground at home’s elevation.'
+    : limitWords(entry.floor) === limitWords(entry.ceiling) ? `At ${limitWords(entry.floor)}.` : `${limitWords(entry.floor)} to ${limitWords(entry.ceiling)}.`;
   return `${entry.name}: ${kind.name}${cls}, drawn with a ${kind.colour} edge. ${limits} Source: ${entry.source}.${est}`;
 }
 
