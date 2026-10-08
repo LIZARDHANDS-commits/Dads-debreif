@@ -92,5 +92,5 @@ test('wider airspace: DAH terminal and restricted areas, every entry fit to draw
   assert.equal(sanAngelo.icao, 'KSJT');
   assert.ok(PROFILES.includes(sanAngelo), 'KSJT is in the Home base choice');
   assert.deepEqual([...sanAngelo.usualAlternates], ['KABI', 'KMAF', 'KDLF']);
-  assert.equal(sanAngelo.standards?.rule, 'usaf', 'San Angelo uses the USAF weather rules (AFMAN 11-202V3 4.16; step F, rewritten 8 Oct 2026 with Dad\'s yes)');
+  assert.equal(sanAngelo.standards, siteFor('CYMJ').standards, 'San Angelo uses Moose Jaw\'s weather rules: it is the Moose Jaw detachment (Dad, 8 Oct 2026)');
 });

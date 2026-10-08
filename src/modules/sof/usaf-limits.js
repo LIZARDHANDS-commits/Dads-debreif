@@ -64,7 +64,7 @@ export const homeLimitsText = (std = USAF_STANDARDS) =>
 
 /** The note under home: what the SOF does not check at home (4.16.1, 4.16.2.3). */
 export const homeNote = (icao, std = USAF_STANDARDS) =>
-  `${SOURCE_LINE}. ETA is the wave's landing time. ${crosswindRuleWords(std)}. Takes ${icao || 'home'} as having a compatible instrument approach (${std.homeApproach.source}; not checked).`;
+  `${SOURCE_LINE}. ETA is the wave's landing time. ${crosswindRuleWords(std)}. Takes ${icao || 'home'} as having a compatible instrument approach (${std.homeApproach.source}).`;
 
 // ---- The window ---------------------------------------------------------------------------------------
 

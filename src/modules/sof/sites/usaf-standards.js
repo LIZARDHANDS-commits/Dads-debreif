@@ -23,8 +23,8 @@ export const USAF_STANDARDS = Object.freeze({
   // An alternate is required when the worst weather at the destination, TEMPO included, is below a 2,000 ft ceiling above the field or 3 SM (4.16.2.1).
   homeTrigger: Object.freeze({ ceilingFt: 2000, visSm: 3, tempoIncluded: true, source: 'AFMAN 11-202V3 4.16.2.1' }),
   // An alternate is also required when the destination has no compatible instrument approach (4.16.1). The SOF has no approach data for home: it takes
-  // the base as having one (the training bases publish non-GPS instrument approaches; not checked by the tool) and says so.
-  homeApproach: Object.freeze({ assumedCompatible: true, source: 'AFMAN 11-202V3 4.16.1' }),
+  // the base as having one (the training bases publish non-GPS instrument approaches; Dad confirmed it, 8 Oct 2026) and says so.
+  homeApproach: Object.freeze({ assumedCompatible: true, source: 'AFMAN 11-202V3 4.16.1; Dad, 8 Oct 2026: the home bases have a usable approach' }),
   // A forecast crosswind outside the aircraft's limits also requires an alternate (4.16.2.3, T-3). The T-6A's limits are Dad's ruling (8 Oct 2026; no
   // manual page yet): 25 kt for a full-stop landing, 20 kt for a touch-and-go, 15 kt solo; "the rest are the same", so the wet and icy runway levels
   // stay the SOF's crosswind settings (crosswind.js). The alternate is required when the worst forecast crosswind at ETA ± 1 h is over the full-stop
