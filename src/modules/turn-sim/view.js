@@ -457,17 +457,41 @@ function drawPlanned(ctx, map, planned, now) {
 }
 
 /** During a rejoin: a dashed range ring around Lead through #2, and an arrow on #2 toward Lead as long as the closure (spec section 10). */
-function drawRejoin(ctx, map, state, { leadId, wingId, rangeFt, closureKt }, below = 0) {
+function drawRejoin(ctx, map, state, { leadId, wingId, rangeFt, closureKt, side, rejoinKind }, below = 0) {
   const lead = state.aircraft.find((a) => a.id === leadId);
   const wing = state.aircraft.find((a) => a.id === wingId);
   if (!lead || !wing) return;
   const [lx, ly] = map.worldToScreen(lead.xFt, lead.yFt);
   const [wx, wy] = map.worldToScreen(wing.xFt, wing.yFt);
+
+  // 45° Turning Rejoin Line (the Canopy "X" line: SMM 12.24 para 56, Fig 12.15).
+  // 45° back from Lead's 3/9 line, i.e. 45° off Lead's tail line (4:30 clock right, 7:30 clock left).
+  const s = side ?? (Math.sign((wing.xFt - lead.xFt) * -Math.sin(lead.headingRad) + (wing.yFt - lead.yFt) * Math.cos(lead.headingRad)) || -1);
+  const isTurning = rejoinKind !== 'straight';
+  const rejoinHdg = isTurning
+    ? lead.headingRad + Math.PI + s * (Math.PI / 4)
+    : lead.headingRad + Math.PI; // straight-ahead rejoin lines up on Lead's 6 o'clock tail
+
+  const len = (Math.max(map.size.width, map.size.height) / map.view.scale) * 0.85;
+  const [ex, ey] = map.worldToScreen(lead.xFt + Math.cos(rejoinHdg) * len, lead.yFt + Math.sin(rejoinHdg) * len);
+
   ctx.save();
-  ctx.strokeStyle = '#ffcc66';
+  ctx.strokeStyle = '#ffcc66'; // Rejoin amber
   ctx.fillStyle = '#ffcc66';
   ctx.lineWidth = 1.5;
-  ctx.globalAlpha = 0.8;
+  ctx.globalAlpha = 0.75;
+  ctx.setLineDash([8, 8]);
+  ctx.beginPath();
+  ctx.moveTo(lx, ly);
+  ctx.lineTo(ex, ey);
+  ctx.stroke();
+
+  // Label along the line
+  const labelDist = Math.max(500, Math.min(rangeFt * 0.75, 200 / map.view.scale));
+  const [tx, ty] = map.worldToScreen(lead.xFt + Math.cos(rejoinHdg) * labelDist, lead.yFt + Math.sin(rejoinHdg) * labelDist);
+  const labelText = isTurning ? '45° Rejoin line (X)' : 'Rejoin line (6 o\'clock)';
+  text(ctx, labelText, tx + 8, ty - 6, '#ffcc66', 11);
+
   ctx.setLineDash([4, 6]);
   ctx.beginPath();
   ctx.arc(lx, ly, rangeFt * map.view.scale, 0, Math.PI * 2);
@@ -476,12 +500,12 @@ function drawRejoin(ctx, map, state, { leadId, wingId, rangeFt, closureKt }, bel
   // The closure arrow: toward Lead when closing, away when opening; 1 px per knot, at least 12 px so a small closure still shows.
   const dist = Math.hypot(lx - wx, ly - wy);
   if (dist > 1 && Math.abs(closureKt) >= 1) {
-    const len = Math.max(12, Math.min(90, Math.abs(closureKt)));
+    const arrowLen = Math.max(12, Math.min(90, Math.abs(closureKt)));
     const dir = Math.sign(closureKt);
     const ux = ((lx - wx) / dist) * dir;
     const uy = ((ly - wy) / dist) * dir;
-    const tipX = wx + ux * (20 + len);
-    const tipY = wy + uy * (20 + len);
+    const tipX = wx + ux * (20 + arrowLen);
+    const tipY = wy + uy * (20 + arrowLen);
     ctx.beginPath();
     ctx.moveTo(wx + ux * 20, wy + uy * 20);
     ctx.lineTo(tipX, tipY);
