@@ -1,5 +1,5 @@
 // Model clouds, winds aloft and the freezing level for the SOF's 3D view (SPEC-sof, "3D view", SOF-39, phase 2): the request to
-// Open-Meteo's GEM endpoint (ECCC's GEM model), the checks on its reply, and the plain data the drawing needs (a cloud-cover sheet
+// Open-Meteo (ECCC's HRDPS and GEM at Moose Jaw; NOAA's HRRR and GFS at the US bases, plan Step 2c part D: the site profile's `models`), the checks on its reply, and the plain data the drawing needs (a cloud-cover sheet
 // at each pressure level, with its pixels worked out here, wind barbs at three pressure levels, the freezing level). No page and no three.js: `fetch`, the clock and the
 // timers (a scheduler scope) come in. model-layers3d.js draws what comes out of here.
 //
@@ -30,6 +30,8 @@ import { windBarb } from './map-model.js';
 // ---- What is asked for -----------------------------------------------------------------------------
 
 export const MODEL_URL = 'https://api.open-meteo.com/v1/gem';
+/** Open-Meteo's general endpoint, where `models=` picks NOAA's HRRR or GFS (the US bases). The same host as MODEL_URL. */
+export const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 /**
  * The grid: 13 x 13 points over the square, edge to edge, so 450 / 12 = 37.5 NM apart (Dad, 7 Oct: the area grew from 250 to 450 NM; the grid was 9 x 9). A
  * model object carries its own `gridSize` (it is the square root of the points it was asked for), so a reply over another grid still reads.
@@ -130,21 +132,78 @@ const variablesFor = (levels, { freezing = true } = {}) => Object.freeze([
  * picture while HRDPS (slow) is still on its way. `askedVariables` are the hourly variables put in the address; `variables` are every variable the model must hold after
  * the checks (HRDPS' freezing level is added from the small global request). `limits` are the request's timeout and byte cap (map-fetch.js: HRDPS streams slowly).
  */
+// Each profile also says which endpoint it is asked at (`url`), its short name for the words (`short`), which of map-fetch.js's FETCH_LIMITS it uses
+// (`limits`), and whether its own reply holds the freezing level (`ownFreezing`; HRDPS has none, so a small request to the coarse model gives it).
 export const GEM_PROFILE = Object.freeze({
   id: 'gem',
   name: 'ECCC GEM',
+  short: 'global GEM',
+  url: MODEL_URL,
   models: null, // the endpoint's default, the global GEM
   cloudLevels: CLOUD_LEVELS_HPA,
   askedVariables: HOURLY_VARIABLES,
   variables: HOURLY_VARIABLES,
+  limits: 'model',
+  ownFreezing: true,
 });
 export const HRDPS_PROFILE = Object.freeze({
   id: 'hrdps',
   name: 'ECCC HRDPS 2.5 km',
+  short: 'HRDPS',
+  url: MODEL_URL,
   models: 'gem_hrdps_continental',
   cloudLevels: HRDPS_CLOUD_LEVELS_HPA,
   askedVariables: variablesFor(HRDPS_CLOUD_LEVELS_HPA, { freezing: false }),
   variables: variablesFor(HRDPS_CLOUD_LEVELS_HPA),
+  limits: 'modelHrdps',
+  ownFreezing: false,
+});
+
+/**
+ * NOAA's HRRR (3 km, CONUS, a new run every hour) on Open-Meteo, for the US bases (plan Step 2c part D; Dad, 8 Oct 2026). Probed once from here on 8 Oct 2026 about
+ * 0155Z at KDLF (`/v1/forecast?models=ncep_hrrr_conus`): cloud cover AND geopotential height answered at all 37 pressure levels from 1000 to 100 hPa in 25 hPa steps
+ * (HRRR_TRIED_HPA), with no nulls; `freezing_level_height` answered (so no second request is needed for it, unlike HRDPS); winds at 850, 700 and 500 hPa answered.
+ * A run holds 18 forecast hours, and the 00, 06, 12 and 18Z runs 48 (Open-Meteo joined them: 42 hours from 0100Z, the 1800Z run's to 1800Z the next day), so the
+ * ASK_HOURS asked always have data. Open-Meteo's own record (`/data/ncep_hrrr_conus/static/meta.json`) gave the 2300Z run available at 0041Z, 1 h 41 min.
+ * A band of 26 to 39 points with these 44 variables answered in 4 to 29 s (one try of three cut off at 30 s through this build's proxy), so the HRDPS limits are used.
+ *
+ * Only 17 of the 37 levels are asked, the same 17 as HRDPS (1000 to 250 hPa): all 37 would be 84 variables, 8.4 calls a point, about 1,420 calls an ask and over
+ * 12,000 a day at one ask every 3 hours, past the free 10,000 (CALLS_US).
+ */
+export const HRRR_TRIED_HPA = Object.freeze({
+  answered: [1000, 975, 950, 925, 900, 875, 850, 825, 800, 775, 750, 725, 700, 675, 650, 625, 600, 575, 550, 525, 500, 475, 450, 425, 400, 375, 350, 325, 300, 275, 250, 225, 200, 175, 150, 125, 100],
+  null: [],
+});
+export const HRRR_CLOUD_LEVELS_HPA = HRDPS_CLOUD_LEVELS_HPA; // the same 17, for the daily budget (above)
+export const HRRR_PROFILE = Object.freeze({
+  id: 'hrrr',
+  name: 'NOAA HRRR 3 km',
+  short: 'HRRR',
+  url: FORECAST_URL,
+  models: 'ncep_hrrr_conus',
+  cloudLevels: HRRR_CLOUD_LEVELS_HPA,
+  askedVariables: variablesFor(HRRR_CLOUD_LEVELS_HPA),
+  variables: variablesFor(HRRR_CLOUD_LEVELS_HPA),
+  limits: 'modelHrdps',
+  ownFreezing: true,
+});
+/**
+ * NOAA's GFS (global, 0.25°) on Open-Meteo: the US bases' quick first picture and fallback, as the global GEM is at Moose Jaw. `models=gfs_global`, the GFS alone:
+ * Open-Meteo's default `gfs_seamless` (and its `/v1/gfs` endpoint) mixes HRRR in over the US (probed 8 Oct 2026: its 850 hPa wind at KDLF was HRRR's, not the GFS's),
+ * so it would fail with HRRR and could not stand in for it. Probed the same day at KDLF: cloud cover and geopotential height at the 8 levels the GEM request asks,
+ * `freezing_level_height`, the three winds and low, mid and high cover all answered, no nulls (`ncep_gfs025` gave no low, mid and high cover, so it is not used).
+ */
+export const GFS_PROFILE = Object.freeze({
+  id: 'gfs',
+  name: 'NOAA GFS',
+  short: 'GFS',
+  url: FORECAST_URL,
+  models: 'gfs_global',
+  cloudLevels: CLOUD_LEVELS_HPA,
+  askedVariables: HOURLY_VARIABLES,
+  variables: HOURLY_VARIABLES,
+  limits: 'model',
+  ownFreezing: true,
 });
 
 /** More than this share of the reply's values null and the whole reply is thrown away (SOF-39). */
@@ -177,13 +236,64 @@ export const RETRY_STEPS_MS = Object.freeze([RETRY_MS, 2 * RETRY_MS, 4 * RETRY_M
 /** The wait before asking again after `failures` failed asks in a row (1 or more). */
 export const retryDelayMs = (failures) => RETRY_STEPS_MS[Math.min(RETRY_STEPS_MS.length, Math.max(1, failures)) - 1];
 /**
- * When the model is next asked, after an ask at `ms`: the first time after it that a newer HRDPS run can be on Open-Meteo (a run at 00, 06, 12 or 18Z plus
- * HRDPS_AVAILABLE_AFTER_MS, an estimate), so 0500, 1100, 1700 or 2300Z. Milliseconds.
+ * When the model is next asked, after an ask at `ms`: the first time after it that a newer run can be on Open-Meteo (a run every `everyMs` from 00Z, plus
+ * `afterMs`). HRDPS by default (a run at 00, 06, 12 or 18Z plus HRDPS_AVAILABLE_AFTER_MS, an estimate), so 0500, 1100, 1700 or 2300Z; a model set passes its own
+ * (ECCC_MODELS, NOAA_MODELS). Milliseconds.
  */
-export function nextRunAt(ms) {
-  const k = Math.floor((ms - HRDPS_AVAILABLE_AFTER_MS) / HRDPS_RUN_EVERY_MS);
-  return (k + 1) * HRDPS_RUN_EVERY_MS + HRDPS_AVAILABLE_AFTER_MS;
+export function nextRunAt(ms, everyMs = HRDPS_RUN_EVERY_MS, afterMs = HRDPS_AVAILABLE_AFTER_MS) {
+  const k = Math.floor((ms - afterMs) / everyMs);
+  return (k + 1) * everyMs + afterMs;
 }
+
+/**
+ * The US bases are asked every 3 hours, not every HRRR run (Dad, 8 Oct 2026, plan Step 2c part D): HRRR runs every hour, and asking each one would be about 24 x 744
+ * = 17,850 calls a day, over Open-Meteo's free 10,000. Every third run from 00Z (00, 03, 06 ... 21Z), each taken as on Open-Meteo 2 hours after it starts (an estimate
+ * from Open-Meteo's own record of one run, 1 h 41 min, rounded up), so the model is asked at about 0200, 0500, 0800 ... 2300Z.
+ */
+export const HRRR_ASK_EVERY_MS = 3 * 60 * 60 * 1000;
+export const HRRR_AVAILABLE_AFTER_MS = 2 * 60 * 60 * 1000; // estimate, plan Step 2c part D
+/**
+ * The US bases' calls (Open-Meteo's counting, as CALLS above: max(1, variables / 10) x points; its free tier 600 a minute, 5,000 an hour, 10,000 a day):
+ * - HRRR, 169 points x 44 variables (17 levels x 2, winds 3 x 2, freezing level, low, mid, high): 169 x 4.4 = about 744, however it is split into bands;
+ * - the GFS, 169 points x 26 variables: 169 x 2.6 = about 439 (on first opening only, as the quick first picture, or as the fallback);
+ * - no freezing-level request (HRRR has its own).
+ * Opening the 3D view: about 1,183, spread over about 2 minutes by the 500-a-minute pacing (so no minute over 600). Left open, one HRRR ask every 3 hours: 8 in a
+ * day, about 5,949, so opening plus a day open is about 7,132, inside the free 10,000 with about 2,870 to spare (each reload of the page adds about 1,183; a band
+ * that fails adds a GFS request for its points, and a degraded answer is asked again once, 10 minutes later, in that 3 hours).
+ */
+export const CALLS_US = Object.freeze({ hrrr: 743.6, gfs: 439.4, opening: 1183, perDayOpenAllDay: 1183 + 8 * 743.6, freeDaily: 10_000 }); // worked out above
+
+/**
+ * The two models a base's 3D view is drawn from (its site profile's `sources.modelClouds.models`): the finer one, drawn when every band is in, and the coarse one,
+ * the quick first picture and the fallback; how often a newer run is asked for; and the words that differ. Moose Jaw's is ECCC_MODELS, as before.
+ */
+export const ECCC_MODELS = Object.freeze({
+  id: 'eccc',
+  fine: HRDPS_PROFILE,
+  coarse: GEM_PROFILE,
+  runEveryMs: HRDPS_RUN_EVERY_MS,
+  availableAfterMs: HRDPS_AVAILABLE_AFTER_MS,
+  /** The 3D panel's credit, naming the model that answered. */
+  credit: (model) => `Model clouds and winds: Open-Meteo, ${model?.sourceName ?? 'ECCC GEM'} (model estimate)`,
+  /** The key's first words, for the fine model's answer and for the coarse one's. */
+  aboutFine: (model, chunks) => `HRDPS is ECCC's 2.5 km model, asked at every pressure level it answers (${model.cloudLevels.length}, ${model.cloudLevels[0]} to ${model.cloudLevels.at(-1)} hPa) in ${chunks} bands of rows at once; the global GEM is the fallback and the quick first picture.`,
+  aboutCoarse: 'This is the global GEM: the finer HRDPS model has not answered (it is slow, or failed).',
+  /** When it is asked again, before ": next about 2300Z". */
+  askWords: `Asked again when a newer HRDPS run can be out (runs at 00, 06, 12 and 18Z, taken to be ready about ${Math.round(HRDPS_AVAILABLE_AFTER_MS / 3_600_000)} h later, an estimate)`,
+});
+export const NOAA_MODELS = Object.freeze({
+  id: 'noaa',
+  fine: HRRR_PROFILE,
+  coarse: GFS_PROFILE,
+  runEveryMs: HRRR_ASK_EVERY_MS,
+  availableAfterMs: HRRR_AVAILABLE_AFTER_MS,
+  credit: () => 'Model clouds and winds: Open-Meteo, NOAA HRRR / GFS (model estimate)',
+  aboutFine: (model, chunks) => `HRRR is NOAA's 3 km model, a new run every hour, asked at ${model.cloudLevels.length} of the ${HRRR_TRIED_HPA.answered.length} pressure levels it answers (${model.cloudLevels[0]} to ${model.cloudLevels.at(-1)} hPa, to keep inside Open-Meteo's free daily limit) in ${chunks} bands of rows at once; NOAA's GFS is the fallback and the quick first picture.`,
+  aboutCoarse: 'This is NOAA\'s GFS: the finer HRRR model has not answered (it is slow, or failed).',
+  askWords: `Asked again every ${Math.round(HRRR_ASK_EVERY_MS / 3_600_000)} hours (HRRR runs every hour; each run taken to be ready about ${Math.round(HRRR_AVAILABLE_AFTER_MS / 3_600_000)} h later, an estimate; asking every run would pass the free daily limit)`,
+});
+/** The model set an answer came from (the feed puts it on the model), Moose Jaw's when none is said. */
+export const modelSetOf = (model) => model?.set ?? ECCC_MODELS;
 /** How often the feed looks at the clock to see whether it is due (so a sleeping computer is caught up within this). */
 const TICK_MS = 30 * 1000;
 const MAX_HOURS_IN_REPLY = 72;
@@ -232,7 +342,8 @@ export function gridPoints(toLatLon, size = GRID_SIZE) {
 
 /**
  * The one request for every grid point: comma-separated latitudes and longitudes, the hourly variables, knots, GMT, 25 hours. `profile` says which model and which
- * variables (GEM_PROFILE, the default; HRDPS_PROFILE adds `models=gem_hrdps_continental`); `variables` overrides the list (the small freezing-level request).
+ * variables (GEM_PROFILE, the default; HRDPS_PROFILE adds `models=gem_hrdps_continental`; HRRR_PROFILE and GFS_PROFILE are asked at FORECAST_URL with their own
+ * `models=`); `variables` overrides the list (the small freezing-level request).
  * 169 points with the HRDPS variables make an address of about 3,500 characters, under the 8,000 Open-Meteo takes (a band of rows is shorter).
  */
 export function modelUrl(points, profile = GEM_PROFILE, variables = profile.askedVariables) {
@@ -246,7 +357,7 @@ export function modelUrl(points, profile = GEM_PROFILE, variables = profile.aske
     ...(profile.models ? { models: profile.models } : {}),
   });
   // URLSearchParams writes a comma as %2C; the API takes both, but the plain form is shorter and easier to read.
-  return `${MODEL_URL}?${params.toString().replaceAll('%2C', ',')}`;
+  return `${profile.url ?? MODEL_URL}?${params.toString().replaceAll('%2C', ',')}`;
 }
 
 // ---- Checking the reply ----------------------------------------------------------------------------
@@ -797,14 +908,15 @@ function bandPlaceWords([first, last], size) {
 }
 
 /**
- * The words for an HRDPS answer that had bands filled from the global GEM (`model.filled`), or null when there were none: "HRDPS part missing: 26 of 169 points
+ * The words for a fine answer (HRDPS, or HRRR at a US base) that had bands filled from the coarse model (the global GEM, or the GFS) (`model.filled`), or null when there were none: "HRDPS part missing: 26 of 169 points
  * (the band 150 NM N to 188 NM N of home), taken from the global GEM (8 levels there, not 17)."
  */
 export function filledWords(model) {
   const f = model?.filled;
   if (!f || !f.points) return null;
+  const { fine, coarse } = modelSetOf(model);
   const where = f.bands.map((b) => bandPlaceWords(b, model.gridSize ?? GRID_SIZE)).join('; ');
-  return `HRDPS part missing: ${f.points} of ${f.total} points (${f.bands.length === 1 ? 'the band' : 'the bands'} ${where}), taken from the global GEM (${CLOUD_LEVELS_HPA.length} levels there, not ${HRDPS_CLOUD_LEVELS_HPA.length}).`;
+  return `${fine.short} part missing: ${f.points} of ${f.total} points (${f.bands.length === 1 ? 'the band' : 'the bands'} ${where}), taken from the ${coarse.short} (${coarse.cloudLevels.length} levels there, not ${fine.cloudLevels.length}).`;
 }
 
 // ---- The feed --------------------------------------------------------------------------------------
@@ -832,11 +944,11 @@ export function rowBands(points, chunks = HRDPS_CHUNKS) {
 const fitsPoints = (json, points) => Array.isArray(json) && json.length === points.length
   && json.every((entry) => entry && typeof entry === 'object' && entry.hourly && typeof entry.hourly === 'object' && Array.isArray(entry.hourly.time));
 
-/** A global GEM entry in the HRDPS reply's shape: the levels it has are kept, the ones it does not have are null (no data, so they are left out of the column). */
-function asHrdpsEntry(entry) {
+/** A coarse entry (global GEM, GFS) in the fine reply's shape (`fine`, a profile): the levels it has are kept, the ones it does not have are null (no data, so they are left out of the column). */
+function asFineEntry(entry, fine = HRDPS_PROFILE) {
   const { hourly } = entry;
   const out = { time: hourly.time };
-  for (const variable of HRDPS_PROFILE.variables) out[variable] = Array.isArray(hourly[variable]) ? hourly[variable] : new Array(hourly.time.length).fill(null);
+  for (const variable of fine.variables) out[variable] = Array.isArray(hourly[variable]) ? hourly[variable] : new Array(hourly.time.length).fill(null);
   return { hourly: out };
 }
 
@@ -854,13 +966,18 @@ function asHrdpsEntry(entry) {
  *
  * An answer that is the global GEM, or HRDPS with a band filled, is asked for again once, RETRY_MS later, in each run's time; otherwise the next ask waits for the next run.
  *
+ * At a US base the same feed asks NOAA's HRRR (fine) and GFS (coarse) instead, every 3 hours (NOAA_MODELS): `models()` says which set, read at each ask; the words
+ * above that name HRDPS and the GEM then mean HRRR and the GFS. HRRR has its own freezing level, so no small request is made for it there.
+ *
  * - points(size): the grid points for the current home and grid size (`gridPoints`).
+ * - models(): the home base's model set (its site profile's `sources.modelClouds.models`); ECCC_MODELS when not given, as before.
  * - fetch, timers (a scheduler scope), now: as the map's other feeds.
  * - onChange(): called when what `view` says has changed.
  */
-export function createModelFeed({ points, fetch, timers, now = () => new Date(), onChange = () => {} }) {
+export function createModelFeed({ points, fetch, timers, now = () => new Date(), onChange = () => {}, models = () => ECCC_MODELS }) {
   let model = null;
   let lastGoodAt = null;
+  let heldSet = ECCC_MODELS; // the model set of the answer held, for its stale limit
   let failure = null; // { at, incomplete, limited } while the last refresh has failed
   let failures = 0; // failed asks in a row, for the growing wait (RETRY_STEPS_MS)
   let busy = false;
@@ -931,20 +1048,22 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
     }
   }
 
-  /** The global GEM for every grid point: checkModelReply's result plus `raw` (the reply, for filling HRDPS bands) and `limited`; `stale` when the feed moved on. */
-  async function askGem(asked, mine) {
-    const got = await askPaced(asked, GEM_PROFILE, GEM_PROFILE.askedVariables, FETCH_LIMITS.model, mine);
+  /** The coarse model (the global GEM, or the GFS) for every grid point: checkModelReply's result plus `raw` (the reply, for filling fine bands) and `limited`; `stale` when the feed moved on. */
+  async function askGem(asked, mine, set) {
+    const { coarse } = set;
+    const got = await askPaced(asked, coarse, coarse.askedVariables, FETCH_LIMITS[coarse.limits], mine);
     if (gone(mine)) return { ok: false, stale: true };
     if (!got.ok) return { ok: false, reason: 'request failed', limited: got.limited };
-    const result = checkModelReply(got.json, { points: asked, receivedAt: +now(), profile: GEM_PROFILE });
+    const result = checkModelReply(got.json, { points: asked, receivedAt: +now(), profile: coarse });
+    if (result.ok) result.model.set = set;
     return { ...result, raw: result.ok ? got.json : null };
   }
 
-  /** The freezing level from a small global request over every FREEZING_STEP-th point: a Map of point index to its series (empty when the request fails). */
-  async function askFreezing(asked, mine) {
+  /** The freezing level from a small coarse request over every FREEZING_STEP-th point: a Map of point index to its series (empty when the request fails). */
+  async function askFreezing(asked, mine, set) {
     const sample = asked.filter((p) => p.i % FREEZING_STEP === 0 && p.j % FREEZING_STEP === 0);
     const byIndex = new Map();
-    const got = await askPaced(sample, GEM_PROFILE, ['freezing_level_height'], FETCH_LIMITS.model, mine);
+    const got = await askPaced(sample, set.coarse, ['freezing_level_height'], FETCH_LIMITS[set.coarse.limits], mine);
     if (got.ok && Array.isArray(got.json) && got.json.length === sample.length) {
       got.json.forEach((entry, n) => {
         const series = entry?.hourly?.freezing_level_height;
@@ -959,14 +1078,15 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
    * checkModelReply's result with `model.filled` ({ points, total, bands: [[first row, last row]] } or null), `limited` when a band met the free limit, `stale` when
    * the feed moved on.
    */
-  async function askHrdps(asked, mine, quick) {
+  async function askHrdps(asked, mine, quick, set) {
+    const { fine, coarse } = set;
     const bands = rowBands(asked);
-    const freezingP = askFreezing(asked, mine);
-    const replies = await Promise.all(bands.map((band) => askPaced(band.points, HRDPS_PROFILE, HRDPS_PROFILE.askedVariables, FETCH_LIMITS.modelHrdps, mine)));
+    const freezingP = fine.ownFreezing ? Promise.resolve(null) : askFreezing(asked, mine, set); // HRRR has its own
+    const replies = await Promise.all(bands.map((band) => askPaced(band.points, fine, fine.askedVariables, FETCH_LIMITS[fine.limits], mine)));
     if (gone(mine)) return { ok: false, stale: true };
     const limited = replies.some((r) => !r.ok && r.limited);
     const missing = bands.filter((band, k) => !(replies[k].ok && fitsPoints(replies[k].json, band.points)));
-    if (missing.length === bands.length) return { ok: false, reason: 'every HRDPS band failed', limited };
+    if (missing.length === bands.length) return { ok: false, reason: `every ${fine.short} band failed`, limited };
     const entries = new Map(); // point index -> reply entry
     bands.forEach((band, k) => {
       if (!missing.includes(band)) band.points.forEach((p, n) => entries.set(p.index, replies[k].json[n]));
@@ -978,36 +1098,43 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
       if (gone(mine)) return { ok: false, stale: true };
       let fill = held?.ok && held.raw ? want.map((p) => held.raw[asked.indexOf(p)]) : null;
       if (!fill) {
-        const got = await askPaced(want, GEM_PROFILE, GEM_PROFILE.askedVariables, FETCH_LIMITS.model, mine);
+        const got = await askPaced(want, coarse, coarse.askedVariables, FETCH_LIMITS[coarse.limits], mine);
         if (gone(mine)) return { ok: false, stale: true };
         fill = got.ok && fitsPoints(got.json, want) ? got.json : null;
       }
-      if (!fill || !fitsPoints(fill, want)) return { ok: false, reason: 'an HRDPS band failed and the global GEM could not fill it', limited };
-      want.forEach((p, n) => entries.set(p.index, asHrdpsEntry(fill[n])));
+      if (!fill || !fitsPoints(fill, want)) return { ok: false, reason: `a ${fine.short} band failed and the ${coarse.short} could not fill it`, limited };
+      want.forEach((p, n) => entries.set(p.index, asFineEntry(fill[n], fine)));
     }
     const freezing = await freezingP;
     if (gone(mine)) return { ok: false, stale: true };
     const json = asked.map((p) => entries.get(p.index));
     const filledAt = new Set(missing.flatMap((band) => band.points.map((p) => p.index)));
     const length = json[0]?.hourly?.time?.length ?? 0;
-    json.forEach((entry, n) => {
-      if (filledAt.has(asked[n].index)) return; // a GEM entry keeps its own freezing level
-      const series = freezing.get(asked[n].index);
-      entry.hourly.freezing_level_height = Array.isArray(series) && series.length === length ? series : new Array(length).fill(null);
-    });
-    const result = checkModelReply(json, { points: asked, receivedAt: +now(), profile: HRDPS_PROFILE });
-    if (result.ok) result.model.filled = missing.length ? { points: filledAt.size, total: asked.length, bands: missing.map((band) => band.rows) } : null;
+    if (freezing) {
+      json.forEach((entry, n) => {
+        if (filledAt.has(asked[n].index)) return; // a GEM entry keeps its own freezing level
+        const series = freezing.get(asked[n].index);
+        entry.hourly.freezing_level_height = Array.isArray(series) && series.length === length ? series : new Array(length).fill(null);
+      });
+    }
+    const result = checkModelReply(json, { points: asked, receivedAt: +now(), profile: fine });
+    if (result.ok) {
+      result.model.filled = missing.length ? { points: filledAt.size, total: asked.length, bands: missing.map((band) => band.rows) } : null;
+      result.model.set = set;
+    }
     return { ...result, limited };
   }
 
   function adopt(result) {
     model = result.model;
+    heldSet = modelSetOf(model);
     lastGoodAt = result.model.receivedAt;
     failure = null;
   }
 
   async function ask() {
     const mine = controller;
+    const set = models() ?? ECCC_MODELS;
     const asked = points(GRID_SIZE);
     busy = true;
     askedAt = +now();
@@ -1015,8 +1142,8 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
     let finished = null;
     if (!model) {
       // Nothing to show yet: the quick global answer and the finer bands are asked for together; the quick one is drawn first.
-      const quickP = askGem(asked, mine);
-      const fineP = askHrdps(asked, mine, quickP);
+      const quickP = askGem(asked, mine, set);
+      const fineP = askHrdps(asked, mine, quickP, set);
       const quick = await quickP;
       if (quick.stale) return;
       if (quick.ok) {
@@ -1030,11 +1157,11 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
       if (fine.ok) adopt(fine);
       else if (!quick.ok) finished = { at: +now(), incomplete: fine.incomplete === true || quick.incomplete === true, limited: Boolean(fine.limited || quick.limited) };
     } else {
-      const fine = await askHrdps(asked, mine, null);
+      const fine = await askHrdps(asked, mine, null, set);
       if (fine.stale) return;
       if (fine.ok) adopt(fine);
       else {
-        const fallback = await askGem(asked, mine);
+        const fallback = await askGem(asked, mine, set);
         if (fallback.stale) return;
         if (fallback.ok) adopt(fallback);
         else finished = { at: +now(), incomplete: fallback.incomplete === true || fine.incomplete === true, limited: Boolean(fine.limited || fallback.limited) }; // the answer held, if any, stays until it is too old
@@ -1047,8 +1174,8 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
       dueAt = askedAt + retryDelayMs(failures);
     } else {
       failures = 0;
-      const run = nextRunAt(askedAt);
-      const degraded = model.source !== 'hrdps' || Boolean(model.filled);
+      const run = nextRunAt(askedAt, set.runEveryMs, set.availableAfterMs);
+      const degraded = model.source !== set.fine.id || Boolean(model.filled);
       if (degraded && degradedRetry !== run) {
         degradedRetry = run; // once in each run's time: a band that stalled, or HRDPS that was slow, is often there 10 minutes later
         dueAt = Math.min(run, askedAt + RETRY_MS);
@@ -1090,6 +1217,7 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
       controller.abort();
       controller = new AbortController();
       model = null;
+      heldSet = ECCC_MODELS;
       lastGoodAt = null;
       failure = null;
       failures = 0;
@@ -1113,7 +1241,7 @@ export function createModelFeed({ points, fetch, timers, now = () => new Date(),
      * `nextAt`: when the model is asked again (ms), or null.
      */
     view(at = now()) {
-      const old = lastGoodAt !== null && +at > nextRunAt(lastGoodAt) + STALE_MS;
+      const old = lastGoodAt !== null && +at > nextRunAt(lastGoodAt, heldSet.runEveryMs, heldSet.availableAfterMs) + STALE_MS;
       const incomplete = failure?.incomplete === true;
       const limited = failure?.limited === true;
       if (model && !old) return { status: 'ok', model, lastGoodAt, failedAt: failure?.at ?? null, incomplete, limited, refining, nextAt: dueAt };

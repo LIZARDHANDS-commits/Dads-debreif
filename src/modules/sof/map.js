@@ -196,9 +196,10 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     },
   });
 
-  // The model clouds, winds and freezing level (Open-Meteo's GEM forecast) are asked for only while the 3D view is shown (SOF-39, phase 2).
+  // The model clouds, winds and freezing level (Open-Meteo: ECCC's HRDPS and GEM, or NOAA's HRRR and GFS at a US base) are asked for only while the 3D view is shown (SOF-39, phase 2).
   const modelFeed = createModelFeed({
     points: (size) => gridPoints(projection.toLatLon, size),
+    models: () => site.sources.modelClouds?.models, // the home base's two models (sites/), read at each ask
     fetch: fetchNet,
     timers,
     now,
@@ -357,7 +358,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     for (const [id, feed] of Object.entries(feeds3d)) feed.enable(site.sources[SOURCE_OF_3D[id]] != null);
     if (site.sources.fronts) frontsFeed.start();
     else frontsFeed.stop();
-    if (site.sources.modelClouds) modelFeed.start(); // asks for the model clouds and winds at once, then when a newer HRDPS run can be out (about 0500, 1100, 1700, 2300Z) while the view is open
+    if (site.sources.modelClouds) modelFeed.start(); // asks for the model clouds and winds at once, then when a newer run can be out (HRDPS about 0500, 1100, 1700, 2300Z; HRRR every 3 hours) while the view is open
     else modelFeed.stop();
   }
   function start3dFeeds() {
@@ -872,8 +873,9 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
       failed: mc.failures > 0 && !mc.busy,
       busy: mc.busy,
       lastGoodAt: mc.fetchedAt ? +mc.fetchedAt : null,
+      noSource: !site.sources.modelCloudMask, // no 2.5 km picture for this base (ECCC's covers Canada only): the slabs are drawn unmasked and the panel says so
     };
-    parts.push(`modelCloud:${modelCloud.id}:${modelCloud.time}:${modelCloud.stale}:${modelCloud.failed}:${modelCloud.busy}`);
+    parts.push(`modelCloud:${modelCloud.id}:${modelCloud.time}:${modelCloud.stale}:${modelCloud.failed}:${modelCloud.busy}:${modelCloud.noSource}`);
     const anchors = anchorsView(t);
     parts.push(`anchors:${anchors.status}:${anchors.anchors.map((a) => `${a.icao}${a.fresh ? `+${a.baseMslFt ?? ''}${a.clear ? 'c' : ''}${a.unknown ? 'u' : ''}` : '-'}`).join(',')}`);
     const fs = frontsFeed.state();

@@ -1,7 +1,12 @@
 // What every US T-6 base's site profile has in common (plan Step 2c, part B), so each base's file (kdlf.js ... kngp.js) holds only its own data.
-// The shape is the one cymj.js and generic.js use. Until the later steps add them (D: model clouds; E: airspace, NOTAMs and alerts; F: weather
-// standards), a US base has:
-// - no airspace, watched areas, routes, anchor stations or VNC charts (empty: "no airspace for this base yet");
+// The shape is the one cymj.js and generic.js use. Until the later steps add them (E: airspace, NOTAMs and alerts; F: weather standards), a US base has:
+// - no airspace, watched areas, routes or VNC charts (empty: "no airspace for this base yet");
+// - model clouds and winds from NOAA's HRRR (3 km) with the GFS as the quick first picture and fallback, both through Open-Meteo (part D, Dad 8 Oct 2026;
+//   model-clouds.js NOAA_MODELS), asked every 3 hours; no 2.5 km cloud picture (ECCC's covers Canada only: `modelCloudMask: null`, the slabs are drawn
+//   unmasked and the model panel says "2.5 km cloud detail: not available at this base");
+// - METAR anchor stations: the base and its usual alternates (positions and elevations from the airfield catalog, OurAirports), with the same 15 NM and
+//   5,000 ft rules as Moose Jaw's (SOF-45, Dad's ruling 7 Oct);
+// - 3D airfields: the base and its usual alternates, runways from OurAirports (airports-data.js, read 8 Oct 2026);
 // - radar from NOAA NCEP's MRMS base reflectivity and satellite from NASA GIBS's GOES-East infrared (part C, Dad approved 8 Oct 2026; both public
 //   domain, US Government; the hosts and layers are feeds.js WMS_SERVICES). RainViewer is the radar's backup as at Moose Jaw. No radar coverage
 //   layer exists for MRMS: the coverage line says "not shown for this source" (neutral, not a tick, not a failure);
@@ -19,6 +24,8 @@
 // coefficients), to a tenth of a degree, East positive. It drifts about 0.1° a year (estimate), so it is dated.
 import { CYMJ } from './cymj.js';
 import { US_LAYERS } from '../feeds.js';
+import { NOAA_MODELS } from '../model-clouds.js';
+import { stationsFor } from '../stations-data.js';
 
 /**
  * The US bases' radar: NOAA NCEP's MRMS quality-controlled base reflectivity (1 km, CONUS; a new time about every 2 minutes; NCEP's GetCapabilities,
@@ -45,6 +52,13 @@ export const US_SATELLITE = Object.freeze({
   // The 3D view's words: its Satellite button and its key.
   toggleWords: 'NASA GOES-East infrared cloud picture',
   keyWords: "NASA GIBS's GOES-East infrared picture (band 13, day and night)",
+});
+
+/** The US bases' model clouds and winds: NOAA's HRRR and GFS through Open-Meteo (CC BY 4.0), asked every 3 hours (model-clouds.js NOAA_MODELS). */
+export const US_MODEL_CLOUDS = Object.freeze({
+  name: 'Open-Meteo, NOAA HRRR and GFS',
+  credit: 'Open-Meteo (CC BY 4.0), NOAA HRRR / GFS (model estimate)',
+  models: NOAA_MODELS,
 });
 
 /** The towns' source, for each town list and the credits line. */
@@ -79,7 +93,10 @@ export function usBase({ icao, name, shortName, usualAlternates, alternatesSourc
     watchedAreas: Object.freeze([]),
     towns: townList,
     townsSource: US_TOWNS_SOURCE,
-    anchorStations: Object.freeze([]),
+    // The METAR stations whose cloud bases anchor the 3D low cloud: the base and its usual alternates (stations-data.js, from the catalog).
+    anchorStations: stationsFor([icao, ...usualAlternates]),
+    // The airports the 3D view draws: the base and its usual alternates (airports-data.js; OurAirports runways, read 8 Oct 2026).
+    airports3d: Object.freeze([icao, ...usualAlternates]),
     // The base's circuit (about 5 NM round, as Moose Jaw's), one nearby field, then each airborne T-6 (the type flown at every one of these bases).
     tourTargets: Object.freeze([
       Object.freeze({ id: `${icao.toLowerCase()}-circuit`, kind: 'field', icao, label: `${shortName} circuit`, nm: 5 }),
@@ -95,8 +112,8 @@ export function usBase({ icao, name, shortName, usualAlternates, alternatesSourc
       lightning: null,
       satellite: US_SATELLITE,
       warnings: null,
-      modelClouds: null,
-      modelCloudMask: null,
+      modelClouds: US_MODEL_CLOUDS,
+      modelCloudMask: null, // ECCC's 2.5 km total-cloud picture is Canada only; no US one is used
       notams: null,
       alerts: null,
       fronts: CYMJ.sources.fronts, // WPC CODSUS through the relay covers the whole US
@@ -105,7 +122,7 @@ export function usBase({ icao, name, shortName, usualAlternates, alternatesSourc
     lightningLink: 'blitzortung',
     credits: Object.freeze({
       confirm: null,
-      model: null,
+      model: 'Model clouds and winds in the 3D view: Open-Meteo (CC BY 4.0), NOAA HRRR / GFS (model estimate).',
       pictures: '3D fronts: WPC surface analysis; radar: NOAA NCEP MRMS; satellite imagery: NASA GIBS, GOES-East; towns: GeoNames (CC BY 4.0).',
       mapFeeds: `radar: ${US_RADAR.credit}. ${US_SATELLITE.credit}`,
     }),
