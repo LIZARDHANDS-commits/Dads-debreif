@@ -16,8 +16,11 @@ export const TACNAV_AGL_FT = 500;
 /** A circle's outline is this many straight sides. An estimate for smoothness at 250 NM across. */
 export const CIRCLE_SIDES = 64;
 
-export const AIRSPACE_KINDS = Object.freeze(['restricted', 'advisory', 'terminal', 'control-zone', 'mtca', 'other']);
-const CLASS_LETTERS = Object.freeze(['C', 'D', 'E', 'F']);
+// The last four are the US bases' (plan Step 2c part E, FAA open data): military operations areas, warning and alert areas, and military training routes.
+export const AIRSPACE_KINDS = Object.freeze(['restricted', 'advisory', 'terminal', 'control-zone', 'mtca', 'other', 'moa', 'warning', 'alert', 'mtr']);
+/** The kinds every key lists (Moose Jaw's, as before); the US kinds are listed only where a base has them. */
+export const BASE_KINDS = Object.freeze(['restricted', 'advisory', 'terminal', 'control-zone', 'mtca', 'other']);
+const CLASS_LETTERS = Object.freeze(['B', 'C', 'D', 'E', 'F']);
 const FLOOR_REFS = Object.freeze(['SFC', 'AGL', 'ASL', 'FL']);
 const CEILING_REFS = Object.freeze(['AGL', 'ASL', 'FL', 'UNL']);
 
@@ -29,6 +32,10 @@ export const KIND_WORDS = Object.freeze({
   'control-zone': { name: 'control zone', colour: 'light blue' },
   mtca: { name: 'MTCA', colour: 'cyan' },
   other: { name: 'other airspace', colour: 'grey' },
+  moa: { name: 'military operations area (MOA)', colour: 'orange' },
+  warning: { name: 'warning area', colour: 'red' },
+  alert: { name: 'alert area', colour: 'amber' },
+  mtr: { name: 'military training route (centreline)', colour: 'violet' },
 });
 
 const isNumber = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -63,8 +70,14 @@ export function limitWords(limit) {
   }
 }
 
-/** The label's words: "CYR303 SFC–FL180". */
-export const airspaceWords = (entry) => `${entry.id} ${limitWords(entry.floor)}–${limitWords(entry.ceiling)}`;
+/** The label's words: "CYR303 SFC–FL180", or "IR123 altitudes not given" for a route whose data has none. */
+export const airspaceWords = (entry) => (heightsNotGiven(entry) ? `${entry.id} altitudes not given` : `${entry.id} ${limitWords(entry.floor)}–${limitWords(entry.ceiling)}`);
+
+/**
+ * A line entry (a military training route's centreline, `shape: { type: 'line', points }`) may have no heights in its data: its floor is then SFC and
+ * its ceiling `null`, and it is drawn as a line on the ground at home's elevation, its words saying "altitudes not given". This says whether that is so.
+ */
+export const heightsNotGiven = (entry) => entry?.shape?.type === 'line' && entry.ceiling === null;
 
 /**
  * Whether an entry is fit to draw. Returns { ok: true } or { ok: false, reason } with the reason in plain words (no console, no throw).
@@ -83,9 +96,14 @@ export function checkAirspace(entry, groundFt = 0) {
   if (!isText(entry.source)) return bad('no source');
   const { floor, ceiling, shape } = entry;
   if (!floor || !FLOOR_REFS.includes(floor.ref) || !isNumber(floor.ft) || floor.ft < 0) return bad('floor is not a height');
-  if (!ceiling || !CEILING_REFS.includes(ceiling.ref) || (ceiling.ref !== 'UNL' && (!isNumber(ceiling.ft) || ceiling.ft < 0))) return bad('ceiling is not a height');
+  const noHeights = heightsNotGiven(entry);
+  if (!noHeights && (!ceiling || !CEILING_REFS.includes(ceiling.ref) || (ceiling.ref !== 'UNL' && (!isNumber(ceiling.ft) || ceiling.ft < 0)))) return bad('ceiling is not a height');
   if (!shape || typeof shape !== 'object') return bad('no shape');
-  if (shape.type === 'polygon') {
+  if (shape.type === 'line') {
+    if (!Array.isArray(shape.points) || shape.points.length < 2) return bad('a line needs 2 points');
+    if (!shape.points.every(isLatLon)) return bad('a point is not [lat, lon]');
+    if (noHeights) return floor.ref === 'SFC' ? { ok: true } : bad('a line with no ceiling must start at SFC');
+  } else if (shape.type === 'polygon') {
     if (!Array.isArray(shape.points) || shape.points.length < 3) return bad('fewer than 3 points');
     if (!shape.points.every(isLatLon)) return bad('a point is not [lat, lon]');
   } else if (shape.type === 'circle') {
@@ -117,7 +135,7 @@ export function checkedAirspace(list, groundFt = 0) {
     }
     seen.add(entry.id);
     const floor = limitFt(entry.floor, groundFt);
-    const ceiling = limitFt(entry.ceiling, groundFt);
+    const ceiling = heightsNotGiven(entry) ? floor : limitFt(entry.ceiling, groundFt);
     volumes.push({ ...entry, floorFt: floor.ft, ceilingFt: ceiling.ft, approx: floor.approx || ceiling.approx });
   }
   return { volumes, skipped };
@@ -125,10 +143,12 @@ export function checkedAirspace(list, groundFt = 0) {
 
 /**
  * An entry's outline in the map's local feet: a polygon's points, or a circle as CIRCLE_SIDES straight sides, round its projected centre
- * (flat, fine at this size). `toXY(lat, lon)` gives [x, y]. A repeated closing point is dropped. Returns [[x, y], ...].
+ * (flat, fine at this size). `toXY(lat, lon)` gives [x, y]. A repeated closing point is dropped. Returns [[x, y], ...]. A line's points are
+ * returned as they are (an open path, not closed).
  */
 export function outlineXY(entry, toXY) {
   const { shape } = entry;
+  if (shape.type === 'line') return shape.points.map(([lat, lon]) => toXY(lat, lon));
   if (shape.type === 'circle') {
     const [cx, cy] = toXY(shape.centre[0], shape.centre[1]);
     const r = shape.radiusNm * FT_PER_NM;
@@ -149,7 +169,8 @@ export function airspaceTitle(entry) {
   const kind = KIND_WORDS[entry.kind];
   const cls = entry.classLetter ? `, class ${entry.classLetter}` : '';
   const est = entry.approx ? ' AGL heights are taken from the home field’s elevation and FL as feet ASL (estimates).' : '';
-  return `${entry.name}: ${kind.name}${cls}, drawn with a ${kind.colour} edge. ${limitWords(entry.floor)} to ${limitWords(entry.ceiling)}. Source: ${entry.source}.${est}`;
+  const limits = heightsNotGiven(entry) ? 'Altitudes not given in the data: drawn on the ground at home’s elevation.' : `${limitWords(entry.floor)} to ${limitWords(entry.ceiling)}.`;
+  return `${entry.name}: ${kind.name}${cls}, drawn with a ${kind.colour} edge. ${limits} Source: ${entry.source}.${est}`;
 }
 
 // ---- The TACNAV routes ----------------------------------------------------------------------------

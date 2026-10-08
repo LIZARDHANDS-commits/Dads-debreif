@@ -30,7 +30,13 @@ const YEAR_MIN = 2000;
 const YEAR_MAX = 2100;
 
 const ICAO = /^[A-Z]{4}$/;
-const NOTAM_ID = /^[A-Z]\d{1,5}\/\d{2}$/;
+// An ICAO NOTAM number ("A1234/26"), or the FAA's domestic form ("10/123", month and number) that some US NOTAMs have only (part E, 8 Oct 2026).
+const NOTAM_ID = /^(?:[A-Z]\d{1,5}\/\d{2}|\d{1,2}\/\d{1,4})$/;
+/**
+ * The relay's reasons a field could not be answered that the page knows and says in words (relay/us-wx.js FAA_KEY_NOT_SET); any other reason is
+ * not shown (the field just reads "unavailable").
+ */
+export const RELAY_REASONS = Object.freeze({ 'FAA NOTAM key not set': 'FAA key not set' });
 const TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?Z?$/;
 
 // ---- Which NOTAMs are critical ---------------------------------------------------------------------------------
@@ -145,7 +151,36 @@ export function readNotamReply(input, { now = Date.now() } = {}) {
     }
     const fetched = own(json, 'fetched');
     const believable = typeof fetched === 'number' && Number.isFinite(fetched) && fetched > Date.UTC(YEAR_MIN, 0, 1) && fetched <= +now + 5 * MINUTE_MS;
-    return { fetched: believable ? fetched : null, sites: names, notams };
+    return { fetched: believable ? fetched : null, sites: names, notams, unavailable: readUnavailable(own(json, 'unavailable')) };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The relay's `unavailable` list ([{ site, reason }], the fields it could not answer, such as K fields with no FAA key) as { KDLF: 'FAA key not set' },
+ * keeping only known reasons (RELAY_REASONS) for four-letter fields. Anything else is ignored: those fields are simply not named, so they read
+ * "unavailable" anyway.
+ */
+export function readUnavailable(list) {
+  const out = {};
+  if (!Array.isArray(list)) return out;
+  for (const x of list.slice(0, MAX_SITES)) {
+    if (!isObject(x)) continue;
+    const site = own(x, 'site');
+    const reason = own(x, 'reason');
+    if (typeof site !== 'string' || !ICAO.test(site) || typeof reason !== 'string' || !Object.hasOwn(RELAY_REASONS, reason)) continue;
+    out[site] = RELAY_REASONS[reason];
+  }
+  return out;
+}
+
+/** The relay's own reason in a failed reply's body ({ error: 'FAA NOTAM key not set' }) in words, or null when it is not one the page knows. */
+export function relayReason(body) {
+  try {
+    const json = typeof body === 'string' && body.length < 2000 ? JSON.parse(body) : null;
+    const error = isObject(json) ? own(json, 'error') : null;
+    return typeof error === 'string' && Object.hasOwn(RELAY_REASONS, error) ? RELAY_REASONS[error] : null;
   } catch {
     return null;
   }
@@ -188,7 +223,8 @@ export function validityWords(start, end, now) {
  * One airfield's NOTAMs as the card and its row draw them, from the feed's state (`createNotamFeed().state()`): `{ relay, lastGood: { fetched, receivedAt, sites, notams } | null, failed }`.
  * Returns { status: 'ok' | 'unavailable' | 'unset', words, chip: { words, level } | null, list: [{ id, critical, kind, words, validity, raw, body }] }.
  * - 'unset': no relay address; words say where it goes.
- * - 'unavailable': never fetched, the last ask failed, the answer is older than NOTAM_STALE_MS, or it does not name this field. `words` says "NOTAMs unavailable (last good 0612Z)" (or "not yet").
+ * - 'unavailable': never fetched, the last ask failed, the answer is older than NOTAM_STALE_MS, or it does not name this field. `words` says "NOTAMs unavailable (last good 0612Z)" (or "not yet");
+ *   when the relay said why (its FAA key is not set, for a US field), "NOTAMs unavailable (FAA key not set)", never "No NOTAMs".
  * - 'ok': a fresh good answer. `list` is this field's NOTAMs in force or coming, critical ones first (then by start); empty means "No NOTAMs".
  */
 export function notamsFor(state, icao, now) {
@@ -203,6 +239,9 @@ export function notamsFor(state, icao, now) {
   const lastGood = good ? `last good ${hhmmZ(Math.min(dataTime, good.receivedAt))}` : 'none yet';
   const old = !good || at - Math.min(dataTime, good.receivedAt) > NOTAM_STALE_MS;
   const named = good?.sites.includes(String(icao).toUpperCase()) === true;
+  // The relay's own reason: the whole ask failed with it (only K fields asked, no FAA key), or a mixed answer lists this field as not answered.
+  const why = state.failed ? state.why ?? null : !named && !old ? good?.unavailable?.[String(icao).toUpperCase()] ?? null : null;
+  if (why) return { status: 'unavailable', words: `NOTAMs unavailable (${why})`, chip: { words: 'NOTAMs ?', level: 'unknown' }, list: [] };
   if (old || state.failed || !named) {
     return { status: 'unavailable', words: `NOTAMs unavailable (${lastGood})`, chip: { words: 'NOTAMs ?', level: 'unknown' }, list: [] };
   }
@@ -236,6 +275,7 @@ export function createNotamFeed(options) {
 export function createRelayFeed({ address, read, refreshMs, retryMs, limits, paused = () => false, fetch, timers, now = () => new Date(), onChange = () => {} }) {
   let lastGood = null; // read's answer ({ fetched, sites, notams } for the NOTAMs) and receivedAt
   let failed = false;
+  let why = null; // the relay's own reason for the last failure, in words (RELAY_REASONS), or null
   let busy = false;
   let askedUrl = null;
   let askedAt = null;
@@ -246,7 +286,7 @@ export function createRelayFeed({ address, read, refreshMs, retryMs, limits, pau
   const changed = () => {
     if (!stopped) onChange();
   };
-  const state = () => ({ relay: address() !== null, lastGood, failed, busy });
+  const state = () => ({ relay: address() !== null, lastGood, failed, why, busy });
 
   async function ask(url) {
     askedUrl = url;
@@ -254,11 +294,14 @@ export function createRelayFeed({ address, read, refreshMs, retryMs, limits, pau
     busy = true;
     const mine = controller;
     let text = null;
+    let reason = null;
     try {
-      const reply = await guardedFetch(fetch, url, { timers, signal: mine.signal, accept: 'application/json', ...limits });
+      // A failed reply's first 1 KB is read for the relay's own reason (only its known words are ever shown).
+      const reply = await guardedFetch(fetch, url, { timers, signal: mine.signal, accept: 'application/json', errorBytes: 1024, ...limits });
       text = bytesToText(reply.bytes);
-    } catch {
+    } catch (err) {
       if (mine.signal.aborted || stopped) return; // the module closed or the address changed: nothing to say
+      reason = relayReason(err?.body);
     }
     if (mine !== controller || stopped) return;
     busy = false;
@@ -266,7 +309,11 @@ export function createRelayFeed({ address, read, refreshMs, retryMs, limits, pau
     if (answer) {
       lastGood = { ...answer, receivedAt: +now() };
       failed = false;
-    } else failed = true;
+      why = null;
+    } else {
+      failed = true;
+      why = reason;
+    }
     changed();
   }
 
@@ -297,6 +344,7 @@ export function createRelayFeed({ address, read, refreshMs, retryMs, limits, pau
           askedAt = null;
           lastGood = null; // another relay's answer is not this one's
           failed = false;
+          why = null;
           busy = false;
           changed();
         }

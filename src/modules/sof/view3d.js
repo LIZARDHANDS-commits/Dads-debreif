@@ -71,7 +71,7 @@ import { buildAirports, RUNWAY_MIN_PX } from './airports3d.js';
 import { buildAlerts3d, ALERT_COLOURS, PIREP_COLOURS, ALERT_COLOUR_WORDS, ALERT_FILL_OPACITY } from './alerts3d.js';
 import { GLIDE_3D_MS, TRAIL_WINDOW_S } from './traffic-motion.js';
 import { airportsFor } from './airports-data.js';
-import { checkedAirspace, KIND_WORDS, tacnavNote, AIRSPACE_FILL_OPACITY, VIEW_TOP_FT } from './airspace-model.js';
+import { checkedAirspace, KIND_WORDS, BASE_KINDS, tacnavNote, AIRSPACE_FILL_OPACITY, VIEW_TOP_FT } from './airspace-model.js';
 import {
   hourIndex, maxAhead, hourWords, meanLayerCover, unavailableWords, refreshFailedWords, LOADING_WORDS, CREDIT_WORDS, MAX_AHEAD_HOURS, CLOUD_STAGES_FT_AGL,
   CLOUD_COVER_THRESHOLD_PCT, barbStep, CLOUD_SHEET_PX, filledWords, nextAskWords, HRDPS_CHUNKS, modelSetOf,
@@ -259,7 +259,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     ['airports', ...firstWords.airports],
     ['terrain', 'Terrain', `The real ground: heights from the Terrarium elevation tiles, ×the height scale, so the valleys, the Coteau and the Cypress Hills show. Off lays the ground flat at home’s elevation. ${TERRAIN_CREDIT}.`, null],
     ['towns', 'Towns', 'Moose Jaw, Regina, Swift Current and Saskatoon as schematic blocks standing on the terrain: not real buildings. A name shows when zoomed in, or under the pointer.', null],
-    ['alerts', 'SIGMET/PIREP', 'SIGMETs (red-orange) and AIRMETs (yellow) as see-through volumes from base to top, PIREPs as small diamonds at their level (amber turbulence, blue icing, white other), from NAV CANADA through the relay. Put the pointer on one for its words.', null],
+    ['alerts', 'SIGMET/PIREP', `SIGMETs (red-orange) and AIRMETs (yellow) as see-through volumes from base to top, PIREPs as small diamonds at their level (amber turbulence, blue icing, white other), from ${getSite().sources.alerts?.credit ?? 'NAV CANADA'} through the relay. Put the pointer on one for its words.`, null],
   ]);
   const spaceToggles = { airspace: !noAirspace(), tacnav: !noRoutes(), airports: true, terrain: true, towns: true, alerts: true };
   const spaceButtons = new Map();
@@ -991,8 +991,9 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
    * are put on the screen only here, at the pick's pace, never each frame.
    */
   function routeNear(x, y, width, height) {
-    const routes = gl?.space?.built.labels ?? [];
-    if (!routes.length || !spaceToggles.tacnav) return null;
+    // The TACNAV routes, and a US base's military training routes (airspace3d.js `lines`, shown with the airspace).
+    const routes = [...(spaceToggles.tacnav ? gl?.space?.built.labels ?? [] : []), ...(spaceToggles.airspace ? gl?.space?.built.lines ?? [] : [])];
+    if (!routes.length) return null;
     let best = null;
     let bestD = ROUTE_HOVER_PX;
     for (const route of routes) {
@@ -1132,7 +1133,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     const drawn = gl?.alerts?.summary;
     const outside = drawn?.outside ? ` ${drawn.outside} outside this ${AREA_NM} NM square not drawn.` : '';
     alertsKey.replaceChildren(
-      h('p', {}, `SIGMETs, AIRMETs and PIREPs (NAV CANADA, through the relay, asked every 10 minutes): a SIGMET or AIRMET is a see-through volume (${Math.round(ALERT_FILL_OPACITY * 100)} % fill, an estimate) from its base to its top over its area; a PIREP is a small diamond at its position and level. Expired ones are not drawn. Levels: FL × 100 read as feet above sea level, SFC as home’s elevation; a message whose position or levels could not be read is listed on the airfield cards only.`),
+      h('p', {}, `SIGMETs, AIRMETs and PIREPs (${getSite().sources.alerts?.credit ?? 'NAV CANADA'}, through the relay, asked every 10 minutes): a SIGMET or AIRMET is a see-through volume (${Math.round(ALERT_FILL_OPACITY * 100)} % fill, an estimate) from its base to its top over its area; a PIREP is a small diamond at its position and level. Expired ones are not drawn. Levels: FL × 100 read as feet above sea level, SFC as home’s elevation; a message whose position or levels could not be read is listed on the airfield cards only.`),
       h('ul', {},
         h('li', {}, swatch(ALERT_COLOURS.sigmet), ` ${ALERT_COLOUR_WORDS.sigmet} edge: SIGMET`),
         h('li', {}, swatch(ALERT_COLOURS.airmet), ` ${ALERT_COLOUR_WORDS.airmet} edge: AIRMET`),
@@ -1144,21 +1145,23 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   }
 
   function drawSpaceKey(volumes, skipped, ground) {
-    const used = (ref) => volumes.some((v) => v.floor.ref === ref || v.ceiling.ref === ref);
+    const used = (ref) => volumes.some((v) => v.floor.ref === ref || v.ceiling?.ref === ref);
     const home = homeIcao();
-    const colours = Object.entries(KIND_WORDS).map(([kind, words]) => {
+    // Moose Jaw's six kinds as always, and a US base's own kinds (MOA, warning and alert areas, training routes) only where it has them.
+    const colours = Object.entries(KIND_WORDS).filter(([kind]) => BASE_KINDS.includes(kind) || volumes.some((v) => v.kind === kind)).map(([kind, words]) => {
       const swatch = h('span', { class: 'sof-3d-swatch', 'aria-hidden': 'true' });
       swatch.style.background = KIND_COLOURS[kind];
       return h('li', {}, swatch, ` ${words.colour}: ${words.name}`);
     });
     const notes = [];
-    if (noAirspace()) notes.push(h('p', {}, 'Airspace: no data yet. Each volume is added with its floor, ceiling, outline and source (NAV CANADA’s Designated Airspace Handbook); none is drawn from memory.'));
+    if (noAirspace()) notes.push(h('p', {}, `Airspace: no data yet. Each volume is added with its floor, ceiling, outline and source (${getSite().airspaceSource ?? 'NAV CANADA’s Designated Airspace Handbook'}); none is drawn from memory.`));
     else {
       notes.push(
         h('p', {}, `Airspace: each volume runs from its floor to its ceiling, see-through (${Math.round(AIRSPACE_FILL_OPACITY * 100)} % fill, an estimate), with a thin outline on its top and bottom and along its corners. Edge colour by kind:`),
         h('ul', {}, colours),
         h('p', {}, 'Nothing is written on the volumes: put the pointer over one and its name and limits float beside it (the nearest one under the pointer when several overlap), with the kind and the source on hover. Every volume is listed here with its limits:'),
-        h('ul', { class: 'sof-3d-airspace-list' }, (gl?.space?.built.picks ?? []).map((pick) => h('li', { title: pick.title }, pick.text))),
+        h('ul', { class: 'sof-3d-airspace-list' }, [...(gl?.space?.built.picks ?? []), ...(gl?.space?.built.lines ?? []).filter((l) => !(gl?.space?.built.picks ?? []).some((p) => p.key === l.key))].map((pick) => h('li', { title: pick.title }, pick.text))),
+        getSite().airspaceSource ? h('p', {}, `Source: ${getSite().airspaceSource}.`) : null,
         h('p', {}, `Heights are feet above sea level, ×${scale}. SFC is the ground at ${home}’s elevation (${Math.round(ground)} ft).${used('AGL') ? ` AGL ≈ over flat prairie, estimate: ${home}’s elevation plus the height.` : ''}${used('FL') ? ' FL is read as feet above sea level (pressure altitude taken as altitude, an approximation).' : ''}${volumes.some((v) => v.ceiling.ref === 'UNL') ? ` UNL is drawn up to ${formatFeet(VIEW_TOP_FT)} ft.` : ''}`),
       );
       if (skipped.length) notes.push(h('p', { class: 'sof-3d-model-warn' }, `Not drawn, entry fails its checks: ${skipped.map((x) => `${x.id} (${x.reason})`).join('; ')}.`));

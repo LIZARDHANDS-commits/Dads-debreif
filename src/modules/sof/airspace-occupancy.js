@@ -113,6 +113,7 @@ export function occupancy({ volumes = [], aircraft = [], groundFt = 0, at = 0 } 
     const alt = a.alt ?? a.altitudeFt;
     const ft = alt === 'ground' ? groundFt : isNumber(alt) ? alt : null;
     for (const v of volumes) {
+      if (v.shape.type === 'line') continue; // a training route's centreline has no inside
       if (!insideShape(v.shape, a.lat, a.lon)) continue;
       if (ft === null) possibly.push(v.id);
       else if (ft >= v.floorFt && ft <= v.ceilingFt) inside.push(v.id);

@@ -17,6 +17,11 @@
 //   /TP, /TB, /IC, /SK; an ARP's position, flight level and any TURB or ICE words.
 // Anything it cannot read is still listed as text and simply not drawn: the card says "position not read, see text" or "levels not read, see text".
 //
+// At the US bases (plan Step 2c part E, 8 Oct 2026) the relay's messages come from aviationweather.gov (the NOAA/NWS Aviation Weather Center) and carry
+// their place and heights as data the relay has already checked: a SIGMET's or G-AIRMET's `area` ([[lat, lon], ...]), `baseFt` and `topFt` (feet above
+// sea level, null when not given) and `hazard` (AWC's word, such as CONVECTIVE, TURB, ICE, IFR); a PIREP's `point` ([lat, lon]) and `levelFt`. The
+// reader below uses those when they are there (no text has to be read to place them) and reads the text for the rest, as for NAV CANADA's.
+//
 // Safety rule (as the NOTAMs, SOF-42): "None" is said only when a fresh good answer, which names the field among its sites, has none near it. A failed
 // fetch, an answer older than ALERTS_STALE_MS or one that does not name the field says "SIGMETs/PIREPs unavailable (last good 0612Z)".
 import { readTime, hhmmZ, createRelayFeed } from './notams.js';
@@ -414,6 +419,8 @@ export function parseAlert(item, { now = Date.now(), magVarDegE = MAG_VARIATION_
       point = overPoint(fields.OV, magVarDegE);
       levels = pirepLevel(fields.FL);
     }
+    if (item.point) point = { lat: item.point.lat, lon: item.point.lon, how: 'lat/lon given with the report' }; // AWC's own position for it beats the text's
+    if (!levels && Number.isFinite(item.levelFt)) levels = { ft: item.levelFt, fl: true };
     if (!point && item.location) { // the relay's location: a lat/lon or a station
       const pts = findPoints(item.location);
       const station = pts.length ? null : stationPoint(item.location);
@@ -447,9 +454,9 @@ export function parseAlert(item, { now = Date.now(), magVarDegE = MAG_VARIATION_
     end ??= dayTime(valid[4], valid[5], valid[6], now);
     if (start !== null && end !== null && end < start) end += 31 * 24 * 60 * MINUTE_MS; // never seen; keeps a cross-month pair the right way round
   }
-  const area = cancel ? null : readArea(flat);
-  const levels = cancel ? null : readLevels(flat);
-  const hazards = readHazards(flat);
+  const area = cancel ? null : item.area ? polygonOf(item.area) : readArea(flat);
+  const levels = cancel ? null : levelsGiven(item) ?? readLevels(flat);
+  const hazards = withGivenHazard(readHazards(flat), item);
   const notes = cancel ? [] : [!area && 'position not read, see text', area && !levels && 'levels not read, see text'].filter(Boolean);
   return {
     ...base,
@@ -468,7 +475,83 @@ export function parseAlert(item, { now = Date.now(), magVarDegE = MAG_VARIATION_
   };
 }
 
+// ---- AWC's structured fields (US bases) ---------------------------------------------------------------------------
+
+/** A given area ([{ lat, lon }], a closing repeat of the first point dropped) as the reader's polygon. */
+function polygonOf(pts) {
+  const points = pts.map((p) => ({ lat: p.lat, lon: p.lon }));
+  if (points.length > 3 && points[0].lat === points.at(-1).lat && points[0].lon === points.at(-1).lon) points.pop();
+  return { type: 'polygon', points };
+}
+
+/**
+ * The levels the relay gave (`baseFt`, `topFt`, feet above sea level) in the reader's form, or null when no top was given (the text is read then).
+ * A base of 0 is the surface; no base is "base not given" (drawn from the ground, and said); 18,000 ft and above read as flight levels (the US
+ * transition altitude), lower ones in feet.
+ */
+function levelsGiven(item) {
+  if (!Number.isFinite(item.topFt)) return null;
+  const at = (ft) => (ft >= 18_000 ? { ft, fl: true } : { ft });
+  const base = !Number.isFinite(item.baseFt) ? { sfc: true, assumed: true } : item.baseFt === 0 ? { sfc: true } : at(item.baseFt);
+  const top = at(item.topFt);
+  return base.sfc || top.ft >= base.ft ? { base, top } : null;
+}
+
+// AWC's hazard words: its family, and whether a SIGMET for it counts as severe for the card's amber (a US non-convective SIGMET is only issued for
+// severe turbulence or severe icing, a convective one for thunderstorms; the 7 Oct rule: SEV ICE, SEV TURB and TS).
+const AWC_HAZARDS = Object.freeze({
+  CONVECTIVE: { words: 'TS (convective SIGMET)', family: 'ts', severe: true },
+  TS: { words: 'TS', family: 'ts', severe: true },
+  TURB: { words: 'SEV TURB', family: 'turb', severe: true },
+  'TURB-HI': { words: 'MOD TURB above FL180', family: 'turb' },
+  'TURB-LO': { words: 'MOD TURB below FL180', family: 'turb' },
+  LLWS: { words: 'LLWS', family: 'turb' },
+  SFC_WND: { words: 'surface wind over 30 kt', family: 'other' },
+  ICE: { words: 'ICE', family: 'ice' },
+  IFR: { words: 'IFR', family: 'other' },
+  MT_OBSC: { words: 'MT OBSC', family: 'other' },
+  'MTN OBSCN': { words: 'MT OBSC', family: 'other' },
+  ASH: { words: 'VA', family: 'other' },
+  DUST: { words: 'DS', family: 'other' },
+});
+
+/** The text's hazards, filled from the given AWC hazard when the text gave none (and a US SIGMET's hazard marked severe as the 7 Oct rule). */
+function withGivenHazard(hazards, item) {
+  const given = item.hazard ? AWC_HAZARDS[item.hazard] : null;
+  if (!given) return hazards;
+  const words = hazards.words.length ? hazards.words : [item.kind === 'sigmet' && given === AWC_HAZARDS.ICE ? 'SEV ICE' : given.words];
+  return { words, family: hazards.words.length ? hazards.family : given.family, severe: hazards.severe || (item.kind === 'sigmet' && (given.severe || given === AWC_HAZARDS.ICE)) };
+}
+
 // ---- Reading the reply ------------------------------------------------------------------------------------------
+
+const isNumber = (v) => typeof v === 'number' && Number.isFinite(v);
+const isLatLon = (p) => Array.isArray(p) && p.length === 2 && isNumber(p[0]) && isNumber(p[1]) && Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180;
+const MAX_AREA_POINTS = 500;
+/** A height in feet above sea level as the relay gives it (0 to 100,000), else null. */
+const heightFt = (v) => (isNumber(v) && v >= 0 && v <= 100_000 ? v : null);
+const AWC_WORD = /^[A-Z0-9][A-Z0-9 _/-]{0,23}$/;
+
+/**
+ * The structured fields the relay adds for an AWC message (see the top of this file), each checked; a bad one is left out and the text is read instead.
+ * Returns { area?: [{ lat, lon }], baseFt?, topFt?, hazard?, severity?, point?: { lat, lon }, levelFt? }.
+ */
+function readStructured(n) {
+  const out = {};
+  const area = own(n, 'area');
+  if (Array.isArray(area) && area.length >= 3 && area.length <= MAX_AREA_POINTS && area.every(isLatLon)) out.area = area.map(([lat, lon]) => ({ lat, lon }));
+  for (const key of ['baseFt', 'topFt', 'levelFt']) {
+    const v = heightFt(own(n, key));
+    if (v !== null) out[key] = v;
+  }
+  for (const key of ['hazard', 'severity']) {
+    const v = own(n, key);
+    if (typeof v === 'string' && AWC_WORD.test(v)) out[key] = v;
+  }
+  const point = own(n, 'point');
+  if (isLatLon(point)) out.point = { lat: point[0], lon: point[1] };
+  return out;
+}
 
 function readOne(n) {
   if (!isObject(n)) return null;
@@ -489,6 +572,7 @@ function readOne(n) {
     start,
     end,
     text: plain(text.length > MAX_TEXT_CHARS ? text.slice(0, MAX_TEXT_CHARS) : text).trim(),
+    ...readStructured(n),
   };
 }
 

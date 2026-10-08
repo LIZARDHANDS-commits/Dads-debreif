@@ -130,7 +130,7 @@ export function createAirspaceLog({ watched: firstWatched = WATCHED_AREAS, max =
       const live = state === 'live';
       const count = hexes.size;
       const stateWords = live ? null : state === 'unavailable' ? 'Traffic unavailable: the airspace log is not being updated, and nobody is listed as inside.' : state === 'loading' ? 'Waiting for the first traffic answer.' : null;
-      const countWords = !watched.length ? 'Airspace log: no watched areas for this base' : !live ? `Airspace log: no current traffic` : count ? `${count} non-T-6 in ${words}` : `No non-T-6 in ${words}`;
+      const countWords = !watched.length ? 'Airspace log: no watched areas for this base yet' : !live ? `Airspace log: no current traffic` : count ? `${count} non-T-6 in ${words}` : `No non-T-6 in ${words}`;
       const shownLines = lines.map((l) => ({ key: String(l.id), text: l.text, alert: l.alert }));
       return {
         shown: state !== 'off',

@@ -8,6 +8,9 @@
 // no depth writing, so clouds and aircraft read through it), and a thin outline on the top and bottom rings and the vertical edges. Edge
 // colour goes by kind (restricted red, advisory amber, terminal, control zone and MTCA in blue tones), and the page says so in words.
 // The TACNAV routes are dashed lines at home's elevation plus 500 ft, the ground taken as flat (an estimate).
+// A military training route (a US base's `line` entry, FAA open data) is a see-through curtain along its centreline from its floor to its ceiling,
+// with a line along its top and bottom; one whose data gives no altitudes is a line on the ground at home's elevation. Its words come with the
+// pointer near its line (`lines`), as a TACNAV route's do.
 //
 // Built again only when the list, the height scale, the ground or home changes; the groups are switched with `.visible`, which rebuilds
 // nothing. `dispose()` frees everything.
@@ -24,6 +27,11 @@ export const KIND_COLOURS = Object.freeze({
   'control-zone': '#8ccbff',
   mtca: '#4fe3f0',
   other: '#b8cfdb',
+  // The US bases' kinds (plan Step 2c part E); colours are estimates for readability, and the key says each in words.
+  moa: '#ff8a3d',
+  warning: '#ff6b6b',
+  alert: '#ffb000',
+  mtr: '#c58cff',
 });
 const ROUTE_COLOUR = '#ffcc66'; // the 2D map's route colour (dashed there too)
 const EDGE_OPACITY = 0.85;
@@ -42,6 +50,8 @@ const ROUTE_DASH = Object.freeze({ dashSize: 7_000, gapSize: 4_000 });
  *   (Dad, 7 Oct: "too much clutter"); view3d.js finds the route near the pointer from `paths`;
  * - picks: [{ mesh, key, text, title }]: each volume's fill, for the view to ray-cast the pointer against; `text` is the words shown beside the pointer
  *   ("CYA305 6,000 ft AGL–FL190 (Class F advisory area)"), `title` the existing hover sentence;
+ * - lines: [{ key, text, title, paths: [[{ x, y, z }, ...]] }]: each line entry (a military training route) along its bottom, for the view to find the
+ *   one near the pointer, as for the TACNAV routes;
  * - summary: { volumes, routes } (counts drawn).
  */
 export function buildAirspace(T, { volumes = [], routes = [], toXY, scale, groundFt }) {
@@ -60,6 +70,7 @@ export function buildAirspace(T, { volumes = [], routes = [], toXY, scale, groun
   };
   const labels = [];
   const picks = [];
+  const lines = [];
   const fills = new Map(); // kind -> material, shared
   const edges = new Map();
   const fillOf = (kind) => {
@@ -76,6 +87,37 @@ export function buildAirspace(T, { volumes = [], routes = [], toXY, scale, groun
     const n = ring.length;
     const zb = volume.floorFt * scale;
     const zt = volume.ceilingFt * scale;
+    const kind = KIND_WORDS[volume.kind]?.name ?? 'airspace';
+    const said = { key: volume.id, text: `${airspaceWords(volume)} (${volume.classLetter ? `Class ${volume.classLetter} ` : ''}${kind})`, title: airspaceTitle(volume) };
+
+    if (volume.shape.type === 'line') {
+      // A route: an open curtain along the centreline (no caps), its top and bottom lines, posts at its two ends.
+      const path = (z) => own(new T.BufferGeometry().setFromPoints(ring.map(([x, y]) => new T.Vector3(x, y, z))));
+      const bottom = new T.Line(path(zb), edgeOf(volume.kind));
+      bottom.renderOrder = 3;
+      groups.airspace.add(bottom);
+      if (zt > zb) {
+        const positions = [];
+        for (let i = 0; i + 1 < n; i++) {
+          const [x0, y0] = ring[i];
+          const [x1, y1] = ring[i + 1];
+          positions.push(x0, y0, zb, x1, y1, zb, x1, y1, zt, x0, y0, zb, x1, y1, zt, x0, y0, zt);
+        }
+        const curtainGeometry = own(new T.BufferGeometry());
+        curtainGeometry.setAttribute('position', new T.Float32BufferAttribute(positions, 3));
+        const curtain = new T.Mesh(curtainGeometry, fillOf(volume.kind));
+        curtain.renderOrder = 1;
+        curtain.name = `airspace-${volume.id}`;
+        const top = new T.Line(path(zt), edgeOf(volume.kind));
+        const ends = [ring[0], ring[n - 1]].flatMap(([x, y]) => [new T.Vector3(x, y, zb), new T.Vector3(x, y, zt)]);
+        const posts = new T.LineSegments(own(new T.BufferGeometry().setFromPoints(ends)), edgeOf(volume.kind));
+        for (const line of [top, posts]) line.renderOrder = 3;
+        groups.airspace.add(curtain, top, posts);
+        picks.push({ mesh: curtain, ...said });
+      }
+      lines.push({ ...said, paths: [ring.map(([x, y]) => ({ x, y, z: zb }))] });
+      continue;
+    }
 
     // Fill: the walls as two triangles a side, and the two caps (triangulated, so a notched outline is filled right).
     const positions = [];
@@ -98,13 +140,13 @@ export function buildAirspace(T, { volumes = [], routes = [], toXY, scale, groun
     fill.name = `airspace-${volume.id}`;
 
     // Outline: the top and bottom rings, and vertical edges at the DAH's own corners only (Dad, 7 Oct: no lines all along the arcs).
-    // A polygon whose data names its corners (`shape.corners`, indices into its points) gets posts there; one without gets a post at
-    // every point; a circle gets none.
+    // A polygon whose data names its corners (`shape.corners`, indices into its points) gets posts there (none for an empty list); one without
+    // gets a post at every point; a circle gets none.
     const loop = (z) => own(new T.BufferGeometry().setFromPoints(ring.map(([x, y]) => new T.Vector3(x, y, z))));
     const top = new T.LineLoop(loop(zt), edgeOf(volume.kind));
     const bottom = new T.LineLoop(loop(zb), edgeOf(volume.kind));
     const corners = volume.shape.type !== 'polygon' ? []
-      : Array.isArray(volume.shape.corners) && volume.shape.corners.length ? volume.shape.corners.filter((i) => Number.isInteger(i) && i >= 0 && i < n)
+      : Array.isArray(volume.shape.corners) ? volume.shape.corners.filter((i) => Number.isInteger(i) && i >= 0 && i < n) // an empty list: no posts (a smooth outline)
         : ring.map((_, i) => i);
     const posts = [];
     for (const i of corners) posts.push(new T.Vector3(ring[i][0], ring[i][1], zb), new T.Vector3(ring[i][0], ring[i][1], zt));
@@ -112,13 +154,7 @@ export function buildAirspace(T, { volumes = [], routes = [], toXY, scale, groun
     for (const line of [top, bottom, sides]) line.renderOrder = 3;
     groups.airspace.add(fill, top, bottom, sides);
 
-    const kind = KIND_WORDS[volume.kind]?.name ?? 'airspace';
-    picks.push({
-      mesh: fill,
-      key: volume.id,
-      text: `${airspaceWords(volume)} (${volume.classLetter ? `Class ${volume.classLetter} ` : ''}${kind})`,
-      title: airspaceTitle(volume),
-    });
+    picks.push({ mesh: fill, ...said });
   }
 
   // The TACNAV routes: dashed lines at home's elevation plus 500 ft, each named at its first point.
@@ -146,6 +182,7 @@ export function buildAirspace(T, { volumes = [], routes = [], toXY, scale, groun
     root,
     labels,
     picks,
+    lines,
     summary: { volumes: volumes.length, routes: drawnRoutes },
     dispose() {
       root.removeFromParent();
