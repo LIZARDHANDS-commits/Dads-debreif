@@ -109,7 +109,7 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
     let model;
     let mats;
     let unit = STANDIN_UNITS;
-    let px = SIZE_PX.other;
+    let px = /** @type {number} */ (SIZE_PX.other);
     if (kind === 'ct156') {
       model = createCt156Model(T, { color: COLOURS.t6, paint: PAINT_DEFAULT, lengthFt: CT156_UNIT_LENGTH });
       mats = fadeList(model, { copy: true });
