@@ -201,6 +201,25 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       }));
       numApproachPhases++;
     }
+    // Long-Range Intercept Law (r > 1,200 ft): steer toward 45° line and de-rate closure until captured.
+    phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
+      kind: 'line',
+      lineDeg: TR.lineDeg,
+      side: s,
+      aimFt,
+      approachDeg: TR.approachDeg,
+      tauSec: TR.lineTauSec,
+      captureFt: TR.captureFt,
+      decisionFt: TR.xFromFt || 1200,
+      bankCapDeg,
+      overtakeKt,
+      floorKias,
+      arriveFtps: Math.min(closureNow().ftps, closeInFtps(TR.decisionArriveRates)),
+      rejoin: true,
+    }));
+    numApproachPhases++;
+    
+    // Switch to Canopy-X only inside 1,200 ft
     phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
       kind: 'x',
       lineDeg: TR.lineDeg,

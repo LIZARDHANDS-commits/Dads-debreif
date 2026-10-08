@@ -90,7 +90,8 @@ function errorParts(key, ref, wing, spacingFt, distanceOnly) {
     }
     if (!distanceOnly) height(j);
   } else if (key === 'echelon' || key === 'route' || key === 'astern') {
-    const j = judgeLink(key, ref, wing, { wingPlane: true });
+    const r = Math.hypot(ref.xFt - wing.xFt, ref.yFt - wing.yFt);
+    const j = judgeLink(key, ref, wing, { wingPlane: r < 300 });
     const slot = pairSlot(key, j.rel.left >= 0 ? 1 : -1); // judgeLink's own default spacing, so the same place it judged
     const out = Math.abs(j.rel.left) - Math.abs(slot.left);
     const fwd = j.rel.fwd - slot.fwd;

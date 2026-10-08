@@ -409,7 +409,8 @@ const STRETCHED_WORDS = new Set(['WIDE', 'AFT', 'TOO FAR BACK', 'TOO FAR']);
  * BACK) STRETCHED; otherwise the judgement's own word (HIGH, LOW, OFF LINE).
  */
 export function closeState(kind, ref, wing) {
-  const j = judgeLink(kind, ref, wing, { wingPlane: true });
+  const r = Math.hypot(ref.xFt - wing.xFt, ref.yFt - wing.yFt);
+  const j = judgeLink(kind, ref, wing, { wingPlane: r < 300 });
   if (!j.labels.length) return 'IN POSITION';
   if (j.labels.some((l) => TIGHT_WORDS.has(l))) return 'TIGHT';
   if (j.labels.some((l) => STRETCHED_WORDS.has(l))) return 'STRETCHED';
