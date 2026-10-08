@@ -362,7 +362,7 @@ function pirepHazards(fields, text, urgent) {
   let turb = false;
   let ice = false;
   const tb = fields.TB;
-  if (tb && !/^NEG\b|^NIL\b/.test(tb)) {
+  if (tb && !/^(?:NEG|NIL|SMOOTH|SMTH)\b/.test(tb)) { // SMOOTH or SMTH (as US reports write it) is no turbulence, as NEG is
     words.push(`turbulence ${tb}`);
     turb = true;
   }
@@ -507,6 +507,7 @@ const AWC_HAZARDS = Object.freeze({
   'TURB-LO': { words: 'MOD TURB below FL180', family: 'turb' },
   LLWS: { words: 'LLWS', family: 'turb' },
   SFC_WND: { words: 'surface wind over 30 kt', family: 'other' },
+  SFC_WIND: { words: 'surface wind over 30 kt', family: 'other' },
   ICE: { words: 'ICE', family: 'ice' },
   IFR: { words: 'IFR', family: 'other' },
   MT_OBSC: { words: 'MT OBSC', family: 'other' },

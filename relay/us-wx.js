@@ -11,9 +11,10 @@
 // Every upstream reply is untrusted: size-capped by the caller, parsed as JSON, and rebuilt field by field from an allowlist (numbers checked for
 // range, text cut to printable characters and capped, times rebuilt from their numbers), so nothing passes through as it came.
 //
-// NOT CHECKED AGAINST LIVE REPLIES: on 8 Oct 2026 the build session could not reach aviationweather.gov or external-api.faa.gov (its network
-// policy refused them). The field names below are AWC's and the FAA's documented ones as known then; each reader accepts the few spellings that
-// could be met and drops what it does not recognise. Recheck against a live reply when the relay is deployed.
+// AWC: checked against live replies and AWC's own OpenAPI file (aviationweather.gov/data/schema/openapi.yaml) on 8 Oct 2026: airsigmet altitudes
+// in feet (altitudeHi1 38000), severity a number, coords { lat, lon }; gairmet levels as hundreds of feet in text ("250", "SFC", "FZL" with
+// fzlbase/fzltop), due_to, forecastHour; pirep fltLvl in hundreds of feet (340), distance in statute miles; an empty answer is 204 with no body.
+// FAA NOTAM API: see trimFaaNotams for what was and was not checked.
 
 const MAX_TEXT = 4000;
 const MAX_POINTS = 400;
@@ -25,8 +26,11 @@ export const AWC_BASE = 'https://aviationweather.gov/api/data';
 export const FAA_NOTAM_UPSTREAM = 'https://external-api.faa.gov/notamapi/v1/notams';
 /** What the relay says when the FAA key is not set; the page reads exactly these words (notams.js). */
 export const FAA_KEY_NOT_SET = 'FAA NOTAM key not set';
-/** PIREPs are asked for within this distance of each K site (AWC's `distance`, whose unit, statute or nautical miles, is not checked); the cards list those within 100 NM anyway (alerts.js). */
-export const PIREP_DISTANCE = 100;
+/**
+ * PIREPs are asked for within this distance of each K site. AWC's `distance` is in statute miles (checked 8 Oct 2026: a PIREP 65.9 SM / 57.2 NM from
+ * KCBM came back for distance=67 and not for 64), so 116 SM covers the 100 NM the cards list (alerts.js ALERTS_NEARBY_NM; 100 NM = 115.1 SM).
+ */
+export const PIREP_DISTANCE = 116;
 
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const cleanText = (v, max = MAX_TEXT) => (typeof v === 'string' ? v.replace(/\r/g, '').replace(/[^\x20-\x7E\n]/g, '').trim().slice(0, max) : null);
@@ -142,7 +146,7 @@ function gairmetLevel(v, fzl) {
   return m ? Number(m[1]) * 100 : null;
 }
 
-const GAIRMET_HAZARD_WORDS = Object.freeze({ 'TURB-HI': 'MOD TURB', 'TURB-LO': 'MOD TURB', ICE: 'MOD ICE', LLWS: 'LLWS', SFC_WND: 'SFC WND 30KT', IFR: 'IFR', MT_OBSC: 'MT OBSC' });
+const GAIRMET_HAZARD_WORDS = Object.freeze({ 'TURB-HI': 'MOD TURB', 'TURB-LO': 'MOD TURB', ICE: 'MOD ICE', LLWS: 'LLWS', SFC_WND: 'SFC WND 30KT', SFC_WIND: 'SFC WND 30KT', IFR: 'IFR', MT_OBSC: 'MT OBSC' });
 
 /**
  * AWC's /gairmet reply rebuilt as AIRMETs: one snapshot only, the one whose valid time is nearest `now` (G-AIRMETs come as snapshots 3 hours apart),
@@ -222,11 +226,13 @@ export function trimAwcPireps(upstream) {
   return out;
 }
 
-/** The AWC addresses for a set of K sites: one airsigmet, one gairmet and one pirep per site. Only checked ICAO ids go into them. */
+/** The AWC addresses for a set of K sites: one airsigmet, two gairmet (forecast hours 0 and 3) and one pirep per site. Only checked ICAO ids go into them. */
 export function awcUrls(sites) {
   return {
     sigmets: `${AWC_BASE}/airsigmet?format=json`,
-    gairmets: `${AWC_BASE}/gairmet?format=json`,
+    // AWC answers one snapshot per ask (with no `fore` it gave the next one, 06Z at 0443Z on 8 Oct 2026), so the current package's first two are asked
+    // and the one nearest now is kept.
+    gairmets: [`${AWC_BASE}/gairmet?format=json&fore=0`, `${AWC_BASE}/gairmet?format=json&fore=3`],
     pireps: sites.map((s) => `${AWC_BASE}/pirep?id=${s}&distance=${PIREP_DISTANCE}&format=json`),
   };
 }
@@ -241,9 +247,11 @@ export const jsonOrEmpty = (text) => (typeof text === 'string' && text.trim() ==
  */
 export async function askAwc(get, sites, now = Date.now()) {
   const urls = awcUrls(sites);
-  const [sig, gair, ...pir] = await Promise.all([get(urls.sigmets), get(urls.gairmets), ...urls.pireps.map((u) => get(u))]);
+  const [sig, gair0, gair3, ...pir] = await Promise.all([get(urls.sigmets), ...urls.gairmets.map((u) => get(u)), ...urls.pireps.map((u) => get(u))]);
   const sigmets = trimAwcSigmets(jsonOrEmpty(sig));
-  const airmets = trimAwcGairmets(jsonOrEmpty(gair), now);
+  const g0 = jsonOrEmpty(gair0);
+  const g3 = jsonOrEmpty(gair3);
+  const airmets = Array.isArray(g0) && Array.isArray(g3) ? trimAwcGairmets([...g0, ...g3], now) : null;
   if (!sigmets || !airmets) return null;
   const pireps = [];
   const seen = new Set();
@@ -261,25 +269,31 @@ export async function askAwc(get, sites, now = Date.now()) {
 
 // ---- NOTAMs (FAA NOTAM API) -----------------------------------------------------------------------------------------
 
-const ICAO_NOTAM_ID = /^[A-Z]\d{4}\/\d{2}$/;
+// One or two letters (the FAA's own example number is "CK0000/01"), the number and the year.
+const ICAO_NOTAM_ID = /^[A-Z]{1,2}\d{4}\/\d{2}$/;
 const DOMESTIC_ID = /^\d{1,2}\/\d{1,4}$/;
 
 /** The NOTAM's number: the ICAO form ("A1234/26") from its ICAO text or its series, number and year; else the FAA domestic form ("10/123"); else null. */
 function notamId(n, icaoText) {
-  const fromText = /^\s*([A-Z]\d{4}\/\d{2})\b/.exec(icaoText ?? '')?.[1];
+  const fromText = /^\s*([A-Z]{1,2}\d{4}\/\d{2})\b/.exec(icaoText ?? '')?.[1];
   if (fromText) return fromText;
   const number = typeof n.number === 'string' ? n.number.trim() : typeof n.number === 'number' ? String(n.number) : '';
   const series = typeof n.series === 'string' ? n.series.trim().toUpperCase() : '';
   const year = /^(\d{4})-/.exec(typeof n.issued === 'string' ? n.issued : '')?.[1]?.slice(2);
-  if (/^[A-Z]$/.test(series) && /^\d{1,4}$/.test(number) && year) {
+  if (/^[A-Z]{1,2}$/.test(series) && /^\d{1,4}$/.test(number) && year) {
     const id = `${series}${number.padStart(4, '0')}/${year}`;
     if (ICAO_NOTAM_ID.test(id)) return id;
   }
-  if (/^[A-Z]\d{4}\/\d{2}$/.test(number)) return number;
+  if (ICAO_NOTAM_ID.test(number)) return number;
   return DOMESTIC_ID.test(number) ? number : null;
 }
 
 /**
+ * What was checked (8 Oct 2026): the address answers 401 "Unauthorized" without a key (reachable); its query names (icaoLocation, responseFormat=geoJson,
+ * pageSize) and the client_id / client_secret headers agree with an independent open-source client (the `aviation-mcp` package on npm). NOT checked:
+ * the reply's field names (items[].properties.coreNOTAMData.notam / .notamTranslation), because the FAA's documentation site (api.faa.gov) was refused by
+ * this session's network and no reply can be had without a key. Check the first keyed reply against this reader.
+ *
  * The FAA NOTAM API's GeoJSON reply for one site rebuilt into the relay's shape: [{ id, location, start, end, raw }], `raw` being the ICAO-format text
  * when the FAA gives it (so the page's closed-runway reading works on its "E)" line) and the plain text otherwise; `end` null for a permanent one.
  * Only NOTAMs for the asked site are kept. Returns null when the reply is not the expected shape.

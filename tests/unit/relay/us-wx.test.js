@@ -2,50 +2,31 @@
 //   nothing is asked of the FAA), and /alerts for a K field rebuilds an aviationweather.gov SIGMET with only the allowlisted fields, its outline as
 //   number pairs exactly where AWC put it and its top as given, so the SOF draws it over the right ground at the right height.
 // Serves: plan Step 2c part E (US NOTAMs keyed off, US SIGMETs through the relay), SOF-42 (never "no NOTAMs" when they could not be asked for).
-// Expected values: the 503 words are the brief's (8 Oct 2026). The SIGMET is in AWC's documented /api/data/airsigmet JSON shape (airSigmetType,
-//   hazard, validTimeFrom/To in epoch seconds, altitudeHi1 in feet, rawAirSigmet, coords as { lat, lon }), written by hand because the build session
-//   could not reach aviationweather.gov on 8 Oct 2026: NOT a saved real reply. Its outline and top are the input's own, so the check is that they pass
-//   through unchanged, not a number taken from the code.
+// Expected values: the 503 words are the brief's (8 Oct 2026). The SIGMET is a real reply: convective SIGMET 19E, one record of
+//   aviationweather.gov/api/data/airsigmet?format=json saved on 8 Oct 2026 at 0447Z, kept as AWC sent it; only a bell character in its text, an
+//   unknown field and an AIRMET row are added to check what must not come through. Its outline, top (38,000 ft) and valid times (03:55Z to 05:55Z,
+//   the epoch seconds AWC sent) are the reply's own, so the check is that they pass through unchanged, not a number taken from the code.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createWxHandler } from '../../../relay/wx.js';
 
 const SITE = 'https://lizardhands-commits.github.io';
-const NOW = Date.UTC(2026, 9, 8, 15, 0);
-const at = (h, m) => Date.UTC(2026, 9, 8, h, m) / 1000;
+const NOW = Date.UTC(2026, 9, 8, 4, 47);
 
-// A convective SIGMET round Laughlin, in AWC's documented shape, plus what must not come through: an AIRMET row (AIRMETs come from the G-AIRMETs)
-// and a field the relay does not know.
-const OUTLINE = [
-  { lat: 30.2, lon: -101.4 },
-  { lat: 30.0, lon: -100.1 },
-  { lat: 28.9, lon: -100.3 },
-  { lat: 29.1, lon: -101.6 },
-  { lat: 30.2, lon: -101.4 },
-];
+// The real record (aviationweather.gov, 8 Oct 2026), as sent.
+const REAL_SIGMET = {
+  icaoId: 'KKCI', alphaChar: 'E', seriesId: '19E', receiptTime: '2026-10-08T03:46:54.492Z', creationTime: '2026-10-08T03:55:00.000Z',
+  validTimeFrom: 1791431700, validTimeTo: 1791438900, airSigmetType: 'SIGMET', hazard: 'CONVECTIVE',
+  altitudeHi1: 38000, altitudeHi2: null, altitudeLow1: null, altitudeLow2: null, movementDir: 240, movementSpd: 10,
+  rawAirSigmet: 'WSUS31 KKCI 080355\nMKCE WST 080355\nCONVECTIVE SIGMET 19E\nVALID UNTIL 0555Z\nFL AND CSTL WTRS\nFROM 30NW MIA-40SSE MIA-40ENE EYW-60NNE EYW-30NW MIA\nDMSHG AREA TS MOV FROM 24010KT. TOPS TO FL380.\n\n',
+  postProcessFlag: 0, severity: 5,
+  coords: [{ lon: -80.693, lat: 26.152 }, { lon: -80.013, lat: 25.187 }, { lon: -81.125, lat: 24.849 }, { lon: -81.386, lat: 25.515 }, { lon: -80.693, lat: 26.152 }],
+};
+const OUTLINE = REAL_SIGMET.coords;
 const AIRSIGMET = [
-  {
-    airSigmetId: 101,
-    icaoId: 'KKCI',
-    alphaChar: 'C',
-    receiptTime: '2026-10-08 14:55:00',
-    validTimeFrom: at(14, 55),
-    validTimeTo: at(16, 55),
-    airSigmetType: 'SIGMET',
-    hazard: 'CONVECTIVE',
-    severity: 1,
-    altitudeLow1: null,
-    altitudeLow2: null,
-    altitudeHi1: 45000,
-    altitudeHi2: 45000,
-    movementDir: 250,
-    movementSpd: 15,
-    rawAirSigmet: 'WSUS32 KKCI 081455\nSIGC\nCONVECTIVE SIGMET 12C\nVALID UNTIL 1655Z\nTX\nFROM 40N DLF-30NE DLF-40SE DLF-40W DLF-40N DLF\nAREA EMBD TS MOV FROM 25015KT. TOPS TO FL450.\u0007',
-    coords: OUTLINE,
-    injected: '<script>alert(1)</script>',
-  },
-  { airSigmetId: 102, icaoId: 'KKCI', airSigmetType: 'AIRMET', hazard: 'IFR', rawAirSigmet: 'AIRMET SIERRA', coords: OUTLINE },
+  { ...REAL_SIGMET, rawAirSigmet: `${REAL_SIGMET.rawAirSigmet}\u0007`, injected: '<script>alert(1)</script>' },
+  { icaoId: 'KKCI', airSigmetType: 'AIRMET', hazard: 'IFR', rawAirSigmet: 'AIRMET SIERRA', coords: OUTLINE },
 ];
 
 function upstream() {
@@ -86,10 +67,11 @@ test('relay at a US base: NOTAMs say the FAA key is not set (never an empty list
   assert.equal(sigmet.kind, 'sigmet');
   assert.deepEqual(sigmet.area, OUTLINE.map((p) => [p.lat, p.lon]), 'the outline is AWC\'s own points, as numbers');
   assert.ok(sigmet.area.flat().every((n) => typeof n === 'number' && Number.isFinite(n)));
-  assert.equal(sigmet.topFt, 45000, 'tops FL450 as AWC gives them');
+  assert.equal(sigmet.topFt, 38000, 'tops FL380 as AWC gives them');
   assert.equal(sigmet.baseFt, null, 'no base given, none made up');
-  assert.equal(sigmet.start, '2026-10-08T14:55:00');
-  assert.equal(sigmet.end, '2026-10-08T16:55:00');
-  assert.ok(sigmet.text.includes('EMBD TS') && !/[\u0000-\u0009\u000b-\u001f]/.test(sigmet.text), 'the text is kept, as plain printable text');
+  assert.equal(sigmet.start, '2026-10-08T03:55:00');
+  assert.equal(sigmet.end, '2026-10-08T05:55:00');
+  assert.ok(sigmet.text.includes('DMSHG AREA TS') && !/[\u0000-\u0009\u000b-\u001f]/.test(sigmet.text), 'the text is kept, as plain printable text');
   assert.ok(!JSON.stringify(body).includes('script'), 'a field the relay does not know never comes through');
+  assert.ok(!('seriesId' in sigmet) && !('movementDir' in sigmet), 'AWC fields outside the allowlist are left behind');
 });

@@ -5,7 +5,7 @@
 // that part stays flat. Tile pictures are untrusted (they come from another site): each must be exactly 256 x 256 pixels and its heights are range-checked when decoded.
 // No page of its own: view3d.js hands in the scheduler scope and the document, and ground3d.js draws the grids.
 import {
-  TERRAIN_URL, TERRAIN_CREDIT, TILE_PX, TERRAIN_ZOOM, MAX_TERRAIN_TILES, OUTER_CELLS, INNER_CELLS, INNER_FT, decodeTerrarium, tilesCovering, createHeightStore, createGrid, fillGrid,
+  TERRAIN_URL, TERRAIN_CREDIT, TILE_PX, TERRAIN_ZOOM, MAX_TERRAIN_TILES, terrainPlan, INNER_CELLS, INNER_FT, decodeTerrarium, tilesCovering, createHeightStore, createGrid, fillGrid,
   stitchInner, sampleGrid,
 } from './terrain-model.js';
 import { AREA_FT } from './scene3d-model.js';
@@ -95,7 +95,7 @@ export function createTerrain3d({ timers, doc, onChange, makeImage = () => new I
       const points = [[-h, -h], [-h, h], [h, -h], [h, h]].map(([x, y]) => projection.toLatLon(x, y));
       return { north: Math.max(...points.map((p) => p.lat)), south: Math.min(...points.map((p) => p.lat)), west: Math.min(...points.map((p) => p.lon)), east: Math.max(...points.map((p) => p.lon)) };
     };
-    const list = [...tilesCovering(TERRAIN_ZOOM.outer, box(half)), ...tilesCovering(TERRAIN_ZOOM.inner, box(INNER_FT / 2))];
+    const list = [...tilesCovering(terrainPlan().outerZoom, box(half)), ...tilesCovering(TERRAIN_ZOOM.inner, box(INNER_FT / 2))];
     capped = list.length > MAX_TERRAIN_TILES;
     wantedKeys.clear();
     for (const tile of list.slice(0, MAX_TERRAIN_TILES)) {
@@ -122,7 +122,7 @@ export function createTerrain3d({ timers, doc, onChange, makeImage = () => new I
         planKey = key;
         projection = next;
         grids = {
-          outer: createGrid({ cells: OUTER_CELLS, sizeFt: AREA_FT, toLatLon: next.toLatLon }),
+          outer: createGrid({ cells: terrainPlan().outerCells, sizeFt: AREA_FT, toLatLon: next.toLatLon }),
           inner: createGrid({ cells: INNER_CELLS, sizeFt: INNER_FT, toLatLon: next.toLatLon }),
         };
         dirty = true;

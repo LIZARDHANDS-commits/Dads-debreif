@@ -3,7 +3,7 @@
 // bytes hold the height in metres: (R x 256 + G + B / 256) - 32768 (the tiles' own published encoding). terrain3d.js fetches and decodes the pictures; this file keeps what
 // was decoded, samples it onto the two grids the ground is drawn on, and shades it.
 //
-// The ground is two height-mapped meshes (ground3d.js): an outer grid over the whole 450 NM square and a finer one over the inner patch round home that has the sharp satellite
+// The ground is two height-mapped meshes (ground3d.js): an outer grid over the whole 3D square (450 NM by default) and a finer one over the inner patch round home that has the sharp satellite
 // picture. The inner patch sits in a hole of the outer mesh and its edge heights are matched to the outer ones, so the two never cross or leave a crack. A tile that has not
 // come (or never will) leaves its part of the grid flat at the home field's elevation.
 import { FT_PER_M } from '../../core/units.js';
@@ -16,21 +16,48 @@ export const TERRAIN_URL = (z, x, y) => `https://s3.amazonaws.com/elevation-tile
 /** The credit line, as the tile set asks to be credited. */
 export const TERRAIN_CREDIT = 'Terrain: Mapzen/AWS Terrain Tiles (USGS, NRCan and others)';
 export const TILE_PX = 256;
-/** The tile zooms: zoom 7 over the whole square (about 790 m a pixel at 50 N), zoom 9 over the sharp patch (about 125 m a pixel). Zooms chosen for the look and the tile count. */
+/**
+ * The tile zooms at 450 NM: zoom 7 over the whole square (about 790 m a pixel at 50 N), zoom 9 over the sharp patch (about 125 m a pixel). Zooms chosen for the look and the
+ * tile count. A bigger 3D area takes a coarser outer zoom (TERRAIN_PLANS).
+ */
 export const TERRAIN_ZOOM = Object.freeze({ outer: 7, inner: 9 });
 /** The most terrain tiles asked for in all (about 30 outer and 30 inner are needed); any beyond are not asked for and that part stays flat. A cap for speed and courtesy to the host. */
 export const MAX_TERRAIN_TILES = 100;
 /** A decoded height outside this range (metres; Everest is 8,849 and the Dead Sea shore is about -430) is a bad pixel, never a height. */
 export const PLAUSIBLE_M = Object.freeze({ min: -500, max: 9000 });
 
-/** The inner patch's width in NM (the sharp satellite picture's, ground3d.js) and the two grids' cells. 450 / 240 = 1.875 NM a cell outside; 120 / 256 = 0.47 NM inside. */
+/** The inner patch's width in NM (the sharp satellite picture's, ground3d.js) and its grid's cells: 120 / 256 = 0.47 NM a cell. */
 export const INNER_NM = 120;
 export const INNER_FT = INNER_NM * FT_PER_NM;
-export const OUTER_CELLS = 240;
 export const INNER_CELLS = 256;
-/** The inner patch covers this many outer cells a side (120 NM / 1.875 NM = 64) and starts this many cells in from the outer edge ((240 - 64) / 2). The outer mesh has no triangles there. */
-export const HOLE_CELLS = Math.round(INNER_NM / (AREA_NM / OUTER_CELLS));
-export const HOLE_FROM = (OUTER_CELLS - HOLE_CELLS) / 2;
+/**
+ * The outer grid and its terrain zoom for each 3D area choice (scene3d-model.js AREA_CHOICES_NM; Dad, 8 Oct 2026). The inner patch must cover a whole number of outer cells that
+ * divides its own 256 (so the two meshes meet edge to edge, `stitchInner`):
+ * - 450 NM: 240 cells (1.875 NM each; the patch is 64 of them), zoom 7: 25 outer tiles at Moose Jaw, 16 at Laughlin (as before);
+ * - 600 NM: 320 cells (1.875 NM; the patch is 64), zoom 6 (about 1.6 km a pixel at 50 N, still finer than a 3.5 km cell): 12 outer tiles at Moose Jaw, 9 at Laughlin,
+ *   where zoom 7 would need 42 and 30;
+ * - 900 NM: 240 cells (3.75 NM; the patch is 32), zoom 6: 25 outer tiles at Moose Jaw, 20 at Laughlin, where zoom 7 would need 90 and 56 (90 and the patch's 36 is
+ *   over MAX_TERRAIN_TILES).
+ * Counted 8 Oct 2026 with `tilesCovering` over each square. The patch round home is zoom 9 at every area (36 tiles at Moose Jaw, 16 at Laughlin).
+ * The zooms are chosen for the tile count, an estimate; the cells' sizes follow from the patch.
+ */
+export const TERRAIN_PLANS = Object.freeze({
+  450: Object.freeze({ outerCells: 240, outerZoom: 7 }),
+  600: Object.freeze({ outerCells: 320, outerZoom: 6 }),
+  900: Object.freeze({ outerCells: 240, outerZoom: 6 }),
+});
+/** About how much ground a terrain tile's pixel covers at 50 N, in words, by zoom. */
+const ZOOM_PIXEL_WORDS = Object.freeze({ 6: 'about 1.6 km', 7: 'about 790 m', 9: 'about 125 m' });
+
+/**
+ * The outer grid for the 3D area in force (scene3d-model.js AREA_NM): { outerCells, outerZoom, holeCells, holeFrom }. The inner patch covers `holeCells` outer cells a side (120 NM
+ * over 1.875 NM = 64 at 450 NM) and starts `holeFrom` cells in from the outer edge ((240 - 64) / 2); the outer mesh has no triangles there.
+ */
+export function terrainPlan(areaNm = AREA_NM) {
+  const plan = TERRAIN_PLANS[areaNm] ?? TERRAIN_PLANS[450];
+  const holeCells = Math.round(INNER_NM / (areaNm / plan.outerCells));
+  return { ...plan, holeCells, holeFrom: (plan.outerCells - holeCells) / 2 };
+}
 
 /** Hill shading, so the relief reads on a picture that is lit flat (the satellite picture is not lit by the scene): sun from the north-west, 45 degrees up, as a map's hill shade. */
 const SUN = Object.freeze({ lx: -Math.SQRT1_2, ly: Math.SQRT1_2, cot: 1 }); // cot(45 deg) = 1
@@ -131,7 +158,7 @@ export function createHeightStore() {
  * picture it falls on (so a height is a lookup, not a projection each time). `toLatLon(x, y)` is the map projection's. `ft` is each vertex's height in feet above sea level and
  * `known` is 1 where a tile gave it (0: flat at home's elevation). Row 0 is the south edge, column 0 the west edge.
  */
-export function createGrid({ cells, sizeFt, toLatLon, zooms = [TERRAIN_ZOOM.inner, TERRAIN_ZOOM.outer] }) {
+export function createGrid({ cells, sizeFt, toLatLon, zooms = [TERRAIN_ZOOM.inner, terrainPlan().outerZoom] }) {
   const n = cells + 1;
   const half = sizeFt / 2;
   const cellFt = sizeFt / cells;
@@ -176,12 +203,13 @@ export function fillGrid(grid, store, homeFt) {
  * its height exactly, and one between two takes the straight line between them (which is what the outer mesh's edge is).
  */
 export function stitchInner(inner, outer) {
-  const ratio = INNER_CELLS / HOLE_CELLS; // inner cells to an outer cell (4)
+  const { holeCells, holeFrom } = terrainPlan();
+  const ratio = INNER_CELLS / holeCells; // inner cells to an outer cell (4 at 450 NM, 8 at 900)
   const outerAt = (ox, oy) => oy * outer.n + ox;
   const edge = (ix, iy) => {
     // The outer vertices either side of this inner vertex along the border it is on.
-    const gx = HOLE_FROM + ix / ratio;
-    const gy = HOLE_FROM + iy / ratio;
+    const gx = holeFrom + ix / ratio;
+    const gy = holeFrom + iy / ratio;
     const x0 = Math.floor(gx);
     const y0 = Math.floor(gy);
     const x1 = Math.ceil(gx);
@@ -249,5 +277,6 @@ export function terrainWords({ wanted = 0, ready = 0, failed = 0, pending = 0 } 
   if (ready === 0 && failed > 0 && pending === 0) return 'Terrain unavailable: the ground is flat at home’s elevation.';
   if (failed > 0 || tilesCapped) return `Terrain partly unavailable: ${failed} of ${wanted} tiles did not come${tilesCapped ? ' (some were over the tile cap)' : ''}, so those parts are flat at home’s elevation.`;
   if (pending > 0) return `Terrain loading: ${ready} of ${wanted} tiles so far; the rest is flat until it arrives.`;
-  return `Terrain: ${ready} elevation tiles, zoom ${TERRAIN_ZOOM.outer} (about 790 m a pixel) over the whole ${AREA_NM} NM square and zoom ${TERRAIN_ZOOM.inner} (about 125 m) round home.`;
+  const { outerZoom } = terrainPlan();
+  return `Terrain: ${ready} elevation tiles, zoom ${outerZoom} (${ZOOM_PIXEL_WORDS[outerZoom]} a pixel) over the whole ${AREA_NM} NM square and zoom ${TERRAIN_ZOOM.inner} (${ZOOM_PIXEL_WORDS[TERRAIN_ZOOM.inner]}) round home.`;
 }

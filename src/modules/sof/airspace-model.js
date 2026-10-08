@@ -6,6 +6,7 @@
 // The 3D view is a picture for situational awareness. It is not a chart and not for navigation or flight planning: it checks no
 // limit and raises or clears no caution. A bad entry is skipped and named in the view's key, never drawn wrong.
 import { FT_PER_NM } from './map-view.js';
+import { clipLine } from './weather3d-model.js';
 
 /** The top of the view: an unlimited ceiling (`UNL`) is drawn up to here, in feet above sea level (SOF-39). */
 export const VIEW_TOP_FT = 60_000;
@@ -71,7 +72,11 @@ export function limitWords(limit) {
 }
 
 /** The label's words: "CYR303 SFC–FL180", or "IR123 altitudes not given" for a route whose data has none. */
-export const airspaceWords = (entry) => (heightsNotGiven(entry) ? `${entry.id} altitudes not given` : `${entry.id} ${limitWords(entry.floor)}–${limitWords(entry.ceiling)}`);
+export const airspaceWords = (entry) => {
+  if (heightsNotGiven(entry)) return `${entry.id} altitudes not given`;
+  const [floor, ceiling] = [limitWords(entry.floor), limitWords(entry.ceiling)];
+  return floor === ceiling ? `${entry.id} at ${floor}` : `${entry.id} ${floor}–${ceiling}`;
+};
 
 /**
  * A line entry (a military training route's centreline, `shape: { type: 'line', points }`) may have no heights in its data: its floor is then SFC and
@@ -110,7 +115,10 @@ export function checkAirspace(entry, groundFt = 0) {
     if (!isLatLon(shape.centre)) return bad('centre is not [lat, lon]');
     if (!isNumber(shape.radiusNm) || shape.radiusNm <= 0) return bad('radius is not above 0');
   } else return bad('unknown shape');
-  if (limitFt(ceiling, groundFt).ft <= limitFt(floor, groundFt).ft) return bad('ceiling is not above the floor');
+  // A route flown at one altitude (a line whose floor and ceiling are the same, as some FAA IR segments are) is a line at that height.
+  const top = limitFt(ceiling, groundFt).ft;
+  const bottom = limitFt(floor, groundFt).ft;
+  if (shape.type === 'line' ? top < bottom : top <= bottom) return bad('ceiling is not above the floor');
   return { ok: true };
 }
 
@@ -164,12 +172,52 @@ export function outlineXY(entry, toXY) {
   return ring;
 }
 
+/**
+ * The entries the 3D view draws for the square it shows (`halfFt` its half width, feet from home; the "3D area" setting, Dad 8 Oct 2026). An airspace file can cover more
+ * than the square (the FAA files cover the largest choice, 900 NM): an area (polygon or circle) is kept when its outline's bounds reach into the square, as the FAA tool keeps
+ * the ones whose box reaches its own (an area across the edge is drawn whole); a line (a military training route) is cut at the square's edge, each piece inside its own
+ * entry ("IR123 (part 2)" for a second piece), back in lat and lon with `toLatLon(x, y)`. An entry whose shape cannot be read is passed on as it is, for `checkedAirspace`
+ * to name. `toXY(lat, lon)` gives [x, y] in feet.
+ */
+export function airspaceInSquare(list, { toXY, toLatLon, halfFt }) {
+  const out = [];
+  for (const entry of Array.isArray(list) ? list : []) {
+    let xy;
+    try {
+      xy = outlineXY(entry, toXY);
+    } catch {
+      out.push(entry);
+      continue;
+    }
+    if (!xy.length || xy.some(([x, y]) => !Number.isFinite(x) || !Number.isFinite(y))) {
+      out.push(entry);
+      continue;
+    }
+    if (entry.shape.type === 'line') {
+      const pieces = clipLine(xy, halfFt);
+      pieces.forEach((piece, n) => {
+        const points = piece.map(([x, y]) => {
+          const { lat, lon } = toLatLon(x, y);
+          return [lat, lon];
+        });
+        out.push({ ...entry, id: n === 0 ? entry.id : `${entry.id} (part ${n + 1})`, shape: { ...entry.shape, points } });
+      });
+      continue;
+    }
+    const xs = xy.map((p) => p[0]);
+    const ys = xy.map((p) => p[1]);
+    if (Math.max(...xs) >= -halfFt && Math.min(...xs) <= halfFt && Math.max(...ys) >= -halfFt && Math.min(...ys) <= halfFt) out.push(entry);
+  }
+  return out;
+}
+
 /** The hover sentence for a volume: what it is, its colour in words, its limits and its source. */
 export function airspaceTitle(entry) {
   const kind = KIND_WORDS[entry.kind];
   const cls = entry.classLetter ? `, class ${entry.classLetter}` : '';
   const est = entry.approx ? ' AGL heights are taken from the home field’s elevation and FL as feet ASL (estimates).' : '';
-  const limits = heightsNotGiven(entry) ? 'Altitudes not given in the data: drawn on the ground at home’s elevation.' : `${limitWords(entry.floor)} to ${limitWords(entry.ceiling)}.`;
+  const limits = heightsNotGiven(entry) ? 'Altitudes not given in the data: drawn on the ground at home’s elevation.'
+    : limitWords(entry.floor) === limitWords(entry.ceiling) ? `At ${limitWords(entry.floor)}.` : `${limitWords(entry.floor)} to ${limitWords(entry.ceiling)}.`;
   return `${entry.name}: ${kind.name}${cls}, drawn with a ${kind.colour} edge. ${limits} Source: ${entry.source}.${est}`;
 }
 

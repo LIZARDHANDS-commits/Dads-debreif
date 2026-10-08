@@ -30,8 +30,8 @@ const YEAR_MIN = 2000;
 const YEAR_MAX = 2100;
 
 const ICAO = /^[A-Z]{4}$/;
-// An ICAO NOTAM number ("A1234/26"), or the FAA's domestic form ("10/123", month and number) that some US NOTAMs have only (part E, 8 Oct 2026).
-const NOTAM_ID = /^(?:[A-Z]\d{1,5}\/\d{2}|\d{1,2}\/\d{1,4})$/;
+// An ICAO NOTAM number ("A1234/26"; the FAA's own example has two letters, "CK0000/01"), or the FAA's domestic form ("10/123", month and number) that some US NOTAMs have only (part E, 8 Oct 2026).
+const NOTAM_ID = /^(?:[A-Z]{1,2}\d{1,5}\/\d{2}|\d{1,2}\/\d{1,4})$/;
 /**
  * The relay's reasons a field could not be answered that the page knows and says in words (relay/us-wx.js FAA_KEY_NOT_SET); any other reason is
  * not shown (the field just reads "unavailable").

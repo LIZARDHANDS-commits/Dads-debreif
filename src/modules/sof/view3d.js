@@ -52,7 +52,8 @@ import { terrainWords, TERRAIN_CREDIT } from './terrain-model.js';
 import { createWeather3dLayers, weatherKeyWords } from './weather3d-layers.js';
 import { FRONTS_CREDIT } from './fronts.js';
 import {
-  AREA_NM, AREA_FT, DECK_FT, CATEGORY_TOKENS, START_CAMERA, ZOOM_STEP, KEY_ORBIT_PX, ORBIT_DEG_PER_PX, fitZoom, orbitBy, zoomCamera, sceneSignature, formatFeet,
+  AREA_NM, AREA_FT, DEFAULT_AREA_NM, DECK_FT, CATEGORY_TOKENS, ZOOM_STEP, KEY_ORBIT_PX, KEY_PAN_PX, ORBIT_DEG_PER_PX, fitZoom, orbitBy, zoomCamera, panBy, clampLookAt, homeCamera,
+  sceneSignature, formatFeet,
 } from './scene3d-model.js';
 import { createAirspaceLogView } from './airspace-log-view.js';
 import {
@@ -71,16 +72,17 @@ import { buildAirports, RUNWAY_MIN_PX } from './airports3d.js';
 import { buildAlerts3d, ALERT_COLOURS, PIREP_COLOURS, ALERT_COLOUR_WORDS, ALERT_FILL_OPACITY } from './alerts3d.js';
 import { GLIDE_3D_MS, TRAIL_WINDOW_S } from './traffic-motion.js';
 import { airportsFor } from './airports-data.js';
-import { checkedAirspace, KIND_WORDS, BASE_KINDS, tacnavNote, AIRSPACE_FILL_OPACITY, VIEW_TOP_FT } from './airspace-model.js';
+import { checkedAirspace, airspaceInSquare, KIND_WORDS, BASE_KINDS, tacnavNote, AIRSPACE_FILL_OPACITY, VIEW_TOP_FT } from './airspace-model.js';
+import { airspaceOf, loadAirspaceFor, AIRSPACE_LOADING_WORDS, AIRSPACE_FAILED_WORDS } from './sites/airspace-load.js';
 import {
   hourIndex, maxAhead, hourWords, meanLayerCover, unavailableWords, refreshFailedWords, LOADING_WORDS, CREDIT_WORDS, MAX_AHEAD_HOURS, CLOUD_STAGES_FT_AGL,
-  CLOUD_COVER_THRESHOLD_PCT, barbStep, CLOUD_SHEET_PX, filledWords, nextAskWords, HRDPS_CHUNKS, modelSetOf,
+  CLOUD_COVER_THRESHOLD_PCT, barbStep, CLOUD_SHEET_PX, filledWords, nextAskWords, HRDPS_CHUNKS, modelSetOf, GRID_SIZE,
 } from './model-clouds.js';
 
 const BACKGROUND = '#0a141d';
 /** render() looks at whether the pictures or the weather changed at most this often (milliseconds). */
 const SIGNATURE_CHECK_MS = 1000;
-/** The depth range the camera is given after `matchProjection` (feet along the view): wide enough for the 450 NM square at any tilt, with its tallest layers. */
+/** The depth range the camera is given after `matchProjection` (feet along the view): wide enough for the 450 NM square at any tilt, with its tallest layers (scaled up for a bigger area). */
 const CAMERA_NEAR_FT = -3_500_000;
 const CAMERA_FAR_FT = 5_500_000;
 /** The model credit: Open-Meteo and the model (Moose Jaw: whichever answered, the finer HRDPS or the global GEM; a US base: NOAA HRRR / GFS). */
@@ -240,7 +242,17 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   // The airspace controls (phase 3): a toggle for the volumes and one for the TACNAV routes, and a key. With no airspace data the first
   // toggle says so and cannot be pressed; with no routes the second does.
   // What is drawn comes from the home base's site profile (read each time it is built, so a new home gets its own); `airspace` and `routes` can still be given.
-  const airspaceNow = () => airspace ?? getSite().airspace;
+  // A base's FAA airspace file is loaded only when the 3D view is drawn there (sites/airspace-load.js); until then its fixed entries (Moose Jaw's DAH ones) are drawn.
+  // Whatever is drawn is cut to the square the "3D area" setting chose (airspace-model.js `airspaceInSquare`).
+  const airspaceStatus = () => (airspace ? 'ok' : airspaceOf(getSite()).status);
+  let clipped = { key: '', entries: [] };
+  const airspaceNow = () => {
+    const held = airspace ? { status: 'ok', entries: airspace } : airspaceOf(getSite());
+    const projection = getProjection();
+    const key = `${getSite().icao}|${held.status}|${held.entries.length}|${AREA_NM}|${projection.lat},${projection.lon}`;
+    if (clipped.key !== key) clipped = { key, entries: airspaceInSquare(held.entries, { toXY: projection.toXY, toLatLon: projection.toLatLon, halfFt: AREA_FT / 2 }) };
+    return clipped.entries;
+  };
   /** The airports the home base's 3D view draws (its site profile's `airports3d`; airports-data.js). */
   const airportsNow = () => airportsFor(getSite().airports3d);
   const routesNow = () => (typeof routes === 'function' ? routes() : routes);
@@ -248,7 +260,9 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   const noRoutes = () => routesNow().length === 0;
   /** The first two toggles' words, by what the home base has: [text, title, reason it cannot be pressed or null]. Read again when the airspace is built for a new home. */
   const spaceToggleWords = () => ({
-    airspace: [noAirspace() ? 'Airspace (no data yet)' : 'Airspace', 'Airspace volumes round home, each from its floor to its ceiling, see-through', noAirspace() ? 'No airspace data yet: its floors, ceilings and outlines are added once each has a source' : null],
+    airspace: noAirspace() && airspaceStatus() === 'loading' ? [AIRSPACE_LOADING_WORDS, '', AIRSPACE_LOADING_WORDS]
+      : noAirspace() && airspaceStatus() === 'failed' ? [AIRSPACE_FAILED_WORDS, '', `${AIRSPACE_FAILED_WORDS}: it is tried again the next time the 3D view opens`]
+        : [noAirspace() ? 'Airspace (no data yet)' : 'Airspace', `Airspace volumes round home, each from its floor to its ceiling, see-through${airspaceStatus() === 'loading' ? ` (${AIRSPACE_LOADING_WORDS})` : airspaceStatus() === 'failed' ? ` (${AIRSPACE_FAILED_WORDS})` : ''}`, noAirspace() ? 'No airspace data yet: its floors, ceilings and outlines are added once each has a source' : null],
     tacnav: ['TACNAV', 'The TACNAV routes, as lines 500 ft above the ground (ground taken as flat, an estimate)', noRoutes() ? 'No TACNAV routes to draw' : null],
     airports: ['Airports', `The runways of ${airportsNow().map((a) => a.icao).join(', ')} at their true places and sizes, with schematic buildings`, null],
   });
@@ -301,7 +315,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     type: 'button',
     class: 'sof-3d-toggle sof-3d-orbit',
     'aria-pressed': 'false',
-    title: `Turn the camera slowly round home, one turn in about ${ORBIT_SECONDS_PER_TURN / 60} minutes, at the zoom and tilt you have. A drag, the wheel, an arrow key or Home stops it.`,
+    title: `Turn the camera slowly round home, one turn in about ${ORBIT_SECONDS_PER_TURN / 60} minutes, at the zoom and tilt you have. A drag (turning or moving the map), the wheel, an arrow key or Home stops it.`,
     onclick: () => setOrbit(orbitButton.getAttribute('aria-pressed') !== 'true'),
   }, 'Orbit');
   const fullButton = h('button', { type: 'button', class: 'sof-3d-toggle sof-3d-fullscreen', hidden: !fullScreen, onclick: () => fullScreen?.toggle() }, 'Full screen');
@@ -310,7 +324,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     type: 'button',
     class: 'sof-3d-toggle sof-3d-tour',
     'aria-pressed': 'false',
-    title: `Fly the camera round the Moose Jaw circuit, Regina and each airborne T-6 in turn, about ${TOUR_DWELL_S} seconds at each, with Orbit turning. A drag, the wheel, an arrow key or Home stops it.`,
+    title: `Fly the camera round the Moose Jaw circuit, Regina and each airborne T-6 in turn, about ${TOUR_DWELL_S} seconds at each, with Orbit turning. A drag (turning or moving the map), the wheel, an arrow key or Home stops it.`,
     onclick: () => setTour(tourButton.getAttribute('aria-pressed') !== 'true'),
   }, 'Tour');
   // In full screen the layer panels and the airspace log are folded away so the map is clear (Dad, 7 Oct); "Panels" brings them back. The credits
@@ -326,7 +340,9 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       element.classList.toggle('show-panels', show);
     },
   }, 'Panels');
-  const tools = h('div', { class: 'sof-3d-tools' }, orbitButton, tourButton, panelsButton, fullButton, corner);
+  // How to move the camera, in the corner (Dad, 8 Oct: drag to move round the map), under the Heights line.
+  const hint = h('p', { class: 'sof-3d-hint' }, 'Drag to turn · Right-drag or Shift-drag to move · Wheel to zoom');
+  const tools = h('div', { class: 'sof-3d-tools' }, orbitButton, tourButton, panelsButton, fullButton, corner, hint);
   // What the tour is showing and when it moves on. The words change every stop (announced); the countdown changes every second (not announced).
   const tourWhat = h('span', { class: 'sof-3d-tour-what' });
   const tourNext = h('span', { class: 'sof-3d-tour-next', 'aria-hidden': 'true' });
@@ -343,7 +359,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   let weatherSig = null; // the weather layers' inputs as last built
   let weatherDirty = true;
   /** The camera: zoom is relative to the fitting zoom (1 shows the whole square); tx, ty and tz are the point looked at when the tour moved it off home (feet from home, feet above sea level). */
-  let cam = /** @type {{ yawDeg: number, pitchDeg: number, zoom: number, tx?: number, ty?: number, tz?: number }} */ ({ ...START_CAMERA, zoom: 1 });
+  let cam = /** @type {{ yawDeg: number, pitchDeg: number, zoom: number, tx?: number, ty?: number, tz?: number }} */ (homeCamera());
   let THREE = null;
   let gl = null; // everything three.js made, while the view is shown
   let wanted = false;
@@ -382,7 +398,8 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   let trafficState = { shown: false, aircraft: [], labelsOn: false, trailsOn: false, signature: 'off' }; // what the map last gave setTraffic
   let trafficSig = '';
   let trafficDirty = true;
-  let spaceSig = ''; // what the airspace objects were built for: the height scale, the ground and home
+  let spaceSig = ''; // what the airspace objects were built for: the height scale, the ground, home, the airspace file's state and the area
+  let airspaceAsked = null; // the site profile whose airspace file this showing of the view has asked for
   let alertsView = { status: 'unset', words: '', alerts: [], notDrawn: 0, signature: 'unset' }; // alerts.js alerts3dView, from the map
   let alertsSig = ''; // what the SIGMET/PIREP objects were built for
   let spaceHit = null; // the airspace volume the pointer is over (airspace3d.js `picks` entry), whose words float beside the pointer
@@ -812,7 +829,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     keyBody.replaceChildren(
       h('p', {}, `${creditWords3d(model)}. ${model.source === set.fine.id ? set.aboutFine(model, HRDPS_CHUNKS) : set.aboutCoarse}${filledWords(model) ? ` ${filledWords(model)}` : ''} ${set.askWords}${modelState.nextAt ? `: next ${nextAskWords(modelState.nextAt)}` : ''}, so the free daily request limit holds.`),
       ...(summary.slabs ? slabKey(summary, model, cover, pct) : [
-        h('p', {}, `Clouds: one see-through sheet at each model level (${model.cloudLevels.length} levels, ${model.cloudLevels[0]} to ${model.cloudLevels.at(-1)} hPa), at the level's mean height. The model's cover at its ${model.gridSize} × ${model.gridSize} points (${Math.round(AREA_NM / (model.gridSize - 1) * 10) / 10} NM apart) is smoothed over the sheet: clear at ${CLOUD_COVER_THRESHOLD_PCT} % or less, then white to grey and more solid as cover rises, to about 85 % opaque at 100 %. A level under the ground has no sheet. Low, mid and high are by the sheet's height above the ground (below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft, up to ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft, above). "Cloud at" shows the model's cover at one height instead. The model's own mean cover this hour: low ${pct(cover.low)}, mid ${pct(cover.mid)}, high ${pct(cover.high)}.`),
+        h('p', {}, `Clouds: one see-through sheet at each model level (${model.cloudLevels.length} levels, ${model.cloudLevels[0]} to ${model.cloudLevels.at(-1)} hPa), at the level's mean height. The model's cover at its ${model.gridSize} × ${model.gridSize} points (${Math.round(AREA_NM / (model.gridSize - 1) * 10) / 10} NM apart${coarserWords()}) is smoothed over the sheet: clear at ${CLOUD_COVER_THRESHOLD_PCT} % or less, then white to grey and more solid as cover rises, to about 85 % opaque at 100 %. A level under the ground has no sheet. Low, mid and high are by the sheet's height above the ground (below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft, up to ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft, above). "Cloud at" shows the model's cover at one height instead. The model's own mean cover this hour: low ${pct(cover.low)}, mid ${pct(cover.mid)}, high ${pct(cover.high)}.`),
         h('ul', {}, summary.sheets.map((x) => h('li', {}, `${x.words}: ${x.drawn ? `cover up to ${Math.round(x.maxCover)} %, mean ${Math.round(x.meanCover)} %` : 'no cloud'}`))),
       ]),
       h('p', {}, `Winds: barbs (behind the Barbs button, off to begin with) at 850, 700 and 500 hPa at every ${barbStep(model.gridSize)}${barbStep(model.gridSize) === 2 ? 'nd' : 'rd'} grid point (${Math.round(model.gridSize > 1 ? (AREA_NM / (model.gridSize - 1)) * barbStep(model.gridSize) : 0)} NM apart): pennant 50 kt, full feather 10, half 5. Direction in °M (${magVarWords(getSite())}), speed in kt.`),
@@ -822,11 +839,14 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     );
   }
 
+  /** With a 3D area bigger than the default, the key says the same model points are further apart than at 450 NM (Dad, 8 Oct 2026: the "3D area" setting). */
+  const coarserWords = () => (AREA_NM > DEFAULT_AREA_NM ? `: the 3D area is ${AREA_NM} NM, so the same points are further apart than at ${DEFAULT_AREA_NM} NM (${DEFAULT_AREA_NM / (GRID_SIZE - 1)} NM) and the cloud is coarser` : '');
+
   /** The key's cloud lines for the slabs (the default "3D cloud style"): how they are made, with every estimate named, and each stage's base and top. */
   function slabKey(summary, model, cover, pct) {
     const spacing = Math.round((AREA_NM / (model.gridSize - 1)) * 10) / 10;
     return [
-      h('p', {}, `Clouds: slabs with a base and a top. In each of the model's ${model.gridSize} × ${model.gridSize} columns (${spacing} NM apart), each run of levels over ${CLOUD_COVER_THRESHOLD_PCT} % cover (an estimate) is one block of cloud (${model.cloudLevels.length} levels, ${model.cloudLevels[0]} to ${model.cloudLevels.at(-1)} hPa). Its base and top are where the column's cover crosses ${CLOUD_COVER_THRESHOLD_PCT} %, reading the cover as a straight line by height between the levels either side (a cloudy level at the top or bottom of the model goes half the gap to the next level beyond it, an estimate). The lowest such block in each stage is that stage's slab (low, mid and high by its base above the ground: below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft, up to ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft, above). Base, top and cover are smoothed between the columns and drawn as ${SLAB_SHEETS} stacked sheets from base to top (an estimate), never thinner than ${formatFeet(MIN_SLAB_FT)} ft, white to grey by cover and as solid from above as the old one-sheet-per-level style would stack its levels (so deeper cloud reads denser; an estimate), with a soft texture that is a picture, not data. The real cloud's thickness between the model's levels is not known. The model's own mean cover this hour: low ${pct(cover.low)}, mid ${pct(cover.mid)}, high ${pct(cover.high)}.`),
+      h('p', {}, `Clouds: slabs with a base and a top. In each of the model's ${model.gridSize} × ${model.gridSize} columns (${spacing} NM apart${coarserWords()}), each run of levels over ${CLOUD_COVER_THRESHOLD_PCT} % cover (an estimate) is one block of cloud (${model.cloudLevels.length} levels, ${model.cloudLevels[0]} to ${model.cloudLevels.at(-1)} hPa). Its base and top are where the column's cover crosses ${CLOUD_COVER_THRESHOLD_PCT} %, reading the cover as a straight line by height between the levels either side (a cloudy level at the top or bottom of the model goes half the gap to the next level beyond it, an estimate). The lowest such block in each stage is that stage's slab (low, mid and high by its base above the ground: below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft, up to ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft, above). Base, top and cover are smoothed between the columns and drawn as ${SLAB_SHEETS} stacked sheets from base to top (an estimate), never thinner than ${formatFeet(MIN_SLAB_FT)} ft, white to grey by cover and as solid from above as the old one-sheet-per-level style would stack its levels (so deeper cloud reads denser; an estimate), with a soft texture that is a picture, not data. The real cloud's thickness between the model's levels is not known. The model's own mean cover this hour: low ${pct(cover.low)}, mid ${pct(cover.mid)}, high ${pct(cover.high)}.`),
       h('ul', {}, ['low', 'mid', 'high'].map((stage) => h('li', {}, summary.slabs.words[stage]))),
       ...detailKey(gl?.model?.detail ?? null, spacing),
       ...anchorKey(gl?.model?.observed ?? null),
@@ -1154,15 +1174,18 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       return h('li', {}, swatch, ` ${words.colour}: ${words.name}`);
     });
     const notes = [];
-    if (noAirspace()) notes.push(h('p', {}, `Airspace: no data yet. Each volume is added with its floor, ceiling, outline and source (${getSite().airspaceSource ?? 'NAV CANADA’s Designated Airspace Handbook'}); none is drawn from memory.`));
-    else {
+    const status = airspaceStatus();
+    if (status === 'loading') notes.push(h('p', {}, `${AIRSPACE_LOADING_WORDS} (${getSite().airspaceSource ?? 'FAA open aeronautical data'}).`));
+    else if (status === 'failed') notes.push(h('p', { class: 'sof-3d-model-warn' }, `${AIRSPACE_FAILED_WORDS}: ${noAirspace() ? 'no airspace is drawn' : 'only the entries built in are drawn'}; it is tried again the next time the 3D view opens.`));
+    if (noAirspace() && status === 'ok') notes.push(h('p', {}, `Airspace: no data yet. Each volume is added with its floor, ceiling, outline and source (${getSite().airspaceSource ?? 'NAV CANADA’s Designated Airspace Handbook'}); none is drawn from memory.`));
+    if (!noAirspace()) {
       notes.push(
         h('p', {}, `Airspace: each volume runs from its floor to its ceiling, see-through (${Math.round(AIRSPACE_FILL_OPACITY * 100)} % fill, an estimate), with a thin outline on its top and bottom and along its corners. Edge colour by kind:`),
         h('ul', {}, colours),
         h('p', {}, 'Nothing is written on the volumes: put the pointer over one and its name and limits float beside it (the nearest one under the pointer when several overlap), with the kind and the source on hover. Every volume is listed here with its limits:'),
         h('ul', { class: 'sof-3d-airspace-list' }, [...(gl?.space?.built.picks ?? []), ...(gl?.space?.built.lines ?? []).filter((l) => !(gl?.space?.built.picks ?? []).some((p) => p.key === l.key))].map((pick) => h('li', { title: pick.title }, pick.text))),
-        getSite().airspaceSource ? h('p', {}, `Source: ${getSite().airspaceSource}.`) : null,
-        h('p', {}, `Heights are feet above sea level, ×${scale}. SFC is the ground at ${home}’s elevation (${Math.round(ground)} ft).${used('AGL') ? ` AGL ≈ over flat prairie, estimate: ${home}’s elevation plus the height.` : ''}${used('FL') ? ' FL is read as feet above sea level (pressure altitude taken as altitude, an approximation).' : ''}${volumes.some((v) => v.ceiling.ref === 'UNL') ? ` UNL is drawn up to ${formatFeet(VIEW_TOP_FT)} ft.` : ''}`),
+        getSite().airspaceSource ? h('p', {}, `Source: ${getSite().airspaceSource}.${airspaceOf(getSite()).source ? ` Loaded: ${airspaceOf(getSite()).source}.` : ''} Drawn inside this ${AREA_NM} NM square (an area across its edge is drawn whole; a training route is cut at the edge).`) : null,
+        h('p', {}, `Heights are feet above sea level, ×${scale}. SFC is the ground at ${home}’s elevation (${Math.round(ground)} ft).${used('AGL') ? ` AGL ≈ over flat prairie, estimate: ${home}’s elevation plus the height.` : ''}${used('FL') ? ' FL is read as feet above sea level (pressure altitude taken as altitude, an approximation).' : ''}${volumes.some((v) => v.ceiling?.ref === 'UNL') ? ` UNL is drawn up to ${formatFeet(VIEW_TOP_FT)} ft.` : ''}`),
       );
       if (skipped.length) notes.push(h('p', { class: 'sof-3d-model-warn' }, `Not drawn, entry fails its checks: ${skipped.map((x) => `${x.id} (${x.reason})`).join('; ')}.`));
     }
@@ -1420,7 +1443,11 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     }
     rebuildSheet(); // the "Cloud at" sheet, when the model layers or the height changed (nothing to do otherwise)
     if (weatherDirty) rebuildWeather(wx ?? lastWx ?? getWeather());
-    const nextSpaceSig = `${scale}|${groundFt()}|${getProjection().lat},${getProjection().lon}`;
+    if (getSite() !== airspaceAsked) { // this base's airspace file, once each time the view opens at it (a failed load is tried again then)
+      airspaceAsked = getSite();
+      loadAirspaceFor(airspaceAsked, () => requestRender());
+    }
+    const nextSpaceSig = `${scale}|${groundFt()}|${getProjection().lat},${getProjection().lon}|${airspaceStatus()}|${AREA_NM}`;
     if (!gl.space || nextSpaceSig !== spaceSig) rebuildSpace(nextSpaceSig);
     const nextAlertsSig = `${nextSpaceSig}|${alertsView.signature}`;
     if (!gl.alerts || nextAlertsSig !== alertsSig) rebuildAlerts(nextAlertsSig);
@@ -1434,10 +1461,12 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     const zoom = fitZoom(size) * cam.zoom;
     // The point looked at is home's ground unless the tour moved it (cam.tx, ty, tz: feet from home and feet above sea level).
     matchProjection(THREE, camera, { x: cam.tx ?? 0, y: cam.ty ?? 0, z: cam.tz ?? planeZ / scale }, { yawDeg: cam.yawDeg, pitchDeg: cam.pitchDeg, zoom, altScale: scale }, size);
-    // The square is 450 NM across: its far corners lie further from the view's middle than the shared camera's depth range reaches (ui-kit `matchProjection` is for 250 NM and
-    // less), so the range is widened here. An orthographic camera has no perspective to spoil, only depth precision (24 bits over some 8 million ft is about half a foot).
-    camera.near = CAMERA_NEAR_FT;
-    camera.far = CAMERA_FAR_FT;
+    // The square is 450 NM across or more: its far corners lie further from the view's middle than the shared camera's depth range reaches (ui-kit `matchProjection` is for 250 NM
+    // and less), so the range is widened here, in step with the area chosen (and so it still reaches the far corner with the map slid to the edge). An orthographic camera has no
+    // perspective to spoil, only depth precision (24 bits over some 8 million ft at 450 NM is about half a foot; 16 million at 900 NM, about a foot).
+    const depth = AREA_NM / DEFAULT_AREA_NM;
+    camera.near = CAMERA_NEAR_FT * depth;
+    camera.far = CAMERA_FAR_FT * depth;
     camera.updateProjectionMatrix();
     const ftPerPx = 1000 / zoom;
     gl.weather.setZoom(cam.zoom);
@@ -1542,25 +1571,38 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     requestRender();
   }
 
-  // ---- The camera's hands: drag to turn, wheel or pinch to zoom, arrow keys to turn --------------------
+  // ---- The camera's hands: drag to turn, right-drag, Shift-drag or two fingers to slide the map, wheel or pinch to zoom, arrow keys to turn (Shift: slide) --------------------
   const pointers = new Map();
-  let drag = null; // { x, y, moved } for a single pointer
-  let pinch = null; // the distance between two pointers last time
+  let drag = null; // { x, y, moved, pan } for a single pointer: `pan` slides the map (right button or Shift held), else the drag turns the view
+  let pinch = null; // two pointers: { spread (their distance), x, y (their midpoint) } last time
 
   const spread = () => {
     const [a, b] = [...pointers.values()];
     return Math.hypot(a.x - b.x, a.y - b.y);
   };
+  const midpoint = () => {
+    const [a, b] = [...pointers.values()];
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  };
+  /** The ground feet one screen pixel spans at the zoom in use (the view's fit zoom times the camera's). */
+  const ftPerPxNow = () => {
+    const size = { width: gl?.canvas.clientWidth ?? 1, height: gl?.canvas.clientHeight ?? 1 };
+    return 1000 / (fitZoom(size) * cam.zoom);
+  };
+  /** Slides the map by a drag of (dx, dy) pixels: the ground follows the pointer, and the point looked at stays inside the square (scene3d-model.js `panBy`). */
+  const panCamera = (dx, dy) => {
+    cam = panBy(cam, dx, dy, ftPerPxNow());
+  };
   const hands = /** @type {[string, (e: any) => void][]} */ ([
     ['pointerdown', (e) => {
-      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 2) return; // the left button turns (Shift: slides), the right slides
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       gl?.canvas.setPointerCapture?.(e.pointerId);
       clearSpaceMove(); // a press is for dragging or clicking, not for reading
-      if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, moved: 0 };
+      if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, moved: 0, pan: e.button === 2 || e.shiftKey === true, click: e.button !== 2 };
       else {
         drag = null;
-        pinch = spread();
+        pinch = { spread: spread(), ...midpoint() };
       }
       gl?.canvas.classList.add('is-dragging');
     }],
@@ -1578,10 +1620,12 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       held.x = e.clientX;
       held.y = e.clientY;
       if (pointers.size >= 2 && pinch) {
-        setOrbit(false); // a pinch is the SOF taking the camera
+        setOrbit(false); // a pinch or a two-finger drag is the SOF taking the camera
         const now = spread();
-        if (now > 0) cam = zoomCamera(cam, now / pinch, 1);
-        pinch = now;
+        const mid = midpoint();
+        if (now > 0 && pinch.spread > 0) cam = zoomCamera(cam, now / pinch.spread, 1);
+        panCamera(mid.x - pinch.x, mid.y - pinch.y); // two fingers moving together slide the map
+        pinch = { spread: now, ...mid };
       } else if (drag) {
         const dx = e.clientX - drag.x;
         const dy = e.clientY - drag.y;
@@ -1589,7 +1633,8 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
         drag.x = e.clientX;
         drag.y = e.clientY;
         if (drag.moved >= CLICK_PX) setOrbit(false); // a drag is the SOF taking the camera; a click on an aircraft is not
-        cam = orbitBy(cam, dx, dy);
+        if (drag.pan) panCamera(dx, dy);
+        else cam = orbitBy(cam, dx, dy);
       }
       requestRender();
     }],
@@ -1598,7 +1643,12 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     ['keydown', (e) => {
       if (e.altKey || e.ctrlKey || e.metaKey) return;
       const turn = KEY_ORBIT_PX[e.key];
-      if (turn) {
+      if (turn && e.shiftKey) {
+        // Shift and an arrow slides the view that way: the point looked at moves right for the right arrow, up the screen for the up arrow (a drag the other way).
+        e.preventDefault();
+        setOrbit(false);
+        panCamera(-Math.sign(turn[0]) * KEY_PAN_PX, -Math.sign(turn[1]) * KEY_PAN_PX);
+      } else if (turn) {
         e.preventDefault();
         setOrbit(false);
         cam = orbitBy(cam, turn[0], turn[1]);
@@ -1613,7 +1663,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       } else if (e.key === 'Home') {
         e.preventDefault();
         setOrbit(false);
-        cam = { ...START_CAMERA, zoom: 1 };
+        cam = homeCamera();
       } else if ((e.key === ']' || e.key === '[') && gl?.traffic) {
         if (!stepAircraft(e.key === ']' ? 1 : -1)) return; // none to step through: the key is left alone
         e.preventDefault();
@@ -1666,7 +1716,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     if (pointers.size === 0) {
       gl?.canvas.classList.remove('is-dragging');
       // A press that never moved is a click: on an aircraft it shows that aircraft's facts, anywhere else it only closes a tag. The camera never moves on a click.
-      if (drag && drag.moved < CLICK_PX && e.type === 'pointerup') {
+      if (drag && drag.click && drag.moved < CLICK_PX && e.type === 'pointerup') {
         const hit = aircraftNear(e.clientX, e.clientY);
         if (hit) selectAircraft(selectedAc === hit ? null : hit);
         else {
@@ -1677,7 +1727,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       drag = null;
     } else if (pointers.size === 1) {
       const [p] = pointers.values();
-      drag = { x: p.x, y: p.y, moved: CLICK_PX };
+      drag = { x: p.x, y: p.y, moved: CLICK_PX, pan: false, click: false }; // one finger left after two: it turns the view again
     }
   }
 
@@ -1761,6 +1811,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
 
   function setTourWords(words, elapsed = 0) {
     tourCaptionEl.hidden = !tourOn || words === null;
+    hint.hidden = !tourCaptionEl.hidden; // the tour's caption takes the hint's place
     if (words !== null) {
       setText(tourWhat, words);
       setText(tourNext, nextInWords(elapsed));
@@ -1816,6 +1867,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     tourHex = null;
     tourButton.setAttribute('aria-pressed', 'false');
     tourCaptionEl.hidden = true;
+    hint.hidden = false;
     requestRender();
   }
 
@@ -1839,7 +1891,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     canvas.className = 'sof-3d-canvas';
     canvas.tabIndex = 0;
     canvas.setAttribute('role', 'img');
-    canvas.setAttribute('aria-label', '3D view of the weather round home. Drag or press the arrow keys to turn it, scroll or press plus and minus to zoom, Home to start again. Each airfield pin is a button that shows its result. Press ] and [ to step through the aircraft.');
+    canvas.setAttribute('aria-label', '3D view of the weather round home. Drag or press the arrow keys to turn it; right-drag, Shift-drag, drag with two fingers or press Shift and an arrow key to move across the map; scroll or press plus and minus to zoom, Home to start again. Each airfield pin is a button that shows its result. Press ] and [ to step through the aircraft.');
     element.prepend(canvas);
     let renderer;
     try {
@@ -1950,6 +2002,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     if (!lost) renderer.forceContextLoss?.();
     canvas.remove();
     gl = null;
+    airspaceAsked = null; // the next showing asks again (a file that failed is tried again)
     tilesFailed = false;
     noTiles = false;
     terrainPartly = false;
@@ -2110,10 +2163,24 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       if (getWeather().sig !== weatherSig) changed = true; // render() sees it and builds the layers again
       if (changed) requestRender();
     },
+    /**
+     * The "3D area" setting changed (scene3d-model.js `setAreaNm` has already set the square's size): everything sized from the square (ground, terrain, model layers,
+     * weather layers, airspace, towns, airports, alerts) is built again, and the point looked at is kept inside the new square. The map gives new pictures and asks for
+     * the model again over the new square.
+     */
+    setArea() {
+      cam = clampLookAt(cam);
+      if (!gl) return;
+      const orbiting = orbitOn;
+      teardown();
+      build();
+      if (orbiting) setOrbit(true);
+      requestRender();
+    },
     /** Back to the start view: from the south-east, 45 degrees down, the whole square in view. */
     home() {
       setOrbit(false); // the bar's Home button: the SOF takes the camera, as the Home key does
-      cam = { ...START_CAMERA, zoom: 1 };
+      cam = homeCamera();
       requestRender();
     },
     zoomBy(factor) {

@@ -11,12 +11,23 @@ import { staleness } from '../../wx/sources.js';
 import { ceilingFt, ceilingUnknown } from '../../wx/conditions.js';
 
 /**
- * The square the view shows: 450 NM on a side, centred on home (Dad, 7 Oct: "grow it by 100 NM each way so no empty corners show while orbiting"; it was 250), so the
- * usual alternates (CYYN, CYXE about 110 NM out) are well inside (SOF-39). Everything that scales with it takes `AREA_FT`: the model grid, the ground canvases, the
- * cloud sheets, the camera's fit.
+ * The square the view shows, centred on home: 450 NM on a side by default (Dad, 7 Oct: "grow it by 100 NM each way so no empty corners show while orbiting"; it was 250), so
+ * the usual alternates (CYYN, CYXE about 110 NM out) are well inside (SOF-39). The setting "3D area" (Dad, 8 Oct) chooses 450, 600 or 900 NM (AREA_CHOICES_NM).
+ * Everything that scales with it takes `AREA_NM` or `AREA_FT` when it is built: the model grid, the ground canvases and terrain, the cloud sheets, the pictures over the
+ * square, the airspace clipping, the towns and airports inside it, the camera's fit. They are live bindings: `setAreaNm` changes them, and the 3D view is built again.
  */
-export const AREA_NM = 450;
-export const AREA_FT = AREA_NM * FT_PER_NM;
+export const AREA_CHOICES_NM = Object.freeze([450, 600, 900]);
+export const DEFAULT_AREA_NM = 450;
+/** The largest choice: the FAA airspace files (tools/faa-airspace.mjs) cover this square, so every choice is inside them. */
+export const MAX_AREA_NM = Math.max(...AREA_CHOICES_NM);
+export let AREA_NM = DEFAULT_AREA_NM;
+export let AREA_FT = AREA_NM * FT_PER_NM;
+/** Sets the square's size to one of AREA_CHOICES_NM (anything else is the default). Returns the size in force. */
+export function setAreaNm(nm) {
+  AREA_NM = AREA_CHOICES_NM.includes(nm) ? nm : DEFAULT_AREA_NM;
+  AREA_FT = AREA_NM * FT_PER_NM;
+  return AREA_NM;
+}
 /** A cloud deck is a flat round disc this wide at its base (SOF-39). */
 export const DECK_NM = 10;
 export const DECK_FT = DECK_NM * FT_PER_NM;
@@ -313,8 +324,44 @@ export function orbitBy(cam, dx, dy) {
   };
 }
 
-/** The camera zoomed by a factor (above 1 zooms in), kept inside the limits round the start zoom `fit`. */
+/**
+ * The camera zoomed by a factor (above 1 zooms in), kept inside the limits round the start zoom `fit`. Out to ZOOM_RANGE[0] of the fit (so a bigger area zooms out further);
+ * in to ZOOM_RANGE[1] of it at 450 NM, and that much more for a bigger area (its fit zoom is smaller), so the closest view is the same at every area.
+ */
 export function zoomCamera(cam, factor, fit) {
   const next = Number.isFinite(factor) && factor > 0 ? cam.zoom * factor : cam.zoom;
-  return { ...cam, zoom: clamp(next, fit * ZOOM_RANGE[0], fit * ZOOM_RANGE[1]) };
+  return { ...cam, zoom: clamp(next, fit * ZOOM_RANGE[0], fit * ZOOM_RANGE[1] * (AREA_NM / DEFAULT_AREA_NM)) };
+}
+
+/** The start view (Home): from the south-east, 45 degrees down, the whole square in view, looking at home. */
+export const homeCamera = () => ({ ...START_CAMERA, zoom: 1, tx: 0, ty: 0 });
+
+/**
+ * A drag slides the map (Dad, 8 Oct): the most a drag up or down the screen is stretched for the tilt. Up the screen, a foot of ground shows as cos(pitch) of a foot
+ * (pitch from straight down), so keeping the ground under the pointer needs 1 / cos(pitch) feet a pixel; near level that grows without end, so it stops at this (an
+ * estimate for feel: about 76 degrees of tilt).
+ */
+export const PAN_TILT_GAIN_MAX = 4;
+/** Shift and an arrow key slides the map this many pixels' worth (an estimate for feel, twice the arrow keys' turn). */
+export const KEY_PAN_PX = 60;
+
+/** The look-at point kept inside the square (`halfFt` its half width): { ...cam, tx, ty } with each within ±halfFt of home. */
+export function clampLookAt(cam, halfFt = AREA_FT / 2) {
+  return { ...cam, tx: clamp(cam.tx ?? 0, -halfFt, halfFt), ty: clamp(cam.ty ?? 0, -halfFt, halfFt) };
+}
+
+/**
+ * The camera after a drag of (dx, dy) screen pixels (right and down positive) that slides the map: the ground under the pointer moves with it, so the look-at point
+ * moves the other way. `ftPerPx` is the ground feet a screen pixel spans at the zoom in use (1000 / pixels per 1,000 ft). The view is orthographic (ui-kit
+ * `matchProjection`): screen right is the ground direction (cos yaw, -sin yaw), and up the screen is (sin yaw, cos yaw) foreshortened by cos(pitch). The look-at point
+ * stays inside the square (`clampLookAt`).
+ */
+export function panBy(cam, dx, dy, ftPerPx, halfFt = AREA_FT / 2) {
+  const yaw = (cam.yawDeg * Math.PI) / 180;
+  const pitch = (cam.pitchDeg * Math.PI) / 180;
+  const across = -dx * ftPerPx; // along screen right
+  const up = dy * ftPerPx * Math.min(1 / Math.max(Math.cos(pitch), 1e-6), PAN_TILT_GAIN_MAX); // along the ground direction that points up the screen
+  const tx = (cam.tx ?? 0) + Math.cos(yaw) * across + Math.sin(yaw) * up;
+  const ty = (cam.ty ?? 0) - Math.sin(yaw) * across + Math.cos(yaw) * up;
+  return clampLookAt({ ...cam, tx, ty }, halfFt);
 }
