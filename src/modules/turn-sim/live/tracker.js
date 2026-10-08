@@ -207,7 +207,8 @@ function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT) {
   }
 
   if (ph.kind === 'x') {
-    const arriveFtps = ph.arriveFtps ?? (((TURNING_REJOIN.stableKt[0] + TURNING_REJOIN.stableKt[1]) / 2) * KT_TO_FTPS * Math.SQRT2);
+    const windowOvertakeKt = ph.windowOvertakeKt ?? TURNING_REJOIN.stableKt[0]; // 10 kt: target 210 KIAS at decision window
+    const arriveFtps = ph.arriveFtps ?? (windowOvertakeKt * KT_TO_FTPS * Math.SQRT2);
     const slowFtps2 = ph.slowFtps2 ?? TURNING_REJOIN.slowFtps2;
     const r = aim.rangeFt;
     const farFt = ph.farFt ?? TURNING_REJOIN.windowFarFt;
@@ -221,7 +222,10 @@ function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT) {
     const psiCmd = disc >= 0 ? Math.atan2(aim.vpy - lam * p.y, aim.vpx - lam * p.x) : Math.atan2(aim.vpy, aim.vpx);
     const kiasCurve = Math.hypot(aim.vpx - wantFtps * p.x, aim.vpy - wantFtps * p.y) / ratio;
     const floorKias = ph.floorKias ?? KIAS_OUTSIDE_LAB;
-    const kiasCmd = Math.max(floorKias, Math.min(kiasCurve, L.kias + (ph.overtakeKt ?? 20)));
+    const kiasTarget = L.kias + windowOvertakeKt;
+    const kiasLine = L.kias + (ph.overtakeKt ?? 20);
+    const maxKiasAllowed = r <= farFt ? kiasTarget : Math.min(kiasLine, kiasTarget + (r - farFt) * 0.02);
+    const kiasCmd = Math.max(floorKias, Math.min(kiasCurve, maxKiasAllowed));
     return { pullX: 0, pullY: 0, vdx: aim.vpx, vdy: aim.vpy, speed: W.tasFtps, psiCmd, kiasCmd };
   }
 

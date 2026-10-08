@@ -82,7 +82,7 @@ function tailLegs(s, to, sTo, spacingFt, at = null) {
   const dO = Math.abs(atPos.left) - Math.abs(ech.left);
   const alongFt = (-dF * LINE_BACK_PER_OUT + dO) / n;
   const offFt = Math.abs(dF + dO * LINE_BACK_PER_OUT) / n;
-  return [closeThrough(downTheLine(ech, s, Math.max(0, alongFt - offFt)), { advanceTol: TURNING_REJOIN.routeFlowFt }), ...(rest.length ? rest : [slide(ech)])];
+  return [closeThrough(downTheLine(ech, s, Math.max(0, alongFt - offFt)), { advanceTol: TURNING_REJOIN.routeFlowFt, overtakeKias: 10 }), ...(rest.length ? rest : [slide(ech, { overtakeKias: 10 })])];
 }
 
 /**
@@ -211,6 +211,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       farFt: TR.windowFarFt,
       nearFt: TR.windowNearFt,
       overtakeKt,
+      windowOvertakeKt: 10,
       floorKias,
       rejoin: true,
     }));
@@ -219,13 +220,13 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
     const flowFtps = closeInFtps(TR.decisionArriveRates);
     const onLead = (list) => list.map((p) => ({ ...p, slot: { ...p.slot, alt: p.slot.alt + leadAlt } }));
     if (overshoot) {
-      phases.push(...onLead(onClosure(overshootLegs(s, to, sTo, spacingFt))).map((p, i) =>
+      phases.push(...onLead(onClosure(overshootLegs(s, to, sTo, spacingFt), { closeIn: true })).map((p, i) =>
         i === 0 ? { ...p, bankCapDeg: TR.overshootBankDeg } : p
       ));
     } else if (sTo !== s && sTo !== 0) {
-      phases.push(...onLead(onClosure(acrossSixLegs(null, s, to, sTo, spacingFt))));
+      phases.push(...onLead(onClosure(acrossSixLegs(null, s, to, sTo, spacingFt), { closeIn: true })));
     } else {
-      phases.push(...onLead(onClosure(tailLegs(s, to, sTo, spacingFt))).map((p, i) =>
+      phases.push(...onLead(onClosure(tailLegs(s, to, sTo, spacingFt), { closeIn: true })).map((p, i) =>
         (i === 0 ? { ...p, closureFtps: Math.min(p.closureFtps, flowFtps) } : p)
       ));
     }
@@ -249,7 +250,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
     }));
     const flowFtps = closeInFtps(TR.decisionArriveRates);
     const onLead = (list) => list.map((p) => ({ ...p, slot: { ...p.slot, alt: p.slot.alt + leadAlt } }));
-    phases.push(...onLead(onClosure(tailLegs(s, to, sTo, spacingFt))).map((p, i) =>
+    phases.push(...onLead(onClosure(tailLegs(s, to, sTo, spacingFt), { closeIn: true })).map((p, i) =>
       i === 0 ? { ...p, closureFtps: Math.min(p.closureFtps, flowFtps) } : p
     ));
   }
