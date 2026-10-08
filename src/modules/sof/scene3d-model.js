@@ -421,3 +421,29 @@ export function panBy(cam, dx, dy, ftPerPx, halfFt = AREA_FT / 2) {
   const ty = (cam.ty ?? 0) - Math.sin(yaw) * across + Math.cos(yaw) * up;
   return clampLookAt({ ...cam, tx, ty }, halfFt);
 }
+
+// ---- The mouse (Dad, 8 Oct 2026: "i should be able to click and move around with the mouse") ------------------------------------------------------------
+
+/** What a plain left-drag does, the "3D mouse" setting: 'move' slides the map (the default, like an online map) or 'turn' turns the view (as before 8 Oct). */
+export const MOUSE_LEFT_CHOICES = Object.freeze(['move', 'turn']);
+export const DEFAULT_MOUSE_LEFT = 'move';
+
+/**
+ * What a press starts, from the pointer event's own fields: 'move' (slide the map, `panBy`), 'turn' (turn the view, `orbitBy`) or null (a mouse button that does
+ * nothing, such as the middle one). A mouse's left button does what `leftDrag` says and its right button the other; Shift with the left button always moves and
+ * Ctrl with it always turns. A finger or a pen is as before the setting: one turns the view, Shift (from a keyboard) moves it; two fingers are a pinch (view3d.js).
+ */
+export function dragAction({ pointerType = 'mouse', button = 0, shiftKey = false, ctrlKey = false } = {}, leftDrag = DEFAULT_MOUSE_LEFT) {
+  const left = MOUSE_LEFT_CHOICES.includes(leftDrag) ? leftDrag : DEFAULT_MOUSE_LEFT;
+  if (pointerType !== 'mouse') return button === 2 || shiftKey === true ? 'move' : 'turn';
+  if (button !== 0 && button !== 2) return null;
+  if (shiftKey === true) return 'move';
+  if (button === 2) return left === 'move' ? 'turn' : 'move';
+  if (ctrlKey === true) return 'turn';
+  return left;
+}
+
+/** The corner hint for the mouse choice. */
+export const mouseHint = (leftDrag = DEFAULT_MOUSE_LEFT) => (leftDrag === 'turn'
+  ? 'Drag to turn · Right-drag or Shift-drag to move · Wheel to zoom'
+  : 'Drag to move · Right-drag to turn · Wheel to zoom');

@@ -218,6 +218,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
       view.requestDraw();
       onApproaches(); // the cards' runway in use line follows the choice
     },
+    onAirspaceHidden: (choices) => view3dSettings?.update({ airspaceHidden3d: choices }), // the Airspace tab's choices, per base, in the same settings (the airspace log is not given them)
     getRunways: () => runways, // the runway in use at each field, from its METAR wind: only its approaches are drawn and checked by default
     onCorridors: (results) => {
       corridors = results;
@@ -784,7 +785,10 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
   /** What the 3D view is given: each airfield's pin words, colour and METAR cloud decks, and the height scale. */
   function pushScene() {
     if (!scene3d) return;
-    view3d.setScene({ airfields: sceneAirfields({ ...scene3d, toXY: projection.toXY }), heightScale: settings.get().heightScale3d, cloudStyle: view3dSettings?.get().cloudStyle3d ?? 'slabs', rainToGround: view3dSettings?.get().rainToGround3d ?? true, approaches: approachChoice() });
+    view3d.setScene({
+      airfields: sceneAirfields({ ...scene3d, toXY: projection.toXY }), heightScale: settings.get().heightScale3d, cloudStyle: view3dSettings?.get().cloudStyle3d ?? 'slabs', rainToGround: view3dSettings?.get().rainToGround3d ?? true, approaches: approachChoice(),
+      mouseLeft: view3dSettings?.get().mouseLeft3d ?? 'move', airspaceHidden: view3dSettings?.get().airspaceHidden3d ?? {}, // the 3D mouse and the Airspace tab's choices (Dad, 8 Oct 2026)
+    });
   }
 
   /**

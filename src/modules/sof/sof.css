@@ -2555,6 +2555,54 @@ main[data-module='sof'] {
   overflow-y: auto;
 }
 
+/* The Airspace tab (Dad, 8 Oct 2026): Show all / Hide all, a switch per kind, a search box and every airspace in the square with its own tick. Only the list scrolls. */
+[data-module='sof'] .sof-3d-filter-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  color: #b8cfdb;
+}
+
+[data-module='sof'] .sof-3d-filter-kind {
+  min-height: 1.4rem;
+  font-size: var(--text-sm);
+}
+
+[data-module='sof'] .sof-3d-filter-count {
+  font-family: var(--font-mono);
+}
+
+[data-module='sof'] .sof-3d-filter-search {
+  max-width: 18rem;
+  min-height: 1.75rem;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: rgb(5 10 18 / 0.6);
+  color: #e3eef5;
+  font: inherit;
+}
+
+[data-module='sof'] .sof-3d-filter-list {
+  max-height: 9rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+[data-module='sof'] .sof-3d-filter-list label {
+  cursor: pointer;
+}
+
+[data-module='sof'] .sof-3d-filter-list b {
+  color: #e3eef5;
+}
+
+[data-module='sof'] .sof-3d-filter-meta {
+  font-size: var(--text-sm);
+}
+
 [data-module='sof'] .sof-3d-toggle:disabled {
   border-style: dashed;
   color: #b8cfdb;

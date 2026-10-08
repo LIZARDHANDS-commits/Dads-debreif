@@ -13,7 +13,8 @@ import { createSettings } from '../../storage/settings.js';
 import { triggerLimits, describeTrigger } from './waves.js';
 import { trafficUrl } from './traffic.js';
 import { CROSSWIND_DEFAULTS, RUNWAY_STATES } from './crosswind.js';
-import { AREA_CHOICES_NM, DEFAULT_AREA_NM, TRAFFIC_DISPLAY_DEFAULTS, cleanTrafficDisplay } from './scene3d-model.js';
+import { AREA_CHOICES_NM, DEFAULT_AREA_NM, TRAFFIC_DISPLAY_DEFAULTS, cleanTrafficDisplay, MOUSE_LEFT_CHOICES, DEFAULT_MOUSE_LEFT } from './scene3d-model.js';
+import { cleanAirspaceHidden } from './airspace-filter.js';
 
 const LOCAL = triggerLimits('local');
 
@@ -215,12 +216,23 @@ export const AREA_OPTIONS = Object.freeze(AREA_CHOICES_NM.map((nm) => Object.fre
  * trafficIconSize, trafficTagSize, trafficTagShows, trafficNamesFor, trafficT6Tags: the Traffic display settings for the 2D layer and the 3D view (Dad, 8 Oct 2026:
  * "the callsign and aircraft display should be more customizable.. smaller icons... bigger text etc"), each starting at the look before them (scene3d-model.js
  * TRAFFIC_DISPLAY_DEFAULTS), so nothing changes until one is chosen.
+ * mouseLeft3d: what a plain left-drag does in the 3D view (Dad, 8 Oct 2026: "i should be able to click and move around with the mouse"): 'move' (the default:
+ * it slides the map, and a right-drag or Ctrl-drag turns it) or 'turn' (as before: a right-drag or Shift-drag slides it). scene3d-model.js `dragAction`.
+ * airspaceHidden3d: the airspace hidden from the 3D picture in its Airspace tab, per base: { KDLF: { kinds: ['moa'], ids: ['R-6312'] } } (airspace-filter.js;
+ * Dad, 8 Oct 2026: "hide certain airspace if needed in a tab somewhere"). Nothing hidden to begin with; the airspace log reads everything either way.
  */
 export const VIEW3D_DEFAULTS = Object.freeze({
   cloudStyle3d: 'slabs', area3dNm: DEFAULT_AREA_NM, rainToGround3d: true, approaches3d: false, approachField3d: 'home', approachRunway3d: 'wind', approachRunways3d: Object.freeze({}),
   trafficIconSize: TRAFFIC_DISPLAY_DEFAULTS.iconSize, trafficTagSize: TRAFFIC_DISPLAY_DEFAULTS.tagSize, trafficTagShows: TRAFFIC_DISPLAY_DEFAULTS.tagShows,
   trafficNamesFor: TRAFFIC_DISPLAY_DEFAULTS.namesFor, trafficT6Tags: TRAFFIC_DISPLAY_DEFAULTS.t6Tags,
+  mouseLeft3d: DEFAULT_MOUSE_LEFT, airspaceHidden3d: Object.freeze({}),
 });
+
+/** The "3D mouse" choice, in the menu's words. */
+export const MOUSE_OPTIONS = Object.freeze([
+  Object.freeze({ value: 'move', label: 'Left-drag moves the map (default)' }),
+  Object.freeze({ value: 'turn', label: 'Left-drag turns the view (as before)' }),
+]);
 
 /** The Traffic display choices, in the menu's words (SOF settings, "Traffic display"). */
 export const TRAFFIC_SIZE_OPTIONS = Object.freeze([
@@ -264,7 +276,10 @@ export function cleanManualRunways(value) {
   return Object.freeze(out);
 }
 
-/** The 3D view's settings checked: a style or an area not offered is the default, Rain to ground is on unless it is false, the Approaches are off unless true, and a Traffic display choice not offered is its default. */
+/**
+ * The 3D view's settings checked: a style or an area not offered is the default, Rain to ground is on unless it is false, the Approaches are off unless true, a Traffic
+ * display or mouse choice not offered is its default, and the hidden airspace is cleaned (airspace-filter.js `cleanAirspaceHidden`).
+ */
 export function cleanView3d(values) {
   const v = values ?? {};
   return Object.freeze({
@@ -280,6 +295,8 @@ export function cleanView3d(values) {
     trafficTagShows: TAG_SHOWS_VALUES.includes(v.trafficTagShows) ? v.trafficTagShows : VIEW3D_DEFAULTS.trafficTagShows,
     trafficNamesFor: NAMES_FOR_VALUES.includes(v.trafficNamesFor) ? v.trafficNamesFor : VIEW3D_DEFAULTS.trafficNamesFor,
     trafficT6Tags: typeof v.trafficT6Tags === 'boolean' ? v.trafficT6Tags : VIEW3D_DEFAULTS.trafficT6Tags,
+    mouseLeft3d: MOUSE_LEFT_CHOICES.includes(v.mouseLeft3d) ? v.mouseLeft3d : VIEW3D_DEFAULTS.mouseLeft3d,
+    airspaceHidden3d: cleanAirspaceHidden(v.airspaceHidden3d),
   });
 }
 
@@ -296,6 +313,7 @@ export function createView3dSettings(store) {
     allowed: {
       cloudStyle3d: [...STYLE_VALUES], area3dNm: [...AREA_CHOICES_NM], approachRunway3d: [...RUNWAY_MODE_VALUES],
       trafficIconSize: [...SIZE_VALUES], trafficTagSize: [...SIZE_VALUES], trafficTagShows: [...TAG_SHOWS_VALUES], trafficNamesFor: [...NAMES_FOR_VALUES],
+      mouseLeft3d: [...MOUSE_LEFT_CHOICES],
     },
   });
   return {
@@ -314,6 +332,8 @@ export function createView3dSettings(store) {
       if (TAG_SHOWS_VALUES.includes(patch.trafficTagShows)) next.trafficTagShows = patch.trafficTagShows;
       if (NAMES_FOR_VALUES.includes(patch.trafficNamesFor)) next.trafficNamesFor = patch.trafficNamesFor;
       if (typeof patch.trafficT6Tags === 'boolean') next.trafficT6Tags = patch.trafficT6Tags;
+      if (MOUSE_LEFT_CHOICES.includes(patch.mouseLeft3d)) next.mouseLeft3d = patch.mouseLeft3d;
+      if (patch.airspaceHidden3d && typeof patch.airspaceHidden3d === 'object') next.airspaceHidden3d = cleanAirspaceHidden(patch.airspaceHidden3d);
       if (Object.keys(next).length) inner.update(next);
     },
     reset: () => inner.reset(),

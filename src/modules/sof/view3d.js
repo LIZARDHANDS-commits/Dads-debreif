@@ -53,8 +53,9 @@ import { createWeather3dLayers, weatherKeyWords } from './weather3d-layers.js';
 import { FRONTS_CREDIT } from './fronts.js';
 import {
   AREA_NM, AREA_FT, DEFAULT_AREA_NM, DECK_FT, CATEGORY_TOKENS, ZOOM_STEP, KEY_ORBIT_PX, KEY_PAN_PX, ORBIT_DEG_PER_PX, fitZoom, orbitBy, zoomCamera, panBy, clampLookAt, homeCamera,
-  sceneSignature, formatFeet, tagShown,
+  sceneSignature, formatFeet, tagShown, dragAction, mouseHint, DEFAULT_MOUSE_LEFT, MOUSE_LEFT_CHOICES,
 } from './scene3d-model.js';
+import { drawnAirspace, hiddenFor, withHidden, kindCounts, airspaceRows, searchRows, NOTHING_HIDDEN } from './airspace-filter.js';
 import { createAirspaceLogView } from './airspace-log-view.js';
 import {
   TOUR_DWELL_S, TOUR_FLY_S, TOUR_PITCH_DEG, TOUR_FIELD_AGL_FT, tourStops, nextStopIndex, tourCaption, nextInWords, framingZoom, flyPose,
@@ -153,12 +154,13 @@ const isColour = (v) => typeof v === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d\s.
  * manual }) (the Approaches button, its field picker or its runway choices changed: the caller keeps the choice in the same settings), onCorridors(results)
  * (the arrival corridor check's answer for each field drawn, Map icao -> { results, summary, estimate }, an empty Map when nothing is checked: information
  * only, for the cards), getRunways() (each field's runway in use from its METAR wind, Map icao -> runway-in-use.js `runwayInUse`; a field missing from it has
- * no METAR), win }.
- * Returns { element, show(), hide(), setScene({ airfields, heightScale, cloudStyle, rainToGround, approaches: { on, field, runway, manual } }), refreshApproaches(), setModel({ status, model, lastGoodAt, now, timeZone }), setAirspaceLog(view),
+ * no METAR), onAirspaceHidden(choices) (the Airspace tab's choices changed, airspace-filter.js's { ICAO: { kinds, ids } } for every base: the caller keeps them in
+ * the "view3d" settings and gives them back through setScene; the airspace log is never given them), win }.
+ * Returns { element, show(), hide(), setScene({ airfields, heightScale, cloudStyle, rainToGround, approaches: { on, field, runway, manual }, mouseLeft, airspaceHidden }), refreshApproaches(), setModel({ status, model, lastGoodAt, now, timeZone }), setAirspaceLog(view),
  * touch(), home(), zoomBy(factor), isShown(), dispose() }.
  * `show()` resolves { ok: true } or { ok: false, reason: 'gl' | 'load' | 'closed' }.
  */
-export function createSofView3d({ timers, getProjection, getPictures, getWeather = () => ({ sig: 'none', radar: null, lightning: null, satellite: null, fronts: null, lines: [] }), fullScreen = null, onLost = () => {}, getSite = /** @type {() => any} */ (() => CYMJ), routes = /** @type {any} */ ([]), airspace = /** @type {any} */ (null), onAirspaceLogOptions = /** @type {(options: { showT6: boolean, showAll: boolean }) => void} */ (() => {}), now = () => Date.now(), onTrails = /** @type {(on: boolean) => void} */ (() => {}), onModelHour = /** @type {(ms: number | null) => void} */ (() => {}), onRainToGround = /** @type {(on: boolean) => void} */ (() => {}), onApproaches = /** @type {(choice: { on: boolean, field: string, runway: string, manual: Record<string, string> }) => void} */ (() => {}), onCorridors = /** @type {(results: Map<string, any>) => void} */ (() => {}), getRunways = /** @type {() => Map<string, any>} */ (() => new Map()), win = globalThis }) {
+export function createSofView3d({ timers, getProjection, getPictures, getWeather = () => ({ sig: 'none', radar: null, lightning: null, satellite: null, fronts: null, lines: [] }), fullScreen = null, onLost = () => {}, getSite = /** @type {() => any} */ (() => CYMJ), routes = /** @type {any} */ ([]), airspace = /** @type {any} */ (null), onAirspaceLogOptions = /** @type {(options: { showT6: boolean, showAll: boolean }) => void} */ (() => {}), now = () => Date.now(), onTrails = /** @type {(on: boolean) => void} */ (() => {}), onModelHour = /** @type {(ms: number | null) => void} */ (() => {}), onRainToGround = /** @type {(on: boolean) => void} */ (() => {}), onApproaches = /** @type {(choice: { on: boolean, field: string, runway: string, manual: Record<string, string> }) => void} */ (() => {}), onCorridors = /** @type {(results: Map<string, any>) => void} */ (() => {}), onAirspaceHidden = /** @type {(choices: Record<string, { kinds: readonly string[], ids: readonly string[] }>) => void} */ (() => {}), getRunways = /** @type {() => Map<string, any>} */ (() => new Map()), win = globalThis }) {
   const labels = h('div', { class: 'sof-3d-labels' });
   // The airspace volume under the pointer: its name and limits float beside the pointer (Dad, 7 Oct); nothing is written on the volumes themselves.
   const spaceTip = h('p', { class: 'sof-3d-space-tip', hidden: true });
@@ -313,6 +315,33 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   spaceButtons.set('trails', trailsButton);
   const spaceKeyBody = h('div', { class: 'sof-3d-model-key-body' });
   const spaceKey = h('details', { class: 'sof-3d-model-key' }, h('summary', {}, 'Airspace key'), spaceKeyBody);
+  // The Airspace tab (Dad, 8 Oct 2026: "I should also be able to hide certain airspace if needed in a tab somewhere"): Show all and Hide all, a switch per kind the
+  // square holds with its count, a search box, and every airspace in the square with its own tick. The choices are this base's (airspace-filter.js), kept per base
+  // in the "view3d" settings by the caller (onAirspaceHidden). Hidden airspace is not drawn and not named under the pointer; nothing else reads these choices.
+  let mouseLeft = DEFAULT_MOUSE_LEFT; // what a plain left-drag does, the "3D mouse" setting (scene3d-model.js `dragAction`)
+  let hiddenChoices = /** @type {Record<string, { kinds: readonly string[], ids: readonly string[] }>} */ ({}); // every base's, as stored
+  const hiddenNow = () => hiddenFor(hiddenChoices, getSite().icao);
+  let filterKindsNow = /** @type {{ key: string, words: string, count: number }[]} */ ([]);
+  let filterRows = /** @type {{ row: any, li: any, input: any }[]} */ ([]);
+  const filterKindButtons = new Map(); // kind key -> its switch
+  const filterKinds = h('div', { class: 'sof-3d-model-row', role: 'group', 'aria-label': 'Airspace kinds: press one to hide or show every airspace of that kind' });
+  const filterSearch = h('input', {
+    type: 'search', class: 'sof-3d-filter-search', placeholder: 'Search by id or name', autocomplete: 'off', spellcheck: 'false',
+    'aria-label': 'Search the airspace in this square by id, name or kind', oninput: () => showFilterRows(),
+  });
+  const filterList = h('ul', { class: 'sof-3d-filter-list', 'aria-label': 'Every airspace in this square: untick one to hide it' });
+  const filterCount = h('span', { class: 'sof-3d-filter-count', role: 'status' });
+  const filterNone = h('p', { hidden: true }, 'No airspace in this square.');
+  const showAllButton = h('button', { type: 'button', class: 'sof-3d-toggle', title: 'Draw every airspace in this square again', onclick: () => setHidden(NOTHING_HIDDEN) }, 'Show all');
+  const hideAllButton = h('button', {
+    type: 'button', class: 'sof-3d-toggle', title: 'Hide every kind of airspace in this square (the TACNAV routes have their own button)',
+    onclick: () => setHidden({ kinds: filterKindsNow.map((k) => k.key), ids: hiddenNow().ids }),
+  }, 'Hide all');
+  const filterTab = h('details', { class: 'sof-3d-model-key sof-3d-filter' }, h('summary', {}, 'Show or hide airspace'),
+    h('div', { class: 'sof-3d-filter-body' },
+      h('p', {}, 'Hiding only changes the picture; the airspace log still watches everything. Kept for this base.'),
+      h('div', { class: 'sof-3d-model-row' }, showAllButton, hideAllButton, filterCount),
+      filterNone, filterKinds, filterSearch, filterList));
   // SIGMETs, AIRMETs and PIREPs (Dad, 7 Oct): a line saying when they cannot be shown (never frozen: with no fresh answer none are drawn).
   const alertsStatus = h('p', { class: 'sof-3d-traffic-status is-bad', role: 'status', hidden: true });
   const alertsKey = h('div', {});
@@ -344,7 +373,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   const apprKey = h('details', { class: 'sof-3d-model-key' }, h('summary', {}, 'Approaches key'),
     h('div', { class: 'sof-3d-model-row' }, h('label', {}, 'Field ', apprPicker), ' ', h('label', {}, 'Runways ', apprRunwayPicker)), apprManualRow, apprKeyBody);
   const spacePanel = h('div', { class: 'sof-3d-model sof-3d-space', role: 'group', 'aria-label': 'Airspace, TACNAV routes, airports, terrain, towns, SIGMETs and approaches' },
-    h('div', { class: 'sof-3d-model-row' }, [...spaceButtons.values()], spaceKey, apprButton, apprKey), alertsStatus);
+    h('div', { class: 'sof-3d-model-row' }, [...spaceButtons.values()], spaceKey, filterTab, apprButton, apprKey), alertsStatus);
   const bottom = h('div', { class: 'sof-3d-bottom' }, trafficStatus, modelPanel, weatherPanel, spacePanel, credit);
   const acTag = h('p', { class: 'sof-3d-tag sof-3d-actag-facts', role: 'status', hidden: true });
   const logView = createAirspaceLogView({ onOptions: (options) => onAirspaceLogOptions(options) });
@@ -381,7 +410,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     },
   }, 'Panels');
   // How to move the camera, in the corner (Dad, 8 Oct: drag to move round the map), under the Heights line.
-  const hint = h('p', { class: 'sof-3d-hint' }, 'Drag to turn · Right-drag or Shift-drag to move · Wheel to zoom');
+  const hint = h('p', { class: 'sof-3d-hint' }, mouseHint(mouseLeft)); // follows the "3D mouse" setting (setScene)
   const tools = h('div', { class: 'sof-3d-tools' }, orbitButton, tourButton, panelsButton, fullButton, corner, hint);
   // What the tour is showing and when it moves on. The words change every stop (announced); the countdown changes every second (not announced).
   const tourWhat = h('span', { class: 'sof-3d-tour-what' });
@@ -439,6 +468,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   let trafficSig = '';
   let trafficDirty = true;
   let spaceSig = ''; // what the airspace objects were built for: the height scale, the ground, home, the airspace file's state and the area
+  let volumesSig = ''; // what the drawn volumes were built for: the Airspace tab's choices at this base
   let airspaceAsked = null; // the site profile whose airspace file this showing of the view has asked for
   let alertsView = { status: 'unset', words: '', alerts: [], notDrawn: 0, signature: 'unset' }; // alerts.js alerts3dView, from the map
   let alertsSig = ''; // what the SIGMET/PIREP objects were built for
@@ -1138,27 +1168,115 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
 
   function freeSpace() {
     if (!gl?.space) return;
-    gl.space.built.dispose();
+    gl.space.built?.dispose();
     gl.space.airports.dispose();
+    gl.space.holder.removeFromParent();
     gl.space = null;
     setSpaceHit(null);
   }
 
-  /** The airspace volumes and routes, built new for this height scale, ground and home (only then), with the key's words. */
+  /** The airspace volumes and routes, built new for this height scale, ground and home (only then), with the key's words and the Airspace tab's list. */
   function rebuildSpace(sig) {
     freeSpace();
     spaceSig = sig;
     syncSpaceAvailability();
     const projection = getProjection();
     const ground = groundFt();
-    const { volumes, skipped } = checkedAirspace(airspaceNow(), ground);
-    const built = buildAirspace(gl.THREE, { volumes, routes: routesNow(), toXY: projection.toXY, scale, groundFt: ground });
-    gl.scene.add(built.root); // nothing stands in the picture: a route's name and a volume's words come with the pointer (pickSpace)
+    const holder = new gl.THREE.Group(); // the volumes go in here, ahead of the airports as before, so they can be built again alone (buildVolumes)
+    gl.scene.add(holder);
     const airports = buildAirports(gl.THREE, { toXY: projection.toXY, scale, groundFt: ground, doc: win.document, airports: airportsNow() });
     gl.scene.add(airports.root);
-    gl.space = { built, airports };
+    gl.space = { built: null, airports, holder };
+    drawFilter();
+    buildVolumes();
+  }
+
+  /**
+   * The airspace volumes and routes the Airspace tab leaves shown (airspace-filter.js `drawnAirspace`; the TACNAV routes have their own button), built again
+   * when the tab's choices change. Hidden airspace is not built, so it is neither drawn nor named under the pointer.
+   */
+  function buildVolumes() {
+    if (!gl?.space) return;
+    gl.space.built?.dispose();
+    setSpaceHit(null);
+    volumesSig = hiddenSignature();
+    const projection = getProjection();
+    const ground = groundFt();
+    const { volumes, skipped } = checkedAirspace(drawnAirspace(airspaceNow(), hiddenNow()), ground);
+    const built = buildAirspace(gl.THREE, { volumes, routes: routesNow(), toXY: projection.toXY, scale, groundFt: ground });
+    gl.space.holder.add(built.root); // nothing stands in the picture: a route's name and a volume's words come with the pointer (pickSpace)
+    gl.space.built = built;
     applySpaceToggles();
     drawSpaceKey(volumes, skipped, ground);
+    syncFilter();
+  }
+
+  /** What the drawn volumes were built for: this base's choices in the Airspace tab. */
+  const hiddenSignature = () => `${getSite().icao}|${JSON.stringify(hiddenNow())}`;
+
+  // ---- The Airspace tab (Dad, 8 Oct 2026) ---------------------------------------------------------------------
+  /** This base's choices changed in the tab: kept for this base (the caller stores them), the volumes built again on the next frame. */
+  function setHidden(next) {
+    hiddenChoices = withHidden(hiddenChoices, getSite().icao, next);
+    onAirspaceHidden(hiddenChoices);
+    syncFilter();
+    requestRender();
+  }
+
+  /** The tab's switches and list for the airspace in the square (hidden or not), built when the square's airspace changes (rebuildSpace). */
+  function drawFilter() {
+    const all = airspaceNow();
+    filterKindsNow = kindCounts(all);
+    filterKindButtons.clear();
+    filterKinds.replaceChildren(...filterKindsNow.map((k) => {
+      const button = h('button', {
+        type: 'button', class: 'sof-3d-toggle sof-3d-filter-kind', 'aria-pressed': 'true', title: `Show or hide every ${k.words.toLowerCase()} airspace in this square`,
+        onclick: () => {
+          const now = hiddenNow();
+          setHidden({ kinds: now.kinds.includes(k.key) ? now.kinds.filter((x) => x !== k.key) : [...now.kinds, k.key], ids: now.ids });
+        },
+      }, `${k.words} (${k.count})`);
+      filterKindButtons.set(k.key, button);
+      return button;
+    }));
+    filterRows = airspaceRows(all).map((row) => {
+      const input = h('input', {
+        type: 'checkbox', checked: true,
+        onchange: () => {
+          const now = hiddenNow();
+          setHidden({ kinds: now.kinds, ids: input.checked ? now.ids.filter((id) => id !== row.id) : [...now.ids, row.id] });
+        },
+      });
+      const li = h('li', {}, h('label', {}, input, ' ', h('b', {}, row.id), row.name ? ` ${row.name}` : '', h('span', { class: 'sof-3d-filter-meta' }, ` · ${row.kindWords} · ${row.limits}`)));
+      return { row, li, input };
+    });
+    filterList.replaceChildren(...filterRows.map((r) => r.li));
+    filterNone.hidden = filterRows.length > 0;
+    for (const el of [showAllButton, hideAllButton, filterSearch]) el.disabled = filterRows.length === 0;
+    showFilterRows();
+    syncFilter();
+  }
+
+  /** The tab's switches, ticks and count follow this base's choices. A row whose kind is hidden is unticked and cannot be ticked until its kind is shown. */
+  function syncFilter() {
+    const hidden = hiddenNow();
+    for (const [key, button] of filterKindButtons) button.setAttribute('aria-pressed', String(!hidden.kinds.includes(key)));
+    let shown = 0;
+    for (const { row, input, li } of filterRows) {
+      const kindHidden = hidden.kinds.includes(row.kind);
+      const on = !kindHidden && !hidden.ids.includes(row.id);
+      if (on) shown += 1;
+      input.checked = on;
+      input.disabled = kindHidden;
+      li.title = kindHidden ? `${row.kindWords} are hidden: show the kind to tick this one` : on ? `Untick to hide ${row.id}` : `Tick to show ${row.id} again`;
+    }
+    setText(filterCount, filterRows.length ? `${shown} of ${filterRows.length} shown` : '');
+  }
+
+  /** The list shows the rows the search box matches (all with it empty). */
+  function showFilterRows() {
+    const matched = new Set(searchRows(filterRows.map((r) => r.row), filterSearch.value));
+    for (const { row, li } of filterRows) li.hidden = !matched.has(row);
   }
 
   /** The airspace and TACNAV buttons follow what the home base has: pressable when there is something to draw, and switched on when it first appears. */
@@ -1233,12 +1351,15 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       notes.push(
         h('p', {}, `Airspace: each volume runs from its floor to its ceiling, see-through (${Math.round(AIRSPACE_FILL_OPACITY * 100)} % fill, an estimate), with a thin outline on its top and bottom and along its corners. Edge colour by kind:`),
         h('ul', {}, colours),
-        h('p', {}, 'Nothing is written on the volumes: put the pointer over one and its name and limits float beside it (the nearest one under the pointer when several overlap), with the kind and the source on hover. Every volume is listed here with its limits:'),
+        h('p', {}, 'Nothing is written on the volumes: put the pointer over one and its name and limits float beside it (the nearest one under the pointer when several overlap), with the kind and the source on hover. Every volume drawn is listed here with its limits:'),
         h('ul', { class: 'sof-3d-airspace-list' }, [...(gl?.space?.built.picks ?? []), ...(gl?.space?.built.lines ?? []).filter((l) => !(gl?.space?.built.picks ?? []).some((p) => p.key === l.key))].map((pick) => h('li', { title: pick.title }, pick.text))),
         getSite().airspaceSource ? h('p', {}, `Source: ${getSite().airspaceSource}.${airspaceOf(getSite()).source ? ` Loaded: ${airspaceOf(getSite()).source}.` : ''} Drawn inside this ${AREA_NM} NM square (an area across its edge is drawn whole; a training route is cut at the edge).`) : null,
         h('p', {}, `Heights are feet above sea level, ×${scale}. SFC is the ground at ${home}’s elevation (${Math.round(ground)} ft).${used('AGL') ? ` AGL ≈ over flat prairie, estimate: ${home}’s elevation plus the height.` : ''}${used('FL') ? ' FL is read as feet above sea level (pressure altitude taken as altitude, an approximation).' : ''}${volumes.some((v) => v.ceiling?.ref === 'UNL') ? ` UNL is drawn up to ${formatFeet(VIEW_TOP_FT)} ft.` : ''}`),
       );
       if (skipped.length) notes.push(h('p', { class: 'sof-3d-model-warn' }, `Not drawn, entry fails its checks: ${skipped.map((x) => `${x.id} (${x.reason})`).join('; ')}.`));
+      const hidden = hiddenNow();
+      const hiddenCount = filterRows.filter(({ row }) => hidden.kinds.includes(row.kind) || hidden.ids.includes(row.id)).length;
+      if (hiddenCount) notes.push(h('p', {}, `${hiddenCount} of ${filterRows.length} hidden in “Show or hide airspace” (not drawn, not listed above; the airspace log still watches them).`));
     }
     const drawn = gl?.space?.airports.summary ?? [];
     notes.push(terrainKey, townsKey);
@@ -1701,6 +1822,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     }
     const nextSpaceSig = `${scale}|${groundFt()}|${getProjection().lat},${getProjection().lon}|${airspaceStatus()}|${AREA_NM}`;
     if (!gl.space || nextSpaceSig !== spaceSig) rebuildSpace(nextSpaceSig);
+    else if (hiddenSignature() !== volumesSig) buildVolumes(); // the Airspace tab's choices changed: only the volumes are built again
     const nextAlertsSig = `${nextSpaceSig}|${alertsView.signature}`;
     if (!gl.alerts || nextAlertsSig !== alertsSig) rebuildAlerts(nextAlertsSig);
     if (apprOn && getSite() !== apprAsked) { // this base's approaches file, once each time the view opens at it with the Approaches on (a failed load is tried again then)
@@ -1840,9 +1962,10 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     requestRender();
   }
 
-  // ---- The camera's hands: drag to turn, right-drag, Shift-drag or two fingers to slide the map, wheel or pinch to zoom, arrow keys to turn (Shift: slide) --------------------
+  // ---- The camera's hands: a mouse's left-drag slides the map and its right-drag or Ctrl-drag turns the view (the "3D mouse" setting swaps them back; Dad, 8 Oct
+  // 2026), Shift-drag slides; one finger turns and two slide; wheel or pinch to zoom, arrow keys to turn (Shift: slide). scene3d-model.js `dragAction` says which. ----------
   const pointers = new Map();
-  let drag = null; // { x, y, moved, pan } for a single pointer: `pan` slides the map (right button or Shift held), else the drag turns the view
+  let drag = null; // { x, y, moved, pan, click } for a single pointer: `pan` slides the map, else the drag turns the view (scene3d-model.js `dragAction`)
   let pinch = null; // two pointers: { spread (their distance), x, y (their midpoint) } last time
 
   const spread = () => {
@@ -1864,11 +1987,12 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   };
   const hands = /** @type {[string, (e: any) => void][]} */ ([
     ['pointerdown', (e) => {
-      if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 2) return; // the left button turns (Shift: slides), the right slides
+      const action = dragAction(e, mouseLeft); // 'move', 'turn', or null for a mouse button that does nothing (the middle one)
+      if (action === null) return;
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       gl?.canvas.setPointerCapture?.(e.pointerId);
       clearSpaceMove(); // a press is for dragging or clicking, not for reading
-      if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, moved: 0, pan: e.button === 2 || e.shiftKey === true, click: e.button !== 2 };
+      if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, moved: 0, pan: action === 'move', click: e.button !== 2 }; // a right press is never a click
       else {
         drag = null;
         pinch = { spread: spread(), ...midpoint() };
@@ -1998,6 +2122,22 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       const [p] = pointers.values();
       drag = { x: p.x, y: p.y, moved: CLICK_PX, pan: false, click: false }; // one finger left after two: it turns the view again
     }
+  }
+
+  /** The canvas's words for a screen reader: how to turn, move and zoom, by the "3D mouse" setting. */
+  function canvasWords() {
+    const how = mouseLeft === 'turn'
+      ? 'Drag or press the arrow keys to turn it; right-drag, Shift-drag, drag with two fingers or press Shift and an arrow key to move across the map'
+      : 'Drag, Shift-drag, drag with two fingers or press Shift and an arrow key to move across the map; right-drag, Ctrl-drag, drag with one finger or press the arrow keys to turn it';
+    return `3D view of the weather round home. ${how}; scroll or press plus and minus to zoom, Home to start again. Each airfield pin is a button that shows its result. Press ] and [ to step through the aircraft.`;
+  }
+
+  /** The "3D mouse" setting: what a plain left-drag does from the next press. The corner hint and the canvas's words follow. */
+  function setMouseLeft(choice) {
+    if (!MOUSE_LEFT_CHOICES.includes(choice) || choice === mouseLeft) return;
+    mouseLeft = choice;
+    setText(hint, mouseHint(mouseLeft));
+    gl?.canvas.setAttribute('aria-label', canvasWords());
   }
 
   // ---- Orbit (Dad, 7 Oct) --------------------------------------------------------------------------------
@@ -2160,7 +2300,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     canvas.className = 'sof-3d-canvas';
     canvas.tabIndex = 0;
     canvas.setAttribute('role', 'img');
-    canvas.setAttribute('aria-label', '3D view of the weather round home. Drag or press the arrow keys to turn it; right-drag, Shift-drag, drag with two fingers or press Shift and an arrow key to move across the map; scroll or press plus and minus to zoom, Home to start again. Each airfield pin is a button that shows its result. Press ] and [ to step through the aircraft.');
+    canvas.setAttribute('aria-label', canvasWords());
     element.prepend(canvas);
     let renderer;
     try {
@@ -2352,7 +2492,13 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
      * The airfields, the height scale, the cloud style and the Rain to ground choice to show ({ airfields: scene3d-model.js `sceneAirfields`, heightScale,
      * cloudStyle: 'slabs' | 'levels', rainToGround: boolean }). Drawn again only when they differ.
      */
-    setScene({ airfields: next = [], heightScale = scale, cloudStyle: style = cloudStyle, rainToGround = toggles.rain, approaches = null } = {}) {
+    setScene({ airfields: next = [], heightScale = scale, cloudStyle: style = cloudStyle, rainToGround = toggles.rain, approaches = null, mouseLeft: mouse = mouseLeft, airspaceHidden = null } = {}) {
+      setMouseLeft(mouse); // the "3D mouse" setting
+      if (airspaceHidden && typeof airspaceHidden === 'object' && JSON.stringify(airspaceHidden) !== JSON.stringify(hiddenChoices)) { // the Airspace tab's stored choices
+        hiddenChoices = withHidden(airspaceHidden, null, null); // cleaned (airspace-filter.js); no base is changed
+        syncFilter();
+        requestRender();
+      }
       if (typeof rainToGround === 'boolean' && rainToGround !== toggles.rain) setToggle('rain', rainToGround, { save: false }); // the stored choice
       if (approaches && typeof approaches.on === 'boolean') setApproaches(approaches.on, approaches.field, { save: false, runway: approaches.runway ?? 'wind', manual: approaches.manual ?? {} }); // the stored choice
       if (style !== cloudStyle && (style === 'slabs' || style === 'levels')) {
