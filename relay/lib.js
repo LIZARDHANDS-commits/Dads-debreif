@@ -29,6 +29,8 @@ export const MAX_REPLY_BYTES = 1024 * 1024;
 const MAX_UPSTREAM_BYTES = 8 * 1024 * 1024;
 const MAX_SCAN = 5000;
 const DEFAULT_NM = 100; // V6's radius
+/** The widest radius asked for: adsb.lol's and adsb.fi's own most (Dad, 8 Oct 2026; was 150). */
+const MAX_NM = 250;
 const MEMORY_ENTRIES = 200;
 
 const NUM_LAT_LON = /^-?\d{1,3}(?:\.\d{1,6})?$/;
@@ -48,7 +50,8 @@ function readNumber(value, pattern, min, max) {
 }
 
 /**
- * Check a request's query: lat -90..90, lon -180..180, nm 5..150 (100 when left out),
+ * Check a request's query: lat -90..90, lon -180..180, nm 5..250 (100 when left out; 250 is adsb.lol's and adsb.fi's own most, and the SOF asks
+ * for up to it when its 3D view is open: Dad, 8 Oct 2026, "can we draw aircraft further out from the base"; was 150),
  * nothing else. Lat and lon are rounded to 0.01 degree (about 1 km) and nm to a whole
  * number, so screens looking at the same place share one cached answer.
  * Returns { ok: true, lat, lon, nm } or { ok: false, error }.
@@ -64,8 +67,8 @@ export function parseQuery(url = new URL('https://relay.invalid/traffic')) {
   if (lat == null) return { ok: false, error: 'lat must be a number from -90 to 90' };
   const lon = readNumber(params.get('lon'), NUM_LAT_LON, -180, 180);
   if (lon == null) return { ok: false, error: 'lon must be a number from -180 to 180' };
-  const nm = params.has('nm') ? readNumber(params.get('nm'), NUM_NM, 5, 150) : DEFAULT_NM;
-  if (nm == null) return { ok: false, error: 'nm must be a number from 5 to 150' };
+  const nm = params.has('nm') ? readNumber(params.get('nm'), NUM_NM, 5, MAX_NM) : DEFAULT_NM;
+  if (nm == null) return { ok: false, error: `nm must be a number from 5 to ${MAX_NM}` };
   // Number(String(x)) turns -0 into 0, so the address never reads "-0".
   const round2 = (x) => Number(String(Math.round(x * 100) / 100)) + 0;
   return { ok: true, lat: round2(lat), lon: round2(lon), nm: Math.round(nm) };
@@ -105,6 +108,8 @@ function trimOne(a) {
     seen: rounded(inRange(a.seen_pos, 0, 3600) ?? inRange(a.seen, 0, 3600), 1),
     // readsb's dbFlags bit 0 is "military".
     mil: Number.isInteger(a.dbFlags) && (a.dbFlags & 1) === 1,
+    // The ADS-B emitter category (readsb `category`, A1 light to A7 rotorcraft) is NOT passed yet (8 Oct 2026): two relay tests compare an aircraft's whole
+    // set of fields with the captured sample, which carries a category, so adding it needs those tests changed first (ask Patrick). The page reads it when it comes.
   };
 }
 

@@ -53,7 +53,7 @@ test('parseQuery: nm defaults to 100 when left out', () => {
 });
 
 test('parseQuery accepts the edges of every range', () => {
-  for (const [lat, lon, nm] of [[-90, -180, 5], [90, 180, 150], [0, 0, 5]]) {
+  for (const [lat, lon, nm] of [[-90, -180, 5], [90, 180, 250], [0, 0, 5]]) { // 250 NM, the upstreams' own most: Dad's yes, 8 Oct 2026 (was 150)
     const q = parseQuery(new URL(`https://x/traffic?lat=${lat}&lon=${lon}&nm=${nm}`));
     assert.equal(q.ok, true, `${lat},${lon},${nm}`);
   }
@@ -65,7 +65,7 @@ test('parseQuery refuses anything that is not a plain in-range number', () => {
     '?lat=1e1&lon=1', '?lat=%201&lon=1', '?lat=0x10&lon=1', '?lat=%2B5&lon=1', '?lat=Infinity&lon=1', '?lat=NaN&lon=1',
     '?lat=1,2&lon=1', '?lat=1.&lon=1', '?lat=--1&lon=1', '?lat=1&lon=1&nm=abc',
     '?lat=90.01&lon=0', '?lat=-90.01&lon=0', '?lat=0&lon=180.01', '?lat=0&lon=-180.01',
-    '?lat=0&lon=0&nm=4.9', '?lat=0&lon=0&nm=150.1', '?lat=0&lon=0&nm=-5', '?lat=0&lon=0&nm=0',
+    '?lat=0&lon=0&nm=4.9', '?lat=0&lon=0&nm=250.1', '?lat=0&lon=0&nm=-5', '?lat=0&lon=0&nm=0', // 250.1: Dad's yes, 8 Oct 2026 (was 150.1)
     '?lat=1&lat=2&lon=0', '?lat=1&lon=0&extra=1', '?lat=1&lon=0&url=https://evil.example',
     `?lat=${'9'.repeat(400)}&lon=0`,
   ];
