@@ -18,7 +18,7 @@
 // Tour (Dad, 7 Oct): a Tour toggle beside Orbit turns Orbit on and flies the camera round a list of targets (tour-model.js): the Moose Jaw circuit, Regina, then each airborne
 // T-6 in turn (followed, its tag highlighted), about 20 s each; any camera input from the SOF stops it, and Orbit with it. It runs in Orbit's own frame loop, so nothing runs while
 // both are off.
-// Weather that looks right in 3D (Dad, 7 Oct): radar shafts up to the model cloud base, lightning bolts, a faint satellite cloud sheet, surface fronts with H and L marks, and a
+// Weather that looks right in 3D (Dad, 7 Oct): radar blocks in the model cloud with a faint rain curtain to the ground (Dad, 8 Oct; Rain to ground), lightning bolts, a faint satellite cloud sheet, surface fronts with H and L marks, and a
 // gentle wind flow (weather3d-layers.js builds them, weather3d.js draws, weather3d-model.js decides); the wind barbs are smaller and behind a Barbs toggle (off). Full screen is
 // the whole SOF picture's (fullscreen.js), shared with the 2D map's button.
 //
@@ -141,12 +141,13 @@ const isColour = (v) => typeof v === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d\s.
  * unless the caller gives it), routes (the TACNAV routes to draw, or a function that gives them, from the Debrief's `ROUTES` as `map.js` gives them:
  * { name, paths: [[[lon, lat], ...]] }), airspace (the entries to draw instead of the site profile's, for a test), onAirspaceLogOptions
  * ({ showT6, showAll }: the log panel's two ticks changed), now() (the clock in milliseconds, for gliding the aircraft between answers), onTrails(on)
- * (the Trails button was pressed), onModelHour(ms) (the model hour shown changed, or null with no model: the map asks for the HRDPS cloud picture at that hour), win }.
- * Returns { element, show(), hide(), setScene({ airfields, heightScale }), setModel({ status, model, lastGoodAt, now, timeZone }), setAirspaceLog(view),
+ * (the Trails button was pressed), onModelHour(ms) (the model hour shown changed, or null with no model: the map asks for the HRDPS cloud picture at that hour),
+ * onRainToGround(on) (the Rain to ground button was pressed: the caller keeps the choice in the SOF's "view3d" settings), win }.
+ * Returns { element, show(), hide(), setScene({ airfields, heightScale, cloudStyle, rainToGround }), setModel({ status, model, lastGoodAt, now, timeZone }), setAirspaceLog(view),
  * touch(), home(), zoomBy(factor), isShown(), dispose() }.
  * `show()` resolves { ok: true } or { ok: false, reason: 'gl' | 'load' | 'closed' }.
  */
-export function createSofView3d({ timers, getProjection, getPictures, getWeather = () => ({ sig: 'none', radar: null, lightning: null, satellite: null, fronts: null, lines: [] }), fullScreen = null, onLost = () => {}, getSite = /** @type {() => any} */ (() => CYMJ), routes = /** @type {any} */ ([]), airspace = /** @type {any} */ (null), onAirspaceLogOptions = /** @type {(options: { showT6: boolean, showAll: boolean }) => void} */ (() => {}), now = () => Date.now(), onTrails = /** @type {(on: boolean) => void} */ (() => {}), onModelHour = /** @type {(ms: number | null) => void} */ (() => {}), win = globalThis }) {
+export function createSofView3d({ timers, getProjection, getPictures, getWeather = () => ({ sig: 'none', radar: null, lightning: null, satellite: null, fronts: null, lines: [] }), fullScreen = null, onLost = () => {}, getSite = /** @type {() => any} */ (() => CYMJ), routes = /** @type {any} */ ([]), airspace = /** @type {any} */ (null), onAirspaceLogOptions = /** @type {(options: { showT6: boolean, showAll: boolean }) => void} */ (() => {}), now = () => Date.now(), onTrails = /** @type {(on: boolean) => void} */ (() => {}), onModelHour = /** @type {(ms: number | null) => void} */ (() => {}), onRainToGround = /** @type {(on: boolean) => void} */ (() => {}), win = globalThis }) {
   const labels = h('div', { class: 'sof-3d-labels' });
   // The airspace volume under the pointer: its name and limits float beside the pointer (Dad, 7 Oct); nothing is written on the volumes themselves.
   const spaceTip = h('p', { class: 'sof-3d-space-tip', hidden: true });
@@ -177,11 +178,12 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     ['freezing', 'Freezing level', 'The 0 °C level, a faint sheet across the area'],
     ['flow', 'Wind flow', 'Faint streaks drifting with the model wind at 850, 700 and 500 hPa, like Windy: they move only while this view is shown (they step every 2 seconds with reduced motion)'],
     ['satellite', 'Satellite', satelliteTitle()],
-    ['radar', 'Radar', 'Radar as see-through shafts from the ground up to the model cloud base (the radar picture on the ground has its own switch in the map’s Layers menu)'],
+    ['radar', 'Radar', 'Radar as see-through blocks standing in the model cloud over each return, from its base to its top, or from the ground where the model has no cloud there (the radar picture on the ground has its own switch in the map’s Layers menu)'],
+    ['rain', 'Rain to ground', 'A faint, streaked rain curtain under each radar block, from the model cloud base to the ground (the radar does not say whether the precipitation reaches the ground)'],
     ['lightning', 'Lightning', 'Lightning cells as thin bolts from the ground to the model cloud top'],
     ['fronts', 'Fronts', `${FRONTS_CREDIT}: surface fronts on the ground with a faint wall, and the H and L pressure centres`],
   ]);
-  const toggles = { ...Object.fromEntries(MODEL_GROUPS.map((key) => [key, true])), winds: false, flow: true, satellite: true, radar: true, lightning: true, fronts: true }; // all on to begin with but the barbs
+  const toggles = { ...Object.fromEntries(MODEL_GROUPS.map((key) => [key, true])), winds: false, flow: true, satellite: true, radar: true, rain: true, lightning: true, fronts: true }; // all on to begin with but the barbs
   const toggleButtons = new Map();
   for (const [key, text, title] of TOGGLES) {
     const button = h('button', {
@@ -195,7 +197,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   }
   // The model's own buttons sit with its controls (they go when the model is unavailable); the weather layers' buttons stand on their own, as they do not need the model.
   const MODEL_BUTTONS = ['low', 'mid', 'high', 'winds', 'freezing'];
-  const WEATHER_BUTTONS = ['flow', 'satellite', 'radar', 'lightning', 'fronts'];
+  const WEATHER_BUTTONS = ['flow', 'satellite', 'radar', 'rain', 'lightning', 'fronts'];
   const sliderId = `sof-3d-time-${nextViewId++}`;
   const slider = h('input', {
     type: 'range', id: sliderId, class: 'sof-3d-slider', min: '0', max: String(MAX_AHEAD_HOURS), step: '1', 'aria-label': 'Model time, hours ahead of now',
@@ -579,10 +581,14 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   // ---- The model layers (phase 2) ---------------------------------------------------------------------
   const groundFt = () => (airfields.find((a) => a.home) ?? airfields[0])?.groundFt ?? 0;
 
-  function setToggle(key, on) {
+  function setToggle(key, on, { save = true } = {}) {
     toggles[key] = on;
     toggleButtons.get(key)?.button.setAttribute('aria-pressed', String(on));
     applyToggles();
+    if (key === 'rain') {
+      weatherDirty = true; // the key's words say whether the curtains show (nothing is built again)
+      if (save) onRainToGround(on);
+    }
     requestRender();
   }
 
@@ -2071,8 +2077,12 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       teardown();
       element.hidden = true;
     },
-    /** The airfields, the height scale and the cloud style to show ({ airfields: scene3d-model.js `sceneAirfields`, heightScale, cloudStyle: 'slabs' | 'levels' }). Drawn again only when they differ. */
-    setScene({ airfields: next = [], heightScale = scale, cloudStyle: style = cloudStyle } = {}) {
+    /**
+     * The airfields, the height scale, the cloud style and the Rain to ground choice to show ({ airfields: scene3d-model.js `sceneAirfields`, heightScale,
+     * cloudStyle: 'slabs' | 'levels', rainToGround: boolean }). Drawn again only when they differ.
+     */
+    setScene({ airfields: next = [], heightScale = scale, cloudStyle: style = cloudStyle, rainToGround = toggles.rain } = {}) {
+      if (typeof rainToGround === 'boolean' && rainToGround !== toggles.rain) setToggle('rain', rainToGround, { save: false }); // the stored choice
       if (style !== cloudStyle && (style === 'slabs' || style === 'levels')) {
         cloudStyle = style;
         applyModel(); // the model layers are built again in the other style

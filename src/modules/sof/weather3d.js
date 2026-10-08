@@ -1,4 +1,4 @@
-// Draws the SOF 3D view's weather layers (SOF-39, SOF-42; Dad, 7 Oct): precipitation shafts from the radar, lightning bolts, a faint satellite cloud sheet, the surface fronts
+// Draws the SOF 3D view's weather layers (SOF-39, SOF-42; Dad, 7 Oct): radar blocks in the model cloud with a faint rain curtain below (Dad, 8 Oct), lightning bolts, a faint satellite cloud sheet, the surface fronts
 // and the drifting wind streaks. It only builds three.js objects from the plain data weather3d-model.js works out; the page (buttons, labels, the picture reads) is view3d.js's.
 //
 // World frame as view3d.js: X east, Y north, Z up, in the map's local feet; a height is feet above sea level times the height scale (`scale`), the same reference as the cloud
@@ -9,8 +9,15 @@ import { cellFt, FRONT_LINE_FT, FRONT_WALL_FT, SYMBOL_FT, FLOW_TAIL_MIN_FT } fro
 
 /** Lines and fills lie this far (scene feet) above the ground so it never hides them, as view3d.js's own LIFT_FT. */
 const LIFT_FT = 500;
-/** A shaft is a see-through column: radar's own colour at this opacity. An estimate for the look. */
+/** A radar block is a see-through column: radar's own colour at this opacity. An estimate for the look. */
 const SHAFT_OPACITY = 0.34;
+/**
+ * The rain curtain under a block is much fainter: thin vertical streaks (RAIN_STREAKS, alpha 0 to 255 across a face) at RAIN_OPACITY, so the streaks are at most this
+ * opaque and about a third of it on average (about 0.1, under a third of a block's), and RAIN_WIDTH of a cell wide. Estimates for the look (Dad, 8 Oct 2026).
+ */
+const RAIN_OPACITY = 0.3; // estimate
+const RAIN_WIDTH = 0.7; // estimate, a share of a radar cell
+const RAIN_STREAKS = [255, 40, 0, 160, 0, 0, 220, 30, 0, 120, 0, 200, 0, 0, 90, 0];
 /** A bolt is this wide (feet), with a dark outline this wide: thin, but never under about two pixels at the start view. An estimate for the look. */
 const BOLT_FT = { fill: 4800, outline: 9000 };
 const BOLT_FILL = '#ffe800';
@@ -36,33 +43,64 @@ function finish(T, root, owned, extra = {}) {
 }
 
 /**
- * The precipitation shafts (`shafts` from weather3d-model.js): one see-through box a cell wide from the ground to the cloud base, in the radar's colour. Returns { root, count, dispose }.
+ * The radar blocks (`shafts` from weather3d-model.js): one see-through box a cell wide from each block's base to its top, in the radar's colour, and under each
+ * block with a `rain` part a faint, streaked, narrower box from the ground to the block's base in the same colour. Two instanced meshes, one draw each, as many
+ * boxes as blocks at most. Returns { root, count, rain (the curtains' group, for the "Rain to ground" switch), dispose }.
  */
 export function buildShafts(T, { shafts, scale }) {
   const owned = [];
   const root = new T.Group();
   root.name = 'radar-shafts';
-  if (shafts.length) {
-    const geometry = own(owned, new T.BoxGeometry(1, 1, 1));
-    geometry.translate(0, 0, 0.5); // the base at z = 0, so a box scales up from the ground
-    const material = own(owned, new T.MeshBasicMaterial({ transparent: true, opacity: SHAFT_OPACITY, depthWrite: false }));
-    const mesh = new T.InstancedMesh(geometry, material, shafts.length);
-    const m = new T.Matrix4();
-    const colour = new T.Color();
-    shafts.forEach((s, n) => {
-      m.compose(new T.Vector3(s.x, s.y, s.baseFt * scale), new T.Quaternion(), new T.Vector3(cellFt() * 0.9, cellFt() * 0.9, Math.max(1, (s.topFt - s.baseFt) * scale)));
+  const rainGroup = new T.Group();
+  rainGroup.name = 'radar-rain';
+  root.add(rainGroup);
+  const m = new T.Matrix4();
+  const colour = new T.Color();
+  const place = (mesh, list, partOf, width) => {
+    list.forEach((s, n) => {
+      const part = partOf(s);
+      m.compose(new T.Vector3(s.x, s.y, part.baseFt * scale), new T.Quaternion(), new T.Vector3(width, width, Math.max(1, (part.topFt - part.baseFt) * scale)));
       mesh.setMatrixAt(n, m);
       colour.setRGB(s.colour[0] / 255, s.colour[1] / 255, s.colour[2] / 255, T.SRGBColorSpace);
       mesh.setColorAt(n, colour);
     });
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-    mesh.renderOrder = 3;
     mesh.frustumCulled = false;
     own(owned, mesh);
+  };
+  if (shafts.length) {
+    const geometry = own(owned, new T.BoxGeometry(1, 1, 1));
+    geometry.translate(0, 0, 0.5); // the base at z = 0, so a box scales up from its base
+    const material = own(owned, new T.MeshBasicMaterial({ transparent: true, opacity: SHAFT_OPACITY, depthWrite: false }));
+    const mesh = new T.InstancedMesh(geometry, material, shafts.length);
+    place(mesh, shafts, (s) => s, cellFt() * 0.9);
+    mesh.renderOrder = 3;
     root.add(mesh);
   }
-  return finish(T, root, owned, { count: shafts.length });
+  const wet = shafts.filter((s) => s.rain);
+  if (wet.length) {
+    // The box is turned so each side's texture runs up the side (BoxGeometry's own "height" is its y), then stood on its base like the blocks.
+    const geometry = own(owned, new T.BoxGeometry(1, 1, 1));
+    geometry.rotateX(Math.PI / 2);
+    geometry.translate(0, 0, 0.5);
+    const texel = new Uint8Array(RAIN_STREAKS.length * 4 * 4);
+    for (let row = 0; row < 4; row++) {
+      RAIN_STREAKS.forEach((a, k) => texel.set([255, 255, 255, a], (row * RAIN_STREAKS.length + k) * 4));
+    }
+    const texture = own(owned, new T.DataTexture(texel, RAIN_STREAKS.length, 4, T.RGBAFormat));
+    texture.wrapS = T.RepeatWrapping;
+    texture.generateMipmaps = true; // far off the streaks blend to a faint even column instead of shimmering
+    texture.minFilter = T.LinearMipmapLinearFilter;
+    texture.magFilter = T.LinearFilter;
+    texture.needsUpdate = true;
+    const material = own(owned, new T.MeshBasicMaterial({ map: texture, transparent: true, opacity: RAIN_OPACITY, depthWrite: false }));
+    const mesh = new T.InstancedMesh(geometry, material, wet.length);
+    place(mesh, wet, (s) => s.rain, cellFt() * RAIN_WIDTH);
+    mesh.renderOrder = 2;
+    rainGroup.add(mesh);
+  }
+  return finish(T, root, owned, { count: shafts.length, rain: rainGroup });
 }
 
 /** The lightning bolts (`bolts`): a thin yellow column from the ground to the cloud top with a dark outline behind it, as the 2D mark. Returns { root, count, dispose }. */
