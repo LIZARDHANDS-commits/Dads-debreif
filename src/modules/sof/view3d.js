@@ -52,7 +52,8 @@ import { terrainWords, TERRAIN_CREDIT } from './terrain-model.js';
 import { createWeather3dLayers, weatherKeyWords } from './weather3d-layers.js';
 import { FRONTS_CREDIT } from './fronts.js';
 import {
-  AREA_NM, AREA_FT, DECK_FT, CATEGORY_TOKENS, START_CAMERA, ZOOM_STEP, KEY_ORBIT_PX, ORBIT_DEG_PER_PX, fitZoom, orbitBy, zoomCamera, sceneSignature, formatFeet,
+  AREA_NM, AREA_FT, DEFAULT_AREA_NM, DECK_FT, CATEGORY_TOKENS, ZOOM_STEP, KEY_ORBIT_PX, KEY_PAN_PX, ORBIT_DEG_PER_PX, fitZoom, orbitBy, zoomCamera, panBy, clampLookAt, homeCamera,
+  sceneSignature, formatFeet,
 } from './scene3d-model.js';
 import { createAirspaceLogView } from './airspace-log-view.js';
 import {
@@ -80,7 +81,7 @@ import {
 const BACKGROUND = '#0a141d';
 /** render() looks at whether the pictures or the weather changed at most this often (milliseconds). */
 const SIGNATURE_CHECK_MS = 1000;
-/** The depth range the camera is given after `matchProjection` (feet along the view): wide enough for the 450 NM square at any tilt, with its tallest layers. */
+/** The depth range the camera is given after `matchProjection` (feet along the view): wide enough for the 450 NM square at any tilt, with its tallest layers (scaled up for a bigger area). */
 const CAMERA_NEAR_FT = -3_500_000;
 const CAMERA_FAR_FT = 5_500_000;
 /** The model credit: Open-Meteo and the model (Moose Jaw: whichever answered, the finer HRDPS or the global GEM; a US base: NOAA HRRR / GFS). */
@@ -301,7 +302,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     type: 'button',
     class: 'sof-3d-toggle sof-3d-orbit',
     'aria-pressed': 'false',
-    title: `Turn the camera slowly round home, one turn in about ${ORBIT_SECONDS_PER_TURN / 60} minutes, at the zoom and tilt you have. A drag, the wheel, an arrow key or Home stops it.`,
+    title: `Turn the camera slowly round home, one turn in about ${ORBIT_SECONDS_PER_TURN / 60} minutes, at the zoom and tilt you have. A drag (turning or moving the map), the wheel, an arrow key or Home stops it.`,
     onclick: () => setOrbit(orbitButton.getAttribute('aria-pressed') !== 'true'),
   }, 'Orbit');
   const fullButton = h('button', { type: 'button', class: 'sof-3d-toggle sof-3d-fullscreen', hidden: !fullScreen, onclick: () => fullScreen?.toggle() }, 'Full screen');
@@ -310,7 +311,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     type: 'button',
     class: 'sof-3d-toggle sof-3d-tour',
     'aria-pressed': 'false',
-    title: `Fly the camera round the Moose Jaw circuit, Regina and each airborne T-6 in turn, about ${TOUR_DWELL_S} seconds at each, with Orbit turning. A drag, the wheel, an arrow key or Home stops it.`,
+    title: `Fly the camera round the Moose Jaw circuit, Regina and each airborne T-6 in turn, about ${TOUR_DWELL_S} seconds at each, with Orbit turning. A drag (turning or moving the map), the wheel, an arrow key or Home stops it.`,
     onclick: () => setTour(tourButton.getAttribute('aria-pressed') !== 'true'),
   }, 'Tour');
   // In full screen the layer panels and the airspace log are folded away so the map is clear (Dad, 7 Oct); "Panels" brings them back. The credits
@@ -326,7 +327,9 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       element.classList.toggle('show-panels', show);
     },
   }, 'Panels');
-  const tools = h('div', { class: 'sof-3d-tools' }, orbitButton, tourButton, panelsButton, fullButton, corner);
+  // How to move the camera, in the corner (Dad, 8 Oct: drag to move round the map), under the Heights line.
+  const hint = h('p', { class: 'sof-3d-hint' }, 'Drag to turn · Right-drag or Shift-drag to move · Wheel to zoom');
+  const tools = h('div', { class: 'sof-3d-tools' }, orbitButton, tourButton, panelsButton, fullButton, corner, hint);
   // What the tour is showing and when it moves on. The words change every stop (announced); the countdown changes every second (not announced).
   const tourWhat = h('span', { class: 'sof-3d-tour-what' });
   const tourNext = h('span', { class: 'sof-3d-tour-next', 'aria-hidden': 'true' });
@@ -343,7 +346,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   let weatherSig = null; // the weather layers' inputs as last built
   let weatherDirty = true;
   /** The camera: zoom is relative to the fitting zoom (1 shows the whole square); tx, ty and tz are the point looked at when the tour moved it off home (feet from home, feet above sea level). */
-  let cam = /** @type {{ yawDeg: number, pitchDeg: number, zoom: number, tx?: number, ty?: number, tz?: number }} */ ({ ...START_CAMERA, zoom: 1 });
+  let cam = /** @type {{ yawDeg: number, pitchDeg: number, zoom: number, tx?: number, ty?: number, tz?: number }} */ (homeCamera());
   let THREE = null;
   let gl = null; // everything three.js made, while the view is shown
   let wanted = false;
@@ -1434,10 +1437,12 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     const zoom = fitZoom(size) * cam.zoom;
     // The point looked at is home's ground unless the tour moved it (cam.tx, ty, tz: feet from home and feet above sea level).
     matchProjection(THREE, camera, { x: cam.tx ?? 0, y: cam.ty ?? 0, z: cam.tz ?? planeZ / scale }, { yawDeg: cam.yawDeg, pitchDeg: cam.pitchDeg, zoom, altScale: scale }, size);
-    // The square is 450 NM across: its far corners lie further from the view's middle than the shared camera's depth range reaches (ui-kit `matchProjection` is for 250 NM and
-    // less), so the range is widened here. An orthographic camera has no perspective to spoil, only depth precision (24 bits over some 8 million ft is about half a foot).
-    camera.near = CAMERA_NEAR_FT;
-    camera.far = CAMERA_FAR_FT;
+    // The square is 450 NM across or more: its far corners lie further from the view's middle than the shared camera's depth range reaches (ui-kit `matchProjection` is for 250 NM
+    // and less), so the range is widened here, in step with the area chosen (and so it still reaches the far corner with the map slid to the edge). An orthographic camera has no
+    // perspective to spoil, only depth precision (24 bits over some 8 million ft at 450 NM is about half a foot; 16 million at 900 NM, about a foot).
+    const depth = AREA_NM / DEFAULT_AREA_NM;
+    camera.near = CAMERA_NEAR_FT * depth;
+    camera.far = CAMERA_FAR_FT * depth;
     camera.updateProjectionMatrix();
     const ftPerPx = 1000 / zoom;
     gl.weather.setZoom(cam.zoom);
@@ -1542,25 +1547,38 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     requestRender();
   }
 
-  // ---- The camera's hands: drag to turn, wheel or pinch to zoom, arrow keys to turn --------------------
+  // ---- The camera's hands: drag to turn, right-drag, Shift-drag or two fingers to slide the map, wheel or pinch to zoom, arrow keys to turn (Shift: slide) --------------------
   const pointers = new Map();
-  let drag = null; // { x, y, moved } for a single pointer
-  let pinch = null; // the distance between two pointers last time
+  let drag = null; // { x, y, moved, pan } for a single pointer: `pan` slides the map (right button or Shift held), else the drag turns the view
+  let pinch = null; // two pointers: { spread (their distance), x, y (their midpoint) } last time
 
   const spread = () => {
     const [a, b] = [...pointers.values()];
     return Math.hypot(a.x - b.x, a.y - b.y);
   };
+  const midpoint = () => {
+    const [a, b] = [...pointers.values()];
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  };
+  /** The ground feet one screen pixel spans at the zoom in use (the view's fit zoom times the camera's). */
+  const ftPerPxNow = () => {
+    const size = { width: gl?.canvas.clientWidth ?? 1, height: gl?.canvas.clientHeight ?? 1 };
+    return 1000 / (fitZoom(size) * cam.zoom);
+  };
+  /** Slides the map by a drag of (dx, dy) pixels: the ground follows the pointer, and the point looked at stays inside the square (scene3d-model.js `panBy`). */
+  const panCamera = (dx, dy) => {
+    cam = panBy(cam, dx, dy, ftPerPxNow());
+  };
   const hands = /** @type {[string, (e: any) => void][]} */ ([
     ['pointerdown', (e) => {
-      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 2) return; // the left button turns (Shift: slides), the right slides
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       gl?.canvas.setPointerCapture?.(e.pointerId);
       clearSpaceMove(); // a press is for dragging or clicking, not for reading
-      if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, moved: 0 };
+      if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, moved: 0, pan: e.button === 2 || e.shiftKey === true, click: e.button !== 2 };
       else {
         drag = null;
-        pinch = spread();
+        pinch = { spread: spread(), ...midpoint() };
       }
       gl?.canvas.classList.add('is-dragging');
     }],
@@ -1578,10 +1596,12 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       held.x = e.clientX;
       held.y = e.clientY;
       if (pointers.size >= 2 && pinch) {
-        setOrbit(false); // a pinch is the SOF taking the camera
+        setOrbit(false); // a pinch or a two-finger drag is the SOF taking the camera
         const now = spread();
-        if (now > 0) cam = zoomCamera(cam, now / pinch, 1);
-        pinch = now;
+        const mid = midpoint();
+        if (now > 0 && pinch.spread > 0) cam = zoomCamera(cam, now / pinch.spread, 1);
+        panCamera(mid.x - pinch.x, mid.y - pinch.y); // two fingers moving together slide the map
+        pinch = { spread: now, ...mid };
       } else if (drag) {
         const dx = e.clientX - drag.x;
         const dy = e.clientY - drag.y;
@@ -1589,7 +1609,8 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
         drag.x = e.clientX;
         drag.y = e.clientY;
         if (drag.moved >= CLICK_PX) setOrbit(false); // a drag is the SOF taking the camera; a click on an aircraft is not
-        cam = orbitBy(cam, dx, dy);
+        if (drag.pan) panCamera(dx, dy);
+        else cam = orbitBy(cam, dx, dy);
       }
       requestRender();
     }],
@@ -1598,7 +1619,12 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     ['keydown', (e) => {
       if (e.altKey || e.ctrlKey || e.metaKey) return;
       const turn = KEY_ORBIT_PX[e.key];
-      if (turn) {
+      if (turn && e.shiftKey) {
+        // Shift and an arrow slides the view that way: the point looked at moves right for the right arrow, up the screen for the up arrow (a drag the other way).
+        e.preventDefault();
+        setOrbit(false);
+        panCamera(-Math.sign(turn[0]) * KEY_PAN_PX, -Math.sign(turn[1]) * KEY_PAN_PX);
+      } else if (turn) {
         e.preventDefault();
         setOrbit(false);
         cam = orbitBy(cam, turn[0], turn[1]);
@@ -1613,7 +1639,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       } else if (e.key === 'Home') {
         e.preventDefault();
         setOrbit(false);
-        cam = { ...START_CAMERA, zoom: 1 };
+        cam = homeCamera();
       } else if ((e.key === ']' || e.key === '[') && gl?.traffic) {
         if (!stepAircraft(e.key === ']' ? 1 : -1)) return; // none to step through: the key is left alone
         e.preventDefault();
@@ -1666,7 +1692,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     if (pointers.size === 0) {
       gl?.canvas.classList.remove('is-dragging');
       // A press that never moved is a click: on an aircraft it shows that aircraft's facts, anywhere else it only closes a tag. The camera never moves on a click.
-      if (drag && drag.moved < CLICK_PX && e.type === 'pointerup') {
+      if (drag && drag.click && drag.moved < CLICK_PX && e.type === 'pointerup') {
         const hit = aircraftNear(e.clientX, e.clientY);
         if (hit) selectAircraft(selectedAc === hit ? null : hit);
         else {
@@ -1677,7 +1703,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       drag = null;
     } else if (pointers.size === 1) {
       const [p] = pointers.values();
-      drag = { x: p.x, y: p.y, moved: CLICK_PX };
+      drag = { x: p.x, y: p.y, moved: CLICK_PX, pan: false, click: false }; // one finger left after two: it turns the view again
     }
   }
 
@@ -1761,6 +1787,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
 
   function setTourWords(words, elapsed = 0) {
     tourCaptionEl.hidden = !tourOn || words === null;
+    hint.hidden = !tourCaptionEl.hidden; // the tour's caption takes the hint's place
     if (words !== null) {
       setText(tourWhat, words);
       setText(tourNext, nextInWords(elapsed));
@@ -1816,6 +1843,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     tourHex = null;
     tourButton.setAttribute('aria-pressed', 'false');
     tourCaptionEl.hidden = true;
+    hint.hidden = false;
     requestRender();
   }
 
@@ -1839,7 +1867,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     canvas.className = 'sof-3d-canvas';
     canvas.tabIndex = 0;
     canvas.setAttribute('role', 'img');
-    canvas.setAttribute('aria-label', '3D view of the weather round home. Drag or press the arrow keys to turn it, scroll or press plus and minus to zoom, Home to start again. Each airfield pin is a button that shows its result. Press ] and [ to step through the aircraft.');
+    canvas.setAttribute('aria-label', '3D view of the weather round home. Drag or press the arrow keys to turn it; right-drag, Shift-drag, drag with two fingers or press Shift and an arrow key to move across the map; scroll or press plus and minus to zoom, Home to start again. Each airfield pin is a button that shows its result. Press ] and [ to step through the aircraft.');
     element.prepend(canvas);
     let renderer;
     try {
@@ -2113,7 +2141,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     /** Back to the start view: from the south-east, 45 degrees down, the whole square in view. */
     home() {
       setOrbit(false); // the bar's Home button: the SOF takes the camera, as the Home key does
-      cam = { ...START_CAMERA, zoom: 1 };
+      cam = homeCamera();
       requestRender();
     },
     zoomBy(factor) {

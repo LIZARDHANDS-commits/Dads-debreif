@@ -2287,7 +2287,7 @@ main[data-module='sof'] {
 }
 
 [data-module='sof'] .sof-3d-outside {
-  top: calc(var(--space-2) + 2.4rem);
+  top: calc(var(--space-2) + 4.2rem); /* under the buttons and the camera hint */
   right: var(--space-2);
   max-width: 16rem;
   padding: 2px var(--space-2);
@@ -2314,6 +2314,18 @@ main[data-module='sof'] {
 
 [data-module='sof'] .sof-3d-tools .sof-3d-corner {
   position: static;
+}
+
+/* How to move the camera (Dad, 8 Oct): a quiet line on its own row under the buttons. */
+[data-module='sof'] .sof-3d-tools .sof-3d-hint {
+  flex-basis: 100%;
+  margin: 0;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius);
+  background: rgb(5 10 18 / 0.7);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  text-align: right;
 }
 
 [data-module='sof'] .sof-3d-tools .sof-3d-toggle {
