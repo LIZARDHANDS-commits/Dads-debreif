@@ -476,11 +476,12 @@ function drawRejoin(ctx, map, state, { leadId, wingId, rangeFt, closureKt, side,
   const [ex, ey] = map.worldToScreen(lead.xFt + Math.cos(rejoinHdg) * len, lead.yFt + Math.sin(rejoinHdg) * len);
 
   ctx.save();
-  ctx.strokeStyle = '#ffcc66'; // Rejoin amber
-  ctx.fillStyle = '#ffcc66';
-  ctx.lineWidth = 1.5;
-  ctx.globalAlpha = 0.75;
-  ctx.setLineDash([8, 8]);
+  const lineColor = isTurning ? '#00ff66' : '#ffcc66'; // Bright green dashed for 45° TRJ line, amber for 6 o'clock
+  ctx.strokeStyle = lineColor;
+  ctx.fillStyle = lineColor;
+  ctx.lineWidth = 2.0;
+  ctx.globalAlpha = 0.9;
+  ctx.setLineDash([10, 8]);
   ctx.beginPath();
   ctx.moveTo(lx, ly);
   ctx.lineTo(ex, ey);
@@ -490,7 +491,12 @@ function drawRejoin(ctx, map, state, { leadId, wingId, rangeFt, closureKt, side,
   const labelDist = Math.max(500, Math.min(rangeFt * 0.75, 200 / map.view.scale));
   const [tx, ty] = map.worldToScreen(lead.xFt + Math.cos(rejoinHdg) * labelDist, lead.yFt + Math.sin(rejoinHdg) * labelDist);
   const labelText = isTurning ? '45° Rejoin line (X)' : 'Rejoin line (6 o\'clock)';
-  text(ctx, labelText, tx + 8, ty - 6, '#ffcc66', 11);
+  text(ctx, labelText, tx + 8, ty - 6, lineColor, 11);
+
+  ctx.strokeStyle = '#ffcc66';
+  ctx.fillStyle = '#ffcc66';
+  ctx.lineWidth = 1.5;
+  ctx.globalAlpha = 0.75;
 
   ctx.setLineDash([4, 6]);
   ctx.beginPath();

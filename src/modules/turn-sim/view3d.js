@@ -298,7 +298,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
           const s = rejoin.side ?? (Math.sign((wing.xFt - a.xFt) * -Math.sin(a.headingRad) + (wing.yFt - a.yFt) * Math.cos(a.headingRad)) || -1);
           const isTurning = rejoin.rejoinKind !== 'straight';
           const off = isTurning ? s * (Math.PI / 4) : 0;
-          colour.set('#ffcc66');
+          colour.set(isTurning ? '#00ff66' : '#ffcc66');
           seg([a.xFt, a.yFt, z], out(a.headingRad + Math.PI + off, lengthFt));
         }
       }
