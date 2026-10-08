@@ -14,6 +14,7 @@ import { ageMinutes, toDate, MINUTE_MS } from '../../wx/dates.js';
 import { describeTrigger, minimaText, descentText } from './waves.js';
 import { bannerWindow } from './cautions.js';
 import { marksOfCheck, alignMarks } from './marks.js';
+import { NOT_SET_KEY, NOT_SET_LIMITS_TEXT, notSetWords, INCOMPLETE_WORDS, incompleteWhy } from './limits-not-set.js';
 
 const two = (n) => String(n).padStart(2, '0');
 
@@ -151,6 +152,19 @@ function resultModel(metar, conditions, limits, now, descent) {
 }
 
 /**
+ * The result at a home base with no weather limits (plan Step 2c part B; SOF-32): the METAR is never checked against a limit, so home reads grey
+ * "Limits not set for KDLF" and an alternate amber "Incomplete", never "Within limits" or a tick. No METAR still says so. `title` is the key line.
+ */
+function notSetResult(metar, conditions, now, isHome, homeIcao) {
+  if (!conditions) return { level: 'none', words: 'No METAR', reasons: [], stale: false };
+  const stale = metar.state === 'stale' || metar.state === 'closed' || !now;
+  const note = metar.state === 'closed' ? ' (last observation)' : stale ? ' (STALE report)' : '';
+  return isHome
+    ? { level: 'not-set', words: `${notSetWords(homeIcao)}${note}`, title: NOT_SET_KEY, reasons: [], stale }
+    : { level: 'incomplete', words: `${INCOMPLETE_WORDS}: limits not set for ${homeIcao}${note}`, title: incompleteWhy(homeIcao), reasons: [], stale };
+}
+
+/**
  * A stale METAR (SPEC-sof, "Never: show a stale one as current") cannot say the weather is within the limits
  * now, so a "within" on it is "unknown". Below or at the limit stays as it is, and a field closed for the night
  * with its last observation is not stale, just closed. To go back to the old "Within limits (STALE report)",
@@ -206,13 +220,19 @@ const metarMarks = (check, descent) => (descent ? marksOfCheck(check).filter((m)
  * - `feed`: `{ lastTry, failed }` for the words about a missing or failed refresh.
  * - `now`: a Date. Without one every age is unknown and every report reads as stale.
  * - `timeZone`: home's, for the day the banner looks at (default: the hour before now to the end of the TAF).
+ * - `notSetFor`: the home ICAO when the home base's site profile has no weather limits (`standards: null`), else null (the default, today's
+ *   behaviour). Then nothing is checked against a limit: the result is `notSetResult`'s, only dangerous-weather words are marked, and `alert` is
+ *   the cautions alone. The category, NATO state and cautions are the weather's and stay.
  * The METAR and TAF lines carry `marks`, `[{ start, end, level }]` on their `raw` text, and the card `reasonSpans`,
  * each wx reason to the `[{ start, end }]` of its words in the METAR's `raw`.
- * @param {{ icao?: any, name?: any, role?: string, metar?: any, taf?: any, limits?: any, options?: any, now?: any, feed?: any, timeZone?: any }} [input]
+ * @param {{ icao?: any, name?: any, role?: string, metar?: any, taf?: any, limits?: any, options?: any, now?: any, feed?: any, timeZone?: any, notSetFor?: any }} [input]
  */
-export function cardModel({ icao = null, name = null, role = 'ALT', metar = null, taf = null, limits, options, now, feed = {}, timeZone } = {}) {
+export function cardModel({ icao = null, name = null, role = 'ALT', metar = null, taf = null, limits, options, now, feed = {}, timeZone, notSetFor = null } = {}) {
   const at = toDate(now);
   const isHome = role === 'HOME';
+  const notSet = typeof notSetFor === 'string' && notSetFor ? notSetFor : null;
+  // At a base with no limits only dangerous weather is marked: a mark for "below" or "at the limit" would say a limit was checked.
+  const shownMarks = (marks) => (notSet ? marks.filter((m) => m.level === 'caution') : marks);
   let used;
   let limitsText;
   const descent = !isHome && options?.visualDescent ? options.visualDescent : null;
@@ -244,15 +264,15 @@ export function cardModel({ icao = null, name = null, role = 'ALT', metar = null
     role: isHome ? 'HOME' : 'ALT',
     category: conditions ? flightCategory(conditions) : null,
     nato: conditions ? natoColour(conditions) : null,
-    limitsText,
-    metar: { ...metarLine, marks: check ? alignMarks(metarMarks(check, descent), metarLine.raw, parsedRaw) : [] },
-    taf: { ...tafLine, marks: tafMarks(tafLine, taf, { isHome, used, descent, now: at, timeZone }) },
+    limitsText: notSet ? NOT_SET_LIMITS_TEXT : limitsText,
+    metar: { ...metarLine, marks: check ? shownMarks(alignMarks(metarMarks(check, descent), metarLine.raw, parsedRaw)) : [] },
+    taf: { ...tafLine, marks: shownMarks(tafMarks(tafLine, taf, { isHome, used, descent, now: at, timeZone })) },
     reasonSpans,
-    result: resultModel(metarLine, conditions, used, at, descent),
+    result: notSet ? notSetResult(metarLine, conditions, at, isHome, notSet) : resultModel(metarLine, conditions, used, at, descent),
     cautions: check ? check.cautions : [],
     cautionReasons: check ? check.reasons.filter((r) => !limitReason(r)) : [],
     watch,
     watchText: watch.length ? `Watch: ${watch.join(' ')}` : null,
-    alert: check ? check.alert : false,
+    alert: check ? (notSet ? check.cautions.length > 0 : check.alert) : false,
   };
 }

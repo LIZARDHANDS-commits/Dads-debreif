@@ -13,6 +13,7 @@ import { REFRESH_MS } from './weather.js';
 import { snapLimits } from './settings-model.js';
 import { cautionList } from './cautions.js';
 import { CYMJ, siteFor } from './sites/index.js';
+import { limitsSet, NOT_SET_KEY, incompleteWhy } from './limits-not-set.js';
 
 /**
  * The line under the screen: what it is not, and where the weather comes from. The weather feeds (MET Norway, Datamask) are the same at every base;
@@ -126,11 +127,17 @@ export function alertText(snapshot, now) {
  * `lightning` is lightning.js's answer for the home field (the map's near-home reading), or
  * left out; `cautions` is every current caution, worst first (cautions.js `cautionList`), with
  * lightning's among them when it is near. The banner shows this list; it is not drawn here.
+ *
+ * When the home base's site profile has no weather limits (`standards: null`, plan Step 2c part B), no card is checked against a limit: home reads
+ * "Limits not set for KDLF" and each alternate "Incomplete" (cards.js `notSetFor`), with the key line as the card's note. `limitsNotSet` says so
+ * (the home ICAO, or null when the limits are set).
  */
 export function buildScreen({ airfields, snapshot, limits, now, lightning = null, timeZone }) {
   const home = airfields.home();
   const homeLimits = snapLimits(limits); // a typed limit is checked snapped up, the safe side (R1)
   const round = snapshot.lastRound;
+  const site = siteFor(home.icao);
+  const notSetFor = limitsSet(site) ? null : home.icao;
   const cards = [];
   const seen = new Set();
   for (const field of [home, ...airfields.alternates()]) {
@@ -150,12 +157,14 @@ export function buildScreen({ airfields, snapshot, limits, now, lightning = null
       timeZone,
       // Before any round has run there is nothing to have failed; after one, a station it didn't get did.
       feed: { lastTry: round?.at ?? null, failed: Boolean(round && !round.fresh.metar.has(field.icao)) },
+      notSetFor,
     });
     const notSet = !isHome && !options?.visualDescent && options?.minimaChecked !== true;
+    const baseNote = isHome ? NOT_SET_KEY : incompleteWhy(home.icao);
     cards.push({
       ...model,
       limitsLabel: isHome ? 'Limits' : 'Minima',
-      limitsNote: notSet ? `Approaches not set in Settings: checked against ${model.limitsText}` : null,
+      limitsNote: notSetFor ? baseNote : notSet ? `Approaches not set in Settings: checked against ${model.limitsText}` : null,
     });
   }
   const extraCautions = lightning?.caution ? [lightning.caution] : [];
@@ -166,7 +175,8 @@ export function buildScreen({ airfields, snapshot, limits, now, lightning = null
     feed: feedStatus(snapshot, now),
     alert: alertText(snapshot, now),
     cards,
-    credits: creditsFor(siteFor(home.icao)),
+    credits: creditsFor(site),
+    limitsNotSet: notSetFor,
     lightning,
     // Cautions from outside the weather reports, in cautions.js's shape: the banner adds these to what it builds from the cards and TAFs.
     extraCautions,

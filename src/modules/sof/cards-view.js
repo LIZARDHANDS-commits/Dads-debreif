@@ -23,8 +23,9 @@ import { ALERT_FIELD_AREA_NM } from './alerts.js';
 /** The hover card stays this long after the pointer leaves a row or the card, so the pointer can travel from one to the other (an estimate for feel). */
 const HOVER_GRACE_MS = 250;
 
-// Beside the words of the result, never instead of them.
-const LEVEL_SYMBOL = { below: '▼', 'at-limit': '●', within: '✓', unknown: '?', none: '–' };
+// Beside the words of the result, never instead of them. 'not-set' (grey) is home at a base with no weather limits, 'incomplete' (amber) an
+// alternate there (limits-not-set.js, SOF-32): neither is ever a tick.
+const LEVEL_SYMBOL = { below: '▼', 'at-limit': '●', within: '✓', unknown: '?', none: '–', 'not-set': '–', incomplete: '⚠' };
 
 const note = (text, tone) => (text ? h('p', { class: `sof-note${tone ? ` is-${tone}` : ''}` }, text) : null);
 
@@ -55,7 +56,7 @@ function report(kind, line) {
   );
 }
 
-const WAVE_SYMBOL = { ok: '✓', below: '▼', 'at-limit': '●', unknown: '?' };
+const WAVE_SYMBOL = { ok: '✓', below: '▼', 'at-limit': '●', unknown: '?', incomplete: '⚠' };
 
 function waveResult(line) {
   return h('p', { class: `sof-wave-result is-${line.tone}` },
@@ -135,8 +136,9 @@ function alertSection(a) {
     h('details', { class: 'sof-notam-raw' }, h('summary', {}, 'Text'), h('pre', { class: 'sof-raw' }, x.text))))));
 }
 
-// The compact row's limits mark, in words beside its symbol (never the symbol alone): "✓ within", "⚠ below", "● at limit", "? old", "? unknown", "– no METAR".
-const MARK = { below: ['⚠', 'below'], 'at-limit': ['●', 'at limit'], within: ['✓', 'within'], none: ['–', 'no METAR'] };
+// The compact row's limits mark, in words beside its symbol (never the symbol alone): "✓ within", "⚠ below", "● at limit", "? old", "? unknown", "– no METAR",
+// and at a base with no weather limits "– limits not set" (home, grey) and "⚠ incomplete" (an alternate, amber).
+const MARK = { below: ['⚠', 'below'], 'at-limit': ['●', 'at limit'], within: ['✓', 'within'], none: ['–', 'no METAR'], 'not-set': ['–', 'limits not set'], incomplete: ['⚠', 'incomplete'] };
 export function limitsMark(card) {
   const level = card.result.level;
   const [symbol, words] = level === 'unknown' ? ['?', card.result.stale ? 'old' : 'unknown'] : MARK[level] ?? ['?', 'unknown'];
@@ -162,7 +164,7 @@ function fullCard(card, { onClose }) {
   );
   const close = h('button', { type: 'button', class: 'sof-card-more', onclick: onClose }, 'Close');
   const result = h('div', { class: 'sof-result-row' },
-    h('p', { class: `sof-result level-${card.result.level}` }, h('span', { class: 'sof-result-symbol', 'aria-hidden': 'true' }, LEVEL_SYMBOL[card.result.level] ?? ''), ' ', card.result.words),
+    h('p', { class: `sof-result level-${card.result.level}`, ...(card.result.title ? { title: card.result.title } : {}) }, h('span', { class: 'sof-result-symbol', 'aria-hidden': 'true' }, LEVEL_SYMBOL[card.result.level] ?? ''), ' ', card.result.words),
     close);
   const head = h('header', { class: 'sof-card-head' },
     h('h2', { class: 'sof-card-title' }, h('span', { class: 'sof-icao' }, card.icao), card.name ? h('span', { class: 'sof-name' }, ` ${card.name}`) : null),
@@ -314,7 +316,7 @@ export function createCardsView({ dropdowns = undefined, timers = null, listen =
     entry.article.className = `sof-card is-${card.role.toLowerCase()} level-${card.result.level}${stale ? ' is-stale' : ''}`;
     const taf = tafHeadline(card.taf);
     const where = card.role === 'HOME' ? 'home' : 'alternate';
-    entry.button.title = `${card.icao}${card.name ? ` ${card.name}` : ''}, ${where}. ${card.result.words}. TAF: ${taf.text}. Press for the full card.`;
+    entry.button.title = `${card.icao}${card.name ? ` ${card.name}` : ''}, ${where}. ${card.result.words}.${card.result.title ? ` ${card.result.title}` : ''} TAF: ${taf.text}. Press for the full card.`;
     const chip = card.notams?.chip ?? null; // "⚠ RWY CLSD" for a critical NOTAM, a grey "NOTAMs ?" when they are unavailable
     const chipWords = chip ? (chip.level === 'critical' ? `⚠ ${chip.words}` : chip.words) : null;
     const xw = card.crosswind?.chip ?? null; // "XW 18 ⚠" when the favoured runway's crosswind is amber or red (SOF-43)

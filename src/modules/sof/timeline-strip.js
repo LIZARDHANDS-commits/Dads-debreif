@@ -47,7 +47,9 @@ export function createTimelineStrip({ full, dropdowns, timers, listen, storage }
   const waveWords = h('p', { class: 'visually-hidden' });
   const main = h('div', { class: 'sof-strip-main', id: 'sof-strip-main' }, axis, viewport, overlay, problem, waveWords);
   const panel = h('div', { class: 'sof-strip-full', id: 'sof-strip-full', hidden: true }, full);
-  const element = h('section', { class: 'sof-timeline', 'aria-label': '24-hour timeline strip' }, toggle, main, expand, panel);
+  // At a home base with no weather limits: grey "Limits not set for KDLF" beside Expand, the key line on hover (limits-not-set.js).
+  const notSet = h('span', { class: 'sof-strip-notset', hidden: true });
+  const element = h('section', { class: 'sof-timeline', 'aria-label': '24-hour timeline strip' }, toggle, main, notSet, expand, panel);
 
   const expandDrop = dropdowns.create({
     scope: element,
@@ -248,6 +250,9 @@ export function createTimelineStrip({ full, dropdowns, timers, listen, storage }
         signature = view.signature;
         problem.hidden = !view.problem;
         setText(problem, view.problem ?? '');
+        setText(notSet, view.limitsNote?.words ?? '');
+        notSet.title = view.limitsNote?.title ?? '';
+        notSet.hidden = !view.limitsNote;
         axis.replaceChildren(...makeAxis(view));
         overlay.replaceChildren(...makeOverlay(view));
         const words = view.waves.map((w) => w.text).join(' ');

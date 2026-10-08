@@ -30,6 +30,9 @@ const place = (el, left, width) => {
 export function createTimelineView({ header = null } = {}) {
   const title = h('h2', { class: 'sof-tl-title' });
   const problem = h('p', { class: 'sof-tl-problem', hidden: true });
+  // At a home base with no weather limits: grey "Limits not set for KDLF", the key line on hover and in the key; no piece is hatched (limits-not-set.js).
+  const notSet = h('p', { class: 'sof-tl-notset', hidden: true });
+  const notSetKey = h('p', { class: 'sof-tl-legend', hidden: true });
   const axis = h('div', { class: 'sof-tl-axis' });
   const rows = h('div', { class: 'sof-tl-rows', role: 'group', 'aria-label': 'Forecast pieces by airfield. Use the arrow keys to move between them.' });
   const info = h('p', { class: 'sof-tl-info', 'aria-hidden': 'true' }, HINT);
@@ -44,9 +47,10 @@ export function createTimelineView({ header = null } = {}) {
       { class: 'sof-tl-legend' },
       'Each piece shows its NATO colour state in words. Hatched, and ▼ marks a piece below the limits for that airfield (a short piece shows only the ▼; its full words are on hover, on focus and to a screen reader). ◆ latest METAR. L landing, +1 landing plus one hour. The line is now.',
     ),
+    notSetKey,
   );
   // The header holds the title and the waves; the body holds the picture, and scrolls inside itself if there are many airfields.
-  const head = h('div', { class: 'sof-tl-head' }, title, header);
+  const head = h('div', { class: 'sof-tl-head' }, title, notSet, header);
   const scroll = h('div', { class: 'sof-tl-scroll' }, problem, axis, rows);
   const element = h('section', { class: 'sof-timeline-full', 'aria-labelledby': 'sof-tl-title' }, head, scroll, h('div', { class: 'sof-tl-foot' }, info, key), waveWords);
   title.id = 'sof-tl-title';
@@ -153,6 +157,11 @@ export function createTimelineView({ header = null } = {}) {
     const active = document.activeElement;
     const focusedId = rows.contains(active) ? pieceOf(active)?.dataset.id : null;
     setText(title, view.title);
+    setText(notSet, view.limitsNote?.words ?? '');
+    notSet.title = view.limitsNote?.title ?? '';
+    notSet.hidden = !view.limitsNote;
+    setText(notSetKey, view.limitsNote ? `${view.limitsNote.words}: ${view.limitsNote.title} No piece is marked below.` : '');
+    notSetKey.hidden = !view.limitsNote;
     setText(problem, view.problem ?? '');
     problem.hidden = !view.problem;
     axis.replaceChildren(...makeAxis(view));

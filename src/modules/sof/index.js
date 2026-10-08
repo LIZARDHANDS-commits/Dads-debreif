@@ -26,6 +26,7 @@ import { createFullScreen } from './fullscreen.js';
 import { createNotamFeed, notamUrl, notamsFor } from './notams.js';
 import { createAlertsFeed, alertsUrl, alertsFor } from './alerts.js';
 import { siteFor } from './sites/index.js';
+import { limitsSet } from './limits-not-set.js';
 
 const STYLESHEET = new URL('./sof.css', import.meta.url).href;
 /** Ages and the DTG are minutes; the screen is checked this often and touches the page only when a word changes. */
@@ -40,7 +41,8 @@ function mount(root, app) {
   const view3d = createView3dSettings(app.storage); // the 3D view's cloud style (SOF-39), in its own stored document
   // The drop-downs over the screen (SOF settings, the clocks, the caution list, a wave's boxes): one open at a time (SOF-38).
   const dropdowns = createDropdowns({ listen: app.listen });
-  const settingsView = createSettingsView({ settings, crosswind, view3d, onToggle: () => ui.closeSettings() });
+  // The Home base choice in SOF settings sets home and its usual alternates through the shared airfields setting (one source of truth).
+  const settingsView = createSettingsView({ settings, crosswind, view3d, airfields: app.airfields, onToggle: () => ui.closeSettings() });
   const weather = createWeather({
     stations: () => app.airfields.stations(),
     fetch: (url, init) => globalThis.fetch(url, init),
@@ -136,11 +138,14 @@ function mount(root, app) {
       const conditions = snapshot.metar[c.icao]?.report?.conditions ?? null;
       return [c.icao, crosswindFor({ icao: c.icao, role: c.role, metar: c.metar, wind: conditions?.wind ?? null, weather: conditions?.weather ?? [], settings: xwSettings })];
     }));
-    const xwCautions = [...winds.values()].map((x) => x?.caution).filter(Boolean);
+    // A home base with no weather limits (its site profile's `standards` is null) raises no limit caution: no home forecast below the trigger and no
+    // crosswind red (its levels are Moose Jaw's). The wave calls already have no hits there (waves-view-model.js); dangerous weather still raises.
+    const homeLimitsSet = limitsSet(site());
+    const xwCautions = homeLimitsSet ? [...winds.values()].map((x) => x?.caution).filter(Boolean) : [];
     const waves = buildWaves({ plan: plan.get(), airfields: app.airfields, tafs, limits, now, timeZone: app.time.zone, selectedId, tafNotes: notes });
     banner = buildBanner({
       cards: screen.cards,
-      tafs: tafInputs({ tafs, calls: waves.calls, homeIcao: app.airfields.home().icao, homeLimits: limits, now, timeZone: app.time.zone }),
+      tafs: tafInputs({ tafs, calls: waves.calls, homeIcao: app.airfields.home().icao, homeLimits: homeLimitsSet ? limits : null, now, timeZone: app.time.zone }),
       // Other writers' cautions (lightning near home) arrive on the screen model in cautions.js's shape.
       extra: [...(screen.extraCautions ?? []), ...xwCautions],
       acks: app.storage.get(ACKS_KEY, null),

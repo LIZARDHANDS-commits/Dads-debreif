@@ -3038,3 +3038,62 @@ main[data-module='sof'] {
 [data-module='sof'] .sof-body.is-fullscreen .sof-3d:not(.show-panels) .sof-3d-log {
   display: none;
 }
+
+/* "Limits not set" (plan Step 2c part B): a home base with no weather limits reads grey, never green; its alternates read amber "Incomplete" (SOF-32).
+   The words always go with the colour. */
+[data-module='sof'] .sof-card.level-not-set {
+  border-left-color: var(--text-faint);
+}
+
+[data-module='sof'] .sof-card.level-incomplete {
+  border-left-color: var(--caution);
+}
+
+[data-module='sof'] .sof-row-mark.level-not-set,
+[data-module='sof'] .sof-result.level-not-set {
+  color: var(--text-muted);
+}
+
+[data-module='sof'] .sof-row-mark.level-incomplete .sof-result-symbol,
+[data-module='sof'] .sof-result.level-incomplete .sof-result-symbol,
+[data-module='sof'] .sof-wave-result.is-incomplete .sof-result-symbol,
+[data-module='sof'] .is-incomplete .sof-detail-symbol,
+[data-module='sof'] .is-incomplete .sof-chip-symbol {
+  color: var(--caution);
+}
+
+[data-module='sof'] .sof-wave-chip.is-not-set {
+  border-left-color: var(--text-faint);
+}
+
+[data-module='sof'] .sof-wave-chip.is-incomplete {
+  border-left-color: var(--caution);
+}
+
+[data-module='sof'] .is-not-set .sof-detail-symbol,
+[data-module='sof'] .is-not-set .sof-chip-symbol {
+  color: var(--text-muted);
+}
+
+[data-module='sof'] .sof-tl-notset {
+  flex: none;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-strip-notset {
+  flex: none;
+  align-self: center;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-tl-notset[hidden],
+[data-module='sof'] .sof-strip-notset[hidden],
+[data-module='sof'] .sof-timeline.is-hidden .sof-strip-notset {
+  display: none;
+}

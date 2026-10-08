@@ -8,6 +8,8 @@ import { snapLimits } from './settings-model.js';
 import { dayLabel } from './waves-view-model.js';
 import { withTafNote } from './taf-state.js';
 import { zoneSpan, dayZones } from './zone-words.js';
+import { siteFor } from './sites/index.js';
+import { limitsSet, notSetWords, NOT_SET_KEY } from './limits-not-set.js';
 
 const two = (n) => String(n).padStart(2, '0');
 const hhmm = (d) => `${two(d.getUTCHours())}${two(d.getUTCMinutes())}`;
@@ -18,9 +20,11 @@ const pct = (x) => Math.round(x * 100 * 1e6) / 1e6; // a fraction of the day as 
  * cards and wave calls read them); an alternate gets airfields' whole `checkOptions(icao)` as
  * `options`, so its minima, landing minima and visual descent are the ones the calls use.
  * `snapshot` is the weather's (`taf` and `metar` map ICAO to `{ report }`).
+ * At a home base with no weather limits (its site profile's `standards` is null) every row is `noLimits`: no piece is hatched or says "below".
  */
 export function timelineRows({ airfields, snapshot, limits }) {
   const home = airfields.home();
+  const noLimits = !limitsSet(siteFor(home.icao));
   const rows = [];
   const seen = new Set();
   for (const field of [home, ...airfields.alternates()]) {
@@ -33,6 +37,7 @@ export function timelineRows({ airfields, snapshot, limits }) {
       taf: snapshot.taf?.[field.icao]?.report ?? null,
       metar: snapshot.metar?.[field.icao]?.report ?? null,
       ...(isHome ? { limits: snapLimits(limits) } : { options: airfields.checkOptions(field.icao) }),
+      ...(noLimits ? { noLimits: true } : {}),
     });
   }
   return rows;
@@ -73,7 +78,7 @@ function pieceView(icao, p, lane, timeZone, state) {
   };
 }
 
-function rowView(r, timeZone, state) {
+function rowView(r, timeZone, state, notSet) {
   const pieces = packLanes(r.pieces).map((lane, i) => pieceView(r.icao, r.pieces[i], lane, timeZone, state));
   // A row drawn from a stale TAF, or one that failed to refresh, says so beside whatever else it says.
   const words = state?.note ? withTafNote(r.words, state) : r.words;
@@ -87,7 +92,7 @@ function rowView(r, timeZone, state) {
     lanes,
     metar: r.metar?.visible ? { left: pct(r.metar.x), label: r.metar.label } : null,
     coverage: r.coverage ? { left: pct(r.coverage.x0), width: pct(r.coverage.x1 - r.coverage.x0) } : null,
-    ariaLabel: `${r.icao} ${r.role === 'HOME' ? 'home' : 'alternate'}${r.metar?.visible ? `, latest ${r.metar.label}` : ''}${words ? `: ${words}` : ''}`,
+    ariaLabel: `${r.icao} ${r.role === 'HOME' ? 'home' : 'alternate'}${notSet ? ', limits not set' : ''}${r.metar?.visible ? `, latest ${r.metar.label}` : ''}${words ? `: ${words}` : ''}`,
   };
 }
 
@@ -112,9 +117,13 @@ function waveView(w, timeZone) {
  * every position is a percentage of the day, `signature` changes only when what is drawn
  * changes (not when the now line moves), and `now` is `{ left, minute, label }` or null.
  * `tafNotes` is taf-state.js's answer: a row on a stale or failed TAF says so.
+ * `limitsNote` is `{ words: 'Limits not set for KDLF', title }` (the key line) at a home base with no weather limits, else null: the timeline and
+ * the strip show it, and no piece is hatched.
  * @param {any} [args]
  */
 export function buildTimelineView({ airfields, snapshot, limits, waves = [], day = 'today', now, timeZone, timePrimary = 'zulu', tafNotes = {} } = {}) {
+  const homeIcao = airfields.home().icao;
+  const limitsNote = limitsSet(siteFor(homeIcao)) ? null : { words: notSetWords(homeIcao), title: NOT_SET_KEY };
   const model = timelineModel({
     rows: timelineRows({ airfields, snapshot, limits }),
     waves,
@@ -126,8 +135,8 @@ export function buildTimelineView({ airfields, snapshot, limits, waves = [], day
   // What the notes say is part of the picture, so it is redrawn when one appears or goes.
   const said = Object.entries(tafNotes).filter(([, n]) => n?.note).map(([icao, n]) => [icao, n.note]);
   const drawn = timelineSignature(model, { now: false });
-  const signature = said.length ? JSON.stringify([drawn, said]) : drawn;
-  if (model.problem) return { problem: model.problem, title: '24-hour timeline', signature, axis: [], rows: [], waves: [], now: null };
+  const signature = [said.length ? JSON.stringify([drawn, said]) : drawn, limitsNote?.words].filter(Boolean).join('|');
+  if (model.problem) return { problem: model.problem, title: '24-hour timeline', signature, axis: [], rows: [], waves: [], now: null, limitsNote };
   // The day's zone name, or both names on the day the clocks change.
   const zone = dayZones(model.axis.from, model.axis.to, timeZone);
   return {
@@ -139,9 +148,10 @@ export function buildTimelineView({ airfields, snapshot, limits, waves = [], day
       label: a.zone === 'local' ? zone : a.label,
       ticks: a.ticks.map((t) => ({ left: pct(t.x), label: t.label, dayLabel: t.dayLabel })),
     })),
-    rows: model.rows.map((r) => rowView(r, timeZone, tafNotes[r.icao])),
+    rows: model.rows.map((r) => rowView(r, timeZone, tafNotes[r.icao], limitsNote)),
     waves: model.waves.map((w) => waveView(w, timeZone)),
     now: model.now ? { left: pct(model.now.x), minute: model.now.minute, label: `Now ${hhmm(model.now.at)}Z` } : null,
+    limitsNote,
   };
 }
 
