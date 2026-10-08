@@ -133,12 +133,30 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   };
 
   const initialRange = Math.hypot(into.longRec.at(0).xFt - wing.xFt, into.longRec.at(0).yFt - wing.yFt);
+  const startHigh = (wing.altAboveFt ?? 0) > (into.longRec.at(0).altAboveFt ?? 0) + 500;
+  const initialPclMax = !startHigh && hardSec === 0 && upFt <= 500;
 
   // Single continuous tracker phase array
   const phases = [];
   let numApproachPhases = 0;
   if (to === 'fw') {
-    numApproachPhases = 1;
+    if (hardSec > 0) {
+      phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
+        pursuit: (L, W, t) => {
+          const cap = Math.min(bankCapDeg, stallBankDeg(W.kias));
+          return {
+            bankDeg: -s * cap,
+            slowStage: 'idleBoards',
+            kiasCmd: floorKias,
+            psiCmd: W.headingRad,
+            done: t >= t0 + hardSec - 1e-9,
+          };
+        },
+        pursuitEnds: true,
+        rejoin: true,
+      }));
+      numApproachPhases++;
+    }
     // Line intercept phase with coneEase bank-matching to prevent cone blow-through
     phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
       kind: 'line',
@@ -156,12 +174,16 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       arriveFtps: TR.fwArriveFtps,
       slowFtps2: TR.slowFtps2,
       rejoin: true,
+      initialPclMax,
     }));
+    numApproachPhases++;
     // Followed by fighting wing cone tracking
     phases.push(...onClosure([
       phase({ fwd: 0, left: 0, alt: lineFt }, {
         ...FW_FOLLOW,
-        goal: (L, W) => fwGoal(L, W, s, false),
+        isFw: true,
+        side: sTo || s,
+        goal: (L, W) => fwGoal(L, W, sTo || s, false),
         coneAlt: false,
         rejoin: true,
       }),
@@ -199,6 +221,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
         arriveFtps: xArriveFtps(),
         slowFtps2: TR.slowFtps2,
         rejoin: true,
+        initialPclMax,
       }));
       numApproachPhases++;
     }
@@ -458,7 +481,7 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
           // round, the review's worst-case answer), then the G rule only when none of those keeps him behind Lead's 3/9 line.
           for (const caps of [hot ? TURNING_REJOIN.hotBanksDeg : [TURNING_REJOIN.bankCapDeg], [REJOIN.bankCapDeg]]) {
             const aims = hot ? [...TURNING_REJOIN.aimsFt, TURNING_REJOIN.lagAimFt] : TURNING_REJOIN.aimsFt;
-            const tries = [...aims.map((aimFt) => ({ aimFt, hardSec: 0 })), ...(hot && to !== 'fw' && xLaw ? TURNING_REJOIN.hardPullsSec.map((hardSec) => ({ aimFt: aims[0], hardSec })) : [])];
+            const tries = [...aims.map((aimFt) => ({ aimFt, hardSec: 0 })), ...(hot && xLaw ? TURNING_REJOIN.hardPullsSec.map((hardSec) => ({ aimFt: aims[0], hardSec })) : [])];
             for (const bankCapDeg of caps) for (const { aimFt, hardSec } of tries) {
               const limitSec = best ? best.durationSec - BETTER_BY_SEC : (bestAny ? bestAny.durationSec - BETTER_BY_SEC : Infinity);
               const flown = flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, overshoot, xLaw, hardSec, allowAcross, maxWhenLow, limitSec });

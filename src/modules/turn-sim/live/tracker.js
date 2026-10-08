@@ -288,14 +288,21 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
     }
   }
   if (ph.coneEase && L && aim?.along != null) {
-    const leadBankMag = Math.abs(L.bankDeg ?? 0);
-    const targetCap = Math.max(leadBankMag + 5, 25);
+    const leadBank = L.bankDeg ?? 0;
+    const targetCap = Math.max(Math.abs(leadBank) + 5, 25);
     const dFar = ph.coneEaseFarFt ?? 1200;
     const dNear = ph.decisionFt ?? 750;
     const frac = Math.max(0, Math.min(1, (aim.along - dNear) / Math.max(1, dFar - dNear)));
     cap = targetCap + frac * (cap - targetCap);
   }
   let bank = Math.max(-cap, Math.min(cap, bankDegFromTurnRate(W.tasFtps, omegaCmd)));
+  if (ph.coneEase && L && aim?.along != null) {
+    const leadBank = L.bankDeg ?? 0;
+    const dFar = ph.coneEaseFarFt ?? 1200;
+    const dNear = ph.decisionFt ?? 750;
+    const frac = Math.max(0, Math.min(1, (aim.along - dNear) / Math.max(1, dFar - dNear)));
+    bank = leadBank + frac * (bank - leadBank);
+  }
   if (bankOwn != null) bank = Math.max(-cap, Math.min(cap, bankOwn)); // the switch's own bank, inside the phase's cap (the G rule)
   // Lining up on a closure phase, the last few hundredths of a degree of bank are taken out at once, so the wings come
   // level in a step or two instead of creeping for ten seconds (the heading left is inside alignHeadingRad).
@@ -365,7 +372,7 @@ function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowO
   const extraSlowKtps = zoomFtps > 0 ? climbCostKtps(W, zoomFtps) : 0;
   const aWant = aCmdOwn != null
     ? aCmdOwn
-    : (energyIntent === 'gain' && W.kias < (kiasCmd ?? W.kias) ? Infinity : GAIN.speedLoop * ((kiasCmd ?? W.kias) - W.kias));
+    : (energyIntent === 'gain' && (kiasCmd == null || W.kias < kiasCmd + 5) ? Infinity : GAIN.speedLoop * ((kiasCmd ?? W.kias) - W.kias));
   // Lining up, the last few thousandths of a knot are taken out at once (snapKias), so the speed has no step.
   const accel = pilotSpeed(pilot, W, aWant, {
     blockFt, top: slowStage, floorThr, climbKtps, extraSlowKtps, snapKias: aligning ? L.kias : null, snapTol: T.kiasSnap,
@@ -485,6 +492,30 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
 }
 
 /**
+ * Checks whether aircraft #2 is settled within the SMM fighting wing cone volume
+ * (500-1,000 ft range, 30-60° sweep, stepped down 0 to 200 ft below Lead, matched speed/rate).
+ */
+function isFwConeSettled(L, W, relVel, side = null) {
+  const rel = relativeTo(L, W);
+  const r = Math.hypot(rel.fwd, rel.left);
+  const across = Math.abs(rel.left);
+  const sweepDeg = (Math.atan2(-rel.fwd, Math.max(across, 1e-6)) * 180) / Math.PI;
+  const down = (L.altAboveFt ?? 0) - (W.altAboveFt ?? 0);
+
+  // SMM 12.29 para 69: 500-1,000 ft, 30-60° sweep, stepped down (0 to 200 ft below Lead)
+  const inRange = r >= 480 && r <= 1020;
+  const inSweep = sweepDeg >= 28 && sweepDeg <= 62;
+  const inAlt = down >= -5 && down <= 200;
+  const sideOk = side == null || side === 0 || Math.sign(rel.left) === Math.sign(side);
+
+  // Speed, turn rate and relative motion matched
+  const speedMatched = Math.abs(W.kias - L.kias) <= 6 && relVel <= 6;
+  const bankMatched = Math.abs((W.bankDeg ?? 0) - (L.bankDeg ?? 0)) <= 10;
+
+  return inRange && inSweep && inAlt && sideOk && speedMatched && bankMatched;
+}
+
+/**
  * Determines whether #2 is in position, settled/steady, and whether the phase has ended.
  */
 function isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt, timesK, early, heightDone = true }) {
@@ -520,7 +551,10 @@ function isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt, timesK, early, heig
     };
   }
 
-  if (arrived && timesK.arrive === null && d <= (last ? Math.max(ph.finalTol, ph.advanceTol) : ph.advanceTol) && (!last || heightDone)) timesK.arrive = t;
+  const isFwPhase = Boolean(ph.isFw || ph.coneAlt || (ph.goal && !ph.kind));
+  const fwSettled = isFwPhase && last && gateOpen && isFwConeSettled(L, W, relVel, ph.side);
+
+  if ((arrived || fwSettled) && timesK.arrive === null && (fwSettled || (d <= (last ? Math.max(ph.finalTol, ph.advanceTol) : ph.advanceTol) && (!last || heightDone)))) timesK.arrive = t;
   // A phase with stopFtps is a real stop: #2 must have stopped on it (relative speed under stopFtps) and held there dwellSec.
   if (ph.stopFtps && arrived && d <= ph.advanceTol && relVel <= ph.stopFtps) newStoppedAt ??= t;
   const stopDone = !ph.stopFtps || (newStoppedAt !== null && t - newStoppedAt >= (ph.dwellSec ?? 0) - 1e-9);
@@ -535,7 +569,7 @@ function isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt, timesK, early, heig
   if (!last && arrived && d <= ph.advanceTol && gateOpen && stopDone) {
     return { advance: true, early: pursuitResult, stoppedAt: null };
   }
-  const settled = arrived && last && gateOpen && d <= ph.finalTol && relVel <= Math.max(T.settleMinFtps, T.settleShare * ph.finalTol) && heightDone;
+  const settled = ((arrived && d <= ph.finalTol && relVel <= Math.max(T.settleMinFtps, T.settleShare * ph.finalTol) && heightDone) || fwSettled) && last && gateOpen;
   const startAligning = settled && L.free && L.bankDeg === 0;
   return {
     abort: false,
@@ -623,6 +657,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
   let ok = false;
   let reentered = false; // a phase change re-reads the step it happened in, with no reference turn rate for it
   let stoppedAt = null; // when #2 first came to a stop in a phase with `stopFtps` (a real stop: SMM 12.20 para 45)
+  let pclMaxActive = false;
   const heightState = {
     activeLeg: null,
     targetAlt: null,
@@ -640,11 +675,24 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     const L = R.at(m);
     const Lprev = m > 0 && !reentered ? R.at(m - 1) : null;
     reentered = false;
-    if (times[k].t0 === null) times[k].t0 = t;
+    if (times[k].t0 === null) {
+      times[k].t0 = t;
+      pclMaxActive = Boolean(ph.initialPclMax);
+    }
 
     // 1. Aim: target aim point and its velocity in world coordinates
     const aim = aimOf(ph, L, Lprev, ref, W, t);
     const gateOpen = t >= (ph.holdUntil ?? -Infinity) - 1e-9;
+
+    if (pclMaxActive) {
+      const onLine = aim.cross != null && Math.abs(aim.cross) <= (ph.captureFt ?? 150);
+      const atSpeed = W.kias >= (ph.lineKias ?? 220);
+      const rNow = Math.hypot(L.xFt - W.xFt, L.yFt - W.yFt);
+      const nearLead = (aim.along != null && aim.along <= 1500) || rNow <= 1500;
+      if (onLine || atSpeed || nearLead) {
+        pclMaxActive = false;
+      }
+    }
 
     let psiCmd;
     let kiasCmd;
@@ -720,7 +768,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       own = asked?.keepBase ? null : asked;
       stageOwn = own?.slowStage ?? null;
       stepProfileOwn = own?.stepProfile ?? null;
-      energyIntentOwn = own?.energyIntent ?? ph.energyIntent ?? null;
+      energyIntentOwn = pclMaxActive ? 'gain' : (own?.energyIntent ?? ph.energyIntent ?? null);
 
       if (own) {
         psiCmd = own.psiCmd;
