@@ -891,7 +891,9 @@ function turnOntoRunway(geo, from, trackDeg, kias, altFt, wind) {
 export function chooseDirect(geo, from, altFt, kias, wind, trackDeg = undefined, cfgNow = 0) {
   const ground = THRESHOLD_DATA_ELEV_FT;
   const last = geo.lenFt - PFL.stopMarginFt;
-  const trade = speedTradeFt(kias, altFt, 1);
+  const aligned = trackDeg !== undefined ? Math.abs(wrapDeg180(trackDeg - geo.rwyDeg)) <= PFL.gateTrackDeg : false;
+  const nearFinal = altFt <= PFL.gateAltFt && (aligned || dist(geo.th, from) <= 1.5 * 6076.12);
+  const trade = nearFinal ? speedTradeFt(kias, altFt, 1) : 0;
   const baseAlong = Math.max(500, geo.aimAlongFt);
   const alongs = [];
   for (let d = 0; baseAlong + d <= last + 1e-6 || baseAlong - d >= 500; d += 500) {
@@ -1572,6 +1574,7 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
       bank = bankFor(wantHdg, s, bankMax);
     }
 
+    const onFinal = ['threshold', 'touchdown', 'aim', 'rollout', 'lined_up'].includes(path[seg]?.key) || path.slice(0, seg + 1).some((p) => p.key === 'threshold');
     let climb, accel;
     if (state === 'zoom') {
       const glideGamma = -Math.atan(1 / glideRatio('clean'));
@@ -1630,7 +1633,10 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
         }
       }
 
-      if (plan.kind === 'direct' && margin < 0 && !goingShort) {
+      const hAglNow = s.alt - ground;
+      const alignedWithRwy = Math.abs(wrapDeg180(pilot.trackDeg() - geo.rwyDeg)) <= PFL.gateTrackDeg;
+      const veryShortFinal = s.alt <= PFL.gateAltFt && (roundOut || (onFinal && alignedWithRwy) || (dist(geo.th, s) <= 1.5 * 6076.12 && alignedWithRwy));
+      if (plan.kind === 'direct' && veryShortFinal && margin < 0 && !goingShort) {
         const v2 = tas * tas - 2 * G_FTPS2 * -margin * heightFactor(s.alt);
         const vKt = Math.sqrt(Math.max(v2, 0)) / KT_TO_FTPS;
         want = Math.max(tradeFloorKias(cfg), Math.min(want, vKt * PFL.glideGearKias / Math.max(iasToTasKt(PFL.glideGearKias, s.alt), 1)));
@@ -1679,13 +1685,12 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
         ? s.alt - ground - neededFt(path, seg, proj.pt, s.alt, cfg, wind, false, tdKey)
         : s.alt - ground - neededFt(path, seg, proj.pt, s.alt, cfg, wind, false, 'aim', 2);
       const marginMin = s.alt - ground - neededFt(minDragPlan(path), seg, proj.pt, s.alt, Math.min(cfg, 1), wind, false, cfg >= 3 ? tdKey : 'aim');
-      const onFinal = ['threshold', 'touchdown', 'aim', 'rollout'].includes(path[seg]?.key) || path.slice(0, seg + 1).some((p) => p.key === 'threshold');
       const settled = (n - planFromN) * PILOT_DT >= PFL.planGraceSec;
       const inOrbit = s.rec.decision?.startsWith('Orbit') || s.rec.decision?.startsWith('False High Key') || s.alt > PFL.highKeyMaxFt;
       if (!onFinal && settled && !inOrbit && marginMin < -PFL.dragBufferFt && plan.kind !== 'direct') {
         const direct = chooseDirect(geo, s, s.alt, s.ias, wind, pilot.trackDeg(), cfg);
         if (direct) { replan(direct); notes.push(`went direct at ${Math.round(s.alt)} ft`); }
-      } else if (!onFinal && plan.kind === 'direct' && marginMin + speedTradeFt(s.ias, s.alt, cfg) < 0) {
+      } else if (!onFinal && plan.kind === 'direct' && marginMin + (s.alt <= PFL.gateAltFt ? speedTradeFt(s.ias, s.alt, cfg) : 0) < 0) {
         const direct = chooseDirect(geo, s, s.alt, s.ias, wind, pilot.trackDeg(), cfg);
         if (direct && direct.aimAlongFt > (plan.aimAlongFt ?? 0) + 1) replan(direct);
       }
@@ -1741,7 +1746,7 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
       }
 
       let decision;
-      if (plan.kind === 'direct') decision = s.ias < PFL.glideGearKias - 2 ? 'Trading speed' : plan.label;
+      if (plan.kind === 'direct') decision = (s.alt <= PFL.gateAltFt && s.ias < PFL.glideGearKias - 2) ? 'Trading speed' : plan.label;
       else if (path[seg]?.falseCircle) decision = path.slice(0, seg + 1).some((p) => p.key === 'false_low_key') ? 'False Low Key' : 'False High Key';
       else if (s.rec.decision?.startsWith('Orbit') && path[seg]?.key !== 'threshold' && seg < path.findIndex((p) => p.highKeyCheck)) decision = s.rec.decision;
       else if (!onCircle()) decision = plan.label;
