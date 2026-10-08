@@ -469,7 +469,7 @@ function drawRejoin(ctx, map, state, { leadId, wingId, rangeFt, closureKt, side,
   const s = side ?? (Math.sign((wing.xFt - lead.xFt) * -Math.sin(lead.headingRad) + (wing.yFt - lead.yFt) * Math.cos(lead.headingRad)) || -1);
   const isTurning = rejoinKind !== 'straight';
   const rejoinHdg = isTurning
-    ? lead.headingRad + Math.PI + s * (Math.PI / 4)
+    ? lead.headingRad + Math.PI - s * (Math.PI / 4)
     : lead.headingRad + Math.PI; // straight-ahead rejoin lines up on Lead's 6 o'clock tail
 
   const len = (Math.max(map.size.width, map.size.height) / map.view.scale) * 0.85;
