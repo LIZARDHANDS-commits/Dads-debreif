@@ -3097,3 +3097,9 @@ main[data-module='sof'] {
 [data-module='sof'] .sof-timeline.is-hidden .sof-strip-notset {
   display: none;
 }
+
+/* The home base in words, when the SOF cannot change it itself (Settings → Airfields does). */
+[data-module='sof'] .sof-home-base {
+  margin: 0 0 var(--space-1);
+  font-weight: 600;
+}

@@ -102,7 +102,9 @@ function detailOf(row, call, notes, homeIcao) {
       warnings: a.warnings ?? [],
       lines: a.details.map(lineOf),
     })),
-    summary: call.of ? `${alternatesWords(call)}${call.limitsNotSet ? `. ${incompleteWhy(homeIcao)}` : ''}` : 'No alternates set',
+    summary: call.of ? alternatesWords(call) : 'No alternates set',
+    // At a base with no limits, why every alternate reads "Incomplete", said once under the summary.
+    summaryNote: call.limitsNotSet && call.of ? incompleteWhy(homeIcao) : null,
     keyLine: call.limitsNotSet ? NOT_SET_KEY : null,
   };
 }

@@ -269,6 +269,7 @@ export function createWavesView({ onAdd, onEdit, onRemove, onDay, onSelect, drop
       model.alternates.length
         ? h('p', { class: 'sof-detail-alts-title' }, h('strong', {}, `Alternates: ${model.summary}`))
         : h('p', { class: 'sof-note' }, 'No alternates are set. Add them in Settings, under Airfields.'),
+      model.summaryNote ? h('p', { class: 'sof-note' }, model.summaryNote) : null,
       h('ul', { class: 'sof-alt-list' }, model.alternates.map((a) => h('li', { class: `sof-alt is-${a.tone}` },
         h('span', { class: 'sof-detail-symbol', 'aria-hidden': 'true' }, a.symbol), ' ',
         h('strong', {}, `${a.icao}, ${a.minima}: `), a.words,

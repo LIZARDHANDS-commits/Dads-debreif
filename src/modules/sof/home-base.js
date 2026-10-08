@@ -30,6 +30,18 @@ export function chooseHomeBase(airfields, icao) {
   return true;
 }
 
+/**
+ * Whether the SOF can change the home field: the app's shell hands modules the airfields setting read-only today (src/shell/host.js), so the choice
+ * shows only when an `update` is there. Without one the section says which base is home and where to change it.
+ */
+export const canChooseHomeBase = (airfields) => typeof airfields?.update === 'function';
+
+/** "Moose Jaw (CYMJ)" for a base with a profile, else "KGTF Great Falls (set in Airfields)". */
+export function homeBaseWords(home) {
+  const own = PROFILES.find((p) => p.icao === home?.icao);
+  return own ? `${own.shortName} (${own.icao})` : `${home?.icao ?? '?'}${home?.name ? ` ${home.name}` : ''} (set in Airfields)`;
+}
+
 /** The choice as ui-kit's controls bind to a setting: `{ get, update, subscribe }` over the airfields setting, holding nothing of its own. */
 export function homeBaseSetting(airfields) {
   const get = () => ({ homeBase: homeBaseValue(airfields.home().icao) });

@@ -8,7 +8,7 @@ import { createControls } from '../../ui-kit/controls.js';
 import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
 import { TRIGGER_OPTIONS, BANNER_HINT, MAX_RELAY_CHARS, relayAccepted, withTrigger, snapCeiling, snapVisibility, CROSSWIND_RANGE, CLOUD_STYLES } from './settings-model.js';
 import { RUNWAY_STATES, CROSSWIND_SOURCE } from './crosswind.js';
-import { HOME_BASE_OPTIONS, OTHER_HOME, homeBaseSetting, homeBaseNote } from './home-base.js';
+import { HOME_BASE_OPTIONS, OTHER_HOME, homeBaseSetting, homeBaseNote, canChooseHomeBase, homeBaseWords } from './home-base.js';
 
 const hint = (text) => h('p', { class: 'sof-hint' }, text);
 
@@ -117,8 +117,11 @@ export function createSettingsView({ settings, crosswind = null, view3d = null, 
 /**
  * The Home base section: a "Home base" choice bound to the airfields setting (home-base.js), "Other (set in Airfields)" shown only while home is a field
  * with no profile of its own, and a line that says when the base has no weather limits. It follows a home field changed in Settings → Airfields.
+ * When the SOF is handed the airfields read-only (no `update`), the section names the home base and says where to change it instead of offering a
+ * choice that cannot work.
  */
 function homeBase(airfields, menu) {
+  if (!canChooseHomeBase(airfields)) return homeBaseReadOnly(airfields, menu);
   const setting = homeBaseSetting(airfields);
   const controls = createControls(setting);
   const choice = controls.select('homeBase', { label: 'Home base', options: HOME_BASE_OPTIONS });
@@ -149,6 +152,24 @@ function homeBase(airfields, menu) {
       controls.dispose();
     },
   };
+}
+
+// The home base in words, with where to change it, and the "Limits not set" line: for when the SOF cannot change the airfields setting itself.
+function homeBaseReadOnly(airfields, menu) {
+  const line = h('p', { class: 'sof-home-base' });
+  const note = h('p', { class: 'sof-hint sof-home-note' });
+  const show = () => {
+    const home = airfields.home();
+    const words = `Home base: ${homeBaseWords(home)}`;
+    if (line.textContent !== words) line.textContent = words;
+    const extra = homeBaseNote(home.icao) ?? '';
+    if (note.textContent !== extra) note.textContent = extra;
+    note.hidden = !extra;
+  };
+  show();
+  const stop = airfields.subscribe(show);
+  menu.section('Home base').append(line, hint('The home field and its alternates are set in Settings, under Airfields.'), note);
+  return { dispose: stop };
 }
 
 let nextRelayId = 1;
