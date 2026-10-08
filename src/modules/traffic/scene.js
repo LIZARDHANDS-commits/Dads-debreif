@@ -108,12 +108,13 @@ export function buildScene({ setup, state, selectedRouteId, trailOf }) {
   });
   for (const a of state.aircraft ?? []) {
     if (a.pflRoute?.points?.length > 1) {
+      const isSelected = selectedRouteId === `PFL_${a.id}` || selectedRouteId === a.id;
       routes.push({
         id: `PFL_${a.id}`,
         name: `PFL Glide (${a.id})`,
         kind: 'pfl',
         color: '#38bdf8',
-        visible: true,
+        visible: Boolean(isSelected || options?.layerPflPath),
         points: a.pflRoute.points,
         path: a.pflRoute.points,
       });

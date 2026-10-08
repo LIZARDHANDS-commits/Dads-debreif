@@ -60,6 +60,7 @@ export const DEFAULTS = Object.freeze({
   layerLegDistances: false,
   layerTurnData: false,
   layerEngineReach: true, // the PFL glide circle, behind this tick (Patrick, 4 Oct)
+  layerPflPath: false, // PFL planned track: off by default, shown when selected or toggled
   layerWindow: true, // the window and the 3° intercept in 3D (Patrick, 5 Oct 07:17Z: "on by default"; TR-78)
   layerAimLine: true, // the selected aircraft's pink aim line in 3D (TR-78)
 
