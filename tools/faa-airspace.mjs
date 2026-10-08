@@ -1,12 +1,14 @@
 // Makes the US bases' airspace files for the SOF's 3D view (plan Step 2c part E, 8 Oct 2026): src/modules/sof/sites/faa-airspace/<icao>.js, one per
-// base, from the FAA's open aeronautical data (the FAA AIS ArcGIS feature services, public domain, no key). Run it again each 56-day cycle and
+// base (and one for Moose Jaw, CYMJ: the US airspace south of the border, Dad 8 Oct 2026), from the FAA's open aeronautical data (the FAA AIS ArcGIS feature services, public domain, no key). Run it again each 56-day cycle and
 // commit what it writes. From the repo root:
 //   node tools/faa-airspace.mjs              fetch, trim, check and write the seven files, and print what each holds
 //   node tools/faa-airspace.mjs --dry        the same, but print only (nothing written)
 //   node tools/faa-airspace.mjs --empty      write empty files (no airspace, "not generated yet"), for when the FAA cannot be reached
+//   node tools/faa-airspace.mjs --base CYMJ  only that base's file (each base takes some minutes)
 // Behind a proxy, Node's fetch needs NODE_USE_ENV_PROXY=1 (Node 22.21 or later) to use HTTPS_PROXY.
 //
-// What it keeps, inside each base's 450 NM square (the 3D view's, scene3d-model.js AREA_NM):
+// What it keeps, inside each base's 900 NM square (the 3D view's largest area, scene3d-model.js MAX_AREA_NM; the view cuts it to the area chosen, airspace-model.js
+// `airspaceInSquare`, and loads the file only when the 3D view opens there, sites/airspace-load.js):
 // - Class airspace: Class B, C and D; every shelf is its own entry, as the FAA gives it. Kinds: B and C 'terminal', D 'control-zone'. Class E is
 //   left out: the FAA gives even its surface areas up to 18,000 ft MSL (-9998), which would stand as tall columns over every small field.
 // - Special use airspace: MOAs ('moa'), restricted and prohibited areas ('restricted'), warning areas ('warning') and alert areas ('alert').
@@ -31,15 +33,18 @@ import { CATALOG } from '../src/airfields/catalog.js';
 import { makeLocalRef, latLonToLocalFt } from '../src/core/geo.js';
 import { FT_PER_NM } from '../src/core/units.js';
 import { checkAirspace } from '../src/modules/sof/airspace-model.js';
-import { AREA_NM } from '../src/modules/sof/scene3d-model.js';
+import { MAX_AREA_NM } from '../src/modules/sof/scene3d-model.js';
 
 const ROOT = 'https://services6.arcgis.com/ssFJjBXIUyZDrSYZ/arcgis/rest/services';
 const OUT_DIR = 'src/modules/sof/sites/faa-airspace';
-/** The seven US T-6 bases with a site profile (sites/index.js PROFILES). */
-const BASES = ['KDLF', 'KEND', 'KRND', 'KCBM', 'KSPS', 'KNSE', 'KNGP'];
+/**
+ * The seven US T-6 bases with a site profile (sites/index.js PROFILES), and Moose Jaw (CYMJ): the FAA has only US airspace, so its file is the US side of
+ * Moose Jaw's 900 NM square (Montana, North Dakota and beyond), drawn with the DAH entries.
+ */
+const BASES = ['KDLF', 'KEND', 'KRND', 'KCBM', 'KSPS', 'KNSE', 'KNGP', 'CYMJ'];
 /**
  * No kept point is further than this from the FAA's outline, by kind (estimates): 0.1 NM (about 185 m) for the small Class B, C and D shapes round the
- * fields, 0.25 NM for the large special use areas and the training routes. Both are under a pixel with the whole 450 NM square in view.
+ * fields, 0.25 NM for the large special use areas and the training routes. Both are under a pixel with the whole 450 NM square in view (and smaller still at 900 NM).
  */
 const SIMPLIFY_NM = Object.freeze({ small: 0.1, large: 0.25 });
 /** A point where the outline turns by this much or more gets a vertical edge (an estimate: a circle drawn in 15 or more sides turns less). */
@@ -303,7 +308,7 @@ async function forBase(icao, layers) {
     const p = latLonToLocalFt(ref, lat, lon);
     return [p.x, p.y];
   };
-  const halfNm = AREA_NM / 2;
+  const halfNm = MAX_AREA_NM / 2;
   const dLat = halfNm / 60;
   const dLon = halfNm / (60 * Math.cos((base.lat * Math.PI) / 180));
   const box = [base.lon - dLon, base.lat - dLat, base.lon + dLon, base.lat + dLat].map(round4);
@@ -312,6 +317,7 @@ async function forBase(icao, layers) {
   const notes = [];
   let holes = 0;
   let excluded = 0;
+  let canadian = 0;
   const ids = new Map();
   const uniqueId = (id) => {
     const n = (ids.get(id) ?? 0) + 1;
@@ -365,6 +371,12 @@ async function forBase(icao, layers) {
       if (layer.key === 'class') {
         const { cls, local } = classOf(props);
         if (!['B', 'C', 'D'].includes(cls)) continue;
+        // The FAA's class layer also carries some Canadian airspace (control area extensions and Winnipeg's TCA as "Class B", ICAO ids CZ..). At a
+        // Canadian base NAV CANADA's DAH is the source for Canada (airspace-data.js, SOF-41), so those are left out of its file: only the US side is kept.
+        if (icao.startsWith('C') && /^C/i.test(text(field(props, 'ICAO_ID', 'IDENT')))) {
+          canadian += 1;
+          continue;
+        }
         classLetter = cls;
         kind = cls === 'D' ? 'control-zone' : 'terminal';
         id = `${text(field(props, 'ICAO_ID', 'IDENT')) || name} ${cls}${local && local !== `CLASS_${cls}` ? ` (${local.replace('CLASS_', '')})` : ''}`;
@@ -408,7 +420,7 @@ async function forBase(icao, layers) {
       if (shape) add({ id: uniqueId(r.ident), name: `${r.ident} military training route${width}`, kind: 'mtr', classLetter: null, floor: r.floor, ceiling: r.ceiling, shape: { type: 'line', points: shape.points }, source: r.source });
     }
   }
-  return { icao, entries, dropped, notes, holes, excluded, box };
+  return { icao, entries, dropped, notes, holes, excluded, canadian, box };
 }
 
 // ---- Writing ---------------------------------------------------------------------------------------------------------
@@ -416,7 +428,7 @@ async function forBase(icao, layers) {
 function fileText(icao, entries, source) {
   const head = [
     `// ${icao}'s airspace for the SOF's 3D view: GENERATED by tools/faa-airspace.mjs (do not edit by hand; run it again each 56-day cycle).`,
-    "// From the FAA's open aeronautical data (AIS ArcGIS feature services, public domain), inside the base's 450 NM square. Outlines thinned to within",
+    "// From the FAA's open aeronautical data (AIS ArcGIS feature services, public domain), inside the base's 900 NM square. Outlines thinned to within",
     '// 0.1 NM (Class B, C, D) or 0.25 NM (special use areas, training routes) and rounded to 4 decimals; for a picture, not for navigation.',
     '// Cross-check against AP/1A / AP/1B (pages to be added).',
     '// Each row is [id, name (null: the same as id), kind, class letter, floor [ft, ref], ceiling [ft, ref] or null, shape type, points as a flat',
@@ -468,7 +480,9 @@ async function main() {
   const layers = await findLayers();
   for (const l of layers) console.log(`${l.title}: ${l.service} layer ${l.layer} (${l.geometry}), ${l.date}`);
   const source = `FAA open aeronautical data: ${[...new Set(layers.map((l) => `${l.title}, ${l.date}`))].join('; ')}`;
-  for (const icao of BASES) {
+  const only = process.argv.includes('--base') ? process.argv[process.argv.indexOf('--base') + 1]?.toUpperCase() : null;
+  if (only && !BASES.includes(only)) throw new Error(`--base ${only}: not one of ${BASES.join(', ')}`);
+  for (const icao of only ? [only] : BASES) {
     const r = await forBase(icao, layers);
     const out = fileText(icao, r.entries, source);
     const counts = Object.entries(r.entries.reduce((n, e) => ({ ...n, [e.kind]: (n[e.kind] ?? 0) + 1 }), {})).map(([k, n]) => `${n} ${k}`).join(', ');
@@ -477,6 +491,7 @@ async function main() {
     if (r.notes.length) console.log(`  assumptions used: ${r.notes.join('; ')}`);
     if (r.holes) console.log(`  holes not drawn: ${r.holes}`);
     if (r.excluded) console.log(`  exclusion pieces left out (cut-outs, not airspace): ${r.excluded}`);
+    if (r.canadian) console.log(`  Canadian class pieces left out (the DAH is the source for Canada): ${r.canadian}`);
     if (!args.has('--dry')) writeFileSync(`${OUT_DIR}/${icao.toLowerCase()}.js`, out);
   }
 }

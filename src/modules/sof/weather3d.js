@@ -5,7 +5,7 @@
 // sheets and decks. Every builder returns an object with its own `dispose()` that frees the geometry, materials and textures it made, and each leaves its root for the
 // caller to add to the scene and switch with `.visible` (no toggle rebuilds anything).
 import { AREA_FT } from './scene3d-model.js';
-import { CELL_FT, FRONT_LINE_FT, FRONT_WALL_FT, SYMBOL_FT, FLOW_TAIL_MIN_FT } from './weather3d-model.js';
+import { cellFt, FRONT_LINE_FT, FRONT_WALL_FT, SYMBOL_FT, FLOW_TAIL_MIN_FT } from './weather3d-model.js';
 
 /** Lines and fills lie this far (scene feet) above the ground so it never hides them, as view3d.js's own LIFT_FT. */
 const LIFT_FT = 500;
@@ -50,7 +50,7 @@ export function buildShafts(T, { shafts, scale }) {
     const m = new T.Matrix4();
     const colour = new T.Color();
     shafts.forEach((s, n) => {
-      m.compose(new T.Vector3(s.x, s.y, s.baseFt * scale), new T.Quaternion(), new T.Vector3(CELL_FT * 0.9, CELL_FT * 0.9, Math.max(1, (s.topFt - s.baseFt) * scale)));
+      m.compose(new T.Vector3(s.x, s.y, s.baseFt * scale), new T.Quaternion(), new T.Vector3(cellFt() * 0.9, cellFt() * 0.9, Math.max(1, (s.topFt - s.baseFt) * scale)));
       mesh.setMatrixAt(n, m);
       colour.setRGB(s.colour[0] / 255, s.colour[1] / 255, s.colour[2] / 255, T.SRGBColorSpace);
       mesh.setColorAt(n, colour);

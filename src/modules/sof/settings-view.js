@@ -6,7 +6,7 @@
 import { h } from '../../ui-kit/dom.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
-import { TRIGGER_OPTIONS, BANNER_HINT, MAX_RELAY_CHARS, relayAccepted, withTrigger, snapCeiling, snapVisibility, CROSSWIND_RANGE, CLOUD_STYLES } from './settings-model.js';
+import { TRIGGER_OPTIONS, BANNER_HINT, MAX_RELAY_CHARS, relayAccepted, withTrigger, snapCeiling, snapVisibility, CROSSWIND_RANGE, CLOUD_STYLES, AREA_OPTIONS } from './settings-model.js';
 import { RUNWAY_STATES, CROSSWIND_SOURCE } from './crosswind.js';
 import { HOME_BASE_OPTIONS, OTHER_HOME, homeBaseSetting, homeBaseNote, canChooseHomeBase, homeBaseWords } from './home-base.js';
 
@@ -14,7 +14,7 @@ const hint = (text) => h('p', { class: 'sof-hint' }, text);
 
 /**
  * settings: the SOF's settings (createSofSettings); crosswind: the crosswind levels and runway state (createCrosswindSettings), or left out; view3d: the 3D view's
- * cloud style (createView3dSettings), or left out. airfields: app.airfields, for the Home base choice (it sets home and the base's usual alternates
+ * cloud style and area (createView3dSettings), or left out. airfields: app.airfields, for the Home base choice (it sets home and the base's usual alternates
  * there, and stores nothing of its own), or left out. onToggle(collapsed): called when the menu's own header or Escape closes it. Reset to defaults resets
  * the SOF's own settings; the home field and alternates are the shared airfields setting's and are left as they are.
  * Returns { element, setOpen(open), dispose }: the menu opens from the SOF bar's button as a drop-down (layout.js).
@@ -88,6 +88,11 @@ export function createSettingsView({ settings, crosswind = null, view3d = null, 
     view3dSection.append(
       styleControls.select('cloudStyle3d', { label: '3D cloud style', options: CLOUD_STYLES }),
       hint('Slabs: the model cloud in each stage (low, mid, high) drawn from its base to its top in every model column. One sheet per model level: the old flat sheets at each pressure level, with the Layer picker. Both are model estimates.'),
+    );
+    // The 3D area (Dad, 8 Oct 2026): the square round home the 3D view shows.
+    view3dSection.append(
+      styleControls.select('area3dNm', { label: '3D area', options: AREA_OPTIONS }),
+      hint('How far the 3D view reaches: a square this wide, centred on home. Bigger shows more, more coarsely: the model cloud points are further apart (37.5 NM at 450, 50 at 600, 75 at 900), and the ground and weather pictures are less sharp. Changing it builds the 3D view again and asks for the model clouds again.'),
     );
   }
 

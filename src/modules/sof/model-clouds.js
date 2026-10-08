@@ -34,11 +34,13 @@ export const MODEL_URL = 'https://api.open-meteo.com/v1/gem';
 export const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 /**
  * The grid: 13 x 13 points over the square, edge to edge, so 450 / 12 = 37.5 NM apart (Dad, 7 Oct: the area grew from 250 to 450 NM; the grid was 9 x 9). A
- * model object carries its own `gridSize` (it is the square root of the points it was asked for), so a reply over another grid still reads.
+ * model object carries its own `gridSize` (it is the square root of the points it was asked for), so a reply over another grid still reads. A bigger 3D area
+ * (the "3D area" setting, Dad 8 Oct 2026) keeps the 13 x 13 points, so the same number of Open-Meteo calls, further apart: 50 NM at 600 NM, 75 NM at 900 NM.
  */
 export const GRID_SIZE = 13;
-export const GRID_SPACING_NM = AREA_NM / (GRID_SIZE - 1);
-export const GRID_SPACING_FT = GRID_SPACING_NM * FT_PER_NM;
+/** The grid's spacing for the 3D area in force: NM and feet. */
+export const gridSpacingNm = () => AREA_NM / (GRID_SIZE - 1);
+export const gridSpacingFt = () => gridSpacingNm() * FT_PER_NM;
 /** Cloud cover and geopotential height are asked at these pressure levels, bottom first (the global GEM request, kept as it was). */
 export const CLOUD_LEVELS_HPA = Object.freeze([1000, 925, 850, 700, 600, 500, 400, 300]);
 /**

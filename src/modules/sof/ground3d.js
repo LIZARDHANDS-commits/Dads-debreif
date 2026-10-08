@@ -1,4 +1,4 @@
-// The SOF 3D view's ground (SOF-39; Dad, 7 Oct: "bigger, sharper 3D ground"): the satellite picture in two tiers. An outer canvas covers the whole 450 NM square at a modest Esri
+// The SOF 3D view's ground (SOF-39; Dad, 7 Oct: "bigger, sharper 3D ground"): the satellite picture in two tiers. An outer canvas covers the whole 3D square (450 NM by default, up to 900) at a modest Esri
 // zoom; an inner, sharp canvas about 120 NM square round home, at a zoom two levels finer, lies on top of it. Tiles load progressively: the outer picture fills in first,
 // the inner one fades in over it as its tiles arrive, and a tile that never comes leaves the outer picture showing there. The radar and lightning pictures are laid on both.
 //
@@ -13,11 +13,15 @@ import { cornersOf } from './map-view.js';
 import { drawGeoImage } from './map-draw.js';
 import { BASE_DIM } from './map-layers.js';
 import { AREA_FT } from './scene3d-model.js';
-import { INNER_NM, INNER_FT, OUTER_CELLS, INNER_CELLS, HOLE_CELLS, HOLE_FROM, hillshade } from './terrain-model.js';
+import { INNER_NM, INNER_FT, INNER_CELLS, terrainPlan, hillshade } from './terrain-model.js';
 
 export { INNER_NM };
 
-/** The outer canvas covers the whole square (about 2,700 ft a pixel at 1,024 px); its tiles are asked for no finer than zoom 7 (about 36 of them over 450 NM). An estimate for speed. */
+/**
+ * The outer canvas covers the whole square (about 2,700 ft a pixel at 1,024 px over 450 NM); its tiles are asked for no finer than zoom 7 (about 36 of them over 450 NM). A bigger
+ * area is the same 1,024 px, so the tile layer picks its own coarser zoom (pickTileZoom: about zoom 7 at 600 NM, 6 at 900 NM, each about 25 to 49 tiles): about 3,600 ft a pixel
+ * at 600 NM and 5,300 ft at 900 NM. An estimate for speed.
+ */
 export const OUTER = Object.freeze({ px: 1024, maxZoom: 7 });
 /** The inner canvas covers INNER_NM square round home, at zoom 9 (two finer than the outer; about 36 tiles), drawn at 1,536 px (about 475 ft a pixel). */
 export const INNER = Object.freeze({ px: 1536, maxZoom: 9, nm: INNER_NM, ft: INNER_FT });
@@ -106,7 +110,8 @@ export function createGround3d({ T, timers, doc, onChange }) {
   };
   const sharp = { canvas: sharpCanvas, ctx: sharpCanvas.getContext('2d'), imagery: imageryFor(INNER), px: INNER.px };
   const inner = { canvas: innerCanvas, ctx: innerCanvas.getContext('2d'), texture: texture(innerCanvas), px: INNER.px };
-  const outerMesh = makeMesh({ cells: OUTER_CELLS, size: AREA_FT, hole: { from: HOLE_FROM, to: HOLE_FROM + HOLE_CELLS }, map: outer.texture, order: -2 });
+  const plan = terrainPlan(); // the outer grid for the 3D area in force (the view is built again when it changes)
+  const outerMesh = makeMesh({ cells: plan.outerCells, size: AREA_FT, hole: { from: plan.holeFrom, to: plan.holeFrom + plan.holeCells }, map: outer.texture, order: -2 });
   const innerMesh = makeMesh({ cells: INNER_CELLS, size: INNER.ft, hole: null, map: inner.texture, order: -1 });
 
   /** Lays the satellite tiles on a canvas, then dims them a little (as the 2D map does) so the pictures read on top. `isSharp`: only where the canvas already has pixels (the inner picture's own canvas). */

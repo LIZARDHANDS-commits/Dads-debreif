@@ -13,6 +13,7 @@ import { createSettings } from '../../storage/settings.js';
 import { triggerLimits, describeTrigger } from './waves.js';
 import { trafficUrl } from './traffic.js';
 import { CROSSWIND_DEFAULTS, RUNWAY_STATES } from './crosswind.js';
+import { AREA_CHOICES_NM, DEFAULT_AREA_NM } from './scene3d-model.js';
 
 const LOCAL = triggerLimits('local');
 
@@ -199,28 +200,39 @@ export const CLOUD_STYLES = Object.freeze([
   Object.freeze({ value: 'levels', label: 'One sheet per model level (old)' }),
 ]);
 const STYLE_VALUES = Object.freeze(CLOUD_STYLES.map((s) => s.value));
-export const VIEW3D_DEFAULTS = Object.freeze({ cloudStyle3d: 'slabs' });
+/**
+ * The 3D view's area (Dad, 8 Oct 2026): the square round home, 450 NM on a side by default (as before), or 600 or 900 NM to see further. The model clouds keep their
+ * 13 x 13 points, so they are further apart on a bigger square (37.5, 50 or 75 NM); the 3D view's key says so.
+ */
+export const AREA_OPTIONS = Object.freeze(AREA_CHOICES_NM.map((nm) => Object.freeze({ value: nm, label: `${nm} NM${nm === DEFAULT_AREA_NM ? ' (default)' : ''}` })));
+export const VIEW3D_DEFAULTS = Object.freeze({ cloudStyle3d: 'slabs', area3dNm: DEFAULT_AREA_NM });
 
-/** The 3D view's settings checked: a style not offered is the default. */
+/** The 3D view's settings checked: a style or an area not offered is the default. */
 export function cleanView3d(values) {
   const v = values ?? {};
-  return Object.freeze({ cloudStyle3d: STYLE_VALUES.includes(v.cloudStyle3d) ? v.cloudStyle3d : VIEW3D_DEFAULTS.cloudStyle3d });
+  return Object.freeze({
+    cloudStyle3d: STYLE_VALUES.includes(v.cloudStyle3d) ? v.cloudStyle3d : VIEW3D_DEFAULTS.cloudStyle3d,
+    area3dNm: AREA_CHOICES_NM.includes(v.area3dNm) ? v.area3dNm : VIEW3D_DEFAULTS.area3dNm,
+  });
 }
 
 /**
- * The 3D view's cloud style, kept in its own document in the SOF's storage ("view3d"), apart from the settings above so those stay as they were (as the crosswind
- * settings are). { get, update, reset, subscribe } like createSofSettings; a value not offered is dropped on the way in and is the default on the way out.
+ * The 3D view's cloud style and area, kept in their own document in the SOF's storage ("view3d"), apart from the settings above so those stay as they were (as the
+ * crosswind settings are). { get, update, reset, subscribe } like createSofSettings; a value not offered is dropped on the way in and is the default on the way out.
  */
 export function createView3dSettings(store) {
   const renamed = {
     get: (name, fallback) => store.get(name === 'settings' ? 'view3d' : name, fallback),
     set: (name, value) => store.set(name === 'settings' ? 'view3d' : name, value),
   };
-  const inner = createSettings(renamed, VIEW3D_DEFAULTS, { allowed: { cloudStyle3d: [...STYLE_VALUES] } });
+  const inner = createSettings(renamed, VIEW3D_DEFAULTS, { allowed: { cloudStyle3d: [...STYLE_VALUES], area3dNm: [...AREA_CHOICES_NM] } });
   return {
     get: () => cleanView3d(inner.get()),
     update(patch = {}) {
-      if (STYLE_VALUES.includes(patch.cloudStyle3d)) inner.update({ cloudStyle3d: patch.cloudStyle3d });
+      const next = {};
+      if (STYLE_VALUES.includes(patch.cloudStyle3d)) next.cloudStyle3d = patch.cloudStyle3d;
+      if (AREA_CHOICES_NM.includes(patch.area3dNm)) next.area3dNm = patch.area3dNm;
+      if (Object.keys(next).length) inner.update(next);
     },
     reset: () => inner.reset(),
     subscribe: (fn) => inner.subscribe(() => fn(cleanView3d(inner.get()))),

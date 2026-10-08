@@ -15,9 +15,12 @@ const isNumber = (v) => typeof v === 'number' && Number.isFinite(v);
 
 // ---- Pictures read on a grid of cells -----------------------------------------------------------------------
 
-/** The radar and lightning pictures are read on a CELL_PX by CELL_PX grid over the square (450 / 96 = 4.7 NM a cell). An estimate for the detail a shaft needs. */
+/**
+ * The radar and lightning pictures are read on a CELL_PX by CELL_PX grid over the square (450 / 96 = 4.7 NM a cell; 6.25 NM at 600 NM, 9.4 NM at 900). An estimate for the
+ * detail a shaft needs. `cellFt()` is a cell's width for the 3D area in force.
+ */
 export const CELL_PX = 96;
-export const CELL_FT = AREA_FT / CELL_PX;
+export const cellFt = () => AREA_FT / CELL_PX;
 /** A cell is precipitation or lightning when its pixel is at least this opaque (0 to 1) once the picture is shrunk to the grid. An estimate. */
 export const CELL_MIN_ALPHA = 0.25;
 /** Most shafts and most bolts drawn at once (each is one box); past this the cells are thinned evenly, never the strongest dropped first. An estimate for the drawing's sake. */

@@ -39,7 +39,7 @@ import { createAdsbFrame, adsbExchangeUrl, zoomForScale } from './adsbx.js';
 import { webglSupported } from '../../ui-kit/three-aircraft.js';
 import { createSofView3d } from './view3d.js';
 import { alerts3dView } from './alerts.js';
-import { sceneAirfields, sceneTraffic, stationAnchors, AREA_FT } from './scene3d-model.js';
+import { sceneAirfields, sceneTraffic, stationAnchors, AREA_FT, AREA_NM, DEFAULT_AREA_NM, setAreaNm } from './scene3d-model.js';
 import { fetchReports } from '../../wx/sources.js';
 import { createFrontsFeed, frontsUrl, frontsView } from './fronts.js';
 import { tacnavRoutes, checkedAirspace } from './airspace-model.js';
@@ -52,10 +52,23 @@ const BACKGROUND = '#05090d';
 const STALE_ALPHA = 0.4; // a stale picture is drawn faint, and its line says STALE
 const HOVER_PX = 14;
 const MAX_REMEMBERED_REQUESTS = 12;
-/** The 3D view's pictures (radar, lightning, satellite) are asked for over the whole 450 NM square at about this many pixels across (the request adds a fifth), under the 2,048 the feeds allow. */
+/**
+ * The 3D view's pictures (radar, lightning, satellite) are asked for over the whole 450 NM square at about this many pixels across (the request adds a fifth), under the 2,048
+ * the feeds allow. A bigger 3D area asks for the radar and lightning at more pixels in step (1,200 at 600 NM), so the radar round home is as sharp, up to PICTURE_3D_MAX_PX
+ * (1,706, which with the fifth is 2,047; ECCC, NOAA NCEP and NASA GIBS all answered 2,047 x 2,048 on 8 Oct 2026, radar about 120 KB): at 900 NM that is about 1.6 pixels a NM
+ * instead of 1.7, a little less sharp. The satellite picture stays at 900 at every area (at 2,047 px ECCC's GOES picture was 2.9 MB, asked every 10 minutes; it is only a
+ * faint sheet), so at 900 NM it is half as sharp.
+ */
 const PICTURE_3D_PX = 900;
-/** The HRDPS total-cloud picture (the 3D slabs' 2.5 km detail) is asked for at 512 pixels across the square (the request adds a fifth to this): about 25 KB in under half a second (checked 7 Oct 2026). */
+const PICTURE_3D_MAX_PX = Math.floor(2048 / 1.2);
+/**
+ * The HRDPS total-cloud picture (the 3D slabs' 2.5 km detail) is asked for at 512 pixels across the square (the request adds a fifth to this): about 25 KB in under half a second
+ * (checked 7 Oct 2026). It stays 512 at every area: the slabs read it on their own 256 px sheet (model-clouds.js CLOUD_SHEET_PX), so asking for more would not show more. At
+ * 900 NM a sheet pixel is about 6.5 km, not 3.3: the detail is coarser.
+ */
 const MODEL_CLOUD_PX = Math.round(512 / 1.2);
+/** The radar and lightning pictures' size in pixels for the 3D area in force (from PICTURE_3D_PX at 450 NM), never over PICTURE_3D_MAX_PX. */
+const areaPx = (px) => Math.min(PICTURE_3D_MAX_PX, Math.round(px * (AREA_NM / DEFAULT_AREA_NM)));
 /** It is asked for again once an hour (its layer has hourly times and a new run every 6 hours), and for a new hour as soon as the slider settles. Estimate, SOF-39. */
 const MODEL_CLOUD_REFRESH_MS = 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
@@ -296,7 +309,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
   });
 
   // ---- The 3D view's own pictures (Dad, 7 Oct) --------------------------------------------------------------
-  // The 3D view covers 450 NM, more than the 2D map's picture usually does, so radar, lightning and the GOES cloud picture are asked for again over the 3D square, only while the
+  // The 3D view covers 450 NM (or 600 or 900, the "3D area" setting), more than the 2D map's picture usually does, so radar, lightning and the GOES cloud picture are asked for again over the 3D square, only while the
   // 3D view is shown. They lay on the 3D ground and, read on a grid, make the radar shafts, the lightning bolts and the satellite sheet (weather3d-layers.js). The fronts come from
   // the relay's /fronts, every 30 minutes, also only while 3D is shown.
   const feeds3d = {
@@ -323,13 +336,34 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     },
   });
 
+  /**
+   * The "3D area" setting (Dad, 8 Oct 2026): sets the square's size (scene3d-model.js `setAreaNm`) and, when it changed, starts the square's things over: the model is asked
+   * again over the new square (the same 13 x 13 points, so the same Open-Meteo calls, about 1,200; a change counts against the free daily 10,000), the pictures are asked
+   * for over it, the stations inside it are asked for, and the 3D view is built again.
+   */
+  function syncArea() {
+    const wanted = view3dSettings?.get().area3dNm ?? DEFAULT_AREA_NM;
+    if (wanted === AREA_NM) return;
+    setAreaNm(wanted);
+    modelFeed.setPlace();
+    requests3d.clear();
+    if (threeOn) {
+      syncFeeds3d();
+      askAnchors();
+    }
+    view3d.setArea();
+  }
+
   /** Asks the 3D feeds for pictures over the square round home (a new home gives a new request). */
   function syncFeeds3d() {
     const half = AREA_FT / 2;
     const corners = cornersOf(projection, { minX: -half, minY: -half, maxX: half, maxY: half });
-    const request = radarImageRequest(corners, { width: PICTURE_3D_PX, height: PICTURE_3D_PX });
-    if (request) requests3d.set(request.key, request);
-    for (const [id, feed] of Object.entries(feeds3d)) if (id !== 'modelCloud') feed.setRequest(request);
+    const request = radarImageRequest(corners, { width: areaPx(PICTURE_3D_PX), height: areaPx(PICTURE_3D_PX) });
+    const cloudRequest = radarImageRequest(corners, { width: PICTURE_3D_PX, height: PICTURE_3D_PX }); // the satellite stays at 900 px (see PICTURE_3D_PX)
+    for (const r of [request, cloudRequest]) if (r) requests3d.set(r.key, r);
+    feeds3d.radar.setRequest(request);
+    feeds3d.lightning.setRequest(request);
+    feeds3d.cloud.setRequest(cloudRequest);
     syncModelCloud(corners);
     while (requests3d.size > MAX_REMEMBERED_REQUESTS) requests3d.delete(requests3d.keys().next().value);
   }
@@ -1032,6 +1066,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     }));
   }
 
+  syncArea(); // the "3D area" setting, before the square is first used
   goHome();
   applyLayers();
   watch.start();
@@ -1049,6 +1084,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     update({ snapshot, screen, alerts = null }) {
       if (disposed) return;
       alertsState = alerts;
+      syncArea(); // the "3D area" setting, before anything is worked out over the square
       const field = app.airfields.home();
       if (field.icao !== home.icao || field.lat !== home.lat || field.lon !== home.lon) {
         home = field;

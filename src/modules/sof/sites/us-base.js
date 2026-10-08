@@ -1,8 +1,9 @@
 // What every US T-6 base's site profile has in common (plan Step 2c, part B), so each base's file (kdlf.js ... kngp.js) holds only its own data.
 // The shape is the one cymj.js and generic.js use. Until part F adds the weather standards, a US base has:
 // - airspace from the FAA's open aeronautical data (part E, 8 Oct 2026; public domain): Class B, C, D and E surface areas, MOAs, restricted, warning and
-//   alert areas, and military training routes inside the base's 450 NM square, one generated file per base in faa-airspace/ (tools/faa-airspace.mjs,
-//   run again each 56-day cycle), each entry naming the FAA dataset and its date. The DoD FLIP AP/1 (AP/1A special use airspace, AP/1B training
+//   alert areas, and military training routes inside the base's 900 NM square (the 3D view's largest area), one generated file per base in faa-airspace/
+//   (tools/faa-airspace.mjs, run again each 56-day cycle), each entry naming the FAA dataset and its date. The file is loaded only when the 3D view opens at the
+//   base (airspace-load.js, a dynamic import), so the SOF's own code does not carry it. The DoD FLIP AP/1 (AP/1A special use airspace, AP/1B training
 //   routes) is the cross-check (Dad, 8 Oct), page numbers only. A base whose file is not generated yet has none ("no airspace for this base yet");
 // - no watched areas: the local working areas are not in the FAA's data, so they are set by Dad (the airspace log says "no watched areas for this base
 //   yet"); no Debrief routes or VNC charts;
@@ -75,6 +76,9 @@ export const US_TOWNS_SOURCE = 'GeoNames (CC BY 4.0), cities over 1,000 people, 
 /** The magnetic variation's source words. */
 export const US_MAGVAR_SOURCE = 'NOAA World Magnetic Model WMM2025 at the field, for 8 Oct 2026 (model value; drifts about 0.1° a year, estimate)';
 
+/** The US airspace's source in words, before its file has loaded (the file names its datasets and their dates). */
+export const FAA_AIRSPACE_WORDS = 'FAA open aeronautical data (Class B, C, D, special use airspace, military training routes)';
+
 /** The key line for a base with no airspace yet (its FAA file not generated). */
 export const NO_AIRSPACE_YET = 'no airspace for this base yet';
 
@@ -100,20 +104,21 @@ export const towns = (list) => Object.freeze(list.map((t) => town(...t)));
  * - usualAlternates: ICAOs, with `alternatesSource` saying whose they are (Dad's, or a guess Dad said to use for now).
  * - towns: from `towns()`. tourField: the nearby field the 3D tour visits after the base's circuit, `{ icao, label }`.
  * - magVarDeg: degrees East (West negative), from US_MAGVAR_SOURCE.
- * - airspace: the base's generated FAA file (faa-airspace/<icao>.js, as a module: { AIRSPACE, SOURCE }).
+ * - loadAirspace: a function that imports the base's generated FAA file (faa-airspace/<icao>.js, a module: { AIRSPACE, SOURCE }) when it is needed
+ *   (airspace-load.js); the profile's own `airspace` is empty, and the 3D view adds the file's entries once it has come.
  */
-export function usBase({ icao, name, shortName, usualAlternates, alternatesSource, towns: townList, tourField, magVarDeg, airspace }) {
-  const entries = Object.freeze([...(airspace?.AIRSPACE ?? [])]);
+export function usBase({ icao, name, shortName, usualAlternates, alternatesSource, towns: townList, tourField, magVarDeg, loadAirspace }) {
   return Object.freeze({
     icao,
     name,
     shortName,
     usualAlternates: Object.freeze([...usualAlternates]),
     alternatesSource,
-    airspace: entries,
-    airspaceNote: entries.length ? `${airspace.SOURCE}; ${AP1_CROSS_CHECK}` : NO_AIRSPACE_YET,
-    // The 3D key's source line for this base's airspace.
-    airspaceSource: `${airspace?.SOURCE ?? 'FAA open aeronautical data'}; ${AP1_CROSS_CHECK}`,
+    airspace: Object.freeze([]),
+    loadAirspace,
+    airspaceNote: `${FAA_AIRSPACE_WORDS}; ${AP1_CROSS_CHECK}`,
+    // The 3D key's source line for this base's airspace (the file's own dataset and dates are said with it once it has loaded).
+    airspaceSource: `${FAA_AIRSPACE_WORDS}; ${AP1_CROSS_CHECK}`,
     watchedAreas: Object.freeze([]),
     watchedAreasNote: WATCHED_AREAS_NOTE,
     towns: townList,
