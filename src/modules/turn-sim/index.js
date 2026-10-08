@@ -359,7 +359,10 @@ function mount(root, app) {
       rejoin: () => {
         if (!state.current?.change?.rejoining || state.aircraft.length !== 2) return null;
         const r = rejoinReadout(state.aircraft[0], state.aircraft[1]);
-        return { leadId: 1, wingId: 2, rangeFt: r.rangeFt, closureKt: r.closureKt };
+        const lead = state.aircraft[0];
+        const wing = state.aircraft[1];
+        const side = state.current.change.side ?? (Math.sign((wing.xFt - lead.xFt) * -Math.sin(lead.headingRad) + (wing.yFt - lead.yFt) * Math.cos(lead.headingRad)) || -1);
+        return { leadId: 1, wingId: 2, rangeFt: r.rangeFt, closureKt: r.closureKt, side, rejoinKind: state.current.change.rejoinKind };
       },
     },
   });
@@ -380,6 +383,14 @@ function mount(root, app) {
       tags: dataTags,
       leadLinks,
       hud: hudData,
+      rejoin: () => {
+        if (!state.current?.change?.rejoining || state.aircraft.length !== 2) return null;
+        const r = rejoinReadout(state.aircraft[0], state.aircraft[1]);
+        const lead = state.aircraft[0];
+        const wing = state.aircraft[1];
+        const side = state.current.change.side ?? (Math.sign((wing.xFt - lead.xFt) * -Math.sin(lead.headingRad) + (wing.yFt - lead.yFt) * Math.cos(lead.headingRad)) || -1);
+        return { leadId: 1, wingId: 2, rangeFt: r.rangeFt, closureKt: r.closureKt, side, rejoinKind: state.current.change.rejoinKind };
+      },
       // The band's box and Change position's click, in 3D as in 2D (Patrick, 6 Oct: no yellow box in 3D).
       placeBox: () => changeUi.placeBox(),
       onPick: (x, y, at) => changeUi.pickAt(x, y, at),

@@ -290,6 +290,18 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       if (layers.lead75 && layers[`l75_${a.id}`]) {
         for (const off of [Math.PI / 6, -Math.PI / 6]) seg([a.xFt, a.yFt, z], out(a.headingRad + Math.PI + off, lengthFt));
       }
+      // The 45° Turning Rejoin Line (the Canopy "X" line) in 3D during a rejoin
+      const rejoin = source.rejoin?.();
+      if (rejoin && a.id === rejoin.leadId) {
+        const wing = state.aircraft.find((w) => w.id === rejoin.wingId);
+        if (wing) {
+          const s = rejoin.side ?? (Math.sign((wing.xFt - a.xFt) * -Math.sin(a.headingRad) + (wing.yFt - a.yFt) * Math.cos(a.headingRad)) || -1);
+          const isTurning = rejoin.rejoinKind !== 'straight';
+          const off = isTurning ? s * (Math.PI / 4) : 0;
+          colour.set('#ffcc66');
+          seg([a.xFt, a.yFt, z], out(a.headingRad + Math.PI + off, lengthFt));
+        }
+      }
       // The circle each banked aircraft is flying now, as the 2D live view's (view.js drawBankCircles).
       colour.set(source.colors[a.id] ?? '#ffffff');
       if (layers.turnCircles && !state.finished && a.bankDeg) {
