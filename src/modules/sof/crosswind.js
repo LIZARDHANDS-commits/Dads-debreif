@@ -3,8 +3,8 @@
 // runways and the settings go in, plain data comes out. The card (cards-view.js) only draws it; the banner gets a caution only for red on every
 // runway end at home.
 //
-// True with true: a Canadian METAR gives the wind direction in degrees true, and AIRPORTS gives each runway end's heading in degrees true
-// (OurAirports), so the two are compared as they are, never converted. The screen names runways by their numbers and says the wind is true.
+// True with true: a METAR (Canadian or US) gives the wind direction in degrees true, and AIRPORTS gives each runway end's heading in degrees true
+// (OurAirports; the US bases and their usual alternates since plan Step 2c part D), so the two are compared as they are, never converted. The screen names runways by their numbers and says the wind is true.
 //
 // The components are core/wind.js's `windTriangle` (crosswind = W × sin(D − T), + from the right; headwind = W × cos(D − T), − a tailwind); this file
 // never writes the formula again.
@@ -14,6 +14,10 @@
 // crosswind on every runway (the worst case); a direction varying between two bearings ("250V310") counts the worst crosswind across that arc.
 import { windTriangle } from '../../core/wind.js';
 import { AIRPORTS } from './airports-data.js';
+import { notSetWords } from './limits-not-set.js';
+
+/** No level is ever passed: the levels a base with no weather limits checks against (`crosswindFor`'s `levels: false`). */
+const NO_LEVELS = Object.freeze({ xwAmberDryKt: Infinity, xwAmberWetKt: Infinity, xwAmberIcyKt: Infinity, xwRedDryKt: Infinity });
 
 /** The runway states the setting offers, and what each says. */
 export const RUNWAY_STATES = Object.freeze([
@@ -128,15 +132,21 @@ const LEVEL_WORDS = { amber: (a, s) => `amber: over ${a} kt ${s}`, red: (_, __, 
  * `metar` is the card's METAR line (cards.js: its `state`), `wind` the METAR's `conditions.wind` and `weather` its weather list; `settings` the crosswind
  * settings. An old METAR (the card's stale rule) has no wind check: "old report". `caution` is the banner's entry, for the home field only, when every runway
  * end is over the red level.
+ * `levels: false` is a home base with no weather limits (its site profile's `standards` is null; `homeIcao` names it): the headwind, crosswind and favoured
+ * end still show, but no end is amber or red, there is no chip and no caution, and the levels line says "Limits not set for KDLF: no crosswind level
+ * flagged" (Moose Jaw's levels are never used for another base; plan Step 2c: "crosswind and wind limits [none flagged]").
  */
-export function crosswindFor({ icao, role = 'ALT', metar, wind = null, weather = [], settings, airports = AIRPORTS }) {
+export function crosswindFor({ icao, role = 'ALT', metar, wind = null, weather = [], settings, airports = AIRPORTS, levels = true, homeIcao = null }) {
   const airport = airports.find((a) => a.icao === icao);
   const ends = runwayEnds(airport);
   if (!ends.length) return null;
+  if (!levels) settings = { ...(settings ?? {}), ...NO_LEVELS };
   const { state, amberKt, redKt } = levelsFor(settings);
-  const levelsWords = `Amber over ${amberKt} kt ${STATE_WORDS[state]}, red over ${redKt} kt dry (runway state ${STATE_WORDS[state]}, in SOF settings)`;
+  const levelsWords = levels
+    ? `Amber over ${amberKt} kt ${STATE_WORDS[state]}, red over ${redKt} kt dry (runway state ${STATE_WORDS[state]}, in SOF settings)`
+    : `${notSetWords(homeIcao)}: no crosswind level flagged`;
   const precip = (weather ?? []).filter((w) => w.descriptor === 'FZ' || (w.phenomena ?? []).some((p) => WET.has(p)));
-  const hint = precip.length && state === 'dry' && metar?.state === 'fresh'
+  const hint = levels && precip.length && state === 'dry' && metar?.state === 'fresh'
     ? `The METAR reports ${precip.map((w) => w.raw).join(' ')}: the runway may be wet. The runway state is set in SOF settings (Dry now).`
     : null;
   const empty = (status, note) => ({ status, windWords: null, levelsWords, note, ends: [], favoured: null, chip: null, hint: null, caution: null });

@@ -134,13 +134,15 @@ function mount(root, app) {
     const notes = tafNotes({ snapshot, now }); // a stale or failed TAF is said on the chips and the timeline rows too
     // Crosswind per runway (SOF-43) for each card from its METAR's wind; red on every runway end at home goes on the banner, amber stays on the card.
     const xwSettings = crosswind.get();
+    // A home base with no weather limits (its site profile's `standards` is null) raises no limit caution: no home forecast below the trigger and no
+    // crosswind red. Its cards show each runway's headwind and crosswind (the US bases' runways since plan Step 2c part D) with no level flagged, since
+    // the levels are Moose Jaw's. The wave calls already have no hits there (waves-view-model.js); dangerous weather still raises.
+    const homeLimitsSet = limitsSet(site());
+    const homeIcao = app.airfields.home().icao;
     const winds = new Map(screen.cards.map((c) => {
       const conditions = snapshot.metar[c.icao]?.report?.conditions ?? null;
-      return [c.icao, crosswindFor({ icao: c.icao, role: c.role, metar: c.metar, wind: conditions?.wind ?? null, weather: conditions?.weather ?? [], settings: xwSettings })];
+      return [c.icao, crosswindFor({ icao: c.icao, role: c.role, metar: c.metar, wind: conditions?.wind ?? null, weather: conditions?.weather ?? [], settings: xwSettings, levels: homeLimitsSet, homeIcao })];
     }));
-    // A home base with no weather limits (its site profile's `standards` is null) raises no limit caution: no home forecast below the trigger and no
-    // crosswind red (its levels are Moose Jaw's). The wave calls already have no hits there (waves-view-model.js); dangerous weather still raises.
-    const homeLimitsSet = limitsSet(site());
     const xwCautions = homeLimitsSet ? [...winds.values()].map((x) => x?.caution).filter(Boolean) : [];
     const waves = buildWaves({ plan: plan.get(), airfields: app.airfields, tafs, limits, now, timeZone: app.time.zone, selectedId, tafNotes: notes });
     banner = buildBanner({
