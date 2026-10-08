@@ -11,7 +11,7 @@ import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, copyAircraft, smoothLegSec, heightAt, SMOOTHER_PEAK } from './flight.js';
 import { relativeTo, unit, DEG } from './manoeuvres.js';
-import { fullPowerKtps, slowKtps } from './slow-down.js';
+import { fullPowerKtps, slowKtps, stallBankDeg, sustainedBankDeg, sustainsBank } from './slow-down.js';
 import { throttleAtTorque } from './power.js';
 import { TRACKER, CLOSURE, HAND_OVER_FT, FW_ENERGY, FW_BUBBLE, REJOIN, TURNING_REJOIN, KIAS_OUTSIDE_LAB } from './tuning.js';
 import { fixedLine } from './slots.js';
@@ -86,10 +86,12 @@ function aimOf(ph, L, Lprev, ref, W, t) {
     const ex = px - W.xFt;
     const ey = py - W.yFt;
     const d = Math.hypot(ex, ey);
+    const onLine = Math.abs(cross) <= (ph.captureFt ?? 150);
     const inCone = (ph.coneEase || ph.isFw)
-      ? (along <= (ph.decisionFt ?? 750) || (r <= 1100 && along <= 1000))
+      ? (r <= 1000 && onLine && along <= 1000)
       : false;
-    const arrived = inCone || (along <= (ph.decisionFt ?? 750) && Math.abs(cross) <= (ph.captureFt ?? 50));
+    const reachedDecision = onLine && along <= (ph.decisionFt ?? 750);
+    const arrived = inCone || reachedDecision;
     return { px, py, vpx: vfx, vpy: vfy, vfx, vfy, ex, ey, d, arrived, along, cross, dWorld, omegaL, slot: ph.slot ?? { fwd: rel.fwd, left: rel.left, alt: ph.slot?.alt ?? 0 } };
   }
 
@@ -257,17 +259,30 @@ function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT) {
 /**
  * Heading loop: turn rate toward the commanded heading, with its own rate fed forward; bank from the turn rate.
  */
-function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, aim = null) {
+function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, aim = null, blockFt = 8000) {
   const T = TRACKER;
   const GAIN = T.gain;
-  if (headingState.psiCmdPrev === null) headingState.psiCmdPrev = psiCmd;
-  const psiStep = wrapPi(psiCmd - headingState.psiCmdPrev);
-  headingState.psiCmdPrev = psiCmd;
+  const cmd = psiCmd ?? W.headingRad;
+  if (headingState.psiCmdPrev === null) headingState.psiCmdPrev = cmd;
+  const psiStep = wrapPi(cmd - headingState.psiCmdPrev);
+  headingState.psiCmdPrev = cmd;
   headingState.omegaFf += GAIN.ffFilter * (psiStep / STEP_SEC - headingState.omegaFf);
-  // A phase with `feedForward: false` (the fighting wing turn exit, formation-turns.js fwExit) steers on the heading error alone:
-  // as Lead rolls out the turn of the place #2 flies to dies away, and fed forward it rolled #2 past his heading and back.
-  const omegaCmd = GAIN.heading * wrapPi(psiCmd - W.headingRad) + (ph.feedForward === false ? 0 : headingState.omegaFf);
+
+  const isRejoinKind = ph.kind === 'line' || ph.kind === 'x';
+  const tauSec = isRejoinKind ? (ph.tauSec ?? (ph.kind === 'x' ? 6 : 4)) : null;
+  const gainHdg = tauSec != null ? (1 / tauSec) : GAIN.heading;
+  const omegaCmd = gainHdg * wrapPi(cmd - W.headingRad) + (ph.feedForward === false ? 0 : headingState.omegaFf);
+
   let cap = aligning ? ph.alignBankDeg ?? T.alignBankDeg : ph.bankCapDeg;
+  if (isRejoinKind) {
+    cap = Math.min(cap, stallBankDeg(W.kias));
+    const floorNow = ph.floorKias ?? KIAS_OUTSIDE_LAB;
+    const climbKtps = climbCostKtps(W, W.climbFtps ?? 0);
+    const wantBank = bankDegFromTurnRate(W.tasFtps, omegaCmd);
+    if (W.kias < floorNow + TURNING_REJOIN.floorMarginKias && !sustainsBank(Math.abs(wantBank), W.kias, blockFt, climbKtps)) {
+      cap = Math.min(cap, sustainedBankDeg(W.kias, blockFt, climbKtps));
+    }
+  }
   if (ph.coneEase && L && aim?.along != null) {
     const leadBankMag = Math.abs(L.bankDeg ?? 0);
     const targetCap = Math.max(leadBankMag + 5, 25);
@@ -324,7 +339,7 @@ function zoomRoomFtps(L, W) {
  * at the G he pulls (full power up, power back down: slow-down.js, TS-61) and builds it up at the one jerk limit.
  * Returns { kias, zoomFtps, accel }.
  */
-function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowOwn, cone, energyIntent, heightState = null, t = 0 }) {
+function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowOwn, cone, energyIntent, heightState = null, t = 0, aCmdOwn = null }) {
   const T = TRACKER;
   const GAIN = T.gain;
   // A phase may slow with more than power back (slowStage, slow-down.js; the turning rejoin's run-in: power back and the
@@ -344,7 +359,9 @@ function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowO
   // climb rate slows him beyond what power back gives (standard energy, climbCostKtps); the climb itself is flown below.
   const zoomFtps = energy && belowOwn == null ? zoomRoomFtps(L, W) : 0;
   const extraSlowKtps = zoomFtps > 0 ? climbCostKtps(W, zoomFtps) : 0;
-  const aWant = (energyIntent === 'gain' && W.kias < kiasCmd ? Infinity : GAIN.speedLoop * (kiasCmd - W.kias));
+  const aWant = aCmdOwn != null
+    ? aCmdOwn
+    : (energyIntent === 'gain' && W.kias < (kiasCmd ?? W.kias) ? Infinity : GAIN.speedLoop * ((kiasCmd ?? W.kias) - W.kias));
   // Lining up, the last few thousandths of a knot are taken out at once (snapKias), so the speed has no step.
   const accel = pilotSpeed(pilot, W, aWant, {
     blockFt, top: slowStage, floorThr, climbKtps, extraSlowKtps, snapKias: aligning ? L.kias : null, snapTol: T.kiasSnap,
@@ -433,7 +450,7 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
       : Math.abs(target - heightState.targetAlt) > TRACKER.height.minChangeFt;
     if (needNewLeg) {
       const rise = target - W.altAboveFt;
-      const defaultRateFtps = ph.tactical ? 45 : 15;
+      const defaultRateFtps = isRejoin ? 120 : (ph.tactical ? 45 : 15);
       const rateFloor = (SMOOTHER_PEAK * Math.abs(rise)) / (ph.altRateFtps ?? defaultRateFtps);
       const gFloor = smoothLegSec(rise, TRACKER.height.heightG);
       const vEnergy = rise > 0 ? fullPowerKtps(W.kias, blockFt, W.g ?? 1) / climbCostKtps(W, 1) : 0;
@@ -475,6 +492,13 @@ function isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt, timesK, early, heig
 
   // Native handling for line and canopy-X phases
   if (ph.kind === 'line' || ph.kind === 'x') {
+    if (L && ph.side != null && !ph.allowAcross) {
+      const rel = relativeTo(L, W);
+      const r = Math.hypot(rel.fwd, rel.left);
+      if (rel.left * ph.side < -50 && r < 2000) {
+        return { abort: true, early: pursuitResult, stoppedAt: newStoppedAt };
+      }
+    }
     if (arrived && timesK.arrive === null) timesK.arrive = t;
     if (arrived && gateOpen) {
       if (last) return { done: true, early: pursuitResult, stoppedAt: newStoppedAt };
@@ -620,6 +644,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
 
     let psiCmd;
     let kiasCmd;
+    let own = null;
     let bankOwn = null; // a bank a `pursuit` phase commands outright (fw-switch.js, TS-102), else the heading loop's
     let belowOwn = null; // a height below the aircraft flown off a `pursuit` phase asks for (the fighting wing bubble's dive, TS-134)
     let stageOwn = null; // a slowing stage a `pursuit` phase asks for this step (echelon-to-fw.js's idle and the boards), else the phase's
@@ -688,14 +713,14 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       // One with keepBase asks only for a height (belowFt) and leaves the steering to the slot law.
       const asked = inPos.early !== undefined ? inPos.early : ph.pursuit ? ph.pursuit(L, W, t) : null;
       belowOwn = asked?.belowFt ?? null;
-      const own = asked?.keepBase ? null : asked;
+      own = asked?.keepBase ? null : asked;
       stageOwn = own?.slowStage ?? null;
       stepProfileOwn = own?.stepProfile ?? null;
       energyIntentOwn = own?.energyIntent ?? ph.energyIntent ?? null;
 
       if (own) {
         psiCmd = own.psiCmd;
-        kiasCmd = own.kiasCmd;
+        kiasCmd = own.kiasCmd ?? (own.aCmd != null ? W.kias + own.aCmd * STEP_SEC : W.kias);
         bankOwn = own.bankDeg ?? null;
       } else {
         // 2. Closure: commanded closing speed and slot-law steering
@@ -711,7 +736,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       const aim3D = aimLiftVector(W, aim, T.gain.heading);
       bank = bankOwn ?? aim3D.bankDeg;
     } else {
-      bank = headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L, aim);
+      bank = headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L, aim, blockFt);
     }
 
     // 4. Power: speed loop, jerk limit, energy intent
@@ -720,6 +745,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       energyIntent: energyIntentOwn,
       heightState,
       t,
+      aCmdOwn: own?.aCmd ?? null,
     });
     const kias = power.kias;
 

@@ -82,6 +82,34 @@ export function fullPowerKtps(kias, altFt, g = 1) {
   return ktpsFrom(excessThrustPerWeight(kias, altFt, g), kias, altFt);
 }
 
+const DEG = Math.PI / 180;
+
+/** The most bank at which MAX still holds the speed (KIAS, block height, a climb's cost in KIAS per second): standard aerodynamics, slow-down.js's full-power rate at that G. */
+export function sustainedBankDeg(kias, blockFt, climbKtps) {
+  const gain = (g) => fullPowerKtps(kias, blockFt, g) - climbKtps;
+  let lo = 1;
+  let hi = Math.max(1, availableG(kias));
+  if (gain(hi) >= 0) return Math.acos(1 / hi) / DEG;
+  if (gain(lo) <= 0) return 0;
+  for (let i = 0; i < 20; i++) {
+    const m = (lo + hi) / 2;
+    if (gain(m) >= 0) lo = m;
+    else hi = m;
+  }
+  return Math.acos(1 / lo) / DEG;
+}
+
+/**
+ * True when MAX surely holds the speed at bankDeg, so sustainedBankDeg would not cut it (search speed only, the same
+ * answer): the full-power rate falls as the G grows, so if it still holds a little above this bank's G (1e-5 of it, more
+ * than the bisection's 20 halvings leave), the bisection's answer is above this bank.
+ */
+export function sustainsBank(bankDeg, kias, blockFt, climbKtps) {
+  if (!(bankDeg < 89)) return false;
+  const g = (1 / Math.cos(bankDeg * DEG)) * (1 + 1e-5);
+  return g <= Math.max(1, availableG(kias)) && fullPowerKtps(kias, blockFt, g) - climbKtps >= 0;
+}
+
 /** The most a stage slows the aircraft (KIAS per second, a positive number) at kias, altFt and g, power and boards at `throttle` (the floor by default). */
 export function slowKtps(stage, kias, altFt, g = 1, throttle = POWER_FLOOR_THROTTLE) {
   return Math.max(0, -ktpsFrom(excessPerWeight(stage, kias, altFt, g, throttle), kias, altFt));

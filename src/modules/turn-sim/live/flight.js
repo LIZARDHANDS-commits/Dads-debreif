@@ -55,7 +55,7 @@ const GATE_G_MAX_BANK_DEG = 85;
 export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, roll, tasFtps, kias) {
   const limits = rollLimitAt(tasFtps, roll);
   // A rate handed in faster than the aircraft rolls (a replayed pose's own) is taken at the aircraft's.
-  const rate0 = Math.max(-limits.maxRateDps, Math.min(limits.maxRateDps, rollRateDps));
+  const rate0 = Math.max(-limits.maxRateDps, Math.min(limits.maxRateDps, rollRateDps ?? 0));
   let target = targetDeg;
   const gStall = stallLimitG(kias);
   if (Math.abs(target) < GATE_G_MAX_BANK_DEG && gStall > 1) {
@@ -174,6 +174,8 @@ export function flyAttitude(a, prev, dt, roll = ROLL) {
 export function copyAircraft(a) {
   return {
     ...a,
+    rollRateDps: a.rollRateDps ?? 0,
+    bankDeg: a.bankDeg ?? 0,
     ...(a._pm ? { _pm: { ...a._pm, up: { ...a._pm.up } } } : {}),
   };
 }
@@ -479,7 +481,7 @@ export function stepAircraft(a, plan, t) {
   const tas = (tasBefore + a.tasFtps) / 2;
   // A turn segment may roll gentler (a close formation Lead); never past the envelope gate (gateRoll: the T-6A's roll at
   // this speed, TS-85; G onset and stall, TS-93).
-  const rolled = gateRoll(a.bankDeg, a.rollRateDps, targetBank, dt, (seg?.rollingOut && outRoll(seg, a)) || seg?.roll || ROLL, tasBefore, a.kias);
+  const rolled = gateRoll(a.bankDeg ?? 0, a.rollRateDps ?? 0, targetBank ?? 0, dt, (seg?.rollingOut && outRoll(seg, a)) || seg?.roll || ROLL, tasBefore, a.kias);
   a.bankDeg = Math.abs(rolled.bankDeg) < 1e-9 ? 0 : rolled.bankDeg;
   a.rollRateDps = Math.abs(rolled.rollRateDps) < 1e-9 ? 0 : rolled.rollRateDps;
   const turned = stepTurnRad(tas, bankBefore, a.bankDeg);

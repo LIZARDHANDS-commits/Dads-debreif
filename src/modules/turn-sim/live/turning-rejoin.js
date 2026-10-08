@@ -45,6 +45,7 @@ import { laggedBank } from './kinematic.js';
 import { trackTwice, runTracker, phase } from './tracker.js';
 import { fwGoal } from './formation-turns.js';
 import { acrossSixLegs } from './replan.js';
+import { stallBankDeg } from './slow-down.js';
 import { turnRadiusFromBankFt } from '../../../core/flight-math.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { iasToTasKt } from '../../../core/t6-performance.js';
@@ -68,20 +69,17 @@ const xArriveFtps = () => ((TURNING_REJOIN.stableKt[0] + TURNING_REJOIN.stableKt
  */
 function tailLegs(s, to, sTo, spacingFt, at = null) {
   if (to === 'fw') return [rejoinTo(pairSlot('fw', s, spacingFt)), ...(sTo !== s ? legsFor('fw', s, 'fw', sTo, spacingFt) : [])];
-  if (to === 'route' || !at) {
+  if (to === 'route' || (!at && to !== 'echelon')) {
     const rSlot = pairSlot('route', sTo || s, spacingFt);
     const rest = legsFor('route', s, to, sTo, spacingFt);
     return [closeThrough(rSlot, rest.length ? { advanceTol: TURNING_REJOIN.routeFlowFt } : { advanceTol: TURNING_REJOIN.routeFlowFt }), ...(rest.length ? rest : [slide(rSlot)])];
   }
   const ech = pairSlot('echelon', s, spacingFt);
   const rest = legsFor('echelon', s, to, sTo, spacingFt);
-  // Where he is against the line: how far down it from echelon (its direction: LINE_BACK_PER_OUT back per foot out) and how
-  // far off it. He joins it as far up again as he is off it, so the move over keeps him closing up the line in one movement
-  // (Patrick 6 Oct 04:43Z: "2 goes behind lead and stagnates there instead of following the line"); to the nearest point of
-  // the line, as until V2.123, the move over held his closure up the line at nothing.
+  const atPos = at ?? { fwd: -TURNING_REJOIN.windowNearFt * Math.SQRT1_2, left: s * TURNING_REJOIN.windowNearFt * Math.SQRT1_2 };
   const n = Math.hypot(1, LINE_BACK_PER_OUT);
-  const dF = at.fwd - ech.fwd;
-  const dO = Math.abs(at.left) - Math.abs(ech.left);
+  const dF = atPos.fwd - ech.fwd;
+  const dO = Math.abs(atPos.left) - Math.abs(ech.left);
   const alongFt = (-dF * LINE_BACK_PER_OUT + dO) / n;
   const offFt = Math.abs(dF + dO * LINE_BACK_PER_OUT) / n;
   return [closeThrough(downTheLine(ech, s, Math.max(0, alongFt - offFt)), { advanceTol: TURNING_REJOIN.routeFlowFt }), ...(rest.length ? rest : [slide(ech)])];
@@ -169,7 +167,23 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       }),
     ], { closeIn: true }));
   } else if (onX) {
-    if (initialRange > TR.xFromFt) {
+    if (hardSec > 0) {
+      phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
+        pursuit: (L, W, t) => {
+          const cap = Math.min(bankCapDeg, stallBankDeg(W.kias));
+          return {
+            bankDeg: -s * cap,
+            slowStage: 'idleBoards',
+            kiasCmd: floorKias,
+            psiCmd: W.headingRad,
+            done: t >= t0 + hardSec - 1e-9,
+          };
+        },
+        pursuitEnds: true,
+        rejoin: true,
+      }));
+      numApproachPhases++;
+    } else if (initialRange > TR.xFromFt) {
       phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
         kind: 'line',
         lineDeg: TR.lineDeg,
@@ -212,7 +226,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       phases.push(...onLead(onClosure(acrossSixLegs(null, s, to, sTo, spacingFt))));
     } else {
       phases.push(...onLead(onClosure(tailLegs(s, to, sTo, spacingFt))).map((p, i) =>
-        ({ ...p, slowStage: 'boards', ...(i === 0 ? { closureFtps: Math.min(p.closureFtps, flowFtps) } : {}) })
+        (i === 0 ? { ...p, closureFtps: Math.min(p.closureFtps, flowFtps) } : p)
       ));
     }
   } else {
@@ -265,22 +279,28 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   const wPart = firstRec.at(nPart);
   const relPart = relativeTo(into.longRec.at(nPart), wPart);
   const easeSec = close ? planeEaseSec(relPart, into.longRec.at(nPart)) : 0;
-  const lp = into.planTo(totalSteps + Math.ceil(easeSec / dt), close ? RATE_SETS.close.echelonRoll : null);
 
-  let { run, profile } = trackTwice({
-    refs: { [lead.id]: lp.rec },
-    wing0: wing,
-    t0,
-    phases,
-    blockFt,
-    profile: profile0,
-    stopWhenSettled: false,
-    maxSec: limitSec,
-  });
-
-  if (!run.ok) return null;
+  let run = first.run;
+  let profile = first.profile;
+  let lp = into.planTo(totalSteps, null);
 
   if (close) {
+    lp = into.planTo(totalSteps + Math.ceil(easeSec / dt), RATE_SETS.close.echelonRoll);
+    const second = trackTwice({
+      refs: { [lead.id]: lp.rec },
+      wing0: wing,
+      t0,
+      phases,
+      blockFt,
+      profile: profile0,
+      stopWhenSettled: false,
+      maxSec: limitSec,
+    });
+    if (second.run.ok) {
+      run = second.run;
+      profile = second.profile;
+    }
+
     const targetAltFt = (pairSlot(to, sTo || s, spacingFt)?.alt ?? 0) + leadAlt;
     const inPlane = (r, prof) => inLeadsPlane(wing, { segments: [{ kind: 'bankTrack', points: r.points }], profile: prof }, lp.rec, t0, nPart, r.points.length, easeSec, targetAltFt);
     const planeProfile = inPlane(run, profile);
@@ -291,10 +311,26 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       phases,
       profile: planeProfile,
       blockFt,
+      stopWhenSettled: false,
     });
     if (again.ok) {
       run = again;
       profile = planeProfile;
+    }
+  } else {
+    lp = into.planTo(totalSteps, null);
+    const second = runTracker({
+      refs: { [lead.id]: lp.rec },
+      wing0: wing,
+      t0,
+      phases,
+      profile: profile0,
+      blockFt,
+      stopWhenSettled: false,
+      maxSec: limitSec,
+    });
+    if (second.ok) {
+      run = second;
     }
   }
 
@@ -421,7 +457,7 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
           // round, the review's worst-case answer), then the G rule only when none of those keeps him behind Lead's 3/9 line.
           for (const caps of [hot ? TURNING_REJOIN.hotBanksDeg : [TURNING_REJOIN.bankCapDeg], [REJOIN.bankCapDeg]]) {
             const aims = hot ? [...TURNING_REJOIN.aimsFt, TURNING_REJOIN.lagAimFt] : TURNING_REJOIN.aimsFt;
-            const tries = aims.map((aimFt) => ({ aimFt, hardSec: 0 }));
+            const tries = [...aims.map((aimFt) => ({ aimFt, hardSec: 0 })), ...(hot && to !== 'fw' && xLaw ? TURNING_REJOIN.hardPullsSec.map((hardSec) => ({ aimFt: aims[0], hardSec })) : [])];
             for (const bankCapDeg of caps) for (const { aimFt, hardSec } of tries) {
               const limitSec = best ? best.durationSec - BETTER_BY_SEC : (bestAny ? bestAny.durationSec - BETTER_BY_SEC : Infinity);
               const flown = flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, overshoot, xLaw, hardSec, allowAcross, maxWhenLow, limitSec });

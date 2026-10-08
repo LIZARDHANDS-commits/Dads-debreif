@@ -113,6 +113,9 @@ function flyStraightRejoinWith({ lead, wing, rec, s, to, sTo, spacingFt, blockFt
     if (rel.fwd > 0 && Math.hypot(rel.fwd, rel.left) < 1000) return null;
   }
 
+  // Must line up on Lead's six well back (Fig 12.17)
+  if (!foundSix || sixFt < 400) return null;
+
   const slotFwdFt = Math.max(0, pairSlot(to, sTo || s, spacingFt).fwd);
   return {
     run: { ...run, points },
