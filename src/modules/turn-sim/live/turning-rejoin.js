@@ -157,18 +157,6 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       }));
       numApproachPhases++;
     }
-    if (initialRange > TR.xFromFt) {
-      phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
-        kind: 'leadIn',
-        side: s,
-        bankCapDeg,
-        overtakeKt,
-        floorKias,
-        rejoin: true,
-        initialPclMax,
-      }));
-      numApproachPhases++;
-    }
     // Followed by canopy-X tracking into the fighting wing cone
     phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
       kind: 'x',
@@ -210,18 +198,6 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
         },
         pursuitEnds: true,
         rejoin: true,
-      }));
-      numApproachPhases++;
-    }
-    if (initialRange > TR.xFromFt) {
-      phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
-        kind: 'leadIn',
-        side: s,
-        bankCapDeg,
-        overtakeKt,
-        floorKias,
-        rejoin: true,
-        initialPclMax,
       }));
       numApproachPhases++;
     }
