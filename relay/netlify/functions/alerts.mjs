@@ -1,4 +1,5 @@
 // The SOF's /alerts answer on Netlify (decision SOF-40): wraps createWxHandler from ../../wx.js. See relay/README.md.
+// Canadian sites' SIGMETs, AIRMETs and PIREPs come from NAV CANADA and K sites' from aviationweather.gov (no key needed for either).
 
 import { createWxHandler } from '../../wx.js';
 

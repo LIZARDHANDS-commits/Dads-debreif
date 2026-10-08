@@ -7,8 +7,16 @@
 // Same rules as the traffic relay: only fixed upstream addresses, checked query values, size caps, every upstream field
 // rebuilt from an allowlist, only the allowed origins may read it, nothing stored or logged. Upstream text is passed on as
 // text only (never markup); the page treats it as untrusted.
+//
+// US sites (plan Step 2c part E, 8 Oct 2026): /notam and /alerts route each asked site by its first letter. K sites go to the
+// US sources in us-wx.js (the FAA NOTAM API, which needs FAA_CLIENT_ID and FAA_CLIENT_SECRET in the relay's environment, and
+// aviationweather.gov's SIGMETs, G-AIRMETs and PIREPs); every other site goes to NAV CANADA exactly as before. An answer names in
+// `sites` only the fields it has answered for; a field it could not answer is left out (the page then says "unavailable", never
+// "none") and, for a missing FAA key, listed in `unavailable` with the reason. A request with only K sites and no FAA key gets
+// 503 { error: 'FAA NOTAM key not set' }.
 
 import { allowedOrigins, reply, readCapped } from './lib.js';
+import { askAwc, askFaa, faaKey, FAA_KEY_NOT_SET } from './us-wx.js';
 
 const USER_AGENT = 'DadsOODALoop-SOF-relay/1.0 (+https://github.com/LIZARDHANDS-commits/Dads-debreif)';
 const TIMEOUT_MS = 10_000;
@@ -136,12 +144,40 @@ export function trimAlerts(upstream) {
   return out;
 }
 
-async function ask(fetchFn, url) {
+/** A reply that is not the expected shape (502 "upstream reply unusable"). */
+class Unusable extends Error {}
+
+/** One upstream ask: the reply's text, size-capped; throws on a failure. `headers` adds to the User-Agent (the FAA key's two headers, which go nowhere else). */
+async function ask(fetchFn, url, headers = {}) {
   const signal = typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(TIMEOUT_MS) : undefined;
-  const res = await fetchFn(url, { method: 'GET', headers: { 'user-agent': USER_AGENT }, redirect: 'manual', signal });
+  const res = await fetchFn(url, { method: 'GET', headers: { 'user-agent': USER_AGENT, ...headers }, redirect: 'manual', signal });
   if (!res.ok) throw new Error('upstream status');
   return readCapped(res, MAX_UPSTREAM_BYTES);
 }
+
+/** The asked sites split by country: K sites to the US sources, every other one to NAV CANADA as before. */
+export const splitSites = (sites) => ({ us: sites.filter((s) => s.startsWith('K')), ca: sites.filter((s) => !s.startsWith('K')) });
+
+/** NAV CANADA's NOTAMs for the non-K sites, as before: the list, or throws 'unusable' / a fetch error. */
+async function askNavCanadaNotams(fetchFn, sites) {
+  const list = trimNotams(JSON.parse(await ask(fetchFn, `${NOTAM_UPSTREAM}?${sites.map((s) => `site=${s}`).join('&')}&alpha=notam`)), sites);
+  if (!list) throw new Unusable();
+  return list;
+}
+
+/** NAV CANADA's SIGMETs, AIRMETs and PIREPs for the non-K sites, as before. */
+async function askNavCanadaAlerts(fetchFn, sites) {
+  const list = [];
+  for (const kind of ALERT_KINDS) {
+    const part = trimAlerts(JSON.parse(await ask(fetchFn, `${NOTAM_UPSTREAM}?${sites.map((s) => `site=${s}`).join('&')}&alpha=${kind}`)));
+    if (!part) throw new Unusable();
+    list.push(...part);
+  }
+  return list;
+}
+
+/** The error reply for a failed part: "upstream reply unusable" for a wrong shape, "upstream unavailable" otherwise (as before). */
+const failure = (e, origin) => (e instanceof Unusable ? reply(502, { error: 'upstream reply unusable' }, { origin }) : reply(502, { error: 'upstream unavailable' }, { origin }));
 
 /** One small in-memory cache per answer kind: key → { at, body }. */
 function memo(ttlMs, now) {
@@ -158,7 +194,10 @@ function memo(ttlMs, now) {
   };
 }
 
-/** Handles /notam and /fronts. Returns async (request, env) => Response. Never throws. */
+/**
+ * Handles /notam, /alerts and /fronts. Returns async (request, env) => Response. Never throws. `env` may carry ALLOWED_ORIGINS and the FAA key
+ * (FAA_CLIENT_ID, FAA_CLIENT_SECRET), which are only ever sent to the FAA's own address.
+ */
 export function createWxHandler({ fetch: fetchFn = globalThis.fetch, now = Date.now } = {}) {
   const notams = memo(NOTAM_CACHE_MS, now);
   const fronts = memo(FRONTS_CACHE_MS, now);
@@ -177,19 +216,41 @@ export function createWxHandler({ fetch: fetchFn = globalThis.fetch, now = Date.
       if (url.pathname === '/notam') {
         const q = parseSites(url);
         if (!q.ok) return reply(400, { error: q.error }, { origin });
-        const key = q.sites.join(',');
-        let body = notams.get(key);
+        const { us, ca } = splitSites(q.sites);
+        const key = faaKey(env);
+        // Only K sites and no FAA key: a plain 503, never an empty list (the page says "NOTAMs unavailable (FAA key not set)").
+        if (us.length && !key && !ca.length) return reply(503, { error: FAA_KEY_NOT_SET }, { origin });
+        const cacheKey = q.sites.join(',');
+        let body = notams.get(cacheKey);
         if (!body) {
-          let parsed;
-          try {
-            parsed = JSON.parse(await ask(fetchFn, `${NOTAM_UPSTREAM}?${q.sites.map((s) => `site=${s}`).join('&')}&alpha=notam`));
-          } catch {
-            return reply(502, { error: 'upstream unavailable' }, { origin });
+          const list = [];
+          const answered = [];
+          const unavailable = [];
+          let lastError = null;
+          if (ca.length) {
+            try {
+              list.push(...(await askNavCanadaNotams(fetchFn, ca)));
+              answered.push(...ca);
+            } catch (e) {
+              if (!us.length) return failure(e, origin); // Canadian sites only: exactly as before
+              lastError = e;
+            }
           }
-          const list = trimNotams(parsed, q.sites);
-          if (!list) return reply(502, { error: 'upstream reply unusable' }, { origin });
-          body = JSON.stringify({ source: 'NAV CANADA', fetched: now(), sites: q.sites, notams: list });
-          notams.put(key, body);
+          if (us.length && !key) unavailable.push(...us.map((site) => ({ site, reason: FAA_KEY_NOT_SET })));
+          else if (us.length) {
+            try {
+              const part = await askFaa((u, headers) => ask(fetchFn, u, headers), us, key);
+              if (!part) throw new Unusable();
+              list.push(...part);
+              answered.push(...us);
+            } catch (e) {
+              lastError = e;
+            }
+          }
+          if (!answered.length) return lastError ? failure(lastError, origin) : reply(503, { error: FAA_KEY_NOT_SET }, { origin });
+          const sources = [ca.some((s) => answered.includes(s)) && 'NAV CANADA', us.some((s) => answered.includes(s)) && 'FAA NOTAM API'].filter(Boolean).join(', ');
+          body = JSON.stringify({ source: sources, fetched: now(), sites: answered.sort(), notams: list, ...(unavailable.length ? { unavailable } : {}) });
+          notams.put(cacheKey, body);
         }
         return reply(200, body, { origin, cache: 'public, max-age=60' });
       }
@@ -197,21 +258,36 @@ export function createWxHandler({ fetch: fetchFn = globalThis.fetch, now = Date.
       if (url.pathname === '/alerts') {
         const q = parseSites(url);
         if (!q.ok) return reply(400, { error: q.error }, { origin });
-        const key = q.sites.join(',');
-        let body = alerts.get(key);
+        const { us, ca } = splitSites(q.sites);
+        const cacheKey = q.sites.join(',');
+        let body = alerts.get(cacheKey);
         if (!body) {
           const list = [];
-          try {
-            for (const kind of ALERT_KINDS) {
-              const part = trimAlerts(JSON.parse(await ask(fetchFn, `${NOTAM_UPSTREAM}?${q.sites.map((s) => `site=${s}`).join('&')}&alpha=${kind}`)));
-              if (!part) return reply(502, { error: 'upstream reply unusable' }, { origin });
-              list.push(...part);
+          const answered = [];
+          let lastError = null;
+          if (ca.length) {
+            try {
+              list.push(...(await askNavCanadaAlerts(fetchFn, ca)));
+              answered.push(...ca);
+            } catch (e) {
+              if (!us.length) return failure(e, origin); // Canadian sites only: exactly as before
+              lastError = e;
             }
-          } catch {
-            return reply(502, { error: 'upstream unavailable' }, { origin });
           }
-          body = JSON.stringify({ source: 'NAV CANADA', fetched: now(), sites: q.sites, alerts: list });
-          alerts.put(key, body);
+          if (us.length) {
+            try {
+              const part = await askAwc((u) => ask(fetchFn, u), us, now());
+              if (!part) throw new Unusable();
+              list.push(...part);
+              answered.push(...us);
+            } catch (e) {
+              lastError = e;
+            }
+          }
+          if (!answered.length) return failure(lastError, origin);
+          const sources = [ca.some((s) => answered.includes(s)) && 'NAV CANADA', us.some((s) => answered.includes(s)) && 'NOAA/NWS Aviation Weather Center'].filter(Boolean).join(', ');
+          body = JSON.stringify({ source: sources, fetched: now(), sites: answered.sort(), alerts: list });
+          alerts.put(cacheKey, body);
         }
         return reply(200, body, { origin, cache: 'public, max-age=60' });
       }
