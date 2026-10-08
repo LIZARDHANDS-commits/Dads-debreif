@@ -179,6 +179,8 @@ function fullCard(card, { onClose }) {
     ...card.cautionReasons.map((reason) => h('p', { class: 'sof-caution' }, `Caution: ${reason}`)),
     h('p', { class: 'sof-limits' }, `${card.limitsLabel}: `, h('span', {}, card.limitsText)),
     note(card.limitsNote, 'info'),
+    // The instrument approaches (Dad, 8 Oct 2026): the published ones and whether one is non-GPS, and the arrival corridor summary; information only.
+    ...(card.approachLines ?? []).map((line) => note(line, 'info')),
     report('METAR', card.metar),
     report('TAF', card.taf),
     note(card.watchText, 'info'),

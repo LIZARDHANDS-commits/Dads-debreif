@@ -54,7 +54,8 @@ function mount(root, app) {
   });
   // Full screen holds the whole SOF picture (Dad, 7 Oct): the map (2D or 3D), the airfield column and the timeline strip. One state, shared by the 2D and 3D buttons.
   const fullScreen = createFullScreen({ target: () => ui.body, listen: app.listen });
-  const map = createSofMap({ app, settings, view3dSettings: view3d, onLightning: () => render(), fullScreen });
+  // onApproaches: a US base's approaches file arrived, or the 3D view's arrival corridor check changed: the cards' approach lines follow.
+  const map = createSofMap({ app, settings, view3dSettings: view3d, onLightning: () => render(), fullScreen, onApproaches: () => render() });
   // The SOF's own data for the home base (sites/), read each time it is needed: a base with no NOTAM or SIGMET source asks for none and says "can't tell".
   const site = () => siteFor(app.airfields.home().icao);
   // NOTAMs for home and the alternates, through the relay (SOF-42): every 5 minutes while open, paused while the tab is hidden. They need the relay address.
@@ -198,9 +199,18 @@ function mount(root, app) {
         notams: notamsFor(notamState, c.icao, now),
         // SIGMETs, AIRMETs and PIREPs within 100 NM, after the NOTAMs (never "none" unless a fresh answer has none near the field).
         alerts: alertsFor(alertsState, fields.get(c.icao) ?? { icao: c.icao }, now),
+        // The instrument approaches (Dad, 8 Oct 2026), information only: an alternate's published approaches and whether one is non-GPS (AFMAN 4.17.3) at a
+        // base with the FAA CIFP's file, and the 3D view's arrival corridor summary while it is checked. None at Moose Jaw unless the corridor is checked there.
+        approachLines: cardApproachLines(c),
       })),
     });
     map.update({ snapshot, screen, alerts: alertsState });
+  }
+
+  /** A card's approach lines: the alternates' "Published approaches: ...; non-GPS: yes" (never home's), and the corridor summary for any field checked in 3D. */
+  function cardApproachLines(card) {
+    const { published, corridor } = map.approachLines(card.icao);
+    return [card.role === 'HOME' ? null : published, corridor].filter(Boolean);
   }
 
   const stops = [
