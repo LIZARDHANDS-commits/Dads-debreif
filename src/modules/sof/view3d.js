@@ -53,7 +53,7 @@ import { createWeather3dLayers, weatherKeyWords } from './weather3d-layers.js';
 import { FRONTS_CREDIT } from './fronts.js';
 import {
   AREA_NM, AREA_FT, DEFAULT_AREA_NM, DECK_FT, CATEGORY_TOKENS, ZOOM_STEP, KEY_ORBIT_PX, KEY_PAN_PX, ORBIT_DEG_PER_PX, fitZoom, orbitBy, zoomCamera, panBy, clampLookAt, homeCamera,
-  sceneSignature, formatFeet,
+  sceneSignature, formatFeet, tagShown,
 } from './scene3d-model.js';
 import { createAirspaceLogView } from './airspace-log-view.js';
 import {
@@ -1479,7 +1479,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     trafficDirty = false;
     if (!gl) return;
     const items = trafficState.shown ? trafficState.aircraft : [];
-    gl.traffic.set(items, { scale, groundFt: groundFt(), intruders: intruderHexes, nowMs: +now(), trailsOn: trafficState.trailsOn === true, terrain: gl.terrain });
+    gl.traffic.set(items, { scale, groundFt: groundFt(), intruders: intruderHexes, nowMs: +now(), trailsOn: trafficState.trailsOn === true, terrain: gl.terrain, display: trafficState.display ?? null });
     if (hoverHex && !gl.traffic.get(hoverHex)) hoverHex = null;
     if (selectedAc && !gl.traffic.get(selectedAc)) selectAircraft(null);
     else if (selectedAc) setText(acTag, gl.traffic.get(selectedAc).item.description);
@@ -1539,8 +1539,11 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   function placeAircraft({ at, put, boxFor, isClear, reserve, phase }) {
     const list = [...gl.traffic.entries()];
     if (phase === 't6') for (const e of list) e.screen = at(e.group.position);
-    const wanted = (e) => e.item.isT6 || e.intruder || trafficState.labelsOn || e.hex === hoverHex || e.hex === selectedAc || e.hex === tourHex;
-    const early = (e) => e.item.isT6 || e.intruder; // a T-6's tag and an intruder's keep their places; the others step round them
+    // The Traffic display settings (Dad, 8 Oct 2026): "T-6 tags larger and always on" and "Names shown for" (scene3d-model.js `tagShown`); the hovered,
+    // chosen or followed aircraft always shows its tag.
+    const t6Tags = trafficState.display?.t6Tags !== false;
+    const wanted = (e) => tagShown(e.item, { labelsOn: trafficState.labelsOn, t6Tags, intruder: e.intruder, picked: e.hex === hoverHex || e.hex === selectedAc || e.hex === tourHex });
+    const early = (e) => (e.item.isT6 && t6Tags) || e.intruder; // a T-6's tag and an intruder's keep their places; the others step round them
     if (phase === 't6') {
       for (const e of list) {
         const on = wanted(e);
@@ -2386,7 +2389,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       applyModel();
     },
     /**
-     * The live aircraft (scene3d-model.js `sceneTraffic`): { shown, statusText, aircraft, labelsOn, trailsOn, signature }. The aircraft are drawn again
+     * The live aircraft (scene3d-model.js `sceneTraffic`): { shown, statusText, aircraft, labelsOn, trailsOn, display, signature }. The aircraft are drawn again
      * only when the signature differs; the words and the credit follow at once. With the layer off (`shown` false) none are drawn, and with the
      * relay failing the 2D layer's own fade has already taken them away.
      */

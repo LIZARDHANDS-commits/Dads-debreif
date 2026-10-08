@@ -24,7 +24,8 @@ import { getMapUrl, rainViewerTileUrl, REFRESH_MS, feedAge, wmsServiceOf } from 
 import { createImageFeed, createRadarFeed, feedLine } from './map-feeds.js';
 import { createLightningWatch, createTrafficFeed } from './map-loops.js';
 import { recolourLightning } from './map-lightning.js';
-import { trafficUrl, layerModel } from './traffic.js';
+import { trafficUrl, layerModel, trafficRadiusNm } from './traffic.js';
+import { trafficDisplayOf } from './settings-model.js';
 import {
   createProjection, homeView, cornersOf, radarImageRequest, imageStillFits, nearestWithin, RING_NM, SPAN_LIMITS,
 } from './map-view.js';
@@ -151,7 +152,12 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
   const requests = new Map(); // request key → the request, so a picture is laid where it was asked for
   const asked = new Map(); // feed id → the request it holds
 
-  const relayAddress = () => trafficUrl({ baseUrl: settings.get().trafficRelay, lat: home.lat, lon: home.lon });
+  // The radius asked for (Dad, 8 Oct 2026: "can we draw aircraft further out from the base"): half the 3D square, at most 250 NM, while the 3D view is open,
+  // else the 2D map's 100 NM as before (traffic.js `trafficRadiusNm`); the next request after the 3D view opens or closes asks the new one.
+  const relayAddress = () => trafficUrl({ baseUrl: settings.get().trafficRelay, lat: home.lat, lon: home.lon, nm: trafficRadiusNm({ threeOn, areaNm: AREA_NM }) });
+  /** The Traffic display settings (SOF settings; the "view3d" document), for the 2D layer and the 3D view. */
+  const trafficDisplay = () => trafficDisplayOf(view3dSettings?.get());
+  let displayKey = '';
   const relayOn = () => relayAddress() !== null;
 
   // ---- The page --------------------------------------------------------------------------------------
@@ -621,7 +627,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
             return g.glided ? { ...a, lat: g.lat, lon: g.lon } : a;
           });
           if (layers.traffic.trails !== false) drawTrails(ctx, list, trailMemory, project, pal, size, +t, intruderHexes);
-          hits.traffic = drawTraffic(ctx, list, project, pal, size, selectedHex);
+          hits.traffic = drawTraffic(ctx, list, project, pal, size, selectedHex, trafficDisplay());
           break;
         default:
       }
@@ -854,7 +860,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
    */
   function pushTraffic() {
     if (!threeOn || disposed) return;
-    view3d.setTraffic(sceneTraffic({ view: trafficFeed.view(now()), toXY: projection.toXY, label: layers.traffic.label, now: +now(), trails: trailMemory, trailsOn: layers.traffic.trails !== false }));
+    view3d.setTraffic(sceneTraffic({ view: trafficFeed.view(now()), toXY: projection.toXY, label: layers.traffic.label, now: +now(), trails: trailMemory, trailsOn: layers.traffic.trails !== false, display: trafficDisplay() }));
   }
 
   /**
@@ -1156,6 +1162,12 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
       if (disposed) return;
       alertsState = alerts;
       syncArea(); // the "3D area" setting, before anything is worked out over the square
+      const display = JSON.stringify(trafficDisplay());
+      if (display !== displayKey) {
+        displayKey = display; // a Traffic display setting changed: the 2D layer draws again (the 3D view follows through pushTraffic)
+        view.requestDraw();
+        if (threeOn) pushTraffic();
+      }
       const field = app.airfields.home();
       if (field.icao !== home.icao || field.lat !== home.lat || field.lon !== home.lon) {
         home = field;

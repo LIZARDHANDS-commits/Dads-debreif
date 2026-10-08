@@ -14,6 +14,7 @@
 
 import { CATALOG, DEFAULT_HOME } from '../../airfields/catalog.js';
 import { isHelicopter } from './helicopters.js';
+import { aircraftKind, KIND_WORDS } from './aircraft-kind.js';
 
 const SECOND_MS = 1000;
 const MIN_YEAR = 2000;
@@ -26,7 +27,7 @@ const MAX_REPLY_CHARS = 1.25 * 1024 * 1024; // the relay's own cap is 1 MB
 
 /**
  * The layer's fixed numbers and starting options.
- * - nm: search radius, V6's 100 NM (the relay takes 5 to 150).
+ * - nm: search radius, V6's 100 NM, for the 2D map (the relay takes 5 to 250; the 3D view asks further, `trafficRadiusNm`).
  * - refreshMs: 5 s (Dad, 7 Oct: "how fast can we update"; V6 asked every 10 s). The relay keeps each answer for 5 s (relay/lib.js), so
  *   asking faster would only get the same answer back, and asking every 5 s gets a fresh one each time. Netlify calls, an estimate: one open
  *   tab asks 12 times a minute, 720 an hour, about 7,200 in a 10-hour day (each extra open tab adds its own share). Between answers the
@@ -53,13 +54,15 @@ export const TRAFFIC_DEFAULTS = Object.freeze({
   pendingLimitMs: 30 * SECOND_MS,
 });
 
-const NM_RANGE = Object.freeze({ min: 5, max: 150 }); // the relay's own range
+const NM_RANGE = Object.freeze({ min: 5, max: 250 }); // the relay's own range (Dad, 8 Oct 2026: 250, adsb.lol's and adsb.fi's own most; was 150)
 const HEX = /^~?[0-9a-f]{6}$/i; // '~' marks a TIS-B target
 const CALLSIGN = /^[A-Z0-9]{1,8}$/;
 const REG = /^[A-Z0-9-]{1,10}$/;
 const TYPE = /^[A-Z0-9]{2,4}$/;
 const SQUAWK = /^[0-7]{4}$/;
 const SOURCE = /^[a-z0-9][a-z0-9.-]{0,31}$/;
+/** The ADS-B emitter category (DO-260B: A1 light to A7 rotorcraft), the same check the relay would use. */
+const CATEGORY = /^[A-D][0-7]$/;
 
 const isNumber = (v) => typeof v === 'number' && Number.isFinite(v);
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -99,13 +102,15 @@ function readOne(a) {
     squawk: text(own(a, 'squawk'), SQUAWK),
     seen: rounded(ranged(own(a, 'seen'), 0, 3600), 1),
     mil: own(a, 'mil') === true,
+    // The emitter category, only when the relay sends a good one (it does not yet, 8 Oct 2026); it helps tell the aircraft's kind (aircraft-kind.js).
+    ...(text(own(a, 'category'), CATEGORY) ? { category: text(own(a, 'category'), CATEGORY) } : {}),
   };
 }
 
 /**
  * The relay's reply (parsed, or JSON text) checked and rebuilt: `{ source, now, count,
  * truncated, aircraft }` with `aircraft` in the relay's order (nearest first), each
- * `{ hex, callsign, reg, type, lat, lon, alt, gs, track, squawk, seen, mil }` (alt is feet,
+ * `{ hex, callsign, reg, type, lat, lon, alt, gs, track, squawk, seen, mil }`, and `category` when the relay sent a good one (alt is feet,
  * "ground" or null; anything else unreadable is null). Aircraft with a bad id or position,
  * or an id seen already, are dropped; at most MAX_AIRCRAFT are kept. `now` is the relay's
  * clock in ms. Returns null for anything that isn't the expected shape. Never throws.
@@ -170,7 +175,7 @@ const place = (n) => Number(String(Math.round(n * 100) / 100)) + 0;
  * `baseUrl` is the build setting; without a good one (https, or http on localhost, and
  * nothing after the host) this returns null and the layer stays hidden. `lat` and `lon`
  * default to the default home field and are rounded to 0.01 degree; out of range gives
- * null. `nm` is rounded and kept within the relay's 5 to 150 (100 when it isn't a number).
+ * null. `nm` is rounded and kept within the relay's 5 to 250 (100 when it isn't a number).
  * @param {{ baseUrl?: any, lat?: any, lon?: any, nm?: any }} [input]
  */
 export function trafficUrl({ baseUrl, lat = CATALOG[DEFAULT_HOME].lat, lon = CATALOG[DEFAULT_HOME].lon, nm = TRAFFIC_DEFAULTS.nm } = {}) {
@@ -178,6 +183,19 @@ export function trafficUrl({ baseUrl, lat = CATALOG[DEFAULT_HOME].lat, lon = CAT
   if (!origin || ranged(lat, -90, 90) === null || ranged(lon, -180, 180) === null) return null;
   const radius = isNumber(nm) ? Math.min(NM_RANGE.max, Math.max(NM_RANGE.min, Math.round(nm))) : TRAFFIC_DEFAULTS.nm;
   return `${origin}/traffic?lat=${place(lat)}&lon=${place(lon)}&nm=${radius}`;
+}
+
+/** The most the 3D view asks for: the relay's own most (Dad, 8 Oct 2026). */
+export const MAX_3D_RADIUS_NM = NM_RANGE.max;
+
+/**
+ * How far round home to ask for traffic (Dad, 8 Oct 2026: "can we draw aircraft further out from the base"): with the 3D view open, half its square's side
+ * (`areaNm`, the "3D area" setting), so the whole square's middle out to its edges is filled, at most 250 NM (225 at 450 NM, 250 at 600 and 900; the corners
+ * past 250 NM stay empty); otherwise the 2D map's 100 NM (TRAFFIC_DEFAULTS.nm), as before.
+ */
+export function trafficRadiusNm({ threeOn = false, areaNm = null } = {}) {
+  if (threeOn !== true || !isNumber(areaNm) || areaNm <= 0) return TRAFFIC_DEFAULTS.nm;
+  return Math.min(MAX_3D_RADIUS_NM, Math.max(TRAFFIC_DEFAULTS.nm, Math.round(areaNm / 2)));
 }
 
 // ---- Words ---------------------------------------------------------------------------------
@@ -224,11 +242,12 @@ const LABELS = Object.freeze({
   full: (a) => [a.name, a.alt, a.gs, a.type],
 });
 
-function describe(a, facts, helicopter) {
+function describe(a, facts, helicopter, kind) {
   const names = [a.callsign, a.reg, a.type].filter(Boolean).join(', ');
   const sentences = [
     names && `${names}.`,
     helicopter && 'Helicopter.',
+    !helicopter && kind !== 'other' && `${KIND_WORDS[kind]}.`, // its kind in words (aircraft-kind.js), as it is drawn
     a.mil && 'Military aircraft.',
     ...facts.filter((f) => !['Callsign', 'Registration', 'Type'].includes(f.label)).map((f) => {
       if (f.label === 'Position age') return f.value === 'unknown' ? 'Position age unknown.' : `Position ${f.value} old.`;
@@ -241,6 +260,7 @@ function describe(a, facts, helicopter) {
 
 function present(a, { ageS, opacity, label }) {
   const helicopter = isHelicopter(a); // drawn with the helicopter symbol and named in words (Dad, 8 Oct 2026)
+  const kind = aircraftKind(a); // drawn with its kind's shape and named in words (Dad, 8 Oct 2026)
   const altitudeText = altitudeWords(a.alt);
   const gsText = a.gs === null ? null : `${Math.round(a.gs)} kt`;
   const name = a.callsign ?? a.reg ?? a.hex.toUpperCase();
@@ -272,11 +292,13 @@ function present(a, { ageS, opacity, label }) {
     squawk: a.squawk,
     mil: a.mil,
     helicopter,
+    kind,
+    kindWords: KIND_WORDS[kind],
     label: parts.filter(Boolean).join(' '),
     opacity,
     ageS,
     facts,
-    description: describe(a, facts, helicopter),
+    description: describe(a, facts, helicopter, kind),
   };
 }
 
@@ -291,7 +313,7 @@ const EMPTY = Object.freeze({ ok: false, source: null, count: 0, truncated: fals
  * is 'off'. `militaryOnly` (default false) keeps only marked aircraft.
  * Returns `{ ok, source, count, truncated, replyAgeS, aircraft }` where each aircraft is
  * `{ hex, lat, lon, rotationDeg, hasTrack, onGround, altitudeFt, altitudeWords, gs, gsWords,
- * callsign, reg, type, squawk, mil, helicopter (helicopters.js `isHelicopter`), label, opacity, ageS, facts: [{label, value}], description }`.
+ * callsign, reg, type, squawk, mil, helicopter (helicopters.js `isHelicopter`), kind and kindWords (aircraft-kind.js), label, opacity, ageS, facts: [{label, value}], description }`.
  * `ok` is false (and the list empty) when the reply or the clock can't be read.
  * @param {{ reply?: any, receivedAt?: any, now?: any, label?: string, militaryOnly?: boolean }} [input]
  */
@@ -324,7 +346,7 @@ export function layerModel({ reply, receivedAt, now, label = TRAFFIC_DEFAULTS.la
  */
 export function layerSignature(view) {
   const list = Array.isArray(view?.aircraft) ? view.aircraft : [];
-  const rows = list.map((a) => [a.hex, a.lat.toFixed(4), a.lon.toFixed(4), Math.round(a.rotationDeg), a.opacity, a.label, a.mil ? 1 : 0, a.helicopter ? 1 : 0, a.onGround ? 1 : 0].join(','));
+  const rows = list.map((a) => [a.hex, a.lat.toFixed(4), a.lon.toFixed(4), Math.round(a.rotationDeg), a.opacity, a.label, a.mil ? 1 : 0, a.helicopter ? 1 : 0, a.onGround ? 1 : 0, a.kind ?? ''].join(','));
   return `${view?.status ?? ''}|${rows.join(';')}`;
 }
 

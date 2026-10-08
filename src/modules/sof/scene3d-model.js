@@ -7,6 +7,7 @@
 import { FT_PER_NM } from './map-view.js';
 import { AIRPORTS } from './airports-data.js';
 import { velocityFt } from './traffic-motion.js';
+import { T6_TYPE, showsName } from './aircraft-kind.js';
 import { staleness } from '../../wx/sources.js';
 import { ceilingFt, ceilingUnknown } from '../../wx/conditions.js';
 
@@ -197,13 +198,49 @@ export const sceneSignature = (airfields) => JSON.stringify(airfields.map((a) =>
 
 // ---- Live aircraft (SOF-39 phase 4, SOF-40) ---------------------------------------------------------
 
-/** The relay's type code for the T-6 (Harvard II) that Dad wants to see at a glance: drawn large, with its tag always on (Dad, 7 Oct). */
-export const T6_TYPE = 'TEX2';
+/** The relay's type code for the T-6 (Harvard II) that Dad wants to see at a glance: drawn large, with its tag always on (Dad, 7 Oct). From aircraft-kind.js. */
+export { T6_TYPE };
 /**
- * Most aircraft drawn at once, T-6s first and then the relay's order (nearest home first). A cap for the drawing's sake (each aircraft is a few
- * dozen triangles and a tag); the relay's own limit is 1,000. An estimate, SOF-39.
+ * Most aircraft drawn at once, T-6s first, then military, then the relay's order (nearest home first). A cap for the drawing's sake (each aircraft is a few
+ * dozen triangles, sharing its kind's shapes, and a tag); the relay's own limit is 1,000. 300 since the traffic reaches 250 NM (Dad, 8 Oct 2026; was 150).
+ * An estimate, SOF-39.
  */
-export const MAX_3D_AIRCRAFT = 150; // estimate, SOF-39
+export const MAX_3D_AIRCRAFT = 300; // estimate, SOF-39
+
+/**
+ * The traffic display settings (SOF settings, "Traffic display"; Dad, 8 Oct 2026), as the 3D view and the 2D layer take them. The defaults are the look before
+ * them: medium icons, medium (V2.199) tag text, tags with the callsign and altitude, names for every aircraft, and T-6 tags larger and always on.
+ * Kept in the SOF's "view3d" settings document (settings-model.js `cleanView3d`).
+ */
+export const TRAFFIC_DISPLAY_DEFAULTS = Object.freeze({ iconSize: 'medium', tagSize: 'medium', tagShows: 'callsign-altitude', namesFor: 'all', t6Tags: true });
+const SIZE_IDS = Object.freeze(['small', 'medium', 'large']);
+const TAG_SHOWS_IDS = Object.freeze(['callsign', 'callsign-altitude', 'full']);
+/** How much bigger or smaller each icon size draws every aircraft, in 2D and in 3D. Estimates for readability. */
+export const ICON_SCALE = Object.freeze({ small: 0.7, medium: 1, large: 1.4 });
+
+/** The display settings checked: anything not offered is its default. */
+export function cleanTrafficDisplay(d) {
+  const v = d ?? {};
+  return Object.freeze({
+    iconSize: SIZE_IDS.includes(v.iconSize) ? v.iconSize : TRAFFIC_DISPLAY_DEFAULTS.iconSize,
+    tagSize: SIZE_IDS.includes(v.tagSize) ? v.tagSize : TRAFFIC_DISPLAY_DEFAULTS.tagSize,
+    tagShows: TAG_SHOWS_IDS.includes(v.tagShows) ? v.tagShows : TRAFFIC_DISPLAY_DEFAULTS.tagShows,
+    namesFor: ['all', 't6-mil', 't6'].includes(v.namesFor) ? v.namesFor : TRAFFIC_DISPLAY_DEFAULTS.namesFor,
+    t6Tags: typeof v.t6Tags === 'boolean' ? v.t6Tags : TRAFFIC_DISPLAY_DEFAULTS.t6Tags,
+  });
+}
+
+/**
+ * Whether an aircraft's tag shows in the 3D view. `item` is a `sceneTraffic` aircraft (isT6, named). Always for the one under the pointer or chosen
+ * (`picked`: the hover still shows any aircraft, Dad, 8 Oct 2026), the one the tour follows, and one inside a watched area (`intruder`, its ⚠ tag; the
+ * airspace watch is not a name and is not hidden); a T-6's always while "T-6 tags larger and always on" is on (`t6Tags`); any other only while the
+ * Labels choice is on (`labelsOn`) and the "Names shown for" choice names it (`item.named`).
+ */
+export function tagShown(item, { labelsOn = false, t6Tags = true, intruder = false, picked = false } = {}) {
+  if (picked || intruder) return true;
+  if (item?.isT6 === true && t6Tags) return true;
+  return labelsOn === true && item?.named !== false;
+}
 
 /** An aircraft's name as the tag says it: callsign, else registration, else the hex id. */
 export const aircraftName = (a) => a.callsign ?? a.reg ?? String(a.hex).toUpperCase();
@@ -215,9 +252,12 @@ export const aircraftName = (a) => a.callsign ?? a.reg ?? String(a.hex).toUpperC
  */
 export function tagWords(a, label = 'off') {
   const name = aircraftName(a);
+  const height = String(a.altitudeWords).replace(/ ft$/, '');
   if (label === 'callsign') return name;
   if (label === 'full' && a.label) return a.label;
-  return `${name} ${String(a.altitudeWords).replace(/ ft$/, '')}`;
+  // "Callsign, altitude, speed and type" for a tag that shows with the Labels choice off (the Traffic display setting "Tag shows").
+  if (label === 'full') return [name, height, a.gsWords, a.type].filter(Boolean).join(' ');
+  return `${name} ${height}`;
 }
 
 /**
@@ -234,11 +274,17 @@ export function tagWords(a, label = 'off') {
  * should be by now (traffic-motion.js `glideXY`). `trails` is the memory of reported positions (`createTrails`) and `trailsOn` the Trails choice: each
  * aircraft then carries `trail`, [{ x, y, altFt, t }] oldest first, the positions of the last couple of minutes (t in ms).
  *
- * Returns { shown, status, statusText, aircraft: [{ hex, x, y, vx, vy, ageS, t0, trail, altFt, trackDeg, opacity, mil, isT6, helicopter, name, tag, labelText, description }],
- * noAltitude, leftOut, labelsOn (the Labels choice is not 'off': every tag shows), trailsOn, signature }; `shown` is false when the layer is off.
+ * `display` is the Traffic display settings (TRAFFIC_DISPLAY_DEFAULTS, checked here): with the Labels choice off, a tag that shows (a T-6's, a watched-area
+ * one, the hovered one) says what "Tag shows" picks; with it on, the tag says what the Labels choice picks, as before. `named` is false for an aircraft the
+ * "Names shown for" choice leaves without a tag (aircraft-kind.js `showsName`).
+ *
+ * Returns { shown, status, statusText, aircraft: [{ hex, x, y, vx, vy, ageS, t0, trail, altFt, trackDeg, opacity, mil, isT6, helicopter, kind, kindWords, named, name, tag, labelText,
+ * description }], noAltitude, leftOut, labelsOn (the Labels choice is not 'off': every named tag shows), trailsOn, display, signature }; `shown` is false when the layer is off.
  */
-export function sceneTraffic({ view, toXY, label = 'off', max = MAX_3D_AIRCRAFT, now = null, trails = null, trailsOn = false } = /** @type {any} */ ({})) {
-  if (!view || view.show !== true) return { shown: false, status: view?.status ?? 'off', statusText: '', aircraft: [], noAltitude: 0, leftOut: 0, labelsOn: false, trailsOn: false, signature: 'off' };
+export function sceneTraffic({ view, toXY, label = 'off', max = MAX_3D_AIRCRAFT, now = null, trails = null, trailsOn = false, display = TRAFFIC_DISPLAY_DEFAULTS } = /** @type {any} */ ({})) {
+  const shows = cleanTrafficDisplay(display);
+  if (!view || view.show !== true) return { shown: false, status: view?.status ?? 'off', statusText: '', aircraft: [], noAltitude: 0, leftOut: 0, labelsOn: false, trailsOn: false, display: shows, signature: 'off' };
+  const words = label !== 'off' ? label : shows.tagShows === 'callsign-altitude' ? 'off' : shows.tagShows; // 'off' is the compact callsign and altitude
   const drawable = [];
   let noAltitude = 0;
   // An aircraft with no height is still drawn, just above the ground with "height ?" in its tag (Dad, 7 Oct: a low aircraft was missing).
@@ -246,7 +292,10 @@ export function sceneTraffic({ view, toXY, label = 'off', max = MAX_3D_AIRCRAFT,
     if (a.altitudeFt !== 'ground' && !isNumber(a.altitudeFt)) noAltitude += 1;
     drawable.push(a);
   }
-  const ordered = [...drawable.filter((a) => a.type === T6_TYPE), ...drawable.filter((a) => a.type !== T6_TYPE)];
+  // T-6s first, then military, then the rest in the relay's order (nearest home first), so the cap leaves out the far civil traffic first.
+  const t6s = drawable.filter((a) => a.type === T6_TYPE);
+  const military = drawable.filter((a) => a.type !== T6_TYPE && a.mil === true);
+  const ordered = [...t6s, ...military, ...drawable.filter((a) => a.type !== T6_TYPE && a.mil !== true)];
   const leftOut = Math.max(0, ordered.length - max);
   const aircraft = ordered.slice(0, max).map((a) => {
     const [x, y] = toXY(a.lat, a.lon);
@@ -269,9 +318,12 @@ export function sceneTraffic({ view, toXY, label = 'off', max = MAX_3D_AIRCRAFT,
       mil: a.mil === true,
       isT6: a.type === T6_TYPE,
       helicopter: a.helicopter === true && a.type !== T6_TYPE, // traffic.js marks it (helicopters.js); drawn as a helicopter (Dad, 8 Oct 2026)
+      kind: a.type === T6_TYPE ? 't6' : (typeof a.kind === 'string' ? a.kind : 'other'), // traffic.js's (aircraft-kind.js): the 3D shape
+      kindWords: typeof a.kindWords === 'string' ? a.kindWords : null,
+      named: showsName(a, shows.namesFor),
       name: aircraftName(a),
       tag: a.altitudeFt === 'ground' || isNumber(a.altitudeFt) ? tagWords(a, 'off') : `${aircraftName(a)} height ?`,
-      labelText: a.altitudeFt === 'ground' || isNumber(a.altitudeFt) ? tagWords(a, label) : `${aircraftName(a)} height ?`,
+      labelText: a.altitudeFt === 'ground' || isNumber(a.altitudeFt) ? tagWords(a, words) : `${aircraftName(a)} height ?`,
       description: a.description || `${String(a.hex).toUpperCase()}.`,
     };
   });
@@ -279,10 +331,11 @@ export function sceneTraffic({ view, toXY, label = 'off', max = MAX_3D_AIRCRAFT,
   if (noAltitude) notes.push(`${noAltitude} without a height, drawn just above the ground`);
   const helicopters = aircraft.filter((a) => a.helicopter).length;
   if (helicopters) notes.push(`${helicopters} ${helicopters === 1 ? 'helicopter' : 'helicopters'}, drawn with a rotor`);
-  if (leftOut) notes.push(`nearest ${max} drawn`);
+  if (leftOut) notes.push(`${max} drawn: T-6s, then military, then the nearest`);
   const statusText = notes.length ? `${view.statusText} (${notes.join(', ')})` : view.statusText;
-  const rows = aircraft.map((a) => [a.hex, Math.round(a.x), Math.round(a.y), a.altFt, a.trackDeg === null ? '' : Math.round(a.trackDeg), a.opacity, a.mil ? 1 : 0, a.helicopter ? 1 : 0, a.tag, a.labelText, a.trail.length, a.trail.at(-1)?.t ?? ''].join(','));
-  return { shown: true, status: view.status, statusText, aircraft, noAltitude, leftOut, labelsOn: label !== 'off', trailsOn, signature: `${view.status}|${label !== 'off'}|${trailsOn}|${rows.join(';')}` }; // the words change with the clock, the drawing only when an aircraft does
+  const rows = aircraft.map((a) => [a.hex, Math.round(a.x), Math.round(a.y), a.altFt, a.trackDeg === null ? '' : Math.round(a.trackDeg), a.opacity, a.mil ? 1 : 0, a.helicopter ? 1 : 0, a.kind, a.named ? 1 : 0, a.tag, a.labelText, a.trail.length, a.trail.at(-1)?.t ?? ''].join(','));
+  const look = [shows.iconSize, shows.tagSize, shows.t6Tags ? 1 : 0].join(',');
+  return { shown: true, status: view.status, statusText, aircraft, noAltitude, leftOut, labelsOn: label !== 'off', trailsOn, display: shows, signature: `${view.status}|${label !== 'off'}|${trailsOn}|${look}|${rows.join(';')}` }; // the words change with the clock, the drawing only when an aircraft does
 }
 
 // ---- The camera -----------------------------------------------------------------------------------

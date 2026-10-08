@@ -2677,6 +2677,10 @@ main[data-module='sof'] {
   border: 1px solid #8adfff;
   background: rgb(5 10 18 / 0.9);
   color: #8adfff;
+}
+
+/* A T-6's tag is the larger one while "T-6 tags larger and always on" is on (the default; SOF settings, Traffic display). */
+[data-module='sof'] .sof-3d-actag.is-t6.is-big {
   font-size: 10px;
   font-weight: 700;
 }
@@ -2688,6 +2692,28 @@ main[data-module='sof'] {
   color: var(--caution);
   font-size: 10px; /* always on, like a T-6's: a pixel larger than the rest */
   font-weight: 700;
+}
+
+/* Tag text size (SOF settings, Traffic display; Dad, 8 Oct 2026: "bigger text"): medium is the sizes above (V2.199); small is a pixel smaller, large three
+   pixels bigger, the larger T-6 and watched-area tags in step. Estimates for readability. */
+[data-module='sof'] .sof-3d-labels[data-tag-size='small'] .sof-3d-actag {
+  font-size: 8px;
+  line-height: 10px;
+}
+
+[data-module='sof'] .sof-3d-labels[data-tag-size='small'] .sof-3d-actag.is-t6.is-big,
+[data-module='sof'] .sof-3d-labels[data-tag-size='small'] .sof-3d-actag.is-intruder {
+  font-size: 9px;
+}
+
+[data-module='sof'] .sof-3d-labels[data-tag-size='large'] .sof-3d-actag {
+  font-size: 12px;
+  line-height: 14px;
+}
+
+[data-module='sof'] .sof-3d-labels[data-tag-size='large'] .sof-3d-actag.is-t6.is-big,
+[data-module='sof'] .sof-3d-labels[data-tag-size='large'] .sof-3d-actag.is-intruder {
+  font-size: 13px;
 }
 
 [data-module='sof'] .sof-3d-canvas.is-over-aircraft {

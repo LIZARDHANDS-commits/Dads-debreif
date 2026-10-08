@@ -8,6 +8,8 @@
 import { imageStrips, FT_PER_NM } from './map-view.js';
 import { windBarb } from './map-model.js';
 import { trailAlpha, TRAIL_WINDOW_S } from './traffic-motion.js';
+import { showsName } from './aircraft-kind.js';
+import { ICON_SCALE } from './scene3d-model.js';
 
 const FONT = '600 12px system-ui, sans-serif';
 const HALO_WIDTH = 3;
@@ -184,10 +186,15 @@ export function drawAirfields(ctx, marks, project, palette, { width, height }) {
 }
 
 /**
- * The traffic labels a size smaller (Dad, 8 Oct 2026: "Can the traffic tags be a lil smaller"): 9 px, was 11 px (about 18 % smaller); a T-6's (TEX2) 10 px
- * (about 9 %), so it stays easy to read. Estimates for readability.
+ * The traffic labels a size smaller (Dad, 8 Oct 2026: "Can the traffic tags be a lil smaller"), then smaller again ("still too big"): 8 px, a T-6's (TEX2)
+ * 600 9 px, at the medium tag text size (the V2.199 sizes). The Traffic display setting "Tag text size" (Dad, 8 Oct 2026: "bigger text") picks small (a
+ * pixel smaller) or large (three pixels bigger); a T-6's label is the larger, bold one while "T-6 tags larger and always on" is on. Estimates for readability.
  */
-const TRAFFIC_FONT = Object.freeze({ other: '8px system-ui, sans-serif', t6: '600 9px system-ui, sans-serif' }); // Dad, 8 Oct 2026: still too big (was 9 and 10 px); estimates
+const TRAFFIC_FONT = Object.freeze({
+  small: Object.freeze({ other: '7px system-ui, sans-serif', t6: '600 8px system-ui, sans-serif' }),
+  medium: Object.freeze({ other: '8px system-ui, sans-serif', t6: '600 9px system-ui, sans-serif' }),
+  large: Object.freeze({ other: '11px system-ui, sans-serif', t6: '600 12px system-ui, sans-serif' }),
+});
 /** A helicopter's symbol (Dad, 8 Oct 2026: "Helo traffic is a helo"): a rotor disc ring this many pixels in radius round a small body and tail boom. Estimates for the look. */
 const HELI_ROTOR_PX = 7.5;
 
@@ -209,14 +216,49 @@ function helicopterBody(ctx, tail) {
   }
 }
 
+/** Mirrors a right-hand half outline (nose first, x >= 0) into a whole one, clockwise on the screen. */
+const mirrored = (half) => [...half, ...half.slice(1, -1).reverse().map(([x, y]) => [-x, y])];
+
 /**
- * The traffic symbols from traffic.js's view: an arrow rotated by track (a dot when there is no track),
+ * Each kind's small glyph seen from above, nose up the screen, in CSS pixels at the medium icon size (aircraft-kind.js; Dad, 8 Oct 2026: aircraft drawn by
+ * kind): `body` an outline, `parts` small boxes [x, y, w, h] (engines). Pictures, not to scale; estimates for the look. A T-6 and any other aircraft keep
+ * the arrow; a helicopter its rotor ring.
+ */
+const GLYPHS = Object.freeze({
+  arrow: { body: [[0, -7], [5, 6], [0, 3], [-5, 6]], parts: [] },
+  // A long body, swept wings and a swept tailplane.
+  airliner: { body: mirrored([[0, -8.5], [1.2, -6], [1.2, -2], [7.5, 2.5], [7.5, 4], [1.2, 1.5], [1.1, 5], [3.6, 7], [3.6, 8.2], [0, 7.4]]), parts: [] },
+  // A slim body, a lightly swept wing, a T-tail and two engines at the back.
+  bizjet: { body: mirrored([[0, -7], [0.9, -5], [0.9, -1.5], [5, 1.5], [5, 2.8], [0.9, 1], [0.9, 6], [3.2, 6.6], [3.2, 7.8], [0, 7.4]]), parts: [[1, 3, 1.6, 2.6], [-2.6, 3, 1.6, 2.6]] },
+  // A short body with a straight wing across it and a straight tailplane: the Cessna cross.
+  light: { body: mirrored([[0, -6], [1.3, -5.2], [1.3, -3.2], [7, -3.2], [7, -1], [1.3, -1], [0.9, 4], [3.2, 4.4], [3.2, 5.9], [0, 5.6]]), parts: [] },
+  // A fat body, a wide straight wing, four engines forward of it.
+  'mil-cargo': { body: mirrored([[0, -8], [2, -6.6], [2, -3.4], [8.5, -2.6], [8.5, -0.8], [2, -0.8], [1.6, 5], [4.2, 6.2], [4.2, 7.6], [0, 7]]), parts: [[3, -5.4, 1.4, 2], [5.6, -5.2, 1.4, 2], [-4.4, -5.4, 1.4, 2], [-7, -5.2, 1.4, 2]] },
+  // A small delta.
+  'mil-fast': { body: mirrored([[0, -8], [1.3, -3], [6, 5], [1.6, 5], [0, 7]]), parts: [] },
+});
+
+function glyphPath(ctx, glyph) {
+  ctx.beginPath();
+  glyph.body.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+  ctx.closePath();
+  for (const [x, y, w, h] of glyph.parts) ctx.rect(x, y, w, h);
+}
+
+/**
+ * The traffic symbols from traffic.js's view: each kind's glyph rotated by track (GLYPHS; a dot when there is no track),
  * hollow on the ground, ringed when military, faded by age, with the label the layer options ask for.
  * A helicopter (`a.helicopter`, helicopters.js) is a rotor disc ring round a small body with its tail boom along the track (no tail with no track).
- * Returns the symbols' screen places for hover: [{ x, y, aircraft }].
+ * `display` is the Traffic display settings (scene3d-model.js `cleanTrafficDisplay`, or left out for the defaults): the icon size scales every symbol, the tag
+ * text size picks the font, "T-6 tags larger" the T-6's bold label, and "Names shown for" leaves the others' labels off (aircraft-kind.js `showsName`;
+ * their hover facts stay). Returns the symbols' screen places for hover: [{ x, y, aircraft }].
  */
-export function drawTraffic(ctx, aircraft, project, palette, { width, height }, selectedHex = null) {
+export function drawTraffic(ctx, aircraft, project, palette, { width, height }, selectedHex = null, display = null) {
   const hits = [];
+  const k = ICON_SCALE[display?.iconSize] ?? 1;
+  const fonts = TRAFFIC_FONT[display?.tagSize] ?? TRAFFIC_FONT.medium;
+  const t6Big = display?.t6Tags !== false;
+  const namesFor = display?.namesFor ?? 'all';
   ctx.save();
   ctx.textBaseline = 'middle';
   for (const a of aircraft) {
@@ -225,6 +267,7 @@ export function drawTraffic(ctx, aircraft, project, palette, { width, height }, 
     ctx.globalAlpha = a.opacity;
     ctx.save();
     ctx.translate(x, y);
+    ctx.scale(k, k);
     const colour = a.mil ? palette.military : palette.traffic;
     if (a.helicopter) {
       // The rotor disc: a thin ring with a dark halo, so it reads on any picture.
@@ -240,18 +283,14 @@ export function drawTraffic(ctx, aircraft, project, palette, { width, height }, 
       helicopterBody(ctx, a.hasTrack);
     } else if (a.hasTrack) {
       ctx.rotate((a.rotationDeg * Math.PI) / 180);
-      ctx.beginPath();
-      ctx.moveTo(0, -7);
-      ctx.lineTo(5, 6);
-      ctx.lineTo(0, 3);
-      ctx.lineTo(-5, 6);
-      ctx.closePath();
+      glyphPath(ctx, GLYPHS[a.kind] ?? GLYPHS.arrow);
     } else {
       ctx.beginPath();
       ctx.arc(0, 0, 4, 0, Math.PI * 2);
     }
     ctx.lineWidth = 3;
     ctx.strokeStyle = palette.halo;
+    ctx.lineJoin = 'round';
     ctx.stroke();
     if (a.onGround) {
       ctx.lineWidth = 1.5;
@@ -264,21 +303,21 @@ export function drawTraffic(ctx, aircraft, project, palette, { width, height }, 
     ctx.restore();
     if (a.mil) {
       ctx.beginPath();
-      ctx.arc(x, y, a.helicopter ? HELI_ROTOR_PX + 3.5 : 10, 0, Math.PI * 2);
+      ctx.arc(x, y, (a.helicopter ? HELI_ROTOR_PX + 3.5 : 10) * k, 0, Math.PI * 2);
       ctx.lineWidth = 1.5;
       ctx.strokeStyle = colour;
       ctx.stroke();
     }
     if (a.hex === selectedHex) {
       ctx.beginPath();
-      ctx.arc(x, y, 14, 0, Math.PI * 2);
+      ctx.arc(x, y, 14 * k, 0, Math.PI * 2);
       ctx.lineWidth = 2;
       ctx.strokeStyle = palette.text;
       ctx.stroke();
     }
-    if (a.label) {
-      ctx.font = a.type === 'TEX2' ? TRAFFIC_FONT.t6 : TRAFFIC_FONT.other;
-      label(ctx, a.label, x + (a.helicopter ? HELI_ROTOR_PX + 3 : 10), y, { ...palette, halo: palette.halo });
+    if (a.label && showsName(a, namesFor)) {
+      ctx.font = a.type === 'TEX2' && t6Big ? fonts.t6 : fonts.other;
+      label(ctx, a.label, x + (a.helicopter ? HELI_ROTOR_PX + 3 : 10) * k, y, { ...palette, halo: palette.halo });
     }
     ctx.globalAlpha = 1;
     hits.push({ x, y, aircraft: a });

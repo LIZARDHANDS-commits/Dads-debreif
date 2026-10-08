@@ -13,7 +13,7 @@ import { createSettings } from '../../storage/settings.js';
 import { triggerLimits, describeTrigger } from './waves.js';
 import { trafficUrl } from './traffic.js';
 import { CROSSWIND_DEFAULTS, RUNWAY_STATES } from './crosswind.js';
-import { AREA_CHOICES_NM, DEFAULT_AREA_NM } from './scene3d-model.js';
+import { AREA_CHOICES_NM, DEFAULT_AREA_NM, TRAFFIC_DISPLAY_DEFAULTS, cleanTrafficDisplay } from './scene3d-model.js';
 
 const LOCAL = triggerLimits('local');
 
@@ -212,8 +212,40 @@ export const AREA_OPTIONS = Object.freeze(AREA_CHOICES_NM.map((nm) => Object.fre
  * approachRunway3d and approachRunways3d: which runways' approaches are drawn and checked (Dad, 8 Oct 2026: "The runway in use should load the directional
  * approaches"; runway-in-use.js): 'wind' (the default: the runway in use from each field's METAR wind) or 'all', and the runway ends chosen by hand per field,
  * { KSAT: '04' }, each overriding the choice for its field.
+ * trafficIconSize, trafficTagSize, trafficTagShows, trafficNamesFor, trafficT6Tags: the Traffic display settings for the 2D layer and the 3D view (Dad, 8 Oct 2026:
+ * "the callsign and aircraft display should be more customizable.. smaller icons... bigger text etc"), each starting at the look before them (scene3d-model.js
+ * TRAFFIC_DISPLAY_DEFAULTS), so nothing changes until one is chosen.
  */
-export const VIEW3D_DEFAULTS = Object.freeze({ cloudStyle3d: 'slabs', area3dNm: DEFAULT_AREA_NM, rainToGround3d: true, approaches3d: false, approachField3d: 'home', approachRunway3d: 'wind', approachRunways3d: Object.freeze({}) });
+export const VIEW3D_DEFAULTS = Object.freeze({
+  cloudStyle3d: 'slabs', area3dNm: DEFAULT_AREA_NM, rainToGround3d: true, approaches3d: false, approachField3d: 'home', approachRunway3d: 'wind', approachRunways3d: Object.freeze({}),
+  trafficIconSize: TRAFFIC_DISPLAY_DEFAULTS.iconSize, trafficTagSize: TRAFFIC_DISPLAY_DEFAULTS.tagSize, trafficTagShows: TRAFFIC_DISPLAY_DEFAULTS.tagShows,
+  trafficNamesFor: TRAFFIC_DISPLAY_DEFAULTS.namesFor, trafficT6Tags: TRAFFIC_DISPLAY_DEFAULTS.t6Tags,
+});
+
+/** The Traffic display choices, in the menu's words (SOF settings, "Traffic display"). */
+export const TRAFFIC_SIZE_OPTIONS = Object.freeze([
+  Object.freeze({ value: 'small', label: 'Small' }),
+  Object.freeze({ value: 'medium', label: 'Medium (default)' }),
+  Object.freeze({ value: 'large', label: 'Large' }),
+]);
+export const TRAFFIC_TAG_SHOWS_OPTIONS = Object.freeze([
+  Object.freeze({ value: 'callsign', label: 'Callsign' }),
+  Object.freeze({ value: 'callsign-altitude', label: 'Callsign and altitude (default)' }),
+  Object.freeze({ value: 'full', label: 'Callsign, altitude, speed and type' }),
+]);
+export const TRAFFIC_NAMES_FOR_OPTIONS = Object.freeze([
+  Object.freeze({ value: 'all', label: 'All aircraft (default)' }),
+  Object.freeze({ value: 't6-mil', label: 'T-6s and military only' }),
+  Object.freeze({ value: 't6', label: 'T-6s only' }),
+]);
+const SIZE_VALUES = Object.freeze(TRAFFIC_SIZE_OPTIONS.map((o) => o.value));
+const TAG_SHOWS_VALUES = Object.freeze(TRAFFIC_TAG_SHOWS_OPTIONS.map((o) => o.value));
+const NAMES_FOR_VALUES = Object.freeze(TRAFFIC_NAMES_FOR_OPTIONS.map((o) => o.value));
+
+/** The Traffic display settings from the "view3d" document's values, as the 2D layer and the 3D view take them (scene3d-model.js `cleanTrafficDisplay`). */
+export const trafficDisplayOf = (values) => cleanTrafficDisplay({
+  iconSize: values?.trafficIconSize, tagSize: values?.trafficTagSize, tagShows: values?.trafficTagShows, namesFor: values?.trafficNamesFor, t6Tags: values?.trafficT6Tags,
+});
 const APPROACH_FIELD_RE = /^(home|all|[A-Z][A-Z0-9]{3})$/;
 const RUNWAY_MODE_VALUES = Object.freeze(['wind', 'all']);
 const ICAO_RE = /^[A-Z][A-Z0-9]{3}$/;
@@ -232,7 +264,7 @@ export function cleanManualRunways(value) {
   return Object.freeze(out);
 }
 
-/** The 3D view's settings checked: a style or an area not offered is the default, Rain to ground is on unless it is false, and the Approaches are off unless true. */
+/** The 3D view's settings checked: a style or an area not offered is the default, Rain to ground is on unless it is false, the Approaches are off unless true, and a Traffic display choice not offered is its default. */
 export function cleanView3d(values) {
   const v = values ?? {};
   return Object.freeze({
@@ -243,6 +275,11 @@ export function cleanView3d(values) {
     approachField3d: typeof v.approachField3d === 'string' && APPROACH_FIELD_RE.test(v.approachField3d) ? v.approachField3d : VIEW3D_DEFAULTS.approachField3d,
     approachRunway3d: RUNWAY_MODE_VALUES.includes(v.approachRunway3d) ? v.approachRunway3d : VIEW3D_DEFAULTS.approachRunway3d,
     approachRunways3d: cleanManualRunways(v.approachRunways3d),
+    trafficIconSize: SIZE_VALUES.includes(v.trafficIconSize) ? v.trafficIconSize : VIEW3D_DEFAULTS.trafficIconSize,
+    trafficTagSize: SIZE_VALUES.includes(v.trafficTagSize) ? v.trafficTagSize : VIEW3D_DEFAULTS.trafficTagSize,
+    trafficTagShows: TAG_SHOWS_VALUES.includes(v.trafficTagShows) ? v.trafficTagShows : VIEW3D_DEFAULTS.trafficTagShows,
+    trafficNamesFor: NAMES_FOR_VALUES.includes(v.trafficNamesFor) ? v.trafficNamesFor : VIEW3D_DEFAULTS.trafficNamesFor,
+    trafficT6Tags: typeof v.trafficT6Tags === 'boolean' ? v.trafficT6Tags : VIEW3D_DEFAULTS.trafficT6Tags,
   });
 }
 
@@ -255,7 +292,12 @@ export function createView3dSettings(store) {
     get: (name, fallback) => store.get(name === 'settings' ? 'view3d' : name, fallback),
     set: (name, value) => store.set(name === 'settings' ? 'view3d' : name, value),
   };
-  const inner = createSettings(renamed, VIEW3D_DEFAULTS, { allowed: { cloudStyle3d: [...STYLE_VALUES], area3dNm: [...AREA_CHOICES_NM], approachRunway3d: [...RUNWAY_MODE_VALUES] } });
+  const inner = createSettings(renamed, VIEW3D_DEFAULTS, {
+    allowed: {
+      cloudStyle3d: [...STYLE_VALUES], area3dNm: [...AREA_CHOICES_NM], approachRunway3d: [...RUNWAY_MODE_VALUES],
+      trafficIconSize: [...SIZE_VALUES], trafficTagSize: [...SIZE_VALUES], trafficTagShows: [...TAG_SHOWS_VALUES], trafficNamesFor: [...NAMES_FOR_VALUES],
+    },
+  });
   return {
     get: () => cleanView3d(inner.get()),
     update(patch = {}) {
@@ -267,6 +309,11 @@ export function createView3dSettings(store) {
       if (typeof patch.approachField3d === 'string' && APPROACH_FIELD_RE.test(patch.approachField3d)) next.approachField3d = patch.approachField3d;
       if (RUNWAY_MODE_VALUES.includes(patch.approachRunway3d)) next.approachRunway3d = patch.approachRunway3d;
       if (patch.approachRunways3d && typeof patch.approachRunways3d === 'object') next.approachRunways3d = cleanManualRunways(patch.approachRunways3d);
+      if (SIZE_VALUES.includes(patch.trafficIconSize)) next.trafficIconSize = patch.trafficIconSize;
+      if (SIZE_VALUES.includes(patch.trafficTagSize)) next.trafficTagSize = patch.trafficTagSize;
+      if (TAG_SHOWS_VALUES.includes(patch.trafficTagShows)) next.trafficTagShows = patch.trafficTagShows;
+      if (NAMES_FOR_VALUES.includes(patch.trafficNamesFor)) next.trafficNamesFor = patch.trafficNamesFor;
+      if (typeof patch.trafficT6Tags === 'boolean') next.trafficT6Tags = patch.trafficT6Tags;
       if (Object.keys(next).length) inner.update(next);
     },
     reset: () => inner.reset(),
