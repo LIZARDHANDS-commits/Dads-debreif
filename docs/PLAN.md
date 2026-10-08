@@ -152,6 +152,8 @@ After Traffic is signed off, the Turn Sim review runs before any Turn Sim buildi
 
 ## Waiting on Patrick
 
+- [ ] **Dad's whole-tool ideas (8 Oct 2026; `docs/FUTURE.md`):** (1) remove the Dad/Pat tags and credit both as co-founders and co-creators in About; (2) a new name for the tool that works for both; (3) AFMAN 11-248 (USAF T-6) as an option throughout, beside the RCAF references. Working answer: nothing changes until Patrick decides.
+
 SOF items below are Dad's to decide (SOF-47, 7 Oct 2026); they stay listed here until he answers.
 
 - [ ] **Offline cache and the US airspace files (Dad's session, 8 Oct; SOF-53):** `tools/service-worker.mjs` (shared tooling) keeps every built file for offline use, so first visits still fetch all eight airspace files (about 525 KB gzipped) in the background. A skip rule like the one for `examples/` would stop it. Working answer: left as is.

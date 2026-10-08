@@ -62,3 +62,8 @@ Checked by the research with a request from a GitHub Pages address on 30 Sep. Th
 
 - The old future list's whole-tool rows are all placed or done: FF1 and FF2 above; FF3 (save a debrief file), FF7 (home airfield setting), FF8 (editable error standards) and FF12 (report-a-problem button) are built; FF9 (share Traffic patterns) is dropped (`archive/docs/records/future-ideas.md:14`, `pf/reset/2-inventory/agents/sources/plan-doc-future-features.md:15`).
 - Phones and tablets are a bonus, not a requirement (ALL-R2); a stacked layout below 900 px stays low priority (`pf/reset/1-requirements/requirements.md:18`).
+
+## Ideas from Dad, 8 Oct 2026 (for Patrick)
+
+- **One shared name and shared credit.** Remove the "Dad" and "Pat" tags throughout the tool (for example "Dad's OODA Loop", "Dad's debrief") and credit both as co-founders and co-creators in the About section. The tool needs a name that works for both of them.
+- **AFMAN 11-248 (USAF T-6 primary flying manual) as an option throughout.** Alongside the RCAF CT-156 references, so a module can use the USAF numbers and procedures where they differ. Manual pages are cited only; the manual itself goes to the project files first, as the rule book says.
