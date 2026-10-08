@@ -4,7 +4,7 @@
 // weather3d.js draws it and view3d.js puts it in the view.
 //
 // Every height here that is not from the model is an estimate and is labelled so wherever it is shown (the key in view3d.js):
-//   a radar shaft with no model cloud above it reaches RADAR_DEFAULT_AGL_FT; a bolt with none reaches LIGHTNING_DEFAULT_AGL_FT; the satellite sheet with no model cloud
+//   a radar block with no model cloud over it stands from the ground to RADAR_DEFAULT_AGL_FT; a bolt with none reaches LIGHTNING_DEFAULT_AGL_FT; the satellite sheet with no model cloud
 //   lies at SATELLITE_DEFAULT_FT; a front's wall is FRONT_WALL_FT tall. None of this is a measurement; it is a picture for situational awareness and checks no limit.
 //
 // World frame as view3d.js: X east, Y north, Z up, in the map's local feet; heights are feet above sea level (the view multiplies them by the height scale).
@@ -26,11 +26,11 @@ export const CELL_MIN_ALPHA = 0.25;
 /** Most shafts and most bolts drawn at once (each is one box); past this the cells are thinned evenly, never the strongest dropped first. An estimate for the drawing's sake. */
 export const MAX_SHAFTS = 1800;
 export const MAX_BOLTS = 600;
-/** Where a shaft ends with no model cloud above it (feet above the ground), and how high a bolt reaches with none. Estimates, SOF-39. */
+/** Where a radar block ends with no model cloud over it (feet above the ground: it then stands on the ground), and how high a bolt reaches with none. Estimates, SOF-39. */
 export const RADAR_DEFAULT_AGL_FT = 8000; // estimate
 export const LIGHTNING_DEFAULT_AGL_FT = 25_000; // estimate
-/** No shaft is shorter than this (a cloud base at the ground still shows as rain): feet. */
-export const SHAFT_MIN_FT = 600;
+/** No radar block is thinner than this (a thin slab, or one cloud level in the old "levels" style, still shows): feet. An estimate for the look. */
+export const SHAFT_MIN_FT = 600; // estimate
 /** The satellite sheet lies at the highest model cloud level present, or here with no model cloud (feet above sea level). An estimate, SOF-39. */
 export const SATELLITE_DEFAULT_FT = 30_000; // estimate
 /** The satellite sheet's greatest opacity where the picture is brightest: faint (Dad, 7 Oct). An estimate for the look. */
@@ -107,17 +107,29 @@ export function thin(list, max) {
 }
 
 /**
- * The precipitation shafts: one per radar cell, from the ground up to the model cloud base above it (`column(u, v)` gives { baseFt, topFt } above sea level or null; cloudColumnAt),
- * or RADAR_DEFAULT_AGL_FT above the ground with no model cloud. `groundFt` is the ground the view draws; `groundAt(x, y)` (feet above sea level) gives the real terrain under a cell
- * when the view has it, else every cell stands on `groundFt`. Returns [{ x, y, baseFt (the ground), topFt, colour: [r, g, b] 0-255,
- * alpha (the radar's own opacity), modelTop: whether the model gave the height }], at most MAX_SHAFTS.
+ * The radar blocks (Dad, 8 Oct 2026: "can they sit at the cloud altitudes rather than straight touching the ground"): one per radar cell, standing in the model
+ * cloud over it, from its base to its top (`column(u, v)` gives { baseFt, topFt } above sea level or null: cloud-field.js `slabColumnAt` with slabs, the lowest
+ * slab with cover there; model-clouds.js `cloudColumnAt` with the old level sheets). The lowest cloud is taken, not the deepest, because precipitation falls
+ * out of the lowest cloud's base, and a slab is one unbroken run of cloud, so a deep shower cloud is already one slab from its base to its top.
+ * Under a block's base, with `rainToGround` (on by default), a faint rain curtain stands from the ground to the base, so it still reads as precipitation reaching
+ * the surface (the radar does not say whether it does: virga is not told apart). With no model cloud over a return the block stands from the ground to
+ * RADAR_DEFAULT_AGL_FT above it, as before, and has no curtain.
+ * `groundFt` is the ground the view draws; `groundAt(x, y)` (feet above sea level) gives the real terrain under a cell when the view has it, else every cell
+ * stands on `groundFt`. Returns [{ x, y, baseFt, topFt, colour: [r, g, b] 0-255, alpha (the radar's own opacity), modelTop: whether the model cloud gave the
+ * heights, rain: null or { baseFt (the ground), topFt (the block's base) } }], at most MAX_SHAFTS.
  */
-export function shafts(cells, { column = /** @type {(u: number, v: number) => any} */ (() => null), groundFt = 0, groundAt = /** @type {(x: number, y: number) => number} */ (() => groundFt), max = MAX_SHAFTS } = {}) {
+export function shafts(cells, { column = /** @type {(u: number, v: number) => any} */ (() => null), groundFt = 0, groundAt = /** @type {(x: number, y: number) => number} */ (() => groundFt), max = MAX_SHAFTS, rainToGround = true } = {}) {
   return thin(cells, max).map((c) => {
     const cloud = column(c.u, c.v);
     const ground = groundAt(c.x, c.y);
-    const top = cloud && isNumber(cloud.baseFt) ? Math.max(cloud.baseFt, ground + SHAFT_MIN_FT) : ground + RADAR_DEFAULT_AGL_FT;
-    return { x: c.x, y: c.y, baseFt: ground, topFt: top, colour: [c.r, c.g, c.b], alpha: c.a, modelTop: Boolean(cloud) };
+    const colour = [c.r, c.g, c.b];
+    if (!cloud || !isNumber(cloud.baseFt)) {
+      return { x: c.x, y: c.y, baseFt: ground, topFt: ground + RADAR_DEFAULT_AGL_FT, colour, alpha: c.a, modelTop: false, rain: null };
+    }
+    const base = Math.max(cloud.baseFt, ground);
+    const top = Math.max(isNumber(cloud.topFt) ? cloud.topFt : base, base + SHAFT_MIN_FT);
+    const rain = rainToGround && base > ground ? { baseFt: ground, topFt: base } : null;
+    return { x: c.x, y: c.y, baseFt: base, topFt: top, colour, alpha: c.a, modelTop: true, rain };
   });
 }
 

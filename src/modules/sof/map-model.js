@@ -119,9 +119,9 @@ export const MRMS_SCALE = Object.freeze({
 });
 
 /**
- * The map key for what is showing (F5 of sof-recheck-207): { radar, lightning, rings }, each null when its layer is off.
+ * The map key for what is showing (F5 of sof-recheck-207): { radar, lightning, rings, traffic }, each null when its layer is off.
  * `radarBackup`: RainViewer's tiles are the radar now, in their own colours. `radar` is { noun, unit, ticks, words } (and `colours` for a scale
- * that is not ECCC's); `lightning` and `rings` are the words. Plain words, never colour alone.
+ * that is not ECCC's); `lightning`, `rings` and `traffic` are the words. Plain words, never colour alone.
  * `radarScale`: 'dbz' for NOAA's MRMS reflectivity (the US bases' radar source's `scale`), else ECCC's rain or snow rate.
  * `lightningRing`: false when the base has no lightning source, so the rings' words do not speak of a lightning ring that is not drawn.
  */
@@ -142,6 +142,9 @@ export function legendItems(layers, { radarBackup = false, radarScale = null, li
       : null,
     rings: on.rings
       ? `Dashed rings are 25 and 50 NM from home.${lightningRing ? ' A dotted amber ring is the lightning caution radius, when it is not one of those.' : ''}`
+      : null,
+    traffic: on.traffic
+      ? 'Traffic: an arrow points along an aircraft\'s track (a dot when it gives none); a helicopter is a rotor ring round a small body with its tail boom aft (no tail when it gives no track). Hollow is on the ground, an amber ring is military. Its words say "Helicopter" when its type is one.'
       : null,
   };
 }

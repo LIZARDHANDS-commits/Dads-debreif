@@ -205,19 +205,21 @@ const STYLE_VALUES = Object.freeze(CLOUD_STYLES.map((s) => s.value));
  * 13 x 13 points, so they are further apart on a bigger square (37.5, 50 or 75 NM); the 3D view's key says so.
  */
 export const AREA_OPTIONS = Object.freeze(AREA_CHOICES_NM.map((nm) => Object.freeze({ value: nm, label: `${nm} NM${nm === DEFAULT_AREA_NM ? ' (default)' : ''}` })));
-export const VIEW3D_DEFAULTS = Object.freeze({ cloudStyle3d: 'slabs', area3dNm: DEFAULT_AREA_NM });
+/** rainToGround3d: the radar blocks' faint rain curtains to the ground, on by default (Dad, 8 Oct 2026: the blocks sit in the cloud; the curtain keeps the rain reaching the ground). */
+export const VIEW3D_DEFAULTS = Object.freeze({ cloudStyle3d: 'slabs', area3dNm: DEFAULT_AREA_NM, rainToGround3d: true });
 
-/** The 3D view's settings checked: a style or an area not offered is the default. */
+/** The 3D view's settings checked: a style or an area not offered is the default, and Rain to ground is on unless it is false. */
 export function cleanView3d(values) {
   const v = values ?? {};
   return Object.freeze({
     cloudStyle3d: STYLE_VALUES.includes(v.cloudStyle3d) ? v.cloudStyle3d : VIEW3D_DEFAULTS.cloudStyle3d,
     area3dNm: AREA_CHOICES_NM.includes(v.area3dNm) ? v.area3dNm : VIEW3D_DEFAULTS.area3dNm,
+    rainToGround3d: typeof v.rainToGround3d === 'boolean' ? v.rainToGround3d : VIEW3D_DEFAULTS.rainToGround3d,
   });
 }
 
 /**
- * The 3D view's cloud style and area, kept in their own document in the SOF's storage ("view3d"), apart from the settings above so those stay as they were (as the
+ * The 3D view's cloud style, area and Rain to ground, kept in their own document in the SOF's storage ("view3d"), apart from the settings above so those stay as they were (as the
  * crosswind settings are). { get, update, reset, subscribe } like createSofSettings; a value not offered is dropped on the way in and is the default on the way out.
  */
 export function createView3dSettings(store) {
@@ -232,6 +234,7 @@ export function createView3dSettings(store) {
       const next = {};
       if (STYLE_VALUES.includes(patch.cloudStyle3d)) next.cloudStyle3d = patch.cloudStyle3d;
       if (AREA_CHOICES_NM.includes(patch.area3dNm)) next.area3dNm = patch.area3dNm;
+      if (typeof patch.rainToGround3d === 'boolean') next.rainToGround3d = patch.rainToGround3d;
       if (Object.keys(next).length) inner.update(next);
     },
     reset: () => inner.reset(),

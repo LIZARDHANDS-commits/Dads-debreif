@@ -15,6 +15,7 @@ import { describeTrigger, minimaText, descentText } from './waves.js';
 import { bannerWindow } from './cautions.js';
 import { marksOfCheck, alignMarks } from './marks.js';
 import { NOT_SET_KEY, NOT_SET_LIMITS_TEXT, notSetWords, INCOMPLETE_WORDS, incompleteWhy } from './limits-not-set.js';
+import { assessUsafAlternate, homeLimitsText } from './usaf-limits.js';
 
 const two = (n) => String(n).padStart(2, '0');
 
@@ -172,6 +173,17 @@ function notSetResult(metar, conditions, now, isHome, homeIcao) {
  */
 const staleIsUnknown = (metar) => metar.state === 'stale';
 
+/**
+ * An alternate at a USAF base whose AFMAN minima can't be used (usaf-limits.js `usafAlternateMinima` or `noReportsState`, plan Step 2c part F):
+ * red "Not suitable: ..." (4.17.3, 4.16.5.2) or amber "Incomplete: ..." / "Check 4.16.4.3 yourself" (SOF-32), never a tick. `title` is why.
+ */
+function usafAlternateResult(metar, conditions, now, state) {
+  const stale = conditions ? metar.state === 'stale' || metar.state === 'closed' || !now : false;
+  const level = state.state === 'not-suitable' ? 'not-suitable' : 'incomplete';
+  const words = state.state === 'incomplete' && state.short ? `${state.words}: ${state.short}` : state.words;
+  return { level, words, title: state.why ?? null, reasons: [], stale };
+}
+
 // wx's reasons start with CEILING or VIS for the limit lines; the rest are cautions.
 const limitReason = (r) => /^(CEILING|VIS) /.test(r);
 
@@ -183,7 +195,7 @@ const limitReason = (r) => /^(CEILING|VIS) /.test(r);
  * A TAF that is missing, cancelled, NIL or stale has none. An alternate with a visual descent (D80) is
  * checked against that; PROB pieces are left to the wave call, as wx does without landing minima.
  */
-function tafMarks(line, entry, { isHome, used, descent, now, timeZone }) {
+function tafMarks(line, entry, { isHome, used, descent, now, timeZone, usafAlternate = false }) {
   const report = entry?.report;
   if (line.state !== 'fresh' || !report || !now) return [];
   const window = bannerWindow({ now, timeZone });
@@ -192,7 +204,10 @@ function tafMarks(line, entry, { isHome, used, descent, now, timeZone }) {
   const to = validTo ? new Date(Math.min(+window.to, +validTo)) : window.to;
   if (+to <= +window.from) return [];
   const w = { from: window.from, to };
-  const found = isHome ? homeAlternateTrigger(report, w, used) : assessAlternate(report, w, descent ? { visualDescent: descent } : { minima: used });
+  // A USAF alternate (plan Step 2c part F) is checked as its wave call checks it: thunderstorm and shower TEMPOs left out, PROB counted (usaf-limits.js).
+  const found = isHome ? homeAlternateTrigger(report, w, used)
+    : usafAlternate ? assessUsafAlternate(report, w, used)
+      : assessAlternate(report, w, descent ? { visualDescent: descent } : { minima: used });
   // Each list keeps its own kind: `cautions` pieces are there for their dangerous weather only, so a PROB piece wx
   // leaves unchecked against the minima (probUnchecked) is never marked as a limit through it.
   const cautionOnly = (p) => marksOfCheck(p).filter((m) => m.level === 'caution');
@@ -223,20 +238,34 @@ const metarMarks = (check, descent) => (descent ? marksOfCheck(check).filter((m)
  * - `notSetFor`: the home ICAO when the home base's site profile has no weather limits (`standards: null`), else null (the default, today's
  *   behaviour). Then nothing is checked against a limit: the result is `notSetResult`'s, only dangerous-weather words are marked, and `alert` is
  *   the cautions alone. The category, NATO state and cautions are the weather's and stay.
+ * - `usaf`: at a USAF base (plan Step 2c part F; usaf-limits.js), `{ standards, alternate }`: `standards` the site profile's AFMAN 11-202V3 rules and,
+ *   for an alternate, `alternate` its `usafAlternateMinima` (or `noReportsState`) answer. Home is checked against the 4.16.2.1 trigger (not `limits`); an
+ *   alternate against its 4.16.4.1 minima when they can be worked out, else it reads "Not suitable: ..." or "Incomplete: ..." with only dangerous weather
+ *   marked. Null (the default) is today's behaviour.
  * The METAR and TAF lines carry `marks`, `[{ start, end, level }]` on their `raw` text, and the card `reasonSpans`,
  * each wx reason to the `[{ start, end }]` of its words in the METAR's `raw`.
- * @param {{ icao?: any, name?: any, role?: string, metar?: any, taf?: any, limits?: any, options?: any, now?: any, feed?: any, timeZone?: any, notSetFor?: any }} [input]
+ * @param {{ icao?: any, name?: any, role?: string, metar?: any, taf?: any, limits?: any, options?: any, now?: any, feed?: any, timeZone?: any, notSetFor?: any, usaf?: any }} [input]
  */
-export function cardModel({ icao = null, name = null, role = 'ALT', metar = null, taf = null, limits, options, now, feed = {}, timeZone, notSetFor = null } = {}) {
+export function cardModel({ icao = null, name = null, role = 'ALT', metar = null, taf = null, limits, options, now, feed = {}, timeZone, notSetFor = null, usaf = null } = {}) {
   const at = toDate(now);
   const isHome = role === 'HOME';
   const notSet = typeof notSetFor === 'string' && notSetFor ? notSetFor : null;
+  const usafStd = usaf?.standards ?? null;
+  // A USAF alternate whose minima can't be used (not suitable, check yourself, incomplete): nothing is checked against a limit, as at a base with none.
+  const usafState = usafStd && !isHome ? (usaf.alternate ?? { state: 'incomplete', words: INCOMPLETE_WORDS, text: 'minima not set' }) : null;
+  const usafBlocked = Boolean(usafState && usafState.state !== 'ok');
   // At a base with no limits only dangerous weather is marked: a mark for "below" or "at the limit" would say a limit was checked.
-  const shownMarks = (marks) => (notSet ? marks.filter((m) => m.level === 'caution') : marks);
+  const shownMarks = (marks) => (notSet || usafBlocked ? marks.filter((m) => m.level === 'caution') : marks);
   let used;
   let limitsText;
-  const descent = !isHome && options?.visualDescent ? options.visualDescent : null;
-  if (isHome) {
+  const descent = !usafStd && !isHome && options?.visualDescent ? options.visualDescent : null;
+  if (usafStd && isHome) {
+    used = [{ ceilingFt: usafStd.homeTrigger.ceilingFt, visSm: usafStd.homeTrigger.visSm }];
+    limitsText = homeLimitsText(usafStd);
+  } else if (usafStd) {
+    used = usafState.state === 'ok' ? usafState.minima : [DEFAULT_LIMITS.alternate];
+    limitsText = usafState.text ?? 'minima not set';
+  } else if (isHome) {
     const trigger = describeTrigger(limits);
     used = [{ ceilingFt: trigger.ceilingFt, visSm: trigger.visSm }];
     limitsText = trigger.label;
@@ -266,13 +295,15 @@ export function cardModel({ icao = null, name = null, role = 'ALT', metar = null
     nato: conditions ? natoColour(conditions) : null,
     limitsText: notSet ? NOT_SET_LIMITS_TEXT : limitsText,
     metar: { ...metarLine, marks: check ? shownMarks(alignMarks(metarMarks(check, descent), metarLine.raw, parsedRaw)) : [] },
-    taf: { ...tafLine, marks: shownMarks(tafMarks(tafLine, taf, { isHome, used, descent, now: at, timeZone })) },
+    taf: { ...tafLine, marks: shownMarks(tafMarks(tafLine, taf, { isHome, used, descent, now: at, timeZone, usafAlternate: Boolean(usafStd && !isHome) })) },
     reasonSpans,
-    result: notSet ? notSetResult(metarLine, conditions, at, isHome, notSet) : resultModel(metarLine, conditions, used, at, descent),
+    result: notSet ? notSetResult(metarLine, conditions, at, isHome, notSet)
+      : usafBlocked ? usafAlternateResult(metarLine, conditions, at, usafState)
+        : resultModel(metarLine, conditions, used, at, descent),
     cautions: check ? check.cautions : [],
     cautionReasons: check ? check.reasons.filter((r) => !limitReason(r)) : [],
     watch,
     watchText: watch.length ? `Watch: ${watch.join(' ')}` : null,
-    alert: check ? (notSet ? check.cautions.length > 0 : check.alert) : false,
+    alert: check ? (notSet || usafBlocked ? check.cautions.length > 0 : check.alert) : false,
   };
 }

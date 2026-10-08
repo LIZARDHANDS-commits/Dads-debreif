@@ -1,4 +1,4 @@
-// The SOF 3D view's weather layers, put together (SOF-39, SOF-42; Dad, 7 Oct): radar shafts, lightning bolts, the faint satellite sheet, the surface fronts with their pressure
+// The SOF 3D view's weather layers, put together (SOF-39, SOF-42; Dad, 7 Oct): radar blocks in the cloud with their rain curtains (Dad, 8 Oct), lightning bolts, the faint satellite sheet, the surface fronts with their pressure
 // marks, and the gentle wind flow. view3d.js hands this the pictures, the model and the fronts as they change; this reads the pictures onto a grid, works out the heights from
 // the model's clouds, builds the objects (weather3d.js), keeps each only as long as what it was built from is unchanged, and runs the wind flow's loop.
 //
@@ -22,8 +22,8 @@ import { readTotalCloud } from './cloud-field.js';
 import { CLOUD_SHEET_PX } from './model-clouds.js';
 import { FRONTS_CREDIT } from './fronts.js';
 
-/** The names the view's toggles use for these layers. */
-export const WEATHER_TOGGLES = Object.freeze(['satellite', 'radar', 'lightning', 'fronts', 'flow']);
+/** The names the view's toggles use for these layers ('rain' is the radar blocks' rain curtains, "Rain to ground"). */
+export const WEATHER_TOGGLES = Object.freeze(['satellite', 'radar', 'rain', 'lightning', 'fronts', 'flow']);
 /** The flow's streaks are moved and drawn at most this often (milliseconds, about 30 a second). An estimate for smoothness at little cost. */
 const FLOW_FRAME_MS = 33;
 /** A stale satellite picture is drawn at this share of its opacity (the 2D map's own STALE_ALPHA). */
@@ -46,7 +46,7 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
   const root = new T.Group();
   root.name = 'weather-3d';
   scene.add(root);
-  let toggles = { satellite: true, radar: true, lightning: true, fronts: true, flow: true };
+  let toggles = { satellite: true, radar: true, rain: true, lightning: true, fronts: true, flow: true };
   const built = {}; // name -> { key, layer }
   let marks = []; // the H and L labels
   let flowState = null; // { flow, layer, levels }
@@ -102,7 +102,10 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
 
   function applyVisible() {
     const on = (name) => shown && toggles[name] !== false;
-    if (built.radar?.layer) built.radar.layer.root.visible = on('radar');
+    if (built.radar?.layer) {
+      built.radar.layer.root.visible = on('radar');
+      if (built.radar.layer.rain) built.radar.layer.rain.visible = toggles.rain !== false; // switched, never rebuilt
+    }
     if (built.lightning?.layer) built.lightning.layer.root.visible = on('lightning');
     if (built.satellite?.layer) built.satellite.layer.root.visible = on('satellite');
     if (built.fronts?.layer) built.fronts.layer.root.visible = on('fronts');
@@ -182,7 +185,7 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
         return read ? pictureCells(reduceToCells(read.image, CELL_SUPERSAMPLE, accept)) : null;
       };
 
-      // Radar shafts
+      // Radar blocks in the cloud, each with its rain curtain to the ground (always built; the "Rain to ground" switch shows or hides them)
       const radar = weather.radar;
       const radarOn = Boolean(radar && radar.image && radar.on !== false && !radar.stale);
       place('radar', radarOn ? `${radar.id}|${modelKey}|${standing}` : 'off', () => {
@@ -193,7 +196,7 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
         const cells = cellsOf(radar);
         if (!cells) return null;
         const list = shafts(cells, { column, groundFt, ...(groundAt ? { groundAt } : {}) });
-        facts.radar = { count: list.length, withModelTop: list.filter((s) => s.modelTop).length };
+        facts.radar = { count: list.length, withModelTop: list.filter((s) => s.modelTop).length, rain: list.filter((s) => s.rain).length };
         return buildShafts(T, { shafts: list, scale });
       });
 
@@ -267,7 +270,7 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
       }
       applyVisible();
     },
-    /** The view's toggles: { satellite, radar, lightning, fronts, flow } (a missing one is on). */
+    /** The view's toggles: { satellite, radar, rain, lightning, fronts, flow } (a missing one is on). */
     setToggles(next) {
       toggles = { ...toggles, ...next };
       applyVisible();
@@ -283,8 +286,8 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
       const read = readPicture(picture, projection, CLOUD_SHEET_PX);
       return read ? readTotalCloud(read.image) : null;
     },
-    /** What is drawn, for the key: { radar, lightning, satellite, fronts, flow }, each null when not drawn. */
-    summary: () => ({ ...facts }),
+    /** What is drawn, for the key: { radar, lightning, satellite, fronts, flow }, each null when not drawn; the radar's says whether its rain curtains are shown (`rainShown`). */
+    summary: () => ({ ...facts, radar: facts.radar ? { ...facts.radar, rainShown: toggles.rain !== false } : null }),
     /** The fronts' credit while they are drawn. */
     credit: () => (facts.fronts ? FRONTS_CREDIT : null),
     /**
@@ -322,7 +325,11 @@ export function weatherKeyWords(summary, scale, satelliteWords = "ECCC's GOES-We
     out.push(`Satellite: ${satelliteWords} laid as a faint sheet where it is bright (cloud) at ${formatFeet(Math.round(summary.satellite.heightFt / 100) * 100)} ft${summary.satellite.modelHeight ? (summary.satellite.slabs ? ', the highest model cloud top' : ', the highest model cloud level') : ` (${formatFeet(SATELLITE_DEFAULT_FT)} ft where the model has no cloud: an estimate)`}.${summary.satellite.stale ? ' STALE: drawn fainter.' : ''}`);
   }
   if (summary.radar) {
-    out.push(`Radar: a see-through column for each radar cell (about 5 NM), in the radar's colour, from the ground up to the model cloud base above it${summary.radar.withModelTop < summary.radar.count ? `, or ${formatFeet(RADAR_DEFAULT_AGL_FT)} ft above the ground where the model has no cloud (an estimate)` : ''}. ${summary.radar.count} drawn. Not drawn when the radar picture is stale.`);
+    const r = summary.radar;
+    const rain = r.rain ? (r.rainShown === false ? ' Rain to ground is off: the faint rain curtains under the blocks are hidden.' : ' Under each block a faint, streaked rain curtain reaches the ground (switch: Rain to ground); the radar does not say whether the precipitation reaches the ground (virga is not told apart).') : '';
+    const bare = r.count - r.withModelTop;
+    const noCloud = bare > 0 ? ` ${bare} with no model cloud here: drawn from the ground up to ${formatFeet(RADAR_DEFAULT_AGL_FT)} ft above it (an estimate).` : '';
+    out.push(`Radar: a see-through block for each radar cell (about 5 NM), in the radar's colour, standing in the model cloud over it, from the cloud's base to its top (the lowest model cloud there; a model estimate).${rain}${noCloud} ${r.count} drawn. Not drawn when the radar picture is stale.`);
   }
   if (summary.lightning) {
     out.push(`Lightning: a bolt for each lit lightning cell, from the ground to the model cloud top above it, or ${formatFeet(LIGHTNING_DEFAULT_AGL_FT)} ft above the ground where the model has none (an estimate). ${summary.lightning.count} drawn.`);

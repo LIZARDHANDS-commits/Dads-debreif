@@ -90,7 +90,8 @@ const wmsUrl = ({ layer, request, time }) => getMapUrl({ layer, bbox: request.bb
 const MIN_FILLED_SHARE = 0.5;
 
 /**
- * app: the module's app object (scheduler, storage, time, airfields, listen). settings: createSofSettings. view3dSettings: createView3dSettings (the 3D cloud style), or left out (slabs).
+ * app: the module's app object (scheduler, storage, time, airfields, listen). settings: createSofSettings. view3dSettings: createView3dSettings (the 3D cloud style, area and
+ * Rain to ground), or left out (slabs, 450 NM, rain on).
  * onLightning: called when the near-home lightning caution changes (so the banner can be redrawn). fullScreen: fullscreen.js's object, shared with the 3D view:
  * the map bar's Full screen button (2D) and the 3D view's own both toggle it (the whole SOF picture, with the airfield column and the timeline strip).
  * Returns { element, credits, update({ snapshot, screen, alerts }), lightning(now), wake(), dispose() }. `credits` is the line of the map's
@@ -196,6 +197,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     now: () => +now(),
     onTrails: (trails) => change(setTrafficOption(layers, { trails })),
     onModelHour: (ms) => setModelHour(ms), // the 3D slider's model hour: the HRDPS cloud picture follows it
+    onRainToGround: (on) => view3dSettings?.update({ rainToGround3d: on }), // the Rain to ground button, kept in the SOF's "view3d" settings
     onLost() {
       if (!threeOn) return;
       threeOn = false;
@@ -756,7 +758,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
   /** What the 3D view is given: each airfield's pin words, colour and METAR cloud decks, and the height scale. */
   function pushScene() {
     if (!scene3d) return;
-    view3d.setScene({ airfields: sceneAirfields({ ...scene3d, toXY: projection.toXY }), heightScale: settings.get().heightScale3d, cloudStyle: view3dSettings?.get().cloudStyle3d ?? 'slabs' });
+    view3d.setScene({ airfields: sceneAirfields({ ...scene3d, toXY: projection.toXY }), heightScale: settings.get().heightScale3d, cloudStyle: view3dSettings?.get().cloudStyle3d ?? 'slabs', rainToGround: view3dSettings?.get().rainToGround3d ?? true });
   }
 
   /** The SIGMETs, AIRMETs and PIREPs for the 3D view (alerts.js `alerts3dView`), their SFC at home's elevation as the 3D ground. Built again there only when they change. */
@@ -1028,7 +1030,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     // A base with no lightning picture of its own may have an outside map to look at instead (us-base.js): a plain link under the map, labelled as not checked.
     controls.setNote(site.charts.vnc ? baseNote(layers) : null, lightningMapLink(site.lightningLink, home));
     // The key explains only the layers this base has a source for.
-    controls.setLegend(legendItems({ ...layers, on: { ...layers.on, radar: layers.on.radar && hasSource('radar'), lightning: layers.on.lightning && hasSource('lightning') } }, { radarBackup: radar.state().source === 'rainviewer', radarScale: site.sources.radar?.scale ?? null, lightningRing: hasSource('lightning') }));
+    controls.setLegend(legendItems({ ...layers, on: { ...layers.on, radar: layers.on.radar && hasSource('radar'), lightning: layers.on.lightning && hasSource('lightning'), traffic: layers.on.traffic === true && relayOn() } }, { radarBackup: radar.state().source === 'rainviewer', radarScale: site.sources.radar?.scale ?? null, lightningRing: hasSource('lightning') }));
   }
 
   function nearHome(t) {

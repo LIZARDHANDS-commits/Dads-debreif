@@ -748,6 +748,12 @@ main[data-module='sof'] {
   color: var(--bad);
 }
 
+/* A USAF base's solo note (over the T-6A solo limit, Dad's ruling 8 Oct 2026): a note, quieter than amber. */
+[data-module='sof'] .sof-xw-level.is-solo {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
 /* NOTAMs under the weather in the full card: a critical one is large and red, with the ⚠ and words; the rest are plain small text. */
 [data-module='sof'] .sof-notams {
   margin: var(--space-2) 0 0;
@@ -2621,15 +2627,17 @@ main[data-module='sof'] {
   font-weight: 600;
 }
 
+/* Aircraft tags a size smaller (Dad, 8 Oct 2026: "Can the traffic tags be a lil smaller"): 11 px text, was 13 px (--text-sm), about 15 % smaller, with a
+   narrower box; the always-on tags (a T-6's, and an intruder's) shrink less, to 12 px (about 8 %), so they stay easy to read. Estimates for readability. */
 [data-module='sof'] .sof-3d-actag {
-  padding: 0 var(--space-1);
+  padding: 0 3px;
   border: 1px solid var(--border-strong);
   border-radius: 3px;
   background: rgb(5 10 18 / 0.8);
   color: #cfdde7;
   font: inherit;
   font-family: var(--font-mono);
-  font-size: var(--text-sm);
+  font-size: 0.6875rem;
   cursor: pointer;
   pointer-events: auto;
 }
@@ -2643,6 +2651,7 @@ main[data-module='sof'] {
   border: 2px solid #8adfff;
   background: rgb(5 10 18 / 0.92);
   color: #8adfff;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -2651,6 +2660,7 @@ main[data-module='sof'] {
   border: 2px solid var(--caution);
   background: rgb(5 10 18 / 0.92);
   color: var(--caution);
+  font-size: 0.75rem; /* always on, like a T-6's: shrinks less */
   font-weight: 700;
 }
 
@@ -3088,6 +3098,20 @@ main[data-module='sof'] {
 [data-module='sof'] .is-not-set .sof-detail-symbol,
 [data-module='sof'] .is-not-set .sof-chip-symbol {
   color: var(--text-muted);
+}
+
+/* A USAF base's alternate the rule rules out (plan Step 2c part F: a GNSS-only approach, AFMAN 4.17.3; no weather reports, 4.16.5.2): red with ✕ and
+   "Not suitable", never a tick. */
+[data-module='sof'] .sof-card.level-not-suitable {
+  border-left-color: var(--bad);
+}
+
+[data-module='sof'] .sof-row-mark.level-not-suitable .sof-result-symbol,
+[data-module='sof'] .sof-result.level-not-suitable .sof-result-symbol,
+[data-module='sof'] .sof-wave-result.is-not-suitable .sof-result-symbol,
+[data-module='sof'] .is-not-suitable .sof-detail-symbol,
+[data-module='sof'] .is-not-suitable .sof-chip-symbol {
+  color: var(--bad);
 }
 
 [data-module='sof'] .sof-tl-notset {

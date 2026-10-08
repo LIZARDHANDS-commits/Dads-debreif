@@ -1,7 +1,7 @@
 // Makes the US bases' airspace files for the SOF's 3D view (plan Step 2c part E, 8 Oct 2026): src/modules/sof/sites/faa-airspace/<icao>.js, one per
 // base (and one for Moose Jaw, CYMJ: the US airspace south of the border, Dad 8 Oct 2026), from the FAA's open aeronautical data (the FAA AIS ArcGIS feature services, public domain, no key). Run it again each 56-day cycle and
 // commit what it writes. From the repo root:
-//   node tools/faa-airspace.mjs              fetch, trim, check and write the seven files, and print what each holds
+//   node tools/faa-airspace.mjs              fetch, trim, check and write the nine files, and print what each holds
 //   node tools/faa-airspace.mjs --dry        the same, but print only (nothing written)
 //   node tools/faa-airspace.mjs --empty      write empty files (no airspace, "not generated yet"), for when the FAA cannot be reached
 //   node tools/faa-airspace.mjs --base CYMJ  only that base's file (each base takes some minutes)
@@ -15,6 +15,8 @@
 // - Military training routes (IR and VR; the FAA's MTR_Segment layer, one feature per segment): each route's centreline as a line ('mtr'), its
 //   segments of one height band joined, cut to the square, with its floor and ceiling (a single altitude is a line at that height; with none it
 //   is drawn on the ground and says "altitudes not given"). Pieces marked EXCLUSION (cut-outs) are left out.
+// Only US airspace is kept: the FAA's layers also carry Mexican, Bahamian, Canadian and Pacific pieces, which are left out (Dad, 8 Oct 2026; `foreign()`
+// says how they are told apart). At Moose Jaw, NAV CANADA's DAH is the source for Canada.
 // Every entry is the shape airspace-data.js describes, checked with airspace-model.js `checkAirspace` (one copy of the rules); one that fails is left
 // out and named here. Its `source` names the FAA dataset and the date the FAA last edited it. The DoD FLIP AP/1 (AP/1A special use airspace, AP/1B
 // training routes) is the cross-check (Dad, 8 Oct): each profile's note says "cross-check against AP/1A / AP/1B (pages to be added)"; nothing of AP/1
@@ -38,10 +40,10 @@ import { MAX_AREA_NM } from '../src/modules/sof/scene3d-model.js';
 const ROOT = 'https://services6.arcgis.com/ssFJjBXIUyZDrSYZ/arcgis/rest/services';
 const OUT_DIR = 'src/modules/sof/sites/faa-airspace';
 /**
- * The seven US T-6 bases with a site profile (sites/index.js PROFILES), and Moose Jaw (CYMJ): the FAA has only US airspace, so its file is the US side of
+ * The eight US bases with a site profile (sites/index.js PROFILES; KSJT San Angelo added 8 Oct 2026, Dad), and Moose Jaw (CYMJ): the FAA has only US airspace, so its file is the US side of
  * Moose Jaw's 900 NM square (Montana, North Dakota and beyond), drawn with the DAH entries.
  */
-const BASES = ['KDLF', 'KEND', 'KRND', 'KCBM', 'KSPS', 'KNSE', 'KNGP', 'CYMJ'];
+const BASES = ['KDLF', 'KEND', 'KRND', 'KCBM', 'KSPS', 'KNSE', 'KNGP', 'KSJT', 'CYMJ'];
 /**
  * No kept point is further than this from the FAA's outline, by kind (estimates): 0.1 NM (about 185 m) for the small Class B, C and D shapes round the
  * fields, 0.25 NM for the large special use areas and the training routes. Both are under a pixel with the whole 450 NM square in view (and smaller still at 900 NM).
@@ -301,6 +303,26 @@ function classOf(props) {
 
 const SUA_KINDS = Object.freeze({ MOA: 'moa', R: 'restricted', P: 'restricted', W: 'warning', A: 'alert' });
 
+/**
+ * Foreign airspace in the FAA's layers (Dad, 8 Oct 2026: "drop mexico and baha"). The FAA's Class layer also carries Mexican, Bahamian, Canadian and
+ * Pacific airspace (Mexican terminal areas such as "CIUDAD JUAREZ TCA" and the Bahamas' Nassau and Grand Bahama zones, all labelled Class D). Its COUNTRY
+ * field is blank on every row (read 8 Oct 2026), so it cannot be used; its STATE field is filled on every US row and blank on every foreign B, C or D row
+ * (read 8 Oct 2026: the blank ones are ICAO MM.., MY.., CY.., CZ.., AY.., RJ.., WA.. and one PG..). Not every US STATE is a postal code ("VALPARAISO",
+ * "ALASKA"), so the test is "STATE given", not a list of codes. The special use layer's only rows with no STATE are six Bahamian areas ("(MY)P3002" ...)
+ * that the FAA marks COUNTRY "CANADA". The training routes are all US or Guam (COUNTRY US or GU). As a second net, an ICAO id starting MM (Mexico) or MY
+ * (the Bahamas) is foreign whatever STATE says, and so is a special use name starting "(MM)" or "(MY)".
+ * Returns the reason a feature is foreign (for the printout), or null for US airspace.
+ */
+function foreign(props, layerKey) {
+  if (layerKey === 'mtr') return null;
+  const icaoId = text(field(props, 'ICAO_ID', 'IDENT')).toUpperCase();
+  const name = text(field(props, 'NAME')).toUpperCase();
+  const prefix = /^\((M[MY])\)/.exec(name)?.[1] ?? (/^M[MY]/.test(icaoId) ? icaoId.slice(0, 2) : null);
+  if (prefix) return prefix === 'MM' ? 'Mexico' : 'the Bahamas';
+  if (!text(field(props, 'STATE'))) return `no US state (${icaoId.slice(0, 2) || name.slice(0, 12) || 'unnamed'})`;
+  return null;
+}
+
 async function forBase(icao, layers) {
   const base = CATALOG[icao];
   const ref = makeLocalRef(base.lat, base.lon);
@@ -318,6 +340,7 @@ async function forBase(icao, layers) {
   let holes = 0;
   let excluded = 0;
   let canadian = 0;
+  const foreignCounts = new Map(); // why -> how many features (Mexico, the Bahamas, no US state)
   const ids = new Map();
   const uniqueId = (id) => {
     const n = (ids.get(id) ?? 0) + 1;
@@ -377,6 +400,11 @@ async function forBase(icao, layers) {
           canadian += 1;
           continue;
         }
+        const away = foreign(props, layer.key);
+        if (away) {
+          foreignCounts.set(away, (foreignCounts.get(away) ?? 0) + 1);
+          continue;
+        }
         classLetter = cls;
         kind = cls === 'D' ? 'control-zone' : 'terminal';
         id = `${text(field(props, 'ICAO_ID', 'IDENT')) || name} ${cls}${local && local !== `CLASS_${cls}` ? ` (${local.replace('CLASS_', '')})` : ''}`;
@@ -384,6 +412,11 @@ async function forBase(icao, layers) {
         const type = text(field(props, 'TYPE_CODE')).toUpperCase();
         kind = SUA_KINDS[type];
         if (!kind) continue;
+        const away = foreign(props, layer.key);
+        if (away) {
+          foreignCounts.set(away, (foreignCounts.get(away) ?? 0) + 1);
+          continue;
+        }
         id = name;
       }
       const floor = limit(props, 'LOWER');
@@ -420,7 +453,7 @@ async function forBase(icao, layers) {
       if (shape) add({ id: uniqueId(r.ident), name: `${r.ident} military training route${width}`, kind: 'mtr', classLetter: null, floor: r.floor, ceiling: r.ceiling, shape: { type: 'line', points: shape.points }, source: r.source });
     }
   }
-  return { icao, entries, dropped, notes, holes, excluded, canadian, box };
+  return { icao, entries, dropped, notes, holes, excluded, canadian, foreign: foreignCounts, box };
 }
 
 // ---- Writing ---------------------------------------------------------------------------------------------------------
@@ -492,6 +525,7 @@ async function main() {
     if (r.holes) console.log(`  holes not drawn: ${r.holes}`);
     if (r.excluded) console.log(`  exclusion pieces left out (cut-outs, not airspace): ${r.excluded}`);
     if (r.canadian) console.log(`  Canadian class pieces left out (the DAH is the source for Canada): ${r.canadian}`);
+    if (r.foreign.size) console.log(`  foreign pieces left out (outside the US): ${[...r.foreign].map(([why, n]) => `${n} ${why}`).join(', ')}`);
     if (!args.has('--dry')) writeFileSync(`${OUT_DIR}/${icao.toLowerCase()}.js`, out);
   }
 }

@@ -13,6 +13,7 @@
 // ASCII made of letters, digits and "-", and goes on the page as text only.
 
 import { CATALOG, DEFAULT_HOME } from '../../airfields/catalog.js';
+import { isHelicopter } from './helicopters.js';
 
 const SECOND_MS = 1000;
 const MIN_YEAR = 2000;
@@ -223,10 +224,11 @@ const LABELS = Object.freeze({
   full: (a) => [a.name, a.alt, a.gs, a.type],
 });
 
-function describe(a, facts) {
+function describe(a, facts, helicopter) {
   const names = [a.callsign, a.reg, a.type].filter(Boolean).join(', ');
   const sentences = [
     names && `${names}.`,
+    helicopter && 'Helicopter.',
     a.mil && 'Military aircraft.',
     ...facts.filter((f) => !['Callsign', 'Registration', 'Type'].includes(f.label)).map((f) => {
       if (f.label === 'Position age') return f.value === 'unknown' ? 'Position age unknown.' : `Position ${f.value} old.`;
@@ -238,6 +240,7 @@ function describe(a, facts) {
 }
 
 function present(a, { ageS, opacity, label }) {
+  const helicopter = isHelicopter(a); // drawn with the helicopter symbol and named in words (Dad, 8 Oct 2026)
   const altitudeText = altitudeWords(a.alt);
   const gsText = a.gs === null ? null : `${Math.round(a.gs)} kt`;
   const name = a.callsign ?? a.reg ?? a.hex.toUpperCase();
@@ -268,11 +271,12 @@ function present(a, { ageS, opacity, label }) {
     type: a.type,
     squawk: a.squawk,
     mil: a.mil,
+    helicopter,
     label: parts.filter(Boolean).join(' '),
     opacity,
     ageS,
     facts,
-    description: describe(a, facts),
+    description: describe(a, facts, helicopter),
   };
 }
 
@@ -287,7 +291,7 @@ const EMPTY = Object.freeze({ ok: false, source: null, count: 0, truncated: fals
  * is 'off'. `militaryOnly` (default false) keeps only marked aircraft.
  * Returns `{ ok, source, count, truncated, replyAgeS, aircraft }` where each aircraft is
  * `{ hex, lat, lon, rotationDeg, hasTrack, onGround, altitudeFt, altitudeWords, gs, gsWords,
- * callsign, reg, type, squawk, mil, label, opacity, ageS, facts: [{label, value}], description }`.
+ * callsign, reg, type, squawk, mil, helicopter (helicopters.js `isHelicopter`), label, opacity, ageS, facts: [{label, value}], description }`.
  * `ok` is false (and the list empty) when the reply or the clock can't be read.
  * @param {{ reply?: any, receivedAt?: any, now?: any, label?: string, militaryOnly?: boolean }} [input]
  */
@@ -315,12 +319,12 @@ export function layerModel({ reply, receivedAt, now, label = TRAFFIC_DEFAULTS.la
 /**
  * A short text that is the same for two views that would be drawn the same and differs
  * when they wouldn't: each aircraft's id, position (to about 10 m), rotation (whole
- * degrees), opacity, label, and its military and ground marks, plus the view's status if
+ * degrees), opacity, label, and its military, helicopter and ground marks, plus the view's status if
  * it has one. Compare with the last drawn one; draw only when it changed.
  */
 export function layerSignature(view) {
   const list = Array.isArray(view?.aircraft) ? view.aircraft : [];
-  const rows = list.map((a) => [a.hex, a.lat.toFixed(4), a.lon.toFixed(4), Math.round(a.rotationDeg), a.opacity, a.label, a.mil ? 1 : 0, a.onGround ? 1 : 0].join(','));
+  const rows = list.map((a) => [a.hex, a.lat.toFixed(4), a.lon.toFixed(4), Math.round(a.rotationDeg), a.opacity, a.label, a.mil ? 1 : 0, a.helicopter ? 1 : 0, a.onGround ? 1 : 0].join(','));
   return `${view?.status ?? ''}|${rows.join(';')}`;
 }
 

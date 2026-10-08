@@ -54,7 +54,14 @@ export function homeBaseSetting(airfields) {
   };
 }
 
-/** The line under the choice for the home field now: at a base with no weather limits it says so, with the key line; else null. */
+/**
+ * The line under the choice for the home field now: at a base with no weather limits it says so, with the key line; at a USAF base (plan Step 2c
+ * part F) which rule is used instead of the trigger below; else null.
+ */
 export function homeBaseNote(homeIcao) {
-  return limitsSet(siteFor(homeIcao)) ? null : `${notSetWords(homeIcao)}. ${NOT_SET_KEY} The alternate trigger below is not used here.`;
+  const site = siteFor(homeIcao);
+  if (site?.standards?.rule === 'usaf') {
+    return `Limits: ${site.standards.source} (alternate required below 2,000 ft or 3 SM at ETA ± 1 h, or crosswind over the T-6A limit). The alternate trigger below is not used here.`;
+  }
+  return limitsSet(site) ? null : `${notSetWords(homeIcao)}. ${NOT_SET_KEY} The alternate trigger below is not used here.`;
 }

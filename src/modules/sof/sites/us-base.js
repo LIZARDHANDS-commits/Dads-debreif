@@ -1,5 +1,5 @@
 // What every US T-6 base's site profile has in common (plan Step 2c, part B), so each base's file (kdlf.js ... kngp.js) holds only its own data.
-// The shape is the one cymj.js and generic.js use. Until part F adds the weather standards, a US base has:
+// The shape is the one cymj.js and generic.js use. A US base has:
 // - airspace from the FAA's open aeronautical data (part E, 8 Oct 2026; public domain): Class B, C, D and E surface areas, MOAs, restricted, warning and
 //   alert areas, and military training routes inside the base's 900 NM square (the 3D view's largest area), one generated file per base in faa-airspace/
 //   (tools/faa-airspace.mjs, run again each 56-day cycle), each entry naming the FAA dataset and its date. The file is loaded only when the 3D view opens at the
@@ -23,7 +23,8 @@
 //   with a plain link to the Blitzortung lightning map (lightningmaps.org), an outside site this tool does not check;
 // - every other picture source `null` ("no source for this base, can't tell", never a tick); the fronts are WPC's coded surface analysis through the
 //   relay, which covers the whole of the US, so Moose Jaw's fronts source is used as it is (one copy, by reference);
-// - `standards: null`: no weather limits have been given for the base, so the SOF says "Limits not set for KDLF" and never "Within limits".
+// - `standards`: the USAF bases (and San Angelo) pass usaf-standards.js's AFMAN 11-202V3 rules (part F, Dad 8 Oct 2026); a base that passes none (the Navy
+//   bases, KNSE and KNGP) has `standards: null`: no weather limits have been given for it, so the SOF says "Limits not set for KNSE" and never "Within limits".
 //
 // The towns are from GeoNames (CC BY 4.0), read 8 Oct 2026 through the `cities.json` copy of its cities-over-1,000 list on GitHub: each town's
 // GeoNames position, rounded to 4 decimals, FOR DRAWING ONLY (never to navigate). `builtUpNm` and `downtownFt` are ESTIMATES for the schematic blocks,
@@ -106,8 +107,9 @@ export const towns = (list) => Object.freeze(list.map((t) => town(...t)));
  * - magVarDeg: degrees East (West negative), from US_MAGVAR_SOURCE.
  * - loadAirspace: a function that imports the base's generated FAA file (faa-airspace/<icao>.js, a module: { AIRSPACE, SOURCE }) when it is needed
  *   (airspace-load.js); the profile's own `airspace` is empty, and the 3D view adds the file's entries once it has come.
+ * - standards: the base's weather standards (usaf-standards.js at the USAF bases), or null (the default) for "Limits not set".
  */
-export function usBase({ icao, name, shortName, usualAlternates, alternatesSource, towns: townList, tourField, magVarDeg, loadAirspace }) {
+export function usBase({ icao, name, shortName, usualAlternates, alternatesSource, towns: townList, tourField, magVarDeg, loadAirspace, standards = null }) {
   return Object.freeze({
     icao,
     name,
@@ -156,6 +158,6 @@ export function usBase({ icao, name, shortName, usualAlternates, alternatesSourc
       pictures: '3D fronts: WPC surface analysis; radar: NOAA NCEP MRMS; satellite imagery: NASA GIBS, GOES-East; towns: GeoNames (CC BY 4.0); SIGMETs, G-AIRMETs and PIREPs: aviationweather.gov; NOTAMs: FAA; airspace: FAA open data.',
       mapFeeds: `radar: ${US_RADAR.credit}. ${US_SATELLITE.credit}`,
     }),
-    standards: null,
+    standards: standards ?? null,
   });
 }

@@ -3,7 +3,7 @@
 // (sites/) names which of these its 3D view draws (`airports3d`), and the crosswind check (crosswind.js) reads its runway headings from here.
 //
 // Source: OurAirports open data (airports.csv and runways.csv, public domain, https://ourairports.com/data/). The Canadian four (CYMJ, CYQR, CYYN,
-// CYXE) were downloaded 7 Oct 2026; the US T-6 bases and their usual alternates (plan Step 2c part D) from
+// CYXE) were downloaded 7 Oct 2026; the US T-6 bases and their usual alternates (plan Step 2c part D; San Angelo's Midland added the same way, 8 Oct) from
 // https://davidmegginson.github.io/ourairports-data/runways.csv and airports.csv, read 8 Oct 2026. Each runway's two ends are its thresholds as
 // OurAirports gives them (degrees, WGS 84; the US ones rounded to 6 decimals), headings in degrees true as OurAirports lists them, lengths and
 // widths in feet. Runways OurAirports marks closed are left out (Vance 13/31, Whiting Field North 09/27 and 18/36, on 8 Oct 2026). Displaced
@@ -272,6 +272,16 @@ export const AIRPORTS = Object.freeze([
       { ends: ["14", "32"], lengthFt: 5927, widthFt: 150, surface: "CON", a: { lat: 27.5495, lon: -99.466698, elevationFt: 505, headingTrue: 147.0 }, b: { lat: 27.5357, lon: -99.456802, elevationFt: 467, headingTrue: 327.0 } },
       { ends: ["18L", "36R"], lengthFt: 8236, widthFt: 150, surface: "CON", a: { lat: 27.5564, lon: -99.459297, elevationFt: 499, headingTrue: 183.0 }, b: { lat: 27.533701, lon: -99.460503, elevationFt: 475, headingTrue: 3.0 } },
       { ends: ["18R", "36L"], lengthFt: 8743, widthFt: 150, surface: "ASP", a: { lat: 27.554001, lon: -99.462502, elevationFt: 504, headingTrue: 183.0 }, b: { lat: 27.532499, lon: -99.4636, elevationFt: 484, headingTrue: 3.0 } },
+    ],
+  },
+  // San Angelo (KSJT, drawn with Laughlin's above): Midland (KMAF), its other usual alternate
+  {
+    icao: "KMAF", name: "Midland International Air and Space Port", elevationFt: 2871,
+    runways: [
+      { ends: ["04", "22"], lengthFt: 4605, widthFt: 75, surface: "ASP", a: { lat: 31.9317, lon: -102.204002, elevationFt: 2850, headingTrue: 54.0 }, b: { lat: 31.939199, lon: -102.192001, elevationFt: 2853, headingTrue: 234.0 } },
+      { ends: ["10", "28"], lengthFt: 8302, widthFt: 150, surface: "ASP", a: { lat: 31.947599, lon: -102.216003, elevationFt: 2869, headingTrue: 114.0 }, b: { lat: 31.938499, lon: -102.192001, elevationFt: 2854, headingTrue: 294.0 } },
+      { ends: ["16L", "34R"], lengthFt: 4247, widthFt: 100, surface: "ASP", a: { lat: 31.946501, lon: -102.196999, elevationFt: 2863, headingTrue: 177.0 }, b: { lat: 31.934601, lon: -102.196999, elevationFt: 2846, headingTrue: 357.0 } },
+      { ends: ["16R", "34L"], lengthFt: 9501, widthFt: 150, surface: "ASP", a: { lat: 31.9594, lon: -102.206001, elevationFt: 2871, headingTrue: 175.0 }, b: { lat: 31.933399, lon: -102.203003, elevationFt: 2850, headingTrue: 355.0 } },
     ],
   },
   // Vance (KEND)

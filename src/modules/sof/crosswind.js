@@ -135,16 +135,20 @@ const LEVEL_WORDS = { amber: (a, s) => `amber: over ${a} kt ${s}`, red: (_, __, 
  * `levels: false` is a home base with no weather limits (its site profile's `standards` is null; `homeIcao` names it): the headwind, crosswind and favoured
  * end still show, but no end is amber or red, there is no chip and no caution, and the levels line says "Limits not set for KDLF: no crosswind level
  * flagged" (Moose Jaw's levels are never used for another base; plan Step 2c: "crosswind and wind limits [none flagged]").
+ * `usaf` is a USAF base's crosswind standards (sites/usaf-standards.js `crosswind`: `{ fullStopKt, touchAndGoKt, soloKt, source }`, Dad's ruling 8 Oct
+ * 2026; plan Step 2c part F), or null (today's levels). With it: red over the full-stop limit, amber over the touch-and-go limit on a dry runway (wet and
+ * icy keep the SOF settings' levels), and an end under amber but over the solo limit is marked `solo` ("solo: over 15 kt"), a note with no chip or caution.
  */
-export function crosswindFor({ icao, role = 'ALT', metar, wind = null, weather = [], settings, airports = AIRPORTS, levels = true, homeIcao = null }) {
+export function crosswindFor({ icao, role = 'ALT', metar, wind = null, weather = [], settings, airports = AIRPORTS, levels = true, homeIcao = null, usaf = null }) {
   const airport = airports.find((a) => a.icao === icao);
   const ends = runwayEnds(airport);
   if (!ends.length) return null;
   if (!levels) settings = { ...(settings ?? {}), ...NO_LEVELS };
+  else if (usaf) settings = { ...(settings ?? {}), xwAmberDryKt: usaf.touchAndGoKt, xwRedDryKt: usaf.fullStopKt };
   const { state, amberKt, redKt } = levelsFor(settings);
-  const levelsWords = levels
-    ? `Amber over ${amberKt} kt ${STATE_WORDS[state]}, red over ${redKt} kt dry (runway state ${STATE_WORDS[state]}, in SOF settings)`
-    : `${notSetWords(homeIcao)}: no crosswind level flagged`;
+  const levelsWords = !levels ? `${notSetWords(homeIcao)}: no crosswind level flagged`
+    : usaf ? `T-6A: red over ${redKt} kt (full-stop landing), amber over ${amberKt} kt ${STATE_WORDS[state]}${state === 'dry' ? ' (touch-and-go)' : ' (SOF settings)'}, solo over ${usaf.soloKt} kt (${usaf.source}; runway state ${STATE_WORDS[state]}, in SOF settings)`
+      : `Amber over ${amberKt} kt ${STATE_WORDS[state]}, red over ${redKt} kt dry (runway state ${STATE_WORDS[state]}, in SOF settings)`;
   const precip = (weather ?? []).filter((w) => w.descriptor === 'FZ' || (w.phenomena ?? []).some((p) => WET.has(p)));
   const hint = levels && precip.length && state === 'dry' && metar?.state === 'fresh'
     ? `The METAR reports ${precip.map((w) => w.raw).join(' ')}: the runway may be wet. The runway state is set in SOF settings (Dry now).`
@@ -159,7 +163,15 @@ export function crosswindFor({ icao, role = 'ALT', metar, wind = null, weather =
   const windWords = check.status === 'calm' ? 'Wind calm'
     : check.status === 'vrb' ? `Wind VRB ${wind.speedKt} kt${gust}: the full ${check.checkKt} kt counted as crosswind on every runway`
       : `Wind ${String(wind.dirDeg).padStart(3, '0')}° true ${wind.speedKt} kt${gust}${varying} (runway headings true)`;
-  const levelWord = (e) => (e.level === 'ok' ? null : LEVEL_WORDS[e.level](amberKt, STATE_WORDS[state], redKt));
+  // A USAF base: an end under amber but over the solo limit is a note, "solo: over 15 kt" (Dad's ruling, 8 Oct 2026); the words say which limit each level is.
+  if (usaf) for (const e of check.ends) if (e.level === 'ok' && Math.round(e.checkCrossKt) > usaf.soloKt) e.level = 'solo';
+  const levelWord = (e) => {
+    if (e.level === 'ok') return null;
+    if (usaf && e.level === 'solo') return `solo: over ${usaf.soloKt} kt`;
+    if (usaf && e.level === 'red') return `red: over ${redKt} kt (full-stop landing)`;
+    if (usaf && e.level === 'amber') return `amber: over ${amberKt} kt ${STATE_WORDS[state]}${state === 'dry' ? ' (touch-and-go)' : ''}`;
+    return LEVEL_WORDS[e.level](amberKt, STATE_WORDS[state], redKt);
+  };
   const list = check.ends.map((e) => ({
     name: e.name,
     head: check.status === 'vrb' ? 'VRB' : headWords(e.headwindKt),
@@ -172,7 +184,7 @@ export function crosswindFor({ icao, role = 'ALT', metar, wind = null, weather =
   }));
   // The row's chip: the favoured end's crosswind when it is amber or red (with VRB, every end's).
   const shown = check.ends.find((e) => e.name === check.favoured) ?? (check.status === 'vrb' ? check.ends[0] : null);
-  const chip = shown && shown.level !== 'ok' ? { words: `XW ${kt(shown.checkCrossKt)}${check.status === 'vrb' ? ' VRB' : ''} ⚠`, level: shown.level } : null;
+  const chip = shown && (shown.level === 'amber' || shown.level === 'red') ? { words: `XW ${kt(shown.checkCrossKt)}${check.status === 'vrb' ? ' VRB' : ''} ⚠`, level: shown.level } : null;
   const least = check.ends.length ? Math.min(...check.ends.map((e) => e.checkCrossKt)) : null;
   const caution = role === 'HOME' && check.allRed ? {
     key: `${icao}|CROSSWIND|RED`,

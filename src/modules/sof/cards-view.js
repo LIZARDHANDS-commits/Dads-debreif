@@ -25,7 +25,7 @@ const HOVER_GRACE_MS = 250;
 
 // Beside the words of the result, never instead of them. 'not-set' (grey) is home at a base with no weather limits, 'incomplete' (amber) an
 // alternate there (limits-not-set.js, SOF-32): neither is ever a tick.
-const LEVEL_SYMBOL = { below: '▼', 'at-limit': '●', within: '✓', unknown: '?', none: '–', 'not-set': '–', incomplete: '⚠' };
+const LEVEL_SYMBOL = { below: '▼', 'at-limit': '●', within: '✓', unknown: '?', none: '–', 'not-set': '–', incomplete: '⚠', 'not-suitable': '✕' };
 
 const note = (text, tone) => (text ? h('p', { class: `sof-note${tone ? ` is-${tone}` : ''}` }, text) : null);
 
@@ -56,7 +56,7 @@ function report(kind, line) {
   );
 }
 
-const WAVE_SYMBOL = { ok: '✓', below: '▼', 'at-limit': '●', unknown: '?', incomplete: '⚠' };
+const WAVE_SYMBOL = { ok: '✓', below: '▼', 'at-limit': '●', unknown: '?', incomplete: '⚠', 'not-suitable': '✕' };
 
 function waveResult(line) {
   return h('p', { class: `sof-wave-result is-${line.tone}` },
@@ -90,7 +90,8 @@ function notamSection(n) {
       notamRaw(x)))));
 }
 
-const XW_SYMBOL = { amber: '⚠', red: '⚠' };
+// 'solo' is a USAF base's note for a crosswind over the T-6A solo limit (crosswind.js; Dad's ruling, 8 Oct 2026): a note, not a flag.
+const XW_SYMBOL = { amber: '⚠', red: '⚠', solo: '●' };
 
 /**
  * The crosswind per runway (crosswind.js `crosswindFor`; SOF-43): the wind in words, then a small table, one row per runway end with its headwind and
@@ -137,8 +138,8 @@ function alertSection(a) {
 }
 
 // The compact row's limits mark, in words beside its symbol (never the symbol alone): "✓ within", "⚠ below", "● at limit", "? old", "? unknown", "– no METAR",
-// and at a base with no weather limits "– limits not set" (home, grey) and "⚠ incomplete" (an alternate, amber).
-const MARK = { below: ['⚠', 'below'], 'at-limit': ['●', 'at limit'], within: ['✓', 'within'], none: ['–', 'no METAR'], 'not-set': ['–', 'limits not set'], incomplete: ['⚠', 'incomplete'] };
+// and at a base with no weather limits "– limits not set" (home, grey) and "⚠ incomplete" (an alternate, amber); at a USAF base "✕ not suitable" (red).
+const MARK = { below: ['⚠', 'below'], 'at-limit': ['●', 'at limit'], within: ['✓', 'within'], none: ['–', 'no METAR'], 'not-set': ['–', 'limits not set'], incomplete: ['⚠', 'incomplete'], 'not-suitable': ['✕', 'not suitable'] };
 export function limitsMark(card) {
   const level = card.result.level;
   const [symbol, words] = level === 'unknown' ? ['?', card.result.stale ? 'old' : 'unknown'] : MARK[level] ?? ['?', 'unknown'];

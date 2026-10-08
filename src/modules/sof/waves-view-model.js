@@ -9,6 +9,7 @@ import { dayZones } from './zone-words.js';
 import { zoneAbbreviation } from '../../core/time.js';
 import { siteFor } from './sites/index.js';
 import { limitsSet, notSetCall, NOT_SET_KEY, incompleteWhy } from './limits-not-set.js';
+import { usafStandards, usafWaveCalls, SOURCE_LINE } from './usaf-limits.js';
 
 const two = (n) => String(n).padStart(2, '0');
 const HOUR_MS = 3_600_000;
@@ -28,8 +29,9 @@ export function dayLabel(date) {
 }
 
 // A symbol beside the words of every call, never instead of them. 'not-set' is home at a base with no weather limits (grey), 'incomplete' an
-// alternate there (amber, SOF-32): limits-not-set.js.
-const SYMBOL = { ok: '✓', required: '⚠', below: '▼', 'at-limit': '●', unknown: '?', 'not-set': '–', incomplete: '⚠' };
+// alternate there (amber, SOF-32): limits-not-set.js. 'not-suitable' is an alternate a USAF base's rule rules out (usaf-limits.js: a GNSS-only
+// approach, 4.17.3, or no weather reports, 4.16.5.2).
+const SYMBOL = { ok: '✓', required: '⚠', below: '▼', 'at-limit': '●', unknown: '?', 'not-set': '–', incomplete: '⚠', 'not-suitable': '✕' };
 const symbolOf = (tone) => SYMBOL[tone] ?? '?';
 
 const LEVEL_WORDS = { below: 'Below limits', 'at-limit': 'At the limit', caution: 'Caution', unchecked: 'PROB not checked against landing minima' };
@@ -62,9 +64,12 @@ function chipOf(row, call, notes, homeIcao) {
     reason: withTafNote(call.limitsNotSet ? null : reasonOf(home), state),
     limits: home.label,
     alternates: call.of ? alternatesWords(call) : null,
-    keyLine: call.limitsNotSet ? NOT_SET_KEY : null,
+    keyLine: keyLineOf(call),
   };
 }
+
+// The hover words: what "Limits not set" means, or at a USAF base the rule's source (usaf-limits.js); Moose Jaw's chips have none, as before.
+const keyLineOf = (call) => (call.limitsNotSet ? NOT_SET_KEY : call.rule === 'usaf' ? SOURCE_LINE : null);
 
 /** An alternate that meets or is at the limit, with a dangerous-weather caution forecast: meeting, but not all-clear. */
 const meetsWithCaution = (a) => (a.status === 'meets' || a.status === 'at-limit') && (a.result?.cautions?.length ?? 0) > 0;
@@ -89,6 +94,8 @@ function detailOf(row, call, notes, homeIcao) {
       symbol: symbolOf(toneWith(home.tone, homeState)),
       limits: home.label,
       why: homeState?.note ? withTafNote(home.why, homeState) : home.why,
+      // At a USAF base: the source, and what the rule asks that the SOF does not check (crosswind, home's approach). Null elsewhere.
+      note: home.note ?? null,
       lines: home.details.map(lineOf),
     },
     alternates: call.alternates.map((a) => ({
@@ -104,8 +111,9 @@ function detailOf(row, call, notes, homeIcao) {
     })),
     summary: call.of ? alternatesWords(call) : 'No alternates set',
     // At a base with no limits, why every alternate reads "Incomplete", said once under the summary.
-    summaryNote: call.limitsNotSet && call.of ? incompleteWhy(homeIcao) : null,
-    keyLine: call.limitsNotSet ? NOT_SET_KEY : null,
+    // At a USAF base, what every alternate also needs and the SOF has no data for (AFMAN 4.16.5).
+    summaryNote: call.limitsNotSet && call.of ? incompleteWhy(homeIcao) : call.alsoCheck && call.of ? call.alsoCheck : null,
+    keyLine: keyLineOf(call),
   };
 }
 
@@ -130,6 +138,7 @@ function altLinesOf(row, call, notes) {
  * - `now`, `timeZone`: the clock and the home zone; nothing is guessed without them.
  * - `tafNotes`: taf-state.js's answer, so a call made on a stale or failed TAF says so.
  * - `selectedId`: `undefined` (the first wave with a call), `null` (none) or a wave's id.
+ * - `noReports`: at a USAF base, the alternates our sources answered for with no METAR and no TAF (usaf-limits.js `noReportStations`), else nothing.
  *
  * Returns `{ problem, day, dayLabel, zone, rows, canAdd, limitNote, selectedId, detail, altLines,
  * waves, calls }`. A row is `{ id, entryName (as typed), name (as said), title, zulu, takeoff, land, nextDay, note, problem, chip }` and
@@ -139,15 +148,20 @@ function altLinesOf(row, call, notes) {
  * timeline and the banner.
  * @param {any} [args]
  */
-export function buildWaves({ plan, airfields, tafs = {}, limits, now, timeZone, selectedId, tafNotes = {} } = {}) {
+export function buildWaves({ plan, airfields, tafs = {}, limits, now, timeZone, selectedId, tafNotes = {}, noReports = undefined } = {}) {
   const homeIcao = airfields.home().icao;
   const entries = plan.waves;
   const planned = planToUtc(entries, { now, timeZone, day: plan.day });
   const skipped = new Map(planned.skipped.map((s) => /** @type {[number, any]} */ ([s.index, s])));
-  const made = planned.problem ? [] : waveCalls({ waves: planned.waves, airfields, tafs, limits });
+  const site = siteFor(homeIcao);
+  // A USAF base (plan Step 2c part F): its calls are AFMAN 11-202V3's, over ETA ± 1 h (usaf-limits.js); the SOF settings' trigger is not used there.
+  const usaf = usafStandards(site);
+  const made = planned.problem ? []
+    : usaf ? usafWaveCalls({ waves: planned.waves, airfields, tafs, standards: usaf, noReports: noReports ?? new Set() })
+      : waveCalls({ waves: planned.waves, airfields, tafs, limits });
   // A home base with no weather limits (its site profile's `standards` is null): home "Limits not set", alternates "Incomplete", only dangerous
   // weather kept (limits-not-set.js). These calls also feed the banner, so it raises no limit caution either.
-  const calls = limitsSet(siteFor(homeIcao)) ? made : made.map((call) => notSetCall(call, homeIcao));
+  const calls = limitsSet(site) ? made : made.map((call) => notSetCall(call, homeIcao));
 
   let placed = 0;
   const rows = entries.slice(0, MAX_WAVES).map((entry, index) => {

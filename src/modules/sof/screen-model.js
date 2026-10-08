@@ -14,6 +14,7 @@ import { snapLimits } from './settings-model.js';
 import { cautionList } from './cautions.js';
 import { CYMJ, siteFor } from './sites/index.js';
 import { limitsSet, NOT_SET_KEY, incompleteWhy } from './limits-not-set.js';
+import { usafStandards, usafAlternateMinima, noReportStations, noReportsState, homeNote, ALSO_CHECK } from './usaf-limits.js';
 
 /**
  * The line under the screen: what it is not, and where the weather comes from. The weather feeds (MET Norway, Datamask) are the same at every base;
@@ -119,6 +120,18 @@ export function alertText(snapshot, now) {
 // ---- The cards ------------------------------------------------------------------------------------
 
 /**
+ * A card's note at a USAF base (plan Step 2c part F): home, the source and what is not checked (crosswind 4.16.2.3, home's approach 4.16.1); an
+ * alternate, how its minima were worked out (or why they can't be), then what every alternate also needs (4.16.5).
+ */
+function usafNote(isHome, homeIcao, state, std) {
+  if (isHome) return homeNote(homeIcao, std);
+  // A "Not suitable" or "Incomplete" result already says why in its words (its hover says more); "Check 4.16.4.3 yourself" needs its why here.
+  const how = state?.state === 'ok' ? `${state.basis} (from the approach entered in Settings → Airfields; enter the lowest non-GPS approach).`
+    : state?.state === 'check' ? state.why ?? '' : '';
+  return [how, `${ALSO_CHECK}.`].filter(Boolean).join(' ');
+}
+
+/**
  * The whole screen: { dtg, dtgIso, clocks, feed, alert, cards, credits, lightning, cautions }.
  * `airfields` is app.airfields; `snapshot` is createWeather's; `limits` the home
  * limits from Settings; `now` a Date; `timeZone` home's (the day the marked TAF words are checked over). Cards are home first, then each alternate,
@@ -131,6 +144,11 @@ export function alertText(snapshot, now) {
  * When the home base's site profile has no weather limits (`standards: null`, plan Step 2c part B), no card is checked against a limit: home reads
  * "Limits not set for KDLF" and each alternate "Incomplete" (cards.js `notSetFor`), with the key line as the card's note. `limitsNotSet` says so
  * (the home ICAO, or null when the limits are set).
+ *
+ * At a USAF base (the profile's standards are AFMAN 11-202V3's, plan Step 2c part F; usaf-limits.js) home is checked against the 4.16.2.1 trigger and
+ * each alternate against its 4.16.4.1 minima from the approach entered in Settings → Airfields, or reads "Not suitable" (a GNSS-only approach, 4.17.3;
+ * no weather reports, 4.16.5.2), "Check 4.16.4.3 yourself" or "Incomplete"; the SOF settings' home trigger is not used there. Each card's note gives
+ * the source and what the SOF does not check. `usaf` says so (true, or false elsewhere).
  */
 export function buildScreen({ airfields, snapshot, limits, now, lightning = null, timeZone }) {
   const home = airfields.home();
@@ -138,6 +156,8 @@ export function buildScreen({ airfields, snapshot, limits, now, lightning = null
   const round = snapshot.lastRound;
   const site = siteFor(home.icao);
   const notSetFor = limitsSet(site) ? null : home.icao;
+  const usaf = usafStandards(site);
+  const noReports = usaf ? noReportStations(snapshot, airfields.alternates().map((f) => f.icao)) : new Set();
   const cards = [];
   const seen = new Set();
   for (const field of [home, ...airfields.alternates()]) {
@@ -145,6 +165,7 @@ export function buildScreen({ airfields, snapshot, limits, now, lightning = null
     seen.add(field.icao);
     const isHome = field === home;
     const options = isHome ? undefined : airfields.checkOptions(field.icao);
+    const usafAlternate = usaf && !isHome ? (noReports.has(field.icao) ? noReportsState(field.icao, usaf) : usafAlternateMinima(field, usaf)) : null;
     const model = cardModel({
       icao: field.icao,
       name: field.name ?? '',
@@ -158,13 +179,15 @@ export function buildScreen({ airfields, snapshot, limits, now, lightning = null
       // Before any round has run there is nothing to have failed; after one, a station it didn't get did.
       feed: { lastTry: round?.at ?? null, failed: Boolean(round && !round.fresh.metar.has(field.icao)) },
       notSetFor,
+      usaf: usaf ? { standards: usaf, alternate: usafAlternate } : null,
     });
     const notSet = !isHome && !options?.visualDescent && options?.minimaChecked !== true;
     const baseNote = isHome ? NOT_SET_KEY : incompleteWhy(home.icao);
     cards.push({
       ...model,
       limitsLabel: isHome ? 'Limits' : 'Minima',
-      limitsNote: notSetFor ? baseNote : notSet ? `Approaches not set in Settings: checked against ${model.limitsText}` : null,
+      limitsNote: usaf ? usafNote(isHome, home.icao, usafAlternate, usaf)
+        : notSetFor ? baseNote : notSet ? `Approaches not set in Settings: checked against ${model.limitsText}` : null,
     });
   }
   const extraCautions = lightning?.caution ? [lightning.caution] : [];
@@ -177,6 +200,7 @@ export function buildScreen({ airfields, snapshot, limits, now, lightning = null
     cards,
     credits: creditsFor(site),
     limitsNotSet: notSetFor,
+    usaf: Boolean(usaf),
     lightning,
     // Cautions from outside the weather reports, in cautions.js's shape: the banner adds these to what it builds from the cards and TAFs.
     extraCautions,

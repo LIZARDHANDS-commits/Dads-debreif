@@ -48,6 +48,9 @@ export const CATALOG = Object.freeze({
   KPNS: field('Pensacola', 30.4727, -87.1866, 'America/Chicago', 121),
   KCRP: field('Corpus Christi', 27.7704, -97.5012, 'America/Chicago', 44),
   KNQI: field('NAS Kingsville', 27.5072, -97.8097, 'America/Chicago', 50),
+  // San Angelo's usual alternates (KABI, KMAF, KDLF; Dad, 8 Oct 2026) need Midland too, from the same OurAirports file, read 8 Oct 2026 (Central
+  // time: only El Paso and Hudspeth counties in Texas keep Mountain time).
+  KMAF: field('Midland', 31.9425, -102.202, 'America/Chicago', 2871),
 });
 
 // V6's WX SETUP defaults (sof.html line 180).

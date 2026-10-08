@@ -157,9 +157,11 @@ export function createTimelineView({ header = null } = {}) {
     const active = document.activeElement;
     const focusedId = rows.contains(active) ? pieceOf(active)?.dataset.id : null;
     setText(title, view.title);
-    setText(notSet, view.limitsNote?.words ?? '');
-    notSet.title = view.limitsNote?.title ?? '';
-    notSet.hidden = !view.limitsNote;
+    // "Limits not set for KNSE", or at a USAF base the rule's source line (plan Step 2c part F), in the same place.
+    const baseNote = view.limitsNote ?? view.sourceNote ?? null;
+    setText(notSet, baseNote?.words ?? '');
+    notSet.title = baseNote?.title ?? '';
+    notSet.hidden = !baseNote;
     setText(notSetKey, view.limitsNote ? `${view.limitsNote.words}: ${view.limitsNote.title} No piece is marked below.` : '');
     notSetKey.hidden = !view.limitsNote;
     setText(problem, view.problem ?? '');

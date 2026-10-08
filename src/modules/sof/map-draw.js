@@ -184,14 +184,40 @@ export function drawAirfields(ctx, marks, project, palette, { width, height }) {
 }
 
 /**
+ * The traffic labels a size smaller (Dad, 8 Oct 2026: "Can the traffic tags be a lil smaller"): 9 px, was 11 px (about 18 % smaller); a T-6's (TEX2) 10 px
+ * (about 9 %), so it stays easy to read. Estimates for readability.
+ */
+const TRAFFIC_FONT = Object.freeze({ other: '9px system-ui, sans-serif', t6: '600 10px system-ui, sans-serif' });
+/** A helicopter's symbol (Dad, 8 Oct 2026: "Helo traffic is a helo"): a rotor disc ring this many pixels in radius round a small body and tail boom. Estimates for the look. */
+const HELI_ROTOR_PX = 7.5;
+
+/** The path of a helicopter seen from above, nose up the screen (the caller turns it by track): a small cabin and, with `tail`, a tail boom and tail rotor. */
+function helicopterBody(ctx, tail) {
+  ctx.beginPath();
+  ctx.ellipse(0, -1, 2.8, 4.2, 0, 0, Math.PI * 2);
+  if (tail) {
+    // Drawn the same way round as the cabin (clockwise on the screen), so where the two overlap the fill stays solid.
+    ctx.moveTo(0.9, 2.5);
+    ctx.lineTo(0.9, 9);
+    ctx.lineTo(3, 9);
+    ctx.lineTo(3, 10.6);
+    ctx.lineTo(-3, 10.6);
+    ctx.lineTo(-3, 9);
+    ctx.lineTo(-0.9, 9);
+    ctx.lineTo(-0.9, 2.5);
+    ctx.closePath();
+  }
+}
+
+/**
  * The traffic symbols from traffic.js's view: an arrow rotated by track (a dot when there is no track),
  * hollow on the ground, ringed when military, faded by age, with the label the layer options ask for.
+ * A helicopter (`a.helicopter`, helicopters.js) is a rotor disc ring round a small body with its tail boom along the track (no tail with no track).
  * Returns the symbols' screen places for hover: [{ x, y, aircraft }].
  */
 export function drawTraffic(ctx, aircraft, project, palette, { width, height }, selectedHex = null) {
   const hits = [];
   ctx.save();
-  ctx.font = '11px system-ui, sans-serif';
   ctx.textBaseline = 'middle';
   for (const a of aircraft) {
     const [x, y] = project(a.lat, a.lon);
@@ -200,7 +226,19 @@ export function drawTraffic(ctx, aircraft, project, palette, { width, height }, 
     ctx.save();
     ctx.translate(x, y);
     const colour = a.mil ? palette.military : palette.traffic;
-    if (a.hasTrack) {
+    if (a.helicopter) {
+      // The rotor disc: a thin ring with a dark halo, so it reads on any picture.
+      ctx.beginPath();
+      ctx.arc(0, 0, HELI_ROTOR_PX, 0, Math.PI * 2);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = palette.halo;
+      ctx.stroke();
+      ctx.lineWidth = 1.25;
+      ctx.strokeStyle = colour;
+      ctx.stroke();
+      if (a.hasTrack) ctx.rotate((a.rotationDeg * Math.PI) / 180);
+      helicopterBody(ctx, a.hasTrack);
+    } else if (a.hasTrack) {
       ctx.rotate((a.rotationDeg * Math.PI) / 180);
       ctx.beginPath();
       ctx.moveTo(0, -7);
@@ -226,7 +264,7 @@ export function drawTraffic(ctx, aircraft, project, palette, { width, height }, 
     ctx.restore();
     if (a.mil) {
       ctx.beginPath();
-      ctx.arc(x, y, 10, 0, Math.PI * 2);
+      ctx.arc(x, y, a.helicopter ? HELI_ROTOR_PX + 3.5 : 10, 0, Math.PI * 2);
       ctx.lineWidth = 1.5;
       ctx.strokeStyle = colour;
       ctx.stroke();
@@ -238,7 +276,10 @@ export function drawTraffic(ctx, aircraft, project, palette, { width, height }, 
       ctx.strokeStyle = palette.text;
       ctx.stroke();
     }
-    if (a.label) label(ctx, a.label, x + 11, y, { ...palette, halo: palette.halo });
+    if (a.label) {
+      ctx.font = a.type === 'TEX2' ? TRAFFIC_FONT.t6 : TRAFFIC_FONT.other;
+      label(ctx, a.label, x + (a.helicopter ? HELI_ROTOR_PX + 3 : 10), y, { ...palette, halo: palette.halo });
+    }
     ctx.globalAlpha = 1;
     hits.push({ x, y, aircraft: a });
   }
