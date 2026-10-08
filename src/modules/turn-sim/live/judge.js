@@ -289,7 +289,7 @@ function formationPair(key, lead, wing, spacingFt, wingPlane) {
     numbers = `${ft(j.acrossFt)} abeam, ${ft(j.foreAftFt)} ${j.foreAftFt >= 0 ? 'ahead of' : 'behind'} Lead's 3/9 line, sweep ${Math.round(Math.max(0, j.sweepDeg))}° (0-${SWEEP_MAX_DEG}°)`;
     left = wingPlane ? judgeLink('abreast', lead, wing, { spacingFt, wingPlane }).rel.left : j.rel.left; // the spacing is judged level, the side in the wing plane
   } else if (key === 'fw') {
-    const j = judgeLink('fw', lead, wing, { wingPlane, needBelow: false, stackFt: IN_POSITION.fwStackFt });
+    const j = judgeLink('fw', lead, wing, { wingPlane, needBelow: false, stackFt: IN_POSITION.fwStackFt, marginFt: JUDGE_MARGIN_FT, marginDeg: MARGIN_DEG });
     labels = j.labels;
     numbers = `${j.numbers}, ${ft(j.down)} ${j.down >= 0 ? 'below' : 'above'} Lead`;
     left = j.rel.left;

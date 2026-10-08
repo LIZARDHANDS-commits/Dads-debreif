@@ -157,24 +157,31 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       }));
       numApproachPhases++;
     }
-    // Line intercept phase with coneEase bank-matching to prevent cone blow-through
+    if (initialRange > TR.xFromFt) {
+      phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
+        kind: 'leadIn',
+        side: s,
+        bankCapDeg,
+        overtakeKt,
+        floorKias,
+        rejoin: true,
+        initialPclMax,
+      }));
+      numApproachPhases++;
+    }
+    // Followed by canopy-X tracking into the fighting wing cone
     phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
-      kind: 'line',
+      kind: 'x',
       lineDeg: TR.lineDeg,
       side: s,
-      aimFt,
-      approachDeg: TR.approachDeg,
-      tauSec: TR.lineTauSec,
-      captureFt: TR.captureFt,
-      decisionFt,
-      coneEase: true,
+      tauSec: TR.bearingTauSec,
       bankCapDeg,
+      isFw: true,
+      coneEase: true,
+      arriveFtps: TR.fwArriveFtps,
       overtakeKt,
       floorKias,
-      arriveFtps: TR.fwArriveFtps,
-      slowFtps2: TR.slowFtps2,
       rejoin: true,
-      initialPclMax,
     }));
     numApproachPhases++;
     // Followed by fighting wing cone tracking
@@ -205,21 +212,14 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
         rejoin: true,
       }));
       numApproachPhases++;
-    } else if (initialRange > TR.xFromFt) {
+    }
+    if (initialRange > TR.xFromFt) {
       phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
-        kind: 'line',
-        lineDeg: TR.lineDeg,
+        kind: 'leadIn',
         side: s,
-        aimFt,
-        approachDeg: TR.approachDeg,
-        tauSec: TR.lineTauSec,
-        captureFt: TR.captureFt,
-        decisionFt: TR.xFromFt,
         bankCapDeg,
         overtakeKt,
         floorKias,
-        arriveFtps: xArriveFtps(),
-        slowFtps2: TR.slowFtps2,
         rejoin: true,
         initialPclMax,
       }));
@@ -353,9 +353,8 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       stopWhenSettled: false,
       maxSec: limitSec,
     });
-    if (second.ok) {
-      run = second;
-    }
+    if (!second.ok) return null;
+    run = second;
   }
 
   const nSplit = Math.min(nPart, run.points.length);

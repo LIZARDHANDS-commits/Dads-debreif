@@ -95,6 +95,35 @@ function aimOf(ph, L, Lprev, ref, W, t) {
     return { px, py, vpx: vfx, vpy: vfy, vfx, vfy, ex, ey, d, arrived, along, cross, dWorld, omegaL, slot: ph.slot ?? { fwd: rel.fwd, left: rel.left, alt: ph.slot?.alt ?? 0 } };
   }
 
+  if (ph.kind === 'leadIn') {
+    const dx = L.xFt - W.xFt;
+    const dy = L.yFt - W.yFt;
+    const r = Math.hypot(dx, dy);
+    const s = ph.side ?? -1;
+    const fw = { x: Math.cos(W.headingRad), y: Math.sin(W.headingRad) };
+    const lw = { x: -Math.sin(W.headingRad), y: Math.cos(W.headingRad) };
+    const fwd = dx * fw.x + dy * fw.y;
+    const left = dx * lw.x + dy * lw.y;
+    const relBearingRad = Math.atan2(left, fwd);
+    const relBearingDeg = (relBearingRad * 180) / Math.PI;
+    const crossedNose = fwd > 0 && (-s * relBearingDeg) <= (ph.crossTolDeg ?? 5.0);
+    const arrived = crossedNose || r <= (ph.minLeadInRangeFt ?? 1500);
+    return {
+      px: L.xFt,
+      py: L.yFt,
+      vpx: L.tasFtps * Math.cos(L.headingRad),
+      vpy: L.tasFtps * Math.sin(L.headingRad),
+      ex: dx,
+      ey: dy,
+      d: r,
+      arrived,
+      crossedNose,
+      rangeFt: r,
+      relBearingDeg,
+      slot: ph.slot ?? { fwd: 0, left: 0, alt: ph.slot?.alt ?? 0 },
+    };
+  }
+
   if (ph.kind === 'x') {
     const f = { x: Math.cos(L.headingRad), y: Math.sin(L.headingRad) };
     const l = { x: -f.y, y: f.x };
@@ -124,9 +153,10 @@ function aimOf(ph, L, Lprev, ref, W, t) {
     const farFt = ph.farFt ?? TURNING_REJOIN.windowFarFt;
     const nearFt = ph.nearFt ?? TURNING_REJOIN.windowNearFt;
     const xWinRad = (ph.xWinDeg ?? TURNING_REJOIN.xWindowDeg ?? 10) * DEG;
+    const isFwArrival = Boolean(ph.isFw) && r <= 850 && Math.abs(b - bX) <= xWinRad;
     const stable = r <= farFt && r >= nearFt && over <= TURNING_REJOIN.stableKt[1] && Math.abs(b - bX) <= xWinRad;
-    const arrived = stable || r <= nearFt;
-    return { px, py, vpx, vpy, ex, ey, d, arrived, stable, rangeFt: r, bearingDeg: b / DEG, bXDeg: bX / DEG, slot: ph.slot ?? { fwd: 0, left: 0, alt: ph.slot?.alt ?? 0 } };
+    const arrived = isFwArrival || stable || r <= nearFt;
+    return { px, py, vpx, vpy, ex, ey, d, arrived, stable, isFwArrival, rangeFt: r, bearingDeg: b / DEG, bXDeg: bX / DEG, slot: ph.slot ?? { fwd: 0, left: 0, alt: ph.slot?.alt ?? 0 } };
   }
 
   // The reference slot moves toward the phase's slot at the phase's rates. A phase with a `goal` (a goal-seeking phase,
@@ -206,6 +236,15 @@ function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT) {
     return { pullX: 0, pullY: 0, vdx: W.tasFtps * Math.cos(psiCmd), vdy: W.tasFtps * Math.sin(psiCmd), speed: W.tasFtps, psiCmd, kiasCmd };
   }
 
+  if (ph.kind === 'leadIn') {
+    const dx = L.xFt - W.xFt;
+    const dy = L.yFt - W.yFt;
+    const psiCmd = Math.atan2(dy, dx);
+    const lineKias = ph.lineKias ?? (L.kias + (ph.overtakeKt ?? 20));
+    const kiasCmd = Math.max(ph.floorKias ?? KIAS_OUTSIDE_LAB, lineKias);
+    return { pullX: 0, pullY: 0, vdx: W.tasFtps * Math.cos(psiCmd), vdy: W.tasFtps * Math.sin(psiCmd), speed: W.tasFtps, psiCmd, kiasCmd };
+  }
+
   if (ph.kind === 'x') {
     const windowOvertakeKt = ph.windowOvertakeKt ?? TURNING_REJOIN.stableKt[0]; // 10 kt: target 210 KIAS at decision window
     const arriveFtps = ph.arriveFtps ?? (windowOvertakeKt * KT_TO_FTPS * Math.SQRT2);
@@ -272,12 +311,13 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
   headingState.psiCmdPrev = cmd;
   headingState.omegaFf += GAIN.ffFilter * (psiStep / STEP_SEC - headingState.omegaFf);
 
-  const isRejoinKind = ph.kind === 'line' || ph.kind === 'x';
+  const isRejoinKind = ph.kind === 'line' || ph.kind === 'x' || ph.kind === 'leadIn';
   const tauSec = isRejoinKind ? (ph.tauSec ?? (ph.kind === 'x' ? 6 : 4)) : null;
   const gainHdg = tauSec != null ? (1 / tauSec) : GAIN.heading;
   const omegaCmd = gainHdg * wrapPi(cmd - W.headingRad) + (ph.feedForward === false ? 0 : headingState.omegaFf);
 
   let cap = aligning ? ph.alignBankDeg ?? T.alignBankDeg : ph.bankCapDeg;
+  if (ph.kind === 'leadIn') cap = Math.min(cap, 45);
   if (isRejoinKind) {
     cap = Math.min(cap, stallBankDeg(W.kias));
     const floorNow = ph.floorKias ?? KIAS_OUTSIDE_LAB;
@@ -503,7 +543,7 @@ function isFwConeSettled(L, W, relVel, side = null) {
   const down = (L.altAboveFt ?? 0) - (W.altAboveFt ?? 0);
 
   // SMM 12.29 para 69: 500-1,000 ft, 30-60° sweep, stepped down (0 to 200 ft below Lead)
-  const inRange = r >= 480 && r <= 1020;
+  const inRange = r >= 500 && r <= 950;
   const inSweep = sweepDeg >= 28 && sweepDeg <= 62;
   const inAlt = down >= -5 && down <= 200;
   const sideOk = side == null || side === 0 || Math.sign(rel.left) === Math.sign(side);
@@ -525,9 +565,9 @@ function isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt, timesK, early, heig
   const pursuitResult = early !== undefined ? early : (ph.pursuit && ph.pursuitEnds ? ph.pursuit(L, W, t) : undefined);
   let newStoppedAt = stoppedAt;
 
-  // Native handling for line and canopy-X phases
-  if (ph.kind === 'line' || ph.kind === 'x') {
-    if (L && ph.side != null && !ph.allowAcross) {
+  // Native handling for line, canopy-X, and lead-in phases
+  if (ph.kind === 'line' || ph.kind === 'x' || ph.kind === 'leadIn') {
+    if (L && ph.side != null && !ph.allowAcross && ph.kind !== 'leadIn') {
       const rel = relativeTo(L, W);
       const r = Math.hypot(rel.fwd, rel.left);
       if (rel.left * ph.side < -50 && r < 2000) {
@@ -685,7 +725,9 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     const gateOpen = t >= (ph.holdUntil ?? -Infinity) - 1e-9;
 
     if (pclMaxActive) {
-      const onLine = aim.cross != null && Math.abs(aim.cross) <= (ph.captureFt ?? 150);
+      const onLine = (aim.cross != null && Math.abs(aim.cross) <= (ph.captureFt ?? 150)) ||
+                     (aim.bXDeg != null && Math.abs(aim.bearingDeg - aim.bXDeg) <= 5.0) ||
+                     (Boolean(aim.crossedNose));
       const atSpeed = W.kias >= (ph.lineKias ?? 220);
       const rNow = Math.hypot(L.xFt - W.xFt, L.yFt - W.yFt);
       const nearLead = (aim.along != null && aim.along <= 1500) || rNow <= 1500;
@@ -723,10 +765,11 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       if (inPos.advance) {
         stoppedAt = null;
         times[k].t1 = t;
+        headingState.psiCmdPrev = null;
         k++;
         const next = phases[k];
         const R2 = recOf(next);
-        if (ph.kind === 'line' || ph.kind === 'x') {
+        if (ph.kind === 'line' || ph.kind === 'x' || ph.kind === 'leadIn') {
           const L2 = R2.at(m);
           const relNow = relativeTo(L2, W);
           Object.assign(ref, { f: relNow.fwd, l: relNow.left, vf: 0, vl: 0 });

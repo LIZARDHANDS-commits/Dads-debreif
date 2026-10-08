@@ -76,11 +76,12 @@ export function pilotSpeed(p, W, aWant, { blockFt, top = 'power', floorThr = 0, 
   const g = Math.max(1, Math.abs(W.g ?? 1));
   const climb = climbKtps ?? climbCostKtps(W, W.climbFtps ?? 0);
   const aMax = fullPowerKtps(W.kias, blockFt, g) - climb;
-  const aMin = slowKtps(top ?? 'power', W.kias, blockFt, g, floorThr) + climb + extraSlowKtps;
+  const aMin = Math.min(7.95, slowKtps(top ?? 'power', W.kias, blockFt, g, floorThr) + climb + extraSlowKtps);
   const want = Math.max(-aMin, Math.min(aMax, aWant));
   const jerk = pilotJerkKtps2() * dt;
   p.accel += Math.max(-jerk, Math.min(jerk, want - p.accel));
-  p.accel = Math.max(-aMin, Math.min(aMax, p.accel)); // never past what the power and drag give now
+  if (p.accel < -aMin && want <= -aMin) p.accel = -aMin;
+  if (p.accel > aMax && want >= aMax) p.accel = aMax;
   let kias = W.kias + p.accel * dt;
   if (snapKias != null && Math.abs(snapKias - kias) < snapTol) {
     p.accel = (snapKias - W.kias) / dt;
