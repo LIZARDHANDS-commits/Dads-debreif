@@ -53,7 +53,14 @@ Observed bases: `map.js` asks wx's `fetchReports` for the METARs of the stations
 | `weather3d.js` | Those layers' three.js objects (instanced boxes for the shafts and bolts, a sheet, ribbons and fills for the fronts, line segments for the flow). |
 | `weather3d-layers.js` | Puts them together for `view3d.js`: reads the pictures, works out heights from the model, builds each layer only when what it is made from changed, and runs the wind flow's frame loop (only while the layer is on and the view is shown; it steps every 2 s with reduced motion). |
 | `tour-model.js` | The 3D view's Tour (Dad, 7 Oct): the list of targets (`TOUR_TARGETS`: the Moose Jaw circuit, Regina, then each airborne T-6), about 20 s at each, the smooth fly between them (about 2 s), the caption words and the camera's pose part-way through a fly. `view3d.js` moves the camera in Orbit's own frame loop. |
+| `sites/` | The site profiles (plan Step 2c, part A): `siteFor(homeIcao)` gives the frozen profile of the SOF's own data for a home base (`cymj.js` is Moose Jaw's, `generic.js` is for a field with none). See "Site profiles" below. |
 | `sof.css` | The styles, all under `[data-module='sof']`. Loaded when the SOF opens and removed when it closes. |
+
+## Site profiles
+
+The SOF will run at more than one base, so what is specific to a base lives in one **site profile** per base in `sites/`, and the SOF reads the profile for the current home field (`app.airfields.home().icao`) wherever it used to read a Moose Jaw constant, again whenever home changes. A profile holds: `airspace` (the 3D view's areas, each with its source), `watchedAreas`, `towns`, `anchorStations`, `tourTargets`, `magVarDegE` (`{ value, source }`), the map box, whether the VNC `charts` are available, the `routes` it draws (`training` is the Debrief's routes layer, `tacnav` the TACNAV lines in 3D), the `sources` it uses (`radar`, `lightning`, `satellite`, `warnings`, `modelClouds`, `modelCloudMask`, `notams`, `alerts`, `fronts`, each naming its service and credit), the `credits` words, and `standards` (the weather limits, or `null`). Moose Jaw's profile (`cymj.js`) only points at the modules that already held the data, so there is one copy of each number; it is used for CYMJ and for any other Canadian field (ICAO starting with C), which is what the SOF did before profiles. Any other field gets `GENERIC` (`generic.js`): everything empty, every source `null`, `standards: null`.
+
+A source that is `null` is never treated as "nothing found". Its feed is not started, and its line reads "Lightning: no source for this base, can't tell" (amber, with a warning symbol, never a tick) in the map strip, the 3D strip, the model panel and the cards (NOTAMs, SIGMETs and PIREPs). The near-home lightning check (`lightning.js`, `hasSource`) can never say "No lightning within 20 NM ✓" for such a base. Part A changes nothing on screen for Moose Jaw.
 
 ## What the screen shows
 
