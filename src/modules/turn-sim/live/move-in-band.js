@@ -212,11 +212,12 @@ export function planMoveInBand(pair, target, options = {}, t0 = 0) {
   const closeIn = !open;
   const refs = { [lead.id]: recordFlight(lead, leadPlan, t0) };
   const dAlt = Math.abs(target.alt - now.alt);
-  const level = dAlt > 0 && Math.hypot(target.fwd - now.fwd, target.left - now.left) >= 1
+  const dHoriz = Math.hypot(target.fwd - now.fwd, target.left - now.left);
+  const level = dAlt > 0 && dHoriz >= 1 && !open
     ? trackTwice({ refs, wing0: wing, t0, phases: onClosure([phase({ fwd: target.fwd, left: target.left, alt: now.alt }, { tactical: open })], { closeIn }), blockFt, stopWhenSettled: true }).run
     : null;
-  const across = level?.ok ? level.durationSec : 0;
-  const tries = dAlt > 0 ? (open ? [openMoveAltSec(target.alt - now.alt, wing, blockFt, Math.hypot(target.fwd - now.fwd, target.left - now.left)), ...(target.alt > now.alt ? [dAlt / MOVE_ALT_RATE_FTPS] : [])] : [dAlt / MOVE_ALT_RATE_FTPS]) : [0];
+  const across = open ? (dHoriz > 1 ? dHoriz / 140 : 0) : (level?.ok ? level.durationSec : 0);
+  const tries = dAlt > 0 ? (open ? [openMoveAltSec(target.alt - now.alt, wing, blockFt, dHoriz), ...(target.alt > now.alt ? [dAlt / MOVE_ALT_RATE_FTPS] : [])] : [dAlt / MOVE_ALT_RATE_FTPS]) : [0];
   // A big loss (DIVE_ROLL) steep enough is rolled inverted and pulled down, then rolled out and pulled through near the spot.
   const bigDive = (sec) => {
     if (!(target.alt < now.alt - DIVE_ROLL.minFt) || Math.hypot(target.fwd - now.fwd, target.left - now.left) > DIVE_ROLL.acrossPerFt * dAlt) return {};
