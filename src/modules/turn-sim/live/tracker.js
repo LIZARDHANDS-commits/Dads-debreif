@@ -591,6 +591,19 @@ function isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt, timesK, early, heig
     };
   }
 
+  if (ph.isSwitching && ph.isSwitching()) {
+    return {
+      abort: false,
+      done: false,
+      advance: false,
+      settled: false,
+      startAligning: false,
+      early: pursuitResult,
+      stoppedAt: newStoppedAt,
+      relVel,
+    };
+  }
+
   const isFwPhase = Boolean(ph.isFw || ph.coneAlt || (ph.goal && !ph.kind));
   const fwSettled = isFwPhase && last && gateOpen && isFwConeSettled(L, W, relVel, ph.side);
 

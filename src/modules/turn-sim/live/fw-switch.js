@@ -80,5 +80,5 @@ export function fwSwitch(sTo) {
     const rel = relativeTo(L, W);
     return { fwd: rel.fwd, left: rel.left };
   };
-  return { pursuit, goal };
+  return { pursuit, goal, side: sTo, isSwitching: () => stage !== 'done' };
 }
