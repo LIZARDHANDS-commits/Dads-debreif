@@ -1,215 +1,109 @@
-# Implementation Plan: Completing Slice 7 (The Real Architectural Solution)
+# Implementation Plan: In-Browser Teaching Score Table & Nelder-Mead Polish Optimizer (Slices 8 & 9)
 
-## 1. Overview & Context
+## Overview & Architecture
 
-During the Phase 3 tracker migration, Slices 0 through 6 were implemented cleanly and faithfully. However, **Slice 7** collapsed into a facade:
-- `rejoin-law.js` wrapped the legacy turning intercept math inside a `pursuit` callback that forced `bankDeg` and `aCmd` directly onto `tracker.js`, bypassing the tracker's native `headingBank` and `powerOf` guidance loops.
-- `turning-rejoin.js` and `straight-rejoin.js` were never unified into continuous tracker phase sequences; they still execute in two fragmented stages (`part` followed by a stitched `trackTwice` hand-over).
-- Standalone legacy planners `echelon-to-fw.js` and `open-out.js` were left in the codebase and are still raced by `chooser.js`.
-- Tactical station changes in Fighting Wing (FW) and Line Abreast (LAB) suffer from severe lateral vs. vertical rate asymmetry (140 ft/s lateral vs. a close-formation 15 ft/s vertical cap).
+This plan delivers **Slice 8** (13-Term Score Table & Doctrine Price Tag Engine) and **Slice 9** (In-Browser Nelder-Mead Simplex "Polish" Optimizer) for Pat's Formation Simulator in `src/modules/turn-sim/`.
 
-This plan completes the **genuine architectural migration of Slice 7**, resolving the -81.5° bank spike, eliminating the FW cone blow-through, harmonizing tactical vertical rates, and unblocking the Phase 4 3D point-mass and optimizer engine.
-
----
-
-## 2. Relevant Project Documents & Plans Cited
-
-1. **Master Tracker-Only Migration Plan**: `C:\Users\patri\.gemini\antigravity\brain\73c96d76-a618-4f38-a4da-8f6a21d09521\tracker-only-plan.md`
-   - *Slice 7 Specification (lines 238–270)*: Rejoin line, echelon-to-FW, and full-power opening out flown natively by the tracker.
-   - *Phase 4 Transition (lines 272–276)*: 100% of standard moves flown by one unified controller outputting (phi, n, tau, b).
-2. **Turn-Sim Master Plan & Decisions**:
-   - `docs/modules/turn-sim/plan.md`: Step 6 (Tracker-Only Migration and Invariant Enforcement, lines 192–203).
-   - `docs/modules/turn-sim/decisions.md`:
-     - **TS-150**: All 2-ship formation changes and rejoin lines flown by the unified tracker; drawn kinematic lines deleted.
-     - **TS-151**: 3D Point-Mass Guidance Law Bridge and Invariant Enforcement.
-     - **TS-75**: Never below 200 KIAS unless close in and hot; settling where #2 arrives in the fighting wing cone.
-     - **TS-106**: Canopy-X lock for close rejoins; window arrival at 250–100 ft, 10–20 KIAS.
-3. **Fable's Architectural Review**:
-   - `Pat's claude work/formation-review-package/report/lines-removal-report.md` (Sections 1.2 A & D, 6.4 C & D: Elimination of dual-planner stitching and unifying under one pilot model).
-4. **Post-Slice 7 Optimizer Plan**:
-   - Preserved in `tasks/optimizer-slices-8-9-plan.md` and `tasks/optimizer-slices-8-9-todo.md`.
-
----
-
-## 3. Dependency Graph
+Following the validated CasADi continuous optimal control benchmark ($50\%\text{--}80\%$ time reductions, $3.03\text{ s/G}$ and $0.194\text{ s/deg}$ shadow prices) and the **Architecture Audit (7 Oct 2026)**, this brings quantitative doctrine evaluation and fair, physics-consistent optimization directly into the web application:
+1. **Pre-Optimizer Speed Honesty (Task 0):** Retire the legacy `setKias` fallback in `replay.js` so that all speed changes are 100% physically integrated by the T-6A point-mass equations across both tracker baselines and optimizer candidates.
+2. **Interactive Teaching (Slice 8):** Evaluates any flight plan in seconds-equivalent across 13 doctrinal terms and renders the trade breakdown on the pilot card (e.g. *By-the-Book: 26 s | Unrestricted: 12 s | Traded: 14 s*) without altering flight paths.
+3. **Deterministic Simplex Polish (Slice 9):** Adds a user-facing `Polish` switch running a lightweight 60-line Nelder-Mead simplex search over 26 control parameters (8 bank, 8 G, 8 throttle, 1 speedbrake instant, 1 duration scale; $\le 300$ flights, $< 100\text{ ms}$) seeded from the winning technique track.
 
 ```
-Task 1: Native Line & Canopy-X Aim in tracker.js (aimOf)
-  │     Remove bankOwn / aCmdOwn bypass hooks
-  │
-  ├───► Task 2: Turning Rejoin as Single Continuous Phase Sequence
-  │       (Eliminate flyTurningLine & flyOnTheX; Cone bank-match blend)
-  │
-  ├───► Task 3: Straight-Ahead Rejoin as Single Continuous Phase Sequence
-  │       (Eliminate flyToDecision; 3-phase six-line array)
-  │
-  ├───► Task 4: Retire echelon-to-fw.js & open-out.js
-  │       (Migrate to recipes.js; delete standalone files; clean chooser.js)
-  │
-  └───► Task 5: Harmonize Tactical Vertical Kinematics
-          (Split close 15 ft/s vs tactical 45 ft/s in moves.js & tracker.js)
+                           PRESS (Formation button, Rates, Polish switch)
+                                           |
+                                           v
+   +----------------------------------------------------------------------------------+
+   |  CHOOSER (src/modules/turn-sim/live/chooser.js)                                  |
+   |  Races standard technique planners; when Polish is ON, races Polish candidate     |
+   +----------------------------------------------------------------------------------+
+        |                                                                  |
+        v                                                                  v
+   Technique Planner (TRJ, SARJ, FW, Roll)                      OPTIMISER (Slice 9)
+        |                                                                  |
+        |---> Winner's Track (Seed) -------------------------------------->|
+        |                                                                  v
+        |                                               +------------------------------------+
+        |                                               | 1. controls.js: 26 Knots -> Curves |
+        |                                               |    Bank(t), G(t), Pwr(t), Boards   |
+        |                                               +------------------------------------+
+        |                                                                  |
+        |                                                                  v
+        |                                               +------------------------------------+
+        |                                               | 2. fly.js: Candidate Simulator     |
+        |                                               |    Calls stepAircraft directly     |
+        |                                               +------------------------------------+
+        |                                                                  |
+        |                                                                  v
+        |                                               +------------------------------------+
+        |                                               | 3. score.js (Slice 8):             |
+        |                                               |    13-term cost table (seconds)    |
+        |                                               +------------------------------------+
+        |                                                                  |
+        |                                               +<--- Simplex Search (search.js) ----+
+        |                                               |     Reflect, Expand, Contract      |
+        |                                               |     Stop: < 0.1s gain / 300 flts   |
+        |                                               v
+        |                                       Best Track + Score Breakdown
+        |                                               |
+        +-----------------------------------------------+
+                                |
+                                v
+                      PILOT CARD & REPLAY
+                      • Flight Replay: Exact point-mass step & envelope gate (no setKias)
+                      • Slice 8 Card: Traded seconds (By-the-Book vs Unrestricted)
+                      • Slice 9 Card: Polish savings ("Optimised 41s vs 47s; Traded 6s")
 ```
 
 ---
 
-## 4. Task Breakdown
+## Architectural Decisions & Audit Refinements
 
-### Task 1: Native Line & Canopy-X Aim Point Generation in `tracker.js`
+1. **Pre-Optimizer Physics Unification (Audit Finding 1):**
+   - In `replay.js:61`, the legacy `setKias(a, kias)` branch is retired. All `bankTrack` segments must supply `accelKtps` so that `stepAircraft` natively integrates speed through thrust minus drag equations.
+   - Guarantees an honest, fair chooser race between tracker baselines and optimizer candidates.
 
-**Description:**  
-Extend `aimOf` to natively evaluate `ph.kind === 'line'` and `ph.kind === 'x'` in world coordinates, providing target position and velocity directly to `headingBank` and `closureOf`. Remove `bankOwn`, `aCmdOwn`, `floorThrOwn`, and `extraSlowKtpsOwn` bypass hooks from `tracker.js`.
+2. **Zero Client Libraries (`AGENTS.md` Compliant):**
+   - No Wasm IPOPT, NLopt, or external math packages.
+   - The Nelder-Mead simplex is a self-contained ~60-line textbook algorithm using plain JavaScript arithmetic.
 
-**Acceptance criteria:**
-- `aimOf` computes the line intercept point and velocity in the world frame given line angle, side, and capture distance.
-- `aimOf` computes the canopy-X visual intercept aim point (Lead held at 45° off tail).
-- `headingBank` natively commands bank angle with Lead turn feedforward and bank capping, without requiring any external `bankDeg` override.
-- `bankOwn` and `aCmdOwn` bypass hooks are removed from `runTracker`.
-- Unit tests for tracker aim generation pass cleanly.
+3. **Seconds-Equivalent Objective Function (Slice 8):**
+   - Every score term is expressed in **seconds-equivalent**.
+   - Energy dumped is converted to the seconds full power needs to win it back at that speed: $\Delta t = \Delta h / [V \cdot (T - D) / W]$ using core `excessThrustPerWeight`.
+   - Control movement is scaled using integrated square acceleration: $\int (\dot{p}^2 + \dot{n}^2 + \dot{\tau}^2)\,dt$.
+   - Hard constraints (500 ft bubble, 3/9 line) act as hard rejections for standard plans, and steep exterior quadratic penalty barriers ($w = 10,000$) during simplex search.
 
-**Verification:**
-- Tests pass: `node --test tests/unit/turn-sim/tracker.test.js`
-- Build succeeds: `node --check src/modules/turn-sim/live/tracker.js`
+4. **26 Optimization Parameters (Audit Finding 2):**
+   - $K = 8$ knots for Bank $\phi$, $8$ knots for Load factor $n$, $8$ knots for Throttle $\tau$, plus $1$ speedbrake switch-on time $t_{\text{boards}}$, and $1$ overall duration scale $T$.
+   - Knots are interpolated with the existing `smoother` function in `flight.js`.
+   - Seeding samples the winning technique track at knot times. If second-best technique is within `TIE_SEC`, both are polished and the better outcome is kept.
 
-**Dependencies:** None  
-**Files likely touched:**
-- `src/modules/turn-sim/live/tracker.js`
-- `tests/unit/turn-sim/tracker.test.js`
+5. **Warm-Start Shift Logic (Audit Finding 3):**
+   - At a mid-move press, the previous solution's knots are shifted left in normalized time: $u_{\text{new}} = (u_{\text{old}} \cdot T - \Delta t) / (T - \Delta t)$, allowing the simplex to converge in a few dozen flights instead of 300.
 
-**Estimated scope:** Medium (2 files)
+6. **Candidate Simulation via `stepAircraft` (Audit Finding 4):**
+   - `optimise/fly.js` calls the canonical `stepAircraft` directly rather than creating a parallel integrator, guaranteeing zero physics divergence.
 
----
-
-### Task 2: Turning Rejoin as a Single Continuous Phase Sequence (`turning-rejoin.js`)
-
-**Description:**  
-Refactor `planTurningRejoin` and `flyTurningRejoinWith` to build and execute a single continuous tracker phase array `[phase(lineAim, ...), ...closePhases]`.
-For rejoins to Fighting Wing (`to === 'fw'`):
-- As #2 closes within 1,000 ft and approaches the cone (30°–45° sweep), the bank cap smoothly eases toward Lead's bank (-30°), nulling line-of-sight angular rate.
-- Handover to `fwGoal` occurs as a native phase advance (`isIn`) at the cone boundary.
-For rejoins to close formation (`to !== 'fw'`):
-- Phase 1 runs the canopy-X phase (`kind: 'x'`) closing to the window (250–100 ft, 10–20 kt).
-- Phase 2 flows into wing-plane ease and close-in legs.
-Eliminate `flyTurningLine` and completely delete procedural `flyOnTheX`.
-
-**Acceptance criteria:**
-- HOTRJ to FW executes in a single continuous tracker flight with zero stitched handovers.
-- #2's peak bank during FW arrival does not spike to -81.5° (stays <= 50°).
-- #2 settles inside the Fighting Wing cone (500–1,000 ft, 30°–60° sweep) without blowing through the 60° rear boundary.
-- Settling time to in-position drops from >62 s to <25 s.
-- Procedural `flyOnTheX` loop is completely removed.
-
-**Verification:**
-- Tests pass: `node --test tests/unit/turn-sim/transitions.test.js`
-- Manual script: verify cone capture and bank <= 50° on `change:fw`.
-
-**Dependencies:** Task 1  
-**Files likely touched:**
-- `src/modules/turn-sim/live/turning-rejoin.js`
-- `src/modules/turn-sim/live/rejoin-law.js`
-
-**Estimated scope:** Medium (2 files)
+7. **Rates Persona Clamping:**
+   - Knots are clamped to Rates profile bounds:
+     - **Student:** Bank $\le 60^\circ$, $G \le 3$, roll share $0.5$.
+     - **Instructor:** $G \le 4$, roll share $0.75$.
+     - **AI:** Full airframe envelope (G rule ceiling 7 G, full roll onset).
 
 ---
 
-### Task 3: Straight-Ahead Rejoin as a Single Continuous Phase Sequence (`straight-rejoin.js`)
+## Phase Breakdown
 
-**Description:**  
-Refactor `planStraightRejoin` and `flyStraightRejoinWith` to build a single continuous phase array:
-1. Phase 1: Full-power cut toward Lead's six line (`STRAIGHT_AHEAD.sixFt`, -1,000 ft).
-2. Phase 2: Line run-up and 500 ft vector point.
-3. Phase 3: Route flow-through into the close slot.
-Eliminate `flyToDecision` and procedural concatenation of `[...part.points, ...run.points]`.
+### Phase 0: Pre-Optimizer Speed Honesty
+- **Task 0: Retire `setKias` Fallback & Ensure Physical Speed in `replay.js`**
 
-**Acceptance criteria:**
-- SARJ executes as a single continuous tracker flight.
-- #2 cuts toward Lead's six line, holds speed target, and vectors smoothly to the echelon/route slot.
-- Handover concatenation `[...part.points, ...run.points]` is completely removed.
-- Unit tests for straight-ahead rejoin pass 100%.
+### Phase 1: Slice 8 — 13-Term Score Table & Doctrine Price Tag Engine
+- **Task 1: Core 13-Term Score Engine (`optimise/score.js`, `modes.js`)**
+- **Task 2: Score Integration & Pilot Card Readout (`transitions-panel.js`, `layout.js`)**
+- **Checkpoint 1: Slice 8 Verified (Unit tests green, zero flight path modification, card displays accurate price tag)**
 
-**Verification:**
-- Tests pass: `node --test tests/unit/turn-sim/transitions.test.js`
-- Regression check across AI, Instructor, and Student rates.
-
-**Dependencies:** Task 1  
-**Files likely touched:**
-- `src/modules/turn-sim/live/straight-rejoin.js`
-
-**Estimated scope:** Small (1 file)
-
----
-
-### Checkpoint 1 (After Tasks 1–3)
-- `runTracker` contains zero bypass hooks (`bankOwn`, `aCmdOwn`).
-- Both turning rejoin and straight-ahead rejoin execute as single continuous tracker flights.
-- HOTRJ to FW settles inside the cone in <25 s without blowing through to 75° sweep.
-- All unit tests pass: `node --test tests/unit/turn-sim/`.
-
----
-
-### Task 4: Retire Standalone `echelon-to-fw.js` & `open-out.js` into Tracker Recipes
-
-**Description:**  
-Migrate the drop-back and sweep maneuvers of `echelon-to-fw.js` and the full-power opening out dive of `open-out.js` into standard tracker recipes in `recipes.js`. Update `chooser.js` to race the tracker recipes directly under standard technique cards, and delete both legacy standalone files.
-
-**Acceptance criteria:**
-- Echelon to FW is flown by tracker recipe (`sweepOut` with `fwGoal`) in ~10–12 s.
-- Opening out at full power is flown by tracker recipe (`openOut` with `energyIntent: 'gain'`).
-- `src/modules/turn-sim/live/echelon-to-fw.js` is deleted.
-- `src/modules/turn-sim/live/open-out.js` is deleted.
-- `chooser.js` cleanly races named techniques backed by tracker phases.
-
-**Verification:**
-- Tests pass: `node --test tests/unit/turn-sim/*.test.js`
-- Grep verification: `git grep "echelon-to-fw"` and `git grep "open-out"` return zero stale imports.
-
-**Dependencies:** Task 2  
-**Files likely touched:**
-- `src/modules/turn-sim/live/recipes.js`
-- `src/modules/turn-sim/live/chooser.js`
-- Delete: `src/modules/turn-sim/live/echelon-to-fw.js`
-- Delete: `src/modules/turn-sim/live/open-out.js`
-
-**Estimated scope:** Medium (4 files)
-
----
-
-### Task 5: Harmonize Tactical Vertical Kinematics (`moves.js` / `tracker.js`)
-
-**Description:**  
-Resolve the severe lateral vs. vertical rate mismatch in station changes. In `moves.js`, split `KINEMATIC.verticalFtps` into close formation (15 ft/s = 900 fpm) vs. tactical formation (45 ft/s = 2,700 fpm). Update `tracker.js` (`heightOf`) to apply the appropriate rate limit based on formation context, and coordinate lateral and vertical phase durations so #2 arrives across and vertically at the same time.
-
-**Acceptance criteria:**
-- In tactical formations (FW and LAB), vertical altitude adjustments use realistic tactical rates (40–50 ft/s).
-- Close formations (echelon, route, astern) retain safety-calibrated 15 ft/s rate limits.
-- Position changes in FW and LAB achieve synchronized lateral and vertical arrival without lingering vertical drift.
-- Zero bubble violations (< 500 ft) or G limit exceedances.
-
-**Verification:**
-- Tests pass: `node --test tests/unit/turn-sim/`
-- Flight set runner: `node "Pat's claude work/turn-sim-review/fset.mjs" .` executes all 57 presses cleanly.
-
-**Dependencies:** Task 2, Task 4  
-**Files likely touched:**
-- `src/modules/turn-sim/live/moves.js`
-- `src/modules/turn-sim/live/tracker.js`
-- `src/modules/turn-sim/live/recipes.js`
-
-**Estimated scope:** Small to Medium (3 files)
-
----
-
-### Checkpoint 2 (Final Verification & Sign-Off)
-- All 57 flight set presses pass cleanly with no safety violations.
-- HOTRJ to FW and SARJ are verified in the live browser (`http://localhost:5174/#/turn-sim`).
-- Station changes in FW and LAB show synchronized, authentic T-6A lateral and vertical kinematics.
-- Entire test suite passes 100%.
-
----
-
-## 5. Risks and Mitigations
-
-| Risk | Impact | Mitigation |
-| :--- | :---: | :--- |
-| **Search Convergence in `searchTurningRejoin`** | Medium | The search over aims and overtakes will now evaluate single-pass tracker phases. Keep the search ranges aligned with existing step increments. |
-| **Roll-out Timing Disconnect** | Low | Lead's turn duration is computed to whole-degree steps (`wholeDegree`). Tracker phases advance via `isIn` when settled. |
-| **Existing Incomplete Plan Collision** | Low | Slices 8 & 9 are preserved in `tasks/optimizer-slices-8-9-plan.md` and `tasks/optimizer-slices-8-9-todo.md`. |
+### Phase 2: Slice 9 — In-Browser Nelder-Mead "Polish" Optimizer
+- **Task 3: 26-Parameter Knot Control & `stepAircraft` Simulation Step (`optimise/controls.js`, `optimise/fly.js`)**
+- **Task 4: Nelder-Mead Simplex Search & Planner Bridge with Warm-Start Shift (`optimise/search.js`, `optimise/planner.js`)**
+- **Task 5: Chooser Race & UI "Polish" Switch (`chooser.js`, `transitions-panel.js`)**
+- **Checkpoint 2: Slice 9 Verified (Simplex converges $\le 300$ flights, $< 100\text{ ms}$, yields positive seconds savings without violating bubble or lane)**

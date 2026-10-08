@@ -78,15 +78,19 @@ function aimOf(ph, L, Lprev, ref, W, t) {
     const px = W.xFt + dWorld.x * dAim;
     const py = W.yFt + dWorld.y * dAim;
     const omegaL = Lprev ? wrapPi(L.headingRad - Lprev.headingRad) / STEP_SEC : 0;
-    const rx = px - L.xFt;
-    const ry = py - L.yFt;
-    const vpx = L.tasFtps * f.x - omegaL * ry;
-    const vpy = L.tasFtps * f.y + omegaL * rx;
+    const dx = L.xFt - W.xFt;
+    const dy = L.yFt - W.yFt;
+    const r = Math.hypot(dx, dy);
+    const vfx = L.tasFtps * f.x + omegaL * dy;
+    const vfy = L.tasFtps * f.y - omegaL * dx;
     const ex = px - W.xFt;
     const ey = py - W.yFt;
     const d = Math.hypot(ex, ey);
-    const arrived = along <= (ph.decisionFt ?? 750) && Math.abs(cross) <= (ph.captureFt ?? 50);
-    return { px, py, vpx, vpy, ex, ey, d, arrived, along, cross, dWorld, omegaL, slot: ph.slot ?? { fwd: rel.fwd, left: rel.left, alt: ph.slot?.alt ?? 0 } };
+    const inCone = (ph.coneEase || ph.isFw)
+      ? (along <= (ph.decisionFt ?? 750) || (r <= 1100 && along <= 1000))
+      : false;
+    const arrived = inCone || (along <= (ph.decisionFt ?? 750) && Math.abs(cross) <= (ph.captureFt ?? 50));
+    return { px, py, vpx: vfx, vpy: vfy, vfx, vfy, ex, ey, d, arrived, along, cross, dWorld, omegaL, slot: ph.slot ?? { fwd: rel.fwd, left: rel.left, alt: ph.slot?.alt ?? 0 } };
   }
 
   if (ph.kind === 'x') {
@@ -189,12 +193,10 @@ function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT) {
     if (Math.abs(omegaL) < 1e-4) {
       psiCmd = Math.atan2(aim.dWorld.y, aim.dWorld.x);
     } else {
-      const pullX = aim.dWorld.x * wantClosure;
-      const pullY = aim.dWorld.y * wantClosure;
-      const vdx = aim.vpx + pullX;
-      const vdy = aim.vpy + pullY;
-      const speed = Math.hypot(vdx, vdy);
-      psiCmd = speed > T.minSpeedFtps ? Math.atan2(vdy, vdx) : L.headingRad;
+      const ad = aim.vfx * aim.dWorld.x + aim.vfy * aim.dWorld.y;
+      const disc = ad * ad - (aim.vfx * aim.vfx + aim.vfy * aim.vfy) + W.tasFtps * W.tasFtps;
+      const lam = disc >= 0 ? Math.max(0, Math.sqrt(disc) - ad) : 0;
+      psiCmd = disc >= 0 ? Math.atan2(aim.vfy + lam * aim.dWorld.y, aim.vfx + lam * aim.dWorld.x) : Math.atan2(aim.dWorld.y, aim.dWorld.x);
     }
     const over = ph.overtakeKt != null ? ph.overtakeKt : 20;
     const floorKias = ph.floorKias ?? KIAS_OUTSIDE_LAB;
