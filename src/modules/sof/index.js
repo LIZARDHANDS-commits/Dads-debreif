@@ -147,6 +147,9 @@ function mount(root, app) {
       const conditions = snapshot.metar[c.icao]?.report?.conditions ?? null;
       return [c.icao, crosswindFor({ icao: c.icao, role: c.role, metar: c.metar, wind: conditions?.wind ?? null, weather: conditions?.weather ?? [], settings: xwSettings, levels: homeLimitsSet, homeIcao, usaf: usaf?.crosswind ?? null })];
     }));
+    // The runway in use at each field from its METAR wind (Dad, 8 Oct 2026; runway-in-use.js): the approaches drawn and checked, and the cards' line, follow it.
+    // Worked out again on every render, so a new METAR or a new home moves it; nothing is fetched for it.
+    map.setRunways({ cards: screen.cards, snapshot });
     const xwCautions = homeLimitsSet ? [...winds.values()].map((x) => x?.caution).filter(Boolean) : [];
     const noReports = usaf ? noReportStations(snapshot, app.airfields.alternates().map((f) => f.icao)) : undefined;
     const waves = buildWaves({ plan: plan.get(), airfields: app.airfields, tafs, limits, now, timeZone: app.time.zone, selectedId, tafNotes: notes, noReports });
@@ -207,10 +210,13 @@ function mount(root, app) {
     map.update({ snapshot, screen, alerts: alertsState });
   }
 
-  /** A card's approach lines: the alternates' "Published approaches: ...; non-GPS: yes" (never home's), and the corridor summary for any field checked in 3D. */
+  /**
+   * A card's approach lines: the runway in use and the approaches to it ("Runway in use 13 (wind 160° true 12 kt: 11 kt headwind) — ILS or LOC RWY 13R"), the
+   * alternates' "Published approaches: ...; non-GPS: yes" (never home's), and the corridor summary for any field checked in 3D.
+   */
   function cardApproachLines(card) {
-    const { published, corridor } = map.approachLines(card.icao);
-    return [card.role === 'HOME' ? null : published, corridor].filter(Boolean);
+    const { published, corridor, runway } = map.approachLines(card.icao);
+    return [runway, card.role === 'HOME' ? null : published, corridor].filter(Boolean);
   }
 
   const stops = [

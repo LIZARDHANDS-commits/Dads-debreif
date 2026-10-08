@@ -73,6 +73,7 @@ import { buildAlerts3d, areaRingXY, ALERT_COLOURS, PIREP_COLOURS, ALERT_COLOUR_W
 import { buildApproaches } from './approaches3d.js';
 import { APPROACH_GROUPS, CORRIDOR, ESTIMATE, ESTIMATE_WORDS, HOLD_DRAW, fieldApproaches, approachGeometry, corridorCheck, corridorSummary } from './approaches-model.js';
 import { approachesOf, loadApproachesFor, APPROACHES_LOADING_WORDS, APPROACHES_FAILED_WORDS } from './sites/approaches-load.js';
+import { RUNWAY_IN_USE, RUNWAY_MODES, fieldsForRunways, shownSignature } from './runway-in-use.js';
 import { cellFt } from './weather3d-model.js';
 import { GLIDE_3D_MS, TRAIL_WINDOW_S } from './traffic-motion.js';
 import { airportsFor, AIRPORTS } from './airports-data.js';
@@ -148,14 +149,16 @@ const isColour = (v) => typeof v === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d\s.
  * { name, paths: [[[lon, lat], ...]] }), airspace (the entries to draw instead of the site profile's, for a test), onAirspaceLogOptions
  * ({ showT6, showAll }: the log panel's two ticks changed), now() (the clock in milliseconds, for gliding the aircraft between answers), onTrails(on)
  * (the Trails button was pressed), onModelHour(ms) (the model hour shown changed, or null with no model: the map asks for the HRDPS cloud picture at that hour),
- * onRainToGround(on) (the Rain to ground button was pressed: the caller keeps the choice in the SOF's "view3d" settings), onApproaches({ on, field }) (the
- * Approaches button or its field picker changed: the caller keeps the choice in the same settings), onCorridors(results) (the arrival corridor check's answer
- * for each field drawn, Map icao -> { results, summary, estimate }, an empty Map when nothing is checked: information only, for the cards), win }.
- * Returns { element, show(), hide(), setScene({ airfields, heightScale, cloudStyle, rainToGround, approaches: { on, field } }), refreshApproaches(), setModel({ status, model, lastGoodAt, now, timeZone }), setAirspaceLog(view),
+ * onRainToGround(on) (the Rain to ground button was pressed: the caller keeps the choice in the SOF's "view3d" settings), onApproaches({ on, field, runway,
+ * manual }) (the Approaches button, its field picker or its runway choices changed: the caller keeps the choice in the same settings), onCorridors(results)
+ * (the arrival corridor check's answer for each field drawn, Map icao -> { results, summary, estimate }, an empty Map when nothing is checked: information
+ * only, for the cards), getRunways() (each field's runway in use from its METAR wind, Map icao -> runway-in-use.js `runwayInUse`; a field missing from it has
+ * no METAR), win }.
+ * Returns { element, show(), hide(), setScene({ airfields, heightScale, cloudStyle, rainToGround, approaches: { on, field, runway, manual } }), refreshApproaches(), setModel({ status, model, lastGoodAt, now, timeZone }), setAirspaceLog(view),
  * touch(), home(), zoomBy(factor), isShown(), dispose() }.
  * `show()` resolves { ok: true } or { ok: false, reason: 'gl' | 'load' | 'closed' }.
  */
-export function createSofView3d({ timers, getProjection, getPictures, getWeather = () => ({ sig: 'none', radar: null, lightning: null, satellite: null, fronts: null, lines: [] }), fullScreen = null, onLost = () => {}, getSite = /** @type {() => any} */ (() => CYMJ), routes = /** @type {any} */ ([]), airspace = /** @type {any} */ (null), onAirspaceLogOptions = /** @type {(options: { showT6: boolean, showAll: boolean }) => void} */ (() => {}), now = () => Date.now(), onTrails = /** @type {(on: boolean) => void} */ (() => {}), onModelHour = /** @type {(ms: number | null) => void} */ (() => {}), onRainToGround = /** @type {(on: boolean) => void} */ (() => {}), onApproaches = /** @type {(choice: { on: boolean, field: string }) => void} */ (() => {}), onCorridors = /** @type {(results: Map<string, any>) => void} */ (() => {}), win = globalThis }) {
+export function createSofView3d({ timers, getProjection, getPictures, getWeather = () => ({ sig: 'none', radar: null, lightning: null, satellite: null, fronts: null, lines: [] }), fullScreen = null, onLost = () => {}, getSite = /** @type {() => any} */ (() => CYMJ), routes = /** @type {any} */ ([]), airspace = /** @type {any} */ (null), onAirspaceLogOptions = /** @type {(options: { showT6: boolean, showAll: boolean }) => void} */ (() => {}), now = () => Date.now(), onTrails = /** @type {(on: boolean) => void} */ (() => {}), onModelHour = /** @type {(ms: number | null) => void} */ (() => {}), onRainToGround = /** @type {(on: boolean) => void} */ (() => {}), onApproaches = /** @type {(choice: { on: boolean, field: string, runway: string, manual: Record<string, string> }) => void} */ (() => {}), onCorridors = /** @type {(results: Map<string, any>) => void} */ (() => {}), getRunways = /** @type {() => Map<string, any>} */ (() => new Map()), win = globalThis }) {
   const labels = h('div', { class: 'sof-3d-labels' });
   // The airspace volume under the pointer: its name and limits float beside the pointer (Dad, 7 Oct); nothing is written on the volumes themselves.
   const spaceTip = h('p', { class: 'sof-3d-space-tip', hidden: true });
@@ -317,6 +320,10 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   // its key with the field picker (home by default, each alternate, or all). The choice is kept in the SOF's "view3d" settings (the caller's onApproaches).
   let apprOn = false;
   let apprField = 'home';
+  // Which runways' approaches (Dad, 8 Oct 2026: "The runway in use should load the directional approaches"; runway-in-use.js): 'wind' (the default) or 'all',
+  // and the runway ends chosen by hand per field, { KSAT: '04' }, each overriding the choice for its field.
+  let apprRunway = 'wind';
+  let apprManual = /** @type {Record<string, string>} */ ({});
   const apprButton = h('button', {
     type: 'button',
     class: 'sof-3d-toggle',
@@ -325,9 +332,17 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     onclick: () => setApproaches(apprButton.getAttribute('aria-pressed') !== 'true', apprField, { save: true }),
   }, 'Approaches');
   const apprPicker = h('select', { class: 'sof-3d-appr-field', 'aria-label': 'Approaches to draw: home, an alternate, or all', onchange: () => setApproaches(true, apprPicker.value, { save: true }) });
+  const apprRunwayPicker = h('select', {
+    class: 'sof-3d-appr-field',
+    'aria-label': 'Which runways’ approaches to draw: the runway in use by the wind, or all runways',
+    title: `The runway in use is the runway end with the most headwind in the field's latest METAR (the mean wind; gusts don't change it). Ends within ${RUNWAY_IN_USE.tieKt} kt of it are kept too, and parallel runways go with it. Calm, light (under ${RUNWAY_IN_USE.lightKt} kt), variable, missing or stale wind: all runways (both numbers estimates).`,
+    onchange: () => setApproaches(apprOn, apprField, { save: true, runway: apprRunwayPicker.value }),
+  }, RUNWAY_MODES.map((m) => h('option', { value: m.value }, m.label)));
+  const apprManualRow = h('div', { class: 'sof-3d-model-row' }); // a small runway picker for each field drawn: a runway chosen by hand overrides the choice above
+  let apprManualSig = '';
   const apprKeyBody = h('div', { class: 'sof-3d-model-key-body' });
   const apprKey = h('details', { class: 'sof-3d-model-key' }, h('summary', {}, 'Approaches key'),
-    h('div', { class: 'sof-3d-model-row' }, h('label', {}, 'Field ', apprPicker)), apprKeyBody);
+    h('div', { class: 'sof-3d-model-row' }, h('label', {}, 'Field ', apprPicker), ' ', h('label', {}, 'Runways ', apprRunwayPicker)), apprManualRow, apprKeyBody);
   const spacePanel = h('div', { class: 'sof-3d-model sof-3d-space', role: 'group', 'aria-label': 'Airspace, TACNAV routes, airports, terrain, towns, SIGMETs and approaches' },
     h('div', { class: 'sof-3d-model-row' }, [...spaceButtons.values()], spaceKey, apprButton, apprKey), alertsStatus);
   const bottom = h('div', { class: 'sof-3d-bottom' }, trafficStatus, modelPanel, weatherPanel, spacePanel, credit);
@@ -1249,15 +1264,23 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     return list.includes(apprField) ? [apprField] : list.slice(0, 1);
   };
 
-  /** Turns the approaches on or off and picks the field ('home', 'all' or an ICAO); `save` tells the caller to keep the choice. */
-  function setApproaches(on, field, { save = false } = {}) {
+  /**
+   * Turns the approaches on or off and picks the field ('home', 'all' or an ICAO), and which runways ('wind' or 'all', and `manual` { ICAO: end } chosen by
+   * hand, '' or no entry following the choice); `save` tells the caller to keep the choice.
+   */
+  function setApproaches(on, field, { save = false, runway = apprRunway, manual = apprManual } = {}) {
     const nextField = typeof field === 'string' && field ? field : 'home';
-    if (on === apprOn && nextField === apprField) return;
+    const nextRunway = RUNWAY_MODES.some((m) => m.value === runway) ? runway : 'wind';
+    const nextManual = manual && typeof manual === 'object' ? Object.fromEntries(Object.entries(manual).filter(([, end]) => typeof end === 'string' && end)) : {};
+    const sameManual = JSON.stringify(nextManual) === JSON.stringify(apprManual);
+    if (on === apprOn && nextField === apprField && nextRunway === apprRunway && sameManual) return;
     apprOn = on;
     apprField = nextField;
+    apprRunway = nextRunway;
+    apprManual = nextManual;
     apprButton.setAttribute('aria-pressed', String(on));
     syncApprPicker();
-    if (save) onApproaches({ on, field: nextField });
+    if (save) onApproaches({ on, field: nextField, runway: nextRunway, manual: nextManual });
     requestRender();
   }
 
@@ -1272,11 +1295,41 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     apprPicker.value = apprField === 'all' || list.slice(1).includes(apprField) ? apprField : 'home';
   }
 
-  /** The approaches of the fields drawn now (approaches-model.js `fieldApproaches`): the CIFP's where the base's file has them, else the estimate. */
+  /** The runway choice's picker, and a small runway picker per field drawn ("by the choice above" or one of its runway ends), built again only when they change. */
+  function syncRunwayPickers(fields) {
+    apprRunwayPicker.value = apprRunway;
+    const sig = `${apprOn}|${fields.map((f) => `${f.icao}:${f.runway.ends.join('/')}`).join(',')}|${JSON.stringify(apprManual)}`;
+    if (sig === apprManualSig) return;
+    apprManualSig = sig;
+    const pickers = apprOn ? fields.filter((f) => f.runway.ends.length).map((f) => {
+      const select = h('select', {
+        class: 'sof-3d-appr-field',
+        'aria-label': `${f.icao} runway: follow the choice above, or a runway chosen by hand`,
+        onchange: () => {
+          const next = { ...apprManual };
+          if (select.value) next[f.icao] = select.value;
+          else delete next[f.icao];
+          setApproaches(apprOn, apprField, { save: true, manual: next });
+        },
+      }, h('option', { value: '' }, 'as chosen above'), ...f.runway.ends.map((end) => h('option', { value: end }, `RWY ${end}`)));
+      select.value = f.runway.ends.includes(apprManual[f.icao]) ? apprManual[f.icao] : '';
+      return h('label', {}, `${f.icao} `, select);
+    }) : [];
+    apprManualRow.hidden = !pickers.length;
+    apprManualRow.replaceChildren(...pickers.flatMap((p, i) => (i ? [' ', p] : [p])));
+  }
+
+  /**
+   * The approaches of the fields drawn now (approaches-model.js `fieldApproaches`): the CIFP's where the base's file has them, else the estimate; only those to
+   * the runway(s) shown (runway-in-use.js: the runway in use by the wind by default, all runways, or one chosen by hand).
+   */
   function apprFieldsNow() {
     const held = approachesOf(getSite());
-    return fieldApproaches({ icaos: apprChosen(), file: held.fields, airports: AIRPORTS });
+    const fields = fieldApproaches({ icaos: apprChosen(), file: held.fields, airports: AIRPORTS });
+    return fieldsForRunways({ fields, runways: getRunways(), mode: apprRunway, manual: apprManual, airports: AIRPORTS });
   }
+  /** What the runway choice shows for the fields drawn now, for the signature (so a new METAR wind that changes a runway in use builds them again). */
+  const apprRunwaySig = () => shownSignature(fieldsForRunways({ fields: apprChosen().map((icao) => ({ icao, source: '', approaches: [] })), runways: getRunways(), mode: apprRunway, manual: apprManual, airports: AIRPORTS }));
 
   function freeApproaches() {
     if (!gl?.approaches) return;
@@ -1344,7 +1397,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       const weather = corridorWeather();
       for (const f of gl.approaches.fields) {
         const list = gl.approaches.items.filter((i) => i.icao === f.icao).map((i) => corridorCheck(i.geometry, weather));
-        if (list.length) results.set(f.icao, { results: list, summary: corridorSummary(list, { estimate: f.source !== 'cifp' }), estimate: f.source !== 'cifp' });
+        if (list.length) results.set(f.icao, { results: list, summary: corridorSummary(list, { estimate: f.source !== 'cifp', runway: f.shown?.label ?? null }), estimate: f.source !== 'cifp', runway: f.shown?.label ?? null });
       }
     }
     const had = corridorResults.size > 0;
@@ -1367,8 +1420,14 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     if (held.status === 'loading' || (apprOn && held.status === 'idle')) notes.push(h('p', {}, `${APPROACHES_LOADING_WORDS} (FAA CIFP).`));
     if (held.status === 'failed') notes.push(h('p', { class: 'sof-3d-model-warn' }, `${APPROACHES_FAILED_WORDS}: the US fields show only the estimate; it is tried again the next time the 3D view opens.`));
     const fields = gl?.approaches?.fields ?? [];
+    syncRunwayPickers(fields);
     const groups = new Set(fields.flatMap((f) => f.approaches.map((a) => a.group)));
-    // The corridor words first: what the SOF looks for.
+    // Each field's runway in use (or why all runways are shown) and the approaches drawn to it, first: what the SOF chose them by.
+    if (apprOn && fields.length) {
+      notes.push(h('p', {}, `Runways (information only): by default only the approaches to each field's runway in use are drawn and checked: the runway end with the most headwind in its latest METAR (the mean wind, true wind against true runway headings; gusts don't change it), ends within ${RUNWAY_IN_USE.tieKt} kt of it kept too and parallel runways with it; with the wind calm, under ${RUNWAY_IN_USE.lightKt} kt, variable, missing or stale, all runways (${RUNWAY_IN_USE.lightKt} and ${RUNWAY_IN_USE.tieKt} kt are estimates). A circling approach serves any runway and is always kept.`));
+      notes.push(h('ul', { class: 'sof-3d-airspace-list' }, fields.map((f) => h('li', {}, `${f.icao}: ${f.line}${f.approaches.length < f.allCount ? ` (${f.approaches.length} of ${f.allCount} drawn)` : ''}`))));
+    }
+    // The corridor words next: what the SOF looks for.
     if (apprOn && fields.length) {
       const first = [...corridorResults.values()][0]?.results[0];
       notes.push(h('p', {}, `Arrival corridor, information only (never a caution, never a limit): ±${CORRIDOR.finalHalfNm} NM either side of the final segment (FAF to MAP), ±${CORRIDOR.initialHalfNm} NM either side of the initial and intermediate segments, from ${formatFeet(CORRIDOR.belowFt)} ft below the path to ${formatFeet(CORRIDOR.aboveFt)} ft above it (estimates); checked against the radar blocks, lightning cells and SIGMET/G-AIRMET volumes drawn here. The missed approach is not checked.`));
@@ -1377,7 +1436,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
         const r = corridorResults.get(f.icao);
         if (!r) continue;
         const n = r.results.filter((x) => x.hits.length).length;
-        notes.push(h('p', {}, `${f.icao}: ${n} of ${r.results.length} ${r.estimate ? 'estimated paths' : 'approaches'} with weather in the corridor.`), h('ul', { class: 'sof-3d-airspace-list' }, r.results.map((x) => h('li', { class: x.hits.length ? 'sof-3d-appr-hit' : '' }, `${x.hits.length ? '⚠ ' : ''}${x.shortWords}`))));
+        notes.push(h('p', {}, `${f.icao}: ${n} of ${r.results.length} ${r.estimate ? 'estimated paths' : 'approaches'}${r.runway ? ` to ${r.runway}` : ''} with weather in the corridor.`), h('ul', { class: 'sof-3d-airspace-list' }, r.results.map((x) => h('li', { class: x.hits.length ? 'sof-3d-appr-hit' : '' }, `${x.hits.length ? '⚠ ' : ''}${x.shortWords}`))));
       }
     }
     if (held.source && fields.some((f) => f.source === 'cifp')) notes.push(h('p', {}, `Source: ${held.source}; trimmed by tools/cifp-approaches.mjs. No minima are coded in the CIFP: minima stay entered by hand.`));
@@ -1645,7 +1704,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       apprAsked = getSite();
       loadApproachesFor(apprAsked, () => requestRender());
     }
-    const nextApprSig = apprOn ? `${scale}|${getProjection().lat},${getProjection().lon}|${AREA_NM}|${getSite().icao}|${approachesOf(getSite()).status}|${apprChosen().join(',')}` : `off|${getSite().icao}`; // off: built again only to refresh the key's picker for a new home
+    const nextApprSig = apprOn ? `${scale}|${getProjection().lat},${getProjection().lon}|${AREA_NM}|${getSite().icao}|${approachesOf(getSite()).status}|${apprChosen().join(',')}|${apprRunwaySig()}` : `off|${getSite().icao}`; // off: built again only to refresh the key's picker for a new home
     if (nextApprSig !== apprSig) rebuildApproaches(nextApprSig);
     const nextCorridorSig = apprOn ? `${apprSig}|${weatherRev}|${alertsSig}` : apprSig;
     if (nextCorridorSig !== corridorSig) runCorridors(nextCorridorSig);
@@ -2292,7 +2351,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
      */
     setScene({ airfields: next = [], heightScale = scale, cloudStyle: style = cloudStyle, rainToGround = toggles.rain, approaches = null } = {}) {
       if (typeof rainToGround === 'boolean' && rainToGround !== toggles.rain) setToggle('rain', rainToGround, { save: false }); // the stored choice
-      if (approaches && typeof approaches.on === 'boolean') setApproaches(approaches.on, approaches.field, { save: false }); // the stored choice
+      if (approaches && typeof approaches.on === 'boolean') setApproaches(approaches.on, approaches.field, { save: false, runway: approaches.runway ?? 'wind', manual: approaches.manual ?? {} }); // the stored choice
       if (style !== cloudStyle && (style === 'slabs' || style === 'levels')) {
         cloudStyle = style;
         applyModel(); // the model layers are built again in the other style
@@ -2372,7 +2431,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
       if (gl) drawAlertsKey();
       if (gl && `${spaceSig}|${next.signature}` !== alertsSig) requestRender();
     },
-    /** The approaches file may have arrived (the map loads it for the cards too): drawn again if the Approaches are on. */
+    /** The approaches file may have arrived (the map loads it for the cards too), or a runway in use changed with a new METAR: drawn again if the Approaches are on. */
     refreshApproaches() {
       if (gl && wanted && apprOn) requestRender();
     },

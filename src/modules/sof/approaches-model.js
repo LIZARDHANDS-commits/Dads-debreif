@@ -607,12 +607,15 @@ export function corridorCheck(geometry, weather) {
   return { name, hits: hits.map(({ kind, words: w }) => ({ kind, words: w })), cantTell, words, shortWords };
 }
 
-/** The card's one line for a field ("Approaches: 2 of 5 have weather in the corridor"), from its corridorCheck results; information only. */
-export function corridorSummary(results, { estimate = false } = {}) {
+/**
+ * The card's one line for a field ("Approaches: 2 of 5 have weather in the corridor"), from its corridorCheck results; information only. `runway` names the
+ * runway(s) the approaches were kept for (runway-in-use.js, "13"): "Approaches to 13: 1 of 2 has weather in the corridor".
+ */
+export function corridorSummary(results, { estimate = false, runway = null } = {}) {
   if (!results?.length) return null;
   const n = results.filter((r) => r.hits.length).length;
   const tell = results[0].cantTell.length ? `; ${results[0].cantTell.join('; ')}` : '';
-  return `${estimate ? 'Estimated approach paths' : 'Approaches'}: ${n} of ${results.length} ${n === 1 ? 'has' : 'have'} weather in the corridor${tell}. Information only (3D view, Approaches key).`;
+  return `${estimate ? 'Estimated approach paths' : 'Approaches'}${runway ? ` to ${runway}` : ''}: ${n} of ${results.length} ${n === 1 ? 'has' : 'have'} weather in the corridor${tell}. Information only (3D view, Approaches key).`;
 }
 
 /** How far along and off the final course a point is from the threshold, in NM (for the words and the test): { alongNm (out from the threshold), offNm }. */
