@@ -2629,15 +2629,17 @@ main[data-module='sof'] {
 
 /* Aircraft tags a size smaller (Dad, 8 Oct 2026: "Can the traffic tags be a lil smaller"): 11 px text, was 13 px (--text-sm), about 15 % smaller, with a
    narrower box; the always-on tags (a T-6's, and an intruder's) shrink less, to 12 px (about 8 %), so they stay easy to read. Estimates for readability. */
+/* Traffic tags in fixed pixels, small (Dad, 8 Oct 2026: "the aircraft labels are still very big"; 11 → 9 px, an estimate for readability). */
 [data-module='sof'] .sof-3d-actag {
-  padding: 0 3px;
+  padding: 0 2px;
   border: 1px solid var(--border-strong);
-  border-radius: 3px;
-  background: rgb(5 10 18 / 0.8);
+  border-radius: 2px;
+  background: rgb(5 10 18 / 0.75);
   color: #cfdde7;
   font: inherit;
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: 9px;
+  line-height: 11px;
   cursor: pointer;
   pointer-events: auto;
 }
@@ -2648,19 +2650,19 @@ main[data-module='sof'] {
 }
 
 [data-module='sof'] .sof-3d-actag.is-t6 {
-  border: 2px solid #8adfff;
-  background: rgb(5 10 18 / 0.92);
+  border: 1px solid #8adfff;
+  background: rgb(5 10 18 / 0.9);
   color: #8adfff;
-  font-size: 0.75rem;
+  font-size: 10px;
   font-weight: 700;
 }
 
 /* An aircraft that is not a T-6 inside CYA304, 305 or 307: its tag stays on, in amber, with the warning symbol and the words (information only). */
 [data-module='sof'] .sof-3d-actag.is-intruder {
-  border: 2px solid var(--caution);
-  background: rgb(5 10 18 / 0.92);
+  border: 1px solid var(--caution);
+  background: rgb(5 10 18 / 0.9);
   color: var(--caution);
-  font-size: 0.75rem; /* always on, like a T-6's: shrinks less */
+  font-size: 10px; /* always on, like a T-6's: a pixel larger than the rest */
   font-weight: 700;
 }
 

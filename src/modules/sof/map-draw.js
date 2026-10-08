@@ -187,7 +187,7 @@ export function drawAirfields(ctx, marks, project, palette, { width, height }) {
  * The traffic labels a size smaller (Dad, 8 Oct 2026: "Can the traffic tags be a lil smaller"): 9 px, was 11 px (about 18 % smaller); a T-6's (TEX2) 10 px
  * (about 9 %), so it stays easy to read. Estimates for readability.
  */
-const TRAFFIC_FONT = Object.freeze({ other: '9px system-ui, sans-serif', t6: '600 10px system-ui, sans-serif' });
+const TRAFFIC_FONT = Object.freeze({ other: '8px system-ui, sans-serif', t6: '600 9px system-ui, sans-serif' }); // Dad, 8 Oct 2026: still too big (was 9 and 10 px); estimates
 /** A helicopter's symbol (Dad, 8 Oct 2026: "Helo traffic is a helo"): a rotor disc ring this many pixels in radius round a small body and tail boom. Estimates for the look. */
 const HELI_ROTOR_PX = 7.5;
 
