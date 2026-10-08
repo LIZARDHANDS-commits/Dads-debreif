@@ -1,7 +1,7 @@
 // Makes the US bases' airspace files for the SOF's 3D view (plan Step 2c part E, 8 Oct 2026): src/modules/sof/sites/faa-airspace/<icao>.js, one per
 // base (and one for Moose Jaw, CYMJ: the US airspace south of the border, Dad 8 Oct 2026), from the FAA's open aeronautical data (the FAA AIS ArcGIS feature services, public domain, no key). Run it again each 56-day cycle and
 // commit what it writes. From the repo root:
-//   node tools/faa-airspace.mjs              fetch, trim, check and write the seven files, and print what each holds
+//   node tools/faa-airspace.mjs              fetch, trim, check and write the nine files, and print what each holds
 //   node tools/faa-airspace.mjs --dry        the same, but print only (nothing written)
 //   node tools/faa-airspace.mjs --empty      write empty files (no airspace, "not generated yet"), for when the FAA cannot be reached
 //   node tools/faa-airspace.mjs --base CYMJ  only that base's file (each base takes some minutes)
@@ -40,10 +40,10 @@ import { MAX_AREA_NM } from '../src/modules/sof/scene3d-model.js';
 const ROOT = 'https://services6.arcgis.com/ssFJjBXIUyZDrSYZ/arcgis/rest/services';
 const OUT_DIR = 'src/modules/sof/sites/faa-airspace';
 /**
- * The seven US T-6 bases with a site profile (sites/index.js PROFILES), and Moose Jaw (CYMJ): the FAA has only US airspace, so its file is the US side of
+ * The eight US bases with a site profile (sites/index.js PROFILES; KSJT San Angelo added 8 Oct 2026, Dad), and Moose Jaw (CYMJ): the FAA has only US airspace, so its file is the US side of
  * Moose Jaw's 900 NM square (Montana, North Dakota and beyond), drawn with the DAH entries.
  */
-const BASES = ['KDLF', 'KEND', 'KRND', 'KCBM', 'KSPS', 'KNSE', 'KNGP', 'CYMJ'];
+const BASES = ['KDLF', 'KEND', 'KRND', 'KCBM', 'KSPS', 'KNSE', 'KNGP', 'KSJT', 'CYMJ'];
 /**
  * No kept point is further than this from the FAA's outline, by kind (estimates): 0.1 NM (about 185 m) for the small Class B, C and D shapes round the
  * fields, 0.25 NM for the large special use areas and the training routes. Both are under a pixel with the whole 450 NM square in view (and smaller still at 900 NM).
