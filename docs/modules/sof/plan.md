@@ -87,6 +87,8 @@ Per base, Dad supplies (working answer until then in brackets): usual alternates
 
 Open: whether MET Norway and NOAA via Datamask return all seven fields' TAFs (couldn't check from here; aviationweather.gov through the relay if not); NCEP's browser access; HRRR's level list; FAA NOTAM API terms and limits; Open-Meteo's limit is per internet address, shared by every SOF screen behind one base network.
 
+- [ ] **Wider Canadian airspace for Moose Jaw's bigger 3D area (Dad, 8 Oct 2026, with chart views of Manitoba, northern Saskatchewan and Alberta):** add DAH entries (same DAH edition, boundary numbers and page cites only, `airspace-data.js` through the existing generator) out to the 900 NM choice: Winnipeg, Edmonton and Calgary terminal areas and zones; Brandon, Portage la Prairie (Southport), Gimli, Dauphin, Yorkton, Prince Albert, North Battleford, Lloydminster, Cold Lake, Wainwright, Medicine Hat, Red Deer, Lethbridge and Estevan zones where they exist; the restricted and advisory areas the charts show (Shilo near Brandon, Southport, Primrose Lake and Cold Lake ranges, Wainwright, Suffield, the advisory area south-west of Saskatoon and the restricted area south of it). After the 3D pan and area work, so one writer has `airspace-data.js` at a time.
+
 ## Step 3. Build the safety and limits gaps between decided and built
 
 - [ ] Amber "Incomplete" for any airfield whose approaches or landing minima are not filled in, never a green tick, including a PROB group below the alternate limits with minima unset (old decision D388, new decision SOF-32; SOF-R12). The code does not do it yet (`pf/reset/4-decisions/partb-sof.md:74`, `pf/reset/1-requirements/requirements.md:144`, `src/wx/alternates.js:163`).
