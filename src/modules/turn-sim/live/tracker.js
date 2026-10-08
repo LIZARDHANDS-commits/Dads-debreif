@@ -190,7 +190,16 @@ function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT) {
     const room = Math.max(0, (aim.along ?? 0) - (ph.decisionFt ?? 750));
     const closeFtps = typeof ph.arriveFtps === 'function' ? ph.arriveFtps(W) : (ph.arriveFtps ?? 20 * KT_TO_FTPS);
     const slowFtps2 = ph.slowFtps2 ?? TURNING_REJOIN.slowFtps2;
-    const wantClosure = Math.sqrt(closeFtps * closeFtps + 2 * slowFtps2 * room);
+    let wantClosure = Math.sqrt(closeFtps * closeFtps + 2 * slowFtps2 * room);
+    
+    // De-rate along-track closure when off the line to prevent cutting the corner (intercept geometry first)
+    const captureFt = ph.captureFt ?? 150;
+    if (Math.abs(aim.cross) > captureFt) {
+      const excess = Math.abs(aim.cross) - captureFt;
+      const derate = Math.max(0, 1 - excess / (ph.aimFt ?? 500));
+      wantClosure *= derate;
+    }
+
     const omegaL = aim.omegaL ?? 0;
     let psiCmd;
     if (Math.abs(omegaL) < 1e-4) {
