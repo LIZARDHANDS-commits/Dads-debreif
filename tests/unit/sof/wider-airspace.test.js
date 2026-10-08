@@ -92,5 +92,5 @@ test('wider airspace: DAH terminal and restricted areas, every entry fit to draw
   assert.equal(sanAngelo.icao, 'KSJT');
   assert.ok(PROFILES.includes(sanAngelo), 'KSJT is in the Home base choice');
   assert.deepEqual([...sanAngelo.usualAlternates], ['KABI', 'KMAF', 'KDLF']);
-  assert.equal(sanAngelo.standards, null, 'no weather limits given for San Angelo yet: Limits not set');
+  assert.equal(sanAngelo.standards?.rule, 'usaf', 'San Angelo uses the USAF weather rules (AFMAN 11-202V3 4.16; step F, rewritten 8 Oct 2026 with Dad\'s yes)');
 });
