@@ -14,7 +14,7 @@ import { TOUR_TARGETS } from '../tour-model.js';
 import { LAYERS, DEFAULT_BBOX } from '../feeds.js';
 import { EXTRA_LAYERS } from '../map-feeds.js';
 import { WATCHED_AREAS } from '../airspace-occupancy.js';
-import { MAG_VARIATION_DEG_E } from '../model-clouds.js';
+import { MAG_VARIATION_DEG_E, ECCC_MODELS } from '../model-clouds.js';
 import { LIGHTNING_DEFAULTS } from '../lightning.js';
 import { CROSSWIND_DEFAULTS, CROSSWIND_SOURCE } from '../crosswind.js';
 import { DEFAULT_LIMITS, HOME_TRIGGERS } from '../../../wx/limits.js';
@@ -32,6 +32,8 @@ export const CYMJ = Object.freeze({
   watchedAreas: WATCHED_AREAS, // CYA304, CYA305, CYA307 (Dad, 7 Oct)
   towns: TOWNS,
   anchorStations: ANCHOR_STATIONS,
+  // The airports the 3D view draws (airports-data.js, OurAirports): Moose Jaw, Regina, Swift Current and Saskatoon, the four it has drawn since 7 Oct.
+  airports3d: Object.freeze(['CYMJ', 'CYQR', 'CYYN', 'CYXE']),
   tourTargets: TOUR_TARGETS,
   // Degrees East, magnetic = true - this: Patrick's ruling, 4 Oct 2026 (TR-65); model-clouds.js owns the number.
   magVarDegE: Object.freeze({ value: MAG_VARIATION_DEG_E, source: "Patrick's ruling, 4 Oct 2026 (TR-65)" }),
@@ -54,12 +56,13 @@ export const CYMJ = Object.freeze({
     lightning: Object.freeze({ name: 'ECCC GeoMet lightning density', layer: LAYERS.lightning, credit: 'ECCC (Open Government Licence)' }),
     satellite: Object.freeze({ name: 'ECCC GeoMet GOES cloud picture', layer: EXTRA_LAYERS.cloud, credit: 'ECCC (Open Government Licence)' }),
     warnings: Object.freeze({ name: 'ECCC GeoMet weather warnings', layer: EXTRA_LAYERS.warnings, credit: 'ECCC (Open Government Licence)' }),
-    modelClouds: Object.freeze({ name: 'Open-Meteo, ECCC HRDPS and GEM', credit: 'Open-Meteo (CC BY 4.0), ECCC HRDPS and GEM (model estimate)' }),
+    modelClouds: Object.freeze({ name: 'Open-Meteo, ECCC HRDPS and GEM', credit: 'Open-Meteo (CC BY 4.0), ECCC HRDPS and GEM (model estimate)', models: ECCC_MODELS }),
     modelCloudMask: Object.freeze({ name: 'ECCC GeoMet HRDPS total cloud', layer: LAYERS.modelCloud, credit: 'ECCC (Open Government Licence)' }),
     notams: Object.freeze({ name: 'NAV CANADA flight weather site', via: 'relay /notam', credit: 'NAV CANADA' }),
     alerts: Object.freeze({ name: 'NAV CANADA SIGMETs, AIRMETs and PIREPs', via: 'relay /alerts', credit: 'NAV CANADA' }),
     fronts: Object.freeze({ name: 'WPC coded surface analysis (CODSUS)', via: 'relay /fronts', credit: 'WPC surface analysis' }),
   }),
+  lightningLink: null, // no outside lightning link (the US bases have one, us-base.js)
   // The words of the credits line (screen-model.js `creditsFor`) and the map's (map-model.js `mapCredits`), as they read today.
   credits: Object.freeze({
     confirm: 'Confirm with NAV CANADA.',

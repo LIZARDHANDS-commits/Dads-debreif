@@ -1,6 +1,7 @@
 // The SOF's map (SPEC-sof, "Map"; tasks 6 and 7): a canvas map on ui-kit's canvas view, with no map
 // library. Satellite (Esri, through the shared tile loader) or the VNC charts underneath; ECCC radar (with
-// RainViewer as its backup), radar coverage, lightning, GOES cloud and warnings as pictures; the training
+// RainViewer as its backup), radar coverage, lightning, GOES cloud and warnings as pictures (at a US base, NOAA
+// MRMS radar and NASA GIBS GOES-East satellite instead, from its site profile; plan Step 2c part C); the training
 // routes; the 25 and 50 NM rings; the airfield dots with wind barbs; and live traffic through our own relay.
 // The ADS-B Exchange view swaps the whole map area for their own page, and the 3D view (view3d.js, SOF-39) swaps it for a
 // three.js picture of the weather round home; the two are never on together.
@@ -19,8 +20,8 @@ import { createTileLayer, ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { createVncLayer, VNC_CHOICES, VNC_DEFAULT_ALIGN } from '../debrief/map2d/vnc.js';
 import { projectRoute, drawRoute } from '../debrief/map2d/overlays.js';
 import { ROUTES } from '../debrief/data/routes.js';
-import { getMapUrl, rainViewerTileUrl, REFRESH_MS, feedAge } from './feeds.js';
-import { createImageFeed, createRadarFeed, extraMapUrl, feedLine } from './map-feeds.js';
+import { getMapUrl, rainViewerTileUrl, REFRESH_MS, feedAge, wmsServiceOf } from './feeds.js';
+import { createImageFeed, createRadarFeed, feedLine } from './map-feeds.js';
 import { createLightningWatch, createTrafficFeed } from './map-loops.js';
 import { recolourLightning } from './map-lightning.js';
 import { trafficUrl, layerModel } from './traffic.js';
@@ -30,7 +31,7 @@ import {
 import {
   cleanLayers, setLayerOn, setLayerOpacity, setBase, setPrecip, setTrafficOption, stackOrder, baseLayers, BASE_DIM,
 } from './map-layers.js';
-import { airfieldMarks, mapCredits, baseNote, statusItems, nearHomeItem, legendItems, noSourceLine } from './map-model.js';
+import { airfieldMarks, mapCredits, baseNote, statusItems, nearHomeItem, legendItems, noSourceLine, coverageNotShownLine, lightningMapLink } from './map-model.js';
 import { drawGeoImage, drawRings, drawAirfields, drawTraffic, drawTrails } from './map-draw.js';
 import { createTrails, glideLatLon, canGlide, GLIDE_2D_MS } from './traffic-motion.js';
 import { createMapControls } from './map-controls.js';
@@ -70,10 +71,10 @@ const NOTICE_MS = 8000;
 const two = (n) => String(n).padStart(2, '0');
 const hhmmZ = (d) => `${two(d.getUTCHours())}${two(d.getUTCMinutes())}Z`;
 
-/** A satellite picture's map address for the ECCC layers feeds.js lists. */
-const ecccUrl = ({ layer, request, time }) => getMapUrl({ layer, bbox: request.bbox, width: request.width, height: request.height, time });
-/** And for the two it does not. */
-const extraUrl = ({ layer, request, time }) => extraMapUrl({ layer, bbox: request.bbox, width: request.width, height: request.height, time });
+/** A picture's map address: feeds.js `getMapUrl`, the one builder, sends each listed layer to its own service (ECCC GeoMet, NOAA NCEP or NASA GIBS). */
+const wmsUrl = ({ layer, request, time }) => getMapUrl({ layer, bbox: request.bbox, width: request.width, height: request.height, time });
+/** A GIBS picture with under this share of its pixels drawn is "no frame for that time yet" (GIBS answers one with an empty PNG); a GOES-East picture over a US base covers it all. An estimate. */
+const MIN_FILLED_SHARE = 0.5;
 
 /**
  * app: the module's app object (scheduler, storage, time, airfields, listen). settings: createSofSettings. view3dSettings: createView3dSettings (the 3D cloud style), or left out (slabs).
@@ -92,6 +93,10 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
   /** The site profile's source for each map layer (radar and its coverage share one). A source that is null means this base has none: nothing is asked for and the line says so. */
   const SOURCE_OF = { radar: 'radar', coverage: 'radar', lightning: 'lightning', cloud: 'satellite', warnings: 'warnings' };
   const hasSource = (id) => site.sources[SOURCE_OF[id]] != null;
+  /** Radar coverage is drawn only when the radar source has a coverage layer (ECCC's; NOAA's MRMS has none: its line says "not shown for this source"). */
+  const coverageShown = () => hasSource('coverage') && Boolean(site.sources.radar.layers?.coverage);
+  /** The source's words for a status line (`strip`, `short`), as feedLine takes them; nothing at Moose Jaw, whose lines read as before. */
+  const sourceWords = (source) => ({ source: source?.strip ?? null, sourceShort: source?.short ?? null });
 
   let layers = cleanLayers(app.storage.get(LAYERS_KEY, null), { now: now() });
   let adsbOn = false;
@@ -191,9 +196,10 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     },
   });
 
-  // The model clouds, winds and freezing level (Open-Meteo's GEM forecast) are asked for only while the 3D view is shown (SOF-39, phase 2).
+  // The model clouds, winds and freezing level (Open-Meteo: ECCC's HRDPS and GEM, or NOAA's HRRR and GFS at a US base) are asked for only while the 3D view is shown (SOF-39, phase 2).
   const modelFeed = createModelFeed({
     points: (size) => gridPoints(projection.toLatLon, size),
+    models: () => site.sources.modelClouds?.models, // the home base's two models (sites/), read at each ask
     fetch: fetchNet,
     timers,
     now,
@@ -239,19 +245,29 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     scratch.getContext('2d').putImageData(new ImageData(marked.data, marked.width, marked.height), 0, 0);
     return createImageBitmap(scratch);
   }
+  // A picture from a service that answers a missing time with an empty one (GIBS, feeds.js WMS_SERVICES `blankIsMissing`): mostly see-through is
+  // "no frame for that time" (null, so the feed tries an older frame), never a clear sky. Any other layer is decoded as it is.
+  async function decodeSatellite(bytes, asked, layer) {
+    if (!wmsServiceOf(layer)?.blankIsMissing) return decode(bytes);
+    const pixels = await readPixels(bytes);
+    let filled = 0;
+    for (let n = 3; n < pixels.data.length; n += 4) if (pixels.data[n] > 0) filled += 1;
+    if (filled < MIN_FILLED_SHARE * pixels.width * pixels.height) return null;
+    return createImageBitmap(pixels);
+  }
   const paused = () => document.hidden || adsbOn;
   const shared = { fetch: fetchNet, timers, now, onChange: () => redraw() };
 
-  const radar = createRadarFeed({ precip: () => layers.precip, layers: () => site.sources.radar?.layers, decode, paused, ...shared });
-  // One picture feed for the layers that follow the view. `layer` is the ECCC layer name from the site profile (a function, read when asking). `external`: a layer feeds.js does not list (map-feeds.js EXTRA_LAYERS).
-  const picture = (layer, kind, refreshMs, { external = false, timeless = false, decodeWith = decode } = {}) => createImageFeed({
-    layer, kind, urlFor: external ? extraUrl : ecccUrl, timeless, decode: decodeWith, refreshMs, paused, ...shared,
+  const radar = createRadarFeed({ precip: () => layers.precip, layers: () => site.sources.radar?.layers, words: () => site.sources.radar, decode, paused, ...shared });
+  // One picture feed for the layers that follow the view. `layer` is the layer name from the site profile (a function, read when asking); its service comes with the name (feeds.js WMS_SERVICES).
+  const picture = (layer, kind, refreshMs, { timeless = false, decodeWith = decode } = {}) => createImageFeed({
+    layer, kind, urlFor: wmsUrl, timeless, decode: decodeWith, refreshMs, paused, ...shared,
   });
   const feeds = {
     coverage: picture(() => site.sources.radar?.layers.coverage, 'radar', REFRESH_MS.radar),
     lightning: picture(() => site.sources.lightning?.layer, 'lightning', REFRESH_MS.lightning, { decodeWith: decodeLightning }),
-    cloud: picture(() => site.sources.satellite?.layer, 'cloud', REFRESH_MS.lightning, { external: true }),
-    warnings: picture(() => site.sources.warnings?.layer, 'lightning', REFRESH_MS.lightning, { external: true, timeless: true }),
+    cloud: picture(() => site.sources.satellite?.layer, 'cloud', REFRESH_MS.lightning, { decodeWith: decodeSatellite }),
+    warnings: picture(() => site.sources.warnings?.layer, 'lightning', REFRESH_MS.lightning, { timeless: true }),
   };
   const watch = createLightningWatch({
     home: () => ({ icao: home.icao, lat: home.lat, lon: home.lon }),
@@ -284,11 +300,11 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
   // 3D view is shown. They lay on the 3D ground and, read on a grid, make the radar shafts, the lightning bolts and the satellite sheet (weather3d-layers.js). The fronts come from
   // the relay's /fronts, every 30 minutes, also only while 3D is shown.
   const feeds3d = {
-    radar: createImageFeed({ layer: () => (layers.precip === 'snow' ? site.sources.radar?.layers.snow : site.sources.radar?.layers.rain), kind: 'radar', urlFor: ecccUrl, decode, refreshMs: REFRESH_MS.radar, paused, ...shared }),
-    lightning: createImageFeed({ layer: () => site.sources.lightning?.layer, kind: 'lightning', urlFor: ecccUrl, decode: decodeLightning, refreshMs: REFRESH_MS.lightning, paused, ...shared }),
-    cloud: createImageFeed({ layer: () => site.sources.satellite?.layer, kind: 'cloud', urlFor: extraUrl, decode, refreshMs: REFRESH_MS.lightning, paused, ...shared }),
+    radar: createImageFeed({ layer: () => (layers.precip === 'snow' ? site.sources.radar?.layers.snow : site.sources.radar?.layers.rain), kind: 'radar', urlFor: wmsUrl, decode, refreshMs: REFRESH_MS.radar, paused, ...shared }),
+    lightning: createImageFeed({ layer: () => site.sources.lightning?.layer, kind: 'lightning', urlFor: wmsUrl, decode: decodeLightning, refreshMs: REFRESH_MS.lightning, paused, ...shared }),
+    cloud: createImageFeed({ layer: () => site.sources.satellite?.layer, kind: 'cloud', urlFor: wmsUrl, decode: decodeSatellite, refreshMs: REFRESH_MS.lightning, paused, ...shared }),
     // HRDPS total cloud for the model hour shown (Fable review, 7 Oct): the 3D slabs' 2.5 km detail. Its own request (512 px, with the hour), not the others'.
-    modelCloud: createImageFeed({ layer: () => site.sources.modelCloudMask?.layer, kind: 'modelCloud', urlFor: ecccUrl, decode, refreshMs: MODEL_CLOUD_REFRESH_MS, paused, ...shared }),
+    modelCloud: createImageFeed({ layer: () => site.sources.modelCloudMask?.layer, kind: 'modelCloud', urlFor: wmsUrl, decode, refreshMs: MODEL_CLOUD_REFRESH_MS, paused, ...shared }),
   };
   const requests3d = new Map(); // request key → the request, so a picture is laid where it was asked for
   let modelHourMs = null; // the 3D slider's model hour (ms), or null before the model has answered: then the hour now
@@ -342,7 +358,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     for (const [id, feed] of Object.entries(feeds3d)) feed.enable(site.sources[SOURCE_OF_3D[id]] != null);
     if (site.sources.fronts) frontsFeed.start();
     else frontsFeed.stop();
-    if (site.sources.modelClouds) modelFeed.start(); // asks for the model clouds and winds at once, then when a newer HRDPS run can be out (about 0500, 1100, 1700, 2300Z) while the view is open
+    if (site.sources.modelClouds) modelFeed.start(); // asks for the model clouds and winds at once, then when a newer run can be out (HRDPS about 0500, 1100, 1700, 2300Z; HRRR every 3 hours) while the view is open
     else modelFeed.stop();
   }
   function start3dFeeds() {
@@ -537,7 +553,8 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
           for (const r of routes) drawRoute(ctx, view, r, /** @type {any} */ (layers.opacity).routes);
           break;
         case 'rings':
-          drawRings(ctx, view.worldToScreen(0, 0), view.view.scale, { radii: RING_NM, lightningNm: settings.get().lightningNm }, pal);
+          // The lightning caution ring only where the base has a lightning source: elsewhere there is no caution to draw a radius for.
+          drawRings(ctx, view.worldToScreen(0, 0), view.view.scale, { radii: RING_NM, lightningNm: hasSource('lightning') ? settings.get().lightningNm : null }, pal);
           break;
         case 'airfields':
           hits.airfields = drawAirfields(ctx, marks, project, pal, size);
@@ -641,7 +658,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     const on = layers.on;
     // A layer whose source is null for this base (the site profile's) is never switched on: nothing is asked for.
     radar.enable(on.radar && hasSource('radar'));
-    for (const id of Object.keys(feeds)) feeds[id].enable(on[id] && hasSource(id));
+    for (const id of Object.keys(feeds)) feeds[id].enable(on[id] && (id === 'coverage' ? coverageShown() : hasSource(id)));
     trafficFeed.setOn(on.traffic && relayOn() && !adsbOn);
     const gliding = on.traffic && relayOn() && !adsbOn;
     if (gliding && !cancelGlide2d) cancelGlide2d = timers.every(GLIDE_2D_MS, glide2dTick);
@@ -798,9 +815,10 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
   function line3d(id, t) {
     const s = feeds3d[id].state();
     const label = { radar: 'Radar', lightning: 'Lightning', cloud: 'Satellite' }[id];
-    if (site.sources[SOURCE_OF_3D[id]] == null) return noSourceLine(label); // this base has none: amber, ⚠, "can't tell"
+    const source = site.sources[SOURCE_OF_3D[id]];
+    if (source == null) return noSourceLine(label); // this base has none: amber, ⚠, "can't tell"
 
-    return feedLine({ label, kind: id, on: true, hasImage: Boolean(s.image), layerTime: s.layerTime, failed: s.failures > 0 && !s.busy, busy: s.busy, now: t });
+    return feedLine({ label, kind: id, on: true, hasImage: Boolean(s.image), layerTime: s.layerTime, failed: s.failures > 0 && !s.busy, busy: s.busy, ...sourceWords(source), now: t });
   }
   function pictures3d() {
     const t = now();
@@ -855,8 +873,9 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
       failed: mc.failures > 0 && !mc.busy,
       busy: mc.busy,
       lastGoodAt: mc.fetchedAt ? +mc.fetchedAt : null,
+      noSource: !site.sources.modelCloudMask, // no 2.5 km picture for this base (ECCC's covers Canada only): the slabs are drawn unmasked and the panel says so
     };
-    parts.push(`modelCloud:${modelCloud.id}:${modelCloud.time}:${modelCloud.stale}:${modelCloud.failed}:${modelCloud.busy}`);
+    parts.push(`modelCloud:${modelCloud.id}:${modelCloud.time}:${modelCloud.stale}:${modelCloud.failed}:${modelCloud.busy}:${modelCloud.noSource}`);
     const anchors = anchorsView(t);
     parts.push(`anchors:${anchors.status}:${anchors.anchors.map((a) => `${a.icao}${a.fresh ? `+${a.baseMslFt ?? ''}${a.clear ? 'c' : ''}${a.unknown ? 'u' : ''}` : '-'}`).join(',')}`);
     const fs = frontsFeed.state();
@@ -928,6 +947,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
   function lineOf(id, t) {
     // No source for this base: "Radar: no source for this base, can't tell", amber with ⚠, never a tick and never "no picture".
     if (id in SOURCE_OF && !hasSource(id)) return noSourceLine({ radar: 'Radar', coverage: 'Radar coverage', lightning: 'Lightning map', cloud: 'Cloud', warnings: 'Warnings' }[id]);
+    if (id === 'coverage' && !coverageShown()) return coverageNotShownLine(); // a radar source with no coverage layer (NOAA MRMS): neutral, not a failure
     if (id === 'radar') return radar.line(t);
     const s = feeds[id]?.state();
     if (!s) return null;
@@ -938,7 +958,7 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
       return { text: `Warnings as fetched ${hhmmZ(s.fetchedAt)} (${age < 1 ? 'just now' : `${age} min ago`})`, symbol: '✓', tone: 'ok', stale: false };
     }
     const label = { coverage: 'Radar coverage', lightning: 'Lightning map', cloud: 'Cloud' }[id];
-    return feedLine({ label, kind: { coverage: 'radar', cloud: 'cloud' }[id] ?? 'lightning', on: true, hasImage: Boolean(s.image), layerTime: s.layerTime, failed: s.failures > 0 && !s.busy, busy: s.busy, now: t });
+    return feedLine({ label, kind: { coverage: 'radar', cloud: 'cloud' }[id] ?? 'lightning', on: true, hasImage: Boolean(s.image), layerTime: s.layerTime, failed: s.failures > 0 && !s.busy, busy: s.busy, ...(id === 'cloud' ? sourceWords(site.sources.satellite) : {}), now: t });
   }
 
   function syncMessage() {
@@ -971,9 +991,10 @@ export function createSofMap({ app, settings, view3dSettings = null, onLightning
     if (layers.on.traffic && relayOn() && space.count > 0) items.push({ id: 'airspace', text: space.countWords, symbol: '⚠', tone: 'caution' });
     controls.setStatus(items);
     controls.setCredits(mapCredits(layers, { radarBackup: radar.state().source === 'rainviewer', trafficOn: layers.on.traffic && relayOn(), feedsCredit: site.credits.mapFeeds }));
-    controls.setNote(site.charts.vnc ? baseNote(layers) : null);
+    // A base with no lightning picture of its own may have an outside map to look at instead (us-base.js): a plain link under the map, labelled as not checked.
+    controls.setNote(site.charts.vnc ? baseNote(layers) : null, lightningMapLink(site.lightningLink, home));
     // The key explains only the layers this base has a source for.
-    controls.setLegend(legendItems({ ...layers, on: { ...layers.on, radar: layers.on.radar && hasSource('radar'), lightning: layers.on.lightning && hasSource('lightning') } }, { radarBackup: radar.state().source === 'rainviewer' }));
+    controls.setLegend(legendItems({ ...layers, on: { ...layers.on, radar: layers.on.radar && hasSource('radar'), lightning: layers.on.lightning && hasSource('lightning') } }, { radarBackup: radar.state().source === 'rainviewer', radarScale: site.sources.radar?.scale ?? null, lightningRing: hasSource('lightning') }));
   }
 
   function nearHome(t) {

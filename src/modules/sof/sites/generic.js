@@ -13,6 +13,7 @@ export const GENERIC = Object.freeze({
   watchedAreas: Object.freeze([]),
   towns: Object.freeze([]),
   anchorStations: Object.freeze([]),
+  airports3d: null, // no list: the 3D view draws any airport airports-data.js has inside its square, as before
   tourTargets: Object.freeze([]),
   // Not known for this base. 0 is only a stand-in so the arithmetic works; the source says so, and the screen words say "not set for this base".
   magVarDegE: Object.freeze({ value: 0, source: 'unknown (estimate)' }),
@@ -30,6 +31,7 @@ export const GENERIC = Object.freeze({
     alerts: null,
     fronts: null,
   }),
+  lightningLink: null, // no outside lightning link (the US bases have one, us-base.js)
   credits: Object.freeze({ confirm: null, model: null, pictures: null, mapFeeds: null }),
   standards: null,
 });

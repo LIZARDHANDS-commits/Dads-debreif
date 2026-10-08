@@ -161,7 +161,7 @@ export function createMapControls(handlers) {
     const parts = [];
     if (items.radar) {
       const r = items.radar;
-      const bar = h('div', { class: 'sof-legend-bar', 'aria-hidden': 'true', style: `background: linear-gradient(to right, ${RADAR_COLOURS.join(', ')})` });
+      const bar = h('div', { class: 'sof-legend-bar', 'aria-hidden': 'true', style: `background: linear-gradient(to right, ${(r.colours ?? RADAR_COLOURS).join(', ')})` });
       const ticks = h('div', { class: 'sof-legend-ticks', 'aria-hidden': 'true' },
         r.ticks.map(([text, at]) => h('span', { style: `left: ${at}%`, class: at === 0 ? 'is-first' : at === 100 ? 'is-last' : '' }, at === 100 ? `${text} ${r.unit}` : text)));
       parts.push(h('div', { class: 'sof-legend-item' }, h('p', {}, r.words), bar, ticks));
@@ -264,9 +264,24 @@ export function createMapControls(handlers) {
       }
     },
     setCredits: (text) => setText(credits, text),
-    setNote(text) {
-      note.hidden = !text;
-      setText(note, text ?? '');
+    /**
+     * The note under the map: words, and optionally a plain outside link after them ({ href, text, note }, map-model.js `lightningMapLink`, built from a
+     * fixed host and checked numbers): a new tab, no referrer, no opener, with its "outside site" words beside it. Redrawn only when it changes.
+     */
+    setNote(text, link = null) {
+      note.hidden = !text && !link;
+      const sig = `${text ?? ''}|${link ? `${link.href}|${link.text}|${link.note}` : ''}`;
+      if (note.dataset.sig === sig) return;
+      note.dataset.sig = sig;
+      if (!link) {
+        setText(note, text ?? '');
+        return;
+      }
+      note.replaceChildren(
+        ...(text ? [text, ' '] : []),
+        h('a', { href: link.href, target: '_blank', rel: 'noopener noreferrer', referrerpolicy: 'no-referrer' }, link.text),
+        ` (${link.note})`,
+      );
     },
   };
 }

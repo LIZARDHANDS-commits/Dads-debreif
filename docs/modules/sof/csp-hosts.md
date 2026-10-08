@@ -17,6 +17,8 @@ For the app frame thread, which owns `index.html` and the page's policy. `index.
 | `frame-src` | `https://globe.adsbexchange.com` | The ADS-B Exchange view (task 7). Only while its switch is on. |
 | `style-src` | `'self'` | `sof.css`, one `<link rel="stylesheet">` the module adds and removes |
 
+- **US bases (SOF-50, V2.189).** `connect-src https://opengeo.ncep.noaa.gov` (NOAA MRMS radar, WMS capabilities and GetMap by `fetch`) and `connect-src https://gibs.earthdata.nasa.gov` (NASA GIBS GOES-East infrared, GetMap by `fetch`, pixels read to spot an empty frame). Both answer with `access-control-allow-origin: *` (checked 8 Oct 2026). The Blitzortung "Lightning map" link at the US bases is a plain link (no directive).
+
 Notes for whoever writes the policy:
 
 - **ECCC and Esri pictures.** ECCC's pictures are fetched (`fetch`, then decoded with `createImageBitmap` from the bytes), so they need `connect-src` only, not `img-src`, and no `blob:` or `data:` source. Esri and RainViewer tiles are drawn from image elements, so they need `img-src`.

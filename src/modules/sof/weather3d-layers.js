@@ -312,11 +312,14 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
   };
 }
 
-/** The key's words for what the weather layers draw (the estimates named as estimates). `summary` is `createWeather3dLayers().summary()`; `scale` the height scale. */
-export function weatherKeyWords(summary, scale) {
+/**
+ * The key's words for what the weather layers draw (the estimates named as estimates). `summary` is `createWeather3dLayers().summary()`; `scale` the height scale.
+ * `satelliteWords` names the satellite picture (the site profile's `sources.satellite.keyWords`; ECCC's GOES-West at Moose Jaw, as before).
+ */
+export function weatherKeyWords(summary, scale, satelliteWords = "ECCC's GOES-West picture (day visible, night infrared)") {
   const out = [];
   if (summary.satellite) {
-    out.push(`Satellite: ECCC's GOES-West picture (day visible, night infrared) laid as a faint sheet where it is bright (cloud) at ${formatFeet(Math.round(summary.satellite.heightFt / 100) * 100)} ft${summary.satellite.modelHeight ? (summary.satellite.slabs ? ', the highest model cloud top' : ', the highest model cloud level') : ` (${formatFeet(SATELLITE_DEFAULT_FT)} ft where the model has no cloud: an estimate)`}.${summary.satellite.stale ? ' STALE: drawn fainter.' : ''}`);
+    out.push(`Satellite: ${satelliteWords} laid as a faint sheet where it is bright (cloud) at ${formatFeet(Math.round(summary.satellite.heightFt / 100) * 100)} ft${summary.satellite.modelHeight ? (summary.satellite.slabs ? ', the highest model cloud top' : ', the highest model cloud level') : ` (${formatFeet(SATELLITE_DEFAULT_FT)} ft where the model has no cloud: an estimate)`}.${summary.satellite.stale ? ' STALE: drawn fainter.' : ''}`);
   }
   if (summary.radar) {
     out.push(`Radar: a see-through column for each radar cell (about 5 NM), in the radar's colour, from the ground up to the model cloud base above it${summary.radar.withModelTop < summary.radar.count ? `, or ${formatFeet(RADAR_DEFAULT_AGL_FT)} ft above the ground where the model has no cloud (an estimate)` : ''}. ${summary.radar.count} drawn. Not drawn when the radar picture is stale.`);

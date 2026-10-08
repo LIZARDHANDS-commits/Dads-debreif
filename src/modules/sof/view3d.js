@@ -70,11 +70,11 @@ import { buildAirspace, AIRSPACE_GROUPS, KIND_COLOURS } from './airspace3d.js';
 import { buildAirports, RUNWAY_MIN_PX } from './airports3d.js';
 import { buildAlerts3d, ALERT_COLOURS, PIREP_COLOURS, ALERT_COLOUR_WORDS, ALERT_FILL_OPACITY } from './alerts3d.js';
 import { GLIDE_3D_MS, TRAIL_WINDOW_S } from './traffic-motion.js';
-import { AIRPORTS } from './airports-data.js';
-import { checkedAirspace, KIND_WORDS, tacnavNote, AIRSPACE_FILL_OPACITY, VIEW_TOP_FT } from './airspace-model.js';
+import { airportsFor } from './airports-data.js';
+import { checkedAirspace, KIND_WORDS, BASE_KINDS, tacnavNote, AIRSPACE_FILL_OPACITY, VIEW_TOP_FT } from './airspace-model.js';
 import {
   hourIndex, maxAhead, hourWords, meanLayerCover, unavailableWords, refreshFailedWords, LOADING_WORDS, CREDIT_WORDS, MAX_AHEAD_HOURS, CLOUD_STAGES_FT_AGL,
-  CLOUD_COVER_THRESHOLD_PCT, barbStep, CLOUD_SHEET_PX, filledWords, nextAskWords, HRDPS_CHUNKS, HRDPS_AVAILABLE_AFTER_MS,
+  CLOUD_COVER_THRESHOLD_PCT, barbStep, CLOUD_SHEET_PX, filledWords, nextAskWords, HRDPS_CHUNKS, modelSetOf,
 } from './model-clouds.js';
 
 const BACKGROUND = '#0a141d';
@@ -83,8 +83,8 @@ const SIGNATURE_CHECK_MS = 1000;
 /** The depth range the camera is given after `matchProjection` (feet along the view): wide enough for the 450 NM square at any tilt, with its tallest layers. */
 const CAMERA_NEAR_FT = -3_500_000;
 const CAMERA_FAR_FT = 5_500_000;
-/** The model credit: Open-Meteo and whichever model answered (the finer HRDPS, or the global GEM). */
-const creditWords3d = (model) => `Model clouds and winds: Open-Meteo, ${model?.sourceName ?? 'ECCC GEM'} (model estimate)`;
+/** The model credit: Open-Meteo and the model (Moose Jaw: whichever answered, the finer HRDPS or the global GEM; a US base: NOAA HRRR / GFS). */
+const creditWords3d = (model) => modelSetOf(model).credit(model);
 /** A pin's line and head are this many screen pixels tall and wide at any zoom (they are scaled with the camera). */
 const PIN_PX = Object.freeze({ line: 34, head: 5 });
 /** Lines lie this far (scene feet) above what they follow, so the ground never hides them. */
@@ -162,6 +162,10 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   const note = h('p', { class: 'sof-3d-note', role: 'status', hidden: true });
   const tag = h('p', { class: 'sof-3d-tag', role: 'status', hidden: true });
 
+  // The Satellite button's words name the home base's picture (its site profile's `toggleWords`; ECCC's GOES-West at Moose Jaw, as before).
+  function satelliteTitle() {
+    return `${getSite().sources.satellite?.toggleWords ?? 'ECCC GOES-West cloud picture'} as a faint sheet at the highest model cloud level`;
+  }
   // The model controls (phase 2): a toggle for each layer, the time slider, the key and the credit, in a stack with the ground's credit.
   const TOGGLES = /** @type {[string, string, string][]} */ ([
     ['low', 'Low', `Low cloud: model cloud with its base below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft above the ground`],
@@ -170,7 +174,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     ['winds', 'Barbs', 'Winds aloft at 850, 700 and 500 hPa, as small barbs (off to begin with: the Wind flow shows the winds gently)'],
     ['freezing', 'Freezing level', 'The 0 °C level, a faint sheet across the area'],
     ['flow', 'Wind flow', 'Faint streaks drifting with the model wind at 850, 700 and 500 hPa, like Windy: they move only while this view is shown (they step every 2 seconds with reduced motion)'],
-    ['satellite', 'Satellite', 'ECCC GOES-West cloud picture as a faint sheet at the highest model cloud level'],
+    ['satellite', 'Satellite', satelliteTitle()],
     ['radar', 'Radar', 'Radar as see-through shafts from the ground up to the model cloud base (the radar picture on the ground has its own switch in the map’s Layers menu)'],
     ['lightning', 'Lightning', 'Lightning cells as thin bolts from the ground to the model cloud top'],
     ['fronts', 'Fronts', `${FRONTS_CREDIT}: surface fronts on the ground with a faint wall, and the H and L pressure centres`],
@@ -237,6 +241,8 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   // toggle says so and cannot be pressed; with no routes the second does.
   // What is drawn comes from the home base's site profile (read each time it is built, so a new home gets its own); `airspace` and `routes` can still be given.
   const airspaceNow = () => airspace ?? getSite().airspace;
+  /** The airports the home base's 3D view draws (its site profile's `airports3d`; airports-data.js). */
+  const airportsNow = () => airportsFor(getSite().airports3d);
   const routesNow = () => (typeof routes === 'function' ? routes() : routes);
   const noAirspace = () => airspaceNow().length === 0;
   const noRoutes = () => routesNow().length === 0;
@@ -244,15 +250,16 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   const spaceToggleWords = () => ({
     airspace: [noAirspace() ? 'Airspace (no data yet)' : 'Airspace', 'Airspace volumes round home, each from its floor to its ceiling, see-through', noAirspace() ? 'No airspace data yet: its floors, ceilings and outlines are added once each has a source' : null],
     tacnav: ['TACNAV', 'The TACNAV routes, as lines 500 ft above the ground (ground taken as flat, an estimate)', noRoutes() ? 'No TACNAV routes to draw' : null],
+    airports: ['Airports', `The runways of ${airportsNow().map((a) => a.icao).join(', ')} at their true places and sizes, with schematic buildings`, null],
   });
   const firstWords = spaceToggleWords();
   const SPACE_TOGGLES = /** @type {[string, string, string, string | null][]} */ ([
     ['airspace', ...firstWords.airspace],
     ['tacnav', ...firstWords.tacnav],
-    ['airports', 'Airports', `The runways of ${AIRPORTS.map((a) => a.icao).join(', ')} at their true places and sizes, with schematic buildings`, null],
+    ['airports', ...firstWords.airports],
     ['terrain', 'Terrain', `The real ground: heights from the Terrarium elevation tiles, ×the height scale, so the valleys, the Coteau and the Cypress Hills show. Off lays the ground flat at home’s elevation. ${TERRAIN_CREDIT}.`, null],
     ['towns', 'Towns', 'Moose Jaw, Regina, Swift Current and Saskatoon as schematic blocks standing on the terrain: not real buildings. A name shows when zoomed in, or under the pointer.', null],
-    ['alerts', 'SIGMET/PIREP', 'SIGMETs (red-orange) and AIRMETs (yellow) as see-through volumes from base to top, PIREPs as small diamonds at their level (amber turbulence, blue icing, white other), from NAV CANADA through the relay. Put the pointer on one for its words.', null],
+    ['alerts', 'SIGMET/PIREP', `SIGMETs (red-orange) and AIRMETs (yellow) as see-through volumes from base to top, PIREPs as small diamonds at their level (amber turbulence, blue icing, white other), from ${getSite().sources.alerts?.credit ?? 'NAV CANADA'} through the relay. Put the pointer on one for its words.`, null],
   ]);
   const spaceToggles = { airspace: !noAirspace(), tacnav: !noRoutes(), airports: true, terrain: true, towns: true, alerts: true };
   const spaceButtons = new Map();
@@ -609,7 +616,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     modelControls.hidden = !ok;
     modelFoot.hidden = !ok;
     modelCredit.hidden = !ok;
-    if (ok) setText(modelCredit, `${creditWords3d(model)}${modelState.refining ? '. The finer HRDPS model is still loading…' : ''}`);
+    if (ok) setText(modelCredit, `${creditWords3d(model)}${modelState.refining ? `. The finer ${modelSetOf(model).fine.short} model is still loading…` : ''}`);
     modelStatus.classList.toggle('is-bad', status === 'unavailable');
     // A refresh that failed while the answer held is still young enough: the layers stay and the panel says so. So does an HRDPS band filled from the global GEM.
     const stillShown = ok && failedAt !== null;
@@ -759,6 +766,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
    */
   function detailOf(wx, model, hour) {
     const mc = wx?.modelCloud;
+    if (mc?.noSource) return { state: 'none', key: 'none' }; // no 2.5 km picture at this base (a US base): the slabs are the grid's alone
     if (!mc) return { state: 'loading', key: 'loading' };
     if (mc.image && mc.time === model.times[hour]) return { state: mc.stale ? 'old' : 'ok', picture: mc, key: `${mc.id}|${mc.stale}` };
     if (mc.failed) return { state: 'failed', lastGoodAt: mc.lastGoodAt, key: 'failed' };
@@ -786,6 +794,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     else if (detail?.state === 'old') words = `2.5 km cloud detail: old model run${detail.picture.referenceTime ? ` (${hhmm(detail.picture.referenceTime)})` : ''}, over 12 h old: drawn fainter ⚠`;
     else if (detail?.state === 'failed') words = `2.5 km cloud detail unavailable (last good ${detail.lastGoodAt ? hhmm(detail.lastGoodAt) : 'not yet'}); drawn from the ${grid} alone ⚠`;
     else if (detail?.state === 'loading') words = '2.5 km detail loading… ⟳';
+    else if (detail?.state === 'none') words = '2.5 km cloud detail: not available at this base';
     setText(modelDetail, words);
     modelDetail.classList.toggle('is-bad', detail?.state === 'failed' || detail?.state === 'old');
     const on = detail?.state === 'ok' || detail?.state === 'old';
@@ -797,10 +806,11 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
 
   function drawKey(summary, hour) {
     const { model } = modelState;
+    const set = modelSetOf(model); // the base's two models and their words (model-clouds.js ECCC_MODELS, NOAA_MODELS)
     const cover = meanLayerCover(model, hour);
     const pct = (v) => (v === null ? 'no data' : `${v} %`);
     keyBody.replaceChildren(
-      h('p', {}, `${creditWords3d(model)}. ${model.source === 'hrdps' ? `HRDPS is ECCC's 2.5 km model, asked at every pressure level it answers (${model.cloudLevels.length}, ${model.cloudLevels[0]} to ${model.cloudLevels.at(-1)} hPa) in ${HRDPS_CHUNKS} bands of rows at once; the global GEM is the fallback and the quick first picture.` : 'This is the global GEM: the finer HRDPS model has not answered (it is slow, or failed).'}${filledWords(model) ? ` ${filledWords(model)}` : ''} Asked again when a newer HRDPS run can be out (runs at 00, 06, 12 and 18Z, taken to be ready about ${Math.round(HRDPS_AVAILABLE_AFTER_MS / 3_600_000)} h later, an estimate)${modelState.nextAt ? `: next ${nextAskWords(modelState.nextAt)}` : ''}, so the free daily request limit holds.`),
+      h('p', {}, `${creditWords3d(model)}. ${model.source === set.fine.id ? set.aboutFine(model, HRDPS_CHUNKS) : set.aboutCoarse}${filledWords(model) ? ` ${filledWords(model)}` : ''} ${set.askWords}${modelState.nextAt ? `: next ${nextAskWords(modelState.nextAt)}` : ''}, so the free daily request limit holds.`),
       ...(summary.slabs ? slabKey(summary, model, cover, pct) : [
         h('p', {}, `Clouds: one see-through sheet at each model level (${model.cloudLevels.length} levels, ${model.cloudLevels[0]} to ${model.cloudLevels.at(-1)} hPa), at the level's mean height. The model's cover at its ${model.gridSize} × ${model.gridSize} points (${Math.round(AREA_NM / (model.gridSize - 1) * 10) / 10} NM apart) is smoothed over the sheet: clear at ${CLOUD_COVER_THRESHOLD_PCT} % or less, then white to grey and more solid as cover rises, to about 85 % opaque at 100 %. A level under the ground has no sheet. Low, mid and high are by the sheet's height above the ground (below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft, up to ${formatFeet(CLOUD_STAGES_FT_AGL.midTopFt)} ft, above). "Cloud at" shows the model's cover at one height instead. The model's own mean cover this hour: low ${pct(cover.low)}, mid ${pct(cover.mid)}, high ${pct(cover.high)}.`),
         h('ul', {}, summary.sheets.map((x) => h('li', {}, `${x.words}: ${x.drawn ? `cover up to ${Math.round(x.maxCover)} %, mean ${Math.round(x.meanCover)} %` : 'no cloud'}`))),
@@ -838,6 +848,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   /** The key's words for the 2.5 km detail: how it shapes the slabs, the estimates named, and what it cannot place. */
   function detailKey(detail, spacing) {
     if (!detail) return [];
+    if (detail.state === 'none') return [h('p', {}, `2.5 km cloud detail: not available at this base (ECCC's HRDPS total-cloud picture covers Canada only), so the slabs are drawn from the ${spacing} NM grid alone, unmasked.`)];
     if (detail.state === 'failed') return [h('p', {}, `2.5 km cloud detail unavailable (last good ${detail.lastGoodAt ? hhmm(detail.lastGoodAt) : 'not yet'}); drawn from the ${spacing} NM grid alone.`)];
     if (detail.state === 'loading') return [h('p', {}, '2.5 km detail loading: the slabs are drawn from the grid alone until the picture for this hour arrives.')];
     const pct = detail.unplacedShare === null || detail.unplacedShare === undefined ? null : Math.round(detail.unplacedShare * 100);
@@ -863,9 +874,14 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     }
     weatherKeyBody.replaceChildren(
       h('p', {}, `Ground: Esri satellite imagery in two tiers: the whole ${AREA_NM} NM square at a modest zoom, and a sharper patch about ${INNER_NM} NM square round home on top of it (at most ${MAX_GROUND_TILES} tiles, loaded as they arrive).`),
-      ...weatherKeyWords(gl.weather.summary(), scale).map((t) => h('p', {}, t)),
+      ...weatherKeyWords(gl.weather.summary(), scale, getSite().sources.satellite?.keyWords).map((t) => h('p', {}, t)),
       h('p', {}, 'A picture for situational awareness: heights marked as estimates are not measurements, and nothing here raises or clears a caution.'),
     );
+    const satButton = toggleButtons.get('satellite'); // the home base may have changed since the button was made
+    if (satButton && satButton.title !== satelliteTitle()) {
+      satButton.title = satelliteTitle();
+      satButton.button.title = satButton.title;
+    }
     const fronts = Boolean(gl.weather.credit());
     if (fronts !== creditFronts) {
       creditFronts = fronts;
@@ -975,8 +991,9 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
    * are put on the screen only here, at the pick's pace, never each frame.
    */
   function routeNear(x, y, width, height) {
-    const routes = gl?.space?.built.labels ?? [];
-    if (!routes.length || !spaceToggles.tacnav) return null;
+    // The TACNAV routes, and a US base's military training routes (airspace3d.js `lines`, shown with the airspace).
+    const routes = [...(spaceToggles.tacnav ? gl?.space?.built.labels ?? [] : []), ...(spaceToggles.airspace ? gl?.space?.built.lines ?? [] : [])];
+    if (!routes.length) return null;
     let best = null;
     let bestD = ROUTE_HOVER_PX;
     for (const route of routes) {
@@ -1066,7 +1083,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     const { volumes, skipped } = checkedAirspace(airspaceNow(), ground);
     const built = buildAirspace(gl.THREE, { volumes, routes: routesNow(), toXY: projection.toXY, scale, groundFt: ground });
     gl.scene.add(built.root); // nothing stands in the picture: a route's name and a volume's words come with the pointer (pickSpace)
-    const airports = buildAirports(gl.THREE, { toXY: projection.toXY, scale, groundFt: ground, doc: win.document });
+    const airports = buildAirports(gl.THREE, { toXY: projection.toXY, scale, groundFt: ground, doc: win.document, airports: airportsNow() });
     gl.scene.add(airports.root);
     gl.space = { built, airports };
     applySpaceToggles();
@@ -1116,7 +1133,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     const drawn = gl?.alerts?.summary;
     const outside = drawn?.outside ? ` ${drawn.outside} outside this ${AREA_NM} NM square not drawn.` : '';
     alertsKey.replaceChildren(
-      h('p', {}, `SIGMETs, AIRMETs and PIREPs (NAV CANADA, through the relay, asked every 10 minutes): a SIGMET or AIRMET is a see-through volume (${Math.round(ALERT_FILL_OPACITY * 100)} % fill, an estimate) from its base to its top over its area; a PIREP is a small diamond at its position and level. Expired ones are not drawn. Levels: FL × 100 read as feet above sea level, SFC as home’s elevation; a message whose position or levels could not be read is listed on the airfield cards only.`),
+      h('p', {}, `SIGMETs, AIRMETs and PIREPs (${getSite().sources.alerts?.credit ?? 'NAV CANADA'}, through the relay, asked every 10 minutes): a SIGMET or AIRMET is a see-through volume (${Math.round(ALERT_FILL_OPACITY * 100)} % fill, an estimate) from its base to its top over its area; a PIREP is a small diamond at its position and level. Expired ones are not drawn. Levels: FL × 100 read as feet above sea level, SFC as home’s elevation; a message whose position or levels could not be read is listed on the airfield cards only.`),
       h('ul', {},
         h('li', {}, swatch(ALERT_COLOURS.sigmet), ` ${ALERT_COLOUR_WORDS.sigmet} edge: SIGMET`),
         h('li', {}, swatch(ALERT_COLOURS.airmet), ` ${ALERT_COLOUR_WORDS.airmet} edge: AIRMET`),
@@ -1128,21 +1145,23 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   }
 
   function drawSpaceKey(volumes, skipped, ground) {
-    const used = (ref) => volumes.some((v) => v.floor.ref === ref || v.ceiling.ref === ref);
+    const used = (ref) => volumes.some((v) => v.floor.ref === ref || v.ceiling?.ref === ref);
     const home = homeIcao();
-    const colours = Object.entries(KIND_WORDS).map(([kind, words]) => {
+    // Moose Jaw's six kinds as always, and a US base's own kinds (MOA, warning and alert areas, training routes) only where it has them.
+    const colours = Object.entries(KIND_WORDS).filter(([kind]) => BASE_KINDS.includes(kind) || volumes.some((v) => v.kind === kind)).map(([kind, words]) => {
       const swatch = h('span', { class: 'sof-3d-swatch', 'aria-hidden': 'true' });
       swatch.style.background = KIND_COLOURS[kind];
       return h('li', {}, swatch, ` ${words.colour}: ${words.name}`);
     });
     const notes = [];
-    if (noAirspace()) notes.push(h('p', {}, 'Airspace: no data yet. Each volume is added with its floor, ceiling, outline and source (NAV CANADA’s Designated Airspace Handbook); none is drawn from memory.'));
+    if (noAirspace()) notes.push(h('p', {}, `Airspace: no data yet. Each volume is added with its floor, ceiling, outline and source (${getSite().airspaceSource ?? 'NAV CANADA’s Designated Airspace Handbook'}); none is drawn from memory.`));
     else {
       notes.push(
         h('p', {}, `Airspace: each volume runs from its floor to its ceiling, see-through (${Math.round(AIRSPACE_FILL_OPACITY * 100)} % fill, an estimate), with a thin outline on its top and bottom and along its corners. Edge colour by kind:`),
         h('ul', {}, colours),
         h('p', {}, 'Nothing is written on the volumes: put the pointer over one and its name and limits float beside it (the nearest one under the pointer when several overlap), with the kind and the source on hover. Every volume is listed here with its limits:'),
-        h('ul', { class: 'sof-3d-airspace-list' }, (gl?.space?.built.picks ?? []).map((pick) => h('li', { title: pick.title }, pick.text))),
+        h('ul', { class: 'sof-3d-airspace-list' }, [...(gl?.space?.built.picks ?? []), ...(gl?.space?.built.lines ?? []).filter((l) => !(gl?.space?.built.picks ?? []).some((p) => p.key === l.key))].map((pick) => h('li', { title: pick.title }, pick.text))),
+        getSite().airspaceSource ? h('p', {}, `Source: ${getSite().airspaceSource}.`) : null,
         h('p', {}, `Heights are feet above sea level, ×${scale}. SFC is the ground at ${home}’s elevation (${Math.round(ground)} ft).${used('AGL') ? ` AGL ≈ over flat prairie, estimate: ${home}’s elevation plus the height.` : ''}${used('FL') ? ' FL is read as feet above sea level (pressure altitude taken as altitude, an approximation).' : ''}${volumes.some((v) => v.ceiling.ref === 'UNL') ? ` UNL is drawn up to ${formatFeet(VIEW_TOP_FT)} ft.` : ''}`),
       );
       if (skipped.length) notes.push(h('p', { class: 'sof-3d-model-warn' }, `Not drawn, entry fails its checks: ${skipped.map((x) => `${x.id} (${x.reason})`).join('; ')}.`));

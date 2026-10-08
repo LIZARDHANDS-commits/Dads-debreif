@@ -9,16 +9,16 @@
 // so the Node tests run the whole thing. Every request goes through guardedFetch
 // (timeout, byte cap, no cookies) and ends when stop() is called (the module closing).
 import {
-  GEOMET_URL, LAYERS, getMapUrl, bboxToMercator, parseLayerTimes, parseRainViewer, feedAge,
-  initialFeedSource, nextFeedSource, REFRESH_MS,
+  GEOMET_URL, LAYERS, GEOMET_EXTRA_LAYERS, getMapUrl, parseLayerTimes, parseRainViewer, feedAge,
+  initialFeedSource, nextFeedSource, REFRESH_MS, wmsServiceOf, frameTimes,
 } from './feeds.js';
 import { guardedFetch, bytesToText, isPng, FETCH_LIMITS } from './map-fetch.js';
 import { formatAge, formatDuration } from './cards.js';
 
 export const RAINVIEWER_LIST_URL = 'https://api.rainviewer.com/public/weather-maps.json';
 
-/** Two ECCC layers feeds.js does not list yet (asked for by name from this short list only). */
-export const EXTRA_LAYERS = Object.freeze({ cloud: 'GOES-West_1km_DayVis-NightIR', warnings: 'Current-Alerts' });
+/** The two ECCC layers whose times are read from their `default` only (feeds.js GEOMET_EXTRA_LAYERS, the same object; asked for by name from this short list only). */
+export const EXTRA_LAYERS = GEOMET_EXTRA_LAYERS;
 const EXTRA_NAMES = new Set(Object.values(EXTRA_LAYERS));
 const ALL_NAMES = new Set([...Object.values(LAYERS), ...EXTRA_NAMES]);
 
@@ -35,39 +35,27 @@ const isNumber = (v) => typeof v === 'number' && Number.isFinite(v);
 
 /**
  * A layer's own GetCapabilities address, for its times only (ECCC's whole list is 40 MB, so it is
- * never asked for). Throws RangeError for a name not on the SOF's list.
+ * never asked for; NCEP's radar address is that one layer's own service, about 8 KB, checked 8 Oct 2026).
+ * Throws RangeError for a name not on the SOF's list, and for a GIBS layer (its frames are worked out, feeds.js `frameTimes`).
  */
 export function capabilitiesUrl(layer) {
-  if (!ALL_NAMES.has(layer)) throw new RangeError('layer is not one the SOF uses');
-  return `${GEOMET_URL}?service=WMS&version=1.3.0&request=GetCapabilities&layer=${layer}`;
+  const service = wmsServiceOf(layer);
+  if (service?.id === 'geomet' && ALL_NAMES.has(layer)) return `${GEOMET_URL}?service=WMS&version=1.3.0&request=GetCapabilities&layer=${layer}`;
+  if (service?.id === 'ncep') return `${service.url}?service=WMS&version=1.3.0&request=GetCapabilities`;
+  throw new RangeError(service ? 'this layer has no capabilities request' : 'layer is not one the SOF uses');
 }
 
 /**
- * The GetMap address for one of EXTRA_LAYERS, as getMapUrl would build it for the others (web mercator
- * only): a name from the list, a box in degrees in order and in range, a size in whole numbers, and an
- * optional time as exact ISO seconds. Throws RangeError for anything else.
+ * The GetMap address for one of EXTRA_LAYERS (web mercator only), built by feeds.js `getMapUrl`, the one address builder: a name
+ * from the list, a box in degrees in order and in range (to 85°), a size in whole numbers, and an optional time as a Date.
+ * Throws RangeError for anything else.
  */
 export function extraMapUrl({ layer, bbox, width, height, time } = /** @type {any} */ ({})) {
   if (!EXTRA_NAMES.has(layer)) throw new RangeError('layer is not one the SOF uses');
-  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 16 || height < 16 || width > 2048 || height > 2048) {
-    throw new RangeError('width and height must be whole numbers from 16 to 2048');
-  }
   if (!Array.isArray(bbox) || bbox.length !== 4 || !bbox.every(isNumber)) throw new RangeError('bbox must be four numbers');
-  const [west, south, east, north] = bbox;
-  if (west < -180 || east > 180 || south < -85 || north > 85 || west >= east || south >= north) throw new RangeError('bbox out of range');
-  const box = bboxToMercator(/** @type {[number, number, number, number]} */ (bbox)).map((n) => String(Number(n.toFixed(2))));
-  let when = '';
-  if (time !== undefined && time !== null) {
-    const ms = time instanceof Date ? +time : NaN;
-    if (!Number.isFinite(ms)) throw new RangeError('time must be a Date');
-    const text = new Date(ms).toISOString().slice(0, 19) + 'Z';
-    if (!ISO_SECONDS.test(text)) throw new RangeError('time must be a real date');
-    when = `&time=${text}`;
-  }
-  const query = `service=WMS&version=1.3.0&request=GetMap&layers=${layer}&styles=&crs=EPSG:3857&bbox=${box.join(',')}`
-    + `&width=${width}&height=${height}&format=image/png&transparent=true${when}`;
-  if (!/^[A-Za-z0-9_.:,/=&-]*$/.test(query)) throw new RangeError('address held an unexpected character');
-  return `${GEOMET_URL}?${query}`;
+  if (bbox[1] < -85 || bbox[3] > 85) throw new RangeError('bbox out of range');
+  if (time !== undefined && time !== null && !(time instanceof Date && Number.isFinite(+time))) throw new RangeError('time must be a Date');
+  return getMapUrl({ layer, bbox, width, height, time: time ?? undefined, crs: 'EPSG:3857' });
 }
 
 /**
@@ -104,17 +92,20 @@ const hhmmZ = (d) => `${two(d.getUTCHours())}${two(d.getUTCMinutes())}Z`;
  * The feed's line, in words and a symbol (never colour alone): { text, symbol, tone, stale }.
  * - label: 'Radar', 'Lightning' or 'Cloud'. kind: 'radar', 'lightning' or 'cloud' (the stale limit, 20, 40 or 60 min, feeds.js STALE_MS).
  * - on: whether the layer is on. hasImage, layerTime (Date or null), failed, busy, backup (RainViewer), now.
+ * - source, sourceShort: the site profile's words for where it comes from (`strip`, `short`), at a base whose source is not ECCC's
+ *   ("Radar NOAA MRMS 0142Z (3 min ago)", "Radar (NOAA) failed, nothing to show"); left out at Moose Jaw, whose lines read as before.
  * The age is the layer's own time, never when it was fetched.
  */
-export function feedLine({ label, kind = 'radar', on = true, hasImage = false, layerTime = null, failed = false, busy = false, backup = false, now = new Date() } = /** @type {any} */ ({})) {
-  const name = backup ? `${label} (RainViewer backup)` : label;
+export function feedLine({ label, kind = 'radar', on = true, hasImage = false, layerTime = null, failed = false, busy = false, backup = false, source = null, sourceShort = null, now = new Date() } = /** @type {any} */ ({})) {
+  const name = backup ? `${label} (RainViewer backup)` : source ? `${label} ${source}` : label;
+  const failedName = !backup && sourceShort ? `${label} (${sourceShort})` : name;
   if (!on) return { text: `${label} off`, symbol: '–', tone: 'off', stale: false };
   const time = layerTime ? feedAge({ kind, layerTime, now }) : null;
   const since = hasImage && layerTime && time && time.state !== 'unknown'
     ? `${hhmmZ(layerTime)} (${formatAge((+now - +layerTime) / MINUTE_MS)})`
     : null;
   if (failed) {
-    return { text: since ? `${name} failed, showing ${formatDuration((+now - +layerTime) / MINUTE_MS)} old` : `${name} failed, nothing to show`, symbol: '⚠', tone: 'bad', stale: true };
+    return { text: since ? `${failedName} failed, showing ${formatDuration((+now - +layerTime) / MINUTE_MS)} old` : `${failedName} failed, nothing to show`, symbol: '⚠', tone: 'bad', stale: true };
   }
   if (!hasImage) return busy || !layerTime ? { text: `${name} loading…`, symbol: '⟳', tone: 'busy', stale: false } : { text: `${name} no picture`, symbol: '⚠', tone: 'bad', stale: true };
   if (!since) return { text: `${name} time unknown`, symbol: '⚠', tone: 'bad', stale: true };
@@ -130,8 +121,10 @@ export function feedLine({ label, kind = 'radar', on = true, hasImage = false, l
  * - layer: the ECCC layer name, or a function returning it (radar rain or snow).
  * - kind: 'radar', 'lightning' or 'cloud': how long until it is stale (feeds.js).
  * - urlFor({ layer, request, time }): the picture's address (built from numbers only).
- * - decode(bytes, asked): the picture as the caller uses it (a bitmap), a promise; null or a throw is a failure. `asked` is the
- *   request the picture was fetched for (which can differ from the current one by now).
+ * - decode(bytes, asked, layer): the picture as the caller uses it (a bitmap), a promise; null or a throw is a failure. `asked` is the
+ *   request the picture was fetched for (which can differ from the current one by now), `layer` the layer it is of.
+ *   For a layer with worked-out frames (GIBS, feeds.js `frameTimes`) there is no capabilities request: each frame time is tried, newest first,
+ *   and a null from decode (an empty picture: no frame for that time yet, map.js) moves on to the next older one; none left is a failure.
  * - timeless: the layer has no time to ask for (warnings); no capabilities request is made.
  * - refreshMs, retryMs, paused(): a paused feed asks for nothing and looks again later.
  * - onAttempt(ok): after each try, for radar's switch to its backup.
@@ -200,10 +193,11 @@ export function createImageFeed({
     lastAttemptAt = now();
     changed();
     const name = layerName();
+    const frames = !timeless && wmsServiceOf(name)?.times === 'frames';
     let ok = false;
     try {
       let time = latestTime;
-      if (!timeless && (full || !time)) {
+      if (!timeless && !frames && (full || !time)) {
         const reply = await guardedFetch(fetch, capabilitiesUrl(name), { timers, signal: closing.signal, accept: 'text/xml', ...FETCH_LIMITS.layerTimes });
         const xml = bytesToText(reply.bytes);
         time = layerTimeOf(xml, name);
@@ -215,16 +209,32 @@ export function createImageFeed({
       }
       if (request) {
         const asked = request;
-        if (!timeless && asked.time instanceof Date) {
+        if (!timeless && !frames && asked.time instanceof Date) {
           // The request's own hour: only inside the layer's range (never an hour ECCC does not have).
           if (!range || +asked.time < +range.start || +asked.time > +range.end) throw new Error('hour outside the layer');
           time = asked.time;
         }
-        const url = urlFor({ layer: name, request: asked, time: timeless ? undefined : time });
-        const reply = await guardedFetch(fetch, url, { timers, signal: closing.signal, accept: 'image/png', ...FETCH_LIMITS.image });
-        if (!isPng(reply.contentType, reply.bytes, { width: asked.width, height: asked.height })) throw new Error('not a picture');
-        const image = await decode(reply.bytes, asked); // the request it was asked for, not the current one
-        if (image === null || image === undefined) throw new Error('picture unreadable');
+        // One picture for one time: its address, a checked PNG of the size asked, and the caller's decoding (null when it is not a picture to show).
+        const picture = async (when) => {
+          const url = urlFor({ layer: name, request: asked, time: when });
+          const reply = await guardedFetch(fetch, url, { timers, signal: closing.signal, accept: 'image/png', ...FETCH_LIMITS.image });
+          if (!isPng(reply.contentType, reply.bytes, { width: asked.width, height: asked.height })) throw new Error('not a picture');
+          return (await decode(reply.bytes, asked, name)) ?? null; // the request it was asked for, not the current one
+        };
+        let image = null;
+        if (frames) {
+          for (const when of frameTimes(name, now())) {
+            image = await picture(when);
+            if (stopped) break;
+            if (image !== null) {
+              time = when;
+              latestTime = when;
+              break;
+            }
+          }
+          if (image === null && !stopped) throw new Error('no frame young enough');
+        } else image = await picture(timeless ? undefined : time);
+        if (image === null && !stopped) throw new Error('picture unreadable');
         if (stopped) {
           release(image);
           return;
@@ -327,13 +337,15 @@ export function createImageFeed({
 /**
  * Radar (rain or snow) with its backup. `precip()` says 'rain' or 'snow'. `layers()` gives the layer names, { rain, snow } (the home base's site profile,
  * `sources.radar.layers`; ECCC's two radar layers by default); it is only read while the feed is on, so a base with no radar source can return nothing. `decode`, `urlFor`-less:
- * the addresses are built here from feeds.js. `fetch`, `timers`, `now`, `onChange` as createImageFeed.
+ * the addresses are built here from feeds.js (`getMapUrl`, which sends each layer to its own service: ECCC GeoMet, or NOAA NCEP at the US bases).
+ * `words()` gives the radar source's `{ strip, short }` words for its line (the site profile's `sources.radar`), or nothing for the plain "Radar" line (Moose Jaw).
+ * `fetch`, `timers`, `now`, `onChange` as createImageFeed.
  *
  * Returns { setRequest, enable, setPrecip, refresh, wake, stop, state, line }:
  * `state()` is { source: 'eccc' | 'rainviewer', failures, image, frame, layerTime, failed, busy };
  * `frame` is RainViewer's newest { time, path } while it is the source; `line(now)` is feedLine's.
  */
-export function createRadarFeed({ precip = () => 'rain', layers = () => ({ rain: LAYERS.radarRain, snow: LAYERS.radarSnow }), decode, paused, fetch, timers, now = () => new Date(), onChange = () => {} }) {
+export function createRadarFeed({ precip = () => 'rain', layers = () => ({ rain: LAYERS.radarRain, snow: LAYERS.radarSnow }), words = () => null, decode, paused, fetch, timers, now = () => new Date(), onChange = () => {} }) {
   let source = initialFeedSource();
   let backup = null; // { frame, generated }
   let backupFailed = false;
@@ -415,9 +427,10 @@ export function createRadarFeed({ precip = () => 'rain', layers = () => ({ rain:
     /** The radar's line for the status strip. */
     line(at = now()) {
       const s = this.state();
+      const w = words();
       return feedLine({
         label: 'Radar', kind: 'radar', on, hasImage: s.source === 'rainviewer' ? Boolean(s.frame) : Boolean(s.image),
-        layerTime: s.layerTime, failed: s.failed, busy: s.busy, backup: s.source === 'rainviewer', now: at,
+        layerTime: s.layerTime, failed: s.failed, busy: s.busy, backup: s.source === 'rainviewer', source: w?.strip ?? null, sourceShort: w?.short ?? null, now: at,
       });
     },
   };

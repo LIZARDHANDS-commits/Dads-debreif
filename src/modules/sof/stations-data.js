@@ -27,11 +27,18 @@ const ELEVATION_FT = Object.freeze({
 /** The stations asked for, in this order (MET Norway takes up to 30 in one call). */
 export const ANCHOR_STATION_IDS = Object.freeze(['CYMJ', 'CYQR', 'CYYN', 'CYXE', 'CYQV', 'CYPA', 'CYQW', 'CYBR', 'CYXH', 'KGGW', 'KMIB', 'KMOT', 'CYQL', 'KGTF']);
 
-/** The stations: [{ icao, name, lat, lon, elevationFt }], elevation null where it is not known (its base is then not used). */
-export const ANCHOR_STATIONS = Object.freeze(ANCHOR_STATION_IDS.filter((icao) => CATALOG[icao]).map((icao) => Object.freeze({
+/**
+ * Stations for a list of ICAOs, in that order: [{ icao, name, lat, lon, elevationFt }] from the catalog (one not in it is left out), elevation null where it is
+ * not known (its base is then not used). A US base's site profile (sites/us-base.js) uses it for the base and its usual alternates, whose catalog entries
+ * carry OurAirports' elevations (read 8 Oct 2026).
+ */
+export const stationsFor = (icaos) => Object.freeze(icaos.filter((icao) => CATALOG[icao]).map((icao) => Object.freeze({
   icao,
   name: CATALOG[icao].name,
   lat: CATALOG[icao].lat,
   lon: CATALOG[icao].lon,
   elevationFt: fieldElevationFt(icao, CATALOG[icao]) ?? ELEVATION_FT[icao] ?? null,
 })));
+
+/** Moose Jaw's stations (sites/cymj.js). */
+export const ANCHOR_STATIONS = stationsFor(ANCHOR_STATION_IDS);

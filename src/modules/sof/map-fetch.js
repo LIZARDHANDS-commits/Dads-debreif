@@ -24,6 +24,9 @@ export class MapFetchError extends Error {
     super(message ?? code);
     this.name = 'MapFetchError';
     this.code = code;
+    /** For 'status': the reply's status, and its first bytes as text when the caller asked for them (`errorBytes`). */
+    this.status = /** @type {number | null} */ (null);
+    this.body = /** @type {string | null} */ (null);
   }
 }
 
@@ -35,8 +38,10 @@ export class MapFetchError extends Error {
  * - timers: a scheduler scope (`after`); the request is given up on after `timeoutMs`.
  * - signal: ends the request when it aborts (the module closing).
  * - accept: the Accept header, if any.
+ * - errorBytes: when above 0, a reply that is not OK has up to this many bytes of its body read as text onto the error (`body`), so a caller can
+ *   tell a relay's own plain reason (such as "FAA NOTAM key not set") from any other failure. Off (0) by default: the body is not read.
  */
-export async function guardedFetch(fetch, url, { timers, signal, timeoutMs, maxBytes, accept } = /** @type {any} */ ({})) {
+export async function guardedFetch(fetch, url, { timers, signal, timeoutMs, maxBytes, accept, errorBytes = 0 } = /** @type {any} */ ({})) {
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || !Number.isFinite(maxBytes) || maxBytes <= 0) {
     throw new RangeError('guardedFetch needs a timeout and a byte cap');
   }
@@ -70,8 +75,16 @@ export async function guardedFetch(fetch, url, { timers, signal, timeoutMs, maxB
       throw new MapFetchError('redirect', 'reply came from another origin');
     }
     if (!response.ok) {
-      response.body?.cancel?.().catch?.(() => {});
-      throw new MapFetchError('status', `status ${response.status}`);
+      const failed = new MapFetchError('status', `status ${response.status}`);
+      failed.status = response.status;
+      if (errorBytes > 0) {
+        try {
+          failed.body = bytesToText(await readCapped(response, errorBytes, () => why));
+        } catch {
+          // no readable reason: the status alone
+        }
+      } else response.body?.cancel?.().catch?.(() => {});
+      throw failed;
     }
     const contentType = response.headers?.get?.('content-type') ?? '';
     const declared = Number(response.headers?.get?.('content-length'));

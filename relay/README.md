@@ -40,7 +40,7 @@ It runs on a free Cloudflare account (the Workers free plan allows 100,000 reque
 
 **Second network (Dad, 7 Oct 2026):** adsb.lol alone missed low aircraft near Regina (ACA1104 on approach at 2,600 ft, STAR9 at 3,950 ft), because its volunteer receivers did not hear them. With `SECOND_FEED=adsb.fi` the relay also asks adsb.fi's open data API (`opendata.adsb.fi`, free for non-commercial use) and merges the two by hex id, keeping the more recent position; either one alone still works if the other fails. The Netlify wrapper turns it on by default (set `SECOND_FEED=none` on the site to turn it off); the Cloudflare version and the tests leave it off. Both aircraft showed once it was on.
 
-**Keys and secrets:** the relay needs none today. If adsb.lol ever asks for a key, it goes in a Worker environment variable or secret in the Cloudflare dashboard, never in this file or anywhere in the repository.
+**Keys and secrets:** the traffic answer needs none. If adsb.lol ever asks for a key, it goes in a Worker environment variable or secret in the Cloudflare dashboard, never in this file or anywhere in the repository.
 
 Things to know:
 
@@ -68,7 +68,32 @@ The same relay also runs as a Netlify Function: `netlify/functions/traffic.mjs` 
 - `GET /notam?sites=CYMJ,CYQR` (1 to 8 ICAO ids): NOTAMs from NAV CANADA's flight weather site (`plan.navcanada.ca/weather/api/alpha/`), rebuilt as `{ source, fetched, sites, notams: [{ id, location, start, end, raw }] }`, kept 5 minutes. A page cannot read NAV CANADA directly (no CORS header). NAV CANADA's terms for automated reading of that site were not found on 7 Oct; Patrick to confirm before daily use.
 - `GET /fronts`: the US Weather Prediction Center's coded surface fronts bulletin (CODSUS, public domain, `tgftp.nws.noaa.gov`), parsed to `{ valid, highs, lows, fronts: [{ type: COLD|WARM|STNRY|OCFNT|TROF, points: [[lat, lon], ...] }] }`, kept 15 minutes. Positions are whole degrees, as the bulletin codes them.
 - `GET /alerts?sites=CYMJ,CYQR` (1 to 8 ICAO ids): SIGMETs, AIRMETs and PIREPs near those sites from the same NAV CANADA source, as `{ alerts: [{ kind, location, start, end, text }] }`, kept 5 minutes. On 7 Oct none were in force near Moose Jaw; PIREPs seen elsewhere carry their position and level in the text.
-- Netlify functions `netlify/functions/notam.mjs`, `alerts.mjs` and `fronts.mjs`; same allowed origins and rules as `/traffic`. Live at `https://dads-sof-relay.netlify.app/notam` and `/fronts` since 7 Oct.
+- Netlify functions `netlify/functions/notam.mjs`, `alerts.mjs` and `fronts.mjs`; same allowed origins and rules as `/traffic`. Live at `https://dads-sof-relay.netlify.app/notam` and `/fronts` since 7 Oct. The US routes below need the relay redeployed.
+
+## The US bases: NOTAMs, SIGMETs, G-AIRMETs and PIREPs (`us-wx.js`, plan Step 2c part E, 8 Oct 2026)
+
+`/notam` and `/alerts` look at each asked site's first letter. **K** sites (the US bases and their alternates) go to the US sources below; every other site goes to NAV CANADA exactly as before. An answer lists in `sites` only the fields it answered for, so a field it could not answer reads "unavailable" on the SOF, never "none".
+
+- `GET /alerts?sites=KDLF,KDRT`: SIGMETs (convective and the rest) from `aviationweather.gov/api/data/airsigmet`, G-AIRMETs (the AIRMETs; one snapshot, the one nearest now) from `.../gairmet`, and PIREPs within AWC's `distance=100` of each K site (its unit, statute or nautical miles, not checked; the SOF lists those within 100 NM) from `.../pirep?id=KDLF&distance=100`, all from the NOAA/NWS Aviation Weather Center (public domain, no key). Each is rebuilt from an allowlist: `{ kind, location, start, end, text }` as before, plus `area` (the outline as checked `[lat, lon]` number pairs, at most 400 points), `baseFt` and `topFt` (feet above sea level, or null when not given), `hazard` and `severity` (short upper-case words) for a SIGMET or G-AIRMET, and `point` (`[lat, lon]`) and `levelFt` for a PIREP. AWC's own AIRMET text is not used, so nothing is listed twice; a G-AIRMET's text is built by the relay from those fields. Kept 5 minutes, at most 400 alerts. Any part failing fails the K sites' part (they read "unavailable").
+- `GET /notam?sites=KDLF`: NOTAMs from the FAA NOTAM API (`external-api.faa.gov/notamapi/v1/notams?icaoLocation=KDLF&responseFormat=geoJson`), rebuilt to the same `{ id, location, start, end, raw }` as NAV CANADA's; `raw` is the FAA's ICAO-format text when it gives one, so the SOF's closed-runway and aid checks read its `E)` line. It needs the FAA key (below). **Without the key**, a request for only K sites answers `503 { "error": "FAA NOTAM key not set" }` and the SOF says "NOTAMs unavailable (FAA key not set)"; a mixed request answers the other sites and lists the K ones in `unavailable: [{ site, reason }]`. It never answers an empty list for a field it could not ask about.
+- Not checked against live replies: on 8 Oct 2026 the build session's network refused `aviationweather.gov` and `external-api.faa.gov`, so the readers follow AWC's and the FAA's documented field names as known then. Check the first live answers after deploying (`/alerts?sites=KDLF` in a browser tab should list SIGMETs, G-AIRMETs and PIREPs with `area` and `point` filled in).
+
+### The FAA NOTAM key (Dad, when he is ready)
+
+The key is two values, a client id and a client secret, from a free FAA account. They live only in Netlify's settings, never in the repository, and the relay sends them only to the FAA's own address (never logged, never echoed back).
+
+1. Sign up for the FAA NOTAM API at the FAA's API portal (`api.faa.gov`), ask for access to the NOTAM API, and wait for the client id and client secret by e-mail. Read the terms and limits it gives (not checked from here).
+2. In Netlify, open the relay's site (`dads-sof-relay`), then **Site configuration → Environment variables → Add a variable**.
+3. Add `FAA_CLIENT_ID` with the client id, and `FAA_CLIENT_SECRET` with the client secret. Keep "Contains secret values" ticked for the secret, and scope both to Functions.
+4. Redeploy the relay (the same `npx netlify-cli deploy --prod ...` command as above), since a running function only reads them when it starts.
+5. Check: `https://dads-sof-relay.netlify.app/notam?sites=KDLF` in a browser tab should list Laughlin's NOTAMs, and match the FAA NOTAM Search page for KDLF.
+
+| Variable | What it is | Needed for |
+|---|---|---|
+| `ALLOWED_ORIGINS` | Exact origins allowed to read the relay (optional; the defaults above otherwise) | every answer |
+| `SECOND_FEED` | `none` turns adsb.fi off (on by default on Netlify) | `/traffic` |
+| `FAA_CLIENT_ID` | The FAA NOTAM API client id (secret: never in the repository) | `/notam` for K sites |
+| `FAA_CLIENT_SECRET` | The FAA NOTAM API client secret (secret: never in the repository) | `/notam` for K sites |
 
 ## Credit and terms for adsb.lol
 
