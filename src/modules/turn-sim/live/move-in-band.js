@@ -213,7 +213,7 @@ export function planMoveInBand(pair, target, options = {}, t0 = 0) {
   const refs = { [lead.id]: recordFlight(lead, leadPlan, t0) };
   const dAlt = Math.abs(target.alt - now.alt);
   const level = dAlt > 0 && Math.hypot(target.fwd - now.fwd, target.left - now.left) >= 1
-    ? trackTwice({ refs, wing0: wing, t0, phases: onClosure([phase({ fwd: target.fwd, left: target.left, alt: now.alt })], { closeIn }), blockFt, stopWhenSettled: true }).run
+    ? trackTwice({ refs, wing0: wing, t0, phases: onClosure([phase({ fwd: target.fwd, left: target.left, alt: now.alt }, { tactical: open })], { closeIn }), blockFt, stopWhenSettled: true }).run
     : null;
   const across = level?.ok ? level.durationSec : 0;
   const tries = dAlt > 0 ? (open ? [openMoveAltSec(target.alt - now.alt, wing, blockFt, Math.hypot(target.fwd - now.fwd, target.left - now.left)), ...(target.alt > now.alt ? [dAlt / MOVE_ALT_RATE_FTPS] : [])] : [dAlt / MOVE_ALT_RATE_FTPS]) : [0];
@@ -233,7 +233,7 @@ export function planMoveInBand(pair, target, options = {}, t0 = 0) {
   for (const t of tries) {
     const altSec = Math.max(t, dAlt > 0 ? across : 0);
     const hard = open && t !== dAlt / MOVE_ALT_RATE_FTPS ? { altRateFtps: Infinity, ...bigDive(altSec), ...bigClimb(altSec) } : (target.alt > now.alt + 300 ? bigClimb(altSec) : {});
-    const phases = onClosure([phase({ fwd: target.fwd, left: target.left, alt: target.alt }, altSec > 0 ? { altSec, holdUntil: t0 + altSec, ...hard } : {})], { closeIn });
+    const phases = onClosure([phase({ fwd: target.fwd, left: target.left, alt: target.alt }, { tactical: open, ...(altSec > 0 ? { altSec, holdUntil: t0 + altSec, ...hard } : {}) })], { closeIn });
     // The run goes on past settled to match Lead's speed and heading (the tracker's align), so #2 holds the spot afterwards;
     // until V2.108 it stopped at settled and drifted on at up to a couple of feet a second (seen in the V2.108 dry run).
     const flown = trackTwice({ refs, wing0: wing, t0, phases, blockFt, stopWhenSettled: false });

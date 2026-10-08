@@ -33,34 +33,41 @@ export function fwSwitch(sTo) {
   const S = FW_SWITCH;
   const s = sTo;
   let stage = 'in';
-  let range0 = null; // the spacing at the press, held through the switch
+  let fwd0 = null;
+  let left0 = null;
   const pursuit = (L, W) => {
     if (stage === 'done') return null;
     const rel = relativeTo(L, W);
     const off = s * wrapPi(W.headingRad - L.headingRad); // how far his heading has turned toward the far side, radians
     // Speed (Patrick 6 Oct 01:24Z: "if they want to swap sides they have to do what they need to with geometry, then
-    // power, to maintain position. this is fundamental for any formation movement"): the switch holds the spacing he had
-    // at the press. Geometry first (the turn in, no more than turnInMaxDeg, and the aim near the tail line); then power,
-    // in proportion to how far the range has opened or closed from where it started, up to holdKias each way. Opening asks
-    // for more speed, which the tracker flies at full power and the cone's energy law (TS-96) dives for; closing asks
-    // for less, a climb: the vertical is geometry too (Patrick 01:25Z), so height in the cone comes before power, which is
-    // the order the energy law flies. Bleeding energy through the switch is only an option (Patrick 01:24Z), not a control.
-    range0 ??= Math.hypot(rel.fwd, rel.left);
-    const opened = Math.hypot(rel.fwd, rel.left) - range0;
-    const kiasCmd = L.kias + Math.max(-1, Math.min(1, opened / S.holdScaleFt)) * S.holdKias;
+    // power, to maintain position. this is fundamental for any formation movement"): the switch holds the forward
+    // station he had at the press. Turning in an S-turn increases ground track distance relative to Lead; to maintain
+    // forward position, geometry demands speed compensation V_lead / cos(phi) while banked, plus proportional feedback
+    // on depth lag (-rel.fwd - (-fwd0)).
+    fwd0 ??= rel.fwd;
+    left0 ??= rel.left;
+    const depthLag = (-rel.fwd) - (-fwd0);
+    const phi = Math.max(0, off);
+    const cosPhi = Math.max(0.75, Math.cos(phi));
+    const kiasGeom = L.kias / cosPhi;
+    const kiasLag = Math.max(-1, Math.min(1, depthLag / S.holdScaleFt)) * S.holdKias;
+    const kiasCmd = Math.min(L.kias + S.holdKias + 10, Math.max(L.kias - 10, kiasGeom + kiasLag));
+
     if (stage === 'in') {
       if (-rel.fwd < S.minBehindFt) return null; // too close behind Lead to cross: the slot law drops him back first
       // Where the roll-out would end if it started now: the arc at the same bank the other way, plus the reversal itself
-      // (about reverseSec at his present heading). He reverses as soon as that landing is at the far cone's middle
-      // (aimSweepDeg off Lead's tail) at the depth he will be at then; the turn in drops him back, so the sooner the better.
+      // (about reverseSec at his present heading). Reversal triggers when the predicted roll-out reaches the far cone
+      // (targetAcross). He holds wings level across if already at max turn-in angle until reaching the reversal point.
       const radiusFt = turnRadiusFromBankFt(W.tasFtps, S.bankDeg);
-      const phi = Math.max(0, off);
-      const acrossFt = radiusFt * (1 - Math.cos(phi)) + W.tasFtps * Math.sin(phi) * S.reverseSec;
-      const backFt = radiusFt * (phi - Math.sin(phi)) + W.tasFtps * (1 - Math.cos(phi)) * S.reverseSec;
+      const acrossFt = radiusFt * (1 - Math.cos(phi)) + W.tasFtps * Math.sin(phi) * 0.8;
       const leftEnd = s * rel.left + acrossFt;
-      const depthEnd = -rel.fwd + backFt;
-      if (phi > 0 && (leftEnd >= depthEnd * Math.tan(S.aimSweepDeg * DEG) || phi >= S.turnInMaxDeg * DEG)) stage = 'out';
-      else return { psiCmd: L.headingRad + s * S.turnInMaxDeg * DEG, kiasCmd, bankDeg: s * S.bankDeg };
+      const targetAcross = Math.max(450, Math.min(650, Math.abs(left0)));
+      if (phi > 0 && leftEnd >= targetAcross) {
+        stage = 'out';
+      } else {
+        const bankDeg = phi >= S.turnInMaxDeg * DEG ? 0 : s * S.bankDeg;
+        return { psiCmd: L.headingRad + s * S.turnInMaxDeg * DEG, kiasCmd, bankDeg };
+      }
     }
     if (off <= S.rollOutDeg * DEG) {
       stage = 'done';

@@ -132,7 +132,15 @@ export function legsFor(from, s, to, sTo, spacingFt) {
       // back, into the far cone, where the band goal settles him (the whole cone, TS-75). Until V2.98: three slides at
       // 30 ft/s through the point astern.
       const fw = slot('fw', sTo);
-      phases.push(phase({ fwd: -fwShapeNow().rangeFt, left: 0, alt: fw.alt }, { ...FW_FOLLOW, ...fwSwitch(sTo) }));
+      phases.push(phase({ fwd: -fwShapeNow().rangeFt, left: 0, alt: fw.alt }, {
+        ...FW_FOLLOW,
+        coneAlt: false,
+        tactical: true,
+        fwdRate: 80,
+        latRate: 80,
+        overtakeKias: 25,
+        ...fwSwitch(sTo),
+      }));
       if (to !== 'fw') phases.push(dropBack(fw, { advanceTol: 25 }));
       switched = true;
       side = sTo;
