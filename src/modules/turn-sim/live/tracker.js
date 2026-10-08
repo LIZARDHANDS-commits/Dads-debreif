@@ -295,7 +295,8 @@ function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT) {
   const over = ph.closureFtps ? ph.closureFtps / ratio : ph.overtakeKias;
   const under = ph.closureFtps ? ph.closureFtps / ratio : ph.undertakeKias;
   const refKias = Math.hypot(vpx, vpy) / ratio;
-  const kiasCmd = Math.max(refKias - under, Math.min(refKias + over, speed / ratio));
+  const floorKias = ph.floorKias ?? (ph.tactical ? KIAS_OUTSIDE_LAB : Math.max(140, refKias - under));
+  const kiasCmd = Math.max(floorKias, Math.max(refKias - under, Math.min(refKias + over, speed / ratio)));
   return { pullX, pullY, vdx, vdy, speed, psiCmd, kiasCmd };
 }
 
