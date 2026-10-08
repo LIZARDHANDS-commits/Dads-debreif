@@ -108,23 +108,65 @@ export const RADAR_SCALES = Object.freeze({
 export const RADAR_COLOURS = Object.freeze(['#4fa8ff', '#19e6d0', '#00e000', '#007a00', '#ffff00', '#ff9900', '#ff0000', '#ff00b0', '#7a1fa2', '#3a0a5a']);
 
 /**
- * The map key for what is showing (F5 of sof-recheck-207): { radar, lightning, rings }, each null when its layer is off.
- * `radarBackup`: RainViewer's tiles are the radar now, in their own colours. `radar` is { noun, unit, ticks, words }; `lightning` and `rings` are the words. Plain words, never colour alone.
+ * NOAA NCEP's MRMS reflectivity colours, read from its own GetLegendGraphic for conus_bref_qcd on 8 Oct 2026 (5 px a dBZ, -25 to 70 dBZ sampled every
+ * 5 dBZ): tan and grey below 0, blues to 15, greens 20 to 35, yellow and orange 40 to 45, reds 50 to 55, pink to purple 60 to 70. Fixed text, not read from NCEP.
  */
-export function legendItems(layers, { radarBackup = false } = {}) {
+export const MRMS_SCALE = Object.freeze({
+  noun: 'reflectivity',
+  unit: 'dBZ',
+  ticks: Object.freeze([['-20', 5], ['0', 26], ['20', 47], ['40', 68], ['70', 100]]),
+  colours: Object.freeze(['#92896a', '#a4a26b', '#c2c39c', '#c1c5b4', '#a2a9b5', '#7c89af', '#536aa4', '#5186b7', '#58c2b9', '#30d65b', '#0daf12', '#0a730c', '#84a005', '#f5cb17', '#f5b217', '#d10809', '#aa0809', '#f1bafe', '#f175fe', '#8300e7']),
+});
+
+/**
+ * The map key for what is showing (F5 of sof-recheck-207): { radar, lightning, rings }, each null when its layer is off.
+ * `radarBackup`: RainViewer's tiles are the radar now, in their own colours. `radar` is { noun, unit, ticks, words } (and `colours` for a scale
+ * that is not ECCC's); `lightning` and `rings` are the words. Plain words, never colour alone.
+ * `radarScale`: 'dbz' for NOAA's MRMS reflectivity (the US bases' radar source's `scale`), else ECCC's rain or snow rate.
+ * `lightningRing`: false when the base has no lightning source, so the rings' words do not speak of a lightning ring that is not drawn.
+ */
+export function legendItems(layers, { radarBackup = false, radarScale = null, lightningRing = true } = {}) {
   const on = layers?.on ?? {};
-  const scale = RADAR_SCALES[layers?.precip === 'snow' ? 'snow' : 'rain'];
+  const backupWords = radarBackup ? ' The backup radar (RainViewer) uses its own colours.' : '';
+  let radar = null;
+  if (on.radar && radarScale === 'dbz') {
+    radar = { ...MRMS_SCALE, words: `Radar, NOAA MRMS reflectivity in dBZ, in NOAA's colours: blue is light, then green, yellow and orange, red, and pink to purple is the strongest. The rain and snow choice does not change it.${backupWords}` };
+  } else if (on.radar) {
+    const scale = RADAR_SCALES[layers?.precip === 'snow' ? 'snow' : 'rain'];
+    radar = { ...scale, words: `Radar, ${scale.noun} rate in ${scale.unit}: pale blue is the lightest, then green, yellow, orange and red, and purple is the heaviest.${backupWords}` };
+  }
   return {
-    radar: on.radar
-      ? { ...scale, words: `Radar, ${scale.noun} rate in ${scale.unit}: pale blue is the lightest, then green, yellow, orange and red, and purple is the heaviest.${radarBackup ? ' The backup radar (RainViewer) uses its own colours.' : ''}` }
-      : null,
+    radar,
     lightning: on.lightning
       ? 'Lightning: a yellow mark with a dark outline is a 2.5 km square with lightning in the last 10 minutes. It shows where, not how strong.'
       : null,
     rings: on.rings
-      ? 'Dashed rings are 25 and 50 NM from home. A dotted amber ring is the lightning caution radius, when it is not one of those.'
+      ? `Dashed rings are 25 and 50 NM from home.${lightningRing ? ' A dotted amber ring is the lightning caution radius, when it is not one of those.' : ''}`
       : null,
   };
+}
+
+// ---- The outside lightning map link -------------------------------------------------------------------
+
+/** Blitzortung's live lightning map (lightningmaps.org), the only outside link of its kind; opened in a new tab, never fetched or framed. */
+export const LIGHTNING_MAP_HOST = 'https://www.lightningmaps.org/';
+
+/**
+ * The link for a base with no lightning picture of its own (profile `lightningLink: 'blitzortung'`): { href, text, note }, centred on home
+ * (latitude y, longitude x, zoom z in the address's # part; the format was not checked from here, so if the site ignores it the map opens at its own
+ * start). Built from the fixed host and checked numbers only; null for anything else.
+ */
+export function lightningMapLink(kind, home) {
+  if (kind !== 'blitzortung') return null;
+  const lat = home?.lat;
+  const lon = home?.lon;
+  if (!isNumber(lat) || !isNumber(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+  const at = (n) => String(Number(n.toFixed(4)));
+  return Object.freeze({
+    href: `${LIGHTNING_MAP_HOST}#y=${at(lat)};x=${at(lon)};z=8`,
+    text: 'Lightning map (Blitzortung) ↗',
+    note: 'outside site, not checked by this tool',
+  });
 }
 
 /** What the VNC base says about its own edges, or null when it is not in use. */
@@ -163,3 +205,6 @@ export const noSourceLine = (label) => ({ text: noSourceWords(label), symbol: '�
 export function statusItems(lines, on) {
   return ORDER.filter((id) => on[id] && lines[id]).map((id) => ({ id, text: lines[id].text, symbol: lines[id].symbol ?? '', tone: lines[id].tone ?? 'ok' }));
 }
+
+/** The radar coverage line at a base whose radar has no coverage layer (NOAA MRMS): neutral, neither a tick nor a failure. */
+export const coverageNotShownLine = () => ({ text: 'Radar coverage: not shown for this source', symbol: '–', tone: 'off', stale: false });

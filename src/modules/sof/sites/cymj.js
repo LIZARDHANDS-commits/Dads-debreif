@@ -60,6 +60,7 @@ export const CYMJ = Object.freeze({
     alerts: Object.freeze({ name: 'NAV CANADA SIGMETs, AIRMETs and PIREPs', via: 'relay /alerts', credit: 'NAV CANADA' }),
     fronts: Object.freeze({ name: 'WPC coded surface analysis (CODSUS)', via: 'relay /fronts', credit: 'WPC surface analysis' }),
   }),
+  lightningLink: null, // no outside lightning link (the US bases have one, us-base.js)
   // The words of the credits line (screen-model.js `creditsFor`) and the map's (map-model.js `mapCredits`), as they read today.
   credits: Object.freeze({
     confirm: 'Confirm with NAV CANADA.',

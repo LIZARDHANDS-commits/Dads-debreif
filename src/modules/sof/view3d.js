@@ -162,6 +162,10 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
   const note = h('p', { class: 'sof-3d-note', role: 'status', hidden: true });
   const tag = h('p', { class: 'sof-3d-tag', role: 'status', hidden: true });
 
+  // The Satellite button's words name the home base's picture (its site profile's `toggleWords`; ECCC's GOES-West at Moose Jaw, as before).
+  function satelliteTitle() {
+    return `${getSite().sources.satellite?.toggleWords ?? 'ECCC GOES-West cloud picture'} as a faint sheet at the highest model cloud level`;
+  }
   // The model controls (phase 2): a toggle for each layer, the time slider, the key and the credit, in a stack with the ground's credit.
   const TOGGLES = /** @type {[string, string, string][]} */ ([
     ['low', 'Low', `Low cloud: model cloud with its base below ${formatFeet(CLOUD_STAGES_FT_AGL.lowTopFt)} ft above the ground`],
@@ -170,7 +174,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     ['winds', 'Barbs', 'Winds aloft at 850, 700 and 500 hPa, as small barbs (off to begin with: the Wind flow shows the winds gently)'],
     ['freezing', 'Freezing level', 'The 0 °C level, a faint sheet across the area'],
     ['flow', 'Wind flow', 'Faint streaks drifting with the model wind at 850, 700 and 500 hPa, like Windy: they move only while this view is shown (they step every 2 seconds with reduced motion)'],
-    ['satellite', 'Satellite', 'ECCC GOES-West cloud picture as a faint sheet at the highest model cloud level'],
+    ['satellite', 'Satellite', satelliteTitle()],
     ['radar', 'Radar', 'Radar as see-through shafts from the ground up to the model cloud base (the radar picture on the ground has its own switch in the map’s Layers menu)'],
     ['lightning', 'Lightning', 'Lightning cells as thin bolts from the ground to the model cloud top'],
     ['fronts', 'Fronts', `${FRONTS_CREDIT}: surface fronts on the ground with a faint wall, and the H and L pressure centres`],
@@ -863,9 +867,14 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     }
     weatherKeyBody.replaceChildren(
       h('p', {}, `Ground: Esri satellite imagery in two tiers: the whole ${AREA_NM} NM square at a modest zoom, and a sharper patch about ${INNER_NM} NM square round home on top of it (at most ${MAX_GROUND_TILES} tiles, loaded as they arrive).`),
-      ...weatherKeyWords(gl.weather.summary(), scale).map((t) => h('p', {}, t)),
+      ...weatherKeyWords(gl.weather.summary(), scale, getSite().sources.satellite?.keyWords).map((t) => h('p', {}, t)),
       h('p', {}, 'A picture for situational awareness: heights marked as estimates are not measurements, and nothing here raises or clears a caution.'),
     );
+    const satButton = toggleButtons.get('satellite'); // the home base may have changed since the button was made
+    if (satButton && satButton.title !== satelliteTitle()) {
+      satButton.title = satelliteTitle();
+      satButton.button.title = satButton.title;
+    }
     const fronts = Boolean(gl.weather.credit());
     if (fronts !== creditFronts) {
       creditFronts = fronts;

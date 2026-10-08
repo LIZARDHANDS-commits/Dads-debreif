@@ -1,8 +1,9 @@
 // The SOF map's feeds, decided in Node (SPEC-sof, "Map" and "Security"): the
-// addresses of ECCC's radar, lightning and radar-coverage images, a layer's
-// latest time from its GetCapabilities reply, RainViewer's backup tiles, the
-// switch between the two, and how old each feed is. Pure: no network, no
-// timers, no DOM; the clock comes in as `now`.
+// addresses of the weather pictures (ECCC GeoMet at Moose Jaw; NOAA NCEP radar and
+// NASA GIBS satellite at the US bases, plan Step 2c part C), a layer's latest time
+// from its GetCapabilities reply, RainViewer's backup tiles, the switch between
+// the two, and how old each feed is. Pure: no network, no timers, no DOM; the
+// clock comes in as `now`.
 //
 // Every address is built from a fixed host and checked numbers or a name from
 // a short list, never from reply text. Replies are untrusted: size-capped and
@@ -25,6 +26,52 @@ export const LAYERS = Object.freeze({
   modelCloud: 'HRDPS.CONTINENTAL_NT',
 });
 const LAYER_NAMES = new Set(Object.values(LAYERS));
+
+/** Two more ECCC layers the map draws (re-exported by map-feeds.js as EXTRA_LAYERS): their times are read differently (map-feeds.js `layerTimeOf`). */
+export const GEOMET_EXTRA_LAYERS = Object.freeze({ cloud: 'GOES-West_1km_DayVis-NightIR', warnings: 'Current-Alerts' });
+
+/** NOAA NCEP's GeoServer WMS for the MRMS radar (public domain, US Government; Dad approved 8 Oct 2026): this address is that one layer's own service. */
+export const NCEP_MRMS_URL = 'https://opengeo.ncep.noaa.gov/geoserver/conus/conus_bref_qcd/ows';
+/** NASA GIBS's WMS in web mercator, its "best" imagery (public domain; Dad approved 8 Oct 2026). */
+export const GIBS_WMS_URL = 'https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi';
+
+/**
+ * The US bases' layers (plan Step 2c part C), each checked against its service's GetCapabilities on 8 Oct 2026:
+ * - mrms: "Quality Controlled 1km x 1km CONUS Radar Base Reflectivity", MRMS (NCEP's own abstract); a time about every 2 minutes, the last 2 hours listed.
+ * - goesEastIr: GOES-East ABI band 13 (10.3 µm "clean" infrared), a frame every 10 minutes. Chosen over GOES-East_ABI_GeoColor: it reads the same by day and
+ *   night (cloud white, ground grey, like the night half of ECCC's DayVis-NightIR) and it was fresher: at 0123Z on 8 Oct the newest infrared frame was 0050Z
+ *   (33 min) and the newest GeoColor 0010Z (73 min, past the 60-minute stale limit). GeoColor stays a one-line change here if Dad prefers colour by day.
+ */
+export const US_LAYERS = Object.freeze({ mrms: 'conus_bref_qcd', goesEastIr: 'GOES-East_ABI_Band13_Clean_Infrared' });
+
+/**
+ * Every WMS service the SOF asks, with the only layers it may ask each for (hosts and layer names from this fixed list only, SPEC-sof "Security").
+ * - times 'capabilities': the layer's time comes from its GetCapabilities reply. `millisecondTimes`: NCEP lists times as 2026-10-08T01:19:59.000Z (its
+ *   `default` has no fraction); a fraction of exactly .000 is read as the whole second, anything else is refused.
+ * - times 'frames': GIBS's whole capabilities reply is 2.5 MB (checked 8 Oct 2026), too big to ask every 10 minutes, so the frame is worked out: the
+ *   10-minute mark `frameLagMs` before now, then each older one up to the 60-minute stale limit. GIBS answers a time it has no frame for yet with a
+ *   200 and an empty, fully see-through PNG (checked 8 Oct 2026), so `blankIsMissing`: an empty picture is "no frame for that time", never a clear sky.
+ */
+export const WMS_SERVICES = Object.freeze({
+  geomet: Object.freeze({
+    id: 'geomet', name: 'ECCC', url: GEOMET_URL, crs: Object.freeze(['EPSG:3857', 'EPSG:4326']), times: 'capabilities',
+    layers: Object.freeze([...Object.values(LAYERS), ...Object.values(GEOMET_EXTRA_LAYERS)]),
+  }),
+  ncep: Object.freeze({
+    id: 'ncep', name: 'NOAA', url: NCEP_MRMS_URL, crs: Object.freeze(['EPSG:3857']), times: 'capabilities', millisecondTimes: true,
+    layers: Object.freeze([US_LAYERS.mrms]),
+  }),
+  gibs: Object.freeze({
+    id: 'gibs', name: 'NASA GIBS', url: GIBS_WMS_URL, crs: Object.freeze(['EPSG:3857']), times: 'frames', blankIsMissing: true,
+    frameStepMs: 10 * MINUTE_MS, // GIBS frames are on the tens (its capabilities: PT10M)
+    frameLagMs: 20 * MINUTE_MS, // estimate: the newest band 13 frame was 33 min old at 0123Z on 8 Oct; starting 20 min back finds it in a try or two
+    layers: Object.freeze([US_LAYERS.goesEastIr]),
+  }),
+});
+const SERVICE_OF = new Map(Object.values(WMS_SERVICES).flatMap((svc) => svc.layers.map((name) => [name, svc])));
+
+/** The service (WMS_SERVICES) a listed layer belongs to, or null for any name not on the list. */
+export const wmsServiceOf = (layer) => (typeof layer === 'string' && SERVICE_OF.has(layer) ? SERVICE_OF.get(layer) : null);
 
 /**
  * Radar stale after 20 minutes (D67), lightning after 40 and the GOES cloud picture after 60; the age is the layer's own.
@@ -58,8 +105,12 @@ const isNumber = (v) => typeof v === 'number' && Number.isFinite(v);
 const isInt = (v, min, max) => Number.isInteger(v) && v >= min && v <= max;
 const inYears = (ms) => ms >= Date.UTC(MIN_YEAR, 0, 1) && ms < Date.UTC(MAX_YEAR + 1, 0, 1);
 
-/** 'YYYY-MM-DDTHH:MM:SSZ' to a Date, or null for anything that isn't exactly a real time in range. */
-function isoTime(text) {
+/**
+ * 'YYYY-MM-DDTHH:MM:SSZ' to a Date, or null for anything that isn't exactly a real time in range. With `millis`, 'YYYY-MM-DDTHH:MM:SS.000Z'
+ * (NCEP's way) is read as the same second; any other fraction is refused.
+ */
+function readTime(text, millis = false) {
+  if (millis && typeof text === 'string') text = text.replace(/^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)\.000Z$/, '$1Z');
   if (typeof text !== 'string' || !ISO_SECONDS.test(text)) return null;
   const ms = Date.parse(text);
   if (!Number.isFinite(ms) || !inYears(ms) || new Date(ms).toISOString().slice(0, 19) + 'Z' !== text) return null;
@@ -68,7 +119,7 @@ function isoTime(text) {
 
 /** A Date, milliseconds or ISO seconds text as ISO seconds text; throws RangeError for anything else. */
 function timeParam(time) {
-  const ms = time instanceof Date ? +time : typeof time === 'number' ? time : isoTime(time) && Date.parse(time);
+  const ms = time instanceof Date ? +time : typeof time === 'number' ? time : readTime(time) && Date.parse(time);
   if (!isNumber(ms) || !inYears(ms)) throw new RangeError('time must be a real date');
   return new Date(ms).toISOString().slice(0, 19) + 'Z';
 }
@@ -85,10 +136,11 @@ export function bboxToMercator([west, south, east, north]) {
 const fixed = (n, places) => String(Number(n.toFixed(places)));
 
 /**
- * The ECCC GeoMet WMS 1.3.0 GetMap address for one layer, as a transparent PNG.
+ * The WMS 1.3.0 GetMap address for one layer, as a transparent PNG: the one address builder for every service (WMS_SERVICES),
+ * whose host is the one the layer is listed under (ECCC GeoMet, NOAA NCEP or NASA GIBS).
  * bbox is [west, south, east, north] in degrees; it goes out in mercator metres for
  * EPSG:3857 (the default, matching the map's tiles) or in 1.3.0's south, west, north,
- * east order for EPSG:4326. time (a Date, ms, or ISO seconds) is left out to get ECCC's
+ * east order for EPSG:4326 (ECCC only). time (a Date, ms, or ISO seconds) is left out to get the service's
  * latest. Throws RangeError for a layer not on the list or any number that isn't
  * finite, ordered and in range, so nothing odd reaches the address.
  * @param {{ layer?: any, bbox?: readonly number[], width?: number, height?: number, time?: any, crs?: string }} [input]
@@ -96,8 +148,10 @@ const fixed = (n, places) => String(Number(n.toFixed(places)));
 export function getMapUrl({
   layer = LAYERS.radarRain, bbox = DEFAULT_BBOX, width = 1024, height = 768, time, crs = 'EPSG:3857',
 } = {}) {
-  if (!LAYER_NAMES.has(layer)) throw new RangeError('layer is not one the SOF uses');
+  const service = wmsServiceOf(layer);
+  if (!service) throw new RangeError('layer is not one the SOF uses');
   if (crs !== 'EPSG:3857' && crs !== 'EPSG:4326') throw new RangeError('crs must be EPSG:3857 or EPSG:4326');
+  if (!service.crs.includes(crs)) throw new RangeError(`crs must be ${service.crs.join(' or ')} for this layer`);
   if (!isInt(width, 16, 2048) || !isInt(height, 16, 2048)) throw new RangeError('width and height must be whole numbers from 16 to 2048');
   if (!Array.isArray(bbox) || bbox.length !== 4 || !bbox.every(isNumber)) throw new RangeError('bbox must be four numbers');
   const [west, south, east, north] = bbox;
@@ -113,7 +167,27 @@ export function getMapUrl({
     + `&width=${width}&height=${height}&format=image/png&transparent=true${when}`;
   // Belt and braces: everything above is a checked number or a name from a list.
   if (!/^[A-Za-z0-9_.:,/=&-]*$/.test(query)) throw new RangeError('address held an unexpected character');
-  return `${GEOMET_URL}?${query}`;
+  return `${service.url}?${query}`;
+}
+
+// --- A worked-out frame time (GIBS) -------------------------------------------
+
+/**
+ * The frame times to try for a 'frames' layer (GIBS), newest first: the frame mark `frameLagMs` before `now`, then each older mark while the frame
+ * is still inside the satellite picture's stale limit (STALE_MS.cloud), so an old frame is never fetched as if it were current. Throws RangeError for
+ * a layer that is not a 'frames' one or a clock that is not a real time.
+ * @returns {Date[]}
+ */
+export function frameTimes(layer, now) {
+  const service = wmsServiceOf(layer);
+  if (service?.times !== 'frames') throw new RangeError('layer has no worked-out frames');
+  const clock = now instanceof Date ? +now : now;
+  if (!isNumber(clock) || !inYears(clock)) throw new RangeError('now must be a real time');
+  const step = service.frameStepMs;
+  const first = Math.floor((clock - service.frameLagMs) / step) * step;
+  const out = [];
+  for (let t = first; clock - t <= STALE_MS.cloud; t -= step) out.push(new Date(t));
+  return out;
 }
 
 // --- A layer's latest time ---------------------------------------------------
@@ -133,7 +207,12 @@ function periodMs(text) {
  * `referenceTime` is a model layer's run (its `reference_time` dimension's default, exact ISO seconds), else null.
  */
 export function parseLayerTimes(xml, layer) {
-  if (typeof xml !== 'string' || xml.length > MAX_REPLY_CHARS || !LAYER_NAMES.has(layer)) return null;
+  // ECCC's own LAYERS, or NCEP's radar (whose times carry .000). Not the two ECCC extras (map-feeds.js reads those) and not GIBS (worked-out frames).
+  const service = wmsServiceOf(layer);
+  const listed = service?.id === 'geomet' ? LAYER_NAMES.has(layer) : service?.times === 'capabilities';
+  if (typeof xml !== 'string' || xml.length > MAX_REPLY_CHARS || !listed) return null;
+  const millis = service.millisecondTimes === true;
+  const isoTime = (text) => readTime(text, millis);
   const at = xml.indexOf(`<Name>${layer}</Name>`);
   if (at < 0) return null;
   // Only this layer's own element: up to its closing tag or the next layer, whichever is first.

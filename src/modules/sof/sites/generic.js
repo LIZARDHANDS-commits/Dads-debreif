@@ -30,6 +30,7 @@ export const GENERIC = Object.freeze({
     alerts: null,
     fronts: null,
   }),
+  lightningLink: null, // no outside lightning link (the US bases have one, us-base.js)
   credits: Object.freeze({ confirm: null, model: null, pictures: null, mapFeeds: null }),
   standards: null,
 });

@@ -1,5 +1,5 @@
 // The NAS Whiting Field North site profile (plan Step 2c, part B): the SOF's own data for KNSE. The parts every US base shares, and their sources, are in us-base.js.
-// No weather standards yet (Limits not set), no airspace yet, and no picture or report source except the WPC fronts.
+// No weather standards yet (Limits not set), no airspace yet; NOAA MRMS radar and NASA GOES-East satellite (part C), no lightning picture, and no other report source except the WPC fronts.
 import { usBase, towns } from './us-base.js';
 
 export const KNSE = usBase({
