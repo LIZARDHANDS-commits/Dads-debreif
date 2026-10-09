@@ -276,8 +276,10 @@ function meshOf(THREE, pos, idx, groups = null) {
   return g;
 }
 
-/** The fuselage: rings round the stations, closed at the nose (behind the spinner) and the tail. */
-function fuselageGeometry(THREE) {
+/** The fuselage: rings round the stations, closed at the nose (behind the spinner) and the tail. With `cut`, the top skin
+ * inside the canopy's footprint is left out, so the cockpit tub
+ * (tubGeometry) shows from the seat (setCockpitView; TS-155). */
+function fuselageGeometry(THREE, { cut = false } = {}) {
   const RING = 36, N = 52;
   const x0 = STATIONS[0][0], x1 = STATIONS[STATIONS.length - 1][0];
   const pos = [], idx = [];
@@ -304,7 +306,55 @@ function fuselageGeometry(THREE) {
     idx.push(nose, k, (k + 1) % RING);
     idx.push(tail, N * RING + ((k + 1) % RING), N * RING + k);
   }
-  return meshOf(THREE, pos, idx);
+  if (!cut) return meshOf(THREE, pos, idx);
+  // A triangle goes when its three corners lie within the opening's length and any one of them under the canopy, so
+  // no skin pokes up past the sill (the sill bands in ct156-cockpit.js cover the ragged edge).
+  const inX = (v) => pos[v * 3] >= COCKPIT_CUT_X[0] && pos[v * 3] <= COCKPIT_CUT_X[1];
+  const underCanopy = (v) => {
+    const c = canopyAt(pos[v * 3]);
+    return Math.abs(pos[v * 3 + 1]) < c.w - 0.001 && pos[v * 3 + 2] > c.base - 0.0002;
+  };
+  const kept = [];
+  for (let t = 0; t < idx.length; t += 3) {
+    const tri = [idx[t], idx[t + 1], idx[t + 2]];
+    if (!(tri.every(inX) && tri.some(underCanopy))) kept.push(...tri);
+  }
+  return meshOf(THREE, pos, kept);
+}
+// The cockpit opening, model units along x: just aft of the rear canopy bow to just ahead of the forward bow (estimate, TS-155).
+const COCKPIT_CUT_X = [-0.242, 0.17];
+const FT = CT156_UNIT_LENGTH / CT156_LENGTH_FT; // model units per foot
+
+/**
+ * The cockpit tub under the canopy (TS-155): a floor 0.8 ft below the spinner's axis from 5.6 ft aft of the model origin
+ * to 3.9 ft ahead of it, side walls about 1.3 ft out (kept inside the canopy) up to the sill, and a bulkhead at each end
+ * up to the fuselage's top line. Group 0 the floor, group 1 the walls. All estimates (judged by eye off Dad's
+ * reference pictures, 9 Oct 2026).
+ */
+function tubGeometry(THREE) {
+  const N = 14, x0 = 3.9 * FT, x1 = -5.6 * FT, floorZ = -0.8 * FT;
+  const rows = [];
+  for (let i = 0; i <= N; i++) {
+    const x = x0 + ((x1 - x0) * i) / N;
+    const c = canopyAt(x);
+    rows.push({ x, y: Math.min(1.3 * FT, c.w - 0.03 * FT), top: c.base });
+  }
+  const pos = [], floor = [], walls = [];
+  const quad = (into, a, b, c, d) => {
+    const n = pos.length / 3;
+    pos.push(...a, ...b, ...c, ...d);
+    into.push(n, n + 1, n + 2, n, n + 2, n + 3);
+  };
+  for (let i = 0; i < N; i++) {
+    const a = rows[i], b = rows[i + 1];
+    quad(floor, [a.x, a.y, floorZ], [b.x, b.y, floorZ], [b.x, -b.y, floorZ], [a.x, -a.y, floorZ]);
+    for (const s of [1, -1]) quad(walls, [a.x, s * a.y, floorZ], [b.x, s * b.y, floorZ], [b.x, s * b.y, b.top], [a.x, s * a.y, a.top]);
+  }
+  for (const r of [rows[0], rows[N]]) {
+    const top = rowAt(STATIONS, r.x)[2];
+    quad(walls, [r.x, r.y, floorZ], [r.x, -r.y, floorZ], [r.x, -r.y, top], [r.x, r.y, top]);
+  }
+  return meshOf(THREE, pos, [...floor, ...walls], [[0, floor.length, 0], [floor.length, walls.length, 1]]);
 }
 
 /** The canopy: a rounded hood from sill to sill along its length. */
@@ -350,6 +400,19 @@ export function ct156CanopyHalfWidth(x, z) {
 export function ct156FuselageSection(x) {
   const [, halfWidth, top, bottom] = rowAt(STATIONS, x);
   return { halfWidth, top, bottom };
+}
+/**
+ * The canopy's hoop at station x as n + 1 points from the left sill over the top to the right sill, model units
+ * ({ y, z }; the canopy's own shape, canopyPoint), grown outward by `grow` (for ct156-cockpit.js's bows and mirrors).
+ */
+export function ct156HoopPoints(x, n = 16, grow = 0) {
+  const c = canopyAt(x, grow);
+  const pts = [];
+  for (let j = 0; j <= n; j++) {
+    const [y, z] = canopyPoint(c, (Math.PI * j) / n);
+    pts.push({ y, z });
+  }
+  return pts;
 }
 /** A frame hoop over the canopy at x. */
 function hoopGeometry(THREE, x) {
@@ -418,6 +481,11 @@ function airfoilGeometry(THREE, sections, { span = 'y', leBand = 0 } = {}) {
  * materials gives, for each of the part's groups (or the whole part), the joined geometry's material slot. The
  * parts are freed; the joined geometry has one group per slot.
  */
+/** Parts ({ geometry, materials: slot per group }) joined into one geometry with a group per slot (position and
+ * normal only); the parts are disposed. Shared with ct156-cockpit.js as ct156JoinGeometries. */
+export function ct156JoinGeometries(THREE, parts) {
+  return joinGeometries(THREE, parts);
+}
 function joinGeometries(THREE, parts) {
   const bySlot = new Map();
   for (const { geometry, materials } of parts) {
@@ -557,6 +625,9 @@ function buildKit(THREE) {
   env.mapping = THREE.EquirectangularReflectionMapping;
 
   geo.fuselage = fuselageGeometry(THREE);
+  // The camera's own ship only (setCockpitView): the fuselage open over the cockpit, and the tub under it (TS-155).
+  geo.fuselageCut = fuselageGeometry(THREE, { cut: true });
+  geo.tub = tubGeometry(THREE);
   // Wings, tailplane and ventral fin in one geometry (the wings' leading edges a second slot), so the
   // airframe is one draw call; the dihedral is built in.
   const wing = (side) => {
@@ -665,6 +736,9 @@ function buildKit(THREE) {
     glassInside: keep(new THREE.MeshBasicMaterial({ color: '#cfe3f2', transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide, fog: false })),
     frame: mat({ color: '#0c1017', roughness: 0.5, side: two }),
     floor: mat({ color: '#0d1118', roughness: 0.9, side: two }),
+    // The cockpit tub (setCockpitView; TS-155): a dark floor, light grey walls (estimates off Dad's reference pictures).
+    tubFloor: mat({ color: '#1a1d21', roughness: 0.95, side: two }),
+    tubWall: mat({ color: '#7d8186', roughness: 0.85, side: two }),
     helmet: mat({ color: '#d4d8de', roughness: 0.35 }),
     blade: mat({ color: '#0a0c10', roughness: 0.6 }),
     tip: mat({ color: '#d2202c', roughness: 0.5 }),
@@ -749,7 +823,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     return m;
   };
 
-  let fuselage, canopy, helmetFront = null, prop = null;
+  let fuselage, canopy, helmetFront = null, helmetRear = null, floor = null, prop = null;
   if (paint === 'ship') {
     const base = new THREE.Color(color);
     const m = (c, extra) => own(new THREE.MeshStandardMaterial({ color: c, roughness: 0.45, metalness: 0.1, envMap: mats.env, envMapIntensity: 0.4, side: THREE.DoubleSide, fog: false, ...extra }));
@@ -795,10 +869,10 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
       add(decalGeo.triC[s], mats.tri, detail);
     }
     add(geo.stubs, mats.exhaust, detail);
-    add(geo.floor, mats.floor, detail);
+    floor = add(geo.floor, mats.floor, detail);
     add(geo.frames, mats.frame, detail);
     helmetFront = add(geo.helmetFront, mats.helmet, detail);
-    add(geo.helmetRear, mats.helmet, detail);
+    helmetRear = add(geo.helmetRear, mats.helmet, detail);
     prop = new THREE.Group();
     prop.rotation.x = rad(22);
     add(geo.blade, mats.blade, prop);
@@ -813,35 +887,46 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     scene?.userData?.ct156Ships?.add(root);
     setDetail(THREE, root, camera, renderer);
   };
-  root.userData.ct156 = { kit, mine, paint, detail, g, canopy, helmetFront, prop, inside: null };
+  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, helmetFront, helmetRear, floor, prop, inside: null };
   return root;
 }
 
 /**
- * The ship seen from its own front seat (the Formation Sim's Cockpit and Padlock views, with ct156-cockpit.js) or from
- * outside again. seat 'front': the front helmet goes (the camera is in it), the still prop blades go (a turning prop is
- * a blur from the seat; the faint disc stays), the canopy turns to clear glass from inside,
- * and the frames (the canopy bows), sill rails, seat backs, cockpit floor and rear helmet show whatever the paint ('ship'
- * paint has none of its own, so they are added from the shared kit). seat null: the ship as built. Wings, fin and
- * tailplane are never touched. Nothing new needs freeing: every part added is the shared kit's.
+ * The ship seen from one of its own seats (the Formation Sim's Cockpit and Padlock views, with ct156-cockpit.js) or from
+ * outside again. seat 'front' or 'rear': the helmet of that seat goes (the camera is in it) and the other seat's shows,
+ * the still prop blades go (a turning prop is a blur from the seat; the faint disc stays), the canopy turns to clear
+ * glass from inside, the fuselage opens over the cockpit onto its tub (TS-155) in place of the floor disc, and the frames
+ * (the canopy bows), sill rails and seat backs show whatever the paint ('ship' paint has none of its own, so they are
+ * added from the shared kit). seat null: the ship as built. Only the ship the camera sits in is ever changed, so every
+ * other ship looks as before. Wings, fin and tailplane are never touched. Nothing new needs freeing: every part added
+ * is the shared kit's.
  * @param {any} root a ship from createCt156Model
- * @param {{ seat?: 'front' | null }} [view]
+ * @param {{ seat?: 'front' | 'rear' | null }} [view]
  */
 export function setCockpitView(root, { seat = null } = {}) {
   const d = root?.userData?.ct156;
   if (!d) return;
   const { geo, mats, THREE } = d.kit;
-  const inside = seat === 'front';
+  const inside = seat === 'front' || seat === 'rear';
   d.canopy.userData.outsideMaterial ??= d.canopy.material;
   d.canopy.material = inside ? mats.glassInside : d.canopy.userData.outsideMaterial;
-  if (d.helmetFront) d.helmetFront.visible = !inside;
+  d.fuselage.geometry = inside ? geo.fuselageCut : geo.fuselage;
+  if (d.floor) d.floor.visible = !inside;
   if (d.prop) d.prop.visible = !inside;
-  if (d.paint === 'ship' && inside && !d.inside) {
+  if (inside && !d.inside) {
     d.inside = new THREE.Group();
-    for (const [geometry, material] of [[geo.frames, mats.frame], [geo.floor, mats.floor], [geo.helmetRear, mats.helmet]]) d.inside.add(new THREE.Mesh(geometry, material));
+    d.inside.add(new THREE.Mesh(geo.tub, [mats.tubFloor, mats.tubWall]));
+    if (d.paint === 'ship') {
+      d.inside.add(new THREE.Mesh(geo.frames, mats.frame));
+      d.helmetFront = new THREE.Mesh(geo.helmetFront, mats.helmet);
+      d.helmetRear = new THREE.Mesh(geo.helmetRear, mats.helmet);
+      d.inside.add(d.helmetFront, d.helmetRear);
+    }
     d.g.add(d.inside);
   }
   if (d.inside) d.inside.visible = inside;
+  if (d.helmetFront) d.helmetFront.visible = seat !== 'front';
+  if (d.helmetRear) d.helmetRear.visible = seat !== 'rear';
 }
 
 /** Frees this ship's own materials and textures; the shared kit goes with the last ship. */
