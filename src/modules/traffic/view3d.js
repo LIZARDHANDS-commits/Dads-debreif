@@ -35,7 +35,11 @@ import { trueAltFt } from './weather.js';
 import { createEjectionModel, poseEjectionModel, disposeEjectionModel } from './ejection3d.js';
 import { approachMarks, createApproachMarks, updateApproachMarks, disposeApproachMarks } from './approach3d.js';
 import { AIRFIELD_CORE_BOUNDS_FT, paintCoreAirfieldVector, getCoreCorners, getOptimalCoreTileZoom } from './airfield-core-ground.js';
-import { fieldCamera, topDownCamera, towerCamera, cockpitCamera, padlockCamera, NEEDS_AIRCRAFT, RWY_29L_THRESHOLD, towerFree, freeAim, freeLookVector, freeStepFt, moveFree, turnFree, FREE_MIN_AGL_FT } from './camera-views.js';
+import {
+  fieldCamera, topDownCamera, towerCamera, cockpitCamera, padlockCamera, NEEDS_AIRCRAFT, RWY_29L_THRESHOLD,
+  towerFree, freeAim, freeLookVector, freeStepFt, moveFree, turnFree, FREE_MIN_AGL_FT,
+  CAMERA_MOUNTS, OVERVIEW_PRESETS, AIM_MODES, COCKPIT_SEATS, DEFAULT_CAMERA_STATE, stateFromLegacy,
+} from './camera-views.js';
 import { createCameraBar } from './camera-bar.js';
 
 /** The viewpoints worked out from an aircraft each frame, rather than framed once. */
@@ -1389,6 +1393,9 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
   let view = /** @type {{ center: { x: number, y: number, z: number }, cam: { yawDeg: number, pitchDeg: number, zoom: number, altScale: number } }} */ ({ center: { x: 0, y: 0, z: 0 }, cam: { yawDeg: 0, pitchDeg: PRESET_PITCH_DEG.fit, zoom: 20, altScale: ALT_SCALE } });
   let fitted = false; // the camera has been framed on the routes since 3D was first shown
   let wantPreset = null; // a camera button pressed before there was something to frame
+  let wantCameraState = null; // a 2-tier camera change requested
+  let currentCameraState = { ...DEFAULT_CAMERA_STATE };
+  let lastNonPadlockAim = 'boresight';
   let follow = null; // { id, autoYaw }: the chase camera
   let chasePending = false; // Low chase was asked for with nothing flying: it starts on the first aircraft that does
   let viewMode = 'field'; // the Camera menu's choice: field (Over the field), fit, high, top, tower, free, low (Chase), cockpit or padlock
@@ -1706,9 +1713,11 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     for (const [type, fn] of hands) canvas.addEventListener(type, fn, type === 'wheel' ? { passive: false } : undefined);
     canvas.addEventListener('webglcontextlost', contextLost);
     cameraBar = createCameraBar({
+      onCamera: (cam) => api.setCamera(cam),
       onView: (id) => api.preset(id),
       onFollow: (id) => setTarget(id),
       onQuality: setGraphicsQuality,
+      initialCamera: currentCameraState,
     });
     host.append(cameraBar.element);
   }
@@ -1850,48 +1859,102 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     const floor = groundFt(data.routes);
     const box = sceneBox(data.routes, data.aircraft);
 
-    if (box && (!fitted || wantPreset)) {
-      const name = wantPreset ?? 'field'; // 3D opens over the field (Patrick, 4 Oct 10:17Z); the buttons and menu still choose
-      wantPreset = null;
+    if (box && (!fitted || wantCameraState || wantPreset)) {
+      if (wantCameraState) {
+        currentCameraState = { ...currentCameraState, ...wantCameraState };
+        wantCameraState = null;
+      } else if (wantPreset) {
+        currentCameraState = { ...currentCameraState, ...stateFromLegacy(wantPreset, follow?.id) };
+        wantPreset = null;
+      }
       fitted = true;
       chasePending = false;
-      if (name === 'padlock' && (viewMode === 'cockpit' || viewMode === 'low')) padlockFrom = viewMode;
-      if (name === 'cockpit') headLook = { yawDeg: 0, pitchDeg: 0 };
       const was = viewMode;
-      viewMode = name;
       noteText = '';
-      if (name === 'low') startChase(data, box, size);
-      else if (name === 'tower') {
+
+      if (currentCameraState.mount === 'overview') {
+        const name = currentCameraState.preset || 'field';
+        viewMode = name;
+        follow = null;
+        freeCam = null;
+        if (name === 'field') view = fieldCamera(size);
+        else if (name === 'top') view = topDownCamera(box, size);
+        else view = cameraFor(name, box, size);
+      } else if (currentCameraState.mount === 'tower') {
+        viewMode = 'tower';
         const target = follow ? (data.aircraft.find((a) => a.id === follow.id && isFlying(a)) ?? null) : null;
-        freeCam = towerFree(floor, target);
-      } else if (name === 'free') {
-        freeCam = freeFromView(was, size, floor);
-        follow = null;
-      }
-      else if (name === 'field') {
-        follow = null;
-        view = fieldCamera(size);
-      } else if (name === 'top') {
-        follow = null;
-        view = topDownCamera(box, size);
-      } else if (POV_VIEWS.has(name)) {
-        if (follow && !data.aircraft.some((a) => a.id === follow.id && isFlying(a))) fallbackTarget(data);
+        if (!freeCam || was !== 'tower') {
+          freeCam = towerFree(floor, target);
+        }
+        if (currentCameraState.aim === 'padlock') {
+          const aim = freeAim(freeCam, { x: RWY_29L_THRESHOLD.x, y: RWY_29L_THRESHOLD.y, z: RWY_29L_THRESHOLD.alt });
+          freeCam = { ...freeCam, yawDeg: aim.yawDeg, elevDeg: aim.elevDeg, track: false };
+        } else if (currentCameraState.aim === 'track') {
+          freeCam.track = Boolean(target);
+          if (target) {
+            const at = { x: finite(target.x), y: finite(target.y), z: altToZ(finite(target.alt), ALT_SCALE) };
+            const aim = freeAim(freeCam, at);
+            freeCam = { ...freeCam, yawDeg: aim.yawDeg, elevDeg: aim.elevDeg };
+          }
+        } else {
+          freeCam.track = false;
+        }
+      } else if (currentCameraState.mount === 'free') {
+        viewMode = 'free';
+        if (!freeCam || was !== 'free') {
+          freeCam = freeFromView(was, size, floor);
+        }
+        if (currentCameraState.aim === 'padlock') {
+          const aim = freeAim(freeCam, { x: RWY_29L_THRESHOLD.x, y: RWY_29L_THRESHOLD.y, z: RWY_29L_THRESHOLD.alt });
+          freeCam = { ...freeCam, yawDeg: aim.yawDeg, elevDeg: aim.elevDeg, track: false };
+        } else if (currentCameraState.aim === 'track') {
+          const target = follow ? (data.aircraft.find((a) => a.id === follow.id && isFlying(a)) ?? null) : null;
+          freeCam.track = Boolean(target);
+          if (target) {
+            const at = { x: finite(target.x), y: finite(target.y), z: altToZ(finite(target.alt), ALT_SCALE) };
+            const aim = freeAim(freeCam, at);
+            freeCam = { ...freeCam, yawDeg: aim.yawDeg, elevDeg: aim.elevDeg };
+          }
+        } else {
+          freeCam.track = false;
+        }
+      } else if (currentCameraState.mount === 'chase') {
+        if (!follow) startChase(data, box, size);
+        if (currentCameraState.aim === 'padlock') {
+          viewMode = 'padlock';
+          padlockFrom = 'low';
+          const target = follow ? data.aircraft.find((a) => a.id === follow.id && isFlying(a)) : null;
+          if (target) {
+            const chaseZoom = was === 'low' ? view.cam.zoom : chaseCamera(target, size).cam.zoom;
+            view = povCamera('padlock', target, size, floor);
+            view = { ...view, cam: { ...view.cam, zoom: chaseZoom } };
+          }
+        } else {
+          viewMode = 'low';
+          if (currentCameraState.aim === 'boresight' && follow) {
+            follow.autoYaw = true;
+            view = { ...view, cam: { ...view.cam, pitchDeg: PRESET_PITCH_DEG.low } };
+          }
+        }
+      } else if (currentCameraState.mount === 'cockpit') {
+        if (!follow && !data.aircraft.some((a) => a.id === follow?.id && isFlying(a))) fallbackTarget(data);
         const target = follow ? data.aircraft.find((a) => a.id === follow.id && isFlying(a)) : null;
-        if (!target && NEEDS_AIRCRAFT.has(name)) {
+        if (!target) {
           viewMode = 'fit';
           follow = null;
           view = cameraFor('fit', box, size);
-          noteText = `${name === 'cockpit' ? 'Cockpit' : 'Padlock'} needs an aircraft: choose one in Follow, or press ].`;
+          noteText = 'Cockpit needs an aircraft: choose one in Follow, or press ].';
+        } else if (currentCameraState.aim === 'padlock') {
+          viewMode = 'padlock';
+          padlockFrom = 'cockpit';
+          view = povCamera('padlock', target, size, floor);
         } else {
-          // Padlock from Chase keeps Chase's distance behind the aircraft (the zoom); otherwise the opening Chase distance.
-          const chaseZoom = was === 'low' ? view.cam.zoom : chaseCamera(target, size).cam.zoom;
-          view = povCamera(name, target, size, floor);
-          if (name === 'padlock') view = { ...view, cam: { ...view.cam, zoom: chaseZoom } };
-          if (follow) follow.autoYaw = false;
+          viewMode = 'cockpit';
+          if (currentCameraState.aim === 'boresight') {
+            headLook = { yawDeg: 0, pitchDeg: 0 };
+          }
+          view = povCamera('cockpit', target, size, floor);
         }
-      } else {
-        follow = null;
-        view = cameraFor(name, box, size);
       }
     }
     if (chasePending && !follow) {
@@ -1910,7 +1973,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
         view = { center: next.center, cam: dragging ? view.cam : { ...next.cam, zoom: view.cam.zoom } };
       }
     } else if (follow) followAircraft(data);
-    cameraBar?.setView(viewMode);
+    cameraBar?.setCamera(currentCameraState);
     cameraBar?.update({ flying: data.aircraft.filter(isFlying).map((a) => a.id), followId: follow?.id ?? null, quality: options.graphicsQuality });
     cameraBar?.setNote(noteText);
     const shown = dragging?.isPan ? view.cam : (dragging?.cam ?? view.cam);
@@ -2039,15 +2102,16 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     if (viewMode === 'cockpit' || (viewMode === 'padlock' && padlockFrom !== 'low')) {
       const mesh = gl.kit.aircraftMesh(target.id);
       const turn = new THREE.Quaternion();
+      const seatChoice = currentCameraState.seat === 'rear' ? 'rear' : 'front';
       if (mesh) {
         mesh.updateMatrixWorld(true);
         // The model's nose is +X and its top +Z (applyPose), so its turn gives the pilot's look and the bank.
         turn.copy(mesh.quaternion);
-        syncCockpit(mesh, 'front');
+        syncCockpit(mesh, seatChoice);
       } else turn.setFromAxisAngle(new THREE.Vector3(0, 0, 1), rad(90 - finite(target.headingDeg)));
       const up = new THREE.Vector3(0, 0, 1).applyQuaternion(turn);
       const interior = Boolean(mesh && gl.cockpit?.root === mesh);
-      const seatEye = interior ? EYES_FT.front : null;
+      const seatEye = interior ? (EYES_FT[seatChoice] ?? EYES_FT.front) : null;
       eye = interior
         ? mesh.localToWorld(new THREE.Vector3(seatEye.x, seatEye.y, seatEye.z).divideScalar(CT156_FT_PER_UNIT))
         : {
@@ -2112,7 +2176,11 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     const eye = { x: freeCam.x, y: freeCam.y, z: freeCam.z };
     const target = freeCam.track && follow ? data.aircraft.find((a) => a.id === follow.id && isFlying(a)) : null;
     let distFt = 3000; // labels sized as if 3,000 ft away when nothing is tracked (an estimate)
-    if (target) {
+    if (currentCameraState.aim === 'padlock') {
+      const at = { x: RWY_29L_THRESHOLD.x, y: RWY_29L_THRESHOLD.y, z: altToZ(RWY_29L_THRESHOLD.alt, ALT_SCALE) };
+      freeCam = { ...freeCam, ...freeAim(eye, at) };
+      distFt = Math.hypot(at.x - eye.x, at.y - eye.y, at.z - eye.z);
+    } else if (target) {
       const at = { x: finite(target.x), y: finite(target.y), z: altToZ(finite(target.alt), ALT_SCALE) };
       freeCam = { ...freeCam, ...freeAim(eye, at) };
       distFt = Math.hypot(at.x - eye.x, at.y - eye.y, at.z - eye.z);
@@ -2393,6 +2461,10 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
   function turnBy(cam, dx, dy) {
     if (FREE_VIEWS.has(viewMode) && freeCam) {
       freeCam = turnFree(freeCam, dx * ORBIT_DEG_PER_PX.yaw, -dy * ORBIT_DEG_PER_PX.pitch);
+      if (currentCameraState.aim !== 'freelook') {
+        currentCameraState.aim = 'freelook';
+        cameraBar?.setCamera(currentCameraState);
+      }
       return null;
     }
     if (viewMode === 'cockpit' && follow) {
@@ -2400,25 +2472,53 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
         yawDeg: clamp(headLook.yawDeg + dx * ORBIT_DEG_PER_PX.yaw, HEAD_LOOK_DEG.yaw),
         pitchDeg: clamp(headLook.pitchDeg - dy * ORBIT_DEG_PER_PX.pitch, HEAD_LOOK_DEG.pitch),
       };
+      if (currentCameraState.aim !== 'freelook') {
+        currentCameraState.aim = 'freelook';
+        cameraBar?.setCamera(currentCameraState);
+      }
       return null;
     }
-    if (follow) follow.autoYaw = false; // turned by hand: the chase camera stops swinging behind
+    if (follow) {
+      follow.autoYaw = false; // turned by hand: the chase camera stops swinging behind
+      if (currentCameraState.aim !== 'freelook') {
+        currentCameraState.aim = 'freelook';
+        cameraBar?.setCamera(currentCameraState);
+      }
+    }
     return orbit(cam, dx, dy, pitchLimits());
   }
-  /** P: Padlock on the runway from Chase or Cockpit, and back. C: the look back to the nose (Cockpit) or behind (Chase). */
+  /** P: Padlock on the runway. C: look back to nose (Cockpit), tail (Chase), or track aircraft (Tower/Free). */
   function cameraLetter(key) {
     if (key === 'p') {
-      if (viewMode === 'padlock') api.preset(padlockFrom);
-      else if (viewMode === 'cockpit' || viewMode === 'low') api.preset('padlock');
-      else return false;
+      if (currentCameraState.aim === 'padlock') {
+        currentCameraState.aim = lastNonPadlockAim || (currentCameraState.mount === 'cockpit' || currentCameraState.mount === 'chase' ? 'boresight' : 'freelook');
+      } else {
+        lastNonPadlockAim = currentCameraState.aim;
+        currentCameraState.aim = 'padlock';
+      }
+      if (viewMode === 'cockpit' || viewMode === 'low') padlockFrom = viewMode;
+      cameraBar?.setCamera(currentCameraState);
+      api.setCamera(currentCameraState);
       return true;
     }
     if (key === 'c') {
-      if (viewMode === 'cockpit') headLook = { yawDeg: 0, pitchDeg: 0 };
-      else if (viewMode === 'low' && follow) {
+      if (currentCameraState.mount === 'cockpit') {
+        headLook = { yawDeg: 0, pitchDeg: 0 };
+        currentCameraState.aim = 'boresight';
+      } else if (currentCameraState.mount === 'chase' && follow) {
         follow.autoYaw = true;
+        currentCameraState.aim = 'boresight';
         view = { ...view, cam: { ...view.cam, pitchDeg: PRESET_PITCH_DEG.low } };
-      } else return false;
+      } else if (currentCameraState.mount === 'tower') {
+        currentCameraState.aim = follow ? 'track' : 'freelook';
+        if (freeCam) freeCam.track = Boolean(follow);
+      } else if (currentCameraState.mount === 'free') {
+        currentCameraState.aim = follow ? 'track' : 'freelook';
+        if (freeCam) freeCam.track = Boolean(follow);
+      } else {
+        return false;
+      }
+      cameraBar?.setCamera(currentCameraState);
       requestDraw();
       return true;
     }
@@ -2584,6 +2684,13 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       teardown();
     },
     requestDraw,
+    /** 2-tier camera setter */
+    setCamera(nextState) {
+      wantCameraState = { ...currentCameraState, ...nextState };
+      requestDraw();
+    },
+    /** Current 2-tier camera state */
+    getCamera: () => ({ ...currentCameraState }),
     /** A camera view by id ('fit', 'high', 'low', … as camera-views.js lists them). Done at the next frame, when the size is known. */
     preset(name) {
       wantPreset = name;
@@ -2591,7 +2698,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     },
     isChasing: () => follow !== null,
     /** The Camera menu's current view id (fit, high, top, tower, low, cockpit, padlock) and any note beside it. */
-    cameraView: () => ({ view: viewMode, note: noteText }),
+    cameraView: () => ({ view: viewMode, note: noteText, cameraState: { ...currentCameraState } }),
     /** The bearing up the picture and the camera's tilt at the last frame, whole degrees ({ 0, 0 } before any). */
     facing: () => lastFacing ?? { yawDeg: 0, tiltDeg: 0 },
     target: setTarget,

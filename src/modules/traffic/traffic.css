@@ -297,35 +297,126 @@
   display: none;
 }
 
-/* The 3D bar (camera-bar.js): Camera and Follow menus, the High | Performance switch and a short note. */
+/* The 3D bar (camera-bar.js): 2-tier segmented pill camera bar, hints and live note. */
 [data-module='traffic'] .traffic-3d-bar {
   position: absolute;
-  z-index: 2;
+  z-index: 10;
   bottom: var(--space-2);
-  left: var(--space-2);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  max-width: calc(100% - var(--space-4));
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(13, 17, 23, 0.88);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+  user-select: none;
+}
+
+[data-module='traffic'] .traffic-cam-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1) var(--space-2);
-  max-width: calc(100% - var(--space-4));
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  background: var(--surface, rgba(13, 17, 23, 0.85));
+  justify-content: center;
+  gap: 6px;
 }
 
-[data-module='traffic'] .traffic-3d-quality {
+[data-module='traffic'] .traffic-cam-group {
   display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  padding: 2px;
   gap: 2px;
 }
 
-[data-module='traffic'] .traffic-3d-quality button[aria-pressed='true'] {
-  font-weight: 700;
-  outline: 2px solid currentColor;
+[data-module='traffic'] .traffic-cam-pill {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--color-text-dim, rgba(255, 255, 255, 0.7));
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 9px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+[data-module='traffic'] .traffic-cam-pill:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+[data-module='traffic'] .traffic-cam-pill.is-active,
+[data-module='traffic'] .traffic-cam-pill[aria-pressed='true'] {
+  background: var(--accent, #5ad1ff);
+  color: var(--bg, #0b1117);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+[data-module='traffic'] .traffic-cam-follow {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--color-text-dim, rgba(255, 255, 255, 0.7));
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  padding: 2px 8px;
+}
+
+[data-module='traffic'] .traffic-cam-follow select {
+  font-size: 11px;
+  padding: 2px 4px;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+}
+
+[data-module='traffic'] .traffic-cam-hint {
+  font-size: 10px;
+  color: var(--color-text-dim, rgba(255, 255, 255, 0.65));
+  text-align: center;
+  line-height: 1.3;
+}
+
+[data-module='traffic'] .traffic-kbd {
+  display: inline-block;
+  padding: 1px 4px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-text, #f0f0f5);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
 }
 
 [data-module='traffic'] .traffic-3d-note:empty {
   display: none;
+}
+
+[data-module='traffic'] .traffic-3d-note {
+  font-size: 11px;
+  color: #fbbf24;
+  font-weight: 500;
+  text-align: center;
 }
 
 [data-module='traffic'] .traffic-note3d {

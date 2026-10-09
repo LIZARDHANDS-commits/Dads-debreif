@@ -14,7 +14,7 @@ export const TOWER_EYE_AGL_FT = 140;
 /** Runway 29L threshold (local feet, ft MSL): what the Padlock view keeps in sight. */
 export const RWY_29L_THRESHOLD = Object.freeze({ x: THRESHOLD_29L.x, y: THRESHOLD_29L.y, alt: THRESHOLD_DATA_ELEV_FT });
 
-/** The views the Camera menu offers, in menu order. */
+/** The views the Camera menu offers, in menu order (legacy compatibility). */
 export const CAMERA_VIEWS = Object.freeze([
   { id: 'field', label: 'Over the field' },
   { id: 'fit', label: 'Fit' },
@@ -28,6 +28,73 @@ export const CAMERA_VIEWS = Object.freeze([
 ]);
 /** The views that need a followed aircraft. */
 export const NEEDS_AIRCRAFT = Object.freeze(new Set(['cockpit', 'padlock']));
+
+/** 2-Tier Standardized Camera Architecture */
+export const CAMERA_MOUNTS = Object.freeze([
+  { id: 'overview', label: 'Overview' },
+  { id: 'tower', label: 'Tower' },
+  { id: 'free', label: 'Free' },
+  { id: 'chase', label: 'Chase' },
+  { id: 'cockpit', label: 'Cockpit' },
+]);
+
+export const OVERVIEW_PRESETS = Object.freeze([
+  { id: 'field', label: 'Field' },
+  { id: 'fit', label: 'Fit' },
+  { id: 'high', label: 'High' },
+  { id: 'top', label: 'Top' },
+]);
+
+export const AIM_MODES = Object.freeze({
+  tower: [
+    { id: 'freelook', label: 'Freelook' },
+    { id: 'track', label: 'Track' },
+    { id: 'padlock', label: 'Rwy 29L' },
+  ],
+  free: [
+    { id: 'freelook', label: 'Freelook' },
+    { id: 'track', label: 'Track' },
+    { id: 'padlock', label: 'Rwy 29L' },
+  ],
+  chase: [
+    { id: 'boresight', label: 'Trail' },
+    { id: 'freelook', label: 'Orbit' },
+    { id: 'padlock', label: 'Rwy 29L' },
+  ],
+  cockpit: [
+    { id: 'boresight', label: 'Boresight' },
+    { id: 'freelook', label: 'Freelook' },
+    { id: 'padlock', label: 'Rwy 29L' },
+  ],
+});
+
+export const COCKPIT_SEATS = Object.freeze([
+  { id: 'front', label: 'Front' },
+  { id: 'rear', label: 'Rear' },
+]);
+
+export const DEFAULT_CAMERA_STATE = Object.freeze({
+  mount: 'overview',
+  preset: 'field',
+  aim: 'boresight',
+  seat: 'front',
+});
+
+/** Translates legacy view names to 2-tier camera state */
+export function stateFromLegacy(name, currentTarget = null) {
+  switch (name) {
+    case 'field': return { mount: 'overview', preset: 'field', aim: 'boresight', seat: 'front' };
+    case 'fit':   return { mount: 'overview', preset: 'fit', aim: 'boresight', seat: 'front' };
+    case 'high':  return { mount: 'overview', preset: 'high', aim: 'boresight', seat: 'front' };
+    case 'top':   return { mount: 'overview', preset: 'top', aim: 'boresight', seat: 'front' };
+    case 'tower': return { mount: 'tower', preset: 'field', aim: currentTarget ? 'track' : 'freelook', seat: 'front' };
+    case 'free':  return { mount: 'free', preset: 'field', aim: 'freelook', seat: 'front' };
+    case 'low':   return { mount: 'chase', preset: 'field', aim: 'boresight', seat: 'front' };
+    case 'cockpit': return { mount: 'cockpit', preset: 'field', aim: 'boresight', seat: 'front' };
+    case 'padlock': return { mount: 'cockpit', preset: 'field', aim: 'padlock', seat: 'front' };
+    default: return { ...DEFAULT_CAMERA_STATE };
+  }
+}
 
 const PITCH = [0, 85];
 const ZOOM = [0.3, 4000];
