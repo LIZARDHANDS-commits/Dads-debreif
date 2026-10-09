@@ -126,6 +126,7 @@ function mount(root, app) {
       moreToggled: (open) => open && renderReadouts(),
       tableToggled: (open) => open && renderReadouts(),
       cameraView: (name) => view3d.setView(name),
+      setCamera: (partial) => view3d.setCamera(partial),
     },
   });
   ui.setEnergyProblem(problemText, flownValues);
@@ -154,6 +155,7 @@ function mount(root, app) {
     paint: () => settings.get().paint,
     options: () => ({ dataTags: settings.get().dataTags }),
     onLost: () => stayIn2d('3D stopped (the graphics card was reset); showing 2D.'),
+    onCameraChange: (camState) => ui.updateCamera?.(camState),
   });
 
 

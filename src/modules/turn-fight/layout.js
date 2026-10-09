@@ -12,7 +12,7 @@ import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
 import { createReadoutTable } from './readouts-panel.js';
 import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import { RANGES, DEFAULTS, ALLOWED, G_LABEL, startSetupFrom, TACTICAL_PRESETS } from './state.js';
-import { VIEWS } from './view3d.js';
+import { VIEWS, DEFAULT_CAMERA_STATE } from './view3d.js';
 import { startGeometry, passNote, turnNote } from './geometry.js';
 import { limitWarning } from './t6-limit.js';
 import { ENERGY_ACCURATE_MAX_FT, ENERGY_MOVES } from './energy-sim.js';
@@ -473,14 +473,80 @@ export function createLayout({ settings, controls, on }) {
       h('span', { class: 'tf-red' }, h('span', { class: 'tf-badge', 'aria-hidden': 'true' }, 'R'), 'Red'),
       h('span', { class: 'tf-deck-key' }, 'Hard deck (dashed)')),
     energyChart, energySummary, energyTable);
-  // The 3D view draws inside `canvas3d` (a box; each start puts a new canvas in it), with its one-click views beside it.
+  // The 3D view draws inside `canvas3d` (a box; each start puts a new canvas in it), with its camera controls bar.
   const canvas3d = h('div', { class: 'tf-3d', hidden: true });
+
+  let activeCam = { ...DEFAULT_CAMERA_STATE };
+
+  const makePill = (label, value, getter, onSelect, extraClass = '') => {
+    const btn = h('button', {
+      type: 'button',
+      class: `button tf-cam-pill ${extraClass}`.trim(),
+      onclick: () => onSelect(value),
+    }, label);
+    return {
+      element: btn,
+      update: () => {
+        const active = getter() === value;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      },
+    };
+  };
+
+  const mountPills = [
+    makePill('Overview', 'overview', () => activeCam.mount, (m) => on.setCamera?.({ mount: m })),
+    makePill('Chase', 'chase', () => activeCam.mount, (m) => on.setCamera?.({ mount: m })),
+    makePill('Cockpit', 'cockpit', () => activeCam.mount, (m) => on.setCamera?.({ mount: m })),
+  ];
+
+  const whoPills = [
+    makePill('Blue', 'blue', () => activeCam.who, (w) => on.setCamera?.({ who: w }), 'tf-cam-pill-blue'),
+    makePill('Red', 'red', () => activeCam.who, (w) => on.setCamera?.({ who: w }), 'tf-cam-pill-red'),
+  ];
+
+  const aimPills = [
+    makePill('Boresight', 'boresight', () => activeCam.aim, (a) => on.setCamera?.({ aim: a })),
+    makePill('Freelook', 'freelook', () => activeCam.aim, (a) => on.setCamera?.({ aim: a })),
+    makePill('Padlock', 'padlock', () => activeCam.aim, (a) => on.setCamera?.({ aim: a })),
+  ];
+
+  const seatPills = [
+    makePill('Front Seat', 'front', () => activeCam.seat, (s) => on.setCamera?.({ seat: s })),
+    makePill('Rear Seat', 'rear', () => activeCam.seat, (s) => on.setCamera?.({ seat: s })),
+  ];
+
+  const mountGroup = h('div', { class: 'tf-cam-group tf-cam-group-mount', role: 'group', 'aria-label': 'Camera Mount' },
+    mountPills.map((p) => p.element));
+  const whoGroup = h('div', { class: 'tf-cam-group tf-cam-group-who', role: 'group', 'aria-label': 'Aircraft', hidden: true },
+    whoPills.map((p) => p.element));
+  const aimGroup = h('div', { class: 'tf-cam-group tf-cam-group-aim', role: 'group', 'aria-label': 'Camera Aim', hidden: true },
+    aimPills.map((p) => p.element));
+  const seatGroup = h('div', { class: 'tf-cam-group tf-cam-group-seat', role: 'group', 'aria-label': 'Cockpit Seat', hidden: true },
+    seatPills.map((p) => p.element));
+
+  const shortcutsHint = h('span', { class: 'tf-3d-hint' },
+    h('kbd', { class: 'tf-kbd' }, 'C'), ' Center ',
+    h('kbd', { class: 'tf-kbd' }, 'P'), ' Padlock · Drag turns, scroll zooms');
+
   const cameraBar = h(
     'div',
-    { class: 'tf-3d-bar', role: 'group', 'aria-label': 'Camera views', hidden: true },
-    Object.entries(VIEWS).map(([id, { label }]) => h('button', { type: 'button', class: 'button tf-3d-view', onclick: () => on.cameraView(id) }, label)),
-    h('span', { class: 'tf-3d-hint' }, 'Drag to turn it. Scroll or pinch to zoom. Grid squares are 1 NM.'),
+    { class: 'tf-3d-bar', role: 'group', 'aria-label': 'Camera controls', hidden: true },
+    mountGroup, whoGroup, aimGroup, seatGroup, shortcutsHint,
   );
+
+  const syncCamUI = (state) => {
+    activeCam = { ...activeCam, ...state };
+    whoGroup.hidden = activeCam.mount === 'overview';
+    aimGroup.hidden = activeCam.mount === 'overview';
+    seatGroup.hidden = activeCam.mount !== 'cockpit';
+    mountPills.forEach((p) => p.update());
+    whoPills.forEach((p) => p.update());
+    aimPills.forEach((p) => p.update());
+    seatPills.forEach((p) => p.update());
+  };
+  syncCamUI(DEFAULT_CAMERA_STATE);
+
   const views = h('div', { class: 'tf-views' }, h('div', { class: 'tf-topdown-wrap' }, canvas, canvas3d, cameraBar), energyPanel);
   const footer = h('p', { class: 'tf-footer' }, SIMPLE_FOOTER);
   const stage = h(
@@ -590,6 +656,8 @@ export function createLayout({ settings, controls, on }) {
     },
     /** The Energy graph's box, for energy-graph.js. */
     energyChart,
+    /** Updates the 3D camera controls UI to reflect active camera state. */
+    updateCamera: syncCamUI,
     /** Shows the 2D pictures or the 3D scene ('2d' or '3d'). */
     showView(view) {
       shown = view;
