@@ -100,3 +100,7 @@ Built as refactor PRs 1 to 5 (TS-85, TS-93 to TS-97) and the docs rewrite (PR 9)
 ## TRJ + roll (Patrick 6 Oct 16:02Z)
 
 "I want to add "barrel/lag roll" turning rejoin, where 2 does the "most efficient " rolling aerobatic to get on the line faster ... a button next to TRJ? It won't always work so it can just be a "if it makes sense" move?" A turning rejoin where #2 flies a barrel or lag roll to reach the rejoin line sooner, on its own button next to TRJ, flown only when it beats the plain TRJ (the card says which and why). Show Patrick the shape against the SMM picture before coding; reuse the lag-roll code where it fits.
+
+## Cockpit frames in the line-of-sight check (Dad, 9 Oct 2026)
+
+Part of the CT-156 cockpit ask (TS-154) not built in V2.205: let the canopy bows, panel and wings drawn in the Cockpit view also block Lead in the line-of-sight check (`src/core/canopy.js`). It changes which rejoins the tracker accepts, so it is flight behaviour and needs its own TS- decision and Patrick's yes. Display-only first step: name what hides Lead (bow, nose, wing) in the HUD label, leaving `isLeadInCanopy` as is.
