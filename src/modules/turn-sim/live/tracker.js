@@ -59,12 +59,67 @@ function aimOf(ph, L, Lprev, ref, W, t) {
   const T = TRACKER;
   const GAIN = T.gain;
 
-  if (ph.kind === 'line') {
+  if (ph.kind === 'line' || ph.kind === 'ride') {
     const rel = relativeTo(L, W);
     const line = ph.line ?? fixedLine(ph.lineDeg ?? 45, ph.side ?? -1);
     const geo = line.at(rel);
     const along = geo.along;
     const cross = geo.cross;
+
+    if (ph.kind === 'ride') {
+      const f = { x: Math.cos(L.headingRad), y: Math.sin(L.headingRad) };
+      const l = { x: -f.y, y: f.x };
+      const dx = L.xFt - W.xFt;
+      const dy = L.yFt - W.yFt;
+      const r = Math.hypot(dx, dy);
+      const omegaL = Lprev ? wrapPi(L.headingRad - Lprev.headingRad) / STEP_SEC : 0;
+      
+      const vfx = L.tasFtps * f.x + omegaL * dy;
+      const vfy = L.tasFtps * f.y - omegaL * dx;
+      const vwx = W.tasFtps * Math.cos(W.headingRad);
+      const vwy = W.tasFtps * Math.sin(W.headingRad);
+      
+      const vrelx = vwx - vfx;
+      const vrely = vwy - vfy;
+      
+      const vrel_fwd = vrelx * f.x + vrely * f.y;
+      const vrel_left = vrelx * l.x + vrely * l.y;
+      const Vrel = Math.hypot(vrel_fwd, vrel_left);
+      const crossDrift = vrel_fwd * line.nrm.fwd + vrel_left * line.nrm.left;
+      
+      if (!ph._captured && Math.abs(cross) <= 150 && Math.abs(crossDrift) <= (ph.driftFtps ?? TURNING_REJOIN.driftFtps ?? 10)) {
+        ph._captured = true;
+      }
+      const captured = Boolean(ph._captured);
+      
+      let cAlong = ph.captureAlongFt;
+      if (cAlong == null) {
+        cAlong = r < 2000 ? r : Math.max(1500, Math.min(2000, along));
+      }
+      
+      const bankAvail = ph.bankCapDeg ?? REJOIN.bankCapDeg ?? 60;
+      const radTurn = bankAvail > 0.1 ? (Vrel * Vrel) / (G_FTPS2 * Math.tan(bankAvail * DEG)) : 10000;
+      const L1 = Math.max(ph.l1MinFt ?? TURNING_REJOIN.l1MinFt ?? 600, radTurn);
+      
+      const carrotBase = captured ? Math.max(ph.windowFt ?? 250, along - L1) : Math.max(cAlong, along - L1);
+      
+      const carrotFwd = line.u.fwd * carrotBase;
+      const carrotLeft = line.u.left * carrotBase;
+      const px = L.xFt + carrotFwd * f.x + carrotLeft * l.x;
+      const py = L.yFt + carrotFwd * f.y + carrotLeft * l.y;
+      
+      const ex = px - W.xFt;
+      const ey = py - W.yFt;
+      const d = Math.hypot(ex, ey);
+      
+      const vpx = L.tasFtps * f.x - omegaL * (py - L.yFt);
+      const vpy = L.tasFtps * f.y + omegaL * (px - L.xFt);
+      
+      const arrived = (captured && r <= (ph.windowFt ?? 250)) || along <= (ph.windowFt ?? 250);
+      
+      return { px, py, vpx, vpy, vfx, vfy, ex, ey, d, arrived, along, cross, crossDrift, captured, omegaL, Vrel, vrelx, vrely, L1, slot: ph.slot ?? { fwd: rel.fwd, left: rel.left, alt: ph.slot?.alt ?? 0 } };
+    }
+
     const approachDeg = ph.approachDeg ?? 45;
     const aimFt = ph.aimFt ?? 500;
     const chi = approachDeg * DEG * (2 / Math.PI) * Math.atan(Math.abs(cross) / aimFt);
@@ -186,6 +241,24 @@ function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT) {
   const GAIN = T.gain;
   const ratio = W.tasFtps / W.kias;
 
+  if (ph.kind === 'ride') {
+    const carrotAngle = Math.atan2(aim.ey, aim.ex);
+    const vrelAngle = Math.atan2(aim.vrely, aim.vrelx);
+    const eta = wrapPi(carrotAngle - vrelAngle);
+    
+    const a_lat = aim.L1 > 1 ? (2 * aim.Vrel * aim.Vrel / aim.L1) * Math.sin(eta) : 0;
+    const omega_rel = aim.Vrel > 1 ? a_lat / aim.Vrel : 0;
+    const omegaCmd = omega_rel + aim.omegaL;
+    
+    const psiCmd = W.headingRad + omegaCmd;
+    
+    const maxKiasAllowed = Math.max(200, ph.rideKias ?? TURNING_REJOIN.rideKiasMax ?? 210);
+    const isMax = ph.maxEntry && !aim.captured;
+    const kiasCmd = (isMax && W.kias < maxKiasAllowed) ? Infinity : maxKiasAllowed;
+    
+    return { pullX: 0, pullY: 0, vdx: aim.vpx, vdy: aim.vpy, speed: W.tasFtps, psiCmd, kiasCmd };
+  }
+
   if (ph.kind === 'line') {
     const room = Math.max(0, (aim.along ?? 0) - (ph.decisionFt ?? 750));
     const closeFtps = typeof ph.arriveFtps === 'function' ? ph.arriveFtps(W) : (ph.arriveFtps ?? 20 * KT_TO_FTPS);
@@ -284,8 +357,8 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
   headingState.psiCmdPrev = cmd;
   headingState.omegaFf += GAIN.ffFilter * (psiStep / STEP_SEC - headingState.omegaFf);
 
-  const isRejoinKind = ph.kind === 'line' || ph.kind === 'x';
-  const tauSec = isRejoinKind ? (ph.tauSec ?? (ph.kind === 'x' ? 6 : 4)) : null;
+  const isRejoinKind = ph.kind === 'line' || ph.kind === 'x' || ph.kind === 'ride';
+  const tauSec = isRejoinKind ? (ph.tauSec ?? (ph.kind === 'ride' ? 1 : ph.kind === 'x' ? 6 : 4)) : null;
   const gainHdg = tauSec != null ? (1 / tauSec) : GAIN.heading;
   const omegaCmd = gainHdg * wrapPi(cmd - W.headingRad) + (ph.feedForward === false ? 0 : headingState.omegaFf);
 

@@ -51,9 +51,6 @@ export const REJOIN = Object.freeze({
 export const TURNING_REJOIN = Object.freeze({
   lineDeg: 45, // the rejoin line, degrees behind Lead's 3/9 line: Lead at 10:30 or 1:30 (SMM 12.24 para 56; Patrick's card 07:31Z). It passes through the fighting wing place (16.20 para 66) and the corner behind echelon (para 58's latest point)
   lineUpFt: -30, // #2's height on the line, below Lead: "just slightly below lead" (SMM 12.24 para 58); 30 ft is an estimate
-  aimsFt: [300, 600, 1200], // how sharply #2 captures the line: off it by this much he heads for it at half approachDeg; the one that brings him in soonest is flown (estimates: smaller is a sharper capture, larger a gentler, longer one)
-  approachDeg: 80, // far off the line he heads for it at up to this angle across it, in Lead's frame (estimate)
-  bankCapDeg: 60, // the bank he uses at most to get onto the line and hold it: past about 60° the drag costs speed and buys nothing (the review's estimate, rejoin-review-fable.md). Only when no rejoin at 60° keeps him behind Lead's 3/9 line does he use more, up to the G rule (REJOIN.bankCapDeg)
   hotFt: 1000, // ahead of the line by this much (hot) he flies his least speed, Lead's 200 KIAS, coming up to lineOverKias above it as he reaches the line (estimate; TS-75)
   laneTolFt: 20, // flowing into the slot he may pass this far ahead of it, never more, toward Lead's 3/9 line (estimate; Patrick 08:04Z)
   decisionArriveRates: 'instructor', // he reaches the decision point closing no faster than this Rates choice's close-in rate (about 15 kt), so AI's quicker close-in starts from a closure under control (estimate; SMM 12.24 para 58)
@@ -63,7 +60,6 @@ export const TURNING_REJOIN = Object.freeze({
   heightG: 1, // a height change is one smooth leg whose push and pull stay within this many g of level flight: no rate cap, only the physics (the G is charged in flight.js) and smoothness (Patrick 6 Oct 21:30Z: "there shouldnt be a limit within the physics and smoothness"; TS-140; the 1 g an estimate)
   captureFt: 150, // he is on the line within this many feet of it; only then does he start taking out the overtake for the decision point (estimate)
   lagCutFt: 1500, // to fighting wing, hot and within this far of the place down the line he flies at the place itself, lagging the cut so it ends there (Patrick 6 Oct 17:11Z card "Lag the cut"; the distance an estimate)
-  lineTauSec: 4, // his heading comes onto the one the line asks over about this long, so the bank changes smoothly (estimate)
   diveGs: Object.freeze([2, 1]), // line first (Patrick 6 Oct 06:14Z: "a deeper roll, harder pull, steper dive ... get to leads altitude faster"; TS-124): from above, his height comes off over the shortest smooth leg whose push and pull stay within this many g of level flight, the first that costs no more than diveSlackSec (estimates)
   planeEaseSec: 4, // from the move over, #2's height eases into Lead's wing plane over at least this long (TS-126; estimate)
   planeEaseG: 0.3, // ...and longer where the step is big, so the ease asks no more than this many g off level flight (TS-126; estimate)
@@ -97,6 +93,11 @@ export const TURNING_REJOIN = Object.freeze({
   onXDeg: 5, // he is on the X within this many degrees of it (for the card's speed on the line; estimate)
   overshootBankDeg: 15, // the overshoot: wings near level, no more than this bank... (SMM 12.27 para 65; card 03:33Z rule 5; estimate)
   overshootLevelSec: 3, // ...for this long, then he stabilizes on the outside of Lead's turn (estimate)
+  captureAlongFt: Object.freeze([1500, 2000]), // (G1)
+  rideKiasMax: 210, // (G3)
+  windowCloseKt: 10, // (G3)
+  l1MinFt: 600, // (estimate)
+  driftFtps: 10, // (G2)
 });
 
 /**
