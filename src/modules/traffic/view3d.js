@@ -299,7 +299,6 @@ export function standInKindFor(type) {
 export function groundFt(routes) {
   let low = Infinity;
   for (const route of routes) {
-    if (route.visible === false) continue;
     // A line drawn without its runway part (Pattern 1, scene.js) brings the runway's height with it.
     if (Number.isFinite(route.lowFt) && route.lowFt < low) low = route.lowFt;
     for (const p of route.path ?? []) if (finite(p.alt) < low) low = finite(p.alt);
