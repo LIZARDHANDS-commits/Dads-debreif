@@ -92,7 +92,8 @@ function rideAim(ph, L, Lprev, ref, W) {
   st.captureAlong ??= Math.min(ph.captureAlongFt ?? TR.rideCaptureAlongFt, along < 0 ? (ph.captureAlongFt ?? TR.rideCaptureAlongFt) : Math.max(along, 0));
   const leadFt = ph.leadFt ?? TR.rideLeadFt;
   const windowFt = ph.windowFt ?? TR.windowFarFt;
-  const carrotAlong = Math.min(along - (ph.minLeadFt ?? TR.rideMinLeadFt), Math.max(st.established ? windowFt : st.captureAlong, along - leadFt));
+  const carrotWindowFt = ph.carrotWindowFt ?? windowFt;
+  const carrotAlong = Math.min(along - (ph.minLeadFt ?? TR.rideMinLeadFt), Math.max(st.established ? carrotWindowFt : st.captureAlong, along - leadFt));
   const dAlong = carrotAlong - along; // < 0: up the line
   const dLen = Math.hypot(dAlong, cross) || 1;
   // direction in world axes: dAlong along u (outward), -cross along nrm

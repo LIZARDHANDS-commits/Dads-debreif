@@ -157,18 +157,20 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       }));
       numApproachPhases++;
     }
-    // Followed by canopy-X tracking into the fighting wing cone
+    // Followed by ride tracking into the fighting wing cone
     phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
-      kind: 'x',
+      kind: 'ride',
       lineDeg: TR.lineDeg,
       side: s,
-      tauSec: TR.bearingTauSec,
-      bankCapDeg,
-      isFw: true,
+      captureAlongFt: initialRange < 2000 ? initialRange : undefined,
+      windowFt: 1000,
+      carrotWindowFt: 250,
       coneEase: true,
-      arriveFtps: TR.fwArriveFtps,
-      overtakeKt,
-      floorKias,
+      decisionFt: 1000,
+      coneEaseFarFt: 1500,
+      captureFt: TR.captureFt,
+      bankCapDeg,
+      floorKias: KIAS_OUTSIDE_LAB,
       rejoin: true,
     }));
     numApproachPhases++;
@@ -178,9 +180,15 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
         ...FW_FOLLOW,
         isFw: true,
         side: sTo || s,
-        goal: (L, W) => fwGoal(L, W, sTo || s, false),
+        goal: (L, W) => {
+          const g = fwGoal(L, W, sTo || s, false);
+          const r = Math.hypot(g.fwd, g.left);
+          const sweep = 30 * DEG;
+          return { fwd: -r * Math.cos(sweep), left: (sTo || s) * r * Math.sin(sweep), alt: g.alt };
+        },
         coneAlt: false,
         rejoin: true,
+        floorKias: leastKias,
       }),
     ], { closeIn: true }));
   } else if (onX) {
@@ -360,7 +368,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
     overKt: lineKias - KIAS_OUTSIDE_LAB, lineKias: lineKias,
     stable: true,
     establishedRange: first.run.establishedRange,
-    rideEstablished: first.run.rideEstablished && lineKias <= (TURNING_REJOIN.rideKias ?? 210) + 0.5 && (dropFt <= 1000 || first.run.establishedRange > 1000),
+    rideEstablished: (to === 'fw' || first.run.rideEstablished) && lineKias <= (TURNING_REJOIN.rideKias ?? 210) + 5.5 && (to !== 'fw' || partMinKias >= 195) && (dropFt <= 1000 || first.run.establishedRange > 1000),
   };
 
   const remainderRun = {
