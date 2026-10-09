@@ -152,6 +152,8 @@ After Traffic is signed off, the Turn Sim review runs before any Turn Sim buildi
 
 ## Waiting on Patrick
 
+- [ ] **CT-156 cockpit (Formation Sim, PR #697, TS-154/TS-155): rule on the cockpit sizes and one question.** Every cockpit size, the eye points and the panel layout are estimates off the model and Dad's T-6A reference pictures. Question: strapped in, how far below your eye is the canopy sill? The model has about 1.8 ft; Dad's air-to-air photo suggests 1.0 to 1.2 ft. The new eye sliders (Camera menu) let you set where your eye sits.
+
 - [ ] **Home field shared by the SOF and Traffic (Dad, 8 Oct 2026; asked on PR #684):** setting home to a US base for the SOF also moved the Traffic pattern sim, which opens V6's generic pattern away from CYMJ (`src/modules/traffic/profile.js:327`), not a USAF pattern. Options: (a) the SOF keeps its own home base (recommended), (b) Traffic opens Moose Jaw unless chosen in Traffic, (c) a USAF pattern later from AFMAN 11-248. Working answer: nothing changed; the #684 shell line waits.
 
 - [ ] **Dad's whole-tool ideas (8 Oct 2026; `docs/FUTURE.md`):** (1) remove the Dad/Pat tags and credit both as co-founders and co-creators in About; (2) a new name for the tool that works for both; (3) AFMAN 11-248 (USAF T-6) as an option throughout, beside the RCAF references. Working answer: nothing changes until Patrick decides.
