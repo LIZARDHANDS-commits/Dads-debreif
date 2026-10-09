@@ -347,12 +347,143 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     ),
   ]);
 
+  // ---- 3D Camera Segmented Pill Toolbar (standardized with Turn Fight & Traffic) ----
+  const mountGroup = h('div', { class: 'ts-cam-group', role: 'radiogroup', 'aria-label': 'Camera Mount' });
+  const MOUNTS = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'chase', label: 'Chase' },
+    { id: 'cockpit', label: 'Cockpit' },
+  ];
+  const mountBtns = new Map();
+  for (const m of MOUNTS) {
+    const btn = h('button', { type: 'button', class: 'ts-cam-pill', 'data-mount': m.id }, m.label);
+    btn.addEventListener('click', () => {
+      if (m.id === 'overview') {
+        layout.update({ camOn: 'formation', camLook: 'chase' });
+      } else if (m.id === 'chase') {
+        const curOn = layout.get().camOn;
+        const targetOn = curOn === 'formation' || curOn === 'free' ? '1' : curOn;
+        const curLook = layout.get().camLook;
+        layout.update({ camOn: targetOn, camLook: curLook === 'padlock' ? 'padlock' : 'chase' });
+      } else if (m.id === 'cockpit') {
+        const curOn = layout.get().camOn;
+        const targetOn = curOn === 'formation' || curOn === 'free' ? '1' : curOn;
+        const curLook = layout.get().camLook;
+        layout.update({ camOn: targetOn, camLook: curLook === 'padlock' ? 'padlock' : 'cockpit' });
+      }
+    });
+    mountBtns.set(m.id, btn);
+    mountGroup.append(btn);
+  }
+
+  const shipGroup = h('div', { class: 'ts-cam-group ts-cam-ships', role: 'radiogroup', 'aria-label': 'Aircraft' });
+  const shipBtns = new Map();
+  const AIRCRAFT_CHOICES = [
+    { id: '1', label: 'Lead' },
+    { id: '2', label: '#2' },
+    { id: '3', label: '#3' },
+    { id: '4', label: '#4' },
+  ];
+  for (const a of AIRCRAFT_CHOICES) {
+    const btn = h('button', { type: 'button', class: 'ts-cam-pill', 'data-ship': a.id }, a.label);
+    btn.addEventListener('click', () => {
+      layout.update({ camOn: a.id });
+    });
+    shipBtns.set(a.id, btn);
+    shipGroup.append(btn);
+  }
+
+  const aimGroup = h('div', { class: 'ts-cam-group ts-cam-aims', role: 'radiogroup', 'aria-label': 'Camera Aim' });
+  const AIMS = [
+    { id: 'boresight', label: 'Boresight' },
+    { id: 'freelook', label: 'Freelook' },
+    { id: 'padlock', label: 'Padlock' },
+  ];
+  const aimBtns = new Map();
+  for (const a of AIMS) {
+    const btn = h('button', { type: 'button', class: 'ts-cam-pill', 'data-aim': a.id }, a.label);
+    btn.addEventListener('click', () => {
+      const curMount = layout.get().camOn === 'formation' ? 'overview' : (layout.get().camLook === 'cockpit' ? 'cockpit' : 'chase');
+      if (a.id === 'boresight') {
+        layout.update({ camLook: curMount === 'cockpit' ? 'cockpit' : 'chase' });
+      } else if (a.id === 'freelook') {
+        layout.update({ camLook: 'free' });
+      } else if (a.id === 'padlock') {
+        layout.update({ camLook: 'padlock' });
+      }
+    });
+    aimBtns.set(a.id, btn);
+    aimGroup.append(btn);
+  }
+
+  const seatGroup = h('div', { class: 'ts-cam-group ts-cam-seats', role: 'radiogroup', 'aria-label': 'Cockpit Seat', hidden: true });
+  const SEATS = [
+    { id: 'front', label: 'Front' },
+    { id: 'rear', label: 'Rear' },
+  ];
+  const seatBtns = new Map();
+  for (const s of SEATS) {
+    const btn = h('button', { type: 'button', class: 'ts-cam-pill', 'data-seat': s.id }, s.label);
+    btn.addEventListener('click', () => {
+      layout.update({ cockpitSeat: s.id });
+    });
+    seatBtns.set(s.id, btn);
+    seatGroup.append(btn);
+  }
+
+  const hintLine = h('div', { class: 'ts-cam-hint' },
+    h('kbd', { class: 'ts-kbd' }, 'C'), ' Center look \u00a0 ',
+    h('kbd', { class: 'ts-kbd' }, 'P'), ' Toggle padlock',
+  );
+
+  const camBarRow = h('div', { class: 'ts-cam-row' }, mountGroup, shipGroup, aimGroup, seatGroup);
+  const camBar3d = h('div', { class: 'ts-cam-bar', role: 'group', 'aria-label': '3D camera', hidden: true },
+    camBarRow,
+    hintLine
+  );
+  camBar3d.addEventListener('pointerdown', (e) => e.stopPropagation?.());
+
+  function syncCamBar(values) {
+    const isOverview = values.camOn === 'formation';
+    const isCockpit = !isOverview && values.camLook === 'cockpit';
+    const activeMount = isOverview ? 'overview' : (isCockpit ? 'cockpit' : 'chase');
+    for (const [id, b] of mountBtns) {
+      const active = id === activeMount;
+      b.classList.toggle('is-active', active);
+      b.setAttribute('aria-pressed', String(active));
+    }
+
+    shipGroup.hidden = isOverview;
+    for (const [id, b] of shipBtns) {
+      const num = Number(id);
+      b.hidden = num > shipsNow;
+      const active = values.camOn === id;
+      b.classList.toggle('is-active', active);
+      b.setAttribute('aria-pressed', String(active));
+    }
+
+    aimGroup.hidden = isOverview;
+    const activeAim = values.camLook === 'padlock' ? 'padlock' : (values.camLook === 'free' ? 'freelook' : 'boresight');
+    for (const [id, b] of aimBtns) {
+      const active = id === activeAim;
+      b.classList.toggle('is-active', active);
+      b.setAttribute('aria-pressed', String(active));
+    }
+
+    seatGroup.hidden = !isCockpit;
+    for (const [id, b] of seatBtns) {
+      const active = values.cockpitSeat === id;
+      b.classList.toggle('is-active', active);
+      b.setAttribute('aria-pressed', String(active));
+    }
+  }
+
   // Fit: back to the camera that keeps every aircraft in the picture, after a pan or zoom paused it (or once, when it is off).
   const fitButton = h('button', { type: 'button', class: 'button ts-fit', hidden: true, title: 'Fit every aircraft in the picture again', onclick: () => handlers.fit?.() }, 'Fit');
   const canvas = h('canvas', { class: 'ts-canvas' });
   const canvas3d = h('canvas', { class: 'ts-canvas ts-canvas3d', hidden: true }); // the 3D view's own canvas: a WebGL context can't share the 2D one
   const tags3d = h('canvas', { class: 'ts-canvas ts-tags3d', hidden: true, 'aria-hidden': 'true' }); // the info tags over the 3D picture
-  const canvasWrap = h('div', { class: 'ts-canvas-wrap' }, canvas, canvas3d, tags3d);
+  const canvasWrap = h('div', { class: 'ts-canvas-wrap' }, canvas, canvas3d, tags3d, camBar3d);
   const note3d = h('span', { class: 'ts-note', role: 'status', hidden: true });
   // Real aircraft size, and the scale slider when it is off (Patrick, 5 Oct).
   const scaleSlider = lc.slider('planeScale', { label: 'Scale', min: 0.5, max: 4, step: 0.25, format: (v) => `×${v}` });
@@ -407,6 +538,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     eyeRear.hidden = values.cockpitSeat !== 'rear';
     formationPanel.setCollapsed(!values.formationColumn);
     formationCol.classList.toggle('is-collapsed', !values.formationColumn);
+    syncCamBar(values);
   }
   applyLayout(layout.get());
 
@@ -423,6 +555,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       canvas.hidden = view === '3d';
       canvas3d.hidden = view !== '3d';
       tags3d.hidden = view !== '3d';
+      camBar3d.hidden = view !== '3d';
       for (const key of LAYERS_2D) lc.setDisabled(key, view === '3d');
       lc.setDisabled('camLook', view !== '3d'); // Follow and Padlock turn the 3D view; the 2D map stays north up
       lc.setDisabled('coneShape', view !== '3d'); // the 2D map always draws the flat band
@@ -442,6 +575,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     /** 2-ship or 4-ship: only the buttons that formation has show, and `line` (the four-ship's fixed numbers) shows under the fixed line. */
     setShips(ships, line = '') {
       shipsNow = ships;
+      syncCamBar(layout.get());
       showMoves();
       fourLine.textContent = ships === 4 ? line : '';
       fourLine.hidden = ships !== 4;
