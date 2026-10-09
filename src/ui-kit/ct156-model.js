@@ -33,6 +33,8 @@ export const PAINT_OPTIONS = Object.freeze([
 ]);
 
 export const CT156_UNIT_LENGTH = 1.44; // x from -0.78 (tail) to 0.66 (spinner tip)
+/** The real length those units stand for: the T-6A's 33 ft 4 in, nose to tail (the scale of Patrick's photo, below). */
+export const CT156_LENGTH_FT = 33 + 4 / 12;
 
 const NAVY = '#151d31';
 const rad = (d) => (d * Math.PI) / 180;
@@ -77,6 +79,12 @@ const CANOPY = [
   [-0.293, 0.032, 0.064],
   [-0.354, 0.008, 0.028],
 ];
+// The cockpit, in model units (from the photo, as the canopy): the canopy frame hoops (the forward one is the windscreen
+// bow), the two seats' stations (front, rear; each helmet sits there, its seat back just behind) and the helmets' height.
+// ct156-cockpit.js builds the student's view from these, so each number has one copy.
+export const CT156_FRAME_X = Object.freeze([0.16, -0.022, -0.239]);
+export const CT156_SEAT_X = Object.freeze([0.06, -0.13]);
+export const CT156_HELMET_Z = 0.098;
 /** A table's row at x (rows run from high x to low), each number straight-line between the rows either side. */
 function rowAt(rows, x) {
   if (x >= rows[0][0]) return rows[0];
@@ -328,6 +336,21 @@ function canopyGeometry(THREE) {
   }
   return meshOf(THREE, pos, idx);
 }
+/** The canopy's section at x, in model units: { w: half-width, top, base: the sill's height } (for ct156-cockpit.js). */
+export const ct156CanopySection = (x) => canopyAt(x);
+/** The canopy's inside half-width at station x and height z, model units (0 above its top or below its sill). */
+export function ct156CanopyHalfWidth(x, z) {
+  const c = canopyAt(x);
+  const f = (z - c.base) / (c.top - c.base);
+  if (!(f >= 0 && f <= 1)) return 0;
+  const sp = f ** (1 / 0.75); // canopyPoint backwards: z = base + (top - base) * sin^0.75, y = w * cos^0.85
+  return c.w * Math.sqrt(Math.max(1 - sp * sp, 0)) ** 0.85;
+}
+/** The fuselage's section at x, in model units: { halfWidth, top, bottom } (for ct156-cockpit.js). */
+export function ct156FuselageSection(x) {
+  const [, halfWidth, top, bottom] = rowAt(STATIONS, x);
+  return { halfWidth, top, bottom };
+}
 /** A frame hoop over the canopy at x. */
 function hoopGeometry(THREE, x) {
   const c = canopyAt(x, 0.0015);
@@ -550,11 +573,11 @@ function buildKit(THREE) {
   geo.fin = airfoilGeometry(THREE, FIN, { span: 'z' });
   geo.canopy = canopyGeometry(THREE);
   geo.frames = joinGeometries(THREE, [
-    ...[0.16, -0.022, -0.239].map((x) => ({ geometry: hoopGeometry(THREE, x), materials: [0] })),
+    ...CT156_FRAME_X.map((x) => ({ geometry: hoopGeometry(THREE, x), materials: [0] })),
     { geometry: railGeometry(THREE, 1), materials: [0] },
     { geometry: railGeometry(THREE, -1), materials: [0] },
     // The seat backs.
-    ...[0.06, -0.13].map((x) => ({ geometry: new THREE.BoxGeometry(0.014, 0.05, 0.05).translate(x - 0.035, 0, 0.07), materials: [0] })),
+    ...CT156_SEAT_X.map((x) => ({ geometry: new THREE.BoxGeometry(0.014, 0.05, 0.05).translate(x - 0.035, 0, 0.07), materials: [0] })),
     // The chin intake under the spinner.
     { geometry: ellipsoid(THREE, 0.545, 0, -0.058, 0.03, 0.032, 0.016), materials: [0] },
   ]);
@@ -562,7 +585,8 @@ function buildKit(THREE) {
   floor.scale(0.2, 0.05, 1);
   floor.translate(-0.035, 0, 0.046);
   geo.floor = floor;
-  geo.helmets = joinGeometries(THREE, [0.06, -0.13].map((x) => ({ geometry: new THREE.SphereGeometry(0.02, 12, 8).translate(x, 0, 0.098), materials: [0] })));
+  // The two helmets apart, so the Cockpit view can leave out the one the camera sits in (setCockpitView).
+  [geo.helmetFront, geo.helmetRear] = CT156_SEAT_X.map((x) => new THREE.SphereGeometry(0.02, 12, 8).translate(x, 0, CT156_HELMET_Z));
   // The exhaust stacks either side of the nose, just under the top line (photo).
   const stubY = fuseSurf(0.5, -0.012) - 0.003;
   geo.stubs = joinGeometries(THREE, [1, -1].map((s) => ({ geometry: new THREE.CylinderGeometry(0.012, 0.009, 0.06, 10).rotateZ(Math.PI / 2).translate(0.5, s * stubY, -0.012), materials: [0] })));
@@ -637,6 +661,8 @@ function buildKit(THREE) {
     chrome: mat({ color: '#f2f5f8', roughness: 0.1, metalness: 1, envMap: env, envMapIntensity: 1.2 }),
     exhaust: mat({ color: '#4a4d54', roughness: 0.45, metalness: 0.8, envMap: env, envMapIntensity: 0.6 }),
     glass: mat({ color: '#1d2a36', transparent: true, opacity: 0.4, roughness: 0.04, metalness: 0.6, envMap: env, envMapIntensity: 1.4, depthWrite: false, side: two }),
+    // The canopy seen from inside (setCockpitView): a faint clear tint, no reflections, so the sky shows through it.
+    glassInside: keep(new THREE.MeshBasicMaterial({ color: '#cfe3f2', transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide, fog: false })),
     frame: mat({ color: '#0c1017', roughness: 0.5, side: two }),
     floor: mat({ color: '#0d1118', roughness: 0.9, side: two }),
     helmet: mat({ color: '#d4d8de', roughness: 0.35 }),
@@ -723,7 +749,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     return m;
   };
 
-  let fuselage;
+  let fuselage, canopy, helmetFront = null;
   if (paint === 'ship') {
     const base = new THREE.Color(color);
     const m = (c, extra) => own(new THREE.MeshStandardMaterial({ color: c, roughness: 0.45, metalness: 0.1, envMap: mats.env, envMapIntensity: 0.4, side: THREE.DoubleSide, fog: false, ...extra }));
@@ -733,7 +759,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     add(geo.airframe, [light, light]);
     add(geo.fin, m(base.clone().lerp(new THREE.Color('#ffffff'), 0.15)));
     // Solid dark glass, one canopy (Patrick, 5 Oct: the two see-through bubbles overlapped as a "ghost double canopy").
-    add(geo.canopy, m('#2c4a66', { roughness: 0.12, metalness: 0.45 }));
+    canopy = add(geo.canopy, m('#2c4a66', { roughness: 0.12, metalness: 0.45 }));
     add(geo.spinner, m('#20242a', { roughness: 0.4 }));
     add(geo.disc, mats.disc);
   } else {
@@ -771,14 +797,15 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     add(geo.stubs, mats.exhaust, detail);
     add(geo.floor, mats.floor, detail);
     add(geo.frames, mats.frame, detail);
-    add(geo.helmets, mats.helmet, detail);
+    helmetFront = add(geo.helmetFront, mats.helmet, detail);
+    add(geo.helmetRear, mats.helmet, detail);
     const prop = new THREE.Group();
     prop.rotation.x = rad(22);
     add(geo.blade, mats.blade, prop);
     add(geo.bladeTip, mats.tip, prop);
     detail.add(prop);
     // The glass last, so the cockpit shows through it.
-    add(geo.canopy, mats.glass);
+    canopy = add(geo.canopy, mats.glass);
   }
   // The first time the ship is drawn, its scene starts checking its detail (near and far, above).
   fuselage.onBeforeRender = (renderer, scene, camera) => {
@@ -786,8 +813,33 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     scene?.userData?.ct156Ships?.add(root);
     setDetail(THREE, root, camera, renderer);
   };
-  root.userData.ct156 = { kit, mine, paint, detail };
+  root.userData.ct156 = { kit, mine, paint, detail, g, canopy, helmetFront, inside: null };
   return root;
+}
+
+/**
+ * The ship seen from its own front seat (the Formation Sim's Cockpit and Padlock views, with ct156-cockpit.js) or from
+ * outside again. seat 'front': the front helmet goes (the camera is in it), the canopy turns to clear glass from inside,
+ * and the frames (the canopy bows), sill rails, seat backs, cockpit floor and rear helmet show whatever the paint ('ship'
+ * paint has none of its own, so they are added from the shared kit). seat null: the ship as built. Wings, fin and
+ * tailplane are never touched. Nothing new needs freeing: every part added is the shared kit's.
+ * @param {any} root a ship from createCt156Model
+ * @param {{ seat?: 'front' | null }} [view]
+ */
+export function setCockpitView(root, { seat = null } = {}) {
+  const d = root?.userData?.ct156;
+  if (!d) return;
+  const { geo, mats, THREE } = d.kit;
+  const inside = seat === 'front';
+  d.canopy.userData.outsideMaterial ??= d.canopy.material;
+  d.canopy.material = inside ? mats.glassInside : d.canopy.userData.outsideMaterial;
+  if (d.helmetFront) d.helmetFront.visible = !inside;
+  if (d.paint === 'ship' && inside && !d.inside) {
+    d.inside = new THREE.Group();
+    for (const [geometry, material] of [[geo.frames, mats.frame], [geo.floor, mats.floor], [geo.helmetRear, mats.helmet]]) d.inside.add(new THREE.Mesh(geometry, material));
+    d.g.add(d.inside);
+  }
+  if (d.inside) d.inside.visible = inside;
 }
 
 /** Frees this ship's own materials and textures; the shared kit goes with the last ship. */
