@@ -497,6 +497,30 @@ function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowO
  * Returns { stepProfile }.
  */
 export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, zoomFtps, heightState }) {
+  if (ph.slopedAlt && L && W) {
+    const TR = TURNING_REJOIN;
+    const line = ph.line ?? fixedLine(ph.lineDeg ?? TR.lineDeg, ph.side ?? -1);
+    const rel = relativeTo(L, W);
+    const geo = line.at(rel);
+    const slopeDz = (ph.side * Math.cos((ph.lineDeg ?? TR.lineDeg) * Math.PI / 180) * Math.max(0, geo.along)) * Math.sin((L.bankDeg ?? 0) * Math.PI / 180);
+    const targetAlt = (L.altAboveFt ?? 0) + TR.lineUpFt + slopeDz;
+    const D = FW_BUBBLE;
+    const toward = (ft) => Math.max(-D.diveFtps, Math.min(D.diveFtps, (ft - W.altAboveFt) * D.altGain));
+    let wantV = toward(targetAlt);
+    const isRejoin = Boolean(ph.rejoin || ph.rejoinKind === 'into' || ph.rejoinKind === 'straight');
+    if (isRejoin && W.altAboveFt >= (L.altAboveFt ?? 0) - 10) wantV = Math.min(wantV, toward((L.altAboveFt ?? 0) - 10));
+    const v0 = W.climbFtps ?? 0;
+    const pull = D.pullFtps2;
+    const v1 = v0 + Math.max(-pull * dt, Math.min(pull * dt, wantV - v0));
+    const nz = 1 + (v1 - v0) / dt / G_FTPS2;
+    const a1 = W.altAboveFt + ((v0 + v1) / 2) * dt;
+    heightState.cone ??= { t0: t, alt: [W.altAboveFt], climb: [v0], nz: [1] };
+    heightState.cone.alt.push(a1);
+    heightState.cone.climb.push(v1);
+    heightState.cone.nz.push(nz);
+    heightState.hasHeightChange = true;
+    return { stepProfile: [{ t0: t, t1: t + dt, table: { dt, alt: [W.altAboveFt, a1], climb: [v0, v1], nz: [nz, nz] } }] };
+  }
   // 1. Fighting wing energy with the cone (TS-96): the climb that gives the slowing the speed loop flies (or the descent that
   // gives its speeding up), inside the cone's height above or below Lead, eased in and out at FW_ENERGY.pullFtps2.
   if (heightState.cone || (ph.coneAlt && (ph.closureFtps || ph.coneEnergy)) || belowOwn != null) {
@@ -1054,7 +1078,7 @@ export function heightProfile(alt0, phases, times, t0) {
   phases.forEach((ph, i) => {
     // In fighting wing his height is his own anywhere in the cone (Patrick 08:58Z); on the power profile the tracker flies
     // it with the cone's energy (TS-96).
-    if (ph.coneAlt) return;
+    if (ph.coneAlt || ph.slopedAlt) return;
     const target = ph.slot.alt;
     const start = Math.max(times[i].t0 ?? from, from);
     const end = times[i].t1 ?? start + TRACKER.height.unknownLegSec;
