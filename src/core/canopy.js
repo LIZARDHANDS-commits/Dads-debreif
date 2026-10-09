@@ -6,7 +6,7 @@
 //   LOS · c_canopy >= 0
 // Zero blind time permitted inside 1,200 ft.
 
-import { DEG } from '../modules/turn-sim/live/manoeuvres.js';
+import { degToRad } from './angles.js';
 
 /**
  * Calculates the 3D unit vector pointing straight out the canopy roof (cockpit upright axis).
@@ -16,8 +16,8 @@ import { DEG } from '../modules/turn-sim/live/manoeuvres.js';
  * @returns {{ x: number, y: number, z: number }} Unit vector normal to canopy
  */
 export function canopySightVector(headingRad, pitchDeg = 0, bankDeg = 0) {
-  const theta = (pitchDeg || 0) * DEG;
-  const phi = (bankDeg || 0) * DEG;
+  const theta = degToRad(pitchDeg || 0);
+  const phi = degToRad(bankDeg || 0);
   const psi = headingRad || 0;
 
   // Nose vector (forward)
