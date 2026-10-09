@@ -11,12 +11,15 @@ import { cellFt, FRONT_LINE_FT, FRONT_WALL_FT, SYMBOL_FT, FLOW_TAIL_MIN_FT } fro
 const LIFT_FT = 500;
 /** A radar block is a see-through column: radar's own colour at this opacity. An estimate for the look. */
 const SHAFT_OPACITY = 0.34;
+/** Neighbouring blocks are kept apart by this share of a radar cell, so a merged block still reads as separate from the next. An estimate for the look. */
+const SHAFT_GAP = 0.1; // estimate, a share of a radar cell
 /**
  * The rain curtain under a block is much fainter: thin vertical streaks (RAIN_STREAKS, alpha 0 to 255 across a face) at RAIN_OPACITY, so the streaks are at most this
- * opaque and about a third of it on average (about 0.1, under a third of a block's), and RAIN_WIDTH of a cell wide. Estimates for the look (Dad, 8 Oct 2026).
+ * opaque and about a third of it on average (about 0.1, under a third of a block's), and RAIN_INSET of a cell narrower than its block each way (a lone cell's curtain is
+ * 0.7 of a cell wide, as V2.196's). The streaks keep the same spacing however wide a merged block's curtain is. Estimates for the look (Dad, 8 Oct 2026).
  */
 const RAIN_OPACITY = 0.3; // estimate
-const RAIN_WIDTH = 0.7; // estimate, a share of a radar cell
+const RAIN_INSET = 0.3; // estimate, a share of a radar cell
 const RAIN_STREAKS = [255, 40, 0, 160, 0, 0, 220, 30, 0, 120, 0, 200, 0, 0, 90, 0];
 /** A bolt is this wide (feet), with a dark outline this wide: thin, but never under about two pixels at the start view. An estimate for the look. */
 const BOLT_FT = { fill: 4800, outline: 9000 };
@@ -43,9 +46,10 @@ function finish(T, root, owned, extra = {}) {
 }
 
 /**
- * The radar blocks (`shafts` from weather3d-model.js): one see-through box a cell wide from each block's base to its top, in the radar's colour, and under each
- * block with a `rain` part a faint, streaked, narrower box from the ground to the block's base in the same colour. Two instanced meshes, one draw each, as many
- * boxes as blocks at most. Returns { root, count, rain (the curtains' group, for the "Rain to ground" switch), dispose }.
+ * The radar blocks (`shafts` from weather3d-model.js): one see-through box for each block, `wFt` by `dFt` less a tenth of a cell's gap, from its base to its top, in the
+ * radar's colour, and under each block with a `rain` part one faint, streaked, narrower box (three tenths of a cell narrower each way) from the ground to the block's base
+ * in the same colour. Two instanced meshes, one draw each, one box a block and one curtain a wet block. Returns { root, count, rain (the curtains' group, for the "Rain to
+ * ground" switch), dispose }.
  */
 export function buildShafts(T, { shafts, scale }) {
   const owned = [];
@@ -54,12 +58,15 @@ export function buildShafts(T, { shafts, scale }) {
   const rainGroup = new T.Group();
   rainGroup.name = 'radar-rain';
   root.add(rainGroup);
+  const cell = cellFt();
   const m = new T.Matrix4();
   const colour = new T.Color();
-  const place = (mesh, list, partOf, width) => {
+  const place = (mesh, list, partOf, inset) => {
     list.forEach((s, n) => {
       const part = partOf(s);
-      m.compose(new T.Vector3(s.x, s.y, part.baseFt * scale), new T.Quaternion(), new T.Vector3(width, width, Math.max(1, (part.topFt - part.baseFt) * scale)));
+      const w = Math.max(1, (s.wFt ?? cell) - inset * cell);
+      const d = Math.max(1, (s.dFt ?? cell) - inset * cell);
+      m.compose(new T.Vector3(s.x, s.y, part.baseFt * scale), new T.Quaternion(), new T.Vector3(w, d, Math.max(1, (part.topFt - part.baseFt) * scale)));
       mesh.setMatrixAt(n, m);
       colour.setRGB(s.colour[0] / 255, s.colour[1] / 255, s.colour[2] / 255, T.SRGBColorSpace);
       mesh.setColorAt(n, colour);
@@ -74,7 +81,7 @@ export function buildShafts(T, { shafts, scale }) {
     geometry.translate(0, 0, 0.5); // the base at z = 0, so a box scales up from its base
     const material = own(owned, new T.MeshBasicMaterial({ transparent: true, opacity: SHAFT_OPACITY, depthWrite: false }));
     const mesh = new T.InstancedMesh(geometry, material, shafts.length);
-    place(mesh, shafts, (s) => s, cellFt() * 0.9);
+    place(mesh, shafts, (s) => s, SHAFT_GAP);
     mesh.renderOrder = 3;
     root.add(mesh);
   }
@@ -95,8 +102,18 @@ export function buildShafts(T, { shafts, scale }) {
     texture.magFilter = T.LinearFilter;
     texture.needsUpdate = true;
     const material = own(owned, new T.MeshBasicMaterial({ map: texture, transparent: true, opacity: RAIN_OPACITY, depthWrite: false }));
+    // Each side's streaks repeat once for every lone cell's curtain width along it, so a wide merged curtain has more streaks, not wider ones. After the turn above
+    // every side's texture runs across it horizontally: a side facing east or west spans the box's north-south size (the instance's y scale), the others its x scale.
+    const across = (1 - RAIN_INSET) * cell;
+    material.onBeforeCompile = (shader) => {
+      shader.vertexShader = shader.vertexShader.replace('#include <uv_vertex>', `#include <uv_vertex>
+#if defined( USE_MAP ) && defined( USE_INSTANCING )
+  vMapUv.x *= ( abs( normal.x ) > 0.5 ? length( instanceMatrix[ 1 ].xyz ) : length( instanceMatrix[ 0 ].xyz ) ) / ${across.toFixed(1)};
+#endif`);
+    };
+    material.customProgramCacheKey = () => `radar-rain-${across.toFixed(1)}`;
     const mesh = new T.InstancedMesh(geometry, material, wet.length);
-    place(mesh, wet, (s) => s.rain, cellFt() * RAIN_WIDTH);
+    place(mesh, wet, (s) => s.rain, RAIN_INSET);
     mesh.renderOrder = 2;
     rainGroup.add(mesh);
   }

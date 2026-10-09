@@ -2272,6 +2272,30 @@ main[data-module='sof'] {
   display: none;
 }
 
+/* The approach fixes' words (Dad, 8 Oct 2026): "ALAMO FAF 2,200+", small, as the traffic tags are; they never take the pointer (a path's words come with the pointer near its line). */
+[data-module='sof'] .sof-3d-appr-label {
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgb(5 10 18 / 0.7);
+  color: #d9fff4;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-3d-appr-label[hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-3d-appr-field {
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+/* An approach with weather in its corridor reads in the caution colour, with its words saying what and where (never colour alone). */
+[data-module='sof'] .sof-3d-appr-hit {
+  color: var(--caution, #f5c542);
+}
+
 [data-module='sof'] .sof-3d-corner,
 [data-module='sof'] .sof-3d-outside,
 [data-module='sof'] .sof-3d-credit,
@@ -2531,6 +2555,54 @@ main[data-module='sof'] {
   overflow-y: auto;
 }
 
+/* The Airspace tab (Dad, 8 Oct 2026): Show all / Hide all, a switch per kind, a search box and every airspace in the square with its own tick. Only the list scrolls. */
+[data-module='sof'] .sof-3d-filter-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  color: #b8cfdb;
+}
+
+[data-module='sof'] .sof-3d-filter-kind {
+  min-height: 1.4rem;
+  font-size: var(--text-sm);
+}
+
+[data-module='sof'] .sof-3d-filter-count {
+  font-family: var(--font-mono);
+}
+
+[data-module='sof'] .sof-3d-filter-search {
+  max-width: 18rem;
+  min-height: 1.75rem;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: rgb(5 10 18 / 0.6);
+  color: #e3eef5;
+  font: inherit;
+}
+
+[data-module='sof'] .sof-3d-filter-list {
+  max-height: 9rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+[data-module='sof'] .sof-3d-filter-list label {
+  cursor: pointer;
+}
+
+[data-module='sof'] .sof-3d-filter-list b {
+  color: #e3eef5;
+}
+
+[data-module='sof'] .sof-3d-filter-meta {
+  font-size: var(--text-sm);
+}
+
 [data-module='sof'] .sof-3d-toggle:disabled {
   border-style: dashed;
   color: #b8cfdb;
@@ -2629,15 +2701,17 @@ main[data-module='sof'] {
 
 /* Aircraft tags a size smaller (Dad, 8 Oct 2026: "Can the traffic tags be a lil smaller"): 11 px text, was 13 px (--text-sm), about 15 % smaller, with a
    narrower box; the always-on tags (a T-6's, and an intruder's) shrink less, to 12 px (about 8 %), so they stay easy to read. Estimates for readability. */
+/* Traffic tags in fixed pixels, small (Dad, 8 Oct 2026: "the aircraft labels are still very big"; 11 → 9 px, an estimate for readability). */
 [data-module='sof'] .sof-3d-actag {
-  padding: 0 3px;
+  padding: 0 2px;
   border: 1px solid var(--border-strong);
-  border-radius: 3px;
-  background: rgb(5 10 18 / 0.8);
+  border-radius: 2px;
+  background: rgb(5 10 18 / 0.75);
   color: #cfdde7;
   font: inherit;
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: 9px;
+  line-height: 11px;
   cursor: pointer;
   pointer-events: auto;
 }
@@ -2648,20 +2722,46 @@ main[data-module='sof'] {
 }
 
 [data-module='sof'] .sof-3d-actag.is-t6 {
-  border: 2px solid #8adfff;
-  background: rgb(5 10 18 / 0.92);
+  border: 1px solid #8adfff;
+  background: rgb(5 10 18 / 0.9);
   color: #8adfff;
-  font-size: 0.75rem;
+}
+
+/* A T-6's tag is the larger one while "T-6 tags larger and always on" is on (the default; SOF settings, Traffic display). */
+[data-module='sof'] .sof-3d-actag.is-t6.is-big {
+  font-size: 10px;
   font-weight: 700;
 }
 
 /* An aircraft that is not a T-6 inside CYA304, 305 or 307: its tag stays on, in amber, with the warning symbol and the words (information only). */
 [data-module='sof'] .sof-3d-actag.is-intruder {
-  border: 2px solid var(--caution);
-  background: rgb(5 10 18 / 0.92);
+  border: 1px solid var(--caution);
+  background: rgb(5 10 18 / 0.9);
   color: var(--caution);
-  font-size: 0.75rem; /* always on, like a T-6's: shrinks less */
+  font-size: 10px; /* always on, like a T-6's: a pixel larger than the rest */
   font-weight: 700;
+}
+
+/* Tag text size (SOF settings, Traffic display; Dad, 8 Oct 2026: "bigger text"): medium is the sizes above (V2.199); small is a pixel smaller, large three
+   pixels bigger, the larger T-6 and watched-area tags in step. Estimates for readability. */
+[data-module='sof'] .sof-3d-labels[data-tag-size='small'] .sof-3d-actag {
+  font-size: 8px;
+  line-height: 10px;
+}
+
+[data-module='sof'] .sof-3d-labels[data-tag-size='small'] .sof-3d-actag.is-t6.is-big,
+[data-module='sof'] .sof-3d-labels[data-tag-size='small'] .sof-3d-actag.is-intruder {
+  font-size: 9px;
+}
+
+[data-module='sof'] .sof-3d-labels[data-tag-size='large'] .sof-3d-actag {
+  font-size: 12px;
+  line-height: 14px;
+}
+
+[data-module='sof'] .sof-3d-labels[data-tag-size='large'] .sof-3d-actag.is-t6.is-big,
+[data-module='sof'] .sof-3d-labels[data-tag-size='large'] .sof-3d-actag.is-intruder {
+  font-size: 13px;
 }
 
 [data-module='sof'] .sof-3d-canvas.is-over-aircraft {

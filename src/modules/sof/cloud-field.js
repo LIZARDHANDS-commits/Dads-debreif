@@ -22,7 +22,7 @@ import { FT_PER_NM } from './map-view.js';
 /** The three stages, bottom first (model-clouds.js `cloudStage`). */
 export const STAGES = Object.freeze(['low', 'mid', 'high']);
 /** Each stage's slab is drawn as this many stacked sheets from its base to its top. Estimate, SOF-39 (Fable review: enough to read as a thickness, few enough to stay quick). */
-export const SLAB_SHEETS = 4; // estimate, SOF-39
+export const SLAB_SHEETS = 2; // estimate, SOF-39; was 4 until V2.198: a one-off Fable review (8 Oct 2026) found the 4 transparent sheets per stage were the 3D view's biggest per-frame cost (2 sheets: about 35–40 % faster), and Dad chose 2. Each sheet's alpha is scaled (slabPixels) so a stack reads as dense from above as before.
 /** A slab is never drawn thinner than this, feet (smoothing the base and top separately can bring them together). Estimate, SOF-39. */
 export const MIN_SLAB_FT = 500; // estimate, SOF-39
 /** The soft noise that breaks up each sheet's flat look is this many pixels across, laid this many times across the square, and dims the sheet to no less than this share. Estimates, SOF-39. */

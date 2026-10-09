@@ -144,7 +144,7 @@ export function legendItems(layers, { radarBackup = false, radarScale = null, li
       ? `Dashed rings are 25 and 50 NM from home.${lightningRing ? ' A dotted amber ring is the lightning caution radius, when it is not one of those.' : ''}`
       : null,
     traffic: on.traffic
-      ? 'Traffic: an arrow points along an aircraft\'s track (a dot when it gives none); a helicopter is a rotor ring round a small body with its tail boom aft (no tail when it gives no track). Hollow is on the ground, an amber ring is military. Its words say "Helicopter" when its type is one.'
+      ? 'Traffic: each aircraft points along its track (a dot when it gives none), drawn by its kind from its type: an airliner has swept wings and a long body, a business jet a T-tail and engines at the back, a light aircraft a straight wing across a short body, a military transport or tanker a wide straight wing with four engines, a fighter or jet trainer is a small delta, a T-6 and any other aircraft an arrow, and a helicopter a rotor ring round a small body with its tail boom aft (no tail when it gives no track). Hollow is on the ground, an amber ring is military. Its words name its kind; the kind lists are from memory of ICAO Doc 8643, to be checked.'
       : null,
   };
 }
