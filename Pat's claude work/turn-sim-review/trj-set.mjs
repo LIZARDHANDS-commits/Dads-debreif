@@ -85,7 +85,7 @@ function flyStart(name, makeFormation, pressTrj, target) {
       
       if (m.rideMinKias == null || W.kias < m.rideMinKias) m.rideMinKias = W.kias;
       if (m.rideMaxKias == null || W.kias > m.rideMaxKias) m.rideMaxKias = W.kias;
-      if ((W.power?.throttle ?? 0) >= 0.99) m.maxOnLine = true;
+      if ((W.power?.throttle ?? 0) >= 0.99 && (!isHtrj || W.kias >= 209)) m.maxOnLine = true; // HTRJ: MAX may stay in until he's back at 210 after joining (Patrick 8 Oct 21:29 card)
     } else m.curRun = null;
     if (!isHtrj && (W.power?.throttle ?? 0) >= 0.99) m.maxNotHtrj = true;
     
