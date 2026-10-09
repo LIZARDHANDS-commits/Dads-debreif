@@ -89,7 +89,7 @@ export const TURNING_REJOIN = Object.freeze({
   stableShare: 1.5, // ...and closing at no more than this times the closure that middle overtake gives on the X, about 32 kt, so he is holding the X, not sweeping through it (card 03:15Z "Closure or bearing"; the figure is an estimate)
   xWindowDeg: 10, // Lead is on the X picture within this many degrees of it, 35-55° off his tail (card 03:15Z "Closure or bearing"; the figure is an estimate)
   bearingTauSec: 6, // his bearing off Lead's tail comes onto the X over about this long (estimate, the design)
-  hardPullsSec: Object.freeze([2, 4, 6]), // hot, he may first pull this long at his most bank with idle and the boards, then hold the X (Patrick 6 Oct 04:02Z: "pull like 5 g and 90 deg bank to the line with the power less than max"; the times are estimates)
+  hardPullsSec: Object.freeze([2, 4, 6, 8, 10, 12, 14, 16]), // hot, he may first pull this long at his most bank with idle and the boards, then hold the X (Patrick 6 Oct 04:02Z: "pull like 5 g and 90 deg bank to the line with the power less than max"; the times are estimates)
   xFromFt: 1200, // a hot start further out flies onto the rejoin line as before, and holds Lead on the X only from this far down it (Patrick 6 Oct 03:58Z: "you can make x inside 750 feet if it helps thats the whole idea")
   lowEnergyFt: 100, // more than this below Lead, and beyond 1,000 ft, the rejoin is at MAX (Patrick 6 Oct 05:29Z: "full power for a while"; the 100 ft is an estimate)
   slowFtps2: 3.5, // the slowing curve down to the window's closure: about power back at 200 KIAS, 8,000 ft (slow-down.js; an estimate)
@@ -97,6 +97,21 @@ export const TURNING_REJOIN = Object.freeze({
   onXDeg: 5, // he is on the X within this many degrees of it (for the card's speed on the line; estimate)
   overshootBankDeg: 15, // the overshoot: wings near level, no more than this bank... (SMM 12.27 para 65; card 03:33Z rule 5; estimate)
   overshootLevelSec: 3, // ...for this long, then he stabilizes on the outside of Lead's turn (estimate)
+  // The ride (Step 7, TS draft; design TRJ_geometry_design.md): everything is worked in Lead's frame, where the line stands still
+  // (Patrick 8 Oct 20:49 "use lead as the reference frame"). #2 closes on the line at a rate that shrinks with his distance off it,
+  // so he comes onto it along it, never across it, and moves up it at whatever closure his speed gives.
+  rideKias: 210, // on the line he holds this to the decision point (Patrick 8 Oct 20:16: "maintain 210 to the decision point")
+  rideCaptureAlongFt: 1750, // he joins (the middle of Patrick's 1,500-2,000 ft, G6) the line no closer to Lead than this, or where he already is if closer (Patrick G1: established by 1,500 ft; 8 Oct 20:16 inside 2,000 ft get on it where he is)
+  rideLeadFt: 1000, // he aims at the line this far further up it than his own place, so off it he heads across and onto it along it (estimate)
+  rideMinLeadFt: 400, // ...and never less than this, so he never heads straight across it (estimate)
+  rideStopFtps2: 160, // he closes on the line no faster than he could stop on it at about this, in Lead's frame (a hard turn's worth with margin for the roll; estimate)
+  rideAlongTauSec: 8, // until established, he takes out his distance from the capture point along the line over about this long, falling back if hot (estimate)
+  rideSettleSec: 2, // close to the line he takes out the last of it over about this long, so he settles on it without chasing it (estimate)
+  rideEaseFromFt: 500, // from this far up the line he eases off... (Patrick 8 Oct 21:26 card: 'Hold 210 to about 500 ft, then ease to about 205')
+  rideEaseKias: 205, // ...to this, so he enters the window at about 15 kt (same card)
+  rideSpeedUpFt: 150, // within this of the line he sets 210 so he is at it when established, not still accelerating with MAX (estimate)
+  rideHeadingTauSec: 2, // his heading comes onto the one asked over about this long (estimate)
+  rideDriftFtps: 10, // established: within captureFt of the line and drifting across it no faster than this (Patrick G2, "Lead fixed on the canopy")
 });
 
 /**

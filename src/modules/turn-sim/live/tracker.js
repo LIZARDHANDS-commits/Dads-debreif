@@ -52,12 +52,101 @@ function refPoint(R, Rprev, ref, world, refTurn = true) {
 }
 
 /**
+ * The ride (Step 7): the turning rejoin's line flown in Lead's frame, where it stands still (Patrick 8 Oct 20:49).
+ * Off the line by `cross`, #2 asks to close on it at cross / rideCrossTauSec (no more than rideCrossMaxFtps), across it in
+ * Lead's frame; the rest of his own speed goes up the line toward Lead. Only at the end is that turned into a world velocity
+ * (the frame's own velocity at #2's place, Lead's speed plus ω × r, plus the relative one) and so a heading. Closure is
+ * measured at #2 in Lead's frame, never as Lead's speed plus something. State (established, latched) lives in `ref`, which
+ * is the run's own.
+ */
+function rideAim(ph, L, Lprev, ref, W) {
+  const TR = TURNING_REJOIN;
+  const line = ph.line ?? fixedLine(ph.lineDeg ?? TR.lineDeg, ph.side ?? -1);
+  const rel = relativeTo(L, W);
+  const { along, cross } = line.at(rel);
+  const f = unit(L.headingRad);
+  const l = { x: -f.y, y: f.x };
+  const toW = (v) => ({ x: v.fwd * f.x + v.left * l.x, y: v.fwd * f.y + v.left * l.y });
+  const omegaL = Lprev ? wrapPi(L.headingRad - Lprev.headingRad) / STEP_SEC : 0;
+  const rx = W.xFt - L.xFt;
+  const ry = W.yFt - L.yFt;
+  // The frame's velocity at #2's place: what he would fly to sit still on Lead's canopy.
+  const vfx = L.tasFtps * f.x - omegaL * ry;
+  const vfy = L.tasFtps * f.y + omegaL * rx;
+  const wx = W.tasFtps * Math.cos(W.headingRad);
+  const wy = W.tasFtps * Math.sin(W.headingRad);
+  const nW = toW(line.nrm); // across the line, positive ahead of it (hot)
+  const mW = toW({ fwd: -line.u.fwd, left: -line.u.left }); // up the line, toward Lead
+  const drift = (wx - vfx) * nW.x + (wy - vfy) * nW.y; // d(cross)/dt in Lead's frame
+  const closing = (wx - vfx) * mW.x + (wy - vfy) * mW.y; // up the line, ft/s
+  const st = (ref.ride ??= { established: false });
+  if (!st.established && Math.abs(cross) <= (ph.captureFt ?? TR.captureFt) && Math.abs(drift) <= (ph.driftFtps ?? TR.rideDriftFtps)) {
+    st.established = true;
+    st.establishedRange = Math.hypot(rx, ry);
+  }
+
+  // Where he aims, in Lead's frame (it stands still there): a point on the line rideLeadFt further up it than his own place,
+  // but not closer to Lead than the capture point until he is established, so he joins the line well back (Patrick G1:
+  // established by 1,500 ft). Far off the line that points him mostly across it; as he nears it, along it, so he comes onto it
+  // along it. His own speed sets how fast he moves that way: |vf + λ·d| = V, solved for λ.
+  st.captureAlong ??= Math.min(ph.captureAlongFt ?? TR.rideCaptureAlongFt, along < 0 ? (ph.captureAlongFt ?? TR.rideCaptureAlongFt) : Math.max(along, 0));
+  const leadFt = ph.leadFt ?? TR.rideLeadFt;
+  const windowFt = ph.windowFt ?? TR.windowFarFt;
+  const carrotWindowFt = ph.carrotWindowFt ?? windowFt;
+  const carrotAlong = Math.min(along - (ph.minLeadFt ?? TR.rideMinLeadFt), Math.max(st.established ? carrotWindowFt : st.captureAlong, along - leadFt));
+  const dAlong = carrotAlong - along; // < 0: up the line
+  const dLen = Math.hypot(dAlong, cross) || 1;
+  // direction in world axes: dAlong along u (outward), -cross along nrm
+  const uW = { x: -mW.x, y: -mW.y };
+  const d = { x: (dAlong * uW.x - cross * nW.x) / dLen, y: (dAlong * uW.y - cross * nW.y) / dLen };
+  const V = W.tasFtps;
+  const bd = vfx * d.x + vfy * d.y;
+  const disc = bd * bd - (vfx * vfx + vfy * vfy) + V * V;
+  let lam = disc >= 0 ? Math.max(0, -bd + Math.sqrt(disc)) : 0;
+  let dvx = disc >= 0 ? vfx + lam * d.x : V * d.x;
+  let dvy = disc >= 0 ? vfy + lam * d.y : V * d.y;
+  // He closes on the line no faster than he can stop on it: across it at most √(2·a·|cross|) (a = rideStopFtps2). Until he
+  // is established, the rest of his speed goes up or down the line, whichever brings him to the capture point (a hot start
+  // falls back down it, as an HTRJ gets colder); once established, up it (|vf + c·n + a·m| = V, solved for a).
+  const cMax = Math.sqrt(2 * (ph.stopFtps2 ?? TR.rideStopFtps2) * Math.abs(cross));
+  const cNow = (dvx - vfx) * nW.x + (dvy - vfy) * nW.y;
+  if (Math.abs(cNow) > cMax || !st.established) {
+    let c = st.established ? Math.sign(cNow) * Math.min(Math.abs(cNow), cMax) : -Math.sign(cross) * Math.min(cMax, Math.abs(cross) / (ph.settleSec ?? TR.rideSettleSec));
+    const aWant = st.established ? Infinity : (along - st.captureAlong) / (ph.alongTauSec ?? TR.rideAlongTauSec);
+    for (let i = 0; i < 6; i++, c *= 0.7) {
+      const base = { x: vfx + c * nW.x, y: vfy + c * nW.y };
+      const bm = base.x * mW.x + base.y * mW.y;
+      const disc2 = bm * bm - (base.x * base.x + base.y * base.y) + V * V;
+      if (disc2 < 0) continue;
+      const a1 = -bm + Math.sqrt(disc2);
+      const a2 = -bm - Math.sqrt(disc2);
+      const a = Math.abs(a1 - aWant) <= Math.abs(a2 - aWant) ? a1 : a2;
+      dvx = base.x + a * mW.x;
+      dvy = base.y + a * mW.y;
+      lam = -1; // flagged in the trace: the (c, a) form is flying
+      break;
+    }
+  }
+  const r = Math.hypot(rx, ry);
+  const arrived = st.established && along <= windowFt;
+  const px = W.xFt + dvx;
+  const py = W.yFt + dvy;
+  return {
+    px, py, vpx: vfx, vpy: vfy, ex: dvx, ey: dvy, d: Math.hypot(dvx, dvy), arrived,
+    along, cross, drift, closing, established: st.established, psiWant: Math.atan2(dvy, dvx), rangeFt: r,
+    slot: ph.slot ?? { fwd: rel.fwd, left: rel.left, alt: ph.slot?.alt ?? 0 },
+  };
+}
+
+/**
  * Calculates the target aim point and its velocity in world coordinates (refPoint plus phase goal,
  * rate-limited reference slide, and separation distance).
  */
 function aimOf(ph, L, Lprev, ref, W, t) {
   const T = TRACKER;
   const GAIN = T.gain;
+
+  if (ph.kind === 'ride') return rideAim(ph, L, Lprev, ref, W);
 
   if (ph.kind === 'line') {
     const rel = relativeTo(L, W);
@@ -186,6 +275,13 @@ function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT) {
   const GAIN = T.gain;
   const ratio = W.tasFtps / W.kias;
 
+  if (ph.kind === 'ride') {
+    // The speed is held (Patrick 8 Oct 20:16); the geometry takes the closure out. The steering is rideAim's.
+    const floor = ph.floorKias ?? KIAS_OUTSIDE_LAB;
+    const kiasCmd = aim.established || Math.abs(aim.cross) <= (ph.speedUpFt ?? TURNING_REJOIN.rideSpeedUpFt) ? Math.max(floor, aim.established && aim.along <= (ph.easeFromFt ?? TURNING_REJOIN.rideEaseFromFt) ? (ph.easeKias ?? TURNING_REJOIN.rideEaseKias) : (ph.rideKias ?? TURNING_REJOIN.rideKias)) : floor; // to the line: no faster than the floor (Patrick 8 Oct 21:05: 200 floor, MAX on entry); on it, 210
+    return { pullX: 0, pullY: 0, vdx: aim.ex, vdy: aim.ey, speed: W.tasFtps, psiCmd: aim.psiWant, kiasCmd };
+  }
+
   if (ph.kind === 'line') {
     const room = Math.max(0, (aim.along ?? 0) - (ph.decisionFt ?? 750));
     const closeFtps = typeof ph.arriveFtps === 'function' ? ph.arriveFtps(W) : (ph.arriveFtps ?? 20 * KT_TO_FTPS);
@@ -284,8 +380,8 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
   headingState.psiCmdPrev = cmd;
   headingState.omegaFf += GAIN.ffFilter * (psiStep / STEP_SEC - headingState.omegaFf);
 
-  const isRejoinKind = ph.kind === 'line' || ph.kind === 'x';
-  const tauSec = isRejoinKind ? (ph.tauSec ?? (ph.kind === 'x' ? 6 : 4)) : null;
+  const isRejoinKind = ph.kind === 'line' || ph.kind === 'x' || ph.kind === 'ride';
+  const tauSec = isRejoinKind ? (ph.tauSec ?? (ph.kind === 'ride' ? TURNING_REJOIN.rideHeadingTauSec : ph.kind === 'x' ? 6 : 4)) : null;
   const gainHdg = tauSec != null ? (1 / tauSec) : GAIN.heading;
   const omegaCmd = gainHdg * wrapPi(cmd - W.headingRad) + (ph.feedForward === false ? 0 : headingState.omegaFf);
 
@@ -538,10 +634,10 @@ function isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt, timesK, early, heig
   let newStoppedAt = stoppedAt;
 
   // Native handling for line and canopy-X phases
-  if (ph.kind === 'line' || ph.kind === 'x') {
+  if (ph.kind === 'line' || ph.kind === 'x' || ph.kind === 'ride') {
     if (L && ph.side != null && !ph.allowAcross) {
       const rel = relativeTo(L, W);
-      const r = Math.hypot(rel.fwd, rel.left);
+      const r = Math.hypot(rel.fwd, rel.left, (W.altAboveFt ?? 0) - (L.altAboveFt ?? 0));
       if (rel.left * ph.side < -50 && r < 2000) {
         return { abort: true, early: pursuitResult, stoppedAt: newStoppedAt };
       }
@@ -753,7 +849,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
         k++;
         const next = phases[k];
         const R2 = recOf(next);
-        if (ph.kind === 'line' || ph.kind === 'x') {
+        if (ph.kind === 'line' || ph.kind === 'x' || ph.kind === 'ride') {
           const L2 = R2.at(m);
           const relNow = relativeTo(L2, W);
           Object.assign(ref, { f: relNow.fwd, l: relNow.left, vf: 0, vl: 0 });
@@ -917,6 +1013,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     blindSecInside1200,
     blindSecOpenArena,
     doctrinalOk: canopyOk && stepDownOk && laneOk,
+    rideEstablished: ref.ride?.established || false, establishedRange: ref.ride?.establishedRange,
   };
 }
 
