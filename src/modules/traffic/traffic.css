@@ -337,6 +337,12 @@
   gap: 2px;
 }
 
+[data-module='traffic'] .traffic-cam-group[hidden],
+[data-module='traffic'] .traffic-cam-follow[hidden],
+[data-module='traffic'] .traffic-3d-bar [hidden] {
+  display: none !important;
+}
+
 [data-module='traffic'] .traffic-cam-pill {
   appearance: none;
   background: transparent;

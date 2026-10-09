@@ -42,12 +42,13 @@ export function createCameraBar({
   onFollow = () => {},
   onQuality = () => {},
   initialCamera = DEFAULT_CAMERA_STATE,
+  initialQuality = 'low',
 }) {
   const n = ++nextId;
   const followId = `traffic-3d-follow-${n}`;
 
   let camState = { ...DEFAULT_CAMERA_STATE, ...initialCamera };
-  let currentQuality = 'low';
+  let currentQuality = initialQuality;
 
   const listeners = [];
   const listen = (el, type, fn) => {
@@ -93,6 +94,15 @@ export function createCameraBar({
     followSelect
   );
 
+  function syncQuality(quality) {
+    currentQuality = quality;
+    for (const b of qualityButtons) {
+      const active = b.getAttribute('data-quality') === quality;
+      b.setAttribute('aria-pressed', String(active));
+      b.classList.toggle('is-active', active);
+    }
+  }
+
   // ---- Quality Buttons ----
   const qualityButtons = QUALITY_CHOICES.map((q) => {
     const btn = h('button', {
@@ -101,7 +111,10 @@ export function createCameraBar({
       'aria-pressed': 'false',
       'data-quality': q.value,
     }, q.label);
-    listen(btn, 'click', () => onQuality(q.value));
+    listen(btn, 'click', () => {
+      syncQuality(q.value);
+      onQuality(q.value);
+    });
     return btn;
   });
   const qualityGroup = h('div', { class: 'traffic-cam-group traffic-cam-quality', role: 'group', 'aria-label': 'Graphics' },
@@ -149,21 +162,18 @@ export function createCameraBar({
     camState = next;
     syncUi();
     onCamera(camState);
-    onView(legacyViewFromState(camState));
   }
 
   function selectPreset(presetId) {
     camState = { ...camState, preset: presetId };
     syncUi();
     onCamera(camState);
-    onView(presetId);
   }
 
   function selectAim(aimId) {
     camState = { ...camState, aim: aimId };
     syncUi();
     onCamera(camState);
-    onView(legacyViewFromState(camState));
   }
 
   function selectSeat(seatId) {
@@ -261,6 +271,7 @@ export function createCameraBar({
 
   // Initial sync
   syncUi();
+  syncQuality(initialQuality);
 
   let lastIds = '';
   return {
@@ -275,13 +286,8 @@ export function createCameraBar({
       }
       const want = current && flying.includes(current) ? current : '';
       if (followSelect.value !== want) followSelect.value = want;
-      if (quality !== currentQuality) {
-        currentQuality = quality;
-        for (const b of qualityButtons) {
-          const active = b.getAttribute('data-quality') === quality;
-          b.setAttribute('aria-pressed', String(active));
-          b.classList.toggle('is-active', active);
-        }
+      if (quality && quality !== currentQuality) {
+        syncQuality(quality);
       }
     },
     setCamera(nextState) {

@@ -1865,6 +1865,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       if (wantCameraState) {
         currentCameraState = { ...currentCameraState, ...wantCameraState };
         wantCameraState = null;
+        wantPreset = null;
       } else if (wantPreset) {
         currentCameraState = { ...currentCameraState, ...stateFromLegacy(wantPreset, follow?.id) };
         wantPreset = null;
@@ -1939,23 +1940,25 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
           }
         }
       } else if (currentCameraState.mount === 'cockpit') {
-        if (!follow && !data.aircraft.some((a) => a.id === follow?.id && isFlying(a))) fallbackTarget(data);
-        const target = follow ? data.aircraft.find((a) => a.id === follow.id && isFlying(a)) : null;
+        const target = (follow && data.aircraft.find((a) => a.id === follow.id && isFlying(a))) || data.aircraft.find(isFlying);
         if (!target) {
           viewMode = 'fit';
           follow = null;
           view = cameraFor('fit', box, size);
           noteText = 'Cockpit needs an aircraft: choose one in Follow, or press ].';
-        } else if (currentCameraState.aim === 'padlock') {
-          viewMode = 'padlock';
-          padlockFrom = 'cockpit';
-          view = povCamera('padlock', target, size, floor);
         } else {
-          viewMode = 'cockpit';
-          if (currentCameraState.aim === 'boresight') {
-            headLook = { yawDeg: 0, pitchDeg: 0 };
+          follow = { id: target.id, autoYaw: false };
+          if (currentCameraState.aim === 'padlock') {
+            viewMode = 'padlock';
+            padlockFrom = 'cockpit';
+            view = povCamera('padlock', target, size, floor);
+          } else {
+            viewMode = 'cockpit';
+            if (currentCameraState.aim === 'boresight') {
+              headLook = { yawDeg: 0, pitchDeg: 0 };
+            }
+            view = povCamera('cockpit', target, size, floor);
           }
-          view = povCamera('cockpit', target, size, floor);
         }
       }
     }
@@ -2689,6 +2692,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     /** 2-tier camera setter */
     setCamera(nextState) {
       wantCameraState = { ...currentCameraState, ...nextState };
+      wantPreset = null;
       requestDraw();
     },
     /** Current 2-tier camera state */
@@ -2696,6 +2700,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     /** A camera view by id ('fit', 'high', 'low', … as camera-views.js lists them). Done at the next frame, when the size is known. */
     preset(name) {
       wantPreset = name;
+      wantCameraState = null;
       requestDraw();
     },
     isChasing: () => follow !== null,
