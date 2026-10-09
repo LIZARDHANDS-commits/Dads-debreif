@@ -122,8 +122,10 @@ function score(m) {
   const run = m.target === 'fw' ? (m.coneRun ?? m.bestRun) : (m.estRun ?? m.lastRunBeforeWindow ?? m.bestRun);
   if (!run) fails.push('never established on the line (G1/G2)');
   else if (far) {
-    if (run.r0 < MARK.establishByFt) fails.push(`established only at ${run.r0.toFixed(0)} ft, not by ${MARK.establishByFt} ft (G1)`);
-    if (run.sec < MARK.rideFarSec) fails.push(`rode the line ${run.sec.toFixed(1)} s, not ${MARK.rideFarSec} s (G1)`);
+    // Patrick 8 Oct 21:22 "Accept for now": at the 200 KIAS floor, line abreast starts can't drop back in Lead's frame, so
+    // they join about 500-1,000 ft back (physics, not tuning). The join range stays in the facts line; G1's 1,500 ft and 15 s
+    // are not failed until he revisits it. The ride must still last the close-start minimum.
+    if (run.sec < MARK.rideCloseSec) fails.push(`rode the line ${run.sec.toFixed(1)} s, not ${MARK.rideCloseSec} s (G1 as accepted 21:22)`);
   } else if (run.sec < MARK.rideCloseSec) fails.push(`rode the line ${run.sec.toFixed(1)} s, not ${MARK.rideCloseSec} s (G7)`);
   
   if (m.rideMinKias != null && m.rideMinKias < 205) fails.push(`ride KIAS dropped to ${m.rideMinKias.toFixed(0)}, outside 210 \xB15`);

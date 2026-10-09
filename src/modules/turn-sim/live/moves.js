@@ -107,6 +107,7 @@ export const TURNING_REJOIN = Object.freeze({
   rideStopFtps2: 160, // he closes on the line no faster than he could stop on it at about this, in Lead's frame (a hard turn's worth with margin for the roll; estimate)
   rideAlongTauSec: 8, // until established, he takes out his distance from the capture point along the line over about this long, falling back if hot (estimate)
   rideSettleSec: 2, // close to the line he takes out the last of it over about this long, so he settles on it without chasing it (estimate)
+  rideSpeedUpFt: 150, // within this of the line he sets 210 so he is at it when established, not still accelerating with MAX (estimate)
   rideHeadingTauSec: 2, // his heading comes onto the one asked over about this long (estimate)
   rideDriftFtps: 10, // established: within captureFt of the line and drifting across it no faster than this (Patrick G2, "Lead fixed on the canopy")
 });
