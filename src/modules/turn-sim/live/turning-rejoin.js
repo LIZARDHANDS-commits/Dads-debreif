@@ -477,7 +477,7 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
         for (const overtakeKt of overtakes) {
           // Medium banks first (hot, also Lead's own 30° and the gentlest capture: lagging while Lead's turn brings the aspect
           // round, the review's worst-case answer), then the G rule only when none of those keeps him behind Lead's 3/9 line.
-          for (const caps of [hot ? TURNING_REJOIN.hotBanksDeg : [TURNING_REJOIN.bankCapDeg], [REJOIN.bankCapDeg]]) {
+          for (const caps of [[REJOIN.bankCapDeg]]) {
             const aims = hot ? [...TURNING_REJOIN.aimsFt, TURNING_REJOIN.lagAimFt] : TURNING_REJOIN.aimsFt;
             const tries = [...aims.map((aimFt) => ({ aimFt, hardSec: 0 })), ...(hot && xLaw ? TURNING_REJOIN.hardPullsSec.map((hardSec) => ({ aimFt: aims[0], hardSec })) : [])];
             for (const bankCapDeg of caps) for (const { aimFt, hardSec } of tries) {

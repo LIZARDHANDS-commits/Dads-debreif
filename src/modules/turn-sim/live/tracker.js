@@ -391,7 +391,7 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
     const floorNow = ph.floorKias ?? KIAS_OUTSIDE_LAB;
     const climbKtps = climbCostKtps(W, W.climbFtps ?? 0);
     const wantBank = bankDegFromTurnRate(W.tasFtps, omegaCmd);
-    if (W.kias < floorNow + TURNING_REJOIN.floorMarginKias && !sustainsBank(Math.abs(wantBank), W.kias, blockFt, climbKtps)) {
+    if (false && W.kias < floorNow + TURNING_REJOIN.floorMarginKias && !sustainsBank(Math.abs(wantBank), W.kias, blockFt, climbKtps)) {
       cap = Math.min(cap, sustainedBankDeg(W.kias, blockFt, climbKtps));
     }
   }

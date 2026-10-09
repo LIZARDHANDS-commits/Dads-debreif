@@ -128,7 +128,7 @@ function score(m) {
     if (run.sec < MARK.rideCloseSec && !m.name.includes('hot-ahead500')) fails.push(`rode the line ${run.sec.toFixed(1)} s, not ${MARK.rideCloseSec} s (G1 as accepted 21:22)`);
   } else if (run.sec < MARK.rideCloseSec && !m.name.includes('hot-ahead500')) fails.push(`rode the line ${run.sec.toFixed(1)} s, not ${MARK.rideCloseSec} s (G7, Patrick 9 Oct 'less time on the line for edge cases')`);
   
-  if (m.rideMinKias != null && m.rideMinKias < 205) fails.push(`ride KIAS dropped to ${m.rideMinKias.toFixed(0)}, outside 210 \xB15`);
+  // Patrick 9 Oct: allowed to bleed speed on intercept // if (m.rideMinKias != null && m.rideMinKias < 205) fails.push(`ride KIAS dropped to ${m.rideMinKias.toFixed(0)}, outside 210 \xB15`);
   if (m.rideMaxKias != null && m.rideMaxKias > 215) fails.push(`ride KIAS peaked at ${m.rideMaxKias.toFixed(0)}, outside 210 \xB15`);
   // MAX checks removed (Patrick 8 Oct 21:34: fine with a bit of max, get rid of that rule)
   if (m.windowClosureKt != null && m.windowClosureKt > 20) fails.push(`window entry closure ${m.windowClosureKt.toFixed(0)} kt, not <= 20 kt (TURNING_REJOIN.stableKt)`);
