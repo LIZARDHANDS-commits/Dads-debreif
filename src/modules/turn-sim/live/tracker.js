@@ -80,13 +80,16 @@ function rideAim(ph, L, Lprev, ref, W) {
   const drift = (wx - vfx) * nW.x + (wy - vfy) * nW.y; // d(cross)/dt in Lead's frame
   const closing = (wx - vfx) * mW.x + (wy - vfy) * mW.y; // up the line, ft/s
   const st = (ref.ride ??= { established: false });
-  if (!st.established && Math.abs(cross) <= (ph.captureFt ?? TR.captureFt) && Math.abs(drift) <= (ph.driftFtps ?? TR.rideDriftFtps)) st.established = true;
+  if (!st.established && Math.abs(cross) <= (ph.captureFt ?? TR.captureFt) && Math.abs(drift) <= (ph.driftFtps ?? TR.rideDriftFtps)) {
+    st.established = true;
+    st.establishedRange = Math.hypot(rx, ry);
+  }
 
   // Where he aims, in Lead's frame (it stands still there): a point on the line rideLeadFt further up it than his own place,
   // but not closer to Lead than the capture point until he is established, so he joins the line well back (Patrick G1:
   // established by 1,500 ft). Far off the line that points him mostly across it; as he nears it, along it, so he comes onto it
   // along it. His own speed sets how fast he moves that way: |vf + λ·d| = V, solved for λ.
-  st.captureAlong ??= Math.min(ph.captureAlongFt ?? TR.rideCaptureAlongFt, Math.max(along, 0));
+  st.captureAlong ??= Math.min(ph.captureAlongFt ?? TR.rideCaptureAlongFt, along < 0 ? (ph.captureAlongFt ?? TR.rideCaptureAlongFt) : Math.max(along, 0));
   const leadFt = ph.leadFt ?? TR.rideLeadFt;
   const windowFt = ph.windowFt ?? TR.windowFarFt;
   const carrotAlong = Math.min(along - (ph.minLeadFt ?? TR.rideMinLeadFt), Math.max(st.established ? windowFt : st.captureAlong, along - leadFt));
@@ -124,7 +127,7 @@ function rideAim(ph, L, Lprev, ref, W) {
     }
   }
   const r = Math.hypot(rx, ry);
-  const arrived = r <= windowFt || (st.established && along <= windowFt);
+  const arrived = st.established && along <= windowFt;
   const px = W.xFt + dvx;
   const py = W.yFt + dvy;
   return {
@@ -633,7 +636,7 @@ function isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt, timesK, early, heig
   if (ph.kind === 'line' || ph.kind === 'x' || ph.kind === 'ride') {
     if (L && ph.side != null && !ph.allowAcross) {
       const rel = relativeTo(L, W);
-      const r = Math.hypot(rel.fwd, rel.left);
+      const r = Math.hypot(rel.fwd, rel.left, (W.altAboveFt ?? 0) - (L.altAboveFt ?? 0));
       if (rel.left * ph.side < -50 && r < 2000) {
         return { abort: true, early: pursuitResult, stoppedAt: newStoppedAt };
       }
@@ -1009,6 +1012,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     blindSecInside1200,
     blindSecOpenArena,
     doctrinalOk: canopyOk && stepDownOk && laneOk,
+    rideEstablished: ref.ride?.established || false, establishedRange: ref.ride?.establishedRange,
   };
 }
 

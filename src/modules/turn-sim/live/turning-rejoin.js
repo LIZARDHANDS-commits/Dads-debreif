@@ -357,8 +357,10 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
     stepDownOk: run.stepDownOk !== false,
     accelKtps: partPoints.length && partPoints[partPoints.length - 1][3] != null ? partPoints[partPoints.length - 1][3] : 0,
     rangeFt: Math.hypot(into.longRec.at(nSplit).xFt - firstRec.at(nSplit).xFt, into.longRec.at(nSplit).yFt - firstRec.at(nSplit).yFt),
-    overKt: lineKias - KIAS_OUTSIDE_LAB,
+    overKt: lineKias - KIAS_OUTSIDE_LAB, lineKias: lineKias,
     stable: true,
+    establishedRange: first.run.establishedRange,
+    rideEstablished: first.run.rideEstablished && lineKias <= (TURNING_REJOIN.rideKias ?? 210) + 0.5 && (dropFt <= 1000 || first.run.establishedRange > 1000),
   };
 
   const remainderRun = {
@@ -432,7 +434,7 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
   // When even that can't keep him behind Lead's 3/9 line, the most overtake that can (the review's: fit the overtake to the
   // room; Student's 15 kt is the least): the note says which he flew.
   const slotFwdFt = Math.max(0, pairSlot(to, sTo || s, spacingFt)?.fwd ?? 0);
-  const laneLimitFt = slotFwdFt + LANE.marginFt;
+  const laneLimitFt = slotFwdFt + (LANE.marginFt ?? 100);
   let best = null;
   let bestAny = null;
   // Down the line he aims for the Rates choice's line speed (lineKiasNow, TS-133: a target, geometry first; until V2.149 220 for all, Patrick 17:54Z, 17:55Z: "the minimum closure up the line
@@ -455,38 +457,50 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
             const aims = hot ? [...TURNING_REJOIN.aimsFt, TURNING_REJOIN.lagAimFt] : TURNING_REJOIN.aimsFt;
             const tries = [...aims.map((aimFt) => ({ aimFt, hardSec: 0 })), ...(hot && xLaw ? TURNING_REJOIN.hardPullsSec.map((hardSec) => ({ aimFt: aims[0], hardSec })) : [])];
             for (const bankCapDeg of caps) for (const { aimFt, hardSec } of tries) {
-              const limitSec = best ? best.durationSec - BETTER_BY_SEC : (bestAny ? bestAny.durationSec - BETTER_BY_SEC : Infinity);
+              const bestEst = best?.part?.rideEstablished !== false;
+              const limitSec = bestEst && best ? best.durationSec - BETTER_BY_SEC : Infinity;
               const flown = flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, overshoot, xLaw, hardSec, allowAcross, maxWhenLow, limitSec });
               if (flown) {
                 const laneOk = (flown.run?.laneFwdFt ?? -Infinity) <= laneLimitFt;
+                const est = flown.part?.rideEstablished !== false;
+                
                 if (laneOk) {
-                  if (!best || flown.durationSec < best.durationSec - BETTER_BY_SEC) {
+                  const bestEst = best?.part?.rideEstablished !== false;
+                  if (!best || (est && !bestEst) || (est === bestEst && flown.durationSec < best.durationSec - BETTER_BY_SEC)) {
                     best = { ...flown, overtakeKt, lowFloor, aimFt, bankCapDeg, hardSec, upFt: 0, allowAcross, maxWhenLow };
                   }
                 } else if (!best) {
-                  if (!bestAny || flown.durationSec < bestAny.durationSec - BETTER_BY_SEC) {
+                  const anyEst = bestAny?.part?.rideEstablished !== false;
+                  if (!bestAny || (est && !anyEst) || (est === anyEst && flown.durationSec < bestAny.durationSec - BETTER_BY_SEC)) {
                     bestAny = { ...flown, overtakeKt, lowFloor, aimFt, bankCapDeg, hardSec, upFt: 0, allowAcross, maxWhenLow };
                   }
                 }
               }
             }
-            if (best) break;
+            if (best && best.part?.rideEstablished !== false) break;
           }
-          if (best) break;
+          if (best && best.part?.rideEstablished !== false) break;
         }
-        if (best) break;
+        if (best && best.part?.rideEstablished !== false) break;
       }
-      if (best) break;
+      if (best && best.part?.rideEstablished !== false) break;
     }
-    if (best) break;
+    if (best && best.part?.rideEstablished !== false) break;
   }
   // The vertical as a candidate (TS-82): the same rejoin with #2 going high early and coming down onto the line, flown only
   // when it brings him in sooner, by more than the chooser's half-second tie, within the G rule with its pull charged.
   if (best && vertical) {
     for (const upFt of TURNING_REJOIN.verticalUpFt) {
-      const flown = flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, upFt, minG: verticalMinG, overshoot: best.overshoot, xLaw, hardSec: best.hardSec, allowAcross: best.allowAcross, maxWhenLow: best.maxWhenLow, limitSec: best.durationSec - BETTER_BY_SEC });
+      const limitSec = best.durationSec - (best.part?.rideEstablished === false ? 0 : BETTER_BY_SEC);
+      const flown = flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, upFt, minG: verticalMinG, overshoot: best.overshoot, xLaw, hardSec: best.hardSec, allowAcross: best.allowAcross, maxWhenLow: best.maxWhenLow, limitSec });
       const laneOk = flown ? (flown.run?.laneFwdFt ?? -Infinity) <= laneLimitFt : false;
-      if (flown && laneOk && flown.part?.stepDownOk !== false && flown.run?.stepDownOk !== false && flown.durationSec < best.durationSec - BETTER_BY_SEC) best = { ...flown, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, hardSec: best.hardSec, upFt, allowAcross: best.allowAcross, maxWhenLow: best.maxWhenLow };
+      if (flown && laneOk && flown.part?.stepDownOk !== false && flown.run?.stepDownOk !== false) {
+        const est = flown.part?.rideEstablished !== false;
+        const bestEst = best.part?.rideEstablished !== false;
+        if ((est && !bestEst) || (est === bestEst && flown.durationSec < best.durationSec - BETTER_BY_SEC)) {
+          best = { ...flown, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, hardSec: best.hardSec, upFt, allowAcross: best.allowAcross, maxWhenLow: best.maxWhenLow };
+        }
+      }
     }
   }
   return best || bestAny;
