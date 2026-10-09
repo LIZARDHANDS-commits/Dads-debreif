@@ -18,8 +18,8 @@ import {
 } from '../../ui-kit/three-aircraft.js';
 import { drawHud } from '../../ui-kit/hud.js';
 import { gFromBankDeg } from '../../core/flight-math.js';
-import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
-import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT } from '../../ui-kit/ct156-model.js';
+import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT, setCockpitView } from '../../ui-kit/ct156-model.js';
+import { createCt156Cockpit, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
 import { KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../core/units.js';
 import { T6_LENGTH_FT, CLOSE_UP_DRAW_FT } from './types.js';
 import { paletteFrom, conflictLevels, isFlying, aircraftColor, heightSpeedText, LEVEL_MARKS, MIN_RING_PX, photoAlignment, photoView, getPflBadge, pflCircleLayout, calculateGlideFootprint, shouldShowGlideFootprint } from './map2d.js';
@@ -373,7 +373,7 @@ export function chaseCamera(ac, size) {
  * orthographic. 60° across is a natural field of view (an estimate); nothing nearer than 1 ft is drawn (with a logarithmic depth buffer, TR-96), so the far
  * ground stays steady; the haze starts at 12,000 ft and is full at 45,000 ft, short of where the photo ends (estimates).
  */
-export const PERSPECTIVE = Object.freeze({ fovAcrossDeg: 60, nearFt: 1, farFt: 400_000, hazeFromFt: 12_000, hazeToFt: 45_000 });
+export const PERSPECTIVE = Object.freeze({ fovAcrossDeg: 60, nearFt: 1, nearInsideFt: 0.5, farFt: 400_000, hazeFromFt: 12_000, hazeToFt: 45_000 });
 /**
  * The pilot's eye in Cockpit: this far above the drawn model's middle along its top, and never lower than this over the
  * ground, ft (estimates: about a T-6 pilot's eye height on the runway; TR-96), so the view never goes under the photo.
@@ -383,12 +383,12 @@ export const COCKPIT_EYE = Object.freeze({ aboveModelFt: 3, leastAglFt: 8 });
 export const PERSPECTIVE_VIEWS = Object.freeze(new Set(['cockpit', 'low', 'padlock']));
 /**
  * Looking up (Patrick, 6 Oct 06:26Z; TR-92). Chase may tilt to 60° above level (150° from straight down); its eye is
- * kept at least CHASE_MIN_AGL_FT over the ground. In Cockpit the head turns 160° either way, up 80° and down 60° from
+ * kept at least CHASE_MIN_AGL_FT over the ground. In Cockpit the head turns 160° either way, up 80° and down 85° from
  * the nose (estimates for a pilot's head in the seat); C brings it back to the nose.
  */
 export const CHASE_PITCH_DEG = Object.freeze([0, 150]);
 export const CHASE_MIN_AGL_FT = 10;
-export const HEAD_LOOK_DEG = Object.freeze({ yaw: [-160, 160], pitch: [-60, 80] });
+export const HEAD_LOOK_DEG = Object.freeze({ yaw: [-160, 160], pitch: [-85, 80] });
 /** Free camera keys: W/S forward and back along the look, A/D sideways, R/F up and down (shift moves four times as far). */
 const FREE_MOVE_KEYS = Object.freeze({ w: { forward: 1 }, s: { forward: -1 }, d: { right: 1 }, a: { right: -1 }, r: { up: 1 }, f: { up: -1 } });
 
@@ -1701,7 +1701,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     scene.add(kit.root);
     const style = win.getComputedStyle?.(canvas);
     const palette = paletteFrom((name) => style?.getPropertyValue(name).trim() ?? '');
-    gl = { canvas, labels, ctx: labels.getContext('2d'), renderer, scene, camera, perspective, flatHaze, shownCamera: camera, sky, skyClouds, lights, kit, palette };
+    gl = { canvas, labels, ctx: labels.getContext('2d'), renderer, scene, camera, perspective, flatHaze, shownCamera: camera, sky, skyClouds, lights, kit, palette, cockpit: null };
     if (win.__traffic3dLeakCheck) probeMemory(renderer, camera);
     for (const [type, fn] of hands) canvas.addEventListener(type, fn, type === 'wheel' ? { passive: false } : undefined);
     canvas.addEventListener('webglcontextlost', contextLost);
@@ -1711,6 +1711,29 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       onQuality: setGraphicsQuality,
     });
     host.append(cameraBar.element);
+  }
+
+  /**
+   * The CT-156 cockpit in the aircraft the Cockpit or Padlock camera sits in (`root`, or null for none),
+   * seen from `seat` ('front' or 'rear'): built on first need, attached to the ship's root, and detached
+   * when switching away to Chase or flat views.
+   */
+  function syncCockpit(root, seat = 'front') {
+    const pit = gl?.cockpit;
+    if (pit?.root && pit.root !== root) {
+      setCockpitView(pit.root, { seat: null });
+      pit.part.group.removeFromParent();
+      pit.root = null;
+    }
+    if (!root || !gl) return;
+    gl.cockpit ??= { part: createCt156Cockpit(THREE, { doc: canvas?.ownerDocument ?? win.document }), root: null, seat: null };
+    const s = seat === 'rear' ? 'rear' : 'front';
+    if (gl.cockpit.root !== root || gl.cockpit.seat !== s) {
+      root.add(gl.cockpit.part.group);
+      setCockpitView(root, { seat: s });
+      gl.cockpit.root = root;
+      gl.cockpit.seat = s;
+    }
   }
 
   /**
@@ -1771,6 +1794,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     dragging = null;
     if (!gl) return;
     const { canvas, labels, renderer, kit, sky, skyClouds, lights } = gl;
+    syncCockpit(null);
+    gl.cockpit?.part.dispose();
     for (const [type, fn] of hands) canvas.removeEventListener(type, fn);
     canvas.removeEventListener('webglcontextlost', contextLost);
     cameraBar?.dispose();
@@ -1931,12 +1956,25 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     kit.placeGrid(pov ? pov.eye : focus, floor);
     kit.grid.visible = false; // hidden (Patrick, 6 Oct: "hide the grid in both traffic sim and form sim, it's distracting")
     // The flat views never look above level, whatever a perspective view left in the camera.
-    if (!pov) matchProjection(THREE, camera, focus, { ...shown, pitchDeg: Math.min(shown.pitchDeg, CAMERA_LIMITS.pitch[1]) }, size, 1);
+    if (!pov) {
+      syncCockpit(null);
+      matchProjection(THREE, camera, focus, { ...shown, pitchDeg: Math.min(shown.pitchDeg, CAMERA_LIMITS.pitch[1]) }, size, 1);
+    }
     if (threeScene.fog && gl.flatHaze) {
       threeScene.fog.near = pov ? PERSPECTIVE.hazeFromFt : gl.flatHaze.near;
       threeScene.fog.far = pov ? PERSPECTIVE.hazeToFt : gl.flatHaze.far;
     }
     gl.shownCamera = pov ? gl.perspective : camera;
+    if (gl.cockpit?.root && povTarget) {
+      gl.cockpit.part.update({
+        pitchDeg: povTarget.pitchDeg ?? 0,
+        bankDeg: povTarget.bankDeg ?? 0,
+        altFt: povTarget.alt,
+        g: gFromBankDeg(Math.min(80, Math.abs(povTarget.bankDeg ?? 0))),
+        kias: povTarget.kt,
+        headingDeg: povTarget.headingDeg,
+      });
+    }
     // Clouds at 8,000 ft MSL (an estimate; CLOUD_LAYER.aboveFt over 5,500 ft), fully shown in Cockpit and Chase and faded
     // out as a flat view turns toward straight down, so they never cover the pattern from above.
     gl.skyClouds.update({ x: focus.x, y: focus.y, z: altToZ(5500, ALT_SCALE) }, pov ? 1 : (shown.pitchDeg - 55) / 20);
@@ -2002,19 +2040,27 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       const mesh = gl.kit.aircraftMesh(target.id);
       const turn = new THREE.Quaternion();
       if (mesh) {
+        mesh.updateMatrixWorld(true);
         // The model's nose is +X and its top +Z (applyPose), so its turn gives the pilot's look and the bank.
         turn.copy(mesh.quaternion);
-        mesh.visible = false;
-        hidden = mesh;
+        syncCockpit(mesh, 'front');
       } else turn.setFromAxisAngle(new THREE.Vector3(0, 0, 1), rad(90 - finite(target.headingDeg)));
       const up = new THREE.Vector3(0, 0, 1).applyQuaternion(turn);
-      // At the seat: the drawn model's middle (raised onto its wheels on the runway), up along its top.
-      const seat = mesh ? mesh.position : new THREE.Vector3(at.x, at.y, at.z);
-      eye = {
-        x: seat.x + up.x * COCKPIT_EYE.aboveModelFt,
-        y: seat.y + up.y * COCKPIT_EYE.aboveModelFt,
-        z: Math.max(seat.z + up.z * COCKPIT_EYE.aboveModelFt, floor + COCKPIT_EYE.leastAglFt),
-      };
+      const interior = Boolean(mesh && gl.cockpit?.root === mesh);
+      const seatEye = interior ? EYES_FT.front : null;
+      eye = interior
+        ? mesh.localToWorld(new THREE.Vector3(seatEye.x, seatEye.y, seatEye.z).divideScalar(CT156_FT_PER_UNIT))
+        : {
+            x: (mesh ? mesh.position.x : at.x) + up.x * COCKPIT_EYE.aboveModelFt,
+            y: (mesh ? mesh.position.y : at.y) + up.y * COCKPIT_EYE.aboveModelFt,
+            z: Math.max((mesh ? mesh.position.z : at.z) + up.z * COCKPIT_EYE.aboveModelFt, floor + COCKPIT_EYE.leastAglFt),
+          };
+      p.near = interior ? PERSPECTIVE.nearInsideFt : PERSPECTIVE.nearFt;
+      p.updateProjectionMatrix();
+      if (!interior && mesh) {
+        mesh.visible = false;
+        hidden = mesh;
+      }
       p.position.set(eye.x, eye.y, eye.z);
       p.up.copy(up);
       if (viewMode === 'padlock') p.lookAt(threshold);
@@ -2026,25 +2072,30 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
         p.lookAt(eye.x + look.x * 1000, eye.y + look.y * 1000, eye.z + look.z * 1000);
       }
       labelZoom = CAMERA_LIMITS.zoom[1];
-    } else if (viewMode === 'padlock') {
-      // Over the shoulder: behind the aircraft on the line from the threshold, a little above, looking at the threshold.
-      const distanceFt = chaseDistanceFt(cam, size);
-      const toward = new THREE.Vector3(threshold.x - at.x, threshold.y - at.y, 0);
-      if (toward.lengthSq() < 1) toward.set(Math.sin(rad(finite(target.headingDeg))), Math.cos(rad(finite(target.headingDeg))), 0);
-      toward.normalize();
-      eye = { x: at.x - toward.x * distanceFt, y: at.y - toward.y * distanceFt, z: Math.max(at.z + distanceFt * 0.3, floor + CHASE_MIN_AGL_FT) };
-      p.position.set(eye.x, eye.y, eye.z);
-      p.up.set(0, 0, 1);
-      p.lookAt(threshold);
-      labelZoom = pxPerKft(distanceFt);
     } else {
-      const distanceFt = chaseDistanceFt(cam, size);
-      const look = chaseEye(target, cam, distanceFt);
-      eye = { ...look.eye, z: Math.max(look.eye.z, floor + CHASE_MIN_AGL_FT) };
-      p.position.set(eye.x, eye.y, eye.z);
-      p.up.set(0, 0, 1);
-      p.lookAt(look.at.x, look.at.y, look.at.z);
-      labelZoom = pxPerKft(distanceFt);
+      syncCockpit(null);
+      p.near = PERSPECTIVE.nearFt;
+      p.updateProjectionMatrix();
+      if (viewMode === 'padlock') {
+        // Over the shoulder: behind the aircraft on the line from the threshold, a little above, looking at the threshold.
+        const distanceFt = chaseDistanceFt(cam, size);
+        const toward = new THREE.Vector3(threshold.x - at.x, threshold.y - at.y, 0);
+        if (toward.lengthSq() < 1) toward.set(Math.sin(rad(finite(target.headingDeg))), Math.cos(rad(finite(target.headingDeg))), 0);
+        toward.normalize();
+        eye = { x: at.x - toward.x * distanceFt, y: at.y - toward.y * distanceFt, z: Math.max(at.z + distanceFt * 0.3, floor + CHASE_MIN_AGL_FT) };
+        p.position.set(eye.x, eye.y, eye.z);
+        p.up.set(0, 0, 1);
+        p.lookAt(threshold);
+        labelZoom = pxPerKft(distanceFt);
+      } else {
+        const distanceFt = chaseDistanceFt(cam, size);
+        const look = chaseEye(target, cam, distanceFt);
+        eye = { ...look.eye, z: Math.max(look.eye.z, floor + CHASE_MIN_AGL_FT) };
+        p.position.set(eye.x, eye.y, eye.z);
+        p.up.set(0, 0, 1);
+        p.lookAt(look.at.x, look.at.y, look.at.z);
+        labelZoom = pxPerKft(distanceFt);
+      }
     }
     finishPerspective();
     return { eye, hidden, labelZoom };

@@ -24,7 +24,8 @@ import {
 } from '../../ui-kit/three-aircraft.js';
 import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
 import { drawHud } from '../../ui-kit/hud.js';
-import { createCt156Model, disposeCt156Model, CT156_UNIT_LENGTH } from '../../ui-kit/ct156-model.js';
+import { createCt156Model, disposeCt156Model, CT156_UNIT_LENGTH, setCockpitView } from '../../ui-kit/ct156-model.js';
+import { createCt156Cockpit, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
 import { FT_PER_NM } from '../../core/units.js';
 import { FIGHT_MAX_SEC } from './sim.js';
 import { TRAIL_INTERVAL_SEC } from './trails.js';
@@ -83,8 +84,8 @@ const VIEW_LABELS = Object.freeze({
  * the eye on the other aircraft. 60° across, nothing nearer than 2 ft; the eye 4 ft ahead and 3 ft above the centre;
  * Chase 300 ft back and 12° up (estimates). A drag turns the head or swings round the aircraft; the wheel moves Chase in and out.
  */
-const POV = Object.freeze({ fovAcrossDeg: 60, nearFt: 2, farFt: 400_000, eyeFwdFt: 4, eyeUpFt: 3, chaseFt: 300, chaseFtRange: [60, 5000], chaseUpDeg: 12, degPerPx: 0.3 });
-const HEAD = Object.freeze({ yawDeg: [-160, 160], pitchDeg: [-60, 80], chaseUpDeg: [-10, 80] });
+export const POV = Object.freeze({ fovAcrossDeg: 60, nearFt: 2, nearInsideFt: 0.5, farFt: 400_000, eyeFwdFt: 4, eyeUpFt: 3, chaseFt: 300, chaseFtRange: [60, 5000], chaseUpDeg: 12, degPerPx: 0.3 });
+export const HEAD = Object.freeze({ yawDeg: [-160, 160], pitchDeg: [-85, 80], chaseUpDeg: [-10, 80] });
 /** The perspective view a camera mode asks for: { kind, who, other } or null for the flat views. */
 function povOf(mode) {
   const m = /^(?:(cockpit|padlock)(Blue|Red)|(blue|red))$/.exec(mode ?? '');
@@ -612,7 +613,31 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
       planes: {}, paint: null, nose: null, noseFor: null, ratio: 0, width: 0, height: 0,
       data: null, // what has been read from the current run: its trails, bounds, and how much of each is written
       directions: { blue: 0, red: 0 },
+      cockpit: null,
     };
+  }
+
+  /**
+   * The CT-156 cockpit in the aircraft the Cockpit or Padlock camera sits in (`root`, or null for none),
+   * seen from `seat` ('front' or 'rear'): built on first need, attached to the ship's root, and detached
+   * when switching away to Chase or overhead.
+   */
+  function syncCockpit(root, seat = 'front') {
+    const pit = gl?.cockpit;
+    if (pit?.root && pit.root !== root) {
+      setCockpitView(pit.root, { seat: null });
+      pit.part.group.removeFromParent();
+      pit.root = null;
+    }
+    if (!root || !gl) return;
+    gl.cockpit ??= { part: createCt156Cockpit(THREE, { doc: gl.canvas.ownerDocument ?? globalThis.document }), root: null, seat: null };
+    const s = seat === 'rear' ? 'rear' : 'front';
+    if (gl.cockpit.root !== root || gl.cockpit.seat !== s) {
+      root.add(gl.cockpit.part.group);
+      setCockpitView(root, { seat: s });
+      gl.cockpit.root = root;
+      gl.cockpit.seat = s;
+    }
   }
 
   /** Points the perspective camera for Chase, Cockpit or Padlock from the aircraft's model (as the Formation Sim's aimPov). */
@@ -626,6 +651,7 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
     p.fov = Math.min(POV.fovAcrossDeg, 2 * deg(Math.atan(Math.tan(degToRad(POV.fovAcrossDeg / 2)) / p.aspect)));
     p.updateProjectionMatrix();
     if (pov.kind === 'chase') {
+      syncCockpit(null);
       const yaw = Math.atan2(fwd.y, fwd.x) + degToRad(head.yawDeg);
       const upAng = degToRad(clamp(POV.chaseUpDeg + head.pitchDeg, HEAD.chaseUpDeg));
       p.position.set(
@@ -637,8 +663,18 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
       p.lookAt(me.position);
       return;
     }
-    const eye = me.position.clone().addScaledVector(fwd, POV.eyeFwdFt).addScaledVector(up, POV.eyeUpFt);
-    me.visible = false; // the pilot doesn't see his own aircraft from inside it
+    syncCockpit(me, 'front');
+    const interior = Boolean(gl.cockpit?.root === me);
+    const seatEye = interior ? EYES_FT.front : null;
+    const eye = interior
+      ? me.localToWorld(new THREE.Vector3(seatEye.x, seatEye.y, seatEye.z).divideScalar(CT156_FT_PER_UNIT))
+      : me.position.clone().addScaledVector(fwd, POV.eyeFwdFt).addScaledVector(up, POV.eyeUpFt);
+    if (interior) {
+      p.near = POV.nearInsideFt;
+      p.updateProjectionMatrix();
+    } else {
+      me.visible = false;
+    }
     p.position.copy(eye);
     p.up.copy(up);
     if (pov.kind === 'padlock' && gl.planes[pov.other]) {
@@ -683,6 +719,7 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
   /** Paints the aircraft anew when the paint has changed, or they do not exist yet. */
   function placePlanes(paintNow) {
     if (gl.paint === paintNow) return;
+    syncCockpit(null);
     for (const who of SHIPS) {
       if (gl.planes[who]) disposeCt156Model(gl.planes[who]);
       const mesh = createCt156Model(THREE, { color: COLORS[who], number: LETTERS[who], paint: paintNow, lengthFt: CT156_UNIT_LENGTH });
@@ -861,8 +898,22 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
       aimPov(pov, box);
       gl.active = gl.persp;
     } else {
+      syncCockpit(null);
       matchProjection(THREE, camera, view.center, view.camera, box, 1);
       gl.active = camera;
+    }
+    if (gl.cockpit?.root && pov?.who && fight?.[pov.who]) {
+      const who = pov.who;
+      const a = fight[who];
+      const pose = aircraftPose(fight, who, gl.directions[who]);
+      gl.cockpit.part.update({
+        pitchDeg: deg(pose.pitchRad),
+        bankDeg: -deg(pose.bankRad),
+        altFt: a.zFt,
+        g: a.g ?? fight.perf?.[who]?.g,
+        kias: a.kias ?? a.speedKt ?? a.ktas,
+        headingDeg: 90 - deg(a.headingRad),
+      });
     }
     gl.skyClouds.update({ x: view.center.x, y: view.center.y, z: altToZ(view.center.z, ALT_SCALE) }, pov ? 1 : (view.camera.pitchDeg - 55) / 20);
     renderer.render(scene, gl.active);
@@ -950,6 +1001,8 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
     const scene = gl;
     gl = null;
     scene.canvas.removeEventListener('webglcontextlost', contextLost);
+    if (scene.cockpit?.root) setCockpitView(scene.cockpit.root, { seat: null });
+    scene.cockpit?.part.dispose();
     for (const mesh of Object.values(scene.planes)) disposeCt156Model(mesh);
     for (const line of Object.values(scene.lines)) {
       line.geometry.dispose();
