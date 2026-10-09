@@ -92,16 +92,17 @@ function aimOf(ph, L, Lprev, ref, W, t) {
       }
       const captured = Boolean(ph._captured);
       
-      let cAlong = ph.captureAlongFt;
-      if (cAlong == null) {
-        cAlong = r < 2000 ? r : Math.max(1500, Math.min(2000, along));
+      if (ph._cAlongInit == null) {
+        ph._cAlongInit = ph.captureAlongFt ?? 2000;
+        if (along < ph._cAlongInit) ph._cAlongInit = along;
       }
+      const cAlong = ph._cAlongInit;
       
-      const bankAvail = ph.bankCapDeg ?? REJOIN.bankCapDeg ?? 60;
+      const bankAvail = ph.bankCapDeg ?? REJOIN.bankCapDeg ?? 80;
       const radTurn = bankAvail > 0.1 ? (Vrel * Vrel) / (G_FTPS2 * Math.tan(bankAvail * DEG)) : 10000;
       const L1 = Math.max(ph.l1MinFt ?? TURNING_REJOIN.l1MinFt ?? 600, radTurn);
       
-      const carrotBase = captured ? Math.max(ph.windowFt ?? 250, along - L1) : Math.max(cAlong, along - L1);
+      const carrotBase = captured ? Math.max(along - L1, ph.windowFt ?? 250) : Math.max(along - L1, cAlong);
       
       const carrotFwd = line.u.fwd * carrotBase;
       const carrotLeft = line.u.left * carrotBase;
@@ -117,7 +118,9 @@ function aimOf(ph, L, Lprev, ref, W, t) {
       
       const arrived = (captured && r <= (ph.windowFt ?? 250)) || along <= (ph.windowFt ?? 250);
       
-      return { px, py, vpx, vpy, vfx, vfy, ex, ey, d, arrived, along, cross, crossDrift, captured, omegaL, Vrel, vrelx, vrely, L1, slot: ph.slot ?? { fwd: rel.fwd, left: rel.left, alt: ph.slot?.alt ?? 0 } };
+      const v_along = vrel_fwd * line.u.fwd + vrel_left * line.u.left;
+      
+      return { px, py, vpx, vpy, vfx, vfy, ex, ey, d, arrived, along, cross, crossDrift, captured, omegaL, Vrel, vrelx, vrely, L1, v_along, slot: ph.slot ?? { fwd: rel.fwd, left: rel.left, alt: ph.slot?.alt ?? 0 } };
     }
 
     const approachDeg = ph.approachDeg ?? 45;
@@ -242,19 +245,33 @@ function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT) {
   const ratio = W.tasFtps / W.kias;
 
   if (ph.kind === 'ride') {
-    const carrotAngle = Math.atan2(aim.ey, aim.ex);
-    const vrelAngle = Math.atan2(aim.vrely, aim.vrelx);
-    const eta = wrapPi(carrotAngle - vrelAngle);
-    
-    const a_lat = aim.L1 > 1 ? (2 * aim.Vrel * aim.Vrel / aim.L1) * Math.sin(eta) : 0;
-    const omega_rel = aim.Vrel > 1 ? a_lat / aim.Vrel : 0;
-    const omegaCmd = omega_rel + aim.omegaL;
-    
-    const psiCmd = W.headingRad + omegaCmd;
+    let psiCmd = W.headingRad;
+    if (aim.Vrel < 50) {
+      const ad = aim.vfx * aim.ex + aim.vfy * aim.ey;
+      const r2 = aim.ex * aim.ex + aim.ey * aim.ey;
+      const vfx2 = aim.vfx * aim.vfx + aim.vfy * aim.vfy;
+      const disc = ad * ad - vfx2 * r2 + W.tasFtps * W.tasFtps * r2;
+      const lam = disc >= 0 ? Math.max(0, Math.sqrt(disc) - ad) : 0;
+      psiCmd = disc >= 0 ? Math.atan2(aim.vfy + lam * aim.ey, aim.vfx + lam * aim.ex) : Math.atan2(aim.ey, aim.ex);
+    } else {
+      const carrotAngle = Math.atan2(aim.ey, aim.ex);
+      const vrelAngle = Math.atan2(aim.vrely, aim.vrelx);
+      const eta = wrapPi(carrotAngle - vrelAngle);
+      
+      const a_lat = aim.L1 > 1 ? (2 * aim.Vrel * aim.Vrel / aim.L1) * Math.sin(eta) : 0;
+      const omega_rel = aim.Vrel > 1 ? a_lat / aim.Vrel : 0;
+      const omegaCmd = omega_rel + aim.omegaL;
+      
+      psiCmd = W.headingRad + omegaCmd;
+    }
     
     const maxKiasAllowed = Math.max(200, ph.rideKias ?? TURNING_REJOIN.rideKiasMax ?? 210);
     const isMax = ph.maxEntry && !aim.captured;
-    const kiasCmd = (isMax && W.kias < maxKiasAllowed) ? Infinity : maxKiasAllowed;
+    let kiasCmd = (isMax && W.kias < maxKiasAllowed) ? Infinity : maxKiasAllowed;
+    
+    if (!aim.captured && aim.v_along > 0) {
+      kiasCmd = Infinity;
+    }
     
     return { pullX: 0, pullY: 0, vdx: aim.vpx, vdy: aim.vpy, speed: W.tasFtps, psiCmd, kiasCmd };
   }
