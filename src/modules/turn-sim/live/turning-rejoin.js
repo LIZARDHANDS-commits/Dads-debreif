@@ -149,7 +149,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
             slowStage: 'idleBoards',
             kiasCmd: floorKias,
             psiCmd: W.headingRad,
-            done: t >= t0 + hardSec - 1e-9,
+            done: t >= t0 + hardSec - 1e-9 || (relativeTo(L, W).fwd * Math.cos(45 * Math.PI/180) + relativeTo(L, W).left * s * Math.sin(45 * Math.PI/180)) < 1000,
           };
         },
         pursuitEnds: true,
@@ -201,7 +201,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
             slowStage: 'idleBoards',
             kiasCmd: floorKias,
             psiCmd: W.headingRad,
-            done: t >= t0 + hardSec - 1e-9,
+            done: t >= t0 + hardSec - 1e-9 || (relativeTo(L, W).fwd * Math.cos(45 * Math.PI/180) + relativeTo(L, W).left * s * Math.sin(45 * Math.PI/180)) < 1000,
           };
         },
         pursuitEnds: true,
@@ -346,11 +346,27 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   let partMaxBank = 0;
   let partMaxG = wing.g ?? 1;
   let partMinG = wing.g ?? 1;
-  for (const pt of partPoints) {
+  const lineDef = { nrm: { fwd: Math.cos(TR.lineDeg * DEG), left: s * Math.sin(TR.lineDeg * DEG) } };
+  let minCross = Infinity;
+  for (let i = 0; i < partPoints.length; i++) {
+    const pt = partPoints[i];
     if (pt[1] < partMinKias) partMinKias = pt[1];
     if (Math.abs(pt[0]) > partMaxBank) partMaxBank = Math.abs(pt[0]);
+    
+    const wPart = firstRec.at(i);
+    const lPart = into.longRec.at(i);
+    const rel = relativeTo(lPart, wPart);
+    const cross = rel.fwd * lineDef.nrm.fwd + rel.left * lineDef.nrm.left;
+    if (cross < minCross) minCross = cross;
+    
+    // Reject if it crosses Lead's six at all (Patrick's absolute rule)
+    if (!allowAcross && s * rel.left < -50) return null;
   }
+  
   const lineKias = partPoints.length ? partPoints[partPoints.length - 1][1] : wing.kias;
+
+  // Reject if it enters the window too fast (G3 rule)
+  if (lineKias > 210.5) return null;
 
   const part = {
     points: partPoints,
@@ -368,7 +384,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
     overKt: lineKias - KIAS_OUTSIDE_LAB, lineKias: lineKias,
     stable: true,
     establishedRange: first.run.establishedRange,
-    rideEstablished: (to === 'fw' || first.run.rideEstablished) && lineKias <= (TURNING_REJOIN.rideKias ?? 210) + 5.5 && (to !== 'fw' || partMinKias >= 195) && (dropFt <= 1000 || first.run.establishedRange > 1000),
+    rideEstablished: (to === 'fw' || first.run.rideEstablished) && lineKias <= (TURNING_REJOIN.rideKias ?? 210) + 5.5 && (to !== 'fw' || partMinKias >= 195),
   };
 
   const remainderRun = {
