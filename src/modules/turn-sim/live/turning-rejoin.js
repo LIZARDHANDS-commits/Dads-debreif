@@ -201,35 +201,14 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       }));
       numApproachPhases++;
     }
-    // Long-Range Intercept Law (r > 1,200 ft): steer toward 45° line and de-rate closure until captured.
+    // The ride (Step 7): onto the 45° line along it and up it at 210 KIAS to the window, all in Lead's frame. It is the X
+    // (Lead fixed on the canopy), so there is no separate X phase.
     phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
-      kind: 'line',
+      kind: 'ride',
       lineDeg: TR.lineDeg,
       side: s,
-      aimFt,
-      approachDeg: TR.approachDeg,
-      tauSec: TR.lineTauSec,
       captureFt: TR.captureFt,
-      decisionFt: TR.xFromFt || 1200,
-      bankCapDeg,
-      overtakeKt,
-      floorKias,
-      arriveFtps: Math.min(closureNow().ftps, closeInFtps(TR.decisionArriveRates)),
-      rejoin: true,
-    }));
-    numApproachPhases++;
-    
-    // Switch to Canopy-X only inside 1,200 ft
-    phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
-      kind: 'x',
-      lineDeg: TR.lineDeg,
-      side: s,
-      tauSec: TR.bearingTauSec,
-      bankCapDeg,
-      farFt: TR.windowFarFt,
-      nearFt: TR.windowNearFt,
-      overtakeKt,
-      windowOvertakeKt: 10,
+      bankCapDeg: REJOIN.bankCapDeg, // no bank cap, only the aircraft's own limits (Patrick 6 Oct 04:07Z "there is NO LIMIT on bank angle in formation"; 8 Oct 20:59 "Unrestricted bank")
       floorKias,
       rejoin: true,
     }));
@@ -285,7 +264,6 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
     stopWhenSettled: true,
     maxSec: limitSec,
   });
-
   if (!first.run.ok) return null;
 
   const totalSteps = first.run.points.length;

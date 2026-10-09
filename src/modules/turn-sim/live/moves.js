@@ -97,11 +97,18 @@ export const TURNING_REJOIN = Object.freeze({
   onXDeg: 5, // he is on the X within this many degrees of it (for the card's speed on the line; estimate)
   overshootBankDeg: 15, // the overshoot: wings near level, no more than this bank... (SMM 12.27 para 65; card 03:33Z rule 5; estimate)
   overshootLevelSec: 3, // ...for this long, then he stabilizes on the outside of Lead's turn (estimate)
-  captureAlongFt: Object.freeze([1500, 2000]), // (G1)
-  rideKiasMax: 210, // (G3)
-  windowCloseKt: 10, // (G3)
-  l1MinFt: 600, // (estimate)
-  driftFtps: 10, // (G2)
+  // The ride (Step 7, TS draft; design TRJ_geometry_design.md): everything is worked in Lead's frame, where the line stands still
+  // (Patrick 8 Oct 20:49 "use lead as the reference frame"). #2 closes on the line at a rate that shrinks with his distance off it,
+  // so he comes onto it along it, never across it, and moves up it at whatever closure his speed gives.
+  rideKias: 210, // on the line he holds this to the decision point (Patrick 8 Oct 20:16: "maintain 210 to the decision point")
+  rideCaptureAlongFt: 1750, // he joins (the middle of Patrick's 1,500-2,000 ft, G6) the line no closer to Lead than this, or where he already is if closer (Patrick G1: established by 1,500 ft; 8 Oct 20:16 inside 2,000 ft get on it where he is)
+  rideLeadFt: 1000, // he aims at the line this far further up it than his own place, so off it he heads across and onto it along it (estimate)
+  rideMinLeadFt: 400, // ...and never less than this, so he never heads straight across it (estimate)
+  rideStopFtps2: 160, // he closes on the line no faster than he could stop on it at about this, in Lead's frame (a hard turn's worth with margin for the roll; estimate)
+  rideAlongTauSec: 8, // until established, he takes out his distance from the capture point along the line over about this long, falling back if hot (estimate)
+  rideSettleSec: 2, // close to the line he takes out the last of it over about this long, so he settles on it without chasing it (estimate)
+  rideHeadingTauSec: 2, // his heading comes onto the one asked over about this long (estimate)
+  rideDriftFtps: 10, // established: within captureFt of the line and drifting across it no faster than this (Patrick G2, "Lead fixed on the canopy")
 });
 
 /**
