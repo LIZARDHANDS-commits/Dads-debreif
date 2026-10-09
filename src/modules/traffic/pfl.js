@@ -905,7 +905,15 @@ export function chooseDirect(geo, from, altFt, kias, wind, trackDeg = undefined,
   for (const along of alongs) {
     cands.push({ path: directPath(geo, from, along, true, trackDeg), aimAlongFt: along, label: label(along) });
   }
-  const spare = (c) => altFt - neededFt(minDragPlan(c.path), 0, from, altFt, cfgNow, wind) - ground;
+  const spare = (c) => {
+    const reach = altFt - neededFt(minDragPlan(c.path), 0, from, altFt, cfgNow, wind) - ground;
+    if (reach < -trade) return -Infinity;
+    const most = neededFt(c.path.map((p) => ({ ...p, plan: 3 })), 0, from, altFt, Math.max(cfgNow, 3), wind);
+    const excess = altFt - most - ground;
+    const floatFt = excess > 0 ? excess * flownGlideRatio(3, ground) : 0;
+    if (c.aimAlongFt + floatFt > last) return -Infinity;
+    return reach;
+  };
   const pick = cands.find((c) => spare(c) >= 0) ?? cands.find((c) => spare(c) + trade >= 0);
   return pick ? { kind: 'direct', ...pick } : null;
 }
@@ -1106,7 +1114,7 @@ export function chooseJoin(geo, from, availFt, trackDeg, wind, { allowHighKey = 
 
   const one = search(true);
   const run = search(false);
-  const join = one.best ?? one.high ?? chooseDirect(geo, from, availFt, PFL.glideCleanKias, wind, trackDeg) ?? run.best ?? run.high;
+  const join = one.best ?? one.high ?? run.best ?? run.high ?? chooseDirect(geo, from, availFt, PFL.glideCleanKias, wind, trackDeg);
   if (join) return join;
   return { kind: 'none', path: directPath(geo, from, geo.aimAlongFt, true, trackDeg), aimAlongFt: geo.aimAlongFt, label: 'Eject' };
 }
@@ -1700,7 +1708,7 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
           const circleOk = plan.kind !== 'direct' && (
             ((s.tag === 'low_key' || (path[seg]?.theta ?? 0) >= 180) && margin >= -PFL.onProfileFt) ||
             (s.alt <= PFL.gateAltFt + 300) ||
-            (patternPfl && state === 'glide' && margin > PFL.keysCarryHighFt && dist(geo.th, s) <= PFL.earlyGearWithinFt)
+            (patternPfl && state === 'glide' && dist(geo.th, s) <= PFL.earlyGearWithinFt && s.alt - ground - neededFt(path, seg, proj.pt, s.alt, cfg, wind, true, 'aim', 2) >= PFL.dragBufferFt)
           );
           if (directOk || circleOk) {
             cfg = 1;
