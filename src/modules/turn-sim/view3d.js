@@ -19,7 +19,8 @@ import { drawHud } from '../../ui-kit/hud.js';
 import { liftBankDeg } from './live/flight.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH, setCockpitView } from '../../ui-kit/ct156-model.js';
-import { createCt156Cockpit, EYE_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
+import { createCt156Cockpit, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
+import { EYE_OFFSET_FT } from './layout.js';
 
 /** The formation's height in the picture (feet). An aircraft with altAboveFt is drawn that far above or below it (the vertical miss). */
 export const FLIGHT_ALT_FT = 0;
@@ -40,11 +41,14 @@ export const CAMERA_START_PITCH_DEG = 5; // top down at the start (Patrick, 5 Oc
  * The perspective views (Patrick, 6 Oct): Chase, Cockpit and Padlock on an aircraft, as Traffic's (TR-90, TR-92). 60° across,
  * nothing nearer than 2 ft (estimates). The pilot's eye sits 4 ft ahead of and 3 ft above the aircraft's centre; Chase
  * starts 300 ft behind and 12° above; a drag turns the head (Cockpit, Padlock) or swings round the aircraft (Chase).
- * With the Cockpit interior tick (TS-154) the eye is the CT-156 front seat's (ui-kit ct156-cockpit.js EYE_FT, an estimate)
- * and nothing nearer than 0.5 ft is cut off, so the canopy bows and the panel round the eye are drawn.
+ * With the Cockpit interior tick (TS-154) the eye is the chosen CT-156 seat's (ui-kit ct156-cockpit.js EYES_FT, estimates;
+ * TS-155), moved by that seat's eye offsets from the Camera menu, and nothing nearer than 0.5 ft is cut off, so the
+ * canopy bows and the panel round the eye are drawn.
  */
 const POV = Object.freeze({ fovAcrossDeg: 60, nearFt: 2, nearInsideFt: 0.5, farFt: 400_000, eyeFwdFt: 4, eyeUpFt: 3, chaseFt: 300, chaseFtRange: [60, 5000], chaseUpDeg: 12, degPerPx: 0.3 });
-const HEAD = Object.freeze({ yawDeg: [-160, 160], pitchDeg: [-60, 80], chaseUpDeg: [-10, 80] });
+// Head down to 85° (TS-155) so the stick, consoles and seat handle show from the seat; camera only.
+const HEAD = Object.freeze({ yawDeg: [-160, 160], pitchDeg: [-85, 80], chaseUpDeg: [-10, 80] });
+
 const ORBIT_DEG_PER_PX = Object.freeze({ yaw: 0.4, pitch: 0.25 });
 const WHEEL_ZOOM = Object.freeze({ in: 1.12, out: 0.89 });
 /** How far the fit-all zoom moves toward the zoom it wants, each frame (the 2D view's ease). */
@@ -526,11 +530,12 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       p.lookAt(me.position);
       return true;
     }
-    // With the cockpit interior (TS-154) the eye is in the front seat and the own aircraft stays drawn round it; without
-    // it, the old eye point and the own aircraft hidden, as before.
+    // With the cockpit interior (TS-154, TS-155) the eye is in the chosen seat, moved by its offsets, and the own aircraft
+    // stays drawn round it; without it, the old eye point and the own aircraft hidden, as before.
     const interior = gl.cockpit?.root === me;
+    const seatEye = interior ? EYES_FT[gl.cockpit.seat] ?? EYES_FT.front : null;
     const eye = interior
-      ? me.localToWorld(new THREE.Vector3(EYE_FT.x, EYE_FT.y, EYE_FT.z).divideScalar(CT156_FT_PER_UNIT))
+      ? me.localToWorld(new THREE.Vector3(seatEye.x + gl.cockpit.eyeFwdFt, seatEye.y, seatEye.z + gl.cockpit.eyeUpFt).divideScalar(CT156_FT_PER_UNIT))
       : me.position.clone().addScaledVector(fwd, POV.eyeFwdFt).addScaledVector(up, POV.eyeUpFt);
     if (interior) {
       p.near = POV.nearInsideFt;
@@ -553,11 +558,12 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
   }
 
   /**
-   * The CT-156 front cockpit (TS-154) in the aircraft the Cockpit or Padlock camera sits in (`root`, or null for none):
-   * built the first time, moved when the camera changes aircraft, taken out (and the ship put back as built) when the
-   * view or the tick changes. Its panel reads that aircraft's instruments.
+   * The CT-156 cockpits (TS-154, TS-155) in the aircraft the Cockpit or Padlock camera sits in (`root`, or null for
+   * none), seen from `seat` ('front' or 'rear'): built the first time, moved when the camera changes aircraft, set to
+   * the seat when it changes, taken out (and the ship put back as built) when the view or the tick changes. Its panels
+   * read that aircraft's instruments. `sizing` gives the seat's eye offsets (Camera menu), kept within EYE_OFFSET_FT.
    */
-  function syncCockpit(root, id) {
+  function syncCockpit(root, id, seat = 'front', sizing = {}) {
     const pit = gl.cockpit;
     if (pit?.root && pit.root !== root) {
       setCockpitView(pit.root, { seat: null });
@@ -565,12 +571,18 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       pit.root = null;
     }
     if (!root) return;
-    gl.cockpit ??= { part: createCt156Cockpit(THREE, { doc: canvas.ownerDocument ?? globalThis.document }), root: null };
-    if (gl.cockpit.root !== root) {
+    gl.cockpit ??= { part: createCt156Cockpit(THREE, { doc: canvas.ownerDocument ?? globalThis.document }), root: null, seat: null };
+    const s = seat === 'rear' ? 'rear' : 'front';
+    if (gl.cockpit.root !== root || gl.cockpit.seat !== s) {
       root.add(gl.cockpit.part.group);
-      setCockpitView(root, { seat: 'front' });
+      setCockpitView(root, { seat: s });
       gl.cockpit.root = root;
+      gl.cockpit.seat = s;
     }
+    const suffix = s === 'rear' ? 'Rear' : 'Front';
+    const lim = EYE_OFFSET_FT[s];
+    gl.cockpit.eyeUpFt = clamp(Number(sizing[`eyeUp${suffix}`]) || 0, lim.up);
+    gl.cockpit.eyeFwdFt = clamp(Number(sizing[`eyeFwd${suffix}`]) || 0, lim.fwd);
     gl.cockpit.part.update(source.instruments?.(id) ?? source.hud?.() ?? null);
   }
 
@@ -664,7 +676,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     }
     // The cockpit interior: only from inside an aircraft (Cockpit, Padlock), and only with its tick (TS-154).
     const interior = pov && pov.pov !== 'chase' && sizing.cockpitInterior !== false;
-    syncCockpit(interior ? gl.planes.get(pov.id)?.mesh ?? null : null, pov?.id);
+    syncCockpit(interior ? gl.planes.get(pov.id)?.mesh ?? null : null, pov?.id, sizing.cockpitSeat, sizing);
 
     const layers = source.layers();
     const trail = trailSince(source.trails().trail, state.tSec, layers.trackSec);

@@ -39,6 +39,10 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   camOn: 'formation', // what the camera centres on: the formation's centre of mass, or one aircraft ('1' to '4') (Patrick, 5 Oct)
   camLook: 'chase', // on one aircraft, in 3D (Patrick, 5 Oct): 'chase' behind its nose, 'free' centred on it and turned by hand, 'padlock' looking at the other
   cockpitInterior: true, // 3D Cockpit and Padlock: the CT-156's front cockpit round the eye (Dad's ask, 9 Oct; TS-154); off, the own aircraft is hidden as before
+  cockpitSeat: 'front', // which CT-156 seat the 3D Cockpit and Padlock sit in: 'front' or 'rear' (Dad's ask, 9 Oct; TS-155)
+  // Each seat's eye moved from its estimated point, feet up and forward (Dad, 9 Oct: "make the eye view adjustable for
+  // front and rear"; TS-155); 0 is the estimate.
+  eyeUpFront: 0, eyeFwdFront: 0, eyeUpRear: 0, eyeFwdRear: 0,
   view: '3d', // '2d' or '3d'; 3D at the start, looking straight down on the formation (Patrick, 5 Oct)
   paint: 'ship', // the 3D aircraft's paint: each in its ship colour, which stands out on the charcoal (Patrick, 5 Oct); 'harvard' is navy
 });
@@ -57,6 +61,13 @@ export function migrateLayout(values, version) {
   return Object.fromEntries(Object.entries(values).filter(([k]) => !reset.includes(k) && (version >= 4 || !SHIP_KEYS.test(k))));
 }
 
+/**
+ * The eye offsets' limits per seat, feet, in 0.05 ft steps (TS-155; estimates): the rear eye starts 0.15 ft higher and
+ * nearer the glass, so it rises at most 0.3 ft; half a foot back keeps either eye ahead of its headbox.
+ */
+export const EYE_OFFSET_FT = Object.freeze({ step: 0.05, front: { up: [-0.5, 0.5], fwd: [-0.5, 0.5] }, rear: { up: [-0.5, 0.3], fwd: [-0.5, 0.5] } });
+const steps = ([lo, hi]) => Array.from({ length: Math.round((hi - lo) / EYE_OFFSET_FT.step) + 1 }, (_, i) => Math.round((lo + i * EYE_OFFSET_FT.step) * 100) / 100);
+
 /** The layout values that only allow some choices (createSettings' `allowed`). */
 export const LAYOUT_ALLOWED = /** @type {Record<string, any[]>} */ (Object.freeze({
   view: [...VIEW_ALLOWED],
@@ -65,6 +76,11 @@ export const LAYOUT_ALLOWED = /** @type {Record<string, any[]>} */ (Object.freez
   trackSec: [0, 30, 60, 120, 300, 600],
   coneShape: ['3d', 'flat'],
   camLook: ['chase', 'cockpit', 'padlock', 'free'],
+  cockpitSeat: ['front', 'rear'],
+  eyeUpFront: steps(EYE_OFFSET_FT.front.up),
+  eyeFwdFront: steps(EYE_OFFSET_FT.front.fwd),
+  eyeUpRear: steps(EYE_OFFSET_FT.rear.up),
+  eyeFwdRear: steps(EYE_OFFSET_FT.rear.fwd),
 }));
 
 /** Layers that only the 2D picture draws; they are greyed out in 3D. */
@@ -302,6 +318,17 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     lc.checkbox('tagArrow', { label: 'Arrow to Lead (distance, closure)' }),
     lc.checkbox('tagElevation', { label: "Elevation lines to Lead's level (3D)" }),
   ]);
+  // Each seat's eye offsets (TS-155): only the chosen seat's pair shows (applyLayout).
+  const feet = (v) => `${v > 0 ? '+' : ''}${Number(v).toFixed(2)} ft`;
+  const eyePair = (suffix, lim) => h('div', { class: 'ts-eye' },
+    lc.slider(`eyeUp${suffix}`, { label: 'Eye up / down', min: lim.up[0], max: lim.up[1], step: EYE_OFFSET_FT.step, format: feet }),
+    lc.slider(`eyeFwd${suffix}`, { label: 'Eye forward / back', min: lim.fwd[0], max: lim.fwd[1], step: EYE_OFFSET_FT.step, format: feet }));
+  const eyeFront = eyePair('Front', EYE_OFFSET_FT.front);
+  const eyeRear = eyePair('Rear', EYE_OFFSET_FT.rear);
+  const resetEyeButton = h('button', { type: 'button', class: 'button', onclick: () => {
+    const suffix = layout.get().cockpitSeat === 'rear' ? 'Rear' : 'Front';
+    layout.update({ [`eyeUp${suffix}`]: 0, [`eyeFwd${suffix}`]: 0 });
+  } }, 'Reset eye');
   const cameraMenu = menu('Camera', 'ts-camera', [
     camOnChoice,
     lc.choice('camLook', { label: 'Look (3D)', options: [
@@ -309,6 +336,10 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       { value: 'free', label: 'Follow (free look)' },
     ] }),
     lc.checkbox('cockpitInterior', { label: 'Cockpit interior (3D Cockpit, Padlock)' }),
+    lc.choice('cockpitSeat', { label: 'Seat (3D Cockpit, Padlock)', options: [{ value: 'front', label: 'Front' }, { value: 'rear', label: 'Rear' }] }),
+    eyeFront,
+    eyeRear,
+    resetEyeButton,
     lc.checkbox('autoFit', { label: 'Auto zoom' }),
   ]);
 
@@ -368,6 +399,8 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
 
   function applyLayout(values) {
     scaleSlider.hidden = Boolean(values.realSize);
+    eyeFront.hidden = values.cockpitSeat === 'rear';
+    eyeRear.hidden = values.cockpitSeat !== 'rear';
     formationPanel.setCollapsed(!values.formationColumn);
     formationCol.classList.toggle('is-collapsed', !values.formationColumn);
   }
