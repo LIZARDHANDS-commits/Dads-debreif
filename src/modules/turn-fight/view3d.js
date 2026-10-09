@@ -72,6 +72,17 @@ const DASH_PX = [7, 5];
 /** Energy mode's hard deck: a flat, see-through plane at the deck's height, the colour of the first nose-on line, so it does not hide the aircraft or their trails. */
 export const DECK_OPACITY = 0.16;
 
+export const CAMERA_MOUNTS = Object.freeze(['overview', 'chase', 'cockpit']);
+export const CAMERA_AIMS = Object.freeze(['boresight', 'freelook', 'padlock']);
+export const COCKPIT_SEATS = Object.freeze(['front', 'rear']);
+
+export const DEFAULT_CAMERA_STATE = Object.freeze({
+  mount: 'overview',
+  who: 'blue',
+  aim: 'boresight',
+  seat: 'front',
+});
+
 const VIEW_LABELS = Object.freeze({
   overhead: 'Overhead',
   blue: 'Chase Blue', red: 'Chase Red',
@@ -79,19 +90,35 @@ const VIEW_LABELS = Object.freeze({
   padlockBlue: 'Padlock Blue', padlockRed: 'Padlock Red',
 });
 /**
- * The perspective views (Patrick, 6 Oct: "give turn fight the same sky and chase/cockpit cameras", as the Formation Sim's):
- * Chase behind and above its aircraft, Cockpit from the pilot's eye along the nose rolling with the wings, Padlock from
- * the eye on the other aircraft. 60° across, nothing nearer than 2 ft; the eye 4 ft ahead and 3 ft above the centre;
- * Chase 300 ft back and 12° up (estimates). A drag turns the head or swings round the aircraft; the wheel moves Chase in and out.
+ * The perspective views: Chase behind and above its aircraft, Cockpit from the pilot's eye along the nose rolling
+ * with the wings, Padlock from the eye on the other aircraft. 60° across, nothing nearer than 1 ft (exterior) or
+ * 0.5 ft (cockpit interior); Chase 300 ft back and 12° up.
  */
-export const POV = Object.freeze({ fovAcrossDeg: 60, nearFt: 2, nearInsideFt: 0.5, farFt: 400_000, eyeFwdFt: 4, eyeUpFt: 3, chaseFt: 300, chaseFtRange: [60, 5000], chaseUpDeg: 12, degPerPx: 0.3 });
+export const POV = Object.freeze({ fovAcrossDeg: 60, nearFt: 1, nearInsideFt: 0.5, farFt: 400_000, eyeFwdFt: 4, eyeUpFt: 3, chaseFt: 300, chaseFtRange: [60, 5000], chaseUpDeg: 12, degPerPx: 0.3 });
 export const HEAD = Object.freeze({ yawDeg: [-160, 160], pitchDeg: [-85, 80], chaseUpDeg: [-10, 80] });
-/** The perspective view a camera mode asks for: { kind, who, other } or null for the flat views. */
-function povOf(mode) {
+
+/** The perspective view a camera mode or state asks for: { kind, who, other, aim, seat } or null for overview/flat views. */
+export function povOf(mode) {
+  if (!mode) return null;
+  if (typeof mode === 'object') {
+    if (mode.mount === 'overview') return null;
+    const who = mode.who === 'red' ? 'red' : 'blue';
+    const kind = mode.mount === 'cockpit' ? 'cockpit' : 'chase';
+    const aim = mode.aim === 'padlock' ? 'padlock' : (mode.aim === 'freelook' ? 'freelook' : 'boresight');
+    const seat = mode.seat === 'rear' ? 'rear' : 'front';
+    return { kind, who, other: who === 'blue' ? 'red' : 'blue', aim, seat };
+  }
   const m = /^(?:(cockpit|padlock)(Blue|Red)|(blue|red))$/.exec(mode ?? '');
   if (!m) return null;
-  const who = m[3] ?? m[2].toLowerCase();
-  return { kind: m[1] ?? 'chase', who, other: who === 'blue' ? 'red' : 'blue' };
+  const who = (m[3] ?? m[2]).toLowerCase();
+  const kind = m[1] ?? 'chase';
+  return {
+    kind,
+    who,
+    other: who === 'blue' ? 'red' : 'blue',
+    aim: kind === 'padlock' ? 'padlock' : 'boresight',
+    seat: 'front',
+  };
 }
 /** The three one-click views, in the order of their buttons: { id: { label } }. */
 export const VIEWS = Object.freeze(Object.fromEntries(Object.entries(VIEW_LABELS).map(([id, label]) => [id, Object.freeze({ label })])));
@@ -326,10 +353,33 @@ export function planeLengthFt(zoom) {
   return Math.max(T6_LENGTH_FT, MIN_PLANE_PX / (zoom / 1000));
 }
 
-/** The camera a one-click view sets: 'overhead' (straight down, north up, as the 2D picture), 'blue' or 'red' (chase). */
+/** The camera for a decoupled camera state object: { mount, who, aim, seat }. */
+export function cameraForState(state) {
+  const s = { ...DEFAULT_CAMERA_STATE, ...state };
+  if (s.mount === 'overview') {
+    return { mode: 'fit', state: s, yawDeg: 0, pitchDeg: 0, zoom: DEFAULT_CAMERA.zoom, zoomAuto: true };
+  }
+  return { mode: s.mount, state: s, yawDeg: 0, pitchDeg: CHASE_PITCH_DEG, zoom: CHASE_ZOOM, zoomAuto: false };
+}
+
+/** The camera a one-click view sets: legacy names ('overhead', 'blue', etc.) or camera state object. */
 export function cameraForButton(name) {
-  if (povOf(name)) return { mode: name, yawDeg: 0, pitchDeg: CHASE_PITCH_DEG, zoom: CHASE_ZOOM, zoomAuto: false };
-  return { mode: 'fit', yawDeg: 0, pitchDeg: 0, zoom: DEFAULT_CAMERA.zoom, zoomAuto: true };
+  if (typeof name === 'object' && name !== null) {
+    return cameraForState(name);
+  }
+  if (name === 'overhead') {
+    return cameraForState({ mount: 'overview' });
+  }
+  const pov = povOf(name);
+  if (pov) {
+    return cameraForState({
+      mount: pov.kind === 'padlock' ? 'cockpit' : pov.kind,
+      who: pov.who,
+      aim: pov.kind === 'padlock' ? 'padlock' : 'boresight',
+      seat: 'front',
+    });
+  }
+  return cameraForState({ mount: 'overview' });
 }
 
 /**
@@ -339,8 +389,10 @@ export function cameraForButton(name) {
  * from behind, turning with its heading; dragging sideways turns the camera round the aircraft.
  */
 export function cameraFor(cam, { bounds, fight, size }) {
-  if (cam.mode === 'blue' || cam.mode === 'red') {
-    const a = fight?.[cam.mode];
+  const pov = povOf(cam.state ?? cam.mode);
+  if (pov && (pov.kind === 'chase' || cam.mode === 'blue' || cam.mode === 'red')) {
+    const who = pov.who ?? cam.mode;
+    const a = fight?.[who];
     if (a) {
       return {
         center: { x: a.xFt, y: a.yFt, z: a.zFt },
@@ -396,7 +448,7 @@ export function cameraFor(cam, { bounds, fight, size }) {
  *   was reset). By then the view has freed everything and stopped drawing, so the screen only has to show 2D.
  * win: for tests. Returns { start, stop, requestDraw, setView, stats, dispose }.
  */
-export function createView3d(host, { timers, run, paint, options = () => ({}), onLost = () => {}, load = loadThree, win = globalThis }) {
+export function createView3d(host, { timers, run, paint, options = () => ({}), onLost = () => {}, onCameraChange = () => {}, load = loadThree, win = globalThis }) {
   const doc = host.ownerDocument;
   let THREE = null;
   let gl = null; // the scene and everything that holds GPU resources, only between start() and stop()
@@ -405,7 +457,8 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
   let pendingFrame = null;
   let drawn = 0;
   let resizer = null;
-  let cam = { ...DEFAULT_CAMERA };
+  let camState = { ...DEFAULT_CAMERA_STATE };
+  let cam = cameraForState(camState);
   let head = { yawDeg: 0, pitchDeg: 0 }; // the person's head turn (Cockpit, Padlock) or swing round the aircraft (Chase)
   let chaseFt = POV.chaseFt;
   const pointers = new Map(); // id -> { x, y }, the fingers or the mouse now down
@@ -660,12 +713,17 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
         me.position.z + Math.sin(upAng) * chaseFt,
       );
       p.up.set(0, 0, 1);
-      p.lookAt(me.position);
+      if (pov.aim === 'padlock' && gl.planes[pov.other]) {
+        p.lookAt(gl.planes[pov.other].position);
+      } else {
+        p.lookAt(me.position);
+      }
       return;
     }
-    syncCockpit(me, 'front');
+    const seatChoice = pov.seat === 'rear' ? 'rear' : 'front';
+    syncCockpit(me, seatChoice);
     const interior = Boolean(gl.cockpit?.root === me);
-    const seatEye = interior ? EYES_FT.front : null;
+    const seatEye = interior ? (EYES_FT[seatChoice] ?? EYES_FT.front) : null;
     const eye = interior
       ? me.localToWorld(new THREE.Vector3(seatEye.x, seatEye.y, seatEye.z).divideScalar(CT156_FT_PER_UNIT))
       : me.position.clone().addScaledVector(fwd, POV.eyeFwdFt).addScaledVector(up, POV.eyeUpFt);
@@ -677,7 +735,7 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
     }
     p.position.copy(eye);
     p.up.copy(up);
-    if (pov.kind === 'padlock' && gl.planes[pov.other]) {
+    if ((pov.aim === 'padlock' || pov.kind === 'padlock') && gl.planes[pov.other]) {
       p.lookAt(gl.planes[pov.other].position);
       return;
     }
@@ -890,7 +948,7 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
     }
 
     gl.ground.position.set(gridX, gridY, altToZ(groundZ, ALT_SCALE) - 2);
-    const pov = povOf(cam.mode);
+    const pov = povOf(cam.state ?? cam.mode);
     for (const who of SHIPS) gl.planes[who].visible = true;
     if (pov && gl.planes[pov.who]) {
       // Perspective: the aircraft at their real size, and the camera from the aircraft's own attitude.
@@ -992,6 +1050,7 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
 
   /** Frees every GPU resource and the canvas; the camera choice stays for the next start. */
   function teardown({ lost = false } = {}) {
+    win.removeEventListener?.('keydown', onWindowKeydown);
     stopFrame();
     resizer?.disconnect();
     resizer = null;
@@ -1048,8 +1107,47 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
   // ---- the person's hands: drag to orbit, wheel or pinch to zoom, + and − and the arrow keys ----
   const moved = (next) => {
     cam = next;
+    if (next.state) camState = { ...next.state };
+    onCameraChange?.(camState);
     requestDraw();
   };
+
+  function handleCenterKey() {
+    head = { yawDeg: 0, pitchDeg: 0 };
+    if (camState.aim === 'padlock' || camState.aim === 'freelook') {
+      camState = { ...camState, aim: 'boresight' };
+      cam = { ...cam, state: camState };
+      onCameraChange?.(camState);
+    }
+    requestDraw();
+  }
+
+  function handlePadlockToggle() {
+    if (camState.mount === 'overview') {
+      camState = { ...camState, mount: 'chase', aim: 'padlock' };
+    } else {
+      camState = { ...camState, aim: camState.aim === 'padlock' ? 'boresight' : 'padlock' };
+    }
+    head = { yawDeg: 0, pitchDeg: 0 };
+    cam = cameraForState(camState);
+    onCameraChange?.(camState);
+    requestDraw();
+  }
+
+  function onWindowKeydown(e) {
+    if (!gl || disposed) return;
+    if (e.altKey || e.ctrlKey || e.metaKey || e.defaultPrevented) return;
+    const tag = e.target?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    const key = e.key?.toLowerCase();
+    if (key === 'c') {
+      e.preventDefault();
+      handleCenterKey();
+    } else if (key === 'p') {
+      e.preventDefault();
+      handlePadlockToggle();
+    }
+  }
   const distance = () => {
     const [a, b] = [...pointers.values()];
     return Math.hypot(a.x - b.x, a.y - b.y);
@@ -1074,13 +1172,19 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
         if (pinchDistance > 0) moved(zoomByRatio(cam, now / pinchDistance));
         pinchDistance = now;
       } else if (pointers.size === 1) {
-        if (povOf(cam.mode)) {
+        const pov = povOf(cam.state ?? cam.mode);
+        if (pov) {
           // Perspective views: a drag turns the head, or swings round the aircraft in Chase.
-          const chase = povOf(cam.mode).kind === 'chase';
+          const chase = pov.kind === 'chase';
           head = {
             yawDeg: clamp(head.yawDeg - dx * POV.degPerPx, HEAD.yawDeg),
             pitchDeg: clamp(head.pitchDeg - dy * POV.degPerPx, chase ? [HEAD.chaseUpDeg[0] - POV.chaseUpDeg, HEAD.chaseUpDeg[1] - POV.chaseUpDeg] : HEAD.pitchDeg),
           };
+          if (camState.aim !== 'freelook') {
+            camState = { ...camState, aim: 'freelook' };
+            cam = { ...cam, state: camState };
+            onCameraChange?.(camState);
+          }
           requestDraw();
         } else {
           moved(orbit(cam, dx, dy));
@@ -1092,8 +1196,9 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
     ['wheel', (e) => {
       e.preventDefault();
       if (!e.deltaY) return;
-      if (povOf(cam.mode)) {
-        if (povOf(cam.mode).kind === 'chase') chaseFt = clamp(chaseFt * (e.deltaY < 0 ? 0.85 : 1.18), POV.chaseFtRange);
+      const pov = povOf(cam.state ?? cam.mode);
+      if (pov) {
+        if (pov.kind === 'chase') chaseFt = clamp(chaseFt * (e.deltaY < 0 ? 0.85 : 1.18), POV.chaseFtRange);
         requestDraw();
         return;
       }
@@ -1101,6 +1206,16 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
     }],
     ['keydown', (e) => {
       if (e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.key === 'c' || e.key === 'C') {
+        e.preventDefault();
+        handleCenterKey();
+        return;
+      }
+      if (e.key === 'p' || e.key === 'P') {
+        e.preventDefault();
+        handlePadlockToggle();
+        return;
+      }
       const zoom = e.key === '+' || e.key === '=' ? -1 : e.key === '-' || e.key === '_' ? 1 : 0;
       const turn = { ArrowLeft: [-KEY_ORBIT_DEG, 0], ArrowRight: [KEY_ORBIT_DEG, 0], ArrowUp: [0, KEY_ORBIT_DEG], ArrowDown: [0, -KEY_ORBIT_DEG] }[e.key];
       if (!zoom && !turn) return;
@@ -1146,6 +1261,10 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
         teardown();
         return { ok: false, reason: err?.webgl1 ? 'gl2' : 'gl' };
       }
+      if (win.addEventListener) {
+        win.removeEventListener('keydown', onWindowKeydown);
+        win.addEventListener('keydown', onWindowKeydown);
+      }
       if (win.ResizeObserver) {
         resizer = new win.ResizeObserver(() => requestDraw());
         resizer.observe(host);
@@ -1157,19 +1276,33 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
     stop() {
       generation++;
       teardown();
+      win.removeEventListener?.('keydown', onWindowKeydown);
     },
     requestDraw,
-    /** One of the three one-click views: 'overhead', 'blue' or 'red'. */
+    /** One of the one-click views: 'overhead', 'blue' or 'red', or a state object. */
     setView(name) {
       head = { yawDeg: 0, pitchDeg: 0 }; // a new view starts looking ahead
-      moved(cameraForButton(name));
+      const next = cameraForButton(name);
+      if (next.state) camState = { ...next.state };
+      moved(next);
+      onCameraChange?.(camState);
     },
+    /** Set a partial or full camera state { mount, who, aim, seat }. */
+    setCamera(partial) {
+      head = { yawDeg: 0, pitchDeg: 0 };
+      camState = { ...camState, ...partial };
+      const next = cameraForState(camState);
+      moved(next);
+      onCameraChange?.(camState);
+    },
+    getCameraState: () => ({ ...camState }),
     stats: () => ({ active: Boolean(gl), drawn, pending: Boolean(pendingFrame), camera: { ...cam } }),
     dispose() {
       if (disposed) return;
       disposed = true;
       generation++;
       teardown();
+      win.removeEventListener?.('keydown', onWindowKeydown);
       for (const [type, fn] of hands) host.removeEventListener(type, fn);
     },
   };
