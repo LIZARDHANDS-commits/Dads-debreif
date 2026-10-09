@@ -104,3 +104,7 @@ Built as refactor PRs 1 to 5 (TS-85, TS-93 to TS-97) and the docs rewrite (PR 9)
 ## Cockpit frames in the line-of-sight check (Dad, 9 Oct 2026)
 
 Part of the CT-156 cockpit ask (TS-154) not built in V2.205: let the canopy bows, panel and wings drawn in the Cockpit view also block Lead in the line-of-sight check (`src/core/canopy.js`). It changes which rejoins the tracker accepts, so it is flight behaviour and needs its own TS- decision and Patrick's yes. Display-only first step: name what hides Lead (bow, nose, wing) in the HUD label, leaving `isLeadInCanopy` as is.
+
+## Free T-6 3D model for the outside of the aircraft (Dad, 9 Oct 2026)
+
+Dad found a free T-6 Texan II model ("Beechcraft T6 Texan II" by helijah on Sketchfab, Sketchfab Standard licence; glTF, about 45,000 triangles, 4 MB, metres, navy T-6B paint). Checked in Dad's session: the length, span and height match the T-6; the outside is detailed (exhaust stacks, wingtips, tail); the cockpit inside is the T-6B's (HUD, up-front control panel, glass displays), not the T-6A/CT-156 panel in AETCMAN 11-248, so our own calibrated cockpit (TS-154 to TS-156) stays. Possible use: the outside for the other ships (Lead's formation references), cut down and repainted as a CT-156, keeping our own cockpit. Needs Patrick's yes (a new outside asset) and a check that the licence allows serving the file from a public site and repo. Model files are kept out of the repo until then.
