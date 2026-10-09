@@ -300,15 +300,16 @@ export function standInKindFor(type) {
 // ---------------------------------------------------------------------------
 // The scene's box and the camera (pure)
 
-/** The ground: the lowest height on any route that shows (the runway), or 0 with no route. */
+/** The ground: the lowest height on any route that shows (the runway), or DEFAULT_FLOOR_FT with no route. */
 export function groundFt(routes) {
   let low = Infinity;
-  for (const route of routes) {
+  for (const route of routes ?? []) {
     // A line drawn without its runway part (Pattern 1, scene.js) brings the runway's height with it.
     if (Number.isFinite(route.lowFt) && route.lowFt < low) low = route.lowFt;
     for (const p of route.path ?? []) if (finite(p.alt) < low) low = finite(p.alt);
+    for (const p of route.points ?? []) if (finite(p.alt) < low) low = finite(p.alt);
   }
-  return low === Infinity ? 0 : low;
+  return low === Infinity || low > DEFAULT_FLOOR_FT ? DEFAULT_FLOOR_FT : low;
 }
 
 /** The box round every route that shows, heights too (or, with no route, every aircraft), or null with nothing. A plain loop, so a long list is fine. */
@@ -325,7 +326,9 @@ export function sceneBox(routes, aircraft = []) {
       if (z > box.maxZ) box.maxZ = z;
     }
   };
-  for (const route of routes) if (route.visible !== false) take(route.path ?? []);
+  const pattern = (routes ?? []).find((r) => r.kind === 'pattern' || r.id === 'PAT1');
+  if (pattern) take(pattern.path ?? pattern.points ?? []);
+  for (const route of routes ?? []) if (route.visible !== false) take(route.path ?? route.points ?? []);
   if (box.minX === Infinity) take(aircraft);
   return box.minX === Infinity ? null : box;
 }

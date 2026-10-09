@@ -92,7 +92,7 @@ export function buildScene({ setup, state, selectedRouteId, trailOf }) {
     const decisions = decisionPoints(route, setup.routes);
     const isPat1 = route.id === 'PAT1' && route.points?.length >= 4;
     const isPat1Wind = isPat1 && windKt > 0;
-    const pat1 = isPat1 && isShowing(route) && route.points.length > 1 ? windowToDeparture(generateWindAdjustedTrack(route, windFromDeg, windKt, options)) : null;
+    const pat1 = isPat1 && route.points.length > 1 ? windowToDeparture(generateWindAdjustedTrack(route, windFromDeg, windKt, options)) : null;
     const calm = isShowing(route) && isPat1Wind ? windowToDeparture(generateWindAdjustedTrack(route, 360, 0, options)) : null;
     return {
       id: route.id, name: route.name, kind: route.kind, color: route.color, visible: isShowing(route),
