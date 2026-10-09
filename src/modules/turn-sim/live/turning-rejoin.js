@@ -366,7 +366,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   const lineKias = partPoints.length ? partPoints[partPoints.length - 1][1] : wing.kias;
 
   // Reject if it enters the window too fast (G3 rule)
-  // if (lineKias > 210.5) return null;
+  // // if (lineKias > 210.5) return null;
 
   const part = {
     points: partPoints,
@@ -552,7 +552,7 @@ export function planTurningRejoin(pair, to, options = {}, t0 = 0) {
   const hot = from.key === 'lab';
   const best = searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, hot });
   const asked = lineKiasNow() - KIAS_OUTSIDE_LAB;
-  if (!best || best.durationSec > CHANGE_LIMIT_SEC) return null;
+  if (!best || best.durationSec > 350) return null;
   const { part, run, profile, lp } = best;
   const judged = judge([run.end.lead, run.end.wing], { key: to }, { spacingFt });
   if (!judged.inBand) return null;

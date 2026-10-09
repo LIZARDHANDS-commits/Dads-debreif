@@ -237,3 +237,14 @@ These old numbers are not in force. Each row says what took its place or where i
 ## Rules moved here from old files
 
 - No quick-fix patches on single Turn Sim manoeuvres; fixes go to the cause (from `archive/docs/handover/turn-sim.md:7`).
+
+## Turning Rejoin (TRJ) Decisions (Oct 2026)
+
+| ID | Description | Source/Notes |
+|---|---|---|
+| TS-153 | TRJ Tracker Law (L1): The turning rejoin is flown by the core closed-loop tracker using a pure L1 guidance law onto the 45° bearing line in Lead's rotating frame, naturally preventing overshoot without artificial negative closure logic that turns the nose away. | Solves the "turning away" regression (9 Oct 2026). The old quadratic solver was retired because it forced acute starts to turn away from Lead rather than sliding across the circle. |
+| TS-154 | TRJ Unrestricted Bank & Floor: #2 has unrestricted bank during the rejoin to allow up to 5 G pulls when needed, and a hard floor of 200 KIAS. | Patrick's rulings G1-G9 (8 Oct 2026). |
+| TS-155 | TRJ 210/205 Speed Schedule: #2 holds exactly 210 KIAS while riding the line until 500 ft, then eases to 205 KIAS. Entry into the final window (250 ft) must be at 20 kt closure or less. | Patrick's rulings G1-G9 (8 Oct 2026). Limits window entry closure. |
+| TS-156 | TRJ No MAX Rule: #2 may use MAX power on ANY start if required to maintain the speed schedule or catch up. The "only starts from HTRJ require MAX" rule is abolished. | Patrick's rulings G1-G9 (8 Oct 2026). MAX is allowed anywhere. |
+| TS-157 | TRJ Absolute Geometric Limit: #2's trajectory must NEVER cross behind Lead's 6 o'clock line to the other side. Overshooting the 45° line is acceptable if within limits, but crossing the 6 is a training-out error and is mathematically prevented. | Patrick's rulings G1-G9 (8 Oct 2026). Replaces arbitrary "laneOk" caps. |
+| TS-158 | TRJ Global Timeout Limit: The TRJ search limit is increased from 180s to 350s. | Outside/acute rejoins (e.g. LAB 5000 right with Lead turning left) physically require more than 3 minutes to complete while respecting the 200 KIAS floor and pure pursuit geometry. |
