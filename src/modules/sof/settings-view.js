@@ -6,7 +6,8 @@
 import { h } from '../../ui-kit/dom.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
-import { TRIGGER_OPTIONS, BANNER_HINT, MAX_RELAY_CHARS, relayAccepted, withTrigger, snapCeiling, snapVisibility, CROSSWIND_RANGE, CLOUD_STYLES, AREA_OPTIONS } from './settings-model.js';
+import { TRIGGER_OPTIONS, BANNER_HINT, MAX_RELAY_CHARS, relayAccepted, withTrigger, snapCeiling, snapVisibility, CROSSWIND_RANGE, CLOUD_STYLES, AREA_OPTIONS,
+  TRAFFIC_SIZE_OPTIONS, TRAFFIC_TAG_SHOWS_OPTIONS, TRAFFIC_NAMES_FOR_OPTIONS, MOUSE_OPTIONS } from './settings-model.js';
 import { RUNWAY_STATES, CROSSWIND_SOURCE } from './crosswind.js';
 import { HOME_BASE_OPTIONS, OTHER_HOME, homeBaseSetting, homeBaseNote, canChooseHomeBase, homeBaseWords } from './home-base.js';
 
@@ -94,11 +95,29 @@ export function createSettingsView({ settings, crosswind = null, view3d = null, 
       styleControls.select('area3dNm', { label: '3D area', options: AREA_OPTIONS }),
       hint('How far the 3D view reaches: a square this wide, centred on home. Bigger shows more, more coarsely: the model cloud points are further apart (37.5 NM at 450, 50 at 600, 75 at 900), and the ground and weather pictures are less sharp. Changing it builds the 3D view again and asks for the model clouds again.'),
     );
+    // The 3D mouse (Dad, 8 Oct 2026: "i should be able to click and move around with the mouse"): left-drag moves the map by default; this swaps it back.
+    view3dSection.append(
+      styleControls.select('mouseLeft3d', { label: '3D mouse', options: MOUSE_OPTIONS }),
+      hint('Left-drag moves the map: the ground follows the pointer, like an online map, and a right-drag or Ctrl-drag turns the view. "Left-drag turns" swaps them back, as before: a right-drag or Shift-drag moves the map. Shift-drag always moves; a click on an aircraft or a pin still picks it; touch, the wheel and the keys are unchanged.'),
+    );
   }
 
   // Traffic relay (SOF-7): empty until Patrick's relay is set up; the Traffic layer stays hidden until it is a good address.
   const relay = relayField(settings);
   menu.section('Traffic').append(relay.element, hint('Leave empty to keep the Traffic layer hidden. The address is the relay only, such as https://traffic.example.workers.dev.'));
+
+  // Traffic display (Dad, 8 Oct 2026: "the callsign and aircraft display should be more customizable.. smaller icons... bigger text etc"): for the 2D layer and
+  // the 3D view, kept in the SOF's "view3d" settings document; every choice starts at the look before it, so nothing changes until one is chosen.
+  if (styleControls) {
+    menu.section('Traffic display').append(
+      styleControls.select('trafficIconSize', { label: 'Aircraft icon size', options: TRAFFIC_SIZE_OPTIONS }),
+      styleControls.select('trafficTagSize', { label: 'Tag text size', options: TRAFFIC_SIZE_OPTIONS }),
+      styleControls.select('trafficTagShows', { label: 'Tag shows', options: TRAFFIC_TAG_SHOWS_OPTIONS }),
+      styleControls.select('trafficNamesFor', { label: 'Names shown for', options: TRAFFIC_NAMES_FOR_OPTIONS }),
+      styleControls.checkbox('trafficT6Tags', { label: 'T-6 tags larger and always on' }),
+      hint('Icon size and tag text size are for the 2D map and the 3D view. "Tag shows" is what the 3D view\'s always-on and pointer tags say while the map\'s Labels choice (Layers) is "No labels"; with Labels on, Labels picks the words, as before. "Names shown for" leaves the other aircraft without a tag when Labels is on; putting the pointer on any aircraft still shows its facts, and an aircraft inside a watched area keeps its ⚠ tag. T-6 tags: in 3D a T-6\'s tag is larger and always on; in 2D its label is larger.'),
+    );
+  }
 
   // The new-caution banner (V6's "New-alert caution box"), on to begin with. Off, the cards still show every caution.
   menu.section('Cautions').append(

@@ -14,7 +14,7 @@ import { AREA_FT } from './scene3d-model.js';
 import { windGrid, sampleWind, cloudSheetLevels, cloudColumnAt, CLOUD_COVER_THRESHOLD_PCT } from './model-clouds.js';
 import { formatFeet } from './scene3d-model.js';
 import {
-  CELL_PX, CELL_SUPERSAMPLE, SATELLITE_PX, SATELLITE_DEFAULT_FT, RADAR_DEFAULT_AGL_FT, LIGHTNING_DEFAULT_AGL_FT, FRONT_WALL_FT, FLOW_PARTICLES, FLOW_STEP_MS,
+  CELL_PX, CELL_SUPERSAMPLE, SHAFT_MERGE_FT, SATELLITE_PX, SATELLITE_DEFAULT_FT, RADAR_DEFAULT_AGL_FT, LIGHTNING_DEFAULT_AGL_FT, FRONT_WALL_FT, FLOW_PARTICLES, FLOW_STEP_MS,
   FLOW_FT_PER_S_PER_KT, pictureCells, reduceToCells, shafts, bolts, satellitePixels, frontGeometry, createFlow,
 } from './weather3d-model.js';
 import { buildShafts, buildBolts, buildSatelliteSheet, buildFronts, buildFlow } from './weather3d.js';
@@ -54,6 +54,10 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
   let facts = { radar: null, lightning: null, satellite: null, fronts: null, flow: null };
   let shown = true;
   let sheetFade = 1;
+  // The radar and lightning cells last read, one picture each: { key, cells }. A model-hour or terrain change re-works only the heights and the drawing, not the picture.
+  const cellCache = { radar: null, lightning: null };
+  // The radar blocks and lightning bolts last drawn (weather3d-model.js `shafts` and `bolts`, feet), for the approaches' corridor check (approaches-model.js); null when not drawn.
+  const drawnLists = { radar: null, lightning: null };
 
   const canvasOf = (px) => {
     const c = win.document.createElement('canvas');
@@ -62,10 +66,15 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
     return c;
   };
 
-  /** Draws a picture onto a square canvas laid over the whole area (north at the top) and returns its pixels. */
-  function readPicture(picture, projection, px) {
+  /**
+   * Draws a picture onto a square canvas laid over the whole area (north at the top) and returns its pixels. `smooth` false draws it pixel for pixel (nearest pixel,
+   * no blending): the radar and lightning pictures keep their own palette colours, so neighbouring radar cells of the same colour can merge into one block (blending
+   * made 60 and more in-between colours out of a 29-colour palette, Fable review 8 Oct 2026). The satellite and total-cloud pictures keep the smoothing.
+   */
+  function readPicture(picture, projection, px, { smooth = true } = {}) {
     const canvas = canvasOf(px);
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.imageSmoothingEnabled = smooth;
     ctx.imageSmoothingQuality = 'high';
     const k = px / AREA_FT;
     const half = AREA_FT / 2;
@@ -180,23 +189,29 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
       const groundAt = terrain ? terrain.heightFt : null;
       const levels = model && !clouds ? cloudSheetLevels(model, hour) : [];
       const column = model && clouds ? clouds.column : (u, v) => cloudColumnAt(levels, u, v, groundFt);
-      const cellsOf = (picture, accept) => {
-        const read = readPicture(picture, projection, CELL_PX * CELL_SUPERSAMPLE);
-        return read ? pictureCells(reduceToCells(read.image, CELL_SUPERSAMPLE, accept)) : null;
+      const cellsOf = (name, picture, accept) => {
+        const key = `${picture.id}|${picture.bbox}|${projection.lat},${projection.lon}|${AREA_FT}`;
+        if (cellCache[name]?.key === key) return cellCache[name].cells;
+        const read = readPicture(picture, projection, CELL_PX * CELL_SUPERSAMPLE, { smooth: false });
+        const cells = read ? pictureCells(reduceToCells(read.image, CELL_SUPERSAMPLE, accept)) : null;
+        cellCache[name] = cells ? { key, cells } : null;
+        return cells;
       };
 
       // Radar blocks in the cloud, each with its rain curtain to the ground (always built; the "Rain to ground" switch shows or hides them)
       const radar = weather.radar;
       const radarOn = Boolean(radar && radar.image && radar.on !== false && !radar.stale);
       place('radar', radarOn ? `${radar.id}|${modelKey}|${standing}` : 'off', () => {
+        drawnLists.radar = null;
         if (!radarOn) {
           facts.radar = null;
           return null;
         }
-        const cells = cellsOf(radar);
+        const cells = cellsOf('radar', radar);
         if (!cells) return null;
         const list = shafts(cells, { column, groundFt, ...(groundAt ? { groundAt } : {}) });
-        facts.radar = { count: list.length, withModelTop: list.filter((s) => s.modelTop).length, rain: list.filter((s) => s.rain).length };
+        drawnLists.radar = list;
+        facts.radar = { count: list.length, cells: cells.length, blocks: list.length, withModelTop: list.filter((s) => s.modelTop).length, rain: list.filter((s) => s.rain).length };
         return buildShafts(T, { shafts: list, scale });
       });
 
@@ -204,13 +219,15 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
       const lightning = weather.lightning;
       const lightningOn = Boolean(lightning && lightning.image && lightning.on !== false && !lightning.stale);
       place('lightning', lightningOn ? `${lightning.id}|${modelKey}|${standing}` : 'off', () => {
+        drawnLists.lightning = null;
         if (!lightningOn) {
           facts.lightning = null;
           return null;
         }
-        const cells = cellsOf(lightning, (r, g, b) => r > 200 && g > 150 && b < 100);
+        const cells = cellsOf('lightning', lightning, (r, g, b) => r > 200 && g > 150 && b < 100);
         if (!cells) return null;
         const list = bolts(cells, { column, groundFt, ...(groundAt ? { groundAt } : {}) });
+        drawnLists.lightning = list;
         facts.lightning = { count: list.length };
         return buildBolts(T, { bolts: list, scale });
       });
@@ -288,6 +305,11 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
     },
     /** What is drawn, for the key: { radar, lightning, satellite, fronts, flow }, each null when not drawn; the radar's says whether its rain curtains are shown (`rainShown`). */
     summary: () => ({ ...facts, radar: facts.radar ? { ...facts.radar, rainShown: toggles.rain !== false } : null }),
+    /**
+     * The radar blocks and lightning bolts as last built, for the approaches' corridor check: { radar: [block] | null, lightning: [bolt] | null } (null: not drawn,
+     * because there is no fresh picture). They are built whatever the Radar and Lightning buttons show, so the check does not depend on what is switched on.
+     */
+    drawn: () => ({ radar: drawnLists.radar, lightning: drawnLists.lightning }),
     /** The fronts' credit while they are drawn. */
     credit: () => (facts.fronts ? FRONTS_CREDIT : null),
     /**
@@ -310,6 +332,10 @@ export function createWeather3dLayers({ T, scene, timers, win, labels, requestRe
       freeFlow();
       for (const name of Object.keys(built)) free(name);
       freeMarks();
+      cellCache.radar = null;
+      cellCache.lightning = null;
+      drawnLists.radar = null;
+      drawnLists.lightning = null;
       root.removeFromParent();
     },
   };
@@ -329,7 +355,8 @@ export function weatherKeyWords(summary, scale, satelliteWords = "ECCC's GOES-We
     const rain = r.rain ? (r.rainShown === false ? ' Rain to ground is off: the faint rain curtains under the blocks are hidden.' : ' Under each block a faint, streaked rain curtain reaches the ground (switch: Rain to ground); the radar does not say whether the precipitation reaches the ground (virga is not told apart).') : '';
     const bare = r.count - r.withModelTop;
     const noCloud = bare > 0 ? ` ${bare} with no model cloud here: drawn from the ground up to ${formatFeet(RADAR_DEFAULT_AGL_FT)} ft above it (an estimate).` : '';
-    out.push(`Radar: a see-through block for each radar cell (about 5 NM), in the radar's colour, standing in the model cloud over it, from the cloud's base to its top (the lowest model cloud there; a model estimate).${rain}${noCloud} ${r.count} drawn. Not drawn when the radar picture is stale.`);
+    const merged = Number.isFinite(r.cells) ? `${r.cells} cells as ${r.blocks} blocks` : `${r.count} drawn`;
+    out.push(`Radar: a see-through block for each run of neighbouring radar cells with the same colour and cloud heights (a cell is about 5 NM; heights within ${formatFeet(SHAFT_MERGE_FT)} ft of each other, an estimate), in the radar's colour, standing in the model cloud over it, from the cloud's base to its top (the lowest model cloud there; a model estimate).${rain}${noCloud} ${merged}. Not drawn when the radar picture is stale.`);
   }
   if (summary.lightning) {
     out.push(`Lightning: a bolt for each lit lightning cell, from the ground to the model cloud top above it, or ${formatFeet(LIGHTNING_DEFAULT_AGL_FT)} ft above the ground where the model has none (an estimate). ${summary.lightning.count} drawn.`);

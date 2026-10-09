@@ -23,9 +23,19 @@ export const CELL_PX = 96;
 export const cellFt = () => AREA_FT / CELL_PX;
 /** A cell is precipitation or lightning when its pixel is at least this opaque (0 to 1) once the picture is shrunk to the grid. An estimate. */
 export const CELL_MIN_ALPHA = 0.25;
-/** Most shafts and most bolts drawn at once (each is one box); past this the cells are thinned evenly, never the strongest dropped first. An estimate for the drawing's sake. */
-export const MAX_SHAFTS = 1800;
+/**
+ * Most radar blocks and most bolts drawn at once (each is one box). Neighbouring radar cells are merged into blocks first (`mergeShafts`), so the cap is a last resort: past it
+ * the blocks are thinned evenly, never the strongest dropped first. 1000 blocks (with their curtains, 2000 boxes) is about half the drawing of V2.196's 1800 single cells,
+ * which Dad found heavy (8 Oct 2026: "the radar blocks are heavy on processing"). Estimates for the drawing's sake.
+ */
+export const MAX_SHAFTS = 1000; // estimate
 export const MAX_BOLTS = 600;
+/**
+ * Neighbouring radar cells of the same colour are drawn as one block when their cloud bases are all within this of each other, and their tops likewise (feet). Under the
+ * shared table's 100 ft it would merge almost nothing over sloping model cloud; at 500 ft a block's base and top are each within 250 ft of every cell's own. An estimate
+ * for the drawing's sake (Fable review, 8 Oct 2026).
+ */
+export const SHAFT_MERGE_FT = 500; // estimate
 /** Where a radar block ends with no model cloud over it (feet above the ground: it then stands on the ground), and how high a bolt reaches with none. Estimates, SOF-39. */
 export const RADAR_DEFAULT_AGL_FT = 8000; // estimate
 export const LIGHTNING_DEFAULT_AGL_FT = 25_000; // estimate
@@ -107,29 +117,119 @@ export function thin(list, max) {
 }
 
 /**
- * The radar blocks (Dad, 8 Oct 2026: "can they sit at the cloud altitudes rather than straight touching the ground"): one per radar cell, standing in the model
+ * The radar blocks (Dad, 8 Oct 2026: "can they sit at the cloud altitudes rather than straight touching the ground"): each radar cell stands in the model
  * cloud over it, from its base to its top (`column(u, v)` gives { baseFt, topFt } above sea level or null: cloud-field.js `slabColumnAt` with slabs, the lowest
  * slab with cover there; model-clouds.js `cloudColumnAt` with the old level sheets). The lowest cloud is taken, not the deepest, because precipitation falls
  * out of the lowest cloud's base, and a slab is one unbroken run of cloud, so a deep shower cloud is already one slab from its base to its top.
  * Under a block's base, with `rainToGround` (on by default), a faint rain curtain stands from the ground to the base, so it still reads as precipitation reaching
  * the surface (the radar does not say whether it does: virga is not told apart). With no model cloud over a return the block stands from the ground to
  * RADAR_DEFAULT_AGL_FT above it, as before, and has no curtain.
+ * Neighbouring cells of the same colour and cloud heights are then merged into one wider block (`mergeShafts`, Dad 8 Oct 2026: "the radar blocks are heavy on
+ * processing. can we simplify if need"), and only past `max` blocks are they thinned.
  * `groundFt` is the ground the view draws; `groundAt(x, y)` (feet above sea level) gives the real terrain under a cell when the view has it, else every cell
- * stands on `groundFt`. Returns [{ x, y, baseFt, topFt, colour: [r, g, b] 0-255, alpha (the radar's own opacity), modelTop: whether the model cloud gave the
- * heights, rain: null or { baseFt (the ground), topFt (the block's base) } }], at most MAX_SHAFTS.
+ * stands on `groundFt`. `colourTol` (0 to 255 a channel) lets nearly equal colours merge. Returns [{ x, y (the block's middle), wFt (east-west), dFt
+ * (north-south), cells, baseFt, topFt, colour: [r, g, b] 0-255, alpha (the radar's own opacity), modelTop: whether the model cloud gave the heights,
+ * rain: null or { baseFt (the ground), topFt (the block's base) } }], at most `max`.
  */
-export function shafts(cells, { column = /** @type {(u: number, v: number) => any} */ (() => null), groundFt = 0, groundAt = /** @type {(x: number, y: number) => number} */ (() => groundFt), max = MAX_SHAFTS, rainToGround = true } = {}) {
-  return thin(cells, max).map((c) => {
+export function shafts(cells, { column = /** @type {(u: number, v: number) => any} */ (() => null), groundFt = 0, groundAt = /** @type {(x: number, y: number) => number} */ (() => groundFt), max = MAX_SHAFTS, rainToGround = true, tolFt = SHAFT_MERGE_FT, colourTol = 0 } = {}) {
+  const each = cells.map((c) => {
     const cloud = column(c.u, c.v);
     const ground = groundAt(c.x, c.y);
     const colour = [c.r, c.g, c.b];
     if (!cloud || !isNumber(cloud.baseFt)) {
-      return { x: c.x, y: c.y, baseFt: ground, topFt: ground + RADAR_DEFAULT_AGL_FT, colour, alpha: c.a, modelTop: false, rain: null };
+      return { x: c.x, y: c.y, groundFt: ground, baseFt: ground, topFt: ground + RADAR_DEFAULT_AGL_FT, colour, alpha: c.a, modelTop: false, rain: null };
     }
     const base = Math.max(cloud.baseFt, ground);
     const top = Math.max(isNumber(cloud.topFt) ? cloud.topFt : base, base + SHAFT_MIN_FT);
     const rain = rainToGround && base > ground ? { baseFt: ground, topFt: base } : null;
-    return { x: c.x, y: c.y, baseFt: base, topFt: top, colour, alpha: c.a, modelTop: true, rain };
+    return { x: c.x, y: c.y, groundFt: ground, baseFt: base, topFt: top, colour, alpha: c.a, modelTop: true, rain };
+  });
+  return thin(mergeShafts(each, { cell: cellFt(), tolFt, colourTol }), max);
+}
+
+/**
+ * Neighbouring radar cells merged into rectangular blocks (Fable review, 8 Oct 2026). `list` is one item a cell, on a grid `cell` feet square: { x, y, baseFt, topFt,
+ * colour, alpha, modelTop, rain, groundFt? }. First each row (west to east) is cut into runs of side-by-side cells with the same colour (each channel within
+ * `colourTol`), both from the model cloud or both not, both with a rain curtain or both without, and every base within `tolFt` of the others (and every top likewise);
+ * then a run is joined to the run just north of it when they span the same columns and the joined cells still agree the same way. Each rectangle is one block: its
+ * middle, `wFt` and `dFt` (a lone cell: both `cell`), `cells` merged, the mean base and top, the first cell's colour, the strongest alpha, and a curtain from the lowest
+ * ground under it (so it reaches the ground everywhere) to the block's base. The order is north to south, west to east.
+ */
+export function mergeShafts(list, { cell = cellFt(), tolFt = SHAFT_MERGE_FT, colourTol = 0 } = {}) {
+  if (!list.length) return [];
+  const [x0, y0] = [list[0].x, list[0].y];
+  const rows = new Map(); // row index (north is lower) -> [{ col, s }]
+  for (const s of list) {
+    const row = Math.round((y0 - s.y) / cell);
+    const col = Math.round((s.x - x0) / cell);
+    if (!rows.has(row)) rows.set(row, []);
+    rows.get(row).push({ col, s });
+  }
+  const sameColour = (a, b) => a.every((c, k) => Math.abs(c - b[k]) <= colourTol);
+  // A group of cells being merged: its spread of bases and tops, and what every one of its cells must share.
+  const groupOf = (s) => ({ colour: s.colour, modelTop: s.modelTop, wet: Boolean(s.rain), lowBase: s.baseFt, highBase: s.baseFt, lowTop: s.topFt, highTop: s.topFt, items: [s] });
+  const agrees = (g, h) => sameColour(g.colour, h.colour) && g.modelTop === h.modelTop && g.wet === h.wet
+    && Math.max(g.highBase, h.highBase) - Math.min(g.lowBase, h.lowBase) <= tolFt && Math.max(g.highTop, h.highTop) - Math.min(g.lowTop, h.lowTop) <= tolFt;
+  const join = (g, h) => {
+    g.lowBase = Math.min(g.lowBase, h.lowBase);
+    g.highBase = Math.max(g.highBase, h.highBase);
+    g.lowTop = Math.min(g.lowTop, h.lowTop);
+    g.highTop = Math.max(g.highTop, h.highTop);
+    for (const s of h.items) g.items.push(s);
+  };
+  const rects = [];
+  let open = new Map(); // "first col,last col" -> the rectangle ending on the row above
+  let lastRow = null;
+  for (const row of [...rows.keys()].sort((a, b) => a - b)) {
+    const line = rows.get(row).sort((a, b) => a.col - b.col);
+    const runs = [];
+    for (const { col, s } of line) {
+      const run = runs.at(-1);
+      const g = groupOf(s);
+      if (run && col === run.c1 + 1 && agrees(run.g, g)) {
+        join(run.g, g);
+        run.c1 = col;
+      } else runs.push({ c0: col, c1: col, g });
+    }
+    const above = lastRow !== null && row === lastRow + 1 ? open : new Map();
+    const next = new Map();
+    for (const run of runs) {
+      const key = `${run.c0},${run.c1}`;
+      const rect = above.get(key);
+      if (rect && agrees(rect.g, run.g)) {
+        join(rect.g, run.g);
+        rect.r1 = row;
+        above.delete(key);
+        next.set(key, rect);
+      } else {
+        const fresh = { c0: run.c0, c1: run.c1, r0: row, r1: row, g: run.g };
+        rects.push(fresh);
+        next.set(key, fresh);
+      }
+    }
+    open = next;
+    lastRow = row;
+  }
+  return rects.map(({ c0, c1, r0, r1, g }) => {
+    const n = g.items.length;
+    const mean = (pick) => g.items.reduce((sum, s) => sum + pick(s), 0) / n;
+    const baseFt = mean((s) => s.baseFt);
+    const topFt = mean((s) => s.topFt);
+    const first = g.items[0];
+    const ground = Math.min(...g.items.map((s) => (s.rain ? s.rain.baseFt : isNumber(s.groundFt) ? s.groundFt : s.baseFt)));
+    return {
+      x: x0 + ((c0 + c1) / 2) * cell,
+      y: y0 - ((r0 + r1) / 2) * cell,
+      wFt: (c1 - c0 + 1) * cell,
+      dFt: (r1 - r0 + 1) * cell,
+      cells: n,
+      baseFt,
+      topFt,
+      colour: first.colour,
+      alpha: Math.max(...g.items.map((s) => s.alpha)),
+      modelTop: first.modelTop,
+      rain: g.wet ? { baseFt: ground, topFt: baseFt } : null,
+    };
   });
 }
 

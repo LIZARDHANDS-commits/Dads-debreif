@@ -14,7 +14,7 @@ It answers one kind of request:
 GET /traffic?lat=50.33&lon=-105.56&nm=100
 ```
 
-- `lat` is -90 to 90, `lon` is -180 to 180, `nm` is 5 to 150 (100 if left out). Anything else, and any other setting in the address, is refused with a plain error before anything is fetched.
+- `lat` is -90 to 90, `lon` is -180 to 180, `nm` is 5 to 250 (100 if left out). Anything else, and any other setting in the address, is refused with a plain error before anything is fetched.
 - It asks adsb.lol for the aircraft within that many nautical miles and sends back only what the map draws: id, callsign, registration, type, position, altitude, ground speed, track, squawk, seconds since seen, and a military flag.
 - It keeps each answer for 5 seconds, so any number of open screens cost adsb.lol at most one request per 5 seconds per place, per Cloudflare location (the memory it keeps is per running copy of the Worker; Cloudflare's shared cache only works on a custom domain or route, so it is used as a second layer when there is one). Many locations or many copies can each ask adsb.lol once.
 - It sends at most 1,000 aircraft (the nearest ones) and never more than 1 MB.

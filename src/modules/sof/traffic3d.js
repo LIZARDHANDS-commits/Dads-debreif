@@ -7,7 +7,9 @@
 //   its tag always on in the highlight colour and a drop line to the ground (Dad, 7 Oct: "a noticeable T6 for any aircraft with TEX2").
 // - Every other aircraft is a small stand-in (ui-kit three-aircraft.js `createStandInMesh`) in a muted colour; one with no track is a small
 //   dot, because a model pointing somewhere would say a heading nobody gave. A helicopter (traffic.js marks it, helicopters.js) is a small
-//   helicopter (helicopter3d.js: cabin, tail boom, rotor disc; Dad, 8 Oct 2026), and one with no track keeps its cabin and rotor but no tail. Military aircraft are amber with a ring, as in 2D. Their tags
+//   helicopter (helicopter3d.js: cabin, tail boom, rotor disc; Dad, 8 Oct 2026), and one with no track keeps its cabin and rotor but no tail. An airliner, a
+//   business jet, a light aircraft, a military transport or tanker and a fighter or jet trainer (aircraft-kind.js; Dad, 8 Oct 2026) each have their own
+//   simple shape (aircraft3d.js), any other the stand-in. Military aircraft are amber with a ring, as in 2D. Their tags
 //   show on hover or focus, or all the time when the layer's Labels choice is on.
 // - An aircraft that is not a T-6 inside a watched airspace area (airspace-log.js) gets an amber tag with ⚠ that stays on, whatever its kind (Dad, 7 Oct).
 //   Its words say so (⚠ and the area in its hover text), the colour is only the second cue.
@@ -26,10 +28,16 @@ import { h } from '../../ui-kit/dom.js';
 import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT } from '../../ui-kit/ct156-model.js';
 import { createStandInMesh, disposeAircraftMesh } from '../../ui-kit/three-aircraft.js';
 import { createHelicopterMesh } from './helicopter3d.js';
+import { createKindShapes, SHAPED_KINDS, SHAPE_UNITS } from './aircraft3d.js';
 import { glideXY, trailAlpha, TRAIL_WINDOW_S } from './traffic-motion.js';
+import { ICON_SCALE } from './scene3d-model.js';
 
-/** How long each kind is drawn on the screen, in CSS pixels, nose to tail. A T-6 is at least about 40 px (Dad, 7 Oct); a helicopter a little longer than a stand-in so its rotor reads (about 21 px across). Estimates, SOF-39. */
-export const SIZE_PX = Object.freeze({ t6: 44, other: 22, heli: 24, dot: 9 });
+/**
+ * How long each kind is drawn on the screen, in CSS pixels, nose to tail, at the medium icon size. A T-6 is at least about 40 px (Dad, 7 Oct); a helicopter a
+ * little longer than a stand-in so its rotor reads (about 21 px across); the big kinds a little bigger and the small ones a little smaller, so size says
+ * something too. The icon size setting scales them all (scene3d-model.js ICON_SCALE). Estimates, SOF-39.
+ */
+export const SIZE_PX = Object.freeze({ t6: 44, other: 22, heli: 24, dot: 9, airliner: 25, bizjet: 21, light: 19, 'mil-cargo': 27, 'mil-fast': 21 });
 /** The colours: the T-6's highlight (the 2D layer's own accent), muted for the rest, amber for military (the 2D layer's caution colour). */
 export const COLOURS = Object.freeze({ t6: '#8adfff', other: '#9fb0bd', mil: '#f5c542', outline: '#0b1620', drop: '#8adfff' });
 /** An aircraft on the ground, or at a pressure altitude under the ground below it, stands this far (scene feet) above the ground so it is seen. */
@@ -51,8 +59,17 @@ const trailRgb = (T, hex) => {
   return [c.r, c.g, c.b];
 };
 
-/** Which model an aircraft gets: a T-6 the CT-156; a helicopter the helicopter ('heli', or 'heli-still' with no tail when it has no track); any other with a track a stand-in, one without a dot. */
-export const kindFor = (item) => (item.isT6 ? 'ct156' : item.helicopter ? (item.trackDeg === null ? 'heli-still' : 'heli') : item.trackDeg === null ? 'dot' : 'standin');
+/**
+ * Which model an aircraft gets: a T-6 the CT-156; a helicopter the helicopter ('heli', or 'heli-still' with no tail when it has no track); one with no
+ * track a dot (a shape would show a heading nobody gave); an airliner, business jet, light aircraft, military transport or fighter its own shape (the
+ * kind's name); any other a stand-in.
+ */
+export const kindFor = (item) => {
+  if (item.isT6) return 'ct156';
+  if (item.helicopter) return item.trackDeg === null ? 'heli-still' : 'heli';
+  if (item.trackDeg === null) return 'dot';
+  return SHAPED_KINDS.includes(item.kind) ? item.kind : 'standin';
+};
 
 /**
  * `T` is three.js; `scene` takes the aircraft; `labels` is the element the tags' buttons go in; `onHover(hex | null)` and `onPick(hex)` hear the tags'
@@ -63,6 +80,7 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
   root.name = 'traffic';
   scene.add(root);
   const entries = new Map();
+  const shapes = createKindShapes(T); // each kind's geometry, made once and shared
   const dropGeometry = new T.BufferGeometry().setFromPoints([new T.Vector3(0, 0, 0), new T.Vector3(0, 0, 1)]);
   const dotGeometry = new T.SphereGeometry(0.5, 12, 8);
   const ringPoints = [];
@@ -122,6 +140,11 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
       model = createHelicopterMesh(T, { color: colour, outline: COLOURS.outline, tail: kind === 'heli' });
       mats = fadeList(model, { copy: false });
       px = SIZE_PX.heli;
+    } else if (SHAPED_KINDS.includes(kind)) {
+      model = shapes.mesh(kind, { color: colour, outline: COLOURS.outline });
+      mats = fadeList(model, { copy: false });
+      unit = SHAPE_UNITS;
+      px = SIZE_PX[kind];
     } else {
       model = new T.Mesh(dotGeometry, new T.MeshBasicMaterial({ color: colour }));
       mats = fadeList(model, { copy: false });
@@ -152,7 +175,7 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
       mats.push({ m: drop.material, opacity: 1, transparent: false, copied: false });
     }
     root.add(group);
-    const entry = { hex: item.hex, kind, group, model, ring, halo, drop, mats, unit, px, item, fade: 1, lifted: false, intruder: false, tagEl: null, screen: { x: 0, y: 0 }, trail: null };
+    const entry = { hex: item.hex, kind, group, model, ring, halo, drop, mats, unit, basePx: px, px: px * planeOf.iconScale, item, fade: 1, lifted: false, intruder: false, tagEl: null, screen: { x: 0, y: 0 }, trail: null };
     entry.tagEl = h('button', {
       type: 'button',
       class: `sof-3d-actag${item.isT6 ? ' is-t6' : ''}${item.mil ? ' is-mil' : ''}`,
@@ -173,6 +196,8 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
       disposeAircraftMesh(entry.model); // hands a CT-156 to its own counted disposer
     } else if (entry.kind === 'standin' || entry.kind === 'heli' || entry.kind === 'heli-still') {
       disposeAircraftMesh(entry.model);
+    } else if (SHAPED_KINDS.includes(entry.kind)) {
+      shapes.release(entry.model); // its materials; the kind's geometry is shared and freed with the view
     } else {
       entry.model.material.dispose();
     }
@@ -184,7 +209,7 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
   }
 
   const COLOUR_RGB = { t6: trailRgb(T, COLOURS.t6), mil: trailRgb(T, COLOURS.mil), other: trailRgb(T, COLOURS.other) };
-  const planeOf = { z: 0, scale: 1, groundFt: 0, trailsOn: true, terrain: null }; // what `set` last knew, for `glide`
+  const planeOf = { z: 0, scale: 1, groundFt: 0, trailsOn: true, terrain: null, iconScale: 1, ftPerPx: null }; // what `set` last knew, for `glide` and `fit`
   /** The ground under a point, feet above sea level: the real terrain when the view has it, else home's elevation. */
   const groundAt = (x, y) => (planeOf.terrain ? planeOf.terrain.heightFt(x, y) : planeOf.groundFt);
 
@@ -243,6 +268,11 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
     line.visible = true;
   }
 
+  function fitAll(ftPerPx) {
+    planeOf.ftPerPx = ftPerPx;
+    for (const e of entries.values()) e.group.scale.setScalar((e.px * ftPerPx) / e.unit);
+  }
+
   return {
     /**
      * Brings the drawing in line with the items (scene3d-model.js `sceneTraffic`'s aircraft): new ones are made, known ones moved, and gone ones
@@ -251,10 +281,18 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
      * to where it should be by now (see `glide`); `trailsOn` shows the trails (the items carry their positions). `terrain` is the view's { heightFt(x, y), known(x, y) } (terrain3d.js):
      * an aircraft stays at its reported height above sea level whatever the ground does; one on the ground, with no height, or reported under the terrain below it is drawn just
      * above the terrain there, and the last of those says "below terrain?" in its tag (the data is off; it has not crashed). Its drop line goes to the terrain.
+     * `display` is the Traffic display settings (scene3d-model.js `cleanTrafficDisplay`): the icon size scales every aircraft on the screen, the tag text
+     * size goes on the tags' box (`data-tag-size`, sof.css), and a T-6's tag is the larger one only while "T-6 tags larger and always on" is on. Changing
+     * them moves nothing and makes nothing again.
      */
-    set(items, { scale, groundFt, intruders = new Map(), nowMs = Date.now(), trailsOn = true, terrain = null }) {
+    set(items, { scale, groundFt, intruders = new Map(), nowMs = Date.now(), trailsOn = true, terrain = null, display = null }) {
       const planeZ = groundFt * scale;
-      Object.assign(planeOf, { z: planeZ, scale, groundFt, trailsOn, terrain });
+      const iconScale = ICON_SCALE[display?.iconSize] ?? 1;
+      const t6Big = display?.t6Tags !== false;
+      const tagSize = display?.tagSize ?? 'medium';
+      if (labels.dataset.tagSize !== tagSize) labels.dataset.tagSize = tagSize;
+      const rescale = iconScale !== planeOf.iconScale;
+      Object.assign(planeOf, { z: planeZ, scale, groundFt, trailsOn, terrain, iconScale }); // before any aircraft is made, so a new one has the size in force
       const seen = new Set();
       for (const item of items) {
         seen.add(item.hex);
@@ -284,6 +322,7 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
           entry.drop.scale.z = Math.max(1, z - ground * scale);
         }
         applyFade(entry, item.opacity);
+        entry.tagEl.classList.toggle('is-big', item.isT6 && t6Big);
         const area = intruders.get(item.hex);
         entry.intruder = area !== undefined;
         entry.tagEl.classList.toggle('is-intruder', entry.intruder);
@@ -291,7 +330,7 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
         const words = `${entry.intruder ? '⚠ ' : ''}${item.labelText}${below ? ` ${BELOW_TERRAIN_WORDS}` : ''}`;
         if (entry.tagEl.textContent !== words) entry.tagEl.textContent = words;
         const facts = below ? `Reported height is under the terrain below it, so it is drawn just above the ground: the height data is off, not the aircraft down. ` : '';
-        const heli = item.helicopter ? 'Helicopter. ' : '';
+        const heli = item.helicopter ? 'Helicopter. ' : item.kindWords && item.kind !== 'other' ? `${item.kindWords}. ` : ''; // its kind in words (aircraft-kind.js)
         const title = entry.intruder ? `${facts}${heli}Not a T-6, inside ${area}. Information only. Advisory area activity is not a SOF caution. Press to show this aircraft’s facts.` : `${facts}${heli}Show this aircraft’s facts`;
         if (entry.tagEl.title !== title) entry.tagEl.title = title;
       }
@@ -300,6 +339,8 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
         free(entry);
         entries.delete(hex);
       }
+      if (rescale) for (const e of entries.values()) e.px = e.basePx * iconScale;
+      if (planeOf.ftPerPx !== null) fitAll(planeOf.ftPerPx); // new aircraft (and all of them, for a new icon size) get their size now
     },
     /**
      * Moves each aircraft along its track to where it should be by `nowMs` (the items are the scene's latest, which may be newer than the ones `set` last
@@ -330,10 +371,8 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
       }
       return moved;
     },
-    /** The camera's scene feet per screen pixel: each aircraft is scaled to its size on the screen. */
-    fit(ftPerPx) {
-      for (const e of entries.values()) e.group.scale.setScalar((e.px * ftPerPx) / e.unit);
-    },
+    /** The camera's scene feet per screen pixel: each aircraft is scaled to its size on the screen (`px`, its kind's size times the icon size). */
+    fit: fitAll,
     /** Every aircraft drawn: { hex, item, group, kind, px, tagEl, screen } (`screen` is for the view to fill in, for tags and the hover). */
     entries: () => entries.values(),
     get: (hex) => entries.get(hex),
@@ -341,6 +380,7 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
       for (const entry of entries.values()) free(entry);
       entries.clear();
       root.removeFromParent();
+      shapes.dispose();
       dropGeometry.dispose();
       dotGeometry.dispose();
       ringGeometry.dispose();
