@@ -130,8 +130,7 @@ function score(m) {
   
   if (m.rideMinKias != null && m.rideMinKias < 205) fails.push(`ride KIAS dropped to ${m.rideMinKias.toFixed(0)}, outside 210 \xB15`);
   if (m.rideMaxKias != null && m.rideMaxKias > 215) fails.push(`ride KIAS peaked at ${m.rideMaxKias.toFixed(0)}, outside 210 \xB15`);
-  if (m.maxOnLine) fails.push('power MAX while established on the line (Patrick 8 Oct 20:16)');
-  if (m.maxNotHtrj) fails.push('power MAX at some point on a non-HTRJ start (Patrick 8 Oct 20:16)');
+  // MAX checks removed (Patrick 8 Oct 21:34: fine with a bit of max, get rid of that rule)
   if (m.windowClosureKt != null && m.windowClosureKt > 20) fails.push(`window entry closure ${m.windowClosureKt.toFixed(0)} kt, not <= 20 kt (TURNING_REJOIN.stableKt)`);
   
   if (m.target !== 'fw') {
