@@ -834,3 +834,25 @@
 [data-module='turn-sim'] .ts-float-height[hidden] {
   display: none;
 }
+
+[data-module='turn-sim'] .ts-cam-shortcuts {
+  margin: var(--space-2) 0 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  font-size: var(--text-xs, 11px);
+  color: var(--text-dim, rgba(255, 255, 255, 0.7));
+}
+
+[data-module='turn-sim'] .ts-kbd {
+  display: inline-block;
+  padding: 1px 4px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-text, #f0f0f5);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+}

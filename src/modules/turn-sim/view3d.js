@@ -35,19 +35,19 @@ const ALT_SCALE = 1;
  * close formation shows at its real size (about 8 px a foot, a 120 ft picture across a 1,000 px screen, as the 2D view's
  * closest), so an echelon's step down and its bearing line can be seen (SMM 12.4 Figs 12.3-12.4; spec section 10.2).
  */
-export const CAMERA_LIMITS = Object.freeze({ pitch: [5, 80], zoom: [0.5, 8000] });
+export const CAMERA_LIMITS = Object.freeze({ pitch: [0, 85], zoom: [0.5, 8000] });
 export const CAMERA_START_PITCH_DEG = 5; // top down at the start (Patrick, 5 Oct; was 35°); 5° is the closest to straight down the camera allows
 /**
  * The perspective views (Patrick, 6 Oct): Chase, Cockpit and Padlock on an aircraft, as Traffic's (TR-90, TR-92). 60° across,
- * nothing nearer than 2 ft (estimates). The pilot's eye sits 4 ft ahead of and 3 ft above the aircraft's centre; Chase
+ * nothing nearer than 1 ft (exterior) or 0.5 ft (cockpit interior). The pilot's eye sits 4 ft ahead of and 3 ft above the aircraft's centre; Chase
  * starts 300 ft behind and 12° above; a drag turns the head (Cockpit, Padlock) or swings round the aircraft (Chase).
  * With the Cockpit interior tick (TS-154) the eye is the chosen CT-156 seat's (ui-kit ct156-cockpit.js EYES_FT, estimates;
  * TS-155), moved by that seat's eye offsets from the Camera menu, and nothing nearer than 0.5 ft is cut off, so the
  * canopy bows and the panel round the eye are drawn.
  */
-const POV = Object.freeze({ fovAcrossDeg: 60, nearFt: 2, nearInsideFt: 0.5, farFt: 400_000, eyeFwdFt: 4, eyeUpFt: 3, chaseFt: 300, chaseFtRange: [60, 5000], chaseUpDeg: 12, degPerPx: 0.3 });
+export const POV = Object.freeze({ fovAcrossDeg: 60, nearFt: 1, nearInsideFt: 0.5, farFt: 400_000, eyeFwdFt: 4, eyeUpFt: 3, chaseFt: 300, chaseFtRange: [60, 5000], chaseUpDeg: 12, degPerPx: 0.3 });
 // Head down to 85° (TS-155) so the stick, consoles and seat handle show from the seat; camera only.
-const HEAD = Object.freeze({ yawDeg: [-160, 160], pitchDeg: [-85, 80], chaseUpDeg: [-10, 80] });
+export const HEAD = Object.freeze({ yawDeg: [-160, 160], pitchDeg: [-85, 80], chaseUpDeg: [-10, 80] });
 
 const ORBIT_DEG_PER_PX = Object.freeze({ yaw: 0.4, pitch: 0.25 });
 const WHEEL_ZOOM = Object.freeze({ in: 1.12, out: 0.89 });
@@ -168,7 +168,7 @@ export function fitCamera(bounds, size, leadHeadingRad) {
  * onUserMove(kind): the person orbited ('orbit') or zoomed ('zoom'). win: for tests.
  * Returns { show, hide, requestDraw, fit, dispose, stats }.
  */
-export function createView3d(canvas, { timers, source, overlay = null, onUserMove = (_kind) => {}, win = globalThis }) {
+export function createView3d(canvas, { timers, source, overlay = null, onUserMove = (_kind) => {}, onTogglePadlock = () => {}, win = globalThis }) {
   let THREE = null;
   let gl = null; // { renderer, scene, camera, sky, grid, planes: Map, trails: Map }
   let visible = false;
@@ -833,6 +833,32 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     onUserMove('zoom');
     requestDraw();
   };
+
+  function handleCenterKey() {
+    head = { yawDeg: 0, pitchDeg: 0 };
+    requestDraw();
+  }
+
+  function handlePadlockToggle() {
+    onTogglePadlock?.();
+    requestDraw();
+  }
+
+  function onWindowKeydown(e) {
+    if (!gl || disposed || !visible) return;
+    if (e.altKey || e.ctrlKey || e.metaKey || e.defaultPrevented) return;
+    const tag = e.target?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    const key = e.key?.toLowerCase();
+    if (key === 'c') {
+      e.preventDefault();
+      handleCenterKey();
+    } else if (key === 'p') {
+      e.preventDefault();
+      handlePadlockToggle();
+    }
+  }
+
   const hands = [
     ['contextmenu', (e) => e.preventDefault()], // right-drag pans
     ['pointerdown', (e) => {
@@ -881,6 +907,16 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     }],
     ['keydown', (e) => {
       if (e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.key === 'c' || e.key === 'C') {
+        e.preventDefault();
+        handleCenterKey();
+        return;
+      }
+      if (e.key === 'p' || e.key === 'P') {
+        e.preventDefault();
+        handlePadlockToggle();
+        return;
+      }
       const deltaY = e.key === '+' || e.key === '=' ? -1 : e.key === '-' || e.key === '_' ? 1 : 0;
       if (!deltaY) return;
       e.preventDefault();
@@ -925,6 +961,10 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       }
       if (disposed) return { ok: false, reason: 'closed' };
       visible = true;
+      if (win.addEventListener) {
+        win.removeEventListener('keydown', onWindowKeydown);
+        win.addEventListener('keydown', onWindowKeydown);
+      }
       if (win.ResizeObserver && !resizer) {
         resizer = new win.ResizeObserver(() => requestDraw());
         resizer.observe(canvas);
@@ -936,6 +976,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     hide() {
       visible = false;
       stopFrame();
+      win.removeEventListener?.('keydown', onWindowKeydown);
       resizer?.disconnect();
       resizer = null;
     },
@@ -953,6 +994,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       disposed = true;
       visible = false;
       stopFrame();
+      win.removeEventListener?.('keydown', onWindowKeydown);
       resizer?.disconnect();
       resizer = null;
       for (const [type, fn] of hands) canvas.removeEventListener(type, fn);

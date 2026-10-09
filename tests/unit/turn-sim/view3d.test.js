@@ -16,6 +16,7 @@ import assert from 'node:assert/strict';
 import { loadThree, matchProjection, worldToScreen } from '../../../src/ui-kit/three-aircraft.js';
 import {
   yawBehind, orbit, zoomBy, turnSign, aircraftPose, planeLengthFt, fitCamera, CAMERA_LIMITS, T6_LENGTH_FT, MIN_PLANE_PX, FLIGHT_ALT_FT,
+  POV, HEAD,
 } from '../../../src/modules/turn-sim/view3d.js';
 
 const THREE = await loadThree();
@@ -126,4 +127,12 @@ test('fitCamera shows the whole box, behind Lead, whichever way Lead flies', () 
       }
     }
   }
+});
+
+test('standardized camera limits, frustum clip, and head look match platform baseline', () => {
+  assert.deepEqual(CAMERA_LIMITS.pitch, [0, 85]);
+  assert.equal(POV.nearFt, 1);
+  assert.equal(POV.nearInsideFt, 0.5);
+  assert.deepEqual(HEAD.yawDeg, [-160, 160]);
+  assert.deepEqual(HEAD.pitchDeg, [-85, 80]);
 });

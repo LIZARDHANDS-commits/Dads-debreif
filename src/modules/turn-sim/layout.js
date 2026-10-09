@@ -341,6 +341,10 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     eyeRear,
     resetEyeButton,
     lc.checkbox('autoFit', { label: 'Auto zoom' }),
+    h('p', { class: 'ts-hint ts-cam-shortcuts' },
+      h('kbd', { class: 'ts-kbd' }, 'C'), ' Center look \u00a0 ',
+      h('kbd', { class: 'ts-kbd' }, 'P'), ' Toggle padlock',
+    ),
   ]);
 
   // Fit: back to the camera that keeps every aircraft in the picture, after a pan or zoom paused it (or once, when it is off).

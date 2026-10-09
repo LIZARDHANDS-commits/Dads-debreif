@@ -214,6 +214,16 @@ function mount(root, app) {
     if (mode === 'padlock') return { pov: 'padlock', id: on.id, otherId: padlockOf(on.id) };
     return { pov: mode === 'cockpit' ? 'cockpit' : 'chase', id: on.id };
   }
+  let lastNonPadlockLook = 'chase';
+  const onTogglePadlock = () => {
+    const cur = layout.get().camLook;
+    if (cur === 'padlock') {
+      layout.update({ camLook: lastNonPadlockLook || 'chase' });
+    } else {
+      lastNonPadlockLook = cur;
+      layout.update({ camLook: 'padlock' });
+    }
+  };
   const fitBounds = () => {
     const b = fitBox();
     // The height spread too (Patrick, 5 Oct: a loop took the formation off the top of the 3D picture); 2D ignores it.
@@ -376,6 +386,7 @@ function mount(root, app) {
   const view3d = createView3d(ui.canvas3d, {
     timers: app.scheduler,
     overlay: ui.tags3d,
+    onTogglePadlock,
     onUserMove: (kind) => {
       // turning the 3D view round keeps the fit; a wheel zoom while it follows sets how close it sits (view3d.js); with
       // the fit off, it takes the camera over as before
