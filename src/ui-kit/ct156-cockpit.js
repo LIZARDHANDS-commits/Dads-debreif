@@ -1,11 +1,15 @@
 // The CT-156 Harvard II's two cockpits as the student and the instructor see them (Dad's asks, 9 Oct 2026; Patrick
-// approved; TS-154, TS-155, TS-156): in each, the tombstone instrument panel with its grab rail under the glareshield, the lower
-// panel and knee wells, the side consoles (power lever, flap lever, canopy handle), the stick, the rudder pedals, the
-// ejection seat with its handle, and round the canopy the framed bows with their mirrors and the sills. The rear
-// cockpit's panel stands behind the front seat, under the inter-cockpit arch. The canopy glass, the round bow tubes,
-// the sill rails, the seat backs, the tub (floor and walls), the wings and the tail are the ship's own (ct156-model.js
-// setCockpitView). A picture only: no flight numbers, no flight formulas. Like ct156-model.js it imports nothing from
-// the app, and three.js is passed in.
+// approved; TS-154, TS-155, TS-156, TS-157). In each: the grey tombstone instrument panel under a moulded near-black
+// coaming with its grab rail, the three lamps under the rail, the AOA indexer and the standby compass on top and an air
+// vent at each upper corner; the lower panel with its centre pedestal, knee wells and landing gear handle; the side
+// consoles (power lever, flap lever, striped handles, knobs); the stick in its boot; the rudder pedals; the ejection
+// seat with its cushions, harness, headbox, canopy breakers, yellow and black seat handle and green oxygen hose. Round
+// the canopy: the forward bow band with its ring of holes, the canopy's side frames with their rows of fasteners, a
+// mirror on each side frame by the bow, and the inter-cockpit arch with its fasteners, mirrors and the clear
+// inter-cockpit shield. The rear cockpit's panel sits under a big moulded hump over the front seat's back, with its own
+// grab rails, AOA indexer and compass. The canopy glass, the round bow tubes, the sill rails, the seat backs' frames,
+// the tub (floor and walls), the wings and the tail are the ship's own (ct156-model.js setCockpitView). A picture only:
+// no flight numbers, no flight formulas. Like ct156-model.js it imports nothing from the app, and three.js is passed in.
 //
 //   const pit = createCt156Cockpit(THREE, { doc: document });
 //   shipRoot.add(pit.group);   // a child of a createCt156Model root, so it moves, banks and pitches with the airframe
@@ -16,16 +20,16 @@
 // group itself is scaled to the model's units, so it lands on the model's canopy and seats at any ship size.
 //
 // Every size here is an ESTIMATE until Patrick rules: taken off the model's own tables (ct156-model.js, measured off
-// Patrick's side-on photo of CT-156 156101) or off Dad's reference pictures of the T-6A cockpit (9 Oct 2026: two
-// photos, a poster and two commercial-sim shots; nothing copied from them), as each line says. From V2.208 (TS-156)
-// the front eye, the forward bow and the glareshield's rim are placed to AETCMAN 11-248 (13 Aug 2025, the USAF T-6
-// primary flying manual): in level flight at 200 KIAS the horizon splits the windscreen half and half (Fig 2.7, p.42),
-// and the bow is the wide light band with its ring of round holes (Fig 2.7, Fig 5.3). Page cites only: nothing from
-// the manual is copied here (docs/references/aetcman11-248-cockpit.md). The pictures are the T-6A's; the CT-156's own
-// panel may differ.
+// Patrick's side-on photo of CT-156 156101) or off Dad's reference pictures of the T-6A cockpit (9 Oct 2026: photos, a
+// panel poster, commercial-sim shots and renders of a commercial T-6A model; nothing copied from them, every shape and
+// gauge drawn here), as each line says. From V2.208 (TS-156) the front eye, the forward bow and the glareshield's rim
+// are placed to AETCMAN 11-248 (13 Aug 2025, the USAF T-6 primary flying manual): in level flight at 200 KIAS the
+// horizon splits the windscreen half and half (Fig 2.7, p.42), and the bow is the wide light band with its ring of
+// round holes (Fig 2.7, Fig 5.3). Page cites only: nothing from the manual is copied here
+// (docs/references/aetcman11-248-cockpit.md). The pictures are the T-6A's; the CT-156's own panel may differ.
 import {
   CT156_UNIT_LENGTH, CT156_LENGTH_FT, CT156_FRAME_X, CT156_SEAT_X, CT156_HELMET_Z, CT156_REFERENCE_POINTS,
-  ct156CanopySection, ct156CanopyHalfWidth, ct156HoopPoints, ct156JoinGeometries,
+  CT156_TUB_FLOOR_FT, ct156CanopySection, ct156CanopyHalfWidth, ct156HoopPoints, ct156JoinGeometries,
 } from './ct156-model.js';
 import { drawAttitude } from './hud.js';
 
@@ -50,7 +54,7 @@ export const EYE_FT = Object.freeze({ x: CT156_SEAT_X[0] * F, y: 0, z: CT156_HEL
 /**
  * Both eyes, feet (TS-155, TS-156). Front: EYE_FT. Rear: over the rear seat (CT156_SEAT_X[1], about 3.0 ft aft of the
  * origin) and 0.15 ft higher than the front eye, for the rear seat's step up (kept from TS-155, so it moved down with
- * the front eye to about 2.28 ft, where the front eye used to be); more puts the instructor's helmet into the glass.
+ * the front eye to about 2.29 ft, where the front eye used to be); more puts the instructor's helmet into the glass.
  * Estimate (judged off Dad's reference pictures and the model's canopy).
  */
 export const EYES_FT = Object.freeze({
@@ -66,7 +70,8 @@ const REAR_DX = (CT156_SEAT_X[1] - CT156_SEAT_X[0]) * F;
  * band lining the glass, with a ring of round dark holes and a dark tube along its inner edge (AETCMAN 11-248 Fig 2.7,
  * p.42, and Fig 5.3, para 5.13; TS-156): its aft face 0.05 ft behind the hoop station, 0.15 ft deep from the glass
  * inward, the tube 0.025 ft in radius, so it looks about 4.3° wide at the crest from the front eye (the figures look
- * about 4-5°); 22 holes from sill to sill, each 0.07 ft across. Sizes estimates judged off the figures.
+ * about 4-5°); 22 holes from sill to sill, each 0.07 ft across. Sizes estimates judged off the figures. The manual's
+ * figure wins over the commercial renders here (TS-157), which draw this bow with rows of fasteners.
  */
 export const FORWARD_BOW_FT = Object.freeze({
   x: CT156_FRAME_X[0] * F,
@@ -75,49 +80,83 @@ export const FORWARD_BOW_FT = Object.freeze({
   glassInset: 0.01,
   bandDepth: 0.15,
   tubeR: 0.025,
-  holes: 22,
-  holeDia: 0.07,
+  dots: Object.freeze([Object.freeze({ at: 0.5, n: 22, dia: 0.07 })]),
 });
 
 /**
- * The front instrument panel's main face, feet: 3.45 ft ahead of the origin, from 0.65 ft up to the glareshield at
- * 1.85 ft, 2.4 ft across at most and kept 0.06 ft inside the canopy (estimates off Dad's reference pictures). Its
- * outline is a tombstone: straight sides, 45° shoulders over the top 22 %.
+ * The inter-cockpit arch over the rear seat's panel, feet (TS-157): the model's centre frame hoop (CT156_FRAME_X[1],
+ * about 0.5 ft aft of the origin), seen from the rear seat as a light band like the forward bow, 0.2 ft deep, with a
+ * row of small fasteners along each edge and a dark tube along its inner edge, as the commercial T-6A shots from the
+ * rear seat show (Dad's pictures 21 and 27). Sizes estimates.
  */
-export const PANEL_FT = Object.freeze({ x: 3.45, top: 1.85, bottom: 0.65, width: 2.4, insetFromGlass: 0.06 });
-
-/** The glareshield over the front panel, feet: from 0.1 ft behind the panel face to 4.9 ft forward; its lip 0.09 ft deep (estimates). */
-export const GLARESHIELD_FT = Object.freeze({ aftX: PANEL_FT.x - 0.1, foreX: 4.9, top: PANEL_FT.top, edgeTop: PANEL_FT.top - 0.05, lip: PANEL_FT.top - 0.09 });
-/**
- * The glareshield's rim, the thick dark tube (grab rail) round its aft edge along the panel's tombstone outline: its
- * top run along the glareshield's aft edge, 0.03 ft behind it at the glareshield's own height, 0.045 ft in radius
- * (AETCMAN 11-248 Fig 2.7, p.42; TS-156). Its top is the windscreen's bottom edge straight ahead. Sizes estimates.
- */
-export const RIM_FT = Object.freeze({ aftOfGlareshield: 0.03, r: 0.045, sideOut: 0.05 });
-
-/** The rear cockpit's panel and glareshield, feet: face 0.7 ft aft of the origin, 0.9 to 1.9 ft up, 2.2 ft across (estimates). */
-export const REAR_PANEL_FT = Object.freeze({ x: -0.7, top: 1.9, bottom: 0.9, width: 2.2, insetFromGlass: 0.06 });
-const REAR_GLARESHIELD_FT = Object.freeze({ aftX: -0.8, foreX: -0.3, top: 1.9, edgeTop: 1.85, lip: 1.81 });
+export const ARCH_FT = Object.freeze({
+  x: CT156_FRAME_X[1] * F,
+  bandX: CT156_FRAME_X[1] * F - 0.05,
+  glassInset: 0.01,
+  bandDepth: 0.2,
+  tubeR: 0.025,
+  dots: Object.freeze([Object.freeze({ at: 0.18, n: 34, dia: 0.032 }), Object.freeze({ at: 0.82, n: 30, dia: 0.032 })]),
+});
 
 /**
- * The front seat and its cockpit, feet (estimates off Dad's reference pictures; the seat back is the model's). The rear
- * seat's are the same moved aft by REAR_DX.
+ * The front instrument panel's main face, feet: 3.45 ft ahead of the origin, from 0.5 ft up to 1.7 ft (just under the
+ * coaming's lip), 2.3 ft across at most and kept 0.06 ft inside the canopy. Its outline is a tombstone: straight sides up
+ * to 60 % of its height, then shoulders in to a flat top 55 % as wide (TS-157, between the T-6A panel poster's and the
+ * commercial render's, Dad's pictures 17 and 26). Estimates.
+ */
+export const PANEL_FT = Object.freeze({ x: 3.45, top: 1.7, bottom: 0.5, width: 2.3, insetFromGlass: 0.06, shoulderV: 0.6, topFrac: 0.55 });
+
+/**
+ * The front coaming (glareshield), feet (TS-157): a moulded near-black hood over the panel, its aft edge following the
+ * panel's tombstone outline with the grab rail along it, its crown 1.85 ft up at the aft edge (TS-156's height for the
+ * rim, unchanged) and falling forward faster than the eye's sight line over the rail, to about 0.95 ft at the
+ * windscreen's foot (5.3 ft), so from the seat the rail stays the windscreen's bottom edge; a lip 0.15 ft deep hangs
+ * at its aft edge with the three lamps on it. Shape judged off Dad's pictures 17, 18, 20 and 26; sizes estimates.
+ */
+export const GLARESHIELD_FT = Object.freeze({ aftX: PANEL_FT.x - 0.1, foreX: 5.3, top: 1.85, foreTop: 0.95, lipDrop: 0.15, skirt: 0.12, topGrow: -0.1, sideGrow: 0, dropGrow: -0.1 });
+/**
+ * The glareshield's rim, the thick dark grab rail along the coaming's aft edge and down the panel's sides to brackets
+ * at 18 % of its height: its top run 0.03 ft behind the coaming at the coaming's own height, 0.045 ft in radius
+ * (AETCMAN 11-248 Fig 2.7, p.42; TS-156), 0.05 ft out from the panel's edge. Its top is the windscreen's bottom edge
+ * straight ahead. Sizes estimates.
+ */
+export const RIM_FT = Object.freeze({ aftOfGlareshield: 0.03, r: 0.045, sideOut: 0.05, lowV: 0.18 });
+
+/** The rear cockpit's panel, feet: face 0.7 ft aft of the origin, 0.7 to 1.75 ft up, 2.2 ft across (estimates). */
+export const REAR_PANEL_FT = Object.freeze({ x: -0.7, top: 1.75, bottom: 0.7, width: 2.2, insetFromGlass: 0.06, shoulderV: 0.6, topFrac: 0.55 });
+/**
+ * The rear coaming, feet (TS-157): the big moulded hump over the front seat's back that the rear panel sits under
+ * (Dad's pictures 27 and 29), its aft edge along the rear panel's outline at 1.9 ft with the grab rail on it, rising
+ * 0.16 ft over the first 38 % of its length and widening to the canopy, then falling 0.41 ft onto the front seat's back
+ * (0.36 ft ahead of the origin). Estimates.
+ */
+export const REAR_HUMP_FT = Object.freeze({ aftX: REAR_PANEL_FT.x - 0.1, foreX: 0.36, top: 1.9, rise: 0.16, peakT: 0.38, foreDrop: 0.25, lipDrop: 0.15, skirt: 0.12, topGrow: 0.35, sideGrow: 0.2, dropGrow: 0.35 });
+
+/**
+ * The seats and their cockpits, feet (estimates off Dad's reference pictures; the seat back's frame is the model's).
+ * The rear seat's are the same moved aft by REAR_DX.
  */
 const SEAT_BACK_X = [(CT156_SEAT_X[0] - 0.042) * F, (CT156_SEAT_X[0] - 0.028) * F]; // the model's seat back, aft and front faces
 export const SEAT_FT = Object.freeze({
-  pan: { aft: SEAT_BACK_X[1], fore: SEAT_BACK_X[1] + 1.2, z0: -0.48, z1: -0.33, halfWidth: 0.55 }, // the eye 2.6 ft above it
-  lowerBack: { aft: SEAT_BACK_X[0], fore: SEAT_BACK_X[1], z0: -0.48, z1: 1.04, halfWidth: 0.5 }, // up to the model's back
-  headbox: { aft: SEAT_BACK_X[0], fore: SEAT_BACK_X[1], z0: 2.2, z1: 2.7, halfWidth: 0.4 }, // Martin-Baker headbox
-  console: { aft: 0.6, inner: 0.95, outer: 1.3, top: 0.35 },
-  floorZ: -0.8, // the tub's floor (ct156-model.js tubGeometry)
-  stick: { x: 2.2, tiltDeg: 8, height: 1.35 },
+  pan: { aft: SEAT_BACK_X[1], fore: SEAT_BACK_X[1] + 1.2, z0: -0.48, z1: -0.33, halfWidth: 0.5 }, // the eye 2.5 ft above its top
+  backCushion: { depth: 0.1, z1: 2.1, halfWidth: 0.42 },
+  headbox: { aft: SEAT_BACK_X[0], fore: SEAT_BACK_X[1] + 0.04, z0: 2.1, z1: 2.7, halfWidth: 0.4 }, // Martin-Baker headbox
+  breakers: { y: 0.24, top: 2.95 }, // the canopy breakers on the headbox (Dad's picture 27)
+  console: { aft: 0.6, inner: 0.95, outer: 1.3, top: 0.2 }, // TS-157: tops lowered from 0.35 ft with the deeper floor
+  floorZ: CT156_TUB_FLOOR_FT, // the tub's floor (ct156-model.js)
+  stick: { x: 2.2, tiltDeg: 8, height: 1.65 },
+  knee: { inner: 0.24, outer: 0.8, belowPanel: 0.15, r: 0.17, depth: 0.5 }, // the knee wells under the panel
 });
+/** The canopy's side frames inside the glass, feet: 0.3 ft up from the sill, a fastener every 0.3 ft (estimates). */
+const SIDE_FRAME_FT = Object.freeze({ height: 0.3, thick: 0.06, pitch: 0.3 });
 
 /** The live instruments redraw at most this often, and only when what they show has changed (a picture; 5 a second is plenty). */
 export const PANEL_REDRAW_MS = 200;
 
 const deg = (r) => (r * 180) / Math.PI;
 const rad = (d) => (d * Math.PI) / 180;
+const clamp01 = (t) => Math.max(0, Math.min(1, t));
+const lerp = (a, b, t) => a + (b - a) * t;
 
 /** The angle above (+) or below (-) the eye's level line of a round tube's edge (feet; side +1 its top, -1 its bottom). */
 function tubeEdgeDeg(eye, x, z, r, side) {
@@ -126,28 +165,36 @@ function tubeEdgeDeg(eye, x, z, r, side) {
 }
 
 /**
- * The windscreen as the pilot sees it straight ahead, head level (TS-156): from the top of the glareshield's rim up to
- * the bottom of the bow over him, in degrees above (+) or below (-) the eye's level line along the nose (the model's
- * x axis, so the horizon sits at minus the pitch attitude). Front seat: the forward bow band's inner tube; rear seat:
- * the inter-cockpit arch's lower edge, and headboxDeg, the top of the front seat's headbox, which stands in the middle
- * of the rear seat's view. eyeFt in feet, the model's frame (EYES_FT plus any eye offsets).
+ * A coaming's crown (its middle's height) at station x, feet: the front one falls forward to the windscreen's foot;
+ * the rear hump rises a little, then falls onto the front seat's back (TS-157).
+ */
+function crownZ(h, x) {
+  const t = clamp01((x - h.aftX) / (h.foreX - h.aftX));
+  if (h.rise === undefined) return h.top - (h.top - h.foreTop) * t ** 1.4;
+  if (t < h.peakT) return h.top + h.rise * Math.sin(((t / h.peakT) * Math.PI) / 2);
+  return h.top + h.rise - (h.rise + h.foreDrop) * ((t - h.peakT) / (1 - h.peakT)) ** 1.6;
+}
+
+/**
+ * The windscreen as the pilot sees it straight ahead, head level (TS-156, TS-157): from the top of the glareshield (its
+ * rim, or the coaming's crown if that shows higher) up to the bottom of the bow over him, in degrees above (+) or below
+ * (-) the eye's level line along the nose (the model's x axis, so the horizon sits at minus the pitch attitude). Front
+ * seat: the forward bow band's inner tube; rear seat: the inter-cockpit arch's, and headboxDeg, the top of the front
+ * seat's headbox, which stands in the middle of the rear seat's view. eyeFt in feet, the model's frame (EYES_FT plus any
+ * eye offsets).
  * @returns {{ topDeg: number, bottomDeg: number, heightDeg: number, headboxDeg?: number }}
  */
 export function windscreenFrom(eyeFt = EYE_FT, seat = 'front') {
   const rear = seat === 'rear';
-  const p = rear ? REAR_PANEL_FT : PANEL_FT;
-  const gs = rear ? REAR_GLARESHIELD_FT : GLARESHIELD_FT;
-  const bottomDeg = tubeEdgeDeg(eyeFt, gs.aftX - RIM_FT.aftOfGlareshield, p.top, RIM_FT.r, +1);
-  let topDeg;
-  if (!rear) {
-    const b = FORWARD_BOW_FT;
-    const crest = ct156CanopySection(b.bandX / F).top * F;
-    topDeg = tubeEdgeDeg(eyeFt, b.bandX, crest - b.glassInset - b.bandDepth, b.tubeR, -1);
-  } else {
-    // The arch's framed bow (bowGeometry): its lower face, the nearer of its two lower corners from the eye.
-    const x = CT156_FRAME_X[1] * F;
-    topDeg = Math.min(...[x - BOW.half, x + BOW.half].map((cx) => deg(Math.atan2(ct156CanopySection(cx / F).top * F - BOW.depth - eyeFt.z, cx - eyeFt.x))));
+  const h = rear ? REAR_HUMP_FT : GLARESHIELD_FT;
+  let bottomDeg = tubeEdgeDeg(eyeFt, h.aftX - RIM_FT.aftOfGlareshield, h.top, RIM_FT.r, +1);
+  for (let i = 0; i <= 48; i++) {
+    const x = lerp(h.aftX, h.foreX, i / 48);
+    bottomDeg = Math.max(bottomDeg, deg(Math.atan2(crownZ(h, x) - eyeFt.z, x - eyeFt.x)));
   }
+  const b = rear ? ARCH_FT : FORWARD_BOW_FT;
+  const crest = ct156CanopySection(b.bandX / F).top * F;
+  const topDeg = tubeEdgeDeg(eyeFt, b.bandX, crest - b.glassInset - b.bandDepth, b.tubeR, -1);
   const out = { topDeg, bottomDeg, heightDeg: topDeg - bottomDeg };
   if (rear) out.headboxDeg = deg(Math.atan2(SEAT_FT.headbox.z1 - eyeFt.z, SEAT_FT.headbox.fore - eyeFt.x));
   return out;
@@ -205,61 +252,49 @@ function panelHalfWidthFt(z, p = PANEL_FT, x = p.x) {
 /** A panel's tombstone outline (feet): its straight sides' half-width, its top's, and the shoulders' height. */
 function tombstone(p) {
   const h = p.top - p.bottom;
-  const shoulderZ = p.bottom + 0.78 * h;
+  const shoulderZ = p.bottom + p.shoulderV * h;
   let side = p.width / 2;
   for (let i = 0; i <= 8; i++) side = Math.min(side, panelHalfWidthFt(p.bottom + ((shoulderZ - p.bottom) * i) / 8, p));
-  const top = Math.min(0.8 * side, panelHalfWidthFt(p.top, p));
+  const top = Math.min(p.topFrac * side, panelHalfWidthFt(p.top, p));
   return { side, top, shoulderZ, height: h };
 }
 
 // ---------- the panel pictures ----------
-// Layouts (estimates off Dad's reference pictures of the T-6A front panel, 9 Oct 2026, placed by eye; none copied):
-// u 0 is the pilot's left edge of the main face and 1 its right; v 0 its bottom and 1 its top. Round dials give d (a
-// fraction of the face's width); rectangles give w (of its width) and h (of its height); squares give s (of its width).
-// Live ones read the HUD's numbers for the aircraft the camera sits in; the rest are drawn once (the sim has no
-// numbers for them). Screens that would show radio or navigation data show the tool's own placeholder dashes.
+// Layouts (estimates off Dad's reference pictures of the T-6A panel, the poster flat-on (17) and the renders from behind
+// the seats (26, 27), placed by eye; none copied): u 0 is the pilot's left edge of the main face and 1 its right; v 0
+// its bottom and 1 its top. Round dials give d (a fraction of the face's width); rectangles give w (of its width) and
+// h (of its height); square bezels give s (of its width), with the round dial d inside. Live ones read the HUD's
+// numbers for the aircraft the camera sits in (the standby airspeed and altimeter in the bottom row read the same
+// numbers as the main ones); the rest are drawn once (the sim has no numbers for them). Screens that would show radio
+// or navigation data show the tool's own placeholder dashes. Both panels use this layout (picture 27 shows the rear
+// panel laid out as the front's).
 
-const FRONT_INSTRUMENTS = [
-  { kind: 'fire', u: 0.11, v: 0.9, s: 0.05 },
-  { kind: 'aoa', u: 0.2, v: 0.84, d: 0.08 },
-  { kind: 'asi', u: 0.33, v: 0.83, d: 0.13, live: 'asi' },
-  { kind: 'eadi', u: 0.5, v: 0.8, w: 0.2, h: 0.22, live: 'eadi' },
-  { kind: 'alt', u: 0.67, v: 0.83, d: 0.13, live: 'alt' },
-  { kind: 'vsi', u: 0.8, v: 0.86, d: 0.09 },
-  { kind: 'clock', u: 0.17, v: 0.6, d: 0.08 },
-  { kind: 'rmu', u: 0.31, v: 0.58, w: 0.11, h: 0.22 },
-  { kind: 'ehsi', u: 0.5, v: 0.52, w: 0.2, h: 0.22, live: 'ehsi' },
-  { kind: 'engine', u: 0.87, v: 0.62, w: 0.16, h: 0.24 },
-  { kind: 'engData', u: 0.7, v: 0.56, w: 0.14, h: 0.14 },
-  { kind: 'engSys', u: 0.86, v: 0.38, w: 0.16, h: 0.16 },
-  { kind: 'gps', u: 0.16, v: 0.36, w: 0.18, h: 0.12 },
-  { kind: 'ehsiCtl', u: 0.33, v: 0.33, w: 0.14, h: 0.1 },
-  { kind: 'annun', u: 0.5, v: 0.3, w: 0.2, h: 0.12 },
-  { kind: 'g', u: 0.42, v: 0.13, d: 0.07, live: 'g' },
-  { kind: 'stby', u: 0.5, v: 0.13, d: 0.08, live: 'stby' },
-  { kind: 'small', u: 0.58, v: 0.13, d: 0.07 },
-  { kind: 'flap', u: 0.21, v: 0.17, s: 0.07 },
-  { kind: 'gearHandle', u: 0.09, v: 0.26, w: 0.05, h: 0.18 },
-  { kind: 'gearLights', u: 0.09, v: 0.4, w: 0.06, h: 0.08 },
-  { kind: 'emerGear', u: 0.04, v: 0.12, s: 0.05 },
-];
-const REAR_INSTRUMENTS = [
-  { kind: 'aoa', u: 0.18, v: 0.82, d: 0.08 },
-  { kind: 'asi', u: 0.3, v: 0.8, d: 0.14, live: 'asi' },
-  { kind: 'eadi', u: 0.5, v: 0.78, w: 0.22, h: 0.26, live: 'eadi' },
-  { kind: 'alt', u: 0.7, v: 0.8, d: 0.14, live: 'alt' },
-  { kind: 'vsi', u: 0.84, v: 0.82, d: 0.09 },
-  { kind: 'clock', u: 0.15, v: 0.55, d: 0.08 },
-  { kind: 'rmu', u: 0.3, v: 0.5, w: 0.11, h: 0.24 },
-  { kind: 'ehsi', u: 0.5, v: 0.45, w: 0.22, h: 0.26, live: 'ehsi' },
-  { kind: 'engData', u: 0.72, v: 0.5, w: 0.14, h: 0.16 },
-  { kind: 'engSys', u: 0.87, v: 0.5, w: 0.14, h: 0.16 },
-  { kind: 'annun', u: 0.5, v: 0.15, w: 0.22, h: 0.12 },
-  { kind: 'stby', u: 0.3, v: 0.18, d: 0.09, live: 'stby' },
-  { kind: 'g', u: 0.7, v: 0.18, d: 0.08, live: 'g' },
-  { kind: 'gearHandle', u: 0.08, v: 0.2, w: 0.05, h: 0.16 },
-  { kind: 'gearLights', u: 0.08, v: 0.34, w: 0.06, h: 0.08 },
-  { kind: 'flap', u: 0.18, v: 0.2, s: 0.07 },
+const PANEL_INSTRUMENTS = [
+  { kind: 'aoa', u: 0.205, v: 0.76, d: 0.07 },
+  { kind: 'asi', u: 0.32, v: 0.795, s: 0.112, d: 0.096, live: 'asi' },
+  { kind: 'eadi', u: 0.49, v: 0.79, w: 0.186, h: 0.35, live: 'eadi', frame: true },
+  { kind: 'alt', u: 0.66, v: 0.795, s: 0.112, d: 0.096, live: 'alt' },
+  { kind: 'label', u: 0.795, v: 0.76, w: 0.07, h: 0.04 },
+  { kind: 'lights', u: 0.075, v: 0.6, w: 0.025, h: 0.12 },
+  { kind: 'clock', u: 0.145, v: 0.6, w: 0.085, h: 0.14 },
+  { kind: 'g', u: 0.24, v: 0.6, d: 0.08, live: 'g' },
+  { kind: 'rmu', u: 0.34, v: 0.47, w: 0.093, h: 0.385, frame: true },
+  { kind: 'ehsi', u: 0.49, v: 0.41, w: 0.186, h: 0.35, live: 'ehsi', frame: true },
+  { kind: 'vsi', u: 0.66, v: 0.56, s: 0.112, d: 0.096 },
+  { kind: 'eng', u: 0.8, v: 0.56, s: 0.112, name: 'TRQ' },
+  { kind: 'eng', u: 0.66, v: 0.33, s: 0.112, name: 'ITT' },
+  { kind: 'eng', u: 0.8, v: 0.33, s: 0.112, name: 'NP' },
+  { kind: 'smallPanel', u: 0.915, v: 0.53, w: 0.075, h: 0.1 },
+  { kind: 'fire', u: 0.915, v: 0.4, s: 0.055 },
+  { kind: 'smallPanel', u: 0.915, v: 0.28, w: 0.075, h: 0.08 },
+  { kind: 'gps', u: 0.16, v: 0.39, w: 0.23, h: 0.245, frame: true },
+  { kind: 'switches', u: 0.255, v: 0.125, w: 0.176, h: 0.21 },
+  { kind: 'asi', u: 0.39, v: 0.14, d: 0.08, live: 'asi' },
+  { kind: 'stby', u: 0.49, v: 0.14, s: 0.088, d: 0.078, live: 'stby' },
+  { kind: 'alt', u: 0.59, v: 0.14, d: 0.08, live: 'alt' },
+  { kind: 'gearInd', u: 0.68, v: 0.14, w: 0.085, h: 0.16 },
+  { kind: 'annun', u: 0.845, v: 0.12, w: 0.22, h: 0.18 },
+  { kind: 'emerGear', u: 0.05, v: 0.12, s: 0.045 },
 ];
 
 /** The live faces' windows in one shared picture (pixels); both seats' live instruments read the same windows. */
@@ -273,12 +308,15 @@ const LIVE_WINDOWS = Object.freeze({
   g: { x: 456, y: 256, w: 160, h: 160 },
 });
 
-const PANEL_GREY = '#8d9195';
+const PANEL_GREY = '#8e9296';
+const SEAM = 'rgba(52, 56, 60, 0.55)';
+const BEZEL = '#1d2024';
 const BLACK = '#0b0d10';
 const FACE = '#0b0d10';
 const INK = '#e8edf2';
 const DIM = 'rgba(200, 215, 230, 0.7)';
 const GREEN_INK = '#7fd18a';
+const YELLOW = '#e8c21c';
 const num = (v, digits = 0) => (Number.isFinite(v) ? v.toLocaleString('en-CA', { maximumFractionDigits: digits, minimumFractionDigits: digits }) : '—');
 
 function bezel(ctx, cx, cy, r) {
@@ -289,6 +327,55 @@ function bezel(ctx, cx, cy, r) {
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fill();
+}
+
+/** A rounded rectangle path. */
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/** Screw heads at a box's corners, in from its edges. */
+function screws(ctx, x, y, w, h, inset, r) {
+  ctx.fillStyle = '#5c6066';
+  for (const [sx, sy] of [[x + inset, y + inset], [x + w - inset, y + inset], [x + inset, y + h - inset], [x + w - inset, y + h - inset]]) {
+    ctx.beginPath();
+    ctx.arc(sx, sy, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/** A square instrument bezel, as round the T-6A's main dials and displays (Dad's pictures 17 and 26). */
+function squareBezel(ctx, x, y, w, h) {
+  ctx.fillStyle = BEZEL;
+  roundRect(ctx, x, y, w, h, Math.min(w, h) * 0.12);
+  ctx.fill();
+  screws(ctx, x, y, w, h, Math.min(w, h) * 0.08, Math.max(1.5, Math.min(w, h) * 0.025));
+}
+
+/** Yellow and black diagonal stripes filling a box. */
+function stripes(ctx, x, y, w, h, n = 5) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  ctx.fillStyle = YELLOW;
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = '#111';
+  const step = Math.max(w, h) / n;
+  ctx.lineWidth = step * 0.45;
+  for (let k = -n; k <= 2 * n; k++) {
+    ctx.beginPath();
+    ctx.moveTo(x + k * step, y + h);
+    ctx.lineTo(x + k * step + h, y);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function label(ctx, text, x, y, px = 11, colour = DIM, align = 'center') {
@@ -409,8 +496,20 @@ function rows(ctx, s, names, colour = GREEN_INK) {
   });
 }
 
+/** A knob: a dark round with a lighter cap. */
+function knob(ctx, x, y, r) {
+  ctx.fillStyle = '#050608'; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#4b5056'; ctx.beginPath(); ctx.arc(x, y, r * 0.45, 0, Math.PI * 2); ctx.fill();
+}
+
+/** A toggle switch seen from aft: a small dark base and a light lever dot. */
+function toggle(ctx, x, y, r) {
+  ctx.fillStyle = '#16181b'; ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
+  ctx.fillStyle = '#c9ced4'; ctx.beginPath(); ctx.arc(x, y - r * 0.3, r * 0.45, 0, Math.PI * 2); ctx.fill();
+}
+
 /** One instrument drawn into its box (x, y, w, h pixels), from the HUD's numbers `h` (null or {} shows dashes). */
-function drawInstrument(ctx, kind, b, h) {
+function drawInstrument(ctx, kind, b, h, inst = {}) {
   const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
   const r = Math.min(b.w, b.h) / 2;
   const rr = r / 1.12; // inside a round dial's bezel
@@ -437,26 +536,23 @@ function drawInstrument(ctx, kind, b, h) {
     case 'g':
       dial(ctx, { cx, cy, r: rr, from: -4, to: 8, sweepDeg: 300, startDeg: -150, major: 2, minor: 1, name: 'G', value: h?.g, readout: num(h?.g, 1) });
       break;
-    case 'small':
-      dial(ctx, { cx, cy, r: rr, from: 0, to: 10, sweepDeg: 270, startDeg: -135, major: 5, minor: 1, name: '', value: NaN, readout: null, labelOf: () => '' });
+    case 'stby':
+      bezel(ctx, cx, cy, rr);
+      drawAttitude(ctx, cx, cy, rr * 0.94, h?.pitchDeg, h?.bankDeg);
       break;
-    case 'clock': {
-      const cr = rr * 0.86, ccy = cy + rr * 0.12;
-      ctx.fillStyle = '#16191d'; ctx.fillRect(b.x, b.y, b.w, b.h);
-      ctx.fillStyle = FACE; ctx.beginPath(); ctx.arc(cx, ccy, cr, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = INK;
-      for (let k = 0; k < 12; k++) {
-        const a = (k * Math.PI) / 6;
-        ctx.lineWidth = k % 3 === 0 ? 2 : 1;
-        ctx.beginPath();
-        ctx.moveTo(cx + Math.sin(a) * cr * 0.9, ccy - Math.cos(a) * cr * 0.9);
-        ctx.lineTo(cx + Math.sin(a) * cr * 0.75, ccy - Math.cos(a) * cr * 0.75);
-        ctx.stroke();
-      }
-      ctx.fillStyle = '#000'; ctx.fillRect(cx - cr * 0.5, ccy - cr * 0.55, cr, cr * 0.32);
-      label(ctx, '--:--', cx, ccy - cr * 0.39, cr * 0.24, '#ff9a3c'); // an orange digital readout (AETCMAN 11-248 Fig 2.7)
+    case 'clock': { // the chronometer: a dark box with an orange digital readout (AETCMAN 11-248 Fig 2.7) and two buttons
+      ctx.fillStyle = BEZEL; roundRect(ctx, b.x, b.y, b.w, b.h, b.w * 0.08); ctx.fill();
+      ctx.fillStyle = '#000'; ctx.fillRect(b.x + b.w * 0.12, b.y + b.h * 0.22, b.w * 0.76, b.h * 0.32);
+      label(ctx, '--:--', cx, b.y + b.h * 0.38, b.h * 0.22, '#ff9a3c');
+      for (const k of [0.3, 0.7]) { ctx.fillStyle = '#3a3e44'; ctx.fillRect(b.x + b.w * k - b.w * 0.1, b.y + b.h * 0.68, b.w * 0.2, b.h * 0.14); }
       break;
     }
+    case 'lights':
+      for (let k = 0; k < 3; k++) { ctx.fillStyle = k === 0 ? '#2b3a1c' : '#1c3a24'; ctx.fillRect(b.x, b.y + (b.h * k) / 3 + 1, b.w, b.h / 3 - 2); }
+      break;
+    case 'label':
+      ctx.fillStyle = '#16181b'; ctx.fillRect(b.x, b.y, b.w, b.h);
+      break;
     case 'eadi': {
       const s = screen(ctx, b.x, b.y, b.w, b.h, '#020304');
       const ar = Math.min(s.w, s.h) * 0.42;
@@ -473,40 +569,50 @@ function drawInstrument(ctx, kind, b, h) {
       break;
     }
     case 'rmu': {
-      const s = screen(ctx, b.x, b.y, b.w, b.h, '#0c1a10');
+      ctx.fillStyle = BEZEL; ctx.fillRect(b.x, b.y, b.w, b.h);
+      const s = screen(ctx, b.x + b.w * 0.14, b.y + b.h * 0.06, b.w * 0.72, b.h * 0.72, '#0c1a10');
       rows(ctx, s, ['UHF', 'VHF', 'XPDR', 'NAV']);
+      for (let k = 0; k < 4; k++) { ctx.fillStyle = '#c9ced4'; ctx.fillRect(b.x + b.w * 0.03, s.y + (s.h * (k + 0.4)) / 4, b.w * 0.07, b.h * 0.02); ctx.fillRect(b.x + b.w * 0.9, s.y + (s.h * (k + 0.4)) / 4, b.w * 0.07, b.h * 0.02); }
+      knob(ctx, b.x + b.w * 0.3, b.y + b.h * 0.88, b.w * 0.1); knob(ctx, b.x + b.w * 0.7, b.y + b.h * 0.88, b.w * 0.1);
       break;
     }
-    case 'gps': {
-      const s = screen(ctx, b.x, b.y, b.w, b.h, '#0c1a10');
+    case 'gps': { // the GPS and radio box: a green screen over a row of buttons, a big knob each side
+      ctx.fillStyle = '#1b1e22'; ctx.fillRect(b.x, b.y, b.w, b.h);
+      screws(ctx, b.x, b.y, b.w, b.h, b.h * 0.06, Math.max(1.5, b.h * 0.025));
+      const s = screen(ctx, b.x + b.w * 0.18, b.y + b.h * 0.1, b.w * 0.64, b.h * 0.42, '#0c1a10');
       rows(ctx, s, ['GPS', 'WPT']);
+      for (let k = 0; k < 4; k++) { ctx.fillStyle = '#3c4147'; ctx.fillRect(b.x + b.w * (0.24 + k * 0.14), b.y + b.h * 0.62, b.w * 0.1, b.h * 0.1); ctx.fillRect(b.x + b.w * (0.24 + k * 0.14), b.y + b.h * 0.78, b.w * 0.1, b.h * 0.1); }
+      knob(ctx, b.x + b.w * 0.09, b.y + b.h * 0.78, b.h * 0.11); knob(ctx, b.x + b.w * 0.91, b.y + b.h * 0.78, b.h * 0.11);
       break;
     }
-    case 'engine': { // three round dials over a column of readouts, static
-      const s = screen(ctx, b.x, b.y, b.w, b.h);
-      const dr = Math.min(s.w / 2, s.h / 4) * 0.42;
-      ['TRQ', 'ITT', 'NP'].forEach((name, i) => {
-        const dcx = s.x + s.w * (0.3 + 0.4 * (i % 2)), dcy = s.y + s.h * (0.15 + 0.27 * i);
-        ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(dcx, dcy, dr, rad(135), rad(405)); ctx.stroke();
-        label(ctx, name, dcx, dcy, dr * 0.5, GREEN_INK);
-        label(ctx, '—', s.x + s.w * (0.7 - 0.4 * (i % 2)), dcy, dr * 0.6, INK);
-      });
-      rows(ctx, { x: s.x, y: s.y + s.h * 0.72, w: s.w, h: s.h * 0.28 }, ['N1', 'OIL']);
+    case 'eng': { // a square engine display (static: the sim has no engine numbers)
+      const s = screen(ctx, b.x, b.y, b.w, b.h, '#050709');
+      const dr = Math.min(s.w, s.h) * 0.28;
+      ctx.strokeStyle = INK; ctx.lineWidth = Math.max(1.5, dr * 0.06);
+      ctx.beginPath(); ctx.arc(s.x + s.w / 2, s.y + s.h * 0.45, dr, rad(135), rad(405)); ctx.stroke();
+      label(ctx, inst.name ?? '', s.x + s.w / 2, s.y + s.h * 0.45, dr * 0.45, GREEN_INK);
+      label(ctx, '—', s.x + s.w / 2, s.y + s.h * 0.85, dr * 0.5, INK);
       break;
     }
-    case 'engData':
-      rows(ctx, screen(ctx, b.x, b.y, b.w, b.h), ['N1', 'OIL P', 'OIL T', 'FUEL']);
+    case 'smallPanel':
+      ctx.fillStyle = '#1b1e22'; ctx.fillRect(b.x, b.y, b.w, b.h);
+      toggle(ctx, b.x + b.w * 0.3, b.y + b.h * 0.55, b.h * 0.14); toggle(ctx, b.x + b.w * 0.7, b.y + b.h * 0.55, b.h * 0.14);
+      ctx.fillStyle = '#c9ced4'; ctx.fillRect(b.x + b.w * 0.15, b.y + b.h * 0.15, b.w * 0.7, b.h * 0.06);
       break;
-    case 'engSys':
-      rows(ctx, screen(ctx, b.x, b.y, b.w, b.h), ['HYD', 'FUEL L', 'FUEL R', 'BATT']);
-      break;
-    case 'ehsiCtl':
-      ctx.fillStyle = '#1c1f23'; ctx.fillRect(b.x, b.y, b.w, b.h);
-      for (const k of [0.25, 0.75]) {
-        ctx.fillStyle = '#050608'; ctx.beginPath(); ctx.arc(b.x + b.w * k, cy, b.h * 0.3, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#5a5f66'; ctx.beginPath(); ctx.arc(b.x + b.w * k, cy, b.h * 0.12, 0, Math.PI * 2); ctx.fill();
+    case 'switches': { // a switch panel: two rows of toggles under placard lines
+      ctx.fillStyle = '#1b1e22'; ctx.fillRect(b.x, b.y, b.w, b.h);
+      screws(ctx, b.x, b.y, b.w, b.h, b.h * 0.07, Math.max(1.5, b.h * 0.03));
+      for (let j = 0; j < 2; j++) for (let i = 0; i < 4; i++) {
+        const x = b.x + b.w * (0.16 + i * 0.23), y = b.y + b.h * (0.38 + j * 0.36);
+        ctx.fillStyle = '#c9ced4'; ctx.fillRect(x - b.w * 0.07, y - b.h * 0.17, b.w * 0.14, b.h * 0.035);
+        toggle(ctx, x, y, b.h * 0.07);
       }
+      break;
+    }
+    case 'gearInd':
+      ctx.fillStyle = BEZEL; ctx.fillRect(b.x, b.y, b.w, b.h);
+      ctx.fillStyle = '#050608'; ctx.fillRect(b.x + b.w * 0.1, b.y + b.h * 0.1, b.w * 0.8, b.h * 0.8);
+      for (const [px, py] of [[0.5, 0.3], [0.3, 0.68], [0.7, 0.68]]) { ctx.fillStyle = '#d7dadd'; ctx.fillRect(b.x + b.w * (px - 0.1), b.y + b.h * (py - 0.07), b.w * 0.2, b.h * 0.14); }
       break;
     case 'annun': { // 6 across, 4 down, all unlit
       ctx.fillStyle = BLACK; ctx.fillRect(b.x, b.y, b.w, b.h);
@@ -517,69 +623,121 @@ function drawInstrument(ctx, kind, b, h) {
       }
       break;
     }
-    case 'flap':
-      ctx.fillStyle = BLACK; ctx.fillRect(b.x, b.y, b.w, b.h);
-      label(ctx, 'FLAPS', cx, b.y + b.h * 0.25, b.h * 0.18, DIM);
-      label(ctx, 'UP', cx, b.y + b.h * 0.62, b.h * 0.3, INK);
+    case 'emerGear':
+      stripes(ctx, b.x, b.y, b.w, b.h, 3);
       break;
-    case 'gearHandle': // the plate and its slot; the handle and wheel knob are 3D (gearKnob)
-      ctx.fillStyle = '#1c1f23'; ctx.fillRect(b.x, b.y, b.w, b.h);
-      ctx.fillStyle = '#050608'; ctx.fillRect(cx - b.w * 0.12, b.y + b.h * 0.08, b.w * 0.24, b.h * 0.84);
-      label(ctx, 'UP', cx, b.y + b.h * 0.04 + 6, b.w * 0.22, DIM);
-      break;
-    case 'gearLights':
-      ctx.fillStyle = '#1c1f23'; ctx.fillRect(b.x, b.y, b.w, b.h);
-      for (const [px, py] of [[0.5, 0.3], [0.25, 0.72], [0.75, 0.72]]) {
-        ctx.fillStyle = '#0f2a14'; // unlit: gear up
-        ctx.beginPath(); ctx.arc(b.x + b.w * px, b.y + b.h * py, Math.min(b.w, b.h) * 0.16, 0, Math.PI * 2); ctx.fill();
-      }
-      break;
-    case 'emerGear': {
-      ctx.save();
-      ctx.beginPath(); ctx.rect(b.x, b.y, b.w, b.h); ctx.clip();
-      ctx.fillStyle = '#e8c21c'; ctx.fillRect(b.x, b.y, b.w, b.h);
-      ctx.strokeStyle = '#111'; ctx.lineWidth = b.w * 0.14;
-      for (let k = -2; k <= 4; k++) { ctx.beginPath(); ctx.moveTo(b.x + k * b.w * 0.33, b.y + b.h); ctx.lineTo(b.x + (k + 1) * b.w * 0.33, b.y); ctx.stroke(); }
-      ctx.restore();
-      break;
-    }
     default:
   }
 }
 
-/** An instrument's size on its panel, feet: { w, h }. */
-function sizeFt(inst, faceW, faceH) {
-  if (inst.d) return { w: inst.d * faceW, h: inst.d * faceW };
-  if (inst.s) return { w: inst.s * faceW, h: inst.s * faceW };
+/** An instrument's outer size on its panel, feet: { w, h } (the square bezel when it has one). */
+function outerFt(inst, faceW, faceH) {
+  const s = inst.s ?? inst.d;
+  if (s) return { w: s * faceW, h: s * faceW };
   return { w: inst.w * faceW, h: inst.h * faceH };
 }
+/** An instrument's face (what its live quad covers), feet: the round dial inside a square bezel, or the whole box. */
+function faceFt(inst, faceW, faceH) {
+  if (inst.d) return { w: inst.d * faceW, h: inst.d * faceW };
+  return outerFt(inst, faceW, faceH);
+}
 
-/** A panel's static picture: the grey face with every instrument drawn once (the live ones with dashes under their screens). */
+/** A panel's static picture: the grey face with its seams and every instrument drawn once (live ones dashed under their quads). */
 function drawStaticPanel(ctx, width, height, instruments, faceW, faceH) {
   ctx.fillStyle = PANEL_GREY;
   ctx.fillRect(0, 0, width, height);
   const k = width / faceW;
-  // A fine darker border, as the panel's edge reads in the pictures.
+  // The panel's edge and its sub-panel seams, as they read in the pictures.
   ctx.strokeStyle = 'rgba(40, 44, 48, 0.6)';
   ctx.lineWidth = 6;
   ctx.strokeRect(3, 3, width - 6, height - 6);
-  for (const inst of instruments) {
-    const s = sizeFt(inst, faceW, faceH);
-    const w = s.w * k, h = s.h * k;
-    drawInstrument(ctx, inst.kind, { x: inst.u * width - w / 2, y: (1 - inst.v) * height - h / 2, w, h }, null);
+  ctx.strokeStyle = SEAM;
+  ctx.lineWidth = 2;
+  for (const [u0, v0, u1, v1] of [[0.02, 0.27, 0.36, 0.27], [0.37, 0.02, 0.37, 0.98], [0.61, 0.02, 0.61, 0.98], [0.62, 0.23, 0.98, 0.23], [0.02, 0.69, 0.36, 0.69]]) {
+    ctx.beginPath(); ctx.moveTo(u0 * width, (1 - v0) * height); ctx.lineTo(u1 * width, (1 - v1) * height); ctx.stroke();
   }
+  for (const inst of instruments) {
+    const o = outerFt(inst, faceW, faceH);
+    const w = o.w * k, h = o.h * k;
+    const box = { x: inst.u * width - w / 2, y: (1 - inst.v) * height - h / 2, w, h };
+    if (inst.s && inst.d) {
+      squareBezel(ctx, box.x, box.y, box.w, box.h);
+      const f = faceFt(inst, faceW, faceH);
+      const fw = f.w * k;
+      drawInstrument(ctx, inst.kind, { x: inst.u * width - fw / 2, y: (1 - inst.v) * height - fw / 2, w: fw, h: fw }, null, inst);
+    } else {
+      if (inst.frame || inst.kind === 'eng') { ctx.fillStyle = BEZEL; ctx.fillRect(box.x - 4, box.y - 4, box.w + 8, box.h + 8); }
+      drawInstrument(ctx, inst.kind, box, null, inst);
+    }
+  }
+}
+
+/**
+ * The lower panel's picture (both seats; Dad's pictures 17, 26, 27): the centre pedestal with its control box, a red
+ * readout and a grid of keys; the landing gear panel with its three lights left of the left knee well; a small box
+ * with a knob right of the right knee well. u 0 the pilot's left edge, v 0 the floor, v 1 the main face's bottom.
+ */
+function drawLowerPanel(ctx, width, height) {
+  ctx.fillStyle = PANEL_GREY;
+  ctx.fillRect(0, 0, width, height);
+  const X = (u) => u * width, Y = (v) => (1 - v) * height;
+  // The pedestal (u 0.4 to 0.6): a control box, a red readout, a grid of keys, a dark foot.
+  ctx.fillStyle = '#1b1e22'; ctx.fillRect(X(0.41), Y(0.97), X(0.18), Y(0.82) - Y(0.97));
+  for (let i = 0; i < 4; i++) toggle(ctx, X(0.44 + i * 0.04), Y(0.9), height * 0.012);
+  knob(ctx, X(0.44), Y(0.85), height * 0.014); knob(ctx, X(0.56), Y(0.85), height * 0.014);
+  ctx.fillStyle = '#1b1e22'; ctx.fillRect(X(0.43), Y(0.78), X(0.14), Y(0.66) - Y(0.78));
+  ctx.fillStyle = '#5a1012'; ctx.fillRect(X(0.46), Y(0.76), X(0.08), Y(0.7) - Y(0.76));
+  ctx.fillStyle = '#1b1e22'; ctx.fillRect(X(0.43), Y(0.62), X(0.14), Y(0.4) - Y(0.62));
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 4; j++) { ctx.fillStyle = '#0a0b0d'; ctx.fillRect(X(0.445 + i * 0.04), Y(0.6 - j * 0.05), X(0.03), Y(0.565) - Y(0.6)); }
+  ctx.fillStyle = '#4c5055'; ctx.fillRect(X(0.4), Y(0.18), X(0.2), Y(0) - Y(0.18));
+  // The landing gear panel (left of the left knee well): three unlit lights and the handle's slot (the handle is 3D).
+  ctx.fillStyle = '#1b1e22'; ctx.fillRect(X(0.02), Y(0.99), X(0.13), Y(0.82) - Y(0.99));
+  for (const [px, py] of [[0.085, 0.965], [0.05, 0.94], [0.12, 0.94]]) { ctx.fillStyle = '#0f2a14'; ctx.beginPath(); ctx.arc(X(px), Y(py), height * 0.012, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = '#050608'; ctx.fillRect(X(0.077), Y(0.92), X(0.016), Y(0.84) - Y(0.92));
+  stripes(ctx, X(0.155), Y(0.99), X(0.04), Y(0.93) - Y(0.99), 3);
+  // The box right of the right knee well.
+  ctx.fillStyle = '#1b1e22'; ctx.fillRect(X(0.84), Y(0.99), X(0.13), Y(0.88) - Y(0.99));
+  knob(ctx, X(0.905), Y(0.935), height * 0.02);
+  // Placard lines.
+  ctx.fillStyle = '#c9ced4';
+  for (const [u, v] of [[0.03, 0.8], [0.85, 0.86], [0.43, 0.38]]) ctx.fillRect(X(u), Y(v), X(0.1), height * 0.006);
+}
+
+/**
+ * The side consoles' tops (both seats; Dad's pictures 17, 26, 29): the left console in the left half, the right in the
+ * right half, aft (v 0) to forward (v 1). Dark sub-panels with knobs, toggles and placard lines, yellow and black
+ * striped guards, a red switch on the right. Drawn by eye, no layout copied.
+ */
+function drawConsoles(ctx, width, height) {
+  ctx.fillStyle = '#7d8185';
+  ctx.fillRect(0, 0, width, height);
+  const half = width / 2;
+  const Y = (v) => (1 - v) * height;
+  const panel = (x0, v0, v1) => {
+    ctx.fillStyle = '#25282c';
+    ctx.fillRect(x0 + half * 0.08, Y(v1), half * 0.84, Y(v0) - Y(v1));
+    screws(ctx, x0 + half * 0.08, Y(v1), half * 0.84, Y(v0) - Y(v1), half * 0.06, 2);
+  };
+  // Left console (u 0 is its outboard edge).
+  for (const [v0, v1] of [[0.02, 0.2], [0.22, 0.36], [0.38, 0.62], [0.64, 0.8], [0.82, 0.98]]) panel(0, v0, v1);
+  stripes(ctx, half * 0.2, Y(0.33), half * 0.6, Y(0.25) - Y(0.33), 4);
+  stripes(ctx, half * 0.55, Y(0.78), half * 0.3, Y(0.68) - Y(0.78), 3);
+  ctx.fillStyle = '#050608'; ctx.fillRect(half * 0.42, Y(0.6), half * 0.16, Y(0.42) - Y(0.6)); // the power lever's slot
+  for (const v of [0.1, 0.15, 0.87, 0.93]) for (const u of [0.3, 0.5, 0.7]) toggle(ctx, half * u, Y(v), 4);
+  // Right console.
+  for (const [v0, v1] of [[0.02, 0.16], [0.18, 0.34], [0.36, 0.5], [0.52, 0.7], [0.72, 0.86], [0.88, 0.98]]) panel(half, v0, v1);
+  stripes(ctx, half * 1.25, Y(0.47), half * 0.5, Y(0.39) - Y(0.47), 4);
+  ctx.fillStyle = '#b3202a'; ctx.fillRect(half * 1.42, Y(0.46), half * 0.16, Y(0.4) - Y(0.46));
+  for (const [u, v] of [[1.35, 0.6], [1.65, 0.6], [1.5, 0.27], [1.35, 0.79], [1.65, 0.79]]) knob(ctx, half * u, Y(v), 6);
+  for (const v of [0.08, 0.12, 0.93]) for (const u of [1.3, 1.5, 1.7]) toggle(ctx, half * u, Y(v), 4);
+  ctx.fillStyle = '#c9ced4';
+  for (const [u, v] of [[0.2, 0.47], [0.2, 0.72], [1.2, 0.66], [1.2, 0.3], [1.2, 0.82]]) ctx.fillRect(half * u, Y(v), half * 0.6, 2);
 }
 
 /** The live faces, each into its window of the shared picture. */
 function drawLive(ctx, hud) {
   ctx.clearRect(0, 0, ATLAS.width, ATLAS.height);
-  for (const [kind, win] of Object.entries(LIVE_WINDOWS)) {
-    if (kind === 'stby') {
-      const cx = win.x + win.w / 2, cy = win.y + win.h / 2, r = win.w / 2 / 1.12;
-      bezel(ctx, cx, cy, r);
-      drawAttitude(ctx, cx, cy, r * 0.94, hud?.pitchDeg, hud?.bankDeg);
-    } else drawInstrument(ctx, kind, win, hud ?? {});
-  }
+  for (const [kind, win] of Object.entries(LIVE_WINDOWS)) drawInstrument(ctx, kind, win, hud ?? {});
 }
 
 /** What the panel shows, rounded to what it can show: a change smaller than this doesn't redraw it. */
@@ -612,12 +770,26 @@ function flatAft(THREE, x, outline, uvBox = null) {
 
 /**
  * A lofted surface through sections of equal point count (each an array of [x, y, z] feet), closed round each section
- * when `closed`; with `caps`, both end sections closed with a fan. Non-indexed, flat-shaded.
+ * when `closed`; with `caps`, both end sections closed with a fan. Flat-shaded, or smooth (shared corners) with `smooth`.
  */
-function loft(THREE, sections, { closed = true, caps = false } = {}) {
+function loft(THREE, sections, { closed = true, caps = false, smooth = false } = {}) {
+  const m = sections[0].length;
+  const g = new THREE.BufferGeometry();
+  if (smooth) {
+    const pos = sections.flat(2), idx = [];
+    for (let i = 0; i + 1 < sections.length; i++) {
+      for (let j = 0; j < (closed ? m : m - 1); j++) {
+        const a = i * m + j, b = i * m + ((j + 1) % m), c = a + m, d = b + m;
+        idx.push(a, c, d, a, d, b);
+      }
+    }
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return g;
+  }
   const pos = [];
   const tri = (a, b, c) => pos.push(...a, ...b, ...c);
-  const m = sections[0].length;
   for (let i = 0; i + 1 < sections.length; i++) {
     const A = sections[i], B = sections[i + 1];
     for (let j = 0; j < (closed ? m : m - 1); j++) {
@@ -632,68 +804,92 @@ function loft(THREE, sections, { closed = true, caps = false } = {}) {
       for (let j = 0; j < m; j++) tri(c, S[j], S[(j + 1) % m]);
     }
   }
-  const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.computeVertexNormals();
   return g;
 }
 
-/** A glareshield: a low arch with a lip, from its aft edge forward, kept inside the canopy and no wider than the panel. */
-function glareshieldGeometry(THREE, gs, p, panelSide) {
-  const sections = [];
-  const N = 6, A = 8;
-  for (let i = 0; i <= N; i++) {
-    const x = gs.aftX + ((gs.foreX - gs.aftX) * i) / N;
-    const hw = Math.min(panelSide + 0.04, glassHalfWidthFt(gs.edgeTop, x, 0.03));
-    const s = [[x, hw, gs.lip]];
-    for (let j = 0; j <= A; j++) {
-      const t = j / A;
-      const y = hw * (1 - 2 * t);
-      const z = (1 - t) ** 2 * gs.edgeTop + 2 * t * (1 - t) * (2 * gs.top - gs.edgeTop) + t * t * gs.edgeTop;
-      s.push([x, y, z]);
+/** Corner-cutting smoothing of an open polyline (points as number arrays), keeping its two ends. */
+function chaikin(pts, iterations = 2) {
+  let p = pts;
+  for (let k = 0; k < iterations; k++) {
+    const q = [p[0]];
+    for (let i = 0; i + 1 < p.length; i++) {
+      const a = p[i], b = p[i + 1];
+      q.push(a.map((v, j) => 0.75 * v + 0.25 * b[j]), a.map((v, j) => 0.25 * v + 0.75 * b[j]));
     }
-    s.push([x, -hw, gs.lip]);
-    sections.push(s);
+    q.push(p[p.length - 1]);
+    p = q;
   }
-  return loft(THREE, sections, { closed: true, caps: true });
+  return p;
 }
 
-/** A tube through points (feet) with straight runs between them. */
-function tubeThrough(THREE, pts, radius, segments = 64) {
-  const path = new THREE.CurvePath();
-  for (let i = 0; i + 1 < pts.length; i++) path.add(new THREE.LineCurve3(new THREE.Vector3(...pts[i]), new THREE.Vector3(...pts[i + 1])));
-  return new THREE.TubeGeometry(path, segments, radius, 6, false);
-}
-
-/** The framed bow's section (TS-155): 0.09 ft deep inside the glass, 0.25 ft fore and aft (estimates). */
-const BOW = Object.freeze({ depth: 0.09, half: 0.125 });
-
-/** A framed canopy bow at station x (feet): a rectangular section BOW.depth deep inside the glass, 2 x BOW.half fore and aft. */
-function bowGeometry(THREE, x) {
-  const n = 18, { depth, half } = BOW;
-  const fore = ct156HoopPoints((x + half) / F, n), aft = ct156HoopPoints((x - half) / F, n);
-  const base = ct156CanopySection(x / F).base * F;
-  const inward = ({ y, z }, d) => {
-    const dy = -y * F, dz = base - z * F;
-    const l = Math.hypot(dy, dz) || 1;
-    return [y * F + (dy / l) * d, z * F + (dz / l) * d];
-  };
-  const sections = [];
-  for (let j = 0; j <= n; j++) {
-    const [fy0, fz0] = inward(fore[j], 0.01), [fy1, fz1] = inward(fore[j], depth);
-    const [ay0, az0] = inward(aft[j], 0.01), [ay1, az1] = inward(aft[j], depth);
-    sections.push([[x + half, fy0, fz0], [x + half, fy1, fz1], [x - half, ay1, az1], [x - half, ay0, az0]]);
+/** A round tube through points (feet): straight runs, or a smooth curve through them with `smooth`. */
+function tubeThrough(THREE, pts, radius, segments = 64, { smooth = false, radial = 6 } = {}) {
+  const v = pts.map((q) => new THREE.Vector3(...q));
+  let path;
+  if (smooth) path = new THREE.CatmullRomCurve3(v, false, 'centripetal');
+  else {
+    path = new THREE.CurvePath();
+    for (let i = 0; i + 1 < v.length; i++) path.add(new THREE.LineCurve3(v[i], v[i + 1]));
   }
-  return loft(THREE, sections, { closed: true });
+  return new THREE.TubeGeometry(path, segments, radius, radial, false);
 }
 
 /**
- * The forward bow as the seat sees it (TS-156; AETCMAN 11-248 Fig 2.7, p.42, Fig 5.3): a flat light band in the plane
- * x = FORWARD_BOW_FT.bandX facing aft, from just inside the glass FORWARD_BOW_FT.bandDepth inward, sill to sill, with a
- * ring of round dark holes along its middle and a dark tube along its inner edge. Returns { band, holes, tube }.
+ * A coaming's half-outline across y at station x, from the middle out (feet, [y, z] pairs, before the glass clamp): a
+ * flat top, shoulders falling to the panel's straight sides (at the aft edge they follow the panel's tombstone, the
+ * rail's line), then a short skirt (TS-157).
  */
-function forwardBandGeometries(THREE) {
-  const b = FORWARD_BOW_FT, n = 48;
+function hoodHalf(h, ts, x) {
+  const t = clamp01((x - h.aftX) / (h.foreX - h.aftX));
+  const crown = crownZ(h, x);
+  const topY = ts.top + RIM_FT.sideOut * 0.4 + h.topGrow * t;
+  const sideY = ts.side + RIM_FT.sideOut + h.sideGrow * t;
+  const drop = h.top - ts.shoulderZ + h.dropGrow * t;
+  const pts = [[0, crown], [topY, crown]];
+  for (let k = 1; k <= 6; k++) {
+    const s = k / 6;
+    pts.push([lerp(topY, sideY, s), crown - drop * s ** 1.15]);
+  }
+  pts.push([sideY + 0.01, crown - drop - h.skirt]);
+  return pts;
+}
+/** A coaming's surface height at (x, y), feet (for standing things on it). */
+function hoodZ(h, ts, x, y) {
+  const half = hoodHalf(h, ts, x);
+  const ay = Math.abs(y);
+  for (let i = 1; i < half.length; i++) {
+    if (ay <= half[i][0]) {
+      const [y0, z0] = half[i - 1], [y1, z1] = half[i];
+      return lerp(z0, z1, (ay - y0) / (y1 - y0 || 1));
+    }
+  }
+  return half[half.length - 1][1];
+}
+/** A coaming's full section at x (left skirt over to right skirt), [x, y, z] feet, kept inside the glass, lowered by dz. */
+function hoodSection(h, ts, x, dz = 0) {
+  const half = hoodHalf(h, ts, x).map(([y, z]) => [Math.min(y, glassHalfWidthFt(z, x, 0.04)), z + dz]);
+  return [...half.slice(1).reverse().map(([y, z]) => [x, y, z]), [x, 0, half[0][1]], ...half.slice(1).map(([y, z]) => [x, -y, z])];
+}
+
+/** An arch outline in the plane (y, z) between y0 and y1 (y0 > y1), up from zBottom to zTop with rounded corners of radius r. */
+function archOutline(y0, y1, zBottom, zTop, r) {
+  const pts = [[y0, zBottom], [y0, zTop - r]];
+  for (let k = 1; k < 4; k++) { const a = (k / 4) * (Math.PI / 2); pts.push([y0 - r + r * Math.cos(a), zTop - r + r * Math.sin(a)]); }
+  pts.push([y0 - r, zTop], [y1 + r, zTop]);
+  for (let k = 1; k < 4; k++) { const a = Math.PI / 2 + (k / 4) * (Math.PI / 2); pts.push([y1 + r + r * Math.cos(a), zTop - r + r * Math.sin(a)]); }
+  pts.push([y1, zTop - r], [y1, zBottom]);
+  return pts;
+}
+
+/**
+ * A band lining the glass at x = b.bandX facing aft (feet): from just inside the glass b.bandDepth inward, sill to sill,
+ * with rows of round dark dots (the forward bow's ring of holes, TS-156; the arch's fasteners, TS-157) and a dark tube
+ * along its inner edge. Returns { band, dots, tube }.
+ */
+function bandGeometries(THREE, b) {
+  const n = 48;
   const pts = ct156HoopPoints(b.bandX / F, n);
   const base = ct156CanopySection(b.bandX / F).base * F;
   const inward = ({ y, z }, d) => {
@@ -703,43 +899,60 @@ function forwardBandGeometries(THREE) {
   };
   const outer = pts.map((q) => inward(q, b.glassInset)), inner = pts.map((q) => inward(q, b.glassInset + b.bandDepth));
   const band = loft(THREE, [outer, inner], { closed: false });
-  const tube = tubeThrough(THREE, inner, b.tubeR, 96);
-  // The holes, evenly spaced by length along the band's middle line, half a spacing in from each sill.
-  const mid = pts.map((q) => inward(q, b.glassInset + b.bandDepth / 2));
-  const along = [0];
-  for (let j = 1; j < mid.length; j++) along.push(along[j - 1] + Math.hypot(mid[j][1] - mid[j - 1][1], mid[j][2] - mid[j - 1][2]));
-  const total = along[along.length - 1];
-  const holes = [];
-  for (let k = 0; k < b.holes; k++) {
-    const want = ((k + 0.5) / b.holes) * total;
-    let j = 1;
-    while (j < along.length - 1 && along[j] < want) j++;
-    const t = (want - along[j - 1]) / (along[j] - along[j - 1] || 1);
-    const y = mid[j - 1][1] + (mid[j][1] - mid[j - 1][1]) * t, z = mid[j - 1][2] + (mid[j][2] - mid[j - 1][2]) * t;
-    holes.push(new THREE.CircleGeometry(b.holeDia / 2, 14).rotateY(-Math.PI / 2).translate(b.bandX - 0.004, y, z));
+  const tube = tubeThrough(THREE, inner, b.tubeR, 60, { smooth: true, radial: 5 });
+  const dots = [];
+  for (const row of b.dots) {
+    // Evenly spaced by length along the row's line, half a spacing in from each sill.
+    const mid = pts.map((q) => inward(q, b.glassInset + b.bandDepth * row.at));
+    const along = [0];
+    for (let j = 1; j < mid.length; j++) along.push(along[j - 1] + Math.hypot(mid[j][1] - mid[j - 1][1], mid[j][2] - mid[j - 1][2]));
+    const total = along[along.length - 1];
+    for (let k = 0; k < row.n; k++) {
+      const want = ((k + 0.5) / row.n) * total;
+      let j = 1;
+      while (j < along.length - 1 && along[j] < want) j++;
+      const t = (want - along[j - 1]) / (along[j] - along[j - 1] || 1);
+      const y = mid[j - 1][1] + (mid[j][1] - mid[j - 1][1]) * t, z = mid[j - 1][2] + (mid[j][2] - mid[j - 1][2]) * t;
+      dots.push(new THREE.CircleGeometry(row.dia / 2, row.dia > 0.05 ? 14 : 6).rotateY(-Math.PI / 2).translate(b.bandX - 0.004, y, z));
+    }
   }
-  return { band, holes, tube };
+  return { band, dots, tube };
 }
 
-/**
- * Two mirrors hung under a bow either side of its crest, each turned to face `eye` (feet), `aft` feet behind the bow's
- * station and `inward` feet in from the glass. Returns [backs, faces].
- */
-function mirrorGeometries(THREE, x, eye, { aft = 0.2, inward = 0.15 } = {}) {
-  const n = 18;
-  const pts = ct156HoopPoints(x / F, n);
-  const base = ct156CanopySection(x / F).base * F;
-  const backs = [], faces = [];
-  for (const j of [6, 12]) { // a third of the way down from the crest either side (the hoop's own angle, 60° and 120°)
-    const { y, z } = pts[j];
-    const dy = -y * F, dz = base - z * F, l = Math.hypot(dy, dz);
-    const pos = new THREE.Vector3(x - aft, y * F + (dy / l) * inward, z * F + (dz / l) * inward);
-    const m = new THREE.Matrix4().lookAt(new THREE.Vector3(eye.x, eye.y, eye.z), pos, new THREE.Vector3(0, 0, 1));
-    m.setPosition(pos);
-    backs.push(new THREE.BoxGeometry(0.3, 0.18, 0.02).applyMatrix4(m));
-    faces.push(new THREE.PlaneGeometry(0.27, 0.15).translate(0, 0, 0.0105).applyMatrix4(m));
+/** A mirror at `pos` (feet) turned to face `eye`: [back, face, stalk to the glass at `mount`]. w x h feet. */
+function mirrorGeometries(THREE, pos, eye, mount, w = 0.34, h = 0.17) {
+  const p = new THREE.Vector3(...pos);
+  const m = new THREE.Matrix4().lookAt(new THREE.Vector3(eye.x, eye.y, eye.z), p, new THREE.Vector3(0, 0, 1));
+  m.setPosition(p);
+  return [
+    new THREE.BoxGeometry(w, h, 0.03).applyMatrix4(m),
+    new THREE.PlaneGeometry(w * 0.9, h * 0.85).translate(0, 0, 0.0155).applyMatrix4(m),
+    tubeThrough(THREE, [pos, mount], 0.018, 1, { radial: 5 }),
+  ];
+}
+
+/** The canopy's side frames inside the glass, both sides, from the forward bow to the rear frame, with their fasteners (TS-157). */
+function sideFrameParts(THREE) {
+  const x0 = FORWARD_BOW_FT.bandX, x1 = CT156_FRAME_X[2] * F + 0.2, N = 28;
+  const { height, thick, pitch } = SIDE_FRAME_FT;
+  const frames = [], nubs = [];
+  const glassAt = (x, z) => Math.min(glassHalfWidthFt(z, x, 0.006), ct156CanopySection(x / F).w * F);
+  for (const s of [1, -1]) {
+    const sections = [];
+    for (let i = 0; i <= N; i++) {
+      const x = lerp(x0, x1, i / N);
+      const base = ct156CanopySection(x / F).base * F + 0.004;
+      const yb = glassAt(x, base + 0.001), yt = glassAt(x, base + height);
+      sections.push([[x, s * yb, base], [x, s * yt, base + height], [x, s * (yt - thick), base + height], [x, s * (yb - thick), base]]);
+    }
+    frames.push(loft(THREE, sections, { closed: false }));
+    for (let x = x0 - pitch / 2; x > x1; x -= pitch) {
+      const z = ct156CanopySection(x / F).base * F + height - 0.05;
+      const y = s * (glassAt(x, z) - thick - 0.006);
+      nubs.push(box(THREE, x - 0.017, x + 0.017, y - 0.008, y + 0.008, z - 0.017, z + 0.017));
+    }
   }
-  return [backs, faces];
+  return { frames, nubs };
 }
 
 /** The sill bands, both sides, from the forward bow to the rear bow (feet): 0.2 ft inside the canopy's foot, and out over the cut edge. */
@@ -759,15 +972,26 @@ function sillGeometry(THREE) {
   return parts;
 }
 
+/** An air vent at a panel's upper corner (Dad's pictures 26, 27): a dark housing turned toward the seat with four slats. */
+function ventParts(THREE, x, y, z, put, SLOT) {
+  const s = Math.sign(y);
+  const turn = (g) => g.rotateZ(s * rad(-35)).translate(x, y, z);
+  put(turn(box(THREE, -0.04, 0.06, -0.13, 0.13, -0.08, 0.08)), SLOT.dark);
+  for (let k = 0; k < 4; k++) put(turn(box(THREE, -0.05, -0.04, -0.11, 0.11, -0.055 + k * 0.037, -0.045 + k * 0.037)), SLOT.black);
+}
+
 // Material slots for the joined solid parts.
-const SLOT = Object.freeze({ grey: 0, black: 1, rail: 2, red: 3, mirror: 4, knob: 5, lampRed: 6, lampAmber: 7, lampGreen: 8, band: 9 });
+const SLOT = Object.freeze({
+  grey: 0, black: 1, rail: 2, red: 3, mirror: 4, knob: 5, lampRed: 6, lampAmber: 7, lampGreen: 8, band: 9, seat: 10,
+  dark: 11, green: 12, metal: 13, frame: 14,
+});
 
 /**
  * The cockpit parts of one seat (dx 0 the front, REAR_DX the rear), as { geometry, materials } entries for
- * ct156JoinGeometries, plus the textured faces it needs: the panel shape and the live quads.
+ * ct156JoinGeometries, plus what the textured faces need.
  */
-function seatParts(THREE, { dx, p, gs, instruments, eye }) {
-  const parts = [];
+function seatParts(THREE, { dx, p, h, eye }) {
+  const parts = [], striped = [], consoleTops = [], lower = [];
   const put = (geometry, slot) => parts.push({ geometry, materials: [slot] });
   const ts = tombstone(p);
   const faceW = 2 * ts.side, faceH = ts.height;
@@ -775,98 +999,214 @@ function seatParts(THREE, { dx, p, gs, instruments, eye }) {
   const yOf = (u) => ts.side * (1 - 2 * u);
   const S = SEAT_FT;
   const fx = (x) => x + dx; // a front-seat station moved to this seat
+  const front = dx === 0;
 
   // The panel's back and edges: a shallow black box behind the face, so it reads solid from any side.
   put(box(THREE, p.x + 0.01, p.x + 0.12, -ts.side, ts.side, p.bottom, ts.shoulderZ), SLOT.black);
-  // The lower panel: the centre pedestal down to the floor and the side bays down to the consoles, leaving knee wells.
-  const lowSide = panelHalfWidthFt(p.bottom, p);
-  const xl = p.x + 0.002;
-  put(flatAft(THREE, xl, [[yOf(0.34), p.bottom], [yOf(0.66), p.bottom], [yOf(0.66), S.floorZ], [yOf(0.34), S.floorZ]]), SLOT.grey);
-  for (const [u0, u1] of [[0, 0.2], [0.8, 1]]) {
-    const y0 = lowSide * (1 - 2 * u0), y1 = lowSide * (1 - 2 * u1);
-    put(flatAft(THREE, xl, [[y0, p.bottom], [y1, p.bottom], [y1, S.console.top], [y0, S.console.top]]), SLOT.grey);
+
+  // The lower panel (TS-157; Dad's pictures 17, 26): one face from the main face's bottom to the floor, the consoles'
+  // fronts cut out of its sides and the two knee wells out of its foot, with the centre pedestal between them.
+  const k = S.knee, c = S.console, floor = S.floorZ;
+  const wellTop = p.bottom - k.belowPanel;
+  const right = archOutline(-k.inner, -k.outer, floor, wellTop, k.r), left = archOutline(k.outer, k.inner, floor, wellTop, k.r);
+  const outline = [
+    [ts.side, p.bottom], [-ts.side, p.bottom], [-ts.side, c.top], [-c.inner, c.top], [-c.inner, floor],
+    ...right.slice().reverse(), ...left.slice().reverse(), [c.inner, floor], [c.inner, c.top], [ts.side, c.top],
+  ];
+  lower.push(flatAft(THREE, p.x + 0.002, outline, { y0: ts.side, y1: -ts.side, z0: floor, z1: p.bottom }));
+  // The knee wells' dark recesses, with the rudder pedals in them.
+  for (const arch of [left, right]) {
+    const ys = arch.map(([y]) => y);
+    const mid = (Math.max(...ys) + Math.min(...ys)) / 2;
+    put(loft(THREE, [arch.map(([y, z]) => [p.x + 0.004, y, z]), arch.map(([y, z]) => [p.x + k.depth, y, z])], { closed: false }), SLOT.black);
+    put(flatAft(THREE, p.x + k.depth, arch), SLOT.black);
+    put(box(THREE, p.x + k.depth - 0.18, p.x + k.depth - 0.14, mid - 0.1, mid + 0.1, floor + 0.08, floor + 0.42), SLOT.dark);
   }
-  // A few switch blocks on the pedestal (static).
-  for (let i = 0; i < 3; i++) {
-    const z = p.bottom - 0.25 - i * 0.3;
-    put(box(THREE, p.x - 0.04, p.x, -0.25, 0.25, z - 0.1, z + 0.1), SLOT.black);
+  // On the pedestal: the control box standing proud, under it the readout's hood.
+  put(box(THREE, p.x - 0.05, p.x, -0.2, 0.2, p.bottom - 0.32, p.bottom - 0.04), SLOT.dark);
+
+  // The coaming (TS-157): the moulded hood and its lip, smooth-shaded.
+  const N = 14;
+  const secs = [];
+  for (let i = 0; i <= N; i++) secs.push(hoodSection(h, ts, lerp(h.aftX, h.foreX, (i / N) ** 1.3)));
+  put(loft(THREE, secs, { closed: false, smooth: true }), SLOT.black);
+  put(loft(THREE, [hoodSection(h, ts, h.aftX), hoodSection(h, ts, h.aftX, -h.lipDrop)], { closed: false }), SLOT.black);
+  // The three lamps on a light strip on the lip, under the rail (Dad's pictures 17, 18, 26; AETCMAN 11-248 Fig 2.7).
+  const lx = h.aftX - 0.003, lz = h.top - h.lipDrop / 2 - 0.015;
+  put(box(THREE, lx - 0.006, lx, -0.42, 0.42, lz - 0.045, lz + 0.045), SLOT.knob);
+  [[0.16, SLOT.lampRed], [0, SLOT.lampAmber], [-0.16, SLOT.lampAmber]].forEach(([y, slot]) => {
+    put(box(THREE, lx - 0.02, lx - 0.006, y - 0.055, y + 0.055, lz - 0.035, lz + 0.035), SLOT.black);
+    put(box(THREE, lx - 0.024, lx - 0.02, y - 0.042, y + 0.042, lz - 0.025, lz + 0.025), slot);
+  });
+
+  // The grab rail (the rim): along the coaming's aft edge and down the panel's sides to brackets (TS-156, TS-157).
+  const rx = h.aftX - RIM_FT.aftOfGlareshield;
+  const edge = hoodHalf(h, ts, h.aftX).slice(0, -1).map(([y, z]) => [Math.min(y, glassHalfWidthFt(z, rx, 0.06)), z]);
+  const sideY = edge[edge.length - 1][0], lowZ = zOf(RIM_FT.lowV);
+  const rail = chaikin([[sideY, lowZ], ...edge.slice(1).reverse(), ...edge.slice(1).map(([y, z]) => [-y, z]), [-sideY, lowZ]].map(([y, z]) => [rx, y, z]), 2);
+  put(tubeThrough(THREE, rail, RIM_FT.r, 72, { smooth: true, radial: 7 }), SLOT.rail);
+  for (const end of [rail[0], rail[rail.length - 1]]) {
+    put(tubeThrough(THREE, [end, [end[0], end[1], end[2] - 0.05], [p.x, end[1] * 0.96, end[2] - 0.1]], 0.028, 6, { radial: 6 }), SLOT.rail);
   }
-  // The glareshield.
-  put(glareshieldGeometry(THREE, gs, p, ts.side), SLOT.black);
-  // The glareshield's rim, the thick dark grab rail round the panel's sides and top (TS-156, RIM_FT; AETCMAN 11-248
-  // Fig 2.7): its top run along the glareshield's aft edge at the glareshield's height, its legs in angled brackets.
-  const off = RIM_FT.sideOut, rx = gs.aftX - RIM_FT.aftOfGlareshield;
-  const clampY = (y, z) => Math.sign(y) * Math.min(Math.abs(y), glassHalfWidthFt(z, rx, 0.05));
-  const railPts = [
-    [ts.side + off, zOf(0.45)], [ts.side + off, ts.shoulderZ], [ts.top + off * 0.4, p.top],
-    [-(ts.top + off * 0.4), p.top], [-(ts.side + off), ts.shoulderZ], [-(ts.side + off), zOf(0.45)],
-  ].map(([y, z]) => [rx, clampY(y, z), z]);
-  put(tubeThrough(THREE, railPts, RIM_FT.r), SLOT.black);
-  for (const end of [railPts[0], railPts[railPts.length - 1]]) {
-    put(tubeThrough(THREE, [end, [end[0], end[1], end[2] - 0.08], [p.x, end[1], end[2] - 0.16]], 0.03, 8), SLOT.rail);
+  // The rear hump's second rail, across its top near the front (Dad's pictures 27, 29).
+  if (!front) {
+    const xr = lerp(h.aftX, h.foreX, 0.72);
+    const top = hoodHalf(h, ts, xr).map(([y, z]) => [Math.min(y, glassHalfWidthFt(z, xr, 0.08)), z + 0.1]);
+    const arc = chaikin([...top.slice(1).reverse(), ...top.slice(1).map(([y, z]) => [-y, z])].map(([y, z]) => [xr, y, z]), 2);
+    put(tubeThrough(THREE, arc, 0.04, 48, { smooth: true, radial: 7 }), SLOT.rail);
   }
-  // The gear handle's lever and wheel knob, standing off its plate (static, up).
-  const gh = instruments.find((i) => i.kind === 'gearHandle');
-  if (gh) {
-    const y = yOf(gh.u), z = zOf(gh.v);
-    put(box(THREE, p.x - 0.1, p.x, y - 0.015, y + 0.015, z - 0.01, z + 0.12), SLOT.knob);
-    put(new THREE.CylinderGeometry(0.05, 0.05, 0.035, 14).translate(p.x - 0.12, y, z + 0.12), SLOT.knob);
+  // The air vents at the panel's upper corners.
+  for (const s of [1, -1]) {
+    const z = zOf(0.83), y = s * Math.min(ts.side - 0.05, glassHalfWidthFt(z, p.x - 0.1, 0.16));
+    ventParts(THREE, p.x - 0.12, y, z, put, SLOT);
   }
 
-  // On the glareshield (front seat only; AETCMAN 11-248 Fig 2.7, p.42, and Fig 5.3; TS-156; places and sizes estimates
-  // judged off the figures): the AOA indexer standing up on the left, a tall narrow box with three stacked lamps; three
-  // small lamps in a row on the centre with screw dots (master warning and caution style); the standby compass on the
-  // right, a round face in a small housing on a bracket. All unlit or static.
-  if (dx === 0) {
-    const t = gs.top;
-    put(box(THREE, 3.45, 3.55, 0.7, 0.78, t - 0.02, t + 0.3), SLOT.black);
+  // The AOA indexer on the coaming's left and the standby compass on its right (AETCMAN 11-248 Fig 2.7, Fig 5.3, TS-156;
+  // the rear one on the hump, Dad's picture 27): a tall narrow box with three stacked lamps; a round face in a small
+  // housing on a bracket. All unlit or static.
+  {
+    const ax = h.aftX + 0.15, ay = front ? 0.74 : 0.62, az = hoodZ(h, ts, ax, ay);
+    put(box(THREE, ax - 0.05, ax + 0.05, ay - 0.04, ay + 0.04, az - 0.04, az + 0.3), SLOT.black);
     [SLOT.lampGreen, SLOT.lampAmber, SLOT.lampRed].forEach((slot, i) => {
-      const z = t + 0.24 - i * 0.085;
-      put(box(THREE, 3.445, 3.45, 0.715, 0.765, z - 0.03, z + 0.03), slot);
+      const z = az + 0.24 - i * 0.085;
+      put(box(THREE, ax - 0.055, ax - 0.05, ay - 0.025, ay + 0.025, z - 0.03, z + 0.03), slot);
     });
-    [[0.16, SLOT.lampRed], [0, SLOT.lampAmber], [-0.16, SLOT.lampAmber]].forEach(([y, slot]) => {
-      put(box(THREE, 3.38, 3.46, y - 0.055, y + 0.055, t - 0.01, t + 0.06), SLOT.black);
-      put(box(THREE, 3.375, 3.38, y - 0.042, y + 0.042, t + 0.004, t + 0.044), slot);
-      for (const sy of [-1, 1]) put(box(THREE, 3.373, 3.378, y + sy * 0.049 - 0.005, y + sy * 0.049 + 0.005, t + 0.045, t + 0.055), SLOT.knob);
-    });
-    put(box(THREE, 3.56, 3.6, -0.57, -0.53, t - 0.02, t + 0.1), SLOT.black); // the bracket
-    put(box(THREE, 3.5, 3.66, -0.63, -0.47, t + 0.08, t + 0.22), SLOT.black); // the housing
-    put(new THREE.CylinderGeometry(0.05, 0.05, 0.01, 18).rotateZ(Math.PI / 2).translate(3.495, -0.55, t + 0.15), SLOT.knob); // the face
-    put(box(THREE, 3.488, 3.49, -0.553, -0.547, t + 0.11, t + 0.19), SLOT.black); // its lubber line
+    const cx = h.aftX + 0.22, cy = front ? -0.55 : -0.58, cz = hoodZ(h, ts, cx, cy);
+    put(box(THREE, cx - 0.02, cx + 0.02, cy - 0.02, cy + 0.02, cz - 0.04, cz + 0.1), SLOT.black); // the bracket
+    put(box(THREE, cx - 0.08, cx + 0.08, cy - 0.08, cy + 0.08, cz + 0.08, cz + 0.22), SLOT.black); // the housing
+    put(new THREE.CylinderGeometry(0.05, 0.05, 0.01, 18).rotateZ(Math.PI / 2).translate(cx - 0.085, cy, cz + 0.15), SLOT.knob); // the face
+    put(box(THREE, cx - 0.092, cx - 0.09, cy - 0.003, cy + 0.003, cz + 0.11, cz + 0.19), SLOT.black); // its lubber line
   }
 
-  // The seat: pan, lower back (the model's back above it), headbox.
-  const { pan, lowerBack, headbox } = S;
-  put(box(THREE, fx(pan.aft), fx(pan.fore), -pan.halfWidth, pan.halfWidth, pan.z0, pan.z1), SLOT.black);
-  put(box(THREE, fx(lowerBack.aft), fx(lowerBack.fore), -lowerBack.halfWidth, lowerBack.halfWidth, lowerBack.z0, lowerBack.z1), SLOT.rail);
-  put(box(THREE, fx(headbox.aft), fx(headbox.fore), -headbox.halfWidth, headbox.halfWidth, headbox.z0, headbox.z1), SLOT.rail);
+  // The instruments' square bezels standing proud of the face (Dad's pictures 17, 26).
+  for (const inst of PANEL_INSTRUMENTS) {
+    if (!inst.s && !inst.frame && inst.kind !== 'eng') continue;
+    const o = outerFt(inst, faceW, faceH);
+    const yc = yOf(inst.u), zc = zOf(inst.v), hw = o.w / 2 + 0.012, hh = o.h / 2 + 0.012, t = 0.024;
+    const x0 = p.x - 0.03, x1 = p.x - 0.002;
+    put(box(THREE, x0, x1, yc - hw, yc + hw, zc + hh - t, zc + hh), SLOT.dark);
+    put(box(THREE, x0, x1, yc - hw, yc + hw, zc - hh, zc - hh + t), SLOT.dark);
+    put(box(THREE, x0, x1, yc - hw, yc - hw + t, zc - hh + t, zc + hh - t), SLOT.dark);
+    put(box(THREE, x0, x1, yc + hw - t, yc + hw, zc - hh + t, zc + hh - t), SLOT.dark);
+  }
+  // The emergency gear handle (a yellow and black T on the main face's lower left) and the landing gear handle (a lever
+  // with its light wheel knob on the lower panel, left of the left knee well; Dad's pictures 17, 26, 27).
+  {
+    const eg = PANEL_INSTRUMENTS.find((i) => i.kind === 'emerGear');
+    const y = yOf(eg.u), z = zOf(eg.v);
+    striped.push(box(THREE, p.x - 0.12, p.x - 0.01, y - 0.012, y + 0.012, z - 0.012, z + 0.012), box(THREE, p.x - 0.14, p.x - 0.11, y - 0.06, y + 0.06, z - 0.018, z + 0.018));
+    const gy = (k.outer + ts.side) / 2 - 0.04, gz = lerp(c.top, p.bottom, 0.35);
+    put(box(THREE, p.x - 0.11, p.x, gy - 0.014, gy + 0.014, gz - 0.01, gz + 0.11), SLOT.metal);
+    put(new THREE.CylinderGeometry(0.055, 0.055, 0.035, 16).rotateZ(Math.PI / 2).translate(p.x - 0.13, gy, gz + 0.11), SLOT.knob);
+  }
+
+  // The seat (Dad's pictures 26, 27, 29): a dark bucket, light grey cushion with a front roll and thigh bolsters, a
+  // light grey back cushion in front of the model's seat back, the dark headbox with the canopy breakers on top,
+  // harness straps lying on the cushions with a buckle, the yellow and black handle between the legs and the green
+  // oxygen hose to the right console.
+  const { pan, backCushion: bc, headbox: hb, breakers: br } = S;
+  put(box(THREE, fx(pan.aft), fx(pan.fore) - 0.05, -pan.halfWidth, pan.halfWidth, floor + 0.15, pan.z0), SLOT.dark);
+  for (const s of [1, -1]) put(box(THREE, fx(pan.aft) - 0.1, fx(pan.fore) - 0.1, s * pan.halfWidth, s * (pan.halfWidth + 0.06), floor + 0.1, pan.z1 + 0.12), SLOT.dark);
+  put(box(THREE, fx(pan.aft), fx(pan.fore) - 0.06, -pan.halfWidth + 0.02, pan.halfWidth - 0.02, pan.z0, pan.z1), SLOT.seat);
+  put(new THREE.CylinderGeometry(0.075, 0.075, 2 * pan.halfWidth - 0.04, 12).translate(fx(pan.fore) - 0.075, 0, (pan.z0 + pan.z1) / 2), SLOT.seat);
+  for (const s of [1, -1]) put(new THREE.SphereGeometry(1, 14, 7).scale(0.26, 0.14, 0.085).translate(fx(pan.fore) - 0.3, s * 0.33, pan.z1 + 0.01), SLOT.seat);
+  put(box(THREE, fx(pan.aft), fx(pan.aft) + bc.depth, -bc.halfWidth, bc.halfWidth, pan.z1 - 0.02, bc.z1), SLOT.seat);
+  put(box(THREE, fx(hb.aft), fx(hb.fore), -hb.halfWidth, hb.halfWidth, hb.z0, hb.z1), SLOT.dark);
+  for (const s of [1, -1]) {
+    const y = s * br.y, x = fx(hb.aft) + 0.12;
+    put(box(THREE, x - 0.03, x + 0.03, y - 0.025, y + 0.025, hb.z1, br.top - 0.08), SLOT.dark);
+    put(new THREE.ConeGeometry(0.035, 0.08, 4).rotateX(Math.PI / 2).translate(x, y, br.top - 0.04), SLOT.dark);
+  }
+  put(box(THREE, fx(hb.aft) + 0.08, fx(hb.aft) + 0.16, -br.y, br.y, hb.z1 + 0.08, hb.z1 + 0.12), SLOT.dark); // their crossbar
   // The seat's side beams.
-  for (const s of [1, -1]) put(box(THREE, fx(lowerBack.aft), fx(lowerBack.aft) + 0.25, s * 0.5, s * 0.6, pan.z0, 2.0), SLOT.black);
-
-  // The side consoles, from beside the seat to the panel.
-  const c = S.console;
-  for (const s of [1, -1]) put(box(THREE, fx(c.aft), p.x, s > 0 ? c.inner : -c.outer, s > 0 ? c.outer : -c.inner, S.floorZ, c.top), SLOT.grey);
-  // Left console: the power lever (PCL) in its slot, the flap lever, the red canopy fracturing handle.
-  put(box(THREE, fx(2.4), fx(3.0), 1.12, 1.18, c.top, c.top + 0.006), SLOT.black);
-  put(box(THREE, fx(2.68), fx(2.72), 1.13, 1.17, c.top, c.top + 0.2), SLOT.knob);
-  put(box(THREE, fx(2.625), fx(2.775), 1.09, 1.21, c.top + 0.2, c.top + 0.5), SLOT.black);
-  put(box(THREE, fx(2.19), fx(2.21), 1.04, 1.06, c.top, c.top + 0.25), SLOT.knob);
-  put(box(THREE, fx(2.16), fx(2.24), 1.01, 1.09, c.top + 0.21, c.top + 0.29), SLOT.knob);
-  put(new THREE.TorusGeometry(0.1, 0.02, 6, 14).rotateX(Math.PI / 2).translate(fx(3.0), 1.27, c.top + 0.2), SLOT.red);
-  // Right console: three raised panels with knobs.
-  for (const x0 of [1.0, 1.8, 2.6]) {
-    put(box(THREE, fx(x0), fx(x0 + 0.6), -1.25, -1.0, c.top, c.top + 0.05), SLOT.black);
-    for (const k of [0.2, 0.4]) put(new THREE.CylinderGeometry(0.03, 0.03, 0.04, 8).rotateX(Math.PI / 2).translate(fx(x0 + k), -1.12, c.top + 0.07), SLOT.knob);
+  for (const s of [1, -1]) put(box(THREE, fx(pan.aft) - 0.32, fx(pan.aft) - 0.1, s * 0.5, s * 0.6, pan.z0, 2.0), SLOT.dark);
+  // Harness: two shoulder straps down the back cushion, two lap belts across the cushion to a buckle.
+  const bx = fx(pan.aft) + bc.depth + 0.008;
+  for (const s of [1, -1]) {
+    put(box(THREE, bx, bx + 0.016, s * 0.13, s * 0.27, pan.z1 + 0.05, bc.z1 - 0.15), SLOT.frame);
+    put(box(THREE, fx(pan.aft) + 0.15, fx(pan.aft) + 0.6, s * 0.08, s * 0.45, pan.z1, pan.z1 + 0.016), SLOT.frame);
   }
-  // The stick: a boot on the floor, the stem leaning 8° forward, the grip on top.
+  put(box(THREE, fx(pan.aft) + 0.5, fx(pan.aft) + 0.64, -0.08, 0.08, pan.z1 + 0.005, pan.z1 + 0.04), SLOT.metal);
+  // The seat handle: a yellow and black loop standing at the cushion's front, a red T inside it.
+  const hx = fx(pan.fore) - 0.02;
+  striped.push(new THREE.TorusGeometry(0.16, 0.03, 6, 16, Math.PI).rotateX(Math.PI / 2).rotateZ(Math.PI / 2).translate(hx, 0, pan.z1 + 0.02));
+  put(box(THREE, hx - 0.012, hx + 0.012, -0.012, 0.012, pan.z1, pan.z1 + 0.11), SLOT.red);
+  put(box(THREE, hx - 0.015, hx + 0.015, -0.06, 0.06, pan.z1 + 0.1, pan.z1 + 0.13), SLOT.red);
+  // The oxygen hose, from the cushion's front right round to the right console.
+  put(tubeThrough(THREE, [[fx(pan.fore) - 0.25, -0.12, pan.z1 + 0.03], [fx(pan.fore) - 0.15, -0.42, pan.z1 + 0.06], [fx(1.45), -0.78, pan.z1 + 0.18],
+    [fx(1.15), -c.inner - 0.02, c.top - 0.05]], 0.035, 36, { smooth: true, radial: 6 }), SLOT.green);
+
+  // The side consoles, from beside the seat to the panel: grey bodies, their tops pictures (drawConsoles).
+  for (const s of [1, -1]) {
+    put(box(THREE, fx(c.aft), p.x, s > 0 ? c.inner : -c.outer, s > 0 ? c.outer : -c.inner, floor, c.top), SLOT.grey);
+    const q = flatAft(THREE, 0, [[0, 0], [1, 0], [1, 1], [0, 1]]);
+    // A unit square turned up to lie on the console top: y from inner to outer, x from aft to forward.
+    const pos = q.attributes.position, uv = q.attributes.uv, nor = q.attributes.normal;
+    for (let i = 0; i < pos.count; i++) {
+      const a = pos.getY(i), b = pos.getZ(i); // a across, b along
+      pos.setXYZ(i, lerp(fx(c.aft), p.x, b), s * lerp(c.inner, c.outer, a), c.top + 0.003);
+      nor.setXYZ(i, 0, 0, 1);
+      uv.setXY(i, s > 0 ? 0.5 * (1 - a) : 0.5 + 0.5 * a, b);
+    }
+    consoleTops.push(q);
+  }
+  // Left console: the power lever (PCL) in its slot with its big grip, the flap lever, a red lever with a striped T.
+  const L = (f) => lerp(fx(c.aft), p.x, f); // a station along the console, 0 aft and 1 forward
+  const ly = (c.inner + c.outer) / 2;
+  {
+    const x = L(0.5), tilt = rad(-12);
+    put(new THREE.CylinderGeometry(0.018, 0.022, 0.32, 8).rotateX(Math.PI / 2).translate(0, 0, 0.16).rotateY(tilt).translate(x, ly, c.top), SLOT.metal);
+    put(box(THREE, -0.07, 0.07, -0.05, 0.05, 0.28, 0.48).rotateY(tilt).translate(x, ly, c.top), SLOT.dark);
+    put(box(THREE, -0.075, -0.06, -0.02, 0.02, 0.4, 0.44).rotateY(tilt).translate(x, ly, c.top), SLOT.red);
+  }
+  put(box(THREE, L(0.86) - 0.01, L(0.86) + 0.01, ly - 0.01, ly + 0.01, c.top, c.top + 0.18), SLOT.metal); // the flap lever
+  put(box(THREE, L(0.86) - 0.04, L(0.86) + 0.04, ly - 0.05, ly + 0.05, c.top + 0.17, c.top + 0.2), SLOT.knob);
+  put(box(THREE, L(0.18), L(0.34), c.inner + 0.03, c.inner + 0.07, c.top + 0.02, c.top + 0.06), SLOT.red);
+  striped.push(box(THREE, L(0.34), L(0.37), c.inner - 0.01, c.inner + 0.11, c.top + 0.02, c.top + 0.07));
+  // Right console: knobs, and the red switch under its striped guard.
+  for (const [f, dy] of [[0.6, 0.05], [0.6, -0.08], [0.79, 0.05], [0.79, -0.08], [0.27, 0]]) {
+    put(new THREE.CylinderGeometry(0.03, 0.03, 0.04, 10).translate(0, 0.02, 0).rotateX(Math.PI / 2).translate(L(f), -ly + dy, c.top), SLOT.knob);
+  }
+  put(box(THREE, L(0.42), L(0.45), -ly - 0.025, -ly + 0.025, c.top, c.top + 0.06), SLOT.red);
+  striped.push(box(THREE, L(0.4), L(0.47), -ly - 0.05, -ly + 0.05, c.top + 0.06, c.top + 0.075));
+  // The canopy handle on the right side frame and a small handle on the left (Dad's picture 26).
+  {
+    const x = fx(1.25), z = ct156CanopySection(x / F).base * F + 0.16, y = -(Math.min(glassHalfWidthFt(z, x, 0), 1.4) - SIDE_FRAME_FT.thick - 0.04);
+    const bar = (g) => g.rotateY(rad(-25)).translate(x, y, z);
+    put(bar(box(THREE, -0.25, 0.25, -0.03, 0.03, -0.035, 0.035)), SLOT.dark);
+    for (let i = 0; i < 4; i++) put(bar(box(THREE, -0.18 + i * 0.1, -0.15 + i * 0.1, -0.045, 0.03, -0.04, 0.04)), SLOT.black);
+    const x2 = fx(2.6), z2 = ct156CanopySection(x2 / F).base * F + 0.15, y2 = Math.min(glassHalfWidthFt(z2, x2, 0), 1.4) - SIDE_FRAME_FT.thick - 0.03;
+    put(box(THREE, x2 - 0.09, x2 + 0.09, y2 - 0.02, y2, z2 - 0.02, z2 + 0.02), SLOT.metal);
+  }
+  // The stick: a black boot on the floor, the grey stem leaning 8° forward, the dark grip with its red button.
   const st = S.stick, tilt = rad(st.tiltDeg);
-  const stickPart = (g) => g.rotateY(tilt).translate(fx(st.x), 0, S.floorZ);
-  put(stickPart(new THREE.ConeGeometry(0.25, 0.3, 14).rotateX(Math.PI / 2).translate(0, 0, 0.15)), SLOT.black);
-  put(stickPart(new THREE.CylinderGeometry(0.035, 0.04, st.height - 0.3, 10).rotateX(Math.PI / 2).translate(0, 0, (st.height - 0.3) / 2)), SLOT.rail);
-  put(stickPart(box(THREE, -0.06, 0.06, -0.05, 0.05, st.height - 0.35, st.height)), SLOT.black);
-  // The rudder pedals, just ahead of the panel face (in the knee wells; the rear's run under the front seat).
-  for (const s of [1, -1]) put(box(THREE, p.x + 0.13, p.x + 0.16, s * 0.35 - 0.1, s * 0.35 + 0.1, -0.75, -0.45), SLOT.rail);
-  return { parts, ts, faceW, faceH, eye };
+  const stickPart = (g) => g.rotateY(tilt).translate(fx(st.x), 0, floor);
+  put(stickPart(new THREE.CylinderGeometry(0.1, 0.22, 0.32, 12).rotateX(Math.PI / 2).translate(0, 0, 0.16)), SLOT.black);
+  put(stickPart(new THREE.CylinderGeometry(0.045, 0.05, st.height - 0.3, 10).rotateX(Math.PI / 2).translate(0, 0, (st.height - 0.3) / 2 + 0.2)), SLOT.grey);
+  put(stickPart(new THREE.CylinderGeometry(0.065, 0.055, 0.32, 10).rotateX(Math.PI / 2).translate(-0.02, 0, st.height - 0.13)), SLOT.black);
+  put(stickPart(box(THREE, -0.075, 0.04, -0.05, 0.05, st.height - 0.02, st.height + 0.04)), SLOT.black);
+  put(stickPart(new THREE.CylinderGeometry(0.016, 0.016, 0.02, 8).rotateX(Math.PI / 2).translate(-0.04, 0.015, st.height + 0.05)), SLOT.red);
+  put(stickPart(box(THREE, 0.04, 0.06, -0.015, 0.015, st.height - 0.12, st.height - 0.04)), SLOT.red);
+  return { parts, striped, consoleTops, lower, ts, faceW, faceH, eye };
+}
+
+/** Geometries with position, normal and uv joined into one (non-indexed); the parts are disposed. */
+function joinTextured(THREE, geoms) {
+  const pos = [], nor = [], uv = [];
+  for (const g0 of geoms) {
+    const g = g0.index ? g0.toNonIndexed() : g0;
+    if (!g.attributes.normal) g.computeVertexNormals();
+    const n = g.attributes.position.count;
+    for (let i = 0; i < n * 3; i++) { pos.push(g.attributes.position.array[i]); nor.push(g.attributes.normal.array[i]); }
+    for (let i = 0; i < n * 2; i++) uv.push(g.attributes.uv ? g.attributes.uv.array[i] : 0);
+    if (g !== g0) g.dispose();
+    g0.dispose();
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  out.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  return out;
 }
 
 /**
@@ -896,13 +1236,17 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document } = {}) {
   const own = (m) => (materials.push(m), m);
   const solid = (color, extra = {}) => own(new THREE.MeshStandardMaterial({ color, roughness: 0.8, metalness: 0.05, side: THREE.DoubleSide, fog: false, ...extra }));
   const lamp = (color) => own(new THREE.MeshBasicMaterial({ color, fog: false }));
-  // Slots as SLOT: light grey panel and consoles, matte black, dark grey rail, red, mirror, knob, unlit lamps.
+  // Slots as SLOT (TS-157 colours, judged off Dad's pictures 26, 27, 29): mid grey panel and consoles, near-black coaming
+  // and rail, red, mirror, light knobs, unlit lamps, the light bow band, light grey seat cushions, dark grey (seat
+  // bucket, headbox, bezels, vents), the green oxygen hose, metal, light grey canopy frames and straps.
   const slotMats = [
-    solid(PANEL_GREY), solid('#0c0f12', { roughness: 0.95 }), solid('#3a3e44'), solid('#b3202a', { roughness: 0.5 }),
-    solid('#6c7280', { roughness: 0.25, metalness: 0.6 }), solid('#c9ced4', { roughness: 0.5 }),
+    solid('#8a8e92'), solid('#1d2023', { roughness: 0.75 }), solid('#1d2024', { roughness: 0.6 }), solid('#b3202a', { roughness: 0.5 }),
+    solid('#b9c9da', { roughness: 0.2, metalness: 0.3, emissive: '#5d6f82' }), solid('#c9ced4', { roughness: 0.5 }),
     lamp('#3a1414'), lamp('#3a2c0e'), lamp('#10301a'),
     // The forward bow band, white to light grey (TS-156), a little self-lit so it stays light with the sun ahead.
     solid('#d3d6d9', { roughness: 0.7, emissive: '#7a7d80' }),
+    solid('#a3a7ab', { roughness: 0.9 }), solid('#3b3f44', { roughness: 0.8 }), solid('#4d6a2f', { roughness: 0.7 }),
+    solid('#a9aeb4', { roughness: 0.35, metalness: 0.7 }), solid('#c2c5c8', { roughness: 0.75, emissive: '#3a3c3e' }),
   ];
   const geometries = [];
   const add = (geometry, material) => {
@@ -912,31 +1256,43 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document } = {}) {
     return m;
   };
 
-  // The live faces' shared picture.
+  // The live faces' shared picture, the lower panels' and the consoles' pictures (both seats share them).
   const live = canvasTexture(ATLAS.width, ATLAS.height);
   const liveMat = own(new THREE.MeshBasicMaterial({ map: live.texture, side: THREE.DoubleSide, fog: false }));
+  const lowerPic = canvasTexture(768, 576);
+  drawLowerPanel(lowerPic.ctx, 768, 576);
+  lowerPic.texture.needsUpdate = true;
+  const lowerMat = own(new THREE.MeshBasicMaterial({ map: lowerPic.texture, side: THREE.DoubleSide, fog: false }));
+  const consolePic = canvasTexture(256, 1024);
+  drawConsoles(consolePic.ctx, 256, 1024);
+  consolePic.texture.needsUpdate = true;
+  const consoleMat = own(new THREE.MeshStandardMaterial({ map: consolePic.texture, roughness: 0.85, side: THREE.DoubleSide, fog: false }));
 
   const seats = [
-    { dx: 0, p: PANEL_FT, gs: GLARESHIELD_FT, instruments: FRONT_INSTRUMENTS, eye: EYES_FT.front, width: 2048 },
-    { dx: REAR_DX, p: REAR_PANEL_FT, gs: REAR_GLARESHIELD_FT, instruments: REAR_INSTRUMENTS, eye: EYES_FT.rear, width: 1024 },
+    { dx: 0, p: PANEL_FT, h: GLARESHIELD_FT, eye: EYES_FT.front, width: 2048 },
+    { dx: REAR_DX, p: REAR_PANEL_FT, h: REAR_HUMP_FT, eye: EYES_FT.rear, width: 1024 },
   ];
-  const solidParts = [];
+  const solidParts = [], striped = [], consoleTops = [], lowerFaces = [], liveQuads = [];
   for (const seat of seats) {
-    const { parts, ts, faceW, faceH } = seatParts(THREE, seat);
-    solidParts.push(...parts);
+    const sp = seatParts(THREE, seat);
+    solidParts.push(...sp.parts);
+    striped.push(...sp.striped);
+    consoleTops.push(...sp.consoleTops);
+    lowerFaces.push(...sp.lower);
+    const { ts, faceW, faceH } = sp;
     const { p } = seat;
     // The panel's static picture, its pixels square on the face.
     const height = Math.round((seat.width * faceH) / faceW);
     const pic = canvasTexture(seat.width, height);
-    drawStaticPanel(pic.ctx, seat.width, height, seat.instruments, faceW, faceH);
+    drawStaticPanel(pic.ctx, seat.width, height, PANEL_INSTRUMENTS, faceW, faceH);
     pic.texture.needsUpdate = true;
     const panelMat = own(new THREE.MeshBasicMaterial({ map: pic.texture, side: THREE.DoubleSide, fog: false }));
     const outline = [[ts.side, p.bottom], [ts.side, ts.shoulderZ], [ts.top, p.top], [-ts.top, p.top], [-ts.side, ts.shoulderZ], [-ts.side, p.bottom]];
     add(flatAft(THREE, p.x, outline, { y0: ts.side, y1: -ts.side, z0: p.bottom, z1: p.top }), panelMat);
     // The live instruments: small quads just proud of the face, each showing its window of the shared picture.
-    for (const inst of seat.instruments) {
+    for (const inst of PANEL_INSTRUMENTS) {
       if (!inst.live) continue;
-      const s = sizeFt(inst, faceW, faceH);
+      const s = faceFt(inst, faceW, faceH);
       const yc = ts.side * (1 - 2 * inst.u), zc = p.bottom + inst.v * faceH;
       const q = flatAft(THREE, p.x - 0.005, [[yc + s.w / 2, zc - s.h / 2], [yc - s.w / 2, zc - s.h / 2], [yc - s.w / 2, zc + s.h / 2], [yc + s.w / 2, zc + s.h / 2]]);
       const win = LIVE_WINDOWS[inst.live];
@@ -945,29 +1301,64 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document } = {}) {
         const fu = (yc + s.w / 2 - pos.getY(i)) / s.w, fv = (pos.getZ(i) - (zc - s.h / 2)) / s.h;
         uv.setXY(i, (win.x + fu * win.w) / ATLAS.width, 1 - (win.y + (1 - fv) * win.h) / ATLAS.height);
       }
-      add(q, liveMat);
+      liveQuads.push(q);
     }
-    // The mirrors under this seat's bow (front: the forward bow; rear: the inter-cockpit arch), turned to its eye.
-    const front = seat.dx === 0;
-    const bowX = (front ? CT156_FRAME_X[0] : CT156_FRAME_X[1]) * F;
-    // Under the forward bow they hang just inside its band and tube (TS-156); under the arch as TS-155.
-    const b = FORWARD_BOW_FT;
-    const [backs, faces] = mirrorGeometries(THREE, bowX, seat.eye, front ? { aft: 0.17, inward: b.glassInset + b.bandDepth + 2 * b.tubeR + 0.08 } : {});
-    for (const g of backs) solidParts.push({ geometry: g, materials: [SLOT.black] });
-    for (const g of faces) solidParts.push({ geometry: g, materials: [SLOT.mirror] });
   }
-  // The forward bow's light band with its holes and inner tube (TS-156), the framed inter-cockpit arch (TS-155; the
-  // figures don't show it, so it stays a plain dark frame), the rear hoop the model's tube only, and the sill bands.
-  const fb = forwardBandGeometries(THREE);
+  add(joinTextured(THREE, liveQuads), liveMat);
+  add(joinTextured(THREE, lowerFaces), lowerMat);
+  add(joinTextured(THREE, consoleTops), consoleMat);
+
+  // Round the canopy. The forward bow's light band with its ring of holes and inner tube (TS-156), and a mirror on each
+  // canopy side frame just aft of it, turned to the front eye (Dad's pictures 26 and 28; TS-157 moved them off the bow).
+  const fb = bandGeometries(THREE, FORWARD_BOW_FT);
   solidParts.push({ geometry: fb.band, materials: [SLOT.band] }, { geometry: fb.tube, materials: [SLOT.black] });
-  for (const g of fb.holes) solidParts.push({ geometry: g, materials: [SLOT.black] });
-  solidParts.push({ geometry: bowGeometry(THREE, CT156_FRAME_X[1] * F), materials: [SLOT.black] });
-  for (const g of sillGeometry(THREE)) solidParts.push({ geometry: g, materials: [SLOT.rail] });
+  for (const g of fb.dots) solidParts.push({ geometry: g, materials: [SLOT.black] });
+  for (const s of [1, -1]) {
+    const x = FORWARD_BOW_FT.bandX - 0.3, z = 1.78, gy = glassHalfWidthFt(z, x, 0.01);
+    const [back, face, stalk] = mirrorGeometries(THREE, [x, s * (gy - 0.15), z], EYES_FT.front, [x + 0.04, s * gy, z - 0.03], 0.3, 0.15);
+    solidParts.push({ geometry: back, materials: [SLOT.black] }, { geometry: face, materials: [SLOT.mirror] }, { geometry: stalk, materials: [SLOT.black] });
+  }
+  // The inter-cockpit arch's light band with its fastener rows and inner tube, its two mirrors a third of the way down
+  // from the crest turned to the rear eye (Dad's pictures 21, 27; TS-155's places), and the clear inter-cockpit shield
+  // under it, down to the rear hump (Dad's picture 28).
+  const ab = bandGeometries(THREE, ARCH_FT);
+  solidParts.push({ geometry: ab.band, materials: [SLOT.band] }, { geometry: ab.tube, materials: [SLOT.black] });
+  for (const g of ab.dots) solidParts.push({ geometry: g, materials: [SLOT.black] });
+  {
+    const pts = ct156HoopPoints(ARCH_FT.bandX / F, 18);
+    const base = ct156CanopySection(ARCH_FT.bandX / F).base * F;
+    for (const j of [6, 12]) {
+      const { y, z } = pts[j];
+      const dy = -y * F, dz = base - z * F, l = Math.hypot(dy, dz);
+      const d = ARCH_FT.bandDepth + 0.12;
+      const pos = [ARCH_FT.bandX - 0.15, y * F + (dy / l) * d, z * F + (dz / l) * d];
+      const [back, face, stalk] = mirrorGeometries(THREE, pos, EYES_FT.rear, [ARCH_FT.bandX - 0.01, y * F + (dy / l) * 0.05, z * F + (dz / l) * 0.05], 0.3, 0.16);
+      solidParts.push({ geometry: back, materials: [SLOT.black] }, { geometry: face, materials: [SLOT.mirror] }, { geometry: stalk, materials: [SLOT.black] });
+    }
+  }
+  const rearTs = tombstone(REAR_PANEL_FT);
+  {
+    const x = ARCH_FT.x + 0.04;
+    const hump = hoodSection(REAR_HUMP_FT, rearTs, x).map(([, y, z]) => [y, z]);
+    const sideZ = hump[0][1];
+    const base = ct156CanopySection(x / F).base * F;
+    const hoop = ct156HoopPoints(x / F, 36).map(({ y, z }) => {
+      const dy = -y * F, dz = base - z * F, l = Math.hypot(dy, dz) || 1, d = 0.1;
+      return [y * F + (dy / l) * d, z * F + (dz / l) * d];
+    }).filter(([, z]) => z > sideZ + 0.02);
+    const shield = flatAft(THREE, x, [...hoop, ...hump.slice().reverse()]);
+    add(shield, own(new THREE.MeshBasicMaterial({ color: '#cfe3f2', transparent: true, opacity: 0.08, depthWrite: false, side: THREE.DoubleSide, fog: false })));
+  }
+  // The canopy's side frames with their fasteners (Dad's pictures 19, 21, 27) and the sill bands below them.
+  const sf = sideFrameParts(THREE);
+  for (const g of sf.frames) solidParts.push({ geometry: g, materials: [SLOT.frame] });
+  for (const g of sf.nubs) solidParts.push({ geometry: g, materials: [SLOT.dark] });
+  for (const g of sillGeometry(THREE)) solidParts.push({ geometry: g, materials: [SLOT.frame] });
   add(ct156JoinGeometries(THREE, solidParts), slotMats);
 
-  // The ejection seat handles: yellow and black striped loops at each pan's front.
+  // The yellow and black striped parts: the seat handles, the emergency gear T, the console T-handle and guard.
   const stripe = canvasTexture(32, 32);
-  stripe.ctx.fillStyle = '#e8c21c';
+  stripe.ctx.fillStyle = YELLOW;
   stripe.ctx.fillRect(0, 0, 32, 32);
   stripe.ctx.fillStyle = '#111';
   stripe.ctx.fillRect(0, 0, 16, 32);
@@ -975,10 +1366,7 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document } = {}) {
   stripe.texture.repeat.set(8, 1);
   stripe.texture.needsUpdate = true;
   const stripeMat = own(new THREE.MeshStandardMaterial({ map: stripe.texture, roughness: 0.6, side: THREE.DoubleSide, fog: false }));
-  for (const seat of seats) {
-    const loop = new THREE.TorusGeometry(0.125, 0.025, 6, 14, Math.PI).rotateX(Math.PI / 2).rotateZ(Math.PI / 2);
-    add(loop.translate(SEAT_FT.pan.fore + seat.dx - 0.03, 0, SEAT_FT.pan.z1), stripeMat);
-  }
+  add(joinTextured(THREE, striped), stripeMat);
 
   let shownKey = null;
   let shownAt = -Infinity;

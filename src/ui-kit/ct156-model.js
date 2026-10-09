@@ -370,13 +370,19 @@ const COCKPIT_CUT_X = [-0.242, 0.17];
 const FT = CT156_UNIT_LENGTH / CT156_LENGTH_FT; // model units per foot
 
 /**
- * The cockpit tub under the canopy (TS-155): a floor 0.8 ft below the spinner's axis from 5.6 ft aft of the model origin
- * to 3.9 ft ahead of it, side walls about 1.3 ft out (kept inside the canopy) up to the sill, and a bulkhead at each end
- * up to the fuselage's top line. Group 0 the floor, group 1 the walls. All estimates (judged by eye off Dad's
- * reference pictures, 9 Oct 2026).
+ * The cockpit tub's floor, feet below the spinner's axis (TS-155; TS-157 deepened it from 0.8 ft so the seat pan sits
+ * about 10 in above the floor and the tub reads as deep as Dad's cutaway picture of the T-6A shows). An estimate.
+ * ct156-cockpit.js stands its pedals, stick and seats on it.
+ */
+export const CT156_TUB_FLOOR_FT = -1.2;
+/**
+ * The cockpit tub under the canopy (TS-155): a floor CT156_TUB_FLOOR_FT below the spinner's axis from 5.6 ft aft of the
+ * model origin to 3.9 ft ahead of it, side walls about 1.3 ft out (kept inside the canopy) up to the sill, and a
+ * bulkhead at each end up to the fuselage's top line. Group 0 the floor, group 1 the walls. All estimates (judged by
+ * eye off Dad's reference pictures, 9 Oct 2026).
  */
 function tubGeometry(THREE) {
-  const N = 14, x0 = 3.9 * FT, x1 = -5.6 * FT, floorZ = -0.8 * FT;
+  const N = 14, x0 = 3.9 * FT, x1 = -5.6 * FT, floorZ = CT156_TUB_FLOOR_FT * FT;
   const rows = [];
   for (let i = 0; i <= N; i++) {
     const x = x0 + ((x1 - x0) * i) / N;
@@ -801,9 +807,10 @@ function buildKit(THREE) {
     glassInside: keep(new THREE.MeshBasicMaterial({ color: '#cfe3f2', transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide, fog: false })),
     frame: mat({ color: '#0c1017', roughness: 0.5, side: two }),
     floor: mat({ color: '#0d1118', roughness: 0.9, side: two }),
-    // The cockpit tub (setCockpitView; TS-155): a dark floor, light grey walls (estimates off Dad's reference pictures).
-    tubFloor: mat({ color: '#1a1d21', roughness: 0.95, side: two }),
-    tubWall: mat({ color: '#7d8186', roughness: 0.85, side: two }),
+    // The cockpit tub (setCockpitView; TS-155, TS-157): a mid grey floor and light grey walls, as the T-6A's in Dad's
+    // reference pictures (estimates).
+    tubFloor: mat({ color: '#5b5f64', roughness: 0.95, side: two }),
+    tubWall: mat({ color: '#a4a8ad', roughness: 0.85, side: two }),
     helmet: mat({ color: '#d4d8de', roughness: 0.35 }),
     blade: mat({ color: '#0a0c10', roughness: 0.6 }),
     tip: mat({ color: '#d2202c', roughness: 0.5 }),
