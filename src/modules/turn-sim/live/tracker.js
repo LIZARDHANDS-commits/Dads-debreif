@@ -64,58 +64,73 @@ function rideAim(ph, L, Lprev, ref, W) {
   const line = ph.line ?? fixedLine(ph.lineDeg ?? TR.lineDeg, ph.side ?? -1);
   const rel = relativeTo(L, W);
   const { along, cross } = line.at(rel);
-  const f = { x: Math.cos(L.headingRad), y: Math.sin(L.headingRad) };
+  const f = unit(L.headingRad);
   const l = { x: -f.y, y: f.x };
   const toW = (v) => ({ x: v.fwd * f.x + v.left * l.x, y: v.fwd * f.y + v.left * l.y });
   const omegaL = Lprev ? wrapPi(L.headingRad - Lprev.headingRad) / STEP_SEC : 0;
   const rx = W.xFt - L.xFt;
   const ry = W.yFt - L.yFt;
+  // The frame's velocity at #2's place: what he would fly to sit still on Lead's canopy.
   const vfx = L.tasFtps * f.x - omegaL * ry;
   const vfy = L.tasFtps * f.y + omegaL * rx;
   const wx = W.tasFtps * Math.cos(W.headingRad);
   const wy = W.tasFtps * Math.sin(W.headingRad);
-  const nW = toW(line.nrm); 
-  const mW = toW({ fwd: -line.u.fwd, left: -line.u.left }); 
-  const drift = (wx - vfx) * nW.x + (wy - vfy) * nW.y; 
-  const closing = (wx - vfx) * mW.x + (wy - vfy) * mW.y; 
-
+  const nW = toW(line.nrm); // across the line, positive ahead of it (hot)
+  const mW = toW({ fwd: -line.u.fwd, left: -line.u.left }); // up the line, toward Lead
+  const drift = (wx - vfx) * nW.x + (wy - vfy) * nW.y; // d(cross)/dt in Lead's frame
+  const closing = (wx - vfx) * mW.x + (wy - vfy) * mW.y; // up the line, ft/s
   const st = (ref.ride ??= { established: false });
   if (!st.established && Math.abs(cross) <= (ph.captureFt ?? TR.captureFt) && Math.abs(drift) <= (ph.driftFtps ?? TR.rideDriftFtps)) {
     st.established = true;
     st.establishedRange = Math.hypot(rx, ry);
   }
 
-  st.captureAlong ??= Math.min(ph.captureAlongFt ?? TR.rideCaptureAlongFt, Math.max(along, 0));
-  
+  // Where he aims, in Lead's frame (it stands still there): a point on the line rideLeadFt further up it than his own place,
+  // but not closer to Lead than the capture point until he is established, so he joins the line well back (Patrick G1:
+  // established by 1,500 ft). Far off the line that points him mostly across it; as he nears it, along it, so he comes onto it
+  // along it. His own speed sets how fast he moves that way: |vf + λ·d| = V, solved for λ.
+  st.captureAlong ??= Math.min(ph.captureAlongFt ?? TR.rideCaptureAlongFt, along < 0 ? (ph.captureAlongFt ?? TR.rideCaptureAlongFt) : Math.max(along, 0));
   const leadFt = ph.leadFt ?? TR.rideLeadFt;
   const windowFt = ph.windowFt ?? TR.windowFarFt;
-  
-  const carrotAlong = st.established 
-    ? Math.min(along - (ph.minLeadFt ?? TR.rideMinLeadFt), Math.max(windowFt, along - leadFt))
-    : Math.min(along - (ph.minLeadFt ?? TR.rideMinLeadFt), Math.max(st.captureAlong, along));
-    
-  const dAlong = carrotAlong - along;
-  const L1 = Math.max(ph.l1MinFt ?? 600, Math.hypot(dAlong, cross));
-
-  const cMax = Math.sqrt(2 * (ph.stopFtps2 ?? TR.rideStopFtps2) * Math.abs(cross));
+  const carrotWindowFt = ph.carrotWindowFt ?? windowFt;
+  const carrotAlong = Math.min(along - (ph.minLeadFt ?? TR.rideMinLeadFt), Math.max(st.established ? carrotWindowFt : st.captureAlong, along - leadFt));
+  const dAlong = carrotAlong - along; // < 0: up the line
+  const dLen = Math.hypot(dAlong, cross) || 1;
+  // direction in world axes: dAlong along u (outward), -cross along nrm
+  const uW = { x: -mW.x, y: -mW.y };
+  const d = { x: (dAlong * uW.x - cross * nW.x) / dLen, y: (dAlong * uW.y - cross * nW.y) / dLen };
   const V = W.tasFtps;
-  const requiredL1 = cMax > 0 ? (V * Math.abs(cross)) / cMax : L1;
-  const finalL1 = Math.max(L1, requiredL1);
-
-  const chi = Math.asin(Math.min(1, Math.abs(cross) / finalL1));
-  const wayFwd = -line.u.fwd * Math.cos(chi) - Math.sign(cross) * line.nrm.fwd * Math.sin(chi);
-  const wayLeft = -line.u.left * Math.cos(chi) - Math.sign(cross) * line.nrm.left * Math.sin(chi);
-
-  const dWorld = { x: wayFwd * f.x + wayLeft * l.x, y: wayFwd * f.y + wayLeft * l.y };
-  const dvx = dWorld.x * V;
-  const dvy = dWorld.y * V;
-
+  const bd = vfx * d.x + vfy * d.y;
+  const disc = bd * bd - (vfx * vfx + vfy * vfy) + V * V;
+  let lam = disc >= 0 ? Math.max(0, -bd + Math.sqrt(disc)) : 0;
+  let dvx = disc >= 0 ? vfx + lam * d.x : V * d.x;
+  let dvy = disc >= 0 ? vfy + lam * d.y : V * d.y;
+  // He closes on the line no faster than he can stop on it: across it at most √(2·a·|cross|) (a = rideStopFtps2). Until he
+  // is established, the rest of his speed goes up or down the line, whichever brings him to the capture point (a hot start
+  // falls back down it, as an HTRJ gets colder); once established, up it (|vf + c·n + a·m| = V, solved for a).
+  const cMax = Math.sqrt(2 * (ph.stopFtps2 ?? TR.rideStopFtps2) * Math.abs(cross));
+  const cNow = (dvx - vfx) * nW.x + (dvy - vfy) * nW.y;
+  if (Math.abs(cNow) > cMax || !st.established) {
+    let c = st.established ? Math.sign(cNow) * Math.min(Math.abs(cNow), cMax) : -Math.sign(cross) * Math.min(cMax, Math.abs(cross) / (ph.settleSec ?? TR.rideSettleSec));
+    const aWant = st.established ? Infinity : (along - st.captureAlong) / (ph.alongTauSec ?? TR.rideAlongTauSec);
+    for (let i = 0; i < 6; i++, c *= 0.7) {
+      const base = { x: vfx + c * nW.x, y: vfy + c * nW.y };
+      const bm = base.x * mW.x + base.y * mW.y;
+      const disc2 = bm * bm - (base.x * base.x + base.y * base.y) + V * V;
+      if (disc2 < 0) continue;
+      const a1 = -bm + Math.sqrt(disc2);
+      const a2 = -bm - Math.sqrt(disc2);
+      const a = Math.abs(a1 - aWant) <= Math.abs(a2 - aWant) ? a1 : a2;
+      dvx = base.x + a * mW.x;
+      dvy = base.y + a * mW.y;
+      lam = -1; // flagged in the trace: the (c, a) form is flying
+      break;
+    }
+  }
   const r = Math.hypot(rx, ry);
-  const d = Math.hypot(along, cross);
-  const arrived = st.established && (d <= windowFt || along <= windowFt);
+  const arrived = st.established && along <= windowFt;
   const px = W.xFt + dvx;
   const py = W.yFt + dvy;
-
   return {
     px, py, vpx: vfx, vpy: vfy, ex: dvx, ey: dvy, d: Math.hypot(dvx, dvy), arrived,
     along, cross, drift, closing, established: st.established, psiWant: Math.atan2(dvy, dvx), rangeFt: r,
@@ -123,7 +138,10 @@ function rideAim(ph, L, Lprev, ref, W) {
   };
 }
 
-
+/**
+ * Calculates the target aim point and its velocity in world coordinates (refPoint plus phase goal,
+ * rate-limited reference slide, and separation distance).
+ */
 function aimOf(ph, L, Lprev, ref, W, t) {
   const T = TRACKER;
   const GAIN = T.gain;
@@ -260,7 +278,7 @@ function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT) {
   if (ph.kind === 'ride') {
     // The speed is held (Patrick 8 Oct 20:16); the geometry takes the closure out. The steering is rideAim's.
     const floor = ph.floorKias ?? KIAS_OUTSIDE_LAB;
-    const kiasCmd = aim.established || Math.abs(aim.cross) <= (ph.speedUpFt ?? TURNING_REJOIN.rideSpeedUpFt) ? Math.max(floor, aim.established && aim.along <= (ph.easeFromFt ?? TURNING_REJOIN.rideEaseFromFt) ? (ph.easeKias ?? TURNING_REJOIN.rideEaseKias) : (ph.rideKias ?? TURNING_REJOIN.rideKias)) : floor; // to the line: no faster than the floor (Patrick 8 Oct 21:05: 200 floor, MAX on entry); on it, 210
+    const kiasCmd = aim.established || Math.abs(aim.cross) <= (ph.speedUpFt ?? TURNING_REJOIN.rideSpeedUpFt) ? Math.max(floor, aim.along <= (ph.easeFromFt ?? TURNING_REJOIN.rideEaseFromFt) ? (ph.easeKias ?? TURNING_REJOIN.rideEaseKias) : (ph.rideKias ?? TURNING_REJOIN.rideKias)) : floor; // to the line: no faster than the floor (Patrick 8 Oct 21:05: 200 floor, MAX on entry); on it, 210
     return { pullX: 0, pullY: 0, vdx: aim.ex, vdy: aim.ey, speed: W.tasFtps, psiCmd: aim.psiWant, kiasCmd };
   }
 
@@ -496,10 +514,6 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     const v1 = v0 + Math.max(-pull * dt, Math.min(pull * dt, wantV - v0));
     const nz = 1 + (v1 - v0) / dt / G_FTPS2;
     const a1 = W.altAboveFt + ((v0 + v1) / 2) * dt;
-    heightState.cone ??= { t0: t, alt: [W.altAboveFt], climb: [v0], nz: [1] };
-    heightState.cone.alt.push(a1);
-    heightState.cone.climb.push(v1);
-    heightState.cone.nz.push(nz);
     heightState.hasHeightChange = true;
     return { stepProfile: [{ t0: t, t1: t + dt, table: { dt, alt: [W.altAboveFt, a1], climb: [v0, v1], nz: [nz, nz] } }] };
   }
