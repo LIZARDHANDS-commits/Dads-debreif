@@ -292,8 +292,14 @@ function mount(root, app) {
    * its height off the block), G, indicated airspeed and heading. Null when the HUD is off.
    */
   function hudData() {
-    if (!layout.get().tagHud) return null;
-    const a = camAircraft() ?? state.aircraft[0];
+    return layout.get().tagHud ? instrumentsOf() : null;
+  }
+  /**
+   * The same numbers for one aircraft (by id; the HUD's aircraft when left out), whether or not the HUD is showing: the
+   * 3D cockpit's instrument panel reads them for the aircraft the camera sits in (TS-154).
+   */
+  function instrumentsOf(id = null) {
+    const a = (id === null ? null : state.aircraft.find((s) => s.id === id)) ?? camAircraft() ?? state.aircraft[0];
     if (!a) return null;
     return {
       label: a.id === 1 ? 'Lead' : `#${a.id}`,
@@ -395,6 +401,7 @@ function mount(root, app) {
       placeBox: () => changeUi.placeBox(),
       onPick: (x, y, at) => changeUi.pickAt(x, y, at),
       look: camLook,
+      instruments: instrumentsOf,
       focus: () => {
         if (freeCamera()) return null; // the 3D view keeps its own centre, moved by shift-drag or right-drag
         const b = fitBox();

@@ -38,6 +38,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   planeScale: 1, // unticked: the scale on the usual easy-to-see size (×0.5 to ×4)
   camOn: 'formation', // what the camera centres on: the formation's centre of mass, or one aircraft ('1' to '4') (Patrick, 5 Oct)
   camLook: 'chase', // on one aircraft, in 3D (Patrick, 5 Oct): 'chase' behind its nose, 'free' centred on it and turned by hand, 'padlock' looking at the other
+  cockpitInterior: true, // 3D Cockpit and Padlock: the CT-156's front cockpit round the eye (Dad's ask, 9 Oct; TS-154); off, the own aircraft is hidden as before
   view: '3d', // '2d' or '3d'; 3D at the start, looking straight down on the formation (Patrick, 5 Oct)
   paint: 'ship', // the 3D aircraft's paint: each in its ship colour, which stands out on the charcoal (Patrick, 5 Oct); 'harvard' is navy
 });
@@ -307,6 +308,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       { value: 'chase', label: 'Chase' }, { value: 'cockpit', label: 'Cockpit' }, { value: 'padlock', label: 'Padlock' },
       { value: 'free', label: 'Follow (free look)' },
     ] }),
+    lc.checkbox('cockpitInterior', { label: 'Cockpit interior (3D Cockpit, Padlock)' }),
     lc.checkbox('autoFit', { label: 'Auto zoom' }),
   ]);
 
