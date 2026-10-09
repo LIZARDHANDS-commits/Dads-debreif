@@ -151,8 +151,8 @@ export function sceneBounds(routes, aircraft = []) {
  * `sceneBounds` gives; with nothing it is null.
  */
 export function focusBounds(routes, aircraft = []) {
-  const pattern = routes.find((r) => r.kind === 'pattern' && r.visible !== false);
-  const box = pattern ? sceneBounds([pattern]) : null;
+  const pattern = routes.find((r) => r.kind === 'pattern');
+  const box = pattern ? sceneBounds([{ ...pattern, visible: true }]) : null;
   if (!box) return sceneBounds(routes, aircraft);
   const room = Math.max(box.maxX - box.minX, box.maxY - box.minY) / 2;
   const { minX, minY, maxX, maxY } = box;
