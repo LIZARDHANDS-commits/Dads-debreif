@@ -1,5 +1,5 @@
 // The CT-156 Harvard II's two cockpits as the student and the instructor see them (Dad's asks, 9 Oct 2026; Patrick
-// approved; TS-154, TS-155): in each, the tombstone instrument panel with its grab rail under the glareshield, the lower
+// approved; TS-154, TS-155, TS-156): in each, the tombstone instrument panel with its grab rail under the glareshield, the lower
 // panel and knee wells, the side consoles (power lever, flap lever, canopy handle), the stick, the rudder pedals, the
 // ejection seat with its handle, and round the canopy the framed bows with their mirrors and the sills. The rear
 // cockpit's panel stands behind the front seat, under the inter-cockpit arch. The canopy glass, the round bow tubes,
@@ -17,10 +17,14 @@
 //
 // Every size here is an ESTIMATE until Patrick rules: taken off the model's own tables (ct156-model.js, measured off
 // Patrick's side-on photo of CT-156 156101) or off Dad's reference pictures of the T-6A cockpit (9 Oct 2026: two
-// photos, a poster and two commercial-sim shots; nothing copied from them), as each line says. No manual page backs
-// them yet. The pictures are the T-6A's; the CT-156's own panel may differ.
+// photos, a poster and two commercial-sim shots; nothing copied from them), as each line says. From V2.208 (TS-156)
+// the front eye, the forward bow and the glareshield's rim are placed to AETCMAN 11-248 (13 Aug 2025, the USAF T-6
+// primary flying manual): in level flight at 200 KIAS the horizon splits the windscreen half and half (Fig 2.7, p.42),
+// and the bow is the wide light band with its ring of round holes (Fig 2.7, Fig 5.3). Page cites only: nothing from
+// the manual is copied here (docs/references/aetcman11-248-cockpit.md). The pictures are the T-6A's; the CT-156's own
+// panel may differ.
 import {
-  CT156_UNIT_LENGTH, CT156_LENGTH_FT, CT156_FRAME_X, CT156_SEAT_X, CT156_HELMET_Z,
+  CT156_UNIT_LENGTH, CT156_LENGTH_FT, CT156_FRAME_X, CT156_SEAT_X, CT156_HELMET_Z, CT156_REFERENCE_POINTS,
   ct156CanopySection, ct156CanopyHalfWidth, ct156HoopPoints, ct156JoinGeometries,
 } from './ct156-model.js';
 import { drawAttitude } from './hud.js';
@@ -30,14 +34,23 @@ export const CT156_FT_PER_UNIT = CT156_LENGTH_FT / CT156_UNIT_LENGTH;
 const F = CT156_FT_PER_UNIT;
 
 /**
- * The student's eye in the front seat, feet: the centre of the model's front helmet (CT156_SEAT_X[0], CT156_HELMET_Z),
- * about 1.4 ft ahead of the origin and 2.3 ft above the spinner's axis. Estimate (model table).
+ * How far the front eye sits below the model's front helmet centre, feet (TS-156): chosen so that, with the forward bow
+ * band and the glareshield's rim below, level flight at 200 KIAS shows half ground and half sky through the windscreen
+ * (AETCMAN 11-248 Fig 2.7, p.42; the pitch is the sim's own, core attitudeDegFromClimb, about -0.3°). It also brings
+ * the eye nearer the sill (TS-155's open question). An estimate fitted to that picture, not a measured eye position.
  */
-export const EYE_FT = Object.freeze({ x: CT156_SEAT_X[0] * F, y: 0, z: CT156_HELMET_Z * F });
+export const EYE_BELOW_HELMET_FT = 0.13;
+/**
+ * The student's eye in the front seat (the default front eye), feet: over the model's front seat (CT156_SEAT_X[0],
+ * about 1.4 ft ahead of the origin) and EYE_BELOW_HELMET_FT under its helmet centre, about 2.14 ft above the spinner's
+ * axis. Estimate (model table, then TS-156's fit to Fig 2.7).
+ */
+export const EYE_FT = Object.freeze({ x: CT156_SEAT_X[0] * F, y: 0, z: CT156_HELMET_Z * F - EYE_BELOW_HELMET_FT });
 
 /**
- * Both eyes, feet (TS-155). Front: EYE_FT. Rear: over the rear seat (CT156_SEAT_X[1], about 3.0 ft aft of the origin)
- * and 0.15 ft higher than the front eye, for the rear seat's step up; more puts the instructor's helmet into the glass.
+ * Both eyes, feet (TS-155, TS-156). Front: EYE_FT. Rear: over the rear seat (CT156_SEAT_X[1], about 3.0 ft aft of the
+ * origin) and 0.15 ft higher than the front eye, for the rear seat's step up (kept from TS-155, so it moved down with
+ * the front eye to about 2.28 ft, where the front eye used to be); more puts the instructor's helmet into the glass.
  * Estimate (judged off Dad's reference pictures and the model's canopy).
  */
 export const EYES_FT = Object.freeze({
@@ -49,9 +62,22 @@ const REAR_DX = (CT156_SEAT_X[1] - CT156_SEAT_X[0]) * F;
 
 /**
  * The forward canopy bow (the windscreen's frame), feet: the model's front frame hoop station (CT156_FRAME_X[0], about
- * 3.7 ft) and its crest, the canopy's top there (about 2.6 ft). Estimate (model tables).
+ * 3.7 ft) and its crest, the canopy's top there (about 2.6 ft) (model tables). Seen from the seat it is a wide light
+ * band lining the glass, with a ring of round dark holes and a dark tube along its inner edge (AETCMAN 11-248 Fig 2.7,
+ * p.42, and Fig 5.3, para 5.13; TS-156): its aft face 0.05 ft behind the hoop station, 0.15 ft deep from the glass
+ * inward, the tube 0.025 ft in radius, so it looks about 4.3° wide at the crest from the front eye (the figures look
+ * about 4-5°); 22 holes from sill to sill, each 0.07 ft across. Sizes estimates judged off the figures.
  */
-export const FORWARD_BOW_FT = Object.freeze({ x: CT156_FRAME_X[0] * F, crestZ: ct156CanopySection(CT156_FRAME_X[0]).top * F });
+export const FORWARD_BOW_FT = Object.freeze({
+  x: CT156_FRAME_X[0] * F,
+  crestZ: ct156CanopySection(CT156_FRAME_X[0]).top * F,
+  bandX: CT156_FRAME_X[0] * F - 0.05,
+  glassInset: 0.01,
+  bandDepth: 0.15,
+  tubeR: 0.025,
+  holes: 22,
+  holeDia: 0.07,
+});
 
 /**
  * The front instrument panel's main face, feet: 3.45 ft ahead of the origin, from 0.65 ft up to the glareshield at
@@ -62,6 +88,12 @@ export const PANEL_FT = Object.freeze({ x: 3.45, top: 1.85, bottom: 0.65, width:
 
 /** The glareshield over the front panel, feet: from 0.1 ft behind the panel face to 4.9 ft forward; its lip 0.09 ft deep (estimates). */
 export const GLARESHIELD_FT = Object.freeze({ aftX: PANEL_FT.x - 0.1, foreX: 4.9, top: PANEL_FT.top, edgeTop: PANEL_FT.top - 0.05, lip: PANEL_FT.top - 0.09 });
+/**
+ * The glareshield's rim, the thick dark tube (grab rail) round its aft edge along the panel's tombstone outline: its
+ * top run along the glareshield's aft edge, 0.03 ft behind it at the glareshield's own height, 0.045 ft in radius
+ * (AETCMAN 11-248 Fig 2.7, p.42; TS-156). Its top is the windscreen's bottom edge straight ahead. Sizes estimates.
+ */
+export const RIM_FT = Object.freeze({ aftOfGlareshield: 0.03, r: 0.045, sideOut: 0.05 });
 
 /** The rear cockpit's panel and glareshield, feet: face 0.7 ft aft of the origin, 0.9 to 1.9 ft up, 2.2 ft across (estimates). */
 export const REAR_PANEL_FT = Object.freeze({ x: -0.7, top: 1.9, bottom: 0.9, width: 2.2, insetFromGlass: 0.06 });
@@ -87,15 +119,75 @@ export const PANEL_REDRAW_MS = 200;
 const deg = (r) => (r * 180) / Math.PI;
 const rad = (d) => (d * Math.PI) / 180;
 
+/** The angle above (+) or below (-) the eye's level line of a round tube's edge (feet; side +1 its top, -1 its bottom). */
+function tubeEdgeDeg(eye, x, z, r, side) {
+  const d = Math.hypot(x - eye.x, z - eye.z);
+  return deg(Math.atan2(z - eye.z, x - eye.x) + side * Math.asin(Math.min(1, r / d)));
+}
+
 /**
- * Where the forward bow's crest and the glareshield's top sit from an eye point (feet, the model's frame), in degrees
- * above (+) or below (-) the eye's level line along the nose, with the head straight ahead.
+ * The windscreen as the pilot sees it straight ahead, head level (TS-156): from the top of the glareshield's rim up to
+ * the bottom of the bow over him, in degrees above (+) or below (-) the eye's level line along the nose (the model's
+ * x axis, so the horizon sits at minus the pitch attitude). Front seat: the forward bow band's inner tube; rear seat:
+ * the inter-cockpit arch's lower edge, and headboxDeg, the top of the front seat's headbox, which stands in the middle
+ * of the rear seat's view. eyeFt in feet, the model's frame (EYES_FT plus any eye offsets).
+ * @returns {{ topDeg: number, bottomDeg: number, heightDeg: number, headboxDeg?: number }}
  */
-export function panelAnglesFrom(eyeFt = EYE_FT) {
-  return {
-    bowCrestDeg: deg(Math.atan2(FORWARD_BOW_FT.crestZ - eyeFt.z, FORWARD_BOW_FT.x - eyeFt.x)),
-    glareshieldDeg: deg(Math.atan2(GLARESHIELD_FT.top - eyeFt.z, GLARESHIELD_FT.aftX - eyeFt.x)),
+export function windscreenFrom(eyeFt = EYE_FT, seat = 'front') {
+  const rear = seat === 'rear';
+  const p = rear ? REAR_PANEL_FT : PANEL_FT;
+  const gs = rear ? REAR_GLARESHIELD_FT : GLARESHIELD_FT;
+  const bottomDeg = tubeEdgeDeg(eyeFt, gs.aftX - RIM_FT.aftOfGlareshield, p.top, RIM_FT.r, +1);
+  let topDeg;
+  if (!rear) {
+    const b = FORWARD_BOW_FT;
+    const crest = ct156CanopySection(b.bandX / F).top * F;
+    topDeg = tubeEdgeDeg(eyeFt, b.bandX, crest - b.glassInset - b.bandDepth, b.tubeR, -1);
+  } else {
+    // The arch's framed bow (bowGeometry): its lower face, the nearer of its two lower corners from the eye.
+    const x = CT156_FRAME_X[1] * F;
+    topDeg = Math.min(...[x - BOW.half, x + BOW.half].map((cx) => deg(Math.atan2(ct156CanopySection(cx / F).top * F - BOW.depth - eyeFt.z, cx - eyeFt.x))));
+  }
+  const out = { topDeg, bottomDeg, heightDeg: topDeg - bottomDeg };
+  if (rear) out.headboxDeg = deg(Math.atan2(SEAT_FT.headbox.z1 - eyeFt.z, SEAT_FT.headbox.fore - eyeFt.x));
+  return out;
+}
+
+/** The outside reference points (ct156-model.js CT156_REFERENCE_POINTS) in feet, { x, y, z } from the model's origin. */
+export const CT156_POINTS_FT = Object.freeze(Object.fromEntries(Object.entries(CT156_REFERENCE_POINTS)
+  .map(([k, [x, y, z]]) => [k, Object.freeze({ x: x * F, y: y * F, z: z * F })])));
+
+/** A frame's rotation (the model's: rotation.set(-bank, -pitch, heading), order 'ZYX'), as a 3 x 3 matrix, body to world. */
+function frameMatrix({ headingRad = 0, pitchRad = 0, bankRad = 0 }) {
+  const [ch, sh, cp, sp, cb, sb] = [Math.cos(headingRad), Math.sin(headingRad), Math.cos(-pitchRad), Math.sin(-pitchRad), Math.cos(-bankRad), Math.sin(-bankRad)];
+  // Rz(heading) · Ry(-pitch) · Rx(-bank)
+  return [
+    [ch * cp, ch * sp * sb - sh * cb, ch * sp * cb + sh * sb],
+    [sh * cp, sh * sp * sb + ch * cb, sh * sp * cb - ch * sb],
+    [-sp, cp * sb, cp * cb],
+  ];
+}
+
+/**
+ * Where a point on another aircraft appears from a pilot's eye (TS-156), for checking formation sight pictures: the
+ * point's bearing from the eye in the eye's own aircraft's axes. Frames are poses as the 3D views place the model
+ * ({ x, y, z } world feet, z up, and headingRad, pitchRad, bankRad as view3d.js aircraftPose: the model is set with
+ * rotation.set(-bank, -pitch, heading), order 'ZYX'). eyeFt and pointFt are { x, y, z } feet in their own aircraft's
+ * axes (nose +X, left +Y, up +Z from the model's origin), e.g. EYES_FT.front and CT156_POINTS_FT.leftLight.
+ * Pure geometry: no flight numbers.
+ * @returns {{ azimuthDeg: number, elevationDeg: number, rangeFt: number }} azimuth right of the nose positive,
+ *   elevation above the eye's level line (the wings' plane) positive.
+ */
+export function sightAnglesOf(eyeFt, eyeFrame, pointFt, pointFrame) {
+  const toWorld = (f, v) => {
+    const m = frameMatrix(f);
+    return [0, 1, 2].map((i) => [f.x, f.y, f.z][i] + m[i][0] * v.x + m[i][1] * v.y + m[i][2] * v.z);
   };
+  const eye = toWorld(eyeFrame, eyeFt), pt = toWorld(pointFrame, pointFt);
+  const d = [pt[0] - eye[0], pt[1] - eye[1], pt[2] - eye[2]];
+  const m = frameMatrix(eyeFrame);
+  const [bx, by, bz] = [0, 1, 2].map((j) => m[0][j] * d[0] + m[1][j] * d[1] + m[2][j] * d[2]); // world to body: the transpose
+  return { azimuthDeg: deg(Math.atan2(-by, bx)), elevationDeg: deg(Math.atan2(bz, Math.hypot(bx, by))), rangeFt: Math.hypot(bx, by, bz) };
 }
 
 /** The canopy's inside half-width at station x and height z (feet), less an inset; below the sill the fuselage is wider. */
@@ -362,7 +454,7 @@ function drawInstrument(ctx, kind, b, h) {
         ctx.stroke();
       }
       ctx.fillStyle = '#000'; ctx.fillRect(cx - cr * 0.5, ccy - cr * 0.55, cr, cr * 0.32);
-      label(ctx, '--:--', cx, ccy - cr * 0.39, cr * 0.24, GREEN_INK);
+      label(ctx, '--:--', cx, ccy - cr * 0.39, cr * 0.24, '#ff9a3c'); // an orange digital readout (AETCMAN 11-248 Fig 2.7)
       break;
     }
     case 'eadi': {
@@ -573,9 +665,12 @@ function tubeThrough(THREE, pts, radius, segments = 64) {
   return new THREE.TubeGeometry(path, segments, radius, 6, false);
 }
 
-/** A framed canopy bow at station x (feet): a rectangular section 0.09 ft deep inside the glass, 0.25 ft fore and aft. */
+/** The framed bow's section (TS-155): 0.09 ft deep inside the glass, 0.25 ft fore and aft (estimates). */
+const BOW = Object.freeze({ depth: 0.09, half: 0.125 });
+
+/** A framed canopy bow at station x (feet): a rectangular section BOW.depth deep inside the glass, 2 x BOW.half fore and aft. */
 function bowGeometry(THREE, x) {
-  const n = 18, depth = 0.09, half = 0.125;
+  const n = 18, { depth, half } = BOW;
   const fore = ct156HoopPoints((x + half) / F, n), aft = ct156HoopPoints((x - half) / F, n);
   const base = ct156CanopySection(x / F).base * F;
   const inward = ({ y, z }, d) => {
@@ -592,8 +687,45 @@ function bowGeometry(THREE, x) {
   return loft(THREE, sections, { closed: true });
 }
 
-/** Two mirrors hung under a bow either side of its crest, each turned to face `eye` (feet). Returns [backs, faces]. */
-function mirrorGeometries(THREE, x, eye) {
+/**
+ * The forward bow as the seat sees it (TS-156; AETCMAN 11-248 Fig 2.7, p.42, Fig 5.3): a flat light band in the plane
+ * x = FORWARD_BOW_FT.bandX facing aft, from just inside the glass FORWARD_BOW_FT.bandDepth inward, sill to sill, with a
+ * ring of round dark holes along its middle and a dark tube along its inner edge. Returns { band, holes, tube }.
+ */
+function forwardBandGeometries(THREE) {
+  const b = FORWARD_BOW_FT, n = 48;
+  const pts = ct156HoopPoints(b.bandX / F, n);
+  const base = ct156CanopySection(b.bandX / F).base * F;
+  const inward = ({ y, z }, d) => {
+    const dy = -y * F, dz = base - z * F;
+    const l = Math.hypot(dy, dz) || 1;
+    return [b.bandX, y * F + (dy / l) * d, z * F + (dz / l) * d];
+  };
+  const outer = pts.map((q) => inward(q, b.glassInset)), inner = pts.map((q) => inward(q, b.glassInset + b.bandDepth));
+  const band = loft(THREE, [outer, inner], { closed: false });
+  const tube = tubeThrough(THREE, inner, b.tubeR, 96);
+  // The holes, evenly spaced by length along the band's middle line, half a spacing in from each sill.
+  const mid = pts.map((q) => inward(q, b.glassInset + b.bandDepth / 2));
+  const along = [0];
+  for (let j = 1; j < mid.length; j++) along.push(along[j - 1] + Math.hypot(mid[j][1] - mid[j - 1][1], mid[j][2] - mid[j - 1][2]));
+  const total = along[along.length - 1];
+  const holes = [];
+  for (let k = 0; k < b.holes; k++) {
+    const want = ((k + 0.5) / b.holes) * total;
+    let j = 1;
+    while (j < along.length - 1 && along[j] < want) j++;
+    const t = (want - along[j - 1]) / (along[j] - along[j - 1] || 1);
+    const y = mid[j - 1][1] + (mid[j][1] - mid[j - 1][1]) * t, z = mid[j - 1][2] + (mid[j][2] - mid[j - 1][2]) * t;
+    holes.push(new THREE.CircleGeometry(b.holeDia / 2, 14).rotateY(-Math.PI / 2).translate(b.bandX - 0.004, y, z));
+  }
+  return { band, holes, tube };
+}
+
+/**
+ * Two mirrors hung under a bow either side of its crest, each turned to face `eye` (feet), `aft` feet behind the bow's
+ * station and `inward` feet in from the glass. Returns [backs, faces].
+ */
+function mirrorGeometries(THREE, x, eye, { aft = 0.2, inward = 0.15 } = {}) {
   const n = 18;
   const pts = ct156HoopPoints(x / F, n);
   const base = ct156CanopySection(x / F).base * F;
@@ -601,7 +733,7 @@ function mirrorGeometries(THREE, x, eye) {
   for (const j of [6, 12]) { // a third of the way down from the crest either side (the hoop's own angle, 60° and 120°)
     const { y, z } = pts[j];
     const dy = -y * F, dz = base - z * F, l = Math.hypot(dy, dz);
-    const pos = new THREE.Vector3(x - 0.2, y * F + (dy / l) * 0.15, z * F + (dz / l) * 0.15);
+    const pos = new THREE.Vector3(x - aft, y * F + (dy / l) * inward, z * F + (dz / l) * inward);
     const m = new THREE.Matrix4().lookAt(new THREE.Vector3(eye.x, eye.y, eye.z), pos, new THREE.Vector3(0, 0, 1));
     m.setPosition(pos);
     backs.push(new THREE.BoxGeometry(0.3, 0.18, 0.02).applyMatrix4(m));
@@ -628,7 +760,7 @@ function sillGeometry(THREE) {
 }
 
 // Material slots for the joined solid parts.
-const SLOT = Object.freeze({ grey: 0, black: 1, rail: 2, red: 3, mirror: 4, knob: 5, lampRed: 6, lampAmber: 7, lampGreen: 8 });
+const SLOT = Object.freeze({ grey: 0, black: 1, rail: 2, red: 3, mirror: 4, knob: 5, lampRed: 6, lampAmber: 7, lampGreen: 8, band: 9 });
 
 /**
  * The cockpit parts of one seat (dx 0 the front, REAR_DX the rear), as { geometry, materials } entries for
@@ -661,14 +793,15 @@ function seatParts(THREE, { dx, p, gs, instruments, eye }) {
   }
   // The glareshield.
   put(glareshieldGeometry(THREE, gs, p, ts.side), SLOT.black);
-  // The grab rail round the panel's sides and top, 0.15 ft proud of the face, its legs in angled brackets.
-  const off = 0.05, rx = p.x - 0.15;
+  // The glareshield's rim, the thick dark grab rail round the panel's sides and top (TS-156, RIM_FT; AETCMAN 11-248
+  // Fig 2.7): its top run along the glareshield's aft edge at the glareshield's height, its legs in angled brackets.
+  const off = RIM_FT.sideOut, rx = gs.aftX - RIM_FT.aftOfGlareshield;
   const clampY = (y, z) => Math.sign(y) * Math.min(Math.abs(y), glassHalfWidthFt(z, rx, 0.05));
   const railPts = [
-    [ts.side + off, zOf(0.45)], [ts.side + off, ts.shoulderZ], [ts.top + off * 0.4, p.top + off],
-    [-(ts.top + off * 0.4), p.top + off], [-(ts.side + off), ts.shoulderZ], [-(ts.side + off), zOf(0.45)],
+    [ts.side + off, zOf(0.45)], [ts.side + off, ts.shoulderZ], [ts.top + off * 0.4, p.top],
+    [-(ts.top + off * 0.4), p.top], [-(ts.side + off), ts.shoulderZ], [-(ts.side + off), zOf(0.45)],
   ].map(([y, z]) => [rx, clampY(y, z), z]);
-  put(tubeThrough(THREE, railPts, 0.04), SLOT.rail);
+  put(tubeThrough(THREE, railPts, RIM_FT.r), SLOT.black);
   for (const end of [railPts[0], railPts[railPts.length - 1]]) {
     put(tubeThrough(THREE, [end, [end[0], end[1], end[2] - 0.08], [p.x, end[1], end[2] - 0.16]], 0.03, 8), SLOT.rail);
   }
@@ -680,16 +813,26 @@ function seatParts(THREE, { dx, p, gs, instruments, eye }) {
     put(new THREE.CylinderGeometry(0.05, 0.05, 0.035, 14).translate(p.x - 0.12, y, z + 0.12), SLOT.knob);
   }
 
-  // Above the glareshield (front seat only): the standby compass on its stalk, the AOA indexer, master warning and caution.
+  // On the glareshield (front seat only; AETCMAN 11-248 Fig 2.7, p.42, and Fig 5.3; TS-156; places and sizes estimates
+  // judged off the figures): the AOA indexer standing up on the left, a tall narrow box with three stacked lamps; three
+  // small lamps in a row on the centre with screw dots (master warning and caution style); the standby compass on the
+  // right, a round face in a small housing on a bracket. All unlit or static.
   if (dx === 0) {
-    put(new THREE.CylinderGeometry(0.015, 0.015, 0.25, 8).rotateX(Math.PI / 2).translate(4.3, 0.45, p.top + 0.125), SLOT.black);
-    put(new THREE.SphereGeometry(0.065, 12, 8).translate(4.3, 0.45, p.top + 0.27), SLOT.black);
-    put(box(THREE, 3.55, 3.65, 0.85, 0.95, p.top - 0.02, p.top + 0.23), SLOT.black);
+    const t = gs.top;
+    put(box(THREE, 3.45, 3.55, 0.7, 0.78, t - 0.02, t + 0.3), SLOT.black);
     [SLOT.lampGreen, SLOT.lampAmber, SLOT.lampRed].forEach((slot, i) => {
-      const z = p.top + 0.18 - i * 0.075;
-      put(box(THREE, 3.545, 3.55, 0.87, 0.93, z - 0.025, z + 0.025), slot);
+      const z = t + 0.24 - i * 0.085;
+      put(box(THREE, 3.445, 3.45, 0.715, 0.765, z - 0.03, z + 0.03), slot);
     });
-    for (const [y, slot] of [[0.8, SLOT.lampRed], [-0.8, SLOT.lampAmber]]) put(box(THREE, gs.aftX + 0.02, gs.aftX + 0.1, y - 0.05, y + 0.05, gs.edgeTop, gs.edgeTop + 0.04), slot);
+    [[0.16, SLOT.lampRed], [0, SLOT.lampAmber], [-0.16, SLOT.lampAmber]].forEach(([y, slot]) => {
+      put(box(THREE, 3.38, 3.46, y - 0.055, y + 0.055, t - 0.01, t + 0.06), SLOT.black);
+      put(box(THREE, 3.375, 3.38, y - 0.042, y + 0.042, t + 0.004, t + 0.044), slot);
+      for (const sy of [-1, 1]) put(box(THREE, 3.373, 3.378, y + sy * 0.049 - 0.005, y + sy * 0.049 + 0.005, t + 0.045, t + 0.055), SLOT.knob);
+    });
+    put(box(THREE, 3.56, 3.6, -0.57, -0.53, t - 0.02, t + 0.1), SLOT.black); // the bracket
+    put(box(THREE, 3.5, 3.66, -0.63, -0.47, t + 0.08, t + 0.22), SLOT.black); // the housing
+    put(new THREE.CylinderGeometry(0.05, 0.05, 0.01, 18).rotateZ(Math.PI / 2).translate(3.495, -0.55, t + 0.15), SLOT.knob); // the face
+    put(box(THREE, 3.488, 3.49, -0.553, -0.547, t + 0.11, t + 0.19), SLOT.black); // its lubber line
   }
 
   // The seat: pan, lower back (the model's back above it), headbox.
@@ -758,6 +901,8 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document } = {}) {
     solid(PANEL_GREY), solid('#0c0f12', { roughness: 0.95 }), solid('#3a3e44'), solid('#b3202a', { roughness: 0.5 }),
     solid('#6c7280', { roughness: 0.25, metalness: 0.6 }), solid('#c9ced4', { roughness: 0.5 }),
     lamp('#3a1414'), lamp('#3a2c0e'), lamp('#10301a'),
+    // The forward bow band, white to light grey (TS-156), a little self-lit so it stays light with the sun ahead.
+    solid('#d3d6d9', { roughness: 0.7, emissive: '#7a7d80' }),
   ];
   const geometries = [];
   const add = (geometry, material) => {
@@ -803,13 +948,20 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document } = {}) {
       add(q, liveMat);
     }
     // The mirrors under this seat's bow (front: the forward bow; rear: the inter-cockpit arch), turned to its eye.
-    const bowX = (seat.dx === 0 ? CT156_FRAME_X[0] : CT156_FRAME_X[1]) * F;
-    const [backs, faces] = mirrorGeometries(THREE, bowX, seat.eye);
+    const front = seat.dx === 0;
+    const bowX = (front ? CT156_FRAME_X[0] : CT156_FRAME_X[1]) * F;
+    // Under the forward bow they hang just inside its band and tube (TS-156); under the arch as TS-155.
+    const b = FORWARD_BOW_FT;
+    const [backs, faces] = mirrorGeometries(THREE, bowX, seat.eye, front ? { aft: 0.17, inward: b.glassInset + b.bandDepth + 2 * b.tubeR + 0.08 } : {});
     for (const g of backs) solidParts.push({ geometry: g, materials: [SLOT.black] });
     for (const g of faces) solidParts.push({ geometry: g, materials: [SLOT.mirror] });
   }
-  // The framed forward bow and inter-cockpit arch (the rear hoop is the model's tube only), and the sill bands.
-  for (const x of [CT156_FRAME_X[0], CT156_FRAME_X[1]]) solidParts.push({ geometry: bowGeometry(THREE, x * F), materials: [SLOT.black] });
+  // The forward bow's light band with its holes and inner tube (TS-156), the framed inter-cockpit arch (TS-155; the
+  // figures don't show it, so it stays a plain dark frame), the rear hoop the model's tube only, and the sill bands.
+  const fb = forwardBandGeometries(THREE);
+  solidParts.push({ geometry: fb.band, materials: [SLOT.band] }, { geometry: fb.tube, materials: [SLOT.black] });
+  for (const g of fb.holes) solidParts.push({ geometry: g, materials: [SLOT.black] });
+  solidParts.push({ geometry: bowGeometry(THREE, CT156_FRAME_X[1] * F), materials: [SLOT.black] });
   for (const g of sillGeometry(THREE)) solidParts.push({ geometry: g, materials: [SLOT.rail] });
   add(ct156JoinGeometries(THREE, solidParts), slotMats);
 
