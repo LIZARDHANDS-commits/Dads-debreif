@@ -59,7 +59,7 @@ function flyStart(name, makeFormation, pressTrj, target) {
     overshoot: /overshoot/i.test(note), leadRolledOutAt: null, done: null, endKey: null, judged: null, trace: [],
     rideMinKias: null, rideMaxKias: null, maxOnLine: false, maxNotHtrj: false,
   };
-  const isHtrj = name.startsWith('LAB-') || name.includes('->LAB->'); // mapping: LAB starts are HTRJ entries
+  const isHtrj = !name.startsWith('FW-'); // every start but the fighting wing ones begins in line abreast (make() default; hot-* and echelon->LAB too), so it is an HTRJ entry
   let steps = 0;
   while (f.state.current && steps++ < STEP_LIMIT) {
     f.step();
@@ -85,9 +85,9 @@ function flyStart(name, makeFormation, pressTrj, target) {
       
       if (m.rideMinKias == null || W.kias < m.rideMinKias) m.rideMinKias = W.kias;
       if (m.rideMaxKias == null || W.kias > m.rideMaxKias) m.rideMaxKias = W.kias;
-      if (W.power?.stage === 'MAX') m.maxOnLine = true;
+      if ((W.power?.throttle ?? 0) >= 0.99) m.maxOnLine = true;
     } else m.curRun = null;
-    if (!isHtrj && W.power?.stage === 'MAX') m.maxNotHtrj = true;
+    if (!isHtrj && (W.power?.throttle ?? 0) >= 0.99) m.maxNotHtrj = true;
     
     if (r < m.minR) m.minR = r;
     if (s * rel.left < -MARK.crossSixFt && r < 3000) m.crossedSix = true;
