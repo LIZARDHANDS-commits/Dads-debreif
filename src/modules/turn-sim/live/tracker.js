@@ -274,7 +274,7 @@ function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT) {
   if (ph.kind === 'ride') {
     // The speed is held (Patrick 8 Oct 20:16); the geometry takes the closure out. The steering is rideAim's.
     const floor = ph.floorKias ?? KIAS_OUTSIDE_LAB;
-    const kiasCmd = aim.established || Math.abs(aim.cross) <= (ph.speedUpFt ?? TURNING_REJOIN.rideSpeedUpFt) ? Math.max(floor, ph.rideKias ?? TURNING_REJOIN.rideKias) : floor; // to the line: no faster than the floor (Patrick 8 Oct 21:05: 200 floor, MAX on entry); on it, 210
+    const kiasCmd = aim.established || Math.abs(aim.cross) <= (ph.speedUpFt ?? TURNING_REJOIN.rideSpeedUpFt) ? Math.max(floor, aim.established && aim.along <= (ph.easeFromFt ?? TURNING_REJOIN.rideEaseFromFt) ? (ph.easeKias ?? TURNING_REJOIN.rideEaseKias) : (ph.rideKias ?? TURNING_REJOIN.rideKias)) : floor; // to the line: no faster than the floor (Patrick 8 Oct 21:05: 200 floor, MAX on entry); on it, 210
     return { pullX: 0, pullY: 0, vdx: aim.ex, vdy: aim.ey, speed: W.tasFtps, psiCmd: aim.psiWant, kiasCmd };
   }
 
