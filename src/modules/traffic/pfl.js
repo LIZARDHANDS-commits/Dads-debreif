@@ -891,9 +891,7 @@ function turnOntoRunway(geo, from, trackDeg, kias, altFt, wind) {
 export function chooseDirect(geo, from, altFt, kias, wind, trackDeg = undefined, cfgNow = 0) {
   const ground = THRESHOLD_DATA_ELEV_FT;
   const last = geo.lenFt - PFL.stopMarginFt;
-  const aligned = trackDeg !== undefined ? Math.abs(wrapDeg180(trackDeg - geo.rwyDeg)) <= PFL.gateTrackDeg : false;
-  const nearFinal = altFt <= PFL.gateAltFt && (aligned || dist(geo.th, from) <= 1.5 * 6076.12);
-  const trade = nearFinal ? speedTradeFt(kias, altFt, 1) : 0;
+  const trade = speedTradeFt(kias, altFt, 1);
   const baseAlong = Math.max(500, geo.aimAlongFt);
   const alongs = [];
   for (let d = 0; baseAlong + d <= last + 1e-6 || baseAlong - d >= 500; d += 500) {
@@ -1024,6 +1022,8 @@ function neededTo(path, toIdx, from, altFt, wind) {
 }
 
 function minDragPlan(path) {
+  const direct = path[0]?.key === 'direct';
+  if (direct) return path.map((p) => ({ ...p, plan: 0 }));
   const fk = path.findIndex((p) => p.key === 'final_key' || p.key === 'lined_up' || (p.theta ?? 0) >= 270);
   return path.map((p, i) => ({ ...p, plan: fk >= 0 && i >= fk ? Math.max(p.plan ?? 0, 1) : 0 }));
 }
@@ -1566,9 +1566,7 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
     } else if (
       roundOut ||
       ['threshold', 'aim', 'touchdown', 'rollout'].includes(curPt?.key) ||
-      path.slice(0, seg + 1).some((p) => p.key === 'threshold') ||
-      ((curPt?.theta ?? 0) >= 335 && legOffsetsFt(geo.th, geo.dep, s).crossFt > -500) ||
-      ((curPt?.theta ?? 0) >= 270 && margin > 150 && legOffsetsFt(geo.th, geo.dep, s).alongFt <= -1000)
+      path.slice(0, seg + 1).some((p) => p.key === 'threshold')
     ) {
       const offRwy = legOffsetsFt(geo.th, geo.dep, s);
       const corrDeg = clamp(-offRwy.crossFt * 0.15, -45, 45);
@@ -1635,10 +1633,7 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
         }
       }
 
-      const hAglNow = s.alt - ground;
-      const alignedWithRwy = Math.abs(wrapDeg180(pilot.trackDeg() - geo.rwyDeg)) <= PFL.gateTrackDeg;
-      const veryShortFinal = s.alt <= PFL.gateAltFt && (roundOut || (onFinal && alignedWithRwy) || (dist(geo.th, s) <= 1.5 * 6076.12 && alignedWithRwy));
-      if (plan.kind === 'direct' && veryShortFinal && margin < 0 && !goingShort) {
+      if (plan.kind === 'direct' && margin < 0 && !goingShort && (pathFtTo(path, proj, 'aim') < 6076 || s.alt <= PFL.gateAltFt)) {
         const v2 = tas * tas - 2 * G_FTPS2 * -margin * heightFactor(s.alt);
         const vKt = Math.sqrt(Math.max(v2, 0)) / KT_TO_FTPS;
         want = Math.max(tradeFloorKias(cfg), Math.min(want, vKt * PFL.glideGearKias / Math.max(iasToTasKt(PFL.glideGearKias, s.alt), 1)));
@@ -1692,7 +1687,7 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
       if (!onFinal && settled && !inOrbit && marginMin < -PFL.dragBufferFt && plan.kind !== 'direct') {
         const direct = chooseDirect(geo, s, s.alt, s.ias, wind, pilot.trackDeg(), cfg);
         if (direct) { replan(direct); notes.push(`went direct at ${Math.round(s.alt)} ft`); }
-      } else if (!onFinal && plan.kind === 'direct' && marginMin + (s.alt <= PFL.gateAltFt ? speedTradeFt(s.ias, s.alt, cfg) : 0) < 0) {
+      } else if (!onFinal && plan.kind === 'direct' && marginMin + speedTradeFt(s.ias, s.alt, cfg) < 0) {
         const direct = chooseDirect(geo, s, s.alt, s.ias, wind, pilot.trackDeg(), cfg);
         if (direct && direct.aimAlongFt > (plan.aimAlongFt ?? 0) + 1) replan(direct);
       }
@@ -1704,7 +1699,12 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
       const dragSpacingOk = (n - lastConfigChangeN) * PILOT_DT >= PFL.minConfigIntervalSec;
       if (dragSpacingOk && notLow) {
         if (cfg < 1) {
-          const directOk = plan.kind === 'direct' && (path[seg]?.key === 'lined_up' || onFinal || s.alt <= ground + 200 || (dist(geo.th, s) <= 4 * 6076.12 && s.alt - ground - neededFt(path, seg, proj.pt, s.alt, 1, wind, true, 'aim', 2) >= PFL.dragBufferFt));
+          const gearFits = s.alt - ground - neededFt(minDragPlan(path), seg, proj.pt, s.alt, 1, wind) + speedTradeFt(s.ias, s.alt, 1) >= 0;
+          const directOk = plan.kind === 'direct' && (
+            ((path[seg]?.key === 'lined_up' || onFinal) && gearFits) ||
+            s.alt <= ground + 200 ||
+            (dist(geo.th, s) <= 4 * 6076.12 && s.alt - ground - neededFt(path, seg, proj.pt, s.alt, 1, wind, true, 'aim', 2) >= PFL.dragBufferFt)
+          );
           const circleOk = plan.kind !== 'direct' && (
             ((s.tag === 'low_key' || (path[seg]?.theta ?? 0) >= 180) && margin >= -PFL.onProfileFt) ||
             (s.alt <= PFL.gateAltFt + 300) ||
