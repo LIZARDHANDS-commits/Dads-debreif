@@ -200,3 +200,17 @@ Checks: the same buttons flown from the default start before and after, screensh
 - [x] **Slice 6: Speed owned by physics** (TS-150): `stepAircraft` integrates commanded acceleration directly.
 - [x] **Slice 7: Rejoin line and opening out unified** (TS-150): all formation changes flown by tracker.
 - [x] **Phase 4 Step 2: Canopy and step-down gates enforced** (TS-151): `src/core/canopy.js`, 2,000 ft step-down gate ($z_{\text{wing}} \le z_{\text{lead}} + 5\text{ ft}$), 1,200 ft canopy "X" lock ($\text{LOS} \cdot \hat{c} \ge 0$), and 3/9 line gate.
+
+## Step 7. The turning rejoin rides the line (2-ship; Patrick 8 Oct 2026 20:20 "let's go with just 2 ship for now. GO.")
+
+Slice 7 put the TRJ on the tracker and lost the ride up the line: #2 slices across the 45° line and goes through to Lead's six. The rebuild: in Lead's frame, intercept a capture point 1,500-2,000 ft down the line, tangent and never across it; ride it at 210 KIAS to the decision point, the geometry taking the closure to 10-20 kt in the 250-100 ft window; then route and echelon. MAX only for an HTRJ entry. Starts inside 2,000 ft get on the line quickly at their own range. Patrick's rulings G1-G9 and 8 Oct 20:16. Pro agents write one slice at a time; Opus checks each with `trj-set.mjs`, `fset.mjs` and 2D screenshots; two rejects on a slice means stop. The 4-ship is not in this step.
+
+- [x] **Slice 0: in the plan** (this entry).
+- [ ] **Slice 1: gauge to the rulings**: `trj-set.mjs` fails a run that enters the window closing above 20 kt, is off 210 ±5 KIAS on the ride, is at MAX outside an HTRJ entry, rides less than 15 s (5 s from inside 2,000 ft), or is banked more than 10° off Lead's while established.
+- [ ] **Slice 2: the ride law**: a new tracker phase kind `ride` (the L1 path law in Lead's frame, speed from the frame velocity at #2); the old `line` kind stays as it is.
+- [ ] **Slice 3: TRJ to echelon uses it**: `turning-rejoin.js` goes ride → tail legs; the X phase is dropped for the TRJ.
+- [ ] **Checkpoint A: Patrick flies the echelon TRJ.**
+- [ ] **Slice 4: HTRJ entry**: MAX on the hard pull only; no 60° bank cap on the TRJ (B-694).
+- [ ] **Slice 5: fighting wing, TRJ + roll, starts inside 2,000 ft.**
+- [ ] **Checkpoint B: Patrick flies every start.**
+- [ ] **Slice 6: tidy, decision wording for Patrick's yes, version, PR.**
