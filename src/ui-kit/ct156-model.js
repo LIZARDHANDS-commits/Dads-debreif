@@ -749,7 +749,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     return m;
   };
 
-  let fuselage, canopy, helmetFront = null;
+  let fuselage, canopy, helmetFront = null, prop = null;
   if (paint === 'ship') {
     const base = new THREE.Color(color);
     const m = (c, extra) => own(new THREE.MeshStandardMaterial({ color: c, roughness: 0.45, metalness: 0.1, envMap: mats.env, envMapIntensity: 0.4, side: THREE.DoubleSide, fog: false, ...extra }));
@@ -799,7 +799,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     add(geo.frames, mats.frame, detail);
     helmetFront = add(geo.helmetFront, mats.helmet, detail);
     add(geo.helmetRear, mats.helmet, detail);
-    const prop = new THREE.Group();
+    prop = new THREE.Group();
     prop.rotation.x = rad(22);
     add(geo.blade, mats.blade, prop);
     add(geo.bladeTip, mats.tip, prop);
@@ -813,13 +813,14 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     scene?.userData?.ct156Ships?.add(root);
     setDetail(THREE, root, camera, renderer);
   };
-  root.userData.ct156 = { kit, mine, paint, detail, g, canopy, helmetFront, inside: null };
+  root.userData.ct156 = { kit, mine, paint, detail, g, canopy, helmetFront, prop, inside: null };
   return root;
 }
 
 /**
  * The ship seen from its own front seat (the Formation Sim's Cockpit and Padlock views, with ct156-cockpit.js) or from
- * outside again. seat 'front': the front helmet goes (the camera is in it), the canopy turns to clear glass from inside,
+ * outside again. seat 'front': the front helmet goes (the camera is in it), the still prop blades go (a turning prop is
+ * a blur from the seat; the faint disc stays), the canopy turns to clear glass from inside,
  * and the frames (the canopy bows), sill rails, seat backs, cockpit floor and rear helmet show whatever the paint ('ship'
  * paint has none of its own, so they are added from the shared kit). seat null: the ship as built. Wings, fin and
  * tailplane are never touched. Nothing new needs freeing: every part added is the shared kit's.
@@ -834,6 +835,7 @@ export function setCockpitView(root, { seat = null } = {}) {
   d.canopy.userData.outsideMaterial ??= d.canopy.material;
   d.canopy.material = inside ? mats.glassInside : d.canopy.userData.outsideMaterial;
   if (d.helmetFront) d.helmetFront.visible = !inside;
+  if (d.prop) d.prop.visible = !inside;
   if (d.paint === 'ship' && inside && !d.inside) {
     d.inside = new THREE.Group();
     for (const [geometry, material] of [[geo.frames, mats.frame], [geo.floor, mats.floor], [geo.helmetRear, mats.helmet]]) d.inside.add(new THREE.Mesh(geometry, material));

@@ -59,9 +59,9 @@ export const GLARESHIELD_FT = Object.freeze({ aftX: PANEL_FT.x - 0.1, foreX: 4.4
 export const SEATS_FT = Object.freeze(CT156_SEAT_X.map((x) => Object.freeze({
   backX: (x - 0.035) * F, // the model's seat back (ct156-model.js, the frames), whose front face the pan starts from
   pan: { aft: (x - 0.028) * F, fore: (x - 0.028) * F + 1.2, z0: 1.04, z1: 1.2, halfWidth: 0.55 },
-  headrest: { aft: (x - 0.035) * F - 0.16, fore: (x - 0.035) * F + 0.16, z0: 2.2, z1: 2.7, halfWidth: 0.38 },
+  headrest: { aft: (x - 0.035) * F - 0.16, fore: (x - 0.035) * F + 0.16, z0: 2.2, z1: 2.7, halfWidth: 0.3 },
 })));
-export const CONSOLE_FT = Object.freeze({ aft: SEATS_FT[0].backX + 0.2, fore: PANEL_FT.x - 0.1, inner: 0.8, outer: 1.1, z0: 0.8, z1: 1.3 });
+export const CONSOLE_FT = Object.freeze({ aft: SEATS_FT[0].backX + 0.2, fore: PANEL_FT.x - 0.1, inner: 0.85, outer: 1.15, z0: 0.75, z1: 1.0 });
 export const REAR_PANEL_FT = Object.freeze({ x: CT156_FRAME_X[1] * F, depth: 0.3, z0: 0.95, z1: 1.75, halfWidth: 1.05 });
 
 /** The panel picture: 1,024 by 384 pixels over the full panel width, so its pixels are square on the panel. */
@@ -246,7 +246,7 @@ function drawPanel(ctx, hud) {
   // The G meter and the AOA indexer, far left; the gear handle under them.
   const farLeft = mid - 285;
   dial(ctx, { cx: farLeft, cy: eadi.y + 6, r: 42, from: -4, to: 8, sweepDeg: 300, startDeg: -150, major: 2, minor: 1, name: 'G', value: h.g, readout: num(h.g, 1) });
-  for (const [dy, colour] of [[-14, '#2ec95c'], [0, '#ffd23f'], [14, '#e8452c']]) {
+  for (const { dy, colour } of [{ dy: -14, colour: '#2ec95c' }, { dy: 0, colour: '#ffd23f' }, { dy: 14, colour: '#e8452c' }]) {
     ctx.fillStyle = colour;
     ctx.globalAlpha = 0.35; // unlit: the sim has no angle of attack to light it
     ctx.fillRect(farLeft + 56, eadi.y - 54 + dy, 18, 9);
