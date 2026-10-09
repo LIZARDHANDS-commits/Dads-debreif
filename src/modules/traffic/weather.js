@@ -109,7 +109,8 @@ export function placeStraightInDescent(routes) {
   const ent2 = routes?.find((r) => r?.id === 'ENT2');
   const i = ent2?.points?.findIndex((p) => p?.label === 'Glide path') ?? -1;
   if (i < 1) return;
-  const { ux, uy, windowOutFt, slope } = approachLine(routes.find((r) => r?.id === 'PAT1'));
+  const pat1 = routes.find((r) => r?.id === 'PAT1');
+  const { ux, uy, windowOutFt, slope } = approachLine(pat1);
   const th = THRESHOLD_29L, p = ent2.points[i], before = ent2.points[i - 1];
   const beforeOutFt = (before.x - th.x) * ux + (before.y - th.y) * uy;
   const outFt = Math.max(windowOutFt + 1000, Math.min(beforeOutFt - 500, interceptOutFt(slope, p.alt)));
@@ -117,11 +118,34 @@ export function placeStraightInDescent(routes) {
   const x = Math.round((th.x + ux * outFt) * 10) / 10, y = Math.round((th.y + uy * outFt) * 10) / 10;
   if (p.x !== x) p.x = x;
   if (p.y !== y) p.y = y;
+  p.kt = 120;
+
+  // Final waypoint maintains 120 kt
+  const finalPt = ent2.points.find((pt) => pt?.label === 'Final');
+  if (finalPt) finalPt.kt = 120;
+
+  // Window waypoint: matches the final turn rollout window (PAT1 point 12)
+  const patWin = pat1?.points?.[12];
+  const winAlt = patWin?.alt ?? 2119;
+  const winX = patWin?.x ?? Math.round((th.x + ux * windowOutFt) * 10) / 10;
+  const winY = patWin?.y ?? Math.round((th.y + uy * windowOutFt) * 10) / 10;
+  let winIdx = ent2.points.findIndex((pt) => pt?.label === 'Window');
+  if (winIdx < 0) {
+    const winPt = { label: 'Window', x: winX, y: winY, alt: winAlt, kt: 120, g: 1.4142 };
+    ent2.points.splice(i + 1, 0, winPt);
+  } else {
+    const winPt = ent2.points[winIdx];
+    winPt.x = winX;
+    winPt.y = winY;
+    winPt.alt = winAlt;
+    winPt.kt = 120;
+  }
+
   // Its last point, at the threshold, moves to the touchdown point past the numbers, with the flare before it: from
   // FLARE_FROM_FT on the 3° line to the numbers, through the flare's middle, onto the runway (TR-93, TR-96). Once only.
   const end = ent2.points[ent2.points.length - 1];
   if (end && Math.hypot(end.x - th.x, end.y - th.y) < 1) {
-    const at = (pastFt, alt, label) => ({ ...end, label, alt, kt: end.kt,
+    const at = (pastFt, alt, label) => ({ ...end, label, alt, kt: 100,
       x: Math.round((th.x - ux * pastFt) * 10) / 10, y: Math.round((th.y - uy * pastFt) * 10) / 10 });
     const flareFromFt = NUMBER_BASE_PAST_THRESHOLD_FT - FLARE_FROM_FT / slope; // before the numbers on the 3° line
     const touchFt = NUMBER_BASE_PAST_THRESHOLD_FT + TOUCHDOWN_PAST_NUMBERS_FT;
