@@ -41,6 +41,7 @@ import {
   CAMERA_MOUNTS, OVERVIEW_PRESETS, AIM_MODES, COCKPIT_SEATS, DEFAULT_CAMERA_STATE, stateFromLegacy,
 } from './camera-views.js';
 import { createCameraBar } from './camera-bar.js';
+import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
 
 /** The viewpoints worked out from an aircraft each frame, rather than framed once. */
 const POV_VIEWS = new Set(['cockpit', 'padlock']);
@@ -1394,6 +1395,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
   let fitted = false; // the camera has been framed on the routes since 3D was first shown
   let wantPreset = null; // a camera button pressed before there was something to frame
   let wantCameraState = null; // a 2-tier camera change requested
+  /** @type {{ mount: string, preset?: string, aim?: string, seat?: string }} */
   let currentCameraState = { ...DEFAULT_CAMERA_STATE };
   let lastNonPadlockAim = 'boresight';
   let follow = null; // { id, autoYaw }: the chase camera
@@ -1735,7 +1737,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       pit.root = null;
     }
     if (!root || !gl) return;
-    gl.cockpit ??= { part: createCt156Cockpit(THREE, { doc: canvas?.ownerDocument ?? win.document }), root: null, seat: null };
+    gl.cockpit ??= { part: createCt156Cockpit(THREE, { doc: gl.canvas?.ownerDocument ?? win.document }), root: null, seat: null };
     const s = seat === 'rear' ? 'rear' : 'front';
     if (gl.cockpit.root !== root || gl.cockpit.seat !== s) {
       root.add(gl.cockpit.part.group);
