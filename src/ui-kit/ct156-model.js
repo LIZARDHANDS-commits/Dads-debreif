@@ -12,10 +12,11 @@
 //   ... scene.add(g); ...; disposeCt156Model(g);
 //
 // paint 'harvard' (default): navy scheme, cheat line, chrome spinner, red-tipped
-//   prop, roundels, Canada wordmark, red triangles, tail leaf/NATO star/flag/serial.
+//   prop, roundels, Canada wordmark, red triangles, tail leaf/NATO star/flag/serial, position lights (TS-156).
 //   The whole vertical tail is `color`, and the ship number sits big on both sides
 //   of the fin and on the nose.
-// paint 'ship': the plain look, everything in `color`, no decals.
+// paint 'ship': the plain look, everything in `color`; up close only the serial on the fin, the position lights, the
+//   exhaust stacks and the canopy frames (TS-156).
 //
 // Shared geometry, textures and materials are built once per THREE module and
 // reference-counted: disposeCt156Model frees a ship's own materials and textures, and the
@@ -165,6 +166,38 @@ function finSurf(x, z) {
   return thick(xc, sec.t) * sec.chord + 0.0015;
 }
 
+// The outside details other pilots use as formation references (TS-156; AETCMAN 11-248 Fig 9.17, Fig 9.24): the
+// position lights, the exhaust stacks and the stabiliser tips. Places are estimates off the model's own tables.
+const WINGTIP = Object.freeze({
+  y: TIP * Math.cos(DIHEDRAL) - WING_Z * Math.sin(DIHEDRAL), // the wing's tip after its dihedral
+  z: TIP * Math.sin(DIHEDRAL) + WING_Z * Math.cos(DIHEDRAL),
+});
+const NAV_LIGHT_X = WING[1].le - 0.012; // just behind the tip's leading edge
+const STROBE_X = WING[1].le - WING[1].chord + 0.01; // at the tip's trailing edge
+const TAIL_LIGHT = Object.freeze([-0.787, 0, -0.035]); // the fin's trailing edge at its root, over the tail cone
+const STUB_X = 0.5; // the exhaust stacks' station; each opens aft 0.03 units behind it
+const STUB_Y = fuseSurf(STUB_X, -0.012) - 0.003; // just inside the skin, so each stands out a little
+/**
+ * Points on the outside of the aircraft, model units (nose +X, left +Y, up +Z from the origin on the spinner's axis), each
+ * [x, y, z]: the spinner's tip, the wingtip position lights (red left, green right), the tail light, the exhaust stacks'
+ * openings, the stabiliser tips (mid-chord), the fin's top and the canopy bows' crests (forward, centre, rear). For
+ * ct156-cockpit.js sightAnglesOf, so a sight line to Lead's light reads the same numbers the model is drawn from.
+ */
+export const CT156_REFERENCE_POINTS = Object.freeze({
+  spinnerTip: Object.freeze([0.66, 0, 0]),
+  leftLight: Object.freeze([NAV_LIGHT_X, WINGTIP.y + 0.002, WINGTIP.z]),
+  rightLight: Object.freeze([NAV_LIGHT_X, -(WINGTIP.y + 0.002), WINGTIP.z]),
+  tailLight: TAIL_LIGHT,
+  leftExhaust: Object.freeze([STUB_X - 0.03, STUB_Y, -0.012]),
+  rightExhaust: Object.freeze([STUB_X - 0.03, -STUB_Y, -0.012]),
+  leftStabTip: Object.freeze([STAB[0].le - STAB[0].chord / 2, -STAB[0].s, STAB[0].z]),
+  rightStabTip: Object.freeze([STAB[0].le - STAB[0].chord / 2, STAB[0].s, STAB[0].z]),
+  finTop: Object.freeze([FIN[1].le - FIN[1].chord / 2, 0, FIN[1].s]),
+  forwardBowCrest: Object.freeze([CT156_FRAME_X[0], 0, canopyAt(CT156_FRAME_X[0]).top]),
+  centreBowCrest: Object.freeze([CT156_FRAME_X[1], 0, canopyAt(CT156_FRAME_X[1]).top]),
+  rearBowCrest: Object.freeze([CT156_FRAME_X[2], 0, canopyAt(CT156_FRAME_X[2]).top]),
+});
+
 // The fine detail (decals, the cockpit, the canopy frames, the prop blades, the exhausts) shows only when the aircraft
 // is at least this long on screen, in CSS pixels, and goes again below the lower number (estimates, tuned by eye).
 export const CT156_DETAIL_PX = Object.freeze({ show: 70, hide: 55 });
@@ -237,20 +270,31 @@ function outlinedText(ctx, text, cx, cy, px, outline = px * 0.07) {
   ctx.fillText(text, cx, cy);
 }
 
+/** The ship's serial on the fin, CT-156 style: 156101 for #1, 156102 for #2 and so on (TS-156; the numbers an estimate). */
+export function ct156Serial(number) {
+  return `1561${String(number ?? '').padStart(2, '0')}`;
+}
+
+/** The serial alone, white with a dark outline, low on the fin (the 'ship' paint's only decal; TS-156). */
+function serialCanvas(number) {
+  return (ctx, w, h) => outlinedText(ctx, ct156Serial(number), w / 2, h * 0.86, 64, 5);
+}
+
 function tailCanvas(number) {
   return (ctx, w, h) => {
     leaf(ctx, w * 0.36, h * 0.13, h * 0.085, '#d8202c');
     natoStar(ctx, w * 0.64, h * 0.13, h * 0.075);
     outlinedText(ctx, String(number), w / 2, h * 0.52, h * 0.66, 9);
     // Canadian flag and the serial.
+    // Larger than before (TS-156), so a close wingman can read it: about 0.3 ft tall on the fin, an estimate.
     const fy = h * 0.9;
-    ctx.fillStyle = '#e4212d'; ctx.fillRect(w * 0.14, fy - 12, 40, 24);
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(w * 0.14 + 10, fy - 12, 20, 24);
-    leaf(ctx, w * 0.14 + 20, fy, 8, '#e4212d');
-    ctx.font = '700 32px Arial, Helvetica, sans-serif';
+    ctx.fillStyle = '#e4212d'; ctx.fillRect(w * 0.06, fy - 12, 40, 24);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(w * 0.06 + 10, fy - 12, 20, 24);
+    leaf(ctx, w * 0.06 + 20, fy, 8, '#e4212d');
+    ctx.font = '800 44px Arial, Helvetica, sans-serif';
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(`15612${number}`, w * 0.14 + 50, fy + 1);
+    ctx.fillText(ct156Serial(number), w * 0.06 + 48, fy + 2);
   };
 }
 
@@ -415,14 +459,14 @@ export function ct156HoopPoints(x, n = 16, grow = 0) {
   return pts;
 }
 /** A frame hoop over the canopy at x. */
-function hoopGeometry(THREE, x) {
+function hoopGeometry(THREE, x, radius = 0.0045) {
   const c = canopyAt(x, 0.0015);
   const pts = [];
   for (let j = 0; j <= 16; j++) {
     const [y, z] = canopyPoint(c, (Math.PI * j) / 16);
     pts.push(new THREE.Vector3(x, y, z));
   }
-  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.0035, 6, false);
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, radius, 6, false); // about 2.5 in across, so a close wingman sees the bows (TS-156)
 }
 /** A sill rail along one side of the canopy. */
 function railGeometry(THREE, side) {
@@ -644,7 +688,8 @@ function buildKit(THREE) {
   geo.fin = airfoilGeometry(THREE, FIN, { span: 'z' });
   geo.canopy = canopyGeometry(THREE);
   geo.frames = joinGeometries(THREE, [
-    ...CT156_FRAME_X.map((x) => ({ geometry: hoopGeometry(THREE, x), materials: [0] })),
+    // The centre and rear hoops; the forward one is apart (bowFront), since from the seat ct156-cockpit.js draws it.
+    ...CT156_FRAME_X.slice(1).map((x) => ({ geometry: hoopGeometry(THREE, x), materials: [0] })),
     { geometry: railGeometry(THREE, 1), materials: [0] },
     { geometry: railGeometry(THREE, -1), materials: [0] },
     // The seat backs.
@@ -652,6 +697,7 @@ function buildKit(THREE) {
     // The chin intake under the spinner.
     { geometry: ellipsoid(THREE, 0.545, 0, -0.058, 0.03, 0.032, 0.016), materials: [0] },
   ]);
+  geo.bowFront = hoopGeometry(THREE, CT156_FRAME_X[0]);
   const floor = new THREE.CircleGeometry(1, 24);
   floor.scale(0.2, 0.05, 1);
   floor.translate(-0.035, 0, 0.046);
@@ -659,11 +705,30 @@ function buildKit(THREE) {
   // The two helmets apart, so the Cockpit view can leave out the one the camera sits in (setCockpitView).
   [geo.helmetFront, geo.helmetRear] = CT156_SEAT_X.map((x) => new THREE.SphereGeometry(0.02, 12, 8).translate(x, 0, CT156_HELMET_Z));
   // The exhaust stacks either side of the nose, just under the top line (photo).
-  const stubY = fuseSurf(0.5, -0.012) - 0.003;
-  geo.stubs = joinGeometries(THREE, [1, -1].map((s) => ({ geometry: new THREE.CylinderGeometry(0.012, 0.009, 0.06, 10).rotateZ(Math.PI / 2).translate(0.5, s * stubY, -0.012), materials: [0] })));
-  const spin = new THREE.LatheGeometry([[0.001, 0.66], [0.01, 0.65], [0.02, 0.635], [0.028, 0.61], [0.033, 0.585], [0.034, 0.575]].map(([r, x]) => new THREE.Vector2(r, x)), 24);
+  // Round, each with its dark opening facing aft (AETCMAN 11-248 Fig 9.17: a fore-and-aft reference from #2; TS-156).
+  geo.stubs = joinGeometries(THREE, [1, -1].flatMap((s) => [
+    { geometry: new THREE.CylinderGeometry(0.012, 0.009, 0.06, 16, 1, true).rotateZ(Math.PI / 2).translate(STUB_X, s * STUB_Y, -0.012), materials: [0] },
+    { geometry: new THREE.CircleGeometry(0.0105, 16).rotateY(-Math.PI / 2).translate(STUB_X - 0.027, s * STUB_Y, -0.012), materials: [1] },
+  ]));
+  // The position lights (TS-156): red on the left wingtip and green on the right, just behind each tip's leading edge,
+  // a white strobe at each tip's trailing edge and a white light on the tail. Small lit shapes, sizes estimates.
+  geo.lights = joinGeometries(THREE, [
+    { geometry: ellipsoid(THREE, ...CT156_REFERENCE_POINTS.leftLight, 0.014, 0.007, 0.006), materials: [0] },
+    { geometry: ellipsoid(THREE, ...CT156_REFERENCE_POINTS.rightLight, 0.014, 0.007, 0.006), materials: [1] },
+    ...[1, -1].map((s) => ({ geometry: ellipsoid(THREE, STROBE_X, s * (WINGTIP.y + 0.002), WINGTIP.z, 0.008, 0.005, 0.004), materials: [2] })),
+    { geometry: ellipsoid(THREE, ...TAIL_LIGHT, 0.006, 0.004, 0.005), materials: [2] },
+  ]);
+  // The spinner: a smooth ogive (its tip a formation reference, AETCMAN 11-248 Fig 9.17; TS-156), on a dark backplate
+  // ring so its outline reads against the cowling. Shape an estimate off the photo.
+  const ogive = [];
+  for (let k = 0; k <= 12; k++) {
+    const t = k / 12; // 0 the tip, 1 the base
+    ogive.push(new THREE.Vector2(0.001 + 0.033 * Math.sin((t * Math.PI) / 2) ** 0.8, 0.66 - 0.085 * t));
+  }
+  const spin = new THREE.LatheGeometry(ogive, 32);
   spin.rotateZ(-Math.PI / 2);
   geo.spinner = spin;
+  geo.spinnerRing = new THREE.CylinderGeometry(0.0355, 0.0355, 0.006, 32, 1, true).rotateZ(Math.PI / 2).translate(0.573, 0, 0);
   // The prop: 97 in across (published T-6A figure; an estimate until a manual page backs it), 0.175 units each side.
   const disc = new THREE.CircleGeometry(0.175, 32);
   disc.rotateY(Math.PI / 2);
@@ -743,6 +808,8 @@ function buildKit(THREE) {
     blade: mat({ color: '#0a0c10', roughness: 0.6 }),
     tip: mat({ color: '#d2202c', roughness: 0.5 }),
     disc: keep(new THREE.MeshBasicMaterial({ color: '#dcebff', transparent: true, opacity: 0.06, side: THREE.DoubleSide, depthWrite: false, fog: false })),
+    // The position lights, lit whatever the sun (TS-156): red, green, white.
+    lights: ['#ff2b2b', '#2bff6a', '#ffffff'].map((color) => keep(new THREE.MeshBasicMaterial({ color, fog: false }))),
     roundel: decalMat(tex.roundel),
     canada: decalMat(tex.canada),
     tri: decalMat(tex.tri),
@@ -823,7 +890,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     return m;
   };
 
-  let fuselage, canopy, helmetFront = null, helmetRear = null, floor = null, prop = null;
+  let fuselage, canopy, helmetFront = null, helmetRear = null, floor = null, prop = null, bowFront = null;
   if (paint === 'ship') {
     const base = new THREE.Color(color);
     const m = (c, extra) => own(new THREE.MeshStandardMaterial({ color: c, roughness: 0.45, metalness: 0.1, envMap: mats.env, envMapIntensity: 0.4, side: THREE.DoubleSide, fog: false, ...extra }));
@@ -835,6 +902,15 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     // Solid dark glass, one canopy (Patrick, 5 Oct: the two see-through bubbles overlapped as a "ghost double canopy").
     canopy = add(geo.canopy, m('#2c4a66', { roughness: 0.12, metalness: 0.45 }));
     add(geo.spinner, m('#20242a', { roughness: 0.4 }));
+    add(geo.spinnerRing, mats.blade);
+    // Up close only: the position lights, the exhaust stacks, the canopy's frames and the serial on the fin (TS-156).
+    add(geo.lights, mats.lights, detail);
+    add(geo.stubs, [mats.exhaust, mats.blade], detail);
+    add(geo.frames, mats.frame, detail);
+    bowFront = add(geo.bowFront, mats.frame, detail);
+    const serialTex = own(canvasTexture(THREE, 320, 512, serialCanvas(number)));
+    const serialMat = own(new THREE.MeshBasicMaterial({ map: serialTex, transparent: true, side: THREE.DoubleSide, depthWrite: false, fog: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    for (const s of ['1', '-1']) add(decalGeo.tail[s], serialMat, detail);
     add(geo.disc, mats.disc);
   } else {
     const num = String(number ?? '');
@@ -853,6 +929,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     add(geo.fin, finMat);
     add(geo.cheat, mats.cheat);
     add(geo.spinner, mats.chrome);
+    add(geo.spinnerRing, mats.blade);
     add(geo.disc, mats.disc);
     // Up close only: the decals, the cockpit, the frames, the exhausts and the blades.
     add(decalGeo.roundelWing, mats.roundel, detail);
@@ -868,9 +945,11 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
       add(decalGeo.triB[s], mats.tri, detail);
       add(decalGeo.triC[s], mats.tri, detail);
     }
-    add(geo.stubs, mats.exhaust, detail);
+    add(geo.stubs, [mats.exhaust, mats.blade], detail);
+    add(geo.lights, mats.lights, detail);
     floor = add(geo.floor, mats.floor, detail);
     add(geo.frames, mats.frame, detail);
+    bowFront = add(geo.bowFront, mats.frame, detail);
     helmetFront = add(geo.helmetFront, mats.helmet, detail);
     helmetRear = add(geo.helmetRear, mats.helmet, detail);
     prop = new THREE.Group();
@@ -887,7 +966,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     scene?.userData?.ct156Ships?.add(root);
     setDetail(THREE, root, camera, renderer);
   };
-  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, helmetFront, helmetRear, floor, prop, inside: null };
+  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, helmetFront, helmetRear, floor, prop, bowFront, inside: null };
   return root;
 }
 
@@ -896,7 +975,8 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
  * outside again. seat 'front' or 'rear': the helmet of that seat goes (the camera is in it) and the other seat's shows,
  * the still prop blades go (a turning prop is a blur from the seat; the faint disc stays), the canopy turns to clear
  * glass from inside, the fuselage opens over the cockpit onto its tub (TS-155) in place of the floor disc, and the frames
- * (the canopy bows), sill rails and seat backs show whatever the paint ('ship' paint has none of its own, so they are
+ * (the centre and rear canopy bows; the forward one goes, as ct156-cockpit.js draws it from the seat, TS-156), sill
+ * rails and seat backs show (both paints draw them up close from V2.208; 'ship' paint's helmets are
  * added from the shared kit). seat null: the ship as built. Only the ship the camera sits in is ever changed, so every
  * other ship looks as before. Wings, fin and tailplane are never touched. Nothing new needs freeing: every part added
  * is the shared kit's.
@@ -913,11 +993,11 @@ export function setCockpitView(root, { seat = null } = {}) {
   d.fuselage.geometry = inside ? geo.fuselageCut : geo.fuselage;
   if (d.floor) d.floor.visible = !inside;
   if (d.prop) d.prop.visible = !inside;
+  if (d.bowFront) d.bowFront.visible = !inside; // from the seat, ct156-cockpit.js's band is the forward bow (TS-156)
   if (inside && !d.inside) {
     d.inside = new THREE.Group();
     d.inside.add(new THREE.Mesh(geo.tub, [mats.tubFloor, mats.tubWall]));
     if (d.paint === 'ship') {
-      d.inside.add(new THREE.Mesh(geo.frames, mats.frame));
       d.helmetFront = new THREE.Mesh(geo.helmetFront, mats.helmet);
       d.helmetRear = new THREE.Mesh(geo.helmetRear, mats.helmet);
       d.inside.add(d.helmetFront, d.helmetRear);
