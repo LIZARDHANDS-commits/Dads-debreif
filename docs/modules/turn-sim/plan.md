@@ -235,12 +235,16 @@ Fable's round 2 review (project files `formation-review-package-v2210/report/rep
 - [ ] **Unsourced numbers** (review 2.6, 2.8): the 45° follow bank cap, the +5° cone ease, the 70% hold power and the 25 kt emergency overshoot in `powerOf`: source each or take it out, with Patrick.
 - [ ] **Refactor steps 3-5** (review section 5): split `tracker.js` by phase kind, one list builder for the TRJ phases, one cone table and one gate table, then the straight rejoin and the 4-ship #2 onto the ride.
 - [ ] **Front page clip of the turning rejoin** (Patrick 10 Oct 2026 20:11Z): re-record with the active Harvard paint, not the blue and green stand-ins.
-- [ ] **TRJ Into / Away toggle** (Patrick 10 Oct 2026 20:15Z): today every TRJ has Lead turning into #2. Away: Lead turns away and #2 crosses Lead's turn circle to set up the normal rejoin line (SMM 16.20 para 65b(1), Fig 16.24, part 7 p.15). Spec wording to Patrick first.
-- [ ] **Break and rejoin from echelon** (Patrick 10 Oct 2026 20:15Z): Lead rolls into a 180° turn at 60° and 2 G, #2 follows 5 s later with the same turn, and they roll out in line with whatever spacing that gives; then the TRJ or SARJ is practised from there (SMM 12.25 paras 60-61, part 5 p.19). Spec wording to Patrick first. The hot TRJ from it is later work.
+- [ ] **TRJ Into / Away toggle** (Patrick 10 Oct 2026 20:15Z): today every TRJ has Lead turning into #2. Away: Lead turns away and #2 crosses Lead's turn circle to set up the normal rejoin line (SMM 16.20 para 65b(1), Fig 16.24, part 7 p.15). Wording approved 20:37Z: TS-174, spec 6.3.
+- [ ] **Break and rejoin from echelon** (Patrick 10 Oct 2026 20:15Z): Lead rolls into a 180° turn at 60° and 2 G, #2 follows 5 s later with the same turn, and they roll out in line with whatever spacing that gives; then the TRJ or SARJ is practised from there (SMM 12.25 paras 60-61, part 5 p.19). Wording approved 20:37Z: TS-175, spec 6.3; the pair waits in trail. The hot TRJ from it is later work.
 
 ## Step 9. Optimiser options (assess, then Patrick picks)
 
-- [ ] Assess route 1 and route 2 (project files `formation-review-package/report/optimiser-plan.md`, `optimiser-plan-route2.md`) against the ride's knobs after Step 8; the archived slices 8-9 plan is in `future.md`.
+Patrick 10 Oct 2026 20:20Z: "Keep both, route 1 first, prototype decides". Order (Fable's): finish the review's refactor (Step 8), record the flight set, then Phase A, then route 1.
+
+- [ ] **Flight set recorded** after the Step 8 refactor, as the optimiser's baseline.
+- [ ] **Phase A: the score card only** (no flying change); Patrick rules the weights.
+- [ ] **Route 1 prototype** (project files `formation-review-package/report/optimiser-plan.md`): shooting on the existing step, Nelder-Mead on the ride's knobs. Route 2 (`optimiser-plan-route2.md`) kept; the prototype decides. The archived slices 8-9 plan is in `future.md`. No score-card code exists yet, so Phase A starts fresh. Keep from the archived slices 8-9: replay uses the real step, not `setKias`, and the list of 26 knobs. `tools/trj-casadi/` is parked as a route 2 start; its 3 G / 60° / 180 KIAS caps break Patrick's no-cap rulings, and its baselines are stale.
 
 ## Step 10. 4-ship polish
 
