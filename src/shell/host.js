@@ -52,12 +52,14 @@ export function createHost({ root, scheduler, store, settings, time, airfields =
     return {
       id: session.id,
       settings: { get: settings.get, subscribe: tracked(settings) },
-      // Read-only: the home field and alternates are changed in Settings.
+      // The home field and alternates: read here, and changed through update(), which checks every change as Settings'
+      // Airfields section does (the SOF's Home base choice uses it; Dad, 10 Oct 2026, Patrick approved, relayed by Dad).
       airfields: airfields && {
         home: airfields.home,
         alternates: airfields.alternates,
         stations: airfields.stations,
         checkOptions: airfields.checkOptions,
+        update: ({ home, alternates } = {}) => airfields.update({ home, alternates }),
         subscribe: tracked(airfields),
       },
       // The formation standards (R18, D89): get() is frozen; the debrief's editor

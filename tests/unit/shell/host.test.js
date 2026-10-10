@@ -212,7 +212,7 @@ test('modules read the airfields setting, and their airfields subscriptions end 
   await host.open({ id: 'sof', load: async () => ({ default: { id: 'sof', mount: (r, a) => { app = a; a.airfields.subscribe((af) => seen.push(af.home().icao)); } } }) });
   assert.equal(app.airfields.home().icao, 'CYMJ');
   assert.deepEqual(app.airfields.stations(), ['CYMJ', 'CYQR', 'CYYN', 'CYXE']);
-  assert.equal(app.airfields.update, undefined, 'modules read the setting; Settings changes it');
+  assert.equal(typeof app.airfields.update, 'function', 'a module may change home and alternates, through the same checks as Settings (SOF Home base, 10 Oct 2026)');
   airfields.update({ home: 'CYXH' });
   assert.deepEqual(seen, ['CYXH']);
   assert.equal(host.stats().subscriptions, 1);
