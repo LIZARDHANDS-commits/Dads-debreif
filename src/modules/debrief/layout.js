@@ -26,7 +26,8 @@ const SAVE_WX_LABEL = 'Save radar and lightning with this debrief';
 // What the button does, said once for a screen reader and as the button's tooltip, so the menu's own line can stay one line (F1).
 const SAVE_WX_EXPLAIN = 'This fetches every picture from the flight and keeps them in the debrief file.';
 
-function shipSwatch(slot) {
+/** A ship's colour swatch (its number always goes beside it). */
+export function shipSwatch(slot) {
   const el = h('span', { class: `ship-swatch${OUTLINED_SHIPS.has(slot) ? ' is-outlined' : ''}`, 'aria-hidden': 'true' });
   el.style.setProperty('--ship', SHIP_COLORS[slot]); // through the CSSOM, which a style-src policy allows
   return el;

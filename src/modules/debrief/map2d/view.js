@@ -198,12 +198,14 @@ export function createMapView(canvas, {
 
   return {
     /** Shows a new flight (or none) and fits it to the view. */
-    setFlight(next) {
+    /** A new flight, fitted to the view; with keepView (the same flight moved a few feet, DB-23) the view stays put. */
+    setFlight(next, { keepView = false } = {}) {
       flight = next;
       paths = trackPaths(next);
       placeRoute();
+      if (keepView && next) map.requestDraw();
       // A hidden map has no size to fit to, so it fits when it next shows.
-      if (next && canvas.clientWidth) map.fit(flightBounds(next));
+      else if (next && canvas.clientWidth) map.fit(flightBounds(next));
       else {
         needsFit = Boolean(next);
         map.requestDraw();

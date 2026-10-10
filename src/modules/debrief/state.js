@@ -7,6 +7,7 @@ import { MAX_FILE_BYTES } from '../../flight-data/kml.js';
 import { sampleAt, headingAt } from '../../flight-data/flight.js';
 import { fillAt, fillSampleAt } from '../../flight-data/gap-fill.js';
 import { formatZuluSeconds } from '../../core/time.js';
+import { puckSummary, puckLine } from './puck.js';
 
 /**
  * Ship colours as in V6 (line 2104), except #4, which V6 drew near-black on a
@@ -30,6 +31,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   moreDetail: false,
   standardsOpen: false,
   filesOpen: false,
+  puckOpen: false, // the GPS puck box (DB-23)
   // Map layers, with V6's defaults: full tracks, spacing lines, grid and
   // Lead's 3/9 line on, everything else off.
   satellite: false,
@@ -151,6 +153,8 @@ export function flightSummary(flight, fill = null) {
   const parts = [`${plural(tracks.length, 'track')} loaded`];
   if (gaps) parts.push(plural(gaps, 'gap') + fillWords(fill));
   if (flight.cutTracks?.length) parts.push(`${plural(flight.cutTracks.length, 'track')} trimmed to the shared time`);
+  const puck = puckSummary(flight); // DB-23
+  if (puck) parts.push(puck);
   return parts.join(', ');
 }
 
@@ -181,6 +185,8 @@ export function trackStatus(flight, fill = null) {
         lines.push(`${plural(gaps.length, 'GPS gap')}, longest ${formatDuration(longest)}`);
       }
       if (fill?.on && fill.result && gaps.length) lines.push(...fillLines(fill.result, tr.slot));
+      const puck = puckLine(tr); // DB-23
+      if (puck) lines.push(puck);
       const cut = flight.cutTracks?.find((c) => c.slot === tr.slot);
       if (cut) {
         const s = Math.round(cut.beforeS + cut.afterS);

@@ -5,6 +5,7 @@
 import { headingAt, sampleAt } from '../../flight-data/flight.js';
 import { headingRadToCompassDeg } from '../../core/angles.js';
 import { readoutsAt } from './readouts.js';
+import { puckHeaderNote } from './puck.js';
 
 /**
  * Each ship's columns, in order: the header after "#n " and how the value is written.
@@ -27,6 +28,9 @@ const SHIP_COLUMNS = [
   // In a GPS gap the position is a guess between two fixes (C4), so it's flagged.
   ['GPS gap', (s) => (s.inGap ? 'yes' : 'no')],
 ];
+
+/** The columns a GPS puck moves (DB-23). */
+const POSITION_COLUMNS = new Set(['lat', 'lon', 'alt ft']);
 
 function fixed(n, places) {
   if (!Number.isFinite(n)) return '';
@@ -57,7 +61,9 @@ const isoZ = (t) => new Date(t * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
 export function csvRows(flight, { recordedG = false, leadWindAt = null } = {}) {
   if (!flight) return [];
   const tracks = Object.values(flight.tracks).sort((a, b) => a.slot - b.slot);
-  const header = ['time (Zulu)', ...tracks.flatMap((tr) => SHIP_COLUMNS.map(([name]) => `#${tr.slot} ${name}`))];
+  // A ship moved from its GPS puck (DB-23) says so on its position headers; the positions are the moved ones, as on screen.
+  const named = (tr, name) => `#${tr.slot} ${name}${POSITION_COLUMNS.has(name) ? puckHeaderNote(tr) : ''}`;
+  const header = ['time (Zulu)', ...tracks.flatMap((tr) => SHIP_COLUMNS.map(([name]) => named(tr, name)))];
   const rows = [header];
   for (let t = Math.ceil(flight.startT); t <= flight.endT; t++) {
     const leadSample = leadWindAt && flight.tracks[1] ? sampleAt(flight.tracks[1], t) : null;
