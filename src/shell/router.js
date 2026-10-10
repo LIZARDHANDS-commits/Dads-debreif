@@ -13,12 +13,14 @@ export function parseRoute(hash, moduleIds) {
   const id = path.toLowerCase();
   if (id === '') return { name: 'home' };
   if (id === 'about') return { name: 'about' };
+  if (id === 'about-alternate') return { name: 'about-alternate' };
   if (moduleIds.includes(id)) return { name: 'module', id };
   return { name: 'not-found', path };
 }
 
 export function hrefFor(route) {
   if (route.name === 'about') return '#/about';
+  if (route.name === 'about-alternate') return '#/about-alternate';
   if (route.name === 'module') return `#/${route.id}`;
   return '#/';
 }
@@ -29,12 +31,13 @@ export function hrefFor(route) {
  * unknown path opens home with a "no page" note.
  * @template {{ title: string }} P
  * @param {{ name: string, id?: string, path?: string }} route from parseRoute
- * @param {{ home: P, about: P }} pages
+ * @param {{ home: P, about: P, aboutAlternate?: P }} pages
  * @param {(id: string) => P & { load?: unknown }} findModule
  * @returns {{ entry: P, note: string | null }}
  */
 export function pageFor(route, pages, findModule) {
   if (route.name === 'about') return { entry: pages.about, note: null };
+  if (route.name === 'about-alternate') return { entry: pages.aboutAlternate ?? pages.about, note: null };
   if (route.name === 'not-found') return { entry: pages.home, note: `There's no page at "${route.path}". Here's the home screen.` };
   if (route.name === 'module') {
     const mod = findModule(String(route.id));

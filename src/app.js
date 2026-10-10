@@ -17,6 +17,7 @@ import { createUpdateBar, watchForUpdates } from './shell/update-bar.js';
 import { updatedLabel } from './shell/version.js';
 import home from './shell/home.js';
 import about from './shell/about.js';
+import aboutAlternate from './shell/about-alternate.js';
 import { h } from './ui-kit/dom.js';
 
 // Settings every module shares (D18, #41). Add new shared settings here.
@@ -59,6 +60,7 @@ const host = createHost({
 const pages = {
   home: { id: 'home', title: 'Home', load: async () => ({ default: home }) },
   about: { id: 'about', title: 'About Us', load: async () => ({ default: about }) },
+  aboutAlternate: { id: 'about-alternate', title: 'About OODA LOOP (Alternate)', load: async () => ({ default: aboutAlternate }) },
 };
 
 function notice(text) {

@@ -285,6 +285,11 @@ a.card:hover {
   object-fit: cover;
 }
 
+.about-dossier .about-photo img {
+  max-height: 28rem;
+  object-position: center 45%;
+}
+
 .about-photo figcaption {
   padding: var(--space-2) 0;
   color: var(--text-muted);
@@ -325,6 +330,170 @@ a.card:hover {
 
 .about-box .fine {
   margin-top: var(--space-2);
+}
+
+/* Alternate About page (Dossier Layout) */
+.about-nav-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.about-nav-row .back,
+.about-nav-row .switch-view {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.about-draft-notice {
+  margin: 0 0 var(--space-5) 0;
+  border-left-color: var(--accent);
+  background: var(--bg-sunken);
+  font-size: var(--text-sm);
+}
+
+.about-title {
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  letter-spacing: var(--tracking-wide);
+  margin: 0 0 var(--space-1);
+  text-transform: uppercase;
+}
+
+.about-subtitle {
+  color: var(--accent);
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  margin: 0 0 var(--space-4);
+  text-transform: uppercase;
+}
+
+.section-heading {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  margin-bottom: var(--space-2);
+  color: var(--text);
+}
+
+.about-creators-section {
+  margin: var(--space-6) 0;
+}
+
+.creator-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.creator-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.creator-badge {
+  width: 3.5rem;
+  height: 3.5rem;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.creator-badge img {
+  max-width: 90%;
+  max-height: 90%;
+  object-fit: contain;
+}
+
+.creator-titles h3 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.creator-titles .eyebrow {
+  margin: 0 0 var(--space-1);
+}
+
+.creator-rank {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.about-partnership-banner {
+  margin: var(--space-3) 0 var(--space-6);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+
+.about-suite-section {
+  margin: var(--space-6) 0;
+}
+
+.about-modules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.about-module-card {
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+.about-module-card h3 {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  margin: 0 0 var(--space-1);
+  color: var(--text);
+  letter-spacing: var(--tracking-wide);
+}
+
+.about-module-card p {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.about-doctrine-card {
+  margin: var(--space-6) 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+.about-doctrine-card h3 {
+  font-size: var(--text-md);
+  margin: 0 0 var(--space-2);
+}
+
+.about-disclaimer-card {
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.about-disclaimer-card .eyebrow {
+  margin-bottom: var(--space-1);
 }
 
 /* Settings dialog */
