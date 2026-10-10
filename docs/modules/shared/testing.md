@@ -31,7 +31,7 @@ Built on the whole-tool requirements ALL-R1 to ALL-R28 (section 3 says how each 
   - How long a refusal takes is not checked (T2).
 - **SC4. Rules about time run on a fake clock (Q-T9, decided).** A report is stale after a set age, the update check runs hourly and the clock ticks each second. Each test reads the code's single constant, as in the SOF's S3.
 - **SC5. The app frame's browser checks are the per-change set in section 2.** They are smoke, layout, buttons, accessibility, leaving, offline and blocked storage. They open every module, so a module change can turn them red. That failure belongs to the module, and the app-frame test is kept.
-- **SC6. Words that change by design are matched by part, not whole.** The heading is checked to contain "DAD's OODA LOOP", so the version badge (ALL-R27) can't break it.
+- **SC6. Words that change by design are matched by part, not whole.** The heading is checked to contain "OODA LOOP", so the version badge (ALL-R27) can't break it.
 - **SC7. No screenshot comparisons (Q-T2, decided: "Drop them", Patrick 4 Oct 02:59Z).** The layout check and a person's look at sign-off cover how the screens look.
 - **SC8. House rules stay a test.** One scheduler for timers, 3D loaded only when asked, storage only through the store, no raw HTML (`tests/unit/source-rules.test.js`). The rules themselves are written in the rule book.
 
@@ -78,10 +78,10 @@ Link: https://lizardhands-commits.github.io/Dads-debreif/
 
 ### Opening it
 
-- [ ] The link opens the home screen, titled "DAD's OODA LOOP". The footer says when the site was last updated, for example "Updated 30 Sep 2026, 02:01Z". If you visited before and a bar says "A new version is ready", press **Reload** first.
+- [ ] The link opens the home screen, titled "OODA LOOP". The footer says when the site was last updated, for example "Updated 30 Sep 2026, 02:01Z". If you visited before and a bar says "A new version is ready", press **Reload** first.
 - [ ] There are six cards. The five modules say "Coming soon" and do nothing when clicked. The About card opens About.
 - [ ] Card videos play quietly on their own, unless your computer is set to reduce motion, in which case you see still pictures. Nothing makes a sound.
-- [ ] **About** in the header opens the About Dad page. **Home** brings you back.
+- [ ] **About** in the header opens the About Us page. **Home** brings you back.
 - [ ] Typing a made-up address such as `…/Dads-debreif/#/nowhere` shows the home screen with a note that the page doesn't exist.
 
 ### The clock

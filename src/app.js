@@ -58,7 +58,7 @@ const host = createHost({
 
 const pages = {
   home: { id: 'home', title: 'Home', load: async () => ({ default: home }) },
-  about: { id: 'about', title: 'About Dad', load: async () => ({ default: about }) },
+  about: { id: 'about', title: 'About Us', load: async () => ({ default: about }) },
 };
 
 function notice(text) {
@@ -83,8 +83,11 @@ function errorCard(entry) {
   );
 }
 
-/** The Traffic Sim's own name in the top-left corner (Patrick, 4 Oct 10:09Z). */
-const TRAFFIC_BRAND = "Pat's CYMJ Traffic & Pattern Simulator";
+/** The Traffic Sim's own name in the top-left corner (Patrick, 4 Oct 10:09Z; no owner's name since 10 Oct 2026, About Us). */
+/** The tool's name, with no owner's name in it (Dad and Patrick, 10 Oct 2026: both are credited as co-creators on About Us). */
+const TOOL_NAME = 'OODA LOOP';
+
+const TRAFFIC_BRAND = 'CYMJ Traffic & Pattern Simulator';
 
 /** Sets the name in the top-left brand link, keeping its version badge. */
 function brandName(name) {
@@ -100,9 +103,10 @@ async function show(hash) {
   notice(note);
 
   /** @type {HTMLAnchorElement} */ ($('report-problem')).href = reportUrl({ page: entry.title, version });
-  document.title = entry === pages.home ? "DAD's OODA LOOP" : `${entry.title} · DAD's OODA LOOP`;
-  brandName(entry.id === 'traffic' ? TRAFFIC_BRAND : "DAD's OODA LOOP");
+  document.title = entry === pages.home ? TOOL_NAME : `${entry.title} · ${TOOL_NAME}`;
+  brandName(entry.id === 'traffic' ? TRAFFIC_BRAND : TOOL_NAME);
   statusLine.hidden = true;
+  showAirfieldsFor(entry.id);
   try {
     await host.open(entry);
   } catch (err) {
@@ -118,11 +122,33 @@ async function show(hash) {
   firstShow = false;
 }
 
+// Settings' Airfields section (home field, alternates and their approaches) is the SOF's: it shows only while the SOF is
+// open. Elsewhere one line names the home field, which still sets the local time in the header (Dad, 10 Oct 2026: "the
+// settings for the SOF tab appear on every page"; Patrick approved, relayed by Dad).
+const airfieldsPanel = createAirfieldsPanel({ airfields });
+const homeLine = h('span', {});
+const showHome = () => {
+  const field = airfields.home();
+  homeLine.textContent = `${field.icao}${field.name ? ` ${field.name}` : ''}`;
+};
+showHome();
+const stopHomeLine = airfields.subscribe(showHome);
+const airfieldsNote = {
+  element: h('p', { class: 'fine' }, 'Home field: ', homeLine, '. The local time follows it. The home field, alternates and their approaches are set in the SOF Dashboard\'s Settings.'),
+  dispose: stopHomeLine,
+};
 const dialog = createSettingsDialog({
   settings,
   storagePersistent: () => store.persistent,
-  sections: [createAirfieldsPanel({ airfields })],
+  sections: [airfieldsPanel, airfieldsNote],
 });
+/** Shows the Airfields section only on the SOF page, and the one-line note everywhere else. */
+function showAirfieldsFor(entryId) {
+  const sof = entryId === 'sof';
+  const box = (section) => section.element.closest('.settings-section') ?? section.element;
+  box(airfieldsPanel).hidden = !sof;
+  box(airfieldsNote).hidden = sof;
+}
 document.body.append(dialog.element);
 $('open-settings').addEventListener('click', () => dialog.open());
 const updated = $('app-updated');

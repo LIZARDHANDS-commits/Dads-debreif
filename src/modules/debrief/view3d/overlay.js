@@ -98,8 +98,14 @@ export function drawMarker(ctx, P, s, on) {
 }
 export function labelShip(ctx, c, s, on) {
   ctx.font = '600 12px system-ui, sans-serif';
-  outlined(ctx, `#${s.slot}`, c.x + 12, c.y - 14, SHIP_COLORS[s.slot]);
-  if (s.inGap) {
+  outlined(ctx, s.estimated ? `#${s.slot} est.` : `#${s.slot}`, c.x + 12, c.y - 14, SHIP_COLORS[s.slot]);
+  if (s.estimated) {
+    // On a filled gap's best guess (DB-20): the estimated attitude, said to be one.
+    if (on.attLabels3d && s.hdg !== null) {
+      ctx.font = '10px system-ui, sans-serif';
+      outlined(ctx, `est. ${attitudeText(s)}`, c.x + 12, c.y + 2, TEXT);
+    }
+  } else if (s.inGap) {
     // The position is a guess in a GPS gap, so no bank or pitch (D32).
     ctx.font = '10px system-ui, sans-serif';
     outlined(ctx, 'GPS gap', c.x + 12, c.y + 2, TEXT);
@@ -149,6 +155,21 @@ export function drawCaption(ctx, camera, on, datum) {
   outlined(ctx, `Altitude ×${scale}`, 14, 22, TEXT);
   const from = on.datum3d === 'field' ? 'field elevation' : on.datum3d === 'zero' ? 'sea level' : 'lowest ship less 500 ft';
   outlined(ctx, `Ground: ${ft(datum)} ft (${from})`, 14, 40, TEXT);
+  ctx.restore();
+}
+
+// The Cockpit and Chase cameras' caption (DB-21, DB-22): whose seat (or which ship the Chase is behind), that the attitude is an estimate, a GPS gap and whether its path is
+// estimated, and what the wind and the altimeter are. words: cockpit.js COCKPIT_CAPTION.
+export function drawCockpitCaption(ctx, { slot, seat, chase = false, gap, windKnown }, words) {
+  ctx.save();
+  ctx.font = '12px system-ui, sans-serif';
+  const where = chase ? `Chase: behind #${slot}` : `Cockpit: #${slot} ${seat === 'rear' ? 'rear' : 'front'} seat`;
+  outlined(ctx, `${where} · ${words.always}`, 14, 22, TEXT);
+  outlined(ctx, `${windKnown ? 'nose into the model wind' : '(no wind)'} · ${words.altitude}`, 14, 40, TEXT);
+  if (gap) {
+    ctx.font = '600 12px system-ui, sans-serif';
+    outlined(ctx, gap === 'filled' ? words.filled : words.gap, 14, 58, '#ffcc66');
+  }
   ctx.restore();
 }
 

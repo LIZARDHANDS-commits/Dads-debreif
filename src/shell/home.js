@@ -50,8 +50,8 @@ function aboutCard() {
     'span',
     { class: 'card-text' },
     h('span', { class: 'eyebrow' }, 'About the project'),
-    h('span', { class: 'card-title' }, 'About Dad'),
-    h('span', { class: 'card-blurb' }, 'Who built these tools, and why'),
+    h('span', { class: 'card-title' }, 'About Us'),
+    h('span', { class: 'card-blurb' }, 'The co-creators, and why these tools exist'),
   );
   return h('a', { class: 'card card-about', href: '#/about', dataset: { module: 'about' } }, media, text);
 }
@@ -75,8 +75,8 @@ export default {
         h(
           'div',
           { class: 'hero' },
-          h('p', { class: 'eyebrow' }, "DAD's • Aviators webtool suite"),
-          h('h1', {}, "DAD's OODA LOOP ", h('span', { class: 'version-badge' }, 'V2.210')),
+          h('p', { class: 'eyebrow' }, 'Aviators webtool suite'),
+          h('h1', {}, 'OODA LOOP ', h('span', { class: 'version-badge' }, 'V2.215')),
           h('p', { class: 'lede' }, 'Debrief, formation, BFM, traffic and SOF tools for T-6 flying training. Open one below.'),
         ),
         h('div', { class: 'card-grid' }, cards.map((c) => c.card), aboutCard()),

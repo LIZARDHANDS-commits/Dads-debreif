@@ -7,9 +7,9 @@ import { openRoute } from './routes.js';
 
 test('home lists the Debrief Viewer, the Turn Sim, the Traffic Sim, SOF and Turn Fight as PROTOTYPEs, no module as coming soon, and About @smoke', async ({ page }) => {
   await openRoute(page, '#/');
-  await expect(page).toHaveTitle("DAD's OODA LOOP");
+  await expect(page).toHaveTitle("OODA LOOP");
   // The heading carries a version badge (ALL-R27), so it is checked to contain the name, not to equal it (ALL-R3).
-  await expect(page.getByRole('heading', { level: 1 })).toContainText("DAD's OODA LOOP");
+  await expect(page.getByRole('heading', { level: 1 })).toContainText("OODA LOOP");
   const cards = page.locator('.card');
   await expect(cards).toHaveCount(6);
   await expect(page.locator('.card.is-planned')).toHaveCount(0); // every module now opens
@@ -30,10 +30,10 @@ test('About opens from its card and links back home @smoke', async ({ page }) =>
   await openRoute(page, '#/');
   await page.locator('a.card-about').click();
   await expect(page).toHaveURL(/#\/about$/);
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('About Dad');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('About Us');
   await page.getByRole('link', { name: '← Home' }).click();
   // The heading carries a version badge (ALL-R27), so it is checked to contain the name, not to equal it (ALL-R3).
-  await expect(page.getByRole('heading', { level: 1 })).toContainText("DAD's OODA LOOP");
+  await expect(page.getByRole('heading', { level: 1 })).toContainText("OODA LOOP");
 });
 
 // Every registry entry now has a load (Turn Fight and the Traffic Sim were the last two), so no
@@ -41,7 +41,7 @@ test('About opens from its card and links back home @smoke', async ({ page }) =>
 
 test('addresses match without regard to case, and a not-found note keeps what was typed (AF-4)', async ({ page }) => {
   await openRoute(page, '#/About');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('About Dad');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('About Us');
   await openRoute(page, '#/PTPT');
   await expect(page.locator('#route-notice')).toContainText('no page at "PTPT"');
 });
@@ -63,7 +63,7 @@ test('the footer says when this copy was published, and Report a problem carries
   const href = await page.locator('#report-problem').getAttribute('href');
   const url = new URL(href);
   expect(url.pathname).toBe('/LIZARDHANDS-commits/Dads-debreif/issues/new');
-  expect(url.searchParams.get('page')).toBe('About Dad');
+  expect(url.searchParams.get('page')).toBe('About Us');
   expect(url.searchParams.get('version')).toBe(version);
 });
 

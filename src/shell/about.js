@@ -1,13 +1,14 @@
-// About Dad: V6's About page content, as Dad wrote it.
+// About Us: the two co-creators, Dad and Patrick, each with a short blurb (Dad, 10 Oct 2026, Patrick approved, relayed by
+// Dad). The page is no longer one owner's: the contact, mission and support boxes are V6's, as Dad wrote them.
 import { h } from '../ui-kit/dom.js';
 
 const CONTACT_EMAIL = 'kennynatelli@gmail.com';
-const CONTACT_SUBJECT = "DAD'S Aviators Webtool Suite Feedback";
+const CONTACT_SUBJECT = 'OODA LOOP Feedback';
 const VENMO_URL = 'https://www.venmo.com/u/Kenny-Natelli';
 
 export default {
   id: 'about',
-  title: 'About Dad',
+  title: 'About Us',
   mount(root) {
     root.append(
       h(
@@ -15,7 +16,7 @@ export default {
         { class: 'about' },
         h('p', { class: 'back' }, h('a', { href: '#/' }, '← Home')),
         h('p', { class: 'eyebrow' }, 'About the project'),
-        h('h1', {}, 'About Dad'),
+        h('h1', {}, 'About Us'),
         h(
           'figure',
           { class: 'about-photo' },
@@ -25,8 +26,26 @@ export default {
         h(
           'div',
           { class: 'about-intro' },
-          h('p', {}, "I'm a U.S. Air Force exchange officer in Moose Jaw, Saskatchewan. I built DAD'S Aviators Webtool Suite to help aviators visualize complex problems, make informed decisions, and improve the learning and debriefing process."),
+          h('p', {}, 'OODA LOOP is a set of tools to help aviators visualize complex problems, make informed decisions, and improve the learning and debriefing process.'),
           h('p', {}, 'These tools are built around a simple idea: make useful aviation concepts easier to see, understand, discuss, and learn from.'),
+        ),
+        h(
+          'div',
+          { class: 'about-boxes about-creators' },
+          h(
+            'section',
+            { class: 'about-box' },
+            h('p', { class: 'eyebrow' }, 'Co-creator'),
+            h('h2', {}, 'Dad'),
+            h('p', {}, "A U.S. Air Force exchange officer in Moose Jaw, Saskatchewan. Dad started the suite with the original debrief tool and builds the SOF weather dashboard, with the USAF and Moose Jaw standards behind it."),
+          ),
+          h(
+            'section',
+            { class: 'about-box' },
+            h('p', { class: 'eyebrow' }, 'Co-creator'),
+            h('h2', {}, 'Patrick'),
+            h('p', {}, 'A pilot and engineer. Patrick rebuilt the suite and builds the formation, fight and traffic simulators, flown to the manuals and his own practice.'),
+          ),
         ),
         h(
           'div',

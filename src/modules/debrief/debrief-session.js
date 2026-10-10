@@ -19,6 +19,9 @@ const TIME_RULE = { type: 'number', min: 0, max: 1e11 };
  * field of its own, only this key and the two places that use it move.
  */
 export const WEATHER_KEY = 'savedWeather';
+/** Each ship's GPS puck seat in the file (DB-23): "puck.1" to "puck.4", "front" or "rear"; a ship with none set has no key. */
+const PUCK_PREFIX = 'puck.';
+const PUCK_RULE = { type: 'string', oneOf: ['front', 'rear'] };
 
 /**
  * The rules readDebriefFile checks the file's settings against, from
@@ -26,9 +29,11 @@ export const WEATHER_KEY = 'savedWeather';
  * length a file the tool opens can have, so a block over the length
  * saved-radar.js allows reaches its checks and is left out with a line (the
  * file reader would drop it without a word). saved-radar.js checks the inside.
+ * `pucks`: also keep each ship's GPS puck seat (DB-23).
  */
-export function settingsRules(limits, { weather = false } = {}) {
+export function settingsRules(limits, { weather = false, pucks = false } = {}) {
   const rules = { [TIME_KEY]: TIME_RULE };
+  if (pucks) for (let slot = 1; slot <= 4; slot++) rules[`${PUCK_PREFIX}${slot}`] = PUCK_RULE;
   if (weather) rules[WEATHER_KEY] = { type: 'string', max: MAX_DEBRIEF_BYTES };
   for (const [group, fields] of Object.entries(limits)) {
     rules[`${PREFIX}${group}.on`] = { type: 'boolean' };
@@ -57,17 +62,29 @@ export function weatherSettingOf(text, settings) {
 }
 
 /**
- * The settings saved in the file: every standard, flattened, the time, and
- * `weather` (the saved radar's block as text, savedToSetting) when there is one.
+ * The settings saved in the file: every standard, flattened, the time,
+ * `weather` (the saved radar's block as text, savedToSetting) when there is one,
+ * and each ship's GPS puck seat that is set (`pucks` { slot: 'front' | 'rear' }, DB-23).
  */
-export function sessionSettings(standards, t, weather = '') {
+export function sessionSettings(standards, t, weather = '', pucks = {}) {
   const out = {};
   for (const [group, fields] of Object.entries(standards)) {
     for (const [key, value] of Object.entries(fields)) out[`${PREFIX}${group}.${key}`] = value;
   }
   if (Number.isFinite(t)) out[TIME_KEY] = t;
   if (weather) out[WEATHER_KEY] = weather;
+  for (const [slot, seat] of Object.entries(pucks ?? {})) if (seat) out[`${PUCK_PREFIX}${slot}`] = seat;
   return out;
+}
+
+/** The file's GPS puck seats as { slot: seat }, or null when the file names none (DB-23). Checked by settingsRules already. */
+export function pucksFromSettings(settings) {
+  const out = {};
+  for (let slot = 1; slot <= 4; slot++) {
+    const seat = settings[`${PUCK_PREFIX}${slot}`];
+    if (seat) out[slot] = seat;
+  }
+  return Object.keys(out).length ? out : null;
 }
 
 /**

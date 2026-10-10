@@ -46,6 +46,15 @@ Each has a working answer built in. Patrick answers these one at a time when thi
 - [ ] DB-Q17: label the estimated G "turn G" or add the vertical pull? (`pf/reset/1-requirements/questions.md:56`)
 - [ ] DB-Q18: should playback keys work after any click? (`pf/reset/1-requirements/questions.md:57`)
 
+## Step 3a. 3D cockpit view and smooth GPS gap fill (Dad, 10 Oct 2026; Patrick approved, relayed by Dad the same day)
+
+Dad: "add 3D from the cockpit to the KML viewer ... if there is a GPS gap, for the web tool to auto solve where they might be based on others and previous data then next position data. So if a 90 degree turn is missing the middle ... then there must be a smooth bank in there." Dad, 10 Oct: "its just on the KML Viewer he approves". The approach is written into the spec and decisions before coding (design pass first).
+
+- [x] Smooth gap fill (built V2.211, DB-19, DB-20, on the working answers DB-Q20 to DB-Q22 and DB-Q24; wording waits on Patrick; not yet seen by Patrick in the real app): a gap (more than GAP_S, 5 s) is filled from the fixes before and after and, in formation, from the other ships over the same seconds, as a path the aircraft could fly (roll in, steady bank, roll out), always marked as an estimate, never used for verdicts as if real, with a setting that brings back the straight line.
+- [x] Cockpit view (built V2.211, DB-21, on the working answer DB-Q23; wording waits on Patrick; not yet seen by Patrick in the real app): sit in any loaded ship's front or rear seat in the 3D and replay from there with the shared CT-156 cockpit (needs PR #697 merged), attitude worked out from the track.
+- [x] Camera bar (built V2.214, DB-22, wording waits on Patrick; not yet seen by Patrick in the real app; Dad, 10 Oct: "can we use the same layout from the pattern sim view controls for the KML viewer"): the 3D view's camera is the Traffic sim's pill bar over the picture, Overview (Follow Lead, Centre formation), Chase and Cockpit, with Boresight, Freelook and Padlock, the ship pills and the seat, and the keys C, P, [ and ]; it replaces the Camera, Ship and Seat controls in 3D settings.
+- [x] GPS puck (built V2.215, DB-23, on the working answers DB-Q25 and DB-Q26; wording waits on Patrick; not yet seen by Patrick in the real app; Dad, 10 Oct: "in close formation the location of the sentry puck matters. Can you select a sentry puck in front or back"): each loaded ship's "GPS puck: Not set / Front cockpit / Rear cockpit", moving its positions from the puck on that cockpit's glareshield to the aircraft's reference point for every view and number; Not set keeps today's positions.
+
 ## Step 4. Check the Debrief's tests match the new rules
 
 The test register marks the Debrief's files: about 9 unit checks and about 5 browser checks are pinned to V6's numbers, and one pins seconds of the example flight. Those are rewritten by the clean-up pull requests, not by this plan (`pf/reset/5-testing/test-register.md:641`). This plan only adds:
