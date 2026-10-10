@@ -361,19 +361,27 @@ function createCrossroadsFarm(THREE, mats) {
 
 /** The VOR: a classic station, every size an estimate (TR-117): its equipment hut, the round flat counterpoise on top, and the cone antenna in the middle. */
 const VOR_FT = Object.freeze({ hut: 16, hutHeight: 10, counterpoise: 15, thick: 1.2, cone: 3, coneHeight: 7 });
+const VOR_BANDS = 4; // red and white bands on the antenna
 function createVor(THREE, mats) {
   const g = new THREE.Group();
   g.add(box(THREE, VOR_FT.hut, VOR_FT.hut, VOR_FT.hutHeight, mats.white, 0, 0, 'vor-hut'));
   const disc = bin(THREE, VOR_FT.counterpoise, VOR_FT.thick, mats.steel, 0, 0, 'vor-counterpoise');
   disc.position.z = VOR_FT.hutHeight;
   g.add(disc);
-  const coneGeo = new THREE.ConeGeometry(VOR_FT.cone, VOR_FT.coneHeight, 16);
-  coneGeo.rotateX(Math.PI / 2);
-  coneGeo.translate(0, 0, VOR_FT.coneHeight / 2);
-  const cone = new THREE.Mesh(coneGeo, mats.white);
-  cone.name = 'vor-antenna';
-  cone.position.z = VOR_FT.hutHeight + VOR_FT.thick;
-  g.add(cone);
+  // The antenna in red and white bands (Patrick, 10 Oct: "white and red stripes"), red at the base: one frustum per band.
+  const base = VOR_FT.hutHeight + VOR_FT.thick;
+  for (let k = 0; k < VOR_BANDS; k++) {
+    const h = VOR_FT.coneHeight / VOR_BANDS;
+    const rBottom = VOR_FT.cone * (1 - k / VOR_BANDS);
+    const rTop = VOR_FT.cone * (1 - (k + 1) / VOR_BANDS);
+    const geo = new THREE.CylinderGeometry(rTop, rBottom, h, 16);
+    geo.rotateX(Math.PI / 2);
+    geo.translate(0, 0, h / 2);
+    const band = new THREE.Mesh(geo, k % 2 === 0 ? mats.red : mats.white);
+    band.name = `vor-antenna-${k + 1}`;
+    band.position.z = base + k * h;
+    g.add(band);
+  }
   return g;
 }
 
