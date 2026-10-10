@@ -63,7 +63,8 @@ export function nowWords(where) {
 /**
  * The flags for the Formation card (spec section 10, "Flags, never walls"): Lead above 4 G in fighting wing and above
  * 3 G in close formation (2 CFFTS Orders B2 ch 8; Gen Book p.11), #2 at or above Lead's height in a rejoin (SMM 12.27
- * para 65), and #2 past the G rule's bank in a rejoin (5 G level, Patrick 06:16Z). Returns an array of sentences.
+ * para 65), #2 under the 200 KIAS rejoin target (TS-169), and #2 past the G rule's bank in a rejoin (5 G level, Patrick 06:16Z).
+ * Returns an array of sentences.
  */
 export function changeFlags(state, where) {
   const [lead, wing] = state.aircraft;
@@ -74,6 +75,8 @@ export function changeFlags(state, where) {
   if (c?.rejoining) {
     const r = rejoinReadout(lead, wing);
     if (r.rangeFt < 2000 && r.aboveLead) flags.push('#2 is at or above Lead\'s height; a rejoin stays below him (SMM 12.27 para 65).');
+    // The 200 KIAS rejoin minimum is a target, shown when missed (TS-169, Patrick 10 Oct 2026 20:01Z): geometry beats speed.
+    if (wing.kias < KIAS_OUTSIDE_LAB - 1) flags.push(`#2 is at ${Math.round(wing.kias)} KIAS, under the ${KIAS_OUTSIDE_LAB} KIAS rejoin target: he keeps the bank the line needs at MAX power and accepts the speed bleed (TS-169).`);
   }
   if (c && Math.abs(wing.bankDeg) >= G_RULE_BANK_DEG - 0.5 && c.rejoining) flags.push(`#2 is past ${Math.round(G_RULE_BANK_DEG)}° of bank, 5 G in a level turn: the G rule's normal limit (Patrick 06:16Z; SMM 16.17 para 44a); flown anyway, with no bank cap in a rejoin (Patrick 6 Oct 04:07Z).`);
   // The check ahead of the slot is a warning, not a refusal (Patrick 6 Oct 03:45Z; TS-110).

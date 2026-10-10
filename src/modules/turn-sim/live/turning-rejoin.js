@@ -35,7 +35,7 @@ import { recordFlight, speedSeg, dryRunT } from './replay.js';
 import { closeThrough, rejoinTo, slide, stopAt, legsFor } from './recipes.js';
 import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
-import { FORMATIONS, FW_BAND, fwShapeNow, pairSlot, downTheLine, LINE_BACK_PER_OUT, LENGTH_FT, sideFor, LANE } from './slots.js';
+import { FORMATIONS, FW_BAND, fwShapeNow, pairSlot, LENGTH_FT, sideFor, LANE } from './slots.js';
 import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, TURNING_REJOIN, FW_FOLLOW, WING_BANKS, KINEMATIC, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
 import { onClosure, fromStep } from './hand-over.js';
 import { leadTurnInto } from './lead-turn-in.js';
@@ -67,7 +67,7 @@ const xArriveFtps = () => ((TURNING_REJOIN.stableKt[0] + TURNING_REJOIN.stableKt
  * (route itself when he moves over near 250 ft, about 50 ft down from echelon at 100 ft), flowing through it, then up the
  * line into echelon (or on into line astern, legsFor's crossover); to route, into route. at: #2's place in Lead's frame then.
  */
-function tailLegs(s, to, sTo, spacingFt, at = null) {
+function tailLegs(s, to, sTo, spacingFt) {
   const rejoinOver = {
     rejoin: true,
     bankCapDeg: REJOIN.bankCapDeg,
