@@ -8,6 +8,7 @@
 // The shapes are plain quadrilaterals in map feet (x east, y north), so they have no pixels to blur.
 
 import { THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_29R, DEPARTURE_END_29R, RUNWAY_03, RUNWAY_21 } from './airfield.js';
+import { AIRFIELD_SURFACE } from './airfield-surface.js';
 
 /** How far the painted centreline sits left of the drawn one (looking down 29L), ft: 3 at the 29L end, 0 at 11R (photo). */
 const SHIFT_AT_29L_FT = 3;
@@ -219,15 +220,17 @@ const PAINT_0321 = Object.freeze({
  * like every taxiway it is drawn in the runways' grey (TR-126; it was fresh black, TR-118).
  */
 export const TAXIWAYS = Object.freeze([
-  { id: 'A', widthFt: 80, pts: [[-3500, 2880], [-3450, 3060], [-675, 1835]] },
-  { id: 'B', widthFt: 80, pts: [[-2550, 2490], [-3505, 705]] },
-  { id: 'C', widthFt: 80, pts: [[-790, 1745], [-950, 1425]] },
-  { id: 'Echo', widthFt: 50, pts: [[-1140, 1370], [280, -1403]] }, // carried on to 29L's centreline (TR-126)
-  { id: 'D', widthFt: 80, pts: [[1600, 1625], [2300, 925]] },
-  { id: 'F', widthFt: 80, pts: [[2300, 925], [3575, -75], [3700, -280], [3790, -650], [3760, -950], [3622, -1189]] },
-  { id: 'F2', widthFt: 80, pts: [[3622, -1189], [2800, -2760]] },
-  { id: 'G', widthFt: 80, pts: [[1550, 2000], [2150, 2650]] },
-  { id: 'H', widthFt: 80, pts: [[2030, 2260], [2480, 1880]] },
+  // Re-centred on the traced pavement (TR-127): each line moved to the middle of its pavement, measured across it every few
+  // hundred feet (they had sat 7 to 45 ft off; G 136 ft). widthFt is the pavement's measured width, for the holding positions.
+  { id: 'A', widthFt: 82, pts: [[-3507, 2882], [-3465, 3034], [-687, 1808]] },
+  { id: 'B', widthFt: 85, pts: [[-2564, 2497], [-3519, 712]] },
+  { id: 'C', widthFt: 72, pts: [[-772, 1736], [-932, 1416]] },
+  { id: 'Echo', widthFt: 50, ownSurface: true, pts: [[-1140, 1370], [280, -1403]] }, // repaved, narrower than its old concrete: drawn on its own
+  { id: 'D', widthFt: 84, pts: [[1611, 1636], [2311, 936]] },
+  { id: 'F', widthFt: 84, pts: [[2295, 919], [3506, -31], [3663, -287], [3778, -760], [3769, -844], [3583, -1166]] },
+  { id: 'F2', widthFt: 83, pts: [[3607, -1181], [2785, -2752]] },
+  { id: 'G', widthFt: 150, pts: [[1650, 1908], [2250, 2558]] },
+  { id: 'H', widthFt: 33, pts: [[2038, 2269], [2488, 1889]] },
 ]);
 /**
  * Taxiway surface (TR-126; Patrick, 10 Oct: "all the taxiways should be the same color as the runways and merge together nicely"):
@@ -309,30 +312,22 @@ function fillets(shapes, f, half, edges, radius) {
   }
 }
 
-/**
- * The ramp (TR-126; Patrick, 10 Oct: "03/21 needs to be black too, as well as the ramp"): the apron in front of the hangars, in the
- * runways' grey, traced off Esri's photo (10 Oct, about ±25 ft) as three convex pieces, ft from the ARP.
- */
-const RAMP = Object.freeze([
-  [[-760, 1760], [0, 1700], [0, 2140], [-760, 2140]],
-  [[0, 1700], [980, 1574], [980, 2140], [0, 2140]],
-  [[980, 1574], [1560, 1500], [1560, 1980], [980, 2140]],
-]);
-/** 03/21's fillets where it meets 29L and 29R are wider than a taxiway's (photo; an estimate). */
-const FILLET_0321_FT = 120;
 
 function paintTaxiways(shapes) {
   const { holdFor, clip } = runwayBoxes();
   const edges = mainRunwayEdges();
   for (const tw of TAXIWAYS) {
     const half = tw.widthFt / 2 + TAXI_SURFACE_EXTRA_FT / 2;
-    for (const [x, y] of tw.pts) disc(shapes, 'asphalt', x, y, half);
+    // The paved surface comes from the traced photo (AIRFIELD_SURFACE, TR-127); only a taxiway marked ownSurface draws its own strip.
+    if (tw.ownSurface) for (const [x, y] of tw.pts) disc(shapes, 'asphalt', x, y, half);
     for (let k = 1; k < tw.pts.length; k++) {
       const [ax, ay] = tw.pts[k - 1], [bx, by] = tw.pts[k];
       const f = frame({ x: ax, y: ay }, { x: bx, y: by });
       const { quad } = pens(shapes);
-      quad('asphalt', f.place, 0, f.len, -half, half);
-      fillets(shapes, f, half, edges, FILLET_FT);
+      if (tw.ownSurface) {
+        quad('asphalt', f.place, 0, f.len, -half, half);
+        fillets(shapes, f, half, edges, FILLET_FT);
+      }
       // The centreline, left off where it runs on a runway.
       let from = null;
       const STEP = 2;
@@ -378,13 +373,11 @@ export function runwayMarkingPolygons() {
     ends: [{ letter: 'R', number: '29', layout: END_PAINT_29R }, { letter: 'L', number: '11', layout: END_PAINT_29R }],
     centreline: (len, barB) => dashStarts(BAR_29R_FT + 273, barB, 273),
   });
-  // 03/21 (TR-118): numbers, centreline and holding positions; since TR-126 on the runways' grey, widened into 29L and 29R with fillets.
+  // 03/21 (TR-118): numbers, centreline and holding positions. Its grey, with the ramp's and the taxiways', is the traced surface (TR-127).
   const r = frame(RUNWAY_03, RUNWAY_21);
-  const { text, outlinedQuad, quad: quad0321 } = pens(shapes);
+  const { text, outlinedQuad } = pens(shapes);
   const Q = PAINT_0321;
-  quad0321('asphalt', r.place, 0, r.len, -Q.halfWidth - 1, Q.halfWidth + 1);
-  fillets(shapes, r, Q.halfWidth, mainRunwayEdges(), FILLET_0321_FT);
-  for (const piece of RAMP) shapes.push({ color: 'asphalt', pts: piece.map(([x, y]) => ({ x, y })) });
+
   text(r.place, '03', Q.numberFrom03, END_PAINT.glyph);
   text((s, n) => r.place(r.len - s, -n), '21', Q.numberFrom21, END_PAINT.glyph);
   for (const s0 of dashStarts(Q.dashesFrom, Q.dashesTo, 0, DASH_PITCH_FT, (s0) => s0 + CENTRELINE_DASH_FT > Q.crossing29R - 120 && s0 < Q.crossing29R + 120)) {
@@ -411,9 +404,19 @@ export function createRunwayMarkings(THREE) {
   const group = new THREE.Group();
   group.name = 'runway-markings';
   const shapes = runwayMarkingPolygons();
+  // The traced paved surface (TR-127) as triangles, drawn with the runways' grey.
+  const surface = [];
+  for (const { outer, holes } of AIRFIELD_SURFACE) {
+    const ring = outer.map(([x, y]) => new THREE.Vector2(x, y));
+    const holeRings = holes.map((h) => h.map(([x, y]) => new THREE.Vector2(x, y)));
+    const tris = THREE.ShapeUtils.triangulateShape(ring, holeRings); // turns the rings round in place: index them afterwards
+    const all = [...ring, ...holeRings.flat()];
+    for (const tri of tris) for (const k of tri) surface.push(all[k].x, all[k].y);
+  }
   for (const color of Object.keys(PAINT)) {
     const mine = shapes.filter((s) => s.color === color);
-    const pos = new Float32Array(mine.length * 6 * 3);
+    const extra = color === 'asphalt' ? surface.length / 2 : 0;
+    const pos = new Float32Array((mine.length * 6 + extra) * 3);
     let i = 0;
     for (const { pts } of mine) {
       for (const k of [0, 1, 2, 0, 2, 3]) {
@@ -421,6 +424,11 @@ export function createRunwayMarkings(THREE) {
         pos[i++] = pts[k].y;
         pos[i++] = 0;
       }
+    }
+    for (let j = 0; j < extra; j++) {
+      pos[i++] = surface[2 * j];
+      pos[i++] = surface[2 * j + 1];
+      pos[i++] = 0;
     }
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
