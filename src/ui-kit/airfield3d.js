@@ -1,8 +1,11 @@
 // The airfields in a 3D view (SPEC-sof, "3D view", SOF-39; Dad, 7 Oct: "model the airport like in the pattern sim ... swift regina and saskatoon").
 // Moved from the SOF to ui-kit on 10 Oct 2026 so the Debrief's 3D draws the same airfields (SOF-62, DB-24; Dad: "use the airfield graphics like pattern sim too").
 // For each airport in src/airfields/airports-data.js inside the area the caller gives (`halfFt`), every runway is drawn as a flat strip between its two thresholds at their true
-// positions, true length (the distance between the two ends) and width: dark asphalt, white edge lines, a dashed centreline, a bar of stripes
-// ("piano keys") at each end and the runway number at each end as a flat texture, written so it reads from the approach end. A few low boxes stand
+// positions, true length (the distance between the two ends) and width, painted as the Traffic sim paints Moose Jaw's 29L (src/modules/traffic/
+// runway-markings.js, TR-98; Dad, 10 Oct 2026: "use the airfield graphics like pattern sim too"): its dark grey runway, white paint with a thin black
+// outline, a threshold bar across each end, a bar of stripes ("piano keys"), the runway number written so it reads from the approach end, a dashed
+// centreline, edge stripes and the aiming-point blocks on a runway long enough for them. Traffic's shapes are measured off one runway's photo, so
+// they are not reused as they are: the same sizes are laid out here for any runway's length and width. A few low boxes stand
 // for a terminal and hangars beside the field. The boxes are schematic: no source gives their places or sizes.
 //
 // It only builds three.js objects. What to draw is plain data from the runway list (runwayGeometry, markingBoxes), kept apart from the objects so
@@ -22,18 +25,30 @@ import { AIRPORTS } from '../airfields/airports-data.js';
 
 /** Minimum drawn sizes in screen pixels. Estimates for readability (SOF-39), like the aircraft's SIZE_PX. */
 export const RUNWAY_MIN_PX = Object.freeze({ length: 40, width: 3, detail: 80 });
-/** Colours, estimates for readability: dark asphalt that still reads against the dimmed satellite ground, white paint, grey-blue buildings. */
-export const AIRPORT_COLOURS = Object.freeze({ asphalt: '#3d4248', paint: '#f4f4ee', terminal: '#8a96a1', hangar: '#6c7782' });
-/** A runway sits this far (scene feet) above the ground picture, so it is never hidden by it. An estimate. */
+/**
+ * Colours: the runway grey, white paint and its black outline are the Traffic sim's (runway-markings.js PAINT, from the photo, TR-98); the grey-blue
+ * buildings are estimates for readability.
+ */
+export const AIRPORT_COLOURS = Object.freeze({ asphalt: '#262b30', paint: '#f2f2ee', outline: '#141414', terminal: '#8a96a1', hangar: '#6c7782' });
+/** A runway sits this far (scene feet) above the ground picture, so it is never hidden by it. An estimate; a caller may give its own (`liftFt`). */
 const LIFT_FT = 40;
 /** Each layer of paint sits this much above the one under it (scene feet), with a polygon offset as well, so the layers never fight for the same depth. */
 const LAYER_FT = 3;
 
-// Marking sizes in feet. The shapes follow the usual runway markings (ICAO Annex 14 / TP 312: threshold stripes, a dashed centreline, edge lines,
-// numbers at the ends); the sizes are rounded estimates for a schematic picture, not copied from a standard.
-const EDGE_FT = 3.5;
-const CENTRE_DASH_FT = Object.freeze({ dash: 120, gap: 80, width: 3.5 });
-const KEYS_FT = Object.freeze({ fromThreshold: 20, length: 100 });
+// Marking sizes in feet, the Traffic sim's (runway-markings.js, measured off Esri's photo of Moose Jaw's 29L to about ±3 ft, TR-98): a 6 ft threshold
+// bar, piano keys 100 ft long starting 16 ft past it, 98 ft centreline dashes 3 ft wide about every 196 ft, 3 ft edge stripes, the aiming point
+// 147 ft long from 976 ft past the bar, and a 0.5 ft black outline round the white paint. That runway is 150 ft wide (about 160 ft to the edge
+// stripes' outer edges); on another width the stripes and blocks across it scale with the width (an estimate). The shapes follow the usual runway
+// markings (ICAO Annex 14 / TP 312).
+const EDGE_FT = 3;
+const CENTRE_DASH_FT = Object.freeze({ dash: 98, gap: 98, width: 3 });
+const KEYS_FT = Object.freeze({ fromThreshold: 16, length: 100 });
+const BAR_FT = 6;
+const OUTLINE_FT = 0.5;
+/** The aiming point: along the runway from the bar, and across as a share of the width (Traffic's 36 to 58 ft each side of a 150 ft runway's centreline). */
+const AIM = Object.freeze({ from: 976, to: 1123, inner: 36 / 150, outer: 58 / 150 });
+/** Aiming-point blocks only on a runway at least this long (an estimate: on a short one they would crowd the numbers and the far end). */
+const AIM_MIN_LENGTH_FT = 4000;
 /** The number's block: across is this share of the runway's width and along this many times the width, starting this far from the threshold bar. */
 const NUMBER_BLOCK = Object.freeze({ across: 0.7, along: 0.95, gapFt: 40 });
 /** The terminal and hangars: footprint and height in feet, and how far from the runway's edge. Schematic; no source gives them. */
@@ -90,8 +105,9 @@ export function runwayGeometry(runway, toXY) {
 
 /**
  * The paint on a runway as rectangles in the runway's own feet: x along (from its middle towards end b, so end a is at -length / 2), y across
- * (to the left of that direction). Each is [x0, x1, y0, y1]. Returns { edges, dashes, keys }: the two edge lines, the centreline's dashes
- * (from clear of each end's number block to the other's) and the threshold stripes at both ends.
+ * (to the left of that direction). Each is [x0, x1, y0, y1]. Returns { edges, dashes, keys, bars, aims, outlines }: the two edge lines, the
+ * centreline's dashes (from clear of each end's number block to the other's), the piano keys and the threshold bar at both ends, the aiming-point
+ * blocks (none on a short runway), and every white box grown by the outline's width, drawn black under the white.
  */
 export function markingBoxes({ lengthFt, widthFt }) {
   const half = lengthFt / 2;
@@ -111,7 +127,18 @@ export function markingBoxes({ lengthFt, widthFt }) {
   for (let x = -half + clear; x + CENTRE_DASH_FT.dash <= half - clear + 1e-6; x += CENTRE_DASH_FT.dash + CENTRE_DASH_FT.gap) {
     dashes.push([x, x + CENTRE_DASH_FT.dash, -CENTRE_DASH_FT.width / 2, CENTRE_DASH_FT.width / 2]);
   }
-  return { edges, dashes, keys };
+  const barHalf = w - EDGE_FT * 0.5;
+  const bars = [[-half, -half + BAR_FT, -barHalf, barHalf], [half - BAR_FT, half, -barHalf, barHalf]];
+  const aims = [];
+  if (lengthFt >= AIM_MIN_LENGTH_FT) {
+    for (const side of [-1, 1]) {
+      const [y0, y1] = side > 0 ? [AIM.inner * widthFt, AIM.outer * widthFt] : [-AIM.outer * widthFt, -AIM.inner * widthFt];
+      aims.push([-half + AIM.from, -half + AIM.to, y0, y1], [half - AIM.to, half - AIM.from, y0, y1]);
+    }
+  }
+  const grow = ([x0, x1, y0, y1]) => [x0 - OUTLINE_FT, x1 + OUTLINE_FT, y0 - OUTLINE_FT, y1 + OUTLINE_FT];
+  const outlines = [...edges, ...dashes, ...keys, ...aims].map(grow);
+  return { edges, dashes, keys, bars, aims, outlines };
 }
 
 /** A set of rectangles as one list of triangles (positions only), each rectangle at height `z` in its group's own units. */
@@ -137,10 +164,15 @@ function numberTexture(T, doc, text) {
   ctx.fillStyle = AIRPORT_COLOURS.paint;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
+  ctx.strokeStyle = AIRPORT_COLOURS.outline; // the thin black outline the Traffic sim's numbers have (runway-markings.js)
+  ctx.lineWidth = 4;
+  ctx.lineJoin = 'round';
   ctx.font = `bold ${side ? 84 : 110}px system-ui, sans-serif`;
+  ctx.strokeText(digits, 64, side ? 62 : 96, 124);
   ctx.fillText(digits, 64, side ? 62 : 96, 124);
   if (side) {
     ctx.font = 'bold 84px system-ui, sans-serif';
+    ctx.strokeText(side, 64, 144, 124);
     ctx.fillText(side, 64, 144, 124);
   }
   const texture = new T.CanvasTexture(canvas);
@@ -167,13 +199,15 @@ function buildingSpot(runways, c0) {
 /**
  * Builds the airports. `T` is three.js; `toXY(lat, lon)` gives [x, y] in the map's feet; `scale` is the height scale; `groundFt` the ground the view draws
  * (feet above sea level); `doc` makes the number textures' canvases; `airports` is airports-data.js's list unless a test gives its own; `halfFt` is half the
- * width of the square kept round the map's origin (the SOF passes half its "3D area"; with none every airport is kept).
+ * width of the square kept round the map's origin (the SOF passes half its "3D area"; with none every airport is kept); `liftFt` is how far above its
+ * height a runway is drawn (LIFT_FT unless given); `aboveGround` false draws each field at its own elevation even under `groundFt` (the Debrief, whose
+ * aircraft land at their true height; DB-24), true (the SOF) never lower than the ground the view draws.
  * An airport with no runway that plots, or whose middle is outside the area, is skipped.
  *
  * Returns { root, summary, fit(ftPerPx), dispose() }: `root` holds one Group per airport; `summary` is [{ icao, runways, ends: ['11L', ...], elevationFt }]
  * for the key; `fit(ftPerPx)` applies the minimum drawn size for the camera's scene feet per screen pixel.
  */
-export function buildAirports(T, { toXY, scale, groundFt, doc = globalThis.document, airports = AIRPORTS, halfFt = Infinity }) {
+export function buildAirports(T, { toXY, scale, groundFt, doc = globalThis.document, airports = AIRPORTS, halfFt = Infinity, liftFt = LIFT_FT, aboveGround = true }) {
   const root = new T.Group();
   root.name = 'airports';
   const owned = [];
@@ -187,8 +221,8 @@ export function buildAirports(T, { toXY, scale, groundFt, doc = globalThis.docum
   const fields = [];
   const summary = [];
 
-  const paint = (z, layer) => own(new T.MeshBasicMaterial({
-    color: AIRPORT_COLOURS.paint, side: T.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -layer * 2, polygonOffsetUnits: -layer * 2,
+  const paint = (z, layer, color = /** @type {string} */ (AIRPORT_COLOURS.paint)) => own(new T.MeshBasicMaterial({
+    color, side: T.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -layer * 2, polygonOffsetUnits: -layer * 2,
   }));
 
   for (const airport of airports) {
@@ -196,7 +230,8 @@ export function buildAirports(T, { toXY, scale, groundFt, doc = globalThis.docum
     if (!runways.length) continue;
     const c0 = { x: runways.reduce((s, r) => s + r.cx, 0) / runways.length, y: runways.reduce((s, r) => s + r.cy, 0) / runways.length };
     if (Math.abs(c0.x) > half || Math.abs(c0.y) > half) continue;
-    const z = Math.max(planeZ, (isNumber(airport.elevationFt) ? airport.elevationFt : groundFt) * scale) + LIFT_FT;
+    const fieldZ = (isNumber(airport.elevationFt) ? airport.elevationFt : groundFt) * scale;
+    const z = (aboveGround ? Math.max(planeZ, fieldZ) : fieldZ) + liftFt;
     const field = new T.Group();
     field.name = `airport-${airport.icao}`;
     field.position.set(c0.x, c0.y, z);
@@ -213,17 +248,19 @@ export function buildAirports(T, { toXY, scale, groundFt, doc = globalThis.docum
         own(rectGeometry(T, [[-r.lengthFt / 2, r.lengthFt / 2, -r.widthFt / 2, r.widthFt / 2]], 0)),
         own(new T.MeshBasicMaterial({ color: AIRPORT_COLOURS.asphalt, side: T.DoubleSide })),
       );
-      const { edges, dashes, keys } = markingBoxes(r);
-      const edgeMesh = new T.Mesh(own(rectGeometry(T, edges, LAYER_FT)), paint(LAYER_FT, 1));
+      const { edges, dashes, keys, bars, aims, outlines } = markingBoxes(r);
+      const edgeMesh = new T.Mesh(own(rectGeometry(T, edges, LAYER_FT * 2)), paint(LAYER_FT, 2));
       edgeMesh.renderOrder = 4;
       group.add(asphalt, edgeMesh);
-      // The paint that is only worth drawing once the runway is long enough on the screen.
+      // The paint that is only worth drawing once the runway is long enough on the screen: the black outlines first, the white over them.
       const detail = new T.Group();
-      const keyMesh = new T.Mesh(own(rectGeometry(T, keys, LAYER_FT)), paint(LAYER_FT, 1));
-      const dashMesh = new T.Mesh(own(rectGeometry(T, dashes, LAYER_FT)), paint(LAYER_FT, 1));
+      const outlineMesh = new T.Mesh(own(rectGeometry(T, outlines, LAYER_FT)), paint(LAYER_FT, 1, AIRPORT_COLOURS.outline));
+      const keyMesh = new T.Mesh(own(rectGeometry(T, [...keys, ...bars, ...aims], LAYER_FT * 2)), paint(LAYER_FT, 2));
+      const dashMesh = new T.Mesh(own(rectGeometry(T, dashes, LAYER_FT * 2)), paint(LAYER_FT, 2));
+      outlineMesh.renderOrder = 4;
       keyMesh.renderOrder = 4;
       dashMesh.renderOrder = 4;
-      detail.add(keyMesh, dashMesh);
+      detail.add(outlineMesh, keyMesh, dashMesh);
       // The numbers lie flat, reading from the approach end: the top of the digits points along the landing run, so a pilot lined up on the
       // runway reads them upright. At end a that is towards end b (+x here), and the digits' left-to-right is across, to the pilot's right (-y).
       const block = { across: r.widthFt * NUMBER_BLOCK.across, along: r.widthFt * NUMBER_BLOCK.along };
@@ -235,7 +272,7 @@ export function buildAirports(T, { toXY, scale, groundFt, doc = globalThis.docum
           own(new T.PlaneGeometry(block.across, block.along)),
           own(new T.MeshBasicMaterial({ map: textures.get(name), transparent: true, depthWrite: false, side: T.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })),
         );
-        plane.position.set(side * (r.lengthFt / 2 - fromEnd), 0, LAYER_FT * 2);
+        plane.position.set(side * (r.lengthFt / 2 - fromEnd), 0, LAYER_FT * 3);
         plane.rotation.z = side < 0 ? -Math.PI / 2 : Math.PI / 2;
         plane.renderOrder = 5;
         detail.add(plane);
