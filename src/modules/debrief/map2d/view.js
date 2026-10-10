@@ -5,7 +5,7 @@
 import { createCanvasView } from '../../../ui-kit/canvas-view.js';
 import { MAP_MIN_SPAN_FT, MAP_MAX_SPAN_FT, flightBounds, shipsAt } from '../state.js';
 import {
-  trackPaths, drawTennis, drawGrid, drawTracks, drawShips, draw39Line, drawCone, drawSpacingLines, drawBubbles, drawClockMarks, drawDfpFlags, drawWindArrows,
+  trackPaths, fillShapes, drawFills, drawTennis, drawGrid, drawTracks, drawShips, draw39Line, drawCone, drawSpacingLines, drawBubbles, drawClockMarks, drawDfpFlags, drawWindArrows,
 } from './layers.js';
 import { ROUTES } from '../data/routes.js';
 import { lastResult } from '../weather/wind-arrows.js';
@@ -41,10 +41,11 @@ const SATELLITE_DARKEN = 'rgba(5, 10, 18, 0.22)'; // V6's, so the tracks stand o
  * and lightning pictures to lay over the base map, [{ key, mime, data, box,
  * alpha }] bottom first (saved-weather.js), or empty for none.
  * onSavedWeather(state): after each draw, the saved pictures' { wanted, ready,
- * failed, failedKeys }, or null when there are none.
+ * failed, failedKeys }, or null when there are none. fills(): the filled GPS
+ * gaps to draw (gap-fill.js fillGaps's `fills`), or null while the fill is off.
  */
 export function createMapView(canvas, {
-  timers, time, layers, dfps = () => [], tennis = () => null, weather = () => null, windArrows = () => null,
+  timers, time, layers, dfps = () => [], tennis = () => null, weather = () => null, windArrows = () => null, fills = () => null,
   savedWeather = /** @type {() => any[]} */ (() => []),
   labels = /** @type {(flight: any, t: number) => Record<number, { text: string, tone: string }>} */ (() => ({})),
   onImagery = /** @type {(state: any) => void} */ (() => {}),
@@ -129,6 +130,9 @@ export function createMapView(canvas, {
 
   const savedLayer = createSavedWeatherLayer({ onChange: () => map.requestDraw() });
 
+  // The filled gaps' outlines, built once per fill result.
+  const shapesOf = lastResult((result) => fillShapes(result));
+
   // The arrows' places in map feet, kept while the list of arrows and the flight's reference are the same, so a pan or zoom while paused doesn't project them again.
   const projectArrows = lastResult((arrows, ref) => arrows.map((a) => ({ ...a, ...latLonToLocalFt(ref, a.lat, a.lon) })));
 
@@ -145,7 +149,8 @@ export function createMapView(canvas, {
       }
       const on = layers();
       const t = time();
-      const ships = shipsAt(flight, t);
+      const filled = flight ? fills() : null;
+      const ships = shipsAt(flight, t, filled);
       const lead = ships.find((s) => s.slot === 1);
       // "Follow Lead" keeps Lead in the middle (V6 line 3017); zoom still works.
       // Drawing goes on with the new centre; the extra draw it asks for finds nothing changed.
@@ -179,6 +184,7 @@ export function createMapView(canvas, {
       const three = ships.find((s) => s.slot === 3);
       if (on.three39 && three) draw39Line(ctx, map, three, '#3 3/9');
       if (on.cone && lead) drawCone(ctx, map, lead);
+      if (filled) drawFills(ctx, map, shapesOf(filled), { mode: on.trail, t });
       drawTracks(ctx, map, paths, { flight, mode: on.trail, t });
       if (on.spacingLines) drawSpacingLines(ctx, map, ships);
       drawDfpFlags(ctx, map, dfps());

@@ -5,7 +5,7 @@
 // CSS pixels; `map` is the ui-kit canvas view (worldToScreen, visibleBounds,
 // view). Where each thing goes is worked out in geometry.js.
 import { SHIP_COLORS, OUTLINED_SHIPS, OUTLINE_COLOR, trackRuns } from '../state.js';
-import { spacingPairs, line39, coneOutlines, trailRuns } from './geometry.js';
+import { spacingPairs, line39, coneOutlines, trailRuns, TRAIL_WINDOW_S } from './geometry.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { arrowVector } from '../weather/wind-arrows.js';
 
@@ -103,13 +103,101 @@ export function drawTracks(ctx, map, paths, { flight = null, mode = 'full', t = 
   ctx.restore();
 }
 
+// ── Filled GPS gaps (DB-19, DB-20): Dad's "broad shaded area with dotted lines as a best guess zone" ──
+
+/** How the zone and the best-guess line look: the zone about 15 % opaque in the ship's colour, the line 2 px dotted. */
+const FILL_ZONE_ALPHA = 0.15;
+const FILL_EDGE_ALPHA = 0.35;
+const FILL_DASH = [2, 6];
+const FILL_EDGE_DASH = [1, 5];
+
+// A fill's samples as its zone (a closed outline, map feet) and its best-guess line.
+function fillPaths(samples) {
+  const left = [];
+  const right = [];
+  const line = new Path2D();
+  samples.forEach((s, i) => {
+    const len = Math.hypot(s.vx, s.vy) || 1;
+    const nx = -s.vy / len, ny = s.vx / len; // left of the track
+    left.push([s.xFt + nx * s.leftFt, s.yFt + ny * s.leftFt]);
+    right.push([s.xFt - nx * s.rightFt, s.yFt - ny * s.rightFt]);
+    if (i === 0) line.moveTo(s.xFt, s.yFt);
+    else line.lineTo(s.xFt, s.yFt);
+  });
+  const zone = new Path2D();
+  const edges = new Path2D();
+  [...left, ...right.reverse()].forEach(([x, y], i) => (i ? zone.lineTo(x, y) : zone.moveTo(x, y)));
+  zone.closePath();
+  left.forEach(([x, y], i) => (i ? edges.lineTo(x, y) : edges.moveTo(x, y)));
+  right.forEach(([x, y], i) => (i ? edges.lineTo(x, y) : edges.moveTo(x, y)));
+  return { zone, edges, line };
+}
+
+/**
+ * Each filled gap's zone and best-guess line as Path2Ds in map feet, built once per fill result (gap-fill.js
+ * fillGaps's `fills`, { slot: [fill] }). A straight fill on the ground is a line only.
+ */
+export function fillShapes(fills) {
+  if (!fills) return [];
+  const out = [];
+  for (const [slot, list] of Object.entries(fills)) {
+    for (const fill of list) out.push({ slot: Number(slot), fill, ground: fill.method === 'ground', ...fillPaths(fill.samples) });
+  }
+  return out;
+}
+
+/**
+ * The filled gaps under the tracks: the zone shaded in the ship's colour with a faint dotted edge, and the dotted
+ * best-guess line. The trail modes apply as to the tracks: 'full' all of them; 'history' up to t; 'window' the last
+ * 60 s (a fill partly in that time is drawn up to t).
+ */
+export function drawFills(ctx, map, shapes, { mode = 'full', t = 0 } = {}) {
+  if (!shapes.length) return;
+  const px = 1 / map.view.scale;
+  const from = mode === 'window' ? t - TRAIL_WINDOW_S : -Infinity;
+  ctx.save();
+  toWorld(ctx, map);
+  ctx.lineJoin = 'round';
+  for (const shape of shapes) {
+    const { fill, slot } = shape;
+    if (mode !== 'full' && (fill.fromT >= t || fill.toT <= from)) continue;
+    const partial = mode !== 'full' && (fill.toT > t || fill.fromT < from);
+    const paths = partial ? fillPaths(fill.samples.filter((s) => s.t <= t && s.t >= from)) : shape;
+    const color = SHIP_COLORS[slot];
+    if (!shape.ground) {
+      ctx.globalAlpha = FILL_ZONE_ALPHA;
+      ctx.fillStyle = color;
+      ctx.fill(paths.zone);
+      ctx.globalAlpha = FILL_EDGE_ALPHA;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = px;
+      ctx.setLineDash(FILL_EDGE_DASH.map((d) => d * px));
+      ctx.stroke(paths.edges);
+    }
+    ctx.globalAlpha = 1;
+    ctx.setLineDash(FILL_DASH.map((d) => d * px));
+    ctx.lineCap = 'round';
+    if (OUTLINED_SHIPS.has(slot)) {
+      ctx.strokeStyle = OUTLINE_COLOR;
+      ctx.lineWidth = (TRACK_WIDTH_PX + 2) * px;
+      ctx.stroke(paths.line);
+    }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = TRACK_WIDTH_PX * px;
+    ctx.stroke(paths.line);
+    ctx.setLineDash([]);
+  }
+  ctx.restore();
+}
+
 // Standards label colours: the ui-kit's --good and --caution tokens.
 const LABEL_COLORS = { good: '#3ecf8e', caution: '#f5c542' };
 
 /**
  * A dot in the ship's colour with its number beside it, so colour is never
  * the only signal. Inside a GPS gap the dot is hollow: the position there is
- * a guess between two fixes (D32). `labels` maps a ship to its standards
+ * a guess between two fixes (D32); on a filled gap's best guess it says
+ * "#2 est." (DB-20). `labels` maps a ship to its standards
  * label, { text, tone }, drawn after the number: green on parameters (#21).
  */
 export function drawShips(ctx, map, ships, labels = {}) {
@@ -136,7 +224,7 @@ export function drawShips(ctx, map, ships, labels = {}) {
       ctx.fill();
       ctx.stroke();
     }
-    const label = `#${s.slot}`;
+    const label = s.estimated ? `#${s.slot} est.` : `#${s.slot}`;
     const lx = x + (moving ? SILHOUETTE_HALF_SPAN_PX : MARKER_RADIUS_PX) + 4;
     ctx.lineWidth = 3;
     ctx.strokeStyle = OUTLINE_COLOR;
