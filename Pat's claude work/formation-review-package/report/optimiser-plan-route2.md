@@ -177,3 +177,11 @@ The same list as optimiser-plan.md section 10 applies; read it there. Route 2 sp
 - The second physics is the long-term cost and the equality test is its only defence; it stays in CI for good.
 - Route 2's one real advantage for a trainer is the Lagrange multipliers: the price of each rule in seconds from one run, without re-running per mode.
 - Route 2 cannot be done without one new library (or a solver service on Patrick's PC); that decision is Patrick's and comes before phase C.
+
+## 11. The plan on a tracker-only engine (Patrick's question 23:13Z)
+
+The maths is unchanged: the solver works on states and controls, not on recipes. Two simplifications:
+- **End condition:** arrive at the 500 ft phase change with the tracker's phase-two closure, bank and power, one set of numbers from one controller (in `collocation.js`'s end constraints). The confirm re-fly hands straight into phase two with no seam.
+- **Warm start:** the tracker's own track for the move, resampled at the N instants.
+
+Removed by tracker-only: the lines-as-seeds option and the two-controllers risk. The settle and hold stay the tracker's and are never part of the collocation problem. Route 1's "optimise the recipe" choice has no equivalent here; if the recipe-level search proves enough on the flight set, that is a reason not to build route 2 at all (phase A's stop rule).

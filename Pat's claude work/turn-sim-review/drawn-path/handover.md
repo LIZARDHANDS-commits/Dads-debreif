@@ -72,3 +72,7 @@ Usage: `node <script> <repo root>`.
 - The whole cone counts as in position.
 - No roll snaps.
 - Merge with the badge at main + 1; send the tag line to the coordinator.
+
+
+## Update 6 Oct
+Both fixes are DONE: V2.168 (#673, TS-147) lag roll on the point mass; V2.169 (#675, TS-148) line slow-down check and stage hold. Left: "tracker flies the whole move" (medium, line-moves.js), not started.
