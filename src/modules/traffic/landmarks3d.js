@@ -18,6 +18,8 @@ export const CYMJ_LANDMARKS = Object.freeze([
   // Patrick, 10 Oct: "3d models for these building groups. the first one is a lot of cows"; camera parked on each (TR-116). The name is a working name.
   Object.freeze({ id: 'south-feedlot', name: 'South Feedlot (cattle)', kind: 'cattle', lat: 50.2974064, lon: -105.5428827, source: 'Patrick, 10 Oct (camera on it); traced off Esri' }),
   Object.freeze({ id: 'crossroads-farm', name: 'Crossroads Farm', kind: 'farmstead', lat: 50.2961729, lon: -105.5819583, source: 'Patrick, 10 Oct (camera on it); traced off Esri' }),
+  // Patrick, 10 Oct: "build a VOR antenna on this circle"; camera parked on it, the hut traced off Esri (977 ft W, 294 ft N of the ARP) (TR-117).
+  Object.freeze({ id: 'vor', name: 'VOR', kind: 'vor', lat: 50.3311059, lon: -105.5633953, source: 'Patrick, 10 Oct (camera on it); traced off Esri' }),
 ].map((l) => Object.freeze({ ...l, ...at(l.lat, l.lon) })));
 
 // ---------------------------------------------------------------------------
@@ -357,6 +359,24 @@ function createCrossroadsFarm(THREE, mats) {
   return g;
 }
 
+/** The VOR: a classic station, every size an estimate (TR-117): its equipment hut, the round flat counterpoise on top, and the cone antenna in the middle. */
+const VOR_FT = Object.freeze({ hut: 16, hutHeight: 10, counterpoise: 15, thick: 1.2, cone: 3, coneHeight: 7 });
+function createVor(THREE, mats) {
+  const g = new THREE.Group();
+  g.add(box(THREE, VOR_FT.hut, VOR_FT.hut, VOR_FT.hutHeight, mats.white, 0, 0, 'vor-hut'));
+  const disc = bin(THREE, VOR_FT.counterpoise, VOR_FT.thick, mats.steel, 0, 0, 'vor-counterpoise');
+  disc.position.z = VOR_FT.hutHeight;
+  g.add(disc);
+  const coneGeo = new THREE.ConeGeometry(VOR_FT.cone, VOR_FT.coneHeight, 16);
+  coneGeo.rotateX(Math.PI / 2);
+  coneGeo.translate(0, 0, VOR_FT.coneHeight / 2);
+  const cone = new THREE.Mesh(coneGeo, mats.white);
+  cone.name = 'vor-antenna';
+  cone.position.z = VOR_FT.hutHeight + VOR_FT.thick;
+  g.add(cone);
+  return g;
+}
+
 /**
  * Arrow Tree Rows: north-south shelterbelts in the corners between two pivots, an hourglass from the air. The pin is
  * where the two pivots touch. Moved onto the tree lines in Esri's true-scale photo (5 Oct, about ±15 ft; Patrick
@@ -376,7 +396,7 @@ function createArrowTrees(THREE, mats) {
 
 const BUILDERS = {
   feedlot: createWindowFarm, museum: createSukanen, wrecker: createFiatFarm, arrow: createArrowTrees,
-  cattle: createSouthFeedlot, farmstead: createCrossroadsFarm,
+  cattle: createSouthFeedlot, farmstead: createCrossroadsFarm, vor: createVor,
 };
 
 /**
