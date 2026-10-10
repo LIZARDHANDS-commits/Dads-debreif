@@ -91,9 +91,17 @@ export function cleanTrack(raw) {
     const name = raw.name ? `"${String(raw.name).slice(0, 80)}"` : 'This file';
     throw new KmlError('no-fixes', `${name} has fewer than 2 believable positions (the rest are off the map, underground or impossibly fast).`);
   }
+  return { name: raw.name, fixes, dropped, gaps: findGaps(fixes) };
+}
+
+/**
+ * Each stretch of more than GAP_S seconds between two fixes, as { fromT, toT }. Fixes in time order. Used by cleanTrack
+ * and again whenever a track's times change (timing.js retimeFlight).
+ */
+export function findGaps(fixes) {
   const gaps = [];
   for (let i = 1; i < fixes.length; i++) {
     if (fixes[i].t - fixes[i - 1].t > GAP_S) gaps.push({ fromT: fixes[i - 1].t, toT: fixes[i].t });
   }
-  return { name: raw.name, fixes, dropped, gaps };
+  return gaps;
 }
