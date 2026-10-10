@@ -118,7 +118,9 @@ function twoTurning(c, into, s, to, sTo, hot, crossIn = false) {
 function waitInWindow(c, id, p, alt, gateAt, over, creepAlt = alt) {
   const [nearFt, farFt] = TRJ.outsideWindowFt[id];
   return [
-    rejoinTo(place(c, p.fwd - farFt, p.left, alt), { track: 1, advanceTol: 60, ...over }),
+    // arriving anywhere in the window counts: within 60 ft of its far edge he flew past it on the inside of the turn and fell
+    // back 300-600 ft to reach it (V2.224 test, Spread 4 to echelon)
+    rejoinTo(place(c, p.fwd - farFt, p.left, alt), { track: 1, advanceTol: farFt - nearFt + 60, ...over }),
     // anywhere in the window counts: he goes on in the moment the one ahead is in
     rejoinTo(place(c, p.fwd - nearFt, p.left, creepAlt), { track: 1, ...over, advanceTol: farFt - nearFt + 60, closureCapFtps: TRJ.creepKt * KT_FTPS, holdUntil: gateAt }),
   ];
