@@ -52,6 +52,23 @@ export const DEPARTURE_END_29R = Object.freeze({ x: -3628, y: 2769 });
 export const RUNWAY_03 = Object.freeze({ x: 55, y: -1284 });
 export const RUNWAY_21 = Object.freeze({ x: 2175, y: 929 });
 
+/**
+ * The taxi-in after a full stop on 29L (Patrick, 10 Oct 20:38Z: to the end of the runway, off along the taxi lines,
+ * across the other runway, stop in front of the Bandit hangar), map feet, traced off Esri's true-scale photo along the
+ * concrete's centre (10 Oct, about ±25 ft; the taxiways painted on the map are only roughly placed). In order: the
+ * turn-off at the 29L end (on the centreline, about 30 ft short of the 11R bar), the 29R crossing, the join with the
+ * taxiway north of 29R, onto the ramp, along the ramp, and the stop in front of Hangar 2 (the hangar the 3D view puts
+ * the Bandit badge on, scenery3d.js). The taxiway from the 29L end runs at about 29° true, straight across 29R.
+ */
+export const TAXI_IN_29L = Object.freeze([
+  Object.freeze({ x: -3544, y: 675, tag: 'turn_off' }),
+  Object.freeze({ x: -2679, y: 2253, tag: 'cross_29r' }),
+  Object.freeze({ x: -2485, y: 2608, tag: 'north_taxiway' }),
+  Object.freeze({ x: -750, y: 1830, tag: 'ramp' }),
+  Object.freeze({ x: 560, y: 1830, tag: 'ramp' }),
+  Object.freeze({ x: 560, y: 1990, tag: 'bandit_hangar' }),
+]);
+
 /** Runway widths, ft: 29L 150 (the painted ground's figure, which the photo matches), 29R about 150 (measured on Esri's photo, 6 Oct; was 200), 03/21 about 100 (photo). Estimates. */
 export const RUNWAY_WIDTH_FT = Object.freeze({ '29L': 150, '29R': 150, '03': 100 });
 
