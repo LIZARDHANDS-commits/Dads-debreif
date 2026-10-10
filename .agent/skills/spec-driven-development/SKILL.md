@@ -245,6 +245,7 @@ Before proceeding to implementation, confirm:
 - [ ] The spec covers all six core areas
 - [ ] The human has reviewed and approved the spec
 - [ ] Success criteria are specific and testable
+- [ ] Every numeric acceptance target for a manoeuvre gets a back-of-envelope feasibility check before it is briefed. If it is outside what the aircraft can reach, re-agree it with Patrick.
 - [ ] Boundaries (Always/Ask First/Never) are defined
 - [ ] The spec is saved to a file in the repository
 - [ ] If the request bundles several independently testable capabilities, a capability map (module ids, dependency direction, build order) was approved before any module spec was written

@@ -33,6 +33,8 @@ const MARK = {
   coneOverKt: 10,       // G9: at or below Lead + 10 kt at that point
   crossSixFt: 50,       // G4: past Lead's six onto the other side by more than this (estimate: a wingspan and a bit)
   ahead39Ft: 1000,      // G4: ahead of Lead's 3/9 line inside 1,000 ft
+  lineDepthFt: -50,     // on the line, Lead's height less 50 ft, held level (SMM 12.24 para 58; Patrick 10 Oct 19:57Z)
+  depthTolFt: 100,      // ...within the shared margin table's +/-100 ft (docs/TESTING.md)
 };
 
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -85,6 +87,9 @@ function flyStart(name, makeFormation, pressTrj, target) {
       
       if (m.rideMinKias == null || W.kias < m.rideMinKias) m.rideMinKias = W.kias;
       if (m.rideMaxKias == null || W.kias > m.rideMaxKias) m.rideMaxKias = W.kias;
+      const dz = (W.altAboveFt ?? 0) - (L.altAboveFt ?? 0);
+      if (m.lineDzMin == null || dz < m.lineDzMin) m.lineDzMin = dz;
+      if (m.lineDzMax == null || dz > m.lineDzMax) m.lineDzMax = dz;
       if ((W.power?.throttle ?? 0) >= 0.99 && (!isHtrj || W.kias >= 209)) m.maxOnLine = true; // HTRJ: MAX may stay in until he's back at 210 after joining (Patrick 8 Oct 21:29 card)
     } else m.curRun = null;
     if (!isHtrj && (W.power?.throttle ?? 0) >= 0.99) m.maxNotHtrj = true;
@@ -104,7 +109,7 @@ function flyStart(name, makeFormation, pressTrj, target) {
     if (/overshoot/i.test(f.state.current?.note || '')) m.overshoot = true;
     if (traceName === name && steps % 40 === 0) {
       const dHdg = Math.abs((W.hdgDeg || 0) - (L.hdgDeg || 0));
-      m.trace.push(`t=${t.toFixed(1).padStart(5)} r=${r.toFixed(0).padStart(5)} along=${along.toFixed(0).padStart(6)} cross=${cross.toFixed(0).padStart(6)} dHdg=${dHdg.toFixed(0).padStart(3)} Lbank=${(L.bankDeg || 0).toFixed(0).padStart(4)} Wbank=${(W.bankDeg || 0).toFixed(0).padStart(4)} Lkias=${L.kias.toFixed(0)} Wkias=${W.kias.toFixed(0).padStart(4)} ${W.power?.stage ?? ''}${est ? '  ON LINE' : ''}`);
+      m.trace.push(`t=${t.toFixed(1).padStart(5)} r=${r.toFixed(0).padStart(5)} along=${along.toFixed(0).padStart(6)} cross=${cross.toFixed(0).padStart(6)} dHdg=${dHdg.toFixed(0).padStart(3)} Lbank=${(L.bankDeg || 0).toFixed(0).padStart(4)} Wbank=${(W.bankDeg || 0).toFixed(0).padStart(4)} dz=${((W.altAboveFt ?? 0) - (L.altAboveFt ?? 0)).toFixed(0).padStart(5)} Lkias=${L.kias.toFixed(0)} Wkias=${W.kias.toFixed(0).padStart(4)} ${W.power?.stage ?? ''}${est ? '  ON LINE' : ''}`);
     }
   }
   m.done = f.state.current ? null : f.state.tSec - t0;
@@ -129,6 +134,7 @@ function score(m) {
   } else if (run.sec < MARK.rideCloseSec && !m.name.includes('hot-ahead500')) fails.push(`rode the line ${run.sec.toFixed(1)} s, not ${MARK.rideCloseSec} s (G7, Patrick 9 Oct 'less time on the line for edge cases')`);
   
   // Patrick 9 Oct: allowed to bleed speed on intercept // if (m.rideMinKias != null && m.rideMinKias < 205) fails.push(`ride KIAS dropped to ${m.rideMinKias.toFixed(0)}, outside 210 \xB15`);
+  if (m.lineDzMin != null && Math.max(Math.abs(m.lineDzMin - MARK.lineDepthFt), Math.abs(m.lineDzMax - MARK.lineDepthFt)) > MARK.depthTolFt) fails.push(`on the line ${m.lineDzMin.toFixed(0)} to ${m.lineDzMax.toFixed(0)} ft off Lead's height, not ${MARK.lineDepthFt} +/-${MARK.depthTolFt} ft (SMM 12.24 para 58)`);
   if (m.rideMaxKias != null && m.rideMaxKias > 215) fails.push(`ride KIAS peaked at ${m.rideMaxKias.toFixed(0)}, outside 210 \xB15`);
   // MAX checks removed (Patrick 8 Oct 21:34: fine with a bit of max, get rid of that rule)
   if (m.windowClosureKt != null && m.windowClosureKt > 20) fails.push(`window entry closure ${m.windowClosureKt.toFixed(0)} kt, not <= 20 kt (TURNING_REJOIN.stableKt)`);
@@ -176,7 +182,7 @@ for (const [name, mk, press, target] of STARTS) {
   const fails = score(m);
   if (!fails.length) pass++;
   const run = m.refused ? null : (target === 'fw' ? (m.coneRun ?? m.bestRun) : (m.estRun ?? m.lastRunBeforeWindow ?? m.bestRun));
-  const facts = m.refused ? '' : `start ${m.startR?.toFixed(0)} ft | on line from ${run ? run.r0.toFixed(0) + ' ft for ' + run.sec.toFixed(1) + ' s' : '-'} | ride KIAS ${m.rideMinKias?.toFixed(0) ?? '-'}-${m.rideMaxKias?.toFixed(0) ?? '-'} | window ${m.windowKias?.toFixed(0) ?? '-'} KIAS, closing ${m.windowClosureKt?.toFixed(0) ?? '-'} kt | route ${m.routeSec.toFixed(1)} s | min ${m.minR.toFixed(0)} ft | end ${m.endKey} ${m.done?.toFixed(1) ?? '-'} s | Lead wings level at ${m.leadRolledOutAt?.toFixed(1) ?? '-'} s | flown: ${m.picked}`;
+  const facts = m.refused ? '' : `start ${m.startR?.toFixed(0)} ft | on line from ${run ? run.r0.toFixed(0) + ' ft for ' + run.sec.toFixed(1) + ' s' : '-'} | line dz ${m.lineDzMin?.toFixed(0) ?? '-'} to ${m.lineDzMax?.toFixed(0) ?? '-'} ft | ride KIAS ${m.rideMinKias?.toFixed(0) ?? '-'}-${m.rideMaxKias?.toFixed(0) ?? '-'} | window ${m.windowKias?.toFixed(0) ?? '-'} KIAS, closing ${m.windowClosureKt?.toFixed(0) ?? '-'} kt | route ${m.routeSec.toFixed(1)} s | min ${m.minR.toFixed(0)} ft | end ${m.endKey} ${m.done?.toFixed(1) ?? '-'} s | Lead wings level at ${m.leadRolledOutAt?.toFixed(1) ?? '-'} s | flown: ${m.picked}`;
   console.log(`\n${fails.length ? 'FAIL' : 'PASS'}  ${name}\n      ${facts}${fails.map((x) => `\n      - ${x}`).join('')}`);
   if (m.trace?.length) console.log(m.trace.join('\n'));
 }

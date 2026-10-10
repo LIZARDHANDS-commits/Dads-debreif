@@ -206,6 +206,7 @@ After each increment, verify with the repository's own commands (see the test-dr
 - [ ] Type checking passes, where the stack has one (`npx tsc --noEmit`, `mypy`, ...)
 - [ ] Linting passes (the repository's lint command)
 - [ ] The new functionality works as expected
+- [ ] Every 'keep unchanged' item in a plan names the check that would show it broken, and that check is shown failing on a known-bad case before the first slice starts. Each of those checks passes before and after this increment.
 - [ ] The change is committed with a descriptive message
 
 **Note:** Run each verification command after a change that could affect it. After a successful run, don't repeat the same command unless the code has changed since — re-running on unchanged code adds no information.

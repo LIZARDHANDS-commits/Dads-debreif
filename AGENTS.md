@@ -36,7 +36,9 @@ For flying numbers: Patrick's practice first, then the 15 Wing Moose Jaw manuals
 - **Write it down first:** how a module's aircraft are driven is settled in its spec and decisions before coding it, and a module's building starts once its spec is approved.
 - **Two failed fixes:** after two failed fixes for the same problem, stop and find the cause before trying again.
 - **One writer per file** at a time. Reviewers read and report; they never edit, revert or commit. Use a few agents with clear jobs, not swarms. Stop agents when the plan changes, and check git history, not agent reports, for what actually changed.
+- **Check agent plans before they reach Patrick:** before passing an agent's plan or findings to Patrick, check each proposed behaviour change against the module's decisions file and the header of every file it touches.
 - **One source of truth:** when a decision changes a rule, the module's spec, requirements and decisions change in the same piece of work.
+- **Repo is master.** Project notes, plans and handovers live in the repo (`docs/` and `Pat's claude work/`). Project files hold only the manuals, Patrick's private files and the archive. When a note changes, change the repo copy. (Patrick, 10 Oct 2026 19:45Z)
 - **Questions for Dad** live in `docs/questions-for-dad.md`. Each has a working answer in the tool until he replies.
 
 **Every brief** for an agent or a new piece of work says: the task from `plan.md` and the files it may touch; the model and effort; "read `AGENTS.md` and the module's folder first"; "search for existing flight math before writing new"; the testing lines under Testing below, copied in full; and what to report (what was done, what is untested or unseen, what was unsure).

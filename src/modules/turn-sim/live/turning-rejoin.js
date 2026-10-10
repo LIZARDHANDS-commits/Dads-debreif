@@ -3,7 +3,7 @@
 // numbers"; 08:29Z: "realistic aircraft behaviour"; review turn-sim-review/rejoin-review-fable.md). One rule for every
 // turning rejoin of the 2-ship, from line abreast (hot: #2 gets colder to reach the line) and from fighting wing (cold: he
 // turns hotter to reach it). The straight-ahead rejoin (SARJ, straight-rejoin.js, TS-72) is the one that drops onto Lead's
-// six; both fly one law down the line, rejoin-law.js flyRejoinLine (clean-up step 4, TS-139).
+// six and still flies the older line law (straight-rejoin.js); this one rides the line in Lead's frame (tracker.js rideAim).
 //
 //  1. Lead turns into #2 at the press, at 30° of bank, slowing to 200 KIAS, and holds it until #2 is in (SMM 16.20 para
 //     65b; Patrick 05:29Z, 06:16Z item 3; lead-turn-in.js leadTurnInto).
@@ -35,7 +35,7 @@ import { recordFlight, speedSeg, dryRunT } from './replay.js';
 import { closeThrough, rejoinTo, slide, stopAt, legsFor } from './recipes.js';
 import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
-import { FORMATIONS, fwShapeNow, pairSlot, downTheLine, LINE_BACK_PER_OUT, LENGTH_FT, sideFor, LANE } from './slots.js';
+import { FORMATIONS, FW_BAND, fwShapeNow, pairSlot, downTheLine, LINE_BACK_PER_OUT, LENGTH_FT, sideFor, LANE } from './slots.js';
 import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, TURNING_REJOIN, FW_FOLLOW, WING_BANKS, KINEMATIC, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
 import { onClosure, fromStep } from './hand-over.js';
 import { leadTurnInto } from './lead-turn-in.js';
@@ -43,7 +43,7 @@ import { STEP_SEC, copyAircraft, SMOOTHER_CURVE_PEAK, smoother, smoothLegSec } f
 import { RATE_SETS } from './rates.js';
 import { laggedBank } from './kinematic.js';
 import { trackTwice, runTracker, phase } from './tracker.js';
-import { fwGoal, holdInPlane, heldPoses } from './formation-turns.js';
+import { holdInPlane, heldPoses } from './formation-turns.js';
 import { acrossSixLegs } from './replan.js';
 import { stallBankDeg } from './slow-down.js';
 import { turnRadiusFromBankFt } from '../../../core/flight-math.js';
@@ -68,24 +68,20 @@ const xArriveFtps = () => ((TURNING_REJOIN.stableKt[0] + TURNING_REJOIN.stableKt
  * line into echelon (or on into line astern, legsFor's crossover); to route, into route. at: #2's place in Lead's frame then.
  */
 function tailLegs(s, to, sTo, spacingFt, at = null) {
-  const rejoinOver = { rejoin: true, targetBankDeg: null, targetOvertakeKt: null, bankCapDeg: REJOIN.bankCapDeg };
+  const rejoinOver = {
+    rejoin: true,
+    bankCapDeg: REJOIN.bankCapDeg,
+    fwdRate: 40,
+    latRate: 40,
+    targetBankDeg: 8.0,
+    targetOvertakeKt: 8.0,
+  };
   if (to === 'fw') return [rejoinTo(pairSlot('fw', s, spacingFt)), ...(sTo !== s ? legsFor('fw', s, 'fw', sTo, spacingFt) : [])];
-  if (to === 'route' || (!at && to !== 'echelon')) {
-    const rSlot = pairSlot('route', sTo || s, spacingFt);
-    const rest = legsFor('route', s, to, sTo, spacingFt);
-    return [closeThrough(rSlot, { advanceTol: TURNING_REJOIN.routeFlowFt, ...rejoinOver }), ...(rest.length ? rest : [slide(rSlot, rejoinOver)])];
-  }
-  const ech = pairSlot('echelon', s, spacingFt);
-  const rest = legsFor('echelon', s, to, sTo, spacingFt);
-  const atPos = at ?? { fwd: -TURNING_REJOIN.windowNearFt * Math.SQRT1_2, left: s * TURNING_REJOIN.windowNearFt * Math.SQRT1_2 };
-  const n = Math.hypot(1, LINE_BACK_PER_OUT);
-  const dF = atPos.fwd - ech.fwd;
-  const dO = Math.abs(atPos.left) - Math.abs(ech.left);
-  const alongFt = (-dF * LINE_BACK_PER_OUT + dO) / n;
-  const offFt = Math.abs(dF + dO * LINE_BACK_PER_OUT) / n;
+  const rSlot = pairSlot('route', sTo || s, spacingFt);
+  const rest = legsFor('route', s, to, sTo, spacingFt);
   return [
-    closeThrough(downTheLine(ech, s, Math.max(0, alongFt - offFt)), { advanceTol: TURNING_REJOIN.routeFlowFt, overtakeKias: 10, ...rejoinOver }),
-    ...(rest.length ? rest : [slide(ech, { overtakeKias: 10, ...rejoinOver })]),
+    closeThrough(rSlot, { advanceTol: TURNING_REJOIN.routeFlowFt, ...rejoinOver }),
+    ...(rest.length ? rest.map((l) => ({ ...l, ...rejoinOver, fwdRate: 32, latRate: 32 })) : [slide(rSlot, rejoinOver)]),
   ];
 }
 
@@ -106,6 +102,17 @@ function overshootLegs(s, to, sTo, spacingFt) {
   if (to === 'astern') return [...legs, slide(slot('astern', 0), { fwdRate: 5, ...rejoinOver })];
   if (out === sTo) return [...legs, slide(slot(to, sTo), { fwdRate: 5, ...rejoinOver })];
   return [...legs, stopAt(clear(s), rejoinOver), slide(slot(to, s), { fwdRate: 5, ...rejoinOver })];
+}
+
+/**
+ * The fighting wing cone's middle on side s, in Lead's frame (FW_BAND: 750 ft, 45°): where a turning rejoin to fighting wing
+ * aims. The fastest arrival wins and a slight miss is accepted; the band is only the settle test, never the aim (Patrick
+ * 10 Oct 2026 19:52Z; it had been moved to the 30° edge to suit the gauge, review 10 Oct 2.1b).
+ */
+function coneMiddle(s) {
+  const r = (FW_BAND.rangeFt[0] + FW_BAND.rangeFt[1]) / 2;
+  const sw = ((FW_BAND.sweepDeg[0] + FW_BAND.sweepDeg[1]) / 2) * DEG;
+  return { fwd: -r * Math.sin(sw), left: s * r * Math.cos(sw) };
 }
 
 /**
@@ -174,7 +181,6 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       decisionFt: 1000,
       coneEaseFarFt: 1500,
       captureFt: 250,
-      driftFtps: 40,
       bankCapDeg,
       floorKias: KIAS_OUTSIDE_LAB,
       initialPclMax: hardSec === 0,
@@ -188,7 +194,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       ...FW_FOLLOW,
       isFw: true,
       side: sTo || s,
-      goal: (L, W) => fwGoal(L, W, sTo || s, false),
+      goal: () => coneMiddle(sTo || s),
       coneAlt: true,
       coneEnergy: true,
       slowStage: 'power',
@@ -336,7 +342,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       end: { lead: endLead, wing: endWing },
       laneFwdFt,
       maxBankDeg: maxBank,
-      laneOk: laneFwdFt <= Math.max(0, slot.fwd) + (LANE.marginFt ?? 100),
+      laneOk: laneFwdFt <= (to === 'fw' ? Math.max(0, slot.fwd) + (LANE.marginFt ?? 100) : 0),
     };
     profile = first.profile;
   } else {
@@ -381,9 +387,6 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   }
   
   const lineKias = partPoints.length ? partPoints[partPoints.length - 1][1] : wing.kias;
-
-  // Reject if it enters the window too fast (G3 rule)
-  // if (lineKias > 210.5) return null;
 
   const part = {
     points: partPoints,
@@ -477,13 +480,15 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
   // When even that can't keep him behind Lead's 3/9 line, the most overtake that can (the review's: fit the overtake to the
   // room; Student's 15 kt is the least): the note says which he flew.
   const slotFwdFt = Math.max(0, pairSlot(to, sTo || s, spacingFt)?.fwd ?? 0);
-  const laneLimitFt = slotFwdFt + (LANE.marginFt ?? 100);
+  const laneLimitFt = to === 'fw' ? slotFwdFt + (LANE.marginFt ?? 100) : 0;
   let best = null;
   let bestAny = null;
   // Down the line he aims for the Rates choice's line speed (lineKiasNow, TS-133: a target, geometry first; until V2.149 220 for all, Patrick 17:54Z, 17:55Z: "the minimum closure up the line
   // to be 220 knots"), or a smaller Rates overtake only when that one would put him ahead of Lead's 3/9 line (TS-75).
   const asked = lineKiasNow() - KIAS_OUTSIDE_LAB;
-  const overtakes = [asked, ...Object.values(REJOIN_CLOSURE_KT).filter((kt) => kt < asked).sort((a, b) => b - a)];
+  // The ride (xLaw, the 2-ship) reads neither the overtake nor the aim, so it flies each only once (review 10 Oct 2.4;
+  // Patrick 20:00Z (d)); the 4-ship's line law still searches them.
+  const overtakes = xLaw ? [asked] : [asked, ...Object.values(REJOIN_CLOSURE_KT).filter((kt) => kt < asked).sort((a, b) => b - a)];
   // Every overtake and bank at his least speed first; slower only when none of them keeps him behind Lead's 3/9 line
   // (Patrick 17:29Z: "unless massively high on energy and tight"; TS-75).
   // To a close formation, the overshoot is the last resort (Patrick 03:35Z: "only overshoot if there is no other option
@@ -497,7 +502,7 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
           // Medium banks first (hot, also Lead's own 30° and the gentlest capture: lagging while Lead's turn brings the aspect
           // round, the review's worst-case answer), then the G rule only when none of those keeps him behind Lead's 3/9 line.
           for (const caps of [[REJOIN.bankCapDeg]]) {
-            const aims = hot ? [...TURNING_REJOIN.aimsFt, TURNING_REJOIN.lagAimFt] : TURNING_REJOIN.aimsFt;
+            const aims = xLaw ? [TURNING_REJOIN.aimsFt[0]] : hot ? [...TURNING_REJOIN.aimsFt, TURNING_REJOIN.lagAimFt] : TURNING_REJOIN.aimsFt;
             for (const bankCapDeg of caps) {
               for (const aimFt of aims) {
                 const bestEst = best?.part?.rideEstablished !== false;
@@ -593,7 +598,9 @@ export function planTurningRejoin(pair, to, options = {}, t0 = 0) {
   const into = leadTurnInto({ lead, pre, s, bankDeg: REJOIN.leadBankDeg, t0, record: recordFlight });
 
   const hot = from.key === 'lab';
-  const best = searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, hot });
+  // No vertical candidate on the 2-ship ride: the ride flies its own height (the line 50 ft low), so it never flew (TS-82
+  // retired for the ride, Patrick 10 Oct 20:00Z (d)).
+  const best = searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, hot, vertical: false });
   const asked = lineKiasNow() - KIAS_OUTSIDE_LAB;
   if (!best || best.durationSec > CHANGE_LIMIT_SEC) return null;
   const { part, run, profile, lp } = best;
