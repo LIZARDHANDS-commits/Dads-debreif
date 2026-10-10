@@ -16,12 +16,14 @@
 //    (AFM8 brief p.14).
 //  - Fighting wing: each link 500-1,000 ft and 30-60° off the preceding aircraft, #3 and #4 on the side opposite #2
 //    (SMM 12.29 para 69, 16.38 paras 104-107; Patrick 11:44Z).
-//  - Fluid 4: #3 abeam Lead at 6,000 ft (AFM8 brief p.20); #2 and #4 in fighting wing off Lead and #3.
+//  - Fluid 4: #3 abeam Lead at the Setup spacing (AFM8 brief p.20 shows 6,000 ft; the default is 5,000, Patrick 5 Oct
+//    22:46Z); #2 and #4 in fighting wing off Lead and #3.
 //  - Offset box: the second element 6,000-8,000 ft behind (SMM 16.41 para 109); #2 abeam Lead at the spacing.
 //  - Finger: #2 in echelon on its side, #3 in echelon on the other side, #4 in echelon outside #3 (SMM 16.32; AFM7 p.19).
 //  - Echelon: all three on one side, #3 outside #2 and #4 outside #3. Box: #4 in line astern on Lead (SMM 16.32
-//    para 91). Line astern: each behind the one ahead (SMM 16.32 paras 89-90). Route: 1 to 3 wingspans out (SMM 12.6
-//    para 15).
+//    para 91). Line astern: each behind the one ahead (SMM 16.32 paras 89-90). Route: on the spinner-wingtip line, 4 to 6
+//    wingspans down it from echelon (TS-103, Patrick 6 Oct 02:11Z: "Just moved down from eschalon 5 wingspans"; wider
+//    than SMM 12.6 para 15's 1 to 3).
 //  - The close positions use the 2-ship spec table's own margins (section 10: echelon 45 ft out, 25 back, 5 down,
 //    ±15/±15/±10 ft, estimates); the wide ones the shared table (±100 ft, ±5°, ±10 kt).
 //  - Speeds: 200 KIAS outside line abreast, 220 in it (Patrick, 4 Oct 11:08Z).
@@ -36,7 +38,7 @@ import { ROLL, STEP_SEC } from '../../../src/modules/turn-sim/live/flight.js';
 
 const DEG = Math.PI / 180;
 const WINGSPAN_FT = 33.4; // T-6A wingspan (SMM 12.6 para 15 counts in wingspans)
-const SPACING_FT = 6000; // the Setup default
+const SPACING_FT = 5000; // the Setup default (Patrick 5 Oct 22:46Z: "5000")
 const STACK = { 2: 300, 3: -300, 4: -600 }; // AFM8 brief p.14
 const CATCH_SEC = 600;
 const KIAS = { spread4: 220, offsetBox: 220 }; // Patrick 11:08Z; everything else 200
@@ -50,7 +52,13 @@ const abeam = (l, gap) => Math.abs(l.across - gap) <= 100 && Math.atan2(l.back, 
 const fwLink = (l) => l.range >= 400 && l.range <= 1100 && Math.atan2(l.back, l.across) / DEG >= 25 && Math.atan2(l.back, l.across) / DEG <= 65;
 const echelonLink = (l) => Math.abs(l.across - 45) <= 15 && Math.abs(l.back - 25) <= 15 && Math.abs(l.down - 5) <= 10;
 const asternLink = (l) => l.across <= 10 && l.back > 0 && l.back - 33.5 <= 30 && l.down >= 0;
-const routeLink = (l) => l.across >= WINGSPAN_FT - 10 && l.across <= 3 * WINGSPAN_FT + 10 && Math.abs(l.rel.fwd) <= 75 && l.down > -10;
+// The spinner-wingtip line runs one length (33.4 ft, the same as the span) back for every span out (SMM 12.4 paras 11-12),
+// so from echelon's place it goes as far back as out; route is 4 to 6 wingspans down it, within echelon's ±15 ft of it.
+const routeLink = (l) => {
+  const along = Math.hypot(l.across - 45, l.back - 25);
+  const offLine = Math.abs(l.back - 25 - (l.across - 45)) / Math.SQRT2;
+  return along >= 4 * WINGSPAN_FT - 15 && along <= 6 * WINGSPAN_FT + 15 && offLine <= 15 && l.down > -10;
+};
 
 /**
  * Where the four are, against formation `key` with #2 on side s (+1 left, -1 right). Returns a list of what is wrong
@@ -86,7 +94,7 @@ function wrongs(key, aircraft, s, spacingFt = SPACING_FT) {
       const l3 = link(L, a.get(3));
       const l4 = link(a.get(3), a.get(4));
       want(fwLink(l2) && l2.side === s, '#2 in fighting wing on Lead');
-      want(abeam(l3, 6000) && l3.side === -s, '#3 abeam Lead at 6,000 ft');
+      want(abeam(l3, spacingFt) && l3.side === -s, '#3 abeam Lead at the spacing');
       want(fwLink(l4), '#4 in fighting wing on #3');
       break;
     }
