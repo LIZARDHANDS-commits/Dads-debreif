@@ -12,6 +12,8 @@
  * A block: [cx, cy, w (along its x), d (along its y), rotation (radians, anticlockwise), height, roof colour].
  * `wall` defaults to white cladding.
  */
+import { addFacade, faceToward, facadeMeshes } from './facade3d.js';
+
 const blk = (cx, cy, w, d, rot, h, roof, extra = {}) => Object.freeze({ cx, cy, w, d, rot, h, roof, ...extra });
 
 /** Hangars 1 to 3: the main hangar, doors to the east onto the pad beside it (Patrick, 10 Oct: "The hangar doors should be facing east"), and its annexes (traced 10 Oct), none overlapping the hangar. */
@@ -483,6 +485,60 @@ function fuelFarm(THREE, mat) {
   return g;
 }
 
+/** Distance from a point to a block's footprint, ft (0 inside). */
+function distToBlock(x, y, b) {
+  const c = Math.cos(-b.rot), s = Math.sin(-b.rot);
+  const lx = (x - b.cx) * c - (y - b.cy) * s, ly = (x - b.cx) * s + (y - b.cy) * c;
+  return Math.hypot(Math.max(0, Math.abs(lx) - b.w / 2), Math.max(0, Math.abs(ly) - b.d / 2));
+}
+/** The faces of `a` that sit against `main` (their middles within 4 ft of it): left plain. */
+function abutting(a, main) {
+  const c = Math.cos(a.rot), s = Math.sin(a.rot);
+  return [[0, -a.d / 2], [0, a.d / 2], [a.w / 2, 0], [-a.w / 2, 0]].flatMap(([lx, ly], i) => {
+    const x = a.cx + lx * c - ly * s, y = a.cy + lx * s + ly * c;
+    return distToBlock(x, y, main) < 4 ? [i] : [];
+  });
+}
+/** An annex: a long window band and two doors on its ramp-facing side (unless that side is against the hangar), windows elsewhere. */
+function annexFacade(out, a, main, rampDx, rampDy) {
+  const skip = abutting(a, main);
+  const ramp = faceToward(a, rampDx, rampDy);
+  addFacade(out, a, { kind: 'office', ribbonFace: skip.includes(ramp) ? -1 : ramp, skipFaces: skip });
+}
+/** The east hangars' annexes as blocks in world feet (they are built inline in eastHangar). */
+function eastAnnexes(m) {
+  const c = Math.cos(m.rot), s = Math.sin(m.rot);
+  const at = (lx, ly, w, d) => ({ cx: m.cx + lx * c - ly * s, cy: m.cy + lx * s + ly * c, w, d, rot: m.rot, h: EAST_ANNEX.height });
+  return {
+    ne: at(0, m.d / 2 + EAST_ANNEX.depth / 2 + 0.5, m.w, EAST_ANNEX.depth),
+    se: at(m.w / 2 + EAST_ANNEX.depth / 2 + 0.5, 0, EAST_ANNEX.depth, m.d),
+  };
+}
+
+/** Windows and doors on this file's buildings (TR-130), two draw calls in all. */
+function facades(THREE) {
+  const out = { glass: [], doors: [] };
+  for (const h of FLAT_HANGARS) {
+    // The main hangar: high windows round it, a person door on the ramp (south) side; its big doors face east.
+    addFacade(out, h.main, { kind: 'clerestory', doorFace: 0, skipFaces: [2] });
+    for (const a of h.annexes) annexFacade(out, a, h.main, 0, -1);
+  }
+  for (const h of EAST_HANGARS) {
+    addFacade(out, h.main, { kind: 'clerestory', doorFace: 1, skipFaces: [0, 1, 2] }); // annexes cover NE and SE, big doors SW
+    const { ne, se } = eastAnnexes(h.main);
+    annexFacade(out, se, h.main, 0.6, -0.8); // the apron side
+    addFacade(out, ne, { kind: 'office', skipFaces: abutting(ne, h.main) });
+  }
+  const H = CANEX_HALL;
+  addFacade(out, H.hall, { kind: 'office', doorFace: faceToward(H.hall, 0, -1) });
+  for (const w of [...H.blueWings, H.wing]) addFacade(out, w, { kind: 'office', skipFaces: abutting(w, H.hall) });
+  addFacade(out, CANEX_STORE.body, { kind: 'office', skipFaces: [0] }); // its glass towers are on the parking side
+  const M = MEDICAL_BLOCKS;
+  addFacade(out, M.shipping, { kind: 'office', doorFace: faceToward(M.shipping, 0, -1) });
+  for (const b of M.medical) addFacade(out, b, { kind: 'office', doorFace: faceToward(b, 0, -1) });
+  return facadeMeshes(THREE, out, 'flightline-facades');
+}
+
 /** Every building in this file, standing at z = floor. Returns { group, hangars }. */
 export function createFlightlineBuildings(THREE, floor) {
   const mat = materials(THREE);
@@ -498,5 +554,6 @@ export function createFlightlineBuildings(THREE, floor) {
   const east = EAST_HANGARS.map((h) => eastHangar(THREE, mat, h));
   for (const h of east) group.add(h);
   group.add(fuelFarm(THREE, mat));
+  group.add(facades(THREE));
   return { group, hangars: [...hangars, ...east] };
 }

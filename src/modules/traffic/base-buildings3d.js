@@ -18,6 +18,7 @@
 // building. Every geometry and material is freed by disposeBaseBuildings.
 
 import { THRESHOLD_DATA_ELEV_FT } from './airfield.js';
+import { addFacade, faceToward, facadeMeshes } from './facade3d.js';
 
 /** The box the traced buildings sit in (ft from the ARP): the housing north, the flight line south, the farm fields outside it. */
 export const BASE_BOX_FT = Object.freeze({ minX: -1000, maxX: 2700, minY: 1700, maxY: 5000 });
@@ -265,6 +266,13 @@ export function createBaseBuildings(THREE, { floor = THRESHOLD_DATA_ELEV_FT } = 
     (e) => [e.x, e.y, e.height, e.rotation, e.w + 2 * OVERHANG_FT, e.d + 2 * OVERHANG_FT, riseFt(e.d)],
     (e) => e.roof, 'base-buildings-gable-roofs',
   ));
+  // Windows on every wall and a door on the south-facing side (TR-130; sizes estimates): two more draw calls.
+  const out = { glass: [], doors: [] };
+  for (const e of BASE_BUILDINGS) {
+    const b = { cx: e.x, cy: e.y, w: e.w, d: e.d, rot: e.rotation, h: wallTop(e) };
+    addFacade(out, b, { kind: e.kind === 'house' ? 'house' : 'office', doorFace: faceToward(b, 0, -1) });
+  }
+  root.add(facadeMeshes(THREE, out, 'base-buildings-facades'));
   root.userData = { count: BASE_BUILDINGS.length, houses: houses.length, flats: flats.length };
   return root;
 }

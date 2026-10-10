@@ -16,6 +16,7 @@
 
 import { createFlightlineBuildings } from './flightline-buildings3d.js';
 import { batchByMaterial } from './batch3d.js';
+import { addFacade, faceToward, facadeMeshes } from './facade3d.js';
 import { RUNWAY_29L_HDG_DEG, THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_29R, DEPARTURE_END_29R, RUNWAY_03, RUNWAY_21, RUNWAY_WIDTH_FT, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
 
 export const DEFAULT_FLOOR_FT = THRESHOLD_DATA_ELEV_FT;
@@ -929,6 +930,18 @@ export function createAirfieldScenery(THREE, { floor = DEFAULT_FLOOR_FT, anchor 
     return createBoxBuilding(THREE, spec, floor);
   });
   for (const b of buildings) root.add(b);
+
+  // Windows and a door on the plain rectangular buildings (TR-130).
+  const out = { glass: [], doors: [] };
+  for (const spec of CYMJ_EXTRA_BUILDINGS) {
+    if (spec.id === 'main-building' || spec.id === 'barracks-u' || spec.footprint?.length !== 4) continue;
+    const xs = spec.footprint.map(([x]) => x), ys = spec.footprint.map(([, y]) => y);
+    const b = { cx: spec.x, cy: spec.y, w: Math.max(...xs) - Math.min(...xs), d: Math.max(...ys) - Math.min(...ys), rot: spec.rotation ?? 0, h: spec.height - 6 };
+    addFacade(out, b, { kind: 'office', doorFace: faceToward(b, 0, -1) });
+  }
+  const boxFacades = facadeMeshes(THREE, out, 'box-building-facades');
+  boxFacades.position.z = floor;
+  root.add(boxFacades);
 
   // Fewer draw calls (TR-125): each building's plain-coloured pieces merged by colour, in place.
   for (const b of [...flightline.group.children, ...hangars.filter((h) => h.parent === root), ...buildings]) batchByMaterial(THREE, b);
