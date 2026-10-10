@@ -11,10 +11,10 @@ import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, copyAircraft, smoothLegSec, heightAt, SMOOTHER_PEAK } from './flight.js';
 import { relativeTo, unit, DEG } from './manoeuvres.js';
-import { fullPowerKtps, slowKtps, stallBankDeg, sustainedBankDeg, sustainsBank } from './slow-down.js';
+import { fullPowerKtps, slowKtps, stallBankDeg } from './slow-down.js';
 import { throttleAtTorque, throttleFor } from './power.js';
 import { TRACKER, CLOSURE, HAND_OVER_FT, FW_ENERGY, FW_BUBBLE, REJOIN, TURNING_REJOIN, KIAS_OUTSIDE_LAB, lineKiasNow } from './tuning.js';
-import { fixedLine } from './slots.js';
+import { fixedLine, FW_LIMITS } from './slots.js';
 import { setKias, stepCommanded, climbCostKtps, createPilot, pilotSpeed, pilotFly, pilotPower, coneUpFtNow } from './pilot.js';
 import { isLeadInCanopy, checkDoctrinalInvariants } from '../../../core/canopy.js';
 import { liftTowardAim, gAndBankForLift } from '../../../core/point-mass.js';
@@ -80,7 +80,7 @@ function rideAim(ph, L, Lprev, ref, W) {
   const drift = (wx - vfx) * nW.x + (wy - vfy) * nW.y; // d(cross)/dt in Lead's frame
   const closing = (wx - vfx) * mW.x + (wy - vfy) * mW.y; // up the line, ft/s
   const st = (ref.ride ??= { established: false });
-  const maxDrift = ph.driftFtps ?? ((ph.isFw || ph.rejoin) ? 40 : TR.rideDriftFtps);
+  const maxDrift = ph.driftFtps ?? TR.rideDriftFtps; // Patrick G2, 10 ft/s, ruled again 10 Oct 20:00Z (it was 40 on every rejoin ride)
   if (!st.established && Math.abs(cross) <= (ph.captureFt ?? TR.captureFt) && Math.abs(drift) <= maxDrift) {
     st.established = true;
     st.establishedRange = Math.hypot(rx, ry);
@@ -114,18 +114,23 @@ function rideAim(ph, L, Lprev, ref, W) {
   if (Math.abs(cNow) > cMax || !st.established) {
     let c = st.established ? Math.sign(cNow) * Math.min(Math.abs(cNow), cMax) : -Math.sign(cross) * Math.min(cMax, Math.abs(cross) / (ph.settleSec ?? TR.rideSettleSec));
     const aWant = st.established ? Infinity : (along - st.captureAlong) / (ph.alongTauSec ?? TR.rideAlongTauSec);
-    for (let i = 0; i < 6; i++, c *= 0.7) {
-      const base = { x: vfx + c * nW.x, y: vfy + c * nW.y };
-      const bm = base.x * mW.x + base.y * mW.y;
-      const disc2 = bm * bm - (base.x * base.x + base.y * base.y) + V * V;
-      if (disc2 < 0) continue;
+    // Across the line he can close no faster than his own speed allows (|vf + c·n + a·m| = V has a root only while
+    // |vf·n + c| <= V, n and m being square to each other): c is held inside that, smoothly. Until 10 Oct a loop shrank it by
+    // 0.7 up to six times, and each step it changed count jumped c by 30%, which rolled #2 left and right while he closed on
+    // the line from far off.
+    const vfn = vfx * nW.x + vfy * nW.y;
+    const cRoom = TR.rideCrossShare * V; // short of all of it, so some speed is left along the line
+    c = Math.max(-cRoom - vfn, Math.min(cRoom - vfn, c));
+    const base = { x: vfx + c * nW.x, y: vfy + c * nW.y };
+    const bm = base.x * mW.x + base.y * mW.y;
+    const disc2 = bm * bm - (base.x * base.x + base.y * base.y) + V * V;
+    if (disc2 >= 0) {
       const a1 = -bm + Math.sqrt(disc2);
       const a2 = -bm - Math.sqrt(disc2);
       const a = Math.abs(a1 - aWant) <= Math.abs(a2 - aWant) ? a1 : a2;
       dvx = base.x + a * mW.x;
       dvy = base.y + a * mW.y;
       lam = -1; // flagged in the trace: the (c, a) form is flying
-      break;
     }
   }
   const r = Math.hypot(rx, ry);
@@ -133,7 +138,8 @@ function rideAim(ph, L, Lprev, ref, W) {
   const back = -rel.fwd;
   const sweep = Math.atan2(back, Math.max(across, 1e-6)) * (180 / Math.PI);
   const correctSide = ph.side == null || (ph.side > 0 ? rel.left > 50 : rel.left < -50);
-  const inFwCone = Boolean(ph.isFw || ph.toFw) && correctSide && back > 0 && r >= 450 && r <= 1500 && sweep >= 25 && sweep <= 65;
+  // In the cone the sim flies (slots.js FW_LIMITS, 450-1,250 ft, 25-65°; until 10 Oct its own 450-1,500 ft copy).
+  const inFwCone = Boolean(ph.isFw || ph.toFw) && correctSide && back > 0 && r >= FW_LIMITS.rangeFt[0] && r <= FW_LIMITS.rangeFt[1] && sweep >= FW_LIMITS.sweepDeg[0] && sweep <= FW_LIMITS.sweepDeg[1];
   if (inFwCone && !st.established) {
     st.established = true;
     st.establishedRange = r;
@@ -429,15 +435,9 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
   const omegaCmd = gainHdg * wrapPi(cmd - W.headingRad) + (ph.feedForward === false ? 0 : headingState.omegaFf);
 
   let cap = aligning ? ph.alignBankDeg ?? T.alignBankDeg : ph.bankCapDeg;
-  if (isRejoinKind) {
-    cap = Math.min(cap, stallBankDeg(W.kias));
-    const floorNow = ph.floorKias ?? KIAS_OUTSIDE_LAB;
-    const climbKtps = climbCostKtps(W, W.climbFtps ?? 0);
-    const wantBank = bankDegFromTurnRate(W.tasFtps, omegaCmd);
-    if (false && W.kias < floorNow + TURNING_REJOIN.floorMarginKias && !sustainsBank(Math.abs(wantBank), W.kias, blockFt, climbKtps)) {
-      cap = Math.min(cap, sustainedBankDeg(W.kias, blockFt, climbKtps));
-    }
-  }
+  // On a rejoin, near his least speed too, he banks what the line needs: MAX is set and any speed bleed accepted; only stall
+  // and G limit the bank (Patrick 10 Oct 20:01Z; TS-139's sustained-bank cut retired).
+  if (isRejoinKind) cap = Math.min(cap, stallBankDeg(W.kias));
   if (ph.coneEase && L && aim?.along != null) {
     const leadBank = L.bankDeg ?? 0;
     const targetCap = Math.max(Math.abs(leadBank) + 5, 25);
@@ -572,12 +572,11 @@ function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowO
  */
 export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, zoomFtps, heightState }) {
   if (ph.slopedAlt && L && W) {
+    // The rejoin line's depth (SMM 12.24 para 58: "maintain the horizontal plane just slightly below lead"; Patrick 10 Oct
+    // 19:57Z: 50 ft): a fixed step below Lead, held level all the way up the line, not a slope with Lead's bank (TS-166;
+    // TS-159 retired). From route spacing in, the tail legs ease him into Lead's wing plane stepped down (the echelon law).
     const TR = TURNING_REJOIN;
-    const line = ph.line ?? fixedLine(ph.lineDeg ?? TR.lineDeg, ph.side ?? -1);
-    const rel = relativeTo(L, W);
-    const geo = line.at(rel);
-    const slopeDz = (ph.side * Math.cos((ph.lineDeg ?? TR.lineDeg) * Math.PI / 180) * Math.max(0, geo.along)) * Math.sin((L.bankDeg ?? 0) * Math.PI / 180);
-    const targetAlt = (L.altAboveFt ?? 0) + TR.lineUpFt + slopeDz;
+    const targetAlt = (L.altAboveFt ?? 0) + TR.lineUpFt;
     const D = FW_BUBBLE;
     const toward = (ft) => Math.max(-D.diveFtps, Math.min(D.diveFtps, (ft - W.altAboveFt) * D.altGain));
     let wantV = toward(targetAlt);
@@ -618,12 +617,15 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     const quick = belowOwn != null;
     // Slowing faster than the gentle climb gives, he zooms (up to zoomFtps, at the bubble's pull) toward the cone's top.
     const zoom = belowOwn == null && want > hi && zoomFtps > hi;
-    let wantV = belowOwn != null ? toward(L.altAboveFt - belowOwn) : W.altAboveFt > topFt ? toward(topFt) : W.altAboveFt < bottomFt ? toward(bottomFt) : Math.max(lo, Math.min(zoom ? zoomFtps : hi, want));
+    let wantV = belowOwn != null ? toward(L.altAboveFt - belowOwn) : W.altAboveFt > topFt ? toward(topFt) : W.altAboveFt < bottomFt ? toward(bottomFt) : Math.max(lo, Math.min(zoom ? Math.min(zoomFtps, Math.sqrt(2 * D.pullFtps2 * up)) : hi, want));
     // Step-Down Gate (SMM 12.24 & 16.20): inside 2,000 ft or in FW turns, Wing must not climb above Lead.
     if (stayBelow && W.altAboveFt >= (L.altAboveFt ?? 0) - 10) {
       wantV = Math.min(wantV, toward((L.altAboveFt ?? 0) - 10));
     }
-    const pull = quick || zoom ? D.pullFtps2 : E.pullFtps2;
+    // A zoom stops at the cone's top (or the step-down gate) at the bubble's pull: climbing faster than the gentle pull can
+    // stop in the room left, he keeps the bubble's pull until he can (a zoom from 50 ft low went 7 ft above Lead, 10 Oct).
+    const overRun = v0 > Math.sqrt(2 * E.pullFtps2 * up) || -v0 > Math.sqrt(2 * E.pullFtps2 * down);
+    const pull = quick || zoom || overRun ? D.pullFtps2 : E.pullFtps2;
     const v1 = v0 + Math.max(-pull * dt, Math.min(pull * dt, wantV - v0));
     const nz = 1 + (v1 - v0) / dt / G_FTPS2;
     const a1 = W.altAboveFt + ((v0 + v1) / 2) * dt;

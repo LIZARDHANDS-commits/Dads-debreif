@@ -50,7 +50,7 @@ export const REJOIN = Object.freeze({
  */
 export const TURNING_REJOIN = Object.freeze({
   lineDeg: 45, // the rejoin line, degrees behind Lead's 3/9 line: Lead at 10:30 or 1:30 (SMM 12.24 para 56; Patrick's card 07:31Z). It passes through the fighting wing place (16.20 para 66) and the corner behind echelon (para 58's latest point)
-  lineUpFt: -30, // #2's height on the line, below Lead: "just slightly below lead" (SMM 12.24 para 58); 30 ft is an estimate
+  lineUpFt: -50, // #2's height on the line, below Lead, held level all the way up it: "maintain the horizontal plane just slightly below lead" (SMM 12.24 para 58); 50 ft Patrick's ruling (10 Oct 2026 19:57Z; TS-159's slope with Lead's bank retired)
   aimsFt: [300, 600, 1200], // how sharply #2 captures the line: off it by this much he heads for it at half approachDeg; the one that brings him in soonest is flown (estimates: smaller is a sharper capture, larger a gentler, longer one)
   approachDeg: 80, // far off the line he heads for it at up to this angle across it, in Lead's frame (estimate)
   bankCapDeg: 60, // the bank he uses at most to get onto the line and hold it: past about 60° the drag costs speed and buys nothing (the review's estimate, rejoin-review-fable.md). Only when no rejoin at 60° keeps him behind Lead's 3/9 line does he use more, up to the G rule (REJOIN.bankCapDeg)
@@ -77,7 +77,6 @@ export const TURNING_REJOIN = Object.freeze({
   lineOverKias: 10, // hot, he reaches the line at no more than this over his least speed, Lead's 200 KIAS (to fighting wing, its place's own speed) (Patrick 17:29Z: "when they hit the line it needs to be at 210-200 knots"; TS-75)
   runInReleaseShare: 0.5, // taking out the overtake, he sets it again once the room left needs less than this share of the slowing that started it (estimate; TS-75)
   runInHoldSec: 2, // within this many seconds of the decision point at the close-in rate, he keeps taking it out (estimate; TS-75)
-  floorMarginKias: 5, // within this of his least speed, he banks no more than MAX holds the speed at, so he doesn't bleed below it (estimate; TS-75)
   crossFlowFt: 150, // crossing Lead's six to the other side, he flows through the crossing point within this many feet (estimate)
   routeFlowFt: 20, // he flows through route without stopping, within this many feet of it, on into the slot (estimate; Patrick 07:14Z: "in one motion")
   // The X law to a close formation (TS-106; design turn-sim-review/sarj-line/turning-rejoin-design.md; Patrick 6 Oct 03:14Z
@@ -104,13 +103,14 @@ export const TURNING_REJOIN = Object.freeze({
   rideCaptureAlongFt: 1750, // he joins (the middle of Patrick's 1,500-2,000 ft, G6) the line no closer to Lead than this, or where he already is if closer (Patrick G1: established by 1,500 ft; 8 Oct 20:16 inside 2,000 ft get on it where he is)
   rideLeadFt: 1000, // he aims at the line this far further up it than his own place, so off it he heads across and onto it along it (estimate)
   rideMinLeadFt: 400, // ...and never less than this, so he never heads straight across it (estimate)
-  rideStopFtps2: 160, // he closes on the line no faster than he could stop on it at about this, in Lead's frame (a hard turn's worth with margin for the roll; estimate)
+  rideStopFtps2: 80, // he closes on the line no faster than he could stop on it at about this, in Lead's frame (a hard turn's worth with margin for the roll; estimate)
   rideAlongTauSec: 8, // until established, he takes out his distance from the capture point along the line over about this long, falling back if hot (estimate)
   rideSettleSec: 2, // close to the line he takes out the last of it over about this long, so he settles on it without chasing it (estimate)
   rideEaseFromFt: 500, // from this far up the line he eases off... (Patrick 8 Oct 21:26 card: 'Hold 210 to about 500 ft, then ease to about 205')
   rideEaseKias: 205, // ...to this, so he enters the window at about 15 kt (same card)
   rideSpeedUpFt: 150, // within this of the line he sets 210 so he is at it when established, not still accelerating with MAX (estimate)
   rideHeadingTauSec: 2, // his heading comes onto the one asked over about this long (estimate)
+  rideCrossShare: 0.7, // closing on the line from far off, at most this share of his speed goes across it in Lead's frame (estimate; Patrick 10 Oct 2026 20:15Z card "Faster smooth", TS-173)
   rideDriftFtps: 10, // established: within captureFt of the line and drifting across it no faster than this (Patrick G2, "Lead fixed on the canopy")
 });
 
