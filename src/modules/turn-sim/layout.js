@@ -526,7 +526,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   const element = h(
     'div',
     { class: 'turn-sim' },
-    h('h1', { class: 'visually-hidden' }, "Pat's Formation Simulator"),
+    h('h1', { class: 'visually-hidden' }, 'Formation Simulator'),
     setupCol,
     stage,
     formationCol,

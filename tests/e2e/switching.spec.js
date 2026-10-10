@@ -40,7 +40,7 @@ test('the skip link moves focus to the page without changing it @smoke', async (
   await expect(page.locator('.skip-link')).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/#\/about$/);
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('About Dad');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('About Us');
   await expect(page.locator('#route-notice')).toBeHidden();
   await expect(page.locator('#view')).toBeFocused();
 });
@@ -52,7 +52,7 @@ test('opening a page starts at its top, with focus on the new page', async ({ pa
   await about.scrollIntoViewIfNeeded();
   expect(await page.evaluate(() => scrollY)).toBeGreaterThan(0);
   await about.click();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('About Dad');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('About Us');
   await expect(page.locator('#view')).toBeFocused();
   expect(await page.evaluate(() => scrollY)).toBe(0);
   await page.keyboard.press('Tab');

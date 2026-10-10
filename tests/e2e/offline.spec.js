@@ -38,10 +38,10 @@ test('after one visit, home and About open with the network off', async ({ page,
   await visitThenGoOffline(page, context);
   await page.reload();
   // The heading carries a version badge (ALL-R27), so it is checked to contain the name, not to equal it (ALL-R3).
-  await expect(page.getByRole('heading', { level: 1 })).toContainText("DAD's OODA LOOP");
+  await expect(page.getByRole('heading', { level: 1 })).toContainText("OODA LOOP");
   await expect(page.locator('.card')).toHaveCount(6);
   await page.locator('a.card-about').click();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('About Dad');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('About Us');
   const photo = page.locator('.about-photo img');
   await expect(photo).toBeVisible();
   expect(await photo.evaluate((img) => img.complete && img.naturalWidth > 0)).toBe(true);

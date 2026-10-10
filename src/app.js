@@ -58,7 +58,7 @@ const host = createHost({
 
 const pages = {
   home: { id: 'home', title: 'Home', load: async () => ({ default: home }) },
-  about: { id: 'about', title: 'About Dad', load: async () => ({ default: about }) },
+  about: { id: 'about', title: 'About Us', load: async () => ({ default: about }) },
 };
 
 function notice(text) {
@@ -83,8 +83,11 @@ function errorCard(entry) {
   );
 }
 
-/** The Traffic Sim's own name in the top-left corner (Patrick, 4 Oct 10:09Z). */
-const TRAFFIC_BRAND = "Pat's CYMJ Traffic & Pattern Simulator";
+/** The Traffic Sim's own name in the top-left corner (Patrick, 4 Oct 10:09Z; no owner's name since 10 Oct 2026, About Us). */
+/** The tool's name, with no owner's name in it (Dad and Patrick, 10 Oct 2026: both are credited as co-creators on About Us). */
+const TOOL_NAME = 'OODA LOOP';
+
+const TRAFFIC_BRAND = 'CYMJ Traffic & Pattern Simulator';
 
 /** Sets the name in the top-left brand link, keeping its version badge. */
 function brandName(name) {
@@ -100,8 +103,8 @@ async function show(hash) {
   notice(note);
 
   /** @type {HTMLAnchorElement} */ ($('report-problem')).href = reportUrl({ page: entry.title, version });
-  document.title = entry === pages.home ? "DAD's OODA LOOP" : `${entry.title} · DAD's OODA LOOP`;
-  brandName(entry.id === 'traffic' ? TRAFFIC_BRAND : "DAD's OODA LOOP");
+  document.title = entry === pages.home ? TOOL_NAME : `${entry.title} · ${TOOL_NAME}`;
+  brandName(entry.id === 'traffic' ? TRAFFIC_BRAND : TOOL_NAME);
   statusLine.hidden = true;
   try {
     await host.open(entry);
