@@ -230,8 +230,8 @@ Fable's round 2 review (project files `formation-review-package-v2210/report/rep
 - [x] **Rulings a-d** (V2.216): drift 10 ft/s (TS-168); TS-158 says 300 s; TS-139 retired and `rejoin-law.js` deleted (TS-169); no vertical or repeat candidates in the 2-ship search (TS-170).
 - [x] **Duplicate numbers**: the TRJ rows TS-153 to TS-157 renumbered TS-161 to TS-165.
 - [x] **Smooth capture of the line** (TS-173, V2.216; Patrick's card 20:15Z "Faster smooth").
-- [ ] **The on-screen note when the 200 KIAS minimum is missed** (TS-169).
-- [ ] **Dead code** (review 2.3): the `x` phase kind, the 3D point-mass bridge, `aimLiftVector`, `heightProfile`, `blindSecOpenArena`, `checkDoctrinalInvariants`; then `numbers.md` regenerated and the stale headers fixed (review 2.8).
+- [x] **The on-screen note when the 200 KIAS minimum is missed** (TS-169, V2.218: a card flag while rejoining).
+- [x] **Dead code** (review 2.3; V2.218, 200 lines, flights byte-identical before and after): the `x` kind, the 3D point-mass bridge, the `use3D` branch, `heightProfile`, `blindSecOpenArena` and the `checkDoctrinalInvariants` re-export are gone (`core/canopy.js` keeps its own copy and test). `aimLiftVector` stays, unused, because `tests/unit/core/canopy.test.js` covers it; retiring that test needs Patrick's yes. The one-value bank-cap loop is left for refactor step 3. Was: the `x` phase kind, the 3D point-mass bridge, `aimLiftVector`, `heightProfile`, `blindSecOpenArena`, `checkDoctrinalInvariants`; then `numbers.md` regenerated and the stale headers fixed (review 2.8).
 - [ ] **Unsourced numbers** (review 2.6, 2.8): the 45° follow bank cap, the +5° cone ease, the 70% hold power and the 25 kt emergency overshoot in `powerOf`: source each or take it out, with Patrick.
 - [ ] **Refactor steps 3-5** (review section 5): split `tracker.js` by phase kind, one list builder for the TRJ phases, one cone table and one gate table, then the straight rejoin and the 4-ship #2 onto the ride.
 - [x] **Front page clip of the turning rejoin** (#715) (Patrick 10 Oct 2026 20:11Z): re-record with the active Harvard paint, not the blue and green stand-ins.

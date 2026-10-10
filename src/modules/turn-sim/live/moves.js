@@ -359,7 +359,7 @@ export const TRACKER = Object.freeze({
     advanceTol: 3, // within this many feet of a leg's slot the next leg starts (estimate)
     finalTol: 1.5, // within this many feet of the last slot, and slow against it, the wingman is settled (estimate)
   }),
-  /** The wingman's height changes (tracker.js heightProfile). */
+  /** The wingman's height changes (tracker.js height legs). */
   height: Object.freeze({
     minChangeFt: 0.5, // a smaller change is left out
     minSec: 6, // no height change takes less than 6 s (estimate)
