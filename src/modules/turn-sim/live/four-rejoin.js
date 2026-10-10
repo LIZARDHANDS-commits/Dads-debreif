@@ -24,7 +24,7 @@ import { KT_TO_FTPS as KT_FTPS } from '../../../core/units.js';
 import { leadTurnInto } from './lead-turn-in.js';
 import { searchTurningRejoin, flyTurningRejoinWith } from './turning-rejoin.js';
 import { LENGTH_FT, slotsFor, pairSlot, FW_STEP_DOWN_FT } from './slots.js';
-import { legsInTurn, place, hold, toSlot, inLeadFrame, ech, toSpeed, inCone, GENTLE_ALT_FTPS } from './four-legs.js';
+import { legsInTurn, place, hold, toSlot, inLeadFrame, ech, toSpeed, inCone, GENTLE_ALT_FTPS, FOUR_CHANGE_LIMIT_SEC } from './four-legs.js';
 
 /** The overtake the rear wingmen use to close from far out (estimate: the straight-ahead rejoin's 20 to 30 KIAS, EFIG p.371). */
 const FAR_OVERTAKE_KIAS = 25;
@@ -83,11 +83,12 @@ function twoTurning(c, into, s, to, sTo, hot) {
     pick ??= searchTurningRejoin({ ...args, into, hot, verticalMinG: VERTICAL_MIN_G, xLaw: false }) ?? false;
     if (!pick) return null;
     const rec = recs[1];
-    const flown = flyTurningRejoinWith({ ...args, into: { longRec: rec, planTo: () => ({ rec, segments: [], turned: 0 }) }, aimFt: pick.aimFt, bankCapDeg: pick.bankCapDeg, overtakeKt: pick.overtakeKt, lowFloor: pick.lowFloor, upFt: pick.upFt, minG: VERTICAL_MIN_G, xLaw: false });
+    const flown = flyTurningRejoinWith({ ...args, into: { longRec: rec, planTo: () => ({ rec, segments: [], turned: 0 }) }, aimFt: pick.aimFt, bankCapDeg: pick.bankCapDeg, overtakeKt: pick.overtakeKt, lowFloor: pick.lowFloor, upFt: pick.upFt, minG: VERTICAL_MIN_G, xLaw: false, holdSec: FOUR_CHANGE_LIMIT_SEC });
+    if (!flown) return null;
     const segments = flown.wingSegments
       ? flown.wingSegments.map((s) => ({ ...s, points: s.points ? [...s.points] : undefined, poses: s.poses ? [...s.poses] : undefined }))
       : [{ kind: 'bankTrack', points: [...flown.part.points, ...flown.run.points] }];
-    return { plan: { segments, profile: flown.profile }, durationSec: flown.durationSec, inSec: t0 + pick.durationSec };
+    return { plan: { segments, profile: flown.profile }, durationSec: flown.durationSec, inSec: t0 + flown.settleSec };
   };
 }
 

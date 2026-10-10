@@ -115,11 +115,17 @@ function coneMiddle(s) {
   return { fwd: -r * Math.sin(sw), left: s * r * Math.cos(sw) };
 }
 
+/** The first step from `from` at which a recorded flight has flown its whole plan (free), at most `cap`. */
+function leadEndStep(rec, from, cap) {
+  for (let n = from; n < cap; n++) if (rec.at(n).free) return n;
+  return Math.max(from, cap);
+}
+
 /**
  * The whole rejoin as a single continuous tracker phase sequence: line intercept, canopy-X (or fighting wing
  * cone arrival with coneEase bank-matching), into close-in/cone phases with zero stitched handovers.
  */
-export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, upFt = 0, minG = null, overshoot = false, xLaw = true, hardSec = 0, allowAcross = false, crossIn = false, maxWhenLow = true, limitSec = Infinity }) {
+export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, upFt = 0, minG = null, overshoot = false, xLaw = true, hardSec = 0, allowAcross = false, crossIn = false, maxWhenLow = true, limitSec = Infinity, holdSec = null }) {
   const TR = TURNING_REJOIN;
   const onX = to !== 'fw' && xLaw;
   const decisionFt = onX || to === 'fw' ? fwShapeNow().rangeFt : Math.abs(pairSlot('route', s, spacingFt).left) / Math.cos(TR.lineDeg * DEG);
@@ -308,7 +314,10 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
 
   if (close) {
     lp = into.planTo(totalSteps + Math.ceil(easeSec / dt), RATE_SETS.close.echelonRoll);
-    const leadTotalSteps = Math.round(dryRunT(lead, { segments: lp.segments }, t0).durationSec / dt);
+    // The 4-ship (holdSec, four-rejoin.js twoTurning) flies off Lead's recorded turn with no segments: #2 holds in his
+    // plane until Lead's flight ends (his rollout once the last wingman is in), at most holdSec. Until V2.219 he held for
+    // none, flew straight on while Lead kept turning, and #3 could not settle (PR #703).
+    const leadTotalSteps = holdSec != null ? leadEndStep(lp.rec, totalSteps, Math.round(holdSec / dt)) : Math.round(dryRunT(lead, { segments: lp.segments }, t0).durationSec / dt);
     const leadRemainingSteps = Math.max(0, leadTotalSteps - totalSteps);
     const W_settled = firstRec.at(totalSteps);
     const L_settled = lp.rec.at(totalSteps);
@@ -427,6 +436,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
     profile: flownProfile,
     lp,
     durationSec,
+    settleSec: totalSteps * dt, // when he is in his place, before the hold in Lead's plane through the rollout
     overshoot: onX && overshoot,
     wingSegments,
   };
