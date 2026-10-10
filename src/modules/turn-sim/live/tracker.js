@@ -408,7 +408,9 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
       const margin = eCap - tBank;
       shapedRel = sign * (tBank + margin * Math.tanh(excess / Math.max(1, margin)));
     }
-    bank = Math.max(-cap, Math.min(cap, baseBank + shapedRel));
+    // The cap is on the bank he adds to Lead's: in Lead's 30-60° turn a slide still banks with him. Until V2.219 it was
+    // on his whole bank, so in a 4-ship turning rejoin #3 could not hold 30° to slide into finger and fell away.
+    bank = baseBank + Math.max(-cap, Math.min(cap, shapedRel));
   } else {
     bank = Math.max(-cap, Math.min(cap, rawBank));
   }
