@@ -5,6 +5,8 @@ import { GAP_S } from '../../flight-data/clean.js';
 import { MAX_TRACKS } from '../../flight-data/load.js';
 import { MAX_FILE_BYTES } from '../../flight-data/kml.js';
 import { sampleAt, headingAt } from '../../flight-data/flight.js';
+import { fillAt, fillSampleAt } from '../../flight-data/gap-fill.js';
+import { formatZuluSeconds } from '../../core/time.js';
 
 /**
  * Ship colours as in V6 (line 2104), except #4, which V6 drew near-black on a
@@ -41,6 +43,8 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   bubble: false,
   bubbleFt: 500, // V6's safety bubble radius
   followLead: false,
+  // GPS gaps drawn as a best guess in a shaded zone (DB-19, DB-20; on at load, DB-Q21). Off: the broken line as before.
+  fillGaps: true,
   route: '', // none, or one of V6's built-in routes by name
   routeOpacity: 80,
   // V6's embedded VNC charts: off, south, north or both, at 78 % opacity,
@@ -86,7 +90,12 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   // The 3D view, with V6's settings (markup lines 729 to 751). "Free orbit"
   // is gone: it was the same as Centre formation (#26).
   view: '2d',
-  cam3d: 'followLead',
+  cam3d: 'followLead', // or 'formation', or 'cockpit' (DB-21)
+  // The Cockpit camera: which ship and seat (DB-21), and the head turned by a drag (degrees right and up of the nose).
+  cockpitShip3d: 1,
+  cockpitSeat3d: 'front',
+  headYaw3d: 0,
+  headPitch3d: 0,
   yaw3d: -35,
   pitch3d: 52,
   zoom3d: 70,
@@ -118,13 +127,25 @@ function formatDuration(s) {
   return rest ? `${m} min ${rest} s` : `${m} min`;
 }
 
-/** The one-line status after loading: "4 tracks loaded, 2 gaps". */
-export function flightSummary(flight) {
+/**
+ * What the status says about the gap fill (DB-19): fill is { on, running, result } (result: gap-fill.js fillGaps's),
+ * or null. Off, or no flight: nothing.
+ */
+function fillWords(fill) {
+  if (!fill?.on) return '';
+  if (fill.running || !fill.result) return ' (filling the gaps…)';
+  const { filled, formation, ground, notFilled } = fill.result.counts;
+  const est = filled + formation + ground;
+  return ` (${est} filled as estimates, ${notFilled} not filled)`;
+}
+
+/** The one-line status after loading: "4 tracks loaded, 2 gaps", with the gap fill's counts when it is on. */
+export function flightSummary(flight, fill = null) {
   if (!flight) return 'No flight loaded';
   const tracks = Object.values(flight.tracks);
   const gaps = tracks.reduce((n, tr) => n + (tr.gaps?.length ?? 0), 0);
   const parts = [`${plural(tracks.length, 'track')} loaded`];
-  if (gaps) parts.push(plural(gaps, 'gap'));
+  if (gaps) parts.push(plural(gaps, 'gap') + fillWords(fill));
   if (flight.cutTracks?.length) parts.push(`${plural(flight.cutTracks.length, 'track')} trimmed to the shared time`);
   return parts.join(', ');
 }
@@ -132,9 +153,11 @@ export function flightSummary(flight) {
 /**
  * The full status, one entry per ship in order (R11, D49 to D53): its name,
  * how many fixes were kept, its time span, fixes dropped and why, its gaps and
- * the longest, and how much was cut to the shared playback window.
+ * the longest, and how much was cut to the shared playback window. With the
+ * gap fill on (fill as flightSummary's), how many of its gaps are filled, and
+ * each gap left as a gap with its reason, or filled past +7 G (DB-19).
  */
-export function trackStatus(flight) {
+export function trackStatus(flight, fill = null) {
   if (!flight) return [];
   return Object.values(flight.tracks)
     .sort((a, b) => a.slot - b.slot)
@@ -153,6 +176,7 @@ export function trackStatus(flight) {
         const longest = Math.max(...gaps.map((g) => g.toT - g.fromT));
         lines.push(`${plural(gaps.length, 'GPS gap')}, longest ${formatDuration(longest)}`);
       }
+      if (fill?.on && fill.result && gaps.length) lines.push(...fillLines(fill.result, tr.slot));
       const cut = flight.cutTracks?.find((c) => c.slot === tr.slot);
       if (cut) {
         const s = Math.round(cut.beforeS + cut.afterS);
@@ -160,6 +184,22 @@ export function trackStatus(flight) {
       }
       return { slot: tr.slot, name: tr.name || `Track #${tr.slot}`, lines };
     });
+}
+
+// One ship's gap-fill lines for the status details: the count filled (and what pinned them), each gap not filled with
+// its reason, and each fill over the T-6's +7 G (a reference, flagged, not refused).
+function fillLines(result, slot) {
+  const own = result.fills[slot] ?? [];
+  const when = (g) => `${formatZuluSeconds(g.fromT)} (${formatDuration(g.toT - g.fromT)})`;
+  const lines = [];
+  if (own.length) {
+    const pinned = [...new Set(own.filter((f) => f.method === 'formation').map((f) => `#${f.refSlot}`))];
+    const wind = own.some((f) => f.method !== 'ground' && f.method !== 'formation' && !f.windUsed) ? ' (no wind)' : '';
+    lines.push(`${plural(own.length, 'gap')} filled as estimates${pinned.length ? `, ${own.filter((f) => f.method === 'formation').length} from ${pinned.join(' and ')}'s track` : ''}${wind}`);
+  }
+  for (const f of own) if (f.over7) lines.push(`Filled ${when(f)}: needs ${f.maxG.toFixed(1)} G, over the T-6's +7 limit`);
+  for (const g of result.notFilled) if (g.slot === slot) lines.push(`Not filled ${when(g)}: ${g.words}`);
+  return lines;
 }
 
 /** The box around every position of every track, in map feet, or null. */
@@ -233,14 +273,22 @@ export function checkPicked(files) {
 
 /**
  * Where each ship is at time t, in ship order, for the markers on the map,
- * with its heading (radians, 0 = east) or null when it isn't moving.
+ * with its heading (radians, 0 = east) or null when it isn't moving. With
+ * `fills` (gap-fill.js fillGaps's, while the fill is on), a ship in a filled
+ * gap is placed on its best guess and marked `estimated` (DB-20); it is still
+ * `inGap`, so nothing measures from it.
  */
-export function shipsAt(flight, t) {
+export function shipsAt(flight, t, fills = null) {
   if (!flight) return [];
   return Object.values(flight.tracks)
     .sort((a, b) => a.slot - b.slot)
     .map((tr) => {
       const s = sampleAt(tr, t);
+      const fill = s.inGap ? fillAt(fills?.[tr.slot], t) : null;
+      if (fill) {
+        const e = fillSampleAt(fill, t);
+        return { slot: tr.slot, xFt: e.xFt, yFt: e.yFt, inGap: true, estimated: true, hdg: fill.method === 'ground' ? headingAt(tr, t) : e.hdg };
+      }
       return { slot: tr.slot, xFt: s.xFt, yFt: s.yFt, inGap: s.inGap, hdg: headingAt(tr, t) };
     });
 }

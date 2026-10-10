@@ -11,6 +11,8 @@ import { loadExampleFlight } from '../../flight-data/examples.js';
 import { createClock } from '../../flight-data/clock.js';
 import { sampleAt } from '../../flight-data/flight.js';
 import { toDebriefFile, readDebriefFile, MAX_DEBRIEF_BYTES } from '../../flight-data/debrief-file.js';
+import { fillGapsInSteps } from '../../flight-data/gap-fill.js';
+import { windVectorFtps } from '../../core/wind.js';
 import { DEFAULT_STANDARDS } from '../../core/standards.js';
 import { LAYOUT_DEFAULTS, checkPicked } from './state.js';
 import { readoutsAt, formationAt, mapLabel } from './readouts.js';
@@ -51,7 +53,10 @@ function mount(root, app) {
 
   // The view and paint are checked against their lists (D141, D138); other values fall back to the defaults.
   const layout = createSettings(app.storage, LAYOUT_DEFAULTS, {
-    allowed: { view: [...VIEW_ALLOWED], paint3d: PAINT_OPTIONS.map((o) => o.value), wxSatelliteLayer: Object.keys(SATELLITE_LAYERS), wxWindModel: Object.keys(WIND_MODELS) },
+    allowed: {
+      view: [...VIEW_ALLOWED], paint3d: PAINT_OPTIONS.map((o) => o.value), wxSatelliteLayer: Object.keys(SATELLITE_LAYERS), wxWindModel: Object.keys(WIND_MODELS),
+      cam3d: ['followLead', 'formation', 'cockpit'], cockpitShip3d: [1, 2, 3, 4], cockpitSeat3d: ['front', 'rear'],
+    },
   });
   const controls = createControls(layout);
   const bar = createPlaybackBar({ time: app.time });
@@ -79,6 +84,13 @@ function mount(root, app) {
   let stopFrames = null;
   let busy = false;
   let closed = false; // a load still running when the debrief closes must not land
+  // The GPS gap fill (DB-19, DB-20): worked out a gap at a time over a few frames when a flight loads, and again when the
+  // model wind arrives or changes; until a new answer is ready the last one stays drawn. `key` names the flight and wind
+  // it was worked out for. Read only by the drawing (map, 3D, cockpit), never by the readouts, standards or CSV.
+  let gapFill = { result: null, running: false, key: '' };
+  let stopFill = null;
+  let flightCount = 0; // which loaded flight this is, for gapFill.key
+  const shownFills = () => (layout.get().fillGaps ? gapFill.result?.fills ?? null : null);
 
   // The one tennis-ball solution both views draw and the panel describes (#19), while it's open.
   const tennisNow = () => {
@@ -151,6 +163,7 @@ function mount(root, app) {
 
   const map = createMapView(ui.canvas, {
     tennis: tennisNow,
+    fills: shownFills,
     timers: app.scheduler,
     time: () => clock?.t ?? 0,
     layers: () => layout.get(),
@@ -186,6 +199,11 @@ function mount(root, app) {
 
   const view3d = createView3d(ui.canvas3d, {
     tennis: tennisNow,
+    fills: shownFills,
+    // The model wind at a time and height, { dirDeg, kt } (true "from", knots), or null: the cockpit's crab and airspeed (DB-21).
+    wind: (t, altFt) => leadWindVector(t, altFt),
+    // Bumped when the wind's state changes, so the cockpit works its attitude table out again.
+    windKey: () => windKeyNow(),
     timers: app.scheduler,
     flight: () => flight,
     time: () => clock?.t ?? 0,
@@ -239,7 +257,7 @@ function mount(root, app) {
   // flight): the model wind at Lead's altitude, taken at one point for the
   // whole flight (Lead's position halfway through).
   // The same feed also asks for the 3 x 3 grid of points the wind arrows on the map use, in one request.
-  const winds = createWindsFeed({ onChange: () => { renderReadouts(); redraw(); } });
+  const winds = createWindsFeed({ onChange: () => { renderReadouts(); refill(); redraw(); } });
   let windGrid = []; // the grid's points for this flight, [{ lat, lon }]
   // The home field's elevation, or Moose Jaw's until one is set: the ground for a reply that gave none (W4).
   const homeFieldFt = () => app.airfields?.home()?.elevationFt ?? FIELD_ELEVATION_FT;
@@ -274,6 +292,49 @@ function mount(root, app) {
     const entry = model ? winds.get(model) : null;
     if (entry?.state !== 'ready') return null;
     return windAt(entry.hours, t, altFt, { fieldFt: homeFieldFt() })?.wind ?? null;
+  }
+  // Which wind the gap fill and the cockpit use now: the model's name while Winds aloft is on and its reply is ready, or ''.
+  function windKeyNow() {
+    const on = layout.get();
+    if (!on.wxWinds || !flight) return '';
+    const model = windModelFor(on.wxWindModel, flight.startT);
+    return model && winds.get(model)?.state === 'ready' ? model : '';
+  }
+  // Works the gap fill out again when the flight or the wind has changed, a few gaps a frame (a long gap can take a
+  // few tenths of a second), and shows it when done.
+  const FILL_SLICE_MS = 12;
+  function refill() {
+    if (!flight) return;
+    const windKey = windKeyNow();
+    const key = `${flightCount}|${windKey}`;
+    if (key === gapFill.key) return;
+    stopFill?.();
+    stopFill = null;
+    const windFtps = windKey ? (t, altFt) => {
+      const w = leadWindVector(t, altFt);
+      return w ? windVectorFtps(w.dirDeg, w.kt) : null;
+    } : null;
+    const run = fillGapsInSteps(flight, { windFtps });
+    gapFill = { result: gapFill.key.startsWith(`${flightCount}|`) ? gapFill.result : null, running: true, key };
+    const pump = () => {
+      stopFill = null;
+      const started = performance.now();
+      let step = run.next();
+      while (!step.done && performance.now() - started < FILL_SLICE_MS) step = run.next();
+      if (!step.done) {
+        stopFill = app.scheduler.after(0, pump);
+        return;
+      }
+      gapFill = { result: step.value, running: false, key };
+      showFill();
+      redraw();
+    };
+    stopFill = app.scheduler.after(0, pump);
+    showFill();
+  }
+  function showFill() {
+    ui.setGapFill(flight ? { on: layout.get().fillGaps, running: gapFill.running, result: gapFill.result } : null);
+    if (flight) app.status(`Debrief: ${ui.summary()}`);
   }
   function readoutsNow() {
     if (!flight || !clock) return null;
@@ -374,6 +435,9 @@ function mount(root, app) {
     map.setFlight(flight);
     ui.showFlight(flight);
     filePanel.setFlight(true);
+    flightCount++;
+    gapFill = { result: null, running: false, key: '' };
+    refill();
     renderReadouts();
     app.status(`Debrief: ${ui.summary()}`);
   }
@@ -385,6 +449,9 @@ function mount(root, app) {
     stopClock?.();
     stopClock = null;
     pendingReadout?.();
+    stopFill?.();
+    stopFill = null;
+    gapFill = { result: null, running: false, key: '' };
     flight = null;
     clock = null;
     metars.setFlight(null);
@@ -399,6 +466,7 @@ function mount(root, app) {
     bar.setClock(null);
     map.setFlight(null);
     ui.showFlight(null);
+    ui.setGapFill(null);
     filePanel.setFlight(false);
     renderReadouts();
     ui.setMessage(null);
@@ -588,6 +656,7 @@ function mount(root, app) {
       lastWindKey = windKey;
       winds.retry();
       renderReadouts();
+      refill();
     } else {
       renderMetar();
       renderWindArrows();
@@ -613,6 +682,7 @@ function mount(root, app) {
 
   return () => {
     closed = true;
+    stopFill?.();
     stopFrames?.();
     pendingReadout?.();
     stopClock?.();

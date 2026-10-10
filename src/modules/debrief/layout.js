@@ -38,6 +38,7 @@ function shipSwatch(slot) {
 export function createLayout({ layout, controls, bar, canExample, listen, flightExtras = [], formationExtras = [] }) {
   const handlers = {};
   let flight = null;
+  let fillInfo = null; // the gap fill's state for the status: { on, running, result } (DB-19)
 
   // Flight column
   const fileInput = h('input', { type: 'file', class: 'visually-hidden', multiple: true, accept: '.kml,application/vnd.google-earth.kml+xml' });
@@ -135,6 +136,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     controls.checkbox('bubble', { label: 'Safety bubble' }),
     controls.number('bubbleFt', { label: 'Bubble radius', unit: 'ft', min: BUBBLE_MIN_FT, max: BUBBLE_MAX_FT, step: 50 }),
     controls.checkbox('followLead', { label: 'Follow Lead' }),
+    controls.checkbox('fillGaps', { label: 'Fill GPS gaps (estimate)' }),
     resetLayout(),
   ]);
   // Routes and VNC charts under the tracks, in a menu of their own so each stays short.
@@ -230,30 +232,38 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     controls.checkbox('tennisOpen', { label: 'Tennis ball' }),
   ]);
 
-  // The 3D view's settings, in 3D only (SPEC-debrief: The screen).
+  // The 3D view's settings, in 3D only (SPEC-debrief: The screen). The Cockpit camera's ship and seat show only while it is picked (DB-21).
   const { yaw: YAW, pitch: PITCH, zoom: ZOOM } = CAMERA_LIMITS;
+  const cockpitShip = controls.select('cockpitShip3d', { label: 'Ship', options: [1, 2, 3, 4].map((n) => ({ value: n, label: n === 1 ? '#1 Lead' : `#${n}` })) });
+  const cockpitSeat = controls.select('cockpitSeat3d', { label: 'Seat', options: [{ value: 'front', label: 'Front' }, { value: 'rear', label: 'Rear' }] });
+  // In the cockpit the picture is true scale (DB-21): these settings do nothing there, so they hide.
+  const notInCockpit = [];
+  const outside = (el) => (notInCockpit.push(el), el);
   const view3dMenu = menu('3D settings', 'debrief-3d-settings', [
-    controls.select('cam3d', { label: 'Camera', options: [{ value: 'followLead', label: 'Follow Lead' }, { value: 'formation', label: 'Centre formation' }] }),
+    controls.select('cam3d', { label: 'Camera', options: [{ value: 'followLead', label: 'Follow Lead' }, { value: 'formation', label: 'Centre formation' }, { value: 'cockpit', label: 'Cockpit' }] }),
+    cockpitShip,
+    cockpitSeat,
     controls.select('model3d', { label: 'Aircraft', options: [{ value: 't6', label: 'Harvard (CT-156)' }, { value: 'flat', label: 'Flat marker' }] }),
     controls.select('paint3d', { label: 'Paint', options: PAINT_OPTIONS.map((o) => ({ value: o.value, label: o.label })) }),
-    controls.slider('yaw3d', { label: 'Turn', min: YAW[0], max: YAW[1], format: (v) => `${v}°` }),
-    controls.slider('pitch3d', { label: 'Look down', min: PITCH[0], max: PITCH[1], format: (v) => `${v}°` }),
-    controls.slider('zoom3d', { label: 'Zoom', min: ZOOM[0], max: ZOOM[1], format: (v) => String(Math.round(v)) }),
-    controls.number('altScale3d', { label: 'Altitude ×', min: 1, max: 10, step: 0.25 }),
-    controls.number('planeSize3d', { label: 'Aircraft size', unit: 'ft', min: 60, max: 2000, step: 20 }),
+    outside(controls.slider('yaw3d', { label: 'Turn', min: YAW[0], max: YAW[1], format: (v) => `${v}°` })),
+    outside(controls.slider('pitch3d', { label: 'Look down', min: PITCH[0], max: PITCH[1], format: (v) => `${v}°` })),
+    outside(controls.slider('zoom3d', { label: 'Zoom', min: ZOOM[0], max: ZOOM[1], format: (v) => String(Math.round(v)) })),
+    outside(controls.number('altScale3d', { label: 'Altitude ×', min: 1, max: 10, step: 0.25 })),
+    outside(controls.number('planeSize3d', { label: 'Aircraft size', unit: 'ft', min: 60, max: 2000, step: 20 })),
     controls.number('trailSec3d', { label: 'Trail length', unit: 's', min: 0, max: 600, step: 10 }),
-    controls.select('datum3d', { label: 'Ground', options: [
+    outside(controls.select('datum3d', { label: 'Ground', options: [
       { value: 'min', label: 'Lowest ship − 500 ft' },
       { value: 'field', label: 'Home field elevation' },
       { value: 'zero', label: 'Sea level' },
-    ] }),
+    ] })),
     controls.checkbox('attLabels3d', { label: 'Bank and pitch' }),
-    controls.checkbox('sticks3d', { label: 'Altitude sticks' }),
-    controls.checkbox('altMarks3d', { label: 'Altitude scale' }),
+    outside(controls.checkbox('sticks3d', { label: 'Altitude sticks' })),
+    outside(controls.checkbox('altMarks3d', { label: 'Altitude scale' })),
     controls.checkbox('groundRef3d', { label: 'Compass' }),
     controls.checkbox('grid3d', { label: 'Ground grid' }),
     controls.checkbox('landscape3d', { label: 'Landscape' }),
-    h('button', { type: 'button', class: 'button', onclick: () => layout.update({ yaw3d: V6_CAMERA.yawDeg, pitch3d: V6_CAMERA.pitchDeg, zoom3d: V6_CAMERA.zoom }) }, 'Reset view'),
+    controls.checkbox('fillGaps', { label: 'Fill GPS gaps (estimate)' }),
+    h('button', { type: 'button', class: 'button', onclick: () => layout.update({ yaw3d: V6_CAMERA.yawDeg, pitch3d: V6_CAMERA.pitchDeg, zoom3d: V6_CAMERA.zoom, headYaw3d: 0, headPitch3d: 0 }) }, 'Reset view'),
     resetLayout(),
   ]);
   const viewSwitch = controls.viewSwitch(); // 2D | 3D, as every simulator (D141)
@@ -293,10 +303,10 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   );
 
   function renderStatus() {
-    statusText.textContent = flightSummary(flight);
+    statusText.textContent = flightSummary(flight, fillInfo);
     statusButton.disabled = !flight;
     clear(statusDetails);
-    for (const s of trackStatus(flight)) {
+    for (const s of trackStatus(flight, fillInfo)) {
       statusDetails.append(
         h('h3', {}, shipSwatch(s.slot), `#${s.slot} `, h('span', { class: 'ship-name' }, shipName(s.slot, s.name))),
         h('ul', {}, s.lines.map((line) => h('li', {}, line))),
@@ -406,6 +416,14 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
       shownView = values.view;
       placeOpenMenus();
     }
+    const cockpit = values.cam3d === 'cockpit';
+    cockpitShip.hidden = !cockpit;
+    cockpitSeat.hidden = !cockpit;
+    for (const el of notInCockpit) el.hidden = cockpit;
+    if (fillInfo && fillInfo.on !== values.fillGaps) {
+      fillInfo = { ...fillInfo, on: values.fillGaps };
+      renderStatus();
+    }
     const open = values.statusDetails && Boolean(flight);
     statusDetails.hidden = !open;
     statusButton.setAttribute('aria-expanded', String(open));
@@ -418,7 +436,12 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     element,
     canvas,
     canvas3d,
-    summary: () => flightSummary(flight),
+    summary: () => flightSummary(flight, fillInfo),
+    /** The gap fill's state for the status line and details: { on, running, result }, or null (DB-19). */
+    setGapFill(info) {
+      fillInfo = info;
+      renderStatus();
+    },
     showFlight(next) {
       flight = next;
       empty.hidden = Boolean(flight);

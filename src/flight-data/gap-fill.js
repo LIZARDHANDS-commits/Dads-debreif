@@ -63,10 +63,10 @@ export const GAP_FILL = Object.freeze({
 
 /** Why a gap was left as a gap, in the status details' words. */
 export const NOT_FILLED_WORDS = Object.freeze({
-  'too-long': `too long to guess alone (over ${GAP_FILL.maxSingleS} s, no other ship close enough to follow)`,
-  'no-join': "the fixes either side can't be joined at the speeds flown, likely a GPS or logging fault",
-  stall: 'joining them needs more G than the wing gives at that speed',
-  'ground-change': 'it takes in a landing or take-off',
+  'too-long': `too long to guess alone (over ${GAP_FILL.maxSingleS} s, no ship close enough to follow)`,
+  'no-join': "can't be joined at the speeds flown, likely a GPS or logging fault",
+  stall: 'needs more G than the wing gives at that speed',
+  'ground-change': 'takes in a landing or take-off',
   slow: 'too slow to tell (taxiing or the take-off roll)',
   'few-fixes': 'too few good fixes either side',
   error: "couldn't be worked out",
@@ -211,7 +211,8 @@ function gapGroups(fixes) {
     if (last && i - 1 - last.iB + 1 < GAP_FILL.minEndFixes) {
       last.checks.push(...fixes.slice(last.iB, i));
       last.iB = i;
-    } else groups.push({ iA: i - 1, iB: i, checks: [] });
+      last.parts++;
+    } else groups.push({ iA: i - 1, iB: i, checks: [], parts: 1 });
   }
   return groups;
 }
@@ -622,7 +623,7 @@ function aloneFill(job, A, B, solved, checks) {
       yFt: A.yFt + f.y + ey * u + W.y * f.t,
       altFt: h.value, climbFtps: h.slope,
       vx: vh * Math.cos(f.psi) + W.x + ex / job.T, vy: vh * Math.sin(f.psi) + W.y + ey / job.T,
-      noseHdg: wrapPi(f.psi), bankDeg: f.bank, rollRateDps: f.rate,
+      noseHdg: wrapPi(f.psi), bankDeg: f.bank, rollRateDps: f.rate, leftFt: 0, rightFt: 0, upFt: 0,
     };
   });
   const checksOut = finishSamples(samples, W);
@@ -850,7 +851,8 @@ function fillOne(flight, slot, track, group, windFor) {
  *     tasKt, kias, g, climbFtps, climbDeg, leftFt, rightFt, upFt, estimated: true }], maxG, over7, speedChangeKt,
  *     windUsed };
  *   notFilled: [{ slot, fromT, toT, reason, words }];
- *   counts: { gaps, filled, formation, ground, notFilled }.
+ *   counts: { gaps, filled, formation, ground, notFilled }, in flight-data's gaps (more than GAP_S between fixes, as a
+ *     track's `gaps` lists them), so two gaps solved as one count as two.
  */
 export function fillGaps(flight, options = {}) {
   const run = fillGapsInSteps(flight, options);
@@ -880,7 +882,7 @@ export function* fillGapsInSteps(flight, { windFtps = null } = {}) {
   for (const track of Object.values(flight.tracks).sort((a, b) => a.slot - b.slot)) {
     fills[track.slot] = [];
     for (const group of gapGroups(track.fixes)) {
-      counts.gaps++;
+      counts.gaps += group.parts;
       const fromT = track.fixes[group.iA].t, toT = track.fixes[group.iB].t;
       let out;
       try {
@@ -891,12 +893,12 @@ export function* fillGapsInSteps(flight, { windFtps = null } = {}) {
       if (out.fill) {
         const fill = { slot: track.slot, fromT, toT, ...out.fill, over7: out.fill.maxG > T6A_LIMITS.maxG };
         fills[track.slot].push(fill);
-        if (fill.method === 'ground') counts.ground++;
-        else if (fill.method === 'formation') counts.formation++;
-        else counts.filled++;
+        if (fill.method === 'ground') counts.ground += group.parts;
+        else if (fill.method === 'formation') counts.formation += group.parts;
+        else counts.filled += group.parts;
       } else {
         notFilled.push({ slot: track.slot, fromT, toT, reason: out.reason, words: NOT_FILLED_WORDS[out.reason] ?? NOT_FILLED_WORDS.error });
-        counts.notFilled++;
+        counts.notFilled += group.parts;
       }
       yield counts.gaps;
     }
