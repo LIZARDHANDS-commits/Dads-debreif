@@ -3,6 +3,7 @@
 // fixed ground grid. The drawing is in view.js; the projection and the T-6's
 // shape are V6's, pinned in scene.js.
 import { sampleAt, headingAt, pitchAt } from '../../../flight-data/flight.js';
+import { fillAt, fillSampleAt } from '../../../flight-data/gap-fill.js';
 import { shipBank } from '../readouts.js';
 
 /** V6's camera limits (its Yaw, Pitch and Zoom sliders and its mouse handlers). */
@@ -37,14 +38,26 @@ export function wheelZoom(camera, deltaY) {
  * Each ship at time t: { slot, x, y, altFt, hdg (radians, null when not
  * moving), bankDeg (left wing down positive), bankKnown, pitchDeg, inGap }.
  * Bank and pitch are the ones the readouts show (D40, D47, D61); where the
- * bank is unknown it is drawn wings level and bankKnown is false.
+ * bank is unknown it is drawn wings level and bankKnown is false. With
+ * `fills` (gap-fill.js fillGaps's, while the fill is on), a ship in a filled
+ * gap is placed on the best guess at its estimated bank and climb angle and
+ * marked `estimated` (DB-20); it stays `inGap`.
  */
-export function shipsIn3d(flight, t) {
+export function shipsIn3d(flight, t, fills = null) {
   if (!flight) return [];
   return Object.values(flight.tracks)
     .sort((a, b) => a.slot - b.slot)
     .map((tr) => {
       const s = sampleAt(tr, t);
+      const fill = s.inGap ? fillAt(fills?.[tr.slot], t) : null;
+      if (fill) {
+        const e = fillSampleAt(fill, t);
+        const ground = fill.method === 'ground';
+        return {
+          slot: tr.slot, x: e.xFt, y: e.yFt, altFt: e.altFt, hdg: ground ? headingAt(tr, t) : e.hdg,
+          bankDeg: ground ? 0 : e.bankDeg, bankKnown: !ground, pitchDeg: ground ? 0 : e.climbDeg, inGap: true, estimated: true,
+        };
+      }
       const pitch = pitchAt(tr, t);
       const bank = shipBank(tr, t, { sample: s, pitchDeg: pitch.deg });
       return {
