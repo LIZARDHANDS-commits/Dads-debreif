@@ -65,5 +65,5 @@ Checked by the research with a request from a GitHub Pages address on 30 Sep. Th
 
 ## Ideas from Dad, 8 Oct 2026 (for Patrick)
 
-- **One shared name and shared credit.** Remove the "Dad" and "Pat" tags throughout the tool (for example "Dad's OODA Loop", "Dad's debrief") and credit both as co-founders and co-creators in the About section. The tool needs a name that works for both of them.
+- **One shared name and shared credit.** Remove the "Dad" and "Pat" tags throughout the tool (for example "Dad's OODA Loop", "Dad's debrief") and credit both as co-founders and co-creators in the About section. The tool needs a name that works for both of them. *Credit part done in V2.212 (ALL-29): no owner's name on screen, About Us with both co-creators; the tool is "OODA LOOP" until a shared name is picked.*
 - **AFMAN 11-248 (USAF T-6 primary flying manual) as an option throughout.** Alongside the RCAF CT-156 references, so a module can use the USAF numbers and procedures where they differ. Manual pages are cited only; the manual itself goes to the project files first, as the rule book says.

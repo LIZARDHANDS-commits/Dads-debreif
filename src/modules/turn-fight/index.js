@@ -335,4 +335,4 @@ function mount(root, app) {
   };
 }
 
-export default { id: 'turn-fight', title: "Pat's Fight and Turn Sim", mount };
+export default { id: 'turn-fight', title: 'Fight and Turn Sim', mount };

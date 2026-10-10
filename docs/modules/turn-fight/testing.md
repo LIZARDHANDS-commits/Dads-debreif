@@ -194,7 +194,7 @@ The Energy fight flies the jets with T-6 thrust, drag, G and stall limits, and i
 - [ ] Force a split S from a fast merge (for example 300 KIAS at 10,000 ft). The jet goes past the top speed, **OVERSPEED** shows with the top speed for its height, and it keeps flying. A Smart jet never picks that; it pulls out first.
 - [ ] Set Blue's move to **Immelmann**, turns **At once**, merge speed 120. **STALL** shows in words and colour with a line saying why, and the turn stops until the pilot eases off. **OVER G** shows the same way above +7 G (+4.7 G while rolling). No flag holds the jet; each says what the move costs.
 - [ ] Head-on with no offset (ATA 0°, AA 180°): the jets break away before they hit. Turn collision avoidance off and a mid-air shows as the result, and the wrecks tumble.
-- [ ] **Pat's Fight and Turn Sim settings** has Start geometry, Energy, Display and Model settings for checking. Each box shows its range and default. A number out of range is refused with a message and the fight doesn't change, and Reset to defaults puts everything back.
+- [ ] **Fight and Turn Sim settings** has Start geometry, Energy, Display and Model settings for checking. Each box shows its range and default. A number out of range is refused with a message and the fight doesn't change, and Reset to defaults puts everything back.
 - [ ] A start above 15,000 ft shows a note that the model's turn rate reads low up there, with the SMM's aerobatics advice (SMM 14.5 para 10).
 - [ ] **About this model** gives the MPT bank against the SMM's (about 75° level, 70 to 75° constant-speed) with page references, and no copied manual text.
 
