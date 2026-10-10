@@ -22,6 +22,7 @@ import { createPuckPanel } from './puck-panel.js';
 import { withPucks, readPucks, puckSeat, puckStorageKey } from './puck.js';
 import { createMapView } from './map2d/view.js';
 import { createView3d } from './view3d/view.js';
+import { createFlightSpace } from './airspace.js';
 import { CAMERA_ALLOWED } from './view3d/camera-modes.js';
 import { tennisAt } from './tennis.js';
 import { createTennisPanel } from './tennis-panel.js';
@@ -170,7 +171,35 @@ function mount(root, app) {
     ui.setSavedWeather({ offer, note });
   }
 
+  // Airspace and airfields round the flight (DB-24): the SOF's shared data, picked for this flight's area. The files load
+  // only once Airspace is on; a landing or failed file redraws and updates the menus' line. Never holds up the flight.
+  const space = createFlightSpace({ onChange: () => { renderSpace(); redraw(); } });
+  function spaceState() {
+    const on = layout.get();
+    if (!flight) return null;
+    if (on.airspace) space.want();
+    return space.state({ fieldFt: homeFieldFt(), hidden: on.airspaceHidden });
+  }
+  // AGL airspace limits are taken above homeFieldFt() (the home field's elevation, or Moose Jaw's), as the SOF does.
+  // What the views draw: null with both switches off; the key names everything the 3D view builds from.
+  function spaceNow() {
+    const on = layout.get();
+    if (!flight || (!on.airspace && !on.airfields)) return null;
+    const st = spaceState();
+    return {
+      key: `${st.key}|${on.airspace}|${on.airfields}|${st.airfields.length}`,
+      toXY: space.toXY,
+      fieldFt: homeFieldFt(),
+      airspace: on.airspace ? st.volumes : null,
+      airfields: on.airfields ? st.airfields : null,
+    };
+  }
+  function renderSpace() {
+    ui.setSpace(flight ? spaceState() : null);
+  }
+
   const map = createMapView(ui.canvas, {
+    space: () => spaceNow(),
     tennis: tennisNow,
     fills: shownFills,
     timers: app.scheduler,
@@ -208,6 +237,7 @@ function mount(root, app) {
 
   const view3d = createView3d(ui.canvas3d, {
     tennis: tennisNow,
+    space: () => spaceNow(),
     fills: shownFills,
     // The model wind at a time and height, { dirDeg, kt } (true "from", knots), or null: the cockpit's crab and airspeed (DB-21).
     wind: (t, altFt) => leadWindVector(t, altFt),
@@ -447,9 +477,11 @@ function mount(root, app) {
     setDfps(session.dfps ?? readStoredDfps(app.storage.get(dfpKey, [])), { changed: Boolean(session.dfps) });
     unsaved = false;
     bar.setClock(clock);
+    space.setFlight(flight);
     map.setFlight(flight);
     ui.showFlight(flight);
     filePanel.setFlight(true);
+    renderSpace();
     flightCount++;
     gapFill = { result: null, running: false, key: '' };
     refill();
@@ -502,9 +534,11 @@ function mount(root, app) {
     setDfps([], { changed: false });
     unsaved = false;
     bar.setClock(null);
+    space.setFlight(null);
     map.setFlight(null);
     ui.showFlight(null);
     ui.setGapFill(null);
+    renderSpace();
     filePanel.setFlight(false);
     renderReadouts();
     ui.setMessage(null);
@@ -702,6 +736,7 @@ function mount(root, app) {
       renderWindArrows();
     }
     renderSavedWeather();
+    renderSpace();
     redraw();
   });
 
