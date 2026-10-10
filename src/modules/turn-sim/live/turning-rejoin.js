@@ -31,19 +31,19 @@
 // line's 220 KIAS before a smaller overtake; and his least speed before the dip. #2 is flown through the same flight.js step as Lead, so the bank, roll rate and speed
 // changes are the aircraft's own. Numbers are tuning.js TURNING_REJOIN's.
 import { relativeTo, DEG } from './manoeuvres.js';
-import { recordFlight, speedSeg } from './replay.js';
+import { recordFlight, speedSeg, dryRunT } from './replay.js';
 import { closeThrough, rejoinTo, slide, stopAt, legsFor } from './recipes.js';
 import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
 import { FORMATIONS, fwShapeNow, pairSlot, downTheLine, LINE_BACK_PER_OUT, LENGTH_FT, sideFor, LANE } from './slots.js';
 import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, TURNING_REJOIN, FW_FOLLOW, KINEMATIC, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
-import { onClosure } from './hand-over.js';
+import { onClosure, fromStep } from './hand-over.js';
 import { leadTurnInto } from './lead-turn-in.js';
 import { STEP_SEC, copyAircraft, SMOOTHER_CURVE_PEAK, smoother, smoothLegSec } from './flight.js';
 import { RATE_SETS } from './rates.js';
 import { laggedBank } from './kinematic.js';
 import { trackTwice, runTracker, phase } from './tracker.js';
-import { fwGoal } from './formation-turns.js';
+import { fwGoal, holdInPlane, heldPoses } from './formation-turns.js';
 import { acrossSixLegs } from './replan.js';
 import { stallBankDeg } from './slow-down.js';
 import { turnRadiusFromBankFt } from '../../../core/flight-math.js';
@@ -288,40 +288,50 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   let run = first.run;
   let profile = first.profile;
   let lp = into.planTo(totalSteps, null);
+  let wingSegments = null;
 
   if (close) {
     lp = into.planTo(totalSteps + Math.ceil(easeSec / dt), RATE_SETS.close.echelonRoll);
-    const second = trackTwice({
-      refs: { [lead.id]: lp.rec },
-      wing0: wing,
-      t0,
-      phases,
-      blockFt,
-      profile: profile0,
-      stopWhenSettled: false,
-      maxSec: limitSec,
-    });
-    if (second.run.ok) {
-      run = second.run;
-      profile = second.profile;
-    }
+    const leadTotalSteps = Math.round(dryRunT(lead, { segments: lp.segments }, t0).durationSec / dt);
+    const leadRemainingSteps = Math.max(0, leadTotalSteps - totalSteps);
+    const W_settled = firstRec.at(totalSteps);
+    const L_settled = lp.rec.at(totalSteps);
+    const slot = pairSlot(to, sTo || s, spacingFt);
+    const slotBody = { fwd: slot.fwd, left: slot.left, up: slot.alt };
+    const leadRecFromSettle = fromStep(lp.rec, totalSteps);
+    const { rel } = holdInPlane(leadRecFromSettle, L_settled, W_settled, slotBody, leadRemainingSteps);
+    const holdSteps = Math.max(leadRemainingSteps, rel.length - 1);
+    const poses = heldPoses(leadRecFromSettle, W_settled, rel, holdSteps);
 
-    const targetAltFt = (pairSlot(to, sTo || s, spacingFt)?.alt ?? 0) + leadAlt;
-    const inPlane = (r, prof) => inLeadsPlane(wing, { segments: [{ kind: 'bankTrack', points: r.points }], profile: prof }, lp.rec, t0, nPart, r.points.length, easeSec, targetAltFt);
-    const planeProfile = inPlane(run, profile);
-    const again = runTracker({
-      refs: { [lead.id]: lp.rec },
-      wing0: wing,
-      t0,
-      phases,
-      profile: planeProfile,
-      blockFt,
-      stopWhenSettled: false,
+    if ((totalSteps + poses.length) * dt > limitSec) return null;
+
+    wingSegments = [
+      { kind: 'bankTrack', points: first.run.points },
+      { kind: 'poseTrack', poses },
+    ];
+    const fullWingRec = recordFlight(wing, { segments: wingSegments, profile: first.profile }, t0);
+    const endStep = totalSteps + poses.length;
+    const endWing = fullWingRec.at(endStep);
+    const endLead = lp.rec.at(endStep);
+
+    let laneFwdFt = first.run.laneFwdFt ?? -Infinity;
+    poses.forEach((p, i) => {
+      laneFwdFt = Math.max(laneFwdFt, relativeTo(lp.rec.at(totalSteps + i + 1), { xFt: p.x, yFt: p.y }).fwd);
     });
-    if (again.ok) {
-      run = again;
-      profile = planeProfile;
-    }
+    let maxBank = first.run.maxBankDeg ?? 0;
+    poses.forEach((p) => {
+      maxBank = Math.max(maxBank, Math.abs(p.bank));
+    });
+
+    run = {
+      ...first.run,
+      points: first.run.points,
+      end: { lead: endLead, wing: endWing },
+      laneFwdFt,
+      maxBankDeg: maxBank,
+      laneOk: laneFwdFt <= Math.max(0, slot.fwd) + (LANE.marginFt ?? 100),
+    };
+    profile = first.profile;
   } else {
     lp = into.planTo(totalSteps, null);
     const second = runTracker({
@@ -394,14 +404,16 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
 
   const slotFwdFt = Math.max(0, pairSlot(to, sTo || s, spacingFt).fwd);
   const flownProfile = profile ?? profile0;
+  const durationSec = close && wingSegments ? (totalSteps + wingSegments[1].poses.length) * dt : run.points.length * dt;
   return {
     part,
     run: remainderRun,
     slotFwdFt,
     profile: flownProfile,
     lp,
-    durationSec: run.points.length * dt,
+    durationSec,
     overshoot: onX && overshoot,
+    wingSegments,
   };
 }
 
@@ -583,7 +595,15 @@ export function planTurningRejoin(pair, to, options = {}, t0 = 0) {
   };
   return {
     ok: true,
-    plans: { [lead.id]: { segments: lp.segments.map((x) => ({ ...x })) }, [wing.id]: { segments: [{ kind: 'bankTrack', points: [...part.points, ...run.points] }], profile } },
+    plans: {
+      [lead.id]: { segments: lp.segments.map((x) => ({ ...x })) },
+      [wing.id]: {
+        segments: best.wingSegments
+          ? best.wingSegments.map((s) => ({ ...s, points: s.points ? [...s.points] : undefined, poses: s.poses ? [...s.poses] : undefined }))
+          : [{ kind: 'bankTrack', points: [...part.points, ...run.points] }],
+        profile,
+      },
+    },
     note: to !== 'fw' ? xNote() : `${fromWord}${fromSide} to ${label}${sideWord}: ${how}. Lead turns into #2 at ${REJOIN.leadBankDeg}° of bank${slowing} and holds it until #2 is in (${turnDeg}°; SMM 16.20 para 65b). #2 aims for ${KIAS_OUTSIDE_LAB + best.overtakeKt} KIAS down the line, ${best.overtakeKt} kt of overtake${best.overtakeKt < asked ? ` (${KIAS_OUTSIDE_LAB + asked} would put him ahead of Lead's 3/9 line from here)` : ''}, gets onto the rejoin line and holds it with Lead at his ${clock}, slightly low (SMM 12.24 paras 56-57); ${hot ? 'he starts hot and gets colder to reach it' : 'he starts cold and turns hotter to reach it'}. ${speeds}${best.upFt ? ` He goes ${best.upFt.toLocaleString('en-CA')} ft higher early and comes down onto the line (the vertical, TS-82).` : ''} From the decision point, where a stop with the torque floor and the boards just fits, he takes it out and flows ${end}.`,
     label: `${label}${sideWord}`,
     flying: `${fromWord}${fromSide} to ${label}${sideWord} (${how})`,
