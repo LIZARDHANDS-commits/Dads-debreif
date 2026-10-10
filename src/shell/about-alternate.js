@@ -1,6 +1,6 @@
-// Alternate About page proposal for review and discussion (Pat & Kenny "Dad" Natelli).
-// Keeps the current About Us page intact while demonstrating the updated branding,
-// instructor dossiers, international exchange partnership, and module architecture.
+// Alternate About page proposal: Elegant, borderless editorial layout with cinematic hero framing.
+// Eliminates "box-itis", gives breathing room to the photography, and pairs the exterior photo
+// directly with the Canadian-American exchange partnership story.
 import { h } from '../ui-kit/dom.js';
 
 const CONTACT_EMAIL = 'kennynatelli@gmail.com';
@@ -14,55 +14,43 @@ export default {
     root.append(
       h(
         'article',
-        { class: 'about about-dossier' },
+        { class: 'about about-editorial' },
+        // Top navigation & quiet draft pill
         h(
-          'div',
-          { class: 'about-nav-row' },
-          h('p', { class: 'back' }, h('a', { href: '#/' }, '← Home')),
-          h('p', { class: 'switch-view' }, h('a', { href: '#/about' }, 'View Current About Page →')),
-        ),
-        h(
-          'div',
-          { class: 'notice about-draft-notice' },
-          h('strong', {}, 'Draft Concept: '),
-          'This is an alternate About page layout prepared for review and discussion. It introduces the unified OODA LOOP branding, dual instructor dossiers, and flight training context.',
-        ),
-        h('p', { class: 'eyebrow' }, 'About the project'),
-        h('h1', { class: 'about-title' }, 'About OODA LOOP'),
-        h('p', { class: 'about-subtitle' }, 'Aviator Training & Debrief Suite'),
-        h(
-          'div',
-          { class: 'about-gallery' },
+          'header',
+          { class: 'about-header' },
           h(
-            'figure',
-            { class: 'about-photo about-photo-cockpit' },
-            h('img', {
-              src: 'media/kenny-cockpit-formation.png',
-              alt: 'Kenny flying CT-156 Harvard II in 3-ship tactical formation',
-              width: '1024',
-              height: '435',
-            }),
-            h('figcaption', {}, 'Inside the Cockpit: Kenny flying Aircraft 121 in 3-ship tactical formation'),
+            'div',
+            { class: 'about-nav-row' },
+            h('p', { class: 'back' }, h('a', { href: '#/' }, '← Home')),
+            h('p', { class: 'switch-view' }, h('a', { href: '#/about' }, 'View Current About Page →')),
           ),
-          h(
-            'figure',
-            { class: 'about-photo about-photo-formation' },
-            h('img', {
-              src: 'media/about-hero-formation.png',
-              alt: 'CT-156 Harvard II 3-ship tactical formation flight over Saskatchewan',
-              width: '1000',
-              height: '750',
-            }),
-            h('figcaption', {}, 'Fly • Learn • Debrief • Improve — 15 Wing Moose Jaw'),
-          ),
+          h('p', { class: 'eyebrow' }, 'About the project'),
+          h('h1', { class: 'about-title' }, 'About OODA LOOP'),
+          h('p', { class: 'about-subtitle' }, 'Aviator Training & Debrief Suite'),
         ),
+
+        // Hero 1: Full-width cinematic cockpit panorama
+        h(
+          'figure',
+          { class: 'about-hero-cockpit' },
+          h('img', {
+            src: 'media/kenny-cockpit-formation.png',
+            alt: 'Kenny flying CT-156 Harvard II #121 in 3-ship tactical formation',
+            width: '1024',
+            height: '435',
+          }),
+          h('figcaption', {}, 'Inside the Cockpit: Kenny flying Aircraft 121 in 3-ship tactical formation'),
+        ),
+
+        // Mission & Purpose (Clean editorial text, no box borders)
         h(
           'section',
-          { class: 'about-intro' },
+          { class: 'about-section about-intro' },
           h('h2', { class: 'section-heading' }, 'Visualizing the Flight Before and After the Chocks'),
           h(
             'p',
-            {},
+            { class: 'lede' },
             'OODA LOOP is an aviator-built suite of flight debriefing, tactical simulation, and operational decision-support tools developed directly for the military flight training environment.',
           ),
           h(
@@ -71,172 +59,172 @@ export default {
             'In high-performance flight training, the margin between understanding a maneuver and falling behind the aircraft comes down to visual clarity. This suite exists to bridge the gap between 2D whiteboard stick figures and dynamic 3D flight geometry—giving student pilots and instructors an accessible, browser-based sandbox to visualize energy states, debrief sorties, rehearse patterns, and make informed operational decisions.',
           ),
         ),
+
+        // Co-Creators Dossiers (Clean 2-column layout with subtle badges)
         h(
           'section',
-          { class: 'about-creators-section' },
-          h('h2', { class: 'eyebrow' }, 'Co-Creators & Flight Instruction'),
+          { class: 'about-section about-creators-editorial' },
+          h('h2', { class: 'eyebrow' }, 'Co-Creators'),
           h(
             'div',
-            { class: 'about-boxes about-creators' },
+            { class: 'dossier-grid' },
+            // Kenny's Profile
             h(
-              'section',
-              { class: 'about-box creator-card' },
+              'div',
+              { class: 'dossier-profile' },
               h(
                 'div',
-                { class: 'creator-header' },
-                h(
-                  'div',
-                  { class: 'creator-badge creator-avatar' },
-                  h('img', {
-                    src: 'media/kenny-natelli.jpg',
-                    alt: 'Kenny "Dad" Natelli in cockpit',
-                  }),
-                ),
-                h(
-                  'div',
-                  { class: 'creator-titles' },
-                  h('p', { class: 'eyebrow' }, 'Co-creator · USAF Exchange'),
-                  h('h3', {}, 'Kenny "Dad" Natelli'),
-                  h('p', { class: 'creator-rank' }, 'USAF Exchange Instructor Pilot'),
-                ),
+                { class: 'dossier-avatar' },
+                h('img', {
+                  src: 'media/kenny-natelli.jpg',
+                  alt: 'Kenny "Dad" Natelli in cockpit',
+                }),
               ),
-              h(
-                'p',
-                {},
-                'A U.S. Air Force exchange instructor pilot serving at 15 Wing Moose Jaw, Saskatchewan. Kenny conceived and built the original V1–V6 debrief tools in the flight room and developed the real-time SOF Dashboard, embedding USAF and 15 Wing operational weather limits and divert criteria to safeguard flight operations.',
-              ),
-            ),
-            h(
-              'section',
-              { class: 'about-box creator-card' },
               h(
                 'div',
-                { class: 'creator-header' },
+                { class: 'dossier-info' },
+                h('h3', {}, 'Kenny "Dad" Natelli'),
+                h('p', { class: 'dossier-role' }, 'USAF Exchange Instructor Pilot · 15 Wing Moose Jaw'),
                 h(
-                  'div',
-                  { class: 'creator-badge' },
-                  h('img', {
-                    src: 'media/big2-badge.png',
-                    alt: '2 CFFTS The Big Two Squadron Crest',
-                  }),
+                  'p',
+                  { class: 'dossier-bio' },
+                  'A U.S. Air Force exchange instructor pilot serving at 15 Wing. Kenny conceived and built the original V1–V6 debrief tools in the flight room and developed the real-time SOF Dashboard, embedding USAF and 15 Wing operational weather limits and divert criteria to safeguard flight operations.',
                 ),
-                h(
-                  'div',
-                  { class: 'creator-titles' },
-                  h('p', { class: 'eyebrow' }, 'Co-creator · 2 CFFTS'),
-                  h('h3', {}, 'Pat'),
-                  h('p', { class: 'creator-rank' }, '2 CFFTS Instructor Pilot & Engineer'),
-                ),
+              ),
+            ),
+            // Pat's Profile
+            h(
+              'div',
+              { class: 'dossier-profile' },
+              h(
+                'div',
+                { class: 'dossier-avatar' },
+                h('img', {
+                  src: 'media/big2-badge.png',
+                  alt: '2 CFFTS The Big Two Squadron Crest',
+                }),
               ),
               h(
-                'p',
-                {},
-                'A 2 CFFTS instructor pilot and engineer. Pat re-architected the suite into its modular engine, developing the tactical formation trainer, BFM fight simulator, and traffic pattern visualizer—calibrated to 15 Wing manuals, aerodynamic energy-maneuverability, and flight line instruction.',
+                'div',
+                { class: 'dossier-info' },
+                h('h3', {}, 'Pat'),
+                h('p', { class: 'dossier-role' }, '2 CFFTS Instructor Pilot & Engineer'),
+                h(
+                  'p',
+                  { class: 'dossier-bio' },
+                  'A 2 CFFTS instructor pilot and engineer. Pat re-architected the suite into its modular engine, developing the tactical formation trainer, BFM fight simulator, and traffic pattern visualizer—calibrated to 15 Wing manuals, aerodynamic energy-maneuverability, and flight line instruction.',
+                ),
               ),
             ),
           ),
-          h(
-            'div',
-            { class: 'about-partnership-banner' },
-            h('strong', {}, 'An International Partnership in Flight Training: '),
-            'Built on the flight line at 15 Wing Moose Jaw through a Canadian-American instructor exchange, blending USAF doctrine with RCAF 2 CFFTS primary flying standards.',
-          ),
         ),
+
+        // Hero 2 & International Partnership (Split Feature)
         h(
           'section',
-          { class: 'about-suite-section' },
-          h('h2', { class: 'eyebrow' }, 'The Suite at a Glance'),
+          { class: 'about-section partnership-feature' },
           h(
             'div',
-            { class: 'about-modules-grid' },
-            h(
-              'div',
-              { class: 'about-module-card' },
-              h('h3', {}, 'Debrief Viewer'),
-              h('p', {}, '2D and 3D GPS/telemetry track replay, Debrief Focus Points (DFPs), formation geometry, and Energy-Maneuverability (E-M) flight envelope comparison.'),
-            ),
-            h(
-              'div',
-              { class: 'about-module-card' },
-              h('h3', {}, 'Formation Simulator'),
-              h('p', {}, 'Interactive step-by-step tactical formation turns, rejoin practice (TRJ, SARJ), station-keeping, and rollout judging against standards.'),
-            ),
-            h(
-              'div',
-              { class: 'about-module-card' },
-              h('h3', {}, 'Fight & Turn Sim (BFM)'),
-              h('p', {}, '1-circle, 2-circle, and 3D BFM visualizer matched to the CT-156 Harvard II 5.0 G flight envelope and turn rates.'),
-            ),
-            h(
-              'div',
-              { class: 'about-module-card' },
-              h('h3', {}, 'Traffic Pattern Sim'),
-              h('p', {}, 'Military overhead breaks, entry procedures, spacing, wind-shaped trajectories, and closed traffic management.'),
-            ),
-            h(
-              'div',
-              { class: 'about-module-card' },
-              h('h3', {}, 'SOF Dashboard'),
-              h('p', {}, 'Real-time Supervisor of Flying situational awareness—live weather minima, runway crosswind limits, METAR/TAF parsing, and radar.'),
-            ),
-          ),
-        ),
-        h(
-          'section',
-          { class: 'about-doctrine-card' },
-          h('h2', { class: 'eyebrow' }, 'Flight-Line Doctrine'),
-          h('h3', {}, 'Why "OODA LOOP"?'),
-          h(
-            'p',
-            {},
-            'Named in honor of Col. John Boyd, the legendary fighter pilot who pioneered Energy-Maneuverability (E-M) theory and the Observe • Orient • Decide • Act loop. In high-performance flight, victory and safety belong to the pilot who cycles through the loop fastest. This suite was built to train that exact scan—helping aircrew observe geometry, orient to energy states, decide decisively, and debrief effectively.',
-          ),
-        ),
-        h(
-          'div',
-          { class: 'about-boxes' },
-          h(
-            'section',
-            { class: 'about-box' },
-            h('h2', {}, 'Contact / feedback'),
+            { class: 'partnership-content' },
+            h('p', { class: 'eyebrow' }, 'International Partnership'),
+            h('h2', { class: 'section-heading' }, 'Built on the Flight Line in Moose Jaw'),
             h(
               'p',
               {},
-              'Built by instructors for instructors and students. If you notice a bug, have an idea for a new tactical scenario, or want to suggest an improvement to flight calculations, your feedback directly shapes future updates.',
+              'The suite is the product of an authentic Canadian-American instructor exchange at 15 Wing Moose Jaw (2 CFFTS "The Big Two"). It brings together USAF Air Education & Training Command (AETC) fighter/turboprop doctrine and RCAF primary flying standards into a shared instructional toolkit for the CT-156 Harvard II and T-6 Texan II communities.',
             ),
+          ),
+          h(
+            'figure',
+            { class: 'partnership-photo' },
+            h('img', {
+              src: 'media/about-hero-formation.png',
+              alt: 'CT-156 Harvard II 3-ship tactical formation in echelon over Saskatchewan',
+              width: '1000',
+              height: '750',
+            }),
+            h('figcaption', {}, 'Fly • Learn • Debrief • Improve — 2 CFFTS "The Big Two"'),
+          ),
+        ),
+
+        // Tactical Brevity Strip (Replaces the 5 bulky text boxes)
+        h(
+          'section',
+          { class: 'about-section suite-brevity' },
+          h('h2', { class: 'eyebrow' }, 'The Integrated Suite'),
+          h(
+            'div',
+            { class: 'brevity-strip' },
+            h(
+              'div',
+              { class: 'brevity-pill' },
+              h('span', { class: 'pill-tag' }, 'DEBRIEF'),
+              h('span', { class: 'pill-desc' }, '2D/3D Telemetry Replay & E-M Curves'),
+            ),
+            h(
+              'div',
+              { class: 'brevity-pill' },
+              h('span', { class: 'pill-tag' }, 'FORMATION'),
+              h('span', { class: 'pill-desc' }, 'Tactical Turns, TRJ & Station-Keeping'),
+            ),
+            h(
+              'div',
+              { class: 'brevity-pill' },
+              h('span', { class: 'pill-tag' }, 'BFM FIGHT'),
+              h('span', { class: 'pill-desc' }, '1-Circle & 2-Circle Turn Dynamics'),
+            ),
+            h(
+              'div',
+              { class: 'brevity-pill' },
+              h('span', { class: 'pill-tag' }, 'TRAFFIC'),
+              h('span', { class: 'pill-desc' }, 'Overhead Breaks & Pattern Spacing'),
+            ),
+            h(
+              'div',
+              { class: 'brevity-pill' },
+              h('span', { class: 'pill-tag' }, 'SOF DASHBOARD'),
+              h('span', { class: 'pill-desc' }, 'Real-Time Minima, Crosswinds & Radar'),
+            ),
+          ),
+        ),
+
+        // Flight-Line Doctrine (Clean quotation / editorial block)
+        h(
+          'section',
+          { class: 'about-section doctrine-editorial' },
+          h('p', { class: 'eyebrow' }, 'Flight-Line Doctrine'),
+          h('h2', { class: 'section-heading' }, 'Why "OODA LOOP"?'),
+          h(
+            'p',
+            {},
+            'Named in honor of Col. John Boyd, the legendary fighter pilot who created Energy-Maneuverability (E-M) theory and the Observe • Orient • Decide • Act loop. In high-performance military flight, victory and safety belong to the pilot who cycles through the loop fastest. This suite was built to train that exact scan—helping aircrew observe geometry, orient to energy states, decide decisively, and debrief effectively.',
+          ),
+        ),
+
+        // Integrated Minimalist Footer (Contact, Support & Disclaimer)
+        h(
+          'footer',
+          { class: 'about-editorial-footer' },
+          h(
+            'div',
+            { class: 'footer-actions' },
             h(
               'a',
               {
                 class: 'button',
                 href: `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(CONTACT_SUBJECT)}`,
               },
-              `✉ ${CONTACT_EMAIL}`,
-            ),
-          ),
-          h(
-            'section',
-            { class: 'about-box' },
-            h('h2', {}, 'Support the project'),
-            h(
-              'p',
-              {},
-              'OODA LOOP is independently developed, hosted, and maintained for the aviation training community. If these tools have been valuable to your debriefs, preparation, or instruction, voluntary contributions help keep the web services and live weather feeds running.',
+              `✉ Contact Instructors (${CONTACT_EMAIL})`,
             ),
             h(
               'a',
-              { class: 'button', href: VENMO_URL, target: '_blank', rel: 'noopener noreferrer' },
-              '♡ Support via Venmo',
+              { class: 'button secondary', href: VENMO_URL, target: '_blank', rel: 'noopener noreferrer' },
+              '♡ Voluntary Venmo Support',
             ),
-            h('p', { class: 'fine' }, 'Opens Venmo in a new tab or app.'),
           ),
-        ),
-        h(
-          'section',
-          { class: 'about-disclaimer-card' },
-          h('h2', { class: 'eyebrow' }, 'Notice & Disclaimer'),
           h(
             'p',
-            { class: 'fine' },
+            { class: 'fine footer-disclaimer' },
             'OODA LOOP is an unofficial instructional aid developed by the creators in their personal capacity. It is not an official product, publication, or endorsement of the Royal Canadian Air Force (RCAF), the Department of National Defence (DND), the United States Air Force (USAF), 15 Wing Moose Jaw, or 2 CFFTS. It does not replace official flight manuals, orders, or standard operating procedures. Contains no classified, controlled goods, or proprietary defense data.',
           ),
         ),
