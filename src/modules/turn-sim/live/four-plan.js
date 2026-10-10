@@ -15,7 +15,7 @@ import { classify, judge } from './judge.js';
 import { FOUR_FORMATIONS, refsFor, fourWords } from './slots.js';
 import { FOUR_CHANGE_LIMIT_SEC, statesAt, joinLegs } from './four-legs.js';
 import { fingerToEchelon, echelonToFinger, echelonToEchelon, fingerBox, fingerTrail, slideTo, openToFw } from './four-close.js';
-import { rejoinToFw, turningToFinger, closeFromFw, straightToEchelon } from './four-rejoin.js';
+import { rejoinToFw, turningToFinger, turningToEchelon, closeFromFw, straightToEchelon, straightToFinger } from './four-rejoin.js';
 import { entryToSpread, fwFluid, fluidToBox } from './four-open.js';
 
 export { FOUR_CHANGE_LIMIT_SEC };
@@ -38,21 +38,26 @@ const MOVES = [
   { from: 'route', to: 'finger', m: 'M10 (route to echelon references)', cost: 15, sides: 'same', fly: (st, t, o, s) => slideTo(st, t, o, s, 'finger'), how: 'in from route' },
   // all at once from every close formation (Patrick 6 Oct 05:42Z, 05:45Z; until V2.131 box, line astern and route went through finger first)
   ...['finger', 'echelon', 'box', 'trail', 'route'].map((from) => ({ from, to: 'fw', m: 'M9', cost: 40, sides: from === 'trail' ? 'any' : 'same', fly: (st, t, o, s, sTo) => openToFw(st, t, o, from === 'trail' ? sTo : s, from), how: 'drop back to fighting wing, all at once' })),
-  // rejoins (four-rejoin.js)
-  { from: 'spread4', to: 'fw', m: 'M16', cost: 150, sides: 'same', fly: (st, t, o, s) => rejoinToFw(st, t, o, s, 'spread4'), how: 'straight ahead to fighting wing, full power until in the cone' },
-  { from: 'offsetBox', to: 'fw', m: 'M22', cost: 200, sides: 'same', fly: (st, t, o, s) => rejoinToFw(st, t, o, s, 'offsetBox'), how: 'straight ahead to fighting wing, full power until in the cone' },
-  { from: 'other', to: 'fw', m: 'M16', cost: 150, sides: 'same', fly: (st, t, o, s) => rejoinToFw(st, t, o, s, 'other'), how: 'rejoin to fighting wing' },
-  { from: 'fw', to: 'route', m: 'M12', cost: 60, sides: 'same', fly: (st, t, o, s) => closeFromFw(st, t, o, s, 'route'), how: 'close through route' },
-  { from: 'fw', to: 'finger', m: 'M10/M11', cost: 70, sides: 'same', fly: (st, t, o, s) => (o.rejoin === 'straight' ? { ...closeFromFw(st, t, o, s, 'finger'), how: 'straight-ahead rejoin to finger, through route' } : turningToFinger(st, t, o, s, 'fw')), how: 'turning rejoin to finger' },
-  { from: 'spread4', to: 'finger', m: 'M11 (Q5)', cost: 150, sides: 'same', fly: (st, t, o, s) => turningToFinger(st, t, o, s, 'spread4'), how: 'turning rejoin to finger' },
-  { from: 'fw', to: 'echelon', m: 'M10', cost: 90, sides: 'any', fly: (st, t, o, s, sTo) => straightToEchelon(st, t, o, sTo), how: 'straight-ahead rejoin to echelon' },
+  // rejoins (four-rejoin.js): from every spread position (and fighting wing to finger and echelon), straight into the called
+  // formation, each wingman to his own place, flown the way the rejoin switch says, Into (TRJ) or Straight (SARJ) (TS-176;
+  // Patrick 10 Oct 2026 20:43Z, 20:49Z). TS-123's straight ahead at full power from Spread 4 and the offset box is now the
+  // SARJ there. `rejoin` marks them: a route to fighting wing, finger or echelon never chains a rejoin into a station change.
+  ...['spread4', 'offsetBox', 'other'].map((from) => ({ from, to: 'fw', m: from === 'offsetBox' ? 'M22' : 'M16', cost: 150, sides: 'same', rejoin: true, fly: (st, t, o, s) => rejoinToFw(st, t, o, s, from), how: (o) => (o.rejoin === 'straight' ? 'straight ahead to fighting wing, full power until in the cone' : 'turning rejoin to fighting wing') })),
+  { from: 'fluid4', to: 'fw', m: 'not in the manuals', cost: 60, sides: 'same', rejoin: true, fly: (st, t, o, s) => (o.rejoin === 'straight' ? fwFluid(st, t, o, s, false) : rejoinToFw(st, t, o, s, 'fluid4')), how: (o) => (o.rejoin === 'straight' ? 'back to fighting wing' : 'turning rejoin to fighting wing') },
+  { from: 'fw', to: 'route', m: 'M12', cost: 60, sides: 'same', rejoin: true, fly: (st, t, o, s) => closeFromFw(st, t, o, s, 'route'), how: 'close through route' },
+  ...['fw', 'spread4', 'offsetBox', 'fluid4', 'other'].map((from) => ({ from, to: 'finger', m: from === 'fw' ? 'M10/M11' : 'M11 (Q5)', cost: 150, sides: 'same', rejoin: true, fly: (st, t, o, s) => (o.rejoin !== 'straight' ? turningToFinger(st, t, o, s, from) : from === 'fw' ? closeFromFw(st, t, o, s, 'finger') : straightToFinger(st, t, o, s)), how: (o) => (o.rejoin === 'straight' ? 'straight-ahead rejoin to finger, through route' : 'turning rejoin to finger') })),
+  // Into joins on #2's side, the inside of the turn; echelon on the other side is the straight-ahead rejoin until the
+  // 4-ship's Away is built (TS-176 piece 4).
+  ...['fw', 'spread4', 'offsetBox', 'fluid4', 'other'].map((from) => ({ from, to: 'echelon', m: 'M10', cost: 150, sides: 'any', rejoin: true, fly: (st, t, o, s, sTo) => (o.rejoin === 'straight' || sTo !== s ? straightToEchelon(st, t, o, sTo, from) : turningToEchelon(st, t, o, s, from)), how: (o, s, sTo) => (o.rejoin === 'straight' || sTo !== s ? 'straight-ahead rejoin to echelon' : 'turning rejoin straight into echelon') })),
   // opening out (four-open.js)
   { from: 'fw', to: 'spread4', m: 'M13', cost: 90, sides: 'same', fly: (st, t, o, s) => entryToSpread(st, t, o, s, false), how: 'entry to Spread 4' },
   { from: 'finger', to: 'spread4', m: 'M13', cost: 90, sides: 'same', fly: (st, t, o, s) => entryToSpread(st, t, o, s, true), how: 'open out to Spread 4' },
   { from: 'fw', to: 'fluid4', m: 'M18', cost: 60, sides: 'same', fly: (st, t, o, s) => fwFluid(st, t, o, s, true), how: '"Fluid 4, go"' },
-  { from: 'fluid4', to: 'fw', m: 'not in the manuals', cost: 60, sides: 'same', fly: (st, t, o, s) => fwFluid(st, t, o, s, false), how: 'back to fighting wing' },
   { from: 'fluid4', to: 'offsetBox', m: 'M19', cost: 120, sides: 'any', fly: (st, t, o, s, sTo) => fluidToBox(st, t, o, sTo ?? s), how: 'in place 90, then spread to the box' },
 ];
+
+/** The formations every spread position rejoins straight into (TS-176). */
+const DIRECT = ['fw', 'finger', 'echelon'];
 
 /** The fewest-seconds route from (key, side) to (to, sTo) through MOVES: [{ move, s, sTo }…], or null. */
 export function routeFour(from, s, to, sTo) {
@@ -64,6 +69,8 @@ export function routeFour(from, s, to, sTo) {
     open.sort((a, b) => a.cost - b.cost);
     const cur = open.shift();
     if (node(cur.key, cur.side) === goal) return cur.path;
+    // A rejoin to fighting wing, finger or echelon ends the route there: no station change after the join (TS-176).
+    if (DIRECT.includes(to) && cur.path.some((p) => p.move.rejoin)) continue;
     for (const mv of MOVES.filter((x) => x.from === cur.key)) {
       for (const side of mv.sides === 'any' ? [1, -1] : [cur.side]) {
         const cost = cur.cost + mv.cost;
@@ -104,10 +111,14 @@ export function planChangeFour(aircraft, to, options = {}, t0 = 0) {
   const hows = [];
   for (const step of path) {
     const s = step.s === 0 ? (step.sTo || sNow) : step.s;
-    const r = step.move.fly(now, t, opts, s, step.sTo);
+    // From the offset box a turning rejoin would swing the element, 7,000 ft behind on #2's side, across Lead's nose (V2.220
+    // dry runs): it flies straight ahead until Patrick rules how the element joins in that turn.
+    const held = step.move.rejoin && step.move.from === 'offsetBox' && opts.rejoin !== 'straight';
+    const o = held ? { ...opts, rejoin: 'straight' } : opts;
+    const r = step.move.fly(now, t, o, s, step.sTo);
     if (!r.ok) return { ok: false, reason: `No safe change from here: ${r.reason}`, from: from.key, to };
-    const how = r.how ?? (typeof step.move.how === 'function' ? step.move.how(opts) : step.move.how);
-    hows.push(r.straightFallback ? `${how} (straight ahead: no turn kept the lane)` : how);
+    const how = r.how ?? (typeof step.move.how === 'function' ? step.move.how(o, s, step.sTo) : step.move.how);
+    hows.push(r.straightFallback ? `${how} (straight ahead: no turn kept the lane)` : held ? `${how} (from the offset box the turning rejoin is not built yet)` : how);
     legs.push(...r.legs);
     const last = r.legs[r.legs.length - 1];
     now = r.end ?? statesAt(now, last, last.endSec); // a move of several legs hands back where its last leg ended
