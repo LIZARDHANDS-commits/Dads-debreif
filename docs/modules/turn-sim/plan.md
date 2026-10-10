@@ -35,7 +35,7 @@ The three lists below are kept from the review's brief as references. Nothing in
 - [ ] The backup is `archive/bundles/turn-sim-paused-branches.bundle` in this repo (same four tips; also in project files at `pf/archive/2026-09/turn-sim/paused/`). Keep it as the backup; thread 8 may delete the four remote branches now that this plan carries the flag (`pf/reset/2-inventory/file-register.md:102`, `pf/reset/consolidation-plan.md:261`).
 
 **Every document that helps the review** (read-only; each is also listed in `agents/plans-futures.md` with its tag)
-- [ ] Specs and plans in the repo: the old spec, `specs/SPEC-turn-sim.md` (`specs/SPEC-turn-sim.md:1`); the old plan and to-do list in `tasks/turn-sim/` (`tasks/turn-sim/plan.md:1`, `tasks/turn-sim/todo.md:1`); the handover note, which carries Patrick's 3 October directive (`archive/docs/handover/turn-sim.md:1`); the old sign-off checklist (`docs/checklists/turn-sim.md:1`).
+- [ ] Specs and plans in the repo: the old spec, `archive/specs/SPEC-turn-sim.md` (`archive/specs/SPEC-turn-sim.md:1`); the old plan and to-do list in `archive/tasks/turn-sim/` (`archive/tasks/turn-sim/plan.md:1`, `archive/tasks/turn-sim/todo.md:1`); the handover note, which carries Patrick's 3 October directive (`archive/docs/handover/turn-sim.md:1`); the old sign-off checklist (`docs/checklists/turn-sim.md:1`).
 - [ ] Verification notes in the repo: `docs/records/verification/turn-sim.md`, `turn-sim-2026-09-30.md`, `turn-sim-recheck-189.md`, `turn-sim-recheck-215.md` and `turn-sim-recheck-223.md` (`docs/records/verification/turn-sim.md:1`, `docs/records/verification/turn-sim-recheck-223.md:1`).
 - [ ] Roadmap Milestone 3 and its trap 6 (`archive/docs/REMEDIATION_ROADMAP.md:366`, `archive/docs/REMEDIATION_ROADMAP.md:192`); the swarm queue rows for the Turn Sim, PPQ-09 to PPQ-11 (`archive/docs/records/verification/swarm/POST_PROTOTYPE_QUEUE.md:53`).
 - [ ] Questions and references: Dad's list of questions (`archive/docs/records/dads-questions.md`) (`archive/docs/records/dads-questions.md:1`); the manuals discrepancy matrix (`docs/references/manuals-discrepancy-matrix.md:1`); the SMM aerobatics catalogue, whose "Immelmann" and G lines are references, not walls (`docs/references/smm-aerobatics-catalog.md:1`); the audit findings in `docs/references/v6-audit/findings.json` (`docs/references/v6-audit/README.md:1`); the future-ideas list rows FF38 to FF41 and FF46 (`archive/docs/records/future-ideas.md:22`); the skill on wind-shaped flight paths (`.agent/skills/wind-shaped-flight-paths/SKILL.md:6`).
@@ -46,11 +46,11 @@ The three lists below are kept from the review's brief as references. Nothing in
 - [ ] Project files: `pf/manuals/formation-and-turn-numbers.md` (page references only; the SMM text stays out of the repo); `pf/archive/2026-09/memory/turn-sim.md`; `pf/archive/2026-09/flight-math-check/turnsim.js` and `turnsim2.js` (scripts that drove V6's real Turn Sim); `pf/archive/2026-09/verification/turn-sim*.md`; Dad's check list and round-2 questions in `pf/archive/2026-09/dad-email/` (`pf/reset/1-requirements/questions.md:155`).
 
 **Old to-do tasks the review took over** (none is built until a later step names it)
-- [ ] Task 12, aircraft errors panel and dragging (built on the screen-audit branch, one more review read needed) (`tasks/turn-sim/todo.md:60`).
-- [ ] Task 16, spacing graph and solver screen (`tasks/turn-sim/todo.md:68`).
-- [ ] Task 13, saved profiles and CSV; the shell's `scenarioStore` line (see the Shared plan) (`tasks/turn-sim/todo.md:80`).
-- [ ] Tasks 17 and 18, sequences and G-warm on screen, and their browser test (`tasks/turn-sim/todo.md:93`, `tasks/turn-sim/todo.md:96`).
-- [ ] Task 14, browser tests and checklist: replaced by Step 5 below (`tasks/turn-sim/todo.md:83`).
+- [ ] Task 12, aircraft errors panel and dragging (built on the screen-audit branch, one more review read needed) (`archive/tasks/turn-sim/todo.md:60`).
+- [ ] Task 16, spacing graph and solver screen (`archive/tasks/turn-sim/todo.md:68`).
+- [ ] Task 13, saved profiles and CSV; the shell's `scenarioStore` line (see the Shared plan) (`archive/tasks/turn-sim/todo.md:80`).
+- [ ] Tasks 17 and 18, sequences and G-warm on screen, and their browser test (`archive/tasks/turn-sim/todo.md:93`, `archive/tasks/turn-sim/todo.md:96`).
+- [ ] Task 14, browser tests and checklist: replaced by Step 5 below (`archive/tasks/turn-sim/todo.md:83`).
 - [ ] Old roadmap notes: Milestone 3 Task 3.1 (consolidate the three branches, rebuild the hook as a true 180 degrees, update the browser-test regexes) and Task 3.2 are replaced by this review; the hook's 180-degree end picture is already TS-R4 (`archive/docs/REMEDIATION_ROADMAP.md:371`, `pf/reset/1-requirements/requirements.md:331`). The roadmap's Gate 3 is replaced by Step 5 below (`archive/docs/REMEDIATION_ROADMAP.md:376`).
 
 ## Step 2. First version: the 2-ship in line abreast (`spec.md` Part 1)
@@ -219,3 +219,27 @@ Slice 7 put the TRJ on the tracker and lost the ride up the line: #2 slices acro
 - [x] **Slice 5: fighting wing, TRJ + roll, starts inside 2,000 ft**: outward flare on acute entries prevents chord-cutting into six.
 - [x] **Checkpoint B: Patrick flies every start.**
 - [x] **Slice 6: tidy, decision wording (TS-159/160), version V2.210, comprehensive handover report authored.**
+- [x] **TRJ MAX throttle** (V2.210, TS-171; built 9 Oct from the plan now archived as `archive/tasks/trj-max-throttle-plan.md`): MAX at the start of a TRJ, held until on the line, inside 1,500 ft or at the Rates line speed. Not yet ratified.
+
+## Step 8. TRJ polish from the 10 Oct review (Patrick's rulings 10 Oct 2026 19:52Z-20:02Z)
+
+Fable's round 2 review (project files `formation-review-package-v2210/report/report-v2210.md`) and Patrick's rulings on it. The 2-ship only; the 4-ship polish is Step 10.
+
+- [x] **The line 50 ft below Lead, level** (TS-166, V2.216): TS-159's slope deleted.
+- [x] **Fighting wing arrival at the cone's middle** (TS-167, V2.216); a zoom no longer overshoots the step-down gate.
+- [x] **Rulings a-d** (V2.216): drift 10 ft/s (TS-168); TS-158 says 300 s; TS-139 retired and `rejoin-law.js` deleted (TS-169); no vertical or repeat candidates in the 2-ship search (TS-170).
+- [x] **Duplicate numbers**: the TRJ rows TS-153 to TS-157 renumbered TS-161 to TS-165.
+- [x] **Smooth capture of the line** (TS-173, V2.216; judgement call, Patrick to rule).
+- [ ] **The on-screen note when the 200 KIAS minimum is missed** (TS-169).
+- [ ] **Dead code** (review 2.3): the `x` phase kind, the 3D point-mass bridge, `aimLiftVector`, `heightProfile`, `blindSecOpenArena`, `checkDoctrinalInvariants`; then `numbers.md` regenerated and the stale headers fixed (review 2.8).
+- [ ] **Unsourced numbers** (review 2.6, 2.8): the 45° follow bank cap, the +5° cone ease, the 70% hold power and the 25 kt emergency overshoot in `powerOf`: source each or take it out, with Patrick.
+- [ ] **Refactor steps 3-5** (review section 5): split `tracker.js` by phase kind, one list builder for the TRJ phases, one cone table and one gate table, then the straight rejoin and the 4-ship #2 onto the ride.
+- [ ] **Front page clip of the turning rejoin** (Patrick 10 Oct 2026 20:11Z): re-record with the active Harvard paint, not the blue and green stand-ins.
+
+## Step 9. Optimiser options (assess, then Patrick picks)
+
+- [ ] Assess route 1 and route 2 (project files `formation-review-package/report/optimiser-plan.md`, `optimiser-plan-route2.md`) against the ride's knobs after Step 8; the archived slices 8-9 plan is in `future.md`.
+
+## Step 10. 4-ship polish
+
+- [ ] From the Oct 6 known faults and the close-changes matrix, after Step 9.
