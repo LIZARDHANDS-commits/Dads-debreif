@@ -118,7 +118,7 @@ export function createMockCanvas(width = 2048, height = 2048) {
 
 /**
  * High-fidelity offline procedural vector painter for the 2048x2048 core canvas.
- * Renders infield grass, south apron tarmac, taxiway network (Alpha, Bravo, connectors),
+ * Renders infield grass and
  * Runway 29L/11R (7,250 ft), parallel Runway 29R/11L (8,260 ft) and cross Runway 03/21, all measured (airfield.js).
  *
  * Safe to execute in both browser CanvasRenderingContext2D and mock/Node environments without throwing.
@@ -151,114 +151,10 @@ export function paintCoreAirfieldVector(ctx, { width = 2048, height = 2048, boun
     ctx.closePath?.();
     ctx.fill?.();
 
-    // 2. Flight line apron tarmac slab
-    const apronCorners = [
-      [-2800, -4200], [2400, -4200], [2400, -5800], [-2800, -5800],
-    ];
-    ctx.fillStyle = '#22262a';
-    ctx.beginPath?.();
-    ctx.moveTo?.(toPxX(apronCorners[0][0]), toPxY(apronCorners[0][1]));
-    for (let i = 1; i < apronCorners.length; i++) {
-      ctx.lineTo?.(toPxX(apronCorners[i][0]), toPxY(apronCorners[i][1]));
-    }
-    ctx.closePath?.();
-    ctx.fill?.();
-
-    // Apron edge shoulder
-    ctx.strokeStyle = '#2d3339';
-    ctx.lineWidth = 4;
-    ctx.stroke?.();
+    // The ramp and the taxiways are not drawn here: the paint layer draws them on their traced places, in the runways' grey
+    // (runway-markings.js, TR-126). This stand-in's own ramp sat about 6,000 ft south of the runways and its taxiways crossed
+    // grass and hangars (old V6-era places; Patrick, 10 Oct: "the current taxiway is on the grass and over hangars").
   }
-
-  // Ramp parking markings / tie-down taxilines
-  ctx.strokeStyle = '#616c77';
-  ctx.lineWidth = 2;
-  ctx.beginPath?.();
-  for (let rx = -2400; rx <= 2000; rx += 400) {
-    ctx.moveTo?.(toPxX(rx), toPxY(-4500));
-    ctx.lineTo?.(toPxX(rx), toPxY(-5500));
-  }
-  ctx.stroke?.();
-
-  // 3. Taxiways: Alpha, Bravo, connecting links
-  ctx.fillStyle = '#2c3237';
-  ctx.strokeStyle = '#2c3237';
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-
-  // Runway 29L direction vectors for taxiway geometry
-  // From the 29L threshold to the 11R threshold (airfield.js)
-  const dx29L = DEP.x - TH.x;
-  const dy29L = DEP.y - TH.y;
-  const len29L = Math.hypot(dx29L, dy29L); // ~7,250 ft
-  const uX = dx29L / len29L; // ~ -0.878
-  const uY = dy29L / len29L; // ~ 0.478
-  // Normal vector pointing North-East (+Y/+X):
-  const nX = -uY; // ~ -0.4754 (or pointing North-East: uY, -uX -> 0.4754, 0.8798)
-  const normX = uY;
-  const normY = -uX; // norm is perpendicular to runway: normX*uX + normY*uY = 0
-
-  const taxiScale = width / bounds.width;
-  const taxiWidthPx = Math.max(4, 75 * taxiScale); // 75 ft taxiway width
-
-  ctx.lineWidth = taxiWidthPx;
-
-  const aStartX = TH.x - 450 * normX;
-  const aStartY = TH.y - 450 * normY;
-  const aEndX = DEP.x - 450 * normX;
-  const aEndY = DEP.y - 450 * normY;
-
-  const bStartX = 3300 + 500 * normX;
-  const bStartY = -3000 + 500 * normY;
-  const bEndX = -3800 + 500 * normX;
-  const bEndY = 900 + 500 * normY;
-
-  if (!overlayOnly) {
-    // Taxiway Alpha: south parallel taxiway (offset ~450 ft south of Runway 29L)
-    ctx.beginPath?.();
-    ctx.moveTo?.(toPxX(aStartX), toPxY(aStartY));
-    ctx.lineTo?.(toPxX(aEndX), toPxY(aEndY));
-    ctx.stroke?.();
-
-    // Taxiway Bravo: parallel taxiway between 29L and 29R (offset ~500 ft north of 29L)
-    ctx.beginPath?.();
-    ctx.moveTo?.(toPxX(bStartX), toPxY(bStartY));
-    ctx.lineTo?.(toPxX(bEndX), toPxY(bEndY));
-    ctx.stroke?.();
-
-    // Taxiway connecting links from South Apron to Taxiway Alpha and Runway 29L
-    const connectors = [
-      // Link 1: South apron to 29L Threshold run-up bay
-      [[2200, -4200], [TH.x, TH.y]],
-      // Link 2: Mid-apron connector
-      [[400, -4200], [400 - 450 * normX, -4200 + (len29L * 0.4) * uY]],
-      // Link 3: West apron to 11R Threshold
-      [[-2000, -4200], [DEP.x - 450 * normX, DEP.y - 450 * normY], [DEP.x, DEP.y]],
-      // Link 4: High-speed turnoffs / links between 29L and Bravo / 29R
-      [[0, -1257], [0 + 1000 * normX, -1257 + 1000 * normY]],
-      [[-1800, -288], [-1800 + 1000 * normX, -288 + 1000 * normY]],
-      [[1600, -2226], [1600 + 1000 * normX, -2226 + 1000 * normY]],
-    ];
-
-    for (const pts of connectors) {
-      ctx.beginPath?.();
-      ctx.moveTo?.(toPxX(pts[0][0]), toPxY(pts[0][1]));
-      for (let k = 1; k < pts.length; k++) {
-        ctx.lineTo?.(toPxX(pts[k][0]), toPxY(pts[k][1]));
-      }
-      ctx.stroke?.();
-    }
-  }
-
-  // Taxiway yellow centerlines
-  ctx.strokeStyle = '#d4a73b';
-  ctx.lineWidth = Math.max(1, 4 * taxiScale);
-  ctx.beginPath?.();
-  ctx.moveTo?.(toPxX(aStartX), toPxY(aStartY));
-  ctx.lineTo?.(toPxX(aEndX), toPxY(aEndY));
-  ctx.moveTo?.(toPxX(bStartX), toPxY(bStartY));
-  ctx.lineTo?.(toPxX(bEndX), toPxY(bEndY));
-  ctx.stroke?.();
 
   // 4. Runway Rendering Helper
   function renderRunway({ p1, p2, widthFt = 150 }) {
