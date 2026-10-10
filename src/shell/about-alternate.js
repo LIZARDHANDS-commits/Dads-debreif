@@ -31,15 +31,30 @@ export default {
         h('h1', { class: 'about-title' }, 'About OODA LOOP'),
         h('p', { class: 'about-subtitle' }, 'Aviator Training & Debrief Suite'),
         h(
-          'figure',
-          { class: 'about-photo' },
-          h('img', {
-            src: 'media/about-hero-formation.png',
-            alt: 'CT-156 Harvard II 3-ship tactical formation flight over Saskatchewan',
-            width: '1000',
-            height: '750',
-          }),
-          h('figcaption', {}, 'Fly • Learn • Debrief • Improve — 15 Wing Moose Jaw'),
+          'div',
+          { class: 'about-gallery' },
+          h(
+            'figure',
+            { class: 'about-photo about-photo-cockpit' },
+            h('img', {
+              src: 'media/kenny-cockpit-formation.png',
+              alt: 'Kenny flying CT-156 Harvard II in 3-ship tactical formation',
+              width: '1024',
+              height: '435',
+            }),
+            h('figcaption', {}, 'Inside the Cockpit: Kenny flying Aircraft 121 in 3-ship tactical formation'),
+          ),
+          h(
+            'figure',
+            { class: 'about-photo about-photo-formation' },
+            h('img', {
+              src: 'media/about-hero-formation.png',
+              alt: 'CT-156 Harvard II 3-ship tactical formation flight over Saskatchewan',
+              width: '1000',
+              height: '750',
+            }),
+            h('figcaption', {}, 'Fly • Learn • Debrief • Improve — 15 Wing Moose Jaw'),
+          ),
         ),
         h(
           'section',
@@ -71,11 +86,10 @@ export default {
                 { class: 'creator-header' },
                 h(
                   'div',
-                  { class: 'creator-badge' },
+                  { class: 'creator-badge creator-avatar' },
                   h('img', {
-                    src: 'media/usaf-badge.png',
-                    alt: 'USAF Pilot Wings',
-                    onerror: (e) => { e.currentTarget.style.display = 'none'; },
+                    src: 'media/kenny-natelli.jpg',
+                    alt: 'Kenny "Dad" Natelli in cockpit',
                   }),
                 ),
                 h(
