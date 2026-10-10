@@ -1,7 +1,7 @@
 // The runways' and taxiways' paint, drawn as flat shapes over the satellite photo so it stays sharp up close. 29L/11R first
 // (Patrick, 6 Oct 06:59Z, card "Paint markings"; 07:05Z: "do the piano keys and centerline as well"; 07:06Z: "and the yellow
 // chevrons prior the threshold"; TR-98); then 29R/11L, 03/21 and the taxiways the same way (Patrick, 10 Oct: "paint the taxiways
-// and the other runway just like we painted the outer runway, with numbers and markings"; TR-118).
+// and the other runway just like we painted the outer runway, with numbers and markings"; TR-120).
 //
 // Every size and place is measured off Esri's true-scale photo (zoom 18, about 1.3 ft a pixel; 6 Oct), to about ±3 ft,
 // along the runway from the threshold bar of each end. The photo's own paint shows the same layout at both ends.
@@ -162,7 +162,7 @@ function paintRunway(shapes, { a, b, shiftAtA = 0, barA, barB, ends, centreline 
     text(place, letter, P.letterFrom, P.glyph);
     text(place, number, P.numberFrom, P.glyph);
     // Yellow chevrons on the pad before the bar: two arms from each apex, cut to the pad. The pad itself in the runway's grey
-    // (TR-126; Patrick, 10 Oct: "and the chevroned area before the runway threshold").
+    // (TR-128; Patrick, 10 Oct: "and the chevroned area before the runway threshold").
     const C = P.chevrons;
     quad('asphalt', place, C.padFrom, P.bar.from, -P.bar.halfWidth, P.bar.halfWidth);
     for (const apex of C.apexes) {
@@ -179,7 +179,7 @@ function paintRunway(shapes, { a, b, shiftAtA = 0, barA, barB, ends, centreline 
 }
 
 /**
- * A runway-holding position (TR-118): four yellow lines across, each 0.5 ft wide with 0.5 ft between them, the two solid
+ * A runway-holding position (TR-120): four yellow lines across, each 0.5 ft wide with 0.5 ft between them, the two solid
  * ones on the holding side (away from the runway) and the two dashed (3 ft dashes, 3 ft gaps) toward it. The FAA's layout
  * (AC 150/5340-1, standard practice, not a Canadian source); the photo shows four-line yellow bars at these places.
  */
@@ -211,12 +211,12 @@ const PAINT_0321 = Object.freeze({
 /**
  * The taxiways' centrelines, ft from the ARP, traced off Esri's photo (10 Oct, about ±10 ft), and their widths. The letters
  * are working labels except Echo (Patrick, 10 Oct). Echo is open again, narrower and repaved, 50 ft wide (Patrick, 10 Oct: card "About 50 ft");
- * like every taxiway it is drawn in the runways' grey (TR-126; it was fresh black, TR-118).
+ * like every taxiway it is drawn in the runways' grey (TR-128; it was fresh black, TR-120).
  */
 export const TAXIWAYS = Object.freeze([
-  // Each centreline fitted to its concrete on Esri's photo (TR-129): the pavement's middle found every 25 ft along it and a
+  // Each centreline fitted to its concrete on Esri's photo (TR-131): the pavement's middle found every 25 ft along it and a
   // straight line fitted per leg (several had been turned a few degrees, up to 50 ft off at one end). widthFt is the pavement's
-  // measured width, for the holding positions. The grey is the built surface (airfield-surface.js, TR-128).
+  // measured width, for the holding positions. The grey is the built surface (airfield-surface.js, TR-130).
   { id: 'A', widthFt: 85, pts: [[-3507, 2882], [-3454, 3076], [-696, 1787]] },
   { id: 'B', widthFt: 88, pts: [[-2560, 2495], [-3523, 714]] },
   { id: 'C', widthFt: 74, pts: [[-696, 1787], [-750, 1725], [-953, 1426]] },
@@ -228,7 +228,7 @@ export const TAXIWAYS = Object.freeze([
 ]);
 
 /**
- * The ramp's taxilines (TR-129; Patrick, 10 Oct, his red flow on an oblique photo: "make all the yellow lines join up"): two lanes
+ * The ramp's taxilines (TR-131; Patrick, 10 Oct, his red flow on an oblique photo: "make all the yellow lines join up"): two lanes
  * along the ramp, fed at the west end from A and C (one lane straight on, the other crossing over), and at the east end both
  * running into the curve from G down to D. Placed by pinning Patrick's sketch to Hangars 1 to 4 (about ±20 ft; Esri's photo shows
  * no paint here), then smoothed. Feet from the ARP.
@@ -328,14 +328,14 @@ export function runwayMarkingPolygons() {
     ends: [{ letter: 'L', number: '29', layout: END_PAINT }, { letter: 'R', number: '11', layout: END_PAINT }],
     centreline: () => CENTRELINE_STARTS_FT,
   });
-  // 29R/11L (TR-118): the same set as 29L, the aiming point at 1,000 ft (976 ft past the bar) like 29L's (Patrick, 10 Oct: "those white
-  // strips are 1000 feet"; TR-129; was 1,308 ft, misread off the photo), dashes evenly spaced from 273 ft past each bar.
+  // 29R/11L (TR-120): the same set as 29L, the aiming point at 1,000 ft (976 ft past the bar) like 29L's (Patrick, 10 Oct: "those white
+  // strips are 1000 feet"; TR-131; was 1,308 ft, misread off the photo), dashes evenly spaced from 273 ft past each bar.
   paintRunway(shapes, {
     a: THRESHOLD_29R, b: DEPARTURE_END_29R, barA: BAR_29R_FT, barB: (len) => len + BAR_11L_PAST_END_FT,
     ends: [{ letter: 'R', number: '29', layout: END_PAINT }, { letter: 'L', number: '11', layout: END_PAINT }],
     centreline: (len, barB) => dashStarts(BAR_29R_FT + 273, barB, 273),
   });
-  // 03/21 (TR-118): numbers, centreline and holding positions. Its grey, with the ramp's and the taxiways', is the traced surface (TR-127).
+  // 03/21 (TR-120): numbers, centreline and holding positions. Its grey, with the ramp's and the taxiways', is the traced surface (TR-129).
   const r = frame(RUNWAY_03, RUNWAY_21);
   const { text, outlinedQuad } = pens(shapes);
   const Q = PAINT_0321;
@@ -347,7 +347,7 @@ export function runwayMarkingPolygons() {
   }
   for (const { s, away } of Q.holds) holdLine(shapes, r.place, s, Q.halfWidth, away);
   paintTaxiways(shapes);
-  // The ramp's taxilines (TR-129), smoothed, with a square at each joint so the bends have no gaps.
+  // The ramp's taxilines (TR-131), smoothed, with a square at each joint so the bends have no gaps.
   const { quad: quadR } = pens(shapes);
   for (const line of RAMP_TAXILINES) {
     const pts = smooth(line);
@@ -375,7 +375,7 @@ export function createRunwayMarkings(THREE) {
   const group = new THREE.Group();
   group.name = 'runway-markings';
   const shapes = runwayMarkingPolygons();
-  // The traced paved surface (TR-127) as triangles, drawn with the runways' grey.
+  // The traced paved surface (TR-129) as triangles, drawn with the runways' grey.
   const surface = [];
   for (const { outer, holes } of AIRFIELD_SURFACE) {
     const ring = outer.map(([x, y]) => new THREE.Vector2(x, y));

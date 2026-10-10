@@ -8,7 +8,7 @@
 // come (or never will) leaves its part of the grid flat at the home field's elevation.
 import { FT_PER_M } from '../../core/units.js';
 import { lonLatToWorldPixel } from '../../core/geo.js';
-// The tile address, decoding and store are shared with Traffic's 3D ground (src/core/terrain-tiles.js, TR-115); re-exported here so the SOF's files are unchanged.
+// The tile address, decoding and store are shared with Traffic's 3D ground (src/core/terrain-tiles.js, TR-117); re-exported here so the SOF's files are unchanged.
 import { TERRAIN_URL, TERRAIN_CREDIT, TILE_PX, PLAUSIBLE_M, decodeTerrarium, tilesCovering, createHeightStore } from '../../core/terrain-tiles.js';
 export { TERRAIN_URL, TERRAIN_CREDIT, TILE_PX, PLAUSIBLE_M, decodeTerrarium, tilesCovering, createHeightStore };
 import { AREA_NM } from './scene3d-model.js';

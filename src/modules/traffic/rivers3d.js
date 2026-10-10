@@ -1,5 +1,5 @@
 // The rivers in the 3D view: the Moose Jaw River and the south creek, traced by eye off Esri's true-scale photo on 5 Oct (TR-70; Patrick,
-// 5 Oct 02:38Z "the river be recessed a bit"). Since TR-115 the valley's shape comes from the real ground heights (ground-heights3d.js),
+// 5 Oct 02:38Z "the river be recessed a bit"). Since TR-117 the valley's shape comes from the real ground heights (ground-heights3d.js),
 // with the photo draped over them; each traced line still cuts a shallow channel and darkens its banks, so the river reads clearly where the
 // height data is too coarse to show it (Patrick, 10 Oct: "Keep, carve channel").
 //
@@ -29,7 +29,7 @@ export const RIVERS = Object.freeze({
   ]),
 });
 
-/** The channel cut along each traced line: about the width of the tree belt (TR-70's valley width) and a little deeper than the ground round it. Both estimates (TR-115). */
+/** The channel cut along each traced line: about the width of the tree belt (TR-70's valley width) and a little deeper than the ground round it. Both estimates (TR-117). */
 export const RIVER_CHANNEL_WIDTH_FT = 400;
 export const RIVER_CHANNEL_DEPTH_FT = 10;
 const BUCKET_FT = 1000; // the lines are filed in squares this size, so a lookup checks only the segments near it
@@ -48,7 +48,7 @@ const lerpProfile = (t, col) => {
 /**
  * The river channel as a lookup: channelAt(x, y) gives { depthFt, shade } at a point in feet from the ARP: how far the ground is cut below the
  * real height there, and how much darker the photo is drawn (1 is unchanged). Away from every traced line it is { depthFt: 0, shade: 1 }.
- * The real ground heights give the valley its shape (TR-115); the channel keeps the river and its tree banks readable where the height
+ * The real ground heights give the valley its shape (TR-117); the channel keeps the river and its tree banks readable where the height
  * data (about 80 ft a pixel) is too coarse to show them.
  */
 export function createRiverChannel({ widthFt = RIVER_CHANNEL_WIDTH_FT, depthFt = RIVER_CHANNEL_DEPTH_FT, lines = Object.values(RIVERS) } = {}) {

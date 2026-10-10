@@ -11,7 +11,7 @@
 // Left out because scenery3d.js already models them: the control tower, the arch hangars 1 to 4, the three small arch
 // hangars, the Glass Palace, the Student Barracks, the rec centre, Hangars 5 and 6 and the two flight-line buildings by
 // Hangar 4. The Canex, the hall beside it and Medical with Shipping and Receiving moved to flightline-buildings3d.js
-// (TR-119), on these boxes' 5 Oct footprints (bldg-002 to 004, bldg-020 to 024). Not modelled: round tanks, vehicles and trailers, pools, playgrounds and the small sheds in back yards.
+// (TR-121), on these boxes' 5 Oct footprints (bldg-002 to 004, bldg-020 to 024). Not modelled: round tanks, vehicles and trailers, pools, playgrounds and the small sheds in back yards.
 //
 // World frame: X east, Y north, Z up, feet from the ARP (50.3303 N, 105.5592 W). Field floor 1,880 ft.
 // Few draw calls (D411): the walls are one InstancedMesh, the flat roofs one, the gable roofs one, each with a colour per
@@ -266,7 +266,7 @@ export function createBaseBuildings(THREE, { floor = THRESHOLD_DATA_ELEV_FT } = 
     (e) => [e.x, e.y, e.height, e.rotation, e.w + 2 * OVERHANG_FT, e.d + 2 * OVERHANG_FT, riseFt(e.d)],
     (e) => e.roof, 'base-buildings-gable-roofs',
   ));
-  // Windows on every wall and a door on the south-facing side (TR-130; sizes estimates): two more draw calls.
+  // Windows on every wall and a door on the south-facing side (TR-132; sizes estimates): two more draw calls.
   const out = { glass: [], doors: [] };
   for (const e of BASE_BUILDINGS) {
     const b = { cx: e.x, cy: e.y, w: e.w, d: e.d, rot: e.rotation, h: wallTop(e) };

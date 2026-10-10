@@ -16,10 +16,10 @@ export const CYMJ_LANDMARKS = Object.freeze([
   Object.freeze({ id: 'sukanen-ship', name: 'Sukanen Ship (red roof)', kind: 'museum', lat: 50.28107901208548, lon: -105.53911866067092, source: 'EFIG p.185, 211; Patrick pin' }),
   Object.freeze({ id: 'fiat-farm', name: 'Auto Wrecker (Fiat Farm)', kind: 'wrecker', lat: 50.259722414439366, lon: -105.50834482311059, source: 'EFIG p.131, 185, 211; Patrick pin' }),
   Object.freeze({ id: 'arrow-trees', name: 'Arrow Tree Rows', kind: 'arrow', lat: 50.262255452976014, lon: -105.48630553284724, source: 'EFIG p.131, 185, 211; Patrick pin' }),
-  // Patrick, 10 Oct: "3d models for these building groups. the first one is a lot of cows"; camera parked on each (TR-116). The name is a working name.
+  // Patrick, 10 Oct: "3d models for these building groups. the first one is a lot of cows"; camera parked on each (TR-118). The name is a working name.
   Object.freeze({ id: 'south-feedlot', name: 'South Feedlot (cattle)', kind: 'cattle', lat: 50.2974064, lon: -105.5428827, source: 'Patrick, 10 Oct (camera on it); traced off Esri' }),
   Object.freeze({ id: 'crossroads-farm', name: 'Crossroads Farm', kind: 'farmstead', lat: 50.2961729, lon: -105.5819583, source: 'Patrick, 10 Oct (camera on it); traced off Esri' }),
-  // Patrick, 10 Oct: "build a VOR antenna on this circle"; camera parked on it, the hut traced off Esri (977 ft W, 294 ft N of the ARP) (TR-117).
+  // Patrick, 10 Oct: "build a VOR antenna on this circle"; camera parked on it, the hut traced off Esri (977 ft W, 294 ft N of the ARP) (TR-119).
   Object.freeze({ id: 'vor', name: 'VOR', kind: 'vor', lat: 50.3311059, lon: -105.5633953, source: 'Patrick, 10 Oct (camera on it); traced off Esri' }),
 ].map((l) => Object.freeze({ ...l, ...at(l.lat, l.lon) })));
 
@@ -360,7 +360,7 @@ function createCrossroadsFarm(THREE, mats) {
   return g;
 }
 
-/** The VOR: a classic station, every size an estimate (TR-117): its equipment hut, the round flat counterpoise on top, and the cone antenna in the middle. */
+/** The VOR: a classic station, every size an estimate (TR-119): its equipment hut, the round flat counterpoise on top, and the cone antenna in the middle. */
 const VOR_FT = Object.freeze({ hut: 16, hutHeight: 10, counterpoise: 15, thick: 1.2, cone: 3, coneHeight: 7 });
 const VOR_BANDS = 4; // red and white bands on the antenna
 function createVor(THREE, mats) {
@@ -428,7 +428,7 @@ export function createLandmarks(THREE, { floor = THRESHOLD_DATA_ELEV_FT } = {}) 
     g.name = l.id;
     g.userData = { landmark: l };
     g.position.set(l.x, l.y, floor);
-    batchByMaterial(THREE, g); // fewer draw calls (TR-125); the landmark still stands on the ground as one group
+    batchByMaterial(THREE, g); // fewer draw calls (TR-127); the landmark still stands on the ground as one group
     root.add(g);
   }
   // Hwy 2 is no longer drawn over the photo (Patrick, 5 Oct: "it looks like trash"); the photo shows the road.

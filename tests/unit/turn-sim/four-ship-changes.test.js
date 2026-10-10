@@ -16,12 +16,14 @@
 //    (AFM8 brief p.14).
 //  - Fighting wing: each link 500-1,000 ft and 30-60° off the preceding aircraft, #3 and #4 on the side opposite #2
 //    (SMM 12.29 para 69, 16.38 paras 104-107; Patrick 11:44Z).
-//  - Fluid 4: #3 abeam Lead at 6,000 ft (AFM8 brief p.20); #2 and #4 in fighting wing off Lead and #3.
+//  - Fluid 4: #3 abeam Lead at the Setup spacing (AFM8 brief p.20 shows 6,000 ft; the default is 5,000, Patrick 5 Oct
+//    22:46Z); #2 and #4 in fighting wing off Lead and #3.
 //  - Offset box: the second element 6,000-8,000 ft behind (SMM 16.41 para 109); #2 abeam Lead at the spacing.
 //  - Finger: #2 in echelon on its side, #3 in echelon on the other side, #4 in echelon outside #3 (SMM 16.32; AFM7 p.19).
 //  - Echelon: all three on one side, #3 outside #2 and #4 outside #3. Box: #4 in line astern on Lead (SMM 16.32
-//    para 91). Line astern: each behind the one ahead (SMM 16.32 paras 89-90). Route: 1 to 3 wingspans out (SMM 12.6
-//    para 15).
+//    para 91). Line astern: each behind the one ahead (SMM 16.32 paras 89-90). Route: on the spinner-wingtip line, 4 to 6
+//    wingspans down it from echelon (TS-103, Patrick 6 Oct 02:11Z: "Just moved down from eschalon 5 wingspans"; wider
+//    than SMM 12.6 para 15's 1 to 3).
 //  - The close positions use the 2-ship spec table's own margins (section 10: echelon 45 ft out, 25 back, 5 down,
 //    ±15/±15/±10 ft, estimates); the wide ones the shared table (±100 ft, ±5°, ±10 kt).
 //  - Speeds: 200 KIAS outside line abreast, 220 in it (Patrick, 4 Oct 11:08Z).
@@ -36,7 +38,7 @@ import { ROLL, STEP_SEC } from '../../../src/modules/turn-sim/live/flight.js';
 
 const DEG = Math.PI / 180;
 const WINGSPAN_FT = 33.4; // T-6A wingspan (SMM 12.6 para 15 counts in wingspans)
-const SPACING_FT = 6000; // the Setup default
+const SPACING_FT = 5000; // the Setup default (Patrick 5 Oct 22:46Z: "5000")
 const STACK = { 2: 300, 3: -300, 4: -600 }; // AFM8 brief p.14
 const CATCH_SEC = 600;
 const KIAS = { spread4: 220, offsetBox: 220 }; // Patrick 11:08Z; everything else 200
@@ -50,7 +52,13 @@ const abeam = (l, gap) => Math.abs(l.across - gap) <= 100 && Math.atan2(l.back, 
 const fwLink = (l) => l.range >= 400 && l.range <= 1100 && Math.atan2(l.back, l.across) / DEG >= 25 && Math.atan2(l.back, l.across) / DEG <= 65;
 const echelonLink = (l) => Math.abs(l.across - 45) <= 15 && Math.abs(l.back - 25) <= 15 && Math.abs(l.down - 5) <= 10;
 const asternLink = (l) => l.across <= 10 && l.back > 0 && l.back - 33.5 <= 30 && l.down >= 0;
-const routeLink = (l) => l.across >= WINGSPAN_FT - 10 && l.across <= 3 * WINGSPAN_FT + 10 && Math.abs(l.rel.fwd) <= 75 && l.down > -10;
+// The spinner-wingtip line runs one length (33.4 ft, the same as the span) back for every span out (SMM 12.4 paras 11-12),
+// so from echelon's place it goes as far back as out; route is 4 to 6 wingspans down it, within echelon's ±15 ft of it.
+const routeLink = (l) => {
+  const along = Math.hypot(l.across - 45, l.back - 25);
+  const offLine = Math.abs(l.back - 25 - (l.across - 45)) / Math.SQRT2;
+  return along >= 4 * WINGSPAN_FT - 15 && along <= 6 * WINGSPAN_FT + 15 && offLine <= 15 && l.down > -10;
+};
 
 /**
  * Where the four are, against formation `key` with #2 on side s (+1 left, -1 right). Returns a list of what is wrong
@@ -86,7 +94,7 @@ function wrongs(key, aircraft, s, spacingFt = SPACING_FT) {
       const l3 = link(L, a.get(3));
       const l4 = link(a.get(3), a.get(4));
       want(fwLink(l2) && l2.side === s, '#2 in fighting wing on Lead');
-      want(abeam(l3, 6000) && l3.side === -s, '#3 abeam Lead at 6,000 ft');
+      want(abeam(l3, spacingFt) && l3.side === -s, '#3 abeam Lead at the spacing');
       want(fwLink(l4), '#4 in fighting wing on #3');
       break;
     }
@@ -159,7 +167,8 @@ function fly(f, label, each = () => {}) {
       assert.ok(Math.abs(n.bankDeg - b.bankDeg) <= ROLL.maxRateDps * STEP_SEC + 1e-6, `${label}: ${n.name ?? n.id} rolled faster than it can`);
       const moved = Math.hypot(n.xFt - b.xFt, n.yFt - b.yFt);
       assert.ok(Math.abs(moved - b.tasFtps * STEP_SEC) <= 0.1 * b.tasFtps * STEP_SEC, `${label}: ${n.id} jumped`);
-      assert.ok(Math.abs(n.altAboveFt - b.altAboveFt) <= 40 * STEP_SEC, `${label}: ${n.id} jumped in height`); // 40 ft/s is a gentle climb or descent, an estimate
+      // The 40 ft/s height-step check retired (Patrick 10 Oct 2026 22:15Z, "retire it"; TS-178): an estimate that became a wall
+      // against the no-height-rate-cap ruling (TS-140). The flight code holds a height change to one smooth ~1 g leg.
       // Physical limits always hold: a T-6 can't bank past the vertical in level flight.
       assert.ok(Math.abs(n.bankDeg) < 90, `${label}: ${n.id} bank`);
     }
@@ -311,4 +320,70 @@ test('4-ship station changes wait for the one ahead: #2 crosses to echelon only 
     if (link(a.get(1), a.get(3)).across < across3 - 10) assert.ok(asternLink(link(a.get(1), a.get(2))), '#3 moves across only once #2 is in line astern');
   });
   assert.deepEqual(wrongs('trail', g.state.aircraft, 0), []);
+});
+
+// TS-176 (Patrick 10 Oct 2026 20:49Z; SMM 12.24 para 59, join to the inside of the turn): from Spread 4 a turning rejoin
+// to echelon joins each wingman straight into his echelon place, with no station change after: once close to Lead (300 ft,
+// about route out to fighting wing's near edge, an estimate) #3 and #4 are never on the far side of him, and nobody gets
+// more than 100 ft ahead of Lead's 3/9 line while close (the old line-law margin TS-176 keeps).
+test('4-ship: from Spread 4 a turning rejoin to echelon joins each straight into echelon, with no station change after', () => {
+  const f = createFormation({ ships: 4, wingSide: 'right' });
+  const s = -1;
+  assert.equal(f.change('echelon', { rejoin: 'into' }), 'started', f.state.refusal ?? '');
+  fly(f, 'echelon (into)', (before, after) => {
+    const a = byId(after);
+    for (const id of [2, 3, 4]) {
+      const l = link(a.get(1), a.get(id));
+      if (l.range > 300) continue;
+      assert.ok(l.rel.fwd <= 100, `#${id} is ${Math.round(l.rel.fwd)} ft ahead of Lead's 3/9 line`);
+      if (id !== 2) assert.ok(l.rel.left * s > -20, `#${id} on the far side of Lead after joining (a station change)`);
+    }
+  });
+  assert.deepEqual(wrongs('echelon', f.state.aircraft, s), []);
+});
+
+test('4-ship: from the offset box a turning rejoin to finger keeps #3 and #4 behind Lead\'s 3/9 line, and the element joins on the outside', () => {
+  // Fable's offset box advice, Patrick 10 Oct 2026 ("agree with fable"; SMM 16.34 paras 94-96): Lead turns into #2, and the
+  // element rides the rejoin line inside his turn, never ahead of his 3/9 line, then joins one at a time on the outside.
+  const f = createFormation({ ships: 4, wingSide: 'right' });
+  const s = -1;
+  changeTo(f, 'offsetBox', { rejoin: 'straight' }, s);
+  assert.equal(f.change('finger', { rejoin: 'into' }), 'started', f.state.refusal ?? '');
+  let leadTurned = false;
+  fly(f, 'finger from the offset box (into)', (before, after) => {
+    const a = byId(after);
+    if (Math.abs(a.get(1).bankDeg) >= 25) leadTurned = true;
+    for (const id of [3, 4]) {
+      const l = link(a.get(1), a.get(id));
+      assert.ok(l.rel.fwd < 0, `#${id} is ${Math.round(l.rel.fwd)} ft ahead of Lead's 3/9 line`);
+    }
+  });
+  assert.ok(leadTurned, 'Lead turned into #2 (a turning rejoin, not straight ahead)');
+  assert.deepEqual(wrongs('finger', f.state.aircraft, s), []);
+});
+
+test("4-ship: on a TRJ Away from Spread 4 all four end in the formation called, and #2's cross behind Lead is shown against 500 ft", () => {
+  // TS-179 (Patrick 10 Oct 2026 22:31Z; SMM 16.20 para 65b(1), Fig 16.24; SMM 12.24 para 59): Lead turns away from #2 and holds
+  // the turn until the last is in; #2 crosses Lead's six into the inside of the turn. The 500 ft and 50 ft are a reference,
+  // not a wall: a closer cross is flown and named on screen, so the test checks the screen says so, not the distance.
+  for (const to of ['echelon', 'fw', 'finger']) {
+    const f = createFormation({ ships: 4, wingSide: 'right' });
+    const s = -1; // #2 on the right; Lead turns left, toward #3 and #4
+    assert.equal(f.change(to, { rejoin: 'into', turn: 'away' }), 'started', `${to} (away): ${f.state.refusal ?? ''}`);
+    const note = f.state.current.note;
+    let cross = null;
+    let leadTurned = false;
+    fly(f, `${to} (away)`, (_b, after) => {
+      const a = byId(after);
+      if (Math.abs(a.get(1).bankDeg) >= 25) leadTurned = true;
+      const l = link(a.get(1), a.get(2));
+      if (!cross && l.side === -s && l.back > 0) cross = { behindFt: l.back, belowFt: l.down };
+    });
+    assert.ok(leadTurned, `${to} (away): Lead turned`);
+    assert.ok(cross, `${to} (away): #2 crossed behind Lead to the inside`);
+    const closer = Math.round(cross.behindFt) < 500 || Math.round(cross.belowFt) < 50;
+    assert.equal(/#2 crossed Lead's six/.test(note), closer, `${to} (away): a cross ${Math.round(cross.behindFt)} ft behind and ${Math.round(cross.belowFt)} ft below is ${closer ? '' : 'not '}flagged`);
+    // Echelon and fighting wing form with #2 on the inside; finger with #2 back on his own side, #3 and #4 inside.
+    assert.deepEqual(wrongs(to, f.state.aircraft, to === 'finger' ? s : -s), [], `${to} (away)`);
+  }
 });

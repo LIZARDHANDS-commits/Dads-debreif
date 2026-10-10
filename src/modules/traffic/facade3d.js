@@ -1,4 +1,4 @@
-// Windows and doors for simple building blocks (TR-130; Patrick, 10 Oct: "Add basic detail to all of the hangars and buildings -
+// Windows and doors for simple building blocks (TR-132; Patrick, 10 Oct: "Add basic detail to all of the hangars and buildings -
 // doors/windows/realistic features. the ramp-facing sides of the annexes of the hangars have long windows. two doors on each facing
 // the ramp. all the base bldgs should have more detail too"). Each window or door is a thin box just proud of the wall, and a whole
 // group's are two InstancedMeshes (glass, doors): two draw calls however many buildings. Sizes are estimates (a storey 12 ft, a

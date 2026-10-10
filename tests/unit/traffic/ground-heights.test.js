@@ -5,7 +5,7 @@ import { createRiverChannel, RIVERS } from '../../../src/modules/traffic/rivers3
 import { FLAT_GROUND_BOXES, PATTERN_MID_CENTER_FT, PATTERN_MID_SPAN_FT } from '../../../src/modules/traffic/view3d.js';
 import { THRESHOLD_29L } from '../../../src/modules/traffic/airfield.js';
 
-// TR-115: the 3D ground follows the real heights, but the runways stay flat, the river valley is below the field, and missing data leaves it flat.
+// TR-117: the 3D ground follows the real heights, but the runways stay flat, the river valley is below the field, and missing data leaves it flat.
 // The heights here are made up for the check (a field at 578 m with a valley 15 m lower east of 6,000 ft), not recorded data.
 const area = { x: PATTERN_MID_CENTER_FT.x, y: PATTERN_MID_CENTER_FT.y, span: PATTERN_MID_SPAN_FT };
 const metresAt = (x) => (x > 6000 ? 563 : 578);

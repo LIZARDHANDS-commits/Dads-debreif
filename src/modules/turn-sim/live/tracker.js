@@ -16,11 +16,11 @@ import { throttleAtTorque, throttleFor } from './power.js';
 import { TRACKER, CLOSURE, HAND_OVER_FT, FW_ENERGY, FW_BUBBLE, REJOIN, TURNING_REJOIN, KIAS_OUTSIDE_LAB, lineKiasNow } from './tuning.js';
 import { fixedLine, FW_LIMITS } from './slots.js';
 import { setKias, stepCommanded, climbCostKtps, createPilot, pilotSpeed, pilotFly, pilotPower, coneUpFtNow } from './pilot.js';
-import { isLeadInCanopy, checkDoctrinalInvariants } from '../../../core/canopy.js';
+import { isLeadInCanopy } from '../../../core/canopy.js';
 import { liftTowardAim, gAndBankForLift } from '../../../core/point-mass.js';
 
 // The one pilot model's step (pilot.js, clean-up step 5, TS-141) is used here and re-exported for the files that read it from here.
-export { setKias, stepCommanded, climbCostKtps, isLeadInCanopy, checkDoctrinalInvariants };
+export { setKias, stepCommanded, climbCostKtps, isLeadInCanopy };
 
 /** The longest the tracker flies one plan before giving up (a guard only; the spec's limits are tighter). */
 export const PLAN_MAX_SEC = 300;
@@ -200,40 +200,6 @@ function aimOf(ph, L, Lprev, ref, W, t) {
     return { px, py, vpx: vfx, vpy: vfy, vfx, vfy, ex, ey, d, arrived, along, cross, dWorld, omegaL, slot: ph.slot ?? { fwd: rel.fwd, left: rel.left, alt: ph.slot?.alt ?? 0 } };
   }
 
-  if (ph.kind === 'x') {
-    const f = { x: Math.cos(L.headingRad), y: Math.sin(L.headingRad) };
-    const l = { x: -f.y, y: f.x };
-    const dx = L.xFt - W.xFt;
-    const dy = L.yFt - W.yFt;
-    const r = Math.hypot(dx, dy);
-    const s = ph.side ?? -1;
-    const p = { x: -dx / Math.max(r, 1), y: -dy / Math.max(r, 1) };
-    const b = Math.atan2(s * (p.x * l.x + p.y * l.y), -(p.x * f.x + p.y * f.y));
-    const bX = (ph.lineDeg ?? 45) * DEG;
-    const tauSec = ph.tauSec ?? (TURNING_REJOIN.bearingTauSec ?? 10);
-    const across = (r * (bX - b)) / tauSec;
-    const tv = { x: f.x * Math.sin(b) + s * l.x * Math.cos(b), y: f.y * Math.sin(b) + s * l.y * Math.cos(b) };
-    const omegaL = Lprev ? wrapPi(L.headingRad - Lprev.headingRad) / STEP_SEC : 0;
-    const vfx = L.tasFtps * f.x + omegaL * dy;
-    const vfy = L.tasFtps * f.y - omegaL * dx;
-    const ax = vfx + across * tv.x;
-    const ay = vfy + across * tv.y;
-    const px = W.xFt + ax * STEP_SEC * 10;
-    const py = W.yFt + ay * STEP_SEC * 10;
-    const vpx = ax;
-    const vpy = ay;
-    const ex = px - W.xFt;
-    const ey = py - W.yFt;
-    const d = Math.hypot(ex, ey);
-    const over = W.kias - L.kias;
-    const farFt = ph.farFt ?? TURNING_REJOIN.windowFarFt;
-    const nearFt = ph.nearFt ?? TURNING_REJOIN.windowNearFt;
-    const xWinRad = (ph.xWinDeg ?? TURNING_REJOIN.xWindowDeg ?? 10) * DEG;
-    const isFwArrival = Boolean(ph.isFw) && r <= 850 && Math.abs(b - bX) <= xWinRad;
-    const stable = r <= farFt && r >= nearFt && over <= TURNING_REJOIN.stableKt[1] && Math.abs(b - bX) <= xWinRad;
-    const arrived = isFwArrival || stable || r <= nearFt;
-    return { px, py, vpx, vpy, ex, ey, d, arrived, stable, isFwArrival, rangeFt: r, bearingDeg: b / DEG, bXDeg: bX / DEG, along: r * Math.cos(b - bX), slot: ph.slot ?? { fwd: 0, left: 0, alt: ph.slot?.alt ?? 0 } };
-  }
 
   // The reference slot moves toward the phase's slot at the phase's rates. A phase with a `goal` (a goal-seeking phase,
   // the fighting wing turns of TS-55) works out its slot afresh every step from where Lead and #2 are.
@@ -349,28 +315,6 @@ function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT, pclMaxActiv
   }
 
 
-  if (ph.kind === 'x') {
-    const windowOvertakeKt = ph.windowOvertakeKt ?? TURNING_REJOIN.stableKt[0]; // 10 kt: target 210 KIAS at decision window
-    const arriveFtps = ph.arriveFtps ?? (windowOvertakeKt * KT_TO_FTPS * Math.SQRT2);
-    const slowFtps2 = ph.slowFtps2 ?? TURNING_REJOIN.slowFtps2;
-    const r = aim.rangeFt;
-    const farFt = ph.farFt ?? TURNING_REJOIN.windowFarFt;
-    const wantFtps = Math.sqrt(arriveFtps * arriveFtps + 2 * slowFtps2 * Math.max(0, r - farFt));
-    const dx = L.xFt - W.xFt;
-    const dy = L.yFt - W.yFt;
-    const p = { x: -dx / Math.max(r, 1), y: -dy / Math.max(r, 1) };
-    const ad = -(aim.vpx * p.x + aim.vpy * p.y);
-    const disc = ad * ad - (aim.vpx * aim.vpx + aim.vpy * aim.vpy) + W.tasFtps * W.tasFtps;
-    const lam = disc >= 0 ? Math.max(0, Math.sqrt(disc) - ad) : 0;
-    const psiCmd = disc >= 0 ? Math.atan2(aim.vpy - lam * p.y, aim.vpx - lam * p.x) : Math.atan2(aim.vpy, aim.vpx);
-    const kiasCurve = Math.hypot(aim.vpx - wantFtps * p.x, aim.vpy - wantFtps * p.y) / ratio;
-    const floorKias = ph.floorKias ?? KIAS_OUTSIDE_LAB;
-    const kiasTarget = L.kias + windowOvertakeKt;
-    const kiasLine = L.kias + (ph.overtakeKt ?? 20);
-    const maxKiasAllowed = r <= farFt ? kiasTarget : Math.min(kiasLine, kiasTarget + (r - farFt) * 0.02);
-    const kiasCmd = Math.max(floorKias, Math.min(kiasCurve, maxKiasAllowed));
-    return { pullX: 0, pullY: 0, vdx: aim.vpx, vdy: aim.vpy, speed: W.tasFtps, psiCmd, kiasCmd };
-  }
 
   const { ex, ey, d, vpx, vpy } = aim;
   let pullX;
@@ -429,8 +373,8 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
   headingState.psiCmdPrev = cmd;
   headingState.omegaFf += GAIN.ffFilter * (psiStep / STEP_SEC - headingState.omegaFf);
 
-  const isRejoinKind = ph.kind === 'line' || ph.kind === 'x' || ph.kind === 'ride';
-  const tauSec = isRejoinKind ? (ph.tauSec ?? (ph.kind === 'ride' ? TURNING_REJOIN.rideHeadingTauSec : ph.kind === 'x' ? 6 : 4)) : null;
+  const isRejoinKind = ph.kind === 'line' || ph.kind === 'ride';
+  const tauSec = isRejoinKind ? (ph.tauSec ?? (ph.kind === 'ride' ? TURNING_REJOIN.rideHeadingTauSec : 4)) : null;
   const gainHdg = tauSec != null ? (1 / tauSec) : GAIN.heading;
   const omegaCmd = gainHdg * wrapPi(cmd - W.headingRad) + (ph.feedForward === false ? 0 : headingState.omegaFf);
 
@@ -464,7 +408,9 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
       const margin = eCap - tBank;
       shapedRel = sign * (tBank + margin * Math.tanh(excess / Math.max(1, margin)));
     }
-    bank = Math.max(-cap, Math.min(cap, baseBank + shapedRel));
+    // The cap is on the bank he adds to Lead's: in Lead's 30-60° turn a slide still banks with him. Until V2.219 it was
+    // on his whole bank, so in a 4-ship turning rejoin #3 could not hold 30° to slide into finger and fell away.
+    bank = baseBank + Math.max(-cap, Math.min(cap, shapedRel));
   } else {
     bank = Math.max(-cap, Math.min(cap, rawBank));
   }
@@ -488,6 +434,7 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
  * resolving it into commanded G and bank angle.
  * Because lift points out the canopy glass, aiming the lift vector inherently points the
  * canopy at the target, guaranteeing positive G and preventing belly-masking dives.
+ * Not used by any phase now (review 2.3); kept because tests/unit/core/canopy.test.js covers it (retiring it needs Patrick's yes).
  */
 export function aimLiftVector(W, aimPoint, gainPerSec = 0.5) {
   const vFtps = Math.max(1, W.tasFtps || 1);
@@ -581,6 +528,7 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     const toward = (ft) => Math.max(-D.diveFtps, Math.min(D.diveFtps, (ft - W.altAboveFt) * D.altGain));
     let wantV = toward(targetAlt);
     const isRejoin = Boolean(ph.rejoin || ph.rejoinKind === 'into' || ph.rejoinKind === 'straight');
+    // A guard only: with the line at Lead less 50 ft (TS-166) this never binds (Fable's V2.216 audit 2.4); refactor step 3 may drop it.
     if (isRejoin && W.altAboveFt >= (L.altAboveFt ?? 0) - 10) wantV = Math.min(wantV, toward((L.altAboveFt ?? 0) - 10));
     const v0 = W.climbFtps ?? 0;
     const pull = D.pullFtps2;
@@ -731,11 +679,13 @@ function isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt, timesK, early, heig
   let newStoppedAt = stoppedAt;
 
   // Native handling for line and canopy-X phases
-  if (ph.kind === 'line' || ph.kind === 'x' || ph.kind === 'ride') {
+  if (ph.kind === 'line' || ph.kind === 'ride') {
     if (L && ph.side != null && !ph.allowAcross) {
       const rel = relativeTo(L, W);
       const r = Math.hypot(rel.fwd, rel.left, (W.altAboveFt ?? 0) - (L.altAboveFt ?? 0));
-      if (rel.left * ph.side < -50 && r < 2000) {
+      // Away (TS-174): crossing in behind Lead from the outside of his turn is the rejoin; the check starts on side.
+      if (ph.crossIn && !timesK.onSide && rel.left * ph.side >= 0) timesK.onSide = true;
+      if ((!ph.crossIn || timesK.onSide) && rel.left * ph.side < -50 && r < 2000) {
         return { abort: true, early: pursuitResult, stoppedAt: newStoppedAt };
       }
     }
@@ -870,7 +820,6 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
   let stepDownOk = true;
   let laneOk = true;
   let blindSecInside1200 = 0;
-  let blindSecOpenArena = 0;
   const ranges = [];
   let aligning = false;
   let ok = false;
@@ -949,7 +898,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
         k++;
         const next = phases[k];
         const R2 = recOf(next);
-        if (ph.kind === 'line' || ph.kind === 'x' || ph.kind === 'ride') {
+        if (ph.kind === 'line' || ph.kind === 'ride') {
           const L2 = R2.at(m);
           const relNow = relativeTo(L2, W);
           Object.assign(ref, { f: relNow.fwd, l: relNow.left, vf: 0, vl: 0 });
@@ -1005,14 +954,8 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       }
     }
 
-    // 3. Heading and bank: 3D lift law or 2D heading error loop with feed-forward
-    let bank;
-    if (ph.use3D) {
-      const aim3D = aimLiftVector(W, aim, T.gain.heading);
-      bank = bankOwn ?? aim3D.bankDeg;
-    } else {
-      bank = headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L, aim, blockFt);
-    }
+    // 3. Heading and bank: the heading error loop with feed-forward
+    const bank = headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L, aim, blockFt);
 
     // 4. Power: speed loop, jerk limit, energy intent
     const power = powerOf(ph, pilot, W, L, kiasCmd, {
@@ -1063,8 +1006,6 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       if (range3D < 1200) {
         blindSecInside1200 += STEP_SEC;
         if (isRejoin) canopyOk = false; // inside 1,200 ft canopy "X" lock violated
-      } else if (range3D >= 2000) {
-        blindSecOpenArena += STEP_SEC;
       }
     }
     t += STEP_SEC;
@@ -1111,7 +1052,6 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     stepDownOk,
     laneOk,
     blindSecInside1200,
-    blindSecOpenArena,
     doctrinalOk: canopyOk && stepDownOk && laneOk,
     rideEstablished: ref.ride?.established || false, establishedRange: ref.ride?.establishedRange,
   };
@@ -1144,29 +1084,4 @@ export function phase(slot, over = {}) {
 export function trackTwice({ refs, wing0, t0, phases, profile, blockFt, maxSec = PLAN_MAX_SEC, init = null, stopWhenSettled = false }) {
   const run = runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec, init, stopWhenSettled });
   return { run, profile: run.heightLeg ? [run.heightLeg, ...(run.profile ?? [])] : (run.profile ?? []) };
-}
-
-/** #2's height: from where it is, smooth legs to each leg's slot height (smootherstep, no climb rate at the ends: spec F7, F12). */
-export function heightProfile(alt0, phases, times, t0) {
-  const legs = [];
-  let alt = alt0;
-  let from = t0;
-  phases.forEach((ph, i) => {
-    // In fighting wing his height is his own anywhere in the cone (Patrick 08:58Z); on the power profile the tracker flies
-    // it with the cone's energy (TS-96).
-    if (ph.coneAlt || ph.slopedAlt) return;
-    const target = ph.slot.alt;
-    const start = Math.max(times[i].t0 ?? from, from);
-    const end = times[i].t1 ?? start + TRACKER.height.unknownLegSec;
-    if (Math.abs(target - alt) > TRACKER.height.minChangeFt) {
-      // No quicker than the leg's own rate, or else one smooth leg within TRACKER.height.heightG (TS-140) (Patrick 6 Oct 05:00Z: a 2,000 ft climb in
-      // 10 s, about 12,000 ft/min, from low in line abreast; no floor until V2.124).
-      const floor = ph.altRateFtps ? Math.abs(target - alt) / ph.altRateFtps : smoothLegSec(target - alt, TRACKER.height.heightG);
-      const t1 = Math.max(ph.altSec ? start + ph.altSec : end, start + TRACKER.height.minSec, start + floor);
-      legs.push({ t0: start, t1, fromFt: alt, toFt: target, ...(ph.dive && target < alt ? { dive: ph.dive } : {}) });
-      alt = target;
-      from = t1;
-    }
-  });
-  return legs;
 }

@@ -1,4 +1,4 @@
-// Fewer draw calls for still scenery (TR-125; Patrick, 10 Oct: "how can we optimize performance?", card "Back to fixed layers", which
+// Fewer draw calls for still scenery (TR-127; Patrick, 10 Oct: "how can we optimize performance?", card "Back to fixed layers", which
 // went on to batching the buildings). A building made of dozens of boxes costs one draw call per box; merged by colour it costs one
 // per colour. Only plain-coloured pieces are merged: a piece with a picture on it (a badge, the glass, the crest), more than one
 // material, vertex colours or instancing is left as it is. Nothing moves: each merged piece keeps its place relative to the group.

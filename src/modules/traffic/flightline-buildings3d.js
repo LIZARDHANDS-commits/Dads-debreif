@@ -1,6 +1,6 @@
 // Flight-line and base buildings with their real shapes and roofs (Patrick, 10 Oct, with street-view and oblique photos: "the hangars
-// have square roofs", "Fix the shapes and rooves of all the buildings I've included pictures of"; TR-119): Hangars 1 to 3 as flat-roofed
-// hangars with their annexes, the Canex store and the big hall beside it, and 15 Wing Medical with Shipping and Receiving. Then (TR-120)
+// have square roofs", "Fix the shapes and rooves of all the buildings I've included pictures of"; TR-121): Hangars 1 to 3 as flat-roofed
+// hangars with their annexes, the Canex store and the big hall beside it, and 15 Wing Medical with Shipping and Receiving. Then (TR-122)
 // the Mess, the two eastern hangars (the blue one, and 431 Squadron Snowbirds' with its red walls) and the fuel tanks in their red berms.
 //
 // Footprints are traced off Esri's true-scale photo (10 Oct, zoom 18, about ±5 ft; the Canex and Medical blocks reuse the 5 Oct
@@ -515,7 +515,7 @@ function eastAnnexes(m) {
   };
 }
 
-/** Windows and doors on this file's buildings (TR-130), two draw calls in all. */
+/** Windows and doors on this file's buildings (TR-132), two draw calls in all. */
 function facades(THREE) {
   const out = { glass: [], doors: [] };
   for (const h of FLAT_HANGARS) {

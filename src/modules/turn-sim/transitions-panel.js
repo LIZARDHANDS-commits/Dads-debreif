@@ -12,7 +12,8 @@ import { slowWord } from './live/slow-down.js';
 import { FORMATIONS, FOUR_FORMATIONS, fourWords, FW_BAND } from './live/slots.js';
 import { IN_POSITION } from './live/bands.js';
 import { SWEEP_MAX_DEG } from './live/judge.js';
-import { DEG } from './live/manoeuvres.js';
+import { fourRefusal } from './live/four-plan.js';
+import { DEG, BREAK, BREAK_DELAY_CHOICES, setBreakDelaySec } from './live/manoeuvres.js';
 import { MOVE_IN_BAND_KEY, MOVE_IN_BAND_FORMATIONS, PLACE_BOX_FORMATIONS, PLACE_HEIGHT, placeNow, nearestInBox, placeBoxOutline } from './live/move-in-band.js';
 
 /** The main buttons, in screen order. Fluid manoeuvring starts from fighting wing only (spec section 10.3, TS-57). */
@@ -63,7 +64,8 @@ export function nowWords(where) {
 /**
  * The flags for the Formation card (spec section 10, "Flags, never walls"): Lead above 4 G in fighting wing and above
  * 3 G in close formation (2 CFFTS Orders B2 ch 8; Gen Book p.11), #2 at or above Lead's height in a rejoin (SMM 12.27
- * para 65), and #2 past the G rule's bank in a rejoin (5 G level, Patrick 06:16Z). Returns an array of sentences.
+ * para 65), #2 under the 200 KIAS rejoin target (TS-169), and #2 past the G rule's bank in a rejoin (5 G level, Patrick 06:16Z).
+ * Returns an array of sentences.
  */
 export function changeFlags(state, where) {
   const [lead, wing] = state.aircraft;
@@ -74,6 +76,8 @@ export function changeFlags(state, where) {
   if (c?.rejoining) {
     const r = rejoinReadout(lead, wing);
     if (r.rangeFt < 2000 && r.aboveLead) flags.push('#2 is at or above Lead\'s height; a rejoin stays below him (SMM 12.27 para 65).');
+    // The 200 KIAS rejoin minimum is a target, shown when missed (TS-169, Patrick 10 Oct 2026 20:01Z): geometry beats speed.
+    if (wing.kias < KIAS_OUTSIDE_LAB - 1) flags.push(`#2 is at ${Math.round(wing.kias)} KIAS, under the ${KIAS_OUTSIDE_LAB} KIAS rejoin target: he keeps the bank the line needs at MAX power and accepts the speed bleed (TS-169).`);
   }
   if (c && Math.abs(wing.bankDeg) >= G_RULE_BANK_DEG - 0.5 && c.rejoining) flags.push(`#2 is past ${Math.round(G_RULE_BANK_DEG)}° of bank, 5 G in a level turn: the G rule's normal limit (Patrick 06:16Z; SMM 16.17 para 44a); flown anyway, with no bank cap in a rejoin (Patrick 6 Oct 04:07Z).`);
   // The check ahead of the slot is a warning, not a refusal (Patrick 6 Oct 03:45Z; TS-110).
@@ -108,8 +112,25 @@ function placeWords(key, p) {
 export function createChangeUi({ onChange, fluidUi = null }) {
   let side = 'keep';
   let rejoin = 'into';
+  let turn = 'into'; // TRJ Into or Away (TS-174): which way Lead turns, toward #2's side or away from it
   let four = false;
   let whereNow = null; // the formation the aircraft are in, from the last update
+  let fourLastSide = null; // the four's last side, from the last update
+  /**
+   * The four's buttons: the formation they are in lit, and a rejoin the switches ask for that is not built from here greyed
+   * with its reason as the title, never flown as another (Fable's V2.221 audit 2.5). Again at once when a switch changes.
+   */
+  function greyFour() {
+    if (!four || !whereNow) return;
+    for (const [key, button] of fourButtons) {
+      if (FOUR_FORMATIONS[key].later) continue;
+      const here = key === whereNow.key && (!FOUR_FORMATIONS[key].sided || side === 'keep' || (side === 'left') === (whereNow.side > 0));
+      const why = here ? null : fourRefusal(whereNow, key, { side, rejoin, turn, lastSide: fourLastSide });
+      button.disabled = here || Boolean(why);
+      button.setAttribute('aria-current', String(here)); // lit as "you are here", not greyed
+      button.title = here ? 'You are here' : why ?? '';
+    }
+  }
 
   const buttons = new Map(); // the pair's
   const fourButtons = new Map();
@@ -121,7 +142,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       disabled: Boolean(b.later),
       hidden: Boolean(b.later), // not built yet: hidden, not greyed (Patrick, 5 Oct fly-through item 6)
       title: b.later ? 'Coming later' : '',
-      onclick: () => onChange(b.key, { side, rejoin }),
+      onclick: () => onChange(b.key, { side, rejoin, turn }),
     }, h('span', {}, b.label));
     into.set(b.key, button);
     return button;
@@ -137,12 +158,13 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       side = o.value;
       for (const b of sideButtons) b.setAttribute('aria-pressed', String(b.dataset.side === side));
       handlers.sideChanged?.();
+      greyFour();
       // L or R in fighting wing, echelon or route changes side at once (Patrick, 5 Oct): the same change as pressing the
       // formation's own button with the other side, a station change in echelon and route (SMM 12.20 paras 44-45) or the
       // flow behind Lead in fighting wing (SMM 12.29 para 69).
       const key = whereNow?.key;
       const otherSide = side !== 'keep' && (side === 'left') !== (whereNow?.side > 0);
-      if (otherSide && SIDE_CHANGE_FORMATIONS.includes(key)) onChange(key, { side, rejoin });
+      if (otherSide && SIDE_CHANGE_FORMATIONS.includes(key)) onChange(key, { side, rejoin, turn });
     },
   }, o.label));
   // The rejoin switch under Formation (Patrick, 5 Oct 07:35Z: "a switch on the left under "Formations" that has TRJ or SARJ
@@ -168,7 +190,28 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     rejoin = value;
     for (const b of rejoinButtons) b.setAttribute('aria-pressed', String(b.dataset.rejoin === rejoin));
     if (rejoinSelect.value !== rejoin) rejoinSelect.value = rejoin;
+    turnRow.hidden = rejoin === 'straight'; // the 4-ship too since V2.221 (TS-176 piece 4)
+    greyFour();
   }
+
+  // TRJ Into or Away (TS-174, Patrick 10 Oct 2026 20:37Z; SMM 16.20 para 65b(1), Fig 16.24): Into, Lead turns toward #2's
+  // side; Away, he turns away from it and #2 crosses behind him to the inside of the turn. Default Into.
+  const turnButtons = [
+    { value: 'into', label: 'Into', title: "Lead turns toward #2's side" },
+    { value: 'away', label: 'Away', title: "Lead turns away from #2's side; #2 crosses behind him to the inside of the turn" },
+  ].map((o) => h('button', {
+    type: 'button',
+    class: 'button ts-side-button',
+    dataset: { turn: o.value },
+    title: o.title,
+    'aria-pressed': String(o.value === turn),
+    onclick: () => {
+      turn = o.value;
+      for (const x of turnButtons) x.setAttribute('aria-pressed', String(x.dataset.turn === turn));
+      greyFour();
+    },
+  }, o.label));
+  const turnRow = h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'TRJ: Lead turns into or away from #2' }, h('span', { class: 'ts-hint' }, 'TRJ'), turnButtons);
 
   // Bank angle setting for close formation turns (echelon, route, line astern; students learn at 30, then 45, then 60).
   const bankOptions = CLOSE_BANK_CHOICES.map((deg) => ({
@@ -354,7 +397,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     REJOIN_OPTIONS.map((o) => h('option', { value: o.value, selected: o.value === rejoin }, o.label)));
   const rejoinLabel = h('span', { class: 'ts-hint' }, 'Rejoin kind');
   const PAIR_REJOIN_HINT = `From line abreast or fighting wing. Turning (TRJ): Lead turns into #2 at the press at ${REJOIN.leadBankDeg}° of bank, slowing to ${KIAS_OUTSIDE_LAB} KIAS, and holds it until #2 is in (SMM 16.20 para 65); #2 gets onto the rejoin line, Lead at his 10:30 or 1:30 and slightly high, closes down it and flows through route into the slot (SMM 12.24 paras 56-58). Straight ahead (SARJ): #2 drops onto Lead's six and runs up it (SMM 12.26 paras 62-63). Auto: both are tried ahead and the quicker one is flown; the card says which. TRJ + roll: #2 starts with a barrel roll or high yo-yo, flown only when it gets him in quicker than the plain turning rejoin (it pays when he is hot, forward of abeam); the card says which.`;
-  const FOUR_REJOIN_HINT = `A turning rejoin: Lead turns into #2 at the press, slowing to ${KIAS_OUTSIDE_LAB} KIAS; #3 and #4 close at once and come in on the outside one at a time, #3 once #2 is in and #4 once #3 is (SMM 16.34 paras 95-96). Straight ahead, each closes through route in turn.`;
+  const FOUR_REJOIN_HINT = `From any spread position each wingman joins straight into the formation called, fighting wing, finger or echelon, with no station change after (TS-176). A turning rejoin: Lead turns into #2 at the press, slowing to ${KIAS_OUTSIDE_LAB} KIAS; #3 and #4 close at once and come in one at a time, #3 once #2 is in and #4 once #3 is (SMM 16.34 paras 95-96). Straight ahead, each lines up behind the one he joins on and comes in through route in turn. TRJ Away: Lead turns away from #2 and holds the turn until all are in; #3 and #4 join on the inside first, and #2 crosses at least 500 ft behind and 50 ft below Lead and joins last (TS-179): in echelon next to Lead, in fighting wing on the inside, in finger back on his own side. Not yet from the offset box or fighting wing. From the offset box #3 and #4 ride #2's rejoin line inside Lead's turn first, then join one at a time, to finger and fighting wing on the outside (Patrick 10 Oct, Fable's advice). A rejoin not built from where the four are is greyed, with the reason on the button.`;
   const rejoinHint = h('p', { class: 'ts-hint' }, PAIR_REJOIN_HINT);
   const rejoinField = h('label', { class: 'ts-field' }, rejoinLabel, rejoinSelect);
   // Rates (clean-up steps 2 and 3, TS-65, TS-66; Patrick 5 Oct 05:46Z, 06:09Z, 06:11Z): how fast the wingmen close,
@@ -364,7 +407,11 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     RATE_CHOICES.map((c) => h('option', { value: c, selected: c === ratesNow() }, rateWords(c))));
   const ratesField = h('label', { class: 'ts-field' }, h('span', { class: 'ts-hint' }, 'Rates'), ratesSelect);
   // The rejoin choice and Rates live in the Settings box (Patrick, 5 Oct); the rejoin's default is Lead turning into #2.
-  const rejoinSettings = h('div', { class: 'ts-rejoin-setting' }, rejoinField, rejoinHint, ratesField);
+  // Break and rejoin (TS-175): how long #2 waits before he follows Lead's break; Patrick's 5 s by default.
+  const breakSelect = h('select', { 'aria-label': 'Break and rejoin: #2 follows after', onchange: () => setBreakDelaySec(Number(breakSelect.value)) },
+    BREAK_DELAY_CHOICES.map((sec) => h('option', { value: String(sec), selected: sec === BREAK.delaySec }, `${sec} s`)));
+  const breakField = h('label', { class: 'ts-field' }, h('span', { class: 'ts-hint' }, 'Break: #2 follows after'), breakSelect);
+  const rejoinSettings = h('div', { class: 'ts-rejoin-setting' }, rejoinField, rejoinHint, ratesField, breakField);
 
   const PAIR_HINT = 'The pair flies the manuals\' transition from where it is now. The formation you are in is lit; a button this formation cannot use is hidden.';
   const FOUR_HINT = 'The four fly the manuals\' way there from where they are now, one at a time where the manuals say to wait. Side is #2\'s side, and every formation is named by it.';
@@ -387,6 +434,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     fourGrid,
     h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Station: the side #2 ends on' }, h('span', { class: 'ts-hint' }, 'Station'), sideButtons), // "Station", was "Side" (Patrick, 5 Oct)
     rejoinRow,
+    turnRow,
     bankRow,
     positionGroup,
     refusal,
@@ -437,7 +485,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       if (whereNow.key === 'fw' && insideBox('fw', -boxSide(), here)) {
         const toSide = -boxSide() > 0 ? 'left' : 'right';
         endPick();
-        onChange('fw', { side: toSide, rejoin });
+        onChange('fw', { side: toSide, rejoin, turn });
         return true;
       }
       if (pick.fromArea && !insideBox(whereNow.key, boxSide(), here)) {
@@ -456,7 +504,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       pickChanged();
       return true;
     },
-    values: () => ({ side, rejoin }),
+    values: () => ({ side, rejoin, turn }),
     /** 2-ship or 4-ship: shows that formation's buttons and words. */
     setShips(ships) {
       four = ships === 4;
@@ -472,26 +520,22 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       if (fluidUi) fluidUi.settingsElement.hidden = four;
       rejoinField.hidden = false;
       rejoinHint.hidden = false;
-      rejoinLabel.textContent = four ? 'Rejoin to fighting wing or finger' : 'Rejoin kind';
+      rejoinLabel.textContent = four ? 'Rejoin to fighting wing, finger or echelon' : 'Rejoin kind';
       rejoinSelect.options[0].textContent = four ? 'Turning, Lead turns into the others' : REJOIN_OPTIONS[0].label;
       // Auto and TRJ + roll race the 2-ship's rejoins (chooser.js); the 4-ship has no race, so it goes back to the turning rejoin.
       const pairOnly = (v) => v === 'auto' || v === 'roll';
       if (four && pairOnly(rejoin)) setRejoin('into');
       for (const o of rejoinSelect.options) if (pairOnly(o.value)) o.disabled = four;
       for (const b of rejoinButtons) if (pairOnly(b.dataset.rejoin)) b.hidden = four;
+      turnRow.hidden = rejoin === 'straight'; // the 4-ship too since V2.221 (TS-176 piece 4)
       rejoinHint.textContent = four ? FOUR_REJOIN_HINT : PAIR_REJOIN_HINT;
     },
     /** Greys the button for the formation the pair is in (and, for a sided one, on the side the switch asks for), and shows a refusal. */
     update(state, where) {
       whereNow = where;
       if (four) {
-        for (const [key, button] of fourButtons) {
-          if (FOUR_FORMATIONS[key].later) continue;
-          const here = key === where.key && (!FOUR_FORMATIONS[key].sided || side === 'keep' || (side === 'left') === (where.side > 0));
-          button.disabled = here;
-          button.setAttribute('aria-current', String(here)); // lit as "you are here", not greyed
-          button.title = here ? 'You are here' : '';
-        }
+        fourLastSide = state.lastSide;
+        greyFour();
         refusal.textContent = state.refusal ?? '';
         refusal.hidden = !state.refusal;
         return;

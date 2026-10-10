@@ -81,9 +81,9 @@ export const PATTERN_MID_QUADS = Object.freeze([-1, 1].flatMap((dy) => [-1, 1].m
 /** The sharpest ground (Esri zoom 18, about 1.3 ft a pixel): a box round both runway ends and the flight line. */
 export const TIGHT_SPAN_FT = 7_600;
 export const TIGHT_CENTER_FT = Object.freeze({ x: -400, y: -125 }); // divided by 1.2 to true feet (TR-67)
-/** Each High pattern square's ground grid, cells a side: about 108 ft a cell, a little coarser than the height data's 80 ft (TR-115). */
+/** Each High pattern square's ground grid, cells a side: about 108 ft a cell, a little coarser than the height data's 80 ft (TR-117). */
 export const GROUND_CELLS = 256;
-/** Held flat under the real ground (TR-115): the sharp square round the runways and flight line, and the base buildings' box. */
+/** Held flat under the real ground (TR-117): the sharp square round the runways and flight line, and the base buildings' box. */
 export const FLAT_GROUND_BOXES = Object.freeze([
   Object.freeze({ minX: TIGHT_CENTER_FT.x - TIGHT_SPAN_FT / 2, maxX: TIGHT_CENTER_FT.x + TIGHT_SPAN_FT / 2, minY: TIGHT_CENTER_FT.y - TIGHT_SPAN_FT / 2, maxY: TIGHT_CENTER_FT.y + TIGHT_SPAN_FT / 2 }),
   BASE_BOX_FT,
@@ -637,7 +637,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   midMesh.visible = false;
   root.add(midMesh);
   // High: the middle tier stretched to the pattern plus a mile, in four squares (PATTERN_MID_QUADS)
-  // Each square is a grid of GROUND_CELLS a side, draped over the real ground once its heights come (ground-heights3d.js, TR-115);
+  // Each square is a grid of GROUND_CELLS a side, draped over the real ground once its heights come (ground-heights3d.js, TR-117);
   // flat until then. Its colours darken the river banks and shade the slopes from the sun (TR-34's south-west sun). It writes depth,
   // so a near valley side hides the far one.
   const patternMid = PATTERN_MID_QUADS.map((q) => {
@@ -1597,7 +1597,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
   function sharpestFiltering() {
     return Math.max(8, gl?.renderer?.capabilities?.getMaxAnisotropy?.() ?? 8);
   }
-  // 30 NM each way, softest. Built from zoom-12 pictures shrunk to fit (TR-124): Esri's zoom 11 here is a different, summer-green
+  // 30 NM each way, softest. Built from zoom-12 pictures shrunk to fit (TR-126): Esri's zoom 11 here is a different, summer-green
   // photo, while zoom 12 to 18 are the same photo, so the far ring matches the ground nearer in. About 320 pictures, loaded once;
   // the loader keeps 500 so it can finish (at its default 300 it threw pictures away as fast as it drew them).
   const outerTier = createTier({ span: OUTER_PHOTO_SPAN_FT, px: 2048, maxZoom: 12, split: 3, zoomBoost: 2, maxKept: 500 });
@@ -1618,7 +1618,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     if (midTier.canvas) midTier.dispose();
     return { midTex: null, patternMidTextures: patternMidTiers.map((t) => t.ensure(options)), groundHeights: ensureGround(options) };
   }
-  /** The real ground's heights under the High pattern squares (TR-115), loaded once with the photo; null with the photo off. */
+  /** The real ground's heights under the High pattern squares (TR-117), loaded once with the photo; null with the photo off. */
   let groundHeights = null;
   function ensureGround(options) {
     if (options.layerPhoto === false || win.document?.createElement === undefined) return null;

@@ -1,4 +1,4 @@
-// The real ground under Traffic's 3D view (TR-115; Patrick, 10 Oct: "use real heights", approved as written). The High pattern squares are
+// The real ground under Traffic's 3D view (TR-117; Patrick, 10 Oct: "use real heights", approved as written). The High pattern squares are
 // draped over the true ground heights, so the Moose Jaw River valley sits where the photo shows it; the traced river lines cut a shallow
 // channel into it (rivers3d.js).
 //
@@ -7,7 +7,7 @@
 // level, so a datum difference between the tiles and the field survey can never leave a step at the airfield.
 // - The runways, flight line and base buildings stay flat (FLAT boxes, passed in), blending into the real ground over FLAT_BLEND_FT outside them.
 // - The ground fades back to flat over EDGE_FADE_FT inside the pattern squares' outer edge, where the flat far photo carries on.
-// - Data failure: a tile that fails twice, or a picture that is not a terrain tile, leaves its part flat at field height, as before TR-115.
+// - Data failure: a tile that fails twice, or a picture that is not a terrain tile, leaves its part flat at field height, as before TR-117.
 //   Nothing waits for it and the view never stops. Tile pictures are untrusted: exactly 256 x 256 pixels, and every height range-checked.
 // Drawing only: aircraft heights, the PFL and ejections still use the field elevation (airfield.js).
 import { FT_PER_M } from '../../core/units.js';

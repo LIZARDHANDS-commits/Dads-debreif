@@ -39,8 +39,11 @@ jobs:
       # run shows every failure at once.
       - name: Unit tests
         run: npm run ${{ env.SIGNOFF == 'true' && 'test:signoff' || 'test' }}
+      # Warning only (Patrick, 10 Oct 2026): type errors show on the run but never
+      # turn CI red, until the Formation refactor; owners clear their own.
       - name: Type check
         if: ${{ !cancelled() }}
+        continue-on-error: true
         run: npm run typecheck
       - name: Build with size budget
         if: ${{ !cancelled() }}

@@ -152,7 +152,7 @@ export function paintCoreAirfieldVector(ctx, { width = 2048, height = 2048, boun
     ctx.fill?.();
 
     // The ramp and the taxiways are not drawn here: the paint layer draws them on their traced places, in the runways' grey
-    // (runway-markings.js, TR-126). This stand-in's own ramp sat about 6,000 ft south of the runways and its taxiways crossed
+    // (runway-markings.js, TR-128). This stand-in's own ramp sat about 6,000 ft south of the runways and its taxiways crossed
     // grass and hangars (old V6-era places; Patrick, 10 Oct: "the current taxiway is on the grass and over hangars").
   }
 

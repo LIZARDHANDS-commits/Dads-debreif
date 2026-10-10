@@ -13,15 +13,12 @@
 // counter-clockwise). Bank is signed, left wing down positive, so a positive
 // bank turns the heading the positive (left) way.
 import { easeRoll, turnRateFromBankRadPerSec, gFromBankDeg } from '../../../core/flight-math.js';
-import { attitudeDegFromClimb, rollWithinT6A, stallLimitG, T6A_G_ONSET, excessFnFor, tasToIasKt } from '../../../core/t6-performance.js';
+import { attitudeDegFromClimb, rollWithinT6A, stallLimitG, T6A_G_ONSET } from '../../../core/t6-performance.js';
 import { wrapPi, wrapDeg180 } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
-import { stepPointMass, pointMassState, pointMassFlight } from '../../../core/point-mass.js';
-import { powerFor, throttleFor, POWER_BLOCK_FT } from './power.js';
+import { powerFor, POWER_BLOCK_FT } from './power.js';
 import { ROLL } from './tuning.js';
 
-/** Feature flag to route flight step integration through the 3D Runge-Kutta point-mass engine. */
-export const USE_3D_POINT_MASS = (typeof process !== 'undefined' && process.env?.USE_3D_POINT_MASS === '1') || false;
 
 /** Roll limits (tuning.js ROLL), still read from here by the tests. */
 export { ROLL };
@@ -510,69 +507,6 @@ export function stepAircraft(a, plan, t) {
   a.stretched = false; // a flight.js segment flies its own plan, never behind it (TS-63 marks the planned lines only)
   a.power = powerFor((a.kias - kiasBefore) / dt, a.kias, blockFt, a.g, a.climbFtps, a.slowStage);
 
-  // True 3D point-mass integration bridge (Phase 4 Step 2).
-  if (USE_3D_POINT_MASS) {
-    const blockFt = plan.blockFt ?? POWER_BLOCK_FT;
-    if (!a._pm) {
-      const mslAltFt = blockFt + (a.altAboveFt ?? 0);
-      const climbRad = Math.asin(Math.max(-1, Math.min(1, (a.climbFtps || 0) / Math.max(1, a.tasFtps || 1))));
-      a._pm = pointMassState({
-        x: a.xFt,
-        y: a.yFt,
-        altFt: mslAltFt,
-        ktas: (a.tasFtps || 0) / KT_TO_FTPS,
-        headingRad: a.headingRad,
-        climbRad,
-      });
-    }
-    const control = {
-      g: Math.abs(a.g ?? 1),
-      bankRad: -(a.bankDeg * Math.PI) / 180, // point-mass right positive
-    };
-    // Closed-loop speed controller:
-    // 1. Target airspeed and commanded acceleration from plan.
-    const targetKias = a.kias;
-    const accelCmdKtps = (a.kias - kiasBefore) / dt;
-
-    // 2. Current point-mass airspeed & error
-    const curFlight = pointMassFlight(a._pm);
-    const actualKias = tasToIasKt(curFlight.ktas, a._pm.z);
-    const errKias = targetKias - actualKias;
-
-    // 3. Equilibrium feedforward throttle from power.js
-    const ffThrottle = a.power?.throttle ?? throttleFor(accelCmdKtps, targetKias, a._pm.z, a.g, a.climbFtps, a.slowStage);
-
-    // 4. Feedback trim: PI loop (idle / idleBoards keeps throttle 0)
-    let throttle;
-    if (a.slowStage === 'idle' || a.slowStage === 'idleBoards') {
-      throttle = 0;
-      a._speedI = 0;
-    } else {
-      const KP_THROTTLE = 0.035;
-      const KI_THROTTLE = 0.008;
-      const MAX_I_TRIM = 0.15;
-      if (ffThrottle > 0.01 && ffThrottle < 0.99) {
-        a._speedI = Math.max(-MAX_I_TRIM, Math.min(MAX_I_TRIM, (a._speedI || 0) + errKias * dt * KI_THROTTLE));
-      }
-      const piTrim = (errKias * KP_THROTTLE) + (a._speedI || 0);
-      throttle = Math.max(0, Math.min(1, ffThrottle + piTrim));
-    }
-
-    if (a.power && a.power.stage === null) {
-      a.power.throttle = throttle;
-    }
-
-    a._pm = stepPointMass(a._pm, control, dt, excessFnFor(throttle));
-    const fl = pointMassFlight(a._pm);
-    a.xFt = a._pm.x;
-    a.yFt = a._pm.y;
-    a.altAboveFt = a._pm.z - blockFt;
-    a.tasFtps = fl.ktas * KT_TO_FTPS;
-    a.kias = tasToIasKt(fl.ktas, a._pm.z);
-    a.headingRad = fl.headingRad;
-    a.climbFtps = Math.sin(fl.climbRad) * a.tasFtps;
-    a.pitchDeg = attitudeDegFromClimb(a.climbFtps, a.tasFtps, a.kias, a.g * Math.cos((a.bankDeg * Math.PI) / 180));
-  }
 }
 
 /**

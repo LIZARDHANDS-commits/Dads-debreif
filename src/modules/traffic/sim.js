@@ -26,7 +26,7 @@
 // run did. So going back to before a spawn or a removal shows the run as it was, and going forward again flies it
 // in the same steps. Only an edit of the routes themselves (`forgetHistory`) makes the past be flown again from 0,
 // and the events stay in that replay. The dice are still shared (per-aircraft dice are task 12).
-import { ktToFtps } from '../../core/units.js';
+import { ktToFtps, ftpsToKt } from '../../core/units.js';
 import { createDice } from './dice.js';
 import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt, routePath } from './route.js';
 import { tickAircraft } from './tick-aircraft.js';
@@ -41,8 +41,10 @@ import { buildFlinch, buildClimbAhead, EVADE, spacingExtensionFt, extendLimitFt 
 import { buildBreakout, gateLegOf, ENT1_ROUTE, BREAKOUT_TRAFFIC_BANK_DEG } from './breakout.js';
 import { RANDOM, rollFor, pick, oddsFor, buildDownwindStraightIn } from './randomize.js';
 import { behaviourOf, behaviourLabel } from './behaviour.js';
-import { PATTERN_ALT_FT, RUNWAY_29L_HDG_DEG, THRESHOLD_29L, DEPARTURE_END_29L, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT, NUMBER_BASE_PAST_THRESHOLD_FT, TOUCHDOWN_PAST_NUMBERS_FT } from './airfield.js';
+import { buildTaxiIn, taxiStep, taxiPosition, TAXI } from './taxi.js';
+import { PATTERN_ALT_FT, RUNWAY_29L_HDG_DEG, THRESHOLD_29L, DEPARTURE_END_29L, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT, NUMBER_BASE_PAST_THRESHOLD_FT, TOUCHDOWN_PAST_NUMBERS_FT, RUNWAY_WIDTH_FT } from './airfield.js';
 import { legOffsetsFt } from '../../core/geo.js';
+import { closestApproach } from '../../core/closest-approach.js';
 import { iasToTasKt } from './weather.js';
 import { setFieldTemperature, placeStraightInDescent } from './weather.js';
 import { windTriangle } from '../../core/wind.js';
@@ -86,6 +88,12 @@ export const DEFAULT_CONFLICT_LIMITS = Object.freeze({ latFt: 200, vertFt: 200, 
  * (an estimate: 300 ft), so the initial at pattern height over the same line keeps its own tag (TR-94).
  */
 const FINAL_TAG_ABOVE_WINDOW_FT = 300;
+
+/**
+ * Two aircraft touch when they pass this close, ft, centre to centre in three dimensions: Fight Sim's mid-air hitbox
+ * (CT-156 wingspan 33.4 ft, length 33.3 ft; turn-fight/energy/setup.js), used by Traffic's collision (TR-116).
+ */
+const COLLISION_HITBOX_FT = 35;
 const TRAIL_EVERY_STEPS = 10;
 const TRAIL_POINTS = 240;
 
@@ -310,6 +318,79 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     delete a.joinOffset;
   }
 
+  /**
+   * A landing for the stop (Traffic spec 4.17, TR-115; Patrick, 10 Oct 20:38Z): on 29L it rolls out to 20 kt by the
+   * runway's end and taxis in to the Bandit hangar (taxi.js), where it is removed; anywhere else (a made-up route
+   * that lands off the runway) it is removed at touchdown, as before.
+   */
+  function landForTheStop(a) {
+    const ux = DEPARTURE_END_29L.x - THRESHOLD_29L.x, uy = DEPARTURE_END_29L.y - THRESHOLD_29L.y, len = Math.hypot(ux, uy);
+    const dx = (a.x ?? NaN) - THRESHOLD_29L.x, dy = (a.y ?? NaN) - THRESHOLD_29L.y;
+    const along = (dx * ux + dy * uy) / len, across = Math.abs(dx * uy - dy * ux) / len;
+    a.landed = true;
+    a.alt = THRESHOLD_DATA_ELEV_FT;
+    a.mode = 'RAIL';
+    a.command = null;
+    if (!(along >= -50 && along < len - 1000 && across < RUNWAY_WIDTH_FT['29L'])) {
+      a.active = false;
+      a.status = 'landed';
+      a.phase = 'full_stop';
+      return;
+    }
+    a.taxi = buildTaxiIn({ x: a.x, y: a.y }, ktToFtps(a.gsKt ?? a.iasKt ?? CIRCUIT.thresholdKias));
+    a.taxiS = 0;
+    a.taxiHeldSec = 0;
+    a.phase = 'rollout';
+    Object.assign(a, { bankDeg: 0, pitchDeg: 0, climbFtps: 0, crabDeg: 0 });
+    delete a.joinOffset;
+  }
+
+  /** One step of the rollout and taxi-in; stopped at the hangar for TAXI.holdSec, the aircraft is removed. Speeds on the ground are ground speed. */
+  function taxiTick(a) {
+    const r = taxiStep(a.taxi, a.taxiS, STEP_SEC);
+    const p = taxiPosition(a.taxi, r.s);
+    a.taxiS = r.s;
+    Object.assign(a, { x: p.x, y: p.y, headingDeg: p.headingDeg, trackDeg: p.headingDeg, gsKt: ftpsToKt(r.ftps), iasKt: ftpsToKt(r.ftps) });
+    a.phase = r.done ? 'parked' : r.s < a.taxi.turnS ? 'rollout' : 'taxi';
+    if (!r.done) return;
+    a.taxiHeldSec += STEP_SEC;
+    if (a.taxiHeldSec < TAXI.holdSec) return;
+    a.active = false;
+    a.status = 'landed';
+    a.phase = 'full_stop';
+    delete a.taxi;
+    delete a.taxiS;
+    delete a.taxiHeldSec;
+  }
+
+  /** True while an aircraft that landed for the stop is still on 29L (rolling out, or not yet clear after turning off). */
+  const runwayBusy = () => aircraft.some((b) => b.taxi && b.active && b.taxiS < b.taxi.clearS);
+
+  /**
+   * A touch-and-go behind a landing for the stop flies a low approach while that aircraft is on the runway (Traffic
+   * spec 4.17, TR-115; Patrick, 10 Oct 20:38Z): it goes around where a chosen low approach does (randomize.js,
+   * RANDOM.lowApproachFt before the threshold), or at once if it is already closer. A runway clear by then lands it.
+   */
+  function runwayBusyTick() {
+    const pat = routeById('PAT1');
+    const rwy = circuitRunway();
+    if (!pat || !rwy || !runwayBusy()) return;
+    const th = rwy.th, ux = (rwy.up.x - th.x) / rwy.len, uy = (rwy.up.y - th.y) / rwy.len;
+    const rwyTrack = compassDegFromVector(ux, uy);
+    const touchdownFt = NUMBER_BASE_PAST_THRESHOLD_FT + TOUCHDOWN_PAST_NUMBERS_FT;
+    for (const a of aircraft) {
+      if (!a.active || a.landed || t < a.startsAt || !Number.isFinite(a.x) || !Number.isFinite(a.y)) continue;
+      if (a.intent === 'full_stop' || a.goAroundFlight || a.pflFlight || a.highKeyFlight || a.engineFailed || a.deconflict) continue;
+      const along = (a.x - th.x) * ux + (a.y - th.y) * uy, across = Math.abs((a.x - th.x) * uy - (a.y - th.y) * ux);
+      const off = Math.abs(wrapDeg180((a.trackDeg ?? a.headingDeg ?? rwyTrack) - rwyTrack));
+      const route = routeOf(a);
+      const onFinal = (route?.id === pat.id && a.phase === 'final') || (isStraightIn(route) && off < 30 && across < 2000);
+      if (!onFinal || along <= -RANDOM.lowApproachFt || along >= touchdownFt) continue;
+      a.rndLowApproach = false;
+      startGoAround(a);
+    }
+  }
+
   /** Land or stay, and take a split or not, as an aircraft flies along a pattern (V6 `checkDecisions`, line 385). */
   function checkDecisions(a, oldDist, newDist) {
     const route = routeOf(a);
@@ -321,12 +402,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     if (wrapped && a.lastLap !== newLap) {
       a.lastLap = newLap;
       if (a.intent === 'full_stop' || (route.landOdds === 1.0 && a.intent !== 'go_around')) {
-        a.active = false;
-        a.landed = true;
-        a.status = 'landed';
-        a.phase = 'full_stop';
-        a.alt = 1880;
-        a.mode = 'RAIL';
+        landForTheStop(a);
         return;
       } else {
         a.phase = 'touch_and_go';
@@ -834,10 +910,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       // TR-08: a straight-in joining at the threshold (first point) evaluates landing intent
       if (mergeIndex === 0) {
         if (a.intent === 'full_stop' || (target.landOdds === 1.0 && a.intent !== 'go_around')) {
-          a.active = false;
-          a.landed = true;
-          a.status = 'landed';
-          a.phase = 'full_stop';
+          landForTheStop(a);
         } else {
           a.phase = 'touch_and_go';
         }
@@ -898,17 +971,58 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       a.tag = undefined;
       startGoAround(a);
     } else {
-      a.active = false;
-      a.landed = false;
-      a.status = 'ejected';
-      a.command = null;
-      // Where, when and how fast it was going, for the ejection and the abandoned aircraft on screen (ejection.js).
-      a.ejectAt = { x: a.x, y: a.y, alt: a.alt, t, headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG, kias: a.iasKt ?? a.kt ?? 125 };
+      eject(a);
       a.pflDecision = 'Eject';
-      a.pflSegment = null;
-      a.pflMarginFt = null;
-      a.pflMarginTag = null;
-      a.config = undefined;
+    }
+  }
+
+  /**
+   * The pilot ejects where the aircraft is (TR-75): the seat, the parachute and the abandoned aircraft diving into the
+   * ground are drawn from `a.ejectAt` (ejection.js).
+   */
+  function eject(a) {
+    a.active = false;
+    a.landed = false;
+    a.status = 'ejected';
+    a.command = null;
+    // Where, when and how fast it was going, for the ejection and the abandoned aircraft on screen (ejection.js).
+    a.ejectAt = { x: a.x, y: a.y, alt: a.alt, t, headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG, kias: a.iasKt ?? a.kt ?? 125 };
+    a.pflDecision = null;
+    a.pflSegment = null;
+    a.pflMarginFt = null;
+    a.pflMarginTag = null;
+    a.config = undefined;
+    delete a.pflFlight;
+    delete a.goAroundFlight;
+    delete a.highKeyFlight;
+    delete a.deconflict;
+    delete a.sideStep;
+  }
+
+  /**
+   * Mid-air collisions (Traffic spec 4.18, TR-116; Patrick, 10 Oct 21:15Z: "if the aircraft actually do collide/touch,
+   * they eject and crash"): two flying aircraft that pass within COLLISION_HITBOX_FT of each other during the step both
+   * eject. Each moved in a straight line over the step from where it was (`before`). Aircraft on the ground are left out,
+   * and so are two that were already inside the hitbox when the step began (two started on the same spot).
+   */
+  function collisionTick(before) {
+    const flying = aircraft.filter((a) => a.active && !a.landed && before.has(a.id) && [a.x, a.y, a.alt].every(Number.isFinite));
+    const hit = new Set();
+    for (let i = 0; i < flying.length; i++) {
+      for (let j = i + 1; j < flying.length; j++) {
+        const a = flying[i], b = flying[j];
+        const a0 = before.get(a.id), b0 = before.get(b.id);
+        const moving = (p0, p) => ({ x: p0.x, y: p0.y, z: p0.alt, vx: (p.x - p0.x) / STEP_SEC, vy: (p.y - p0.y) / STEP_SEC, vz: (p.alt - p0.alt) / STEP_SEC });
+        const cpa = closestApproach(moving(a0, a), moving(b0, b));
+        const endFt = Math.hypot(a.x - b.x, a.y - b.y, a.alt - b.alt);
+        const closestFt = cpa.closing && cpa.tcpaSec <= STEP_SEC ? cpa.missFt : Math.min(cpa.rangeFt, endFt);
+        // Coming together: two already overlapping when the step began (started on the same spot) pass through.
+        if (closestFt < COLLISION_HITBOX_FT && cpa.rangeFt >= COLLISION_HITBOX_FT) { hit.add(a); hit.add(b); }
+      }
+    }
+    for (const a of hit) {
+      eject(a);
+      a.collided = true;
     }
   }
 
@@ -922,8 +1036,19 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     if (steps % DECONFLICT.decideEverySteps === 0) siPatternTick();
     if (setup.randomize && steps % DECONFLICT.decideEverySteps === 0) randomizeTick();
     if (setup.deconflict && steps % DECONFLICT.decideEverySteps === 0) deconflictTick();
+    if (steps % DECONFLICT.decideEverySteps === 0) runwayBusyTick();
+    // Where each flying aircraft was before this step, for the collision check after it.
+    const before = new Map();
+    for (const a of aircraft) {
+      if (a.active && !a.landed && t >= a.startsAt && [a.x, a.y, a.alt].every(Number.isFinite)) before.set(a.id, { x: a.x, y: a.y, alt: a.alt });
+    }
     for (const a of aircraft) {
       if (!a.active || t < a.startsAt) continue;
+      if (a.taxi) {
+        taxiTick(a);
+        recordTrail(a);
+        continue;
+      }
       const route = routeOf(a);
       const beforeDist = a.distFt;
       const sideStepping = Boolean(a.sideStep);
@@ -948,13 +1073,17 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (a.active && a.pendingClosed && a.mode === 'RAIL' && !beforeUpwindEnd(a)) startClosedPattern(a);
 
       delete a.pflEndedThisStep;
-
-      if (steps % TRAIL_EVERY_STEPS === 0) {
-        a.trail.push({ x: a.x, y: a.y });
-        if (a.trail.length > TRAIL_POINTS) a.trail.shift();
-      }
+      recordTrail(a);
     }
+    collisionTick(before);
     if (steps % every === 0 && !history.has(steps)) remember();
+  }
+
+  /** A trail point every TRAIL_EVERY_STEPS steps, the oldest dropped past TRAIL_POINTS. */
+  function recordTrail(a) {
+    if (steps % TRAIL_EVERY_STEPS !== 0) return;
+    a.trail.push({ x: a.x, y: a.y });
+    if (a.trail.length > TRAIL_POINTS) a.trail.shift();
   }
 
   // ── Timed events ───────────────────────────────────────────────────────────
@@ -1326,6 +1455,13 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       settle();
       const a = aircraft.find((ac) => ac.id === aircraftId);
       if (!a) return false;
+      // On the ground after a landing for the stop: only a touch-and-go, and only while still rolling on the runway.
+      if (a.taxi) {
+        if (action !== 'touch_and_go' || a.taxiS >= a.taxi.turnS) return false;
+        delete a.taxi;
+        delete a.taxiS;
+        delete a.taxiHeldSec;
+      }
       // A new command stops a flown go-around or closed pattern: back onto Pattern 1 where the aircraft is, then
       // the command. A breakout or a deconfliction move just stops; the command flies from where it is. A
       // touch-and-go in the air only sets the next landing, so the flown path carries on.
@@ -1454,6 +1590,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           status: statusOf(a), startsAt: a.startsAt,
           active: a.active,
           landed: Boolean(a.landed),
+          onGround: Boolean(a.taxi),
+          collided: Boolean(a.collided),
           engineFailed: Boolean(a.engineFailed),
           command: a.command ?? null,
           intent: a.intent ?? 'touch_and_go',
@@ -1472,7 +1610,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           behaviour: tag?.label ?? null,
         };
       });
-      return { t, aircraft: list, conflicts: findConflicts(list.filter((a) => a.status === 'flying')) };
+      // An aircraft rolling out or taxiing is shown but is never in a conflict with one flying over it.
+      return { t, aircraft: list, conflicts: findConflicts(list.filter((a) => a.status === 'flying' && !a.onGround)) };
     },
   };
 

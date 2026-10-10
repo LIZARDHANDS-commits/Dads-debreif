@@ -1,6 +1,6 @@
 // Public elevation tiles, decoded: the Terrarium tiles (AWS Open Data, Mapzen terrain tiles: USGS, NRCan and others). Each tile is a 256 x 256 picture whose red, green
 // and blue bytes hold the height in metres: (R x 256 + G + B / 256) - 32768 (the tiles' own published encoding). Shared by the SOF's 3D terrain and Traffic's 3D ground
-// (TR-115); moved here from src/modules/sof/terrain-model.js so there is one copy. Pure: numbers in, numbers out. Tile pictures are untrusted: the caller checks the size,
+// (TR-117); moved here from src/modules/sof/terrain-model.js so there is one copy. Pure: numbers in, numbers out. Tile pictures are untrusted: the caller checks the size,
 // and every decoded height is range-checked here.
 import { lonLatToTile } from './geo.js';
 

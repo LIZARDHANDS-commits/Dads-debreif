@@ -84,7 +84,7 @@ export const CYMJ_BUILDING_COORDS = Object.freeze({
  */
 export const CYMJ_EXTRA_BUILDINGS = Object.freeze([
   Object.freeze({
-    // TR-119 (Patrick, 10 Oct, street view from the north and an oblique photo): two storeys in the middle under the curved
+    // TR-121 (Patrick, 10 Oct, street view from the north and an oblique photo): two storeys in the middle under the curved
     // glass, one-storey wings north-east and south-east (read off the roof's sun shadows), white cladding on a dark base,
     // the curved glass a band sloping down the west face, and plant boxes on the roof. Heights are estimates.
     id: 'main-building', name: 'Glass Palace (2 CFFTS HQ)', type: 'building', x: 860, y: 2580, height: 32,
@@ -100,7 +100,7 @@ export const CYMJ_EXTRA_BUILDINGS = Object.freeze([
     roof: '#d6d3cb', wall: '#eceeef', accent: '#c8102e',
   }),
   Object.freeze({
-    // Retraced on the true-scale photo (TR-121; Patrick, 10 Oct: "the shape is wrong, colors are wrong, and it doesnt fill its
+    // Retraced on the true-scale photo (TR-123; Patrick, 10 Oct: "the shape is wrong, colors are wrong, and it doesnt fill its
     // footprint"): a spine along the south-east side and two wings running north-north-west, the U open that way, under light-blue
     // metal gable roofs (ridge down the middle of each part, as the photo's light and dark roof halves show). ±5 ft; heights estimates.
     // x, y: the spine's middle; rotation: the spine's direction (0.452 rad, 26°).
@@ -115,7 +115,7 @@ export const CYMJ_EXTRA_BUILDINGS = Object.freeze([
     footprint: Object.freeze([[-100, -62], [100, -62], [100, 62], [-100, 62]]),
     roof: '#d6d8db', wall: '#e2e8f0', accent: '#3b82f6',
   }),
-  // Hangars 5 and 6 moved to flightline-buildings3d.js with their real roofs, walls and doors (TR-120).
+  // Hangars 5 and 6 moved to flightline-buildings3d.js with their real roofs, walls and doors (TR-122).
   Object.freeze({
     id: 'flightline-dark', type: 'building', x: 1290, y: 2440, height: 32, rotation: 0, label: false,
     footprint: Object.freeze([[-111, -72], [91, -72], [91, 40], [21, 40], [21, 74], [-111, 74]]),
@@ -700,7 +700,7 @@ function createBoxBuilding(THREE, spec, floor) {
 /**
  * The 2 CFFTS "Glass Palace" (CAE Building 160), on its traced outline (Patrick's red outline, 3 Oct; checked on the
  * true-scale photo 10 Oct): the two-storey middle, the one-storey wings, the curved glass sloping down the west face from
- * the roof to a glass wall `glassBand.lowFt` high, plant boxes on the roof and "THE BIG 2 - BEST IN THE WEST" patch (TR-119).
+ * the roof to a glass wall `glassBand.lowFt` high, plant boxes on the roof and "THE BIG 2 - BEST IN THE WEST" patch (TR-121).
  */
 function createGlassPalace(THREE, spec, floor, kit) {
   const group = new THREE.Group();
@@ -820,7 +820,7 @@ function createGlassPalace(THREE, spec, floor, kit) {
 }
 
 /**
- * The Student Barracks (TR-121): a U of three parts, each white walls with window bands under a light-blue metal gable roof
+ * The Student Barracks (TR-123): a U of three parts, each white walls with window bands under a light-blue metal gable roof
  * whose ridge runs along the part, rooftop units, and the courtyard lawn inside the U. The spine lies along local x; the wings
  * run from its inner (local +y) edge.
  */
@@ -908,7 +908,7 @@ export function createAirfieldScenery(THREE, { floor = DEFAULT_FLOOR_FT, anchor 
   root.add(tower);
 
   const hangars = [];
-  // Hangars 1 to 3 are flat-roofed (TR-119, flightline-buildings3d.js) with the Canex, the hall and Medical; Hangar 4 keeps its arch.
+  // Hangars 1 to 3 are flat-roofed (TR-121, flightline-buildings3d.js) with the Canex, the hall and Medical; Hangar 4 keeps its arch.
   const flightline = createFlightlineBuildings(THREE, floor);
   root.add(flightline.group);
   hangars.push(...flightline.hangars);
@@ -931,7 +931,7 @@ export function createAirfieldScenery(THREE, { floor = DEFAULT_FLOOR_FT, anchor 
   });
   for (const b of buildings) root.add(b);
 
-  // Windows and a door on the plain rectangular buildings (TR-130).
+  // Windows and a door on the plain rectangular buildings (TR-132).
   const out = { glass: [], doors: [] };
   for (const spec of CYMJ_EXTRA_BUILDINGS) {
     if (spec.id === 'main-building' || spec.id === 'barracks-u' || spec.footprint?.length !== 4) continue;
@@ -943,7 +943,7 @@ export function createAirfieldScenery(THREE, { floor = DEFAULT_FLOOR_FT, anchor 
   boxFacades.position.z = floor;
   root.add(boxFacades);
 
-  // Fewer draw calls (TR-125): each building's plain-coloured pieces merged by colour, in place.
+  // Fewer draw calls (TR-127): each building's plain-coloured pieces merged by colour, in place.
   for (const b of [...flightline.group.children, ...hangars.filter((h) => h.parent === root), ...buildings]) batchByMaterial(THREE, b);
 
   root.userData.tower = tower;
