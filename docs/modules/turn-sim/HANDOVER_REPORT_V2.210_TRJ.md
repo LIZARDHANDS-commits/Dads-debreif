@@ -1710,6 +1710,22 @@ Following the stabilization of the baseline V2.210 solver and 3D sloped altitude
 |---|---|---|---|---|---|---|
 | **TRJ Line Abreast $\to$ FW (Right Turn, s=1)** | **33.6 s** | **0** | `[0.91, 1.02, 1.11]` (MAX) | 200.0 | 6.04 | **PASS** |
 | **TRJ Line Abreast $\to$ FW (Left Turn, s=-1)** | **33.6 s** | **0** | `[0.91, 1.02, 1.11]` (MAX) | 200.0 | 6.04 | **PASS** |
-| **TRJ Line Abreast $\to$ Echelon (Right Turn, s=1)** | **54.7 s** | **0** | `[0.91, 1.07, 1.12]` (MAX) | 200.4 | 6.04 | **PASS** |
-| **TRJ Line Abreast $\to$ Echelon (Left Turn, s=-1)** | **54.7 s** | **0** | `[0.91, 1.07, 1.12]` (MAX) | 200.4 | 6.04 | **PASS** |
-| **TRJ FW $\to$ Echelon (Cold, s=-1)** | **46.2 s** | **0** | `[1.38, 1.44, 1.00]` | 173.2 | 3.40 | **PASS** |
+| **TRJ Line Abreast $\to$ Echelon (Right Turn, s=1)** | **55.9 s** | **0** | `[0.91, 1.07, 1.12]` (MAX) | 201.0 | 6.04 | **PASS** |
+| **TRJ Line Abreast $\to$ Echelon (Left Turn, s=-1)** | **55.9 s** | **0** | `[0.91, 1.07, 1.12]` (MAX) | 201.0 | 6.04 | **PASS** |
+| **TRJ FW $\to$ Echelon (Cold, s=-1)** | **65.2 s** | **0** | `[1.38, 1.44, 1.00]` | 166.6 | 3.40 | **PASS** |
+
+---
+
+### 7.7 Turning Rejoin (TRJ) Decision-Point Geometry & Overshoot Regression Fix
+- **Defect Reported:** At the decision point, #2 was surging forward ahead of Lead's prop-wingtip spinner line, reaching abreast/ahead of Lead ($fwd = +42.7\text{ ft}$, $+91.1\text{ ft}$ ahead of the spinner line) before sliding backwards into Echelon.
+- **Root Causes:**
+  1. `tailLegs` had a bypass branch for `to === 'echelon'` that projected from a fallback 100 ft distance to an intermediate point only 36 ft from Echelon ($left = -70.7\text{ ft}, fwd = -50.7\text{ ft}$), skipping Route ($left = -163\text{ ft}, fwd = -143\text{ ft}$).
+  2. `rejoinOver` set `targetBankDeg: null`, which caused `hand-over.js` to force `fwdRate = Infinity` and `latRate = Infinity`. This caused the reference slot in `tracker.js:aimOf` to teleport forward immediately rather than gliding.
+  3. With Lead turning at $30^\circ$ bank, chasing a teleported forward point inside the circle chord caused #2 to cut across the turn circle and surge ahead of Lead's nose.
+  4. `laneLimitFt` in `searchTurningRejoin` permitted $fwd$ up to $+100\text{ ft}$ ahead of Lead, allowing the overshoot candidate to pass.
+- **Fix Implemented (`src/modules/turn-sim/live/turning-rejoin.js`):**
+  1. Restored SMM doctrine in `tailLegs`: At the decision point (~250 ft on the $45^\circ$ line), #2 transitions laterally into **Route** first (`pairSlot('route')`: $left = \pm 163\text{ ft}, fwd = -143\text{ ft}$) via `closeThrough`, then glides smoothly up the prop-wingtip line from Route into Echelon via `slide(pairSlot('echelon'))`.
+  2. Replaced `Infinity` with controlled kinematic glide rates (`fwdRate: 40/32 ft/s`, `latRate: 40/32 ft/s`, `targetBankDeg: 8.0`, `targetOvertakeKt: 8.0`), while preserving `bankCapDeg: REJOIN.bankCapDeg` so #2 can freely bank with Lead's $30^\circ$ turn without getting capped.
+  3. Enforced strict 3/9 line limit (`laneLimitFt = 0` for close formations in `searchTurningRejoin` and `flyTurningRejoinWith`), strictly rejecting any candidate where #2 breaches ahead of Lead ($fwd > 0$).
+  4. Added automated regression test `tests/turn-sim/trace-echelon.mjs` verifying that #2 never breaches Lead's 3/9 line (`maxFwd = -24.89 ft <= 0`) and never breaches forward of the prop-wingtip line (`maxAheadOfLine = +2.4 ft <= 5 ft`).
+

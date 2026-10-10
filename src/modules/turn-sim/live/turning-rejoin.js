@@ -68,24 +68,20 @@ const xArriveFtps = () => ((TURNING_REJOIN.stableKt[0] + TURNING_REJOIN.stableKt
  * line into echelon (or on into line astern, legsFor's crossover); to route, into route. at: #2's place in Lead's frame then.
  */
 function tailLegs(s, to, sTo, spacingFt, at = null) {
-  const rejoinOver = { rejoin: true, targetBankDeg: null, targetOvertakeKt: null, bankCapDeg: REJOIN.bankCapDeg };
+  const rejoinOver = {
+    rejoin: true,
+    bankCapDeg: REJOIN.bankCapDeg,
+    fwdRate: 40,
+    latRate: 40,
+    targetBankDeg: 8.0,
+    targetOvertakeKt: 8.0,
+  };
   if (to === 'fw') return [rejoinTo(pairSlot('fw', s, spacingFt)), ...(sTo !== s ? legsFor('fw', s, 'fw', sTo, spacingFt) : [])];
-  if (to === 'route' || (!at && to !== 'echelon')) {
-    const rSlot = pairSlot('route', sTo || s, spacingFt);
-    const rest = legsFor('route', s, to, sTo, spacingFt);
-    return [closeThrough(rSlot, { advanceTol: TURNING_REJOIN.routeFlowFt, ...rejoinOver }), ...(rest.length ? rest : [slide(rSlot, rejoinOver)])];
-  }
-  const ech = pairSlot('echelon', s, spacingFt);
-  const rest = legsFor('echelon', s, to, sTo, spacingFt);
-  const atPos = at ?? { fwd: -TURNING_REJOIN.windowNearFt * Math.SQRT1_2, left: s * TURNING_REJOIN.windowNearFt * Math.SQRT1_2 };
-  const n = Math.hypot(1, LINE_BACK_PER_OUT);
-  const dF = atPos.fwd - ech.fwd;
-  const dO = Math.abs(atPos.left) - Math.abs(ech.left);
-  const alongFt = (-dF * LINE_BACK_PER_OUT + dO) / n;
-  const offFt = Math.abs(dF + dO * LINE_BACK_PER_OUT) / n;
+  const rSlot = pairSlot('route', sTo || s, spacingFt);
+  const rest = legsFor('route', s, to, sTo, spacingFt);
   return [
-    closeThrough(downTheLine(ech, s, Math.max(0, alongFt - offFt)), { advanceTol: TURNING_REJOIN.routeFlowFt, overtakeKias: 10, ...rejoinOver }),
-    ...(rest.length ? rest : [slide(ech, { overtakeKias: 10, ...rejoinOver })]),
+    closeThrough(rSlot, { advanceTol: TURNING_REJOIN.routeFlowFt, ...rejoinOver }),
+    ...(rest.length ? rest.map((l) => ({ ...l, ...rejoinOver, fwdRate: 32, latRate: 32 })) : [slide(rSlot, rejoinOver)]),
   ];
 }
 
@@ -336,7 +332,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       end: { lead: endLead, wing: endWing },
       laneFwdFt,
       maxBankDeg: maxBank,
-      laneOk: laneFwdFt <= Math.max(0, slot.fwd) + (LANE.marginFt ?? 100),
+      laneOk: laneFwdFt <= (to === 'fw' ? Math.max(0, slot.fwd) + (LANE.marginFt ?? 100) : 0),
     };
     profile = first.profile;
   } else {
@@ -477,7 +473,7 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
   // When even that can't keep him behind Lead's 3/9 line, the most overtake that can (the review's: fit the overtake to the
   // room; Student's 15 kt is the least): the note says which he flew.
   const slotFwdFt = Math.max(0, pairSlot(to, sTo || s, spacingFt)?.fwd ?? 0);
-  const laneLimitFt = slotFwdFt + (LANE.marginFt ?? 100);
+  const laneLimitFt = to === 'fw' ? slotFwdFt + (LANE.marginFt ?? 100) : 0;
   let best = null;
   let bestAny = null;
   // Down the line he aims for the Rates choice's line speed (lineKiasNow, TS-133: a target, geometry first; until V2.149 220 for all, Patrick 17:54Z, 17:55Z: "the minimum closure up the line
