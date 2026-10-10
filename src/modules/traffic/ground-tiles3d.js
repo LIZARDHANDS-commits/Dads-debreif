@@ -3,10 +3,11 @@
 // Esri has at Moose Jaw (zoom 18, about 1.2 ft a pixel), coarser further off, swapped as the view moves, the way a web map does. Each
 // tile is draped over the real ground heights (ground-heights3d.js, TR-115) and shaded by its slope and the river channel.
 //
-// - Which tiles: a tile splits into its four children while one of its pixels would cover more than SPLIT_PX screen pixels.
+// - Which tiles: a tile splits into its four children while one of its pixels would cover more than SPLIT_PX screen pixels,
+//   judged by the tile's size on screen (its corners projected), so ground far off and seen at a slant stays coarse.
 // - Until a tile's picture arrives, its area shows the nearest coarser picture that has (cut to its corner), so nothing goes blank;
 //   the coarsest level (zoom 13) is asked for first. With no picture at all, the far photo under it shows.
-// - Memory: at most MAX_TEXTURES pictures kept (256 x 256 each, about 0.34 MB with mipmaps: about 100 MB; an estimate); the
+// - Memory: at most MAX_TEXTURES pictures kept (256 x 256 each, about 0.34 MB with mipmaps: about 200 MB; an estimate); the
 //   least recently shown go first. At most MAX_IN_FLIGHT requests at once, nearest first.
 // - Data failure: a tile that fails three times is left to its coarser parent. Pictures are untrusted: only drawn, never read.
 import { tileBounds, lonLatToTile } from '../../core/geo.js';
@@ -15,13 +16,21 @@ import { worldToPhoto, photoToWorld } from './map2d.js';
 
 export const MIN_ZOOM = 13;
 export const MAX_ZOOM = 18; // Esri's sharpest at Moose Jaw (zoom 19 and 20 are blank there, checked 10 Oct)
-/** Split while one picture pixel would cover more than this many screen pixels. */
-export const SPLIT_PX = 1.25;
-export const MAX_TEXTURES = 300;
-const MAX_IN_FLIGHT = 12;
-const MAX_LEAVES = 600; // a guard against a view that would ask for too many tiles
+/**
+ * Split while one picture pixel would cover more than this many screen pixels. 0.625 puts each zoom level twice as far out as
+ * the 1.25 first built (Patrick, 10 Oct: "increase the draw distance of the sharp tiles? double it?").
+ */
+export const SPLIT_PX = 0.625;
+export const MAX_TEXTURES = 600; // about 200 MB with mipmaps (an estimate)
+const MAX_IN_FLIGHT = 16;
+const MAX_LEAVES = 1500; // a guard against a view that would ask for too many tiles
+const MAX_BUILDS_PER_FRAME = 40; // new tile meshes made per frame; the rest come on the next frames (the coarser layer shows meanwhile)
 const RETRY_MS = [1500, 5000];
-const SEGMENTS = 16; // grid cells a side for each tile's draped ground
+/**
+ * Grid cells a side for a tile's draped ground: about 300 ft a cell or finer, never finer than the height data's 80 ft needs
+ * (zoom 18 tiles are about 320 ft across: 4 cells; zoom 13: 16).
+ */
+const segmentsFor = (z) => (z >= 17 ? 4 : z >= 15 ? 8 : 16);
 /** Towards the sun for the slope shading: TR-34's sun, from 225 degrees true and 45 degrees up (x east, y north, z up). */
 const SUN_FROM = Object.freeze({ x: -0.5, y: -0.5, z: Math.SQRT1_2 });
 
@@ -43,6 +52,24 @@ export function createGroundTiles(THREE, { ref, align, area, timers, onChange = 
   const projScreen = new THREE.Matrix4();
   const box = new THREE.Box3();
   const camPos = new THREE.Vector3();
+  const corner = new THREE.Vector3();
+  /** The tile's size on screen, px: the square root of its projected area (ground at groundZ); Infinity when part is behind the camera. */
+  function screenSize(b, camera, groundZ, wPx, hPx) {
+    const pts = [[b.minX, b.minY], [b.maxX, b.minY], [b.maxX, b.maxY], [b.minX, b.maxY]].map(([x, y]) => {
+      corner.set(x, y, groundZ).applyMatrix4(camera.matrixWorldInverse);
+      if (camera.isPerspectiveCamera && corner.z > -1) return null; // behind or at the eye
+      corner.applyMatrix4(camera.projectionMatrix);
+      return [(corner.x * wPx) / 2, (corner.y * hPx) / 2];
+    });
+    if (pts.some((p) => p === null)) return Infinity;
+    let area = 0;
+    for (let i = 0; i < 4; i++) {
+      const [x0, y0] = pts[i];
+      const [x1, y1] = pts[(i + 1) % 4];
+      area += x0 * y1 - x1 * y0;
+    }
+    return Math.sqrt(Math.abs(area) / 2);
+  }
   let inFlight = 0;
   let frameNo = 0;
   let disposed = false;
@@ -64,7 +91,24 @@ export function createGroundTiles(THREE, { ref, align, area, timers, onChange = 
     const lon = lonOfTileX(t.x + u, t.z);
     return photoToWorld(ref, al, lat, lon);
   };
+  const boxes = new Map(); // tile key -> its box on the map, for the alignment in `boxesFor`
+  let boxesFor = '';
   const boxOf = (t, al) => {
+    const sig = `${al.trim},${al.eastFt},${al.northFt}`;
+    if (sig !== boxesFor) {
+      boxes.clear();
+      boxesFor = sig;
+    }
+    const key = keyOf(t.z, t.x, t.y);
+    let hit = boxes.get(key);
+    if (!hit) {
+      hit = boxOfNow(t, al);
+      if (boxes.size > 20000) boxes.clear();
+      boxes.set(key, hit);
+    }
+    return hit;
+  };
+  const boxOfNow = (t, al) => {
     const b = tileBounds(t.x, t.y, t.z);
     const p = photoToWorld(ref, al, b.north, b.west);
     const q = photoToWorld(ref, al, b.south, b.east);
@@ -118,9 +162,10 @@ export function createGroundTiles(THREE, { ref, align, area, timers, onChange = 
     image.src = ESRI_IMAGERY.url(p.t.z, p.t.x, p.t.y);
   }
 
-  /** The tile's draped ground: SEGMENTS a side, positions on the map and heights from `heights` (or flat), slope and river shading in the colours. */
+  /** The tile's draped ground: segmentsFor(z) cells a side, positions on the map and heights from `heights` (or flat), slope and river shading in the colours. */
   function buildGeometry(t, al, heights) {
-    const n = SEGMENTS + 1;
+    const seg = segmentsFor(t.z);
+    const n = seg + 1;
     const pos = new Float32Array(n * n * 3);
     const col = new Float32Array(n * n * 3);
     const uv = new Float32Array(n * n * 2);
@@ -128,7 +173,7 @@ export function createGroundTiles(THREE, { ref, align, area, timers, onChange = 
     const xy = [];
     for (let j = 0; j < n; j++) {
       for (let i = 0; i < n; i++) {
-        const p = tilePoint(t, i / SEGMENTS, j / SEGMENTS, al);
+        const p = tilePoint(t, i / seg, j / seg, al);
         const k = j * n + i;
         xy.push(p);
         z[k] = heights ? heights.offsetAt(p.x, p.y) : 0;
@@ -155,8 +200,8 @@ export function createGroundTiles(THREE, { ref, align, area, timers, onChange = 
       }
     }
     const index = [];
-    for (let j = 0; j < SEGMENTS; j++) {
-      for (let i = 0; i < SEGMENTS; i++) {
+    for (let j = 0; j < seg; j++) {
+      for (let i = 0; i < seg; i++) {
         const a = j * n + i;
         index.push(a, a + n, a + 1, a + 1, a + n, a + n + 1);
       }
@@ -172,13 +217,14 @@ export function createGroundTiles(THREE, { ref, align, area, timers, onChange = 
 
   /** Points the tile's texture coordinates into the picture `src` (the tile itself or a coarser one holding it). */
   function setUv(geo, t, src) {
-    const n = SEGMENTS + 1;
+    const seg = segmentsFor(t.z);
+    const n = seg + 1;
     const scale = 2 ** (t.z - src.z);
     const uv = geo.attributes.uv;
     for (let j = 0; j < n; j++) {
       for (let i = 0; i < n; i++) {
-        const u = (t.x - src.x * scale + i / SEGMENTS) / scale;
-        const v = (t.y - src.y * scale + j / SEGMENTS) / scale;
+        const u = (t.x - src.x * scale + i / seg) / scale;
+        const v = (t.y - src.y * scale + j / seg) / scale;
         uv.setXY(j * n + i, u, 1 - v); // pictures load with their top row at v = 1
       }
     }
@@ -214,7 +260,7 @@ export function createGroundTiles(THREE, { ref, align, area, timers, onChange = 
      * Picks and draws this frame's tiles. camera: the three.js camera drawing the frame (its matrices up to date); viewportPx: the
      * drawing buffer's height in pixels; heights: ground-heights3d.js's (or null); opacity 0 to 1.
      */
-    update({ camera, viewportPx, heights, opacity = 1 }) {
+    update({ camera, viewportPx, viewportWidthPx = viewportPx, heights, opacity = 1 }) {
       if (disposed) return;
       frameNo += 1;
       const al = align();
@@ -223,8 +269,6 @@ export function createGroundTiles(THREE, { ref, align, area, timers, onChange = 
       frustum.setFromProjectionMatrix(projScreen);
       camera.getWorldPosition(camPos);
       const groundZ = group.matrixWorld.elements[14];
-      const orthoPxPerFt = camera.isOrthographicCamera ? (viewportPx * camera.zoom) / (camera.top - camera.bottom) : 0;
-      const focalPx = camera.isPerspectiveCamera ? viewportPx / (2 * Math.tan((camera.fov * Math.PI) / 360)) : 0;
 
       // Which tiles: split while too coarse for the screen, inside the box and the view.
       const leaves = [];
@@ -237,9 +281,8 @@ export function createGroundTiles(THREE, { ref, align, area, timers, onChange = 
         box.max.set(b.maxX, b.maxY, groundZ + 400);
         if (!frustum.intersectsBox(box)) continue;
         const dist = Math.max(1, box.distanceToPoint(camPos));
-        const pxPerFt = camera.isOrthographicCamera ? orthoPxPerFt : focalPx / dist;
-        const texelFt = (b.maxX - b.minX) / 256;
-        if (t.z < MAX_ZOOM && pxPerFt * texelFt > SPLIT_PX && leaves.length + stack.length < MAX_LEAVES) {
+        const onScreenPx = screenSize(b, camera, groundZ, viewportWidthPx, viewportPx);
+        if (t.z < MAX_ZOOM && onScreenPx / 256 > SPLIT_PX && leaves.length + stack.length < MAX_LEAVES) {
           for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) stack.push({ z: t.z + 1, x: t.x * 2 + dx, y: t.y * 2 + dy });
         } else {
           leaves.push({ t, dist });
@@ -258,6 +301,7 @@ export function createGroundTiles(THREE, { ref, align, area, timers, onChange = 
       const heightsVersion = heights ? heights.version : -1;
       if (heights !== lastHeights) lastHeights = heights;
       const shown = new Set();
+      let builds = 0;
       for (const { t } of leaves) {
         const key = keyOf(t.z, t.x, t.y);
         const found = readySource(t);
@@ -265,6 +309,11 @@ export function createGroundTiles(THREE, { ref, align, area, timers, onChange = 
         found.p.lastUsed = frameNo;
         let m = meshes.get(key);
         if (!m || m.heightsVersion !== heightsVersion) {
+          if (builds >= MAX_BUILDS_PER_FRAME) {
+            if (m) { m.mesh.visible = true; m.lastShown = frameNo; shown.add(key); } // the old one stands in this frame
+            continue;
+          }
+          builds += 1;
           if (m) {
             m.mesh.geometry.dispose();
             group.remove(m.mesh);
@@ -297,6 +346,7 @@ export function createGroundTiles(THREE, { ref, align, area, timers, onChange = 
         }
       }
       evict();
+      if (builds >= MAX_BUILDS_PER_FRAME) timers.after(0, onChange); // more to build: another frame soon
     },
     state() {
       const all = [...pictures.values()];

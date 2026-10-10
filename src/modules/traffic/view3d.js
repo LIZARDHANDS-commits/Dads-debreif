@@ -1508,7 +1508,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
    * 64 tiles, so the square is drawn in split-by-split chunks. Same trim and offset as the 2D map's photo, so it lines up.
    * Three tiers stack (far 10+ miles soft, middle sharper, core sharpest) so the ground is sharp where you look.
    */
-  function createTier({ span, px, maxZoom, split, cx = 0, cy = 0, debounceMs = 150, maxKept = undefined, transparent = false }) {
+  function createTier({ span, px, maxZoom, split, cx = 0, cy = 0, debounceMs = 150, maxKept = undefined, transparent = false, zoomBoost = 1 }) {
     const half = span / 2;
     const tier = { canvas: null, texture: null, imagery: null, debounce: null, align: null, drawn: null };
     /** Paints the tiles that arrived since the last paint; `full` starts the picture again (a new square or alignment). */
@@ -1532,7 +1532,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
         for (let j = 0; j < split; j++) {
           const q = { minX: cx - half + i * step, maxX: cx - half + (i + 1) * step, minY: cy - half + j * step, maxY: cy - half + (j + 1) * step };
           const fake = {
-            view: { scale: px / span },
+            view: { scale: (px / span) * zoomBoost }, // zoomBoost asks for finer tiles than the canvas needs (drawn shrunk)
             visibleBounds: () => q,
             worldToScreen: (wx, wy) => [((wx - cx + half) / span) * px, ((cy + half - wy) / span) * px],
           };
@@ -1598,7 +1598,10 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
   function sharpestFiltering() {
     return Math.max(8, gl?.renderer?.capabilities?.getMaxAnisotropy?.() ?? 8);
   }
-  const outerTier = createTier({ span: OUTER_PHOTO_SPAN_FT, px: 2048, maxZoom: 11, split: 2 }); // 30 NM each way, softest
+  // 30 NM each way, softest. Built from zoom-12 pictures shrunk to fit: Esri's zoom 11 here is a different, summer-green photo,
+  // while zoom 12 to 18 are the same photo, so the far ring now matches the ground nearer in (Patrick, 10 Oct: "the far away ground
+  // changes colors so much"; TR-123).
+  const outerTier = createTier({ span: OUTER_PHOTO_SPAN_FT, px: 2048, maxZoom: 12, split: 3, zoomBoost: 2 });
   // 10+ miles each way; 2,048 px (about 52 ft a pixel), as it is only seen far off (TR-71: was 4,096, about 65 MB more)
   const farTier = createTier({ span: PHOTO_SPAN_FT, px: 2048, maxZoom: 12, split: 3 });
   const midTier = createTier({ span: MID_SPAN_FT, px: 4096, maxZoom: 15, split: 3 }); // about 3 miles each way
@@ -2147,7 +2150,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       tiles.group.position.z = floor - 1.75;
       tiles.group.updateMatrixWorld();
       tiles.update({
-        camera: gl.shownCamera, viewportPx: canvas.height, heights: ground,
+        camera: gl.shownCamera, viewportPx: canvas.height, viewportWidthPx: canvas.width, heights: ground,
         opacity: (Number.isFinite(options.photoOpacityPct) ? options.photoOpacityPct : 100) / 100,
       });
     } else if (groundTiles) {
