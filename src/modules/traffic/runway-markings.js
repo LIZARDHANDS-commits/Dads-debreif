@@ -75,12 +75,6 @@ function glyphLines(ch) {
   }
 }
 
-/** 29R/11L's end paint (photo, 10 Oct, ±3 ft): as 29L's, but the aiming point 1,308 ft past the bar and the touchdown bars at 490, 981, 1,963 and 2,453 ft, at both ends. */
-const END_PAINT_29R = Object.freeze({
-  ...END_PAINT,
-  aim: Object.freeze({ ...END_PAINT.aim, from: 1308, to: 1455 }),
-  tdz: Object.freeze({ ...END_PAINT.tdz, starts: Object.freeze([490, 981, 1963, 2453]) }),
-});
 /** 29R's threshold bar 33 ft before its runway point, 11L's 5 ft past the other end (photo); the centreline dashes every 197.4 ft from 273 ft past each bar (photo). */
 const BAR_29R_FT = -33;
 const BAR_11L_PAST_END_FT = 5;
@@ -220,19 +214,46 @@ const PAINT_0321 = Object.freeze({
  * like every taxiway it is drawn in the runways' grey (TR-126; it was fresh black, TR-118).
  */
 export const TAXIWAYS = Object.freeze([
-  // Re-centred on the traced pavement (TR-127): each line moved to the middle of its pavement, measured across it every few
-  // hundred feet (they had sat 7 to 45 ft off; G 136 ft). widthFt is the pavement's measured width, for the holding positions.
-  // The grey itself is the built surface (airfield-surface.js, TR-128); no taxiway draws its own strip now.
-  { id: 'A', widthFt: 82, pts: [[-3507, 2882], [-3465, 3034], [-687, 1808]] },
-  { id: 'B', widthFt: 85, pts: [[-2564, 2497], [-3519, 712]] },
-  { id: 'C', widthFt: 72, pts: [[-772, 1736], [-932, 1416]] },
-  { id: 'Echo', widthFt: 50, pts: [[-1216, 1452], [235, -1382]] }, // repaved, 50 ft, centred on its old concrete (TR-128)
-  { id: 'D', widthFt: 84, pts: [[1611, 1636], [2311, 936]] },
-  { id: 'F', widthFt: 84, pts: [[2295, 919], [3506, -31], [3663, -287], [3778, -760], [3769, -844], [3583, -1166]] },
-  { id: 'F2', widthFt: 83, pts: [[3607, -1181], [2785, -2752]] },
-  { id: 'G', widthFt: 150, pts: [[1650, 1908], [2250, 2558]] },
-  { id: 'H', widthFt: 33, pts: [[2038, 2269], [2488, 1889]] },
+  // Each centreline fitted to its concrete on Esri's photo (TR-129): the pavement's middle found every 25 ft along it and a
+  // straight line fitted per leg (several had been turned a few degrees, up to 50 ft off at one end). widthFt is the pavement's
+  // measured width, for the holding positions. The grey is the built surface (airfield-surface.js, TR-128).
+  { id: 'A', widthFt: 85, pts: [[-3507, 2882], [-3454, 3076], [-696, 1787]] },
+  { id: 'B', widthFt: 88, pts: [[-2560, 2495], [-3523, 714]] },
+  { id: 'C', widthFt: 74, pts: [[-696, 1787], [-750, 1725], [-953, 1426]] },
+  { id: 'Echo', widthFt: 50, pts: [[-1221, 1450], [246, -1376]] }, // repaved, 50 ft, centred on its old concrete
+  { id: 'D', widthFt: 87, pts: [[1592, 1617], [2335, 960]] },
+  { id: 'F', widthFt: 90, pts: [[2327, 960], [3554, -144], [3636, -226], [3804, -808], [3575, -1161]] },
+  { id: 'F2', widthFt: 86, pts: [[3618, -1187], [2775, -2747]] },
+  { id: 'G', widthFt: 150, pts: [[1583, 1835], [1650, 1908], [2250, 2558]] },
 ]);
+
+/**
+ * The ramp's taxilines (TR-129; Patrick, 10 Oct, his red flow on an oblique photo: "make all the yellow lines join up"): two lanes
+ * along the ramp, fed at the west end from A and C (one lane straight on, the other crossing over), and at the east end both
+ * running into the curve from G down to D. Placed by pinning Patrick's sketch to Hangars 1 to 4 (about ±20 ft; Esri's photo shows
+ * no paint here), then smoothed. Feet from the ARP.
+ */
+export const RAMP_TAXILINES = Object.freeze([
+  [[-696, 1787], [-581, 1803], [-496, 1790], [-327, 1778], [-259, 1810], [-146, 1885], [-67, 1960], [1, 1987], [125, 1982], [307, 1960], [650, 1925], [989, 1895], [1427, 1838], [1570, 1775]],
+  [[-696, 1787], [-592, 1885], [-468, 1922], [-395, 1905], [-157, 1887], [23, 1865], [307, 1845], [596, 1825], [706, 1805], [989, 1780], [1228, 1750], [1450, 1728], [1585, 1712]],
+  [[1583, 1835], [1570, 1775], [1585, 1712], [1592, 1617]],
+]);
+
+/** Corner-cutting smoothing (Chaikin), ends kept: `rounds` passes. */
+function smooth(pts, rounds = 3) {
+  let p = pts.map(([x, y]) => [x, y]);
+  for (let r = 0; r < rounds; r++) {
+    const q = [p[0]];
+    for (let i = 0; i < p.length - 1; i++) {
+      const [ax, ay] = p[i], [bx, by] = p[i + 1];
+      if (i > 0) q.push([0.75 * ax + 0.25 * bx, 0.75 * ay + 0.25 * by]);
+      if (i < p.length - 2) q.push([0.25 * ax + 0.75 * bx, 0.25 * ay + 0.75 * by]);
+    }
+    q.push(p[p.length - 1]);
+    p = q;
+  }
+  return p;
+}
 /** Taxiway centreline: yellow, 0.5 ft wide (6 in, standard practice; an estimate, as the photo is too faded to show it). */
 const TAXI_LINE_FT = 0.5;
 /** Holding positions stand 250 ft from the runway centreline (measured on taxiway B, photo). */
@@ -307,10 +328,11 @@ export function runwayMarkingPolygons() {
     ends: [{ letter: 'L', number: '29', layout: END_PAINT }, { letter: 'R', number: '11', layout: END_PAINT }],
     centreline: () => CENTRELINE_STARTS_FT,
   });
-  // 29R/11L (TR-118): the same set, its own aiming point and touchdown bars, dashes evenly spaced from 273 ft past each bar.
+  // 29R/11L (TR-118): the same set as 29L, the aiming point at 1,000 ft (976 ft past the bar) like 29L's (Patrick, 10 Oct: "those white
+  // strips are 1000 feet"; TR-129; was 1,308 ft, misread off the photo), dashes evenly spaced from 273 ft past each bar.
   paintRunway(shapes, {
     a: THRESHOLD_29R, b: DEPARTURE_END_29R, barA: BAR_29R_FT, barB: (len) => len + BAR_11L_PAST_END_FT,
-    ends: [{ letter: 'R', number: '29', layout: END_PAINT_29R }, { letter: 'L', number: '11', layout: END_PAINT_29R }],
+    ends: [{ letter: 'R', number: '29', layout: END_PAINT }, { letter: 'L', number: '11', layout: END_PAINT }],
     centreline: (len, barB) => dashStarts(BAR_29R_FT + 273, barB, 273),
   });
   // 03/21 (TR-118): numbers, centreline and holding positions. Its grey, with the ramp's and the taxiways', is the traced surface (TR-127).
@@ -325,6 +347,15 @@ export function runwayMarkingPolygons() {
   }
   for (const { s, away } of Q.holds) holdLine(shapes, r.place, s, Q.halfWidth, away);
   paintTaxiways(shapes);
+  // The ramp's taxilines (TR-129), smoothed, with a square at each joint so the bends have no gaps.
+  const { quad: quadR } = pens(shapes);
+  for (const line of RAMP_TAXILINES) {
+    const pts = smooth(line);
+    for (let k = 1; k < pts.length; k++) {
+      const f = frame({ x: pts[k - 1][0], y: pts[k - 1][1] }, { x: pts[k][0], y: pts[k][1] });
+      quadR('yellow', f.place, -TAXI_LINE_FT / 2, f.len + TAXI_LINE_FT / 2, -TAXI_LINE_FT / 2, TAXI_LINE_FT / 2);
+    }
+  }
   return shapes;
 }
 
