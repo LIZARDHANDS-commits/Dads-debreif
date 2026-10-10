@@ -222,23 +222,17 @@ const PAINT_0321 = Object.freeze({
 export const TAXIWAYS = Object.freeze([
   // Re-centred on the traced pavement (TR-127): each line moved to the middle of its pavement, measured across it every few
   // hundred feet (they had sat 7 to 45 ft off; G 136 ft). widthFt is the pavement's measured width, for the holding positions.
+  // The grey itself is the built surface (airfield-surface.js, TR-128); no taxiway draws its own strip now.
   { id: 'A', widthFt: 82, pts: [[-3507, 2882], [-3465, 3034], [-687, 1808]] },
   { id: 'B', widthFt: 85, pts: [[-2564, 2497], [-3519, 712]] },
   { id: 'C', widthFt: 72, pts: [[-772, 1736], [-932, 1416]] },
-  { id: 'Echo', widthFt: 50, ownSurface: true, pts: [[-1140, 1370], [280, -1403]] }, // repaved, narrower than its old concrete: drawn on its own
+  { id: 'Echo', widthFt: 50, pts: [[-1216, 1452], [235, -1382]] }, // repaved, 50 ft, centred on its old concrete (TR-128)
   { id: 'D', widthFt: 84, pts: [[1611, 1636], [2311, 936]] },
   { id: 'F', widthFt: 84, pts: [[2295, 919], [3506, -31], [3663, -287], [3778, -760], [3769, -844], [3583, -1166]] },
   { id: 'F2', widthFt: 83, pts: [[3607, -1181], [2785, -2752]] },
   { id: 'G', widthFt: 150, pts: [[1650, 1908], [2250, 2558]] },
   { id: 'H', widthFt: 33, pts: [[2038, 2269], [2488, 1889]] },
 ]);
-/**
- * Taxiway surface (TR-126; Patrick, 10 Oct: "all the taxiways should be the same color as the runways and merge together nicely"):
- * the runways' grey, a little wider than the traced pavement so no photo concrete shows at the edges, rounded at every bend and
- * end, and widened with a curved fillet where a taxiway meets a runway. Sizes are estimates.
- */
-const TAXI_SURFACE_EXTRA_FT = 6;
-const FILLET_FT = 70;
 /** Taxiway centreline: yellow, 0.5 ft wide (6 in, standard practice; an estimate, as the photo is too faded to show it). */
 const TAXI_LINE_FT = 0.5;
 /** Holding positions stand 250 ft from the runway centreline (measured on taxiway B, photo). */
@@ -255,7 +249,6 @@ function runwayBoxes() {
     clip: [box(THRESHOLD_29L, DEPARTURE_END_29L, 80, 10), box(THRESHOLD_29R, DEPARTURE_END_29R, 80, 40), box(RUNWAY_03, RUNWAY_21, 52, 0)],
   };
 }
-const box = (a, b, half) => ({ ...frame(a, b), a, half });
 const local = (r, x, y) => {
   const dx = x - r.a.x, dy = y - r.a.y;
   return { s: dx * r.ux + dy * r.uy, n: dx * r.nx + dy * r.ny };
@@ -265,69 +258,16 @@ const onRunway = (boxes, x, y) => boxes.some((r) => {
   return s >= r.lo && s <= r.hi && Math.abs(n) <= r.half;
 });
 
-/** A filled disc as a fan of thin quads (each a triangle with a repeated corner). */
-function disc(shapes, color, x, y, r, n = 20) {
-  for (let i = 0; i < n; i++) {
-    const a0 = (i / n) * Math.PI * 2, a1 = ((i + 1) / n) * Math.PI * 2;
-    const p0 = { x: x + r * Math.cos(a0), y: y + r * Math.sin(a0) };
-    const p1 = { x: x + r * Math.cos(a1), y: y + r * Math.sin(a1) };
-    shapes.push({ color, pts: [{ x, y }, p0, p1, p1] });
-  }
-}
 
-/** 29L's and 29R's pavement edges, for fillets. */
-const mainRunwayEdges = () => [box(THRESHOLD_29L, DEPARTURE_END_29L, 78), box(THRESHOLD_29R, DEPARTURE_END_29R, 78)];
-
-/**
- * Where the strip along `f` (half width `half`) crosses one of `edges`, each side of it flares into the runway along a quarter
- * circle of `radius`: the flare is measured along the runway's edge, so a strip meeting the runway at a slant flares cleanly on
- * both sides, without spikes.
- */
-function fillets(shapes, f, half, edges, radius) {
-  const extra = (u) => radius - Math.sqrt(Math.max(0, radius ** 2 - (radius - u) ** 2));
-  const STEPS = 10;
-  for (const r of edges) {
-    for (const side of [-1, 1]) {
-      let prev = null;
-      for (let t = 0; t <= f.len; t += 1) {
-        const p = f.place(t, side * half);
-        const { s: along, n } = local(r, p.x, p.y);
-        const inside = along >= -60 && along <= r.len + 60 && Math.abs(n) <= r.half;
-        if (prev !== null && inside !== prev) {
-          const out = inside ? -1 : 1; // along the strip, away from the runway
-          // Along the runway edge, the way this side of the strip faces.
-          const sx = f.place(t, side * (half + 1)).x - p.x, sy = f.place(t, side * (half + 1)).y - p.y;
-          const k = sx * r.ux + sy * r.uy >= 0 ? 1 : -1;
-          const dx = k * r.ux, dy = k * r.uy;
-          for (let i = 0; i < STEPS; i++) {
-            const u0 = (i / STEPS) * radius, u1 = ((i + 1) / STEPS) * radius;
-            const e0 = f.place(t + out * u0, side * half), e1 = f.place(t + out * u1, side * half);
-            const w0 = extra(u0), w1 = extra(u1);
-            shapes.push({ color: 'asphalt', pts: [e0, e1, { x: e1.x + w1 * dx, y: e1.y + w1 * dy }, { x: e0.x + w0 * dx, y: e0.y + w0 * dy }] });
-          }
-        }
-        prev = inside;
-      }
-    }
-  }
-}
 
 
 function paintTaxiways(shapes) {
   const { holdFor, clip } = runwayBoxes();
-  const edges = mainRunwayEdges();
   for (const tw of TAXIWAYS) {
-    const half = tw.widthFt / 2 + TAXI_SURFACE_EXTRA_FT / 2;
-    // The paved surface comes from the traced photo (AIRFIELD_SURFACE, TR-127); only a taxiway marked ownSurface draws its own strip.
-    if (tw.ownSurface) for (const [x, y] of tw.pts) disc(shapes, 'asphalt', x, y, half);
     for (let k = 1; k < tw.pts.length; k++) {
       const [ax, ay] = tw.pts[k - 1], [bx, by] = tw.pts[k];
       const f = frame({ x: ax, y: ay }, { x: bx, y: by });
       const { quad } = pens(shapes);
-      if (tw.ownSurface) {
-        quad('asphalt', f.place, 0, f.len, -half, half);
-        fillets(shapes, f, half, edges, FILLET_FT);
-      }
       // The centreline, left off where it runs on a runway.
       let from = null;
       const STEP = 2;
