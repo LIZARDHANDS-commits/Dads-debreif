@@ -24,7 +24,7 @@ import { FW_FOLLOW } from './tuning.js';
 import { fwGoal } from './formation-turns.js';
 import { trackTwice, runTracker, phase } from './tracker.js';
 import { inLeadsPlane, planeEaseSec } from './turning-rejoin.js';
-import { onClosure } from './hand-over.js';
+import { onClosure, fromStep } from './hand-over.js';
 import { isStacked } from './judge.js';
 import { FOUR_FORMATIONS, pairSlot } from './slots.js';
 
@@ -80,13 +80,57 @@ function intoLeadsPlane(wing0, leadRec, recs, phases, run, profile, t0, blockFt)
 }
 
 /**
+ * A held planner's part followed by tracker legs (`w.then`) from where it ends, against the same flights: his state at the
+ * part's last step, the references from that step on, and the legs on the power profile (onProfile), into Lead's wing
+ * plane at the end when `w.plane`. Returns the joined part, or null when the legs do not settle.
+ */
+function withTail(part, w, wing0, recs, done, leadRec, t0, blockFt) {
+  // the held part up to when he is in (its plan may hold him there for the rest of Lead's turn)
+  const all = part.plan.segments.reduce((sum, sg) => sum + (sg.points?.length ?? sg.poses?.length ?? 0), 0);
+  const n = Math.min(all, Math.round(((part.inSec ?? t0 + part.durationSec) - t0) / STEP_SEC));
+  const segments = [];
+  let left = n;
+  for (const sg of part.plan.segments) {
+    if (left <= 0) break;
+    const len = sg.points?.length ?? sg.poses?.length ?? 0;
+    segments.push(sg.points ? { ...sg, points: sg.points.slice(0, left) } : sg.poses ? { ...sg, poses: sg.poses.slice(0, left) } : { ...sg });
+    left -= len;
+  }
+  const a = copyAircraft(wing0);
+  const p = { segments: segments.map((sg) => ({ ...sg })), profile: part.plan.profile };
+  let t = t0;
+  for (let i = 0; i < n; i++) {
+    flyStep(a, p, t);
+    t += STEP_SEC;
+  }
+  const refs = Object.fromEntries(Object.entries(recs).map(([id, r]) => [id, fromStep(r, n)]));
+  const phases = onProfile(w.then(done, recs));
+  let { run, profile } = trackTwice({ refs, wing0: a, t0: t, phases, blockFt, maxSec: FOUR_CHANGE_LIMIT_SEC });
+  if (!run.ok) return null;
+  const flatArrive = run.times[run.times.length - 1].arrive;
+  let planeInSec = t;
+  if (w.plane) ({ run, profile, planeInSec } = intoLeadsPlane(a, fromStep(leadRec, n), refs, phases, run, profile, t, blockFt));
+  const last = run.times[run.times.length - 1];
+  const arrive = (w.plane ? flatArrive ?? last.arrive : last.arrive) ?? t + run.durationSec;
+  return {
+    plan: { segments: [...segments, { kind: 'bankTrack', points: run.points }], profile: [...(part.plan.profile ?? []).filter((leg) => leg.t0 < t), ...profile] },
+    durationSec: n * STEP_SEC + run.durationSec,
+    inSec: Math.max(arrive, planeInSec),
+    times: run.times,
+    maxBankDeg: Math.max(part.maxBankDeg ?? 0, run.maxBankDeg ?? 0),
+    profileEnd: Math.max(t, ...profile.map((leg) => leg.t1)),
+  };
+}
+
+/**
  * Plans one leg from `start` (the four as they are at t0). lead: Lead's segments, or a held turn ({ hold: leadTurnInto's
  * { longRec, planTo }, until: ids, rollOutRoll? }: Lead turns on until those wingmen are in, then rolls out on the whole
  * degree, at rollOutRoll if given). wings: [{ id, phases(done, recs), plane? } | { id, fly(ctx), phases?, plane? }] (plane: his
  * last leg ends in Lead's wing plane, intoLeadsPlane) in an order where the aircraft each flies off is planned first;
  * `done[id]` holds an earlier wingman's { times, inSec, endSec } for gates, `recs[id]` his recorded flight. fly(ctx) gets
  * { wing, recs, done, t0, blockFt } and returns { plan, inSec, durationSec, times? }, { ok: false, reason }, or null when
- * it does not apply from here (then `phases`, if given, flies it).
+ * it does not apply from here (then `phases`, if given, flies it). then(done, recs): tracker legs flown on from where his
+ * held part ends (withTail), so a held planner's part can be followed by more legs in the same leg (TS-179's Away).
  * Returns { ok, reason?, t0, endSec, plans: { id: { segments, profile } }, done, leadTurnDeg }.
  */
 export function flyLeg(start, t0, lead, wings, blockFt) {
@@ -104,6 +148,10 @@ export function flyLeg(start, t0, lead, wings, blockFt) {
       let part = w.fly ? w.fly({ wing: wing0, recs, done, t0, blockFt }) : null;
       if (part && part.ok === false) return { ok: false, reason: part.reason ?? `${NAMES[w.id]} found no way into its place.`, id: w.id };
       if (!part && !w.phases) return { ok: false, reason: `${NAMES[w.id]} found no way into its place.`, id: w.id };
+      if (part && w.then) {
+        part = withTail(part, w, wing0, recs, done, leadRec, t0, blockFt);
+        if (!part) return { ok: false, reason: `${NAMES[w.id]} could not settle in its place inside ${Math.round(FOUR_CHANGE_LIMIT_SEC / 60)} minutes.`, id: w.id };
+      }
       if (!part) {
         // Tracker legs (or the fallback when a held planner does not apply from here).
         const phases = onProfile(w.phases(done, recs));

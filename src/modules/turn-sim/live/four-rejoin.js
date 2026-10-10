@@ -18,7 +18,7 @@
 import { DEG, relativeTo, turnSeg, wholeDegree } from './manoeuvres.js';
 import { recordFlight } from './replay.js';
 import { STEP_SEC } from './flight.js';
-import { slide, closeThrough, rejoinTo, straightAhead } from './recipes.js';
+import { slide, closeThrough, rejoinTo, straightAhead, STRAIGHT_AHEAD } from './recipes.js';
 import { REJOIN, TURNING_REJOIN, STRAIGHT_REJOIN, WING_BANKS, KIAS_OUTSIDE_LAB } from './tuning.js';
 import { phase } from './tracker.js';
 import { RATE_SETS } from './rates.js';
@@ -65,10 +65,12 @@ const STRAIGHT_HORIZON_SEC = 300;
  */
 const WINDOW_STACK_FT = { 3: 100, 4: 200 };
 
-/** Away to echelon: #2 comes from fighting wing to Lead's six this far back, up it to this far back, this far low (estimates). */
-const AWAY_SIX_FT = 600;
-const AWAY_UNDER_FT = 100;
-const AWAY_WAIT_LOW_FT = 40;
+/**
+ * On an Away rejoin #2 crosses Lead's six no closer than this far behind and this far below him (TS-179; Patrick's card
+ * 10 Oct 2026 22:30Z, "500 ft, 50 ft below"): a reference, not a wall. The planner aims for it and a closer cross is
+ * flagged on screen.
+ */
+export const AWAY_CROSS = Object.freeze({ behindFt: 500, belowFt: 50 });
 
 /**
  * A rejoining wingman comes off its stack first (Patrick 4 Oct 19:11Z, "come off first"; SMM 12.27 para 65): one at or above
@@ -320,54 +322,110 @@ export function turningToEchelon(start, t0, opts, s, from) {
 }
 
 /**
- * Spread 4 (or another spread position) to echelon as a turning rejoin with Lead turning away from #2 (TS-176 piece 4;
- * SMM 16.20 para 65b(1), Fig 16.24; SMM 12.24 para 59, join to the inside of the turn). Lead turns toward #3 and #4, so
- * echelon forms on their side, the inside. Nearest first (Patrick 10 Oct 2026 20:48Z): #3 and #4, already inside, close at
- * once and come in one at a time, #3 to his place off Lead, #4 once #3 is in; #2 crosses Lead's turn circle behind him into
- * fighting wing on the inside (the 2-ship's Away, TS-174), and once Lead has rolled out joins last: to Lead's six, low,
- * up it and out into his place next to Lead, so he never passes behind #3 to get there. s: #2's side now.
+ * A spread position to echelon, fighting wing or finger as a turning rejoin with Lead turning away from #2 (TS-179; TS-176
+ * piece 4; SMM 16.20 para 65b(1), Fig 16.24; SMM 12.24 para 59, join to the inside of the turn). Lead turns toward #3 and
+ * #4 and holds the turn until the last wingman is in. Nearest first (Patrick 10 Oct 2026 20:48Z): #3 and #4, already
+ * inside, join first, one at a time, straight into their places. #2 crosses Lead's six no closer than AWAY_CROSS behind and
+ * below into the inside of the turn, and joins last:
+ *  - to echelon he lines up on Lead's six at the straight-ahead rejoin's 1,000 ft (TS-56, SMM Fig 12.17 point 1), below
+ *    the wake, closes up it and from about 500 ft (point 2) moves out into his place between Lead and #3;
+ *  - to fighting wing he goes from the cross into his cone, on the inside (#3 and #4 off him on the other side, as ever);
+ *  - to finger he crosses two lengths behind and below Lead to the outside and up into his place, as the offset box
+ *    element does (TS-177).
+ * s: #2's side now. Returns legsInTurn's result and, when #2 crossed closer than AWAY_CROSS, a flag for the screen.
  */
-export function turningAwayToEchelon(start, t0, opts, s, from) {
+export function turningAway(start, t0, opts, s, from, to) {
   const sIn = -s;
-  const ech4 = slotsFor('echelon', sIn, { ships: 4 });
   const far = (c, id) => (Math.abs(relativeTo(c.start[0], c.by.get(id)).left) > 3000 ? FAR_OVERTAKE_KIAS : REJOIN.overtakeKias);
-  // His route place, one step out and back along the echelon line from his own (SMM 16.15 para 38), then up into it.
+  // The places: echelon and fighting wing with #2 on the inside; finger with #2 on the outside, #3 and #4 on the inside.
+  const slots = to === 'finger' ? slotsFor('finger', s, { ships: 4 }) : slotsFor(to, sIn, { ships: 4 });
+  // #3 and #4 into a close place from the inside: wait in the window behind it, then through the place one step out and
+  // back along the echelon line from it (SMM 16.15 para 38), and up into it.
   const out = pairSlot('route', sIn);
   const step = pairSlot('echelon', sIn);
-  const wing = (c, id, gateAt) => ({
+  const close = (c, id, gateAt) => ({
     id,
+    plane: true,
     phases: (done) => {
-      const p = inLeadFrame(ech4, id);
-      const stackAlt = Math.max(Math.min(c.by.get(id).altAboveFt - c.leadAlt, ech4[id].alt), ech4[id].alt - WINDOW_STACK_FT[id]);
+      const p = inLeadFrame(slots, id);
+      const stackAlt = Math.max(Math.min(c.by.get(id).altAboveFt - c.leadAlt, p.alt), p.alt - WINDOW_STACK_FT[id]);
       return [
-        ...waitInWindow(c, id, p, stackAlt, gateAt(done), { overtakeKias: far(c, id), bankCapDeg: TURNING_REJOIN.bankCapDeg }, ech4[id].alt - 25),
-        closeThrough(place(c, p.fwd + out.fwd - step.fwd, p.left + out.left - step.left, ech4[id].alt - 25), { track: 1, advanceTol: 6 }),
-        slide(place(c, p.fwd, p.left, ech4[id].alt), { track: 1 }),
+        ...waitInWindow(c, id, p, stackAlt, gateAt(done), { overtakeKias: far(c, id), bankCapDeg: TURNING_REJOIN.bankCapDeg }, p.alt - 25),
+        closeThrough(place(c, p.fwd + out.fwd - step.fwd, p.left + out.left - step.left, p.alt - 25), { track: 1, advanceTol: 6 }),
+        slide(place(c, p.fwd, p.left, p.alt), { track: 1 }),
       ];
     },
   });
-  const inPlane = (w) => ({ ...w, plane: true });
-  return legsInTurn(start, t0, opts, [
-    // Lead turns away from #2; #3 and #4 join in echelon on the inside; #2 crosses behind him (the 2-ship's Away, TS-174)
-    // into fighting wing on the inside, clear of their places, and Lead rolls out once all three are in.
-    (c) => {
-      const into = leadInto(c, sIn, 'echelon');
-      const two = { id: 2, fly: twoTurning(c, into, sIn, 'fw', sIn, abreast(from), true) };
-      return { lead: { hold: into, until: [2, 3, 4], rollOutRoll: RATE_SETS.close.echelonRoll }, wings: [inPlane(wing(c, 3, () => c.t0)), inPlane(wing(c, 4, (done) => inAt(done, 3))), two] };
+  // #3 and #4 into fighting wing: through the far edge of the window behind the place (as rejoinToFw) and into it. #3's
+  // place is held off Lead (#2, whom he flies off, is not in yet; once he is, it is the same place); #4 settles where he
+  // arrives in his cone off #3 (the whole cone, TS-75), as in rejoinToFw.
+  const cone = (c, id, gateAt) => ({
+    id,
+    phases: (done) => {
+      const p = inLeadFrame(slots, id);
+      return [
+        rejoinTo(place(c, p.fwd - TRJ.outsideWindowFt[id][1], p.left, p.alt), { track: 1, advanceTol: FW_PASS_FT, overtakeKias: far(c, id), bankCapDeg: TURNING_REJOIN.bankCapDeg, holdUntil: gateAt(done) }),
+        id === 3 ? rejoinTo(place(c, p.fwd, p.left, p.alt), { track: 1 }) : inCone(c, slots[id], -sIn),
+      ];
     },
-    // #2 last: from fighting wing to Lead's six, low, and up it, then out into his place next to Lead, inside #3.
-    (c) => ({
-      lead: [],
-      wings: [{
-        id: 2,
-        phases: () => [
-          rejoinTo(place(c, -AWAY_SIX_FT, 0, -AWAY_WAIT_LOW_FT), { track: 1, advanceTol: 60 }),
-          closeThrough(place(c, -AWAY_UNDER_FT, 0, -AWAY_WAIT_LOW_FT / 2), { track: 1, advanceTol: 6 }),
-          slide(place(c, ech4[2].fwd, ech4[2].left, ech4[2].alt), { track: 1 }),
-        ],
-      }, { id: 3, phases: () => [hold(c, 3, 1)] }, { id: 4, phases: () => [hold(c, 4, 1)] }],
-    }),
+  });
+  // #2 crosses Lead's turn circle behind him into fighting wing on the inside (the 2-ship's Away, TS-174), then on from
+  // there, held until #4 is in (he joins last).
+  const A = STRAIGHT_AHEAD;
+  const two = (c, into) => ({
+    id: 2,
+    plane: to !== 'fw',
+    fly: twoTurning(c, into, sIn, 'fw', sIn, abreast(from), true),
+    then: (done) => {
+      const p = inLeadFrame(slots, 2);
+      const gate = inAt(done, 4);
+      if (to === 'echelon') {
+        return [
+          // on Lead's six at the straight-ahead rejoin's 1,000 ft, below the wake
+          rejoinTo(place(c, A.sixFt, 0, -AWAY_CROSS.belowFt), { track: 1, advanceTol: 60, holdUntil: gate }),
+          // up the six (the straight-ahead rejoin's closing leg), then from about 500 ft out into the gap
+          rejoinTo(place(c, A.closeTowardFt, 0, -AWAY_CROSS.belowFt), { track: 1, overtakeKias: 30, advanceTol: A.vectorAtFt + A.closeTowardFt }),
+          // out into the gap behind his place (as far back as route is behind echelon), then up into it
+          closeThrough(place(c, p.fwd + out.fwd - step.fwd, p.left, p.alt - 25), { track: 1, advanceTol: 6 }),
+          slide(place(c, p.fwd, p.left, p.alt), { track: 1 }),
+        ];
+      }
+      // fighting wing: onto his place in the cone (his +300 ft off, as rejoinToFw), so #3 and #4 are on theirs off him
+      if (to === 'fw') return [rejoinTo(place(c, p.fwd, p.left, Math.min(p.alt, -FW_STEP_DOWN_FT)), { track: 1, holdUntil: gate })];
+      // finger: into the inside behind #3, then across two lengths behind and below Lead to the outside, and up (TS-177)
+      const back = -TRJ.passBehindLengths * LENGTH_FT;
+      const across = { track: 1, bankCapDeg: WING_BANKS.rejoinBankCapDeg, overtakeKias: 10, undertakeKias: 10 };
+      return [
+        rejoinTo(place(c, -TRJ.waitBehindFt[3], sIn * ech().left, -TRJ.waitLowFt[3]), { track: 1, advanceTol: 10, overtakeKias: REJOIN.overtakeKias, holdUntil: gate }),
+        slide(place(c, back, 0, -CROSS_LOW_FT), across),
+        slide(place(c, back, p.left, -CROSS_LOW_FT), across),
+        toSlot(c, slide, slots[2], { bankCapDeg: WING_BANKS.rejoinBankCapDeg, overtakeKias: 10, undertakeKias: 10 }),
+      ];
+    },
+  });
+  const r = legsInTurn(start, t0, opts, [
+    (c) => {
+      const into = leadInto(c, sIn, to);
+      const join = to === 'fw' ? cone : close;
+      return {
+        lead: { hold: into, until: [2, 3, 4], ...(to === 'fw' ? {} : { rollOutRoll: RATE_SETS.close.echelonRoll }) },
+        wings: [join(c, 3, () => c.t0), join(c, 4, (done) => inAt(done, 3)), two(c, into)],
+      };
+    },
   ]);
+  if (!r.ok) return r;
+  // Where #2 crossed Lead's six (his side changed behind Lead): the closest, against AWAY_CROSS.
+  const leg = r.legs[0];
+  const L = recordFlight(start[0], leg.plans[1], leg.t0);
+  const W = recordFlight(start[1], leg.plans[2], leg.t0);
+  // The first time he comes to the inside (to finger he crosses back to the outside close in, by design, TS-177).
+  let cross = null;
+  for (let i = 1; !cross && i * STEP_SEC <= leg.endSec - leg.t0; i++) {
+    const q = relativeTo(L.at(i), W.at(i));
+    if (Math.sign(q.left) === sIn && q.fwd < 0) cross = { behindFt: -q.fwd, belowFt: L.at(i).altAboveFt - W.at(i).altAboveFt };
+  }
+  const tooClose = cross && (Math.round(cross.behindFt) < AWAY_CROSS.behindFt || Math.round(cross.belowFt) < AWAY_CROSS.belowFt);
+  return { ...r, cross, flag: tooClose ? `#2 crossed Lead's six ${Math.round(cross.behindFt)} ft behind and ${Math.round(cross.belowFt)} ft below, closer than the ${AWAY_CROSS.behindFt} ft and ${AWAY_CROSS.belowFt} ft reference (TS-179).` : null };
 }
 
 /**

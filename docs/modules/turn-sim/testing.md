@@ -111,6 +111,7 @@ Each feature below names its test file, what the file checks and where each expe
 | The Side switch and straight-ahead rejoins | Finger and echelon both ways across, the straight-ahead rejoins, each ending in place | spec section 14 |
 | Always true | No roll faster than 90°/s, no jump in position (the height-step check, 40 ft/s at most, retired 10 Oct 2026: TS-178, Patrick 22:15Z "retire it"), bank under 90°, never two aircraft within a wingspan | TS-37, TS-47; T-6A wingspan |
 | Gates | In the turning rejoin to finger, #2 is in before #3, and #3 before #4 | SMM 16.34 para 96 |
+| TRJ Away from Spread 4 | To echelon, fighting wing and finger: Lead turns, #2 crosses behind him to the inside, and all four end in the formation called (echelon and fighting wing with #2 inside, finger with #2 back on his side). The screen names a cross closer than 500 ft behind or 50 ft below; the distance itself is a reference, not checked (V2.227) | TS-179; Patrick 10 Oct 2026 22:30Z |
 | Refusals and the queue | Fluid manoeuvring and "already there" are refused with nothing moved; a press during a change waits its turn; the manoeuvres are refused outside Spread 4 | spec section 14 |
 | Time | Only catches (5 minutes for G-warm, 10 for a change) that the plan finished; no timing check | design section 9 |
 
