@@ -4,7 +4,7 @@ This folder is the Supervisor of Flying weather desk: home field and alternates,
 
 ## Where it stands
 
-Built and live, but Patrick's 4 October answers rebuild it to one desk screen, so the checklist runs after the rebuild; the amber "Incomplete" state is a build task (`docs/modules/sof/plan.md:7`, `archive/docs/REMEDIATION_ROADMAP.md:81`).
+Built and live, but Patrick's 4 October answers rebuild it to one desk screen, so the checklist runs after the rebuild; the amber "Incomplete" state is a build task (`docs/modules/sof/plan.md:7`, `archive/docs/REMEDIATION_ROADMAP.md:81`). On 10 Oct 2026 the airspace data and the 3D airspace and airfield drawing moved to the shared folders so the Debrief can draw them too (SOF-62, Dad's yes; wording waits on Patrick); the SOF draws the same airspace, and its airfields now carry the Traffic sim's runway paint.
 
 ## What is next
 

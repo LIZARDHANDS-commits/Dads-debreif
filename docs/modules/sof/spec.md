@@ -238,7 +238,7 @@ A picture of the weather round home for situational awareness. It never decides 
 - **When data fails:** no METAR, no decks for that field and its pin says "No METAR". Open-Meteo failing: the last good answer stays, marked "refresh failed, showing the HHMMZ answer", until it is 3 hours old; then, or with no good answer yet, model clouds and winds are removed (never frozen), the view says "Model clouds unavailable, showing METAR decks only" with the time of the last good answer. Radar or lightning stale or failed: as on the 2D map. Nothing in the 3D view raises or clears a caution.
 - **Untrusted replies:** Open-Meteo's reply is checked field by field (numbers in range, arrays the expected length); anything else is dropped and counts as a failure. A `null` value is "no data" for that one value (no cloud, level skipped, no barb); more than half nulls counts as a failure ("Model data incomplete").
 - **Live aircraft (phase 4, SOF-40 relay):** the same Traffic toggle and feed as the 2D map (no second poller). Each aircraft at its position and barometric altitude (× the height scale), pointing along its track. Any `TEX2` (T-6) is the shared CT-156 model drawn large with its callsign tag always on and a drop line to the ground (Dad, 7 Oct: "a noticeable T6 for any aircraft with TEX2"); others are small muted stand-ins, tagged on hover or with labels on. Stale aircraft fade and go as in 2D; a relay failure removes them (never frozen) and says "Traffic unavailable". Credit "Aircraft: adsb.lol (ODbL 1.0)" shown while they are.
-- **Airspace (phase 3, SOF-41):** see-through volumes from floor to ceiling for each entry in `airspace-data.js` (DAH boundaries with their pages), edged by kind (restricted red, advisory amber, terminal and control zones blue tones) and labelled with name, floor and ceiling; an entry that fails its check is skipped and named in the Airspace key, never drawn wrong. AGL is taken over flat ground at the home elevation and FL as feet above sea level, both stated. The TACNAV routes are dashed lines at 500 ft AGL. **Airspace** and **TACNAV** toggles, both on.
+- **Airspace (phase 3, SOF-41):** see-through volumes from floor to ceiling for each entry in `src/airfields/airspace/data.js` (DAH boundaries with their pages; the data, its checks and the 3D drawing are shared with the Debrief since 10 Oct 2026, SOF-62), edged by kind (restricted red, advisory amber, terminal and control zones blue tones) and labelled with name, floor and ceiling; an entry that fails its check is skipped and named in the Airspace key, never drawn wrong. AGL is taken over flat ground at the home elevation and FL as feet above sea level, both stated. The TACNAV routes are dashed lines at 500 ft AGL. **Airspace** and **TACNAV** toggles, both on.
 
 ### Settings
 
@@ -328,6 +328,9 @@ src/modules/sof/
   layout.js      the screen: SOF bar, banner, waves, columns, More panels
   sof.css
   README.md      what each file does and where to change common things (R8)
+src/airfields/airspace/  the airspace data (DAH and FAA files, one loader per base in areas.js), its checks and the kinds filter, shared with the Debrief (SOF-62)
+src/airfields/airports-data.js  the runway list the 3D airfields and the crosswind check read (SOF-62)
+src/ui-kit/airspace3d.js, airfield3d.js  the 3D airspace and airfield drawing, shared with the Debrief (SOF-62)
 tests/unit/sof/  one test file per pure file
 tests/fixtures/sof/  captured replies: MET Norway, Datamask, ECCC layer times and images, RainViewer
 docs/checklists/sof.md   the sign-off checklist (R21)
