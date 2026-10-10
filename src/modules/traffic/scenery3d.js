@@ -107,16 +107,7 @@ export const CYMJ_EXTRA_BUILDINGS = Object.freeze([
     footprint: Object.freeze([[-100, -62], [100, -62], [100, 62], [-100, 62]]),
     roof: '#d6d8db', wall: '#e2e8f0', accent: '#3b82f6',
   }),
-  Object.freeze({
-    id: 'hangar-5', name: 'Hangar 5', type: 'building', x: 1897, y: 2554, height: 48, rotation: -0.70,
-    footprint: Object.freeze([[-126, -100], [126, -100], [126, 100], [-126, 100]]),
-    roof: '#9aa3ad', wall: '#e7ebef', accent: '#1d4ed8',
-  }),
-  Object.freeze({
-    id: 'hangar-6', name: 'Hangar 6', type: 'building', x: 2104, y: 2772, height: 48, rotation: -0.79,
-    footprint: Object.freeze([[-132, -83], [132, -83], [132, 83], [-132, 83]]),
-    roof: '#9aa3ad', wall: '#e7ebef', accent: '#0f766e',
-  }),
+  // Hangars 5 and 6 moved to flightline-buildings3d.js with their real roofs, walls and doors (TR-120).
   Object.freeze({
     id: 'flightline-dark', type: 'building', x: 1290, y: 2440, height: 32, rotation: 0, label: false,
     footprint: Object.freeze([[-111, -72], [91, -72], [91, 40], [21, 40], [21, 74], [-111, 74]]),
