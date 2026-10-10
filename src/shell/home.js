@@ -27,6 +27,63 @@ function cardMedia(media) {
   return { element: h('div', { class: 'card-media' }, still, video), video };
 }
 
+function cardInfo(entry, cardRef) {
+  if (!entry.details) return null;
+  const popover = h(
+    'div',
+    {
+      class: 'card-info-popover',
+      role: 'tooltip',
+      onclick: (e) => e.stopPropagation(),
+    },
+    h(
+      'div',
+      { class: 'info-popover-header' },
+      h('span', { class: 'info-popover-title' }, entry.title),
+      h(
+        'button',
+        {
+          type: 'button',
+          class: 'info-popover-close',
+          'aria-label': 'Close info',
+          onclick: (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            cardRef.remove('is-info-open');
+          },
+        },
+        '×',
+      ),
+    ),
+    h('p', { class: 'info-popover-summary' }, entry.details.summary),
+    entry.details.capabilities?.length
+      ? h(
+          'ul',
+          { class: 'info-popover-list' },
+          entry.details.capabilities.map((cap) => h('li', {}, cap)),
+        )
+      : null,
+  );
+
+  const btn = h(
+    'button',
+    {
+      type: 'button',
+      class: 'card-info-btn',
+      'aria-label': `Information and capabilities for ${entry.title}`,
+      title: `Information & capabilities for ${entry.title}`,
+      onclick: (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        cardRef.toggle('is-info-open');
+      },
+    },
+    'i',
+  );
+
+  return h('div', { class: 'card-info-wrapper' }, btn, popover);
+}
+
 function moduleCard(entry) {
   const { element: media, video } = cardMedia(entry.media);
   const badge = cardBadge(entry);
@@ -38,9 +95,17 @@ function moduleCard(entry) {
     h('span', { class: 'card-blurb' }, entry.blurb),
     badge ? h('span', { class: badge === 'PROTOTYPE' ? 'badge badge-prototype' : 'badge' }, badge) : null,
   );
+  let cardEl = null;
+  const cardRef = {
+    toggle: (cls) => cardEl?.classList.toggle(cls),
+    remove: (cls) => cardEl?.classList.remove(cls),
+  };
+  const info = cardInfo(entry, cardRef);
+  const children = [media, info, text].filter(Boolean);
   const card = isBuilt(entry)
-    ? h('a', { class: 'card', href: `#/${entry.id}`, dataset: { module: entry.id } }, media, text)
-    : h('div', { class: 'card is-planned', dataset: { module: entry.id } }, media, text);
+    ? h('a', { class: 'card', href: `#/${entry.id}`, dataset: { module: entry.id } }, ...children)
+    : h('div', { class: 'card is-planned', dataset: { module: entry.id } }, ...children);
+  cardEl = card;
   return { card, video };
 }
 
@@ -53,7 +118,28 @@ function aboutCard() {
     h('span', { class: 'card-title' }, 'About Us'),
     h('span', { class: 'card-blurb' }, 'The co-creators, and why these tools exist'),
   );
-  return h('a', { class: 'card card-about', href: '#/about', dataset: { module: 'about' } }, media, text);
+  let cardEl = null;
+  const cardRef = {
+    toggle: (cls) => cardEl?.classList.toggle(cls),
+    remove: (cls) => cardEl?.classList.remove(cls),
+  };
+  const info = cardInfo(
+    {
+      title: 'About OODA LOOP',
+      details: {
+        summary: 'Background, flight instruction philosophy, and international partnership details.',
+        capabilities: [
+          'Story of Kenny "Dad" Natelli (USAF Exchange IP) and Pat (2 CFFTS IP & Engineer)',
+          'Col. John Boyd OODA loop and Energy-Maneuverability doctrine',
+          'Flight-line contact, user feedback route, and community support',
+        ],
+      },
+    },
+    cardRef,
+  );
+  const card = h('a', { class: 'card card-about', href: '#/about', dataset: { module: 'about' } }, media, info, text);
+  cardEl = card;
+  return card;
 }
 
 function loadVideo(video) {
