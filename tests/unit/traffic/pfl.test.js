@@ -1,7 +1,7 @@
 // Checks: the PFL (Traffic spec 4.5): from a spread of failure points and winds it lands on the runway or ejects
 //   as the energy says, takes no drag before the circle or a committed direct glide, never does worse with more
 //   height, and in the sim never moves further in a step than it flies; the PFL button, an area start that lands
-//   and flies a touch-and-go, and one far too low and far out that ejects.
+//   and flies a touch-and-go, and one far too low and far out that ejects; the inner downwind in a westerly makes the runway.
 // Serves: TR-R14, TR-R30, TR-R35.
 // Expected values: end results only (on the runway, ejected, back in the circuit); clean glide 2 NM per 1,000 ft
 //   (T-6A max glide chart; SMM 13.5 para 7); start points are the circuit's own points and spec 4.5's keys; the
@@ -76,7 +76,7 @@ test('PFL: on profile at High Key or Low Key, or high at High Key, it touches do
   const keys = {
     'High Key, 5,000 ft': { ...THRESHOLD_29L, alt: 5000, kias: 125, headingDeg: 298 },
     'Low Key, 3,700 ft': { x: lowKey.x, y: lowKey.y, alt: 3700, kias: 120, headingDeg: 118 },
-    // 600 ft high at High Key: all the drag out early, then the circle widened before Final Key (Patrick 10:10Z).
+    // 600 ft high at High Key: gear at High Key, then the false High Key down the runway (spec 4.5 item 9).
     'High Key, 5,600 ft': { ...THRESHOLD_29L, alt: 5600, kias: 125, headingDeg: 298 },
   };
   for (const wind of WINDS) {
@@ -86,6 +86,13 @@ test('PFL: on profile at High Key or Low Key, or high at High Key, it touches do
       assert.ok(r.touchdown.alongFt <= TOUCHDOWN_LIMIT_FT, `${name}, ${wind.windKt} kt from ${wind.windFromDeg}: touched down ${Math.round(r.touchdown.alongFt)} ft down the runway`);
     }
   }
+});
+
+test('PFL: on the inner downwind abeam the threshold, 3,500 ft and 140 KIAS in 15 kt from 269°, it lands on the runway (spec 4.5 item 3)', () => {
+  // Fable's start B2 (10 Oct audit): the old follower landed 171 ft short here. Pattern height 3,500 ft is Patrick's (D109).
+  const r = flyPfl({ x: 2300, y: -6450, alt: 3500, kias: 140, headingDeg: 118, bankDeg: 0 }, { windFromDeg: 269, windKt: 15 });
+  assert.equal(r.outcome, 'landed');
+  assert.ok(onRunway(r.points.at(-1)), 'touched down on the runway');
 });
 
 test('PFL: far too low to make the runway, it ejects (spec 4.5 item 10)', () => {
