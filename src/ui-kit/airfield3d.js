@@ -79,9 +79,10 @@ export function airportElevationFt(icao, airports = AIRPORTS) {
 
 /**
  * One runway in the map's feet. `runway` is an airports-data.js runway ({ ends, widthFt, a, b }); `toXY(lat, lon)` gives [x, y].
- * Returns { ends: [nameAtA, nameAtB], ax, ay, bx, by, cx, cy, lengthFt, widthFt, angle } or null when an end has no usable place.
- * `lengthFt` is the distance between the two thresholds as plotted (true length), `angle` the direction from end a to end b in radians
- * counterclockwise from east.
+ * Returns { ends: [nameAtA, nameAtB], displacedA, displacedB, source, ax, ay, bx, by, cx, cy, lengthFt, widthFt, angle } or null when an end
+ * has no usable place. `lengthFt` is the distance between the two ends as plotted (true length), `angle` the direction from end a to end b in
+ * radians counterclockwise from east, `displacedA` and `displacedB` how far each end's landing threshold sits in from it (feet, 0 for none),
+ * `source` where the ends came from (airports-data.js: 'patrick', 'faa-cifp' or 'ourairports').
  */
 export function runwayGeometry(runway, toXY) {
   const a = runway?.a;
@@ -92,8 +93,13 @@ export function runwayGeometry(runway, toXY) {
   const lengthFt = Math.hypot(bx - ax, by - ay);
   if (!(lengthFt > 100)) return null;
   const ends = Array.isArray(runway.ends) && runway.ends.length === 2 ? runway.ends.map(String) : ['', ''];
+  // A displaced threshold (the FAA CIFP's, DB-26) moves that end's threshold paint along the strip; never past a third of it (bad data).
+  const displaced = (e) => (isNumber(e.displacedFt) && e.displacedFt > 0 ? Math.min(e.displacedFt, lengthFt / 3) : 0);
   return {
     ends,
+    displacedA: displaced(a),
+    displacedB: displaced(b),
+    source: typeof runway.source === 'string' ? runway.source : 'ourairports',
     ax, ay, bx, by,
     cx: (ax + bx) / 2,
     cy: (ay + by) / 2,
@@ -107,10 +113,14 @@ export function runwayGeometry(runway, toXY) {
  * The paint on a runway as rectangles in the runway's own feet: x along (from its middle towards end b, so end a is at -length / 2), y across
  * (to the left of that direction). Each is [x0, x1, y0, y1]. Returns { edges, dashes, keys, bars, aims, outlines }: the two edge lines, the
  * centreline's dashes (from clear of each end's number block to the other's), the piano keys and the threshold bar at both ends, the aiming-point
- * blocks (none on a short runway), and every white box grown by the outline's width, drawn black under the white.
+ * blocks (none on a short runway), and every white box grown by the outline's width, drawn black under the white. A displaced threshold
+ * (`displacedA`, `displacedB`, feet in from that end) moves that end's bar, keys, aiming point and the centreline's start in by that much;
+ * the strip itself is still drawn end to end.
  */
-export function markingBoxes({ lengthFt, widthFt }) {
+export function markingBoxes({ lengthFt, widthFt, displacedA = 0, displacedB = 0 }) {
   const half = lengthFt / 2;
+  const ia = -half + displacedA; // where end a's threshold bar starts
+  const ib = half - displacedB; // and end b's
   const w = widthFt / 2;
   const edges = [[-half, half, w - EDGE_FT * 1.5, w - EDGE_FT * 0.5], [-half, half, -w + EDGE_FT * 0.5, -w + EDGE_FT * 1.5]];
   const n = keyCount(widthFt);
@@ -119,21 +129,21 @@ export function markingBoxes({ lengthFt, widthFt }) {
   const keys = [];
   for (let i = 0; i < n; i++) {
     const y = (i - (n - 1) / 2) * pitch;
-    keys.push([-half + KEYS_FT.fromThreshold, -half + KEYS_FT.fromThreshold + KEYS_FT.length, y - stripe / 2, y + stripe / 2]);
-    keys.push([half - KEYS_FT.fromThreshold - KEYS_FT.length, half - KEYS_FT.fromThreshold, y - stripe / 2, y + stripe / 2]);
+    keys.push([ia + KEYS_FT.fromThreshold, ia + KEYS_FT.fromThreshold + KEYS_FT.length, y - stripe / 2, y + stripe / 2]);
+    keys.push([ib - KEYS_FT.fromThreshold - KEYS_FT.length, ib - KEYS_FT.fromThreshold, y - stripe / 2, y + stripe / 2]);
   }
   const clear = KEYS_FT.fromThreshold + KEYS_FT.length + NUMBER_BLOCK.gapFt + NUMBER_BLOCK.along * widthFt + 60;
   const dashes = [];
-  for (let x = -half + clear; x + CENTRE_DASH_FT.dash <= half - clear + 1e-6; x += CENTRE_DASH_FT.dash + CENTRE_DASH_FT.gap) {
+  for (let x = ia + clear; x + CENTRE_DASH_FT.dash <= ib - clear + 1e-6; x += CENTRE_DASH_FT.dash + CENTRE_DASH_FT.gap) {
     dashes.push([x, x + CENTRE_DASH_FT.dash, -CENTRE_DASH_FT.width / 2, CENTRE_DASH_FT.width / 2]);
   }
   const barHalf = w - EDGE_FT * 0.5;
-  const bars = [[-half, -half + BAR_FT, -barHalf, barHalf], [half - BAR_FT, half, -barHalf, barHalf]];
+  const bars = [[ia, ia + BAR_FT, -barHalf, barHalf], [ib - BAR_FT, ib, -barHalf, barHalf]];
   const aims = [];
-  if (lengthFt >= AIM_MIN_LENGTH_FT) {
+  if (ib - ia >= AIM_MIN_LENGTH_FT) {
     for (const side of [-1, 1]) {
       const [y0, y1] = side > 0 ? [AIM.inner * widthFt, AIM.outer * widthFt] : [-AIM.outer * widthFt, -AIM.inner * widthFt];
-      aims.push([-half + AIM.from, -half + AIM.to, y0, y1], [half - AIM.to, half - AIM.from, y0, y1]);
+      aims.push([ia + AIM.from, ia + AIM.to, y0, y1], [ib - AIM.to, ib - AIM.from, y0, y1]);
     }
   }
   const grow = ([x0, x1, y0, y1]) => [x0 - OUTLINE_FT, x1 + OUTLINE_FT, y0 - OUTLINE_FT, y1 + OUTLINE_FT];
@@ -201,13 +211,20 @@ function buildingSpot(runways, c0) {
  * (feet above sea level); `doc` makes the number textures' canvases; `airports` is airports-data.js's list unless a test gives its own; `halfFt` is half the
  * width of the square kept round the map's origin (the SOF passes half its "3D area"; with none every airport is kept); `liftFt` is how far above its
  * height a runway is drawn (LIFT_FT unless given); `aboveGround` false draws each field at its own elevation even under `groundFt` (the Debrief, whose
- * aircraft land at their true height; DB-24), true (the SOF) never lower than the ground the view draws.
+ * aircraft land at their true height; DB-24), true (the SOF) never lower than the ground the view draws. `elevationShiftFt` (0 unless given) is
+ * added to every field's elevation: the Debrief's difference between the ground its tracks recorded and the field's published elevation
+ * (DB-26). `layerFt` is how far each layer of paint sits above the one under it (LAYER_FT unless given; the Debrief's true-scale chase view
+ * wants thin paint).
  * An airport with no runway that plots, or whose middle is outside the area, is skipped.
  *
- * Returns { root, summary, fit(ftPerPx), dispose() }: `root` holds one Group per airport; `summary` is [{ icao, runways, ends: ['11L', ...], elevationFt }]
+ * Returns { root, summary, fit(ftPerPx), dispose() }: `root` holds one Group per airport; `summary` is [{ icao, runways, ends: ['11L', ...], elevationFt, sources }]
  * for the key; `fit(ftPerPx)` applies the minimum drawn size for the camera's scene feet per screen pixel.
  */
-export function buildAirports(T, { toXY, scale, groundFt, doc = globalThis.document, airports = AIRPORTS, halfFt = Infinity, liftFt = LIFT_FT, aboveGround = true }) {
+export function buildAirports(T, {
+  toXY, scale, groundFt, doc = globalThis.document, airports = AIRPORTS, halfFt = Infinity, liftFt = LIFT_FT, aboveGround = true, elevationShiftFt = 0, layerFt = LAYER_FT,
+}) {
+  const LAYER = isNumber(layerFt) && layerFt > 0 ? layerFt : LAYER_FT;
+  const shift = isNumber(elevationShiftFt) ? elevationShiftFt : 0;
   const root = new T.Group();
   root.name = 'airports';
   const owned = [];
@@ -230,7 +247,7 @@ export function buildAirports(T, { toXY, scale, groundFt, doc = globalThis.docum
     if (!runways.length) continue;
     const c0 = { x: runways.reduce((s, r) => s + r.cx, 0) / runways.length, y: runways.reduce((s, r) => s + r.cy, 0) / runways.length };
     if (Math.abs(c0.x) > half || Math.abs(c0.y) > half) continue;
-    const fieldZ = (isNumber(airport.elevationFt) ? airport.elevationFt : groundFt) * scale;
+    const fieldZ = (isNumber(airport.elevationFt) ? airport.elevationFt + shift : groundFt) * scale;
     const z = (aboveGround ? Math.max(planeZ, fieldZ) : fieldZ) + liftFt;
     const field = new T.Group();
     field.name = `airport-${airport.icao}`;
@@ -249,14 +266,14 @@ export function buildAirports(T, { toXY, scale, groundFt, doc = globalThis.docum
         own(new T.MeshBasicMaterial({ color: AIRPORT_COLOURS.asphalt, side: T.DoubleSide })),
       );
       const { edges, dashes, keys, bars, aims, outlines } = markingBoxes(r);
-      const edgeMesh = new T.Mesh(own(rectGeometry(T, edges, LAYER_FT * 2)), paint(LAYER_FT, 2));
+      const edgeMesh = new T.Mesh(own(rectGeometry(T, edges, LAYER * 2)), paint(LAYER, 2));
       edgeMesh.renderOrder = 4;
       group.add(asphalt, edgeMesh);
       // The paint that is only worth drawing once the runway is long enough on the screen: the black outlines first, the white over them.
       const detail = new T.Group();
-      const outlineMesh = new T.Mesh(own(rectGeometry(T, outlines, LAYER_FT)), paint(LAYER_FT, 1, AIRPORT_COLOURS.outline));
-      const keyMesh = new T.Mesh(own(rectGeometry(T, [...keys, ...bars, ...aims], LAYER_FT * 2)), paint(LAYER_FT, 2));
-      const dashMesh = new T.Mesh(own(rectGeometry(T, dashes, LAYER_FT * 2)), paint(LAYER_FT, 2));
+      const outlineMesh = new T.Mesh(own(rectGeometry(T, outlines, LAYER)), paint(LAYER, 1, AIRPORT_COLOURS.outline));
+      const keyMesh = new T.Mesh(own(rectGeometry(T, [...keys, ...bars, ...aims], LAYER * 2)), paint(LAYER, 2));
+      const dashMesh = new T.Mesh(own(rectGeometry(T, dashes, LAYER * 2)), paint(LAYER, 2));
       outlineMesh.renderOrder = 4;
       keyMesh.renderOrder = 4;
       dashMesh.renderOrder = 4;
@@ -265,14 +282,14 @@ export function buildAirports(T, { toXY, scale, groundFt, doc = globalThis.docum
       // runway reads them upright. At end a that is towards end b (+x here), and the digits' left-to-right is across, to the pilot's right (-y).
       const block = { across: r.widthFt * NUMBER_BLOCK.across, along: r.widthFt * NUMBER_BLOCK.along };
       const fromEnd = KEYS_FT.fromThreshold + KEYS_FT.length + NUMBER_BLOCK.gapFt + block.along / 2;
-      [[r.ends[0], -1], [r.ends[1], 1]].forEach(([name, side]) => {
+      [[r.ends[0], -1, r.displacedA], [r.ends[1], 1, r.displacedB]].forEach(([name, side, displaced]) => {
         if (!name) return;
         if (!textures.has(name)) textures.set(name, own(numberTexture(T, doc, name)));
         const plane = new T.Mesh(
           own(new T.PlaneGeometry(block.across, block.along)),
           own(new T.MeshBasicMaterial({ map: textures.get(name), transparent: true, depthWrite: false, side: T.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })),
         );
-        plane.position.set(side * (r.lengthFt / 2 - fromEnd), 0, LAYER_FT * 3);
+        plane.position.set(side * (r.lengthFt / 2 - displaced - fromEnd), 0, LAYER * 3);
         plane.rotation.z = side < 0 ? -Math.PI / 2 : Math.PI / 2;
         plane.renderOrder = 5;
         detail.add(plane);
@@ -298,7 +315,10 @@ export function buildAirports(T, { toXY, scale, groundFt, doc = globalThis.docum
     }
 
     fields.push({ field, strips, longest });
-    summary.push({ icao: airport.icao, runways: runways.length, ends: runways.flatMap((r) => r.ends).filter(Boolean), elevationFt: airport.elevationFt ?? null });
+    summary.push({
+      icao: airport.icao, runways: runways.length, ends: runways.flatMap((r) => r.ends).filter(Boolean), elevationFt: airport.elevationFt ?? null,
+      sources: [...new Set(runways.map((r) => r.source))],
+    });
   }
 
   return {
