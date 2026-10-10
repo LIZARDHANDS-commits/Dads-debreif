@@ -581,6 +581,7 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     const toward = (ft) => Math.max(-D.diveFtps, Math.min(D.diveFtps, (ft - W.altAboveFt) * D.altGain));
     let wantV = toward(targetAlt);
     const isRejoin = Boolean(ph.rejoin || ph.rejoinKind === 'into' || ph.rejoinKind === 'straight');
+    // A guard only: with the line at Lead less 50 ft (TS-166) this never binds (Fable's V2.216 audit 2.4); refactor step 3 may drop it.
     if (isRejoin && W.altAboveFt >= (L.altAboveFt ?? 0) - 10) wantV = Math.min(wantV, toward((L.altAboveFt ?? 0) - 10));
     const v0 = W.climbFtps ?? 0;
     const pull = D.pullFtps2;
@@ -735,7 +736,9 @@ function isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt, timesK, early, heig
     if (L && ph.side != null && !ph.allowAcross) {
       const rel = relativeTo(L, W);
       const r = Math.hypot(rel.fwd, rel.left, (W.altAboveFt ?? 0) - (L.altAboveFt ?? 0));
-      if (rel.left * ph.side < -50 && r < 2000) {
+      // Away (TS-174): crossing in behind Lead from the outside of his turn is the rejoin; the check starts on side.
+      if (ph.crossIn && !timesK.onSide && rel.left * ph.side >= 0) timesK.onSide = true;
+      if ((!ph.crossIn || timesK.onSide) && rel.left * ph.side < -50 && r < 2000) {
         return { abort: true, early: pursuitResult, stoppedAt: newStoppedAt };
       }
     }

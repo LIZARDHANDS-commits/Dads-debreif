@@ -82,6 +82,12 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
   const rejoinOpt = options.rejoin ?? 'into';
   const fromLab = from.key === 'lab' || from.key === 'other';
   const rejoinKind = fromLab && to !== 'lab' ? (rejoinOpt === 'straight' || from.key === 'other' ? 'straight' : 'into') : 'none';
+  // Away (TS-174) is the turning rejoin's own: the tracker here would fly Lead into #2, so it stays out of the race.
+  // From trail after a break (TS-175) a TRJ press is the turning rejoin's too; this one would fly a straight-ahead rejoin.
+  if (options.trailSide && from.key === 'other' && rejoinOpt === 'into') return { ok: false, reason: 'No turning rejoin from this trail. Try SARJ.' };
+  if (options.turn === 'away' && (rejoinKind === 'into' || (from.key === 'fw' && to !== 'fw'))) {
+    return { ok: false, reason: 'No turning rejoin with Lead turning away from here. Try Into.' };
+  }
   const targetKias = to === 'lab' ? KIAS_LAB : KIAS_OUTSIDE_LAB;
   // Every leg on the power profile at the Rates choice's closure, a rejoin's up to route (clean-up step 2, TS-65; Patrick
   // 05:46Z, 05:47Z, 05:54Z, 06:09Z).

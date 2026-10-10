@@ -34,6 +34,8 @@ export const MANOEUVRES = Object.freeze({
   hook: { label: 'Hook', kind: 'together', turnDeg: 180, sided: true, source: 'SMM 16.19 para 60, Fig 16.19' },
   shackle: { label: 'Shackle', kind: 'shackle', turnDeg: 45, sided: false, source: 'SMM 16.19 paras 61-63, Fig 16.20' },
   crossTurn: { label: 'Cross turn', kind: 'cross', turnDeg: 180, sided: false, source: 'SMM 16.19 para 64, Fig 16.21' },
+  // Break and rejoin (TS-175, Patrick 10 Oct 2026 20:37Z): from echelon, the 2-ship's rejoin practice start.
+  breakRejoin: { label: 'Break and rejoin', kind: 'break', turnDeg: 180, sided: false, source: 'SMM 12.25 paras 60-61; SMM 16.20 para 65b(1), Fig 16.24' },
 });
 
 /** A heading rounded to the whole degree, so a turn aims at 090, not at 089.8 left over from the last one. */
@@ -138,6 +140,36 @@ function delayed(pair, m, dir, t0) {
     [second.id]: { segments: [{ kind: 'hold', untilSec: t0 + wait }, ...turn.map((seg) => ({ ...seg }))] },
   };
   return { plans, firstId: first.id, note: `${first.id === lead.id ? 'Lead' : '#2'} goes first (outside of the turn); the other waits ${wait.toFixed(1)} s and rolls out abeam.` };
+}
+
+/** #2's wait before he follows Lead's break (TS-175: Patrick's 5 s; a setting under More). */
+export const BREAK = { delaySec: 5, bankDeg: 60 }; // 60° level is 2 G (1 / cos 60°)
+export const BREAK_DELAY_CHOICES = Object.freeze([3, 4, 5, 6, 8]); // the setting's choices around Patrick's 5 s (estimates)
+/** The break's delay setting (seconds). */
+export function setBreakDelaySec(sec) {
+  if (BREAK_DELAY_CHOICES.includes(sec)) BREAK.delaySec = sec;
+}
+
+/**
+ * Break and rejoin (TS-175, Patrick 10 Oct 2026 20:37Z; SMM 12.25 paras 60-61): from echelon Lead rolls into a level 60°,
+ * 2 G, 180° turn away from #2; #2 flies the same turn BREAK.delaySec later. Both hold their speed with power and roll out on
+ * the reverse heading in trail at whatever spacing that gives; the pair then holds trail until TRJ or SARJ is pressed.
+ * Returns planManoeuvre's shape plus `side`, the echelon side #2 broke from (the TRJ's side from trail, TS-174).
+ */
+function breakAway(pair, m, t0, delaySec = BREAK.delaySec) {
+  const [lead, wing] = pair;
+  const side = Math.sign(relativeTo(lead, wing).left) || 1;
+  const dir = -side; // away from #2
+  const turn = leadTurnSegs(lead.headingRad, dir, m.turnDeg * DEG, BREAK.bankDeg, true);
+  const wait = onStep(delaySec);
+  return {
+    plans: {
+      [lead.id]: { segments: turn.map((seg) => ({ ...seg })) },
+      [wing.id]: { segments: [{ kind: 'hold', untilSec: t0 + wait }, ...turn.map((seg) => ({ ...seg }))] },
+    },
+    side,
+    note: `Lead breaks away from #2: a level ${BREAK.bankDeg}° bank, 2 G, 180° turn; #2 follows ${wait.toFixed(0)} s later with the same turn, and both roll out in trail on the reverse heading. Then TRJ or SARJ (SMM 12.25 paras 60-61).`,
+  };
 }
 
 /** Check, in-place and hook turns: both roll in together and fly the same turn (SMM 16.19 paras 58-60). */
@@ -263,6 +295,7 @@ export function planManoeuvre(pair, key, dir, t0) {
   if (m.kind === 'delayed') return delayed(pair, m, dir, t0);
   if (m.kind === 'together') return together(pair, m, dir);
   if (m.kind === 'shackle') return shackle(pair, t0);
+  if (m.kind === 'break') return breakAway(pair, m, t0);
   return crossTurn(pair, t0);
 }
 

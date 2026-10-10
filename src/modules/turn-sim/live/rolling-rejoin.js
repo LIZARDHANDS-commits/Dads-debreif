@@ -184,6 +184,7 @@ function rejoinFrom({ lead, wing, pose, k, into, s, to, sTo, spacingFt, blockFt,
  */
 export function planRollingRejoin(pair, to, options = {}, t0 = 0) {
   if (pair.length !== 2 || options.rejoin !== ROLLING_REJOIN_KIND) return null;
+  if (options.turn === 'away') return null; // the roll is flown with Lead turning into #2 only (TS-174)
   const [lead, wing] = pair;
   if (!FORMATIONS[to] || to === 'lab') return null;
   const from = classify([lead, wing]);
