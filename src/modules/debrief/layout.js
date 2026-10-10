@@ -25,7 +25,7 @@ import { hiddenKinds, withKind } from './airspace.js';
 
 const SAVE_WX_LABEL = 'Save radar and lightning with this debrief';
 // DB-24: the ground drawn at the lowest ship less 500 ft hides the airspace and runways under it.
-const GROUND_HIDES_WORDS = 'Airspace and airfields under the ground drawn (lowest ship − 500 ft) are hidden by it. Ground: Home field elevation shows them all.';
+const GROUND_HIDES_WORDS = 'Airspace and airfields under the ground drawn (lowest ship − 500 ft) are hidden by it. Ground: From the tracks or Home field elevation shows them all.';
 // What the button does, said once for a screen reader and as the button's tooltip, so the menu's own line can stay one line (F1).
 const SAVE_WX_EXPLAIN = 'This fetches every picture from the flight and keeps them in the debrief file.';
 
@@ -291,6 +291,9 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   const cameraBar = createCameraBar({ layout, listen });
   // In a ship's view (Cockpit or Chase) the picture is true scale (DB-21, DB-22): these settings do nothing there, so they hide.
   const notInCockpit = [];
+  // Where the ground is (DB-26): from the tracks' ground fixes, or the home field's elevation without them. Shown in Chase and Cockpit too,
+  // which always stand on it.
+  const groundNote = h('p', { class: 'debrief-menu-note debrief-menu-wide', role: 'status', hidden: true });
   const outside = (el) => (notInCockpit.push(el), el);
   const view3dMenu = menu('3D settings', 'debrief-3d-settings', [
     controls.select('model3d', { label: 'Aircraft', options: [{ value: 't6', label: 'Harvard (CT-156)' }, { value: 'flat', label: 'Flat marker' }] }),
@@ -302,10 +305,12 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     outside(controls.number('planeSize3d', { label: 'Aircraft size', unit: 'ft', min: 60, max: 2000, step: 20 })),
     controls.number('trailSec3d', { label: 'Trail length', unit: 's', min: 0, max: 600, step: 10 }),
     outside(controls.select('datum3d', { label: 'Ground', options: [
+      { value: 'tracks', label: 'From the tracks' },
       { value: 'min', label: 'Lowest ship − 500 ft' },
       { value: 'field', label: 'Home field elevation' },
       { value: 'zero', label: 'Sea level' },
     ] })),
+    groundNote,
     controls.checkbox('attLabels3d', { label: 'Bank and pitch' }),
     outside(controls.checkbox('sticks3d', { label: 'Altitude sticks' })),
     outside(controls.checkbox('altMarks3d', { label: 'Altitude scale' })),
@@ -568,6 +573,11 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     setSpace(state) {
       spaceState = state;
       renderSpace();
+    },
+    /** The 3D settings' line saying where the ground is drawn and why (DB-26), or '' for none. */
+    setGround(text) {
+      if (groundNote.textContent !== text) groundNote.textContent = text;
+      groundNote.hidden = !text;
     },
     /** Shows the readouts for the current time (at most 10 times a second while playing). */
     renderReadouts: (r, extra) => readouts.render(r, flight, extra),

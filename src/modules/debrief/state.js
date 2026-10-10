@@ -120,7 +120,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   trailSec3d: 90,
   landscape3d: true,
   groundRef3d: true,
-  datum3d: 'min',
+  datum3d: 'tracks', // the ground the tracks recorded (DB-26); V6's lowest ship less 500 ft is 'min'
   grid3d: true,
   sticks3d: true,
   altMarks3d: true,

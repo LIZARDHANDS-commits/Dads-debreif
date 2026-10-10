@@ -50,8 +50,13 @@ const GHOST_OPACITY = 0.45;
 const COCKPIT_SKY = '#2f6aa8';
 const COCKPIT_LAND = '#3d5a2e';
 const COCKPIT_GROUND_FT = 800_000;
-/** A runway is drawn this far above its field's elevation (scene feet before the altitude scale), just clear of the ground. An estimate (DB-24). */
-const RUNWAY_LIFT_FT = 3;
+/**
+ * A runway is drawn this far above its field's elevation (scene feet before the altitude scale), just clear of the ground, and each layer of its
+ * paint this much above the one under it: thin, so a parked or taxiing aircraft (its belly about 2 ft above its wheels on the model) sits on the
+ * paint, not in it, in Chase's true scale. Estimates (DB-24, DB-26).
+ */
+const RUNWAY_LIFT_FT = 0.5;
+const RUNWAY_LAYER_FT = 0.5;
 
 /**
  * canvas: the 3D <canvas> (the overlay; the WebGL canvas goes right after
@@ -59,7 +64,9 @@ const RUNWAY_LIFT_FT = 3;
  * null. time(): the playback time. settings(): the layout values (view,
  * cam3d, yaw3d, pitch3d, zoom3d, altScale3d, model3d, paint3d, planeSize3d,
  * attLabels3d, trailSec3d, landscape3d, groundRef3d, datum3d, grid3d,
- * sticks3d, altMarks3d). fieldFt(): the home field's elevation.
+ * sticks3d, altMarks3d). fieldFt(): the home field's elevation. ground(): the ground
+ * the tracks recorded (ground.js groundLevel, DB-26), or null: Chase and Cockpit stand
+ * on it, and it is the "From the tracks" ground setting.
  * setCamera(patch): keeps a camera change (yaw3d, pitch3d, zoom3d, or the
  * cockpit's headYaw3d, headPitch3d). fills(): the filled GPS gaps to draw
  * (gap-fill.js fillGaps's `fills`), or null while the fill is off. wind(t,
@@ -71,7 +78,7 @@ const RUNWAY_LIFT_FT = 3;
  * says so and goes back to 2D. loadThree: for tests.
  */
 export function createView3d(canvas, {
-  timers, flight, time, settings, fieldFt, setCamera, tennis = () => null,
+  timers, flight, time, settings, fieldFt, setCamera, tennis = () => null, ground = () => null,
   fills = () => null, wind = /** @type {(t: number, altFt: number) => any} */ (() => null), windKey = () => '', space = () => null,
   onUnavailable = /** @type {(message: string) => void} */ (() => {}), loadThree = loadThreeModule,
 }) {
@@ -161,7 +168,9 @@ export function createView3d(canvas, {
     }
     const ctr = cockpit ? { x: riding.x, y: riding.y, z: riding.altFt } : shown ? formationCenter(live, on.cam3d) : { x: 0, y: 0, z: 0 };
     const view = cockpit ? { ...camera, altScale: 1 } : camera; // true scale in the cockpit
-    const datum = shown ? (cockpit ? groundFieldFt : groundDatumFt(ships, on.datum3d, groundFieldFt)) : 0;
+    // Chase and Cockpit stand on the ground the tracks recorded (DB-26; the home field's elevation without one), whatever the Ground setting.
+    const tracksGround = shown ? ground()?.groundFt ?? groundFieldFt : groundFieldFt;
+    const datum = shown ? (cockpit ? tracksGround : groundDatumFt(ships, on.datum3d, groundFieldFt, tracksGround)) : 0;
 
     placeSpace(gl, THREE, shown ? space() : null, { scale: view.altScale, ftPerPx: cockpit ? 0 : 1000 / view.zoom });
     const modelled = renderPicture(gl, THREE, { size, flight: shown, t, on, camera: view, ctr, ships, datum, filled, cockpit });
@@ -201,7 +210,7 @@ export function createView3d(canvas, {
     }
     if (ball?.points) drawTennis3d(ctx, P, ball);
     if (on.groundRef3d) drawCompass(ctx, size, camera);
-    drawCaption(ctx, camera, on, datum);
+    drawCaption(ctx, camera, on, datum, ground()?.source ?? 'field');
   }
 
   return {
@@ -301,7 +310,10 @@ function placeSpace(gl, THREE, want, { scale, ftPerPx }) {
       const parts = [];
       if (want.airspace?.length) parts.push(buildAirspace(THREE, { volumes: want.airspace, routes: [], toXY: want.toXY, scale: 1, groundFt: want.fieldFt }));
       const airports = want.airfields?.length
-        ? buildAirports(THREE, { toXY: want.toXY, scale: 1, groundFt: want.fieldFt, doc: gl.doc, airports: want.airfields, liftFt: RUNWAY_LIFT_FT, aboveGround: false })
+        ? buildAirports(THREE, {
+          toXY: want.toXY, scale: 1, groundFt: want.fieldFt, doc: gl.doc, airports: want.airfields, liftFt: RUNWAY_LIFT_FT, layerFt: RUNWAY_LAYER_FT,
+          aboveGround: false, elevationShiftFt: want.shiftFt ?? 0,
+        })
         : null;
       if (airports) parts.push(airports);
       for (const part of parts) root.add(part.root);

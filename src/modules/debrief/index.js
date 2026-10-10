@@ -23,7 +23,9 @@ import { withPucks, readPucks, puckSeat, puckStorageKey } from './puck.js';
 import { withTimings, readTimings, timingStorageKey } from './gps-timing.js';
 import { createMapView } from './map2d/view.js';
 import { createView3d } from './view3d/view.js';
-import { createFlightSpace } from './airspace.js';
+import { createFlightSpace, toXYFor } from './airspace.js';
+import { groundLevel } from './view3d/ground.js';
+import { AIRPORTS } from '../../airfields/airports-data.js';
 import { CAMERA_ALLOWED } from './view3d/camera-modes.js';
 import { tennisAt } from './tennis.js';
 import { createTennisPanel } from './tennis-panel.js';
@@ -202,22 +204,34 @@ function mount(root, app) {
     if (on.airspace) space.want();
     return space.state({ fieldFt: homeFieldFt(), hidden: on.airspaceHidden });
   }
+  // The ground the tracks recorded (DB-26): worked out once per flight shown (and home field), for the 3D view's ground and its runways' heights.
+  let groundHeld = { flight: null, fieldFt: null, value: null };
+  function groundNow() {
+    if (!flight) return null;
+    const fieldFt = homeFieldFt();
+    if (groundHeld.flight !== flight || groundHeld.fieldFt !== fieldFt) {
+      groundHeld = { flight, fieldFt, value: groundLevel(flight, { fieldFt, airports: AIRPORTS, toXY: toXYFor(flight.ref) }) };
+    }
+    return groundHeld.value;
+  }
   // AGL airspace limits are taken above homeFieldFt() (the home field's elevation, or Moose Jaw's), as the SOF does.
-  // What the views draw: null with both switches off; the key names everything the 3D view builds from.
+  // What the views draw: null with both switches off; the key names everything the 3D view builds from (the runways move with the tracks' ground).
   function spaceNow() {
     const on = layout.get();
     if (!flight || (!on.airspace && !on.airfields)) return null;
     const st = spaceState();
     return {
-      key: `${st.key}|${on.airspace}|${on.airfields}|${st.airfields.length}`,
+      key: `${st.key}|${on.airspace}|${on.airfields}|${st.airfields.length}|${groundNow()?.shiftFt ?? 0}`,
       toXY: space.toXY,
       fieldFt: homeFieldFt(),
+      shiftFt: groundNow()?.shiftFt ?? 0,
       airspace: on.airspace ? st.volumes : null,
       airfields: on.airfields ? st.airfields : null,
     };
   }
   function renderSpace() {
     ui.setSpace(flight ? spaceState() : null);
+    ui.setGround(groundNow()?.words ?? '');
   }
 
   const map = createMapView(ui.canvas, {
@@ -271,6 +285,8 @@ function mount(root, app) {
     settings: () => layout.get(),
     // The field datum is the home field's elevation, or Moose Jaw's until one is set.
     fieldFt: () => app.airfields?.home()?.elevationFt ?? FIELD_ELEVATION_FT,
+    // The ground the tracks recorded (DB-26): Chase and Cockpit stand on it, and the "From the tracks" ground setting.
+    ground: () => groundNow(),
     setCamera: (patch) => layout.update(patch),
     // three.js couldn't load (offline on a first visit) or there's no WebGL 2: say so and stay in 2D (D141).
     onUnavailable: (message) => {
