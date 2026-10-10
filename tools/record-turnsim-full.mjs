@@ -3,7 +3,13 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-const ffmpegPath = execFileSync('python', ['-c', 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe().strip())'], { encoding: 'utf8' }).trim();
+// imageio_ffmpeg's copy where Python has it (Patrick's PC), else ffmpeg on the PATH.
+let ffmpegPath = 'ffmpeg';
+try {
+  ffmpegPath = execFileSync('python', ['-c', 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe().strip())'], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
+} catch {
+  // keep ffmpeg on the PATH
+}
 const ROOT = process.cwd();
 const CARDS_DIR = join(ROOT, 'public', 'media', 'cards');
 const PARTS_DIR = join(ROOT, 'tmp', 'record-parts');
@@ -27,6 +33,21 @@ const CLEAN_STAGE_CSS = `
   }
 `;
 
+/**
+ * The 3D paint the clip shows: the Harvard scheme, not the ship colours (Patrick 10 Oct 2026 20:11Z). The paint choice
+ * lives in the Layers menu, which is only built when opened, so it is set in the saved layout and the page reloaded.
+ */
+async function setHarvardPaint(page) {
+  await page.evaluate(() => {
+    const key = 'ooda:v1:turn-sim:layout';
+    const saved = JSON.parse(localStorage.getItem(key) || '{}');
+    saved.values = { ...(saved.values || {}), paint: 'harvard' };
+    localStorage.setItem(key, JSON.stringify(saved));
+  });
+  await page.reload();
+  await page.waitForTimeout(1000);
+}
+
 function getDuration(filePath) {
   try {
     const out = execFileSync(ffmpegPath, ['-i', filePath], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
@@ -41,7 +62,7 @@ function getDuration(filePath) {
 }
 
 async function main() {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
   console.log('\n========================================');
   console.log('RECORDING TURN SIM (Pat\'s Latest Spec):');
   console.log('  2D: 4-ship moving into Offset Box at 8x until fully settled (~37.5s)');
@@ -134,6 +155,7 @@ async function main() {
   const p3d = await ctx3d.newPage();
   await p3d.goto('http://localhost:5174/#/turn-sim');
   await p3d.waitForTimeout(1000);
+  await setHarvardPaint(p3d);
 
   // Switch to 3D
   await p3d.evaluate(() => {
