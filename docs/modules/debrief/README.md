@@ -4,7 +4,7 @@ This folder is the flight debrief viewer: load a sortie's tracks, replay them on
 
 ## Where it stands
 
-Built and live; the next step is Patrick (or anyone) running its checklist. Step 3a (GPS gap fill and the 3D cockpit view, Dad's ask of 10 Oct 2026) is built on its working answers DB-Q20 to DB-Q24 (V2.211); its camera choices are the Traffic-style pill bar over the 3D picture (V2.214, DB-22). The roadmap and the handover disagree on whether it was already signed off (see the order section) (`archive/HANDOVER.md:87`).
+Built and live; the next step is Patrick (or anyone) running its checklist. Step 3a (GPS gap fill and the 3D cockpit view, Dad's ask of 10 Oct 2026) is built on its working answers DB-Q20 to DB-Q24 (V2.211); its camera choices are the Traffic-style pill bar over the 3D picture (V2.214, DB-22), and each ship can have its GPS puck's seat set so its positions move to the aircraft (V2.215, DB-23, on the working answers DB-Q25 and DB-Q26). The roadmap and the handover disagree on whether it was already signed off (see the order section) (`archive/HANDOVER.md:87`).
 
 ## What is next
 
@@ -28,9 +28,10 @@ Each has a working answer that the tool uses until it is settled.
 ### Waiting on Patrick now (also on the list in `../../PLAN.md`)
 
 - **DB-Q4:** no smoothing of the estimated G (D219) or a 3-point median filter (D383); neither is built (`pf/reset/1-requirements/questions.md:17`, `docs/modules/debrief/plan.md:37`).
+- **DB-23 wording (GPS puck, Dad's ask 10 Oct 2026):** written but not yet confirmed with Patrick; DB-Q25 and DB-Q26 below have working answers.
 - **DB-19 to DB-22, DB-R27 and DB-R28 wording (gap fill and cockpit view, Dad's ask 10 Oct 2026):** the wording is written but not yet confirmed with Patrick (`decisions.md`, `requirements.md`).
 
-The gap fill and cockpit view (plan Step 3a) were built with these working answers (Dad relayed Patrick's approval; each stands until Patrick answers):
+The gap fill, cockpit view and GPS puck (plan Step 3a) were built with these working answers (Dad relayed Patrick's approval; each stands until Patrick answers):
 
 | ID | Question | Options | Best guess (the working answer until it is settled) | Source |
 |---|---|---|---|---|
@@ -39,6 +40,8 @@ The gap fill and cockpit view (plan Step 3a) were built with these working answe
 | DB-Q22 | How is a ship drawn in a filled gap? | (a) a ghosted model at the estimated attitude, and the cockpit's gauges show estimates; (b) today's hollow marker, no attitude | (a) | design pass, 10 Oct 2026 (DB-20, changes DB-9) |
 | DB-Q23 | The cockpit view's nose attitude (climb angle plus angle of attack): for the ridden ship only, or every ship's model too? | (a) the ridden ship only; (b) every ship | (a) | design pass, 10 Oct 2026 (DB-21) |
 | DB-Q24 | Which one test goes with this work? | (a) Lead's real 88° turn with its middle cut out, filled and compared with the real fixes; (b) a hand-made turn | (a) | design pass, 10 Oct 2026 (`testing.md`, DB-R27) |
+| DB-Q25 | Where does the GPS puck (a ForeFlight Sentry or similar) usually sit in the cockpit? | (a) on the glareshield; (b) in a seat pocket or side pocket; (c) on a knee board; (d) somewhere else (say where) | (a), centre line at the coaming's aft edge: front 3.35 ft ahead and 1.85 ft up, rear 0.8 ft aft and 1.9 ft up of the reference point (estimates off the cockpit model, TS-157) | Dad, 10 Oct 2026 (DB-23) |
+| DB-Q26 | With a GPS puck set, do the moved positions feed the verdicts and standards too, or only what is drawn? | (a) everywhere: map, 3D, spacing numbers, verdicts, tennis ball, CSV; (b) display only: map, 3D and cockpit, with spacing and verdicts on the recorded positions | (a) | design pass, 10 Oct 2026 (DB-23) |
 
 ### Settled when this module's work resumes
 
