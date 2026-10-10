@@ -77,7 +77,7 @@ import { approachesOf, loadApproachesFor, APPROACHES_LOADING_WORDS, APPROACHES_F
 import { RUNWAY_IN_USE, RUNWAY_MODES, fieldsForRunways, shownSignature } from './runway-in-use.js';
 import { cellFt } from './weather3d-model.js';
 import { GLIDE_3D_MS, TRAIL_WINDOW_S } from './traffic-motion.js';
-import { airportsFor, AIRPORTS } from '../../airfields/airports-data.js';
+import { airportsFor, AIRPORTS, RUNWAY_ENDS_SOURCES } from '../../airfields/airports-data.js';
 import { checkedAirspace, KIND_WORDS, BASE_KINDS, tacnavNote, AIRSPACE_FILL_OPACITY, VIEW_TOP_FT } from '../../airfields/airspace/model.js';
 import { airspaceInSquare } from './airspace-square.js';
 import { airspaceOf, loadAirspaceFor, AIRSPACE_LOADING_WORDS, AIRSPACE_FAILED_WORDS } from '../../airfields/airspace/load.js';
@@ -85,6 +85,13 @@ import {
   hourIndex, maxAhead, hourWords, meanLayerCover, unavailableWords, refreshFailedWords, LOADING_WORDS, CREDIT_WORDS, MAX_AHEAD_HOURS, CLOUD_STAGES_FT_AGL,
   CLOUD_COVER_THRESHOLD_PCT, barbStep, CLOUD_SHEET_PX, filledWords, nextAskWords, HRDPS_CHUNKS, modelSetOf, GRID_SIZE,
 } from './model-clouds.js';
+
+/** Where the drawn runways' ends came from, in words (airports-data.js, DB-26): "Patrick's measured points (...) at CYMJ; OurAirports (approximate) at CYQR, CYYN". */
+const runwaySourcesWords = (drawn) => {
+  const by = new Map();
+  for (const a of drawn) for (const src of a.sources ?? ['ourairports']) by.set(src, [...(by.get(src) ?? []), a.icao]);
+  return [...by].map(([src, icaos]) => `${RUNWAY_ENDS_SOURCES[src]?.words ?? src} at ${icaos.join(', ')}`).join('; ');
+};
 
 const BACKGROUND = '#0a141d';
 /** render() looks at whether the pictures or the weather changed at most this often (milliseconds). */
@@ -1366,7 +1373,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     notes.push(terrainKey, townsKey);
     notes.push(
       h('p', {}, drawn.length
-        ? `Airports: ${drawn.map((a) => `${a.icao} (${a.ends.join(', ')})`).join('; ')}. Each runway is drawn between its two thresholds at their true places, length and width (OurAirports, public domain: for drawing only, check the Canada Flight Supplement), at the field’s elevation ×${scale}. Far out, a field is drawn larger and a runway wider so it stays visible (about ${RUNWAY_MIN_PX.length} px long at least); closer in they are true size, and the stripes, centreline and numbers appear once a runway is ${RUNWAY_MIN_PX.detail} px long. The numbers read from the approach end. The terminal and hangars are schematic: buildings are schematic, drawn for orientation only.`
+        ? `Airports: ${drawn.map((a) => `${a.icao} (${a.ends.join(', ')})`).join('; ')}. Each runway is drawn between its two ends at their true places, length and width (${runwaySourcesWords(drawn)}: for drawing only, check the Canada Flight Supplement or the FAA Chart Supplement), at the field’s elevation ×${scale}. Far out, a field is drawn larger and a runway wider so it stays visible (about ${RUNWAY_MIN_PX.length} px long at least); closer in they are true size, and the stripes, centreline and numbers appear once a runway is ${RUNWAY_MIN_PX.detail} px long. The numbers read from the approach end. The terminal and hangars are schematic: buildings are schematic, drawn for orientation only.`
         : 'Airports: none inside this area.'),
       h('p', {}, noRoutes() ? 'TACNAV: no routes to draw.' : `${tacnavNote(home)} A route’s name shows while the pointer is near its line. The routes:`),
       noRoutes() ? null : h('ul', { class: 'sof-3d-airspace-list' }, (gl?.space?.built.labels ?? []).map((label) => h('li', { title: label.title }, label.text))),
