@@ -338,7 +338,7 @@ export const TURN_FORMATIONS = Object.freeze({ 2: ['fw', ...CLOSE_TURN_FORMATION
  * Flown from the press until Lead has finished (leadSteps) and the wingman is back on his place. Returns { rel: [{ x, y, z }] },
  * his offset from Lead in the world at steps 0..n.
  */
-function holdInPlane(leadRec, lead, wing, body, leadSteps) {
+export function holdInPlane(leadRec, lead, wing, body, leadSteps) {
   const dt = STEP_SEC;
   const upMost = CLOSE_TURN.followG * G_FTPS2;
   const powerMost = CLOSE_TURN.powerG * G_FTPS2;
@@ -403,7 +403,7 @@ function holdInPlane(leadRec, lead, wing, body, leadSteps) {
 }
 
 /** A held wingman's poses for steps 1..n: his offsets from Lead (holdInPlane's rel) laid on Lead's flight, his bank his own. */
-function heldPoses(leadRec, wing, rel, n) {
+export function heldPoses(leadRec, wing, rel, n) {
   const track = makeTrack(n);
   seedTrack(track, wing);
   for (let k = 1; k <= n + TRACK_PAD; k++) {

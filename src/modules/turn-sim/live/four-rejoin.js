@@ -84,8 +84,10 @@ function twoTurning(c, into, s, to, sTo, hot) {
     if (!pick) return null;
     const rec = recs[1];
     const flown = flyTurningRejoinWith({ ...args, into: { longRec: rec, planTo: () => ({ rec, segments: [], turned: 0 }) }, aimFt: pick.aimFt, bankCapDeg: pick.bankCapDeg, overtakeKt: pick.overtakeKt, lowFloor: pick.lowFloor, upFt: pick.upFt, minG: VERTICAL_MIN_G, xLaw: false });
-    if (!flown) return null;
-    return { plan: { segments: [{ kind: 'bankTrack', points: [...flown.part.points, ...flown.run.points] }], profile: flown.profile }, durationSec: flown.durationSec, inSec: t0 + pick.durationSec };
+    const segments = flown.wingSegments
+      ? flown.wingSegments.map((s) => ({ ...s, points: s.points ? [...s.points] : undefined, poses: s.poses ? [...s.poses] : undefined }))
+      : [{ kind: 'bankTrack', points: [...flown.part.points, ...flown.run.points] }];
+    return { plan: { segments, profile: flown.profile }, durationSec: flown.durationSec, inSec: t0 + pick.durationSec };
   };
 }
 
