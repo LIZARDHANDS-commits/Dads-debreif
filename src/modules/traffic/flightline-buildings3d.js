@@ -228,7 +228,7 @@ export const MESS = Object.freeze({
  */
 export const EAST_HANGARS = Object.freeze([
   Object.freeze({ id: 'hangar-5', name: 'Hangar 5', upper: '#1e3f8a', main: blk(1897, 2554, 252, 200, -0.70, 48, '#26292c') }),
-  Object.freeze({ id: 'hangar-6', name: '431 Squadron Snowbirds', upper: '#c0262d', roundel: '7', main: blk(2104, 2772, 264, 166, -0.79, 48, '#26292c') }),
+  Object.freeze({ id: 'hangar-6', name: '431 Squadron Snowbirds', upper: '#c0262d', roundel: '7', crest: true, main: blk(2104, 2772, 264, 166, -0.79, 48, '#26292c') }),
 ]);
 const EAST_ANNEX = Object.freeze({ depth: 22, height: 16 }); // estimates, from the street views
 const EAST_UPPER_FROM_FT = 18; // the coloured cladding starts above the annexes (street view)
@@ -268,6 +268,107 @@ function roundel(THREE, text, sizeFt) {
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return new THREE.Mesh(new THREE.PlaneGeometry(sizeFt, sizeFt), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
+}
+
+/** The Snowbirds crest's size on the wall, ft (an estimate from the street view), and its picture's aspect (width / height). */
+const CREST_FT = 24;
+const CREST_ASPECT = 262 / 370;
+
+/**
+ * The 431 Squadron Snowbirds crest (Patrick, 10 Oct, with the crest picture: "put this on the SE side of the snowbird hanger
+ * roof trim, just like the pics"): a red hexagon with a white border, white jets and stars, "SNOWBIRDS" across the foot. Drawn on
+ * a canvas as a stand-in; `media/snowbirds-crest.png`, if it is there, replaces the drawing when it loads.
+ */
+function drawCrest(ctx, W, H) {
+  ctx.clearRect(0, 0, W, H);
+  const hex = (inset) => {
+    ctx.beginPath();
+    ctx.moveTo(W / 2, inset);
+    ctx.lineTo(W - inset, H * 0.22 + inset * 0.3);
+    ctx.lineTo(W - inset, H * 0.78 - inset * 0.3);
+    ctx.lineTo(W / 2, H - inset);
+    ctx.lineTo(inset, H * 0.78 - inset * 0.3);
+    ctx.lineTo(inset, H * 0.22 + inset * 0.3);
+    ctx.closePath();
+  };
+  ctx.fillStyle = '#e8202e';
+  hex(2);
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = W * 0.035;
+  hex(W * 0.07);
+  ctx.stroke();
+  ctx.fillStyle = '#ffffff';
+  const jet = (cx, cy, size, angle) => {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    ctx.scale(size, size);
+    ctx.beginPath(); // a swept delta seen from above, nose to the right
+    ctx.moveTo(1, 0);
+    ctx.lineTo(-0.6, -0.75);
+    ctx.lineTo(-0.35, -0.1);
+    ctx.lineTo(-0.8, -0.05);
+    ctx.lineTo(-0.8, 0.05);
+    ctx.lineTo(-0.35, 0.1);
+    ctx.lineTo(-0.6, 0.75);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  };
+  jet(W * 0.6, H * 0.52, W * 0.3, -0.45);
+  jet(W * 0.35, H * 0.4, W * 0.16, -0.45);
+  jet(W * 0.22, H * 0.3, W * 0.09, -0.45);
+  const star = (cx, cy, r) => {
+    ctx.beginPath();
+    for (let k = 0; k < 8; k++) {
+      const a = (k * Math.PI) / 4;
+      const rr = k % 2 ? r * 0.3 : r;
+      ctx.lineTo(cx + rr * Math.sin(a), cy - rr * Math.cos(a));
+    }
+    ctx.closePath();
+    ctx.fill();
+  };
+  star(W * 0.5, H * 0.17, W * 0.05);
+  star(W * 0.82, H * 0.3, W * 0.04);
+  star(W * 0.17, H * 0.62, W * 0.04);
+  star(W * 0.5, H * 0.72, W * 0.04);
+  ctx.fillRect(W * 0.12, H * 0.76, W * 0.76, H * 0.006);
+  ctx.font = `bold ${Math.round(H * 0.075)}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('SNOWBIRDS', W / 2, H * 0.83);
+}
+
+function crest(THREE) {
+  const doc = globalThis.document;
+  if (!doc?.createElement) return null;
+  const canvas = doc.createElement('canvas');
+  canvas.width = 262;
+  canvas.height = 370;
+  const ctx = canvas.getContext?.('2d');
+  if (!ctx) return null;
+  drawCrest(ctx, canvas.width, canvas.height);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  if (typeof globalThis.Image !== 'undefined') {
+    const img = new globalThis.Image();
+    img.onload = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      texture.needsUpdate = true;
+    };
+    img.onerror = () => {}; // no picture: the drawing stays
+    const base = (typeof import.meta !== 'undefined' && /** @type {any} */ (import.meta).env?.BASE_URL) || '/';
+    img.src = `${base}media/snowbirds-crest.png`;
+  }
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(CREST_FT * CREST_ASPECT, CREST_FT),
+    new THREE.MeshBasicMaterial({ map: texture, transparent: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
+  );
+  mesh.name = 'snowbirds-crest';
+  return mesh;
 }
 
 function mess(THREE, mat) {
@@ -322,18 +423,32 @@ function eastHangar(THREE, mat, spec) {
   g.add(boxAt(THREE, mat('#d9d7d0'), m, 0, m.d / 2 + A.depth / 2 + 0.5, m.w - 2, A.depth - 2, 0.6, A.height));
   g.add(boxAt(THREE, mat(WALL), m, m.w / 2 + A.depth / 2 + 0.5, 0, A.depth, m.d, A.height));
   g.add(boxAt(THREE, mat(spec.upper), m, m.w / 2 + A.depth / 2 + 0.5, 0, A.depth - 2, m.d - 2, 0.6, A.height));
-  if (spec.roundel) {
-    const r = roundel(THREE, spec.roundel, 22);
-    if (r) {
-      // On the north-east wall above the annex, toward its north-west end.
-      r.position.set(-m.w * 0.25, m.d / 2 + 0.3, EAST_UPPER_FROM_FT + 14);
-      r.rotation.x = Math.PI / 2;
-      const holder = new THREE.Group();
-      holder.add(r);
-      holder.position.set(m.cx, m.cy, 0);
-      holder.rotation.z = m.rot;
-      g.add(holder);
+  // The south-east wall's red band (local +x face, above the annex): the Snowbirds crest in the middle with three white speed
+  // stripes running out either side, and the "7" roundel toward the north-east end, as in Patrick's street views.
+  const wall = new THREE.Group();
+  wall.position.set(m.cx, m.cy, 0);
+  wall.rotation.z = m.rot;
+  g.add(wall);
+  const onSE = (mesh, along, z) => {
+    mesh.position.set(m.w / 2 + 0.3, along, z); // along local +y: toward the north-east end
+    mesh.rotation.set(Math.PI / 2, Math.PI / 2, 0); // the plane faces out of the south-east wall
+    wall.add(mesh);
+  };
+  const midZ = EAST_UPPER_FROM_FT + (m.h - EAST_UPPER_FROM_FT) / 2;
+  if (spec.crest) {
+    const c = crest(THREE);
+    if (c) onSE(c, 0, midZ);
+    const stripeMat = new THREE.MeshBasicMaterial({ color: '#ffffff', polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    for (const side of [-1, 1]) {
+      for (let k = 0; k < 3; k++) {
+        const len = 34 - k * 6; // shorter toward the bottom, like the photo's speed lines
+        onSE(new THREE.Mesh(new THREE.PlaneGeometry(len, 1.4), stripeMat), side * (CREST_FT * CREST_ASPECT / 2 + 3 + len / 2), midZ - 3 - k * 3);
+      }
     }
+  }
+  if (spec.roundel) {
+    const r = roundel(THREE, spec.roundel, 14);
+    if (r) onSE(r, m.d * 0.32, midZ);
   }
   return g;
 }
