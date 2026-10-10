@@ -40,7 +40,7 @@ export default {
             width: '1024',
             height: '435',
           }),
-          h('figcaption', {}, 'Inside the Cockpit: Kenny flying Aircraft 121 in 3-ship tactical formation'),
+          h('figcaption', {}, 'Fly • Learn • Debrief • Improve'),
         ),
 
         // Mission & Purpose (Clean editorial text, no box borders)
@@ -143,7 +143,7 @@ export default {
               width: '1000',
               height: '750',
             }),
-            h('figcaption', {}, 'Fly • Learn • Debrief • Improve — 2 CFFTS "The Big Two"'),
+            h('figcaption', {}, '2 Canadian Forces Flight Training School "The Big 2"'),
           ),
         ),
 
