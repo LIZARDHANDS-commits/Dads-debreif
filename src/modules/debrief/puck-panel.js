@@ -37,7 +37,7 @@ export function createPuckPanel({ layout, swatch, on }) {
         select.addEventListener('change', () => on.set(tr.slot, select.value));
         const name = shipName(tr.slot, tr.name);
         rows.append(h('label', { class: 'puck-row' },
-          h('span', { class: 'puck-ship' }, swatch(tr.slot), `#${tr.slot}`, name ? h('span', { class: 'ship-name' }, ` ${name}`) : ''),
+          h('span', { class: 'puck-ship', title: `#${tr.slot} ${name}`.trim() }, swatch(tr.slot), `#${tr.slot}`, name ? h('span', { class: 'ship-name' }, ` ${name}`) : ''),
           select));
       }
     },
