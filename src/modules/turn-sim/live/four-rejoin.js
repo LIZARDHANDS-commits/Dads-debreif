@@ -95,11 +95,13 @@ function twoTurning(c, into, s, to, sTo, hot, crossIn = false) {
     const args = { lead: c.start[0], wing, s, to, sTo, spacingFt: c.spacingFt, blockFt: c.blockFt, t0 };
     // The vertical too (TS-82; Patrick 6 Oct 01:14Z: "they can use the vertical if they need to"), but from his +300 ft
     // stack the climb and the dive through Lead's height pushed to -0.5 G in the dry runs: none below VERTICAL_MIN_G.
-    // He keeps the line law to route (xLaw false): the 2-ship's X to the 250-100 ft window (TS-106) is for the 2-ship only so far.
-    pick ??= searchTurningRejoin({ ...args, into, hot, verticalMinG: VERTICAL_MIN_G, xLaw: false, crossIn }) ?? false;
+    // From line abreast (hot: Spread 4, the offset box) he flies the 2-ship's X to the 250-100 ft window (TS-106, Lead fixed on
+    // the canopy): on the line law from there he ran 170 ft ahead of Lead's 3/9 line close in (V2.223 test). From closer in
+    // (fighting wing, Fluid 4) he keeps the line law to route: the X from Fluid 4 put him 20 ft behind Lead's tail.
+    pick ??= searchTurningRejoin({ ...args, into, hot, verticalMinG: VERTICAL_MIN_G, xLaw: hot, crossIn }) ?? false;
     if (!pick) return null;
     const rec = recs[1];
-    const flown = flyTurningRejoinWith({ ...args, into: { longRec: rec, planTo: () => ({ rec, segments: [], turned: 0 }) }, aimFt: pick.aimFt, bankCapDeg: pick.bankCapDeg, overtakeKt: pick.overtakeKt, lowFloor: pick.lowFloor, upFt: pick.upFt, minG: VERTICAL_MIN_G, xLaw: false, holdSec: FOUR_CHANGE_LIMIT_SEC, crossIn });
+    const flown = flyTurningRejoinWith({ ...args, into: { longRec: rec, planTo: () => ({ rec, segments: [], turned: 0 }) }, aimFt: pick.aimFt, bankCapDeg: pick.bankCapDeg, overtakeKt: pick.overtakeKt, lowFloor: pick.lowFloor, upFt: pick.upFt, minG: VERTICAL_MIN_G, xLaw: hot, holdSec: FOUR_CHANGE_LIMIT_SEC, crossIn });
     if (!flown) return null;
     const segments = flown.wingSegments
       ? flown.wingSegments.map((s) => ({ ...s, points: s.points ? [...s.points] : undefined, poses: s.poses ? [...s.poses] : undefined }))

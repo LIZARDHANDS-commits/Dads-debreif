@@ -109,7 +109,7 @@ Each feature below names its test file, what the file checks and where each expe
 | G-warm refusals | Refused outside Spread 4; a 2-ship press throws | spec section 14 |
 | A tour of the formations, both sides | Fighting wing, Fluid 4, offset box, fighting wing, finger, echelon, finger, box, finger, route, finger, line astern, finger, fighting wing, Spread 4: each ends in the formation pressed, link by link, on the side asked, at 200 KIAS (220 in Spread 4 and the offset box, ±10 kt) | The bands written out in the test from SMM 12.6 para 15, 12.29 para 69, 16.18 para 49, 16.32, 16.38, 16.41 para 109; AFM8 brief pp.14, 20; the 2-ship spec table's close margins; Patrick 11:08Z, 11:44Z |
 | The Side switch and straight-ahead rejoins | Finger and echelon both ways across, the straight-ahead rejoins, each ending in place | spec section 14 |
-| Always true | No roll faster than 90°/s, no jump in position or height (40 ft/s at most, an estimate of a gentle climb), bank under 90°, never two aircraft within a wingspan | TS-37, TS-47; T-6A wingspan |
+| Always true | No roll faster than 90°/s, no jump in position (the height-step check, 40 ft/s at most, retired 10 Oct 2026: TS-178, Patrick 22:15Z "retire it"), bank under 90°, never two aircraft within a wingspan | TS-37, TS-47; T-6A wingspan |
 | Gates | In the turning rejoin to finger, #2 is in before #3, and #3 before #4 | SMM 16.34 para 96 |
 | Refusals and the queue | Fluid manoeuvring and "already there" are refused with nothing moved; a press during a change waits its turn; the manoeuvres are refused outside Spread 4 | spec section 14 |
 | Time | Only catches (5 minutes for G-warm, 10 for a change) that the plan finished; no timing check | design section 9 |

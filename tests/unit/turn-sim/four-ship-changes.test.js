@@ -159,7 +159,8 @@ function fly(f, label, each = () => {}) {
       assert.ok(Math.abs(n.bankDeg - b.bankDeg) <= ROLL.maxRateDps * STEP_SEC + 1e-6, `${label}: ${n.name ?? n.id} rolled faster than it can`);
       const moved = Math.hypot(n.xFt - b.xFt, n.yFt - b.yFt);
       assert.ok(Math.abs(moved - b.tasFtps * STEP_SEC) <= 0.1 * b.tasFtps * STEP_SEC, `${label}: ${n.id} jumped`);
-      assert.ok(Math.abs(n.altAboveFt - b.altAboveFt) <= 40 * STEP_SEC, `${label}: ${n.id} jumped in height`); // 40 ft/s is a gentle climb or descent, an estimate
+      // The 40 ft/s height-step check retired (Patrick 10 Oct 2026 22:15Z, "retire it"; TS-178): an estimate that became a wall
+      // against the no-height-rate-cap ruling (TS-140). The flight code holds a height change to one smooth ~1 g leg.
       // Physical limits always hold: a T-6 can't bank past the vertical in level flight.
       assert.ok(Math.abs(n.bankDeg) < 90, `${label}: ${n.id} bank`);
     }
