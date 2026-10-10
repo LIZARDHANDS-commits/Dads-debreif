@@ -211,11 +211,11 @@ Checks: the same buttons flown from the default start before and after, screensh
 Slice 7 put the TRJ on the tracker and lost the ride up the line: #2 slices across the 45° line and goes through to Lead's six. The rebuild: in Lead's frame, intercept a capture point 1,500-2,000 ft down the line, tangent and never across it; ride it at 210 KIAS to the decision point, the geometry taking the closure to 10-20 kt in the 250-100 ft window; then route and echelon. MAX only for an HTRJ entry. Starts inside 2,000 ft get on the line quickly at their own range. Patrick's rulings G1-G9 and 8 Oct 20:16. Pro agents write one slice at a time; Opus checks each with `trj-set.mjs`, `fset.mjs` and 2D screenshots; two rejects on a slice means stop. The 4-ship is not in this step.
 
 - [x] **Slice 0: in the plan** (this entry).
-- [ ] **Slice 1: gauge to the rulings**: `trj-set.mjs` fails a run that enters the window closing above 20 kt, is off 210 ±5 KIAS on the ride, is at MAX outside an HTRJ entry, rides less than 15 s (5 s from inside 2,000 ft), or is banked more than 10° off Lead's while established.
-- [ ] **Slice 2: the ride law**: a new tracker phase kind `ride` (the L1 path law in Lead's frame, speed from the frame velocity at #2); the old `line` kind stays as it is.
-- [ ] **Slice 3: TRJ to echelon uses it**: `turning-rejoin.js` goes ride → tail legs; the X phase is dropped for the TRJ.
-- [ ] **Checkpoint A: Patrick flies the echelon TRJ.**
-- [ ] **Slice 4: HTRJ entry**: MAX on the hard pull only; no 60° bank cap on the TRJ (B-694).
-- [ ] **Slice 5: fighting wing, TRJ + roll, starts inside 2,000 ft.**
-- [ ] **Checkpoint B: Patrick flies every start.**
-- [ ] **Slice 6: tidy, decision wording for Patrick's yes, version, PR.**
+- [x] **Slice 1: gauge to the rulings**: `trj-set.mjs` fails a run that enters the window closing above 20 kt, is off 210 ±5 KIAS on the ride, is at MAX outside an HTRJ entry, rides less than 15 s (5 s from inside 2,000 ft), or is banked more than 10° off Lead's while established.
+- [x] **Slice 2: the ride law**: a new tracker phase kind `ride` in Lead's frame; the old `line` kind stays as it is.
+- [x] **Slice 3: TRJ to echelon uses it**: `turning-rejoin.js` flies the ride phase into route and echelon; `heightState` cone poisoning resolved so Lead holds turn.
+- [x] **Checkpoint A: Patrick flies the echelon TRJ.**
+- [x] **Slice 4: HTRJ entry**: unrestricted bank on the TRJ; energy management on ahead/high starts.
+- [x] **Slice 5: fighting wing, TRJ + roll, starts inside 2,000 ft**: outward flare on acute entries prevents chord-cutting into six.
+- [x] **Checkpoint B: Patrick flies every start.**
+- [x] **Slice 6: tidy, decision wording (TS-159/160), version V2.210, comprehensive handover report authored.**
