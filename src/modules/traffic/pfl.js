@@ -1,56 +1,25 @@
-// PFL Full Rewrite: The Practice Forced Landing Segment Planner
+// The PFL: an engine failure (or a practice from High Key) flown to the runway (Traffic spec 4.5).
 //
-// Replaces the legacy carrot-follower architecture with an aerodynamically
-// disciplined segment planner: planning the forced landing as an explicit
-// chain of held-bank turns, straights, staged gear/flap milestones, and a
-// two-stage round-out flare.
+// How it flies (spec 4.5 item 3, TR-113): the zoom or level slow-down is planned first and flown by the same code;
+// the join is chosen from where it ends. The plan is a list of points (the join, the wind-shaped circle, the direct);
+// the chain turns it into the turns and straights the aircraft flies, every corner a turn at its planned radius. The
+// height needed is summed along that chain, and the aircraft flies the same chain: one path, one sum (Fable F9, F16).
+// Re-plans come at the keys, when the margin is more than 300 ft short, and when the drag no longer fits. A pattern
+// PFL still high with all the drag out squares off: a wide Low Key, then square turns to base and final, Final Key
+// staying where it is. Drag goes out a step at a time, at least 5 s apart (Fable F6); the round-out and flare are
+// TR-110's.
 //
-// Key architectural improvements:
-//  - Phase 1 (Unified Zoom): Uses core flyZoomT6A kinematics (2 G pull to 20°
-//    climb, hold to 145 KIAS, 0.25 G pushover to 125 KIAS best glide, rolling
-//    up to 30° toward the join). Apex altitude matches NFM / flyZoomT6A exactly,
-//    eliminating F7's 200 ft overshoot. Level decel below 150 KIAS.
-//  - Phase 2 (Core Segment Chain & Flight Primitives): Evaluates held-bank turns
-//    (30°–60°) in wind and constant-descent wings-level straights. Total height
-//    needed is evaluated directly on the exact planned path flown, eliminating
-//    F9's 144 ft error and F1/F16 carrot corner-cutting.
-//  - Phase 3 (Segment Stepper & Event-Driven Re-planner): Flown by setting bank
-//    and descent rate along planned kinematic segments. Re-plans only at discrete
-//    milestones (Apex, High Key, Low Key, Final Key) or when actual height
-//    deviates by ±300 ft, enforcing a 5 s grace period ("Fly like a pilot").
-//  - Phase 4 (Direct Approaches, Staged Drag & Touchdown Flare): Inside Final Key,
-//    waives the first-third touchdown constraint to use available runway length;
-//    staged drag governance enforces >= 5 s spacing between configuration changes;
-//    SMM 13.10 two-stage round-out (pre-flare at 200 ft to 3° path, flare at 15 ft
-//    to 2 ft/s sink, touching down at 80–90 KIAS).
-//  - Phase 5 (UI/2D/3D Integration & Clean API): Full drop-in replacement API
-//    matching pfl.js, providing rich tactical tags and segment overlays without
-//    duplicated flight math.
-//
-// References:
-//  - SMM Chapter 13 (Forced Landings), Chapter 4 (Circuit & Landing)
-//  - NFM Fig 3-4 (Zoom data), Section 3 (Emergency Procedures)
-//  - EFIG p. 402, 408 (Moose Jaw PFL local procedures)
-//  - Fable review (fable-report.md: F1-F16, Q1-Q7)
-//  - Patrick's rulings (TR-85, TR-87, 4-6 Oct 2026)
+// References: SMM chapter 13; NFM Fig 3-4 (zoom); EFIG p.402, 406, 408; Fable's review (F1-F16, Q1-Q7); Patrick's
+// rulings as cited on each number.
 
 import { ktToFtps, KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../core/units.js';
-import { wrapDeg180, wrapDeg360, compassDegFromVector, compassDegToHeadingRad, headingRadToCompassDeg } from '../../core/angles.js';
-import { turnRadiusFromBankFt, turnRateFromBankRadPerSec, dampedClimbG, easeValue, easeRoll } from '../../core/flight-math.js';
-import {
-  glideDragPerWeight,
-  glideRatio,
-  stallLimitG,
-  zoomT6A,
-  flyZoomT6A,
-  T6A_GLIDE,
-  dragPerWeight,
-} from '../../core/t6-performance.js';
-import { stepPointMass, pointMassState, pointMassFlight } from '../../core/point-mass.js';
-import { iasToTasKt, tasToIasKt, heightFactor } from './weather.js';
+import { wrapDeg180, wrapDeg360, compassDegFromVector } from '../../core/angles.js';
+import { turnRadiusFromBankFt, turnRateFromBankRadPerSec, dampedClimbG, easeValue } from '../../core/flight-math.js';
+import { glideDragPerWeight, glideRatio, stallLimitG } from '../../core/t6-performance.js';
+import { iasToTasKt, heightFactor } from './weather.js';
 import { windTriangle, windVectorFtps } from '../../core/wind.js';
 import { legOffsetsFt } from '../../core/geo.js';
-import { makePilot, bankFor, PILOT_DT, ROLL } from './circuit.js';
+import { makePilot, bankFor, PILOT_DT } from './circuit.js';
 import { startJoin } from './path-follower.js';
 import { routeLengthFt } from './route.js';
 import {
@@ -161,13 +130,17 @@ export const PFL = Object.freeze({
   ejectDecideSec: 5,
   /** Staged drag spacing: minimum 5 s between configuration changes (Fable F6). */
   minConfigIntervalSec: 5,
+  /** Square-off when high (TR-113): the base corner is labelled 240° round, an estimate between Low Key and Final Key; looked at again at most every 10 s (an estimate). */
+  squareBaseDeg: 240,
+  squareEverySec: 10,
+  /** On the way to the join, a square-off is looked at only within this of the threshold (an estimate: the circuit, not the area). */
+  squareWithinFt: 3 * FT_PER_NM,
 });
 
 /** Configurations in order: 0=clean, 1=gearDown, 2=flapsTakeoff, 3=landing. */
 export const PFL_CONFIGS = Object.freeze(['clean', 'gearDown', 'flapsTakeoff', 'landing']);
 export const PFL_CONFIG_LABELS = Object.freeze(['Clean', 'Gear', 'Gear + T/O flap', 'Gear + landing flap']);
 export const PFL_ROUTE_OPTIONS = Object.freeze({ flyRoundedTurns: false, radiusFromG: true, manualRadiusFt: 1800 });
-export const PFL_SEGMENT_TYPES = Object.freeze(['zoom', 'decel', 'arc', 'straight', 'roundout', 'flare']);
 const PLAN_DEG = [-Infinity, 0, 90, 180];
 
 // ── Shared Aerodynamic & Frame Helpers ────────────────────────────────────────
@@ -269,391 +242,237 @@ export function obviouslyShort(geo, s, cfg, wind) {
   return missFt > PFL.obviousShortRingFactor * ring.rGlide;
 }
 
-// ── Phase 1: Task 1 - Kinematic Zoom & Decel Segment Generator ────────────────
-
-const ZOOM_MIN_KIAS = 150;
-const ZOOM_GLIDE_KIAS = 125;
-const ZOOM_PUSH_G = 0.25;
-const ZOOM_STEP_SEC = 0.02;
-const ZOOM_PITCH_GAIN = 5;
-const ZOOM_MAX_SEC = 120;
+// ── The zoom: one model for the plan and the flight ───────────────────────────
 
 /**
- * Generates the unified zoom or level deceleration flight segment based strictly
- * on flyZoomT6A kinematics (NFM Fig 3-4, p. 3-9).
- *
- * For entries above 150 KIAS:
- *  - 2.0 s straight and level at 1 G
- *  - 2.0 G pull to 20° climb attitude
- *  - Hold 20° nose up until 145 KIAS
- *  - 0.25 G pushover to capture 125 KIAS clean glide
- *  - Turn vector rolls up to 30° bank toward target join heading
- *
- * For entries <= 150 KIAS:
- *  - Level deceleration from current KIAS to 125 KIAS (deltaAltFt = 0)
- *
- * Returns segment metadata:
- *  { type, points, deltaAltFt, deltaDistFt, exitKias, exitHeadingDeg, exitBankDeg, timeSec, apexAltFt, apexPos }
+ * One step of the zoom's nose (spec 4.5 item 5): a 2 G pull to 20° nose up, held there to 145 KIAS, then eased
+ * over to the clean glide path as the speed falls to 125 KIAS. G builds and eases at TR-51's rates. `z` carries the
+ * flight path angle and G between steps. Returns this step's climb and acceleration (true, ft/s and ft/s²) and
+ * whether the zoom is over. The plan (flyZoomPlan) and the flight (flyPfl) both call it, so the planned top of the
+ * zoom is where the aircraft gets to.
  */
-export function generateZoomOrDecelSegment({
-  x = 0,
-  y = 0,
-  alt = 3500,
-  kias = 125,
-  headingDeg = 298,
-  bankDeg = 0,
-  targetHeadingDeg = undefined,
-  targetPt = undefined,
-  wind = { windFromDeg: 360, windKt: 0 },
-  dt = ZOOM_STEP_SEC,
-} = {}) {
-  const startX = x, startY = y, startAlt = alt;
-  const isZoom = kias > ZOOM_MIN_KIAS;
-  const engineOff = (ktas, a, g) => -dragPerWeight(tasToIasKt(ktas, a), a, g);
-
-  const startHeadingRad = compassDegToHeadingRad(headingDeg);
-  let s = pointMassState({
-    x: 0,
-    y: 0,
-    altFt: alt,
-    ktas: iasToTasKt(kias, alt),
-    headingRad: startHeadingRad,
-  });
-
-  let t = 0;
-  const now = () => pointMassFlight(s);
-  const nowKias = () => tasToIasKt(now().ktas, now().altFt);
-  const going = () => t < ZOOM_MAX_SEC;
-
-  const targetHdg = targetPt
-    ? compassDegFromVector(targetPt.x - x, targetPt.y - y)
-    : Number.isFinite(targetHeadingDeg)
-    ? targetHeadingDeg
-    : headingDeg;
-
-  let currBankDeg = bankDeg;
-  let currRollRate = 0;
-  const points = [];
-  const w = windVectorFtps(wind.windFromDeg ?? 360, wind.windKt ?? 0);
-
-  if (!isZoom) {
-    while (nowKias() > ZOOM_GLIDE_KIAS && going()) {
-      const f = now();
-      const currHdgDeg = headingRadToCompassDeg(f.headingRad);
-      const hdgDiff = wrapDeg180(targetHdg - currHdgDeg);
-      let wantBank = 0;
-      if (Math.abs(hdgDiff) > 5) {
-        wantBank = clamp(hdgDiff * 1.5, -15, 15);
-      }
-      const rolled = easeRoll(currBankDeg, currRollRate, wantBank, dt, ROLL);
-      currBankDeg = rolled.bankDeg;
-      currRollRate = rolled.rollRateDps;
-
-      s = stepPointMass(s, { g: 1 / Math.cos(currBankDeg * DEG), bankRad: currBankDeg * DEG }, dt, engineOff);
-      s.z = startAlt;
-      s.vz = 0;
-      t += dt;
-
-      if (Math.round(t / dt) % 5 === 0) {
-        const curF = now();
-        points.push({
-          x: startX + s.x + w.x * t,
-          y: startY + s.y + w.y * t,
-          alt: curF.altFt,
-          kt: nowKias(),
-          headingDeg: headingRadToCompassDeg(curF.headingRad),
-          bankDeg: currBankDeg,
-          g: 1,
-          phase: 'pfl_decel',
-          decision: 'Slow to 125',
-          config: PFL_CONFIG_LABELS[0],
-          timeSec: t,
-          segmentType: 'decel',
-          marginFt: null,
-          marginTag: null,
-        });
-      }
-    }
+function zoomPitchStep(z, s, tasFtps, dt) {
+  const glideGamma = -Math.atan(1 / glideRatio('clean'));
+  let nLoad;
+  if (!z.pullDone && s.ias > PFL.pushOverKias) {
+    nLoad = z.gamma < PFL.zoomMaxClimbDeg * DEG ? PFL.zoomPullG : Math.cos(z.gamma);
   } else {
-    const climb = 20 * Math.PI / 180;
-    const glidePath = -Math.atan(1 / (T6A_GLIDE.clean.nmPer1000Ft * FT_PER_NM / 1000));
+    z.pullDone = true;
+    const f = clamp((s.ias - PFL.glideCleanKias) / (PFL.pushOverKias - PFL.glideCleanKias), 0, 1);
+    const want = glideGamma + (Math.max(z.gamma, glideGamma) - glideGamma) * f * 0.6;
+    nLoad = clamp(Math.cos(z.gamma) + (want - z.gamma) * tasFtps / G_FTPS2, 0, PFL.zoomPullG);
+  }
+  const eased = easeValue(z.nz, z.nzRate, nLoad * Math.cos(s.bank * DEG), dt, { maxRateDps: PFL.gOnsetGps, maxAccelDps2: PFL.gOnsetGps2 });
+  z.nz = eased.bankDeg;
+  z.nzRate = eased.rollRateDps;
+  const dw = glideDragPerWeight('clean', s.ias, s.alt, Math.max(z.nz / Math.cos(s.bank * DEG), 0.5));
+  z.gamma += G_FTPS2 * (z.nz - Math.cos(z.gamma)) / tasFtps * dt;
+  // Over once at 125 KIAS or on the glide path; the path is eased onto, so within a quarter of a degree counts (an estimate).
+  const done = z.pullDone && (s.ias <= PFL.glideCleanKias + 1.5 || z.gamma <= glideGamma + 0.25 * DEG);
+  return { climb: tasFtps * Math.sin(z.gamma), accel: -G_FTPS2 * (dw + Math.sin(z.gamma)), done };
+}
 
-    const fly = (control) => {
-      s = stepPointMass(s, control, dt, engineOff);
-      t += dt;
-      if (Math.round(t / dt) % 5 === 0) {
-        const curF = now();
-        points.push({
-          x: startX + s.x + w.x * t,
-          y: startY + s.y + w.y * t,
-          alt: curF.altFt,
-          kt: nowKias(),
-          headingDeg: headingRadToCompassDeg(curF.headingRad),
-          bankDeg: currBankDeg,
-          g: control.g,
-          phase: 'pfl_zoom',
-          decision: 'Zoom: apex',
-          config: PFL_CONFIG_LABELS[0],
-          timeSec: t,
-          segmentType: 'zoom',
-          marginFt: null,
-          marginTag: null,
-        });
+/** The zoom's bank: the bank it has for the first second (no snap at the hand-over), then a turn of up to 30° onto the planned track. */
+function zoomBank(pilot, n, trackDeg) {
+  if (n * PILOT_DT < PFL.holdBankSec) return pilot.s.bank;
+  return bankFor(pilot.headingFor(trackDeg), pilot.s, PFL.zoomMaxBankDeg);
+}
+
+/** The zoom flown ahead of time from `start`, turning onto `trackDeg`: where it ends, how high, how fast, which way. */
+function flyZoomPlan(start, wind, trackDeg) {
+  const pilot = makePilot({ x: start.x, y: start.y, alt: start.alt, ias: start.kias, hdg: start.headingDeg ?? RUNWAY_29L_HDG_DEG, src: 0, phase: 'pfl_zoom' }, wind);
+  pilot.s.bank = Number.isFinite(start.bankDeg) ? start.bankDeg : 0;
+  pilot.s.rollRate = Number.isFinite(start.rollRateDps) ? start.rollRateDps : 0;
+  const z = { gamma: 0, nz: 1, nzRate: 0, pullDone: false };
+  for (let n = 0; n < 2000; n++) {
+    const tas = ktToFtps(iasToTasKt(pilot.s.ias, pilot.s.alt));
+    const bank = zoomBank(pilot, n, trackDeg);
+    const st = zoomPitchStep(z, pilot.s, tas, PILOT_DT);
+    pilot.step(bank, st.climb, st.accel);
+    if (st.done) break;
+  }
+  const s = pilot.s;
+  return { x: s.x, y: s.y, alt: s.alt, kias: s.ias, headingDeg: s.hdg, bankDeg: s.bank, trackDeg: pilot.trackDeg() };
+}
+
+/** Height worth of the speed above `toKias`, in altimeter feet: what slowing to it gives back (none if already slower). */
+function speedAboveFt(kias, toKias, altFt) {
+  const v = ktToFtps(iasToTasKt(kias, altFt)), v0 = ktToFtps(iasToTasKt(toKias, altFt));
+  return Math.max(0, (v * v - v0 * v0) / (2 * G_FTPS2)) / heightFactor(altFt);
+}
+
+// ── The chain: the planned path as the turns and straights the aircraft flies ──
+//
+// A plan is a list of points (joins, the circle, the direct, the square-off). The chain turns it into what is flown:
+// every corner becomes a turn at its planned radius (a point's own `arc` radius, else the 45° radius at 120 KIAS),
+// joined to the straights at a tangent. The height needed is summed along the chain, and the aircraft flies the
+// same chain, so the plan and the flight are one path (Fable F9, F16).
+
+const FILLET_MIN_DEG = 0.5;
+const CHAIN_STEP_FT = 250;
+/** How far ahead the turn's bank is taken, in seconds of flight, so the roll starts as the turn starts (an estimate: about half a 45°/s roll). */
+const CHAIN_PREVIEW_SEC = 0.6;
+/** Off the line: track correction per foot, and its most (estimates, as the old follower's). */
+const CHAIN_TRACK_PER_FT = 0.05;
+const CHAIN_TRACK_MAX_DEG = 30;
+/** Bank per degree of track error (an estimate, as the old follower's). */
+const CHAIN_BANK_PER_DEG = 3;
+
+/**
+ * The chain for `pts`. Pieces in order, each on the path's segment `owner` (owner → owner + 1):
+ * { kind: 'line', ax, ay, trk, len, owner } or { kind: 'arc', cx, cy, r, side, b0, trk0, len, owner }
+ * (side +1 right, −1 left; b0 = bearing from the centre to the piece's start; trk0 = track at its start).
+ */
+function buildChain(pts, defaultR = directTurnRadiusFt()) {
+  const n = pts.length;
+  const pieces = [];
+  if (n < 2) return { pieces };
+  const len = [], trk = [];
+  for (let i = 0; i < n - 1; i++) {
+    len.push(dist(pts[i], pts[i + 1]));
+    trk.push(len[i] > 1e-6 ? bearing(pts[i], pts[i + 1]) : (trk[i - 1] ?? 0));
+  }
+  const T = new Array(n).fill(0), turn = new Array(n).fill(0);
+  for (let i = 1; i < n - 1; i++) {
+    if (len[i - 1] < 1 || len[i] < 1) continue;
+    const d = wrapDeg180(trk[i] - trk[i - 1]);
+    if (Math.abs(d) < FILLET_MIN_DEG || Math.abs(d) > 179) continue;
+    // A point's arc radius holds within that arc (or is the corner radius asked for); turning onto a new arc, the 45° radius at most.
+    const own = pts[i].arc, prev = pts[i - 1].arc;
+    const sameArc = own && (own.cx === undefined || (prev && prev.cx === own.cx && prev.cy === own.cy));
+    const r = own ? (sameArc ? own.r : Math.min(own.r, defaultR)) : defaultR;
+    turn[i] = d;
+    T[i] = r * Math.tan(Math.abs(d) * DEG / 2);
+  }
+  for (let i = 0; i < n - 1; i++) {
+    const want = T[i] + T[i + 1];
+    if (want > len[i]) { const k = len[i] / want; T[i] *= k; T[i + 1] *= k; }
+  }
+  const along = (i, ft) => ({ x: pts[i].x + Math.sin(trk[i] * DEG) * ft, y: pts[i].y + Math.cos(trk[i] * DEG) * ft });
+  for (let i = 0; i < n - 1; i++) {
+    const lineLen = len[i] - T[i] - T[i + 1];
+    if (lineLen > 0.5) {
+      const a = along(i, T[i]);
+      pieces.push({ kind: 'line', ax: a.x, ay: a.y, trk: trk[i], len: lineLen, owner: i });
+    }
+    const j = i + 1;
+    if (T[j] > 0.01 && j < n - 1) {
+      const d = turn[j], side = d > 0 ? 1 : -1, sweep = Math.abs(d);
+      const r = T[j] / Math.tan(sweep * DEG / 2);
+      const a = along(i, len[i] - T[j]);
+      const c = { x: a.x + r * Math.sin((trk[i] + side * 90) * DEG), y: a.y + r * Math.cos((trk[i] + side * 90) * DEG) };
+      const b0 = wrapDeg360(trk[i] - side * 90);
+      const half = sweep / 2;
+      pieces.push({ kind: 'arc', cx: c.x, cy: c.y, r, side, b0, trk0: trk[i], len: r * half * DEG, sweep: half, owner: i });
+      pieces.push({ kind: 'arc', cx: c.x, cy: c.y, r, side, b0: wrapDeg360(b0 + side * half), trk0: wrapDeg360(trk[i] + side * half), len: r * half * DEG, sweep: half, owner: j });
+    }
+  }
+  return { pieces };
+}
+
+/** Where `ft` along piece `pc` is, and its track there. */
+function piecePoint(pc, ft) {
+  if (pc.kind === 'line') return { x: pc.ax + Math.sin(pc.trk * DEG) * ft, y: pc.ay + Math.cos(pc.trk * DEG) * ft, trk: pc.trk };
+  const phi = (ft / pc.r) / DEG;
+  const b = (pc.b0 + pc.side * phi) * DEG;
+  return { x: pc.cx + pc.r * Math.sin(b), y: pc.cy + pc.r * Math.cos(b), trk: wrapDeg360(pc.trk0 + pc.side * phi) };
+}
+
+/** `p` against piece `pc`: feet along it (not clamped) and feet left of it. */
+function pieceOffsets(pc, p) {
+  if (pc.kind === 'line') {
+    const t = { x: Math.sin(pc.trk * DEG), y: Math.cos(pc.trk * DEG) };
+    const dx = p.x - pc.ax, dy = p.y - pc.ay;
+    return { along: dx * t.x + dy * t.y, left: -dx * t.y + dy * t.x };
+  }
+  const phi = pc.side * wrapDeg180(bearing({ x: pc.cx, y: pc.cy }, p) - pc.b0);
+  return { along: pc.r * phi * DEG, left: pc.side * (Math.hypot(p.x - pc.cx, p.y - pc.cy) - pc.r) };
+}
+
+/** Where the aircraft is on the chain, searching forward from piece `idx`: never back, never more than a few pieces on. */
+function chainLocate(chain, idx, p) {
+  const ps = chain.pieces;
+  if (!ps.length) return { idx: 0, along: 0, left: 0, trk: 0, pt: { x: p.x, y: p.y } };
+  let k = clamp(idx, 0, ps.length - 1);
+  let o = pieceOffsets(ps[k], p);
+  for (let step = 0; step < 6 && k < ps.length - 1 && o.along > ps[k].len; step++) {
+    const next = pieceOffsets(ps[k + 1], p);
+    k++;
+    o = next;
+  }
+  const along = clamp(o.along, 0, ps[k].len);
+  const at = piecePoint(ps[k], along);
+  return { idx: k, along, left: o.left, trk: at.trk, pt: { x: at.x, y: at.y } };
+}
+
+/** The piece and feet along it, `ft` further on from (idx, along). */
+function chainAhead(chain, idx, along, ft) {
+  const ps = chain.pieces;
+  let k = idx, a = along + ft;
+  while (k < ps.length - 1 && a > ps[k].len) { a -= ps[k].len; k++; }
+  return { pc: ps[k], along: Math.min(a, ps[k]?.len ?? 0) };
+}
+
+/** Bank that holds a turn of radius r over the ground at this ground speed, crabbed for the wind (r = Vg² / (g tan φ cos crab)). */
+function heldBankDeg(gsFtps, r, crabDeg) {
+  return Math.atan(gsFtps * gsFtps / (G_FTPS2 * r * Math.max(Math.cos(crabDeg * DEG), 0.5))) / DEG;
+}
+
+/** The bank that flies the chain: the turn's own bank, taken a moment ahead, plus a small correction back onto the line. */
+function chainBank(chain, loc, pilot, wind, bankMax) {
+  const gs = pilot.groundSpeedFtps();
+  const ahead = chainAhead(chain, loc.idx, loc.along, gs * CHAIN_PREVIEW_SEC).pc;
+  let ff = 0;
+  if (ahead?.kind === 'arc') {
+    const t = piecePoint(ahead, 0).trk;
+    const crab = wrapDeg180(pilot.headingFor(t) - t);
+    ff = ahead.side * heldBankDeg(gs, ahead.r, crab);
+  }
+  const want = loc.trk + clamp(loc.left * CHAIN_TRACK_PER_FT, -CHAIN_TRACK_MAX_DEG, CHAIN_TRACK_MAX_DEG);
+  return clamp(ff + CHAIN_BANK_PER_DEG * wrapDeg180(want - pilot.trackDeg()), -bankMax, bankMax);
+}
+
+/**
+ * Height needed (altimeter feet) to fly the chain from (idx, along) to the end of segment stopOwner − 1: each piece at
+ * the glide speed of the drag planned for it (planOf(owner)), at that piece's bank for its radius over the ground in the
+ * wind, at the glide drag for that G. Speed above the glide speed now (kiasNow) is height in hand.
+ */
+function chainSum(chain, planOf, idx, along, altFt, wind, { base = 0, maxPlan = 3, stopOwner = Infinity, kiasNow = null } = {}) {
+  const ps = chain.pieces;
+  let need = 0, alt = altFt, first = true;
+  for (let k = idx; k < ps.length; k++) {
+    const pc = ps[k];
+    if (pc.owner >= stopOwner) break;
+    const cfg = Math.max(base, Math.min(maxPlan, planOf(pc.owner) ?? 0));
+    const kias = glideKias(cfg);
+    if (first && Number.isFinite(kiasNow)) need -= speedAboveFt(kiasNow, kias, alt);
+    first = false;
+    const start = k === idx ? along : 0;
+    for (let a = start; a < pc.len - 1e-6;) {
+      const ds = Math.min(CHAIN_STEP_FT, pc.len - a);
+      const trk = piecePoint(pc, a + ds / 2).trk;
+      const tas = iasToTasKt(kias, alt);
+      const wt = windTriangle(trk, tas, wind.windFromDeg ?? 360, wind.windKt ?? 0);
+      const gs = wt.canHoldTrack ? Math.max(wt.groundSpeedKt, 20) : 20;
+      let g = 1;
+      if (pc.kind === 'arc') {
+        const bank = Math.min(heldBankDeg(ktToFtps(gs), pc.r, wt.crabDeg ?? 0), PFL.maxBankDeg);
+        g = Math.min(PFL.glideMaxG, 1 / Math.cos(bank * DEG));
       }
-    };
-
-    while (t < 2 - 1e-9 && going()) {
-      fly({ g: 1, bankRad: 0 });
-    }
-    while (now().climbRad < climb && going()) {
-      const curHdgDeg = headingRadToCompassDeg(now().headingRad);
-      const hdgDiff = wrapDeg180(targetHdg - curHdgDeg);
-      let wantBank = Math.abs(hdgDiff) > 2 ? clamp(hdgDiff * 2, -PFL.zoomMaxBankDeg, PFL.zoomMaxBankDeg) : 0;
-      const rolled = easeRoll(currBankDeg, currRollRate, wantBank, dt, ROLL);
-      currBankDeg = rolled.bankDeg;
-      currRollRate = rolled.rollRateDps;
-      const bankRad = currBankDeg * DEG;
-      fly({ g: 2 / Math.cos(bankRad), bankRad });
-    }
-    while (nowKias() > 145 && going()) {
-      const f = now();
-      const curHdgDeg = headingRadToCompassDeg(f.headingRad);
-      const hdgDiff = wrapDeg180(targetHdg - curHdgDeg);
-      let wantBank = Math.abs(hdgDiff) > 2 ? clamp(hdgDiff * 2, -PFL.zoomMaxBankDeg, PFL.zoomMaxBankDeg) : 0;
-      const rolled = easeRoll(currBankDeg, currRollRate, wantBank, dt, ROLL);
-      currBankDeg = rolled.bankDeg;
-      currRollRate = rolled.rollRateDps;
-      const bankRad = currBankDeg * DEG;
-      const vertG = Math.cos(f.climbRad) + ZOOM_PITCH_GAIN * (climb - f.climbRad);
-      fly({ g: vertG / Math.cos(bankRad), bankRad });
-    }
-    while (nowKias() > ZOOM_GLIDE_KIAS && now().climbRad > glidePath && going()) {
-      const f = now();
-      const curHdgDeg = headingRadToCompassDeg(f.headingRad);
-      const hdgDiff = wrapDeg180(targetHdg - curHdgDeg);
-      let wantBank = Math.abs(hdgDiff) > 2 ? clamp(hdgDiff * 2, -PFL.zoomMaxBankDeg, PFL.zoomMaxBankDeg) : 0;
-      const rolled = easeRoll(currBankDeg, currRollRate, wantBank, dt, ROLL);
-      currBankDeg = rolled.bankDeg;
-      currRollRate = rolled.rollRateDps;
-      const bankRad = currBankDeg * DEG;
-      fly({ g: ZOOM_PUSH_G / Math.cos(bankRad), bankRad });
+      const dh = ds * (tas / gs) * glideDragPerWeight(PFL_CONFIGS[cfg], kias, alt, g) / heightFactor(alt);
+      need += dh;
+      alt -= dh;
+      a += ds;
     }
   }
-
-  const finalFlight = now();
-  const exitX = startX + s.x + w.x * t;
-  const exitY = startY + s.y + w.y * t;
-  const exitAlt = finalFlight.altFt;
-  const exitHdg = headingRadToCompassDeg(finalFlight.headingRad);
-
-  return {
-    type: isZoom ? 'zoom' : 'decel',
-    points,
-    deltaAltFt: exitAlt - startAlt,
-    deltaDistFt: dist({ x: startX, y: startY }, { x: exitX, y: exitY }),
-    exitKias: ZOOM_GLIDE_KIAS,
-    exitHeadingDeg: exitHdg,
-    exitBankDeg: 0,
-    timeSec: t,
-    apexAltFt: exitAlt,
-    apexPos: { x: exitX, y: exitY, alt: exitAlt },
-  };
+  return need;
 }
 
-// ── Phase 1: Task 2 - PFL Join Point Energy Predictor ─────────────────────────
-
-/**
- * Predicts available energy height at the top of the zoom or end of decel:
- * He = h_apex + V² / (2g).
- * Uses the exact apex state of Task 1's segment generator.
- */
-export function predictApexEnergy({ startState, wind = { windFromDeg: 360, windKt: 0 } }) {
-  const zoomSeg = generateZoomOrDecelSegment({
-    x: startState.x,
-    y: startState.y,
-    alt: startState.alt,
-    kias: startState.kias ?? 125,
-    headingDeg: startState.headingDeg ?? RUNWAY_29L_HDG_DEG,
-    bankDeg: startState.bankDeg ?? 0,
-    wind,
-  });
-
-  const apexAltFt = zoomSeg.apexAltFt;
-  const energyHeightFt = apexAltFt;
-
-  return {
-    apexPos: zoomSeg.apexPos,
-    apexAltFt,
-    exitKias: zoomSeg.exitKias,
-    exitHeadingDeg: zoomSeg.exitHeadingDeg,
-    timeSec: zoomSeg.timeSec,
-    energyHeightFt,
-    zoomSegment: zoomSeg,
-  };
-}
-
-// ── Phase 2: Task 3 - PFL Arc & Straight Segment Evaluators ───────────────────
-
-/**
- * Evaluates a held-bank coordinated turn in wind (Task 3).
- *
- * Models:
- *  - Bank phi in [30°, 60°]
- *  - Load factor G = 1 / cos(phi)
- *  - Aerodynamic turn rate and air radius
- *  - Wind-drift compensation on ground track
- *  - Height loss: Delta z = -V_TAS * t * (D/W) / heightFactor(alt)
- *
- * Verifies SMM 13.5: 360° orbit at 30° bank and 120 KIAS loses ~1,550-1,700 ft clean
- * and ~2,600 ft gear down (via GEAR_DRAG_FACTOR = 1.322).
- */
-export function evaluateArcSegment({
-  startPt,
-  startHeadingDeg,
-  startAltFt,
-  turnDeg,
-  bankDeg = 30,
-  side = 1, // +1 right, -1 left
-  speedKias = 120,
-  config = 0,
-  wind = { windFromDeg: 360, windKt: 0 },
-  stepDeg = 5,
-}) {
-  const phiDeg = Math.abs(bankDeg);
-  const phiRad = phiDeg * DEG;
-  const g = 1 / Math.cos(phiRad);
-
-  const tasKt = iasToTasKt(speedKias, startAltFt);
-  const tasFtps = ktToFtps(tasKt);
-  const omegaRadPerSec = (G_FTPS2 * Math.tan(phiRad)) / Math.max(tasFtps, 1);
-  const airRadiusFt = tasFtps / Math.max(omegaRadPerSec, 1e-4);
-
-  const totalTimeSec = (turnDeg * DEG) / Math.max(omegaRadPerSec, 1e-4);
-  const dw = glideDragPerWeight(PFL_CONFIGS[config] ?? 'clean', speedKias, startAltFt, g);
-  const deltaAltTrue = -tasFtps * totalTimeSec * dw;
-  const deltaAltFt = deltaAltTrue / heightFactor(startAltFt);
-
-  const w = windVectorFtps(wind.windFromDeg ?? 360, wind.windKt ?? 0);
-  const points = [];
-  let currX = startPt.x, currY = startPt.y;
-  let currAlt = startAltFt;
-  let currHdg = startHeadingDeg;
-
-  const numSteps = Math.max(1, Math.ceil(turnDeg / stepDeg));
-  const dtStep = totalTimeSec / numSteps;
-  const dHdgStep = (turnDeg / numSteps) * side;
-  const dAltStep = deltaAltFt / numSteps;
-
-  for (let i = 0; i <= numSteps; i++) {
-    points.push({
-      x: currX,
-      y: currY,
-      alt: currAlt,
-      kias: speedKias,
-      headingDeg: currHdg,
-      bankDeg: phiDeg * side,
-      g,
-      config: PFL_CONFIG_LABELS[config],
-      segmentType: 'arc',
-      marginFt: null,
-      marginTag: null,
-    });
-    if (i < numSteps) {
-      currHdg = wrapDeg360(currHdg + dHdgStep);
-      const hRad = currHdg * DEG;
-      const gndVx = tasFtps * Math.sin(hRad) + w.x;
-      const gndVy = tasFtps * Math.cos(hRad) + w.y;
-      currX += gndVx * dtStep;
-      currY += gndVy * dtStep;
-      currAlt += dAltStep;
-    }
-  }
-
-  return {
-    type: 'arc',
-    startPt,
-    points,
-    deltaAltFt,
-    deltaDistFt: dist(startPt, { x: currX, y: currY }),
-    timeSec: totalTimeSec,
-    exitPt: { x: currX, y: currY },
-    exitHeadingDeg: currHdg,
-    exitAltFt: currAlt,
-    exitKias: speedKias,
-    bankDeg: phiDeg * side,
-    side,
-    config,
-    radiusFt: airRadiusFt,
-  };
-}
-
-/**
- * Evaluates a steady wings-level glide along ground track (Task 3).
- *
- * Models:
- *  - Constant glide slope along ground track: V_TAS + Wind
- *  - Configuration sink rate: Delta z = -V_TAS * t * (D/W) / heightFactor(alt)
- */
-export function evaluateStraightSegment({
-  startPt,
-  headingDeg,
-  startAltFt,
-  distanceFt,
-  speedKias = 125,
-  config = 0,
-  wind = { windFromDeg: 360, windKt: 0 },
-  stepFt = 500,
-}) {
-  const tasKt = iasToTasKt(speedKias, startAltFt);
-  const wt = windTriangle(headingDeg, tasKt, wind.windFromDeg ?? 360, wind.windKt ?? 0);
-  const groundSpeedKt = wt.canHoldTrack ? Math.max(wt.groundSpeedKt, 20) : 20;
-  const groundSpeedFtps = ktToFtps(groundSpeedKt);
-  const timeSec = distanceFt / Math.max(groundSpeedFtps, 1);
-
-  const dw = glideDragPerWeight(PFL_CONFIGS[config] ?? 'clean', speedKias, startAltFt, 1.0);
-  const airDistFt = ktToFtps(tasKt) * timeSec;
-  const deltaAltFt = (-airDistFt * dw) / heightFactor(startAltFt);
-
-  const hRad = headingDeg * DEG;
-  const dirX = Math.sin(hRad);
-  const dirY = Math.cos(hRad);
-
-  const numSteps = Math.max(1, Math.ceil(distanceFt / stepFt));
-  const points = [];
-
-  for (let i = 0; i <= numSteps; i++) {
-    const f = i / numSteps;
-    points.push({
-      x: startPt.x + dirX * distanceFt * f,
-      y: startPt.y + dirY * distanceFt * f,
-      alt: startAltFt + deltaAltFt * f,
-      kias: speedKias,
-      headingDeg,
-      bankDeg: 0,
-      g: 1.0,
-      config: PFL_CONFIG_LABELS[config],
-      segmentType: 'straight',
-      marginFt: null,
-      marginTag: null,
-    });
-  }
-
-  const exitPt = { x: startPt.x + dirX * distanceFt, y: startPt.y + dirY * distanceFt };
-
-  return {
-    type: 'straight',
-    startPt,
-    points,
-    deltaAltFt,
-    deltaDistFt: distanceFt,
-    timeSec,
-    exitPt,
-    exitHeadingDeg: headingDeg,
-    exitAltFt: startAltFt + deltaAltFt,
-    exitKias: speedKias,
-    bankDeg: 0,
-    config,
-  };
+/** Feet along the chain from (idx, along) to the end of segment stopOwner − 1. */
+function chainFtTo(chain, idx, along, stopOwner) {
+  let ft = 0;
+  for (let k = idx; k < chain.pieces.length && chain.pieces[k].owner < stopOwner; k++) ft += chain.pieces[k].len - (k === idx ? along : 0);
+  return ft;
 }
 
 // ── Path Generation & Geometric Solvers ────────────────────────────────────────
@@ -782,10 +601,36 @@ function interceptPath(geo, from, theta, trackDeg, turnRadiusFt) {
   const first = Math.abs(wrapDeg180(lineTrk - trackDeg));
   const onto = Math.abs(wrapDeg180(geo.trackAt(theta) - lineTrk));
   if (first > 120 || onto > PFL.interceptOntoDeg) return null;
-  const arc = leadTurn(from, trackDeg, p);
+  // The turn onto the circle is planned too: a left turn at the 45° radius that rolls out on the circle at the point,
+  // so the straight before it aims at where that turn starts (flown as planned, never a corner cut).
+  const rt = directTurnRadiusFt();
+  const tp = geo.trackAt(theta);
+  const c2 = { x: p.x + rt * Math.sin((tp - 90) * DEG), y: p.y + rt * Math.cos((tp - 90) * DEG) };
+  const entryFrom = (e) => {
+    const d = dist(e, c2);
+    if (d <= rt * 1.01) return null;
+    const trv = bearing(e, c2) + Math.asin(rt / d) / DEG;
+    const k = Math.sqrt(d * d - rt * rt);
+    return { x: e.x + k * Math.sin(trv * DEG), y: e.y + k * Math.cos(trv * DEG), trv };
+  };
+  let entry = entryFrom(from);
+  let arc = leadTurn(from, trackDeg, entry ?? p);
+  if (entry && arc.length) entry = entryFrom(arc[arc.length - 1]) ?? entry;
   const exitArc = arc.length ? arc[arc.length - 1] : { x: from.x, y: from.y };
-  const straightLeg = dist(exitArc, p) > 10 ? [{ x: exitArc.x, y: exitArc.y, plan: 0 }] : [];
-  const startPts = arc.length ? [{ x: from.x, y: from.y, plan: 0, arc: arc[0].arc }, ...arc, ...straightLeg] : [{ x: from.x, y: from.y, plan: 0 }];
+  const ontoPts = [];
+  if (entry && wrapDeg180(tp - entry.trv) < -FILLET_MIN_DEG) {
+    const turnC = { cx: c2.x, cy: c2.y, r: rt, side: -1 };
+    const b0 = bearing(c2, entry), b1 = bearing(c2, p);
+    const sweep = wrapDeg360(b0 - b1);
+    ontoPts.push({ x: entry.x, y: entry.y, plan: 0, arc: turnC });
+    for (let k = PFL.joinStepDeg; k < sweep - 1e-6; k += PFL.joinStepDeg) {
+      const b = b0 - k;
+      ontoPts.push({ x: c2.x + rt * Math.sin(b * DEG), y: c2.y + rt * Math.cos(b * DEG), plan: 0, arc: turnC });
+    }
+  }
+  const legEnd = ontoPts[0] ?? p;
+  const straightLeg = dist(exitArc, legEnd) > 10 ? [{ x: exitArc.x, y: exitArc.y, plan: 0 }] : [];
+  const startPts = arc.length ? [{ x: from.x, y: from.y, plan: 0, arc: arc[0].arc }, ...arc, ...straightLeg, ...ontoPts] : [{ x: from.x, y: from.y, plan: 0 }, ...ontoPts];
   return Object.assign([...startPts, ...arcToAim(geo, theta)], { turnDeg: first + onto, straightFt: dist(from, p), turnRadiusFt });
 }
 
@@ -916,109 +761,85 @@ export function chooseDirect(geo, from, altFt, kias, wind, trackDeg = undefined,
   return pick ? { kind: 'direct', ...pick } : null;
 }
 
-function widenPath(geo, path, seg, s, altFt, wind, tdKey) {
+/**
+ * The square-off when high (Patrick, 10 Oct 2026; TR-113): a pattern PFL still high with all the drag out flies a wide
+ * Low Key, then squares off its turns to Final Key and to the threshold: a straight downwind, about 90° onto base, a
+ * straight base through Final Key, about 90° onto final. Final Key itself stays where it is (TR-48; Patrick's card
+ * 19:46Z). The corners tighten first, from the circle's own radius to the 45° radius; after that the downwind moves
+ * out, up to PFL.maxWidenFt. It is sized so that, with all the drag out, it arrives on profile.
+ */
+function squarePath(geo, path, seg, s, trackDeg, altFt, wind, tdKey, cfgNow, th0 = path[seg]?.theta) {
   const ground = THRESHOLD_DATA_ELEV_FT;
-  const own = bearing(geo.centre, s);
-  let thOwn = 0;
-  for (let th = 0; th < 360; th += 1) if (Math.abs(wrapDeg180(bearing(geo.centre, geo.at(th)) - own)) < Math.abs(wrapDeg180(bearing(geo.centre, geo.at(thOwn)) - own))) thOwn = th;
-  const th0 = Math.max(path[seg]?.theta ?? 0, thOwn);
-  if (th0 >= PFL.lastJoinDeg - PFL.joinStepDeg) return null;
-  const fk = path.findIndex((p, i) => i > seg && p.theta !== undefined && p.theta >= PFL.lastJoinDeg);
-  if (fk < 0) return null;
-  const out = (p) => { const d = dist(geo.centre, p); return { x: (p.x - geo.centre.x) / d, y: (p.y - geo.centre.y) / d }; };
-  const base0 = geo.at(th0);
-  const now = dist(geo.centre, s) - dist(geo.centre, base0);
-  const windFromDeg = geo.windFromDeg ?? 360;
-  const up = { x: Math.sin(windFromDeg * DEG), y: Math.cos(windFromDeg * DEG) };
-  const build = (k) => {
-    const pts = [{ x: s.x, y: s.y, theta: th0, plan: path[seg]?.plan ?? 3 }];
-    for (let th = th0 + PFL.joinStepDeg; th < PFL.lastJoinDeg - 1e-6; th += PFL.joinStepDeg) {
-      const f = (th - th0) / (PFL.lastJoinDeg - th0);
-      const off = now * (1 - f) + k * Math.sin(Math.PI * f);
-      const p = geo.at(th), u = out(p);
-      const kShift = geo.shiftFt ? geo.shiftFt * (1 - clamp(th, 0, 360) / 360) : 0;
-      const c = { x: geo.centre.x + up.x * kShift, y: geo.centre.y + up.y * kShift };
-      const arc = { cx: c.x, cy: c.y, r: geo.r + off, side: -1 };
-      const pt = { x: p.x + u.x * off, y: p.y + u.y * off, theta: th, plan: planAt(th), key: keyAt(th), arc };
-      // Centerline boundary guard: Pattern side must never cross over runway centerline
-      const offRwy = legOffsetsFt(geo.th, geo.dep, pt);
-      if (offRwy.crossFt > -300) return null;
-      pts.push(pt);
-    }
-    const full = [...pts, ...path.slice(fk)];
-    return full;
+  if (th0 === undefined || th0 >= PFL.squareBaseDeg) return null;
+  const nl = { x: -geo.u.y, y: geo.u.x };
+  const alongOf = (p) => (p.x - geo.th.x) * geo.u.x + (p.y - geo.th.y) * geo.u.y;
+  const latOf = (p) => (p.x - geo.th.x) * nl.x + (p.y - geo.th.y) * nl.y;
+  const P = (along, lat) => ({ x: geo.th.x + geo.u.x * along + nl.x * lat, y: geo.th.y + geo.u.y * along + nl.y * lat });
+  const lk = geo.at(180), fk = geo.at(270);
+  const fkAlong = alongOf(fk);
+  const out = Math.sign(latOf(lk)) || -1; // the pattern side: wider is further this way
+  const rMin = directTurnRadiusFt();
+  if (alongOf(s) < fkAlong + rMin) return null;
+  const tail = [{ x: geo.th.x, y: geo.th.y, theta: 360, plan: 3, key: 'threshold' }, ...finalToAim(geo, geo.aimAlongFt)];
+  const build = (x) => {
+    const r = geo.r - (geo.r - rMin) * Math.min(x, 1);
+    // The downwind line: Low Key's, moved out as x grows past 1. Reached at about 45° from where the aircraft is (in or
+    // out), so that corner is made before Final Key's along-track spot.
+    const wanted = out * latOf(lk) + Math.max(0, x - 1) * 1000;
+    // Still well before Low Key (room for two turns): straight to the wide Low Key. Otherwise a 45° cut, as far as there is
+    // room before Final Key.
+    const toLk = alongOf(s) - alongOf(lk);
+    const room = Math.max(0, alongOf(s) - fkAlong - 2 * rMin);
+    const viaLk = toLk >= 2 * rMin;
+    const wide = viaLk ? wanted - out * latOf(s) : clamp(wanted - out * latOf(s), -room, room);
+    const lat = out * (out * latOf(s) + wide);
+    const corner = { r };
+    const atLk = viaLk || th0 < 180;
+    // The drag as planned: gear to the wide Low Key, T/O flap from it, landing flap rolling into base (Patrick, 10 Oct 20:06Z).
+    const plan = Math.max(atLk ? 1 : 2, cfgNow), wPlan = Math.max(2, cfgNow);
+    const pts = [{ x: s.x, y: s.y, theta: th0, plan, square: true }];
+    const wAlong = viaLk ? alongOf(lk) : th0 < 180 ? Math.min(alongOf(lk), alongOf(s) - Math.abs(wide)) : alongOf(s) - Math.abs(wide);
+    const w = P(wAlong, lat), bc = P(fkAlong, lat), fc = P(fkAlong, 0);
+    const useW = atLk || Math.abs(wide) > 1;
+    const lead = leadTurn(s, trackDeg, useW ? w : bc).map((p) => ({ ...p, theta: th0, plan, square: true }));
+    pts.push(...lead);
+    if (useW) pts.push({ ...w, theta: atLk ? 180 : th0, plan: wPlan, ...(atLk ? { key: 'low_key' } : {}), square: true, arc: corner });
+    pts.push({ ...bc, theta: PFL.squareBaseDeg, plan: 3, square: true, arc: corner });
+    pts.push({ x: fk.x, y: fk.y, theta: 270, plan: 3, key: 'final_key', square: true });
+    pts.push({ ...fc, theta: 315, plan: 3, square: true, arc: corner });
+    return [...pts, ...tail];
   };
-  const spare = (k) => {
-    const b = build(k);
-    if (!b) return -Infinity;
-    return altFt - ground - neededFt(b, 0, s, altFt, 3, wind, false, tdKey) - PFL.onProfileFt;
-  };
-  const maxW = build(PFL.maxWidenFt);
-  if (maxW && spare(PFL.maxWidenFt) > 0) return maxW;
-  let lo = 0, hi = PFL.maxWidenFt;
-  for (let i = 0; i < 12; i++) {
-    const mid = (lo + hi) / 2;
-    if (spare(mid) > 0) lo = mid; else hi = mid;
+  const spare = (x) => altFt - ground - neededFt(build(x), 0, s, altFt, cfgNow, wind, false, tdKey) - PFL.onProfileFt;
+  const xMax = 1 + PFL.maxWidenFt / 1000;
+  if (spare(0) <= 0) return null;
+  if (spare(xMax) > 0) {
+    // Can't burn it all: square off only if that loses more than the path it is on.
+    const now = altFt - ground - neededFt(path, seg, s, altFt, cfgNow, wind, false, tdKey) - PFL.onProfileFt;
+    return spare(xMax) < now - PFL.onProfileFt ? build(xMax) : null;
   }
-  return lo > 50 ? build(lo) : null;
+  let lo = 0, hi = xMax;
+  for (let i = 0; i < 14; i++) { const mid = (lo + hi) / 2; if (spare(mid) > 0) lo = mid; else hi = mid; }
+  return lo > 0.02 ? build(lo) : null;
 }
 
+/**
+ * Height needed (altimeter feet) from `pos` on segment `seg` of `path` to the point keyed `stopAtKey` (the aim point,
+ * unless told), summed on the chain of that path from where the aircraft is, flying the planned drag from here on
+ * (never less than cfgNow; one step more with takeNext; never more than maxPlan).
+ */
 function neededFt(path, seg, pos, altFt, cfgNow, wind, takeNext = false, stopAtKey = 'aim', maxPlan = 3) {
   const stop = path.findIndex((p) => p.key === stopAtKey);
   if (stop >= 0 && stop <= seg) return 0;
-  let need = 0;
-  let a = pos;
-  let alt = altFt;
+  const pts = [{ x: pos.x, y: pos.y }, ...path.slice(seg + 1)];
+  const chain = buildChain(pts);
   const base = takeNext ? Math.min(3, cfgNow + 1) : cfgNow;
-  for (let i = seg + 1; i < path.length; i++) {
-    const b = path[i];
-    const len = dist(a, b);
-    if (len > 1) {
-      const cfg = Math.max(base, Math.min(maxPlan, path[i - 1].plan ?? 0));
-      const kias = glideKias(cfg);
-      const tas = iasToTasKt(kias, alt);
-      const trk = bearing(a, b);
-      const wt = windTriangle(trk, tas, wind.windFromDeg ?? 360, wind.windKt ?? 0);
-      const gs = wt.canHoldTrack ? Math.max(wt.groundSpeedKt, 20) : 20;
-      let g = 1;
-      const c = path[i + 1];
-      if (c) {
-        const turn = Math.abs(wrapDeg180(bearing(b, c) - trk)) * DEG;
-        if (turn > 1e-3) {
-          const omega = ktToFtps(gs) * turn / Math.max(len, 1);
-          g = Math.min(2, Math.hypot(1, ktToFtps(tas) * omega / G_FTPS2));
-        }
-      }
-      const air = len * tas / gs;
-      const dh = air * glideDragPerWeight(PFL_CONFIGS[cfg], kias, alt, g) / heightFactor(alt);
-      need += dh;
-      alt -= dh;
-    }
-    if (b.key === stopAtKey) break;
-    a = b;
-  }
-  return need;
+  return chainSum(chain, (o) => path[seg + o]?.plan ?? 0, 0, 0, altFt, wind, { base, maxPlan, stopOwner: stop >= 0 ? stop - seg : Infinity });
 }
 
+/** Height needed, clean at 125 KIAS, from `from` to point toIdx of `path` (the join). */
 function neededTo(path, toIdx, from, altFt, wind) {
-  let need = 0;
-  let a = from;
-  let alt = altFt;
-  for (let i = 1; i <= toIdx && i < path.length; i++) {
-    const b = path[i];
-    const len = dist(a, b);
-    if (len > 1) {
-      const tas = iasToTasKt(PFL.glideCleanKias, alt);
-      const wt = windTriangle(bearing(a, b), tas, wind.windFromDeg ?? 360, wind.windKt ?? 0);
-      const gs = wt.canHoldTrack ? Math.max(wt.groundSpeedKt, 20) : 20;
-      const air = len * tas / gs;
-      const dh = air * glideDragPerWeight('clean', PFL.glideCleanKias, alt, 1) / heightFactor(alt);
-      need += dh;
-      alt -= dh;
-    }
-    a = b;
-  }
-  return need;
+  const pts = [{ x: from.x, y: from.y }, ...path.slice(1)];
+  return chainSum(buildChain(pts), () => 0, 0, 0, altFt, wind, { maxPlan: 0, stopOwner: toIdx });
 }
 
 function minDragPlan(path) {
@@ -1026,17 +847,6 @@ function minDragPlan(path) {
   if (direct) return path.map((p) => ({ ...p, plan: 0 }));
   const fk = path.findIndex((p) => p.key === 'final_key' || p.key === 'lined_up' || (p.theta ?? 0) >= 270);
   return path.map((p, i) => ({ ...p, plan: fk >= 0 && i >= fk ? Math.max(p.plan ?? 0, 1) : 0 }));
-}
-
-function pathFtTo(path, proj, key) {
-  let ft = 0;
-  let a = proj.pt;
-  for (let i = proj.seg + 1; i < path.length; i++) {
-    ft += dist(a, path[i]);
-    if (path[i].key === key) break;
-    a = path[i];
-  }
-  return ft;
 }
 
 function project(path, seg, p) {
@@ -1053,19 +863,6 @@ function project(path, seg, p) {
 }
 
 
-const ARC_TRACK_PER_FT = 0.05;
-const ARC_BANK_PER_DEG = 3;
-
-function arcBank(path, seg, s, tasFtps, pilot, bankMax) {
-  const t = path[seg]?.arc;
-  if (!t || !path[seg + 1]?.arc) return null;
-  const c = { x: t.cx, y: t.cy };
-  const offFt = dist(c, s) - t.r;
-  const wantTrack = bearing(c, s) + t.side * 90 + t.side * clamp(offFt * ARC_TRACK_PER_FT, -30, 30);
-  const heldDeg = Math.atan(tasFtps * pilot.groundSpeedFtps() / (G_FTPS2 * t.r)) / DEG;
-  return clamp(t.side * heldDeg + ARC_BANK_PER_DEG * wrapDeg180(wantTrack - pilot.trackDeg()), -bankMax, bankMax);
-}
-
 function joinLabel(theta) {
   if (Math.abs(theta) < 1e-6) return 'Join at High Key';
   if (Math.abs(theta - 180) < 1e-6) return 'Join at Low Key';
@@ -1073,7 +870,7 @@ function joinLabel(theta) {
   return `Join at ${Math.round(theta)}°`;
 }
 
-// ── Drop-in chooseJoin Implementation ─────────────────────────────────────────
+// ── Choosing the join ─────────────────────────────────────────────────────────
 
 export function chooseJoin(geo, from, availFt, trackDeg, wind, { allowHighKey = true, turnRadiusFt = directTurnRadiusFt(), minTurnRadiusFt = glideJoinMinRadiusFt(), bankDeg = 0 } = {}) {
   const ground = THRESHOLD_DATA_ELEV_FT;
@@ -1119,179 +916,7 @@ export function chooseJoin(geo, from, availFt, trackDeg, wind, { allowHighKey = 
   return { kind: 'none', path: directPath(geo, from, geo.aimAlongFt, true, trackDeg), aimAlongFt: geo.aimAlongFt, label: 'Eject' };
 }
 
-// ── Phase 2: Task 4 - Standard Route Segment Chain Builders ───────────────────
-
-export function buildSegmentChain({ startState, planKind, geo, wind, options = {} }) {
-  const segments = [];
-  let currentAlt = startState.alt;
-  let fromPt = { x: startState.x, y: startState.y };
-  let fromHdg = startState.headingDeg ?? RUNWAY_29L_HDG_DEG;
-
-  if (startState.kias > 125.5) {
-    const zoomSeg = generateZoomOrDecelSegment({
-      x: startState.x,
-      y: startState.y,
-      alt: startState.alt,
-      kias: startState.kias,
-      headingDeg: fromHdg,
-      wind,
-    });
-    segments.push(zoomSeg);
-    currentAlt = zoomSeg.apexAltFt;
-    fromPt = zoomSeg.apexPos;
-    fromHdg = zoomSeg.exitHeadingDeg;
-  }
-
-  let plan;
-  if (planKind === 'highKey') {
-    plan = { kind: 'highKey', path: [{ x: fromPt.x, y: fromPt.y, plan: 0, theta: 0, key: 'high_key', highKeyCheck: true }, ...arcToAim(geo, PFL.joinStepDeg)], theta: 0, label: 'At High Key' };
-  } else if (planKind === 'lowKey') {
-    plan = { kind: 'lowKey', path: [{ x: fromPt.x, y: fromPt.y, plan: 1, theta: 180, key: 'low_key' }, ...arcToAim(geo, 180 + PFL.joinStepDeg)], theta: 180, label: 'At Low Key' };
-  } else if (planKind === 'direct') {
-    plan = chooseDirect(geo, fromPt, currentAlt, PFL.glideCleanKias, wind, fromHdg);
-  } else if (planKind === 'circle') {
-    plan = chooseJoin(geo, fromPt, currentAlt, fromHdg, wind, options);
-  } else {
-    const apexPred = predictApexEnergy({ startState, wind });
-    plan = chooseJoin(geo, fromPt, apexPred.energyHeightFt, fromHdg, wind, options);
-  }
-
-  const path = plan?.path ?? [];
-  if (path.length > 0) {
-    let a = path[0];
-    for (let i = 1; i < path.length; i++) {
-      const b = path[i];
-      const d = dist(a, b);
-      if (d > 1) {
-        const cfg = b.plan ?? 0;
-        const kias = glideKias(cfg);
-        if (b.arc) {
-          const seg = evaluateArcSegment({
-            startPt: a,
-            startHeadingDeg: bearing(a, b),
-            startAltFt: currentAlt,
-            turnDeg: PFL.joinStepDeg,
-            bankDeg: 30,
-            side: b.arc.side ?? 1,
-            speedKias: kias,
-            config: cfg,
-            wind,
-          });
-          segments.push(seg);
-          currentAlt = seg.exitAltFt;
-        } else {
-          const seg = evaluateStraightSegment({
-            startPt: a,
-            headingDeg: bearing(a, b),
-            startAltFt: currentAlt,
-            distanceFt: d,
-            speedKias: kias,
-            config: cfg,
-            wind,
-          });
-          segments.push(seg);
-          currentAlt = seg.exitAltFt;
-        }
-      }
-      a = b;
-    }
-  }
-
-  let totalDeltaAltFt = 0, totalDistFt = 0, totalTimeSec = 0;
-  for (const s of segments) {
-    totalDeltaAltFt += s.deltaAltFt ?? 0;
-    totalDistFt += s.deltaDistFt ?? 0;
-    totalTimeSec += s.timeSec ?? 0;
-  }
-
-  return {
-    planKind: plan?.kind ?? planKind ?? 'unknown',
-    label: plan?.label ?? '',
-    segments,
-    totalDeltaAltFt,
-    totalDistFt,
-    totalTimeSec,
-    points: path,
-  };
-}
-
-export function buildHighKeyChain(args) { return buildSegmentChain({ ...args, planKind: 'highKey' }); }
-export function buildLowKeyChain(args) { return buildSegmentChain({ ...args, planKind: 'lowKey' }); }
-export function buildAreaChain(args) { return buildSegmentChain({ ...args, planKind: 'highKey' }); }
-export function buildDownwindChain(args) { return buildSegmentChain({ ...args, planKind: 'circle' }); }
-export function buildDirectChain(args) { return buildSegmentChain({ ...args, planKind: 'direct' }); }
-
-// ── Phase 3: Task 5 & 6 - Step Follower & Event-Driven Re-planner ─────────────
-
-export function createSegmentFollowerState(chain) {
-  return {
-    chain,
-    currentSegIdx: 0,
-    timeInSegSec: 0,
-    distInSegFt: 0,
-    angleInSegDeg: 0,
-    cfgIndex: 0,
-    lastConfigChangeSec: -100,
-    planGraceSec: PFL.planGraceSec,
-    lastReplanSec: 0,
-    lastMilestoneTag: undefined,
-  };
-}
-
-export function stepPflSegmentFollower(pilot, followerState, dt, wind) {
-  const { chain, currentSegIdx } = followerState;
-  const seg = chain.segments[currentSegIdx];
-  if (!seg) return;
-
-  const s = pilot.s;
-  followerState.timeInSegSec += dt;
-
-  let wantBank = seg.bankDeg ?? 0;
-  const tasFtps = ktToFtps(iasToTasKt(s.ias, s.alt));
-  const dw = glideDragPerWeight(PFL_CONFIGS[followerState.cfgIndex], s.ias, s.alt, Math.max(1, 1 / Math.cos(wantBank * DEG)));
-  const climbFtps = -tasFtps * dw;
-  pilot.step(wantBank, climbFtps, 0);
-
-  if (seg.type === 'arc') {
-    followerState.angleInSegDeg += Math.abs(turnRateFromBankRadPerSec(tasFtps, wantBank) * RAD * dt);
-    if (followerState.angleInSegDeg >= (seg.turnDeg ?? PFL.joinStepDeg)) {
-      followerState.currentSegIdx++;
-      followerState.angleInSegDeg = 0;
-      followerState.timeInSegSec = 0;
-    }
-  } else if (seg.type === 'straight') {
-    followerState.distInSegFt += tasFtps * dt;
-    if (followerState.distInSegFt >= seg.deltaDistFt) {
-      followerState.currentSegIdx++;
-      followerState.distInSegFt = 0;
-      followerState.timeInSegSec = 0;
-    }
-  } else if (seg.type === 'zoom' || seg.type === 'decel') {
-    if (followerState.timeInSegSec >= seg.timeSec) {
-      followerState.currentSegIdx++;
-      followerState.timeInSegSec = 0;
-    }
-  }
-}
-
-export function shouldReplanPfl(pilotState, followerState, elapsedSec, path = null, seg = 0, wind = null) {
-  if (elapsedSec - followerState.lastReplanSec < followerState.planGraceSec) return false;
-  if (pilotState.tag && pilotState.tag !== followerState.lastMilestoneTag) {
-    followerState.lastMilestoneTag = pilotState.tag;
-    followerState.lastReplanSec = elapsedSec;
-    return true;
-  }
-  if (path && wind) {
-    const margin = pilotState.alt - THRESHOLD_DATA_ELEV_FT - neededFt(path, seg, pilotState, pilotState.alt, followerState.cfgIndex, wind);
-    if (Math.abs(margin) > PFL.dragBufferFt) {
-      followerState.lastReplanSec = elapsedSec;
-      return true;
-    }
-  }
-  return false;
-}
-
-// ── Phase 5: Task 9 - UI & Overlay Readouts ───────────────────────────────────
+// ── The tag ───────────────────────────────────────────────────────────────────
 
 export function getPflBadge(ac) {
   if (!ac) return null;
@@ -1333,22 +958,20 @@ export function getPflBadge(ac) {
   return '[PFL: DIRECT]';
 }
 
-export function getPflSegmentPlanSummary(flight) {
-  if (!flight?.planLog?.length) return [];
-  const activePlan = flight.planLog[flight.planLog.length - 1]?.plan;
-  return activePlan?.path ?? [];
-}
+// ── The flight ────────────────────────────────────────────────────────────────
 
-// ── Drop-in flyPfl Implementation ─────────────────────────────────────────────
+/** The point a zoom turns toward: the join on the circle, the line-up point of a direct, or the plan's next point. */
+function zoomAim(plan, from) {
+  const p = plan?.path ?? [];
+  return p.find((q) => q.theta !== undefined || q.key === 'lined_up') ?? p[1] ?? from;
+}
 
 /**
- * Complete drop-in replacement for pfl.js:flyPfl using the Segment Planner architecture.
+ * Flies a PFL from `start` and records it: the zoom (or the level slow-down), then the glide along the chain of the
+ * plan, re-planning at the keys and when the energy margin says so, the drag ladder, the square-off when high, the
+ * round-out and the flare (spec 4.5). Returns { points, outcome, touchdown, eject, gate, plan, patternPfl, planLog, notes }.
  */
 export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = {}) {
-  return flyPflSegmentPlanner(start, wind, options);
-}
-
-export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0 }, options = {}) {
   const practice = Boolean(options.practice);
   const geo = pflGeometry(wind.windFromDeg, wind.windKt, options.settings);
   const ground = THRESHOLD_DATA_ELEV_FT;
@@ -1362,7 +985,7 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
       ias: start.kias,
       hdg: start.headingDeg ?? RUNWAY_29L_HDG_DEG,
       src: 0,
-      phase: mid ? 'pfl' : start.kias > 125.5 ? 'pfl_zoom' : 'pfl',
+      phase: mid ? 'pfl' : start.kias > PFL.zoomAboveKias ? 'pfl_zoom' : 'pfl',
     },
     wind
   );
@@ -1374,78 +997,10 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
   let cfg = mid ? clamp(Math.round(mid.cfgIndex ?? 0), 0, 3) : 0;
   let margin = 0;
   let roundOut = null;
-
-  const calcMarginTag = (m) => (m > 150 ? 'high' : m < -PFL.onProfileFt ? 'low' : 'on profile');
-  const getSegmentType = () => {
-    if (state === 'zoom') return 'zoom';
-    if (state === 'slow') return 'decel';
-    if (roundOut?.flare) return 'flare';
-    if (roundOut) return 'roundout';
-    if (path[seg]?.arc) return 'arc';
-    return 'straight';
-  };
-  const setRec = (decision, extra = {}) => {
-    const curSeg = extra.segmentType ?? getSegmentType();
-    const curMarginFt = extra.marginFt !== undefined ? extra.marginFt : (Number.isFinite(margin) ? Math.round(margin) : null);
-    const curMarginTag = extra.marginTag !== undefined ? extra.marginTag : (Number.isFinite(margin) ? calcMarginTag(margin) : null);
-    s.rec = {
-      decision,
-      config: PFL_CONFIG_LABELS[cfg],
-      cfgIndex: cfg,
-      segmentType: curSeg,
-      marginFt: curMarginFt,
-      marginTag: curMarginTag,
-      ...extra,
-    };
-  };
-
-  // Phase 1 / Task 1 & 2: Unified Zoom & Apex Energy Prediction (eliminates F7)
-  const zooming = !mid && start.kias > PFL.zoomAboveKias;
-  const apexEnergy = !mid ? predictApexEnergy({ startState: start, wind }) : null;
-  const avail = mid ? start.alt : apexEnergy.energyHeightFt;
-
-  const zoomRadius = (kias) => turnRadiusFromBankFt(ktToFtps(iasToTasKt(kias, avail - 500)), PFL.zoomMaxBankDeg);
-  const turnRadiusFt = zooming ? zoomRadius((start.kias + PFL.glideCleanKias) / 2) : directTurnRadiusFt();
-  const minTurnRadiusFt = zooming ? zoomRadius(PFL.glideCleanKias) : glideJoinMinRadiusFt();
-
-  const fromHdg = start.headingDeg ?? RUNWAY_29L_HDG_DEG;
-  let plan = mid?.plan ?? chooseJoin(geo, s, avail, fromHdg, wind, {
-    turnRadiusFt, minTurnRadiusFt, bankDeg: s.bank,
-  });
-
-  if (!mid?.plan && Math.hypot(s.x - geo.th.x, s.y - geo.th.y) <= PFL.atHighKeyFt && avail >= PFL.highKeyMinFt) {
-    plan = { kind: 'highKey', path: [{ x: s.x, y: s.y, plan: 0, theta: 0, key: 'high_key', highKeyCheck: true }, ...arcToAim(geo, PFL.joinStepDeg)], theta: 0, label: 'At High Key' };
-  }
-
-  const patternPfl = mid ? Boolean(mid.patternPfl) : !practice && plan.kind !== 'highKey' && plan.kind !== 'direct';
-  let path = plan.path;
-  let seg = 0;
-  let state = mid ? 'glide' : zooming ? 'zoom' : 'slow';
-  const tdKeyInit = path.some((p) => p.key === 'touchdown') ? 'touchdown' : 'aim';
-  margin = cfg >= 3
-    ? avail - ground - neededFt(path, 0, s, avail, cfg, wind, false, tdKeyInit)
-    : avail - ground - neededFt(path, 0, s, avail, cfg, wind, false, 'aim', 2);
-  setRec(mid ? (mid.decision || plan.label) : zooming ? `Zoom: ${plan.label.toLowerCase()}` : `Slow to 125: ${plan.label.toLowerCase()}`);
-  s.tag = undefined;
-  pilot.record();
-
-  if (!zooming && state === 'glide' && (plan.kind === 'none' || plan.label === 'Eject')) {
-    outcome = 'eject';
-    eject = { x: s.x, y: s.y, alt: s.alt };
-    setRec('Eject');
-    notes.push(`ejected immediately (${Math.round(s.alt)} ft MSL)`);
-    pilot.record();
-    return { points: pilot.points, outcome, touchdown: null, eject, gate: null, plan: 'none', patternPfl, planLog, notes };
-  }
-
-  let gamma = mid ? -Math.asin(clamp(glideDragPerWeight(PFL_CONFIGS[cfg], start.kias, start.alt, 1), 0, 1)) : 0;
-  let nz = 1, nzRate = 0;
-  let pullDone = false;
-  let lastKey = undefined;
-  let gate = null;
   let outcome = null;
   let touchdown = null;
   let eject = null;
+  let gate = null;
   let goingShort = false;
   let pastLowKey = false;
   let ejectAtN = null;
@@ -1453,16 +1008,115 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
   const planLog = [];
   const MAX_STEPS = 25000;
 
+  // The zoom is planned first, so the join is chosen from where the zoom really ends (spec 4.5 items 5, 6).
+  const zooming = !mid && start.kias > PFL.zoomAboveKias;
+  const startHdg = start.headingDeg ?? RUNWAY_29L_HDG_DEG;
+  let zoomTrackDeg = null;
+  let plan;
+  let planFrom = { x: start.x, y: start.y, alt: start.alt, trackDeg: start.headingDeg ?? RUNWAY_29L_HDG_DEG };
+  if (mid?.plan) {
+    plan = mid.plan;
+  } else if (zooming) {
+    const straight = flyZoomPlan(start, wind, startHdg);
+    const first = chooseJoin(geo, straight, straight.alt, straight.trackDeg, wind, { bankDeg: straight.bankDeg });
+    zoomTrackDeg = bearing(start, zoomAim(first, straight));
+    if (Math.abs(wrapDeg180(zoomTrackDeg - startHdg)) < 5) zoomTrackDeg = startHdg;
+    const top = zoomTrackDeg === startHdg ? straight : flyZoomPlan(start, wind, zoomTrackDeg);
+    plan = chooseJoin(geo, top, top.alt, top.trackDeg, wind, { bankDeg: top.bankDeg });
+    planFrom = top;
+  } else {
+    // Slowing level to 125 KIAS: the speed above it is height in hand (energy height, spec 4.5 item 6).
+    const avail = start.alt + speedAboveFt(start.kias, PFL.glideCleanKias, start.alt);
+    plan = chooseJoin(geo, s, avail, startHdg, wind, { bankDeg: s.bank });
+    planFrom = { x: s.x, y: s.y, alt: avail, trackDeg: startHdg };
+  }
+
+  if (!mid?.plan && Math.hypot(s.x - geo.th.x, s.y - geo.th.y) <= PFL.atHighKeyFt && s.alt >= PFL.highKeyMinFt) {
+    plan = { kind: 'highKey', path: [{ x: s.x, y: s.y, plan: 0, theta: 0, key: 'high_key', highKeyCheck: true }, ...arcToAim(geo, PFL.joinStepDeg)], theta: 0, label: 'At High Key' };
+    zoomTrackDeg = startHdg;
+  }
+
+  const patternPfl = mid ? Boolean(mid.patternPfl) : !practice && plan.kind !== 'highKey' && plan.kind !== 'direct';
+  // A pattern PFL that starts high near the circle is squared off from the start (TR-113), rather than flown onto a high join first.
+  if (!mid?.plan && patternPfl && plan.kind === 'circle' && plan.theta < PFL.squareBaseDeg && dist(geo.th, planFrom) <= PFL.squareWithinFt) {
+    const sq = squarePath(geo, plan.path, 0, planFrom, planFrom.trackDeg, planFrom.alt, wind, 'aim', cfg, plan.theta);
+    if (sq) {
+      plan = { ...plan, path: sq, label: 'Square off' };
+      notes.push(`squared off at ${Math.round(start.alt)} ft`);
+    }
+  }
+  let path = plan.path;
+  let chain = buildChain(path);
+  let loc = { idx: 0, along: 0, left: 0, trk: startHdg, pt: { x: s.x, y: s.y } };
+  let seg = 0;
+  let state = mid ? 'glide' : zooming ? 'zoom' : 'slow';
   let n = 0;
   let planFromN = 0;
   let lastConfigChangeN = -100;
+  let lastSquareN = -1e9;
+  let lastKey;
+  const z = { gamma: mid ? -Math.asin(clamp(glideDragPerWeight(PFL_CONFIGS[cfg], start.kias, start.alt, 1), 0, 1)) : 0, nz: 1, nzRate: 0, pullDone: false };
 
-  const replan = (next) => {
-    plan = next;
-    path = next.path.map((p, i) => (i === 0 ? { ...p, x: s.x, y: s.y } : p));
-    seg = 0;
+  /** A new path to fly from here: its chain is built once, and the aircraft flies it from its start. */
+  const usePath = (p) => {
+    path = p;
+    chain = buildChain(path);
+    loc = chainLocate(chain, 0, s);
+    seg = chain.pieces[loc.idx]?.owner ?? 0;
     planFromN = n;
   };
+  const replan = (next) => {
+    plan = next;
+    usePath(next.path.map((p, i) => (i === 0 ? { ...p, x: s.x, y: s.y } : p)));
+  };
+  /** Height needed from where the aircraft is on its own chain (the planned drag of `p`, which has the same points as path). */
+  const need = (p, cfgNow, takeNext = false, stopAtKey = 'aim', maxPlan = 3) => {
+    const stop = p.findIndex((q) => q.key === stopAtKey);
+    if (stop >= 0 && stop <= seg) return 0;
+    const base = takeNext ? Math.min(3, cfgNow + 1) : cfgNow;
+    return chainSum(chain, (o) => p[o]?.plan ?? 0, loc.idx, loc.along, s.alt, wind, { base, maxPlan, stopOwner: stop >= 0 ? stop : Infinity, kiasNow: s.ias });
+  };
+  const ftTo = (key) => {
+    const stop = path.findIndex((q) => q.key === key);
+    return chainFtTo(chain, loc.idx, loc.along, stop >= 0 ? stop : Infinity);
+  };
+
+  const calcMarginTag = (m) => (m > 150 ? 'high' : m < -PFL.onProfileFt ? 'low' : 'on profile');
+  const getSegmentType = () => {
+    if (state === 'zoom') return 'zoom';
+    if (state === 'slow') return 'decel';
+    if (roundOut?.flare) return 'flare';
+    if (roundOut) return 'roundout';
+    return chain.pieces[loc.idx]?.kind === 'arc' ? 'arc' : 'straight';
+  };
+  const setRec = (decision, extra = {}) => {
+    s.rec = {
+      decision,
+      config: PFL_CONFIG_LABELS[cfg],
+      cfgIndex: cfg,
+      segmentType: extra.segmentType ?? getSegmentType(),
+      marginFt: extra.marginFt !== undefined ? extra.marginFt : (Number.isFinite(margin) ? Math.round(margin) : null),
+      marginTag: extra.marginTag !== undefined ? extra.marginTag : (Number.isFinite(margin) ? calcMarginTag(margin) : null),
+      ...extra,
+    };
+  };
+  const tdKeyOf = () => (path.some((p) => p.key === 'touchdown') ? 'touchdown' : 'aim');
+  const marginNow = () => {
+    const tdKey = tdKeyOf();
+    return cfg >= 3 ? s.alt - ground - need(path, cfg, false, tdKey) : s.alt - ground - need(path, cfg, false, 'aim', 2);
+  };
+
+  margin = marginNow();
+  setRec(mid ? (mid.decision || plan.label) : zooming ? `Zoom: ${plan.label.toLowerCase()}` : `Slow to 125: ${plan.label.toLowerCase()}`);
+  s.tag = undefined;
+  pilot.record();
+
+  // No join and no runway: glide on toward the runway to Low Key or its height, then eject (spec 4.5 items 10, 15; TR-53).
+  if (plan.kind === 'none' || plan.label === 'Eject') {
+    goingShort = true;
+    notes.push(`can't make the runway (${Math.round(s.alt)} ft MSL)`);
+    setRec("Can't make it: ejecting");
+  }
 
   const onCircle = () =>
     path[seg]?.theta !== undefined ||
@@ -1482,11 +1136,14 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
     }
 
     const tas = ktToFtps(iasToTasKt(s.ias, s.alt));
-    const proj = project(path, seg, s);
-    seg = proj.seg;
+    if (state !== 'zoom') {
+      loc = chainLocate(chain, loc.idx, s);
+      seg = chain.pieces[loc.idx]?.owner ?? seg;
+    }
+    const proj = { seg, pt: loc.pt };
 
     const passed = path[seg];
-    if (passed && passed !== lastKey) {
+    if (state !== 'zoom' && passed && passed !== lastKey) {
       lastKey = passed;
       if (passed.key && ['high_key', 'low_key', 'final_key'].includes(passed.key)) s.tag = passed.key;
       if (passed.key === 'low_key') pastLowKey = true;
@@ -1496,7 +1153,7 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
         if (s.alt > PFL.highKeyMaxFt) {
           const lap = orbitPath(s, geo.rwyDeg, orbitRadiusFt());
           lapPath = [...lap.map((p, i) => ({ ...p, plan: i ? 0 : cfg })), { x: geo.th.x, y: geo.th.y, theta: 0, plan: 0, key: 'high_key', highKeyCheck: true }];
-          lapClean = neededFt(lapPath, 0, s, s.alt, 0, wind);
+          lapClean = neededFt(lapPath, 0, s, s.alt, 0, wind, false, 'high_key');
         }
         if (lapPath && s.alt - lapClean >= PFL.highKeyMinFt) {
           if (s.alt - lapClean > PFL.highKeyMaxFt && cfg < 1) {
@@ -1504,11 +1161,9 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
             lastConfigChangeN = n;
             notes.push('gear early to make the High Key window');
           }
-          path = [...lapPath.map((p) => ({ ...p, plan: Math.max(p.plan, cfg) })), ...arcToAim(geo, PFL.joinStepDeg)];
-          seg = 0;
-          planFromN = n;
+          usePath([...lapPath.map((p) => ({ ...p, plan: Math.max(p.plan, cfg) })), ...arcToAim(geo, PFL.joinStepDeg)]);
           setRec(cfg ? 'Orbit at High Key, gear early' : 'Orbit at High Key');
-        } else if (lapPath && s.alt > PFL.highKeyMinFt) {
+        } else if (s.alt > PFL.highKeyMinFt) {
           if (lapPath && cfg < 1) {
             cfg = 1;
             lastConfigChangeN = n;
@@ -1522,125 +1177,60 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
           const semi = [];
           for (let th = PFL.joinStepDeg; th <= 180 + 1e-6; th += PFL.joinStepDeg) {
             const p = geo.at(th);
-            semi.push({ x: p.x + off.x, y: p.y + off.y, plan: 1, falseCircle: true, ...(th > 180 - 1e-6 ? { key: 'false_low_key' } : {}) });
+            semi.push({ x: p.x + off.x, y: p.y + off.y, plan: 1, falseCircle: true, arc: { r: geo.r }, ...(th > 180 - 1e-6 ? { key: 'false_low_key' } : {}) });
           }
           const lk = geo.at(180);
-          path = [{ x: s.x, y: s.y, plan: 1 }, { ...fhk, plan: 1, key: 'false_high_key', falseCircle: true }, ...semi, { x: lk.x, y: lk.y, theta: 180, plan: planAt(180), key: 'low_key' }, ...arcToAim(geo, 180 + PFL.joinStepDeg)];
-          seg = 0;
-          planFromN = n;
+          usePath([{ x: s.x, y: s.y, plan: 1 }, { ...fhk, plan: 1, key: 'false_high_key', falseCircle: true }, ...semi, { x: lk.x, y: lk.y, theta: 180, plan: planAt(180), key: 'low_key' }, ...arcToAim(geo, 180 + PFL.joinStepDeg)]);
           setRec('False High Key');
         } else {
-          path = [{ x: s.x, y: s.y, plan: cfg }, ...rest];
-          seg = 0;
-          planFromN = n;
+          usePath([{ x: s.x, y: s.y, plan: cfg }, ...rest]);
         }
-        lastKey = path[0];
+        lastKey = path[seg];
       }
     }
 
     const stallBank = Math.acos(clamp(1 / Math.max(stallG(s.ias, cfg), 1.0001), 0, 1)) / DEG;
     const bankMax = state === 'zoom' ? PFL.zoomMaxBankDeg : Math.min(PFL.maxBankDeg, stallBank);
+    const onFinal = ['threshold', 'touchdown', 'aim', 'rollout', 'lined_up'].includes(path[seg]?.key) || path.slice(0, seg + 1).some((p) => p.key === 'threshold');
 
-    // KINEMATIC SEGMENT BANK (Zero Carrot Follower!)
-    let bank = 0;
-    const curPt = path[seg];
-    const nxtPt = path[seg + 1] ?? curPt;
-    const turn = arcBank(path, seg, s, tas, pilot, bankMax);
-
-    if (n * PILOT_DT < PFL.holdBankSec) {
+    // Bank: the zoom turns onto its planned track; the glide flies its chain; past the threshold it holds the centreline.
+    let bank;
+    if (state === 'zoom') {
+      bank = zoomBank(pilot, n, zoomTrackDeg ?? startHdg);
+    } else if (n * PILOT_DT < PFL.holdBankSec) {
       bank = s.bank;
-    } else if (state === 'zoom') {
-      if (turn !== null) {
-        bank = turn;
-      } else {
-        const segTrk = bearing(curPt, nxtPt);
-        const off = legOffsetsFt(curPt, nxtPt, s);
-        const corrDeg = clamp(-off.crossFt * 0.05, -25, 25);
-        const wantHdg = pilot.headingFor(wrapDeg360(segTrk + corrDeg));
-        bank = bankFor(wantHdg, s, PFL.zoomMaxBankDeg);
-      }
-    } else if (state === 'slow') {
-      const targetPt = path.find((p) => p.theta !== undefined) ?? path[1] ?? s;
-      const targetHdg = bearing(s, targetPt);
-      bank = clamp(wrapDeg180(targetHdg - s.hdg) * 1.5, -15, 15);
-    } else if (
-      roundOut ||
-      ['threshold', 'aim', 'touchdown', 'rollout'].includes(curPt?.key) ||
-      path.slice(0, seg + 1).some((p) => p.key === 'threshold')
-    ) {
+    } else if (roundOut || path.slice(0, seg + 1).some((p) => p.key === 'threshold') || ['threshold', 'aim', 'touchdown', 'rollout'].includes(path[seg]?.key)) {
       const offRwy = legOffsetsFt(geo.th, geo.dep, s);
       const corrDeg = clamp(-offRwy.crossFt * 0.15, -45, 45);
       const wantHdg = pilot.headingFor(wrapDeg360(geo.rwyDeg + corrDeg));
       const trkErr = Math.abs(wrapDeg180(pilot.trackDeg() - geo.rwyDeg));
       const maxB = Math.abs(offRwy.crossFt) > 50 || trkErr > 15 ? bankMax : 15;
       bank = bankFor(wantHdg, s, maxB);
-    } else if (turn !== null) {
-      bank = turn;
     } else {
-      // Kinematic straight tracking along planned segment
-      const segTrk = bearing(curPt, nxtPt);
-      const off = legOffsetsFt(curPt, nxtPt, s);
-      const corrDeg = clamp(-off.crossFt * 0.05, -25, 25);
-      const wantHdg = pilot.headingFor(wrapDeg360(segTrk + corrDeg));
-      bank = bankFor(wantHdg, s, bankMax);
+      bank = chainBank(chain, loc, pilot, wind, bankMax);
     }
 
-    const onFinal = ['threshold', 'touchdown', 'aim', 'rollout', 'lined_up'].includes(path[seg]?.key) || path.slice(0, seg + 1).some((p) => p.key === 'threshold');
     let climb, accel;
     if (state === 'zoom') {
-      const glideGamma = -Math.atan(1 / glideRatio('clean'));
-      let nLoad;
-      if (!pullDone && s.ias > PFL.pushOverKias) {
-        nLoad = gamma < PFL.zoomMaxClimbDeg * DEG ? PFL.zoomPullG : Math.cos(gamma);
-      } else {
-        pullDone = true;
-        const f = clamp((s.ias - PFL.glideCleanKias) / (PFL.pushOverKias - PFL.glideCleanKias), 0, 1);
-        const want = glideGamma + (Math.max(gamma, glideGamma) - glideGamma) * f * 0.6;
-        nLoad = clamp(Math.cos(gamma) + (want - gamma) * tas / G_FTPS2, 0, PFL.zoomPullG);
-      }
-
-      const eased = easeValue(nz, nzRate, nLoad * Math.cos(s.bank * DEG), PILOT_DT, { maxRateDps: PFL.gOnsetGps, maxAccelDps2: PFL.gOnsetGps2 });
-      nz = eased.bankDeg; nzRate = eased.rollRateDps;
-      const dw = glideDragPerWeight('clean', s.ias, s.alt, Math.max(nz / Math.cos(s.bank * DEG), 0.5));
-      gamma += G_FTPS2 * (nz - Math.cos(gamma)) / tas * PILOT_DT;
-      climb = tas * Math.sin(gamma);
-      accel = -G_FTPS2 * (dw + Math.sin(gamma));
-      if (pullDone && (s.ias <= PFL.glideCleanKias + 1.5 || gamma <= glideGamma)) {
+      const st = zoomPitchStep(z, s, tas, PILOT_DT);
+      climb = st.climb;
+      accel = st.accel;
+      if (st.done) {
         state = 'glide';
-        if (plan.kind === 'none' || plan.label === 'Eject') {
-          outcome = 'eject';
-          eject = { x: s.x, y: s.y, alt: s.alt };
-          setRec('Eject at top of zoom');
-          notes.push(`ejected at top of zoom (${Math.round(s.alt)} ft MSL)`);
-          pilot.record();
-          break;
-        }
+        usePath(path.map((p, i) => (i === 0 ? { ...p, x: s.x, y: s.y } : p)));
       }
     } else {
       let want = glideKias(cfg);
-      if (state === 'slow' && s.ias <= PFL.glideCleanKias + 0.5) {
-        state = 'glide';
-        if (plan.kind === 'none' || plan.label === 'Eject') {
-          const re = chooseJoin(geo, s, s.alt, pilot.trackDeg(), wind, { bankDeg: s.bank });
-          if (!re || re.kind === 'none' || re.label === 'Eject') {
-            outcome = 'eject';
-            eject = { x: s.x, y: s.y, alt: s.alt };
-            setRec('Eject');
-            notes.push(`ejected after decel (${Math.round(s.alt)} ft MSL)`);
-            pilot.record();
-            break;
-          }
-        }
-      }
+      if (state === 'slow' && s.ias <= PFL.glideCleanKias + 0.5) state = 'glide';
 
-      if (plan.kind === 'direct' && margin < 0 && !goingShort && (pathFtTo(path, proj, 'aim') < 6076 || s.alt <= PFL.gateAltFt)) {
+      if (plan.kind === 'direct' && margin < 0 && !goingShort && (ftTo('aim') < 6076 || s.alt <= PFL.gateAltFt)) {
         const v2 = tas * tas - 2 * G_FTPS2 * -margin * heightFactor(s.alt);
         const vKt = Math.sqrt(Math.max(v2, 0)) / KT_TO_FTPS;
         want = Math.max(tradeFloorKias(cfg), Math.min(want, vKt * PFL.glideGearKias / Math.max(iasToTasKt(PFL.glideGearKias, s.alt), 1)));
       }
 
-      const turnG = Math.tan(s.bank * DEG) * Math.cos(gamma);
-      const dw = glideDragPerWeight(PFL_CONFIGS[cfg], s.ias, s.alt, Math.max(Math.hypot(nz, turnG), 0.5));
+      const turnG = Math.tan(s.bank * DEG) * Math.cos(z.gamma);
+      const dw = glideDragPerWeight(PFL_CONFIGS[cfg], s.ias, s.alt, Math.max(Math.hypot(z.nz, turnG), 0.5));
       const hAgl = s.alt - ground;
       const linedUp = hAgl <= PFL.preFlareFt && Math.abs(wrapDeg180(pilot.trackDeg() - geo.rwyDeg)) <= PFL.roundOutTrackDeg;
       if (linedUp && !roundOut) {
@@ -1655,7 +1245,7 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
       let wantGamma = state === 'slow' ? 0 : Math.asin(clamp(-dw - wantAccel / G_FTPS2, -1, 1));
 
       if (roundOut) {
-        const sinkNow = -tas * Math.sin(gamma);
+        const sinkNow = -tas * Math.sin(z.gamma);
         if (!roundOut.flare && hAgl <= Math.max(PFL.flareFromFt, sinkNow * PFL.flareTauSec)) {
           roundOut.flare = true;
           s.rec.segmentType = getSegmentType();
@@ -1666,25 +1256,23 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
       }
 
       const nzHigh = Math.sqrt(Math.max(0, Math.min(PFL.glideMaxG, stallG(s.ias, cfg)) ** 2 - turnG ** 2));
-      const nzWant = clamp(dampedClimbG(gamma, wantGamma, tas), 0, Math.max(nzHigh, Math.cos(gamma)));
-      const eased = easeValue(nz, nzRate, nzWant, PILOT_DT, { maxRateDps: PFL.gOnsetGps, maxAccelDps2: PFL.gOnsetGps2 });
-      nz = eased.bankDeg; nzRate = eased.rollRateDps;
-      gamma += G_FTPS2 * (nz - Math.cos(gamma)) / tas * PILOT_DT;
-      climb = tas * Math.sin(gamma);
-      accel = -G_FTPS2 * (dw + Math.sin(gamma));
+      const nzWant = clamp(dampedClimbG(z.gamma, wantGamma, tas), 0, Math.max(nzHigh, Math.cos(z.gamma)));
+      const eased = easeValue(z.nz, z.nzRate, nzWant, PILOT_DT, { maxRateDps: PFL.gOnsetGps, maxAccelDps2: PFL.gOnsetGps2 });
+      z.nz = eased.bankDeg;
+      z.nzRate = eased.rollRateDps;
+      z.gamma += G_FTPS2 * (z.nz - Math.cos(z.gamma)) / tas * PILOT_DT;
+      climb = tas * Math.sin(z.gamma);
+      accel = -G_FTPS2 * (dw + Math.sin(z.gamma));
     }
 
-    // Staged Drag & Event Decisions (n % 10 === 0)
-    if (!goingShort && state !== 'zoom' && state !== 'slow' && n % 10 === 0) {
-      if (state === 'apex') state = 'glide';
-      const tdKey = path.some((p) => p.key === 'touchdown') ? 'touchdown' : 'aim';
-      margin = cfg >= 3
-        ? s.alt - ground - neededFt(path, seg, proj.pt, s.alt, cfg, wind, false, tdKey)
-        : s.alt - ground - neededFt(path, seg, proj.pt, s.alt, cfg, wind, false, 'aim', 2);
-      const marginMin = s.alt - ground - neededFt(minDragPlan(path), seg, proj.pt, s.alt, Math.min(cfg, 1), wind, false, cfg >= 3 ? tdKey : 'aim');
+    // The margin, the drag ladder, the square-off and the tag: once a second (spec 4.5 item 7).
+    if (!goingShort && state === 'glide' && n % 10 === 0) {
+      const tdKey = tdKeyOf();
+      margin = marginNow();
+      const marginMin = s.alt - ground - need(minDragPlan(path), Math.min(cfg, 1), false, cfg >= 3 ? tdKey : 'aim');
       const settled = (n - planFromN) * PILOT_DT >= PFL.planGraceSec;
       const inOrbit = s.rec.decision?.startsWith('Orbit') || s.rec.decision?.startsWith('False High Key') || s.alt > PFL.highKeyMaxFt;
-      if (!onFinal && settled && !inOrbit && marginMin < -PFL.dragBufferFt && plan.kind !== 'direct') {
+      if (!onFinal && settled && !inOrbit && marginMin < -PFL.planGraceUnlessShortFt && plan.kind !== 'direct') {
         const direct = chooseDirect(geo, s, s.alt, s.ias, wind, pilot.trackDeg(), cfg);
         if (direct) { replan(direct); notes.push(`went direct at ${Math.round(s.alt)} ft`); }
       } else if (!onFinal && plan.kind === 'direct' && marginMin + speedTradeFt(s.ias, s.alt, cfg) < 0) {
@@ -1692,23 +1280,23 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
         if (direct && direct.aimAlongFt > (plan.aimAlongFt ?? 0) + 1) replan(direct);
       }
 
-      const directDragOk = plan.kind === 'direct' && (path[seg]?.key === 'lined_up' || onFinal || s.alt <= ground + 200 || dist(geo.th, s) <= 4 * 6076.12);
+      const directDragOk = plan.kind === 'direct' && (path[seg]?.key === 'lined_up' || onFinal || s.alt <= ground + 200 || dist(geo.th, s) <= 4 * FT_PER_NM);
       const circleDragOk = plan.kind !== 'direct' && onCircle();
       const dragOk = directDragOk || circleDragOk;
       const notLow = marginMin >= -PFL.dragBufferFt;
       const dragSpacingOk = (n - lastConfigChangeN) * PILOT_DT >= PFL.minConfigIntervalSec;
       if (dragSpacingOk && notLow) {
         if (cfg < 1) {
-          const gearFits = s.alt - ground - neededFt(minDragPlan(path), seg, proj.pt, s.alt, 1, wind) + speedTradeFt(s.ias, s.alt, 1) >= 0;
+          const gearFits = s.alt - ground - need(minDragPlan(path), 1) + speedTradeFt(s.ias, s.alt, 1) >= 0;
           const directOk = plan.kind === 'direct' && (
             ((path[seg]?.key === 'lined_up' || onFinal) && gearFits) ||
             s.alt <= ground + 200 ||
-            (dist(geo.th, s) <= 4 * 6076.12 && s.alt - ground - neededFt(path, seg, proj.pt, s.alt, 1, wind, true, 'aim', 2) >= PFL.dragBufferFt)
+            (dist(geo.th, s) <= 4 * FT_PER_NM && s.alt - ground - need(path, 1, true, 'aim', 2) >= PFL.dragBufferFt)
           );
           const circleOk = plan.kind !== 'direct' && (
-            ((s.tag === 'low_key' || (path[seg]?.theta ?? 0) >= 180) && margin >= -PFL.onProfileFt) ||
+            ((s.tag === 'high_key' || s.tag === 'low_key' || (path[seg]?.theta ?? 0) >= 180) && margin >= -PFL.onProfileFt) ||
             (s.alt <= PFL.gateAltFt + 300) ||
-            (patternPfl && state === 'glide' && dist(geo.th, s) <= PFL.earlyGearWithinFt && s.alt - ground - neededFt(path, seg, proj.pt, s.alt, cfg, wind, true, 'aim', 2) >= PFL.dragBufferFt)
+            (patternPfl && dist(geo.th, s) <= PFL.earlyGearWithinFt && s.alt - ground - need(path, cfg, true, 'aim', 2) >= PFL.dragBufferFt)
           );
           if (directOk || circleOk) {
             cfg = 1;
@@ -1717,33 +1305,32 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
         } else if (dragOk && cfg === 2) {
           const offRwy = legOffsetsFt(geo.th, geo.dep, s);
           const canLandingFlap = onFinal || (path[seg]?.theta !== undefined && path[seg].theta >= 225) || (plan.kind === 'direct' && path[seg]?.key === 'lined_up') || (offRwy.alongFt <= -1000 && Math.abs(offRwy.crossFt) <= 500);
-          if (canLandingFlap && s.alt - ground - neededFt(path, seg, proj.pt, s.alt, 3, wind, false, tdKey) >= 0) {
+          if (canLandingFlap && s.alt - ground - need(path, 3, false, tdKey) >= 0) {
             cfg = 3;
             lastConfigChangeN = n;
           }
         } else if (dragOk && cfg === 1) {
           const due = (path[seg]?.plan ?? 0) > cfg;
-          const earlyOk = (path[seg]?.theta !== undefined && path[seg].theta >= 180) || onFinal || (margin > PFL.keysCarryHighFt && dist(geo.th, s) <= 3 * 6076.12) || (margin > PFL.dragBufferFt && state === 'glide');
-          if (due ? margin >= -PFL.onProfileFt : earlyOk && s.alt - ground - neededFt(path, seg, proj.pt, s.alt, cfg, wind, true, 'aim', 2) >= PFL.dragBufferFt) {
+          const earlyOk = (path[seg]?.theta !== undefined && path[seg].theta >= 180) || onFinal || (margin > PFL.keysCarryHighFt && dist(geo.th, s) <= 3 * FT_PER_NM) || margin > PFL.dragBufferFt;
+          if (due ? margin >= -PFL.onProfileFt : earlyOk && s.alt - ground - need(path, cfg, true, 'aim', 2) >= PFL.dragBufferFt) {
             cfg = 2;
             lastConfigChangeN = n;
           }
         }
       }
 
-      const thNow = path[seg]?.theta;
-      const canWiden = onCircle() && Math.abs(s.bank) <= 30 && n % 50 === 0 && plan.kind !== 'direct' && thNow !== undefined && thNow < PFL.lastJoinDeg - PFL.joinStepDeg;
-      if (canWiden) {
-        const high = s.alt - ground - neededFt(path, seg, proj.pt, s.alt, 3, wind, false, tdKey);
-        if (high > PFL.widenAboveFt) {
-          const wide = widenPath(geo, path, seg, s, s.alt, wind, tdKey);
-          if (wide) {
-            const pWide = project(wide, 0, s);
-            path = wide;
-            seg = pWide.seg;
-            planFromN = n;
-            notes.push(`widened at ${Math.round(s.alt)} ft`);
-          }
+      // Still high with all the drag out: a pattern PFL squares off (TR-113). Area and High Key PFLs lose height before High Key.
+      // Still on the way to the join counts too: a high downwind start squares off from where it is.
+      const nearCircle = dist(geo.th, s) <= PFL.squareWithinFt;
+      const thNow = path[seg]?.theta ?? (plan.kind === 'circle' && nearCircle && !path.slice(0, seg + 1).some((p) => p.theta !== undefined) ? plan.theta : undefined);
+      const canSquare = patternPfl && plan.kind !== 'direct' && thNow !== undefined && thNow < PFL.squareBaseDeg && Math.abs(s.bank) <= 30 && (n - lastSquareN) * PILOT_DT >= PFL.squareEverySec;
+      if (canSquare && s.alt - ground - need(path, 3, false, tdKey) > PFL.widenAboveFt) {
+        const sq = squarePath(geo, path, seg, s, pilot.trackDeg(), s.alt, wind, tdKey, cfg, thNow);
+        if (sq) {
+          usePath(sq);
+          lastSquareN = n;
+          notes.push(`squared off at ${Math.round(s.alt)} ft`);
+          margin = marginNow();
         }
       }
 
@@ -1753,10 +1340,12 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
       else if (s.rec.decision?.startsWith('Orbit') && path[seg]?.key !== 'threshold' && seg < path.findIndex((p) => p.highKeyCheck)) decision = s.rec.decision;
       else if (!onCircle()) decision = plan.label;
       else {
-        const word = margin > 150 ? 'high' : margin < -PFL.onProfileFt ? 'low' : 'on profile';
+        const word = calcMarginTag(margin);
         const th = path[seg]?.theta;
-        const offRwy = legOffsetsFt(geo.th, geo.dep, s);
-        const leg = th === undefined ? 'Final' : th < 180 ? 'To Low Key' : th < 270 ? 'To Final Key' : (margin > 150 && offRwy.alongFt <= -1000 ? 'Dogleg final' : 'To threshold');
+        const sq = path[seg]?.square;
+        const leg = th === undefined || th >= 360 ? 'Final'
+          : sq ? (th < 180 ? 'To wide Low Key' : th < PFL.squareBaseDeg ? 'Wide downwind' : th < 315 ? 'Base' : 'To threshold')
+          : th < 180 ? 'To Low Key' : th < 270 ? 'To Final Key' : 'To threshold';
         decision = `${leg}, ${word}`;
       }
       setRec(decision);
@@ -1764,7 +1353,7 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
 
     if (state === 'glide' && s.phase === 'pfl_zoom') {
       s.phase = 'pfl';
-      if (!practice && ejectAtN === null && obviouslyShort(geo, s, cfg, wind)) {
+      if (!practice && ejectAtN === null && !goingShort && obviouslyShort(geo, s, cfg, wind)) {
         ejectAtN = n + Math.round(PFL.ejectDecideSec / PILOT_DT);
         goingShort = true;
         notes.push(`obviously short at ${Math.round(s.alt)} ft`);
@@ -1823,14 +1412,14 @@ export function flyPflSegmentPlanner(start, wind = { windFromDeg: 360, windKt: 0
     ...p,
     phase: p.phase ?? 'pfl',
     kias: p.kt,
-    segmentType: p.segmentType ?? (p.phase === 'pfl_zoom' ? 'zoom' : p.phase === 'pfl_decel' ? 'decel' : 'straight'),
+    segmentType: p.segmentType ?? (p.phase === 'pfl_zoom' ? 'zoom' : 'straight'),
     marginFt: p.marginFt ?? null,
     marginTag: p.marginTag ?? null,
   }));
   return { points, outcome, touchdown, eject, gate, plan: plan.kind, patternPfl, planLog, notes };
 }
 
-// ── Drop-in Sim Integration Functions ─────────────────────────────────────────
+// ── Into the sim ──────────────────────────────────────────────────────────────
 
 export function startPflFlight(a, wind, options = {}) {
   const flight = flyPfl(
