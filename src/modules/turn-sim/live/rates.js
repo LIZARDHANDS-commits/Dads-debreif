@@ -51,7 +51,7 @@ export const RATE_SETS = Object.freeze({
   close: Object.freeze({
     leadRoll: Object.freeze({ maxRateDps: 30, maxAccelDps2: 20 }),
     echelonRoll: Object.freeze({ maxRateDps: 30, maxAccelDps2: 12 }),
-    frame: Object.freeze({ lateralFtps: 140, foreAftFtps: 25, verticalFtps: 15, nearPerSec: 0.1, nearMinFtps: 8 }),
+    frame: Object.freeze({ lateralFtps: 15, foreAftFtps: 10, verticalFtps: 8, nearPerSec: 0.1, nearMinFtps: 4 }),
     law: Object.freeze({ powerShare: 0.65, turnShare: 0.35, latG: 0.3, vertFtps2: 3 }),
   }),
   tactical: Object.freeze({
@@ -60,6 +60,39 @@ export const RATE_SETS = Object.freeze({
     law: Object.freeze({ powerShare: 1, turnShare: 1, latG: 1, vertFtps2: 10 }),
   }),
 });
+
+/**
+ * Nominal shaping targets and soft envelope caps for close-in formation work (SMM 12.4, 12.6, 12.20).
+ * Targets, not walls: guidance steers toward the nominal targets, with progressive soft cushion
+ * expanding toward the envelope cap if displaced.
+ */
+export const CLOSE_SHAPING = Object.freeze({
+  targetBankDeg: 2.5,
+  envelopeBankCapDeg: 6.0,
+  targetLateralFtps: 8.4,       // 5.0 kt lateral drift
+  targetOvertakeKt: 3.0,        // subtle power nudge
+  targetUndertakeKt: 3.0,
+  envelopeMaxOvertakeKt: 5.0,
+  envelopeMaxUndertakeKt: 5.0,
+  wakeClearanceDownFt: 15.0,    // below prop wash
+  wakeClearanceAftFt: 12.0,     // behind tail
+});
+
+/** Bank angle choices for close formation turns (echelon, route, line astern). */
+export const CLOSE_BANK_CHOICES = Object.freeze([30, 45, 60]);
+export const DEFAULT_CLOSE_BANK_DEG = 60;
+let closeBankChoice = DEFAULT_CLOSE_BANK_DEG;
+
+/** Sets the bank angle for close formation turns (30, 45, or 60 degrees). */
+export function setCloseBank(deg) {
+  const n = Number(deg);
+  closeBankChoice = CLOSE_BANK_CHOICES.includes(n) ? n : DEFAULT_CLOSE_BANK_DEG;
+}
+
+/** The close formation turn bank angle now (degrees). */
+export function closeBankNow() {
+  return closeBankChoice;
+}
 
 // ---- the Rates setting: how fast a 2-ship wingman closes on his slot (clean-up step 2, TS-65) ----------------------
 

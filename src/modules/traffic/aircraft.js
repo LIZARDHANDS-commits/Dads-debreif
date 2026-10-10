@@ -637,7 +637,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
         removeBtn.setAttribute('aria-label', `Remove ${row.id}`);
         nameChildren.push(removeBtn);
         const children = [
-          h('span', { class: 'aircraft-name', title: `${row.id}: ${row.type} on ${row.routeName}` }, ...nameChildren),
+          h('span', { class: 'aircraft-name', title: `${row.id}: ${row.type} on ${row.routeName}${row.config ? ` (${row.config})` : ''}` }, ...nameChildren),
           ' ',
           h('span', { class: 'aircraft-detail' }, detailText(row)),
         ];

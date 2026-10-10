@@ -36,7 +36,7 @@ import { closeThrough, rejoinTo, slide, stopAt, legsFor } from './recipes.js';
 import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
 import { FORMATIONS, fwShapeNow, pairSlot, downTheLine, LINE_BACK_PER_OUT, LENGTH_FT, sideFor, LANE } from './slots.js';
-import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, TURNING_REJOIN, FW_FOLLOW, KINEMATIC, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
+import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, TURNING_REJOIN, FW_FOLLOW, WING_BANKS, KINEMATIC, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
 import { onClosure, fromStep } from './hand-over.js';
 import { leadTurnInto } from './lead-turn-in.js';
 import { STEP_SEC, copyAircraft, SMOOTHER_CURVE_PEAK, smoother, smoothLegSec } from './flight.js';
@@ -163,34 +163,34 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       lineDeg: TR.lineDeg,
       side: s,
       captureAlongFt: initialRange < 2000 ? initialRange : undefined,
-      windowFt: 1000,
+      windowFt: 1200,
       carrotWindowFt: 250,
       coneEase: true,
       decisionFt: 1000,
       coneEaseFarFt: 1500,
-      captureFt: TR.captureFt,
+      captureFt: 250,
+      driftFtps: 40,
       bankCapDeg,
       floorKias: KIAS_OUTSIDE_LAB,
+      initialPclMax: hardSec === 0,
+      isFw: true,
+      slowStage: 'power',
       rejoin: true,
     }));
     numApproachPhases++;
     // Followed by fighting wing cone tracking
-    phases.push(...onClosure([
-      phase({ fwd: 0, left: 0, alt: lineFt }, {
-        ...FW_FOLLOW,
-        isFw: true,
-        side: sTo || s,
-        goal: (L, W) => {
-          const g = fwGoal(L, W, sTo || s, false);
-          const r = Math.hypot(g.fwd, g.left);
-          const sweep = 30 * DEG;
-          return { fwd: -r * Math.cos(sweep), left: (sTo || s) * r * Math.sin(sweep), alt: g.alt };
-        },
-        coneAlt: false,
-        rejoin: true,
-        floorKias: leastKias,
-      }),
-    ], { closeIn: true }));
+    phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
+      ...FW_FOLLOW,
+      isFw: true,
+      side: sTo || s,
+      goal: (L, W) => fwGoal(L, W, sTo || s, false),
+      coneAlt: true,
+      coneEnergy: true,
+      slowStage: 'power',
+      bankCapDeg: WING_BANKS.fwFollowBankCapDeg ?? 45,
+      rejoin: true,
+      floorKias: leastKias,
+    }));
   } else if (onX) {
     if (hardSec > 0) {
       phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
@@ -218,6 +218,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       captureFt: TR.captureFt,
       bankCapDeg: REJOIN.bankCapDeg, // no bank cap, only the aircraft's own limits (Patrick 6 Oct 04:07Z "there is NO LIMIT on bank angle in formation"; 8 Oct 20:59 "Unrestricted bank")
       floorKias,
+      initialPclMax: hardSec === 0,
       rejoin: true,
     }));
     numApproachPhases++;
@@ -251,6 +252,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       overtakeKt,
       floorKias,
       arriveFtps: Math.min(closureNow().ftps, closeInFtps(TR.decisionArriveRates)),
+      initialPclMax: true,
       rejoin: true,
     }));
     const flowFtps = closeInFtps(TR.decisionArriveRates);
@@ -491,27 +493,51 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
           // round, the review's worst-case answer), then the G rule only when none of those keeps him behind Lead's 3/9 line.
           for (const caps of [[REJOIN.bankCapDeg]]) {
             const aims = hot ? [...TURNING_REJOIN.aimsFt, TURNING_REJOIN.lagAimFt] : TURNING_REJOIN.aimsFt;
-            const tries = [...aims.map((aimFt) => ({ aimFt, hardSec: 0 })), ...(hot && xLaw ? TURNING_REJOIN.hardPullsSec.map((hardSec) => ({ aimFt: aims[0], hardSec })) : [])];
-            for (const bankCapDeg of caps) for (const { aimFt, hardSec } of tries) {
-              const bestEst = best?.part?.rideEstablished !== false;
-              const limitSec = bestEst && best ? best.durationSec - BETTER_BY_SEC : Infinity;
-              const flown = flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, overshoot, xLaw, hardSec, allowAcross, maxWhenLow, limitSec });
-              if (flown) {
-                const laneOk = (flown.run?.laneFwdFt ?? -Infinity) <= laneLimitFt;
-                const est = flown.part?.rideEstablished !== false;
-                
-                if (laneOk) {
-                  const bestEst = best?.part?.rideEstablished !== false;
-                  if (!best || (est && !bestEst) || (est === bestEst && flown.durationSec < best.durationSec - BETTER_BY_SEC)) {
-                    best = { ...flown, overtakeKt, lowFloor, aimFt, bankCapDeg, hardSec, upFt: 0, allowAcross, maxWhenLow };
-                  }
-                } else if (!best) {
-                  const anyEst = bestAny?.part?.rideEstablished !== false;
-                  if (!bestAny || (est && !anyEst) || (est === anyEst && flown.durationSec < bestAny.durationSec - BETTER_BY_SEC)) {
-                    bestAny = { ...flown, overtakeKt, lowFloor, aimFt, bankCapDeg, hardSec, upFt: 0, allowAcross, maxWhenLow };
+            for (const bankCapDeg of caps) {
+              for (const aimFt of aims) {
+                const bestEst = best?.part?.rideEstablished !== false;
+                const limitSec = bestEst && best ? best.durationSec - BETTER_BY_SEC : Infinity;
+                const flown = flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, overshoot, xLaw, hardSec: 0, allowAcross, maxWhenLow, limitSec });
+                if (flown) {
+                  const laneOk = (flown.run?.laneFwdFt ?? -Infinity) <= laneLimitFt;
+                  const est = flown.part?.rideEstablished !== false;
+                  
+                  if (laneOk) {
+                    const bestEst = best?.part?.rideEstablished !== false;
+                    if (!best || (est && !bestEst) || (est === bestEst && flown.durationSec < best.durationSec - BETTER_BY_SEC)) {
+                      best = { ...flown, overtakeKt, lowFloor, aimFt, bankCapDeg, hardSec: 0, upFt: 0, allowAcross, maxWhenLow };
+                    }
+                  } else if (!best) {
+                    const anyEst = bestAny?.part?.rideEstablished !== false;
+                    if (!bestAny || (est && !anyEst) || (est === anyEst && flown.durationSec < bestAny.durationSec - BETTER_BY_SEC)) {
+                      bestAny = { ...flown, overtakeKt, lowFloor, aimFt, bankCapDeg, hardSec: 0, upFt: 0, allowAcross, maxWhenLow };
+                    }
                   }
                 }
               }
+              if (!best && hot && xLaw) {
+                for (const hardSec of TURNING_REJOIN.hardPullsSec) {
+                  const aimFt = aims[0];
+                  const flown = flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, overshoot, xLaw, hardSec, allowAcross, maxWhenLow, limitSec: Infinity });
+                  if (flown) {
+                    const laneOk = (flown.run?.laneFwdFt ?? -Infinity) <= laneLimitFt;
+                    const est = flown.part?.rideEstablished !== false;
+                    
+                    if (laneOk) {
+                      const bestEst = best?.part?.rideEstablished !== false;
+                      if (!best || (est && !bestEst) || (est === bestEst && flown.durationSec < best.durationSec - BETTER_BY_SEC)) {
+                        best = { ...flown, overtakeKt, lowFloor, aimFt, bankCapDeg, hardSec, upFt: 0, allowAcross, maxWhenLow };
+                      }
+                    } else if (!best) {
+                      const anyEst = bestAny?.part?.rideEstablished !== false;
+                      if (!bestAny || (est && !anyEst) || (est === anyEst && flown.durationSec < bestAny.durationSec - BETTER_BY_SEC)) {
+                        bestAny = { ...flown, overtakeKt, lowFloor, aimFt, bankCapDeg, hardSec, upFt: 0, allowAcross, maxWhenLow };
+                      }
+                    }
+                  }
+                }
+              }
+              if (best && best.part?.rideEstablished !== false) break;
             }
             if (best && best.part?.rideEstablished !== false) break;
           }

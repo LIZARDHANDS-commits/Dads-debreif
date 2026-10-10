@@ -182,15 +182,35 @@ export function excessThrustPerWeight(kias, altFt, g) {
  * this model's full-power climb angles (SMM 3.14 para 35; EFIG p.126). It then
  * gives about 2° at 220 KIAS level. An estimate until checked on screen.
  */
-export const T6A_PITCH = Object.freeze({ aoa180Deg: 2.8, datumDeg: 2.6 });
+export const T6A_PITCH = Object.freeze({
+  aoa180Deg: 2.8,
+  datumDeg: 2.6,
+  takeoffFlapAoADeg: -1.7,
+  landingFlapAoADeg: -3.3,
+});
+
+/**
+ * Delta angle-of-attack from flap deflection, in degrees.
+ * Extending flaps increases wing camber, shifting zero-lift angle negative and requiring less body AoA
+ * for a given lift coefficient (AETCMAN 11-248, RCAF SMM).
+ */
+export function flapAoADeltaDeg(config) {
+  if (!config || typeof config !== 'string') return 0;
+  const c = config.toLowerCase();
+  if (c.includes('land') || c === 'landing') return T6A_PITCH.landingFlapAoADeg;
+  if (c.includes('t/o') || c.includes('takeoff') || c.includes('take-off')) return T6A_PITCH.takeoffFlapAoADeg;
+  return 0;
+}
 
 /**
  * Pitch attitude in degrees, nose up positive: flight path angle (climb rate ÷
- * true airspeed, both ft/s) plus angle of attack at this KIAS and G (T6A_PITCH).
+ * true airspeed, both ft/s) plus angle of attack at this KIAS and G (T6A_PITCH),
+ * adjusted for flap configuration when provided.
  */
-export function pitchDegFromClimb(climbFtps, tasFtps, kias, g = 1) {
+export function pitchDegFromClimb(climbFtps, tasFtps, kias, g = 1, config = null) {
   const gamma = Math.asin(Math.max(-1, Math.min(1, climbFtps / Math.max(tasFtps, 1)))) * 180 / Math.PI;
-  return gamma + T6A_PITCH.aoa180Deg * g * (180 / Math.max(kias, 60)) ** 2;
+  const flapDelta = flapAoADeltaDeg(config);
+  return gamma + T6A_PITCH.aoa180Deg * g * (180 / Math.max(kias, 60)) ** 2 + flapDelta;
 }
 
 /**
@@ -200,8 +220,8 @@ export function pitchDegFromClimb(climbFtps, tasFtps, kias, g = 1) {
  * 180 KIAS full-power climb (Patrick: about 10°). For display and attitude targets; pitchDegFromClimb itself is
  * unchanged for the code that already uses it.
  */
-export function attitudeDegFromClimb(climbFtps, tasFtps, kias, g = 1) {
-  return pitchDegFromClimb(climbFtps, tasFtps, kias, g) - T6A_PITCH.datumDeg;
+export function attitudeDegFromClimb(climbFtps, tasFtps, kias, g = 1, config = null) {
+  return pitchDegFromClimb(climbFtps, tasFtps, kias, g, config) - T6A_PITCH.datumDeg;
 }
 
 /** excessThrustPerWeight as stepPointMass's excessFn, which passes true airspeed. */
