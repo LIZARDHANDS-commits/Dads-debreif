@@ -230,12 +230,15 @@ test('4-ship: in the turning rejoin to finger, #3 joins only once #2 is in, and 
   const f = createFormation({ ships: 4, wingSide: 'right' });
   changeTo(f, 'fw', {}, -1);
   assert.equal(f.change('finger'), 'started');
-  const joined = {}; // the first time each is within 100 ft of the aircraft it joins (Lead for #2 and #3, #3 for #4)
+  // the first time each is within 100 ft of the aircraft it joins (Lead for #2 and #3, #3 for #4), height included: passing
+  // 290 ft below is not joining (Patrick's card 10 Oct 2026 22:59Z, "Count height too")
+  const joined = {};
   while (f.state.current) {
     f.step();
     const a = byId(f.state.aircraft);
     for (const [id, ref] of [[2, 1], [3, 1], [4, 3]]) {
-      if (joined[id] === undefined && link(a.get(ref), a.get(id)).range <= 100) joined[id] = f.state.tSec;
+      const l = link(a.get(ref), a.get(id));
+      if (joined[id] === undefined && Math.hypot(l.range, l.down) <= 100) joined[id] = f.state.tSec;
     }
   }
   assert.ok(joined[2] <= joined[3] && joined[3] <= joined[4], `joined in order #2, #3, #4 (${joined[2]}, ${joined[3]}, ${joined[4]})`);
