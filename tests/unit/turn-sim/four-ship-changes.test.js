@@ -361,3 +361,29 @@ test('4-ship: from the offset box a turning rejoin to finger keeps #3 and #4 beh
   assert.ok(leadTurned, 'Lead turned into #2 (a turning rejoin, not straight ahead)');
   assert.deepEqual(wrongs('finger', f.state.aircraft, s), []);
 });
+
+test("4-ship: on a TRJ Away from Spread 4 all four end in the formation called, and #2's cross behind Lead is shown against 500 ft", () => {
+  // TS-179 (Patrick 10 Oct 2026 22:31Z; SMM 16.20 para 65b(1), Fig 16.24; SMM 12.24 para 59): Lead turns away from #2 and holds
+  // the turn until the last is in; #2 crosses Lead's six into the inside of the turn. The 500 ft and 50 ft are a reference,
+  // not a wall: a closer cross is flown and named on screen, so the test checks the screen says so, not the distance.
+  for (const to of ['echelon', 'fw', 'finger']) {
+    const f = createFormation({ ships: 4, wingSide: 'right' });
+    const s = -1; // #2 on the right; Lead turns left, toward #3 and #4
+    assert.equal(f.change(to, { rejoin: 'into', turn: 'away' }), 'started', `${to} (away): ${f.state.refusal ?? ''}`);
+    const note = f.state.current.note;
+    let cross = null;
+    let leadTurned = false;
+    fly(f, `${to} (away)`, (_b, after) => {
+      const a = byId(after);
+      if (Math.abs(a.get(1).bankDeg) >= 25) leadTurned = true;
+      const l = link(a.get(1), a.get(2));
+      if (!cross && l.side === -s && l.back > 0) cross = { behindFt: l.back, belowFt: l.down };
+    });
+    assert.ok(leadTurned, `${to} (away): Lead turned`);
+    assert.ok(cross, `${to} (away): #2 crossed behind Lead to the inside`);
+    const closer = Math.round(cross.behindFt) < 500 || Math.round(cross.belowFt) < 50;
+    assert.equal(/#2 crossed Lead's six/.test(note), closer, `${to} (away): a cross ${Math.round(cross.behindFt)} ft behind and ${Math.round(cross.belowFt)} ft below is ${closer ? '' : 'not '}flagged`);
+    // Echelon and fighting wing form with #2 on the inside; finger with #2 back on his own side, #3 and #4 inside.
+    assert.deepEqual(wrongs(to, f.state.aircraft, to === 'finger' ? s : -s), [], `${to} (away)`);
+  }
+});

@@ -15,7 +15,7 @@ import { classify, judge } from './judge.js';
 import { FOUR_FORMATIONS, refsFor, fourWords } from './slots.js';
 import { FOUR_CHANGE_LIMIT_SEC, statesAt, joinLegs } from './four-legs.js';
 import { fingerToEchelon, echelonToFinger, echelonToEchelon, fingerBox, fingerTrail, slideTo, openToFw } from './four-close.js';
-import { rejoinToFw, turningToFinger, turningToEchelon, turningAwayToEchelon, closeFromFw, straightToEchelon, straightToFinger } from './four-rejoin.js';
+import { rejoinToFw, turningToFinger, turningToEchelon, turningAway, closeFromFw, straightToEchelon, straightToFinger } from './four-rejoin.js';
 import { entryToSpread, fwFluid, fluidToBox } from './four-open.js';
 
 export { FOUR_CHANGE_LIMIT_SEC };
@@ -25,13 +25,18 @@ export { FOUR_CHANGE_LIMIT_SEC };
  * for choosing a route only) and its planner. `sides` says which sides the far end may take: 'same' keeps #2's side, 'any'
  * may change it (finger and echelon, through the crossunder), 'none' has no side (line astern).
  */
+/** A turning rejoin with Lead turning away from #2 (TS-179): the rejoin switch on Into (TRJ) and the turn switch on Away. */
+const awayTrj = (o) => o.rejoin !== 'straight' && o.turn === 'away';
+/** The spread positions Lead may turn away from #2 from (TS-176, TS-179); from the offset box and fighting wing, Into only. */
+const AWAY_FROM = ['spread4', 'fluid4', 'other'];
+
 /**
  * How a rejoin to echelon on side sTo flies (TS-176): Into on #2's side, Away (Lead turns away from #2, nearest first, piece
  * 4) on the other, SARJ straight ahead. The rest are refused before this (rejoinRefusal), never flown as SARJ instead.
  */
 function echelonBy(o, s, sTo, from) {
   if (o.rejoin !== 'straight' && o.turn !== 'away') return { fly: (st, t, oo) => turningToEchelon(st, t, oo, s, from), how: 'turning rejoin straight into echelon' };
-  if (o.rejoin !== 'straight') return { fly: (st, t, oo) => turningAwayToEchelon(st, t, oo, s, from), how: 'turning rejoin, Lead away from #2, straight into echelon (nearest first)' };
+  if (o.rejoin !== 'straight') return { fly: (st, t, oo) => turningAway(st, t, oo, s, from, 'echelon'), how: 'turning rejoin, Lead away from #2, straight into echelon (nearest first)' };
   return { fly: (st, t, oo) => straightToEchelon(st, t, oo, sTo, from), how: 'straight-ahead rejoin to echelon' };
 }
 
@@ -52,10 +57,11 @@ const MOVES = [
   // formation, each wingman to his own place, flown the way the rejoin switch says, Into (TRJ) or Straight (SARJ) (TS-176;
   // Patrick 10 Oct 2026 20:43Z, 20:49Z). TS-123's straight ahead at full power from Spread 4 and the offset box is now the
   // SARJ there. `rejoin` marks them: a route to fighting wing, finger or echelon never chains a rejoin into a station change.
-  ...['spread4', 'offsetBox', 'other'].map((from) => ({ from, to: 'fw', m: from === 'offsetBox' ? 'M22' : 'M16', cost: 150, sides: 'same', rejoin: true, fly: (st, t, o, s) => rejoinToFw(st, t, o, s, from), how: (o) => (o.rejoin === 'straight' ? 'straight ahead to fighting wing, full power until in the cone' : 'turning rejoin to fighting wing') })),
-  { from: 'fluid4', to: 'fw', m: 'not in the manuals', cost: 60, sides: 'same', rejoin: true, fly: (st, t, o, s) => (o.rejoin === 'straight' ? fwFluid(st, t, o, s, false) : rejoinToFw(st, t, o, s, 'fluid4')), how: (o) => (o.rejoin === 'straight' ? 'back to fighting wing' : 'turning rejoin to fighting wing') },
+  // Away (TS-179) ends with #2 on the inside of Lead's turn, the side away from where he was: sides 'turn'.
+  ...['spread4', 'offsetBox', 'other'].map((from) => ({ from, to: 'fw', m: from === 'offsetBox' ? 'M22' : 'M16', cost: 150, sides: 'turn', rejoin: true, fly: (st, t, o, s) => (awayTrj(o) ? turningAway(st, t, o, s, from, 'fw') : rejoinToFw(st, t, o, s, from)), how: (o) => (o.rejoin === 'straight' ? 'straight ahead to fighting wing, full power until in the cone' : awayTrj(o) ? 'turning rejoin, Lead away from #2, to fighting wing (nearest first)' : 'turning rejoin to fighting wing') })),
+  { from: 'fluid4', to: 'fw', m: 'not in the manuals', cost: 60, sides: 'turn', rejoin: true, fly: (st, t, o, s) => (o.rejoin === 'straight' ? fwFluid(st, t, o, s, false) : awayTrj(o) ? turningAway(st, t, o, s, 'fluid4', 'fw') : rejoinToFw(st, t, o, s, 'fluid4')), how: (o) => (o.rejoin === 'straight' ? 'back to fighting wing' : awayTrj(o) ? 'turning rejoin, Lead away from #2, to fighting wing (nearest first)' : 'turning rejoin to fighting wing') },
   { from: 'fw', to: 'route', m: 'M12', cost: 60, sides: 'same', rejoin: true, fly: (st, t, o, s) => closeFromFw(st, t, o, s, 'route'), how: 'close through route' },
-  ...['fw', 'spread4', 'offsetBox', 'fluid4', 'other'].map((from) => ({ from, to: 'finger', m: from === 'fw' ? 'M10/M11' : 'M11 (Q5)', cost: 150, sides: 'same', rejoin: true, fly: (st, t, o, s) => (o.rejoin !== 'straight' ? turningToFinger(st, t, o, s, from) : from === 'fw' ? closeFromFw(st, t, o, s, 'finger') : straightToFinger(st, t, o, s)), how: (o) => (o.rejoin === 'straight' ? 'straight-ahead rejoin to finger, through route' : 'turning rejoin to finger') })),
+  ...['fw', 'spread4', 'offsetBox', 'fluid4', 'other'].map((from) => ({ from, to: 'finger', m: from === 'fw' ? 'M10/M11' : 'M11 (Q5)', cost: 150, sides: 'same', rejoin: true, fly: (st, t, o, s) => (awayTrj(o) ? turningAway(st, t, o, s, from, 'finger') : o.rejoin !== 'straight' ? turningToFinger(st, t, o, s, from) : from === 'fw' ? closeFromFw(st, t, o, s, 'finger') : straightToFinger(st, t, o, s)), how: (o) => (o.rejoin === 'straight' ? 'straight-ahead rejoin to finger, through route' : awayTrj(o) ? 'turning rejoin, Lead away from #2, to finger (nearest first)' : 'turning rejoin to finger') })),
   // Into joins on #2's side and Away on the other, each the inside of Lead's turn; the other side is the straight-ahead rejoin.
   ...['fw', 'spread4', 'offsetBox', 'fluid4', 'other'].map((from) => ({ from, to: 'echelon', m: 'M10', cost: 150, sides: 'any', rejoin: true, fly: (st, t, o, s, sTo) => echelonBy(o, s, sTo, from).fly(st, t, o, s, sTo), how: (o, s, sTo) => echelonBy(o, s, sTo, from).how })),
   // opening out (four-open.js)
@@ -69,7 +75,7 @@ const MOVES = [
 const DIRECT = ['fw', 'finger', 'echelon'];
 
 /** The fewest-seconds route from (key, side) to (to, sTo) through MOVES: [{ move, s, sTo }…], or null. */
-export function routeFour(from, s, to, sTo) {
+export function routeFour(from, s, to, sTo, opts = {}) {
   const node = (k, side) => `${k}:${k === 'trail' ? 0 : side}`;
   const goal = node(to, sTo);
   const best = new Map([[node(from, s), 0]]);
@@ -81,7 +87,7 @@ export function routeFour(from, s, to, sTo) {
     // A rejoin to fighting wing, finger or echelon ends the route there: no station change after the join (TS-176).
     if (DIRECT.includes(to) && cur.path.some((p) => p.move.rejoin)) continue;
     for (const mv of MOVES.filter((x) => x.from === cur.key)) {
-      for (const side of mv.sides === 'any' ? [1, -1] : [cur.side]) {
+      for (const side of mv.sides === 'any' ? [1, -1] : mv.sides === 'turn' && awayTrj(opts) ? [-cur.side] : [cur.side]) {
         const cost = cur.cost + mv.cost;
         const id = node(mv.to, side);
         if ((best.get(id) ?? Infinity) <= cost) continue;
@@ -101,9 +107,8 @@ function rejoinRefusal(move, o, s, sTo) {
   if (!move.rejoin || o.rejoin === 'straight') return null;
   const away = o.turn === 'away';
   if (away && move.from === 'offsetBox') return 'From the offset box Lead turns into #2 only so far. Try Into or SARJ.';
-  if (away && move.to !== 'echelon') return 'With Lead turning away, the 4-ship joins to echelon only so far. Try Into or SARJ.';
-  if (move.to !== 'echelon') return null;
   if (away && move.from === 'fw') return 'From fighting wing Lead turns into #2 only so far. Try Into or SARJ.';
+  if (move.to !== 'echelon') return null;
   // Each joins to the inside of Lead's turn (SMM 12.24 para 59): Into on #2's side, Away on the other.
   if (!away && sTo !== s) return "Turning into #2 forms echelon on #2's side, the inside of the turn. Pick his side, Away, or SARJ.";
   if (away && sTo === s) return "Turning away from #2 forms echelon on the side away from #2. Pick that side, Into, or SARJ.";
@@ -115,12 +120,13 @@ function routeFor(from, to, opts) {
   const f = FOUR_FORMATIONS[to];
   const sNow = from.side || opts.lastSide || -1;
   const want = opts.side ?? 'keep';
-  // Away (TS-176 piece 4): Lead turns away from #2, and echelon forms on the inside, the side away from him.
-  const awayEchelon = to === 'echelon' && opts.turn === 'away' && opts.rejoin !== 'straight' && ['spread4', 'fluid4', 'other'].includes(from.key);
-  const keep = awayEchelon ? -sNow : sNow;
+  // Away (TS-176 piece 4, TS-179): Lead turns away from #2, and echelon and fighting wing form with #2 on the inside, the
+  // side away from him; in finger #2 crosses back to his own side, the outside.
+  const awaySwap = (to === 'echelon' || to === 'fw') && awayTrj(opts) && AWAY_FROM.includes(from.key);
+  const keep = awaySwap ? -sNow : sNow;
   const sTo = to === 'trail' ? 0 : want === 'left' ? 1 : want === 'right' ? -1 : keep;
   if (from.key === to && (to === 'trail' || from.side === sTo)) return { sNow, sTo, path: null, refusal: `Already in ${f.label.toLowerCase()}.` };
-  const path = routeFour(from.key, from.key === 'trail' ? 0 : sNow, to, sTo);
+  const path = routeFour(from.key, from.key === 'trail' ? 0 : sNow, to, sTo, opts);
   if (!path) return { sNow, sTo, path, refusal: `No way from ${fourWords(from).toLowerCase()} to ${f.label.toLowerCase()} the manuals give.` };
   for (const step of path) {
     const why = rejoinRefusal(step.move, opts, step.s === 0 ? (step.sTo || sNow) : step.s, step.sTo);
@@ -160,12 +166,14 @@ export function planChangeFour(aircraft, to, options = {}, t0 = 0) {
   let now = aircraft.map((a) => copyAircraft(a));
   let t = t0;
   const hows = [];
+  const flags = []; // references the plan went past, flown anyway and shown on screen (TS-179's cross)
   for (const step of path) {
     const s = step.s === 0 ? (step.sTo || sNow) : step.s;
     const r = step.move.fly(now, t, opts, s, step.sTo);
     if (!r.ok) return { ok: false, reason: `No safe change from here: ${r.reason}`, from: from.key, to };
     const how = r.how ?? (typeof step.move.how === 'function' ? step.move.how(opts, s, step.sTo) : step.move.how);
     hows.push(r.straightFallback ? `${how} (straight ahead: no turn kept the lane)` : how);
+    if (r.flag) flags.push(r.flag);
     legs.push(...r.legs);
     const last = r.legs[r.legs.length - 1];
     now = r.end ?? statesAt(now, last, last.endSec); // a move of several legs hands back where its last leg ended
@@ -182,7 +190,7 @@ export function planChangeFour(aircraft, to, options = {}, t0 = 0) {
     ok: true,
     plans,
     // Finger to finger is the one change not authorized (SMM 16.33 para 93, M8): the route goes through echelon instead.
-    note: `${fromWords} to ${toWords}: ${hows.join(', then ')}${from.key === 'finger' && to === 'finger' ? ' (finger to finger is not flown directly, SMM 16.33 para 93)' : ''}.`,
+    note: `${fromWords} to ${toWords}: ${hows.join(', then ')}${from.key === 'finger' && to === 'finger' ? ' (finger to finger is not flown directly, SMM 16.33 para 93)' : ''}.${flags.map((f) => ` ${f}`).join('')}`,
     label: toWords,
     flying: `${fromWords} to ${toWords} (${hows.join(', then ')})`,
     from: from.key,
