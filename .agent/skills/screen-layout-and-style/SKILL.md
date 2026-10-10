@@ -88,7 +88,7 @@ The approved standard:
 
 ## 8. Technical gotchas
 
-- **A removed control broke another:** other code found it by its label text. Search before removing.
+- **A removed control broke another:** other code found it by its label text. Before removing or renaming a control, search the code for its visible label text and its id, not just its setting key. After removing it, press every other control that sets the same thing in the running app.
 - **Keep each file's line endings** (some files are CRLF, some LF). Flipping them makes the whole file look changed.
 - **`[hidden]` loses to `display: flex`.** Add `.container [hidden] { display: none; }`.
 - **Dev hot-reload glitches,** such as garbled ▾ markers, clear with a full reload. Reload before calling something a bug.

@@ -111,6 +111,7 @@ Arrange tasks so that:
 2. Each task leaves the system in a working state
 3. Verification checkpoints occur after every 2-3 tasks
 4. High-risk tasks are early (fail fast)
+5. Every 'keep unchanged' item in a plan names the check that would show it broken, and that check is shown failing on a known-bad case before the first slice starts.
 
 Add explicit checkpoints to the task list target:
 
