@@ -335,19 +335,20 @@ function createSouthFeedlot(THREE, mats) {
 /**
  * The Crossroads Farm north-west of the crossroads, traced off Esri's true-scale photo on 10 Oct (about ±15 ft), in feet
  * from the ARP round its anchor (5,300 W, 12,450 S): two houses, two sheds, three Quonsets, a bin and its shelterbelts.
+ * Every roof is silver (Patrick, 10 Oct: "the rooves ... must be silver").
  */
 const CROSSROADS_FARM_ANCHOR = Object.freeze({ x: -5300, y: -12450 });
 function createCrossroadsFarm(THREE, mats) {
   const g = new THREE.Group();
   const { x: ax, y: ay } = CROSSROADS_FARM_ANCHOR;
   const at = (x, y) => [x - ax, y - ay];
-  g.add(shed(THREE, 56, 63, 12, mats.house, mats.roof, ...at(-5304, -12368), 'crossroads-farm-house'));
-  g.add(shed(THREE, 56, 65, 12, mats.house, mats.roof, ...at(-5143, -12449), 'crossroads-farm-house-east'));
-  g.add(box(THREE, 48, 31, 10, mats.grey, ...at(-5156, -12399), 'crossroads-farm-shed'));
-  g.add(box(THREE, 50, 18, 9, mats.white, ...at(-5246, -12265), 'crossroads-farm-trailer'));
+  g.add(shed(THREE, 56, 63, 12, mats.house, mats.steel, ...at(-5304, -12368), 'crossroads-farm-house'));
+  g.add(shed(THREE, 56, 65, 12, mats.house, mats.steel, ...at(-5143, -12449), 'crossroads-farm-house-east'));
+  g.add(box(THREE, 48, 31, 10, mats.steel, ...at(-5156, -12399), 'crossroads-farm-shed'));
+  g.add(box(THREE, 50, 18, 9, mats.steel, ...at(-5246, -12265), 'crossroads-farm-trailer'));
   g.add(quonsetNS(THREE, 81, 46, mats.steel, ...at(-5425, -12536), 'crossroads-farm-quonset-grey'));
-  g.add(quonsetNS(THREE, 150, 56, mats.white, ...at(-5370, -12575), 'crossroads-farm-quonset-long'));
-  g.add(quonsetNS(THREE, 79, 50, mats.white, ...at(-5132, -12722), 'crossroads-farm-quonset-south'));
+  g.add(quonsetNS(THREE, 150, 56, mats.steel, ...at(-5370, -12575), 'crossroads-farm-quonset-long'));
+  g.add(quonsetNS(THREE, 79, 50, mats.steel, ...at(-5132, -12722), 'crossroads-farm-quonset-south'));
   g.add(bin(THREE, 9, 22, mats.steel, ...at(-5504, -12346), 'crossroads-farm-bin'));
   g.add(treeRows(THREE, mats.tree, [
     [-5536, -12120, -5105, -12120], [-5536, -12170, -5105, -12170], [-5830, -12128, -5830, -12865], [-5745, -12128, -5745, -12865],
@@ -391,7 +392,7 @@ export function createLandmarks(THREE, { floor = THRESHOLD_DATA_ELEV_FT } = {}) 
     white: lam('#eef0f2'), grey: lam('#8b95a1'), red: lam('#c0262d'), pens: lam('#7a3b1d'),
     steel: new THREE.MeshStandardMaterial({ color: '#cbd5e1', roughness: 0.35, metalness: 0.7 }),
     car: lam('#ffffff'), tree: lam('#1f4d2b'), pig: lam('#e8a7a0'),
-    cow: lam('#ffffff'), fence: lam('#9a8f80'), house: lam('#d9d4c7'), roof: lam('#3a3f44'), // cow: white, so each animal's coat colour shows
+    cow: lam('#ffffff'), fence: lam('#9a8f80'), house: lam('#d9d4c7'), // cow: white, so each animal's coat colour shows
   };
   for (const l of CYMJ_LANDMARKS) {
     const g = BUILDERS[l.kind](THREE, mats);
