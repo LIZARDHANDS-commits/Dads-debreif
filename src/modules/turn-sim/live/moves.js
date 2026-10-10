@@ -110,7 +110,7 @@ export const TURNING_REJOIN = Object.freeze({
   rideEaseKias: 205, // ...to this, so he enters the window at about 15 kt (same card)
   rideSpeedUpFt: 150, // within this of the line he sets 210 so he is at it when established, not still accelerating with MAX (estimate)
   rideHeadingTauSec: 2, // his heading comes onto the one asked over about this long (estimate)
-  rideCrossShare: 0.85, // closing on the line from far off, at most this share of his speed goes across it in Lead's frame (estimate, about the middle of what the old 0.7 shrink loop gave)
+  rideCrossShare: 0.7, // closing on the line from far off, at most this share of his speed goes across it in Lead's frame (estimate; Patrick 10 Oct 2026 20:15Z card "Faster smooth", TS-173)
   rideDriftFtps: 10, // established: within captureFt of the line and drifting across it no faster than this (Patrick G2, "Lead fixed on the canopy")
 });
 

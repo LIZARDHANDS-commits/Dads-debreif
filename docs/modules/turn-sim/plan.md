@@ -229,7 +229,7 @@ Fable's round 2 review (project files `formation-review-package-v2210/report/rep
 - [x] **Fighting wing arrival at the cone's middle** (TS-167, V2.216); a zoom no longer overshoots the step-down gate.
 - [x] **Rulings a-d** (V2.216): drift 10 ft/s (TS-168); TS-158 says 300 s; TS-139 retired and `rejoin-law.js` deleted (TS-169); no vertical or repeat candidates in the 2-ship search (TS-170).
 - [x] **Duplicate numbers**: the TRJ rows TS-153 to TS-157 renumbered TS-161 to TS-165.
-- [x] **Smooth capture of the line** (TS-173, V2.216; judgement call, Patrick to rule).
+- [x] **Smooth capture of the line** (TS-173, V2.216; Patrick's card 20:15Z "Faster smooth").
 - [ ] **The on-screen note when the 200 KIAS minimum is missed** (TS-169).
 - [ ] **Dead code** (review 2.3): the `x` phase kind, the 3D point-mass bridge, `aimLiftVector`, `heightProfile`, `blindSecOpenArena`, `checkDoctrinalInvariants`; then `numbers.md` regenerated and the stale headers fixed (review 2.8).
 - [ ] **Unsourced numbers** (review 2.6, 2.8): the 45° follow bank cap, the +5° cone ease, the 70% hold power and the 25 kt emergency overshoot in `powerOf`: source each or take it out, with Patrick.
