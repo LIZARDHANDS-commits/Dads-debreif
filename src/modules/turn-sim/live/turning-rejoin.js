@@ -354,7 +354,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       end: { lead: endLead, wing: endWing },
       laneFwdFt,
       maxBankDeg: maxBank,
-      laneOk: laneFwdFt <= (to === 'fw' ? Math.max(0, slot.fwd) + (LANE.marginFt ?? 100) : 0),
+      laneOk: laneFwdFt <= (to === 'fw' || !xLaw ? Math.max(0, slot.fwd) + (LANE.marginFt ?? 100) : 0), // the 4-ship's #2 (xLaw false): TS-176's 100 ft margin
     };
     profile = first.profile;
   } else {
@@ -495,7 +495,9 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
   // When even that can't keep him behind Lead's 3/9 line, the most overtake that can (the review's: fit the overtake to the
   // room; Student's 15 kt is the least): the note says which he flew.
   const slotFwdFt = Math.max(0, pairSlot(to, sTo || s, spacingFt)?.fwd ?? 0);
-  const laneLimitFt = to === 'fw' ? slotFwdFt + (LANE.marginFt ?? 100) : 0;
+  // The 4-ship's #2 (xLaw false, the line law to route) keeps the old 100 ft margin to a close place too (TS-176; built V2.223,
+  // Fable's V2.221 audit 2.4); the 2-ship's X to a close place, none.
+  const laneLimitFt = to === 'fw' || !xLaw ? slotFwdFt + (LANE.marginFt ?? 100) : 0;
   let best = null;
   let bestAny = null;
   // Down the line he aims for the Rates choice's line speed (lineKiasNow, TS-133: a target, geometry first; until V2.149 220 for all, Patrick 17:54Z, 17:55Z: "the minimum closure up the line

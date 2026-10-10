@@ -26,12 +26,12 @@ export { FOUR_CHANGE_LIMIT_SEC };
  * may change it (finger and echelon, through the crossunder), 'none' has no side (line astern).
  */
 /**
- * How a rejoin to echelon on side sTo flies (TS-176): Into when it is #2's side, Away (Lead turns away from #2, nearest
- * first, piece 4) when it is the other side and the switch says Away; otherwise straight ahead.
+ * How a rejoin to echelon on side sTo flies (TS-176): Into on #2's side, Away (Lead turns away from #2, nearest first, piece
+ * 4) on the other, SARJ straight ahead. The rest are refused before this (rejoinRefusal), never flown as SARJ instead.
  */
 function echelonBy(o, s, sTo, from) {
-  if (o.rejoin !== 'straight' && sTo === s) return { fly: (st, t, oo) => turningToEchelon(st, t, oo, s, from), how: 'turning rejoin straight into echelon' };
-  if (o.rejoin !== 'straight' && o.turn === 'away' && from !== 'fw') return { fly: (st, t, oo) => turningAwayToEchelon(st, t, oo, s, from), how: 'turning rejoin, Lead away from #2, straight into echelon (nearest first)' };
+  if (o.rejoin !== 'straight' && o.turn !== 'away') return { fly: (st, t, oo) => turningToEchelon(st, t, oo, s, from), how: 'turning rejoin straight into echelon' };
+  if (o.rejoin !== 'straight') return { fly: (st, t, oo) => turningAwayToEchelon(st, t, oo, s, from), how: 'turning rejoin, Lead away from #2, straight into echelon (nearest first)' };
   return { fly: (st, t, oo) => straightToEchelon(st, t, oo, sTo, from), how: 'straight-ahead rejoin to echelon' };
 }
 
@@ -94,6 +94,52 @@ export function routeFour(from, s, to, sTo) {
 }
 
 /**
+ * Why a rejoin step cannot fly the way the switch says (TS-176), or null. A rejoin not built yet is refused, and the
+ * formation button greyed, never flown as another rejoin in its place (Fable's V2.221 audit 2.5).
+ */
+function rejoinRefusal(move, o, s, sTo) {
+  if (!move.rejoin || o.rejoin === 'straight') return null;
+  const away = o.turn === 'away';
+  if (away && move.from === 'offsetBox') return 'From the offset box Lead turns into #2 only so far. Try Into or SARJ.';
+  if (away && move.to !== 'echelon') return 'With Lead turning away, the 4-ship joins to echelon only so far. Try Into or SARJ.';
+  if (move.to !== 'echelon') return null;
+  if (away && move.from === 'fw') return 'From fighting wing Lead turns into #2 only so far. Try Into or SARJ.';
+  // Each joins to the inside of Lead's turn (SMM 12.24 para 59): Into on #2's side, Away on the other.
+  if (!away && sTo !== s) return "Turning into #2 forms echelon on #2's side, the inside of the turn. Pick his side, Away, or SARJ.";
+  if (away && sTo === s) return "Turning away from #2 forms echelon on the side away from #2. Pick that side, Into, or SARJ.";
+  return null;
+}
+
+/** The sides and route of a change from `from` (classify's) to `to`, and why it is refused if it is: { sNow, sTo, path, refusal }. */
+function routeFor(from, to, opts) {
+  const f = FOUR_FORMATIONS[to];
+  const sNow = from.side || opts.lastSide || -1;
+  const want = opts.side ?? 'keep';
+  // Away (TS-176 piece 4): Lead turns away from #2, and echelon forms on the inside, the side away from him.
+  const awayEchelon = to === 'echelon' && opts.turn === 'away' && opts.rejoin !== 'straight' && ['spread4', 'fluid4', 'other'].includes(from.key);
+  const keep = awayEchelon ? -sNow : sNow;
+  const sTo = to === 'trail' ? 0 : want === 'left' ? 1 : want === 'right' ? -1 : keep;
+  if (from.key === to && (to === 'trail' || from.side === sTo)) return { sNow, sTo, path: null, refusal: `Already in ${f.label.toLowerCase()}.` };
+  const path = routeFour(from.key, from.key === 'trail' ? 0 : sNow, to, sTo);
+  if (!path) return { sNow, sTo, path, refusal: `No way from ${fourWords(from).toLowerCase()} to ${f.label.toLowerCase()} the manuals give.` };
+  for (const step of path) {
+    const why = rejoinRefusal(step.move, opts, step.s === 0 ? (step.sTo || sNow) : step.s, step.sTo);
+    if (why) return { sNow, sTo, path, refusal: why };
+  }
+  return { sNow, sTo, path, refusal: null };
+}
+
+/**
+ * Why the four cannot be called to `to` from where they are (classify's `where`) with these options, without flying it, or
+ * null: the screen greys that formation's button and shows this as its title. options as planChangeFour's.
+ */
+export function fourRefusal(where, to, options = {}) {
+  const f = FOUR_FORMATIONS[to];
+  if (!f || f.later) return null;
+  return routeFor(where, to, { rejoin: 'into', ...options }).refusal;
+}
+
+/**
  * Plans a change of formation for the four as they are now. to: a FOUR_FORMATIONS key. options: { side: 'keep' | 'left' |
  * 'right' (#2's side at the end), spacingFt, blockFt, rejoin: 'into' | 'straight', turn: 'into' | 'away', lastSide }. Returns { ok, reason?, plans,
  * note, label, flying, from, fromSide, to, side, refs, endSec, judged, legs }: when ok is false nothing should be flown and
@@ -106,15 +152,8 @@ export function planChangeFour(aircraft, to, options = {}, t0 = 0) {
   if (!f) return { ok: false, reason: `There is no four-ship formation called ${to}.` };
   if (f.later) return { ok: false, reason: `${f.label} is the live build, coming later.` };
   const from = classify(aircraft);
-  const sNow = from.side || opts.lastSide || -1;
-  const want = opts.side ?? 'keep';
-  // Away (TS-176 piece 4): Lead turns away from #2, and echelon forms on the inside, the side away from him.
-  const awayEchelon = to === 'echelon' && opts.turn === 'away' && opts.rejoin !== 'straight' && ['spread4', 'fluid4', 'other'].includes(from.key);
-  const keep = awayEchelon ? -sNow : sNow;
-  const sTo = to === 'trail' ? 0 : want === 'left' ? 1 : want === 'right' ? -1 : keep;
-  if (from.key === to && (to === 'trail' || from.side === sTo)) return { ok: false, reason: `Already in ${f.label.toLowerCase()}.` };
-  const path = routeFour(from.key, from.key === 'trail' ? 0 : sNow, to, sTo);
-  if (!path) return { ok: false, reason: `No way from ${fourWords(from).toLowerCase()} to ${f.label.toLowerCase()} the manuals give.` };
+  const { sNow, sTo, path, refusal } = routeFor(from, to, opts);
+  if (refusal) return { ok: false, reason: refusal, from: from.key, to };
 
   // Fly each move from where the last one ended.
   const legs = [];
@@ -123,17 +162,10 @@ export function planChangeFour(aircraft, to, options = {}, t0 = 0) {
   const hows = [];
   for (const step of path) {
     const s = step.s === 0 ? (step.sTo || sNow) : step.s;
-    // From the offset box a turning rejoin would swing the element, 7,000 ft behind on #2's side, across Lead's nose (V2.220
-    // dry runs): it flies straight ahead until Patrick rules how the element joins in that turn.
-    if (step.move.rejoin && opts.turn === 'away' && opts.rejoin !== 'straight' && step.move.to !== 'echelon' && step.move.from !== 'offsetBox') {
-      return { ok: false, reason: 'With Lead turning away, the 4-ship joins to echelon only so far. Try Into or SARJ.', from: from.key, to };
-    }
-    const held = step.move.rejoin && step.move.from === 'offsetBox' && opts.rejoin !== 'straight';
-    const o = held ? { ...opts, rejoin: 'straight' } : opts;
-    const r = step.move.fly(now, t, o, s, step.sTo);
+    const r = step.move.fly(now, t, opts, s, step.sTo);
     if (!r.ok) return { ok: false, reason: `No safe change from here: ${r.reason}`, from: from.key, to };
-    const how = r.how ?? (typeof step.move.how === 'function' ? step.move.how(o, s, step.sTo) : step.move.how);
-    hows.push(r.straightFallback ? `${how} (straight ahead: no turn kept the lane)` : held ? `${how} (from the offset box the turning rejoin is not built yet)` : how);
+    const how = r.how ?? (typeof step.move.how === 'function' ? step.move.how(opts, s, step.sTo) : step.move.how);
+    hows.push(r.straightFallback ? `${how} (straight ahead: no turn kept the lane)` : how);
     legs.push(...r.legs);
     const last = r.legs[r.legs.length - 1];
     now = r.end ?? statesAt(now, last, last.endSec); // a move of several legs hands back where its last leg ended

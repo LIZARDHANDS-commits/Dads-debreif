@@ -19,12 +19,13 @@ import { DEG, relativeTo, turnSeg, wholeDegree } from './manoeuvres.js';
 import { recordFlight } from './replay.js';
 import { STEP_SEC } from './flight.js';
 import { slide, closeThrough, rejoinTo, straightAhead } from './recipes.js';
-import { REJOIN, TURNING_REJOIN, STRAIGHT_REJOIN, WING_BANKS } from './tuning.js';
+import { REJOIN, TURNING_REJOIN, STRAIGHT_REJOIN, WING_BANKS, KIAS_OUTSIDE_LAB } from './tuning.js';
+import { phase } from './tracker.js';
 import { RATE_SETS } from './rates.js';
 import { KT_TO_FTPS as KT_FTPS } from '../../../core/units.js';
 import { leadTurnInto } from './lead-turn-in.js';
 import { searchTurningRejoin, flyTurningRejoinWith } from './turning-rejoin.js';
-import { LENGTH_FT, slotsFor, pairSlot, FW_STEP_DOWN_FT } from './slots.js';
+import { LENGTH_FT, slotsFor, pairSlot, FW_STEP_DOWN_FT, fixedLine } from './slots.js';
 import { legsInTurn, place, hold, toSlot, inLeadFrame, ech, toSpeed, inCone, GENTLE_ALT_FTPS, FOUR_CHANGE_LIMIT_SEC } from './four-legs.js';
 
 /** The overtake the rear wingmen use to close from far out (estimate: the straight-ahead rejoin's 20 to 30 KIAS, EFIG p.371). */
@@ -154,10 +155,10 @@ export function rejoinToFw(start, t0, opts, s, from) {
     });
     const two = { id: 2, phases: () => [...comeOffFirst(c, 2, 1), toSlot(c, rejoinTo, slots[2], { overtakeKias: far(2), ...max })] };
     if (straight) return { lead: toSpeed(c, 'fw'), wings: [two, outside(3), outside(4)], how: 'straight-ahead rejoin to fighting wing' };
-    const into = leadInto(c, s, 'fw');
+    const into = leadInto(c, s, 'fw', from === 'offsetBox' ? BOX_PAUSE_SEC : 0);
     return {
       lead: { hold: into, until: [2, 3, 4] },
-      wings: [{ ...two, fly: twoTurning(c, into, s, 'fw', s, false) }, outside(3), outside(4)],
+      wings: [{ ...two, fly: twoTurning(c, into, s, 'fw', s, false) }, ...[3, 4].map((id) => (from === 'offsetBox' ? onLineFirst(c, outside(id), s, id === 4 ? BOX_LINE_FW4_FT : BOX_LINE_FT) : outside(id)))],
     };
   }]);
 }
@@ -191,9 +192,32 @@ function leadStraight(c, key) {
 /** #2 starts the turning rejoin from line abreast (hot): Spread 4 and the offset box. */
 const abreast = (from) => from === 'spread4' || from === 'offsetBox';
 
-/** The four's turning-rejoin legs for Lead: his speed change while he turns, and the turn held until `until` are in. */
-function leadInto(c, s, key) {
-  const pre = toSpeed(c, key).map((x) => ({ ...x, withNext: true }));
+/**
+ * From the offset box the element, 7,000 ft behind on #2's side, flies the rejoin line from the first second (Fable's offset
+ * box advice, Patrick 10 Oct 2026: "agree with fable"; SMM 16.34 paras 94-96; AFM8 four-ship brief, "TRJ to FW from Offset
+ * Box", about pp.24-25): #2's line on the inside of Lead's turn, Lead fixed on the canopy, so they turn inside his circle and
+ * never come ahead of his 3/9 line. Each rides it (the 2-ship's ride) to his own point on it, stacked under #2's line, and
+ * then flies the rest of the rejoin as from anywhere else, one at a time: he does not wait on the line itself, where inside
+ * the turn holding still would take 160-180 KIAS (V2.223 dry runs), but where the rest of the rejoin waits.
+ */
+// How far up the line from Lead each rides it: 1,500 ft, and #4 to fighting wing 2,500, so he crosses behind #3 (estimates;
+// from 2,500 ft into finger #4 ran up abreast of #2 on the inside, V2.223 dry runs).
+const BOX_LINE_FT = 1500;
+const BOX_LINE_FW4_FT = 2500;
+const BOX_PAUSE_SEC = 7; // Lead flies straight on this long after the call before he turns in (Fable's 5-10 s; estimate)
+const BOX_LINE_LOW_FT = { 3: 150, 4: 250 }; // how far below Lead each rides it, #2 riding it 50 ft below (estimates)
+const onBoxLine = (c, id, s, alongFt = BOX_LINE_FT) => phase(place(c, 0, 0, -BOX_LINE_LOW_FT[id]), { kind: 'ride', track: 1, lineDeg: TURNING_REJOIN.lineDeg, side: s, captureAlongFt: alongFt + 500, windowFt: alongFt, carrotWindowFt: alongFt, bankCapDeg: REJOIN.bankCapDeg, floorKias: KIAS_OUTSIDE_LAB, rejoin: true });
+
+/** A wingman's legs with the offset box's rejoin line in front (onBoxLine). */
+const onLineFirst = (c, w, s, alongFt) => ({ ...w, phases: (done) => [onBoxLine(c, w.id, s, alongFt), ...w.phases(done)] });
+
+/**
+ * The four's turning-rejoin legs for Lead: his speed change while he turns, and the turn held until `until` are in. pauseSec:
+ * straight on this long after the call first (from the offset box, BOX_PAUSE_SEC).
+ */
+function leadInto(c, s, key, pauseSec = 0) {
+  const pause = pauseSec > 0 ? [{ kind: 'hold', untilSec: c.t0 + pauseSec, thenNext: true }] : [];
+  const pre = [...pause, ...toSpeed(c, key).map((x) => ({ ...x, withNext: true }))];
   return leadTurnInto({ lead: c.start[0], pre, s, bankDeg: REJOIN.leadBankDeg, t0: c.t0, record: recordFlight });
 }
 
@@ -211,7 +235,7 @@ export function turningToFinger(start, t0, opts, s, from) {
     const fin = slotsFor('finger', s, { ships: 4 });
     const route = slotsFor('route', s, { ships: 4 });
     const hot = abreast(from);
-    const into = leadInto(c, s, 'finger');
+    const into = leadInto(c, s, 'finger', from === 'offsetBox' ? BOX_PAUSE_SEC : 0);
     const two = { id: 2, fly: twoTurning(c, into, s, 'echelon', s, hot), phases: () => [...comeOffFirst(c, 2, 1), toSlot(c, rejoinTo, fin[2], { advanceTol: 10 })] };
     const far = (id) => (Math.abs(relativeTo(c.start[0], c.by.get(id)).left) > 3000 ? FAR_OVERTAKE_KIAS : REJOIN.overtakeKias);
     // Outside the turn: wait behind the place, then in through route (recipes.js closeThrough: close level or slightly low, then up).
@@ -245,6 +269,8 @@ export function turningToFinger(start, t0, opts, s, from) {
     });
     // From Spread 4 #3 and #4 are outside already, from fighting wing inside; from anywhere else, by the side each is on now.
     const wing = (id, gateId) => {
+      // From the offset box up the rejoin line first, then across behind Lead to the outside (onBoxLine).
+      if (from === 'offsetBox') return onLineFirst(c, crossing(id, gateId), s);
       const outsideNow = from === 'spread4' || (from !== 'fw' && relativeTo(c.start[0], c.by.get(id)).left * s < 0);
       return (outsideNow ? outside : crossing)(id, gateId);
     };
@@ -265,7 +291,7 @@ export function turningToFinger(start, t0, opts, s, from) {
 export function turningToEchelon(start, t0, opts, s, from) {
   return legsInTurn(start, t0, opts, [(c) => {
     const ech4 = slotsFor('echelon', s, { ships: 4 });
-    const into = leadInto(c, s, 'echelon');
+    const into = leadInto(c, s, 'echelon', from === 'offsetBox' ? BOX_PAUSE_SEC : 0);
     const hot = abreast(from);
     const two = { id: 2, fly: twoTurning(c, into, s, 'echelon', s, hot), phases: () => [...comeOffFirst(c, 2, 1), toSlot(c, rejoinTo, ech4[2], { advanceTol: 10 })] };
     const far = (id) => (Math.abs(relativeTo(c.start[0], c.by.get(id)).left) > 3000 ? FAR_OVERTAKE_KIAS : REJOIN.overtakeKias);
@@ -277,6 +303,7 @@ export function turningToEchelon(start, t0, opts, s, from) {
         const stackAlt = Math.max(Math.min(c.by.get(id).altAboveFt - c.leadAlt, ech4[id].alt), ech4[id].alt - WINDOW_STACK_FT[id]);
         const { ref } = ech4[id];
         return [
+          ...(from === 'offsetBox' ? [onBoxLine(c, id, s)] : []), // from the offset box up the rejoin line first
           ...waitInWindow(c, id, p, stackAlt, inAt(done, gateId), { overtakeKias: far(id), bankCapDeg: TURNING_REJOIN.bankCapDeg }, ech4[id].alt - 25),
           closeThrough(place(c, line.fwd, line.left, ech4[id].alt - 25), { track: ref, advanceTol: 6 }),
           toSlot(c, slide, ech4[id]),
