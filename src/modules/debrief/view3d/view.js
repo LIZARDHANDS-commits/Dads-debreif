@@ -25,6 +25,8 @@ import { createRide, COCKPIT_CAPTION } from './cockpit.js';
 import { formationCenter, projectPoint, attitudeEuler } from './scene.js';
 import { shipsIn3d, groundDatumFt, heightLabel, groundGrid, GROUND_EXTENT_FT } from './frame.js';
 import { attachCameraInput } from './input.js';
+import { padlockTarget, ridesShip } from './camera-modes.js';
+import { headToward, aimChaseCamera } from './aim.js';
 import {
   drawStickLabel, drawAltitudeScale, drawMarker, labelShip, drawCompass, drawCaption, drawCockpitCaption, drawTennis3d, TEXT,
 } from './overlay.js';
@@ -124,18 +126,29 @@ export function createView3d(canvas, {
     const filled = shown ? fills() : null;
     let ships = /** @type {any[]} */ (shown ? shipsIn3d(shown, t, filled) : []);
     // The Cockpit camera: the ridden ship sits where its smooth table (or its gap's fill) puts it (DB-21).
-    const cockpit = on.cam3d === 'cockpit' && shown?.tracks[on.cockpitShip3d]
-      ? { slot: on.cockpitShip3d, seat: on.cockpitSeat3d, head: { yawDeg: camera.headYawDeg, pitchDeg: camera.headPitchDeg }, windKey: windKey() }
+    // Chase (DB-22) rides the same smooth ship and draws it from behind, with no cockpit in it.
+    const cockpit = ridesShip(on) && shown?.tracks[on.cockpitShip3d]
+      ? {
+        slot: on.cockpitShip3d, seat: on.cockpitSeat3d, chase: on.cam3d === 'chase', aim: on.aim3d, windKey: windKey(),
+        head: on.aim3d === 'freelook' ? { yawDeg: camera.headYawDeg, pitchDeg: camera.headPitchDeg } : { yawDeg: 0, pitchDeg: 0 },
+      }
       : null;
     let riding = null;
     if (cockpit) {
       riding = ride.at(shown, cockpit.slot, t, { wind, windKey: cockpit.windKey, fills: filled });
       cockpit.panel = riding.panel;
+      cockpit.hdg = riding.hdg;
+      const lock = on.aim3d === 'padlock' ? padlockTarget(on, ships.map((s) => s.slot)) : null; // Padlock: the ship kept in view
+      cockpit.lockSlot = lock;
       ships = ships.map((s) => (s.slot === cockpit.slot
         ? { ...s, x: riding.x, y: riding.y, altFt: riding.altFt, hdg: riding.hdg, bankDeg: riding.bankDeg, pitchDeg: riding.pitchDeg, bankKnown: true, ridden: true, inGap: Boolean(riding.gap), estimated: riding.gap === 'filled' }
         : s));
     }
     const live = Object.fromEntries(ships.map((s) => [s.slot, s]));
+    if (cockpit?.lockSlot) {
+      const s = live[cockpit.lockSlot];
+      cockpit.target = { x: s.x, y: s.y, z: altToZ(s.altFt, 1) };
+    }
     const ctr = cockpit ? { x: riding.x, y: riding.y, z: riding.altFt } : shown ? formationCenter(live, on.cam3d) : { x: 0, y: 0, z: 0 };
     const view = cockpit ? { ...camera, altScale: 1 } : camera; // true scale in the cockpit
     const datum = shown ? (cockpit ? groundFieldFt : groundDatumFt(ships, on.datum3d, groundFieldFt)) : 0;
@@ -157,12 +170,12 @@ export function createView3d(canvas, {
         return worldToScreen(THREE, gl.persp, { x: p.x, y: p.y, z: altToZ(p.altFt, 1) }, size.width, size.height);
       };
       for (const s of ships) {
-        if (s.ridden) continue;
+        if (s.ridden && !cockpit.chase) continue;
         const c = P(s);
         if (Number.isFinite(c.x)) labelShip(ctx, c, s, on);
       }
       if (ball?.points) drawTennis3d(ctx, P, ball);
-      drawCockpitCaption(ctx, { slot: cockpit.slot, seat: cockpit.seat, gap: riding.gap, windKnown: Boolean(cockpit.windKey) }, COCKPIT_CAPTION);
+      drawCockpitCaption(ctx, { slot: cockpit.slot, seat: cockpit.seat, chase: cockpit.chase, gap: riding.gap, windKnown: Boolean(cockpit.windKey) }, COCKPIT_CAPTION);
       return;
     }
     const P = (p) => projectPoint(p, ctr, camera, size);
@@ -480,10 +493,17 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
   for (const [slot, { mesh }] of gl.ghosts) mesh.visible = ghosted.has(slot);
   for (const slot of ghosted) modelled.add(slot); // labelled as a model, not given a flat marker
 
-  if (cockpit && ridden) {
+  if (cockpit && ridden && cockpit.chase) {
+    gl.cockpit?.mount(null); // seen from outside: the cockpit is not opened
+    aimChaseCamera(THREE, gl.persp, ridden, {
+      hdg: cockpit.hdg, yawDeg: cockpit.head.yawDeg, pitchDeg: cockpit.head.pitchDeg, target: cockpit.target ?? null, width: size.width, height: size.height,
+    });
+  } else if (cockpit && ridden) {
     gl.cockpit ??= createCockpitMount(THREE, { doc: gl.doc });
     gl.cockpit.mount(ridden, cockpit.seat);
-    aimCockpitCamera(THREE, gl.persp, ridden, { seat: cockpit.seat, yawDeg: cockpit.head.yawDeg, pitchDeg: cockpit.head.pitchDeg, width: size.width, height: size.height });
+    // Padlock turns the head to the locked ship; boresight keeps it straight ahead (cockpit.head is zero then).
+    const head = cockpit.target ? headToward(THREE, ridden, cockpit.target) : cockpit.head;
+    aimCockpitCamera(THREE, gl.persp, ridden, { seat: cockpit.seat, yawDeg: head.yawDeg, pitchDeg: head.pitchDeg, width: size.width, height: size.height });
     // The panel's numbers go in before the picture is drawn. It redraws at most every PANEL_REDRAW_MS and this view
     // draws only on change, so a held-back update asks for one more draw, or a paused panel would keep an old number.
     const key = JSON.stringify(cockpit.panel);

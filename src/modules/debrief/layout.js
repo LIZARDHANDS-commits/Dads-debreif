@@ -19,6 +19,8 @@ import { SATELLITE_LAYERS } from './weather/satellite.js';
 import { WIND_MODELS } from './weather/winds.js';
 import { ARROW_HEIGHT, clampArrowFt } from './weather/wind-arrows.js';
 import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
+import { createCameraBar } from './view3d/camera-bar.js';
+import { ridesShip } from './view3d/camera-modes.js';
 
 const SAVE_WX_LABEL = 'Save radar and lightning with this debrief';
 // What the button does, said once for a screen reader and as the button's tooltip, so the menu's own line can stay one line (F1).
@@ -232,17 +234,14 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     controls.checkbox('tennisOpen', { label: 'Tennis ball' }),
   ]);
 
-  // The 3D view's settings, in 3D only (SPEC-debrief: The screen). The Cockpit camera's ship and seat show only while it is picked (DB-21).
+  // The 3D view's settings, in 3D only (SPEC-debrief: The screen). The camera itself (mount, aim, ship, seat) is the bar
+  // over the picture (DB-22), not a setting here.
   const { yaw: YAW, pitch: PITCH, zoom: ZOOM } = CAMERA_LIMITS;
-  const cockpitShip = controls.select('cockpitShip3d', { label: 'Ship', options: [1, 2, 3, 4].map((n) => ({ value: n, label: n === 1 ? '#1 Lead' : `#${n}` })) });
-  const cockpitSeat = controls.select('cockpitSeat3d', { label: 'Seat', options: [{ value: 'front', label: 'Front' }, { value: 'rear', label: 'Rear' }] });
-  // In the cockpit the picture is true scale (DB-21): these settings do nothing there, so they hide.
+  const cameraBar = createCameraBar({ layout, listen });
+  // In a ship's view (Cockpit or Chase) the picture is true scale (DB-21, DB-22): these settings do nothing there, so they hide.
   const notInCockpit = [];
   const outside = (el) => (notInCockpit.push(el), el);
   const view3dMenu = menu('3D settings', 'debrief-3d-settings', [
-    controls.select('cam3d', { label: 'Camera', options: [{ value: 'followLead', label: 'Follow Lead' }, { value: 'formation', label: 'Centre formation' }, { value: 'cockpit', label: 'Cockpit' }] }),
-    cockpitShip,
-    cockpitSeat,
     controls.select('model3d', { label: 'Aircraft', options: [{ value: 't6', label: 'Harvard (CT-156)' }, { value: 'flat', label: 'Flat marker' }] }),
     controls.select('paint3d', { label: 'Paint', options: PAINT_OPTIONS.map((o) => ({ value: o.value, label: o.label })) }),
     outside(controls.slider('yaw3d', { label: 'Turn', min: YAW[0], max: YAW[1], format: (v) => `${v}°` })),
@@ -273,7 +272,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   const metarRaw = h('code', { class: 'debrief-metar-raw' });
   const metarRawBox = h('details', { class: 'debrief-metar-details' }, h('summary', {}, 'Report as sent'), metarRaw);
   const metarLine = h('div', { class: 'debrief-metar', role: 'status', hidden: true }, metarText, metarRawBox);
-  const mapWrap = h('div', { class: 'debrief-map-wrap' }, canvas, canvas3d, empty, credit);
+  const mapWrap = h('div', { class: 'debrief-map-wrap' }, canvas, canvas3d, empty, credit, cameraBar.element);
   const toolbar = h('div', { class: 'debrief-toolbar' }, viewSwitch, viewMessage, fitButton, layersMenu.element, chartsMenu.element, weatherMenu.element, view3dMenu.element, toolsMenu.element);
   const stage = h(
     'section',
@@ -416,10 +415,10 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
       shownView = values.view;
       placeOpenMenus();
     }
-    const cockpit = values.cam3d === 'cockpit';
-    cockpitShip.hidden = !cockpit;
-    cockpitSeat.hidden = !cockpit;
-    for (const el of notInCockpit) el.hidden = cockpit;
+    for (const el of notInCockpit) el.hidden = ridesShip(values);
+    // The camera bar sits over the 3D picture once a flight is loaded.
+    cameraBar.element.hidden = !is3d || !flight;
+    if (flight) cameraBar.sync(values, Object.keys(flight.tracks).map(Number));
     if (fillInfo && fillInfo.on !== values.fillGaps) {
       fillInfo = { ...fillInfo, on: values.fillGaps };
       renderStatus();

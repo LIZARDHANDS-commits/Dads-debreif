@@ -90,10 +90,14 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   // The 3D view, with V6's settings (markup lines 729 to 751). "Free orbit"
   // is gone: it was the same as Centre formation (#26).
   view: '2d',
-  cam3d: 'followLead', // or 'formation', or 'cockpit' (DB-21)
-  // The Cockpit camera: which ship and seat (DB-21), and the head turned by a drag (degrees right and up of the nose).
+  cam3d: 'followLead', // or 'formation' (Overview), 'chase' or 'cockpit' (DB-21, DB-22)
+  // The Chase and Cockpit cameras: which ship (the name is the Cockpit's, DB-21) and seat, how they aim (DB-22: 'boresight',
+  // 'freelook' as before, or 'padlock') and which ship Padlock keeps in view (0 = Lead for a wingman, #2 for Lead).
+  // headYaw3d and headPitch3d are the head (or the orbit) turned by a drag, in degrees left and up of straight ahead.
   cockpitShip3d: 1,
   cockpitSeat3d: 'front',
+  aim3d: 'freelook',
+  padlockShip3d: 0,
   headYaw3d: 0,
   headPitch3d: 0,
   yaw3d: -35,

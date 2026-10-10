@@ -20,6 +20,7 @@ import { createStandardsPanel } from './standards-panel.js';
 import { createLayout } from './layout.js';
 import { createMapView } from './map2d/view.js';
 import { createView3d } from './view3d/view.js';
+import { CAMERA_ALLOWED } from './view3d/camera-modes.js';
 import { tennisAt } from './tennis.js';
 import { createTennisPanel } from './tennis-panel.js';
 import { FIELD_ELEVATION_FT } from './data/cymj.js';
@@ -55,7 +56,7 @@ function mount(root, app) {
   const layout = createSettings(app.storage, LAYOUT_DEFAULTS, {
     allowed: {
       view: [...VIEW_ALLOWED], paint3d: PAINT_OPTIONS.map((o) => o.value), wxSatelliteLayer: Object.keys(SATELLITE_LAYERS), wxWindModel: Object.keys(WIND_MODELS),
-      cam3d: ['followLead', 'formation', 'cockpit'], cockpitShip3d: [1, 2, 3, 4], cockpitSeat3d: ['front', 'rear'],
+      ...CAMERA_ALLOWED,
     },
   });
   const controls = createControls(layout);

@@ -158,12 +158,13 @@ export function drawCaption(ctx, camera, on, datum) {
   ctx.restore();
 }
 
-// The Cockpit camera's caption (DB-21): whose seat, that the attitude is an estimate, a GPS gap and whether its path is
+// The Cockpit and Chase cameras' caption (DB-21, DB-22): whose seat (or which ship the Chase is behind), that the attitude is an estimate, a GPS gap and whether its path is
 // estimated, and what the wind and the altimeter are. words: cockpit.js COCKPIT_CAPTION.
-export function drawCockpitCaption(ctx, { slot, seat, gap, windKnown }, words) {
+export function drawCockpitCaption(ctx, { slot, seat, chase = false, gap, windKnown }, words) {
   ctx.save();
   ctx.font = '12px system-ui, sans-serif';
-  outlined(ctx, `Cockpit: #${slot} ${seat === 'rear' ? 'rear' : 'front'} seat · ${words.always}`, 14, 22, TEXT);
+  const where = chase ? `Chase: behind #${slot}` : `Cockpit: #${slot} ${seat === 'rear' ? 'rear' : 'front'} seat`;
+  outlined(ctx, `${where} · ${words.always}`, 14, 22, TEXT);
   outlined(ctx, `${windKnown ? 'nose into the model wind' : '(no wind)'} · ${words.altitude}`, 14, 40, TEXT);
   if (gap) {
     ctx.font = '600 12px system-ui, sans-serif';

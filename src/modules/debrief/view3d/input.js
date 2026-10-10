@@ -1,9 +1,11 @@
 // Turning the 3D view by hand: drag to orbit, the wheel or + and − to zoom
 // (frame.js orbit and wheelZoom). In the Cockpit camera (DB-21) a drag turns
-// the head instead, within the shared limits, and the wheel does nothing.
+// the head instead, within the shared limits, and the wheel does nothing. In Chase (DB-22) a drag swings the camera round
+// the ship the same way (Orbit). Boresight and Padlock take no drag: the head is fixed.
 // Kept apart from the drawing so any 3D renderer can use it on its own element.
 import { orbit, wheelZoom } from './frame.js';
 import { COCKPIT_HEAD } from '../../../ui-kit/ct156-cockpit.js';
+import { ridesShip } from './camera-modes.js';
 
 /** Degrees the head turns per pixel of drag in the cockpit (Turn Sim's and Turn Fight's POV.degPerPx). */
 export const HEAD_DEG_PER_PX = 0.3;
@@ -19,7 +21,10 @@ const within = (v, range) => Math.max(range[0], Math.min(range[1], v));
 export function attachCameraInput(element, { settings, setCamera, redraw }) {
   let dragging = null; // { id, x, y, camera } while the mouse turns the view
 
-  const inCockpit = () => settings().cam3d === 'cockpit';
+  const inCockpit = () => ridesShip(settings()); // in a ship (Cockpit or Chase): true scale, no zoom
+  const freelook = () => settings().aim3d === 'freelook';
+  // Chase swings all the way round the ship; the cockpit head stops at COCKPIT_HEAD.
+  const yawRange = () => (settings().cam3d === 'chase' ? [-180, 180] : COCKPIT_HEAD.yawDeg);
   const camera = () => {
     const on = settings();
     return dragging?.camera ?? {
@@ -41,6 +46,7 @@ export function attachCameraInput(element, { settings, setCamera, redraw }) {
   const listeners = [
     ['pointerdown', (e) => {
       if (e.button !== 0) return;
+      if (inCockpit() && !freelook()) return; // Boresight and Padlock hold the head
       dragging = { id: e.pointerId, x: e.clientX, y: e.clientY, camera: camera(), head: inCockpit() };
       element.setPointerCapture?.(e.pointerId);
       element.classList.add('is-dragging');
@@ -51,7 +57,7 @@ export function attachCameraInput(element, { settings, setCamera, redraw }) {
       dragging.camera = dragging.head
         ? {
           ...dragging.camera,
-          headYawDeg: within(dragging.camera.headYawDeg - dx * HEAD_DEG_PER_PX, COCKPIT_HEAD.yawDeg),
+          headYawDeg: within(dragging.camera.headYawDeg - dx * HEAD_DEG_PER_PX, yawRange()),
           headPitchDeg: within(dragging.camera.headPitchDeg - dy * HEAD_DEG_PER_PX, COCKPIT_HEAD.pitchDeg),
         }
         : orbit(dragging.camera, dx, dy);
