@@ -30,7 +30,6 @@ import { createLandmarks, disposeLandmarks, createWindsocks, updateWindsocks, di
 import { createRunwayMarkings, disposeRunwayMarkings } from './runway-markings.js';
 import { createBaseBuildings, disposeBaseBuildings, BASE_BOX_FT } from './base-buildings3d.js';
 import { createGroundHeights } from './ground-heights3d.js';
-import { createGroundTiles } from './ground-tiles3d.js';
 import { ejectionAt, EJECTION } from './ejection.js';
 import { trueAltFt } from './weather.js';
 import { createEjectionModel, poseEjectionModel, disposeEjectionModel } from './ejection3d.js';
@@ -1598,10 +1597,10 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
   function sharpestFiltering() {
     return Math.max(8, gl?.renderer?.capabilities?.getMaxAnisotropy?.() ?? 8);
   }
-  // 30 NM each way, softest. Built from zoom-12 pictures shrunk to fit: Esri's zoom 11 here is a different, summer-green photo,
-  // while zoom 12 to 18 are the same photo, so the far ring now matches the ground nearer in (Patrick, 10 Oct: "the far away ground
-  // changes colors so much"; TR-123).
-  const outerTier = createTier({ span: OUTER_PHOTO_SPAN_FT, px: 2048, maxZoom: 12, split: 3, zoomBoost: 2 });
+  // 30 NM each way, softest. Built from zoom-12 pictures shrunk to fit (TR-124): Esri's zoom 11 here is a different, summer-green
+  // photo, while zoom 12 to 18 are the same photo, so the far ring matches the ground nearer in. About 320 pictures, loaded once;
+  // the loader keeps 500 so it can finish (at its default 300 it threw pictures away as fast as it drew them).
+  const outerTier = createTier({ span: OUTER_PHOTO_SPAN_FT, px: 2048, maxZoom: 12, split: 3, zoomBoost: 2, maxKept: 500 });
   // 10+ miles each way; 2,048 px (about 52 ft a pixel), as it is only seen far off (TR-71: was 4,096, about 65 MB more)
   const farTier = createTier({ span: PHOTO_SPAN_FT, px: 2048, maxZoom: 12, split: 3 });
   const midTier = createTier({ span: MID_SPAN_FT, px: 4096, maxZoom: 15, split: 3 }); // about 3 miles each way
@@ -1614,37 +1613,10 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     if (isLow) {
       patternMidTiers.forEach((t) => { if (t.canvas) t.dispose(); });
       releaseGround();
-      releaseGroundTiles();
       return { midTex: ensureMidTexture(options), patternMidTextures: null, groundHeights: null };
     }
     if (midTier.canvas) midTier.dispose();
-    // On High the circuit box is drawn by the tiled ground (ground-tiles3d.js, TR-122), not the four fixed zoom-15 squares.
-    patternMidTiers.forEach((t) => { if (t.canvas) t.dispose(); });
-    return { midTex: null, patternMidTextures: null, groundHeights: ensureGround(options) };
-  }
-  /** The tiled ground over the circuit box on High (TR-122): sharpest where the camera looks; null with the photo off. */
-  let groundTiles = null;
-  function ensureGroundTiles(options) {
-    if (options.layerPhoto === false || !gl) return null;
-    const anchor = source.anchor?.();
-    if (!anchor) return null;
-    if (!groundTiles) {
-      groundTiles = createGroundTiles(THREE, {
-        ref: makeLocalRef(anchor.lat, anchor.lon),
-        align: () => photoAlignment(source.settings()),
-        area: { x: PATTERN_MID_CENTER_FT.x, y: PATTERN_MID_CENTER_FT.y, span: PATTERN_MID_SPAN_FT },
-        timers,
-        onChange: () => {
-          if (!disposed) requestDraw();
-        },
-      });
-      gl.scene.add(groundTiles.group);
-    }
-    return groundTiles;
-  }
-  function releaseGroundTiles() {
-    groundTiles?.dispose();
-    groundTiles = null;
+    return { midTex: null, patternMidTextures: patternMidTiers.map((t) => t.ensure(options)), groundHeights: ensureGround(options) };
   }
   /** The real ground's heights under the High pattern squares (TR-115), loaded once with the photo; null with the photo off. */
   let groundHeights = null;
@@ -1670,6 +1642,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     groundHeights?.dispose();
     groundHeights = null;
   }
+  const ensureTightTexture = (options) => tightTier.ensure(options);
 
   function ensureCoreTexture(options) {
     if (options.layerPhoto === false || !source.anchor?.() || win.document?.createElement === undefined) return null;
@@ -1909,7 +1882,6 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     midTier.dispose();
     patternMidTiers.forEach((t) => t.dispose());
     releaseGround();
-    releaseGroundTiles();
     tightTier.dispose();
     releaseCore();
     patchTexture?.dispose();
@@ -2080,9 +2052,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     const photoTex = ensurePhotoTexture(options);
     const outerTex = outerTier.ensure(options);
     const { midTex, patternMidTextures, groundHeights: ground } = ensureMiddle(options, isLow);
-    // The fixed sharp square (zoom 18, 6,144 px) is no longer drawn: on High the tiled ground reaches zoom 18 there (TR-122).
-    if (tightTier.canvas) tightTier.dispose();
-    const tightTex = null;
+    const tightTex = isLow ? null : ensureTightTexture(options);
     // The core airfield picture (4,096 px) only on Performance: on High the sharp square (zoom 18) covers the field and the
     // pattern squares (zoom 15) the rest of the core box, so it would only cost about 85 MB of graphics memory (TR-71).
     if (!isLow && coreCanvas) releaseCore();
@@ -2143,19 +2113,6 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       ? { yawDeg: Math.round(finite(freeCam.yawDeg)), tiltDeg: Math.round(90 + finite(freeCam.elevDeg)) }
       : { yawDeg: Math.round(finite(shown.yawDeg)), tiltDeg: Math.round(finite(shown.pitchDeg)) };
     if (facing.yawDeg !== lastFacing?.yawDeg || facing.tiltDeg !== lastFacing?.tiltDeg) { lastFacing = facing; onFacing(facing.yawDeg, facing.tiltDeg); }
-    // The tiled ground (TR-122): just under the other photos' height, tiles picked for this frame's camera.
-    const tiles = !isLow ? ensureGroundTiles(options) : null;
-    if (tiles) {
-      tiles.group.visible = true;
-      tiles.group.position.z = floor - 1.75;
-      tiles.group.updateMatrixWorld();
-      tiles.update({
-        camera: gl.shownCamera, viewportPx: canvas.height, viewportWidthPx: canvas.width, heights: ground,
-        opacity: (Number.isFinite(options.photoOpacityPct) ? options.photoOpacityPct : 100) / 100,
-      });
-    } else if (groundTiles) {
-      groundTiles.group.visible = false;
-    }
     renderer.render(threeScene, gl.shownCamera);
     if (pov?.hidden) pov.hidden.visible = true;
     drawLabels(ctx, labels, size, ratio, data, options, palette, { zoom: pov ? pov.labelZoom : shown.zoom, floor, skipId: pov?.hidden ? povTarget.id : null, noLocator: Boolean(pov) && PERSPECTIVE_VIEWS.has(viewMode) });
