@@ -321,6 +321,14 @@ export const CLOSE_TURN = Object.freeze({
    */
   followG: 0.5,
   bankOffDeg: 2.5,
+  /**
+   * Once Lead is wings level, out of place sideways he banks up to this far off Lead's to slide back (estimate). At 2.5° and
+   * 1 G he had about 1.4 ft/s² across, too little to stop the slide a 60° roll-out leaves him with: in route he ended 900 ft
+   * out (V2.226). 10° keeps him inside the judge's steady band (bands.js STEADY.bankOffDeg).
+   */
+  bankOffLevelDeg: 10,
+  /** How long after Lead's turn he may take to settle back on his place (estimate; it was 30 s, too short after a 60° roll-out). */
+  settleSec: 60,
   powerG: 0.1,
   onsetGps: 4,
   holdPerSec: 2.5,
@@ -360,7 +368,7 @@ export function holdInPlane(leadRec, lead, wing, body, leadSteps) {
   const al = turnAcc(lead);
   let acc = [aw[0] - al[0], aw[1] - al[1], 0];
   const rel = [{ x: r[0], y: r[1], z: r[2] }];
-  const last = leadSteps + Math.ceil(30 / dt);
+  const last = leadSteps + Math.ceil(CLOSE_TURN.settleSec / dt);
   let prev = placeAt(0);
   let now = placeAt(0);
   for (let i = 0; i < last; i++) {
@@ -385,7 +393,10 @@ export function holdInPlane(leadRec, lead, wing, body, leadSteps) {
     };
     const up = along(2, upMost);
     const lift = Math.max(0, G_FTPS2 / Math.cos(phi) + up); // his lift: Lead's (level turn) and the part he adds or takes off
-    const parts = [along(0, powerMost), along(1, Math.max(0.5, lift * Math.tan(CLOSE_TURN.bankOffDeg * DEG))), up];
+    // Wings level and out of place sideways, he banks further off to slide back, more the further out he is (up to 50 ft).
+    const sideGap = Math.abs(dot(axes[1], r) - dot(axes[1], now));
+    const offDeg = Math.abs(L.bankDeg) > 5 ? CLOSE_TURN.bankOffDeg : CLOSE_TURN.bankOffDeg + (CLOSE_TURN.bankOffLevelDeg - CLOSE_TURN.bankOffDeg) * Math.min(1, sideGap / 50);
+    const parts = [along(0, powerMost), along(1, Math.max(0.5, lift * Math.tan(offDeg * DEG))), up];
     const cmd = [0, 1, 2].map((j) => axes[0][j] * parts[0] + axes[1][j] * parts[1] + axes[2][j] * parts[2]);
     const step = cmd.map((c, j) => c - acc[j]);
     const jump = Math.hypot(...step);
