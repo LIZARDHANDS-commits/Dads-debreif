@@ -29,7 +29,7 @@
 // (docs/references/aetcman11-248-cockpit.md). The pictures are the T-6A's; the CT-156's own panel may differ.
 import {
   CT156_UNIT_LENGTH, CT156_LENGTH_FT, CT156_FRAME_X, CT156_SEAT_X, CT156_HELMET_Z, CT156_REFERENCE_POINTS,
-  CT156_TUB_FLOOR_FT, ct156CanopySection, ct156CanopyHalfWidth, ct156HoopPoints, ct156JoinGeometries,
+  CT156_TUB_FLOOR_FT, ct156CanopySection, ct156CanopyHalfWidth, ct156HoopPoints, ct156JoinGeometries, setCockpitView,
 } from './ct156-model.js';
 import { drawAttitude } from './hud.js';
 
@@ -1397,4 +1397,91 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document } = {}) {
       for (const c of canvases) c.width = c.height = 0;
     },
   };
+}
+
+// ---------- riding a ship from one of its seats ----------
+// Small helpers for a 3D view that puts its camera in a ship's seat, lifted from what Turn Sim and Turn Fight each do
+// (their syncCockpit and aimPov). The Debrief's Cockpit camera uses them (DB-21); moving Turn Sim, Turn Fight and Traffic
+// onto them is a separate tidy. A picture only: no flight numbers.
+
+/** How far the head turns from the nose when the view is dragged, degrees: left of the nose and up positive (Turn Sim's and Turn Fight's HEAD). */
+export const COCKPIT_HEAD = Object.freeze({ yawDeg: [-160, 160], pitchDeg: [-85, 80] });
+/** The view from a seat: 60° across, nothing nearer than 0.5 ft (inside the cockpit), out to 400,000 ft (Turn Sim's and Turn Fight's POV). */
+export const COCKPIT_VIEW = Object.freeze({ fovAcrossDeg: 60, nearFt: 0.5, farFt: 400_000 });
+
+/**
+ * One CT-156 cockpit (createCt156Cockpit) that moves from ship to ship: mount(root, seat) puts it in the ship `root`
+ * (a createCt156Model root built at its default length, its own scale setting its size, as Turn Sim and Turn Fight
+ * make them) seen from 'front' or 'rear', building it on first need; mount(null) takes it
+ * out and gives that ship back its outside look. update(hud) as createCt156Cockpit's. dispose() frees it.
+ * @param {any} THREE
+ * @param {{ doc?: Document }} [options]
+ */
+export function createCockpitMount(THREE, { doc = globalThis.document } = {}) {
+  let part = null;
+  let root = null;
+  let seat = null;
+  const unmount = () => {
+    if (!root) return;
+    setCockpitView(root, { seat: null });
+    part?.group.removeFromParent();
+    root = null;
+    seat = null;
+  };
+  return {
+    mount(nextRoot, nextSeat = 'front') {
+      const s = nextSeat === 'rear' ? 'rear' : 'front';
+      if (root && root !== nextRoot) unmount();
+      if (!nextRoot) return;
+      part ??= createCt156Cockpit(THREE, { doc });
+      if (root !== nextRoot || seat !== s) {
+        nextRoot.add(part.group);
+        setCockpitView(nextRoot, { seat: s });
+        root = nextRoot;
+        seat = s;
+      }
+    },
+    update: (hud, nowMs) => part?.update(hud, nowMs) ?? false,
+    get root() {
+      return root;
+    },
+    dispose() {
+      unmount();
+      part?.dispose();
+      part = null;
+    },
+  };
+}
+
+/** The eye of `seat` ('front' or 'rear', EYES_FT) of the ship `root` (a createCt156Model root, sized by its own scale) in world units, as a THREE.Vector3. */
+export function cockpitEyeWorld(THREE, root, seat = 'front') {
+  const eye = EYES_FT[seat] ?? EYES_FT.front;
+  root.updateMatrixWorld(true);
+  return root.localToWorld(new THREE.Vector3(eye.x, eye.y, eye.z).divideScalar(CT156_FT_PER_UNIT));
+}
+
+/**
+ * Points a PerspectiveCamera out of `seat` of the ship `root`: at the eye, along the nose turned by the head (yawDeg
+ * left, pitchDeg up, within COCKPIT_HEAD), rolling with the wings, COCKPIT_VIEW.fovAcrossDeg across a box `width` by
+ * `height` and nothing nearer than COCKPIT_VIEW.nearFt (in world units: the ship's own scale is the caller's).
+ */
+export function aimCockpitCamera(THREE, camera, root, { seat = 'front', yawDeg = 0, pitchDeg = 0, width = 1, height = 1, near = COCKPIT_VIEW.nearFt, far = COCKPIT_VIEW.farFt } = {}) {
+  /** @type {(v: number, range: readonly number[]) => number} */
+  const clampTo = (v, range) => Math.max(range[0], Math.min(range[1], v));
+  const eye = cockpitEyeWorld(THREE, root, seat);
+  const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(root.quaternion);
+  const up = new THREE.Vector3(0, 0, 1).applyQuaternion(root.quaternion);
+  camera.aspect = width / Math.max(height, 1);
+  camera.fov = Math.min(COCKPIT_VIEW.fovAcrossDeg, 2 * deg(Math.atan(Math.tan(rad(COCKPIT_VIEW.fovAcrossDeg / 2)) / camera.aspect)));
+  camera.near = near;
+  camera.far = far;
+  camera.updateProjectionMatrix();
+  camera.position.copy(eye);
+  camera.up.copy(up);
+  const dir = fwd.clone().applyAxisAngle(up, rad(clampTo(yawDeg, COCKPIT_HEAD.yawDeg)));
+  const right = dir.clone().cross(up).normalize();
+  dir.applyAxisAngle(right, rad(clampTo(pitchDeg, COCKPIT_HEAD.pitchDeg)));
+  camera.lookAt(eye.clone().add(dir));
+  camera.updateMatrixWorld(true);
+  return camera;
 }
