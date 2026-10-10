@@ -51,6 +51,8 @@ Built on DB-R1 to DB-R26, ratified by Patrick on 4 Oct (`pf/reset/1-requirements
 | DB-R24 Ships told apart by colour and number | The four colours and numbers; labels readable at 4,000 ft spacing zoomed out is a checklist look | Each change | Labels readable when the formation is close |
 | DB-R25 Files are untrusted | A script-tag name shows as text; an oversize file is refused with a message | Each change | |
 | DB-R26 Offline after one visit | Network off: the example flight plays; Satellite says it needs a connection | Each change | |
+| DB-R27 Gaps drawn as a flyable guess, never judged | `tests/unit/flight-data/gap-fill.test.js` (the PR's one test, DB-Q24): Lead's real, recorded level 88° turn in the example flight (fixes strictly between 18:55:12Z and 18:55:46Z deleted, 34 s, track 119° to 031°, 259 to 267 kt ground speed, about 12,250 ft) is filled and compared with the deleted fixes. Expected from standard aerodynamics on that data: turn rate 88° ÷ 34 s = 2.6°/s, V = 444 ft/s, tan(bank) = V × rate ÷ g gives about 32° and 1.18 G, radius about 9,800 ft, and the chord misses the arc's middle by R(1 − cos 44°) ≈ 2,760 ft. Checks: every second within 500 ft of the deleted real fix (about 1.1 s of flight, under a fifth of the chord's miss: a looser margin than the shared table because the fill is a guess and 500 ft still tells an arc from the chord); the middle of the fill on the arc's side of the chord, at least 1,380 ft from it (half the chord's miss); bank 32° ± 5° and G 1.18 ± 0.5 (shared table); roll rate never over 0.45°/s per KTAS (the T-6 limit, a physical limit); height within ± 100 ft of the recorded (shared table); every filled moment marked estimated, and the flight model still says "in a gap" there | Each change | Load the example flight: at 18:47:46Z #1's 87° turn is a dotted curve in a shaded zone, not a straight line; turn the fill off: the broken line is back |
+| DB-R28 Ride any seat in 3D | none (DB-Q24 picked the gap test as the one test; the view is checked by eye) | | Cockpit, #1 front seat: a left turn tilts the horizon with the left wing low, a climb puts the nose above it, the panel says "attitude estimated from the GPS track"; in a filled gap the caption says "GPS gap: estimated path"; the rear seat looks over the front seat |
 
 **At Debrief sign-off:** the full Debrief browser file, the hands-on checklist above, and one look in real Safari at the 3D view.
 
@@ -71,6 +73,8 @@ Anyone can run it, in the real app, from the module's default start, on a laptop
 - [ ] Weather looks right for a flight you remember (DB-R18)
 - [ ] Nothing on screen you don't need first (DB-R21)
 - [ ] Labels readable when the formation is close (DB-R24)
+- [ ] A gap is drawn as a dotted best guess in a shaded zone, the ship marked "est.", and the readouts still say "GPS gap"; Layers → Fill GPS gaps off brings back the broken line (DB-R27)
+- [ ] Ride #1's front seat, then #2's rear seat, through a turn and through a filled gap (DB-R28)
 
 > The old checklist below was written before the reset. It is refreshed against the requirements above when the module's work resumes: lines that test V6 numbers or exact times are rewritten or dropped.
 
@@ -186,4 +190,5 @@ From the ratified test register (`pf/reset/5-testing/test-register.md`, Part B).
 | `tests/unit/debrief/weather-slices.test.js` | Keep | DB-R18 | | Each change |
 | `tests/unit/debrief/weather-wind-arrows.test.js` | Keep | DB-R18; one value worked out by hand from the fixture (`:327-342`), the model T3 asks for | | Each change |
 | `tests/unit/debrief/weather-winds.test.js` | Keep | DB-R8, DB-R18; real recorded replies used as input, forecast values not pinned (D7) | | Each change |
+| `tests/unit/flight-data/gap-fill.test.js` | New (10 Oct 2026) | DB-R27; Lead's real 88° turn with its middle cut out, expected values from standard aerodynamics on the recorded data (T3) | | Each change |
 | `tests/e2e/debrief.spec.js` | Keep, with changes | All 63 pass at `6283f38`. Changes: about 5 checks labelled as V6's values (route count "V6's 19", V6's amber, the default camera −35/52/70, the tennis settings 350, 6, 3, 250) are re-sourced to the spec's defaults or changed to check behaviour (T3); the saved-radar tests leave with that feature (DB-Q19); the METAR "specials a second later" check stays as a request-spacing rule (Q-T9, decided) | Defaults are checked against the spec's stated defaults with their sources, not against V6 | Smoke, layout, buttons and offline parts each change; the whole file at sign-off |
