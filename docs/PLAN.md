@@ -158,6 +158,8 @@ After Traffic is signed off, the Turn Sim review runs before any Turn Sim buildi
 
 - [ ] **Dad's whole-tool ideas (8 Oct 2026; `docs/FUTURE.md`):** (1) remove the Dad/Pat tags and credit both as co-founders and co-creators in About; (2) a new name for the tool that works for both; (3) AFMAN 11-248 (USAF T-6) as an option throughout, beside the RCAF references. Working answer: nothing changes until Patrick decides.
 
+- [ ] **Your CYMJ runway points now live in two places (Debrief V2.218, DB-26, Dad's ask 10 Oct 2026):** the shared runway list (`src/airfields/runway-ends.js`, which the Debrief and the SOF draw) holds your measured 29L, 29R and 03/21 ends, turned into latitude and longitude from Traffic's map feet (`src/modules/traffic/airfield.js`, TR-67) by `tools/cifp-runways.mjs` about Traffic's field origin. Options: (a) leave both, re-running the tool whenever Traffic's points change (working answer); (b) Traffic reads the shared list instead, so there is one copy; (c) something else. Also to confirm: the DB-26 wording, the 6.2 ft wheel height under the model (estimate) and "From the tracks" as the Debrief's default Ground.
+
 SOF items below are Dad's to decide (SOF-47, 7 Oct 2026); they stay listed here until he answers.
 
 - [ ] **Offline cache and the US airspace files (Dad's session, 8 Oct; SOF-53):** `tools/service-worker.mjs` (shared tooling) keeps every built file for offline use, so first visits still fetch all eight airspace files (about 525 KB gzipped) in the background. A skip rule like the one for `examples/` would stop it. Working answer: left as is.

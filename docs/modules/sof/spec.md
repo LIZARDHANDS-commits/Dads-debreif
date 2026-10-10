@@ -329,7 +329,7 @@ src/modules/sof/
   sof.css
   README.md      what each file does and where to change common things (R8)
 src/airfields/airspace/  the airspace data (DAH and FAA files, one loader per base in areas.js), its checks and the kinds filter, shared with the Debrief (SOF-62)
-src/airfields/airports-data.js  the runway list the 3D airfields and the crosswind check read (SOF-62)
+src/airfields/airports-data.js  the runway list the 3D airfields and the crosswind check read (SOF-62); its ends from the best source, each runway tagged (runway-ends.js, written by tools/cifp-runways.mjs: Patrick's points at CYMJ, FAA CIFP at the US fields, OurAirports elsewhere; headings stay OurAirports'; SOF-63, DB-26)
 src/ui-kit/airspace3d.js, airfield3d.js  the 3D airspace and airfield drawing, shared with the Debrief (SOF-62)
 tests/unit/sof/  one test file per pure file
 tests/fixtures/sof/  captured replies: MET Norway, Datamask, ECCC layer times and images, RainViewer

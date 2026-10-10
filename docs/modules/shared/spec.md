@@ -1095,7 +1095,8 @@ src/airfields/
   minima.js        CAP GEN table, trade-offs, "whichever is greater", rounding, landing minima
   distance.js      great-circle distance in NM
   panel.js         the Settings section (R22)
-  airports-data.js the runways (OurAirports) the 3D airfields and the SOF's crosswind check read (SOF-62)
+  airports-data.js the runways the 3D airfields and the SOF's crosswind check read (SOF-62): OurAirports' list with the best ends laid over (DB-26)
+  runway-ends.js   the best runway ends, written by tools/cifp-runways.mjs: Patrick's points at CYMJ (from Traffic's airfield.js), FAA CIFP at the US fields (DB-26)
   airspace/        the airspace the SOF and the Debrief draw (SOF-62, DB-24): data.js, dah/, faa/, model.js, filter.js, load.js, areas.js
   README.md        what each file does, and how to add a built-in airfield
 tests/unit/airfields/
