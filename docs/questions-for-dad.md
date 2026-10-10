@@ -123,6 +123,11 @@ Each item names the thread that raised it and where the detail is.
 - **Why we ask:** when a straight-in has to give way to an aircraft in the final turn, it moves over between the runways and goes around (SMM 4.21 paras 50-51). The tool moves it halfway to 29R.
 - **Now:** 500 ft, half of the roughly 1,000 ft gap in the 3D scenery drawing (an estimate, Patrick's card 4 Oct 11:24Z).
 
+**11. Names for two landmarks south of the field (Traffic, TR-118)**
+- **Question:** What do you call the cattle feedlot about 2 NM south of the field (3,800 ft east of the field), and the farmstead with three Quonsets north-west of the crossroads about 2.2 NM south-south-west? Are they used as landmarks?
+- **Why we ask:** they are drawn in the 3D view and need the names pilots use.
+- **Now:** "South Feedlot" and "Crossroads Farm", working names.
+
 ### Turn Sim
 
 **9. The 4312 picture (plan doc Q31)**

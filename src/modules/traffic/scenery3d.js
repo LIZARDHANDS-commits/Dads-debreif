@@ -14,6 +14,9 @@
 // Textures and sprites need a canvas, so they exist only in a browser; with no document (the Node
 // tests) every building falls back to plain colours and no sprites are made.
 
+import { createFlightlineBuildings } from './flightline-buildings3d.js';
+import { batchByMaterial } from './batch3d.js';
+import { addFacade, faceToward, facadeMeshes } from './facade3d.js';
 import { RUNWAY_29L_HDG_DEG, THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_29R, DEPARTURE_END_29R, RUNWAY_03, RUNWAY_21, RUNWAY_WIDTH_FT, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
 
 export const DEFAULT_FLOOR_FT = THRESHOLD_DATA_ELEV_FT;
@@ -81,33 +84,38 @@ export const CYMJ_BUILDING_COORDS = Object.freeze({
  */
 export const CYMJ_EXTRA_BUILDINGS = Object.freeze([
   Object.freeze({
-    id: 'main-building', name: 'Glass Palace (2 CFFTS HQ)', type: 'building', x: 860, y: 2580, height: 52,
+    // TR-121 (Patrick, 10 Oct, street view from the north and an oblique photo): two storeys in the middle under the curved
+    // glass, one-storey wings north-east and south-east (read off the roof's sun shadows), white cladding on a dark base,
+    // the curved glass a band sloping down the west face, and plant boxes on the roof. Heights are estimates.
+    id: 'main-building', name: 'Glass Palace (2 CFFTS HQ)', type: 'building', x: 860, y: 2580, height: 32,
     rotation: 0,
-    footprint: Object.freeze([[-88, 114], [84, 168], [146, 64], [67, 19], [137, -108], [106, -126], [-65, -180]]),
+    footprint: Object.freeze([[-88, 114], [15, 146], [67, 19], [-1, -42], [46, -155], [-65, -180]]),
+    wings: Object.freeze([
+      Object.freeze({ height: 20, footprint: Object.freeze([[15, 146], [84, 168], [146, 64], [67, 19]]) }),
+      Object.freeze({ height: 20, footprint: Object.freeze([[-1, -42], [67, 19], [137, -108], [106, -126], [46, -155]]) }),
+    ]),
     glassCurve: Object.freeze([[-96, -152], [-127, -116], [-147, -79], [-154, -17], [-138, -3], [-127, 31], [-116, 65]]),
-    badge: Object.freeze([-70, -37]),
-    roof: '#d8dadc', wall: '#c9ccd0', accent: '#c8102e',
+    glassBand: Object.freeze({ widthFt: 25, lowFt: 14 }),
+    badge: Object.freeze([-50, -37]),
+    roof: '#d6d3cb', wall: '#eceeef', accent: '#c8102e',
   }),
   Object.freeze({
-    // Moved onto the blue U roof in the true-scale photo (5 Oct, about ±20 ft): it sat about 250 ft west of it, open the wrong way.
-    id: 'barracks-u', name: 'Student Barracks', type: 'barracks', x: -35, y: 3319, height: 34, rotation: 3.56,
-    roof: '#0d9488', wall: '#f1f5f9', accent: '#0f766e',
+    // Retraced on the true-scale photo (TR-123; Patrick, 10 Oct: "the shape is wrong, colors are wrong, and it doesnt fill its
+    // footprint"): a spine along the south-east side and two wings running north-north-west, the U open that way, under light-blue
+    // metal gable roofs (ridge down the middle of each part, as the photo's light and dark roof halves show). ±5 ft; heights estimates.
+    // x, y: the spine's middle; rotation: the spine's direction (0.452 rad, 26°).
+    id: 'barracks-u', name: 'Student Barracks', type: 'barracks', x: -15, y: 3275, height: 30, rotation: 0.452,
+    spine: Object.freeze({ length: 222, depth: 50 }),
+    wings: Object.freeze([Object.freeze({ x: -87.5, length: 193, width: 47 }), Object.freeze({ x: 87.5, length: 193, width: 47 })]),
+    roofRise: 8,
+    roof: '#56b4dc', wall: '#eef0ef', accent: '#3d8fb8',
   }),
   Object.freeze({
     id: 'base-rec-center', name: 'Base Fitness & Rec Centre', type: 'building', x: 362, y: 2808, height: 34, rotation: -0.22,
     footprint: Object.freeze([[-100, -62], [100, -62], [100, 62], [-100, 62]]),
     roof: '#d6d8db', wall: '#e2e8f0', accent: '#3b82f6',
   }),
-  Object.freeze({
-    id: 'hangar-5', name: 'Hangar 5', type: 'building', x: 1897, y: 2554, height: 48, rotation: -0.70,
-    footprint: Object.freeze([[-126, -100], [126, -100], [126, 100], [-126, 100]]),
-    roof: '#9aa3ad', wall: '#e7ebef', accent: '#1d4ed8',
-  }),
-  Object.freeze({
-    id: 'hangar-6', name: 'Hangar 6', type: 'building', x: 2104, y: 2772, height: 48, rotation: -0.79,
-    footprint: Object.freeze([[-132, -83], [132, -83], [132, 83], [-132, 83]]),
-    roof: '#9aa3ad', wall: '#e7ebef', accent: '#0f766e',
-  }),
+  // Hangars 5 and 6 moved to flightline-buildings3d.js with their real roofs, walls and doors (TR-122).
   Object.freeze({
     id: 'flightline-dark', type: 'building', x: 1290, y: 2440, height: 32, rotation: 0, label: false,
     footprint: Object.freeze([[-111, -72], [91, -72], [91, 40], [21, 40], [21, 74], [-111, 74]]),
@@ -690,9 +698,9 @@ function createBoxBuilding(THREE, spec, floor) {
 }
 
 /**
- * The 2 CFFTS "Glass Palace": traced from the satellite footprint (Patrick's red outline, 3 Oct).
- * An extruded body on the real outline; the south-east side (facing the ramp) is one curved glass curtain wall,
- * and "THE BIG 2 - BEST IN THE WEST" patch sits on the roof.
+ * The 2 CFFTS "Glass Palace" (CAE Building 160), on its traced outline (Patrick's red outline, 3 Oct; checked on the
+ * true-scale photo 10 Oct): the two-storey middle, the one-storey wings, the curved glass sloping down the west face from
+ * the roof to a glass wall `glassBand.lowFt` high, plant boxes on the roof and "THE BIG 2 - BEST IN THE WEST" patch (TR-121).
  */
 function createGlassPalace(THREE, spec, floor, kit) {
   const group = new THREE.Group();
@@ -700,35 +708,57 @@ function createGlassPalace(THREE, spec, floor, kit) {
   group.userData = { type: 'building', ...spec };
   group.position.set(spec.x, spec.y, floor);
   group.rotation.z = spec.rotation ?? 0;
-  const h = spec.height ?? 52;
+  const h = spec.height ?? 32;
+  const band = spec.glassBand;
 
-  // Footprint: the straight back walls, then the curved glass front sampled from a smooth curve.
+  const roofMat = new THREE.MeshStandardMaterial({ color: spec.roof, roughness: 0.75, metalness: 0.05 });
+  const wallMat = new THREE.MeshStandardMaterial({ color: spec.wall, roughness: 0.7, metalness: 0.05, side: THREE.DoubleSide });
+  const baseMat = new THREE.MeshStandardMaterial({ color: '#6b7075', roughness: 0.8 });
+  const extrude = (pts, height, name, mats = [roofMat, wallMat]) => {
+    const geo = new THREE.ExtrudeGeometry(new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y))), { depth: height, bevelEnabled: false });
+    const mesh = new THREE.Mesh(geo, mats);
+    mesh.name = name;
+    group.add(mesh);
+    return mesh;
+  };
+
+  // The curved front: the outer edge on the photo's outline, the inner edge band.widthFt in, where the roof starts.
   const curve = new THREE.CatmullRomCurve3(spec.glassCurve.map(([x, y]) => new THREE.Vector3(x, y, 0)));
-  const arc = curve.getPoints(24);
-  const outline = [...spec.footprint.map(([x, y]) => new THREE.Vector2(x, y)), ...arc.map((p) => new THREE.Vector2(p.x, p.y))];
+  const outer = curve.getPoints(24);
+  const inner = outer.map((p, i) => {
+    const a = outer[Math.max(0, i - 1)];
+    const b = outer[Math.min(outer.length - 1, i + 1)];
+    const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    return new THREE.Vector3(p.x + ((b.y - a.y) / len) * band.widthFt, p.y - ((b.x - a.x) / len) * band.widthFt, 0); // right of travel: inward
+  });
+  const mainPts = [...spec.footprint, ...inner.map((p) => [p.x, p.y])];
+  extrude(mainPts, h, `${spec.id}-body`);
+  spec.wings.forEach((w, i) => extrude(w.footprint, w.height, `${spec.id}-wing-${i + 1}`));
+  // A dark base band 3 ft high round every part.
+  extrude([...spec.footprint, ...outer.map((p) => [p.x, p.y])], 3, `${spec.id}-base`, [baseMat, baseMat]).scale.set(1.004, 1.004, 1);
+  for (const w of spec.wings) extrude(w.footprint, 3, `${spec.id}-wing-base`, [baseMat, baseMat]).scale.set(1.006, 1.006, 1);
 
-  const roofMat = new THREE.MeshStandardMaterial({ color: spec.roof, roughness: 0.6, metalness: 0.1 });
-  const wallMat = new THREE.MeshStandardMaterial({ color: spec.wall, roughness: 0.7, metalness: 0.05 });
-  const bodyGeo = new THREE.ExtrudeGeometry(new THREE.Shape(outline), { depth: h, bevelEnabled: false });
-  const body = new THREE.Mesh(bodyGeo, [roofMat, wallMat]);
-  body.name = `${spec.id}-body`;
-  group.add(body);
-
-  // The glass skin: a ribbon 1 ft proud of the curved front, the full height of the building.
+  // The glass: a wall band.lowFt high on the outer edge, then the slope up to the roof on the inner edge, and white end caps.
   const pos = [];
   const uv = [];
   const idx = [];
-  arc.forEach((p, i) => {
-    pos.push(p.x, p.y, 0, p.x, p.y, h);
-    uv.push(i / (arc.length - 1), 0, i / (arc.length - 1), 1);
-    if (i > 0) { const a = (i - 1) * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+  const n = outer.length;
+  outer.forEach((p, i) => {
+    const q = inner[i];
+    const u = i / (n - 1);
+    pos.push(p.x, p.y, 0, p.x, p.y, band.lowFt, q.x, q.y, h);
+    uv.push(u, 0, u, 0.45, u, 1);
+    if (i > 0) {
+      const a = (i - 1) * 3;
+      const b = i * 3;
+      idx.push(a, b, a + 1, a + 1, b, b + 1, a + 1, b + 1, a + 2, a + 2, b + 1, b + 2);
+    }
   });
   const glassGeo = new THREE.BufferGeometry();
   glassGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   glassGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   glassGeo.setIndex(idx);
   glassGeo.computeVertexNormals();
-  glassGeo.scale(1.004, 1.004, 1);
   const glassMat = new THREE.MeshStandardMaterial({
     color: kit.glass ? '#ffffff' : '#62a8d3', map: kit.glass ?? null,
     roughness: 0.15, metalness: 0.5, side: THREE.DoubleSide,
@@ -736,8 +766,52 @@ function createGlassPalace(THREE, spec, floor, kit) {
   const glass = new THREE.Mesh(glassGeo, glassMat);
   glass.name = `${spec.id}-glass-wall`;
   group.add(glass);
+  const capPos = [];
+  for (const i of [0, n - 1]) {
+    const p = outer[i];
+    const q = inner[i];
+    capPos.push(p.x, p.y, 0, p.x, p.y, band.lowFt, q.x, q.y, h, p.x, p.y, 0, q.x, q.y, h, q.x, q.y, 0);
+  }
+  const capGeo = new THREE.BufferGeometry();
+  capGeo.setAttribute('position', new THREE.Float32BufferAttribute(capPos, 3));
+  capGeo.computeVertexNormals();
+  const caps = new THREE.Mesh(capGeo, wallMat);
+  caps.name = `${spec.id}-glass-ends`;
+  group.add(caps);
 
-  const big2 = createBig2Badge(THREE, 130);
+  // Plant boxes on the two-storey roof, scattered as the photo shows them (a repeatable scatter, positions an estimate).
+  const inside = (x, y) => {
+    let hit = false;
+    for (let a = 0, b = mainPts.length - 1; a < mainPts.length; b = a++) {
+      const [xa, ya] = mainPts[a];
+      const [xb, yb] = mainPts[b];
+      if ((ya > y) !== (yb > y) && x < ((xb - xa) * (y - ya)) / (yb - ya) + xa) hit = !hit;
+    }
+    return hit;
+  };
+  let seed = 160;
+  const roll = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+  const unitGeo = new THREE.BoxGeometry(9, 7, 5);
+  unitGeo.translate(0, 0, h + 2.5);
+  const unitMat = new THREE.MeshStandardMaterial({ color: '#b9bcbe', roughness: 0.6, metalness: 0.3 });
+  const spots = [];
+  for (let k = 0; k < 400 && spots.length < 26; k++) {
+    const x = -150 + roll() * 230;
+    const y = -170 + roll() * 310;
+    if (!inside(x, y) || !inside(x - 12, y) || !inside(x + 12, y) || !inside(x, y - 12) || !inside(x, y + 12)) continue;
+    if (Math.hypot(x - spec.badge[0], y - spec.badge[1]) < 70) continue;
+    spots.push([x, y]);
+  }
+  const units = new THREE.InstancedMesh(unitGeo, unitMat, spots.length);
+  units.name = `${spec.id}-roof-units`;
+  const m = new THREE.Matrix4();
+  spots.forEach(([x, y], k) => {
+    m.makeTranslation(x, y, 0);
+    units.setMatrixAt(k, m);
+  });
+  group.add(units);
+
+  const big2 = createBig2Badge(THREE, 120);
   if (big2) {
     big2.position.set(spec.badge[0], spec.badge[1], h + 0.5);
     group.add(big2);
@@ -746,9 +820,9 @@ function createGlassPalace(THREE, spec, floor, kit) {
 }
 
 /**
- * The U-Shaped Student Barracks Quarters north of the tower:
- * A distinctive 3-wing dormitory complex with a bright teal/green roof,
- * white walls with window bands, rooftop ventilation units, and an inner courtyard lawn.
+ * The Student Barracks (TR-123): a U of three parts, each white walls with window bands under a light-blue metal gable roof
+ * whose ridge runs along the part, rooftop units, and the courtyard lawn inside the U. The spine lies along local x; the wings
+ * run from its inner (local +y) edge.
  */
 function createBarracksU(THREE, spec, floor, kit) {
   const group = new THREE.Group();
@@ -757,107 +831,58 @@ function createBarracksU(THREE, spec, floor, kit) {
   group.position.set(spec.x, spec.y, floor);
   group.rotation.z = spec.rotation ?? 0;
 
-  const h = spec.height ?? 34;
-  const spineW = 250;
-  const spineD = 46;
-  const wingW = 44;
-  const wingD = 140;
-
+  const h = spec.height ?? 30;
+  const rise = spec.roofRise ?? 8;
   const wallMat = new THREE.MeshStandardMaterial({
-    color: kit.barracksWall ? '#ffffff' : '#f1f5f9',
-    map: kit.barracksWall ?? null,
-    roughness: 0.65,
-    metalness: 0.05,
+    color: kit.barracksWall ? '#ffffff' : spec.wall, map: kit.barracksWall ?? null, roughness: 0.65, metalness: 0.05,
   });
-  const roofMat = new THREE.MeshStandardMaterial({
-    color: spec.roof ?? '#0d9488',
-    roughness: 0.5,
-    metalness: 0.2,
+  const roofMat = new THREE.MeshStandardMaterial({ color: spec.roof, roughness: 0.4, metalness: 0.35, side: THREE.DoubleSide });
+  const trimMat = new THREE.MeshStandardMaterial({ color: spec.accent, roughness: 0.4, metalness: 0.3 });
+
+  /** One part: walls `across` x `along`, its centre (cx, cy), the ridge along local y when `ridgeAlongY`, else along x. */
+  const part = (name, cx, cy, sx, sy, ridgeAlongY) => {
+    const walls = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, h).translate(cx, cy, h / 2), wallMat);
+    walls.name = `${spec.id}-${name}`;
+    group.add(walls);
+    const across = ridgeAlongY ? sx : sy;
+    const along = ridgeAlongY ? sy : sx;
+    const shape = new THREE.Shape([new THREE.Vector2(-across / 2 - 1.5, 0), new THREE.Vector2(across / 2 + 1.5, 0), new THREE.Vector2(0, rise)]);
+    const roofGeo = new THREE.ExtrudeGeometry(shape, { depth: along + 3, bevelEnabled: false });
+    roofGeo.rotateX(Math.PI / 2); // the prism's length along local y
+    roofGeo.translate(0, (along + 3) / 2, h);
+    if (!ridgeAlongY) roofGeo.rotateZ(Math.PI / 2);
+    roofGeo.translate(cx, cy, 0);
+    const roof = new THREE.Mesh(roofGeo, roofMat);
+    roof.name = `${spec.id}-${name}-roof`;
+    group.add(roof);
+    const fascia = new THREE.Mesh(new THREE.BoxGeometry(sx + 2, sy + 2, 1.5).translate(cx, cy, h - 0.75), trimMat);
+    fascia.name = `${spec.id}-${name}-fascia`;
+    group.add(fascia);
+  };
+
+  const S = spec.spine;
+  part('spine', 0, 0, S.length, S.depth, false);
+  spec.wings.forEach((w, i) => part(`wing-${i + 1}`, w.x, S.depth / 2 + w.length / 2, w.width, w.length, true));
+
+  // Rooftop units along the ridges.
+  const hvacMat = new THREE.MeshStandardMaterial({ color: '#94a3b8', roughness: 0.5, metalness: 0.4 });
+  const units = [[-60, 0], [0, 0], [60, 0], ...spec.wings.flatMap((w) => [[w.x, S.depth / 2 + w.length * 0.3], [w.x, S.depth / 2 + w.length * 0.7]])];
+  units.forEach(([ux, uy], k) => {
+    const unit = new THREE.Mesh(new THREE.BoxGeometry(8, 10, 4).translate(ux, uy, h + rise - 1), hvacMat);
+    unit.name = `${spec.id}-hvac-${k + 1}`;
+    group.add(unit);
   });
-  const parapetMat = new THREE.MeshStandardMaterial({
-    color: spec.accent ?? '#0f766e',
-    roughness: 0.4,
-    metalness: 0.3,
-  });
 
-  const materials = [wallMat, wallMat, wallMat, wallMat, roofMat, roofMat];
-
-  // 1. Main back spine
-  const spineGeo = new THREE.BoxGeometry(spineW, spineD, h);
-  spineGeo.translate(0, 0, h / 2);
-  const spineMesh = new THREE.Mesh(spineGeo, materials);
-  spineMesh.name = `${spec.id}-spine`;
-  spineMesh.position.set(0, 60, 0);
-  group.add(spineMesh);
-
-  const spineRimGeo = new THREE.BoxGeometry(spineW + 2, spineD + 2, 2.5);
-  spineRimGeo.translate(0, 0, 1.25);
-  const spineRim = new THREE.Mesh(spineRimGeo, parapetMat);
-  spineRim.name = `${spec.id}-spine-rim`;
-  spineRim.position.set(0, 60, h);
-  group.add(spineRim);
-
-  // 2. West (left) wing
-  const westGeo = new THREE.BoxGeometry(wingW, wingD, h);
-  westGeo.translate(0, 0, h / 2);
-  const westMesh = new THREE.Mesh(westGeo, materials);
-  westMesh.name = `${spec.id}-west-wing`;
-  westMesh.position.set(-103, -10, 0);
-  group.add(westMesh);
-
-  const westRimGeo = new THREE.BoxGeometry(wingW + 2, wingD + 2, 2.5);
-  westRimGeo.translate(0, 0, 1.25);
-  const westRim = new THREE.Mesh(westRimGeo, parapetMat);
-  westRim.name = `${spec.id}-west-rim`;
-  westRim.position.set(-103, -10, h);
-  group.add(westRim);
-
-  // 3. East (right) wing
-  const eastGeo = new THREE.BoxGeometry(wingW, wingD, h);
-  eastGeo.translate(0, 0, h / 2);
-  const eastMesh = new THREE.Mesh(eastGeo, materials);
-  eastMesh.name = `${spec.id}-east-wing`;
-  eastMesh.position.set(103, -10, 0);
-  group.add(eastMesh);
-
-  const eastRimGeo = new THREE.BoxGeometry(wingW + 2, wingD + 2, 2.5);
-  eastRimGeo.translate(0, 0, 1.25);
-  const eastRim = new THREE.Mesh(eastRimGeo, parapetMat);
-  eastRim.name = `${spec.id}-east-rim`;
-  eastRim.position.set(103, -10, h);
-  group.add(eastRim);
-
-  // 4. Rooftop HVAC units
-  const hvacMat = new THREE.MeshStandardMaterial({ color: '#64748b', roughness: 0.5, metalness: 0.4 });
-  const hvacPositions = [
-    [-60, 60], [60, 60], [-103, 10], [-103, -40], [103, 10], [103, -40],
-  ];
-  for (let i = 0; i < hvacPositions.length; i++) {
-    const [hx, hy] = hvacPositions[i];
-    const hvacGeo = new THREE.BoxGeometry(10, 12, 5);
-    hvacGeo.translate(0, 0, 2.5);
-    const hvacMesh = new THREE.Mesh(hvacGeo, hvacMat);
-    hvacMesh.name = `${spec.id}-hvac-${i + 1}`;
-    hvacMesh.position.set(hx, hy, h);
-    group.add(hvacMesh);
-  }
-
-  // 5. Courtyard lawn plane
-  const lawnGeo = new THREE.PlaneGeometry(158, 136);
-  const lawnMat = new THREE.MeshStandardMaterial({
-    color: '#15803d',
-    roughness: 0.9,
-    metalness: 0.05,
-    side: THREE.DoubleSide,
-    polygonOffset: true,
-    polygonOffsetFactor: -1,
-    polygonOffsetUnits: -1,
-  });
-  const lawnMesh = new THREE.Mesh(lawnGeo, lawnMat);
-  lawnMesh.name = `${spec.id}-courtyard-lawn`;
-  lawnMesh.position.set(0, -10, 0.2);
-  group.add(lawnMesh);
-
+  // The courtyard lawn between the wings.
+  const inner = spec.wings[1].x - spec.wings[0].x - (spec.wings[0].width + spec.wings[1].width) / 2;
+  const lawnLen = Math.min(...spec.wings.map((w) => w.length));
+  const lawn = new THREE.Mesh(
+    new THREE.PlaneGeometry(inner, lawnLen),
+    new THREE.MeshStandardMaterial({ color: '#3f7d3a', roughness: 0.95, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
+  );
+  lawn.name = `${spec.id}-courtyard-lawn`;
+  lawn.position.set((spec.wings[0].x + spec.wings[1].x) / 2, S.depth / 2 + lawnLen / 2, 0.2);
+  group.add(lawn);
   return group;
 }
 
@@ -883,7 +908,12 @@ export function createAirfieldScenery(THREE, { floor = DEFAULT_FLOOR_FT, anchor 
   root.add(tower);
 
   const hangars = [];
+  // Hangars 1 to 3 are flat-roofed (TR-121, flightline-buildings3d.js) with the Canex, the hall and Medical; Hangar 4 keeps its arch.
+  const flightline = createFlightlineBuildings(THREE, floor);
+  root.add(flightline.group);
+  hangars.push(...flightline.hangars);
   CYMJ_BUILDING_COORDS.hangars.forEach((hCoord, i) => {
+    if (flightline.hangars.some((h) => h.name === hCoord.id)) return;
     const hangar = createArchHangar(THREE, hCoord, floor, kit, HANGAR_LOOKS[i % HANGAR_LOOKS.length], hCoord.name);
     hangars.push(hangar);
     root.add(hangar);
@@ -900,6 +930,21 @@ export function createAirfieldScenery(THREE, { floor = DEFAULT_FLOOR_FT, anchor 
     return createBoxBuilding(THREE, spec, floor);
   });
   for (const b of buildings) root.add(b);
+
+  // Windows and a door on the plain rectangular buildings (TR-132).
+  const out = { glass: [], doors: [] };
+  for (const spec of CYMJ_EXTRA_BUILDINGS) {
+    if (spec.id === 'main-building' || spec.id === 'barracks-u' || spec.footprint?.length !== 4) continue;
+    const xs = spec.footprint.map(([x]) => x), ys = spec.footprint.map(([, y]) => y);
+    const b = { cx: spec.x, cy: spec.y, w: Math.max(...xs) - Math.min(...xs), d: Math.max(...ys) - Math.min(...ys), rot: spec.rotation ?? 0, h: spec.height - 6 };
+    addFacade(out, b, { kind: 'office', doorFace: faceToward(b, 0, -1) });
+  }
+  const boxFacades = facadeMeshes(THREE, out, 'box-building-facades');
+  boxFacades.position.z = floor;
+  root.add(boxFacades);
+
+  // Fewer draw calls (TR-127): each building's plain-coloured pieces merged by colour, in place.
+  for (const b of [...flightline.group.children, ...hangars.filter((h) => h.parent === root), ...buildings]) batchByMaterial(THREE, b);
 
   root.userData.tower = tower;
   root.userData.hangars = hangars;

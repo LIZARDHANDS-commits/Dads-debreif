@@ -4,6 +4,7 @@
 // Every geometry and material is freed by disposeLandmarks (D411). Trees are one InstancedMesh (one draw call).
 
 import { makeLocalRef, latLonToLocalFt } from '../../core/geo.js';
+import { batchByMaterial } from './batch3d.js';
 import { THRESHOLD_DATA_ELEV_FT } from './airfield.js';
 
 const ARP = makeLocalRef(50.3303, -105.5592);
@@ -15,6 +16,11 @@ export const CYMJ_LANDMARKS = Object.freeze([
   Object.freeze({ id: 'sukanen-ship', name: 'Sukanen Ship (red roof)', kind: 'museum', lat: 50.28107901208548, lon: -105.53911866067092, source: 'EFIG p.185, 211; Patrick pin' }),
   Object.freeze({ id: 'fiat-farm', name: 'Auto Wrecker (Fiat Farm)', kind: 'wrecker', lat: 50.259722414439366, lon: -105.50834482311059, source: 'EFIG p.131, 185, 211; Patrick pin' }),
   Object.freeze({ id: 'arrow-trees', name: 'Arrow Tree Rows', kind: 'arrow', lat: 50.262255452976014, lon: -105.48630553284724, source: 'EFIG p.131, 185, 211; Patrick pin' }),
+  // Patrick, 10 Oct: "3d models for these building groups. the first one is a lot of cows"; camera parked on each (TR-118). The name is a working name.
+  Object.freeze({ id: 'south-feedlot', name: 'South Feedlot (cattle)', kind: 'cattle', lat: 50.2974064, lon: -105.5428827, source: 'Patrick, 10 Oct (camera on it); traced off Esri' }),
+  Object.freeze({ id: 'crossroads-farm', name: 'Crossroads Farm', kind: 'farmstead', lat: 50.2961729, lon: -105.5819583, source: 'Patrick, 10 Oct (camera on it); traced off Esri' }),
+  // Patrick, 10 Oct: "build a VOR antenna on this circle"; camera parked on it, the hut traced off Esri (977 ft W, 294 ft N of the ARP) (TR-119).
+  Object.freeze({ id: 'vor', name: 'VOR', kind: 'vor', lat: 50.3311059, lon: -105.5633953, source: 'Patrick, 10 Oct (camera on it); traced off Esri' }),
 ].map((l) => Object.freeze({ ...l, ...at(l.lat, l.lon) })));
 
 // ---------------------------------------------------------------------------
@@ -28,13 +34,13 @@ function box(THREE, w, d, h, mat, x, y, name) {
   return m;
 }
 
-/** A gable-roofed shed: walls box plus a prism roof. */
-function shed(THREE, w, d, h, wallMat, roofMat, x, y, name) {
+/** A gable-roofed shed: walls box plus a prism roof, its ridge along Y (`rise` ft above the walls; a 0.22 pitch by default). */
+function shed(THREE, w, d, h, wallMat, roofMat, x, y, name, rise = w * 0.22) {
   const g = new THREE.Group();
   g.name = name;
   g.position.set(x, y, 0);
   g.add(box(THREE, w, d, h, wallMat, 0, 0, `${name}-walls`));
-  const shape = new THREE.Shape([new THREE.Vector2(-w / 2 - 2, 0), new THREE.Vector2(w / 2 + 2, 0), new THREE.Vector2(0, w * 0.22)]);
+  const shape = new THREE.Shape([new THREE.Vector2(-w / 2 - 2, 0), new THREE.Vector2(w / 2 + 2, 0), new THREE.Vector2(0, rise)]);
   const roofGeo = new THREE.ExtrudeGeometry(shape, { depth: d + 4, bevelEnabled: false });
   roofGeo.rotateX(Math.PI / 2);
   roofGeo.translate(0, (d + 4) / 2, h);
@@ -86,35 +92,52 @@ const WINDOW_FARM_PENS = Object.freeze([
 const WINDOW_FARM_YARD = Object.freeze([20, -320, 300, -150]); // open yard south of the white barn: a few strays
 const PIG_FT = Object.freeze({ length: 6, width: 2.6, height: 3 }); // a market hog, near enough (estimate)
 
-/** Pigs: groups of 4 to 14 in the pens with solo pigs between them and a few kicking round the yard, one draw call. */
-function pigs(THREE, mat) {
-  const roll = scatterRolls(1880);
+/**
+ * Livestock scattered in pens as one InstancedMesh: groups in each pen, solo animals between them and a few in the yard.
+ * pens: [x0, y0, x1, y1] (an optional fifth item 'n' or 's' packs the groups toward that side, where the feed lane is);
+ * size: { length, width, height } ft; group: { perArea, min, spread } (one group per `perArea` sq ft, `min` to `min + span`
+ * animals, `spread` ft across); coats: colours picked at random (one material colour when empty). Always the same picture.
+ */
+function herd(THREE, mat, { pens, yard = null, yardCount = 0, size, seed, name, group, coats = [] }) {
+  const roll = scatterRolls(seed);
   const spots = [];
   const inBox = ([x0, y0, x1, y1]) => [x0 + roll() * (x1 - x0), y0 + roll() * (y1 - y0)];
-  for (const pen of WINDOW_FARM_PENS) {
-    const area = (pen[2] - pen[0]) * (pen[3] - pen[1]);
-    const groups = Math.max(2, Math.round(area / 9000));
+  for (const pen of pens) {
+    const [x0, y0, x1, y1, side] = pen;
+    const area = (x1 - x0) * (y1 - y0);
+    const groups = Math.max(2, Math.round(area / group.perArea));
+    const keep = (x, y) => [Math.min(x1 - 2, Math.max(x0 + 2, x)), Math.min(y1 - 2, Math.max(y0 + 2, y))];
     for (let g = 0; g < groups; g++) {
-      const [cx, cy] = inBox(pen);
-      const n = 4 + Math.floor(roll() * 11);
-      for (let k = 0; k < n; k++) spots.push([cx + (roll() - 0.5) * 30, cy + (roll() - 0.5) * 30, roll() * Math.PI * 2]);
+      let [cx, cy] = inBox(pen);
+      if (side === 's') cy = y0 + (y1 - y0) * roll() ** 2;
+      if (side === 'n') cy = y1 - (y1 - y0) * roll() ** 2;
+      const n = group.min + Math.floor(roll() * (group.span + 1));
+      for (let k = 0; k < n; k++) spots.push([...keep(cx + (roll() - 0.5) * group.spread, cy + (roll() - 0.5) * group.spread), roll() * Math.PI * 2]);
     }
     const solos = Math.round(groups / 2);
     for (let k = 0; k < solos; k++) spots.push([...inBox(pen), roll() * Math.PI * 2]);
   }
-  for (let k = 0; k < 6; k++) spots.push([...inBox(WINDOW_FARM_YARD), roll() * Math.PI * 2]);
-  const geo = new THREE.BoxGeometry(PIG_FT.length, PIG_FT.width, PIG_FT.height);
-  geo.translate(0, 0, PIG_FT.height / 2);
+  for (let k = 0; k < yardCount; k++) spots.push([...inBox(yard), roll() * Math.PI * 2]);
+  const geo = new THREE.BoxGeometry(size.length, size.width, size.height);
+  geo.translate(0, 0, size.height / 2);
   const mesh = new THREE.InstancedMesh(geo, mat, spots.length);
-  mesh.name = 'window-farm-pigs';
+  mesh.name = name;
   const m = new THREE.Matrix4();
+  const c = new THREE.Color();
   spots.forEach(([x, y, a], i) => {
     m.makeRotationZ(a);
     m.setPosition(x, y, 0);
     mesh.setMatrixAt(i, m);
+    if (coats.length) mesh.setColorAt?.(i, c.set(coats[Math.floor(roll() * coats.length)]));
   });
   return mesh;
 }
+
+/** Pigs: groups of 4 to 14 in the pens with solo pigs between them and a few kicking round the yard, one draw call. */
+const pigs = (THREE, mat) => herd(THREE, mat, {
+  pens: WINDOW_FARM_PENS, yard: WINDOW_FARM_YARD, yardCount: 6, size: PIG_FT, seed: 1880, name: 'window-farm-pigs',
+  group: { perArea: 9000, min: 4, span: 10, spread: 30 },
+});
 
 /** Window Farm: Titan Livestock east of Hwy 2: the long white barn with its Quonset end, bins, feedlot barns, pigs. */
 function createWindowFarm(THREE, mats) {
@@ -196,6 +219,7 @@ function createFiatFarm(THREE, mats) {
   return g;
 }
 
+
 /**
  * Tree rows as one InstancedMesh. Each row is [x0, y0, x1, y1] in feet relative to the group; trees every ~25 ft.
  * @returns {any} InstancedMesh
@@ -221,6 +245,147 @@ function treeRows(THREE, mat, rows, name, spacing = 25) {
   return mesh;
 }
 
+/** A Quonset whose length runs north-south. */
+function quonsetNS(THREE, length, width, mat, x, y, name) {
+  const q = quonset(THREE, length, width, mat, 0, 0, name);
+  const g = new THREE.Group();
+  g.name = `${name}-turn`;
+  g.position.set(x, y, 0);
+  q.rotation.z = Math.PI / 2;
+  g.add(q);
+  return g;
+}
+
+/** Pen fences as one InstancedMesh of thin rails: each pen's outline and `split` cross fences, FENCE_FT high. */
+const FENCE_FT = Object.freeze({ height: 5, thick: 0.6 }); // a feedlot pen fence, near enough (estimate)
+function penFences(THREE, mat, pens, name) {
+  const rails = [];
+  for (const { box: [x0, y0, x1, y1], split = 1 } of pens) {
+    rails.push([x0, y0, x1, y0], [x0, y1, x1, y1], [x0, y0, x0, y1], [x1, y0, x1, y1]);
+    for (let k = 1; k < split; k++) {
+      const x = x0 + ((x1 - x0) * k) / split;
+      rails.push([x, y0, x, y1]);
+    }
+  }
+  const geo = new THREE.BoxGeometry(1, FENCE_FT.thick, FENCE_FT.height);
+  geo.translate(0, 0, FENCE_FT.height / 2);
+  const mesh = new THREE.InstancedMesh(geo, mat, rails.length);
+  mesh.name = name;
+  const m = new THREE.Matrix4();
+  const turn = new THREE.Matrix4();
+  rails.forEach(([ax, ay, bx, by], i) => {
+    m.makeScale(Math.hypot(bx - ax, by - ay), 1, 1);
+    turn.makeRotationZ(Math.atan2(by - ay, bx - ax));
+    m.premultiply(turn);
+    m.setPosition((ax + bx) / 2, (ay + by) / 2, 0);
+    mesh.setMatrixAt(i, m);
+  });
+  return mesh;
+}
+
+/**
+ * The South Feedlot, traced off Esri's true-scale photo on 10 Oct (about ±15 ft), in feet from the ARP; the builder moves
+ * them round its anchor (3,800 E, 12,000 S). Two long rows of pens north, a block of pens round two long white barns
+ * south, a pen block south-east, and the yard east with its big white shed and Quonset. Heights are estimates.
+ */
+const SOUTH_FEEDLOT_ANCHOR = Object.freeze({ x: 3800, y: -12000 });
+const SOUTH_FEEDLOT_PENS = Object.freeze([
+  // box [x0, y0, x1, y1], cross fences, the side its feed lane is on (the cattle crowd that side)
+  { box: [2625, -11545, 4470, -11395], split: 12, side: 's' },
+  { box: [2625, -11745, 4580, -11595], split: 13, side: 'n' },
+  ...[[-12148, -12010], [-12436, -12298], [-12590, -12460], [-12723, -12598], [-12880, -12735]].flatMap(([y0, y1]) => [
+    { box: [3505, y0, 3826, y1], split: 3 },
+    { box: [3876, y0, 4188, y1], split: 3 },
+  ]),
+  { box: [4513, -12523, 4863, -12380], split: 2 },
+]);
+const COW_FT = Object.freeze({ length: 7.5, width: 3, height: 4.5 }); // a feeder steer, near enough (estimate)
+const COW_COATS = Object.freeze(['#1c1c1c', '#1c1c1c', '#262321', '#6b2f1a', '#7a3a20', '#f1ece2', '#3a2a22']); // black, red, white-faced mixes
+/** One group per 7,500 sq ft, 10 to 40 head each (about 300 sq ft a head, an estimate for a full feedlot): about 3,500 head in all. */
+const COW_GROUP = Object.freeze({ perArea: 7500, min: 10, span: 30, spread: 70 });
+
+function createSouthFeedlot(THREE, mats) {
+  const g = new THREE.Group();
+  const { x: ax, y: ay } = SOUTH_FEEDLOT_ANCHOR;
+  const local = ([x0, y0, x1, y1]) => [x0 - ax, y0 - ay, x1 - ax, y1 - ay];
+  const pens = SOUTH_FEEDLOT_PENS.map((p) => ({ ...p, box: local(p.box) }));
+  g.add(penFences(THREE, mats.fence, pens, 'south-feedlot-fences'));
+  g.add(herd(THREE, mats.cow, {
+    pens: pens.map((p) => [...p.box, p.side]), size: COW_FT, seed: 1_016, name: 'south-feedlot-cows', group: COW_GROUP, coats: COW_COATS,
+  }));
+  const at = (x, y) => [x - ax, y - ay];
+  const eastWestBarn = (len, wid, h, rise, x, y, name) => {
+    const b = shed(THREE, wid, len, h, mats.white, mats.white, ...at(x, y), name, rise);
+    b.rotation.z = Math.PI / 2;
+    return b;
+  };
+  g.add(eastWestBarn(303, 135, 16, 12, 3656, -12222, 'south-feedlot-barn-west'));
+  g.add(eastWestBarn(313, 135, 16, 12, 4032, -12222, 'south-feedlot-barn-east'));
+  g.add(box(THREE, 263, 190, 24, mats.white, ...at(5056, -11448), 'south-feedlot-big-shed'));
+  g.add(quonsetNS(THREE, 187, 93, mats.steel, ...at(5230, -11666), 'south-feedlot-quonset'));
+  g.add(shed(THREE, 55, 113, 14, mats.white, mats.grey, ...at(4610, -11591), 'south-feedlot-white-barn'));
+  g.add(shed(THREE, 107, 92, 14, mats.grey, mats.grey, ...at(4646, -12314), 'south-feedlot-grey-barn'));
+  g.add(shed(THREE, 75, 113, 14, mats.grey, mats.grey, ...at(4650, -12091), 'south-feedlot-shop'));
+  g.add(shed(THREE, 75, 100, 14, mats.white, mats.grey, ...at(5125, -11735), 'south-feedlot-machine-shed'));
+  g.add(box(THREE, 55, 50, 12, mats.white, ...at(4410, -11323), 'south-feedlot-shed-north'));
+  g.add(box(THREE, 87, 50, 12, mats.grey, ...at(4056, -11248), 'south-feedlot-feed-shed'));
+  g.add(treeRows(THREE, mats.tree, [
+    [4200, -11800, 4500, -11800], [4200, -11870, 4500, -11870], [4200, -11940, 4500, -11940], [4600, -11900, 4740, -11960],
+  ].map(([x0, y0, x1, y1]) => [x0 - ax, y0 - ay, x1 - ax, y1 - ay]), 'south-feedlot-trees'));
+  return g;
+}
+
+/**
+ * The Crossroads Farm north-west of the crossroads, traced off Esri's true-scale photo on 10 Oct (about ±15 ft), in feet
+ * from the ARP round its anchor (5,300 W, 12,450 S): two houses, two sheds, three Quonsets, a bin and its shelterbelts.
+ * Every roof is silver (Patrick, 10 Oct: "the rooves ... must be silver").
+ */
+const CROSSROADS_FARM_ANCHOR = Object.freeze({ x: -5300, y: -12450 });
+function createCrossroadsFarm(THREE, mats) {
+  const g = new THREE.Group();
+  const { x: ax, y: ay } = CROSSROADS_FARM_ANCHOR;
+  const at = (x, y) => [x - ax, y - ay];
+  g.add(shed(THREE, 56, 63, 12, mats.house, mats.steel, ...at(-5304, -12368), 'crossroads-farm-house'));
+  g.add(shed(THREE, 56, 65, 12, mats.house, mats.steel, ...at(-5143, -12449), 'crossroads-farm-house-east'));
+  g.add(box(THREE, 48, 31, 10, mats.steel, ...at(-5156, -12399), 'crossroads-farm-shed'));
+  g.add(box(THREE, 50, 18, 9, mats.steel, ...at(-5246, -12265), 'crossroads-farm-trailer'));
+  g.add(quonsetNS(THREE, 81, 46, mats.steel, ...at(-5425, -12536), 'crossroads-farm-quonset-grey'));
+  g.add(quonsetNS(THREE, 150, 56, mats.steel, ...at(-5370, -12575), 'crossroads-farm-quonset-long'));
+  g.add(quonsetNS(THREE, 79, 50, mats.steel, ...at(-5132, -12722), 'crossroads-farm-quonset-south'));
+  g.add(bin(THREE, 9, 22, mats.steel, ...at(-5504, -12346), 'crossroads-farm-bin'));
+  g.add(treeRows(THREE, mats.tree, [
+    [-5536, -12120, -5105, -12120], [-5536, -12170, -5105, -12170], [-5830, -12128, -5830, -12865], [-5745, -12128, -5745, -12865],
+    [-5392, -12275, -5142, -12275],
+  ].map(([x0, y0, x1, y1]) => [x0 - ax, y0 - ay, x1 - ax, y1 - ay]), 'crossroads-farm-trees'));
+  return g;
+}
+
+/** The VOR: a classic station, every size an estimate (TR-119): its equipment hut, the round flat counterpoise on top, and the cone antenna in the middle. */
+const VOR_FT = Object.freeze({ hut: 16, hutHeight: 10, counterpoise: 15, thick: 1.2, cone: 3, coneHeight: 7 });
+const VOR_BANDS = 4; // red and white bands on the antenna
+function createVor(THREE, mats) {
+  const g = new THREE.Group();
+  g.add(box(THREE, VOR_FT.hut, VOR_FT.hut, VOR_FT.hutHeight, mats.white, 0, 0, 'vor-hut'));
+  const disc = bin(THREE, VOR_FT.counterpoise, VOR_FT.thick, mats.steel, 0, 0, 'vor-counterpoise');
+  disc.position.z = VOR_FT.hutHeight;
+  g.add(disc);
+  // The antenna in red and white bands (Patrick, 10 Oct: "white and red stripes"), red at the base: one frustum per band.
+  const base = VOR_FT.hutHeight + VOR_FT.thick;
+  for (let k = 0; k < VOR_BANDS; k++) {
+    const h = VOR_FT.coneHeight / VOR_BANDS;
+    const rBottom = VOR_FT.cone * (1 - k / VOR_BANDS);
+    const rTop = VOR_FT.cone * (1 - (k + 1) / VOR_BANDS);
+    const geo = new THREE.CylinderGeometry(rTop, rBottom, h, 16);
+    geo.rotateX(Math.PI / 2);
+    geo.translate(0, 0, h / 2);
+    const band = new THREE.Mesh(geo, k % 2 === 0 ? mats.red : mats.white);
+    band.name = `vor-antenna-${k + 1}`;
+    band.position.z = base + k * h;
+    g.add(band);
+  }
+  return g;
+}
+
 /**
  * Arrow Tree Rows: north-south shelterbelts in the corners between two pivots, an hourglass from the air. The pin is
  * where the two pivots touch. Moved onto the tree lines in Esri's true-scale photo (5 Oct, about ±15 ft; Patrick
@@ -238,7 +403,10 @@ function createArrowTrees(THREE, mats) {
   return g;
 }
 
-const BUILDERS = { feedlot: createWindowFarm, museum: createSukanen, wrecker: createFiatFarm, arrow: createArrowTrees };
+const BUILDERS = {
+  feedlot: createWindowFarm, museum: createSukanen, wrecker: createFiatFarm, arrow: createArrowTrees,
+  cattle: createSouthFeedlot, farmstead: createCrossroadsFarm, vor: createVor,
+};
 
 /**
  * Builds every circuit landmark.
@@ -253,12 +421,14 @@ export function createLandmarks(THREE, { floor = THRESHOLD_DATA_ELEV_FT } = {}) 
     white: lam('#eef0f2'), grey: lam('#8b95a1'), red: lam('#c0262d'), pens: lam('#7a3b1d'),
     steel: new THREE.MeshStandardMaterial({ color: '#cbd5e1', roughness: 0.35, metalness: 0.7 }),
     car: lam('#ffffff'), tree: lam('#1f4d2b'), pig: lam('#e8a7a0'),
+    cow: lam('#ffffff'), fence: lam('#9a8f80'), house: lam('#d9d4c7'), // cow: white, so each animal's coat colour shows
   };
   for (const l of CYMJ_LANDMARKS) {
     const g = BUILDERS[l.kind](THREE, mats);
     g.name = l.id;
     g.userData = { landmark: l };
     g.position.set(l.x, l.y, floor);
+    batchByMaterial(THREE, g); // fewer draw calls (TR-127); the landmark still stands on the ground as one group
     root.add(g);
   }
   // Hwy 2 is no longer drawn over the photo (Patrick, 5 Oct: "it looks like trash"); the photo shows the road.

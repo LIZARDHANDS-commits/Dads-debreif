@@ -10,13 +10,15 @@
 //
 // Left out because scenery3d.js already models them: the control tower, the arch hangars 1 to 4, the three small arch
 // hangars, the Glass Palace, the Student Barracks, the rec centre, Hangars 5 and 6 and the two flight-line buildings by
-// Hangar 4. Not modelled: round tanks, vehicles and trailers, pools, playgrounds and the small sheds in back yards.
+// Hangar 4. The Canex, the hall beside it and Medical with Shipping and Receiving moved to flightline-buildings3d.js
+// (TR-121), on these boxes' 5 Oct footprints (bldg-002 to 004, bldg-020 to 024). Not modelled: round tanks, vehicles and trailers, pools, playgrounds and the small sheds in back yards.
 //
 // World frame: X east, Y north, Z up, feet from the ARP (50.3303 N, 105.5592 W). Field floor 1,880 ft.
 // Few draw calls (D411): the walls are one InstancedMesh, the flat roofs one, the gable roofs one, each with a colour per
 // building. Every geometry and material is freed by disposeBaseBuildings.
 
 import { THRESHOLD_DATA_ELEV_FT } from './airfield.js';
+import { addFacade, faceToward, facadeMeshes } from './facade3d.js';
 
 /** The box the traced buildings sit in (ft from the ARP): the housing north, the flight line south, the farm fields outside it. */
 export const BASE_BOX_FT = Object.freeze({ minX: -1000, maxX: 2700, minY: 1700, maxY: 5000 });
@@ -28,9 +30,6 @@ const b = (id, x, y, w, d, rotation, height, roof, kind) => Object.freeze({ id, 
 /** Every traced base building: `{ id, x, y, w, d, rotation, height, roof, kind }`, with kind 'house' (gable) or 'flat'. */
 export const BASE_BUILDINGS = Object.freeze([
   b('bldg-001', -654, 2844, 88, 121, 0, 22, '#cbbfa5', 'flat'),
-  b('bldg-002', -548, 2898, 146, 96, 0, 28, '#cbc0a6', 'flat'),
-  b('bldg-003', -551, 2810, 135, 79, 0, 24, '#5d6563', 'flat'),
-  b('bldg-004', -400, 2829, 167, 142, 0, 26, '#4c5355', 'flat'),
   b('bldg-005', -693, 2678, 35, 40, 0, 16, '#a9b8b4', 'flat'),
   b('bldg-006', -190, 2571, 29, 29, 0, 14, '#aeb1a8', 'flat'),
   b('bldg-007', 2580, 2792, 23, 23, 0, 10, '#bbbab7', 'flat'),
@@ -47,11 +46,6 @@ export const BASE_BUILDINGS = Object.freeze([
   b('bldg-017', 125, 2531, 67, 58, 0, 24, '#bab29d', 'flat'),
   b('bldg-018', -179, 2281, 33, 54, 0, 16, '#d6d8cf', 'flat'),
   b('bldg-019', -56, 2190, 38, 46, 0, 18, '#4976a8', 'flat'),
-  b('bldg-020', 644, 3167, 188, 104, 0.82, 40, '#bfc3b7', 'flat'),
-  b('bldg-021', 722, 3246, 98, 56, -0.75, 30, '#a59d8f', 'flat'),
-  b('bldg-022', 838, 3183, 167, 62, 0.855, 28, '#b0a895', 'flat'),
-  b('bldg-023', 760, 3169, 58, 46, 0.82, 20, '#aba594', 'flat'),
-  b('bldg-024', 677, 3081, 83, 40, -0.75, 28, '#6e8e9c', 'flat'),
   b('bldg-025', 533, 3033, 42, 67, 0, 18, '#b8bfba', 'flat'),
   b('bldg-026', 825, 3004, 62, 42, 0, 16, '#605f60', 'flat'),
   b('bldg-027', 829, 2952, 50, 56, 0, 18, '#bebfb0', 'flat'),
@@ -272,6 +266,13 @@ export function createBaseBuildings(THREE, { floor = THRESHOLD_DATA_ELEV_FT } = 
     (e) => [e.x, e.y, e.height, e.rotation, e.w + 2 * OVERHANG_FT, e.d + 2 * OVERHANG_FT, riseFt(e.d)],
     (e) => e.roof, 'base-buildings-gable-roofs',
   ));
+  // Windows on every wall and a door on the south-facing side (TR-132; sizes estimates): two more draw calls.
+  const out = { glass: [], doors: [] };
+  for (const e of BASE_BUILDINGS) {
+    const b = { cx: e.x, cy: e.y, w: e.w, d: e.d, rot: e.rotation, h: wallTop(e) };
+    addFacade(out, b, { kind: e.kind === 'house' ? 'house' : 'office', doorFace: faceToward(b, 0, -1) });
+  }
+  root.add(facadeMeshes(THREE, out, 'base-buildings-facades'));
   root.userData = { count: BASE_BUILDINGS.length, houses: houses.length, flats: flats.length };
   return root;
 }
