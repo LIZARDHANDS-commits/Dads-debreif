@@ -61,8 +61,8 @@ export function createPuckPanel({ layout, swatch, on }) {
         rows.append(h('div', { class: 'puck-ship-block' },
           h('div', { class: 'puck-ship', title: `#${tr.slot} ${name}`.trim() }, swatch(tr.slot), `#${tr.slot}`, name ? h('span', { class: 'ship-name' }, ` ${name}`) : ''),
           h('label', { class: 'puck-row' }, h('span', {}, 'GPS puck'), puck),
-          h('label', { class: 'puck-row', title: tr.timing?.kind === 'off' ? found : null }, h('span', {}, 'Timestamps'), stamps),
-          h('label', { class: 'puck-row' }, h('span', {}, `Time shift (s, −${SHIFT_LIMITS.max} to +${SHIFT_LIMITS.max})`), shift)));
+          h('label', { class: tr.timing?.kind === 'off' ? 'puck-row puck-row-stacked' : 'puck-row', title: tr.timing?.kind === 'off' ? found : null }, h('span', {}, 'Timestamps'), stamps),
+          h('label', { class: 'puck-row' }, h('span', {}, `Shift (s, ±${SHIFT_LIMITS.max})`), shift)));
       }
     },
   };

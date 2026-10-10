@@ -651,9 +651,37 @@
   border-top: 1px solid var(--border);
 }
 
+[data-module='debrief'] .puck-ship-block {
+  min-width: 0;
+}
+
+[data-module='debrief'] .puck-ship-block .puck-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  justify-items: end;
+  column-gap: var(--space-2);
+}
+
+/* Timestamps: the label over a full-width menu, so "Snapped to GPS second (auto)" reads whole in the narrow column */
+[data-module='debrief'] .puck-ship-block .puck-row.puck-row-stacked {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+[data-module='debrief'] .puck-ship-block .puck-row > span:first-child {
+  justify-self: start;
+  white-space: nowrap;
+}
+
+[data-module='debrief'] .puck-ship-block .puck-row select {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+}
+
 [data-module='debrief'] .puck-row input[type='number'] {
   flex: 0 0 auto;
-  width: 5em;
+  width: 4.5em;
+  max-width: 100%;
 }
 
 [data-module='debrief'] .puck-found {
