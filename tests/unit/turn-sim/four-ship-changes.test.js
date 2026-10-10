@@ -332,3 +332,23 @@ test('4-ship: from Spread 4 a turning rejoin to echelon joins each straight into
   });
   assert.deepEqual(wrongs('echelon', f.state.aircraft, s), []);
 });
+
+test('4-ship: from the offset box a turning rejoin to finger keeps #3 and #4 behind Lead\'s 3/9 line, and the element joins on the outside', () => {
+  // Fable's offset box advice, Patrick 10 Oct 2026 ("agree with fable"; SMM 16.34 paras 94-96): Lead turns into #2, and the
+  // element rides the rejoin line inside his turn, never ahead of his 3/9 line, then joins one at a time on the outside.
+  const f = createFormation({ ships: 4, wingSide: 'right' });
+  const s = -1;
+  changeTo(f, 'offsetBox', { rejoin: 'straight' }, s);
+  assert.equal(f.change('finger', { rejoin: 'into' }), 'started', f.state.refusal ?? '');
+  let leadTurned = false;
+  fly(f, 'finger from the offset box (into)', (before, after) => {
+    const a = byId(after);
+    if (Math.abs(a.get(1).bankDeg) >= 25) leadTurned = true;
+    for (const id of [3, 4]) {
+      const l = link(a.get(1), a.get(id));
+      assert.ok(l.rel.fwd < 0, `#${id} is ${Math.round(l.rel.fwd)} ft ahead of Lead's 3/9 line`);
+    }
+  });
+  assert.ok(leadTurned, 'Lead turned into #2 (a turning rejoin, not straight ahead)');
+  assert.deepEqual(wrongs('finger', f.state.aircraft, s), []);
+});
