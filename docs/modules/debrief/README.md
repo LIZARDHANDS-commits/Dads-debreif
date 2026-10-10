@@ -4,7 +4,7 @@ This folder is the flight debrief viewer: load a sortie's tracks, replay them on
 
 ## Where it stands
 
-Built and live; the next step is Patrick (or anyone) running its checklist. Step 3a (GPS gap fill and the 3D cockpit view, Dad's ask of 10 Oct 2026) is built on its working answers DB-Q20 to DB-Q24 (V2.211); its camera choices are the Traffic-style pill bar over the 3D picture (V2.214, DB-22), and each ship can have its GPS puck's seat set so its positions move to the aircraft (V2.215, DB-23, on the working answers DB-Q25 and DB-Q26). The SOF's airspace (floors and ceilings) and airfields now show round the loaded flight in 3D and on the map (V2.216, DB-24; Airspace off and Airfields on at first). The roadmap and the handover disagree on whether it was already signed off (see the order section) (`archive/HANDOVER.md:87`).
+Built and live; the next step is Patrick (or anyone) running its checklist. Step 3a (GPS gap fill and the 3D cockpit view, Dad's ask of 10 Oct 2026) is built on its working answers DB-Q20 to DB-Q24 (V2.211); its camera choices are the Traffic-style pill bar over the 3D picture (V2.214, DB-22), and each ship can have its GPS puck's seat set so its positions move to the aircraft (V2.215, DB-23, on the working answers DB-Q25 and DB-Q26). The SOF's airspace (floors and ceilings) and airfields now show round the loaded flight in 3D and on the map (V2.216, DB-24; Airspace off and Airfields on at first). A track whose times sit a few tenths of a second off the GPS second (an external GPS relayed to the iPad, as #3 and #4 on the example) is found and snapped back to its GPS seconds, with a per-ship time shift, in the GPS source box (V2.217, DB-25). The roadmap and the handover disagree on whether it was already signed off (see the order section) (`archive/HANDOVER.md:87`).
 
 ## What is next
 
@@ -27,7 +27,8 @@ Each has a working answer that the tool uses until it is settled.
 
 ### Waiting on Patrick now (also on the list in `../../PLAN.md`)
 
-- **DB-Q4:** no smoothing of the estimated G (D219) or a 3-point median filter (D383); neither is built (`pf/reset/1-requirements/questions.md:17`, `docs/modules/debrief/plan.md:37`).
+- **DB-Q4:** no smoothing of the estimated G (D219) or a 3-point median filter (D383); neither is built (`pf/reset/1-requirements/questions.md:17`, `docs/modules/debrief/plan.md:37`). A case for it (DB-25, 10 Oct 2026): on the example flight's recovery, with #3's and #4's timestamps snapped to the GPS second, their fore/aft spacing still wobbles ±40 to 70 ft second to second; that is the receivers' own position scatter, not timing, and nothing smooths it.
+- **DB-25 wording (GPS timestamps, Dad's ask 10 Oct 2026):** written but not yet confirmed with Patrick; the detection thresholds are estimates from the example flight.
 - **DB-23 wording (GPS puck, Dad's ask 10 Oct 2026):** written but not yet confirmed with Patrick; DB-Q25 and DB-Q26 below have working answers.
 - **DB-24 wording (airspace and airfields, Dad's ask 10 Oct 2026):** written but not yet confirmed with Patrick, with the SOF's move SOF-62; Airspace starts off and Airfields on ("open on a clean picture").
 - **DB-19 to DB-22, DB-R27 and DB-R28 wording (gap fill and cockpit view, Dad's ask 10 Oct 2026):** the wording is written but not yet confirmed with Patrick (`decisions.md`, `requirements.md`).
@@ -70,7 +71,7 @@ Handed to the decisions review (reset thread 4); check `decisions.md` for the ve
 
 | ID | Question | Options | Best guess (the working answer until it is settled) | Source |
 |---|---|---|---|---|
-| DB-Q4 | **ASK (conflict).** D219 (no smoothing of est. G, the 21 one-second G dips stay) and D383 (3-point median filtering of G dips, "planned") disagree. Neither is in the code. Which stands? | (a) No smoothing (D219); (b) 3-point median (D383); (c) none now, decide after seeing real use | (c) | `archive/docs/records/decisions-log.md:81`, `archive/docs/records/decisions-log.md:240`, `archive/docs/REMEDIATION_ROADMAP.md:83`; code has no median (`src/modules/debrief`, searched) |
+| DB-Q4 | **ASK (conflict).** D219 (no smoothing of est. G, the 21 one-second G dips stay) and D383 (3-point median filtering of G dips, "planned") disagree. Neither is in the code. Which stands? Note (DB-25, 10 Oct 2026): the example flight's #3 and #4, timestamps snapped, still wobble ±40 to 70 ft fore/aft from the receivers' scatter: a case for smoothing positions too; none is built. | (a) No smoothing (D219); (b) 3-point median (D383); (c) none now, decide after seeing real use | (c) | `archive/docs/records/decisions-log.md:81`, `archive/docs/records/decisions-log.md:240`, `archive/docs/REMEDIATION_ROADMAP.md:83`; code has no median (`src/modules/debrief`, searched) |
 
 Dad's flying questions for every module are in `../../questions-for-dad.md`.
 
