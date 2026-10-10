@@ -17,7 +17,9 @@ import { DEFAULT_STANDARDS } from '../../core/standards.js';
 import { LAYOUT_DEFAULTS, checkPicked } from './state.js';
 import { readoutsAt, formationAt, mapLabel } from './readouts.js';
 import { createStandardsPanel } from './standards-panel.js';
-import { createLayout } from './layout.js';
+import { createLayout, shipSwatch } from './layout.js';
+import { createPuckPanel } from './puck-panel.js';
+import { withPucks, readPucks, puckSeat, puckStorageKey } from './puck.js';
 import { createMapView } from './map2d/view.js';
 import { createView3d } from './view3d/view.js';
 import { CAMERA_ALLOWED } from './view3d/camera-modes.js';
@@ -42,7 +44,7 @@ import {
 import { metarLineAt } from './weather/metar.js';
 import { nearestAirfield, reportTicks, tickLabel } from './weather/slices.js';
 import { gibsSource, satelliteKept, satelliteNote, SATELLITE_LAYERS } from './weather/satellite.js';
-import { TIME_KEY, weatherSettingOf, buildDebriefFile, settingsRules, sessionSettings, standardsPatch, dfpsForFile, dfpsFromFile, debriefFileName } from './debrief-session.js';
+import { TIME_KEY, weatherSettingOf, buildDebriefFile, settingsRules, sessionSettings, standardsPatch, dfpsForFile, dfpsFromFile, debriefFileName, pucksFromSettings } from './debrief-session.js';
 import { createSavedRadarFeed, offerState } from './weather/saved-radar-feed.js';
 import { radarKept, framesToDraw, savedNoteLine, savedFromSetting, droppedNotice, SAVED_ALPHA } from './weather/saved-radar.js';
 
@@ -66,15 +68,21 @@ function mount(root, app) {
   const dfpPanel = createDfpPanel({ time: app.time, on: dfpActions() });
   const filePanel = createFilePanel({ layout, canExample, on: fileActions() });
   const tennisPanel = createTennisPanel({ controls, layout });
+  const puckPanel = createPuckPanel({ layout, swatch: shipSwatch, on: { set: (slot, seat) => setPuck(slot, seat) } });
   const ui = createLayout({
     layout, controls, bar, canExample, listen: app.listen,
-    flightExtras: [filePanel.element],
+    flightExtras: [puckPanel.element, filePanel.element],
     formationExtras: [tennisPanel.element, dfpPanel.element, ...(standardsPanel ? [standardsPanel.element] : [])],
   });
   const currentStandards = () => app.standards?.get() ?? DEFAULT_STANDARDS;
   root.append(ui.element);
 
   let flight = null;
+  // The GPS puck (DB-23): the flight as loaded, each ship's puck seat ({ slot: 'front' | 'rear' }), and where they are
+  // kept in this browser. `flight` is baseFlight with each ship moved from its puck (the same object when none is set).
+  let baseFlight = null;
+  let pucks = {};
+  let puckKey = null;
   // Whether the saved radar offer was pressed for this flight: only then is its line read out.
   let offerPressed = false;
   let clock = null;
@@ -414,12 +422,18 @@ function mount(root, app) {
   }
 
   // Swaps in a new flight only once it has loaded completely (D54). A
-  // session is { flight, dfps?, t? }: DFPs and a time from a debrief file.
+  // session is { flight, dfps?, t?, pucks? }: DFPs, a time and GPS puck seats from a debrief file.
   function show(session) {
     stopFrames?.();
     stopFrames = null;
     stopClock?.();
-    flight = session.flight;
+    baseFlight = session.flight;
+    const fingerprint = flightFingerprint([...baseFlight.files].sort((a, b) => a.slot - b.slot).map((f) => f.text));
+    puckKey = puckStorageKey(fingerprint);
+    pucks = readPucks(session.pucks ?? app.storage.get(puckKey, {}));
+    if (session.pucks) app.storage.set(puckKey, pucks); // an opened debrief file's choice wins, as its DFPs do
+    flight = withPucks(baseFlight, pucks);
+    puckPanel.render(baseFlight, pucks);
     clock = createClock({ startT: flight.startT, endT: flight.endT });
     if (Number.isFinite(session.t)) clock.seek(session.t);
     stopClock = clock.onChange(onClock);
@@ -429,7 +443,7 @@ function mount(root, app) {
     offerPressed = false;
     windGrid = windGridPoints(flightLatLonBounds(flight));
     winds.setFlight(flight, windPoint(flight), windGrid);
-    dfpKey = dfpStorageKey(flightFingerprint([...flight.files].sort((a, b) => a.slot - b.slot).map((f) => f.text)));
+    dfpKey = dfpStorageKey(fingerprint);
     setDfps(session.dfps ?? readStoredDfps(app.storage.get(dfpKey, [])), { changed: Boolean(session.dfps) });
     unsaved = false;
     bar.setClock(clock);
@@ -440,6 +454,25 @@ function mount(root, app) {
     gapFill = { result: null, running: false, key: '' };
     refill();
     renderReadouts();
+    app.status(`Debrief: ${ui.summary()}`);
+  }
+
+  // A ship's GPS puck seat changed (DB-23): the flight is moved again from the as-loaded fixes and handed to every view;
+  // the playback time, the camera, the DFPs and the weather stay. The gap fill works its answer out again.
+  function setPuck(slot, seat) {
+    if (!baseFlight) return;
+    const next = { ...pucks };
+    if (puckSeat(seat)) next[slot] = puckSeat(seat);
+    else delete next[slot];
+    pucks = next;
+    if (puckKey) app.storage.set(puckKey, pucks);
+    flight = withPucks(baseFlight, pucks);
+    map.setFlight(flight, { keepView: true });
+    ui.showFlight(flight);
+    flightCount++;
+    refill();
+    renderReadouts();
+    redraw();
     app.status(`Debrief: ${ui.summary()}`);
   }
 
@@ -454,6 +487,10 @@ function mount(root, app) {
     stopFill = null;
     gapFill = { result: null, running: false, key: '' };
     flight = null;
+    baseFlight = null;
+    pucks = {};
+    puckKey = null;
+    puckPanel.render(null);
     clock = null;
     metars.setFlight(null);
     savedRadar.setFlight(null);
@@ -519,7 +556,7 @@ function mount(root, app) {
         if (!flight) return;
         try {
           const kept = savedRadar.state().saved;
-          const write = (weather) => toDebriefFile(flight, dfpsForFile(dfps), sessionSettings(currentStandards(), clock.t, weather));
+          const write = (weather) => toDebriefFile(flight, dfpsForFile(dfps), sessionSettings(currentStandards(), clock.t, weather, pucks));
           // The opener refuses a file over MAX_DEBRIEF_BYTES (counted in bytes), so a save that would be is made without the radar.
           const built = buildDebriefFile({
             write, weather: kept, window: { startT: flight.startT, endT: flight.endT }, maxBytes: MAX_DEBRIEF_BYTES, sizeOf: (text) => new Blob([text]).size,
@@ -542,18 +579,19 @@ function mount(root, app) {
         }
         run('Opening the debrief', async () => {
           const text = await file.text();
-          const opened = readDebriefFile(text, { settings: settingsRules(app.standards?.limits ?? {}, { weather: true }) });
+          const opened = readDebriefFile(text, { settings: settingsRules(app.standards?.limits ?? {}, { weather: true, pucks: true }) });
           const next = loadFlight(opened.files);
           return { flight: next, opened, text };
         }, ({ flight: next, opened, text }) => {
-          flight = next; // leadAt reads it for the DFP flags
+          const filePucks = pucksFromSettings(opened.settings); // null when the file names none: the browser's choice stands
+          flight = withPucks(next, filePucks ?? {}); // leadAt reads it for the DFP flags
           const patch = standardsPatch(opened.settings);
           if (patch && app.standards) app.standards.update(patch);
           // The saved radar is checked against this flight's own window; a bad block is left out, the rest opens.
           // Pictures outside the flight's window are left out and counted in a line (F4b); a block over the length or not
           // text (which the file reader drops unseen) is left out with a line too (F4a).
           const wx = savedFromSetting(weatherSettingOf(text, opened.settings), { startT: next.startT, endT: next.endT });
-          return { flight: next, dfps: dfpsFromFile(opened.dfps, leadAt), t: opened.settings[TIME_KEY], weather: wx.saved, notice: wx.problem ?? (droppedNotice(wx.dropped) || undefined) };
+          return { flight: next, pucks: filePucks, dfps: dfpsFromFile(opened.dfps, leadAt), t: opened.settings[TIME_KEY], weather: wx.saved, notice: wx.problem ?? (droppedNotice(wx.dropped) || undefined) };
         });
       },
       csv() {
@@ -647,6 +685,7 @@ function mount(root, app) {
     ui.applyLayout(values);
     standardsPanel?.setCollapsed(!values.standardsOpen);
     filePanel.setCollapsed(!values.filesOpen);
+    puckPanel.setCollapsed(!values.puckOpen);
     tennisPanel.element.hidden = !values.tennisOpen;
     if (values.tennisOpen) tennisPanel.render(tennisNow());
     // Turning Winds aloft or the wind arrows on, or picking a model, redraws
