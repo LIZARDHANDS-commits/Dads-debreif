@@ -13,22 +13,22 @@
  */
 const blk = (cx, cy, w, d, rot, h, roof, extra = {}) => Object.freeze({ cx, cy, w, d, rot, h, roof, ...extra });
 
-/** Hangars 1 to 3: the main hangar, doors to the south onto the ramp, and its annexes (traced 10 Oct). */
+/** Hangars 1 to 3: the main hangar, doors to the east onto the pad beside it (Patrick, 10 Oct: "The hangar doors should be facing east"), and its annexes (traced 10 Oct), none overlapping the hangar. */
 export const FLAT_HANGARS = Object.freeze([
   Object.freeze({
     id: 'hangar-1', name: 'Hangar 1', accent: '#c8102e',
     main: blk(266, 2224, 178, 234, -0.08, 40, '#e6e3da'),
-    annexes: Object.freeze([blk(284, 2356, 159, 31, -0.08, 20, '#3d434a'), blk(186, 2318, 18, 37, -0.08, 16, '#eceae4')]),
+    annexes: Object.freeze([blk(284, 2356, 159, 31, -0.08, 20, '#3d434a'), blk(174, 2318, 18, 37, -0.08, 16, '#eceae4')]),
   }),
   Object.freeze({
     id: 'hangar-2', name: 'Hangar 2', accent: '#1d4ed8',
     main: blk(584, 2183, 166, 230, -0.04, 40, '#9d9f9c'),
-    annexes: Object.freeze([blk(462, 2187, 72, 243, -0.04, 30, '#ecebe6'), blk(547, 2054, 126, 53, -0.04, 18, '#ecebe6')]),
+    annexes: Object.freeze([blk(462, 2187, 72, 243, -0.04, 30, '#ecebe6'), blk(556, 2046, 108, 37, -0.04, 18, '#ecebe6')]),
   }),
   Object.freeze({
     id: 'hangar-3', name: 'Hangar 3', accent: '#c8102e',
-    main: blk(887, 2157, 178, 231, -0.04, 40, '#2b2f33'),
-    annexes: Object.freeze([blk(901, 2273, 162, 34, -0.04, 22, '#b8bcbf'), blk(802, 2236, 22, 59, -0.04, 16, '#eceae4'), blk(883, 2010, 187, 63, -0.04, 20, '#d9d7d0')]),
+    main: blk(887, 2150, 178, 217, -0.04, 40, '#2b2f33'),
+    annexes: Object.freeze([blk(901, 2276, 162, 34, -0.04, 22, '#b8bcbf'), blk(788, 2230, 22, 59, -0.04, 16, '#eceae4'), blk(883, 2010, 187, 63, -0.04, 20, '#d9d7d0')]),
   }),
 ]);
 
@@ -94,19 +94,19 @@ function flatBlock(THREE, mat, b, name) {
   return g;
 }
 
-/** A flat-roofed hangar: the main block with a door across its south face (a band in the hangar's colour over it) and its annexes. */
+/** A flat-roofed hangar: the main block with a door across its east face (a band in the hangar's colour over it) and its annexes. */
 function flatHangar(THREE, mat, spec) {
   const g = new THREE.Group();
   g.name = spec.id;
   g.userData = { type: 'hangar', id: spec.id, name: spec.name, x: spec.main.cx, y: spec.main.cy };
   const m = spec.main;
   g.add(flatBlock(THREE, mat, m, `${spec.id}-main`));
-  const doorW = m.w * 0.85;
+  const doorW = m.d * 0.85;
   const doorH = 28;
-  const door = boxAt(THREE, mat('#5b6470', { metal: 0.4, rough: 0.5 }), m, 0, -m.d / 2 - 0.6, doorW, 1.2, doorH);
+  const door = boxAt(THREE, mat('#5b6470', { metal: 0.4, rough: 0.5 }), m, m.w / 2 + 0.6, 0, 1.2, doorW, doorH);
   door.name = `${spec.id}-doors`;
   g.add(door);
-  const band = boxAt(THREE, mat(spec.accent), m, 0, -m.d / 2 - 0.8, doorW + 10, 1.2, 5, doorH + 2);
+  const band = boxAt(THREE, mat(spec.accent), m, m.w / 2 + 0.8, 0, 1.2, doorW + 10, 5, doorH + 2);
   band.name = `${spec.id}-door-band`;
   g.add(band);
   spec.annexes.forEach((a, i) => g.add(flatBlock(THREE, mat, a, `${spec.id}-annex-${i + 1}`)));
