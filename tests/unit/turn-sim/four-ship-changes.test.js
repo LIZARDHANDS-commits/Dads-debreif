@@ -312,3 +312,23 @@ test('4-ship station changes wait for the one ahead: #2 crosses to echelon only 
   });
   assert.deepEqual(wrongs('trail', g.state.aircraft, 0), []);
 });
+
+// TS-176 (Patrick 10 Oct 2026 20:49Z; SMM 12.24 para 59, join to the inside of the turn): from Spread 4 a turning rejoin
+// to echelon joins each wingman straight into his echelon place, with no station change after: once close to Lead (300 ft,
+// about route out to fighting wing's near edge, an estimate) #3 and #4 are never on the far side of him, and nobody gets
+// more than 100 ft ahead of Lead's 3/9 line while close (the old line-law margin TS-176 keeps).
+test('4-ship: from Spread 4 a turning rejoin to echelon joins each straight into echelon, with no station change after', () => {
+  const f = createFormation({ ships: 4, wingSide: 'right' });
+  const s = -1;
+  assert.equal(f.change('echelon', { rejoin: 'into' }), 'started', f.state.refusal ?? '');
+  fly(f, 'echelon (into)', (before, after) => {
+    const a = byId(after);
+    for (const id of [2, 3, 4]) {
+      const l = link(a.get(1), a.get(id));
+      if (l.range > 300) continue;
+      assert.ok(l.rel.fwd <= 100, `#${id} is ${Math.round(l.rel.fwd)} ft ahead of Lead's 3/9 line`);
+      if (id !== 2) assert.ok(l.rel.left * s > -20, `#${id} on the far side of Lead after joining (a station change)`);
+    }
+  });
+  assert.deepEqual(wrongs('echelon', f.state.aircraft, s), []);
+});

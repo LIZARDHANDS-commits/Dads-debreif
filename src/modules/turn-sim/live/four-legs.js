@@ -110,9 +110,14 @@ export function flyLeg(start, t0, lead, wings, blockFt) {
         let { run, profile } = trackTwice({ refs: recs, wing0, t0, phases, blockFt, maxSec: FOUR_CHANGE_LIMIT_SEC });
         if (!run.ok) return { ok: false, reason: `${NAMES[w.id]} could not settle in its place inside ${Math.round(FOUR_CHANGE_LIMIT_SEC / 60)} minutes.`, id: w.id };
         let planeInSec = t0;
+        // In his place on the level heights, before the plane's heights are laid on: in Lead's turn the plane holds him
+        // off those heights, so the re-flown run only "arrives" once Lead has rolled out (V2.220; until then the next
+        // wingman's gate waited for Lead's roll-out).
+        const flatArrive = run.times[run.times.length - 1].arrive;
         if (w.plane) ({ run, profile, planeInSec } = intoLeadsPlane(wing0, leadRec, recs, phases, run, profile, t0, blockFt));
         const last = run.times[run.times.length - 1];
-        part = { plan: { segments: [{ kind: 'bankTrack', points: run.points }], profile }, durationSec: run.durationSec, inSec: Math.max(last.arrive ?? t0 + run.durationSec, planeInSec), times: run.times, maxBankDeg: run.maxBankDeg };
+        const arrive = (w.plane ? flatArrive ?? last.arrive : last.arrive) ?? t0 + run.durationSec;
+        part = { plan: { segments: [{ kind: 'bankTrack', points: run.points }], profile }, durationSec: run.durationSec, inSec: Math.max(arrive, planeInSec), times: run.times, maxBankDeg: run.maxBankDeg };
         part.profileEnd = Math.max(t0, ...profile.map((leg) => leg.t1));
       }
       plans[w.id] = part.plan;
