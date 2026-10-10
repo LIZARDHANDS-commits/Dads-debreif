@@ -453,6 +453,16 @@ Code: `taxi.js`, `sim.js` `landForTheStop`, `taxiTick` and `runwayBusyTick`, the
 5. On the ground it takes only a touch-and-go, and only while still rolling on the runway. It is never in a conflict with aircraft flying over it.
 6. **When data fails:** a landing for the stop that is not on 29L (a route of your own) is removed at touchdown, as before.
 
+### 4.18 Mid-air collisions (Patrick, 10 Oct 21:15Z)
+
+Code: `sim.js` `collisionTick` and `eject`. TR-116.
+
+1. Two flying aircraft that touch both eject. Touching means passing within 35 ft of each other, centre to centre: Fight Sim's hitbox for the CT-156 (wingspan 33.4 ft, length 33.3 ft). Patrick: "if the aircraft actually do collide/touch, they eject and crash."
+2. Each pilot ejects as a PFL pilot does when the aircraft can't make the runway (TR-75): the seat, the parachute, and the abandoned aircraft diving into the ground.
+3. The check runs every step, along each aircraft's path through that step, so a fast head-on pass can't slip through between steps.
+4. Aircraft rolling out or taxiing on the ground are left out. So are two that were already within 35 ft of each other when the step began (two started on the same spot); they pass through each other.
+5. The automatic deconfliction (4.12) is unchanged: a collision happens only when it doesn't keep them apart, or when it is switched off.
+
 ---
 
 ## 5. Spawn UI

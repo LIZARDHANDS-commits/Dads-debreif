@@ -44,6 +44,7 @@ import { behaviourOf, behaviourLabel } from './behaviour.js';
 import { buildTaxiIn, taxiStep, taxiPosition, TAXI } from './taxi.js';
 import { PATTERN_ALT_FT, RUNWAY_29L_HDG_DEG, THRESHOLD_29L, DEPARTURE_END_29L, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT, NUMBER_BASE_PAST_THRESHOLD_FT, TOUCHDOWN_PAST_NUMBERS_FT, RUNWAY_WIDTH_FT } from './airfield.js';
 import { legOffsetsFt } from '../../core/geo.js';
+import { closestApproach } from '../../core/closest-approach.js';
 import { iasToTasKt } from './weather.js';
 import { setFieldTemperature, placeStraightInDescent } from './weather.js';
 import { windTriangle } from '../../core/wind.js';
@@ -87,6 +88,12 @@ export const DEFAULT_CONFLICT_LIMITS = Object.freeze({ latFt: 200, vertFt: 200, 
  * (an estimate: 300 ft), so the initial at pattern height over the same line keeps its own tag (TR-94).
  */
 const FINAL_TAG_ABOVE_WINDOW_FT = 300;
+
+/**
+ * Two aircraft touch when they pass this close, ft, centre to centre in three dimensions: Fight Sim's mid-air hitbox
+ * (CT-156 wingspan 33.4 ft, length 33.3 ft; turn-fight/energy/setup.js), used by Traffic's collision (TR-116).
+ */
+const COLLISION_HITBOX_FT = 35;
 const TRAIL_EVERY_STEPS = 10;
 const TRAIL_POINTS = 240;
 
@@ -964,17 +971,58 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       a.tag = undefined;
       startGoAround(a);
     } else {
-      a.active = false;
-      a.landed = false;
-      a.status = 'ejected';
-      a.command = null;
-      // Where, when and how fast it was going, for the ejection and the abandoned aircraft on screen (ejection.js).
-      a.ejectAt = { x: a.x, y: a.y, alt: a.alt, t, headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG, kias: a.iasKt ?? a.kt ?? 125 };
+      eject(a);
       a.pflDecision = 'Eject';
-      a.pflSegment = null;
-      a.pflMarginFt = null;
-      a.pflMarginTag = null;
-      a.config = undefined;
+    }
+  }
+
+  /**
+   * The pilot ejects where the aircraft is (TR-75): the seat, the parachute and the abandoned aircraft diving into the
+   * ground are drawn from `a.ejectAt` (ejection.js).
+   */
+  function eject(a) {
+    a.active = false;
+    a.landed = false;
+    a.status = 'ejected';
+    a.command = null;
+    // Where, when and how fast it was going, for the ejection and the abandoned aircraft on screen (ejection.js).
+    a.ejectAt = { x: a.x, y: a.y, alt: a.alt, t, headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG, kias: a.iasKt ?? a.kt ?? 125 };
+    a.pflDecision = null;
+    a.pflSegment = null;
+    a.pflMarginFt = null;
+    a.pflMarginTag = null;
+    a.config = undefined;
+    delete a.pflFlight;
+    delete a.goAroundFlight;
+    delete a.highKeyFlight;
+    delete a.deconflict;
+    delete a.sideStep;
+  }
+
+  /**
+   * Mid-air collisions (Traffic spec 4.18, TR-116; Patrick, 10 Oct 21:15Z: "if the aircraft actually do collide/touch,
+   * they eject and crash"): two flying aircraft that pass within COLLISION_HITBOX_FT of each other during the step both
+   * eject. Each moved in a straight line over the step from where it was (`before`). Aircraft on the ground are left out,
+   * and so are two that were already inside the hitbox when the step began (two started on the same spot).
+   */
+  function collisionTick(before) {
+    const flying = aircraft.filter((a) => a.active && !a.landed && before.has(a.id) && [a.x, a.y, a.alt].every(Number.isFinite));
+    const hit = new Set();
+    for (let i = 0; i < flying.length; i++) {
+      for (let j = i + 1; j < flying.length; j++) {
+        const a = flying[i], b = flying[j];
+        const a0 = before.get(a.id), b0 = before.get(b.id);
+        const moving = (p0, p) => ({ x: p0.x, y: p0.y, z: p0.alt, vx: (p.x - p0.x) / STEP_SEC, vy: (p.y - p0.y) / STEP_SEC, vz: (p.alt - p0.alt) / STEP_SEC });
+        const cpa = closestApproach(moving(a0, a), moving(b0, b));
+        const endFt = Math.hypot(a.x - b.x, a.y - b.y, a.alt - b.alt);
+        const closestFt = cpa.closing && cpa.tcpaSec <= STEP_SEC ? cpa.missFt : Math.min(cpa.rangeFt, endFt);
+        // Coming together: two already overlapping when the step began (started on the same spot) pass through.
+        if (closestFt < COLLISION_HITBOX_FT && cpa.rangeFt >= COLLISION_HITBOX_FT) { hit.add(a); hit.add(b); }
+      }
+    }
+    for (const a of hit) {
+      eject(a);
+      a.collided = true;
     }
   }
 
@@ -989,6 +1037,11 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     if (setup.randomize && steps % DECONFLICT.decideEverySteps === 0) randomizeTick();
     if (setup.deconflict && steps % DECONFLICT.decideEverySteps === 0) deconflictTick();
     if (steps % DECONFLICT.decideEverySteps === 0) runwayBusyTick();
+    // Where each flying aircraft was before this step, for the collision check after it.
+    const before = new Map();
+    for (const a of aircraft) {
+      if (a.active && !a.landed && t >= a.startsAt && [a.x, a.y, a.alt].every(Number.isFinite)) before.set(a.id, { x: a.x, y: a.y, alt: a.alt });
+    }
     for (const a of aircraft) {
       if (!a.active || t < a.startsAt) continue;
       if (a.taxi) {
@@ -1022,6 +1075,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       delete a.pflEndedThisStep;
       recordTrail(a);
     }
+    collisionTick(before);
     if (steps % every === 0 && !history.has(steps)) remember();
   }
 
@@ -1537,6 +1591,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           active: a.active,
           landed: Boolean(a.landed),
           onGround: Boolean(a.taxi),
+          collided: Boolean(a.collided),
           engineFailed: Boolean(a.engineFailed),
           command: a.command ?? null,
           intent: a.intent ?? 'touch_and_go',
