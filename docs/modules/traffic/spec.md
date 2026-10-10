@@ -442,6 +442,17 @@ Code: `aircraft.js` (the card), `sim.js` `setPattern`. TR-62.
    - Manoeuvres: **Breakout**, **Closed Pattern** with its bank, **High Key**, **PFL** and **Go-around**, as before.
 2. The highlighted button is the aircraft's current choice. The menu each card shows is remembered while the page is open.
 
+### 4.17 Full stop: rollout and taxi-in (Patrick, 10 Oct 20:38Z)
+
+Code: `taxi.js`, `sim.js` `landForTheStop`, `taxiTick` and `runwayBusyTick`, the route in `airfield.js` `TAXI_IN_29L`. TR-115.
+
+1. An aircraft that lands for the stop on 29L slows evenly from its touchdown speed to 20 kt by the runway's end, and turns right off it there. Patrick: "slow down to the end of the runway and taxi off ... it slows to 20 knots and taxis at 20 knots."
+2. It taxis at 20 kt along the taxiway from the 29L end, straight across 29R, then along the taxiway north of 29R east onto the ramp. It stops in front of the Bandit hangar (Hangar 2), waits 5 s and is removed. The route is traced off the satellite photo (about ±25 ft). The 200 ft turns, the gentle stop and the 5 s are estimates.
+3. On the ground the speed shown is ground speed.
+4. While it is on 29L (until 150 ft past its turn off the runway, an estimate), a touch-and-go on final behind it flies a low approach: it goes around 1,500 ft before the threshold, where a randomized low approach does (4.13), or at once if it is already closer. If the runway is clear by then, it lands as usual. Another full stop behind it still lands, and a PFL is not changed.
+5. On the ground it takes only a touch-and-go, and only while still rolling on the runway. It is never in a conflict with aircraft flying over it.
+6. **When data fails:** a landing for the stop that is not on 29L (a route of your own) is removed at touchdown, as before.
+
 ---
 
 ## 5. Spawn UI
