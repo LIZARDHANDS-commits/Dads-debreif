@@ -51,7 +51,7 @@ export const RATE_SETS = Object.freeze({
   close: Object.freeze({
     leadRoll: Object.freeze({ maxRateDps: 30, maxAccelDps2: 20 }),
     echelonRoll: Object.freeze({ maxRateDps: 30, maxAccelDps2: 12 }),
-    frame: Object.freeze({ lateralFtps: 15, foreAftFtps: 10, verticalFtps: 8, nearPerSec: 0.1, nearMinFtps: 4 }),
+    frame: Object.freeze({ lateralFtps: 35, foreAftFtps: 25, verticalFtps: 15, nearPerSec: 0.1, nearMinFtps: 8 }),
     law: Object.freeze({ powerShare: 0.65, turnShare: 0.35, latG: 0.3, vertFtps2: 3 }),
   }),
   tactical: Object.freeze({
@@ -65,17 +65,23 @@ export const RATE_SETS = Object.freeze({
  * Nominal shaping targets and soft envelope caps for close-in formation work (SMM 12.4, 12.6, 12.20).
  * Targets, not walls: guidance steers toward the nominal targets, with progressive soft cushion
  * expanding toward the envelope cap if displaced.
+ * Scaled so echelon <-> route takes ~10 seconds.
  */
 export const CLOSE_SHAPING = Object.freeze({
-  targetBankDeg: 2.5,
-  envelopeBankCapDeg: 6.0,
-  targetLateralFtps: 8.4,       // 5.0 kt lateral drift
-  targetOvertakeKt: 3.0,        // subtle power nudge
-  targetUndertakeKt: 3.0,
-  envelopeMaxOvertakeKt: 5.0,
-  envelopeMaxUndertakeKt: 5.0,
+  targetBankDeg: 8.0,
+  envelopeBankCapDeg: 15.0,
+  targetLateralFtps: 32.0,      // ~19 kt lateral drift
+  targetFwdFtps: 32.0,          // ~19 kt fore/aft rate
+  targetCornerFtps: 24.0,       // corner flow rate
+  targetOvertakeKt: 8.0,        // power trim
+  targetUndertakeKt: 8.0,
+  envelopeMaxOvertakeKt: 10.0,
+  envelopeMaxUndertakeKt: 10.0,
   wakeClearanceDownFt: 15.0,    // below prop wash
   wakeClearanceAftFt: 12.0,     // behind tail
+  advanceTolFt: 6.0,
+  finalTolFt: 5.0,              // SMM close formation band (5 ft)
+  settleFtps: 3.5 * KT_TO_FTPS, // ~3.5 kt settle rate inside band
 });
 
 /** Bank angle choices for close formation turns (echelon, route, line astern). */

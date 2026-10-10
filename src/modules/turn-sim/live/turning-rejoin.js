@@ -68,11 +68,12 @@ const xArriveFtps = () => ((TURNING_REJOIN.stableKt[0] + TURNING_REJOIN.stableKt
  * line into echelon (or on into line astern, legsFor's crossover); to route, into route. at: #2's place in Lead's frame then.
  */
 function tailLegs(s, to, sTo, spacingFt, at = null) {
+  const rejoinOver = { rejoin: true, targetBankDeg: null, targetOvertakeKt: null, bankCapDeg: REJOIN.bankCapDeg };
   if (to === 'fw') return [rejoinTo(pairSlot('fw', s, spacingFt)), ...(sTo !== s ? legsFor('fw', s, 'fw', sTo, spacingFt) : [])];
   if (to === 'route' || (!at && to !== 'echelon')) {
     const rSlot = pairSlot('route', sTo || s, spacingFt);
     const rest = legsFor('route', s, to, sTo, spacingFt);
-    return [closeThrough(rSlot, rest.length ? { advanceTol: TURNING_REJOIN.routeFlowFt } : { advanceTol: TURNING_REJOIN.routeFlowFt }), ...(rest.length ? rest : [slide(rSlot)])];
+    return [closeThrough(rSlot, { advanceTol: TURNING_REJOIN.routeFlowFt, ...rejoinOver }), ...(rest.length ? rest : [slide(rSlot, rejoinOver)])];
   }
   const ech = pairSlot('echelon', s, spacingFt);
   const rest = legsFor('echelon', s, to, sTo, spacingFt);
@@ -82,7 +83,10 @@ function tailLegs(s, to, sTo, spacingFt, at = null) {
   const dO = Math.abs(atPos.left) - Math.abs(ech.left);
   const alongFt = (-dF * LINE_BACK_PER_OUT + dO) / n;
   const offFt = Math.abs(dF + dO * LINE_BACK_PER_OUT) / n;
-  return [closeThrough(downTheLine(ech, s, Math.max(0, alongFt - offFt)), { advanceTol: TURNING_REJOIN.routeFlowFt, overtakeKias: 10 }), ...(rest.length ? rest : [slide(ech, { overtakeKias: 10 })])];
+  return [
+    closeThrough(downTheLine(ech, s, Math.max(0, alongFt - offFt)), { advanceTol: TURNING_REJOIN.routeFlowFt, overtakeKias: 10, ...rejoinOver }),
+    ...(rest.length ? rest : [slide(ech, { overtakeKias: 10, ...rejoinOver })]),
+  ];
 }
 
 /**
@@ -97,10 +101,11 @@ function overshootLegs(s, to, sTo, spacingFt) {
   const key = to === 'astern' ? 'echelon' : to;
   const out = sTo !== 0 && sTo !== s ? sTo : -s;
   const clear = (side) => ({ fwd: -2 * LENGTH_FT, left: slot(key, side).left, alt: slot('astern', 0).alt });
-  const legs = [stopAt(clear(out))];
-  if (to === 'astern') return [...legs, slide(slot('astern', 0), { fwdRate: 5 })];
-  if (out === sTo) return [...legs, slide(slot(to, sTo), { fwdRate: 5 })];
-  return [...legs, stopAt(clear(s)), slide(slot(to, s), { fwdRate: 5 })];
+  const rejoinOver = { rejoin: true, targetBankDeg: null, targetOvertakeKt: null, bankCapDeg: REJOIN.bankCapDeg };
+  const legs = [stopAt(clear(out), rejoinOver)];
+  if (to === 'astern') return [...legs, slide(slot('astern', 0), { fwdRate: 5, ...rejoinOver })];
+  if (out === sTo) return [...legs, slide(slot(to, sTo), { fwdRate: 5, ...rejoinOver })];
+  return [...legs, stopAt(clear(s), rejoinOver), slide(slot(to, s), { fwdRate: 5, ...rejoinOver })];
 }
 
 /**

@@ -27,7 +27,7 @@ import { trackTwice, phase } from './tracker.js';
 import { smoothest, makeTrack, seedTrack, setTrackStep, TRACK_PAD, posesFrom, settleLast, slotInWorld } from './kinematic.js';
 import { leadTurnSegs } from './manoeuvres.js';
 import { fwPursuitCommand, fwBubbleCommand } from './fw-pursuit.js';
-import { FW_TURN, FW_FOLLOW, FW_EXIT, WING_BANKS, ROLL, RATE_SETS } from './tuning.js';
+import { FW_TURN, FW_FOLLOW, FW_EXIT, WING_BANKS, ROLL, RATE_SETS, closeBankNow } from './tuning.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { wrapPi } from '../../../core/angles.js';
 
@@ -320,7 +320,7 @@ export const CLOSE_TURN = Object.freeze({
    * of place and back in a few seconds ("initially climbs or descends slightly as bank is changed", para 41).
    */
   followG: 0.5,
-  bankOffDeg: 10,
+  bankOffDeg: 2.5,
   powerG: 0.1,
   onsetGps: 4,
   holdPerSec: 2.5,
@@ -494,7 +494,8 @@ export function planCloseTurn(aircraft, formation, key, dir, t0 = 0) {
   const four = aircraft.length > 2;
   const turnDeg = FW_TURN.turnDeg[key];
   const echelon2 = !four && formation === 'echelon';
-  const bank = turnDeg <= 30 ? CLOSE_TURN.gentleBankDeg : four && formation === 'echelon' ? CLOSE_TURN.fourEchelonBankDeg : echelon2 ? CLOSE_TURN.echelonBankDeg : CLOSE_TURN.bankDeg;
+  const closeBank = closeBankNow();
+  const bank = turnDeg <= 30 ? CLOSE_TURN.gentleBankDeg : four && formation === 'echelon' ? CLOSE_TURN.fourEchelonBankDeg : (echelon2 || formation === 'route' || formation === 'astern') ? closeBank : CLOSE_TURN.bankDeg;
   // The 2-ship echelon turn rolls slow and smooth (Patrick 20:50Z, TS-78); the other close formations as V2.76 (TS-77).
   const leadSegs = leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, bank, true).map((x) => ({ ...x, roll: echelon2 ? CLOSE_TURN.echelonRoll : CLOSE_TURN.leadRoll }));
   const leadSteps = Math.round(dryRunT(lead, { segments: leadSegs }, t0).durationSec / STEP_SEC);
@@ -548,9 +549,10 @@ export function leadTurnPlan(lead, formation, key, dir) {
   if (!FW_TURN_KEYS.includes(key) || !TURN_FORMATIONS[2].includes(formation)) return null;
   const turnDeg = FW_TURN.turnDeg[key];
   if (formation === 'fw') return { segments: leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, WING_BANKS.fwTurnBankDeg, true) };
-  const echelon = formation === 'echelon';
-  const bank = turnDeg <= 30 ? CLOSE_TURN.gentleBankDeg : echelon ? CLOSE_TURN.echelonBankDeg : CLOSE_TURN.bankDeg;
-  return { segments: leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, bank, true).map((x) => ({ ...x, roll: echelon ? CLOSE_TURN.echelonRoll : CLOSE_TURN.leadRoll })) };
+  const closeBank = closeBankNow();
+  const isClose = formation === 'echelon' || formation === 'route' || formation === 'astern';
+  const bank = turnDeg <= 30 ? CLOSE_TURN.gentleBankDeg : isClose ? closeBank : CLOSE_TURN.bankDeg;
+  return { segments: leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, bank, true).map((x) => ({ ...x, roll: formation === 'echelon' ? CLOSE_TURN.echelonRoll : CLOSE_TURN.leadRoll })) };
 }
 
 const formationWord = (key, four) => ({ echelon: 'echelon', route: 'route', astern: 'line astern', trail: 'line astern', finger: 'finger', box: 'box', fw: 'fighting wing' })[key] ?? (four ? 'the formation' : key);

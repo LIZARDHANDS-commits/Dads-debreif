@@ -2700,6 +2700,12 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     },
     /** Current 2-tier camera state */
     getCamera: () => ({ ...currentCameraState }),
+    /** Programmatic camera view setter { center, cam } */
+    setView: (next) => {
+      view = { ...view, ...next, cam: { ...view?.cam, ...(next?.cam || {}) } };
+      requestDraw();
+    },
+    getView: () => view,
     /** A camera view by id ('fit', 'high', 'low', … as camera-views.js lists them). Done at the next frame, when the size is known. */
     preset(name) {
       wantPreset = name;

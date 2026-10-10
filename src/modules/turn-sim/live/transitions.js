@@ -183,5 +183,5 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
 /** Two passes of the tracker: the first learns the leg times, the second flies with #2's height profile built from them. */
 function trackTwiceOffLead(lead, wing, leadSegs, t0, phases, blockFt) {
   const refs = { [lead.id]: recordFlight(lead, { segments: leadSegs }, t0) };
-  return { leadSegs, ...trackTwice({ refs, wing0: wing, t0, phases, blockFt }) };
+  return { leadSegs, ...trackTwice({ refs, wing0: wing, t0, phases, blockFt, stopWhenSettled: true }) };
 }

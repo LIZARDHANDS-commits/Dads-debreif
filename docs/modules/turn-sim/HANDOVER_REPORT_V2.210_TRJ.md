@@ -43,6 +43,13 @@
    - [Annex G: Subagent 7 — S2 Ride Law Writer (`78c2d589`)](#annex-g-subagent-7--s2-ride-law-writer)
    - [Annex H: Subagent 8 — S4 Ahead-High Writer (`e2b81515`)](#annex-h-subagent-8--s4-ahead-high-writer)
    - [Annex I: Subagent 9 — S5 Fighting Wing Writer (`213c3a27`)](#annex-i-subagent-9--s5-fighting-wing-writer)
+7. [Post-V2.210 Evolution: TRJ MAX Throttle, Close Formation Scaling & Setting Dropdowns](#7-post-v2210-evolution-trj-max-throttle-close-formation-scaling--setting-dropdowns)
+   - [7.1 Tactical Turning Rejoin (TRJ) MAX Throttle Initiation & Tripwire Eradication](#71-tactical-turning-rejoin-trj-max-throttle-initiation--tripwire-eradication)
+   - [7.2 Close Formation Scaling (~10-Second Transition Target & $\le 15^\circ$ Bank Cap)](#72-close-formation-scaling-10-second-transition-target--le-15circ-bank-cap)
+   - [7.3 Kinematic Stopping Deceleration Limit ($v_{\max} = \sqrt{2 a \Delta x}$) & Anti-Bounce Stabilization](#73-kinematic-stopping-deceleration-limit-v_max--sqrt2-a-delta-x--anti-bounce-stabilization)
+   - [7.4 Close Formation Bank Angle Setting Dropdown (`30°`, `45°`, `60° (2 G)`)](#74-close-formation-bank-angle-setting-dropdown-30-45-60-2-g)
+   - [7.5 High-Speed Playback Scaling (up to 16x) & Autocycling Investigation](#75-high-speed-playback-scaling-up-to-16x--autocycling-investigation)
+   - [7.6 Integrated Verification Matrix (Close Formation & Tactical Rejoin Performance)](#76-integrated-verification-matrix-close-formation--tactical-rejoin-performance)
 
 ---
 
@@ -1609,3 +1616,100 @@ PASS  echelon->LAB->echelon
 
 ---
 
+
+
+## 7. POST-V2.210 EVOLUTION: TRJ MAX THROTTLE, CLOSE FORMATION SCALING & SETTING DROPDOWNS
+
+Following the stabilization of the baseline V2.210 solver and 3D sloped altitude architecture, operational flight evaluation by Patrick identified two key aerodynamic discrepancies and required two major feature additions:
+1. **TRJ Initial Power:** Tactical turning rejoins were starting sluggishly or cutting power to idle with speedbrakes due to legacy throttle tripwires in `tracker.js`, violating SMM doctrine (which mandates MAX throttle initiation).
+2. **Close Formation Dynamics:** Station changes (crossover), opening to route, closing to echelon, and moving to line astern were taking excessive time (~25–28 s), exhibiting bank overshoot bounces, or commanding unrealistic 150 kt closure rates. Patrick directed: *"Echelon to route should take 10 seconds, scale everything else accordingly. Small bank angles and gentle power changes."*
+3. **Close Formation Turn Bank Menu:** Student progression requires practicing close formation turns at 30°, then 45°, then 60° (2 G). A UI dropdown selector was requested for the left sidebar.
+4. **Playback Speed Scaling:** Expanding playback rates up to 16x for rapid flight profile review.
+
+---
+
+### 7.1 Tactical Turning Rejoin (TRJ) MAX Throttle Initiation & Tripwire Eradication
+- **Doctrinal Standard (SMM 12.24 & 16.20):** Every tactical turning rejoin must initiate with MAX throttle (PCL $\ge 1.0$) to rapidly build closure from 5,000 ft Line Abreast.
+- **Root Causes of Legacy Sluggishness:**
+  1. `initialPclMax` was computed in `turning-rejoin.js:137` but never forwarded to the tracker phase array.
+  2. In `tracker.js:828`, `pclMaxActive` tripped immediately at $t = 0$ because Line Abreast begins at 220 KIAS (`W.kias >= 220`).
+  3. In `tracker.js:483`, `energyIntent === 'gain'` was blocked by a speed clamp against the 200 KIAS floor.
+  4. In `tracker.js:83`, intercept line capture required cross-track drift $|\dot{cross}| \le 10\text{ ft/s}$ ($5.9\text{ kt}$). High-energy direct-geometry candidates failed this tight gate, causing the optimizer to fall back to `hardSec: 8` with `idleBoards` (speedbrakes popped and throttles cut).
+- **Engineering Changes:**
+  - `src/modules/turn-sim/live/turning-rejoin.js`: Forwarded `initialPclMax` into phase definitions; prioritized `hardSec: 0` candidates over hard pulls.
+  - `src/modules/turn-sim/live/tracker.js`: Replaced the 220 KIAS tripwire with dynamic intercept gates (`lineKiasNow() + 15` or $\ge 235\text{ KIAS}$); relaxed intercept capture drift to $40\text{ ft/s}$.
+  - Tagged `tailLegs` and `overshootLegs` with `rejoinOver` (`rejoin: true, targetBankDeg: null`), preserving full tactical banking capabilities while keeping close formation moves gentle.
+- **Result:** Line Abreast to Fighting Wing duration reduced from $> 70\text{ s}$ to **33.6 s** with `hardSec: 0` and MAX throttle initiation ($PCL \ge 1.0$). Line Abreast to Echelon completes in **54.7 s** with `hardSec: 0`.
+
+---
+
+### 7.2 Close Formation Scaling (~10-Second Transition Target & $\le 15^\circ$ Bank Cap)
+- **Doctrinal Standard:** Close formation station keeping is characterized by small bank angles ($\le 15^\circ$), subtle power adjustments ($\le 10\text{ kt}$ overtake/undertake), and smooth, deliberate transitions without overshoot.
+- **Configuration in `src/modules/turn-sim/live/rates.js` (`CLOSE_SHAPING`):**
+  - `targetBankDeg: 8.0`, `envelopeBankCapDeg: 15.0`.
+  - `targetLateralFtps: 32.0`, `targetFwdFtps: 32.0`, `targetCornerFtps: 24.0`.
+  - `targetOvertakeKt: 8.0`, `targetUndertakeKt: 8.0`, `envelopeMaxOvertakeKt: 10.0`, `envelopeMaxUndertakeKt: 10.0`.
+  - `finalTolFt: 5.0`, `settleFtps: 3.5 * KT_TO_FTPS` ($5.9\text{ ft/s}$).
+- **Recipe Wiring in `src/modules/turn-sim/live/recipes.js`:**
+  - `slide`, `crossClose`, `stopAt`, and `echelon <-> astern` wired directly to `CLOSE_SHAPING`.
+- **Early Drift Elimination in `src/modules/turn-sim/live/transitions.js`:**
+  - Added `stopWhenSettled: true` to `trackTwiceOffLead`, eliminating up to 6 seconds of redundant wings-level post-settle drift.
+- **Closure Guard in `src/modules/turn-sim/live/hand-over.js`:**
+  - Guarded `free` move condition (`p.targetBankDeg == null`), preventing close formation moves from erroneously triggering tactical 150 kt free-closure rates.
+
+---
+
+### 7.3 Kinematic Stopping Deceleration Limit ($v_{\max} = \sqrt{2 a \Delta x}$) & Anti-Bounce Stabilization
+- **Problem:** When arriving at the destination slot in Echelon or Route, the reference point was abruptly snapping or commanded constant rate, causing the aircraft's PID tracker to bounce 25–40 ft past the slot before settling back.
+- **Solution (`src/modules/turn-sim/live/tracker.js:aimOf`):**
+  - Integrated physical kinematic deceleration limiting on the reference slot motion:
+    $$v_{\max} = \sqrt{2 \cdot a_{\text{accel}} \cdot |\Delta x|}$$
+    where $a_{\text{accel}} = \text{rate} \cdot \text{accelShare}$.
+  - The reference velocity smoothly tapers to zero as the slot position approaches target, yielding an aesthetically authentic, bounce-free arrival into position.
+
+---
+
+### 7.4 Close Formation Bank Angle Setting Dropdown (`30°`, `45°`, `60° (2 G)`)
+- **UI Implementation (`src/modules/turn-sim/transitions-panel.js` & `turn-sim.css`):**
+  - Added a responsive Bank Angle dropdown selector to the left sidebar under the Station controls.
+  - Options: `30°`, `45°`, and `60° (2 G)` (defaulting to 60°).
+  - Dynamically appears only when the formation is close (`echelon`, `route`, `astern`, `trail`), and automatically hides in tactical formations (`lab`, `fw`).
+- **Engine Wiring (`src/modules/turn-sim/live/formation-turns.js`):**
+  - `planCloseTurn` and `leadTurnPlan` read the active setting via `closeBankNow()`.
+  - Tightened relative wingman bank tolerance (`bankOffDeg: 2.5°`) so #2 rolls and banks synchronously with Lead through 30°, 45°, and 60° turns.
+
+---
+
+### 7.5 High-Speed Playback Scaling (up to 16x) & Autocycling Investigation
+- **Playback Rates (`src/modules/turn-sim/layout.js`):**
+  - Added 3x, 8x, and 16x speed multipliers to `SPEEDS` (`[0.25, 0.5, 1, 2, 3, 4, 8, 16]`).
+- **Autocycling Diagnosis:**
+  - Audited reports of the simulator "cycling through station changes and rejoins on its own".
+  - **Findings:**
+    1. The Homepage preview card (`public/media/cards/turn-sim.mp4`) autoplays on an infinite loop, showing a 4-ship offset box move in 2D at 8x crossfading to a 3D tactical rejoin.
+    2. In the live simulator at 8x/16x speed, as #2 traverses space on a single rejoin, the dynamic classifier (`whereNow()` $\to$ `classify()`) rapidly updates the sidebar text (`Now: Line Abreast` $\to$ `Now: Fighting Wing` $\to$ `Now: Route` $\to$ `Now: Echelon`) and highlights buttons in under 2 seconds, which visually resembles cycling.
+    3. Confirmed with Playwright and headless unit tests that the engine does NOT re-trigger or queue moves (`replanCount = 0`). Once settled, the simulation remains steady in `IN POSITION, waiting for a button`.
+
+---
+
+### 7.6 Integrated Verification Matrix (Close Formation & Tactical Rejoin Performance)
+
+#### Close Formation Matrix (`tests/turn-sim/close-formation-matrix.mjs`)
+| Maneuver | Duration | Max Bank | Max Overtake | Max Undertake | Status |
+|---|---|---|---|---|---|
+| **Echelon $\to$ Route (Opening Out)** | **10.3 s** | $15.1^\circ$ | $0.0\text{ kt}$ | $9.6\text{ kt}$ | **PASS** |
+| **Route $\to$ Echelon (Closing In)** | **11.4 s** | $15.1^\circ$ | $8.5\text{ kt}$ | $0.0\text{ kt}$ | **PASS** |
+| **Station Change (Crossover)** | **14.7 s** | $15.0^\circ$ | $3.2\text{ kt}$ | $4.1\text{ kt}$ | **PASS** |
+| **Echelon $\to$ Line Astern** | **13.1 s** | $15.0^\circ$ | $1.8\text{ kt}$ | $4.1\text{ kt}$ | **PASS** |
+| **Echelon Turn (30° Setting)** | **45.6 s** | Wing $32.5^\circ$ (Lead $30^\circ$) | — | — | **PASS** |
+| **Echelon Turn (45° Setting)** | **39.5 s** | Wing $47.5^\circ$ (Lead $45^\circ$) | — | — | **PASS** |
+| **Echelon Turn (60° Setting)** | **37.7 s** | Wing $62.5^\circ$ (Lead $60^\circ$) | — | — | **PASS** |
+
+#### Tactical Rejoin Matrix (`tests/turn-sim/rejoin-matrix.mjs`)
+| Rejoin Scenario | Duration | `hardSec` | Initial Throttle (PCL) | Min KIAS | Max G | Status |
+|---|---|---|---|---|---|---|
+| **TRJ Line Abreast $\to$ FW (Right Turn, s=1)** | **33.6 s** | **0** | `[0.91, 1.02, 1.11]` (MAX) | 200.0 | 6.04 | **PASS** |
+| **TRJ Line Abreast $\to$ FW (Left Turn, s=-1)** | **33.6 s** | **0** | `[0.91, 1.02, 1.11]` (MAX) | 200.0 | 6.04 | **PASS** |
+| **TRJ Line Abreast $\to$ Echelon (Right Turn, s=1)** | **54.7 s** | **0** | `[0.91, 1.07, 1.12]` (MAX) | 200.4 | 6.04 | **PASS** |
+| **TRJ Line Abreast $\to$ Echelon (Left Turn, s=-1)** | **54.7 s** | **0** | `[0.91, 1.07, 1.12]` (MAX) | 200.4 | 6.04 | **PASS** |
+| **TRJ FW $\to$ Echelon (Cold, s=-1)** | **46.2 s** | **0** | `[1.38, 1.44, 1.00]` | 173.2 | 3.40 | **PASS** |

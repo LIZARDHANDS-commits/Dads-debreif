@@ -1,9 +1,7 @@
 import { createFormation } from '../../src/modules/turn-sim/live/formation.js';
 import { slotsFor } from '../../src/modules/turn-sim/live/slots.js';
 import { planFormationTurn } from '../../src/modules/turn-sim/live/formation-turns.js';
-let _bankSetting = 60;
-function closeBankNow() { return _bankSetting; }
-function setCloseBank(b) { _bankSetting = b; }
+import { closeBankNow, setCloseBank } from '../../src/modules/turn-sim/live/rates.js';
 
 function setupCloseFormation(from = 'echelon', side = -1) {
   const sim = createFormation({ ships: 2, wingSide: side === 1 ? 'left' : 'right', spacingFt: 1000 });
@@ -17,7 +15,8 @@ function setupCloseFormation(from = 'echelon', side = -1) {
   wing.altAboveFt = lead.altAboveFt + slot.alt;
   wing.headingRad = lead.headingRad;
   wing.bankDeg = 0;
-  wing.kias = lead.kias;
+  lead.kias = 200;
+  wing.kias = 200;
   return sim;
 }
 

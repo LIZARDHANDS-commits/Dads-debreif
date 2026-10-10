@@ -86,7 +86,7 @@ export const LAYOUT_ALLOWED = /** @type {Record<string, any[]>} */ (Object.freez
 /** Layers that only the 2D picture draws; they are greyed out in 3D. */
 const LAYERS_2D = []; // every layer draws in 3D as well as 2D (Patrick, 5 Oct)
 
-export const SPEEDS = Object.freeze([0.25, 0.5, 1, 2, 4]);
+export const SPEEDS = Object.freeze([0.25, 0.5, 1, 2, 3, 4, 8, 16]);
 
 /** The line above the buttons, for the pair and for the four. */
 const PAIR_MOVES_NOTE = 'These manoeuvres fly in line abreast. Change to line abreast first.';

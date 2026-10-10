@@ -449,6 +449,7 @@ function mount(root, app) {
       setup,
       settings,
       map,
+      view3d,
       play,
       pause,
       loadScenario,

@@ -38,10 +38,20 @@ export function onClosure(phases, { closeIn: allCloseIn = false, rejoinBankDeg =
   return phases.map((p) => {
     const out = Math.hypot(p.slot.fwd, p.slot.left);
     const long = out > LONG_SLOT_FT;
-    const free = !allCloseIn && !p.rejoin && out > FREE_MOVE_FT;
-    const closureFtps = free ? FREE_CLOSURE_KT * KT_TO_FTPS : !allCloseIn && (p.rejoin || long) ? rejoin : closeIn;
-    const bankCapDeg = p.rejoin ? rejoinBankDeg ?? p.bankCapDeg : long || free ? WING_BANKS.kickOutBankCapDeg : WING_BANKS.closeBankCapDeg;
-    return { ...p, closureFtps, bankCapDeg, fwdRate: Infinity, latRate: Infinity, vrelMax: Math.max(p.vrelMax, closureFtps), ...(free ? { slowStage: p.slowStage ?? 'boards' } : {}) };
+    const free = !allCloseIn && !p.rejoin && p.targetBankDeg == null && out > FREE_MOVE_FT;
+    const closureFtps = p.closureFtps ?? (free ? FREE_CLOSURE_KT * KT_TO_FTPS : !allCloseIn && (p.rejoin || long) ? rejoin : closeIn);
+    const bankCapDeg = p.rejoin ? rejoinBankDeg ?? p.bankCapDeg : long || free ? WING_BANKS.kickOutBankCapDeg : (p.bankCapDeg ?? WING_BANKS.closeBankCapDeg);
+    const fwdRate = p.targetBankDeg != null ? p.fwdRate : Infinity;
+    const latRate = p.targetBankDeg != null ? p.latRate : Infinity;
+    return {
+      ...p,
+      closureFtps,
+      bankCapDeg,
+      fwdRate,
+      latRate,
+      vrelMax: Math.max(p.vrelMax ?? 0, closureFtps),
+      ...(free ? { slowStage: p.slowStage ?? 'boards' } : {}),
+    };
   });
 }
 

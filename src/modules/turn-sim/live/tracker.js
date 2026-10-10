@@ -237,14 +237,25 @@ function aimOf(ph, L, Lprev, ref, W, t) {
       ref[axis] = target;
       ref[v] = 0;
     } else {
-      const want = Math.max(-rate, Math.min(rate, GAIN.refRate * (target - ref[axis])));
-      const step = rate * T.refAccelShare * STEP_SEC;
+      const dist = target - ref[axis];
+      const accelShare = ph.refAccelShare ?? (ph.targetBankDeg != null ? 0.6 : T.refAccelShare);
+      const accel = rate * accelShare;
+      const maxV = Math.sqrt(Math.max(0, 2 * accel * Math.abs(dist)));
+      const wantRaw = Math.sign(dist) * Math.min(rate, Math.abs(dist) * (ph.targetBankDeg != null ? 1.5 : GAIN.refRate));
+      const want = Math.sign(dist) * Math.min(Math.abs(wantRaw), maxV);
+      const step = accel * STEP_SEC;
       ref[v] += Math.max(-step, Math.min(step, want - ref[v]));
       ref[axis] += ref[v] * STEP_SEC;
-      if (Math.abs(target - ref[axis]) < T.snapFt) ref[axis] = target;
+      const snapDist = Math.max(T.snapFt, Math.min(1.0, (ph.advanceTol ?? 6) * 0.25));
+      if (Math.abs(target - ref[axis]) < snapDist) {
+        ref[axis] = target;
+        ref[v] = 0;
+      }
     }
   }
-  const arrived = ph.goal ? Math.hypot(ref.f - slot.fwd, ref.l - slot.left) < (ph.goalTolFt ?? T.goalTolFt) : ref.f === ph.slot.fwd && ref.l === ph.slot.left;
+  const arrived = ph.goal
+    ? Math.hypot(ref.f - slot.fwd, ref.l - slot.left) < (ph.goalTolFt ?? T.goalTolFt)
+    : Math.hypot(ref.f - ph.slot.fwd, ref.l - ph.slot.left) < Math.max(T.snapFt, (ph.advanceTol ?? 6) * 0.25);
 
   // The reference point and its velocity: attached to the aircraft it flies off, so it turns with it (v = vRef + ω × r + the reference's own motion).
   // A phase with `refTurn: false` (the fighting wing turn exit) leaves out the ω × r: the place goes with the aircraft flown
@@ -435,20 +446,25 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
     const frac = Math.max(0, Math.min(1, (aim.along - dNear) / Math.max(1, dFar - dNear)));
     cap = targetCap + frac * (cap - targetCap);
   }
+  const leadBank = L?.bankDeg ?? 0;
   const rawBank = bankDegFromTurnRate(W.tasFtps, omegaCmd);
   let bank;
   if (ph.targetBankDeg != null) {
+    const baseBank = L && Math.abs(leadBank) > 5 ? leadBank : 0;
+    const relBank = rawBank - baseBank;
     const tBank = ph.targetBankDeg;
     const eCap = Math.max(tBank, cap);
-    const sign = Math.sign(rawBank) || 1;
-    const mag = Math.abs(rawBank);
+    const sign = Math.sign(relBank) || 1;
+    const mag = Math.abs(relBank);
+    let shapedRel;
     if (mag <= tBank) {
-      bank = rawBank;
+      shapedRel = relBank;
     } else {
       const excess = mag - tBank;
       const margin = eCap - tBank;
-      bank = sign * (tBank + margin * Math.tanh(excess / Math.max(1, margin)));
+      shapedRel = sign * (tBank + margin * Math.tanh(excess / Math.max(1, margin)));
     }
+    bank = Math.max(-cap, Math.min(cap, baseBank + shapedRel));
   } else {
     bank = Math.max(-cap, Math.min(cap, rawBank));
   }
@@ -769,7 +785,8 @@ function isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt, timesK, early, heig
   if (!last && arrived && d <= ph.advanceTol && gateOpen && stopDone) {
     return { advance: true, early: pursuitResult, stoppedAt: null };
   }
-  const settled = ((arrived && d <= ph.finalTol && relVel <= Math.max(T.settleMinFtps, T.settleShare * ph.finalTol) && heightDone) || fwSettled) && last && gateOpen;
+  const settleVel = ph.settleFtps ?? Math.max(T.settleMinFtps, T.settleShare * ph.finalTol);
+  const settled = ((arrived && d <= ph.finalTol && relVel <= settleVel && heightDone) || fwSettled) && last && gateOpen;
   const startAligning = settled && L.free && L.bankDeg === 0;
   return {
     abort: false,

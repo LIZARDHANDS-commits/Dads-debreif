@@ -62,49 +62,49 @@ This plan fixes all tripwires, makes MAX throttle the baseline default, enables 
 ## Task List
 
 ### Phase 0: Baseline Verification Matrix & Instruments (Observation 0053)
-- [ ] **Task 0: Create Rejoin Verification Matrix & Instrument Suite**
+- [x] **Task 0: Create Rejoin Verification Matrix & Instrument Suite**
   - Build automated verification test script covering all 7 rejoin scenarios.
   - Record pre-fix baseline metrics (time, initial throttle, min range, max G, settle precision).
   - Verify instrument catches known failures (e.g. `hardSec: 8` idleBoards).
 
 ### Checkpoint 0: Baseline Frozen
-- [ ] All 7 rejoin baseline numbers captured and logged.
-- [ ] Failure detection verified on known-bad configurations.
+- [x] All 7 rejoin baseline numbers captured and logged.
+- [x] Failure detection verified on known-bad configurations.
 
 ### Phase 1: Engine & Tripwire Fixes
-- [ ] **Task 1: Wire `initialPclMax` & Revise `pclMaxActive` Tripwires in `tracker.js`**
+- [x] **Task 1: Wire `initialPclMax` & Revise `pclMaxActive` Tripwires in `tracker.js`**
   - Pass `initialPclMax` into `phases.push(...)` in `turning-rejoin.js`.
   - Fix `atSpeed` tripwire in `tracker.js:831` (do not abort at 220 KIAS for LAB start).
   - Fix `energyIntent === 'gain'` condition in `tracker.js:483`.
-- [ ] **Task 2: Fix Ride Phase Speed Floor Clamp in `tracker.js`**
+- [x] **Task 2: Fix Ride Phase Speed Floor Clamp in `tracker.js`**
   - Allow line approach speed to sustain MAX throttle / line speed rather than clamping to 200 KIAS.
 
 ### Checkpoint 1: Tripwires Cleared
-- [ ] Node tests confirm #2 initiates TRJ with MAX throttle (throttle $\ge 1.0$) from Line Abreast.
-- [ ] Speed does not bleed to 200 KIAS on initiation.
+- [x] Node tests confirm #2 initiates TRJ with MAX throttle (throttle $\ge 1.0$) from Line Abreast.
+- [x] Speed does not bleed to 200 KIAS on initiation.
 
 ### Phase 2: Expeditious Fighting Wing Geometry & Cone Energy
-- [ ] **Task 3: Refine Fighting Wing Rejoin Geometry & Capture Gates**
+- [x] **Task 3: Refine Fighting Wing Rejoin Geometry & Capture Gates**
   - Relax drift rate threshold for FW cone intercept.
   - Allow direct, smooth transition into cone tracking.
-- [ ] **Task 4: Cone Energy Management & Power Anticipation in FW Follow**
+- [x] **Task 4: Cone Energy Management & Power Anticipation in FW Follow**
   - Leverage `zoomFtps` vertical trade inside the cone.
   - Implement smooth power anticipation rolling off MAX throttle as #2 enters cone perimeter.
 
 ### Checkpoint 2: Fighting Wing Expedited
-- [ ] TRJ to FW from Line Abreast completes in $< 35\text{ s}$ with zero idle/boards fallback.
-- [ ] #2 settles cleanly inside the $30^\circ\text{–}60^\circ$ cone, $500\text{–}1,000\text{ ft}$, stepped down $0\text{–}200\text{ ft}$.
+- [x] TRJ to FW from Line Abreast completes in $< 35\text{ s}$ with zero idle/boards fallback.
+- [x] #2 settles cleanly inside the $30^\circ\text{–}60^\circ$ cone, $500\text{–}1,000\text{ ft}$, stepped down $0\text{–}200\text{ ft}$.
 
 ### Phase 3: Optimizer Hierarchy & Rejoin Safety Fallbacks
-- [ ] **Task 5: Prioritize MAX Throttle in `searchTurningRejoin`**
+- [x] **Task 5: Prioritize MAX Throttle in `searchTurningRejoin`**
   - Prioritize `hardSec: 0` candidates before evaluating hard pulls.
   - Reserve `hardPullsSec` (`idleBoards`) exclusively for emergency overshoots where no MAX-throttle solution exists.
 
 ### Checkpoint 3: Optimizer Prioritization Confirmed
-- [ ] Optimizer selects `hardSec: 0` MAX-throttle candidate for standard Line Abreast rejoins.
+- [x] Optimizer selects `hardSec: 0` MAX-throttle candidate for standard Line Abreast rejoins.
 
 ### Phase 4: Full Matrix Verification & Parameter Tuning
-- [ ] **Task 6: Execute Full Rejoin Matrix & Verify Invariants**
+- [x] **Task 6: Execute Full Rejoin Matrix & Verify Invariants**
   - Run the full suite across all 7 rejoin scenarios.
   - Verify zero regressions, no 3/9 overshoots, and clean settling.
   - Document all before/after metric changes (time saved, speeds, power).

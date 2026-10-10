@@ -609,7 +609,11 @@ export function drawScene(ctx, map, scene, settings, palette, layers = {}) {
         const chosen = route.id === picked;
         ctx.save();
         ctx.globalAlpha = (picked !== null && !chosen ? 0.55 : 1) * lineOpacity(route);
-        line(route.path, route.color, (chosen ? 4.5 : 3) * lineScale(route), [], !route.open);
+        // High-contrast dark outline backing so line pops clearly over satellite imagery
+        line(route.path, '#000000', (chosen ? 7.5 : 5.5) * lineScale(route), [], !route.open);
+        // Vibrant, high-visibility bright cyan-blue line
+        const brightColor = isPat1 ? '#38bdf8' : (route.color || '#58a6ff');
+        line(route.path, brightColor, (chosen ? 5.0 : 3.8) * lineScale(route), [], !route.open);
         ctx.restore();
       }
     } else {
@@ -857,18 +861,184 @@ function drawPoints(ctx, route, at, text, palette, circle) {
   });
 }
 
-// The wind arrow and "Wind 241°M 20 kt" in the top right corner, only when it isn't calm.
+// High-visibility meteorological wind barb HUD card in the top right corner.
 function drawWind(ctx, map, settings, palette, text) {
-  const words = windText(settings.windFromDeg, settings.windKt);
-  if (!words) return;
+  const windKt = settings.windKt ?? 0;
+  const windFromDeg = settings.windFromDeg ?? 180;
+  if (windKt < 0) return;
+
   const { width } = map.size;
+  const cardW = 230;
+  const cardH = 84;
+  const x = width - cardW - 16;
+  const y = 16;
+
+  ctx.save();
+
+  // 1. HUD Card Backing
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+  ctx.shadowBlur = 14;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 4;
+
   ctx.beginPath();
-  const arrow = turnedShape(WIND_ARROW_SHAPE, windBlowsTowardDeg(settings.windFromDeg), 14);
-  arrow.forEach(([dx, dy], i) => (i ? ctx.lineTo(width - 28 + dx, 30 + dy) : ctx.moveTo(width - 28 + dx, 30 + dy)));
-  ctx.closePath();
-  ctx.fillStyle = palette.text;
+  const r = 8;
+  if (ctx.roundRect) {
+    ctx.roundRect(x, y, cardW, cardH, r);
+  } else {
+    ctx.rect(x, y, cardW, cardH);
+  }
+  ctx.fillStyle = 'rgba(10, 15, 26, 0.90)';
   ctx.fill();
-  text(words, width - 50, 34, palette.text, { size: 13, bold: true, align: 'right' });
+
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)'; // bright cyan border
+  ctx.stroke();
+  ctx.restore();
+
+  // 2. Wind Barb Geometry
+  const cx = x + 44;
+  const cy = y + cardH / 2;
+  const maxStaff = 32;
+  const BARB_FEATHER = 13;
+  const BARB_SPACING = 6;
+
+  // Subtle compass reference ring
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, 34, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.22)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Cardinal tick marks (N, S, E, W)
+  const ticks = [
+    { label: 'N', x: cx, y: cy - 25 },
+    { label: 'S', x: cx, y: cy + 26 },
+    { label: 'E', x: cx + 26, y: cy },
+    { label: 'W', x: cx - 26, y: cy },
+  ];
+  ctx.font = '600 8px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(148, 163, 184, 0.7)';
+  for (const t of ticks) {
+    ctx.fillText(t.label, t.x, t.y);
+  }
+  ctx.restore();
+
+  const isCalm = windKt < 1;
+
+  if (isCalm) {
+    // Calm: double concentric circle
+    ctx.save();
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, 7.5, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  } else {
+    // Active Wind: Directional Staff + Dynamic Barbs
+    ctx.save();
+    ctx.translate(cx, cy);
+    // Rotate so staff points in direction wind blows FROM (0° = North = up, 180° = South = down)
+    ctx.rotate(((windFromDeg - 90) * Math.PI) / 180);
+
+    const staffLen = Math.min(maxStaff, Math.max(16, windKt * 2.2));
+
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    function drawStaffAndBarbs(color, width) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+
+      // Shaft
+      ctx.moveTo(4, 0);
+      ctx.lineTo(staffLen, 0);
+
+      // Barbs at staff end
+      // Feather 1 (10 kt full / 5 kt half)
+      const f1Max = windKt >= 10 ? BARB_FEATHER : (windKt >= 5 ? BARB_FEATHER * 0.5 : (windKt / 5) * BARB_FEATHER * 0.5);
+      if (f1Max > 0.5) {
+        ctx.moveTo(staffLen, 0);
+        ctx.lineTo(staffLen - 3.5, f1Max);
+      }
+
+      // Feather 2 (20 kt full / 15 kt half)
+      if (windKt > 10) {
+        const at2 = staffLen - BARB_SPACING;
+        const rem2 = windKt - 10;
+        const f2Max = rem2 >= 10 ? BARB_FEATHER : (rem2 >= 5 ? BARB_FEATHER * 0.5 : (rem2 / 5) * BARB_FEATHER * 0.5);
+        if (f2Max > 0.5) {
+          ctx.moveTo(at2, 0);
+          ctx.lineTo(at2 - 3.5, f2Max);
+        }
+      }
+
+      // Feather 3 (30 kt full / 25 kt half)
+      if (windKt > 20) {
+        const at3 = staffLen - 2 * BARB_SPACING;
+        const rem3 = windKt - 20;
+        const f3Max = rem3 >= 10 ? BARB_FEATHER : (rem3 >= 5 ? BARB_FEATHER * 0.5 : (rem3 / 5) * BARB_FEATHER * 0.5);
+        if (f3Max > 0.5) {
+          ctx.moveTo(at3, 0);
+          ctx.lineTo(at3 - 3.5, f3Max);
+        }
+      }
+
+      ctx.stroke();
+    }
+
+    // Pass 1: Dark halo outline
+    drawStaffAndBarbs('#000000', 4.5);
+    // Pass 2: Vibrant cyan core
+    drawStaffAndBarbs('#38bdf8', 2.2);
+
+    // Station center circle
+    ctx.beginPath();
+    ctx.arc(0, 0, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#38bdf8';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1.5;
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  // 3. Digital Readout (Right Side)
+  const tx = x + 88;
+  const magDeg = String(trueToMagnetic(windFromDeg)).padStart(3, '0');
+
+  ctx.save();
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+
+  ctx.font = '700 9.5px system-ui, sans-serif';
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('SURFACE WIND', tx, y + 23);
+
+  ctx.font = '600 11.5px system-ui, sans-serif';
+  ctx.fillStyle = '#e2e8f0';
+  if (isCalm) {
+    ctx.fillText('CALM', tx, y + 41);
+  } else {
+    ctx.fillText(`FROM ${magDeg}°M (${Math.round(windFromDeg)}°T)`, tx, y + 41);
+  }
+
+  ctx.font = '800 22px system-ui, sans-serif';
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillText(`${Math.round(windKt)} KT`, tx, y + 68);
+
+  ctx.restore();
+  ctx.restore();
 }
 
 /**
@@ -1075,6 +1245,17 @@ export function createMap2d(canvas, {
         fitted = false;
         fitAllNext = true;
       }
+    },
+    setView(v) { map.setView(v); },
+    getView() { return map.view; },
+    fitPattern(padding = 40) {
+      const data = scene();
+      const pattern = data.routes?.find((r) => r.kind === 'pattern' || r.id === 'PAT1');
+      const box = pattern ? sceneBounds([{ ...pattern, visible: true }]) : null;
+      if (box) map.fit(box, padding);
+    },
+    fitBounds(bounds, padding = 40) {
+      map.fit(bounds, padding);
     },
     dispose() {
       imagery?.dispose();

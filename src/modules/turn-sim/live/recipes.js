@@ -30,17 +30,19 @@ import { bankDegFromTurnRate } from '../../../core/flight-math.js';
 
 // ---- the legs (phases): the tracker's recipes for each move --------------------------------------
 
-/** A station change in close formation (SMM 12.20 paras 44-47): nominal ~2.5° bank, 5 kt lateral drift, subtle power trim. */
+/** A station change in close formation (SMM 12.20 paras 44-47): nominal ~5° bank, 14 kt lateral drift, subtle power trim. */
 export const slide = (slot, over = {}) => phase(slot, {
   latRate: CLOSE_SHAPING.targetLateralFtps,
-  fwdRate: 8,
+  fwdRate: CLOSE_SHAPING.targetFwdFtps,
   targetBankDeg: CLOSE_SHAPING.targetBankDeg,
   bankCapDeg: CLOSE_SHAPING.envelopeBankCapDeg,
   targetOvertakeKt: CLOSE_SHAPING.targetOvertakeKt,
   targetUndertakeKt: CLOSE_SHAPING.targetUndertakeKt,
   overtakeKias: CLOSE_SHAPING.envelopeMaxOvertakeKt,
   undertakeKias: CLOSE_SHAPING.envelopeMaxUndertakeKt,
-  advanceTol: 6,
+  advanceTol: CLOSE_SHAPING.advanceTolFt,
+  finalTol: CLOSE_SHAPING.finalTolFt,
+  settleFtps: CLOSE_SHAPING.settleFtps,
   ...over,
 });
 /**
@@ -51,7 +53,7 @@ export const slide = (slot, over = {}) => phase(slot, {
  */
 const CORNER_FLOW_FT = 5;
 export const stopAt = (slot, over = {}) => slide(slot, {
-  fwdRate: 6,
+  fwdRate: CLOSE_SHAPING.targetFwdFtps,
   latRate: CLOSE_SHAPING.targetLateralFtps,
   advanceTol: CORNER_FLOW_FT,
   stopFtps: STOP_KT * KT_TO_FTPS,
@@ -73,9 +75,9 @@ export const cornerBehind = (slot, spacingFt) => {
 };
 /** Drop back slowly (SMM 16.32 para 92): subtle power trim (2-3 kt slower than Lead), gentle bank. */
 export const dropBack = (slot, over = {}) => phase(slot, {
-  fwdRate: 8,
+  fwdRate: CLOSE_SHAPING.targetFwdFtps,
   latRate: CLOSE_SHAPING.targetLateralFtps,
-  vrel0: 8,
+  vrel0: 12,
   advanceTol: 15,
   finalTol: 6,
   targetBankDeg: CLOSE_SHAPING.targetBankDeg,
@@ -90,22 +92,8 @@ export const dropBack = (slot, over = {}) => phase(slot, {
  * once with up to 20 KIAS under or over Lead, 45° bank, and the height change over the first 6 s. All the rates are estimates.
  */
 export const sweepOut = (slot, over = {}) => phase(slot, { fwdRate: Infinity, latRate: Infinity, vrel0: 30, kcap: 0.1, d0: 50, vrelMax: 200, decel: 3, bankCapDeg: 45, overtakeKias: 20, undertakeKias: 20, advanceTol: 25, finalTol: 6, altSec: 6, ...over });
-/** Close from fighting wing through route (SMM 16.15 para 38; AFM7 p.18): gentle 2-3 kt overtake, 2.5° nominal bank target. */
-export const closeThrough = (slot, over = {}) => phase(slot, {
-  fwdRate: 10,
-  latRate: CLOSE_SHAPING.targetLateralFtps,
-  vrel0: 6,
-  kcap: 0.02,
-  d0: 100,
-  vrelMax: 20,
-  targetBankDeg: CLOSE_SHAPING.targetBankDeg,
-  bankCapDeg: CLOSE_SHAPING.envelopeBankCapDeg,
-  targetOvertakeKt: CLOSE_SHAPING.targetOvertakeKt,
-  overtakeKias: CLOSE_SHAPING.envelopeMaxOvertakeKt,
-  undertakeKias: CLOSE_SHAPING.envelopeMaxUndertakeKt,
-  advanceTol: 6,
-  ...over,
-});
+/** Close from fighting wing through route (SMM 16.15 para 38; AFM7 p.18): 10-20 KIAS overtake, slowing to about 5 kt at route. */
+export const closeThrough = (slot, over = {}) => phase(slot, { fwdRate: 40, latRate: 40, vrel0: 8, kcap: 0.05, d0: 100, vrelMax: 50, overtakeKias: 20, advanceTol: 6, bankCapDeg: 25, ...over });
 /** The rejoin to a formation (SMM 12.24, 16.20): the slot is chased at once, the closing speed falls with range, bank up to the cap. */
 export const rejoinTo = (slot, over = {}) => phase(slot, { rejoin: true, fwdRate: Infinity, latRate: Infinity, vrel0: 25, kcap: 0.1, d0: 500, vrelMax: 260, decel: 3, bankCapDeg: REJOIN.bankCapDeg, overtakeKias: REJOIN.overtakeKias, undertakeKias: 25, advanceTol: 40, finalTol: 3, altSec: 10, ...over });
 /** Entry to line abreast (SMM 16.18 para 51): #2 turns away 20-40° to open out while Lead holds 220 KIAS. */
@@ -170,9 +158,9 @@ export function legsFor(from, s, to, sTo, spacingFt) {
   const corner = (key, side) => cornerBehind(slot(key, side), spacingFt);
   const crossClose = () => {
     phases.push(
-      slide(corner(at, side), { fwdRate: 8, latRate: 6, advanceTol: 12 }),
-      slide(corner(at, sTo), { fwdRate: 6, latRate: CLOSE_SHAPING.targetLateralFtps, advanceTol: 10 }),
-      slide(slot(at, sTo), { fwdRate: 6, latRate: 6 }),
+      slide(corner(at, side), { fwdRate: CLOSE_SHAPING.targetFwdFtps, latRate: CLOSE_SHAPING.targetCornerFtps, advanceTol: 12 }),
+      slide(corner(at, sTo), { fwdRate: CLOSE_SHAPING.targetCornerFtps, latRate: CLOSE_SHAPING.targetLateralFtps, advanceTol: 10 }),
+      slide(slot(at, sTo), { fwdRate: CLOSE_SHAPING.targetFwdFtps, latRate: CLOSE_SHAPING.targetCornerFtps }),
     );
     side = sTo;
   };
@@ -226,16 +214,16 @@ export function legsFor(from, s, to, sTo, spacingFt) {
       const astern = slot('astern', 0);
       if (at !== 'astern') {
         phases.push(
-          slide(corner(at, side), { fwdRate: 8, latRate: 6, advanceTol: 12 }),
-          slide({ ...corner(at, side), left: 0 }, { fwdRate: 6, latRate: CLOSE_SHAPING.targetLateralFtps, advanceTol: 8 }),
+          slide(corner(at, side), { fwdRate: CLOSE_SHAPING.targetFwdFtps, latRate: CLOSE_SHAPING.targetCornerFtps, advanceTol: 12 }),
+          slide({ ...corner(at, side), left: 0 }, { fwdRate: CLOSE_SHAPING.targetCornerFtps, latRate: CLOSE_SHAPING.targetLateralFtps, advanceTol: 8 }),
         );
       }
-      phases.push(slide(astern, { fwdRate: 5 }));
+      phases.push(slide(astern, { fwdRate: CLOSE_SHAPING.targetFwdFtps }));
     } else if (at === 'astern') {
       // Line astern to echelon (SMM 12.20 para 47): slide across behind slot, then forward and up
       phases.push(
-        slide(corner(to, sTo), { fwdRate: 6, latRate: CLOSE_SHAPING.targetLateralFtps, advanceTol: 10 }),
-        slide(slot(to, sTo), { fwdRate: 6, latRate: 6 }),
+        slide(corner(to, sTo), { fwdRate: CLOSE_SHAPING.targetCornerFtps, latRate: CLOSE_SHAPING.targetLateralFtps, advanceTol: 10 }),
+        slide(slot(to, sTo), { fwdRate: CLOSE_SHAPING.targetFwdFtps, latRate: CLOSE_SHAPING.targetCornerFtps }),
       );
     } else if (at !== to || side !== sTo) {
       phases.push(slide(slot(to, sTo)));

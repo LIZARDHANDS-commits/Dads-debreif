@@ -7,7 +7,7 @@
 // The 4-ship has its own buttons (spec section 8, TS-54; live/four-plan.js): setShips swaps them.
 import { h, clear } from '../../ui-kit/dom.js';
 import { rejoinReadout } from './live/judge.js';
-import { REJOIN, TURNING_REJOIN, G_RULE_BANK_DEG, KIAS_OUTSIDE_LAB, RATE_CHOICES, RATE_WORDS, CLOSE_IN_SEC, REJOIN_CLOSURE_KT, setRates, ratesNow } from './live/tuning.js';
+import { REJOIN, TURNING_REJOIN, G_RULE_BANK_DEG, KIAS_OUTSIDE_LAB, RATE_CHOICES, RATE_WORDS, CLOSE_IN_SEC, REJOIN_CLOSURE_KT, setRates, ratesNow, CLOSE_BANK_CHOICES, DEFAULT_CLOSE_BANK_DEG, setCloseBank, closeBankNow } from './live/tuning.js';
 import { slowWord } from './live/slow-down.js';
 import { FORMATIONS, FOUR_FORMATIONS, fourWords, FW_BAND } from './live/slots.js';
 import { IN_POSITION } from './live/bands.js';
@@ -169,6 +169,25 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     for (const b of rejoinButtons) b.setAttribute('aria-pressed', String(b.dataset.rejoin === rejoin));
     if (rejoinSelect.value !== rejoin) rejoinSelect.value = rejoin;
   }
+
+  // Bank angle setting for close formation turns (echelon, route, line astern; students learn at 30, then 45, then 60).
+  const bankOptions = CLOSE_BANK_CHOICES.map((deg) => ({
+    value: String(deg),
+    label: deg === 60 ? '60° (2 G)' : `${deg}°`,
+  }));
+  const bankSelect = h('select', {
+    class: 'ts-bank-select',
+    'aria-label': 'Bank angle for close formation turns',
+    onchange: () => setCloseBank(Number(bankSelect.value)),
+  }, bankOptions.map((o) => h('option', { value: o.value, selected: Number(o.value) === closeBankNow() }, o.label)));
+
+  const bankRow = h('div', {
+    class: 'ts-side ts-side-row ts-bank-row',
+    role: 'group',
+    'aria-label': 'Bank angle for close formation turns',
+    hidden: true,
+  }, h('span', { class: 'ts-hint' }, 'Bank angle'), bankSelect);
+
   const handlers = {};
 
   // Position (TS-98, TS-104; Patrick 5 Oct 23:54Z, 6 Oct 02:14Z, wording confirmed 02:54Z): #2's place against Lead, and in
@@ -368,6 +387,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     fourGrid,
     h('div', { class: 'ts-side ts-side-row', role: 'group', 'aria-label': 'Station: the side #2 ends on' }, h('span', { class: 'ts-hint' }, 'Station'), sideButtons), // "Station", was "Side" (Patrick, 5 Oct)
     rejoinRow,
+    bankRow,
     positionGroup,
     refusal,
     floatHeight,
@@ -492,8 +512,12 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       // Only what the formation the pair is in can use shows (Patrick, 5 Oct, fly-through item 6): the fluid manoeuvring
       // buttons while it runs; in fighting wing Lead's level turns, climbs and descents (TS-70); the lag roll in its own "#2"
       // group in fighting wing and echelon (TS-78, fluid-panel.js). A button that is only busy for a moment is greyed.
-      if (fluidUi) fluidUi.element.hidden = where.key !== 'fluid' && where.key !== 'fw';
       rejoinRow.hidden = where.key !== 'lab' && where.key !== 'fw';
+      const closeBankVisible = ['echelon', 'route', 'astern', 'trail'].includes(where.key);
+      bankRow.hidden = !closeBankVisible;
+      if (bankSelect.value !== String(closeBankNow())) {
+        bankSelect.value = String(closeBankNow());
+      }
       for (const [key, button] of buttons) {
         if (key === 'fluid') {
           // Fluid starts from fighting wing only (Patrick 21:44Z, spec section 10.3, formation.js startFluid), so it is hidden
