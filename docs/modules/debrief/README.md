@@ -4,7 +4,7 @@ This folder is the flight debrief viewer: load a sortie's tracks, replay them on
 
 ## Where it stands
 
-Built and live; the next step is Patrick (or anyone) running its checklist. Step 3a (GPS gap fill and the 3D cockpit view, Dad's ask of 10 Oct 2026) is built on its working answers DB-Q20 to DB-Q24 (V2.211). The roadmap and the handover disagree on whether it was already signed off (see the order section) (`archive/HANDOVER.md:87`).
+Built and live; the next step is Patrick (or anyone) running its checklist. Step 3a (GPS gap fill and the 3D cockpit view, Dad's ask of 10 Oct 2026) is built on its working answers DB-Q20 to DB-Q24 (V2.211); its camera choices are the Traffic-style pill bar over the 3D picture (V2.214, DB-22). The roadmap and the handover disagree on whether it was already signed off (see the order section) (`archive/HANDOVER.md:87`).
 
 ## What is next
 
@@ -28,7 +28,7 @@ Each has a working answer that the tool uses until it is settled.
 ### Waiting on Patrick now (also on the list in `../../PLAN.md`)
 
 - **DB-Q4:** no smoothing of the estimated G (D219) or a 3-point median filter (D383); neither is built (`pf/reset/1-requirements/questions.md:17`, `docs/modules/debrief/plan.md:37`).
-- **DB-19 to DB-21, DB-R27 and DB-R28 wording (gap fill and cockpit view, Dad's ask 10 Oct 2026):** the wording is written but not yet confirmed with Patrick (`decisions.md`, `requirements.md`).
+- **DB-19 to DB-22, DB-R27 and DB-R28 wording (gap fill and cockpit view, Dad's ask 10 Oct 2026):** the wording is written but not yet confirmed with Patrick (`decisions.md`, `requirements.md`).
 
 The gap fill and cockpit view (plan Step 3a) were built with these working answers (Dad relayed Patrick's approval; each stands until Patrick answers):
 

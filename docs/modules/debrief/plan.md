@@ -52,6 +52,7 @@ Dad: "add 3D from the cockpit to the KML viewer ... if there is a GPS gap, for t
 
 - [x] Smooth gap fill (built V2.211, DB-19, DB-20, on the working answers DB-Q20 to DB-Q22 and DB-Q24; wording waits on Patrick; not yet seen by Patrick in the real app): a gap (more than GAP_S, 5 s) is filled from the fixes before and after and, in formation, from the other ships over the same seconds, as a path the aircraft could fly (roll in, steady bank, roll out), always marked as an estimate, never used for verdicts as if real, with a setting that brings back the straight line.
 - [x] Cockpit view (built V2.211, DB-21, on the working answer DB-Q23; wording waits on Patrick; not yet seen by Patrick in the real app): sit in any loaded ship's front or rear seat in the 3D and replay from there with the shared CT-156 cockpit (needs PR #697 merged), attitude worked out from the track.
+- [x] Camera bar (built V2.214, DB-22, wording waits on Patrick; not yet seen by Patrick in the real app; Dad, 10 Oct: "can we use the same layout from the pattern sim view controls for the KML viewer"): the 3D view's camera is the Traffic sim's pill bar over the picture, Overview (Follow Lead, Centre formation), Chase and Cockpit, with Boresight, Freelook and Padlock, the ship pills and the seat, and the keys C, P, [ and ]; it replaces the Camera, Ship and Seat controls in 3D settings.
 
 ## Step 4. Check the Debrief's tests match the new rules
 
