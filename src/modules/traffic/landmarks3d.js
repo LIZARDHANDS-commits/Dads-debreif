@@ -4,6 +4,7 @@
 // Every geometry and material is freed by disposeLandmarks (D411). Trees are one InstancedMesh (one draw call).
 
 import { makeLocalRef, latLonToLocalFt } from '../../core/geo.js';
+import { batchByMaterial } from './batch3d.js';
 import { THRESHOLD_DATA_ELEV_FT } from './airfield.js';
 
 const ARP = makeLocalRef(50.3303, -105.5592);
@@ -427,6 +428,7 @@ export function createLandmarks(THREE, { floor = THRESHOLD_DATA_ELEV_FT } = {}) 
     g.name = l.id;
     g.userData = { landmark: l };
     g.position.set(l.x, l.y, floor);
+    batchByMaterial(THREE, g); // fewer draw calls (TR-125); the landmark still stands on the ground as one group
     root.add(g);
   }
   // Hwy 2 is no longer drawn over the photo (Patrick, 5 Oct: "it looks like trash"); the photo shows the road.

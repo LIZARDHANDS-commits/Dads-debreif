@@ -15,6 +15,7 @@
 // tests) every building falls back to plain colours and no sprites are made.
 
 import { createFlightlineBuildings } from './flightline-buildings3d.js';
+import { batchByMaterial } from './batch3d.js';
 import { RUNWAY_29L_HDG_DEG, THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_29R, DEPARTURE_END_29R, RUNWAY_03, RUNWAY_21, RUNWAY_WIDTH_FT, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
 
 export const DEFAULT_FLOOR_FT = THRESHOLD_DATA_ELEV_FT;
@@ -928,6 +929,9 @@ export function createAirfieldScenery(THREE, { floor = DEFAULT_FLOOR_FT, anchor 
     return createBoxBuilding(THREE, spec, floor);
   });
   for (const b of buildings) root.add(b);
+
+  // Fewer draw calls (TR-125): each building's plain-coloured pieces merged by colour, in place.
+  for (const b of [...flightline.group.children, ...hangars.filter((h) => h.parent === root), ...buildings]) batchByMaterial(THREE, b);
 
   root.userData.tower = tower;
   root.userData.hangars = hangars;
