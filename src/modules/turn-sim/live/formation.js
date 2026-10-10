@@ -196,7 +196,7 @@ export function createFormation(options = {}) {
       ? planGWarm(state.aircraft, state.tSec)
       : four
       ? planFour(state.aircraft, key, dir, state.tSec, { check45: opts.check45 !== false })
-      : state.errors
+      : state.errors && key !== 'breakRejoin'
         ? planWithErrors(state.aircraft, key, dir, state.tSec, state.errors, state.slot, { tools: resolveFixTools(opts), blockFt: opts.blockFt })
         : planManoeuvre(state.aircraft, key, dir, state.tSec);
     if (plan.ok === false) {
@@ -204,6 +204,8 @@ export function createFormation(options = {}) {
       return false;
     }
     if (plan.slotAfter) state.slot = plan.slotAfter; // the next press starts after this one ends
+    // After a break and rejoin the pair waits in trail; the TRJ from there takes the echelon side #2 broke from (TS-174/175).
+    state.trailSide = key === 'breakRejoin' ? plan.side : null;
     state.plans = plan.plans;
     state.planned = {};
     let endSec = state.tSec;
@@ -220,7 +222,7 @@ export function createFormation(options = {}) {
       label: labelFor(key, dir),
       note: plan.note,
       firstId: plan.firstId ?? null,
-      shape: turnIn ? 'formation' : m.kind === 'together' && m.turnDeg > 30 && m.turnDeg < 180 ? 'trail' : 'abreast',
+      shape: turnIn ? 'formation' : m.kind === 'break' || (m.kind === 'together' && m.turnDeg > 30 && m.turnDeg < 180) ? 'trail' : 'abreast',
       formationTurn: turnIn,
       flag: plan.flag ?? null,
       startSec: state.tSec,
@@ -260,7 +262,7 @@ export function createFormation(options = {}) {
     // A training error set (TS-62): the chooser races "from here" too, from wherever the error put #2.
     // midLead: Lead's own flying when a turn button is pressed mid-change (turnMidChange); otherwise how the press leaves him.
     const mid = midLead ? { lead: { kind: 'carry', plan: midLead } } : state.current ? midPress(state.current) : null;
-    const planOpts = { ...changeOptions, spacingFt: state.spacingFt, blockFt: opts.blockFt, lastSide: state.lastSide, errors: four ? null : state.errors, mid };
+    const planOpts = { ...changeOptions, spacingFt: state.spacingFt, blockFt: opts.blockFt, lastSide: state.lastSide, trailSide: four ? null : state.trailSide ?? null, errors: four ? null : state.errors, mid };
     // The 2-ship: the chooser (chooser.js, TS-76) runs every planner that applies (the turning rejoin, TS-68; the
     // straight-ahead rejoin, TS-72; echelon or route out to fighting wing, TS-73; opening out at full power, TS-88; a line
     // then the tracker, TS-65; "from here" after a training error's start or a press mid-move; the tracker alone) and flies
@@ -285,6 +287,7 @@ export function createFormation(options = {}) {
     }
     // The four fly off new references in the new formation (#3 off #2 in fighting wing, #4 off #3): the card reads them.
     if (four) for (const a of state.aircraft) if (a.ref != null) a.ref = plan.refs[a.id];
+    state.trailSide = null; // the wait in trail after a break ends with the rejoin (TS-175)
     state.current = {
       key: `change:${to}`,
       change: { to: plan.to ?? to, side: plan.side, from: plan.from, holdsPlan: four || Boolean(plan.holdsPlan), rejoining: plan.rejoining, rejoinKind: plan.rejoinKind, flying: plan.flying, maxBankDeg: plan.maxBankDeg, four, offStandard: plan.offStandard ?? null, chooser: plan.chooser ?? null, options: changeOptions },
@@ -442,6 +445,8 @@ export function createFormation(options = {}) {
   function refuseMove(key, dir) {
     const where = whereNow().key;
     const four = state.aircraft.length > 2;
+    // Break and rejoin: the 2-ship, from echelon only (TS-175).
+    if (key === 'breakRejoin') return four ? 'Break and rejoin is a 2-ship start for now.' : where === 'echelon' ? null : 'Break and rejoin starts from echelon; change to echelon first.';
     if (four && key === G_WARM.key) return where === 'spread4' ? null : 'G-warm starts from Spread 4; change to Spread 4 first.';
     // The turns fly in fighting wing (TS-55) and the close formations too (spec section 10.2).
     if (FW_TURN_KEYS.includes(key) && TURN_FORMATIONS[four ? 4 : 2].includes(where)) return null;

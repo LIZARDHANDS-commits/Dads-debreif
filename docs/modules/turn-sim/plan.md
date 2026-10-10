@@ -234,9 +234,9 @@ Fable's round 2 review (project files `formation-review-package-v2210/report/rep
 - [ ] **Dead code** (review 2.3): the `x` phase kind, the 3D point-mass bridge, `aimLiftVector`, `heightProfile`, `blindSecOpenArena`, `checkDoctrinalInvariants`; then `numbers.md` regenerated and the stale headers fixed (review 2.8).
 - [ ] **Unsourced numbers** (review 2.6, 2.8): the 45° follow bank cap, the +5° cone ease, the 70% hold power and the 25 kt emergency overshoot in `powerOf`: source each or take it out, with Patrick.
 - [ ] **Refactor steps 3-5** (review section 5): split `tracker.js` by phase kind, one list builder for the TRJ phases, one cone table and one gate table, then the straight rejoin and the 4-ship #2 onto the ride.
-- [ ] **Front page clip of the turning rejoin** (Patrick 10 Oct 2026 20:11Z): re-record with the active Harvard paint, not the blue and green stand-ins.
-- [ ] **TRJ Into / Away toggle** (Patrick 10 Oct 2026 20:15Z): today every TRJ has Lead turning into #2. Away: Lead turns away and #2 crosses Lead's turn circle to set up the normal rejoin line (SMM 16.20 para 65b(1), Fig 16.24, part 7 p.15). Wording approved 20:37Z: TS-174, spec 6.3.
-- [ ] **Break and rejoin from echelon** (Patrick 10 Oct 2026 20:15Z): Lead rolls into a 180° turn at 60° and 2 G, #2 follows 5 s later with the same turn, and they roll out in line with whatever spacing that gives; then the TRJ or SARJ is practised from there (SMM 12.25 paras 60-61, part 5 p.19). Wording approved 20:37Z: TS-175, spec 6.3; the pair waits in trail. The hot TRJ from it is later work.
+- [x] **Front page clip of the turning rejoin** (#715) (Patrick 10 Oct 2026 20:11Z): re-record with the active Harvard paint, not the blue and green stand-ins.
+- [x] **TRJ Into / Away toggle** (V2.217) (Patrick 10 Oct 2026 20:15Z): today every TRJ has Lead turning into #2. Away: Lead turns away and #2 crosses Lead's turn circle to set up the normal rejoin line (SMM 16.20 para 65b(1), Fig 16.24, part 7 p.15). Wording approved 20:37Z: TS-174, spec 6.3.
+- [x] **Break and rejoin from echelon** (V2.217) (Patrick 10 Oct 2026 20:15Z): Lead rolls into a 180° turn at 60° and 2 G, #2 follows 5 s later with the same turn, and they roll out in line with whatever spacing that gives; then the TRJ or SARJ is practised from there (SMM 12.25 paras 60-61, part 5 p.19). Wording approved 20:37Z: TS-175, spec 6.3; the pair waits in trail. The hot TRJ from it is later work.
 
 ## Step 9. Optimiser options (assess, then Patrick picks)
 

@@ -29,6 +29,8 @@ function runTrace(side) {
 
   console.log(`Summary: maxFwd = ${maxFwd.toFixed(2)} ft (must be <= 0), maxAheadOfLine = ${maxAheadOfLine.toFixed(2)} ft (must be <= 5 ft)`);
   if (maxFwd > 0) throw new Error(`REGRESSION: #2 went ahead of Lead's 3/9 line: ${maxFwd} ft`);
+  // 5 ft, not the shared table's 100 ft: the spinner-wingtip line is a close-formation sight line, and the SMM close
+  // formation band is 5 ft (CLOSE_SHAPING.finalTolFt); more than that ahead of it is a visible error in the canopy picture.
   if (maxAheadOfLine > 5) throw new Error(`REGRESSION: #2 breached prop-wingtip line: ${maxAheadOfLine} ft`);
   console.log(`PASS: side ${side} maintained authentic geometry!`);
 }

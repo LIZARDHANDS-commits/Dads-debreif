@@ -43,7 +43,7 @@ const READOUT_MS = 100;
 const FIT = Object.freeze({ marginShare: 0.15, minSpanFt: 150 });
 
 /** The buttons, in screen order (spec section 3). */
-const BUTTONS = ['delayed90', 'delayed45', 'check', 'inPlace90', 'hook', 'shackle', 'crossTurn'].map((key) => ({
+const BUTTONS = ['delayed90', 'delayed45', 'check', 'inPlace90', 'hook', 'shackle', 'crossTurn', 'breakRejoin'].map((key) => ({
   key,
   label: MANOEUVRES[key].label,
   sided: MANOEUVRES[key].sided,
@@ -499,9 +499,10 @@ function mount(root, app) {
     } else if (TURN_FORMATIONS[ships].includes(whereAll.key)) {
       // In fighting wing and the close formations the turn buttons turn the formation (TS-55, spec section 10.2); the
       // shackle, the cross turn and G-warm stay line abreast moves.
-      ui.setMovesEnabled(true, (key) => FW_TURN_KEYS.includes(key));
+      // Break and rejoin shows in echelon only (TS-175).
+      ui.setMovesEnabled(true, (key) => FW_TURN_KEYS.includes(key) || (key === 'breakRejoin' && ships === 2 && whereAll.key === 'echelon'));
     } else if (ships === 2) {
-      ui.setMovesEnabled(true);
+      ui.setMovesEnabled(true, (key) => key !== 'breakRejoin');
     } else {
       // The four's manoeuvres fly from Spread 4 (or a column after an in-place turn); G-warm from Spread 4 only.
       const where = whereAll.key;
