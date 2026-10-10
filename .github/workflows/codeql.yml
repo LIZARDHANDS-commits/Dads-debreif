@@ -2,10 +2,9 @@ name: CodeQL
 
 # Scans our JavaScript and the workflows for common security mistakes (D142).
 # Results show under the repo's Security tab; it never blocks the site deploy.
+# Weekly only (Patrick, 10 Oct 2026): Mondays, or by hand from the Actions tab.
 on:
-  pull_request:
-  push:
-    branches: [main]
+  workflow_dispatch:
   schedule:
     - cron: '17 9 * * 1' # Mondays
 
@@ -14,7 +13,7 @@ permissions:
 
 concurrency:
   group: codeql-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 jobs:
   analyze:
