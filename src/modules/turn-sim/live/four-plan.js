@@ -51,7 +51,7 @@ const MOVES = [
   { from: 'finger', to: 'spread4', m: 'M13', cost: 90, sides: 'same', fly: (st, t, o, s) => entryToSpread(st, t, o, s, true), how: 'open out to Spread 4' },
   { from: 'fw', to: 'fluid4', m: 'M18', cost: 60, sides: 'same', fly: (st, t, o, s) => fwFluid(st, t, o, s, true), how: '"Fluid 4, go"' },
   { from: 'fluid4', to: 'fw', m: 'not in the manuals', cost: 60, sides: 'same', fly: (st, t, o, s) => fwFluid(st, t, o, s, false), how: 'back to fighting wing' },
-  { from: 'fluid4', to: 'offsetBox', m: 'M19', cost: 120, sides: 'same', fly: (st, t, o, s) => fluidToBox(st, t, o, s), how: 'in place 90, then spread to the box' },
+  { from: 'fluid4', to: 'offsetBox', m: 'M19', cost: 120, sides: 'any', fly: (st, t, o, s, sTo) => fluidToBox(st, t, o, sTo ?? s), how: 'in place 90, then spread to the box' },
 ];
 
 /** The fewest-seconds route from (key, side) to (to, sTo) through MOVES: [{ move, s, sTo }…], or null. */

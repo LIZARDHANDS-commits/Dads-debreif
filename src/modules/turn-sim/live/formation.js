@@ -403,6 +403,21 @@ export function createFormation(options = {}) {
       const f4 = ft.key === 'fluid4' ? judgeFluid4(state.aircraft, MANOEUVRES[state.current.key]?.kind === 'together' && MANOEUVRES[state.current.key].turnDeg > 30 && MANOEUVRES[state.current.key].turnDeg < 180 ? 'trail' : 'abreast', state.spacingFt) : null;
       const j = f4 ? { inBand: f4.labels[0] === 'IN POSITION', labels: f4.labels, text: `Fluid 4: ${f4.labels.join(', ')}.`, tone: f4.labels[0] === 'IN POSITION' ? 'good' : 'caution', ships: f4.ships } : judge(state.aircraft, { key: ft.key, side: ft.key === 'offsetBox' ? sideOfTwo() : ft.side }, { spacingFt: state.spacingFt }); // the box's turns swap #2's side (TS-135)
       state.judged = { label: state.current.label, shape: 'formation', labels: j.inBand ? ['IN POSITION'] : j.labels, text: j.text, tone: j.tone, ...(four ? { ships: j.ships } : {}) };
+      if (four && ft.key === 'offsetBox') {
+        const [L, , three, fourShip] = state.aircraft;
+        const s = sideOfTwo();
+        const r3 = relativeTo(L, three);
+        const r4 = relativeTo(L, fourShip);
+        const slotAcross = s * state.spacingFt / 2;
+        const fourInSlot = Math.abs(r4.left - slotAcross) < Math.abs(r3.left - slotAcross);
+        if (fourInSlot) {
+          fourShip.ref = 1;
+          three.ref = 4;
+        } else {
+          three.ref = 1;
+          fourShip.ref = 3;
+        }
+      }
     } else {
       state.judged = { label: state.current.label, ...judge(state.aircraft, { shape: state.current.shape }, { spacingFt: state.spacingFt }) };
       if (state.current.errorRun) state.errorOutcome = outcomeOf(state.current.errorRun, lead, wing, state.current.label);

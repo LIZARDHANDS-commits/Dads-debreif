@@ -78,19 +78,22 @@ export function planOffsetBoxTurn(aircraft, key, dir, t0, { spacingFt = 5000 } =
   const frontPlans = onStack(front.plans);
   const delayed = DELAYED_KEYS.includes(key);
 
-  // The delay that puts #3 nearest his box slot once all four are done (dry runs; para 112a's 10-15 s is shown against it).
+  // The delay that puts the slot aircraft nearest its box slot once all four are done (dry runs; para 112a's 10-15 s is shown against it).
   const leadEnd = dryRun(lead, frontPlans[lead.id], t0);
   const twoEnd = dryRun(two, frontPlans[two.id], t0);
+  const sNow = Math.sign(relativeTo(lead, two).left) || 1;
+  const slotAcross = sNow * spacingFt / 2;
+  const slotAircraft = Math.abs(relativeTo(lead, four).left - slotAcross) < Math.abs(relativeTo(lead, three).left - slotAcross) ? four : three;
   const missFor = (delaySec) => {
     const rear = rearPlans(three, four, key, dir, t0, delaySec);
-    const r3 = dryRun(three, rear[three.id], t0);
-    const T = Math.max(t0 + leadEnd.durationSec, t0 + twoEnd.durationSec, t0 + r3.durationSec);
+    const rSlot = dryRun(slotAircraft, rear[slotAircraft.id], t0);
+    const T = Math.max(t0 + leadEnd.durationSec, t0 + twoEnd.durationSec, t0 + rSlot.durationSec);
     const L = poseAt(lead, frontPlans[lead.id], t0, T);
     const W2 = poseAt(two, frontPlans[two.id], t0, T);
-    const W3 = poseAt(three, rear[three.id], t0, T);
+    const WSlot = poseAt(slotAircraft, rear[slotAircraft.id], t0, T);
     const s = Math.sign(relativeTo(L, W2).left) || 1;
     const slot = slotsFor('offsetBox', s, { ships: 4, spacingFt })[3];
-    const q = relativeTo(L, W3);
+    const q = relativeTo(L, WSlot);
     return Math.hypot(q.fwd - slot.fwd, q.left - slot.left);
   };
   let delaySec = 0;
@@ -116,8 +119,9 @@ export function planOffsetBoxTurn(aircraft, key, dir, t0, { spacingFt = 5000 } =
   const m = MANOEUVRES[key];
   const [lo, hi] = BOX_DELAY_BAND_SEC;
   const band = delaySec < lo ? `, under the manual's ${lo}-${hi} s` : delaySec > hi ? `, over the manual's ${lo}-${hi} s` : `, inside the manual's ${lo}-${hi} s`;
+  const slotName = slotAircraft.name ?? (slotAircraft.id === 4 ? '#4' : '#3');
   const how = delayed
-    ? `Lead and #2 fly the ${m.label.toLowerCase()} as a line abreast pair; #3 and #4 wait ${delaySec.toFixed(1)} s${band}, then fly it too, so the box reforms with #3 about ${BOX_DEPTH_FT.toLocaleString('en-CA')} ft behind Lead (SMM 16.41 para 112a, Figs 16.30-16.32; the delay worked out at the press).`
+    ? `Lead and #2 fly the ${m.label.toLowerCase()} as a line abreast pair; #3 and #4 wait ${delaySec.toFixed(1)} s${band}, then fly it too, so the box reforms with ${slotName} about ${BOX_DEPTH_FT.toLocaleString('en-CA')} ft behind Lead (SMM 16.41 para 112a, Figs 16.30-16.32; the delay worked out at the press).`
     : key === 'shackle'
       ? 'Both elements shackle together, no delay, on the stack: #2 passes 300 ft above Lead and #4 300 ft below #3 (SMM 16.41 para 112b; SMM 16.19 paras 61-63; AFM8 brief p.14). Each element swaps sides, so the rear element ends offset to #2\'s old side.'
       : key === 'inPlace90'

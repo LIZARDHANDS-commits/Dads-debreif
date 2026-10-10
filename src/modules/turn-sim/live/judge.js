@@ -19,7 +19,7 @@ import { relativeBearingDeg } from '../../../core/angles.js';
 import { FTPS_TO_KT } from '../../../core/units.js';
 import { relativeTo, DEG } from './manoeuvres.js';
 import { rangeWord } from './fluid.js';
-import { FORMATIONS, WINGSPAN_FT, ROUTE_SPANS, LENGTH_FT, FW_BAND, FW_REGION, NEAREST, BOX_DEPTH_BAND_FT, slotsFor, fourWords, pairSlot } from './slots.js';
+import { FORMATIONS, WINGSPAN_FT, ROUTE_SPANS, LENGTH_FT, FW_BAND, FW_REGION, NEAREST, BOX_DEPTH_FT, BOX_DEPTH_BAND_FT, STACK_FT, slotsFor, fourWords, pairSlot } from './slots.js';
 import { REJOIN, IN_POSITION } from './tuning.js';
 
 /** Margins for the roll-out judgement: the shared table's ±100 ft (docs/TESTING.md). */
@@ -106,8 +106,11 @@ export function classify(aircraft) {
   if (c2.key === 'fw' && c3.key === 'lab' && c34.key === 'fw' && c3.side === -c2.side && c34.side === c3.side) return { key: 'fluid4', side: c2.side };
   if (c2.key === 'lab') {
     const r3 = relativeTo(L, three);
+    const r4 = relativeTo(L, four);
     const across2 = Math.abs(relativeTo(L, two).left);
-    if (r3.fwd < -3000 && r3.fwd > -13000 && r3.left * c2.side > 0 && Math.abs(r3.left) < across2 && c34.key === 'lab' && c34.side === c2.side) return { key: 'offsetBox', side: c2.side };
+    const rearFwdOk = r3.fwd < -3000 && r3.fwd > -13000 && r4.fwd < -3000 && r4.fwd > -13000;
+    const inSlot = (r) => r.left * c2.side > 0 && Math.abs(r.left) < across2;
+    if (rearFwdOk && (inSlot(r3) || inSlot(r4)) && c34.key === 'lab' && c34.side === c2.side) return { key: 'offsetBox', side: c2.side };
   }
   // No formation: #2's side only when it is clearly to one side (in a column after an in-place turn it is not, and the
   // side last seen is used instead; 100 ft is the shared margin).
@@ -314,6 +317,15 @@ function formationFour(key, aircraft, s, spacingFt) {
   const by = new Map(aircraft.map((a) => [a.id, a]));
   const lead = by.get(1);
   const slots = slotsFor(key, s, { ships: 4, spacingFt, stacked: true });
+  const r3 = relativeTo(lead, by.get(3));
+  const r4 = relativeTo(lead, by.get(4));
+  const slotAcross = s * spacingFt / 2;
+  const fourInSlot = key === 'offsetBox' && Math.abs(r4.left - slotAcross) < Math.abs(r3.left - slotAcross);
+  const slotId = fourInSlot ? 4 : 3;
+  if (key === 'offsetBox' && fourInSlot) {
+    slots[4] = { ref: 1, fwd: -BOX_DEPTH_FT, left: slotAcross, alt: STACK_FT[4] };
+    slots[3] = { ref: 4, fwd: 0, left: -s * spacingFt, alt: STACK_FT[3] };
+  }
   const ships = [2, 3, 4].map((id) => {
     const wing = by.get(id);
     const ref = by.get(slots[id].ref);
@@ -324,7 +336,7 @@ function formationFour(key, aircraft, s, spacingFt) {
     const stackOff = () => {
       if (Math.abs(wing.altAboveFt - lead.altAboveFt - want.alt) > JUDGE_MARGIN_FT) labels.push('OFF STACK');
     };
-    if (key === 'spread4' || (key === 'offsetBox' && id !== 3) || (key === 'fluid4' && id === 3)) {
+    if (key === 'spread4' || (key === 'offsetBox' && id !== slotId) || (key === 'fluid4' && id === 3)) {
       const j = judgeLink('abreast', ref, wing, { spacingFt });
       labels = [...j.labels];
       if (Math.sign(rel.left) !== Math.sign(want.left)) labels.push('WRONG SIDE');
