@@ -59,6 +59,17 @@ const VERTICAL_MIN_G = 0.5;
 const STRAIGHT_HORIZON_SEC = 300;
 
 /**
+ * Into echelon, #3 and #4 wait in their windows no lower than this below their places, their stack coming off on the way
+ * in, so neither climbs up into his place from 300 or 600 ft below at the end (estimates; V2.220 dry runs).
+ */
+const WINDOW_STACK_FT = { 3: 100, 4: 200 };
+
+/** Away to echelon: #2 comes from fighting wing to Lead's six this far back, up it to this far back, this far low (estimates). */
+const AWAY_SIX_FT = 600;
+const AWAY_UNDER_FT = 100;
+const AWAY_WAIT_LOW_FT = 40;
+
+/**
  * A rejoining wingman comes off its stack first (Patrick 4 Oct 19:11Z, "come off first"; SMM 12.27 para 65): one at or above
  * Lead's height holds where it is while it steps down to FW_STEP_DOWN_FT below Lead, at the gentle stack rate, and only then
  * closes. Returns the hold phase, or nothing when it is below Lead already.
@@ -77,17 +88,17 @@ function comeOffFirst(c, id, track) {
  * its second Lead's real flight, rolling out once the last wingman is in. hot: from line abreast. Null (his tracker legs
  * fly it) when no turning rejoin plans from here.
  */
-function twoTurning(c, into, s, to, sTo, hot) {
+function twoTurning(c, into, s, to, sTo, hot, crossIn = false) {
   let pick;
   return ({ wing, recs, t0 }) => {
     const args = { lead: c.start[0], wing, s, to, sTo, spacingFt: c.spacingFt, blockFt: c.blockFt, t0 };
     // The vertical too (TS-82; Patrick 6 Oct 01:14Z: "they can use the vertical if they need to"), but from his +300 ft
     // stack the climb and the dive through Lead's height pushed to -0.5 G in the dry runs: none below VERTICAL_MIN_G.
     // He keeps the line law to route (xLaw false): the 2-ship's X to the 250-100 ft window (TS-106) is for the 2-ship only so far.
-    pick ??= searchTurningRejoin({ ...args, into, hot, verticalMinG: VERTICAL_MIN_G, xLaw: false }) ?? false;
+    pick ??= searchTurningRejoin({ ...args, into, hot, verticalMinG: VERTICAL_MIN_G, xLaw: false, crossIn }) ?? false;
     if (!pick) return null;
     const rec = recs[1];
-    const flown = flyTurningRejoinWith({ ...args, into: { longRec: rec, planTo: () => ({ rec, segments: [], turned: 0 }) }, aimFt: pick.aimFt, bankCapDeg: pick.bankCapDeg, overtakeKt: pick.overtakeKt, lowFloor: pick.lowFloor, upFt: pick.upFt, minG: VERTICAL_MIN_G, xLaw: false, holdSec: FOUR_CHANGE_LIMIT_SEC });
+    const flown = flyTurningRejoinWith({ ...args, into: { longRec: rec, planTo: () => ({ rec, segments: [], turned: 0 }) }, aimFt: pick.aimFt, bankCapDeg: pick.bankCapDeg, overtakeKt: pick.overtakeKt, lowFloor: pick.lowFloor, upFt: pick.upFt, minG: VERTICAL_MIN_G, xLaw: false, holdSec: FOUR_CHANGE_LIMIT_SEC, crossIn });
     if (!flown) return null;
     const segments = flown.wingSegments
       ? flown.wingSegments.map((s) => ({ ...s, points: s.points ? [...s.points] : undefined, poses: s.poses ? [...s.poses] : undefined }))
@@ -98,14 +109,15 @@ function twoTurning(c, into, s, to, sTo, hot) {
 
 /**
  * The wait outside behind a place (p, in Lead's frame) as two legs: to the window's far edge, then creeping toward its near
- * edge until gateAt (TRJ above). over: the rejoin leg's own options.
+ * edge until gateAt (TRJ above). over: the rejoin leg's own options. creepAlt: the height he comes up to while he creeps,
+ * so he is not left climbing up into his place from his stack at the end.
  */
-function waitInWindow(c, id, p, alt, gateAt, over) {
+function waitInWindow(c, id, p, alt, gateAt, over, creepAlt = alt) {
   const [nearFt, farFt] = TRJ.outsideWindowFt[id];
   return [
     rejoinTo(place(c, p.fwd - farFt, p.left, alt), { track: 1, advanceTol: 60, ...over }),
     // anywhere in the window counts: he goes on in the moment the one ahead is in
-    rejoinTo(place(c, p.fwd - nearFt, p.left, alt), { track: 1, ...over, advanceTol: farFt - nearFt + 60, closureCapFtps: TRJ.creepKt * KT_FTPS, holdUntil: gateAt }),
+    rejoinTo(place(c, p.fwd - nearFt, p.left, creepAlt), { track: 1, ...over, advanceTol: farFt - nearFt + 60, closureCapFtps: TRJ.creepKt * KT_FTPS, holdUntil: gateAt }),
   ];
 }
 
@@ -262,10 +274,10 @@ export function turningToEchelon(start, t0, opts, s, from) {
       id,
       phases: (done) => {
         const p = inLeadFrame(ech4, id);
-        const stackAlt = Math.min(c.by.get(id).altAboveFt - c.leadAlt, ech4[id].alt);
+        const stackAlt = Math.max(Math.min(c.by.get(id).altAboveFt - c.leadAlt, ech4[id].alt), ech4[id].alt - WINDOW_STACK_FT[id]);
         const { ref } = ech4[id];
         return [
-          ...waitInWindow(c, id, p, stackAlt, inAt(done, gateId), { overtakeKias: far(id), bankCapDeg: TURNING_REJOIN.bankCapDeg }),
+          ...waitInWindow(c, id, p, stackAlt, inAt(done, gateId), { overtakeKias: far(id), bankCapDeg: TURNING_REJOIN.bankCapDeg }, ech4[id].alt - 25),
           closeThrough(place(c, line.fwd, line.left, ech4[id].alt - 25), { track: ref, advanceTol: 6 }),
           toSlot(c, slide, ech4[id]),
         ];
@@ -274,6 +286,57 @@ export function turningToEchelon(start, t0, opts, s, from) {
     const inPlane = (w) => ({ ...w, plane: true });
     return { lead: { hold: into, until: [2, 3, 4], rollOutRoll: RATE_SETS.close.echelonRoll }, wings: [inPlane(two), inPlane(wing(3, 2)), inPlane(wing(4, 3))], how: 'turning rejoin straight into echelon' };
   }]);
+}
+
+/**
+ * Spread 4 (or another spread position) to echelon as a turning rejoin with Lead turning away from #2 (TS-176 piece 4;
+ * SMM 16.20 para 65b(1), Fig 16.24; SMM 12.24 para 59, join to the inside of the turn). Lead turns toward #3 and #4, so
+ * echelon forms on their side, the inside. Nearest first (Patrick 10 Oct 2026 20:48Z): #3 and #4, already inside, close at
+ * once and come in one at a time, #3 to his place off Lead, #4 once #3 is in; #2 crosses Lead's turn circle behind him into
+ * fighting wing on the inside (the 2-ship's Away, TS-174), and once Lead has rolled out joins last: to Lead's six, low,
+ * up it and out into his place next to Lead, so he never passes behind #3 to get there. s: #2's side now.
+ */
+export function turningAwayToEchelon(start, t0, opts, s, from) {
+  const sIn = -s;
+  const ech4 = slotsFor('echelon', sIn, { ships: 4 });
+  const far = (c, id) => (Math.abs(relativeTo(c.start[0], c.by.get(id)).left) > 3000 ? FAR_OVERTAKE_KIAS : REJOIN.overtakeKias);
+  // His route place, one step out and back along the echelon line from his own (SMM 16.15 para 38), then up into it.
+  const out = pairSlot('route', sIn);
+  const step = pairSlot('echelon', sIn);
+  const wing = (c, id, gateAt) => ({
+    id,
+    phases: (done) => {
+      const p = inLeadFrame(ech4, id);
+      const stackAlt = Math.max(Math.min(c.by.get(id).altAboveFt - c.leadAlt, ech4[id].alt), ech4[id].alt - WINDOW_STACK_FT[id]);
+      return [
+        ...waitInWindow(c, id, p, stackAlt, gateAt(done), { overtakeKias: far(c, id), bankCapDeg: TURNING_REJOIN.bankCapDeg }, ech4[id].alt - 25),
+        closeThrough(place(c, p.fwd + out.fwd - step.fwd, p.left + out.left - step.left, ech4[id].alt - 25), { track: 1, advanceTol: 6 }),
+        slide(place(c, p.fwd, p.left, ech4[id].alt), { track: 1 }),
+      ];
+    },
+  });
+  const inPlane = (w) => ({ ...w, plane: true });
+  return legsInTurn(start, t0, opts, [
+    // Lead turns away from #2; #3 and #4 join in echelon on the inside; #2 crosses behind him (the 2-ship's Away, TS-174)
+    // into fighting wing on the inside, clear of their places, and Lead rolls out once all three are in.
+    (c) => {
+      const into = leadInto(c, sIn, 'echelon');
+      const two = { id: 2, fly: twoTurning(c, into, sIn, 'fw', sIn, abreast(from), true) };
+      return { lead: { hold: into, until: [2, 3, 4], rollOutRoll: RATE_SETS.close.echelonRoll }, wings: [inPlane(wing(c, 3, () => c.t0)), inPlane(wing(c, 4, (done) => inAt(done, 3))), two] };
+    },
+    // #2 last: from fighting wing to Lead's six, low, and up it, then out into his place next to Lead, inside #3.
+    (c) => ({
+      lead: [],
+      wings: [{
+        id: 2,
+        phases: () => [
+          rejoinTo(place(c, -AWAY_SIX_FT, 0, -AWAY_WAIT_LOW_FT), { track: 1, advanceTol: 60 }),
+          closeThrough(place(c, -AWAY_UNDER_FT, 0, -AWAY_WAIT_LOW_FT / 2), { track: 1, advanceTol: 6 }),
+          slide(place(c, ech4[2].fwd, ech4[2].left, ech4[2].alt), { track: 1 }),
+        ],
+      }, { id: 3, phases: () => [hold(c, 3, 1)] }, { id: 4, phases: () => [hold(c, 4, 1)] }],
+    }),
+  ]);
 }
 
 /**

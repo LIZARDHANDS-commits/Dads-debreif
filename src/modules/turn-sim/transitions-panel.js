@@ -172,7 +172,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     rejoin = value;
     for (const b of rejoinButtons) b.setAttribute('aria-pressed', String(b.dataset.rejoin === rejoin));
     if (rejoinSelect.value !== rejoin) rejoinSelect.value = rejoin;
-    turnRow.hidden = four || rejoin === 'straight';
+    turnRow.hidden = rejoin === 'straight'; // the 4-ship too since V2.221 (TS-176 piece 4)
   }
 
   // TRJ Into or Away (TS-174, Patrick 10 Oct 2026 20:37Z; SMM 16.20 para 65b(1), Fig 16.24): Into, Lead turns toward #2's
@@ -377,7 +377,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
     REJOIN_OPTIONS.map((o) => h('option', { value: o.value, selected: o.value === rejoin }, o.label)));
   const rejoinLabel = h('span', { class: 'ts-hint' }, 'Rejoin kind');
   const PAIR_REJOIN_HINT = `From line abreast or fighting wing. Turning (TRJ): Lead turns into #2 at the press at ${REJOIN.leadBankDeg}° of bank, slowing to ${KIAS_OUTSIDE_LAB} KIAS, and holds it until #2 is in (SMM 16.20 para 65); #2 gets onto the rejoin line, Lead at his 10:30 or 1:30 and slightly high, closes down it and flows through route into the slot (SMM 12.24 paras 56-58). Straight ahead (SARJ): #2 drops onto Lead's six and runs up it (SMM 12.26 paras 62-63). Auto: both are tried ahead and the quicker one is flown; the card says which. TRJ + roll: #2 starts with a barrel roll or high yo-yo, flown only when it gets him in quicker than the plain turning rejoin (it pays when he is hot, forward of abeam); the card says which.`;
-  const FOUR_REJOIN_HINT = `From any spread position each wingman joins straight into the formation called, fighting wing, finger or echelon, with no station change after (TS-176). A turning rejoin: Lead turns into #2 at the press, slowing to ${KIAS_OUTSIDE_LAB} KIAS; #3 and #4 close at once and come in one at a time, #3 once #2 is in and #4 once #3 is (SMM 16.34 paras 95-96). Straight ahead, each lines up behind the one he joins on and comes in through route in turn. From the offset box the turning rejoin is not built yet: it flies straight ahead.`;
+  const FOUR_REJOIN_HINT = `From any spread position each wingman joins straight into the formation called, fighting wing, finger or echelon, with no station change after (TS-176). A turning rejoin: Lead turns into #2 at the press, slowing to ${KIAS_OUTSIDE_LAB} KIAS; #3 and #4 close at once and come in one at a time, #3 once #2 is in and #4 once #3 is (SMM 16.34 paras 95-96). Straight ahead, each lines up behind the one he joins on and comes in through route in turn. TRJ Away: Lead turns away from #2, #3 and #4 join echelon on the inside first, and #2 joins last next to Lead (Patrick 10 Oct 20:48Z); to echelon only so far. From the offset box the turning rejoin is not built yet: it flies straight ahead.`;
   const rejoinHint = h('p', { class: 'ts-hint' }, PAIR_REJOIN_HINT);
   const rejoinField = h('label', { class: 'ts-field' }, rejoinLabel, rejoinSelect);
   // Rates (clean-up steps 2 and 3, TS-65, TS-66; Patrick 5 Oct 05:46Z, 06:09Z, 06:11Z): how fast the wingmen close,
@@ -507,7 +507,7 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       if (four && pairOnly(rejoin)) setRejoin('into');
       for (const o of rejoinSelect.options) if (pairOnly(o.value)) o.disabled = four;
       for (const b of rejoinButtons) if (pairOnly(b.dataset.rejoin)) b.hidden = four;
-      turnRow.hidden = four || rejoin === 'straight';
+      turnRow.hidden = rejoin === 'straight'; // the 4-ship too since V2.221 (TS-176 piece 4)
       rejoinHint.textContent = four ? FOUR_REJOIN_HINT : PAIR_REJOIN_HINT;
     },
     /** Greys the button for the formation the pair is in (and, for a sided one, on the side the switch asks for), and shows a refusal. */
