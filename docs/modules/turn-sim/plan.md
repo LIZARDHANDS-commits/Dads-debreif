@@ -249,3 +249,6 @@ Patrick 10 Oct 2026 20:20Z: "Keep both, route 1 first, prototype decides". Order
 ## Step 10. 4-ship polish
 
 - [ ] From the Oct 6 known faults and the close-changes matrix, after Step 9.
+- [ ] **4-ship rejoin matrix** (Patrick 10 Oct 2026 20:43Z): from every position, split to fighting wing, or rejoin to fighting wing or echelon by TRJ (Into or Away) or SARJ. Brief: project files `formation-review-package-v2216/report/four-ship-rejoin-matrix.md` (renamed words; pieces 0-4, one PR each). Piece 0, the spec and decision wording, waits for Patrick's yes; its open question is the joining order on the Away rejoin from Spread 4.
+- [ ] **4-ship change presses refuse from the default start** ("#3 could not settle"; the same at V2.210, found 10 Oct).
+
