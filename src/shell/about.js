@@ -14,7 +14,12 @@ export default {
       h(
         'article',
         { class: 'about' },
-        h('p', { class: 'back' }, h('a', { href: '#/' }, '← Home')),
+        h(
+          'div',
+          { class: 'about-nav-row' },
+          h('p', { class: 'back' }, h('a', { href: '#/' }, '← Home')),
+          h('p', { class: 'switch-view' }, h('a', { href: '#/about-alternate' }, 'View Alternate Proposal (Dossier Layout) →')),
+        ),
         h('p', { class: 'eyebrow' }, 'About the project'),
         h('h1', {}, 'About Us'),
         h(
