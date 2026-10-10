@@ -1,11 +1,9 @@
-// Recessed rivers for the 3D view: the Moose Jaw River and the south creek sit in a shallow valley sunk into the photo
-// (Patrick, 5 Oct 02:38Z "the river be recessed a bit"; card "Both" 02:45Z; "Build it now" 03:19Z; TR-70).
+// The rivers in the 3D view: the Moose Jaw River and the south creek, traced by eye off Esri's true-scale photo on 5 Oct (TR-70; Patrick,
+// 5 Oct 02:38Z "the river be recessed a bit"). Since TR-115 the valley's shape comes from the real ground heights (ground-heights3d.js),
+// with the photo draped over them; each traced line still cuts a shallow channel and darkens its banks, so the river reads clearly where the
+// height data is too coarse to show it (Patrick, 10 Oct: "Keep, carve channel").
 //
-// Each river is a valley centreline in feet from the ARP (x east, y north), traced by eye off Esri's true-scale photo on
-// 5 Oct, about +/-150 ft (an estimate): the valley's middle, not every meander of the channel. The valley is a ribbon
-// RIVER_VALLEY_WIDTH_FT wide and RIVER_VALLEY_DEPTH_FT deep (both estimates) laid in each photo square it crosses, textured
-// with that square's own photo, so the river looks as it does on the photo, only lower, with darker banks.
-// Only the High photo squares carry it; Performance shows the flat photo.
+// Each line is the valley's middle in feet from the ARP (x east, y north), about +/-150 ft (an estimate), not every meander of the channel.
 
 /** Valley centrelines, feet from the ARP. */
 export const RIVERS = Object.freeze({
@@ -31,76 +29,65 @@ export const RIVERS = Object.freeze({
   ]),
 });
 
-export const RIVER_VALLEY_WIDTH_FT = 400; // estimate: covers the tree belt along the channel
-export const RIVER_VALLEY_DEPTH_FT = 15; // estimate: "recessed a bit"
-const STEP_FT = 100; // sample spacing along the river
-// Across the valley: offset (fraction of the half-width), depth (fraction of the full depth) and shade.
-const PROFILE = Object.freeze([[-1, 0, 1], [-0.5, 0.75, 0.82], [0, 1, 0.72], [0.5, 0.75, 0.82], [1, 0, 1]]);
+/** The channel cut along each traced line: about the width of the tree belt (TR-70's valley width) and a little deeper than the ground round it. Both estimates (TR-115). */
+export const RIVER_CHANNEL_WIDTH_FT = 400;
+export const RIVER_CHANNEL_DEPTH_FT = 10;
+const BUCKET_FT = 1000; // the lines are filed in squares this size, so a lookup checks only the segments near it
+// Across the channel: distance from the line (a share of the half-width), depth (a share of the full depth) and shade.
+const PROFILE = Object.freeze([[0, 1, 0.72], [0.5, 0.75, 0.82], [1, 0, 1]]);
 
-/** The river resampled every STEP_FT, with a unit normal (left of travel) at each point, smoothed over its neighbours. */
-function sample(line) {
-  const pts = [];
-  for (let i = 0; i < line.length - 1; i++) {
-    const [ax, ay] = line[i];
-    const [bx, by] = line[i + 1];
-    const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / STEP_FT));
-    for (let k = 0; k < n; k++) pts.push([ax + ((bx - ax) * k) / n, ay + ((by - ay) * k) / n]);
+const lerpProfile = (t, col) => {
+  for (let i = 1; i < PROFILE.length; i++) {
+    const [t0] = PROFILE[i - 1];
+    const [t1] = PROFILE[i];
+    if (t <= t1) return PROFILE[i - 1][col] + ((t - t0) / (t1 - t0)) * (PROFILE[i][col] - PROFILE[i - 1][col]);
   }
-  pts.push(line[line.length - 1]);
-  return pts.map((p, i) => {
-    const a = pts[Math.max(0, i - 2)];
-    const b = pts[Math.min(pts.length - 1, i + 2)];
-    const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-    return { x: p[0], y: p[1], nx: -(b[1] - a[1]) / len, ny: (b[0] - a[0]) / len };
-  });
-}
+  return PROFILE[PROFILE.length - 1][col];
+};
 
 /**
- * The valley ribbon for one photo square, in that square's own frame (its centre at 0,0; the photo plane at z = 0), or
- * null when no river crosses it. Stretches whose valley would run off the square are left out, so its texture
- * coordinates stay on the square's own photo.
- * @param {any} THREE
- * @param {{ x: number, y: number, span: number }} square centre and side, ft
+ * The river channel as a lookup: channelAt(x, y) gives { depthFt, shade } at a point in feet from the ARP: how far the ground is cut below the
+ * real height there, and how much darker the photo is drawn (1 is unchanged). Away from every traced line it is { depthFt: 0, shade: 1 }.
+ * The real ground heights give the valley its shape (TR-115); the channel keeps the river and its tree banks readable where the height
+ * data (about 80 ft a pixel) is too coarse to show them.
  */
-export function createRiverGeometry(THREE, square, { widthFt = RIVER_VALLEY_WIDTH_FT, depthFt = RIVER_VALLEY_DEPTH_FT } = {}) {
-  const half = square.span / 2;
+export function createRiverChannel({ widthFt = RIVER_CHANNEL_WIDTH_FT, depthFt = RIVER_CHANNEL_DEPTH_FT, lines = Object.values(RIVERS) } = {}) {
   const halfW = widthFt / 2;
-  const inside = (p) => Math.abs(p.x - square.x) <= half - halfW && Math.abs(p.y - square.y) <= half - halfW;
-  const pos = [];
-  const uv = [];
-  const col = [];
-  const index = [];
-  const across = PROFILE.length;
-  for (const line of Object.values(RIVERS)) {
-    let prevRow = -1;
-    for (const p of sample(line)) {
-      if (!inside(p)) {
-        prevRow = -1;
-        continue;
-      }
-      const row = pos.length / 3;
-      for (const [off, dep, shade] of PROFILE) {
-        const lx = p.x + p.nx * off * halfW - square.x;
-        const ly = p.y + p.ny * off * halfW - square.y;
-        pos.push(lx, ly, -dep * depthFt);
-        uv.push((lx + half) / square.span, (ly + half) / square.span);
-        col.push(shade, shade, shade);
-      }
-      if (prevRow >= 0) {
-        for (let k = 0; k < across - 1; k++) {
-          const a = prevRow + k;
-          const b = row + k;
-          index.push(a, b, a + 1, a + 1, b, b + 1);
+  const buckets = new Map();
+  const bucketKey = (i, j) => `${i},${j}`;
+  for (const line of lines) {
+    for (let k = 0; k < line.length - 1; k++) {
+      const [ax, ay] = line[k];
+      const [bx, by] = line[k + 1];
+      const seg = [ax, ay, bx, by];
+      const i0 = Math.floor((Math.min(ax, bx) - halfW) / BUCKET_FT);
+      const i1 = Math.floor((Math.max(ax, bx) + halfW) / BUCKET_FT);
+      const j0 = Math.floor((Math.min(ay, by) - halfW) / BUCKET_FT);
+      const j1 = Math.floor((Math.max(ay, by) + halfW) / BUCKET_FT);
+      for (let i = i0; i <= i1; i++) {
+        for (let j = j0; j <= j1; j++) {
+          const key = bucketKey(i, j);
+          if (!buckets.has(key)) buckets.set(key, []);
+          buckets.get(key).push(seg);
         }
       }
-      prevRow = row;
     }
   }
-  if (!index.length) return null;
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  geo.setIndex(index);
-  return geo;
+  const none = Object.freeze({ depthFt: 0, shade: 1 });
+  return function channelAt(x, y) {
+    const segs = buckets.get(bucketKey(Math.floor(x / BUCKET_FT), Math.floor(y / BUCKET_FT)));
+    if (!segs) return none;
+    let best = Infinity;
+    for (const [ax, ay, bx, by] of segs) {
+      const dx = bx - ax;
+      const dy = by - ay;
+      const len2 = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / len2));
+      const d = Math.hypot(x - (ax + t * dx), y - (ay + t * dy));
+      if (d < best) best = d;
+    }
+    if (best >= halfW) return none;
+    const share = best / halfW;
+    return { depthFt: lerpProfile(share, 1) * depthFt, shade: lerpProfile(share, 2) };
+  };
 }

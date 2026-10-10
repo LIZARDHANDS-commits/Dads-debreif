@@ -28,8 +28,8 @@ import { makeLocalRef, latLonToLocalFt } from '../../core/geo.js';
 import { createAirfieldScenery, disposeAirfieldScenery, DEFAULT_FLOOR_FT, RUNWAY_TOP_FT } from './scenery3d.js';
 import { createLandmarks, disposeLandmarks, createWindsocks, updateWindsocks, disposeWindsocks } from './landmarks3d.js';
 import { createRunwayMarkings, disposeRunwayMarkings } from './runway-markings.js';
-import { createBaseBuildings, disposeBaseBuildings } from './base-buildings3d.js';
-import { createRiverGeometry } from './rivers3d.js';
+import { createBaseBuildings, disposeBaseBuildings, BASE_BOX_FT } from './base-buildings3d.js';
+import { createGroundHeights } from './ground-heights3d.js';
 import { ejectionAt, EJECTION } from './ejection.js';
 import { trueAltFt } from './weather.js';
 import { createEjectionModel, poseEjectionModel, disposeEjectionModel } from './ejection3d.js';
@@ -81,6 +81,15 @@ export const PATTERN_MID_QUADS = Object.freeze([-1, 1].flatMap((dy) => [-1, 1].m
 /** The sharpest ground (Esri zoom 18, about 1.3 ft a pixel): a box round both runway ends and the flight line. */
 export const TIGHT_SPAN_FT = 7_600;
 export const TIGHT_CENTER_FT = Object.freeze({ x: -400, y: -125 }); // divided by 1.2 to true feet (TR-67)
+/** Each High pattern square's ground grid, cells a side: about 108 ft a cell, a little coarser than the height data's 80 ft (TR-115). */
+export const GROUND_CELLS = 256;
+/** Held flat under the real ground (TR-115): the sharp square round the runways and flight line, and the base buildings' box. */
+export const FLAT_GROUND_BOXES = Object.freeze([
+  Object.freeze({ minX: TIGHT_CENTER_FT.x - TIGHT_SPAN_FT / 2, maxX: TIGHT_CENTER_FT.x + TIGHT_SPAN_FT / 2, minY: TIGHT_CENTER_FT.y - TIGHT_SPAN_FT / 2, maxY: TIGHT_CENTER_FT.y + TIGHT_SPAN_FT / 2 }),
+  BASE_BOX_FT,
+]);
+/** Towards the sun for the ground's slope shading: TR-34's sun, from 225 degrees true and 45 degrees up (x east, y north, z up). */
+const SUN_FROM = Object.freeze({ x: -0.5, y: -0.5, z: Math.SQRT1_2 });
 
 /** Camera limits. pitch is degrees from straight down (0 looks down, 90 is level); zoom is pixels to 1,000 ft. */
 export const CAMERA_LIMITS = Object.freeze({ pitch: [0, 85], zoom: [0.3, 4000] });
@@ -628,27 +637,56 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   midMesh.visible = false;
   root.add(midMesh);
   // High: the middle tier stretched to the pattern plus a mile, in four squares (PATTERN_MID_QUADS)
-  const patternMidGeometry = new THREE.PlaneGeometry(PATTERN_MID_SPAN_FT / 2, PATTERN_MID_SPAN_FT / 2);
+  // Each square is a grid of GROUND_CELLS a side, draped over the real ground once its heights come (ground-heights3d.js, TR-115);
+  // flat until then. Its colours darken the river banks and shade the slopes from the sun (TR-34's south-west sun). It writes depth,
+  // so a near valley side hides the far one.
   const patternMid = PATTERN_MID_QUADS.map((q) => {
-    const material = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.97, depthWrite: false, fog: false, side: THREE.DoubleSide });
-    const mesh = new THREE.Mesh(patternMidGeometry, material);
+    const geometry = new THREE.PlaneGeometry(PATTERN_MID_SPAN_FT / 2, PATTERN_MID_SPAN_FT / 2, GROUND_CELLS, GROUND_CELLS);
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(geometry.attributes.position.count * 3).fill(1), 3));
+    const material = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.97, depthWrite: true, fog: false, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = 'pattern-ground';
     mesh.renderOrder = -3;
     mesh.visible = false;
     root.add(mesh);
-    // The recessed river valley in this square (rivers3d.js, TR-70): the square's own photo on a sunk ribbon, drawn just
-    // after the flat square so the valley replaces it there; it writes depth so a near bank hides the far one.
-    const riverGeometry = createRiverGeometry(THREE, { x: q.x, y: q.y, span: PATTERN_MID_SPAN_FT / 2 });
-    let river = null;
-    let riverMaterial = null;
-    if (riverGeometry) {
-      riverMaterial = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.97, depthWrite: true, fog: false, side: THREE.DoubleSide });
-      river = new THREE.Mesh(riverGeometry, riverMaterial);
-      river.name = 'river-valley';
-      river.renderOrder = -2.5;
-      mesh.add(river);
-    }
-    return { mesh, material, river, riverGeometry, riverMaterial };
+    return { mesh, material, geometry, q };
   });
+  let groundVersion = null; // the heights' version the squares and landmarks were last draped with; null: flat
+
+  /** Drapes the pattern squares and stands the landmarks on the ground: heights is ground-heights3d.js's, or null to lay all flat. */
+  function applyGround(heights) {
+    const version = heights ? heights.version : null;
+    if (version === groundVersion) return;
+    groundVersion = version;
+    const side = GROUND_CELLS + 1;
+    const cell = PATTERN_MID_SPAN_FT / 2 / GROUND_CELLS;
+    for (const { geometry, q } of patternMid) {
+      const pos = geometry.attributes.position;
+      const col = geometry.attributes.color;
+      for (let k = 0; k < pos.count; k++) pos.setZ(k, heights ? heights.offsetAt(q.x + pos.getX(k), q.y + pos.getY(k)) : 0);
+      for (let r = 0; r < side; r++) {
+        for (let c = 0; c < side; c++) {
+          const k = r * side + c;
+          let shade = 1;
+          if (heights) {
+            // Rows run north to south. The slope's light from the sun to the south-west, against flat ground's (a Lambert ratio).
+            const rise = (pos.getZ(r * side + Math.min(side - 1, c + 1)) - pos.getZ(r * side + Math.max(0, c - 1))) / (2 * cell);
+            const riseN = (pos.getZ(Math.max(0, r - 1) * side + c) - pos.getZ(Math.min(side - 1, r + 1) * side + c)) / (2 * cell);
+            const lambert = (-rise * SUN_FROM.x - riseN * SUN_FROM.y + SUN_FROM.z) / Math.hypot(rise, riseN, 1) / SUN_FROM.z;
+            shade = Math.min(1.25, Math.max(0.6, lambert)) * heights.shadeAt(q.x + pos.getX(k), q.y + pos.getY(k));
+          }
+          col.setXYZ(k, shade, shade, shade);
+        }
+      }
+      pos.needsUpdate = true;
+      col.needsUpdate = true;
+      geometry.computeBoundingSphere();
+      geometry.computeBoundingBox();
+    }
+    for (const g of landmarks.children) {
+      g.position.z = DEFAULT_FLOOR_FT + (heights ? heights.offsetAt(g.position.x, g.position.y) : 0);
+    }
+  }
 
   // Sharpest tier: zoom-18 imagery over the runways and flight line (transparent until tiles arrive)
   const tightGeometry = new THREE.PlaneGeometry(TIGHT_SPAN_FT, TIGHT_SPAN_FT);
@@ -1018,7 +1056,8 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     } else {
       midMesh.visible = false;
     }
-    patternMid.forEach(({ mesh, material, riverMaterial }, i) => {
+    applyGround(options.groundHeights ?? null);
+    patternMid.forEach(({ mesh, material }, i) => {
       const texture = options.layerPhoto !== false ? options.patternMidTextures?.[i] : null;
       mesh.visible = !!texture;
       if (!texture) return;
@@ -1027,13 +1066,6 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
         material.needsUpdate = true;
       }
       material.opacity = (Number.isFinite(options.photoOpacityPct) ? options.photoOpacityPct : 100) / 100 * 0.97;
-      if (riverMaterial) {
-        if (riverMaterial.map !== texture) {
-          riverMaterial.map = texture;
-          riverMaterial.needsUpdate = true;
-        }
-        riverMaterial.opacity = material.opacity;
-      }
       mesh.position.set(PATTERN_MID_QUADS[i].x, PATTERN_MID_QUADS[i].y, floor - 1.75);
     });
 
@@ -1233,11 +1265,9 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
       photoMaterial.dispose();
       midGeometry.dispose();
       midMaterial.dispose();
-      patternMidGeometry.dispose();
-      patternMid.forEach(({ material, riverGeometry, riverMaterial }) => {
+      patternMid.forEach(({ material, geometry }) => {
         material.dispose();
-        riverGeometry?.dispose();
-        riverMaterial?.dispose();
+        geometry.dispose();
       });
       outerGeometry.dispose();
       outerMaterial.dispose();
@@ -1579,10 +1609,35 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
   function ensureMiddle(options, isLow) {
     if (isLow) {
       patternMidTiers.forEach((t) => { if (t.canvas) t.dispose(); });
-      return { midTex: ensureMidTexture(options), patternMidTextures: null };
+      releaseGround();
+      return { midTex: ensureMidTexture(options), patternMidTextures: null, groundHeights: null };
     }
     if (midTier.canvas) midTier.dispose();
-    return { midTex: null, patternMidTextures: patternMidTiers.map((t) => t.ensure(options)) };
+    return { midTex: null, patternMidTextures: patternMidTiers.map((t) => t.ensure(options)), groundHeights: ensureGround(options) };
+  }
+  /** The real ground's heights under the High pattern squares (TR-115), loaded once with the photo; null with the photo off. */
+  let groundHeights = null;
+  function ensureGround(options) {
+    if (options.layerPhoto === false || win.document?.createElement === undefined) return null;
+    const anchor = source.anchor?.();
+    if (!anchor) return null;
+    if (!groundHeights) {
+      groundHeights = createGroundHeights({
+        ref: makeLocalRef(anchor.lat, anchor.lon),
+        area: { x: PATTERN_MID_CENTER_FT.x, y: PATTERN_MID_CENTER_FT.y, span: PATTERN_MID_SPAN_FT },
+        flatBoxes: FLAT_GROUND_BOXES,
+        timers,
+        doc: win.document,
+        onChange: () => {
+          if (!disposed) requestDraw();
+        },
+      });
+    }
+    return groundHeights;
+  }
+  function releaseGround() {
+    groundHeights?.dispose();
+    groundHeights = null;
   }
   const ensureTightTexture = (options) => tightTier.ensure(options);
 
@@ -1823,6 +1878,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     farTier.dispose();
     midTier.dispose();
     patternMidTiers.forEach((t) => t.dispose());
+    releaseGround();
     tightTier.dispose();
     releaseCore();
     patchTexture?.dispose();
@@ -1992,7 +2048,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
 
     const photoTex = ensurePhotoTexture(options);
     const outerTex = outerTier.ensure(options);
-    const { midTex, patternMidTextures } = ensureMiddle(options, isLow);
+    const { midTex, patternMidTextures, groundHeights: ground } = ensureMiddle(options, isLow);
     const tightTex = isLow ? null : ensureTightTexture(options);
     // The core airfield picture (4,096 px) only on Performance: on High the sharp square (zoom 18) covers the field and the
     // pattern squares (zoom 15) the rest of the core box, so it would only cost about 85 MB of graphics memory (TR-71).
@@ -2018,6 +2074,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       outerTexture: outerTex,
       midTexture: midTex,
       patternMidTextures,
+      groundHeights: ground,
       tightTexture: tightTex,
       coreTexture: coreTex,
       photoOpacityPct: options.photoOpacityPct,
