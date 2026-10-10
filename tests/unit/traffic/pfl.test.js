@@ -1,5 +1,5 @@
 // Checks: the PFL (Traffic spec 4.5): from a spread of failure points and winds it lands on the runway or ejects
-//   as the energy says, takes no drag before the circle or a committed direct glide, never does worse with more
+//   as the energy says, takes no flap before the circle or a committed direct glide (gear may come early, TR-85), never does worse with more
 //   height, and in the sim never moves further in a step than it flies; the PFL button, an area start that lands
 //   and flies a touch-and-go, and one far too low and far out that ejects; the inner downwind in a westerly makes the runway.
 // Serves: TR-R14, TR-R30, TR-R35.
@@ -102,11 +102,11 @@ test('PFL: far too low to make the runway, it ejects (spec 4.5 item 10)', () => 
   assert.ok(r.eject, 'says where it ejected');
 });
 
-test('PFL: no gear or flap before it is on the circle or committed direct (SMM 13.6 para 15, 13.17 para 39)', () => {
+test('PFL: no flap before it is on the circle or committed direct; gear may come early (TR-85; SMM 13.6 para 15, 13.17 para 39)', () => {
   for (const wind of WINDS) {
     for (const [name, start] of Object.entries(STARTS)) {
       for (const p of flyPfl(start, wind).points) {
-        if (/^(Zoom|Slow to 125|Join)/.test(p.decision ?? '')) assert.equal(p.config, 'Clean', `${name}: ${p.config} while "${p.decision}"`);
+        if (/^(Zoom|Slow to 125|Join)/.test(p.decision ?? '')) assert.ok(p.config === 'Clean' || p.config === 'Gear', `${name}: ${p.config} while "${p.decision}"`);
       }
     }
   }
