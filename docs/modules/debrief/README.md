@@ -4,7 +4,7 @@ This folder is the flight debrief viewer: load a sortie's tracks, replay them on
 
 ## Where it stands
 
-Built and live; the next step is Patrick (or anyone) running its checklist. Step 3a (GPS gap fill and the 3D cockpit view, Dad's ask of 10 Oct 2026) is built on its working answers DB-Q20 to DB-Q24 (V2.211); its camera choices are the Traffic-style pill bar over the 3D picture (V2.214, DB-22), and each ship can have its GPS puck's seat set so its positions move to the aircraft (V2.215, DB-23, on the working answers DB-Q25 and DB-Q26). The roadmap and the handover disagree on whether it was already signed off (see the order section) (`archive/HANDOVER.md:87`).
+Built and live; the next step is Patrick (or anyone) running its checklist. Step 3a (GPS gap fill and the 3D cockpit view, Dad's ask of 10 Oct 2026) is built on its working answers DB-Q20 to DB-Q24 (V2.211); its camera choices are the Traffic-style pill bar over the 3D picture (V2.214, DB-22), and each ship can have its GPS puck's seat set so its positions move to the aircraft (V2.215, DB-23, on the working answers DB-Q25 and DB-Q26). The SOF's airspace (floors and ceilings) and airfields now show round the loaded flight in 3D and on the map (V2.216, DB-24; Airspace off and Airfields on at first). The roadmap and the handover disagree on whether it was already signed off (see the order section) (`archive/HANDOVER.md:87`).
 
 ## What is next
 
@@ -29,6 +29,7 @@ Each has a working answer that the tool uses until it is settled.
 
 - **DB-Q4:** no smoothing of the estimated G (D219) or a 3-point median filter (D383); neither is built (`pf/reset/1-requirements/questions.md:17`, `docs/modules/debrief/plan.md:37`).
 - **DB-23 wording (GPS puck, Dad's ask 10 Oct 2026):** written but not yet confirmed with Patrick; DB-Q25 and DB-Q26 below have working answers.
+- **DB-24 wording (airspace and airfields, Dad's ask 10 Oct 2026):** written but not yet confirmed with Patrick, with the SOF's move SOF-62; Airspace starts off and Airfields on ("open on a clean picture").
 - **DB-19 to DB-22, DB-R27 and DB-R28 wording (gap fill and cockpit view, Dad's ask 10 Oct 2026):** the wording is written but not yet confirmed with Patrick (`decisions.md`, `requirements.md`).
 
 The gap fill, cockpit view and GPS puck (plan Step 3a) were built with these working answers (Dad relayed Patrick's approval; each stands until Patrick answers):
