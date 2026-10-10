@@ -277,6 +277,9 @@ export function followRoute(a, route, env, dt, options = DEFAULT_ROUTE_OPTIONS) 
   if (p.phase) a.phase = p.phase;
   if (p.tag) a.tag = p.tag;
   else if (route?.points?.[p.seg]?.tag) a.tag = route.points[p.seg].tag;
+  if (!a.pflFlight) {
+    a.config = resolveAircraftConfig(a, p, route);
+  }
 
   const tasKt = Math.max(1, iasToTasKt(a.iasKt, a.alt));
   const tasFtps = ktToFtps(tasKt);
@@ -317,6 +320,7 @@ export function followRoute(a, route, env, dt, options = DEFAULT_ROUTE_OPTIONS) 
 
   // Pitch: the attitude the pilot sees, the climb angle plus the angle of attack at this G less the fuselage datum;
   // on the wheels, the 2.5° nose up the gear holds it at (Patrick, 6 Oct 06:17Z).
+  // Flap deployment reduces required body AoA by shifting the zero-lift line (T6A_PITCH flap offsets).
   // The climb is read off the path a second either side too, and the nose eased toward it (TR-97), so each height
   // step on the path no longer shows as a pitch step. a.climbFtps stays the step's own (the 3D aim line and the
   // deconfliction read it).
@@ -326,7 +330,7 @@ export function followRoute(a, route, env, dt, options = DEFAULT_ROUTE_OPTIONS) 
     ? climbFtps
     : ((posOnRoute(route, a.distFt + aheadFt, options).alt ?? a.alt) - (posOnRoute(route, a.distFt - aheadFt, options).alt ?? a.alt)) / (2 * ATTITUDE_HALF_SEC);
   const onWheels = a.alt <= THRESHOLD_DATA_ELEV_FT + ON_WHEELS_FT;
-  const targetPitch = onWheels ? GROUND_ATTITUDE_DEG : attitudeDegFromClimb(pathClimbFtps, tasFtps, a.iasKt, a.g);
+  const targetPitch = onWheels ? GROUND_ATTITUDE_DEG : attitudeDegFromClimb(pathClimbFtps, tasFtps, a.iasKt, a.g, a.config);
   if (!Number.isFinite(a.pitchDeg) || !(dt > 0)) {
     a.pitchDeg = targetPitch;
     a.pitchRateDps = 0;
@@ -336,4 +340,27 @@ export function followRoute(a, route, env, dt, options = DEFAULT_ROUTE_OPTIONS) 
     a.pitchRateDps = nose.rollRateDps;
   }
   return p;
+}
+
+/** Resolves the aerodynamic/physical configuration (flaps and gear) for an aircraft in the pattern. */
+function resolveAircraftConfig(a, p, route) {
+  if (a.pflFlight) return a.config ?? 'Clean';
+  const ph = a.phase;
+  const kt = a.iasKt ?? a.kt ?? 0;
+  const alt = a.alt ?? 3500;
+  const isSi = a.siPattern || route?.kind === 'entry';
+  if (ph === 'final_turn') return 'Gear + landing flap';
+  if (ph === 'final') {
+    if (isSi && p && p.seg < 5) return 'Gear + T/O flap';
+    return 'Gear + landing flap';
+  }
+  if (ph === 'downwind') {
+    if (isSi) return 'Gear + T/O flap';
+    return kt < 147 ? 'Gear + T/O flap' : 'Clean';
+  }
+  if (ph === 'climb' || ph === 'touch_and_go') {
+    if (alt <= THRESHOLD_DATA_ELEV_FT + 50) return 'Gear + T/O flap';
+    return kt < 110 ? 'T/O flap' : 'Clean';
+  }
+  return 'Clean';
 }

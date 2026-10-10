@@ -442,7 +442,36 @@ function mount(root, app) {
   showRoutes();
   changed();
 
+  if (typeof window !== 'undefined') {
+    window.__traffic = {
+      sim,
+      clock,
+      setup,
+      settings,
+      map,
+      play,
+      pause,
+      loadScenario,
+      setAircraft: (aircraftList, seed = 3) => {
+        setup.aircraft = aircraftList;
+        setup.deconflict = true;
+        sim.rebuild({ seed });
+        clock.reset();
+        changed();
+      },
+      seek: (t) => {
+        clock.pause();
+        clock.seek(t);
+        cached = null;
+        changed();
+      },
+    };
+  }
+
   return () => {
+    if (typeof window !== 'undefined' && window.__traffic?.sim === sim) {
+      delete window.__traffic;
+    }
     stopReplay?.();
     stopFrames?.();
     stopSettings();

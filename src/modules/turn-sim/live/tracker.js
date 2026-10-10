@@ -12,8 +12,8 @@ import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, copyAircraft, smoothLegSec, heightAt, SMOOTHER_PEAK } from './flight.js';
 import { relativeTo, unit, DEG } from './manoeuvres.js';
 import { fullPowerKtps, slowKtps, stallBankDeg, sustainedBankDeg, sustainsBank } from './slow-down.js';
-import { throttleAtTorque } from './power.js';
-import { TRACKER, CLOSURE, HAND_OVER_FT, FW_ENERGY, FW_BUBBLE, REJOIN, TURNING_REJOIN, KIAS_OUTSIDE_LAB } from './tuning.js';
+import { throttleAtTorque, throttleFor } from './power.js';
+import { TRACKER, CLOSURE, HAND_OVER_FT, FW_ENERGY, FW_BUBBLE, REJOIN, TURNING_REJOIN, KIAS_OUTSIDE_LAB, lineKiasNow } from './tuning.js';
 import { fixedLine } from './slots.js';
 import { setKias, stepCommanded, climbCostKtps, createPilot, pilotSpeed, pilotFly, pilotPower, coneUpFtNow } from './pilot.js';
 import { isLeadInCanopy, checkDoctrinalInvariants } from '../../../core/canopy.js';
@@ -80,7 +80,8 @@ function rideAim(ph, L, Lprev, ref, W) {
   const drift = (wx - vfx) * nW.x + (wy - vfy) * nW.y; // d(cross)/dt in Lead's frame
   const closing = (wx - vfx) * mW.x + (wy - vfy) * mW.y; // up the line, ft/s
   const st = (ref.ride ??= { established: false });
-  if (!st.established && Math.abs(cross) <= (ph.captureFt ?? TR.captureFt) && Math.abs(drift) <= (ph.driftFtps ?? TR.rideDriftFtps)) {
+  const maxDrift = ph.driftFtps ?? ((ph.isFw || ph.rejoin) ? 40 : TR.rideDriftFtps);
+  if (!st.established && Math.abs(cross) <= (ph.captureFt ?? TR.captureFt) && Math.abs(drift) <= maxDrift) {
     st.established = true;
     st.establishedRange = Math.hypot(rx, ry);
   }
@@ -128,7 +129,16 @@ function rideAim(ph, L, Lprev, ref, W) {
     }
   }
   const r = Math.hypot(rx, ry);
-  const arrived = st.established && along <= windowFt;
+  const across = Math.abs(rel.left);
+  const back = -rel.fwd;
+  const sweep = Math.atan2(back, Math.max(across, 1e-6)) * (180 / Math.PI);
+  const correctSide = ph.side == null || (ph.side > 0 ? rel.left > 50 : rel.left < -50);
+  const inFwCone = Boolean(ph.isFw || ph.toFw) && correctSide && back > 0 && r >= 450 && r <= 1500 && sweep >= 25 && sweep <= 65;
+  if (inFwCone && !st.established) {
+    st.established = true;
+    st.establishedRange = r;
+  }
+  const arrived = (st.established && along <= windowFt) || inFwCone;
   const px = W.xFt + dvx;
   const py = W.yFt + dvy;
   return {
@@ -177,7 +187,7 @@ function aimOf(ph, L, Lprev, ref, W, t) {
     const d = Math.hypot(ex, ey);
     const onLine = Math.abs(cross) <= (ph.captureFt ?? 150);
     const inCone = (ph.coneEase || ph.isFw)
-      ? (r <= 1000 && onLine && along <= 1000)
+      ? (r <= 1200 && onLine && along <= 1200)
       : false;
     const reachedDecision = onLine && along <= (ph.decisionFt ?? 750);
     const arrived = inCone || reachedDecision;
@@ -270,7 +280,7 @@ function closureCap(ph, L, W, ex, ey, d, blockFt, farFromFt) {
 /**
  * Commanded closing speed and slot-law steering velocities (closureCap and far gain, or distance-capped pull).
  */
-function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT) {
+function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT, pclMaxActive = false) {
   const T = TRACKER;
   const GAIN = T.gain;
   const ratio = W.tasFtps / W.kias;
@@ -278,7 +288,16 @@ function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT) {
   if (ph.kind === 'ride') {
     // The speed is held (Patrick 8 Oct 20:16); the geometry takes the closure out. The steering is rideAim's.
     const floor = ph.floorKias ?? KIAS_OUTSIDE_LAB;
-    const kiasCmd = aim.established || Math.abs(aim.cross) <= (ph.speedUpFt ?? TURNING_REJOIN.rideSpeedUpFt) ? Math.max(floor, aim.along <= (ph.easeFromFt ?? TURNING_REJOIN.rideEaseFromFt) ? (ph.easeKias ?? TURNING_REJOIN.rideEaseKias) : (ph.rideKias ?? TURNING_REJOIN.rideKias)) : floor; // to the line: no faster than the floor (Patrick 8 Oct 21:05: 200 floor, MAX on entry); on it, 210
+    const rNow = aim.rangeFt ?? Math.hypot(L.xFt - W.xFt, L.yFt - W.yFt);
+    const inAnticipation = Boolean(ph.isFw || ph.toFw) && rNow <= 1000;
+    const lineTargetKias = inAnticipation
+      ? Math.max(L.kias, L.kias + (rNow - 500) * (20 / 500))
+      : (aim.along <= (ph.easeFromFt ?? TURNING_REJOIN.rideEaseFromFt)
+          ? (ph.easeKias ?? TURNING_REJOIN.rideEaseKias)
+          : (ph.rideKias ?? TURNING_REJOIN.rideKias));
+    const kiasCmd = (pclMaxActive || ph.rejoin || aim.established || Math.abs(aim.cross) <= (ph.speedUpFt ?? TURNING_REJOIN.rideSpeedUpFt))
+      ? Math.max(floor, lineTargetKias)
+      : floor;
     return { pullX: 0, pullY: 0, vdx: aim.ex, vdy: aim.ey, speed: W.tasFtps, psiCmd: aim.psiWant, kiasCmd };
   }
 
@@ -360,10 +379,23 @@ function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT) {
   const vdy = vpy + (pullY ?? 0);
   const speed = Math.hypot(vdx, vdy);
   const psiCmd = speed > T.minSpeedFtps ? Math.atan2(vdy, vdx) : L.headingRad;
-  const over = ph.closureFtps ? ph.closureFtps / ratio : ph.overtakeKias;
-  const under = ph.closureFtps ? ph.closureFtps / ratio : ph.undertakeKias;
+  let over = ph.closureFtps ? ph.closureFtps / ratio : ph.overtakeKias;
+  let under = ph.closureFtps ? ph.closureFtps / ratio : ph.undertakeKias;
   const refKias = Math.hypot(vpx, vpy) / ratio;
-  const floorKias = ph.floorKias ?? (ph.tactical ? KIAS_OUTSIDE_LAB : Math.max(140, refKias - under));
+  if (ph.targetOvertakeKt != null) {
+    const rawDev = speed / ratio - refKias;
+    if (rawDev > 0) {
+      const t = ph.targetOvertakeKt;
+      const c = ph.overtakeKias ?? (t + 2);
+      over = rawDev <= t ? rawDev : t + (c - t) * Math.tanh((rawDev - t) / Math.max(1, c - t));
+    } else {
+      const t = ph.targetUndertakeKt ?? ph.targetOvertakeKt;
+      const c = ph.undertakeKias ?? (t + 2);
+      const mag = -rawDev;
+      under = mag <= t ? mag : t + (c - t) * Math.tanh((mag - t) / Math.max(1, c - t));
+    }
+  }
+  const floorKias = ph.floorKias ?? Math.max(140, refKias - under);
   const kiasCmd = Math.max(floorKias, Math.max(refKias - under, Math.min(refKias + over, speed / ratio)));
   return { pullX, pullY, vdx, vdy, speed, psiCmd, kiasCmd };
 }
@@ -403,7 +435,23 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
     const frac = Math.max(0, Math.min(1, (aim.along - dNear) / Math.max(1, dFar - dNear)));
     cap = targetCap + frac * (cap - targetCap);
   }
-  let bank = Math.max(-cap, Math.min(cap, bankDegFromTurnRate(W.tasFtps, omegaCmd)));
+  const rawBank = bankDegFromTurnRate(W.tasFtps, omegaCmd);
+  let bank;
+  if (ph.targetBankDeg != null) {
+    const tBank = ph.targetBankDeg;
+    const eCap = Math.max(tBank, cap);
+    const sign = Math.sign(rawBank) || 1;
+    const mag = Math.abs(rawBank);
+    if (mag <= tBank) {
+      bank = rawBank;
+    } else {
+      const excess = mag - tBank;
+      const margin = eCap - tBank;
+      bank = sign * (tBank + margin * Math.tanh(excess / Math.max(1, margin)));
+    }
+  } else {
+    bank = Math.max(-cap, Math.min(cap, rawBank));
+  }
   if (ph.coneEase && L && aim?.along != null) {
     const leadBank = L.bankDeg ?? 0;
     const dFar = ph.coneEaseFarFt ?? 1200;
@@ -449,7 +497,7 @@ export function aimLiftVector(W, aimPoint, gainPerSec = 0.5) {
 
 /** The climb rate the room left above him in the cone allows, at FW_BUBBLE's climb rate and pull (the cone energy's zoom). */
 function zoomRoomFtps(L, W) {
-  const up = Math.max(0, L.altAboveFt + coneUpFtNow() - W.altAboveFt);
+  const up = Math.max(0, (L.altAboveFt ?? 0) - 10 - (W.altAboveFt ?? 0));
   return Math.min(FW_BUBBLE.diveFtps, Math.sqrt(2 * FW_BUBBLE.pullFtps2 * up));
 }
 
@@ -464,14 +512,24 @@ function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowO
   // A phase may slow with more than power back (slowStage, slow-down.js; the turning rejoin's run-in: power back and the
   // speed brake, card 03:33Z rule 4: "torque and speed brake first").
   // A rejoin's leg slows with its torque floor and the boards as needed (Patrick 6 Oct 03:17-03:20Z, TS-108).
-  const rejoinLeg = ph.rejoin || ph.slowStage === 'boards';
-  const floorThr = rejoinLeg ? throttleAtTorque(REJOIN.floorTorquePct, W.kias, blockFt) : 0;
-  const slowStage = stageOwn ?? ph.slowStage ?? (ph.rejoin ? 'boards' : 'power');
+  const isTurn = Math.abs(W.bankDeg ?? 0) > 15;
+  const holdThr = isTurn ? throttleFor(0, W.kias, blockFt, Math.abs(W.g ?? 1), W.climbFtps ?? 0) : 0;
+  const relW = (L && W) ? relativeTo(L, W) : null;
+  const isTrailing = relW ? (relW.fwd < -200) : false;
+  // Universal turn power floor: any trailing aircraft in a turn maintains at least 70% hold power
+  const minTurnThr = isTurn && isTrailing ? holdThr * 0.70 : 0;
+  // Emergency overshoot check: dangerous closure inside 500 ft
+  const isEmergencyOvershoot = relW && relW.fwd > -500 && (ph.closureFtps ?? 0) > 25 * KT_TO_FTPS;
+  const isExplicitEmergency = stageOwn != null || ph.slowStage === 'idleBoards';
+  const slowStage = isExplicitEmergency
+    ? (stageOwn ?? ph.slowStage)
+    : (isEmergencyOvershoot ? (ph.slowStage ?? 'boards') : 'power');
+  const floorThr = Math.max(slowStage === 'boards' ? throttleAtTorque(REJOIN.floorTorquePct, W.kias, blockFt) : 0, minTurnThr);
   // The climb he is flying costs speed and a descent gives it (standard energy, dV/dt = g (T - D) / W - g sin(climb
   // angle): climbCostKtps), so the engine's range is shifted by it: climbing at MAX he slows (Patrick 6 Oct 05:00Z: "This
   // climb is unrealistic to not lose speed on"; until V2.124 the height was flown free and only the power read showed it).
   // Not on fighting wing's cone energy (TS-96, below), which picks the climb from the speed change and so already counts it.
-  const energy = cone || (ph.coneAlt && (ph.closureFtps || ph.coneEnergy));
+  const energy = cone || ph.isFw || (ph.coneAlt && (ph.closureFtps || ph.coneEnergy));
   const climbKtps = energy ? 0 : climbCostKtps(W, W.climbFtps ?? 0);
   // Fighting wing soaks up extra speed with the cone (Patrick 6 Oct 16:58Z: "Settle high at the top of the cone to soak up
   // the extra speed. we can ALWAYS use the cone to soak up speed"): while there is room above, a zoom up to FW_BUBBLE's
@@ -480,7 +538,7 @@ function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowO
   const extraSlowKtps = zoomFtps > 0 ? climbCostKtps(W, zoomFtps) : 0;
   const aWant = aCmdOwn != null
     ? aCmdOwn
-    : (energyIntent === 'gain' && (kiasCmd == null || W.kias < kiasCmd + 5) ? Infinity : GAIN.speedLoop * ((kiasCmd ?? W.kias) - W.kias));
+    : (energyIntent === 'gain' ? Infinity : GAIN.speedLoop * ((kiasCmd ?? W.kias) - W.kias));
   // Lining up, the last few thousandths of a knot are taken out at once (snapKias), so the speed has no step.
   const accel = pilotSpeed(pilot, W, aWant, {
     blockFt, top: slowStage, floorThr, climbKtps, extraSlowKtps, snapKias: aligning ? L.kias : null, snapTol: T.kiasSnap,
@@ -543,7 +601,7 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     const toward = (ft) => Math.max(-D.diveFtps, Math.min(D.diveFtps, (ft - W.altAboveFt) * D.altGain));
     const quick = belowOwn != null;
     // Slowing faster than the gentle climb gives, he zooms (up to zoomFtps, at the bubble's pull) toward the cone's top.
-    const zoom = range3DFt >= 2000 && belowOwn == null && want > hi && zoomFtps > hi;
+    const zoom = belowOwn == null && want > hi && zoomFtps > hi;
     let wantV = belowOwn != null ? toward(L.altAboveFt - belowOwn) : W.altAboveFt > topFt ? toward(topFt) : W.altAboveFt < bottomFt ? toward(bottomFt) : Math.max(lo, Math.min(zoom ? zoomFtps : hi, want));
     // Step-Down Gate (SMM 12.24 & 16.20): inside 2,000 ft or in FW turns, Wing must not climb above Lead.
     if (stayBelow && W.altAboveFt >= (L.altAboveFt ?? 0) - 10) {
@@ -631,14 +689,15 @@ function isFwConeSettled(L, W, relVel, side = null) {
   const down = (L.altAboveFt ?? 0) - (W.altAboveFt ?? 0);
 
   // SMM 12.29 para 69: 500-1,000 ft, 30-60° sweep, stepped down (0 to 200 ft below Lead)
-  const inRange = r >= 500 && r <= 950;
+  const inRange = r >= 480 && r <= 1020;
   const inSweep = sweepDeg >= 28 && sweepDeg <= 62;
   const inAlt = down >= -5 && down <= 200;
   const sideOk = side == null || side === 0 || Math.sign(rel.left) === Math.sign(side);
 
-  // Speed, turn rate and relative motion matched
-  const speedMatched = Math.abs(W.kias - L.kias) <= 6 && relVel <= 6;
-  const bankMatched = Math.abs((W.bankDeg ?? 0) - (L.bankDeg ?? 0)) <= 10;
+  // Speed, turn rate and relative motion matched in formation frame
+  // (In a 30° turn at 200 KIAS, the rigid rotation omega x r is ~41 ft/s, so world relVel is not zero).
+  const speedMatched = Math.abs(W.kias - L.kias) <= 12;
+  const bankMatched = Math.abs((W.bankDeg ?? 0) - (L.bankDeg ?? 0)) <= 15;
 
   return inRange && inSweep && inAlt && sideOk && speedMatched && bankMatched;
 }
@@ -828,9 +887,11 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     if (pclMaxActive) {
       const onLine = (aim.cross != null && Math.abs(aim.cross) <= (ph.captureFt ?? 150)) ||
                      (aim.bXDeg != null && Math.abs(aim.bearingDeg - aim.bXDeg) <= 5.0);
-      const atSpeed = W.kias >= (ph.lineKias ?? 220);
+      const speedCeil = Math.max(235, (ph.lineKias ?? lineKiasNow()) + 15);
+      const atSpeed = W.kias >= speedCeil;
       const rNow = Math.hypot(L.xFt - W.xFt, L.yFt - W.yFt);
-      const nearLead = (aim.along != null && aim.along <= 1500) || rNow <= 1500;
+      const nearLimitFt = (ph.isFw || ph.toFw) ? 1000 : 1500;
+      const nearLead = (aim.along != null && aim.along >= 0 && aim.along <= nearLimitFt) || rNow <= nearLimitFt;
       if (onLine || atSpeed || nearLead) {
         pclMaxActive = false;
       }
@@ -919,7 +980,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
         bankOwn = own.bankDeg ?? null;
       } else {
         // 2. Closure: commanded closing speed and slot-law steering
-        const closure = closureOf(ph, L, W, aim, blockFt, farFromFt);
+        const closure = closureOf(ph, L, W, aim, blockFt, farFromFt, pclMaxActive);
         psiCmd = closure.psiCmd;
         kiasCmd = closure.kiasCmd;
       }

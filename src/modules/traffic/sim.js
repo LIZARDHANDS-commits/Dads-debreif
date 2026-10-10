@@ -1417,13 +1417,16 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           const along = (x - rwy.th.x) * ux + (y - rwy.th.y) * uy, across = Math.abs((x - rwy.th.x) * uy - (y - rwy.th.y) * ux);
           const off = Math.abs(wrapDeg180((a.trackDeg ?? a.headingDeg ?? 0) - compassDegFromVector(ux, uy)));
           // Low as well as lined up: an aircraft on initial at pattern height over the same line is not landing yet
-          // (Patrick, 6 Oct 06:43Z: "T+GO ... shouldn't happen until they are low and landing"; TR-94).
           const low = Number.isFinite(alt) && alt <= (win?.alt ?? PATTERN_ALT_FT) + FINAL_TAG_ABOVE_WINDOW_FT;
-          onFinal = along < 0 && across < 2000 && off < 30 && low;
-          toThresholdFt = Math.hypot(x - rwy.th.x, y - rwy.th.y);
+          const overRunway = along >= 0 && along <= rwy.len && across < 500 && low;
+          onFinal = (along < 0 && across < 2000 && off < 30 && low) || overRunway;
+          toThresholdFt = along >= 0 ? 0 : Math.hypot(x - rwy.th.x, y - rwy.th.y);
         }
         const b = behaviourOf({ ...a, kt, alt, leg, siPattern: onSiPattern(a) }, { route, fieldElevFt: FIELD_ELEV_FT, onFinal, toThresholdFt, windowFt });
-        return behaviourLabel(b, a.deconflict?.label ?? null) ?? a.deconflict?.label ?? null;
+        return {
+          label: behaviourLabel(b, a.deconflict?.label ?? null) ?? a.deconflict?.label ?? null,
+          config: b?.config,
+        };
       };
       const list = aircraft.map((a) => {
         const route = routeOf(a);
@@ -1433,6 +1436,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         const x = a.x ?? p.x;
         const y = a.y ?? p.y;
         const headingDeg = a.headingDeg ?? p.headingDeg;
+        const tag = t < a.startsAt ? null : tagOf({ ...a, trackDeg: a.trackDeg ?? headingDeg }, route, iasKt, altFt, x, y, p.seg !== undefined ? p.seg + 1 : 1);
         return {
           id: a.id, type: a.type, color: a.color, routeId: a.routeId,
           mode: a.mode ?? 'RAIL',
@@ -1455,7 +1459,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           intent: a.intent ?? 'touch_and_go',
           pattern: onSiPattern(a) ? 'si' : 'ohb',
           closedPatternBankDeg: a.closedPatternBankDeg,
-          config: a.config,
+          config: a.config ?? tag?.config,
           pflSegment: a.pflSegment ?? null,
           pflDecision: a.pflDecision ?? null,
           pflMarginFt: a.pflMarginFt ?? null,
@@ -1465,7 +1469,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           highKeyFlight: Boolean(a.highKeyFlight),
           ejectAt: a.ejectAt ?? null,
           deconflict: a.deconflict?.label ?? null,
-          behaviour: t < a.startsAt ? null : tagOf({ ...a, trackDeg: a.trackDeg ?? headingDeg }, route, iasKt, altFt, x, y, p.seg !== undefined ? p.seg + 1 : 1),
+          behaviour: tag?.label ?? null,
         };
       });
       return { t, aircraft: list, conflicts: findConflicts(list.filter((a) => a.status === 'flying')) };

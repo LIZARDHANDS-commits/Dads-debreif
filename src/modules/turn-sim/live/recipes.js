@@ -15,7 +15,7 @@
 // labelled "estimate" beside them.
 import { phase, runTracker } from './tracker.js';
 import { FORMATIONS, fwShapeNow, pairSlot } from './slots.js';
-import { REJOIN, STOP_KT, FW_FOLLOW, KIAS_OUTSIDE_LAB, KIAS_LAB, TRACKER } from './tuning.js';
+import { REJOIN, STOP_KT, FW_FOLLOW, KIAS_OUTSIDE_LAB, KIAS_LAB, TRACKER, CLOSE_SHAPING } from './tuning.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { fwGoal } from './formation-turns.js';
 import { fwSwitch } from './fw-switch.js';
@@ -30,16 +30,34 @@ import { bankDegFromTurnRate } from '../../../core/flight-math.js';
 
 // ---- the legs (phases): the tracker's recipes for each move --------------------------------------
 
-/** A station change in close formation (SMM 12.20 paras 44-47): about 5 kt, wings level but for a degree or two of heading. */
-export const slide = (slot, over = {}) => phase(slot, { advanceTol: 6, ...over });
+/** A station change in close formation (SMM 12.20 paras 44-47): nominal ~2.5° bank, 5 kt lateral drift, subtle power trim. */
+export const slide = (slot, over = {}) => phase(slot, {
+  latRate: CLOSE_SHAPING.targetLateralFtps,
+  fwdRate: 8,
+  targetBankDeg: CLOSE_SHAPING.targetBankDeg,
+  bankCapDeg: CLOSE_SHAPING.envelopeBankCapDeg,
+  targetOvertakeKt: CLOSE_SHAPING.targetOvertakeKt,
+  targetUndertakeKt: CLOSE_SHAPING.targetUndertakeKt,
+  overtakeKias: CLOSE_SHAPING.envelopeMaxOvertakeKt,
+  undertakeKias: CLOSE_SHAPING.envelopeMaxUndertakeKt,
+  advanceTol: 6,
+  ...over,
+});
 /**
  * A station change's corner or end point (SMM 12.20 para 45: "stabilize in this position", "stabilize directly behind the
  * echelon position"). Stabilize means under control, not stopped (Patrick 6 Oct 05:29Z: "can be moving 5 knots thru
  * corners"): #2 flows through it once within CORNER_FLOW_FT and no faster against it than STOP_KT (Patrick 20:41Z: 5
- * knots). Until V2.128 he stopped on it and held 2 s. The 5 ft is an estimate.
+ * knots).
  */
 const CORNER_FLOW_FT = 5;
-export const stopAt = (slot, over = {}) => slide(slot, { fwdRate: 5, advanceTol: CORNER_FLOW_FT, stopFtps: STOP_KT * KT_TO_FTPS, dwellSec: 0, ...over });
+export const stopAt = (slot, over = {}) => slide(slot, {
+  fwdRate: 6,
+  latRate: CLOSE_SHAPING.targetLateralFtps,
+  advanceTol: CORNER_FLOW_FT,
+  stopFtps: STOP_KT * KT_TO_FTPS,
+  dwellSec: 0,
+  ...over,
+});
 /**
  * The corner behind a close slot (SMM 12.20 para 45; Figs 12.12-12.13): back until #2's nose is at least 10 ft behind Lead's
  * tail (line astern's own spacing, plus 12 ft so it does not fall short: an estimate), at the slot's own lateral, and low
@@ -47,17 +65,47 @@ export const stopAt = (slot, over = {}) => slide(slot, { fwdRate: 5, advanceTol:
  */
 export const cornerBehind = (slot, spacingFt) => {
   const astern = pairSlot('astern', 0, spacingFt);
-  return { fwd: astern.fwd - 12, left: slot.left, alt: astern.alt };
+  return {
+    fwd: astern.fwd - CLOSE_SHAPING.wakeClearanceAftFt,
+    left: slot.left,
+    alt: astern.alt - (CLOSE_SHAPING.wakeClearanceDownFt - 10),
+  };
 };
-/** Drop back slowly (SMM 16.32 para 92): a few knots slower than Lead. */
-export const dropBack = (slot, over = {}) => phase(slot, { fwdRate: 12, latRate: 12, vrel0: 14, advanceTol: 25, finalTol: 6, bankCapDeg: 20, ...over });
+/** Drop back slowly (SMM 16.32 para 92): subtle power trim (2-3 kt slower than Lead), gentle bank. */
+export const dropBack = (slot, over = {}) => phase(slot, {
+  fwdRate: 8,
+  latRate: CLOSE_SHAPING.targetLateralFtps,
+  vrel0: 8,
+  advanceTol: 15,
+  finalTol: 6,
+  targetBankDeg: CLOSE_SHAPING.targetBankDeg,
+  bankCapDeg: CLOSE_SHAPING.envelopeBankCapDeg,
+  targetUndertakeKt: CLOSE_SHAPING.targetUndertakeKt,
+  undertakeKias: CLOSE_SHAPING.envelopeMaxUndertakeKt,
+  overtakeKias: CLOSE_SHAPING.envelopeMaxOvertakeKt,
+  ...over,
+});
 /**
  * Echelon, route or line astern to fighting wing, expeditious (Patrick 19:03Z: "take ~7-15 seconds", TS-55): the slot is chased at
  * once with up to 20 KIAS under or over Lead, 45° bank, and the height change over the first 6 s. All the rates are estimates.
  */
 export const sweepOut = (slot, over = {}) => phase(slot, { fwdRate: Infinity, latRate: Infinity, vrel0: 30, kcap: 0.1, d0: 50, vrelMax: 200, decel: 3, bankCapDeg: 45, overtakeKias: 20, undertakeKias: 20, advanceTol: 25, finalTol: 6, altSec: 6, ...over });
-/** Close from fighting wing through route (SMM 16.15 para 38; AFM7 p.18): 10-20 KIAS overtake, slowing to about 5 kt at route. */
-export const closeThrough = (slot, over = {}) => phase(slot, { fwdRate: 40, latRate: 40, vrel0: 8, kcap: 0.05, d0: 100, vrelMax: 50, overtakeKias: 20, advanceTol: 6, bankCapDeg: 25, ...over });
+/** Close from fighting wing through route (SMM 16.15 para 38; AFM7 p.18): gentle 2-3 kt overtake, 2.5° nominal bank target. */
+export const closeThrough = (slot, over = {}) => phase(slot, {
+  fwdRate: 10,
+  latRate: CLOSE_SHAPING.targetLateralFtps,
+  vrel0: 6,
+  kcap: 0.02,
+  d0: 100,
+  vrelMax: 20,
+  targetBankDeg: CLOSE_SHAPING.targetBankDeg,
+  bankCapDeg: CLOSE_SHAPING.envelopeBankCapDeg,
+  targetOvertakeKt: CLOSE_SHAPING.targetOvertakeKt,
+  overtakeKias: CLOSE_SHAPING.envelopeMaxOvertakeKt,
+  undertakeKias: CLOSE_SHAPING.envelopeMaxUndertakeKt,
+  advanceTol: 6,
+  ...over,
+});
 /** The rejoin to a formation (SMM 12.24, 16.20): the slot is chased at once, the closing speed falls with range, bank up to the cap. */
 export const rejoinTo = (slot, over = {}) => phase(slot, { rejoin: true, fwdRate: Infinity, latRate: Infinity, vrel0: 25, kcap: 0.1, d0: 500, vrelMax: 260, decel: 3, bankCapDeg: REJOIN.bankCapDeg, overtakeKias: REJOIN.overtakeKias, undertakeKias: 25, advanceTol: 40, finalTol: 3, altSec: 10, ...over });
 /** Entry to line abreast (SMM 16.18 para 51): #2 turns away 20-40° to open out while Lead holds 220 KIAS. */
@@ -121,7 +169,11 @@ export function legsFor(from, s, to, sTo, spacingFt) {
   // the new slot; then forward and up into it. The caller adds the last move.
   const corner = (key, side) => cornerBehind(slot(key, side), spacingFt);
   const crossClose = () => {
-    phases.push(stopAt(corner(at, side)), stopAt(corner(at, sTo)), slide(slot(at, sTo), { fwdRate: 5 }));
+    phases.push(
+      slide(corner(at, side), { fwdRate: 8, latRate: 6, advanceTol: 12 }),
+      slide(corner(at, sTo), { fwdRate: 6, latRate: CLOSE_SHAPING.targetLateralFtps, advanceTol: 10 }),
+      slide(slot(at, sTo), { fwdRate: 6, latRate: 6 }),
+    );
     side = sTo;
   };
   let switched = false;
@@ -170,15 +222,21 @@ export function legsFor(from, s, to, sTo, spacingFt) {
       if (to === 'route') return phases;
     }
     if (to === 'astern') {
-      // Echelon to line astern (SMM 12.20 para 46): the first half of the crossover, stopping directly astern (slightly aft,
-      // the corner's spacing), then adjusting power to move up into position.
+      // Echelon to line astern (SMM 12.20 para 46): smooth transition under wake to directly astern, then settle
       const astern = slot('astern', 0);
-      if (at !== 'astern') phases.push(stopAt(corner(at, side)), stopAt({ ...corner(at, side), left: 0 }));
-      phases.push(slide(astern));
+      if (at !== 'astern') {
+        phases.push(
+          slide(corner(at, side), { fwdRate: 8, latRate: 6, advanceTol: 12 }),
+          slide({ ...corner(at, side), left: 0 }, { fwdRate: 6, latRate: CLOSE_SHAPING.targetLateralFtps, advanceTol: 8 }),
+        );
+      }
+      phases.push(slide(astern, { fwdRate: 5 }));
     } else if (at === 'astern') {
-      // Line astern to echelon (SMM 12.20 para 47): the latter part of the crossover: across to directly behind the slot and
-      // stop, then forward and up into it.
-      phases.push(stopAt(corner(to, sTo)), slide(slot(to, sTo), { fwdRate: 5 }));
+      // Line astern to echelon (SMM 12.20 para 47): slide across behind slot, then forward and up
+      phases.push(
+        slide(corner(to, sTo), { fwdRate: 6, latRate: CLOSE_SHAPING.targetLateralFtps, advanceTol: 10 }),
+        slide(slot(to, sTo), { fwdRate: 6, latRate: 6 }),
+      );
     } else if (at !== to || side !== sTo) {
       phases.push(slide(slot(to, sTo)));
     }

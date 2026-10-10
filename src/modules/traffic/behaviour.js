@@ -47,9 +47,9 @@ export function behaviourLabel(b, deconflictLabel = null) {
   const config = b?.config && b.config !== CONFIG.clean ? b.config : null;
   if (deconflictLabel) return config ? deconflictLabel.replace(/]$/, ` · ${config}]`) : deconflictLabel;
   if (!b) return null;
-  // An aircraft flying the overhead or the SI pattern says only which (Patrick, 4 Oct: "just say [OHB] or [SI], not
-  // what they are doing next"; no configuration either).
-  if (b.pattern === 'OHB' || b.pattern === 'SI' || Object.values(LANDING_TAGS).includes(b.pattern)) return `[${b.pattern}]`;
+  // An aircraft flying the overhead, downwind, final turn, or SI pattern says only which (Patrick: short
+  // tags [OHB], [DW], [FT], [SI]; no configuration suffix in the tag).
+  if (b.pattern === 'OHB' || b.pattern === 'DW' || b.pattern === 'FT' || b.pattern === 'SI' || Object.values(LANDING_TAGS).includes(b.pattern)) return `[${b.pattern}]`;
   return `[${b.pattern}${b.next ? `: ${b.next}` : ''}${config ? ` · ${config}` : ''}]`;
 }
 
@@ -65,7 +65,9 @@ function patternOf(a, ctx) {
   if (flown === 'GO_AROUND_FLOWN') return { pattern: 'GO-AROUND', next: 'outer downwind next', stage: 'go_around' };
   if (flown === 'STRAIGHT_IN_FLOWN') return { pattern: 'SI', next: null, stage: 'straight_in_downwind' };
   if (flown === 'EXTEND_FLOWN') {
-    return { pattern: 'OHB', next: null, stage: a.phase === 'final_turn' || a.phase === 'final' ? 'final' : 'inner_downwind' };
+    const isFt = a.phase === 'final_turn' || a.phase === 'final';
+    const tag = a.siPattern ? 'SI' : (isFt ? 'FT' : 'DW');
+    return { pattern: tag, next: null, stage: isFt ? 'final' : 'inner_downwind' };
   }
   if (flown) return { pattern: 'BREAKOUT', next: 'rejoin next', stage: 'breakout' };
   const route = ctx.route;
@@ -74,15 +76,22 @@ function patternOf(a, ctx) {
     if (+route.mergeIndex > 0) return { pattern: 'OHB', next: null, stage: 'entry' };
     return { pattern: 'SI', next: null, stage: ctx.onFinal ? 'final_straight_in' : 'straight_in' };
   }
-  // Round the lap the tag names the pattern only, OHB or SI (Patrick, 4 Oct); the stage still sets the configuration.
+  // Round the lap the tag names the pattern or phase (OHB, DW, FT, or SI); the stage still sets the configuration.
   const lap = a.siPattern ? 'SI' : 'OHB';
   switch (a.phase) {
     case 'climb': case 'climb_out': case 'touch_and_go': return { pattern: lap, next: null, stage: 'upwind' };
     case 'crosswind': case 'outer_downwind': return { pattern: lap, next: null, stage: 'outer' };
     case 'initial': return { pattern: 'OHB', next: null, stage: 'initial' };
     case 'break': return { pattern: 'OHB', next: null, stage: 'break' };
-    case 'downwind': return { pattern: 'OHB', next: null, stage: 'inner_downwind' };
-    case 'final_turn': case 'final': return { pattern: lap, next: null, stage: 'final' };
+    case 'downwind': {
+      if (a.siPattern) return { pattern: 'SI', next: null, stage: 'inner_downwind' };
+      const slowed = (a.kt ?? a.iasKt ?? 0) < BEHAVIOUR.downwindGearKias;
+      return { pattern: slowed ? 'DW' : 'OHB', next: null, stage: 'inner_downwind' };
+    }
+    case 'final_turn': case 'final': {
+      if (a.siPattern) return { pattern: 'SI', next: null, stage: 'final' };
+      return { pattern: 'FT', next: null, stage: 'final' };
+    }
     default: return null;
   }
 }
