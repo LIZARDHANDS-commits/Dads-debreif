@@ -1,9 +1,9 @@
-// The generated FAA airspace files (faa-airspace/<icao>.js, tools/faa-airspace.mjs) are loaded only when they are needed (Dad, 8 Oct 2026; future.md "US bases,
+// The generated FAA airspace files (faa/<icao>.js, tools/faa-airspace.mjs; moved from the SOF on 10 Oct 2026, SOF-62, and also read by the Debrief, DB-24) are loaded only when they are needed (Dad, 8 Oct 2026; future.md "US bases,
 // follow-ups"): when the base is home and the 3D view opens, with a dynamic import(), so a user who never opens the 3D view at that base never downloads its file
 // (each covers the 3D view's largest area, 900 NM, and is about 100 KB or more). A profile with `loadAirspace` (a function that imports its file) has its fixed
 // entries in `airspace` (Moose Jaw's DAH entries; none for a US base) and the loaded ones are added to them here.
 //
-// The file is untrusted only as far as any of our own generated data is: its entries go through airspace-model.js `checkedAirspace` like every other entry.
+// The file is untrusted only as far as any of our own generated data is: its entries go through model.js `checkedAirspace` like every other entry.
 
 /** What the 3D key and the Airspace button say while the file loads, and when it could not be loaded. */
 export const AIRSPACE_LOADING_WORDS = 'Airspace loading…';

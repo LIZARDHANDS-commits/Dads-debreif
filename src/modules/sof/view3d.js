@@ -55,7 +55,7 @@ import {
   AREA_NM, AREA_FT, DEFAULT_AREA_NM, DECK_FT, CATEGORY_TOKENS, ZOOM_STEP, KEY_ORBIT_PX, KEY_PAN_PX, ORBIT_DEG_PER_PX, fitZoom, orbitBy, zoomCamera, panBy, clampLookAt, homeCamera,
   sceneSignature, formatFeet, tagShown, dragAction, mouseHint, DEFAULT_MOUSE_LEFT, MOUSE_LEFT_CHOICES,
 } from './scene3d-model.js';
-import { drawnAirspace, hiddenFor, withHidden, kindCounts, airspaceRows, searchRows, NOTHING_HIDDEN } from './airspace-filter.js';
+import { drawnAirspace, hiddenFor, withHidden, kindCounts, airspaceRows, searchRows, NOTHING_HIDDEN } from '../../airfields/airspace/filter.js';
 import { createAirspaceLogView } from './airspace-log-view.js';
 import {
   TOUR_DWELL_S, TOUR_FLY_S, TOUR_PITCH_DEG, TOUR_FIELD_AGL_FT, tourStops, nextStopIndex, tourCaption, nextInWords, framingZoom, flyPose,
@@ -68,8 +68,8 @@ import {
 import { buildHeightSheet } from './cloud-slabs3d.js';
 import { createTraffic3d } from './traffic3d.js';
 import { CYMJ, magVarWords, noSourceWords } from './sites/index.js';
-import { buildAirspace, AIRSPACE_GROUPS, KIND_COLOURS } from './airspace3d.js';
-import { buildAirports, RUNWAY_MIN_PX } from './airports3d.js';
+import { buildAirspace, AIRSPACE_GROUPS, KIND_COLOURS } from '../../ui-kit/airspace3d.js';
+import { buildAirports, RUNWAY_MIN_PX } from '../../ui-kit/airfield3d.js';
 import { buildAlerts3d, areaRingXY, ALERT_COLOURS, PIREP_COLOURS, ALERT_COLOUR_WORDS, ALERT_FILL_OPACITY } from './alerts3d.js';
 import { buildApproaches } from './approaches3d.js';
 import { APPROACH_GROUPS, CORRIDOR, ESTIMATE, ESTIMATE_WORDS, HOLD_DRAW, fieldApproaches, approachGeometry, corridorCheck, corridorSummary } from './approaches-model.js';
@@ -77,9 +77,10 @@ import { approachesOf, loadApproachesFor, APPROACHES_LOADING_WORDS, APPROACHES_F
 import { RUNWAY_IN_USE, RUNWAY_MODES, fieldsForRunways, shownSignature } from './runway-in-use.js';
 import { cellFt } from './weather3d-model.js';
 import { GLIDE_3D_MS, TRAIL_WINDOW_S } from './traffic-motion.js';
-import { airportsFor, AIRPORTS } from './airports-data.js';
-import { checkedAirspace, airspaceInSquare, KIND_WORDS, BASE_KINDS, tacnavNote, AIRSPACE_FILL_OPACITY, VIEW_TOP_FT } from './airspace-model.js';
-import { airspaceOf, loadAirspaceFor, AIRSPACE_LOADING_WORDS, AIRSPACE_FAILED_WORDS } from './sites/airspace-load.js';
+import { airportsFor, AIRPORTS } from '../../airfields/airports-data.js';
+import { checkedAirspace, KIND_WORDS, BASE_KINDS, tacnavNote, AIRSPACE_FILL_OPACITY, VIEW_TOP_FT } from '../../airfields/airspace/model.js';
+import { airspaceInSquare } from './airspace-square.js';
+import { airspaceOf, loadAirspaceFor, AIRSPACE_LOADING_WORDS, AIRSPACE_FAILED_WORDS } from '../../airfields/airspace/load.js';
 import {
   hourIndex, maxAhead, hourWords, meanLayerCover, unavailableWords, refreshFailedWords, LOADING_WORDS, CREDIT_WORDS, MAX_AHEAD_HOURS, CLOUD_STAGES_FT_AGL,
   CLOUD_COVER_THRESHOLD_PCT, barbStep, CLOUD_SHEET_PX, filledWords, nextAskWords, HRDPS_CHUNKS, modelSetOf, GRID_SIZE,
@@ -1184,7 +1185,7 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     const ground = groundFt();
     const holder = new gl.THREE.Group(); // the volumes go in here, ahead of the airports as before, so they can be built again alone (buildVolumes)
     gl.scene.add(holder);
-    const airports = buildAirports(gl.THREE, { toXY: projection.toXY, scale, groundFt: ground, doc: win.document, airports: airportsNow() });
+    const airports = buildAirports(gl.THREE, { toXY: projection.toXY, scale, groundFt: ground, doc: win.document, airports: airportsNow(), halfFt: AREA_FT / 2 });
     gl.scene.add(airports.root);
     gl.space = { built: null, airports, holder };
     drawFilter();

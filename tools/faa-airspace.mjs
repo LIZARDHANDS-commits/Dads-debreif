@@ -1,4 +1,4 @@
-// Makes the US bases' airspace files for the SOF's 3D view (plan Step 2c part E, 8 Oct 2026): src/modules/sof/sites/faa-airspace/<icao>.js, one per
+// Makes the US bases' airspace files for the SOF's 3D view (plan Step 2c part E, 8 Oct 2026): src/airfields/airspace/faa/<icao>.js, one per
 // base (and one for Moose Jaw, CYMJ: the US airspace south of the border, Dad 8 Oct 2026), from the FAA's open aeronautical data (the FAA AIS ArcGIS feature services, public domain, no key). Run it again each 56-day cycle and
 // commit what it writes. From the repo root:
 //   node tools/faa-airspace.mjs              fetch, trim, check and write the nine files, and print what each holds
@@ -34,11 +34,11 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { CATALOG } from '../src/airfields/catalog.js';
 import { makeLocalRef, latLonToLocalFt } from '../src/core/geo.js';
 import { FT_PER_NM } from '../src/core/units.js';
-import { checkAirspace } from '../src/modules/sof/airspace-model.js';
+import { checkAirspace } from '../src/airfields/airspace/model.js';
 import { MAX_AREA_NM } from '../src/modules/sof/scene3d-model.js';
 
 const ROOT = 'https://services6.arcgis.com/ssFJjBXIUyZDrSYZ/arcgis/rest/services';
-const OUT_DIR = 'src/modules/sof/sites/faa-airspace';
+const OUT_DIR = 'src/airfields/airspace/faa';
 /**
  * The eight US bases with a site profile (sites/index.js PROFILES; KSJT San Angelo added 8 Oct 2026, Dad), and Moose Jaw (CYMJ): the FAA has only US airspace, so its file is the US side of
  * Moose Jaw's 900 NM square (Montana, North Dakota and beyond), drawn with the DAH entries.

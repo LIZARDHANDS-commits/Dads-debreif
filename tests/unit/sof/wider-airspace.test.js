@@ -7,9 +7,9 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { AIRSPACE as WIDER } from '../../../src/modules/sof/sites/dah-airspace/cymj.js';
-import { AIRSPACE as FIRST } from '../../../src/modules/sof/airspace-data.js';
-import { checkAirspace, checkedAirspace } from '../../../src/modules/sof/airspace-model.js';
+import { AIRSPACE as WIDER } from '../../../src/airfields/airspace/dah/cymj.js';
+import { AIRSPACE as FIRST } from '../../../src/airfields/airspace/data.js';
+import { checkAirspace, checkedAirspace } from '../../../src/airfields/airspace/model.js';
 import { siteFor, PROFILES } from '../../../src/modules/sof/sites/index.js';
 import { CATALOG } from '../../../src/airfields/catalog.js';
 
@@ -82,7 +82,7 @@ test('wider airspace: DAH terminal and restricted areas, every entry fit to draw
 
   // No Mexican (ICAO MM..) or Bahamian (MY..) piece in any FAA file, as an id or a special use name such as "(MY)P3002".
   for (const base of FAA_FILES) {
-    const { AIRSPACE } = await import(`../../../src/modules/sof/sites/faa-airspace/${base}.js`);
+    const { AIRSPACE } = await import(`../../../src/airfields/airspace/faa/${base}.js`);
     const foreign = AIRSPACE.filter((e) => /^M[MY][A-Z]{2}\b/.test(e.id) || /^\(M[MY]\)/.test(e.name));
     assert.deepEqual(foreign.map((e) => e.id), [], `${base}.js has no Mexican or Bahamian airspace`);
   }

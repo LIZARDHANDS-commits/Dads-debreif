@@ -14,7 +14,7 @@ import { triggerLimits, describeTrigger } from './waves.js';
 import { trafficUrl } from './traffic.js';
 import { CROSSWIND_DEFAULTS, RUNWAY_STATES } from './crosswind.js';
 import { AREA_CHOICES_NM, DEFAULT_AREA_NM, TRAFFIC_DISPLAY_DEFAULTS, cleanTrafficDisplay, MOUSE_LEFT_CHOICES, DEFAULT_MOUSE_LEFT } from './scene3d-model.js';
-import { cleanAirspaceHidden } from './airspace-filter.js';
+import { cleanAirspaceHidden } from '../../airfields/airspace/filter.js';
 
 const LOCAL = triggerLimits('local');
 

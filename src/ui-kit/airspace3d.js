@@ -14,7 +14,7 @@
 //
 // Built again only when the list, the height scale, the ground or home changes; the groups are switched with `.visible`, which rebuilds
 // nothing. `dispose()` frees everything.
-import { AIRSPACE_FILL_OPACITY, TACNAV_AGL_FT, KIND_WORDS, outlineXY, routeXY, tacnavFt, airspaceWords, airspaceTitle, CIRCLE_SIDES } from './airspace-model.js';
+import { AIRSPACE_FILL_OPACITY, TACNAV_AGL_FT, KIND_WORDS, outlineXY, routeXY, tacnavFt, airspaceWords, airspaceTitle, CIRCLE_SIDES } from '../airfields/airspace/model.js';
 
 /** The groups the view's two toggles switch. */
 export const AIRSPACE_GROUPS = Object.freeze(['airspace', 'tacnav']);

@@ -1,5 +1,6 @@
-// The airports in the SOF's 3D view (SPEC-sof, "3D view", SOF-39; Dad, 7 Oct: "model the airport like in the pattern sim ... swift regina and saskatoon").
-// For each airport in airports-data.js inside the 3D area, every runway is drawn as a flat strip between its two thresholds at their true
+// The airfields in a 3D view (SPEC-sof, "3D view", SOF-39; Dad, 7 Oct: "model the airport like in the pattern sim ... swift regina and saskatoon").
+// Moved from the SOF to ui-kit on 10 Oct 2026 so the Debrief's 3D draws the same airfields (SOF-62, DB-24; Dad: "use the airfield graphics like pattern sim too").
+// For each airport in src/airfields/airports-data.js inside the area the caller gives (`halfFt`), every runway is drawn as a flat strip between its two thresholds at their true
 // positions, true length (the distance between the two ends) and width: dark asphalt, white edge lines, a dashed centreline, a bar of stripes
 // ("piano keys") at each end and the runway number at each end as a flat texture, written so it reads from the approach end. A few low boxes stand
 // for a terminal and hangars beside the field. The boxes are schematic: no source gives their places or sizes.
@@ -7,7 +8,7 @@
 // It only builds three.js objects. What to draw is plain data from the runway list (runwayGeometry, markingBoxes), kept apart from the objects so
 // they can be checked without a page. The page's words (the toggle, the key) are view3d.js's.
 //
-// World frame as view3d.js: X east, Y north, Z up, in the map's local feet. A runway stands at its field's elevation times the height scale, but
+// World frame as the SOF's view3d.js and the Debrief's: X east, Y north, Z up, in the map's local feet. A runway stands at its field's elevation times the height scale, but
 // never below the ground the view draws (the ground is flat at home's elevation, so a field lower than home would be hidden under it), and a little
 // above it so the picture of the ground never hides it.
 //
@@ -17,8 +18,7 @@
 // (they would be a smear before). Close up everything is at its true size.
 //
 // Built again only when the airports, the height scale, the ground or home changes; the whole group is switched with `.visible`. `dispose()` frees everything.
-import { AIRPORTS } from './airports-data.js';
-import { AREA_FT } from './scene3d-model.js';
+import { AIRPORTS } from '../airfields/airports-data.js';
 
 /** Minimum drawn sizes in screen pixels. Estimates for readability (SOF-39), like the aircraft's SIZE_PX. */
 export const RUNWAY_MIN_PX = Object.freeze({ length: 40, width: 3, detail: 80 });
@@ -166,13 +166,14 @@ function buildingSpot(runways, c0) {
 
 /**
  * Builds the airports. `T` is three.js; `toXY(lat, lon)` gives [x, y] in the map's feet; `scale` is the height scale; `groundFt` the ground the view draws
- * (feet above sea level); `doc` makes the number textures' canvases; `airports` is airports-data.js's list unless a test gives its own.
+ * (feet above sea level); `doc` makes the number textures' canvases; `airports` is airports-data.js's list unless a test gives its own; `halfFt` is half the
+ * width of the square kept round the map's origin (the SOF passes half its "3D area"; with none every airport is kept).
  * An airport with no runway that plots, or whose middle is outside the area, is skipped.
  *
  * Returns { root, summary, fit(ftPerPx), dispose() }: `root` holds one Group per airport; `summary` is [{ icao, runways, ends: ['11L', ...], elevationFt }]
  * for the key; `fit(ftPerPx)` applies the minimum drawn size for the camera's scene feet per screen pixel.
  */
-export function buildAirports(T, { toXY, scale, groundFt, doc = globalThis.document, airports = AIRPORTS }) {
+export function buildAirports(T, { toXY, scale, groundFt, doc = globalThis.document, airports = AIRPORTS, halfFt = Infinity }) {
   const root = new T.Group();
   root.name = 'airports';
   const owned = [];
@@ -182,7 +183,7 @@ export function buildAirports(T, { toXY, scale, groundFt, doc = globalThis.docum
   };
   const textures = new Map();
   const planeZ = groundFt * scale;
-  const half = AREA_FT / 2;
+  const half = halfFt;
   const fields = [];
   const summary = [];
 
