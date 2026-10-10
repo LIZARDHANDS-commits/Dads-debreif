@@ -91,19 +91,20 @@ function comeOffFirst(c, id, track) {
  * its second Lead's real flight, rolling out once the last wingman is in. hot: from line abreast. Null (his tracker legs
  * fly it) when no turning rejoin plans from here.
  */
-function twoTurning(c, into, s, to, sTo, hot, crossIn = false) {
+function twoTurning(c, into, s, to, sTo, hot, crossIn = false, xLaw = hot) {
   let pick;
   return ({ wing, recs, t0 }) => {
     const args = { lead: c.start[0], wing, s, to, sTo, spacingFt: c.spacingFt, blockFt: c.blockFt, t0 };
     // The vertical too (TS-82; Patrick 6 Oct 01:14Z: "they can use the vertical if they need to"), but from his +300 ft
     // stack the climb and the dive through Lead's height pushed to -0.5 G in the dry runs: none below VERTICAL_MIN_G.
-    // From line abreast (hot: Spread 4, the offset box) he flies the 2-ship's X to the 250-100 ft window (TS-106, Lead fixed on
-    // the canopy): on the line law from there he ran 170 ft ahead of Lead's 3/9 line close in (V2.223 test). From closer in
-    // (fighting wing, Fluid 4) he keeps the line law to route: the X from Fluid 4 put him 20 ft behind Lead's tail.
-    pick ??= searchTurningRejoin({ ...args, into, hot, verticalMinG: VERTICAL_MIN_G, xLaw: hot, crossIn }) ?? false;
+    // He flies the 2-ship's X to the 250-100 ft window (TS-106, Lead fixed on the canopy): on the line law from line abreast
+    // he ran 170 ft ahead of Lead's 3/9 line close in (V2.223 test), and from fighting wing to finger he ran up abeam route,
+    // dropped back 110 ft and passed 30 ft from #3 waiting behind Lead (V2.228). From Fluid 4 he keeps the line law to
+    // route (xLaw false): the X from there put him 20 ft behind Lead's tail.
+    pick ??= searchTurningRejoin({ ...args, into, hot, verticalMinG: VERTICAL_MIN_G, xLaw, crossIn }) ?? false;
     if (!pick) return null;
     const rec = recs[1];
-    const flown = flyTurningRejoinWith({ ...args, into: { longRec: rec, planTo: () => ({ rec, segments: [], turned: 0 }) }, aimFt: pick.aimFt, bankCapDeg: pick.bankCapDeg, overtakeKt: pick.overtakeKt, lowFloor: pick.lowFloor, upFt: pick.upFt, minG: VERTICAL_MIN_G, xLaw: hot, holdSec: FOUR_CHANGE_LIMIT_SEC, crossIn });
+    const flown = flyTurningRejoinWith({ ...args, into: { longRec: rec, planTo: () => ({ rec, segments: [], turned: 0 }) }, aimFt: pick.aimFt, bankCapDeg: pick.bankCapDeg, overtakeKt: pick.overtakeKt, lowFloor: pick.lowFloor, upFt: pick.upFt, minG: VERTICAL_MIN_G, xLaw, holdSec: FOUR_CHANGE_LIMIT_SEC, crossIn });
     if (!flown) return null;
     const segments = flown.wingSegments
       ? flown.wingSegments.map((s) => ({ ...s, points: s.points ? [...s.points] : undefined, poses: s.poses ? [...s.poses] : undefined }))
@@ -242,7 +243,7 @@ export function turningToFinger(start, t0, opts, s, from) {
     const route = slotsFor('route', s, { ships: 4 });
     const hot = abreast(from);
     const into = leadInto(c, s, 'finger', from === 'offsetBox' ? BOX_PAUSE_SEC : 0);
-    const two = { id: 2, fly: twoTurning(c, into, s, 'echelon', s, hot), phases: () => [...comeOffFirst(c, 2, 1), toSlot(c, rejoinTo, fin[2], { advanceTol: 10 })] };
+    const two = { id: 2, fly: twoTurning(c, into, s, 'echelon', s, hot, false, from !== 'fluid4'), phases: () => [...comeOffFirst(c, 2, 1), toSlot(c, rejoinTo, fin[2], { advanceTol: 10 })] };
     const far = (id) => (Math.abs(relativeTo(c.start[0], c.by.get(id)).left) > 3000 ? FAR_OVERTAKE_KIAS : REJOIN.overtakeKias);
     // Outside the turn: wait behind the place, then in through route (recipes.js closeThrough: close level or slightly low, then up).
     const outside = (id, gateId) => ({
@@ -299,7 +300,7 @@ export function turningToEchelon(start, t0, opts, s, from) {
     const ech4 = slotsFor('echelon', s, { ships: 4 });
     const into = leadInto(c, s, 'echelon', from === 'offsetBox' ? BOX_PAUSE_SEC : 0);
     const hot = abreast(from);
-    const two = { id: 2, fly: twoTurning(c, into, s, 'echelon', s, hot), phases: () => [...comeOffFirst(c, 2, 1), toSlot(c, rejoinTo, ech4[2], { advanceTol: 10 })] };
+    const two = { id: 2, fly: twoTurning(c, into, s, 'echelon', s, hot, false, from !== 'fluid4'), phases: () => [...comeOffFirst(c, 2, 1), toSlot(c, rejoinTo, ech4[2], { advanceTol: 10 })] };
     const far = (id) => (Math.abs(relativeTo(c.start[0], c.by.get(id)).left) > 3000 ? FAR_OVERTAKE_KIAS : REJOIN.overtakeKias);
     const line = pairSlot('route', s);
     const wing = (id, gateId) => ({
