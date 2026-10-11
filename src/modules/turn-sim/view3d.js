@@ -19,7 +19,7 @@ import { drawHud } from '../../ui-kit/hud.js';
 import { liftBankDeg } from './live/flight.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH, setCockpitView } from '../../ui-kit/ct156-model.js';
-import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, createCockpitFovSlider, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
+import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, createCockpitFovSlider, createEyeLean, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
 
 /** The 3D ground's colour: wheat stubble (TS-189). It was a deep green, '#2a3327' (Patrick, 6 Oct); set that here to put it back. */
 const GROUND_COLOUR = '#b7a77a';
@@ -556,9 +556,19 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     p.updateProjectionMatrix();
     const interior = gl.cockpit?.root === me;
     const seatEye = interior ? EYES_FT[gl.cockpit.seat] ?? EYES_FT.front : null;
-    const eye = interior
-      ? me.localToWorld(new THREE.Vector3(seatEye.x + gl.cockpit.eyeFwdFt, seatEye.y, seatEye.z + gl.cockpit.eyeUpFt).divideScalar(CT156_FT_PER_UNIT))
-      : me.position.clone().addScaledVector(fwd, POV.eyeFwdFt).addScaledVector(up, POV.eyeUpFt);
+    let eye;
+    if (interior) {
+      // Leaning to see Lead (ct156-cockpit.js EYE_LEAN; Patrick, 11 Oct 2026): from a wingman's seat, while Lead hides
+      // behind the bow or under the glareshield, the eye eases up to 6 in sideways or up until he shows. Layout eyeLean.
+      const base = { x: seatEye.x + gl.cockpit.eyeFwdFt, y: seatEye.y, z: seatEye.z + gl.cockpit.eyeUpFt };
+      const lead = pov.id !== 1 ? gl.planes.get(1)?.mesh : null;
+      const target = lead ? me.worldToLocal(lead.position.clone()).multiplyScalar(CT156_FT_PER_UNIT) : null;
+      gl.eyeLean ??= createEyeLean();
+      const lean = gl.eyeLean.update(performance.now() / 1000, base, target, gl.cockpit.seat, source.layers().eyeLean !== false);
+      eye = me.localToWorld(new THREE.Vector3(base.x, base.y + lean.dy, base.z + lean.dz).divideScalar(CT156_FT_PER_UNIT));
+    } else {
+      eye = me.position.clone().addScaledVector(fwd, POV.eyeFwdFt).addScaledVector(up, POV.eyeUpFt);
+    }
     if (interior) {
       p.near = POV.nearInsideFt;
       p.updateProjectionMatrix();

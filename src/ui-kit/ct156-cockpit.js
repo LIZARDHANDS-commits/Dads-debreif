@@ -366,6 +366,119 @@ function tombstone(p) {
   return { side, top, shoulderZ, height: h };
 }
 
+/**
+ * Leaning to see Lead (Patrick, 11 Oct 2026: "whenever lead is obscured by the canopy bow or the glare shield the eye
+ * sight 'leans' (realistically, smoothly) up to 6 inches in any direction to see lead"; Fable's design): while a target
+ * hides behind the seat's forward bow band (front seat; the arch from the rear) or under its coaming, with a margin, the
+ * eye moves the smallest amount that clears him, at most `maxFt` (6 in): sideways for the bow, up for the coaming,
+ * both when neither alone does it, never down. It eases there and back (easePerS, about 0.5 s to get there), and back to
+ * the seat's eye once he shows `clearDeg` clear from it. Only the eye moves; the cockpit stays put. The rear seat's
+ * headbox ahead isn't tested. The margins, step and ease are estimates.
+ */
+export const EYE_LEAN = Object.freeze({ maxFt: 0.5, marginDeg: 1, clearDeg: 1.5, stepFt: 0.025, easePerS: 6, everyS: 0.1 });
+
+const leanParts = {};
+/** What can hide a target from a seat (feet, cached): the coaming's top edges as lines across, and the bow band's outline. */
+function leanObstructions(seat) {
+  if (leanParts[seat]) return leanParts[seat];
+  const rear = seat === 'rear';
+  const p = rear ? REAR_PANEL_FT : PANEL_FT, h = rear ? REAR_HUMP_FT : GLARESHIELD_FT, b = rear ? ARCH_FT : FORWARD_BOW_FT;
+  const ts = tombstone(p);
+  const deck = [];
+  for (let i = 0; i <= 14; i++) {
+    const x = lerp(h.aftX, h.foreX, (i / 14) ** 1.3);
+    deck.push(hoodSection(h, ts, x));
+    if (h.cheeks) for (const s of [1, -1]) deck.push(cheekHalf(h, ts, x).map(([y, z]) => [x, s * y, z]));
+  }
+  const rx = h.aftX - RIM_FT.aftOfGlareshield;
+  const edge = hoodHalf(h, ts, h.aftX).slice(0, -1); // the grab rail's top, as seatParts lays the rail
+  deck.push([...edge.slice(1).reverse(), ...edge.slice(1).map(([y, z]) => [-y, z])].map(([y, z]) => [rx, y, z + RIM_FT.r]));
+  const pts = ct156HoopPoints(b.bandX / F, 32, 0, b.lean ?? 0);
+  const base = ct156CanopySection(b.bandX / F).base * F;
+  const inward = ({ x, y, z }, d) => {
+    const dy = -y * F, dz = base - z * F, l = Math.hypot(dy, dz) || 1;
+    return [x * F, y * F + (dy / l) * d, z * F + (dz / l) * d];
+  };
+  const band = [...pts.map((q) => inward(q, 0)), ...pts.map((q) => inward(q, b.glassInset + b.bandDepth + 2 * (b.tubeR ?? 0))).reverse()];
+  return (leanParts[seat] = { deck, band });
+}
+
+/** A point's bearing from an eye, degrees: [right of the nose, above the eye's level line] (the aircraft's own axes, feet). */
+function bearingOf(eye, [x, y, z]) {
+  const dx = x - eye.x, dy = y - eye.y;
+  return [deg(Math.atan2(-dy, dx)), deg(Math.atan2(z - eye.z, Math.hypot(dx, dy)))];
+}
+
+/** Whether a target (feet, the aircraft's axes) hides from `eye` behind the bow band or under the coaming, within `margin` degrees. */
+function leanHidden(eye, target, o, margin) {
+  const [ta, te] = bearingOf(eye, [target.x, target.y, target.z]);
+  // Under the coaming: below its top edge at his bearing (each line across, at his azimuth widened by the margin).
+  for (const line of o.deck) {
+    for (let i = 1; i < line.length; i++) {
+      const [a0, e0] = bearingOf(eye, line[i - 1]), [a1, e1] = bearingOf(eye, line[i]);
+      if (Math.max(a0, a1) < ta - margin || Math.min(a0, a1) > ta + margin) continue;
+      const t = a1 === a0 ? 0.5 : clamp01((ta - a0) / (a1 - a0));
+      if (te < lerp(e0, e1, t) + margin) return true;
+    }
+  }
+  // Behind the band: inside its outline, or within the margin of its edge.
+  const poly = o.band.map((q) => bearingOf(eye, q));
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [ai, ei] = poly[i], [aj, ej] = poly[j];
+    if ((ei > te) !== (ej > te) && ta < ((aj - ai) * (te - ei)) / (ej - ei) + ai) inside = !inside;
+    const da = aj - ai, de = ej - ei, l2 = da * da + de * de || 1;
+    const t = clamp01(((ta - ai) * da + (te - ei) * de) / l2);
+    if (Math.hypot(ta - (ai + t * da), te - (ei + t * de)) < margin) return true;
+  }
+  return inside;
+}
+
+/**
+ * The lean (EYE_LEAN) that shows `target` from `eyeFt` in `seat` ({ dy left, dz up } feet; the aircraft's axes, feet):
+ * none when he is clear; the present one (`current`) while it still shows him and he isn't clear from the seat's eye;
+ * else the smallest sideways, upward or both that clears him; none if 6 in doesn't. Pure geometry.
+ */
+export function eyeLeanFor(eyeFt, targetFt, seat = 'front', current = null) {
+  const o = leanObstructions(seat === 'rear' ? 'rear' : 'front'), L = EYE_LEAN;
+  const at = (dy, dz) => ({ x: eyeFt.x, y: eyeFt.y + dy, z: eyeFt.z + dz });
+  const none = { dy: 0, dz: 0 };
+  if (current && (current.dy || current.dz)) {
+    if (!leanHidden(eyeFt, targetFt, o, L.clearDeg)) return none;
+    if (!leanHidden(at(current.dy, current.dz), targetFt, o, L.marginDeg)) return current;
+  } else if (!leanHidden(eyeFt, targetFt, o, L.marginDeg)) return none;
+  const n = Math.round(L.maxFt / L.stepFt), r = Math.SQRT1_2;
+  for (let k = 1; k <= n; k++) {
+    const d = k * L.stepFt;
+    for (const [dy, dz] of [[d, 0], [-d, 0], [0, d], [d * r, d * r], [-d * r, d * r]]) {
+      if (!leanHidden(at(dy, dz), targetFt, o, L.marginDeg)) return { dy, dz };
+    }
+  }
+  return none;
+}
+
+/**
+ * An eye lean that eases (EYE_LEAN): update(tSec, eyeFt, targetFt, seat, on) gives the lean to add to the eye now
+ * ({ dy, dz } feet), looking again every everyS seconds; with `on` false or no target it eases back to none.
+ */
+export function createEyeLean() {
+  let want = { dy: 0, dz: 0 }, now = { dy: 0, dz: 0 }, lastLook = -Infinity, lastT = null;
+  return {
+    update(tSec, eyeFt, targetFt, seat = 'front', on = true) {
+      const dt = lastT === null ? 0 : Math.min(0.25, Math.max(0, tSec - lastT));
+      lastT = tSec;
+      if (!on || !targetFt) want = { dy: 0, dz: 0 };
+      else if (tSec - lastLook >= EYE_LEAN.everyS || tSec < lastLook) {
+        lastLook = tSec;
+        want = eyeLeanFor(eyeFt, targetFt, seat, want);
+      }
+      const k = 1 - Math.exp(-EYE_LEAN.easePerS * dt);
+      now = { dy: now.dy + (want.dy - now.dy) * k, dz: now.dz + (want.dz - now.dz) * k };
+      return now;
+    },
+  };
+}
+
 // ---------- the panel pictures ----------
 // Layout (V2.238): measured off the T-6A-1 front instrument panel diagram (NFTC 133-590008-3, cited only), drawn
 // flat-on and scaled by its 3-inch gauges (31.6 px to the inch), each instrument's middle and size in inches from the

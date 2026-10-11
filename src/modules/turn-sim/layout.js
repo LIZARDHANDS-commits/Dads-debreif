@@ -43,6 +43,9 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   // Each seat's eye moved from its estimated point, feet up and forward (Dad, 9 Oct: "make the eye view adjustable for
   // front and rear"; TS-155); 0 is the estimate.
   eyeUpFront: 0, eyeFwdFront: 0, eyeUpRear: 0, eyeFwdRear: 0,
+  // Lean to see Lead (Patrick, 11 Oct 2026): from a wingman's seat the eye moves up to 6 in when Lead hides behind the
+  // bow or under the glareshield (ct156-cockpit.js EYE_LEAN).
+  eyeLean: true,
   view: '3d', // '2d' or '3d'; 3D at the start, looking straight down on the formation (Patrick, 5 Oct)
   paint: 'ship', // the 3D aircraft's paint: each in its ship colour, which stands out on the charcoal (Patrick, 5 Oct); 'harvard' is navy
 });
@@ -340,6 +343,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     eyeFront,
     eyeRear,
     resetEyeButton,
+    lc.checkbox('eyeLean', { label: 'Lean to see Lead (Cockpit, Padlock)' }),
     lc.checkbox('autoFit', { label: 'Auto zoom' }),
     h('p', { class: 'ts-hint ts-cam-shortcuts' },
       h('kbd', { class: 'ts-kbd' }, 'C'), ' Center look \u00a0 ',
