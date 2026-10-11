@@ -638,7 +638,8 @@ function tubGeometry(THREE) {
     for (const s of [1, -1]) quad(walls, [a.x, s * a.y, floorZ], [b.x, s * b.y, floorZ], [b.x, s * b.y, b.top], [a.x, s * a.y, a.top]);
   }
   for (const r of [rows[0], rows[N]]) {
-    const top = rowAt(STATIONS, r.x)[2];
+    // The front bulkhead stops at the sill, under the cockpit's glareshield (it stood to the fuselage's top until V2.290).
+    const top = r === rows[0] ? r.top : rowAt(STATIONS, r.x)[2];
     quad(walls, [r.x, r.y, floorZ], [r.x, -r.y, floorZ], [r.x, -r.y, top], [r.x, r.y, top]);
   }
   return meshOf(THREE, pos, [...floor, ...walls], [[0, floor.length, 0], [floor.length, walls.length, 1]]);
