@@ -69,15 +69,41 @@ export function setTrackStep(track, k, x, y, z) {
   track.z[row(k)] = z;
 }
 
-/** Fills steps -PAD..0 of a track from an aircraft as it is now, extrapolated backward on its present turn and climb. */
+/**
+ * An aircraft at step k of a recorded flight (replay.js recordFlight), with what the record leaves out read off its last
+ * steps (second-order backward differences): its climb, roll rate, velocity and acceleration, and the places it came from.
+ * A pose track planned from it (seedTrack, formation-turns.js holdInPlane) carries on his own speed rate, vertical
+ * acceleration and roll rate, so a hand-over from the tracker has no step in them. Until V2.341 the pose track started at
+ * none of them: at the turning rejoin's hand-over the speed rate stepped by 1.9-2.5 kt/s, the climb by 2 ft/s and the G by
+ * 0.08 in one step (the Formation unit tests). Before step PAD the record is too short and the step is returned as it is.
+ */
+export function handOverAt(rec, k) {
+  const s = rec.at(k);
+  if (k < PAD) return s;
+  const past = [1, 2, 3].map((j) => rec.at(k - j));
+  const [p0, p1, p2, p3] = [s, ...past].map((p) => [p.xFt, p.yFt, p.altAboveFt]);
+  const vel = p0.map((x, j) => (3 * x - 4 * p1[j] + p2[j]) / (2 * dt));
+  const acc = p0.map((x, j) => (2 * x - 5 * p1[j] + 4 * p2[j] - p3[j]) / (dt * dt));
+  const rollRateDps = (3 * s.bankDeg - 4 * past[0].bankDeg + past[1].bankDeg) / (2 * dt);
+  return { ...s, climbFtps: vel[2], rollRateDps, velFtps: vel, accFtps2: acc, past: past.map((p) => ({ x: p.xFt, y: p.yFt, z: p.altAboveFt })) };
+}
+
+/**
+ * Fills steps -PAD..0 of a track from an aircraft as it is now: from the places it came from when it carries them
+ * (handOverAt), else extrapolated backward on its present turn and climb.
+ */
 export function seedTrack(track, a) {
+  track.x[row(0)] = a.xFt;
+  track.y[row(0)] = a.yFt;
+  track.z[row(0)] = a.altAboveFt;
+  if (a.past?.length >= PAD) {
+    for (let k = -1; k >= -PAD; k--) setTrackStep(track, k, a.past[-k - 1].x, a.past[-k - 1].y, a.past[-k - 1].z);
+    return;
+  }
   const omega = turnRateFromBankRadPerSec(Math.max(a.tasFtps, 1), a.bankDeg);
   let x = a.xFt;
   let y = a.yFt;
   let h = a.headingRad;
-  track.x[row(0)] = x;
-  track.y[row(0)] = y;
-  track.z[row(0)] = a.altAboveFt;
   for (let k = -1; k >= -PAD; k--) {
     const hPrev = h - omega * dt;
     const mid = (h + hPrev) / 2;
