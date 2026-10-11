@@ -7,6 +7,7 @@ import { renameDfp, setDfpNote, sortDfps, DFP_LIMITS } from './dfp.js';
 import { MAX_DEBRIEF_BYTES } from '../../flight-data/debrief-file.js';
 import { weatherForFile } from './weather/saved-radar.js';
 import { SHIFT_LIMITS, readTimings } from './gps-timing.js';
+import { readAltitudes } from './altitude.js';
 
 const PREFIX = 'standards.';
 /** The playback time, seconds since 1970 (the debrief file's DFP time limit). */
@@ -31,6 +32,9 @@ const STAMPS_PREFIX = 'timestamps.';
 const STAMPS_RULE = { type: 'string', oneOf: ['recorded'] };
 const SHIFT_PREFIX = 'timeShift.';
 const SHIFT_RULE = { type: 'number', min: SHIFT_LIMITS.min, max: SHIFT_LIMITS.max };
+/** Each ship's altitude choice in the file (DB-27): "altitude.1" to "altitude.4" is "recorded" when kept as recorded; auto has no key. */
+const ALTITUDE_PREFIX = 'altitude.';
+const ALTITUDE_RULE = { type: 'string', oneOf: ['recorded'] };
 
 /**
  * The rules readDebriefFile checks the file's settings against, from
@@ -38,7 +42,7 @@ const SHIFT_RULE = { type: 'number', min: SHIFT_LIMITS.min, max: SHIFT_LIMITS.ma
  * length a file the tool opens can have, so a block over the length
  * saved-radar.js allows reaches its checks and is left out with a line (the
  * file reader would drop it without a word). saved-radar.js checks the inside.
- * `pucks`: also keep each ship's GPS puck seat (DB-23) and timestamp choices (DB-25).
+ * `pucks`: also keep each ship's GPS puck seat (DB-23), timestamp choices (DB-25) and altitude choice (DB-27).
  */
 export function settingsRules(limits, { weather = false, pucks = false } = {}) {
   const rules = { [TIME_KEY]: TIME_RULE };
@@ -47,6 +51,7 @@ export function settingsRules(limits, { weather = false, pucks = false } = {}) {
       rules[`${PUCK_PREFIX}${slot}`] = PUCK_RULE;
       rules[`${STAMPS_PREFIX}${slot}`] = STAMPS_RULE;
       rules[`${SHIFT_PREFIX}${slot}`] = SHIFT_RULE;
+      rules[`${ALTITUDE_PREFIX}${slot}`] = ALTITUDE_RULE;
     }
   }
   if (weather) rules[WEATHER_KEY] = { type: 'string', max: MAX_DEBRIEF_BYTES };
@@ -80,9 +85,10 @@ export function weatherSettingOf(text, settings) {
  * The settings saved in the file: every standard, flattened, the time,
  * `weather` (the saved radar's block as text, savedToSetting) when there is one,
  * each ship's GPS puck seat that is set (`pucks` { slot: 'front' | 'rear' }, DB-23), and each ship's timestamp choices
- * away from the defaults (`timings` { slot: { recorded?, shiftS? } }, DB-25).
+ * away from the defaults (`timings` { slot: { recorded?, shiftS? } }, DB-25), and each ship kept at its recorded heights
+ * (`altitudes` { slot: { recorded: true } }, DB-27).
  */
-export function sessionSettings(standards, t, weather = '', pucks = {}, timings = {}) {
+export function sessionSettings(standards, t, weather = '', pucks = {}, timings = {}, altitudes = {}) {
   const out = {};
   for (const [group, fields] of Object.entries(standards)) {
     for (const [key, value] of Object.entries(fields)) out[`${PREFIX}${group}.${key}`] = value;
@@ -94,7 +100,16 @@ export function sessionSettings(standards, t, weather = '', pucks = {}, timings 
     if (one.recorded) out[`${STAMPS_PREFIX}${slot}`] = 'recorded';
     if (one.shiftS) out[`${SHIFT_PREFIX}${slot}`] = one.shiftS;
   }
+  for (const slot of Object.keys(readAltitudes(altitudes))) out[`${ALTITUDE_PREFIX}${slot}`] = 'recorded';
   return out;
+}
+
+/** The file's altitude choices as { slot: { recorded: true } }, or null when the file names none (DB-27). */
+export function altitudesFromSettings(settings) {
+  const raw = {};
+  for (let slot = 1; slot <= 4; slot++) if (settings[`${ALTITUDE_PREFIX}${slot}`] === 'recorded') raw[slot] = { recorded: true };
+  const out = readAltitudes(raw);
+  return Object.keys(out).length ? out : null;
 }
 
 /** The file's timestamp choices as { slot: { recorded?, shiftS? } }, or null when the file names none (DB-25). */

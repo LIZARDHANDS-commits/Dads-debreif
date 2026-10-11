@@ -7,6 +7,7 @@ import { headingRadToCompassDeg } from '../../core/angles.js';
 import { readoutsAt } from './readouts.js';
 import { puckHeaderNote } from './puck.js';
 import { timingHeaderNote } from './gps-timing.js';
+import { altitudeHeaderNote } from './altitude.js';
 
 /**
  * Each ship's columns, in order: the header after "#n " and how the value is written.
@@ -63,7 +64,8 @@ export function csvRows(flight, { recordedG = false, leadWindAt = null } = {}) {
   if (!flight) return [];
   const tracks = Object.values(flight.tracks).sort((a, b) => a.slot - b.slot);
   // A ship moved from its GPS puck (DB-23) says so on its position headers; the positions are the moved ones, as on screen.
-  const named = (tr, name) => `#${tr.slot} ${name}${POSITION_COLUMNS.has(name) ? puckHeaderNote(tr) : ''}`;
+  // A ship whose heights were corrected from the ground (DB-27) says so on its altitude header, after any puck note.
+  const named = (tr, name) => `#${tr.slot} ${name}${POSITION_COLUMNS.has(name) ? puckHeaderNote(tr) : ''}${name === 'alt ft' ? altitudeHeaderNote(tr) : ''}`;
   // Ships whose timestamps were snapped or shifted (DB-25) are named on the time column.
   const header = [`time (Zulu)${timingHeaderNote(flight)}`, ...tracks.flatMap((tr) => SHIP_COLUMNS.map(([name]) => named(tr, name)))];
   const rows = [header];
