@@ -298,7 +298,7 @@ function bodyIn(L, W) {
  * legs flew it: he came off the line still converging, slid 30-50 ft inside route and went past echelon's fore and aft place.
  * from, vel: #2's place in Lead's plane at the decision point and how it is moving. Returns { bodyAt(i), steps }.
  */
-function tailPath(from, vel, s, to, spacingFt, sTo = s, crossAt = null) {
+function tailPath(from, vel, s, to, spacingFt, sTo = s, crossAt = null, notBeforeStep = null) {
   const legs = [];
   if (sTo !== s) {
     // To the other side: under Lead's tail, as low as the crossover's corner (below his wake), then up into the new place.
@@ -333,13 +333,28 @@ function tailPath(from, vel, s, to, spacingFt, sTo = s, crossAt = null) {
   // tailUpFtps) to none in the plane (Patrick 05:31Z: "smaller, smoother movements").
   const dUp = legs[0].up - from.up;
   const upSec = Math.max(TURNING_REJOIN.tailMinSec, (2 * Math.abs(dUp)) / Math.max(TURNING_REJOIN.tailUpFtps, Math.sign(dUp) * vel.up));
-  const t = Math.max(TURNING_REJOIN.tailMinSec, (2 * total) / v0, upAlong ? 0 : upSec);
+  const t1 = Math.max(TURNING_REJOIN.tailMinSec, (2 * total) / v0, upAlong ? 0 : upSec);
+  // The 4-ship element crosses behind Lead only once the one ahead is in (SMM 16.34 para 96: "#3 should not cross behind
+  // lead until #2 is stabilized"). When the one way would have him behind Lead before that (notBeforeStep, steps after the
+  // decision point), he closes to that point with his closure coming off to none, holds it in Lead's frame until then, and
+  // goes on with the closure building up and coming off again (half what he brought at most; estimate).
+  const crossSec = crossAt ? t1 * (1 - Math.sqrt(Math.max(0, 1 - lens[0] / total))) : Infinity;
+  const split = notBeforeStep != null && crossSec < notBeforeStep * dt;
+  const tA = Math.max(TURNING_REJOIN.tailMinSec, (2 * lens[0]) / v0);
+  const holdSec = split ? Math.max(0, notBeforeStep * dt - tA) : 0;
+  const tB = Math.max(TURNING_REJOIN.tailMinSec, (3 * (total - lens[0])) / v0);
+  const t = split ? tA + holdSec + tB : t1;
+  const distAt = (ts) => {
+    if (!split) return total * (1 - (1 - Math.min(1, ts / t)) ** 2);
+    if (ts < tA) return lens[0] * (1 - (1 - ts / tA) ** 2);
+    const x = Math.min(1, Math.max(0, (ts - tA - holdSec) / tB));
+    return lens[0] + (total - lens[0]) * x * x * (3 - 2 * x);
+  };
   const steps = Math.ceil(t / dt);
   const rawAt = (i) => {
     // Before the decision point, where he was coming from (so the first corner is rounded too).
     if (i < 0) return { fwd: from.fwd + vel.fwd * i * dt, left: from.left + vel.left * i * dt, up: from.up + vel.up * i * dt };
-    const tau = Math.min(1, (i * dt) / t);
-    let d = total * (1 - (1 - tau) * (1 - tau)); // how far along: closure v0 at the start, off evenly to none at the end
+    let d = distAt(i * dt); // how far along: closure v0 at the start, off evenly to none at the end
     let k = 0;
     while (k < lens.length - 1 && d > lens[k]) d -= lens[k++];
     const f = lens[k] > 0 ? Math.min(1, d / lens[k]) : 1;
@@ -651,7 +666,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   if (close) {
     const bodyNow = (k) => bodyIn(into.longRec.at(k), firstRec.at(k));
     const [b0, b1] = [bodyNow(totalSteps - 1), bodyNow(totalSteps)];
-    const tail = pathTail ? tailPath(b1, { fwd: (b1.fwd - b0.fwd) / dt, left: (b1.left - b0.left) / dt, up: (b1.up - b0.up) / dt }, s, to, spacingFt, sTo, element?.crossAt ?? null) : null;
+    const tail = pathTail ? tailPath(b1, { fwd: (b1.fwd - b0.fwd) / dt, left: (b1.left - b0.left) / dt, up: (b1.up - b0.up) / dt }, s, to, spacingFt, sTo, element?.crossAt ?? null, element?.notBefore != null ? Math.round((element.notBefore - t0) / dt) - totalSteps : null) : null;
     tailSteps = tail?.steps ?? 0;
     // Lead holds his turn until #2 is in his place (tail.inSteps), then rolls out (Patrick 06:10Z); until V2.260 he held on
     // until the way had settled to the inch and planeEaseSec more, about 10 s in echelon.
