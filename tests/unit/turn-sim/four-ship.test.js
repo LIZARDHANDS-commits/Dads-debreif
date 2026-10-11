@@ -37,7 +37,7 @@ import { relativeTo, TURN_BANK_DEG, CHECK_DEG } from '../../../src/modules/turn-
 import { ROLL, STEP_SEC } from '../../../src/modules/turn-sim/live/flight.js';
 import { turnRateFromBankRadPerSec } from '../../../src/core/flight-math.js';
 
-const SPACING_FT = 6000; // AFM7 and AFM8 briefs p.15: initial spacing on the wide side
+const SPACING_FT = LIVE_DEFAULTS.spacingFt; // the default spacing, 5,000 ft (TS-89, Patrick 5 Oct 22:46Z: "5000"; AFM7 and AFM8 briefs p.15 show 6,000 on the wide side)
 const MARGIN_FT = 100; // shared table
 const MARGIN_DEG = 5; // shared table
 const SMM_BAND_FT = [4000, 6000]; // SMM 16.18 para 49
@@ -403,8 +403,9 @@ test('the 4-ship roll-out judgement names which wingman is off, against the airc
   assert.deepEqual(good.labels, ['ON SPACING']);
   assert.equal(good.ships.length, 3);
   assert.deepEqual(good.ships.map((s) => s.refName), ['Lead', 'Lead', '#3'], '#4 is judged off #3, not off Lead');
-  // #4 closes up on #3: only #4 is named, and it is judged from #3 (5,000 ft from #3, though 11,000 from Lead).
-  const tight = judgeFour(line(6000, -6000, -11000), 6000, 'abreast', judgePair);
+  // #4 closes up on #3: only #4 is named, and it is judged from #3 (3,800 ft from #3, though 9,800 from Lead). In position is
+  // anywhere in the SMM's 4,000-6,000 ft band, ±100 ft (TS-80, Patrick 5 Oct 21:26Z, 21:38Z).
+  const tight = judgeFour(line(6000, -6000, -9800), 6000, 'abreast', judgePair);
   assert.deepEqual(tight.labels, ['#4 TIGHT']);
   const aft = judgeFour(line(6000, -6000, -12000, -2000), 6000, 'abreast', judgePair);
   assert.deepEqual(aft.labels, ['#4 AFT']); // more than 10° of sweep (SMM 16.18 para 49)

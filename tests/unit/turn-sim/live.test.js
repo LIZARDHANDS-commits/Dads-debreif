@@ -17,13 +17,13 @@
 // unless a check says why it uses another.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createFormation } from '../../../src/modules/turn-sim/live/formation.js';
+import { createFormation, LIVE_DEFAULTS } from '../../../src/modules/turn-sim/live/formation.js';
 import { judgePair } from '../../../src/modules/turn-sim/live/judge.js';
 import { relativeTo, TURN_BANK_DEG, VERTICAL_MISS_FT, CHECK_DEG } from '../../../src/modules/turn-sim/live/manoeuvres.js';
 import { ROLL, STEP_SEC, makeAircraft, stepAircraft, planDone } from '../../../src/modules/turn-sim/live/flight.js';
 import { turnRateFromBankRadPerSec } from '../../../src/core/flight-math.js';
 
-const SPACING_FT = 6000;
+const SPACING_FT = LIVE_DEFAULTS.spacingFt; // the default line abreast spacing, 5,000 ft (TS-89, Patrick 5 Oct 22:46Z: "5000"); 6,000 until then
 const MARGIN_FT = 100; // shared table
 const MARGIN_DEG = 5; // shared table
 const DEG = Math.PI / 180;
@@ -220,7 +220,9 @@ test('a press while a manoeuvre is flying is queued and flown the moment it ends
 test('the roll-out judgement names what is wrong', () => {
   const lead = { xFt: 0, yFt: 0, headingRad: Math.PI / 2 };
   assert.deepEqual(judgePair(lead, { xFt: 6000, yFt: 0 }, 6000).labels, ['ON SPACING']);
-  assert.deepEqual(judgePair(lead, { xFt: 5000, yFt: 0 }, 6000).labels, ['TIGHT']);
+  // In position is anywhere in the SMM's 4,000-6,000 ft band, ±100 ft (TS-80, Patrick 5 Oct 21:26Z, 21:38Z), so tight is under 3,900 ft.
+  assert.deepEqual(judgePair(lead, { xFt: 5000, yFt: 0 }, 6000).labels, ['ON SPACING']);
+  assert.deepEqual(judgePair(lead, { xFt: 3800, yFt: 0 }, 6000).labels, ['TIGHT']);
   assert.deepEqual(judgePair(lead, { xFt: 7000, yFt: 500 }, 6000).labels, ['WIDE', 'FORE']);
   assert.deepEqual(judgePair(lead, { xFt: 6000, yFt: -2000 }, 6000).labels, ['AFT']); // more than 10° of sweep (SMM 16.18 para 49)
 });
