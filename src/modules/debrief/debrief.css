@@ -741,6 +741,14 @@
   pointer-events: none;
 }
 
+/* The 3D terrain's credit lines (DB-27) sit at the top right, clear of the camera bar over the bottom of the picture. */
+[data-module='debrief'] .map-credit.debrief-credit-3d {
+  top: var(--space-1);
+  bottom: auto;
+  max-width: 60%;
+  text-align: right;
+}
+
 [data-module='debrief'] .debrief-menu-body > * {
   min-width: 0;
 }

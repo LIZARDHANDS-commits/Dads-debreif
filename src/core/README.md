@@ -8,6 +8,7 @@ The small functions behind every number the tool shows: units, angles and headin
 | `angles.js` | Headings, bearings, clock positions, aspect angle, heading crossing angle, compass conversion, compass bearing of a vector |
 | `geo.js` | The debrief map: latitude/longitude to feet and back, map tiles; distance along and off a leg |
 | `terrain-tiles.js` | The public Terrarium elevation tiles: their address and credit, decoding a tile's pixels into heights, the tiles covering a box, and a store that answers the height at a point (SOF terrain and Traffic's 3D ground, TR-117) |
+| `terrain-grid.js` | The height grids a 3D view's real ground is drawn from, read from `terrain-tiles.js`'s store: a grid over a square (`createGrid`, `fillGrid`, `sampleGrid`), an inner patch stitched into a hole of an outer grid (`holeFor`, `stitchInner`), hill shading (`hillshade`), and the finest zoom under a tile cap (`zoomForTiles`). Shared by the SOF's 3D terrain and the Debrief's terrain ground (SOF-65, DB-27); a picture only, not flight math |
 | `time.js` | Zulu and local time, KML times, the Zulu date-time group |
 | `flight-math.js` | Turn radius, rate and bank from G, and G, radius and rate from bank; the Turn Sim's G with its correction (floored at 1.01, D74); the EM chart point; closure; G estimated from a track |
 | `tennis.js` | The tennis ball, one solver for the map and the 3D view |
