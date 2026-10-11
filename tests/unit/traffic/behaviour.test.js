@@ -12,8 +12,8 @@ import { scenarioAircraft } from '../../../src/modules/traffic/setup-panel.js';
 import { CONFIG, BEHAVIOUR } from '../../../src/modules/traffic/behaviour.js';
 
 const MJ = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw.json', import.meta.url), 'utf8'));
-// No configuration on the tag means clean (Patrick, 4 Oct 23:14Z: Clean only shows on a PFL).
-const configOf = (tag) => (tag ? tag.match(/ · ([^\]]+)\]$/)?.[1] ?? CONFIG.clean : null);
+// The configuration is read off the aircraft: round the lap the tag no longer names it (Patrick, 4 Oct; spec 4.14:
+// "Round the lap the tag says only [OHB] or [SI] ... no configuration").
 
 /** Flies one aircraft and returns, per phase, the configurations seen with the lowest and highest speed. */
 function fly(routeId, seconds) {
@@ -22,7 +22,7 @@ function fly(routeId, seconds) {
   for (let t = 0.5; t <= seconds; t += 0.5) {
     sim.stepTo(t);
     const a = sim.state().aircraft[0];
-    if (a.status === 'flying') seen.push({ t, phase: a.phase, kt: a.kt, leg: a.leg, tag: a.behaviour, config: configOf(a.behaviour) });
+    if (a.status === 'flying') seen.push({ t, phase: a.phase, kt: a.kt, leg: a.leg, tag: a.behaviour, config: a.config ?? CONFIG.clean });
   }
   return seen;
 }
