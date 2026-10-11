@@ -26,7 +26,7 @@
 //    Lead's plane, not closer, where the range shrinks as Lead slows; on the outside of Lead's roll.
 //  - Power: MAX like Lead for all of fluid manoeuvring (Patrick 11 Oct 2026 22:32Z, "Both should be at max power for all
 //    of fluid maneuvering"; SMM 16.17 paras 42-43, "both aircraft maintain the same power setting"): the spacing is
-//    flown by geometry alone. While Lead holds a speed (the entry and Terminate) power flies his range, from Lead's new
+//    flown by geometry alone, the entry included (Patrick 22:33Z and 22:55Z). While Lead holds a speed (Terminate) power flies his range, from Lead's new
 //    speed.
 //
 // Units: feet, seconds, x east, y north, z up; Lead's positions are heights above the block (fluid.js), #2's point mass
