@@ -50,7 +50,7 @@ import { stallBankDeg } from './slow-down.js';
 import { turnRadiusFromBankFt } from '../../../core/flight-math.js';
 import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
-import { iasToTasKt } from '../../../core/t6-performance.js';
+import { iasToTasKt, excessThrustPerWeight } from '../../../core/t6-performance.js';
 
 const dt = STEP_SEC;
 /** A search try replaces the best so far only when quicker by more than this (the chooser's half-second tie, chooser.js TIE_SEC). */
@@ -436,7 +436,7 @@ function arrivedStep(longRec, n0, wing, tail, slot) {
  * The whole rejoin as a single continuous tracker phase sequence: line intercept, canopy-X (or fighting wing
  * cone arrival with coneEase bank-matching), into close-in/cone phases with zero stitched handovers.
  */
-export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, upFt = 0, minG = null, overshoot = false, xLaw = true, hardSec = 0, allowAcross = false, crossIn = false, maxWhenLow = true, limitSec = Infinity, holdSec = null, point = false, element = null }) {
+export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, upFt = 0, minG = null, overshoot = false, xLaw = true, hardSec = 0, allowAcross = false, crossIn = false, maxWhenLow = true, limitSec = Infinity, holdSec = null, point = false, element = null, joinAtFt = null }) {
   const TR = TURNING_REJOIN;
   const onX = to !== 'fw' && xLaw;
   // From the decision point into route and echelon on his own side, the way is a place moving in Lead's banked wing plane
@@ -455,7 +455,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   const leadAlt = into.longRec.at(0).altAboveFt;
   // The capture's own height leg goes to the line's 4° depth where he joins it (TS-181), not the 50 ft floor: from there
   // the line's law (tracker.js heightOf) carries the 4° in (Fable's V2.232 audit: far out he sat 50 ft low).
-  const joinFt = Math.min(Math.hypot(into.longRec.at(0).xFt - wing.xFt, into.longRec.at(0).yFt - wing.yFt), TR.rideCaptureAlongFt);
+  const joinFt = joinAtFt ?? Math.min(Math.hypot(into.longRec.at(0).xFt - wing.xFt, into.longRec.at(0).yFt - wing.yFt), TR.rideCaptureAlongFt);
   // From trail (point 'frozen') there is no capture leg: the line's law flies his height from the start, gently (trailHeightG),
   // since a leg to a fixed depth ended off the 4° and gave a 2 G pull and a 0.6 G push at the hand-over.
   const lineFt = point === 'frozen' ? wing.altAboveFt : leadAlt - Math.max(-TR.lineUpFt, joinFt * Math.tan(TR.lineElevDeg * DEG));
@@ -467,7 +467,16 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   const upSec = upFt > 0 ? Math.max(TR.heightSec / 2, smoothLegSec(upFt, heightG)) : 0;
   const downSec = upFt > 0 ? Math.max(TR.heightSec / 2, smoothLegSec(wing.altAboveFt + upFt - lineFt, heightG)) : 0;
   const dropFt = wing.altAboveFt - lineFt;
-  const steadySec = upFt > 0 ? upSec + downSec : Math.max(TR.heightSec, smoothLegSec(dropFt, element?.heightG ?? TR.captureHeightG));
+  // Up to the line from below, he climbs no faster on average than full power climbs at the line's speed in a gentle turn
+  // (excessThrustPerWeight, the shared T-6A model), so he climbs up the line with power and keeps his speed (Fable's v2295
+  // flight: from 2,000 ft low he zoomed up in 20 s, 212 to 124 KIAS, 0.3 G over the top, and fell 3,500 ft behind).
+  const climbSec = (riseFt) => {
+    if (riseFt <= 0) return 0;
+    const ps = excessThrustPerWeight(TR.frozenKias, wing.altAboveFt, TR.climbTurnG) * iasToTasKt(TR.frozenKias, wing.altAboveFt) * KT_TO_FTPS;
+    return ps > 0 ? (1.5 * riseFt) / ps : Infinity;
+  };
+  const climbing = upFt <= 0 && climbSec(-dropFt) > Math.max(TR.heightSec, smoothLegSec(dropFt, element?.heightG ?? TR.captureHeightG));
+  const steadySec = upFt > 0 ? upSec + downSec : Math.max(TR.heightSec, smoothLegSec(dropFt, element?.heightG ?? TR.captureHeightG), climbSec(-dropFt));
   const heightLeg = (sec) => {
     if (upFt > 0) {
       const tUp = t0 + (sec * upSec) / steadySec;
@@ -653,6 +662,13 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   const close = to !== 'fw';
   const firstPlan = { segments: [{ kind: 'bankTrack', points: first.run.points }], profile: first.profile };
   const firstRec = recordFlight(wing, firstPlan, t0);
+  // A long climb ends further from Lead than where it was aimed; flown again to the line's depth where it ends, so the line's
+  // law takes over from it with no step: a step of 2 ft gave a 0.4 G blip at the hand-over in the probes.
+  if (climbing && joinAtFt == null && point !== 'frozen') {
+    const k = Math.min(totalSteps, Math.round(steadySec / dt));
+    const endFt = Math.hypot(into.longRec.at(k).xFt - firstRec.at(k).xFt, into.longRec.at(k).yFt - firstRec.at(k).yFt);
+    if (Math.abs(endFt - joinFt) > 1) return flyTurningRejoinWith({ ...arguments[0], joinAtFt: endFt });
+  }
   const wPart = firstRec.at(nPart);
   const relPart = relativeTo(into.longRec.at(nPart), wPart);
   const easeSec = close ? planeEaseSec(relPart, into.longRec.at(nPart)) : 0;
