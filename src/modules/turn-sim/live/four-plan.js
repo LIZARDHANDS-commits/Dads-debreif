@@ -27,8 +27,8 @@ export { FOUR_CHANGE_LIMIT_SEC };
  */
 /** A turning rejoin with Lead turning away from #2 (TS-179): the rejoin switch on Into (TRJ) and the turn switch on Away. */
 const awayTrj = (o) => o.rejoin !== 'straight' && o.turn === 'away';
-/** The spread positions Lead may turn away from #2 from (TS-176, TS-179); from the offset box and fighting wing, Into only. */
-const AWAY_FROM = ['spread4', 'fluid4', 'other'];
+/** Where Lead may turn away from #2 from (TS-176, TS-179; fighting wing, Patrick's card 11 Oct 2026 08:39Z); from the offset box, Into only. */
+const AWAY_FROM = ['spread4', 'fluid4', 'other', 'fw'];
 
 /**
  * How a rejoin to echelon on side sTo flies (TS-176): Into on #2's side, Away (Lead turns away from #2, nearest first, piece
@@ -110,7 +110,6 @@ function rejoinRefusal(move, o, s, sTo) {
   if (!move.rejoin || o.rejoin === 'straight') return null;
   const away = o.turn === 'away';
   if (away && move.from === 'offsetBox') return 'From the offset box Lead turns into #2 only so far. Try Into or SARJ.';
-  if (away && move.from === 'fw') return 'From fighting wing Lead turns into #2 only so far. Try Into or SARJ.';
   if (move.to !== 'echelon') return null;
   // Each joins to the inside of Lead's turn (SMM 12.24 para 59): Into on #2's side, Away on the other.
   if (away && sTo === s) return "Turning away from #2 forms echelon on the side away from #2. Pick that side, Into, or SARJ.";
@@ -124,10 +123,13 @@ function routeFor(from, to, opts) {
   const want = opts.side ?? 'keep';
   // Away (TS-176 piece 4, TS-179): Lead turns away from #2, and echelon and fighting wing form with #2 on the inside, the
   // side away from him; in finger #2 crosses back to his own side, the outside.
-  const awaySwap = (to === 'echelon' || to === 'fw') && awayTrj(opts) && AWAY_FROM.includes(from.key);
+  const awaySwap = (to === 'echelon' || to === 'fw') && awayTrj(opts) && AWAY_FROM.includes(from.key) && from.key !== to;
   const keep = awaySwap ? -sNow : sNow;
   const sTo = to === 'trail' ? 0 : want === 'left' ? 1 : want === 'right' ? -1 : keep;
   if (from.key === to && (to === 'trail' || from.side === sTo)) return { sNow, sTo, path: null, refusal: `Already in ${f.label.toLowerCase()}.` };
+  // Away to finger keeps #2 on his own side (TS-179): the other side has no Away route but through the offset box, which
+  // has no Away of its own, so say so plainly.
+  if (to === 'finger' && awayTrj(opts) && AWAY_FROM.includes(from.key) && sTo !== sNow) return { sNow, sTo, path: null, refusal: 'Turning away from #2 forms finger with #2 on his own side. Pick that side, Into, or SARJ.' };
   const path = routeFour(from.key, from.key === 'trail' ? 0 : sNow, to, sTo, opts);
   if (!path) return { sNow, sTo, path, refusal: `No way from ${fourWords(from).toLowerCase()} to ${f.label.toLowerCase()} the manuals give.` };
   for (const step of path) {

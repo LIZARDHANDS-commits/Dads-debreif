@@ -993,8 +993,10 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
   const { s } = pilot;
   s.bank = Number.isFinite(start.bankDeg) ? start.bankDeg : 0;
   s.rollRate = Number.isFinite(start.rollRateDps) ? start.rollRateDps : 0;
-  s.rec = { decision: '', config: PFL_CONFIG_LABELS[0] };
-  let cfg = mid ? clamp(Math.round(mid.cfgIndex ?? 0), 0, 3) : 0;
+  // Gear and flap already down stay down: with the engine failed there is no hydraulic pressure to raise them
+  // (Patrick, 11 Oct 08:43Z), so the glide starts in the aircraft's configuration and only ever adds drag.
+  let cfg = clamp(Math.round((mid ? mid.cfgIndex : start.cfgIndex) ?? 0), 0, 3);
+  s.rec = { decision: '', config: PFL_CONFIG_LABELS[cfg] };
   let margin = 0;
   let roundOut = null;
   let outcome = null;
@@ -1421,6 +1423,16 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
 
 // ── Into the sim ──────────────────────────────────────────────────────────────
 
+/**
+ * The PFL configuration index for the configuration the aircraft is in when the engine fails ('Clean', 'T/O flap',
+ * 'Gear + T/O flap', 'Gear + landing flap', as behaviour.js names them). Flap with the gear up has no glide row of its
+ * own, so it glides as gear and T/O flap (an estimate: a little more drag than it has).
+ */
+function startCfgIndex(config) {
+  if (config === 'T/O flap') return 2;
+  return Math.max(0, PFL_CONFIG_LABELS.indexOf(config ?? ''));
+}
+
 export function startPflFlight(a, wind, options = {}) {
   const flight = flyPfl(
     {
@@ -1431,6 +1443,7 @@ export function startPflFlight(a, wind, options = {}) {
       headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG,
       bankDeg: a.bankDeg,
       rollRateDps: a.rollRateDps,
+      cfgIndex: startCfgIndex(options.startConfig),
     },
     wind,
     options

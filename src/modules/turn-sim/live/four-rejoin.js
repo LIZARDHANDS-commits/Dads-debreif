@@ -65,6 +65,9 @@ const STRAIGHT_HORIZON_SEC = 300;
  */
 const WINDOW_STACK_FT = { 3: 100, 4: 200 };
 
+/** To finger away from #2, #3 and #4 this far from Lead go straight to the inside and wait behind their places (estimate). */
+const FAR_SIDE_FT = 3000;
+
 /**
  * On an Away rejoin #2 crosses Lead's six no closer than this far behind and this far below him (TS-179; Patrick's card
  * 10 Oct 2026 22:30Z, "500 ft, 50 ft below"): a reference, not a wall. The planner aims for it and a closer cross is
@@ -128,6 +131,16 @@ function waitInWindow(c, id, p, alt, gateAt, over, creepAlt = alt) {
     rejoinTo(place(c, p.fwd - nearFt, p.left, creepAlt), { track: 1, ...over, advanceTol: farFt - nearFt + 60, closureCapFtps: TRJ.creepKt * KT_FTPS, holdUntil: gateAt }),
   ];
 }
+
+/**
+ * From Spread 4, #3 and #4 roll at a formation rate on their last three legs (from the wait window's near edge or the cross
+ * behind Lead on), not at the 180°/s of the tactical moves: they came into their places with 70-110°/s roll reversals
+ * (Fable's v2276 flight). Only from Spread 4 for now: from fighting wing, the offset box and Fluid 4 the close legs need the
+ * quicker roll to settle at all (30-60°/s caps left #3 or #4 wide or tight there), until the element flies #2's ride.
+ */
+const ELEMENT_ROLL = Object.freeze({ maxRateDps: 30, maxAccelDps2: 60 }); // estimate
+const CLOSE_LEGS = 3;
+const smoothRoll = (from, w) => (from !== 'spread4' ? w : { ...w, phases: (done, recs) => w.phases(done, recs).map((p, i, all) => (i >= all.length - CLOSE_LEGS ? { ...p, roll: ELEMENT_ROLL } : p)) });
 
 /** When an earlier wingman's part was in: his planner's own time, else his tracker's last arrival. */
 const inAt = (done, id) => done[id].inSec ?? done[id].times[done[id].times.length - 1].arrive;
@@ -289,12 +302,17 @@ export function turningToFinger(start, t0, opts, s, from, sTo = s) {
       // From the offset box up the rejoin line first, then across behind Lead to the outside (onBoxLine).
       if (from === 'offsetBox' && sTo === s) return onLineFirst(c, crossing(id, gateId), s);
       // To finger on the side away from #2 their places are on the inside: from the outside they wait behind #2 and cross.
-      const outsideNow = sTo === s ? from === 'spread4' || (from !== 'fw' && relativeTo(c.start[0], c.by.get(id)).left * s < 0) : relativeTo(c.start[0], c.by.get(id)).left * s > 0;
+      // From far out on the other side (Spread 4, finger away from #2) they flow behind Lead far back on the way to the
+      // inside and wait behind their own places there: sent to wait behind #2 first, #3 came back across Lead's six from the
+      // inside of the turn and passed 20 ft under Lead, and #4 326 ft ahead of his nose (Fable's v2276 flight).
+      const r = relativeTo(c.start[0], c.by.get(id));
+      const outsideNow = sTo === s ? from === 'spread4' || (from !== 'fw' && r.left * s < 0) : r.left * s > 0 || Math.hypot(r.fwd, r.left) > FAR_SIDE_FT;
       return (outsideNow ? outside : crossing)(id, gateId);
     };
-    // Each ends in Lead's wing plane, and Lead rolls out as gently as in an echelon turn once all are in it (TS-126, TS-127).
+    // Each ends in Lead's wing plane, and Lead rolls out gently once all are in it (TS-126, TS-127), at the route roll-out's
+    // 8°/s so #4, 90 ft out, rises with the plane without the 0.6 G push of the echelon turn's 30°/s (Fable's v2276 flight).
     const inPlane = (w) => ({ ...w, plane: true });
-    return { lead: { hold: into, until: [2, 3, 4], rollOutRoll: RATE_SETS.close.echelonRoll }, wings: [inPlane(two), inPlane(wing(3, 2)), inPlane(wing(4, 3))] };
+    return { lead: { hold: into, until: [2, 3, 4], rollOutRoll: RATE_SETS.close.routeRoll }, wings: [inPlane(two), inPlane(smoothRoll(from, wing(3, 2))), inPlane(smoothRoll(from, wing(4, 3)))] };
   }]);
 }
 
@@ -331,7 +349,7 @@ export function turningToEchelon(start, t0, opts, s, from, sTo = s) {
       },
     });
     const inPlane = (w) => ({ ...w, plane: true });
-    return { lead: { hold: into, until: [2, 3, 4], rollOutRoll: RATE_SETS.close.echelonRoll }, wings: [inPlane(two), inPlane(wing(3, 2)), inPlane(wing(4, 3))], how: sTo === s ? 'turning rejoin straight into echelon' : 'turning rejoin into echelon on the outside, #2 under Lead at the decision point' };
+    return { lead: { hold: into, until: [2, 3, 4], rollOutRoll: RATE_SETS.close.routeRoll }, wings: [inPlane(two), inPlane(smoothRoll(from, wing(3, 2))), inPlane(smoothRoll(from, wing(4, 3)))], how: sTo === s ? 'turning rejoin straight into echelon' : 'turning rejoin into echelon on the outside, #2 under Lead at the decision point' };
   }]);
 }
 
@@ -390,42 +408,57 @@ export function turningAway(start, t0, opts, s, from, to) {
     id: 2,
     plane: to !== 'fw',
     fly: twoTurning(c, into, sIn, 'fw', sIn, abreast(from), true),
-    then: (done) => {
-      const p = inLeadFrame(slots, 2);
-      const gate = inAt(done, 4);
-      if (to === 'echelon') {
-        return [
-          // on Lead's six at the straight-ahead rejoin's 1,000 ft, below the wake
-          rejoinTo(place(c, A.sixFt, 0, -AWAY_CROSS.belowFt), { track: 1, advanceTol: 60, holdUntil: gate }),
-          // up the six (the straight-ahead rejoin's closing leg), then from about 500 ft out into the gap
-          rejoinTo(place(c, A.closeTowardFt, 0, -AWAY_CROSS.belowFt), { track: 1, overtakeKias: 30, advanceTol: A.vectorAtFt + A.closeTowardFt }),
-          // out into the gap behind his place (as far back as route is behind echelon), then up into it
-          // his bank capped on what he adds to Lead's, not on the whole of it: at 25° all told he could not stay with Lead's
-          // 30° turn and fell out of it (from V2.248, where the gap is 59 ft behind echelon, not 71)
-          closeThrough(place(c, p.fwd + out.fwd - step.fwd, p.left, p.alt - 25), { track: 1, advanceTol: 6, targetBankDeg: CLOSE_SHAPING.targetBankDeg }),
-          slide(place(c, p.fwd, p.left, p.alt), { track: 1, targetBankDeg: CLOSE_SHAPING.targetBankDeg }),
-        ];
-      }
-      // fighting wing: onto his place in the cone (his +300 ft off, as rejoinToFw), so #3 and #4 are on theirs off him
-      if (to === 'fw') return [rejoinTo(place(c, p.fwd, p.left, Math.min(p.alt, -FW_STEP_DOWN_FT)), { track: 1, holdUntil: gate })];
-      // finger: into the inside behind #3, then across two lengths behind and below Lead to the outside, and up (TS-177)
-      const back = -TRJ.passBehindLengths * LENGTH_FT;
-      const across = { track: 1, bankCapDeg: WING_BANKS.rejoinBankCapDeg, overtakeKias: 10, undertakeKias: 10 };
-      return [
-        rejoinTo(place(c, -TRJ.waitBehindFt[3], sIn * ech().left, -TRJ.waitLowFt[3]), { track: 1, advanceTol: 10, overtakeKias: REJOIN.overtakeKias, holdUntil: gate }),
-        slide(place(c, back, 0, -CROSS_LOW_FT), across),
-        slide(place(c, back, p.left, -CROSS_LOW_FT), across),
-        toSlot(c, slide, slots[2], { bankCapDeg: WING_BANKS.rejoinBankCapDeg, overtakeKias: 10, undertakeKias: 10 }),
-      ];
-    },
+    then: (done) => thenLegs(c, done),
   });
+  // From fighting wing (Patrick's card 11 Oct 2026 08:39Z, "Away from FW") #2 is already close behind, 300 ft above: the
+  // 2-ship's Away cross dived him under Lead at -2.3 G. He comes off his stack first, crosses Lead's six AWAY_CROSS behind
+  // and below and waits there until #4 is in, then flies on as below; to echelon straight into the gap, not back out to the
+  // straight-ahead rejoin's 1,000 ft.
+  const twoFromFw = (c) => ({
+    id: 2,
+    plane: to !== 'fw',
+    phases: (done) => [
+      ...comeOffFirst(c, 2, 1),
+      rejoinTo(place(c, -AWAY_CROSS.behindFt, 0, -AWAY_CROSS.belowFt), { track: 1, advanceTol: 60, bankCapDeg: TURNING_REJOIN.bankCapDeg, holdUntil: inAt(done, 4) }),
+      ...(to === 'echelon' ? thenLegs(c, done).slice(2) : thenLegs(c, done)),
+    ],
+  });
+  const thenLegs = (c, done) => {
+    const p = inLeadFrame(slots, 2);
+    const gate = inAt(done, 4);
+    if (to === 'echelon') {
+      return [
+        // on Lead's six at the straight-ahead rejoin's 1,000 ft, below the wake
+        rejoinTo(place(c, A.sixFt, 0, -AWAY_CROSS.belowFt), { track: 1, advanceTol: 60, holdUntil: gate }),
+        // up the six (the straight-ahead rejoin's closing leg), then from about 500 ft out into the gap
+        rejoinTo(place(c, A.closeTowardFt, 0, -AWAY_CROSS.belowFt), { track: 1, overtakeKias: 30, advanceTol: A.vectorAtFt + A.closeTowardFt }),
+        // out into the gap behind his place (as far back as route is behind echelon), then up into it
+        // his bank capped on what he adds to Lead's, not on the whole of it: at 25° all told he could not stay with Lead's
+        // 30° turn and fell out of it (from V2.248, where the gap is 59 ft behind echelon, not 71)
+        closeThrough(place(c, p.fwd + out.fwd - step.fwd, p.left, p.alt - 25), { track: 1, advanceTol: 6, targetBankDeg: CLOSE_SHAPING.targetBankDeg }),
+        slide(place(c, p.fwd, p.left, p.alt), { track: 1, targetBankDeg: CLOSE_SHAPING.targetBankDeg }),
+      ];
+    }
+    // fighting wing: onto his place in the cone (his +300 ft off, as rejoinToFw), so #3 and #4 are on theirs off him
+    if (to === 'fw') return [rejoinTo(place(c, p.fwd, p.left, Math.min(p.alt, -FW_STEP_DOWN_FT)), { track: 1, holdUntil: gate })];
+    // finger: into the inside behind #3, then across two lengths behind and below Lead to the outside, and up (TS-177)
+    const back = -TRJ.passBehindLengths * LENGTH_FT;
+    const across = { track: 1, bankCapDeg: WING_BANKS.rejoinBankCapDeg, overtakeKias: 10, undertakeKias: 10 };
+    return [
+      rejoinTo(place(c, -TRJ.waitBehindFt[3], sIn * ech().left, -TRJ.waitLowFt[3]), { track: 1, advanceTol: 10, overtakeKias: REJOIN.overtakeKias, holdUntil: gate }),
+      slide(place(c, back, 0, -CROSS_LOW_FT), across),
+      slide(place(c, back, p.left, -CROSS_LOW_FT), across),
+      toSlot(c, slide, slots[2], { bankCapDeg: WING_BANKS.rejoinBankCapDeg, overtakeKias: 10, undertakeKias: 10 }),
+    ];
+  };
   const r = legsInTurn(start, t0, opts, [
     (c) => {
       const into = leadInto(c, sIn, to);
       const join = to === 'fw' ? cone : close;
       return {
-        lead: { hold: into, until: [2, 3, 4], ...(to === 'fw' ? {} : { rollOutRoll: RATE_SETS.close.echelonRoll }) },
-        wings: [join(c, 3, () => c.t0), join(c, 4, (done) => inAt(done, 3)), two(c, into)],
+        // Lead rolls out gently, so #4 out on the echelon rises with the plane (a 0.3 G push at 30°/s; Fable's v2276 flight)
+        lead: { hold: into, until: [2, 3, 4], ...(to === 'fw' ? {} : { rollOutRoll: RATE_SETS.close.routeRoll }) },
+        wings: [join(c, 3, () => c.t0), join(c, 4, (done) => inAt(done, 3)), from === 'fw' ? twoFromFw(c) : two(c, into)],
       };
     },
   ]);

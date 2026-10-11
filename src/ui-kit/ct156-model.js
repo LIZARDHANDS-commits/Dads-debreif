@@ -290,10 +290,15 @@ const WINGTIP = Object.freeze({ y: WINGTIP_Y, z: WINGTIP_Z }); // the wing's tip
 const NAV_LIGHT_X = WING_TIP.le - 0.012; // just behind the tip's leading edge
 const STROBE_X = WING_TIP.le - WING_TIP.chord + 0.01; // at the tip's trailing edge
 const TAIL_LIGHT = Object.freeze([-0.787, 0, -0.035]); // the fin's trailing edge at its root, over the tail cone
-// The exhaust stacks off Patrick's photo of 156102 (11 Oct 2026, marked): 0.078 units (1.8 ft) long, 0.03 across at the
-// aft opening narrowing to 0.022, their middle level with the spinner's axis (were 0.06 long, 0.024 across, 0.012 lower).
-const STUB = Object.freeze({ x: 0.492, len: 0.078, rAft: 0.015, rFwd: 0.011, z: 0 });
-const STUB_Y = fuseSurf(STUB.x, STUB.z) - 0.003; // just inside the skin, so each stands out a little
+// The exhaust stacks: placed off Patrick's photo of 156102 (11 Oct 2026, marked), their middle level with the spinner's
+// axis; shaped and sized off the T-6A-1 Fig 1-1-2 top, front and side views (Patrick, 11 Oct 2026 08:20Z "they jut out",
+// 08:26Z "the exhaust sticks out more than that. look at the diagrams"). The drawings: each stack's outer edge about 25 in
+// from the centreline (the cowl there is about 13 in), its front leaving the cowl about 2.7 ft behind the spinner's tip
+// and its outer lip ending about 4.6 ft behind it, about 7 in tall. Built as a flattened oval pipe 12 in across and 7 in
+// tall coming straight out of the cowl at xFront, bending aft round a quarter circle so its middle runs aft at yMid
+// (19 in out), open aft at xExit (4.3 ft behind the tip) with the outer wall reaching lip (3 in) further aft. Units; y0 is the pipe's
+// middle where it leaves the cowl, just inside the skin. Sizes read off the drawings, about +-1 in.
+const STUB = Object.freeze({ xFront: 0.54, xExit: 0.474, y0: 0.036, yMid: 0.0684, halfWide: 0.0216, halfTall: 0.0126, lip: 0.012, z: 0 });
 /**
  * Points on the outside of the aircraft, model units (nose +X, left +Y, up +Z from the origin on the spinner's axis), each
  * [x, y, z]: the spinner's tip, the wingtip position lights (red left, green right), the tail light, the exhaust stacks'
@@ -305,8 +310,8 @@ export const CT156_REFERENCE_POINTS = Object.freeze({
   leftLight: Object.freeze([NAV_LIGHT_X, WINGTIP.y + 0.002, WINGTIP.z]),
   rightLight: Object.freeze([NAV_LIGHT_X, -(WINGTIP.y + 0.002), WINGTIP.z]),
   tailLight: TAIL_LIGHT,
-  leftExhaust: Object.freeze([STUB.x - STUB.len / 2, STUB_Y, STUB.z]),
-  rightExhaust: Object.freeze([STUB.x - STUB.len / 2, -STUB_Y, STUB.z]),
+  leftExhaust: Object.freeze([STUB.xExit, STUB.yMid, STUB.z]),
+  rightExhaust: Object.freeze([STUB.xExit, -STUB.yMid, STUB.z]),
   leftStabTip: Object.freeze([STAB[0].le - STAB[0].chord / 2, -STAB[0].s, STAB[0].z]),
   rightStabTip: Object.freeze([STAB[0].le - STAB[0].chord / 2, STAB[0].s, STAB[0].z]),
   finTop: Object.freeze([FIN[1].le - FIN[1].chord / 2, 0, FIN[1].s]),
@@ -504,6 +509,40 @@ function ventralGeometry(THREE) {
   return g;
 }
 
+/**
+ * One exhaust stack on side s (+1 left, -1 right): an oval pipe coming straight out of the cowl, bending aft round a
+ * quarter circle and running aft to its open end, the outer wall reaching a little further aft than the inner (STUB);
+ * its front buried in the cowl. With `lining`, the dark lining a little inside it from the bend aft, open at the back.
+ */
+function stackGeometry(THREE, s, lining = false) {
+  const { xFront, xExit, y0, yMid, halfWide, halfTall, lip, z } = STUB;
+  const R = yMid - y0, xBend = xFront - R, M = 20, pos = [], idx = [];
+  const path = [];
+  for (let i = lining ? 6 : 0; i <= 8; i++) {
+    const t = (i / 8) * (Math.PI / 2); // round the bend: from heading out to heading aft
+    path.push({ x: xBend + R * Math.cos(t), y: y0 + R * Math.sin(t), tx: -Math.sin(t), ty: Math.cos(t) });
+  }
+  for (let i = 1; i <= 6; i++) path.push({ x: xBend + (xExit - xBend) * (i / 6), y: yMid, tx: -1, ty: 0, end: i === 6 });
+  const k0 = lining ? 0.8 : 1;
+  for (const p of path) {
+    for (let k = 0; k < M; k++) {
+      const a = (2 * Math.PI * k) / M, c = Math.cos(a);
+      const back = p.end ? lip * Math.max(0, c) : 0; // the outer wall reaches further aft
+      // across the pipe: in plan, square to its heading (outward is +c)
+      pos.push(p.x - back + halfWide * k0 * c * p.ty, s * (p.y - halfWide * k0 * c * p.tx), z + halfTall * k0 * Math.sin(a));
+    }
+  }
+  const flip = (s > 0) !== lining;
+  for (let i = 0; i < path.length - 1; i++) {
+    for (let k = 0; k < M; k++) {
+      const a = i * M + k, b = i * M + ((k + 1) % M), c = a + M, d = b + M;
+      if (flip) idx.push(a, c, b, b, c, d);
+      else idx.push(a, b, c, b, d, c);
+    }
+  }
+  return meshOf(THREE, pos, idx);
+}
+
 /** An indexed geometry from points and triangles, smooth-shaded. */
 function meshOf(THREE, pos, idx, groups = null) {
   const g = new THREE.BufferGeometry();
@@ -573,13 +612,14 @@ const FT = CT156_UNIT_LENGTH / CT156_LENGTH_FT; // model units per foot
 export const CT156_TUB_FLOOR_FT = -1.2;
 /**
  * The cockpit tub under the canopy (TS-155): a floor CT156_TUB_FLOOR_FT below the spinner's axis from 5.6 ft aft of the
- * model origin to 5.55 ft ahead of it (3.9 ft until the front cockpit moved forward, ALL-31; 4.47 ft until the panel moved
+ * model origin to 5.95 ft ahead of it, just behind the front knee wells' backs (5.9 ft) so its bulkhead doesn't close them
+ * (5.55 ft from V2.271 to V2.285, which put the bulkhead across the wells; 3.9 ft until the front cockpit moved forward, ALL-31; 4.47 ft until the panel moved
  * forward, V2.238; 4.6 ft until the front cockpit moved 0.95 ft forward, 11 Oct 2026), side walls about 1.3 ft out (kept inside the canopy) up to the sill, and a
  * bulkhead at each end up to the fuselage's top line. Group 0 the floor, group 1 the walls. All estimates (judged by
  * eye off Dad's reference pictures, 9 Oct 2026).
  */
 function tubGeometry(THREE) {
-  const N = 14, x0 = 5.55 * FT, x1 = -5.6 * FT, floorZ = CT156_TUB_FLOOR_FT * FT;
+  const N = 14, x0 = 5.95 * FT, x1 = -5.6 * FT, floorZ = CT156_TUB_FLOOR_FT * FT;
   const rows = [];
   for (let i = 0; i <= N; i++) {
     const x = x0 + ((x1 - x0) * i) / N;
@@ -1005,11 +1045,12 @@ function buildKit(THREE) {
   // ejection seats' headboxes behind them (the rear one lower, under the canopy's falling top).
   [geo.helmetFront, geo.helmetRear] = CT156_SEAT_X.map((x, i) => pilotGeometry(THREE, x, CT156_HELMET_Z[i]));
   geo.seats = joinGeometries(THREE, CT156_SEAT_X.map((x, i) => ({ geometry: headboxGeometry(THREE, x, CT156_HELMET_Z[i], [0.012, 0.008][i]), materials: [0] })));
-  // The exhaust stacks either side of the nose, just under the top line (photo).
-  // Round, each with its dark opening facing aft (AETCMAN 11-248 Fig 9.17: a fore-and-aft reference from #2; TS-156).
+  // The exhaust stacks either side of the nose (photo), each with its dark opening facing aft (AETCMAN 11-248 Fig 9.17:
+  // a fore-and-aft reference from #2; TS-156).
   geo.stubs = joinGeometries(THREE, [1, -1].flatMap((s) => [
-    { geometry: new THREE.CylinderGeometry(STUB.rAft, STUB.rFwd, STUB.len, 16, 1, true).rotateZ(Math.PI / 2).translate(STUB.x, s * STUB_Y, STUB.z), materials: [0] },
-    { geometry: new THREE.CircleGeometry(STUB.rAft - 0.0015, 16).rotateY(-Math.PI / 2).translate(STUB.x - STUB.len / 2 + 0.003, s * STUB_Y, STUB.z), materials: [1] },
+    { geometry: stackGeometry(THREE, s), materials: [0] },
+    { geometry: stackGeometry(THREE, s, true), materials: [1] },
+    { geometry: new THREE.CircleGeometry(1, 16).scale(STUB.halfTall * 0.8, STUB.halfWide * 0.8, 1).rotateY(-Math.PI / 2).translate(STUB.xFront - (STUB.yMid - STUB.y0) * 0.7, s * STUB.yMid, STUB.z), materials: [1] },
   ]));
   // The position lights (TS-156): red on the left wingtip and green on the right, just behind each tip's leading edge,
   // a white strobe at each tip's trailing edge and a white light on the tail. Small lit shapes, sizes estimates.

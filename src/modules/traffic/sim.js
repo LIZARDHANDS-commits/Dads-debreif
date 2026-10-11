@@ -1501,7 +1501,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       } else if (action === 'engine_fail' || action === 'pfl_current') {
         // The PFL button: an engine failure where the aircraft is, flown as Traffic spec 4.5 says (pfl.js).
         const env = { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 };
-        startPflFlight(a, env, { settings: setup.settings });
+        // Gear and flap already down stay down (Patrick, 11 Oct 08:43Z): the glide starts in today's configuration.
+        const startConfig = a.engineFailed ? a.config : sim.state().aircraft.find((b) => b.id === a.id)?.config;
+        startPflFlight(a, env, { settings: setup.settings, startConfig });
         a.command = action;
       } else if (action === 'go_around') {
         startGoAround(a);

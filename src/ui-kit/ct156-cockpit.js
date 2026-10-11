@@ -74,12 +74,20 @@ export const FRONT_SEAT_RAISE_FT = 2 / 12;
 export const EYE_FT = Object.freeze({ x: CT156_SEAT_X[0] * F + EYE_AHEAD_OF_HELMET_FT, y: 0, z: CT156_HELMET_Z[0] * F - EYE_BELOW_HELMET_FT + FRONT_SEAT_RAISE_FT });
 
 /**
+ * How far the rear seat is raised above the T-6A-1 side drawing's, feet: 5.5 in (Patrick, 11 Oct 2026 08:34Z, "Raise
+ * rear eye" so the rear seat's 220 KIAS picture matches the SMM's Fig 3.5). In that figure the top of the front seat's
+ * headbox sits on the horizon at 220 KIAS level; from the drawing's eye (both helmets drawn level) it sat about 6° above
+ * it at the model's -0.7°, 5.5 in up puts it about 0.2° under. Fitted to the figure, not measured.
+ */
+export const REAR_SEAT_RAISE_FT = 5.5 / 12;
+/**
  * Both eyes, feet (TS-155, TS-156, ALL-31). Front: EYE_FT. Rear: 3.3 ft aft of the origin (18.6 ft behind the spinner
- * tip) and 2.2 ft above the spinner's axis, the T-6A-1 side drawing's (was 3.0 ft aft and 2.29 ft up).
+ * tip) and 2.66 ft above the spinner's axis, the T-6A-1 side drawing's (2.2 ft up) raised REAR_SEAT_RAISE_FT (was 3.0 ft
+ * aft and 2.29 ft up until V2.238, then the drawing's until V2.279).
  */
 export const EYES_FT = Object.freeze({
   front: EYE_FT,
-  rear: Object.freeze({ x: CT156_SEAT_X[1] * F + EYE_AHEAD_OF_HELMET_FT, y: 0, z: CT156_HELMET_Z[1] * F - EYE_BELOW_HELMET_FT }),
+  rear: Object.freeze({ x: CT156_SEAT_X[1] * F + EYE_AHEAD_OF_HELMET_FT, y: 0, z: CT156_HELMET_Z[1] * F - EYE_BELOW_HELMET_FT + REAR_SEAT_RAISE_FT }),
 });
 /**
  * The seat stations SEAT_FT and the seats' parts are drawn for (model units: the front seat's until V2.234), and how
@@ -368,7 +376,7 @@ const PANEL_INSTRUMENTS = [
   { kind: 'g', u: 0.262, v: 0.617, d: 0.077, live: 'g' },
   { kind: 'rmu', u: 0.357, v: 0.498, w: 0.097, h: 0.4, frame: true },
   { kind: 'ehsi', u: 0.502, v: 0.445, w: 0.169, h: 0.347, live: 'ehsi', frame: true },
-  { kind: 'vsi', u: 0.666, v: 0.586, s: 0.112, d: 0.096 },
+  { kind: 'vsi', u: 0.666, v: 0.586, s: 0.112, d: 0.096, live: 'vsi' },
   { kind: 'eng', u: 0.792, v: 0.586, s: 0.112, name: 'TRQ' },
   { kind: 'eng', u: 0.669, v: 0.372, s: 0.1, name: 'ITT' },
   { kind: 'eng', u: 0.792, v: 0.372, s: 0.1, name: 'NP' },
@@ -386,19 +394,24 @@ const PANEL_INSTRUMENTS = [
 ];
 
 /** The live faces' windows in one shared picture (pixels); both seats' live instruments read the same windows. */
-const ATLAS = Object.freeze({ width: 1024, height: 512 });
+const ATLAS = Object.freeze({ width: 1024, height: 1024 });
 const LIVE_WINDOWS = Object.freeze({
-  eadi: { x: 0, y: 0, w: 384, h: 220 },
-  ehsi: { x: 384, y: 0, w: 384, h: 220 },
-  asi: { x: 776, y: 0, w: 240, h: 240 },
-  alt: { x: 0, y: 256, w: 240, h: 240 },
-  stby: { x: 248, y: 256, w: 200, h: 200 },
-  g: { x: 456, y: 256, w: 160, h: 160 },
+  // Each window has its face's shape (the EADI and EHSI 0.9 wide to 1 tall; until V2.287 they were drawn 1.75 to 1 and
+  // squeezed onto their faces, which made the EADI's sphere an oval).
+  eadi: { x: 0, y: 0, w: 360, h: 400 },
+  ehsi: { x: 368, y: 0, w: 360, h: 404 },
+  asi: { x: 736, y: 0, w: 280, h: 280 },
+  alt: { x: 0, y: 416, w: 280, h: 280 },
+  vsi: { x: 288, y: 416, w: 280, h: 280 },
+  stby: { x: 576, y: 416, w: 220, h: 220 },
+  g: { x: 804, y: 416, w: 200, h: 200 },
 });
 
 const PANEL_GREY = '#8e9296';
 const SEAM = 'rgba(52, 56, 60, 0.55)';
 const BEZEL = '#1d2024';
+/** The displays' black frames round their screens, feet (about 0.5 in; Patrick's CT-156 photo, judged). */
+const BEZEL_FT = 0.04;
 const BLACK = '#0b0d10';
 const FACE = '#0b0d10';
 const INK = '#e8edf2';
@@ -446,6 +459,36 @@ function squareBezel(ctx, x, y, w, h) {
   screws(ctx, x, y, w, h, Math.min(w, h) * 0.08, Math.max(1.5, Math.min(w, h) * 0.025));
 }
 
+/**
+ * A display's bezel on the panel, as Patrick's CT-156 cockpit photo shows them (11 Oct 2026, the panel step): a thick
+ * rounded black frame `pad` pixels round the screen, a white dot (the light sensor) in its lower left corner, and a
+ * Dzus fastener on the grey just outside each corner. Drawn under the screen; sizes judged off the photo.
+ */
+function displayBezel(ctx, x, y, w, h, pad) {
+  const X = x - pad, Y = y - pad, W = w + 2 * pad, H = h + 2 * pad;
+  ctx.fillStyle = '#121417';
+  roundRect(ctx, X, Y, W, H, pad * 1.4);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(120, 126, 132, 0.55)'; // the frame's lit outer edge
+  ctx.lineWidth = Math.max(1, pad * 0.12);
+  roundRect(ctx, X + ctx.lineWidth / 2, Y + ctx.lineWidth / 2, W - ctx.lineWidth, H - ctx.lineWidth, pad * 1.35);
+  ctx.stroke();
+  ctx.fillStyle = '#e9edf0';
+  ctx.beginPath(); ctx.arc(X + pad * 0.75, Y + H - pad * 0.75, Math.max(1.5, pad * 0.28), 0, Math.PI * 2); ctx.fill();
+  dzus(ctx, X, Y, W, H, pad);
+}
+
+/** Dzus fasteners on the grey just outside a box's corners. */
+function dzus(ctx, X, Y, W, H, pad) {
+  const r = Math.max(1.5, pad * 0.22), o = pad * 0.45;
+  for (const [sx, sy] of [[X - o, Y - o], [X + W + o, Y - o], [X - o, Y + H + o], [X + W + o, Y + H + o]]) {
+    ctx.fillStyle = '#6b7177'; ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#3a3f44'; ctx.lineWidth = Math.max(1, r * 0.35);
+    ctx.beginPath(); ctx.moveTo(sx - r * 0.6, sy); ctx.lineTo(sx + r * 0.6, sy); ctx.stroke();
+  }
+}
+
+
 /** Yellow and black diagonal stripes filling a box. */
 function stripes(ctx, x, y, w, h, n = 5) {
   ctx.save();
@@ -475,7 +518,7 @@ function label(ctx, text, x, y, px = 11, colour = DIM, align = 'center') {
 }
 
 /** A round dial: ticks from `from` to `to` over `sweepDeg` from the top, a needle at `value`, a digital box under it. */
-function dial(ctx, { cx, cy, r, from, to, sweepDeg, startDeg = 0, major, minor, name, value, readout, labelOf = (n) => String(n) }) {
+function dial(ctx, { cx, cy, r, from, to, sweepDeg, startDeg = 0, major, minor, name, value, readout, labelOf = (n) => String(n), labelScale = 1 }) {
   bezel(ctx, cx, cy, r);
   const angleOf = (n) => ((startDeg + ((n - from) / (to - from)) * sweepDeg - 90) * Math.PI) / 180;
   ctx.strokeStyle = INK;
@@ -487,7 +530,7 @@ function dial(ctx, { cx, cy, r, from, to, sweepDeg, startDeg = 0, major, minor, 
     ctx.moveTo(cx + Math.cos(a) * r * 0.92, cy + Math.sin(a) * r * 0.92);
     ctx.lineTo(cx + Math.cos(a) * r * (big ? 0.78 : 0.85), cy + Math.sin(a) * r * (big ? 0.78 : 0.85));
     ctx.stroke();
-    if (big) label(ctx, labelOf(n), cx + Math.cos(a) * r * 0.62, cy + Math.sin(a) * r * 0.62, r * 0.2, INK);
+    if (big) label(ctx, labelOf(n), cx + Math.cos(a) * r * 0.64, cy + Math.sin(a) * r * 0.64, r * 0.2 * labelScale, INK);
   }
   label(ctx, name, cx, cy - r * 0.32, r * 0.18);
   if (readout !== null) {
@@ -596,6 +639,107 @@ function toggle(ctx, x, y, r) {
   ctx.fillStyle = '#c9ced4'; ctx.beginPath(); ctx.arc(x, y - r * 0.3, r * 0.45, 0, Math.PI * 2); ctx.fill();
 }
 
+/**
+ * The EADI (T-6A-1 Fig 1-1-3 item 2) filling its screen `s`: sky and ground to the screen's edges, turning with the bank
+ * and moving with the pitch (5° marks, 10° bars with their numbers each side), the bank scale fixed across the top
+ * (10, 20, 30, 45 and 60°) with the pointer turning with the bank, the fixed aircraft symbol in the middle. pitchDeg nose
+ * up positive, bankDeg right wing down positive. About 50° of pitch shows top to bottom (estimate).
+ */
+function eadi(ctx, s, pitchDeg, bankDeg) {
+  const cx = s.x + s.w / 2, cy = s.y + s.h * 0.52;
+  const bank = rad(Number.isFinite(bankDeg) ? bankDeg : 0), pitch = Number.isFinite(pitchDeg) ? pitchDeg : 0;
+  const ppd = s.h / 50, big = Math.hypot(s.w, s.h);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(s.x, s.y, s.w, s.h); ctx.clip();
+  ctx.translate(cx, cy);
+  ctx.rotate(-bank);
+  const shift = pitch * ppd;
+  ctx.fillStyle = '#2b7fd4'; ctx.fillRect(-big, -2 * big + shift, 2 * big, 2 * big);
+  ctx.fillStyle = '#8a5a2c'; ctx.fillRect(-big, shift, 2 * big, 2 * big);
+  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1.5, s.h * 0.006);
+  ctx.beginPath(); ctx.moveTo(-big, shift); ctx.lineTo(big, shift); ctx.stroke();
+  ctx.lineWidth = Math.max(1, s.h * 0.004);
+  for (let d = -90; d <= 90; d += 5) {
+    if (d === 0) continue;
+    const y = shift - d * ppd;
+    if (Math.abs(y) > s.h * 0.42) continue;
+    const half = s.w * (d % 10 === 0 ? 0.16 : 0.07);
+    ctx.beginPath(); ctx.moveTo(-half, y); ctx.lineTo(half, y); ctx.stroke();
+    if (d % 10 === 0) {
+      label(ctx, String(Math.abs(d)), -half - s.w * 0.06, y, s.h * 0.04, '#ffffff');
+      label(ctx, String(Math.abs(d)), half + s.w * 0.06, y, s.h * 0.04, '#ffffff');
+    }
+  }
+  ctx.restore();
+  // The bank scale: fixed marks on an arc across the top, the pointer turning with the bank.
+  const R = s.h * 0.4;
+  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1.5, s.h * 0.005);
+  for (const m of [-60, -45, -30, -20, -10, 10, 20, 30, 45, 60]) {
+    const a = rad(m - 90), len = [30, 60].includes(Math.abs(m)) ? s.h * 0.04 : s.h * 0.022;
+    ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R); ctx.lineTo(cx + Math.cos(a) * (R + len), cy + Math.sin(a) * (R + len)); ctx.stroke();
+  }
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath(); ctx.moveTo(cx, cy - R); ctx.lineTo(cx - s.h * 0.022, cy - R - s.h * 0.04); ctx.lineTo(cx + s.h * 0.022, cy - R - s.h * 0.04); ctx.closePath(); ctx.fill();
+  const pa = -bank - Math.PI / 2;
+  ctx.fillStyle = '#ffd23f';
+  ctx.beginPath();
+  ctx.moveTo(cx + Math.cos(pa) * R, cy + Math.sin(pa) * R);
+  ctx.lineTo(cx + Math.cos(pa + 0.06) * (R - s.h * 0.045), cy + Math.sin(pa + 0.06) * (R - s.h * 0.045));
+  ctx.lineTo(cx + Math.cos(pa - 0.06) * (R - s.h * 0.045), cy + Math.sin(pa - 0.06) * (R - s.h * 0.045));
+  ctx.closePath(); ctx.fill();
+  // The fixed aircraft symbol: two wing bars and a centre square, yellow outlined in black.
+  const wing = (x0, x1) => { ctx.fillRect(Math.min(x0, x1), cy - s.h * 0.012, Math.abs(x1 - x0), s.h * 0.024); ctx.strokeRect(Math.min(x0, x1), cy - s.h * 0.012, Math.abs(x1 - x0), s.h * 0.024); };
+  ctx.fillStyle = '#ffd23f'; ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
+  wing(cx - s.w * 0.36, cx - s.w * 0.14); wing(cx + s.w * 0.14, cx + s.w * 0.36);
+  ctx.fillRect(cx - s.h * 0.014, cy - s.h * 0.014, s.h * 0.028, s.h * 0.028); ctx.strokeRect(cx - s.h * 0.014, cy - s.h * 0.014, s.h * 0.028, s.h * 0.028);
+}
+
+/** The electronic altimeter: a 0 to 9 dial with the needle on hundreds, the altitude to the foot in a window, the setting under it. */
+function altimeter(ctx, cx, cy, r, altFt) {
+  const alt = Number.isFinite(altFt) ? altFt : NaN;
+  dial(ctx, { cx, cy, r, from: 0, to: 1000, sweepDeg: 360, major: 100, minor: 20, name: 'ALT', value: Number.isFinite(alt) ? ((alt % 1000) + 1000) % 1000 : NaN, readout: null, labelOf: (n) => (n === 1000 ? '' : String(n / 100)) });
+  const text = Number.isFinite(alt) ? Math.round(alt).toLocaleString('en-CA') : '—';
+  ctx.fillStyle = '#000'; ctx.strokeStyle = 'rgba(232, 237, 242, 0.7)'; ctx.lineWidth = 1;
+  ctx.fillRect(cx - r * 0.5, cy + r * 0.08, r * 1.0, r * 0.28); ctx.strokeRect(cx - r * 0.5, cy + r * 0.08, r * 1.0, r * 0.28);
+  label(ctx, text, cx, cy + r * 0.22, r * 0.22, INK);
+  label(ctx, '29.92 IN', cx, cy + r * 0.45, r * 0.12, '#7fd18a');
+}
+
+/**
+ * The engine displays, as the T-6A-1 panel figure lays them out (Fig 1-1-3 items 6, 15 and 11): `name` TRQ the primary
+ * engine display (a torque dial with ITT, NP and N1 boxes), ITT the alternate engine display (rows of digits) and NP the
+ * engine and systems display (oil, hydraulics, electrics, fuel). Scales and labels only: the sim has no engine numbers.
+ */
+function engineDisplay(ctx, s, name) {
+  const px = s.h * 0.075;
+  if (name === 'TRQ') {
+    const cx = s.x + s.w * 0.5, cy = s.y + s.h * 0.44, r = s.h * 0.3;
+    ctx.lineWidth = Math.max(2, r * 0.07);
+    ctx.strokeStyle = '#2fbf4f'; ctx.beginPath(); ctx.arc(cx, cy, r, rad(135), rad(135 + 270 * 100 / 110)); ctx.stroke();
+    ctx.strokeStyle = '#e03a3a'; ctx.beginPath(); ctx.arc(cx, cy, r, rad(135 + 270 * 100 / 110), rad(405)); ctx.stroke();
+    ctx.strokeStyle = INK; ctx.lineWidth = 1;
+    for (let n = 0; n <= 110; n += 10) {
+      const a = rad(135 + (270 * n) / 110);
+      ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r * 0.86, cy + Math.sin(a) * r * 0.86); ctx.lineTo(cx + Math.cos(a) * r * 0.72, cy + Math.sin(a) * r * 0.72); ctx.stroke();
+      if (n % 20 === 0) label(ctx, String(n / 10), cx + Math.cos(a) * r * 0.55, cy + Math.sin(a) * r * 0.55, px * 0.8, INK);
+    }
+    label(ctx, 'TORQUE %', cx, cy + r * 0.25, px * 0.8, DIM);
+    label(ctx, '—', cx, cy + r * 0.55, px, INK);
+    [['ITT', 0.17], ['NP', 0.5], ['N1', 0.83]].forEach(([t, u]) => {
+      label(ctx, t, s.x + s.w * u, s.y + s.h * 0.84, px * 0.8, DIM);
+      label(ctx, '—', s.x + s.w * u, s.y + s.h * 0.93, px * 0.9, INK);
+    });
+  } else {
+    const rowsOf = name === 'ITT' ? ['TORQUE %', 'N1 %', 'ITT °C', 'NP %', 'FF PPH', 'OIL PSI'] : ['OIL °C', 'OIL PSI', 'HYD PSI', 'VOLTS', 'AMPS', 'FUEL L', 'FUEL R'];
+    const step = s.h / (rowsOf.length + 0.6);
+    rowsOf.forEach((t, i) => {
+      const y = s.y + step * (i + 0.8);
+      label(ctx, t, s.x + s.w * 0.08, y, step * 0.5, '#7fd18a', 'left');
+      label(ctx, '—', s.x + s.w * 0.9, y, step * 0.55, INK, 'right');
+    });
+  }
+}
+
 /** One instrument drawn into its box (x, y, w, h pixels), from the HUD's numbers `h` (null or {} shows dashes). */
 function drawInstrument(ctx, kind, b, h, inst = {}) {
   const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
@@ -610,16 +754,14 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
     case 'aoa': // unlabelled scale, needle mid-scale: the sim has no angle of attack
       dial(ctx, { cx, cy, r: rr, from: 0, to: 1, sweepDeg: 270, startDeg: -135, major: 0.25, minor: 0.125, name: 'AOA', value: 0.5, readout: null, labelOf: () => '' });
       break;
-    case 'asi':
-      dial(ctx, { cx, cy, r: rr, from: 0, to: 320, sweepDeg: 320, major: 40, minor: 10, name: 'KNOTS', value: h?.kias, readout: num(h?.kias), labelOf: (n) => String(n / 10) });
+    case 'asi': // the electronic airspeed indicator (T-6A-1 Fig 1-1-3 item 34): 40 to 320 knots, the digital speed under the hub
+      dial(ctx, { cx, cy, r: rr, from: 40, to: 320, sweepDeg: 300, major: 40, minor: 10, name: 'KNOTS', value: h?.kias, readout: num(h?.kias), labelOf: (n) => String(n), labelScale: 0.72 });
       break;
-    case 'alt': {
-      const alt = Number.isFinite(h?.altFt) ? h.altFt : NaN;
-      dial(ctx, { cx, cy, r: rr, from: 0, to: 1000, sweepDeg: 360, major: 100, minor: 20, name: 'ALT', value: Number.isFinite(alt) ? ((alt % 1000) + 1000) % 1000 : NaN, readout: num(alt), labelOf: (n) => (n === 1000 ? '' : String(n / 100)) });
+    case 'alt': // the electronic altimeter (item 4): the needle on hundreds, the altitude to the foot in its window, the setting
+      altimeter(ctx, cx, cy, rr, h?.altFt);
       break;
-    }
-    case 'vsi': // no vertical speed comes from the sim, so no needle
-      dial(ctx, { cx, cy, r: rr, from: -4, to: 4, sweepDeg: 300, startDeg: -240, major: 2, minor: 1, name: 'VSI', value: NaN, readout: '—', labelOf: (n) => String(Math.abs(n)) });
+    case 'vsi': // the electronic VSI (item 5): thousands of feet a minute, 0 to 6 up and down, the rate under the hub
+      dial(ctx, { cx, cy, r: rr, from: -6, to: 6, sweepDeg: 300, startDeg: -240, major: 1, minor: 0.5, name: 'VSI', value: h?.vsFpm / 1000, readout: Number.isFinite(h?.vsFpm) ? num(Math.round(h.vsFpm / 10) * 10) : '—', labelOf: (n) => ([0, 1, 2, 4, 6].includes(Math.abs(n)) ? String(Math.abs(n)) : '') });
       break;
     case 'g':
       dial(ctx, { cx, cy, r: rr, from: -4, to: 8, sweepDeg: 300, startDeg: -150, major: 2, minor: 1, name: 'G', value: h?.g, readout: num(h?.g, 1) });
@@ -642,18 +784,20 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
       ctx.fillStyle = '#16181b'; ctx.fillRect(b.x, b.y, b.w, b.h);
       break;
     case 'eadi': {
-      const s = screen(ctx, b.x, b.y, b.w, b.h, '#020304');
-      const ar = Math.min(s.w, s.h) * 0.42;
-      drawAttitude(ctx, s.x + s.w / 2, s.y + s.h / 2 + ar * 0.06, ar, h?.pitchDeg, h?.bankDeg);
-      label(ctx, 'EADI', s.x + s.w * 0.04, s.y + s.h * 0.08, s.h * 0.07, DIM, 'left');
+      const sc = screen(ctx, b.x, b.y, b.w, b.h, '#020304');
+      eadi(ctx, sc, h?.pitchDeg, h?.bankDeg);
       break;
     }
     case 'ehsi': {
-      const s = screen(ctx, b.x, b.y, b.w, b.h, '#020304');
-      const er = Math.min(s.w, s.h) * 0.4;
-      ehsi(ctx, s.x + s.w / 2, s.y + s.h / 2 + er * 0.12, er, h?.headingDeg);
-      headingBox(ctx, s.x + s.w / 2, s.y + 2, s.h * 0.08, h?.headingDeg);
-      label(ctx, 'EHSI', s.x + s.w * 0.04, s.y + s.h * 0.08, s.h * 0.07, DIM, 'left');
+      const sc = screen(ctx, b.x, b.y, b.w, b.h, '#020304');
+      // Its top tenth sits under the EADI's frame from the seat, so the heading box and labels start below it.
+      const er = Math.min(sc.w, sc.h) * 0.37;
+      ehsi(ctx, sc.x + sc.w / 2, sc.y + sc.h * 0.58, er, h?.headingDeg);
+      headingBox(ctx, sc.x + sc.w / 2, sc.y + sc.h * 0.1, sc.h * 0.05, h?.headingDeg);
+      label(ctx, 'HDG ---', sc.x + sc.w * 0.04, sc.y + sc.h * 0.13, sc.h * 0.045, '#d36bd3', 'left');
+      label(ctx, 'CRS ---', sc.x + sc.w * 0.96, sc.y + sc.h * 0.13, sc.h * 0.045, '#7fd18a', 'right');
+      label(ctx, 'VOR1', sc.x + sc.w * 0.04, sc.y + sc.h * 0.95, sc.h * 0.045, '#7fd18a', 'left');
+      label(ctx, '--- NM', sc.x + sc.w * 0.96, sc.y + sc.h * 0.95, sc.h * 0.045, INK, 'right');
       break;
     }
     case 'rmu': {
@@ -673,15 +817,9 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
       knob(ctx, b.x + b.w * 0.09, b.y + b.h * 0.78, b.h * 0.11); knob(ctx, b.x + b.w * 0.91, b.y + b.h * 0.78, b.h * 0.11);
       break;
     }
-    case 'eng': { // a square engine display (static: the sim has no engine numbers)
-      const s = screen(ctx, b.x, b.y, b.w, b.h, '#050709');
-      const dr = Math.min(s.w, s.h) * 0.28;
-      ctx.strokeStyle = INK; ctx.lineWidth = Math.max(1.5, dr * 0.06);
-      ctx.beginPath(); ctx.arc(s.x + s.w / 2, s.y + s.h * 0.45, dr, rad(135), rad(405)); ctx.stroke();
-      label(ctx, inst.name ?? '', s.x + s.w / 2, s.y + s.h * 0.45, dr * 0.45, GREEN_INK);
-      label(ctx, '—', s.x + s.w / 2, s.y + s.h * 0.85, dr * 0.5, INK);
+    case 'eng': // the engine displays (static: the sim has no engine numbers, so every number is dashes)
+      engineDisplay(ctx, screen(ctx, b.x, b.y, b.w, b.h, '#050709'), inst.name);
       break;
-    }
     case 'smallPanel':
       ctx.fillStyle = '#1b1e22'; ctx.fillRect(b.x, b.y, b.w, b.h);
       toggle(ctx, b.x + b.w * 0.3, b.y + b.h * 0.55, b.h * 0.14); toggle(ctx, b.x + b.w * 0.7, b.y + b.h * 0.55, b.h * 0.14);
@@ -744,17 +882,20 @@ function drawStaticPanel(ctx, width, height, instruments, faceW, faceH) {
   for (const [u0, v0, u1, v1] of [[0.02, 0.263, 0.36, 0.263], [0.37, 0.02, 0.37, 0.98], [0.61, 0.02, 0.61, 0.98], [0.62, 0.255, 0.98, 0.255], [0.02, 0.7, 0.36, 0.7]]) {
     ctx.beginPath(); ctx.moveTo(u0 * width, (1 - v0) * height); ctx.lineTo(u1 * width, (1 - v1) * height); ctx.stroke();
   }
+  const pad = BEZEL_FT * k;
   for (const inst of instruments) {
     const o = outerFt(inst, faceW, faceH);
     const w = o.w * k, h = o.h * k;
     const box = { x: inst.u * width - w / 2, y: (1 - inst.v) * height - h / 2, w, h };
     if (inst.s && inst.d) {
-      squareBezel(ctx, box.x, box.y, box.w, box.h);
+      if (inst.kind === 'stby') squareBezel(ctx, box.x, box.y, box.w, box.h);
+      else displayBezel(ctx, box.x, box.y, box.w, box.h, pad * 0.5);
       const f = faceFt(inst, faceW, faceH);
       const fw = f.w * k;
       drawInstrument(ctx, inst.kind, { x: inst.u * width - fw / 2, y: (1 - inst.v) * height - fw / 2, w: fw, h: fw }, null, inst);
     } else {
-      if (inst.frame || inst.kind === 'eng') { ctx.fillStyle = BEZEL; ctx.fillRect(box.x - 4, box.y - 4, box.w + 8, box.h + 8); }
+      if (inst.kind === 'eadi' || inst.kind === 'ehsi' || inst.kind === 'eng') displayBezel(ctx, box.x, box.y, box.w, box.h, pad);
+      else if (inst.frame) { ctx.fillStyle = BEZEL; ctx.fillRect(box.x - 4, box.y - 4, box.w + 8, box.h + 8); }
       drawInstrument(ctx, inst.kind, box, null, inst);
     }
   }
@@ -832,7 +973,7 @@ function drawLive(ctx, hud) {
 function panelKey(hud) {
   if (!hud) return 'none';
   const r = (x, step) => (Number.isFinite(x) ? Math.round(x / step) : 'x');
-  return [r(hud.pitchDeg, 0.5), r(hud.bankDeg, 0.5), r(hud.kias, 1), r(hud.altFt, 10), r(hud.headingDeg, 1), r(hud.g, 0.1)].join('|');
+  return [r(hud.pitchDeg, 0.5), r(hud.bankDeg, 0.5), r(hud.kias, 1), r(hud.altFt, 1), r(hud.headingDeg, 1), r(hud.g, 0.1), r(hud.vsFpm, 10)].join('|');
 }
 
 // ---------- the 3D parts ----------
@@ -1112,6 +1253,29 @@ const SLOT = Object.freeze({
  * The cockpit parts of one seat (dx FRONT_DX the front, REAR_DX the rear: how far its seat's parts move from SEAT_FT's
  * stations), as { geometry, materials } entries for ct156JoinGeometries, plus what the textured faces need.
  */
+/**
+ * A display's frame (Patrick's CT-156 photo): a rounded rectangle `pad` feet wide round a screen of half-size hw by hh
+ * centred at (yc, zc), 0.035 ft proud of the face at x (its back), its edges bevelled, open over the screen.
+ */
+function displayFrame(THREE, x, yc, zc, hw, hh, pad) {
+  const bev = 0.006, depth = 0.035 - 2 * bev;
+  const rect = (w, h, r) => {
+    const sh = new THREE.Shape();
+    sh.moveTo(-w + r, -h); sh.lineTo(w - r, -h); sh.quadraticCurveTo(w, -h, w, -h + r); sh.lineTo(w, h - r);
+    sh.quadraticCurveTo(w, h, w - r, h); sh.lineTo(-w + r, h); sh.quadraticCurveTo(-w, h, -w, h - r); sh.lineTo(-w, -h + r);
+    sh.quadraticCurveTo(-w, -h, -w + r, -h);
+    return sh;
+  };
+  const outer = rect(hw + pad - bev, hh + pad - bev, pad * 1.2);
+  outer.holes.push(rect(hw + bev, hh + bev, pad * 0.4));
+  const g = new THREE.ExtrudeGeometry(outer, { depth, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: 2, curveSegments: 4 });
+  const pos = g.attributes.position;
+  for (let i = 0; i < pos.count; i++) pos.setXYZ(i, x - depth - bev + pos.getZ(i), yc + pos.getX(i), zc + pos.getY(i));
+  g.deleteAttribute('uv');
+  g.computeVertexNormals();
+  return g;
+}
+
 function seatParts(THREE, { dx, front, p, h, eye }) {
   const parts = [], striped = [], consoleTops = [], lower = [], cards = [];
   const put = (geometry, slot) => parts.push({ geometry, materials: [slot] });
@@ -1141,7 +1305,9 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     const mid = (Math.max(...ys) + Math.min(...ys)) / 2;
     put(loft(THREE, [arch.map(([y, z]) => [p.x + 0.004, y, z]), arch.map(([y, z]) => [p.x + k.depth, y, z])], { closed: false }), SLOT.black);
     put(flatAft(THREE, p.x + k.depth, arch), SLOT.black);
-    put(box(THREE, p.x + k.depth - 0.18, p.x + k.depth - 0.14, mid - 0.1, mid + 0.1, floor + 0.08, floor + 0.42), SLOT.dark);
+    // The rudder pedal: a broad black plate on its arm, as big as Patrick's CT-156 photo shows it (estimates).
+    put(box(THREE, p.x + k.depth - 0.2, p.x + k.depth - 0.15, mid - 0.15, mid + 0.15, floor + 0.12, floor + 0.62), SLOT.black);
+    put(box(THREE, p.x + k.depth - 0.15, p.x + k.depth, mid - 0.03, mid + 0.03, floor + 0.3, floor + 0.36), SLOT.dark);
   }
   // On the pedestal: the control box standing proud, under it the readout's hood.
   put(box(THREE, p.x - 0.05, p.x, -0.2, 0.2, p.bottom - 0.32, p.bottom - 0.04), SLOT.dark);
@@ -1155,10 +1321,12 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   // the seat until the surface under the three lamps just covers the EADI's top); the rear hump keeps its own.
   const lipDrop = front ? lipToCover(h, eye, p, zOf, faceW, faceH) : h.lipDrop;
   put(loft(THREE, [hoodSection(h, ts, h.aftX), hoodSection(h, ts, h.aftX, -lipDrop)], { closed: false }), SLOT.black);
-  // The three lamps on a light strip on the lip, under the rail (Dad's pictures 17, 18, 26; AETCMAN 11-248 Fig 2.7).
+  // The three lamps on a light strip on the lip, under the rail (Dad's pictures 17, 18, 26; AETCMAN 11-248 Fig 2.7): the
+  // T-6A-1 panel figure's master warning panel (Fig 1-1-3 item 1), MASTER WARN red on the left, MASTER CAUTION amber in the
+  // middle and FIRE red on the right (Patrick, 11 Oct 2026: "theres no fire on the right side"; was amber).
   const lx = h.aftX - 0.003, lz = h.top - lipDrop / 2 - 0.015;
   put(box(THREE, lx - 0.006, lx, -0.42, 0.42, lz - 0.045, lz + 0.045), SLOT.knob);
-  [[0.16, SLOT.lampRed], [0, SLOT.lampAmber], [-0.16, SLOT.lampAmber]].forEach(([y, slot]) => {
+  [[0.16, SLOT.lampRed], [0, SLOT.lampAmber], [-0.16, SLOT.lampRed]].forEach(([y, slot]) => {
     put(box(THREE, lx - 0.02, lx - 0.006, y - 0.055, y + 0.055, lz - 0.035, lz + 0.035), SLOT.black);
     put(box(THREE, lx - 0.024, lx - 0.02, y - 0.042, y + 0.042, lz - 0.025, lz + 0.025), slot);
   });
@@ -1227,11 +1395,26 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     put(box(THREE, cx - C.r - 0.006, cx - C.r - 0.002, cy - 0.0012, cy + 0.0012, zc - C.cardTall / 2 - 0.004, zc + C.cardTall / 2 + 0.004), SLOT.red); // the lubber line
   }
 
-  // The instruments' square bezels standing proud of the face (Dad's pictures 17, 26).
+  // The instruments' bezels standing proud of the face (Dad's pictures 17, 26): round the displays a thick rounded frame
+  // with bevelled edges, as Patrick's CT-156 photo shows them (displayFrame); round the other boxes a thin square one.
   for (const inst of PANEL_INSTRUMENTS) {
     if (!inst.s && !inst.frame && inst.kind !== 'eng') continue;
     const o = outerFt(inst, faceW, faceH);
-    const yc = yOf(inst.u), zc = zOf(inst.v), hw = o.w / 2 + 0.012, hh = o.h / 2 + 0.012, t = 0.024;
+    const yc = yOf(inst.u), zc = zOf(inst.v);
+    const display = inst.kind === 'eadi' || inst.kind === 'ehsi' || inst.kind === 'eng' || (inst.s && inst.d && inst.kind !== 'stby');
+    if (display) {
+      const pad = inst.s ? BEZEL_FT * 0.5 : BEZEL_FT;
+      put(displayFrame(THREE, p.x - 0.002, yc, zc, o.w / 2, o.h / 2, pad), SLOT.dark);
+      // The EADI's and EHSI's push-buttons on the frame either side of the screen (the photo; the T-6A-1 panel
+      // diagram's DIM, CMP, GPS and APR), light squares: [side (+1 the pilot's left), fraction down from the top].
+      const buttons = { eadi: [[1, 0.12], [1, 0.88], [-1, 0.72], [-1, 0.88]], ehsi: [[1, 0.1], [1, 0.22], [1, 0.9], [-1, 0.74], [-1, 0.9]] }[inst.kind] ?? [];
+      for (const [side, at] of buttons) {
+        const by = yc + side * (o.w / 2 + pad / 2), bz = zc + o.h / 2 - at * o.h, b = pad * 0.32;
+        put(box(THREE, p.x - 0.044, p.x - 0.036, by - b, by + b, bz - b, bz + b), SLOT.knob);
+      }
+      continue;
+    }
+    const hw = o.w / 2 + 0.012, hh = o.h / 2 + 0.012, t = 0.024;
     const x0 = p.x - 0.03, x1 = p.x - 0.002;
     put(box(THREE, x0, x1, yc - hw, yc + hw, zc + hh - t, zc + hh), SLOT.dark);
     put(box(THREE, x0, x1, yc - hw, yc + hw, zc - hh, zc - hh + t), SLOT.dark);
@@ -1575,6 +1758,22 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document } = {}) {
   add(joinTextured(THREE, striped), stripeMat);
 
   let shownKey = null;
+  // The VSI's rate: the HUD's vsFpm when it gives one, else the altitude's change between calls, smoothed over about a
+  // second (the sim's numbers carry no vertical speed).
+  let lastAlt = NaN, lastAt = NaN, vs = NaN;
+  const withVerticalSpeed = (hud, nowMs) => {
+    if (!hud || Number.isFinite(hud.vsFpm)) return hud;
+    const dt = (nowMs - lastAt) / 1000;
+    if (!(dt <= 0)) { // a later call (or the first)
+      if (Number.isFinite(hud.altFt) && Number.isFinite(lastAlt) && dt < 2) {
+        const now = ((hud.altFt - lastAlt) / dt) * 60;
+        vs = Number.isFinite(vs) ? vs + (now - vs) * Math.min(1, dt) : now;
+      } else vs = NaN;
+      lastAlt = hud.altFt;
+      lastAt = nowMs;
+    }
+    return { ...hud, vsFpm: vs };
+  };
   let shownAt = -Infinity;
   drawLive(live.ctx, null);
   live.texture.needsUpdate = true;
@@ -1583,12 +1782,13 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document } = {}) {
     group,
     /**
      * The live instruments from the HUD's numbers ({ pitchDeg, bankDeg (right wing down positive), altFt, g, kias,
-     * headingDeg }; null shows dashes), in both seats' panels (the same aircraft's numbers). Redraws only when what it
+     * headingDeg, and vsFpm if the module has it, else the altitude's change between calls }; null shows dashes), in both seats' panels (the same aircraft's numbers). Redraws only when what it
      * shows changed, and not within PANEL_REDRAW_MS of the last redraw. Returns true when it redrew. The standby
      * compasses' card turns to headingDeg on every call (no redraw).
      */
     update(hud, nowMs = globalThis.performance?.now?.() ?? Date.now()) {
       if (Number.isFinite(hud?.headingDeg)) card.texture.offset.x = compassCardOffset(hud.headingDeg);
+      hud = withVerticalSpeed(hud, nowMs);
       const key = panelKey(hud);
       if (key === shownKey || nowMs - shownAt < PANEL_REDRAW_MS) return false;
       shownKey = key;
