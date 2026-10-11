@@ -596,7 +596,9 @@ function slotAltOf(ph, L, W) {
 export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, zoomFtps, heightState }) {
   const explicitNow = Boolean(profile && (!Array.isArray(profile) || profile.some((leg) => t >= (leg.t0 ?? -Infinity) && t < (leg.t1 ?? Infinity) + 1e-9)));
   // In the capture, before he is on the line, the caller's own smooth leg to the line's height (or the vertical's) flies.
-  const capturing = ph.slopedAlt && !heightState.onLine && explicitNow;
+  // A phase may keep its own leg to the end (legThrough): close in he is on the line while still coming down it, and the
+  // line's law took over mid-leg with a 2.5 G stop and a 0.7-2.1 G wobble (Fable's v2299 flight, Fluid 4 to echelon).
+  const capturing = ph.slopedAlt && (!heightState.onLine || ph.legThrough) && explicitNow;
   if (!capturing && (ph.slopedAlt || (ph.wingPlane && ph.slot?.alt != null)) && L && W) {
     // The rejoin line's depth (SMM 12.24 para 58: "maintain the horizontal plane just slightly below lead"; EFIG p.374):
     // Lead held lineElevDeg above #2's horizon, never shallower than lineUpFt's 50 ft below him (Patrick 10 Oct 19:57Z,

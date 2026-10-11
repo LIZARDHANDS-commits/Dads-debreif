@@ -594,6 +594,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       roll: crossIn ? TR.pointRoll : undefined, // Away, crossing Lead's six onto the line, quick but smooth (at the aircraft's own rate he never captured it); otherwise the aircraft's own roll, as before TS-182 (a formation rate here pulled 6 G from fighting wing)
       windowFt: xDecisionFt,
       carrotWindowFt: xDecisionFt,
+      legThrough: true, // his height leg to the line flies to its end, then the line's law (tracker.js heightOf)
       floorKias,
       initialPclMax: hardSec === 0,
       rejoin: true,
