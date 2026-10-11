@@ -43,7 +43,8 @@ test('Local first in Settings swaps the order at once and after a reload', async
 
 test('local time follows the home field set in Settings, at once and after a reload', async ({ page }) => {
   await freezeAtNoon(page);
-  await openRoute(page, '#/');
+  // The home field is set in the SOF page's Settings since V2.213 (SOF-62); other pages only name it.
+  await openRoute(page, '#/sof');
   const second = page.locator('#app-clock .clock-second');
   await expect(second).toHaveText('12:00:00 CST');
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
