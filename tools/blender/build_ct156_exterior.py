@@ -171,8 +171,8 @@ if os.environ.get('CT156_DUMP'):  # for working on the pictures below without ba
     np.savez_compressed(os.environ['CT156_DUMP'], ao=ao, x=x, y=y, z=z, part=part)
 
 # ---------- panel lines ----------
-# Thin dark lines where the skin's panels and the control surfaces meet. Measured 11 Oct 2026 off the T-6A-1 Figure
-# 1-1-2 views (side view scaled by its 33 ft 4 in, spinner tip to elevator trailing edge; top view by its wing; cited
+# Thin dark lines where the skin's panels and the control surfaces meet. Measured 11 Oct 2026 off the
+# side and top drawings (side scaled by its length, spinner tip to elevator trailing edge; top by its wing; measured
 # only, never traced or kept) and Patrick's photos of 156102 and 156115, each about +-2 in; the ones marked ESTIMATE are
 # not on the drawings. Places along the fuselage are feet behind the spinner's tip, heights feet above its axis.
 LINE_WIDTH_FT = 0.035  # about 3/8 in
@@ -199,7 +199,7 @@ TAB_S, TAB_F = 0.462, 0.93
 FLAP_HINGE = 0.79
 # The gear doors underneath (Patrick, 11 Oct 2026 20:20Z: "I also want the gear doors ... modeled on the bottom"),
 # shut, as seen from below: [front, back, inboard, outboard] feet (behind the spinner's tip, out from the middle). The
-# T-6A-1 p. 1-38 lists each main gear's outboard door on its leg and two inboard doors; the Fig 1-1-2 views put the
+# Each main gear has an outboard door on its leg and two inboard doors; the side and top drawings put the
 # main legs about 14 ft behind the tip, hinged about 4.1 ft out, and the main wheels about 1.8 ft across. Folded
 # inboard the leg's door lies from the hinge in to the wheel and the inboard door over the wheel. Sizes ESTIMATE.
 GEAR_DOORS_FT = ((13.45, 14.55, 2.3, 4.25), (12.9, 15.1, 0.45, 2.35))
