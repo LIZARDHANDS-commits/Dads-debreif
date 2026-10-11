@@ -20,10 +20,32 @@ const INNER_FEATHER_PX = 64;
 const GROUND_COLOUR = '#1b2a35'; // the plain ground when no satellite picture arrives
 
 /**
+ * Fades a square canvas's edges to see-through over `f` pixels (INNER_FEATHER_PX unless given), so a sharp picture laid on a coarser one melts into it instead of stopping in a
+ * hard square. Leaves the canvas drawing normally ('source-over') again.
+ */
+export function featherEdges(ctx, px, f = INNER_FEATHER_PX) {
+  ctx.globalCompositeOperation = 'destination-out';
+  const strips = [ // [rect x, y, w, h], gradient from the edge (clear it) inwards (leave it)
+    [[0, 0, f, px], [0, 0, f, 0]],
+    [[px - f, 0, f, px], [px, 0, px - f, 0]],
+    [[0, 0, px, f], [0, 0, 0, f]],
+    [[0, px - f, px, f], [0, px, 0, px - f]],
+  ];
+  for (const [[rx, ry, rw, rh], [gx0, gy0, gx1, gy1]] of strips) {
+    const g = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
+    g.addColorStop(0, 'rgba(0,0,0,1)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(rx, ry, rw, rh);
+  }
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+/**
  * three.js `T`; timers (a scheduler scope); doc (the page's document, for canvases); onChange() when a tile arrives and the ground must be painted again; plan and imagery
  * (above); dim, how much the satellite picture is darkened under the caller's pictures (0 to 1; 0, none, unless given); polygonOffset, true to push the ground back in depth
  * so things laid just on it (the Debrief's runways) never flicker through it.
- * Returns { group, setHeight(z), setRelief({ grids, on, scale, homeFt }), paint({ projection, noTiles, overlay }) -> { failed }, state(), dispose() }.
+ * Returns { group, setHeight(z), setRelief({ grids, on, scale, homeFt }), paint({ projection, noTiles, overlay }) -> { failed }, innerCanvas, state(), dispose() }.
  */
 export function createDrapedGround({ T, timers, doc, onChange, plan, imagery: tiers, dim = 0, polygonOffset = false }) {
   const group = new T.Group();
@@ -138,25 +160,7 @@ export function createDrapedGround({ T, timers, doc, onChange, plan, imagery: ti
       ctx.fillRect(0, 0, px, px);
     }
     overlay?.(ctx, toPx);
-    if (isSharp) {
-      // The edge fades to nothing, so the sharp picture melts into the outer one.
-      ctx.globalCompositeOperation = 'destination-out';
-      const f = INNER_FEATHER_PX;
-      const strips = [ // [rect x, y, w, h], gradient from the edge (clear it) inwards (leave it)
-        [[0, 0, f, px], [0, 0, f, 0]],
-        [[px - f, 0, f, px], [px, 0, px - f, 0]],
-        [[0, 0, px, f], [0, 0, 0, f]],
-        [[0, px - f, px, f], [0, px, 0, px - f]],
-      ];
-      for (const [[rx, ry, rw, rh], [gx0, gy0, gx1, gy1]] of strips) {
-        const g = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
-        g.addColorStop(0, 'rgba(0,0,0,1)');
-        g.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = g;
-        ctx.fillRect(rx, ry, rw, rh);
-      }
-      ctx.globalCompositeOperation = 'source-over';
-    }
+    if (isSharp) featherEdges(ctx, px); // the edge fades to nothing, so the sharp picture melts into the outer one
     return failed;
   }
 
@@ -204,6 +208,10 @@ export function createDrapedGround({ T, timers, doc, onChange, plan, imagery: ti
       outer.texture.needsUpdate = true;
       inner.texture.needsUpdate = true;
       return { failed };
+    },
+    /** The inner mesh's finished picture (the outer one under the sharp tiles), for a caller laying a still sharper patch on it (the Debrief's field patch, DB-27). */
+    get innerCanvas() {
+      return inner.canvas;
     },
     /** What the last paint found of the satellite tiles, per tier: { outer: { wanted, ready, failed }, inner: { ... } }. */
     state: () => ({ outer: outer.imagery.state(), inner: sharp.imagery.state() }),
