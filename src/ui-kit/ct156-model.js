@@ -169,10 +169,20 @@ const STAB = [
 // swept back from 13.1 ft ahead of the tail at the root (T-6A-1 side drawing; was 4.5 ft and 0.7 ft further aft, off the
 // photo).
 const FIN = [{ le: -0.569, s: -0.03, chord: 0.168, t: 0.09, z: 0 }, { le: -0.6135, s: 0.232, chord: 0.086, t: 0.09, z: 0 }];
-// The dorsal fin, from the canopy's aft fairing into the fin's leading edge, 1.5 to 1.7 ft above the axis, and the
-// ventral fin under the tail, as [x, z] outlines (T-6A-1 side drawing; the ventral was 0.8 ft deeper, off the photo).
-const DORSAL = [[-0.28, 0.03], [-0.29, 0.066], [-0.6, 0.073], [-0.605, 0.0], [-0.3, 0.012]];
+// The ventral fin under the tail, as an [x, z] outline (T-6A-1 side drawing; was 0.8 ft deeper, off the photo).
 const VENTRAL = [[-0.49, -0.09], [-0.535, -0.155], [-0.675, -0.15], [-0.715, -0.07]];
+// The spine from inside the canopy's aft glass into the fin's leading edge, [x, half-width, top]: a rounded fairing on
+// the fuselage's top, its top line the T-6A-1 side drawing's (1.5 to 1.7 ft above the axis). It was a flat plate with
+// that outline, which read as a sheet standing on the fuselage (Patrick, 11 Oct 2026: "the paint is hanging off the
+// back"). The half-widths are estimates: the canopy's width where its glass ends, narrowing to the fin's thickness.
+const SPINE = [
+  [-0.265, 0.036, 0.068],
+  [-0.3, 0.035, 0.068],
+  [-0.38, 0.027, 0.069],
+  [-0.47, 0.018, 0.071],
+  [-0.55, 0.0095, 0.072],
+  [-0.6, 0.005, 0.073],
+];
 // The forward bow leans aft from its crest 9° to the sill, as the T-6A-1 side drawing shows it (was upright).
 export const CT156_BOW_LEAN = rad(9);
 /** A symmetric NACA 4-digit section's half-thickness at xc (0 the leading edge, 1 the trailing edge), per chord. */
@@ -344,6 +354,43 @@ function flatXZ(THREE, pts, thickness) {
   g.translate(0, 0, -thickness / 2);
   g.rotateX(Math.PI / 2); // (x, up) plate, thickness across y
   return g;
+}
+
+/**
+ * The spine (SPINE): rounded sections on the fuselage's top, flaring out at the foot into a fillet (by FLARE times the
+ * half-width, an estimate) that ends just under the skin, so it reads as one with the fuselage. Closed at each end.
+ */
+function spineGeometry(THREE) {
+  const N = 24, M = 16, n = 2.4, FLARE = 0.7; // n: a little boxier than an ellipse
+  const x0 = SPINE[0][0], x1 = SPINE[SPINE.length - 1][0];
+  const pos = [], idx = [];
+  const ring = (x) => {
+    const [, w, top] = rowAt(SPINE, x);
+    const foot = Math.min(w * (1 + FLARE), rowAt(STATIONS, x)[1] * 0.9);
+    const base = sillZ(x, foot) - 0.002;
+    const pts = [];
+    for (let k = 0; k <= M; k++) {
+      const c = Math.cos((k / M) * Math.PI), u = Math.sin((k / M) * Math.PI) ** (2 / n); // u: 0 at the foot, 1 on top
+      pts.push([x, Math.sign(c) * (w * Math.abs(c) ** (2 / n) + (foot - w) * (1 - u) ** 3), base + (top - base) * u]);
+    }
+    return { pts, base };
+  };
+  for (let i = 0; i <= N; i++) for (const p of ring(x0 + ((x1 - x0) * i) / N).pts) pos.push(...p);
+  for (let i = 0; i < N; i++) {
+    for (let k = 0; k < M; k++) {
+      const a = i * (M + 1) + k, b = a + 1, c = a + M + 1, d = c + 1;
+      idx.push(a, c, b, b, c, d);
+    }
+  }
+  // Each end its own flat face (its own corners, so the shading doesn't round over the edge).
+  for (const [x, front] of [[x0, true], [x1, false]]) {
+    const { pts, base } = ring(x);
+    const centre = pos.length / 3;
+    pos.push(x, 0, base);
+    for (const p of pts) pos.push(...p);
+    for (let k = 1; k <= M; k++) idx.push(...(front ? [centre, centre + k, centre + k + 1] : [centre, centre + k + 1, centre + k]));
+  }
+  return meshOf(THREE, pos, idx);
 }
 
 /** An indexed geometry from points and triangles, smooth-shaded. */
@@ -718,7 +765,7 @@ function buildKit(THREE) {
   // The camera's own ship only (setCockpitView): the fuselage open over the cockpit, and the tub under it (TS-155).
   geo.fuselageCut = fuselageGeometry(THREE, { cut: true });
   geo.tub = tubGeometry(THREE);
-  // Wings, tailplane and ventral fin in one geometry (the wings' leading edges a second slot), so the
+  // Wings, tailplane, ventral fin and spine in one geometry (the wings' leading edges a second slot), so the
   // airframe is one draw call; the dihedral is built in.
   const wing = (side) => {
     const g = airfoilGeometry(THREE, side > 0 ? WING : WING.map((s) => ({ ...s, s: -s.s })).reverse(), { leBand: 0.07 });
@@ -730,7 +777,7 @@ function buildKit(THREE) {
     { geometry: wing(-1), materials: [0, 1] },
     { geometry: airfoilGeometry(THREE, STAB), materials: [0] },
     { geometry: flatXZ(THREE, VENTRAL, 0.01), materials: [0] },
-    { geometry: flatXZ(THREE, DORSAL, 0.012), materials: [0] },
+    { geometry: spineGeometry(THREE), materials: [0] },
   ]);
   geo.fin = airfoilGeometry(THREE, FIN, { span: 'z' });
   geo.canopy = canopyGeometry(THREE);
