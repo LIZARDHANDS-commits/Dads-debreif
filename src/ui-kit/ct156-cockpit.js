@@ -195,13 +195,13 @@ export const RIM_FT = Object.freeze({ aftOfGlareshield: 0.03, r: 0.045, sideOut:
  * (Patrick's cockpit clip, 11 Oct 2026: its height about 0.9 of the 3-inch airspeed indicator's case, nearer the eye by
  * about 8 %; the case's 3.1 in checked by the KLN 900 GPS's 3.75 in face height beside it. The back-seat photos and his
  * other pictures give its depth about 1.3 times its height. The T-6A-1 panel diagram draws it about 2.3 in; estimates
- * read to about ±0.15 in), its middle 0.15 ft ahead of the coaming's aft edge and 0.52 ft left of the middle, over the
+ * read to about ±0.15 in), its middle 0.15 ft ahead of the coaming's aft edge and 0.47 ft left of the middle (0.52 until V2.306; the panel figure overlaid on the front-on render puts it 0.05 ft further in), over the
  * glareshield's flat top where the T-6A-1 front panel figure draws it (Fig 1-1-3 item 36; 0.74 ft until V2.289, when the
  * top narrowed to the figure's; 0.62 ft on the rear hump; places estimates). It stands on a pod, its foot 0.01 ft (clear) over each seat's eye's sight line
  * across the grab rail beside it, so all three lamps show above the rail (Patrick, 11 Oct 2026), as the diagram and the
  * SMM's 220 KIAS picture (Fig 3.5) draw it.
  */
-export const AOA_INDEXER_FT = Object.freeze({ tall: 0.19, wide: 0.065, deep: 0.24, lampPitch: 0.057, aheadOfEdge: 0.15, y: 0.52, yRear: 0.62, clear: 0.01 });
+export const AOA_INDEXER_FT = Object.freeze({ tall: 0.19, wide: 0.065, deep: 0.24, lampPitch: 0.057, aheadOfEdge: 0.15, y: 0.47, yRear: 0.62, clear: 0.01 });
 /**
  * The standby compass at the coaming's right corner, feet: a wet compass, a dark ball 0.2 ft (2.4 in) across with a
  * round window facing aft, the card a ball 0.17 ft across floating inside it and turned by the heading (update(hud)),
@@ -1720,7 +1720,9 @@ function displayFrame(THREE, x, yc, zc, hw, hh, pad) {
 
 function seatParts(THREE, { dx, front, p, h, eye }) {
   const parts = [], striped = [], consoleTops = [], lower = [], cards = [];
-  const put = (geometry, slot) => parts.push({ geometry, materials: [slot] });
+  // Parts drawn while `tag` is set belong to that named part (seat, pcl, stick; the rest are 'body'), which the Blender cockpit replaces.
+  let tag = null;
+  const put = (geometry, slot) => parts.push({ geometry, materials: [slot], name: tag });
   const ts = tombstone(p);
   const faceW = 2 * ts.side, faceH = ts.height;
   const zOf = (v) => p.bottom + v * faceH;
@@ -1937,6 +1939,7 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   // harness straps lying on the cushions with a buckle, the yellow and black handle between the legs and the green
   // oxygen hose to the right console.
   const { pan, backCushion: bc, headbox: hb, breakers: br } = S;
+  tag = 'seat';
   put(box(THREE, fx(pan.aft), fx(pan.fore) - 0.05, -pan.halfWidth, pan.halfWidth, floor + 0.15, pan.z0), SLOT.dark);
   for (const s of [1, -1]) put(box(THREE, fx(pan.aft) - 0.1, fx(pan.fore) - 0.1, s * pan.halfWidth, s * (pan.halfWidth + 0.06), floor + 0.1, pan.z1 + 0.12), SLOT.dark);
   put(box(THREE, fx(pan.aft), fx(pan.fore) - 0.06, -pan.halfWidth + 0.02, pan.halfWidth - 0.02, pan.z0, pan.z1), SLOT.seat);
@@ -1967,6 +1970,7 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   // The oxygen hose, from the cushion's front right round to the right console.
   put(tubeThrough(THREE, [[fx(pan.fore) - 0.25, -0.12, pan.z1 + 0.03], [fx(pan.fore) - 0.15, -0.42, pan.z1 + 0.06], [fx(1.45), -0.78, pan.z1 + 0.18],
     [fx(1.15), -c.inner - 0.02, c.top - 0.05]], 0.035, 36, { smooth: true, radial: 6 }), SLOT.green);
+  tag = null;
 
   // The side consoles, from beside the seat to the panel: grey bodies, their tops pictures (drawConsoles).
   for (const s of [1, -1]) {
@@ -1989,6 +1993,7 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   const L = (f) => lerp(fx(c.aft), p.x, f); // a station along the console, 0 aft and 1 forward
   const LY = (f) => lerp(c.outer, c.inner, f); // across the left console, 0 outboard
   const RY = (f) => -lerp(c.inner, c.outer, f); // across the right console, 0 inboard
+  tag = 'pcl';
   {
     const Q = PCL_FT, G = Q.grip, S2 = Q.stem;
     const xs = P.pclSlot.along.map(L), qx = (xs[0] + xs[1]) / 2;
@@ -2085,6 +2090,7 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
       put(lever(box(THREE, S2.w / 2 - 0.03, ex - 0.08, y1 - 0.012, y1, gz - 0.006, gz + 0.006)), SLOT.dark); // its arm to the plate
     }
   }
+  tag = null;
   {
     const x = L(P.canopyFracture.along), y = LY(P.canopyFracture.across);
     striped.push(box(THREE, x - 0.012, x + 0.012, y - 0.012, y + 0.012, c.top, c.top + 0.06), box(THREE, x - 0.02, x + 0.02, y - 0.09, y + 0.09, c.top + 0.06, c.top + 0.09));
@@ -2109,6 +2115,7 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     put(box(THREE, x2 - 0.09, x2 + 0.09, y2 - 0.02, y2, z2 - 0.02, z2 + 0.02), SLOT.metal);
   }
   // The stick: a black boot on the floor, the grey stem leaning 8° forward, the dark grip with its red button.
+  tag = 'stick';
   const st = S.stick, tilt = rad(st.tiltDeg);
   const stickPart = (g) => g.rotateY(tilt).translate(fx(st.x), 0, floor);
   put(stickPart(new THREE.CylinderGeometry(0.1, 0.22, 0.32, 12).rotateX(Math.PI / 2).translate(0, 0, 0.16)), SLOT.black);
@@ -2117,6 +2124,7 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   put(stickPart(box(THREE, -0.075, 0.04, -0.05, 0.05, st.height - 0.02, st.height + 0.04)), SLOT.black);
   put(stickPart(new THREE.CylinderGeometry(0.016, 0.016, 0.02, 8).rotateX(Math.PI / 2).translate(-0.04, 0.015, st.height + 0.05)), SLOT.red);
   put(stickPart(box(THREE, 0.04, 0.06, -0.015, 0.015, st.height - 0.12, st.height - 0.04)), SLOT.red);
+  tag = null;
   return { parts, striped, consoleTops, lower, cards, ts, faceW, faceH, eye };
 }
 
@@ -2172,7 +2180,21 @@ function joinTextured(THREE, geoms) {
  * @param {any} THREE
  * @param {{ doc?: Document }} [options]
  */
-export function createCt156Cockpit(THREE, { doc = globalThis.document } = {}) {
+/**
+ * A fingerprint of a named part's pieces (their corners to a thousandth of a foot), so the Blender cockpit's part shows
+ * only while it was built from the pieces the code draws now (ct156-cockpit-model.js): a cockpit change without a
+ * rebuilt model file shows the code's part, never a stale one. pieces: [{ geometry }].
+ */
+export function cockpitPiecesHash(pieces) {
+  let h = 2166136261;
+  for (const { geometry } of pieces) {
+    const a = geometry.attributes.position.array;
+    for (let i = 0; i < a.length; i++) h = Math.imul(h ^ (Math.round(a[i] * 1000) | 0), 16777619) >>> 0;
+  }
+  return h.toString(16);
+}
+
+export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPieces = false } = {}) {
   const group = new THREE.Group();
   group.name = 'ct156-cockpit';
   group.scale.setScalar(1 / F); // built in feet, drawn in the model's units
@@ -2239,6 +2261,9 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document } = {}) {
     { dx: REAR_DX, front: false, p: REAR_PANEL_FT, h: REAR_HUMP_FT, eye: EYES_FT.rear, width: 1024 },
   ];
   const solidParts = [], striped = [], consoleTops = [], lowerFaces = [], liveQuads = [], cards = [];
+  // The pictured faces (panel faces, lower panels, console tops, striped handles): they shade the Blender parts in its
+  // bake, and the file carries their own baked shadows as its 'shade' part, shown only while they are drawn as now.
+  const occluders = [];
   for (const seat of seats) {
     const sp = seatParts(THREE, seat);
     solidParts.push(...sp.parts);
@@ -2255,7 +2280,8 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document } = {}) {
     pic.texture.needsUpdate = true;
     const panelMat = own(new THREE.MeshBasicMaterial({ map: pic.texture, side: THREE.DoubleSide, fog: false }));
     const outline = [[ts.side, p.bottom], [ts.side, ts.shoulderZ], [ts.top, p.top], [-ts.top, p.top], [-ts.side, ts.shoulderZ], [-ts.side, p.bottom]];
-    add(flatAft(THREE, p.x, outline, { y0: ts.side, y1: -ts.side, z0: p.bottom, z1: p.top }), panelMat);
+    const face = add(flatAft(THREE, p.x, outline, { y0: ts.side, y1: -ts.side, z0: p.bottom, z1: p.top }), panelMat).geometry;
+    occluders.push({ geometry: face, slot: 'grey' });
     // The coaming's shade on the panel's top (Patrick's cockpit clip, 11 Oct 2026, shows the top of the panel in the
     // coaming's shadow): a dark veil just in front of the face and its bezels, fading out PANEL_SHADE.depth of the way down.
     add(flatAft(THREE, p.x - 0.035, outline, { y0: ts.side, y1: -ts.side, z0: p.bottom, z1: p.top }), shadeMat);
@@ -2274,6 +2300,9 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document } = {}) {
       liveQuads.push(q);
     }
   }
+  for (const g of [...lowerFaces, ...consoleTops, ...striped]) occluders.push({ geometry: g, slot: 'grey' });
+  group.userData.shadeHash = cockpitPiecesHash(occluders);
+  if (keepPieces) group.userData.occluders = occluders.map(({ geometry, slot }) => ({ geometry: geometry.clone(), slot }));
   add(joinTextured(THREE, liveQuads), liveMat);
   add(joinTextured(THREE, lowerFaces), lowerMat);
   add(joinTextured(THREE, consoleTops), consoleMat);
@@ -2339,9 +2368,27 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document } = {}) {
   for (const g of sf.nubs) railParts.push({ geometry: g, materials: [SLOT.dark] });
   for (const g of sillGeometry(THREE)) railParts.push({ geometry: g, materials: [SLOT.frame] });
   add(ct156JoinGeometries(THREE, railParts), slotMats).name = 'ct156-cockpit-canopy-rails';
-  add(ct156JoinGeometries(THREE, solidParts), slotMats);
+  // The named parts (seatParts' tags) each their own mesh, for the Blender cockpit to replace; with keepPieces their pieces
+  // stay unjoined in group.userData.pieces (as { name: [{ geometry, slot }] }) for the export to Blender.
+  // Everything else solid is the 'body' part.
+  const named = new Map();
+  for (const part of solidParts) {
+    const name = part.name ?? 'body';
+    if (!named.has(name)) named.set(name, []);
+    named.get(name).push(part);
+  }
+  if (keepPieces) {
+    const slotName = Object.fromEntries(Object.entries(SLOT).map(([k, i]) => [i, k]));
+    group.userData.pieces = Object.fromEntries([...named].map(([name, list]) => [name, list.map(({ geometry, materials }) => ({ geometry: geometry.clone(), slot: slotName[materials[0]] }))]));
+  }
+  for (const [name, list] of named) {
+    const hash = cockpitPiecesHash(list);
+    const mesh = add(ct156JoinGeometries(THREE, list), slotMats);
+    mesh.name = `ct156-cockpit-${name}`;
+    mesh.userData.hash = hash; // the model file's part shows only if it was built from these same pieces
+  }
   // The Blender cockpit's parts (ALL-32), once its file is in, in place of the code's parts of the same names.
-  attachCockpitModel(THREE, group, { band: slotMats[SLOT.band], black: slotMats[SLOT.black], frame: slotMats[SLOT.frame], dark: slotMats[SLOT.dark] });
+  attachCockpitModel(THREE, group, Object.fromEntries(Object.entries(SLOT).map(([k, i]) => [k, slotMats[i]])), own);
 
   // The yellow and black striped parts: the seat handles, the emergency gear T, the console T-handle and guard.
   const stripe = canvasTexture(32, 32);
