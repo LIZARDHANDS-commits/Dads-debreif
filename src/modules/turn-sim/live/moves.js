@@ -111,6 +111,7 @@ export const TURNING_REJOIN = Object.freeze({
   tailMinSec: 3, // the way from the decision point takes at least this long; his closure and his drop into Lead's plane come off evenly from what he brings there (Patrick 11 Oct 2026 06:11Z: "we do not have to stop at any spot"; estimate)
   tailBlendSec: 2.5, // ...its corners rounded over this either side, twice (estimate; 1.5 s once until V2.255, Patrick 05:31Z "still too jerky")
   tailUpFtps: 5, // ...the drop into Lead's wing plane starting at no less than this (estimate)
+  underExtraFt: 8, // to the other side he passes under Lead's tail this much below the crossover's corner, which the rounding of the way takes back, so he is below the wake there (estimate)
   tailInFt: 3, // ...and he is in his place once within this of the slot...
   tailStillFtps: 1, // ...and moving on it at under this, when Lead may roll out (Patrick 11 Oct 2026 06:10Z: "as soon as the plane is in echelon, the formation can roll out"; estimates)
   tailHold: Object.freeze({ sideBankDeg: 10, followG: 0.5, onsetGps: 2, holdPerSec: 2 }), // ...flown with his bank within this of Lead's, his G within followG of Lead's, changing at no more than onsetGps, settling at holdPerSec (Patrick 11 Oct 2026 06:16Z: "the aircraft pitches to stay on plane, power to move forward and back, bank to move left and right"; his 06:15Z picture: 8 ft below Lead's plane in the roll-out with V2.256's 5°, 0.15 G, 1 G/s, 1.5/s; estimates)

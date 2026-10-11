@@ -33,7 +33,7 @@
 // changes are the aircraft's own. Numbers are tuning.js TURNING_REJOIN's.
 import { relativeTo, DEG } from './manoeuvres.js';
 import { recordFlight, speedSeg, dryRunT } from './replay.js';
-import { closeThrough, rejoinTo, slide, stopAt, legsFor } from './recipes.js';
+import { closeThrough, rejoinTo, slide, stopAt, legsFor, cornerBehind } from './recipes.js';
 import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
 import { FORMATIONS, FW_BAND, fwShapeNow, pairSlot, LENGTH_FT, sideFor, LANE, LINE_BACK_PER_OUT } from './slots.js';
@@ -279,19 +279,30 @@ function bodyIn(L, W) {
  * legs flew it: he came off the line still converging, slid 30-50 ft inside route and went past echelon's fore and aft place.
  * from, vel: #2's place in Lead's plane at the decision point and how it is moving. Returns { bodyAt(i), steps }.
  */
-function tailPath(from, vel, s, to, spacingFt) {
-  const route = pairSlot('route', s, spacingFt);
-  const legs = [{ fwd: route.fwd, left: route.left, up: route.alt }];
-  if (to === 'echelon') {
-    const ech = pairSlot('echelon', s, spacingFt);
-    legs.push({ fwd: ech.fwd, left: ech.left, up: ech.alt });
+function tailPath(from, vel, s, to, spacingFt, sTo = s) {
+  const legs = [];
+  if (sTo !== s) {
+    // To the other side: under Lead's tail, as low as the crossover's corner (below his wake), then up into the new place.
+    const end = pairSlot(to, sTo, spacingFt);
+    const corner = cornerBehind(end, spacingFt);
+    legs.push({ fwd: corner.fwd, left: 0, up: corner.alt - TURNING_REJOIN.underExtraFt }, { fwd: end.fwd, left: end.left, up: end.alt });
+  } else {
+    const route = pairSlot('route', s, spacingFt);
+    legs.push({ fwd: route.fwd, left: route.left, up: route.alt });
+    if (to === 'echelon') {
+      const ech = pairSlot('echelon', s, spacingFt);
+      legs.push({ fwd: ech.fwd, left: ech.left, up: ech.alt });
+    }
   }
   // He carries his way in from the decision point: down into Lead's plane and forward towards route, then up the
   // spinner-wingtip line, his closure coming off evenly from what he brought to nothing in the slot, never stopping on the
   // way (Patrick 11 Oct 06:11Z: "use smooth bank and power to transition that momentum down into route then up in to
   // echelon. we do not have to stop at any spot"). Until V2.260 each part went at the station-change rate (windowFtps) and
   // eased to a stop, after a decision point he reached closing at about 5 kt.
-  const pts = [{ fwd: from.fwd, left: from.left }, ...legs];
+  const pts = [{ fwd: from.fwd, left: from.left, up: from.up }, ...legs];
+  // Across, his height in Lead's plane goes with the way (the plane tilts across Lead, so that is about level in the world),
+  // so he is below the wake as he passes under the tail; on his own side the drop is its own change (below).
+  const upAlong = sTo !== s;
   const lens = legs.map((leg, k) => Math.hypot(leg.fwd - pts[k].fwd, leg.left - pts[k].left));
   const total = lens.reduce((a, x) => a + x, 0);
   const v0 = Math.max(TURNING_REJOIN.windowFtps, Math.hypot(vel.fwd, vel.left));
@@ -299,7 +310,7 @@ function tailPath(from, vel, s, to, spacingFt) {
   // tailUpFtps) to none in the plane (Patrick 05:31Z: "smaller, smoother movements").
   const dUp = legs[0].up - from.up;
   const upSec = Math.max(TURNING_REJOIN.tailMinSec, (2 * Math.abs(dUp)) / Math.max(TURNING_REJOIN.tailUpFtps, Math.sign(dUp) * vel.up));
-  const t = Math.max(TURNING_REJOIN.tailMinSec, (2 * total) / v0, upSec);
+  const t = Math.max(TURNING_REJOIN.tailMinSec, (2 * total) / v0, upAlong ? 0 : upSec);
   const steps = Math.ceil(t / dt);
   const rawAt = (i) => {
     // Before the decision point, where he was coming from (so the first corner is rounded too).
@@ -315,7 +326,8 @@ function tailPath(from, vel, s, to, spacingFt) {
     const drop = (1 - x) * (1 - x);
     // Up: Lead's plane at route, then the line's own up into the slot, with what is left of the drop on top.
     const upLine = k === 0 ? legs[0].up : legs[0].up + f * (z.up - legs[0].up);
-    return { fwd: a.fwd + f * (z.fwd - a.fwd), left: a.left + f * (z.left - a.left), up: upLine + drop * (from.up - legs[0].up) };
+    const up = upAlong ? a.up + f * (z.up - a.up) : upLine + drop * (from.up - legs[0].up);
+    return { fwd: a.fwd + f * (z.fwd - a.fwd), left: a.left + f * (z.left - a.left), up };
   };
   // The corners (off the line at the decision point, at route onto the spinner-wingtip line) rounded: the place averaged over
   // blendSec either side, twice, so his acceleration, and with it his bank and G, changes smoothly too, not in steps (Patrick
@@ -391,7 +403,10 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   const onX = to !== 'fw' && xLaw;
   // From the decision point into route and echelon on his own side, the way is a place moving in Lead's banked wing plane
   // (tailPath, flown by holdInPlane), not tracker legs (TS-182 (4)-(5)).
-  const pathTail = onX && !overshoot && sTo === s && (to === 'echelon' || to === 'route');
+  // To the other side too, the same way: from the decision point under Lead's tail, below his wake, then up into the place
+  // (Patrick 11 Oct 06:24Z: "it should be exactly the same except at decision point it goes underneath lead then up in to
+  // echelon"); until V2.262 that was tracker legs across his six, which planned too long and lost to the tracker alone.
+  const pathTail = onX && !overshoot && (sTo === s || sTo === -s) && (to === 'echelon' || to === 'route');
   const decisionFt = onX || to === 'fw' ? fwShapeNow().rangeFt : Math.abs(pairSlot('route', s, spacingFt).left) / Math.cos(TR.lineDeg * DEG);
 
   const leadR = turnRadiusFromBankFt(iasToTasKt(KIAS_OUTSIDE_LAB, blockFt) * KT_TO_FTPS, REJOIN.leadBankDeg);
@@ -529,7 +544,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       phases.push(...onLead(onClosure(overshootLegs(s, to, sTo, spacingFt), { closeIn: true })).map((p, i) =>
         i === 0 ? { ...p, bankCapDeg: TR.overshootBankDeg } : p
       ));
-    } else if (sTo !== s && sTo !== 0) {
+    } else if (sTo !== s && sTo !== 0 && !pathTail) {
       phases.push(...onLead(onClosure(acrossSixLegs(null, s, to, sTo, spacingFt), { closeIn: true })));
     } else if (!pathTail) {
       phases.push(...onLead(onClosure(tailLegs(s, to, sTo, spacingFt), { closeIn: true })).map((p, i) =>
@@ -598,7 +613,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   if (close) {
     const bodyNow = (k) => bodyIn(into.longRec.at(k), firstRec.at(k));
     const [b0, b1] = [bodyNow(totalSteps - 1), bodyNow(totalSteps)];
-    const tail = pathTail ? tailPath(b1, { fwd: (b1.fwd - b0.fwd) / dt, left: (b1.left - b0.left) / dt, up: (b1.up - b0.up) / dt }, s, to, spacingFt) : null;
+    const tail = pathTail ? tailPath(b1, { fwd: (b1.fwd - b0.fwd) / dt, left: (b1.left - b0.left) / dt, up: (b1.up - b0.up) / dt }, s, to, spacingFt, sTo) : null;
     tailSteps = tail?.steps ?? 0;
     // Lead holds his turn until #2 is in his place (tail.inSteps), then rolls out (Patrick 06:10Z); until V2.260 he held on
     // until the way had settled to the inch and planeEaseSec more, about 10 s in echelon.
@@ -947,7 +962,7 @@ export function planTurningRejoin(pair, to, options = {}, t0 = 0) {
       ? `Not stable by ${TURNING_REJOIN.windowNearFt} ft, he overshoots, the last resort (Patrick 03:35Z): wings near level, power back, behind and below Lead to the outside of the turn, stabilizes, crosses back a length clear with no overtake and moves up into ${label.toLowerCase()}${sideWord} (SMM 12.27 para 65, Fig 12.18).`
       : `At ${Math.round(part.rangeFt)} ft, ${over > 0 ? `${over} KIAS over Lead` : 'at Lead\'s speed'} with Lead on the X, he moves over and slides ${to === 'astern' ? 'in behind Lead into line astern' : `up the line into ${label.toLowerCase()}${across}`} (Patrick 03:32Z-03:44Z: anywhere 250-100 ft from Lead, 10-20 KIAS over him).`;
     if (best.point && !best.overshoot) {
-      return `${fromWord}${fromSide} to ${label}${sideWord}: ${how}. Lead turns ${away ? 'away from' : 'into'} #2 at ${REJOIN.leadBankDeg}° of bank${slowing.replace(/,$/, '')} (SMM 16.20 para 65b). #2 turns firmly to point at Lead with a quick, smooth roll, inside ${TURNING_REJOIN.pointMaxG} G, rolls out wings level until the line of sight starts to move, then reverses smoothly onto the rejoin line (SMM 16.20 para 65b(2); Patrick 04:05Z). He holds Lead frozen in his windscreen, growing, ${TURNING_REJOIN.lineElevDeg}° above the horizon, with bank, pitch and power (SMM 12.24 para 57; Patrick 04:16Z). ${speeds} At about ${Math.round(Math.abs(pairSlot('route', s, spacingFt).left) / Math.cos(TURNING_REJOIN.lineDeg * DEG))} ft, route's lateral spacing, he goes down into route in Lead's wing plane, bank matched, overtake off, Lead moving behind the canopy bow, then ${to === 'route' ? 'settles in route' : `moves up the spinner-wingtip line into ${label.toLowerCase()}`} (SMM 12.24 para 58; TS-182).`;
+      return `${fromWord}${fromSide} to ${label}${sideWord}: ${how}. Lead turns ${away ? 'away from' : 'into'} #2 at ${REJOIN.leadBankDeg}° of bank${slowing.replace(/,$/, '')} (SMM 16.20 para 65b). #2 turns firmly to point at Lead with a quick, smooth roll, inside ${TURNING_REJOIN.pointMaxG} G, rolls out wings level until the line of sight starts to move, then reverses smoothly onto the rejoin line (SMM 16.20 para 65b(2); Patrick 04:05Z). He holds Lead frozen in his windscreen, growing, ${TURNING_REJOIN.lineElevDeg}° above the horizon, with bank, pitch and power (SMM 12.24 para 57; Patrick 04:16Z). ${speeds} At about ${Math.round(Math.abs(pairSlot('route', s, spacingFt).left) / Math.cos(TURNING_REJOIN.lineDeg * DEG))} ft, route's lateral spacing, ${sTo !== s && sTo !== 0 ? `he carries his closure under Lead's tail, below his wake, and up into ${label.toLowerCase()}${sideWord} (Patrick 11 Oct 06:24Z)` : `he goes down into route in Lead's wing plane, bank matched, his closure coming off, Lead moving behind the canopy bow, then ${to === 'route' ? 'settles in route' : `moves up the spinner-wingtip line into ${label.toLowerCase()}`}`} (SMM 12.24 para 58; TS-182).`;
     }
     return `${fromWord}${fromSide} to ${label}${sideWord}: ${how}. Lead turns ${away ? 'away from' : 'into'} #2 at ${REJOIN.leadBankDeg}° of bank${slowing.replace(/,$/, '')} (SMM 16.20 para 65b). #2 ${hot ? `cuts across onto the rejoin line, and from ${TURNING_REJOIN.xFromFt} ft in he ` : ''}puts Lead on the X at about his ${clock}, the fin two-thirds out along Lead's upper wing, Lead slightly high, and holds him fixed on the canopy (SMM 12.24 paras 56-57, Fig 12.15). ${speeds} ${tail}`;
   };
