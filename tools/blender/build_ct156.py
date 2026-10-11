@@ -10,7 +10,8 @@
 # sharp trailing edges) and a model file a person can open and polish by hand.
 #
 # ct156-params.json can move the canopy peak, the forward canopy bow and the nose top line (feet); null keeps the code
-# tables. Those are where the cockpit-view numbers under review drop in once Patrick approves them.
+# tables, which carry the T-6A-1 drawing's numbers from V2.235 (ALL-31). The overrides are for trying other numbers,
+# such as measurements from the seat, before they go into the code tables.
 #
 # Axes as the code model: nose +X, left +Y, up +Z, origin on the spinner's axis, model units (1.44 = nose to tail). It
 # is exported Z-up (export_yup off), so the file drops straight into the code model's group with no turn.
@@ -248,6 +249,7 @@ M = {
     'blade': material('blade', '#0a0c10', 0.6),
     'tip': material('prop_tip', '#d2202c', 0.5),
     'exhaust': material('exhaust', '#4a4d54', 0.45, 0.8),
+    'helmet': material('helmet', '#d4d8de', 0.35),
     'red': material('light_red', '#ff2b2b', emit=3),
     'green': material('light_green', '#2bff6a', emit=3),
     'strobe': material('light_white', '#ffffff', emit=3),
@@ -303,10 +305,12 @@ vf = [(-0.51, -0.13), (-0.54, -0.19), (-0.67, -0.19), (-0.69, -0.11)]
 mesh_object('ventral_fin', [(x, s * 0.005, z) for s in (1, -1) for x, z in vf], [(0, 1, 2, 3), (7, 6, 5, 4), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (3, 7, 4, 0)], M['navy'], smooth=False)
 
 # The spinner: an ogive lathe, chrome, on a dark ring.
-og = [(0.66 - 0.085 * t, 0.001 + 0.033 * math.sin(t * math.pi / 2) ** 0.8) for t in (k / 16 for k in range(17))]
+SPIN_R = S['CT156_SPINNER_R']
+og = [(0.66 - 0.085 * t, 0.001 + SPIN_R * math.sin(t * math.pi / 2) ** 0.8) for t in (k / 16 for k in range(17))]
 rings = [[(x, r * math.cos(2 * math.pi * k / 40), r * math.sin(2 * math.pi * k / 40)) for k in range(40)] for x, r in og]
 mesh_object('spinner', *loft(rings), M['chrome'])
-ring_pts = [(0.573 + d, 0.0355 * math.cos(2 * math.pi * k / 40), 0.0355 * math.sin(2 * math.pi * k / 40)) for d in (0.003, -0.003) for k in range(40)]
+ring_r = SPIN_R + 0.0015
+ring_pts = [(0.573 + d, ring_r * math.cos(2 * math.pi * k / 40), ring_r * math.sin(2 * math.pi * k / 40)) for d in (0.003, -0.003) for k in range(40)]
 mesh_object('spinner_ring', ring_pts, [(k, (k + 1) % 40, 40 + (k + 1) % 40, 40 + k) for k in range(40)], M['blade'])
 
 # The prop: four blades, 97 in across (0.175 units a side), twisted from about 35° at the root to 15° at the tip
@@ -331,6 +335,10 @@ def blade(r0, r1, w0, w1, mat, name, k):
 for k in range(4):
     blade(0.03, 0.15, 0.016, 0.013, M['blade'], f'blade_{k}', k)
     blade(0.15, 0.175, 0.013, 0.012, M['tip'], f'blade_tip_{k}', k)
+
+# The two helmets, front and rear (the code model's seat stations and helmet heights).
+for i, (hx, hz) in enumerate(zip(S['CT156_SEAT_X'], S['CT156_HELMET_Z'])):
+    ellipsoid(f'helmet_{i}', (hx, 0, hz), (0.02, 0.02, 0.02), M['helmet'])
 
 # The exhaust stacks, either side of the nose just under the top line.
 stub_y = fuse_surf(0.5, -0.012) - 0.003

@@ -24,9 +24,9 @@ blender -b --factory-startup -P tools/blender/build_ct156.py -- ct156-shape.json
 - `canopyPeakFt`: the canopy's highest point above the spinner's axis.
 - `forwardBowCrestFt`: `[aft of the spinner tip, above the spinner's axis]`, the windscreen bow's crest.
 
-New cockpit numbers taken off the T-6A-1 side drawing are under review: the bow crest 11.3 ft aft of the spinner tip and
-2.75 ft up, the canopy peak 3.45 ft, the nose top line 0.85 to 1.45 ft. They are **not approved**, so the file holds
-`null` (the code model's current numbers) until Patrick approves them.
+The code tables carry the T-6A-1 side drawing's numbers from V2.235 (ALL-31: bow crest 11.3 ft aft of the spinner tip
+and 2.75 ft up, canopy peak 3.45 ft, nose top line 0.85 to 1.45 ft), so the file holds `null` and the model follows the
+code. Set a value only to try other numbers, such as measurements from the seat, before they go into the code tables.
 
 ## See it
 
@@ -36,8 +36,8 @@ for one ship or 25.
 
 ## What the Blender model has and lacks
 
-Has: the same fuselage, canopy, wings (3° dihedral), tailplane, fin, ventral fin, chrome spinner, 97 in four-blade prop
+Has: the same fuselage, canopy, helmets, wings (3° dihedral), tailplane, fin, ventral fin, chrome spinner, 97 in four-blade prop
 with twist and red tips, exhaust stacks, canopy bows, cheat line and position lights. The fin takes each ship's colour.
 
-Lacks so far: the decals (roundels, Canada, ship numbers, serial, red triangles), the cockpit (seats, helmets, tub),
+Lacks so far: the decals (roundels, Canada, ship numbers, serial, red triangles), the cockpit (seats, panel, tub),
 the far and near detail switch, and the prop disc.

@@ -10,6 +10,6 @@ const start = src.indexOf('export const CT156_UNIT_LENGTH');
 const end = src.indexOf('/** A symmetric NACA 4-digit');
 if (start < 0 || end < start) throw new Error('ct156-model.js: shape section not found; update ct156-shape.mjs');
 const section = src.slice(start, end).replace(/^export /gm, '');
-const names = ['CT156_UNIT_LENGTH', 'CT156_LENGTH_FT', 'STATIONS', 'CANOPY', 'CT156_FRAME_X', 'CT156_SEAT_X', 'CT156_HELMET_Z', 'WING_Z', 'DIHEDRAL', 'TIP', 'WING', 'STAB', 'FIN'];
+const names = ['CT156_UNIT_LENGTH', 'CT156_LENGTH_FT', 'STATIONS', 'CANOPY', 'CT156_FRAME_X', 'CT156_SEAT_X', 'CT156_HELMET_Z', 'CT156_SPINNER_R', 'WING_Z', 'DIHEDRAL', 'TIP', 'WING', 'STAB', 'FIN'];
 const shape = new Function(`${section}\nreturn { ${names.join(', ')} };`)();
 process.stdout.write(`${JSON.stringify(shape, null, 1)}\n`);
