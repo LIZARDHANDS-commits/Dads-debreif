@@ -58,7 +58,7 @@ Dad's open SOF questions (SOF-Q5 to SOF-Q8, SOF-Q12) are settings or named defau
 
 **At SOF sign-off:** both SOF browser files in full, the hands-on checklist above and `archive/docs/checklists/sof.md`, and one look in real Safari. Sign-off comes after the one-screen rebuild (SOF-Q13).
 
-**Live-traffic relay** went to the future list (SOF-Q9). Its tests leave with it: `tests/unit/sof/traffic.test.js`, the relay's own `tests/unit/relay/traffic.test.js`, the traffic-layer tests in `tests/unit/sof/map-loops.test.js`, the relay-address tests in `tests/unit/sof/settings-model.test.js` and the relay tests in `tests/e2e/sof-map.spec.js`. Until thread 7 archives the relay code they keep running.
+**Live-traffic relay** went to the future list (SOF-Q9). Its tests leave with it: `tests/unit/sof/traffic.test.js`, the relay's own `tests/unit/relay/traffic.test.js`, the traffic-layer tests in `tests/unit/sof/map-loops.test.js`, the relay tests in `tests/e2e/sof-map.spec.js`. Until thread 7 archives the relay code they keep running.
 
 
 ## Sign-off checklist
@@ -177,7 +177,7 @@ From the ratified test register (`pf/reset/5-testing/test-register.md`, Part B).
 | `tests/unit/sof/marks.test.js` | Keep | SOF-R7, SOF-R24 (marks are text, not colour alone) | | Each change |
 | `tests/unit/sof/reports-store.test.js` | Keep | SOF-R5, SOF-R23 (last reports kept, checked when read back); the three-day limit at `:91` is a time rule (S3) | | Each change |
 | `tests/unit/sof/screen-model.test.js` | Rewrite (one test) | SOF-R5, SOF-R21 kept. The test at `:185` (D95) checks only the "checked against 600-2" note; SOF-R12 adds amber "Incomplete". The DTG test at `:39` stays, re-sourced from "V6's form" to SOF-R21 | The alternate card with no approaches set reads amber "Incomplete" and keeps the note | Each change |
-| `tests/unit/sof/settings-model.test.js` | Keep | SOF-R11 (default Local (MTCA) 2000/3), SOF-R16 (radius 5 to 50 NM). The relay-address tests (`:148`, `:160`, `:170`) leave with the relay. SOF-R27's wind settings get new tests beside these | | Each change |
+| `tests/unit/sof/settings-model.test.js` | Keep | SOF-R11 (default Local (MTCA) 2000/3), SOF-R16 (radius 5 to 50 NM). The relay-address tests left with the relay (test overhaul, Patrick 11 Oct 2026). SOF-R27's wind settings get new tests beside these | | Each change |
 | `tests/unit/sof/taf-state.test.js` | Keep | SOF-R5 (a TAF past its end says STALE and how long ago) | | Each change |
 | `tests/unit/sof/timeline.test.js` | Keep | SOF-R13; the comparison with wx is a wiring check (S6); clock-change tests skip and say so (S7) | | Each change |
 | `tests/unit/sof/timeline-view-model.test.js` | Keep | SOF-R13, SOF-R24 (words for the card, arrow-key stepping) | | Each change |

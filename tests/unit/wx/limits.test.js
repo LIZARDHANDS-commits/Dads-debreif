@@ -1,6 +1,7 @@
 // Checks: limit checks on a METAR: home and alternate defaults, below versus at limit versus within, dangerous weather cautions, unknown visibility, colour state and category.
 // Serves: SOF-R6, SOF-R8.
-// Expected values: hand-written METARs; red below and yellow at the limit follow Patrick's ruling (Q27); the default limits still need page references (register, T3).
+// Expected values: hand-written METARs; red below and yellow at the limit follow Patrick's ruling (Q27); the default limits are SOF-R11's home
+//   2000 ft / 3 SM (D59, D111) and SOF-R12's 600-2 alternate fallback; their manual page references are still owed (T3).
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,11 +12,11 @@ import { METAR, METAR_NOW } from './reports.js';
 const cond = (raw) => parseMetar(raw, { now: METAR_NOW }).conditions;
 const home = (raw) => checkConditions(cond(raw), DEFAULT_LIMITS.home);
 
-test('V6 default limits: home 2000 ft / 3 SM, alternate 600 ft / 2 SM', () => {
+test('default limits: home 2000 ft / 3 SM (SOF-R11, D59, D111), alternate 600 ft / 2 SM (SOF-R12 fallback)', () => {
   assert.deepEqual(DEFAULT_LIMITS, { home: { ceilingFt: 2000, visSm: 3 }, alternate: { ceilingFt: 600, visSm: 2 } });
 });
 
-test('issue #5: the limit check V6 never ran reports ceiling and visibility in V6 wording', () => {
+test('a report below both home limits says each reason in words, ceiling then visibility (SOF-R6)', () => {
   const c = home(METAR.belowBoth);
   assert.equal(c.belowLimits, true);
   assert.deepEqual(c.reasons, ['CEILING 1500 FT < 2000 FT', 'VIS 2 SM < 3 SM']);
