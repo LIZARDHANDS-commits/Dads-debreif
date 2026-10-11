@@ -116,8 +116,9 @@ function placeRec(rec, body) {
 /**
  * #3's or #4's part of a turning rejoin (TS-188 draft): #2's ride (twoTurning) on the place of the aircraft he joins on,
  * `slots[id].ref`, to echelon on that one's side of it. He takes #2's line on the inside of Lead's turn (side s), crossing
- * behind Lead first when he starts on the outside (the Away's cross, crossIn); a place on the outside he reaches under the
- * one ahead at the decision point, as #2 reaches the far echelon. The tracker legs (w.phases) fly it when no ride plans.
+ * behind Lead first when he starts on the outside (the Away's cross, crossIn); to a place on the outside he crosses behind
+ * Lead from the decision point once the one ahead is in (crossAt, gateId), as #2 crosses to the far echelon. The tracker
+ * legs (w.phases) fly it when no ride plans.
  */
 // Far down the line the element closes at full power (Patrick 5 Oct 05:34Z: "3 and 4 immediately go full power and towards
 // number 1's turn circle"), at the offset box line's 260 KIAS, easing to the ride's 210 from this far up it (as BOX_LINE_EASE_FT;
@@ -134,7 +135,7 @@ function elementTurning(c, into, s, slots, w) {
   // itself, from #4 level with Lead and up to 172 ft behind him.
   const lead = body ?? { fwd: 0, left: 0, up: 0 };
   const crossAt = { fwd: -lead.fwd - TRJ.passBehindLengths * LENGTH_FT, left: -lead.left, up: -lead.up - CROSS_LOW_FT - (w.id === 4 ? FOUR_LOWER_FT : 0) };
-  return { ...w, fly: twoTurning(c, into, s, 'echelon', Math.sign(slots[w.id].left), false, crossIn, true, body, { ...ELEMENT, crossAt }) };
+  return { ...w, fly: twoTurning(c, into, s, 'echelon', Math.sign(slots[w.id].left), false, crossIn, true, body, { ...ELEMENT, crossAt, gateId: w.id - 1 }) };
 }
 
 /**
@@ -146,8 +147,10 @@ function elementTurning(c, into, s, slots, w) {
  */
 function twoTurning(c, into, s, to, sTo, hot, crossIn = false, xLaw = hot, body = null, element = null) {
   let pick;
-  return ({ wing, recs, t0 }) => {
+  return ({ wing, recs, done, t0 }) => {
     const args = { lead: c.start[0], wing, s, to, sTo, spacingFt: c.spacingFt, blockFt: c.blockFt, t0 };
+    // The element crosses behind Lead once the one ahead (element.gateId) is in (tailPath's notBeforeStep).
+    const flyEl = element?.gateId != null && done?.[element.gateId] ? { ...element, notBefore: inAt(done, element.gateId) } : element;
     // The element (body given) flies it on the place of the aircraft he joins on, in Lead's banked frame (placeRec).
     const on = body ? { longRec: placeRec(into.longRec, body), planTo: (n, roll) => { const lp = into.planTo(n, roll); return { ...lp, rec: placeRec(lp.rec, body) }; } } : into;
     // The vertical too (TS-82; Patrick 6 Oct 01:14Z: "they can use the vertical if they need to"), but from his +300 ft
@@ -159,7 +162,7 @@ function twoTurning(c, into, s, to, sTo, hot, crossIn = false, xLaw = hot, body 
     pick ??= searchTurningRejoin({ ...args, into: on, hot, verticalMinG: VERTICAL_MIN_G, xLaw, crossIn, element }) ?? false;
     if (!pick) return null;
     const rec = placeRec(recs[1], body);
-    const flown = flyTurningRejoinWith({ ...args, into: { longRec: rec, planTo: () => ({ rec, segments: [], turned: 0 }) }, aimFt: pick.aimFt, bankCapDeg: pick.bankCapDeg, overtakeKt: pick.overtakeKt, lowFloor: pick.lowFloor, upFt: pick.upFt, minG: VERTICAL_MIN_G, xLaw, holdSec: FOUR_CHANGE_LIMIT_SEC, crossIn, point: pick.point, element });
+    const flown = flyTurningRejoinWith({ ...args, into: { longRec: rec, planTo: () => ({ rec, segments: [], turned: 0 }) }, aimFt: pick.aimFt, bankCapDeg: pick.bankCapDeg, overtakeKt: pick.overtakeKt, lowFloor: pick.lowFloor, upFt: pick.upFt, minG: VERTICAL_MIN_G, xLaw, holdSec: FOUR_CHANGE_LIMIT_SEC, crossIn, point: pick.point, element: flyEl });
     if (!flown) return null;
     const segments = flown.wingSegments
       ? flown.wingSegments.map((s) => ({ ...s, points: s.points ? [...s.points] : undefined, poses: s.poses ? [...s.poses] : undefined }))
