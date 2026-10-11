@@ -612,13 +612,14 @@ const FT = CT156_UNIT_LENGTH / CT156_LENGTH_FT; // model units per foot
 export const CT156_TUB_FLOOR_FT = -1.2;
 /**
  * The cockpit tub under the canopy (TS-155): a floor CT156_TUB_FLOOR_FT below the spinner's axis from 5.6 ft aft of the
- * model origin to 5.55 ft ahead of it (3.9 ft until the front cockpit moved forward, ALL-31; 4.47 ft until the panel moved
+ * model origin to 5.95 ft ahead of it, just behind the front knee wells' backs (5.9 ft) so its bulkhead doesn't close them
+ * (5.55 ft from V2.271 to V2.285, which put the bulkhead across the wells; 3.9 ft until the front cockpit moved forward, ALL-31; 4.47 ft until the panel moved
  * forward, V2.238; 4.6 ft until the front cockpit moved 0.95 ft forward, 11 Oct 2026), side walls about 1.3 ft out (kept inside the canopy) up to the sill, and a
  * bulkhead at each end up to the fuselage's top line. Group 0 the floor, group 1 the walls. All estimates (judged by
  * eye off Dad's reference pictures, 9 Oct 2026).
  */
 function tubGeometry(THREE) {
-  const N = 14, x0 = 5.55 * FT, x1 = -5.6 * FT, floorZ = CT156_TUB_FLOOR_FT * FT;
+  const N = 14, x0 = 5.95 * FT, x1 = -5.6 * FT, floorZ = CT156_TUB_FLOOR_FT * FT;
   const rows = [];
   for (let i = 0; i <= N; i++) {
     const x = x0 + ((x1 - x0) * i) / N;
