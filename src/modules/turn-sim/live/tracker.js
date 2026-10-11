@@ -705,6 +705,7 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
         t1: t + span,
         fromFt: W.altAboveFt,
         toFt: target,
+        v0Ftps: W.climbFtps ?? 0, // carries the climb he has: a leg from level here was a one-step -8 G (flight.js heightAt)
         ...(ph.dive && target < W.altAboveFt ? { dive: ph.dive } : {}),
         ...(ph.climb && target > W.altAboveFt ? { climb: ph.climb } : {}),
       };
