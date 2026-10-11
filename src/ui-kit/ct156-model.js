@@ -344,6 +344,10 @@ const PADDLE_THICK = 0.05 / 23.148;
 // flat plate 24.3 to 25.6 ft about 0.1 ft down (the marker beacon antenna, by the page's list; which is which an
 // estimate). [x of the blade's middle, up (+1) or down (-1), length, height], units.
 const SMALL_ANTENNAS = Object.freeze([[0.66 - 23.25 / 23.148, -1, 0.3 / 23.148, 0.25 / 23.148]]);
+// Static wicks on the fin's trailing edge: about 3 or 4 small whiskers on its upper part (web photo research, 11 Oct
+// 2026: RCAF CT-156 photos from the 2014 Alliance air show); three here, at these heights up the fin, each about 0.35 ft
+// long and 0.03 ft thick, angled 10° up from straight aft (count, places and size estimates). Heights in units.
+const FIN_WICKS = Object.freeze({ z: [0.13, 0.175, 0.215], length: 0.35 / 23.148, r: 0.015 / 23.148, upDeg: 10 });
 const MARKER_PLATE = Object.freeze({ x0: 0.66 - 24.3 / 23.148, x1: 0.66 - 25.6 / 23.148, depth: 0.1 / 23.148, half: 0.12 / 23.148 });
 // The lower anti-collision beacon's amber dome, ahead of the aft paddle: about 1 ft long and 0.27 ft deep, its middle
 // 21.1 ft behind the spinner's tip, 0.36 ft ahead of the paddle (Patrick's photo of 156102 and SMM Fig 12.12 and
@@ -802,6 +806,20 @@ function tasGeometry(THREE) {
 }
 
 /** The marker beacon's flat plate under the belly (MARKER_PLATE): a thin rounded slab. */
+/** The fin's static wicks (FIN_WICKS): thin rods from its trailing edge, pointing aft and a little up. */
+function finWicksGeometry(THREE) {
+  const [root, tip] = FIN;
+  return joinGeometries(THREE, FIN_WICKS.z.map((z) => {
+    const f = (z - root.s) / (tip.s - root.s);
+    const te = root.le - root.chord + f * (tip.le - tip.chord - (root.le - root.chord));
+    const up = rad(FIN_WICKS.upDeg), L = FIN_WICKS.length;
+    const g = new THREE.CylinderGeometry(FIN_WICKS.r * 0.6, FIN_WICKS.r, L, 5);
+    g.rotateZ(Math.PI / 2).rotateY(up); // along -x, tipped up
+    g.translate(te - (L / 2) * Math.cos(up) + 0.002, 0, z + (L / 2) * Math.sin(up));
+    return { geometry: g, materials: [0] };
+  }));
+}
+
 function markerPlateGeometry(THREE) {
   const { x0, x1, depth, half } = MARKER_PLATE;
   const xm = (x0 + x1) / 2, top = bellyAt(xm) + 0.002;
@@ -1533,6 +1551,7 @@ function buildKit(THREE) {
     { geometry: pitotGeometry(THREE, 1), materials: [0] },
     { geometry: pitotGeometry(THREE, -1), materials: [0] },
     { geometry: tieDownGeometry(THREE, 1), materials: [2] },
+    { geometry: finWicksGeometry(THREE), materials: [2] },
     { geometry: tieDownGeometry(THREE, -1), materials: [2] },
   ]);
   geo.beacon = ellipsoid(THREE, BEACON[0], 0, bellyAt(BEACON[0]) + 0.001, BEACON[1], BEACON[2], BEACON[3]);
@@ -1569,6 +1588,19 @@ function buildKit(THREE) {
     ctx.fillStyle = '#d2202c'; ctx.beginPath(); ctx.moveTo(15, 17); ctx.lineTo(49, 17); ctx.lineTo(32, 47); ctx.closePath(); ctx.fill();
   }, 4));
 
+  // The small yellow stencils on the fuselage's side (web photo research, 11 Oct 2026, RCAF CT-156 photos): a yellow
+  // panel with a black arrow by the wing root under the rear canopy, and a yellow dot each aft of the roundel and at the
+  // wing root. On US Navy T-6As the like marks are STEP and RESCUE stencils; what they say on the CT-156 is a guess, so
+  // no words. Places and sizes estimates off the photos.
+  tex.stencil = keep(canvasTexture(THREE, 64, 48, (ctx, w, h) => {
+    ctx.fillStyle = '#e8c21c'; ctx.fillRect(2, 2, w - 4, h - 4);
+    ctx.strokeStyle = '#111111'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(w * 0.25, h * 0.78); ctx.lineTo(w * 0.7, h * 0.3); ctx.stroke();
+    ctx.fillStyle = '#111111'; ctx.beginPath(); ctx.moveTo(w * 0.8, h * 0.18); ctx.lineTo(w * 0.52, h * 0.26); ctx.lineTo(w * 0.72, h * 0.48); ctx.closePath(); ctx.fill();
+  }, 4));
+  tex.dot = keep(canvasTexture(THREE, 32, 32, (ctx, w) => {
+    ctx.fillStyle = '#e8c21c'; ctx.beginPath(); ctx.arc(w / 2, w / 2, w * 0.42, 0, 7); ctx.fill();
+  }, 4));
+
   const both = (make) => ({ 1: make(1), '-1': make(-1) });
   const decalGeo = {
     roundelSide: both((side) => patch(THREE, -0.333, cheatZ(-0.333), 0.05, 0.05, side, fuseSurf)),
@@ -1577,6 +1609,9 @@ function buildKit(THREE) {
     triA: both((side) => patch(THREE, 0.082, 0, 0.022, 0.022, side, fuseSurf)),
     triB: both((side) => patch(THREE, -0.151, 0, 0.022, 0.022, side, fuseSurf)),
     triC: both((side) => patch(THREE, -0.033, 0, 0.015, 0.015, side, fuseSurf)),
+    stencil: both((side) => patch(THREE, -0.17, -0.072, 0.013, 0.01, side, fuseSurf)),
+    dotAft: both((side) => patch(THREE, -0.385, cheatZ(-0.385) - 0.012, 0.005, 0.005, side, fuseSurf)),
+    dotRoot: both((side) => patch(THREE, -0.1, -0.085, 0.005, 0.005, side, fuseSurf)),
     // The nose number on the cheat line between its two runs (the photo; was one digit, 0.02 units further forward).
     nose: both((side) => patch(THREE, 0.406, cheatZ(0.406) - 0.002, 0.05, 0.025, side, fuseSurf)),
     // Centred on the fin's mid-chord (nearly upright, the leading edge swept back and the trailing edge forward) and on
@@ -1628,10 +1663,10 @@ function buildKit(THREE) {
     glassInside: keep(new THREE.MeshBasicMaterial({ color: '#cfe3f2', transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide, fog: false })),
     frame: mat({ color: '#0c1017', roughness: 0.5, side: two }),
     floor: mat({ color: '#0d1118', roughness: 0.9, side: two }),
-    // The cockpit tub (setCockpitView; TS-155, TS-157): a mid grey floor and light grey walls, as the T-6A's in Dad's
-    // reference pictures (estimates).
-    tubFloor: mat({ color: '#5b5f64', roughness: 0.95, side: two }),
-    tubWall: mat({ color: '#a4a8ad', roughness: 0.85, side: two }),
+    // The cockpit tub (setCockpitView; TS-155, TS-157): a dark charcoal floor and walls, as US Navy T-6A cockpit photos
+    // show (Patrick, 11 Oct 2026 22:06Z; were mid and light grey off Dad's reference pictures). Shades estimates.
+    tubFloor: mat({ color: '#26292c', roughness: 0.95, side: two }),
+    tubWall: mat({ color: '#2f3236', roughness: 0.85, side: two }),
     // The pilots (pilotGeometry): helmet, visor, mask, hose, flight suit, vest and collar, harness, gloves (colours
     // estimates); and the seats' headboxes.
     pilot: [
@@ -1657,6 +1692,8 @@ function buildKit(THREE) {
     canada: decalMat(tex.canada),
     tri: decalMat(tex.tri),
     marks: decalMat(tex.marks),
+    stencil: decalMat(tex.stencil),
+    dot: decalMat(tex.dot),
   };
   const kit = { THREE, geo, decalGeo, mats, refs: 0, own, disposed: false, dispose: () => ((kit.disposed = true), own.forEach((o) => o.dispose())) };
   // The outside from the Blender file (ALL-33): each part's fingerprint now, before the file's shapes take its place.
@@ -1845,6 +1882,9 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
       add(decalGeo.triB[s], mats.tri, detail);
       add(decalGeo.triC[s], mats.tri, detail);
       add(decalGeo.marks[s], mats.marks, detail);
+      add(decalGeo.stencil[s], mats.stencil, detail);
+      add(decalGeo.dotAft[s], mats.dot, detail);
+      add(decalGeo.dotRoot[s], mats.dot, detail);
     }
     add(geo.stubs, [mats.exhaust, mats.blade], detail);
     add(geo.vent, mats.vent, detail);
