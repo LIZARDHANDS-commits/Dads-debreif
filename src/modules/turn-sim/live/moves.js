@@ -55,9 +55,7 @@ export const TURNING_REJOIN = Object.freeze({
   frozenBearingDeg: 35, // after the SMM's start he holds Lead frozen in the windscreen at this bearing off his nose (Fable 04:18Z, from the 35° line's picture at the decision point; estimate)...
   frozenSettleFt: 0, // ...coming onto it from where the reversal left him over this much of the way in: none, the reversal ends on it (Patrick 04:22Z "we freeze him in the same spot with the same aspect ratio the whole way"; 400 ft in V2.248)...
   frozenTauSec: 3, // ...taking out a bearing error over this long (estimate)
-  frozenArriveFtps: 8, // ...closing on him at this at the decision point, about 5 kt (estimate)...
-  frozenSlowFtps2: 2.0, // ...taking his closure off evenly at this before it (estimate)...
-  frozenUnderKt: 15, // ...never slower than Lead's 200 KIAS less this, inside his turn (estimate)
+  frozenKias: 210, // ...at this speed all the way to the decision point, slowing only after it (Patrick 11 Oct 2026 06:11Z: "I can hit 210 knots at the decision point"; V2.255 took the closure off to about 5 kt there instead)
   aimsFt: [300, 600, 1200], // how sharply #2 captures the line: off it by this much he heads for it at half approachDeg; the one that brings him in soonest is flown (estimates: smaller is a sharper capture, larger a gentler, longer one)
   approachDeg: 80, // far off the line he heads for it at up to this angle across it, in Lead's frame (estimate)
   bankCapDeg: 60, // the bank he uses at most to get onto the line and hold it: past about 60° the drag costs speed and buys nothing (the review's estimate, rejoin-review-fable.md). Only when no rejoin at 60° keeps him behind Lead's 3/9 line does he use more, up to the G rule (REJOIN.bankCapDeg)
@@ -110,11 +108,12 @@ export const TURNING_REJOIN = Object.freeze({
   windowNearFt: 100, // ...down to this far, the decision point (Patrick 02:30Z); not stable by here, he overshoots, only when nothing else works (03:35Z)
   windowBankDeg: 5, // from the decision point down into route and up into the slot his bank stays matched to Lead's, within this (TS-182: "bank matched to Lead's", SMM 12.24 para 58 "align the fuselage"; an estimate; ±15° until V2.248)
   windowFtps: 15, // ...and out to route he moves at the station-change rate, about 9 kt (Patrick 10 Oct 2026 23:54Z card; TS-181; an estimate, Fable's trace C). From route into the slot it is the close moves' own (CLOSE_SHAPING)
-  tailMinSec: 3, // each part of the way from the decision point (to route, then up the line) takes at least this long (estimate)
-  tailEaseSec: 3, // ...and he eases into the slot over the last of it, slowing evenly to a stop (estimate)
+  tailMinSec: 3, // the way from the decision point takes at least this long; his closure and his drop into Lead's plane come off evenly from what he brings there (Patrick 11 Oct 2026 06:11Z: "we do not have to stop at any spot"; estimate)
   tailBlendSec: 2.5, // ...its corners rounded over this either side, twice (estimate; 1.5 s once until V2.255, Patrick 05:31Z "still too jerky")
-  tailUpFtps: 5, // ...and the drop into Lead's wing plane at no more than this, over about 8-10 s (estimate)
-  tailHold: Object.freeze({ sideBankDeg: 5, followG: 0.15, onsetGps: 1, holdPerSec: 1.5 }), // ...flown with his bank within this of Lead's, his G within followG of Lead's, changing at no more than onsetGps, settling at holdPerSec: not the close turns' 15°, 0.5 G, 4 G/s and 2.5/s (Patrick 05:31Z: "smaller, smoother movements"; Fable's V2.255 flight: as Lead rolled out after the rejoin #2 climbed out of the step-down at 14 ft/s and bunted to 0.71 G; estimates)
+  tailUpFtps: 5, // ...the drop into Lead's wing plane starting at no less than this (estimate)
+  tailInFt: 3, // ...and he is in his place once within this of the slot...
+  tailStillFtps: 1, // ...and moving on it at under this, when Lead may roll out (Patrick 11 Oct 2026 06:10Z: "as soon as the plane is in echelon, the formation can roll out"; estimates)
+  tailHold: Object.freeze({ sideBankDeg: 10, followG: 0.5, onsetGps: 2, holdPerSec: 2 }), // ...flown with his bank within this of Lead's, his G within followG of Lead's, changing at no more than onsetGps, settling at holdPerSec (Patrick 11 Oct 2026 06:16Z: "the aircraft pitches to stay on plane, power to move forward and back, bank to move left and right"; his 06:15Z picture: 8 ft below Lead's plane in the roll-out with V2.256's 5°, 0.15 G, 1 G/s, 1.5/s; estimates)
   stableKt: Object.freeze([10, 20]), // his closure, range rate in knots, is stable in this window (Patrick 03:34Z: "10-20 knots at 100 feet"); the slowing aims at its middle, and slower is cold, not unstable
   stableShare: 1.5, // ...and closing at no more than this times the closure that middle overtake gives on the X, about 32 kt, so he is holding the X, not sweeping through it (card 03:15Z "Closure or bearing"; the figure is an estimate)
   xWindowDeg: 10, // Lead is on the X picture within this many degrees of it, 25-45° off his tail (card 03:15Z "Closure or bearing"; the figure is an estimate)
