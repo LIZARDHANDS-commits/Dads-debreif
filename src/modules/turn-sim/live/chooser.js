@@ -151,6 +151,8 @@ export function chooseChange(pair, to, options = {}, t0 = 0) {
   const wing = pair[1];
   const spacingFt = options.spacingFt ?? 6000;
   const auto = (options.rejoin ?? 'into') === 'auto';
+  // From trail after a break (TS-175) TRJ + roll flies as the plain turning rejoin: Lead is ahead, there is nothing to roll for.
+  if (options.trailSide && options.rejoin === ROLLING_REJOIN_KIND) options = { ...options, rejoin: 'into' };
   const roll = options.rejoin === ROLLING_REJOIN_KIND;
   const mid = options.mid ?? null;
   const lag = to === LAG_ROLL_KEY;

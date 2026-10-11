@@ -136,11 +136,13 @@ const inAt = (done, id) => done[id].inSec ?? done[id].times[done[id].times.lengt
  * Spread 4, the offset box, Fluid 4 or anywhere else, to fighting wing (M16, M22; AFM8 brief pp.19, 25, AFM7 p.17): the
  * turning rejoin above; with rejoin 'straight' Lead holds straight and each closes in turn, from Spread 4 and the offset box
  * at full power until in his cone (MAX_CLOSURE_FTPS; TS-123). V2.134 to V2.218 they were always straight; TS-176 offers
- * the turning rejoin there too. from: the formation key now.
+ * the turning rejoin there too. from: the formation key now. sTo: #2's side in fighting wing; with the turning rejoin on the
+ * side away from #2, the outside of Lead's turn, #2 flies the 2-ship's rejoin there (Patrick 11 Oct 2026 07:57Z).
  */
-export function rejoinToFw(start, t0, opts, s, from) {
+export function rejoinToFw(start, t0, opts, s, from, sTo = s) {
   return legsInTurn(start, t0, opts, [(c) => {
-    const slots = { ...slotsFor('fw', s, { ships: 4, stacked: c.stacked }) };
+    const s2 = opts.rejoin === 'straight' ? s : sTo; // #2's side at the end
+    const slots = { ...slotsFor('fw', s2, { ships: 4, stacked: c.stacked }) };
     // #2's +300 ft comes off before it closes: it rejoins to fighting wing below Lead (Patrick 4 Oct 19:11Z).
     if (slots[2].alt >= 0) slots[2] = { ...slots[2], alt: -FW_STEP_DOWN_FT };
     const lead = c.start[0];
@@ -157,7 +159,7 @@ export function rejoinToFw(start, t0, opts, s, from) {
         rejoinTo(place(c, inLeadFrame(slots, id).fwd - TRJ.outsideWindowFt[id][1], inLeadFrame(slots, id).left, slots[id].alt), { track: 1, advanceTol: FW_PASS_FT, overtakeKias: far(id), bankCapDeg: TURNING_REJOIN.bankCapDeg, ...max }),
         // into the cone off the aircraft he flies off, settling where he arrives in it (the whole cone, Patrick 5 Oct 08:58Z;
         // TS-75), his stack held as the separation
-        inCone(c, slots[id], -s),
+        inCone(c, slots[id], -s2),
       ],
     });
     const two = { id: 2, phases: () => [...comeOffFirst(c, 2, 1), toSlot(c, rejoinTo, slots[2], { overtakeKias: far(2), ...max })] };
@@ -165,7 +167,7 @@ export function rejoinToFw(start, t0, opts, s, from) {
     const into = leadInto(c, s, 'fw', from === 'offsetBox' ? BOX_PAUSE_SEC : 0);
     return {
       lead: { hold: into, until: [2, 3, 4] },
-      wings: [{ ...two, fly: twoTurning(c, into, s, 'fw', s, false) }, ...[3, 4].map((id) => (from === 'offsetBox' ? onLineFirst(c, outside(id), s, id === 4 ? BOX_LINE_FW4_FT : BOX_LINE_FT) : outside(id)))],
+      wings: [{ ...two, fly: twoTurning(c, into, s, 'fw', s2, false) }, ...[3, 4].map((id) => (from === 'offsetBox' ? onLineFirst(c, outside(id), s, id === 4 ? BOX_LINE_FW4_FT : BOX_LINE_FT) : outside(id)))],
     };
   }]);
 }
@@ -240,15 +242,17 @@ function leadInto(c, s, key, pauseSec = 0) {
  * on the inside behind #2, and cross about two lengths behind and slightly below Lead to the outside: #3 only once #2 is
  * in, #4 only once #3 is. From Spread 4 they are on the outside already: they close on the outside of Lead's turn, wait
  * behind their places on their stacks, and close through route into finger one at a time, the stack coming off as they
- * close. from: the formation key now.
+ * close. from: the formation key now. sTo: #2's side in finger; on the side away from #2 (the outside of Lead's turn) #2
+ * flies the same rejoin and crosses under Lead at the decision point, as the 2-ship does, and #3 and #4 wait behind him
+ * and cross behind Lead to the inside (Patrick 11 Oct 2026 06:24Z, 07:57Z).
  */
-export function turningToFinger(start, t0, opts, s, from) {
+export function turningToFinger(start, t0, opts, s, from, sTo = s) {
   return legsInTurn(start, t0, opts, [(c) => {
-    const fin = slotsFor('finger', s, { ships: 4 });
-    const route = slotsFor('route', s, { ships: 4 });
+    const fin = slotsFor('finger', sTo, { ships: 4 });
+    const route = slotsFor('route', sTo, { ships: 4 });
     const hot = abreast(from);
     const into = leadInto(c, s, 'finger', from === 'offsetBox' ? BOX_PAUSE_SEC : 0);
-    const two = { id: 2, fly: twoTurning(c, into, s, 'echelon', s, hot, false, from !== 'fluid4'), phases: () => [...comeOffFirst(c, 2, 1), toSlot(c, rejoinTo, fin[2], { advanceTol: 10 })] };
+    const two = { id: 2, fly: twoTurning(c, into, s, 'echelon', sTo, hot, false, from !== 'fluid4'), phases: () => [...comeOffFirst(c, 2, 1), toSlot(c, rejoinTo, fin[2], { advanceTol: 10 })] };
     const far = (id) => (Math.abs(relativeTo(c.start[0], c.by.get(id)).left) > 3000 ? FAR_OVERTAKE_KIAS : REJOIN.overtakeKias);
     // Outside the turn: wait behind the place, then in through route (recipes.js closeThrough: close level or slightly low, then up).
     const outside = (id, gateId) => ({
@@ -272,7 +276,8 @@ export function turningToFinger(start, t0, opts, s, from) {
         const back = -TRJ.passBehindLengths * LENGTH_FT + (id === 4 ? ech().fwd : 0); // #4 passes behind #3 as well
         const low = -CROSS_LOW_FT - (id === 4 ? FOUR_LOWER_FT : 0);
         return [
-          rejoinTo(place(c, -TRJ.waitBehindFt[id], s * ech().left, -TRJ.waitLowFt[id]), { track: 1, advanceTol: 10, overtakeKias: REJOIN.overtakeKias, holdUntil: inAt(done, gateId) }),
+          // From far out on the outside (finger away from #2) at the rejoin's medium bank, not the 5 G pull it took at the press.
+          rejoinTo(place(c, -TRJ.waitBehindFt[id], sTo * ech().left, -TRJ.waitLowFt[id]), { track: 1, advanceTol: 10, overtakeKias: sTo === s ? REJOIN.overtakeKias : far(id), holdUntil: inAt(done, gateId), ...(sTo === s ? {} : { bankCapDeg: TURNING_REJOIN.bankCapDeg }) }),
           slide(place(c, back, 0, low), across),
           slide(place(c, back, slot.left, low), across),
           toSlot(c, slide, fin[id], { bankCapDeg: WING_BANKS.rejoinBankCapDeg, overtakeKias: 10, undertakeKias: 10 }),
@@ -282,8 +287,9 @@ export function turningToFinger(start, t0, opts, s, from) {
     // From Spread 4 #3 and #4 are outside already, from fighting wing inside; from anywhere else, by the side each is on now.
     const wing = (id, gateId) => {
       // From the offset box up the rejoin line first, then across behind Lead to the outside (onBoxLine).
-      if (from === 'offsetBox') return onLineFirst(c, crossing(id, gateId), s);
-      const outsideNow = from === 'spread4' || (from !== 'fw' && relativeTo(c.start[0], c.by.get(id)).left * s < 0);
+      if (from === 'offsetBox' && sTo === s) return onLineFirst(c, crossing(id, gateId), s);
+      // To finger on the side away from #2 their places are on the inside: from the outside they wait behind #2 and cross.
+      const outsideNow = sTo === s ? from === 'spread4' || (from !== 'fw' && relativeTo(c.start[0], c.by.get(id)).left * s < 0) : relativeTo(c.start[0], c.by.get(id)).left * s > 0;
       return (outsideNow ? outside : crossing)(id, gateId);
     };
     // Each ends in Lead's wing plane, and Lead rolls out as gently as in an echelon turn once all are in it (TS-126, TS-127).
@@ -298,16 +304,18 @@ export function turningToFinger(start, t0, opts, s, from) {
  * turn; SMM 16.34 paras 95-96, one at a time). Lead turns into #2 and holds it until #4 is in; #2 flies the 2-ship's turning
  * rejoin to echelon on the inside. #3 and #4 go to the inside too, behind their own places on the echelon line (from the
  * outside, behind Lead), wait there on their stacks, and close one at a time, #3 once #2 is in, #4 once #3 is: through
- * route on the one ahead, then up the wing-tip line into echelon. from: the formation key now.
+ * route on the one ahead, then up the wing-tip line into echelon. from: the formation key now. sTo: the echelon's side; on the
+ * side away from #2 (the outside of Lead's turn) #2 flies the same rejoin and crosses under Lead at the decision point, as the
+ * 2-ship does (Patrick 11 Oct 2026 06:24Z, 07:57Z), and #3 and #4 wait behind their places on the outside.
  */
-export function turningToEchelon(start, t0, opts, s, from) {
+export function turningToEchelon(start, t0, opts, s, from, sTo = s) {
   return legsInTurn(start, t0, opts, [(c) => {
-    const ech4 = slotsFor('echelon', s, { ships: 4 });
+    const ech4 = slotsFor('echelon', sTo, { ships: 4 });
     const into = leadInto(c, s, 'echelon', from === 'offsetBox' ? BOX_PAUSE_SEC : 0);
     const hot = abreast(from);
-    const two = { id: 2, fly: twoTurning(c, into, s, 'echelon', s, hot, false, from !== 'fluid4'), phases: () => [...comeOffFirst(c, 2, 1), toSlot(c, rejoinTo, ech4[2], { advanceTol: 10 })] };
+    const two = { id: 2, fly: twoTurning(c, into, s, 'echelon', sTo, hot, false, from !== 'fluid4'), phases: () => [...comeOffFirst(c, 2, 1), toSlot(c, rejoinTo, ech4[2], { advanceTol: 10 })] };
     const far = (id) => (Math.abs(relativeTo(c.start[0], c.by.get(id)).left) > 3000 ? FAR_OVERTAKE_KIAS : REJOIN.overtakeKias);
-    const line = pairSlot('route', s);
+    const line = pairSlot('route', sTo);
     const wing = (id, gateId) => ({
       id,
       phases: (done) => {
@@ -315,7 +323,7 @@ export function turningToEchelon(start, t0, opts, s, from) {
         const stackAlt = Math.max(Math.min(c.by.get(id).altAboveFt - c.leadAlt, ech4[id].alt), ech4[id].alt - WINDOW_STACK_FT[id]);
         const { ref } = ech4[id];
         return [
-          ...(from === 'offsetBox' ? [onBoxLine(c, id, s)] : []), // from the offset box up the rejoin line first
+          ...(from === 'offsetBox' && sTo === s ? [onBoxLine(c, id, s)] : []), // from the offset box up the rejoin line first (on the inside)
           ...waitInWindow(c, id, p, stackAlt, inAt(done, gateId), { overtakeKias: far(id), bankCapDeg: TURNING_REJOIN.bankCapDeg }, ech4[id].alt - 25),
           closeThrough(place(c, line.fwd, line.left, ech4[id].alt - 25), { track: ref, advanceTol: 6 }),
           toSlot(c, slide, ech4[id]),
@@ -323,7 +331,7 @@ export function turningToEchelon(start, t0, opts, s, from) {
       },
     });
     const inPlane = (w) => ({ ...w, plane: true });
-    return { lead: { hold: into, until: [2, 3, 4], rollOutRoll: RATE_SETS.close.echelonRoll }, wings: [inPlane(two), inPlane(wing(3, 2)), inPlane(wing(4, 3))], how: 'turning rejoin straight into echelon' };
+    return { lead: { hold: into, until: [2, 3, 4], rollOutRoll: RATE_SETS.close.echelonRoll }, wings: [inPlane(two), inPlane(wing(3, 2)), inPlane(wing(4, 3))], how: sTo === s ? 'turning rejoin straight into echelon' : 'turning rejoin into echelon on the outside, #2 under Lead at the decision point' };
   }]);
 }
 

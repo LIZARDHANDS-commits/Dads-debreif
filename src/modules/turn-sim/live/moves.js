@@ -55,6 +55,9 @@ export const TURNING_REJOIN = Object.freeze({
   frozenBearingDeg: 30, // after the SMM's start he holds Lead frozen in the windscreen at this bearing off his nose, the line's own angle (Fable 04:18Z, from the line's picture at the decision point; 35° with the 35° line until V2.263; estimate)...
   frozenSettleFt: 0, // ...coming onto it from where the reversal left him over this much of the way in: none, the reversal ends on it (Patrick 04:22Z "we freeze him in the same spot with the same aspect ratio the whole way"; 400 ft in V2.248)...
   frozenTauSec: 3, // ...taking out a bearing error over this long (estimate)
+  trailSettleFt: 1500, // from trail after a break, no pointing turn: he eases Lead from his nose onto frozenBearingDeg over this much of the way in, a small, early, gentle bank (Patrick 11 Oct 2026 07:57Z; estimate)
+  trailHeightG: 0.3, // ...and his height follows the line's 4° law from the start (about 265 ft below at 3,800 ft) within this many g of level flight, gentler than heightG's 1 g (Patrick 11 Oct 2026 07:57Z "gentler"; estimate)
+  trailFwHandFt: 1000, // ...and to fighting wing he holds that bearing in to this range, where the ride takes him into the cone (estimate)
   frozenKias: 210, // ...at this speed all the way to the decision point, slowing only after it (Patrick 11 Oct 2026 06:11Z: "I can hit 210 knots at the decision point"; V2.255 took the closure off to about 5 kt there instead)
   aimsFt: [300, 600, 1200], // how sharply #2 captures the line: off it by this much he heads for it at half approachDeg; the one that brings him in soonest is flown (estimates: smaller is a sharper capture, larger a gentler, longer one)
   approachDeg: 80, // far off the line he heads for it at up to this angle across it, in Lead's frame (estimate)

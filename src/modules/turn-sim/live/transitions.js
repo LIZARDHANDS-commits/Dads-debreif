@@ -74,7 +74,8 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
   if (!FORMATIONS[to]) return { ok: false, reason: `There is no formation called ${to}.` };
   const from = classify([lead, wing]);
   const lastSide = options.lastSide ?? -1;
-  const sCur = from.side || lastSide;
+  // From trail after a break (TS-175) #2's side is the echelon side he broke from, for the SARJ as for the TRJ (TS-174).
+  const sCur = (from.key === 'other' && options.trailSide) || from.side || lastSide;
   const want = options.side ?? 'keep';
   const sTo = sideFor(to, want, sCur);
   if (from.key === to && (to === 'astern' || sTo === sCur)) return { ok: false, reason: `Already in ${FORMATIONS[to].label.toLowerCase()}.` };
@@ -84,7 +85,7 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
   const rejoinKind = fromLab && to !== 'lab' ? (rejoinOpt === 'straight' || from.key === 'other' ? 'straight' : 'into') : 'none';
   // Away (TS-174) is the turning rejoin's own: the tracker here would fly Lead into #2, so it stays out of the race.
   // From trail after a break (TS-175) a TRJ press is the turning rejoin's too; this one would fly a straight-ahead rejoin.
-  if (options.trailSide && from.key === 'other' && rejoinOpt === 'into') return { ok: false, reason: 'No turning rejoin from this trail. Try SARJ.' };
+  if (options.trailSide && from.key === 'other' && rejoinOpt === 'into' && to !== 'lab') return { ok: false, reason: 'No turning rejoin from this trail. Try SARJ.' };
   if (options.turn === 'away' && (rejoinKind === 'into' || (from.key === 'fw' && to !== 'fw'))) {
     return { ok: false, reason: 'No turning rejoin with Lead turning away from here. Try Into.' };
   }

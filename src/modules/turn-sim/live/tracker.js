@@ -585,7 +585,7 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     const D = FW_BUBBLE;
     // One smooth change, stopping on the target as he gets there: on the line within heightG of level flight (TS-140), onto
     // the wing plane within planeEaseG (TS-126). Until V2.232 the line's was FW_BUBBLE's 1.9 g pull to a fixed 50 ft.
-    const pull = (ph.slopedAlt ? TR.heightG : TR.planeEaseG) * G_FTPS2;
+    const pull = (ph.slopedAlt ? (ph.heightG ?? TR.heightG) : TR.planeEaseG) * G_FTPS2;
     // Any pull up (a climb, or stopping a descent) stays inside the G rule's 5 G with the bank he has (TS-181): in the
     // capture's steep bank he holds his height, and comes up the 4° as he rolls out.
     const tanB = Math.tan(Math.min(89, Math.abs(W.bankDeg ?? 0)) * DEG);
@@ -705,6 +705,7 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
         t1: t + span,
         fromFt: W.altAboveFt,
         toFt: target,
+        v0Ftps: W.climbFtps ?? 0, // carries the climb he has: a leg from level here was a one-step -8 G (flight.js heightAt)
         ...(ph.dive && target < W.altAboveFt ? { dive: ph.dive } : {}),
         ...(ph.climb && target > W.altAboveFt ? { climb: ph.climb } : {}),
       };

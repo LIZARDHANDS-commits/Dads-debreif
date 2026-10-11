@@ -330,8 +330,16 @@ export function heightAt(profile, t) {
     const span = Math.max(leg.t1 - leg.t0, 1e-9);
     const u = (t - leg.t0) / span;
     const rise = leg.toFt - leg.fromFt;
+    // A leg started mid-climb carries the climb it starts with (v0Ftps), fading out by its end (u(1-u)^3: slope 1 at the
+    // start, none at the end): until V2.273 a new leg started level, and the step to it read -8 G (4-ship finger, #3 and #4).
+    const v0 = leg.v0Ftps ?? 0;
+    const w = 1 - u;
     // nz: the G the leg's pull or push puts on the aircraft with the wings level (1 + vertical acceleration / g; height as energy).
-    return { altAboveFt: leg.fromFt + rise * smoother(u), climbFtps: (rise * smootherSlope(u)) / span, nz: 1 + (rise * smootherCurve(u)) / (span * span * G_FTPS2) };
+    return {
+      altAboveFt: leg.fromFt + rise * smoother(u) + v0 * span * u * w * w * w,
+      climbFtps: (rise * smootherSlope(u)) / span + v0 * w * w * (1 - 4 * u),
+      nz: 1 + ((rise * smootherCurve(u)) / span + v0 * w * (12 * u - 6)) / (span * G_FTPS2),
+    };
   }
   return null;
 }
