@@ -216,9 +216,10 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       case 'climb': return [climbOrDescend(1, at.askBank ?? st.bank)];
       case 'descend': return [climbOrDescend(-1, at.askBank ?? st.bank)];
       case 'loop': return [loop()];
-      case 'wingover': return [wingovers(dir)];
-      case 'barrelRoll': return [barrelRoll(dir)];
-      case 'sequence': return sequenceParts(dir, bank);
+      // The roll's way is kept on the controller for the live wingman (fluid-wing-live.js), who keeps to its outside.
+      case 'wingover': return [{ ...wingovers(dir), dir }];
+      case 'barrelRoll': return [{ ...barrelRoll(dir), dir }];
+      case 'sequence': return sequenceParts(dir, bank).map((c) => ({ ...c, dir }));
       case 'reversal':
         if (Math.abs(tsBank) < 10) return { reason: 'Reversal needs a turn to reverse: press a level turn first.' };
         return [reversal(tsBank, Math.max(bank, Math.abs(tsBank) > 5 ? Math.min(Math.abs(tsBank), LEAD.levelBanks.steep) : bank))];
@@ -282,6 +283,11 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
         const e = E(kNow);
         liveNow = stepLiveWing(liveWs, { e: E(kNow - 1), E, k: kNow - 1, kMin, t: e.t, rangeFt, blockFt });
         liveWs = liveNow.ws;
+        // Lead's turns that read #2's side (Terminate's turn away from him, the entry) read the side he is really on.
+        for (let j = kNow; j <= kMax; j++) {
+          const en = entries.get(j);
+          if (en.wing.side !== liveWs.side) en.wing = { ...en.wing, side: liveWs.side };
+        }
         if (e.end && endSeen === null) endSeen = kNow;
         if (endSeen !== null && ended === null && (liveNow.settled || kNow - endSeen > HOLD.extraSec / dt)) ended = kNow;
         const pose = liveNow.pose;
