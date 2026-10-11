@@ -12,6 +12,7 @@ import { createEvents } from './events.js';
 import { STEP_SEC, makeAircraft, stepAircraft, planDone } from './flight.js';
 import { MANOEUVRES, planManoeuvre, relativeTo, dryRun, TURN_BANK_DEG, TURN_G, DEG } from './manoeuvres.js';
 import { flyStep, dryRunT } from './replay.js';
+import { setKias } from './pilot.js';
 import { resolveErrors, resolveFixTools, applyStartErrors, planWithErrors, outcomeOf, offStandardOutcome, responseOf } from './errors.js';
 import { FOUR_SHIP_KEYS, fourShipStart, planFour } from './four-ship.js';
 import { OFFSET_BOX_KEYS, planOffsetBoxTurn } from './offset-box-turns.js';
@@ -441,6 +442,30 @@ export function createFormation(options = {}) {
     }
   }
 
+  /**
+   * With nothing being flown, every aircraft straight and level and its plan done, a wingman holds Lead's heading as a
+   * pilot holds his place: a change counts as done once he is in his band and steady (under 5 kt against his place), so he
+   * can finish a fraction of a degree off Lead's heading, and flown on straight that took him across the formation (Patrick
+   * 11 Oct 2026 08:30Z: after route to echelon "drift all the way into the lead aircraft"). Within IDLE_TRIM.offRad of
+   * Lead's heading he eases onto it at IDLE_TRIM.rateRad a second, too slow to see, and onto his speed the same way.
+   */
+  function holdStationIdle() {
+    if (state.current || state.fluid) return;
+    const lead = state.aircraft[0];
+    if (lead.bankDeg !== 0 || !planDone(lead, state.plans[lead.id])) return;
+    for (const a of state.aircraft.slice(1)) {
+      if (a.bankDeg !== 0 || !planDone(a, state.plans[a.id])) continue;
+      const off = Math.atan2(Math.sin(a.headingRad - lead.headingRad), Math.cos(a.headingRad - lead.headingRad));
+      if (Math.abs(off) > IDLE_TRIM.offRad) continue;
+      const trim = IDLE_TRIM.rateRad * STEP_SEC;
+      a.headingRad = Math.abs(off) <= trim ? lead.headingRad : a.headingRad - Math.sign(off) * trim;
+      // and his speed the same way, so he doesn't creep fore or aft
+      const dk = a.kias - lead.kias;
+      const kTrim = IDLE_TRIM.ktps * STEP_SEC;
+      if (dk !== 0 && Math.abs(dk) <= IDLE_TRIM.offKt) setKias(a, Math.abs(dk) <= kTrim ? lead.kias : a.kias - Math.sign(dk) * kTrim);
+    }
+  }
+
   /** Why a manoeuvre can't be flown from where the formation is now, or null (spec sections 8 and 10: line abreast only). */
   function refuseMove(key, dir) {
     const where = whereNow().key;
@@ -628,6 +653,7 @@ export function createFormation(options = {}) {
       // ctx: the live formation, so a line's tracker run-in is planned again at the hand-over (replay.js flyStep, step 2)
       const ctx = { live: true, aircraft: state.aircraft, plans: state.plans };
       for (const a of state.aircraft) flyStep(a, state.plans[a.id] ?? (state.plans[a.id] = { segments: [] }), state.tSec, ctx);
+      holdStationIdle();
       state.tSec = Math.round((state.tSec + STEP_SEC) / STEP_SEC) * STEP_SEC;
       keepTrack();
       keepRecord();
@@ -646,6 +672,9 @@ export function createFormation(options = {}) {
     },
   };
 }
+
+/** An idle wingman within offRad of Lead's heading and offKt of his speed eases onto them at rateRad and ktps a second (holdStationIdle; estimates). */
+const IDLE_TRIM = Object.freeze({ offRad: 1 * DEG, rateRad: 0.1 * DEG, offKt: 2, ktps: 0.2 });
 
 /** The formations the manoeuvre buttons fly from: line abreast, or a picture that is none of the close ones (after an in-place turn). */
 const MOVES_FROM = ['lab', 'other'];
