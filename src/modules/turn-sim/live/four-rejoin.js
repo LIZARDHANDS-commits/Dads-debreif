@@ -408,42 +408,57 @@ export function turningAway(start, t0, opts, s, from, to) {
     id: 2,
     plane: to !== 'fw',
     fly: twoTurning(c, into, sIn, 'fw', sIn, abreast(from), true),
-    then: (done) => {
-      const p = inLeadFrame(slots, 2);
-      const gate = inAt(done, 4);
-      if (to === 'echelon') {
-        return [
-          // on Lead's six at the straight-ahead rejoin's 1,000 ft, below the wake
-          rejoinTo(place(c, A.sixFt, 0, -AWAY_CROSS.belowFt), { track: 1, advanceTol: 60, holdUntil: gate }),
-          // up the six (the straight-ahead rejoin's closing leg), then from about 500 ft out into the gap
-          rejoinTo(place(c, A.closeTowardFt, 0, -AWAY_CROSS.belowFt), { track: 1, overtakeKias: 30, advanceTol: A.vectorAtFt + A.closeTowardFt }),
-          // out into the gap behind his place (as far back as route is behind echelon), then up into it
-          // his bank capped on what he adds to Lead's, not on the whole of it: at 25° all told he could not stay with Lead's
-          // 30° turn and fell out of it (from V2.248, where the gap is 59 ft behind echelon, not 71)
-          closeThrough(place(c, p.fwd + out.fwd - step.fwd, p.left, p.alt - 25), { track: 1, advanceTol: 6, targetBankDeg: CLOSE_SHAPING.targetBankDeg }),
-          slide(place(c, p.fwd, p.left, p.alt), { track: 1, targetBankDeg: CLOSE_SHAPING.targetBankDeg }),
-        ];
-      }
-      // fighting wing: onto his place in the cone (his +300 ft off, as rejoinToFw), so #3 and #4 are on theirs off him
-      if (to === 'fw') return [rejoinTo(place(c, p.fwd, p.left, Math.min(p.alt, -FW_STEP_DOWN_FT)), { track: 1, holdUntil: gate })];
-      // finger: into the inside behind #3, then across two lengths behind and below Lead to the outside, and up (TS-177)
-      const back = -TRJ.passBehindLengths * LENGTH_FT;
-      const across = { track: 1, bankCapDeg: WING_BANKS.rejoinBankCapDeg, overtakeKias: 10, undertakeKias: 10 };
-      return [
-        rejoinTo(place(c, -TRJ.waitBehindFt[3], sIn * ech().left, -TRJ.waitLowFt[3]), { track: 1, advanceTol: 10, overtakeKias: REJOIN.overtakeKias, holdUntil: gate }),
-        slide(place(c, back, 0, -CROSS_LOW_FT), across),
-        slide(place(c, back, p.left, -CROSS_LOW_FT), across),
-        toSlot(c, slide, slots[2], { bankCapDeg: WING_BANKS.rejoinBankCapDeg, overtakeKias: 10, undertakeKias: 10 }),
-      ];
-    },
+    then: (done) => thenLegs(c, done),
   });
+  // From fighting wing (Patrick's card 11 Oct 2026 08:39Z, "Away from FW") #2 is already close behind, 300 ft above: the
+  // 2-ship's Away cross dived him under Lead at -2.3 G. He comes off his stack first, crosses Lead's six AWAY_CROSS behind
+  // and below and waits there until #4 is in, then flies on as below; to echelon straight into the gap, not back out to the
+  // straight-ahead rejoin's 1,000 ft.
+  const twoFromFw = (c) => ({
+    id: 2,
+    plane: to !== 'fw',
+    phases: (done) => [
+      ...comeOffFirst(c, 2, 1),
+      rejoinTo(place(c, -AWAY_CROSS.behindFt, 0, -AWAY_CROSS.belowFt), { track: 1, advanceTol: 60, bankCapDeg: TURNING_REJOIN.bankCapDeg, holdUntil: inAt(done, 4) }),
+      ...(to === 'echelon' ? thenLegs(c, done).slice(2) : thenLegs(c, done)),
+    ],
+  });
+  const thenLegs = (c, done) => {
+    const p = inLeadFrame(slots, 2);
+    const gate = inAt(done, 4);
+    if (to === 'echelon') {
+      return [
+        // on Lead's six at the straight-ahead rejoin's 1,000 ft, below the wake
+        rejoinTo(place(c, A.sixFt, 0, -AWAY_CROSS.belowFt), { track: 1, advanceTol: 60, holdUntil: gate }),
+        // up the six (the straight-ahead rejoin's closing leg), then from about 500 ft out into the gap
+        rejoinTo(place(c, A.closeTowardFt, 0, -AWAY_CROSS.belowFt), { track: 1, overtakeKias: 30, advanceTol: A.vectorAtFt + A.closeTowardFt }),
+        // out into the gap behind his place (as far back as route is behind echelon), then up into it
+        // his bank capped on what he adds to Lead's, not on the whole of it: at 25° all told he could not stay with Lead's
+        // 30° turn and fell out of it (from V2.248, where the gap is 59 ft behind echelon, not 71)
+        closeThrough(place(c, p.fwd + out.fwd - step.fwd, p.left, p.alt - 25), { track: 1, advanceTol: 6, targetBankDeg: CLOSE_SHAPING.targetBankDeg }),
+        slide(place(c, p.fwd, p.left, p.alt), { track: 1, targetBankDeg: CLOSE_SHAPING.targetBankDeg }),
+      ];
+    }
+    // fighting wing: onto his place in the cone (his +300 ft off, as rejoinToFw), so #3 and #4 are on theirs off him
+    if (to === 'fw') return [rejoinTo(place(c, p.fwd, p.left, Math.min(p.alt, -FW_STEP_DOWN_FT)), { track: 1, holdUntil: gate })];
+    // finger: into the inside behind #3, then across two lengths behind and below Lead to the outside, and up (TS-177)
+    const back = -TRJ.passBehindLengths * LENGTH_FT;
+    const across = { track: 1, bankCapDeg: WING_BANKS.rejoinBankCapDeg, overtakeKias: 10, undertakeKias: 10 };
+    return [
+      rejoinTo(place(c, -TRJ.waitBehindFt[3], sIn * ech().left, -TRJ.waitLowFt[3]), { track: 1, advanceTol: 10, overtakeKias: REJOIN.overtakeKias, holdUntil: gate }),
+      slide(place(c, back, 0, -CROSS_LOW_FT), across),
+      slide(place(c, back, p.left, -CROSS_LOW_FT), across),
+      toSlot(c, slide, slots[2], { bankCapDeg: WING_BANKS.rejoinBankCapDeg, overtakeKias: 10, undertakeKias: 10 }),
+    ];
+  };
   const r = legsInTurn(start, t0, opts, [
     (c) => {
       const into = leadInto(c, sIn, to);
       const join = to === 'fw' ? cone : close;
       return {
-        lead: { hold: into, until: [2, 3, 4], ...(to === 'fw' ? {} : { rollOutRoll: RATE_SETS.close.echelonRoll }) },
-        wings: [join(c, 3, () => c.t0), join(c, 4, (done) => inAt(done, 3)), two(c, into)],
+        // Lead rolls out gently, so #4 out on the echelon rises with the plane (a 0.3 G push at 30°/s; Fable's v2276 flight)
+        lead: { hold: into, until: [2, 3, 4], ...(to === 'fw' ? {} : { rollOutRoll: RATE_SETS.close.routeRoll }) },
+        wings: [join(c, 3, () => c.t0), join(c, 4, (done) => inAt(done, 3)), from === 'fw' ? twoFromFw(c) : two(c, into)],
       };
     },
   ]);
