@@ -117,12 +117,14 @@ function overshootLegs(s, to, sTo, spacingFt) {
  * roll and wings level earlier", "quick but smooth").
  * Three tracker phases, all at Lead's 200 KIAS: he turns hard toward Lead, within pointMaxG, rolled quick but smooth
  * (pointRoll), and is rolled out wings level with Lead still pointAheadDeg short of the nose; wings level until Lead has come
- * lookThroughDeg through the nose and he has waited lookMinSec (or lookMaxSec); then the smooth reversal (reverseRoll, at most
- * reverseBankDeg), turning with Lead's line of sight until Lead sits frozenBearingDeg off the nose inside the turn, where the
- * ride freezes him (Fable's V2.249 flight, 04:40Z).
+ * lookThroughDeg through the nose and he has waited lookMinSec (or lookMaxSec); then the smooth reversal at full power
+ * (reverseRoll, within pointMaxG), turning with Lead's line of sight until Lead sits frozenBearingDeg off the nose inside the
+ * turn, where the ride freezes him (Fable's V2.249 flight, 04:40Z). At V2.250-V2.251's 66° (2.5 G) it swung him across
+ * the 35° line to 13° off Lead's tail before he opened out again; at pointMaxG he stays outside it (Patrick 04:59Z: "I don't
+ * want to overshoot the line").
  * Until V2.248 the ride's capture turned him at the 5 G flag's 78° bank and 180°/s and never held wings level.
  */
-function pointingPhases(altFt) {
+function pointingPhases(altFt, depthFt) {
   const TR = TURNING_REJOIN;
   const capDeg = Math.acos(1 / TR.pointMaxG) / DEG;
   const toLead = (L, W) => wrapPi(Math.atan2(L.yFt - W.yFt, L.xFt - W.xFt) - W.headingRad);
@@ -169,8 +171,12 @@ function pointingPhases(altFt) {
     }),
     phase({ fwd: 0, left: 0, alt: altFt }, {
       ...common,
+      // From the reversal Lead comes up to lineElevDeg above the horizon as the range closes, no deeper than he is, so the
+      // ride starts on its own height law with no step (V2.251: a 0.8 s pull of 2.1 G at the hand-over).
+      slopedAlt: true,
+      slopedMaxFt: depthFt,
       roll: TR.reverseRoll,
-      bankCapDeg: TR.reverseBankDeg,
+      bankCapDeg: capDeg,
       pursuit: (L, W, t) => {
         reverseFrom ??= t;
         // He turns with Lead's line of sight and brings Lead back across the nose onto the frozen bearing, inside the turn,
@@ -178,10 +184,10 @@ function pointingPhases(altFt) {
         const err = wrapPi(toLead(L, W) - side0 * TR.frozenBearingDeg * DEG);
         const omega = losRate(L, W) + err / TR.frozenTauSec;
         const bankDeg = Math.atan((W.tasFtps * omega) / G_FTPS2) / DEG;
-        // Power up to the line's overtake as Lead comes back across the nose, rolling out onto the line (EFIG 10-20 kt; Fable's
-        // V2.250 flight: at Lead's 200 KIAS the range sat at 1,850 ft for 13 s).
-        const kiasCmd = toLead(L, W) * side0 >= 0 ? lineKiasNow() : TR.pointKias;
-        return { bankDeg: clamp(bankDeg, TR.reverseBankDeg), psiCmd: W.headingRad, kiasCmd, done: Math.abs(err) / DEG <= TR.reverseDoneDeg || t - reverseFrom >= TR.reverseMaxSec - 1e-9 };
+        // Full power through the reversal and the roll-out, to reach the line at 200-210 KIAS (Patrick 04:59Z: "Keep full power
+        // on the reversal to hit the line at 200-210"); then the ride's overtake.
+        const kiasCmd = lineKiasNow();
+        return { bankDeg: clamp(bankDeg, capDeg), psiCmd: W.headingRad, kiasCmd, done: Math.abs(err) / DEG <= TR.reverseDoneDeg || t - reverseFrom >= TR.reverseMaxSec - 1e-9 };
       },
     }),
   ];
@@ -439,7 +445,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
     // watching him until his line of sight moves, then the reversal onto the line (the ride's capture).
     pointed = point && hardSec === 0 && initialRange > TR.pointFromFt;
     if (pointed) {
-      phases.push(...pointingPhases(lineFt));
+      phases.push(...pointingPhases(lineFt, leadAlt - lineFt));
       numApproachPhases += 3;
     }
     // After the SMM's start, Lead held frozen in the windscreen to the decision point (TS-182 (3)); else the ride (Step 7):
