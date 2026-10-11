@@ -61,9 +61,10 @@ export const EYE_BELOW_HELMET_FT = 0.09;
  */
 export const FRONT_SEAT_RAISE_FT = 2 / 12;
 /**
- * The student's eye in the front seat (the default front eye), feet: 2.06 ft ahead of the model's origin (13.2 ft behind
- * the spinner tip) and 2.07 ft above the spinner's axis, the T-6A-1 side drawing's raised FRONT_SEAT_RAISE_FT (ALL-31;
- * was 1.4 ft and 2.14 ft, then 1.9 ft up until V2.238).
+ * The student's eye in the front seat (the default front eye), feet: 3.0 ft ahead of the model's origin (12.3 ft behind
+ * the spinner tip) and 2.07 ft above the spinner's axis, the T-6A-1 side drawing's front pilot (re-read on a full copy,
+ * 11 Oct 2026; the model's CT156_SEAT_X) raised FRONT_SEAT_RAISE_FT (ALL-31; was 1.4 ft and 2.14 ft, then 1.9 ft up
+ * until V2.238, then 2.06 ft ahead until the front cockpit moved 11 in forward, Patrick 11 Oct 2026 07:39Z).
  */
 export const EYE_FT = Object.freeze({ x: CT156_SEAT_X[0] * F + EYE_AHEAD_OF_HELMET_FT, y: 0, z: CT156_HELMET_Z[0] * F - EYE_BELOW_HELMET_FT + FRONT_SEAT_RAISE_FT });
 
@@ -138,7 +139,10 @@ export const ARCH_FT = Object.freeze({
  * cockpit frames; from the seat that made the top of the panel far too wide and Patrick put it back (11 Oct 2026
  * 07:06Z: "you made the panel way too wide at the top. it looked more accurate and better in v 2.263"). Estimates.
  */
-const COAMING_EDGE_X = 4.19;
+// The front cockpit moved 0.95 ft forward with the front seat (Patrick, 11 Oct 2026 07:39Z, "whole cockpit 11 in
+// (except the bow)"): the coaming's edge was 4.19 ft and the glareshield's fore end 5.87 ft; both keep their distance
+// from the eye.
+const COAMING_EDGE_X = 5.14;
 const OVERHANG_FT = 0.25;
 export const PANEL_FT = Object.freeze({ x: COAMING_EDGE_X + OVERHANG_FT, top: 1.48, bottom: 0.22, width: 2.3, insetFromGlass: 0.06, shoulderV: 0.6, topFrac: 0.55 });
 
@@ -153,7 +157,7 @@ export const PANEL_FT = Object.freeze({ x: COAMING_EDGE_X + OVERHANG_FT, top: 1.
  * its aft edge with the three lamps on it, just deep enough to cover the EADI's top from the eye (Patrick's seat rule,
  * 11 Oct 2026; about 0.15 ft, lipDrop's estimate before). Shape judged off Dad's pictures 17, 18, 20 and 26; sizes estimates.
  */
-export const GLARESHIELD_FT = Object.freeze({ aftX: COAMING_EDGE_X, foreX: 5.87, top: 1.634, foreTop: 1.33, lipDrop: 0.15, skirt: 0.12, topGrow: -0.1, sideGrow: 0, dropGrow: -0.1 });
+export const GLARESHIELD_FT = Object.freeze({ aftX: COAMING_EDGE_X, foreX: 6.82, top: 1.634, foreTop: 1.33, lipDrop: 0.15, skirt: 0.12, topGrow: -0.1, sideGrow: 0, dropGrow: -0.1 });
 /**
  * The glareshield's rim, the thick dark grab rail along the coaming's aft edge and down the panel's sides to brackets
  * at 18 % of its height: its top run 0.03 ft behind the coaming at the coaming's own height, 0.045 ft in radius
@@ -194,9 +198,10 @@ export const REAR_PANEL_FT = Object.freeze({ x: -0.7, top: 1.75, bottom: 0.7, wi
  * The rear coaming, feet (TS-157): the big moulded hump over the front seat's back that the rear panel sits under
  * (Dad's pictures 27 and 29), its aft edge along the rear panel's outline at 1.9 ft with the grab rail on it, rising
  * 0.16 ft over the first 38 % of its length and widening to the canopy, then falling 0.41 ft onto the front seat's back
- * (0.93 ft ahead of the origin; 0.36 ft until ALL-31 moved the front seat 0.57 ft forward). Estimates.
+ * (1.88 ft ahead of the origin; 0.36 ft until ALL-31 moved the front seat 0.57 ft forward, 0.93 ft until it moved 0.95 ft
+ * more, 11 Oct 2026). Estimates.
  */
-export const REAR_HUMP_FT = Object.freeze({ aftX: REAR_PANEL_FT.x - 0.1, foreX: 0.93, top: 1.9, rise: 0.16, peakT: 0.38, foreDrop: 0.25, lipDrop: 0.15, skirt: 0.12, topGrow: 0.35, sideGrow: 0.2, dropGrow: 0.35 });
+export const REAR_HUMP_FT = Object.freeze({ aftX: REAR_PANEL_FT.x - 0.1, foreX: 1.88, top: 1.9, rise: 0.16, peakT: 0.38, foreDrop: 0.25, lipDrop: 0.15, skirt: 0.12, topGrow: 0.35, sideGrow: 0.2, dropGrow: 0.35 });
 
 /**
  * The seats and their cockpits, feet (estimates off Dad's reference pictures; the seat back's frame is the model's).
