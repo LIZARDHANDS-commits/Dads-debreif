@@ -179,8 +179,9 @@ export function excessThrustPerWeight(kias, altFt, g) {
  * Pitch attitude: the angle of attack the wing needs on top of the flight path
  * angle. AoA = aoa180Deg × G × (180 ÷ KIAS)², set so the normal 180 KIAS climb
  * shows about 10-12° nose up and the 140 KIAS best-rate climb about 15°, with
- * this model's full-power climb angles (SMM 3.14 para 35; EFIG p.126). It then
- * gives about 2° at 220 KIAS level. An estimate until checked on screen.
+ * this model's full-power climb angles (SMM 3.14 para 35; EFIG p.126). With datumDeg it gives Patrick's attitudes
+ * within a fraction of a degree (Patrick, 11 Oct 2026 01:26Z: 2.5° nose up on the gear on level ground, 0° level at
+ * 180 KIAS, -0.5° at 220 KIAS; the sim 2.6°, 0.2°, -0.7°).
  */
 export const T6A_PITCH = Object.freeze({
   aoa180Deg: 2.8,
@@ -216,7 +217,8 @@ export function pitchDegFromClimb(climbFtps, tasFtps, kias, g = 1, config = null
 /**
  * The pitch attitude the pilot sees, in degrees nose up: pitchDegFromClimb less T6A_PITCH.datumDeg, the angle the
  * fuselage sits nose-down from the wing's zero-lift line. 2.6° is fitted to Patrick's 220 KIAS level attitude of
- * -0.5 to -1° (6 Oct 2026 06:17Z; card "Both modules" 06:20Z), an estimate; it gives about 8.5° in the model's
+ * -0.5 to -1° (6 Oct 2026 06:17Z; card "Both modules" 06:20Z) and matches his 2.5° nose up on the gear on level ground
+ * (Patrick, 11 Oct 2026 01:26Z, with 0° level at 180 KIAS and -0.5° at 220); it gives about 8.5° in the model's
  * 180 KIAS full-power climb (Patrick: about 10°). For display and attitude targets; pitchDegFromClimb itself is
  * unchanged for the code that already uses it.
  */
