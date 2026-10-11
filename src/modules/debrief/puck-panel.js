@@ -1,7 +1,7 @@
 // "GPS source" in the Flight column, closed at first: one block per loaded ship with where its GPS puck sat (DB-23;
 // "GPS puck: Not set / Front cockpit / Rear cockpit") and how its timestamps are read (DB-25; "Timestamps: Snapped to
 // GPS second (auto) / As recorded", or "On GPS seconds" when there is nothing to snap, and a "Time shift" in 0.1 s
-// steps), and whether its heights are corrected from its ground fixes (DB-27; "Altitude: Corrected from the ground (auto) / As
+// steps), and whether its heights are corrected from its ground fixes (DB-28; "Altitude: Corrected from the ground (auto) / As
 // recorded") with the check's line under it. Shown only while a flight is loaded. Track names go in as text.
 import { h, clear } from '../../ui-kit/dom.js';
 import { createPanel } from '../../ui-kit/panel.js';

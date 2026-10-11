@@ -165,7 +165,7 @@ export function flightSummary(flight, fill = null) {
   if (timing) parts.push(timing);
   const puck = puckSummary(flight); // DB-23
   if (puck) parts.push(puck);
-  const altitude = altitudeSummary(flight); // DB-27
+  const altitude = altitudeSummary(flight); // DB-28
   if (altitude) parts.push(altitude);
   return parts.join(', ');
 }
@@ -200,7 +200,7 @@ export function trackStatus(flight, fill = null) {
       lines.push(...timingLines(tr)); // DB-25
       const puck = puckLine(tr); // DB-23
       if (puck) lines.push(puck);
-      const altitude = altitudeStatusLine(tr); // DB-27
+      const altitude = altitudeStatusLine(tr); // DB-28
       if (altitude) lines.push(altitude);
       const cut = flight.cutTracks?.find((c) => c.slot === tr.slot);
       if (cut) {

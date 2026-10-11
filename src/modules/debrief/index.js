@@ -102,7 +102,7 @@ function mount(root, app) {
   // they are kept. Applied to baseFlight first (the puck move and the gap fill read the times), then the pucks.
   let timings = {};
   let timingKey = null;
-  // The altitude check (DB-27): each ship kept at its recorded heights ({ slot: { recorded: true } }), where that is kept,
+  // The altitude check (DB-28): each ship kept at its recorded heights ({ slot: { recorded: true } }), where that is kept,
   // and the terrain heights under the ground fixes (loaded once per flight; the flight is checked again when they land).
   let altitudes = {};
   let altitudeKey = null;
@@ -112,7 +112,7 @@ function mount(root, app) {
     const state = terrain?.state() ?? 'none';
     return { refAt: terrain && state !== 'loading' ? terrain.refAt : null, terrain: state };
   };
-  /** baseFlight retimed (DB-25), moved from its pucks (DB-23) and its heights corrected from the ground (DB-27): the flight every view shows. */
+  /** baseFlight retimed (DB-25), moved from its pucks (DB-23) and its heights corrected from the ground (DB-28): the flight every view shows. */
   const sourceFlight = (base, t, p, a = altitudes) => {
     let timed = base;
     try {
@@ -580,7 +580,7 @@ function mount(root, app) {
     reshowSource();
   }
 
-  // A ship's altitude choice changed (DB-27): as a puck change, from the as-loaded fixes.
+  // A ship's altitude choice changed (DB-28): as a puck change, from the as-loaded fixes.
   function setAltitude(slot, value) {
     if (!baseFlight) return;
     const next = { ...altitudes };
@@ -611,7 +611,7 @@ function mount(root, app) {
     map.setFlight(flight, { keepView: true });
     ui.showFlight(flight);
     puckPanel.setChecks(flight);
-    renderSpace(); // the 3D ground reads the corrected heights (DB-26, DB-27)
+    renderSpace(); // the 3D ground reads the corrected heights (DB-26, DB-28)
     flightCount++;
     refill();
     renderReadouts();
@@ -736,7 +736,7 @@ function mount(root, app) {
         }, ({ flight: next, opened, text }) => {
           const filePucks = pucksFromSettings(opened.settings); // null when the file names none: the browser's choice stands
           const fileTimings = timingsFromSettings(opened.settings); // the same for the timestamps (DB-25)
-          const fileAltitudes = altitudesFromSettings(opened.settings); // and the altitude choices (DB-27)
+          const fileAltitudes = altitudesFromSettings(opened.settings); // and the altitude choices (DB-28)
           flight = sourceFlight(next, fileTimings ?? {}, filePucks ?? {}, fileAltitudes ?? {}); // leadAt reads it for the DFP flags
           const patch = standardsPatch(opened.settings);
           if (patch && app.standards) app.standards.update(patch);

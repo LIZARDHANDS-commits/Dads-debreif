@@ -1,4 +1,4 @@
-// Terrain heights under the loaded tracks' ground fixes, for the altitude check (DB-27): the public Terrarium elevation tiles, decoded by
+// Terrain heights under the loaded tracks' ground fixes, for the altitude check (DB-28): the public Terrarium elevation tiles, decoded by
 // the shared src/core/terrain-tiles.js (the same source and decoder as the SOF's 3D terrain and Traffic's ground), at zoom TERRAIN_ZOOM.
 // Only the tiles holding a ground fix are asked for (one or two airfields: a handful of tiles), at most MAX_TILES.
 // - Data failure: a tile that fails is asked for once more after RETRY_MS, then given up on; a picture that is not a terrain tile is refused.

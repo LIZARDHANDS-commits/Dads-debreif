@@ -1,4 +1,4 @@
-// Altitude check (DB-27; Dad, 11 Oct 2026: "For the KML viewer can we also have an altitude assessment. Each aircraft should be taxiing
+// Altitude check (DB-28; Dad, 11 Oct 2026: "For the KML viewer can we also have an altitude assessment. Each aircraft should be taxiing
 // on the same plane for sure on the taxiways and same with touch down, so that should help with the altitude error"). Each receiver's GPS
 // height has its own error of a few to a few tens of feet, so four ships in close formation can read stacked when they were level. On the
 // ground every aircraft sits on the same surface, so the ground fixes calibrate each ship: what a ship reads on the ground against what the

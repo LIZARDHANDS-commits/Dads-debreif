@@ -64,7 +64,7 @@ export function csvRows(flight, { recordedG = false, leadWindAt = null } = {}) {
   if (!flight) return [];
   const tracks = Object.values(flight.tracks).sort((a, b) => a.slot - b.slot);
   // A ship moved from its GPS puck (DB-23) says so on its position headers; the positions are the moved ones, as on screen.
-  // A ship whose heights were corrected from the ground (DB-27) says so on its altitude header, after any puck note.
+  // A ship whose heights were corrected from the ground (DB-28) says so on its altitude header, after any puck note.
   const named = (tr, name) => `#${tr.slot} ${name}${POSITION_COLUMNS.has(name) ? puckHeaderNote(tr) : ''}${name === 'alt ft' ? altitudeHeaderNote(tr) : ''}`;
   // Ships whose timestamps were snapped or shifted (DB-25) are named on the time column.
   const header = [`time (Zulu)${timingHeaderNote(flight)}`, ...tracks.flatMap((tr) => SHIP_COLUMNS.map(([name]) => named(tr, name)))];

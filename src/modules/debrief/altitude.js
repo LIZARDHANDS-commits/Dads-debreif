@@ -1,4 +1,4 @@
-// The altitude check setting (DB-27; Dad, 11 Oct 2026: "Each aircraft should be taxiing on the same plane for sure on the taxiways and same
+// The altitude check setting (DB-28; Dad, 11 Oct 2026: "Each aircraft should be taxiing on the same plane for sure on the taxiways and same
 // with touch down, so that should help with the altitude error"): per ship, whether its GPS heights are corrected from its ground fixes
 // (flight-data altitude.js), the flight corrected that way, and what the screen says about it. Plain values, no page access.
 import { altitudeCheck, correctAltitudes, ALTITUDE_CHECK } from '../../flight-data/altitude.js';

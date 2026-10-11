@@ -47,7 +47,7 @@ const ftWords = (v) => `${Math.round(v).toLocaleString('en-US')} ft`;
  * Every fix of the flight taken on the ground: { altFt (median height), x, y (the fixes' median place, map feet), fixes (how many) }, or
  * null with fewer than GROUND_MIN_FIXES. A fix is on the ground when its ground speed from the fix before is under the gap fill's groundKt
  * and that step is GROUND_STEP_MAX_S or shorter (flight-data isGroundFix). Reads the flight as the views get it (timestamps snapped, GPS
- * puck moved, heights corrected by the altitude check, DB-27).
+ * puck moved, heights corrected by the altitude check, DB-28).
  */
 export function trackGround(flight) {
   const alts = [];
@@ -56,7 +56,7 @@ export function trackGround(flight) {
   for (const tr of Object.values(flight?.tracks ?? {})) {
     const f = tr.fixes ?? [];
     for (let i = 1; i < f.length; i++) {
-      if (!isGroundFix(f, i)) continue; // the one ground-fix test (flight-data altitude.js), shared with the altitude check (DB-27)
+      if (!isGroundFix(f, i)) continue; // the one ground-fix test (flight-data altitude.js), shared with the altitude check (DB-28)
       const b = f[i];
       alts.push(b.altFt);
       xs.push(b.xFt);

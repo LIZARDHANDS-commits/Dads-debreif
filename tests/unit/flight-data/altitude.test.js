@@ -1,4 +1,4 @@
-// Checks: the altitude check (DB-27): two ships that taxi, fly level side by side and taxi in, one GPS reading 30 ft high at taxi out and
+// Checks: the altitude check (DB-28): two ships that taxi, fly level side by side and taxi in, one GPS reading 30 ft high at taxi out and
 //   40 ft high at taxi in, come out level with each other in the air and the same height above the ground while parked.
 // Serves: DB-R28 (the 3D shows the aircraft where they were) and Dad's ask of 11 Oct 2026 ("Each aircraft should be taxiing on the same
 //   plane ... that should help with the altitude error").

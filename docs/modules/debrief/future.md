@@ -50,7 +50,7 @@ Dad's ask, in his words: "add 3D from the cockpit to the KML viewer ... I want t
 
 Moved up to plan.md Step 3a (Patrick approved, relayed by Dad, 10 Oct 2026). Filled stretches must stay marked as estimates on screen and never feed the Debrief's verdicts as if they were real fixes, unless Patrick says otherwise. A design proposal is being written for him first.
 
-## Altitude check follow-ups (11 Oct 2026, from DB-27)
+## Altitude check follow-ups (11 Oct 2026, from DB-28)
 
 - **A receiver change on the ground.** On the example flight #3's taxi in fixes are stamped on the GPS second while its taxi out and airborne fixes sit 0.24 s after it: after landing its heights probably come from the iPad's own GPS, not the puck, so its taxi in bias calibrates a different receiver. The check could judge each phase's timestamps (DB-25's signature) and leave out a phase from another receiver. Not built.
 - **Correct to the terrain (absolute)** as an option, if Patrick picks DB-Q27 (b): it would also need the model's wheel height (DB-26's 6.2 ft, estimate) in the reference.
