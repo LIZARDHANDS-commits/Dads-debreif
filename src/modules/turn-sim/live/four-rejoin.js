@@ -21,7 +21,7 @@ import { STEP_SEC } from './flight.js';
 import { slide, closeThrough, rejoinTo, straightAhead, STRAIGHT_AHEAD } from './recipes.js';
 import { REJOIN, TURNING_REJOIN, STRAIGHT_REJOIN, WING_BANKS, KIAS_OUTSIDE_LAB } from './tuning.js';
 import { phase } from './tracker.js';
-import { RATE_SETS, G_RULE_BANK_DEG } from './rates.js';
+import { RATE_SETS, G_RULE_BANK_DEG, CLOSE_SHAPING } from './rates.js';
 import { KT_TO_FTPS as KT_FTPS } from '../../../core/units.js';
 import { leadTurnInto } from './lead-turn-in.js';
 import { searchTurningRejoin, flyTurningRejoinWith } from './turning-rejoin.js';
@@ -104,7 +104,7 @@ function twoTurning(c, into, s, to, sTo, hot, crossIn = false, xLaw = hot) {
     pick ??= searchTurningRejoin({ ...args, into, hot, verticalMinG: VERTICAL_MIN_G, xLaw, crossIn }) ?? false;
     if (!pick) return null;
     const rec = recs[1];
-    const flown = flyTurningRejoinWith({ ...args, into: { longRec: rec, planTo: () => ({ rec, segments: [], turned: 0 }) }, aimFt: pick.aimFt, bankCapDeg: pick.bankCapDeg, overtakeKt: pick.overtakeKt, lowFloor: pick.lowFloor, upFt: pick.upFt, minG: VERTICAL_MIN_G, xLaw, holdSec: FOUR_CHANGE_LIMIT_SEC, crossIn });
+    const flown = flyTurningRejoinWith({ ...args, into: { longRec: rec, planTo: () => ({ rec, segments: [], turned: 0 }) }, aimFt: pick.aimFt, bankCapDeg: pick.bankCapDeg, overtakeKt: pick.overtakeKt, lowFloor: pick.lowFloor, upFt: pick.upFt, minG: VERTICAL_MIN_G, xLaw, holdSec: FOUR_CHANGE_LIMIT_SEC, crossIn, point: pick.point });
     if (!flown) return null;
     const segments = flown.wingSegments
       ? flown.wingSegments.map((s) => ({ ...s, points: s.points ? [...s.points] : undefined, poses: s.poses ? [...s.poses] : undefined }))
@@ -392,8 +392,10 @@ export function turningAway(start, t0, opts, s, from, to) {
           // up the six (the straight-ahead rejoin's closing leg), then from about 500 ft out into the gap
           rejoinTo(place(c, A.closeTowardFt, 0, -AWAY_CROSS.belowFt), { track: 1, overtakeKias: 30, advanceTol: A.vectorAtFt + A.closeTowardFt }),
           // out into the gap behind his place (as far back as route is behind echelon), then up into it
-          closeThrough(place(c, p.fwd + out.fwd - step.fwd, p.left, p.alt - 25), { track: 1, advanceTol: 6 }),
-          slide(place(c, p.fwd, p.left, p.alt), { track: 1 }),
+          // his bank capped on what he adds to Lead's, not on the whole of it: at 25° all told he could not stay with Lead's
+          // 30° turn and fell out of it (from V2.248, where the gap is 59 ft behind echelon, not 71)
+          closeThrough(place(c, p.fwd + out.fwd - step.fwd, p.left, p.alt - 25), { track: 1, advanceTol: 6, targetBankDeg: CLOSE_SHAPING.targetBankDeg }),
+          slide(place(c, p.fwd, p.left, p.alt), { track: 1, targetBankDeg: CLOSE_SHAPING.targetBankDeg }),
         ];
       }
       // fighting wing: onto his place in the cone (his +300 ft off, as rejoinToFw), so #3 and #4 are on theirs off him

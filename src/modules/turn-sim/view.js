@@ -12,7 +12,7 @@ import { turnRadiusFt, turnRadiusFromBankFt, limitG, MIN_TURN_G } from '../../co
 import { ktToFtps, formatNm } from '../../core/units.js';
 import { distance } from '../../core/geo.js';
 import { SHIP_COLORS, OUTLINED_SHIPS } from './layout.js';
-import { FW_TURN } from './live/tuning.js';
+import { FW_TURN, TURNING_REJOIN } from './live/tuning.js';
 import { placeBoxOutline } from './live/move-in-band.js';
 
 const FT_PER_NM = 6076.11549;
@@ -464,19 +464,20 @@ function drawRejoin(ctx, map, state, { leadId, wingId, rangeFt, closureKt, side,
   const [lx, ly] = map.worldToScreen(lead.xFt, lead.yFt);
   const [wx, wy] = map.worldToScreen(wing.xFt, wing.yFt);
 
-  // 45° Turning Rejoin Line (the Canopy "X" line: SMM 12.24 para 56, Fig 12.15).
-  // 45° back from Lead's 3/9 line, i.e. 45° off Lead's tail line (4:30 clock right, 7:30 clock left).
+  // The turning rejoin line (the canopy X line: SMM 12.24 para 56, Figs 12.14-12.15): 35° off Lead's tail (TURNING_REJOIN
+  // lineDeg, TS-181; Patrick 11 Oct 03:53Z "make the green dotted line match the proper turning rejoin line"; 45° until V2.248).
+  const offTailDeg = 90 - TURNING_REJOIN.lineDeg;
   const s = side ?? (Math.sign((wing.xFt - lead.xFt) * -Math.sin(lead.headingRad) + (wing.yFt - lead.yFt) * Math.cos(lead.headingRad)) || -1);
   const isTurning = rejoinKind !== 'straight';
   const rejoinHdg = isTurning
-    ? lead.headingRad + Math.PI - s * (Math.PI / 4)
+    ? lead.headingRad + Math.PI - s * offTailDeg * (Math.PI / 180)
     : lead.headingRad + Math.PI; // straight-ahead rejoin lines up on Lead's 6 o'clock tail
 
   const len = (Math.max(map.size.width, map.size.height) / map.view.scale) * 0.85;
   const [ex, ey] = map.worldToScreen(lead.xFt + Math.cos(rejoinHdg) * len, lead.yFt + Math.sin(rejoinHdg) * len);
 
   ctx.save();
-  const lineColor = isTurning ? '#00ff66' : '#ffcc66'; // Bright green dashed for 45° TRJ line, amber for 6 o'clock
+  const lineColor = isTurning ? '#00ff66' : '#ffcc66'; // bright green dashed for the turning rejoin line, amber for 6 o'clock
   ctx.strokeStyle = lineColor;
   ctx.fillStyle = lineColor;
   ctx.lineWidth = 2.0;
@@ -490,7 +491,7 @@ function drawRejoin(ctx, map, state, { leadId, wingId, rangeFt, closureKt, side,
   // Label along the line
   const labelDist = Math.max(500, Math.min(rangeFt * 0.75, 200 / map.view.scale));
   const [tx, ty] = map.worldToScreen(lead.xFt + Math.cos(rejoinHdg) * labelDist, lead.yFt + Math.sin(rejoinHdg) * labelDist);
-  const labelText = isTurning ? '45° Rejoin line (X)' : 'Rejoin line (6 o\'clock)';
+  const labelText = isTurning ? `${offTailDeg}° Rejoin line (X)` : 'Rejoin line (6 o\'clock)';
   text(ctx, labelText, tx + 8, ty - 6, lineColor, 11);
 
   ctx.strokeStyle = '#ffcc66';

@@ -50,11 +50,31 @@ export const REJOIN = Object.freeze({
  */
 export const TURNING_REJOIN = Object.freeze({
   lineDeg: 55, // the rejoin line, degrees behind Lead's 3/9 line: 35° off his tail, where Lead's fin crosses his upper wing about two-thirds of the way out and Lead sits at about 11 o'clock on the canopy (SMM 12.24 para 56, Fig 12.14 frame 3; Patrick 11 Oct 2026 00:03Z "let's start with 35"; TS-181). It was 45°, read from "Lead at 10:30", which put the fin on the wingtip
-  lineUpFt: -50, // #2's least depth below Lead on the line: "maintain the horizontal plane just slightly below lead" (SMM 12.24 para 58); 50 ft Patrick's ruling (10 Oct 2026 19:57Z; TS-159's slope with Lead's bank retired)
-  lineElevDeg: 4, // ...and further out he holds Lead this many degrees above his horizon, once on the line, never shallower than lineUpFt: about 140 ft below at 2,000 ft, 70 at 1,000, 50 ft from about 700 ft in (EFIG p.374 "place lead slightly above the horizon"; Patrick 10 Oct 2026 23:58Z; TS-181; the 4° an estimate to tune)
+  lineUpFt: 0, // #2's least depth below Lead on the line: none since TS-182 (Patrick 11 Oct 2026 03:47Z: "Lead should stay frozen in the windscreen getting bigger until the decision point"), the 4° alone, about 15 ft below at the decision point; it was 50 ft (Patrick 10 Oct 19:57Z, SMM 12.24 para 58), which lifted Lead up the windscreen inside 700 ft
+  lineElevDeg: 4, // on the line he holds Lead this many degrees above his horizon, frozen in the windscreen and growing: about 140 ft below at 2,000 ft, 70 at 1,000, 15 at the decision point (EFIG p.374 "place lead slightly above the horizon"; Patrick 10 Oct 23:58Z, an estimate to tune; TS-181, TS-182)
+  frozenBearingDeg: 35, // after the SMM's start he holds Lead frozen in the windscreen at this bearing off his nose (Fable 04:18Z, from the 35° line's picture at the decision point; estimate)...
+  frozenSettleFt: 400, // ...coming onto it from where the reversal left him over this much of the way in (estimate)...
+  frozenTauSec: 3, // ...taking out a bearing error over this long (estimate)
+  frozenArriveKt: 5, // ...his overtake down to this at the decision point (estimate)...
+  frozenSlowFtPerKt: 60, // ...a knot less for every this many feet nearer it, from lineKiasNow's (estimate)
   aimsFt: [300, 600, 1200], // how sharply #2 captures the line: off it by this much he heads for it at half approachDeg; the one that brings him in soonest is flown (estimates: smaller is a sharper capture, larger a gentler, longer one)
   approachDeg: 80, // far off the line he heads for it at up to this angle across it, in Lead's frame (estimate)
   bankCapDeg: 60, // the bank he uses at most to get onto the line and hold it: past about 60° the drag costs speed and buys nothing (the review's estimate, rejoin-review-fable.md). Only when no rejoin at 60° keeps him behind Lead's 3/9 line does he use more, up to the G rule (REJOIN.bankCapDeg)
+  // The start from line abreast (TS-182; SMM 16.20 para 65b(2): "aggressively turn to point at the lead. At this point, roll out
+  // of the turn and monitor the lead. Once a definite increase in the line of sight is detected, reverse the turn to capture";
+  // Patrick 11 Oct 2026 03:37Z-03:48Z). Until V2.248 the capture legs were flown at the 5 G flag's 78° and 180°/s.
+  pointMaxG: 4.5, // he turns hard to point at Lead, within this G, his bank in proportion to the heading still to turn (Patrick 04:05Z: "Turn more at the start with 4-5 g quick roll and wings level earlier"; 5 G stays a flag he stays inside)
+  pointGain: 6, // degrees of bank per degree of heading still to turn, so he rolls out as Lead comes onto the nose (estimate)
+  pointTolDeg: 2, // pointing at Lead within this, he is wings level (estimate)
+  pointKias: 200, // he holds Lead's 200 KIAS through the start: faster, the reversal carries him across Lead's track (estimate from the geometry)
+  pointRoll: Object.freeze({ maxRateDps: 90, maxAccelDps2: 180 }), // the start's roll: quick but smooth (Patrick 04:05Z), not the 180°/s, 720°/s² of the tactical moves (estimate)
+  lookLosDps: 1.5, // wings level, he reverses once Lead has come through the nose and his line of sight moves faster than this ("a definite increase"; estimate)
+  lookMaxSec: 20, // ...or after this long, whichever comes first (estimate)
+  reverseBankDeg: 66, // the reversal: Lead's bank plus a bank in proportion to the heading still to turn onto Lead's, at most this (2.5 G level): from 5,000 ft line abreast it ends on the rejoin line about 1,400 ft behind Lead, at fighting wing range (SMM 16.20 para 65b(2): "reverse the turn to capture the fighting wing position"; estimate)...
+  reverseGain: 1.5, // ...this many degrees of bank per degree of heading (estimate)
+  reverseDoneDeg: 15, // within this of Lead's heading the ride takes him onto the line (estimate)
+  pointFromFt: 2500, // only from further out than this; closer in the capture alone (estimate)
+  formRoll: Object.freeze({ maxRateDps: 30, maxAccelDps2: 20 }), // his roll from the start to the slot: a formation rate, Lead's close-turn roll (rates.js RATE_SETS.close.leadRoll), not the 180°/s of the tactical moves
   hotFt: 1000, // ahead of the line by this much (hot) he flies his least speed, Lead's 200 KIAS, coming up to lineOverKias above it as he reaches the line (estimate; TS-75)
   laneTolFt: 20, // flowing into the slot he may pass this far ahead of it, never more, toward Lead's 3/9 line (estimate; Patrick 08:04Z)
   decisionArriveRates: 'instructor', // he reaches the decision point closing no faster than this Rates choice's close-in rate (about 15 kt), so AI's quicker close-in starts from a closure under control (estimate; SMM 12.24 para 58)
@@ -85,8 +105,11 @@ export const TURNING_REJOIN = Object.freeze({
   // Each is a window, so it is easy to fly to (Patrick 6 Oct 03:34Z: "lets make everything a 'window'").
   windowFarFt: 250, // he moves out to the line and up it to echelon anywhere from this far from Lead... (Patrick 6 Oct 03:32Z card, 03:34Z)
   windowNearFt: 100, // ...down to this far, the decision point (Patrick 02:30Z); not stable by here, he overshoots, only when nothing else works (03:35Z)
-  windowBankDeg: 15, // from the decision point up through route into the slot his bank stays within Lead's ±this, a small bank toward Lead with power for the closure, never a steep turn inside Lead's circle (SMM 12.24 CAUTION; Patrick 10 Oct 2026 23:54Z card "±15°, quicker"; TS-181; a reference, the figure Patrick's)
+  windowBankDeg: 5, // from the decision point down into route and up into the slot his bank stays matched to Lead's, within this (TS-182: "bank matched to Lead's", SMM 12.24 para 58 "align the fuselage"; an estimate; ±15° until V2.248)
   windowFtps: 15, // ...and out to route he moves at the station-change rate, about 9 kt (Patrick 10 Oct 2026 23:54Z card; TS-181; an estimate, Fable's trace C). From route into the slot it is the close moves' own (CLOSE_SHAPING)
+  tailMinSec: 3, // each part of the way from the decision point (to route, then up the line) takes at least this long (estimate)
+  tailEaseSec: 3, // ...and he eases into the slot over the last of it, slowing evenly to a stop (estimate)
+  tailBlendSec: 1.5, // ...its corners rounded over this either side (estimate)
   stableKt: Object.freeze([10, 20]), // his closure, range rate in knots, is stable in this window (Patrick 03:34Z: "10-20 knots at 100 feet"); the slowing aims at its middle, and slower is cold, not unstable
   stableShare: 1.5, // ...and closing at no more than this times the closure that middle overtake gives on the X, about 32 kt, so he is holding the X, not sweeping through it (card 03:15Z "Closure or bearing"; the figure is an estimate)
   xWindowDeg: 10, // Lead is on the X picture within this many degrees of it, 25-45° off his tail (card 03:15Z "Closure or bearing"; the figure is an estimate)

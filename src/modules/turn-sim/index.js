@@ -162,6 +162,24 @@ function mount(root, app) {
   let playing = false;
   let speed = 1;
   let owed = 0; // sim seconds waiting to be turned into fixed steps
+  // The 3D view draws each aircraft between the last two steps by the time owed, so at 20 steps a second on a 60 Hz screen
+  // they glide instead of stepping (Fable's V2.234 flight report): one step behind, never ahead of the sim.
+  let before = null; // the aircraft one step back
+  let blend = 1;
+  const BLENDED = ['xFt', 'yFt', 'altAboveFt', 'bankDeg', 'attitudeDeg', 'pitchDeg', 'nz'];
+  const mix = (a, b, f) => {
+    const out = { ...b };
+    for (const k of BLENDED) if (Number.isFinite(a[k]) && Number.isFinite(b[k])) out[k] = a[k] + (b[k] - a[k]) * f;
+    if (Number.isFinite(a.headingRad) && Number.isFinite(b.headingRad)) {
+      const d = Math.atan2(Math.sin(b.headingRad - a.headingRad), Math.cos(b.headingRad - a.headingRad));
+      out.headingRad = a.headingRad + d * f;
+    }
+    return out;
+  };
+  const drawState = () => {
+    if (!before || blend >= 1 || before.length !== state.aircraft.length) return state;
+    return { ...state, aircraft: state.aircraft.map((a, i) => (before[i]?.id === a.id ? mix(before[i], a, blend) : a)) };
+  };
   let stopFrames = null;
   let cameraPaused = false; // the person panned or zoomed, so the fit-all camera leaves the picture to them until Fit
   let snapNext = true; // the next 2D frame takes the fit at once (after a reset or Fit)
@@ -393,7 +411,7 @@ function mount(root, app) {
       if (kind === 'zoom' && (cameraPaused || !layout.get().autoFit)) pauseCamera();
     },
     source: {
-      state: () => state,
+      state: drawState,
       trails: () => ({ trail: state.tracks }),
       layers: () => layout.get(),
       planned: shownPlan,
@@ -529,11 +547,13 @@ function mount(root, app) {
     owed += (dtMs / 1000) * speed;
     let steps = 0;
     while (owed >= STEP_SEC - 1e-9 && steps < MAX_STEPS_PER_FRAME) {
+      before = state.aircraft.map((a) => ({ ...a }));
       formation.step();
       owed -= STEP_SEC;
       steps++;
     }
     if (steps === MAX_STEPS_PER_FRAME) owed = 0; // drop the backlog rather than chase it
+    blend = Math.min(1, owed / STEP_SEC);
     refresh();
   }
 
@@ -549,6 +569,7 @@ function mount(root, app) {
   function pause() {
     stopFrames?.();
     stopFrames = null;
+    blend = 1; // paused, the picture is the sim's own step
     if (!playing) return;
     playing = false;
     ui.setPlaying(false);
@@ -561,6 +582,7 @@ function mount(root, app) {
     pause();
     formation.reset({ ...setup.get() });
     owed = 0;
+    before = null;
     cameraPaused = false;
     snapNext = true;
     showFit();

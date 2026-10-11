@@ -95,9 +95,9 @@ export function pilotSpeed(p, W, aWant, { blockFt, top = 'power', floorThr = 0, 
  * T-6A's, flight.js rollLimitAt; the roll onset the aircraft's own) with the level turn's G built no faster than the profile's G onset; then the step flown
  * through flight.js (and its envelope gate). Returns the bank commanded, for the replay.
  */
-export function pilotFly(p, W, bankDeg, t, profile, accelKtps = p?.accel) {
+export function pilotFly(p, W, bankDeg, t, profile, accelKtps = p?.accel, roll = undefined) {
   const X = experienceNow();
-  const lim = rollLimitAt(W.tasFtps);
+  const lim = rollLimitAt(W.tasFtps, roll); // a phase's own roll (a formation rate, TS-182), else the aircraft's
   const limits = { maxRateDps: lim.maxRateDps * X.rollShare, maxAccelDps2: lim.maxAccelDps2 };
   let r = easeRoll(p.bank, p.rate, bankDeg, dt, limits);
   if (Math.abs(r.bankDeg) > Math.abs(p.bank) && Math.abs(r.bankDeg) < G_SHAPE_MAX_BANK_DEG && Math.sign(r.bankDeg) === (Math.sign(p.bank) || Math.sign(r.bankDeg))) {

@@ -948,7 +948,8 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
         k++;
         const next = phases[k];
         const R2 = recOf(next);
-        if (ph.kind === 'line' || ph.kind === 'ride') {
+        // handOverHere: a pursuit phase ending where the next slot leg takes over (turning-rejoin.js frozenPhase).
+        if (ph.kind === 'line' || ph.kind === 'ride' || ph.handOverHere) {
           const L2 = R2.at(m);
           const relNow = relativeTo(L2, W);
           Object.assign(ref, { f: relNow.fwd, l: relNow.left, vf: 0, vl: 0 });
@@ -1024,7 +1025,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     });
 
     const stepProfile = stepProfileOwn ?? height.stepProfile ?? (heightState.activeLeg ? [heightState.activeLeg] : profile);
-    const flown = pilotFly(pilot, W, bank, t, stepProfile, power.accel);
+    const flown = pilotFly(pilot, W, bank, t, stepProfile, power.accel, ph.roll);
     heightState.table.alt.push(W.altAboveFt);
     heightState.table.climb.push(W.climbFtps);
     heightState.table.nz.push(W.nz);
