@@ -234,8 +234,12 @@ function placeAlong(route, options) {
   };
 }
 
-/** Samples each side of the point the track is averaged over (TRACK_SAMPLES), and the averaging's half-width. */
-const TRACK_SAMPLES = 12;
+/**
+ * Samples each side of the point the track is averaged over (TRACK_SAMPLES), and the averaging's half-width. 24, not
+ * the old 12: with samples about 18 ft apart and a step about 9 ft, a kink in the path aliased into a heading flicker
+ * every other step in the flare (about 2°/s each way in 20 kt; smooth-transitions). An engineering choice.
+ */
+const TRACK_SAMPLES = 24;
 const TRACK_HALF_WIDTH_FT = TRACK_WINDOW_FT * Math.SQRT2; // the same spread as the old flat window of TRACK_WINDOW_FT
 /**
  * At speed the averaging spans at least this long either side, seconds, so a drawn turn's rate builds up
