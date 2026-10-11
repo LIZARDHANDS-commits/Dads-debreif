@@ -92,7 +92,11 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
   const targetKias = to === 'lab' ? KIAS_LAB : KIAS_OUTSIDE_LAB;
   // Every leg on the power profile at the Rates choice's closure, a rejoin's up to route (clean-up step 2, TS-65; Patrick
   // 05:46Z, 05:47Z, 05:54Z, 06:09Z).
-  const phases = onClosure(legsFor(from.key, sCur, to, sTo, spacingFt));
+  // From trail after a break (TS-175) #2 is on Lead's six already: the SARJ starts as from fighting wing (line up on the six
+  // and close), not with a rejoin out to the cone first, which had him close to 590 ft, drop back to 990 and come in again
+  // (Fable's v2272 flight).
+  const legsFrom = options.trailSide && from.key === 'other' && to !== 'lab' && to !== 'fw' ? 'fw' : from.key;
+  const phases = onClosure(legsFor(legsFrom, sCur, to, sTo, spacingFt));
   if (!phases.length) return { ok: false, reason: 'Nothing to change.' };
   if (options.overtakeKias !== undefined || options.bankCapDeg !== undefined) {
     for (const p of phases) {

@@ -51,6 +51,7 @@ export const RATE_SETS = Object.freeze({
   close: Object.freeze({
     leadRoll: Object.freeze({ maxRateDps: 30, maxAccelDps2: 20 }),
     echelonRoll: Object.freeze({ maxRateDps: 30, maxAccelDps2: 12 }),
+    routeRoll: Object.freeze({ maxRateDps: 8, maxAccelDps2: 4 }), // Lead's roll-out once a turning rejoin ends in route, 124 ft out: gentler, so #2 rises with Lead's wing plane without a 0.6 G push (Fable's v2272 flight; estimate)
     frame: Object.freeze({ lateralFtps: 35, foreAftFtps: 25, verticalFtps: 15, nearPerSec: 0.1, nearMinFtps: 8 }),
     law: Object.freeze({ powerShare: 0.65, turnShare: 0.35, latG: 0.3, vertFtps2: 3 }),
   }),
