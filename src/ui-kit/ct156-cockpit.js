@@ -188,8 +188,10 @@ export const GLARESHIELD_FT = Object.freeze({ aftX: COAMING_EDGE_X, foreX: 6.82,
 export const RIM_FT = Object.freeze({ aftOfGlareshield: 0.03, r: 0.045, sideOut: 0.05, lowV: 0.18 });
 
 /**
- * The AOA indexer on the front coaming's left, feet: a dark box 0.23 ft (2.75 in) tall, 0.07 ft wide and 0.29 ft deep,
- * its three lamp windows on its aft face 0.069 ft apart and its dimmer knob on its inboard side, forward and high
+ * The AOA indexer on the front coaming's left, feet: a dark box 0.19 ft (2.3 in) tall, 0.065 ft wide and 0.24 ft deep,
+ * its three lamp windows on its aft face 0.057 ft apart and its dimmer knob on its inboard side, the T-6A-1 front
+ * panel figure's size (Fig 1-1-3 item 36; Patrick, 11 Oct 2026, "sort out the scaling/positioning of the Aoa"). Until
+ * V2.293 0.23 ft (2.75 in) tall, 0.07 wide and 0.29 deep, from Patrick's cockpit clip: forward and high
  * (Patrick's cockpit clip, 11 Oct 2026: its height about 0.9 of the 3-inch airspeed indicator's case, nearer the eye by
  * about 8 %; the case's 3.1 in checked by the KLN 900 GPS's 3.75 in face height beside it. The back-seat photos and his
  * other pictures give its depth about 1.3 times its height. The T-6A-1 panel diagram draws it about 2.3 in; estimates
@@ -199,20 +201,18 @@ export const RIM_FT = Object.freeze({ aftOfGlareshield: 0.03, r: 0.045, sideOut:
  * across the grab rail beside it, so all three lamps show above the rail (Patrick, 11 Oct 2026), as the diagram and the
  * SMM's 220 KIAS picture (Fig 3.5) draw it.
  */
-export const AOA_INDEXER_FT = Object.freeze({ tall: 0.23, wide: 0.07, deep: 0.29, lampPitch: 0.069, aheadOfEdge: 0.15, y: 0.52, yRear: 0.62, clear: 0.01 });
+export const AOA_INDEXER_FT = Object.freeze({ tall: 0.19, wide: 0.065, deep: 0.24, lampPitch: 0.057, aheadOfEdge: 0.15, y: 0.52, yRear: 0.62, clear: 0.01 });
 /**
- * The standby compass at the coaming's right corner, feet: a dark bowl 0.18 ft (2.2 in) across and 0.16 ft tall
- * hanging under a square flange 0.27 ft (3.2 in) across, its light housing under the bowl, the card 0.075 ft tall
- * showing through a window 110° round facing aft, turned by the heading (update(hud)). It stands on a short post
- * 0.1 ft ahead of the coaming's aft edge and 0.84 ft right of the middle (0.8 ft on the rear hump), with a thin arm
- * from its flange out to the bow's leg beside it, as Patrick's cockpit frame shows it (11 Oct 2026, "fix the
- * compass": hanging on the bow's right leg at the glareshield's corner, about 1.5 times the T-6A-1 panel diagram's
- * size, with a plate 0.06 ft wide out to the leg). V2.266 shrank it to the diagram's size after Patrick's 06:52Z
- * screenshot; he then preferred this size (07:20Z "your compass was better") and it came back. Before V2.264 it
- * stood 0.22 ft ahead of the edge and 0.55 ft right of the middle, a place estimated off Dad's pictures. Sizes and
- * places estimates off the frame; the rear seat's is unseen.
+ * The standby compass at the coaming's right corner, feet: a wet compass, a dark ball 0.2 ft (2.4 in) across with a
+ * round window facing aft, the card a ball 0.17 ft across floating inside it and turned by the heading (update(hud)),
+ * the lubber line across the window, on a short dark stem from the coaming's side 0.1 ft ahead of its aft edge and
+ * 0.71 ft right of the middle (0.8 ft on the rear hump), where the T-6A-1 front panel figure draws it (Fig 1-1-3 item
+ * 7; Patrick, 11 Oct 2026: "can we make the compas an actual sphere floating?" and "sort out the scaling/positioning
+ * of the Aoa and the compass"). Until V2.293 a bowl 2.2 in across under a 3.2 in square flange with an arm out to the
+ * bow's leg, 0.84 ft right of the middle (V2.264, from Patrick's cockpit frame; V2.266 tried the diagram's size).
+ * Sizes estimates; the rear seat's is unseen.
  */
-export const STANDBY_COMPASS_FT = Object.freeze({ r: 0.09, bowlTall: 0.16, flange: 0.27, light: 0.06, post: 0.03, cardTall: 0.075, windowDeg: 110, aheadOfEdge: 0.1, y: -0.84, yRear: -0.8, armWide: 0.06 });
+export const STANDBY_COMPASS_FT = Object.freeze({ r: 0.1, cardR: 0.085, cardBandDeg: 35, stem: 0.06, windowDeg: 120, aheadOfEdge: 0.1, y: -0.71, yRear: -0.8 });
 
 /** The rear cockpit's panel, feet: face 0.7 ft aft of the origin, 0.7 to 1.75 ft up, 2.2 ft across (estimates). */
 export const REAR_PANEL_FT = Object.freeze({ x: -0.7, top: 1.75, bottom: 0.7, width: 2.2, insetFromGlass: 0.06, shoulderV: 0.6, topFrac: 0.55 });
@@ -390,10 +390,10 @@ const PANEL_INSTRUMENTS = [
   { kind: 'eng', u: 0.669, v: 0.372, s: 0.1, name: 'ITT' },
   { kind: 'eng', u: 0.792, v: 0.372, s: 0.1, name: 'NP' },
   { kind: 'smallPanel', u: 0.907, v: 0.519, w: 0.076, h: 0.092 },
-  { kind: 'fire', u: 0.909, v: 0.418, s: 0.055 },
+  { kind: 'deice', u: 0.909, v: 0.418, w: 0.076, h: 0.1 }, // the prop de-ice switch (Fig 1-1-3 item 10); no FIRE light here
   { kind: 'smallPanel', u: 0.909, v: 0.288, w: 0.076, h: 0.067 },
   { kind: 'gps', u: 0.181, v: 0.397, w: 0.208, h: 0.248, frame: true }, // the KLN 900's face, 5.75 x 3.75 in (Patrick; maker's listing)
-  { kind: 'switches', u: 0.24, v: 0.131, w: 0.233, h: 0.251 },
+  { kind: 'audio', u: 0.24, v: 0.131, w: 0.233, h: 0.251 },
   { kind: 'asi', u: 0.408, v: 0.157, d: 0.08, live: 'asi' },
   { kind: 'stby', u: 0.502, v: 0.157, s: 0.092, d: 0.08, live: 'stby' },
   { kind: 'alt', u: 0.597, v: 0.157, d: 0.08, live: 'alt' },
@@ -401,6 +401,17 @@ const PANEL_INSTRUMENTS = [
   { kind: 'annun', u: 0.846, v: 0.125, w: 0.214, h: 0.195 },
   { kind: 'emerGear', u: 0.059, v: 0.1, s: 0.045 },
 ];
+
+/**
+ * The audio control panel's knobs (Fig 1-1-3 item 25), each [across, down] as fractions of its box, its name and
+ * whether it is a 3D knob standing proud (true) or a toggle drawn flat: two rows of four volume knobs, the VHF MIC/KEY
+ * selector on the left and the bottom row's selector, toggles and intercom knob. Places read off the figure.
+ */
+const AUDIO_KNOBS = Object.freeze([
+  [0.315, 0.27, 'VHF 1', true], [0.49, 0.27, 'UHF', true], [0.684, 0.27, 'NAV 1', true], [0.877, 0.27, 'ADF', true],
+  [0.315, 0.58, 'VHF 2', true], [0.49, 0.58, 'MARKER', true], [0.684, 0.58, 'NAV 2', true], [0.877, 0.58, 'DME', true],
+  [0.11, 0.5, 'MIC/KEY', true], [0.377, 0.86, 'BOTH', true], [0.55, 0.86, 'AUDIO', false], [0.693, 0.86, 'MKR HI/LO', false], [0.877, 0.86, 'INTPH', true],
+]);
 
 /** The live faces' windows in one shared picture (pixels); both seats' live instruments read the same windows. */
 const ATLAS = Object.freeze({ width: 1024, height: 1024 });
@@ -591,6 +602,14 @@ function ehsi(ctx, cx, cy, r, headingDeg) {
     }
   }
   ctx.restore();
+  // The course pointer and its deviation bar (green, as the T-6A-1 figure's EHSI, Fig 1-1-3 item 3), centred and on the
+  // nose: the sim has no course set, so it reads straight ahead, no deviation. The deviation dots either side.
+  ctx.strokeStyle = '#2fd15a'; ctx.fillStyle = '#2fd15a'; ctx.lineWidth = Math.max(2, r * 0.045);
+  ctx.beginPath(); ctx.moveTo(cx, cy - r * 0.76); ctx.lineTo(cx, cy - r * 0.42); ctx.moveTo(cx, cy + r * 0.42); ctx.lineTo(cx, cy + r * 0.76); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, cy - r * 0.8); ctx.lineTo(cx - r * 0.07, cy - r * 0.66); ctx.lineTo(cx + r * 0.07, cy - r * 0.66); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(cx, cy - r * 0.36); ctx.lineTo(cx, cy + r * 0.36); ctx.stroke();
+  ctx.strokeStyle = INK; ctx.lineWidth = Math.max(1, r * 0.02);
+  for (const k of [-2, -1, 1, 2]) { ctx.beginPath(); ctx.arc(cx + k * r * 0.2, cy, r * 0.035, 0, Math.PI * 2); ctx.stroke(); }
   // The fixed aircraft symbol and lubber line.
   ctx.strokeStyle = '#ffd23f';
   ctx.lineWidth = Math.max(1.5, r * 0.035);
@@ -721,37 +740,76 @@ function altimeter(ctx, cx, cy, r, altFt) {
 }
 
 /**
- * The engine displays, as the T-6A-1 panel figure lays them out (Fig 1-1-3 items 6, 15 and 11): `name` TRQ the primary
- * engine display (a torque dial with ITT, NP and N1 boxes), ITT the alternate engine display (rows of digits) and NP the
- * engine and systems display (oil, hydraulics, electrics, fuel). Scales and labels only: the sim has no engine numbers.
+ * A small arc gauge on an engine display: a 240° scale with its coloured bands, the ticks, its name under it, the
+ * needle parked at the scale's start and its digits dashed (the sim has no engine or systems numbers).
+ * bands: [[from, to, colour]] as fractions of the scale.
+ */
+function arcGauge(ctx, cx, cy, r, name, bands = [[0, 0.8, '#2fbf4f'], [0.8, 1, '#e03a3a']]) {
+  const a0 = rad(150), sweep = rad(240), at = (f) => a0 + sweep * f;
+  ctx.lineWidth = Math.max(1.5, r * 0.12);
+  for (const [f0, f1, colour] of bands) { ctx.strokeStyle = colour; ctx.beginPath(); ctx.arc(cx, cy, r, at(f0), at(f1)); ctx.stroke(); }
+  ctx.strokeStyle = INK; ctx.lineWidth = Math.max(1, r * 0.05);
+  for (let k = 0; k <= 8; k++) {
+    const a = at(k / 8);
+    ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r * 0.8, cy + Math.sin(a) * r * 0.8); ctx.lineTo(cx + Math.cos(a) * r * 0.62, cy + Math.sin(a) * r * 0.62); ctx.stroke();
+  }
+  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1.5, r * 0.08);
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a0) * r * 0.75, cy + Math.sin(a0) * r * 0.75); ctx.stroke();
+  label(ctx, '—', cx + r * 0.2, cy + r * 0.38, r * 0.42, INK);
+  label(ctx, name, cx, cy + r * 1.08, r * 0.34, DIM);
+}
+
+/**
+ * The engine displays, as the T-6A-1 panel figure lays them out (Fig 1-1-3 items 6, 15 and 11), drawn as their
+ * screens show them: `name` TRQ the primary engine display (the big torque dial, NP and IOAT digits, the ITT and N1
+ * dials), ITT the engine and systems readouts (torque, N1, ITT, cabin altitude and pressure, the fuel quantity dial and
+ * fuel flow) and NP the systems display (oil temperature and pressure and hydraulic pressure dials, volts and amps).
+ * Scales and labels only: the sim has no engine or systems numbers, so needles rest at the scale's start and every
+ * number is dashes.
  */
 function engineDisplay(ctx, s, name) {
-  const px = s.h * 0.075;
+  const px = s.h * 0.07;
+  const at = (u, v) => [s.x + s.w * u, s.y + s.h * v];
   if (name === 'TRQ') {
-    const cx = s.x + s.w * 0.5, cy = s.y + s.h * 0.44, r = s.h * 0.3;
-    ctx.lineWidth = Math.max(2, r * 0.07);
+    const [cx, cy] = at(0.36, 0.3), r = s.h * 0.24;
+    ctx.lineWidth = Math.max(2, r * 0.08);
     ctx.strokeStyle = '#2fbf4f'; ctx.beginPath(); ctx.arc(cx, cy, r, rad(135), rad(135 + 270 * 100 / 110)); ctx.stroke();
     ctx.strokeStyle = '#e03a3a'; ctx.beginPath(); ctx.arc(cx, cy, r, rad(135 + 270 * 100 / 110), rad(405)); ctx.stroke();
     ctx.strokeStyle = INK; ctx.lineWidth = 1;
     for (let n = 0; n <= 110; n += 10) {
       const a = rad(135 + (270 * n) / 110);
       ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r * 0.86, cy + Math.sin(a) * r * 0.86); ctx.lineTo(cx + Math.cos(a) * r * 0.72, cy + Math.sin(a) * r * 0.72); ctx.stroke();
-      if (n % 20 === 0) label(ctx, String(n / 10), cx + Math.cos(a) * r * 0.55, cy + Math.sin(a) * r * 0.55, px * 0.8, INK);
+      if (n % 20 === 0) label(ctx, String(n / 10), cx + Math.cos(a) * r * 0.55, cy + Math.sin(a) * r * 0.55, px * 0.7, INK);
     }
-    label(ctx, 'TORQUE %', cx, cy + r * 0.25, px * 0.8, DIM);
-    label(ctx, '—', cx, cy + r * 0.55, px, INK);
-    [['ITT', 0.17], ['NP', 0.5], ['N1', 0.83]].forEach(([t, u]) => {
-      label(ctx, t, s.x + s.w * u, s.y + s.h * 0.84, px * 0.8, DIM);
-      label(ctx, '—', s.x + s.w * u, s.y + s.h * 0.93, px * 0.9, INK);
-    });
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1.5, r * 0.06);
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(rad(135)) * r * 0.8, cy + Math.sin(rad(135)) * r * 0.8); ctx.stroke();
+    label(ctx, '— %', cx, cy + r * 0.2, px, INK);
+    label(ctx, 'TORQUE', cx, cy + r * 0.62, px * 0.75, DIM);
+    for (const [t, v] of [['NP', 0.12], ['— %', 0.21], ['IOAT', 0.33], ['— °C', 0.42]]) label(ctx, t, ...at(0.82, v), px * (t.startsWith('—') ? 0.9 : 0.7), t.startsWith('—') ? INK : DIM);
+    arcGauge(ctx, ...at(0.27, 0.72), s.h * 0.12, 'ITT');
+    arcGauge(ctx, ...at(0.73, 0.72), s.h * 0.12, 'N1');
+  } else if (name === 'ITT') {
+    for (const [t, u, v] of [['TORQUE', 0.17, 0.1], ['N1', 0.5, 0.1], ['COCKPIT', 0.83, 0.1], ['ITT', 0.17, 0.3], ['ALT', 0.83, 0.3], ['ΔP', 0.83, 0.5], ['FF', 0.83, 0.72]]) {
+      label(ctx, t, ...at(u, v), px * 0.7, DIM);
+      label(ctx, '—', ...at(u, v + 0.09), px * 0.85, INK);
+    }
+    const [cx, cy] = at(0.36, 0.68), r = s.h * 0.2;
+    ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, cy, r, rad(180), rad(360)); ctx.stroke();
+    for (let k = 0; k <= 6; k++) {
+      const a = rad(180 + k * 30);
+      ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); ctx.lineTo(cx + Math.cos(a) * r * 0.82, cy + Math.sin(a) * r * 0.82); ctx.stroke();
+    }
+    label(ctx, 'L', cx - r * 0.55, cy - r * 0.35, px * 0.7, INK);
+    label(ctx, 'R', cx + r * 0.55, cy - r * 0.35, px * 0.7, INK);
+    label(ctx, 'FUEL', cx, cy - r * 0.15, px * 0.6, DIM);
+    label(ctx, 'QTY', cx, cy + r * 0.05, px * 0.6, DIM);
+    label(ctx, 'LBS X100', cx, cy + r * 0.35, px * 0.55, DIM);
   } else {
-    const rowsOf = name === 'ITT' ? ['TORQUE %', 'N1 %', 'ITT °C', 'NP %', 'FF PPH', 'OIL PSI'] : ['OIL °C', 'OIL PSI', 'HYD PSI', 'VOLTS', 'AMPS', 'FUEL L', 'FUEL R'];
-    const step = s.h / (rowsOf.length + 0.6);
-    rowsOf.forEach((t, i) => {
-      const y = s.y + step * (i + 0.8);
-      label(ctx, t, s.x + s.w * 0.08, y, step * 0.5, '#7fd18a', 'left');
-      label(ctx, '—', s.x + s.w * 0.9, y, step * 0.55, INK, 'right');
-    });
+    arcGauge(ctx, ...at(0.27, 0.24), s.h * 0.13, 'TEMP');
+    arcGauge(ctx, ...at(0.73, 0.24), s.h * 0.13, 'PRESS', [[0, 0.15, '#e03a3a'], [0.15, 0.3, '#e0c03a'], [0.3, 0.85, '#2fbf4f'], [0.85, 1, '#e03a3a']]);
+    label(ctx, 'OIL', ...at(0.5, 0.08), px * 0.7, DIM);
+    arcGauge(ctx, ...at(0.3, 0.68), s.h * 0.13, 'HYDR', [[0, 0.75, '#2fbf4f'], [0.75, 1, '#e03a3a']]);
+    for (const [t, v] of [['— VOLTS', 0.62], ['— AMPS', 0.74]]) label(ctx, t, ...at(0.72, v), px * 0.75, INK);
   }
 }
 
@@ -761,11 +819,22 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
   const r = Math.min(b.w, b.h) / 2;
   const rr = r / 1.12; // inside a round dial's bezel
   switch (kind) {
-    case 'fire':
-      ctx.fillStyle = BLACK; ctx.fillRect(b.x, b.y, b.w, b.h);
-      ctx.fillStyle = '#4a1012'; ctx.fillRect(b.x + b.w * 0.1, b.y + b.h * 0.1, b.w * 0.8, b.h * 0.8); // unlit
-      label(ctx, 'FIRE', cx, cy, b.h * 0.3, '#c9575a');
+    case 'deice': { // the prop de-ice panel (Fig 1-1-3 item 10): its placard, the ON/FAIL push-button, the monitor test switch
+      ctx.fillStyle = '#1b1e22'; ctx.fillRect(b.x, b.y, b.w, b.h);
+      label(ctx, 'PROP DE-ICE', cx, b.y + b.h * 0.12, b.h * 0.09, INK);
+      const bx = b.x + b.w * 0.1, by = b.y + b.h * 0.24, bw = b.w * 0.42, bh = b.h * 0.42;
+      ctx.fillStyle = BLACK; ctx.fillRect(bx, by, bw, bh);
+      ctx.fillStyle = '#2b2416'; ctx.fillRect(bx + bw * 0.1, by + bh * 0.08, bw * 0.8, bh * 0.38); // ON, unlit
+      ctx.fillStyle = '#2b1414'; ctx.fillRect(bx + bw * 0.1, by + bh * 0.54, bw * 0.8, bh * 0.38); // FAIL, unlit
+      label(ctx, 'ON', bx + bw / 2, by + bh * 0.27, bh * 0.22, '#b59a5a');
+      label(ctx, 'FAIL', bx + bw / 2, by + bh * 0.73, bh * 0.22, '#b56a6a');
+      label(ctx, 'PUSH ON/OFF', bx + bw / 2, b.y + b.h * 0.8, b.h * 0.07, DIM);
+      label(ctx, 'MONITOR', b.x + b.w * 0.78, b.y + b.h * 0.3, b.h * 0.07, DIM);
+      label(ctx, 'TEST', b.x + b.w * 0.78, b.y + b.h * 0.38, b.h * 0.07, DIM);
+      toggle(ctx, b.x + b.w * 0.78, b.y + b.h * 0.55, b.h * 0.06);
+      label(ctx, 'NORM', b.x + b.w * 0.78, b.y + b.h * 0.72, b.h * 0.07, DIM);
       break;
+    }
     case 'aoa': // unlabelled scale, needle mid-scale: the sim has no angle of attack
       dial(ctx, { cx, cy, r: rr, from: 0, to: 1, sweepDeg: 270, startDeg: -135, major: 0.25, minor: 0.125, name: 'AOA', value: 0.5, readout: null, labelOf: () => '' });
       break;
@@ -785,11 +854,21 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
       bezel(ctx, cx, cy, rr);
       drawAttitude(ctx, cx, cy, rr * 0.94, h?.pitchDeg, h?.bankDeg);
       break;
-    case 'clock': { // the chronometer: a dark box with an orange digital readout (AETCMAN 11-248 Fig 2.7) and two buttons
-      ctx.fillStyle = BEZEL; roundRect(ctx, b.x, b.y, b.w, b.h, b.w * 0.08); ctx.fill();
-      ctx.fillStyle = '#000'; ctx.fillRect(b.x + b.w * 0.12, b.y + b.h * 0.22, b.w * 0.76, b.h * 0.32);
-      label(ctx, '--:--', cx, b.y + b.h * 0.38, b.h * 0.22, '#ff9a3c');
-      for (const k of [0.3, 0.7]) { ctx.fillStyle = '#3a3e44'; ctx.fillRect(b.x + b.w * k - b.w * 0.1, b.y + b.h * 0.68, b.w * 0.2, b.h * 0.14); }
+    case 'clock': { // the M850 chronometer (Fig 1-1-3 item 32): its LCD over the GMT LT FT ET marks, SELECT and CONTROL under
+      ctx.fillStyle = BEZEL; roundRect(ctx, b.x, b.y, b.w, b.h, b.w * 0.06); ctx.fill();
+      screws(ctx, b.x, b.y, b.w, b.h, b.w * 0.07, Math.max(1.5, b.w * 0.025));
+      label(ctx, 'M850', cx, b.y + b.h * 0.1, b.h * 0.07, INK);
+      label(ctx, 'CHRONOMETER', cx, b.y + b.h * 0.18, b.h * 0.06, INK);
+      ctx.fillStyle = '#8f9a84'; ctx.fillRect(b.x + b.w * 0.14, b.y + b.h * 0.25, b.w * 0.72, b.h * 0.3); // the LCD, unlit
+      ctx.fillStyle = '#1d2219'; ctx.font = `bold ${Math.round(b.h * 0.24)}px monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('--:--', cx, b.y + b.h * 0.41);
+      ['GMT', 'LT', 'FT', 'ET'].forEach((t, k) => label(ctx, t, b.x + b.w * (0.22 + k * 0.19), b.y + b.h * 0.6, b.h * 0.05, INK));
+      ['SELECT', 'CONTROL'].forEach((t, k) => {
+        const x = b.x + b.w * (0.3 + k * 0.4);
+        label(ctx, t, x, b.y + b.h * 0.7, b.h * 0.05, INK);
+        ctx.fillStyle = '#3a3e44'; ctx.fillRect(x - b.w * 0.08, b.y + b.h * 0.75, b.w * 0.16, b.h * 0.08);
+      });
+      label(ctx, 'DAVTRON', cx, b.y + b.h * 0.91, b.h * 0.06, INK);
       break;
     }
     case 'lights':
@@ -815,21 +894,69 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
       label(ctx, '--- NM', sc.x + sc.w * 0.96, sc.y + sc.h * 0.95, sc.h * 0.045, INK, 'right');
       break;
     }
-    case 'rmu': {
+    case 'rmu': { // the radio management unit (Fig 1-1-3 item 24): its five radio lines, line keys each side, keys and knob under it
       ctx.fillStyle = BEZEL; ctx.fillRect(b.x, b.y, b.w, b.h);
-      const s = screen(ctx, b.x + b.w * 0.14, b.y + b.h * 0.06, b.w * 0.72, b.h * 0.72, '#0c1a10');
-      rows(ctx, s, ['UHF', 'VHF', 'XPDR', 'NAV']);
-      for (let k = 0; k < 4; k++) { ctx.fillStyle = '#c9ced4'; ctx.fillRect(b.x + b.w * 0.03, s.y + (s.h * (k + 0.4)) / 4, b.w * 0.07, b.h * 0.02); ctx.fillRect(b.x + b.w * 0.9, s.y + (s.h * (k + 0.4)) / 4, b.w * 0.07, b.h * 0.02); }
-      knob(ctx, b.x + b.w * 0.3, b.y + b.h * 0.88, b.w * 0.1); knob(ctx, b.x + b.w * 0.7, b.y + b.h * 0.88, b.w * 0.1);
+      label(ctx, 'BENDIX KING', cx, b.y + b.h * 0.035, b.h * 0.022, DIM);
+      const sc = screen(ctx, b.x + b.w * 0.13, b.y + b.h * 0.06, b.w * 0.74, b.h * 0.58, '#0a0f0b');
+      // Example frequencies and codes from the figure (a picture: the sim has no radios).
+      const lines = [['UHF', '227.50', '314.60', 'MAIN'], ['VHF 1', '121.7', '118.20', ''], ['ATC', '', '6543', 'STBY'], ['ADF', '1799', '386.0', 'ADF'], ['NAV 1', '111.70', '113.80', 'DME']];
+      const step = sc.h / lines.length, t = Math.min(step * 0.2, sc.w * 0.1);
+      lines.forEach(([name, act, pre, tag], k) => {
+        const y = sc.y + step * k;
+        if (k) { ctx.strokeStyle = 'rgba(127, 209, 138, 0.35)'; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(sc.x + 2, y); ctx.lineTo(sc.x + sc.w - 2, y); ctx.stroke(); ctx.setLineDash([]); }
+        label(ctx, name, sc.x + sc.w * 0.05, y + step * 0.22, t, GREEN_INK, 'left');
+        label(ctx, act, sc.x + sc.w * 0.05, y + step * 0.6, t, INK, 'left');
+        label(ctx, pre, sc.x + sc.w * 0.95, y + step * 0.22, t, GREEN_INK, 'right');
+        label(ctx, tag, sc.x + sc.w * 0.95, y + step * 0.6, t * 0.85, GREEN_INK, 'right');
+      });
+      for (let k = 0; k < 5; k++) {
+        const y = sc.y + step * (k + 0.5) - b.h * 0.015;
+        for (const x of [b.x + b.w * 0.025, b.x + b.w * 0.895]) { ctx.fillStyle = '#3c4147'; ctx.fillRect(x, y, b.w * 0.08, b.h * 0.03); }
+      }
+      ['PAGE', 'DME', '1/2', 'SYS'].forEach((t2, k) => {
+        const x = b.x + b.w * (0.08 + k * 0.215);
+        ctx.fillStyle = '#3c4147'; ctx.fillRect(x, b.y + b.h * 0.68, b.w * 0.19, b.h * 0.05);
+        label(ctx, t2, x + b.w * 0.095, b.y + b.h * 0.705, b.h * 0.022, INK);
+      });
+      ['SQ', 'MEM'].forEach((t2, k) => {
+        const x = b.x + b.w * (0.08 + k * 0.215);
+        ctx.fillStyle = '#3c4147'; ctx.fillRect(x, b.y + b.h * 0.76, b.w * 0.19, b.h * 0.05);
+        label(ctx, t2, x + b.w * 0.095, b.y + b.h * 0.785, b.h * 0.022, INK);
+      });
+      knob(ctx, b.x + b.w * 0.62, b.y + b.h * 0.88, b.w * 0.15);
       break;
     }
-    case 'gps': { // the GPS and radio box: a green screen over a row of buttons, a big knob each side
+    case 'gps': { // the KLN 900 GPS (Fig 1-1-3 item 29): its two-page screen, the keys under it, a big knob each side
       ctx.fillStyle = '#1b1e22'; ctx.fillRect(b.x, b.y, b.w, b.h);
       screws(ctx, b.x, b.y, b.w, b.h, b.h * 0.06, Math.max(1.5, b.h * 0.025));
-      const s = screen(ctx, b.x + b.w * 0.18, b.y + b.h * 0.1, b.w * 0.64, b.h * 0.42, '#0c1a10');
-      rows(ctx, s, ['GPS', 'WPT']);
-      for (let k = 0; k < 4; k++) { ctx.fillStyle = '#3c4147'; ctx.fillRect(b.x + b.w * (0.24 + k * 0.14), b.y + b.h * 0.62, b.w * 0.1, b.h * 0.1); ctx.fillRect(b.x + b.w * (0.24 + k * 0.14), b.y + b.h * 0.78, b.w * 0.1, b.h * 0.1); }
-      knob(ctx, b.x + b.w * 0.09, b.y + b.h * 0.78, b.h * 0.11); knob(ctx, b.x + b.w * 0.91, b.y + b.h * 0.78, b.h * 0.11);
+      const sc = screen(ctx, b.x + b.w * 0.18, b.y + b.h * 0.08, b.w * 0.64, b.h * 0.46, '#0a0f0b');
+      const t = sc.h * 0.12, mid = sc.x + sc.w * 0.52, col = '#ffb13b';
+      ctx.strokeStyle = col; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(mid, sc.y + 2); ctx.lineTo(mid, sc.y + sc.h * 0.84); ctx.moveTo(sc.x + 2, sc.y + sc.h * 0.84); ctx.lineTo(sc.x + sc.w - 2, sc.y + sc.h * 0.84); ctx.stroke();
+      // The tool's home field as the active waypoint; the sim has no GPS numbers, so they are dashes.
+      label(ctx, '\u2192CYMJ', sc.x + sc.w * 0.04, sc.y + sc.h * 0.1, t, col, 'left');
+      [['DIS', '---NM'], ['GS', '---KT'], ['ETE', '--:--'], ['BRG', '---\u00b0']].forEach(([a, v], k) => {
+        const y = sc.y + sc.h * (0.27 + k * 0.15);
+        label(ctx, a, sc.x + sc.w * 0.04, y, t, col, 'left');
+        label(ctx, v, mid - sc.w * 0.03, y, t, col, 'right');
+      });
+      label(ctx, 'CYMJ', mid + sc.w * 0.04, sc.y + sc.h * 0.1, t, col, 'left');
+      label(ctx, 'N --\u00b0--.--\'', mid + sc.w * 0.04, sc.y + sc.h * 0.42, t, col, 'left');
+      label(ctx, 'W ---\u00b0--.--\'', mid + sc.w * 0.04, sc.y + sc.h * 0.57, t, col, 'left');
+      label(ctx, 'NAV 1', sc.x + sc.w * 0.04, sc.y + sc.h * 0.92, t * 0.85, col, 'left');
+      label(ctx, 'ENR-LEG', sc.x + sc.w * 0.5, sc.y + sc.h * 0.92, t * 0.85, col);
+      label(ctx, 'APT 1', sc.x + sc.w * 0.96, sc.y + sc.h * 0.92, t * 0.85, col, 'right');
+      for (const [k, name] of ['\u2192D', 'CLR', 'ENT', 'MSG', 'ALT', 'NRST'].entries()) {
+        const x = b.x + b.w * (0.27 + (k % 3) * 0.17), y = b.y + b.h * (k < 3 ? 0.62 : 0.76);
+        ctx.fillStyle = '#3c4147'; ctx.fillRect(x, y, b.w * 0.12, b.h * 0.1);
+        label(ctx, name, x + b.w * 0.06, y + b.h * 0.05, b.h * 0.045, INK);
+      }
+      for (const [x, y, name] of [[0.09, 0.3, 'CRSR'], [0.91, 0.3, 'CRSR']]) {
+        ctx.fillStyle = '#3c4147'; ctx.fillRect(b.x + b.w * (x - 0.05), b.y + b.h * y, b.w * 0.1, b.h * 0.1);
+        label(ctx, name, b.x + b.w * x, b.y + b.h * (y + 0.05), b.h * 0.04, INK);
+      }
+      knob(ctx, b.x + b.w * 0.09, b.y + b.h * 0.72, b.h * 0.12); knob(ctx, b.x + b.w * 0.91, b.y + b.h * 0.72, b.h * 0.12);
+      ctx.fillStyle = '#c9ced4'; ctx.fillRect(b.x + b.w * 0.3, b.y + b.h * 0.92, b.w * 0.4, b.h * 0.02);
       break;
     }
     case 'eng': // the engine displays (static: the sim has no engine numbers, so every number is dashes)
@@ -840,13 +967,17 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
       toggle(ctx, b.x + b.w * 0.3, b.y + b.h * 0.55, b.h * 0.14); toggle(ctx, b.x + b.w * 0.7, b.y + b.h * 0.55, b.h * 0.14);
       ctx.fillStyle = '#c9ced4'; ctx.fillRect(b.x + b.w * 0.15, b.y + b.h * 0.15, b.w * 0.7, b.h * 0.06);
       break;
-    case 'switches': { // a switch panel: two rows of toggles under placard lines
+    case 'audio': { // the audio control panel (Fig 1-1-3 item 25): its knobs' wells and names (the knobs stand proud in 3D)
       ctx.fillStyle = '#1b1e22'; ctx.fillRect(b.x, b.y, b.w, b.h);
-      screws(ctx, b.x, b.y, b.w, b.h, b.h * 0.07, Math.max(1.5, b.h * 0.03));
-      for (let j = 0; j < 2; j++) for (let i = 0; i < 4; i++) {
-        const x = b.x + b.w * (0.16 + i * 0.23), y = b.y + b.h * (0.38 + j * 0.36);
-        ctx.fillStyle = '#c9ced4'; ctx.fillRect(x - b.w * 0.07, y - b.h * 0.17, b.w * 0.14, b.h * 0.035);
-        toggle(ctx, x, y, b.h * 0.07);
+      screws(ctx, b.x, b.y, b.w, b.h, b.h * 0.06, Math.max(1.5, b.h * 0.025));
+      label(ctx, 'AUDIO', cx, b.y + b.h * 0.06, b.h * 0.06, INK);
+      ctx.strokeStyle = '#c9ced4'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(b.x + b.w * 0.2, b.y + b.h * 0.06); ctx.lineTo(b.x + b.w * 0.42, b.y + b.h * 0.06); ctx.moveTo(b.x + b.w * 0.58, b.y + b.h * 0.06); ctx.lineTo(b.x + b.w * 0.96, b.y + b.h * 0.06); ctx.stroke();
+      for (const [fx, fy, name, solid] of AUDIO_KNOBS) {
+        const x = b.x + b.w * fx, y = b.y + b.h * fy;
+        label(ctx, name, x, y - b.h * 0.12, b.h * 0.045, INK);
+        if (solid) { ctx.fillStyle = '#050608'; ctx.beginPath(); ctx.arc(x, y, b.w * 0.055, 0, Math.PI * 2); ctx.fill(); }
+        else toggle(ctx, x, y, b.h * 0.05);
       }
       break;
     }
@@ -1100,8 +1231,27 @@ function hoodHalf(h, ts, x) {
   pts.push([sideY + 0.01, crown - drop - h.skirt]);
   return pts;
 }
-/** A coaming's surface height at (x, y), feet (for standing things on it). */
+/**
+ * The front coaming's side at station x (GLARESHIELD_FT.cheeks), from its top's edge out and down to the canopy's
+ * sill, bulging 0.08 ft: [y, z] feet, the left half.
+ */
+function cheekHalf(h, ts, x) {
+  const c = ct156CanopySection(x / F);
+  const [y0, z0] = hoodHalf(h, ts, x)[1];
+  const y1 = c.w * F + 0.02, z1 = c.base * F - 0.02;
+  return Array.from({ length: 7 }, (_, k) => [lerp(y0, y1, k / 6), lerp(z0, z1, k / 6) + 0.08 * Math.sin((Math.PI * k) / 6)]);
+}
+/** A coaming's surface height at (x, y), feet (for standing things on it), on its sides too where it has them. */
 function hoodZ(h, ts, x, y) {
+  const top = hoodTopZ(h, ts, x, y);
+  if (!h.cheeks) return top;
+  const half = cheekHalf(h, ts, x), ay = Math.abs(y);
+  for (let i = 1; i < half.length; i++) {
+    if (ay <= half[i][0] && ay >= half[i - 1][0]) return Math.max(top, lerp(half[i - 1][1], half[i][1], (ay - half[i - 1][0]) / (half[i][0] - half[i - 1][0] || 1)));
+  }
+  return top;
+}
+function hoodTopZ(h, ts, x, y) {
   const half = hoodHalf(h, ts, x);
   const ay = Math.abs(y);
   for (let i = 1; i < half.length; i++) {
@@ -1339,12 +1489,7 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   // (Patrick's CT-156 cockpit photo, 11 Oct 2026: the dark glareshield sweeps out to the sills behind the rim).
   if (h.cheeks) {
     for (const side of [1, -1]) {
-      const rows = secs.map((sec) => {
-        const x = sec[0][0], c = ct156CanopySection(x / F);
-        const [y0, z0] = hoodHalf(h, ts, x)[1];
-        const y1 = c.w * F + 0.02, z1 = c.base * F - 0.02;
-        return Array.from({ length: 7 }, (_, k) => [x, side * lerp(y0, y1, k / 6), lerp(z0, z1, k / 6) + 0.08 * Math.sin((Math.PI * k) / 6)]);
-      });
+      const rows = secs.map((sec) => cheekHalf(h, ts, sec[0][0]).map(([y, z]) => [sec[0][0], side * y, z]));
       put(loft(THREE, rows, { closed: false }), SLOT.black);
       // Its aft face, between the rail's line and the side's first section, so nothing shows under the side's edge.
       const edge = rows[0].map(([, y, z]) => [Math.abs(y), z]);
@@ -1358,12 +1503,12 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   put(loft(THREE, [hoodSection(h, ts, h.aftX), hoodSection(h, ts, h.aftX, -lipDrop)], { closed: false }), SLOT.black);
   // The three lamps on a light strip on the lip, under the rail (Dad's pictures 17, 18, 26; AETCMAN 11-248 Fig 2.7): the
   // T-6A-1 panel figure's master warning panel (Fig 1-1-3 item 1), MASTER WARN red on the left, MASTER CAUTION amber in the
-  // middle and FIRE red on the right (Patrick, 11 Oct 2026: "theres no fire on the right side"; was amber). The strip
-  // and lamps where the figure draws them, the two masters left of the middle and FIRE right of it, the strip about
-  // 5.5 in across (was 10 in across, the lamps 1.9 in apart either side of the middle, until V2.289; front seat).
+  // middle and FIRE red on the right (Fig 1-1-3 item 1; was amber). Centred over the EADI, 1.4 in apart on a strip
+  // about 4.8 in across (Patrick, 11 Oct 2026: "the three lights above the eadi are misaligned"; V2.289 had them where
+  // the figure draws them, off the middle, and until then 1.9 in apart on a 10 in strip; front seat).
   const lx = h.aftX - 0.003, lz = h.top - lipDrop / 2 - 0.015;
-  const strip = front ? [0.26, -0.21] : [0.42, -0.42];
-  const lamps = front ? [[0.17, SLOT.lampRed], [0.06, SLOT.lampAmber], [-0.1, SLOT.lampRed]] : [[0.16, SLOT.lampRed], [0, SLOT.lampAmber], [-0.16, SLOT.lampRed]];
+  const strip = front ? [0.2, -0.2] : [0.42, -0.42];
+  const lamps = front ? [[0.12, SLOT.lampRed], [0, SLOT.lampAmber], [-0.12, SLOT.lampRed]] : [[0.16, SLOT.lampRed], [0, SLOT.lampAmber], [-0.16, SLOT.lampRed]];
   put(box(THREE, lx - 0.006, lx, strip[1], strip[0], lz - 0.045, lz + 0.045), SLOT.knob);
   lamps.forEach(([y, slot]) => {
     put(box(THREE, lx - 0.02, lx - 0.006, y - 0.055, y + 0.055, lz - 0.035, lz + 0.035), SLOT.black);
@@ -1398,7 +1543,7 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     const A = AOA_INDEXER_FT;
     const ax = h.aftX + A.aheadOfEdge, ay = front ? A.y : A.yRear, hood = hoodZ(h, ts, ax, ay);
     const rx = h.aftX - RIM_FT.aftOfGlareshield, ry = (ay * (rx - eye.x)) / (ax - eye.x); // where the sight line crosses the rail
-    const railTop = hoodZ(h, ts, h.aftX, ry) + RIM_FT.r;
+    const railTop = hoodTopZ(h, ts, h.aftX, ry) + RIM_FT.r;
     const bottom = Math.max(hood, eye.z + ((railTop - eye.z) * (ax - eye.x)) / (rx - eye.x) + A.clear);
     const top = bottom + A.tall, fx0 = ax - A.deep / 2;
     put(box(THREE, fx0, ax + A.deep / 2, ay - A.wide / 2, ay + A.wide / 2, bottom, top), SLOT.dark);
@@ -1417,21 +1562,24 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     }
     put(new THREE.TorusGeometry(0.013, 0.004, 5, 14).rotateY(Math.PI / 2).translate(fx0 - 0.006, ay, lamp(1)), SLOT.lampAmber);
 
-    // The standby compass (STANDBY_COMPASS_FT): a short post up from the coaming's corner, a dark bowl, a cap over it
-    // with a thin arm out to the glass by the bow's leg, the card showing through the bowl's aft window (its
-    // picture turned by update(hud)), and the lubber line across it.
+    // The standby compass (STANDBY_COMPASS_FT): a dark ball on a short stem up from the coaming's side, its window
+    // facing aft, the card ball floating inside (its picture turned by update(hud)), and the lubber line across it.
     const C = STANDBY_COMPASS_FT;
     const cx = h.aftX + C.aheadOfEdge, cy = front ? C.y : C.yRear, cz = hoodZ(h, ts, cx, cy);
-    const zl = cz + C.post, z0 = zl + C.light, zc = z0 + C.bowlTall / 2, zf = z0 + C.bowlTall;
-    put(box(THREE, cx - 0.018, cx + 0.018, cy - 0.018, cy + 0.018, cz - 0.03, zl + 0.01), SLOT.black); // the post
-    put(new THREE.CylinderGeometry(C.r * 0.55, C.r * 0.5, C.light, 12).rotateX(Math.PI / 2).translate(cx, cy, zl + C.light / 2), SLOT.dark); // the light
-    put(new THREE.CylinderGeometry(C.r, C.r * 0.9, C.bowlTall, 20).rotateX(Math.PI / 2).translate(cx, cy, zc), SLOT.black); // the bowl
-    put(box(THREE, cx - C.flange / 2, cx + C.flange / 2, cy - C.flange / 2, cy + C.flange / 2, zf, zf + 0.015), SLOT.dark); // the flange
-    const bracketY = -glassHalfWidthFt(zf, cx, 0.02); // the arm, flange to the glass by the bow's right leg
-    if (Number.isFinite(bracketY) && bracketY < cy - C.flange / 2) put(box(THREE, cx - C.armWide / 2, cx + C.armWide / 2, bracketY, cy - C.flange / 2 + 0.01, zf, zf + 0.012), SLOT.dark);
-    const theta0 = rad(270 - C.windowDeg / 2);
-    cards.push(new THREE.CylinderGeometry(C.r + 0.001, C.r + 0.001, C.cardTall, 24, 1, true, theta0, rad(C.windowDeg)).rotateX(Math.PI / 2).translate(cx, cy, zc));
-    put(box(THREE, cx - C.r - 0.006, cx - C.r - 0.002, cy - 0.0012, cy + 0.0012, zc - C.cardTall / 2 - 0.004, zc + C.cardTall / 2 + 0.004), SLOT.red); // the lubber line
+    const zc = cz + C.stem + C.r;
+    put(new THREE.CylinderGeometry(0.02, 0.026, C.stem + 0.04, 10).rotateX(Math.PI / 2).translate(cx, cy, cz + (C.stem + 0.04) / 2 - 0.03), SLOT.black); // the stem
+    // The case: the whole ball but its window (a round hole on the aft side, windowDeg across and 2 x cardBandDeg tall).
+    const win = rad(C.windowDeg), band = rad(C.cardBandDeg);
+    const phi0 = -win / 2; // SphereGeometry's phi 0 faces aft (-x) once turned upright; phi grows to the pilot's right
+    const caseParts = [
+      new THREE.SphereGeometry(C.r, 24, 16, phi0 + win, 2 * Math.PI - win, 0, Math.PI),
+      new THREE.SphereGeometry(C.r, 10, 6, phi0, win, 0, Math.PI / 2 - band),
+      new THREE.SphereGeometry(C.r, 10, 6, phi0, win, Math.PI / 2 + band, Math.PI / 2 - band),
+    ];
+    for (const g of caseParts) put(g.rotateX(Math.PI / 2).translate(cx, cy, zc), SLOT.black);
+    // The card: a zone of a ball round its middle, the window's width, its picture the card strip.
+    cards.push(new THREE.SphereGeometry(C.cardR, 24, 8, phi0, win, Math.PI / 2 - band, 2 * band).rotateX(Math.PI / 2).translate(cx, cy, zc));
+    put(box(THREE, cx - C.cardR - 0.008, cx - C.cardR - 0.004, cy - 0.0015, cy + 0.0015, zc - C.cardR * Math.sin(band) - 0.004, zc + C.cardR * Math.sin(band) + 0.004), SLOT.red); // the lubber line
   }
 
   // The instruments' bezels standing proud of the face (Dad's pictures 17, 26): round the displays a thick rounded frame
@@ -1459,6 +1607,21 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     put(box(THREE, x0, x1, yc - hw, yc + hw, zc - hh, zc - hh + t), SLOT.dark);
     put(box(THREE, x0, x1, yc - hw, yc - hw + t, zc - hh + t, zc + hh - t), SLOT.dark);
     put(box(THREE, x0, x1, yc + hw - t, yc + hw, zc - hh + t, zc + hh - t), SLOT.dark);
+  }
+  // The radios' knobs standing proud of the face (Patrick, 11 Oct 2026: "the knobs in the bottom left (radio knobs)"):
+  // the audio panel's (AUDIO_KNOBS), the GPS's two big ones and the radio management unit's, a dark knob with a grey cap.
+  {
+    const knobsOf = { audio: AUDIO_KNOBS.filter((k) => k[3]).map(([fx, fy]) => [fx, fy, 0.055]), gps: [[0.09, 0.72, 0.078], [0.91, 0.72, 0.078]], rmu: [[0.62, 0.88, 0.15]] };
+    for (const inst of PANEL_INSTRUMENTS) {
+      const list = knobsOf[inst.kind];
+      if (!list) continue;
+      const o = outerFt(inst, faceW, faceH), yc = yOf(inst.u), zc = zOf(inst.v);
+      for (const [fx, fy, fr] of list) {
+        const y = yc + o.w / 2 - fx * o.w, z = zc + o.h / 2 - fy * o.h, r = fr * o.w;
+        put(new THREE.CylinderGeometry(r, r * 1.05, 0.05, 14).rotateZ(Math.PI / 2).translate(p.x - 0.027, y, z), SLOT.black);
+        put(new THREE.CylinderGeometry(r * 0.45, r * 0.45, 0.012, 10).rotateZ(Math.PI / 2).translate(p.x - 0.057, y, z), SLOT.knob);
+      }
+    }
   }
   // The emergency gear handle (a yellow and black T on the main face's lower left) and the landing gear handle (a lever
   // with its light wheel knob on the lower panel, left of the left knee well; Dad's pictures 17, 26, 27).
