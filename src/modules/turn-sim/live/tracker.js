@@ -9,7 +9,7 @@
 import { bankDegFromTurnRate, turnRateFromBankRadPerSec } from '../../../core/flight-math.js';
 import { wrapPi, DEG } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
-import { STEP_SEC, copyAircraft, smoothLegSec, SMOOTHER_PEAK } from './flight.js';
+import { STEP_SEC, copyAircraft, smoothLegSec, SMOOTHER_PEAK, pullToClimb } from './flight.js';
 import { relativeTo, unit } from './manoeuvres.js';
 import { fullPowerKtps, slowKtps, stallBankDeg } from './slow-down.js';
 import { throttleAtTorque, throttleFor } from './power.js';
@@ -405,13 +405,7 @@ function verticalOnset(W) {
   const vEased = v0 + (acc0 * easeSec) / 2;
   const easedFt = v0 * easeSec + (acc0 * easeSec * easeSec) / 3;
   const stopFtps = (a, d) => (a > 0 && d > 0 ? Math.max(0, Math.sqrt((a * a * a * a) / (4 * jerk * jerk) + 2 * a * d) - (a * a) / (2 * jerk)) : 0);
-  // The pull he wants eases off as the climb rate nears the one wanted, as fast as the onset lets it, so it comes off on time.
-  const step = (wantV, pullDown, pullUp, dt) => {
-    const dv = wantV - vEased;
-    const want = Math.max(-pullDown, Math.min(pullUp, Math.sign(dv) * Math.min(Math.abs(dv) / dt, Math.sqrt(2 * jerk * Math.abs(dv)))));
-    const acc = acc0 + Math.max(-jerk * dt, Math.min(jerk * dt, want - acc0));
-    return { v0, v1: v0 + acc * dt, nz: 1 + acc / G_FTPS2 };
-  };
+  const step = (wantV, pullDown, pullUp, dt) => ({ v0, ...pullToClimb(v0, W.nz ?? 1, wantV, pullDown, pullUp, dt) });
   return { vEased, easedFt, stopFtps, step };
 }
 
