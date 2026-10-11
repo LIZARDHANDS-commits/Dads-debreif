@@ -20,6 +20,7 @@ Step 1's PFL Segment Planner rewrite (Tasks 1-10) is complete and verified again
 | `testing.md` | This module's testing rules, its sign-off checklist and its list of tests |
 | `plan.md` | The ordered steps and checkboxes; the last step is the sign-off |
 | `future.md` | Ideas not being built until Patrick moves them up |
+| `REFACTOR_HANDOVER_V2.350.md` | Fable's audit of the flying code and the step-by-step refactor plan, waiting on Patrick's yes |
 
 ## Open questions
 
