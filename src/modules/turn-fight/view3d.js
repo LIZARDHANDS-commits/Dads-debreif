@@ -25,7 +25,7 @@ import {
 import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
 import { drawHud } from '../../ui-kit/hud.js';
 import { createCt156Model, disposeCt156Model, CT156_UNIT_LENGTH, setCockpitView } from '../../ui-kit/ct156-model.js';
-import { createCt156Cockpit, cockpitFovDeg, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
+import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
 import { FT_PER_NM } from '../../core/units.js';
 import { FIGHT_MAX_SEC } from './sim.js';
 import { TRAIL_INTERVAL_SEC } from './trails.js';
@@ -461,6 +461,7 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
   let cam = cameraForState(camState);
   let head = { yawDeg: 0, pitchDeg: 0 }; // the person's head turn (Cockpit, Padlock) or swing round the aircraft (Chase)
   let chaseFt = POV.chaseFt;
+  const zoomKey = createCockpitZoomKey(win, () => requestDraw()); // hold Shift to zoom from the seat (COCKPIT_ZOOM)
   const pointers = new Map(); // id -> { x, y }, the fingers or the mouse now down
   let pinchDistance = 0;
 
@@ -720,7 +721,7 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
       }
       return;
     }
-    p.fov = cockpitFovDeg(box.width, box.height); // from the seat, set by its height so a wide screen adds sides (Patrick, 11 Oct)
+    p.fov = cockpitFovDeg(box.width, box.height, zoomKey.held()); // from the seat, set by its height so a wide screen adds sides (Patrick, 11 Oct)
     p.updateProjectionMatrix();
     const seatChoice = pov.seat === 'rear' ? 'rear' : 'front';
     syncCockpit(me, seatChoice);
@@ -1053,6 +1054,7 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
   /** Frees every GPU resource and the canvas; the camera choice stays for the next start. */
   function teardown({ lost = false } = {}) {
     win.removeEventListener?.('keydown', onWindowKeydown);
+    zoomKey.stop();
     stopFrame();
     resizer?.disconnect();
     resizer = null;
@@ -1266,6 +1268,7 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
       if (win.addEventListener) {
         win.removeEventListener('keydown', onWindowKeydown);
         win.addEventListener('keydown', onWindowKeydown);
+        zoomKey.start();
       }
       if (win.ResizeObserver) {
         resizer = new win.ResizeObserver(() => requestDraw());

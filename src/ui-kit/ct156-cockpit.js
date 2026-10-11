@@ -1592,10 +1592,61 @@ export const COCKPIT_HEAD = Object.freeze({ yawDeg: [-160, 160], pitchDeg: [-85,
  */
 export const COCKPIT_VIEW = Object.freeze({ fovAcrossDeg: 60, fovTallDeg: 65, nearFt: 0.5, farFt: 400_000 });
 
-/** The vertical field of view, degrees, from a seat for a box `width` by `height` (COCKPIT_VIEW). */
-export function cockpitFovDeg(width, height) {
+/**
+ * Holding Shift in a seat view zooms in on where the view looks (boresight, head turn or padlock), `times` closer:
+ * 65° tall becomes about 29°, roughly true size on a desktop screen (Patrick, 11 Oct 03:29Z, asked for Shift to zoom;
+ * the 2.5 is an estimate). A picture choice, not a flying number.
+ */
+export const COCKPIT_ZOOM = Object.freeze({ times: 2.5 });
+
+/** The vertical field of view, degrees, from a seat for a box `width` by `height` (COCKPIT_VIEW), COCKPIT_ZOOM closer when `zoomed`. */
+export function cockpitFovDeg(width, height, zoomed = false) {
   const aspect = Math.max(width, 1) / Math.max(height, 1);
-  return Math.max(COCKPIT_VIEW.fovTallDeg, 2 * deg(Math.atan(Math.tan(rad(COCKPIT_VIEW.fovAcrossDeg / 2)) / aspect)));
+  const fov = Math.max(COCKPIT_VIEW.fovTallDeg, 2 * deg(Math.atan(Math.tan(rad(COCKPIT_VIEW.fovAcrossDeg / 2)) / aspect)));
+  return zoomed ? 2 * deg(Math.atan(Math.tan(rad(fov / 2)) / COCKPIT_ZOOM.times)) : fov;
+}
+
+/**
+ * Watches the Shift key on `win` for a 3D view's seat zoom (COCKPIT_ZOOM): held() is true while Shift is down (not
+ * while typing in a box), and onChange runs each time it goes down or up, so a paused view redraws. start() and stop()
+ * go with the view's own window key listener; stop() also lets go.
+ * @param {any} win
+ * @param {() => void} [onChange]
+ */
+export function createCockpitZoomKey(win, onChange) {
+  let held = false;
+  let on = false;
+  const set = (v) => {
+    if (v === held) return;
+    held = v;
+    onChange?.();
+  };
+  const down = (e) => {
+    const tag = e.target?.tagName;
+    if (e.key === 'Shift' && tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') set(true);
+  };
+  const up = (e) => {
+    if (e.key === 'Shift') set(false);
+  };
+  const letGo = () => set(false);
+  return {
+    held: () => held,
+    start() {
+      if (on || !win?.addEventListener) return;
+      on = true;
+      win.addEventListener('keydown', down);
+      win.addEventListener('keyup', up);
+      win.addEventListener('blur', letGo);
+    },
+    stop() {
+      if (!on) return;
+      on = false;
+      win.removeEventListener?.('keydown', down);
+      win.removeEventListener?.('keyup', up);
+      win.removeEventListener?.('blur', letGo);
+      held = false;
+    },
+  };
 }
 
 /**
@@ -1652,16 +1703,16 @@ export function cockpitEyeWorld(THREE, root, seat = 'front') {
 /**
  * Points a PerspectiveCamera out of `seat` of the ship `root`: at the eye, along the nose turned by the head (yawDeg
  * left, pitchDeg up, within COCKPIT_HEAD), rolling with the wings, cockpitFovDeg for a box `width` by `height`
- * and nothing nearer than COCKPIT_VIEW.nearFt (in world units: the ship's own scale is the caller's).
+ * (closer when `zoomed`) and nothing nearer than COCKPIT_VIEW.nearFt (in world units: the ship's own scale is the caller's).
  */
-export function aimCockpitCamera(THREE, camera, root, { seat = 'front', yawDeg = 0, pitchDeg = 0, width = 1, height = 1, near = COCKPIT_VIEW.nearFt, far = COCKPIT_VIEW.farFt } = {}) {
+export function aimCockpitCamera(THREE, camera, root, { seat = 'front', yawDeg = 0, pitchDeg = 0, width = 1, height = 1, zoomed = false, near = COCKPIT_VIEW.nearFt, far = COCKPIT_VIEW.farFt } = {}) {
   /** @type {(v: number, range: readonly number[]) => number} */
   const clampTo = (v, range) => Math.max(range[0], Math.min(range[1], v));
   const eye = cockpitEyeWorld(THREE, root, seat);
   const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(root.quaternion);
   const up = new THREE.Vector3(0, 0, 1).applyQuaternion(root.quaternion);
   camera.aspect = width / Math.max(height, 1);
-  camera.fov = cockpitFovDeg(width, height);
+  camera.fov = cockpitFovDeg(width, height, zoomed);
   camera.near = near;
   camera.far = far;
   camera.updateProjectionMatrix();
