@@ -444,7 +444,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   const upSec = upFt > 0 ? Math.max(TR.heightSec / 2, smoothLegSec(upFt, heightG)) : 0;
   const downSec = upFt > 0 ? Math.max(TR.heightSec / 2, smoothLegSec(wing.altAboveFt + upFt - lineFt, heightG)) : 0;
   const dropFt = wing.altAboveFt - lineFt;
-  const steadySec = upFt > 0 ? upSec + downSec : Math.max(TR.heightSec, smoothLegSec(dropFt, heightG));
+  const steadySec = upFt > 0 ? upSec + downSec : Math.max(TR.heightSec, smoothLegSec(dropFt, element?.heightG ?? TR.captureHeightG));
   const heightLeg = (sec) => {
     if (upFt > 0) {
       const tUp = t0 + (sec * upSec) / steadySec;
