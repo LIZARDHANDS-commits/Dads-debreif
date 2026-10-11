@@ -115,10 +115,11 @@ function overshootLegs(s, to, sTo, spacingFt) {
  * the turn to capture"; Fig 16.25: "Reverse when lead passes through approximate nose position"; Patrick 11 Oct 2026 03:37Z:
  * "shouldn't we basically be wings level until lead passes thru the nose?", 04:05Z: "Turn more at the start with 4-5 g quick
  * roll and wings level earlier", "quick but smooth").
- * Three tracker phases, all at Lead's 200 KIAS and rolled quick but smooth (pointRoll): he turns hard toward Lead, within
- * pointMaxG, his bank in proportion to the heading still to turn, rolling out as Lead comes onto the nose; wings level until
- * Lead has come through the nose and his line of sight moves (lookLosDps, or lookMaxSec); then the reversal, his bank in
- * proportion to the heading still to turn onto Lead's (at most reverseBankDeg), until the ride takes him onto the line.
+ * Three tracker phases, all at Lead's 200 KIAS: he turns hard toward Lead, within pointMaxG, rolled quick but smooth
+ * (pointRoll), and is rolled out wings level with Lead still pointAheadDeg short of the nose; wings level until Lead has come
+ * lookThroughDeg through the nose and he has waited lookMinSec (or lookMaxSec); then the smooth reversal (reverseRoll, at most
+ * reverseBankDeg), turning with Lead's line of sight until Lead sits frozenBearingDeg off the nose inside the turn, where the
+ * ride freezes him (Fable's V2.249 flight, 04:40Z).
  * Until V2.248 the ride's capture turned him at the 5 G flag's 78° bank and 180°/s and never held wings level.
  */
 function pointingPhases(altFt) {
@@ -137,6 +138,8 @@ function pointingPhases(altFt) {
   const common = { rejoin: true, pursuitEnds: true, roll: TR.pointRoll, kiasCmd: TR.pointKias };
   let side0 = 0; // the side Lead starts on, off #2's nose
   let lookFrom = null;
+  let levelFrom = null; // when he came wings level
+  let reverseFrom = null;
   return [
     phase({ fwd: 0, left: 0, alt: altFt }, {
       ...common,
@@ -144,7 +147,12 @@ function pointingPhases(altFt) {
       pursuit: (L, W) => {
         const err = toLead(L, W) / DEG;
         side0 ||= Math.sign(err);
-        return { bankDeg: clamp(TR.pointGain * err, capDeg), psiCmd: W.headingRad, kiasCmd: TR.pointKias, done: Math.abs(err) <= TR.pointTolDeg || err * side0 < 0 };
+        // Rolled out by the time Lead is pointAheadDeg off the nose: the bearing still to come off while he rolls out at
+        // pointRoll, his own turn (fading as he rolls out) less Lead's drift across the nose.
+        const rollSec = Math.abs(W.bankDeg) / TR.pointRoll.maxRateDps + TR.pointRoll.maxRateDps / TR.pointRoll.maxAccelDps2;
+        const turnDps = (G_FTPS2 * Math.tan(Math.abs(W.bankDeg) * DEG)) / Math.max(1, W.tasFtps) / DEG;
+        const comeOff = (turnDps / 2 - side0 * (losRate(L, W) / DEG)) * rollSec;
+        return { bankDeg: clamp(TR.pointGain * err, capDeg), psiCmd: W.headingRad, kiasCmd: TR.pointKias, done: side0 * err <= TR.pointAheadDeg + Math.max(0, comeOff) };
       },
     }),
     phase({ fwd: 0, left: 0, alt: altFt }, {
@@ -152,17 +160,25 @@ function pointingPhases(altFt) {
       bankCapDeg: capDeg,
       pursuit: (L, W, t) => {
         lookFrom ??= t;
-        const through = toLead(L, W) * side0 <= 0;
-        const moving = Math.abs(losRate(L, W)) / DEG >= TR.lookLosDps;
-        return { bankDeg: 0, psiCmd: W.headingRad, kiasCmd: TR.pointKias, done: (through && moving) || t - lookFrom >= TR.lookMaxSec - 1e-9 };
+        if (Math.abs(W.bankDeg) > TR.levelDeg) levelFrom = null;
+        else levelFrom ??= t;
+        const through = (-toLead(L, W) * side0) / DEG >= TR.lookThroughDeg;
+        const waited = levelFrom !== null && t - levelFrom >= TR.lookMinSec - 1e-9;
+        return { bankDeg: 0, psiCmd: W.headingRad, kiasCmd: TR.pointKias, done: (through && waited) || t - lookFrom >= TR.lookMaxSec - 1e-9 };
       },
     }),
     phase({ fwd: 0, left: 0, alt: altFt }, {
       ...common,
+      roll: TR.reverseRoll,
       bankCapDeg: TR.reverseBankDeg,
       pursuit: (L, W, t) => {
-        const off = wrapPi(L.headingRad - W.headingRad) / DEG;
-        return { bankDeg: clamp(L.bankDeg + TR.reverseGain * off, TR.reverseBankDeg), psiCmd: W.headingRad, kiasCmd: TR.pointKias, done: Math.abs(off) <= TR.reverseDoneDeg };
+        reverseFrom ??= t;
+        // He turns with Lead's line of sight and brings Lead back across the nose onto the frozen bearing, inside the turn,
+        // taking out the bearing error over frozenTauSec; done there, where the ride freezes him (Fable 04:40Z).
+        const err = wrapPi(toLead(L, W) - side0 * TR.frozenBearingDeg * DEG);
+        const omega = losRate(L, W) + err / TR.frozenTauSec;
+        const bankDeg = Math.atan((W.tasFtps * omega) / G_FTPS2) / DEG;
+        return { bankDeg: clamp(bankDeg, TR.reverseBankDeg), psiCmd: W.headingRad, kiasCmd: TR.pointKias, done: Math.abs(err) / DEG <= TR.reverseDoneDeg || t - reverseFrom >= TR.reverseMaxSec - 1e-9 };
       },
     }),
   ];
