@@ -21,7 +21,7 @@ import { relativeTo } from './manoeuvres.js';
 import { recordFlight } from './replay.js';
 import { STEP_SEC } from './flight.js';
 import { slide, closeThrough, rejoinTo, straightAhead, STRAIGHT_AHEAD } from './recipes.js';
-import { REJOIN, TURNING_REJOIN, STRAIGHT_REJOIN, WING_BANKS, KIAS_OUTSIDE_LAB } from './tuning.js';
+import { REJOIN, TURNING_REJOIN, STRAIGHT_REJOIN, WING_BANKS, KIAS_OUTSIDE_LAB, TRACKER, lineKiasNow } from './tuning.js';
 import { phase } from './tracker.js';
 import { RATE_SETS, G_RULE_BANK_DEG, CLOSE_SHAPING } from './rates.js';
 import { KT_TO_FTPS as KT_FTPS } from '../../../core/units.js';
@@ -421,6 +421,9 @@ export function turningToEchelon(start, t0, opts, s, from, sTo = s) {
  *    element does (TS-177).
  * s: #2's side now. Returns legsInTurn's result and, when #2 crossed closer than AWAY_CROSS, a flag for the screen.
  */
+// Lead's six as a line in his frame, from his tail straight back (the straight-ahead rejoin's, straight-rejoin.js).
+const SIX_LINE = Object.freeze({ u: { fwd: -1, left: 0 }, nrm: { fwd: 0, left: 1 }, at: (rel) => ({ along: -rel.fwd, cross: rel.left }) });
+
 export function turningAway(start, t0, opts, s, from, to) {
   const sIn = -s;
   const far = (c, id) => (Math.abs(relativeTo(c.start[0], c.by.get(id)).left) > 3000 ? FAR_OVERTAKE_KIAS : REJOIN.overtakeKias);
@@ -480,17 +483,27 @@ export function turningAway(start, t0, opts, s, from, to) {
   });
   const thenLegs = (c, done) => {
     const p = inLeadFrame(slots, 2);
+    const midKt = (TURNING_REJOIN.stableKt[0] + TURNING_REJOIN.stableKt[1]) / 2;
     const gate = inAt(done, 4);
     if (to === 'echelon') {
       return [
         // on Lead's six at the straight-ahead rejoin's 1,000 ft, below the wake
         rejoinTo(place(c, A.sixFt, 0, -AWAY_CROSS.belowFt), { track: 1, advanceTol: 60, holdUntil: gate }),
-        // up the six (the straight-ahead rejoin's closing leg), then from about 500 ft out into the gap
-        rejoinTo(place(c, A.closeTowardFt, 0, -AWAY_CROSS.belowFt), { track: 1, overtakeKias: 30, advanceTol: A.vectorAtFt + A.closeTowardFt }),
+        // up the six to about 500 ft out, ridden in Lead's turning frame as the straight-ahead rejoin's (refactor step 5): at the
+        // Rates choice's line speed (TS-133), easing to the window's middle closure (TS-110) over the last 500 ft. Until V2.325
+        // he chased a point on the six, which in Lead's turn drew him 270 ft inside it; from there the gap leg took him across
+        // #3's place, 21 ft under him (the Formation unit tests).
+        phase(place(c, -A.vectorAtFt, 0, -AWAY_CROSS.belowFt), {
+          kind: 'ride', track: 1, line: SIX_LINE, captureAt: -A.sixFt, captureFt: STRAIGHT_REJOIN.captureFt,
+          windowFt: A.vectorAtFt, carrotWindowFt: A.vectorAtFt, bankCapDeg: TURNING_REJOIN.bankCapDeg, floorKias: KIAS_OUTSIDE_LAB,
+          rideKias: lineKiasNow(), easeFromFt: A.vectorAtFt + TURNING_REJOIN.rideEaseFromFt, easeKias: KIAS_OUTSIDE_LAB + midKt, rejoin: true,
+        }),
         // out into the gap behind his place (as far back as route is behind echelon), then up into it
         // his bank capped on what he adds to Lead's, not on the whole of it: at 25° all told he could not stay with Lead's
         // 30° turn and fell out of it (from V2.248, where the gap is 59 ft behind echelon, not 71)
-        closeThrough(place(c, p.fwd + out.fwd - step.fwd, p.left, p.alt - 25), { track: 1, advanceTol: 6, targetBankDeg: CLOSE_SHAPING.targetBankDeg }),
+        // From the six the gap is mostly ahead: it is closed at the window's middle closure (TS-110), built up and taken off at
+        // the tracker's usual rate, so the power can take it off; at closeThrough's 40 ft/s he went 90 ft past Lead's 3/9 line.
+        closeThrough(place(c, p.fwd + out.fwd - step.fwd, p.left, p.alt - 25), { track: 1, advanceTol: 6, targetBankDeg: CLOSE_SHAPING.targetBankDeg, fwdRate: midKt * KT_FTPS, refAccelShare: TRACKER.refAccelShare }),
         slide(place(c, p.fwd, p.left, p.alt), { track: 1, targetBankDeg: CLOSE_SHAPING.targetBankDeg }),
       ];
     }
