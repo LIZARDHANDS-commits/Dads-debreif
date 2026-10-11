@@ -64,16 +64,26 @@ const STATIONS = [
   [-0.009, 0.08, 0.04, -0.128, 2.7],
   [-0.158, 0.077, 0.034, -0.127, 2.7],
   [-0.32, 0.066, 0.026, -0.119, 2.6],
-  [-0.482, 0.05, 0.023, -0.112, 2.5],
-  [-0.59, 0.038, 0.022, -0.094, 2.4],
-  [-0.685, 0.026, 0.0, -0.085, 2.3],
+  [-0.482, 0.05, 0.018, -0.112, 2.5],
+  [-0.59, 0.038, 0.0, -0.094, 2.4],
+  [-0.685, 0.026, -0.016, -0.085, 2.3],
   [-0.75, 0.014, -0.025, -0.078, 2.2],
   [-0.78, 0.004, -0.045, -0.075, 2.0],
 ];
-// The canopy, windscreen foot to its fairing on the spine: [x, half-width, top]. Its top, windscreen foot to just aft of
-// the centre arch, is the T-6A-1 side drawing's (ALL-31): the forward bow's crest 2.75 ft above the spinner's axis
-// 11.3 ft behind the tip, the peak 3.45 ft over the centre arch (was 3.0 ft over the front seat, off the photo); aft of
-// that, and the half-widths, as before (photo and estimates).
+// The top line aft of the fairing, into the tail, is the T-6A-1 side drawing's (Patrick, 11 Oct 2026: "the fuselage
+// flows down into the tail"): 0.4 ft above the spinner's axis 6.9 ft ahead of the tail, level with it at 4.4 ft and
+// 0.4 ft below it at 2.2 ft (was level, 0.5 ft above the axis, back to 4.4 ft ahead of the tail, off the photo).
+
+// The canopy and the fairing behind it, windscreen foot to where the fairing runs into the fuselage's top: [x,
+// half-width, top]. The glass ends at the rear bow (CT156_FRAME_X[2]), squared off there, and the fairing is painted
+// (Patrick, 11 Oct 2026: "the very back of the window should be squared off"; the glass ran on past the rear bow to a
+// point). The top, windscreen foot to just aft of the centre arch, is the T-6A-1 side drawing's (ALL-31): the forward
+// bow's crest 2.75 ft above the spinner's axis 11.3 ft behind the tip, the peak 3.45 ft over the centre arch (was
+// 3.0 ft over the front seat, off the photo). From the rear bow aft the top is the same drawing's line falling from
+// the canopy into the tail: 2.3 ft above the axis at the rear bow, 1.4 ft 2 ft behind it and 0.4 ft where it meets the
+// fuselage, 5.8 ft behind it (was 2.4 ft, then a point 2.7 ft behind it, off the photo). The half-widths to the rear bow are as
+// before (photo and estimates) but the rear bow's, 2.55 ft across, nearly the canopy's widest, so the glass ends square
+// as in the T-6A-1's top view (p.6, measured roughly; was 2.3 ft); the fairing's narrowing behind it is an estimate.
 const CANOPY = [
   [0.268, 0.02, 0.0635],
   [0.23, 0.042, 0.0851],
@@ -84,9 +94,13 @@ const CANOPY = [
   [-0.022, 0.06, 0.149],
   [-0.076, 0.06, 0.1469],
   [-0.185, 0.057, 0.124],
-  [-0.239, 0.05, 0.105],
-  [-0.293, 0.032, 0.064],
-  [-0.354, 0.008, 0.028],
+  [-0.239, 0.055, 0.0978],
+  [-0.274, 0.05, 0.0807],
+  [-0.32, 0.042, 0.0588],
+  [-0.366, 0.033, 0.0415],
+  [-0.412, 0.024, 0.0311],
+  [-0.458, 0.015, 0.0231],
+  [-0.49, 0.008, 0.016],
 ];
 // The cockpit, in model units (from the photo, as the canopy): the canopy frame hoops (the forward one is the windscreen
 // bow), the two seats' stations (front, rear; each helmet sits there, its seat back just behind) and the helmets' heights
@@ -169,22 +183,32 @@ const STAB = [
 // swept back from 13.1 ft ahead of the tail at the root (T-6A-1 side drawing; was 4.5 ft and 0.7 ft further aft, off the
 // photo).
 const FIN = [{ le: -0.569, s: -0.03, chord: 0.168, t: 0.09, z: 0 }, { le: -0.6135, s: 0.232, chord: 0.086, t: 0.09, z: 0 }];
-// The ventral fin under the tail, as an [x, z] outline (T-6A-1 side drawing; was 0.8 ft deeper, off the photo).
-const VENTRAL = [[-0.49, -0.09], [-0.535, -0.155], [-0.675, -0.15], [-0.715, -0.07]];
-// The spine from inside the canopy's aft glass into the fin's leading edge, [x, half-width, top]: a rounded fairing on
-// the fuselage's top, its top line the T-6A-1 side drawing's (1.5 to 1.7 ft above the axis). It was a flat plate with
-// that outline, which read as a sheet standing on the fuselage (Patrick, 11 Oct 2026: "the paint is hanging off the
-// back"). The half-widths are estimates: the canopy's width where its glass ends, narrowing to the fin's thickness.
-const SPINE = [
-  [-0.265, 0.036, 0.068],
-  [-0.3, 0.035, 0.068],
-  [-0.38, 0.027, 0.069],
-  [-0.47, 0.018, 0.071],
-  [-0.55, 0.0095, 0.072],
-  [-0.6, 0.005, 0.073],
+// The ventral fin under the tail, as aerofoil sections down from inside the belly, its outline the T-6A-1 side drawing's
+// (Patrick, 11 Oct 2026, circled it): its leading edge leaving the belly 6.3 ft ahead of the tail, its foot 3.5 ft under
+// the axis and 2.9 ft long, rising 0.35 ft to the back (VENTRAL_RISE), its trailing edge meeting the belly 2.3 ft ahead
+// of the tail (was a flat plate reaching 0.6 ft further aft, its foot level). Thickness an estimate.
+const VENTRAL = [{ le: -0.4905, s: -0.08, chord: 0.2065, t: 0.06, z: 0 }, { le: -0.5265, s: -0.152, chord: 0.1255, t: 0.06, z: 0 }];
+const VENTRAL_RISE = 0.128; // the foot's rise per unit aft
+// The dorsal fin on the fairing, from where it leaves the fairing into the fin's leading edge, [x, half-width, top]: a
+// thin fin, its top line the T-6A-1 side drawing's (1.25 ft above the axis 2.2 ft behind the rear bow, 1.5 ft at the
+// fin), the fairing and fuselage falling away under it (Patrick, 11 Oct 2026: "instead of having a straight bulky
+// spine"; it was a spine as wide as the canopy's end). The half-widths are estimates.
+const DORSAL = [
+  [-0.33, 0.0035, 0.054],
+  [-0.4, 0.004, 0.0576],
+  [-0.47, 0.0045, 0.0611],
+  [-0.54, 0.005, 0.0634],
+  [-0.6, 0.0055, 0.066],
 ];
 // The forward bow leans aft from its crest 9° to the sill, as the T-6A-1 side drawing shows it (was upright).
 export const CT156_BOW_LEAN = rad(9);
+/**
+ * Each frame hoop's lean from its crest to the sills (CT156_FRAME_X's order), radians: + the feet aft of the crest, -
+ * ahead of it. The forward bow CT156_BOW_LEAN; the rear bow 22° with its top aft, as the T-6A-1 side drawing shows it
+ * (Patrick, 11 Oct 2026: "the wrong angles in the canopy bow"; it was upright). The drawing leans the centre bow 21°
+ * the same way; it stays upright here until the arch inside the cockpit (ct156-cockpit.js's ARCH_FT) leans with it.
+ */
+export const CT156_FRAME_LEAN = Object.freeze([CT156_BOW_LEAN, 0, rad(-22)]);
 /** A symmetric NACA 4-digit section's half-thickness at xc (0 the leading edge, 1 the trailing edge), per chord. */
 const thick = (xc, t) => 5 * t * (0.2969 * Math.sqrt(xc) - 0.126 * xc - 0.3516 * xc ** 2 + 0.2843 * xc ** 3 - 0.1036 * xc ** 4);
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
@@ -349,25 +373,18 @@ function tailCanvas(number) {
 
 const kits = new WeakMap(); // THREE namespace -> kit
 
-function flatXZ(THREE, pts, thickness) {
-  const shape = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, z)));
-  const g = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false });
-  g.translate(0, 0, -thickness / 2);
-  g.rotateX(Math.PI / 2); // (x, up) plate, thickness across y
-  return g;
-}
-
 /**
- * The spine (SPINE): rounded sections on the fuselage's top, flaring out at the foot into a fillet (by FLARE times the
- * half-width, an estimate) that ends just under the skin, so it reads as one with the fuselage. Closed at each end.
+ * The dorsal fin (DORSAL): thin rounded sections standing on the fuselage's top, flaring out at the foot into a small
+ * fillet (by FLARE times the half-width, an estimate) that ends just under the skin, so it reads as one with the
+ * fuselage. Its front end starts inside the fairing and its back end inside the fin. Closed at each end.
  */
-function spineGeometry(THREE) {
-  const N = 24, M = 16, n = 2.4, FLARE = 0.7; // n: a little boxier than an ellipse
-  const x0 = SPINE[0][0], x1 = SPINE[SPINE.length - 1][0];
+function dorsalGeometry(THREE) {
+  const N = 24, M = 12, n = 2.4, FLARE = 1.2; // n: a little boxier than an ellipse
+  const x0 = DORSAL[0][0], x1 = DORSAL[DORSAL.length - 1][0];
   const pos = [], idx = [];
   const ring = (x) => {
-    const [, w, top] = rowAt(SPINE, x);
-    const foot = Math.min(w * (1 + FLARE), rowAt(STATIONS, x)[1] * 0.9);
+    const [, w, top] = rowAt(DORSAL, x);
+    const foot = w * (1 + FLARE);
     const base = sillZ(x, foot) - 0.002;
     const pts = [];
     for (let k = 0; k <= M; k++) {
@@ -392,6 +409,18 @@ function spineGeometry(THREE) {
     for (let k = 1; k <= M; k++) idx.push(...(front ? [centre, centre + k, centre + k + 1] : [centre, centre + k + 1, centre + k]));
   }
   return meshOf(THREE, pos, idx);
+}
+
+/** The ventral fin (VENTRAL): an aerofoil down from inside the belly, its foot sheared to rise aft by VENTRAL_RISE. */
+function ventralGeometry(THREE) {
+  const g = airfoilGeometry(THREE, VENTRAL, { span: 'z' });
+  const [root, tip] = VENTRAL, p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const f = clamp01((root.s - p.getZ(i)) / (root.s - tip.s)); // 0 at the root, 1 at the foot
+    p.setZ(i, p.getZ(i) + (tip.le - p.getX(i)) * VENTRAL_RISE * f);
+  }
+  g.computeVertexNormals();
+  return g;
 }
 
 /** An indexed geometry from points and triangles, smooth-shaded. */
@@ -494,7 +523,7 @@ function tubGeometry(THREE) {
   return meshOf(THREE, pos, [...floor, ...walls], [[0, floor.length, 0], [floor.length, walls.length, 1]]);
 }
 
-/** The canopy: a rounded hood from sill to sill along its length. */
+/** The canopy and its fairing (CANOPY): a rounded hood from sill to sill along its length. */
 function canopyAt(x, grow = 0) {
   const [, w, top] = rowAt(CANOPY, x);
   return { w: w + grow, top: top + grow, base: sillZ(x, w) };
@@ -503,24 +532,45 @@ function canopyPoint(c, phi) {
   const cp = Math.cos(phi), sp = Math.sin(phi);
   return [c.w * Math.sign(cp) * Math.abs(cp) ** 0.85, c.base + (c.top - c.base) * Math.max(sp, 0) ** 0.75];
 }
-function canopyGeometry(THREE) {
-  const N = 40, M = 20;
-  const x0 = CANOPY[0][0], x1 = CANOPY[CANOPY.length - 1][0];
-  const pos = [], idx = [];
+/** Where the glass ends: the rear bow's hoop (CT156_FRAME_X[2], leaning by CT156_FRAME_LEAN[2]), M + 1 points sill to sill. */
+const glassEnd = (M) => ct156HoopPoints(CT156_FRAME_X[2], M, 0, CT156_FRAME_LEAN[2]).map((p) => p.x);
+/**
+ * The hood's skin (canopyAt, canopyPoint) between two stations per column, sill to sill: from[j] to to[j] for the M + 1
+ * columns, in N steps, onto pos and idx.
+ */
+function hoodSkin(from, to, N, pos, idx) {
+  const M = from.length - 1, first = pos.length / 3;
   for (let i = 0; i <= N; i++) {
-    const x = x0 + ((x1 - x0) * i) / N;
-    const c = canopyAt(x);
     for (let j = 0; j <= M; j++) {
-      const [y, z] = canopyPoint(c, (Math.PI * j) / M);
+      const x = from[j] + ((to[j] - from[j]) * i) / N;
+      const [y, z] = canopyPoint(canopyAt(x), (Math.PI * j) / M);
       pos.push(x, y, z);
     }
   }
   for (let i = 0; i < N; i++) {
     for (let j = 0; j < M; j++) {
-      const a = i * (M + 1) + j, b = a + 1, c = a + M + 1, d = c + 1;
+      const a = first + i * (M + 1) + j, b = a + 1, c = a + M + 1, d = c + 1;
       idx.push(a, b, c, b, d, c);
     }
   }
+}
+/** The canopy's glass, windscreen foot to the rear bow, its end square along the bow. */
+function canopyGeometry(THREE) {
+  const end = glassEnd(20), pos = [], idx = [];
+  hoodSkin(end.map(() => CANOPY[0][0]), end, 40, pos, idx);
+  return meshOf(THREE, pos, idx);
+}
+/**
+ * The painted fairing behind the glass: the hood from the rear bow aft to its end in the fuselage's top, and a flat
+ * bulkhead across the glass's end (seen through the glass behind the rear seat, and from the seats).
+ */
+function fairingGeometry(THREE) {
+  const M = 20, end = glassEnd(M), pos = [], idx = [];
+  hoodSkin(end, end.map(() => CANOPY[CANOPY.length - 1][0]), 24, pos, idx);
+  const centre = pos.length / 3;
+  pos.push((end[0] + end[M]) / 2, 0, canopyAt(end[0]).base);
+  for (let j = 0; j <= M; j++) pos.push(end[j], ...canopyPoint(canopyAt(end[j]), (Math.PI * j) / M));
+  for (let j = 0; j < M; j++) idx.push(centre, centre + 1 + j, centre + 2 + j);
   return meshOf(THREE, pos, idx);
 }
 /** The canopy's section at x, in model units: { w: half-width, top, base: the sill's height } (for ct156-cockpit.js). */
@@ -540,8 +590,8 @@ export function ct156FuselageSection(x) {
 }
 /**
  * The canopy's hoop with its crest at station x as n + 1 points from the left sill over the top to the right sill,
- * model units ({ x, y, z }; the canopy's own shape, canopyPoint), grown outward by `grow`, leaning aft from the crest
- * by `lean` radians (CT156_BOW_LEAN for the forward bow) (for ct156-cockpit.js's bows and mirrors).
+ * model units ({ x, y, z }; the canopy's own shape, canopyPoint), grown outward by `grow`, its feet aft of the crest by
+ * `lean` radians (ahead of it when negative; CT156_FRAME_LEAN) (for ct156-cockpit.js's bows and mirrors).
  */
 export function ct156HoopPoints(x, n = 16, grow = 0, lean = 0) {
   const top = canopyAt(x, grow).top;
@@ -557,7 +607,7 @@ export function ct156HoopPoints(x, n = 16, grow = 0, lean = 0) {
   }
   return pts;
 }
-/** A frame hoop over the canopy with its crest at x, leaning aft by `lean`. */
+/** A frame hoop over the canopy with its crest at x, leaning by `lean` (CT156_FRAME_LEAN). */
 function hoopGeometry(THREE, x, lean = 0, radius = 0.0045) {
   const pts = ct156HoopPoints(x, 16, 0.0015, lean).map(({ x: px, y, z }) => new THREE.Vector3(px, y, z));
   return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, radius, 6, false); // about 2.5 in across, so a close wingman sees the bows (TS-156)
@@ -566,7 +616,7 @@ function hoopGeometry(THREE, x, lean = 0, radius = 0.0045) {
 function railGeometry(THREE, side) {
   const pts = [];
   for (let i = 0; i <= 12; i++) {
-    const x = 0.25 - (0.55 * i) / 12;
+    const x = 0.25 + ((glassEnd(2)[0] - 0.25) * i) / 12; // to the rear bow's foot
     const c = canopyAt(x, 0.001);
     pts.push(new THREE.Vector3(x, side * c.w, c.base));
   }
@@ -762,11 +812,12 @@ function buildKit(THREE) {
   }));
   env.mapping = THREE.EquirectangularReflectionMapping;
 
-  geo.fuselage = fuselageGeometry(THREE);
+  // The fuselage with the painted fairing behind the canopy.
+  geo.fuselage = joinGeometries(THREE, [{ geometry: fuselageGeometry(THREE), materials: [0] }, { geometry: fairingGeometry(THREE), materials: [0] }]);
   // The camera's own ship only (setCockpitView): the fuselage open over the cockpit, and the tub under it (TS-155).
-  geo.fuselageCut = fuselageGeometry(THREE, { cut: true });
+  geo.fuselageCut = joinGeometries(THREE, [{ geometry: fuselageGeometry(THREE, { cut: true }), materials: [0] }, { geometry: fairingGeometry(THREE), materials: [0] }]);
   geo.tub = tubGeometry(THREE);
-  // Wings, tailplane, ventral fin and spine in one geometry (the wings' leading edges a second slot), so the
+  // Wings, tailplane, ventral fin and dorsal fin in one geometry (the wings' leading edges a second slot), so the
   // airframe is one draw call; the dihedral is built in.
   const wing = (side) => {
     const g = airfoilGeometry(THREE, side > 0 ? WING : WING.map((s) => ({ ...s, s: -s.s })).reverse(), { leBand: 0.07 });
@@ -777,14 +828,14 @@ function buildKit(THREE) {
     { geometry: wing(1), materials: [0, 1] },
     { geometry: wing(-1), materials: [0, 1] },
     { geometry: airfoilGeometry(THREE, STAB), materials: [0] },
-    { geometry: flatXZ(THREE, VENTRAL, 0.01), materials: [0] },
-    { geometry: spineGeometry(THREE), materials: [0] },
+    { geometry: ventralGeometry(THREE), materials: [0] },
+    { geometry: dorsalGeometry(THREE), materials: [0] },
   ]);
   geo.fin = airfoilGeometry(THREE, FIN, { span: 'z' });
   geo.canopy = canopyGeometry(THREE);
   geo.frames = joinGeometries(THREE, [
     // The centre and rear hoops; the forward one is apart (bowFront), since from the seat ct156-cockpit.js draws it.
-    ...CT156_FRAME_X.slice(1).map((x) => ({ geometry: hoopGeometry(THREE, x), materials: [0] })),
+    ...CT156_FRAME_X.slice(1).map((x, i) => ({ geometry: hoopGeometry(THREE, x, CT156_FRAME_LEAN[i + 1]), materials: [0] })),
     { geometry: railGeometry(THREE, 1), materials: [0] },
     { geometry: railGeometry(THREE, -1), materials: [0] },
     // The seat backs.
@@ -792,7 +843,7 @@ function buildKit(THREE) {
     // The chin intake under the spinner.
     { geometry: ellipsoid(THREE, 0.545, 0, -0.058, 0.03, 0.032, 0.016), materials: [0] },
   ]);
-  geo.bowFront = hoopGeometry(THREE, CT156_FRAME_X[0], CT156_BOW_LEAN);
+  geo.bowFront = hoopGeometry(THREE, CT156_FRAME_X[0], CT156_FRAME_LEAN[0]);
   const floor = new THREE.CircleGeometry(1, 24);
   floor.scale(0.2, 0.05, 1);
   floor.translate(-0.035, 0, 0.046);
