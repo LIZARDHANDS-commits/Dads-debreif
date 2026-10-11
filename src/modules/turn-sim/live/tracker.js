@@ -555,16 +555,21 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     // (wingPlane) take him onto Lead's wing plane stepped down, by the same law: a target that moves as he does.
     const TR = TURNING_REJOIN;
     const rangeFt = Math.hypot(W.xFt - L.xFt, W.yFt - L.yFt);
-    // The angle is held once he is on the line (the ride established); in the capture before it, the 50 ft floor.
-    const depthFt = Math.max(-TR.lineUpFt, heightState.onLine ? rangeFt * Math.tan(TR.lineElevDeg * DEG) : 0);
+    // The angle is held from the end of the capture's own height leg, not only once the ride is established: until V2.234
+    // the floor ruled in between, so far out he sat 50 ft low, not the 70-140 ft the 4° gives (Fable's V2.232 audit).
+    const depthFt = Math.max(-TR.lineUpFt, rangeFt * Math.tan(TR.lineElevDeg * DEG));
     const targetAlt = ph.slopedAlt ? (L.altAboveFt ?? 0) - depthFt : slotAltOf(ph, L, W);
     const D = FW_BUBBLE;
     // One smooth change, stopping on the target as he gets there: on the line within heightG of level flight (TS-140), onto
     // the wing plane within planeEaseG (TS-126). Until V2.232 the line's was FW_BUBBLE's 1.9 g pull to a fixed 50 ft.
     const pull = (ph.slopedAlt ? TR.heightG : TR.planeEaseG) * G_FTPS2;
+    // Any pull up (a climb, or stopping a descent) stays inside the G rule's 5 G with the bank he has (TS-181): in the
+    // capture's steep bank he holds his height, and comes up the 4° as he rolls out.
+    const tanB = Math.tan(Math.min(89, Math.abs(W.bankDeg ?? 0)) * DEG);
+    const pullUp = Math.min(pull, Math.max(0, Math.sqrt(Math.max(0, G_RULE.normalG ** 2 - tanB * tanB)) - 1) * G_FTPS2);
     const toward = (ft) => {
       const err = ft - W.altAboveFt;
-      const v = Math.sign(err) * Math.min(Math.abs(err) * D.altGain, Math.sqrt(2 * pull * Math.abs(err)));
+      const v = Math.sign(err) * Math.min(Math.abs(err) * D.altGain, Math.sqrt(2 * (err < 0 ? pullUp : pull) * Math.abs(err)));
       return Math.max(-D.diveFtps, Math.min(D.diveFtps, v));
     };
     let wantV = toward(targetAlt);
@@ -572,7 +577,7 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     // A guard only: with the line at Lead less 50 ft (TS-166) this never binds (Fable's V2.216 audit 2.4); refactor step 3 may drop it.
     if (ph.slopedAlt && isRejoin && W.altAboveFt >= (L.altAboveFt ?? 0) - 10) wantV = Math.min(wantV, toward((L.altAboveFt ?? 0) - 10));
     const v0 = W.climbFtps ?? 0;
-    const v1 = v0 + Math.max(-pull * dt, Math.min(pull * dt, wantV - v0));
+    const v1 = v0 + Math.max(-pull * dt, Math.min(pullUp * dt, wantV - v0));
     const nz = 1 + (v1 - v0) / dt / G_FTPS2;
     const a1 = W.altAboveFt + ((v0 + v1) / 2) * dt;
     heightState.hasHeightChange = true;
