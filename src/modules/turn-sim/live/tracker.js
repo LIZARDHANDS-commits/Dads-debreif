@@ -17,6 +17,7 @@ import { TRACKER, CLOSURE, HAND_OVER_FT, FW_ENERGY, FW_BUBBLE, REJOIN, TURNING_R
 import { FW_BAND, LANE } from './slots.js';
 import { setKias, stepCommanded, climbCostKtps, createPilot, pilotSpeed, pilotFly, pilotPower, coneUpFtNow } from './pilot.js';
 import { G_RULE } from './rates.js';
+import { T6A_G_ONSET } from '../../../core/t6-performance.js';
 import { isLeadInCanopy } from '../../../core/canopy.js';
 import { liftTowardAim, gAndBankForLift } from '../../../core/point-mass.js';
 import { rideAim, rideClosure, rideHeightAsSpeed, lineAltOf } from './ride.js';
@@ -389,6 +390,32 @@ function slotAltOf(ph, L, W) {
 }
 
 /**
+ * His vertical pull builds and eases no faster than the T-6A's G onset (core T6A_G_ONSET, 4 G/s), so a climb or descent he
+ * starts is one he can stop in the room left once the pull he has now is eased off (Fable's V2.325 flight: until V2.327 the
+ * line's and the cone's heights took their pull in one step, from the ride into the cone 1 to 2.9 G and then to -0.9 G, each
+ * in 0.05 s). W: the aircraft now (its climb rate and the vertical share of its G, nz). Returns { vEased, easedFt, stopFtps,
+ * step } for the height laws below: where his climb rate and height are once his pull is eased off, the most climb rate he
+ * can stop in d feet at a pull of a, and the step to a wanted climb rate within the pull limits.
+ */
+function verticalOnset(W) {
+  const jerk = T6A_G_ONSET.maxRateDps * G_FTPS2;
+  const v0 = W.climbFtps ?? 0;
+  const acc0 = ((W.nz ?? 1) - 1) * G_FTPS2;
+  const easeSec = Math.abs(acc0) / jerk;
+  const vEased = v0 + (acc0 * easeSec) / 2;
+  const easedFt = v0 * easeSec + (acc0 * easeSec * easeSec) / 3;
+  const stopFtps = (a, d) => (a > 0 && d > 0 ? Math.max(0, Math.sqrt((a * a * a * a) / (4 * jerk * jerk) + 2 * a * d) - (a * a) / (2 * jerk)) : 0);
+  // The pull he wants eases off as the climb rate nears the one wanted, as fast as the onset lets it, so it comes off on time.
+  const step = (wantV, pullDown, pullUp, dt) => {
+    const dv = wantV - vEased;
+    const want = Math.max(-pullDown, Math.min(pullUp, Math.sign(dv) * Math.min(Math.abs(dv) / dt, Math.sqrt(2 * jerk * Math.abs(dv)))));
+    const acc = acc0 + Math.max(-jerk * dt, Math.min(jerk * dt, want - acc0));
+    return { v0, v1: v0 + acc * dt, nz: 1 + acc / G_FTPS2 };
+  };
+  return { vEased, easedFt, stopFtps, step };
+}
+
+/**
  * Vertical evolution: flies aircraft #2's height in the same pass as bank and speed.
  * Precedence:
  * 1. Cone energy in fighting wing (or bubble dive toward belowOwn)
@@ -421,18 +448,17 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     // capture's steep bank he holds his height, and comes up the 4° as he rolls out.
     const tanB = Math.tan(Math.min(89, Math.abs(W.bankDeg ?? 0)) * DEG);
     const pullUp = Math.min(pull, Math.max(0, Math.sqrt(Math.max(0, G_RULE.normalG ** 2 - tanB * tanB)) - 1) * G_FTPS2);
+    const V = verticalOnset(W);
     const toward = (ft) => {
-      const err = ft - W.altAboveFt;
-      const v = Math.sign(err) * Math.min(Math.abs(err) * D.altGain, Math.sqrt(2 * (err < 0 ? pullUp : pull) * Math.abs(err)));
+      const err = ft - W.altAboveFt - V.easedFt;
+      const v = Math.sign(err) * Math.min(Math.abs(err) * D.altGain, V.stopFtps(err < 0 ? pullUp : pull, Math.abs(err)));
       return Math.max(-D.diveFtps, Math.min(D.diveFtps, v));
     };
     let wantV = toward(targetAlt);
     const isRejoin = Boolean(ph.rejoin || ph.rejoinKind === 'into' || ph.rejoinKind === 'straight');
     // A guard only: with the line at Lead less 50 ft (TS-166) this never binds (Fable's V2.216 audit 2.4); refactor step 3 may drop it.
     if (ph.slopedAlt && isRejoin && W.altAboveFt >= (L.altAboveFt ?? 0) - 10) wantV = Math.min(wantV, toward((L.altAboveFt ?? 0) - 10));
-    const v0 = W.climbFtps ?? 0;
-    const v1 = v0 + Math.max(-pull * dt, Math.min(pullUp * dt, wantV - v0));
-    const nz = 1 + (v1 - v0) / dt / G_FTPS2;
+    const { v0, v1, nz } = V.step(wantV, pull, pullUp, dt);
     const a1 = W.altAboveFt + ((v0 + v1) / 2) * dt;
     heightState.hasHeightChange = true;
     heightState.sloped = true;
@@ -452,10 +478,11 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     const stayBelow = Boolean((isRejoin && range3DFt < LANE.belowRangeFt) || ph.coneEnergy || ph.stepDown);
     const topFt = stayBelow ? Math.min((L.altAboveFt ?? 0) - 10, (L.altAboveFt ?? 0) + coneUpFt) : (L.altAboveFt ?? 0) + coneUpFt;
     const bottomFt = (L.altAboveFt ?? 0) - coneUpFt;
-    const up = Math.max(0, topFt - W.altAboveFt);
-    const down = Math.max(0, W.altAboveFt - bottomFt);
-    const lo = -Math.sqrt(2 * E.pullFtps2 * down); // no rate cap, only the pull (TS-140)
-    const hi = Math.sqrt(2 * E.pullFtps2 * up);
+    const V = verticalOnset(W);
+    const up = Math.max(0, topFt - W.altAboveFt - V.easedFt);
+    const down = Math.max(0, W.altAboveFt + V.easedFt - bottomFt);
+    const lo = -V.stopFtps(E.pullFtps2, down); // no rate cap, only the pull (TS-140)
+    const hi = V.stopFtps(E.pullFtps2, up);
     // Outside the cone's height (a vertical rejoin's top, the bubble's dive) he comes back into it first, and the fighting
     // wing bubble's dive (TS-134) takes him to belowOwn under the aircraft flown off: both at FW_BUBBLE's rate and pull,
     // assertively (Patrick 6 Oct 15:59Z: "When the fighting wing turn ends 2 needs to assertively move back into the cone").
@@ -465,21 +492,20 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     const quick = belowOwn != null;
     // Slowing faster than the gentle climb gives, he zooms (up to zoomFtps, at the bubble's pull) toward the cone's top.
     const zoom = belowOwn == null && want > hi && zoomFtps > hi;
-    let wantV = belowOwn != null ? toward(L.altAboveFt - belowOwn) : W.altAboveFt > topFt ? toward(topFt) : W.altAboveFt < bottomFt ? toward(bottomFt) : Math.max(lo, Math.min(zoom ? Math.min(zoomFtps, Math.sqrt(2 * D.pullFtps2 * up)) : hi, want));
+    let wantV = belowOwn != null ? toward(L.altAboveFt - belowOwn) : W.altAboveFt > topFt ? toward(topFt) : W.altAboveFt < bottomFt ? toward(bottomFt) : Math.max(lo, Math.min(zoom ? Math.min(zoomFtps, V.stopFtps(D.pullFtps2, up)) : hi, want));
     // Step-Down Gate (SMM 12.24 & 16.20): inside 2,000 ft or in FW turns, Wing must not climb above Lead.
     if (stayBelow && W.altAboveFt >= (L.altAboveFt ?? 0) - 10) {
       wantV = Math.min(wantV, toward((L.altAboveFt ?? 0) - 10));
     }
     // A zoom stops at the cone's top (or the step-down gate) at the bubble's pull: climbing faster than the gentle pull can
     // stop in the room left, he keeps the bubble's pull until he can (a zoom from 50 ft low went 7 ft above Lead, 10 Oct).
-    const overRun = v0 > Math.sqrt(2 * E.pullFtps2 * up) || -v0 > Math.sqrt(2 * E.pullFtps2 * down);
+    const overRun = V.vEased > V.stopFtps(E.pullFtps2, up) || -V.vEased > V.stopFtps(E.pullFtps2, down);
     const pull = quick || zoom || overRun ? D.pullFtps2 : E.pullFtps2;
     // On a rejoin the pull up stays inside the G rule's 5 G with the bank he has (Patrick 10 Oct 2026 23:59Z, "Inside 5 G";
     // TS-181): from the 35° line's capture he zoomed into the cone at 78° of bank and 5.7 G.
     const tanB = Math.tan(Math.min(89, Math.abs(W.bankDeg ?? 0)) * DEG);
     const pullUp = ph.rejoin ? Math.min(pull, Math.max(0, Math.sqrt(Math.max(0, G_RULE.normalG ** 2 - tanB * tanB)) - 1) * G_FTPS2) : pull;
-    const v1 = v0 + Math.max(-pull * dt, Math.min(pullUp * dt, wantV - v0));
-    const nz = 1 + (v1 - v0) / dt / G_FTPS2;
+    const { v1, nz } = V.step(wantV, pull, pullUp, dt);
     const a1 = W.altAboveFt + ((v0 + v1) / 2) * dt;
     heightState.cone.alt.push(a1);
     heightState.cone.climb.push(v1);
