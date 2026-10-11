@@ -8,7 +8,7 @@
 // The shapes are plain quadrilaterals in map feet (x east, y north), so they have no pixels to blur.
 
 import { THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_29R, DEPARTURE_END_29R, RUNWAY_03, RUNWAY_21 } from './airfield.js';
-import { AIRFIELD_SURFACE } from './airfield-surface.js';
+import { AIRFIELD_SURFACE, SURFACE_FRAMES } from './airfield-surface.js';
 
 /** How far the painted centreline sits left of the drawn one (looking down 29L), ft: 3 at the 29L end, 0 at 11R (photo). */
 const SHIFT_AT_29L_FT = 3;
@@ -141,10 +141,8 @@ function paintRunway(shapes, { a, b, shiftAtA = 0, barA, barB, ends, centreline 
   const { len, place: at } = frame(a, b, shiftAtA);
   const { quad, stroke, outlinedQuad, text } = pens(shapes);
   const bB = barB(len);
-  // The grey runway under the paint: bar to bar, out to the side stripes' outer edges, first so everything else draws over it.
+  // The runway surface itself is the textured pavement (airfield-surface.js, TR-136); this draws only its paint.
   const P0 = ends[0].layout;
-  const edgeFt = EDGE_STRIPE.centreFt + EDGE_STRIPE.widthFt / 2 + OUTLINE_FT;
-  quad('asphalt', at, barA - P0.bar.to, bB - P0.bar.from, -edgeFt, edgeFt);
 
   const places = [(s, n) => at(barA + s, n), (s, n) => at(bB - s, -n)];
   ends.forEach(({ letter, number, layout: P }, e) => {
@@ -164,7 +162,6 @@ function paintRunway(shapes, { a, b, shiftAtA = 0, barA, barB, ends, centreline 
     // Yellow chevrons on the pad before the bar: two arms from each apex, cut to the pad. The pad itself in the runway's grey
     // (TR-128; Patrick, 10 Oct: "and the chevroned area before the runway threshold").
     const C = P.chevrons;
-    quad('asphalt', place, C.padFrom, P.bar.from, -P.bar.halfWidth, P.bar.halfWidth);
     for (const apex of C.apexes) {
       const t0 = Math.max(0, apex - C.padTo), t1 = Math.min(apex - C.padFrom, C.maxAcross / C.slope);
       if (t1 <= t0) continue;
@@ -318,7 +315,7 @@ function paintTaxiways(shapes) {
 }
 
 /**
- * The paint as filled shapes: [{ color: 'asphalt' | 'fresh' | 'black' | 'white' | 'yellow', pts: [{ x, y }, ...] }], each a convex quadrilateral in map ft.
+ * The paint as filled shapes: [{ color: 'black' | 'white' | 'yellow', pts: [{ x, y }, ...] }], each a convex quadrilateral in map ft.
  */
 export function runwayMarkingPolygons() {
   const shapes = [];
@@ -359,35 +356,114 @@ export function runwayMarkingPolygons() {
   return shapes;
 }
 
-/**
- * The colours, bottom first: the runway's and taxiways' grey (the stand-in ground's runway grey before TR-107), the outlines' black,
- * white, and the pad chevrons' yellow (photo).
- */
-const PAINT = Object.freeze({ asphalt: '#262b30', black: '#141414', white: '#f2f2ee', yellow: '#e9c349' });
-/** Each colour's place in the drawing order: the grey first, then the outlines, then the paint. */
-const ORDER = Object.freeze({ asphalt: -0.6, black: -0.55, white: -0.5, yellow: -0.5 });
+/** The paint's colours, bottom first: the outlines' black, white, and the pad chevrons' yellow (photo). */
+const PAINT = Object.freeze({ black: '#141414', white: '#f2f2ee', yellow: '#e9c349' });
+/** Each layer's place in the drawing order: the pavement, the tyre rubber, then the outlines, then the paint. */
+const ORDER = Object.freeze({ pavement: -0.62, rubber: -0.58, black: -0.55, white: -0.5, yellow: -0.5 });
+
+/** The pavement textures (tools/airfield/make-textures.py, TR-136), each tiling over its frame's `tile` ft. */
+const TEXTURES = Object.freeze({ concrete: 'media/traffic-textures/concrete.jpg', asphalt: 'media/traffic-textures/asphalt.jpg' });
+/** Tyre rubber down each runway's centreline from 300 to 3,000 ft past each threshold, 40 ft wide (estimates, from the photo of 29L). */
+const RUBBER = Object.freeze({ from: 300, to: 3000, width: 40, tileAlong: 400, file: 'media/traffic-textures/rubber.png' });
+
+const mediaBase = () => (typeof import.meta !== 'undefined' && /** @type {any} */ (import.meta).env?.BASE_URL) || '/';
+
+/** Loads a texture onto a material when it comes (browser only), then shows it. */
+function loadTexture(THREE, file, material, onLoad) {
+  if (typeof globalThis.Image === 'undefined') return;
+  new THREE.TextureLoader().load(`${mediaBase()}${file}`, (texture) => {
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.anisotropy = 16; // three.js holds it to what the graphics card does
+    material.map = texture;
+    onLoad?.(material);
+    material.needsUpdate = true;
+  });
+}
 
 /**
- * The paint as a three.js group of four flat meshes (the grey runway, black outlines, white and yellow), at height 0; the 3D view lifts it to just over
- * the photo. It draws after the ground photos and before everything else.
+ * The paved surface (TR-136): each area triangulated and laid with its frame's texture, its slab joints running along the frame's
+ * line, tinted by the frame; one mesh per material. Until a texture loads the area shows a flat colour close to it.
  */
-export function createRunwayMarkings(THREE) {
-  const group = new THREE.Group();
-  group.name = 'runway-markings';
-  const shapes = runwayMarkingPolygons();
-  // The traced paved surface (TR-129) as triangles, drawn with the runways' grey.
-  const surface = [];
-  for (const { outer, holes } of AIRFIELD_SURFACE) {
+function surfaceMeshes(THREE) {
+  const byMat = { concrete: { pos: [], uv: [], col: [] }, asphalt: { pos: [], uv: [], col: [] } };
+  for (const { f, outer, holes } of AIRFIELD_SURFACE) {
+    const F = SURFACE_FRAMES[f];
+    const out = byMat[F.mat];
+    const c = Math.cos(F.ang), s = Math.sin(F.ang);
     const ring = outer.map(([x, y]) => new THREE.Vector2(x, y));
     const holeRings = holes.map((h) => h.map(([x, y]) => new THREE.Vector2(x, y)));
     const tris = THREE.ShapeUtils.triangulateShape(ring, holeRings); // turns the rings round in place: index them afterwards
     const all = [...ring, ...holeRings.flat()];
-    for (const tri of tris) for (const k of tri) surface.push(all[k].x, all[k].y);
+    for (const tri of tris) {
+      for (const k of tri) {
+        const { x, y } = all[k];
+        const dx = x - F.ox, dy = y - F.oy;
+        out.pos.push(x, y, 0);
+        out.uv.push((dx * c + dy * s) / F.tile, (-dx * s + dy * c) / F.tile);
+        out.col.push(F.tint, F.tint, F.tint);
+      }
+    }
   }
+  const meshes = [];
+  for (const [mat, { pos, uv, col }] of Object.entries(byMat)) {
+    if (!pos.length) continue;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    // Marked see-through (fully opaque) so it sorts with the see-through photos and draws after them.
+    const material = new THREE.MeshBasicMaterial({ color: mat === 'concrete' ? '#c4bfb1' : '#545456', vertexColors: true, transparent: true, side: THREE.DoubleSide, depthWrite: false, fog: false });
+    loadTexture(THREE, TEXTURES[mat], material, (m) => m.color.set('#ffffff'));
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = `airfield-${mat}`;
+    mesh.renderOrder = ORDER.pavement;
+    meshes.push(mesh);
+  }
+  return meshes;
+}
+
+/** Tyre rubber on each runway: a strip from RUBBER.from to RUBBER.to past each threshold, its texture running along the runway. */
+function rubberMesh(THREE) {
+  const pos = [], uv = [];
+  for (const [a, b] of [[THRESHOLD_29L, DEPARTURE_END_29L], [THRESHOLD_29R, DEPARTURE_END_29R]]) {
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    const ux = (b.x - a.x) / len, uy = (b.y - a.y) / len, nx = -uy, ny = ux;
+    const h = RUBBER.width / 2;
+    const P = (s, n) => [a.x + ux * s + nx * n, a.y + uy * s + ny * n, 0];
+    for (const [s0, s1] of [[RUBBER.from, RUBBER.to], [len - RUBBER.to, len - RUBBER.from]]) {
+      const corners = [P(s0, -h), P(s1, -h), P(s1, h), P(s0, h)];
+      const cuv = [[s0 / RUBBER.tileAlong, 0], [s1 / RUBBER.tileAlong, 0], [s1 / RUBBER.tileAlong, 1], [s0 / RUBBER.tileAlong, 1]];
+      for (const k of [0, 1, 2, 0, 2, 3]) {
+        pos.push(...corners[k]);
+        uv.push(...cuv[k]);
+      }
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  const material = new THREE.MeshBasicMaterial({ color: '#1a1a1a', transparent: true, opacity: 0, depthWrite: false, fog: false, side: THREE.DoubleSide });
+  loadTexture(THREE, RUBBER.file, material, (m) => { m.opacity = 0.75; }); // the texture's alpha is the rubber
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.name = 'runway-rubber';
+  mesh.renderOrder = ORDER.rubber;
+  return mesh;
+}
+
+/**
+ * The airfield as a three.js group at height 0 (the 3D view lifts it to just over the photo): the textured pavement, the tyre rubber,
+ * and the paint (black outlines, white, yellow). It draws after the ground photos and before everything else.
+ */
+export function createRunwayMarkings(THREE) {
+  const group = new THREE.Group();
+  group.name = 'runway-markings';
+  for (const m of surfaceMeshes(THREE)) group.add(m);
+  group.add(rubberMesh(THREE));
+  const shapes = runwayMarkingPolygons();
   for (const color of Object.keys(PAINT)) {
     const mine = shapes.filter((s) => s.color === color);
-    const extra = color === 'asphalt' ? surface.length / 2 : 0;
-    const pos = new Float32Array((mine.length * 6 + extra) * 3);
+    const pos = new Float32Array(mine.length * 6 * 3);
     let i = 0;
     for (const { pts } of mine) {
       for (const k of [0, 1, 2, 0, 2, 3]) {
@@ -395,11 +471,6 @@ export function createRunwayMarkings(THREE) {
         pos[i++] = pts[k].y;
         pos[i++] = 0;
       }
-    }
-    for (let j = 0; j < extra; j++) {
-      pos[i++] = surface[2 * j];
-      pos[i++] = surface[2 * j + 1];
-      pos[i++] = 0;
     }
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -417,6 +488,7 @@ export function disposeRunwayMarkings(group) {
   if (!group) return;
   for (const mesh of group.children) {
     mesh.geometry?.dispose?.();
+    mesh.material?.map?.dispose?.();
     mesh.material?.dispose?.();
   }
   group.removeFromParent?.();
