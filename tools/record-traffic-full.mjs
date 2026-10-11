@@ -6,6 +6,11 @@
 // 60 frames a second whatever the computer's speed; the old recorder filmed the screen while the sim jumped 8 times a
 // second.
 //
+// Patrick, 11 Oct 20:40Z to 21:16Z: three clips in turn, in High graphics. The 2D wind part; the 3D part opens wide on the
+// straight-in and the aircraft in the final turn, zooms in on the straight-in so its tag can be read as it turns to
+// "move over" and banks across, then follows both over the runway; the front cockpit through the final turn with the
+// aim point on and the window off. Drawn at the card's size at twice the pixels, so the tags read on the card.
+//
 // Run: `npx vite --port 5174` in one shell, then `node tools/record-traffic-full.mjs`.
 import { chromium } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
@@ -22,7 +27,10 @@ const URL = process.env.TRAFFIC_URL ?? 'http://localhost:5174/#/traffic';
 const CHROMIUM = process.env.CHROMIUM_PATH; // e.g. /opt/pw-browsers/chromium in the cloud container
 
 const FPS = 60;
-const SIZE = { width: 1280, height: 800 };
+/** The page at the card's own size, drawn at twice the pixels: the tags come out at their real size on the card, so the
+ *  move-over tag can be read (Patrick, 11 Oct 20:40Z), and the scene stays sharp. */
+const SIZE = { width: 640, height: 400 };
+const PIXEL_RATIO = 2;
 
 /** The 2D part: wind from 180° rising 0 to 30 kt over this long, then held. */
 const WIND = { fromDeg: 180, maxKt: 30, riseSec: 6, holdSec: 1 };
@@ -30,11 +38,27 @@ const WIND = { fromDeg: 180, maxKt: 30, riseSec: 6, holdSec: 1 };
  *  room for a 30 kt southerly to blow the downwind north). */
 const CIRCUIT_BOX = { minX: -4200, maxX: 17200, minY: -11300, maxY: 1600 };
 
-/** The 3D part: the move-over and touch-and-go, sim seconds, played in this many real seconds. */
-const SHOW = { fromT: 114, toT: 184, realSec: 18, zoomInSec: 3 };
+/**
+ * The 3D part (Patrick, 11 Oct 20:40Z): from the wide opening view the camera zooms in on the straight-in (FANG 2) close
+ * enough to read its tag as it turns to [GIVING WAY: move over] and it banks across toward the inner runway, at real
+ * speed; then it pulls back to follow both aircraft over the runway. Each piece: sim seconds from and to, real seconds,
+ * and what the camera follows ('STR' alone, or 'both').
+ */
+const PIECES = [
+  { fromT: 102, toT: 106, realSec: 2, follow: 'STR', hold: true },
+  { fromT: 106, toT: 111, realSec: 3, follow: 'STR', zoomIn: true },
+  { fromT: 111, toT: 123, realSec: 12, follow: 'STR' },
+  { fromT: 123, toT: 178, realSec: 12, follow: 'both', pullBackSec: 3 },
+];
+/** Feet across the screen when close on the straight-in: its tag readable on the card (an estimate, checked by eye). */
+const CLOSE_FT = 600;
 /** Feet across the screen round the two aircraft: their spacing times this, never less than the minimum. */
 const FRAME_SPAN = { times: 1.5, minFt: 1000 };
-const WIDE = { center: { x: 4250, y: -5167, z: 1890 }, zoom: 130, pitchDeg: 72 };
+/** The opening view (Patrick, 11 Oct 21:15Z): wide enough to see the straight-in and the aircraft in the final turn,
+ *  centred between them, their spacing times WIDE.times across the screen; held, then the zoom in on the straight-in. */
+const WIDE = { times: 1.8, pitchDeg: 72 };
+/** SAMPLE=1 shoots one frame a real second, to check the framing before the full 60 fps run. */
+const SAMPLE = process.env.SAMPLE === '1';
 
 const CLEAN_STAGE_CSS = `
   #site-header, #site-footer, .app-header, .app-footer, .narrow-note, #route-notice, #module-status,
@@ -52,7 +76,7 @@ const ease = (p) => (p < 0.5 ? 2 * p * p : -1 + (4 - 2 * p) * p);
 const twoFrames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 
 async function openTraffic(browser) {
-  const page = await browser.newPage({ viewport: SIZE });
+  const page = await browser.newPage({ viewport: SIZE, deviceScaleFactor: PIXEL_RATIO });
   await page.goto(URL);
   await page.waitForFunction(() => Boolean(window.__traffic), null, { timeout: 30000 });
   await page.addStyleTag({ content: CLEAN_STAGE_CSS });
@@ -89,45 +113,98 @@ async function record3d(browser, dir) {
       { id: 'OVR', type: 'CT-156', callsign: 'FANG 1', routeId: 'PAT1', startIndex: 8, startsAtSec: 0, intent: 'touch_and_go' },
       { id: 'STR', type: 'CT-156', callsign: 'FANG 2', routeId: 'ENT2', startIndex: 3, startsAtSec: 63.5, intent: 'touch_and_go' },
     ], 3);
-    window.__traffic.settings.update({ view: '3d' });
+    window.__traffic.settings.update({ view: '3d', graphicsQuality: 'high' });
   });
   await page.waitForTimeout(8000); // three.js, the ground and the photo tiles
-  await page.evaluate(({ t, wide }) => {
+  const wide = await page.evaluate(({ t, wide, width, zoomInT }) => {
+    const tr = window.__traffic;
+    // Framed on where the two are when the zoom starts, so both stay in the picture through the hold.
+    tr.sim.stepTo(zoomInT);
+    const ships = tr.sim.state().aircraft.filter((a) => a.status === 'flying');
+    tr.sim.reset?.();
+    tr.sim.stepTo(t);
+    tr.seek(t);
+    const mid = { x: 0, y: 0, z: 0 };
+    for (const a of ships) { mid.x += a.x / ships.length; mid.y += a.y / ships.length; mid.z += a.alt / ships.length; }
+    const apart = Math.hypot(ships[0].x - ships[1].x, ships[0].y - ships[1].y);
+    const view = { center: mid, zoom: (width / (apart * wide.times)) * 1000, pitchDeg: wide.pitchDeg };
+    tr.view3d.setView({ center: view.center, cam: { ...tr.view3d.getView().cam, zoom: view.zoom, pitchDeg: view.pitchDeg } });
+    return view;
+  }, { t: PIECES[0].fromT, wide: WIDE, width: SIZE.width, zoomInT: PIECES[1].fromT });
+  await page.waitForTimeout(6000); // the photo tiles for the wide opening view
+  let n = 0;
+  for (const piece of PIECES) {
+    const frames = Math.round(piece.realSec * FPS);
+    for (let k = 0; k < frames; k++, n++) {
+      const realSec = k / FPS;
+      const simT = piece.fromT + (piece.toT - piece.fromT) * (realSec / piece.realSec);
+      await page.evaluate(({ simT, piece, w, closeFt, wide, span, width }) => {
+        const tr = window.__traffic;
+        tr.sim.stepTo(simT);
+        tr.seek(simT);
+        const ships = tr.sim.state().aircraft.filter((a) => a.status === 'flying' && ['OVR', 'STR'].includes(a.id));
+        const str = ships.find((a) => a.id === 'STR');
+        if (!ships.length || !str) return;
+        const mid = { x: 0, y: 0, z: 0 };
+        for (const a of ships) { mid.x += a.x / ships.length; mid.y += a.y / ships.length; mid.z += a.alt / ships.length; }
+        const apart = ships.length > 1 ? Math.hypot(ships[0].x - ships[1].x, ships[0].y - ships[1].y) : 0;
+        const zoomClose = (width / closeFt) * 1000;
+        const zoomBoth = (width / Math.max(apart * span.times, span.minFt)) * 1000;
+        // Where the camera wants to be: on the straight-in, or between the two (blended in over the pull-back).
+        const b = piece.follow === 'both' ? w : 0;
+        const want = { x: str.x + (mid.x - str.x) * b, y: str.y + (mid.y - str.y) * b, z: str.alt + (mid.z - str.alt) * b, zoom: Math.exp(Math.log(zoomClose) + (Math.log(zoomBoth) - Math.log(zoomClose)) * b) };
+        // Smoothed, so the camera glides rather than jumps.
+        const s = (window.__clipCam ??= { ...want });
+        const kk = 0.15;
+        s.x += (want.x - s.x) * kk; s.y += (want.y - s.y) * kk; s.z += (want.z - s.z) * kk; s.zoom += (want.zoom - s.zoom) * kk;
+        const zw = piece.hold ? 0 : piece.zoomIn ? w : 1; // the opening zoom from the wide view
+        const lerp = (a, c) => a + (c - a) * zw;
+        const cur = tr.view3d.getView();
+        tr.view3d.setView({
+          center: { x: lerp(wide.center.x, s.x), y: lerp(wide.center.y, s.y), z: lerp(wide.center.z, s.z) },
+          cam: { ...cur.cam, zoom: Math.exp(lerp(Math.log(wide.zoom), Math.log(s.zoom))), pitchDeg: wide.pitchDeg },
+        });
+      }, { simT, piece, w: ease(Math.min(1, realSec / (piece.zoomIn ? piece.realSec : piece.pullBackSec ?? 1))), closeFt: CLOSE_FT, wide, span: FRAME_SPAN, width: SIZE.width });
+      if (!SAMPLE || n % FPS === 0) await shoot(page, dir, SAMPLE ? n / FPS : n);
+    }
+  }
+  await page.close();
+  return SAMPLE ? 0 : n;
+}
+
+/**
+ * The third part (Patrick, 11 Oct 21:16Z): the front cockpit looking forward as one aircraft rolls through the final
+ * turn and its aim point moves onto the numbers; the aircraft picked so its aim line shows, the window off. Sim seconds
+ * from and to, played in this many real seconds.
+ */
+const COCKPIT = { fromT: 100, toT: 162, realSec: 22 };
+
+async function recordCockpit(browser, dir) {
+  const page = await openTraffic(browser);
+  await page.evaluate(() => {
+    const tr = window.__traffic;
+    tr.setAircraft([{ id: 'A1', type: 'CT-156', callsign: 'FANG 1', routeId: 'PAT1', startIndex: 8, startsAtSec: 0, intent: 'touch_and_go' }], 3);
+    tr.settings.update({ view: '3d', graphicsQuality: 'high', layerWindow: false, layerAimLine: true });
+  });
+  await page.waitForTimeout(8000); // three.js, the ground and the photo tiles
+  await page.evaluate((t) => {
     const tr = window.__traffic;
     tr.sim.stepTo(t);
     tr.seek(t);
-    tr.view3d.setView({ center: wide.center, cam: { ...tr.view3d.getView().cam, zoom: wide.zoom, pitchDeg: wide.pitchDeg } });
-  }, { t: SHOW.fromT, wide: WIDE });
-  await page.waitForTimeout(6000); // the photo tiles for the wide opening view
-  const frames = Math.round(SHOW.realSec * FPS);
+    tr.select('A1');
+    tr.view3d.target('A1');
+    tr.view3d.setCamera({ mount: 'cockpit', aim: 'boresight', seat: 'front' });
+  }, COCKPIT.fromT);
+  await page.waitForTimeout(12000); // the cockpit model and the tiles round the field
+  const frames = Math.round(COCKPIT.realSec * FPS);
+  let shot = 0;
   for (let n = 0; n < frames; n++) {
-    const realSec = n / FPS;
-    const simT = SHOW.fromT + (SHOW.toT - SHOW.fromT) * (realSec / SHOW.realSec);
-    await page.evaluate(({ simT, w, wide, span, width }) => {
-      const tr = window.__traffic;
-      tr.sim.stepTo(simT);
-      tr.seek(simT);
-      const ships = tr.sim.state().aircraft.filter((a) => a.status === 'flying' && ['OVR', 'STR'].includes(a.id));
-      if (!ships.length) return;
-      const mid = { x: 0, y: 0, z: 0 };
-      for (const a of ships) { mid.x += a.x / ships.length; mid.y += a.y / ships.length; mid.z += a.alt / ships.length; }
-      const apart = ships.length > 1 ? Math.hypot(ships[0].x - ships[1].x, ships[0].y - ships[1].y) : 0;
-      const zoomClose = (width / Math.max(apart * span.times, span.minFt)) * 1000;
-      // Smoothed, so the camera glides rather than jumps as the spacing changes.
-      const s = (window.__clipCam ??= { ...mid, zoom: zoomClose });
-      const k = 0.08;
-      s.x += (mid.x - s.x) * k; s.y += (mid.y - s.y) * k; s.z += (mid.z - s.z) * k; s.zoom += (zoomClose - s.zoom) * k;
-      const lerp = (a, b) => a + (b - a) * w;
-      const cur = tr.view3d.getView();
-      tr.view3d.setView({
-        center: { x: lerp(wide.center.x, s.x), y: lerp(wide.center.y, s.y), z: lerp(wide.center.z, s.z) },
-        cam: { ...cur.cam, zoom: Math.exp(lerp(Math.log(wide.zoom), Math.log(s.zoom))), pitchDeg: wide.pitchDeg },
-      });
-    }, { simT, w: ease(Math.min(1, realSec / SHOW.zoomInSec)), wide: WIDE, span: FRAME_SPAN, width: SIZE.width });
-    await shoot(page, dir, n);
+    const simT = COCKPIT.fromT + (COCKPIT.toT - COCKPIT.fromT) * (n / frames);
+    await page.evaluate((simT) => { window.__traffic.sim.stepTo(simT); window.__traffic.seek(simT); }, simT);
+    if (!SAMPLE || n % FPS === 0) await shoot(page, dir, SAMPLE ? shot++ : n);
   }
   await page.close();
-  return frames;
+  return SAMPLE ? 0 : frames;
 }
 
 async function main() {
@@ -137,15 +214,29 @@ async function main() {
   mkdirSync(dir3d, { recursive: true });
   mkdirSync(CARDS_DIR, { recursive: true });
   const browser = await chromium.launch({ executablePath: CHROMIUM, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const dirCk = join(FRAMES_DIR, 'cockpit');
+  mkdirSync(dirCk, { recursive: true });
+  if (SAMPLE) {
+    console.log('Cockpit sample frames...');
+    await recordCockpit(browser, dirCk);
+    await browser.close();
+    console.log(`Samples in ${dirCk}`);
+    return;
+  }
   console.log('2D wind part...');
   const n2 = await record2d(browser, dir2d);
   console.log('3D two-ship part...');
   const n3 = await record3d(browser, dir3d);
+  console.log('Cockpit part...');
+  const nCk = await recordCockpit(browser, dirCk);
   await browser.close();
 
-  const dur1 = n2 / FPS, dur2 = n3 / FPS, fade = 0.6, total = dur1 + dur2 - fade;
-  const filter = `[0:v]scale=640:400:flags=lanczos,setsar=1[v0];[1:v]scale=640:400:flags=lanczos,setsar=1[v1];[v0][v1]xfade=transition=fade:duration=${fade}:offset=${(dur1 - fade).toFixed(3)},format=yuv420p[out]`;
-  const inputs = ['-framerate', String(FPS), '-i', join(dir2d, 'f%05d.jpg'), '-framerate', String(FPS), '-i', join(dir3d, 'f%05d.jpg')];
+  // Three clips in turn (Patrick, 11 Oct 21:16Z), each faded into the next.
+  const dur1 = n2 / FPS, dur2 = n3 / FPS, dur3 = nCk / FPS, fade = 0.6, total = dur1 + dur2 + dur3 - 2 * fade;
+  const filter = `[0:v]scale=640:400:flags=lanczos,setsar=1[v0];[1:v]scale=640:400:flags=lanczos,setsar=1[v1];[2:v]scale=640:400:flags=lanczos,setsar=1[v2];`
+    + `[v0][v1]xfade=transition=fade:duration=${fade}:offset=${(dur1 - fade).toFixed(3)}[v01];`
+    + `[v01][v2]xfade=transition=fade:duration=${fade}:offset=${(dur1 + dur2 - 2 * fade).toFixed(3)},format=yuv420p[out]`;
+  const inputs = ['-framerate', String(FPS), '-i', join(dir2d, 'f%05d.jpg'), '-framerate', String(FPS), '-i', join(dir3d, 'f%05d.jpg'), '-framerate', String(FPS), '-i', join(dirCk, 'f%05d.jpg')];
   const outMp4 = join(CARDS_DIR, 'traffic.mp4'), outWebm = join(CARDS_DIR, 'traffic.webm'), outJpg = join(CARDS_DIR, 'traffic.jpg');
   execFileSync(ffmpegPath, ['-y', '-v', 'error', ...inputs, '-filter_complex', filter, '-map', '[out]', '-r', String(FPS), '-c:v', 'libx264', '-crf', '28', '-preset', 'slow', '-movflags', '+faststart', '-t', total.toFixed(3), outMp4]);
   execFileSync(ffmpegPath, ['-y', '-v', 'error', ...inputs, '-filter_complex', filter, '-map', '[out]', '-r', String(FPS), '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '40', '-row-mt', '1', '-deadline', 'good', '-cpu-used', '2', '-t', total.toFixed(3), outWebm]);
