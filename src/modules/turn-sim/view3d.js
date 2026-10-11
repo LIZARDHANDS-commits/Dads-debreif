@@ -19,7 +19,7 @@ import { drawHud } from '../../ui-kit/hud.js';
 import { liftBankDeg } from './live/flight.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH, setCockpitView } from '../../ui-kit/ct156-model.js';
-import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
+import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, createCockpitFovSlider, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
 import { EYE_OFFSET_FT } from './layout.js';
 
 /** The formation's height in the picture (feet). An aircraft with altAboveFt is drawn that far above or below it (the vertical miss). */
@@ -185,6 +185,8 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
   let userZoom = 1; // the person's wheel zoom on top of the fit-all zoom (Patrick, 5 Oct: the zoom keeps following the formation)
   let povNow = null; // the perspective view drawn last ('chase', 'cockpit', 'padlock') or null for the flat camera
   const zoomKey = createCockpitZoomKey(win, () => requestDraw()); // hold Shift to zoom from the seat (COCKPIT_ZOOM)
+  // The seat view's angle: a slider at the top of the camera bar (layout.js's .ts-cam-bar), above its buttons.
+  const fovSlider = createCockpitFovSlider(canvas.ownerDocument ?? win.document, () => canvas.parentElement?.querySelector('.ts-cam-bar'), { onChange: () => requestDraw() });
   let povKey = '';
   let head = { yawDeg: 0, pitchDeg: 0 }; // the person's head turn (Cockpit, Padlock) or swing round the aircraft (Chase)
   let chaseFt = POV.chaseFt;
@@ -747,8 +749,10 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     gl.skyClouds.update({ x: focus.x, y: focus.y, z: altToZ(FLIGHT_ALT_FT + (focus.z ?? 0), ALT_SCALE) }, pov ? 1 : (shown.pitchDeg - 55) / 20);
     if (pov && aimPov(pov, box)) {
       gl.active = gl.persp;
+      fovSlider.setShown(povNow !== 'chase');
     } else {
       povNow = null;
+      fovSlider.setShown(false);
       matchProjection(THREE, camera, { x: focus.x, y: focus.y, z: FLIGHT_ALT_FT + (focus.z ?? 0) }, shown, box, 1); // at the formation's height
       // A depth range round the formation only (the shared one spans Traffic's 30-mile scene), so close up the aircraft's
       // near-touching surfaces don't flicker through each other (Patrick, 5 Oct: the striped tails).
@@ -982,6 +986,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       stopFrame();
       win.removeEventListener?.('keydown', onWindowKeydown);
       zoomKey.stop();
+      fovSlider.setShown(false);
       resizer?.disconnect();
       resizer = null;
     },
@@ -1001,6 +1006,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       stopFrame();
       win.removeEventListener?.('keydown', onWindowKeydown);
       zoomKey.stop();
+      fovSlider.setShown(false);
       resizer?.disconnect();
       resizer = null;
       for (const [type, fn] of hands) canvas.removeEventListener(type, fn);
