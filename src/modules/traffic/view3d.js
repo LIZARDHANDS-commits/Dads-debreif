@@ -557,6 +557,30 @@ const GRID_CELLS = 100;
 
 const numberOf = (id) => String(id).replace(/\D+/g, '') || String(id);
 
+/** Where the baked ground shadows lie, ft from the ARP, and how dark their darkest part is (tools/blender/bake-shadows.py, TR-133). */
+export const GROUND_SHADOWS = Object.freeze({ x0: -1200, x1: 2900, y0: 1300, y1: 5100, file: 'media/traffic-ground-shadows.png', strength: 0.6 });
+
+/** The baked shadows as one flat sheet (its picture is the darkness, white darkest), drawn just after the paint. */
+function createGroundShadows(THREE) {
+  const G = GROUND_SHADOWS;
+  const geometry = new THREE.PlaneGeometry(G.x1 - G.x0, G.y1 - G.y0);
+  const material = new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0, depthWrite: false, fog: false }); // clear until the picture comes
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.name = 'ground-shadows';
+  mesh.position.set((G.x0 + G.x1) / 2, (G.y0 + G.y1) / 2, 0);
+  mesh.renderOrder = -0.45;
+  mesh.visible = false;
+  if (typeof globalThis.Image !== 'undefined') {
+    const base = (typeof import.meta !== 'undefined' && /** @type {any} */ (import.meta).env?.BASE_URL) || '/';
+    new THREE.TextureLoader().load(`${base}${G.file}`, (texture) => {
+      material.alphaMap = texture;
+      material.opacity = G.strength;
+      material.needsUpdate = true;
+    });
+  }
+  return mesh;
+}
+
 /**
  * The three.js objects for one scene: the routes (one line each), an aircraft each (made when it first flies), a
  * caution ring round each flying aircraft, a line dropping from each to the ground, and the ground grid. sync() makes
@@ -714,6 +738,10 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   const runwayPaint = createRunwayMarkings(THREE);
   runwayPaint.visible = false;
   root.add(runwayPaint);
+  // The buildings' shadows on the ground, baked in Blender from the same sun (tools/blender/bake-shadows.py, TR-133): a dark,
+  // see-through sheet over the photo and the paint, under the buildings. Its picture loads once; until then nothing shows.
+  const groundShadows = createGroundShadows(THREE);
+  root.add(groundShadows);
 
   // 3D Airfield Scenery: Control Tower, 4 Arch Hangars, South Apron
   const scenery = createAirfieldScenery(THREE);
@@ -1098,6 +1126,8 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     // The paint lies just over the sharpest photo, and shows with it.
     runwayPaint.visible = options.layerPhoto !== false;
     runwayPaint.position.set(0, 0, floor - 1);
+    groundShadows.visible = options.layerPhoto !== false && options.layerBuildings !== false;
+    groundShadows.position.z = floor - 0.8;
 
     if (scenery) {
       scenery.visible = options.layerBuildings !== false;
@@ -1254,6 +1284,9 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
       coreGeometry.dispose();
       coreMaterial.dispose();
       disposeRunwayMarkings(runwayPaint);
+      groundShadows.geometry.dispose();
+      groundShadows.material.alphaMap?.dispose();
+      groundShadows.material.dispose();
       if (scenery) {
         disposeAirfieldScenery(scenery);
         scenery.removeFromParent();
