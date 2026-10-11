@@ -441,7 +441,7 @@ function mount(root, app) {
   function readoutsNow() {
     if (!flight || !clock) return null;
     const lead = flight.tracks[1] ? sampleAt(flight.tracks[1], clock.t) : null;
-    return readoutsAt(flight, clock.t, { standards: currentStandards(), leadWind: lead ? leadWindVector(clock.t, lead.altFt) : null });
+    return readoutsAt(flight, clock.t, { standards: currentStandards(), leadWind: lead ? leadWindVector(clock.t, lead.altFt) : null, smoothG: layout.get().smoothG });
   }
 
   // Wind arrows on the 2D map (SPEC-debrief: Winds aloft): the model wind at
@@ -836,6 +836,7 @@ function mount(root, app) {
   ui.onReset(() => layout.reset());
 
   let lastWindKey = '';
+  let lastSmoothG = layout.get().smoothG;
   const stopLayout = layout.subscribe((values) => {
     ui.applyLayout(values);
     standardsPanel?.setCollapsed(!values.standardsOpen);
@@ -855,7 +856,10 @@ function mount(root, app) {
     } else {
       renderMetar();
       renderWindArrows();
+      // "Smooth G" changes the G shown, so the readouts redraw at once (DB-Q4).
+      if (values.smoothG !== lastSmoothG) renderReadouts();
     }
+    lastSmoothG = values.smoothG;
     renderSavedWeather();
     renderSpace();
     redraw();

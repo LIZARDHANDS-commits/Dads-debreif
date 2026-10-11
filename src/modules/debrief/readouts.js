@@ -157,6 +157,25 @@ export function believedEstimatedG(track, t, { gsKt, iasKt }) {
   return Number.isFinite(iasKt) && g > stallLimitG(iasKt) ? null : g;
 }
 
+/** "Smooth G" spacing, s: the three est. G values its median takes are a second apart, the GPS's fix rate (DB-Q4). */
+export const SMOOTH_G_STEP_S = 1;
+
+/**
+ * Est. G with the 3-point median (DB-Q4, Patrick 11 Oct 2026: a setting, off at first; the verdicts keep the raw G): the middle of the
+ * believed est. G a second before, at and a second after t, so a one-second GPS blip goes and steps and steady turns stay. With fewer than
+ * three of them known (a gap, the track's ends), the raw value at t. `sample(t)` gives { gsKt, iasKt } at a time, or null.
+ */
+export function smoothedEstimatedG(track, t, sample) {
+  const at = (u) => {
+    const s = sample(u);
+    return s ? believedEstimatedG(track, u, s) : null;
+  };
+  const now = at(t);
+  const three = [at(t - SMOOTH_G_STEP_S), now, at(t + SMOOTH_G_STEP_S)];
+  if (!three.every(Number.isFinite)) return now;
+  return three.sort((a, b) => a - b)[1];
+}
+
 /**
  * Turn rate in radians a second, left (counter-clockwise) positive, from the
  * heading change over t−1.5 s to t+1.5 s: the window and the headings
@@ -303,9 +322,9 @@ export function formationAt(flight, t, standards) {
  * Returns { ships, formation, lead, vsLead, pairs }; see each below.
  * @param {any} flight
  * @param {number} t
- * @param {{ standards?: any, recordedG?: boolean, leadWind?: { dirDeg: number, kt: number } | null }} [options]
+ * @param {{ standards?: any, recordedG?: boolean, leadWind?: { dirDeg: number, kt: number } | null, smoothG?: boolean }} [options]
  */
-export function readoutsAt(flight, t, { standards, recordedG = false, leadWind = null } = {}) {
+export function readoutsAt(flight, t, { standards, recordedG = false, leadWind = null, smoothG = false } = {}) {
   if (!flight) return { ships: [], formation: [], lead: null, vsLead: [], pairs: [] };
   const tracks = Object.values(flight.tracks).sort((a, b) => a.slot - b.slot);
   const prevT = Math.max(flight.startT, t - CLOSURE_LOOKBACK_S);
@@ -330,6 +349,15 @@ export function readoutsAt(flight, t, { standards, recordedG = false, leadWind =
     const iasKt = tooFast ? null : windCorrected ? estIasWithWindKt(s.speedKt, heading[1], s.altFt, leadWind) : estIasKt(s.speedKt, s.altFt);
     let g = gAt(tr, t, { recorded: recordedG });
     if (g.source === 'estimated') g = { g: believedEstimatedG(tr, t, { gsKt: s.speedKt, iasKt }), source: 'estimated' };
+    // Shown G: the 3-point median when "Smooth G" is on (DB-Q4); gRaw stays for the verdicts.
+    const gRaw = g.g;
+    if (smoothG && g.source === 'estimated' && !tooFast) {
+      const sampleFor = (u) => {
+        const q = sampleAt(tr, u);
+        return q ? { gsKt: q.speedKt, iasKt: estIasKt(q.speedKt, q.altFt) } : null;
+      };
+      g = { g: smoothedEstimatedG(tr, t, sampleFor), source: 'smoothed' };
+    }
     const pitch = pitchAt(tr, t);
     const bank = shipBank(tr, t, { sample: s, pitchDeg: pitch.deg, recordedG: g.source === 'recorded' ? g.g : null, iasKt });
     return {
@@ -341,6 +369,7 @@ export function readoutsAt(flight, t, { standards, recordedG = false, leadWind =
       iasKt,
       windCorrected,
       g: g.g,
+      gRaw,
       gSource: g.source,
       pitchDeg: pitch.deg,
       pitchSource: pitch.source,
@@ -364,7 +393,7 @@ export function readoutsAt(flight, t, { standards, recordedG = false, leadWind =
       : null;
     // Lead's altitude picks the target speed by block (D115: 220 kt low, 200 kt mid).
     const judged = eligible && !outside
-      ? classifyLeadParameters({ spdKt: leadShip.iasKt, altFt: leadShip.altFt, gNative: leadShip.gSource === 'recorded' ? leadShip.g : undefined }, leadShip.g, standards)
+      ? classifyLeadParameters({ spdKt: leadShip.iasKt, altFt: leadShip.altFt, gNative: leadShip.gSource === 'recorded' ? leadShip.gRaw : undefined }, leadShip.gRaw, standards)
       : null;
     lead = {
       iasKt: leadShip.iasKt, windCorrected: leadShip.windCorrected, g: leadShip.g, inGap: leadShip.inGap, labels: judged ? judged.labels : null,
@@ -419,7 +448,7 @@ export function readoutsAt(flight, t, { standards, recordedG = false, leadWind =
 const ft = (n) => `${Math.round(n).toLocaleString('en-US')} ft`;
 const kt = (n) => (Number.isFinite(n) ? `${Math.round(n)} kt` : '--');
 const deg = (n) => (Number.isFinite(n) ? `${Math.round(n)}°` : '–');
-const src = (source) => (source === 'recorded' ? 'recorded' : 'est.');
+const src = (source) => (source === 'recorded' ? 'recorded' : source === 'smoothed' ? 'est., smoothed' : 'est.');
 /** What an est. IAS was worked from (F1), as words after it: Lead's takes the model wind when there is one. Nothing after "--". */
 const iasBasis = (row) => (Number.isFinite(row.iasKt) ? (row.windCorrected ? ' (wind-corrected)' : ' (no wind)') : '');
 

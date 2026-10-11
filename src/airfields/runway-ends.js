@@ -1,24 +1,20 @@
 // Written by tools/cifp-runways.mjs: do not edit by hand (run the tool again). The shared runway list's best runway ends (DB-26), laid over
 // OurAirports' by airports-data.js; a runway not here stays OurAirports' (approximate, for drawing only).
-// - CYMJ: Patrick's measured points, the Traffic sim's (src/modules/traffic/airfield.js, TR-67: measured on Esri's true-scale photo, about
-//   ±10 to 15 ft), turned from map feet into latitude and longitude about the field origin 50.3303 N 105.5592 W
-//   (src/modules/traffic/data/moose-jaw.json "anchor") with core/geo.js localFtToLatLon. Patrick's own 29L number-base point comes back within 6 ft.
-//   The same numbers are in the Traffic sim's map feet: two places until Patrick merges them (docs/PLAN.md waiting list). No elevations.
+// - CYMJ: Patrick's measured points from cymj-runways.js, the one copy the Traffic sim also reads (TR-67: measured on Esri's true-scale
+//   photo, about ±10 to 15 ft), turned from map feet into latitude and longitude about its field origin. No elevations.
 // - US fields: FAA CIFP cycle 2610 (effective 2026-10-01), runway records (PG): each end's pavement end (a displaced landing
 //   threshold moved back along the runway by its displaced distance, the landing threshold kept as thresholdLat/thresholdLon), the landing
 //   threshold's elevation (ft), the displaced distance (ft) and the magnetic bearing; the runway's length and width (ft). WGS 84 degrees.
 // For drawing only: never for planning or navigation.
+import { CYMJ_RUNWAY_ENDS } from './cymj-runways.js';
+
 export const RUNWAY_ENDS_SOURCES = Object.freeze({
-  patrick: Object.freeze({ words: "Patrick's measured points (Traffic airfield.js, TR-67)", accuracyFt: 15 }),
+  patrick: Object.freeze({ words: "Patrick's measured points (cymj-runways.js, TR-67)", accuracyFt: 15 }),
   'faa-cifp': Object.freeze({ words: 'FAA CIFP cycle 2610 (surveyed thresholds)', cycle: '2610', effective: '2026-10-01', accuracyFt: 3 }),
   ourairports: Object.freeze({ words: 'OurAirports (approximate)', accuracyFt: null }),
 });
 export const RUNWAY_ENDS = Object.freeze({
-  CYMJ: Object.freeze({ source: 'patrick', runways: Object.freeze({
-    '03/21': {"a":{"lat":50.32678,"lon":-105.558964},"b":{"lat":50.332847,"lon":-105.549861},"widthFt":100},
-    '11L/29R': {"a":{"lat":50.33789,"lon":-105.574779},"b":{"lat":50.327041,"lon":-105.543647},"widthFt":150},
-    '11R/29L': {"a":{"lat":50.332191,"lon":-105.574538},"b":{"lat":50.322691,"lon":-105.547194},"widthFt":150},
-  }) }),
+  CYMJ: Object.freeze({ source: 'patrick', runways: CYMJ_RUNWAY_ENDS }),
   KDLF: Object.freeze({ source: 'faa-cifp', runways: Object.freeze({
     '13C/31C': {"a":{"lat":29.36745,"lon":-100.787911,"elevationFt":1081,"displacedFt":0,"bearingMag":128.4},"b":{"lat":29.350108,"lon":-100.768411,"elevationFt":1067,"displacedFt":0,"bearingMag":308.4},"lengthFt":8852,"widthFt":150},
     '13L/31R': {"a":{"lat":29.368219,"lon":-100.784369,"elevationFt":1078,"displacedFt":0,"bearingMag":128.4},"b":{"lat":29.351928,"lon":-100.766053,"elevationFt":1063,"displacedFt":0,"bearingMag":308.4},"lengthFt":8316,"widthFt":150},
