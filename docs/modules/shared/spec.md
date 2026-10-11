@@ -663,14 +663,14 @@ disposeAircraftMesh(plane); sky.dispose();             // when the view closes (
 - **Model frame.** Nose +X, left +Y, up +Z; about 1.44 long (tail to spinner) and 1.32 across the wings, so `scale` is set to the plane size in feet. It is the Debrief spike's model, not V6's `t6Points`.
 - No timers and no animation frames: the view draws when the scheduler's frame callback asks it to.
 
-### Airspace and airfields in 3D (SOF-63, DB-24; wording not yet confirmed with Patrick)
+### Airspace and airfields in 3D (SOF-63, DB-24; wording approved by Patrick, 11 Oct 2026)
 
 - `airspace3d.js` `buildAirspace(T, { volumes, routes, toXY, scale, groundFt })`: each checked airspace (src/airfields/airspace/model.js `checkedAirspace`) as a faint see-through prism from floor to ceiling, edged by kind (`KIND_COLOURS`), and training routes as curtains; routes at 500 ft AGL dashed. Returns `{ root, labels, picks, lines, summary, dispose }`.
 - `airfield3d.js` `buildAirports(T, { toXY, scale, groundFt, doc, airports, halfFt, liftFt, aboveGround })`: each airfield's runways at true place, length and width, painted as the Traffic sim paints 29L (TR-98: its grey, white paint with a 0.5 ft black outline, threshold bar, piano keys, 98 ft centreline dashes, edge stripes, aiming point; sizes across scale with the width, an estimate), the numbers reading from the approach end, a few schematic buildings. `fit(ftPerPx)` keeps a far field a few pixels long. The SOF keeps runways above its ground (`aboveGround`, 40 ft lift); the Debrief draws them at their own elevation, 3 ft up.
 - Both build at the height scale given; the Debrief builds at 1 and stretches the group by its altitude scale, so its overview and its true-scale cockpit share one build.
 - **Data failure:** both draw only what they are given; the caller says when data is loading, missing or failed (src/airfields/airspace/load.js words).
 
-### Terrain and the draped satellite ground in 3D (SOF-65, DB-27; wording not yet confirmed with Patrick)
+### Terrain and the draped satellite ground in 3D (SOF-65, DB-27; wording approved by Patrick, 11 Oct 2026)
 
 - `src/core/terrain-tiles.js` (pure, TR-117, Patrick's): the Terrarium tile address and credit, `decodeTerrarium` (256 × 256 pixels, heights range-checked −500 to 9,000 m, the tiles' published encoding), `tilesCovering` and `createHeightStore`. Read by Traffic's 3D ground, the SOF's terrain and the Debrief's; never copied.
 - `src/core/terrain-grid.js` (pure, SOF-65): `createGrid`, `fillGrid`, `stitchInner(inner, outer, hole)`, `sampleGrid`, `hillshade`, and `zoomForTiles` (the finest zoom under a tile cap) and `holeFor` (where an inner square sits in an outer grid), reading `terrain-tiles.js`'s store. Not flight math: a picture only.
