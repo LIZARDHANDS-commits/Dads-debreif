@@ -172,6 +172,35 @@ export function slotInWorld(R, fwd, left, up, plane = 0) {
 }
 
 /**
+ * A recorded flight whose bank, for placing a wing-plane slot, is the real bank averaged over halfSec either side (weights
+ * the septic step's slope): the plane a wingman who knows Lead's roll is coming flies, starting to move as Lead starts to
+ * roll and easing off as he stops, so the swing of the plane never jerks him up or down. Everything else is the recorded
+ * flight's own. Returns { at(k) }.
+ */
+export function centredBank(rec, halfSec) {
+  const m = Math.max(1, Math.round(halfSec / dt));
+  const w = [];
+  let sum = 0;
+  for (let j = -m; j <= m; j++) {
+    const v = smoothestSlope((j + m + 0.5) / (2 * m + 1));
+    w.push(v);
+    sum += v;
+  }
+  const cache = new Map();
+  return {
+    t0: rec.t0,
+    at(k) {
+      if (cache.has(k)) return cache.get(k);
+      let bank = 0;
+      for (let j = -m; j <= m; j++) bank += (w[j + m] / sum) * rec.at(Math.max(0, k + j)).bankDeg;
+      const out = { ...rec.at(k), bankDeg: bank };
+      cache.set(k, out);
+      return out;
+    },
+  };
+}
+
+/**
  * A recorded flight whose bank, for placing a wing-plane slot, follows the real bank a moment later and smoothly (a
  * weighted average of the last lagSec of it, weights the septic step's slope): a close wingman stays in Lead's wing plane
  * but lags his roll (SMM 12.19 para 43), so a 90°/s roll of Lead never jerks the wingman up or down. Everything else is
