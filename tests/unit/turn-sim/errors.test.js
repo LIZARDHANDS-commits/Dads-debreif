@@ -18,7 +18,7 @@
 // code's own output. Margins are the shared table's (±100 ft) unless a check says why.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createFormation } from '../../../src/modules/turn-sim/live/formation.js';
+import { createFormation, LIVE_DEFAULTS } from '../../../src/modules/turn-sim/live/formation.js';
 import { relativeTo } from '../../../src/modules/turn-sim/live/manoeuvres.js';
 import { ERROR_DEFAULTS, ERROR_ALLOWED, FIX_LIMITS, resolveErrors, describeErrors, errorCardLines } from '../../../src/modules/turn-sim/live/errors.js';
 import { ROLL, STEP_SEC } from '../../../src/modules/turn-sim/live/flight.js';
@@ -26,7 +26,7 @@ import { turnRateFromBankRadPerSec } from '../../../src/core/flight-math.js';
 import { iasToTasKt } from '../../../src/core/t6-performance.js';
 import { KT_TO_FTPS } from '../../../src/core/units.js';
 
-const SPACING_FT = 6000;
+const SPACING_FT = LIVE_DEFAULTS.spacingFt; // the default line abreast spacing, 5,000 ft (TS-89, Patrick 5 Oct 22:46Z: "5000"); 6,000 until then
 const MARGIN_FT = 100; // shared table
 const DEG = Math.PI / 180;
 /** No manoeuvre takes this long; it only stops a broken plan from running for ever. */
@@ -123,9 +123,10 @@ test('with every error at None, nothing changes: no error, no card line, the sam
 
 test('the settings turn into one error: ahead and wide count plus, behind and tight minus', () => {
   const e = resolveErrors({ ...AHEAD, ...TIGHT, ...HIGH, ...EARLY, ...FIX });
-  assert.deepEqual({ ...e }, { foreFt: 1200, spacingFt: -1500, heightFt: 500, timingSec: -2, response: 'fix', random: false });
-  assert.deepEqual(Object.keys(ERROR_ALLOWED).sort(), ['errFore', 'errHeight', 'errResponse', 'errSpacing', 'errTiming']);
-  assert.equal(ERROR_DEFAULTS.errResponse, 'fix', 'Fix it is the default response (TS-52)');
+  // The speed error (TS-62) and Smart wingman's "Fix it: now or on the next manoeuvre" (TS-96, Patrick 5 Oct 23:33Z) came after this test.
+  assert.deepEqual({ ...e }, { foreFt: 1200, spacingFt: -1500, heightFt: 500, timingSec: -2, speedKias: 0, response: 'fix', random: false, fixNow: false });
+  assert.deepEqual(Object.keys(ERROR_ALLOWED).sort(), ['errFixWhen', 'errFore', 'errHeight', 'errSpacing', 'errSpeed', 'errTiming']);
+  assert.equal(ERROR_DEFAULTS.errSmart, true, 'Smart wingman, #2 fixes the error, is on by default (TS-96, Patrick 23:34Z)');
   assert.match(describeErrors(e), /ahead of the 3\/9 line 1,200 ft.*tight 1,500 ft.*500 ft high.*2 s early/);
 });
 
@@ -459,7 +460,7 @@ test('the Formation card says which error is set and, after the roll-out only, w
     assert.ok(after.outcome.text.startsWith('Hook left'), 'it names the manoeuvre');
   }
   const f = createFormation({ ...AHEAD, ...FIX });
-  assert.match(errorCardLines(f.state).set, /ahead of the 3\/9 line 1,200 ft.*Fix it/);
+  assert.match(errorCardLines(f.state).set, /ahead of the 3\/9 line 1,200 ft.*fix/i, 'the card names the response (Smart wingman, TS-96)');
 });
 
 test('a second press starts from where the first left #2: a fixed error stays fixed, a carried one carries on', () => {
@@ -510,8 +511,8 @@ test('the random error is one error at each Reset, inside the ranges, the same f
     let i = 0;
     return () => values[i++ % values.length];
   };
-  const kinds = (e) => ['foreFt', 'spacingFt', 'heightFt', 'timingSec'].filter((k) => e[k] !== 0);
-  const ranges = { foreFt: [500, 2500], spacingFt: [1000, 2500], heightFt: [300, 1000], timingSec: [2, 6] };
+  const kinds = (e) => ['foreFt', 'spacingFt', 'heightFt', 'timingSec', 'speedKias'].filter((k) => e[k] !== 0);
+  const ranges = { foreFt: [500, 2500], spacingFt: [1000, 2500], heightFt: [300, 1000], timingSec: [2, 6], speedKias: [10, 30] }; // the speed error, TS-62
   const seen = new Set();
   for (let seed = 0; seed < 40; seed++) {
     const rng = sequence([(seed * 0.173) % 1, (seed * 0.411 + 0.1) % 1, (seed * 0.29 + 0.3) % 1]);
@@ -526,7 +527,7 @@ test('the random error is one error at each Reset, inside the ranges, the same f
     const again = resolveErrors({ errRandom: true, errResponse: 'reference' }, sequence([(seed * 0.173) % 1, (seed * 0.411 + 0.1) % 1, (seed * 0.29 + 0.3) % 1]));
     assert.deepEqual(again, e, 'same numbers, same error');
   }
-  assert.equal(seen.size, 4, 'every kind of error can come up');
+  assert.equal(seen.size, 5, 'every kind of error can come up, the speed error (TS-62) included');
 
   // A formation draws a new one at each Reset, and flies it like any other error.
   const f = createFormation({ errRandom: true, rng: sequence([0.1, 0.9, 0.5, 0.6, 0.2, 0.3, 0.8, 0.7]) });
