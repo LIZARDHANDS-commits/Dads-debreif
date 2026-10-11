@@ -178,7 +178,10 @@ function pointingPhases(altFt) {
         const err = wrapPi(toLead(L, W) - side0 * TR.frozenBearingDeg * DEG);
         const omega = losRate(L, W) + err / TR.frozenTauSec;
         const bankDeg = Math.atan((W.tasFtps * omega) / G_FTPS2) / DEG;
-        return { bankDeg: clamp(bankDeg, TR.reverseBankDeg), psiCmd: W.headingRad, kiasCmd: TR.pointKias, done: Math.abs(err) / DEG <= TR.reverseDoneDeg || t - reverseFrom >= TR.reverseMaxSec - 1e-9 };
+        // Power up to the line's overtake as Lead comes back across the nose, rolling out onto the line (EFIG 10-20 kt; Fable's
+        // V2.250 flight: at Lead's 200 KIAS the range sat at 1,850 ft for 13 s).
+        const kiasCmd = toLead(L, W) * side0 >= 0 ? lineKiasNow() : TR.pointKias;
+        return { bankDeg: clamp(bankDeg, TR.reverseBankDeg), psiCmd: W.headingRad, kiasCmd, done: Math.abs(err) / DEG <= TR.reverseDoneDeg || t - reverseFrom >= TR.reverseMaxSec - 1e-9 };
       },
     }),
   ];
