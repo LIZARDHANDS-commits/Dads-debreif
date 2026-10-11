@@ -419,6 +419,7 @@ export const TRACKER = Object.freeze({
     belowFt: 200, // ... nor this far below him (estimate; row 5)
     kt: 12, // speed within this of Lead's (estimate; row 5)
     bankDeg: 15, // bank within this of Lead's (estimate; row 5)
+    climbFtps: 5, // climb or descent within this of Lead's, so he isn't still climbing when the rejoin ends (estimate; V2.330)
   }),
   openingFull: Object.freeze({
     ceilingKias: REJOIN_LINE_KIAS.ai, // the opening full power ends at the AI line speed (235 KIAS, TS-133) ... (row 6)
