@@ -80,7 +80,11 @@ export function pilotSpeed(p, W, aWant, { blockFt, top = 'power', floorThr = 0, 
   const want = Math.max(-aMin, Math.min(aMax, aWant));
   const jerk = pilotJerkKtps2() * dt;
   p.accel += Math.max(-jerk, Math.min(jerk, want - p.accel));
-  if (p.accel < -aMin && want <= -aMin) p.accel = -aMin;
+  // A torque floor that comes in (a rule of his, such as the turn's hold power) is moved to at the lever rate, as he moves the
+  // power: only what the aircraft can't do without it is taken at once. Until V2.322 the floor was taken in one step, so the
+  // speed rate jumped (35 kt/s² at the straight rejoin's vector point, as the bank passed 15°; the Formation unit tests).
+  const aMinBare = floorThr > 0 ? Math.min(7.95, slowKtps(top ?? 'power', W.kias, blockFt, g, 0) + climb + extraSlowKtps) : aMin;
+  if (p.accel < -aMinBare && want <= -aMin) p.accel = -aMinBare;
   if (p.accel > aMax && want >= aMax) p.accel = aMax;
   let kias = W.kias + p.accel * dt;
   if (snapKias != null && Math.abs(snapKias - kias) < snapTol) {
