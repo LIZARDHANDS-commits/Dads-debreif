@@ -150,7 +150,8 @@ _pieces = list(echo_claim.geoms) if hasattr(echo_claim, 'geoms') else [echo_clai
 echo_claim = unary_union([pc for pc in _pieces if pc.intersects(_core) and pc.area > 6000])  # only Echo itself: no stray fillet slivers
 claim(echo_claim, frame_of(eA, eB, mat='asphalt', tint=0.82))
 lane = Polygon([(-20, LANE_NORTH(-20)), (1700, LANE_NORTH(1700)), (1700, 1400), (-20, 1400)]).intersection(ramp_zone)
-claim(lane, frame_of(*RAMP_EDGE, mat='asphalt', tint=1.45))  # weathered grey asphalt, as the photo shows
+# The ramp's south lane is concrete like the rest (Patrick, 10 Oct: "get rid of this dark patch"; TR-139); `lane` still keeps the newer
+# slabs' area off it.
 claim(box(390, 1500, 980, 2030).difference(lane), frame_of(*RAMP_EDGE, tint=1.07))  # the newer, lighter slabs
 claim(ramp_zone.union(unary_union(bays)), frame_of(*RAMP_EDGE))
 gpts = _fit.get('G', {'pts': [[1650, 1908], [2250, 2558]]})['pts'] if 'G' in _fit else [[1650, 1908], [2250, 2558]]
