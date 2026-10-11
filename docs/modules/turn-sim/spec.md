@@ -337,7 +337,7 @@ Terminate for position (SMM 16.17 para 46), Fluid 4, the cloverleaf, Cuban eight
 
 **When things go wrong.** Fluid manoeuvring pressed outside fighting wing, or in the 4-ship, is refused with the reason and nothing moves. A Lead button pressed during the entry waits for its end; during Terminate it is greyed. Reset ends it.
 
-**Not built** (`future.md`): Terminate for position (SMM 16.17 para 46), the Live wingman's rough spots (round 1, `future.md`), Fluid 4 manoeuvring, cloverleaf, Cuban eight and Immelmann. The 3D camera looks down, so the loop is seen only in 2D from above.
+**Not built** (`future.md`): Terminate for position (SMM 16.17 para 46), the Live wingman's rough spots (round 2, `future.md`), Fluid 4 manoeuvring, cloverleaf, Cuban eight and Immelmann. The 3D camera looks down, so the loop is seen only in 2D from above.
 
 ## 10. Smart wingman and training errors (TS-52, TS-96)
 
