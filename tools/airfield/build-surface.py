@@ -113,7 +113,8 @@ polys = [p for p in (list(geo.geoms) if isinstance(geo, MultiPolygon) else [geo]
 geo = unary_union(polys)
 
 # ---- Areas: material and joint direction (TR-136) ----
-def frame_of(a, b, mat='cracked', tint=1.0, tile=200):
+def frame_of(a, b, mat='cracked', tint=1.0, tile=None):
+    tile = tile or {'cracked': 400, 'blocks': 200, 'asphalt': 100}[mat]
     a, b = np.array(a, float), np.array(b, float)
     return {'mat': mat, 'ox': round(float(a[0]), 1), 'oy': round(float(a[1]), 1), 'ang': round(math.atan2(b[1] - a[1], b[0] - a[0]), 5), 'tile': tile, 'tint': tint}
 RAMP_EDGE = ((0, 1700), (1560, 1500))
@@ -137,12 +138,19 @@ claim(LineString(R03).buffer(56, cap_style='flat'), frame_of(*R03))
 # Echo: fresh asphalt, ending square 30 ft short of the runways' and 03/21's pavement so it meets them cleanly (Patrick: "echo is freshly
 # paved so it does look black, but make it look merged in nicely").
 eA, eB = line_x(e0, e1, *R29R), line_x(e0, e1, *R29L)
-keep_out = unary_union([LineString(extended(*R29L, 260)).buffer(85 + 30), LineString(extended(*R29R, 260)).buffer(85 + 30), LineString(R03).buffer(56 + 30)])
-echo_line = LineString([eA, eB]).difference(keep_out)
-echo_line = max(list(echo_line.geoms), key=lambda g: g.length) if hasattr(echo_line, 'geoms') else echo_line
-claim(echo_line.buffer(26, cap_style='flat'), frame_of(*echo_line.coords[:2], mat='asphalt', tile=100, tint=0.85))
+# Its fresh asphalt runs right to the runways' and 03/21's pavement edges, the flares where it widens into them included, so it meets the
+# concrete along a straight construction joint at the runway edge (Patrick: "make these look more natural like they were constructed by
+# humans recently not drawn on like that"; TR-138).
+echo_claim = geo.intersection(LineString([eA, eB]).buffer(260, cap_style='flat'))
+echo_claim = echo_claim.difference(unary_union(claims))  # the runways and 03/21 keep their concrete
+other_taxis = unary_union([LineString(to_runway(pts, k)).buffer(w / 2 + 12) for k, (pts, w) in TW.items()])
+echo_claim = echo_claim.difference(other_taxis)  # and the other taxiways theirs (C runs close by Echo's north end)
+_core = LineString([eA, eB]).difference(unary_union(claims)).buffer(30)  # Echo up to the runways' and 03/21's pavement
+_pieces = list(echo_claim.geoms) if hasattr(echo_claim, 'geoms') else [echo_claim]
+echo_claim = unary_union([pc for pc in _pieces if pc.intersects(_core) and pc.area > 6000])  # only Echo itself: no stray fillet slivers
+claim(echo_claim, frame_of(eA, eB, mat='asphalt', tint=0.82))
 lane = Polygon([(-20, LANE_NORTH(-20)), (1700, LANE_NORTH(1700)), (1700, 1400), (-20, 1400)]).intersection(ramp_zone)
-claim(lane, frame_of(*RAMP_EDGE, mat='asphalt', tile=100))
+claim(lane, frame_of(*RAMP_EDGE, mat='asphalt', tint=1.45))  # weathered grey asphalt, as the photo shows
 claim(box(390, 1500, 980, 2030).difference(lane), frame_of(*RAMP_EDGE, tint=1.07))  # the newer, lighter slabs
 claim(ramp_zone.union(unary_union(bays)), frame_of(*RAMP_EDGE))
 gpts = _fit.get('G', {'pts': [[1650, 1908], [2250, 2558]]})['pts'] if 'G' in _fit else [[1650, 1908], [2250, 2558]]

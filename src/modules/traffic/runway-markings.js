@@ -357,7 +357,7 @@ export function runwayMarkingPolygons() {
 }
 
 /** The paint's colours, bottom first: the outlines' black, white, and the pad chevrons' yellow (photo). */
-const PAINT = Object.freeze({ black: '#141414', white: '#f2f2ee', yellow: '#e9c349' });
+const PAINT = Object.freeze({ black: '#141414', white: '#f2f2ee', yellow: '#ffd23a' }); // yellow brightened (Patrick, 10 Oct; TR-138)
 /** Each layer's place in the drawing order: the pavement, the tyre rubber, then the outlines, then the paint. */
 const ORDER = Object.freeze({ pavement: -0.62, rubber: -0.58, black: -0.55, white: -0.5, yellow: -0.5 });
 
@@ -368,7 +368,7 @@ const TEXTURES = Object.freeze({
   asphalt: 'media/traffic-textures/asphalt.jpg',
 });
 /** Each texture's colour before it loads. */
-const FLAT = Object.freeze({ cracked: '#c4bfb1', blocks: '#c4bfb1', asphalt: '#545456' });
+const FLAT = Object.freeze({ cracked: '#c4bfb1', blocks: '#c4bfb1', asphalt: '#6e6e70' });
 /** Tyre rubber down each runway's centreline from 300 to 3,000 ft past each threshold, 40 ft wide (estimates, from the photo of 29L). */
 const RUBBER = Object.freeze({ from: 300, to: 3000, width: 40, tileAlong: 400, file: 'media/traffic-textures/rubber.png' });
 
@@ -406,7 +406,8 @@ function surfaceMeshes(THREE) {
         const { x, y } = all[k];
         const dx = x - F.ox, dy = y - F.oy;
         out.pos.push(x, y, 0);
-        out.uv.push((dx * c + dy * s) / F.tile, (-dx * s + dy * c) / F.tile);
+        // Each area's pattern shifted along its joints by its own amount, so neighbouring areas don't line up (TR-138).
+        out.uv.push((dx * c + dy * s) / F.tile + ((f * 0.618) % 1), (-dx * s + dy * c) / F.tile);
         out.col.push(F.tint, F.tint, F.tint);
       }
     }
@@ -450,7 +451,7 @@ function rubberMesh(THREE) {
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   const material = new THREE.MeshBasicMaterial({ color: '#1a1a1a', transparent: true, opacity: 0, depthWrite: false, fog: false, side: THREE.DoubleSide });
-  loadTexture(THREE, RUBBER.file, material, (m) => { m.opacity = 0.75; }); // the texture's alpha is the rubber
+  loadTexture(THREE, RUBBER.file, material, (m) => { m.opacity = 0.4; }); // the texture's alpha is the rubber
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = 'runway-rubber';
   mesh.renderOrder = ORDER.rubber;
@@ -463,16 +464,16 @@ function rubberMesh(THREE) {
  * lines along the sides of the runway are rather distracting"; TR-137). Each stripe carries its narrow width (stripeW, ft); the
  * screen size of a foot comes from how fast the ground position changes from pixel to pixel.
  */
-function fadeWhenThin(material) {
+function fadeWhenThin(material, floor = 0.15) {
   material.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nattribute float stripeW;\nvarying float vStripeW;\nvarying vec2 vGroundXY;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvStripeW = stripeW;\nvGroundXY = (modelMatrix * vec4(transformed, 1.0)).xy;');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nvarying float vStripeW;\nvarying vec2 vGroundXY;')
-      .replace('#include <opaque_fragment>', '#include <opaque_fragment>\nfloat ftPerPx = max(length(fwidth(vGroundXY)), 1e-4);\ngl_FragColor.a *= clamp(vStripeW / ftPerPx / 1.5, 0.15, 1.0);');
+      .replace('#include <opaque_fragment>', '#include <opaque_fragment>\nfloat ftPerPx = max(length(fwidth(vGroundXY)), 1e-4);\ngl_FragColor.a *= clamp(vStripeW / ftPerPx / 1.5, ' + floor.toFixed(2) + ', 1.0);');
   };
-  material.customProgramCacheKey = () => 'paint-fade-when-thin';
+  material.customProgramCacheKey = () => `paint-fade-when-thin-${floor}`;
 }
 
 /**
@@ -503,7 +504,7 @@ export function createRunwayMarkings(THREE) {
     geometry.setAttribute('stripeW', new THREE.BufferAttribute(widths, 1));
     // Marked see-through (fully opaque) so it sorts with the see-through photos and draws after them.
     const material = new THREE.MeshBasicMaterial({ color: PAINT[color], transparent: true, side: THREE.DoubleSide, depthWrite: false, fog: false });
-    fadeWhenThin(material);
+    fadeWhenThin(material, color === 'yellow' ? 0.8 : 0.15); // the yellow lines stay bright at range (Patrick: "brighten the yellow lines")
     const mesh = new THREE.Mesh(geometry, material);
     mesh.renderOrder = ORDER[color];
     group.add(mesh);
