@@ -180,8 +180,8 @@ test('the hot turning rejoin to echelon flies the SMM picture: the fin on the up
 // TS-182 (Patrick 11 Oct 2026 04:11Z-04:16Z, "lead stays frozen in the windscreen ... all the way to decision point";
 // SMM 12.24 para 57, "if the lead is being held at a constant position on the windshield, an intercept course has been
 // established"): on the hot turning rejoin from the standard start, once he has settled on the line (inside 600 ft) to the
-// decision point (route's lateral spacing, about 210 ft), Lead sits still in #2's windscreen: 35° off his nose (Fable's
-// pick, the 35° line at the decision point) and 4° above the horizon (TS-182 (3)), each within the shared table's 5°;
+// decision point (route's lateral spacing, about 250 ft on the 30° line), Lead sits still in #2's windscreen: 30° off his
+// nose (the line's angle, Patrick 11 Oct 06:30Z; 35° with the 35° line until V2.263) and 4° above the horizon (TS-182 (3)), each within the shared table's 5°;
 // and he ends in echelon.
 test('the hot turning rejoin holds Lead frozen in the windscreen to the decision point, then ends in echelon', () => {
   const f = createFormation();
@@ -189,12 +189,12 @@ test('the hot turning rejoin holds Lead frozen in the windscreen to the decision
   let seen = 0;
   fly(f, 'hot rejoin to echelon', (_b, [lead, wing], t) => {
     const l = link(lead, wing);
-    if (l.range > 600 || l.range < 230) return;
+    if (l.range > 600 || l.range < 260) return;
     const q = relativeTo(wing, lead);
     const bearingDeg = Math.abs(Math.atan2(q.left, q.fwd)) / DEG;
     const elevDeg = Math.atan2(lead.altAboveFt - wing.altAboveFt, Math.hypot(q.fwd, q.left)) / DEG;
     const at = `at ${t.toFixed(1)} s, ${l.range.toFixed(0)} ft`;
-    assert.ok(Math.abs(bearingDeg - 35) <= 5, `${at}: Lead ${bearingDeg.toFixed(0)}° off #2's nose`);
+    assert.ok(Math.abs(bearingDeg - 30) <= 5, `${at}: Lead ${bearingDeg.toFixed(0)}° off #2's nose`);
     assert.ok(Math.abs(elevDeg - 4) <= 5, `${at}: Lead ${elevDeg.toFixed(0)}° above #2's horizon`);
     seen++;
   });

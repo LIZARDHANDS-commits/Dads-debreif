@@ -34,7 +34,7 @@
 // either manual is copied here (docs/references/aetcman11-248-cockpit.md). The pictures are the T-6A's; the CT-156's
 // own panel may differ.
 import {
-  CT156_UNIT_LENGTH, CT156_LENGTH_FT, CT156_FRAME_X, CT156_SEAT_X, CT156_HELMET_Z, CT156_REFERENCE_POINTS, CT156_BOW_LEAN,
+  CT156_UNIT_LENGTH, CT156_LENGTH_FT, CT156_FRAME_X, CT156_FRAME_LEAN, CT156_SEAT_X, CT156_HELMET_Z, CT156_REFERENCE_POINTS, CT156_BOW_LEAN,
   CT156_TUB_FLOOR_FT, ct156CanopySection, ct156CanopyHalfWidth, ct156HoopPoints, ct156JoinGeometries, setCockpitView,
 } from './ct156-model.js';
 import { drawAttitude } from './hud.js';
@@ -110,11 +110,13 @@ export const FORWARD_BOW_FT = Object.freeze({
  * The inter-cockpit arch over the rear seat's panel, feet (TS-157): the model's centre frame hoop (CT156_FRAME_X[1],
  * about 0.5 ft aft of the origin), seen from the rear seat as a light band like the forward bow, 0.2 ft deep, with a
  * row of small fasteners along each edge and a dark tube along its inner edge, as the commercial T-6A shots from the
- * rear seat show (Dad's pictures 21 and 27). Sizes estimates.
+ * rear seat show (Dad's pictures 21 and 27). Sizes estimates. Its top leans aft as the model's hoop does
+ * (CT156_FRAME_LEAN[1], the T-6A-1 side drawing's), its feet about 1 ft ahead of its crest.
  */
 export const ARCH_FT = Object.freeze({
   x: CT156_FRAME_X[1] * F,
   bandX: CT156_FRAME_X[1] * F - 0.05,
+  lean: CT156_FRAME_LEAN[1],
   glassInset: 0.01,
   bandDepth: 0.2,
   tubeR: 0.025,
@@ -131,12 +133,14 @@ export const ARCH_FT = Object.freeze({
  * edge, under the coaming (Patrick, 11 Oct 2026: "the glare shield is more than an inch"; his cockpit clip, where the
  * lip shows well clear of the EADI from below the eye; 3 in an estimate). The panel's width matches
  * the T-6A-1 panel diagram scaled by its 3-inch gauges (about 2.4 ft). Its outline is a tombstone: straight sides up
- * to 60 % of its height, then shoulders in to a flat top 55 % as wide (TS-157, between the T-6A panel poster's and the
- * commercial render's, Dad's pictures 17 and 26). Estimates.
+ * to 50 % of its height, then shoulders in to a flat top 84 % as wide, so the coaming over it is about 23 in across at
+ * its aft edge and the sill's strip shows beside it, as Patrick's cockpit frames show (11 Oct 2026: the strip about
+ * the 3-inch lamp box and a bit more each side; was 60 % and 55 %, TS-157's reading of the T-6A panel poster and the
+ * commercial render, Dad's pictures 17 and 26, which ran the coaming glass to glass). Estimates.
  */
 const COAMING_EDGE_X = 4.19;
 const OVERHANG_FT = 0.25;
-export const PANEL_FT = Object.freeze({ x: COAMING_EDGE_X + OVERHANG_FT, top: 1.48, bottom: 0.22, width: 2.3, insetFromGlass: 0.06, shoulderV: 0.6, topFrac: 0.55 });
+export const PANEL_FT = Object.freeze({ x: COAMING_EDGE_X + OVERHANG_FT, top: 1.48, bottom: 0.22, width: 2.3, insetFromGlass: 0.06, shoulderV: 0.5, topFrac: 0.84 });
 
 /**
  * The front coaming (glareshield), feet (TS-157): a moulded near-black hood over the panel, its aft edge following the
@@ -171,16 +175,20 @@ export const RIM_FT = Object.freeze({ aftOfGlareshield: 0.03, r: 0.045, sideOut:
  */
 export const AOA_INDEXER_FT = Object.freeze({ tall: 0.23, wide: 0.07, deep: 0.29, lampPitch: 0.069, aheadOfEdge: 0.15, y: 0.74, yRear: 0.62, clear: 0.01 });
 /**
- * The standby compass on the coaming's right, feet, as the T-6A-1 panel diagram draws it (sized by its 3-inch gauges):
- * a dark bowl 0.12 ft across and 0.11 ft tall hanging under a square flange 0.18 ft across, its light housing under
- * the bowl, the card 0.05 ft tall showing through a window 110° round facing aft, turned by the heading (update(hud)).
- * Here it stands on a short post 0.22 ft ahead of the coaming's aft edge and 0.55 ft right of the middle (0.58 ft on
- * the rear hump); places estimates off Dad's pictures and Patrick's CT-156 cockpit photo.
+ * The standby compass at the coaming's right corner, feet: a dark bowl 0.18 ft (2.2 in) across and 0.16 ft tall
+ * hanging under a square flange 0.27 ft (3.2 in) across, its light housing under the bowl, the card 0.075 ft tall
+ * showing through a window 110° round facing aft, turned by the heading (update(hud)). It stands on a short post
+ * 0.1 ft ahead of the coaming's aft edge and 0.84 ft right of the middle (0.8 ft on the rear hump), with a bracket
+ * plate from its flange out to the bow's leg beside it, as Patrick's cockpit frame shows it (11 Oct 2026, "fix the
+ * compass": hanging on the bow's right leg at the glareshield's corner, about 1.5 times the size drawn before; was a
+ * 1.4 in bowl under a 2.2 in flange, the T-6A-1 panel diagram's size, on a post 0.22 ft ahead of the edge and 0.55 ft
+ * right of the middle, a place estimated off Dad's pictures). Sizes and places estimates off the frame; the rear
+ * seat's is unseen.
  */
-export const STANDBY_COMPASS_FT = Object.freeze({ r: 0.06, bowlTall: 0.11, flange: 0.18, light: 0.05, post: 0.03, cardTall: 0.05, windowDeg: 110, aheadOfEdge: 0.22, y: -0.55, yRear: -0.58 });
+export const STANDBY_COMPASS_FT = Object.freeze({ r: 0.09, bowlTall: 0.16, flange: 0.27, light: 0.06, post: 0.03, cardTall: 0.075, windowDeg: 110, aheadOfEdge: 0.1, y: -0.84, yRear: -0.8 });
 
 /** The rear cockpit's panel, feet: face 0.7 ft aft of the origin, 0.7 to 1.75 ft up, 2.2 ft across (estimates). */
-export const REAR_PANEL_FT = Object.freeze({ x: -0.7, top: 1.75, bottom: 0.7, width: 2.2, insetFromGlass: 0.06, shoulderV: 0.6, topFrac: 0.55 });
+export const REAR_PANEL_FT = Object.freeze({ x: -0.7, top: 1.75, bottom: 0.7, width: 2.2, insetFromGlass: 0.06, shoulderV: 0.5, topFrac: 0.84 });
 /**
  * The rear coaming, feet (TS-157): the big moulded hump over the front seat's back that the rear panel sits under
  * (Dad's pictures 27 and 29), its aft edge along the rear panel's outline at 1.9 ft with the grab rail on it, rising
@@ -1193,8 +1201,9 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     }
     put(new THREE.TorusGeometry(0.013, 0.004, 5, 14).rotateY(Math.PI / 2).translate(fx0 - 0.006, ay, lamp(1)), SLOT.lampAmber);
 
-    // The standby compass (STANDBY_COMPASS_FT): a short post up from the coaming, a dark bowl, a cap over it, the card
-    // showing through the bowl's aft window (its picture turned by update(hud)), and the lubber line across it.
+    // The standby compass (STANDBY_COMPASS_FT): a short post up from the coaming's corner, a dark bowl, a cap over it
+    // with a bracket plate out to the glass by the bow's leg, the card showing through the bowl's aft window (its
+    // picture turned by update(hud)), and the lubber line across it.
     const C = STANDBY_COMPASS_FT;
     const cx = h.aftX + C.aheadOfEdge, cy = front ? C.y : C.yRear, cz = hoodZ(h, ts, cx, cy);
     const zl = cz + C.post, z0 = zl + C.light, zc = z0 + C.bowlTall / 2, zf = z0 + C.bowlTall;
@@ -1202,6 +1211,8 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     put(new THREE.CylinderGeometry(C.r * 0.55, C.r * 0.5, C.light, 12).rotateX(Math.PI / 2).translate(cx, cy, zl + C.light / 2), SLOT.dark); // the light
     put(new THREE.CylinderGeometry(C.r, C.r * 0.9, C.bowlTall, 20).rotateX(Math.PI / 2).translate(cx, cy, zc), SLOT.black); // the bowl
     put(box(THREE, cx - C.flange / 2, cx + C.flange / 2, cy - C.flange / 2, cy + C.flange / 2, zf, zf + 0.015), SLOT.dark); // the flange
+    const bracketY = -glassHalfWidthFt(zf, cx, 0.02); // the bracket plate, flange to the glass by the bow's right leg
+    if (Number.isFinite(bracketY) && bracketY < cy - C.flange / 2) put(box(THREE, cx - 0.03, cx + 0.03, bracketY, cy - C.flange / 2 + 0.01, zf, zf + 0.015), SLOT.dark);
     const theta0 = rad(270 - C.windowDeg / 2);
     cards.push(new THREE.CylinderGeometry(C.r + 0.001, C.r + 0.001, C.cardTall, 24, 1, true, theta0, rad(C.windowDeg)).rotateX(Math.PI / 2).translate(cx, cy, zc));
     put(box(THREE, cx - C.r - 0.006, cx - C.r - 0.002, cy - 0.0012, cy + 0.0012, zc - C.cardTall / 2 - 0.004, zc + C.cardTall / 2 + 0.004), SLOT.red); // the lubber line
@@ -1501,14 +1512,14 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document } = {}) {
   solidParts.push({ geometry: ab.band, materials: [SLOT.band] }, { geometry: ab.tube, materials: [SLOT.black] });
   for (const g of ab.dots) solidParts.push({ geometry: g, materials: [SLOT.black] });
   {
-    const pts = ct156HoopPoints(ARCH_FT.bandX / F, 18);
+    const pts = ct156HoopPoints(ARCH_FT.bandX / F, 18, 0, ARCH_FT.lean);
     const base = ct156CanopySection(ARCH_FT.bandX / F).base * F;
     for (const j of [6, 12]) {
-      const { y, z } = pts[j];
+      const { x, y, z } = pts[j];
       const dy = -y * F, dz = base - z * F, l = Math.hypot(dy, dz);
       const d = ARCH_FT.bandDepth + 0.12;
-      const pos = [ARCH_FT.bandX - 0.15, y * F + (dy / l) * d, z * F + (dz / l) * d];
-      const [back, face, stalk] = mirrorGeometries(THREE, pos, EYES_FT.rear, [ARCH_FT.bandX - 0.01, y * F + (dy / l) * 0.05, z * F + (dz / l) * 0.05], 0.3, 0.16);
+      const pos = [x * F - 0.15, y * F + (dy / l) * d, z * F + (dz / l) * d];
+      const [back, face, stalk] = mirrorGeometries(THREE, pos, EYES_FT.rear, [x * F - 0.01, y * F + (dy / l) * 0.05, z * F + (dz / l) * 0.05], 0.3, 0.16);
       solidParts.push({ geometry: back, materials: [SLOT.black] }, { geometry: face, materials: [SLOT.mirror] }, { geometry: stalk, materials: [SLOT.black] });
     }
   }
@@ -1523,6 +1534,9 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document } = {}) {
       return [y * F + (dy / l) * d, z * F + (dz / l) * d];
     }).filter(([, z]) => z > sideZ + 0.02);
     const shield = flatAft(THREE, x, [...hoop, ...hump.slice().reverse()]);
+    // Leaned with the arch: each point forward by its drop below the crest times the lean's tangent.
+    const crest = ct156CanopySection(x / F).top * F, sp = shield.attributes.position;
+    for (let i = 0; i < sp.count; i++) sp.setX(i, x - (crest - sp.getZ(i)) * Math.tan(ARCH_FT.lean));
     add(shield, own(new THREE.MeshBasicMaterial({ color: '#cfe3f2', transparent: true, opacity: 0.08, depthWrite: false, side: THREE.DoubleSide, fog: false })));
   }
   // The canopy's side frames with their fasteners (Dad's pictures 19, 21, 27) and the sill bands below them.

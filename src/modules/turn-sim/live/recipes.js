@@ -225,6 +225,15 @@ export function legsFor(from, s, to, sTo, spacingFt) {
         slide(corner(to, sTo), { fwdRate: CLOSE_SHAPING.targetCornerFtps, latRate: CLOSE_SHAPING.targetLateralFtps, advanceTol: 10 }),
         slide(slot(to, sTo), { fwdRate: CLOSE_SHAPING.targetFwdFtps, latRate: CLOSE_SHAPING.targetCornerFtps }),
       );
+    } else if (side === sTo && ((at === 'echelon' && to === 'route') || (at === 'route' && to === 'echelon'))) {
+      // Echelon to route and back on one side: along the spinner-wingtip line, power setting the rate fore and aft and bank
+      // holding the line (Patrick 11 Oct 2026 06:24Z; tracker.js alongFrom).
+      // Down the line power leads and bank follows; up it bank leads and power follows, so he is never ahead of the line.
+      const a = slot(at, side);
+      const b = slot(to, sTo);
+      const up = to === 'echelon';
+      const rate = up ? CLOSE_SHAPING.lineFwdFtps * Math.abs((b.left - a.left) / (b.fwd - a.fwd)) : CLOSE_SHAPING.lineFwdFtps;
+      phases.push(slide(b, { alongFrom: a, alongLead: up ? 'l' : 'f', alongLagSec: CLOSE_SHAPING.lineLeadSec, fwdRate: CLOSE_SHAPING.lineFwdFtps, latRate: up ? rate : CLOSE_SHAPING.targetLateralFtps, refAccelShare: (CLOSE_SHAPING.lineAccelFtps2 * rate) / CLOSE_SHAPING.lineFwdFtps / rate }));
     } else if (at !== to || side !== sTo) {
       phases.push(slide(slot(to, sTo)));
     }

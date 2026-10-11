@@ -73,6 +73,9 @@ export const CLOSE_SHAPING = Object.freeze({
   targetLateralFtps: 32.0,      // ~19 kt lateral drift
   targetFwdFtps: 32.0,          // ~19 kt fore/aft rate
   targetCornerFtps: 24.0,       // corner flow rate
+  lineFwdFtps: 10.0,            // echelon to route and back, along the line: the rate power sets fore and aft, about 7 kt (Patrick 11 Oct 2026 06:24Z: "crack off some power to set a rate"; estimate)
+  lineAccelFtps2: 1.5,          // ...set and taken off at about this, about 0.9 kt/s, so power keeps up with it (estimate)
+  lineLeadSec: 2.0,             // ...and he starts taking the rate off this much early, leading the power, which answers late (estimate)
   targetOvertakeKt: 8.0,        // power trim
   targetUndertakeKt: 8.0,
   envelopeMaxOvertakeKt: 10.0,

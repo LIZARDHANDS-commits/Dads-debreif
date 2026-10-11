@@ -44,30 +44,36 @@ const rad = (d) => (d * Math.PI) / 180;
 // Redrawn (Patrick, 6 Oct: "make the model better ... make it look more like the side profile of a Harvard", with his
 // photos of the navy CT-156). The side profile is measured off Patrick's side-on photo of CT-156 156101, scaled so
 // nose to tail is the T-6A's 33 ft 4 in (1.44 units; the photo's fin top then sits 10.6 ft above the wheels, against
-// the published 10.7 ft). Widths seen from above are estimates. x is along the nose, z up from the spinner's axis.
+// the published 10.7 ft). x is along the nose, z up from the spinner's axis.
 
 // Fuselage stations, nose to tail: [x, half-width, top, bottom, squareness]. The top line runs almost flat from the
 // spinner back to the fin. Squareness 2 is an ellipse, higher is boxier (flat sides at the cockpit). The nose's top
 // line, spinner to windscreen foot, is the T-6A-1 side drawing's (ALL-31): 0.85 ft above the spinner's axis 2 ft behind
 // the tip, 1.1 ft at 5 ft, 1.45 ft at the windscreen's foot (was 0.65 to 1.0 ft off the photo), so from the front seat
 // the spinner hides under the cowl. The belly line is the same drawing's (Patrick, 11 Oct 2026: "analyze the pictures
-// ... and IMPROVE IT"): 2.9 ft under the axis at the wing, rising to 1.7 ft at the tail (the photo's was about 1 ft
-// deeper all along, the far wing and the low camera adding to it).
+// ... and IMPROVE IT"): 2.9 ft under the axis at the wing, still 2.3 ft under it 2.2 ft ahead of the tail, closing to
+// 1.7 ft at the tail cone (the photo's was about 1 ft deeper all along, the far wing and the low camera adding to it;
+// it then rose from 6.3 ft ahead of the tail, up to 4 in too high). The half-widths are the T-6A-1 top view's (Figure
+// 1-1-2, scaled by its 33 ft 5 in span): 3 ft 2.6 in across from the windscreen to the rear bow, tapering straight from
+// the spinner's backplate to the cowl and from the rear bow to the tail (the front view, scaled by its 97 in prop, gives
+// 3 ft 2.2 in; was 3 ft 8.4 in, an estimate). Across the canopy the squareness is set so the canopy's sill stays within
+// a quarter inch of where it was (flat sides, as the front view draws them).
 const STATIONS = [
   [0.578, 0.034, 0.0363, -0.04, 2.2],
-  [0.55, 0.048, 0.0387, -0.07, 2.3],
-  [0.518, 0.058, 0.0414, -0.083, 2.4],
-  [0.437, 0.068, 0.048, -0.095, 2.5],
-  [0.329, 0.075, 0.0563, -0.107, 2.6],
-  [0.268, 0.078, 0.0626, -0.112, 2.7],
-  [0.167, 0.08, 0.043, -0.12, 2.7],
-  [-0.009, 0.08, 0.04, -0.128, 2.7],
-  [-0.158, 0.077, 0.034, -0.127, 2.7],
-  [-0.32, 0.066, 0.026, -0.119, 2.6],
-  [-0.482, 0.05, 0.018, -0.112, 2.5],
-  [-0.59, 0.038, 0.0, -0.094, 2.4],
-  [-0.685, 0.026, -0.016, -0.085, 2.3],
-  [-0.75, 0.014, -0.025, -0.078, 2.2],
+  [0.55, 0.0387, 0.0387, -0.07, 2.3],
+  [0.518, 0.0451, 0.0414, -0.083, 2.4],
+  [0.437, 0.06, 0.048, -0.095, 2.5],
+  [0.329, 0.0677, 0.0563, -0.107, 2.6],
+  [0.268, 0.0695, 0.0626, -0.112, 2.89],
+  [0.167, 0.0695, 0.043, -0.12, 3.49],
+  [-0.009, 0.0694, 0.04, -0.128, 3.77],
+  [-0.158, 0.0694, 0.034, -0.127, 3.38],
+  [-0.215, 0.0694, 0.0312, -0.1242, 2.97],
+  [-0.32, 0.0598, 0.026, -0.119, 3.0],
+  [-0.482, 0.0433, 0.018, -0.112, 2.69],
+  [-0.59, 0.0329, 0.0, -0.104, 2.4],
+  [-0.685, 0.0224, -0.016, -0.0995, 2.3],
+  [-0.75, 0.0103, -0.025, -0.0885, 2.2],
   [-0.78, 0.004, -0.045, -0.075, 2.0],
 ];
 // The top line aft of the fairing, into the tail, is the T-6A-1 side drawing's (Patrick, 11 Oct 2026: "the fuselage
@@ -81,19 +87,27 @@ const STATIONS = [
 // bow's crest 2.75 ft above the spinner's axis 11.3 ft behind the tip, the peak 3.45 ft over the centre arch (was
 // 3.0 ft over the front seat, off the photo). From the rear bow aft the top is the same drawing's line falling from
 // the canopy into the tail: 2.3 ft above the axis at the rear bow, 1.4 ft 2 ft behind it and 0.4 ft where it meets the
-// fuselage, 5.8 ft behind it (was 2.4 ft, then a point 2.7 ft behind it, off the photo). The half-widths to the rear bow are as
-// before (photo and estimates) but the rear bow's, 2.55 ft across, nearly the canopy's widest, so the glass ends square
-// as in the T-6A-1's top view (p.6, measured roughly; was 2.3 ft); the fairing's narrowing behind it is an estimate.
+// fuselage, 5.8 ft behind it (was 2.4 ft, then a point 2.7 ft behind it, off the photo). The half-widths from the windscreen
+// foot to the centre arch are the T-6A-1 top view's (Figure 1-1-2, measured 11 Oct 2026 against its 33 ft 5 in span):
+// the canopy 33.6 in across outside from just behind the forward bow all the way back, 32.8 in at the bow, the
+// windscreen narrowing over the 2.2 ft ahead of the bow to its point at the foot (was 30 in at the bow and narrowing
+// from there forward, off the photo; the model's one surface is both the outside and the inside, so the glass sits
+// about an inch outside the real inside). The rear bow's, 2.55 ft across, nearly the canopy's widest, so the glass
+// ends square as in the same top view (was 2.3 ft); the fairing's narrowing behind it is an estimate.
 const CANOPY = [
-  [0.268, 0.02, 0.0635],
-  [0.23, 0.042, 0.0851],
-  [0.194, 0.052, 0.106],
-  [0.172, 0.0544, 0.1188],
-  [0.14, 0.058, 0.1249],
-  [0.059, 0.06, 0.1413],
-  [-0.022, 0.06, 0.149],
-  [-0.076, 0.06, 0.1469],
-  [-0.185, 0.057, 0.124],
+  [0.268, 0.01, 0.0635],
+  [0.254, 0.034, 0.0715],
+  [0.245, 0.0425, 0.0766],
+  [0.236, 0.0495, 0.0817],
+  [0.2175, 0.054, 0.0924],
+  [0.208, 0.0554, 0.0979],
+  [0.19, 0.0572, 0.1083],
+  [0.172, 0.059, 0.1188],
+  [0.14, 0.0605, 0.1249],
+  [0.059, 0.0605, 0.1413],
+  [-0.022, 0.0605, 0.149],
+  [-0.076, 0.0605, 0.1469],
+  [-0.185, 0.06, 0.124],
   [-0.239, 0.055, 0.0978],
   [-0.274, 0.05, 0.0807],
   [-0.32, 0.042, 0.0588],
@@ -179,10 +193,12 @@ const STAB = [
   { le: -0.55, s: 0.04, chord: 0.24, t: 0.1, z: -0.04 },
   { le: -0.616, s: 0.245, chord: 0.174, t: 0.1, z: -0.04 },
 ];
-// The fin: its root buried in the tail cone, its top 0.232 units (5.4 ft) above the spinner's axis, its leading edge
-// swept back from 13.1 ft ahead of the tail at the root (T-6A-1 side drawing; was 4.5 ft and 0.7 ft further aft, off the
-// photo).
-const FIN = [{ le: -0.569, s: -0.03, chord: 0.168, t: 0.09, z: 0 }, { le: -0.6135, s: 0.232, chord: 0.086, t: 0.09, z: 0 }];
+// The fin and rudder: the root buried in the tail cone, the top 0.232 units (5.4 ft) above the spinner's axis. Leading
+// and trailing edges are the T-6A-1 side drawing's: the leading edge swept 15°, meeting the dorsal fin 1.5 ft above the
+// axis 4.8 ft ahead of the tail; the rudder's trailing edge leaning forward 9°, from the tail cone 0.2 ft ahead of the
+// tail to 1.2 ft ahead of it at the top (was 1.0 ft and 1.9 ft, so the fin was about 8 in short aft; the leading edge
+// was 3 in aft low down).
+const FIN = [{ le: -0.5437, s: -0.045, chord: 0.2289, t: 0.09, z: 0 }, { le: -0.6188, s: 0.232, chord: 0.1087, t: 0.09, z: 0 }];
 // The ventral fin under the tail, as aerofoil sections down from inside the belly, its outline the T-6A-1 side drawing's
 // (Patrick, 11 Oct 2026, circled it): its leading edge leaving the belly 6.3 ft ahead of the tail, its foot 3.5 ft under
 // the axis and 2.9 ft long, rising 0.35 ft to the back (VENTRAL_RISE), its trailing edge meeting the belly 2.3 ft ahead
@@ -198,17 +214,17 @@ const DORSAL = [
   [-0.4, 0.004, 0.0576],
   [-0.47, 0.0045, 0.0611],
   [-0.54, 0.005, 0.0634],
-  [-0.6, 0.0055, 0.066],
+  [-0.6, 0.0035, 0.066],
 ];
 // The forward bow leans aft from its crest 9° to the sill, as the T-6A-1 side drawing shows it (was upright).
 export const CT156_BOW_LEAN = rad(9);
 /**
  * Each frame hoop's lean from its crest to the sills (CT156_FRAME_X's order), radians: + the feet aft of the crest, -
  * ahead of it. The forward bow CT156_BOW_LEAN; the rear bow 22° with its top aft, as the T-6A-1 side drawing shows it
- * (Patrick, 11 Oct 2026: "the wrong angles in the canopy bow"; it was upright). The drawing leans the centre bow 21°
- * the same way; it stays upright here until the arch inside the cockpit (ct156-cockpit.js's ARCH_FT) leans with it.
+ * (Patrick, 11 Oct 2026: "the wrong angles in the canopy bow"; it was upright). The centre bow 21° the same way, the
+ * same drawing's, with the arch inside the cockpit (ct156-cockpit.js's ARCH_FT) leaning with it (was upright).
  */
-export const CT156_FRAME_LEAN = Object.freeze([CT156_BOW_LEAN, 0, rad(-22)]);
+export const CT156_FRAME_LEAN = Object.freeze([CT156_BOW_LEAN, rad(-21), rad(-22)]);
 /** A symmetric NACA 4-digit section's half-thickness at xc (0 the leading edge, 1 the trailing edge), per chord. */
 const thick = (xc, t) => 5 * t * (0.2969 * Math.sqrt(xc) - 0.126 * xc - 0.3516 * xc ** 2 + 0.2843 * xc ** 3 - 0.1036 * xc ** 4);
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
@@ -915,7 +931,7 @@ function buildKit(THREE) {
     // Centred on the fin's mid-chord (nearly upright, the leading edge swept back and the trailing edge forward) and on
     // the fin above the tail cone (Patrick, 11 Oct 2026: "central on the vertical stab, not right on the edge"; was 0.03
     // units aft, at the trailing edge).
-    tail: both((side) => patch(THREE, -0.655, 0.115, 0.105, 0.165, side, finSurf)),
+    tail: both((side) => patch(THREE, -0.667, 0.115, 0.105, 0.165, side, finSurf)),
     // Upper left wing: seen from above, nose up, right = -Y.
     roundelWing: wingPatch(THREE, 0.04, 0.42, 0.14, 0.14, [0, -1], [1, 0], 1, DIHEDRAL),
     // Under the right wing: seen from below with the nose up, it reads left to right.
