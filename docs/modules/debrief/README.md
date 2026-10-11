@@ -31,7 +31,7 @@ Each has a working answer that the tool uses until it is settled.
 - **DB-Q20 to DB-Q28:** the working answers below are accepted.
 - **DB-27 default:** From the tracks stays the default Ground.
 - **CYMJ runway points:** one copy, `src/airfields/cymj-runways.js`, read by Traffic and the shared runway list (V2.334).
-- **DB-Q4:** a "Smooth G (5-point median)" setting, off by default; the verdicts keep the raw G (V2.336). Its decision row is still to be written, after Patrick confirms its wording.
+- **DB-Q4:** a "Smooth G (5-point median)" setting, off by default; the verdicts keep the raw G (V2.336, DB-29).
 
 The gap fill, cockpit view and GPS puck (plan Step 3a) were built with these working answers (Dad relayed Patrick's approval; each stands until Patrick answers):
 
