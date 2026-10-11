@@ -24,9 +24,9 @@ import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
 import { FORMATIONS, pairSlot, sideFor } from './slots.js';
 import { KIAS_OUTSIDE_LAB, REJOIN_CLOSURE_KT, STRAIGHT_REJOIN, TURNING_REJOIN, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
-import { onClosure } from './hand-over.js';
-import { STEP_SEC, smoothLegSec } from './flight.js';
-import { trackTwice, phase } from './tracker.js';
+import { onClosure } from './closures.js';
+import { STEP_SEC } from './flight.js';
+import { trackPhases, phase } from './tracker.js';
 import { KT_TO_FTPS as KT_FTPS } from '../../../core/units.js';
 
 const dt = STEP_SEC;
@@ -44,8 +44,6 @@ function flyStraightRejoinWith({ lead, wing, rec, s, to, sTo, spacingFt, blockFt
   const route = pairSlot('route', sRoute, spacingFt);
   const leadAlt = rec.at(0).altAboveFt;
   const wakeFt = leadAlt + A.belowWakeFt;
-  const descentSec = Math.max(TR.heightSec, smoothLegSec(wing.altAboveFt - wakeFt, TR.heightG));
-  const heightLeg = (sec) => (Math.abs(wing.altAboveFt - wakeFt) > 0.5 ? [{ t0, t1: t0 + sec, fromFt: wing.altAboveFt, toFt: wakeFt }] : []);
 
   const line = {
     u: { fwd: -1, left: 0 },
@@ -81,7 +79,7 @@ function flyStraightRejoinWith({ lead, wing, rec, s, to, sTo, spacingFt, blockFt
   }));
 
   const phases = [linePhase, ...closePhases];
-  const { run, profile } = trackTwice({
+  const { run, profile } = trackPhases({
     refs: { [lead.id]: rec },
     wing0: wing,
     t0,
@@ -160,7 +158,7 @@ export function planStraightRejoin(pair, to, options = {}, t0 = 0) {
     if (best) break;
   }
   if (!best || best.durationSec > CHANGE_LIMIT_SEC) return null;
-  const { run, profile } = best;
+  const { run } = best;
   const judged = judge([run.end.lead, run.end.wing], { key: to }, { spacingFt });
   if (!judged.inBand) return null;
 

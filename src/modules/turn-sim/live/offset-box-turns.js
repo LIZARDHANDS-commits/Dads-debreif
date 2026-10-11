@@ -21,7 +21,7 @@ import { speedSegFor } from './slow-down.js';
 /** The offset box's buttons: Spread 4's five and the shackle (SMM 16.41 para 112). */
 export const OFFSET_BOX_KEYS = Object.freeze([...FOUR_SHIP_KEYS, 'shackle']);
 /** The rear element's delay in the manual (SMM 16.41 para 112a): a reference for the card, never a wall. */
-export const BOX_DELAY_BAND_SEC = Object.freeze([10, 15]);
+const BOX_DELAY_BAND_SEC = Object.freeze([10, 15]);
 /** The turns the rear element waits for (para 112a); the rest fly together (para 112b). */
 const DELAYED_KEYS = Object.freeze(['delayed90', 'delayed45', 'hook']);
 /** The delay searched: 0 to 40 s, in half seconds then tenths (estimate: the far end is well past the manual's 15 s). */

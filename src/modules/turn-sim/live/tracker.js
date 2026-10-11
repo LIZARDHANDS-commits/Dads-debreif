@@ -9,7 +9,7 @@
 import { bankDegFromTurnRate } from '../../../core/flight-math.js';
 import { wrapPi } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
-import { STEP_SEC, copyAircraft, smoothLegSec, heightAt, SMOOTHER_PEAK } from './flight.js';
+import { STEP_SEC, copyAircraft, smoothLegSec, SMOOTHER_PEAK } from './flight.js';
 import { relativeTo, unit, DEG } from './manoeuvres.js';
 import { fullPowerKtps, slowKtps, stallBankDeg } from './slow-down.js';
 import { throttleAtTorque, throttleFor } from './power.js';
@@ -301,7 +301,7 @@ function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT, pclMaxActiv
     const lineTargetKias = inAnticipation
       ? Math.max(L.kias, L.kias + (rNow - 500) * (20 / 500))
       : ph.far && aim.along > ph.far.fromFt
-        ? ph.far.kias // the element far down the line (four-rejoin.js ELEMENT_FAR)
+        ? ph.far.kias // the element far down the line (four-rejoin.js ELEMENT.far)
         : (aim.along <= (ph.easeFromFt ?? TURNING_REJOIN.rideEaseFromFt)
           ? (ph.easeKias ?? TURNING_REJOIN.rideEaseKias)
           : (ph.rideKias ?? TURNING_REJOIN.rideKias));
@@ -869,18 +869,18 @@ function isAligned(Lafter, W) {
  * durationSec, ranges, laneFwdFt, minBelowFt } (ranges and the lane are measured from the aircraft each phase flies off).
  * A phase with `closureFtps` flies the power profile (tuning.js CLOSURE, Patrick 04:58Z, 05:47Z, 05:54Z; clean-up step 2):
  * the closing speed is set and held at the closure rate and stopped from the stopping distance idle (or the slide's bank)
- * gives; the speed loop is the tracker's own (Patrick 06:24Z: test it as is first; the power technique of 06:13Z is the
- * line's, hand-over.js). Each point carries the power it was flown with ([bank, kias, power]) for the tags. Phases without
+ * gives; the speed loop is the tracker's own (Patrick 06:24Z: test it as is first; the power technique of 06:13Z is rates.js
+ * CLOSURE's). Each point carries the power it was flown with ([bank, kias, power]) for the tags. Phases without
  * it fly as before (the 4-ship's, until step 3).
  * Since step 2 also: `init` ({ accelKtps }) starts the speed loop at the acceleration the aircraft already has (since
- * step 5 every run starts its heading loop on his present turn and its roll from his bank), so a hand-over from a kinematic
- * line (hand-over.js) has no step in bank or speed; and
+ * step 5 every run starts its heading loop on his present turn and its roll from his bank), so a run that starts mid-move
+ * has no step in bank or speed; and
  * `stopWhenSettled` ends the run once #2 has settled on the last slot, without waiting for Lead to finish his plan (the
  * first pass of a run whose Lead rolls out once #2 is in).
  * Fighting wing energy with the cone (TS-96): on a phase with `coneAlt` and `closureFtps`, #2's height is flown here, not
  * from `profile`: the speed loop's slowing is taken first as a climb and its speeding up as a descent, inside the cone's
  * height (tuning.js FW_ENERGY), so the power moves only for what the height can't give. The heights flown come back as
- * `heightLeg` (a table leg, flight.js heightAt), for trackTwice to put in the profile.
+ * `heightLeg` (a table leg, flight.js heightAt), for trackPhases to put in the profile.
  * Since step 5 (TS-141) every step goes through the one pilot model (pilot.js: speed from the power at the G flown, one jerk
  * limit, power hysteresis, shaped roll), every point carries its power, and a `pursuit` may also ask for a slowing stage
  * (`slowStage`) and, on a phase with `pursuitEnds`, end the phase (`done`) or give up the run (`abort`). The result also
@@ -1069,7 +1069,6 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       t,
       aCmdOwn: own?.aCmd ?? null,
     });
-    const kias = power.kias;
 
     // 5. Height: explicit profile, cone energy, or slot altitude evolution
     const height = heightOf(ph, L, W, STEP_SEC, profile, {
@@ -1184,10 +1183,10 @@ export function phase(slot, over = {}) {
 }
 
 /**
- * The tracker run (previously two passes, now a single pass where #2's height is flown in the same pass
- * as bank and speed). Returns { run, profile }.
+ * One tracker run (runTracker) and the height profile it flew: the run's own height leg first, then any profile it was
+ * given. Returns { run, profile }.
  */
-export function trackTwice({ refs, wing0, t0, phases, profile, blockFt, maxSec = PLAN_MAX_SEC, init = null, stopWhenSettled = false }) {
+export function trackPhases({ refs, wing0, t0, phases, profile, blockFt, maxSec = PLAN_MAX_SEC, init = null, stopWhenSettled = false }) {
   const run = runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec, init, stopWhenSettled });
   return { run, profile: run.heightLeg ? [run.heightLeg, ...(run.profile ?? [])] : (run.profile ?? []) };
 }

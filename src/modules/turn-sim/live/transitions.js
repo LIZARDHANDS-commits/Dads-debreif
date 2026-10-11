@@ -31,10 +31,10 @@
 // labelled "estimate" beside them.
 import { wholeDegree, turnSeg, DEG } from './manoeuvres.js';
 import { classify, judge } from './judge.js';
-import { trackTwice, PLAN_MAX_SEC } from './tracker.js';
+import { trackPhases, PLAN_MAX_SEC } from './tracker.js';
 import { FORMATIONS, LANE, sideFor } from './slots.js';
 import { KIAS_OUTSIDE_LAB, KIAS_LAB, REJOIN, closureNow, rejoinClosureNow } from './tuning.js';
-import { onClosure } from './hand-over.js';
+import { onClosure } from './closures.js';
 import { leadTurnInto, trackTail } from './lead-turn-in.js';
 import { recordFlight, speedSeg } from './replay.js';
 import { legsFor } from './recipes.js';
@@ -134,16 +134,16 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
     let fallback = null;
     for (const turnDeg of REJOIN.turnAnglesDeg) {
       const leadSegs = [...slowWhileTurning, turnSeg(wholeDegree(lead.headingRad + sCur * turnDeg * DEG), sCur, REJOIN.leadBankDeg)];
-      const attempt = { ...trackTwiceOffLead(lead, wing, leadSegs, t0, phases, blockFt), turnDeg };
+      const attempt = { ...trackPhasesOffLead(lead, wing, leadSegs, t0, phases, blockFt), turnDeg };
       if (finished(attempt) && laneOk(attempt)) {
         best = attempt;
         break;
       }
       if (!fallback && finished(attempt)) fallback = attempt;
     }
-    best ??= fallback ?? { ...trackTwiceOffLead(lead, wing, [...slowWhileTurning, turnSeg(wholeDegree(lead.headingRad + sCur * REJOIN.turnAnglesDeg[0] * DEG), sCur, REJOIN.leadBankDeg)], t0, phases, blockFt), turnDeg: REJOIN.turnAnglesDeg[0] };
+    best ??= fallback ?? { ...trackPhasesOffLead(lead, wing, [...slowWhileTurning, turnSeg(wholeDegree(lead.headingRad + sCur * REJOIN.turnAnglesDeg[0] * DEG), sCur, REJOIN.leadBankDeg)], t0, phases, blockFt), turnDeg: REJOIN.turnAnglesDeg[0] };
   } else if (!best) {
-    best = { ...trackTwiceOffLead(lead, wing, speedSegs, t0, phases, blockFt), turnDeg: 0 };
+    best = { ...trackPhasesOffLead(lead, wing, speedSegs, t0, phases, blockFt), turnDeg: 0 };
   }
   best.judged = judgeEnd(best);
   best.good = finished(best);
@@ -192,7 +192,7 @@ export function planGoTo(pair, to, options = {}, t0 = 0) {
 }
 
 /** Two passes of the tracker: the first learns the leg times, the second flies with #2's height profile built from them. */
-function trackTwiceOffLead(lead, wing, leadSegs, t0, phases, blockFt) {
+function trackPhasesOffLead(lead, wing, leadSegs, t0, phases, blockFt) {
   const refs = { [lead.id]: recordFlight(lead, { segments: leadSegs }, t0) };
-  return { leadSegs, ...trackTwice({ refs, wing0: wing, t0, phases, blockFt, stopWhenSettled: true }) };
+  return { leadSegs, ...trackPhases({ refs, wing0: wing, t0, phases, blockFt, stopWhenSettled: true }) };
 }

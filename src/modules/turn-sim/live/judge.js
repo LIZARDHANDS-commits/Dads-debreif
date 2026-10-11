@@ -23,7 +23,7 @@ import { FORMATIONS, WINGSPAN_FT, ROUTE_SPANS, LENGTH_FT, FW_BAND, FW_REGION, NE
 import { REJOIN, IN_POSITION } from './tuning.js';
 
 /** Margins for the roll-out judgement: the shared table's ±100 ft (docs/TESTING.md). */
-export const JUDGE_MARGIN_FT = 100;
+const JUDGE_MARGIN_FT = 100;
 /** The SMM's line abreast sweep: 0 to 10 degrees behind the 3/9 line (SMM 16.18 para 49). */
 export const SWEEP_MAX_DEG = 10;
 /** The shared table's angle margin, ±5° (docs/TESTING.md). */

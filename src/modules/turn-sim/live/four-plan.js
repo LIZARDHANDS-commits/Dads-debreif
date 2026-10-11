@@ -10,7 +10,7 @@
 // Sources for each move are in the file that flies it: four-close.js (finger, echelon, box, line astern, route, and out of
 // them to fighting wing), four-rejoin.js (the turning and straight-ahead rejoins, V2.99) and four-open.js (opening out to
 // Spread 4, Fluid 4 and the offset box, V2.100).
-import { copyAircraft, planDone } from './flight.js';
+import { copyAircraft } from './flight.js';
 import { classify, judge } from './judge.js';
 import { FOUR_FORMATIONS, refsFor, fourWords } from './slots.js';
 import { FOUR_CHANGE_LIMIT_SEC, statesAt, joinLegs } from './four-legs.js';
@@ -75,7 +75,7 @@ const MOVES = [
 const DIRECT = ['fw', 'finger', 'echelon'];
 
 /** The fewest-seconds route from (key, side) to (to, sTo) through MOVES: [{ move, s, sTo }…], or null. */
-export function routeFour(from, s, to, sTo, opts = {}) {
+function routeFour(from, s, to, sTo, opts = {}) {
   const node = (k, side) => `${k}:${k === 'trail' ? 0 : side}`;
   const goal = node(to, sTo);
   const best = new Map([[node(from, s), 0]]);
@@ -207,6 +207,3 @@ export function planChangeFour(aircraft, to, options = {}, t0 = 0) {
     legs: legs.map((leg) => ({ t0: leg.t0, endSec: leg.endSec })),
   };
 }
-
-/** True once every aircraft has flown its plan (for a caller checking a plan by flying it). */
-export const allDone = (aircraft, plans) => aircraft.every((a) => planDone(a, plans[a.id]));

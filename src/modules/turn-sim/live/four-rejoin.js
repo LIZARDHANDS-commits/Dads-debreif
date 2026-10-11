@@ -17,7 +17,7 @@
 //
 // Every step goes through the one envelope gate (flight.js gateRoll, TS-93); the tracker legs fly the 2-ship's power profile
 // (four-legs.js onProfile). Until V2.98 these were four-ship-moves.js's, with a kinematic line in front of each long leg.
-import { DEG, relativeTo, turnSeg, wholeDegree } from './manoeuvres.js';
+import { relativeTo } from './manoeuvres.js';
 import { recordFlight } from './replay.js';
 import { STEP_SEC } from './flight.js';
 import { slide, closeThrough, rejoinTo, straightAhead, STRAIGHT_AHEAD } from './recipes.js';
@@ -28,7 +28,7 @@ import { KT_TO_FTPS as KT_FTPS } from '../../../core/units.js';
 import { leadTurnInto } from './lead-turn-in.js';
 import { searchTurningRejoin, flyTurningRejoinWith } from './turning-rejoin.js';
 import { slotInWorld } from './kinematic.js';
-import { LENGTH_FT, slotsFor, pairSlot, FW_STEP_DOWN_FT, fixedLine } from './slots.js';
+import { LENGTH_FT, slotsFor, pairSlot, FW_STEP_DOWN_FT } from './slots.js';
 import { legsInTurn, place, hold, toSlot, inLeadFrame, ech, toSpeed, inCone, GENTLE_ALT_FTPS, FOUR_CHANGE_LIMIT_SEC } from './four-legs.js';
 
 /** The overtake the rear wingmen use to close from far out (estimate: the straight-ahead rejoin's 20 to 30 KIAS, EFIG p.371). */
@@ -76,7 +76,7 @@ const FAR_SIDE_FT = 3000;
  * 10 Oct 2026 22:30Z, "500 ft, 50 ft below"): a reference, not a wall. The planner aims for it and a closer cross is
  * flagged on screen.
  */
-export const AWAY_CROSS = Object.freeze({ behindFt: 500, belowFt: 50 });
+const AWAY_CROSS = Object.freeze({ behindFt: 500, belowFt: 50 });
 
 /**
  * A rejoining wingman comes off its stack first (Patrick 4 Oct 19:11Z, "come off first"; SMM 12.27 para 65): one at or above

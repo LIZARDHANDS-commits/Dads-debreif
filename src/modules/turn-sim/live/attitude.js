@@ -34,7 +34,7 @@ export const leftOf = (nose, up) => cross3(up, nose);
  * path's angle above the horizon and bank (degrees, left wing down positive) measured from wings level with the nose
  * where it is. Straight up or down the heading comes from the up vector (the belly points back along the old heading).
  */
-export function eulerOf(nose, up) {
+function eulerOf(nose, up) {
   const horiz = Math.hypot(nose.x, nose.y);
   const pitchFpDeg = Math.atan2(nose.z, horiz) / DEG;
   const h = horiz > 1e-9 ? Math.atan2(nose.y, nose.x) : Math.atan2(-up.y * Math.sign(nose.z), -up.x * Math.sign(nose.z));

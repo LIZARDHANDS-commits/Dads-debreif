@@ -16,10 +16,10 @@ import { FORMATIONS, FW_BAND } from './slots.js';
 import { IN_POSITION } from './bands.js';
 import { SWEEP_MAX_DEG } from './judge.js';
 import { KIAS_LAB, KIAS_OUTSIDE_LAB, TURNING_REJOIN } from './tuning.js';
-import { onClosure } from './hand-over.js';
-import { trackTwice, phase, climbCostKtps, PLAN_MAX_SEC } from './tracker.js';
+import { onClosure } from './closures.js';
+import { trackPhases, phase, climbCostKtps, PLAN_MAX_SEC } from './tracker.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
-import { copyAircraft, SMOOTHER_PEAK, SMOOTHER_CURVE_PEAK, diveShape, diveMinSec } from './flight.js';
+import { SMOOTHER_PEAK, SMOOTHER_CURVE_PEAK, diveShape, diveMinSec } from './flight.js';
 import { G_FTPS2 } from '../../../core/units.js';
 
 /** The chooser key for the move (formation.change(MOVE_IN_BAND_KEY, { target })), like the lag roll's. */
@@ -90,7 +90,7 @@ export function nearestInBox(key, side, p) {
 }
 
 /** A move in a close band (echelon, route, line astern) climbs or descends at no more than this rate (feet per second; 2,000 ft/min, an estimate: brisk, not a zoom), over the time the move across takes when that is longer. */
-export const MOVE_ALT_RATE_FTPS = 2000 / 60;
+const MOVE_ALT_RATE_FTPS = 2000 / 60;
 
 /**
  * In line abreast and fighting wing a move around the box is flown hard (Patrick 6 Oct 15:10Z: "unrestricted bank angle and
@@ -100,9 +100,9 @@ export const MOVE_ALT_RATE_FTPS = 2000 / 60;
  * rate cap, physics only): a climb may trade climbSwingKt of his speed and beyond that climbs at what full power gives at the
  * slower speed; a dive may gain diveSwingKt (220 KIAS to about 300, under the 316 KIAS limit) and beyond that descends at
  * what idle and the boards take off (slow-down.js). Or the time the move across takes, when that is longer. Across, he closes with no
- * closure cap (hand-over.js FREE_MOVE_FT; Patrick 15:18Z). All estimates.
+ * closure cap (closures.js FREE_MOVE_FT; Patrick 15:18Z). All estimates.
  */
-export const OPEN_MOVE = Object.freeze({ vsShare: 0.8, climbSwingKt: 40, diveSwingKt: 80 });
+const OPEN_MOVE = Object.freeze({ vsShare: 0.8, climbSwingKt: 40, diveSwingKt: 80 });
 
 /**
  * A big height loss in the box is flown as a pilot flies it (TS-129; Patrick 6 Oct 15:29Z: "Can straight down be a hesitation
@@ -113,10 +113,10 @@ export const OPEN_MOVE = Object.freeze({ vsShare: 0.8, climbSwingKt: 40, diveSwi
  * feet per foot of loss; a long move across stays a descending turn), whose steady dive is at least minShare of his true
  * airspeed; anything else stays a smooth push over. All estimates.
  */
-export const DIVE_ROLL = Object.freeze({ inG: 3, outG: 3, minFt: 500, minShare: 0.3, acrossPerFt: 1 });
+const DIVE_ROLL = Object.freeze({ inG: 3, outG: 3, minFt: 500, minShare: 0.3, acrossPerFt: 1 });
 
 /** The seconds a hard height change of dAlt feet (up positive) takes for wing (OPEN_MOVE above). blockFt: the height block; across: the move across, feet. */
-export function openMoveAltSec(dAlt, wing, blockFt, across = 0) {
+function openMoveAltSec(dAlt, wing, blockFt, across = 0) {
   const h = Math.abs(dAlt);
   if (!(h > 0)) return 0;
   const byG = Math.sqrt((SMOOTHER_CURVE_PEAK * h) / (TURNING_REJOIN.diveGs[0] * G_FTPS2));
@@ -136,46 +136,6 @@ export function openMoveAltSec(dAlt, wing, blockFt, across = 0) {
 export function placeNow(lead, wing) {
   const rel = relativeTo(lead, wing);
   return { fwd: rel.fwd, left: rel.left, alt: wing.altAboveFt - lead.altAboveFt };
-}
-
-/** A wingman standing at `place` in Lead's frame, Lead straight and level, for asking the judge about a spot. */
-function wingAt(lead, wing, place) {
-  const a = copyAircraft(wing);
-  const c = Math.cos(lead.headingRad);
-  const s = Math.sin(lead.headingRad);
-  // Lead's frame: fwd along his heading, left to his left (manoeuvres.js relativeTo's convention, inverted here).
-  a.xFt = lead.xFt + place.fwd * c - place.left * s;
-  a.yFt = lead.yFt + place.fwd * s + place.left * c;
-  a.altAboveFt = lead.altAboveFt + place.alt;
-  a.headingRad = lead.headingRad;
-  a.bankDeg = 0;
-  return a;
-}
-
-/** Whether a spot in Lead's frame is inside the formation's band, by the judge (the one definition of IN POSITION). */
-export function inBandAt(lead, wing, key, side, place, spacingFt) {
-  return judge([{ ...lead, bankDeg: 0 }, wingAt(lead, wing, place)], { key, side }, { spacingFt }).inBand;
-}
-
-/**
- * The furthest spot toward `want` from `from` that is still in the band: `from` itself when `want` is in the band or
- * `from` is not (then the control just moves where asked, and the judge will say what it is). Bisection on the straight
- * line between them, to a foot. Returns { place, atEdge }.
- */
-export function clampToBand(lead, wing, key, side, from, want, spacingFt) {
-  if (inBandAt(lead, wing, key, side, want, spacingFt)) return { place: want, atEdge: false };
-  if (!inBandAt(lead, wing, key, side, from, spacingFt)) return { place: want, atEdge: false };
-  let lo = 0;
-  let hi = 1;
-  const at = (u) => ({ fwd: from.fwd + (want.fwd - from.fwd) * u, left: from.left + (want.left - from.left) * u, alt: from.alt + (want.alt - from.alt) * u });
-  const span = Math.hypot(want.fwd - from.fwd, want.left - from.left, want.alt - from.alt);
-  for (let i = 0; i < 30 && (hi - lo) * span > 1; i++) {
-    const mid = (lo + hi) / 2;
-    if (inBandAt(lead, wing, key, side, at(mid), spacingFt)) lo = mid;
-    else hi = mid;
-  }
-  // A foot or so inside the edge, so the spot flown to (within a foot) is still judged in the band.
-  return { place: at(Math.max(0, lo - Math.min(0.02, 2 / Math.max(span, 1)))), atEdge: true };
 }
 
 /**
@@ -198,7 +158,7 @@ export function planMoveInBand(pair, target, options = {}, t0 = 0) {
 
   const targetKias = key === 'lab' ? KIAS_LAB : KIAS_OUTSIDE_LAB;
   const leadPlan = { segments: Math.abs(lead.kias - targetKias) > 0.5 ? [speedSeg(lead.kias, targetKias, blockFt)] : [] };
-  // One tracker leg at the close-in closure (the Rates setting; hand-over.js onClosure), ending settled on the spot.
+  // One tracker leg at the close-in closure (the Rates setting; closures.js onClosure), ending settled on the spot.
   // A height change takes its own time (the tracker settles on the spot horizontally at once when only the height
   // differs): the leg is held open for it, so the profile has the seconds it needs.
   // Position and height together (Patrick 6 Oct 04:07Z: "position and altitude at the same time instead of flying there
@@ -214,7 +174,7 @@ export function planMoveInBand(pair, target, options = {}, t0 = 0) {
   const dAlt = Math.abs(target.alt - now.alt);
   const dHoriz = Math.hypot(target.fwd - now.fwd, target.left - now.left);
   const level = dAlt > 0 && dHoriz >= 1 && !open
-    ? trackTwice({ refs, wing0: wing, t0, phases: onClosure([phase({ fwd: target.fwd, left: target.left, alt: now.alt }, { tactical: open })], { closeIn }), blockFt, stopWhenSettled: true }).run
+    ? trackPhases({ refs, wing0: wing, t0, phases: onClosure([phase({ fwd: target.fwd, left: target.left, alt: now.alt }, { tactical: open })], { closeIn }), blockFt, stopWhenSettled: true }).run
     : null;
   const across = open ? (dHoriz > 1 ? dHoriz / 140 : 0) : (level?.ok ? level.durationSec : 0);
   const tries = dAlt > 0 ? (open ? [openMoveAltSec(target.alt - now.alt, wing, blockFt, dHoriz), ...(target.alt > now.alt ? [dAlt / MOVE_ALT_RATE_FTPS] : [])] : [dAlt / MOVE_ALT_RATE_FTPS]) : [0];
@@ -237,7 +197,7 @@ export function planMoveInBand(pair, target, options = {}, t0 = 0) {
     const phases = onClosure([phase({ fwd: target.fwd, left: target.left, alt: target.alt }, { tactical: open, ...(altSec > 0 ? { altSec, holdUntil: t0 + altSec, ...hard } : {}) })], { closeIn });
     // The run goes on past settled to match Lead's speed and heading (the tracker's align), so #2 holds the spot afterwards;
     // until V2.108 it stopped at settled and drifted on at up to a couple of feet a second (seen in the V2.108 dry run).
-    const flown = trackTwice({ refs, wing0: wing, t0, phases, blockFt, stopWhenSettled: false });
+    const flown = trackPhases({ refs, wing0: wing, t0, phases, blockFt, stopWhenSettled: false });
     if (flown.run.ok && (!best || flown.run.durationSec < best.run.durationSec)) best = flown;
   }
   const { run, profile } = best ?? { run: { ok: false } };

@@ -37,7 +37,7 @@ export const FOUR_SHIP_KEYS = Object.freeze(['delayed90', 'delayed45', 'check', 
  * (AFM8 brief p.18). The low end is flown: the S-curve costs the pair a little lateral
  * room and a smaller check costs less. Working answer, Patrick to confirm.
  */
-export const CHECK_TURN_DEG = 10;
+const CHECK_TURN_DEG = 10;
 
 /** A line abreast pair for the plain delayed-45 chain: further out of line than this and the check turn is left out. */
 const ABREAST_FT = 250;

@@ -161,7 +161,7 @@ const NOTHING_TO_FIX_FT = 50;
 /** The smallest spacing the sim flies at (formation.js SPACING_LIMITS_FT), so "tight" can't put #2 on Lead. */
 const MIN_SPACING_FT = 1000;
 /** A fix that ends this close to the SMM picture counts as fixed: the shared table's ±100 ft (docs/TESTING.md). */
-export const FIXED_WITHIN_FT = 100;
+const FIXED_WITHIN_FT = 100;
 
 const unit = (h) => ({ x: Math.cos(h), y: Math.sin(h) });
 const clone = (segs) => segs.map((s) => ({ ...s }));

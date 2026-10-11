@@ -2,7 +2,7 @@
 // moves-from-the-manuals.md, Patrick 5 Oct 23:03Z-23:04Z): finger, echelon, box, line astern and route to each other, and
 // out of them to fighting wing. Each wingman flies the 2-ship's close technique off the aircraft he flies off: the station
 // change's corners and stops (SMM 12.20 paras 44-47, Figs 12.12-12.13; recipes.js stopAt, slide, cornerBehind), on the
-// 2-ship's close-in rate (the Rates choice, hand-over.js onClosure, four-legs.js), with the manuals' gates: each waits for
+// 2-ship's close-in rate (the Rates choice, closures.js onClosure, four-legs.js), with the manuals' gates: each waits for
 // the one ahead (SMM 16.32 paras 85-86). Lead holds heading and speed in every one (the manuals are silent; inferred).
 //
 // The shapes are the ones flown since V2.10 (four-ship-moves.js until V2.97); what changed is the rate set (the 2-ship's

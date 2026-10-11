@@ -35,7 +35,7 @@ export const NO_BANK_CAP_DEG = bankDegFromG(T6A_LIMITS.maxG);
  * is only for holding close formation, "as soon as a tactical formation is selected, unrestricted attitude changes and
  * power"; 20:50Z: "Escelon is smooth to allow 2 to stay in position in tight formation", while "Fithging wing, rejoins,
  * tactical formations, line abreast etc is unrestricted (realistic) roll rates & aircraft handling"). The moves' own tables
- * read them from here: ROLL below, moves.js KINEMATIC and OPEN_OUT, formation-turns.js CLOSE_TURN and hand-over.js RUN_IN. All
+ * read them from here: ROLL below, moves.js KINEMATIC and OPEN_OUT and formation-turns.js CLOSE_TURN. All
  * estimates unless a source is given; the comments at those tables say where each number came from.
  *  - close: holding close formation and moving near Lead.
  *    leadRoll: Lead's roll in a close formation turn, up to 30°/s building at 20°/s² (about 3 s to 45°);
@@ -162,7 +162,7 @@ export function lineKiasNow(choice = ratesChoice) {
  *  - leverShare: his throttle style, how quickly he moves the power: the share of the torque's full travel rate (moves.js
  *    POWER.jerkKtps2) his acceleration builds at. The student eases it, the AI slams it (Patrick 5 Oct 04:58Z, 05:47Z:
  *    power "assertively" sets the rate); estimates.
- * pilot.js reads the roll, G onset and lever shares; tracker.js and rejoin-law.js the cone share.
+ * pilot.js reads the roll, G onset, lever and cone shares.
  */
 export const EXPERIENCE = Object.freeze({
   student: Object.freeze({ closeInSec: CLOSE_IN_SEC.student, rejoinClosureKt: REJOIN_CLOSURE_KT.student, lineKias: REJOIN_LINE_KIAS.student, rollShare: 1, gOnsetGps: 2, coneShare: 0.5, leverShare: 0.5 }),
@@ -211,16 +211,6 @@ export function closeInFtps(choice = ratesChoice) {
   return disc >= 0 ? (t - Math.sqrt(disc)) / (2 * k) : Math.sqrt(d / k);
 }
 
-/** The quickest route to echelon the slide's bank allows, seconds (closeInFtps's formula at its best rate). */
-export function quickestCloseInSec() {
-  const r = pairSlot('route', 1);
-  const e = pairSlot('echelon', 1);
-  const d = Math.hypot(r.fwd - e.fwd, r.left - e.left) - CLOSE_IN_BAND_FT;
-  const a = G_FTPS2 * Math.tan((CLOSURE.slideBankDeg * Math.PI) / 180);
-  const k = 1 / (2 * a) + 1 / (2 * CLOSURE.stopShare * a);
-  return ENGINE_RESPONSE_SEC + 2 * Math.sqrt(k * d);
-}
-
 /** The close-in closure for the Rates choice now: { kt, ftps } (ftps: feet per second of relative motion). */
 export function closureNow() {
   const ftps = closeInFtps();
@@ -239,8 +229,8 @@ export function rejoinClosureNow() {
  * until its stopped in position, then increase to maintain"; 05:47Z: "We can use power to "assertively set the rate""; 05:54Z:
  * "speed brake can be used to help arrest the rate to the desired as well"; 06:13Z: "they dont HAVE to go full power to set
  * a rate. they can massage it at a lower power. it's just a techinque. so if the rate you wanted was at 67 torque, you could
- * set 90 or 100 to set it, then reset to 67 to maintain it... I dont want them to only use full power or idle"). A line
- * (hand-over.js, kinematic.js powerLaw) flies it on every 2-ship move: each change of rate (setting it, slowing it) overshoots
+ * set 90 or 100 to set it, then reset to 67 to maintain it... I dont want them to only use full power or idle"). The
+ * tracker (tracker.js powerOf) flies it on every 2-ship move: each change of rate (setting it, slowing it) overshoots
  * the new rate's holding power by the smallest step that reaches the new rate in about RATE_SET_SEC, never past full power
  * or idle, then resets to the power that holds it. Slowing, that is power below the holding power first, idle only if
  * needed, and the speed brake only when idle can't do it in time (slow-down.js, TS-61). Big changes end up at MAX or IDLE,
@@ -271,13 +261,11 @@ export const ENGINE_RESPONSE_SEC = 0.25;
 export const RATE_SET_SEC = 2;
 
 /**
- * The hand-over from a kinematic line to the tracker, and the change from a rejoin's closure to the close-in rate, together
- * at about 500 ft from the slot (Patrick 5 Oct 06:24Z; before it, card "Lines, then tracker" 05:41Z and 05:44Z: "within
- * 500-1000 feet, dpending on whats going on. becuase we start to see the aspect change and the clusre visually and adjust to
- * that"). The line flies the big move at the rejoin closure (REJOIN_CLOSURE_KT) to about 500 ft from the slot, arriving at
- * the close-in rate; the tracker takes the run-in from there, planned again from where #2 and Lead really are at that
- * moment (Patrick 06:24Z, "Should the tracker re-calculate after the line hands over?": yes). A move that starts inside
- * 500 ft is the tracker's alone. The same for every Rates choice. hand-over.js handOverPoint is the one place it is used.
+ * Where a rejoin's closure gives way to the close-in rate: about 500 ft from the slot (Patrick 5 Oct 06:24Z; before it,
+ * card "Lines, then tracker" 05:41Z and 05:44Z: "within 500-1000 feet, dpending on whats going on. becuase we start to see
+ * the aspect change and the clusre visually and adjust to that"). Until the kinematic lines were removed it was also where a
+ * line handed over to the tracker. chooser.js reads it to tell a long move (the rejoin closure, REJOIN_CLOSURE_KT) from a
+ * close one. The same for every Rates choice.
  */
 export const HAND_OVER_FT = 500;
 

@@ -133,7 +133,7 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
     // The side swap (fluid-wing.js swapWanted): from where #2 is now and how he is drifting, worked out from what is
     // already flown (his raw points up to this step), so a press of Lead's never changes a swap already begun.
     if (kMax - 2 * SWAP_LOOK_STEPS > kMin + SEED_STEPS) {
-      const [p0, p1, p2] = [R(kMax).latRad, R(kMax - SWAP_LOOK_STEPS).latRad, R(kMax - 2 * SWAP_LOOK_STEPS).latRad];
+      const [p0, p1] = [R(kMax).latRad, R(kMax - SWAP_LOOK_STEPS).latRad];
       const h = SWAP_LOOK_STEPS * dt;
       const rate = (p0 - p1) / h;
       const s = e.wing.side;
