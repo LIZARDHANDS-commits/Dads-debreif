@@ -1,5 +1,5 @@
 // The T-6 as a CT-156 Harvard II (Moose Jaw, RCAF), drawn in code: a lofted fuselage, aerofoil wings and tail, glossy
-// paint and small CanvasTexture decals. Fine detail shows up close. From V2.328 the solid parts are swapped for the
+// paint and small CanvasTexture decals. Fine detail shows up close. From V2.329 the solid parts are swapped for the
 // Blender file built from these same shapes once it loads (ALL-33, "the outside from Blender" below); the code's shapes
 // stay the one source and show whenever the file doesn't. It imports only ui-kit's ct156-blender.js, and three.js is passed in
 // (never imported here, so the home screen bundle stays free of it; see three-aircraft.js
