@@ -22,7 +22,10 @@ const URL = process.env.TRAFFIC_URL ?? 'http://localhost:5174/#/traffic';
 const CHROMIUM = process.env.CHROMIUM_PATH; // e.g. /opt/pw-browsers/chromium in the cloud container
 
 const FPS = 60;
-const SIZE = { width: 1280, height: 800 };
+/** The page at the card's own size, drawn at twice the pixels: the tags come out at their real size on the card, so the
+ *  move-over tag can be read (Patrick, 11 Oct 20:40Z), and the scene stays sharp. */
+const SIZE = { width: 640, height: 400 };
+const PIXEL_RATIO = 2;
 
 /** The 2D part: wind from 180° rising 0 to 30 kt over this long, then held. */
 const WIND = { fromDeg: 180, maxKt: 30, riseSec: 6, holdSec: 1 };
@@ -65,7 +68,7 @@ const ease = (p) => (p < 0.5 ? 2 * p * p : -1 + (4 - 2 * p) * p);
 const twoFrames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 
 async function openTraffic(browser) {
-  const page = await browser.newPage({ viewport: SIZE });
+  const page = await browser.newPage({ viewport: SIZE, deviceScaleFactor: PIXEL_RATIO });
   await page.goto(URL);
   await page.waitForFunction(() => Boolean(window.__traffic), null, { timeout: 30000 });
   await page.addStyleTag({ content: CLEAN_STAGE_CSS });
