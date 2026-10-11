@@ -377,14 +377,16 @@ main[data-module='sof'] {
 }
 
 /* The full card that opens beside the column, over the map (a drop-down, like the others). */
+/* It opens below the map's bar (Layers, Home, zoom, 3D, Full screen), so those buttons stay pressable while a card is open (2.5rem: the bar's
+   one row and its gap at desktop widths; under 62rem the cards sit below the map). */
 [data-module='sof'] .sof-card-drop {
   position: absolute;
-  top: 0;
+  top: 2.5rem;
   left: calc(100% + var(--space-2));
   z-index: 30;
   box-sizing: border-box;
   width: min(34rem, 80vw);
-  max-height: 100%;
+  max-height: calc(100% - 2.5rem);
   overflow-y: auto;
   border-radius: var(--radius);
   box-shadow: var(--shadow);

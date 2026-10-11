@@ -36,6 +36,9 @@ The shared parts are the flight core (`src/core/`), the app frame and home scree
 - [ ] The flaps-takeoff glide row in `src/core/t6-performance.js:156` is labelled an estimate (Patrick approved, 4 Oct 04:18Z) until a manual page or Patrick backs it; it is settled in the Traffic PFL review (Traffic plan, Step 1) (`pf/reset/consolidation-plan.md:189`, `pf/reset/6-plan-and-rules/new-since-pin.md:15`, `../traffic/plan.md`).
 - [ ] Dependabot pull request #162 (a Playwright bump) is the only open pull request; merge only on a green run. It belongs to the GitHub tidy in `../../PLAN.md` (`archive/docs/handover/app-frame.md:13`).
 - [ ] One colour for ship #4, white with an outline, in every module (issue #29).
+- [x] CT-156 outside details (Patrick, 11 Oct 2026 20:12Z to 20:32Z): the tie-down rings under the wings and the belly antennas where SMM Fig 12.12 and 12.13 show them, for the formation references; two TAS blades on the cowl; the exhaust's shape (T-6A-1 Fig 1-1-2); the white foot on the aft belly antenna; the main gear doors and the speed brake on the belly; better pilots. Built in the same pull request as this line (`src/ui-kit/ct156-model.js`).
+- [x] The speed brake on the model opens with the boards, and the SPEED BRAKE light comes on in the cockpit (Patrick, 11 Oct 2026 20:22Z): `setSpeedBrake(ship, out)` and `hud.speedBrake` in the shared 3D files.
+- [ ] Formation's 3D view to call `setSpeedBrake` for each ship and pass `speedBrake` to the cockpit when the boards are out (Formation's file, `src/modules/turn-sim/view3d.js`; asked of the Formation thread).
 
 ## Step 4. Sign-off, with the combined sign-off of the whole tool
 
