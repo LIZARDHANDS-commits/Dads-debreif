@@ -343,6 +343,8 @@ export const CLOSE_TURN = Object.freeze({
   rollMargin: 1.5,
   /** The most bank off Lead's he uses to slide across Lead's wing line (estimate), the slide in proportion to the gap below it. */
   sideBankDeg: 15,
+  /** The turn ends with every wingman's bank within this of Lead's (estimate; Fable's V2.331 flight). */
+  endBankDeg: 0.2,
 });
 
 /**
@@ -563,9 +565,21 @@ function planCloseTurn(aircraft, formation, key, dir, t0 = 0, side = undefined) 
   // Each wingman's place, fixed in Lead's real wing plane (holdInPlane).
   let maxBankDeg = Number(bank);
   const held = aircraft.slice(1).map((wing) => ({ wing, ...holdInPlane(leadRec, lead, wing, bodies.get(wing.id), leadSteps) }));
-  const n = held.reduce((m, h) => Math.max(m, h.rel.length - 1), leadSteps);
-  for (const { wing, rel } of held) {
-    const poses = heldPoses(leadRec, wing, rel, n, closeWingRoll(roll));
+  // The turn ends once every wingman has his place back and his wings within CLOSE_TURN.endBankDeg of Lead's, so the last
+  // pose's settle onto Lead's bank is a fraction of a degree. Until V2.337 it ended on the place alone, and in trail the
+  // wingmen still held 1-3° of bank, zeroed in one step (Fable's V2.331 flight).
+  let n = held.reduce((m, h) => Math.max(m, h.rel.length - 1), leadSteps);
+  const maxN = n + Math.ceil(CLOSE_TURN.settleSec / STEP_SEC);
+  let posesOf;
+  for (;;) {
+    posesOf = new Map(held.map(({ wing, rel }) => [wing.id, heldPoses(leadRec, wing, rel, n, closeWingRoll(roll))]));
+    const before = (poses) => poses[poses.length - 2] ?? poses[poses.length - 1];
+    const banked = [...posesOf.values()].some((poses) => Math.abs(before(poses).bank - (leadRec.at(n).bankDeg ?? 0)) > CLOSE_TURN.endBankDeg);
+    if (!banked || n >= maxN) break;
+    n += Math.round(1 / STEP_SEC);
+  }
+  for (const { wing } of held) {
+    const poses = posesOf.get(wing.id);
     plans[wing.id] = { segments: [{ kind: 'poseTrack', poses }] };
     for (const p of poses) maxBankDeg = Math.max(maxBankDeg, Math.abs(p.bank));
   }
