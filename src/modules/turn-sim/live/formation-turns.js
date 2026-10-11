@@ -359,14 +359,16 @@ export const TURN_FORMATIONS = Object.freeze({ 2: ['fw', ...CLOSE_TURN_FORMATION
  * CLOSE_TURN.followG away from Lead's and building at CLOSE_TURN.onsetGps, and closes what is left at CLOSE_TURN.holdPerSec.
  * Flown from the press until Lead has finished (leadSteps) and the wingman is back on his place. Returns { rel: [{ x, y, z }] },
  * his offset from Lead in the world at steps 0..n. bodyAt(i), when given, is a place that moves step by step (the turning
- * rejoin's way from the decision point through route into echelon, TS-182), body the last of it.
+ * rejoin's way from the decision point through route into echelon, TS-182), body the last of it. limits, when given, override
+ * CLOSE_TURN's for this hold (that way's gentler bank and G onset, Patrick 11 Oct 05:31Z).
  */
-export function holdInPlane(leadRec, lead, wing, body, leadSteps, bodyAt = null) {
+export function holdInPlane(leadRec, lead, wing, body, leadSteps, bodyAt = null, limits = {}) {
   const dt = STEP_SEC;
-  const upMost = CLOSE_TURN.followG * G_FTPS2;
-  const powerMost = CLOSE_TURN.powerG * G_FTPS2;
-  const jMax = CLOSE_TURN.onsetGps * G_FTPS2 * dt;
-  const k = CLOSE_TURN.holdPerSec;
+  const C = { ...CLOSE_TURN, ...limits };
+  const upMost = C.followG * G_FTPS2;
+  const powerMost = C.powerG * G_FTPS2;
+  const jMax = C.onsetGps * G_FTPS2 * dt;
+  const k = C.holdPerSec;
   const placeAt = (i) => {
     const L = leadRec.at(Math.max(0, i));
     const b = bodyAt ? bodyAt(Math.max(0, i)) : body;
@@ -408,7 +410,7 @@ export function holdInPlane(leadRec, lead, wing, body, leadSteps, bodyAt = null)
     };
     const up = along(2, upMost);
     const lift = Math.max(0, G_FTPS2 / Math.cos(phi) + up); // his lift: Lead's (level turn) and the part he adds or takes off
-    const parts = [along(0, powerMost), along(1, G_FTPS2 * Math.tan(CLOSE_TURN.sideBankDeg * DEG), CLOSE_TURN.sidePerSec), up];
+    const parts = [along(0, powerMost), along(1, G_FTPS2 * Math.tan(C.sideBankDeg * DEG), C.sidePerSec), up];
     const cmd = [0, 1, 2].map((j) => axes[0][j] * parts[0] + axes[1][j] * parts[1] + axes[2][j] * parts[2]);
     const step = cmd.map((c, j) => c - acc[j]);
     const jump = Math.hypot(...step);
@@ -613,7 +615,7 @@ export function closeTurnRoll(base, bodies) {
 
 /** The bank off Lead's that Lead's roll rate leaves his farthest wingman needing to hold his place across Lead's wing line (estimate). */
 const ROLL_WITH_DEG = 5;
-/** How far the 2-ship's #2 is from Lead in echelon, ft (slots.js: 18 ft back, 43 ft out, 4 ft down), the reference for closeTurnRoll. */
+/** How far the 2-ship's #2 is from Lead in echelon, ft (slots.js: 18 ft back, 43 ft out, 3 ft down), the reference for closeTurnRoll. */
 const ECHELON_REF_FT = (() => { const e = slotsFor('echelon', 1)[2]; return Math.hypot(e.fwd, e.left, e.alt); })();
 
 /**

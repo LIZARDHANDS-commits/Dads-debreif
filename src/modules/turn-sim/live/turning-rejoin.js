@@ -199,7 +199,7 @@ function pointingPhases(altFt, depthFt) {
  * pitch and power and bank to keep that aspect frozen in the screen"; Fable 04:19Z): a control law, not a line. Bank holds
  * Lead's bearing off #2's nose, from where the reversal left it onto frozenBearingDeg over frozenSettleFt, then frozen there;
  * pitch holds him lineElevDeg above #2's horizon (the line's depth law, slopedAlt); power the overtake, lineKiasNow's down to
- * frozenArriveKt at the decision point. It ends where #2 is out at route's lateral spacing (decisionFt down the 35° line).
+ * frozenArriveFtps of closure at the decision point. It ends where #2 is out at route's lateral spacing (decisionFt down the 35° line).
  */
 function frozenPhase(altFt, s, decisionFt, bankCapDeg) {
   const TR = TURNING_REJOIN;
@@ -233,9 +233,16 @@ function frozenPhase(altFt, s, decisionFt, bankCapDeg) {
       // Turn with Lead's line of sight, and take out the bearing error over frozenTauSec (Lead too far left: turn left).
       const omega = losRate(L, W) + wrapPi(b - want) / TR.frozenTauSec;
       const bankDeg = Math.atan((W.tasFtps * omega) / G_FTPS2) / DEG;
-      const overKt = Math.max(TR.frozenArriveKt, Math.min(lineKiasNow() - KIAS_OUTSIDE_LAB, TR.frozenArriveKt + (range - decisionFt) / TR.frozenSlowFtPerKt));
+      // Power holds his closure on Lead, not a speed over Lead's: inside Lead's turn the same knots close much faster (V2.253
+      // reached the decision point closing at about 20 kt, Patrick 05:31Z: "slightly too hot"). His closure comes off evenly,
+      // at frozenSlowFtps2, to frozenArriveFtps at the decision point.
+      const dx = L.xFt - W.xFt;
+      const dy = L.yFt - W.yFt;
+      const closeNow = ((W.tasFtps * Math.cos(W.headingRad) - L.tasFtps * Math.cos(L.headingRad)) * dx + (W.tasFtps * Math.sin(W.headingRad) - L.tasFtps * Math.sin(L.headingRad)) * dy) / Math.max(1, Math.hypot(dx, dy));
+      const wantClose = Math.sqrt(TR.frozenArriveFtps ** 2 + 2 * TR.frozenSlowFtps2 * Math.max(0, range - decisionFt));
+      const kiasCmd = Math.max(KIAS_OUTSIDE_LAB - TR.frozenUnderKt, Math.min(lineKiasNow(), W.kias + (wantClose - closeNow) / KT_TO_FTPS));
       const done = Math.abs(rel.left) <= routeOutFt || range <= decisionFt;
-      return { bankDeg: Math.max(-bankCapDeg, Math.min(bankCapDeg, bankDeg)), psiCmd: W.headingRad, kiasCmd: KIAS_OUTSIDE_LAB + overKt, done, abort: s * rel.left < -50 };
+      return { bankDeg: Math.max(-bankCapDeg, Math.min(bankCapDeg, bankDeg)), psiCmd: W.headingRad, kiasCmd, done, abort: s * rel.left < -50 };
     },
   });
 }
@@ -290,7 +297,8 @@ function tailPath(from, vel, s, to, spacingFt) {
   let t = 0;
   for (const leg of legs) {
     // To route, forward is the move; up the line, across (its fore and aft follows in the line's own proportion).
-    const sec = Math.max(TURNING_REJOIN.tailMinSec, (marks.length ? Math.abs(leg.left - at.left) : Math.abs(leg.fwd - at.fwd)) / rate);
+    // The drop into Lead's wing plane is spread out too, at tailUpFtps (Patrick 05:31Z: "smaller, smoother movements").
+    const sec = Math.max(TURNING_REJOIN.tailMinSec, (marks.length ? Math.abs(leg.left - at.left) : Math.abs(leg.fwd - at.fwd)) / rate, Math.abs(leg.up - at.up) / TURNING_REJOIN.tailUpFtps);
     marks.push({ from: at, to: leg, t0: t, t1: t + sec });
     at = leg;
     t += sec;
@@ -309,21 +317,37 @@ function tailPath(from, vel, s, to, spacingFt) {
     return { fwd: m.from.fwd + f * (m.to.fwd - m.from.fwd), left: m.from.left + f * (m.to.left - m.from.left), up: m.from.up + f * (m.to.up - m.from.up) };
   };
   // The corners (off the line at the decision point, at route onto the spinner-wingtip line) rounded: the place averaged over
-  // blendSec either side, so he eases from one way onto the next with a gentle bank change (Patrick 03:40Z "very smooth").
+  // blendSec either side, twice, so his acceleration, and with it his bank and G, changes smoothly too, not in steps (Patrick
+  // 03:40Z "very smooth", 05:31Z "still too jerky"; once until V2.255).
   const w = Math.round(TURNING_REJOIN.tailBlendSec / dt);
-  const bodyAt = (i) => {
-    const h = w;
+  const n = 2 * w + 1;
+  const lo = -2 * w; // raw places from lo, so each step has both averages' full span
+  const keys = ['fwd', 'left', 'up'];
+  const raw = Array.from({ length: steps + 1 + 4 * w }, (_, k) => rawAt(lo + k));
+  const average = (rows) => {
+    const out = [];
     const sum = { fwd: 0, left: 0, up: 0 };
-    for (let j = i - h; j <= i + h; j++) {
-      const p = rawAt(j);
-      sum.fwd += p.fwd;
-      sum.left += p.left;
-      sum.up += p.up;
+    for (let k = 0; k < rows.length; k++) {
+      for (const c of keys) sum[c] += rows[k][c];
+      if (k >= n) for (const c of keys) sum[c] -= rows[k - n][c];
+      if (k >= n - 1) out.push({ fwd: sum.fwd / n, left: sum.left / n, up: sum.up / n });
     }
-    const n = 2 * h + 1;
-    return { fwd: sum.fwd / n, left: sum.left / n, up: sum.up / n };
+    return out; // out[j] is centred on rows[j + w]
   };
-  return { bodyAt, steps: steps + w };
+  const smooth = average(average(raw)); // smooth[j] is centred on raw[j + 2w], step lo + j + 2w = j
+  // The averaging moves the start off where he is; that difference fades out smoothly over the first 2w steps, so the way
+  // starts on him with no step in his place or G (V2.253: a 0.45 G kick at the decision point).
+  const off0 = { fwd: from.fwd - smooth[0].fwd, left: from.left - smooth[0].left, up: from.up - smooth[0].up };
+  const fade = (i) => {
+    const x = Math.min(1, i / (2 * w));
+    return 1 - x * x * x * (10 - 15 * x + 6 * x * x);
+  };
+  const bodyAt = (i) => {
+    const p = smooth[Math.max(0, Math.min(smooth.length - 1, i))];
+    const f = fade(Math.max(0, i));
+    return { fwd: p.fwd + f * off0.fwd, left: p.left + f * off0.left, up: p.up + f * off0.up };
+  };
+  return { bodyAt, steps: steps + 2 * w };
 }
 
 /**
@@ -555,7 +579,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
     const slot = pairSlot(to, sTo || s, spacingFt);
     const slotBody = { fwd: slot.fwd, left: slot.left, up: slot.alt };
     const leadRecFromSettle = fromStep(lp.rec, totalSteps);
-    const { rel } = holdInPlane(leadRecFromSettle, L_settled, W_settled, slotBody, Math.max(leadRemainingSteps, tail?.steps ?? 0), tail?.bodyAt);
+    const { rel } = holdInPlane(leadRecFromSettle, L_settled, W_settled, slotBody, Math.max(leadRemainingSteps, tail?.steps ?? 0), tail?.bodyAt, tail ? TURNING_REJOIN.tailHold : {});
     const holdSteps = Math.max(leadRemainingSteps, rel.length - 1);
     const poses = heldPoses(leadRecFromSettle, W_settled, rel, holdSteps);
 
