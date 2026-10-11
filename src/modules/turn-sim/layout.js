@@ -43,6 +43,9 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   // Each seat's eye moved from its estimated point, feet up and forward (Dad, 9 Oct: "make the eye view adjustable for
   // front and rear"; TS-155); 0 is the estimate.
   eyeUpFront: 0, eyeFwdFront: 0, eyeUpRear: 0, eyeFwdRear: 0,
+  // Lean to see Lead (Patrick, 11 Oct 2026): from a wingman's seat the eye moves up to 6 in when Lead hides behind the
+  // bow or under the glareshield (ct156-cockpit.js EYE_LEAN).
+  eyeLean: true,
   view: '3d', // '2d' or '3d'; 3D at the start, looking straight down on the formation (Patrick, 5 Oct)
   paint: 'ship', // the 3D aircraft's paint: each in its ship colour, which stands out on the charcoal (Patrick, 5 Oct); 'harvard' is navy
 });
@@ -340,14 +343,21 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     eyeFront,
     eyeRear,
     resetEyeButton,
+    lc.checkbox('eyeLean', { label: 'Lean to see Lead (Cockpit, Padlock)' }),
     lc.checkbox('autoFit', { label: 'Auto zoom' }),
     h('p', { class: 'ts-hint ts-cam-shortcuts' },
       h('kbd', { class: 'ts-kbd' }, 'C'), ' Center look \u00a0 ',
-      h('kbd', { class: 'ts-kbd' }, 'P'), ' Toggle padlock',
+      h('kbd', { class: 'ts-kbd' }, 'P'), ' Toggle padlock \u00a0 ',
+      h('kbd', { class: 'ts-kbd' }, 'Shift'), ' Zoom', // held, from the seat (Patrick, 11 Oct 03:53Z)
     ),
   ]);
 
   // ---- 3D Camera Segmented Pill Toolbar (standardized with Turn Fight & Traffic) ----
+  // Padlock is always from the seat here, so it sits under Cockpit. The settings' 'free' look is the outside camera turned
+  // by hand, so Freelook from the seat is the Cockpit look with the head turned by dragging, kept by the bar (Patrick,
+  // 11 Oct 04:03Z: every camera button has to work in cockpit mode).
+  let seatFree = false;
+  const mountOf = (v) => (v.camOn === 'formation' ? 'overview' : (v.camLook === 'cockpit' || v.camLook === 'padlock' ? 'cockpit' : 'chase'));
   const mountGroup = h('div', { class: 'ts-cam-group', role: 'radiogroup', 'aria-label': 'Camera Mount' });
   const MOUNTS = [
     { id: 'overview', label: 'Overview' },
@@ -363,13 +373,14 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       } else if (m.id === 'chase') {
         const curOn = layout.get().camOn;
         const targetOn = curOn === 'formation' || curOn === 'free' ? '1' : curOn;
-        const curLook = layout.get().camLook;
-        layout.update({ camOn: targetOn, camLook: curLook === 'padlock' ? 'padlock' : 'chase' });
+        layout.update({ camOn: targetOn, camLook: 'chase' });
       } else if (m.id === 'cockpit') {
         const curOn = layout.get().camOn;
         const targetOn = curOn === 'formation' || curOn === 'free' ? '1' : curOn;
         const curLook = layout.get().camLook;
+        seatFree = curLook === 'free' || (curLook === 'cockpit' && seatFree);
         layout.update({ camOn: targetOn, camLook: curLook === 'padlock' ? 'padlock' : 'cockpit' });
+        syncCamBar(layout.get());
       }
     });
     mountBtns.set(m.id, btn);
@@ -403,14 +414,17 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   for (const a of AIMS) {
     const btn = h('button', { type: 'button', class: 'ts-cam-pill', 'data-aim': a.id }, a.label);
     btn.addEventListener('click', () => {
-      const curMount = layout.get().camOn === 'formation' ? 'overview' : (layout.get().camLook === 'cockpit' ? 'cockpit' : 'chase');
+      // Boresight from the seat also looks ahead again (view3d.js, as the C key).
+      const inSeat = mountOf(layout.get()) === 'cockpit';
+      seatFree = inSeat && a.id === 'freelook';
       if (a.id === 'boresight') {
-        layout.update({ camLook: curMount === 'cockpit' ? 'cockpit' : 'chase' });
+        layout.update({ camLook: inSeat ? 'cockpit' : 'chase' });
       } else if (a.id === 'freelook') {
-        layout.update({ camLook: 'free' });
+        layout.update({ camLook: inSeat ? 'cockpit' : 'free' });
       } else if (a.id === 'padlock') {
         layout.update({ camLook: 'padlock' });
       }
+      syncCamBar(layout.get());
     });
     aimBtns.set(a.id, btn);
     aimGroup.append(btn);
@@ -433,7 +447,8 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
 
   const hintLine = h('div', { class: 'ts-cam-hint' },
     h('kbd', { class: 'ts-kbd' }, 'C'), ' Center look \u00a0 ',
-    h('kbd', { class: 'ts-kbd' }, 'P'), ' Toggle padlock',
+    h('kbd', { class: 'ts-kbd' }, 'P'), ' Toggle padlock \u00a0 ',
+    h('kbd', { class: 'ts-kbd' }, 'Shift'), ' Zoom', // held, from the seat (Patrick, 11 Oct 03:53Z)
   );
 
   const camBarRow = h('div', { class: 'ts-cam-row' }, mountGroup, shipGroup, aimGroup, seatGroup);
@@ -444,9 +459,10 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   camBar3d.addEventListener('pointerdown', (e) => e.stopPropagation?.());
 
   function syncCamBar(values) {
-    const isOverview = values.camOn === 'formation';
-    const isCockpit = !isOverview && values.camLook === 'cockpit';
-    const activeMount = isOverview ? 'overview' : (isCockpit ? 'cockpit' : 'chase');
+    const activeMount = mountOf(values);
+    const isOverview = activeMount === 'overview';
+    const isCockpit = activeMount === 'cockpit';
+    if (!isCockpit) seatFree = false;
     for (const [id, b] of mountBtns) {
       const active = id === activeMount;
       b.classList.toggle('is-active', active);
@@ -463,7 +479,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     }
 
     aimGroup.hidden = isOverview;
-    const activeAim = values.camLook === 'padlock' ? 'padlock' : (values.camLook === 'free' ? 'freelook' : 'boresight');
+    const activeAim = values.camLook === 'padlock' ? 'padlock' : (values.camLook === 'free' || (isCockpit && seatFree) ? 'freelook' : 'boresight');
     for (const [id, b] of aimBtns) {
       const active = id === activeAim;
       b.classList.toggle('is-active', active);

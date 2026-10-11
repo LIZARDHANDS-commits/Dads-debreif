@@ -8,8 +8,8 @@
 // planned too: the dashed path ahead is the path flown.
 import { STEP_SEC } from './flight.js';
 import { FW_BAND } from './slots.js';
-import { relativeTo, DEG } from './manoeuvres.js';
-import { aspectAngle3dDeg, headingCrossAngle3dDeg } from '../../../core/angles.js';
+import { relativeTo } from './manoeuvres.js';
+import { aspectAngle3dDeg, headingCrossAngle3dDeg, DEG } from '../../../core/angles.js';
 import { shakerG } from '../../../core/t6-performance.js';
 import { FTPS_TO_KT, G_FTPS2 } from '../../../core/units.js';
 import { applyPose } from './kinematic.js';
@@ -133,7 +133,7 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
     // The side swap (fluid-wing.js swapWanted): from where #2 is now and how he is drifting, worked out from what is
     // already flown (his raw points up to this step), so a press of Lead's never changes a swap already begun.
     if (kMax - 2 * SWAP_LOOK_STEPS > kMin + SEED_STEPS) {
-      const [p0, p1, p2] = [R(kMax).latRad, R(kMax - SWAP_LOOK_STEPS).latRad, R(kMax - 2 * SWAP_LOOK_STEPS).latRad];
+      const [p0, p1] = [R(kMax).latRad, R(kMax - SWAP_LOOK_STEPS).latRad];
       const h = SWAP_LOOK_STEPS * dt;
       const rate = (p0 - p1) / h;
       const s = e.wing.side;

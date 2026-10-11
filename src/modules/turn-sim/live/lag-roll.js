@@ -18,11 +18,12 @@
 //
 // Conventions as the rest of the live code: x east, y north, z up, feet and seconds; heading in math radians (0 east,
 // counter-clockwise); fwd and left in Lead's frame (left positive); bank left wing down positive.
+import { DEG } from '../../../core/angles.js';
 import { availableG, tasToIasKt } from '../../../core/t6-performance.js';
 import { G_FTPS2, FTPS_TO_KT } from '../../../core/units.js';
 import { STEP_SEC, rollLimitAt } from './flight.js';
 import { classify } from './judge.js';
-import { relativeTo, DEG } from './manoeuvres.js';
+import { relativeTo } from './manoeuvres.js';
 import { pairSlot, FW_BAND } from './slots.js';
 import { LAG_ROLL, FW_ENERGY } from './tuning.js';
 import { add3, scale3, perp3, len3, unit3, dot3, cross3, liftOf, poseOf3d } from './attitude.js';

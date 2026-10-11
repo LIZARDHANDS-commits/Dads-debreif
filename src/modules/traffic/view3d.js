@@ -19,17 +19,20 @@ import {
 import { drawHud } from '../../ui-kit/hud.js';
 import { gFromBankDeg } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT, setCockpitView } from '../../ui-kit/ct156-model.js';
-import { createCt156Cockpit, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
+import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, createCockpitFovSlider, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
 import { KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../core/units.js';
 import { T6_LENGTH_FT, CLOSE_UP_DRAW_FT } from './types.js';
 import { paletteFrom, conflictLevels, isFlying, aircraftColor, heightSpeedText, LEVEL_MARKS, MIN_RING_PX, photoAlignment, photoView, getPflBadge, pflCircleLayout, calculateGlideFootprint, shouldShowGlideFootprint } from './map2d.js';
 import { createTileLayer, ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { makeLocalRef, latLonToLocalFt } from '../../core/geo.js';
 import { createAirfieldScenery, disposeAirfieldScenery, DEFAULT_FLOOR_FT, RUNWAY_TOP_FT } from './scenery3d.js';
+import { createAirfieldFurniture, disposeAirfieldFurniture } from './furniture3d.js';
+import { createOsmFeatures, disposeOsmFeatures } from './osm3d.js';
 import { createLandmarks, disposeLandmarks, createWindsocks, updateWindsocks, disposeWindsocks } from './landmarks3d.js';
 import { createRunwayMarkings, disposeRunwayMarkings } from './runway-markings.js';
 import { createBaseBuildings, disposeBaseBuildings, BASE_BOX_FT } from './base-buildings3d.js';
 import { createGroundHeights } from './ground-heights3d.js';
+import { SHADOW_PATCHES } from './ground-shadows-data.js';
 import { ejectionAt, EJECTION } from './ejection.js';
 import { trueAltFt } from './weather.js';
 import { createEjectionModel, poseEjectionModel, disposeEjectionModel } from './ejection3d.js';
@@ -88,8 +91,12 @@ export const FLAT_GROUND_BOXES = Object.freeze([
   Object.freeze({ minX: TIGHT_CENTER_FT.x - TIGHT_SPAN_FT / 2, maxX: TIGHT_CENTER_FT.x + TIGHT_SPAN_FT / 2, minY: TIGHT_CENTER_FT.y - TIGHT_SPAN_FT / 2, maxY: TIGHT_CENTER_FT.y + TIGHT_SPAN_FT / 2 }),
   BASE_BOX_FT,
 ]);
-/** Towards the sun for the ground's slope shading: TR-34's sun, from 225 degrees true and 45 degrees up (x east, y north, z up). */
-const SUN_FROM = Object.freeze({ x: -0.5, y: -0.5, z: Math.SQRT1_2 });
+/** Towards the sun for the ground's slope shading: the scene's sun (SUN_AZIMUTH_DEG, SUN_ELEVATION_DEG below), x east, y north, z up. */
+const SUN_FROM = Object.freeze({
+  x: Math.sin((225 * Math.PI) / 180) * Math.cos(Math.PI / 6),
+  y: Math.cos((225 * Math.PI) / 180) * Math.cos(Math.PI / 6),
+  z: Math.sin(Math.PI / 6),
+}); // 225 degrees, 30 up: must match SUN_AZIMUTH_DEG and SUN_ELEVATION_DEG
 
 /** Camera limits. pitch is degrees from straight down (0 looks down, 90 is level); zoom is pixels to 1,000 ft. */
 export const CAMERA_LIMITS = Object.freeze({ pitch: [0, 85], zoom: [0.3, 4000] });
@@ -261,6 +268,32 @@ function propBlurMap(THREE) {
   }
   propBlurMaps.set(THREE, map);
   return map;
+}
+
+/**
+ * The satellite photo's colour grade (TR-146; Patrick, 11 Oct: "Colour-grade the photo ... so the grass gets greener, the fields
+ * richer and the concrete brighter"). Esri's photo comes out hazy and flat, so grass and concrete read as near the same grey. Applied
+ * to every photo layer in the shader, on the photo's own colours before the slope shading. Values are estimates, set by eye on
+ * CYMJ; all three at 1 gives the photo as it was.
+ */
+export const PHOTO_GRADE = Object.freeze({ contrast: 1.18, saturation: 1.35, gamma: 0.92 });
+function gradePhoto(material) {
+  const { contrast, saturation, gamma } = PHOTO_GRADE;
+  if (contrast === 1 && saturation === 1 && gamma === 1) return material;
+  const f = (n) => n.toFixed(3);
+  material.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+  {
+    vec3 c = pow(max(diffuseColor.rgb, vec3(0.0)), vec3(1.0 / 2.2)); // to display tones
+    c = (c - 0.5) * ${f(contrast)} + 0.5;
+    float luma = dot(c, vec3(0.299, 0.587, 0.114));
+    c = mix(vec3(luma), c, ${f(saturation)});
+    c = pow(clamp(c, 0.0, 1.0), vec3(${f(gamma)}));
+    diffuseColor.rgb = pow(c, vec3(2.2));
+  }`);
+  };
+  material.customProgramCacheKey = () => 'photo-grade';
+  return material;
 }
 
 function propBlurMaterial(THREE) {
@@ -557,6 +590,39 @@ const GRID_CELLS = 100;
 
 const numberOf = (id) => String(id).replace(/\D+/g, '') || String(id);
 
+/** How dark the baked shadows' darkest part is drawn (an estimate). */
+const SHADOW_STRENGTH = 0.6;
+
+/**
+ * The baked ground shadows (tools/blender/bake-shadows.py; TR-133, TR-135): one see-through dark sheet per patch (the flight line and
+ * base, each landmark, the radar), drawn just after the paint and under the buildings. Each sheet is a grid so it can lie on the real
+ * ground (applyGround); its picture loads once, and until then the sheet is clear.
+ */
+function createGroundShadows(THREE) {
+  const group = new THREE.Group();
+  group.name = 'ground-shadows';
+  group.visible = false;
+  const base = (typeof import.meta !== 'undefined' && /** @type {any} */ (import.meta).env?.BASE_URL) || '/';
+  for (const P of SHADOW_PATCHES) {
+    const w = P.x1 - P.x0, h = P.y1 - P.y0;
+    const geometry = new THREE.PlaneGeometry(w, h, Math.max(1, Math.min(32, Math.ceil(w / 150))), Math.max(1, Math.min(32, Math.ceil(h / 150))));
+    const material = new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0, depthWrite: false, fog: false });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = `ground-shadows-${P.name}`;
+    mesh.position.set((P.x0 + P.x1) / 2, (P.y0 + P.y1) / 2, 0);
+    mesh.renderOrder = -0.45;
+    group.add(mesh);
+    if (typeof globalThis.Image !== 'undefined') {
+      new THREE.TextureLoader().load(`${base}media/traffic-shadows/${P.name}.png`, (texture) => {
+        material.alphaMap = texture;
+        material.opacity = SHADOW_STRENGTH;
+        material.needsUpdate = true;
+      });
+    }
+  }
+  return group;
+}
+
 /**
  * The three.js objects for one scene: the routes (one line each), an aircraft each (made when it first flies), a
  * caution ring round each flying aircraft, a line dropping from each to the ground, and the ground grid. sync() makes
@@ -606,7 +672,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
 
   // Outermost photo ring (OUTER_PHOTO_SPAN_FT), under everything else
   const outerGeometry = new THREE.PlaneGeometry(OUTER_PHOTO_SPAN_FT, OUTER_PHOTO_SPAN_FT);
-  const outerMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.95, depthWrite: false, fog: false, side: THREE.DoubleSide });
+  const outerMaterial = gradePhoto(new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.95, depthWrite: false, fog: false, side: THREE.DoubleSide }));
   const outerMesh = new THREE.Mesh(outerGeometry, outerMaterial);
   outerMesh.renderOrder = -5;
   outerMesh.visible = false;
@@ -614,13 +680,13 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
 
   // Satellite photo ground plane
   const photoGeometry = new THREE.PlaneGeometry(PHOTO_SPAN_FT, PHOTO_SPAN_FT);
-  const photoMaterial = new THREE.MeshBasicMaterial({
+  const photoMaterial = gradePhoto(new THREE.MeshBasicMaterial({
     transparent: true,
     opacity: 0.95,
     depthWrite: false,
     fog: false,
     side: THREE.DoubleSide,
-  });
+  }));
   const photoMesh = new THREE.Mesh(photoGeometry, photoMaterial);
   // The ground photos are see-through, so they draw in a fixed order, coarsest first and sharpest on top;
   // left to sort by distance from the camera they swap, and a coarser one could hide a sharper one (Patrick 18:59Z).
@@ -631,7 +697,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
 
   // Middle tier (Performance): sharper imagery for about three miles round the field
   const midGeometry = new THREE.PlaneGeometry(MID_SPAN_FT, MID_SPAN_FT);
-  const midMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.97, depthWrite: false, fog: false, side: THREE.DoubleSide });
+  const midMaterial = gradePhoto(new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.97, depthWrite: false, fog: false, side: THREE.DoubleSide }));
   const midMesh = new THREE.Mesh(midGeometry, midMaterial);
   midMesh.renderOrder = -3;
   midMesh.visible = false;
@@ -643,7 +709,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   const patternMid = PATTERN_MID_QUADS.map((q) => {
     const geometry = new THREE.PlaneGeometry(PATTERN_MID_SPAN_FT / 2, PATTERN_MID_SPAN_FT / 2, GROUND_CELLS, GROUND_CELLS);
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(geometry.attributes.position.count * 3).fill(1), 3));
-    const material = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.97, depthWrite: true, fog: false, side: THREE.DoubleSide });
+    const material = gradePhoto(new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.97, depthWrite: true, fog: false, side: THREE.DoubleSide }));
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = 'pattern-ground';
     mesh.renderOrder = -3;
@@ -686,11 +752,20 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     for (const g of landmarks.children) {
       g.position.z = DEFAULT_FLOOR_FT + (heights ? heights.offsetAt(g.position.x, g.position.y) : 0);
     }
+    furniture.userData.drape?.(heights); // the approach lights, off the flat airfield
+    osmFeatures.userData.drape?.(heights); // the roads and power lines
+    // The shadow sheets lie on the same ground, a hair above it.
+    for (const sheet of groundShadows.children) {
+      const pos = sheet.geometry.attributes.position;
+      for (let k = 0; k < pos.count; k++) pos.setZ(k, heights ? heights.offsetAt(sheet.position.x + pos.getX(k), sheet.position.y + pos.getY(k)) : 0);
+      pos.needsUpdate = true;
+      sheet.geometry.computeBoundingSphere();
+    }
   }
 
   // Sharpest tier: zoom-18 imagery over the runways and flight line (transparent until tiles arrive)
   const tightGeometry = new THREE.PlaneGeometry(TIGHT_SPAN_FT, TIGHT_SPAN_FT);
-  const tightMaterial = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide });
+  const tightMaterial = gradePhoto(new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide }));
   const tightMesh = new THREE.Mesh(tightGeometry, tightMaterial);
   tightMesh.renderOrder = -1;
   tightMesh.visible = false;
@@ -698,13 +773,13 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
 
   // High-resolution core ground mesh (Runways, taxiways, ramp)
   const coreGeometry = new THREE.PlaneGeometry(AIRFIELD_CORE_BOUNDS_FT.width, AIRFIELD_CORE_BOUNDS_FT.height);
-  const coreMaterial = new THREE.MeshBasicMaterial({
+  const coreMaterial = gradePhoto(new THREE.MeshBasicMaterial({
     transparent: true,
     opacity: 0.98,
     depthWrite: false,
     fog: false,
     side: THREE.DoubleSide,
-  });
+  }));
   const coreMesh = new THREE.Mesh(coreGeometry, coreMaterial);
   coreMesh.renderOrder = -2;
   coreMesh.visible = false;
@@ -714,10 +789,16 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   const runwayPaint = createRunwayMarkings(THREE);
   runwayPaint.visible = false;
   root.add(runwayPaint);
+  // The buildings' and landmarks' shadows on the ground, baked in Blender from the same sun (TR-133, TR-135).
+  const groundShadows = createGroundShadows(THREE);
+  root.add(groundShadows);
 
   // 3D Airfield Scenery: Control Tower, 4 Arch Hangars, South Apron
-  const scenery = createAirfieldScenery(THREE);
+  const scenery = createAirfieldScenery(THREE, { onChange: () => requestDraw() });
   root.add(scenery);
+  // Lights, PAPIs, signs, the parked Harvards and the ramp vehicles (TR-141)
+  const furniture = createAirfieldFurniture(THREE, DEFAULT_FLOOR_FT);
+  root.add(furniture);
   // Every other base building (PMQs, offices, annexes) as simple boxes: three instanced draw calls (TR-69)
   const baseBuildings = createBaseBuildings(THREE, { floor: DEFAULT_FLOOR_FT });
   root.add(baseBuildings);
@@ -727,6 +808,9 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   root.add(landmarks);
   const windsocks = createWindsocks(THREE, { floor: DEFAULT_FLOOR_FT });
   root.add(windsocks);
+  // Roads and power lines from OpenStreetMap (TR-147)
+  const osmFeatures = createOsmFeatures(THREE, DEFAULT_FLOOR_FT);
+  root.add(osmFeatures);
 
   const grid = new THREE.GridHelper(GRID_STEP_FT * GRID_CELLS, GRID_CELLS, '#2c5a44', '#1c3a30');
   grid.rotation.x = Math.PI / 2; // GridHelper lies in X-Z; the ground here is X-Y
@@ -1098,6 +1182,8 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     // The paint lies just over the sharpest photo, and shows with it.
     runwayPaint.visible = options.layerPhoto !== false;
     runwayPaint.position.set(0, 0, floor - 1);
+    groundShadows.visible = options.layerPhoto !== false && options.layerBuildings !== false;
+    groundShadows.position.z = floor - 0.8;
 
     if (scenery) {
       scenery.visible = options.layerBuildings !== false;
@@ -1254,11 +1340,18 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
       coreGeometry.dispose();
       coreMaterial.dispose();
       disposeRunwayMarkings(runwayPaint);
+      for (const sheet of groundShadows.children) {
+        sheet.geometry.dispose();
+        sheet.material.alphaMap?.dispose();
+        sheet.material.dispose();
+      }
       if (scenery) {
         disposeAirfieldScenery(scenery);
         scenery.removeFromParent();
       }
       disposeBaseBuildings(baseBuildings);
+      disposeAirfieldFurniture(furniture);
+      disposeOsmFeatures(osmFeatures);
       disposeLandmarks(landmarks);
       disposeWindsocks(windsocks);
       photoGeometry.dispose();
@@ -1372,9 +1465,12 @@ function paintBaseAirfield(ctx) {
   ctx.restore();
 }
 
-/** Sun direction for the Traffic scene: a fixed mid-afternoon summer sun from the south-west, 45° above the horizon. */
+/**
+ * Sun direction for the Traffic scene: a fixed late-afternoon sun from the south-west, 30° above the horizon, so shadows run about
+ * 1.7 times as long as the buildings are tall (Patrick, 10 Oct: card "Lower sun"; was 45°, TR-34; TR-134).
+ */
 export const SUN_AZIMUTH_DEG = 225;
-export const SUN_ELEVATION_DEG = 45;
+export const SUN_ELEVATION_DEG = 30;
 
 /**
  * Traffic's lighting: one warm DirectionalLight (sun) and one HemisphereLight (sky blue above, prairie brown below).
@@ -1436,6 +1532,9 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
   let viewMode = 'field'; // the Camera menu's choice: field (Over the field), fit, high, top, tower, free, low (Chase), cockpit or padlock
   let freeCam = null; // the free camera, { x, y, z, yawDeg, elevDeg, track } (camera-views.js), in Tower and Free camera
   let headLook = { yawDeg: 0, pitchDeg: 0 }; // Cockpit: where the pilot's head is turned from the nose
+  const zoomKey = createCockpitZoomKey(win, () => requestDraw()); // hold Shift to zoom from the seat (COCKPIT_ZOOM)
+  // The seat view's angle: a slider at the top of the camera bar (camera-bar.js), above its buttons.
+  const fovSlider = createCockpitFovSlider(win.document, () => cameraBar?.element, { onChange: () => requestDraw() });
   let padlockFrom = 'cockpit'; // Padlock keeps the eye of the view it was picked from: cockpit or low (Chase)
   let noteText = ''; // a short word in the 3D bar, such as why Cockpit fell back to Fit
   let cameraBar = null; // the 3D bar (camera-bar.js), made with the canvas and freed with it
@@ -1859,6 +1958,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
   // `lost`: the browser has already lost the graphics context, so it is not asked to lose it again (that logs a warning).
   function teardown({ lost = false } = {}) {
     win.removeEventListener?.('keydown', onWindowKeydown);
+    zoomKey.stop();
+    fovSlider.setShown(false);
     stopFrame();
     visible = false;
     resizer?.disconnect();
@@ -2084,6 +2185,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     });
     kit.setResolution(size.width, size.height);
     const pov = freeOn ? aimFree(data, size, floor) : povTarget && !dragging?.isPan ? aimPerspective(povTarget, shown, size, floor) : null;
+    fovSlider.setShown(Boolean(pov) && !freeOn && (viewMode === 'cockpit' || (viewMode === 'padlock' && padlockFrom !== 'low')));
     kit.placeGrid(pov ? pov.eye : focus, floor);
     kit.grid.visible = false; // hidden (Patrick, 6 Oct: "hide the grid in both traffic sim and form sim, it's distracting")
     // The flat views never look above level, whatever a perspective view left in the camera.
@@ -2187,6 +2289,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
             y: (mesh ? mesh.position.y : at.y) + up.y * COCKPIT_EYE.aboveModelFt,
             z: Math.max((mesh ? mesh.position.z : at.z) + up.z * COCKPIT_EYE.aboveModelFt, floor + COCKPIT_EYE.leastAglFt),
           };
+      p.fov = cockpitFovDeg(size.width, size.height, zoomKey.held()); // from the seat, set by its height so a wide screen adds sides (Patrick, 11 Oct)
       p.near = interior ? PERSPECTIVE.nearInsideFt : PERSPECTIVE.nearFt;
       p.updateProjectionMatrix();
       if (!interior && mesh) {
@@ -2622,7 +2725,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
   const hands = /** @type {[string, (e: any) => void][]} */ ([
     ['pointerdown', (e) => {
       if (e.button !== 0 && e.button !== 1 && e.button !== 2) return;
-      const isPan = e.button === 1 || e.button === 2 || e.shiftKey;
+      const inSeat = viewMode === 'cockpit' || (viewMode === 'padlock' && padlockFrom !== 'low'); // Shift-drag turns the head while zoomed
+      const isPan = e.button === 1 || e.button === 2 || (e.shiftKey && !inSeat);
       dragging = {
         id: e.pointerId,
         x: e.clientX,
@@ -2738,6 +2842,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       if (win.addEventListener) {
         win.removeEventListener('keydown', onWindowKeydown);
         win.addEventListener('keydown', onWindowKeydown);
+        zoomKey.start();
       }
       if (win.ResizeObserver && !resizer) {
         resizer = new win.ResizeObserver(() => requestDraw());

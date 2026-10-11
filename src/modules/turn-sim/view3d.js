@@ -13,13 +13,16 @@ import {
 } from '../../ui-kit/three-aircraft.js';
 import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
 import { drawTags, drawLeadArrows, T6_LENGTH_FT, trailSince, CLOCK_LINE_RED } from './view.js';
-import { FW_TURN } from './live/tuning.js';
+import { FW_TURN, TURNING_REJOIN } from './live/tuning.js';
 import { placeBoxOutline } from './live/move-in-band.js';
 import { drawHud } from '../../ui-kit/hud.js';
 import { liftBankDeg } from './live/flight.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH, setCockpitView } from '../../ui-kit/ct156-model.js';
-import { createCt156Cockpit, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
+import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, createCockpitFovSlider, createEyeLean, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
+
+/** The 3D ground's colour: wheat stubble (TS-189). It was a deep green, '#2a3327' (Patrick, 6 Oct); set that here to put it back. */
+const GROUND_COLOUR = '#b7a77a';
 import { EYE_OFFSET_FT } from './layout.js';
 
 /** The formation's height in the picture (feet). An aircraft with altAboveFt is drawn that far above or below it (the vertical miss). */
@@ -184,6 +187,17 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
   let paintNow = null;
   let userZoom = 1; // the person's wheel zoom on top of the fit-all zoom (Patrick, 5 Oct: the zoom keeps following the formation)
   let povNow = null; // the perspective view drawn last ('chase', 'cockpit', 'padlock') or null for the flat camera
+  const zoomKey = createCockpitZoomKey(win, () => requestDraw()); // hold Shift to zoom from the seat (COCKPIT_ZOOM)
+  // The seat view's angle: a slider at the top of the camera bar (layout.js's .ts-cam-bar), above its buttons.
+  const fovSlider = createCockpitFovSlider(canvas.ownerDocument ?? win.document, () => canvas.parentElement?.querySelector('.ts-cam-bar'), { onChange: () => requestDraw() });
+  // The bar's Boresight button looks ahead again, as the C key does (Patrick, 11 Oct 04:03Z: camera buttons in cockpit mode).
+  let camBar = null;
+  const onCamBarClick = (e) => { if (e.target?.closest?.('[data-aim="boresight"]')) handleCenterKey(); };
+  const hearCamBar = (on) => {
+    camBar?.removeEventListener('click', onCamBarClick);
+    camBar = on ? canvas.parentElement?.querySelector?.('.ts-cam-bar') ?? null : null;
+    camBar?.addEventListener('click', onCamBarClick);
+  };
   let povKey = '';
   let head = { yawDeg: 0, pitchDeg: 0 }; // the person's head turn (Cockpit, Padlock) or swing round the aircraft (Chase)
   let chaseFt = POV.chaseFt;
@@ -202,7 +216,9 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     scene.fog?.color.set(SKY_COLOURS.horizon);
     // The ground under the formation (Patrick, 6 Oct: "the sky is sky, the ground is ground"): a muted prairie plane with the
     // grid on it, following the camera; the sky shows toward the horizon and above. Darker (Patrick, 6 Oct: "better contrast against the ground"): a deep prairie green, so the ships' colours, the lines and the tags stand out.
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(GRID_STEP_FT * GRID_CELLS * 3, GRID_STEP_FT * GRID_CELLS * 3), new THREE.MeshBasicMaterial({ color: '#2a3327', fog: true }));
+    // Wheat stubble since TS-189 (Patrick, 11 Oct: "Form sim's ground doesnt have enough contrast against the blue of the harvards";
+    // card: option 3): the navy Harvards stand out on it, the lines and tags stay clear and the horizon stays crisp.
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(GRID_STEP_FT * GRID_CELLS * 3, GRID_STEP_FT * GRID_CELLS * 3), new THREE.MeshBasicMaterial({ color: GROUND_COLOUR, fog: true }));
     scene.add(ground);
     const grid = new THREE.GridHelper(GRID_STEP_FT * GRID_CELLS, GRID_CELLS, '#7d8f6b', '#6a7b5a'); // a little lighter than the ground
     grid.rotation.x = Math.PI / 2; // GridHelper is flat in X-Z; the sim's ground is X-Y
@@ -297,16 +313,20 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       if (layers.lead75 && layers[`l75_${a.id}`]) {
         for (const off of [Math.PI / 6, -Math.PI / 6]) seg([a.xFt, a.yFt, z], out(a.headingRad + Math.PI + off, lengthFt));
       }
-      // The 45° Turning Rejoin Line (the Canopy "X" line) in 3D during a rejoin
+      // The turning rejoin line (the canopy X line) in 3D during a rejoin: 35° off Lead's tail and 4° below his horizon, as
+      // #2 flies it (TURNING_REJOIN lineDeg, lineElevDeg; TS-181, TS-182; Patrick 11 Oct 03:53Z: "make the green dotted line
+      // match the proper turning rejoin line"). It was drawn at 45°, level.
       const rejoin = source.rejoin?.();
       if (rejoin && a.id === rejoin.leadId) {
         const wing = state.aircraft.find((w) => w.id === rejoin.wingId);
         if (wing) {
           const s = rejoin.side ?? (Math.sign((wing.xFt - a.xFt) * -Math.sin(a.headingRad) + (wing.yFt - a.yFt) * Math.cos(a.headingRad)) || -1);
           const isTurning = rejoin.rejoinKind !== 'straight';
-          const off = isTurning ? -s * (Math.PI / 4) : 0;
+          const off = isTurning ? -s * (90 - TURNING_REJOIN.lineDeg) * (Math.PI / 180) : 0;
           colour.set(isTurning ? '#00ff66' : '#ffcc66');
-          seg([a.xFt, a.yFt, z], out(a.headingRad + Math.PI + off, lengthFt));
+          const end = out(a.headingRad + Math.PI + off, lengthFt);
+          if (isTurning) end[2] = aircraftPose({ ...a, altAboveFt: (a.altAboveFt ?? 0) - lengthFt * Math.tan(TURNING_REJOIN.lineElevDeg * Math.PI / 180) }).z;
+          seg([a.xFt, a.yFt, z], end);
         }
       }
       // The circle each banked aircraft is flying now, as the 2D live view's (view.js drawBankCircles).
@@ -532,11 +552,23 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     }
     // With the cockpit interior (TS-154, TS-155) the eye is in the chosen seat, moved by its offsets, and the own aircraft
     // stays drawn round it; without it, the old eye point and the own aircraft hidden, as before.
+    p.fov = cockpitFovDeg(box.width, box.height, zoomKey.held()); // from the seat, set by its height so a wide screen adds sides (Patrick, 11 Oct)
+    p.updateProjectionMatrix();
     const interior = gl.cockpit?.root === me;
     const seatEye = interior ? EYES_FT[gl.cockpit.seat] ?? EYES_FT.front : null;
-    const eye = interior
-      ? me.localToWorld(new THREE.Vector3(seatEye.x + gl.cockpit.eyeFwdFt, seatEye.y, seatEye.z + gl.cockpit.eyeUpFt).divideScalar(CT156_FT_PER_UNIT))
-      : me.position.clone().addScaledVector(fwd, POV.eyeFwdFt).addScaledVector(up, POV.eyeUpFt);
+    let eye;
+    if (interior) {
+      // Leaning to see Lead (ct156-cockpit.js EYE_LEAN; Patrick, 11 Oct 2026): from a wingman's seat, while Lead hides
+      // behind the bow or under the glareshield, the eye eases up to 6 in sideways or up until he shows. Layout eyeLean.
+      const base = { x: seatEye.x + gl.cockpit.eyeFwdFt, y: seatEye.y, z: seatEye.z + gl.cockpit.eyeUpFt };
+      const lead = pov.id !== 1 ? gl.planes.get(1)?.mesh : null;
+      const target = lead ? me.worldToLocal(lead.position.clone()).multiplyScalar(CT156_FT_PER_UNIT) : null;
+      gl.eyeLean ??= createEyeLean();
+      const lean = gl.eyeLean.update(performance.now() / 1000, base, target, gl.cockpit.seat, source.layers().eyeLean !== false);
+      eye = me.localToWorld(new THREE.Vector3(base.x, base.y + lean.dy, base.z + lean.dz).divideScalar(CT156_FT_PER_UNIT));
+    } else {
+      eye = me.position.clone().addScaledVector(fwd, POV.eyeFwdFt).addScaledVector(up, POV.eyeUpFt);
+    }
     if (interior) {
       p.near = POV.nearInsideFt;
       p.updateProjectionMatrix();
@@ -744,8 +776,10 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     gl.skyClouds.update({ x: focus.x, y: focus.y, z: altToZ(FLIGHT_ALT_FT + (focus.z ?? 0), ALT_SCALE) }, pov ? 1 : (shown.pitchDeg - 55) / 20);
     if (pov && aimPov(pov, box)) {
       gl.active = gl.persp;
+      fovSlider.setShown(povNow !== 'chase');
     } else {
       povNow = null;
+      fovSlider.setShown(false);
       matchProjection(THREE, camera, { x: focus.x, y: focus.y, z: FLIGHT_ALT_FT + (focus.z ?? 0) }, shown, box, 1); // at the formation's height
       // A depth range round the formation only (the shared one spans Traffic's 30-mile scene), so close up the aircraft's
       // near-touching surfaces don't flicker through each other (Patrick, 5 Oct: the striped tails).
@@ -863,7 +897,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     ['contextmenu', (e) => e.preventDefault()], // right-drag pans
     ['pointerdown', (e) => {
       if (e.button !== 0 && e.button !== 2) return;
-      dragging = { id: e.pointerId, x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, camera: cam, pan: e.button === 2 || e.shiftKey };
+      dragging = { id: e.pointerId, x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, camera: cam, pan: e.button === 2 || (e.shiftKey && povNow !== 'cockpit' && povNow !== 'padlock') }; // Shift-drag turns the head while zoomed
       canvas.setPointerCapture?.(e.pointerId);
       canvas.classList.add('is-dragging');
     }],
@@ -964,7 +998,9 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       if (win.addEventListener) {
         win.removeEventListener('keydown', onWindowKeydown);
         win.addEventListener('keydown', onWindowKeydown);
+        zoomKey.start();
       }
+      hearCamBar(true);
       if (win.ResizeObserver && !resizer) {
         resizer = new win.ResizeObserver(() => requestDraw());
         resizer.observe(canvas);
@@ -977,6 +1013,9 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       visible = false;
       stopFrame();
       win.removeEventListener?.('keydown', onWindowKeydown);
+      zoomKey.stop();
+      fovSlider.setShown(false);
+      hearCamBar(false);
       resizer?.disconnect();
       resizer = null;
     },
@@ -995,6 +1034,9 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       visible = false;
       stopFrame();
       win.removeEventListener?.('keydown', onWindowKeydown);
+      zoomKey.stop();
+      fovSlider.setShown(false);
+      hearCamBar(false);
       resizer?.disconnect();
       resizer = null;
       for (const [type, fn] of hands) canvas.removeEventListener(type, fn);

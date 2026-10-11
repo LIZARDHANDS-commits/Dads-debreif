@@ -177,6 +177,31 @@ test('the hot turning rejoin to echelon flies the SMM picture: the fin on the up
   assert.ok(inEchelon(link(...f.state.aircraft)), 'and ends in echelon');
 });
 
+// TS-182 (Patrick 11 Oct 2026 04:11Z-04:16Z, "lead stays frozen in the windscreen ... all the way to decision point";
+// SMM 12.24 para 57, "if the lead is being held at a constant position on the windshield, an intercept course has been
+// established"): on the hot turning rejoin from the standard start, once he has settled on the line (inside 600 ft) to the
+// decision point (route's lateral spacing, about 250 ft on the 30° line), Lead sits still in #2's windscreen: 30° off his
+// nose (the line's angle, Patrick 11 Oct 06:30Z; 35° with the 35° line until V2.263) and 4° above the horizon (TS-182 (3)), each within the shared table's 5°;
+// and he ends in echelon.
+test('the hot turning rejoin holds Lead frozen in the windscreen to the decision point, then ends in echelon', () => {
+  const f = createFormation();
+  assert.equal(f.change('echelon'), 'started');
+  let seen = 0;
+  fly(f, 'hot rejoin to echelon', (_b, [lead, wing], t) => {
+    const l = link(lead, wing);
+    if (l.range > 600 || l.range < 260) return;
+    const q = relativeTo(wing, lead);
+    const bearingDeg = Math.abs(Math.atan2(q.left, q.fwd)) / DEG;
+    const elevDeg = Math.atan2(lead.altAboveFt - wing.altAboveFt, Math.hypot(q.fwd, q.left)) / DEG;
+    const at = `at ${t.toFixed(1)} s, ${l.range.toFixed(0)} ft`;
+    assert.ok(Math.abs(bearingDeg - 30) <= 5, `${at}: Lead ${bearingDeg.toFixed(0)}° off #2's nose`);
+    assert.ok(Math.abs(elevDeg - 4) <= 5, `${at}: Lead ${elevDeg.toFixed(0)}° above #2's horizon`);
+    seen++;
+  });
+  assert.ok(seen > 0, 'he rode the line to the decision point');
+  assert.ok(inEchelon(link(...f.state.aircraft)), 'and ends in echelon');
+});
+
 test('in fighting wing the turn buttons turn the formation: #2 stays below Lead, inside the bank cap, and ends in the band', () => {
   for (const [key, dir] of [['delayed90', 1], ['delayed90', -1], ['check', 1], ['hook', -1], ['inPlace90', 1], ['delayed45', -1]]) {
     const f = createFormation();
@@ -225,6 +250,27 @@ test('fighting wing to echelon is a straight-ahead rejoin: #2 lines up on Lead\'
     assert.ok(inEchelon(l), `${side}: ends in echelon`);
     if (side === 'left') assert.ok(l.rel.left > 0, 'on the left');
   }
+});
+
+// Refactor step 5: the straight-ahead rejoin flown as the ride with Lead not turning. From the default start (line abreast),
+// #2 lines up on Lead's six well back, never gets ahead of Lead's 3/9 line by more than the shared 100 ft margin, and is in
+// echelon inside 150 s (generous: Fable's V2.276 straight rejoin from trail took 119 s).
+test('line abreast to echelon, straight-ahead rejoin: on Lead\'s six, behind his 3/9 line, in echelon inside 150 s', () => {
+  const f = createFormation();
+  assert.equal(f.change('echelon', { rejoin: 'straight' }), 'started');
+  let onSix = false;
+  let mostAheadFt = -Infinity;
+  const t0 = f.state.tSec;
+  fly(f, 'line abreast to echelon (straight)', (_b, [lead, wing]) => {
+    const l = link(lead, wing);
+    if (l.back > 400 && l.across < 100) onSix = true;
+    mostAheadFt = Math.max(mostAheadFt, -l.back);
+  });
+  assert.ok(onSix, '#2 lined up on Lead\'s six');
+  assert.ok(mostAheadFt <= 100, `#2 ${mostAheadFt.toFixed(0)} ft ahead of Lead's 3/9 line`);
+  assert.ok(f.state.tSec - t0 <= 150, `in echelon after ${(f.state.tSec - t0).toFixed(0)} s`);
+  const [lead, wing] = f.state.aircraft;
+  assert.ok(inEchelon(link(lead, wing)), 'ends in echelon');
 });
 
 test('the 4-ship: rejoining wingmen come off the stack first, and fighting wing to echelon ends in echelon', () => {

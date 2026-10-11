@@ -1,6 +1,6 @@
 // The tracker's recipes for each 2-ship move (clean-up step 3, from transitions.js): the legs (phases) a change of formation
 // is flown as, each a tracker phase (tracker.js phase) with the move's own settings, and legsFor, the legs from one
-// formation to another by the manuals' routes. The planners (transitions.js planGoTo, line-moves.js, the rejoins,
+// formation to another by the manuals' routes. The planners (transitions.js planGoTo, the rejoins,
 // replan.js) and the 4-ship's (four-close.js, four-rejoin.js, four-open.js, four-legs.js) build their legs from these.
 //
 // Sources (page references only): SMM 12.4 paras 11-12 (echelon), 12.5 para 13 (line astern),
@@ -20,12 +20,12 @@ import { KT_TO_FTPS } from '../../../core/units.js';
 import { fwGoal } from './formation-turns.js';
 import { fwSwitch } from './fw-switch.js';
 import { classify, judge } from './judge.js';
-import { onClosure } from './hand-over.js';
+import { onClosure } from './closures.js';
 import { recordFlight, speedSeg } from './replay.js';
 import { describe, CHANGE_LIMIT_SEC } from './transitions.js';
-import { relativeTo, turnSeg, DEG } from './manoeuvres.js';
+import { relativeTo, turnSeg } from './manoeuvres.js';
 import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
-import { wrapPi } from '../../../core/angles.js';
+import { wrapPi, DEG } from '../../../core/angles.js';
 import { bankDegFromTurnRate } from '../../../core/flight-math.js';
 
 // ---- the legs (phases): the tracker's recipes for each move --------------------------------------
@@ -225,6 +225,15 @@ export function legsFor(from, s, to, sTo, spacingFt) {
         slide(corner(to, sTo), { fwdRate: CLOSE_SHAPING.targetCornerFtps, latRate: CLOSE_SHAPING.targetLateralFtps, advanceTol: 10 }),
         slide(slot(to, sTo), { fwdRate: CLOSE_SHAPING.targetFwdFtps, latRate: CLOSE_SHAPING.targetCornerFtps }),
       );
+    } else if (side === sTo && ((at === 'echelon' && to === 'route') || (at === 'route' && to === 'echelon'))) {
+      // Echelon to route and back on one side: along the spinner-wingtip line, power setting the rate fore and aft and bank
+      // holding the line (Patrick 11 Oct 2026 06:24Z; tracker.js alongFrom).
+      // Down the line power leads and bank follows; up it bank leads and power follows, so he is never ahead of the line.
+      const a = slot(at, side);
+      const b = slot(to, sTo);
+      const up = to === 'echelon';
+      const rate = up ? CLOSE_SHAPING.lineFwdFtps * Math.abs((b.left - a.left) / (b.fwd - a.fwd)) : CLOSE_SHAPING.lineFwdFtps;
+      phases.push(slide(b, { alongFrom: a, alongLead: up ? 'l' : 'f', alongLagSec: CLOSE_SHAPING.lineLeadSec, fwdRate: CLOSE_SHAPING.lineFwdFtps, latRate: up ? rate : CLOSE_SHAPING.targetLateralFtps, refAccelShare: (CLOSE_SHAPING.lineAccelFtps2 * rate) / CLOSE_SHAPING.lineFwdFtps / rate }));
     } else if (at !== to || side !== sTo) {
       phases.push(slide(slot(to, sTo)));
     }
@@ -244,7 +253,7 @@ export function outFt(L, W, s) {
 }
 
 /** How far out #2 ends if he turns back parallel to Lead now at bankDeg (flight.js's own turn and roll-out, speed held). */
-export function outAfterTurnBack(W, L, s, bankDeg, t) {
+function outAfterTurnBack(W, L, s, bankDeg, t) {
   const c = copyAircraft(W);
   const plan = { segments: [turnSeg(L.headingRad, -s, bankDeg)] };
   for (let i = 0; i < 400 && plan.segments.length; i++) stepAircraft(c, plan, t + i * STEP_SEC);

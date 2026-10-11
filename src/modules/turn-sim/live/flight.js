@@ -12,7 +12,7 @@
 // Units: feet, seconds, x east, y north. Headings are math radians (0 east,
 // counter-clockwise). Bank is signed, left wing down positive, so a positive
 // bank turns the heading the positive (left) way.
-import { easeRoll, turnRateFromBankRadPerSec, gFromBankDeg } from '../../../core/flight-math.js';
+import { easeRoll, turnRateFromBankRadPerSec, gFromBankDeg, bankDegFromG } from '../../../core/flight-math.js';
 import { attitudeDegFromClimb, rollWithinT6A, stallLimitG, T6A_G_ONSET } from '../../../core/t6-performance.js';
 import { wrapPi, wrapDeg180 } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
@@ -56,7 +56,7 @@ export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, roll, tasFtps, kia
   let target = targetDeg;
   const gStall = stallLimitG(kias);
   if (Math.abs(target) < GATE_G_MAX_BANK_DEG && gStall > 1) {
-    const stallBank = (Math.acos(1 / gStall) * 180) / Math.PI;
+    const stallBank = bankDegFromG(gStall);
     if (Math.abs(target) > stallBank && Math.abs(bankDeg) <= stallBank + 1e-6) target = Math.sign(target) * stallBank;
   }
   const steeper = Math.abs(target) > Math.abs(bankDeg) && Math.sign(target) === (Math.sign(bankDeg) || Math.sign(target));
@@ -72,7 +72,7 @@ export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, roll, tasFtps, kia
   if (Math.abs(r.bankDeg) > Math.abs(bankDeg) && Math.abs(r.bankDeg) < GATE_G_MAX_BANK_DEG) {
     const gMax = gFromBankDeg(bankDeg) + G_ONSET_CEILING * dt;
     if (gFromBankDeg(r.bankDeg) > gMax + 1e-9) {
-      const bank = Math.sign(r.bankDeg) * (Math.acos(1 / gMax) * 180) / Math.PI;
+      const bank = Math.sign(r.bankDeg) * bankDegFromG(gMax);
       return { bankDeg: bank, rollRateDps: (bank - bankDeg) / dt };
     }
   }
@@ -216,7 +216,7 @@ export function headingChangeRollingOut(bankDeg, rollRateDps, tasFtps, roll = RO
 export const smoother = (u) => u * u * u * (10 - 15 * u + 6 * u * u);
 export const smootherSlope = (u) => 30 * u * u * (1 - u) * (1 - u);
 /** The smootherstep's curvature (the slope's own slope): a height leg's vertical acceleration is rise x this / span². */
-export const smootherCurve = (u) => 60 * u * (1 - u) * (1 - 2 * u);
+const smootherCurve = (u) => 60 * u * (1 - u) * (1 - 2 * u);
 /** The smootherstep's steepest slope is this many times its average one (at the middle). */
 export const SMOOTHER_PEAK = 1.875;
 /** The smootherstep's greatest curvature (at u = 1/2 - 1/sqrt(12)): a height leg's greatest vertical acceleration is rise x this / span². */
@@ -330,8 +330,16 @@ export function heightAt(profile, t) {
     const span = Math.max(leg.t1 - leg.t0, 1e-9);
     const u = (t - leg.t0) / span;
     const rise = leg.toFt - leg.fromFt;
+    // A leg started mid-climb carries the climb it starts with (v0Ftps), fading out by its end (u(1-u)^3: slope 1 at the
+    // start, none at the end): until V2.273 a new leg started level, and the step to it read -8 G (4-ship finger, #3 and #4).
+    const v0 = leg.v0Ftps ?? 0;
+    const w = 1 - u;
     // nz: the G the leg's pull or push puts on the aircraft with the wings level (1 + vertical acceleration / g; height as energy).
-    return { altAboveFt: leg.fromFt + rise * smoother(u), climbFtps: (rise * smootherSlope(u)) / span, nz: 1 + (rise * smootherCurve(u)) / (span * span * G_FTPS2) };
+    return {
+      altAboveFt: leg.fromFt + rise * smoother(u) + v0 * span * u * w * w * w,
+      climbFtps: (rise * smootherSlope(u)) / span + v0 * w * w * (1 - 4 * u),
+      nz: 1 + ((rise * smootherCurve(u)) / span + v0 * w * (12 * u - 6)) / (span * G_FTPS2),
+    };
   }
   return null;
 }

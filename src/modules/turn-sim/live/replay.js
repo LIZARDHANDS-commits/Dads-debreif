@@ -11,7 +11,7 @@ import { setKias, stepCommanded } from './tracker.js';
 
 // Slowing down: slow-down.js (TS-61) replaces the fixed 1.5 kt/s estimate (SLOW_DOWN_KTPS, until V2.20). A formation
 // change slows with power only (a set, controlled overtake held with power, Patrick 23:37Z); the speed brake and idle are
-// for the off-standard rejoins (kinematic-moves.js).
+// for the off-standard rejoins.
 export { fullPowerKtps };
 
 // ---- flying: the recorded-bank and pose handlers ---------------------------------------------

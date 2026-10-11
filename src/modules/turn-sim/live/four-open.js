@@ -8,8 +8,8 @@
 // line in front of each long leg: its replayed poses were where the 8-12 G and 80-100 G/s of these moves came from.
 import { turnSeg, wholeDegree, TURN_BANK_DEG } from './manoeuvres.js';
 import { rejoinTo, openOut, flyOut, OPEN_OUT_HELD } from './recipes.js';
-import { onClosure, fromStep } from './hand-over.js';
-import { trackTwice } from './tracker.js';
+import { onClosure, fromStep } from './closures.js';
+import { trackPhases } from './tracker.js';
 import { STEP_SEC } from './flight.js';
 import { REJOIN, TURNING_REJOIN, FOUR_OPEN, OPEN_OUT, WING_BANKS } from './tuning.js';
 import { slotsFor } from './slots.js';
@@ -62,7 +62,7 @@ function heldOut(c, { wing, recs, t0, blockFt }, slots, id) {
     const refs = Object.fromEntries(Object.entries(recs).map(([k, r]) => [k, fromStep(r, n1)]));
     const settle = onClosure([outTo(c, slots[id])]).map((p) => ({ ...p, bankCapDeg: bankDeg }));
     const W1 = { ...part.end, altAboveFt: upFt, climbFtps: 0 };
-    const { run, profile: runProfile } = trackTwice({ refs, wing0: W1, t0: t0 + n1 * dt, phases: settle, blockFt, init: { accelKtps: part.accelKtps }, maxSec: FOUR_CHANGE_LIMIT_SEC });
+    const { run, profile: runProfile } = trackPhases({ refs, wing0: W1, t0: t0 + n1 * dt, phases: settle, blockFt, init: { accelKtps: part.accelKtps }, maxSec: FOUR_CHANGE_LIMIT_SEC });
     const durationSec = (n1 + run.points.length) * dt;
     if (!run.ok || durationSec > FOUR_CHANGE_LIMIT_SEC) continue;
     if (!best || durationSec < best.durationSec - 0.5) best = { part, run, profile: [...profile, ...(runProfile ?? [])], durationSec };

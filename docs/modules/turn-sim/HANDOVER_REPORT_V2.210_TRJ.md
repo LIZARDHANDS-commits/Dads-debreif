@@ -1729,3 +1729,24 @@ Following the stabilization of the baseline V2.210 solver and 3D sloped altitude
   3. Enforced strict 3/9 line limit (`laneLimitFt = 0` for close formations in `searchTurningRejoin` and `flyTurningRejoinWith`), strictly rejecting any candidate where #2 breaches ahead of Lead ($fwd > 0$).
   4. Added automated regression test `tests/turn-sim/trace-echelon.mjs` verifying that #2 never breaches Lead's 3/9 line (`maxFwd = -24.89 ft <= 0`) and never breaches forward of the prop-wingtip line (`maxAheadOfLine = +2.4 ft <= 5 ft`).
 
+## 8. STATE AT V2.299 (11 Oct 2026), FOR THE REFACTOR THREAD
+
+Patrick (09:24Z, 09:31Z, 11 Oct 2026): once Fable is satisfied with this round of Formation bugs, Fable writes the refactor plan and a full handover, a fresh Opus thread builds it one PR per step, and Fable audits each PR on a renamed copy. This section is the Formation thread's part of that handover; sections 1-7 are history.
+
+### 8.1 Where the turning rejoin lives
+- `live/turning-rejoin.js`: `searchTurningRejoin` picks the plan, `flyTurningRejoinWith` flies it. Phases: the pointing turn, the wait with wings level, one reversal (`pointingPhases`); the ride on the 30° line with Lead frozen in the windscreen (tracker `rideAim`, `closureOf` kind `ride`, 210 KIAS); the decision point at route's lateral spacing; then `tailPath` down into route in Lead's banked plane and up the spinner-wingtip line into echelon (`holdInPlane`). The opposite side passes under Lead at the decision point.
+- `live/tracker.js` (CRLF line endings): `heightOf` uses `lineAltOf` on the line; `powerOf` counts height above the line's 4° depth as speed still to come, takes power off early and puts the boards out when it is more than `TURNING_REJOIN.highBoardsKt` (5 kt) fast (V2.291).
+- `live/moves.js` `TURNING_REJOIN`: the numbers, including `captureHeightG` 0.5 for the capture height leg (V2.295).
+- `live/four-rejoin.js`: 4-ship. #2 flies the 2-ship rejoin (`twoTurning`). The element (#3, #4) flies the same rejoin against `placeRec`, Lead's recorded flight moved rigidly to the slot of the aircraft it joins (`elementTurning`, V2.294), and crosses about two lengths behind Lead, slightly low, #4 lower than #3 (`crossAt`, SMM 16.34 para 96, V2.299).
+
+### 8.2 Versions in this round
+V2.291 height on the line counted as speed; V2.294 element on #2's ride; V2.295 capture height leg at 0.5 G; V2.299 element crossing behind Lead, Fluid 4 #2 on the X law (was 130 ft ahead of Lead's 3/9 line), pointing turn and reversal bank capped so the turn stays within 4.5 G.
+
+### 8.3 Open
+- Element's way in: Patrick picked "outside" (09:30Z); far out an outside line needs about 265 KIAS (frame speed), so the build rides the inside line and crosses at the end. Card to Patrick unanswered at V2.299.
+- From fighting wing the element's reversals at 750-1,000 ft from Lead (0.5 G, 36-53°/s); far roll-ins at 60-100°/s 6,500 ft out; #2's first-second roll about 90°/s from fighting wing and Fluid 4.
+- 2,000 ft low HTRJ start: 0.26 G on the line.
+- Decision rows TS-182..188 wait on Patrick's yes to the wording (draft kept outside the repo until then).
+
+### 8.4 Proof starts
+Fable's drivers on the renamed copy (report folder `formation-review-package-v22xx/report/` in the project files) are the proof for each step: the usual set, trail TRJ/SARJ, HTRJ high/level/low from the close corner, and the 16 4-ship TRJ starts (spread 4, offset box, fighting wing, Fluid 4 to finger and echelon, each side).

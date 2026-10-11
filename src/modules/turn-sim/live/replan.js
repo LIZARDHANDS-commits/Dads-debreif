@@ -16,12 +16,12 @@ import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { judge } from './judge.js';
 import { FORMATIONS, FW_BAND, LANE, pairSlot, sideFor, crossBehindFwd } from './slots.js';
 import { KIAS_LAB, KIAS_OUTSIDE_LAB, HAND_OVER_FT, FW_FOLLOW, TURNING_REJOIN } from './tuning.js';
-import { onClosure } from './hand-over.js';
+import { onClosure } from './closures.js';
 import { leadTurnInto, trackTail } from './lead-turn-in.js';
-import { trackTwice, phase } from './tracker.js';
+import { trackPhases, phase } from './tracker.js';
 import { STEP_SEC } from './flight.js';
 import { fwGoal, slideInPlane } from './formation-turns.js';
-import { wingFromPose } from './hand-over.js';
+import { wingFromPose } from './closures.js';
 
 /** Further than this from the new place, #2 closes on it with a rejoin's leg rather than a station change's (feet, an estimate: about route's spacing). */
 const CLOSE_LEG_FT = 100;
@@ -29,7 +29,7 @@ const CLOSE_LEG_FT = 100;
 const CLOSE = new Set(['echelon', 'route', 'astern']);
 
 /** The formation place #2 is nearest to now, on his own side: { key, side, offFt }, side 0 for line astern. */
-export function nearestPlace(lead, wing, spacingFt = 6000, lastSide = -1) {
+function nearestPlace(lead, wing, spacingFt = 6000, lastSide = -1) {
   const rel = relativeTo(lead, wing);
   const s = Math.sign(rel.left) || lastSide;
   let best = { key: 'lab', side: s, offFt: Infinity };
@@ -49,7 +49,7 @@ export function nearestPlace(lead, wing, spacingFt = 6000, lastSide = -1) {
  * abreast or fighting wing) to a close place, a rejoin to route on his side and the close legs from there (the turning
  * rejoin's tail); otherwise the change's own legs (recipes.js legsFor).
  */
-export function legsFromHere(near, s, to, sTo, rel, spacingFt = 6000, turning = false) {
+function legsFromHere(near, s, to, sTo, rel, spacingFt = 6000, turning = false) {
   const slot = (key, side) => pairSlot(key, side, spacingFt);
   if (turning && s !== sTo && sTo !== 0 && to !== 'lab' && (near.key === 'fw' || CLOSE.has(near.key))) return acrossSixLegs(rel, s, to, sTo, spacingFt);
   const offFt = Math.hypot(rel.fwd - slot(to, sTo).fwd, rel.left - slot(to, sTo).left);
@@ -74,8 +74,8 @@ export function legsFromHere(near, s, to, sTo, rel, spacingFt = 6000, turning = 
 /**
  * To the other side with Lead turning into #2 until he is in there (Patrick 5 Oct 22:35Z: "on a turning rejoin that rejoins
  * to the opposite side lead should keep turning until 2 is in eschelon"; TS-87): #2 flows across Lead's six in one motion,
- * inside the turn. To fighting wing: through a point behind Lead outside the bubble (the side swap's crossing,
- * kinematic-moves.js) into the far cone, at the rejoin's closure (marked `rejoin`); to a close formation: through the
+ * inside the turn. To fighting wing: through a point behind Lead outside the bubble (the side swap's crossing)
+ * into the far cone, at the rejoin's closure (marked `rejoin`); to a close formation: through the
  * corners behind it on both sides (SMM 12.20 paras 44-45's crossover, flowed, not stopped) into the slot.
  */
 export function acrossSixLegs(rel, s, to, sTo, spacingFt = 6000) {
@@ -160,7 +160,7 @@ export function planFromHere(pair, to, options = {}, t0 = 0) {
   const laneFt = Math.max(0, toSlot.fwd) + LANE.marginFt; // the overshoot lane (slots.js LANE); a slot behind Lead counts as 0 here, unlike chooser.js
   const judgeRun = (r) => judge([r.end.lead, r.end.wing], { key: to, side: sTo }, { spacingFt });
   const good = (r) => r.ok && r.durationSec <= CHANGE_LIMIT_SEC && judgeRun(r).inBand;
-  const fly = (leadPlan) => ({ leadPlan, ...trackTwice({ refs: { [lead.id]: recordFlight(lead, leadPlan, t0) }, wing0: wing, t0, phases, blockFt }) });
+  const fly = (leadPlan) => ({ leadPlan, ...trackPhases({ refs: { [lead.id]: recordFlight(lead, leadPlan, t0) }, wing0: wing, t0, phases, blockFt }) });
   let best;
   if (holding) {
     const into = leadTurnInto({ lead, pre: speed, s: how.s, bankDeg: how.bankDeg, t0, record: recordFlight });
@@ -173,7 +173,7 @@ export function planFromHere(pair, to, options = {}, t0 = 0) {
     // is moving in close).
     best = fly(withHeight([...speed.map((x) => ({ ...x, withNext: carried.length > 0 })), ...carried]));
     if (speed.length && !(good(best.run) && best.run.laneFwdFt <= laneFt)) {
-      const first = trackTwice({ refs: { [lead.id]: recordFlight(lead, withHeight(carried.map((x) => ({ ...x }))), t0) }, wing0: wing, t0, phases, blockFt, stopWhenSettled: true });
+      const first = trackPhases({ refs: { [lead.id]: recordFlight(lead, withHeight(carried.map((x) => ({ ...x }))), t0) }, wing0: wing, t0, phases, blockFt, stopWhenSettled: true });
       const inSec = t0 + first.run.points.length * STEP_SEC;
       const after = fly(withHeight([...carried, { kind: 'hold', untilSec: inSec, thenNext: true }, ...speed.map((x) => ({ ...x, withNext: false }))]));
       if (good(after.run) && (after.run.laneFwdFt <= laneFt || !good(best.run))) best = after;

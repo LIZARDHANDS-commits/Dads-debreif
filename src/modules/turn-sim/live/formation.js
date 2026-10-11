@@ -6,12 +6,14 @@
 // Aircraft are a list, each with the aircraft it flies off (`ref`), so more
 // aircraft can join later without rewriting the logic (spec section 6). Lead is
 // the first aircraft and the one the others are judged from.
+import { DEG } from '../../../core/angles.js';
 import { iasToTasKt } from '../../../core/t6-performance.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { createEvents } from './events.js';
-import { STEP_SEC, makeAircraft, stepAircraft, planDone } from './flight.js';
-import { MANOEUVRES, planManoeuvre, relativeTo, dryRun, TURN_BANK_DEG, TURN_G, DEG } from './manoeuvres.js';
+import { STEP_SEC, makeAircraft, planDone } from './flight.js';
+import { MANOEUVRES, planManoeuvre, relativeTo, TURN_BANK_DEG, TURN_G } from './manoeuvres.js';
 import { flyStep, dryRunT } from './replay.js';
+import { setKias } from './pilot.js';
 import { resolveErrors, resolveFixTools, applyStartErrors, planWithErrors, outcomeOf, offStandardOutcome, responseOf } from './errors.js';
 import { FOUR_SHIP_KEYS, fourShipStart, planFour } from './four-ship.js';
 import { OFFSET_BOX_KEYS, planOffsetBoxTurn } from './offset-box-turns.js';
@@ -46,7 +48,7 @@ export const LIVE_DEFAULTS = Object.freeze({
 /** Spacing the sim will fly at all; outside it a typed value is refused (spec section 5). */
 export const SPACING_LIMITS_FT = Object.freeze([1000, 20000]);
 /** The SMM's line abreast band (SMM 16.18 para 49); outside it the spacing is flown and flagged. */
-export const SPACING_BAND_FT = Object.freeze([4000, 6000]);
+const SPACING_BAND_FT = Object.freeze([4000, 6000]);
 /** Ground tracks are kept at this interval, for the whole flight (up to the cap). */
 const TRACK_EVERY_SEC = 0.25;
 const TRACK_MAX_POINTS = 20000; // over 80 minutes at 0.25 s
@@ -59,12 +61,12 @@ const FLUID_CHANGE_MAX_BANK_DEG = 90;
 const FLUID_CHANGE_MAX_CLIMB_DEG = 30;
 
 /** Math radians from a compass heading in degrees (formation-words.js compassDeg is the other way). */
-export function headingRadFromCompass(deg) {
+function headingRadFromCompass(deg) {
   return (90 - deg) * DEG;
 }
 
 /** True airspeed (ft/s) for an indicated airspeed at the block height. */
-export function tasFtpsFor(kias, blockFt) {
+function tasFtpsFor(kias, blockFt) {
   return iasToTasKt(kias, blockFt) * KT_TO_FTPS;
 }
 
@@ -441,6 +443,30 @@ export function createFormation(options = {}) {
     }
   }
 
+  /**
+   * With nothing being flown, every aircraft straight and level and its plan done, a wingman holds Lead's heading as a
+   * pilot holds his place: a change counts as done once he is in his band and steady (under 5 kt against his place), so he
+   * can finish a fraction of a degree off Lead's heading, and flown on straight that took him across the formation (Patrick
+   * 11 Oct 2026 08:30Z: after route to echelon "drift all the way into the lead aircraft"). Within IDLE_TRIM.offRad of
+   * Lead's heading he eases onto it at IDLE_TRIM.rateRad a second, too slow to see, and onto his speed the same way.
+   */
+  function holdStationIdle() {
+    if (state.current || state.fluid) return;
+    const lead = state.aircraft[0];
+    if (lead.bankDeg !== 0 || !planDone(lead, state.plans[lead.id])) return;
+    for (const a of state.aircraft.slice(1)) {
+      if (a.bankDeg !== 0 || !planDone(a, state.plans[a.id])) continue;
+      const off = Math.atan2(Math.sin(a.headingRad - lead.headingRad), Math.cos(a.headingRad - lead.headingRad));
+      if (Math.abs(off) > IDLE_TRIM.offRad) continue;
+      const trim = IDLE_TRIM.rateRad * STEP_SEC;
+      a.headingRad = Math.abs(off) <= trim ? lead.headingRad : a.headingRad - Math.sign(off) * trim;
+      // and his speed the same way, so he doesn't creep fore or aft
+      const dk = a.kias - lead.kias;
+      const kTrim = IDLE_TRIM.ktps * STEP_SEC;
+      if (dk !== 0 && Math.abs(dk) <= IDLE_TRIM.offKt) setKias(a, Math.abs(dk) <= kTrim ? lead.kias : a.kias - Math.sign(dk) * kTrim);
+    }
+  }
+
   /** Why a manoeuvre can't be flown from where the formation is now, or null (spec sections 8 and 10: line abreast only). */
   function refuseMove(key, dir) {
     const where = whereNow().key;
@@ -628,6 +654,7 @@ export function createFormation(options = {}) {
       // ctx: the live formation, so a line's tracker run-in is planned again at the hand-over (replay.js flyStep, step 2)
       const ctx = { live: true, aircraft: state.aircraft, plans: state.plans };
       for (const a of state.aircraft) flyStep(a, state.plans[a.id] ?? (state.plans[a.id] = { segments: [] }), state.tSec, ctx);
+      holdStationIdle();
       state.tSec = Math.round((state.tSec + STEP_SEC) / STEP_SEC) * STEP_SEC;
       keepTrack();
       keepRecord();
@@ -646,6 +673,9 @@ export function createFormation(options = {}) {
     },
   };
 }
+
+/** An idle wingman within offRad of Lead's heading and offKt of his speed eases onto them at rateRad and ktps a second (holdStationIdle; estimates). */
+const IDLE_TRIM = Object.freeze({ offRad: 1 * DEG, rateRad: 0.1 * DEG, offKt: 2, ktps: 0.2 });
 
 /** The formations the manoeuvre buttons fly from: line abreast, or a picture that is none of the close ones (after an in-place turn). */
 const MOVES_FROM = ['lab', 'other'];

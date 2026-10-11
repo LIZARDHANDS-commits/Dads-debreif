@@ -30,7 +30,8 @@
 // clean-up step 1 entering at transitions.js read REJOIN before it was set; REJOIN now lives in tuning.js, which imports
 // nothing from the loop.)
 import './live/formation.js';
-import { relativeTo, DEG } from './live/manoeuvres.js';
+import { relativeTo } from './live/manoeuvres.js';
+import { DEG } from '../../core/angles.js';
 import { fwState, closeState, closeLinkKind, judgeLink, SWEEP_MAX_DEG } from './live/judge.js';
 import { FORMATIONS, FOUR_FORMATIONS, FW_BAND, slotsFor, pairSlot } from './live/slots.js';
 import { IN_POSITION } from './live/tuning.js';
