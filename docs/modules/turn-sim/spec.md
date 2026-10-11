@@ -245,7 +245,7 @@ Patrick 4 Oct 21:44Z: "lets get a working baseline thats simplified, if required
 
 **On screen.**
 - **Fluid** under Change formation starts only from fighting wing; the button shows only there. A group **Fluid manoeuvring, Lead** (shown only while Fluid runs): Level turn L and R, Wings level, Reversal, Climb, Descend, Loop, Wingovers L and R, Barrel roll L and R, Standard sequence L and R, Terminate.
-- **Fluid settings** (Settings): Lead's level turn bank (Gentle 30°, 60/2, Steep 70/3; default 60/2); the distance, 500-1,000 ft (default 600; a typed value outside is refused and the old one kept); how #2 is flown, Planned (the default) or Live (greyed, "coming later").
+- **Fluid settings** (Settings): Lead's level turn bank (Gentle 30°, 60/2, Steep 70/3; default 60/2); the distance, 500-1,000 ft (default 600; a typed value outside is refused and the old one kept); how #2 is flown, Planned (the default) or Live (TS-194, below; taken at the next start of fluid manoeuvring).
 - While Fluid runs the manoeuvre buttons are refused ("Terminate first"). **A formation press during fluid or Terminate ends the session and plans the change from where the pair is, like any press mid-move** (TS-86 (3); Patrick 5 Oct 22:32Z "I can't rejoin"); refused only with Lead past 90° of bank or 30° of climb (estimates). From directly behind Lead it is the tracker alone (about 80-90 s to echelon).
 - The card adds the fluid lines; the tags show the fluid words (section 13).
 
@@ -282,7 +282,7 @@ Approved by Patrick 11 Oct 2026 21:13Z (card, "Yes, as written"), from Fable's d
 
 Today's fluid #2 is a scripted position on Lead's planned path (spec section 9, TS-57/TS-74): his attitude and G are read back off the line. Fable's baseline flight of V2.328 (`formation-review-package-v2328/report/fluid-baseline-v2328.md`) found that every one of his faults comes from that: a 0.18 G float then a 2.4 G snatch at every 230 KIAS set-up; 50-100°/s roll spikes at each hand-over; 3-5° off Lead's tail in level turns instead of 15°, drifting 600 to 737 ft; stretched to 1,174 ft in the climb he did not start. Lead is right and stays.
 
-The live wingman is a second way of flying #2, chosen by the existing Fluid setting "How #2 is flown" (Planned, the default today; Live, greyed "coming later"). Live becomes the default once Fable passes it and Patrick has flown it; Planned stays as the fallback setting (AGENTS.md: a setting holds the old value).
+The live wingman is a second way of flying #2, chosen by the existing Fluid setting "How #2 is flown" (Planned, the default; Live, selectable since round 1). Live becomes the default once Fable passes it and Patrick has flown it; Planned stays as the fallback setting (AGENTS.md: a setting holds the old value).
 
 #### 2. The idea, in the SMM's words (16.16 para 39-41, 16.17 para 42-44)
 
@@ -337,7 +337,7 @@ Terminate for position (SMM 16.17 para 46), Fluid 4, the cloverleaf, Cuban eight
 
 **When things go wrong.** Fluid manoeuvring pressed outside fighting wing, or in the 4-ship, is refused with the reason and nothing moves. A Lead button pressed during the entry waits for its end; during Terminate it is greyed. Reset ends it.
 
-**Not built** (`future.md`): Terminate for position (SMM 16.17 para 46), the Live wingman, Fluid 4 manoeuvring, cloverleaf, Cuban eight and Immelmann. The 3D camera looks down, so the loop is seen only in 2D from above.
+**Not built** (`future.md`): Terminate for position (SMM 16.17 para 46), the Live wingman's rough spots (round 1, `future.md`), Fluid 4 manoeuvring, cloverleaf, Cuban eight and Immelmann. The 3D camera looks down, so the loop is seen only in 2D from above.
 
 ## 10. Smart wingman and training errors (TS-52, TS-96)
 

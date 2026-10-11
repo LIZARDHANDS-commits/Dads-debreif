@@ -43,6 +43,7 @@ export const LIVE_DEFAULTS = Object.freeze({
   check45: true, // the 4-ship delayed 45 flies its check turn (AFM8 brief p.18, SMM Fig 16.34); off: a plain chain (Patrick, 4 Oct 11:28Z)
   fluidRangeFt: 600, // fluid manoeuvring distance, 500-1,000 ft (SMM 16.17 para 42); 600 is Patrick's pick (19:20Z row 3), an estimate
   fluidBank: /** @type {'gentle' | 'medium' | 'steep'} */ ('medium'), // Lead's level turn bank in fluid manoeuvring: 60/2 (AFM7 brief p.17)
+  fluidWing: /** @type {'planned' | 'live'} */ ('planned'), // how #2 is flown in fluid manoeuvring (TS-194): Planned until Live is flown and passed
 });
 
 /** Spacing the sim will fly at all; outside it a typed value is refused (spec section 5). */
@@ -321,7 +322,7 @@ export function createFormation(options = {}) {
       return false;
     }
     const [lead, wing] = state.aircraft;
-    const session = createFluidSession(lead, wing, state.tSec, { blockFt: opts.blockFt, rangeFt: opts.fluidRangeFt, bank: opts.fluidBank });
+    const session = createFluidSession(lead, wing, state.tSec, { blockFt: opts.blockFt, rangeFt: opts.fluidRangeFt, bank: opts.fluidBank, wing: opts.fluidWing });
     state.fluid = { session, readouts: null, prev: null };
     state.plans = Object.fromEntries(state.aircraft.map((a) => [a.id, { segments: [] }]));
     state.planned = session.planned();
@@ -623,10 +624,14 @@ export function createFormation(options = {}) {
       state.planned = state.fluid.session.planned();
       return r;
     },
-    /** Fluid manoeuvring settings, taken at once while it runs: { rangeFt (500-1,000), bank ('gentle' | 'medium' | 'steep') }. */
+    /**
+     * Fluid manoeuvring settings, taken at once while it runs: { rangeFt (500-1,000), bank ('gentle' | 'medium' | 'steep') };
+     * wing ('planned' | 'live', TS-194) takes effect at the next start of fluid manoeuvring.
+     */
     setFluid(next = {}) {
       if (next.rangeFt !== undefined) opts.fluidRangeFt = next.rangeFt;
       if (next.bank !== undefined) opts.fluidBank = next.bank;
+      if (next.wing === 'planned' || next.wing === 'live') opts.fluidWing = next.wing;
       if (state.fluid) {
         if (next.rangeFt !== undefined) state.fluid.session.setRange(next.rangeFt);
         if (next.bank !== undefined) state.fluid.session.setBank(next.bank);

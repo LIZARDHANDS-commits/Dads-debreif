@@ -25,10 +25,10 @@ export const FLUID_BUTTONS = Object.freeze([
   // #2's move, in its own small group headed "#2", shown only in fighting wing and echelon (TS-71, TS-78, spec section 10.8).
   { key: 'lagRoll', dir: 1, label: 'Lag roll' },
 ]);
-/** How #2 is flown: Planned (scripted, the default) or Live (his own physics, a later piece). */
+/** How #2 is flown: Planned (scripted, the default) or Live (his own aircraft and pilot law, TS-194; taken at the next start). */
 export const WINGMAN_METHODS = Object.freeze([
   { value: 'planned', label: 'Planned' },
-  { value: 'live', label: 'Live (coming later)', later: true },
+  { value: 'live', label: 'Live' },
 ]);
 
 const ft = (n) => `${Math.round(Math.abs(n)).toLocaleString('en-CA')} ft`;
@@ -55,8 +55,9 @@ export function speedsLine(sp) {
 }
 
 /**
- * onPress(key, dir): a Lead button. onSettings({ rangeFt?, bank? }): a setting changed (only good values are sent).
- * settings: { rangeFt, bank } to start from. Returns { element, cardElement, update(state), renderCard(state) }.
+ * onPress(key, dir): a Lead button. onSettings({ rangeFt?, bank?, wing? }): a setting changed (only good values are sent;
+ * wing takes effect at the next start of fluid manoeuvring).
+ * settings: { rangeFt, bank, wing? } to start from. Returns { element, cardElement, update(state), renderCard(state) }.
  */
 export function createFluidUi({ onPress, onSettings, settings }) {
   let rangeFt = settings.rangeFt;
@@ -102,8 +103,10 @@ export function createFluidUi({ onPress, onSettings, settings }) {
       onSettings({ rangeFt });
     },
   });
-  const methodSelect = h('select', { 'aria-label': 'How #2 is flown' },
-    WINGMAN_METHODS.map((m) => h('option', { value: m.value, selected: m.value === 'planned', disabled: Boolean(m.later) }, m.label)));
+  const methodSelect = h('select', {
+    'aria-label': 'How #2 is flown',
+    onchange: () => onSettings({ wing: methodSelect.value }),
+  }, WINGMAN_METHODS.map((m) => h('option', { value: m.value, selected: m.value === (settings.wing ?? 'planned') }, m.label)));
 
   const hint = h('p', { class: 'ts-hint' }, 'Lead\'s buttons work once fluid manoeuvring has started from fighting wing. #2 stays in the cone behind Lead; Terminate brings him back to fighting wing.');
   const more = h('details', { class: 'ts-more' },
