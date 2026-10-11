@@ -187,6 +187,14 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
   const zoomKey = createCockpitZoomKey(win, () => requestDraw()); // hold Shift to zoom from the seat (COCKPIT_ZOOM)
   // The seat view's angle: a slider at the top of the camera bar (layout.js's .ts-cam-bar), above its buttons.
   const fovSlider = createCockpitFovSlider(canvas.ownerDocument ?? win.document, () => canvas.parentElement?.querySelector('.ts-cam-bar'), { onChange: () => requestDraw() });
+  // The bar's Boresight button looks ahead again, as the C key does (Patrick, 11 Oct 04:03Z: camera buttons in cockpit mode).
+  let camBar = null;
+  const onCamBarClick = (e) => { if (e.target?.closest?.('[data-aim="boresight"]')) handleCenterKey(); };
+  const hearCamBar = (on) => {
+    camBar?.removeEventListener('click', onCamBarClick);
+    camBar = on ? canvas.parentElement?.querySelector?.('.ts-cam-bar') ?? null : null;
+    camBar?.addEventListener('click', onCamBarClick);
+  };
   let povKey = '';
   let head = { yawDeg: 0, pitchDeg: 0 }; // the person's head turn (Cockpit, Padlock) or swing round the aircraft (Chase)
   let chaseFt = POV.chaseFt;
@@ -977,6 +985,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
         win.addEventListener('keydown', onWindowKeydown);
         zoomKey.start();
       }
+      hearCamBar(true);
       if (win.ResizeObserver && !resizer) {
         resizer = new win.ResizeObserver(() => requestDraw());
         resizer.observe(canvas);
@@ -991,6 +1000,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       win.removeEventListener?.('keydown', onWindowKeydown);
       zoomKey.stop();
       fovSlider.setShown(false);
+      hearCamBar(false);
       resizer?.disconnect();
       resizer = null;
     },
@@ -1011,6 +1021,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       win.removeEventListener?.('keydown', onWindowKeydown);
       zoomKey.stop();
       fovSlider.setShown(false);
+      hearCamBar(false);
       resizer?.disconnect();
       resizer = null;
       for (const [type, fn] of hands) canvas.removeEventListener(type, fn);
