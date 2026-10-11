@@ -1,289 +1,156 @@
+// Records the Traffic card's clip on the home page (public/media/cards/traffic.mp4, .webm and the .jpg poster).
+//
+// Patrick, 11 Oct 03:33Z: the 2D wind part zoomed in so just the circuit fills the screen; the 3D part zooms right
+// in so the two aircraft are the main thing in the middle of the screen, with some room either side; a higher frame
+// rate. Every frame is drawn on its own (the sim stepped, the camera set, then a screenshot), so the clip is a true
+// 60 frames a second whatever the computer's speed; the old recorder filmed the screen while the sim jumped 8 times a
+// second.
+//
+// Run: `npx vite --port 5174` in one shell, then `node tools/record-traffic-full.mjs`.
 import { chromium } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readdirSync, statSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
-const ffmpegPath = execFileSync('python', ['-c', 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe().strip())'], { encoding: 'utf8' }).trim();
+const ffmpegPath = (() => {
+  try { return execFileSync('python', ['-c', 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe().strip())'], { encoding: 'utf8' }).trim(); } catch { return 'ffmpeg'; }
+})();
 const ROOT = process.cwd();
 const CARDS_DIR = join(ROOT, 'public', 'media', 'cards');
-const PARTS_DIR = join(ROOT, 'tmp', 'record-parts');
+const FRAMES_DIR = join(ROOT, 'tmp', 'record-parts', 'traffic-frames');
+const URL = process.env.TRAFFIC_URL ?? 'http://localhost:5174/#/traffic';
+const CHROMIUM = process.env.CHROMIUM_PATH; // e.g. /opt/pw-browsers/chromium in the cloud container
 
-mkdirSync(PARTS_DIR, { recursive: true });
-mkdirSync(CARDS_DIR, { recursive: true });
+const FPS = 60;
+const SIZE = { width: 1280, height: 800 };
+
+/** The 2D part: wind from 180° rising 0 to 30 kt over this long, then held. */
+const WIND = { fromDeg: 180, maxKt: 30, riseSec: 6, holdSec: 1 };
+/** Just the circuit, map feet: the break and initial out to Final Entry, the downwind, the perch and final (with
+ *  room for a 30 kt southerly to blow the downwind north). */
+const CIRCUIT_BOX = { minX: -4200, maxX: 17200, minY: -11300, maxY: 1600 };
+
+/** The 3D part: the move-over and touch-and-go, sim seconds, played in this many real seconds. */
+const SHOW = { fromT: 114, toT: 184, realSec: 18, zoomInSec: 3 };
+/** Feet across the screen round the two aircraft: their spacing times this, never less than the minimum. */
+const FRAME_SPAN = { times: 1.5, minFt: 1000 };
+const WIDE = { center: { x: 4250, y: -5167, z: 1890 }, zoom: 130, pitchDeg: 72 };
 
 const CLEAN_STAGE_CSS = `
   #site-header, #site-footer, .app-header, .app-footer, .narrow-note, #route-notice, #module-status,
-  .traffic-col, .traffic-bar, .traffic-camera-bar, .camera-bar, .playback-bar,
+  .traffic-col, .traffic-bar, .traffic-camera-bar, .traffic-cam-bar, .camera-bar, .playback-bar,
   .traffic-3d-bar, .traffic-nav, .traffic-hint, .traffic-credit, [class*="hint"], [class*="toast"] {
     display: none !important;
   }
   .traffic-stage, .traffic-map-wrap {
-    position: fixed !important;
-    inset: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    z-index: 999999 !important;
+    position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important;
+    margin: 0 !important; padding: 0 !important; z-index: 999999 !important;
   }
 `;
 
-function getDuration(filePath) {
-  try {
-    const out = execFileSync(ffmpegPath, ['-i', filePath], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
-    const m = /Duration:\s*(\d+):(\d+):(\d+\.\d+)/.exec(out);
-    if (m) return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
-  } catch (err) {
-    const out = (err.stdout || '') + (err.stderr || '');
-    const m = /Duration:\s*(\d+):(\d+):(\d+\.\d+)/.exec(out);
-    if (m) return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
-  }
-  return 0;
+const ease = (p) => (p < 0.5 ? 2 * p * p : -1 + (4 - 2 * p) * p);
+const twoFrames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+async function openTraffic(browser) {
+  const page = await browser.newPage({ viewport: SIZE });
+  await page.goto(URL);
+  await page.waitForFunction(() => Boolean(window.__traffic), null, { timeout: 30000 });
+  await page.addStyleTag({ content: CLEAN_STAGE_CSS });
+  await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+  return page;
 }
 
-async function recordTraffic() {
-  const browser = await chromium.launch();
-  console.log('\n========================================');
-  console.log('RECORDING TRAFFIC SIM (Pat\'s Latest Spec):');
-  console.log('  2D: Wind from 180 (South), 0 -> 30 kt, bright bold line, exact crop');
-  console.log('  3D: Close zoom through THE WINDOW -> STR moves over -> OVR does Touch & Go on 29L');
-  console.log('  60 fps high frame rate, longer cinematic sequence (~23.4s)');
-  console.log('========================================\n');
+async function shoot(page, dir, n) {
+  await page.evaluate(twoFrames);
+  await page.screenshot({ path: join(dir, `f${String(n).padStart(5, '0')}.jpg`), type: 'jpeg', quality: 92 });
+}
 
-  const dir2d = join(PARTS_DIR, 'traffic-v3-2d');
-  const dir3d = join(PARTS_DIR, 'traffic-v3-3d');
-  mkdirSync(dir2d, { recursive: true });
-  mkdirSync(dir3d, { recursive: true });
-
-  // ----------------------------------------------------
-  // PART 1: 2D OVERHEAD BREAK ZOOM + WIND 180 (0 TO 30 KT)
-  // ----------------------------------------------------
-  console.log('Recording Part 1: 2D zoomed overhead pattern, wind 180° (0 -> 30 kt)...');
-  const ctx2d = await browser.newContext({
-    recordVideo: { dir: dir2d, size: { width: 1280, height: 800 } },
-    viewport: { width: 1280, height: 800 },
-  });
-  const p2d = await ctx2d.newPage();
-  await p2d.goto('http://localhost:5174/#/traffic');
-  await p2d.waitForTimeout(1000);
-
-  // Switch to 2D
-  await p2d.evaluate(() => {
-    const r2 = document.querySelector('input[type="radio"][value="2d"]');
-    if (r2) { r2.checked = true; r2.dispatchEvent(new Event('change', { bubbles: true })); }
-  });
-  await p2d.waitForTimeout(500);
-
-  // Clean DOM isolation
-  await p2d.addStyleTag({ content: CLEAN_STAGE_CSS });
-  await p2d.evaluate(() => window.dispatchEvent(new Event('resize')));
-  await p2d.waitForTimeout(500);
-
-  // Set exact bounding box matching Pat's reference image
-  await p2d.evaluate(() => {
-    window.__traffic.map.fitBounds({ minX: -4500, maxX: 9500, minY: -10500, maxY: 1800 }, 40);
-  });
-  await p2d.waitForTimeout(1500); // Wait for imagery tiles
-
-  // Reset wind to 180° at 0 kt
-  await p2d.evaluate(() => {
-    window.__traffic.settings.update({ windFromDeg: 180, windKt: 0 });
-  });
-  await p2d.waitForTimeout(500);
-
-  console.log('Starting 2D wind animation (0 -> 30 kt from 180°)...');
-  const anim1Dur = 6.0;
-  const anim1Steps = 90;
-  const anim1Interval = (anim1Dur * 1000) / anim1Steps;
-
-  for (let s = 1; s <= anim1Steps; s++) {
-    const frac = s / anim1Steps;
-    const kt = frac * 30.0;
-    await p2d.waitForTimeout(anim1Interval);
-    await p2d.evaluate((windKt) => {
-      window.__traffic.settings.update({ windFromDeg: 180, windKt });
-    }, kt);
+async function record2d(browser, dir) {
+  const page = await openTraffic(browser);
+  await page.evaluate(({ box, wind }) => {
+    window.__traffic.settings.update({ view: '2d', windFromDeg: wind.fromDeg, windKt: 0 });
+    window.__traffic.map.fitBounds(box, 0);
+  }, { box: CIRCUIT_BOX, wind: WIND });
+  await page.waitForTimeout(6000); // the photo tiles
+  const frames = Math.round((WIND.riseSec + WIND.holdSec) * FPS);
+  for (let n = 0; n < frames; n++) {
+    const kt = Math.min(1, n / (WIND.riseSec * FPS)) * WIND.maxKt;
+    await page.evaluate(({ kt, fromDeg }) => window.__traffic.settings.update({ windFromDeg: fromDeg, windKt: kt }), { kt, fromDeg: WIND.fromDeg });
+    await shoot(page, dir, n);
   }
+  await page.close();
+  return frames;
+}
 
-  // Hold at max wind for 1.0s
-  await p2d.waitForTimeout(1000);
-  await p2d.waitForTimeout(1000);
-
-  await p2d.close();
-  await ctx2d.close();
-
-  const files2d = readdirSync(dir2d).filter(f => f.endsWith('.webm')).map(f => join(dir2d, f));
-  files2d.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
-  const raw2d = files2d[0];
-
-  // ----------------------------------------------------
-  // PART 2: 3D FIELD VIEW + CLOSE ZOOM TO WINDOW + TOUCH & GO
-  // ----------------------------------------------------
-  console.log('\nRecording Part 2: 3D close zoom through WINDOW -> STR moves over -> OVR Touch & Go...');
-  const ctx3d = await browser.newContext({
-    recordVideo: { dir: dir3d, size: { width: 1280, height: 800 } },
-    viewport: { width: 1280, height: 800 },
-  });
-  const p3d = await ctx3d.newPage();
-  await p3d.goto('http://localhost:5174/#/traffic');
-  await p3d.waitForTimeout(1000);
-
-  // Setup conflict aircraft with STR at 63.5s so OVR performs a clean touch & go
-  await p3d.evaluate(() => {
+async function record3d(browser, dir) {
+  const page = await openTraffic(browser);
+  await page.evaluate(() => {
     window.__traffic.setAircraft([
       { id: 'OVR', type: 'CT-156', callsign: 'FANG 1', routeId: 'PAT1', startIndex: 8, startsAtSec: 0, intent: 'touch_and_go' },
       { id: 'STR', type: 'CT-156', callsign: 'FANG 2', routeId: 'ENT2', startIndex: 3, startsAtSec: 63.5, intent: 'touch_and_go' },
     ], 3);
+    window.__traffic.settings.update({ view: '3d' });
   });
-
-  // Switch to 3D Field view
-  await p3d.evaluate(() => {
-    const r3 = document.querySelector('input[type="radio"][value="3d"]');
-    if (r3) r3.click();
-  });
-  console.log('Waiting for 3D terrain orthophoto and models...');
-  await p3d.waitForTimeout(4500);
-
-  // Clean DOM isolation
-  await p3d.addStyleTag({ content: CLEAN_STAGE_CSS });
-  await p3d.evaluate(() => window.dispatchEvent(new Event('resize')));
-  await p3d.waitForTimeout(500);
-
-  // Fast-forward sim to t=114
-  await p3d.evaluate(() => {
-    for (let t = 0; t <= 114; t += 0.5) window.__traffic.sim.stepTo(t);
-    window.__traffic.seek(114);
-    // Initial wide camera position
-    const cur = window.__traffic.view3d.getView();
-    window.__traffic.view3d.setView({
-      center: { x: 4250, y: -5167, z: 1890 },
-      cam: { ...cur.cam, zoom: 130, pitchDeg: 74 }
-    });
-  });
-  await p3d.waitForTimeout(500);
-
-  console.log('Starting 3D sequence from t=114 to t=184 (70s sim time, 18.0s real time)...');
-
-  // Animate sim from t=114 to t=184 (70s sim time)
-  // Real time: 18.0s (150 steps of 120ms each)
-  const DURATION_REAL_SEC = 18.0;
-  const FPS_STEPS = 150;
-  const STEP_MS = (DURATION_REAL_SEC * 1000) / FPS_STEPS;
-
-  for (let step = 1; step <= FPS_STEPS; step++) {
-    const frac = step / FPS_STEPS;
-    const simT = 114 + frac * (184 - 114);
-
-    // Zoom in CLOSE on THE WINDOW around frac = 0.45 (simT = 145)
-    // Then track both aircraft down the runway as OVR touches down and climbs out
-    let cx, cy, zoom, pitch;
-
-    if (frac <= 0.45) {
-      // Phase 1: Wide -> Close focus on THE WINDOW
-      const p1 = frac / 0.45;
-      const ease1 = p1 < 0.5 ? 2 * p1 * p1 : -1 + (4 - 2 * p1) * p1;
-      cx = 4250 + ease1 * (6200 - 4250);
-      cy = -5167 + ease1 * (-4600 - (-5167));
-      zoom = 130 + ease1 * (340 - 130);
-      pitch = 74 + ease1 * (72 - 74);
-    } else {
-      // Phase 2: Follow OVR and STR down 29L to touchdown and climbout
-      const p2 = (frac - 0.45) / 0.55;
-      const ease2 = p2 < 0.5 ? 2 * p2 * p2 : -1 + (4 - 2 * p2) * p2;
-      cx = 6200 + ease2 * (1800 - 6200);
-      cy = -4600 + ease2 * (-2000 - (-4600));
-      zoom = 340 + ease2 * (280 - 340);
-      pitch = 72 + ease2 * (70 - 72);
-    }
-
-    await p3d.waitForTimeout(STEP_MS);
-    await p3d.evaluate(({ simT, cx, cy, zoom, pitch }) => {
-      window.__traffic.sim.stepTo(simT);
-      window.__traffic.seek(simT);
-      const cur = window.__traffic.view3d.getView();
-      window.__traffic.view3d.setView({
-        center: { x: cx, y: cy, z: 1890 },
-        cam: { ...cur.cam, zoom, pitchDeg: pitch }
+  await page.waitForTimeout(8000); // three.js, the ground and the photo tiles
+  await page.evaluate(({ t, wide }) => {
+    const tr = window.__traffic;
+    tr.sim.stepTo(t);
+    tr.seek(t);
+    tr.view3d.setView({ center: wide.center, cam: { ...tr.view3d.getView().cam, zoom: wide.zoom, pitchDeg: wide.pitchDeg } });
+  }, { t: SHOW.fromT, wide: WIDE });
+  await page.waitForTimeout(6000); // the photo tiles for the wide opening view
+  const frames = Math.round(SHOW.realSec * FPS);
+  for (let n = 0; n < frames; n++) {
+    const realSec = n / FPS;
+    const simT = SHOW.fromT + (SHOW.toT - SHOW.fromT) * (realSec / SHOW.realSec);
+    await page.evaluate(({ simT, w, wide, span, width }) => {
+      const tr = window.__traffic;
+      tr.sim.stepTo(simT);
+      tr.seek(simT);
+      const ships = tr.sim.state().aircraft.filter((a) => a.status === 'flying' && ['OVR', 'STR'].includes(a.id));
+      if (!ships.length) return;
+      const mid = { x: 0, y: 0, z: 0 };
+      for (const a of ships) { mid.x += a.x / ships.length; mid.y += a.y / ships.length; mid.z += a.alt / ships.length; }
+      const apart = ships.length > 1 ? Math.hypot(ships[0].x - ships[1].x, ships[0].y - ships[1].y) : 0;
+      const zoomClose = (width / Math.max(apart * span.times, span.minFt)) * 1000;
+      // Smoothed, so the camera glides rather than jumps as the spacing changes.
+      const s = (window.__clipCam ??= { ...mid, zoom: zoomClose });
+      const k = 0.08;
+      s.x += (mid.x - s.x) * k; s.y += (mid.y - s.y) * k; s.z += (mid.z - s.z) * k; s.zoom += (zoomClose - s.zoom) * k;
+      const lerp = (a, b) => a + (b - a) * w;
+      const cur = tr.view3d.getView();
+      tr.view3d.setView({
+        center: { x: lerp(wide.center.x, s.x), y: lerp(wide.center.y, s.y), z: lerp(wide.center.z, s.z) },
+        cam: { ...cur.cam, zoom: Math.exp(lerp(Math.log(wide.zoom), Math.log(s.zoom))), pitchDeg: wide.pitchDeg },
       });
-    }, { simT, cx, cy, zoom, pitch });
+    }, { simT, w: ease(Math.min(1, realSec / SHOW.zoomInSec)), wide: WIDE, span: FRAME_SPAN, width: SIZE.width });
+    await shoot(page, dir, n);
   }
-
-  // Hold at climbout for 1.0s
-  await p3d.waitForTimeout(1000);
-  await p3d.waitForTimeout(1000);
-
-  await p3d.close();
-  await ctx3d.close();
-  await browser.close();
-
-  const files3d = readdirSync(dir3d).filter(f => f.endsWith('.webm')).map(f => join(dir3d, f));
-  files3d.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
-  const raw3d = files3d[0];
-
-  // ----------------------------------------------------
-  // PART 3: CROSSFADE & ENCODE (60 FPS)
-  // ----------------------------------------------------
-  console.log('\nProcessing and encoding traffic media at 60 fps with FFmpeg...');
-  const outMp4 = join(CARDS_DIR, 'traffic.mp4');
-  const outWebm = join(CARDS_DIR, 'traffic.webm');
-  const outJpg = join(CARDS_DIR, 'traffic.jpg');
-
-  const durTotal1 = getDuration(raw2d);
-  const durTotal2 = getDuration(raw3d);
-  console.log(`Raw 2D duration: ${durTotal1.toFixed(2)}s`);
-  console.log(`Raw 3D duration: ${durTotal2.toFixed(2)}s`);
-
-  const dur1 = anim1Dur;  // 6.0s
-  const dur2 = DURATION_REAL_SEC; // 18.0s
-  const fadeDur = 0.6;
-  const offset = dur1 - fadeDur; // 5.4s
-  const totalDur = dur1 + dur2 - fadeDur; // 23.4s
-
-  const trim1Start = Math.max(0, durTotal1 - anim1Dur - 2.0);
-  const trim1End = trim1Start + dur1;
-  const trim2Start = Math.max(0, durTotal2 - DURATION_REAL_SEC - 2.0);
-  const trim2End = trim2Start + dur2;
-
-  console.log(`Trim 1: ${trim1Start.toFixed(2)}s -> ${trim1End.toFixed(2)}s`);
-  console.log(`Trim 2: ${trim2Start.toFixed(2)}s -> ${trim2End.toFixed(2)}s`);
-
-  // 60 fps Lanczos scaling with smooth crossfade
-  const filter = `[0:v]trim=${trim1Start.toFixed(2)}:${trim1End.toFixed(2)},setpts=PTS-STARTPTS,scale=640:400:flags=lanczos,fps=60[v0];[1:v]trim=${trim2Start.toFixed(2)}:${trim2End.toFixed(2)},setpts=PTS-STARTPTS,scale=640:400:flags=lanczos,fps=60[v1];[v0][v1]xfade=transition=fade:duration=${fadeDur}:offset=${offset.toFixed(2)},format=yuv420p[out]`;
-
-  console.log(`Encoding traffic.mp4 at 60 fps (duration ${totalDur.toFixed(2)}s)...`);
-  execFileSync(ffmpegPath, [
-    '-y', '-i', raw2d, '-i', raw3d,
-    '-filter_complex', filter,
-    '-map', '[out]',
-    '-c:v', 'libx264', '-crf', '28', '-preset', 'slow', '-movflags', '+faststart',
-    '-t', totalDur.toFixed(2),
-    outMp4
-  ]);
-
-  console.log('Encoding traffic.webm at 60 fps...');
-  execFileSync(ffmpegPath, [
-    '-y', '-i', raw2d, '-i', raw3d,
-    '-filter_complex', filter,
-    '-map', '[out]',
-    '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '40', '-row-mt', '1', '-deadline', 'good', '-cpu-used', '2',
-    '-t', totalDur.toFixed(2),
-    outWebm
-  ]);
-
-  console.log('Generating poster traffic.jpg...');
-  // Capture from Part 1 at 3.0s (midway through wind morph)
-  execFileSync(ffmpegPath, [
-    '-y', '-i', outMp4,
-    '-ss', '3.0',
-    '-vframes', '1',
-    '-q:v', '3',
-    outJpg
-  ]);
-
-  console.log('\nFinished traffic card:');
-  console.log(`  MP4:  ${statSync(outMp4).size} bytes`);
-  console.log(`  WebM: ${statSync(outWebm).size} bytes`);
-  console.log(`  JPG:  ${statSync(outJpg).size} bytes`);
+  await page.close();
+  return frames;
 }
 
-recordTraffic().catch(console.error);
+async function main() {
+  rmSync(FRAMES_DIR, { recursive: true, force: true });
+  const dir2d = join(FRAMES_DIR, '2d'), dir3d = join(FRAMES_DIR, '3d');
+  mkdirSync(dir2d, { recursive: true });
+  mkdirSync(dir3d, { recursive: true });
+  mkdirSync(CARDS_DIR, { recursive: true });
+  const browser = await chromium.launch({ executablePath: CHROMIUM, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  console.log('2D wind part...');
+  const n2 = await record2d(browser, dir2d);
+  console.log('3D two-ship part...');
+  const n3 = await record3d(browser, dir3d);
+  await browser.close();
+
+  const dur1 = n2 / FPS, dur2 = n3 / FPS, fade = 0.6, total = dur1 + dur2 - fade;
+  const filter = `[0:v]scale=640:400:flags=lanczos,setsar=1[v0];[1:v]scale=640:400:flags=lanczos,setsar=1[v1];[v0][v1]xfade=transition=fade:duration=${fade}:offset=${(dur1 - fade).toFixed(3)},format=yuv420p[out]`;
+  const inputs = ['-framerate', String(FPS), '-i', join(dir2d, 'f%05d.jpg'), '-framerate', String(FPS), '-i', join(dir3d, 'f%05d.jpg')];
+  const outMp4 = join(CARDS_DIR, 'traffic.mp4'), outWebm = join(CARDS_DIR, 'traffic.webm'), outJpg = join(CARDS_DIR, 'traffic.jpg');
+  execFileSync(ffmpegPath, ['-y', '-v', 'error', ...inputs, '-filter_complex', filter, '-map', '[out]', '-r', String(FPS), '-c:v', 'libx264', '-crf', '28', '-preset', 'slow', '-movflags', '+faststart', '-t', total.toFixed(3), outMp4]);
+  execFileSync(ffmpegPath, ['-y', '-v', 'error', ...inputs, '-filter_complex', filter, '-map', '[out]', '-r', String(FPS), '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '40', '-row-mt', '1', '-deadline', 'good', '-cpu-used', '2', '-t', total.toFixed(3), outWebm]);
+  execFileSync(ffmpegPath, ['-y', '-v', 'error', '-ss', '3.0', '-i', outMp4, '-vframes', '1', '-q:v', '3', outJpg]);
+  console.log(`Done: ${total.toFixed(1)} s at ${FPS} fps`);
+}
+
+main().catch((err) => { console.error(err); process.exit(1); });
