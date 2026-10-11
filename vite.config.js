@@ -39,5 +39,7 @@ export default defineConfig({
     outDir: 'dist',
     manifest: true, // read by tools/check-size.mjs
     target: 'es2022',
+    // The CT-156 model trial page (tools/blender/README.md) is built beside the app, so it can be opened on the site.
+    rollupOptions: { input: { main: 'index.html', ct156Trial: 'src/ui-kit/ct156-trial.html' } },
   },
 });
