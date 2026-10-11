@@ -69,6 +69,8 @@ for (const size of SIZES) {
 
     for (const route of ROUTES) {
       test(`${route} has no overlapping or cut-off controls`, async ({ page }) => {
+        // Traffic takes 10 s or more to open on a runner without a graphics card.
+        if (route === '#/traffic') test.setTimeout(90_000);
         await openRoute(page, route);
         expect(await layoutProblems(page)).toEqual([]);
       });
