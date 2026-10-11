@@ -25,7 +25,7 @@ import {
 import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
 import { drawHud } from '../../ui-kit/hud.js';
 import { createCt156Model, disposeCt156Model, CT156_UNIT_LENGTH, setCockpitView } from '../../ui-kit/ct156-model.js';
-import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
+import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, createCockpitFovSlider, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
 import { FT_PER_NM } from '../../core/units.js';
 import { FIGHT_MAX_SEC } from './sim.js';
 import { TRAIL_INTERVAL_SEC } from './trails.js';
@@ -462,6 +462,8 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
   let head = { yawDeg: 0, pitchDeg: 0 }; // the person's head turn (Cockpit, Padlock) or swing round the aircraft (Chase)
   let chaseFt = POV.chaseFt;
   const zoomKey = createCockpitZoomKey(win, () => requestDraw()); // hold Shift to zoom from the seat (COCKPIT_ZOOM)
+  // The seat view's angle: a slider at the top of the camera bar (layout.js's .tf-3d-bar), above its buttons.
+  const fovSlider = createCockpitFovSlider(host.ownerDocument ?? win.document, () => host.parentElement?.querySelector('.tf-3d-bar'), { onChange: () => requestDraw() });
   const pointers = new Map(); // id -> { x, y }, the fingers or the mouse now down
   let pinchDistance = 0;
 
@@ -958,8 +960,10 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
       for (const who of SHIPS) gl.planes[who].scale.setScalar(T6_LENGTH_FT / CT156_UNIT_LENGTH);
       aimPov(pov, box);
       gl.active = gl.persp;
+      fovSlider.setShown(pov.kind !== 'chase');
     } else {
       syncCockpit(null);
+      fovSlider.setShown(false);
       matchProjection(THREE, camera, view.center, view.camera, box, 1);
       gl.active = camera;
     }
@@ -1055,6 +1059,7 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
   function teardown({ lost = false } = {}) {
     win.removeEventListener?.('keydown', onWindowKeydown);
     zoomKey.stop();
+    fovSlider.setShown(false);
     stopFrame();
     resizer?.disconnect();
     resizer = null;

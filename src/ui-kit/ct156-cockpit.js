@@ -1585,25 +1585,128 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document } = {}) {
 /** How far the head turns from the nose when the view is dragged, degrees: left of the nose and up positive (Turn Sim's and Turn Fight's HEAD). */
 export const COCKPIT_HEAD = Object.freeze({ yawDeg: [-160, 160], pitchDeg: [-85, 80] });
 /**
- * The view from a seat: at least fovTallDeg tall and at least fovAcrossDeg across, whichever shows more (cockpitFovDeg),
- * nothing nearer than 0.5 ft (inside the cockpit), out to 400,000 ft (Turn Sim's and Turn Fight's POV). Set by its
- * height so a wide screen adds sides instead of cropping the panel and bow (Patrick, 11 Oct 03:23Z: Traffic's 2:1 view
- * showed only 32° tall at 60° across); fovTallDeg is Patrick's pick, a picture choice, not a flying number.
+ * The view from a seat: fovTallDeg across the screen's shorter side (tall on a wide screen, across on a tall one), set
+ * live by the view-angle slider above the camera buttons within fovRangeDeg (cockpitFovSetting), nothing nearer than
+ * 0.5 ft (inside the cockpit), out to 400,000 ft. Set by the shorter side so a wide screen adds sides instead of cropping the panel and bow (Patrick,
+ * 11 Oct 03:23Z). Patrick started it at 55° (11 Oct 03:44Z: "start it at 55 i think, its a bit too wide now"; was 65°,
+ * V2.242). The 30-90° range is an estimate. fovAcrossDeg is the Debrief Chase lens's (aim.js). Picture choices, not
+ * flying numbers.
  */
-export const COCKPIT_VIEW = Object.freeze({ fovAcrossDeg: 60, fovTallDeg: 65, nearFt: 0.5, farFt: 400_000 });
+export const COCKPIT_VIEW = Object.freeze({ fovAcrossDeg: 60, fovTallDeg: 55, fovRangeDeg: Object.freeze([30, 90]), nearFt: 0.5, farFt: 400_000 });
+
+// The slider's setting, shared by every 3D view on the page and kept in this browser (a convenience: it starts at
+// COCKPIT_VIEW.fovTallDeg when storage is empty or blocked).
+const FOV_STORE_KEY = 'ct156.cockpitFovDeg';
+const clampFov = (v) => Math.round(Math.max(COCKPIT_VIEW.fovRangeDeg[0], Math.min(COCKPIT_VIEW.fovRangeDeg[1], v)));
+let fovSetting = (() => {
+  try {
+    const v = Number(globalThis.localStorage?.getItem(FOV_STORE_KEY));
+    return v > 0 ? clampFov(v) : COCKPIT_VIEW.fovTallDeg;
+  } catch {
+    return COCKPIT_VIEW.fovTallDeg;
+  }
+})();
+
+/** The seat view's angle across the screen's shorter side, degrees, as the slider has it. */
+export const cockpitFovSetting = () => fovSetting;
+
+/** Sets the seat view's angle (kept within COCKPIT_VIEW.fovRangeDeg, whole degrees) and remembers it in this browser. */
+export function setCockpitFovSetting(v) {
+  if (!Number.isFinite(Number(v))) return fovSetting;
+  fovSetting = clampFov(Number(v));
+  try {
+    globalThis.localStorage?.setItem(FOV_STORE_KEY, String(fovSetting));
+  } catch {
+    // storage blocked: the setting lasts until the page reloads
+  }
+  return fovSetting;
+}
 
 /**
  * Holding Shift in a seat view zooms in on where the view looks (boresight, head turn or padlock), `times` closer:
- * 65° tall becomes about 29°, roughly true size on a desktop screen (Patrick, 11 Oct 03:29Z, asked for Shift to zoom;
+ * 55° tall becomes about 24°, roughly true size on a desktop screen (Patrick, 11 Oct 03:29Z, asked for Shift to zoom;
  * the 2.5 is an estimate). A picture choice, not a flying number.
  */
 export const COCKPIT_ZOOM = Object.freeze({ times: 2.5 });
 
-/** The vertical field of view, degrees, from a seat for a box `width` by `height` (COCKPIT_VIEW), COCKPIT_ZOOM closer when `zoomed`. */
+/**
+ * The vertical field of view, degrees, from a seat for a box `width` by `height`: the slider's angle across the shorter
+ * side (cockpitFovSetting), COCKPIT_ZOOM closer when `zoomed`.
+ */
 export function cockpitFovDeg(width, height, zoomed = false) {
   const aspect = Math.max(width, 1) / Math.max(height, 1);
-  const fov = Math.max(COCKPIT_VIEW.fovTallDeg, 2 * deg(Math.atan(Math.tan(rad(COCKPIT_VIEW.fovAcrossDeg / 2)) / aspect)));
+  const fov = aspect >= 1 ? fovSetting : 2 * deg(Math.atan(Math.tan(rad(fovSetting / 2)) / aspect));
   return zoomed ? 2 * deg(Math.atan(Math.tan(rad(fov / 2)) / COCKPIT_ZOOM.times)) : fov;
+}
+
+/**
+ * The view-angle slider, a row at the top of a 3D view's camera bar, above its buttons (Patrick, 11 Oct 03:46Z: "a
+ * slider that shows up above the camera controls"), shown only while the view is from a seat: setShown(true) puts it
+ * first in `bar` (the bar element, or a function giving the current one), setShown(false) hides it. Dragging it, a
+ * wheel over it or the arrow keys on it change cockpitFovSetting live and call onChange (so a paused view redraws).
+ * Its pointer, wheel and key events stay with it, not the view under it. dispose() takes it away.
+ * @param {any} doc
+ * @param {any} bar
+ * @param {{ onChange?: () => void }} [options]
+ */
+export function createCockpitFovSlider(doc, bar, { onChange } = {}) {
+  const [lo, hi] = COCKPIT_VIEW.fovRangeDeg;
+  const wrap = doc.createElement('div');
+  wrap.className = 'ct156-fov';
+  // Its own line in the bar (a column bar, or Turn Fight's wrapping row); shown and hidden by its display.
+  wrap.style.cssText = 'display:none;width:100%;box-sizing:border-box;justify-content:center;align-items:center;gap:8px;'
+    + 'font:600 12px/1.2 system-ui, sans-serif;color:inherit;user-select:none;';
+  const input = doc.createElement('input');
+  input.type = 'range';
+  input.min = String(lo);
+  input.max = String(hi);
+  input.step = '1';
+  input.id = `ct156-fov-${Math.random().toString(36).slice(2, 8)}`;
+  input.setAttribute('aria-label', 'Cockpit field of view, degrees');
+  input.style.cssText = 'width:180px;margin:0;cursor:pointer;';
+  const label = doc.createElement('label');
+  label.textContent = 'FOV';
+  label.htmlFor = input.id;
+  const readout = doc.createElement('output');
+  readout.style.cssText = 'min-width:2.5em;';
+  wrap.append(label, input, readout);
+  const show = () => {
+    input.value = String(cockpitFovSetting());
+    readout.textContent = `${cockpitFovSetting()}°`;
+  };
+  const set = (v) => {
+    setCockpitFovSetting(v);
+    show();
+    onChange?.();
+  };
+  input.addEventListener('input', () => set(Number(input.value)));
+  wrap.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    set(cockpitFovSetting() + (e.deltaY < 0 ? 1 : -1));
+  }, { passive: false });
+  for (const type of ['pointerdown', 'pointermove', 'pointerup', 'click', 'dblclick', 'contextmenu', 'keydown', 'keyup']) {
+    wrap.addEventListener(type, (e) => e.stopPropagation());
+  }
+  let shown = false;
+  return {
+    element: wrap,
+    setShown(on) {
+      on = Boolean(on);
+      if (on) {
+        const home = typeof bar === 'function' ? bar() : bar;
+        if (home && wrap.parentElement !== home) home.prepend?.(wrap);
+      }
+      if (on === shown) return;
+      shown = on;
+      if (on) show();
+      wrap.style.display = on ? 'flex' : 'none';
+    },
+    dispose() {
+      shown = false;
+      wrap.remove();
+    },
+  };
 }
 
 /**
