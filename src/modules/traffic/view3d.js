@@ -1972,7 +1972,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     resizer = null;
     dragging = null;
     if (!gl) return;
-    const { canvas, labels, renderer, kit, sky, skyClouds, lights } = gl;
+    const { canvas, labels, renderer, kit, sky, skyClouds, lights, aircraftShadows } = gl;
     syncCockpit(null);
     gl.cockpit?.part.dispose();
     for (const [type, fn] of hands) canvas.removeEventListener(type, fn);
