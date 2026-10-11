@@ -26,10 +26,12 @@ import { paletteFrom, conflictLevels, isFlying, aircraftColor, heightSpeedText, 
 import { createTileLayer, ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { makeLocalRef, latLonToLocalFt } from '../../core/geo.js';
 import { createAirfieldScenery, disposeAirfieldScenery, DEFAULT_FLOOR_FT, RUNWAY_TOP_FT } from './scenery3d.js';
+import { createAirfieldFurniture, disposeAirfieldFurniture } from './furniture3d.js';
 import { createLandmarks, disposeLandmarks, createWindsocks, updateWindsocks, disposeWindsocks } from './landmarks3d.js';
 import { createRunwayMarkings, disposeRunwayMarkings } from './runway-markings.js';
 import { createBaseBuildings, disposeBaseBuildings, BASE_BOX_FT } from './base-buildings3d.js';
 import { createGroundHeights } from './ground-heights3d.js';
+import { SHADOW_PATCHES } from './ground-shadows-data.js';
 import { ejectionAt, EJECTION } from './ejection.js';
 import { trueAltFt } from './weather.js';
 import { createEjectionModel, poseEjectionModel, disposeEjectionModel } from './ejection3d.js';
@@ -88,8 +90,12 @@ export const FLAT_GROUND_BOXES = Object.freeze([
   Object.freeze({ minX: TIGHT_CENTER_FT.x - TIGHT_SPAN_FT / 2, maxX: TIGHT_CENTER_FT.x + TIGHT_SPAN_FT / 2, minY: TIGHT_CENTER_FT.y - TIGHT_SPAN_FT / 2, maxY: TIGHT_CENTER_FT.y + TIGHT_SPAN_FT / 2 }),
   BASE_BOX_FT,
 ]);
-/** Towards the sun for the ground's slope shading: TR-34's sun, from 225 degrees true and 45 degrees up (x east, y north, z up). */
-const SUN_FROM = Object.freeze({ x: -0.5, y: -0.5, z: Math.SQRT1_2 });
+/** Towards the sun for the ground's slope shading: the scene's sun (SUN_AZIMUTH_DEG, SUN_ELEVATION_DEG below), x east, y north, z up. */
+const SUN_FROM = Object.freeze({
+  x: Math.sin((225 * Math.PI) / 180) * Math.cos(Math.PI / 6),
+  y: Math.cos((225 * Math.PI) / 180) * Math.cos(Math.PI / 6),
+  z: Math.sin(Math.PI / 6),
+}); // 225 degrees, 30 up: must match SUN_AZIMUTH_DEG and SUN_ELEVATION_DEG
 
 /** Camera limits. pitch is degrees from straight down (0 looks down, 90 is level); zoom is pixels to 1,000 ft. */
 export const CAMERA_LIMITS = Object.freeze({ pitch: [0, 85], zoom: [0.3, 4000] });
@@ -557,6 +563,39 @@ const GRID_CELLS = 100;
 
 const numberOf = (id) => String(id).replace(/\D+/g, '') || String(id);
 
+/** How dark the baked shadows' darkest part is drawn (an estimate). */
+const SHADOW_STRENGTH = 0.6;
+
+/**
+ * The baked ground shadows (tools/blender/bake-shadows.py; TR-133, TR-135): one see-through dark sheet per patch (the flight line and
+ * base, each landmark, the radar), drawn just after the paint and under the buildings. Each sheet is a grid so it can lie on the real
+ * ground (applyGround); its picture loads once, and until then the sheet is clear.
+ */
+function createGroundShadows(THREE) {
+  const group = new THREE.Group();
+  group.name = 'ground-shadows';
+  group.visible = false;
+  const base = (typeof import.meta !== 'undefined' && /** @type {any} */ (import.meta).env?.BASE_URL) || '/';
+  for (const P of SHADOW_PATCHES) {
+    const w = P.x1 - P.x0, h = P.y1 - P.y0;
+    const geometry = new THREE.PlaneGeometry(w, h, Math.max(1, Math.min(32, Math.ceil(w / 150))), Math.max(1, Math.min(32, Math.ceil(h / 150))));
+    const material = new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0, depthWrite: false, fog: false });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = `ground-shadows-${P.name}`;
+    mesh.position.set((P.x0 + P.x1) / 2, (P.y0 + P.y1) / 2, 0);
+    mesh.renderOrder = -0.45;
+    group.add(mesh);
+    if (typeof globalThis.Image !== 'undefined') {
+      new THREE.TextureLoader().load(`${base}media/traffic-shadows/${P.name}.png`, (texture) => {
+        material.alphaMap = texture;
+        material.opacity = SHADOW_STRENGTH;
+        material.needsUpdate = true;
+      });
+    }
+  }
+  return group;
+}
+
 /**
  * The three.js objects for one scene: the routes (one line each), an aircraft each (made when it first flies), a
  * caution ring round each flying aircraft, a line dropping from each to the ground, and the ground grid. sync() makes
@@ -686,6 +725,14 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     for (const g of landmarks.children) {
       g.position.z = DEFAULT_FLOOR_FT + (heights ? heights.offsetAt(g.position.x, g.position.y) : 0);
     }
+    furniture.userData.drape?.(heights); // the approach lights, off the flat airfield
+    // The shadow sheets lie on the same ground, a hair above it.
+    for (const sheet of groundShadows.children) {
+      const pos = sheet.geometry.attributes.position;
+      for (let k = 0; k < pos.count; k++) pos.setZ(k, heights ? heights.offsetAt(sheet.position.x + pos.getX(k), sheet.position.y + pos.getY(k)) : 0);
+      pos.needsUpdate = true;
+      sheet.geometry.computeBoundingSphere();
+    }
   }
 
   // Sharpest tier: zoom-18 imagery over the runways and flight line (transparent until tiles arrive)
@@ -714,10 +761,16 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   const runwayPaint = createRunwayMarkings(THREE);
   runwayPaint.visible = false;
   root.add(runwayPaint);
+  // The buildings' and landmarks' shadows on the ground, baked in Blender from the same sun (TR-133, TR-135).
+  const groundShadows = createGroundShadows(THREE);
+  root.add(groundShadows);
 
   // 3D Airfield Scenery: Control Tower, 4 Arch Hangars, South Apron
-  const scenery = createAirfieldScenery(THREE);
+  const scenery = createAirfieldScenery(THREE, { onChange: () => requestDraw() });
   root.add(scenery);
+  // Lights, PAPIs, signs, the parked Harvards and the ramp vehicles (TR-141)
+  const furniture = createAirfieldFurniture(THREE, DEFAULT_FLOOR_FT);
+  root.add(furniture);
   // Every other base building (PMQs, offices, annexes) as simple boxes: three instanced draw calls (TR-69)
   const baseBuildings = createBaseBuildings(THREE, { floor: DEFAULT_FLOOR_FT });
   root.add(baseBuildings);
@@ -1098,6 +1151,8 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     // The paint lies just over the sharpest photo, and shows with it.
     runwayPaint.visible = options.layerPhoto !== false;
     runwayPaint.position.set(0, 0, floor - 1);
+    groundShadows.visible = options.layerPhoto !== false && options.layerBuildings !== false;
+    groundShadows.position.z = floor - 0.8;
 
     if (scenery) {
       scenery.visible = options.layerBuildings !== false;
@@ -1254,11 +1309,17 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
       coreGeometry.dispose();
       coreMaterial.dispose();
       disposeRunwayMarkings(runwayPaint);
+      for (const sheet of groundShadows.children) {
+        sheet.geometry.dispose();
+        sheet.material.alphaMap?.dispose();
+        sheet.material.dispose();
+      }
       if (scenery) {
         disposeAirfieldScenery(scenery);
         scenery.removeFromParent();
       }
       disposeBaseBuildings(baseBuildings);
+      disposeAirfieldFurniture(furniture);
       disposeLandmarks(landmarks);
       disposeWindsocks(windsocks);
       photoGeometry.dispose();
@@ -1372,9 +1433,12 @@ function paintBaseAirfield(ctx) {
   ctx.restore();
 }
 
-/** Sun direction for the Traffic scene: a fixed mid-afternoon summer sun from the south-west, 45° above the horizon. */
+/**
+ * Sun direction for the Traffic scene: a fixed late-afternoon sun from the south-west, 30° above the horizon, so shadows run about
+ * 1.7 times as long as the buildings are tall (Patrick, 10 Oct: card "Lower sun"; was 45°, TR-34; TR-134).
+ */
 export const SUN_AZIMUTH_DEG = 225;
-export const SUN_ELEVATION_DEG = 45;
+export const SUN_ELEVATION_DEG = 30;
 
 /**
  * Traffic's lighting: one warm DirectionalLight (sun) and one HemisphereLight (sky blue above, prairie brown below).

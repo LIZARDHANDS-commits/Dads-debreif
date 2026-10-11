@@ -41,3 +41,21 @@ with twist and red tips, exhaust stacks, canopy bows, cheat line and position li
 
 Lacks so far: the decals (roundels, Canada, ship numbers, serial, red triangles), the cockpit (seats, panel, tub),
 the far and near detail switch, and the prop disc.
+
+# Traffic scenery (shadows and showpiece buildings)
+
+| File | What it does |
+|---|---|
+| `export-buildings.mjs` | Exports Traffic's still scenery as an OBJ (feet from the ARP, z up) and the patches to bake, from the 3D view's own code. |
+| `bake-shadows.py` | Bakes the buildings' and landmarks' shadows onto the ground with the 3D view's sun (TR-133 to TR-135). |
+| `export-showpieces.mjs` | Writes the showpiece buildings' traced shapes as JSON (TR-142). |
+| `build-showpieces.py` | Builds Hangars 1 to 3, 5 and 6, the Mess, the Glass Palace and the tower with recessed windows, ribbed doors, parapets and roofs, and exports `public/media/traffic-models/showpieces.glb`. |
+
+## Rebuild the showpieces
+
+Re-run when a showpiece's footprint changes (Blender 5.2 LTS, absolute paths):
+
+```
+node tools/blender/export-showpieces.mjs showpieces.json
+blender -b -P tools/blender/build-showpieces.py -- showpieces.json <repo>/public/media/traffic-models/showpieces.glb
+```
