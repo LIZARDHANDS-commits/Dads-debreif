@@ -527,7 +527,8 @@ export function createLayout({ settings, controls, on }) {
 
   const shortcutsHint = h('span', { class: 'tf-3d-hint' },
     h('kbd', { class: 'tf-kbd' }, 'C'), ' Center ',
-    h('kbd', { class: 'tf-kbd' }, 'P'), ' Padlock · Drag turns, scroll zooms');
+    h('kbd', { class: 'tf-kbd' }, 'P'), ' Padlock ',
+    h('kbd', { class: 'tf-kbd' }, 'Shift'), ' Zoom · Drag turns, scroll zooms'); // Shift held zooms from the seat (Patrick, 11 Oct 03:53Z)
 
   const cameraBar = h(
     'div',

@@ -343,7 +343,8 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     lc.checkbox('autoFit', { label: 'Auto zoom' }),
     h('p', { class: 'ts-hint ts-cam-shortcuts' },
       h('kbd', { class: 'ts-kbd' }, 'C'), ' Center look \u00a0 ',
-      h('kbd', { class: 'ts-kbd' }, 'P'), ' Toggle padlock',
+      h('kbd', { class: 'ts-kbd' }, 'P'), ' Toggle padlock \u00a0 ',
+      h('kbd', { class: 'ts-kbd' }, 'Shift'), ' Zoom', // held, from the seat (Patrick, 11 Oct 03:53Z)
     ),
   ]);
 
@@ -433,7 +434,8 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
 
   const hintLine = h('div', { class: 'ts-cam-hint' },
     h('kbd', { class: 'ts-kbd' }, 'C'), ' Center look \u00a0 ',
-    h('kbd', { class: 'ts-kbd' }, 'P'), ' Toggle padlock',
+    h('kbd', { class: 'ts-kbd' }, 'P'), ' Toggle padlock \u00a0 ',
+    h('kbd', { class: 'ts-kbd' }, 'Shift'), ' Zoom', // held, from the seat (Patrick, 11 Oct 03:53Z)
   );
 
   const camBarRow = h('div', { class: 'ts-cam-row' }, mountGroup, shipGroup, aimGroup, seatGroup);

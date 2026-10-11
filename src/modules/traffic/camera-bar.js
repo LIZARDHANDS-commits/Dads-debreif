@@ -256,6 +256,7 @@ export function createCameraBar({
       hintLine.append(
         kbd('C'), ' Center \u00a0',
         kbd('P'), ' Rwy 29L \u00a0',
+        kbd('Shift'), ' Zoom \u00a0', // held (Patrick, 11 Oct 03:53Z)
         kbd('['), '/', kbd(']'), ' Target \u00a0·\u00a0 Drag turns head'
       );
     } else if (camState.mount === 'chase') {
