@@ -23,7 +23,7 @@ export const LANE = Object.freeze({ marginFt: 100, rangeFt: 1000, belowRangeFt: 
  * @param {number} bankDeg - Bank angle in degrees (right wing down positive)
  * @returns {{ x: number, y: number, z: number }} Unit vector normal to canopy
  */
-export function canopySightVector(headingRad, pitchDeg = 0, bankDeg = 0) {
+function canopySightVector(headingRad, pitchDeg = 0, bankDeg = 0) {
   const theta = degToRad(pitchDeg || 0);
   const phi = degToRad(bankDeg || 0);
   const psi = headingRad || 0;
@@ -59,7 +59,7 @@ export function canopySightVector(headingRad, pitchDeg = 0, bankDeg = 0) {
  * @param {{ xFt: number, yFt: number, altAboveFt?: number, headingRad: number, pitchDeg?: number, bankDeg?: number }} wing
  * @returns {number} Dot product of LOS vector and canopy normal
  */
-export function canopyLosDot(lead, wing) {
+function canopyLosDot(lead, wing) {
   const dx = lead.xFt - wing.xFt;
   const dy = lead.yFt - wing.yFt;
   const dz = (lead.altAboveFt ?? 0) - (wing.altAboveFt ?? 0);
@@ -75,47 +75,4 @@ export function canopyLosDot(lead, wing) {
  */
 export function isLeadInCanopy(lead, wing) {
   return canopyLosDot(lead, wing) >= 0;
-}
-
-/**
- * Validates doctrinal canopy and step-down safety invariants for a 2-ship pair.
- * Invariants:
- *  - Outside 2,000 ft: open arena (brief loss <= 3.0 s permitted during tactical checks).
- *  - Inside 2,000 ft: Step-Down Gate (z_wing <= z_lead + 5 ft).
- *  - Inside 1,200 ft: Canopy "X" Lock (LOS · c >= 0, zero blind time).
- *  - Inside 1,000 ft: 3/9 Line Gate (fwd <= 0 ft relative to Lead).
- *
- * @param {{ xFt: number, yFt: number, altAboveFt?: number, headingRad: number }} lead
- * @param {{ xFt: number, yFt: number, altAboveFt?: number, headingRad: number, pitchDeg?: number, bankDeg?: number }} wing
- * @returns {{ ok: boolean, rangeFt: number, stepDownOk: boolean, canopyOk: boolean, laneOk: boolean, reason?: string }}
- */
-export function checkDoctrinalInvariants(lead, wing) {
-  const dx = wing.xFt - lead.xFt;
-  const dy = wing.yFt - lead.yFt;
-  const dz = (wing.altAboveFt ?? 0) - (lead.altAboveFt ?? 0);
-  const rangeFt = Math.hypot(dx, dy, dz);
-
-  // 1. Step-down check: inside 2,000 ft, Wing must be at or below Lead + 5 ft
-  const stepDownOk = rangeFt >= LANE.belowRangeFt || dz <= 5.0;
-
-  // 2. Canopy check: inside 1,200 ft, Lead must remain in upper canopy glass
-  const canopyOk = rangeFt >= LANE.canopyRangeFt || isLeadInCanopy(lead, wing);
-
-  // 3. 3/9 Line check: inside 1,000 ft, Wing must remain behind Lead's 3/9 line
-  const fwd = dx * Math.cos(lead.headingRad) + dy * Math.sin(lead.headingRad);
-  const laneOk = rangeFt >= LANE.rangeFt || fwd <= 0.0;
-
-  let reason = null;
-  if (!stepDownOk) reason = `Step-down violated: Wing is ${dz.toFixed(1)} ft above Lead inside ${rangeFt.toFixed(0)} ft range`;
-  else if (!canopyOk) reason = `Canopy lock violated: Lead masked under cockpit floor inside ${rangeFt.toFixed(0)} ft range`;
-  else if (!laneOk) reason = `3/9 line penetrated: Wing is ahead of Lead's 3/9 line inside ${rangeFt.toFixed(0)} ft range`;
-
-  return {
-    ok: stepDownOk && canopyOk && laneOk,
-    rangeFt,
-    stepDownOk,
-    canopyOk,
-    laneOk,
-    reason,
-  };
 }

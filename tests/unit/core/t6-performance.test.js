@@ -12,13 +12,13 @@ import assert from 'node:assert/strict';
 import {
   T6A_LIMITS, stallLimitG, availableG, iasToTasKt, tasToIasKt, energyHeightFt,
   thrustPerWeight, dragPerWeight, excessThrustPerWeight,
-  T6A_GLIDE, glideSinkFpm, glideRatio, NFM_ZOOM, zoomT6A, flyZoomT6A, t6aExcessFn,
+  T6A_GLIDE, glideSinkFpm, glideRatio, ZOOM_GAIN_TABLE, zoomT6A, flyZoomT6A, t6aExcessFn,
   T6A_MANOEUVRE, shakerG, splitST6A, speedOfSoundKt, machToKiasKt, maxKiasT6A, modelMaxIasT6A,
   pitchDegFromClimb,
 } from '../../../src/core/t6-performance.js';
 import {
   T6A_TURN_POINTS, T6A_TURN_STALL_LIMIT, T6A_TURN_ZERO, T6A_TURN_150_200, T6A_TURN_OTHER, T6A_FIT,
-} from '../../../src/core/t6a-turn-charts.js';
+} from '../../../src/core/t6a-turn-data.js';
 import { isaDensityRatio, turnRadiusFt, turnRateRadPerSec } from '../../../src/core/flight-math.js';
 import { KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../../src/core/units.js';
 import { TOLERANCES, assertNear } from '../../helpers/tolerances.js';
@@ -242,7 +242,7 @@ test('turn rate against the reference, sea level to 15,000 ft: within 0.65°/s, 
 // Where the model and the reference differ (20,000 ft and up, and the tops of the lines with the 86 kt stall)
 // the gap is shown in the test output and goes in the report for Patrick and Dad at sign-off. The test
 // does not lock the gap in (T7): it only checks the model is within the shared +/-2.5 deg/s margin.
-// Source of the reference values: read by eye, see t6a-turn-charts.js.
+// Source of the reference values: read by eye, see t6a-turn-data.js.
 test('turn rate against the reference, 20,000 ft and up: compared and shown, the gap reported', (t) => {
   const gaps = [];
   for (const [kias, alt, rate] of [...T6A_TURN_150_200, ...EXTRA_POINTS].filter(([, a]) => a >= 20000)) {
@@ -337,15 +337,15 @@ test('the glide cross-check: drag alone at 125 KIAS clean glides within 15 % of 
 });
 
 test('the reference zoom table: the lightest and heaviest rows exactly, the rows between within 1 ft', () => {
-  for (let i = 0; i < NFM_ZOOM.kias.length; i++) {
-    for (let j = 0; j < NFM_ZOOM.altFt.length; j++) {
-      assert.equal(zoomT6A(NFM_ZOOM.kias[i], NFM_ZOOM.altFt[j], NFM_ZOOM.lightLb).gainFt, NFM_ZOOM.light[i][j]);
-      assert.equal(zoomT6A(NFM_ZOOM.kias[i], NFM_ZOOM.altFt[j], NFM_ZOOM.heavyLb).gainFt, NFM_ZOOM.heavy[i][j]);
+  for (let i = 0; i < ZOOM_GAIN_TABLE.kias.length; i++) {
+    for (let j = 0; j < ZOOM_GAIN_TABLE.altFt.length; j++) {
+      assert.equal(zoomT6A(ZOOM_GAIN_TABLE.kias[i], ZOOM_GAIN_TABLE.altFt[j], ZOOM_GAIN_TABLE.lightLb).gainFt, ZOOM_GAIN_TABLE.light[i][j]);
+      assert.equal(zoomT6A(ZOOM_GAIN_TABLE.kias[i], ZOOM_GAIN_TABLE.altFt[j], ZOOM_GAIN_TABLE.heavyLb).gainFt, ZOOM_GAIN_TABLE.heavy[i][j]);
     }
   }
   // As read from the table: 500, 1,500, 3,000 and 6,000 ft; 200 KIAS then 250 KIAS.
-  assert.deepEqual(NFM_ZOOM.light, [[595, 621, 649, 794], [1172, 1232, 1297, 1487]], '5,400 lb');
-  assert.deepEqual(NFM_ZOOM.heavy, [[738, 757, 768, 883], [1299, 1347, 1410, 1552]], '6,500 lb');
+  assert.deepEqual(ZOOM_GAIN_TABLE.light, [[595, 621, 649, 794], [1172, 1232, 1297, 1487]], '5,400 lb');
+  assert.deepEqual(ZOOM_GAIN_TABLE.heavy, [[738, 757, 768, 883], [1299, 1347, 1410, 1552]], '6,500 lb');
   near(zoomT6A(200, 3000, 5800).gainFt, 693, 1, 'reference example 1');
   near(zoomT6A(250, 6000, 6200).gainFt, 1535, 1, 'reference example 2');
   near(zoomT6A(200, 500, 5900).gainFt, 660, 1, 'a row between');
@@ -370,7 +370,7 @@ test('zoomT6A time and distance come from flying the reference procedure in the 
   // The zoom gains height, in the range the reference table gives (5,400 lb row: 595 ft from 200 KIAS at 500 ft).
   // The flown time and distance are not pinned: they are the model's own output (T3).
   assert.ok(flown.gainFt > 0, 'the zoom gains height');
-  assert.ok(Math.abs(flown.gainFt / NFM_ZOOM.light[0][0] - 1) <= TOLERANCES.PERCENT * 2, 'within 10 % of the reference table');
+  assert.ok(Math.abs(flown.gainFt / ZOOM_GAIN_TABLE.light[0][0] - 1) <= TOLERANCES.PERCENT * 2, 'within 10 % of the reference table');
   assert.ok(flyZoomT6A(250, 6000).gainFt > flown.gainFt, 'more height from 250 KIAS at 6,000 ft than from 200 KIAS at 500 ft');
   assert.equal(z.timeSec, flown.timeSec);
   assert.equal(z.distanceFt, flown.distanceFt);
@@ -384,12 +384,12 @@ test('zoomT6A time and distance come from flying the reference procedure in the 
 
 test('the zoom cross-check: the model, thrust off, flies the reference zoom within 10 % of the table (5,400 lb)', () => {
   // 2 s delay, 2 G pull to 20° nose up, held to 145 KIAS, then a 0.25 G push to 125 KIAS or the glide path.
-  for (let i = 0; i < NFM_ZOOM.kias.length; i++) {
+  for (let i = 0; i < ZOOM_GAIN_TABLE.kias.length; i++) {
     const [lo, hi] = i === 0 ? [595, 883] : [1172, 1552];
-    for (let j = 0; j < NFM_ZOOM.altFt.length; j++) {
-      const gain = flyZoomT6A(NFM_ZOOM.kias[i], NFM_ZOOM.altFt[j]).gainFt;
-      const table = NFM_ZOOM.light[i][j];
-      assert.ok(Math.abs(gain / table - 1) <= 0.1, `${NFM_ZOOM.kias[i]} KIAS at ${NFM_ZOOM.altFt[j]} ft: model ${gain.toFixed(0)}, reference ${table}`);
+    for (let j = 0; j < ZOOM_GAIN_TABLE.altFt.length; j++) {
+      const gain = flyZoomT6A(ZOOM_GAIN_TABLE.kias[i], ZOOM_GAIN_TABLE.altFt[j]).gainFt;
+      const table = ZOOM_GAIN_TABLE.light[i][j];
+      assert.ok(Math.abs(gain / table - 1) <= 0.1, `${ZOOM_GAIN_TABLE.kias[i]} KIAS at ${ZOOM_GAIN_TABLE.altFt[j]} ft: model ${gain.toFixed(0)}, reference ${table}`);
       assert.ok(gain >= lo && gain <= hi, `inside the reference ${lo} to ${hi} ft`);
     }
   }
