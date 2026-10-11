@@ -13,7 +13,7 @@
 #   forward-bow    the windscreen's bow: a solid light band with its ring of 22 dark holes on the aft face and the dark
 #                  tube along its inner edge, its feet standing on the canopy rails.
 #   canopy-rails   along each side of the glass from the bow to the rear frame: a round light rail at the glass's foot
-#                  (the T-6A-1's canopy frame, Fig 1-1-39 detail C: a round rail with a riveted strip above it) and
+#                  (the canopy frame: a round rail with a riveted strip above it) and
 #                  the sill ledge under it, out over the fuselage's cut edge.
 # Sizes are estimates judged off Patrick's cockpit photos and the commercial sim frame (11 Oct 2026) unless the code's.
 #

@@ -26,9 +26,8 @@
 // Every size here is an ESTIMATE until Patrick rules: taken off the model's own tables (ct156-model.js, measured off
 // Patrick's side-on photo of CT-156 156101) or off Dad's reference pictures of the T-6A cockpit (9 Oct 2026: photos, a
 // panel poster, commercial-sim shots and renders of a commercial T-6A model; nothing copied from them, every shape and
-// gauge drawn here), as each line says. From V2.235 (ALL-31) both eyes, the forward bow and the nose are the T-6A-1
-// side drawing's (NFTC 133-590008-3, the side view with both crew and its 33 ft 4 in scale bar; cited only, nothing
-// kept), and the front cockpit (seat, panel, coaming, rail) moved with the front eye, the rail no higher than the
+// gauge drawn here), as each line says. From V2.235 (ALL-31) both eyes, the forward bow and the nose are the
+// side drawing's (measured only, nothing kept), and the front cockpit (seat, panel, coaming, rail) moved with the front eye, the rail no higher than the
 // windscreen's foot as seen from it: level at 220 KIAS the horizon sits about a quarter of the way up the windscreen
 // (SMM ch.3, the 220 KIAS pitch attitude figure). From V2.238 the front seat sits 2 in higher than the drawing's
 // (FRONT_SEAT_RAISE_FT, Patrick), which puts the dash and AOA indexer where that figure draws them against the horizon.
@@ -50,32 +49,32 @@ export const CT156_FT_PER_UNIT = CT156_LENGTH_FT / CT156_UNIT_LENGTH;
 const F = CT156_FT_PER_UNIT;
 
 /**
- * Where each eye sits from its helmet's centre, feet (ALL-31): at the front third of the helmet drawn in the T-6A-1 side
+ * Where each eye sits from its helmet's centre, feet (ALL-31): at the front third of the helmet drawn in the side
  * drawing, 0.1 ft ahead of its centre and 0.09 ft below (read to about ±0.15 ft). Until V2.234 the eye sat 0.13 ft
  * under the helmet's centre, fitted to AETCMAN 11-248 Fig 2.7 (TS-156).
  */
 export const EYE_AHEAD_OF_HELMET_FT = 0.1;
 export const EYE_BELOW_HELMET_FT = 0.09;
 /**
- * How far the front seat is raised above the T-6A-1 side drawing's, feet: 2 in (Patrick, 11 Oct 2026: "we raise the
+ * How far the front seat is raised above the side drawing's, feet: 2 in (Patrick, 11 Oct 2026: "we raise the
  * seat until the bottom of the surface just under the three buttons is just covering the top of the EADI"; he chose
  * 1 in, then 1 in more, "yes, i'll fly it"). Fitted to the SMM's 220 KIAS picture (Fig 3.5): from the drawing's eye the
  * glareshield, AOA indexer and EADI sat about 4.5° too high against the horizon, 1 in up about 2.5°, 2 in up within
- * about half a degree. The drawing draws the aircraft with its propeller axis level (Fig 1-1-2's propeller disc is
+ * about half a degree. The drawing shows the aircraft with its propeller axis level (its propeller disc is
  * upright and both wheels touch its ground line), so the model's axis is the ADI's datum and stays unturned (the T-6
  * sits 2.5° nose up on the ramp, Patrick). Fitted, not measured: Patrick checks it in flight.
  */
 export const FRONT_SEAT_RAISE_FT = 2 / 12;
 /**
  * The student's eye in the front seat (the default front eye), feet: 3.0 ft ahead of the model's origin (12.3 ft behind
- * the spinner tip) and 2.07 ft above the spinner's axis, the T-6A-1 side drawing's front pilot (re-read on a full copy,
+ * the spinner tip) and 2.07 ft above the spinner's axis, the side drawing's front pilot (re-read on a full copy,
  * 11 Oct 2026; the model's CT156_SEAT_X) raised FRONT_SEAT_RAISE_FT (ALL-31; was 1.4 ft and 2.14 ft, then 1.9 ft up
  * until V2.238, then 2.06 ft ahead until the front cockpit moved 11 in forward, Patrick 11 Oct 2026 07:39Z).
  */
 export const EYE_FT = Object.freeze({ x: CT156_SEAT_X[0] * F + EYE_AHEAD_OF_HELMET_FT, y: 0, z: CT156_HELMET_Z[0] * F - EYE_BELOW_HELMET_FT + FRONT_SEAT_RAISE_FT });
 
 /**
- * How far the rear seat is raised above the T-6A-1 side drawing's, feet: 5.5 in (Patrick, 11 Oct 2026 08:34Z, "Raise
+ * How far the rear seat is raised above the side drawing's, feet: 5.5 in (Patrick, 11 Oct 2026 08:34Z, "Raise
  * rear eye" so the rear seat's 220 KIAS picture matches the SMM's Fig 3.5). In that figure the top of the front seat's
  * headbox sits on the horizon at 220 KIAS level; from the drawing's eye (both helmets drawn level) it sat about 6° above
  * it at the model's -0.7°, 5.5 in up puts it about 0.2° under. Fitted to the figure, not measured.
@@ -83,7 +82,7 @@ export const EYE_FT = Object.freeze({ x: CT156_SEAT_X[0] * F + EYE_AHEAD_OF_HELM
 export const REAR_SEAT_RAISE_FT = 5.5 / 12;
 /**
  * Both eyes, feet (TS-155, TS-156, ALL-31). Front: EYE_FT. Rear: 3.3 ft aft of the origin (18.6 ft behind the spinner
- * tip) and 2.66 ft above the spinner's axis, the T-6A-1 side drawing's (2.2 ft up) raised REAR_SEAT_RAISE_FT (was 3.0 ft
+ * tip) and 2.66 ft above the spinner's axis, the side drawing's (2.2 ft up) raised REAR_SEAT_RAISE_FT (was 3.0 ft
  * aft and 2.29 ft up until V2.238, then the drawing's until V2.279).
  */
 export const EYES_FT = Object.freeze({
@@ -92,7 +91,7 @@ export const EYES_FT = Object.freeze({
 });
 /**
  * The seat stations SEAT_FT and the seats' parts are drawn for (model units: the front seat's until V2.234), and how
- * far each seat's parts move from there, feet: the front seat about 0.57 ft forward to the T-6A-1 drawing's (ALL-31),
+ * far each seat's parts move from there, feet: the front seat about 0.57 ft forward to the side drawing's (ALL-31),
  * the rear seat about 5.4 ft aft (model table).
  */
 const SEAT_DRAWN_X = 0.06;
@@ -101,7 +100,7 @@ const REAR_DX = (CT156_SEAT_X[1] - SEAT_DRAWN_X) * F;
 
 /**
  * The forward canopy bow (the windscreen's frame), feet: the model's front frame hoop station (CT156_FRAME_X[0], about
- * 4.0 ft) and its crest, the canopy's top there (about 2.75 ft) (model tables; the T-6A-1 side drawing's, ALL-31),
+ * 4.0 ft) and its crest, the canopy's top there (about 2.75 ft) (model tables; the side drawing's, ALL-31),
  * leaning aft 9° from the crest to the sills (CT156_BOW_LEAN, the same drawing's), so its feet stand about 0.3 ft behind
  * the crest's station, beside the coaming rather than on it. Seen from the seat it is a wide light
  * band lining the glass, with a ring of round dark holes and a dark tube along its inner edge (AETCMAN 11-248 Fig 2.7,
@@ -126,7 +125,7 @@ export const FORWARD_BOW_FT = Object.freeze({
  * about 0.5 ft aft of the origin), seen from the rear seat as a light band like the forward bow, 0.2 ft deep, with a
  * row of small fasteners along each edge and a dark tube along its inner edge, as the commercial T-6A shots from the
  * rear seat show (Dad's pictures 21 and 27). Sizes estimates. Its top leans aft as the model's hoop does
- * (CT156_FRAME_LEAN[1], the T-6A-1 side drawing's), its feet about 1 ft ahead of its crest.
+ * (CT156_FRAME_LEAN[1], the side drawing's), its feet about 1 ft ahead of its crest.
  */
 export const ARCH_FT = Object.freeze({
   x: CT156_FRAME_X[1] * F,
@@ -140,16 +139,16 @@ export const ARCH_FT = Object.freeze({
 
 /**
  * The front instrument panel's main face, feet: 4.44 ft ahead of the origin, from 0.22 ft up to 1.48 ft (just under the
- * coaming; 1.26 ft tall, the T-6A-1 panel diagram's, scaled by its 3-inch gauges; was 0.28 ft up, 1.2 ft tall),
+ * coaming; 1.26 ft tall, the panel drawing's, scaled by its 3-inch gauges; was 0.28 ft up, 1.2 ft tall),
  * 2.3 ft across at most and kept 0.06 ft inside the canopy. The coaming's aft edge is 2.13 ft (25.6 in) ahead of the
- * front eye, where the T-6A-1 side drawing shows it through the windscreen, ahead of the bow's feet (Patrick, 11 Oct
+ * front eye, where the side drawing shows it through the windscreen, ahead of the bow's feet (Patrick, 11 Oct
  * 2026: "the panel is drawn in the wrong spot"; was 4.02 ft, 0.31 to 1.51 ft, the coaming at the bow's station; ALL-31
  * had moved it 0.57 ft forward with the front seat from 3.45 ft), and the face sits OVERHANG_FT (3 in) ahead of that
  * edge, under the coaming (Patrick, 11 Oct 2026: "the glare shield is more than an inch"; his cockpit clip, where the
  * lip shows well clear of the EADI from below the eye; 3 in an estimate). The panel's width matches
- * the T-6A-1 panel diagram scaled by its 3-inch gauges (about 2.4 ft). Its outline is a tombstone: straight sides up
- * to 52 % of its height, then shoulders in to a flat top 38 % as wide, so the grab rail round it follows the T-6A-1's
- * front panel figure (Fig 1-1-3, scaled by its 3-inch gauges, 38 px to the inch: the rail's sides straight to about
+ * the panel drawing scaled by its 3-inch gauges (about 2.4 ft). Its outline is a tombstone: straight sides up
+ * to 52 % of its height, then shoulders in to a flat top 38 % as wide, so the grab rail round it follows the
+ * front panel drawing (scaled by its 3-inch gauges, 38 px to the inch: the rail's sides straight to about
  * 8 in up the face, then about 48° in to a flat top about 10 in across; Patrick, 11 Oct 2026, "make sure that the top
  * of the glareshield and the diagonals are scaled/angled/sized correctly"). Until V2.289 60 % and 55 % (TS-157, between
  * the T-6A panel poster's and the commercial render's, Dad's pictures 17 and 26), which put the shoulders about 2 in
@@ -170,12 +169,12 @@ export const PANEL_FT = Object.freeze({ x: COAMING_EDGE_X + OVERHANG_FT, top: 1.
  * moved forward, the rail kept 6° below the eye) and falling forward faster
  * than the eye's sight line over the rail, to 1.33 ft at 5.87 ft, just under the deck ahead of it, so from the seat the
  * rail stays the windscreen's bottom edge. ALL-31: the rail's top sits 6° below the front eye's level line, no higher
- * than the windscreen's foot seen from the eye (T-6A-1 side drawing), so the cowl's top shows over it and the spinner
+ * than the windscreen's foot seen from the eye (side drawing), so the cowl's top shows over it and the spinner
  * hides under the cowl (was 1.85 ft up at 3.35 ft, to 0.95 ft at 5.3 ft, TS-156's fit to AETCMAN 11-248 Fig 2.7); a lip hangs at
  * its aft edge with the three lamps on it, just deep enough to cover the EADI's top from the eye (Patrick's seat rule,
  * 11 Oct 2026; about 0.15 ft, lipDrop's estimate before). Shape judged off Dad's pictures 17, 18, 20 and 26; sizes estimates.
- * railOut: the grab rail's sides 0.05 ft inside the panel's edge, over its rim, where the T-6A-1 front panel figure
- * (Fig 1-1-3) draws them, 1.1 ft out from the middle (RIM_FT.sideOut, 0.05 ft outside it, until V2.289). cheeks: the
+ * railOut: the grab rail's sides 0.05 ft inside the panel's edge, over its rim, where the front panel drawing
+ * draws them, 1.1 ft out from the middle (RIM_FT.sideOut, 0.05 ft outside it, until V2.289). cheeks: the
  * coaming's dark sides out to the canopy's sills behind the rail (Patrick, 11 Oct 2026, "Dark sides", from his CT-156
  * cockpit photo; V2.289 left the windscreen's foot and the fuselage's inside showing past the narrower top).
  */
@@ -190,14 +189,14 @@ export const RIM_FT = Object.freeze({ aftOfGlareshield: 0.03, r: 0.045, sideOut:
 
 /**
  * The AOA indexer on the front coaming's left, feet: a dark box 0.19 ft (2.3 in) tall, 0.065 ft wide and 0.24 ft deep,
- * its three lamp windows on its aft face 0.057 ft apart and its dimmer knob on its inboard side, the T-6A-1 front
- * panel figure's size (Fig 1-1-3 item 36; Patrick, 11 Oct 2026, "sort out the scaling/positioning of the Aoa"). Until
+ * its three lamp windows on its aft face 0.057 ft apart and its dimmer knob on its inboard side, the front
+ * panel drawing's size (Patrick, 11 Oct 2026, "sort out the scaling/positioning of the Aoa"). Until
  * V2.293 0.23 ft (2.75 in) tall, 0.07 wide and 0.29 deep, from Patrick's cockpit clip: forward and high
  * (Patrick's cockpit clip, 11 Oct 2026: its height about 0.9 of the 3-inch airspeed indicator's case, nearer the eye by
  * about 8 %; the case's 3.1 in checked by the KLN 900 GPS's 3.75 in face height beside it. The back-seat photos and his
- * other pictures give its depth about 1.3 times its height. The T-6A-1 panel diagram draws it about 2.3 in; estimates
+ * other pictures give its depth about 1.3 times its height. The panel drawing shows it about 2.3 in; estimates
  * read to about ±0.15 in), its middle 0.15 ft ahead of the coaming's aft edge and 0.47 ft left of the middle (0.52 until V2.306; the panel figure overlaid on the front-on render puts it 0.05 ft further in), over the
- * glareshield's flat top where the T-6A-1 front panel figure draws it (Fig 1-1-3 item 36; 0.74 ft until V2.289, when the
+ * glareshield's flat top where the front panel drawing shows it (0.74 ft until V2.289, when the
  * top narrowed to the figure's; 0.62 ft on the rear hump; places estimates). It stands on a pod, its foot 0.01 ft (clear) over each seat's eye's sight line
  * across the grab rail beside it, so all three lamps show above the rail (Patrick, 11 Oct 2026), as the diagram and the
  * SMM's 220 KIAS picture (Fig 3.5) draw it.
@@ -207,7 +206,7 @@ export const AOA_INDEXER_FT = Object.freeze({ tall: 0.19, wide: 0.065, deep: 0.2
  * The standby compass at the coaming's right corner, feet: a wet compass, a dark ball 0.2 ft (2.4 in) across with a
  * round window facing aft, the card a ball 0.17 ft across floating inside it and turned by the heading (update(hud)),
  * the lubber line across the window, 0.1 ft ahead of the coaming's aft edge and 0.71 ft right of the middle (0.8 ft on
- * the rear hump), where the T-6A-1 front panel figure draws it (Fig 1-1-3 item 7; Patrick, 11 Oct 2026: "can we make
+ * the rear hump), where the front panel drawing shows it (Patrick, 11 Oct 2026: "can we make
  * the compas an actual sphere floating?" and "sort out the scaling/positioning of the Aoa and the compass"). It hangs
  * under a square flange 1.3 times its width across, the ball's top 0.14 of its radius up into it, the flange held by a
  * strap that runs 0.05 ft inboard and down onto the coaming, and a short dark cylinder (its light) under the ball, as
@@ -240,8 +239,8 @@ export const SEAT_FT = Object.freeze({
   headbox: { aft: SEAT_BACK_X[0], fore: SEAT_BACK_X[1] + 0.04, z0: 2.1, z1: 2.7, halfWidth: 0.4 }, // Martin-Baker headbox
   breakers: { y: 0.24, top: 2.95 }, // the canopy breakers on the headbox (Dad's picture 27)
   // The side consoles: tops 0.45 ft below the spinner's axis, 0.67 ft under the main face's bottom, so the lower panel's
-  // gear handle panel and park brake show above them as the T-6A-1 front panel figure draws them (Fig 1-1-3 items 13,
-  // 27); 0.48 ft wide, the console figure's proportions on our length, narrowed to clear the knee wells (Fig 1-1-5).
+  // gear handle panel and park brake show above them as the front panel drawing shows them;
+  // 0.48 ft wide, the console figure's proportions on our length, narrowed to clear the knee wells.
   // Patrick, 11 Oct 2026: "i almost feel like the whole dash has to come up a bit?". Until then 0.2 ft up (TS-157,
   // lowered from 0.35 ft with the deeper floor) and 0.35 ft wide. Estimates.
   console: { aft: 0.6, inner: 0.82, outer: 1.3, top: -0.45 },
@@ -481,7 +480,7 @@ export function createEyeLean() {
 }
 
 // ---------- the panel pictures ----------
-// Layout (V2.238): measured off the T-6A-1 front instrument panel diagram (NFTC 133-590008-3, cited only), drawn
+// Layout (V2.238): measured off the front instrument panel drawing (measured only), drawn
 // flat-on and scaled by its 3-inch gauges (31.6 px to the inch), each instrument's middle and size in inches from the
 // panel's middle line and the face's top, then turned into fractions of the front face (2.3 ft by 1.26 ft); the lamps
 // on the coaming's lip are the diagram's master warning panel. Nothing is copied from the diagram but sizes and
@@ -502,7 +501,7 @@ const PANEL_INSTRUMENTS = [
   { kind: 'eadi', u: 0.498, v: 0.805, w: 0.175, h: 0.356, live: 'eadi', frame: true },
   { kind: 'alt', u: 0.666, v: 0.837, s: 0.112, d: 0.096, live: 'alt' },
   { kind: 'label', u: 0.795, v: 0.771, w: 0.07, h: 0.04 },
-  { kind: 'lights', u: 0.111, v: 0.607, w: 0.026, h: 0.115, live: 'lights' }, // NWS over SPEED BRAKE (Fig 1-1-3 items 31, 30)
+  { kind: 'lights', u: 0.111, v: 0.607, w: 0.026, h: 0.115, live: 'lights' }, // NWS over SPEED BRAKE
   { kind: 'clock', u: 0.17, v: 0.646, w: 0.092, h: 0.107 },
   { kind: 'g', u: 0.262, v: 0.617, d: 0.077, live: 'g' },
   { kind: 'rmu', u: 0.357, v: 0.498, w: 0.097, h: 0.4, frame: true },
@@ -511,15 +510,15 @@ const PANEL_INSTRUMENTS = [
   { kind: 'eng', u: 0.792, v: 0.586, s: 0.112, name: 'TRQ' },
   { kind: 'eng', u: 0.669, v: 0.372, s: 0.1, name: 'ITT' },
   { kind: 'eng', u: 0.792, v: 0.372, s: 0.1, name: 'NP' },
-  { kind: 'elt', u: 0.902, v: 0.527, w: 0.076, h: 0.092 }, // the ELT switch (Fig 1-1-3 item 8)
-  { kind: 'deice', u: 0.909, v: 0.418, w: 0.076, h: 0.1 }, // the prop de-ice switch (Fig 1-1-3 item 10); no FIRE light here
-  { kind: 'slave', u: 0.904, v: 0.298, w: 0.08, h: 0.062 }, // the heading slave switches (Fig 1-1-3 item 12)
+  { kind: 'elt', u: 0.902, v: 0.527, w: 0.076, h: 0.092 }, // the ELT switch
+  { kind: 'deice', u: 0.909, v: 0.418, w: 0.076, h: 0.1 }, // the prop de-ice switch; no FIRE light here
+  { kind: 'slave', u: 0.904, v: 0.298, w: 0.08, h: 0.062 }, // the heading slave switches
   { kind: 'gps', u: 0.181, v: 0.397, w: 0.208, h: 0.248, frame: true }, // the KLN 900's face, 5.75 x 3.75 in (Patrick; maker's listing)
   { kind: 'audio', u: 0.24, v: 0.131, w: 0.233, h: 0.251 },
   { kind: 'asi', u: 0.408, v: 0.157, d: 0.08, live: 'asi' },
   { kind: 'stby', u: 0.502, v: 0.157, s: 0.092, d: 0.08, live: 'stby' },
   { kind: 'alt', u: 0.597, v: 0.157, d: 0.08, live: 'alt' },
-  { kind: 'turn', u: 0.684, v: 0.17, d: 0.074 }, // the turn coordinator (Fig 1-1-3 item 16)
+  { kind: 'turn', u: 0.684, v: 0.17, d: 0.074 }, // the turn coordinator
   { kind: 'placard', u: 0.684, v: 0.072, w: 0.062, h: 0.05 }, // its fuel placard
   { kind: 'placard', u: 0.048, v: 0.19, w: 0.055, h: 0.17 }, // the emergency gear placard over its handle
   { kind: 'annun', u: 0.846, v: 0.125, w: 0.214, h: 0.195 },
@@ -527,7 +526,7 @@ const PANEL_INSTRUMENTS = [
 ];
 
 /**
- * The audio control panel's knobs (Fig 1-1-3 item 25), each [across, down] as fractions of its box, its name and
+ * The audio control panel's knobs, each [across, down] as fractions of its box, its name and
  * whether it is a 3D knob standing proud (true) or a toggle drawn flat: two rows of four volume knobs, the VHF MIC/KEY
  * selector on the left and the bottom row's selector, toggles and intercom knob. Places read off the figure.
  */
@@ -538,7 +537,7 @@ const AUDIO_KNOBS = Object.freeze([
 ]);
 
 /** The live faces' windows in one shared picture (pixels); both seats' live instruments read the same windows. */
-/** The caution panel's lights, row by row as the panel figure names them (Fig 1-1-3 item 14). */
+/** The caution panel's lights, row by row as the panel figure names them. */
 const ANNUNCIATORS = Object.freeze([
   ['BAT BUS', 'GEN BUS', 'PMU FAIL', 'GEN', 'CKPT PX'],
   ['CANOPY', 'FUEL PX', 'OIL PX', 'OBOGS FAIL', 'CHIP'],
@@ -739,7 +738,7 @@ function ehsi(ctx, cx, cy, r, headingDeg) {
     }
   }
   ctx.restore();
-  // The course pointer and its deviation bar (green, as the T-6A-1 figure's EHSI, Fig 1-1-3 item 3), centred and on the
+  // The course pointer and its deviation bar (green, as the panel drawing's EHSI), centred and on the
   // nose: the sim has no course set, so it reads straight ahead, no deviation. The deviation dots either side.
   ctx.strokeStyle = '#2fd15a'; ctx.fillStyle = '#2fd15a'; ctx.lineWidth = Math.max(2, r * 0.045);
   ctx.beginPath(); ctx.moveTo(cx, cy - r * 0.76); ctx.lineTo(cx, cy - r * 0.42); ctx.moveTo(cx, cy + r * 0.42); ctx.lineTo(cx, cy + r * 0.76); ctx.stroke();
@@ -805,7 +804,7 @@ function toggle(ctx, x, y, r) {
 }
 
 /**
- * The EADI (T-6A-1 Fig 1-1-3 item 2) on its square screen `s`: a round attitude ball, black round it to the screen's
+ * The EADI on its square screen `s`: a round attitude ball, black round it to the screen's
  * corners (Patrick, 11 Oct 2026: "the instrument is square but the attitude indicator is round and the outside of it is
  * black"; V2.287 filled the whole screen), its sky and ground turning with the bank and moving with the pitch (5° marks,
  * 10° bars with their numbers each side), the bank scale fixed on an arc just outside the ball's top (10, 20, 30, 45 and
@@ -897,7 +896,7 @@ function arcGauge(ctx, cx, cy, r, name, bands = [[0, 0.8, '#2fbf4f'], [0.8, 1, '
 }
 
 /**
- * The engine displays, as the T-6A-1 panel figure lays them out (Fig 1-1-3 items 6, 15 and 11), drawn as their
+ * The engine displays, as the panel drawing lays them out, drawn as their
  * screens show them: `name` TRQ the primary engine display (the big torque dial, NP and IOAT digits, the ITT and N1
  * dials), ITT the engine and systems readouts (torque, N1, ITT, cabin altitude and pressure, the fuel quantity dial and
  * fuel flow) and NP the systems display (oil temperature and pressure and hydraulic pressure dials, volts and amps).
@@ -956,7 +955,7 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
   const r = Math.min(b.w, b.h) / 2;
   const rr = r / 1.12; // inside a round dial's bezel
   switch (kind) {
-    case 'deice': { // the prop de-ice panel (Fig 1-1-3 item 10): its placard, the ON/FAIL push-button, the monitor test switch
+    case 'deice': { // the prop de-ice panel: its placard, the ON/FAIL push-button, the monitor test switch
       ctx.fillStyle = '#1b1e22'; ctx.fillRect(b.x, b.y, b.w, b.h);
       label(ctx, 'PROP DE-ICE', cx, b.y + b.h * 0.12, b.h * 0.09, INK);
       const bx = b.x + b.w * 0.1, by = b.y + b.h * 0.24, bw = b.w * 0.42, bh = b.h * 0.42;
@@ -975,7 +974,7 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
     case 'aoa': // unlabelled scale, needle mid-scale: the sim has no angle of attack
       dial(ctx, { cx, cy, r: rr, from: 0, to: 1, sweepDeg: 270, startDeg: -135, major: 0.25, minor: 0.125, name: 'AOA', value: 0.5, readout: null, labelOf: () => '' });
       break;
-    case 'asi': // the electronic airspeed indicator (T-6A-1 Fig 1-1-3 item 34): 40 to 320 knots, the digital speed under the hub
+    case 'asi': // the electronic airspeed indicator: 40 to 320 knots, the digital speed under the hub
       dial(ctx, { cx, cy, r: rr, from: 40, to: 320, sweepDeg: 300, major: 40, minor: 10, name: 'KNOTS', value: h?.kias, readout: num(h?.kias), labelOf: (n) => String(n), labelScale: 0.72 });
       break;
     case 'alt': // the electronic altimeter (item 4): the needle on hundreds, the altitude to the foot in its window, the setting
@@ -991,7 +990,7 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
       bezel(ctx, cx, cy, rr);
       drawAttitude(ctx, cx, cy, rr * 0.94, h?.pitchDeg, h?.bankDeg);
       break;
-    case 'clock': { // the M850 chronometer (Fig 1-1-3 item 32): its LCD over the GMT LT FT ET marks, SELECT and CONTROL under
+    case 'clock': { // the M850 chronometer: its LCD over the GMT LT FT ET marks, SELECT and CONTROL under
       ctx.fillStyle = BEZEL; roundRect(ctx, b.x, b.y, b.w, b.h, b.w * 0.06); ctx.fill();
       screws(ctx, b.x, b.y, b.w, b.h, b.w * 0.07, Math.max(1.5, b.w * 0.025));
       label(ctx, 'M850', cx, b.y + b.h * 0.1, b.h * 0.07, INK);
@@ -1008,8 +1007,8 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
       label(ctx, 'DAVTRON', cx, b.y + b.h * 0.91, b.h * 0.06, INK);
       break;
     }
-    case 'lights': // the nosewheel steering light over the speed brake light (Fig 1-1-3 items 31, 30)
-      // The speed brake light is lit while the speed brake is out (T-6A-1 p. 1-39; Patrick, 11 Oct 2026 20:22Z: "the
+    case 'lights': // the nosewheel steering light over the speed brake light
+      // The speed brake light is lit while the speed brake is out (Patrick, 11 Oct 2026 20:22Z: "the
       // 'speed brake' light comes on in the cockpit"): the HUD's speedBrake. Lit green, the colour a GUESS (no page
       // gives it). NWS stays unlit (the sims fly, they don't taxi).
       for (const [k, name] of [[0, 'NWS'], [1, 'SPEED BRAKE']]) {
@@ -1021,7 +1020,7 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
         words.forEach((t, j) => label(ctx, t, b.x + b.w / 2, y + side * (0.5 + (j - (words.length - 1) / 2) * 0.24), side * 0.2, lit ? '#0b2410' : '#b9b48a'));
       }
       break;
-    case 'elt': // the ELT panel (Fig 1-1-3 item 8): its name over the XMT button and the ON/ARM switch, EMER USE ONLY under
+    case 'elt': // the ELT panel: its name over the XMT button and the ON/ARM switch, EMER USE ONLY under
       ctx.fillStyle = '#1b1e22'; ctx.fillRect(b.x, b.y, b.w, b.h);
       screws(ctx, b.x, b.y, b.w, b.h, b.h * 0.1, Math.max(1.5, b.h * 0.04));
       label(ctx, 'ELT', cx, b.y + b.h * 0.12, b.h * 0.11, INK);
@@ -1032,7 +1031,7 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
       label(ctx, 'ARM', b.x + b.w * 0.68, b.y + b.h * 0.74, b.h * 0.09, INK);
       label(ctx, 'EMER USE ONLY', cx, b.y + b.h * 0.9, b.h * 0.08, INK);
       break;
-    case 'slave': { // the heading slave panel (Fig 1-1-3 item 12): a small square button, the DG/SLVD and CW/CCW buttons
+    case 'slave': { // the heading slave panel: a small square button, the DG/SLVD and CW/CCW buttons
       ctx.fillStyle = '#1b1e22'; roundRect(ctx, b.x, b.y, b.w, b.h, b.h * 0.3); ctx.fill();
       ctx.fillStyle = '#3c4147'; ctx.fillRect(b.x + b.w * 0.2, b.y + b.h * 0.4, b.w * 0.1, b.h * 0.22);
       for (const [x, top, bottom] of [[0.48, 'DG', 'SLVD'], [0.7, 'CW', 'CCW']]) {
@@ -1044,7 +1043,7 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
       }
       break;
     }
-    case 'turn': { // the turn coordinator (Fig 1-1-3 item 16): the little aeroplane wings level, L and R marks, the ball
+    case 'turn': { // the turn coordinator: the little aeroplane wings level, L and R marks, the ball
       bezel(ctx, cx, cy, rr);
       ctx.fillStyle = FACE; ctx.beginPath(); ctx.arc(cx, cy, rr * 0.94, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = INK; ctx.lineWidth = Math.max(1.5, rr * 0.05);
@@ -1087,7 +1086,7 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
       label(ctx, '--- NM', sc.x + sc.w * 0.96, sc.y + sc.h * 0.95, sc.h * 0.045, INK, 'right');
       break;
     }
-    case 'rmu': { // the radio management unit (Fig 1-1-3 item 24): its five radio lines, line keys each side, keys and knob under it
+    case 'rmu': { // the radio management unit: its five radio lines, line keys each side, keys and knob under it
       ctx.fillStyle = BEZEL; ctx.fillRect(b.x, b.y, b.w, b.h);
       label(ctx, 'BENDIX KING', cx, b.y + b.h * 0.035, b.h * 0.022, DIM);
       const sc = screen(ctx, b.x + b.w * 0.13, b.y + b.h * 0.06, b.w * 0.74, b.h * 0.58, '#0a0f0b');
@@ -1119,7 +1118,7 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
       knob(ctx, b.x + b.w * 0.62, b.y + b.h * 0.88, b.w * 0.15);
       break;
     }
-    case 'gps': { // the KLN 900 GPS (Fig 1-1-3 item 29): its two-page screen, the keys under it, a big knob each side
+    case 'gps': { // the KLN 900 GPS: its two-page screen, the keys under it, a big knob each side
       ctx.fillStyle = '#1b1e22'; ctx.fillRect(b.x, b.y, b.w, b.h);
       screws(ctx, b.x, b.y, b.w, b.h, b.h * 0.06, Math.max(1.5, b.h * 0.025));
       const sc = screen(ctx, b.x + b.w * 0.18, b.y + b.h * 0.08, b.w * 0.64, b.h * 0.46, '#0a0f0b');
@@ -1155,7 +1154,7 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
     case 'eng': // the engine displays (static: the sim has no engine numbers, so every number is dashes)
       engineDisplay(ctx, screen(ctx, b.x, b.y, b.w, b.h, '#050709'), inst.name);
       break;
-    case 'audio': { // the audio control panel (Fig 1-1-3 item 25): its knobs' wells and names (the knobs stand proud in 3D)
+    case 'audio': { // the audio control panel: its knobs' wells and names (the knobs stand proud in 3D)
       ctx.fillStyle = '#1b1e22'; ctx.fillRect(b.x, b.y, b.w, b.h);
       screws(ctx, b.x, b.y, b.w, b.h, b.h * 0.06, Math.max(1.5, b.h * 0.025));
       label(ctx, 'AUDIO', cx, b.y + b.h * 0.06, b.h * 0.06, INK);
@@ -1169,7 +1168,7 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
       }
       break;
     }
-    case 'annun': { // the caution panel (Fig 1-1-3 item 14): five across, six down, each with its name, all unlit
+    case 'annun': { // the caution panel: five across, six down, each with its name, all unlit
       ctx.fillStyle = '#1b1e22'; ctx.fillRect(b.x, b.y, b.w, b.h);
       screws(ctx, b.x, b.y, b.w, b.h, b.h * 0.07, Math.max(1.5, b.h * 0.025));
       const x0 = b.x + b.w * 0.1, y0 = b.y + b.h * 0.1, cw = (b.w * 0.8) / 5, ch = (b.h * 0.8) / 6;
@@ -1233,7 +1232,7 @@ function drawStaticPanel(ctx, width, height, instruments, faceW, faceH) {
 }
 
 /**
- * The lower panel's picture (both seats), laid out as the T-6A-1 front panel figure draws it (Fig 1-1-3, measured at
+ * The lower panel's picture (both seats), laid out as the front panel drawing shows it (measured at
  * the main face's scale; places read off the figure, nothing copied): on the pedestal the EFIS control panel's keys and
  * knobs (item 18), lower down the defog switch, vent lever and round ECS vent (items 19 to 21); left of the left knee
  * well the landing gear panel (item 27: its two lights, the handle's slot, the warning silence button and the striped
@@ -1276,8 +1275,8 @@ function drawLowerPanel(ctx, width, height) {
 }
 
 /**
- * The power lever (PCL) on the left console, feet, shaped as the T-6A-1 power lever figure draws it (Fig 1-1-11
- * detail A) and placed as the console figure draws it from above (Fig 1-1-5; Patrick, 11 Oct 2026: "you can do better
+ * The power lever (PCL) on the left console, feet, shaped as the power lever drawing shows it
+ * and placed as the console figure draws it from above (Patrick, 11 Oct 2026: "you can do better
  * than that on the pcl. Make it accurate", then "The pcl shape still isn't right either. Make the handle exactly like
  * the picture"). Across the console (fractions, 0 its outboard edge): the lever's slot at `stem.across`, the quadrant's
  * hood inboard of it carrying MAX at its forward end and the friction adjust tab at its aft end (forward cockpit only),
@@ -1303,7 +1302,7 @@ const PCL_FT = Object.freeze({
 });
 
 /**
- * Where the console figure (T-6A-1 Fig 1-1-5) puts things, as fractions: `along` 0 at a console's aft end and 1 at
+ * Where the console figure puts things, as fractions: `along` 0 at a console's aft end and 1 at
  * the panel, `across` 0 at its outboard edge (left console) or inboard edge (right console), as the figure draws them
  * from above. The left console's panels, aft to forward: anti-G test, maintenance (anti-G hookup, firewall shutoff
  * handle), battery breakers, system test, canopy fracture, seat adjust, the power lever and flap selector, the left
@@ -1323,7 +1322,7 @@ const CONSOLE_PANELS = Object.freeze({
 });
 
 /**
- * The side consoles' tops (both seats), the console figure's layout (CONSOLE_PANELS; T-6A-1 Fig 1-1-5, places read off
+ * The side consoles' tops (both seats), the console figure's layout (CONSOLE_PANELS; places read off
  * it, nothing copied): the left console in the left half (u 0 its outboard edge), the right in the right half (u 0.5 its
  * inboard edge), aft (v 0) to forward (v 1). Dark panels with screws, breaker grids, toggles, knobs and the striped
  * handles' panels; the 3D parts stand on them (seatParts). Until 11 Oct 2026 drawn by eye off Dad's pictures 17, 26, 29.
@@ -1521,8 +1520,8 @@ function cheekHalf(h, ts, x) {
   return Array.from({ length: 7 }, (_, k) => [lerp(y0, y1, k / 6), lerp(z0, z1, k / 6) + bulge * Math.sin((Math.PI * k) / 6)]);
 }
 /**
- * The lower panel's half-width, feet: out to 1.25 ft each side, as the T-6A-1 front panel figure draws it below the
- * main face (Fig 1-1-3, measured at the main face's scale; until 11 Oct 2026 as wide as the main face).
+ * The lower panel's half-width, feet: out to 1.25 ft each side, as the front panel drawing shows it below the
+ * main face (measured at the main face's scale; until 11 Oct 2026 as wide as the main face).
  */
 const LOWER_PANEL_FT = Object.freeze({ halfWidth: 1.25 });
 /** A coaming's surface height at (x, y), feet (for standing things on it), on its sides too where it has them. */
@@ -1762,7 +1761,7 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     put(box(THREE, p.x + k.depth - 0.2, p.x + k.depth - 0.15, mid - 0.15, mid + 0.15, floor + 0.12, floor + 0.62), SLOT.black);
     put(box(THREE, p.x + k.depth - 0.15, p.x + k.depth, mid - 0.03, mid + 0.03, floor + 0.3, floor + 0.36), SLOT.dark);
   }
-  // The park brake handle right of the right knee well, under its placard (Fig 1-1-3 item 13): a dark boss and a flat
+  // The park brake handle right of the right knee well, under its placard: a dark boss and a flat
   // paddle leaning inboard.
   {
     const by = -1.11, bz = p.bottom - 0.18;
@@ -1794,8 +1793,8 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   const lipDrop = front ? lipToCover(h, eye, p, zOf, faceW, faceH) : h.lipDrop;
   put(loft(THREE, [hoodSection(h, ts, h.aftX), hoodSection(h, ts, h.aftX, -lipDrop)], { closed: false }), SLOT.black);
   // The three lamps on a light strip on the lip, under the rail (Dad's pictures 17, 18, 26; AETCMAN 11-248 Fig 2.7): the
-  // T-6A-1 panel figure's master warning panel (Fig 1-1-3 item 1), MASTER WARN red on the left, MASTER CAUTION amber in the
-  // middle and FIRE red on the right (Fig 1-1-3 item 1; was amber). Centred over the EADI, 1.4 in apart on a strip
+  // panel drawing's master warning panel, MASTER WARN red on the left, MASTER CAUTION amber in the
+  // middle and FIRE red on the right (was amber). Centred over the EADI, 1.4 in apart on a strip
   // about 4.8 in across (Patrick, 11 Oct 2026: "the three lights above the eadi are misaligned"; V2.289 had them where
   // the figure draws them, off the middle, and until then 1.9 in apart on a 10 in strip; front seat).
   const lx = h.aftX - 0.003, lz = h.top - lipDrop / 2 - 0.015;
@@ -1891,8 +1890,8 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     if (display) {
       const pad = inst.s ? BEZEL_FT * 0.5 : BEZEL_FT;
       put(displayFrame(THREE, p.x - 0.002, yc, zc, o.w / 2, o.h / 2, pad), SLOT.dark);
-      // The EADI's and EHSI's push-buttons on the frame either side of the screen (the photo; the T-6A-1 panel
-      // diagram's DIM, CMP, GPS and APR), light squares: [side (+1 the pilot's left), fraction down from the top].
+      // The EADI's and EHSI's push-buttons on the frame either side of the screen (the photo; the panel
+      // drawing's DIM, CMP, GPS and APR), light squares: [side (+1 the pilot's left), fraction down from the top].
       const buttons = { eadi: [[1, 0.12], [1, 0.88], [-1, 0.72], [-1, 0.88]], ehsi: [[1, 0.1], [1, 0.22], [1, 0.9], [-1, 0.74], [-1, 0.9]] }[inst.kind] ?? [];
       for (const [side, at] of buttons) {
         const by = yc + side * (o.w / 2 + pad / 2), bz = zc + o.h / 2 - at * o.h, b = pad * 0.32;
@@ -1928,10 +1927,10 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     const eg = PANEL_INSTRUMENTS.find((i) => i.kind === 'emerGear');
     const y = yOf(eg.u), z = zOf(eg.v);
     striped.push(box(THREE, p.x - 0.12, p.x - 0.01, y - 0.012, y + 0.012, z - 0.012, z + 0.012), box(THREE, p.x - 0.14, p.x - 0.11, y - 0.06, y + 0.06, z - 0.018, z + 0.018));
-    const gy = 1.09, gz = p.bottom - 0.27; // the handle's place on its panel (Fig 1-1-3 item 27)
+    const gy = 1.09, gz = p.bottom - 0.27; // the handle's place on its panel
     put(box(THREE, p.x - 0.11, p.x, gy - 0.014, gy + 0.014, gz - 0.01, gz + 0.11), SLOT.metal);
     put(new THREE.CylinderGeometry(0.055, 0.055, 0.035, 16).rotateZ(Math.PI / 2).translate(p.x - 0.13, gy, gz + 0.11), SLOT.knob);
-  }  // The thumbwheel in its housing at the main face's right edge (Fig 1-1-3 item 9) and the G meter's push-to-set knob
+  }  // The thumbwheel in its housing at the main face's right edge and the G meter's push-to-set knob
   // at its lower right (item 33), as the panel figure draws them.
   {
     const y = yOf(0.972), z = zOf(0.43);
