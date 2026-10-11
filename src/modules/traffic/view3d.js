@@ -269,6 +269,32 @@ function propBlurMap(THREE) {
   return map;
 }
 
+/**
+ * The satellite photo's colour grade (TR-143; Patrick, 11 Oct: "Colour-grade the photo ... so the grass gets greener, the fields
+ * richer and the concrete brighter"). Esri's photo comes out hazy and flat, so grass and concrete read as near the same grey. Applied
+ * to every photo layer in the shader, on the photo's own colours before the slope shading. Values are estimates, set by eye on
+ * CYMJ; all three at 1 gives the photo as it was.
+ */
+export const PHOTO_GRADE = Object.freeze({ contrast: 1.18, saturation: 1.35, gamma: 0.92 });
+function gradePhoto(material) {
+  const { contrast, saturation, gamma } = PHOTO_GRADE;
+  if (contrast === 1 && saturation === 1 && gamma === 1) return material;
+  const f = (n) => n.toFixed(3);
+  material.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+  {
+    vec3 c = pow(max(diffuseColor.rgb, vec3(0.0)), vec3(1.0 / 2.2)); // to display tones
+    c = (c - 0.5) * ${f(contrast)} + 0.5;
+    float luma = dot(c, vec3(0.299, 0.587, 0.114));
+    c = mix(vec3(luma), c, ${f(saturation)});
+    c = pow(clamp(c, 0.0, 1.0), vec3(${f(gamma)}));
+    diffuseColor.rgb = pow(c, vec3(2.2));
+  }`);
+  };
+  material.customProgramCacheKey = () => 'photo-grade';
+  return material;
+}
+
 function propBlurMaterial(THREE) {
   const map = propBlurMap(THREE);
   return new THREE.MeshBasicMaterial({
@@ -645,7 +671,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
 
   // Outermost photo ring (OUTER_PHOTO_SPAN_FT), under everything else
   const outerGeometry = new THREE.PlaneGeometry(OUTER_PHOTO_SPAN_FT, OUTER_PHOTO_SPAN_FT);
-  const outerMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.95, depthWrite: false, fog: false, side: THREE.DoubleSide });
+  const outerMaterial = gradePhoto(new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.95, depthWrite: false, fog: false, side: THREE.DoubleSide }));
   const outerMesh = new THREE.Mesh(outerGeometry, outerMaterial);
   outerMesh.renderOrder = -5;
   outerMesh.visible = false;
@@ -653,13 +679,13 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
 
   // Satellite photo ground plane
   const photoGeometry = new THREE.PlaneGeometry(PHOTO_SPAN_FT, PHOTO_SPAN_FT);
-  const photoMaterial = new THREE.MeshBasicMaterial({
+  const photoMaterial = gradePhoto(new THREE.MeshBasicMaterial({
     transparent: true,
     opacity: 0.95,
     depthWrite: false,
     fog: false,
     side: THREE.DoubleSide,
-  });
+  }));
   const photoMesh = new THREE.Mesh(photoGeometry, photoMaterial);
   // The ground photos are see-through, so they draw in a fixed order, coarsest first and sharpest on top;
   // left to sort by distance from the camera they swap, and a coarser one could hide a sharper one (Patrick 18:59Z).
@@ -670,7 +696,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
 
   // Middle tier (Performance): sharper imagery for about three miles round the field
   const midGeometry = new THREE.PlaneGeometry(MID_SPAN_FT, MID_SPAN_FT);
-  const midMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.97, depthWrite: false, fog: false, side: THREE.DoubleSide });
+  const midMaterial = gradePhoto(new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.97, depthWrite: false, fog: false, side: THREE.DoubleSide }));
   const midMesh = new THREE.Mesh(midGeometry, midMaterial);
   midMesh.renderOrder = -3;
   midMesh.visible = false;
@@ -682,7 +708,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   const patternMid = PATTERN_MID_QUADS.map((q) => {
     const geometry = new THREE.PlaneGeometry(PATTERN_MID_SPAN_FT / 2, PATTERN_MID_SPAN_FT / 2, GROUND_CELLS, GROUND_CELLS);
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(geometry.attributes.position.count * 3).fill(1), 3));
-    const material = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.97, depthWrite: true, fog: false, side: THREE.DoubleSide });
+    const material = gradePhoto(new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.97, depthWrite: true, fog: false, side: THREE.DoubleSide }));
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = 'pattern-ground';
     mesh.renderOrder = -3;
@@ -737,7 +763,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
 
   // Sharpest tier: zoom-18 imagery over the runways and flight line (transparent until tiles arrive)
   const tightGeometry = new THREE.PlaneGeometry(TIGHT_SPAN_FT, TIGHT_SPAN_FT);
-  const tightMaterial = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide });
+  const tightMaterial = gradePhoto(new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide }));
   const tightMesh = new THREE.Mesh(tightGeometry, tightMaterial);
   tightMesh.renderOrder = -1;
   tightMesh.visible = false;
@@ -745,13 +771,13 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
 
   // High-resolution core ground mesh (Runways, taxiways, ramp)
   const coreGeometry = new THREE.PlaneGeometry(AIRFIELD_CORE_BOUNDS_FT.width, AIRFIELD_CORE_BOUNDS_FT.height);
-  const coreMaterial = new THREE.MeshBasicMaterial({
+  const coreMaterial = gradePhoto(new THREE.MeshBasicMaterial({
     transparent: true,
     opacity: 0.98,
     depthWrite: false,
     fog: false,
     side: THREE.DoubleSide,
-  });
+  }));
   const coreMesh = new THREE.Mesh(coreGeometry, coreMaterial);
   coreMesh.renderOrder = -2;
   coreMesh.visible = false;
