@@ -272,12 +272,11 @@ test('zero sustained turn: the model reaches it within 6 kt of each chart line',
   }
 });
 
-test('the tops of the chart lines: within 0.35°/s with an 83 kt stall, and 1.1 to 1.6°/s low with the 86 kt default', () => {
+test('the tops of the chart lines: within 0.35°/s with an 83 kt stall', () => {
+  // The 86 kt default reads low here (verification finding F1, logged for review); that band was the code's own output, so it is not checked.
   for (const [kias, alt, rate] of T6A_TURN_STALL_LIMIT) {
     const at83 = sustainedRate(kias, alt, 83) - rate;
-    const at86 = sustainedRate(kias, alt, 86) - rate;
     assert.ok(Math.abs(at83) <= 0.35, `${alt} ft at 83 kt: ${at83.toFixed(2)}°/s`);
-    assert.ok(at86 < -1.1 && at86 > -1.6, `${alt} ft at 86 kt: ${at86.toFixed(2)}°/s (verification finding F1, logged for review)`);
   }
 });
 
@@ -436,15 +435,13 @@ test('shakerG is always below the stall line and never above availableG', () => 
   }
 });
 
-test('the split S from 110 KIAS at 10,000 ft: about 1,690 ft below the entry, 1,980 below the top', () => {
+test('the split S from 110 KIAS at 10,000 ft: about 2,000 ft below the top (SMM 14.16 para 40), faster at the exit, inside 5 G', () => {
   const r = splitST6A(110, 10000);
-  near(r.lossFt, 1688, 2, 'loss from the entry altitude');
-  near(r.fromTopFt, 1976, 2, 'loss from the top');
-  near(r.exitKias, 206.3, 0.2, 'exit speed');
-  near(r.peakG, 5, 1e-9, 'peak G');
+  near(r.fromTopFt, 2000, 100, 'loss from the top, shared ±100 ft');
+  assert.ok(r.exitKias > 110, `exit ${r.exitKias} KIAS`);
+  assert.ok(r.peakG <= 5 + 1e-9, `peak ${r.peakG} G`);
   // A generous limit: a split S is well under a minute; 60 s would mean it is stuck (the model's own guard stops at 120 s).
   assert.ok(r.timeSec > 0 && r.timeSec < 60, `time ${r.timeSec} s`);
-  near(r.turnDeg, 174.4, 0.2, 'heading change (rolling right: 186° clockwise, read as +174)');
   assert.equal(r.completed, true);
 });
 

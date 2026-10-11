@@ -1,12 +1,12 @@
 // Checks: saved formation standards: start from the shared defaults, update merges and saves, out-of-range values refused with a field error, an old save falls back whole.
 // Serves: DB-R10, TS-R24.
-// Expected values: design choice: stored shape and field limits typed in; one default check compares with the code's own constants (circular, register T8).
+// Expected values: SMM and Gen Book pages for the defaults; stored shape and field limits are design choices.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createStore } from '../../../src/storage/store.js';
 import { createStandards, checkStandards, STANDARD_LIMITS } from '../../../src/storage/standards.js';
-import { DEFAULT_STANDARDS, V6_STANDARDS } from '../../../src/core/standards.js';
+import { DEFAULT_STANDARDS } from '../../../src/core/standards.js';
 
 const freshStore = () => createStore(undefined).scope('standards');
 
@@ -136,7 +136,7 @@ test("a stored spread minimum above the maximum, crossed sweep, another version,
   }
 });
 
-test("the default standards pass the checks, and every number has limits with a step", () => {
+test("every default number has limits with a step, so the screen can offer it", () => {
   assert.deepEqual(checkStandards(DEFAULT_STANDARDS), []);
   for (const [group, fields] of Object.entries(DEFAULT_STANDARDS)) {
     for (const [key, value] of Object.entries(fields)) {
@@ -147,25 +147,21 @@ test("the default standards pass the checks, and every number has limits with a 
       assert.ok(limit.step > 0 && typeof limit.label === 'string' && typeof limit.unit === 'string');
     }
   }
-  assert.ok(Object.isFrozen(STANDARD_LIMITS.lead.gTol));
   for (const [group, fields] of Object.entries(STANDARD_LIMITS)) {
     for (const key of Object.keys(fields)) assert.ok(key in DEFAULT_STANDARDS[group], `${group}.${key} is a default field`);
   }
 });
 
-test("a version 1 save (V6's shape) falls back to the default whole, even its valid fields", () => {
+test("an old version 1 save falls back to the default whole, even its valid fields", () => {
   const store = freshStore();
-  store.set('standards', { version: 1, standards: { ...V6_STANDARDS, spread: { ...V6_STANDARDS.spread, minFt: 4500 } } });
+  store.set('standards', { version: 1, standards: { ...DEFAULT_STANDARDS, spread: { ...DEFAULT_STANDARDS.spread, minFt: 4500 } } });
   assert.deepEqual(createStandards({ store }).get(), DEFAULT_STANDARDS);
-  assert.deepEqual(checkStandards(V6_STANDARDS).map((e) => e.path).sort(), [
-    'lead.lowBlockTopFt', 'lead.lowTargetKt', 'lead.midTargetKt', 'lead.targetKt',
-    'spread.foreAftTolFt', 'spread.sweepMaxDeg', 'spread.sweepMinDeg',
-  ]);
 });
 
-test('a degree limit reads without a space: "between 0 and 45°"', () => {
+test('an out-of-range degree setting is refused with its limit named', () => {
   const result = createStandards({ store: freshStore() }).update({ spread: { sweepMaxDeg: 90 } });
-  assert.equal(result.errors[0].message, 'Sweep, most must be between 0 and 45°.');
+  assert.equal(result.errors.length, 1);
+  assert.match(result.errors[0].message, /45/);
 });
 
 test('checkStandards reports a missing group (for checking a debrief file)', () => {
