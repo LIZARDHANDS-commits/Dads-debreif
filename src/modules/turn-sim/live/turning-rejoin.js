@@ -471,12 +471,8 @@ const REJOIN_WAYS = Object.freeze({
       lineDeg: TURNING_REJOIN.lineDeg,
       side: s,
       captureAlongFt: initialRange < 2000 ? initialRange : undefined,
-      windowFt: 1200,
-      carrotWindowFt: 250,
+      ...TURNING_REJOIN.fwApproach, // window, close aim point, decision point, cone ease start and capture distance
       coneEase: true,
-      decisionFt: 1000,
-      coneEaseFarFt: 1500,
-      captureFt: 250,
       bankCapDeg,
       floorKias: KIAS_OUTSIDE_LAB,
       initialPclMax: hardSec === 0,
@@ -494,7 +490,7 @@ const REJOIN_WAYS = Object.freeze({
       coneAlt: true,
       coneEnergy: true,
       slowStage: 'power',
-      bankCapDeg: WING_BANKS.fwFollowBankCapDeg ?? 45,
+      bankCapDeg: WING_BANKS.fwFollowBankCapDeg,
       rejoin: true,
       floorKias: leastKias,
     })],
@@ -779,7 +775,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
     overKt: lineKias - KIAS_OUTSIDE_LAB,
     stable: true,
     establishedRange: first.run.establishedRange,
-    rideEstablished: (to === 'fw' || first.run.rideEstablished || pointed) && lineKias <= (TURNING_REJOIN.rideKias ?? 210) + 5.5 && (to !== 'fw' || partMinKias >= 195),
+    rideEstablished: (to === 'fw' || first.run.rideEstablished || pointed) && lineKias <= TURNING_REJOIN.rideKias + TURNING_REJOIN.windowEntryOverKt && (to !== 'fw' || partMinKias >= TURNING_REJOIN.fwLeastKias),
   };
 
   const remainderRun = {
