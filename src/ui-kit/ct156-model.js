@@ -331,16 +331,17 @@ function tailCanvas(number) {
     leaf(ctx, w * 0.36, h * 0.13, h * 0.085, '#d8202c');
     natoStar(ctx, w * 0.64, h * 0.13, h * 0.075);
     outlinedText(ctx, String(number), w / 2, h * 0.52, h * 0.66, 9);
-    // Canadian flag and the serial.
+    // Canadian flag and the serial, the two centred under the number.
     // Larger than before (TS-156), so a close wingman can read it: about 0.3 ft tall on the fin, an estimate.
     const fy = h * 0.9;
-    ctx.fillStyle = '#e4212d'; ctx.fillRect(w * 0.06, fy - 12, 40, 24);
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(w * 0.06 + 10, fy - 12, 20, 24);
-    leaf(ctx, w * 0.06 + 20, fy, 8, '#e4212d');
     ctx.font = '800 44px Arial, Helvetica, sans-serif';
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    const fx = (w - 48 - ctx.measureText(ct156Serial(number)).width) / 2;
+    ctx.fillStyle = '#e4212d'; ctx.fillRect(fx, fy - 12, 40, 24);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(fx + 10, fy - 12, 20, 24);
+    leaf(ctx, fx + 20, fy, 8, '#e4212d');
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(ct156Serial(number), w * 0.06 + 48, fy + 2);
+    ctx.fillText(ct156Serial(number), fx + 48, fy + 2);
   };
 }
 
@@ -860,7 +861,10 @@ function buildKit(THREE) {
     triB: both((side) => patch(THREE, -0.151, -0.016, 0.022, 0.022, side, fuseSurf)),
     triC: both((side) => patch(THREE, -0.033, -0.016, 0.015, 0.015, side, fuseSurf)),
     nose: both((side) => patch(THREE, 0.425, cheatZ(0.425), 0.036, 0.045, side, fuseSurf)),
-    tail: both((side) => patch(THREE, -0.687, 0.108, 0.105, 0.165, side, finSurf)),
+    // Centred on the fin's mid-chord (nearly upright, the leading edge swept back and the trailing edge forward) and on
+    // the fin above the tail cone (Patrick, 11 Oct 2026: "central on the vertical stab, not right on the edge"; was 0.03
+    // units aft, at the trailing edge).
+    tail: both((side) => patch(THREE, -0.655, 0.115, 0.105, 0.165, side, finSurf)),
     // Upper left wing: seen from above, nose up, right = -Y.
     roundelWing: wingPatch(THREE, 0.04, 0.42, 0.14, 0.14, [0, -1], [1, 0], 1, DIHEDRAL),
     // Under the right wing: seen from below with the nose up, it reads left to right.
