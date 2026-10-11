@@ -6,6 +6,7 @@
 import { renameDfp, setDfpNote, sortDfps, DFP_LIMITS } from './dfp.js';
 import { MAX_DEBRIEF_BYTES } from '../../flight-data/debrief-file.js';
 import { weatherForFile } from './weather/saved-radar.js';
+import { SHIFT_LIMITS, readTimings } from './gps-timing.js';
 
 const PREFIX = 'standards.';
 /** The playback time, seconds since 1970 (the debrief file's DFP time limit). */
@@ -22,6 +23,14 @@ export const WEATHER_KEY = 'savedWeather';
 /** Each ship's GPS puck seat in the file (DB-23): "puck.1" to "puck.4", "front" or "rear"; a ship with none set has no key. */
 const PUCK_PREFIX = 'puck.';
 const PUCK_RULE = { type: 'string', oneOf: ['front', 'rear'] };
+/**
+ * Each ship's timestamp choices in the file (DB-25): "timestamps.1" to "timestamps.4" is "recorded" when the ship is kept
+ * as recorded, and "timeShift.1" to "timeShift.4" its shift in seconds; a ship on the defaults has no keys.
+ */
+const STAMPS_PREFIX = 'timestamps.';
+const STAMPS_RULE = { type: 'string', oneOf: ['recorded'] };
+const SHIFT_PREFIX = 'timeShift.';
+const SHIFT_RULE = { type: 'number', min: SHIFT_LIMITS.min, max: SHIFT_LIMITS.max };
 
 /**
  * The rules readDebriefFile checks the file's settings against, from
@@ -29,11 +38,17 @@ const PUCK_RULE = { type: 'string', oneOf: ['front', 'rear'] };
  * length a file the tool opens can have, so a block over the length
  * saved-radar.js allows reaches its checks and is left out with a line (the
  * file reader would drop it without a word). saved-radar.js checks the inside.
- * `pucks`: also keep each ship's GPS puck seat (DB-23).
+ * `pucks`: also keep each ship's GPS puck seat (DB-23) and timestamp choices (DB-25).
  */
 export function settingsRules(limits, { weather = false, pucks = false } = {}) {
   const rules = { [TIME_KEY]: TIME_RULE };
-  if (pucks) for (let slot = 1; slot <= 4; slot++) rules[`${PUCK_PREFIX}${slot}`] = PUCK_RULE;
+  if (pucks) {
+    for (let slot = 1; slot <= 4; slot++) {
+      rules[`${PUCK_PREFIX}${slot}`] = PUCK_RULE;
+      rules[`${STAMPS_PREFIX}${slot}`] = STAMPS_RULE;
+      rules[`${SHIFT_PREFIX}${slot}`] = SHIFT_RULE;
+    }
+  }
   if (weather) rules[WEATHER_KEY] = { type: 'string', max: MAX_DEBRIEF_BYTES };
   for (const [group, fields] of Object.entries(limits)) {
     rules[`${PREFIX}${group}.on`] = { type: 'boolean' };
@@ -64,9 +79,10 @@ export function weatherSettingOf(text, settings) {
 /**
  * The settings saved in the file: every standard, flattened, the time,
  * `weather` (the saved radar's block as text, savedToSetting) when there is one,
- * and each ship's GPS puck seat that is set (`pucks` { slot: 'front' | 'rear' }, DB-23).
+ * each ship's GPS puck seat that is set (`pucks` { slot: 'front' | 'rear' }, DB-23), and each ship's timestamp choices
+ * away from the defaults (`timings` { slot: { recorded?, shiftS? } }, DB-25).
  */
-export function sessionSettings(standards, t, weather = '', pucks = {}) {
+export function sessionSettings(standards, t, weather = '', pucks = {}, timings = {}) {
   const out = {};
   for (const [group, fields] of Object.entries(standards)) {
     for (const [key, value] of Object.entries(fields)) out[`${PREFIX}${group}.${key}`] = value;
@@ -74,7 +90,22 @@ export function sessionSettings(standards, t, weather = '', pucks = {}) {
   if (Number.isFinite(t)) out[TIME_KEY] = t;
   if (weather) out[WEATHER_KEY] = weather;
   for (const [slot, seat] of Object.entries(pucks ?? {})) if (seat) out[`${PUCK_PREFIX}${slot}`] = seat;
+  for (const [slot, one] of Object.entries(readTimings(timings))) {
+    if (one.recorded) out[`${STAMPS_PREFIX}${slot}`] = 'recorded';
+    if (one.shiftS) out[`${SHIFT_PREFIX}${slot}`] = one.shiftS;
+  }
   return out;
+}
+
+/** The file's timestamp choices as { slot: { recorded?, shiftS? } }, or null when the file names none (DB-25). */
+export function timingsFromSettings(settings) {
+  const raw = {};
+  for (let slot = 1; slot <= 4; slot++) {
+    if (settings[`${STAMPS_PREFIX}${slot}`] === 'recorded') (raw[slot] ??= {}).recorded = true;
+    if (Number.isFinite(settings[`${SHIFT_PREFIX}${slot}`])) (raw[slot] ??= {}).shiftS = settings[`${SHIFT_PREFIX}${slot}`];
+  }
+  const out = readTimings(raw);
+  return Object.keys(out).length ? out : null;
 }
 
 /** The file's GPS puck seats as { slot: seat }, or null when the file names none (DB-23). Checked by settingsRules already. */

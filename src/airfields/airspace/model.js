@@ -1,12 +1,12 @@
-// What the SOF's 3D view draws for airspace and the TACNAV routes, decided without a page (SPEC-sof, "3D view", SOF-39, phase 3):
-// whether an airspace entry (airspace-data.js) is fit to draw, its floor and ceiling in feet above sea level, the words on its
-// label, its outline in the map's feet, and which of the Debrief's routes are the TACNAV ones. Pure: entries and numbers go in,
-// plain data comes out. airspace3d.js only draws it.
+// What a 3D view draws for airspace and the TACNAV routes, decided without a page (SPEC-sof, "3D view", SOF-39, phase 3; shared with the
+// Debrief since 10 Oct 2026, SOF-63, DB-24): whether an airspace entry (data.js) is fit to draw, its floor and ceiling in feet above sea
+// level, the words on its label, its outline in the map's feet, and which of the Debrief's routes are the TACNAV ones. Pure: entries and
+// numbers go in, plain data comes out. ui-kit/airspace3d.js only draws it. The SOF cuts the list to its square itself
+// (src/modules/sof/airspace-square.js); the Debrief keeps what reaches its flight's area (`airspaceNear`, below).
 //
 // The 3D view is a picture for situational awareness. It is not a chart and not for navigation or flight planning: it checks no
 // limit and raises or clears no caution. A bad entry is skipped and named in the view's key, never drawn wrong.
-import { FT_PER_NM } from './map-view.js';
-import { clipLine } from './weather3d-model.js';
+import { FT_PER_NM } from '../../core/units.js';
 
 /** The top of the view: an unlimited ceiling (`UNL`) is drawn up to here, in feet above sea level (SOF-39). */
 export const VIEW_TOP_FT = 60_000;
@@ -170,45 +170,6 @@ export function outlineXY(entry, toXY) {
   const last = ring[ring.length - 1];
   if (ring.length > 3 && first[0] === last[0] && first[1] === last[1]) ring.pop();
   return ring;
-}
-
-/**
- * The entries the 3D view draws for the square it shows (`halfFt` its half width, feet from home; the "3D area" setting, Dad 8 Oct 2026). An airspace file can cover more
- * than the square (the FAA files cover the largest choice, 900 NM): an area (polygon or circle) is kept when its outline's bounds reach into the square, as the FAA tool keeps
- * the ones whose box reaches its own (an area across the edge is drawn whole); a line (a military training route) is cut at the square's edge, each piece inside its own
- * entry ("IR123 (part 2)" for a second piece), back in lat and lon with `toLatLon(x, y)`. An entry whose shape cannot be read is passed on as it is, for `checkedAirspace`
- * to name. `toXY(lat, lon)` gives [x, y] in feet.
- */
-export function airspaceInSquare(list, { toXY, toLatLon, halfFt }) {
-  const out = [];
-  for (const entry of Array.isArray(list) ? list : []) {
-    let xy;
-    try {
-      xy = outlineXY(entry, toXY);
-    } catch {
-      out.push(entry);
-      continue;
-    }
-    if (!xy.length || xy.some(([x, y]) => !Number.isFinite(x) || !Number.isFinite(y))) {
-      out.push(entry);
-      continue;
-    }
-    if (entry.shape.type === 'line') {
-      const pieces = clipLine(xy, halfFt);
-      pieces.forEach((piece, n) => {
-        const points = piece.map(([x, y]) => {
-          const { lat, lon } = toLatLon(x, y);
-          return [lat, lon];
-        });
-        out.push({ ...entry, id: n === 0 ? entry.id : `${entry.id} (part ${n + 1})`, shape: { ...entry.shape, points } });
-      });
-      continue;
-    }
-    const xs = xy.map((p) => p[0]);
-    const ys = xy.map((p) => p[1]);
-    if (Math.max(...xs) >= -halfFt && Math.min(...xs) <= halfFt && Math.max(...ys) >= -halfFt && Math.min(...ys) <= halfFt) out.push(entry);
-  }
-  return out;
 }
 
 /** The hover sentence for a volume: what it is, its colour in words, its limits and its source. */

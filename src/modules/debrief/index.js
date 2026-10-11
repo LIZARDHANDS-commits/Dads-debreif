@@ -20,8 +20,12 @@ import { createStandardsPanel } from './standards-panel.js';
 import { createLayout, shipSwatch } from './layout.js';
 import { createPuckPanel } from './puck-panel.js';
 import { withPucks, readPucks, puckSeat, puckStorageKey } from './puck.js';
+import { withTimings, readTimings, timingStorageKey } from './gps-timing.js';
 import { createMapView } from './map2d/view.js';
 import { createView3d } from './view3d/view.js';
+import { createFlightSpace, toXYFor } from './airspace.js';
+import { groundLevel } from './view3d/ground.js';
+import { AIRPORTS } from '../../airfields/airports-data.js';
 import { CAMERA_ALLOWED } from './view3d/camera-modes.js';
 import { tennisAt } from './tennis.js';
 import { createTennisPanel } from './tennis-panel.js';
@@ -44,7 +48,7 @@ import {
 import { metarLineAt } from './weather/metar.js';
 import { nearestAirfield, reportTicks, tickLabel } from './weather/slices.js';
 import { gibsSource, satelliteKept, satelliteNote, SATELLITE_LAYERS } from './weather/satellite.js';
-import { TIME_KEY, weatherSettingOf, buildDebriefFile, settingsRules, sessionSettings, standardsPatch, dfpsForFile, dfpsFromFile, debriefFileName, pucksFromSettings } from './debrief-session.js';
+import { TIME_KEY, weatherSettingOf, buildDebriefFile, settingsRules, sessionSettings, standardsPatch, dfpsForFile, dfpsFromFile, debriefFileName, pucksFromSettings, timingsFromSettings } from './debrief-session.js';
 import { createSavedRadarFeed, offerState } from './weather/saved-radar-feed.js';
 import { radarKept, framesToDraw, savedNoteLine, savedFromSetting, droppedNotice, SAVED_ALPHA } from './weather/saved-radar.js';
 
@@ -68,7 +72,14 @@ function mount(root, app) {
   const dfpPanel = createDfpPanel({ time: app.time, on: dfpActions() });
   const filePanel = createFilePanel({ layout, canExample, on: fileActions() });
   const tennisPanel = createTennisPanel({ controls, layout });
-  const puckPanel = createPuckPanel({ layout, swatch: shipSwatch, on: { set: (slot, seat) => setPuck(slot, seat) } });
+  const puckPanel = createPuckPanel({
+    layout, swatch: shipSwatch,
+    on: {
+      set: (slot, seat) => setPuck(slot, seat),
+      setTimestamps: (slot, value) => setTiming(slot, { recorded: value === 'recorded' }),
+      setShift: (slot, value) => setTiming(slot, { shiftS: Number(value) }),
+    },
+  });
   const ui = createLayout({
     layout, controls, bar, canExample, listen: app.listen,
     flightExtras: [puckPanel.element, filePanel.element],
@@ -83,6 +94,20 @@ function mount(root, app) {
   let baseFlight = null;
   let pucks = {};
   let puckKey = null;
+  // The GPS timestamps (DB-25): each ship's choices away from the defaults ({ slot: { recorded?, shiftS? } }) and where
+  // they are kept. Applied to baseFlight first (the puck move and the gap fill read the times), then the pucks.
+  let timings = {};
+  let timingKey = null;
+  /** baseFlight retimed (DB-25) and then moved from its pucks (DB-23): the flight every view shows. */
+  const sourceFlight = (base, t, p) => {
+    let timed = base;
+    try {
+      timed = withTimings(base, t);
+    } catch (err) {
+      if (err?.name !== 'KmlError') throw err; // shifted so far the tracks no longer overlap: as recorded
+    }
+    return withPucks(timed, p);
+  };
   // Whether the saved radar offer was pressed for this flight: only then is its line read out.
   let offerPressed = false;
   let clock = null;
@@ -170,7 +195,47 @@ function mount(root, app) {
     ui.setSavedWeather({ offer, note });
   }
 
+  // Airspace and airfields round the flight (DB-24): the SOF's shared data, picked for this flight's area. The files load
+  // only once Airspace is on; a landing or failed file redraws and updates the menus' line. Never holds up the flight.
+  const space = createFlightSpace({ onChange: () => { renderSpace(); redraw(); } });
+  function spaceState() {
+    const on = layout.get();
+    if (!flight) return null;
+    if (on.airspace) space.want();
+    return space.state({ fieldFt: homeFieldFt(), hidden: on.airspaceHidden });
+  }
+  // The ground the tracks recorded (DB-26): worked out once per flight shown (and home field), for the 3D view's ground and its runways' heights.
+  let groundHeld = { flight: null, fieldFt: null, value: null };
+  function groundNow() {
+    if (!flight) return null;
+    const fieldFt = homeFieldFt();
+    if (groundHeld.flight !== flight || groundHeld.fieldFt !== fieldFt) {
+      groundHeld = { flight, fieldFt, value: groundLevel(flight, { fieldFt, airports: AIRPORTS, toXY: toXYFor(flight.ref) }) };
+    }
+    return groundHeld.value;
+  }
+  // AGL airspace limits are taken above homeFieldFt() (the home field's elevation, or Moose Jaw's), as the SOF does.
+  // What the views draw: null with both switches off; the key names everything the 3D view builds from (the runways move with the tracks' ground).
+  function spaceNow() {
+    const on = layout.get();
+    if (!flight || (!on.airspace && !on.airfields)) return null;
+    const st = spaceState();
+    return {
+      key: `${st.key}|${on.airspace}|${on.airfields}|${st.airfields.length}|${groundNow()?.shiftFt ?? 0}`,
+      toXY: space.toXY,
+      fieldFt: homeFieldFt(),
+      shiftFt: groundNow()?.shiftFt ?? 0,
+      airspace: on.airspace ? st.volumes : null,
+      airfields: on.airfields ? st.airfields : null,
+    };
+  }
+  function renderSpace() {
+    ui.setSpace(flight ? spaceState() : null);
+    ui.setGround(groundNow()?.words ?? '');
+  }
+
   const map = createMapView(ui.canvas, {
+    space: () => spaceNow(),
     tennis: tennisNow,
     fills: shownFills,
     timers: app.scheduler,
@@ -208,6 +273,7 @@ function mount(root, app) {
 
   const view3d = createView3d(ui.canvas3d, {
     tennis: tennisNow,
+    space: () => spaceNow(),
     fills: shownFills,
     // The model wind at a time and height, { dirDeg, kt } (true "from", knots), or null: the cockpit's crab and airspeed (DB-21).
     wind: (t, altFt) => leadWindVector(t, altFt),
@@ -219,6 +285,8 @@ function mount(root, app) {
     settings: () => layout.get(),
     // The field datum is the home field's elevation, or Moose Jaw's until one is set.
     fieldFt: () => app.airfields?.home()?.elevationFt ?? FIELD_ELEVATION_FT,
+    // The ground the tracks recorded (DB-26): Chase and Cockpit stand on it, and the "From the tracks" ground setting.
+    ground: () => groundNow(),
     setCamera: (patch) => layout.update(patch),
     // three.js couldn't load (offline on a first visit) or there's no WebGL 2: say so and stay in 2D (D141).
     onUnavailable: (message) => {
@@ -422,7 +490,7 @@ function mount(root, app) {
   }
 
   // Swaps in a new flight only once it has loaded completely (D54). A
-  // session is { flight, dfps?, t?, pucks? }: DFPs, a time and GPS puck seats from a debrief file.
+  // session is { flight, dfps?, t?, pucks?, timings? }: DFPs, a time, GPS puck seats and timestamp choices from a debrief file.
   function show(session) {
     stopFrames?.();
     stopFrames = null;
@@ -432,8 +500,11 @@ function mount(root, app) {
     puckKey = puckStorageKey(fingerprint);
     pucks = readPucks(session.pucks ?? app.storage.get(puckKey, {}));
     if (session.pucks) app.storage.set(puckKey, pucks); // an opened debrief file's choice wins, as its DFPs do
-    flight = withPucks(baseFlight, pucks);
-    puckPanel.render(baseFlight, pucks);
+    timingKey = timingStorageKey(fingerprint);
+    timings = readTimings(session.timings ?? app.storage.get(timingKey, {}));
+    if (session.timings) app.storage.set(timingKey, timings);
+    flight = sourceFlight(baseFlight, timings, pucks);
+    puckPanel.render(flight, pucks, timings);
     clock = createClock({ startT: flight.startT, endT: flight.endT });
     if (Number.isFinite(session.t)) clock.seek(session.t);
     stopClock = clock.onChange(onClock);
@@ -447,9 +518,11 @@ function mount(root, app) {
     setDfps(session.dfps ?? readStoredDfps(app.storage.get(dfpKey, [])), { changed: Boolean(session.dfps) });
     unsaved = false;
     bar.setClock(clock);
+    space.setFlight(flight);
     map.setFlight(flight);
     ui.showFlight(flight);
     filePanel.setFlight(true);
+    renderSpace();
     flightCount++;
     gapFill = { result: null, running: false, key: '' };
     refill();
@@ -466,7 +539,35 @@ function mount(root, app) {
     else delete next[slot];
     pucks = next;
     if (puckKey) app.storage.set(puckKey, pucks);
-    flight = withPucks(baseFlight, pucks);
+    reshowSource();
+  }
+
+  // A ship's timestamp choice or time shift changed (DB-25): as a puck change, from the as-loaded fixes.
+  function setTiming(slot, patch) {
+    if (!baseFlight) return;
+    const next = { ...timings, [slot]: { ...timings[slot], ...patch } };
+    timings = readTimings(next);
+    if (timingKey) app.storage.set(timingKey, timings);
+    reshowSource();
+  }
+
+  // The shown flight worked out again from the as-loaded fixes and handed to every view; the playback time, the
+  // camera, the DFPs and the weather stay. A time shift can move the playback window by a second or two: the clock is
+  // then made again over the new window, at the same moment and speed. The gap fill works its answer out again.
+  function reshowSource() {
+    flight = sourceFlight(baseFlight, timings, pucks);
+    if (clock && (clock.startT !== flight.startT || clock.endT !== flight.endT)) {
+      const old = clock;
+      stopFrames?.();
+      stopFrames = null;
+      stopClock?.();
+      clock = createClock({ startT: flight.startT, endT: flight.endT });
+      clock.setSpeed(old.speed);
+      clock.seek(old.t);
+      stopClock = clock.onChange(onClock);
+      bar.setClock(clock);
+      if (old.playing) clock.play();
+    }
     map.setFlight(flight, { keepView: true });
     ui.showFlight(flight);
     flightCount++;
@@ -490,6 +591,8 @@ function mount(root, app) {
     baseFlight = null;
     pucks = {};
     puckKey = null;
+    timings = {};
+    timingKey = null;
     puckPanel.render(null);
     clock = null;
     metars.setFlight(null);
@@ -502,9 +605,11 @@ function mount(root, app) {
     setDfps([], { changed: false });
     unsaved = false;
     bar.setClock(null);
+    space.setFlight(null);
     map.setFlight(null);
     ui.showFlight(null);
     ui.setGapFill(null);
+    renderSpace();
     filePanel.setFlight(false);
     renderReadouts();
     ui.setMessage(null);
@@ -556,7 +661,7 @@ function mount(root, app) {
         if (!flight) return;
         try {
           const kept = savedRadar.state().saved;
-          const write = (weather) => toDebriefFile(flight, dfpsForFile(dfps), sessionSettings(currentStandards(), clock.t, weather, pucks));
+          const write = (weather) => toDebriefFile(flight, dfpsForFile(dfps), sessionSettings(currentStandards(), clock.t, weather, pucks, timings));
           // The opener refuses a file over MAX_DEBRIEF_BYTES (counted in bytes), so a save that would be is made without the radar.
           const built = buildDebriefFile({
             write, weather: kept, window: { startT: flight.startT, endT: flight.endT }, maxBytes: MAX_DEBRIEF_BYTES, sizeOf: (text) => new Blob([text]).size,
@@ -584,14 +689,15 @@ function mount(root, app) {
           return { flight: next, opened, text };
         }, ({ flight: next, opened, text }) => {
           const filePucks = pucksFromSettings(opened.settings); // null when the file names none: the browser's choice stands
-          flight = withPucks(next, filePucks ?? {}); // leadAt reads it for the DFP flags
+          const fileTimings = timingsFromSettings(opened.settings); // the same for the timestamps (DB-25)
+          flight = sourceFlight(next, fileTimings ?? {}, filePucks ?? {}); // leadAt reads it for the DFP flags
           const patch = standardsPatch(opened.settings);
           if (patch && app.standards) app.standards.update(patch);
           // The saved radar is checked against this flight's own window; a bad block is left out, the rest opens.
           // Pictures outside the flight's window are left out and counted in a line (F4b); a block over the length or not
           // text (which the file reader drops unseen) is left out with a line too (F4a).
           const wx = savedFromSetting(weatherSettingOf(text, opened.settings), { startT: next.startT, endT: next.endT });
-          return { flight: next, pucks: filePucks, dfps: dfpsFromFile(opened.dfps, leadAt), t: opened.settings[TIME_KEY], weather: wx.saved, notice: wx.problem ?? (droppedNotice(wx.dropped) || undefined) };
+          return { flight: next, pucks: filePucks, timings: fileTimings, dfps: dfpsFromFile(opened.dfps, leadAt), t: opened.settings[TIME_KEY], weather: wx.saved, notice: wx.problem ?? (droppedNotice(wx.dropped) || undefined) };
         });
       },
       csv() {
@@ -702,6 +808,7 @@ function mount(root, app) {
       renderWindArrows();
     }
     renderSavedWeather();
+    renderSpace();
     redraw();
   });
 

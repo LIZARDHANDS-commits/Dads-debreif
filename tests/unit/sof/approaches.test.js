@@ -19,7 +19,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as KDLF_FILE from '../../../src/modules/sof/sites/approaches/kdlf.js';
 import { readApproachFile, fieldApproaches, approachGeometry, corridorCheck, finalOffsets } from '../../../src/modules/sof/approaches-model.js';
-import { AIRPORTS } from '../../../src/modules/sof/airports-data.js';
+import { AIRPORTS } from '../../../src/airfields/airports-data.js';
 import { createProjection } from '../../../src/modules/sof/map-view.js';
 import { FT_PER_NM } from '../../../src/core/units.js';
 import { compassDegFromVector, wrapDeg180 } from '../../../src/core/angles.js';

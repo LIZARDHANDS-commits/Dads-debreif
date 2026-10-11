@@ -13,7 +13,7 @@
 // SOF setting: references, not walls. The check uses the gust when one is reported ("gusting"); a variable (VRB) wind counts its full speed as
 // crosswind on every runway (the worst case); a direction varying between two bearings ("250V310") counts the worst crosswind across that arc.
 import { windTriangle } from '../../core/wind.js';
-import { AIRPORTS } from './airports-data.js';
+import { AIRPORTS } from '../../airfields/airports-data.js';
 import { notSetWords } from './limits-not-set.js';
 
 /** No level is ever passed: the levels a base with no weather limits checks against (`crosswindFor`'s `levels: false`). */

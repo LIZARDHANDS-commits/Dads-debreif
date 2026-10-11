@@ -68,11 +68,14 @@ export function shipsIn3d(flight, t, fills = null) {
 }
 
 /**
- * The ground datum in feet (V6 groundDatumAlt): 'min', the lowest
- * ship less 500 ft, down to a 500 ft step; 'field', the home field's
- * elevation; 'zero', sea level.
+ * The ground datum in feet (V6 groundDatumAlt): 'tracks', the ground the
+ * loaded tracks recorded (ground.js groundLevel, DB-26; `tracksFt`, the
+ * home field's elevation when not given); 'min', the lowest ship less
+ * 500 ft, down to a 500 ft step; 'field', the home field's elevation;
+ * 'zero', sea level.
  */
-export function groundDatumFt(ships, mode, fieldFt) {
+export function groundDatumFt(ships, mode, fieldFt, tracksFt = fieldFt) {
+  if (mode === 'tracks') return tracksFt;
   if (mode === 'field') return fieldFt;
   if (mode === 'zero') return 0;
   const alts = ships.map((s) => s.altFt).filter(Number.isFinite);
@@ -80,9 +83,9 @@ export function groundDatumFt(ships, mode, fieldFt) {
   return Math.floor((Math.min(...alts) - 500) / 500) * 500;
 }
 
-/** How a height above the datum is named: only the field makes it "AGL" (#27). */
+/** How a height above the datum is named: only the field and the tracks' ground make it "AGL" (#27, DB-26). */
 export function heightLabel(mode) {
-  return mode === 'field' ? 'ft AGL' : 'ft above datum';
+  return mode === 'field' || mode === 'tracks' ? 'ft AGL' : 'ft above datum';
 }
 
 /**

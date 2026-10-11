@@ -36,16 +36,26 @@ export function buildFlight(tracks) {
       }),
     };
   }
-  const span = slot => [out[slot].fixes[0].t, out[slot].fixes[out[slot].fixes.length - 1].t];
+  return { tracks: out, ref, ...playbackWindow(out) };
+}
+
+/**
+ * The shared playback window of placed tracks ({ slot: { fixes, ... } }): { startT, endT, cutTracks }, from the latest
+ * start to the earliest end, or a KmlError when they don't all overlap. buildFlight's, and again whenever a track's
+ * times change (timing.js retimeFlight).
+ */
+export function playbackWindow(tracks) {
+  const slots = Object.keys(tracks).map(Number).sort((a, b) => a - b);
+  const span = slot => [tracks[slot].fixes[0].t, tracks[slot].fixes[tracks[slot].fixes.length - 1].t];
   const startT = Math.max(...slots.map(s => span(s)[0]));
   const endT = Math.min(...slots.map(s => span(s)[1]));
-  if (!(endT > startT)) throw noOverlap(out, slots, span);
+  if (!(endT > startT)) throw noOverlap(tracks, slots, span);
   const cutTracks = [];
   for (const slot of slots) {
     const [a, b] = span(slot);
     if (a < startT || b > endT) cutTracks.push({ slot, beforeS: startT - a, afterS: b - endT });
   }
-  return { tracks: out, ref, startT, endT, cutTracks };
+  return { startT, endT, cutTracks };
 }
 
 /**

@@ -31,7 +31,7 @@ import { makeLocalRef, latLonToLocalFt, localFtToLatLon } from '../../core/geo.j
 import { FT_PER_NM } from '../../core/units.js';
 import { MAG_VARIATION_DEG_E } from './model-clouds.js';
 import { noSourceWords } from './sites/words.js';
-import { VIEW_TOP_FT } from './airspace-model.js';
+import { VIEW_TOP_FT } from '../../airfields/airspace/model.js';
 
 const MINUTE_MS = 60_000;
 /** Asked this often while the SOF is open (the 7 Oct brief: every 10 minutes). */

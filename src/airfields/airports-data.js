@@ -9,7 +9,10 @@
 // widths in feet. Runways OurAirports marks closed are left out (Vance 13/31, Whiting Field North 09/27 and 18/36, on 8 Oct 2026). Displaced
 // thresholds are not shown (OurAirports lists some at the US fields, such as Del Rio 13, 300 ft; the strip is drawn end to end). Check against the
 // Canada Flight Supplement or the FAA Chart Supplement before relying on any of it; these are for drawing only, never for planning.
-export const AIRPORTS = Object.freeze([
+import { RUNWAY_ENDS, RUNWAY_ENDS_SOURCES } from './runway-ends.js';
+
+/** OurAirports' airports and runways as downloaded (above); AIRPORTS below is what modules read. */
+export const OURAIRPORTS = Object.freeze([
   {
     icao: "CYMJ",
     name: "Moose Jaw Air Vice Marshal C. M. McEwen Airport",
@@ -423,6 +426,46 @@ export const AIRPORTS = Object.freeze([
     ],
   },
 ]);
+
+/** Each runway's source, in words for a key or a note, and its accuracy (runway-ends.js). */
+export { RUNWAY_ENDS_SOURCES };
+
+/**
+ * One airport with the best runway ends laid over OurAirports' (DB-26): a runway listed in runway-ends.js takes its ends' positions (and, where
+ * given, each end's elevation, displaced threshold and landing threshold, and the runway's width and length) from there; everything else, the
+ * true headings among them, stays OurAirports'. Every runway says where its ends came from: `source` 'patrick', 'faa-cifp' or 'ourairports'.
+ * A surveyed entry with an unusable position is ignored (the runway stays OurAirports'), so bad data never moves a strip.
+ */
+export function withBestEnds(airport, ends = RUNWAY_ENDS) {
+  const best = ends?.[airport.icao];
+  const usable = (e) => Number.isFinite(e?.lat) && Number.isFinite(e?.lon) && Math.abs(e.lat) <= 90 && Math.abs(e.lon) <= 180;
+  return {
+    ...airport,
+    runways: airport.runways.map((runway) => {
+      const got = best?.runways?.[runway.ends.join('/')];
+      if (!got || !usable(got.a) || !usable(got.b)) return { ...runway, source: 'ourairports' };
+      const end = (mine, theirs) => {
+        const { bearingMag, ...kept } = theirs; // the magnetic bearing is kept in the file for checking, not used
+        void bearingMag;
+        return { ...mine, ...kept, elevationFt: Number.isFinite(theirs.elevationFt) ? theirs.elevationFt : mine.elevationFt };
+      };
+      return {
+        ...runway,
+        ...(Number.isFinite(got.widthFt) && got.widthFt > 0 ? { widthFt: got.widthFt } : {}),
+        ...(Number.isFinite(got.lengthFt) && got.lengthFt > 0 ? { lengthFt: got.lengthFt } : {}),
+        a: end(runway.a, got.a),
+        b: end(runway.b, got.b),
+        source: best.source,
+      };
+    }),
+  };
+}
+
+/**
+ * The runway list every module reads (the SOF's crosswind check, runway in use and approaches, both modules' 3D airfields, the Debrief's map):
+ * OurAirports' airports with the best ends laid over (withBestEnds).
+ */
+export const AIRPORTS = Object.freeze(OURAIRPORTS.map((airport) => withBestEnds(airport)));
 
 /** The ICAOs of every airport above. */
 export const AIRPORT_IDS = Object.freeze(AIRPORTS.map((a) => a.icao));
