@@ -2,7 +2,7 @@
 
 Written by the Fable review thread, 11 Oct 2026, on Patrick's order (23:05Z: "We need a one-time-fable-refractor audit on traffic sim"). It follows the shape of the Formation one, `docs/modules/turn-sim/REFACTOR_HANDOVER_V2.304.md`: one audit, then a step-by-step handover, one pull request per step, each step a pure move proved by the same trace before and after.
 
-This file is the whole brief for the thread that builds it. Read `AGENTS.md`, this module's `README.md`, `plan.md` and `decisions.md` first. Search for existing flight math before writing new (`docs/modules/shared/` and `src/core/`). Patrick reads this plan before any build thread starts.
+This file is the whole brief for the thread that builds it. Read `AGENTS.md`, this module's `README.md`, `plan.md` and `decisions.md` first. Search for existing flight math before writing new (`docs/modules/shared/` and `src/core/`). Patrick reads this plan before any build thread starts. Core has its own companion plan, `docs/modules/shared/REFACTOR_HANDOVER_CORE_V2.350.md`, whose steps 1 and 2 run before this plan's step 2.
 
 ## 1. What this refactor is, and is not
 
