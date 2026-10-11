@@ -19,7 +19,7 @@ import { drawHud } from '../../ui-kit/hud.js';
 import { liftBankDeg } from './live/flight.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH, setCockpitView } from '../../ui-kit/ct156-model.js';
-import { createCt156Cockpit, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
+import { createCt156Cockpit, cockpitFovDeg, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
 import { EYE_OFFSET_FT } from './layout.js';
 
 /** The formation's height in the picture (feet). An aircraft with altAboveFt is drawn that far above or below it (the vertical miss). */
@@ -532,6 +532,8 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     }
     // With the cockpit interior (TS-154, TS-155) the eye is in the chosen seat, moved by its offsets, and the own aircraft
     // stays drawn round it; without it, the old eye point and the own aircraft hidden, as before.
+    p.fov = cockpitFovDeg(box.width, box.height); // from the seat, set by its height so a wide screen adds sides (Patrick, 11 Oct)
+    p.updateProjectionMatrix();
     const interior = gl.cockpit?.root === me;
     const seatEye = interior ? EYES_FT[gl.cockpit.seat] ?? EYES_FT.front : null;
     const eye = interior
