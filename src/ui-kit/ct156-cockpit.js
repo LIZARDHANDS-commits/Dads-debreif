@@ -1207,7 +1207,9 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     const mid = (Math.max(...ys) + Math.min(...ys)) / 2;
     put(loft(THREE, [arch.map(([y, z]) => [p.x + 0.004, y, z]), arch.map(([y, z]) => [p.x + k.depth, y, z])], { closed: false }), SLOT.black);
     put(flatAft(THREE, p.x + k.depth, arch), SLOT.black);
-    put(box(THREE, p.x + k.depth - 0.18, p.x + k.depth - 0.14, mid - 0.1, mid + 0.1, floor + 0.08, floor + 0.42), SLOT.dark);
+    // The rudder pedal: a broad black plate on its arm, as big as Patrick's CT-156 photo shows it (estimates).
+    put(box(THREE, p.x + k.depth - 0.2, p.x + k.depth - 0.15, mid - 0.15, mid + 0.15, floor + 0.12, floor + 0.62), SLOT.black);
+    put(box(THREE, p.x + k.depth - 0.15, p.x + k.depth, mid - 0.03, mid + 0.03, floor + 0.3, floor + 0.36), SLOT.dark);
   }
   // On the pedestal: the control box standing proud, under it the readout's hood.
   put(box(THREE, p.x - 0.05, p.x, -0.2, 0.2, p.bottom - 0.32, p.bottom - 0.04), SLOT.dark);
