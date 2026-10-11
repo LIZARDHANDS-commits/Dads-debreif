@@ -129,7 +129,12 @@ function elementTurning(c, into, s, slots, w) {
   const { ref } = slots[w.id];
   const body = ref === 1 ? null : (({ fwd, left, alt }) => ({ fwd, left, up: alt }))(inLeadFrame(slots, ref));
   const crossIn = relativeTo(c.start[0], c.by.get(w.id)).left * s < 0;
-  return { ...w, fly: twoTurning(c, into, s, 'echelon', Math.sign(slots[w.id].left), false, crossIn, true, body, ELEMENT) };
+  // To a place on the outside of the turn he crosses about two lengths behind Lead and slightly lower (SMM 16.34 para 96),
+  // #4 a little lower than #3: that point in the frame of the place he joins on. Until V2.299 he passed under that place
+  // itself, from #4 level with Lead and up to 172 ft behind him.
+  const lead = body ?? { fwd: 0, left: 0, up: 0 };
+  const crossAt = { fwd: -lead.fwd - TRJ.passBehindLengths * LENGTH_FT, left: -lead.left, up: -lead.up - CROSS_LOW_FT - (w.id === 4 ? FOUR_LOWER_FT : 0) };
+  return { ...w, fly: twoTurning(c, into, s, 'echelon', Math.sign(slots[w.id].left), false, crossIn, true, body, { ...ELEMENT, crossAt }) };
 }
 
 /**
@@ -149,8 +154,8 @@ function twoTurning(c, into, s, to, sTo, hot, crossIn = false, xLaw = hot, body 
     // stack the climb and the dive through Lead's height pushed to -0.5 G in the dry runs: none below VERTICAL_MIN_G.
     // He flies the 2-ship's X to the 250-100 ft window (TS-106, Lead fixed on the canopy): on the line law from line abreast
     // he ran 170 ft ahead of Lead's 3/9 line close in (V2.223 test), and from fighting wing to finger he ran up abeam route,
-    // dropped back 110 ft and passed 30 ft from #3 waiting behind Lead (V2.228). From Fluid 4 he keeps the line law to
-    // route (xLaw false): the X from there put him 20 ft behind Lead's tail.
+    // dropped back 110 ft and passed 30 ft from #3 waiting behind Lead (V2.228). From Fluid 4 he kept the line law to
+    // route until V2.299, which ran him 130 ft ahead of Lead's 3/9 line (Fable's v2294 flight); now the X from there too.
     pick ??= searchTurningRejoin({ ...args, into: on, hot, verticalMinG: VERTICAL_MIN_G, xLaw, crossIn, element }) ?? false;
     if (!pick) return null;
     const rec = placeRec(recs[1], body);
@@ -312,7 +317,7 @@ export function turningToFinger(start, t0, opts, s, from, sTo = s) {
     const route = slotsFor('route', sTo, { ships: 4 });
     const hot = abreast(from);
     const into = leadInto(c, s, 'finger', from === 'offsetBox' ? BOX_PAUSE_SEC : 0);
-    const two = { id: 2, fly: twoTurning(c, into, s, 'echelon', sTo, hot, false, from !== 'fluid4'), phases: () => [...comeOffFirst(c, 2, 1), toSlot(c, rejoinTo, fin[2], { advanceTol: 10 })] };
+    const two = { id: 2, fly: twoTurning(c, into, s, 'echelon', sTo, hot, false, true), phases: () => [...comeOffFirst(c, 2, 1), toSlot(c, rejoinTo, fin[2], { advanceTol: 10 })] };
     const far = (id) => (Math.abs(relativeTo(c.start[0], c.by.get(id)).left) > 3000 ? FAR_OVERTAKE_KIAS : REJOIN.overtakeKias);
     // Outside the turn: wait behind the place, then in through route (recipes.js closeThrough: close level or slightly low, then up).
     const outside = (id, gateId) => ({
@@ -378,7 +383,7 @@ export function turningToEchelon(start, t0, opts, s, from, sTo = s) {
     const ech4 = slotsFor('echelon', sTo, { ships: 4 });
     const into = leadInto(c, s, 'echelon', from === 'offsetBox' ? BOX_PAUSE_SEC : 0);
     const hot = abreast(from);
-    const two = { id: 2, fly: twoTurning(c, into, s, 'echelon', sTo, hot, false, from !== 'fluid4'), phases: () => [...comeOffFirst(c, 2, 1), toSlot(c, rejoinTo, ech4[2], { advanceTol: 10 })] };
+    const two = { id: 2, fly: twoTurning(c, into, s, 'echelon', sTo, hot, false, true), phases: () => [...comeOffFirst(c, 2, 1), toSlot(c, rejoinTo, ech4[2], { advanceTol: 10 })] };
     const far = (id) => (Math.abs(relativeTo(c.start[0], c.by.get(id)).left) > 3000 ? FAR_OVERTAKE_KIAS : REJOIN.overtakeKias);
     const line = pairSlot('route', sTo);
     const wing = (id, gateId) => ({
