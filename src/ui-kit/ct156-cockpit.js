@@ -2421,6 +2421,11 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   let shownAt = -Infinity;
   drawLive(live.ctx, null);
   live.texture.needsUpdate = true;
+  // Real-time shadows where a view switches them on (aircraft-shadows.js): the bows' and frames' shadows across the
+  // cockpit. Glass and the self-lit faces neither cast nor take them.
+  group.traverse((o) => {
+    if (o.isMesh) o.castShadow = o.receiveShadow = ![o.material].flat().some((m) => m?.transparent);
+  });
 
   return {
     group,

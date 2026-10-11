@@ -47,14 +47,39 @@ export function loadAo(THREE, file) {
 /**
  * A copy of `material` darkened by baked soft shadows, in the sun's light as well as the sky's (three.js's own aoMap
  * shades only the sky's light, and the sun is most of an aircraft's light). The part drawn with it needs a uv map.
+ * Optional, on the same uv map: `bump`, a relief picture (panel line grooves, rivets) bump-mapped at `bumpScale`; and
+ * `dirt`, a picture of where the aircraft weathers (0 clean, 1 dirty), which darkens the colour toward soot and dulls
+ * the gloss there (Patrick, 11 Oct 2026 21:07Z: "Surface texture").
  */
-export function aoShaded(material, ao) {
+export function aoShaded(material, ao, { bump = null, bumpScale = 1, dirt = null } = {}) {
   const m = material.clone();
   m.aoMap = ao;
+  if (bump) {
+    m.bumpMap = bump;
+    m.bumpScale = bumpScale;
+  }
   m.onBeforeCompile = (shader) => {
-    shader.fragmentShader = shader.fragmentShader.replace('#include <aomap_fragment>',
+    let fs = shader.fragmentShader.replace('#include <aomap_fragment>',
       '#include <aomap_fragment>\n#ifdef USE_AOMAP\n\treflectedLight.directDiffuse *= ambientOcclusion;\n\treflectedLight.directSpecular *= ambientOcclusion;\n#endif');
+    if (dirt) {
+      shader.uniforms.ct156Dirt = { value: dirt };
+      fs = fs.replace('#include <common>', '#include <common>\nuniform sampler2D ct156Dirt;')
+        .replace('#include <map_fragment>', `#include <map_fragment>
+#ifdef USE_AOMAP
+	float ct156DirtAt = texture2D( ct156Dirt, vAoMapUv ).r;
+	diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.11, 0.1, 0.085 ), 0.55 * ct156DirtAt ); // a dull brown-grey haze: lighter on dark paint, darker on light
+#endif`)
+        .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+#ifdef USE_AOMAP
+	roughnessFactor = mix( roughnessFactor, 0.85, ct156DirtAt );
+#endif`)
+        .replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
+#if defined( USE_AOMAP ) && defined( USE_CLEARCOAT )
+	material.clearcoat *= 1.0 - ct156DirtAt;
+#endif`);
+    }
+    shader.fragmentShader = fs;
   };
-  m.customProgramCacheKey = () => 'ct156-ao-direct';
+  m.customProgramCacheKey = () => `ct156-ao-direct${dirt ? '-dirt' : ''}`;
   return m;
 }

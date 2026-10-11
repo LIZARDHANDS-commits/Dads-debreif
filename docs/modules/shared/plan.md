@@ -38,6 +38,9 @@ The shared parts are the flight core (`src/core/`), the app frame and home scree
 - [ ] One colour for ship #4, white with an outline, in every module (issue #29).
 - [x] CT-156 outside details (Patrick, 11 Oct 2026 20:12Z to 20:32Z): the tie-down rings under the wings and the belly antennas where SMM Fig 12.12 and 12.13 show them, for the formation references; two TAS blades on the cowl; the exhaust's shape (T-6A-1 Fig 1-1-2); the white foot on the aft belly antenna; the main gear doors and the speed brake on the belly; better pilots. Built in the same pull request as this line (`src/ui-kit/ct156-model.js`).
 - [x] The speed brake on the model opens with the boards, and the SPEED BRAKE light comes on in the cockpit (Patrick, 11 Oct 2026 20:22Z): `setSpeedBrake(ship, out)` and `hud.speedBrake` in the shared 3D files.
+- [x] CT-156 surface texture and shading (Patrick, 11 Oct 2026 21:07Z card "Surface texture"): rivets and panel-line grooves bump-mapped, exhaust soot, belly oil and grime; the canopy bows flush with the glass (Patrick 21:07Z). Built in the same pull request as this line.
+- [ ] Real-time shadows in every 3D view (Patrick, 11 Oct 2026 21:10Z card "Every 3D view"): the shared helper `src/ui-kit/aircraft-shadows.js` is built; each module's thread switches it on in its own view (Formation, Traffic, Turn Fight, SOF, Debrief).
+- [ ] Research the airframe from photos to add detail, texture and shading inside and outside the cockpit (Patrick, 11 Oct 2026 21:18Z).
 - [ ] Formation's 3D view to call `setSpeedBrake` for each ship and pass `speedBrake` to the cockpit when the boards are out (Formation's file, `src/modules/turn-sim/view3d.js`; asked of the Formation thread).
 
 ## Step 4. Sign-off, with the combined sign-off of the whole tool

@@ -167,6 +167,8 @@ def emit_part(m, nt, em):
 
 bake_into(part_img, 'EMIT', 1, emit_part)
 part = np.floor(pixels(part_img)[..., 0] * 64).astype(int)
+if os.environ.get('CT156_DUMP'):  # for working on the pictures below without baking again
+    np.savez_compressed(os.environ['CT156_DUMP'], ao=ao, x=x, y=y, z=z, part=part)
 
 # ---------- panel lines ----------
 # Thin dark lines where the skin's panels and the control surfaces meet. Measured 11 Oct 2026 off the T-6A-1 Figure
@@ -213,25 +215,45 @@ STAB_TAB_S, STAB_TAB_F = (0.11, 0.48), 0.9
 # The fin (side view): the rudder behind FIN_HINGE; its trim tab behind FIN_TAB_F from the root up to FIN_TAB_TOP units.
 FIN_HINGE, FIN_TAB_F, FIN_TAB_TOP = 0.55, 0.88, 0.13
 
+# The skin's relief (Patrick, 11 Oct 2026 21:07Z card "Surface texture"), a second picture the app bump-maps: the
+# panel lines a groove, and a row of rivet heads each side of the lines marked with one, RIVET_PITCH_FT apart and
+# RIVET_OFFSET_FT off the line (estimates, typical of a riveted aluminium skin). A texel of the picture is about 0.3 in
+# on the skin, so each rivet is drawn a soft dot about 0.5 in across, bigger than a real 3/16 in head, or it wouldn't
+# show. Heights 0 to 1, the skin at HEIGHT_SKIN.
+HEIGHT_SKIN, HEIGHT_GROOVE, HEIGHT_RIVET = 0.6, 0.1, 0.9
+RIVET_PITCH_FT, RIVET_OFFSET_FT, RIVET_R_FT = 0.1, 0.06, 0.02
+
 w = LINE_WIDTH_FT * U
 lines = np.ones_like(ao)
+groove = np.zeros_like(ao)  # 0 to 1: how deep in a line's groove
+rivet = np.zeros_like(ao)  # 0 to 1: how high on a rivet's head
 ft_x = lambda ft: TIP_X - ft * U
 
 
-def draw(mask, dist):
-    """Darkens the texels within `mask` by how close `dist` (units) is to a line."""
+def draw(mask, dist, along=None):
+    """Darkens and grooves the texels within `mask` by how close `dist` (units) is to a line; with `along` (units along
+    the line), a row of rivets each side of it."""
     k = np.clip(1 - np.abs(dist) / (w / 2), 0, 1) * mask
     np.minimum(lines, 1 - (1 - LINE_DARK) * k, out=lines)
+    np.maximum(groove, k, out=groove)
+    if along is None:
+        return
+    pitch, r = RIVET_PITCH_FT * U, RIVET_R_FT * U
+    da = ((along / pitch) % 1 - 0.5) * pitch
+    for side in (-1, 1):
+        dd = dist - side * RIVET_OFFSET_FT * U
+        dot = np.exp(-(dd * dd + da * da) / (r * r)) * mask
+        np.maximum(rivet, dot, out=rivet)
 
 
-def oblong(mask, a, b, c, d, r):
+def oblong(mask, a, b, c, d, r, rivets=False):
     """A rounded oblong's outline, corners r: between a and b along the first axis, c and d along the second."""
     u0, u1 = a
     v0, v1 = c
     cu, cv, hu, hv = (u0 + u1) / 2, (v0 + v1) / 2, abs(u1 - u0) / 2, abs(v1 - v0) / 2
     qu, qv = np.abs(b - cu) - (hu - r), np.abs(d - cv) - (hv - r)
     dist = np.hypot(qu.clip(0), qv.clip(0)) + np.minimum(np.maximum(qu, qv), 0) - r
-    draw(mask, dist)
+    draw(mask, dist, np.where(qu > qv, d, b) if rivets else None)
 
 
 def chord_at(sections, s, half=True):
@@ -247,7 +269,7 @@ def between(v, a, b):
 
 fus = part == PART_IDS['fuselage']
 for ft in COWL_RINGS_FT:
-    draw(fus, x - ft_x(ft))
+    draw(fus, x - ft_x(ft), np.arctan2(z, np.abs(y)) * 1.3 * U)
 lo0, lo1 = COWL_LOWER_FT[2] * U, COWL_LOWER_FT[3] * U
 x0, x1 = ft_x(COWL_LOWER_FT[0]), ft_x(COWL_LOWER_FT[1])
 low_z = lo0 + (lo1 - lo0) * (x0 - x) / (x0 - x1)
@@ -255,7 +277,7 @@ draw(fus & (z > np.interp(ft_x(COWL_SPLIT_FT), [x1, x0], [lo1, lo0])), x - ft_x(
 draw(fus & between(x, ft_x(COWL_UPPER_FT[0]), ft_x(COWL_UPPER_FT[1])), z - COWL_UPPER_FT[2] * U)
 draw(fus & between(x, x0, x1), z - low_z)
 for f0, f1, top, bottom in PANELS_FT:
-    oblong(fus, (ft_x(f0), ft_x(f1)), x, (top * U, bottom * U), z, PANEL_CORNER_FT * U)
+    oblong(fus, (ft_x(f0), ft_x(f1)), x, (top * U, bottom * U), z, PANEL_CORNER_FT * U, rivets=True)
 
 air = part == PART_IDS['airframe']
 # The wings: span along the dihedral (the outer panel bends up at WING_BREAK); top or underside by the side of the
@@ -267,14 +289,14 @@ le, ch = chord_at(S['WING'], s)
 f = (le - x) / ch
 wing = air & (np.abs(z - plane) < 0.04) & (ay > 0.06) & (f > -0.02) & (f < 1.02)
 top, under = wing & (z > plane), wing & (z <= plane)
-draw(top & between(s, 0.06, TIP_CAP), x - WING_SPAR_X)
+draw(top & between(s, 0.06, TIP_CAP), x - WING_SPAR_X, s)
 draw(wing & between(s, AILERON_ROOT, TIP_CAP), (f - AILERON_HINGE) * ch)
 draw(wing & (f > AILERON_HINGE), s - AILERON_ROOT)
 draw(wing & between(s, AILERON_ROOT, TAB_S), (f - TAB_F) * ch)
 draw(wing & (f > TAB_F), s - TAB_S)
 draw(under & (s < AILERON_ROOT), (f - FLAP_HINGE) * ch)
 for sp in (S['WING_BREAK'], TIP_CAP):
-    draw(wing, s - sp)
+    draw(wing, s - sp, x)
 # The gear doors and the speed brake, drawn on whatever faces down there (the wing's underside or the belly's).
 below = (air | fus) & (z < S['WING_Z'] - 0.004) & (x < ft_x(12.0)) & (x > ft_x(19.0))
 for f0, f1, a, b in GEAR_DOORS_FT:
@@ -286,7 +308,7 @@ le, ch = chord_at(S['STAB'], ay)
 f = (le - x) / ch
 stab = air & (x < -0.5) & (np.abs(z - S['STAB'][0]['z']) < 0.03) & (ay > 0.035) & (f > -0.02) & (f < 1.02)
 horn = ay > half * (1 - STAB_HORN_SPAN)
-draw(stab & ~horn, (f - STAB_HINGE) * ch)
+draw(stab & ~horn, (f - STAB_HINGE) * ch, ay)
 draw(stab & horn, (f - STAB_HORN) * ch)
 draw(stab & between(f, STAB_HORN, STAB_HINGE), ay - half * (1 - STAB_HORN_SPAN))
 draw(stab & (f > STAB_HINGE), ay - 0.035)
@@ -298,7 +320,7 @@ for t in STAB_TAB_S:
 fin = part == PART_IDS['fin']
 le, ch = chord_at(S['FIN'], z, half=False)
 f = (le - x) / ch
-draw(fin & (z > 0.0), (f - FIN_HINGE) * ch)
+draw(fin & (z > 0.0), (f - FIN_HINGE) * ch, z)
 draw(fin & (z > 0.0) & (z < FIN_TAB_TOP), (f - FIN_TAB_F) * ch)
 draw(fin & (f > FIN_TAB_F), z - FIN_TAB_TOP)
 # The nose gear doors: the fairing under the nose split down its middle (ESTIMATE).
@@ -306,6 +328,47 @@ rows = np.array(S['STATIONS'])[::-1]
 nose = fus & between(x, ft_x(5.85), ft_x(10.5)) & (z < np.interp(x, rows[:, 0], rows[:, 3]) - 0.004)
 draw(nose, y)
 
+# ---------- dirt ----------
+# Where the aircraft weathers, 0 clean to 1 (Patrick, 11 Oct 2026 21:07Z card "Surface texture"): the app darkens and
+# dulls the paint there. The exhaust's soot in a streaky band along each side of the fuselage from the stacks aft,
+# sinking and spreading as it goes and fading over SOOT_FADE_FT; oil and exhaust stain along the belly from the
+# firewall aft; and a faint uneven grime everywhere, so the gloss isn't perfect. All estimates, kept light: CT-156
+# photos show clean aircraft with little staining (web photo research, 11 Oct 2026).
+SOOT_FROM_FT, SOOT_FADE_FT = 4.3, 7.0
+OIL_FROM_FT, OIL_FADE_FT, OIL_HALF_FT = 8.35, 9.0, 0.35
+GRIME = 0.07
+DIRT_SIZE = 1024
+painted = fus | air | (part == PART_IDS['fin'])
+dirt = painted * (GRIME * (1 + 0.6 * np.sin(x / U * 0.9 + 0.4) * np.sin(y / U * 1.3) + 0.4 * np.sin(z / U * 2.1 + x / U * 0.5)))
+dx = (ft_x(SOOT_FROM_FT) - x) / U
+zc, wd = (-0.15 - 0.05 * dx) * U, (0.35 + 0.07 * dx) * U
+streak = 0.8 + 0.2 * np.sin(z / U * 23.0 + 1.3) * np.sin(z / U * 9.0)
+soot = fus * (dx > 0) * np.clip(dx / 0.5, 0, 1) * np.exp(-((z - zc) / wd) ** 2 - dx.clip(0) / SOOT_FADE_FT) * streak
+rows_b = np.array(S['STATIONS'])[::-1]
+belly = np.interp(x, rows_b[:, 0], rows_b[:, 3])
+do = (ft_x(OIL_FROM_FT) - x) / U
+oil = fus * (do > 0) * (z < belly + 0.25 * U) * np.exp(-(y / (OIL_HALF_FT * U)) ** 2 - do.clip(0) / OIL_FADE_FT)
+oil *= 0.3 * (0.7 + 0.3 * np.sin(y / U * 40.0))
+dirt = np.clip(np.maximum(dirt, np.maximum(0.5 * soot, oil)), 0, 1)
+
+
+def save_grey(name, values, size):
+    """Saves a 0..1 picture (AO_SIZE square, averaged down to size) as a grey JPEG beside the model file."""
+    k = AO_SIZE // size
+    v = values.reshape(size, k, size, k).mean(axis=(1, 3)) if k > 1 else values
+    img = bpy.data.images.new(name, size, size)
+    px = np.ones((size, size, 4), dtype=np.float32)
+    px[..., 0] = px[..., 1] = px[..., 2] = np.clip(v, 0, 1)
+    img.pixels.foreach_set(px.ravel())
+    file = os.path.splitext(os.path.basename(out_path))[0] + f'-{name}.jpg'
+    was = scene.view_settings.view_transform
+    scene.view_settings.view_transform = 'Raw'  # the values as they are: these pictures are data, not colour
+    img.save_render(os.path.join(out_dir, file))
+    scene.view_settings.view_transform = was
+    print(f'baked {file}')
+
+
+height = HEIGHT_SKIN - (HEIGHT_SKIN - HEIGHT_GROOVE) * groove + (HEIGHT_RIVET - HEIGHT_SKIN) * rivet * (1 - groove)
 final = np.clip(ao * lines, 0, 1)
 out = np.ones((AO_SIZE, AO_SIZE, 4), dtype=np.float32)
 out[..., 0] = out[..., 1] = out[..., 2] = final
@@ -316,6 +379,8 @@ scene.render.image_settings.quality = 85
 ao_file = os.path.splitext(os.path.basename(out_path))[0] + '-ao.jpg'
 ao_img.save_render(os.path.join(out_dir, ao_file))
 print(f'baked {ao_file}')
+save_grey('bump', height, AO_SIZE)
+save_grey('dirt', dirt, DIRT_SIZE)
 
 # ---------- the parts again, each under its own name ----------
 for m in bpy.data.materials:

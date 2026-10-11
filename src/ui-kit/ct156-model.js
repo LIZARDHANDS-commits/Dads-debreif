@@ -557,6 +557,12 @@ export function ct156PiecesHash(pieces) {
 const EXTERIOR_PARTS = Object.freeze(['fuselage', 'fuselageCut', 'airframe', 'fin', 'frames', 'bowFront', 'seats', 'stubs', 'spinner', 'spinnerRing', 'vent', 'antenna', 'beacon']);
 const EXTERIOR_FILE = 'ct156-exterior.glb';
 const EXTERIOR_AO = 'ct156-exterior-ao.jpg';
+// The skin's relief (panel line grooves, rivets) and its weathering (exhaust soot, belly oil, faint grime), baked by the
+// same script on the same uv map (Patrick, 11 Oct 2026 21:07Z: "Surface texture"); BUMP_SCALE how strongly the relief
+// shows, by eye.
+const EXTERIOR_BUMP = 'ct156-exterior-bump.jpg';
+const EXTERIOR_DIRT = 'ct156-exterior-dirt.jpg';
+const BUMP_SCALE = 3;
 
 /** The shapes the Blender outside is built from, by name (tools/blender/ct156-exterior-pieces.mjs). */
 export function ct156ExteriorPieces(THREE) {
@@ -570,7 +576,7 @@ function shadeMesh(kit, mesh) {
     if (!mat?.isMeshStandardMaterial) return mat;
     let copy = kit.shaded.get(mat);
     if (!copy) {
-      copy = aoShaded(mat, kit.ao);
+      copy = aoShaded(mat, kit.ao, kit.skin);
       kit.shaded.set(mat, copy);
       const mine = mesh.userData.ct156Mine;
       (mine?.includes(mat) ? mine : kit.own).push(copy);
@@ -617,6 +623,7 @@ function attachExterior(kit) {
     }
     for (const name of EXTERIOR_PARTS) takeShape(kit.THREE, kit.geo[name], byName.get(name).meshes);
     kit.ao = loadAo(kit.THREE, EXTERIOR_AO);
+    kit.skin = { bump: loadAo(kit.THREE, EXTERIOR_BUMP), bumpScale: BUMP_SCALE, dirt: loadAo(kit.THREE, EXTERIOR_DIRT) };
     for (const mesh of kit.exteriorMeshes) shadeMesh(kit, mesh);
   }, () => {}); // no file: the code model shows
 }
@@ -1036,10 +1043,26 @@ export function ct156HoopPoints(x, n = 16, grow = 0, lean = 0) {
   }
   return pts;
 }
-/** A frame hoop over the canopy with its crest at x, leaning by `lean` (CT156_FRAME_LEAN). */
-function hoopGeometry(THREE, x, lean = 0, radius = 0.0045) {
-  const pts = ct156HoopPoints(x, 16, 0.0015, lean).map(({ x: px, y, z }) => new THREE.Vector3(px, y, z));
-  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, radius, 6, false); // about 2.5 in across, so a close wingman sees the bows (TS-156)
+/**
+ * A frame hoop over the canopy with its crest at x, leaning by `lean` (CT156_FRAME_LEAN): a flat band about 2.5 in wide
+ * (so a close wingman sees the bows, TS-156) whose outer face lies flush with the glass, just proud of it so it doesn't
+ * flicker, and whose body sits under the glass (Patrick, 11 Oct 2026 21:07Z: "the canopy bows should be flush with the
+ * glass, not bulging out"; it was a round tube standing 1.7 in out). Depth under the glass an estimate.
+ */
+function hoopGeometry(THREE, x, lean = 0, half = 0.0045) {
+  const n = 32, out = 0.0003, depth = -0.004;
+  const rows = [[-half, out], [half, out], [half, depth], [-half, depth]].map(([dx, grow]) => ct156HoopPoints(x + dx, n, grow, lean));
+  const pos = [], idx = [];
+  // Each face its own strip (outer, aft side, inner, fore side), so the band's edges stay sharp.
+  for (let f = 0; f < 4; f++) {
+    const a = rows[f], b = rows[(f + 1) % 4], start = pos.length / 3;
+    for (let j = 0; j <= n; j++) pos.push(a[j].x, a[j].y, a[j].z, b[j].x, b[j].y, b[j].z);
+    for (let j = 0; j < n; j++) {
+      const i = start + 2 * j;
+      idx.push(i, i + 2, i + 1, i + 1, i + 2, i + 3);
+    }
+  }
+  return meshOf(THREE, pos, idx);
 }
 /** A sill rail along one side of the canopy. */
 /** Where the canopy's sill rails start at the front, model units (under the front coaming's sides; ct156-cockpit.js). */
@@ -1739,6 +1762,10 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
   const add = (geometry, material, parent = g) => {
     const m = new THREE.Mesh(geometry, material);
     parent.add(m);
+    // Real-time shadows where a view switches them on (aircraft-shadows.js): the solid parts cast them, glass, decals
+    // and the prop's disc don't; everything takes them.
+    m.castShadow = ![material].flat().some((mat) => mat?.transparent);
+    m.receiveShadow = true;
     if (kit.exteriorGeos.has(geometry)) { // a Blender part (ALL-33): shaded by the file's picture once it is in
       m.userData.ct156Mine = mine;
       kit.exteriorMeshes.add(m);
@@ -1898,6 +1925,7 @@ export function setCockpitView(root, { seat = null } = {}) {
       d.helmetRear = new THREE.Mesh(geo.helmetRear, mats.pilot);
       d.inside.add(d.helmetFront, d.helmetRear);
     }
+    d.inside.traverse((o) => { o.castShadow = o.receiveShadow = Boolean(o.isMesh); });
     d.g.add(d.inside);
   }
   if (d.inside) d.inside.visible = inside;
