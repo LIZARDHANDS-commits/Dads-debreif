@@ -42,7 +42,7 @@ import { onClosure, fromStep } from './hand-over.js';
 import { leadTurnInto } from './lead-turn-in.js';
 import { STEP_SEC, copyAircraft, SMOOTHER_CURVE_PEAK, smoother, smoothLegSec } from './flight.js';
 import { RATE_SETS, CLOSE_SHAPING, G_RULE_BANK_DEG } from './rates.js';
-import { laggedBank } from './kinematic.js';
+import { laggedBank, centredBank } from './kinematic.js';
 import { trackTwice, runTracker, phase } from './tracker.js';
 import { holdInPlane, heldPoses } from './formation-turns.js';
 import { acrossSixLegs } from './replan.js';
@@ -628,7 +628,11 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
     const slot = pairSlot(to, sTo || s, spacingFt);
     const slotBody = { fwd: slot.fwd, left: slot.left, up: slot.alt };
     const leadRecFromSettle = fromStep(lp.rec, totalSteps);
-    const { rel } = holdInPlane(leadRecFromSettle, L_settled, W_settled, slotBody, Math.max(leadRemainingSteps, tail?.steps ?? 0), tail?.bodyAt, tail ? TURNING_REJOIN.tailHold : {});
+    // After the turning rejoin's way in he holds the plane of Lead's bank averaged either side of now (centredBank), so he
+    // starts climbing out of the step-down as Lead starts to roll out and eases off as he stops (Fable's V2.262 flight: he
+    // climbed 22 ft at 14 ft/s after Lead's roll and stopped with a push to 0.5 G).
+    const planeRec = tail ? centredBank(leadRecFromSettle, TURNING_REJOIN.tailPlaneSec) : leadRecFromSettle;
+    const { rel } = holdInPlane(planeRec, L_settled, W_settled, slotBody, Math.max(leadRemainingSteps, tail?.steps ?? 0), tail?.bodyAt, tail ? TURNING_REJOIN.tailHold : {});
     const holdSteps = Math.max(leadRemainingSteps, rel.length - 1);
     const poses = heldPoses(leadRecFromSettle, W_settled, rel, holdSteps);
 

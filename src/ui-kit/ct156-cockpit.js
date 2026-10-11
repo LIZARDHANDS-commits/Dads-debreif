@@ -133,14 +133,14 @@ export const ARCH_FT = Object.freeze({
  * edge, under the coaming (Patrick, 11 Oct 2026: "the glare shield is more than an inch"; his cockpit clip, where the
  * lip shows well clear of the EADI from below the eye; 3 in an estimate). The panel's width matches
  * the T-6A-1 panel diagram scaled by its 3-inch gauges (about 2.4 ft). Its outline is a tombstone: straight sides up
- * to 50 % of its height, then shoulders in to a flat top 84 % as wide, so the coaming over it is about 23 in across at
- * its aft edge and the sill's strip shows beside it, as Patrick's cockpit frames show (11 Oct 2026: the strip about
- * the 3-inch lamp box and a bit more each side; was 60 % and 55 %, TS-157's reading of the T-6A panel poster and the
- * commercial render, Dad's pictures 17 and 26, which ran the coaming glass to glass). Estimates.
+ * to 60 % of its height, then shoulders in to a flat top 55 % as wide (TS-157, between the T-6A panel poster's and the
+ * commercial render's, Dad's pictures 17 and 26). V2.264 tried 50 % and 84 % for a 23 in coaming read off Patrick's
+ * cockpit frames; from the seat that made the top of the panel far too wide and Patrick put it back (11 Oct 2026
+ * 07:06Z: "you made the panel way too wide at the top. it looked more accurate and better in v 2.263"). Estimates.
  */
 const COAMING_EDGE_X = 4.19;
 const OVERHANG_FT = 0.25;
-export const PANEL_FT = Object.freeze({ x: COAMING_EDGE_X + OVERHANG_FT, top: 1.48, bottom: 0.22, width: 2.3, insetFromGlass: 0.06, shoulderV: 0.5, topFrac: 0.84 });
+export const PANEL_FT = Object.freeze({ x: COAMING_EDGE_X + OVERHANG_FT, top: 1.48, bottom: 0.22, width: 2.3, insetFromGlass: 0.06, shoulderV: 0.6, topFrac: 0.55 });
 
 /**
  * The front coaming (glareshield), feet (TS-157): a moulded near-black hood over the panel, its aft edge following the
@@ -175,20 +175,21 @@ export const RIM_FT = Object.freeze({ aftOfGlareshield: 0.03, r: 0.045, sideOut:
  */
 export const AOA_INDEXER_FT = Object.freeze({ tall: 0.23, wide: 0.07, deep: 0.29, lampPitch: 0.069, aheadOfEdge: 0.15, y: 0.74, yRear: 0.62, clear: 0.01 });
 /**
- * The standby compass at the coaming's right corner, feet: a dark bowl 0.18 ft (2.2 in) across and 0.16 ft tall
- * hanging under a square flange 0.27 ft (3.2 in) across, its light housing under the bowl, the card 0.075 ft tall
+ * The standby compass at the coaming's right corner, feet: a dark bowl 0.13 ft (1.6 in) across and 0.12 ft tall
+ * hanging under a square flange 0.17 ft (2 in) across, its light housing under the bowl, the card 0.055 ft tall
  * showing through a window 110° round facing aft, turned by the heading (update(hud)). It stands on a short post
- * 0.1 ft ahead of the coaming's aft edge and 0.84 ft right of the middle (0.8 ft on the rear hump), with a bracket
- * plate from its flange out to the bow's leg beside it, as Patrick's cockpit frame shows it (11 Oct 2026, "fix the
- * compass": hanging on the bow's right leg at the glareshield's corner, about 1.5 times the size drawn before; was a
- * 1.4 in bowl under a 2.2 in flange, the T-6A-1 panel diagram's size, on a post 0.22 ft ahead of the edge and 0.55 ft
- * right of the middle, a place estimated off Dad's pictures). Sizes and places estimates off the frame; the rear
- * seat's is unseen.
+ * 0.1 ft ahead of the coaming's aft edge and 0.84 ft right of the middle (0.8 ft on the rear hump), with a thin arm
+ * from its flange out to the bow's leg beside it, as Patrick's cockpit frame shows it (11 Oct 2026, "fix the
+ * compass": hanging on the bow's right leg at the glareshield's corner). Its size is the T-6A-1 panel diagram's
+ * again, a touch bigger: the first try at the corner, 1.5 times that with a 3 in flange and a bracket plate (V2.264),
+ * filled the corner as a block, Patrick's screenshot 11 Oct 06:52Z ("isn't this a regression?"); before V2.264 it
+ * stood 0.22 ft ahead of the edge and 0.55 ft right of the middle, a place estimated off Dad's pictures. Sizes and
+ * places estimates off the frame; the rear seat's is unseen.
  */
-export const STANDBY_COMPASS_FT = Object.freeze({ r: 0.09, bowlTall: 0.16, flange: 0.27, light: 0.06, post: 0.03, cardTall: 0.075, windowDeg: 110, aheadOfEdge: 0.1, y: -0.84, yRear: -0.8 });
+export const STANDBY_COMPASS_FT = Object.freeze({ r: 0.065, bowlTall: 0.12, flange: 0.17, light: 0.05, post: 0.03, cardTall: 0.055, windowDeg: 110, aheadOfEdge: 0.1, y: -0.84, yRear: -0.8, armWide: 0.02 });
 
 /** The rear cockpit's panel, feet: face 0.7 ft aft of the origin, 0.7 to 1.75 ft up, 2.2 ft across (estimates). */
-export const REAR_PANEL_FT = Object.freeze({ x: -0.7, top: 1.75, bottom: 0.7, width: 2.2, insetFromGlass: 0.06, shoulderV: 0.5, topFrac: 0.84 });
+export const REAR_PANEL_FT = Object.freeze({ x: -0.7, top: 1.75, bottom: 0.7, width: 2.2, insetFromGlass: 0.06, shoulderV: 0.6, topFrac: 0.55 });
 /**
  * The rear coaming, feet (TS-157): the big moulded hump over the front seat's back that the rear panel sits under
  * (Dad's pictures 27 and 29), its aft edge along the rear panel's outline at 1.9 ft with the grab rail on it, rising
@@ -1202,7 +1203,7 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     put(new THREE.TorusGeometry(0.013, 0.004, 5, 14).rotateY(Math.PI / 2).translate(fx0 - 0.006, ay, lamp(1)), SLOT.lampAmber);
 
     // The standby compass (STANDBY_COMPASS_FT): a short post up from the coaming's corner, a dark bowl, a cap over it
-    // with a bracket plate out to the glass by the bow's leg, the card showing through the bowl's aft window (its
+    // with a thin arm out to the glass by the bow's leg, the card showing through the bowl's aft window (its
     // picture turned by update(hud)), and the lubber line across it.
     const C = STANDBY_COMPASS_FT;
     const cx = h.aftX + C.aheadOfEdge, cy = front ? C.y : C.yRear, cz = hoodZ(h, ts, cx, cy);
@@ -1211,8 +1212,8 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     put(new THREE.CylinderGeometry(C.r * 0.55, C.r * 0.5, C.light, 12).rotateX(Math.PI / 2).translate(cx, cy, zl + C.light / 2), SLOT.dark); // the light
     put(new THREE.CylinderGeometry(C.r, C.r * 0.9, C.bowlTall, 20).rotateX(Math.PI / 2).translate(cx, cy, zc), SLOT.black); // the bowl
     put(box(THREE, cx - C.flange / 2, cx + C.flange / 2, cy - C.flange / 2, cy + C.flange / 2, zf, zf + 0.015), SLOT.dark); // the flange
-    const bracketY = -glassHalfWidthFt(zf, cx, 0.02); // the bracket plate, flange to the glass by the bow's right leg
-    if (Number.isFinite(bracketY) && bracketY < cy - C.flange / 2) put(box(THREE, cx - 0.03, cx + 0.03, bracketY, cy - C.flange / 2 + 0.01, zf, zf + 0.015), SLOT.dark);
+    const bracketY = -glassHalfWidthFt(zf, cx, 0.02); // the arm, flange to the glass by the bow's right leg
+    if (Number.isFinite(bracketY) && bracketY < cy - C.flange / 2) put(box(THREE, cx - C.armWide / 2, cx + C.armWide / 2, bracketY, cy - C.flange / 2 + 0.01, zf, zf + 0.012), SLOT.dark);
     const theta0 = rad(270 - C.windowDeg / 2);
     cards.push(new THREE.CylinderGeometry(C.r + 0.001, C.r + 0.001, C.cardTall, 24, 1, true, theta0, rad(C.windowDeg)).rotateX(Math.PI / 2).translate(cx, cy, zc));
     put(box(THREE, cx - C.r - 0.006, cx - C.r - 0.002, cy - 0.0012, cy + 0.0012, zc - C.cardTall / 2 - 0.004, zc + C.cardTall / 2 + 0.004), SLOT.red); // the lubber line
