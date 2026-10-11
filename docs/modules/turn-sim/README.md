@@ -72,7 +72,9 @@ The flying core, `src/modules/turn-sim/live/` (each file's header says its job):
 | `move-in-band.js` | Moves #2 anywhere in the band when he is in position (TS-98) |
 | `turning-rejoin.js`, `straight-rejoin.js`, `lag-roll.js`, `rolling-rejoin.js`, `fw-pursuit.js`, `fw-switch.js` | The planners the chooser tries, and the fighting wing turn and side switch laws |
 | `pilot.js` | The one pilot model every held-command planner and the tracker fly through: speed from the power at the G flown, one jerk limit, power hysteresis, shaped roll (clean-up step 5, TS-141) |
-| `tracker.js` | The tracker every move is flown by: the slot, the ride down the rejoin line, the `line` kind (straight rejoin, until refactor step 5), closure, height and power |
+| `tracker.js` | The tracker every move is flown by: the slot law, closure, heading, height and power, and the run (`runTracker`) that calls each phase's kind |
+| `ride.js` | The ride down the turning rejoin's line in Lead's frame: its aim, speed, the line's height and height counted as speed (refactor step 3) |
+| `line.js` | The older `line` kind the straight rejoin still flies, until refactor step 5 (refactor step 3) |
 | `closures.js` | Each phase's closure rate and bank cap (`onClosure`), and the shared `fromStep` and `wingFromPose` (was `hand-over.js`) |
 | `kinematic.js` | Position tracks and poses shared by formation turns, fluid flight and the rejoins |
 | `replay.js` | Flying a planned move one step (the replayed bank track and pose track), the dry run, recorded flights and the speed segment (clean-up step 3, from `transitions.js`) |
