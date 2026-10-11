@@ -48,14 +48,16 @@ const rad = (d) => (d * Math.PI) / 180;
 
 // Fuselage stations, nose to tail: [x, half-width, top, bottom, squareness]. The spinner sits high: the top line runs
 // almost flat from the spinner back to the fin, and the belly hangs deep under it. Squareness 2 is an ellipse,
-// higher is boxier (flat sides at the cockpit).
+// higher is boxier (flat sides at the cockpit). The nose's top line, spinner to windscreen foot, is the T-6A-1 side
+// drawing's (ALL-31): 0.85 ft above the spinner's axis 2 ft behind the tip, 1.1 ft at 5 ft, 1.45 ft at the windscreen's
+// foot (was 0.65 to 1.0 ft off the photo), so from the front seat the spinner hides under the cowl.
 const STATIONS = [
-  [0.578, 0.034, 0.028, -0.032, 2.2],
-  [0.55, 0.048, 0.031, -0.06, 2.3],
-  [0.518, 0.058, 0.034, -0.088, 2.4],
-  [0.437, 0.068, 0.038, -0.118, 2.5],
-  [0.329, 0.075, 0.042, -0.139, 2.6],
-  [0.268, 0.078, 0.043, -0.149, 2.7],
+  [0.578, 0.034, 0.0363, -0.032, 2.2],
+  [0.55, 0.048, 0.0387, -0.06, 2.3],
+  [0.518, 0.058, 0.0414, -0.088, 2.4],
+  [0.437, 0.068, 0.048, -0.118, 2.5],
+  [0.329, 0.075, 0.0563, -0.139, 2.6],
+  [0.268, 0.078, 0.0626, -0.149, 2.7],
   [0.167, 0.08, 0.043, -0.162, 2.7],
   [-0.009, 0.08, 0.04, -0.169, 2.7],
   [-0.158, 0.077, 0.034, -0.169, 2.7],
@@ -66,26 +68,44 @@ const STATIONS = [
   [-0.75, 0.014, -0.04, -0.11, 2.2],
   [-0.78, 0.004, -0.06, -0.1, 2.0],
 ];
-// The canopy, windscreen foot to its fairing on the spine: [x, half-width, top]. Long and low, about 2 ft above the
-// top line (Patrick, 6 Oct: the cockpit was too tall).
+// The canopy, windscreen foot to its fairing on the spine: [x, half-width, top]. Its top, windscreen foot to just aft of
+// the centre arch, is the T-6A-1 side drawing's (ALL-31): the forward bow's crest 2.75 ft above the spinner's axis
+// 11.3 ft behind the tip, the peak 3.45 ft over the centre arch (was 3.0 ft over the front seat, off the photo); aft of
+// that, and the half-widths, as before (photo and estimates).
 const CANOPY = [
-  [0.268, 0.02, 0.046],
-  [0.23, 0.042, 0.076],
-  [0.194, 0.052, 0.101],
-  [0.14, 0.058, 0.12],
-  [0.059, 0.06, 0.131],
-  [-0.076, 0.06, 0.132],
+  [0.268, 0.02, 0.0635],
+  [0.23, 0.042, 0.0851],
+  [0.194, 0.052, 0.106],
+  [0.172, 0.0544, 0.1188],
+  [0.14, 0.058, 0.1249],
+  [0.059, 0.06, 0.1413],
+  [-0.022, 0.06, 0.149],
+  [-0.076, 0.06, 0.1469],
   [-0.185, 0.057, 0.124],
   [-0.239, 0.05, 0.105],
   [-0.293, 0.032, 0.064],
   [-0.354, 0.008, 0.028],
 ];
 // The cockpit, in model units (from the photo, as the canopy): the canopy frame hoops (the forward one is the windscreen
-// bow), the two seats' stations (front, rear; each helmet sits there, its seat back just behind) and the helmets' height.
-// ct156-cockpit.js builds the student's view from these, so each number has one copy.
-export const CT156_FRAME_X = Object.freeze([0.16, -0.022, -0.239]);
-export const CT156_SEAT_X = Object.freeze([0.06, -0.13]);
-export const CT156_HELMET_Z = 0.098;
+// bow), the two seats' stations (front, rear; each helmet sits there, its seat back just behind) and the helmets' heights
+// (front, rear). ct156-cockpit.js builds the student's view from these, so each number has one copy. The forward bow and
+// the helmets are the T-6A-1 side drawing's (ALL-31): the bow 11.3 ft behind the spinner tip (was 11.6); the front
+// helmet's centre 1.96 ft ahead of the origin and 1.99 ft up, the rear one's 3.4 ft aft and 2.29 ft up (was 1.4 ft
+// ahead, 3.0 ft aft, both 2.27 ft up).
+export const CT156_FRAME_X = Object.freeze([0.172, -0.022, -0.239]);
+export const CT156_SEAT_X = Object.freeze([0.0847, -0.1469]);
+export const CT156_HELMET_Z = Object.freeze([0.086, 0.0989]);
+/** The spinner's radius at its base less its 0.001-unit tip: 0.67 ft at the base, the T-6A-1 side drawing's (ALL-31; was 0.79 ft). */
+export const CT156_SPINNER_R = 0.0279;
+/** The spinner's outline, tip to base, as [x, radius] in model units: an ogive 0.085 units (2 ft) long (shape an estimate off the photo). */
+export function ct156SpinnerProfile(n = 12) {
+  const out = [];
+  for (let k = 0; k <= n; k++) {
+    const t = k / n; // 0 the tip, 1 the base
+    out.push([0.66 - 0.085 * t, 0.001 + CT156_SPINNER_R * Math.sin((t * Math.PI) / 2) ** 0.8]);
+  }
+  return out;
+}
 /** A table's row at x (rows run from high x to low), each number straight-line between the rows either side. */
 function rowAt(rows, x) {
   if (x >= rows[0][0]) return rows[0];
@@ -365,8 +385,9 @@ function fuselageGeometry(THREE, { cut = false } = {}) {
   }
   return meshOf(THREE, pos, kept);
 }
-// The cockpit opening, model units along x: just aft of the rear canopy bow to just ahead of the forward bow (estimate, TS-155).
-const COCKPIT_CUT_X = [-0.242, 0.17];
+// The cockpit opening, model units along x: just aft of the rear canopy bow to the front panel's knee wells (estimate,
+// TS-155; its front end moved forward with the front cockpit, ALL-31).
+const COCKPIT_CUT_X = [-0.242, 0.195];
 const FT = CT156_UNIT_LENGTH / CT156_LENGTH_FT; // model units per foot
 
 /**
@@ -377,12 +398,12 @@ const FT = CT156_UNIT_LENGTH / CT156_LENGTH_FT; // model units per foot
 export const CT156_TUB_FLOOR_FT = -1.2;
 /**
  * The cockpit tub under the canopy (TS-155): a floor CT156_TUB_FLOOR_FT below the spinner's axis from 5.6 ft aft of the
- * model origin to 3.9 ft ahead of it, side walls about 1.3 ft out (kept inside the canopy) up to the sill, and a
+ * model origin to 4.47 ft ahead of it (3.9 ft until the front cockpit moved forward, ALL-31), side walls about 1.3 ft out (kept inside the canopy) up to the sill, and a
  * bulkhead at each end up to the fuselage's top line. Group 0 the floor, group 1 the walls. All estimates (judged by
  * eye off Dad's reference pictures, 9 Oct 2026).
  */
 function tubGeometry(THREE) {
-  const N = 14, x0 = 3.9 * FT, x1 = -5.6 * FT, floorZ = CT156_TUB_FLOOR_FT * FT;
+  const N = 14, x0 = 4.47 * FT, x1 = -5.6 * FT, floorZ = CT156_TUB_FLOOR_FT * FT;
   const rows = [];
   for (let i = 0; i <= N; i++) {
     const x = x0 + ((x1 - x0) * i) / N;
@@ -709,7 +730,7 @@ function buildKit(THREE) {
   floor.translate(-0.035, 0, 0.046);
   geo.floor = floor;
   // The two helmets apart, so the Cockpit view can leave out the one the camera sits in (setCockpitView).
-  [geo.helmetFront, geo.helmetRear] = CT156_SEAT_X.map((x) => new THREE.SphereGeometry(0.02, 12, 8).translate(x, 0, CT156_HELMET_Z));
+  [geo.helmetFront, geo.helmetRear] = CT156_SEAT_X.map((x, i) => new THREE.SphereGeometry(0.02, 12, 8).translate(x, 0, CT156_HELMET_Z[i]));
   // The exhaust stacks either side of the nose, just under the top line (photo).
   // Round, each with its dark opening facing aft (AETCMAN 11-248 Fig 9.17: a fore-and-aft reference from #2; TS-156).
   geo.stubs = joinGeometries(THREE, [1, -1].flatMap((s) => [
@@ -725,16 +746,12 @@ function buildKit(THREE) {
     { geometry: ellipsoid(THREE, ...TAIL_LIGHT, 0.006, 0.004, 0.005), materials: [2] },
   ]);
   // The spinner: a smooth ogive (its tip a formation reference, AETCMAN 11-248 Fig 9.17; TS-156), on a dark backplate
-  // ring so its outline reads against the cowling. Shape an estimate off the photo.
-  const ogive = [];
-  for (let k = 0; k <= 12; k++) {
-    const t = k / 12; // 0 the tip, 1 the base
-    ogive.push(new THREE.Vector2(0.001 + 0.033 * Math.sin((t * Math.PI) / 2) ** 0.8, 0.66 - 0.085 * t));
-  }
+  // ring so its outline reads against the cowling.
+  const ogive = ct156SpinnerProfile().map(([x, r]) => new THREE.Vector2(r, x));
   const spin = new THREE.LatheGeometry(ogive, 32);
   spin.rotateZ(-Math.PI / 2);
   geo.spinner = spin;
-  geo.spinnerRing = new THREE.CylinderGeometry(0.0355, 0.0355, 0.006, 32, 1, true).rotateZ(Math.PI / 2).translate(0.573, 0, 0);
+  geo.spinnerRing = new THREE.CylinderGeometry(CT156_SPINNER_R + 0.0015, CT156_SPINNER_R + 0.0015, 0.006, 32, 1, true).rotateZ(Math.PI / 2).translate(0.573, 0, 0);
   // The prop: 97 in across (published T-6A figure; an estimate until a manual page backs it), 0.175 units each side.
   const disc = new THREE.CircleGeometry(0.175, 32);
   disc.rotateY(Math.PI / 2);

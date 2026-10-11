@@ -22,11 +22,15 @@
 // Every size here is an ESTIMATE until Patrick rules: taken off the model's own tables (ct156-model.js, measured off
 // Patrick's side-on photo of CT-156 156101) or off Dad's reference pictures of the T-6A cockpit (9 Oct 2026: photos, a
 // panel poster, commercial-sim shots and renders of a commercial T-6A model; nothing copied from them, every shape and
-// gauge drawn here), as each line says. From V2.208 (TS-156) the front eye, the forward bow and the glareshield's rim
-// are placed to AETCMAN 11-248 (13 Aug 2025, the USAF T-6 primary flying manual): in level flight at 200 KIAS the
-// horizon splits the windscreen half and half (Fig 2.7, p.42), and the bow is the wide light band with its ring of
-// round holes (Fig 2.7, Fig 5.3). Page cites only: nothing from the manual is copied here
-// (docs/references/aetcman11-248-cockpit.md). The pictures are the T-6A's; the CT-156's own panel may differ.
+// gauge drawn here), as each line says. From V2.235 (ALL-31) both eyes, the forward bow and the nose are the T-6A-1
+// side drawing's (NFTC 133-590008-3, the side view with both crew and its 33 ft 4 in scale bar; cited only, nothing
+// kept), and the front cockpit (seat, panel, coaming, rail) moved with the front eye, the rail no higher than the
+// windscreen's foot as seen from it: level at 220 KIAS the horizon sits about a quarter of the way up the windscreen
+// (SMM ch.3, the 220 KIAS pitch attitude figure). V2.208 (TS-156) to V2.234 had fitted the eye to AETCMAN 11-248
+// (13 Aug 2025, the USAF T-6 primary flying manual) Fig 2.7, p.42, half ground and half sky at 200 KIAS; the bow is
+// still that manual's wide light band with its ring of round holes (Fig 2.7, Fig 5.3). Page cites only: nothing from
+// either manual is copied here (docs/references/aetcman11-248-cockpit.md). The pictures are the T-6A's; the CT-156's
+// own panel may differ.
 import {
   CT156_UNIT_LENGTH, CT156_LENGTH_FT, CT156_FRAME_X, CT156_SEAT_X, CT156_HELMET_Z, CT156_REFERENCE_POINTS,
   CT156_TUB_FLOOR_FT, ct156CanopySection, ct156CanopyHalfWidth, ct156HoopPoints, ct156JoinGeometries, setCockpitView,
@@ -38,35 +42,38 @@ export const CT156_FT_PER_UNIT = CT156_LENGTH_FT / CT156_UNIT_LENGTH;
 const F = CT156_FT_PER_UNIT;
 
 /**
- * How far the front eye sits below the model's front helmet centre, feet (TS-156): chosen so that, with the forward bow
- * band and the glareshield's rim below, level flight at 200 KIAS shows half ground and half sky through the windscreen
- * (AETCMAN 11-248 Fig 2.7, p.42; the pitch is the sim's own, core attitudeDegFromClimb, about -0.3°). It also brings
- * the eye nearer the sill (TS-155's open question). An estimate fitted to that picture, not a measured eye position.
+ * Where each eye sits from its helmet's centre, feet (ALL-31): at the front third of the helmet drawn in the T-6A-1 side
+ * drawing, 0.1 ft ahead of its centre and 0.09 ft below (read to about ±0.15 ft). Until V2.234 the eye sat 0.13 ft
+ * under the helmet's centre, fitted to AETCMAN 11-248 Fig 2.7 (TS-156).
  */
-export const EYE_BELOW_HELMET_FT = 0.13;
+export const EYE_AHEAD_OF_HELMET_FT = 0.1;
+export const EYE_BELOW_HELMET_FT = 0.09;
 /**
- * The student's eye in the front seat (the default front eye), feet: over the model's front seat (CT156_SEAT_X[0],
- * about 1.4 ft ahead of the origin) and EYE_BELOW_HELMET_FT under its helmet centre, about 2.14 ft above the spinner's
- * axis. Estimate (model table, then TS-156's fit to Fig 2.7).
+ * The student's eye in the front seat (the default front eye), feet: 2.06 ft ahead of the model's origin (13.2 ft behind
+ * the spinner tip) and 1.9 ft above the spinner's axis, the T-6A-1 side drawing's (ALL-31; was 1.4 ft and 2.14 ft).
  */
-export const EYE_FT = Object.freeze({ x: CT156_SEAT_X[0] * F, y: 0, z: CT156_HELMET_Z * F - EYE_BELOW_HELMET_FT });
+export const EYE_FT = Object.freeze({ x: CT156_SEAT_X[0] * F + EYE_AHEAD_OF_HELMET_FT, y: 0, z: CT156_HELMET_Z[0] * F - EYE_BELOW_HELMET_FT });
 
 /**
- * Both eyes, feet (TS-155, TS-156). Front: EYE_FT. Rear: over the rear seat (CT156_SEAT_X[1], about 3.0 ft aft of the
- * origin) and 0.15 ft higher than the front eye, for the rear seat's step up (kept from TS-155, so it moved down with
- * the front eye to about 2.29 ft, where the front eye used to be); more puts the instructor's helmet into the glass.
- * Estimate (judged off Dad's reference pictures and the model's canopy).
+ * Both eyes, feet (TS-155, TS-156, ALL-31). Front: EYE_FT. Rear: 3.3 ft aft of the origin (18.6 ft behind the spinner
+ * tip) and 2.2 ft above the spinner's axis, the T-6A-1 side drawing's (was 3.0 ft aft and 2.29 ft up).
  */
 export const EYES_FT = Object.freeze({
   front: EYE_FT,
-  rear: Object.freeze({ x: CT156_SEAT_X[1] * F, y: 0, z: EYE_FT.z + 0.15 }),
+  rear: Object.freeze({ x: CT156_SEAT_X[1] * F + EYE_AHEAD_OF_HELMET_FT, y: 0, z: CT156_HELMET_Z[1] * F - EYE_BELOW_HELMET_FT }),
 });
-/** The rear cockpit's parts are the front's moved aft by the seats' spacing (about 4.4 ft, model table). */
-const REAR_DX = (CT156_SEAT_X[1] - CT156_SEAT_X[0]) * F;
+/**
+ * The seat stations SEAT_FT and the seats' parts are drawn for (model units: the front seat's until V2.234), and how
+ * far each seat's parts move from there, feet: the front seat about 0.57 ft forward to the T-6A-1 drawing's (ALL-31),
+ * the rear seat about 5.4 ft aft (model table).
+ */
+const SEAT_DRAWN_X = 0.06;
+const FRONT_DX = (CT156_SEAT_X[0] - SEAT_DRAWN_X) * F;
+const REAR_DX = (CT156_SEAT_X[1] - SEAT_DRAWN_X) * F;
 
 /**
  * The forward canopy bow (the windscreen's frame), feet: the model's front frame hoop station (CT156_FRAME_X[0], about
- * 3.7 ft) and its crest, the canopy's top there (about 2.6 ft) (model tables). Seen from the seat it is a wide light
+ * 4.0 ft) and its crest, the canopy's top there (about 2.75 ft) (model tables; the T-6A-1 side drawing's, ALL-31). Seen from the seat it is a wide light
  * band lining the glass, with a ring of round dark holes and a dark tube along its inner edge (AETCMAN 11-248 Fig 2.7,
  * p.42, and Fig 5.3, para 5.13; TS-156): its aft face 0.05 ft behind the hoop station, 0.15 ft deep from the glass
  * inward, the tube 0.025 ft in radius, so it looks about 4.3° wide at the crest from the front eye (the figures look
@@ -99,21 +106,24 @@ export const ARCH_FT = Object.freeze({
 });
 
 /**
- * The front instrument panel's main face, feet: 3.45 ft ahead of the origin, from 0.5 ft up to 1.7 ft (just under the
- * coaming's lip), 2.3 ft across at most and kept 0.06 ft inside the canopy. Its outline is a tombstone: straight sides up
+ * The front instrument panel's main face, feet: 4.02 ft ahead of the origin, from 0.31 ft up to 1.51 ft (just under the
+ * coaming's lip; ALL-31 moved it 0.57 ft forward with the front seat and 0.19 ft down with the rail, from 3.45 ft and
+ * 0.5 to 1.7 ft), 2.3 ft across at most and kept 0.06 ft inside the canopy. Its outline is a tombstone: straight sides up
  * to 60 % of its height, then shoulders in to a flat top 55 % as wide (TS-157, between the T-6A panel poster's and the
  * commercial render's, Dad's pictures 17 and 26). Estimates.
  */
-export const PANEL_FT = Object.freeze({ x: 3.45, top: 1.7, bottom: 0.5, width: 2.3, insetFromGlass: 0.06, shoulderV: 0.6, topFrac: 0.55 });
+export const PANEL_FT = Object.freeze({ x: 4.02, top: 1.51, bottom: 0.31, width: 2.3, insetFromGlass: 0.06, shoulderV: 0.6, topFrac: 0.55 });
 
 /**
  * The front coaming (glareshield), feet (TS-157): a moulded near-black hood over the panel, its aft edge following the
- * panel's tombstone outline with the grab rail along it, its crown 1.85 ft up at the aft edge (TS-156's height for the
- * rim, unchanged) and falling forward faster than the eye's sight line over the rail, to about 0.95 ft at the
- * windscreen's foot (5.3 ft), so from the seat the rail stays the windscreen's bottom edge; a lip 0.15 ft deep hangs
+ * panel's tombstone outline with the grab rail along it, its crown 1.66 ft up at the aft edge and falling forward faster
+ * than the eye's sight line over the rail, to 1.33 ft at 5.87 ft, just under the deck ahead of it, so from the seat the
+ * rail stays the windscreen's bottom edge. ALL-31: the rail's top sits 6° below the front eye's level line, no higher
+ * than the windscreen's foot seen from the eye (T-6A-1 side drawing), so the cowl's top shows over it and the spinner
+ * hides under the cowl (was 1.85 ft up at 3.35 ft, to 0.95 ft at 5.3 ft, TS-156's fit to AETCMAN 11-248 Fig 2.7); a lip 0.15 ft deep hangs
  * at its aft edge with the three lamps on it. Shape judged off Dad's pictures 17, 18, 20 and 26; sizes estimates.
  */
-export const GLARESHIELD_FT = Object.freeze({ aftX: PANEL_FT.x - 0.1, foreX: 5.3, top: 1.85, foreTop: 0.95, lipDrop: 0.15, skirt: 0.12, topGrow: -0.1, sideGrow: 0, dropGrow: -0.1 });
+export const GLARESHIELD_FT = Object.freeze({ aftX: PANEL_FT.x - 0.1, foreX: 5.87, top: 1.662, foreTop: 1.33, lipDrop: 0.15, skirt: 0.12, topGrow: -0.1, sideGrow: 0, dropGrow: -0.1 });
 /**
  * The glareshield's rim, the thick dark grab rail along the coaming's aft edge and down the panel's sides to brackets
  * at 18 % of its height: its top run 0.03 ft behind the coaming at the coaming's own height, 0.045 ft in radius
@@ -128,17 +138,17 @@ export const REAR_PANEL_FT = Object.freeze({ x: -0.7, top: 1.75, bottom: 0.7, wi
  * The rear coaming, feet (TS-157): the big moulded hump over the front seat's back that the rear panel sits under
  * (Dad's pictures 27 and 29), its aft edge along the rear panel's outline at 1.9 ft with the grab rail on it, rising
  * 0.16 ft over the first 38 % of its length and widening to the canopy, then falling 0.41 ft onto the front seat's back
- * (0.36 ft ahead of the origin). Estimates.
+ * (0.93 ft ahead of the origin; 0.36 ft until ALL-31 moved the front seat 0.57 ft forward). Estimates.
  */
-export const REAR_HUMP_FT = Object.freeze({ aftX: REAR_PANEL_FT.x - 0.1, foreX: 0.36, top: 1.9, rise: 0.16, peakT: 0.38, foreDrop: 0.25, lipDrop: 0.15, skirt: 0.12, topGrow: 0.35, sideGrow: 0.2, dropGrow: 0.35 });
+export const REAR_HUMP_FT = Object.freeze({ aftX: REAR_PANEL_FT.x - 0.1, foreX: 0.93, top: 1.9, rise: 0.16, peakT: 0.38, foreDrop: 0.25, lipDrop: 0.15, skirt: 0.12, topGrow: 0.35, sideGrow: 0.2, dropGrow: 0.35 });
 
 /**
  * The seats and their cockpits, feet (estimates off Dad's reference pictures; the seat back's frame is the model's).
  * The rear seat's are the same moved aft by REAR_DX.
  */
-const SEAT_BACK_X = [(CT156_SEAT_X[0] - 0.042) * F, (CT156_SEAT_X[0] - 0.028) * F]; // the model's seat back, aft and front faces
+const SEAT_BACK_X = [(SEAT_DRAWN_X - 0.042) * F, (SEAT_DRAWN_X - 0.028) * F]; // the model's seat back, aft and front faces
 export const SEAT_FT = Object.freeze({
-  pan: { aft: SEAT_BACK_X[1], fore: SEAT_BACK_X[1] + 1.2, z0: -0.48, z1: -0.33, halfWidth: 0.5 }, // the eye 2.5 ft above its top
+  pan: { aft: SEAT_BACK_X[1], fore: SEAT_BACK_X[1] + 1.2, z0: -0.48, z1: -0.33, halfWidth: 0.5 }, // the front eye about 2.2 ft above its top (2.5 ft until ALL-31 lowered the eye)
   backCushion: { depth: 0.1, z1: 2.1, halfWidth: 0.42 },
   headbox: { aft: SEAT_BACK_X[0], fore: SEAT_BACK_X[1] + 0.04, z0: 2.1, z1: 2.7, halfWidth: 0.4 }, // Martin-Baker headbox
   breakers: { y: 0.24, top: 2.95 }, // the canopy breakers on the headbox (Dad's picture 27)
@@ -196,7 +206,7 @@ export function windscreenFrom(eyeFt = EYE_FT, seat = 'front') {
   const crest = ct156CanopySection(b.bandX / F).top * F;
   const topDeg = tubeEdgeDeg(eyeFt, b.bandX, crest - b.glassInset - b.bandDepth, b.tubeR, -1);
   const out = { topDeg, bottomDeg, heightDeg: topDeg - bottomDeg };
-  if (rear) out.headboxDeg = deg(Math.atan2(SEAT_FT.headbox.z1 - eyeFt.z, SEAT_FT.headbox.fore - eyeFt.x));
+  if (rear) out.headboxDeg = deg(Math.atan2(SEAT_FT.headbox.z1 - eyeFt.z, SEAT_FT.headbox.fore + FRONT_DX - eyeFt.x));
   return out;
 }
 
@@ -987,10 +997,10 @@ const SLOT = Object.freeze({
 });
 
 /**
- * The cockpit parts of one seat (dx 0 the front, REAR_DX the rear), as { geometry, materials } entries for
- * ct156JoinGeometries, plus what the textured faces need.
+ * The cockpit parts of one seat (dx FRONT_DX the front, REAR_DX the rear: how far its seat's parts move from SEAT_FT's
+ * stations), as { geometry, materials } entries for ct156JoinGeometries, plus what the textured faces need.
  */
-function seatParts(THREE, { dx, p, h, eye }) {
+function seatParts(THREE, { dx, front, p, h, eye }) {
   const parts = [], striped = [], consoleTops = [], lower = [];
   const put = (geometry, slot) => parts.push({ geometry, materials: [slot] });
   const ts = tombstone(p);
@@ -999,7 +1009,6 @@ function seatParts(THREE, { dx, p, h, eye }) {
   const yOf = (u) => ts.side * (1 - 2 * u);
   const S = SEAT_FT;
   const fx = (x) => x + dx; // a front-seat station moved to this seat
-  const front = dx === 0;
 
   // The panel's back and edges: a shallow black box behind the face, so it reads solid from any side.
   put(box(THREE, p.x + 0.01, p.x + 0.12, -ts.side, ts.side, p.bottom, ts.shoulderZ), SLOT.black);
@@ -1269,8 +1278,8 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document } = {}) {
   const consoleMat = own(new THREE.MeshStandardMaterial({ map: consolePic.texture, roughness: 0.85, side: THREE.DoubleSide, fog: false }));
 
   const seats = [
-    { dx: 0, p: PANEL_FT, h: GLARESHIELD_FT, eye: EYES_FT.front, width: 2048 },
-    { dx: REAR_DX, p: REAR_PANEL_FT, h: REAR_HUMP_FT, eye: EYES_FT.rear, width: 1024 },
+    { dx: FRONT_DX, front: true, p: PANEL_FT, h: GLARESHIELD_FT, eye: EYES_FT.front, width: 2048 },
+    { dx: REAR_DX, front: false, p: REAR_PANEL_FT, h: REAR_HUMP_FT, eye: EYES_FT.rear, width: 1024 },
   ];
   const solidParts = [], striped = [], consoleTops = [], lowerFaces = [], liveQuads = [];
   for (const seat of seats) {
