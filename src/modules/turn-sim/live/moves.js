@@ -53,7 +53,7 @@ export const TURNING_REJOIN = Object.freeze({
   lineUpFt: 0, // #2's least depth below Lead on the line: none since TS-182 (Patrick 11 Oct 2026 03:47Z: "Lead should stay frozen in the windscreen getting bigger until the decision point"), the 4° alone, about 15 ft below at the decision point; it was 50 ft (Patrick 10 Oct 19:57Z, SMM 12.24 para 58), which lifted Lead up the windscreen inside 700 ft
   lineElevDeg: 4, // on the line he holds Lead this many degrees above his horizon, frozen in the windscreen and growing: about 140 ft below at 2,000 ft, 70 at 1,000, 15 at the decision point (EFIG p.374 "place lead slightly above the horizon"; Patrick 10 Oct 23:58Z, an estimate to tune; TS-181, TS-182)
   frozenBearingDeg: 35, // after the SMM's start he holds Lead frozen in the windscreen at this bearing off his nose (Fable 04:18Z, from the 35° line's picture at the decision point; estimate)...
-  frozenSettleFt: 400, // ...coming onto it from where the reversal left him over this much of the way in (estimate)...
+  frozenSettleFt: 0, // ...coming onto it from where the reversal left him over this much of the way in: none, the reversal ends on it (Patrick 04:22Z "we freeze him in the same spot with the same aspect ratio the whole way"; 400 ft in V2.248)...
   frozenTauSec: 3, // ...taking out a bearing error over this long (estimate)
   frozenArriveKt: 5, // ...his overtake down to this at the decision point (estimate)...
   frozenSlowFtPerKt: 60, // ...a knot less for every this many feet nearer it, from lineKiasNow's (estimate)
@@ -65,14 +65,17 @@ export const TURNING_REJOIN = Object.freeze({
   // Patrick 11 Oct 2026 03:37Z-03:48Z). Until V2.248 the capture legs were flown at the 5 G flag's 78° and 180°/s.
   pointMaxG: 4.5, // he turns hard to point at Lead, within this G, his bank in proportion to the heading still to turn (Patrick 04:05Z: "Turn more at the start with 4-5 g quick roll and wings level earlier"; 5 G stays a flag he stays inside)
   pointGain: 6, // degrees of bank per degree of heading still to turn, so he rolls out as Lead comes onto the nose (estimate)
-  pointTolDeg: 2, // pointing at Lead within this, he is wings level (estimate)
+  pointAheadDeg: 5, // he is rolled out wings level with Lead still this far short of the nose, so the wait is real (Fable's V2.249 flight: at -89°/s straight through, Lead crossed the nose with #2 at 42° of bank; estimate)
   pointKias: 200, // he holds Lead's 200 KIAS through the start: faster, the reversal carries him across Lead's track (estimate from the geometry)
   pointRoll: Object.freeze({ maxRateDps: 90, maxAccelDps2: 180 }), // the start's roll: quick but smooth (Patrick 04:05Z), not the 180°/s, 720°/s² of the tactical moves (estimate)
-  lookLosDps: 1.5, // wings level, he reverses once Lead has come through the nose and his line of sight moves faster than this ("a definite increase"; estimate)
+  levelDeg: 3, // wings level is within this (estimate)
+  lookThroughDeg: 3, // wings level, he reverses once Lead has come this far through the nose ("a definite increase in the line of sight")...
+  lookMinSec: 1.5, // ...and he has been wings level this long (Fable's V2.249 flight: the line of sight rate from the pointing turn ended the wait at once; estimates)...
   lookMaxSec: 20, // ...or after this long, whichever comes first (estimate)
-  reverseBankDeg: 66, // the reversal: Lead's bank plus a bank in proportion to the heading still to turn onto Lead's, at most this (2.5 G level): from 5,000 ft line abreast it ends on the rejoin line about 1,400 ft behind Lead, at fighting wing range (SMM 16.20 para 65b(2): "reverse the turn to capture the fighting wing position"; estimate)...
-  reverseGain: 1.5, // ...this many degrees of bank per degree of heading (estimate)
-  reverseDoneDeg: 15, // within this of Lead's heading the ride takes him onto the line (estimate)
+  reverseBankDeg: 66, // the reversal: he turns with Lead's line of sight onto the frozen bearing, at most this bank (2.5 G level): from 5,000 ft line abreast it ends on the rejoin line about 1,400 ft behind Lead, at fighting wing range (SMM 16.20 para 65b(2): "reverse the turn to capture the fighting wing position"; estimate)...
+  reverseDoneDeg: 2, // ...until Lead is within this of frozenBearingDeg off the nose (estimate)
+  reverseRoll: Object.freeze({ maxRateDps: 45, maxAccelDps2: 45 }), // the reversal is the smooth one (Patrick 04:05Z "quick but smooth"; Fable's V2.249 flight: -90°/s; estimate)
+  reverseMaxSec: 20, // the reversal ends with Lead at frozenBearingDeg off the nose, so there is no slide onto it after (Fable 04:40Z; until V2.250 it ended 15° off Lead's heading, Lead 25° off the nose), or after this long (estimate)
   pointFromFt: 2500, // only from further out than this; closer in the capture alone (estimate)
   formRoll: Object.freeze({ maxRateDps: 30, maxAccelDps2: 20 }), // his roll from the start to the slot: a formation rate, Lead's close-turn roll (rates.js RATE_SETS.close.leadRoll), not the 180°/s of the tactical moves
   hotFt: 1000, // ahead of the line by this much (hot) he flies his least speed, Lead's 200 KIAS, coming up to lineOverKias above it as he reaches the line (estimate; TS-75)
