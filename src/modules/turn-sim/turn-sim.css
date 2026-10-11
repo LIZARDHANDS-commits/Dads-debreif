@@ -956,7 +956,7 @@
 
 [data-module='turn-sim'] .ts-cam-pill.is-active,
 [data-module='turn-sim'] .ts-cam-pill[aria-pressed='true'] {
-  background: var(--color-primary, #3d8bff);
+  background: #2a6fd6; /* darker than #3d8bff so white text meets WCAG AA (4.8:1) */
   color: #fff;
   font-weight: 600;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
