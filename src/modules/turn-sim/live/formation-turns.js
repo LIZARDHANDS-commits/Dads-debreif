@@ -441,8 +441,13 @@ export function holdInPlane(leadRec, lead, wing, body, leadSteps, bodyAt = null,
     for (let j = 0; j < 3; j++) step[j] += (foreHeld - fore) * axes[0][j];
     const jump = Math.hypot(...step);
     acc = acc.map((x, j) => x + (jump > jMax * ease ? (step[j] * jMax * ease) / jump : step[j]));
+    // Handed over, each step moves his place on the acceleration of that step (v dt + a dt²/2), so the first step carries
+    // on the tracker's flight exactly. Until V2.344 it moved at the step's new speed (v dt + a dt²), which read as half as
+    // much again of the acceleration at the hand-over: a 2.6 ft/s² one-step kick across (2-ship to route). The close turns
+    // keep the old step, unchanged.
+    if (handOver) r = r.map((x, j) => x + v[j] * dt + (acc[j] * dt * dt) / 2);
     v = v.map((x, j) => x + acc[j] * dt);
-    r = r.map((x, j) => x + v[j] * dt);
+    if (!handOver) r = r.map((x, j) => x + v[j] * dt);
     rel.push({ x: r[0], y: r[1], z: r[2] });
     prev = now;
     now = next;
