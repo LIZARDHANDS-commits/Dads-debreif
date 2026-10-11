@@ -35,7 +35,7 @@ STATIONS = [list(r) for r in S['STATIONS']]
 CANOPY = [list(r) for r in S['CANOPY']]
 FRAME_X = list(S['CT156_FRAME_X'])
 WING, STAB, FIN = S['WING'], S['STAB'], S['FIN']
-DIHEDRAL, TIP_S, WING_Z = S['DIHEDRAL'], S['TIP_S'], S['WING_Z']
+DIHEDRAL, TIP_S, WING_Z, WING_BREAK = S['DIHEDRAL'], S['TIP_S'], S['WING_Z'], S['WING_BREAK']
 FRAME_LEAN = list(S['CT156_FRAME_LEAN'])  # each bow's lean, crest to sills (+ feet aft)
 
 
@@ -204,6 +204,17 @@ def airfoil(sections, span='y', mirror=False, K=24):
     return loft(rings)
 
 
+def wing_bend(p):
+    # The outer panel turned up DIHEDRAL where it meets the flat centre section (the code model's wingBend).
+    x, y, z = p
+    a = abs(y)
+    if a <= WING_BREAK:
+        return p
+    d, h = a - WING_BREAK, z - WING_Z
+    c, s = math.cos(DIHEDRAL), math.sin(DIHEDRAL)
+    return (x, math.copysign(WING_BREAK + d * c - h * s, y), WING_Z + d * s + h * c)
+
+
 def rotate_x(verts, a):
     c, s = math.cos(a), math.sin(a)
     return [(x, y * c - z * s, y * s + z * c) for x, y, z in verts]
@@ -250,7 +261,12 @@ M = {
     'blade': material('blade', '#0a0c10', 0.6),
     'tip': material('prop_tip', '#d2202c', 0.5),
     'exhaust': material('exhaust', '#8a7a6c', 0.5, 0.6),
-    'helmet': material('helmet', '#d4d8de', 0.35),
+    'antenna': material('antenna', '#a8aaa4', 0.5),
+    'beacon': material('beacon', '#8a6326', 0.25, 0.2),
+    'helmet': material('helmet', '#c3c9d0', 0.35),
+    'mask': material('mask', '#4c5348', 0.6),
+    'suit': material('suit', '#5e6648', 0.85),
+    'headbox': material('headbox', '#25282c', 0.6),
     'red': material('light_red', '#ff2b2b', emit=3),
     'green': material('light_green', '#2bff6a', emit=3),
     'strobe': material('light_white', '#ffffff', emit=3),
@@ -306,7 +322,7 @@ mesh_object('fairing', verts, faces, M['navy'])
 
 # The cheat line: a white strip just off each side, nose number to tail, and a thin one ahead of the number under
 # the exhaust stack (cheatLine).
-for name, x0, x1, n, half, dz in (('cheat', 0.395, -0.75, 64, 0.0032, 0.0), ('cheat_nose', 0.552, 0.472, 8, 0.0016, -0.006)):
+for name, x0, x1, n, half, dz in (('cheat', 0.363, -0.75, 64, 0.0032, 0.0), ('cheat_nose', 0.552, 0.463, 8, 0.0016, -0.006)):
     for side in (1, -1):
         pts, faces = [], []
         for k in range(n + 1):
@@ -319,10 +335,11 @@ for name, x0, x1, n, half, dz in (('cheat', 0.395, -0.75, 64, 0.0032, 0.0), ('ch
             faces.append((p, p + 1, p + 3, p + 2))
         mesh_object(f'{name}_{side}', pts, faces, M['white'])
 
-# Wings (the code model's dihedral), tailplane, fin: smooth aerofoils with sharp trailing edges.
+# Wings (flat centre section, then the code model's dihedral), tailplane, fin: smooth aerofoils with sharp trailing
+# edges.
 for side, name in ((1, 'wing_left'), (-1, 'wing_right')):
     v, f = airfoil(WING, mirror=side < 0)
-    mesh_object(name, rotate_x(v, side * DIHEDRAL), f, M['navy'], sharp_deg=35)
+    mesh_object(name, [wing_bend(p) for p in v], f, M['navy'], sharp_deg=35)
 mesh_object('tailplane', *airfoil(STAB), M['navy'], sharp_deg=35)
 mesh_object('fin', *airfoil(FIN, span='z'), M['ship'], sharp_deg=35)
 # The ventral fin: an aerofoil down from inside the belly, its foot sheared to rise aft by VENTRAL_RISE
@@ -382,22 +399,34 @@ for k in range(4):
     blade(0.03, 0.15, 0.016, 0.013, M['blade'], f'blade_{k}', k)
     blade(0.15, 0.175, 0.013, 0.012, M['tip'], f'blade_tip_{k}', k)
 
-# The two helmets, front and rear (the code model's seat stations and helmet heights).
+# The two pilots, front and rear (the code model's seat stations and helmet heights; pilotGeometry, simplified): helmet,
+# oxygen mask, shoulders, and the ejection seat's headbox behind each (headboxGeometry).
 for i, (hx, hz) in enumerate(zip(S['CT156_SEAT_X'], S['CT156_HELMET_Z'])):
-    ellipsoid(f'helmet_{i}', (hx, 0, hz), (0.02, 0.02, 0.02), M['helmet'])
+    ellipsoid(f'helmet_{i}', (hx, 0, hz), (0.021, 0.0185, 0.0195), M['helmet'])
+    ellipsoid(f'mask_{i}', (hx + 0.016, 0, hz - 0.012), (0.009, 0.0085, 0.01), M['mask'])
+    ellipsoid(f'shoulders_{i}', (hx - 0.004, 0, hz - 0.04), (0.017, 0.034, 0.013), M['suit'])
+    top, foot, bx = hz + (0.012, 0.008)[i], 0.045, hx - 0.032
+    box = [(bx + dx, dy, z) for z in (foot, top) for dx, dy in ((0.01, 0.017), (-0.01, 0.017), (-0.01, -0.017), (0.01, -0.017))]
+    mesh_object(f'headbox_{i}', box, [(0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)], M['headbox'], smooth=False)
 
-# The exhaust stacks, either side of the nose just under the top line.
-stub_y = fuse_surf(0.5, -0.012) - 0.003
+# The exhaust stacks, either side of the nose, level with the spinner's axis (the code model's STUB).
+stub_y = fuse_surf(0.492, 0.0) - 0.003
 for s in (1, -1):
-    rings = [[(x, s * stub_y + r * math.cos(2 * math.pi * k / 16), -0.012 + r * math.sin(2 * math.pi * k / 16)) for k in range(16)]
-             for x, r in ((0.53, 0.012), (0.47, 0.009))]
+    rings = [[(x, s * stub_y + r * math.cos(2 * math.pi * k / 16), r * math.sin(2 * math.pi * k / 16)) for k in range(16)]
+             for x, r in ((0.531, 0.011), (0.453, 0.015))]
     mesh_object(f'exhaust_{s}', *loft(rings), M['exhaust'])
 
+# Under the belly behind the wing: the blade antenna and the lower beacon (the code model's geo.antenna, geo.beacon).
+belly = lambda x: row_at(STATIONS, x)[3]
+blade_pts = [(-0.294, 0.004), (-0.331, 0.004), (-0.346, -0.041), (-0.322, -0.041)]
+verts = [(x, y, z + belly(-0.315)) for y in (0.0015, -0.0015) for x, z in blade_pts]
+mesh_object('antenna', verts, [(0, 1, 2, 3), (7, 6, 5, 4), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (3, 7, 4, 0)], M['antenna'], smooth=False)
+ellipsoid('beacon', (-0.254, 0, belly(-0.254) + 0.001), (0.024, 0.012, 0.012), M['beacon'])
+
 # The position lights: red left tip, green right, white strobes and tail light.
-tip_y = TIP_S * math.cos(DIHEDRAL) - WING_Z * math.sin(DIHEDRAL)
-tip_z = TIP_S * math.sin(DIHEDRAL) + WING_Z * math.cos(DIHEDRAL)
-nav_x = WING[1]['le'] - 0.012
-strobe_x = WING[1]['le'] - WING[1]['chord'] + 0.01
+_, tip_y, tip_z = wing_bend((0, TIP_S, WING_Z))
+nav_x = WING[-1]['le'] - 0.012
+strobe_x = WING[-1]['le'] - WING[-1]['chord'] + 0.01
 ellipsoid('light_left', (nav_x, tip_y + 0.002, tip_z), (0.014, 0.007, 0.006), M['red'])
 ellipsoid('light_right', (nav_x, -(tip_y + 0.002), tip_z), (0.014, 0.007, 0.006), M['green'])
 for s in (1, -1):
