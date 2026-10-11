@@ -11,6 +11,10 @@
 // the tub (floor and walls), the wings and the tail are the ship's own (ct156-model.js setCockpitView). A picture only:
 // no flight numbers, no flight formulas. Like ct156-model.js it imports nothing from the app, and three.js is passed in.
 //
+// From V2.275 some parts come from a Blender model file (ALL-32; ct156-cockpit-model.js): the forward bow and the
+// canopy rails so far. The code still draws them, named ct156-cockpit-<part>, and they show until the file is in or if it
+// fails to load.
+//
 //   const pit = createCt156Cockpit(THREE, { doc: document });
 //   shipRoot.add(pit.group);   // a child of a createCt156Model root, so it moves, banks and pitches with the airframe
 //   pit.update(hud);           // the live instruments and compass cards in both seats, from the HUD's numbers (hud.js drawHud's `hud`)
@@ -38,6 +42,7 @@ import {
   CT156_TUB_FLOOR_FT, ct156CanopySection, ct156CanopyHalfWidth, ct156HoopPoints, ct156JoinGeometries, setCockpitView,
 } from './ct156-model.js';
 import { drawAttitude } from './hud.js';
+import { attachCockpitModel } from './ct156-cockpit-model.js';
 
 /** Feet per model unit (the model's 1.44 units are the T-6A's 33 ft 4 in). */
 export const CT156_FT_PER_UNIT = CT156_LENGTH_FT / CT156_UNIT_LENGTH;
@@ -219,7 +224,7 @@ export const SEAT_FT = Object.freeze({
   knee: { inner: 0.24, outer: 0.8, belowPanel: 0.15, r: 0.17, depth: 0.5 }, // the knee wells under the panel
 });
 /** The canopy's side frames inside the glass, feet: 0.3 ft up from the sill, a fastener every 0.3 ft (estimates). */
-const SIDE_FRAME_FT = Object.freeze({ height: 0.3, thick: 0.06, pitch: 0.3 });
+export const SIDE_FRAME_FT = Object.freeze({ height: 0.3, thick: 0.06, pitch: 0.3 });
 
 /**
  * The coaming's shade on each panel's top: darkest (top, the veil's opacity) at the face's top edge, gone `depth` of the
@@ -1502,9 +1507,12 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document } = {}) {
 
   // Round the canopy. The forward bow's light band with its ring of holes and inner tube (TS-156), and its two curved
   // mirrors (BOW_MIRRORS).
+  // The bow itself and the canopy rails are their own meshes, named for the Blender cockpit's parts that replace them
+  // (ct156-cockpit-model.js, ALL-32); they stay if the model file fails to load.
   const fb = bandGeometries(THREE, FORWARD_BOW_FT);
-  solidParts.push({ geometry: fb.band, materials: [SLOT.band] }, { geometry: fb.tube, materials: [SLOT.black] });
-  for (const g of fb.dots) solidParts.push({ geometry: g, materials: [SLOT.black] });
+  const bowParts = [{ geometry: fb.band, materials: [SLOT.band] }, { geometry: fb.tube, materials: [SLOT.black] }];
+  for (const g of fb.dots) bowParts.push({ geometry: g, materials: [SLOT.black] });
+  add(ct156JoinGeometries(THREE, bowParts), slotMats).name = 'ct156-cockpit-forward-bow';
   for (const [t0, t1] of BOW_MIRRORS.spans) {
     const { frame, face } = bowMirrorGeometries(THREE, FORWARD_BOW_FT, t0, t1);
     solidParts.push({ geometry: frame, materials: [SLOT.black] }, { geometry: face, materials: [SLOT.mirror] });
@@ -1545,10 +1553,14 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document } = {}) {
   }
   // The canopy's side frames with their fasteners (Dad's pictures 19, 21, 27) and the sill bands below them.
   const sf = sideFrameParts(THREE);
-  for (const g of sf.frames) solidParts.push({ geometry: g, materials: [SLOT.frame] });
-  for (const g of sf.nubs) solidParts.push({ geometry: g, materials: [SLOT.dark] });
-  for (const g of sillGeometry(THREE)) solidParts.push({ geometry: g, materials: [SLOT.frame] });
+  const railParts = [];
+  for (const g of sf.frames) railParts.push({ geometry: g, materials: [SLOT.frame] });
+  for (const g of sf.nubs) railParts.push({ geometry: g, materials: [SLOT.dark] });
+  for (const g of sillGeometry(THREE)) railParts.push({ geometry: g, materials: [SLOT.frame] });
+  add(ct156JoinGeometries(THREE, railParts), slotMats).name = 'ct156-cockpit-canopy-rails';
   add(ct156JoinGeometries(THREE, solidParts), slotMats);
+  // The Blender cockpit's parts (ALL-32), once its file is in, in place of the code's parts of the same names.
+  attachCockpitModel(THREE, group, { band: slotMats[SLOT.band], black: slotMats[SLOT.black], frame: slotMats[SLOT.frame], dark: slotMats[SLOT.dark] });
 
   // The yellow and black striped parts: the seat handles, the emergency gear T, the console T-handle and guard.
   const stripe = canvasTexture(32, 32);
@@ -1586,6 +1598,7 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document } = {}) {
       return true;
     },
     dispose() {
+      group.userData.disposed = true;
       group.removeFromParent();
       for (const g of geometries) g.dispose();
       for (const m of materials) m.dispose();

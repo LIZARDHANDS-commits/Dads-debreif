@@ -8,6 +8,8 @@ A trial of building the CT-156 in Blender instead of in code. Nothing in the app
 | `ct156-shape.mjs` | Prints the code model's shape tables (fuselage stations, canopy, wing, tailplane, fin) as JSON, so both models use one set of numbers. |
 | `build_ct156.py` | Blender script, run without Blender's window: builds the aircraft from those tables and exports `public/models/ct156.glb`. |
 | `ct156-params.json` | Moves the nose top line, the canopy peak and the forward canopy bow, in feet. `null` keeps the code tables. |
+| `ct156-cockpit-shape.mjs` | Prints the cockpit's numbers (eye, forward bow, canopy rails), worked out by the code cockpit's own helpers. |
+| `build_ct156_cockpit.py` | Builds the cockpit parts drawn as a model (ALL-32) and exports `public/models/ct156-cockpit.glb`. The app uses this one: each part replaces the code cockpit's part of the same name once the file loads (`src/ui-kit/ct156-cockpit-model.js`). |
 
 ## Rebuild the model
 
@@ -17,6 +19,15 @@ Blender 4.2 LTS, the free official release from blender.org.
 node tools/blender/ct156-shape.mjs > ct156-shape.json
 blender -b --factory-startup -P tools/blender/build_ct156.py -- ct156-shape.json tools/blender/ct156-params.json public/models/ct156.glb
 ```
+
+## Rebuild the cockpit parts
+
+```
+node tools/blender/ct156-cockpit-shape.mjs > ct156-cockpit-shape.json
+blender -b --factory-startup -P tools/blender/build_ct156_cockpit.py -- ct156-cockpit-shape.json public/models/ct156-cockpit.glb
+```
+
+Rebuild it whenever the eye, the bow or the canopy changes in the code, so the parts still fit.
 
 ## The parameters (feet, from the spinner's axis)
 
