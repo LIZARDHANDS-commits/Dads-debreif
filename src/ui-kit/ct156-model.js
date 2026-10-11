@@ -87,7 +87,13 @@ const STATIONS = [
 // bow's crest 2.75 ft above the spinner's axis 11.3 ft behind the tip, the peak 3.45 ft over the centre arch (was
 // 3.0 ft over the front seat, off the photo). From the rear bow aft the top is the same drawing's line falling from
 // the canopy into the tail: 2.3 ft above the axis at the rear bow, 1.4 ft 2 ft behind it and 0.4 ft where it meets the
-// fuselage, 5.8 ft behind it (was 2.4 ft, then a point 2.7 ft behind it, off the photo). The half-widths from the windscreen
+// fuselage, 5.8 ft behind it (was 2.4 ft, then a point 2.7 ft behind it, off the photo). Windscreen and forward bow
+// stations re-measured on the T-6A-1 side drawing 11 Oct 2026 (Fable thread, its 33 ft 4 in bar at 3.05 px/in): the
+// windscreen's foot meets the cowl about 8.4 ft behind the spinner tip, the bow band's crest about 10.75 ft behind it
+// (its front edge 10.6, aft edge 10.9) and its feet about 11.05 ft, so the band leans about 14.5° with its top
+// forward; the model's rows from the foot to the bow moved 0.56 ft (0.024 units) forward to match (the bow crest was
+// at 11.3 ft, the foot at 9.1 ft). The drawing's crest reads 2.55 to 2.75 ft above the axis depending on where the
+// spinner axis is taken; the 2.75 ft stays. The half-widths from the windscreen
 // foot to the centre arch are the T-6A-1 top view's (Figure 1-1-2, measured 11 Oct 2026 against its 33 ft 5 in span):
 // the canopy 33.6 in across outside from just behind the forward bow all the way back, 32.8 in at the bow, the
 // windscreen narrowing over the 2.2 ft ahead of the bow to its point at the foot (was 30 in at the bow and narrowing
@@ -95,14 +101,14 @@ const STATIONS = [
 // about an inch outside the real inside). The rear bow's, 2.55 ft across, nearly the canopy's widest, so the glass
 // ends square as in the same top view (was 2.3 ft); the fairing's narrowing behind it is an estimate.
 const CANOPY = [
-  [0.268, 0.01, 0.0635],
-  [0.254, 0.034, 0.0715],
-  [0.245, 0.0425, 0.0766],
-  [0.236, 0.0495, 0.0817],
-  [0.2175, 0.054, 0.0924],
-  [0.208, 0.0554, 0.0979],
-  [0.19, 0.0572, 0.1083],
-  [0.172, 0.059, 0.1188],
+  [0.292, 0.01, 0.0601],
+  [0.278, 0.034, 0.0715],
+  [0.269, 0.0425, 0.0766],
+  [0.26, 0.0495, 0.0817],
+  [0.2415, 0.054, 0.0924],
+  [0.232, 0.0554, 0.0979],
+  [0.214, 0.0572, 0.1083],
+  [0.196, 0.059, 0.1188],
   [0.14, 0.0605, 0.1249],
   [0.059, 0.0605, 0.1413],
   [-0.022, 0.0605, 0.149],
@@ -122,7 +128,7 @@ const CANOPY = [
 // the helmets are the T-6A-1 side drawing's (ALL-31): the bow 11.3 ft behind the spinner tip (was 11.6); the front
 // helmet's centre 1.96 ft ahead of the origin and 1.99 ft up, the rear one's 3.4 ft aft and 2.29 ft up (was 1.4 ft
 // ahead, 3.0 ft aft, both 2.27 ft up).
-export const CT156_FRAME_X = Object.freeze([0.172, -0.022, -0.239]);
+export const CT156_FRAME_X = Object.freeze([0.196, -0.022, -0.239]);
 export const CT156_SEAT_X = Object.freeze([0.0847, -0.1469]);
 export const CT156_HELMET_Z = Object.freeze([0.086, 0.0989]);
 /** The spinner's radius at its base less its 0.001-unit tip: 0.67 ft at the base, the T-6A-1 side drawing's (ALL-31; was 0.79 ft). */
@@ -239,7 +245,7 @@ const DORSAL = [
   [-0.6, 0.0035, 0.066],
 ];
 // The forward bow leans aft from its crest 9° to the sill, as the T-6A-1 side drawing shows it (was upright).
-export const CT156_BOW_LEAN = rad(9);
+export const CT156_BOW_LEAN = rad(14.5); // the side drawing's band, 11 Oct 2026 (was 9°, read off the photo; Patrick's 156102 photo reads about 13°)
 /**
  * Each frame hoop's lean from its crest to the sills (CT156_FRAME_X's order), radians: + the feet aft of the crest, -
  * ahead of it. The forward bow CT156_BOW_LEAN; the rear bow 22° with its top aft, as the T-6A-1 side drawing shows it
