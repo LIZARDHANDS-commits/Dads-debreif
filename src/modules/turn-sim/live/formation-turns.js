@@ -26,6 +26,7 @@ import { recordFlight, dryRunT } from './replay.js';
 import { trackTwice, phase } from './tracker.js';
 import { smoothest, makeTrack, seedTrack, setTrackStep, TRACK_PAD, posesFrom, settleLast, slotInWorld } from './kinematic.js';
 import { leadTurnSegs } from './manoeuvres.js';
+import { slotsFor } from './slots.js';
 import { fwPursuitCommand, fwBubbleCommand } from './fw-pursuit.js';
 import { FW_TURN, FW_FOLLOW, FW_EXIT, WING_BANKS, ROLL, RATE_SETS, closeBankNow } from './tuning.js';
 import { G_FTPS2 } from '../../../core/units.js';
@@ -313,20 +314,21 @@ export const CLOSE_TURN = Object.freeze({
    * lead flies in echelon, from any close formation position"; holdInPlane below). He rolls with Lead, and:
    *  - pulls or unloads up to followG more or less than Lead's G along Lead's lift line (pitch), so on the outside of a
    *    roll-in he climbs into the plane and on the inside he descends;
-   *  - banks up to bankOffDeg off Lead's bank to slide in or out along Lead's wing line;
+   *  - banks off Lead's bank to slide in or out along Lead's wing line, as far as it takes (no limit but physics: Patrick's
+   *    "no bank limit in formation"), settling across at sidePerSec so a small gap takes a degree or two;
    *  - changes speed up to powerG along Lead's heading (about 2 kt/s);
    *  - builds a change of G at no more than onsetGps, and settles back onto his place at about holdPerSec (critically damped).
    * All estimates. Where Lead's roll moves his place faster than that (route, the 4-ship's outer wingmen) he is briefly out
    * of place and back in a few seconds ("initially climbs or descends slightly as bank is changed", para 41).
    */
   followG: 0.5,
-  bankOffDeg: 2.5,
   /**
-   * Once Lead is wings level, out of place sideways he banks up to this far off Lead's to slide back (estimate). At 2.5° and
-   * 1 G he had about 1.4 ft/s² across, too little to stop the slide a 60° roll-out leaves him with: in route he ended 900 ft
-   * out (V2.226). 10° keeps him inside the judge's steady band (bands.js STEADY.bankOffDeg).
+   * How fast he settles across Lead's wing line, per second (critically damped; estimate). Patrick 10 Oct 23:06Z: "we want
+   * the aircraft to stay in position during turns, 2 uses power, bank, pitch". Until V2.229 his bank was held within 2.5° of
+   * Lead's (10° wings level), too little to follow Lead's roll: in finger #4 slid 170 ft wide in a 90° turn. At 1/s a 1 ft
+   * gap takes about 1° of bank, so in a steady turn he sits within a degree or two of Lead's bank.
    */
-  bankOffLevelDeg: 10,
+  sidePerSec: 1,
   /** How long after Lead's turn he may take to settle back on his place (estimate; it was 30 s, too short after a 60° roll-out). */
   settleSec: 60,
   powerG: 0.1,
@@ -376,27 +378,23 @@ export function holdInPlane(leadRec, lead, wing, body, leadSteps) {
     const pv = i === 0 ? next.map((x, j) => (x - now[j]) / dt) : next.map((x, j) => (x - prev[j]) / (2 * dt));
     const pa = i === 0 ? [0, 0, 0] : next.map((x, j) => (x - 2 * now[j] + prev[j]) / (dt * dt));
     // Along each of Lead's axes, what he can do about it: G along Lead's lift line (pitch), a little power along Lead's
-    // heading, and across Lead's wing line only what a bank a few degrees off Lead's gives at the G he is pulling, so he rolls
-    // with Lead. He closes each part of the gap at a rate he can still stop from with that axis's own limit to spare, so he
-    // never overshoots his place.
+    // heading, and across Lead's wing line whatever bank off Lead's it takes, settling at sidePerSec. He closes each part of
+    // the gap at a rate he can still stop from with that axis's own limit to spare, so he never overshoots his place.
     const L = leadRec.at(i);
     const phi = L.bankDeg * DEG;
     const ch = Math.cos(L.headingRad);
     const sh = Math.sin(L.headingRad);
     const axes = [[ch, sh, 0], [-sh * Math.cos(phi), ch * Math.cos(phi), -Math.sin(phi)], [-sh * Math.sin(phi), ch * Math.sin(phi), Math.cos(phi)]];
     const dot = (ax, w) => ax[0] * w[0] + ax[1] * w[1] + ax[2] * w[2];
-    const along = (m, lim) => {
+    const along = (m, lim, kk = k) => {
       const gap = dot(axes[m], r) - dot(axes[m], now);
-      const want = dot(axes[m], pv) - Math.sign(gap) * Math.min(k * Math.abs(gap), Math.sqrt(lim * Math.abs(gap)));
-      const raw = dot(axes[m], pa) + 2 * k * (want - dot(axes[m], v));
+      const want = dot(axes[m], pv) - Math.sign(gap) * Math.min(kk * Math.abs(gap), Math.sqrt(lim * Math.abs(gap)));
+      const raw = dot(axes[m], pa) + 2 * kk * (want - dot(axes[m], v));
       return Math.max(-lim, Math.min(lim, raw));
     };
     const up = along(2, upMost);
     const lift = Math.max(0, G_FTPS2 / Math.cos(phi) + up); // his lift: Lead's (level turn) and the part he adds or takes off
-    // Wings level and out of place sideways, he banks further off to slide back, more the further out he is (up to 50 ft).
-    const sideGap = Math.abs(dot(axes[1], r) - dot(axes[1], now));
-    const offDeg = Math.abs(L.bankDeg) > 5 ? CLOSE_TURN.bankOffDeg : CLOSE_TURN.bankOffDeg + (CLOSE_TURN.bankOffLevelDeg - CLOSE_TURN.bankOffDeg) * Math.min(1, sideGap / 50);
-    const parts = [along(0, powerMost), along(1, Math.max(0.5, lift * Math.tan(offDeg * DEG))), up];
+    const parts = [along(0, powerMost), along(1, Infinity, CLOSE_TURN.sidePerSec), up];
     const cmd = [0, 1, 2].map((j) => axes[0][j] * parts[0] + axes[1][j] * parts[1] + axes[2][j] * parts[2]);
     const step = cmd.map((c, j) => c - acc[j]);
     const jump = Math.hypot(...step);
@@ -495,10 +493,13 @@ function ownBank(poses) {
  * tail through the turn.
  * In the 4-ship #3 is in Lead's wing plane, so #4, flying through #3 in #3's plane (SMM 16.37 para 103), is in Lead's plane
  * too: every wingman's place is worked out in Lead's plane, which is the same picture with no chain of small errors.
- * aircraft: Lead first, each wingman with `ref`; formation: the formation they are in; key: a turn button; dir: +1 left, -1 right.
+ * Each wingman holds his slot (slots.js), not wherever he is at the press, so one still settling from the change before carries
+ * on into his slot. Lead rolls no faster than his farthest wingman can follow (closeTurnRoll).
+ * aircraft: Lead first, each wingman with `ref`; formation: the formation they are in; key: a turn button; dir: +1 left, -1 right;
+ * side: #2's side from the classifier (+1 left, -1 right; 0 for line astern), or undefined to hold each where he is.
  * Returns { ok, plans, note, leadBankDeg, maxBankDeg, endSec, flag }.
  */
-export function planCloseTurn(aircraft, formation, key, dir, t0 = 0) {
+export function planCloseTurn(aircraft, formation, key, dir, t0 = 0, side = undefined) {
   const lead = aircraft[0];
   const m = MANOEUVRES[key];
   if (!FW_TURN_KEYS.includes(key)) return { ok: false, reason: `${m?.label ?? key} flies in line abreast only.` };
@@ -508,20 +509,27 @@ export function planCloseTurn(aircraft, formation, key, dir, t0 = 0) {
   const closeBank = closeBankNow();
   const bank = turnDeg <= 30 ? CLOSE_TURN.gentleBankDeg : four && formation === 'echelon' ? CLOSE_TURN.fourEchelonBankDeg : (echelon2 || formation === 'route' || formation === 'astern') ? closeBank : CLOSE_TURN.bankDeg;
   // The 2-ship echelon turn rolls slow and smooth (Patrick 20:50Z, TS-78); the other close formations as V2.76 (TS-77).
-  const leadSegs = leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, bank, true).map((x) => ({ ...x, roll: echelon2 ? CLOSE_TURN.echelonRoll : CLOSE_TURN.leadRoll }));
+  // Each wingman's place in Lead's wing plane: his slot, or (a slot not known or more than SLOT_TOL_FT away) where he is now,
+  // turned back out of Lead's bank.
+  const slots = side === undefined ? null : slotsInLead(formation, side, four);
+  const phi = (lead.bankDeg ?? 0) * DEG;
+  const bodies = new Map(aircraft.slice(1).map((wing) => {
+    const rel = relativeTo(lead, wing);
+    const up = wing.altAboveFt - lead.altAboveFt;
+    const now = { fwd: rel.fwd, left: rel.left * Math.cos(phi) - up * Math.sin(phi), up: rel.left * Math.sin(phi) + up * Math.cos(phi) };
+    const slot = slots?.[wing.id];
+    const near = slot && Math.hypot(slot.fwd - now.fwd, slot.left - now.left, slot.alt - now.up) <= SLOT_TOL_FT;
+    return [wing.id, near ? { fwd: slot.fwd, left: slot.left, up: slot.alt } : now];
+  }));
+  const roll = closeTurnRoll(echelon2 ? CLOSE_TURN.echelonRoll : CLOSE_TURN.leadRoll, [...bodies.values()]);
+  const leadSegs = leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, bank, true).map((x) => ({ ...x, roll }));
   const leadSteps = Math.round(dryRunT(lead, { segments: leadSegs }, t0).durationSec / STEP_SEC);
   const by = new Map(aircraft.map((a) => [a.id, a]));
   const leadRec = recordFlight(lead, { segments: leadSegs }, t0);
   const plans = { [lead.id]: { segments: leadSegs.map((x) => ({ ...x })) } };
-  // Each wingman's place, fixed in Lead's real wing plane (holdInPlane): his place now, turned back out of Lead's bank.
+  // Each wingman's place, fixed in Lead's real wing plane (holdInPlane).
   let maxBankDeg = Number(bank);
-  const held = aircraft.slice(1).map((wing) => {
-    const rel = relativeTo(lead, wing);
-    const up = wing.altAboveFt - lead.altAboveFt;
-    const phi = (lead.bankDeg ?? 0) * DEG;
-    const body = { fwd: rel.fwd, left: rel.left * Math.cos(phi) - up * Math.sin(phi), up: rel.left * Math.sin(phi) + up * Math.cos(phi) };
-    return { wing, ...holdInPlane(leadRec, lead, wing, body, leadSteps) };
-  });
+  const held = aircraft.slice(1).map((wing) => ({ wing, ...holdInPlane(leadRec, lead, wing, bodies.get(wing.id), leadSteps) }));
   const n = held.reduce((m, h) => Math.max(m, h.rel.length - 1), leadSteps);
   for (const { wing, rel } of held) {
     const poses = heldPoses(leadRec, wing, rel, n);
@@ -551,6 +559,46 @@ export function planCloseTurn(aircraft, formation, key, dir, t0 = 0) {
   };
 }
 
+/** How far a wingman may be from his slot at the press and still hold the slot (the classifier's close tolerance, judge.js). */
+const SLOT_TOL_FT = 15;
+
+/**
+ * Each wingman's slot in Lead's frame, { [id]: { fwd, left, alt } }: the slot table's place off the aircraft he flies off,
+ * chained back to Lead (fwd and left off his reference, height off Lead's, as slots.js gives them).
+ */
+function slotsInLead(formation, side, four) {
+  const table = slotsFor(formation, side, { ships: four ? 4 : 2 });
+  const at = { 1: { fwd: 0, left: 0, alt: 0 } };
+  for (const id of [2, 3, 4]) {
+    const s = table[id];
+    if (!s || !at[s.ref]) continue;
+    at[id] = { fwd: at[s.ref].fwd + s.fwd, left: at[s.ref].left + s.left, alt: s.alt };
+  }
+  return at;
+}
+
+/**
+ * Lead's roll in a close formation turn, no faster than his farthest wingman can follow while rolling with him (SMM 16.36
+ * para 98: "smooth ... someone may be flying off your wing"; para 101: echelon's "slow roll rate"; 12.19 para 43: the
+ * wingman matches Lead's rate of roll; TS-180). As Lead rolls, a wingman r ft from him has his place swung r·α along Lead's
+ * lift line and r·ω² across his wing line, so the G and bank he needs off Lead's to hold it grow with r. Lead's roll
+ * acceleration is the 2-ship echelon's (Patrick 5 Oct 20:50Z; CLOSE_TURN.echelonRoll) scaled by ECHELON_REF_FT/r, and his
+ * roll rate keeps the swing across the wing line within what ROLL_WITH_DEG of bank gives at 1 G, never faster than the
+ * formation's own roll (base). About 6 s to 45° in finger, 6 s to 60° in the 2-ship echelon (Patrick's 4-5 s needed up to
+ * 20° off his bank); in route, far out, slower still. bodies: each wingman's place in Lead's wing plane.
+ */
+export function closeTurnRoll(base, bodies) {
+  const r = Math.max(1, ...bodies.map((b) => Math.hypot(b.fwd, b.left, b.up)));
+  const accelDps2 = (CLOSE_TURN.echelonRoll.maxAccelDps2 * ECHELON_REF_FT) / r;
+  const rateDps = Math.sqrt((G_FTPS2 * Math.tan(ROLL_WITH_DEG * DEG)) / r) / DEG;
+  return { ...base, maxRateDps: Math.min(base.maxRateDps, rateDps), maxAccelDps2: Math.min(base.maxAccelDps2, accelDps2) };
+}
+
+/** The bank off Lead's that Lead's roll rate leaves his farthest wingman needing to hold his place across Lead's wing line (estimate). */
+const ROLL_WITH_DEG = 5;
+/** How far the 2-ship's #2 is from Lead in echelon, ft (slots.js: 25 ft back, 45 ft out, 5 ft down), the reference for closeTurnRoll. */
+const ECHELON_REF_FT = (() => { const e = slotsFor('echelon', 1)[2]; return Math.hypot(e.fwd, e.left, e.alt); })();
+
 /**
  * Lead's own flying for a turn button in a formation (the segments planFwTurn and planCloseTurn give him), 2-ship, from
  * where he is now. A turn pressed while #2 is still changing into that formation (spec F11) flies this, and #2 re-plans his
@@ -576,7 +624,7 @@ const formationWord = (key, four) => ({ echelon: 'echelon', route: 'route', aste
 export function planFormationTurn(aircraft, where, key, dir, t0 = 0, { blockFt = 8000 } = {}) {
   const ships = aircraft.length > 2 ? 4 : 2;
   if (!FW_TURN_KEYS.includes(key) || !TURN_FORMATIONS[ships].includes(where.key)) return null;
-  return where.key === 'fw' ? planFwTurn(aircraft, key, dir, t0, { blockFt }) : planCloseTurn(aircraft, where.key, key, dir, t0);
+  return where.key === 'fw' ? planFwTurn(aircraft, key, dir, t0, { blockFt }) : planCloseTurn(aircraft, where.key, key, dir, t0, where.side);
 }
 
 // ---- Lead's manoeuvres in fighting wing (TS-70) ------------------------------------------------------------------------

@@ -60,6 +60,14 @@ const routeLink = (l) => {
   return along >= 4 * WINGSPAN_FT - 15 && along <= 6 * WINGSPAN_FT + 15 && offLine <= 15 && l.down > -10;
 };
 
+/** Where a wingman is in Lead's wing plane: [ahead, out along Lead's wing line, up along his lift line], ft. */
+const inLeadsPlane = (L, w) => {
+  const r = [w.xFt - L.xFt, w.yFt - L.yFt, w.altAboveFt - L.altAboveFt];
+  const [ch, sh, p] = [Math.cos(L.headingRad), Math.sin(L.headingRad), L.bankDeg * DEG];
+  const axes = [[ch, sh, 0], [-sh * Math.cos(p), ch * Math.cos(p), -Math.sin(p)], [-sh * Math.sin(p), ch * Math.sin(p), Math.cos(p)]];
+  return axes.map((a) => a[0] * r[0] + a[1] * r[1] + a[2] * r[2]);
+};
+
 /**
  * Where the four are, against formation `key` with #2 on side s (+1 left, -1 right). Returns a list of what is wrong
  * (empty when it is right), in words a pilot would use.
@@ -262,10 +270,13 @@ test('4-ship: a press that cannot be flown is refused with nothing moved, and a 
   assert.equal(f.state.current, null);
 });
 
-test('4-ship: the turn buttons turn every formation, each wingman rolling with Lead in his wing plane, and the four end in the formation they started in', () => {
-  // Patrick 18:11Z: "do turns in any of these formations"; spec section 10.2. In the close formations each wingman rolls
-  // with Lead (bank within the shared ±5°) and, once Lead has held his bank 5 s (the 3 s plane lag of TS-55, an estimate,
-  // plus 2 s), a wingman more than a wingspan out to the side is stepped up on the outside and down on the inside (SMM 12.19
+test('4-ship: the turn buttons turn every formation, each wingman in position and rolling with Lead in his wing plane, and the four end in the formation they started in', () => {
+  // Patrick 18:11Z: "do turns in any of these formations"; spec section 10.2. In the close formations each wingman stays in
+  // position through the turn and the roll-out: within ±15 ft of where he was in Lead's wing plane at the press (the close
+  // formations' band, echelonLink), and rolls with Lead: his bank within 13° of Lead's while Lead rolls and within the
+  // shared ±5° once Lead has held his bank 1 s (Patrick's cards 10 Oct 23:08Z "Check station" and 23:42Z "Approve, 13°
+  // rolling"; 13° is the 2-ship turn test's). Once Lead has held his bank 5 s (the 3 s plane lag of TS-55, an estimate, plus
+  // 2 s), a wingman more than a wingspan out to the side is stepped up on the outside and down on the inside (SMM 12.19
   // paras 41-43, Fig 12.11; 16.36 paras 99-102). In fighting wing each stays in his band and ends there (AFM7 brief p.14).
   for (const form of ['finger', 'echelon', 'box', 'trail', 'route', 'fw']) {
     for (const [key, dir] of [['delayed90', 1], ['hook', -1]]) {
@@ -273,14 +284,22 @@ test('4-ship: the turn buttons turn every formation, each wingman rolling with L
       changeTo(f, 'fw', {}, -1);
       if (form !== 'fw') changeTo(f, form, {}, form === 'trail' ? 0 : -1);
       const what = `${form}, ${key} ${dir > 0 ? 'left' : 'right'}`;
+      const place = new Map(f.state.aircraft.slice(1).map((w) => [w.id, inLeadsPlane(f.state.aircraft[0], w)]));
       assert.equal(f.press(key, dir), 'started', `${what}: ${f.state.refusal ?? ''}`);
       let heldSec = 0;
+      let stillSec = 0;
       fly(f, what, (_b, after) => {
         if (form === 'fw') return;
         const L = after[0];
         heldSec = Math.abs(L.bankDeg) >= 25 && Math.abs(L.rollRateDps) < 0.5 ? heldSec + STEP_SEC : 0;
+        stillSec = Math.abs(L.rollRateDps) < 0.5 ? stillSec + STEP_SEC : 0;
         for (const w of after.slice(1)) {
-          assert.ok(Math.abs(w.bankDeg - L.bankDeg) <= 5, `${what}: #${w.id} not rolling with Lead`);
+          const off = Math.hypot(...inLeadsPlane(L, w).map((x, j) => x - place.get(w.id)[j]));
+          assert.ok(off <= 15, `${what}: #${w.id} ${off.toFixed(0)} ft out of position`);
+          if (Math.abs(L.bankDeg) > 5) {
+            const most = stillSec >= 1 ? 5 : 13;
+            assert.ok(Math.abs(w.bankDeg - L.bankDeg) <= most, `${what}: #${w.id} not rolling with Lead (${w.bankDeg.toFixed(0)}° against ${L.bankDeg.toFixed(0)}°)`);
+          }
           const l = link(L, w);
           if (heldSec >= 5 && l.across > WINGSPAN_FT) {
             const inside = l.side === Math.sign(L.bankDeg);
