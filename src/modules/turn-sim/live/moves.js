@@ -4,7 +4,7 @@
 // every number with its source. Numbers with no manual page or ruling beside them are estimates and say so. Moved
 // unchanged from tuning.js, except the retired hot rejoin's (TS-94), which went with it.
 import { FW_BAND, LANE } from './slots.js';
-import { RATE_SETS, G_RULE_BANK_DEG, NO_BANK_CAP_DEG, CLOSE_BANK_DEG, rejoinClosureNow, REJOIN_LINE_KIAS, REJOIN_CLOSURE_KT } from './rates.js';
+import { RATE_SETS, G_RULE_BANK_DEG, NO_BANK_CAP_DEG, CLOSE_BANK_DEG, REJOIN_LINE_KIAS, REJOIN_CLOSURE_KT } from './rates.js';
 import { IN_POSITION, STOP_KT } from './bands.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 
@@ -199,7 +199,7 @@ export const KINEMATIC = Object.freeze({
   verticalTacticalFtps: 45, // 45 ft/s up or down: 2,700 ft/min tactical altitude adjustment (Task 5)
   nearPerSec: RATE_SETS.close.frame.nearPerSec, // closing slows with range: 10% of the range per second ...
   nearMinFtps: RATE_SETS.close.frame.nearMinFtps, // 8 ft/s ... but never below about 5 kt, the station-change rate (SMM 12.20 para 44 says "controlled")
-  // Patrick 05:12Z: echelon to route about 5 s; since step 2 the fore-aft rate is the Rates choice's closure (closeRates below).
+  // Patrick 05:12Z: echelon to route about 5 s; since step 2 the fore-aft rate is the Rates choice's closure.
   closeBlendSec: 3, // a close formation wingman follows a roll of Lead this long after it (SMM 12.19 para 43: he lags Lead's roll)
   planeLagSec: 3, // a close wingman's place in Lead's wing plane follows Lead's bank over this long (SMM 12.19 para 43: he lags the roll; estimate)
   wideBlendSec: 8, // a fighting wing wingman takes this long
@@ -207,21 +207,6 @@ export const KINEMATIC = Object.freeze({
   followAccelKtps: 2.5, // ... or longer, so a wingman following a roll of Lead speeds up or slows at no more than this (estimate; inside the 3 kt/s the smoothness tests allow)
   startBlendSec: 3, // a station change starts moving over this long
 });
-
-/**
- * The rates a kinematic line may move at in the frame of the aircraft flown off (kinematic.js relSpeedLimit): KINEMATIC's,
- * with the fore-aft rate (overtake or undertake) a closure: a rejoin's by default (the hot turning rejoin's lines), or the
- * one given (Patrick 05:46Z, 06:09Z).
- */
-export function closeRates(foreAftFtps = rejoinClosureNow().ftps) {
-  return {
-    lateralFtps: KINEMATIC.lateralFtps,
-    foreAftFtps,
-    verticalFtps: KINEMATIC.verticalFtps,
-    nearPerSec: KINEMATIC.nearPerSec,
-    nearMinFtps: KINEMATIC.nearMinFtps,
-  };
-}
 
 /**
  * Patrick's 06:16Z rulings on the rejoin's estimates (5 Oct 06:16Z), flown since V2.59 (TS-67) in the numbers above
@@ -507,12 +492,12 @@ export const OPEN_OUT = Object.freeze({
   reserveKtps: 0.4, // #2 opens out up to the speed where full power still has this much in hand (estimate)
   gainKtPerSqrtFt: 0.45, // KIAS gained per square root of the range from Lead on the way out: full power plus the dive, about 1 KIAS per second from 200 (estimate fitted to the core T-6 curve, kept under it so the line stays inside full power)
   leadHolds: true, // Lead holds his speed until #2 is out, then speeds up to line abreast speed (estimate needing Patrick's yes; false: he speeds up at once)
-  // No slowing with range from Lead: leaving his side is not an arrival (the near term of kinematic.js relSpeedLimit throttled
+  // No slowing with range from Lead: leaving his side is not an arrival (the near term of the old kinematic.js relSpeedLimit throttled
   // the first 1,000 ft from echelon to about 25 ft/s); the arrival at the slot is the time law's own slowing to endFtps.
   nearPerSec: RATE_SETS.tactical.frame.nearPerSec, // 10
   nearMinFtps: RATE_SETS.tactical.frame.nearMinFtps, // 20 ft/s
   foreAftFtps: RATE_SETS.tactical.frame.foreAftFtps, // 80 ft/s: falling back in Lead's frame on the way out is geometry (the angle off), not a closure: up to about 47 kt (estimate)
-  // How hard the line may accelerate and turn in Lead's frame (hand-over.js RUN_IN's overrides). Patrick 21:11Z: the
+  // How hard the line may accelerate and turn in Lead's frame (RATE_SETS.tactical.law). Patrick 21:11Z: the
   // near-Lead throttle is only for holding close formation; "as soon as a tactical formation is selected, unrestricted
   // attitude changes and power". Full power along, a 45° banked turn's lateral acceleration (1 g across; estimate), a
   // 0.3 g push or pull for the dive and the climb back (estimate).

@@ -12,8 +12,8 @@
 //     (to fighting wing, its place's own speed inside Lead's turn), reaching the line at 200-210 (Patrick 17:29Z). Only when
 //     no rejoin at that keeps him behind Lead's 3/9 line (close in and hot) does he dip below, then MAX again as he meets
 //     the line (Patrick 17:53Z).
-//  3. He gets onto the rejoin line, 35° off Lead's tail (Lead at about his 11 or 1 o'clock, the fin two-thirds out along
-//     Lead's upper wing, the tail and wing making an X; SMM 12.24 paras 56-57, Fig 12.14; TS-181) and
+//  3. He gets onto the rejoin line, 30° off Lead's tail (moves.js TURNING_REJOIN.lineDeg; Patrick 11 Oct 06:30Z; 35° from
+//     V2.232, the fin two-thirds out along Lead's upper wing, SMM 12.24 paras 56-57, Fig 12.14, TS-181) and
 //     comes down it: in Lead's turning frame he heads across toward the line, more directly the further off it he is, and
 //     down it once on it. Most of the closure is Lead's turn's, so on the line his bank stays close to Lead's own.
 //  4. He holds the line's speed to the point where a stop with the torque floor and the boards just fits (idle only when the room left needs it),
@@ -24,7 +24,7 @@
 //     says work well (08:28Z). He goes behind Lead only with too much closure (SMM 12.27 para 65): the tracker's own law. To
 //     fighting wing, the whole cone is his place: he settles where he arrives in it (Patrick 08:58Z; TS-75).
 // To a close formation (TS-106, V2.113; Patrick 6 Oct 02:30Z-03:58Z) steps 3-5 are now the X: Lead held fixed on #2's canopy
-// 35° off Lead's tail (TS-181; 45° until V2.232) (flyOnTheX; a hot start first flies onto the line as above, the X from 750 ft in), at 10-20 KIAS over
+// 30° off Lead's tail (35° from V2.232, 45° before) (flyOnTheX; a hot start first flies onto the line as above, the X from 750 ft in), at 10-20 KIAS over
 // Lead; anywhere 250-100 ft from Lead, stable, he moves over and the decision point re-plans him up into the slot. The
 // overshoot (overshootLegs) only when no rejoin plans that way.
 // Chosen, the most efficient first (Patrick 08:20Z: "find a way to make the most efficient"): how sharply he captures the line
@@ -34,16 +34,15 @@
 import { relativeTo, DEG } from './manoeuvres.js';
 import { recordFlight, speedSeg, dryRunT } from './replay.js';
 import { closeThrough, rejoinTo, slide, stopAt, legsFor, cornerBehind } from './recipes.js';
-import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
 import { FORMATIONS, FW_BAND, fwShapeNow, pairSlot, LENGTH_FT, sideFor, LANE, LINE_BACK_PER_OUT } from './slots.js';
 import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, TURNING_REJOIN, FW_FOLLOW, WING_BANKS, KINEMATIC, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
-import { onClosure, fromStep } from './hand-over.js';
+import { onClosure, fromStep } from './closures.js';
 import { leadTurnInto } from './lead-turn-in.js';
 import { STEP_SEC, copyAircraft, SMOOTHER_CURVE_PEAK, smoother, smoothLegSec } from './flight.js';
 import { RATE_SETS, CLOSE_SHAPING, G_RULE_BANK_DEG } from './rates.js';
 import { laggedBank, centredBank } from './kinematic.js';
-import { trackTwice, runTracker, phase } from './tracker.js';
+import { trackPhases, runTracker, phase } from './tracker.js';
 import { holdInPlane, heldPoses } from './formation-turns.js';
 import { acrossSixLegs } from './replan.js';
 import { stallBankDeg } from './slow-down.js';
@@ -55,12 +54,6 @@ import { iasToTasKt, excessThrustPerWeight } from '../../../core/t6-performance.
 const dt = STEP_SEC;
 /** A search try replaces the best so far only when quicker by more than this (the chooser's half-second tie, chooser.js TIE_SEC). */
 const BETTER_BY_SEC = 0.5;
-
-
-/** The closure the window's middle overtake gives on the X: along a 45° line about 1.4 times the overtake (estimate). */
-const xArriveFtps = () => ((TURNING_REJOIN.stableKt[0] + TURNING_REJOIN.stableKt[1]) / 2) * KT_TO_FTPS * Math.SQRT2;
-
-
 
 /**
  * The tracker's legs from the decision point (#2 on side s) to `to` on side sTo. To fighting wing, into its slot. To a close
@@ -202,7 +195,7 @@ function pointingPhases(altFt, depthFt) {
  * the windshield, an intercept course has been established"; Patrick 11 Oct 2026 04:11Z-04:16Z: "we do what we have to with
  * pitch and power and bank to keep that aspect frozen in the screen"; Fable 04:19Z): a control law, not a line. Bank holds
  * Lead's bearing off #2's nose, from where the reversal left it onto frozenBearingDeg over frozenSettleFt, then frozen there;
- * pitch holds him lineElevDeg above #2's horizon (the line's depth law, slopedAlt); power holds frozenKias to the decision point. It ends where #2 is out at route's lateral spacing (decisionFt down the 35° line).
+ * pitch holds him lineElevDeg above #2's horizon (the line's depth law, slopedAlt); power holds frozenKias to the decision point. It ends where #2 is out at route's lateral spacing (decisionFt down the 30° line).
  */
 function frozenPhase(altFt, s, decisionFt, bankCapDeg, trail = false, toFw = false) {
   const TR = TURNING_REJOIN;
@@ -486,8 +479,6 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   };
 
   const initialRange = Math.hypot(into.longRec.at(0).xFt - wing.xFt, into.longRec.at(0).yFt - wing.yFt);
-  const startHigh = (wing.altAboveFt ?? 0) > (into.longRec.at(0).altAboveFt ?? 0) + 500;
-  const initialPclMax = !startHigh && hardSec === 0 && upFt <= 500;
 
   // Single continuous tracker phase array
   const phases = [];
@@ -580,7 +571,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       numApproachPhases += 3;
     }
     // After the SMM's start, Lead held frozen in the windscreen to the decision point (TS-182 (3)); else the ride (Step 7):
-    // onto the 35° line along it and up it at 210 KIAS to the decision point, all in Lead's frame (the X, Lead fixed on the
+    // onto the 30° line along it and up it at 210 KIAS to the decision point, all in Lead's frame (the X, Lead fixed on the
     // canopy, so there is no separate X phase).
     if (pointed) phases.push(frozenPhase(lineFt, s, xDecisionFt, bankCapDeg, point === 'frozen'));
     else phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
@@ -645,7 +636,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   if (crossIn) phases.forEach((p, i) => { if (p.side != null) phases[i] = { ...p, crossIn: true }; });
   const profile0 = heightLeg(steadySec);
 
-  const first = trackTwice({
+  const first = trackPhases({
     refs: { [lead.id]: into.longRec },
     wing0: wing,
     t0,

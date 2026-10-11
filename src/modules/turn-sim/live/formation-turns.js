@@ -23,7 +23,7 @@ import { turnRadiusFromBankFt } from '../../../core/flight-math.js';
 import { STEP_SEC, SMOOTHER_PEAK, rollLimitAt, gateRoll } from './flight.js';
 import { MANOEUVRES, relativeTo, DEG, planManoeuvre } from './manoeuvres.js';
 import { recordFlight, dryRunT } from './replay.js';
-import { trackTwice, phase } from './tracker.js';
+import { trackPhases, phase } from './tracker.js';
 import { smoothest, makeTrack, seedTrack, setTrackStep, TRACK_PAD, posesFrom, settleLast, slotInWorld } from './kinematic.js';
 import { leadTurnSegs } from './manoeuvres.js';
 import { slotsFor } from './slots.js';
@@ -164,7 +164,7 @@ const inRefOrder = (aircraft) => aircraft.filter((a) => a.ref != null).sort((a, 
  * (AFM7 brief p.14 items 1 and 5b: "No. 3 must ensure clear of No. 2"; SMM 16.39 para 107). The stack, when there is one,
  * is kept. Returns { ok, plans, note, leadBankDeg, maxBankDeg, endSec } or { ok: false, reason }.
  */
-export function planFwTurn(aircraft, key, dir, t0 = 0, { blockFt = 8000 } = {}) {
+function planFwTurn(aircraft, key, dir, t0 = 0, { blockFt = 8000 } = {}) {
   const lead = aircraft[0];
   const m = MANOEUVRES[key];
   if (!FW_TURN_KEYS.includes(key)) return { ok: false, reason: `${m?.label ?? key} flies in line abreast only.` };
@@ -199,7 +199,7 @@ export function planFwTurn(aircraft, key, dir, t0 = 0, { blockFt = 8000 } = {}) 
     const outAt = rollOutAt(refs[wing.ref], t0);
     const exit = outAt !== null ? fwExit(outAt, side) : {};
     const goalPhase = phase({ fwd: rel0.fwd, left: rel0.left, alt: wing.altAboveFt }, { ...follow, ...pursuit, ...exit, coneEnergy: wing.ref === lead.id, track: wing.ref, goal: (L, W) => fwGoal(L, W, side, collapse) });
-    const { run, profile } = trackTwice({ refs, wing0: wing, t0, phases: [goalPhase], blockFt });
+    const { run, profile } = trackPhases({ refs, wing0: wing, t0, phases: [goalPhase], blockFt });
     if (!run.ok) return { ok: false, reason: `No safe ${m.label.toLowerCase()} in fighting wing from here: ${NAMES[wing.id]} could not settle back into the band.` };
     const plan = { segments: [{ kind: 'bankTrack', points: run.points }], profile };
     plans[wing.id] = plan;
@@ -262,7 +262,7 @@ export function planFluid4Turn(aircraft, key, dir, t0 = 0, { blockFt = 8000 } = 
     const exit = outAt !== null ? fwExit(outAt, side) : {};
     const pursuit = collapse ? { pursuit: pursuitOf(null) } : {};
     const goalPhase = phase({ fwd: rel0.fwd, left: rel0.left, alt: wing.altAboveFt }, { ...follow, ...pursuit, ...exit, track: ref.id, goal: (L, W) => fwGoal(L, W, side, collapse) });
-    const { run, profile } = trackTwice({ refs, wing0: wing, t0, phases: [goalPhase], blockFt });
+    const { run, profile } = trackPhases({ refs, wing0: wing, t0, phases: [goalPhase], blockFt });
     if (!run.ok) return { ok: false, reason: `No safe ${m.label.toLowerCase()} in Fluid 4 from here: ${NAMES[wing.id]} could not settle back into fighting wing on ${NAMES[ref.id]}.` };
     plans[wing.id] = { segments: [{ kind: 'bankTrack', points: run.points }], profile };
     endSec = Math.max(endSec, t0 + run.durationSec);
@@ -346,10 +346,10 @@ export const CLOSE_TURN = Object.freeze({
 });
 
 /** A close wingman's roll: Lead's close roll (rate and onset) times CLOSE_TURN.rollMargin. */
-export const closeWingRoll = (leadRoll) => ({ maxRateDps: leadRoll.maxRateDps * CLOSE_TURN.rollMargin, maxAccelDps2: leadRoll.maxAccelDps2 * CLOSE_TURN.rollMargin });
+const closeWingRoll = (leadRoll) => ({ maxRateDps: leadRoll.maxRateDps * CLOSE_TURN.rollMargin, maxAccelDps2: leadRoll.maxAccelDps2 * CLOSE_TURN.rollMargin });
 
 /** The formations whose turns are flown in Lead's wing plane, 2-ship and 4-ship (spec section 10.2). */
-export const CLOSE_TURN_FORMATIONS = Object.freeze({ 2: ['echelon', 'route', 'astern'], 4: ['finger', 'echelon', 'box', 'trail', 'route'] });
+const CLOSE_TURN_FORMATIONS = Object.freeze({ 2: ['echelon', 'route', 'astern'], 4: ['finger', 'echelon', 'box', 'trail', 'route'] });
 /** Every formation the turn buttons fly in besides line abreast (Spread 4): fighting wing and the close ones. */
 export const TURN_FORMATIONS = Object.freeze({ 2: ['fw', ...CLOSE_TURN_FORMATIONS[2]], 4: ['fw', ...CLOSE_TURN_FORMATIONS[4]] });
 
@@ -409,7 +409,6 @@ export function holdInPlane(leadRec, lead, wing, body, leadSteps, bodyAt = null,
       return Math.max(-lim, Math.min(lim, raw));
     };
     const up = along(2, upMost);
-    const lift = Math.max(0, G_FTPS2 / Math.cos(phi) + up); // his lift: Lead's (level turn) and the part he adds or takes off
     const parts = [along(0, powerMost), along(1, G_FTPS2 * Math.tan(C.sideBankDeg * DEG), C.sidePerSec), up];
     const cmd = [0, 1, 2].map((j) => axes[0][j] * parts[0] + axes[1][j] * parts[1] + axes[2][j] * parts[2]);
     const step = cmd.map((c, j) => c - acc[j]);
@@ -518,7 +517,7 @@ function ownBank(poses) {
  * side: #2's side from the classifier (+1 left, -1 right; 0 for line astern), or undefined to hold each where he is.
  * Returns { ok, plans, note, leadBankDeg, maxBankDeg, endSec, flag }.
  */
-export function planCloseTurn(aircraft, formation, key, dir, t0 = 0, side = undefined) {
+function planCloseTurn(aircraft, formation, key, dir, t0 = 0, side = undefined) {
   const lead = aircraft[0];
   const m = MANOEUVRES[key];
   if (!FW_TURN_KEYS.includes(key)) return { ok: false, reason: `${m?.label ?? key} flies in line abreast only.` };
@@ -606,7 +605,7 @@ function slotsInLead(formation, side, four) {
  * formation's own roll (base). About 6 s to 45° in finger, 6 s to 60° in the 2-ship echelon (Patrick's 4-5 s needed up to
  * 20° off his bank); in route, far out, slower still. bodies: each wingman's place in Lead's wing plane.
  */
-export function closeTurnRoll(base, bodies) {
+function closeTurnRoll(base, bodies) {
   const r = Math.max(1, ...bodies.map((b) => Math.hypot(b.fwd, b.left, b.up)));
   const accelDps2 = (CLOSE_TURN.echelonRoll.maxAccelDps2 * ECHELON_REF_FT) / r;
   const rateDps = Math.sqrt((G_FTPS2 * Math.tan(ROLL_WITH_DEG * DEG)) / r) / DEG;
@@ -664,7 +663,7 @@ export const FW_MOVES = Object.freeze({
 });
 /** Lead's moves in fighting wing: a held turn is planned two full turns ahead, the next press planning again from where the
  * pair is; climbs and descents as fluid's (2,000 ft, a 15° path at the steepest; design 5.1, estimates). */
-export const FW_MOVE = Object.freeze({ heldTurnDeg: 720, climbFt: 2000, climbDeg: 15 });
+const FW_MOVE = Object.freeze({ heldTurnDeg: 720, climbFt: 2000, climbDeg: 15 });
 
 /**
  * One of Lead's fighting wing moves (FW_MOVES) from where the pair is now, 2-ship. bankDeg: Lead's level turn bank (the
@@ -699,7 +698,7 @@ export function planFwMove(aircraft, key, dir, t0 = 0, { blockFt = 8000, bankDeg
   // #2 flies the pursuit curves while Lead is banked (fw-pursuit.js, TS-100), from the press at the bank Lead's plan turns at.
   const plannedBank = key === 'levelTurn' ? dir * bankDeg : key === 'reversal' ? -nowDir * Math.max(bankDeg, Math.abs(lead.bankDeg)) : turning ? nowDir * Math.abs(lead.bankDeg) : null;
   const goalPhase = phase({ fwd: rel0.fwd, left: rel0.left, alt: wing.altAboveFt }, { ...follow, pursuit: pursuitOf(plannedBank), ...(exit ? fwExit(t0) : {}), track: lead.id, goal: (L, W) => fwGoal(L, W, side, true) });
-  const { run } = trackTwice({ refs, wing0: wing, t0, phases: [goalPhase], blockFt, init: exit ? { accelKtps: 0 } : null });
+  const { run } = trackPhases({ refs, wing0: wing, t0, phases: [goalPhase], blockFt, init: exit ? { accelKtps: 0 } : null });
   if (!run.ok) return { ok: false, reason: `No safe ${FW_MOVES[key].label.toLowerCase()} in fighting wing from here: #2 could not stay in the cone.` };
   // #2 climbs and descends with Lead, keeping the height he has from Lead (the whole cone, high or low: Patrick 08:58Z).
   const dh = wing.altAboveFt - lead.altAboveFt;

@@ -216,7 +216,7 @@ export function headingChangeRollingOut(bankDeg, rollRateDps, tasFtps, roll = RO
 export const smoother = (u) => u * u * u * (10 - 15 * u + 6 * u * u);
 export const smootherSlope = (u) => 30 * u * u * (1 - u) * (1 - u);
 /** The smootherstep's curvature (the slope's own slope): a height leg's vertical acceleration is rise x this / span². */
-export const smootherCurve = (u) => 60 * u * (1 - u) * (1 - 2 * u);
+const smootherCurve = (u) => 60 * u * (1 - u) * (1 - 2 * u);
 /** The smootherstep's steepest slope is this many times its average one (at the middle). */
 export const SMOOTHER_PEAK = 1.875;
 /** The smootherstep's greatest curvature (at u = 1/2 - 1/sqrt(12)): a height leg's greatest vertical acceleration is rise x this / span². */

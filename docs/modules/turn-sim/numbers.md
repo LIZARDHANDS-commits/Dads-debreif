@@ -14,6 +14,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | RATE_SETS.close | `Object.freeze({` |  |
 | RATE_SETS.…leadRoll | `Object.freeze({ maxRateDps: 30, maxAccelDps2: 20 })` |  |
 | RATE_SETS.…echelonRoll | `Object.freeze({ maxRateDps: 30, maxAccelDps2: 12 })` |  |
+| RATE_SETS.…routeRoll | `Object.freeze({ maxRateDps: 8, maxAccelDps2: 4 })` | Lead's roll-out once a turning rejoin ends in route, 124 ft out: gentler, so #2 rises with Lead's wing plane without a 0.6 G push (Fable's v2272 flight; estimate) |
 | RATE_SETS.…frame | `Object.freeze({ lateralFtps: 35, foreAftFtps: 25, verticalFtps: 15, nearPerSec: 0.1, nearMinFtps: 8 })` |  |
 | RATE_SETS.…law | `Object.freeze({ powerShare: 0.65, turnShare: 0.35, latG: 0.3, vertFtps2: 3 })` |  |
 | RATE_SETS.tactical | `Object.freeze({` |  |
@@ -26,6 +27,9 @@ Every number the Formation Sim's planners use, with the source written beside it
 | CLOSE_SHAPING.targetLateralFtps | `32.0` | ~19 kt lateral drift |
 | CLOSE_SHAPING.targetFwdFtps | `32.0` | ~19 kt fore/aft rate |
 | CLOSE_SHAPING.targetCornerFtps | `24.0` | corner flow rate |
+| CLOSE_SHAPING.lineFwdFtps | `10.0` | echelon to route and back, along the line: the rate power sets fore and aft, about 7 kt (Patrick 11 Oct 2026 06:24Z: "crack off some power to set a rate"; estimate) |
+| CLOSE_SHAPING.lineAccelFtps2 | `1.5` | ...set and taken off at about this, about 0.9 kt/s, so power keeps up with it (estimate) |
+| CLOSE_SHAPING.lineLeadSec | `2.0` | ...and he starts taking the rate off this much early, leading the power, which answers late (estimate) |
 | CLOSE_SHAPING.targetOvertakeKt | `8.0` | power trim |
 | CLOSE_SHAPING.targetUndertakeKt | `8.0` |  |
 | CLOSE_SHAPING.envelopeMaxOvertakeKt | `10.0` |  |
@@ -54,7 +58,7 @@ Every number the Formation Sim's planners use, with the source written beside it
 | CLOSURE.farGain | `0.1` | ft/s per ft: beyond the hand-over band (odd starts only, the tracker's fallback) the closing speed may grow with range (the old rejoin's kcap) |
 | ENGINE_RESPONSE_SEC | `0.25` | How fast the engine answers the power lever: torque from 2% to 100% in about 0.25 s (Patrick 5 Oct 06:02Z: "The TQ can change very fast. 2 percent to 100 in .25 seconds."). A power change in the power profile (MAX, the power that holds the rate, IDLE, the power that holds the slot) reaches its new thrust in this long, so the acceleration it gives is there within it, then follows thrust minus drag. |
 | RATE_SET_SEC | `2` | How long a change of rate takes: the power step is the smallest that reaches the new rate in about this long (an estimate, the thread's default for Patrick's 06:13Z technique: "set 90 or 100 to set it, then reset to 67 to maintain it"). |
-| HAND_OVER_FT | `500` | The hand-over from a kinematic line to the tracker, and the change from a rejoin's closure to the close-in rate, together at about 500 ft from the slot (Patrick 5 Oct 06:24Z; before it, card "Lines, then tracker" 05:41Z and 05:44Z: "within 500-1000 feet, dpending on whats going on. becuase we start to see the aspect change and the clusre visually and adjust to that"). The line flies the big move a |
+| HAND_OVER_FT | `500` | Where a rejoin's closure gives way to the close-in rate: about 500 ft from the slot (Patrick 5 Oct 06:24Z; before it, card "Lines, then tracker" 05:41Z and 05:44Z: "within 500-1000 feet, dpending on whats going on. becuase we start to see the aspect change and the clusre visually and adjust to that"). Until the kinematic lines were removed it was also where a line handed over to the tracker. choos |
 | WING_BANKS |  | The wingmen's banks, 2-ship (step 2) and 4-ship (step 3) (Patrick 5 Oct 06:16Z). Item 12: "30 is probably more accurate" for a close move's bank cap (the tracker's 25° until step 2); "When the aircraft is kicked off to fighting wing or line abreast they can use unlimited bank to dive away and get in position quickly": no cap there but the G rule. Item 11: "No, unlimitedf": a wingman following in a |
 | WING_BANKS.closeBankCapDeg | `CLOSE_BANK_DEG` | Patrick 06:43Z: up to 60° as required (30° from 06:16Z item 12 until then) |
 | WING_BANKS.kickOutBankCapDeg | `NO_BANK_CAP_DEG` | moves around a station: no cap (Patrick 6 Oct 04:07Z; the G rule only, 5 Oct 06:16Z item 12, until V2.116) |
@@ -88,12 +92,35 @@ Every number the Formation Sim's planners use, with the source written beside it
 | REJOIN.hotBearingDeg | `60` | hot and cold are drawn but not numbered in SMM Fig 12.16: 60 and 30 are estimates |
 | REJOIN.coldBearingDeg | `30` |  |
 | REJOIN.turnAnglesDeg | `[30, 45, 20, 60]` | how far Lead turns into #2; estimates (a gentle turn, AFM8 brief p.19). Since V2.59 the 2-ship's Lead holds his turn until #2 is in (Patrick 06:16Z item 3; lead-turn-in.js leadTurnInto): these are only the 2-ship tracker's fallback, and the 4-ship's (step 3, not yet changed) |
-| TURNING_REJOIN |  | The turning rejoin (V2.59, TS-68; flown as held bank and power since V2.63, TS-69; Patrick 5 Oct 07:14Z, card "Yes, as written" 07:31Z, 07:32Z, 08:12Z-08:20Z): one rule for every turning rejoin, from line abreast (hot: #2 starts ahead of the line and gets colder to reach it) or fighting wing (cold: he turns hotter to reach it). #2 gets onto the rejoin line, Lead at his 10:30 or 1:30 with about hal |
-| TURNING_REJOIN.lineDeg | `45` | the rejoin line, degrees behind Lead's 3/9 line: Lead at 10:30 or 1:30 (SMM 12.24 para 56; Patrick's card 07:31Z). It passes through the fighting wing place (16.20 para 66) and the corner behind echelon (para 58's latest point) |
-| TURNING_REJOIN.lineUpFt | `-50` | #2's height on the line, below Lead, held level all the way up it: "maintain the horizontal plane just slightly below lead" (SMM 12.24 para 58); 50 ft Patrick's ruling (10 Oct 2026 19:57Z; TS-159's slope with Lead's bank retired) |
+| TURNING_REJOIN |  | The turning rejoin (V2.59, TS-68; flown as held bank and power since V2.63, TS-69; Patrick 5 Oct 07:14Z, card "Yes, as written" 07:31Z, 07:32Z, 08:12Z-08:20Z): one rule for every turning rejoin, from line abreast (hot: #2 starts ahead of the line and gets colder to reach it) or fighting wing (cold: he turns hotter to reach it). #2 gets onto the rejoin line, Lead at about his 11 o'clock or 1 o'cloc |
+| TURNING_REJOIN.lineDeg | `60` | the rejoin line, degrees behind Lead's 3/9 line: 30° off his tail (Patrick 11 Oct 2026 06:30Z: "let's do a 30 degree line"; Fable: the decision point moves out to about 248 ft and Lead stays inside the canopy bow until there). It was 35° from 00:03Z ("let's start with 35", Lead's fin about two-thirds out along his upper wing, SMM 12.24 para 56, Fig 12.14 frame 3; TS-181), and 45° before that, read from "Lead at 10:30", which put the fin on the wingtip |
+| TURNING_REJOIN.lineUpFt | `0` | #2's least depth below Lead on the line: none since TS-182 (Patrick 11 Oct 2026 03:47Z: "Lead should stay frozen in the windscreen getting bigger until the decision point"), the 4° alone, about 15 ft below at the decision point; it was 50 ft (Patrick 10 Oct 19:57Z, SMM 12.24 para 58), which lifted Lead up the windscreen inside 700 ft |
+| TURNING_REJOIN.lineElevDeg | `4` | on the line he holds Lead this many degrees above his horizon, frozen in the windscreen and growing: about 140 ft below at 2,000 ft, 70 at 1,000, 15 at the decision point (EFIG p.374 "place lead slightly above the horizon"; Patrick 10 Oct 23:58Z, an estimate to tune; TS-181, TS-182) |
+| TURNING_REJOIN.frozenBearingDeg | `30` | after the SMM's start he holds Lead frozen in the windscreen at this bearing off his nose, the line's own angle (Fable 04:18Z, from the line's picture at the decision point; 35° with the 35° line until V2.263; estimate)... |
+| TURNING_REJOIN.frozenSettleFt | `0` | ...coming onto it from where the reversal left him over this much of the way in: none, the reversal ends on it (Patrick 04:22Z "we freeze him in the same spot with the same aspect ratio the whole way"; 400 ft in V2.248)... |
+| TURNING_REJOIN.frozenTauSec | `3` | ...taking out a bearing error over this long (estimate) |
+| TURNING_REJOIN.trailSettleFt | `1500` | from trail after a break, no pointing turn: he eases Lead from his nose onto frozenBearingDeg over this much of the way in, a small, early, gentle bank (Patrick 11 Oct 2026 07:57Z; estimate) |
+| TURNING_REJOIN.trailHeightG | `0.15` | ...and his height follows the line's 4° law from the start (about 265 ft below at 3,800 ft) within this many g of level flight, gentler than heightG's 1 g (Patrick 11 Oct 2026 07:57Z "gentler"; estimate) |
+| TURNING_REJOIN.trailFwHandFt | `850` | ...and to fighting wing he holds that bearing in to this range, where the cone's tracker takes over, at a formation roll rate (Fable's v2272: a hand-over at 1,000 ft snapped him at 3 G; estimate) |
+| TURNING_REJOIN.trailFwSlowFt | `1500` | ...coming off his overtake to Lead's speed over this much of the way before it (estimate) |
+| TURNING_REJOIN.frozenKias | `210` | ...at this speed all the way to the decision point, slowing only after it (Patrick 11 Oct 2026 06:11Z: "I can hit 210 knots at the decision point"; V2.255 took the closure off to about 5 kt there instead) |
 | TURNING_REJOIN.aimsFt | `[300, 600, 1200]` | how sharply #2 captures the line: off it by this much he heads for it at half approachDeg; the one that brings him in soonest is flown (estimates: smaller is a sharper capture, larger a gentler, longer one) |
 | TURNING_REJOIN.approachDeg | `80` | far off the line he heads for it at up to this angle across it, in Lead's frame (estimate) |
 | TURNING_REJOIN.bankCapDeg | `60` | the bank he uses at most to get onto the line and hold it: past about 60° the drag costs speed and buys nothing (the review's estimate, rejoin-review-fable.md). Only when no rejoin at 60° keeps him behind Lead's 3/9 line does he use more, up to the G rule (REJOIN.bankCapDeg) |
+| TURNING_REJOIN.pointMaxG | `4.5` | he turns hard to point at Lead, within this G, his bank in proportion to the heading still to turn (Patrick 04:05Z: "Turn more at the start with 4-5 g quick roll and wings level earlier"; 5 G stays a flag he stays inside) |
+| TURNING_REJOIN.pointGain | `6` | degrees of bank per degree of heading still to turn, so he rolls out as Lead comes onto the nose (estimate) |
+| TURNING_REJOIN.pointAheadDeg | `5` | he is rolled out wings level with Lead still this far short of the nose, so the wait is real (Fable's V2.249 flight: at -89°/s straight through, Lead crossed the nose with #2 at 42° of bank; estimate) |
+| TURNING_REJOIN.pointKias | `200` | he holds Lead's 200 KIAS through the pointing turn and the wait, then full power through the reversal (Patrick 04:59Z) (estimate from the geometry) |
+| TURNING_REJOIN.pointRoll | `Object.freeze({ maxRateDps: 90, maxAccelDps2: 180 })` | the start's roll: quick but smooth (Patrick 04:05Z), not the 180°/s, 720°/s² of the tactical moves (estimate) |
+| TURNING_REJOIN.levelDeg | `3` | wings level is within this (estimate) |
+| TURNING_REJOIN.lookThroughDeg | `3` | wings level, he reverses once Lead has come this far through the nose ("a definite increase in the line of sight")... |
+| TURNING_REJOIN.lookMinSec | `1.5` | ...and he has been wings level this long (Fable's V2.249 flight: the line of sight rate from the pointing turn ended the wait at once; estimates)... |
+| TURNING_REJOIN.lookMaxSec | `20` | ...or after this long, whichever comes first (estimate) |
+| TURNING_REJOIN.reverseDoneDeg | `2` | the reversal, at full power and within pointMaxG, turns with Lead's line of sight until Lead is within this of frozenBearingDeg off the nose (estimate) |
+| TURNING_REJOIN.reverseRoll | `Object.freeze({ maxRateDps: 45, maxAccelDps2: 45 })` | the reversal is the smooth one (Patrick 04:05Z "quick but smooth"; Fable's V2.249 flight: -90°/s; estimate) |
+| TURNING_REJOIN.reverseMaxSec | `20` | the reversal ends with Lead at frozenBearingDeg off the nose, so there is no slide onto it after (Fable 04:40Z; until V2.250 it ended 15° off Lead's heading, Lead 25° off the nose), or after this long (estimate) |
+| TURNING_REJOIN.pointFromFt | `2500` | only from further out than this; closer in the capture alone (estimate) |
+| TURNING_REJOIN.formRoll | `Object.freeze({ maxRateDps: 30, maxAccelDps2: 20 })` | his roll from the start to the slot: a formation rate, Lead's close-turn roll (rates.js RATE_SETS.close.leadRoll), not the 180°/s of the tactical moves |
 | TURNING_REJOIN.hotFt | `1000` | ahead of the line by this much (hot) he flies his least speed, Lead's 200 KIAS, coming up to lineOverKias above it as he reaches the line (estimate; TS-75) |
 | TURNING_REJOIN.laneTolFt | `20` | flowing into the slot he may pass this far ahead of it, never more, toward Lead's 3/9 line (estimate; Patrick 08:04Z) |
 | TURNING_REJOIN.decisionArriveRates | `'instructor'` | he reaches the decision point closing no faster than this Rates choice's close-in rate (about 15 kt), so AI's quicker close-in starts from a closure under control (estimate; SMM 12.24 para 58) |
@@ -109,6 +136,8 @@ Every number the Formation Sim's planners use, with the source written beside it
 | TURNING_REJOIN.planeEaseG | `0.3` | ...and longer where the step is big, so the ease asks no more than this many g off level flight (TS-126; estimate) |
 | TURNING_REJOIN.diveSlackSec | `8` | a dive that brings him in no more than this much later than the steady descent is flown (estimate) |
 | TURNING_REJOIN.heightSec | `10` | #2 settles slightly low on the line over this long, or over his part to the decision point if shorter (estimate) |
+| TURNING_REJOIN.captureHeightG | `0.5` | his height down (or up) to the line from where he starts, one smooth leg within this many g of level flight: from 2,000 ft high at 1 g he bunted to 0.1 G at the reversal and pulled out at 4.7 G (Fable's v2291 flight; estimate). Starts within a few hundred feet still take heightSec |
+| TURNING_REJOIN.climbTurnG | `1.2` | up to the line from below, his climb is timed for full power at frozenKias in a turn of this many g (estimate) |
 | TURNING_REJOIN.verticalUpFt | `Object.freeze([500, 1000])` |  |
 | TURNING_REJOIN.undertakeKias | `25` | only when no rejoin at his least speed keeps him behind Lead's 3/9 line (close in and hot) does he slow, at most this far below Lead's 200 KIAS (rejoinTo's, an estimate; TS-75) |
 | TURNING_REJOIN.lineOverKias | `10` | hot, he reaches the line at no more than this over his least speed, Lead's 200 KIAS (to fighting wing, its place's own speed) (Patrick 17:29Z: "when they hit the line it needs to be at 210-200 knots"; TS-75) |
@@ -118,9 +147,20 @@ Every number the Formation Sim's planners use, with the source written beside it
 | TURNING_REJOIN.routeFlowFt | `20` | he flows through route without stopping, within this many feet of it, on into the slot (estimate; Patrick 07:14Z: "in one motion") |
 | TURNING_REJOIN.windowFarFt | `250` | he moves out to the line and up it to echelon anywhere from this far from Lead... (Patrick 6 Oct 03:32Z card, 03:34Z) |
 | TURNING_REJOIN.windowNearFt | `100` | ...down to this far, the decision point (Patrick 02:30Z); not stable by here, he overshoots, only when nothing else works (03:35Z) |
+| TURNING_REJOIN.windowBankDeg | `5` | from the decision point down into route and up into the slot his bank stays matched to Lead's, within this (TS-182: "bank matched to Lead's", SMM 12.24 para 58 "align the fuselage"; an estimate; ±15° until V2.248) |
+| TURNING_REJOIN.windowFtps | `15` | ...and out to route he moves at the station-change rate, about 9 kt (Patrick 10 Oct 2026 23:54Z card; TS-181; an estimate, Fable's trace C). From route into the slot it is the close moves' own (CLOSE_SHAPING) |
+| TURNING_REJOIN.tailMinSec | `3` | the way from the decision point takes at least this long; his closure and his drop into Lead's plane come off evenly from what he brings there (Patrick 11 Oct 2026 06:11Z: "we do not have to stop at any spot"; estimate) |
+| TURNING_REJOIN.tailBlendSec | `2.5` | ...its corners rounded over this either side, twice (estimate; 1.5 s once until V2.255, Patrick 05:31Z "still too jerky") |
+| TURNING_REJOIN.tailUpFtps | `5` | ...the drop into Lead's wing plane starting at no less than this (estimate) |
+| TURNING_REJOIN.underExtraFt | `8` | to the other side he passes under Lead's tail this much below the crossover's corner, which the rounding of the way takes back, so he is below the wake there (estimate) |
+| TURNING_REJOIN.tailInFt | `3` | ...and he is in his place once within this of the slot... |
+| TURNING_REJOIN.tailStillFtps | `1` | ...and moving on it at under this, when Lead may roll out (Patrick 11 Oct 2026 06:10Z: "as soon as the plane is in echelon, the formation can roll out"; estimates) |
+| TURNING_REJOIN.tailPlaneSec | `2.5` | ...in Lead's plane averaged this far either side of now, so through Lead's roll-out he starts the climb as Lead starts rolling and eases off it (Fable's V2.262 flight: 0.5 G push; estimate) |
+| TURNING_REJOIN.tailPlaneRouteSec | `4` | ...over this long when he ends in route, 124 ft out, with Lead's gentler route roll-out (rates.js routeRoll): G 0.87-1.30, as in echelon (Fable's v2272 flight: 0.62 G; estimate) |
+| TURNING_REJOIN.tailHold | `Object.freeze({ sideBankDeg: 10, followG: 0.5, onsetGps: 2, holdPerSec: 2 })` | ...flown with his bank within this of Lead's, his G within followG of Lead's, changing at no more than onsetGps, settling at holdPerSec (Patrick 11 Oct 2026 06:16Z: "the aircraft pitches to stay on plane, power to move forward and back, bank to move left and right"; his 06:15Z picture: 8 ft below Lead's plane in the roll-out with V2.256's 5°, 0.15 G, 1 G/s, 1.5/s; estimates) |
 | TURNING_REJOIN.stableKt | `Object.freeze([10, 20])` | his closure, range rate in knots, is stable in this window (Patrick 03:34Z: "10-20 knots at 100 feet"); the slowing aims at its middle, and slower is cold, not unstable |
 | TURNING_REJOIN.stableShare | `1.5` | ...and closing at no more than this times the closure that middle overtake gives on the X, about 32 kt, so he is holding the X, not sweeping through it (card 03:15Z "Closure or bearing"; the figure is an estimate) |
-| TURNING_REJOIN.xWindowDeg | `10` | Lead is on the X picture within this many degrees of it, 35-55° off his tail (card 03:15Z "Closure or bearing"; the figure is an estimate) |
+| TURNING_REJOIN.xWindowDeg | `10` | Lead is on the X picture within this many degrees of it, 25-45° off his tail (card 03:15Z "Closure or bearing"; the figure is an estimate) |
 | TURNING_REJOIN.bearingTauSec | `6` | his bearing off Lead's tail comes onto the X over about this long (estimate, the design) |
 | TURNING_REJOIN.hardPullsSec | `Object.freeze([2, 4, 6, 8, 10, 12, 14, 16])` | hot, he may first pull this long at his most bank with idle and the boards, then hold the X (Patrick 6 Oct 04:02Z: "pull like 5 g and 90 deg bank to the line with the power less than max"; the times are estimates) |
 | TURNING_REJOIN.xFromFt | `1200` | a hot start further out flies onto the rejoin line as before, and holds Lead on the X only from this far down it (Patrick 6 Oct 03:58Z: "you can make x inside 750 feet if it helps thats the whole idea") |
@@ -139,13 +179,14 @@ Every number the Formation Sim's planners use, with the source written beside it
 | TURNING_REJOIN.rideSettleSec | `2` | close to the line he takes out the last of it over about this long, so he settles on it without chasing it (estimate) |
 | TURNING_REJOIN.rideEaseFromFt | `500` | from this far up the line he eases off... (Patrick 8 Oct 21:26 card: 'Hold 210 to about 500 ft, then ease to about 205') |
 | TURNING_REJOIN.rideEaseKias | `205` | ...to this, so he enters the window at about 15 kt (same card) |
+| TURNING_REJOIN.highBoardsKt | `5` | high on the line, the boards come out once the height to lose is worth more than this much speed over the line's (Patrick 11 Oct 2026 09:10Z: "use the speed brake"; estimate) |
 | TURNING_REJOIN.rideSpeedUpFt | `150` | within this of the line he sets 210 so he is at it when established, not still accelerating with MAX (estimate) |
 | TURNING_REJOIN.rideHeadingTauSec | `2` | his heading comes onto the one asked over about this long (estimate) |
 | TURNING_REJOIN.rideCrossShare | `0.7` | closing on the line from far off, at most this share of his speed goes across it in Lead's frame (estimate; Patrick 10 Oct 2026 20:15Z card "Faster smooth", TS-173) |
 | TURNING_REJOIN.rideDriftFtps | `10` | established: within captureFt of the line and drifting across it no faster than this (Patrick G2, "Lead fixed on the canopy") |
 | STRAIGHT_REJOIN |  | The straight-ahead rejoin, flown the way a pilot flies it (straight-rejoin.js, TS-72; Patrick 5 Oct 08:40Z: "SARJ should start at full power until it gets back on leads six, then set an overtake. The geometry of moving makes it fall back"; the review's SARJ, fable-compiled.md section 3). All estimates unless a source is given. |
 | STRAIGHT_REJOIN.lineArriveKt | `8` | he joins the line and flows up it closing at about this, slow enough to stop on the slot with power back, never stopping short of it (estimate) |
-| STRAIGHT_REJOIN.lineFlowFt | `40` | he flows on up the line once within this many feet of route (on the line, TS-103), never stopping there (estimate) |
+| STRAIGHT_REJOIN.lineFlowFt | `20` | he flows on up the line once within this many feet of route (on the line, TS-103), never stopping there (estimate; 40 until V2.232, when route at 3 wingspans, TS-181, left the line to echelon too short and he flowed in 6 ft ahead) |
 | STRAIGHT_REJOIN.cutsDeg | `[30, 45, 60]` | far off Lead's six line he heads across it at up to this angle to Lead's track; the one that brings him in soonest is flown (estimates: a bigger cut gets across sooner and falls back further) |
 | STRAIGHT_REJOIN.aimsFt | `[300, 600, 1200]` | how sharply he comes onto the six line: off it by this much he cuts at half the angle (estimates, as TURNING_REJOIN.aimsFt; gentler than the turning rejoin's so he doesn't swing through the six) |
 | STRAIGHT_REJOIN.lineTauSec | `2` | his heading comes onto the one the cut asks over about this long (estimate; the turning rejoin's 4 s swings him through the six) |

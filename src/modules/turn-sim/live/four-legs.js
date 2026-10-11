@@ -5,7 +5,7 @@
 // flight step as every other aircraft, so the path drawn is the path flown (spec F1).
 //
 // A wingman's part is either tracker legs (`phases`, the 2-ship's own leg recipes on the 2-ship's power profile,
-// hand-over.js onClosure: the close-in rate for a close leg, a rejoin's closure for a long one) or a held-command planner of
+// closures.js onClosure: the close-in rate for a close leg, a rejoin's closure for a long one) or a held-command planner of
 // its own (`fly`, the rejoins and the opening out: four-rejoin.js, four-open.js), which hands back its plan and when it
 // was in. Every step any of them flies goes through the one envelope gate (flight.js gateRoll, TS-93).
 //
@@ -22,9 +22,9 @@ import { recordFlight, flyStep, dryRunT, speedSeg } from './replay.js';
 import { sweepOut } from './recipes.js';
 import { FW_FOLLOW } from './tuning.js';
 import { fwGoal } from './formation-turns.js';
-import { trackTwice, runTracker, phase } from './tracker.js';
+import { trackPhases, runTracker, phase } from './tracker.js';
 import { inLeadsPlane, planeEaseSec } from './turning-rejoin.js';
-import { onClosure, fromStep } from './hand-over.js';
+import { onClosure, fromStep } from './closures.js';
 import { isStacked } from './judge.js';
 import { FOUR_FORMATIONS, pairSlot } from './slots.js';
 
@@ -43,7 +43,7 @@ export const ech = () => pairSlot('echelon', 1); // { fwd: -25, left: 45, alt: -
 export const ast = () => pairSlot('astern', 0); // { fwd: -43.4, left: 0, alt: -8 }
 
 /**
- * One wingman's part as tracker legs: the phases on the 2-ship's power profile (hand-over.js onClosure; a leg marked
+ * One wingman's part as tracker legs: the phases on the 2-ship's power profile (closures.js onClosure; a leg marked
  * `closeIn`, a settle after a held part, at the close-in rate throughout), except legs held in world axes (an in-place
  * turn), which fly as they are. Height changes no quicker than GENTLE_ALT_FTPS unless the leg says. A leg with `heldBankDeg`
  * keeps that bank cap over the profile's (the 4-ship's opening out, moves.js FOUR_OPEN); one with `closureCapFtps` closes
@@ -105,7 +105,7 @@ function withTail(part, w, wing0, recs, done, leadRec, t0, blockFt) {
   }
   const refs = Object.fromEntries(Object.entries(recs).map(([id, r]) => [id, fromStep(r, n)]));
   const phases = onProfile(w.then(done, recs));
-  let { run, profile } = trackTwice({ refs, wing0: a, t0: t, phases, blockFt, maxSec: FOUR_CHANGE_LIMIT_SEC });
+  let { run, profile } = trackPhases({ refs, wing0: a, t0: t, phases, blockFt, maxSec: FOUR_CHANGE_LIMIT_SEC });
   if (!run.ok) return null;
   const flatArrive = run.times[run.times.length - 1].arrive;
   let planeInSec = t;
@@ -155,7 +155,7 @@ export function flyLeg(start, t0, lead, wings, blockFt) {
       if (!part) {
         // Tracker legs (or the fallback when a held planner does not apply from here).
         const phases = onProfile(w.phases(done, recs));
-        let { run, profile } = trackTwice({ refs: recs, wing0, t0, phases, blockFt, maxSec: FOUR_CHANGE_LIMIT_SEC });
+        let { run, profile } = trackPhases({ refs: recs, wing0, t0, phases, blockFt, maxSec: FOUR_CHANGE_LIMIT_SEC });
         if (!run.ok) return { ok: false, reason: `${NAMES[w.id]} could not settle in its place inside ${Math.round(FOUR_CHANGE_LIMIT_SEC / 60)} minutes.`, id: w.id };
         let planeInSec = t0;
         // In his place on the level heights, before the plane's heights are laid on: in Lead's turn the plane holds him

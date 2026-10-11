@@ -8,7 +8,7 @@
 // Sources: SMM 16.19 paras 52-64 and Figures 16.15-16.21 (the line abreast
 // turns, 70° bank and 3 G); Patrick's rulings of 4 Oct 2026: exact geometry for
 // the delayed turns, a real 300 ft vertical miss in the shackle and cross turn.
-import { bankDegFromG, turnRadiusFromBankFt } from '../../../core/flight-math.js';
+import { bankDegFromG } from '../../../core/flight-math.js';
 import { wrapPi } from '../../../core/angles.js';
 import { STEP_SEC, stepAircraft, copyAircraft, planDone } from './flight.js';
 
@@ -297,9 +297,4 @@ export function planManoeuvre(pair, key, dir, t0) {
   if (m.kind === 'shackle') return shackle(pair, t0);
   if (m.kind === 'break') return breakAway(pair, m, t0);
   return crossTurn(pair, t0);
-}
-
-/** Turn radius at the line abreast bank, for the readout and the circles. */
-export function turnRadiusAt(tasFtps) {
-  return turnRadiusFromBankFt(tasFtps, TURN_BANK_DEG);
 }

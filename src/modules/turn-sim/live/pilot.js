@@ -49,7 +49,7 @@ export function climbCostKtps(W, climbFtps) {
 }
 
 /** The one jerk limit, KIAS per second per second: the torque's travel (moves.js POWER) at the Rates profile's lever share. */
-export function pilotJerkKtps2() {
+function pilotJerkKtps2() {
   return POWER.jerkKtps2 * experienceNow().leverShare;
 }
 
@@ -148,14 +148,4 @@ function note(p, power, t) {
     p.stageSince = t;
   }
   return power;
-}
-
-/**
- * The whole step for a planner with no height of its own to work out from the speed: speed, roll and power. Returns
- * { bank, kias, power }, the replay's point.
- */
-export function pilotStep(p, W, t, { bankDeg, aWant, profile, blockFt, top = 'power', floorThr = 0, climbKtps = null, extraSlowKtps = 0 }) {
-  const accel = pilotSpeed(p, W, aWant, { blockFt, top, floorThr, climbKtps, extraSlowKtps });
-  const bank = pilotFly(p, W, bankDeg, t, profile, accel);
-  return { bank, accel, kias: W.kias, power: pilotPower(p, W, blockFt, t) };
 }

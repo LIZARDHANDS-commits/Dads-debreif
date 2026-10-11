@@ -1,14 +1,14 @@
-// Lead's turn into #2 in a turning rejoin and the tracker's part behind it (clean-up step 3, from hand-over.js). Lead turns
+// Lead's turn into #2 in a turning rejoin and the tracker's part behind it (clean-up step 3). Lead turns
 // into #2 at 30° of bank and holds it until #2 is in position, then rolls out on the whole degree (Patrick 5 Oct 06:16Z
 // item 3: "until 2 is on"; SMM 16.20 para 65b); trackTail flies the tracker's legs off Lead's recorded flight from the
-// hand-over state, and with a Lead who turns until #2 is in, plans Lead's roll-out from when #2 settles. Used by
-// transitions.js planGoTo, turning-rejoin.js, rolling-rejoin.js, replan.js, line-moves.js and four-rejoin.js.
+// state he starts in, and with a Lead who turns until #2 is in, plans Lead's roll-out from when #2 settles. Used by
+// transitions.js planGoTo, turning-rejoin.js, rolling-rejoin.js, replan.js and four-rejoin.js.
 // It changes no flight physics: Lead flies flight.js turn segments, #2 the unchanged tracker.
 import { wrapPi } from '../../../core/angles.js';
 import { STEP_SEC } from './flight.js';
 import { leadTurnSegs, DEG } from './manoeuvres.js';
-import { trackTwice } from './tracker.js';
-import { fromStep, wingFromPose } from './hand-over.js';
+import { trackPhases } from './tracker.js';
+import { fromStep, wingFromPose } from './closures.js';
 
 const dt = STEP_SEC;
 
@@ -45,7 +45,7 @@ export function trackTail({ wing, lead, leadRec, line = null, phases, t0, blockF
   const steps0 = line?.steps ?? 0;
   const wing0 = line ? wingFromPose(wing, line.poses[steps0 - 1]) : wing;
   const init = line ? { accelKtps: line.accelKtps } : null;
-  const fly = (rec, stopWhenSettled) => trackTwice({ refs: { [lead.id]: fromStep(rec, steps0) }, wing0, t0: t0 + steps0 * dt, phases, blockFt, init, stopWhenSettled });
+  const fly = (rec, stopWhenSettled) => trackPhases({ refs: { [lead.id]: fromStep(rec, steps0) }, wing0, t0: t0 + steps0 * dt, phases, blockFt, init, stopWhenSettled });
   if (!leadPlanFor) return { ...fly(leadRec, false), steps0, lp: null };
   const first = fly(leadRec, true);
   const lp = leadPlanFor(steps0 + first.run.points.length);

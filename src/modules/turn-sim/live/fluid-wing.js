@@ -213,7 +213,7 @@ function pursuitAt(E, k) {
  * offsets. latFt: the across offset #2 wants now (V2.19: now, not when Lead was there, so a change of side or of
  * distance moves his place once, with nothing left over to come back later).
  */
-export function fluidPointAt(E, s, latFt) {
+function fluidPointAt(E, s, latFt) {
   const L = leadAt(E, s);
   const v = { latFt };
   const k = Math.floor(s);

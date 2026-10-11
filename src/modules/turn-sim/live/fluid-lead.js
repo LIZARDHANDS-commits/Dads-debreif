@@ -487,7 +487,7 @@ export function loop() {
       // The exit speed is read as the nose comes back to the horizon (SMM 7.5 para 12; Fig 7.2 "Exit 230 KIAS").
       if (mem.stage === 'exit' && mem.exitKias === undefined && alpha >= 2 * Math.PI - 0.5 * DEG) mem.exitKias = st.kias;
       const done = mem.stage === 'exit' && level(st);
-      // The loop's frame for #2 (fluid-wing.js framePoint): the entry heading and the angle round so far.
+      // The loop's frame for #2 (fluid-wing.js frameOf): the entry heading and the angle round so far.
       return { g, bank: 0, phase, cue: { mode: loopMode(alpha), latDeg: 15, loop: { n0: mem.n0, alpha } }, done, entryKias: mem.entryKias, exitKias: mem.exitKias };
     },
   };

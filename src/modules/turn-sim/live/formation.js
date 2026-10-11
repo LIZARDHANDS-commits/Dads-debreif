@@ -9,8 +9,8 @@
 import { iasToTasKt } from '../../../core/t6-performance.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { createEvents } from './events.js';
-import { STEP_SEC, makeAircraft, stepAircraft, planDone } from './flight.js';
-import { MANOEUVRES, planManoeuvre, relativeTo, dryRun, TURN_BANK_DEG, TURN_G, DEG } from './manoeuvres.js';
+import { STEP_SEC, makeAircraft, planDone } from './flight.js';
+import { MANOEUVRES, planManoeuvre, relativeTo, TURN_BANK_DEG, TURN_G, DEG } from './manoeuvres.js';
 import { flyStep, dryRunT } from './replay.js';
 import { setKias } from './pilot.js';
 import { resolveErrors, resolveFixTools, applyStartErrors, planWithErrors, outcomeOf, offStandardOutcome, responseOf } from './errors.js';
@@ -47,7 +47,7 @@ export const LIVE_DEFAULTS = Object.freeze({
 /** Spacing the sim will fly at all; outside it a typed value is refused (spec section 5). */
 export const SPACING_LIMITS_FT = Object.freeze([1000, 20000]);
 /** The SMM's line abreast band (SMM 16.18 para 49); outside it the spacing is flown and flagged. */
-export const SPACING_BAND_FT = Object.freeze([4000, 6000]);
+const SPACING_BAND_FT = Object.freeze([4000, 6000]);
 /** Ground tracks are kept at this interval, for the whole flight (up to the cap). */
 const TRACK_EVERY_SEC = 0.25;
 const TRACK_MAX_POINTS = 20000; // over 80 minutes at 0.25 s
@@ -60,12 +60,12 @@ const FLUID_CHANGE_MAX_BANK_DEG = 90;
 const FLUID_CHANGE_MAX_CLIMB_DEG = 30;
 
 /** Math radians from a compass heading in degrees (formation-words.js compassDeg is the other way). */
-export function headingRadFromCompass(deg) {
+function headingRadFromCompass(deg) {
   return (90 - deg) * DEG;
 }
 
 /** True airspeed (ft/s) for an indicated airspeed at the block height. */
-export function tasFtpsFor(kias, blockFt) {
+function tasFtpsFor(kias, blockFt) {
   return iasToTasKt(kias, blockFt) * KT_TO_FTPS;
 }
 

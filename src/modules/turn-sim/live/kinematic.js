@@ -1,8 +1,7 @@
-// Kinematic position tracks and pose extraction (tracker-only migration Slice 4; TS-55, TS-125).
-// Legacy line generators and follow-into routines have been pruned; this file retains the shared
-// position tracks (makeTrack, seedTrack, setTrackStep), coordinated pose calculation (posesFrom,
-// applyPose, poseOf, settleLast), slot world-positioning (slotInWorld), smoothed blends (smoothest),
-// and lagged bank smoothing (laggedBank) used by formation turns, fluid flight and rejoins.
+// Position tracks and poses, shared by formation turns, fluid flight and the rejoins (TS-55, TS-125): a track of places
+// step by step (makeTrack, seedTrack, setTrackStep), the coordinated pose that flies it (posesFrom, applyPose, settleLast),
+// a slot's place in the world (slotInWorld), the septic blend (smoothest) and centred or lagged banks (centredBank, laggedBank). The kinematic
+// lines that once flew whole moves from here are gone; the tracker (tracker.js) flies every move now.
 //
 // Units: feet, seconds; x east, y north; headings math radians (0 east, counter-clockwise); bank signed, left wing down
 // positive (flight.js). Every number with no manual or ruling beside it is an estimate and says so.
@@ -19,7 +18,7 @@ const dt = STEP_SEC;
 /** The septic step: 0 to 1 with no rate, acceleration or jerk at either end, so a blend joins without a step in roll rate. */
 export const smoothest = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : u ** 4 * (35 - 84 * u + 70 * u * u - 20 * u ** 3));
 /** Its slope; the steepest point (the middle) is 2.1875 times the average. */
-export const smoothestSlope = (u) => (u <= 0 || u >= 1 ? 0 : 140 * u ** 3 * (1 - u) ** 3);
+const smoothestSlope = (u) => (u <= 0 || u >= 1 ? 0 : 140 * u ** 3 * (1 - u) ** 3);
 
 /** Extra rows of positions kept before and after a track, so the differences at its ends are central. */
 const PAD = 3;
@@ -51,11 +50,6 @@ export function applyPose(a, p) {
   a.stretched = Boolean(p.stretched); // held to full power and behind his planned place (TS-63): STRETCHED on the card and tags
   // The power the line was planned with (power.js, TS-62): its stage or throttle when the planner set one, else none shown.
   a.power = p.power ?? powerFrom(null, p.pwr ?? null, p.kias);
-}
-
-/** An aircraft's state as a pose (the inverse of applyPose), for the parts of a track flight.js flies itself. */
-export function poseOf(a) {
-  return { x: a.xFt, y: a.yFt, alt: a.altAboveFt, h: a.headingRad, bank: a.bankDeg, roll: a.rollRateDps ?? 0, kias: a.kias, tas: a.tasFtps, climb: a.climbFtps ?? 0, pitch: a.pitchDeg ?? 0, g: a.g ?? 1, nz: a.nz ?? 1, stage: a.slowStage ?? null, power: a.power ?? null };
 }
 
 /**

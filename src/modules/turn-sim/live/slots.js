@@ -76,7 +76,7 @@ export const ROUTE_SPANS = Object.freeze({ slot: 3, min: 1, max: 3 });
 export const LINE_BACK_PER_OUT = 12.3 / 16.7;
 
 /** The place alongFt further out along the spinner-to-wingtip line from `from` (a place on it), on side s. */
-export function downTheLine(from, s, alongFt) {
+function downTheLine(from, s, alongFt) {
   const out = alongFt / Math.hypot(1, LINE_BACK_PER_OUT);
   return { fwd: from.fwd - out * LINE_BACK_PER_OUT, left: s * (Math.abs(from.left) + out), alt: from.alt };
 }
@@ -132,7 +132,7 @@ export const NEAREST = Object.freeze({
 export const LANE = Object.freeze({ marginFt: 100, rangeFt: 1000, belowRangeFt: 2000 });
 
 /** A fighting wing side swap (TS-86): how far outside the bubble #2 crosses Lead's six (estimate). */
-export const SWAP_CROSS_MARGIN_FT = 100;
+const SWAP_CROSS_MARGIN_FT = 100;
 
 /** Where a crossing behind Lead passes his six, fwd ft: outside the 500 ft bubble by SWAP_CROSS_MARGIN_FT (SMM 12.29 para 69; estimates). */
 export const crossBehindFwd = (rangeFt) => -(Math.max(FW_BAND.bubbleFt, rangeFt * 0.9) + SWAP_CROSS_MARGIN_FT);
@@ -194,10 +194,6 @@ export function setFw4Shape({ twoRangeFt = FW4.rangeFt, twoDeg = FW4.twoDeg, oth
   fw4 = { twoRangeFt, twoDeg, otherRangeFt, otherDeg };
 }
 
-/** The four-ship's desired fighting wing places now. */
-export function fw4ShapeNow() {
-  return { ...fw4 };
-}
 /** Fighting wing with no stack (entered from a close formation): each aircraft 60 ft below the one it flies off, the 2-ship's estimate. */
 export const FW_STEP_DOWN_FT = 60;
 /** The offset box's second element sits this far behind the first (TS-18; SMM 16.41 para 109 gives 6,000-8,000 ft). */

@@ -25,7 +25,7 @@
 import { bankDegFromG } from '../../../core/flight-math.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, smoother } from './flight.js';
-import { relativeTo, dryRun, turnSeg, wholeDegree, onStep, DEG, TURN_BANK_DEG } from './manoeuvres.js';
+import { relativeTo, dryRun, turnSeg, wholeDegree, onStep, TURN_BANK_DEG } from './manoeuvres.js';
 import { lateralLeg, FIX_LIMITS } from './errors.js';
 
 /** The G-warm button and its numbers. */
@@ -56,7 +56,7 @@ const PUSH_EASE = Object.freeze({ onsetSec: 1.5, reverseSec: 2.5, releaseSec: 1.
  * (TS-38), wings level: V dγ/dt = g (n − cos γ) (standard aerodynamics). "pushSec" counts the time the G is below 1
  * to the middle of the reversal. Returns { table: { dt, alt, climb, nz } (alt from 0), durationSec, dropFt }.
  */
-export function pushOverTable(tasFtps, { pushG = G_WARM.pushG, pushSec = G_WARM.pushSec, recoverG = G_WARM.recoverG } = {}) {
+function pushOverTable(tasFtps, { pushG = G_WARM.pushG, pushSec = G_WARM.pushSec, recoverG = G_WARM.recoverG } = {}) {
   const { onsetSec, reverseSec, releaseSec } = PUSH_EASE;
   const holdPush = Math.max(0, pushSec - onsetSec - reverseSec / 2);
   const fly = (holdRecover) => {

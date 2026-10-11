@@ -28,7 +28,7 @@ import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
 import { FORMATIONS, pairSlot, LANE, sideFor } from './slots.js';
 import { KIAS_OUTSIDE_LAB, REJOIN, TURNING_REJOIN, LAG_ROLL, G_RULE_BANK_DEG } from './tuning.js';
-import { fromStep, wingFromPose } from './hand-over.js';
+import { fromStep, wingFromPose } from './closures.js';
 import { leadTurnInto } from './lead-turn-in.js';
 import { searchTurningRejoin } from './turning-rejoin.js';
 import { STEP_SEC, smoother } from './flight.js';
@@ -43,7 +43,7 @@ const dt = STEP_SEC;
 export const ROLLING_REJOIN_KIND = 'roll';
 
 /** The rolling rejoin's search. Estimates unless a page or ruling is named. */
-export const ROLLING_REJOIN = Object.freeze({
+const ROLLING_REJOIN = Object.freeze({
   turnDeg: Object.freeze([30, 60, 90, 120]), // how far his heading swings the way Lead turns over the roll (estimates)
   pitchDeg: Object.freeze([20, 40, 60]), // the nose's highest and lowest (estimates; 45° is the barrel roll's, SMM 14.8 para 19)
   barrelOffDeg: 45, // the barrel roll's nose circles a point this far off his heading (SMM 14.8 para 19: 45° off)
@@ -162,7 +162,7 @@ function promise(rollSec, rel, dzFt, headingOffDeg, kias, s) {
 }
 
 /**
- * The turning rejoin from where the roll rolls out (step k, #2 at `pose`): Lead's same turn seen from step k (hand-over.js
+ * The turning rejoin from where the roll rolls out (step k, #2 at `pose`): Lead's same turn seen from step k (closures.js
  * fromStep), and the plain rejoin's own search, hot. Returns searchTurningRejoin's best or null.
  */
 function rejoinFrom({ lead, wing, pose, k, into, s, to, sTo, spacingFt, blockFt, t0 }) {

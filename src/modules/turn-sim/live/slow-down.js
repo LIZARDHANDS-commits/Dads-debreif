@@ -26,7 +26,7 @@ import { smoother, smootherSlope } from './flight.js';
  * level at 1 G it gives about 5 kt/s at 200 KIAS, which Patrick confirmed ("probably closer to 5", 5 Oct 00:11Z). The growth
  * with KIAS² is an estimate. TS-61 (2).
  */
-export const IDLE_PROP = Object.freeze({ dragPerWeight: 0.16, atKias: 200 });
+const IDLE_PROP = Object.freeze({ dragPerWeight: 0.16, atKias: 200 });
 
 /**
  * The speed brake's extra drag ÷ weight: about 0.095 at 200 KIAS, growing with dynamic pressure (KIAS²). A perforated flat
@@ -39,13 +39,13 @@ export const IDLE_PROP = Object.freeze({ dragPerWeight: 0.16, atKias: 200 });
 export const BOARDS = Object.freeze({ dragPerWeight: 0.095, atKias: 200, panelSqFt: 5, openDeg: 70, cd: 0.9, dragAreaSqFt: 4.2, weightLb: 6000 });
 
 /** The slowest "power" setting: throttle 0 of core excessFnFor (no thrust and no extra prop drag). An estimate, TS-61. */
-export const POWER_FLOOR_THROTTLE = 0;
+const POWER_FLOOR_THROTTLE = 0;
 
 /** The stages in Patrick's order of use (TS-61 (1)). */
 export const STAGES = Object.freeze(['power', 'boards', 'idle', 'idleBoards']);
 
 /** What the card and the tags say for a stage: nothing for power (a set overtake held with power is the normal way). */
-export const STAGE_WORDS = Object.freeze({ power: null, boards: 'BOARDS', idle: 'IDLE', idleBoards: 'IDLE + BOARDS' });
+const STAGE_WORDS = Object.freeze({ power: null, boards: 'BOARDS', idle: 'IDLE', idleBoards: 'IDLE + BOARDS' });
 
 const hasBoards = (stage) => stage === 'boards' || stage === 'idleBoards';
 const atIdle = (stage) => stage === 'idle' || stage === 'idleBoards';
@@ -82,47 +82,9 @@ export function fullPowerKtps(kias, altFt, g = 1) {
   return ktpsFrom(excessThrustPerWeight(kias, altFt, g), kias, altFt);
 }
 
-const DEG = Math.PI / 180;
-
-/** The most bank at which MAX still holds the speed (KIAS, block height, a climb's cost in KIAS per second): standard aerodynamics, slow-down.js's full-power rate at that G. */
-export function sustainedBankDeg(kias, blockFt, climbKtps) {
-  const gain = (g) => fullPowerKtps(kias, blockFt, g) - climbKtps;
-  let lo = 1;
-  let hi = Math.max(1, availableG(kias));
-  if (gain(hi) >= 0) return Math.acos(1 / hi) / DEG;
-  if (gain(lo) <= 0) return 0;
-  for (let i = 0; i < 20; i++) {
-    const m = (lo + hi) / 2;
-    if (gain(m) >= 0) lo = m;
-    else hi = m;
-  }
-  return Math.acos(1 / lo) / DEG;
-}
-
-/**
- * True when MAX surely holds the speed at bankDeg, so sustainedBankDeg would not cut it (search speed only, the same
- * answer): the full-power rate falls as the G grows, so if it still holds a little above this bank's G (1e-5 of it, more
- * than the bisection's 20 halvings leave), the bisection's answer is above this bank.
- */
-export function sustainsBank(bankDeg, kias, blockFt, climbKtps) {
-  if (!(bankDeg < 89)) return false;
-  const g = (1 / Math.cos(bankDeg * DEG)) * (1 + 1e-5);
-  return g <= Math.max(1, availableG(kias)) && fullPowerKtps(kias, blockFt, g) - climbKtps >= 0;
-}
-
 /** The most a stage slows the aircraft (KIAS per second, a positive number) at kias, altFt and g, power and boards at `throttle` (the floor by default). */
 export function slowKtps(stage, kias, altFt, g = 1, throttle = POWER_FLOOR_THROTTLE) {
   return Math.max(0, -ktpsFrom(excessPerWeight(stage, kias, altFt, g, throttle), kias, altFt));
-}
-
-/**
- * The first stage, in the order of use, that slows the aircraft at least `needKtps` (KIAS per second) at kias, altFt and g,
- * no further than `top`: { stage, ok } (ok false when even `top` can't).
- */
-export function stageFor(needKtps, kias, altFt, g = 1, top = 'idleBoards') {
-  const last = STAGES.indexOf(top);
-  for (let i = 0; i <= last; i++) if (slowKtps(STAGES[i], kias, altFt, g) >= needKtps) return { stage: STAGES[i], ok: true };
-  return { stage: STAGES[last], ok: false };
 }
 
 /**
