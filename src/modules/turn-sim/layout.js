@@ -47,9 +47,9 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   // bow or under the glareshield (ct156-cockpit.js EYE_LEAN).
   eyeLean: true,
   view: '3d', // '2d' or '3d'; 3D at the start, looking straight down on the formation (Patrick, 5 Oct)
-  paint: 'ship', // the 3D aircraft's paint: each in its ship colour, which stands out on the charcoal (Patrick, 5 Oct); 'harvard' is navy
+  paint: 'harvard', // the 3D aircraft's paint: the Harvard scheme (Patrick, 11 Oct 2026: "I want all 3d models to default to the Harvard"); 'ship' colours were the default from 5 Oct
 });
-export const LAYOUT_VERSION = 8; // 1 was the plan-mode screen's; 3 turned the 3/9 line off (TS-56); 4 the Lead-only lines; 5 3D on the formation at the start (Patrick, 5 Oct)
+export const LAYOUT_VERSION = 9; // 1 was the plan-mode screen's; 3 turned the 3/9 line off (TS-56); 4 the Lead-only lines; 5 3D on the formation at the start (Patrick, 5 Oct)
 
 /** A saved version 2 layout keeps every choice but the 3/9 line, which takes the new default (off). Older ones start fresh. */
 export function migrateLayout(values, version) {
@@ -58,9 +58,10 @@ export function migrateLayout(values, version) {
   // Version 5 (Patrick, 5 Oct): 3D, top down, the camera on the formation.
   // Version 6 (Patrick, 5 Oct): ship colours on the 3D aircraft, for contrast on the charcoal.
   // Version 7 (Patrick, 5 Oct): Auto zoom on at the start. Version 8: the cone as the 2D projection at the start.
-  if (![2, 3, 4, 5, 6, 7].includes(version)) return {};
-  const later = { 7: [], 6: ['autoFit'], 5: ['paint', 'autoFit'], 4: ['view', 'camOn', 'paint', 'autoFit'] };
-  const reset = [...(later[version] ?? ['lead39', 'lead75', 'cone', 'view', 'camOn', 'paint', 'autoFit']), 'coneShape'];
+  // Version 9 (Patrick, 11 Oct 2026): the Harvard paint at the start, once; a paint picked after that is kept.
+  if (![2, 3, 4, 5, 6, 7, 8].includes(version)) return {};
+  const later = { 8: [], 7: [], 6: ['autoFit'], 5: ['autoFit'], 4: ['view', 'camOn', 'autoFit'] };
+  const reset = [...(later[version] ?? ['lead39', 'lead75', 'cone', 'view', 'camOn', 'autoFit']), ...(version < 8 ? ['coneShape'] : []), 'paint'];
   return Object.fromEntries(Object.entries(values).filter(([k]) => !reset.includes(k) && (version >= 4 || !SHIP_KEYS.test(k))));
 }
 
