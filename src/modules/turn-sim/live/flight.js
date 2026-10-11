@@ -12,7 +12,7 @@
 // Units: feet, seconds, x east, y north. Headings are math radians (0 east,
 // counter-clockwise). Bank is signed, left wing down positive, so a positive
 // bank turns the heading the positive (left) way.
-import { easeRoll, turnRateFromBankRadPerSec, gFromBankDeg, bankDegFromG } from '../../../core/flight-math.js';
+import { easeRoll, easeValue, turnRateFromBankRadPerSec, gFromBankDeg, bankDegFromG } from '../../../core/flight-math.js';
 import { attitudeDegFromClimb, rollWithinT6A, stallLimitG, T6A_G_ONSET } from '../../../core/t6-performance.js';
 import { wrapPi, wrapDeg180 } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
@@ -102,26 +102,70 @@ export function holdToEnvelope(a, seg, p, bank0, rate0) {
 /** The step the whole Turn Sim flies in (TS-R9), the same 0.05 s as before. */
 export const STEP_SEC = 0.05;
 
-/** The time the last of a climb-rate change is closed over (seconds; an estimate, two steps), so the pull settles without flickering. */
-const CLIMB_CATCH_SEC = 0.1;
+/**
+ * The time the last of a climb-rate change is closed over (seconds; an estimate), so the pull settles without flickering. Since
+ * V2.348 it is 0.3 s, not 0.1, so the G onset's own build (16 G/s²) keeps up and the climb rate comes onto the one wanted
+ * without passing it.
+ */
+const CLIMB_CATCH_SEC = 0.3;
 /** A level-off closes its climb rate over this long (seconds; an estimate), and uses at most this pull or push (G either side of 1; an estimate). */
 const LEVEL_OFF_SEC = 1;
 const LEVEL_OFF_PULL_G = 1;
 
 /**
- * One step of a vertical pull toward a wanted climb rate: the pull builds and eases no faster than the T-6A's G onset (core
- * T6A_G_ONSET, 4 G/s), and eases off as the climb rate nears the one wanted, as fast as the onset lets it, so it comes off on
- * time. v0: climb rate now (ft/s); nz0: the vertical share of the G now; pullDown, pullUp: the most vertical acceleration
- * either way (ft/s²); catchSec: the time the climb-rate error is closed over. Returns { v1, nz }. Until V2.328 the tracker aimed from the climb rate its pull would leave once eased
- * and closed the rest in one step, and the pull flickered ±0.1 G every step on the way up the line (V2.327, lab to echelon).
+ * How long a vertical pull of acc (ft/s², either way) takes to build up from none, or to ease back off to none, at the T-6A's
+ * G onset (core T6A_G_ONSET: 4 G/s, the onset itself building at 16 G/s²; estimates). Below a quarter of a G the onset never
+ * reaches 4 G/s on the way.
  */
-export function pullToClimb(v0, nz0, wantV, pullDown, pullUp, dt, catchSec = CLIMB_CATCH_SEC) {
+export function pullRampSec(acc) {
   const jerk = T6A_G_ONSET.maxRateDps * G_FTPS2;
-  const acc0 = (nz0 - 1) * G_FTPS2;
-  const dv = wantV - v0;
-  const want = Math.max(-pullDown, Math.min(pullUp, Math.sign(dv) * Math.min(Math.abs(dv) / Math.max(dt, catchSec), Math.sqrt(2 * jerk * Math.abs(dv)))));
-  const acc = acc0 + Math.max(-jerk * dt, Math.min(jerk * dt, want - acc0));
-  return { v1: v0 + acc * dt, nz: 1 + acc / G_FTPS2 };
+  const snap = T6A_G_ONSET.maxAccelDps2 * G_FTPS2;
+  const a = Math.abs(acc);
+  return a >= (jerk * jerk) / snap ? a / jerk + jerk / snap : 2 * Math.sqrt(a / snap);
+}
+
+/**
+ * Where a vertical pull leaves him once it is eased off from now, step by step as pullToClimb eases it: from climb rate v0
+ * (ft/s), the vertical share of the G nz0 and its onset nzRate0 (G per second), at the T-6A's G onset (core T6A_G_ONSET).
+ * Returns { v, ft }: the climb rate then, and the height gained on the way.
+ */
+export function easeOffPull(v0, nz0, nzRate0, dt) {
+  let [v, nz, rate, ft] = [v0, nz0, nzRate0, 0];
+  for (let k = 0; k < 200 && (Math.abs(nz - 1) > 1e-6 || Math.abs(rate) > 1e-6); k++) {
+    const e = easeValue(nz, rate, 1, dt, T6A_G_ONSET);
+    [nz, rate] = [e.bankDeg, e.rollRateDps];
+    const v1 = v + (nz - 1) * G_FTPS2 * dt;
+    ft += ((v + v1) / 2) * dt;
+    v = v1;
+  }
+  return { v, ft };
+}
+
+/**
+ * One step of a vertical pull toward a wanted climb rate. The pull builds and eases no faster than the T-6A's G onset (core
+ * T6A_G_ONSET: 4 G/s, the onset itself building and dying away at 16 G/s², core easeValue), and eases off as the climb rate
+ * nears the one wanted, as fast as the onset lets it, so it comes off on time. v0: climb rate now (ft/s); nz0: the vertical
+ * share of the G now, and nzRate0 its onset (G per second); pullDown, pullUp: the most vertical acceleration either way
+ * (ft/s²); catchSec: the time the climb-rate error is closed over. Returns { v1, nz, nzRate }. Until V2.328 the tracker aimed
+ * from the climb rate its pull would leave once eased and closed the rest in one step, and the pull flickered ±0.1 G every
+ * step on the way up the line (V2.327, lab to echelon). Until V2.348 the onset went from none to 4 G/s, or from +4 to -4 G/s,
+ * in one step, a step in #2's pitch rate of up to 11.8°/s (fighting wing to route; Patrick 11 Oct 2026 22:11Z, "3°/s per step").
+ */
+export function pullToClimb(v0, nz0, wantV, pullDown, pullUp, dt, catchSec = CLIMB_CATCH_SEC, nzRate0 = 0) {
+  const jerk = T6A_G_ONSET.maxRateDps * G_FTPS2;
+  const snap = T6A_G_ONSET.maxAccelDps2 * G_FTPS2;
+  // Judged from the climb rate he is left with once the pull and its onset now are eased off (easeOffPull), so a pull still
+  // building comes off in time.
+  const vEased = easeOffPull(v0, nz0, nzRate0, dt).v;
+  const dv = Math.abs(wantV - vEased);
+  // The most pull that eases back off to none (pullRampSec) within the climb-rate change still to make: easing off a pull of
+  // a takes away a * pullRampSec(a) / 2 of climb rate.
+  const knee = jerk ** 3 / snap ** 2;
+  const stopAcc = dv >= knee ? -(jerk * jerk) / (2 * snap) + Math.sqrt(jerk ** 4 / (4 * snap * snap) + 2 * jerk * dv) : Math.cbrt(snap * dv * dv);
+  const want = Math.max(-pullDown, Math.min(pullUp, Math.sign(wantV - vEased) * Math.min(dv / Math.max(dt, catchSec), stopAcc)));
+  const eased = easeValue(nz0, nzRate0, 1 + want / G_FTPS2, dt, T6A_G_ONSET);
+  const nz = eased.bankDeg;
+  return { v1: v0 + (nz - 1) * G_FTPS2 * dt, nz, nzRate: eased.rollRateDps };
 }
 
 /**
@@ -495,9 +539,13 @@ export function stepAircraft(a, plan, t) {
     // gently, closing the climb rate over LEVEL_OFF_SEC at the onset and up to LEVEL_OFF_PULL_G. Until V2.328 it stopped in
     // one step (V2.327, 2-ship turning rejoin to fighting wing: 35 ft/s to level in 0.05 s at its end).
     const pull = LEVEL_OFF_PULL_G * G_FTPS2;
-    const { v1, nz } = pullToClimb(climbBefore, nzBefore, 0, pull, pull, dt, LEVEL_OFF_SEC);
-    // Once the climb and the pull are within one step's onset of level, he is level.
-    const level = Math.abs(v1) < 0.05 && Math.abs(nz - 1) <= T6A_G_ONSET.maxRateDps * dt;
+    // Its G onset carries on from its last step (none on its first).
+    const onset = plan.levelOff && Math.abs(plan.levelOff.t - t) < dt / 2 ? plan.levelOff.nzRate : 0;
+    const { v1, nz, nzRate } = pullToClimb(climbBefore, nzBefore, 0, pull, pull, dt, LEVEL_OFF_SEC, onset);
+    // Once the climb, the pull and its onset are within one step's onset build of level, he is level.
+    const build = T6A_G_ONSET.maxAccelDps2 * dt;
+    const level = Math.abs(v1) < 0.05 && Math.abs(nz - 1) <= build * dt && Math.abs(nzRate) <= build;
+    plan.levelOff = level ? null : { t: t + dt, nzRate };
     a.climbFtps = level ? 0 : v1;
     a.nz = level ? 1 : nz;
     if (!level) levelling = { nz };

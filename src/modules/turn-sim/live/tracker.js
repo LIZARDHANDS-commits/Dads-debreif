@@ -9,15 +9,14 @@
 import { bankDegFromTurnRate, turnRateFromBankRadPerSec } from '../../../core/flight-math.js';
 import { wrapPi, DEG } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
-import { STEP_SEC, copyAircraft, smoothLegSec, SMOOTHER_PEAK, pullToClimb } from './flight.js';
+import { STEP_SEC, copyAircraft, smoothLegSec, SMOOTHER_PEAK, pullToClimb, pullRampSec, easeOffPull, headingChangeRollingOut } from './flight.js';
 import { relativeTo, unit } from './manoeuvres.js';
 import { fullPowerKtps, slowKtps, stallBankDeg } from './slow-down.js';
 import { throttleAtTorque, throttleFor } from './power.js';
 import { TRACKER, CLOSURE, HAND_OVER_FT, FW_ENERGY, FW_BUBBLE, REJOIN, TURNING_REJOIN, lineKiasNow } from './tuning.js';
 import { FW_BAND, LANE } from './slots.js';
-import { setKias, stepCommanded, climbCostKtps, createPilot, pilotSpeed, pilotFly, pilotPower, coneUpFtNow } from './pilot.js';
+import { setKias, stepCommanded, climbCostKtps, createPilot, pilotSpeed, pilotFly, pilotPower, pilotRollLimits, coneUpFtNow } from './pilot.js';
 import { G_RULE } from './rates.js';
-import { T6A_G_ONSET } from '../../../core/t6-performance.js';
 import { isLeadInCanopy } from '../../../core/canopy.js';
 import { liftTowardAim, gAndBankForLift } from '../../../core/point-mass.js';
 import { rideAim, rideClosure, rideHeightAsSpeed, lineAltOf } from './ride.js';
@@ -239,7 +238,12 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
   const isRejoinKind = ph.kind === 'ride';
   const tauSec = isRejoinKind ? (ph.tauSec ?? TURNING_REJOIN.rideHeadingTauSec) : null;
   const gainHdg = tauSec != null ? (1 / tauSec) : GAIN.heading;
-  const omegaCmd = gainHdg * wrapPi(cmd - W.headingRad) + (ph.feedForward === false ? 0 : headingState.omegaFf);
+  // Lining up on a heading he judges from the heading he will have once his wings are rolled level from here, at the roll he
+  // flies (pilot.js pilotRollLimits), so he starts rolling out in time: at a formation roll rate (TURNING_REJOIN.formRoll)
+  // the plain heading loop (until V2.348) could roll past the heading and back, 30° each way, without end (break and rejoin to
+  // fighting wing, once the vertical pull built its onset at 16 G/s²).
+  const rollingOut = aligning ? headingChangeRollingOut(W.bankDeg ?? 0, W.rollRateDps ?? 0, W.tasFtps, pilotRollLimits(W, ph.roll)) : 0;
+  const omegaCmd = gainHdg * wrapPi(cmd - W.headingRad - rollingOut) + (ph.feedForward === false ? 0 : headingState.omegaFf);
 
   let cap = aligning ? ph.alignBankDeg ?? T.alignBankDeg : ph.bankCapDeg;
   // On a rejoin, near his least speed too, he banks what the line needs: MAX is set and any speed bleed accepted; only stall
@@ -401,23 +405,35 @@ function slotAltOf(ph, L, W) {
 }
 
 /**
- * His vertical pull builds and eases no faster than the T-6A's G onset (core T6A_G_ONSET, 4 G/s), so a climb or descent he
- * starts is one he can stop in the room left once the pull he has now is eased off (Fable's V2.325 flight: until V2.327 the
- * line's and the cone's heights took their pull in one step, from the ride into the cone 1 to 2.9 G and then to -0.9 G, each
- * in 0.05 s). W: the aircraft now (its climb rate and the vertical share of its G, nz). Returns { vEased, easedFt, stopFtps,
- * step } for the height laws below: where his climb rate and height are once his pull is eased off, the most climb rate he
- * can stop in d feet at a pull of a, and the step to a wanted climb rate within the pull limits.
+ * His vertical pull builds and eases no faster than the T-6A's G onset (core T6A_G_ONSET: 4 G/s, the onset itself building at
+ * 16 G/s²), so a climb or descent he starts is one he can stop in the room left once the pull he has now is eased off
+ * (Fable's V2.325 flight: until V2.327 the line's and the cone's heights took their pull in one step, from the ride into the
+ * cone 1 to 2.9 G and then to -0.9 G, each in 0.05 s). W: the aircraft now (its climb rate and the vertical share of its G,
+ * nz); nzRate: that G's onset now (G per second). Returns { vEased, easedFt, stopFtps, step } for the height laws below:
+ * where his climb rate and height are once his pull is eased off (flight.js easeOffPull), the
+ * most climb rate he can stop in d feet at a pull of a, and the step to a wanted climb rate within the pull limits. Until
+ * V2.348 all three took the onset as starting and stopping in one step.
  */
-function verticalOnset(W) {
-  const jerk = T6A_G_ONSET.maxRateDps * G_FTPS2;
+function verticalOnset(W, nzRate = 0) {
   const v0 = W.climbFtps ?? 0;
-  const acc0 = ((W.nz ?? 1) - 1) * G_FTPS2;
-  const easeSec = Math.abs(acc0) / jerk;
-  const vEased = v0 + (acc0 * easeSec) / 2;
-  const easedFt = v0 * easeSec + (acc0 * easeSec * easeSec) / 3;
-  const stopFtps = (a, d) => (a > 0 && d > 0 ? Math.max(0, Math.sqrt((a * a * a * a) / (4 * jerk * jerk) + 2 * a * d) - (a * a) / (2 * jerk)) : 0);
-  const step = (wantV, pullDown, pullUp, dt) => ({ v0, ...pullToClimb(v0, W.nz ?? 1, wantV, pullDown, pullUp, dt) });
-  return { vEased, easedFt, stopFtps, step };
+  const eased = easeOffPull(v0, W.nz ?? 1, nzRate, STEP_SEC);
+  // From level G, stopping v at a pull of a: the pull builds over pullRampSec(a), holds, and eases off over the same, so
+  // v = a (ramp + hold) and the height it takes is v (v / a + ramp) / 2 (a guess on the safe side where the pull never
+  // reaches a: it stops shorter).
+  const stopFtps = (a, d) => {
+    if (!(a > 0 && d > 0)) return 0;
+    const half = (a * pullRampSec(a)) / 2;
+    return Math.max(0, Math.sqrt(half * half + 2 * a * d) - half);
+  };
+  const step = (wantV, pullDown, pullUp, dt) => ({ v0, ...pullToClimb(v0, W.nz ?? 1, wantV, pullDown, pullUp, dt, undefined, nzRate) });
+  return { vEased: eased.v, easedFt: eased.ft, stopFtps, step };
+}
+
+/** His G onset now (G per second), from the G of his last two steps as flown (heightState.table), or none where it is not known. */
+function nzRateOf(heightState, W) {
+  const nz = heightState?.table?.nz;
+  if (!nz || nz.length < 2 || nz[nz.length - 1] !== (W.nz ?? 1)) return 0;
+  return (nz[nz.length - 1] - nz[nz.length - 2]) / STEP_SEC;
 }
 
 /**
@@ -453,7 +469,7 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     // capture's steep bank he holds his height, and comes up the 4° as he rolls out.
     const tanB = Math.tan(Math.min(89, Math.abs(W.bankDeg ?? 0)) * DEG);
     const pullUp = Math.min(pull, Math.max(0, Math.sqrt(Math.max(0, G_RULE.normalG ** 2 - tanB * tanB)) - 1) * G_FTPS2);
-    const V = verticalOnset(W);
+    const V = verticalOnset(W, nzRateOf(heightState, W));
     const toward = (ft) => {
       const err = ft - W.altAboveFt - V.easedFt;
       const v = Math.sign(err) * Math.min(Math.abs(err) * D.altGain, V.stopFtps(err < 0 ? pullUp : pull, Math.abs(err)));
@@ -483,7 +499,7 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     const stayBelow = Boolean((isRejoin && range3DFt < LANE.belowRangeFt) || ph.coneEnergy || ph.stepDown);
     const topFt = stayBelow ? Math.min((L.altAboveFt ?? 0) - 10, (L.altAboveFt ?? 0) + coneUpFt) : (L.altAboveFt ?? 0) + coneUpFt;
     const bottomFt = (L.altAboveFt ?? 0) - coneUpFt;
-    const V = verticalOnset(W);
+    const V = verticalOnset(W, nzRateOf(heightState, W));
     const up = Math.max(0, topFt - W.altAboveFt - V.easedFt);
     const down = Math.max(0, W.altAboveFt + V.easedFt - bottomFt);
     const lo = -V.stopFtps(E.pullFtps2, down); // no rate cap, only the pull (TS-140)
