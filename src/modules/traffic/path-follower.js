@@ -15,7 +15,7 @@ import { ktToFtps, G_FTPS2 } from '../../core/units.js';
 import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
 import { bankDegFromTurnRate, easeRoll, easeValue, gFromBankDeg } from '../../core/flight-math.js';
 import { windTriangle } from '../../core/wind.js';
-import { attitudeDegFromClimb, glideDragPerWeight, glideRatio } from '../../core/t6-performance.js';
+import { attitudeDegFromClimb, glideDragPerWeight, glideRatio, T6A_LIMITS } from '../../core/t6-performance.js';
 import { gateRoll } from './envelope.js';
 import { THRESHOLD_DATA_ELEV_FT, THRESHOLD_29L, DEPARTURE_END_29L, NUMBER_BASE_PAST_THRESHOLD_FT, TOUCHDOWN_PAST_NUMBERS_FT } from './airfield.js';
 import { iasToTasKt } from './weather.js';
@@ -34,19 +34,31 @@ const ATTITUDE_HALF_SEC = 1;
 const PITCH_EASE = Object.freeze({ maxRateDps: 10, maxAccelDps2: 20 });
 
 /**
- * Crosswind on final, the wing-down method (SMM 4.12 paras 25-28; Patrick, 11 Oct 09:03Z): from halfway between the
- * window and touchdown the crab goes and the upwind wing comes down, over `blendSec`; the nose stays on the centreline
- * on the wheels, and the crab comes back over `blendSec` once airborne again. The window is 3/4 NM before the base of the
- * numbers (Patrick). The bank is `bankPerCrab` times the crab angle the wind would need: an estimate from standard
- * aerodynamics (the fuselage's side force in the slip balancing the bank's), until a flight shows otherwise. The blend
- * time and how close to the centreline counts as on final are estimates. Drawn heading and bank only: the ground track,
- * the glide path and the speeds don't change.
+ * Crosswind on final, the wing-down method (SMM 4.12 paras 25-28; NFM p.2-26; Patrick, 11 Oct 09:03Z): from halfway
+ * between the window and touchdown the crab goes and the upwind wing comes down, over `blendSec`; the nose stays on the
+ * centreline on the wheels, and the crab comes back over `blendSec` once airborne again. The window is 3/4 NM before the
+ * base of the numbers (Patrick). The bank is the one whose sideways pull matches the side force of the slip (standard
+ * aerodynamics, slipBankDeg); the side-force slope per radian of slip is borrowed from similar aircraft and the wing
+ * area is the T-6A's published figure, neither in our manuals (estimates). The blend time and how close to the
+ * centreline counts as on final are estimates. Drawn heading and bank only: the ground track, the glide path and the
+ * speeds don't change. The NFM's limit is 25 kt across (p.5-12), flagged elsewhere, never a wall here.
  */
 export const WING_DOWN = Object.freeze({
-  bankPerCrab: 0.75, blendSec: 3, onLineFt: 300, onLineDeg: 20,
+  sideForcePerRad: 0.6, wingAreaSqFt: 175.3, blendSec: 3, onLineFt: 300, onLineDeg: 20,
   fromOutFt: (0.75 * 6076 - NUMBER_BASE_PAST_THRESHOLD_FT + -(NUMBER_BASE_PAST_THRESHOLD_FT + TOUCHDOWN_PAST_NUMBERS_FT)) / 2,
   toOutFt: -(NUMBER_BASE_PAST_THRESHOLD_FT + TOUCHDOWN_PAST_NUMBERS_FT),
 });
+
+/**
+ * The bank that holds the track in a slip of `slipDeg` at `kias`, degrees, the same sign as the slip: the slip's side
+ * force (dynamic pressure × wing area × side-force slope × slip) balanced against weight × sin(bank). Dynamic pressure
+ * comes straight from KIAS (sea-level density).
+ */
+export function slipBankDeg(slipDeg, kias, weightLb = T6A_LIMITS.weightLb) {
+  const q = 0.5 * 0.0023769 * (kias * 1.68781) ** 2;
+  const side = q * WING_DOWN.wingAreaSqFt * WING_DOWN.sideForcePerRad * (slipDeg * Math.PI / 180) / weightLb;
+  return Math.asin(Math.max(-1, Math.min(1, side))) * 180 / Math.PI;
+}
 const RWY_LEN_FT = Math.hypot(THRESHOLD_29L.x - DEPARTURE_END_29L.x, THRESHOLD_29L.y - DEPARTURE_END_29L.y);
 const RWY_OUT = Object.freeze({ x: (THRESHOLD_29L.x - DEPARTURE_END_29L.x) / RWY_LEN_FT, y: (THRESHOLD_29L.y - DEPARTURE_END_29L.y) / RWY_LEN_FT });
 const RWY_29L_TRACK_DEG = compassDegFromVector(-RWY_OUT.x, -RWY_OUT.y);
@@ -347,8 +359,8 @@ export function followRoute(a, route, env, dt, options = DEFAULT_ROUTE_OPTIONS) 
     rateRadPerSec = (wrapDeg180(headingThere(a.distFt + aheadFt) - headingThere(a.distFt - aheadFt)) * Math.PI / 180) / (2 * ATTITUDE_HALF_SEC);
   }
   // In the slip the upwind wing is down; on the wheels the wings are level (SMM 4.12 para 26: the upwind wheel first).
-  const slipBankDeg = onWheels ? 0 : wd * WING_DOWN.bankPerCrab * wt.crabDeg;
-  a.targetBankDeg = bankDegFromTurnRate(tasFtps, rateRadPerSec) + slipBankDeg;
+  const slipBank = onWheels ? 0 : wd * slipBankDeg(wt.crabDeg, a.iasKt);
+  a.targetBankDeg = bankDegFromTurnRate(tasFtps, rateRadPerSec) + slipBank;
   const roll = gateRoll(a.bankDeg ?? 0, a.rollRateDps ?? 0, a.targetBankDeg, dt, ROLL, tasFtps, a.iasKt);
   a.bankDeg = Math.abs(roll.bankDeg) < 1e-9 ? 0 : roll.bankDeg;
   a.rollRateDps = Math.abs(roll.rollRateDps) < 1e-9 ? 0 : roll.rollRateDps;
