@@ -12,14 +12,18 @@ import {
   loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addLights, addSky, disposeAircraftMesh,
 } from '../../ui-kit/three-aircraft.js';
 import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
+import { createAircraftShadows } from '../../ui-kit/aircraft-shadows.js';
 import { drawTags, drawLeadArrows, T6_LENGTH_FT, trailSince, CLOCK_LINE_RED } from './view.js';
 import { FW_TURN, TURNING_REJOIN } from './live/tuning.js';
 import { placeBoxOutline } from './live/move-in-band.js';
 import { drawHud } from '../../ui-kit/hud.js';
 import { liftBankDeg } from './live/flight.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';
-import { createCt156Model, CT156_UNIT_LENGTH, setCockpitView } from '../../ui-kit/ct156-model.js';
+import { createCt156Model, CT156_UNIT_LENGTH, setCockpitView, setSpeedBrake } from '../../ui-kit/ct156-model.js';
 import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, createCockpitFovSlider, createEyeLean, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
+
+/** His speed brake is out: the boards stage, with power or at idle (live/slow-down.js STAGES). */
+const boardsOut = (a) => a?.power?.stage === 'boards' || a?.power?.stage === 'idleBoards';
 
 /** The 3D ground's colour: wheat stubble (TS-189). It was a deep green, '#2a3327' (Patrick, 6 Oct); set that here to put it back. */
 const GROUND_COLOUR = '#b7a77a';
@@ -75,6 +79,8 @@ const PLACE_BOX = Object.freeze({ blue: '#4da3ff', yellow: '#ffd23f' });
 const CLICK_PX = 5;
 /** Half the depth range the 3D camera keeps round the formation, feet (the grid beyond it simply isn't drawn). */
 const DEPTH_HALF_FT = 60_000;
+/** The formation shares one shadow box while it spans no more than this many drawn aircraft lengths (by eye); wider, Lead has it. */
+const SHADOW_SPAN_LENGTHS = 12;
 /** The 3D cone's facets: round the tail, and across the 30-60° band. */
 const CONE_ROUND_STEPS = 48;
 const CONE_BAND_STEPS = 6;
@@ -208,7 +214,9 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     const scene = new THREE.Scene();
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 2);
-    addLights(THREE, scene);
+    const { sun } = addLights(THREE, scene);
+    // Real-time sun shadows on the aircraft (Patrick, 11 Oct 2026 21:10Z card "Every 3D view"; ui-kit/aircraft-shadows.js).
+    const shadows = createAircraftShadows(THREE, renderer, sun);
     const sky = addSky(THREE, scene);
     // The same charcoal as 2D, flat, with its fog (Patrick, 5 Oct), and a faint grey ground grid.
     // A light blue sky and a cloud layer below the formation (Patrick, 6 Oct; ui-kit/sky-clouds.js). 2D keeps the slate.
@@ -244,7 +252,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     scene.add(placeBox);
     const persp = new THREE.PerspectiveCamera(60, 1, POV.nearFt, POV.farFt);
     persp.up.set(0, 0, 1);
-    gl = { renderer, scene, camera, persp, active: camera, sky, skyClouds, ground, grid, planes: new Map(), trails: new Map(), plans: new Map(), guideLines, cones: new Map(), coneGeometry: {}, placeBox, boxShape: '' };
+    gl = { renderer, scene, camera, persp, active: camera, shadows, sky, skyClouds, ground, grid, planes: new Map(), trails: new Map(), plans: new Map(), guideLines, cones: new Map(), coneGeometry: {}, placeBox, boxShape: '' };
   }
 
   function planeFor(id) {
@@ -615,7 +623,26 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     const lim = EYE_OFFSET_FT[s];
     gl.cockpit.eyeUpFt = clamp(Number(sizing[`eyeUp${suffix}`]) || 0, lim.up);
     gl.cockpit.eyeFwdFt = clamp(Number(sizing[`eyeFwd${suffix}`]) || 0, lim.fwd);
-    gl.cockpit.part.update(source.instruments?.(id) ?? source.hud?.() ?? null);
+    // Patrick 11 Oct 2026: "the speed brake light comes on in the cockpit", lit while this aircraft's boards are out.
+    const hud = source.instruments?.(id) ?? source.hud?.() ?? null;
+    const ship = source.state().aircraft.find((a) => a.id === id);
+    gl.cockpit.part.update(hud && ship ? { ...hud, speedBrake: boardsOut(ship) } : hud);
+  }
+
+  /**
+   * Keeps the sun's shadow box on what is being looked at: the aircraft whose view it is, else the whole formation while it
+   * is close (within SHADOW_SPAN_LENGTHS drawn lengths of its middle), else Lead, so the shadows stay sharp.
+   */
+  function followShadows(pov, state, lengthFt) {
+    const meshes = state.aircraft.map((a) => gl.planes.get(a.id)?.mesh).filter(Boolean);
+    const own = pov ? gl.planes.get(pov.id)?.mesh : null;
+    if (own || !meshes.length) return gl.shadows.follow(own);
+    const mid = new THREE.Vector3();
+    for (const m of meshes) mid.add(m.position);
+    mid.multiplyScalar(1 / meshes.length);
+    const reach = Math.max(...meshes.map((m) => m.position.distanceTo(mid))) + lengthFt;
+    if (reach <= SHADOW_SPAN_LENGTHS * lengthFt) gl.shadows.follow(mid, reach);
+    else gl.shadows.follow(gl.planes.get(1)?.mesh ?? meshes[0]);
   }
 
   /** A click while Change position is picking: where it meets the level of Lead's height, in world feet, to the picker. */
@@ -699,6 +726,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       mesh.position.set(pose.x, pose.y, pose.z);
       mesh.scale.setScalar(lengthFt / CT156_UNIT_LENGTH);
       mesh.rotation.set(-pose.bankRad, -pose.pitchRad, pose.headingRad);
+      setSpeedBrake(mesh, boardsOut(a)); // the board swings out with his boards (Patrick's Blender card "Opens with boards", 11 Oct 2026 20:22Z)
       mesh.visible = true;
     }
     for (const [id, entry] of gl.planes) {
@@ -789,6 +817,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       camera.updateProjectionMatrix();
       gl.active = camera;
     }
+    followShadows(pov, state, lengthFt);
     renderer.render(scene, gl.active);
     drawTagsOver(state, layers, box, ratio, signs);
     drawn++;

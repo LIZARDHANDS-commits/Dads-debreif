@@ -36,6 +36,13 @@ The shared parts are the flight core (`src/core/`), the app frame and home scree
 - [ ] The flaps-takeoff glide row in `src/core/t6-performance.js:156` is labelled an estimate (Patrick approved, 4 Oct 04:18Z) until a manual page or Patrick backs it; it is settled in the Traffic PFL review (Traffic plan, Step 1) (`pf/reset/consolidation-plan.md:189`, `pf/reset/6-plan-and-rules/new-since-pin.md:15`, `../traffic/plan.md`).
 - [ ] Dependabot pull request #162 (a Playwright bump) is the only open pull request; merge only on a green run. It belongs to the GitHub tidy in `../../PLAN.md` (`archive/docs/handover/app-frame.md:13`).
 - [ ] One colour for ship #4, white with an outline, in every module (issue #29).
+- [x] CT-156 outside details (Patrick, 11 Oct 2026 20:12Z to 20:32Z): the tie-down rings under the wings and the belly antennas where SMM Fig 12.12 and 12.13 show them, for the formation references; two TAS blades on the cowl; the exhaust's shape (T-6A-1 Fig 1-1-2); the white foot on the aft belly antenna; the main gear doors and the speed brake on the belly; better pilots. Built in the same pull request as this line (`src/ui-kit/ct156-model.js`).
+- [x] The speed brake on the model opens with the boards, and the SPEED BRAKE light comes on in the cockpit (Patrick, 11 Oct 2026 20:22Z): `setSpeedBrake(ship, out)` and `hud.speedBrake` in the shared 3D files.
+- [x] CT-156 surface texture and shading (Patrick, 11 Oct 2026 21:07Z card "Surface texture"): rivets and panel-line grooves bump-mapped, exhaust soot, belly oil and grime; the canopy bows flush with the glass (Patrick 21:07Z). Built in the same pull request as this line.
+- [ ] Real-time shadows in every 3D view (Patrick, 11 Oct 2026 21:10Z card "Every 3D view"): the shared helper `src/ui-kit/aircraft-shadows.js` is built; each module's thread switches it on in its own view (Formation, Traffic, Turn Fight, SOF, Debrief).
+- [x] Research the airframe from photos to add detail, texture and shading inside and outside the cockpit (Patrick, 11 Oct 2026 21:18Z). Findings in the project files (`cockpit-review/ct156-photo-research.md`).
+- [x] Cockpit dark charcoal, as US Navy T-6A cockpit photos show (Patrick, 11 Oct 2026 22:06Z: "Yes use that"); fin static wicks and the yellow fuselage stencils from the photo research. Built in the same pull request as this line. TS-157's colour wording still to be updated, with Patrick's yes to the words.
+- [ ] Formation's 3D view to call `setSpeedBrake` for each ship and pass `speedBrake` to the cockpit when the boards are out (Formation's file, `src/modules/turn-sim/view3d.js`; asked of the Formation thread).
 
 ## Step 4. Sign-off, with the combined sign-off of the whole tool
 

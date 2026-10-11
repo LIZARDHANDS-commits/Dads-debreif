@@ -8,13 +8,9 @@
 // Get the cycle's FAACIFP18 as tools/cifp-approaches.mjs says (keep it OUTSIDE the repo). Only the derived numbers go in the repo.
 //
 // Two sources, best first:
-// 1. Moose Jaw (CYMJ): Patrick's measured points, the Traffic sim's (src/modules/traffic/airfield.js: THRESHOLD_29L, DEPARTURE_END_29L,
-//    THRESHOLD_29R, DEPARTURE_END_29R, RUNWAY_03, RUNWAY_21 and RUNWAY_WIDTH_FT; measured on Esri's true-scale photo, about ±10 to 15 ft,
-//    TR-67). Those are map feet from the field origin in src/modules/traffic/data/moose-jaw.json ("anchor", 50.3303 N 105.5592 W, the
-//    ARP the Traffic sim's 3D uses too), turned into latitude and longitude here with core/geo.js localFtToLatLon (its flat-earth frame,
-//    the one the Traffic sim draws them in). Check: Patrick's 29L number-base point (50.322977 N 105.547962 W) comes back from Traffic's
-//    NUMBER_BASE_29L within about 6 ft. The numbers now live in two places (Traffic's map feet and these); Patrick merges them later
-//    (docs/PLAN.md waiting list). The tool imports Traffic's file read-only and never writes it.
+// 1. Moose Jaw (CYMJ): Patrick's measured points, the one copy in src/airfields/cymj-runways.js (Patrick, 11 Oct 2026: a single source of
+//    truth the Traffic sim reads too). runway-ends.js imports CYMJ_RUNWAY_ENDS from it rather than holding a copy; the tool prints them and
+//    checks that Patrick's 29L number-base point (50.322977 N 105.547962 W) comes back from NUMBER_BASE_29L within about 6 ft.
 // 2. The US fields in the list: FAA CIFP runway records (section P, subsection G, ARINC 424-18): the landing threshold's surveyed position
 //    (cols 33-51), its elevation (67-71), the displaced threshold (72-75), length (23-27), magnetic bearing (28-31, tenths) and width (78-80).
 //    Each strip is drawn end to end, so a displaced threshold's pavement end is worked out by moving the landing threshold back along the
@@ -25,12 +21,9 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { col, trim, posOf, altOf, cycleOf } from './cifp-read.mjs';
 import { makeLocalRef, latLonToLocalFt, localFtToLatLon } from '../src/core/geo.js';
 import { OURAIRPORTS } from '../src/airfields/airports-data.js';
-import {
-  THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_29R, DEPARTURE_END_29R, RUNWAY_03, RUNWAY_21, RUNWAY_WIDTH_FT, NUMBER_BASE_29L,
-} from '../src/modules/traffic/airfield.js';
+import { CYMJ_ORIGIN, CYMJ_RUNWAY_ENDS, NUMBER_BASE_29L } from '../src/airfields/cymj-runways.js';
 
 const OUT = 'src/airfields/runway-ends.js';
-const TRAFFIC_FIELD = 'src/modules/traffic/data/moose-jaw.json';
 const args = process.argv.slice(2);
 const DRY = args.includes('--dry');
 const CIFP_PATH = args[args.indexOf('--cifp') + 1];
@@ -43,22 +36,13 @@ const r6 = (v) => Math.round(v * 1e6) / 1e6;
 const ft = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
 // ---- 1. Moose Jaw: Patrick's points --------------------------------------------------------------------------------------------------------
-const anchor = JSON.parse(readFileSync(TRAFFIC_FIELD, 'utf8')).anchor;
-if (!(Number.isFinite(anchor?.lat) && Number.isFinite(anchor?.lon))) throw new Error(`No anchor in ${TRAFFIC_FIELD}`);
+const anchor = CYMJ_ORIGIN;
 const cymjRef = makeLocalRef(anchor.lat, anchor.lon);
-const ll = (p) => {
-  const q = localFtToLatLon(cymjRef, p.x, p.y);
-  return { lat: r6(q.lat), lon: r6(q.lon) };
-};
 const numberBase = localFtToLatLon(cymjRef, NUMBER_BASE_29L.x, NUMBER_BASE_29L.y);
-const patrickPoint = { lat: 50.322977, lon: -105.547962 }; // Patrick, 5 Oct 00:35Z (Traffic airfield.js NUMBER_BASE_29L)
+const patrickPoint = { lat: 50.322977, lon: -105.547962 }; // Patrick, 5 Oct 00:35Z (cymj-runways.js NUMBER_BASE_29L)
 const check = latLonToLocalFt(cymjRef, patrickPoint.lat, patrickPoint.lon);
 const numberBaseMissFt = ft(check, NUMBER_BASE_29L);
-const cymj = {
-  '03/21': { a: ll(RUNWAY_03), b: ll(RUNWAY_21), widthFt: RUNWAY_WIDTH_FT['03'] },
-  '11L/29R': { a: ll(DEPARTURE_END_29R), b: ll(THRESHOLD_29R), widthFt: RUNWAY_WIDTH_FT['29R'] },
-  '11R/29L': { a: ll(DEPARTURE_END_29L), b: ll(THRESHOLD_29L), widthFt: RUNWAY_WIDTH_FT['29L'] },
-};
+const cymj = CYMJ_RUNWAY_ENDS; // the file imports them itself; printed below as a check
 
 // ---- 2. The US fields: CIFP runway records ---------------------------------------------------------------------------------------------------
 const lines = readFileSync(CIFP_PATH, 'latin1').split(/\r?\n/);
@@ -128,23 +112,21 @@ for (const airport of OURAIRPORTS.filter((a) => a.icao.startsWith('K'))) {
 const json = (v) => JSON.stringify(v);
 const text = `// Written by tools/cifp-runways.mjs: do not edit by hand (run the tool again). The shared runway list's best runway ends (DB-26), laid over
 // OurAirports' by airports-data.js; a runway not here stays OurAirports' (approximate, for drawing only).
-// - CYMJ: Patrick's measured points, the Traffic sim's (src/modules/traffic/airfield.js, TR-67: measured on Esri's true-scale photo, about
-//   ±10 to 15 ft), turned from map feet into latitude and longitude about the field origin ${anchor.lat} N ${-anchor.lon} W
-//   (${TRAFFIC_FIELD} "anchor") with core/geo.js localFtToLatLon. Patrick's own 29L number-base point comes back within ${Math.round(numberBaseMissFt)} ft.
-//   The same numbers are in the Traffic sim's map feet: two places until Patrick merges them (docs/PLAN.md waiting list). No elevations.
+// - CYMJ: Patrick's measured points from cymj-runways.js, the one copy the Traffic sim also reads (TR-67: measured on Esri's true-scale
+//   photo, about ±10 to 15 ft), turned from map feet into latitude and longitude about its field origin. No elevations.
 // - US fields: FAA CIFP cycle ${cycle.cycle} (effective ${cycle.effective}), runway records (PG): each end's pavement end (a displaced landing
 //   threshold moved back along the runway by its displaced distance, the landing threshold kept as thresholdLat/thresholdLon), the landing
 //   threshold's elevation (ft), the displaced distance (ft) and the magnetic bearing; the runway's length and width (ft). WGS 84 degrees.
 // For drawing only: never for planning or navigation.
+import { CYMJ_RUNWAY_ENDS } from './cymj-runways.js';
+
 export const RUNWAY_ENDS_SOURCES = Object.freeze({
-  patrick: Object.freeze({ words: "Patrick's measured points (Traffic airfield.js, TR-67)", accuracyFt: 15 }),
+  patrick: Object.freeze({ words: "Patrick's measured points (cymj-runways.js, TR-67)", accuracyFt: 15 }),
   'faa-cifp': Object.freeze({ words: 'FAA CIFP cycle ${cycle.cycle} (surveyed thresholds)', cycle: '${cycle.cycle}', effective: '${cycle.effective}', accuracyFt: 3 }),
   ourairports: Object.freeze({ words: 'OurAirports (approximate)', accuracyFt: null }),
 });
 export const RUNWAY_ENDS = Object.freeze({
-  CYMJ: Object.freeze({ source: 'patrick', runways: Object.freeze({
-${Object.entries(cymj).map(([k, r]) => `    '${k}': ${json(r)},`).join('\n')}
-  }) }),
+  CYMJ: Object.freeze({ source: 'patrick', runways: CYMJ_RUNWAY_ENDS }),
 ${Object.entries(us).map(([icao, runways]) => `  ${icao}: Object.freeze({ source: 'faa-cifp', runways: Object.freeze({\n${Object.entries(runways).map(([k, r]) => `    '${k}': ${json(r)},`).join('\n')}\n  }) }),`).join('\n')}
 });
 `;

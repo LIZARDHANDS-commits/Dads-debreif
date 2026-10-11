@@ -337,8 +337,15 @@ function steppedInPlane(what) {
   };
 }
 
-// Route: 5 wingspans down the line (TS-103), judged within ROUTE_SPANS (4 to 6 wingspans out, ~143 ft back).
-const inRoute = (l) => l.across >= 4 * WINGSPAN_FT - 15 && l.across <= 6 * WINGSPAN_FT + 15 && l.back >= 100 && l.back <= 180 && l.down > -10;
+// Route: 1 to 3 wingspans down the spinner-wingtip line from echelon (SMM 12.6 para 15, Fig 12.7; the slot at 3, TS-181).
+// The line runs 12.3 ft back for every 16.7 ft out on the CT-156 (SMM 12.4 paras 11-12, spinner to wingtip leading edge),
+// from echelon's place about 18 ft back and 43 ft out (TS-182), judged within echelon's ±15 ft of it.
+const ROUTE_LINE = [16.7 / Math.hypot(16.7, 12.3), 12.3 / Math.hypot(16.7, 12.3)]; // [out, back] per foot along the line
+const inRoute = (l) => {
+  const [out, back] = [l.across - 43, l.back - 18];
+  const along = out * ROUTE_LINE[0] + back * ROUTE_LINE[1];
+  return along >= WINGSPAN_FT - 15 && along <= 3 * WINGSPAN_FT + 15 && Math.abs(back * ROUTE_LINE[0] - out * ROUTE_LINE[1]) <= 15 && l.down > -10;
+};
 
 test('2-ship close formations turn with Lead: #2 rolls with him, stepped up on the outside and down on the inside, and ends where he started', () => {
   // Patrick 18:11Z: "do turns in any of these formations"; spec section 10.2.

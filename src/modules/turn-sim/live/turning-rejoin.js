@@ -41,7 +41,7 @@ import { onClosure, fromStep } from './closures.js';
 import { leadTurnInto } from './lead-turn-in.js';
 import { STEP_SEC, copyAircraft, SMOOTHER_CURVE_PEAK, smoother, smoothLegSec } from './flight.js';
 import { RATE_SETS, CLOSE_SHAPING, G_RULE_BANK_DEG } from './rates.js';
-import { laggedBank, centredBank } from './kinematic.js';
+import { laggedBank, centredBank, handOverAt } from './kinematic.js';
 import { trackPhases, runTracker, phase } from './tracker.js';
 import { holdInPlane, heldPoses } from './formation-turns.js';
 import { acrossSixLegs } from './replan.js';
@@ -483,7 +483,10 @@ const REJOIN_WAYS = Object.freeze({
     // Followed by fighting wing cone tracking
     tail: ({ lineFt, s, sTo, leastKias }, pointed) => [phase({ fwd: 0, left: 0, alt: lineFt }, {
       ...FW_FOLLOW,
-      ...(pointed ? { roll: TURNING_REJOIN.formRoll } : {}), // from trail he settles at a formation roll rate, not snapping at 100°/s (Fable's v2272)
+      // From trail he settles at a formation roll rate, not snapping at 100°/s (Fable's v2272). From line abreast, after the
+      // hard turn into the cone, the place he flies to speeds up with no corner and he eases onto Lead's heading with a small,
+      // early bank, so the roll-out has no kink and no rock through level (V2.335; Fable's V2.330 flight).
+      ...(pointed ? { roll: TURNING_REJOIN.formRoll } : { refJerkFtps3: TURNING_REJOIN.coneRefJerkFtps3, alignSec: TURNING_REJOIN.coneAlignSec, alignDoneDeg: TURNING_REJOIN.coneAlignDoneDeg }),
       isFw: true,
       side: sTo || s,
       goal: () => coneMiddle(sTo || s),
@@ -670,7 +673,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
     // none, flew straight on while Lead kept turning, and #3 could not settle (PR #703).
     const leadTotalSteps = holdSec != null ? leadEndStep(lp.rec, totalSteps, Math.round(holdSec / dt)) : Math.round(dryRunT(lead, { segments: lp.segments }, t0).durationSec / dt);
     const leadRemainingSteps = Math.max(0, leadTotalSteps - totalSteps);
-    const W_settled = firstRec.at(totalSteps);
+    const W_settled = handOverAt(firstRec, totalSteps); // his speed rate, climb and roll rate carry into the held part
     const L_settled = lp.rec.at(totalSteps);
     const slot = pairSlot(to, sTo || s, spacingFt);
     const slotBody = { fwd: slot.fwd, left: slot.left, up: slot.alt };

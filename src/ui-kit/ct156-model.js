@@ -308,23 +308,51 @@ const NAV_LIGHT_X = WING_TIP.le - 0.012; // just behind the tip's leading edge
 const STROBE_X = WING_TIP.le - WING_TIP.chord + 0.01; // at the tip's trailing edge
 const TAIL_LIGHT = Object.freeze([-0.746, 0, -0.058]); // the tail cone's end, under the rudder
 // The exhaust stacks: placed off Patrick's photo of 156102 (11 Oct 2026, marked), their middle level with the spinner's
-// axis; shaped and sized off the T-6A-1 Fig 1-1-2 top, front and side views (Patrick, 11 Oct 2026 08:20Z "they jut out",
-// 08:26Z "the exhaust sticks out more than that. look at the diagrams"). The drawings: each stack's outer edge about 25 in
-// from the centreline (the cowl there is about 13 in), its front leaving the cowl about 2.7 ft behind the spinner's tip
-// and its outer lip ending about 4.6 ft behind it, about 7 in tall. Built as a flattened oval pipe 12 in across and 7 in
-// tall coming straight out of the cowl at xFront, bending aft round a quarter circle so its middle runs aft at yMid
-// (19 in out), open aft at xExit (4.3 ft behind the tip) with the outer wall reaching lip (3 in) further aft. Units; y0 is the pipe's
-// middle where it leaves the cowl, just inside the skin. Sizes read off the drawings, about +-1 in.
-const STUB = Object.freeze({ xFront: 0.54, xExit: 0.474, y0: 0.036, yMid: 0.0684, halfWide: 0.0216, halfTall: 0.0126, lip: 0.012, z: 0 });
+// axis; shaped and sized off the T-6A-1 Fig 1-1-2 top and side views (Patrick, 11 Oct 2026 08:26Z "look at the
+// diagrams"; 20:12Z "the exhaust is the right shape", with his photo of a T-6C from above). The top view: each stack's
+// outer wall leaves the cowl about 2.85 ft behind the spinner's tip and turns aft round a quarter circle about 0.93 ft
+// across, centred on the cowl's skin 3.68 ft behind the tip and 1.2 ft out, reaching 2.12 ft out (25.5 in) where it
+// runs aft; its open end is cut on a slant, from that outer corner back to the inner wall's tip 4.5 ft behind the spinner,
+// so it opens aft and outward (the side view and the photos look into it). The side view: about 7 in tall, the inner
+// wall's tip about 4.6 in tall. Built as a flattened oval pipe 10.7 in across and 7 in tall from inside the cowl (y0),
+// round the bend (xBend, R) and aft at yMid, cut by the slant from [xOut, yOut] to [xIn, yIn]; `taper` the aft end's
+// height share. Units; sizes read off the drawings, about +-1 in.
+const STUB = Object.freeze({ y0: 0.036, xBend: 0.66 - 3.68 / 23.148, yBend: 1.2 / 23.148, R: 0.485 / 23.148, yMid: (1.2 + 0.485) / 23.148, halfWide: 0.0192, halfTall: 0.0126, xOut: 0.66 - 3.68 / 23.148, yOut: 2.12 / 23.148, xIn: 0.66 - 4.5 / 23.148, yIn: 1.24 / 23.148, taper: 0.65, z: 0 });
 // The fairing under the nose, behind the nose wheel: a shallow box along the belly from 5.85 ft to 10.5 ft behind the
 // spinner's tip, hanging 0.34 ft under the belly at its front and 0.41 ft at its back (T-6A-1 Figure 1-1-2 side view,
 // measured 11 Oct 2026; Patrick's photo of 156102 shows it the same length). Its width is an estimate (the drawings
 // don't show it): 1 ft across. [x front, x back, depth front, depth back, half-width], units.
 const NOSE_FAIRING = Object.freeze({ x0: 0.66 - 5.85 / 23.148, x1: 0.66 - 10.5 / 23.148, depth0: 0.34 / 23.148, depth1: 0.41 / 23.148, half: 0.5 / 23.148 });
-// The small blade antennas the same side view draws: one on the cowl's top 5.8 ft behind the spinner's tip, about 0.4 ft
-// long and 0.3 ft tall, and one under the belly 15.5 ft behind it, about the same size (Figure 1-1-2; sizes about +-1 in).
-// [x of the blade's middle, up (+1) or down (-1), length, height], units.
-const SMALL_ANTENNAS = Object.freeze([[0.66 - 5.77 / 23.148, 1, 0.42 / 23.148, 0.3 / 23.148], [0.66 - 15.5 / 23.148, -1, 0.38 / 23.148, 0.27 / 23.148]]);
+// The antennas (T-6A-1 p. 1-78.2: the upper TAS antenna on the engine cowling's top; the lower TAS, transponder,
+// VHF/UHF, DME and marker beacon antennas under the fuselage). On the cowl's top 5.8 ft behind the spinner's tip (Fig
+// 1-1-2 side view): the TAS antenna's two blades side by side on one round base (Patrick, 11 Oct 2026 20:12Z: "there are
+// two instead of one", his T-6C photo), each about 0.42 ft long and 0.3 ft tall, their middles 0.24 ft apart and the
+// base about 0.6 ft across (spacing and base estimates off the photo).
+const TAS = Object.freeze({ x: 0.66 - 5.77 / 23.148, length: 0.42 / 23.148, height: 0.3 / 23.148, gap: 0.24 / 23.148, base: 0.3 / 23.148 });
+// Under the belly, the two light grey paddle antennas swept back that Patrick's photo of 156102 shows (the forward one
+// is a small blade on Fig 1-1-2; the CT-156's is the photo's). The aft one the side view's shape, its root 21.99 to
+// 22.57 ft behind the spinner's tip, its foot 22.32 to 22.88 ft and 0.89 ft down: SMM Fig 12.12 and 12.13 put the foot's
+// middle 22.6 ft behind the tip (a camera fitted to each picture's fin, tail, wingtips and fuselage marks, about 5 px
+// off, and the foot's ray met with the centreline; both pictures agree within 0.1 ft; the side view read 21.8 ft); its
+// foot white (Patrick, 11 Oct 2026 20:20Z: "the antenna on the bottom back has white on the bottom";
+// SMM Fig 12.12), the white the bottom 0.15 ft (estimate). The forward one the same shape, its root from 15.0 ft (the
+// photo, about +-0.3 ft; its root is hidden by the wing). [root front, root back, foot front, foot back, depth, white],
+// feet; about 0.05 ft thick (estimate).
+const BELLY_PADDLES = Object.freeze([[21.99, 22.57, 22.32, 22.88, 0.89, 0.15], [15.0, 15.58, 15.33, 15.89, 0.89, 0]]);
+const PADDLE_THICK = 0.05 / 23.148;
+// The smaller ones the side view draws further aft: a blade 23.1 to 23.4 ft behind the tip about 0.25 ft down, and a
+// flat plate 24.3 to 25.6 ft about 0.1 ft down (the marker beacon antenna, by the page's list; which is which an
+// estimate). [x of the blade's middle, up (+1) or down (-1), length, height], units.
+const SMALL_ANTENNAS = Object.freeze([[0.66 - 23.25 / 23.148, -1, 0.3 / 23.148, 0.25 / 23.148]]);
+// Static wicks on the fin's trailing edge: about 3 or 4 small whiskers on its upper part (web photo research, 11 Oct
+// 2026: RCAF CT-156 photos from the 2014 Alliance air show); three here, at these heights up the fin, each about 0.35 ft
+// long and 0.03 ft thick, angled 10° up from straight aft (count, places and size estimates). Heights in units.
+const FIN_WICKS = Object.freeze({ z: [0.13, 0.175, 0.215], length: 0.35 / 23.148, r: 0.015 / 23.148, upDeg: 10 });
+const MARKER_PLATE = Object.freeze({ x0: 0.66 - 24.3 / 23.148, x1: 0.66 - 25.6 / 23.148, depth: 0.1 / 23.148, half: 0.12 / 23.148 });
+// The lower anti-collision beacon's amber dome, ahead of the aft paddle: about 1 ft long and 0.27 ft deep, its middle
+// 21.1 ft behind the spinner's tip, 0.36 ft ahead of the paddle (Patrick's photo of 156102 and SMM Fig 12.12 and
+// 12.13, the same fitted camera; the photo alone read 20.33 ft). [x, half-length, half-width, depth], units; width an estimate.
+const BEACON = Object.freeze([0.66 - 21.1 / 23.148, 0.024, 0.012, 0.012]);
 // A pitot probe on each wing's leading edge, about two thirds of the way out, its L-shaped tube reaching about 0.45 ft
 // ahead of the leading edge (Patrick's photo of 156115 from below, 11 Oct 2026; place and size estimates off the photo).
 const PITOT = Object.freeze({ s: 0.5, reach: 0.45 / 23.148, drop: 0.12 / 23.148, r: 0.04 / 23.148 });
@@ -332,6 +360,21 @@ const PITOT = Object.freeze({ s: 0.5, reach: 0.45 / 23.148, drop: 0.12 / 23.148,
 // photo): a white disc with a red middle at the probe's foot, about 0.2 ft across, and a yellow one about 0.12 ft across
 // a little further aft. Sizes and places estimates off the photo.
 const UNDERWING_MARKS = Object.freeze({ x: 0.06, size: 0.7 / 23.148 }); // x: the patch's middle aft of the leading edge, chord fraction
+// The roundel under the right wing and the ship's number on top of it, as on Patrick's photos of 156102 (the roundel
+// under the right wing) and 156115 (the number on the right wing's top, along the chord, the digits' tops inboard), at
+// the upper roundel's place (was the number under the right wing). [x middle, station], units.
+const WING_MARK = Object.freeze([0.068, 0.42]);
+// The tie-down rings (T-6A-1 p. 1-137: "one is on the underside of each wing"; a formation reference, SMM Fig 12.12
+// and Patrick, 11 Oct 2026 20:12Z): a dark ring hanging from a small block, 12.8 ft behind the spinner's tip and 8.3 ft
+// out (SMM Fig 12.13's near wing, a camera fitted to the picture and the ring's ray met with the wing's underside; the
+// same camera puts the roundel within 0.7 ft of WING_MARK, and the far wing's ring in Fig 12.12 and 12.13 fits within
+// 5 px; about +-0.5 ft). Ring 0.3 ft across, its bar 0.04 ft (estimates). [x, station], units.
+const TIE_DOWN = Object.freeze({ x: 0.66 - 12.8 / 23.148, s: 0.36, r: 0.15 / 23.148, bar: 0.02 / 23.148, block: 0.1 / 23.148 });
+// The speed brake: one plate under the fuselage between the flaps, hinged at its front, opening to 70° (T-6A-1 p. 1-39,
+// Fig 1-1-29), perforated with round holes, three across and four along (Fig 1-1-29). Its size and place are
+// estimates (no page gives them): hinged 16.0 ft behind the spinner's tip, where the flaps start, 2.3 ft long and 1.8
+// ft across (about 4.1 sq ft; the Formation sim's drag guesses about 5, slow-down.js BOARDS). Units.
+const SPEED_BRAKE = Object.freeze({ x0: 0.66 - 16.0 / 23.148, length: 2.3 / 23.148, half: 0.9 / 23.148, thick: 0.03 / 23.148, hole: 0.19 / 23.148, openDeg: 70 });
 
 /**
  * Points on the outside of the aircraft, model units (nose +X, left +Y, up +Z from the origin on the spinner's axis), each
@@ -344,8 +387,8 @@ export const CT156_REFERENCE_POINTS = Object.freeze({
   leftLight: Object.freeze([NAV_LIGHT_X, WINGTIP.y + 0.002, WINGTIP.z]),
   rightLight: Object.freeze([NAV_LIGHT_X, -(WINGTIP.y + 0.002), WINGTIP.z]),
   tailLight: TAIL_LIGHT,
-  leftExhaust: Object.freeze([STUB.xExit, STUB.yMid, STUB.z]),
-  rightExhaust: Object.freeze([STUB.xExit, -STUB.yMid, STUB.z]),
+  leftExhaust: Object.freeze([(STUB.xOut + STUB.xIn) / 2, STUB.yMid, STUB.z]),
+  rightExhaust: Object.freeze([(STUB.xOut + STUB.xIn) / 2, -STUB.yMid, STUB.z]),
   leftStabTip: Object.freeze([STAB[0].le - STAB[0].chord / 2, -STAB[0].s, STAB[0].z]),
   rightStabTip: Object.freeze([STAB[0].le - STAB[0].chord / 2, STAB[0].s, STAB[0].z]),
   finTop: Object.freeze([FIN[1].le - FIN[1].chord / 2, 0, FIN[1].s]),
@@ -518,6 +561,12 @@ export function ct156PiecesHash(pieces) {
 const EXTERIOR_PARTS = Object.freeze(['fuselage', 'fuselageCut', 'airframe', 'fin', 'frames', 'bowFront', 'seats', 'stubs', 'spinner', 'spinnerRing', 'vent', 'antenna', 'beacon']);
 const EXTERIOR_FILE = 'ct156-exterior.glb';
 const EXTERIOR_AO = 'ct156-exterior-ao.jpg';
+// The skin's relief (panel line grooves, rivets) and its weathering (exhaust soot, belly oil, faint grime), baked by the
+// same script on the same uv map (Patrick, 11 Oct 2026 21:07Z: "Surface texture"); BUMP_SCALE how strongly the relief
+// shows, by eye.
+const EXTERIOR_BUMP = 'ct156-exterior-bump.jpg';
+const EXTERIOR_DIRT = 'ct156-exterior-dirt.jpg';
+const BUMP_SCALE = 3;
 
 /** The shapes the Blender outside is built from, by name (tools/blender/ct156-exterior-pieces.mjs). */
 export function ct156ExteriorPieces(THREE) {
@@ -531,7 +580,7 @@ function shadeMesh(kit, mesh) {
     if (!mat?.isMeshStandardMaterial) return mat;
     let copy = kit.shaded.get(mat);
     if (!copy) {
-      copy = aoShaded(mat, kit.ao);
+      copy = aoShaded(mat, kit.ao, kit.skin);
       kit.shaded.set(mat, copy);
       const mine = mesh.userData.ct156Mine;
       (mine?.includes(mat) ? mine : kit.own).push(copy);
@@ -578,6 +627,7 @@ function attachExterior(kit) {
     }
     for (const name of EXTERIOR_PARTS) takeShape(kit.THREE, kit.geo[name], byName.get(name).meshes);
     kit.ao = loadAo(kit.THREE, EXTERIOR_AO);
+    kit.skin = { bump: loadAo(kit.THREE, EXTERIOR_BUMP), bumpScale: BUMP_SCALE, dirt: loadAo(kit.THREE, EXTERIOR_DIRT) };
     for (const mesh of kit.exteriorMeshes) shadeMesh(kit, mesh);
   }, () => {}); // no file: the code model shows
 }
@@ -635,26 +685,36 @@ function ventralGeometry(THREE) {
 }
 
 /**
- * One exhaust stack on side s (+1 left, -1 right): an oval pipe coming straight out of the cowl, bending aft round a
- * quarter circle and running aft to its open end, the outer wall reaching a little further aft than the inner (STUB);
- * its front buried in the cowl. With `lining`, the dark lining a little inside it from the bend aft, open at the back.
+ * One exhaust stack on side s (+1 left, -1 right): an oval pipe coming straight out of the cowl, turning aft round a
+ * quarter circle and running aft, its open end cut on STUB's slant so it opens aft and outward, the inner wall the
+ * longest; its front buried in the cowl. With `lining`, the dark lining a little inside it from the bend aft.
  */
 function stackGeometry(THREE, s, lining = false) {
-  const { xFront, xExit, y0, yMid, halfWide, halfTall, lip, z } = STUB;
-  const R = yMid - y0, xBend = xFront - R, M = 20, pos = [], idx = [];
+  const { y0, xBend, yBend, R, yMid, halfWide, halfTall, xOut, yOut, xIn, yIn, taper, z } = STUB;
+  const M = 24, pos = [], idx = [];
   const path = [];
-  for (let i = lining ? 6 : 0; i <= 8; i++) {
-    const t = (i / 8) * (Math.PI / 2); // round the bend: from heading out to heading aft
-    path.push({ x: xBend + R * Math.cos(t), y: y0 + R * Math.sin(t), tx: -Math.sin(t), ty: Math.cos(t) });
+  // Out of the cowl, straight out to the bend's start, then round the bend (centre xBend, yBend; heading out to heading
+  // aft), then straight aft past the slant's inner tip.
+  const xs = xBend + R; // the centreline's x while it heads out
+  if (!lining) path.push({ x: xs, y: y0, tx: 0, ty: 1, h: 1 });
+  for (let i = lining ? 5 : 0; i <= 10; i++) {
+    const t = (i / 10) * (Math.PI / 2);
+    path.push({ x: xBend + R * Math.cos(t), y: yBend + R * Math.sin(t), tx: -Math.sin(t), ty: Math.cos(t), h: 1 });
   }
-  for (let i = 1; i <= 6; i++) path.push({ x: xBend + (xExit - xBend) * (i / 6), y: yMid, tx: -1, ty: 0, end: i === 6 });
-  const k0 = lining ? 0.8 : 1;
+  const xEnd = xIn - 0.004;
+  for (let i = 1; i <= 8; i++) {
+    const t = i / 8;
+    path.push({ x: xBend + (xEnd - xBend) * t, y: yBend + R, tx: -1, ty: 0, h: 1 - (1 - taper) * t ** 1.5 });
+  }
+  // The slant: a point aft of the line from the outer corner to the inner tip comes forward onto it.
+  const slant = (y) => xOut + ((y - yOut) * (xIn - xOut)) / (yIn - yOut);
+  const k0 = lining ? 0.82 : 1;
   for (const p of path) {
     for (let k = 0; k < M; k++) {
       const a = (2 * Math.PI * k) / M, c = Math.cos(a);
-      const back = p.end ? lip * Math.max(0, c) : 0; // the outer wall reaches further aft
-      // across the pipe: in plan, square to its heading (outward is +c)
-      pos.push(p.x - back + halfWide * k0 * c * p.ty, s * (p.y - halfWide * k0 * c * p.tx), z + halfTall * k0 * Math.sin(a));
+      let px = p.x + halfWide * k0 * c * p.ty, py = p.y - halfWide * k0 * c * p.tx;
+      if (p.tx < 0) px = Math.max(px, slant(py));
+      pos.push(px, s * py, z + halfTall * k0 * p.h * Math.sin(a));
     }
   }
   const flip = (s > 0) !== lining;
@@ -707,6 +767,99 @@ function bladeAntennaGeometry(THREE, x, up, length, height) {
   const h = height + 0.002, l = length / 2;
   const shape = new THREE.Shape([[x + l, 0], [x - l, 0], [x - l - h * 0.35, h], [x - l + length * 0.25 - h * 0.35, h]].map(([a, b]) => new THREE.Vector2(a, b)));
   return new THREE.ExtrudeGeometry(shape, { depth: 0.0025, bevelEnabled: false }).rotateX(Math.PI / 2).scale(1, 1, up).translate(0, 0.00125, base);
+}
+
+/**
+ * A paddle antenna hanging under the belly (BELLY_PADDLES' row, feet): a thin plate swept back, its root just inside
+ * the skin, its corners at the foot rounded; the bottom `white` feet in colour slot 1, the rest slot 0.
+ */
+function paddleGeometry(THREE, [rf, rb, ff, fb, depth, white]) {
+  const X = (ft) => 0.66 - ft / 23.148, D = depth / 23.148, W = white / 23.148;
+  const xMid = (X(rf) + X(rb)) / 2, root = bellyAt(xMid) + 0.003;
+  // Its outline at height h below the root (0 at the root, D at the foot): front and back edges straight.
+  const edge = (h) => [X(rf) + ((X(ff) - X(rf)) * h) / D, X(rb) + ((X(fb) - X(rb)) * h) / D];
+  const band = (h0, h1, roundFoot) => {
+    const pts = [];
+    const [f0, b0] = edge(h0), [f1, b1] = edge(h1);
+    pts.push([f0, -h0]);
+    if (roundFoot) {
+      const r = Math.min(0.012, (f1 - b1) / 3);
+      for (let k = 0; k <= 4; k++) { const a = (k / 4) * (Math.PI / 2); pts.push([f1 - r + r * Math.cos(a), -h1 + r - r * Math.sin(a)]); }
+      for (let k = 0; k <= 4; k++) { const a = (k / 4) * (Math.PI / 2); pts.push([b1 + r - r * Math.sin(a), -h1 + r - r * Math.cos(a)]); }
+    } else pts.push([f1, -h1], [b1, -h1]);
+    pts.push([b0, -h0]);
+    return new THREE.ExtrudeGeometry(new THREE.Shape(pts.map(([u, v]) => new THREE.Vector2(u, v))), { depth: PADDLE_THICK, bevelEnabled: false })
+      .rotateX(Math.PI / 2).translate(0, PADDLE_THICK / 2, root);
+  };
+  const parts = W > 0 ? [{ geometry: band(0, D - W, false), materials: [0] }, { geometry: band(D - W, D, true), materials: [1] }] : [{ geometry: band(0, D, true), materials: [0] }];
+  return joinGeometries(THREE, parts);
+}
+
+/** The TAS antenna on the cowl's top (TAS): two blades side by side on a thin round base. */
+function tasGeometry(THREE) {
+  const { x, length, height, gap, base } = TAS;
+  const z = topAt(x);
+  return joinGeometries(THREE, [
+    ...[1, -1].map((side) => ({ geometry: bladeAntennaGeometry(THREE, x, 1, length, height).translate(0, (side * gap) / 2, 0), materials: [0] })),
+    { geometry: new THREE.CylinderGeometry(base, base, 0.003, 20).rotateX(Math.PI / 2).translate(x, 0, z), materials: [0] },
+  ]);
+}
+
+/** The marker beacon's flat plate under the belly (MARKER_PLATE): a thin rounded slab. */
+/** The fin's static wicks (FIN_WICKS): thin rods from its trailing edge, pointing aft and a little up. */
+function finWicksGeometry(THREE) {
+  const [root, tip] = FIN;
+  return joinGeometries(THREE, FIN_WICKS.z.map((z) => {
+    const f = (z - root.s) / (tip.s - root.s);
+    const te = root.le - root.chord + f * (tip.le - tip.chord - (root.le - root.chord));
+    const up = rad(FIN_WICKS.upDeg), L = FIN_WICKS.length;
+    const g = new THREE.CylinderGeometry(FIN_WICKS.r * 0.6, FIN_WICKS.r, L, 5);
+    g.rotateZ(Math.PI / 2).rotateY(up); // along -x, tipped up
+    g.translate(te - (L / 2) * Math.cos(up) + 0.002, 0, z + (L / 2) * Math.sin(up));
+    return { geometry: g, materials: [0] };
+  }));
+}
+
+function markerPlateGeometry(THREE) {
+  const { x0, x1, depth, half } = MARKER_PLATE;
+  const xm = (x0 + x1) / 2, top = bellyAt(xm) + 0.002;
+  return new THREE.CapsuleGeometry(half * 0.5, x0 - x1 - half, 4, 8).rotateZ(Math.PI / 2).scale(1, 2, (depth + 0.002) / half).translate(xm, 0, top - (depth + 0.002) / 2);
+}
+
+/** A tie-down ring under one wing (TIE_DOWN; side +1 left, -1 right): a small block and a ring hanging in the chord's plane. */
+function tieDownGeometry(THREE, side) {
+  const { x, s, r, bar, block } = TIE_DOWN;
+  const zs = wingSurfZ(x, s, -1);
+  const blockG = new THREE.BoxGeometry(block, block * 0.6, block * 0.6).translate(x, side * s, zs - block * 0.25);
+  const ring = new THREE.TorusGeometry(r, bar, 6, 16).rotateX(Math.PI / 2).translate(x, side * s, zs - block * 0.5 - r);
+  const g = joinGeometries(THREE, [{ geometry: blockG, materials: [0] }, { geometry: ring, materials: [0] }]);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) p.setXYZ(i, ...wingBend([p.getX(i), p.getY(i), p.getZ(i)]));
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * The speed brake's plate (SPEED_BRAKE), shut: hinged on y at its front edge (the origin), running aft along -x, its
+ * outside face down, with its three by four round holes. setSpeedBrake turns it down about the hinge.
+ */
+function speedBrakeGeometry(THREE) {
+  const { length, half, thick, hole } = SPEED_BRAKE;
+  const r = 0.01;
+  const shape = new THREE.Shape();
+  shape.moveTo(-r, -half);
+  shape.lineTo(-length + r, -half); shape.quadraticCurveTo(-length, -half, -length, -half + r);
+  shape.lineTo(-length, half - r); shape.quadraticCurveTo(-length, half, -length + r, half);
+  shape.lineTo(-r, half); shape.quadraticCurveTo(0, half, 0, half - r);
+  shape.lineTo(0, -half + r); shape.quadraticCurveTo(0, -half, -r, -half);
+  for (let i = 0; i < 4; i++) {
+    for (let j = 0; j < 3; j++) {
+      const h = new THREE.Path();
+      h.absarc(-length * (0.16 + 0.225 * i), half * (j - 1) * 0.62, hole / 2, 0, Math.PI * 2, true);
+      shape.holes.push(h);
+    }
+  }
+  return new THREE.ExtrudeGeometry(shape, { depth: thick, bevelEnabled: false, curveSegments: 10 }).translate(0, 0, -thick);
 }
 
 /** A pitot probe (PITOT) on one wing (side +1 left, -1 right): a short mast down from under the leading edge and a tube forward. */
@@ -908,10 +1061,26 @@ export function ct156HoopPoints(x, n = 16, grow = 0, lean = 0) {
   }
   return pts;
 }
-/** A frame hoop over the canopy with its crest at x, leaning by `lean` (CT156_FRAME_LEAN). */
-function hoopGeometry(THREE, x, lean = 0, radius = 0.0045) {
-  const pts = ct156HoopPoints(x, 16, 0.0015, lean).map(({ x: px, y, z }) => new THREE.Vector3(px, y, z));
-  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, radius, 6, false); // about 2.5 in across, so a close wingman sees the bows (TS-156)
+/**
+ * A frame hoop over the canopy with its crest at x, leaning by `lean` (CT156_FRAME_LEAN): a flat band about 2.5 in wide
+ * (so a close wingman sees the bows, TS-156) whose outer face lies flush with the glass, just proud of it so it doesn't
+ * flicker, and whose body sits under the glass (Patrick, 11 Oct 2026 21:07Z: "the canopy bows should be flush with the
+ * glass, not bulging out"; it was a round tube standing 1.7 in out). Depth under the glass an estimate.
+ */
+function hoopGeometry(THREE, x, lean = 0, half = 0.0045) {
+  const n = 32, out = 0.0003, depth = -0.004;
+  const rows = [[-half, out], [half, out], [half, depth], [-half, depth]].map(([dx, grow]) => ct156HoopPoints(x + dx, n, grow, lean));
+  const pos = [], idx = [];
+  // Each face its own strip (outer, aft side, inner, fore side), so the band's edges stay sharp.
+  for (let f = 0; f < 4; f++) {
+    const a = rows[f], b = rows[(f + 1) % 4], start = pos.length / 3;
+    for (let j = 0; j <= n; j++) pos.push(a[j].x, a[j].y, a[j].z, b[j].x, b[j].y, b[j].z);
+    for (let j = 0; j < n; j++) {
+      const i = start + 2 * j;
+      idx.push(i, i + 2, i + 1, i + 1, i + 2, i + 3);
+    }
+  }
+  return meshOf(THREE, pos, idx);
 }
 /** A sill rail along one side of the canopy. */
 /** Where the canopy's sill rails start at the front, model units (under the front coaming's sides; ct156-cockpit.js). */
@@ -1151,30 +1320,79 @@ function skinStrip(THREE, rows, side, nz = 3) {
 }
 
 /**
- * A pilot in a seat, the helmet's centre at (x, 0, z): helmet, dark visor down, oxygen mask with its hose down the left
- * side of the chest, neck, shoulders and upper arms, sitting up and looking ahead, hands down out of sight (Patrick,
- * 11 Oct 2026: "realistic pilot head/bodies ... o2 hose on the left ... looking straight ahead, hands can be down").
- * Slots: 0 helmet, 1 visor, 2 mask, 3 hose, 4 flight suit. Sizes estimates (a helmet about 11 in across, shoulders
- * 17 in); everything under the cockpit's floor is left out.
+ * A pilot in a seat, the helmet's centre at (x, 0, z), sitting up and looking ahead, built after the T-6A-1's picture of
+ * an aircrew in flying kit (Patrick, 11 Oct 2026 20:20Z: "better pilot models"; earlier: "o2 hose on the left ...
+ * looking straight ahead"): the helmet with its visor housing on the front and ear cups at the sides, the dark visor
+ * down, the oxygen mask with its straps to the helmet and its corrugated hose down the left of the chest to the
+ * connector on the harness, the neck in the life preserver's collar, the flight suit's shoulders and chest under the
+ * survival vest, the harness's shoulder straps and chest strap, and the arms: the right hand on the stick, the left on
+ * the power lever. Slots: 0 helmet, 1 visor, 2 mask, 3 hose, 4 flight suit, 5 vest and collar, 6 harness, 7 gloves.
+ * Sizes and colours estimates (a helmet about 11 in across, shoulders 17 in, the hands where the stick and the power
+ * lever about are); the legs, under the cockpit's sill and behind the seats, are left out.
  */
 function pilotGeometry(THREE, x, z) {
+  const P = (a, b, c) => new THREE.Vector3(x + a, b, z + c);
   const shell = (g) => g.scale(1.08, 0.95, 1).translate(x, 0, z);
-  const hose = new THREE.CatmullRomCurve3([[0.02, 0.004, -0.017], [0.017, 0.012, -0.028], [0.012, 0.019, -0.045], [0.008, 0.022, -0.065], [0.006, 0.02, -0.085]]
-    .map(([a, b, c]) => new THREE.Vector3(x + a, b, z + c)));
-  const arm = (side) => [
-    { geometry: new THREE.CylinderGeometry(0.0085, 0.0075, 0.04, 10).rotateX(Math.PI / 2).translate(x - 0.002, side * 0.032, z - 0.066), materials: [4] },
-    { geometry: ellipsoid(THREE, x - 0.003, side * 0.03, z - 0.045, 0.0095, 0.0095, 0.0095), materials: [4] },
+  // A tapered round piece from a to b (offsets from the helmet's centre).
+  const limb = (a, b, r0, r1) => {
+    const A = P(...a), B = P(...b), d = B.clone().sub(A);
+    const g = new THREE.CylinderGeometry(r1, r0, d.length(), 10);
+    g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()));
+    return g.translate((A.x + B.x) / 2, (A.y + B.y) / 2, (A.z + B.z) / 2);
+  };
+  const joint = (c, r) => ellipsoid(THREE, x + c[0], c[1], z + c[2], r, r, r);
+  // A tube along the points; ribbed every other ring when `ribs`.
+  const tube = (pts, r, ribs) => {
+    const curve = new THREE.CatmullRomCurve3(pts.map((q) => P(...q)));
+    const n = ribs ? 40 : 16, g = new THREE.TubeGeometry(curve, n, r, 8, false);
+    if (ribs) {
+      const pos = g.attributes.position, v = new THREE.Vector3();
+      for (let i = 0; i <= n; i++) {
+        const c = curve.getPointAt(i / n), k = i % 2 ? 1.25 : 0.85;
+        for (let j = 0; j <= 8; j++) {
+          const m = i * 9 + j;
+          v.fromBufferAttribute(pos, m).sub(c).multiplyScalar(k).add(c);
+          pos.setXYZ(m, v.x, v.y, v.z);
+        }
+      }
+      g.computeVertexNormals();
+    }
+    return g;
+  };
+  const strap = (pts) => tube(pts, 0.0017, false);
+  const arm = (side, hand) => [
+    { geometry: joint([-0.006, side * 0.031, -0.046], 0.0098), materials: [4] },
+    { geometry: limb([-0.006, side * 0.032, -0.046], [0.004, side * 0.034, -0.085], 0.0085, 0.0072), materials: [4] },
+    { geometry: joint([0.004, side * 0.034, -0.085], 0.0072), materials: [4] },
+    { geometry: limb([0.004, side * 0.034, -0.085], hand, 0.007, 0.0055), materials: [4] },
+    { geometry: ellipsoid(THREE, x + hand[0] + 0.004, hand[1], z + hand[2], 0.0065, 0.0045, 0.0055), materials: [7] },
   ];
   return joinGeometries(THREE, [
-    { geometry: shell(new THREE.SphereGeometry(0.0195, 16, 12)), materials: [0] },
-    { geometry: shell(new THREE.SphereGeometry(0.0205, 16, 6, Math.PI - 1.0, 2.0, 1.1, 0.65).rotateX(Math.PI / 2)), materials: [1] },
-    { geometry: ellipsoid(THREE, x + 0.016, 0, z - 0.012, 0.009, 0.0085, 0.01), materials: [2] },
-    { geometry: new THREE.TubeGeometry(hose, 16, 0.0025, 6, false), materials: [3] },
-    { geometry: new THREE.CylinderGeometry(0.0075, 0.0085, 0.02, 10).rotateX(Math.PI / 2).translate(x - 0.002, 0, z - 0.025), materials: [4] },
-    { geometry: ellipsoid(THREE, x - 0.004, 0, z - 0.04, 0.017, 0.034, 0.013), materials: [4] },
-    { geometry: ellipsoid(THREE, x - 0.004, 0, z - 0.07, 0.02, 0.029, 0.035), materials: [4] },
-    ...arm(1),
-    ...arm(-1),
+    // Helmet, the visor housing's raised cover across its front and top, the ear cups.
+    { geometry: shell(new THREE.SphereGeometry(0.0195, 18, 14)), materials: [0] },
+    { geometry: shell(new THREE.SphereGeometry(0.0208, 18, 8, Math.PI - 0.95, 1.9, 0.35, 0.75).rotateX(Math.PI / 2)), materials: [0] },
+    ...[1, -1].map((sd) => ({ geometry: ellipsoid(THREE, x - 0.003, sd * 0.0185, z - 0.006, 0.0075, 0.004, 0.0085), materials: [0] })),
+    // The visor down, under the housing.
+    { geometry: shell(new THREE.SphereGeometry(0.0205, 16, 6, Math.PI - 1.0, 2.0, 1.1, 0.62).rotateX(Math.PI / 2)), materials: [1] },
+    // The mask, its valve and its straps back to the helmet's sides.
+    { geometry: ellipsoid(THREE, x + 0.0165, 0, z - 0.011, 0.0085, 0.0082, 0.0095), materials: [2] },
+    { geometry: limb([0.022, 0, -0.016], [0.026, 0, -0.019], 0.0035, 0.003), materials: [3] },
+    ...[1, -1].map((sd) => ({ geometry: limb([0.014, sd * 0.0075, -0.008], [0.001, sd * 0.019, -0.006], 0.0012, 0.0012), materials: [2] })),
+    // The hose: from the valve down the pilot's left to the connector on the harness.
+    { geometry: tube([[0.026, 0.0, -0.02], [0.024, 0.006, -0.032], [0.021, 0.014, -0.048], [0.019, 0.019, -0.064], [0.018, 0.016, -0.08], [0.019, 0.01, -0.09]], 0.0028, true), materials: [3] },
+    // Neck, the life preserver's collar round it, shoulders and chest in the flight suit, the vest over the chest.
+    { geometry: limb([-0.002, 0, -0.018], [-0.003, 0, -0.034], 0.0072, 0.0068), materials: [4] },
+    { geometry: new THREE.TorusGeometry(0.0115, 0.0048, 8, 20).scale(1, 1.15, 0.6).translate(x - 0.002, 0, z - 0.032), materials: [5] },
+    { geometry: ellipsoid(THREE, x - 0.006, 0, z - 0.044, 0.016, 0.034, 0.012), materials: [4] },
+    { geometry: ellipsoid(THREE, x - 0.005, 0, z - 0.072, 0.019, 0.027, 0.036), materials: [4] },
+    { geometry: ellipsoid(THREE, x - 0.002, 0, z - 0.07, 0.0195, 0.0262, 0.031), materials: [5] },
+    // The harness: shoulder straps over the vest down to the buckle, and the chest strap across.
+    ...[1, -1].map((sd) => ({ geometry: strap([[-0.02, sd * 0.014, -0.04], [-0.007, sd * 0.015, -0.031], [0.012, sd * 0.014, -0.045], [0.017, sd * 0.011, -0.07], [0.018, sd * 0.006, -0.095]]), materials: [6] })),
+    { geometry: strap([[0.012, -0.022, -0.062], [0.0175, -0.01, -0.062], [0.0185, 0, -0.062], [0.0175, 0.01, -0.062], [0.012, 0.022, -0.062]]), materials: [6] },
+    { geometry: new THREE.BoxGeometry(0.003, 0.012, 0.008).translate(x + 0.0185, 0, z - 0.097), materials: [6] },
+    // Arms: the right hand on the stick, the left on the power lever.
+    ...arm(-1, [0.05, -0.006, -0.1]),
+    ...arm(1, [0.036, 0.036, -0.092]),
   ]);
 }
 
@@ -1276,7 +1494,9 @@ function buildKit(THREE) {
   geo.stubs = joinGeometries(THREE, [1, -1].flatMap((s) => [
     { geometry: stackGeometry(THREE, s), materials: [0] },
     { geometry: stackGeometry(THREE, s, true), materials: [1] },
-    { geometry: new THREE.CircleGeometry(1, 16).scale(STUB.halfTall * 0.8, STUB.halfWide * 0.8, 1).rotateY(-Math.PI / 2).translate(STUB.xFront - (STUB.yMid - STUB.y0) * 0.7, s * STUB.yMid, STUB.z), materials: [1] },
+    { geometry: new THREE.CircleGeometry(1, 16).scale(STUB.halfTall * 0.85, STUB.halfWide * 0.85, 1).rotateY(-Math.PI / 2).translate(STUB.xBend + 0.002, s * STUB.yMid, STUB.z), materials: [1] },
+    // The dark gap in the cowl round the stack's root (the 156102 photo shows it as a dark rim, widest over the stack).
+    { geometry: ellipsoid(THREE, STUB.xBend + STUB.R, s * (fuseSurf(STUB.xBend + STUB.R, STUB.z) - 0.0045), STUB.z + 0.002, STUB.halfWide * 1.3, 0.003, STUB.halfTall * 1.45), materials: [1] },
   ]));
   // The position lights (TS-156): red on the left wingtip and green on the right, just behind each tip's leading edge,
   // a white strobe at each tip's trailing edge and a white light on the tail. Small lit shapes, sizes estimates.
@@ -1320,17 +1540,34 @@ function buildKit(THREE) {
     }), side),
     materials: [0],
   }))]);
-  // Under the belly behind the wing: the light grey blade antenna, swept back, and the lower anti-collision beacon's
-  // amber dome ahead of it.
-  const bladeShape = new THREE.Shape([[-0.294, 0.004], [-0.331, 0.004], [-0.346, -0.041], [-0.322, -0.041]].map(([x, z]) => new THREE.Vector2(x, z)));
-  // With them, the small blades on the cowl and the belly (SMALL_ANTENNAS) and the pitot probes on the wings (PITOT).
+  // The antennas (TAS, BELLY_PADDLES, SMALL_ANTENNAS, MARKER_PLATE), the pitot probes on the wings (PITOT) and the
+  // tie-down rings under them (TIE_DOWN): slot 0 light grey, 1 white (the aft paddle's foot), 2 dark (the TAS antenna's
+  // blades, painted, as on Patrick's T-6C photo; the tie-down rings).
   geo.antenna = joinGeometries(THREE, [
-    { geometry: new THREE.ExtrudeGeometry(bladeShape, { depth: 0.003, bevelEnabled: false }).rotateX(Math.PI / 2).translate(0, 0.0015, bellyAt(-0.315)), materials: [0] },
+    ...BELLY_PADDLES.map((row) => ({ geometry: paddleGeometry(THREE, row), materials: [0, 1] })),
     ...SMALL_ANTENNAS.map(([x, up, length, height]) => ({ geometry: bladeAntennaGeometry(THREE, x, up, length, height), materials: [0] })),
+    { geometry: markerPlateGeometry(THREE), materials: [0] },
+    { geometry: tasGeometry(THREE), materials: [2] },
     { geometry: pitotGeometry(THREE, 1), materials: [0] },
     { geometry: pitotGeometry(THREE, -1), materials: [0] },
+    { geometry: tieDownGeometry(THREE, 1), materials: [2] },
+    { geometry: finWicksGeometry(THREE), materials: [2] },
+    { geometry: tieDownGeometry(THREE, -1), materials: [2] },
   ]);
-  geo.beacon = ellipsoid(THREE, -0.254, 0, bellyAt(-0.254) + 0.001, 0.024, 0.012, 0.012);
+  geo.beacon = ellipsoid(THREE, BEACON[0], 0, bellyAt(BEACON[0]) + 0.001, BEACON[1], BEACON[2], BEACON[3]);
+  // The speed brake (SPEED_BRAKE): its plate, hinged at the origin (each ship turns it, setSpeedBrake), and the dark well
+  // it leaves in the belly when it is open.
+  geo.speedBrake = speedBrakeGeometry(THREE);
+  {
+    const { x0, length, half } = SPEED_BRAKE;
+    const n = 8, pos = [], idx = [];
+    for (let i = 0; i <= n; i++) {
+      const x = x0 - (length * i) / n, z = bellyAt(x) - 0.0004;
+      pos.push(x, half, z, x, -half, z);
+      if (i < n) idx.push(2 * i, 2 * i + 2, 2 * i + 1, 2 * i + 1, 2 * i + 2, 2 * i + 3);
+    }
+    geo.speedBrakeWell = meshOf(THREE, pos, idx);
+  }
   for (const o of Object.values(geo)) keep(o);
 
   // Shared decal textures and geometry.
@@ -1351,6 +1588,19 @@ function buildKit(THREE) {
     ctx.fillStyle = '#d2202c'; ctx.beginPath(); ctx.moveTo(15, 17); ctx.lineTo(49, 17); ctx.lineTo(32, 47); ctx.closePath(); ctx.fill();
   }, 4));
 
+  // The small yellow stencils on the fuselage's side (web photo research, 11 Oct 2026, RCAF CT-156 photos): a yellow
+  // panel with a black arrow by the wing root under the rear canopy, and a yellow dot each aft of the roundel and at the
+  // wing root. On US Navy T-6As the like marks are STEP and RESCUE stencils; what they say on the CT-156 is a guess, so
+  // no words. Places and sizes estimates off the photos.
+  tex.stencil = keep(canvasTexture(THREE, 64, 48, (ctx, w, h) => {
+    ctx.fillStyle = '#e8c21c'; ctx.fillRect(2, 2, w - 4, h - 4);
+    ctx.strokeStyle = '#111111'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(w * 0.25, h * 0.78); ctx.lineTo(w * 0.7, h * 0.3); ctx.stroke();
+    ctx.fillStyle = '#111111'; ctx.beginPath(); ctx.moveTo(w * 0.8, h * 0.18); ctx.lineTo(w * 0.52, h * 0.26); ctx.lineTo(w * 0.72, h * 0.48); ctx.closePath(); ctx.fill();
+  }, 4));
+  tex.dot = keep(canvasTexture(THREE, 32, 32, (ctx, w) => {
+    ctx.fillStyle = '#e8c21c'; ctx.beginPath(); ctx.arc(w / 2, w / 2, w * 0.42, 0, 7); ctx.fill();
+  }, 4));
+
   const both = (make) => ({ 1: make(1), '-1': make(-1) });
   const decalGeo = {
     roundelSide: both((side) => patch(THREE, -0.333, cheatZ(-0.333), 0.05, 0.05, side, fuseSurf)),
@@ -1359,6 +1609,9 @@ function buildKit(THREE) {
     triA: both((side) => patch(THREE, 0.082, 0, 0.022, 0.022, side, fuseSurf)),
     triB: both((side) => patch(THREE, -0.151, 0, 0.022, 0.022, side, fuseSurf)),
     triC: both((side) => patch(THREE, -0.033, 0, 0.015, 0.015, side, fuseSurf)),
+    stencil: both((side) => patch(THREE, -0.17, -0.072, 0.013, 0.01, side, fuseSurf)),
+    dotAft: both((side) => patch(THREE, -0.385, cheatZ(-0.385) - 0.012, 0.005, 0.005, side, fuseSurf)),
+    dotRoot: both((side) => patch(THREE, -0.1, -0.085, 0.005, 0.005, side, fuseSurf)),
     // The nose number on the cheat line between its two runs (the photo; was one digit, 0.02 units further forward).
     nose: both((side) => patch(THREE, 0.406, cheatZ(0.406) - 0.002, 0.05, 0.025, side, fuseSurf)),
     // Centred on the fin's mid-chord (nearly upright, the leading edge swept back and the trailing edge forward) and on
@@ -1366,9 +1619,11 @@ function buildKit(THREE) {
     // units aft, at the trailing edge).
     tail: both((side) => patch(THREE, FIN_DECAL.x, FIN_DECAL.z, FIN_DECAL.size, FIN_DECAL.size, side, finSurf)),
     // Upper left wing: seen from above, nose up, right = -Y.
-    roundelWing: wingPatch(THREE, 0.068, 0.42, 0.14, 0.14, [0, -1], [1, 0], 1),
-    // Under the right wing: seen from below with the nose up, it reads left to right.
-    wingNum: wingPatch(THREE, 0.068, -0.42, 0.27, 0.09, [0, 1], [1, 0], -1),
+    roundelWing: wingPatch(THREE, WING_MARK[0], WING_MARK[1], 0.14, 0.14, [0, -1], [1, 0], 1),
+    // Under the right wing (WING_MARK): seen from below with the nose up, right = +Y.
+    roundelUnder: wingPatch(THREE, WING_MARK[0], -WING_MARK[1], 0.14, 0.14, [0, 1], [1, 0], -1),
+    // On top of the right wing (WING_MARK): along the chord, reading trailing edge to leading edge, the digits' tops inboard.
+    wingNum: wingPatch(THREE, WING_MARK[0], -WING_MARK[1], 0.24, 0.08, [1, 0], [0, 1], 1),
     // Under each wing beside the pitot (UNDERWING_MARKS): along the chord, the white disc forward.
     marks: both((side) => {
       const sec = sectionOf(WING, PITOT.s);
@@ -1395,7 +1650,9 @@ function buildKit(THREE) {
     wingLe: gloss({ color: '#f1f4f8', roughness: 0.4, emissive: '#ffffff', emissiveIntensity: 0.2, envMapIntensity: 0.5 }),
     finLe: mat({ color: '#c3c9cf', roughness: 0.5, side: two }),
     vent: mat({ color: '#07090b', roughness: 0.9, side: two, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
-    antenna: mat({ color: '#a8aaa4', roughness: 0.5, side: two }),
+    // The antennas (geo.antenna's slots): light grey (lighter, as the paddles on Patrick's 156102 photo; was #a8aaa4),
+    // white, and dark for the painted TAS blades and the tie-down rings.
+    antenna: [mat({ color: '#c4c5bf', roughness: 0.5, side: two }), mat({ color: '#f1f3f5', roughness: 0.45, side: two }), mat({ color: '#15181d', roughness: 0.45, metalness: 0.3, side: two })],
     beacon: mat({ color: '#8a6326', roughness: 0.25, metalness: 0.2, envMap: env, envMapIntensity: 0.8 }),
     chrome: mat({ color: '#f2f5f8', roughness: 0.1, metalness: 1, envMap: env, envMapIntensity: 1.2 }),
     // Bare, heat-stained steel, as on Patrick's photo of 156102 (was a dark grey that read as paint).
@@ -1406,17 +1663,21 @@ function buildKit(THREE) {
     glassInside: keep(new THREE.MeshBasicMaterial({ color: '#cfe3f2', transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide, fog: false })),
     frame: mat({ color: '#0c1017', roughness: 0.5, side: two }),
     floor: mat({ color: '#0d1118', roughness: 0.9, side: two }),
-    // The cockpit tub (setCockpitView; TS-155, TS-157): a mid grey floor and light grey walls, as the T-6A's in Dad's
-    // reference pictures (estimates).
-    tubFloor: mat({ color: '#5b5f64', roughness: 0.95, side: two }),
-    tubWall: mat({ color: '#a4a8ad', roughness: 0.85, side: two }),
-    // The pilots (pilotGeometry): helmet, visor, mask, hose, flight suit; and the seats' headboxes.
+    // The cockpit tub (setCockpitView; TS-155, TS-157): a dark charcoal floor and walls, as US Navy T-6A cockpit photos
+    // show (Patrick, 11 Oct 2026 22:06Z; were mid and light grey off Dad's reference pictures). Shades estimates.
+    tubFloor: mat({ color: '#26292c', roughness: 0.95, side: two }),
+    tubWall: mat({ color: '#2f3236', roughness: 0.85, side: two }),
+    // The pilots (pilotGeometry): helmet, visor, mask, hose, flight suit, vest and collar, harness, gloves (colours
+    // estimates); and the seats' headboxes.
     pilot: [
       mat({ color: '#c3c9d0', roughness: 0.35 }),
       mat({ color: '#141920', roughness: 0.12, metalness: 0.5, envMap: env, envMapIntensity: 1, side: two }),
       mat({ color: '#4c5348', roughness: 0.6 }),
       mat({ color: '#2f3329', roughness: 0.7 }),
       mat({ color: '#5e6648', roughness: 0.85 }),
+      mat({ color: '#454b36', roughness: 0.8 }),
+      mat({ color: '#2b2e27', roughness: 0.75 }),
+      mat({ color: '#33322c', roughness: 0.8 }),
     ],
     headbox: mat({ color: '#25282c', roughness: 0.6 }),
     blade: mat({ color: '#0a0c10', roughness: 0.6 }),
@@ -1431,6 +1692,8 @@ function buildKit(THREE) {
     canada: decalMat(tex.canada),
     tri: decalMat(tex.tri),
     marks: decalMat(tex.marks),
+    stencil: decalMat(tex.stencil),
+    dot: decalMat(tex.dot),
   };
   const kit = { THREE, geo, decalGeo, mats, refs: 0, own, disposed: false, dispose: () => ((kit.disposed = true), own.forEach((o) => o.dispose())) };
   // The outside from the Blender file (ALL-33): each part's fingerprint now, before the file's shapes take its place.
@@ -1536,6 +1799,10 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
   const add = (geometry, material, parent = g) => {
     const m = new THREE.Mesh(geometry, material);
     parent.add(m);
+    // Real-time shadows where a view switches them on (aircraft-shadows.js): the solid parts cast them, glass, decals
+    // and the prop's disc don't; everything takes them.
+    m.castShadow = ![material].flat().some((mat) => mat?.transparent);
+    m.receiveShadow = true;
     if (kit.exteriorGeos.has(geometry)) { // a Blender part (ALL-33): shaded by the file's picture once it is in
       m.userData.ct156Mine = mine;
       kit.exteriorMeshes.add(m);
@@ -1544,7 +1811,21 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     return m;
   };
 
-  let fuselage, canopy, helmetFront = null, helmetRear = null, seats = null, floor = null, prop = null, bowFront = null, disc = null;
+  let fuselage, canopy, helmetFront = null, helmetRear = null, seats = null, floor = null, prop = null, bowFront = null, disc = null, speedBrake = null;
+  // The speed brake (SPEED_BRAKE), up close only: its plate on a hinge at its front edge, lying along the belly when shut
+  // (setSpeedBrake turns it down), and the dark well behind it, shown while it is open.
+  const addSpeedBrake = (paintMat) => {
+    const { x0, length, openDeg } = SPEED_BRAKE;
+    const hinge = new THREE.Group();
+    hinge.position.set(x0, 0, bellyAt(x0) - 0.0006);
+    const shut = Math.atan2(bellyAt(x0 - length) - bellyAt(x0), length); // the belly rises aft under it
+    hinge.rotation.y = shut;
+    add(geo.speedBrake, paintMat, hinge);
+    detail.add(hinge);
+    const well = add(geo.speedBrakeWell, mats.vent, detail);
+    well.visible = false;
+    return { hinge, well, shut, openDeg };
+  };
   if (paint === 'ship') {
     const base = new THREE.Color(color);
     const m = (c, extra) => own(new THREE.MeshStandardMaterial({ color: c, roughness: 0.45, metalness: 0.1, envMap: mats.env, envMapIntensity: 0.4, side: THREE.DoubleSide, fog: false, ...extra }));
@@ -1563,6 +1844,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     add(geo.frames, mats.frame, detail);
     seats = add(geo.seats, mats.frame, detail);
     bowFront = add(geo.bowFront, mats.frame, detail);
+    speedBrake = addSpeedBrake(light);
     const serialTex = own(canvasTexture(THREE, 512, 512, serialCanvas(number)));
     const serialMat = own(new THREE.MeshBasicMaterial({ map: serialTex, transparent: true, side: THREE.DoubleSide, depthWrite: false, fog: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
     for (const s of ['1', '-1']) add(decalGeo.tail[s], serialMat, detail);
@@ -1587,6 +1869,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     disc = add(geo.disc, mats.disc);
     // Up close only: the decals, the cockpit, the frames, the exhausts and the blades.
     add(decalGeo.roundelWing, mats.roundel, detail);
+    add(decalGeo.roundelUnder, mats.roundel, detail);
     add(decalGeo.wingNum, decal(wingTex), detail);
     const tailMats = Object.fromEntries(['1', '-1'].map((s) => [s, decal(own(canvasTexture(THREE, 512, 512, tailCanvas(number, Number(s)))))]));
     const noseMat = decal(noseTex);
@@ -1599,11 +1882,15 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
       add(decalGeo.triB[s], mats.tri, detail);
       add(decalGeo.triC[s], mats.tri, detail);
       add(decalGeo.marks[s], mats.marks, detail);
+      add(decalGeo.stencil[s], mats.stencil, detail);
+      add(decalGeo.dotAft[s], mats.dot, detail);
+      add(decalGeo.dotRoot[s], mats.dot, detail);
     }
     add(geo.stubs, [mats.exhaust, mats.blade], detail);
     add(geo.vent, mats.vent, detail);
     add(geo.antenna, mats.antenna, detail);
     add(geo.beacon, mats.beacon, detail);
+    speedBrake = addSpeedBrake(mats.navy);
     add(geo.lights, mats.lights, detail);
     floor = add(geo.floor, mats.floor, detail);
     add(geo.frames, mats.frame, detail);
@@ -1626,8 +1913,23 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     setDetail(THREE, root, camera, renderer);
     turnProp(root);
   };
-  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, helmetFront, helmetRear, seats, floor, prop, disc, bowFront, inside: null, propTurn: 0, propAt: null };
+  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, helmetFront, helmetRear, seats, floor, prop, disc, bowFront, speedBrake, inside: null, propTurn: 0, propAt: null };
   return root;
+}
+
+/**
+ * Opens or shuts a ship's speed brake (SPEED_BRAKE; Patrick, 11 Oct 2026 card "Opens with boards": it opens when the
+ * Formation sim has the boards out). out: true or false, or how far open, 0 to 1 (1 is 70°, T-6A-1 p. 1-39). It turns
+ * at once, as the sim's boards do (moves.js: "the speed brakes are instant").
+ * @param {any} root a ship from createCt156Model
+ * @param {boolean | number} out
+ */
+export function setSpeedBrake(root, out) {
+  const b = root?.userData?.ct156?.speedBrake;
+  if (!b) return;
+  const f = clamp01(typeof out === 'number' ? out : out ? 1 : 0);
+  b.hinge.rotation.y = b.shut - rad(b.openDeg) * f;
+  b.well.visible = f > 0;
 }
 
 /**
@@ -1663,6 +1965,7 @@ export function setCockpitView(root, { seat = null } = {}) {
       d.helmetRear = new THREE.Mesh(geo.helmetRear, mats.pilot);
       d.inside.add(d.helmetFront, d.helmetRear);
     }
+    d.inside.traverse((o) => { o.castShadow = o.receiveShadow = Boolean(o.isMesh); });
     d.g.add(d.inside);
   }
   if (d.inside) d.inside.visible = inside;

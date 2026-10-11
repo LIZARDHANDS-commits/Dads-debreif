@@ -502,7 +502,7 @@ const PANEL_INSTRUMENTS = [
   { kind: 'eadi', u: 0.498, v: 0.805, w: 0.175, h: 0.356, live: 'eadi', frame: true },
   { kind: 'alt', u: 0.666, v: 0.837, s: 0.112, d: 0.096, live: 'alt' },
   { kind: 'label', u: 0.795, v: 0.771, w: 0.07, h: 0.04 },
-  { kind: 'lights', u: 0.111, v: 0.607, w: 0.026, h: 0.115 }, // NWS over SPEED BRAKE (Fig 1-1-3 items 31, 30)
+  { kind: 'lights', u: 0.111, v: 0.607, w: 0.026, h: 0.115, live: 'lights' }, // NWS over SPEED BRAKE (Fig 1-1-3 items 31, 30)
   { kind: 'clock', u: 0.17, v: 0.646, w: 0.092, h: 0.107 },
   { kind: 'g', u: 0.262, v: 0.617, d: 0.077, live: 'g' },
   { kind: 'rmu', u: 0.357, v: 0.498, w: 0.097, h: 0.4, frame: true },
@@ -559,9 +559,12 @@ const LIVE_WINDOWS = Object.freeze({
   vsi: { x: 288, y: 416, w: 280, h: 280 },
   stby: { x: 576, y: 416, w: 220, h: 220 },
   g: { x: 804, y: 416, w: 200, h: 200 },
+  lights: { x: 0, y: 704, w: 64, h: 280 },
 });
 
-const PANEL_GREY = '#8e9296';
+// The panel's and consoles' face: matte dark charcoal, as US Navy T-6A cockpit photos show (Patrick, 11 Oct 2026 22:06Z:
+// "Yes use that"; was mid grey '#8e9296', judged off Dad's pictures, TS-157). Shade an estimate.
+const PANEL_GREY = '#2b2e32';
 const SEAM = 'rgba(52, 56, 60, 0.55)';
 const BEZEL = '#1d2024';
 /** The displays' black frames round their screens, feet (about 0.5 in; Patrick's CT-156 photo, judged). */
@@ -1005,13 +1008,17 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
       label(ctx, 'DAVTRON', cx, b.y + b.h * 0.91, b.h * 0.06, INK);
       break;
     }
-    case 'lights': // the nosewheel steering light over the speed brake light (Fig 1-1-3 items 31, 30), unlit
+    case 'lights': // the nosewheel steering light over the speed brake light (Fig 1-1-3 items 31, 30)
+      // The speed brake light is lit while the speed brake is out (T-6A-1 p. 1-39; Patrick, 11 Oct 2026 20:22Z: "the
+      // 'speed brake' light comes on in the cockpit"): the HUD's speedBrake. Lit green, the colour a GUESS (no page
+      // gives it). NWS stays unlit (the sims fly, they don't taxi).
       for (const [k, name] of [[0, 'NWS'], [1, 'SPEED BRAKE']]) {
         const y = b.y + (b.h * k) / 2 + b.h * 0.03, side = b.h / 2 - b.h * 0.06;
+        const lit = k === 1 && h?.speedBrake === true;
         ctx.fillStyle = BLACK; ctx.fillRect(b.x, y, b.w, side);
-        ctx.fillStyle = '#2a2c22'; ctx.fillRect(b.x + b.w * 0.12, y + side * 0.12, b.w * 0.76, side * 0.76);
+        ctx.fillStyle = lit ? '#3fd25a' : '#2a2c22'; ctx.fillRect(b.x + b.w * 0.12, y + side * 0.12, b.w * 0.76, side * 0.76);
         const words = name.split(' ');
-        words.forEach((t, j) => label(ctx, t, b.x + b.w / 2, y + side * (0.5 + (j - (words.length - 1) / 2) * 0.24), side * 0.2, '#b9b48a'));
+        words.forEach((t, j) => label(ctx, t, b.x + b.w / 2, y + side * (0.5 + (j - (words.length - 1) / 2) * 0.24), side * 0.2, lit ? '#0b2410' : '#b9b48a'));
       }
       break;
     case 'elt': // the ELT panel (Fig 1-1-3 item 8): its name over the XMT button and the ON/ARM switch, EMER USE ONLY under
@@ -1386,7 +1393,7 @@ function drawLive(ctx, hud) {
 function panelKey(hud) {
   if (!hud) return 'none';
   const r = (x, step) => (Number.isFinite(x) ? Math.round(x / step) : 'x');
-  return [r(hud.pitchDeg, 0.5), r(hud.bankDeg, 0.5), r(hud.kias, 1), r(hud.altFt, 1), r(hud.headingDeg, 1), r(hud.g, 0.1), r(hud.vsFpm, 10)].join('|');
+  return [r(hud.pitchDeg, 0.5), r(hud.bankDeg, 0.5), r(hud.kias, 1), r(hud.altFt, 1), r(hud.headingDeg, 1), r(hud.g, 0.1), r(hud.vsFpm, 10), hud.speedBrake === true].join('|');
 }
 
 // ---------- the 3D parts ----------
@@ -2209,17 +2216,19 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   const own = (m) => (materials.push(m), m);
   const solid = (color, extra = {}) => own(new THREE.MeshStandardMaterial({ color, roughness: 0.8, metalness: 0.05, side: THREE.DoubleSide, fog: false, ...extra }));
   const lamp = (color) => own(new THREE.MeshBasicMaterial({ color, fog: false }));
-  // Slots as SLOT (TS-157 colours, judged off Dad's pictures 26, 27, 29): mid grey panel and consoles, near-black coaming
-  // and rail, red, mirror, light knobs, unlit lamps, the light bow band, light grey seat cushions, dark grey (seat
-  // bucket, headbox, bezels, vents), the green oxygen hose, metal, light grey canopy frames and straps.
+  // Slots as SLOT (TS-157 colours, judged off Dad's pictures 26, 27, 29; the panel, consoles and cushions dark charcoal
+  // since Patrick, 11 Oct 2026 22:06Z, after US Navy T-6A cockpit photos): dark charcoal panel and consoles, near-black
+  // coaming and rail, red, mirror, light knobs, unlit lamps, the light bow band, dark seat cushions, dark grey (seat
+  // bucket, headbox, bezels, vents), the green oxygen hose, metal, mid grey canopy frames and straps (were light grey; the
+  // T-6A photos' inner frame and rails are mid grey).
   const slotMats = [
-    solid('#8a8e92'), solid('#1d2023', { roughness: 0.75 }), solid('#1d2024', { roughness: 0.6 }), solid('#b3202a', { roughness: 0.5 }),
+    solid('#2b2e32', { roughness: 0.85 }), solid('#1d2023', { roughness: 0.75 }), solid('#1d2024', { roughness: 0.6 }), solid('#b3202a', { roughness: 0.5 }),
     solid('#b9c9da', { roughness: 0.2, metalness: 0.3, emissive: '#5d6f82' }), solid('#c9ced4', { roughness: 0.5 }),
     lamp('#3a1414'), lamp('#3a2c0e'), lamp('#10301a'),
     // The forward bow band, white to light grey (TS-156), a little self-lit so it stays light with the sun ahead.
     solid('#d3d6d9', { roughness: 0.7, emissive: '#7a7d80' }),
-    solid('#a3a7ab', { roughness: 0.9 }), solid('#3b3f44', { roughness: 0.8 }), solid('#4d6a2f', { roughness: 0.7 }),
-    solid('#a9aeb4', { roughness: 0.35, metalness: 0.7 }), solid('#c2c5c8', { roughness: 0.75, emissive: '#3a3c3e' }),
+    solid('#3a3c3f', { roughness: 0.9 }), solid('#3b3f44', { roughness: 0.8 }), solid('#4d6a2f', { roughness: 0.7 }),
+    solid('#a9aeb4', { roughness: 0.35, metalness: 0.7 }), solid('#7d8185', { roughness: 0.75, emissive: '#26282a' }),
   ];
   const geometries = [];
   const add = (geometry, material) => {
@@ -2416,12 +2425,18 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document, keepPiece
   let shownAt = -Infinity;
   drawLive(live.ctx, null);
   live.texture.needsUpdate = true;
+  // Real-time shadows where a view switches them on (aircraft-shadows.js): the bows' and frames' shadows across the
+  // cockpit. Glass and the self-lit faces neither cast nor take them.
+  group.traverse((o) => {
+    if (o.isMesh) o.castShadow = o.receiveShadow = ![o.material].flat().some((m) => m?.transparent);
+  });
 
   return {
     group,
     /**
      * The live instruments from the HUD's numbers ({ pitchDeg, bankDeg (right wing down positive), altFt, g, kias,
-     * headingDeg, and vsFpm if the module has it, else the altitude's change between calls }; null shows dashes), in both seats' panels (the same aircraft's numbers). Redraws only when what it
+     * headingDeg, and vsFpm if the module has it, else the altitude's change between calls; speedBrake true lights the
+     * SPEED BRAKE light }; null shows dashes), in both seats' panels (the same aircraft's numbers). Redraws only when what it
      * shows changed, and not within PANEL_REDRAW_MS of the last redraw. Returns true when it redrew. The standby
      * compasses' card turns to headingDeg on every call (no redraw).
      */

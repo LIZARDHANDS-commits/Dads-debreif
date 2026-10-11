@@ -11,6 +11,7 @@
 import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { STEP_SEC, liftBankDeg } from './live/flight.js';
+import { drawnAttitudeBetween } from './live/attitude.js';
 import { MANOEUVRES, relativeTo } from './live/manoeuvres.js';
 import { createFormation, LIVE_DEFAULTS, checkSpacing, fixedLine } from './live/formation.js';
 import { compassDeg, intoOrAway, labelFor } from './live/formation-words.js';
@@ -166,13 +167,24 @@ function mount(root, app) {
   // they glide instead of stepping (Fable's V2.234 flight report): one step behind, never ahead of the sim.
   let before = null; // the aircraft one step back
   let blend = 1;
-  const BLENDED = ['xFt', 'yFt', 'altAboveFt', 'bankDeg', 'attitudeDeg', 'pitchDeg', 'nz'];
+  // The attitude (heading, pitch and the wings' attitudeDeg) is blended as one rotation the short way round (attitude.js
+  // drawnAttitudeBetween): straight up or down the angles turn over by 180° together, and inverted the bank reads -180 then
+  // +180, which blended one by one drew a half or a whole roll inside a step (Patrick 11 Oct 2026 21:08Z, the fluid loop).
+  const BLENDED = ['xFt', 'yFt', 'altAboveFt', 'nz'];
+  const ATTITUDE = ['headingRad', 'pitchDeg', 'attitudeDeg'];
   const mix = (a, b, f) => {
     const out = { ...b };
     for (const k of BLENDED) if (Number.isFinite(a[k]) && Number.isFinite(b[k])) out[k] = a[k] + (b[k] - a[k]) * f;
-    if (Number.isFinite(a.headingRad) && Number.isFinite(b.headingRad)) {
+    if (ATTITUDE.every((k) => Number.isFinite(a[k]) && Number.isFinite(b[k]))) Object.assign(out, drawnAttitudeBetween(a, b, f));
+    else if (Number.isFinite(a.headingRad) && Number.isFinite(b.headingRad)) {
       const d = Math.atan2(Math.sin(b.headingRad - a.headingRad), Math.cos(b.headingRad - a.headingRad));
       out.headingRad = a.headingRad + d * f;
+    }
+    // The lift's bank (turn circles, the lift line) the short way round; a jump past 90° in one step is the flip over the
+    // vertical, not a roll, so it takes the newer step's.
+    if (Number.isFinite(a.bankDeg) && Number.isFinite(b.bankDeg)) {
+      const d = b.bankDeg - a.bankDeg - 360 * Math.round((b.bankDeg - a.bankDeg) / 360);
+      out.bankDeg = Math.abs(d) > 90 ? b.bankDeg : b.bankDeg - d * (1 - f);
     }
     return out;
   };

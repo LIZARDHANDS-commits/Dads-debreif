@@ -80,6 +80,11 @@ export const TURNING_REJOIN = Object.freeze({
   reverseMaxSec: 20, // the reversal ends with Lead at frozenBearingDeg off the nose, so there is no slide onto it after (Fable 04:40Z; until V2.250 it ended 15° off Lead's heading, Lead 25° off the nose), or after this long (estimate)
   pointFromFt: 2500, // only from further out than this; closer in the capture alone (estimate)
   formRoll: Object.freeze({ maxRateDps: 30, maxAccelDps2: 20 }), // his roll from the start to the slot: a formation rate, Lead's close-turn roll (rates.js RATE_SETS.close.leadRoll), not the 180°/s of the tactical moves
+  // Arriving in the fighting wing cone from a turning rejoin (Patrick 11 Oct 2026 20:34Z: "he SHOULD do it smoothly", 20:35Z
+  // "a smaller change, earlier, is almost always better"; Fable's V2.330 flight: he rocked his wings through level four times).
+  coneRefJerkFtps3: 10, // the place he flies to in the cone speeds up and slows down this smoothly, with no corner, so his roll-out has no kink (estimate)
+  coneAlignSec: 1.5, // settled in the cone, his heading eases onto Lead's over about this long, carrying on from the turn he has, not a step onto Lead's heading (estimate)
+  coneAlignDoneDeg: 0.05, // ...until within this of Lead's heading with the turn gone, then he holds Lead's heading (estimate)
   hotFt: 1000, // ahead of the line by this much (hot) he flies his least speed, Lead's 200 KIAS, coming up to lineOverKias above it as he reaches the line (estimate; TS-75)
   laneTolFt: 20, // flowing into the slot he may pass this far ahead of it, never more, toward Lead's 3/9 line (estimate; Patrick 08:04Z)
   decisionArriveRates: 'instructor', // he reaches the decision point closing no faster than this Rates choice's close-in rate (about 15 kt), so AI's quicker close-in starts from a closure under control (estimate; SMM 12.24 para 58)
@@ -419,6 +424,7 @@ export const TRACKER = Object.freeze({
     belowFt: 200, // ... nor this far below him (estimate; row 5)
     kt: 12, // speed within this of Lead's (estimate; row 5)
     bankDeg: 15, // bank within this of Lead's (estimate; row 5)
+    climbFtps: 5, // climb or descent within this of Lead's, so he isn't still climbing when the rejoin ends (estimate; V2.330)
   }),
   openingFull: Object.freeze({
     ceilingKias: REJOIN_LINE_KIAS.ai, // the opening full power ends at the AI line speed (235 KIAS, TS-133) ... (row 6)

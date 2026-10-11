@@ -93,7 +93,18 @@ function aimOf(ph, L, Lprev, ref, W, t) {
       const wantRaw = Math.sign(dist) * Math.min(rate, Math.abs(dist) * (ph.targetBankDeg != null ? 1.5 : GAIN.refRate));
       const want = Math.sign(dist) * Math.min(Math.abs(wantRaw), maxV);
       const step = accel * STEP_SEC;
-      ref[v] += Math.max(-step, Math.min(step, want - ref[v]));
+      if (ph.refJerkFtps3) {
+        // The place's own acceleration changes at no more than refJerkFtps3, easing into its rate and out of it, so the
+        // heading it asks for turns smoothly (until V2.335 it reached its rate with a corner, and #2's roll-out into the
+        // fighting wing cone kinked back into the turn).
+        const a = v === 'vf' ? 'af' : 'al';
+        const dv = want - ref[v];
+        const aWant = Math.sign(dv) * Math.min(accel, Math.abs(dv) / STEP_SEC, Math.sqrt(2 * ph.refJerkFtps3 * Math.abs(dv)));
+        ref[a] = ref[a] == null ? aWant : ref[a] + Math.max(-ph.refJerkFtps3 * STEP_SEC, Math.min(ph.refJerkFtps3 * STEP_SEC, aWant - ref[a]));
+        ref[v] += ref[a] * STEP_SEC;
+      } else {
+        ref[v] += Math.max(-step, Math.min(step, want - ref[v]));
+      }
       ref[axis] += ref[v] * STEP_SEC;
       const snapDist = Math.max(T.snapFt, Math.min(1.0, (ph.advanceTol ?? 6) * 0.25));
       if (Math.abs(target - ref[axis]) < snapDist) {
@@ -591,8 +602,11 @@ function isFwConeSettled(L, W, relVel, side = null) {
   // (In a 30° turn at 200 KIAS, the rigid rotation omega x r is ~41 ft/s, so world relVel is not zero).
   const speedMatched = Math.abs(W.kias - L.kias) <= S.kt;
   const bankMatched = Math.abs((W.bankDeg ?? 0) - (L.bankDeg ?? 0)) <= S.bankDeg;
+  // Until V2.330 he could be called settled still climbing 35 ft/s (V2.327's onset-limited pull), and the level-off after
+  // the end (flight.js) carried him 15 ft above Lead (V2.328).
+  const climbMatched = Math.abs((W.climbFtps ?? 0) - (L.climbFtps ?? 0)) <= S.climbFtps;
 
-  return inRange && inSweep && inAlt && sideOk && speedMatched && bankMatched;
+  return inRange && inSweep && inAlt && sideOk && speedMatched && bankMatched && climbMatched;
 }
 
 /**
@@ -812,6 +826,21 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     if (aligning) {
       psiCmd = L.headingRad;
       kiasCmd = L.kias;
+      if (ph.alignSec) {
+        // His heading eases onto Lead's over about alignSec, carrying on from the heading and turn he had (a critically
+        // damped ease in Lead's turn), so lining up asks for a few degrees of bank, not a step onto Lead's heading (until
+        // V2.335 he rolled to 30° the other way to take out the last 2.5°, then back). Within alignDoneDeg of Lead's heading,
+        // with the turn gone, he holds Lead's heading as before.
+        const leadTurn = Lprev ? wrapPi(L.headingRad - Lprev.headingRad) / STEP_SEC : 0;
+        const ease = (headingState.align ??= { off: wrapPi((headingState.psiCmdPrev ?? W.headingRad) - L.headingRad), rate: headingState.omegaFf - leadTurn });
+        if (!ease.done) {
+          ease.rate += (-ease.off / ph.alignSec ** 2 - (2 * ease.rate) / ph.alignSec) * STEP_SEC;
+          ease.off += ease.rate * STEP_SEC;
+          const doneRad = (ph.alignDoneDeg ?? 0) * DEG || T.alignHeadingRad;
+          ease.done = Math.abs(ease.off) < doneRad && Math.abs(ease.rate) * ph.alignSec < doneRad;
+          psiCmd = L.headingRad + ease.off;
+        }
+      }
     } else {
       const last = k === phases.length - 1;
       const targetAlt = !ph.coneAlt && ph.slot?.alt != null && Number.isFinite(ph.slot.alt) ? slotAltOf(ph, L, W) : null;

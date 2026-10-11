@@ -85,3 +85,76 @@ export function rollRateDps(noseA, upA, noseB, upB, dt) {
   const left = leftOf(nose, up);
   return (dot3(sub3(upB, upA), left) / dt) / DEG;
 }
+
+// ---- drawing between two steps ------------------------------------------------------------------
+// The 3D view draws an aircraft with rotation.set(-bank, -pitch, heading) in order 'ZYX' (view3d.js aircraftPose), bank
+// being a.attitudeDeg. Straight up or down those three angles turn over together by 180°, and wings level inverted the
+// bank reads -180 one step and +180 the next: the same attitude each time, but blending the angles one by one between two
+// steps draws a half or a whole roll inside one step (Patrick 11 Oct 2026 21:08Z: Lead "randomly spins around and is
+// jerky" in the loop and aeros). So the blend turns each attitude into a rotation, goes the short way between them, and
+// reads the angles back nearest the newer step's.
+
+const quatMul = (a, b) => ({
+  w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+  x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+  y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+  z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+});
+/** The rotation Rz(h) Ry(-pitch) Rx(-bank) as a unit quaternion (the view's order). */
+function quatOf(hRad, pitchDeg, bankDeg) {
+  const half = (r) => ({ c: Math.cos(r / 2), s: Math.sin(r / 2) });
+  const z = half(hRad);
+  const y = half(-pitchDeg * DEG);
+  const x = half(-bankDeg * DEG);
+  return quatMul(quatMul({ w: z.c, x: 0, y: 0, z: z.s }, { w: y.c, x: 0, y: y.s, z: 0 }), { w: x.c, x: x.s, y: 0, z: 0 });
+}
+/** The short way from q0 to q1 by the share f (spherical, so the rotation turns at a steady rate). */
+function slerp(q0, q1, f) {
+  let d = q0.w * q1.w + q0.x * q1.x + q0.y * q1.y + q0.z * q1.z;
+  const s1 = d < 0 ? -1 : 1;
+  d = Math.abs(d);
+  let k0 = 1 - f;
+  let k1 = f;
+  if (d < 0.9995) {
+    const th = Math.acos(d);
+    k0 = Math.sin((1 - f) * th) / Math.sin(th);
+    k1 = Math.sin(f * th) / Math.sin(th);
+  }
+  const q = { w: k0 * q0.w + s1 * k1 * q1.w, x: k0 * q0.x + s1 * k1 * q1.x, y: k0 * q0.y + s1 * k1 * q1.y, z: k0 * q0.z + s1 * k1 * q1.z };
+  const m = Math.hypot(q.w, q.x, q.y, q.z);
+  return { w: q.w / m, x: q.x / m, y: q.y / m, z: q.z / m };
+}
+const wrap180 = (d) => d - 360 * Math.round(d / 360);
+
+/** The angle (degrees) the drawn aircraft turns through between two attitudes { headingRad, pitchDeg, attitudeDeg }. */
+export function drawnTurnDeg(a, b) {
+  const qa = quatOf(a.headingRad, a.pitchDeg, a.attitudeDeg);
+  const qb = quatOf(b.headingRad, b.pitchDeg, b.attitudeDeg);
+  const d = Math.min(1, Math.abs(qa.w * qb.w + qa.x * qb.x + qa.y * qb.y + qa.z * qb.z));
+  return (2 * Math.acos(d)) / DEG;
+}
+
+/**
+ * The attitude drawn a share f (0 to 1) of the way from step a to step b, each { headingRad, pitchDeg, attitudeDeg }: the
+ * short way round as one rotation, read back as the view's angles. Of the two sets of angles for one attitude (h, p, bank)
+ * and (h + 180°, 180° - p, bank + 180°), it returns the one nearer b's, so away from the vertical it is the plain blend.
+ */
+export function drawnAttitudeBetween(a, b, f) {
+  const q = slerp(quatOf(a.headingRad, a.pitchDeg, a.attitudeDeg), quatOf(b.headingRad, b.pitchDeg, b.attitudeDeg), f);
+  // ZYX (yaw, pitch, roll) angles of q; the view's pitch and bank are their negatives.
+  const roll = Math.atan2(2 * (q.w * q.x + q.y * q.z), 1 - 2 * (q.x * q.x + q.y * q.y));
+  const pitch = Math.asin(Math.max(-1, Math.min(1, 2 * (q.w * q.y - q.x * q.z))));
+  const yaw = Math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z));
+  const hDeg = yaw / DEG;
+  const pDeg = -pitch / DEG;
+  const bDeg = -roll / DEG;
+  const bh = b.headingRad / DEG;
+  const sets = [[hDeg, pDeg, bDeg], [hDeg + 180, 180 - pDeg, bDeg + 180]];
+  const off = ([h, p, k]) => Math.abs(wrap180(h - bh)) + Math.abs(wrap180(p - b.pitchDeg)) + Math.abs(wrap180(k - b.attitudeDeg));
+  const [h, p, k] = off(sets[0]) <= off(sets[1]) ? sets[0] : sets[1];
+  return {
+    headingRad: (bh + wrap180(h - bh)) * DEG,
+    pitchDeg: b.pitchDeg + wrap180(p - b.pitchDeg),
+    attitudeDeg: b.attitudeDeg + wrap180(k - b.attitudeDeg),
+  };
+}
