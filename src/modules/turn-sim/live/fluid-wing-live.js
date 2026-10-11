@@ -24,9 +24,10 @@
 //  - Over the top (the loop, the wingovers, the barrel roll; Patrick 11 Oct 2026 22:31Z): lag going up, pure before the
 //    top, lead from the top down, from Lead's own phase plus the time he has lost or gained on Lead's path; wider out of
 //    Lead's plane, not closer, where the range shrinks as Lead slows; on the outside of Lead's roll.
-//  - Power: MAX like Lead (SMM 16.17 paras 42-43, "both aircraft maintain the same power setting"; TS-74, geometry
-//    first). Off toward idle only within about 50 ft of the bubble while still closing, never over the top; while Lead
-//    holds a speed (the entry and Terminate) power flies his range, from Lead's new speed.
+//  - Power: MAX like Lead for all of fluid manoeuvring (Patrick 11 Oct 2026 22:32Z, "Both should be at max power for all
+//    of fluid maneuvering"; SMM 16.17 paras 42-43, "both aircraft maintain the same power setting"): the spacing is
+//    flown by geometry alone. While Lead holds a speed (the entry and Terminate) power flies his range, from Lead's new
+//    speed.
 //
 // Units: feet, seconds, x east, y north, z up; Lead's positions are heights above the block (fluid.js), #2's point mass
 // is absolute (as Lead's st.pm). Every number with no manual or ruling beside it is an estimate and says so.
@@ -47,7 +48,8 @@ const dt = STEP_SEC;
 /** The live wingman's numbers. Estimates unless a source is given. */
 export const LIVE = Object.freeze({
   latDeg: WING.latDeg, // 15° off Lead's tail (Patrick 4 Oct 22:28Z, "hold 15")
-  cutShare: HOLD.cutShare, // lead puts the aim inside Lead's circle, lag outside, by up to 25% of the range (about sin 15°; estimate, V2.59)
+  cutShare: HOLD.cutShare, // lead puts the aim inside Lead's circle by up to 25% of the range (about sin 15°; estimate, V2.59) ...
+  lagShare: 0.5, // ... and lag outside it by up to half the range (estimate): at MAX with Lead (Patrick 22:32Z) only lag can hold the range in a turn
   turnFullG: 1, // the inside or outside offset grows with Lead's turning acceleration, full at 1 G of it (estimate): none straight
   swapPitchDeg: 30, // a swap only with Lead's nose within 30° of level (estimate): in the vertical he stays on his side
   vertLag: 1, // lag in the vertical (outside the loop), a share of the sideways lag (estimate)
@@ -75,8 +77,7 @@ export const LIVE = Object.freeze({
   placeKtPerFt: 0.08, // with Lead holding a speed, power flies his place: 1 kt faster per 12.5 ft behind it (estimate) ...
   closeKtPerKt: 0.6, // ... less 0.6 kt per knot he is already closing on it (estimate) ...
   overtakeKias: HOLD.overtakeKias, // ... within 15 KIAS of Lead (EFIG p.374's 10-20 KIAS)
-  bubbleMarginFt: HOLD.bubbleMarginFt, // with Lead at MAX, power off only within about 50 ft of the 500 ft bubble (estimate, TS-74)
-  idleBelowKias: 40, // power off is flown as a held speed this far under his own, which the step takes as idle (estimate)
+  bubbleMarginFt: HOLD.bubbleMarginFt, // the 500 ft bubble's margin, about 50 ft (estimate, TS-74)
   wordShare: Object.freeze({ on: 0.35, off: 0.15 }), // LAG or LEAD shows past 35% of full and goes under 15%, so the word doesn't flicker (estimate)
   settleKt: 2, // Terminate ends with him in the fighting wing band and within 2 kt of Lead (spec section 9)
 });
@@ -235,7 +236,7 @@ export function stepLiveWing(ws, ctx) {
   }
   const acrossPath = (place.acrossDeg + chordDeg) * DEG;
   const target = {
-    l: place.rangeFt * Math.sin(acrossPath), n: share * LIVE.cutShare * place.rangeFt, u: place.alt,
+    l: place.rangeFt * Math.sin(acrossPath), n: share * (share < 0 ? LIVE.lagShare : LIVE.cutShare) * place.rangeFt, u: place.alt,
     o: toSlot ? 0 : Math.max(0, Math.min(LIVE.wideMaxShare * place.rangeFt, LIVE.widePerFt * shortFt)),
   };
   const w = 2 / LIVE.aimSec; // critically damped, about aimSec to settle
@@ -286,11 +287,16 @@ export function stepLiveWing(ws, ctx) {
     const c = trailAt(j);
     let p = add3(add3(add3(add3(ctx.E(j).pos, scale3(c.left, off.l)), scale3(c.up, off.u)), scale3(c.lat, off.n)), scale3(c.vert, nVert));
     const vl = len3(c.vert);
-    if (off.o > 0.5 && vl > 1e-3) {
-      // Out of the plane of Lead's turn, to #2's side, as far as the turn is in the vertical.
-      let o = unit3(cross3(c.nose, unit3(add3(c.lat, c.vert))));
-      if (dot3(o, c.left) * side + 0.5 * dot3(o, c.up) < 0) o = scale3(o, -1);
-      p = add3(p, scale3(o, off.o * vl / Math.max(vl + len3(c.lat), 1e-3) * Math.min(1, vl)));
+    const tl = Math.min(1, vl + len3(c.lat));
+    if (off.o > 0.5) {
+      // Out of the plane of Lead's turn, to #2's side, as far as the turn is in the vertical; with Lead hardly turning (a
+      // climb, a descent), straight out to his side.
+      if (vl > 1e-3) {
+        let o = unit3(cross3(c.nose, unit3(add3(c.lat, c.vert))));
+        if (dot3(o, c.left) * side + 0.5 * dot3(o, c.up) < 0) o = scale3(o, -1);
+        p = add3(p, scale3(o, off.o * vl / Math.max(vl + len3(c.lat), 1e-3) * Math.min(1, vl)));
+      }
+      p = add3(p, scale3(c.left, side * off.o * (1 - tl)));
     }
     return { p, nose: c.nose };
   };
@@ -345,11 +351,9 @@ export function stepLiveWing(ws, ctx) {
     const closingKt = closureFtps * FTPS_TO_KT;
     const extra = Math.max(-LIVE.overtakeKias, Math.min(LIVE.overtakeKias, LIVE.placeKtPerFt * behindFt - LIVE.closeKtPerKt * closingKt));
     holdKias = e.holdKias + extra; // from Lead's new speed, not the one he is slowing through: a pilot knows Terminate is flown at 200
-  } else if (!topPhase && rangeFt < FW_BAND.bubbleFt + LIVE.bubbleMarginFt && closureFtps > 0) {
-    // Not over the top: there the range closes only because Lead slows, and grows again as he speeds up downhill, so power
-    // off would cost #2 energy he never gets back at the same power (the stretch after round 1's loop and barrel roll).
-    holdKias = st.kias - LIVE.idleBelowKias;
   }
+  // Otherwise MAX, as Lead: both at max power for all of fluid manoeuvring (Patrick 11 Oct 2026 22:32Z), the spacing
+  // flown by lag, pure and lead alone.
 
   const next = carryBank(st, stepLead(st, { g, bank: bankRad / DEG, holdKias }));
   const pose = poseOf3d({
