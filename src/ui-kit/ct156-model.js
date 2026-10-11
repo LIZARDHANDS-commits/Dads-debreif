@@ -51,8 +51,9 @@ const rad = (d) => (d * Math.PI) / 180;
 // line, spinner to windscreen foot, is the T-6A-1 side drawing's (ALL-31): 0.85 ft above the spinner's axis 2 ft behind
 // the tip, 1.1 ft at 5 ft, 1.45 ft at the windscreen's foot (was 0.65 to 1.0 ft off the photo), so from the front seat
 // the spinner hides under the cowl. The belly line is the same drawing's (Patrick, 11 Oct 2026: "analyze the pictures
-// ... and IMPROVE IT"): 2.9 ft under the axis at the wing, rising to 1.7 ft at the tail (the photo's was about 1 ft
-// deeper all along, the far wing and the low camera adding to it). The half-widths are the T-6A-1 top view's (Figure
+// ... and IMPROVE IT"): 2.9 ft under the axis at the wing, still 2.3 ft under it 2.2 ft ahead of the tail, closing to
+// 1.7 ft at the tail cone (the photo's was about 1 ft deeper all along, the far wing and the low camera adding to it;
+// it then rose from 6.3 ft ahead of the tail, up to 4 in too high). The half-widths are the T-6A-1 top view's (Figure
 // 1-1-2, scaled by its 33 ft 5 in span): 3 ft 2.6 in across from the windscreen to the rear bow, tapering straight from
 // the spinner's backplate to the cowl and from the rear bow to the tail (the front view, scaled by its 97 in prop, gives
 // 3 ft 2.2 in; was 3 ft 8.4 in, an estimate). Across the canopy the squareness is set so the canopy's sill stays within
@@ -70,9 +71,9 @@ const STATIONS = [
   [-0.215, 0.0694, 0.0312, -0.1242, 2.97],
   [-0.32, 0.0598, 0.026, -0.119, 3.0],
   [-0.482, 0.0433, 0.018, -0.112, 2.69],
-  [-0.59, 0.0329, 0.0, -0.094, 2.4],
-  [-0.685, 0.0224, -0.016, -0.085, 2.3],
-  [-0.75, 0.0103, -0.025, -0.078, 2.2],
+  [-0.59, 0.0329, 0.0, -0.104, 2.4],
+  [-0.685, 0.0224, -0.016, -0.0995, 2.3],
+  [-0.75, 0.0103, -0.025, -0.0885, 2.2],
   [-0.78, 0.004, -0.045, -0.075, 2.0],
 ];
 // The top line aft of the fairing, into the tail, is the T-6A-1 side drawing's (Patrick, 11 Oct 2026: "the fuselage
@@ -184,10 +185,12 @@ const STAB = [
   { le: -0.55, s: 0.04, chord: 0.24, t: 0.1, z: -0.04 },
   { le: -0.616, s: 0.245, chord: 0.174, t: 0.1, z: -0.04 },
 ];
-// The fin: its root buried in the tail cone, its top 0.232 units (5.4 ft) above the spinner's axis, its leading edge
-// swept back from 13.1 ft ahead of the tail at the root (T-6A-1 side drawing; was 4.5 ft and 0.7 ft further aft, off the
-// photo).
-const FIN = [{ le: -0.569, s: -0.03, chord: 0.168, t: 0.09, z: 0 }, { le: -0.6135, s: 0.232, chord: 0.086, t: 0.09, z: 0 }];
+// The fin and rudder: the root buried in the tail cone, the top 0.232 units (5.4 ft) above the spinner's axis. Leading
+// and trailing edges are the T-6A-1 side drawing's: the leading edge swept 15°, meeting the dorsal fin 1.5 ft above the
+// axis 4.8 ft ahead of the tail; the rudder's trailing edge leaning forward 9°, from the tail cone 0.2 ft ahead of the
+// tail to 1.2 ft ahead of it at the top (was 1.0 ft and 1.9 ft, so the fin was about 8 in short aft; the leading edge
+// was 3 in aft low down).
+const FIN = [{ le: -0.5437, s: -0.045, chord: 0.2289, t: 0.09, z: 0 }, { le: -0.6188, s: 0.232, chord: 0.1087, t: 0.09, z: 0 }];
 // The ventral fin under the tail, as aerofoil sections down from inside the belly, its outline the T-6A-1 side drawing's
 // (Patrick, 11 Oct 2026, circled it): its leading edge leaving the belly 6.3 ft ahead of the tail, its foot 3.5 ft under
 // the axis and 2.9 ft long, rising 0.35 ft to the back (VENTRAL_RISE), its trailing edge meeting the belly 2.3 ft ahead
@@ -203,7 +206,7 @@ const DORSAL = [
   [-0.4, 0.004, 0.0576],
   [-0.47, 0.0045, 0.0611],
   [-0.54, 0.005, 0.0634],
-  [-0.6, 0.0055, 0.066],
+  [-0.6, 0.0035, 0.066],
 ];
 // The forward bow leans aft from its crest 9° to the sill, as the T-6A-1 side drawing shows it (was upright).
 export const CT156_BOW_LEAN = rad(9);
@@ -920,7 +923,7 @@ function buildKit(THREE) {
     // Centred on the fin's mid-chord (nearly upright, the leading edge swept back and the trailing edge forward) and on
     // the fin above the tail cone (Patrick, 11 Oct 2026: "central on the vertical stab, not right on the edge"; was 0.03
     // units aft, at the trailing edge).
-    tail: both((side) => patch(THREE, -0.655, 0.115, 0.105, 0.165, side, finSurf)),
+    tail: both((side) => patch(THREE, -0.667, 0.115, 0.105, 0.165, side, finSurf)),
     // Upper left wing: seen from above, nose up, right = -Y.
     roundelWing: wingPatch(THREE, 0.04, 0.42, 0.14, 0.14, [0, -1], [1, 0], 1, DIHEDRAL),
     // Under the right wing: seen from below with the nose up, it reads left to right.
