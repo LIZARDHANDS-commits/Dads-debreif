@@ -95,6 +95,7 @@ export const TURNING_REJOIN = Object.freeze({
   planeEaseG: 0.3, // ...and longer where the step is big, so the ease asks no more than this many g off level flight (TS-126; estimate)
   diveSlackSec: 8, // a dive that brings him in no more than this much later than the steady descent is flown (estimate)
   heightSec: 10, // #2 settles slightly low on the line over this long, or over his part to the decision point if shorter (estimate)
+  captureHeightG: 0.5, // his height down (or up) to the line from where he starts, one smooth leg within this many g of level flight: from 2,000 ft high at 1 g he bunted to 0.1 G at the reversal and pulled out at 4.7 G (Fable's v2291 flight; estimate). Starts within a few hundred feet still take heightSec
   // The vertical as a candidate (Patrick 5 Oct 17:44Z "we can use the vertical too", 19:51Z "if it scores high enough"; TS-82):
   // #2 goes this much higher than he starts early in the rejoin, then comes down onto the line, the climb and descent each one smooth
   // leg within heightG, its pull charged as G (flight.js) and within the G rule. Flown only when it brings him in sooner (estimates).
