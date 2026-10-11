@@ -394,3 +394,41 @@ export function buildTable(setup, scenarioFile) {
     };
   });
 }
+
+/**
+ * The sign-off report (docs/modules/traffic/testing.md, "The cross-check becomes a sign-off report"; Patrick's yes to the
+ * test overhaul list, 11 Oct 2026 19:24Z): `node tests/crosscheck/traffic-measure.js` prints each measured number next to
+ * its manual number and page for Patrick and Dad to read. Per T10 a difference from a manual number is shown, never
+ * failed: the report always exits 0, and a scenario it can't measure says so in its row.
+ */
+async function printReport() {
+  const { readFileSync } = await import('node:fs');
+  const read = (path) => JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8'));
+  const setup = read('../../src/modules/traffic/data/moose-jaw.json');
+  const scenarioFile = read('../../archive/tests/crosscheck/traffic-scenarios.json');
+  const measures = makeMeasures(setup, scenarioFile.seed);
+  const said = { yes: 'matches', no: 'differs', 'n/a': 'for a pilot to judge', overridden: "Patrick's override" };
+  const cell = (v) => (v === null || v === undefined ? '' : String(v).replace(/\|/g, '/'));
+  const lines = [
+    `# Traffic cross-check, built-in Moose Jaw setup (seed ${scenarioFile.seed}): a report, nothing here passes or fails`,
+    '',
+    '| row | sim | manual | unit | page | difference | margin | reads as |',
+    '|---|---|---|---|---|---|---|---|',
+  ];
+  for (const s of scenarioFile.scenarios) {
+    const dp = decimalsFor(s.unit);
+    const manual = s.manual === null ? null : round(s.manual, dp);
+    let sim = null, reads;
+    try {
+      if (s.mode !== 'waits') sim = round(measures[s.id]?.().value, dp);
+      reads = s.mode !== 'waits' && !measures[s.id] ? 'no measure for this row' : judge(s, sim, manual);
+    } catch (e) {
+      reads = `could not measure (${e.message})`;
+    }
+    const diff = sim !== null && manual !== null ? round(sim - manual, dp) : null;
+    lines.push(`| ${cell(s.title)} | ${cell(sim)} | ${cell(manual)} | ${cell(s.unit)} | ${cell(s.page)} | ${cell(diff)} | ${cell(s.tolerance)} | ${said[reads] ?? reads} |`);
+  }
+  console.log(lines.join('\n'));
+}
+
+if (process.argv[1] && new URL(import.meta.url).pathname === (await import('node:path')).resolve(process.argv[1])) await printReport();
