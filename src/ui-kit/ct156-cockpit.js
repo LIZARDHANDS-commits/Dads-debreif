@@ -501,7 +501,7 @@ const PANEL_INSTRUMENTS = [
   { kind: 'eadi', u: 0.498, v: 0.805, w: 0.175, h: 0.356, live: 'eadi', frame: true },
   { kind: 'alt', u: 0.666, v: 0.837, s: 0.112, d: 0.096, live: 'alt' },
   { kind: 'label', u: 0.795, v: 0.771, w: 0.07, h: 0.04 },
-  { kind: 'lights', u: 0.095, v: 0.596, w: 0.03, h: 0.121 },
+  { kind: 'lights', u: 0.111, v: 0.607, w: 0.026, h: 0.115 }, // NWS over SPEED BRAKE (Fig 1-1-3 items 31, 30)
   { kind: 'clock', u: 0.17, v: 0.646, w: 0.092, h: 0.107 },
   { kind: 'g', u: 0.262, v: 0.617, d: 0.077, live: 'g' },
   { kind: 'rmu', u: 0.357, v: 0.498, w: 0.097, h: 0.4, frame: true },
@@ -510,15 +510,17 @@ const PANEL_INSTRUMENTS = [
   { kind: 'eng', u: 0.792, v: 0.586, s: 0.112, name: 'TRQ' },
   { kind: 'eng', u: 0.669, v: 0.372, s: 0.1, name: 'ITT' },
   { kind: 'eng', u: 0.792, v: 0.372, s: 0.1, name: 'NP' },
-  { kind: 'smallPanel', u: 0.907, v: 0.519, w: 0.076, h: 0.092 },
+  { kind: 'elt', u: 0.902, v: 0.527, w: 0.076, h: 0.092 }, // the ELT switch (Fig 1-1-3 item 8)
   { kind: 'deice', u: 0.909, v: 0.418, w: 0.076, h: 0.1 }, // the prop de-ice switch (Fig 1-1-3 item 10); no FIRE light here
-  { kind: 'smallPanel', u: 0.909, v: 0.288, w: 0.076, h: 0.067 },
+  { kind: 'slave', u: 0.904, v: 0.298, w: 0.08, h: 0.062 }, // the heading slave switches (Fig 1-1-3 item 12)
   { kind: 'gps', u: 0.181, v: 0.397, w: 0.208, h: 0.248, frame: true }, // the KLN 900's face, 5.75 x 3.75 in (Patrick; maker's listing)
   { kind: 'audio', u: 0.24, v: 0.131, w: 0.233, h: 0.251 },
   { kind: 'asi', u: 0.408, v: 0.157, d: 0.08, live: 'asi' },
   { kind: 'stby', u: 0.502, v: 0.157, s: 0.092, d: 0.08, live: 'stby' },
   { kind: 'alt', u: 0.597, v: 0.157, d: 0.08, live: 'alt' },
-  { kind: 'gearInd', u: 0.687, v: 0.157, w: 0.088, h: 0.161 },
+  { kind: 'turn', u: 0.684, v: 0.17, d: 0.074 }, // the turn coordinator (Fig 1-1-3 item 16)
+  { kind: 'placard', u: 0.684, v: 0.072, w: 0.062, h: 0.05 }, // its fuel placard
+  { kind: 'placard', u: 0.048, v: 0.19, w: 0.055, h: 0.17 }, // the emergency gear placard over its handle
   { kind: 'annun', u: 0.846, v: 0.125, w: 0.214, h: 0.195 },
   { kind: 'emerGear', u: 0.059, v: 0.1, s: 0.045 },
 ];
@@ -535,6 +537,16 @@ const AUDIO_KNOBS = Object.freeze([
 ]);
 
 /** The live faces' windows in one shared picture (pixels); both seats' live instruments read the same windows. */
+/** The caution panel's lights, row by row as the panel figure names them (Fig 1-1-3 item 14). */
+const ANNUNCIATORS = Object.freeze([
+  ['BAT BUS', 'GEN BUS', 'PMU FAIL', 'GEN', 'CKPT PX'],
+  ['CANOPY', 'FUEL PX', 'OIL PX', 'OBOGS FAIL', 'CHIP'],
+  ['CKPT ALT', '\u2014', 'HYDR FL LO', '\u2014', 'BUS TIE'],
+  ['FUEL BAL', 'PMU STATUS', 'EHYD PX LO', 'TAD FAIL', 'OBOGS TEMP'],
+  ['L FUEL LO', 'R FUEL LO', 'DUCT TEMP', 'IGN SEL', 'M FUEL BAL'],
+  ['TRIM OFF', 'BOOST PUMP', 'ANTI ICE', 'TAD OFF', 'ST READY'],
+]);
+
 const ATLAS = Object.freeze({ width: 1024, height: 1024 });
 const LIVE_WINDOWS = Object.freeze({
   // Each window has its face's shape (the EADI and EHSI 0.9 wide to 1 tall; until V2.287 they were drawn 1.75 to 1 and
@@ -992,8 +1004,60 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
       label(ctx, 'DAVTRON', cx, b.y + b.h * 0.91, b.h * 0.06, INK);
       break;
     }
-    case 'lights':
-      for (let k = 0; k < 3; k++) { ctx.fillStyle = k === 0 ? '#2b3a1c' : '#1c3a24'; ctx.fillRect(b.x, b.y + (b.h * k) / 3 + 1, b.w, b.h / 3 - 2); }
+    case 'lights': // the nosewheel steering light over the speed brake light (Fig 1-1-3 items 31, 30), unlit
+      for (const [k, name] of [[0, 'NWS'], [1, 'SPEED BRAKE']]) {
+        const y = b.y + (b.h * k) / 2 + b.h * 0.03, side = b.h / 2 - b.h * 0.06;
+        ctx.fillStyle = BLACK; ctx.fillRect(b.x, y, b.w, side);
+        ctx.fillStyle = '#2a2c22'; ctx.fillRect(b.x + b.w * 0.12, y + side * 0.12, b.w * 0.76, side * 0.76);
+        const words = name.split(' ');
+        words.forEach((t, j) => label(ctx, t, b.x + b.w / 2, y + side * (0.5 + (j - (words.length - 1) / 2) * 0.24), side * 0.2, '#b9b48a'));
+      }
+      break;
+    case 'elt': // the ELT panel (Fig 1-1-3 item 8): its name over the XMT button and the ON/ARM switch, EMER USE ONLY under
+      ctx.fillStyle = '#1b1e22'; ctx.fillRect(b.x, b.y, b.w, b.h);
+      screws(ctx, b.x, b.y, b.w, b.h, b.h * 0.1, Math.max(1.5, b.h * 0.04));
+      label(ctx, 'ELT', cx, b.y + b.h * 0.12, b.h * 0.11, INK);
+      ctx.fillStyle = '#050608'; ctx.beginPath(); ctx.arc(b.x + b.w * 0.35, b.y + b.h * 0.5, b.h * 0.12, 0, Math.PI * 2); ctx.fill();
+      label(ctx, 'XMT', b.x + b.w * 0.35, b.y + b.h * 0.74, b.h * 0.09, INK);
+      label(ctx, 'ON', b.x + b.w * 0.68, b.y + b.h * 0.3, b.h * 0.09, INK);
+      toggle(ctx, b.x + b.w * 0.68, b.y + b.h * 0.5, b.h * 0.09);
+      label(ctx, 'ARM', b.x + b.w * 0.68, b.y + b.h * 0.74, b.h * 0.09, INK);
+      label(ctx, 'EMER USE ONLY', cx, b.y + b.h * 0.9, b.h * 0.08, INK);
+      break;
+    case 'slave': { // the heading slave panel (Fig 1-1-3 item 12): a small square button, the DG/SLVD and CW/CCW buttons
+      ctx.fillStyle = '#1b1e22'; roundRect(ctx, b.x, b.y, b.w, b.h, b.h * 0.3); ctx.fill();
+      ctx.fillStyle = '#3c4147'; ctx.fillRect(b.x + b.w * 0.2, b.y + b.h * 0.4, b.w * 0.1, b.h * 0.22);
+      for (const [x, top, bottom] of [[0.48, 'DG', 'SLVD'], [0.7, 'CW', 'CCW']]) {
+        const X = b.x + b.w * x, Y = b.y + b.h * 0.52;
+        ctx.fillStyle = '#c9ced4'; ctx.beginPath(); ctx.arc(X, Y, b.h * 0.22, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#050608'; ctx.beginPath(); ctx.arc(X, Y, b.h * 0.15, 0, Math.PI * 2); ctx.fill();
+        label(ctx, top, X, b.y + b.h * 0.17, b.h * 0.13, INK);
+        label(ctx, bottom, X, b.y + b.h * 0.88, b.h * 0.13, INK);
+      }
+      break;
+    }
+    case 'turn': { // the turn coordinator (Fig 1-1-3 item 16): the little aeroplane wings level, L and R marks, the ball
+      bezel(ctx, cx, cy, rr);
+      ctx.fillStyle = FACE; ctx.beginPath(); ctx.arc(cx, cy, rr * 0.94, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = INK; ctx.lineWidth = Math.max(1.5, rr * 0.05);
+      for (const a of [-20, 20, 160, 200]) { // the standard-rate marks either side of wings level
+        const t = rad(a);
+        ctx.beginPath(); ctx.moveTo(cx + Math.cos(t) * rr * 0.72, cy + Math.sin(t) * rr * 0.72); ctx.lineTo(cx + Math.cos(t) * rr * 0.88, cy + Math.sin(t) * rr * 0.88); ctx.stroke();
+      }
+      ctx.beginPath(); ctx.moveTo(cx - rr * 0.62, cy); ctx.lineTo(cx + rr * 0.62, cy); ctx.stroke(); // the aeroplane's wings
+      ctx.beginPath(); ctx.arc(cx, cy, rr * 0.1, 0, Math.PI * 2); ctx.fillStyle = INK; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(cx, cy - rr * 0.1); ctx.lineTo(cx, cy - rr * 0.24); ctx.stroke();
+      label(ctx, 'L', cx - rr * 0.68, cy + rr * 0.24, rr * 0.18, INK);
+      label(ctx, 'R', cx + rr * 0.68, cy + rr * 0.24, rr * 0.18, INK);
+      ctx.fillStyle = '#d7dadd'; roundRect(ctx, cx - rr * 0.4, cy + rr * 0.42, rr * 0.8, rr * 0.18, rr * 0.09); ctx.fill(); // the ball's tube
+      ctx.fillStyle = BLACK; ctx.beginPath(); ctx.arc(cx, cy + rr * 0.51, rr * 0.08, 0, Math.PI * 2); ctx.fill();
+      label(ctx, 'DC', cx, cy + rr * 0.76, rr * 0.13, DIM);
+      break;
+    }
+    case 'placard': // a placard: a light plate with lines of small lettering (drawn as bars; no words copied)
+      ctx.fillStyle = '#d9dcdf'; ctx.fillRect(b.x, b.y, b.w, b.h);
+      ctx.fillStyle = '#3b3f44';
+      for (let y = b.y + b.h * 0.12, k = 0; y < b.y + b.h * 0.85; y += Math.max(3, b.w * 0.14), k++) ctx.fillRect(b.x + b.w * 0.1, y, b.w * (k % 3 === 2 ? 0.5 : 0.8), Math.max(1, b.w * 0.05));
       break;
     case 'label':
       ctx.fillStyle = '#16181b'; ctx.fillRect(b.x, b.y, b.w, b.h);
@@ -1083,11 +1147,6 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
     case 'eng': // the engine displays (static: the sim has no engine numbers, so every number is dashes)
       engineDisplay(ctx, screen(ctx, b.x, b.y, b.w, b.h, '#050709'), inst.name);
       break;
-    case 'smallPanel':
-      ctx.fillStyle = '#1b1e22'; ctx.fillRect(b.x, b.y, b.w, b.h);
-      toggle(ctx, b.x + b.w * 0.3, b.y + b.h * 0.55, b.h * 0.14); toggle(ctx, b.x + b.w * 0.7, b.y + b.h * 0.55, b.h * 0.14);
-      ctx.fillStyle = '#c9ced4'; ctx.fillRect(b.x + b.w * 0.15, b.y + b.h * 0.15, b.w * 0.7, b.h * 0.06);
-      break;
     case 'audio': { // the audio control panel (Fig 1-1-3 item 25): its knobs' wells and names (the knobs stand proud in 3D)
       ctx.fillStyle = '#1b1e22'; ctx.fillRect(b.x, b.y, b.w, b.h);
       screws(ctx, b.x, b.y, b.w, b.h, b.h * 0.06, Math.max(1.5, b.h * 0.025));
@@ -1102,18 +1161,15 @@ function drawInstrument(ctx, kind, b, h, inst = {}) {
       }
       break;
     }
-    case 'gearInd':
-      ctx.fillStyle = BEZEL; ctx.fillRect(b.x, b.y, b.w, b.h);
-      ctx.fillStyle = '#050608'; ctx.fillRect(b.x + b.w * 0.1, b.y + b.h * 0.1, b.w * 0.8, b.h * 0.8);
-      for (const [px, py] of [[0.5, 0.3], [0.3, 0.68], [0.7, 0.68]]) { ctx.fillStyle = '#d7dadd'; ctx.fillRect(b.x + b.w * (px - 0.1), b.y + b.h * (py - 0.07), b.w * 0.2, b.h * 0.14); }
-      break;
-    case 'annun': { // 6 across, 4 down, all unlit
-      ctx.fillStyle = BLACK; ctx.fillRect(b.x, b.y, b.w, b.h);
-      const cw = b.w / 6, ch = b.h / 4;
-      for (let i = 0; i < 6; i++) for (let j = 0; j < 4; j++) {
-        ctx.fillStyle = j === 0 ? '#2a1212' : '#262014';
-        ctx.fillRect(b.x + i * cw + 1.5, b.y + j * ch + 1.5, cw - 3, ch - 3);
-      }
+    case 'annun': { // the caution panel (Fig 1-1-3 item 14): five across, six down, each with its name, all unlit
+      ctx.fillStyle = '#1b1e22'; ctx.fillRect(b.x, b.y, b.w, b.h);
+      screws(ctx, b.x, b.y, b.w, b.h, b.h * 0.07, Math.max(1.5, b.h * 0.025));
+      const x0 = b.x + b.w * 0.1, y0 = b.y + b.h * 0.1, cw = (b.w * 0.8) / 5, ch = (b.h * 0.8) / 6;
+      ANNUNCIATORS.forEach((row, j) => row.forEach((name, i) => {
+        const x = x0 + i * cw, y = y0 + j * ch;
+        ctx.fillStyle = '#26221a'; ctx.fillRect(x + cw * 0.06, y + ch * 0.1, cw * 0.88, ch * 0.8);
+        label(ctx, name, x + cw / 2, y + ch / 2, ch * 0.3, '#8f8a74');
+      }));
       break;
     }
     case 'emerGear':
@@ -1213,23 +1269,29 @@ function drawLowerPanel(ctx, width, height) {
 
 /**
  * The power lever (PCL) on the left console, feet, shaped as the T-6A-1 power lever figure draws it (Fig 1-1-11
- * detail A; Patrick, 11 Oct 2026: "you can do better than that on the pcl. Make it accurate"): a D-shaped quadrant
- * over the slot (`a` half its length, `b` tall, `t` thick across) with MAX at its forward end and the friction adjust
- * tab at its aft end (forward cockpit only); the flap selector's smaller D-shaped housing inboard of it, its tab at UP;
- * the lever a flat blade (`stem`, `w` fore and aft, `t` across) up out of the slot, tilting `travelDeg` each way over
- * the slot; on top the grip, flat underneath and round on top, `length` across reaching inboard from `outboard` feet
- * outboard of the slot, `depth` fore and aft, `bottom` above the console; the speed brake switch, ICS key and UHF/VHF
- * key on its inboard end, the rudder trim rocker and ICS key/mute on its forward face; the cutoff finger lift forward
- * from the stem under the grip, rising `riseDeg`, its finger guard turned down. Proportions read off the figure,
- * scaled by the grip's depth (about 2.75 in, an estimate); places on the console from Fig 1-1-5 (CONSOLE_PANELS).
+ * detail A) and placed as the console figure draws it from above (Fig 1-1-5; Patrick, 11 Oct 2026: "you can do better
+ * than that on the pcl. Make it accurate", then "The pcl shape still isn't right either. Make the handle exactly like
+ * the picture"). Across the console (fractions, 0 its outboard edge): the lever's slot at `stem.across`, the quadrant's
+ * hood inboard of it carrying MAX at its forward end and the friction adjust tab at its aft end (forward cockpit only),
+ * a thin cheek outboard of the slot, the flap selector's D-shaped housing inboard with its own slot. `a` is half a
+ * housing's length fore and aft, `b` its height, `t` its thickness across. The lever: a flat plate (`stem`, `w` fore
+ * and aft at the slot, `top` at the grip, `t` across) up out of the slot, tilting `travelDeg` each way; its top is the
+ * grip's outboard end, a round-topped `flange` proud of the grip all round. The grip lies across the console reaching
+ * inboard `length` from the plate, flat underneath, straight-sided and round on top (`depth` fore and aft, `height`),
+ * its underside `bottom` above the console; on its inboard end the speed brake switch at the top in its ring, the ICS
+ * key and the UHF/VHF key on a block below; on its forward face the rudder trim rocker and, near the plate, the ICS
+ * key/mute button. The cutoff finger lift pivots on the plate's inboard face under the grip and reaches forward,
+ * dropping `dropDeg`, its tip turned up `tipDeg` over the finger lift guard's tray. Sizes from the console figure's
+ * width (our console's 0.48 ft) and the detail's proportions; places from the console figure. Estimates.
  */
 const PCL_FT = Object.freeze({
-  quadrant: { a: 0.3, b: 0.3, t: 0.14 },
-  flap: { a: 0.24, b: 0.2, t: 0.05, tabDeg: 62 },
+  quadrant: { a: 0.19, b: 0.17, across: [0.29, 0.63] },
+  cheek: { a: 0.17, b: 0.13, t: 0.02, across: 0.13 },
+  flap: { a: 0.16, b: 0.135, t: 0.085, across: 0.8, tabDeg: 62 },
   travelDeg: 28,
-  stem: { w: 0.14, t: 0.035 },
-  grip: { depth: 0.23, height: 0.26, length: 0.35, outboard: 0.06, bottom: 0.62 },
-  fingerLift: { length: 0.22, width: 0.06, riseDeg: 12 },
+  stem: { across: 0.23, w: 0.12, top: 0.165, t: 0.025 },
+  grip: { depth: 0.14, height: 0.2, length: 0.34, bottom: 0.37, flange: 0.012 },
+  fingerLift: { length: 0.22, width: 0.045, dropDeg: 8, tipDeg: 35 },
 });
 
 /**
@@ -1243,7 +1305,7 @@ const PCL_FT = Object.freeze({
 const CONSOLE_PANELS = Object.freeze({
   left: [[0, 0.056], [0.056, 0.21], [0.21, 0.457], [0.457, 0.506], [0.506, 0.574], [0.574, 0.617], [0.617, 0.858], [0.858, 1]],
   right: [[0.08, 0.29], [0.29, 0.556], [0.556, 0.63], [0.63, 0.716], [0.716, 0.846], [0.846, 1]],
-  pclSlot: { across: [0.32, 0.54], along: [0.605, 0.765], at: 0.72 }, // the lever's slot and where the lever sits in it
+  pclSlot: { across: [0.16, 0.29], along: [0.646, 0.761], at: 0.72 }, // the lever's slot and where the lever sits in it
   flap: { across: 0.75, along: 0.73 },
   canopyFracture: { across: 0.5, along: 0.54 },
   firewall: { across: [0.07, 0.46], along: 0.105 },
@@ -1288,8 +1350,6 @@ function drawConsoles(ctx, width, height) {
   stripes(ctx, XL(0.06), Y(0.57), XL(0.94) - XL(0.06), Y(0.51) - Y(0.57), 6); // canopy fracture
   toggle(ctx, XL(0.8), Y(0.595), tr); // seat adjust
   ctx.fillStyle = '#050608'; ctx.fillRect(XL(P.pclSlot.across[0]), Y(P.pclSlot.along[1]), XL(P.pclSlot.across[1]) - XL(P.pclSlot.across[0]), Y(P.pclSlot.along[0]) - Y(P.pclSlot.along[1]));
-  ctx.fillStyle = '#c9ced4';
-  for (const v of [0.62, 0.69, 0.75]) ctx.fillRect(XL(0.6), Y(v), XL(0.66) - XL(0.6), 2); // the lever's marks
   ctx.fillStyle = '#16181b'; ctx.fillRect(XL(0.84), Y(0.77), XL(0.95) - XL(0.84), Y(0.69) - Y(0.77)); // the flap gate
   for (const v of [0.705, 0.73, 0.755]) { ctx.fillStyle = '#c9ced4'; ctx.fillRect(XL(0.86), Y(v), XL(0.93) - XL(0.86), 2); }
   ctx.fillStyle = '#0a0b0d'; ctx.fillRect(XL(0.25), Y(0.995), XL(0.75) - XL(0.25), Y(0.955) - Y(0.995)); // the trim indicator
@@ -1861,7 +1921,16 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     const gy = 1.09, gz = p.bottom - 0.27; // the handle's place on its panel (Fig 1-1-3 item 27)
     put(box(THREE, p.x - 0.11, p.x, gy - 0.014, gy + 0.014, gz - 0.01, gz + 0.11), SLOT.metal);
     put(new THREE.CylinderGeometry(0.055, 0.055, 0.035, 16).rotateZ(Math.PI / 2).translate(p.x - 0.13, gy, gz + 0.11), SLOT.knob);
+  }  // The thumbwheel in its housing at the main face's right edge (Fig 1-1-3 item 9) and the G meter's push-to-set knob
+  // at its lower right (item 33), as the panel figure draws them.
+  {
+    const y = yOf(0.972), z = zOf(0.43);
+    put(box(THREE, p.x - 0.045, p.x, y - 0.028, y + 0.028, z - 0.08, z + 0.08), SLOT.dark);
+    put(new THREE.CylinderGeometry(0.04, 0.04, 0.03, 18).translate(p.x - 0.045, y, z), SLOT.black);
+    const g = PANEL_INSTRUMENTS.find((i) => i.kind === 'g'), gd = g.d * faceW;
+    put(new THREE.CylinderGeometry(0.013, 0.013, 0.025, 10).rotateZ(Math.PI / 2).translate(p.x - 0.013, yOf(g.u) - gd * 0.42, zOf(g.v) - gd * 0.42), SLOT.knob);
   }
+
 
   // The seat (Dad's pictures 26, 27, 29): a dark bucket, light grey cushion with a front roll and thigh bolsters, a
   // light grey back cushion in front of the model's seat back, the dark headbox with the canopy breakers on top,
@@ -1921,67 +1990,99 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   const LY = (f) => lerp(c.outer, c.inner, f); // across the left console, 0 outboard
   const RY = (f) => -lerp(c.inner, c.outer, f); // across the right console, 0 inboard
   {
-    const Q = PCL_FT;
-    const xs = P.pclSlot.along.map(L), qx = (xs[0] + xs[1]) / 2, qy = LY((P.pclSlot.across[0] + P.pclSlot.across[1]) / 2);
+    const Q = PCL_FT, G = Q.grip, S2 = Q.stem;
+    const xs = P.pclSlot.along.map(L), qx = (xs[0] + xs[1]) / 2;
+    const sy = LY(S2.across), hy = LY((Q.quadrant.across[0] + Q.quadrant.across[1]) / 2), ht = (Q.quadrant.across[1] - Q.quadrant.across[0]) * (c.outer - c.inner);
     // A D-shaped housing (flat on the console, round on top) `a` long and `b` tall, `t` thick across, its middle at y.
     const dHousing = (a, b, t) => {
       const shape = new THREE.Shape();
       shape.moveTo(-a, 0);
       shape.absellipse(0, 0, a, b, Math.PI, 0, true);
       shape.lineTo(-a, 0);
-      return new THREE.ExtrudeGeometry(shape, { depth: t, bevelEnabled: false, curveSegments: 20 }).rotateX(Math.PI / 2).translate(0, t / 2, 0);
+      const bev = Math.min(0.008, t / 4);
+      return new THREE.ExtrudeGeometry(shape, { depth: t - 2 * bev, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: 2, curveSegments: 24 })
+        .rotateX(Math.PI / 2).translate(0, t / 2 - bev, 0);
     };
-    const screw = (x, y, z) => put(new THREE.CylinderGeometry(0.012, 0.012, 0.008, 8).translate(x, y, z), SLOT.metal); // axis across
-    // The quadrant over the slot, the slot a dark strip along its top, MAX's mark and the gate at its forward end.
-    put(dHousing(Q.quadrant.a, Q.quadrant.b, Q.quadrant.t).translate(qx, qy, c.top), SLOT.dark);
-    put(dHousing(Q.quadrant.a - 0.02, Q.quadrant.b + 0.003, 0.03).translate(qx, qy, c.top), SLOT.black);
-    const iq = qy - Q.quadrant.t / 2 - 0.004; // its inboard face
-    for (const [u, v] of [[-0.6, 0.35], [0.6, 0.35], [0, 0.2]]) screw(qx + u * Q.quadrant.a, iq, c.top + v * Q.quadrant.b);
-    put(box(THREE, qx + Q.quadrant.a * 0.62, qx + Q.quadrant.a * 0.78, iq - 0.002, iq, c.top + Q.quadrant.b * 0.5, c.top + Q.quadrant.b * 0.58), SLOT.knob); // MAX's mark
-    put(box(THREE, qx + Q.quadrant.a * 0.86, qx + Q.quadrant.a + 0.015, qy - 0.03, qy + 0.03, c.top, c.top + Q.quadrant.b * 0.3), SLOT.dark); // the gate
-    if (front) { // the friction adjust tab at the quadrant's aft end (forward cockpit only)
-      put(box(THREE, -0.012, 0.012, -0.03, 0.03, 0, 0.07).rotateY(rad(-30)).translate(qx - Q.quadrant.a * 0.75, qy - Q.quadrant.t / 2 - 0.02, c.top + Q.quadrant.b * 0.6), SLOT.knob);
+    const screw = (x, y, z) => put(new THREE.CylinderGeometry(0.011, 0.011, 0.008, 8).translate(x, y, z), SLOT.metal); // axis across
+    // The quadrant's hood inboard of the slot: MAX's mark on its forward slope, a screw beside it; the friction tab aft.
+    const A = Q.quadrant.a, B = Q.quadrant.b;
+    put(dHousing(A, B, ht).translate(qx, hy, c.top), SLOT.dark);
+    const iq = hy - ht / 2 - 0.004; // its inboard face
+    screw(qx + A * 0.72, iq, c.top + B * 0.42);
+    {
+      const t = rad(40), mx = qx + A * Math.cos(t), mz = c.top + B * Math.sin(t);
+      put(box(THREE, -0.004, 0.004, -0.035, 0.035, -0.012, 0.012).rotateY(-t).translate(mx, hy + 0.01, mz), SLOT.knob); // MAX
     }
-    // The flap selector's housing inboard of the quadrant, its tab standing out of the arc at UP.
-    const fy = LY(P.flap.across);
+    if (front) { // the friction adjust tab standing up off the hood's aft end, by the slot (forward cockpit only)
+      put(box(THREE, -0.006, 0.006, -0.03, 0.03, 0, 0.065).rotateY(rad(-20)).translate(qx - A * 0.62, hy + ht / 2 - 0.035, c.top + B * 0.78), SLOT.knob);
+    }
+    // The thin cheek outboard of the slot, and the slot itself, dark, between them.
+    put(dHousing(Q.cheek.a, Q.cheek.b, Q.cheek.t).translate(qx, LY(Q.cheek.across), c.top), SLOT.dark);
+    put(box(THREE, qx - A * 0.9, qx + A * 0.9, hy + ht / 2, LY(Q.cheek.across) - Q.cheek.t / 2, c.top, c.top + 0.012), SLOT.black);
+    // The flap selector's housing inboard: three screws on its inboard face, its slot over the top, its tab at UP.
+    const fy = LY(Q.flap.across);
     put(dHousing(Q.flap.a, Q.flap.b, Q.flap.t).translate(qx, fy, c.top), SLOT.dark);
-    for (const [u, v] of [[-0.65, 0.3], [0.65, 0.3], [0, 0.75]]) screw(qx + u * Q.flap.a, fy - Q.flap.t / 2 - 0.004, c.top + v * Q.flap.b);
+    put(dHousing(Q.flap.a * 0.55, Q.flap.b + 0.003, 0.03).translate(qx - Q.flap.a * 0.1, fy, c.top), SLOT.black);
+    for (const [u, v] of [[-0.68, 0.18], [0.68, 0.18], [0.8, 0.45]]) screw(qx + u * Q.flap.a, fy - Q.flap.t / 2 - 0.004, c.top + v * Q.flap.b);
     {
       const t = rad(Q.flap.tabDeg), tx = qx + Q.flap.a * Math.cos(t), tz = c.top + Q.flap.b * Math.sin(t);
-      put(box(THREE, -0.02, 0.02, -0.012, 0.012, 0, 0.06).rotateY(Math.PI / 2 - t).translate(tx, fy, tz), SLOT.knob);
+      put(box(THREE, -0.018, 0.018, -0.01, 0.01, 0, 0.05).rotateY(Math.PI / 2 - t).translate(tx, fy, tz), SLOT.knob);
     }
-    // The lever, pivoted at the quadrant's middle and leaning forward with where it sits in its slot (MAX forward).
+    // The lever, pivoted at the slot's middle and leaning forward with where it sits in its slot (MAX forward). Its
+    // parts below are in the lever's own frame: x forward, y across (0 the plate's middle, inboard negative), z up.
     const f = (L(P.pclSlot.at) - xs[0]) / (xs[1] - xs[0]), lean = rad(lerp(-Q.travelDeg, Q.travelDeg, f));
-    const lever = (g) => g.rotateY(lean).translate(qx, qy, c.top);
-    const G = Q.grip, g0 = G.bottom, yo = G.outboard, yi = yo - G.length; // the grip's bottom, its outboard and inboard ends
-    // The stem: a flat blade fore and aft, up out of the slot to under the grip's outboard part.
-    put(lever(box(THREE, -Q.stem.w / 2, Q.stem.w / 2, -Q.stem.t / 2, Q.stem.t / 2, Q.quadrant.b - 0.03, g0 + 0.02)), SLOT.dark);
-    // The grip: flat underneath, round on top, its length across, reaching inboard from the stem.
+    const lever = (g) => g.rotateY(lean).translate(qx, sy, c.top);
+    const g0 = G.bottom, hw = G.depth / 2, r = hw, yo = -S2.t / 2, yi = yo - G.length; // the grip's outboard and inboard ends
+    // The grip's section: flat underneath with rounded corners, straight sides, round on top; grown by `grow` all round.
+    const gripShape = (grow) => {
+      const s = new THREE.Shape(), w = hw + grow, k = 0.02, top = G.height - r;
+      s.moveTo(-w + k, -grow); s.lineTo(w - k, -grow); s.quadraticCurveTo(w, -grow, w, -grow + k);
+      s.lineTo(w, top); s.absarc(0, top, w, 0, Math.PI, false);
+      s.lineTo(-w, -grow + k); s.quadraticCurveTo(-w, -grow, -w + k, -grow);
+      return s;
+    };
+    // The plate: up out of the slot, widening to the grip's outboard end, its top the flange round the grip.
     {
-      const shape = new THREE.Shape(), hw = G.depth / 2, flat = G.height - hw;
-      shape.moveTo(-hw, 0); shape.lineTo(hw, 0); shape.lineTo(hw, flat);
-      shape.absarc(0, flat, hw, 0, Math.PI, false);
-      shape.lineTo(-hw, 0);
-      const bev = 0.012;
-      const grip = new THREE.ExtrudeGeometry(shape, { depth: G.length - 2 * bev, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: 2, curveSegments: 16 });
+      const s = new THREE.Shape(), w0 = S2.w / 2, w1 = hw + G.flange, z0 = B - 0.04, z1 = g0 + G.height - r;
+      s.moveTo(-w0, z0); s.lineTo(w0, z0); s.lineTo(w1, g0 - G.flange); s.lineTo(w1, z1);
+      s.absarc(0, z1, w1, 0, Math.PI, false); s.lineTo(-w1, g0 - G.flange); s.lineTo(-w0, z0);
+      put(lever(new THREE.ExtrudeGeometry(s, { depth: S2.t, bevelEnabled: false, curveSegments: 20 }).rotateX(Math.PI / 2).translate(0, S2.t / 2, 0)), SLOT.dark);
+    }
+    // The grip, from the plate inboard, its edges rounded.
+    {
+      const bev = 0.01;
+      const grip = new THREE.ExtrudeGeometry(gripShape(-bev), { depth: G.length - 2 * bev, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: 3, curveSegments: 20 });
       put(lever(grip.rotateX(Math.PI / 2).translate(0, yo - bev, g0)), SLOT.black);
     }
-    // On its inboard end: the speed brake switch at the top, the ICS key and the UHF/VHF key below it.
-    put(lever(box(THREE, -0.035, 0.035, yi - 0.016, yi + 0.002, g0 + G.height - 0.085, g0 + G.height - 0.045)), SLOT.knob);
-    put(lever(new THREE.CylinderGeometry(0.016, 0.016, 0.02, 10).translate(-0.045, yi - 0.008, g0 + 0.09)), SLOT.knob);
-    put(lever(box(THREE, 0.01, 0.06, yi - 0.016, yi + 0.002, g0 + 0.06, g0 + 0.11)), SLOT.knob);
-    // On its forward face: the rudder trim rocker and the ICS key/mute button.
-    const xf = G.depth / 2;
-    put(lever(box(THREE, xf - 0.002, xf + 0.018, yi + 0.1, yi + 0.14, g0 + 0.07, g0 + 0.13)), SLOT.knob);
-    put(lever(new THREE.CylinderGeometry(0.014, 0.014, 0.02, 10).rotateZ(Math.PI / 2).translate(xf + 0.008, yi + 0.2, g0 + 0.15)), SLOT.knob);
-    // The cutoff finger lift: an arm forward from the stem's inboard side under the grip, its finger guard turned down.
-    const fz = lerp(Q.quadrant.b, g0, 0.45), fl = Q.fingerLift;
-    const y0 = -Q.stem.t / 2 - fl.width, y1 = -Q.stem.t / 2;
-    put(lever(box(THREE, 0, fl.length, y0, y1, -0.01, 0.01).rotateY(rad(-fl.riseDeg)).translate(Q.stem.w / 2 - 0.03, 0, fz)), SLOT.metal);
+    // On its inboard end: the speed brake switch in its ring at the top; a block below with the ICS key (aft) and the
+    // UHF/VHF key (forward).
+    const zc = g0 + G.height - r;
+    put(lever(new THREE.ExtrudeGeometry(gripShape(0.005), { depth: 0.016, bevelEnabled: false, curveSegments: 20 }).rotateX(Math.PI / 2).translate(0, yi + 0.016, g0)), SLOT.dark); // its end cap
+    put(lever(new THREE.CylinderGeometry(0.048, 0.048, 0.012, 20).translate(0, yi - 0.004, zc)), SLOT.black);
     {
-      const ex = Q.stem.w / 2 - 0.03 + fl.length * Math.cos(rad(fl.riseDeg)), ez = fz + fl.length * Math.sin(rad(fl.riseDeg));
-      put(lever(box(THREE, -0.01, 0.01, y0 - 0.01, y1 + 0.01, -0.07, 0.015).rotateY(rad(30)).translate(ex, 0, ez)), SLOT.metal); // the guard
-      put(lever(box(THREE, -0.05, 0.0, y0 - 0.01, y1 + 0.01, -0.01, 0.01).translate(ex - 0.03 * Math.sin(rad(30)) - 0.0, 0, ez - 0.065)), SLOT.metal); // its lip back under the lift
+      const k = new THREE.Shape(), w = 0.026, v = 0.024, q = 0.012;
+      k.moveTo(-w + q, -v); k.lineTo(w - q, -v); k.quadraticCurveTo(w, -v, w, -v + q); k.lineTo(w, v - q); k.quadraticCurveTo(w, v, w - q, v);
+      k.lineTo(-w + q, v); k.quadraticCurveTo(-w, v, -w, v - q); k.lineTo(-w, -v + q); k.quadraticCurveTo(-w, -v, -w + q, -v);
+      put(lever(new THREE.ExtrudeGeometry(k, { depth: 0.016, bevelEnabled: false, curveSegments: 6 }).rotateX(Math.PI / 2).translate(0, yi - 0.004, zc)), SLOT.knob); // the speed brake switch
+    }
+    put(lever(box(THREE, -hw + 0.008, hw - 0.008, yi - 0.012, yi + 0.004, g0 + 0.008, g0 + 0.07)), SLOT.black);
+    put(lever(new THREE.CylinderGeometry(0.014, 0.014, 0.02, 12).translate(-0.032, yi - 0.018, g0 + 0.04)), SLOT.knob);
+    put(lever(box(THREE, 0.016, 0.046, yi - 0.026, yi - 0.01, g0 + 0.024, g0 + 0.056)), SLOT.knob);
+    // On its forward face: the rudder trim rocker inboard, the ICS key/mute button near the plate.
+    put(lever(box(THREE, hw - 0.002, hw + 0.016, yi + 0.09, yi + 0.13, g0 + 0.03, g0 + 0.105)), SLOT.knob);
+    put(lever(new THREE.CylinderGeometry(0.013, 0.013, 0.02, 12).rotateZ(Math.PI / 2).translate(hw + 0.006, yo - 0.06, g0 + 0.115)), SLOT.knob);
+    // The cutoff finger lift: pivoted on the plate's inboard face under the grip, reaching forward and a little down,
+    // its tip turned up over the guard's tray, which hangs off the plate below it.
+    {
+      const fl = Q.fingerLift, pz = g0 - 0.06, y1 = yo - S2.t / 2, y0 = y1 - fl.width, d = rad(fl.dropDeg);
+      put(lever(new THREE.CylinderGeometry(0.014, 0.014, fl.width + 0.01, 10).translate(-0.02, (y0 + y1) / 2, pz)), SLOT.metal); // its pivot
+      put(lever(box(THREE, 0, fl.length, y0, y1, -0.008, 0.008).rotateY(d).translate(-0.02, 0, pz)), SLOT.metal);
+      const ex = -0.02 + fl.length * Math.cos(d), ez = pz - fl.length * Math.sin(d);
+      put(lever(box(THREE, 0, 0.065, y0 - 0.005, y1, -0.008, 0.008).rotateY(-rad(fl.tipDeg)).translate(ex, 0, ez)), SLOT.metal); // the tip
+      const gz = ez - 0.045;
+      put(lever(box(THREE, ex - 0.09, ex + 0.06, y0 - 0.015, y1, gz - 0.006, gz + 0.006)), SLOT.dark); // the guard's tray
+      put(lever(box(THREE, ex + 0.05, ex + 0.062, y0 - 0.015, y1, gz, gz + 0.045)), SLOT.dark); // its front lip
+      put(lever(box(THREE, S2.w / 2 - 0.03, ex - 0.08, y1 - 0.012, y1, gz - 0.006, gz + 0.006)), SLOT.dark); // its arm to the plate
     }
   }
   {
