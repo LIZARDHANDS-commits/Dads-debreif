@@ -314,7 +314,7 @@ for side, name in ((1, 'wing_left'), (-1, 'wing_right')):
     mesh_object(name, rotate_x(v, side * DIHEDRAL), f, M['navy'], sharp_deg=35)
 mesh_object('tailplane', *airfoil(STAB), M['navy'], sharp_deg=35)
 mesh_object('fin', *airfoil(FIN, span='z'), M['ship'], sharp_deg=35)
-# The ventral and dorsal fins: flat plates from the code model's [x, z] outlines (flatXZ).
+# The ventral fin: a flat plate from the code model's [x, z] outline (flatXZ).
 def flat_xz(name, outline, thickness, mat):
     n = len(outline)
     verts = [(x, s * thickness / 2, z) for s in (1, -1) for x, z in outline]
@@ -323,7 +323,22 @@ def flat_xz(name, outline, thickness, mat):
 
 
 flat_xz('ventral_fin', S['VENTRAL'], 0.01, M['navy'])
-flat_xz('dorsal_fin', S['DORSAL'], 0.012, M['navy'])
+
+# The spine behind the canopy into the fin: rounded sections flaring into a fillet at the foot (spineGeometry).
+SPINE = [list(r) for r in S['SPINE']]
+rings = []
+for i in range(25):
+    x = SPINE[0][0] + (SPINE[-1][0] - SPINE[0][0]) * i / 24
+    _, w, top = row_at(SPINE, x)
+    foot = min(w * 1.7, row_at(STATIONS, x)[1] * 0.9)
+    base = sill_z(x, foot) - 0.002
+    ring = []
+    for k in range(17):
+        c = math.cos(math.pi * k / 16)
+        u = math.sin(math.pi * k / 16) ** (2 / 2.4)
+        ring.append((x, sgn(c) * (w * abs(c) ** (2 / 2.4) + (foot - w) * (1 - u) ** 3), base + (top - base) * u))
+    rings.append(ring)
+mesh_object('spine', *loft(rings, closed=False), M['navy'])
 
 # The spinner: an ogive lathe, chrome, on a dark ring.
 SPIN_R = S['CT156_SPINNER_R']
