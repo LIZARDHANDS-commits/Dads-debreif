@@ -120,7 +120,7 @@ export function rideClosure(ph, L, W, aim, pclMaxActive) {
   const rNow = aim.rangeFt ?? Math.hypot(L.xFt - W.xFt, L.yFt - W.yFt);
   const inAnticipation = Boolean(ph.isFw || ph.toFw) && rNow <= FW_BAND.rangeFt[1];
   const lineTargetKias = inAnticipation
-    ? Math.max(L.kias, L.kias + (rNow - 500) * (20 / 500))
+    ? Math.max(L.kias, L.kias + (rNow - 500) * (20 / 500)) // +20 kt per 500 ft beyond 500 ft slows him into the cone (estimate; Patrick 11 Oct 2026 16:26Z, "Agree with chart", unsourced-numbers.md row 7)
     : ph.far && aim.along > ph.far.fromFt
       ? ph.far.kias // the element far down the line (four-rejoin.js ELEMENT.far)
       : (aim.along <= (ph.easeFromFt ?? TURNING_REJOIN.rideEaseFromFt) && (!ph.straight || aim.established)
