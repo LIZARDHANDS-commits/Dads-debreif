@@ -127,9 +127,12 @@ const CANOPY = [
 // (front, rear). ct156-cockpit.js builds the student's view from these, so each number has one copy. The forward bow and
 // the helmets are the T-6A-1 side drawing's (ALL-31): the bow 11.3 ft behind the spinner tip (was 11.6); the front
 // helmet's centre 1.96 ft ahead of the origin and 1.99 ft up, the rear one's 3.4 ft aft and 2.29 ft up (was 1.4 ft
-// ahead, 3.0 ft aft, both 2.27 ft up).
+// ahead, 3.0 ft aft, both 2.27 ft up). The front seat then moved 0.95 ft (11 in) forward to the same drawing's front
+// pilot re-read on a full copy (Patrick, 11 Oct 2026 07:39Z, "whole cockpit 11 in (except the bow)"): his eye about
+// 12.35 ft behind the spinner tip (the first reading's 13.2 ft was off a copy cut short at the tail), so the front
+// helmet's centre is now 2.91 ft ahead of the origin; its height and the rear seat unchanged.
 export const CT156_FRAME_X = Object.freeze([0.196, -0.022, -0.239]);
-export const CT156_SEAT_X = Object.freeze([0.0847, -0.1469]);
+export const CT156_SEAT_X = Object.freeze([0.1257, -0.1469]);
 export const CT156_HELMET_Z = Object.freeze([0.086, 0.0989]);
 /** The spinner's radius at its base less its 0.001-unit tip: 0.67 ft at the base, the T-6A-1 side drawing's (ALL-31; was 0.79 ft). */
 export const CT156_SPINNER_R = 0.0279;
@@ -557,9 +560,9 @@ function fuselageGeometry(THREE, { cut = false } = {}) {
   return meshOf(THREE, pos, kept);
 }
 // The cockpit opening, model units along x: just aft of the rear canopy bow to under the front coaming, ahead of the
-// front panel (estimate, TS-155; its front end moved forward with the front cockpit, ALL-31, and again with the panel,
-// V2.238, so no skin shows in front of the panel).
-const COCKPIT_CUT_X = [-0.242, 0.215];
+// front panel (estimate, TS-155; its front end moved forward with the front cockpit, ALL-31, again with the panel,
+// V2.238, and 0.95 ft with the front cockpit, 11 Oct 2026, so no skin shows in front of the panel).
+const COCKPIT_CUT_X = [-0.242, 0.256];
 const FT = CT156_UNIT_LENGTH / CT156_LENGTH_FT; // model units per foot
 
 /**
@@ -570,13 +573,13 @@ const FT = CT156_UNIT_LENGTH / CT156_LENGTH_FT; // model units per foot
 export const CT156_TUB_FLOOR_FT = -1.2;
 /**
  * The cockpit tub under the canopy (TS-155): a floor CT156_TUB_FLOOR_FT below the spinner's axis from 5.6 ft aft of the
- * model origin to 4.6 ft ahead of it (3.9 ft until the front cockpit moved forward, ALL-31; 4.47 ft until the panel moved
- * forward, V2.238), side walls about 1.3 ft out (kept inside the canopy) up to the sill, and a
+ * model origin to 5.55 ft ahead of it (3.9 ft until the front cockpit moved forward, ALL-31; 4.47 ft until the panel moved
+ * forward, V2.238; 4.6 ft until the front cockpit moved 0.95 ft forward, 11 Oct 2026), side walls about 1.3 ft out (kept inside the canopy) up to the sill, and a
  * bulkhead at each end up to the fuselage's top line. Group 0 the floor, group 1 the walls. All estimates (judged by
  * eye off Dad's reference pictures, 9 Oct 2026).
  */
 function tubGeometry(THREE) {
-  const N = 14, x0 = 4.6 * FT, x1 = -5.6 * FT, floorZ = CT156_TUB_FLOOR_FT * FT;
+  const N = 14, x0 = 5.55 * FT, x1 = -5.6 * FT, floorZ = CT156_TUB_FLOOR_FT * FT;
   const rows = [];
   for (let i = 0; i <= N; i++) {
     const x = x0 + ((x1 - x0) * i) / N;
