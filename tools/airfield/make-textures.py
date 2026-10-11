@@ -1,7 +1,8 @@
 # Pavement textures for Traffic's 3D airfield (TR-136; Patrick, 10 Oct, with photos of the ramp and 29L: "this is what they look like
 # IRL"). Generated, not photographed, so they tile without seams and carry no one's imagery:
-#   concrete.jpg  2048 px = 200 ft: 25 ft slabs (an estimate from the photo's joints), each a slightly different tone, dark sealed
-#                 joints, hairline and tar-sealed cracks in some slabs, fine grain.
+#   cracked.jpg   2048 px = 200 ft: continuous concrete in 25 ft lanes (faint joints along u), irregular transverse cracks and a network of
+#                 hairline and tar-sealed cracks (runways past their threshold zones, 03/21, taxiways, ramp; TR-137).
+#   blocks.jpg    2048 px = 200 ft: square 25 ft slabs with sealed joints, barely varying tone (the threshold zones only).
 #   asphalt.jpg   1024 px = 100 ft: dark aggregate grain with a few sealed cracks (Echo, the ramp's south lane).
 #   rubber.png    2048 x 256 px = 400 ft along by 40 ft across: tyre-rubber streaks for the runway centrelines (alpha only).
 # Usage: python tools/airfield/make-textures.py public/media/traffic-textures
@@ -43,52 +44,69 @@ def crack(start, end, wobble, steps=24):
     return line + side * walk[:, None]
 
 
-# ---- concrete ----
-N, SLABS = 2048, 8
-S = N // SLABS
-base = np.array([196, 191, 177], np.float32)  # RGB, sampled off the photo's older concrete
-img = np.ones((N, N, 3), np.float32) * base
-for i in range(SLABS):
-    for j in range(SLABS):
-        tone = 1 + rng.normal(0, 0.035)
-        warm = rng.normal(0, 0.012)
-        img[j * S:(j + 1) * S, i * S:(i + 1) * S] *= np.array([tone + warm, tone, tone - warm], np.float32)
-img *= (1 + 0.035 * periodic_noise(N, N, 180, 1))[..., None]          # broad mottling
-img *= (1 + 0.020 * periodic_noise(N, N, 12, 2))[..., None]           # fine grain
-img *= (1 + 0.030 * rng.standard_normal((N, N)))[..., None].clip(0.9, 1.1)  # speckle
-# stains: a few soft darker patches
-for _ in range(14):
-    c = rng.uniform(0, N, 2); r = rng.uniform(30, 120)
-    m = np.zeros((N, N), np.float32)
-    for dx in (-N, 0, N):
-        for dy in (-N, 0, N):
-            cv2.circle(m, (int(c[0] + dx), int(c[1] + dy)), int(r), 1, -1, cv2.LINE_AA)
-    m = cv2.GaussianBlur(m, (0, 0), r / 2)
-    img *= (1 - 0.06 * m)[..., None]
+# ---- concrete: two kinds (Patrick, 10 Oct: "the blocks are only at the thresholds ... the rest is just cracked") ----
+N = 2048  # 200 ft
+base = np.array([198, 193, 180], np.float32)  # RGB, sampled off the photo's older concrete
+
+
+def concrete_base(seed, tone_sd):
+    """Concrete grain and mottling, tiling."""
+    im = np.ones((N, N, 3), np.float32) * base
+    im *= (1 + 0.030 * periodic_noise(N, N, 220, seed))[..., None]
+    im *= (1 + 0.016 * periodic_noise(N, N, 14, seed + 1))[..., None]
+    im *= (1 + 0.022 * rng.standard_normal((N, N))).clip(0.92, 1.08)[..., None]
+    return im
+
+
+def crack_network(canvas, count, hair=(150, 145, 134), tar=(118, 113, 103), tar_share=0.3, length=(80, 420)):
+    """Wandering cracks, some branching, mostly hairline and some tar-sealed, drawn wrapping across the tile."""
+    for _ in range(count):
+        p0 = rng.uniform(0, N, 2)
+        ang = rng.uniform(0, np.pi)
+        L = rng.uniform(*length)
+        p1 = p0 + L * np.array([np.cos(ang), np.sin(ang)])
+        pts = crack(p0, p1, rng.uniform(1.5, 4.0), steps=max(8, int(L / 12)))
+        sealed = rng.random() < tar_share
+        wrap_polyline(canvas, pts, tar if sealed else hair, 2 if sealed else 1)
+        if rng.random() < 0.4:  # a branch
+            k = rng.integers(2, len(pts) - 2)
+            b_ang = ang + rng.choice([-1, 1]) * rng.uniform(0.5, 1.2)
+            q1 = pts[k] + rng.uniform(40, 160) * np.array([np.cos(b_ang), np.sin(b_ang)])
+            wrap_polyline(canvas, crack(pts[k], q1, 2.0, 10), tar if sealed else hair, 2 if sealed else 1)
+
+
+# Cracked: continuous pavement in 25 ft lanes along the tile's u (faint longitudinal joints), irregular transverse cracks across
+# them, and a network of hairline and sealed cracks: the runways past their threshold zones, 03/21, the taxiways and the ramp.
+img = concrete_base(11, 0)
+for lane in range(8):  # very slight lane-to-lane tone
+    img[lane * 256:(lane + 1) * 256] *= 1 + rng.normal(0, 0.008)
 canvas = img.clip(0, 255).astype(np.uint8).copy()
-# cracks: in about a third of the slabs, hairline (light grey) or tar-sealed (dark, wider)
-for i in range(SLABS):
-    for j in range(SLABS):
-        if rng.random() > 0.38: continue
-        x0, y0 = i * S, j * S
-        for _ in range(rng.integers(1, 3)):
-            sides = rng.choice(4, 2, replace=False)
-            def on(side):
-                t = rng.uniform(0.15, 0.85) * S
-                return np.array([[x0 + t, y0], [x0 + S, y0 + t], [x0 + t, y0 + S], [x0, y0 + t]][side], float)
-            pts = crack(on(sides[0]), on(sides[1]), 3.0)
-            if rng.random() < 0.5:
-                wrap_polyline(canvas, pts, (70, 66, 60), 4)      # tar-sealed
-            else:
-                wrap_polyline(canvas, pts, (138, 133, 122), 1)   # hairline
-# joints: dark sealant, about 1 in wide (2 px), at every slab edge (x = 0 wraps)
-for k in range(SLABS):
-    p = k * S
-    for q in (p - 1, p, p + 1 if p == 0 else p):
-        q %= N
-        canvas[:, q] = (canvas[:, q] * 0.55).astype(np.uint8)
-        canvas[q, :] = (canvas[q, :] * 0.55).astype(np.uint8)
-cv2.imwrite(os.path.join(out, 'concrete.jpg'), cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 82])
+for lane in range(8):
+    y = lane * 256
+    canvas[y % N, :] = (canvas[y % N, :] * 0.80).astype(np.uint8)       # faint longitudinal joint
+    x = 0
+    while x < N:                                                        # transverse cracks every 15 to 45 ft, lane by lane
+        x += int(rng.uniform(150, 460))
+        if x >= N: break
+        pts = crack(np.array([x, y + 2.0]), np.array([x + rng.normal(0, 25), y + 254.0]), 2.5, 12)
+        wrap_polyline(canvas, pts, (110, 105, 96) if rng.random() < 0.5 else (150, 145, 134), 2 if rng.random() < 0.5 else 1)
+crack_network(canvas, 90)
+cv2.imwrite(os.path.join(out, 'cracked.jpg'), cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 82])
+
+# Blocks: the threshold zones' square 25 ft slabs, joints sealed, tone barely varying (no checkerboard), a few cracks.
+img = concrete_base(21, 0)
+S = N // 8
+for i in range(8):
+    for j in range(8):
+        img[j * S:(j + 1) * S, i * S:(i + 1) * S] *= 1 + rng.normal(0, 0.012)
+canvas = img.clip(0, 255).astype(np.uint8).copy()
+crack_network(canvas, 30, length=(40, 200), tar_share=0.2)
+for k in range(8):
+    q = k * S
+    for r in (q, (q + 1) % N):
+        canvas[:, r] = (canvas[:, r] * 0.62).astype(np.uint8)
+        canvas[r, :] = (canvas[r, :] * 0.62).astype(np.uint8)
+cv2.imwrite(os.path.join(out, 'blocks.jpg'), cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 82])
 
 # ---- asphalt ----
 M = 1024
@@ -116,5 +134,5 @@ alpha = (alpha / alpha.max()).clip(0, 1)
 rgba = np.zeros((Wd, L, 4), np.uint8)
 rgba[..., 3] = (alpha * 255).astype(np.uint8)
 cv2.imwrite(os.path.join(out, 'rubber.png'), rgba)
-for f in ('concrete.jpg', 'asphalt.jpg', 'rubber.png'):
+for f in ('cracked.jpg', 'blocks.jpg', 'asphalt.jpg', 'rubber.png'):
     print(f, os.path.getsize(os.path.join(out, f)) // 1024, 'KB')

@@ -113,7 +113,7 @@ polys = [p for p in (list(geo.geoms) if isinstance(geo, MultiPolygon) else [geo]
 geo = unary_union(polys)
 
 # ---- Areas: material and joint direction (TR-136) ----
-def frame_of(a, b, mat='concrete', tint=1.0, tile=200):
+def frame_of(a, b, mat='cracked', tint=1.0, tile=200):
     a, b = np.array(a, float), np.array(b, float)
     return {'mat': mat, 'ox': round(float(a[0]), 1), 'oy': round(float(a[1]), 1), 'ang': round(math.atan2(b[1] - a[1], b[0] - a[0]), 5), 'tile': tile, 'tint': tint}
 RAMP_EDGE = ((0, 1700), (1560, 1500))
@@ -121,11 +121,26 @@ LANE_NORTH = lambda x: 1772 - 0.118 * x  # the asphalt lane's north edge (photo,
 frames, claims = [], []
 def claim(poly, fr):
     frames.append(fr); claims.append(poly)
-claim(LineString(extended(*R29L, 260)).buffer(85, cap_style='flat'), frame_of(*R29L, tint=0.97))
-claim(LineString(extended(*R29R, 260)).buffer(85, cap_style='flat'), frame_of(*R29R, tint=0.97))
+# Runways: square slabs only in the threshold zones, bar to BLOCKS_FT past it at each end (Patrick, 10 Oct: "the blocks are only at the
+# thresholds of the runway (both sides both runways). the rest is just cracked"; 500 ft is an estimate off his photo of 29L).
+BLOCKS_FT = 500
+BARS = {R29L: (-1, 4), R29R: (-33, 5)}  # each end's threshold bar, ft before the first runway point and past the second (runway-markings.js)
+def along_box(a, b, s0, s1, half):
+    a, b = np.array(a, float), np.array(b, float); u = (b - a) / np.linalg.norm(b - a); n = np.array([-u[1], u[0]])
+    return Polygon([a + u * s0 - n * half, a + u * s1 - n * half, a + u * s1 + n * half, a + u * s0 + n * half])
+for rw in (R29L, R29R):
+    a, b = rw; L = float(np.hypot(b[0] - a[0], b[1] - a[1])); barA, pastB = BARS[rw]
+    claim(along_box(a, b, barA, barA + BLOCKS_FT, 85), frame_of(a, b, mat='blocks'))
+    claim(along_box(a, b, L + pastB - BLOCKS_FT, L + pastB, 85), frame_of(a, b, mat='blocks'))
+    claim(LineString(extended(*rw, 260)).buffer(85, cap_style='flat'), frame_of(*rw, tint=0.98))
 claim(LineString(R03).buffer(56, cap_style='flat'), frame_of(*R03))
+# Echo: fresh asphalt, ending square 30 ft short of the runways' and 03/21's pavement so it meets them cleanly (Patrick: "echo is freshly
+# paved so it does look black, but make it look merged in nicely").
 eA, eB = line_x(e0, e1, *R29R), line_x(e0, e1, *R29L)
-claim(LineString([eA, eB]).buffer(26, cap_style='flat'), frame_of(eA, eB, mat='asphalt', tile=100))
+keep_out = unary_union([LineString(extended(*R29L, 260)).buffer(85 + 30), LineString(extended(*R29R, 260)).buffer(85 + 30), LineString(R03).buffer(56 + 30)])
+echo_line = LineString([eA, eB]).difference(keep_out)
+echo_line = max(list(echo_line.geoms), key=lambda g: g.length) if hasattr(echo_line, 'geoms') else echo_line
+claim(echo_line.buffer(26, cap_style='flat'), frame_of(*echo_line.coords[:2], mat='asphalt', tile=100, tint=0.85))
 lane = Polygon([(-20, LANE_NORTH(-20)), (1700, LANE_NORTH(1700)), (1700, 1400), (-20, 1400)]).intersection(ramp_zone)
 claim(lane, frame_of(*RAMP_EDGE, mat='asphalt', tile=100))
 claim(box(390, 1500, 980, 2030).difference(lane), frame_of(*RAMP_EDGE, tint=1.07))  # the newer, lighter slabs

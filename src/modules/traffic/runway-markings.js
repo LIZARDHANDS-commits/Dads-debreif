@@ -101,14 +101,14 @@ function frame(a, b, shiftAtA = 0) {
 
 /** Drawing helpers that push onto `shapes`. */
 function pens(shapes) {
-  const quad = (color, place, s0, s1, n0, n1) => shapes.push({ color, pts: [place(s0, n0), place(s1, n0), place(s1, n1), place(s0, n1)] });
+  const quad = (color, place, s0, s1, n0, n1) => shapes.push({ color, w: Math.min(Math.abs(s1 - s0), Math.abs(n1 - n0)), pts: [place(s0, n0), place(s1, n0), place(s1, n1), place(s0, n1)] });
   /** A straight stroke of width w from (s0, n0) to (s1, n1), as a quadrilateral with square ends. */
   const stroke = (color, place, s0, n0, s1, n1, w) => {
     const l = Math.hypot(s1 - s0, n1 - n0) || 1;
     const ts = (s1 - s0) / l, tn = (n1 - n0) / l, h = w / 2;
     const ps = -tn * h, pn = ts * h; // side
     const es = ts * h, en = tn * h; // square end
-    shapes.push({ color, pts: [place(s0 - es + ps, n0 - en + pn), place(s1 + es + ps, n1 + en + pn), place(s1 + es - ps, n1 + en - pn), place(s0 - es - ps, n0 - en - pn)] });
+    shapes.push({ color, w, pts: [place(s0 - es + ps, n0 - en + pn), place(s1 + es + ps, n1 + en + pn), place(s1 + es - ps, n1 + en - pn), place(s0 - es - ps, n0 - en - pn)] });
   };
   /** A white rectangle with a black outline OUTLINE_FT wide drawn under it. */
   const outlinedQuad = (place, s0, s1, n0, n1) => {
@@ -362,7 +362,13 @@ const PAINT = Object.freeze({ black: '#141414', white: '#f2f2ee', yellow: '#e9c3
 const ORDER = Object.freeze({ pavement: -0.62, rubber: -0.58, black: -0.55, white: -0.5, yellow: -0.5 });
 
 /** The pavement textures (tools/airfield/make-textures.py, TR-136), each tiling over its frame's `tile` ft. */
-const TEXTURES = Object.freeze({ concrete: 'media/traffic-textures/concrete.jpg', asphalt: 'media/traffic-textures/asphalt.jpg' });
+const TEXTURES = Object.freeze({
+  cracked: 'media/traffic-textures/cracked.jpg', // continuous concrete, cracked (TR-137)
+  blocks: 'media/traffic-textures/blocks.jpg', // square slabs: the runways' threshold zones only
+  asphalt: 'media/traffic-textures/asphalt.jpg',
+});
+/** Each texture's colour before it loads. */
+const FLAT = Object.freeze({ cracked: '#c4bfb1', blocks: '#c4bfb1', asphalt: '#545456' });
 /** Tyre rubber down each runway's centreline from 300 to 3,000 ft past each threshold, 40 ft wide (estimates, from the photo of 29L). */
 const RUBBER = Object.freeze({ from: 300, to: 3000, width: 40, tileAlong: 400, file: 'media/traffic-textures/rubber.png' });
 
@@ -386,7 +392,7 @@ function loadTexture(THREE, file, material, onLoad) {
  * line, tinted by the frame; one mesh per material. Until a texture loads the area shows a flat colour close to it.
  */
 function surfaceMeshes(THREE) {
-  const byMat = { concrete: { pos: [], uv: [], col: [] }, asphalt: { pos: [], uv: [], col: [] } };
+  const byMat = Object.fromEntries(Object.keys(TEXTURES).map((k) => [k, { pos: [], uv: [], col: [] }]));
   for (const { f, outer, holes } of AIRFIELD_SURFACE) {
     const F = SURFACE_FRAMES[f];
     const out = byMat[F.mat];
@@ -413,7 +419,7 @@ function surfaceMeshes(THREE) {
     geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     // Marked see-through (fully opaque) so it sorts with the see-through photos and draws after them.
-    const material = new THREE.MeshBasicMaterial({ color: mat === 'concrete' ? '#c4bfb1' : '#545456', vertexColors: true, transparent: true, side: THREE.DoubleSide, depthWrite: false, fog: false });
+    const material = new THREE.MeshBasicMaterial({ color: FLAT[mat], vertexColors: true, transparent: true, side: THREE.DoubleSide, depthWrite: false, fog: false });
     loadTexture(THREE, TEXTURES[mat], material, (m) => m.color.set('#ffffff'));
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = `airfield-${mat}`;
@@ -452,6 +458,24 @@ function rubberMesh(THREE) {
 }
 
 /**
+ * Fades a paint stripe as it gets thinner than about 1.5 pixels on screen, so thin lines (the edge stripes, the outlines, the
+ * centreline, the taxi lines) blend into the pavement far off instead of flickering (Patrick, 10 Oct: "from far back the pixelated
+ * lines along the sides of the runway are rather distracting"; TR-137). Each stripe carries its narrow width (stripeW, ft); the
+ * screen size of a foot comes from how fast the ground position changes from pixel to pixel.
+ */
+function fadeWhenThin(material) {
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float stripeW;\nvarying float vStripeW;\nvarying vec2 vGroundXY;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvStripeW = stripeW;\nvGroundXY = (modelMatrix * vec4(transformed, 1.0)).xy;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vStripeW;\nvarying vec2 vGroundXY;')
+      .replace('#include <opaque_fragment>', '#include <opaque_fragment>\nfloat ftPerPx = max(length(fwidth(vGroundXY)), 1e-4);\ngl_FragColor.a *= clamp(vStripeW / ftPerPx / 1.5, 0.15, 1.0);');
+  };
+  material.customProgramCacheKey = () => 'paint-fade-when-thin';
+}
+
+/**
  * The airfield as a three.js group at height 0 (the 3D view lifts it to just over the photo): the textured pavement, the tyre rubber,
  * and the paint (black outlines, white, yellow). It draws after the ground photos and before everything else.
  */
@@ -464,18 +488,22 @@ export function createRunwayMarkings(THREE) {
   for (const color of Object.keys(PAINT)) {
     const mine = shapes.filter((s) => s.color === color);
     const pos = new Float32Array(mine.length * 6 * 3);
-    let i = 0;
-    for (const { pts } of mine) {
+    const widths = new Float32Array(mine.length * 6);
+    let i = 0, j = 0;
+    for (const { pts, w } of mine) {
       for (const k of [0, 1, 2, 0, 2, 3]) {
         pos[i++] = pts[k].x;
         pos[i++] = pts[k].y;
         pos[i++] = 0;
+        widths[j++] = w ?? 10;
       }
     }
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geometry.setAttribute('stripeW', new THREE.BufferAttribute(widths, 1));
     // Marked see-through (fully opaque) so it sorts with the see-through photos and draws after them.
     const material = new THREE.MeshBasicMaterial({ color: PAINT[color], transparent: true, side: THREE.DoubleSide, depthWrite: false, fog: false });
+    fadeWhenThin(material);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.renderOrder = ORDER[color];
     group.add(mesh);
