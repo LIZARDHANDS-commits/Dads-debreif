@@ -689,6 +689,13 @@
   text-align: right;
 }
 
+/* Altitude check (DB-28): the ship's check line under its Altitude menu */
+[data-module='debrief'] .puck-alt-check {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
 [data-module='debrief'] .puck-ship {
   flex: 1 1 auto;
   min-width: 0;
