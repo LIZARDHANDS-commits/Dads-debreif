@@ -44,7 +44,7 @@ const rad = (d) => (d * Math.PI) / 180;
 // Redrawn (Patrick, 6 Oct: "make the model better ... make it look more like the side profile of a Harvard", with his
 // photos of the navy CT-156). The side profile is measured off Patrick's side-on photo of CT-156 156101, scaled so
 // nose to tail is the T-6A's 33 ft 4 in (1.44 units; the photo's fin top then sits 10.6 ft above the wheels, against
-// the published 10.7 ft). Widths seen from above are estimates. x is along the nose, z up from the spinner's axis.
+// the published 10.7 ft). x is along the nose, z up from the spinner's axis.
 
 // Fuselage stations, nose to tail: [x, half-width, top, bottom, squareness]. The top line runs almost flat from the
 // spinner back to the fin. Squareness 2 is an ellipse, higher is boxier (flat sides at the cockpit). The nose's top
@@ -52,22 +52,27 @@ const rad = (d) => (d * Math.PI) / 180;
 // the tip, 1.1 ft at 5 ft, 1.45 ft at the windscreen's foot (was 0.65 to 1.0 ft off the photo), so from the front seat
 // the spinner hides under the cowl. The belly line is the same drawing's (Patrick, 11 Oct 2026: "analyze the pictures
 // ... and IMPROVE IT"): 2.9 ft under the axis at the wing, rising to 1.7 ft at the tail (the photo's was about 1 ft
-// deeper all along, the far wing and the low camera adding to it).
+// deeper all along, the far wing and the low camera adding to it). The half-widths are the T-6A-1 top view's (Figure
+// 1-1-2, scaled by its 33 ft 5 in span): 3 ft 2.6 in across from the windscreen to the rear bow, tapering straight from
+// the spinner's backplate to the cowl and from the rear bow to the tail (the front view, scaled by its 97 in prop, gives
+// 3 ft 2.2 in; was 3 ft 8.4 in, an estimate). Across the canopy the squareness is set so the canopy's sill stays within
+// a quarter inch of where it was (flat sides, as the front view draws them).
 const STATIONS = [
   [0.578, 0.034, 0.0363, -0.04, 2.2],
-  [0.55, 0.048, 0.0387, -0.07, 2.3],
-  [0.518, 0.058, 0.0414, -0.083, 2.4],
-  [0.437, 0.068, 0.048, -0.095, 2.5],
-  [0.329, 0.075, 0.0563, -0.107, 2.6],
-  [0.268, 0.078, 0.0626, -0.112, 2.7],
-  [0.167, 0.08, 0.043, -0.12, 2.7],
-  [-0.009, 0.08, 0.04, -0.128, 2.7],
-  [-0.158, 0.077, 0.034, -0.127, 2.7],
-  [-0.32, 0.066, 0.026, -0.119, 2.6],
-  [-0.482, 0.05, 0.018, -0.112, 2.5],
-  [-0.59, 0.038, 0.0, -0.094, 2.4],
-  [-0.685, 0.026, -0.016, -0.085, 2.3],
-  [-0.75, 0.014, -0.025, -0.078, 2.2],
+  [0.55, 0.0387, 0.0387, -0.07, 2.3],
+  [0.518, 0.0451, 0.0414, -0.083, 2.4],
+  [0.437, 0.06, 0.048, -0.095, 2.5],
+  [0.329, 0.0677, 0.0563, -0.107, 2.6],
+  [0.268, 0.0695, 0.0626, -0.112, 2.89],
+  [0.167, 0.0695, 0.043, -0.12, 3.49],
+  [-0.009, 0.0694, 0.04, -0.128, 3.77],
+  [-0.158, 0.0694, 0.034, -0.127, 3.38],
+  [-0.215, 0.0694, 0.0312, -0.1242, 2.97],
+  [-0.32, 0.0598, 0.026, -0.119, 3.0],
+  [-0.482, 0.0433, 0.018, -0.112, 2.69],
+  [-0.59, 0.0329, 0.0, -0.094, 2.4],
+  [-0.685, 0.0224, -0.016, -0.085, 2.3],
+  [-0.75, 0.0103, -0.025, -0.078, 2.2],
   [-0.78, 0.004, -0.045, -0.075, 2.0],
 ];
 // The top line aft of the fairing, into the tail, is the T-6A-1 side drawing's (Patrick, 11 Oct 2026: "the fuselage
