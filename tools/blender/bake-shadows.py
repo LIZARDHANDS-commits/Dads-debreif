@@ -1,7 +1,7 @@
 # Bakes the buildings' shadows onto the ground for Traffic's 3D view (TR-133; Patrick, 10 Oct: "I wanna start with shadows").
 # Run headless: blender -b -P tools/blender/bake-shadows.py -- buildings.obj out.png [samples]
-# buildings.obj comes from tools/blender/export-buildings.mjs (feet from the ARP, z up). The sun is the 3D view's own (TR-34): from
-# 225 degrees true, 45 degrees up, its edge softened to 1.5 degrees (an estimate; the real sun is 0.5). Two bakes onto a flat ground
+# buildings.obj comes from tools/blender/export-buildings.mjs (feet from the ARP, z up). The sun is the 3D view's own (view3d.js SUN_AZIMUTH_DEG and
+# SUN_ELEVATION_DEG; TR-134): from 225 degrees true, 30 degrees up, its edge softened to 1.5 degrees (an estimate; the real sun is 0.5). Two bakes onto a flat ground
 # sheet over the base: direct sunlight (the cast shadows) and ambient occlusion within 30 ft (the darkening where a wall meets the
 # ground). Written as one grey picture of darkness (black = untouched ground, white = darkest), 2 ft a pixel, with its corners in
 # the file name's .json beside it.
@@ -14,7 +14,7 @@ obj_path, out_png = argv[0], argv[1]
 samples = int(argv[2]) if len(argv) > 2 else 32
 AREA = dict(x0=-1200.0, x1=2900.0, y0=1300.0, y1=5100.0)  # the flight line and the base, ft from the ARP
 FT_PER_PX = 2.0
-SUN_AZ, SUN_EL, SUN_SOFT_DEG = 225.0, 45.0, 1.5
+SUN_AZ, SUN_EL, SUN_SOFT_DEG = 225.0, 30.0, 1.5
 AO_DISTANCE_FT = 30.0
 
 bpy.ops.wm.read_factory_settings(use_empty=True)

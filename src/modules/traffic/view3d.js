@@ -88,8 +88,12 @@ export const FLAT_GROUND_BOXES = Object.freeze([
   Object.freeze({ minX: TIGHT_CENTER_FT.x - TIGHT_SPAN_FT / 2, maxX: TIGHT_CENTER_FT.x + TIGHT_SPAN_FT / 2, minY: TIGHT_CENTER_FT.y - TIGHT_SPAN_FT / 2, maxY: TIGHT_CENTER_FT.y + TIGHT_SPAN_FT / 2 }),
   BASE_BOX_FT,
 ]);
-/** Towards the sun for the ground's slope shading: TR-34's sun, from 225 degrees true and 45 degrees up (x east, y north, z up). */
-const SUN_FROM = Object.freeze({ x: -0.5, y: -0.5, z: Math.SQRT1_2 });
+/** Towards the sun for the ground's slope shading: the scene's sun (SUN_AZIMUTH_DEG, SUN_ELEVATION_DEG below), x east, y north, z up. */
+const SUN_FROM = Object.freeze({
+  x: Math.sin((225 * Math.PI) / 180) * Math.cos(Math.PI / 6),
+  y: Math.cos((225 * Math.PI) / 180) * Math.cos(Math.PI / 6),
+  z: Math.sin(Math.PI / 6),
+}); // 225 degrees, 30 up: must match SUN_AZIMUTH_DEG and SUN_ELEVATION_DEG
 
 /** Camera limits. pitch is degrees from straight down (0 looks down, 90 is level); zoom is pixels to 1,000 ft. */
 export const CAMERA_LIMITS = Object.freeze({ pitch: [0, 85], zoom: [0.3, 4000] });
@@ -1405,9 +1409,12 @@ function paintBaseAirfield(ctx) {
   ctx.restore();
 }
 
-/** Sun direction for the Traffic scene: a fixed mid-afternoon summer sun from the south-west, 45° above the horizon. */
+/**
+ * Sun direction for the Traffic scene: a fixed late-afternoon sun from the south-west, 30° above the horizon, so shadows run about
+ * 1.7 times as long as the buildings are tall (Patrick, 10 Oct: card "Lower sun"; was 45°, TR-34; TR-134).
+ */
 export const SUN_AZIMUTH_DEG = 225;
-export const SUN_ELEVATION_DEG = 45;
+export const SUN_ELEVATION_DEG = 30;
 
 /**
  * Traffic's lighting: one warm DirectionalLight (sun) and one HemisphereLight (sky blue above, prairie brown below).
