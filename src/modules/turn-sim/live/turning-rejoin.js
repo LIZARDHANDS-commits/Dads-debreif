@@ -200,7 +200,7 @@ function pointingPhases(altFt, depthFt) {
  * Lead's bearing off #2's nose, from where the reversal left it onto frozenBearingDeg over frozenSettleFt, then frozen there;
  * pitch holds him lineElevDeg above #2's horizon (the line's depth law, slopedAlt); power holds frozenKias to the decision point. It ends where #2 is out at route's lateral spacing (decisionFt down the 35° line).
  */
-function frozenPhase(altFt, s, decisionFt, bankCapDeg, trail = false) {
+function frozenPhase(altFt, s, decisionFt, bankCapDeg, trail = false, toFw = false) {
   const TR = TURNING_REJOIN;
   const routeOutFt = decisionFt * Math.cos(TR.lineDeg * DEG);
   // Lead's bearing off #2's nose, positive to the left, and how fast it moves (rad, rad/s).
@@ -231,12 +231,25 @@ function frozenPhase(altFt, s, decisionFt, bankCapDeg, trail = false) {
       const share = Math.max(0, Math.min(1, (from.range - range) / Math.max(1, Math.min(trail ? TR.trailSettleFt : TR.frozenSettleFt, from.range - decisionFt))));
       const want = from.bearing + share * (-s * TR.frozenBearingDeg * DEG - from.bearing);
       // Turn with Lead's line of sight, and take out the bearing error over frozenTauSec (Lead too far left: turn left).
-      const omega = losRate(L, W) + wrapPi(b - want) / TR.frozenTauSec;
+      let omega = losRate(L, W) + wrapPi(b - want) / TR.frozenTauSec;
+      // To fighting wing from trail, over the last trailFwSlowFt he blends onto the heading that keeps him still in Lead's
+      // turning frame, so he enters the cone with no cut left to take out: with Lead's bearing frozen to the end he came in
+      // 12° cut, 45 ft/s inward, and the cone's tracker stopped it with a 3 G turn away as Lead rolled out (Fable's v2272).
+      if (toFw) {
+        const k = 1 - Math.max(0, Math.min(1, (range - decisionFt) / TR.trailFwSlowFt));
+        const wL = (G_FTPS2 * Math.tan((L.bankDeg ?? 0) * DEG)) / Math.max(1, L.tasFtps);
+        const rx = W.xFt - L.xFt;
+        const ry = W.yFt - L.yFt;
+        const still = Math.atan2(L.tasFtps * Math.sin(L.headingRad) + wL * rx, L.tasFtps * Math.cos(L.headingRad) - wL * ry);
+        omega = (1 - k) * omega + k * (wL + wrapPi(still - W.headingRad) / TR.frozenTauSec);
+      }
       const bankDeg = Math.atan((W.tasFtps * omega) / G_FTPS2) / DEG;
       // Power holds frozenKias, 210 KIAS, all the way to the decision point (Patrick 11 Oct 06:11Z: "I can hit 210 knots at
       // the decision point"; "we can start slowing below 210 after the decision point"). V2.255-V2.259 took his closure off
       // evenly to about 5 kt there instead, which Patrick found too slow up the line.
-      const kiasCmd = TR.frozenKias;
+      // To fighting wing from trail he comes off his overtake over the last trailFwSlowFt, arriving in the cone at Lead's
+      // speed: at 210 KIAS the cone's tracker turned him away at 3 G to stop (Fable's v2272 flight).
+      const kiasCmd = toFw ? L.kias + (TR.frozenKias - KIAS_OUTSIDE_LAB) * Math.max(0, Math.min(1, (range - decisionFt) / TR.trailFwSlowFt)) : TR.frozenKias;
       // From trail he starts inside route's lateral spacing, far back, so there only the range ends it.
       const done = (!trail && Math.abs(rel.left) <= routeOutFt) || range <= decisionFt;
       return { bankDeg: Math.max(-bankCapDeg, Math.min(bankCapDeg, bankDeg)), psiCmd: W.headingRad, kiasCmd, done, abort: s * rel.left < -50 };
@@ -469,11 +482,11 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
     // trailFwHandFt, where the ride takes him into the cone (Patrick 11 Oct 2026 07:57Z).
     pointed = point === 'frozen' && hardSec === 0 && initialRange > TR.pointFromFt;
     if (pointed) {
-      phases.push(frozenPhase(lineFt, s, TR.trailFwHandFt, bankCapDeg, true));
+      phases.push(frozenPhase(lineFt, s, TR.trailFwHandFt, bankCapDeg, true, true));
       numApproachPhases++;
     }
-    // Followed by ride tracking into the fighting wing cone
-    phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
+    // Followed by ride tracking into the fighting wing cone (from trail the frozen bearing carries him to the cone instead)
+    if (!pointed) phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
       kind: 'ride', slopedAlt: true,
       lineDeg: TR.lineDeg,
       side: s,
@@ -491,10 +504,11 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
       slowStage: 'power',
       rejoin: true,
     }));
-    numApproachPhases++;
+    if (!pointed) numApproachPhases++;
     // Followed by fighting wing cone tracking
     phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
       ...FW_FOLLOW,
+      ...(pointed ? { roll: TR.formRoll } : {}), // from trail he settles at a formation roll rate, not snapping at 100°/s (Fable's v2272)
       isFw: true,
       side: sTo || s,
       goal: () => coneMiddle(sTo || s),
@@ -630,7 +644,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
     tailSteps = tail?.steps ?? 0;
     // Lead holds his turn until #2 is in his place (tail.inSteps), then rolls out (Patrick 06:10Z); until V2.260 he held on
     // until the way had settled to the inch and planeEaseSec more, about 10 s in echelon.
-    lp = into.planTo(totalSteps + (tail ? arrivedStep(into.longRec, totalSteps, firstRec.at(totalSteps), tail, pairSlot(to, sTo || s, spacingFt)) : tailSteps + Math.ceil(easeSec / dt)), RATE_SETS.close.echelonRoll);
+    lp = into.planTo(totalSteps + (tail ? arrivedStep(into.longRec, totalSteps, firstRec.at(totalSteps), tail, pairSlot(to, sTo || s, spacingFt)) : tailSteps + Math.ceil(easeSec / dt)), to === 'route' ? RATE_SETS.close.routeRoll : RATE_SETS.close.echelonRoll);
     // The 4-ship (holdSec, four-rejoin.js twoTurning) flies off Lead's recorded turn with no segments: #2 holds in his
     // plane until Lead's flight ends (his rollout once the last wingman is in), at most holdSec. Until V2.219 he held for
     // none, flew straight on while Lead kept turning, and #3 could not settle (PR #703).
@@ -644,7 +658,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
     // After the turning rejoin's way in he holds the plane of Lead's bank averaged either side of now (centredBank), so he
     // starts climbing out of the step-down as Lead starts to roll out and eases off as he stops (Fable's V2.262 flight: he
     // climbed 22 ft at 14 ft/s after Lead's roll and stopped with a push to 0.5 G).
-    const planeRec = tail ? centredBank(leadRecFromSettle, TURNING_REJOIN.tailPlaneSec) : leadRecFromSettle;
+    const planeRec = tail ? centredBank(leadRecFromSettle, to === 'route' ? TURNING_REJOIN.tailPlaneRouteSec : TURNING_REJOIN.tailPlaneSec) : leadRecFromSettle;
     const { rel } = holdInPlane(planeRec, L_settled, W_settled, slotBody, Math.max(leadRemainingSteps, tail?.steps ?? 0), tail?.bodyAt, tail ? TURNING_REJOIN.tailHold : {});
     const holdSteps = Math.max(leadRemainingSteps, rel.length - 1);
     const poses = heldPoses(leadRecFromSettle, W_settled, rel, holdSteps);
@@ -679,7 +693,9 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
     };
     profile = first.profile;
   } else {
-    lp = into.planTo(totalSteps, null);
+    // To fighting wing Lead rolls out at the echelon turn's rate, not at once: a 1 s roll-out had #2 snap after him at
+    // 104°/s, 71° and 3.1 G (Fable's v2272 flight).
+    lp = into.planTo(totalSteps, RATE_SETS.close.echelonRoll);
     const second = runTracker({
       refs: { [lead.id]: lp.rec },
       wing0: wing,

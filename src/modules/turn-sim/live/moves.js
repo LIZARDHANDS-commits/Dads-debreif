@@ -56,8 +56,9 @@ export const TURNING_REJOIN = Object.freeze({
   frozenSettleFt: 0, // ...coming onto it from where the reversal left him over this much of the way in: none, the reversal ends on it (Patrick 04:22Z "we freeze him in the same spot with the same aspect ratio the whole way"; 400 ft in V2.248)...
   frozenTauSec: 3, // ...taking out a bearing error over this long (estimate)
   trailSettleFt: 1500, // from trail after a break, no pointing turn: he eases Lead from his nose onto frozenBearingDeg over this much of the way in, a small, early, gentle bank (Patrick 11 Oct 2026 07:57Z; estimate)
-  trailHeightG: 0.3, // ...and his height follows the line's 4° law from the start (about 265 ft below at 3,800 ft) within this many g of level flight, gentler than heightG's 1 g (Patrick 11 Oct 2026 07:57Z "gentler"; estimate)
-  trailFwHandFt: 1000, // ...and to fighting wing he holds that bearing in to this range, where the ride takes him into the cone (estimate)
+  trailHeightG: 0.15, // ...and his height follows the line's 4° law from the start (about 265 ft below at 3,800 ft) within this many g of level flight, gentler than heightG's 1 g (Patrick 11 Oct 2026 07:57Z "gentler"; estimate)
+  trailFwHandFt: 850, // ...and to fighting wing he holds that bearing in to this range, where the cone's tracker takes over, at a formation roll rate (Fable's v2272: a hand-over at 1,000 ft snapped him at 3 G; estimate)
+  trailFwSlowFt: 1500, // ...coming off his overtake to Lead's speed over this much of the way before it (estimate)
   frozenKias: 210, // ...at this speed all the way to the decision point, slowing only after it (Patrick 11 Oct 2026 06:11Z: "I can hit 210 knots at the decision point"; V2.255 took the closure off to about 5 kt there instead)
   aimsFt: [300, 600, 1200], // how sharply #2 captures the line: off it by this much he heads for it at half approachDeg; the one that brings him in soonest is flown (estimates: smaller is a sharper capture, larger a gentler, longer one)
   approachDeg: 80, // far off the line he heads for it at up to this angle across it, in Lead's frame (estimate)
@@ -118,6 +119,7 @@ export const TURNING_REJOIN = Object.freeze({
   tailInFt: 3, // ...and he is in his place once within this of the slot...
   tailStillFtps: 1, // ...and moving on it at under this, when Lead may roll out (Patrick 11 Oct 2026 06:10Z: "as soon as the plane is in echelon, the formation can roll out"; estimates)
   tailPlaneSec: 2.5, // ...in Lead's plane averaged this far either side of now, so through Lead's roll-out he starts the climb as Lead starts rolling and eases off it (Fable's V2.262 flight: 0.5 G push; estimate)
+  tailPlaneRouteSec: 4, // ...over this long when he ends in route, 124 ft out, with Lead's gentler route roll-out (rates.js routeRoll): G 0.87-1.30, as in echelon (Fable's v2272 flight: 0.62 G; estimate)
   tailHold: Object.freeze({ sideBankDeg: 10, followG: 0.5, onsetGps: 2, holdPerSec: 2 }), // ...flown with his bank within this of Lead's, his G within followG of Lead's, changing at no more than onsetGps, settling at holdPerSec (Patrick 11 Oct 2026 06:16Z: "the aircraft pitches to stay on plane, power to move forward and back, bank to move left and right"; his 06:15Z picture: 8 ft below Lead's plane in the roll-out with V2.256's 5°, 0.15 G, 1 G/s, 1.5/s; estimates)
   stableKt: Object.freeze([10, 20]), // his closure, range rate in knots, is stable in this window (Patrick 03:34Z: "10-20 knots at 100 feet"); the slowing aims at its middle, and slower is cold, not unstable
   stableShare: 1.5, // ...and closing at no more than this times the closure that middle overtake gives on the X, about 32 kt, so he is holding the X, not sweeping through it (card 03:15Z "Closure or bearing"; the figure is an estimate)
