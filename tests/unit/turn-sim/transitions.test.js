@@ -116,7 +116,7 @@ test('every hand-over is smooth through speed changes and turning rejoins: posit
         assert.ok(Math.abs(x.bankDeg - p.bankDeg) <= ROLL.maxRateDps * STEP_SEC + 1e-9, `${what}: bank jumped`);
         assert.ok(Math.abs(x.rollRateDps - p.rollRateDps) <= ROLL.maxAccelDps2 * STEP_SEC + 1e-9, `${what}: roll rate jumped`);
         const pitchRate = (x.pitchDeg - p.pitchDeg) / STEP_SEC;
-        if (lastPitchRate[i] !== null) assert.ok(Math.abs(pitchRate - lastPitchRate[i]) <= 1.5, `${what}: pitch rate jumped`); // 1.5°/s in a step is about 0.03 G at normal G onset rates
+        if (lastPitchRate[i] !== null) assert.ok(Math.abs(pitchRate - lastPitchRate[i]) <= 3, `${what}: pitch rate jumped`); // Patrick 11 Oct 2026 22:11Z: 3°/s in a step, so the T-6A's own G onset build (core T6A_G_ONSET, 16 G/s², an estimate) passes
         lastPitchRate[i] = pitchRate;
         // Speed: boards give up to 7.5 kt/s deceleration (TS-108), and jerk is bounded by POWER.jerkKtps2 (25 kt/s²).
         const ktps = (x.kias - p.kias) / STEP_SEC;

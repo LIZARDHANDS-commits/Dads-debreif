@@ -52,12 +52,16 @@ const abeam = (l, gap) => Math.abs(l.across - gap) <= 100 && Math.atan2(l.back, 
 const fwLink = (l) => l.range >= 400 && l.range <= 1100 && Math.atan2(l.back, l.across) / DEG >= 25 && Math.atan2(l.back, l.across) / DEG <= 65;
 const echelonLink = (l) => Math.abs(l.across - 45) <= 15 && Math.abs(l.back - 25) <= 15 && Math.abs(l.down - 5) <= 10;
 const asternLink = (l) => l.across <= 10 && l.back > 0 && l.back - 33.5 <= 30 && l.down >= 0;
-// The spinner-wingtip line runs one length (33.4 ft, the same as the span) back for every span out (SMM 12.4 paras 11-12),
-// so from echelon's place it goes as far back as out; route is 4 to 6 wingspans down it, within echelon's ±15 ft of it.
+// The spinner-wingtip line runs from Lead's spinner through his wingtip's leading edge (SMM 12.4 paras 11-12): 12.3 ft back
+// for every 16.7 ft out on the CT-156 (spinner 15.3 ft ahead of centre, wingtip 3.0 ft ahead and 16.7 ft out). Echelon sits
+// on it about 18 ft back and 43 ft out (TS-182); route is 1 to 3 wingspans further down it (SMM 12.6 para 15, Fig 12.7;
+// the slot at 3, TS-181), within echelon's ±15 ft of it.
+const LINE = [16.7 / Math.hypot(16.7, 12.3), 12.3 / Math.hypot(16.7, 12.3)]; // [out, back] per foot along the line
 const routeLink = (l) => {
-  const along = Math.hypot(l.across - 45, l.back - 25);
-  const offLine = Math.abs(l.back - 25 - (l.across - 45)) / Math.SQRT2;
-  return along >= 4 * WINGSPAN_FT - 15 && along <= 6 * WINGSPAN_FT + 15 && offLine <= 15 && l.down > -10;
+  const [out, back] = [l.across - 43, l.back - 18];
+  const along = out * LINE[0] + back * LINE[1];
+  const offLine = Math.abs(back * LINE[0] - out * LINE[1]);
+  return along >= WINGSPAN_FT - 15 && along <= 3 * WINGSPAN_FT + 15 && offLine <= 15 && l.down > -10;
 };
 
 /** Where a wingman is in Lead's wing plane: [ahead, out along Lead's wing line, up along his lift line], ft. */
