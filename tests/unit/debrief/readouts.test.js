@@ -696,8 +696,8 @@ test('the example flight: where est. G and est. bank are both shown, bank is wit
 
 test('"Smooth G" (off by default) takes out the ripple one bad GPS fix puts in a steady 60° turn; Lead\'s verdict keeps the raw G (DB-Q4)', () => {
   // A steady level 60° bank turn at 200 kt is 2 G (standard aerodynamics: G = 1/cos 60°), with one fix 40 ft wide at t = 30.
-  // The 3-point median puts the second before and after each disturbed second back on the turn's G; the bad second itself
-  // still reads its neighbours' bump (a known limit of three points, Patrick's choice). Margin: the shared ±0.5 G table,
+  // The 5-point median puts every disturbed second, the bad fix's own included, back on the turn's G (Patrick chose 5 points
+  // over 3 so that second is fixed too). Margin: the shared ±0.5 G table,
   // tightened to ±0.1 G here because the turn is exact and only the blip should move the reading.
   const radius = v * v / (32.174 * Math.tan(Math.PI / 3));
   const w = v / radius;
@@ -708,10 +708,10 @@ test('"Smooth G" (off by default) takes out the ripple one bad GPS fix puts in a
   const flight = buildFlight({ 1: lead });
   const steady = readoutsAt(flight, T(20), { smoothG: true }).ships[0].g;
   assert.ok(Math.abs(steady - 2) <= 0.1, `steady turn: ${steady}`);
-  for (const s of [28, 29, 31, 32]) {
+  for (const s of [28, 29, 30, 31, 32]) {
     const raw = readoutsAt(flight, T(s));
     const smooth = readoutsAt(flight, T(s), { smoothG: true });
-    assert.ok(Math.abs(raw.ships[0].g - 2) > 0.1, `t=${s}: the blip shows raw (${raw.ships[0].g})`);
+    if (s !== 30) assert.ok(Math.abs(raw.ships[0].g - 2) > 0.1, `t=${s}: the blip shows raw (${raw.ships[0].g})`);
     assert.ok(Math.abs(smooth.ships[0].g - 2) <= 0.1, `t=${s}: smoothed ${smooth.ships[0].g}`);
     assert.equal(smooth.ships[0].gSource, 'smoothed');
     assert.equal(raw.ships[0].gSource, 'estimated');

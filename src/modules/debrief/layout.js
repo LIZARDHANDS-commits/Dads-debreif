@@ -191,7 +191,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     controls.number('bubbleFt', { label: 'Bubble radius', unit: 'ft', min: BUBBLE_MIN_FT, max: BUBBLE_MAX_FT, step: 50 }),
     controls.checkbox('followLead', { label: 'Follow Lead' }),
     controls.checkbox('fillGaps', { label: 'Fill GPS gaps (estimate)' }),
-    controls.checkbox('smoothG', { label: 'Smooth G (3-point median)' }),
+    controls.checkbox('smoothG', { label: 'Smooth G (5-point median)' }),
     spaceBox(),
     resetLayout(),
   ]);
@@ -329,7 +329,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     controls.checkbox('grid3d', { label: 'Ground grid' }),
     controls.checkbox('landscape3d', { label: 'Landscape' }),
     controls.checkbox('fillGaps', { label: 'Fill GPS gaps (estimate)' }),
-    controls.checkbox('smoothG', { label: 'Smooth G (3-point median)' }),
+    controls.checkbox('smoothG', { label: 'Smooth G (5-point median)' }),
     spaceBox({ in3d: true }),
     h('button', { type: 'button', class: 'button', onclick: () => layout.update({ yaw3d: V6_CAMERA.yawDeg, pitch3d: V6_CAMERA.pitchDeg, zoom3d: V6_CAMERA.zoom, headYaw3d: 0, headPitch3d: 0 }) }, 'Reset view'),
     resetLayout(),
