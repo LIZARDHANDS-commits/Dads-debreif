@@ -450,11 +450,13 @@ export const CYMJ_RUNWAYS = Object.freeze([
  */
 export const CYMJ_SPHERE = Object.freeze({ id: 'striped-sphere', x: 545, y: -21, sphereFt: 30, baseFt: 6, gores: 12, hut: Object.freeze({ x: 14, y: -50, w: 18, d: 15, h: 10 }) });
 /**
- * The radar dome (TR-145; Patrick, 11 Oct: "the radar dome should be on the east between the runways"): a white radome on a mast.
+ * The radar dome (TR-145; Patrick, 11 Oct: "the radar dome should be on the east between the runways", with a photo of it): a white
+ * radome on a square red tower standing on open steel legs. Proportions read off Patrick's photo (the dome a little wider than the
+ * tower, the tower about twice the dome's width tall); the 30 ft dome sets the scale, so every size is an estimate.
  * WHERE IS A BEST GUESS until Patrick pins it: Esri's photo shows no dome between the runways' east ends, only a mast with a shadow
- * at the end of the service road, here. The dome's 30 ft and the 40 ft mast are estimates.
+ * at the end of the service road, here.
  */
-export const CYMJ_RADAR = Object.freeze({ id: 'radar-dome', x: 2531, y: -1154, domeFt: 30, mastFt: 40 });
+export const CYMJ_RADAR = Object.freeze({ id: 'radar-dome', x: 2531, y: -1154, domeFt: 30, towerFt: 55, towerWideFt: 22, legsFt: 10 });
 
 function createStripedSphere(THREE, floor) {
   const S = CYMJ_SPHERE;
@@ -494,19 +496,34 @@ function createStripedSphere(THREE, floor) {
 }
 
 function createRadarDome(THREE, floor) {
+  const R = CYMJ_RADAR;
   const group = new THREE.Group();
-  group.name = CYMJ_RADAR.id;
-  group.userData = { type: 'radar', ...CYMJ_RADAR };
-  group.position.set(CYMJ_RADAR.x, CYMJ_RADAR.y, floor);
-  const r = CYMJ_RADAR.domeFt / 2;
-  const mastGeo = new THREE.CylinderGeometry(3, 5, CYMJ_RADAR.mastFt, 8);
-  mastGeo.rotateX(Math.PI / 2);
-  mastGeo.translate(0, 0, CYMJ_RADAR.mastFt / 2);
-  const mast = new THREE.Mesh(mastGeo, new THREE.MeshStandardMaterial({ color: '#9aa1a8', roughness: 0.6, metalness: 0.4 }));
-  mast.name = 'radar-mast';
-  group.add(mast);
-  const domeGeo = new THREE.SphereGeometry(r, 20, 14);
-  domeGeo.translate(0, 0, CYMJ_RADAR.mastFt + r * 0.8);
+  group.name = R.id;
+  group.userData = { type: 'radar', ...R };
+  group.position.set(R.x, R.y, floor);
+  const box = (w, d, h, x, y, z, color, name) => {
+    const geo = new THREE.BoxGeometry(w, d, h);
+    geo.translate(x, y, z + h / 2);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, roughness: 0.65, metalness: 0.2 }));
+    mesh.name = name;
+    group.add(mesh);
+    return mesh;
+  };
+  // Open steel legs at the corners, braced, then the clad red tower, a white band at its top, and the dome.
+  const half = R.towerWideFt / 2 - 1;
+  for (const [x, y] of [[-half, -half], [half, -half], [half, half], [-half, half]]) box(1.5, 1.5, R.legsFt, x, y, 0, '#4a4f55', 'radar-leg');
+  for (const z of [R.legsFt * 0.45]) {
+    box(R.towerWideFt - 1, 0.8, 0.8, 0, -half, z, '#4a4f55', 'radar-brace');
+    box(R.towerWideFt - 1, 0.8, 0.8, 0, half, z, '#4a4f55', 'radar-brace');
+    box(0.8, R.towerWideFt - 1, 0.8, -half, 0, z, '#4a4f55', 'radar-brace');
+    box(0.8, R.towerWideFt - 1, 0.8, half, 0, z, '#4a4f55', 'radar-brace');
+  }
+  box(R.towerWideFt, R.towerWideFt, R.towerFt - R.legsFt - 4, 0, 0, R.legsFt, '#a1342f', 'radar-tower');
+  box(R.towerWideFt + 0.6, R.towerWideFt + 0.6, 4, 0, 0, R.towerFt - 4, '#eeeeea', 'radar-tower-top');
+  const r = R.domeFt / 2;
+  const domeGeo = new THREE.SphereGeometry(r, 24, 16);
+  domeGeo.rotateX(Math.PI / 2);
+  domeGeo.translate(0, 0, R.towerFt + r * 0.75); // the dome sits down into the tower top a little, as in the photo
   const dome = new THREE.Mesh(domeGeo, new THREE.MeshStandardMaterial({ color: '#f4f5f6', roughness: 0.45, metalness: 0.05 }));
   dome.name = 'radar-radome';
   group.add(dome);
