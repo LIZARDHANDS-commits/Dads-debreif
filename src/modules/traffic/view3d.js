@@ -19,7 +19,7 @@ import {
 import { drawHud } from '../../ui-kit/hud.js';
 import { gFromBankDeg } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT, setCockpitView } from '../../ui-kit/ct156-model.js';
-import { createCt156Cockpit, cockpitFovDeg, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
+import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
 import { KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../core/units.js';
 import { T6_LENGTH_FT, CLOSE_UP_DRAW_FT } from './types.js';
 import { paletteFrom, conflictLevels, isFlying, aircraftColor, heightSpeedText, LEVEL_MARKS, MIN_RING_PX, photoAlignment, photoView, getPflBadge, pflCircleLayout, calculateGlideFootprint, shouldShowGlideFootprint } from './map2d.js';
@@ -1500,6 +1500,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
   let viewMode = 'field'; // the Camera menu's choice: field (Over the field), fit, high, top, tower, free, low (Chase), cockpit or padlock
   let freeCam = null; // the free camera, { x, y, z, yawDeg, elevDeg, track } (camera-views.js), in Tower and Free camera
   let headLook = { yawDeg: 0, pitchDeg: 0 }; // Cockpit: where the pilot's head is turned from the nose
+  const zoomKey = createCockpitZoomKey(win, () => requestDraw()); // hold Shift to zoom from the seat (COCKPIT_ZOOM)
   let padlockFrom = 'cockpit'; // Padlock keeps the eye of the view it was picked from: cockpit or low (Chase)
   let noteText = ''; // a short word in the 3D bar, such as why Cockpit fell back to Fit
   let cameraBar = null; // the 3D bar (camera-bar.js), made with the canvas and freed with it
@@ -1923,6 +1924,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
   // `lost`: the browser has already lost the graphics context, so it is not asked to lose it again (that logs a warning).
   function teardown({ lost = false } = {}) {
     win.removeEventListener?.('keydown', onWindowKeydown);
+    zoomKey.stop();
     stopFrame();
     visible = false;
     resizer?.disconnect();
@@ -2251,7 +2253,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
             y: (mesh ? mesh.position.y : at.y) + up.y * COCKPIT_EYE.aboveModelFt,
             z: Math.max((mesh ? mesh.position.z : at.z) + up.z * COCKPIT_EYE.aboveModelFt, floor + COCKPIT_EYE.leastAglFt),
           };
-      p.fov = cockpitFovDeg(size.width, size.height); // from the seat, set by its height so a wide screen adds sides (Patrick, 11 Oct)
+      p.fov = cockpitFovDeg(size.width, size.height, zoomKey.held()); // from the seat, set by its height so a wide screen adds sides (Patrick, 11 Oct)
       p.near = interior ? PERSPECTIVE.nearInsideFt : PERSPECTIVE.nearFt;
       p.updateProjectionMatrix();
       if (!interior && mesh) {
@@ -2687,7 +2689,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
   const hands = /** @type {[string, (e: any) => void][]} */ ([
     ['pointerdown', (e) => {
       if (e.button !== 0 && e.button !== 1 && e.button !== 2) return;
-      const isPan = e.button === 1 || e.button === 2 || e.shiftKey;
+      const inSeat = viewMode === 'cockpit' || (viewMode === 'padlock' && padlockFrom !== 'low'); // Shift-drag turns the head while zoomed
+      const isPan = e.button === 1 || e.button === 2 || (e.shiftKey && !inSeat);
       dragging = {
         id: e.pointerId,
         x: e.clientX,
@@ -2803,6 +2806,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       if (win.addEventListener) {
         win.removeEventListener('keydown', onWindowKeydown);
         win.addEventListener('keydown', onWindowKeydown);
+        zoomKey.start();
       }
       if (win.ResizeObserver && !resizer) {
         resizer = new win.ResizeObserver(() => requestDraw());
