@@ -25,7 +25,7 @@ import {
 import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
 import { drawHud } from '../../ui-kit/hud.js';
 import { createCt156Model, disposeCt156Model, CT156_UNIT_LENGTH, setCockpitView } from '../../ui-kit/ct156-model.js';
-import { createCt156Cockpit, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
+import { createCt156Cockpit, cockpitFovDeg, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
 import { FT_PER_NM } from '../../core/units.js';
 import { FIGHT_MAX_SEC } from './sim.js';
 import { TRAIL_INTERVAL_SEC } from './trails.js';
@@ -720,6 +720,8 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
       }
       return;
     }
+    p.fov = cockpitFovDeg(box.width, box.height); // from the seat, set by its height so a wide screen adds sides (Patrick, 11 Oct)
+    p.updateProjectionMatrix();
     const seatChoice = pov.seat === 'rear' ? 'rear' : 'front';
     syncCockpit(me, seatChoice);
     const interior = Boolean(gl.cockpit?.root === me);

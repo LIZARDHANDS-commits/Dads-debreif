@@ -19,7 +19,7 @@ import {
 import { drawHud } from '../../ui-kit/hud.js';
 import { gFromBankDeg } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT, setCockpitView } from '../../ui-kit/ct156-model.js';
-import { createCt156Cockpit, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
+import { createCt156Cockpit, cockpitFovDeg, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
 import { KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../core/units.js';
 import { T6_LENGTH_FT, CLOSE_UP_DRAW_FT } from './types.js';
 import { paletteFrom, conflictLevels, isFlying, aircraftColor, heightSpeedText, LEVEL_MARKS, MIN_RING_PX, photoAlignment, photoView, getPflBadge, pflCircleLayout, calculateGlideFootprint, shouldShowGlideFootprint } from './map2d.js';
@@ -2187,6 +2187,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
             y: (mesh ? mesh.position.y : at.y) + up.y * COCKPIT_EYE.aboveModelFt,
             z: Math.max((mesh ? mesh.position.z : at.z) + up.z * COCKPIT_EYE.aboveModelFt, floor + COCKPIT_EYE.leastAglFt),
           };
+      p.fov = cockpitFovDeg(size.width, size.height); // from the seat, set by its height so a wide screen adds sides (Patrick, 11 Oct)
       p.near = interior ? PERSPECTIVE.nearInsideFt : PERSPECTIVE.nearFt;
       p.updateProjectionMatrix();
       if (!interior && mesh) {
