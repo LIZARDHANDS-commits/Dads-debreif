@@ -196,8 +196,8 @@ test('every hand-over is smooth: no jump in position, track, bank or pitch, or i
         assert.ok(Math.abs(x.bankDeg - p.bankDeg) <= ROLL.maxRateDps * STEP_SEC + 1e-9, `${what}: bank jumped`);
         assert.ok(Math.abs(x.rollRateDps - p.rollRateDps) <= ROLL.maxAccelDps2 * STEP_SEC + 1e-9, `${what}: roll rate jumped`);
         const pitchRate = (x.pitchDeg - p.pitchDeg) / STEP_SEC;
-        // A step in pitch rate is a step in G: 0.5°/s in one step is about 0.1 G at 248 KTAS.
-        if (lastPitchRate) assert.ok(Math.abs(pitchRate - lastPitchRate[i]) <= 0.5, `${what}: pitch rate jumped`);
+        // A step in pitch rate is a step in G. Patrick 11 Oct 2026 22:11Z: 3°/s in a step, so the T-6A's own G onset build (core T6A_G_ONSET, 16 G/s², an estimate) passes (0.5 before).
+        if (lastPitchRate) assert.ok(Math.abs(pitchRate - lastPitchRate[i]) <= 3, `${what}: pitch rate jumped`);
       });
       lastPitchRate = after.map((x, i) => (x.pitchDeg - before[i].pitchDeg) / STEP_SEC);
     });
