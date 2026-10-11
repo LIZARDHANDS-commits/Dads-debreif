@@ -40,15 +40,15 @@ const CIRCUIT_BOX = { minX: -4200, maxX: 17200, minY: -11300, maxY: 1600 };
  * and what the camera follows ('STR' alone, or 'both').
  */
 const PIECES = [
-  { fromT: 108, toT: 113, realSec: 3, follow: 'STR', zoomIn: true },
-  { fromT: 113, toT: 123, realSec: 10, follow: 'STR' },
+  { fromT: 106, toT: 111, realSec: 3, follow: 'STR', zoomIn: true },
+  { fromT: 111, toT: 123, realSec: 12, follow: 'STR' },
   { fromT: 123, toT: 178, realSec: 12, follow: 'both', pullBackSec: 3 },
 ];
 /** Feet across the screen when close on the straight-in: its tag readable on the card (an estimate, checked by eye). */
 const CLOSE_FT = 600;
 /** Feet across the screen round the two aircraft: their spacing times this, never less than the minimum. */
 const FRAME_SPAN = { times: 1.5, minFt: 1000 };
-const WIDE = { center: { x: 4250, y: -5167, z: 1890 }, zoom: 130, pitchDeg: 72 };
+const WIDE = { center: { x: 4250, y: -5167, z: 1890 }, zoom: 65, pitchDeg: 72 }; // the same ground as 130 at the old 1,280 px
 /** SAMPLE=1 shoots one frame a real second, to check the framing before the full 60 fps run. */
 const SAMPLE = process.env.SAMPLE === '1';
 
