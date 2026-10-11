@@ -8,6 +8,7 @@ import { sampleAt, headingAt } from '../../flight-data/flight.js';
 import { fillAt, fillSampleAt } from '../../flight-data/gap-fill.js';
 import { formatZuluSeconds } from '../../core/time.js';
 import { puckSummary, puckLine } from './puck.js';
+import { timingSummary, timingLines } from './gps-timing.js';
 
 /**
  * Ship colours as in V6 (line 2104), except #4, which V6 drew near-black on a
@@ -31,7 +32,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   moreDetail: false,
   standardsOpen: false,
   filesOpen: false,
-  puckOpen: false, // the GPS puck box (DB-23)
+  puckOpen: false, // the GPS source box: puck (DB-23) and timestamps (DB-25)
   // Map layers, with V6's defaults: full tracks, spacing lines, grid and
   // Lead's 3/9 line on, everything else off.
   satellite: false,
@@ -47,6 +48,12 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   followLead: false,
   // GPS gaps drawn as a best guess in a shaded zone (DB-19, DB-20; on at load, DB-Q21). Off: the broken line as before.
   fillGaps: true,
+  // Airspace and airfields round the flight, in 2D and 3D (DB-24): the SOF's airspace off at first (a clean picture; it
+  // covers the screen in the overview), the airfields on (flat on the ground, little clutter). airspaceHidden: the kinds
+  // hidden, as the shared filter's keys joined with commas ("moa,mtr").
+  airspace: false,
+  airfields: true,
+  airspaceHidden: '',
   route: '', // none, or one of V6's built-in routes by name
   routeOpacity: 80,
   // V6's embedded VNC charts: off, south, north or both, at 78 % opacity,
@@ -113,7 +120,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   trailSec3d: 90,
   landscape3d: true,
   groundRef3d: true,
-  datum3d: 'min',
+  datum3d: 'tracks', // the ground the tracks recorded (DB-26); V6's lowest ship less 500 ft is 'min'
   grid3d: true,
   sticks3d: true,
   altMarks3d: true,
@@ -153,6 +160,8 @@ export function flightSummary(flight, fill = null) {
   const parts = [`${plural(tracks.length, 'track')} loaded`];
   if (gaps) parts.push(plural(gaps, 'gap') + fillWords(fill));
   if (flight.cutTracks?.length) parts.push(`${plural(flight.cutTracks.length, 'track')} trimmed to the shared time`);
+  const timing = timingSummary(flight); // DB-25
+  if (timing) parts.push(timing);
   const puck = puckSummary(flight); // DB-23
   if (puck) parts.push(puck);
   return parts.join(', ');
@@ -185,6 +194,7 @@ export function trackStatus(flight, fill = null) {
         lines.push(`${plural(gaps.length, 'GPS gap')}, longest ${formatDuration(longest)}`);
       }
       if (fill?.on && fill.result && gaps.length) lines.push(...fillLines(fill.result, tr.slot));
+      lines.push(...timingLines(tr)); // DB-25
       const puck = puckLine(tr); // DB-23
       if (puck) lines.push(puck);
       const cut = flight.cutTracks?.find((c) => c.slot === tr.slot);

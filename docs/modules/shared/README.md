@@ -4,7 +4,7 @@ This folder is the shared parts every module uses: flight core (flight math), ap
 
 ## Where it stands
 
-Built and merged on main. The flight-math list is written ([flight-math.md](flight-math.md)); waiting on the one-import-point review and the combined sign-off at the end (`archive/HANDOVER.md:92`, `archive/HANDOVER.md:94`).
+Built and merged on main. The flight-math list is written ([flight-math.md](flight-math.md)); waiting on the one-import-point review and the combined sign-off at the end (`archive/HANDOVER.md:92`, `archive/HANDOVER.md:94`). On 10 Oct 2026 the SOF's airspace data and its 3D airspace and airfield drawing joined the shared folders (`src/airfields/airspace/`, `src/airfields/airports-data.js`, `src/ui-kit/airspace3d.js`, `airfield3d.js`; SOF-63, DB-24), so the Debrief draws them too.
 
 ## What is next
 

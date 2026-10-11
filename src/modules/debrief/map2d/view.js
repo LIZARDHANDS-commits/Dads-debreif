@@ -9,7 +9,7 @@ import {
 } from './layers.js';
 import { ROUTES } from '../data/routes.js';
 import { lastResult } from '../weather/wind-arrows.js';
-import { projectRoute, routeBounds, drawRoute } from './overlays.js';
+import { projectRoute, routeBounds, drawRoute, projectSpace, drawSpace } from './overlays.js';
 import { createTileLayer, ESRI_IMAGERY } from '../../../ui-kit/map-tiles.js';
 import { createVncLayer, chartsBounds, VNC_CHOICES } from './vnc.js';
 import { createSavedWeatherLayer } from './saved-weather.js';
@@ -43,9 +43,10 @@ const SATELLITE_DARKEN = 'rgba(5, 10, 18, 0.22)'; // V6's, so the tracks stand o
  * onSavedWeather(state): after each draw, the saved pictures' { wanted, ready,
  * failed, failedKeys }, or null when there are none. fills(): the filled GPS
  * gaps to draw (gap-fill.js fillGaps's `fills`), or null while the fill is off.
+ * space(): the airspace and airfields round the flight (DB-24; debrief/airspace.js), { key, toXY, airspace, airfields }, or null.
  */
 export function createMapView(canvas, {
-  timers, time, layers, dfps = () => [], tennis = () => null, weather = () => null, windArrows = () => null, fills = () => null,
+  timers, time, layers, dfps = () => [], tennis = () => null, weather = () => null, windArrows = () => null, fills = () => null, space = () => null,
   savedWeather = /** @type {() => any[]} */ (() => []),
   labels = /** @type {(flight: any, t: number) => Record<number, { text: string, tone: string }>} */ (() => ({})),
   onImagery = /** @type {(state: any) => void} */ (() => {}),
@@ -135,6 +136,8 @@ export function createMapView(canvas, {
 
   // The arrows' places in map feet, kept while the list of arrows and the flight's reference are the same, so a pan or zoom while paused doesn't project them again.
   const projectArrows = lastResult((arrows, ref) => arrows.map((a) => ({ ...a, ...latLonToLocalFt(ref, a.lat, a.lon) })));
+  // The airspace outlines and runways in map feet, projected again only when what is wanted changes (its key).
+  let spaceShapes = { key: '', shapes: null };
 
   const map = createCanvasView(canvas, {
     timers,
@@ -178,6 +181,11 @@ export function createMapView(canvas, {
       if (route) drawRoute(ctx, map, route, on.routeOpacity);
       if (on.grid) drawGrid(ctx, map);
       if (!flight) return;
+      const wanted = space();
+      if (wanted) {
+        if (spaceShapes.key !== wanted.key) spaceShapes = { key: wanted.key, shapes: projectSpace(wanted) };
+        drawSpace(ctx, map, spaceShapes.shapes);
+      }
       const arrows = windArrows();
       if (arrows?.length) drawWindArrows(ctx, map, projectArrows(arrows, mapRef()));
       if (on.lead39 && lead) draw39Line(ctx, map, lead, 'Lead 3/9');

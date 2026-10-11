@@ -662,6 +662,13 @@ disposeAircraftMesh(plane); sky.dispose();             // when the view closes (
 - **Model frame.** Nose +X, left +Y, up +Z; about 1.44 long (tail to spinner) and 1.32 across the wings, so `scale` is set to the plane size in feet. It is the Debrief spike's model, not V6's `t6Points`.
 - No timers and no animation frames: the view draws when the scheduler's frame callback asks it to.
 
+### Airspace and airfields in 3D (SOF-63, DB-24; wording not yet confirmed with Patrick)
+
+- `airspace3d.js` `buildAirspace(T, { volumes, routes, toXY, scale, groundFt })`: each checked airspace (src/airfields/airspace/model.js `checkedAirspace`) as a faint see-through prism from floor to ceiling, edged by kind (`KIND_COLOURS`), and training routes as curtains; routes at 500 ft AGL dashed. Returns `{ root, labels, picks, lines, summary, dispose }`.
+- `airfield3d.js` `buildAirports(T, { toXY, scale, groundFt, doc, airports, halfFt, liftFt, aboveGround })`: each airfield's runways at true place, length and width, painted as the Traffic sim paints 29L (TR-98: its grey, white paint with a 0.5 ft black outline, threshold bar, piano keys, 98 ft centreline dashes, edge stripes, aiming point; sizes across scale with the width, an estimate), the numbers reading from the approach end, a few schematic buildings. `fit(ftPerPx)` keeps a far field a few pixels long. The SOF keeps runways above its ground (`aboveGround`, 40 ft lift); the Debrief draws them at their own elevation, 3 ft up.
+- Both build at the height scale given; the Debrief builds at 1 and stretches the group by its altitude scale, so its overview and its true-scale cockpit share one build.
+- **Data failure:** both draw only what they are given; the caller says when data is loading, missing or failed (src/airfields/airspace/load.js words).
+
 ### 2D/3D switch (D141)
 
 Every simulator has a 2D | 3D switch: the Debrief, Turn Fight, Turn Sim and Traffic. The SOF dashboard stays 2D and has none.
@@ -1088,6 +1095,9 @@ src/airfields/
   minima.js        CAP GEN table, trade-offs, "whichever is greater", rounding, landing minima
   distance.js      great-circle distance in NM
   panel.js         the Settings section (R22)
+  airports-data.js the runways the 3D airfields and the SOF's crosswind check read (SOF-63): OurAirports' list with the best ends laid over (DB-26)
+  runway-ends.js   the best runway ends, written by tools/cifp-runways.mjs: Patrick's points at CYMJ (from Traffic's airfield.js), FAA CIFP at the US fields (DB-26)
+  airspace/        the airspace the SOF and the Debrief draw (SOF-63, DB-24): data.js, dah/, faa/, model.js, filter.js, load.js, areas.js
   README.md        what each file does, and how to add a built-in airfield
 tests/unit/airfields/
   *.test.js        one per source file

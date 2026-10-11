@@ -13,7 +13,7 @@
 //   staleness rule: the card's METAR line is anything but 'fresh') choose nothing: all runway ends are kept and the words say why.
 // Information only: nothing here raises a caution, and the SOF can always choose "All runways" or a runway by hand in the Approaches key.
 import { runwayEnds, runwayWind } from './crosswind.js';
-import { AIRPORTS } from './airports-data.js';
+import { AIRPORTS } from '../../airfields/airports-data.js';
 
 /**
  * lightKt: under this mean wind no runway is chosen (an estimate, not from a source: a wind this light hardly favours a direction).
