@@ -39,6 +39,8 @@ test('the Debrief Viewer has no accessibility violations with the example flight
 });
 
 test('the Traffic Sim has no accessibility violations', async ({ page }) => {
+  // Traffic takes about 10 s to open on a runner without a graphics card, before the scan starts.
+  test.setTimeout(90_000);
   await openRoute(page, '#/traffic');
   await page.waitForFunction(() => window.__ooda.stats().mounted === 'traffic');
   await expectNoA11yViolations(page);

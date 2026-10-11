@@ -22,11 +22,11 @@ Every number the Formation Sim's planners use, with the source written beside it
 | RATE_SETS.…frame | `Object.freeze({ foreAftFtps: 80, verticalFtps: 40, nearPerSec: 10, nearMinFtps: 20 })` |  |
 | RATE_SETS.…law | `Object.freeze({ powerShare: 1, turnShare: 1, latG: 1, vertFtps2: 10 })` |  |
 | CLOSE_SHAPING |  | Nominal shaping targets and soft envelope caps for close-in formation work (SMM 12.4, 12.6, 12.20). Targets, not walls: guidance steers toward the nominal targets, with progressive soft cushion expanding toward the envelope cap if displaced. Scaled so echelon <-> route takes ~10 seconds. |
-| CLOSE_SHAPING.targetBankDeg | `8.0` |  |
+| CLOSE_SHAPING.targetBankDeg | `8.0` | Patrick's "small bank, gentle power" is the intent; 8° is an estimate (Patrick 11 Oct 2026 16:26Z, "Agree with chart", unsourced-numbers.md row 11) |
 | CLOSE_SHAPING.envelopeBankCapDeg | `15.0` |  |
-| CLOSE_SHAPING.targetLateralFtps | `32.0` | ~19 kt lateral drift |
-| CLOSE_SHAPING.targetFwdFtps | `32.0` | ~19 kt fore/aft rate |
-| CLOSE_SHAPING.targetCornerFtps | `24.0` | corner flow rate |
+| CLOSE_SHAPING.targetLateralFtps | `32.0` | ~19 kt lateral drift (estimate, row 11) |
+| CLOSE_SHAPING.targetFwdFtps | `32.0` | ~19 kt fore/aft rate (estimate, row 11) |
+| CLOSE_SHAPING.targetCornerFtps | `24.0` | corner flow rate, about 14 kt (estimate, row 11) |
 | CLOSE_SHAPING.lineFwdFtps | `10.0` | echelon to route and back, along the line: the rate power sets fore and aft, about 7 kt (Patrick 11 Oct 2026 06:24Z: "crack off some power to set a rate"; estimate) |
 | CLOSE_SHAPING.lineAccelFtps2 | `1.5` | ...set and taken off at about this, about 0.9 kt/s, so power keeps up with it (estimate) |
 | CLOSE_SHAPING.lineLeadSec | `2.0` | ...and he starts taking the rate off this much early, leading the power, which answers late (estimate) |
@@ -171,6 +171,9 @@ Every number the Formation Sim's planners use, with the source written beside it
 | TURNING_REJOIN.overshootBankDeg | `15` | the overshoot: wings near level, no more than this bank... (SMM 12.27 para 65; card 03:33Z rule 5; estimate) |
 | TURNING_REJOIN.overshootLevelSec | `3` | ...for this long, then he stabilizes on the outside of Lead's turn (estimate) |
 | TURNING_REJOIN.rideKias | `210` | on the line he holds this to the decision point (Patrick 8 Oct 20:16: "maintain 210 to the decision point") |
+| TURNING_REJOIN.windowEntryOverKt | `0.5` | a plan counts as on the line only if it enters the window at no more than rideKias + this (Patrick's G3: 210.5 KIAS, HANDOVER_REPORT_V2.210_TRJ.md; 5.5 until the clean-up, Patrick 11 Oct 2026 16:26Z, "Agree with chart", unsourced-numbers.md row 10) |
+| TURNING_REJOIN.fwLeastKias | `195` | on the way to fighting wing a plan never below this counts (5 kt under the 200 floor, which TS-169 lets bleed; estimate; row 10) |
+| TURNING_REJOIN.fwApproach | `Object.freeze({ windowFt: 1200, carrotWindowFt: 250, decisionFt: 1000, coneEaseFarFt: 1500, captureFt: 250 })` |  |
 | TURNING_REJOIN.rideCaptureAlongFt | `1750` | he joins (the middle of Patrick's 1,500-2,000 ft, G6) the line no closer to Lead than this, or where he already is if closer (Patrick G1: established by 1,500 ft; 8 Oct 20:16 inside 2,000 ft get on it where he is) |
 | TURNING_REJOIN.rideLeadFt | `1000` | he aims at the line this far further up it than his own place, so off it he heads across and onto it along it (estimate) |
 | TURNING_REJOIN.rideMinLeadFt | `400` | ...and never less than this, so he never heads straight across it (estimate) |
@@ -294,6 +297,29 @@ Every number the Formation Sim's planners use, with the source written beside it
 | TRACKER.…minSec | `6` | no height change takes less than 6 s (estimate) |
 | TRACKER.…heightG | `TURNING_REJOIN.heightG` | nor quicker than one smooth leg within the rejoin's height-change g (TS-140; estimate) |
 | TRACKER.…unknownLegSec | `6` | a leg whose end was never learned is given 6 s (estimate) |
+| TRACKER.…paceFtps | `Object.freeze({ rejoin: 120, tactical: 45, close: 15 })` |  |
+| TRACKER.coneEase | `Object.freeze({` |  |
+| TRACKER.…overLeadDeg | `5` | arriving along the line at the cone or the decision point his bank eases down to Lead's + this ... (estimate; row 1) |
+| TRACKER.…minDeg | `25` | ... and never under this: the rejoin end's "bank proportional to the correction, bounded, very smooth", not a bank cap on the rejoin (estimate; row 1) |
+| TRACKER.turnPower | `Object.freeze({` |  |
+| TRACKER.…bankDeg | `15` | in a turn past this bank ... (estimate; row 2) |
+| TRACKER.…behindFt | `200` | ... and more than this far behind Lead ... (estimate; row 2) |
+| TRACKER.…holdShare | `0.7` | ... his power never drops below this share of what holds his speed in the turn: a wingman doesn't idle in a turn behind Lead (estimate; row 2) |
+| TRACKER.boards | `Object.freeze({` |  |
+| TRACKER.…closureKt | `25` | above this planned closure ... (estimate, below the 30 kt overshoot trigger so the brake comes first; row 3) |
+| TRACKER.…insideFt | `500` | ... and less than this far behind Lead, the speed brake as well as power (estimate; row 3) |
+| TRACKER.fwSettle | `Object.freeze({` |  |
+| TRACKER.…marginFt | `20` | settled in fighting wing: inside FW_BAND (SMM 12.29 para 69, 500-1,000 ft) widened by this ... (estimate; row 5) |
+| TRACKER.…marginDeg | `2` | ... and its 30-60° sweep widened by this (estimate; row 5) |
+| TRACKER.…aboveFt | `5` | no more than this above Lead ... (estimate; row 5) |
+| TRACKER.…belowFt | `200` | ... nor this far below him (estimate; row 5) |
+| TRACKER.…kt | `12` | speed within this of Lead's (estimate; row 5) |
+| TRACKER.…bankDeg | `15` | bank within this of Lead's (estimate; row 5) |
+| TRACKER.openingFull | `Object.freeze({` |  |
+| TRACKER.…ceilingKias | `REJOIN_LINE_KIAS.ai` | the opening full power ends at the AI line speed (235 KIAS, TS-133) ... (row 6) |
+| TRACKER.…overLineKt | `15` | ... or the line speed + this, whichever is higher ... (estimate; row 6) |
+| TRACKER.…nearLeadFt | `1500` | ... or within this of Lead (to fighting wing, the band's far edge instead) (estimate; rows 6, 15) |
+| TRACKER.wrongSideFt | `50` | more than this past Lead's six is the wrong side; inside the step-down gate (LANE.belowRangeFt, 2,000 ft, TS-151) that drops the ride (about 1.5 wingspans, estimate; row 8) |
 | WING |  | #2's numbers. Sources beside each; "estimate" where none. |
 | WING.pursuitShare | `0.1` | the lag or lead offset as a share of the range (estimate) |
 | WING.latDeg | `15` | off Lead's tail, inside the 30° half cone (estimate; cone: Patrick 19:20Z row 2) |
@@ -324,7 +350,6 @@ Every number the Formation Sim's planners use, with the source written beside it
 | HOLD.closeDecelFtps2 | `1` |  |
 | HOLD.gain | `0.6` |  |
 | HOLD.jerkFtps3 | `POWER_JERK_KTPS2 * KT_TO_FTPS` |  |
-| HOLD.margin | `Object.freeze({ share: 0.05, ktps: 0.05 })` |  |
 | HOLD.extraSec | `120` |  |
 | HOLD.cutShare | `0.25` | the most offset inside Lead's turn, as a share of the range: about sin 15°, the lag line's angle, so he goes toward pure pursuit and stays inside the 30° cone (estimate) |
 | HOLD.cutSec | `4` | how long moving into or out of the offset takes (estimate) |

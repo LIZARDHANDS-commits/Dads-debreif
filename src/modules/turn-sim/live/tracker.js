@@ -239,7 +239,7 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
   const easing = ph.coneEase && L && aim?.along != null && aim.established !== false;
   if (easing) {
     const leadBank = L.bankDeg ?? 0;
-    const targetCap = Math.max(Math.abs(leadBank) + 5, 25);
+    const targetCap = Math.max(Math.abs(leadBank) + TRACKER.coneEase.overLeadDeg, TRACKER.coneEase.minDeg);
     const dFar = ph.coneEaseFarFt ?? FW_BAND.easeFarFt;
     const dNear = ph.decisionFt ?? 750;
     const frac = Math.max(0, Math.min(1, (aim.along - dNear) / Math.max(1, dFar - dNear)));
@@ -334,14 +334,14 @@ function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowO
   // A phase may slow with more than power back (slowStage, slow-down.js; the turning rejoin's run-in: power back and the
   // speed brake, card 03:33Z rule 4: "torque and speed brake first").
   // A rejoin's leg slows with its torque floor and the boards as needed (Patrick 6 Oct 03:17-03:20Z, TS-108).
-  const isTurn = Math.abs(W.bankDeg ?? 0) > 15;
+  const isTurn = Math.abs(W.bankDeg ?? 0) > TRACKER.turnPower.bankDeg;
   const holdThr = isTurn ? throttleFor(0, W.kias, blockFt, Math.abs(W.g ?? 1), W.climbFtps ?? 0) : 0;
   const relW = (L && W) ? relativeTo(L, W) : null;
-  const isTrailing = relW ? (relW.fwd < -200) : false;
-  // Universal turn power floor: any trailing aircraft in a turn maintains at least 70% hold power
-  const minTurnThr = isTurn && isTrailing ? holdThr * 0.70 : 0;
+  const isTrailing = relW ? (relW.fwd < -TRACKER.turnPower.behindFt) : false;
+  // Universal turn power floor: any trailing aircraft in a turn keeps at least this share of hold power (TRACKER.turnPower)
+  const minTurnThr = isTurn && isTrailing ? holdThr * TRACKER.turnPower.holdShare : 0;
   // Emergency overshoot check: dangerous closure inside 500 ft
-  const isEmergencyOvershoot = relW && relW.fwd > -500 && (ph.closureFtps ?? 0) > 25 * KT_TO_FTPS;
+  const isEmergencyOvershoot = relW && relW.fwd > -TRACKER.boards.insideFt && (ph.closureFtps ?? 0) > TRACKER.boards.closureKt * KT_TO_FTPS;
   const isExplicitEmergency = stageOwn != null || ph.slowStage === 'idleBoards';
   const slowStage = isExplicitEmergency
     ? (stageOwn ?? ph.slowStage)
@@ -517,7 +517,8 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
       : Math.abs(target - heightState.targetAlt) > TRACKER.height.minChangeFt;
     if (needNewLeg) {
       const rise = target - W.altAboveFt;
-      const defaultRateFtps = isRejoin ? 120 : (ph.tactical ? 45 : 15);
+      const pace = TRACKER.height.paceFtps;
+      const defaultRateFtps = isRejoin ? pace.rejoin : (ph.tactical ? pace.tactical : pace.close);
       const rateFloor = (SMOOTHER_PEAK * Math.abs(rise)) / (ph.altRateFtps ?? defaultRateFtps);
       const gFloor = smoothLegSec(rise, TRACKER.height.heightG);
       const vEnergy = rise > 0 ? fullPowerKtps(W.kias, blockFt, W.g ?? 1) / climbCostKtps(W, 1) : 0;
@@ -560,15 +561,16 @@ function isFwConeSettled(L, W, relVel, side = null) {
   const down = (L.altAboveFt ?? 0) - (W.altAboveFt ?? 0);
 
   // SMM 12.29 para 69: 500-1,000 ft, 30-60° sweep, stepped down (0 to 200 ft below Lead)
-  const inRange = r >= 480 && r <= 1020;
-  const inSweep = sweepDeg >= 28 && sweepDeg <= 62;
-  const inAlt = down >= -5 && down <= 200;
+  const S = TRACKER.fwSettle;
+  const inRange = r >= FW_BAND.rangeFt[0] - S.marginFt && r <= FW_BAND.rangeFt[1] + S.marginFt;
+  const inSweep = sweepDeg >= FW_BAND.sweepDeg[0] - S.marginDeg && sweepDeg <= FW_BAND.sweepDeg[1] + S.marginDeg;
+  const inAlt = down >= -S.aboveFt && down <= S.belowFt;
   const sideOk = side == null || side === 0 || Math.sign(rel.left) === Math.sign(side);
 
   // Speed, turn rate and relative motion matched in formation frame
   // (In a 30° turn at 200 KIAS, the rigid rotation omega x r is ~41 ft/s, so world relVel is not zero).
-  const speedMatched = Math.abs(W.kias - L.kias) <= 12;
-  const bankMatched = Math.abs((W.bankDeg ?? 0) - (L.bankDeg ?? 0)) <= 15;
+  const speedMatched = Math.abs(W.kias - L.kias) <= S.kt;
+  const bankMatched = Math.abs((W.bankDeg ?? 0) - (L.bankDeg ?? 0)) <= S.bankDeg;
 
   return inRange && inSweep && inAlt && sideOk && speedMatched && bankMatched;
 }
@@ -590,7 +592,7 @@ function isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt, timesK, early, heig
       const r = Math.hypot(rel.fwd, rel.left, (W.altAboveFt ?? 0) - (L.altAboveFt ?? 0));
       // Away (TS-174): crossing in behind Lead from the outside of his turn is the rejoin; the check starts on side.
       if (ph.crossIn && !timesK.onSide && rel.left * ph.side >= 0) timesK.onSide = true;
-      if ((!ph.crossIn || timesK.onSide) && rel.left * ph.side < -50 && r < 2000) {
+      if ((!ph.crossIn || timesK.onSide) && rel.left * ph.side < -TRACKER.wrongSideFt && r < LANE.belowRangeFt) {
         return { abort: true, early: pursuitResult, stoppedAt: newStoppedAt };
       }
     }
@@ -766,10 +768,10 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     if (phaseState.pclMaxActive) {
       const onLine = (aim.cross != null && Math.abs(aim.cross) <= (ph.captureFt ?? 150)) ||
                      (aim.bXDeg != null && Math.abs(aim.bearingDeg - aim.bXDeg) <= 5.0);
-      const speedCeil = Math.max(235, (ph.lineKias ?? lineKiasNow()) + 15);
+      const speedCeil = Math.max(TRACKER.openingFull.ceilingKias, (ph.lineKias ?? lineKiasNow()) + TRACKER.openingFull.overLineKt);
       const atSpeed = W.kias >= speedCeil;
       const rNow = Math.hypot(L.xFt - W.xFt, L.yFt - W.yFt);
-      const nearLimitFt = (ph.isFw || ph.toFw) ? FW_BAND.rangeFt[1] : 1500;
+      const nearLimitFt = (ph.isFw || ph.toFw) ? FW_BAND.rangeFt[1] : TRACKER.openingFull.nearLeadFt;
       // On Lead's six with Lead not turning (ph.straight, the straight-ahead rejoin) full power holds until he is on the line
       // (Patrick 5 Oct 08:40Z): abeam Lead he is near the line's start but far from Lead.
       const nearLead = !ph.straight && ((aim.along != null && aim.along >= 0 && aim.along <= nearLimitFt) || rNow <= nearLimitFt);
