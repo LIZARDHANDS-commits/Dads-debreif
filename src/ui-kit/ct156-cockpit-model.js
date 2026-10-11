@@ -4,67 +4,17 @@
 // file (forward-bow, canopy-rails, and the seat, pcl and stick rounded from the code's own pieces) replaces the code cockpit's mesh named ct156-cockpit-<part> once the file is in; until
 // then, or if it never loads, the code's part shows. Built in the cockpit's own feet (nose +X, left +Y, up +Z), so the
 // parts drop into the cockpit's group as they are. A picture only: no flight numbers.
-// three.js comes from the caller (THREE) and its loaders with import(), so nothing of it loads until a 3D view does.
+import { aoShaded, loadAo, loadParts } from './ct156-blender.js';
 
-const FILE = 'models/ct156-cockpit.glb';
+const FILE = 'ct156-cockpit.glb';
 
-/** A part's baked soft shadows (its grey picture beside the file, laid on its own UV map), loaded once. */
-const aoTextures = new Map();
-function loadAo(THREE, base, file) {
-  if (!aoTextures.has(file)) {
-    const t = new THREE.TextureLoader().load(`${base}models/${file}`);
-    t.flipY = false; // as the file's other pictures: glTF lays its UV maps top down
-    aoTextures.set(file, t);
-  }
-  return aoTextures.get(file);
-}
-
-/**
- * The cockpit's colour darkened by a part's baked soft shadows, in direct light as well as in the sky's (three.js's
- * own aoMap shades only the sky's light, and the sun is most of the cockpit's light).
- */
-function shaded(material, ao) {
-  const m = material.clone();
-  m.aoMap = ao;
-  m.onBeforeCompile = (shader) => {
-    shader.fragmentShader = shader.fragmentShader.replace('#include <aomap_fragment>',
-      '#include <aomap_fragment>\n#ifdef USE_AOMAP\n\treflectedLight.directDiffuse *= ambientOcclusion;\n\treflectedLight.directSpecular *= ambientOcclusion;\n#endif');
-  };
-  m.customProgramCacheKey = () => 'ct156-ao-direct';
-  return m;
-}
-
-/** The file's parts, loaded once per page and shared by every cockpit: Promise of [{ name, meshes: [{ geometry, material }] }]. */
+/** The file's parts, loaded once per page and shared by every cockpit: Promise of [{ name, hash, ao, meshes }]. */
 let parts = null;
-
-function loadParts(THREE) {
+function cockpitParts(THREE) {
   if (!parts) {
-    const base = (typeof import.meta !== 'undefined' && /** @type {any} */ (import.meta).env?.BASE_URL) || '/';
-    let mergeGeometries;
-    parts = Promise.all([import('three/examples/jsm/loaders/GLTFLoader.js'), import('three/examples/jsm/utils/BufferGeometryUtils.js')])
-      .then(([{ GLTFLoader }, utils]) => {
-        mergeGeometries = utils.mergeGeometries;
-        return new GLTFLoader().loadAsync(`${base}${FILE}`);
-      })
-      .then((gltf) => {
-      gltf.scene.updateMatrixWorld(true);
-      return gltf.scene.children.map((node) => {
-        // One mesh per colour per part (a part's pieces merged), each baked into the cockpit's feet; the file is
-        // exported Z-up, so no turn.
-        const byMaterial = new Map();
-        node.traverse((o) => {
-          if (!o.isMesh) return;
-          const name = o.material?.name || 'frame';
-          const g = o.geometry.clone().applyMatrix4(o.matrixWorld);
-          for (const key of Object.keys(g.attributes)) if (key !== 'position' && key !== 'normal' && key !== 'uv') g.deleteAttribute(key);
-          if (!byMaterial.has(name)) byMaterial.set(name, []);
-          byMaterial.get(name).push(g.index ? g.toNonIndexed() : g);
-          o.material?.dispose?.();
-        });
-        const meshes = [...byMaterial].map(([material, list]) => ({ geometry: list.length > 1 ? mergeGeometries(list) : list[0], material }));
-        return { name: node.name, hash: node.userData?.ct156_hash ?? null, ao: node.userData?.ct156_ao ? loadAo(THREE, base, node.userData.ct156_ao) : null, meshes };
-      });
-    });
+    parts = loadParts(FILE).then((list) => list.map(({ name, extras, meshes }) => ({
+      name, hash: extras.ct156_hash ?? null, ao: extras.ct156_ao ? loadAo(THREE, extras.ct156_ao) : null, meshes,
+    })));
     parts.catch(() => {}); // a missing file leaves the code's parts showing
   }
   return parts;
@@ -78,7 +28,7 @@ function loadParts(THREE) {
  */
 export function attachCockpitModel(THREE, group, mats, own = (m) => m) {
   if (typeof document === 'undefined') return;
-  loadParts(THREE).then((list) => {
+  cockpitParts(THREE).then((list) => {
     if (group.userData.disposed) return;
     for (const { name, hash, ao, meshes } of list) {
       const code = group.getObjectByName(`ct156-cockpit-${name}`);
@@ -98,7 +48,7 @@ export function attachCockpitModel(THREE, group, mats, own = (m) => m) {
         }
         const base = mats[material] ?? mats.frame;
         // Lit colours take the part's baked shadows; the self-lit lamps don't.
-        const m = ao && geometry.attributes.uv && base.isMeshStandardMaterial ? own(shaded(base, ao)) : base;
+        const m = ao && geometry.attributes.uv && base.isMeshStandardMaterial ? own(aoShaded(base, ao)) : base;
         part.add(new THREE.Mesh(geometry, m));
       }
       group.add(part);
