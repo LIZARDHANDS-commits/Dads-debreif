@@ -6,11 +6,12 @@
 // Aircraft are a list, each with the aircraft it flies off (`ref`), so more
 // aircraft can join later without rewriting the logic (spec section 6). Lead is
 // the first aircraft and the one the others are judged from.
+import { DEG } from '../../../core/angles.js';
 import { iasToTasKt } from '../../../core/t6-performance.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { createEvents } from './events.js';
 import { STEP_SEC, makeAircraft, planDone } from './flight.js';
-import { MANOEUVRES, planManoeuvre, relativeTo, TURN_BANK_DEG, TURN_G, DEG } from './manoeuvres.js';
+import { MANOEUVRES, planManoeuvre, relativeTo, TURN_BANK_DEG, TURN_G } from './manoeuvres.js';
 import { flyStep, dryRunT } from './replay.js';
 import { setKias } from './pilot.js';
 import { resolveErrors, resolveFixTools, applyStartErrors, planWithErrors, outcomeOf, offStandardOutcome, responseOf } from './errors.js';

@@ -36,13 +36,13 @@
 //                 gap, then Lead's speed again (a flight.js speed segment).
 // Whatever the ticked tools can't take out is left, and the card says which unticked
 // tool would have taken it out.
-import { wrapPi } from '../../../core/angles.js';
+import { wrapPi, DEG } from '../../../core/angles.js';
 import { gFromBankDeg, turnRadiusFromBankFt } from '../../../core/flight-math.js';
 import { excessThrustPerWeight } from '../../../core/t6-performance.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, copyAircraft, heightAt, angleToGo, stepAircraft, planDone, smoother, smootherSlope, SMOOTHER_PEAK } from './flight.js';
 import { slowKtps, speedSegFor } from './slow-down.js';
-import { planManoeuvre, dryRun, relativeTo, missProfile, onStep, turnSeg, VERTICAL_MISS_FT, DEG } from './manoeuvres.js';
+import { planManoeuvre, dryRun, relativeTo, missProfile, onStep, turnSeg, VERTICAL_MISS_FT } from './manoeuvres.js';
 
 // ---- the settings ------------------------------------------------------------------------
 

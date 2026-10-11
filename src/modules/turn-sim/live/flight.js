@@ -12,7 +12,7 @@
 // Units: feet, seconds, x east, y north. Headings are math radians (0 east,
 // counter-clockwise). Bank is signed, left wing down positive, so a positive
 // bank turns the heading the positive (left) way.
-import { easeRoll, turnRateFromBankRadPerSec, gFromBankDeg } from '../../../core/flight-math.js';
+import { easeRoll, turnRateFromBankRadPerSec, gFromBankDeg, bankDegFromG } from '../../../core/flight-math.js';
 import { attitudeDegFromClimb, rollWithinT6A, stallLimitG, T6A_G_ONSET } from '../../../core/t6-performance.js';
 import { wrapPi, wrapDeg180 } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
@@ -56,7 +56,7 @@ export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, roll, tasFtps, kia
   let target = targetDeg;
   const gStall = stallLimitG(kias);
   if (Math.abs(target) < GATE_G_MAX_BANK_DEG && gStall > 1) {
-    const stallBank = (Math.acos(1 / gStall) * 180) / Math.PI;
+    const stallBank = bankDegFromG(gStall);
     if (Math.abs(target) > stallBank && Math.abs(bankDeg) <= stallBank + 1e-6) target = Math.sign(target) * stallBank;
   }
   const steeper = Math.abs(target) > Math.abs(bankDeg) && Math.sign(target) === (Math.sign(bankDeg) || Math.sign(target));
@@ -72,7 +72,7 @@ export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, roll, tasFtps, kia
   if (Math.abs(r.bankDeg) > Math.abs(bankDeg) && Math.abs(r.bankDeg) < GATE_G_MAX_BANK_DEG) {
     const gMax = gFromBankDeg(bankDeg) + G_ONSET_CEILING * dt;
     if (gFromBankDeg(r.bankDeg) > gMax + 1e-9) {
-      const bank = Math.sign(r.bankDeg) * (Math.acos(1 / gMax) * 180) / Math.PI;
+      const bank = Math.sign(r.bankDeg) * bankDegFromG(gMax);
       return { bankDeg: bank, rollRateDps: (bank - bankDeg) / dt };
     }
   }

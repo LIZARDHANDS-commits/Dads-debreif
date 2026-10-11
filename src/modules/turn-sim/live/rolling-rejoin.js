@@ -22,7 +22,8 @@
 //
 // Conventions as the rest of the live code: x east, y north, z up, feet and seconds; heading in math radians (0 east,
 // counter-clockwise); fwd and left in Lead's frame (left positive); bank left wing down positive.
-import { relativeTo, DEG } from './manoeuvres.js';
+import { DEG } from '../../../core/angles.js';
+import { relativeTo } from './manoeuvres.js';
 import { recordFlight, speedSeg } from './replay.js';
 import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';

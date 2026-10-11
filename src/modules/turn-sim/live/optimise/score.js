@@ -5,6 +5,7 @@
 //
 // A flight is { samples, to, side, lineKias, laneLimitFt }: samples is [{ t, lead, wing }] at every step (copies of the
 // aircraft as flight.js leaves them), from the press to in band; side is #2's rejoining side (+1 left, -1 right).
+import { DEG } from '../../../../core/angles.js';
 import { relativeTo } from '../manoeuvres.js';
 import { isLeadInCanopy } from '../../../../core/canopy.js';
 import { energyHeightFt, excessThrustPerWeight, iasToTasKt, T6A_LIMITS } from '../../../../core/t6-performance.js';
@@ -12,8 +13,6 @@ import { KT_TO_FTPS } from '../../../../core/units.js';
 import { KIAS_OUTSIDE_LAB, TURNING_REJOIN } from '../tuning.js';
 import { LANE } from '../slots.js';
 import { termOn } from './modes.js';
-
-const DEG = Math.PI / 180;
 
 /** The score's own numbers (all estimates; Fable's optimiser plan section 4 unless marked). */
 export const SCORE = Object.freeze({

@@ -8,8 +8,8 @@
 // planned too: the dashed path ahead is the path flown.
 import { STEP_SEC } from './flight.js';
 import { FW_BAND } from './slots.js';
-import { relativeTo, DEG } from './manoeuvres.js';
-import { aspectAngle3dDeg, headingCrossAngle3dDeg } from '../../../core/angles.js';
+import { relativeTo } from './manoeuvres.js';
+import { aspectAngle3dDeg, headingCrossAngle3dDeg, DEG } from '../../../core/angles.js';
 import { shakerG } from '../../../core/t6-performance.js';
 import { FTPS_TO_KT, G_FTPS2 } from '../../../core/units.js';
 import { applyPose } from './kinematic.js';

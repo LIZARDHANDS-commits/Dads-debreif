@@ -14,7 +14,7 @@
 //    behind it, the same for every level. Bank itself is never capped here (Patrick 6 Oct 04:07Z: no bank cap in
 //    formation): only physics (stall, the 7 G limit) through the gate.
 // It changes no flight physics: the step is flight.js's, the drag and thrust are core's and slow-down.js's, unchanged.
-import { easeRoll, gFromBankDeg } from '../../../core/flight-math.js';
+import { easeRoll, gFromBankDeg, bankDegFromG } from '../../../core/flight-math.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, rollLimitAt } from './flight.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
@@ -103,7 +103,7 @@ export function pilotFly(p, W, bankDeg, t, profile, accelKtps = p?.accel, roll =
   if (Math.abs(r.bankDeg) > Math.abs(p.bank) && Math.abs(r.bankDeg) < G_SHAPE_MAX_BANK_DEG && Math.sign(r.bankDeg) === (Math.sign(p.bank) || Math.sign(r.bankDeg))) {
     const gMax = gFromBankDeg(p.bank) + X.gOnsetGps * dt;
     if (gFromBankDeg(r.bankDeg) > gMax + 1e-9) {
-      const b = (Math.sign(r.bankDeg) * Math.acos(1 / gMax) * 180) / Math.PI;
+      const b = Math.sign(r.bankDeg) * bankDegFromG(gMax);
       r = { bankDeg: b, rollRateDps: (b - p.bank) / dt };
     }
   }

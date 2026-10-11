@@ -29,7 +29,8 @@
 // 11:08Z-11:09Z (200 KIAS outside line abreast, Lead turns into #2, speed only in
 // transitions) and 11:45Z (wording agreed). Numbers with no manual or ruling behind them are
 // labelled "estimate" beside them.
-import { wholeDegree, turnSeg, DEG } from './manoeuvres.js';
+import { DEG } from '../../../core/angles.js';
+import { wholeDegree, turnSeg } from './manoeuvres.js';
 import { classify, judge } from './judge.js';
 import { trackPhases, PLAN_MAX_SEC } from './tracker.js';
 import { FORMATIONS, LANE, sideFor } from './slots.js';
