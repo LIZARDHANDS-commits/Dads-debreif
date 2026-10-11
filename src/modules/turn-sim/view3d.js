@@ -18,8 +18,11 @@ import { placeBoxOutline } from './live/move-in-band.js';
 import { drawHud } from '../../ui-kit/hud.js';
 import { liftBankDeg } from './live/flight.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';
-import { createCt156Model, CT156_UNIT_LENGTH, setCockpitView } from '../../ui-kit/ct156-model.js';
+import { createCt156Model, CT156_UNIT_LENGTH, setCockpitView, setSpeedBrake } from '../../ui-kit/ct156-model.js';
 import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, createCockpitFovSlider, createEyeLean, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
+
+/** His speed brake is out: the boards stage, with power or at idle (live/slow-down.js STAGES). */
+const boardsOut = (a) => a?.power?.stage === 'boards' || a?.power?.stage === 'idleBoards';
 
 /** The 3D ground's colour: wheat stubble (TS-189). It was a deep green, '#2a3327' (Patrick, 6 Oct); set that here to put it back. */
 const GROUND_COLOUR = '#b7a77a';
@@ -615,7 +618,10 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     const lim = EYE_OFFSET_FT[s];
     gl.cockpit.eyeUpFt = clamp(Number(sizing[`eyeUp${suffix}`]) || 0, lim.up);
     gl.cockpit.eyeFwdFt = clamp(Number(sizing[`eyeFwd${suffix}`]) || 0, lim.fwd);
-    gl.cockpit.part.update(source.instruments?.(id) ?? source.hud?.() ?? null);
+    // Patrick 11 Oct 2026: "the speed brake light comes on in the cockpit", lit while this aircraft's boards are out.
+    const hud = source.instruments?.(id) ?? source.hud?.() ?? null;
+    const ship = source.state().aircraft.find((a) => a.id === id);
+    gl.cockpit.part.update(hud && ship ? { ...hud, speedBrake: boardsOut(ship) } : hud);
   }
 
   /** A click while Change position is picking: where it meets the level of Lead's height, in world feet, to the picker. */
@@ -699,6 +705,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       mesh.position.set(pose.x, pose.y, pose.z);
       mesh.scale.setScalar(lengthFt / CT156_UNIT_LENGTH);
       mesh.rotation.set(-pose.bankRad, -pose.pitchRad, pose.headingRad);
+      setSpeedBrake(mesh, boardsOut(a)); // the board swings out with his boards (Patrick's Blender card "Opens with boards", 11 Oct 2026 20:22Z)
       mesh.visible = true;
     }
     for (const [id, entry] of gl.planes) {
