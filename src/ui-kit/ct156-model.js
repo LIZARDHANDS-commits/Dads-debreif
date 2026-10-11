@@ -923,10 +923,13 @@ function getKit(THREE) {
 
 // ---------- near and far ----------
 
-/** How long the aircraft looks on screen, in CSS pixels, from this camera. */
+/**
+ * How long the aircraft looks on screen, in CSS pixels, from this camera. Its length is the scaled group's (lengthFt), so
+ * a ship built at its real length shows its detail as close as one scaled from outside.
+ */
 function onScreenPx(THREE, obj, camera, renderer) {
   const size = renderer.getSize(new THREE.Vector2());
-  const lengthWorld = CT156_UNIT_LENGTH * obj.matrixWorld.getMaxScaleOnAxis();
+  const lengthWorld = CT156_UNIT_LENGTH * (obj.userData.ct156?.g ?? obj).matrixWorld.getMaxScaleOnAxis();
   if (camera.isOrthographicCamera) return (lengthWorld * camera.zoom * size.y) / Math.max(camera.top - camera.bottom, 1e-9);
   const eye = new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld);
   const d = eye.distanceTo(new THREE.Vector3().setFromMatrixPosition(obj.matrixWorld));
