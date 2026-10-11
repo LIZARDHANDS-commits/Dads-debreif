@@ -31,7 +31,7 @@ export const DEFAULTS = Object.freeze({
   // The 3D aircraft's paint: the Harvard scheme (the ui-kit's PAINT_DEFAULT), or plain ship colours.
   paint: PAINT_DEFAULT,
   // 3D graphics quality: 'high' (sharp 4-tier satellite and up to 24 full Harvards) or 'low' (performance).
-  graphicsQuality: 'low', // Performance by default (Patrick, 3D upgrade); High is one click in the 3D bar or Traffic settings
+  graphicsQuality: 'high', // High by default (Patrick, 11 Oct 08:59Z; was Performance); Performance is one click in the 3D bar
 
   // Wind: 260°M at 15 kt, the opening picture's wind (Patrick, 4 Oct 18:47Z; was calm). Set in true: 269°T with
   // Moose Jaw's 9° East (TR-65). Patrick, 4 Oct: "260 magnetic is fine" (it was 260°T, which reads 251°M).
