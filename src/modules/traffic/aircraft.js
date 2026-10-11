@@ -170,9 +170,10 @@ export function detailText(row) {
  * sim, setup: the engine's sim and the setup it flies. onChange(): called after the run changed
  * (an aircraft was added or cleared), so the screen can redraw.
  * onSelectAircraft: optional callback called when an aircraft row is clicked.
+ * onCockpitCamera: optional callback called with an aircraft's id when its card's Camera button is pressed.
  * Returns { elements: { spawner, aircraft, conflicts }, update(state, { playing, now }), routesChanged() }.
  */
-export function createAircraftPanel({ controls, timers, settings, sim, setup, onChange, onSelectAircraft = null }) {
+export function createAircraftPanel({ controls, timers, settings, sim, setup, onChange, onSelectAircraft = null, onCockpitCamera = null }) {
   // ---- the spawner ----------------------------------------------------------
   // Patrick, 4 Oct: Type and Route, then a button for each spot on the route; one press adds an aircraft there.
   // The delay and pairs sit under "Advanced settings". "PFL from area" is the Route list's last choice and
@@ -629,6 +630,12 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
         // A PFL in yellow (Patrick, 4 Oct); a crash short stays red.
         const badgeClass = pflBadge === '[CRASH SHORT]' ? 'pfl-badge badge-crash' : (row.engineFailed || pflBadge.startsWith('[PFL')) ? 'pfl-badge badge-pfl' : 'pfl-badge';
         const nameChildren = [swatch, h('strong', {}, row.id), ' ', h('span', { class: badgeClass }, pflBadge)];
+        // Camera: the 3D view from this aircraft's cockpit (Patrick, 11 Oct 01:51Z), on every flying card.
+        if (row.status === 'flying' && onCockpitCamera) {
+          const cameraBtn = makeActionButton('Camera', `Camera: the 3D view from ${row.id}'s cockpit`, () => onCockpitCamera(row.id), false, 'aircraft-camera');
+          cameraBtn.setAttribute('aria-label', `Camera in ${row.id}'s cockpit`);
+          nameChildren.push(cameraBtn);
+        }
         // Remove this one aircraft (TR-R19), as a small ✕; going back to before brings it back.
         const removeBtn = makeActionButton('✕', `Remove ${row.id}`, () => {
           sim.remove(row.id);

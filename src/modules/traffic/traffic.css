@@ -1134,6 +1134,16 @@
   color: var(--text);
 }
 
+/* The card's Camera button sits at the right, just before the ✕ (Patrick, 11 Oct 01:51Z). */
+[data-module='traffic'] .aircraft-name > .aircraft-camera {
+  flex: none;
+  margin-left: auto;
+}
+
+[data-module='traffic'] .aircraft-camera + .aircraft-remove {
+  margin-left: 0;
+}
+
 [data-module='traffic'] .aircraft-actions[hidden] {
   display: none;
 }
