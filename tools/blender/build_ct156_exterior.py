@@ -195,8 +195,16 @@ WING_SPAR_X = 0.0923  # 13.1 ft behind the spinner's tip
 AILERON_HINGE, AILERON_ROOT, TIP_CAP = 0.765, 0.40, 0.718
 TAB_S, TAB_F = 0.462, 0.93
 FLAP_HINGE = 0.79
-# The main gear doors under the centre section: ESTIMATE (no drawing shows the underside): [s from, s to, f from, f to].
-GEAR_DOOR = (0.085, 0.17, 0.12, 0.55)
+# The gear doors underneath (Patrick, 11 Oct 2026 20:20Z: "I also want the gear doors ... modeled on the bottom"),
+# shut, as seen from below: [front, back, inboard, outboard] feet (behind the spinner's tip, out from the middle). The
+# T-6A-1 p. 1-38 lists each main gear's outboard door on its leg and two inboard doors; the Fig 1-1-2 views put the
+# main legs about 14 ft behind the tip, hinged about 4.1 ft out, and the main wheels about 1.8 ft across. Folded
+# inboard the leg's door lies from the hinge in to the wheel and the inboard door over the wheel. Sizes ESTIMATE.
+GEAR_DOORS_FT = ((13.45, 14.55, 2.3, 4.25), (12.9, 15.1, 0.45, 2.35))
+GEAR_DOOR_CORNER_FT = 0.3
+# The speed brake's outline under the belly: hinged 16.0 ft behind the tip, 2.3 ft long, 1.8 ft across (ESTIMATE; the
+# code model's SPEED_BRAKE, whose plate is drawn there).
+SPEED_BRAKE_FT = (16.0, 18.3, 0.9)
 # The tailplane (top view): elevators behind STAB_HINGE, their horn balances reaching forward to STAB_HORN over the
 # outer STAB_HORN_SPAN of each half; a trim tab on the right elevator from STAB_TAB_S[0] to [1] of the half-span,
 # behind STAB_TAB_F.
@@ -267,8 +275,11 @@ draw(wing & (f > TAB_F), s - TAB_S)
 draw(under & (s < AILERON_ROOT), (f - FLAP_HINGE) * ch)
 for sp in (S['WING_BREAK'], TIP_CAP):
     draw(wing, s - sp)
-root = S['WING'][0]['chord']
-oblong(under, GEAR_DOOR[:2], s, (GEAR_DOOR[2] * root, GEAR_DOOR[3] * root), f * ch, 0.004)
+# The gear doors and the speed brake, drawn on whatever faces down there (the wing's underside or the belly's).
+below = (air | fus) & (z < S['WING_Z'] - 0.004) & (x < ft_x(12.0)) & (x > ft_x(19.0))
+for f0, f1, a, b in GEAR_DOORS_FT:
+    oblong(below, (ft_x(f0), ft_x(f1)), x, (a * U, b * U), ay, GEAR_DOOR_CORNER_FT * U)
+oblong(below, (ft_x(SPEED_BRAKE_FT[0]), ft_x(SPEED_BRAKE_FT[1])), x, (-SPEED_BRAKE_FT[2] * U, SPEED_BRAKE_FT[2] * U), y, 0.01)
 # The tailplane and elevators.
 half = abs(S['STAB'][0]['s'])
 le, ch = chord_at(S['STAB'], ay)
