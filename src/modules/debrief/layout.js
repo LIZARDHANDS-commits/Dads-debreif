@@ -83,6 +83,8 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   const canvas3d = h('canvas', { class: 'debrief-map debrief-3d', hidden: true });
   // Esri's credit while its imagery shows, and why none shows when it can't load.
   const credit = h('p', { class: 'map-credit', hidden: true, 'aria-live': 'polite' });
+  // In 3D on "Terrain and satellite" (DB-27): the satellite picture's and the elevation tiles' credit lines.
+  const credit3d = h('p', { class: 'map-credit debrief-credit-3d', hidden: true });
   const empty = h('p', { class: 'debrief-empty' }, 'Load up to four track files, or the example flight, to start.');
   const fitButton = h('button', { type: 'button', class: 'button', disabled: true, onclick: () => handlers.fit?.() }, 'Fit');
   // A menu: a real button that opens a small panel over the map, and closes
@@ -294,6 +296,13 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   // Where the ground is (DB-26): from the tracks' ground fixes, or the home field's elevation without them. Shown in Chase and Cockpit too,
   // which always stand on it.
   const groundNote = h('p', { class: 'debrief-menu-note debrief-menu-wide', role: 'status', hidden: true });
+  let groundWords = '';
+  let terrainWords = ''; // the terrain's own line (DB-27), after the ground's
+  const showGround = () => {
+    const text = [groundWords, terrainWords].filter(Boolean).join(' ');
+    if (groundNote.textContent !== text) groundNote.textContent = text;
+    groundNote.hidden = !text;
+  };
   const outside = (el) => (notInCockpit.push(el), el);
   const view3dMenu = menu('3D settings', 'debrief-3d-settings', [
     controls.select('model3d', { label: 'Aircraft', options: [{ value: 't6', label: 'Harvard (CT-156)' }, { value: 'flat', label: 'Flat marker' }] }),
@@ -306,6 +315,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     controls.number('trailSec3d', { label: 'Trail length', unit: 's', min: 0, max: 600, step: 10 }),
     outside(controls.select('datum3d', { label: 'Ground', options: [
       { value: 'tracks', label: 'From the tracks' },
+      { value: 'terrain', label: 'Terrain and satellite' },
       { value: 'min', label: 'Lowest ship − 500 ft' },
       { value: 'field', label: 'Home field elevation' },
       { value: 'zero', label: 'Sea level' },
@@ -329,7 +339,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   const metarRaw = h('code', { class: 'debrief-metar-raw' });
   const metarRawBox = h('details', { class: 'debrief-metar-details' }, h('summary', {}, 'Report as sent'), metarRaw);
   const metarLine = h('div', { class: 'debrief-metar', role: 'status', hidden: true }, metarText, metarRawBox);
-  const mapWrap = h('div', { class: 'debrief-map-wrap' }, canvas, canvas3d, empty, credit, cameraBar.element);
+  const mapWrap = h('div', { class: 'debrief-map-wrap' }, canvas, canvas3d, empty, credit, credit3d, cameraBar.element);
   const toolbar = h('div', { class: 'debrief-toolbar' }, viewSwitch, viewMessage, fitButton, layersMenu.element, chartsMenu.element, weatherMenu.element, view3dMenu.element, toolsMenu.element);
   const stage = h(
     'section',
@@ -468,6 +478,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
       chartsMenu.setOpen(false);
     } else view3dMenu.setOpen(false);
     credit.classList.toggle('is-3d', is3d);
+    credit3d.hidden = !is3d || !credit3d.textContent;
     if (values.view !== shownView) {
       shownView = values.view;
       placeOpenMenus();
@@ -576,8 +587,16 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     },
     /** The 3D settings' line saying where the ground is drawn and why (DB-26), or '' for none. */
     setGround(text) {
-      if (groundNote.textContent !== text) groundNote.textContent = text;
-      groundNote.hidden = !text;
+      groundWords = text;
+      showGround();
+    },
+    /** The "Terrain and satellite" ground's words for that line and its credit lines ({ words, credit }), or null while it isn't shown (DB-27). */
+    setTerrain(state) {
+      terrainWords = state?.words ?? '';
+      showGround();
+      const text = state?.credit ?? '';
+      if (credit3d.textContent !== text) credit3d.textContent = text;
+      credit3d.hidden = layout.get().view !== '3d' || !text;
     },
     /** Shows the readouts for the current time (at most 10 times a second while playing). */
     renderReadouts: (r, extra) => readouts.render(r, flight, extra),

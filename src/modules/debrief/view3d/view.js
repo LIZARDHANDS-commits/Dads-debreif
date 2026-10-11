@@ -17,6 +17,11 @@
 // Airspace and airfields round the flight (DB-24) are the SOF's own drawing, shared in ui-kit (airspace3d.js,
 // airfield3d.js): built once at true height for the flight's area and kept in the scene, stretched up by the
 // altitude scale (×1 in the cockpit and chase), so a floor, a ceiling and a runway sit at their true heights.
+//
+// The Ground choice "Terrain and satellite" (DB-27) draws the real ground under the flight: the SOF's terrain and
+// satellite picture, shared in ui-kit (terrain-tiles.js, draped-ground.js), built once for the flight's area by
+// terrain-layer.js, moved to match the tracks' ground and laid flat under the runways. It replaces the green landscape,
+// the datum plane and the grid; the sticks and shadows go down to it, in the overview, Chase and Cockpit alike.
 import { createCanvasSurface } from '../../../ui-kit/canvas-view.js';
 import {
   loadThree as loadThreeModule, matchProjection, altToZ, addLights, addSky, disposeAircraftMesh, webglSupported, worldToScreen,
@@ -31,6 +36,7 @@ import { createRide, COCKPIT_CAPTION } from './cockpit.js';
 import { formationCenter, projectPoint, attitudeEuler } from './scene.js';
 import { shipsIn3d, groundDatumFt, heightLabel, groundGrid, GROUND_EXTENT_FT } from './frame.js';
 import { attachCameraInput } from './input.js';
+import { createTerrainLayer } from './terrain-layer.js';
 import { padlockTarget, ridesShip } from './camera-modes.js';
 import { headToward, aimChaseCamera } from './aim.js';
 import {
@@ -57,6 +63,8 @@ const COCKPIT_GROUND_FT = 800_000;
  */
 const RUNWAY_LIFT_FT = 0.5;
 const RUNWAY_LAYER_FT = 0.5;
+/** In the cockpit on the terrain (DB-27), the plain ground beyond the terrain's square lies this far under its lowest point (feet; an estimate). */
+const TERRAIN_UNDERLAY_FT = 50;
 
 /**
  * canvas: the 3D <canvas> (the overlay; the WebGL canvas goes right after
@@ -75,12 +83,14 @@ const RUNWAY_LAYER_FT = 0.5;
  * airfields to draw (DB-24), { key, toXY, fieldFt, airspace: volumes or null when
  * off, airfields: list or null when off }, or null for none.
  * onUnavailable(message): three.js or WebGL couldn't start; the screen
- * says so and goes back to 2D. loadThree: for tests.
+ * says so and goes back to 2D. onTerrain(state): the "Terrain and satellite" ground's
+ * words for 3D settings and its credit lines ({ words, credit }), or null while it isn't
+ * shown (DB-27). loadThree: for tests.
  */
 export function createView3d(canvas, {
   timers, flight, time, settings, fieldFt, setCamera, tennis = () => null, ground = () => null,
   fills = () => null, wind = /** @type {(t: number, altFt: number) => any} */ (() => null), windKey = () => '', space = () => null,
-  onUnavailable = /** @type {(message: string) => void} */ (() => {}), loadThree = loadThreeModule,
+  onUnavailable = /** @type {(message: string) => void} */ (() => {}), onTerrain = /** @type {(state: any) => void} */ (() => {}), loadThree = loadThreeModule,
 }) {
   const glCanvas = document.createElement('canvas');
   glCanvas.className = 'debrief-3d-picture';
@@ -93,6 +103,13 @@ export function createView3d(canvas, {
   let panelRetry = null; // a draw asked for after a held-back panel update
   let loading = false;
   let disposed = false;
+  let terrainSaid = ''; // what onTerrain was last told, so it is told only of a change
+  const tellTerrain = (state) => {
+    const key = state ? `${state.words}|${state.credit}` : '';
+    if (key === terrainSaid) return;
+    terrainSaid = key;
+    onTerrain(state);
+  };
 
   function start() {
     if (gl || loading) return;
@@ -107,6 +124,7 @@ export function createView3d(canvas, {
       try {
         gl = createPicture(module, glCanvas);
         THREE = module;
+        gl.terrain = createTerrainLayer({ THREE, scene: gl.scene, timers, doc: gl.doc, redraw: () => surface.requestDraw() });
       } catch {
         onUnavailable('3D needs WebGL 2, which this browser doesn\'t have or has turned off.');
         return;
@@ -172,8 +190,15 @@ export function createView3d(canvas, {
     const tracksGround = shown ? ground()?.groundFt ?? groundFieldFt : groundFieldFt;
     const datum = shown ? (cockpit ? tracksGround : groundDatumFt(ships, on.datum3d, groundFieldFt, tracksGround)) : 0;
 
-    placeSpace(gl, THREE, shown ? space() : null, { scale: view.altScale, ftPerPx: cockpit ? 0 : 1000 / view.zoom });
-    const modelled = renderPicture(gl, THREE, { size, flight: shown, t, on, camera: view, ctr, ships, datum, filled, cockpit });
+    const spaceWant = shown ? space() : null;
+    placeSpace(gl, THREE, spaceWant, { scale: view.altScale, ftPerPx: cockpit ? 0 : 1000 / view.zoom });
+    // The real ground (DB-27), whenever it is the Ground choice: moved to the tracks' ground, stretched by the scale in force.
+    let relief = null;
+    if (shown && on.datum3d === 'terrain') {
+      relief = gl.terrain.sync({ flight: shown, ground: ground(), groundFt: tracksGround, space: spaceWant, scale: view.altScale });
+    } else gl.terrain.hide();
+    tellTerrain(relief ? { words: relief.words, credit: relief.credit } : null);
+    const modelled = renderPicture(gl, THREE, { size, flight: shown, t, on, camera: view, ctr, ships, datum, filled, cockpit, relief });
     if (cockpit?.again && !panelRetry) {
       panelRetry = timers.after(cockpit.again, () => {
         panelRetry = null;
@@ -202,7 +227,11 @@ export function createView3d(canvas, {
     if (on.altMarks3d) drawAltitudeScale(ctx, P, ctr, ships, datum);
     if (on.sticks3d) {
       const unit = heightLabel(on.datum3d);
-      for (const s of ships) if (!s.inGap) drawStickLabel(ctx, P(s), P({ x: s.x, y: s.y, altFt: datum }), s.altFt - datum, unit);
+      for (const s of ships) {
+        if (s.inGap) continue;
+        const foot = relief ? relief.heightFt(s.x, s.y) : datum; // on the terrain, the ground under the ship
+        drawStickLabel(ctx, P(s), P({ x: s.x, y: s.y, altFt: foot }), s.altFt - foot, unit);
+      }
     }
     for (const s of ships) {
       if (modelled.has(s.slot)) labelShip(ctx, P(s), s, on);
@@ -218,6 +247,7 @@ export function createView3d(canvas, {
     dispose() {
       disposed = true;
       panelRetry?.();
+      tellTerrain(null);
       surface.dispose();
       input.dispose();
       if (gl) disposePicture(gl);
@@ -333,6 +363,8 @@ function placeSpace(gl, THREE, want, { scale, ftPerPx }) {
 }
 
 function disposePicture(gl) {
+  gl.terrain?.dispose();
+  gl.terrain = null;
   gl.space?.dispose();
   gl.space = null;
   clearGroup(gl.world);
@@ -350,7 +382,7 @@ function disposePicture(gl) {
 }
 
 /** Draws the picture; returns the slots drawn as a model (the rest get a 2D marker). */
-function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, datum, filled = null, cockpit = null }) {
+function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, datum, filled = null, cockpit = null, relief = null }) {
   const { renderer, scene, world } = gl;
   const ratio = globalThis.devicePixelRatio || 1;
   const told = gl.size;
@@ -395,17 +427,18 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
   const basic = (color, extra = {}) => material(gl, THREE, 'basic', color, extra);
   const line = (color, opacity) => material(gl, THREE, 'line', color, { opacity });
 
-  if (on.landscape3d || cockpit) {
+  // The ground under the terrain's own (DB-27): only in the cockpit, beyond the terrain's square, just under its lowest point.
+  if (relief ? cockpit : (on.landscape3d || cockpit)) {
     const extent = cockpit ? COCKPIT_GROUND_FT : GROUND_EXTENT_FT * 4;
     const land = new THREE.Mesh(new THREE.PlaneGeometry(extent, extent), cockpit
       ? basic(COCKPIT_LAND) // flat and plain, so the horizon reads against the sky at any bank
       : material(gl, THREE, 'standard', LAND, { roughness: 1, metalness: 0 }));
-    land.position.set(ctr.x, ctr.y, dz - 2 * camera.altScale);
+    land.position.set(ctr.x, ctr.y, relief ? Z(Math.min(datum, relief.lowestFt) - TERRAIN_UNDERLAY_FT) : dz - 2 * camera.altScale);
     world.add(land);
   }
   // The datum plane with its edge (V6's ground reference), then the grid on it. Not in the cockpit: its edge would read
-  // as a second horizon.
-  if (on.groundRef3d && !cockpit) {
+  // as a second horizon. Not on the terrain either: a flat plane and grid would cut through its hills (DB-27).
+  if (on.groundRef3d && !cockpit && !relief) {
     const { min, max } = groundGrid(ctr, GROUND_EXTENT_FT, 10_000);
     const plane = new THREE.Mesh(
       new THREE.PlaneGeometry(max.x - min.x, max.y - min.y),
@@ -418,7 +451,7 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
     );
     world.add(new THREE.LineLoop(edge, line(DATUM_EDGE, 0.65)));
   }
-  if (on.grid3d) {
+  if (on.grid3d && !relief) {
     const { xs, ys, min, max } = groundGrid(ctr);
     const pts = [];
     for (const x of xs) pts.push(x, min.y, dz + 4, x, max.y, dz + 4);
@@ -492,17 +525,18 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
   if (on.sticks3d && !cockpit) {
     for (const s of ships) {
       const top = Z(s.altFt);
-      const height = Math.abs(top - dz);
+      const foot = relief ? Z(relief.heightFt(s.x, s.y)) : dz; // on the terrain, down to the ground under the ship (DB-27)
+      const height = Math.abs(top - foot);
       if (height > 0 && !s.inGap) { // no stick for a ship in a GPS gap: its height is a guess (D32)
         const stick = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 8), basic(SHIP_COLORS[s.slot], { transparent: true, opacity: 0.85 }));
         stick.rotation.x = Math.PI / 2; // the cylinder's axis is Y; stand it up along Z
         stick.scale.set((STICK_PX / 2) * ftPerPx, height, (STICK_PX / 2) * ftPerPx);
-        stick.position.set(s.x, s.y, (top + dz) / 2);
+        stick.position.set(s.x, s.y, (top + foot) / 2);
         world.add(stick);
       }
       const shadow = new THREE.Mesh(new THREE.CircleGeometry(1, 32), basic(SHIP_COLORS[s.slot], { transparent: true, opacity: 0.45, depthWrite: false }));
       shadow.scale.set(18 * ftPerPx, 18 * ftPerPx, 1);
-      shadow.position.set(s.x, s.y, dz + 6);
+      shadow.position.set(s.x, s.y, foot + 6);
       world.add(shadow);
     }
   }

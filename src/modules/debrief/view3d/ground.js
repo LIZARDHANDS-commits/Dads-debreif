@@ -72,8 +72,9 @@ export function trackGround(flight) {
 /**
  * The ground the 3D view draws and how the runways move to match. `fieldFt` is the home field's elevation (the fallback); `airports` the
  * runway list (airports-data.js entries) and `toXY(lat, lon)` gives [x, y] in the flight's map feet.
- * Returns { groundFt, source: 'tracks' | 'field', trackFt, fixes, wheelsFt, field: { icao, elevationFt } | null, shiftFt, words }:
- * `shiftFt` is added to every field's elevation when the runways are drawn (0 when no field matches, or on the fallback).
+ * Returns { groundFt, source: 'tracks' | 'field', trackFt, fixes, x, y, wheelsFt, field: { icao, elevationFt } | null, shiftFt, words }:
+ * `shiftFt` is added to every field's elevation when the runways are drawn (0 when no field matches, or on the fallback); `x`, `y` are the ground fixes'
+ * middle in map feet (null on the fallback), where the terrain is matched to the tracks (terrain.js, DB-27).
  * @param {any} flight
  * @param {{ fieldFt: number, airports?: readonly any[], toXY?: ((lat: number, lon: number) => number[]) | null }} options
  */
@@ -81,7 +82,7 @@ export function groundLevel(flight, { fieldFt, airports = [], toXY = null }) {
   const found = flight ? trackGround(flight) : null;
   if (!found) {
     return {
-      groundFt: fieldFt, source: 'field', trackFt: null, fixes: 0, wheelsFt: 0, field: null, shiftFt: 0,
+      groundFt: fieldFt, source: 'field', trackFt: null, fixes: 0, x: null, y: null, wheelsFt: 0, field: null, shiftFt: 0,
       words: `Ground ${ftWords(fieldFt)}, the home field's elevation (too few fixes on the ground in the tracks to read it from them).`,
     };
   }
@@ -109,7 +110,7 @@ export function groundLevel(flight, { fieldFt, airports = [], toXY = null }) {
     ? ` ${field.icao} is ${ftWords(field.elevationFt)} in the runway data: every runway is drawn ${ftWords(Math.abs(shiftFt))} ${shiftFt < 0 ? 'lower' : 'higher'} than its field's elevation to match, so ${field.icao}'s lie on this ground.`
     : '';
   return {
-    groundFt, source: 'tracks', trackFt: found.altFt, fixes: found.fixes, wheelsFt: WHEELS_BELOW_ORIGIN_FT, field, shiftFt,
+    groundFt, source: 'tracks', trackFt: found.altFt, fixes: found.fixes, x: found.x, y: found.y, wheelsFt: WHEELS_BELOW_ORIGIN_FT, field, shiftFt,
     words: `Ground ${ftWords(groundFt)}, from the tracks: ${found.fixes.toLocaleString('en-US')} fixes on the ground read ${ftWords(found.altFt)}, less ${Math.round(WHEELS_BELOW_ORIGIN_FT)} ft to the wheels (estimate).${fieldWords}`,
   };
 }

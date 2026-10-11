@@ -148,13 +148,13 @@ export function drawCompass(ctx, size, camera) {
 }
 
 // What the picture is scaled by, and what the heights are measured from (#26, #27). groundSource: 'tracks' when the tracks gave the
-// ground (DB-26), 'field' when it fell back to the field's elevation.
+// ground (DB-26), 'field' when it fell back to the field's elevation. On the terrain (DB-27) the datum is that same ground; the sticks go to the terrain.
 export function drawCaption(ctx, camera, on, datum, groundSource = 'tracks') {
   ctx.save();
   ctx.font = '12px system-ui, sans-serif';
   const scale = Number.isInteger(camera.altScale) ? camera.altScale : camera.altScale.toFixed(2);
   outlined(ctx, `Altitude ×${scale}`, 14, 22, TEXT);
-  const from = on.datum3d === 'field' ? 'field elevation' : on.datum3d === 'zero' ? 'sea level' : on.datum3d === 'tracks' ? (groundSource === 'tracks' ? 'from the tracks' : 'field elevation') : 'lowest ship less 500 ft';
+  const from = on.datum3d === 'field' ? 'field elevation' : on.datum3d === 'zero' ? 'sea level' : on.datum3d === 'tracks' || on.datum3d === 'terrain' ? (groundSource === 'tracks' ? 'from the tracks' : 'field elevation') : 'lowest ship less 500 ft';
   outlined(ctx, `Ground: ${ft(datum)} ft (${from})`, 14, 40, TEXT);
   ctx.restore();
 }
