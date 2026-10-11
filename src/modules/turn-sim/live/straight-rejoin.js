@@ -22,7 +22,7 @@ import { recordFlight, speedSeg } from './replay.js';
 import { closeThrough, legsFor, STRAIGHT_AHEAD } from './recipes.js';
 import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
-import { FORMATIONS, pairSlot, sideFor, LANE } from './slots.js';
+import { FORMATIONS, pairSlot, sideFor, LANE, FW_LIMITS } from './slots.js';
 import { KIAS_OUTSIDE_LAB, REJOIN_CLOSURE_KT, STRAIGHT_REJOIN, TURNING_REJOIN, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
 import { onClosure } from './closures.js';
 import { STEP_SEC } from './flight.js';
@@ -54,17 +54,23 @@ function flyStraightRejoinWith({ lead, wing, rec, s, to, sTo, spacingFt, blockFt
 
   // The ride (ride.js) with Lead not turning (refactor step 5): Lead's six line stands still in his frame. #2 closes on it
   // no faster than he could stop on it, the rest of his speed along it, falling back as he cuts (Patrick 08:40Z), at full
-  // power until he is on it; he joins it about 1,000 ft back (Fig 12.17 point 1), or where he is if already 500-1,000 ft
-  // back, and rides up it at the overtake to the vector point, easing to the window's closure over the last 500 ft.
-  const along0 = -relativeTo(rec.at(0), wing).fwd;
-  const captureAt = along0 >= A.vectorAtFt && along0 <= -A.sixFt ? along0 : -A.sixFt;
+  // power until he is on it; he aims to join it about 1,000 ft back (Fig 12.17 point 1), or where he is if already 500-1,000
+  // ft back, and rides up it at the overtake to the vector point, easing to the window's closure over the last 500 ft.
+  // From a close start (behind Lead's 3/9 line and inside the fighting wing cone's far edge) he flies it as a close move:
+  // bank in proportion to the cut and a gentle stop (STRAIGHT_REJOIN.closeHeadingTauSec, closeStopBankDeg; Fable's
+  // recommendation 11 Oct, for Patrick's yes). With the line abreast numbers he rolled to 60° and hunted across the six.
+  const rel0 = relativeTo(rec.at(0), wing);
+  const along0 = -rel0.fwd;
+  const close = along0 > 0 && Math.hypot(rel0.fwd, rel0.left) <= FW_LIMITS.rangeFt[1];
+  const captureAt = close ? Math.min(-A.sixFt, Math.max(A.vectorAtFt, along0)) : -A.sixFt;
   const midKt = (TR.stableKt[0] + TR.stableKt[1]) / 2;
   const ridePhase = phase({ fwd: -A.vectorAtFt, left: 0, alt: wakeFt }, {
     kind: 'ride',
     straight: true,
     line,
-    stopFtps2: STRAIGHT_REJOIN.stopShare * G_FTPS2 * Math.tan(TR.bankCapDeg * DEG),
-    roll: TR.pointRoll, // the turning rejoin's start roll, quick but smooth (Patrick 04:05Z): at the aircraft's own rate he snapped to 60° from fighting wing
+    ...(close
+      ? { stopFtps2: G_FTPS2 * Math.tan(STRAIGHT_REJOIN.closeStopBankDeg * DEG), tauSec: STRAIGHT_REJOIN.closeHeadingTauSec }
+      : { stopFtps2: STRAIGHT_REJOIN.stopShare * G_FTPS2 * Math.tan(TR.bankCapDeg * DEG), roll: TR.pointRoll }), // from line abreast the turning rejoin's start roll, quick but smooth (Patrick 04:05Z)
     captureAt,
     captureFt: STRAIGHT_REJOIN.captureFt,
     windowFt: A.vectorAtFt,

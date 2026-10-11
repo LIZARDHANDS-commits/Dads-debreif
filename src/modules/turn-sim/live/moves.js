@@ -163,7 +163,9 @@ export const STRAIGHT_REJOIN = Object.freeze({
   lineArriveKt: 8, // he joins the line and flows up it closing at about this, slow enough to stop on the slot with power back, never stopping short of it (estimate)
   lineFlowFt: 20, // he flows on up the line once within this many feet of route (on the line, TS-103), never stopping there (estimate; 40 until V2.232, when route at 3 wingspans, TS-181, left the line to echelon too short and he flowed in 6 ft ahead)
   captureFt: 100, // he is on Lead's six within this many feet of it; until then full power, from then the overtake (estimate)
-  stopShare: 0.5, // he closes on Lead's six line no faster than he could stop on it at this share of the sideways pull his 60° bank gives (g tan 60°, about 56 ft/s²), the rest left for the roll and the heading lag (estimate; refactor step 5, Fable's recommendation for Patrick's yes)
+  stopShare: 0.5, // he closes on Lead's six line no faster than he could stop on it at this share of the sideways pull his 60° bank gives (g tan 60°, about 56 ft/s²), the rest left for the roll and the heading lag (estimate; tried at 80, 40 and 25 ft/s²; refactor step 5, Fable's recommendation for Patrick's yes)
+  closeStopBankDeg: 15, // from a close start (fighting wing) he closes on the six no faster than he could stop on it at this bank's sideways pull (g tan 15°, about 8.6 ft/s²) (estimate; Fable's recommendation 11 Oct: a 10° cut flown with about 15° of bank)
+  closeHeadingTauSec: 7, // from a close start his heading comes onto the one asked over about this long: about 1.5° of bank per degree of cut at 200 KIAS (V / 1.5 g), so bank in proportion to the cut, the close-formation rule (estimate; Fable's recommendation 11 Oct, for Patrick's yes)
 });
 
 // ---- the one speed table (clean-up step 5, TS-141; the review's report 6.4 B) -----------------------------------------
