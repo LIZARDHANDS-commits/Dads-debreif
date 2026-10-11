@@ -1,5 +1,5 @@
 // The SOF's 3D view of the weather (SPEC-sof, "3D view", SOF-39, phase 1): the map area swapped for a three.js picture of
-// the 450 NM square round home (Dad, 7 Oct; it was 250). The satellite picture is the ground (two tiers, ground3d.js: the whole square at a modest zoom with a sharp patch
+// the 450 NM square round home (Dad, 7 Oct; it was 250). The satellite picture is the ground (two tiers, ui-kit draped-ground.js: the whole square at a modest zoom with a sharp patch
 // round home), with the radar and lightning pictures laid on it; home and the alternates stand on it as pins with their category in words; the METAR cloud layers hang over them as flat
 // round decks at their reported bases; the 25 and 50 NM rings run round home. Phase 2 (SOF-39) adds the model layers: a cloud-cover
 // sheet at each model level (see-through, smooth, stacked from the surface up, like ForeFlight's cloud maps), wind barbs at three levels
@@ -31,7 +31,7 @@
 // sits still (but for Orbit, above). Hiding it, or closing the module, frees everything three.js made and removes its canvas, because a canvas whose
 // WebGL context has been let go can't be given another.
 //
-// Real terrain (Dad, 7 Oct): the ground is a height-mapped mesh from the public Terrarium elevation tiles (terrain3d.js loads them, terrain-model.js decodes and shades them, ground3d.js
+// Real terrain (Dad, 7 Oct): the ground is a height-mapped mesh from the public Terrarium elevation tiles (ui-kit terrain-tiles.js loads them, core/terrain.js decodes and shades them with the SOF's plan in terrain-model.js, ui-kit draped-ground.js
 // draws them), heights times the same height scale. Radar shafts, lightning bolts, front walls, pins, drop lines and rings stand on it; runways stay at their field elevation, METAR decks at
 // field elevation plus base, and aircraft at their reported altitude whatever the ground does (one under the terrain is drawn just above it, tagged "below terrain?"). A Terrain switch
 // flattens it back to the old plane. The ground starts flat at home's elevation and rises as tiles arrive.
@@ -45,10 +45,12 @@ import { h } from '../../ui-kit/dom.js';
 import { loadThree, webglSupported, matchProjection, worldToScreen } from '../../ui-kit/three-aircraft.js';
 import { ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { RING_NM, FT_PER_NM } from './map-view.js';
-import { createGround3d, MAX_GROUND_TILES, INNER_NM } from './ground3d.js';
-import { createTerrain3d } from './terrain3d.js';
+import { drawGeoImage } from './map-draw.js';
+import { BASE_DIM } from './map-layers.js';
+import { createDrapedGround } from '../../ui-kit/draped-ground.js';
+import { createTerrainTiles } from '../../ui-kit/terrain-tiles.js';
 import { buildTowns } from './towns3d.js';
-import { terrainWords, TERRAIN_CREDIT } from './terrain-model.js';
+import { terrainWords, TERRAIN_CREDIT, sharedTerrainPlan, GROUND_IMAGERY, MAX_GROUND_TILES, INNER_NM } from './terrain-model.js';
 import { createWeather3dLayers, weatherKeyWords } from './weather3d-layers.js';
 import { FRONTS_CREDIT } from './fronts.js';
 import {
@@ -648,11 +650,21 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     gl.objects = null;
   }
 
-  // ---- The ground: satellite in two tiers (ground3d.js), then radar and lightning on it ----------------
+  // ---- The ground: satellite in two tiers (ui-kit draped-ground.js), then radar and lightning on it ----------------
   function paintGround() {
     const pictures = getPictures();
     picturesSig = pictures.sig;
-    const { failed } = gl.ground.paint({ projection: getProjection(), pictures, noTiles });
+    // Radar and lightning on both canvases, over the dimmed satellite picture.
+    const overlay = (ctx, toPx) => {
+      for (const picture of pictures.list) {
+        try {
+          drawGeoImage(ctx, picture.image, picture.bbox, toPx, picture.alpha);
+        } catch {
+          // A picture just let go of: the next change draws the new one.
+        }
+      }
+    };
+    const { failed } = gl.ground.paint({ projection: getProjection(), overlay, noTiles });
     if (!noTiles && failed !== tilesFailed) {
       tilesFailed = failed;
       showNote();
@@ -2321,19 +2333,22 @@ export function createSofView3d({ timers, getProjection, getPictures, getWeather
     const scene = new THREE.Scene();
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 2);
 
-    // The ground in two tiers: the whole square, and a sharp patch round home (ground3d.js); a tile arriving asks for the ground to be painted again.
-    const ground = createGround3d({
+    // The ground in two tiers: the whole square, and a sharp patch round home (ui-kit draped-ground.js); a tile arriving asks for the ground to be painted again.
+    const ground = createDrapedGround({
       T: THREE,
       timers,
       doc: win.document,
+      plan: sharedTerrainPlan(), // the square in force (the view is built again when the 3D area changes)
+      imagery: GROUND_IMAGERY,
+      dim: BASE_DIM,
       onChange: () => {
         groundDirty = true;
         requestRender();
       },
     });
     scene.add(ground.group);
-    // The real terrain's heights (terrain3d.js): the ground meshes and everything that stands on the ground read them. A tile arriving asks for a picture; syncTerrain throttles the rest.
-    const terrain = createTerrain3d({ timers, doc: win.document, onChange: () => requestRender() });
+    // The real terrain's heights (ui-kit terrain-tiles.js): the ground meshes and everything that stands on the ground read them. A tile arriving asks for a picture; syncTerrain throttles the rest.
+    const terrain = createTerrainTiles({ timers, doc: win.document, plan: sharedTerrainPlan(), onChange: () => requestRender() });
     // The aircraft are lit models (the ground and the weather layers are not): a bright sky-and-ground light and a sun from the south-west,
     // stronger than the Debrief's, because these small aircraft must read against a dark ground. Estimates for readability, SOF-39.
     const sun = new THREE.DirectionalLight('#fff3dd', 2.6);

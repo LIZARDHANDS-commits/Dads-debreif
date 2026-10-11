@@ -1,23 +1,27 @@
-// The SOF 3D view's terrain: fetches the Terrarium elevation tiles (terrain-model.js decodes and samples them), keeps the two height grids the ground meshes are drawn
-// from, and answers "how high is the ground here?" for everything that stands on it (radar shafts, bolts, fronts, pins, towns, aircraft). SPEC-sof, "3D view".
+// A 3D view's real terrain, shared by the SOF and the Debrief (SOF-64, DB-27): fetches the Terrarium elevation tiles (core/terrain.js decodes and samples them), keeps the two
+// height grids the ground meshes are drawn from, and answers "how high is the ground here?" for everything that stands on it. Moved here from the SOF's terrain3d.js.
 //
-// Progressive: the grids start flat at home's elevation and rise as tiles arrive (`refresh()` re-reads the store; the view throttles it). A tile that fails twice is given up on and
-// that part stays flat. Tile pictures are untrusted (they come from another site): each must be exactly 256 x 256 pixels and its heights are range-checked when decoded.
-// No page of its own: view3d.js hands in the scheduler scope and the document, and ground3d.js draws the grids.
+// Progressive: the grids start flat at the fallback height (the SOF's home elevation) and rise as tiles arrive (`refresh()` re-reads the store; the view throttles it). A tile that
+// fails twice is given up on and that part stays flat. Tile pictures are untrusted (they come from another site): each must be exactly 256 x 256 pixels and its heights are
+// range-checked when decoded. No page of its own: the view hands in the scheduler scope and the document, and ui-kit draped-ground.js draws the grids.
+//
+// The caller sizes the area: `plan` is { outer: { sizeFt, cells, zoom }, inner: { sizeFt, cells, zoom }, hole: { holeCells, holeFrom } }, both squares centred on the
+// projection's origin (the SOF's home; the Debrief's flight centre). Both grids read the inner zoom first, then the outer.
 import {
-  TERRAIN_URL, TERRAIN_CREDIT, TILE_PX, TERRAIN_ZOOM, MAX_TERRAIN_TILES, terrainPlan, INNER_CELLS, INNER_FT, decodeTerrarium, tilesCovering, createHeightStore, createGrid, fillGrid,
-  stitchInner, sampleGrid,
-} from './terrain-model.js';
-import { AREA_FT } from './scene3d-model.js';
+  TERRAIN_URL, TERRAIN_CREDIT, TILE_PX, MAX_TERRAIN_TILES, decodeTerrarium, tilesCovering, createHeightStore, createGrid, fillGrid, stitchInner, sampleGrid,
+} from '../core/terrain.js';
+import { cornersOf } from './map-tiles.js';
 
 /** A tile that fails is asked for again once after this long (milliseconds), then given up on. An estimate. */
 const RETRY_MS = 3000;
 
 /**
- * timers (a scheduler scope: after); doc (the page's document, for the scratch canvas); onChange() when a tile arrives or is given up on; makeImage for tests.
+ * timers (a scheduler scope: after); doc (the page's document, for the scratch canvas); onChange() when a tile arrives or is given up on; plan (above); maxTiles, the most
+ * tiles asked for (MAX_TERRAIN_TILES unless given); makeImage for tests.
  * Returns { setView(projection, homeFt), setEnabled(on), isEnabled(), refresh(), isDirty(), revision, grids, heightFt(x, y), known(x, y), state(), credit, dispose() }.
  */
-export function createTerrain3d({ timers, doc, onChange, makeImage = () => new Image() }) {
+export function createTerrainTiles({ timers, doc, onChange, plan, maxTiles = MAX_TERRAIN_TILES, makeImage = () => new Image() }) {
+  const innerHalf = plan.inner.sizeFt / 2;
   const store = createHeightStore();
   const pending = new Map(); // tile key -> { image, retry }
   const failed = new Set();
@@ -88,17 +92,13 @@ export function createTerrain3d({ timers, doc, onChange, makeImage = () => new I
     entry.image.src = TERRAIN_URL(tile.z, tile.x, tile.y);
   }
 
-  /** Asks for the tiles the square needs, outer zoom first so the whole area rises before the sharp patch does, up to MAX_TERRAIN_TILES. */
+  /** Asks for the tiles the area needs, outer zoom first so the whole area rises before the sharp patch does, up to `maxTiles`. */
   function request() {
-    const half = AREA_FT / 2;
-    const box = (h) => {
-      const points = [[-h, -h], [-h, h], [h, -h], [h, h]].map(([x, y]) => projection.toLatLon(x, y));
-      return { north: Math.max(...points.map((p) => p.lat)), south: Math.min(...points.map((p) => p.lat)), west: Math.min(...points.map((p) => p.lon)), east: Math.max(...points.map((p) => p.lon)) };
-    };
-    const list = [...tilesCovering(terrainPlan().outerZoom, box(half)), ...tilesCovering(TERRAIN_ZOOM.inner, box(INNER_FT / 2))];
-    capped = list.length > MAX_TERRAIN_TILES;
+    const box = (h) => cornersOf(projection, { minX: -h, minY: -h, maxX: h, maxY: h });
+    const list = [...tilesCovering(plan.outer.zoom, box(plan.outer.sizeFt / 2)), ...tilesCovering(plan.inner.zoom, box(innerHalf))];
+    capped = list.length > maxTiles;
     wantedKeys.clear();
-    for (const tile of list.slice(0, MAX_TERRAIN_TILES)) {
+    for (const tile of list.slice(0, maxTiles)) {
       const key = tileKey(tile);
       wantedKeys.add(key);
       if (store.get(tile.z, tile.x, tile.y) || pending.has(key) || failed.has(key)) continue;
@@ -110,20 +110,21 @@ export function createTerrain3d({ timers, doc, onChange, makeImage = () => new I
     if (!grids) return;
     fillGrid(grids.outer, store, homeFt);
     fillGrid(grids.inner, store, homeFt);
-    stitchInner(grids.inner, grids.outer);
+    stitchInner(grids.inner, grids.outer, plan.hole);
     storeVersion = store.version;
   }
 
   const api = {
-    /** The map's projection (its toLatLon) and home's elevation in feet. Cheap when nothing changed; a new home asks for its tiles and builds its grids. */
+    /** The map's projection (its toLatLon, centred on the area) and the fallback height in feet (the SOF's home elevation). Cheap when nothing changed; a new centre asks for its tiles and builds its grids. */
     setView(next, nextHomeFt) {
       const key = `${next.lat},${next.lon}`;
       if (key !== planKey) {
         planKey = key;
         projection = next;
+        const zooms = [plan.inner.zoom, plan.outer.zoom];
         grids = {
-          outer: createGrid({ cells: terrainPlan().outerCells, sizeFt: AREA_FT, toLatLon: next.toLatLon }),
-          inner: createGrid({ cells: INNER_CELLS, sizeFt: INNER_FT, toLatLon: next.toLatLon }),
+          outer: createGrid({ cells: plan.outer.cells, sizeFt: plan.outer.sizeFt, toLatLon: next.toLatLon, zooms }),
+          inner: createGrid({ cells: plan.inner.cells, sizeFt: plan.inner.sizeFt, toLatLon: next.toLatLon, zooms }),
         };
         dirty = true;
         if (enabled) request();
@@ -133,7 +134,7 @@ export function createTerrain3d({ timers, doc, onChange, makeImage = () => new I
         dirty = true;
       }
     },
-    /** Terrain on or off. Off: every height is home's elevation (the flat plane), and no tile is asked for until it is turned on. */
+    /** Terrain on or off. Off: every height is the fallback height (the flat plane), and no tile is asked for until it is turned on. */
     setEnabled(on) {
       if (on === enabled) return;
       enabled = on;
@@ -157,16 +158,16 @@ export function createTerrain3d({ timers, doc, onChange, makeImage = () => new I
     get grids() {
       return grids;
     },
-    /** The ground's height at a point in feet from home, feet above sea level: the mesh's own surface. Home's elevation when terrain is off or the tile has not come. */
+    /** The ground's height at a point in feet from the area's centre, feet above sea level: the mesh's own surface. The fallback height when terrain is off or the tile has not come. */
     heightFt(x, y) {
       if (!enabled || !grids) return homeFt;
-      const inInner = Math.abs(x) <= INNER_FT / 2 && Math.abs(y) <= INNER_FT / 2;
+      const inInner = Math.abs(x) <= innerHalf && Math.abs(y) <= innerHalf;
       return sampleGrid(inInner ? grids.inner : grids.outer, x, y).ft;
     },
     /** Whether a tile really gave the height here (false when terrain is off or flat for want of a tile). */
     known(x, y) {
       if (!enabled || !grids) return false;
-      const inInner = Math.abs(x) <= INNER_FT / 2 && Math.abs(y) <= INNER_FT / 2;
+      const inInner = Math.abs(x) <= innerHalf && Math.abs(y) <= innerHalf;
       return sampleGrid(inInner ? grids.inner : grids.outer, x, y).known;
     },
     /** The tiles wanted, got, given up on and still coming, and whether the cap left some out. */

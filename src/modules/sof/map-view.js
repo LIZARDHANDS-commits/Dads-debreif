@@ -53,16 +53,8 @@ export const homeView = (lat, zoom = HOME_ZOOM) => ({ cx: 0, cy: 0, scale: pxPer
 /** A ring's radius in CSS pixels at a scale (pixels per foot). */
 export const ringRadiusPx = (nm, scale) => nm * FT_PER_NM * scale;
 
-/** The view's edges in degrees, from its box in map feet: { north, south, west, east }. */
-export function cornersOf(projection, { minX, minY, maxX, maxY }) {
-  const points = [[minX, minY], [minX, maxY], [maxX, minY], [maxX, maxY]].map(([x, y]) => projection.toLatLon(x, y));
-  return {
-    north: Math.max(...points.map((p) => p.lat)),
-    south: Math.min(...points.map((p) => p.lat)),
-    west: Math.min(...points.map((p) => p.lon)),
-    east: Math.max(...points.map((p) => p.lon)),
-  };
-}
+/** The view's edges in degrees, from its box in map feet: { north, south, west, east } (shared in ui-kit map-tiles.js, SOF-64). */
+export { cornersOf } from '../../ui-kit/map-tiles.js';
 
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 

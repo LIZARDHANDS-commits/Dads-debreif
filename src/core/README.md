@@ -7,6 +7,7 @@ The small functions behind every number the tool shows: units, angles and headin
 | `units.js` | Feet per nautical mile, knots to feet per second, feet per metre, gravity, Earth radius |
 | `angles.js` | Headings, bearings, clock positions, aspect angle, heading crossing angle, compass conversion, compass bearing of a vector |
 | `geo.js` | The debrief map: latitude/longitude to feet and back, map tiles; distance along and off a leg |
+| `terrain.js` | The real ground for 3D views (SOF and Debrief): Terrarium tile decoding, the store of decoded tiles, height grids, stitching two tiers, hill shading, picking a zoom under a tile cap. Not flight math: a picture only (SOF-64, DB-27) |
 | `time.js` | Zulu and local time, KML times, the Zulu date-time group |
 | `flight-math.js` | Turn radius, rate and bank from G, and G, radius and rate from bank; the Turn Sim's G with its correction (floored at 1.01, D74); the EM chart point; closure; G estimated from a track |
 | `tennis.js` | The tennis ball, one solver for the map and the 3D view |

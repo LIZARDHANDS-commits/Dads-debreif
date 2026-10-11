@@ -11,6 +11,20 @@ export const ESRI_IMAGERY = Object.freeze({
   credit: 'Imagery: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
 });
 
+/**
+ * A box in a map's local feet as edges in degrees, { north, south, west, east }: the box's four corners through `projection.toLatLon(x, y)` (moved here from the SOF's
+ * map-view.js so the shared 3D ground can use it, SOF-64).
+ */
+export function cornersOf(projection, { minX, minY, maxX, maxY }) {
+  const points = [[minX, minY], [minX, maxY], [maxX, minY], [maxX, maxY]].map(([x, y]) => projection.toLatLon(x, y));
+  return {
+    north: Math.max(...points.map((p) => p.lat)),
+    south: Math.min(...points.map((p) => p.lat)),
+    west: Math.min(...points.map((p) => p.lon)),
+    east: Math.max(...points.map((p) => p.lon)),
+  };
+}
+
 const RETRY_MS = [2000, 6000]; // two more tries, further apart, then the tile is given up on
 const MAX_KEPT = 300; // tiles kept in memory; the oldest go first
 const MAX_TILES_PER_DRAW = 64; // more than this means the zoom is wrong for tiles: draw none

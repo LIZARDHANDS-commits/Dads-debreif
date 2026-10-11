@@ -278,7 +278,7 @@ export function createTraffic3d(T, { scene, labels, onHover = () => {}, onPick =
      * Brings the drawing in line with the items (scene3d-model.js `sceneTraffic`'s aircraft): new ones are made, known ones moved, and gone ones
      * freed. `scale` is the height scale, `groundFt` the ground the view draws (feet above sea level), `intruders` a Map from the hex id of each aircraft that is
      * not a T-6 inside a watched area to the area(s) it is in ("CYA304"): each gets the amber ⚠ tag. `nowMs` is the clock for gliding each aircraft
-     * to where it should be by now (see `glide`); `trailsOn` shows the trails (the items carry their positions). `terrain` is the view's { heightFt(x, y), known(x, y) } (terrain3d.js):
+     * to where it should be by now (see `glide`); `trailsOn` shows the trails (the items carry their positions). `terrain` is the view's { heightFt(x, y), known(x, y) } (ui-kit terrain-tiles.js):
      * an aircraft stays at its reported height above sea level whatever the ground does; one on the ground, with no height, or reported under the terrain below it is drawn just
      * above the terrain there, and the last of those says "below terrain?" in its tag (the data is off; it has not crashed). Its drop line goes to the terrain.
      * `display` is the Traffic display settings (scene3d-model.js `cleanTrafficDisplay`): the icon size scales every aircraft on the screen, the tag text
