@@ -420,7 +420,7 @@ test('a split S ends level, heading reversed, and lower (about 2,000 ft)', () =>
   assert.equal(endedAt.inv, false, 'upright at the end');
 });
 
-test('the split S is core\'s: about the same height loss, peak G, exit speed and turn as splitST6A from the same entry (within the shared margins), rolling toward the other aircraft', () => {
+test('the split S is core\'s: about the same height loss, peak G, exit speed and turn as splitST6A from the same entry (within the shared margins), rolling toward the other aircraft', (t) => {
   for (const [kias, altFt, ataSide] of [[90, 10000, 'left'], [100, 10000, 'right'], [110, 10000, 'left'], [110, 8000, 'right'], [119, 10000, 'left']]) {
     const s = createEnergyFight({ ...SOLO, turnsStart: 'now', ataDeg: 30, ataSide, aaDeg: 150, blueKias: kias, redKias: kias, blueAltFt: altFt, redAltFt: altFt, blueMove: 'splitS', redMove: 'splitS' });
     let peakG = 0, at = null;
@@ -438,7 +438,9 @@ test('the split S is core\'s: about the same height loss, peak G, exit speed and
     near(peakG, core.peakG, TOLERANCES.G_FORCE, `${name}: peak G`);
     near(at.kias, core.exitKias, TOLERANCES.AIRSPEED_KT, `${name}: exit KIAS`);
     near(Math.abs(at.turnDeg), Math.abs(core.turnDeg), TOLERANCES.ANGLE_DEG, `${name}: turn`);
-    assert.ok(peakG <= 5 + 1e-9, `the split S pull is capped at 5 G: ${peakG}`);
+    // Patrick's G rule (11 Oct 2026): over 7 G fails, over 5 G is a caution only.
+    assert.ok(peakG <= 7, `the split S pull stays inside 7 G: ${peakG}`);
+    if (peakG > 5) t.diagnostic(`caution: ${name} peak ${peakG.toFixed(2)} G, over 5 G`);
     assert.equal(s.blue.inverted, false, 'upright at the end');
   }
 });
