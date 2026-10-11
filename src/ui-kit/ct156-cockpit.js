@@ -43,6 +43,7 @@ import {
 } from './ct156-model.js';
 import { drawAttitude } from './hud.js';
 import { attachCockpitModel } from './ct156-cockpit-model.js';
+import { browserStorage, createStore } from '../storage/store.js';
 
 /** Feet per model unit (the model's 1.44 units are the T-6A's 33 ft 4 in). */
 export const CT156_FT_PER_UNIT = CT156_LENGTH_FT / CT156_UNIT_LENGTH;
@@ -2470,31 +2471,26 @@ export const COCKPIT_HEAD = Object.freeze({ yawDeg: [-160, 160], pitchDeg: [-85,
  */
 export const COCKPIT_VIEW = Object.freeze({ fovAcrossDeg: 60, fovTallDeg: 55, fovRangeDeg: Object.freeze([30, 90]), nearFt: 0.5, farFt: 400_000 });
 
-// The slider's setting, shared by every 3D view on the page and kept in this browser (a convenience: it starts at
-// COCKPIT_VIEW.fovTallDeg when storage is empty or blocked).
-const FOV_STORE_KEY = 'ct156.cockpitFovDeg';
+// The slider's setting, shared by every 3D view on the page and kept in this browser through the app's store (a
+// convenience: it starts at COCKPIT_VIEW.fovTallDeg when storage is empty or blocked; kept under 'ct156.cockpitFovDeg'
+// until V2.317, so it starts there once).
 const clampFov = (v) => Math.round(Math.max(COCKPIT_VIEW.fovRangeDeg[0], Math.min(COCKPIT_VIEW.fovRangeDeg[1], v)));
-let fovSetting = (() => {
-  try {
-    const v = Number(globalThis.localStorage?.getItem(FOV_STORE_KEY));
-    return v > 0 ? clampFov(v) : COCKPIT_VIEW.fovTallDeg;
-  } catch {
-    return COCKPIT_VIEW.fovTallDeg;
-  }
-})();
+let fovStore = null;
+const fovStoreScope = () => (fovStore ??= createStore(browserStorage).scope('cockpit'));
+let fovSetting = null;
+const savedFov = () => {
+  const v = Number(fovStoreScope().get('fovDeg'));
+  return v > 0 ? clampFov(v) : COCKPIT_VIEW.fovTallDeg;
+};
 
 /** The seat view's angle across the screen's shorter side, degrees, as the slider has it. */
-export const cockpitFovSetting = () => fovSetting;
+export const cockpitFovSetting = () => (fovSetting ??= savedFov());
 
 /** Sets the seat view's angle (kept within COCKPIT_VIEW.fovRangeDeg, whole degrees) and remembers it in this browser. */
 export function setCockpitFovSetting(v) {
-  if (!Number.isFinite(Number(v))) return fovSetting;
+  if (!Number.isFinite(Number(v))) return cockpitFovSetting();
   fovSetting = clampFov(Number(v));
-  try {
-    globalThis.localStorage?.setItem(FOV_STORE_KEY, String(fovSetting));
-  } catch {
-    // storage blocked: the setting lasts until the page reloads
-  }
+  fovStoreScope().set('fovDeg', fovSetting); // the store keeps it for the visit when storage is blocked
   return fovSetting;
 }
 
@@ -2511,7 +2507,8 @@ export const COCKPIT_ZOOM = Object.freeze({ times: 2.5 });
  */
 export function cockpitFovDeg(width, height, zoomed = false) {
   const aspect = Math.max(width, 1) / Math.max(height, 1);
-  const fov = aspect >= 1 ? fovSetting : 2 * deg(Math.atan(Math.tan(rad(fovSetting / 2)) / aspect));
+  const set = cockpitFovSetting();
+  const fov = aspect >= 1 ? set : 2 * deg(Math.atan(Math.tan(rad(set / 2)) / aspect));
   return zoomed ? 2 * deg(Math.atan(Math.tan(rad(fov / 2)) / COCKPIT_ZOOM.times)) : fov;
 }
 

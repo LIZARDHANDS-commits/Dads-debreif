@@ -1,10 +1,13 @@
 // The CT-156 model trial page (ct156-trial.html): the code model (ct156-model.js) and the Blender model
 // (public/models/ct156.glb, built by tools/blender/build_ct156.py) side by side, same camera and light, with each one's
 // frame time. Nothing in the app loads the Blender model yet; this page only compares the two.
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { createCt156Model, CT156_UNIT_LENGTH } from './ct156-model.js';
+import { createScheduler } from './scheduler.js';
 import { addLights } from './three-aircraft.js';
+
+// three.js loads with import(), as in every 3D view; frames run through the app's scheduler.
+const THREE = await import('three');
+const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
 
 // The page sits at src/ui-kit/ in the dev server and the built site alike; public/ files sit at the site's root.
 const MODEL_URL = new URL('../../models/ct156.glb', location.href);
@@ -144,6 +147,5 @@ function frame() {
       `${shipCount} ship${shipCount > 1 ? 's' : ''}: ${avg.toFixed(2)} ms render (CPU), ${info[key].calls} draw calls, ${info[key].tris.toLocaleString()} triangles${extra}`;
   }
   window.ct156Trial = { samples, info, loadInfo, ready: Boolean(blenderTemplate) };
-  requestAnimationFrame(frame);
 }
-requestAnimationFrame(frame);
+createScheduler().scope('ct156-trial').frame(frame);

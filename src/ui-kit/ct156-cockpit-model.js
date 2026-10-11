@@ -4,17 +4,15 @@
 // file (forward-bow, canopy-rails, and the seat, pcl and stick rounded from the code's own pieces) replaces the code cockpit's mesh named ct156-cockpit-<part> once the file is in; until
 // then, or if it never loads, the code's part shows. Built in the cockpit's own feet (nose +X, left +Y, up +Z), so the
 // parts drop into the cockpit's group as they are. A picture only: no flight numbers.
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { TextureLoader } from 'three';
+// three.js comes from the caller (THREE) and its loaders with import(), so nothing of it loads until a 3D view does.
 
 const FILE = 'models/ct156-cockpit.glb';
 
 /** A part's baked soft shadows (its grey picture beside the file, laid on its own UV map), loaded once. */
 const aoTextures = new Map();
-function loadAo(base, file) {
+function loadAo(THREE, base, file) {
   if (!aoTextures.has(file)) {
-    const t = new TextureLoader().load(`${base}models/${file}`);
+    const t = new THREE.TextureLoader().load(`${base}models/${file}`);
     t.flipY = false; // as the file's other pictures: glTF lays its UV maps top down
     aoTextures.set(file, t);
   }
@@ -39,10 +37,16 @@ function shaded(material, ao) {
 /** The file's parts, loaded once per page and shared by every cockpit: Promise of [{ name, meshes: [{ geometry, material }] }]. */
 let parts = null;
 
-function loadParts() {
+function loadParts(THREE) {
   if (!parts) {
     const base = (typeof import.meta !== 'undefined' && /** @type {any} */ (import.meta).env?.BASE_URL) || '/';
-    parts = new GLTFLoader().loadAsync(`${base}${FILE}`).then((gltf) => {
+    let mergeGeometries;
+    parts = Promise.all([import('three/examples/jsm/loaders/GLTFLoader.js'), import('three/examples/jsm/utils/BufferGeometryUtils.js')])
+      .then(([{ GLTFLoader }, utils]) => {
+        mergeGeometries = utils.mergeGeometries;
+        return new GLTFLoader().loadAsync(`${base}${FILE}`);
+      })
+      .then((gltf) => {
       gltf.scene.updateMatrixWorld(true);
       return gltf.scene.children.map((node) => {
         // One mesh per colour per part (a part's pieces merged), each baked into the cockpit's feet; the file is
@@ -58,7 +62,7 @@ function loadParts() {
           o.material?.dispose?.();
         });
         const meshes = [...byMaterial].map(([material, list]) => ({ geometry: list.length > 1 ? mergeGeometries(list) : list[0], material }));
-        return { name: node.name, hash: node.userData?.ct156_hash ?? null, ao: node.userData?.ct156_ao ? loadAo(base, node.userData.ct156_ao) : null, meshes };
+        return { name: node.name, hash: node.userData?.ct156_hash ?? null, ao: node.userData?.ct156_ao ? loadAo(THREE, base, node.userData.ct156_ao) : null, meshes };
       });
     });
     parts.catch(() => {}); // a missing file leaves the code's parts showing
@@ -74,7 +78,7 @@ function loadParts() {
  */
 export function attachCockpitModel(THREE, group, mats, own = (m) => m) {
   if (typeof document === 'undefined') return;
-  loadParts().then((list) => {
+  loadParts(THREE).then((list) => {
     if (group.userData.disposed) return;
     for (const { name, hash, ao, meshes } of list) {
       const code = group.getObjectByName(`ct156-cockpit-${name}`);
