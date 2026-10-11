@@ -69,7 +69,7 @@ export const LIVE = Object.freeze({
   acrossDps: 3, // how fast his place moves across the tail (a swap, the entry, Terminate): 3°/s, a 30° swap in about 10 s (estimate; inside WING.swapMinSec-swapMaxSec)
   shareSec: 6, // the lag or lead share swings from full lag to full lead in no less than 6 s (estimate)
   overTop: Object.freeze(['loop', 'wingover', 'barrelRoll']), // Lead's manoeuvres over the top
-  startFt: 600, // he starts them no further out than 600 ft, the default setting (Patrick asked about near 500 ft, 11 Oct 2026 22:31Z: from 525 ft he comes in to about 450 ft over the top; his answer pending)
+  startFt: 600, // he starts them no further out than 600 ft, the default setting (Patrick 11 Oct 2026 22:54Z, card: 600 ft rather than near 500 ft)
   topAcrossDps: 6, // over the top he crosses behind Lead at 6°/s, 30° in 5 s (estimate)
   topShareSec: 3, // over the top the share swings in no less than 3 s (estimate), so lag going up is pure before the top and lead from the top down
   rangeFtps: 60, // how fast his place moves in or out (a new distance, the entry, Terminate): estimate

@@ -110,7 +110,10 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
   const st0 = leadStateOf(lead, blockFt);
   const wing0 = startWing({ t: t0, side, rangeFt, slot });
   const man0 = { id: manId++, key: 'entry', label: 'Entry to fluid manoeuvring' };
-  const entryCtl = entry(-side, bankDegFor(bankValue)); // the entry turn away from #2 (Fig 12.20, turn away: he collapses into the cone)
+  const entryPlanned = entry(-side, bankDegFor(bankValue)); // the entry turn away from #2 (Fig 12.20, turn away: he collapses into the cone)
+  // With the live wingman both go to MAX as soon as fluid manoeuvring starts (Patrick 11 Oct 2026 22:33Z): Lead's entry
+  // holds no speed, and #2 flies into position on geometry alone.
+  const entryCtl = live ? { ...entryPlanned, step: (st, mem, ctx) => ({ ...entryPlanned.step(st, mem, ctx), holdKias: undefined }) } : entryPlanned;
   const toEntry = (k, st, w, extra) => ({
     k, t: t0 + k * dt, st, wing: w,
     pos: { x: st.pm.x, y: st.pm.y, z: st.pm.z - blockFt }, vel: st.vel, accPerp: st.accPerp, levelUp: st.pm.up,
