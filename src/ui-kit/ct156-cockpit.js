@@ -74,12 +74,20 @@ export const FRONT_SEAT_RAISE_FT = 2 / 12;
 export const EYE_FT = Object.freeze({ x: CT156_SEAT_X[0] * F + EYE_AHEAD_OF_HELMET_FT, y: 0, z: CT156_HELMET_Z[0] * F - EYE_BELOW_HELMET_FT + FRONT_SEAT_RAISE_FT });
 
 /**
+ * How far the rear seat is raised above the T-6A-1 side drawing's, feet: 5.5 in (Patrick, 11 Oct 2026 08:34Z, "Raise
+ * rear eye" so the rear seat's 220 KIAS picture matches the SMM's Fig 3.5). In that figure the top of the front seat's
+ * headbox sits on the horizon at 220 KIAS level; from the drawing's eye (both helmets drawn level) it sat about 6° above
+ * it at the model's -0.7°, 5.5 in up puts it about 0.2° under. Fitted to the figure, not measured.
+ */
+export const REAR_SEAT_RAISE_FT = 5.5 / 12;
+/**
  * Both eyes, feet (TS-155, TS-156, ALL-31). Front: EYE_FT. Rear: 3.3 ft aft of the origin (18.6 ft behind the spinner
- * tip) and 2.2 ft above the spinner's axis, the T-6A-1 side drawing's (was 3.0 ft aft and 2.29 ft up).
+ * tip) and 2.66 ft above the spinner's axis, the T-6A-1 side drawing's (2.2 ft up) raised REAR_SEAT_RAISE_FT (was 3.0 ft
+ * aft and 2.29 ft up until V2.238, then the drawing's until V2.279).
  */
 export const EYES_FT = Object.freeze({
   front: EYE_FT,
-  rear: Object.freeze({ x: CT156_SEAT_X[1] * F + EYE_AHEAD_OF_HELMET_FT, y: 0, z: CT156_HELMET_Z[1] * F - EYE_BELOW_HELMET_FT }),
+  rear: Object.freeze({ x: CT156_SEAT_X[1] * F + EYE_AHEAD_OF_HELMET_FT, y: 0, z: CT156_HELMET_Z[1] * F - EYE_BELOW_HELMET_FT + REAR_SEAT_RAISE_FT }),
 });
 /**
  * The seat stations SEAT_FT and the seats' parts are drawn for (model units: the front seat's until V2.234), and how
