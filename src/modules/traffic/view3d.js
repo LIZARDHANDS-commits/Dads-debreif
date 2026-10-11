@@ -26,6 +26,7 @@ import { paletteFrom, conflictLevels, isFlying, aircraftColor, heightSpeedText, 
 import { createTileLayer, ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { makeLocalRef, latLonToLocalFt } from '../../core/geo.js';
 import { createAirfieldScenery, disposeAirfieldScenery, DEFAULT_FLOOR_FT, RUNWAY_TOP_FT } from './scenery3d.js';
+import { createAirfieldFurniture, disposeAirfieldFurniture } from './furniture3d.js';
 import { createLandmarks, disposeLandmarks, createWindsocks, updateWindsocks, disposeWindsocks } from './landmarks3d.js';
 import { createRunwayMarkings, disposeRunwayMarkings } from './runway-markings.js';
 import { createBaseBuildings, disposeBaseBuildings, BASE_BOX_FT } from './base-buildings3d.js';
@@ -724,6 +725,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     for (const g of landmarks.children) {
       g.position.z = DEFAULT_FLOOR_FT + (heights ? heights.offsetAt(g.position.x, g.position.y) : 0);
     }
+    furniture.userData.drape?.(heights); // the approach lights, off the flat airfield
     // The shadow sheets lie on the same ground, a hair above it.
     for (const sheet of groundShadows.children) {
       const pos = sheet.geometry.attributes.position;
@@ -766,6 +768,9 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   // 3D Airfield Scenery: Control Tower, 4 Arch Hangars, South Apron
   const scenery = createAirfieldScenery(THREE);
   root.add(scenery);
+  // Lights, PAPIs, signs, the parked Harvards and the ramp vehicles (TR-141)
+  const furniture = createAirfieldFurniture(THREE, DEFAULT_FLOOR_FT);
+  root.add(furniture);
   // Every other base building (PMQs, offices, annexes) as simple boxes: three instanced draw calls (TR-69)
   const baseBuildings = createBaseBuildings(THREE, { floor: DEFAULT_FLOOR_FT });
   root.add(baseBuildings);
@@ -1314,6 +1319,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
         scenery.removeFromParent();
       }
       disposeBaseBuildings(baseBuildings);
+      disposeAirfieldFurniture(furniture);
       disposeLandmarks(landmarks);
       disposeWindsocks(windsocks);
       photoGeometry.dispose();

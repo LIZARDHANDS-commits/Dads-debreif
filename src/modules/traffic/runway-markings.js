@@ -263,7 +263,7 @@ function runwayBoxes() {
     return { ...f, a, half, lo: -padFt, hi: f.len + padFt };
   };
   return {
-    holdFor: [box(THRESHOLD_29L, DEPARTURE_END_29L, 80, 250), box(THRESHOLD_29R, DEPARTURE_END_29R, 80, 250)],
+    holdFor: [{ ...box(THRESHOLD_29L, DEPARTURE_END_29L, 80, 250), id: '29L' }, { ...box(THRESHOLD_29R, DEPARTURE_END_29R, 80, 250), id: '29R' }],
     clip: [box(THRESHOLD_29L, DEPARTURE_END_29L, 80, 10), box(THRESHOLD_29R, DEPARTURE_END_29R, 80, 40), box(RUNWAY_03, RUNWAY_21, 52, 0)],
   };
 }
@@ -279,7 +279,8 @@ const onRunway = (boxes, x, y) => boxes.some((r) => {
 
 
 
-function paintTaxiways(shapes) {
+/** Paints the taxiways onto `shapes`; each holding position is also pushed onto `holds` (see holdingPositions). */
+function paintTaxiways(shapes, holds = []) {
   const { holdFor, clip } = runwayBoxes();
   for (const tw of TAXIWAYS) {
     for (let k = 1; k < tw.pts.length; k++) {
@@ -306,7 +307,11 @@ function paintTaxiways(shapes) {
           const p = f.place(t, 0);
           const { s, n } = local(r, p.x, p.y);
           const inside = s >= r.lo && s <= r.hi && Math.abs(n) < HOLD_FROM_CENTRELINE_FT;
-          if (prev !== null && inside !== prev) holdLine(shapes, f.place, inside ? t - 1 : t, tw.widthFt / 2, inside ? -1 : 1);
+          if (prev !== null && inside !== prev) {
+            const at = inside ? t - 1 : t, away = inside ? -1 : 1;
+            holdLine(shapes, f.place, at, tw.widthFt / 2, away);
+            holds.push({ ...f.place(at, 0), ux: away * f.ux, uy: away * f.uy, halfWidth: tw.widthFt / 2, taxiway: tw.id, runway: r.id });
+          }
           prev = inside;
         }
       }
@@ -355,6 +360,36 @@ export function runwayMarkingPolygons() {
   }
   return shapes;
 }
+
+/**
+ * Every runway-holding position (TR-141, for the signs): { x, y } on the taxiway's (or 03/21's) centreline, (ux, uy) the unit
+ * direction to the holding side (away from the runway), halfWidth of the pavement, taxiway (its label, or '03-21') and runway
+ * ('29L' or '29R', the one it holds short of).
+ */
+export function holdingPositions() {
+  const holds = [];
+  paintTaxiways([], holds);
+  const r = frame(RUNWAY_03, RUNWAY_21);
+  const lines = [{ id: '29L', a: THRESHOLD_29L, b: DEPARTURE_END_29L }, { id: '29R', a: THRESHOLD_29R, b: DEPARTURE_END_29R }];
+  const offLine = (p, { a, b }) => Math.abs((b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)) / Math.hypot(b.x - a.x, b.y - a.y);
+  for (const { s, away } of PAINT_0321.holds) {
+    const p = r.place(s, 0);
+    const runway = lines.reduce((best, l) => (offLine(p, l) < offLine(p, best) ? l : best)).id;
+    holds.push({ ...p, ux: away * r.ux, uy: away * r.uy, halfWidth: PAINT_0321.halfWidth, taxiway: '03-21', runway });
+  }
+  return holds;
+}
+
+/**
+ * Each paved runway's line, its ends' designators and its threshold bars, ft along it from `a` (for the lights, TR-141): barA
+ * before or past `a`, barB past `b`. halfWidth is the paint's edge stripe, ft from the centreline.
+ */
+export const RUNWAY_ENDS = Object.freeze([
+  Object.freeze({ ids: Object.freeze(['29L', '11R']), a: THRESHOLD_29L, b: DEPARTURE_END_29L, barA: BAR_29L_FT, barBPast: BAR_11R_PAST_END_FT, edgeFt: EDGE_STRIPE.centreFt }),
+  Object.freeze({ ids: Object.freeze(['29R', '11L']), a: THRESHOLD_29R, b: DEPARTURE_END_29R, barA: BAR_29R_FT, barBPast: BAR_11L_PAST_END_FT, edgeFt: EDGE_STRIPE.centreFt }),
+]);
+/** The aiming point's start, ft past each threshold bar (END_PAINT; Patrick, 10 Oct: "those white strips are 1000 feet"). */
+export const AIM_FROM_FT = END_PAINT.aim.from;
 
 /** The paint's colours, bottom first: the outlines' black, white, and the pad chevrons' yellow (photo). */
 const PAINT = Object.freeze({ black: '#141414', white: '#f2f2ee', yellow: '#ffd23a' }); // yellow brightened (Patrick, 10 Oct; TR-138)

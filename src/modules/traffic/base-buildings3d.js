@@ -295,7 +295,10 @@ export function disposeBaseBuildings(group) {
     if (o.isInstancedMesh) o.dispose?.();
   });
   for (const g of geos) g.dispose();
-  for (const m of mats) m.dispose();
+  for (const m of mats) {
+    m.map?.dispose(); // the roof textures (TR-140): three.js loads them again if the view is built again
+    m.dispose();
+  }
   group.clear();
   group.removeFromParent?.();
 }
