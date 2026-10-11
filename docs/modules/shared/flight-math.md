@@ -76,6 +76,7 @@ Sources: "aero" means standard aerodynamics, worked out in the test. A manual pa
 | `closestApproach`, `dangerGate`, `clearanceSide`, `firstEntry`, `firstEntrySampled` | closest-approach.js | Closest approach of two straight tracks (time, miss, range now); the danger test that holds until the range opens; which side to dodge; the first time two aircraft are inside a cylinder (lateral and vertical) of each other, straight or along predicted tracks (ALL-27) | geometry |
 | `latLonToLocalFt`, `localFtToLatLon`, `distance` | geo.js | Map feet and lat/lon | flat-earth projection |
 | `decodeTerrarium`, `tilesCovering`, `createHeightStore` | terrain-tiles.js | Ground height from the public elevation tiles (SOF terrain, Traffic 3D ground TR-117) | the tiles' published encoding |
+| `createGrid`, `fillGrid`, `stitchInner`, `sampleGrid`, `hillshade`, `zoomForTiles`, `holeFor` | terrain-grid.js | The two-tier height grids a 3D view's real ground is drawn from, read from that store (SOF terrain, Debrief Terrain and satellite; SOF-65, DB-27). A picture only | standard bilinear sampling; hill shade sun NW 45° and `SHADE_GAIN` 4 are estimates for the look |
 | `FT_PER_NM`, `KT_TO_FTPS`, `G_FTPS2` and the rest | units.js | Unit constants, once | standard values |
 
 ## Formation and gunnery

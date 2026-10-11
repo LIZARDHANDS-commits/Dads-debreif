@@ -11,10 +11,10 @@ import { ROUTES, openRoute } from './routes.js';
 async function tagControls(page) {
   return page.evaluate(() =>
     [...document.querySelectorAll('a[href], button')]
-      .filter((el) => el.getClientRects().length > 0 && !el.disabled && !el.closest('dialog:not([open])') && !el.classList.contains('skip-link'))
+      .filter((el) => el.checkVisibility({ visibilityProperty: true, opacityProperty: true }) && !el.disabled && !el.closest('dialog:not([open])') && !el.classList.contains('skip-link'))
       .map((el, index) => {
         el.dataset.testControl = String(index);
-        return { index, href: el.getAttribute('href'), target: el.getAttribute('target'), text: el.textContent.trim() };
+        return { index, href: el.getAttribute('href'), target: el.getAttribute('target'), text: el.textContent.trim(), pressed: el.getAttribute('aria-pressed') };
       }),
   );
 }
@@ -27,6 +27,8 @@ const CHECKED_ROUTES = ROUTES.filter((route) => route !== '#/traffic');
 
 for (const route of CHECKED_ROUTES) {
   test(`every control on ${route} does something`, async ({ page }) => {
+    // Each control gets a fresh page: the Formation Simulator has about 45, at 1.5 s or more each on a runner.
+    test.setTimeout(180_000);
     // Each click starts from a fresh page, so nothing remembered from the last
     // one (a collapsed panel, say) moves the controls around.
     await page.addInitScript(() => {
@@ -65,7 +67,8 @@ for (const route of CHECKED_ROUTES) {
       await target.click();
       const after = await page.evaluate(() => ({ hash: location.hash, changes: window.__changes, dialog: Boolean(document.querySelector('dialog[open]')) }));
       // A link to the page you're already on counts: it's where it says it goes.
-      const didSomething = after.hash !== before || after.dialog || after.changes > 0 || control.href === before;
+      // So does the choice already picked in a row of choices (aria-pressed), like a radio button.
+      const didSomething = after.hash !== before || after.dialog || after.changes > 0 || control.href === before || control.pressed === 'true';
       expect(didSomething, `"${control.text}" did nothing on ${route}`).toBe(true);
     }
   });

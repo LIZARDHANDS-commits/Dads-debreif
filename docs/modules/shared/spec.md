@@ -670,6 +670,15 @@ disposeAircraftMesh(plane); sky.dispose();             // when the view closes (
 - Both build at the height scale given; the Debrief builds at 1 and stretches the group by its altitude scale, so its overview and its true-scale cockpit share one build.
 - **Data failure:** both draw only what they are given; the caller says when data is loading, missing or failed (src/airfields/airspace/load.js words).
 
+### Terrain and the draped satellite ground in 3D (SOF-65, DB-27; wording not yet confirmed with Patrick)
+
+- `src/core/terrain-tiles.js` (pure, TR-117, Patrick's): the Terrarium tile address and credit, `decodeTerrarium` (256 × 256 pixels, heights range-checked −500 to 9,000 m, the tiles' published encoding), `tilesCovering` and `createHeightStore`. Read by Traffic's 3D ground, the SOF's terrain and the Debrief's; never copied.
+- `src/core/terrain-grid.js` (pure, SOF-65): `createGrid`, `fillGrid`, `stitchInner(inner, outer, hole)`, `sampleGrid`, `hillshade`, and `zoomForTiles` (the finest zoom under a tile cap) and `holeFor` (where an inner square sits in an outer grid), reading `terrain-tiles.js`'s store. Not flight math: a picture only.
+- `src/ui-kit/terrain3d.js` `createTerrain3d({ timers, doc, onChange, plan, maxTiles })`: fetches the elevation tiles for a two-tier `plan` ({ outer: { sizeFt, cells, zoom }, inner: { ... }, hole }), keeps the grids, answers `heightFt(x, y)`. A tile that fails twice is given up on and its part stays flat at the fallback height the caller gives. Traffic's 3D ground (`src/modules/traffic/ground-heights3d.js`) loads the same tiles its own way for its one tier and is unchanged.
+- `src/ui-kit/draped-ground.js` `createDrapedGround({ T, timers, doc, onChange, plan, imagery, dim, polygonOffset })`: the two grids as height-mapped meshes with the Esri satellite picture draped on them (the sharp inner picture feathered into the outer, `featherEdges`), an `overlay` for the caller's own pictures (the SOF's radar and lightning), `innerCanvas` for a caller laying a sharper patch on it (the Debrief's field patch), `state()` of the satellite tiles. A tile that fails leaves the plain ground colour.
+- `src/ui-kit/map-tiles.js` `cornersOf(projection, box)`: a box in local feet as edges in degrees (moved from the SOF's `map-view.js`, which re-exports it).
+- Each caller sizes its own area: the SOF its square round home (`src/modules/sof/terrain-model.js`), the Debrief its flight (`src/modules/debrief/view3d/terrain.js`).
+
 ### 2D/3D switch (D141)
 
 Every simulator has a 2D | 3D switch: the Debrief, Turn Fight, Turn Sim and Traffic. The SOF dashboard stays 2D and has none.
