@@ -19,7 +19,7 @@ import { drawHud } from '../../ui-kit/hud.js';
 import { liftBankDeg } from './live/flight.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { createCt156Model, CT156_UNIT_LENGTH, setCockpitView } from '../../ui-kit/ct156-model.js';
-import { createCt156Cockpit, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
+import { createCt156Cockpit, cockpitFovDeg, createCockpitZoomKey, EYES_FT, CT156_FT_PER_UNIT } from '../../ui-kit/ct156-cockpit.js';
 import { EYE_OFFSET_FT } from './layout.js';
 
 /** The formation's height in the picture (feet). An aircraft with altAboveFt is drawn that far above or below it (the vertical miss). */
@@ -184,6 +184,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
   let paintNow = null;
   let userZoom = 1; // the person's wheel zoom on top of the fit-all zoom (Patrick, 5 Oct: the zoom keeps following the formation)
   let povNow = null; // the perspective view drawn last ('chase', 'cockpit', 'padlock') or null for the flat camera
+  const zoomKey = createCockpitZoomKey(win, () => requestDraw()); // hold Shift to zoom from the seat (COCKPIT_ZOOM)
   let povKey = '';
   let head = { yawDeg: 0, pitchDeg: 0 }; // the person's head turn (Cockpit, Padlock) or swing round the aircraft (Chase)
   let chaseFt = POV.chaseFt;
@@ -532,6 +533,8 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     }
     // With the cockpit interior (TS-154, TS-155) the eye is in the chosen seat, moved by its offsets, and the own aircraft
     // stays drawn round it; without it, the old eye point and the own aircraft hidden, as before.
+    p.fov = cockpitFovDeg(box.width, box.height, zoomKey.held()); // from the seat, set by its height so a wide screen adds sides (Patrick, 11 Oct)
+    p.updateProjectionMatrix();
     const interior = gl.cockpit?.root === me;
     const seatEye = interior ? EYES_FT[gl.cockpit.seat] ?? EYES_FT.front : null;
     const eye = interior
@@ -863,7 +866,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
     ['contextmenu', (e) => e.preventDefault()], // right-drag pans
     ['pointerdown', (e) => {
       if (e.button !== 0 && e.button !== 2) return;
-      dragging = { id: e.pointerId, x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, camera: cam, pan: e.button === 2 || e.shiftKey };
+      dragging = { id: e.pointerId, x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, camera: cam, pan: e.button === 2 || (e.shiftKey && povNow !== 'cockpit' && povNow !== 'padlock') }; // Shift-drag turns the head while zoomed
       canvas.setPointerCapture?.(e.pointerId);
       canvas.classList.add('is-dragging');
     }],
@@ -964,6 +967,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       if (win.addEventListener) {
         win.removeEventListener('keydown', onWindowKeydown);
         win.addEventListener('keydown', onWindowKeydown);
+        zoomKey.start();
       }
       if (win.ResizeObserver && !resizer) {
         resizer = new win.ResizeObserver(() => requestDraw());
@@ -977,6 +981,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       visible = false;
       stopFrame();
       win.removeEventListener?.('keydown', onWindowKeydown);
+      zoomKey.stop();
       resizer?.disconnect();
       resizer = null;
     },
@@ -995,6 +1000,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       visible = false;
       stopFrame();
       win.removeEventListener?.('keydown', onWindowKeydown);
+      zoomKey.stop();
       resizer?.disconnect();
       resizer = null;
       for (const [type, fn] of hands) canvas.removeEventListener(type, fn);

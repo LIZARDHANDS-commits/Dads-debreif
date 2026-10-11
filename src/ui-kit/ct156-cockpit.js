@@ -1584,8 +1584,70 @@ export function createCt156Cockpit(THREE, { doc = globalThis.document } = {}) {
 
 /** How far the head turns from the nose when the view is dragged, degrees: left of the nose and up positive (Turn Sim's and Turn Fight's HEAD). */
 export const COCKPIT_HEAD = Object.freeze({ yawDeg: [-160, 160], pitchDeg: [-85, 80] });
-/** The view from a seat: 60° across, nothing nearer than 0.5 ft (inside the cockpit), out to 400,000 ft (Turn Sim's and Turn Fight's POV). */
-export const COCKPIT_VIEW = Object.freeze({ fovAcrossDeg: 60, nearFt: 0.5, farFt: 400_000 });
+/**
+ * The view from a seat: at least fovTallDeg tall and at least fovAcrossDeg across, whichever shows more (cockpitFovDeg),
+ * nothing nearer than 0.5 ft (inside the cockpit), out to 400,000 ft (Turn Sim's and Turn Fight's POV). Set by its
+ * height so a wide screen adds sides instead of cropping the panel and bow (Patrick, 11 Oct 03:23Z: Traffic's 2:1 view
+ * showed only 32° tall at 60° across); fovTallDeg is Patrick's pick, a picture choice, not a flying number.
+ */
+export const COCKPIT_VIEW = Object.freeze({ fovAcrossDeg: 60, fovTallDeg: 65, nearFt: 0.5, farFt: 400_000 });
+
+/**
+ * Holding Shift in a seat view zooms in on where the view looks (boresight, head turn or padlock), `times` closer:
+ * 65° tall becomes about 29°, roughly true size on a desktop screen (Patrick, 11 Oct 03:29Z, asked for Shift to zoom;
+ * the 2.5 is an estimate). A picture choice, not a flying number.
+ */
+export const COCKPIT_ZOOM = Object.freeze({ times: 2.5 });
+
+/** The vertical field of view, degrees, from a seat for a box `width` by `height` (COCKPIT_VIEW), COCKPIT_ZOOM closer when `zoomed`. */
+export function cockpitFovDeg(width, height, zoomed = false) {
+  const aspect = Math.max(width, 1) / Math.max(height, 1);
+  const fov = Math.max(COCKPIT_VIEW.fovTallDeg, 2 * deg(Math.atan(Math.tan(rad(COCKPIT_VIEW.fovAcrossDeg / 2)) / aspect)));
+  return zoomed ? 2 * deg(Math.atan(Math.tan(rad(fov / 2)) / COCKPIT_ZOOM.times)) : fov;
+}
+
+/**
+ * Watches the Shift key on `win` for a 3D view's seat zoom (COCKPIT_ZOOM): held() is true while Shift is down (not
+ * while typing in a box), and onChange runs each time it goes down or up, so a paused view redraws. start() and stop()
+ * go with the view's own window key listener; stop() also lets go.
+ * @param {any} win
+ * @param {() => void} [onChange]
+ */
+export function createCockpitZoomKey(win, onChange) {
+  let held = false;
+  let on = false;
+  const set = (v) => {
+    if (v === held) return;
+    held = v;
+    onChange?.();
+  };
+  const down = (e) => {
+    const tag = e.target?.tagName;
+    if (e.key === 'Shift' && tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') set(true);
+  };
+  const up = (e) => {
+    if (e.key === 'Shift') set(false);
+  };
+  const letGo = () => set(false);
+  return {
+    held: () => held,
+    start() {
+      if (on || !win?.addEventListener) return;
+      on = true;
+      win.addEventListener('keydown', down);
+      win.addEventListener('keyup', up);
+      win.addEventListener('blur', letGo);
+    },
+    stop() {
+      if (!on) return;
+      on = false;
+      win.removeEventListener?.('keydown', down);
+      win.removeEventListener?.('keyup', up);
+      win.removeEventListener?.('blur', letGo);
+      held = false;
+    },
+  };
+}
 
 /**
  * One CT-156 cockpit (createCt156Cockpit) that moves from ship to ship: mount(root, seat) puts it in the ship `root`
@@ -1640,17 +1702,17 @@ export function cockpitEyeWorld(THREE, root, seat = 'front') {
 
 /**
  * Points a PerspectiveCamera out of `seat` of the ship `root`: at the eye, along the nose turned by the head (yawDeg
- * left, pitchDeg up, within COCKPIT_HEAD), rolling with the wings, COCKPIT_VIEW.fovAcrossDeg across a box `width` by
- * `height` and nothing nearer than COCKPIT_VIEW.nearFt (in world units: the ship's own scale is the caller's).
+ * left, pitchDeg up, within COCKPIT_HEAD), rolling with the wings, cockpitFovDeg for a box `width` by `height`
+ * (closer when `zoomed`) and nothing nearer than COCKPIT_VIEW.nearFt (in world units: the ship's own scale is the caller's).
  */
-export function aimCockpitCamera(THREE, camera, root, { seat = 'front', yawDeg = 0, pitchDeg = 0, width = 1, height = 1, near = COCKPIT_VIEW.nearFt, far = COCKPIT_VIEW.farFt } = {}) {
+export function aimCockpitCamera(THREE, camera, root, { seat = 'front', yawDeg = 0, pitchDeg = 0, width = 1, height = 1, zoomed = false, near = COCKPIT_VIEW.nearFt, far = COCKPIT_VIEW.farFt } = {}) {
   /** @type {(v: number, range: readonly number[]) => number} */
   const clampTo = (v, range) => Math.max(range[0], Math.min(range[1], v));
   const eye = cockpitEyeWorld(THREE, root, seat);
   const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(root.quaternion);
   const up = new THREE.Vector3(0, 0, 1).applyQuaternion(root.quaternion);
   camera.aspect = width / Math.max(height, 1);
-  camera.fov = Math.min(COCKPIT_VIEW.fovAcrossDeg, 2 * deg(Math.atan(Math.tan(rad(COCKPIT_VIEW.fovAcrossDeg / 2)) / camera.aspect)));
+  camera.fov = cockpitFovDeg(width, height, zoomed);
   camera.near = near;
   camera.far = far;
   camera.updateProjectionMatrix();
