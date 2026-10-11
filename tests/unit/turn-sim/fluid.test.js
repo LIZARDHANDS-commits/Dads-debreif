@@ -394,11 +394,13 @@ test('at a long distance setting #2 lets the range open in the wingovers and the
   }
 });
 
-test('Live #2 (TS-194): in a steady level turn he holds about 15° off Lead\'s tail at the distance set, nothing jumps, and Terminate brings him back to fighting wing', () => {
-  // The brief's first check of the live wingman (spec section 9): a steady level turn at MAX, 15° off the tail (Patrick
-  // 22:28Z, shared ±5°) at the distance set (600 ft, Patrick 19:20Z row 3, shared ±100 ft), with what is always true in
-  // fluid (positive G, no jumps, roll within 90°/s, outside the bubble, behind the 3/9 line); then Terminate ends in the
-  // fighting wing band. 30 s for the entry, 30 s for the turn to steady and 2 minutes for Terminate are generous limits.
+test('Live #2 (TS-194): in a steady level turn he sits on Lead\'s circle inside the cone, outside the bubble, nothing jumps, and Terminate brings him back to fighting wing', () => {
+  // The brief's first check of the live wingman (spec section 9). Both at MAX (Patrick 11 Oct 2026 22:32Z), so in a steady
+  // level turn he holds his range on Lead's own turn circle, not a fixed 15° (Patrick's card 23:06Z, "On the circle"):
+  // inside the cone (30° either side of the tail, Patrick 19:20Z row 2) and in the good part of the distance, 500-750 ft
+  // (SMM 16.17 paras 42 and 44c; Patrick row 3), with what is always true in fluid (positive G, no jumps, roll within
+  // 90°/s, outside the bubble, behind the 3/9 line); then Terminate ends in the fighting wing band. 30 s for the entry,
+  // 30 s for the turn to steady and 2 minutes for Terminate are generous limits.
   const f = inFightingWing();
   f.setFluid({ wing: 'live' });
   assert.equal(f.change('fluid'), 'started');
@@ -408,7 +410,9 @@ test('Live #2 (TS-194): in a steady level turn he holds about 15° off Lead\'s t
   assert.equal(f.pressFluid('levelTurn', 1), 'started');
   fly(f, 30, watch);
   assert.ok(f.state.aircraft[0].bankDeg > 45, `Lead in a left turn, bank ${Math.round(f.state.aircraft[0].bankDeg)}`);
-  assertBackInTheCone(f, 'Live, in the steady turn');
+  const r = f.state.fluid.readouts;
+  assert.ok(r.aspectDeg <= CONE_HALF_DEG, `Live, in the steady turn: inside the cone, aspect ${r.aspectDeg.toFixed(1)}°`);
+  assert.ok(r.rangeFt >= 500 && r.rangeFt <= 750, `Live, in the steady turn: range ${Math.round(r.rangeFt)} ft, 500-750`);
   // #2's checks only: Lead's roll into a left level turn reaches about 113°/s with either wingman, Planned or Live (seen
   // on V2.338 and later, Lead's flying, not this test's subject); it is on the turn-sim future.md list.
   assert.deepEqual(failures.filter((x) => !x.startsWith('Lead')).slice(0, 5), []);
