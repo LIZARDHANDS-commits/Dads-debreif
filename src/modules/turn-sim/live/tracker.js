@@ -557,7 +557,8 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     const rangeFt = Math.hypot(W.xFt - L.xFt, W.yFt - L.yFt);
     // The angle is held from the end of the capture's own height leg, not only once the ride is established: until V2.234
     // the floor ruled in between, so far out he sat 50 ft low, not the 70-140 ft the 4° gives (Fable's V2.232 audit).
-    const depthFt = Math.max(-TR.lineUpFt, rangeFt * Math.tan(TR.lineElevDeg * DEG));
+    // A phase may cap the depth (slopedMaxFt): the turning rejoin's reversal, so the 4° only ever brings him up (TS-182).
+    const depthFt = Math.min(ph.slopedMaxFt ?? Infinity, Math.max(-TR.lineUpFt, rangeFt * Math.tan(TR.lineElevDeg * DEG)));
     const targetAlt = ph.slopedAlt ? (L.altAboveFt ?? 0) - depthFt : slotAltOf(ph, L, W);
     const D = FW_BUBBLE;
     // One smooth change, stopping on the target as he gets there: on the line within heightG of level flight (TS-140), onto

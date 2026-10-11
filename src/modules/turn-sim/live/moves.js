@@ -66,14 +66,13 @@ export const TURNING_REJOIN = Object.freeze({
   pointMaxG: 4.5, // he turns hard to point at Lead, within this G, his bank in proportion to the heading still to turn (Patrick 04:05Z: "Turn more at the start with 4-5 g quick roll and wings level earlier"; 5 G stays a flag he stays inside)
   pointGain: 6, // degrees of bank per degree of heading still to turn, so he rolls out as Lead comes onto the nose (estimate)
   pointAheadDeg: 5, // he is rolled out wings level with Lead still this far short of the nose, so the wait is real (Fable's V2.249 flight: at -89°/s straight through, Lead crossed the nose with #2 at 42° of bank; estimate)
-  pointKias: 200, // he holds Lead's 200 KIAS through the start: faster, the reversal carries him across Lead's track (estimate from the geometry)
+  pointKias: 200, // he holds Lead's 200 KIAS through the pointing turn and the wait, then full power through the reversal (Patrick 04:59Z) (estimate from the geometry)
   pointRoll: Object.freeze({ maxRateDps: 90, maxAccelDps2: 180 }), // the start's roll: quick but smooth (Patrick 04:05Z), not the 180°/s, 720°/s² of the tactical moves (estimate)
   levelDeg: 3, // wings level is within this (estimate)
   lookThroughDeg: 3, // wings level, he reverses once Lead has come this far through the nose ("a definite increase in the line of sight")...
   lookMinSec: 1.5, // ...and he has been wings level this long (Fable's V2.249 flight: the line of sight rate from the pointing turn ended the wait at once; estimates)...
   lookMaxSec: 20, // ...or after this long, whichever comes first (estimate)
-  reverseBankDeg: 66, // the reversal: he turns with Lead's line of sight onto the frozen bearing, at most this bank (2.5 G level): from 5,000 ft line abreast it ends on the rejoin line about 1,400 ft behind Lead, at fighting wing range (SMM 16.20 para 65b(2): "reverse the turn to capture the fighting wing position"; estimate)...
-  reverseDoneDeg: 2, // ...until Lead is within this of frozenBearingDeg off the nose (estimate)
+  reverseDoneDeg: 2, // the reversal, at full power and within pointMaxG, turns with Lead's line of sight until Lead is within this of frozenBearingDeg off the nose (estimate)
   reverseRoll: Object.freeze({ maxRateDps: 45, maxAccelDps2: 45 }), // the reversal is the smooth one (Patrick 04:05Z "quick but smooth"; Fable's V2.249 flight: -90°/s; estimate)
   reverseMaxSec: 20, // the reversal ends with Lead at frozenBearingDeg off the nose, so there is no slide onto it after (Fable 04:40Z; until V2.250 it ended 15° off Lead's heading, Lead 25° off the nose), or after this long (estimate)
   pointFromFt: 2500, // only from further out than this; closer in the capture alone (estimate)
