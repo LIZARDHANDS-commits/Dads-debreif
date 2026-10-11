@@ -121,4 +121,5 @@ Each of these ends in position, slot spacing kept, but is not smooth yet (from F
 - **Fluid 4, #2 at the decision point**: one bank swing of about 20° at up to 60°/s and 2.0 G for about 1 s, then a 0.8 G dip, as he arrives still coming down from his 300 ft stack.
 - **Far-out roll-ins** from Spread 4 and the offset box: 60-100°/s at 6,500-7,000 ft out.
 - **#2's first second** from fighting wing and Fluid 4: a roll of about 90°/s.
-- **Turning rejoin from 300 ft low**: 4.82 G in the pointing turn (above the 4.5 G ruling); from 500 ft low the least G is 0.56.
+- **Turning rejoin from 300 ft low**: 4.82 G in the pointing turn (above the 4.5 G ruling); from 500 ft low the least G is 0.56, in the pointing turn's roll-out about 2,000 ft out (Fable's v2303 flight).
+- **#4 in echelon right as Lead rolls out**: dips to 0.7 G, from fighting wing and from the offset box (Fable's v2303 flight; 0.75 or more on v2301).
