@@ -36,7 +36,7 @@ CANOPY = [list(r) for r in S['CANOPY']]
 FRAME_X = list(S['CT156_FRAME_X'])
 WING, STAB, FIN = S['WING'], S['STAB'], S['FIN']
 DIHEDRAL, TIP_S, WING_Z = S['DIHEDRAL'], S['TIP_S'], S['WING_Z']
-BOW_LEAN = S['CT156_BOW_LEAN']
+FRAME_LEAN = list(S['CT156_FRAME_LEAN'])  # each bow's lean, crest to sills (+ feet aft)
 
 
 # ---------- the code model's helpers, in Python (same maths as ct156-model.js) ----------
@@ -266,18 +266,7 @@ for i in range(N + 1):
     rings.append([(x, *section_point(sec, 2 * math.pi * k / RING)) for k in range(RING)])
 mesh_object('fuselage', *loft(rings), M['navy'], subdiv=1)
 
-# The canopy: a rounded hood from sill to sill, as the code model.
-NC, MC = 40, 20
-cx0, cx1 = CANOPY[0][0], CANOPY[-1][0]
-rings = []
-for i in range(NC + 1):
-    x = cx0 + (cx1 - cx0) * i / NC
-    c = canopy_at(x)
-    rings.append([(x, *canopy_point(c, math.pi * j / MC)) for j in range(MC + 1)])
-mesh_object('canopy', *loft(rings, closed=False, caps=False), M['glass'])
-
-# The canopy bows (forward, centre, rear) and sill rails; the forward bow leans aft from its crest by BOW_LEAN
-# (ct156HoopPoints).
+# The canopy bows (forward, centre, rear), each leaning from its crest by FRAME_LEAN (ct156HoopPoints).
 def hoop_points(x, n=24, grow=0.0015, lean=0.0):
     top = canopy_at(x, grow)[1]
     pts = []
@@ -292,7 +281,28 @@ def hoop_points(x, n=24, grow=0.0015, lean=0.0):
 
 
 for k, fx in enumerate(FRAME_X):
-    mesh_object(f'bow_{k}', *tube(hoop_points(fx, lean=BOW_LEAN if k == 0 else 0.0), 0.0045), M['frame'])
+    mesh_object(f'bow_{k}', *tube(hoop_points(fx, lean=FRAME_LEAN[k]), 0.0045), M['frame'])
+
+
+# The canopy: a rounded hood from sill to sill, as the code model (hoodSkin). The glass ends square along the rear
+# bow (canopyGeometry); the painted fairing runs on from there into the fuselage's top, with a flat bulkhead across
+# the glass's end (fairingGeometry).
+def hood_skin(frm, to, n):
+    m = len(frm) - 1
+    rings = [[(x, *canopy_point(canopy_at(x), math.pi * j / m)) for j, x in
+              ((j, frm[j] + (to[j] - frm[j]) * i / n) for j in range(m + 1))] for i in range(n + 1)]
+    return loft(rings, closed=False, caps=False)
+
+
+MC = 20
+glass_end = [p[0] for p in hoop_points(FRAME_X[2], n=MC, grow=0.0, lean=FRAME_LEAN[2])]
+mesh_object('canopy', *hood_skin([CANOPY[0][0]] * (MC + 1), glass_end, 40), M['glass'])
+verts, faces = hood_skin(glass_end, [CANOPY[-1][0]] * (MC + 1), 24)
+centre = len(verts)
+verts.append(((glass_end[0] + glass_end[MC]) / 2, 0.0, canopy_at(glass_end[0])[2]))
+verts += [(x, *canopy_point(canopy_at(x), math.pi * j / MC)) for j, x in enumerate(glass_end)]
+faces += [(centre, centre + 1 + j, centre + 2 + j) for j in range(MC)]
+mesh_object('fairing', verts, faces, M['navy'])
 
 # The cheat line: a thin white strip just off each side, nose number to tail.
 for side in (1, -1):
@@ -314,31 +324,30 @@ for side, name in ((1, 'wing_left'), (-1, 'wing_right')):
     mesh_object(name, rotate_x(v, side * DIHEDRAL), f, M['navy'], sharp_deg=35)
 mesh_object('tailplane', *airfoil(STAB), M['navy'], sharp_deg=35)
 mesh_object('fin', *airfoil(FIN, span='z'), M['ship'], sharp_deg=35)
-# The ventral fin: a flat plate from the code model's [x, z] outline (flatXZ).
-def flat_xz(name, outline, thickness, mat):
-    n = len(outline)
-    verts = [(x, s * thickness / 2, z) for s in (1, -1) for x, z in outline]
-    faces = [tuple(range(n)), tuple(range(2 * n - 1, n - 1, -1))] + [(i, n + i, n + (i + 1) % n, (i + 1) % n) for i in range(n)]
-    mesh_object(name, verts, faces, mat, smooth=False)
+# The ventral fin: an aerofoil down from inside the belly, its foot sheared to rise aft by VENTRAL_RISE
+# (ventralGeometry).
+root, tip = S['VENTRAL']
+verts, faces = airfoil(S['VENTRAL'], span='z')
+verts = [(x, y, z + (tip['le'] - x) * S['VENTRAL_RISE'] * min(1, max(0, (root['s'] - z) / (root['s'] - tip['s']))))
+         for x, y, z in verts]
+mesh_object('ventral_fin', verts, faces, M['navy'], sharp_deg=35)
 
-
-flat_xz('ventral_fin', S['VENTRAL'], 0.01, M['navy'])
-
-# The spine behind the canopy into the fin: rounded sections flaring into a fillet at the foot (spineGeometry).
-SPINE = [list(r) for r in S['SPINE']]
+# The dorsal fin from the fairing into the fin: thin rounded sections flaring into a fillet at the foot
+# (dorsalGeometry).
+DORSAL = [list(r) for r in S['DORSAL']]
 rings = []
 for i in range(25):
-    x = SPINE[0][0] + (SPINE[-1][0] - SPINE[0][0]) * i / 24
-    _, w, top = row_at(SPINE, x)
-    foot = min(w * 1.7, row_at(STATIONS, x)[1] * 0.9)
+    x = DORSAL[0][0] + (DORSAL[-1][0] - DORSAL[0][0]) * i / 24
+    _, w, top = row_at(DORSAL, x)
+    foot = w * 2.2
     base = sill_z(x, foot) - 0.002
     ring = []
-    for k in range(17):
-        c = math.cos(math.pi * k / 16)
-        u = math.sin(math.pi * k / 16) ** (2 / 2.4)
+    for k in range(13):
+        c = math.cos(math.pi * k / 12)
+        u = math.sin(math.pi * k / 12) ** (2 / 2.4)
         ring.append((x, sgn(c) * (w * abs(c) ** (2 / 2.4) + (foot - w) * (1 - u) ** 3), base + (top - base) * u))
     rings.append(ring)
-mesh_object('spine', *loft(rings, closed=False), M['navy'])
+mesh_object('dorsal_fin', *loft(rings, closed=False), M['navy'])
 
 # The spinner: an ogive lathe, chrome, on a dark ring.
 SPIN_R = S['CT156_SPINNER_R']
