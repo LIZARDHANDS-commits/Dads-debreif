@@ -22,7 +22,7 @@ import { recordFlight, speedSeg } from './replay.js';
 import { closeThrough, legsFor, STRAIGHT_AHEAD } from './recipes.js';
 import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
-import { FORMATIONS, pairSlot, sideFor } from './slots.js';
+import { FORMATIONS, pairSlot, sideFor, LANE } from './slots.js';
 import { KIAS_OUTSIDE_LAB, REJOIN_CLOSURE_KT, STRAIGHT_REJOIN, TURNING_REJOIN, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
 import { onClosure } from './closures.js';
 import { STEP_SEC } from './flight.js';
@@ -108,7 +108,7 @@ function flyStraightRejoinWith({ lead, wing, rec, s, to, sTo, spacingFt, blockFt
       foundSix = true;
     }
     // Safety bubble & 3/9 watch
-    if (rel.fwd > 0 && Math.hypot(rel.fwd, rel.left) < 1000) return null;
+    if (rel.fwd > 0 && Math.hypot(rel.fwd, rel.left) < LANE.rangeFt) return null;
   }
 
   // Must line up on Lead's six well back (Fig 12.17)

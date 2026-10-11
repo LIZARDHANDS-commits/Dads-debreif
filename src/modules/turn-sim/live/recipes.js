@@ -23,9 +23,9 @@ import { classify, judge } from './judge.js';
 import { onClosure } from './closures.js';
 import { recordFlight, speedSeg } from './replay.js';
 import { describe, CHANGE_LIMIT_SEC } from './transitions.js';
-import { relativeTo, turnSeg, DEG } from './manoeuvres.js';
+import { relativeTo, turnSeg } from './manoeuvres.js';
 import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
-import { wrapPi } from '../../../core/angles.js';
+import { wrapPi, DEG } from '../../../core/angles.js';
 import { bankDegFromTurnRate } from '../../../core/flight-math.js';
 
 // ---- the legs (phases): the tracker's recipes for each move --------------------------------------

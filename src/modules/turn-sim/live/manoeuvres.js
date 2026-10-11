@@ -9,7 +9,7 @@
 // turns, 70° bank and 3 G); Patrick's rulings of 4 Oct 2026: exact geometry for
 // the delayed turns, a real 300 ft vertical miss in the shackle and cross turn.
 import { bankDegFromG } from '../../../core/flight-math.js';
-import { wrapPi } from '../../../core/angles.js';
+import { wrapPi, DEG } from '../../../core/angles.js';
 import { STEP_SEC, stepAircraft, copyAircraft, planDone } from './flight.js';
 
 /** Line abreast turns: about 70° of bank at 3 G (SMM 16.18 para 50; Figs 16.15-16.21 "70/3"). */
@@ -39,7 +39,6 @@ export const MANOEUVRES = Object.freeze({
 });
 
 /** A heading rounded to the whole degree, so a turn aims at 090, not at 089.8 left over from the last one. */
-export const DEG = Math.PI / 180;
 export const wholeDegree = (rad) => wrapPi(Math.round(rad / DEG) * DEG);
 export const unit = (h) => ({ x: Math.cos(h), y: Math.sin(h) });
 export const dot = (a, b) => a.x * b.x + a.y * b.y;

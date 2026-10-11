@@ -47,14 +47,13 @@
 import { stepPointMass, gAndBankForLift } from '../../../core/point-mass.js';
 import { easeValue, dampedClimbG, turnRateFromBankRadPerSec } from '../../../core/flight-math.js';
 import { t6aExcessFn, tasToIasKt, shakerG, dragPerWeight, thrustPerWeight, T6A_G_ONSET } from '../../../core/t6-performance.js';
-import { wrapPi } from '../../../core/angles.js';
+import { wrapPi, DEG } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, headingChangeRollingOut, rollLimitAt } from './flight.js';
 import { ROLL, WING } from './tuning.js';
 import { excessPerWeight } from './slow-down.js';
 import { add3, sub3, scale3, len3, cross3, unit3, perp3, dot3 } from './attitude.js';
 
-const DEG = Math.PI / 180;
 const Z = Object.freeze({ x: 0, y: 0, z: 1 });
 
 /** The numbers Lead flies. Every one has its source; "estimate" where no manual or ruling gives it. */

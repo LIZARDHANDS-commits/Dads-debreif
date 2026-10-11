@@ -4,9 +4,9 @@
 // state he starts in, and with a Lead who turns until #2 is in, plans Lead's roll-out from when #2 settles. Used by
 // transitions.js planGoTo, turning-rejoin.js, rolling-rejoin.js, replan.js and four-rejoin.js.
 // It changes no flight physics: Lead flies flight.js turn segments, #2 the unchanged tracker.
-import { wrapPi } from '../../../core/angles.js';
+import { wrapPi, DEG } from '../../../core/angles.js';
 import { STEP_SEC } from './flight.js';
-import { leadTurnSegs, DEG } from './manoeuvres.js';
+import { leadTurnSegs } from './manoeuvres.js';
 import { trackPhases } from './tracker.js';
 import { fromStep, wingFromPose } from './closures.js';
 

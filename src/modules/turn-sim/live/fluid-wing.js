@@ -26,6 +26,7 @@
 // averaged over Lead's last seconds on a smooth bump; the position line is then smoothed over half a second either side,
 // shorter than the time behind Lead, so a new press of Lead never moves #2's next half second. Attitude, G and roll rate
 // come from the line itself (attitude.js), so they always agree with it.
+import { DEG } from '../../../core/angles.js';
 import { tasToIasKt } from '../../../core/t6-performance.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, rollLimitAt } from './flight.js';
@@ -34,7 +35,6 @@ import { easeRoll } from '../../../core/flight-math.js';
 import { smoothest } from './kinematic.js';
 import { dot3, add3, sub3, scale3, len3, cross3, unit3, perp3, liftOf, poseOf3d } from './attitude.js';
 
-const DEG = Math.PI / 180;
 const dt = STEP_SEC;
 
 /**

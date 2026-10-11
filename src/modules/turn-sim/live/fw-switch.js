@@ -18,8 +18,8 @@
 // is recorded and replayed like every other 2-ship move. Once he is parallel to Lead it hands back (null) and the phase's
 // band goal (formation-turns.js fwGoal) settles him where he arrives in the far cone (the whole cone, TS-75).
 import { turnRadiusFromBankFt } from '../../../core/flight-math.js';
-import { wrapPi } from '../../../core/angles.js';
-import { DEG, relativeTo } from './manoeuvres.js';
+import { wrapPi, DEG } from '../../../core/angles.js';
+import { relativeTo } from './manoeuvres.js';
 import { FW_SWITCH } from './tuning.js';
 import { fwGoal } from './formation-turns.js';
 

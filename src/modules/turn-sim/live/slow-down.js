@@ -16,6 +16,7 @@
 //
 // Units: knots indicated (KIAS), feet, seconds. Rates are in KIAS per second at the block height: the true airspeed's rate
 // from the excess force (standard aerodynamics, dV/dt = g (T - D) / W), times KIAS / KTAS there.
+import { bankDegFromG } from '../../../core/flight-math.js';
 import { availableG, dragPerWeight, excessFnFor, excessThrustPerWeight, iasToTasKt } from '../../../core/t6-performance.js';
 import { G_FTPS2, FTPS_TO_KT } from '../../../core/units.js';
 import { smoother, smootherSlope } from './flight.js';
@@ -69,7 +70,7 @@ export function excessPerWeight(stage, kias, altFt, g = 1, throttle = POWER_FLOO
 
 /** The steepest bank, degrees, that a level turn holds at kias without passing the stall line (core availableG; acos(1/G)). */
 export function stallBankDeg(kias) {
-  return Math.acos(1 / Math.max(1, availableG(kias))) / (Math.PI / 180);
+  return bankDegFromG(Math.max(1, availableG(kias)));
 }
 
 /** KIAS per second from an excess force ÷ weight at kias and altFt. */

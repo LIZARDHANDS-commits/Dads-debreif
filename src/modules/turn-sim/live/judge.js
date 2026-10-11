@@ -15,9 +15,9 @@
 // para 15 (route, 1 to 3 wingspans), 12.5 para 13 (line astern, about 10 ft nose to tail), 12.19 paras 41-43 and Fig 12.11
 // (a close wingman stepped with Lead's bank), 16.41 para 109 (offset box depth 6,000-8,000 ft). Margins: the shared table's
 // ±100 ft and ±5° (docs/TESTING.md). The close bands in feet are estimates beside sight references.
-import { relativeBearingDeg } from '../../../core/angles.js';
+import { relativeBearingDeg, DEG } from '../../../core/angles.js';
 import { FTPS_TO_KT } from '../../../core/units.js';
-import { relativeTo, DEG } from './manoeuvres.js';
+import { relativeTo } from './manoeuvres.js';
 import { rangeWord } from './fluid.js';
 import { FORMATIONS, WINGSPAN_FT, ROUTE_SPANS, LENGTH_FT, FW_BAND, FW_REGION, NEAREST, BOX_DEPTH_FT, BOX_DEPTH_BAND_FT, STACK_FT, slotsFor, fourWords, pairSlot } from './slots.js';
 import { REJOIN, IN_POSITION } from './tuning.js';

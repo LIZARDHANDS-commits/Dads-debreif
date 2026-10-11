@@ -6,15 +6,15 @@
 // kinematic-line rule covers; until step 1 it lived in transitions.js. Its numbers are tuning.js TRACKER (all estimates:
 // they shape how smoothly the wingman flies, not where the formations are). Its phase defaults are here; the leg recipes that call it
 // (slide, stopAt, dropBack, sweepOut, closeThrough, rejoinTo, openOut, straightAhead) live in recipes.js.
-import { bankDegFromTurnRate } from '../../../core/flight-math.js';
-import { wrapPi } from '../../../core/angles.js';
+import { bankDegFromTurnRate, turnRateFromBankRadPerSec } from '../../../core/flight-math.js';
+import { wrapPi, DEG } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, copyAircraft, smoothLegSec, SMOOTHER_PEAK } from './flight.js';
-import { relativeTo, unit, DEG } from './manoeuvres.js';
+import { relativeTo, unit } from './manoeuvres.js';
 import { fullPowerKtps, slowKtps, stallBankDeg } from './slow-down.js';
 import { throttleAtTorque, throttleFor } from './power.js';
 import { TRACKER, CLOSURE, HAND_OVER_FT, FW_ENERGY, FW_BUBBLE, REJOIN, TURNING_REJOIN, KIAS_OUTSIDE_LAB, lineKiasNow } from './tuning.js';
-import { fixedLine, FW_LIMITS } from './slots.js';
+import { fixedLine, FW_LIMITS, FW_BAND, LANE } from './slots.js';
 import { setKias, stepCommanded, climbCostKtps, createPilot, pilotSpeed, pilotFly, pilotPower, coneUpFtNow } from './pilot.js';
 import { G_RULE } from './rates.js';
 import { isLeadInCanopy } from '../../../core/canopy.js';
@@ -194,7 +194,7 @@ function aimOf(ph, L, Lprev, ref, W, t) {
     const d = Math.hypot(ex, ey);
     const onLine = Math.abs(cross) <= (ph.captureFt ?? 150);
     const inCone = (ph.coneEase || ph.isFw)
-      ? (r <= 1200 && onLine && along <= 1200)
+      ? (r <= FW_BAND.easeFarFt && onLine && along <= FW_BAND.easeFarFt)
       : false;
     const reachedDecision = onLine && along <= (ph.decisionFt ?? 750);
     const arrived = inCone || reachedDecision;
@@ -297,7 +297,7 @@ function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT, pclMaxActiv
     // The speed is held (Patrick 8 Oct 20:16); the geometry takes the closure out. The steering is rideAim's.
     const floor = ph.floorKias ?? KIAS_OUTSIDE_LAB;
     const rNow = aim.rangeFt ?? Math.hypot(L.xFt - W.xFt, L.yFt - W.yFt);
-    const inAnticipation = Boolean(ph.isFw || ph.toFw) && rNow <= 1000;
+    const inAnticipation = Boolean(ph.isFw || ph.toFw) && rNow <= FW_BAND.rangeFt[1];
     const lineTargetKias = inAnticipation
       ? Math.max(L.kias, L.kias + (rNow - 500) * (20 / 500))
       : ph.far && aim.along > ph.far.fromFt
@@ -416,7 +416,7 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
   if (easing) {
     const leadBank = L.bankDeg ?? 0;
     const targetCap = Math.max(Math.abs(leadBank) + 5, 25);
-    const dFar = ph.coneEaseFarFt ?? 1200;
+    const dFar = ph.coneEaseFarFt ?? FW_BAND.easeFarFt;
     const dNear = ph.decisionFt ?? 750;
     const frac = Math.max(0, Math.min(1, (aim.along - dNear) / Math.max(1, dFar - dNear)));
     cap = targetCap + frac * (cap - targetCap);
@@ -447,7 +447,7 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
   }
   if (easing) {
     const leadBank = L.bankDeg ?? 0;
-    const dFar = ph.coneEaseFarFt ?? 1200;
+    const dFar = ph.coneEaseFarFt ?? FW_BAND.easeFarFt;
     const dNear = ph.decisionFt ?? 750;
     const frac = Math.max(0, Math.min(1, (aim.along - dNear) / Math.max(1, dFar - dNear)));
     bank = leadBank + frac * (bank - leadBank);
@@ -646,7 +646,7 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     const coneUpFt = coneUpFtNow();
     const isRejoin = Boolean(ph.rejoin || ph.rejoinKind === 'into' || ph.rejoinKind === 'straight');
     const range3DFt = Math.hypot(W.xFt - L.xFt, W.yFt - L.yFt, (W.altAboveFt ?? 0) - (L.altAboveFt ?? 0));
-    const stayBelow = Boolean((isRejoin && range3DFt < 2000) || ph.coneEnergy || ph.stepDown);
+    const stayBelow = Boolean((isRejoin && range3DFt < LANE.belowRangeFt) || ph.coneEnergy || ph.stepDown);
     const topFt = stayBelow ? Math.min((L.altAboveFt ?? 0) - 10, (L.altAboveFt ?? 0) + coneUpFt) : (L.altAboveFt ?? 0) + coneUpFt;
     const bottomFt = (L.altAboveFt ?? 0) - coneUpFt;
     const up = Math.max(0, topFt - W.altAboveFt);
@@ -702,7 +702,7 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
   if (target != null && Number.isFinite(target)) {
     const isRejoin = Boolean(ph.rejoin || ph.rejoinKind === 'into' || ph.rejoinKind === 'straight');
     const range3DFt = Math.hypot(W.xFt - L.xFt, W.yFt - L.yFt, (W.altAboveFt ?? 0) - (L.altAboveFt ?? 0));
-    if (isRejoin && range3DFt < 2000 && target > (L.altAboveFt ?? 0)) {
+    if (isRejoin && range3DFt < LANE.belowRangeFt && target > (L.altAboveFt ?? 0)) {
       target = Math.min(target, (L.altAboveFt ?? 0) - 10);
     }
     if (heightState.activeLeg && t >= heightState.activeLeg.t1 - 1e-9) {
@@ -909,7 +909,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
   // on the turn he already has; until step 5 only a hand-over (init) started this way.
   const headingState = {
     psiCmdPrev: null,
-    omegaFf: (G_FTPS2 * Math.tan((W.bankDeg * Math.PI) / 180)) / Math.max(W.tasFtps, 1),
+    omegaFf: turnRateFromBankRadPerSec(Math.max(W.tasFtps, 1), W.bankDeg),
   };
   const farFromFt = HAND_OVER_FT; // beyond the hand-over range a closure phase may close faster (odd starts only)
   let maxBank = 0;
@@ -960,7 +960,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       const speedCeil = Math.max(235, (ph.lineKias ?? lineKiasNow()) + 15);
       const atSpeed = W.kias >= speedCeil;
       const rNow = Math.hypot(L.xFt - W.xFt, L.yFt - W.yFt);
-      const nearLimitFt = (ph.isFw || ph.toFw) ? 1000 : 1500;
+      const nearLimitFt = (ph.isFw || ph.toFw) ? FW_BAND.rangeFt[1] : 1500;
       const nearLead = (aim.along != null && aim.along >= 0 && aim.along <= nearLimitFt) || rNow <= nearLimitFt;
       if (onLine || atSpeed || nearLead) {
         pclMaxActive = false;
@@ -1106,7 +1106,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     // Doctrinal canopy line-of-sight check (SMM 12.24 & 16.20)
     const inCanopy = isLeadInCanopy(Lafter, W);
     if (!inCanopy) {
-      if (range3D < 1200) {
+      if (range3D < LANE.canopyRangeFt) {
         blindSecInside1200 += STEP_SEC;
         if (isRejoin) canopyOk = false; // inside 1,200 ft canopy "X" lock violated
       }

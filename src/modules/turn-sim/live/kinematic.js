@@ -5,14 +5,13 @@
 //
 // Units: feet, seconds; x east, y north; headings math radians (0 east, counter-clockwise); bank signed, left wing down
 // positive (flight.js). Every number with no manual or ruling beside it is an estimate and says so.
-import { bankDegFromTurnRate } from '../../../core/flight-math.js';
+import { bankDegFromTurnRate, turnRateFromBankRadPerSec } from '../../../core/flight-math.js';
 import { attitudeDegFromClimb } from '../../../core/t6-performance.js';
-import { wrapPi } from '../../../core/angles.js';
+import { wrapPi, DEG } from '../../../core/angles.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, flyAttitude } from './flight.js';
 import { powerFrom } from './power.js';
 
-const DEG = Math.PI / 180;
 const dt = STEP_SEC;
 
 /** The septic step: 0 to 1 with no rate, acceleration or jerk at either end, so a blend joins without a step in roll rate. */
@@ -72,7 +71,7 @@ export function setTrackStep(track, k, x, y, z) {
 
 /** Fills steps -PAD..0 of a track from an aircraft as it is now, extrapolated backward on its present turn and climb. */
 export function seedTrack(track, a) {
-  const omega = (G_FTPS2 * Math.tan(a.bankDeg * DEG)) / Math.max(a.tasFtps, 1);
+  const omega = turnRateFromBankRadPerSec(Math.max(a.tasFtps, 1), a.bankDeg);
   let x = a.xFt;
   let y = a.yFt;
   let h = a.headingRad;

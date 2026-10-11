@@ -24,9 +24,10 @@
 //    the aircraft ahead of it in the chain and turns 45 (AFM8 brief p.18, SMM Fig 16.34).
 //    A Setup toggle (Patrick, 4 Oct 11:28Z) flies it without the check, as a plain chain.
 //  - Hook: all four turn 180 at 70/3 together (AFM8 brief p.18, SMM 16.45 para 121).
+import { DEG } from '../../../core/angles.js';
 import { makeAircraft } from './flight.js';
 import { STACK_FT } from './slots.js'; // the brief's stack (AFM8 brief p.14-15), held in the slot table
-import { planManoeuvre, relativeTo, dryRun, exactWaitSec, turnSeg, wholeDegree, unit, dot, onStep, DEG, TURN_BANK_DEG, MANOEUVRES } from './manoeuvres.js';
+import { planManoeuvre, relativeTo, dryRun, exactWaitSec, turnSeg, wholeDegree, unit, dot, onStep, TURN_BANK_DEG, MANOEUVRES } from './manoeuvres.js';
 
 
 /** The buttons in the four-ship, in screen order (briefs p.17-18; SMM 16.43 para 118). */

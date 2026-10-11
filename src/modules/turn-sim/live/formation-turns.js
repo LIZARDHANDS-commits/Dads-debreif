@@ -21,7 +21,7 @@
 // too: planCloseTurn, below. planFormationTurn picks the planner for the formation the aircraft are in.
 import { turnRadiusFromBankFt } from '../../../core/flight-math.js';
 import { STEP_SEC, SMOOTHER_PEAK, rollLimitAt, gateRoll } from './flight.js';
-import { MANOEUVRES, relativeTo, DEG, planManoeuvre } from './manoeuvres.js';
+import { MANOEUVRES, relativeTo, planManoeuvre } from './manoeuvres.js';
 import { recordFlight, dryRunT } from './replay.js';
 import { trackPhases, phase } from './tracker.js';
 import { smoothest, makeTrack, seedTrack, setTrackStep, TRACK_PAD, posesFrom, settleLast, slotInWorld } from './kinematic.js';
@@ -30,7 +30,7 @@ import { slotsFor } from './slots.js';
 import { fwPursuitCommand, fwBubbleCommand } from './fw-pursuit.js';
 import { FW_TURN, FW_FOLLOW, FW_EXIT, WING_BANKS, ROLL, RATE_SETS, closeBankNow } from './tuning.js';
 import { G_FTPS2 } from '../../../core/units.js';
-import { wrapPi } from '../../../core/angles.js';
+import { wrapPi, DEG } from '../../../core/angles.js';
 
 /** The turn buttons that fly in fighting wing (spec section 10); the shackle and the cross turn stay line abreast moves. */
 export const FW_TURN_KEYS = Object.freeze(Object.keys(FW_TURN.turnDeg));

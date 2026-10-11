@@ -31,7 +31,7 @@
 // (TURNING_REJOIN.aimsFt, the quickest that keeps him behind Lead's 3/9 line); a medium bank (60°) before the G rule; the
 // line's 220 KIAS before a smaller overtake; and his least speed before the dip. #2 is flown through the same flight.js step as Lead, so the bank, roll rate and speed
 // changes are the aircraft's own. Numbers are tuning.js TURNING_REJOIN's.
-import { relativeTo, DEG } from './manoeuvres.js';
+import { relativeTo } from './manoeuvres.js';
 import { recordFlight, speedSeg, dryRunT } from './replay.js';
 import { closeThrough, rejoinTo, slide, stopAt, legsFor, cornerBehind } from './recipes.js';
 import { classify, judge } from './judge.js';
@@ -46,8 +46,8 @@ import { trackPhases, runTracker, phase } from './tracker.js';
 import { holdInPlane, heldPoses } from './formation-turns.js';
 import { acrossSixLegs } from './replan.js';
 import { stallBankDeg } from './slow-down.js';
-import { turnRadiusFromBankFt } from '../../../core/flight-math.js';
-import { wrapPi } from '../../../core/angles.js';
+import { turnRadiusFromBankFt, bankDegFromG } from '../../../core/flight-math.js';
+import { wrapPi, DEG } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { iasToTasKt, excessThrustPerWeight } from '../../../core/t6-performance.js';
 
@@ -119,7 +119,7 @@ function overshootLegs(s, to, sTo, spacingFt) {
  */
 function pointingPhases(altFt, depthFt) {
   const TR = TURNING_REJOIN;
-  const capDeg = Math.acos(1 / TR.pointMaxG) / DEG;
+  const capDeg = bankDegFromG(TR.pointMaxG);
   const toLead = (L, W) => wrapPi(Math.atan2(L.yFt - W.yFt, L.xFt - W.xFt) - W.headingRad);
   // Lead's line of sight rate across #2's nose, rad/s: (r x v) / r^2 with r and v Lead's place and velocity from #2.
   const losRate = (L, W) => {
@@ -786,7 +786,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
     stepDownOk: run.stepDownOk !== false,
     accelKtps: partPoints.length && partPoints[partPoints.length - 1][3] != null ? partPoints[partPoints.length - 1][3] : 0,
     rangeFt: Math.hypot(into.longRec.at(nSplit).xFt - firstRec.at(nSplit).xFt, into.longRec.at(nSplit).yFt - firstRec.at(nSplit).yFt),
-    overKt: lineKias - KIAS_OUTSIDE_LAB, lineKias: lineKias,
+    overKt: lineKias - KIAS_OUTSIDE_LAB,
     stable: true,
     establishedRange: first.run.establishedRange,
     rideEstablished: (to === 'fw' || first.run.rideEstablished || pointed) && lineKias <= (TURNING_REJOIN.rideKias ?? 210) + 5.5 && (to !== 'fw' || partMinKias >= 195),
