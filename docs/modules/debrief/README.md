@@ -25,16 +25,13 @@ The plan's steps, in order: Step 1: Refresh spec.md against the new requirements
 
 Each has a working answer that the tool uses until it is settled.
 
-### Waiting on Patrick now (also on the list in `../../PLAN.md`)
+### Settled by Patrick, 11 Oct 2026 (cards in the "Merge Dad's work" thread)
 
-- **DB-28 wording (altitude check, Dad's ask 11 Oct 2026):** written but not yet confirmed with Patrick; DB-Q27 (relative or absolute) and DB-Q28 (on at load) below have working answers; the 10-fix, 30 ft drift, 10-step take-off run and 100 ft spot thresholds are estimates.
-- **DB-Q4:** no smoothing of the estimated G (D219) or a 3-point median filter (D383); neither is built (`pf/reset/1-requirements/questions.md:17`, `docs/modules/debrief/plan.md:37`). A case for it (DB-25, 10 Oct 2026): on the example flight's recovery, with #3's and #4's timestamps snapped to the GPS second, their fore/aft spacing still wobbles ±40 to 70 ft second to second; that is the receivers' own position scatter, not timing, and nothing smooths it.
-- **DB-27 wording (terrain and satellite in 3D, Dad's ask 11 Oct 2026):** written but not yet confirmed with Patrick; the area's margins, the tile caps, the 5 NM field patch and the 1 ft runway bed are estimates. Working answer: From the tracks stays the default Ground; should Terrain and satellite be the default instead?
-- **DB-26 wording (runways and the ground, Dad's ask 10 Oct 2026):** written but not yet confirmed with Patrick; the 6.2 ft wheel height, the 30-fix and 3 NM thresholds are estimates. His CYMJ runway points now sit in two places (Traffic's map feet and the shared runway list), to merge later.
-- **DB-25 wording (GPS timestamps, Dad's ask 10 Oct 2026):** written but not yet confirmed with Patrick; the detection thresholds are estimates from the example flight.
-- **DB-23 wording (GPS puck, Dad's ask 10 Oct 2026):** written but not yet confirmed with Patrick; DB-Q25 and DB-Q26 below have working answers.
-- **DB-24 wording (airspace and airfields, Dad's ask 10 Oct 2026):** written but not yet confirmed with Patrick, with the SOF's move SOF-63; Airspace starts off and Airfields on ("open on a clean picture").
-- **DB-19 to DB-22, DB-R27 and DB-R28 wording (gap fill and cockpit view, Dad's ask 10 Oct 2026):** the wording is written but not yet confirmed with Patrick (`decisions.md`, `requirements.md`).
+- **Wording of Dad's rows** DB-19 to DB-28, DB-R27, DB-R28, SOF-63 and SOF-65: approved as written. The thresholds they call estimates stay estimates.
+- **DB-Q20 to DB-Q28:** the working answers below are accepted.
+- **DB-27 default:** From the tracks stays the default Ground.
+- **CYMJ runway points:** one copy, `src/airfields/cymj-runways.js`, read by Traffic and the shared runway list (V2.334).
+- **DB-Q4:** a "Smooth G (5-point median)" setting, off by default; the verdicts keep the raw G (V2.336). Its decision row is still to be written, after Patrick confirms its wording.
 
 The gap fill, cockpit view and GPS puck (plan Step 3a) were built with these working answers (Dad relayed Patrick's approval; each stands until Patrick answers):
 
