@@ -174,9 +174,11 @@ export const PANEL_FT = Object.freeze({ x: COAMING_EDGE_X + OVERHANG_FT, top: 1.
  * its aft edge with the three lamps on it, just deep enough to cover the EADI's top from the eye (Patrick's seat rule,
  * 11 Oct 2026; about 0.15 ft, lipDrop's estimate before). Shape judged off Dad's pictures 17, 18, 20 and 26; sizes estimates.
  * railOut: the grab rail's sides 0.05 ft inside the panel's edge, over its rim, where the T-6A-1 front panel figure
- * (Fig 1-1-3) draws them, 1.1 ft out from the middle (RIM_FT.sideOut, 0.05 ft outside it, until V2.289).
+ * (Fig 1-1-3) draws them, 1.1 ft out from the middle (RIM_FT.sideOut, 0.05 ft outside it, until V2.289). cheeks: the
+ * coaming's dark sides out to the canopy's sills behind the rail (Patrick, 11 Oct 2026, "Dark sides", from his CT-156
+ * cockpit photo; V2.289 left the windscreen's foot and the fuselage's inside showing past the narrower top).
  */
-export const GLARESHIELD_FT = Object.freeze({ aftX: COAMING_EDGE_X, foreX: 6.82, top: 1.634, foreTop: 1.33, lipDrop: 0.15, skirt: 0.12, topGrow: -0.1, sideGrow: 0, dropGrow: -0.1, railOut: -0.05 });
+export const GLARESHIELD_FT = Object.freeze({ aftX: COAMING_EDGE_X, foreX: 6.82, top: 1.634, foreTop: 1.33, lipDrop: 0.15, skirt: 0.12, topGrow: -0.1, sideGrow: 0, dropGrow: -0.1, railOut: -0.05, cheeks: true });
 /**
  * The glareshield's rim, the thick dark grab rail along the coaming's aft edge and down the panel's sides to brackets
  * at 18 % of its height: its top run 0.03 ft behind the coaming at the coaming's own height, 0.045 ft in radius
@@ -1331,6 +1333,25 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   const secs = [];
   for (let i = 0; i <= N; i++) secs.push(hoodSection(h, ts, lerp(h.aftX, h.foreX, (i / N) ** 1.3)));
   put(loft(THREE, secs, { closed: false, smooth: true }), SLOT.black);
+  // The front coaming's sides: its moulding sloping from the top's edge out and down to the canopy's sill at each
+  // station, bulging 0.08 ft, outside the rail, so the narrow top leaves no gap onto the windscreen's foot or the
+  // fuselage's inside
+  // (Patrick's CT-156 cockpit photo, 11 Oct 2026: the dark glareshield sweeps out to the sills behind the rim).
+  if (h.cheeks) {
+    for (const side of [1, -1]) {
+      const rows = secs.map((sec) => {
+        const x = sec[0][0], c = ct156CanopySection(x / F);
+        const [y0, z0] = hoodHalf(h, ts, x)[1];
+        const y1 = c.w * F + 0.02, z1 = c.base * F - 0.02;
+        return Array.from({ length: 7 }, (_, k) => [x, side * lerp(y0, y1, k / 6), lerp(z0, z1, k / 6) + 0.08 * Math.sin((Math.PI * k) / 6)]);
+      });
+      put(loft(THREE, rows, { closed: false }), SLOT.black);
+      // Its aft face, between the rail's line and the side's first section, so nothing shows under the side's edge.
+      const edge = rows[0].map(([, y, z]) => [Math.abs(y), z]);
+      const hood = hoodHalf(h, ts, h.aftX).slice(1);
+      put(flatAft(THREE, h.aftX + 0.002, [...edge, ...hood.slice(1).reverse()].map(([y, z]) => [side * y, z])), SLOT.black);
+    }
+  }
   // The front lip hangs just far enough to cover the EADI frame's top from the eye (Patrick, 11 Oct 2026: pilots raise
   // the seat until the surface under the three lamps just covers the EADI's top); the rear hump keeps its own.
   const lipDrop = front ? lipToCover(h, eye, p, zOf, faceW, faceH) : h.lipDrop;
