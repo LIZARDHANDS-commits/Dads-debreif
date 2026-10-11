@@ -290,13 +290,15 @@ const WINGTIP = Object.freeze({ y: WINGTIP_Y, z: WINGTIP_Z }); // the wing's tip
 const NAV_LIGHT_X = WING_TIP.le - 0.012; // just behind the tip's leading edge
 const STROBE_X = WING_TIP.le - WING_TIP.chord + 0.01; // at the tip's trailing edge
 const TAIL_LIGHT = Object.freeze([-0.787, 0, -0.035]); // the fin's trailing edge at its root, over the tail cone
-// The exhaust stacks off Patrick's photo of 156102 (11 Oct 2026, marked): 0.078 units (1.8 ft) long, their middle level
-// with the spinner's axis. Shaped as the T-6A-1 top view and his reference render draw them (Patrick, 11 Oct 2026 08:20Z:
-// "they jut out"): an oval stack rising out of the cowl at its front and sweeping aft, standing out of the skin most at
-// its open aft end, by 0.4 of its half-width plus that half-width (about 2.6 in); its opening oval, 0.026 tall and 0.016
-// across (were round pipes 0.03 across standing about 3.3 in proud along their whole length). Sizes estimates.
-const STUB = Object.freeze({ x: 0.492, len: 0.078, halfTall: 0.013, halfWide: 0.008, standOut: 0.4, z: 0 });
-const STUB_Y = fuseSurf(STUB.x, STUB.z) + STUB.halfWide * STUB.standOut; // the aft opening's middle
+// The exhaust stacks: placed off Patrick's photo of 156102 (11 Oct 2026, marked), their middle level with the spinner's
+// axis; shaped and sized off the T-6A-1 Fig 1-1-2 top, front and side views (Patrick, 11 Oct 2026 08:20Z "they jut out",
+// 08:26Z "the exhaust sticks out more than that. look at the diagrams"). The drawings: each stack's outer edge about 25 in
+// from the centreline (the cowl there is about 13 in), its front leaving the cowl about 2.7 ft behind the spinner's tip
+// and its outer lip ending about 4.6 ft behind it, about 7 in tall. Built as a flattened oval pipe 12 in across and 7 in
+// tall coming straight out of the cowl at xFront, bending aft round a quarter circle so its middle runs aft at yMid
+// (19 in out), open aft at xExit (4.3 ft behind the tip) with the outer wall reaching lip (3 in) further aft. Units; y0 is the pipe's
+// middle where it leaves the cowl, just inside the skin. Sizes read off the drawings, about +-1 in.
+const STUB = Object.freeze({ xFront: 0.54, xExit: 0.474, y0: 0.036, yMid: 0.0684, halfWide: 0.0216, halfTall: 0.0126, lip: 0.012, z: 0 });
 /**
  * Points on the outside of the aircraft, model units (nose +X, left +Y, up +Z from the origin on the spinner's axis), each
  * [x, y, z]: the spinner's tip, the wingtip position lights (red left, green right), the tail light, the exhaust stacks'
@@ -308,8 +310,8 @@ export const CT156_REFERENCE_POINTS = Object.freeze({
   leftLight: Object.freeze([NAV_LIGHT_X, WINGTIP.y + 0.002, WINGTIP.z]),
   rightLight: Object.freeze([NAV_LIGHT_X, -(WINGTIP.y + 0.002), WINGTIP.z]),
   tailLight: TAIL_LIGHT,
-  leftExhaust: Object.freeze([STUB.x - STUB.len / 2, STUB_Y, STUB.z]),
-  rightExhaust: Object.freeze([STUB.x - STUB.len / 2, -STUB_Y, STUB.z]),
+  leftExhaust: Object.freeze([STUB.xExit, STUB.yMid, STUB.z]),
+  rightExhaust: Object.freeze([STUB.xExit, -STUB.yMid, STUB.z]),
   leftStabTip: Object.freeze([STAB[0].le - STAB[0].chord / 2, -STAB[0].s, STAB[0].z]),
   rightStabTip: Object.freeze([STAB[0].le - STAB[0].chord / 2, STAB[0].s, STAB[0].z]),
   finTop: Object.freeze([FIN[1].le - FIN[1].chord / 2, 0, FIN[1].s]),
@@ -507,33 +509,41 @@ function ventralGeometry(THREE) {
   return g;
 }
 
-/** An indexed geometry from points and triangles, smooth-shaded. */
 /**
- * One exhaust stack on side s (+1 left, -1 right): oval sections from the front, buried in the cowl, to the open aft end,
- * growing and standing further out of the skin as they go aft (STUB), the front closed to a rounded nose.
+ * One exhaust stack on side s (+1 left, -1 right): an oval pipe coming straight out of the cowl, bending aft round a
+ * quarter circle and running aft to its open end, the outer wall reaching a little further aft than the inner (STUB);
+ * its front buried in the cowl. With `lining`, the dark lining a little inside it from the bend aft, open at the back.
  */
-function stackGeometry(THREE, s) {
-  const N = 12, M = 18, pos = [], idx = [];
-  const x0 = STUB.x + STUB.len / 2, x1 = STUB.x - STUB.len / 2;
-  for (let i = 0; i <= N; i++) {
-    const t = i / N, x = x0 + (x1 - x0) * t;
-    const grow = i === 0 ? 0.05 : 0.55 + 0.45 * Math.sqrt(t);
-    const w = STUB.halfWide * grow, h = STUB.halfTall * grow;
-    const c = fuseSurf(x, STUB.z) + STUB.halfWide * (-1.1 + (1.1 + STUB.standOut) * Math.sqrt(t));
+function stackGeometry(THREE, s, lining = false) {
+  const { xFront, xExit, y0, yMid, halfWide, halfTall, lip, z } = STUB;
+  const R = yMid - y0, xBend = xFront - R, M = 20, pos = [], idx = [];
+  const path = [];
+  for (let i = lining ? 6 : 0; i <= 8; i++) {
+    const t = (i / 8) * (Math.PI / 2); // round the bend: from heading out to heading aft
+    path.push({ x: xBend + R * Math.cos(t), y: y0 + R * Math.sin(t), tx: -Math.sin(t), ty: Math.cos(t) });
+  }
+  for (let i = 1; i <= 6; i++) path.push({ x: xBend + (xExit - xBend) * (i / 6), y: yMid, tx: -1, ty: 0, end: i === 6 });
+  const k0 = lining ? 0.8 : 1;
+  for (const p of path) {
     for (let k = 0; k < M; k++) {
-      const a = (2 * Math.PI * k) / M;
-      pos.push(i === 0 ? x + 0.006 : x, s * (c + w * Math.cos(a)), STUB.z + h * Math.sin(a));
+      const a = (2 * Math.PI * k) / M, c = Math.cos(a);
+      const back = p.end ? lip * Math.max(0, c) : 0; // the outer wall reaches further aft
+      // across the pipe: in plan, square to its heading (outward is +c)
+      pos.push(p.x - back + halfWide * k0 * c * p.ty, s * (p.y - halfWide * k0 * c * p.tx), z + halfTall * k0 * Math.sin(a));
     }
   }
-  for (let i = 0; i < N; i++) {
+  const flip = (s > 0) !== lining;
+  for (let i = 0; i < path.length - 1; i++) {
     for (let k = 0; k < M; k++) {
       const a = i * M + k, b = i * M + ((k + 1) % M), c = a + M, d = b + M;
-      if (s > 0) idx.push(a, c, b, b, c, d);
+      if (flip) idx.push(a, c, b, b, c, d);
       else idx.push(a, b, c, b, d, c);
     }
   }
   return meshOf(THREE, pos, idx);
 }
+
+/** An indexed geometry from points and triangles, smooth-shaded. */
 function meshOf(THREE, pos, idx, groups = null) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -1038,7 +1048,8 @@ function buildKit(THREE) {
   // a fore-and-aft reference from #2; TS-156).
   geo.stubs = joinGeometries(THREE, [1, -1].flatMap((s) => [
     { geometry: stackGeometry(THREE, s), materials: [0] },
-    { geometry: new THREE.CircleGeometry(1, 16).scale(STUB.halfWide * 0.85, STUB.halfTall * 0.85, 1).rotateY(-Math.PI / 2).translate(STUB.x - STUB.len / 2 + 0.003, s * STUB_Y, STUB.z), materials: [1] },
+    { geometry: stackGeometry(THREE, s, true), materials: [1] },
+    { geometry: new THREE.CircleGeometry(1, 16).scale(STUB.halfTall * 0.8, STUB.halfWide * 0.8, 1).rotateY(-Math.PI / 2).translate(STUB.xFront - (STUB.yMid - STUB.y0) * 0.7, s * STUB.yMid, STUB.z), materials: [1] },
   ]));
   // The position lights (TS-156): red on the left wingtip and green on the right, just behind each tip's leading edge,
   // a white strobe at each tip's trailing edge and a white light on the tail. Small lit shapes, sizes estimates.
