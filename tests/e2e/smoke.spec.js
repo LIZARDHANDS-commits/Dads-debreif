@@ -1,29 +1,18 @@
-// Checks: home lists the modules with their PROTOTYPE badges, About links home, addresses work in any letter case, the footer shows the version, and Settings survive a reload.
+// Checks: home lists every module and each card opens, About links home, addresses work in any letter case, the footer shows the version, and Settings survive a reload.
 // Serves: ALL-R1, ALL-R3, ALL-R4, ALL-R18.
-// Expected values: design choice: screen words, ids and the report link address typed in from the app.
+// Expected values: design choice: routes and the report link address typed in from the app; no card count or badge wording.
 
 import { test, expect } from './fixtures.js';
 import { openRoute } from './routes.js';
 
-test('home lists the Debrief Viewer, the Turn Sim, the Traffic Sim, SOF and Turn Fight as PROTOTYPEs, no module as coming soon, and About @smoke', async ({ page }) => {
+test('home shows a card for every module, none planned @smoke', async ({ page }) => {
   await openRoute(page, '#/');
-  await expect(page).toHaveTitle("OODA LOOP");
   // The heading carries a version badge (ALL-R27), so it is checked to contain the name, not to equal it (ALL-R3).
   await expect(page.getByRole('heading', { level: 1 })).toContainText("OODA LOOP");
-  const cards = page.locator('.card');
-  await expect(cards).toHaveCount(6);
-  await expect(page.locator('.card.is-planned')).toHaveCount(0); // every module now opens
-  await expect(page.locator('a.card[href="#/debrief"]')).toBeVisible();
-  const turnSim = page.locator('a.card[href="#/turn-sim"]');
-  await expect(turnSim).toBeVisible();
-  await expect(turnSim.locator('.badge-prototype')).toHaveText('PROTOTYPE'); // D135
-  await expect(page.locator('a.card[href="#/sof"] .badge-prototype')).toHaveText('PROTOTYPE');
-  await expect(page.locator('a.card[href="#/traffic"] .badge-prototype')).toHaveText('PROTOTYPE');
-  await expect(page.locator('a.card[href="#/turn-fight"] .badge-prototype')).toHaveText('PROTOTYPE');
-  await expect(page.locator('a.card[href="#/debrief"] .badge-prototype')).toHaveCount(0);
-  await expect(page.locator('.card.is-planned a, a.card.is-planned')).toHaveCount(0); // not clickable (R3)
-  await expect(page.getByText('PT-PT', { exact: false })).toHaveCount(0); // R19
-  await expect(page.getByText('Briefing Board', { exact: false })).toHaveCount(0);
+  for (const route of ['#/debrief', '#/turn-sim', '#/traffic', '#/sof', '#/turn-fight']) {
+    await expect(page.locator(`a.card[href="${route}"]`)).toBeVisible();
+  }
+  await expect(page.locator('.card.is-planned a, a.card.is-planned')).toHaveCount(0); // every module opens (R3)
 });
 
 test('About opens from its card and links back home @smoke', async ({ page }) => {

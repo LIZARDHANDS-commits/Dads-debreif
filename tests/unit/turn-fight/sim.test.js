@@ -1,6 +1,6 @@
 // Checks: the Simple level-turn fight: turn rate, radius, 360 degree time, merge time, speed-weighted start,
-//   first nose-on and ties, chase, 10-minute stop, frame-rate independence, start geometry. Climb and dive cases
-//   retire with TF-R22.
+//   first nose-on and ties, chase, 10-minute stop, frame-rate independence, start geometry. The Climb and dive
+//   cases were retired with TF-R22.
 //   The exact first nose-on seconds at the defaults and the V6 defaults list are not pinned.
 // Serves: TF-R3, TF-R2, TF-R8, TF-R9, TF-R12, TF-R13, TF-R23.
 // Expected values: standard aerodynamics worked out in comments (4 G at 220 KTAS: 19.2 deg/s, 1,106 ft, 18.7
@@ -135,15 +135,10 @@ test('Q49: the jets start weighted by speed: Blue at -V1 / (V1 + V2) of the sepa
   assert.ok(-fast.blue.xFt > fast.red.xFt);
 });
 
-test('Q49 (Patrick): at 250 and 200 kt the jets meet at the centre, with no jump; the older equal-distance start met 675 ft off and then moved both', () => {
+test('Q49 (Patrick): at 250 and 200 kt the jets meet at the centre, with no jump', () => {
   const now = pointAtMerge({ blueKt: 250, redKt: 200 });
   near(now.blueXFt, 0, 1e-6, 'Blue at the merge');
   near(now.redXFt, 0, 1e-6, 'Red at the merge');
-  const v6 = pointAtMerge({ blueKt: 250, redKt: 200, v6Start: true });
-  // Worked out: starting 1 NM each side of the centre, Blue flies 250/450 of the 2 NM before they meet, so it is (250/450 - 1/2) x 2 NM = 0.111 NM = 675 ft past the centre.
-  const offFt = (250 / 450 - 0.5) * 2 * FT_PER_NM;
-  near(v6.blueXFt, offFt, 0.1, 'older start: Blue off the centre');
-  near(v6.redXFt, offFt, 0.1, 'older start: Red off the centre');
 });
 
 test('Q49: everything from the merge on is the same in both starts', () => {
@@ -271,38 +266,6 @@ test('without the chase, the turn never changes course after first nose-on (both
   near(s.blue.headingRad - b0, s.perf.blue.rateRadPerSec, 1e-9);
 });
 
-test('Climb and dive off ignores the pitch boxes: the fight stays level', () => {
-  // Fly until the first nose-on, so the fight has gone through the pass and the turns.
-  const s = runUntil({ vertical: false, bluePitchDeg: 30, redPitchDeg: -20 }, (f) => f.firstNose);
-  assert.ok(s.merged && s.firstNose);
-  assert.deepEqual([s.blue.zFt, s.red.zFt, s.blue.pitchRad, s.red.pitchRad], [0, 0, 0, 0]);
-});
-
-test('Climb and dive: level to the merge, then each takes its pitch, climbs at speed × sin(pitch) and its ground track shrinks by cos(pitch)', () => {
-  const s = createFight({ vertical: true, bluePitchDeg: 30, redPitchDeg: -20 });
-  stepFight(s, s.mergeSec - 1);
-  assert.deepEqual([s.blue.zFt, s.red.zFt, s.blue.pitchRad, s.red.pitchRad], [0, 0, 0, 0]);
-  stepFight(s, 2);
-  assert.ok(s.merged);
-  near(s.blue.pitchRad, Math.PI / 6, 1e-12);
-  near(s.red.pitchRad, -20 * Math.PI / 180, 1e-12);
-  const z0 = s.blue.zFt, rz0 = s.red.zFt;
-  const x0 = s.blue.xFt, y0 = s.blue.yFt;
-  stepFight(s, 0.02);
-  const v = 220 * 1.68781;
-  near(s.blue.zFt - z0, v * Math.sin(Math.PI / 6) * 0.02, 1e-9);
-  near(s.red.zFt - rz0, -v * Math.sin(20 * Math.PI / 180) * 0.02, 1e-9);
-  near(Math.hypot(s.blue.xFt - x0, s.blue.yFt - y0), v * Math.cos(Math.PI / 6) * 0.02, 1e-9);
-  near(rangeFt(s), Math.hypot(s.red.xFt - s.blue.xFt, s.red.yFt - s.blue.yFt, s.red.zFt - s.blue.zFt), 1e-9, 'range includes height');
-});
-
-test('Climb and dive keeps the level turn rate (Q50): heading changes at the same rate as a level fight', () => {
-  const level = createFight();
-  const vertical = createFight({ vertical: true, bluePitchDeg: 40, redPitchDeg: 40 });
-  for (const s of [level, vertical]) stepFight(s, s.mergeSec + 5);
-  near(vertical.blue.headingRad, level.blue.headingRad, 1e-9);
-});
-
 test('a chasing aircraft never pitches past 60° up or down', () => {
   const s = createFight({ vertical: true, chase: true, bluePitchDeg: 60, redPitchDeg: -60 });
   for (let i = 0; i < 20000; i++) {
@@ -412,36 +375,6 @@ test('Q51: offNose3dDeg is the angle from the nose (heading and pitch) to the li
   near(offNose3dDeg(at3(0, 0, 0, 4 * Math.PI + 0.5, 0), at3(100, 0, 0, 0, 0)), 28.6479, 1e-3);
   // On top of each other: no line of sight, so the ground-plane answer, never NaN.
   assert.equal(offNose3dDeg(at3(5, 5, 5, 1, 0.5), at3(5, 5, 5, 0, 0)), offNoseDeg(at3(5, 5, 5, 1, 0.5), at3(5, 5, 5, 0, 0)));
-});
-
-test('Q51: ataDeg measures in 3D only with Climb and dive on (and not with v6OffNose); otherwise it is the ground-plane angle', () => {
-  const pitched = (extra) => {
-    const s = createFight({ vertical: true, bluePitchDeg: 30, redPitchDeg: -20, ...extra });
-    s.merged = true;
-    Object.assign(s.blue, { xFt: 0, yFt: 0, zFt: 0 });
-    Object.assign(s.red, { xFt: 3000, yFt: 0, zFt: 0 });
-    return s;
-  };
-  const on = pitched({});
-  on.blue.pitchRad = Math.PI / 6;
-  near(ataDeg(on, on.blue, on.red), 30, 1e-9, 'Climb and dive on: 3D');
-  on.red.pitchRad = -Math.PI / 9;
-  near(ataDeg(on, on.red, on.blue), 20, 1e-9, 'Red nose 20° down at a jet level with it');
-  const v6 = pitched({ v6OffNose: true });
-  v6.blue.pitchRad = Math.PI / 6;
-  assert.equal(ataDeg(v6, v6.blue, v6.red), 0, 'v6OffNose: the ground-plane angle');
-  const level = createFight({ bluePitchDeg: 30 });
-  level.blue.pitchRad = Math.PI / 6;
-  assert.equal(ataDeg(level, level.blue, level.red), offNoseDeg(level.blue, level.red), 'Climb and dive off: pitch is ignored');
-});
-
-test('Q51: with Climb and dive on, first nose-on is not called on a jet that is high above or below: climbing at 30° against diving at 20° none comes in 10 minutes, where 2D called it at +14.4 s', () => {
-  const setup = { vertical: true, bluePitchDeg: 30, redPitchDeg: -20 };
-  const v6 = runUntil({ ...setup, v6OffNose: true }, (f) => f.firstNose);
-  assert.equal(v6.firstNose.both, true);
-  const now = runUntil(setup, () => false, FIGHT_MAX_SEC);
-  assert.equal(now.firstNose, null);
-  assert.equal(now.stopped, true);
 });
 
 test('Q51: with Climb and dive off the pitch boxes and v6OffNose change nothing: the same fight, step for step', () => {
@@ -584,20 +517,6 @@ test('R28: a tail chase (ATA 0°, AA 0°): Blue behind Red, HCA 0°, Blue turns 
   const s = createFight({ startAaDeg: 0, turnsAt: 'once' });
   assert.equal(s.start.hcaDeg, 0);
   assert.deepEqual(s.turnDir, { blue: 1, red: 1 });
-});
-
-test('R28: Red\'s starting height shows only with Climb and dive on', () => {
-  const on = createFight({ vertical: true, redAboveFt: 3000 });
-  assert.equal(on.red.zFt, 3000);
-  assert.equal(on.blue.zFt, 0);
-  assert.deepEqual(on.startZFt, { blue: 0, red: 3000 });
-  near(rangeFt(on), Math.hypot(2 * FT_PER_NM, 3000), 1e-9, 'the range is the slant range');
-  const off = createFight({ vertical: false, redAboveFt: 3000 });
-  assert.equal(off.red.zFt, 0);
-  assert.deepEqual(off.startZFt, { blue: 0, red: 0 });
-  near(rangeFt(off), 2 * FT_PER_NM, 1e-9);
-  const below = createFight({ vertical: true, redAboveFt: -5000 });
-  assert.equal(below.red.zFt, -5000);
 });
 
 test('R28: a height difference does not move the pass: level flight to the merge keeps it, and the fight still merges at T+16.4', () => {

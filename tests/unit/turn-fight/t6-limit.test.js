@@ -1,23 +1,14 @@
 // Checks: the warning beside a G box: none at a normal speed and G, one naming the speed and limit above the
 //   T-6A's stall line, none exactly on it, and the 7 G cap.
 // Serves: TF-R4.
-// Expected values: stall line G = (speed / 86 kt)^2 and 7 G cap from the shared limit table (circular); 86 kt
-//   is Patrick's ruling SH-25, 7 G is NFM p.5-9; the title's "V6's default" (4 G) is a label only, the default
+// Expected values: stall line G = (speed / 86 kt)^2 and the 7 G cap (the table itself is checked in
+//   tests/unit/core/t6-performance.test.js); 86 kt is Patrick's ruling SH-25, 7 G is NFM p.5-9; the title's "V6's default" (4 G) is a label only, the default
 //   is now 5 G.
 
 // The T-6 limit warning beside a G box (SPEC-turn-fight, "T-6 limit warning").
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { T6A_LIMITS, stallLimitG } from '../../../src/core/t6-performance.js';
 import { limitWarning } from '../../../src/modules/turn-fight/t6-limit.js';
-
-test('the limits are core\'s: the stall line is G = (speed / 86 kt) squared, capped at 7 G, reached at about 227.5 kt', () => {
-  assert.equal(T6A_LIMITS.stallKias, 86);
-  assert.equal(T6A_LIMITS.maxG, 7);
-  assert.equal(stallLimitG(86), 1);
-  assert.equal(stallLimitG(172), 4);
-  assert.ok(Math.abs(stallLimitG(227.5) - 7) < 0.02);
-});
 
 test('a G above the stall line names the speed and the limit, rounded down so it never overstates it', () => {
   assert.equal(limitWarning(120, 4), "4.0 G is above the T-6's stall limit at 120 kt (1.9 G)");
