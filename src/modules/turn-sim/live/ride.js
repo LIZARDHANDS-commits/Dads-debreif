@@ -48,7 +48,8 @@ export function rideAim(ph, L, Lprev, ref, W) {
   // but not closer to Lead than the capture point until he is established, so he joins the line well back (Patrick G1:
   // established by 1,500 ft). Far off the line that points him mostly across it; as he nears it, along it, so he comes onto it
   // along it. His own speed sets how fast he moves that way: |vf + λ·d| = V, solved for λ.
-  st.captureAlong ??= Math.min(ph.captureAlongFt ?? TR.rideCaptureAlongFt, along < 0 ? (ph.captureAlongFt ?? TR.rideCaptureAlongFt) : Math.max(along, 0));
+  // A straight-ahead rejoin (straight-rejoin.js) names its capture point outright (captureAt): Lead's six about 1,000 ft back.
+  st.captureAlong ??= ph.captureAt ?? Math.min(ph.captureAlongFt ?? TR.rideCaptureAlongFt, along < 0 ? (ph.captureAlongFt ?? TR.rideCaptureAlongFt) : Math.max(along, 0));
   const leadFt = ph.leadFt ?? TR.rideLeadFt;
   const windowFt = ph.windowFt ?? TR.windowFarFt;
   const carrotWindowFt = ph.carrotWindowFt ?? windowFt;
@@ -122,7 +123,7 @@ export function rideClosure(ph, L, W, aim, pclMaxActive) {
     ? Math.max(L.kias, L.kias + (rNow - 500) * (20 / 500))
     : ph.far && aim.along > ph.far.fromFt
       ? ph.far.kias // the element far down the line (four-rejoin.js ELEMENT.far)
-      : (aim.along <= (ph.easeFromFt ?? TURNING_REJOIN.rideEaseFromFt)
+      : (aim.along <= (ph.easeFromFt ?? TURNING_REJOIN.rideEaseFromFt) && (!ph.straight || aim.established)
         ? (ph.easeKias ?? TURNING_REJOIN.rideEaseKias)
         : (ph.rideKias ?? TURNING_REJOIN.rideKias));
   const kiasCmd = (pclMaxActive || ph.rejoin || aim.established || Math.abs(aim.cross) <= (ph.speedUpFt ?? TURNING_REJOIN.rideSpeedUpFt))

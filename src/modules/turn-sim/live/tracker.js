@@ -20,7 +20,6 @@ import { G_RULE } from './rates.js';
 import { isLeadInCanopy } from '../../../core/canopy.js';
 import { liftTowardAim, gAndBankForLift } from '../../../core/point-mass.js';
 import { rideAim, rideClosure, rideHeightAsSpeed, lineAltOf } from './ride.js';
-import { lineAim, lineClosure } from './line.js';
 
 // The one pilot model's step (pilot.js, clean-up step 5, TS-141) is used here and re-exported for the files that read it from here.
 export { setKias, stepCommanded, climbCostKtps, isLeadInCanopy };
@@ -55,12 +54,12 @@ function refPoint(R, Rprev, ref, world, refTurn = true) {
 }
 
 /**
- * The two kinds of phase with their own aim and closure (refactor step 3): the ride down the turning rejoin's line (ride.js)
- * and the older line law (line.js, until step 5). Every other phase is a slot phase, flown by aimOf and closureOf below.
+ * The one kind of phase with its own aim and closure (refactor step 3): the ride down a rejoin line (ride.js), the turning
+ * rejoin's and, with Lead not turning, the straight-ahead rejoin's (step 5 retired the older line law, line.js). Every other
+ * phase is a slot phase, flown by aimOf and closureOf below.
  */
 const KINDS = Object.freeze({
   ride: Object.freeze({ aim: rideAim, closure: rideClosure }),
-  line: Object.freeze({ aim: (ph, L, Lprev, ref, W) => lineAim(ph, L, Lprev, W), closure: (ph, L, W, aim) => lineClosure(ph, L, W, aim) }),
 });
 
 /**
@@ -225,8 +224,8 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
   headingState.psiCmdPrev = cmd;
   headingState.omegaFf += GAIN.ffFilter * (psiStep / STEP_SEC - headingState.omegaFf);
 
-  const isRejoinKind = ph.kind === 'line' || ph.kind === 'ride';
-  const tauSec = isRejoinKind ? (ph.tauSec ?? (ph.kind === 'ride' ? TURNING_REJOIN.rideHeadingTauSec : 4)) : null;
+  const isRejoinKind = ph.kind === 'ride';
+  const tauSec = isRejoinKind ? (ph.tauSec ?? TURNING_REJOIN.rideHeadingTauSec) : null;
   const gainHdg = tauSec != null ? (1 / tauSec) : GAIN.heading;
   const omegaCmd = gainHdg * wrapPi(cmd - W.headingRad) + (ph.feedForward === false ? 0 : headingState.omegaFf);
 
@@ -585,7 +584,7 @@ function isIn(ph, L, W, aim, t, { last, gateOpen, stoppedAt, timesK, early, heig
   let newStoppedAt = stoppedAt;
 
   // Native handling for line and canopy-X phases
-  if (ph.kind === 'line' || ph.kind === 'ride') {
+  if (ph.kind === 'ride') {
     if (L && ph.side != null && !ph.allowAcross) {
       const rel = relativeTo(L, W);
       const r = Math.hypot(rel.fwd, rel.left, (W.altAboveFt ?? 0) - (L.altAboveFt ?? 0));
@@ -771,7 +770,9 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       const atSpeed = W.kias >= speedCeil;
       const rNow = Math.hypot(L.xFt - W.xFt, L.yFt - W.yFt);
       const nearLimitFt = (ph.isFw || ph.toFw) ? FW_BAND.rangeFt[1] : 1500;
-      const nearLead = (aim.along != null && aim.along >= 0 && aim.along <= nearLimitFt) || rNow <= nearLimitFt;
+      // On Lead's six with Lead not turning (ph.straight, the straight-ahead rejoin) full power holds until he is on the line
+      // (Patrick 5 Oct 08:40Z): abeam Lead he is near the line's start but far from Lead.
+      const nearLead = !ph.straight && ((aim.along != null && aim.along >= 0 && aim.along <= nearLimitFt) || rNow <= nearLimitFt);
       if (onLine || atSpeed || nearLead) {
         phaseState.pclMaxActive = false;
       }
@@ -810,7 +811,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
         const next = phases[k];
         const R2 = recOf(next);
         // handOverHere: a pursuit phase ending where the next slot leg takes over (turning-rejoin.js frozenPhase).
-        if (ph.kind === 'line' || ph.kind === 'ride' || ph.handOverHere) {
+        if (ph.kind === 'ride' || ph.handOverHere) {
           const L2 = R2.at(m);
           const relNow = relativeTo(L2, W);
           Object.assign(ref, { f: relNow.fwd, l: relNow.left, vf: 0, vl: 0 });

@@ -162,10 +162,8 @@ export const TURNING_REJOIN = Object.freeze({
 export const STRAIGHT_REJOIN = Object.freeze({
   lineArriveKt: 8, // he joins the line and flows up it closing at about this, slow enough to stop on the slot with power back, never stopping short of it (estimate)
   lineFlowFt: 20, // he flows on up the line once within this many feet of route (on the line, TS-103), never stopping there (estimate; 40 until V2.232, when route at 3 wingspans, TS-181, left the line to echelon too short and he flowed in 6 ft ahead)
-  cutsDeg: [30, 45, 60], // far off Lead's six line he heads across it at up to this angle to Lead's track; the one that brings him in soonest is flown (estimates: a bigger cut gets across sooner and falls back further)
-  aimsFt: [300, 600, 1200], // how sharply he comes onto the six line: off it by this much he cuts at half the angle (estimates, as TURNING_REJOIN.aimsFt; gentler than the turning rejoin's so he doesn't swing through the six)
-  lineTauSec: 2, // his heading comes onto the one the cut asks over about this long (estimate; the turning rejoin's 4 s swings him through the six)
   captureFt: 100, // he is on Lead's six within this many feet of it; until then full power, from then the overtake (estimate)
+  stopShare: 0.5, // he closes on Lead's six line no faster than he could stop on it at this share of the sideways pull his 60° bank gives (g tan 60°, about 56 ft/s²), the rest left for the roll and the heading lag (estimate; refactor step 5, Fable's recommendation for Patrick's yes)
 });
 
 // ---- the one speed table (clean-up step 5, TS-141; the review's report 6.4 B) -----------------------------------------

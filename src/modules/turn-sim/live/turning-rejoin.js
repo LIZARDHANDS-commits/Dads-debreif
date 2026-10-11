@@ -2,8 +2,8 @@
 // "a more medium bank/power setting for a LONGER period"; card "Review, then build" 08:18Z; 08:20Z: "Keep with my overtake
 // numbers"; 08:29Z: "realistic aircraft behaviour"; review turn-sim-review/rejoin-review-fable.md). One rule for every
 // turning rejoin of the 2-ship, from line abreast (hot: #2 gets colder to reach the line) and from fighting wing (cold: he
-// turns hotter to reach it). The straight-ahead rejoin (SARJ, straight-rejoin.js, TS-72) is the one that drops onto Lead's
-// six and still flies the older line law (straight-rejoin.js); this one rides the line in Lead's frame (tracker.js rideAim).
+// turns hotter to reach it). The straight-ahead rejoin (SARJ, straight-rejoin.js, TS-72) drops onto Lead's six and rides
+// that line with Lead not turning (refactor step 5); this one rides the 30° line in Lead's turning frame (ride.js rideAim).
 //
 //  1. Lead turns into #2 at the press, at 30° of bank, slowing to 200 KIAS, and holds it until #2 is in (SMM 16.20 para
 //     65b; Patrick 05:29Z, 06:16Z item 3; lead-turn-in.js leadTurnInto).
@@ -452,10 +452,11 @@ const onLeadAlt = (leadAlt, list) => list.map((p) => ({ ...p, slot: { ...p.slot,
 /**
  * The ways a turning rejoin goes, by destination (refactor step 4: one builder, the destination as data). Each says whether
  * it starts with the hard pull, when the SMM's start (pointing turn, then Lead frozen in the windscreen) is flown, the frozen
- * phase and the approach (the ride, or the old line) that take him to the decision point, and the tail from there.
+ * phase and the approach (the ride) that take him to the decision point, and the tail from there.
  *  - fw: to fighting wing, the ride into the cone, then cone tracking (from trail, the frozen bearing to the cone instead);
  *  - x: to a close formation on the ride (the 2-ship and the 4-ship's element), then the tail legs (or none on the tail path);
- *  - line: the 4-ship's #2 on the old line law to route, then the tail legs.
+ * (Until refactor step 5 a third way, line, flew the 4-ship's #2 to route on the older line law; no caller has asked it since
+ * V2.299.)
  */
 const REJOIN_WAYS = Object.freeze({
   fw: Object.freeze({
@@ -541,34 +542,6 @@ const REJOIN_WAYS = Object.freeze({
       return [];
     },
   }),
-  line: Object.freeze({
-    // The 4-ship's #2 to route on the old line law (until refactor step 5).
-    hardPull: false,
-    pointed: () => false,
-    frozen: null,
-    approach: ({ lineFt, s, aimFt, decisionFt, bankCapDeg, overtakeKt, floorKias }) => phase({ fwd: 0, left: 0, alt: lineFt }, {
-      kind: 'line',
-      lineDeg: TURNING_REJOIN.lineDeg,
-      side: s,
-      aimFt,
-      approachDeg: TURNING_REJOIN.approachDeg,
-      tauSec: TURNING_REJOIN.lineTauSec,
-      captureFt: TURNING_REJOIN.captureFt,
-      decisionFt,
-      bankCapDeg,
-      overtakeKt,
-      floorKias,
-      arriveFtps: Math.min(closureNow().ftps, closeInFtps(TURNING_REJOIN.decisionArriveRates)),
-      initialPclMax: true,
-      rejoin: true,
-    }),
-    tail: ({ s, to, sTo, spacingFt, leadAlt }) => {
-      const flowFtps = closeInFtps(TURNING_REJOIN.decisionArriveRates);
-      return onLeadAlt(leadAlt, onClosure(tailLegs(s, to, sTo, spacingFt), { closeIn: true })).map((p, i) =>
-        i === 0 ? { ...p, closureFtps: Math.min(p.closureFtps, flowFtps) } : p
-      );
-    },
-  }),
 });
 
 /**
@@ -642,7 +615,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   const initialRange = Math.hypot(into.longRec.at(0).xFt - wing.xFt, into.longRec.at(0).yFt - wing.yFt);
 
   // One list of phases for every destination (refactor step 4): the destination is data (REJOIN_WAYS below).
-  const way = to === 'fw' ? REJOIN_WAYS.fw : onX ? REJOIN_WAYS.x : REJOIN_WAYS.line;
+  const way = to === 'fw' ? REJOIN_WAYS.fw : REJOIN_WAYS.x; // a close place off the X only: no caller asks one with xLaw false (the 4-ship's #2 flies the X since V2.299)
   const { phases, numApproachPhases, pointed } = rejoinPhases(way, {
     s, to, sTo, spacingFt, t0, lineFt, leadAlt, bankCapDeg, floorKias, leastKias, initialRange, hardSec, point, crossIn, element,
     xDecisionFt, decisionFt, aimFt, overtakeKt, overshoot, pathTail,
@@ -884,8 +857,8 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
   // When even that can't keep him behind Lead's 3/9 line, the most overtake that can (the review's: fit the overtake to the
   // room; Student's 15 kt is the least): the note says which he flew.
   const slotFwdFt = Math.max(0, pairSlot(to, sTo || s, spacingFt)?.fwd ?? 0);
-  // The 4-ship's #2 (xLaw false, the line law to route) keeps the old 100 ft margin to a close place too (TS-176; built V2.223,
-  // Fable's V2.221 audit 2.4); the 2-ship's X to a close place, none.
+  // The X to a close place (xLaw) keeps no margin ahead of the slot; fighting wing, and any rejoin flown without the X,
+  // the old 100 ft margin (TS-176; built V2.223, Fable's V2.221 audit 2.4).
   const laneLimitFt = to === 'fw' || !xLaw ? slotFwdFt + (LANE.marginFt ?? 100) : 0;
   let best = null;
   let bestAny = null;
@@ -893,7 +866,7 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
   // to be 220 knots"), or a smaller Rates overtake only when that one would put him ahead of Lead's 3/9 line (TS-75).
   const asked = lineKiasNow() - KIAS_OUTSIDE_LAB;
   // The ride (xLaw, the 2-ship) reads neither the overtake nor the aim, so it flies each only once (review 10 Oct 2.4;
-  // Patrick 20:00Z (d)); the 4-ship's line law still searches them.
+  // Patrick 20:00Z (d)); without the X (the 4-ship's #2 to fighting wing) the search still tries them.
   const overtakes = xLaw ? [asked] : [asked, ...Object.values(REJOIN_CLOSURE_KT).filter((kt) => kt < asked).sort((a, b) => b - a)];
   // Every overtake and bank at his least speed first; slower only when none of them keeps him behind Lead's 3/9 line
   // (Patrick 17:29Z: "unless massively high on energy and tight"; TS-75).

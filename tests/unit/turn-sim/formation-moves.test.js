@@ -252,6 +252,27 @@ test('fighting wing to echelon is a straight-ahead rejoin: #2 lines up on Lead\'
   }
 });
 
+// Refactor step 5: the straight-ahead rejoin flown as the ride with Lead not turning. From the default start (line abreast),
+// #2 lines up on Lead's six well back, never gets ahead of Lead's 3/9 line by more than the shared 100 ft margin, and is in
+// echelon inside 150 s (generous: Fable's V2.276 straight rejoin from trail took 119 s).
+test('line abreast to echelon, straight-ahead rejoin: on Lead\'s six, behind his 3/9 line, in echelon inside 150 s', () => {
+  const f = createFormation();
+  assert.equal(f.change('echelon', { rejoin: 'straight' }), 'started');
+  let onSix = false;
+  let mostAheadFt = -Infinity;
+  const t0 = f.state.tSec;
+  fly(f, 'line abreast to echelon (straight)', (_b, [lead, wing]) => {
+    const l = link(lead, wing);
+    if (l.back > 400 && l.across < 100) onSix = true;
+    mostAheadFt = Math.max(mostAheadFt, -l.back);
+  });
+  assert.ok(onSix, '#2 lined up on Lead\'s six');
+  assert.ok(mostAheadFt <= 100, `#2 ${mostAheadFt.toFixed(0)} ft ahead of Lead's 3/9 line`);
+  assert.ok(f.state.tSec - t0 <= 150, `in echelon after ${(f.state.tSec - t0).toFixed(0)} s`);
+  const [lead, wing] = f.state.aircraft;
+  assert.ok(inEchelon(link(lead, wing)), 'ends in echelon');
+});
+
 test('the 4-ship: rejoining wingmen come off the stack first, and fighting wing to echelon ends in echelon', () => {
   const f = createFormation({ ships: 4 });
   // Spread 4 has #2 300 ft above Lead (AFM8 brief p.14); he must step down before he closes.
