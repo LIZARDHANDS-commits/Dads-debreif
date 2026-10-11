@@ -407,6 +407,8 @@ const LIVE_WINDOWS = Object.freeze({
 const PANEL_GREY = '#8e9296';
 const SEAM = 'rgba(52, 56, 60, 0.55)';
 const BEZEL = '#1d2024';
+/** The displays' black frames round their screens, feet (about 0.5 in; Patrick's CT-156 photo, judged). */
+const BEZEL_FT = 0.04;
 const BLACK = '#0b0d10';
 const FACE = '#0b0d10';
 const INK = '#e8edf2';
@@ -453,6 +455,36 @@ function squareBezel(ctx, x, y, w, h) {
   ctx.fill();
   screws(ctx, x, y, w, h, Math.min(w, h) * 0.08, Math.max(1.5, Math.min(w, h) * 0.025));
 }
+
+/**
+ * A display's bezel on the panel, as Patrick's CT-156 cockpit photo shows them (11 Oct 2026, the panel step): a thick
+ * rounded black frame `pad` pixels round the screen, a white dot (the light sensor) in its lower left corner, and a
+ * Dzus fastener on the grey just outside each corner. Drawn under the screen; sizes judged off the photo.
+ */
+function displayBezel(ctx, x, y, w, h, pad) {
+  const X = x - pad, Y = y - pad, W = w + 2 * pad, H = h + 2 * pad;
+  ctx.fillStyle = '#121417';
+  roundRect(ctx, X, Y, W, H, pad * 1.4);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(120, 126, 132, 0.55)'; // the frame's lit outer edge
+  ctx.lineWidth = Math.max(1, pad * 0.12);
+  roundRect(ctx, X + ctx.lineWidth / 2, Y + ctx.lineWidth / 2, W - ctx.lineWidth, H - ctx.lineWidth, pad * 1.35);
+  ctx.stroke();
+  ctx.fillStyle = '#e9edf0';
+  ctx.beginPath(); ctx.arc(X + pad * 0.75, Y + H - pad * 0.75, Math.max(1.5, pad * 0.28), 0, Math.PI * 2); ctx.fill();
+  dzus(ctx, X, Y, W, H, pad);
+}
+
+/** Dzus fasteners on the grey just outside a box's corners. */
+function dzus(ctx, X, Y, W, H, pad) {
+  const r = Math.max(1.5, pad * 0.22), o = pad * 0.45;
+  for (const [sx, sy] of [[X - o, Y - o], [X + W + o, Y - o], [X - o, Y + H + o], [X + W + o, Y + H + o]]) {
+    ctx.fillStyle = '#6b7177'; ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#3a3f44'; ctx.lineWidth = Math.max(1, r * 0.35);
+    ctx.beginPath(); ctx.moveTo(sx - r * 0.6, sy); ctx.lineTo(sx + r * 0.6, sy); ctx.stroke();
+  }
+}
+
 
 /** Yellow and black diagonal stripes filling a box. */
 function stripes(ctx, x, y, w, h, n = 5) {
@@ -752,17 +784,20 @@ function drawStaticPanel(ctx, width, height, instruments, faceW, faceH) {
   for (const [u0, v0, u1, v1] of [[0.02, 0.263, 0.36, 0.263], [0.37, 0.02, 0.37, 0.98], [0.61, 0.02, 0.61, 0.98], [0.62, 0.255, 0.98, 0.255], [0.02, 0.7, 0.36, 0.7]]) {
     ctx.beginPath(); ctx.moveTo(u0 * width, (1 - v0) * height); ctx.lineTo(u1 * width, (1 - v1) * height); ctx.stroke();
   }
+  const pad = BEZEL_FT * k;
   for (const inst of instruments) {
     const o = outerFt(inst, faceW, faceH);
     const w = o.w * k, h = o.h * k;
     const box = { x: inst.u * width - w / 2, y: (1 - inst.v) * height - h / 2, w, h };
     if (inst.s && inst.d) {
-      squareBezel(ctx, box.x, box.y, box.w, box.h);
+      if (inst.kind === 'stby') squareBezel(ctx, box.x, box.y, box.w, box.h);
+      else displayBezel(ctx, box.x, box.y, box.w, box.h, pad * 0.5);
       const f = faceFt(inst, faceW, faceH);
       const fw = f.w * k;
       drawInstrument(ctx, inst.kind, { x: inst.u * width - fw / 2, y: (1 - inst.v) * height - fw / 2, w: fw, h: fw }, null, inst);
     } else {
-      if (inst.frame || inst.kind === 'eng') { ctx.fillStyle = BEZEL; ctx.fillRect(box.x - 4, box.y - 4, box.w + 8, box.h + 8); }
+      if (inst.kind === 'eadi' || inst.kind === 'ehsi' || inst.kind === 'eng') displayBezel(ctx, box.x, box.y, box.w, box.h, pad);
+      else if (inst.frame) { ctx.fillStyle = BEZEL; ctx.fillRect(box.x - 4, box.y - 4, box.w + 8, box.h + 8); }
       drawInstrument(ctx, inst.kind, box, null, inst);
     }
   }
@@ -1120,6 +1155,29 @@ const SLOT = Object.freeze({
  * The cockpit parts of one seat (dx FRONT_DX the front, REAR_DX the rear: how far its seat's parts move from SEAT_FT's
  * stations), as { geometry, materials } entries for ct156JoinGeometries, plus what the textured faces need.
  */
+/**
+ * A display's frame (Patrick's CT-156 photo): a rounded rectangle `pad` feet wide round a screen of half-size hw by hh
+ * centred at (yc, zc), 0.035 ft proud of the face at x (its back), its edges bevelled, open over the screen.
+ */
+function displayFrame(THREE, x, yc, zc, hw, hh, pad) {
+  const bev = 0.006, depth = 0.035 - 2 * bev;
+  const rect = (w, h, r) => {
+    const sh = new THREE.Shape();
+    sh.moveTo(-w + r, -h); sh.lineTo(w - r, -h); sh.quadraticCurveTo(w, -h, w, -h + r); sh.lineTo(w, h - r);
+    sh.quadraticCurveTo(w, h, w - r, h); sh.lineTo(-w + r, h); sh.quadraticCurveTo(-w, h, -w, h - r); sh.lineTo(-w, -h + r);
+    sh.quadraticCurveTo(-w, -h, -w + r, -h);
+    return sh;
+  };
+  const outer = rect(hw + pad - bev, hh + pad - bev, pad * 1.2);
+  outer.holes.push(rect(hw + bev, hh + bev, pad * 0.4));
+  const g = new THREE.ExtrudeGeometry(outer, { depth, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: 2, curveSegments: 4 });
+  const pos = g.attributes.position;
+  for (let i = 0; i < pos.count; i++) pos.setXYZ(i, x - depth - bev + pos.getZ(i), yc + pos.getX(i), zc + pos.getY(i));
+  g.deleteAttribute('uv');
+  g.computeVertexNormals();
+  return g;
+}
+
 function seatParts(THREE, { dx, front, p, h, eye }) {
   const parts = [], striped = [], consoleTops = [], lower = [], cards = [];
   const put = (geometry, slot) => parts.push({ geometry, materials: [slot] });
@@ -1235,11 +1293,26 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
     put(box(THREE, cx - C.r - 0.006, cx - C.r - 0.002, cy - 0.0012, cy + 0.0012, zc - C.cardTall / 2 - 0.004, zc + C.cardTall / 2 + 0.004), SLOT.red); // the lubber line
   }
 
-  // The instruments' square bezels standing proud of the face (Dad's pictures 17, 26).
+  // The instruments' bezels standing proud of the face (Dad's pictures 17, 26): round the displays a thick rounded frame
+  // with bevelled edges, as Patrick's CT-156 photo shows them (displayFrame); round the other boxes a thin square one.
   for (const inst of PANEL_INSTRUMENTS) {
     if (!inst.s && !inst.frame && inst.kind !== 'eng') continue;
     const o = outerFt(inst, faceW, faceH);
-    const yc = yOf(inst.u), zc = zOf(inst.v), hw = o.w / 2 + 0.012, hh = o.h / 2 + 0.012, t = 0.024;
+    const yc = yOf(inst.u), zc = zOf(inst.v);
+    const display = inst.kind === 'eadi' || inst.kind === 'ehsi' || inst.kind === 'eng' || (inst.s && inst.d && inst.kind !== 'stby');
+    if (display) {
+      const pad = inst.s ? BEZEL_FT * 0.5 : BEZEL_FT;
+      put(displayFrame(THREE, p.x - 0.002, yc, zc, o.w / 2, o.h / 2, pad), SLOT.dark);
+      // The EADI's and EHSI's push-buttons on the frame either side of the screen (the photo; the T-6A-1 panel
+      // diagram's DIM, CMP, GPS and APR), light squares: [side (+1 the pilot's left), fraction down from the top].
+      const buttons = { eadi: [[1, 0.12], [1, 0.88], [-1, 0.72], [-1, 0.88]], ehsi: [[1, 0.1], [1, 0.22], [1, 0.9], [-1, 0.74], [-1, 0.9]] }[inst.kind] ?? [];
+      for (const [side, at] of buttons) {
+        const by = yc + side * (o.w / 2 + pad / 2), bz = zc + o.h / 2 - at * o.h, b = pad * 0.32;
+        put(box(THREE, p.x - 0.044, p.x - 0.036, by - b, by + b, bz - b, bz + b), SLOT.knob);
+      }
+      continue;
+    }
+    const hw = o.w / 2 + 0.012, hh = o.h / 2 + 0.012, t = 0.024;
     const x0 = p.x - 0.03, x1 = p.x - 0.002;
     put(box(THREE, x0, x1, yc - hw, yc + hw, zc + hh - t, zc + hh), SLOT.dark);
     put(box(THREE, x0, x1, yc - hw, yc + hw, zc - hh, zc - hh + t), SLOT.dark);
