@@ -27,8 +27,9 @@ const CHECKED_ROUTES = ROUTES.filter((route) => route !== '#/traffic');
 
 for (const route of CHECKED_ROUTES) {
   test(`every control on ${route} does something`, async ({ page }) => {
-    // Each control gets a fresh page: the Formation Simulator has about 45, at 1.5 s or more each on a runner.
-    test.setTimeout(180_000);
+    // Each control gets a fresh page: the Formation Simulator has about 45, at 1.5 s or more each on a runner. Its walk
+    // took 2.0 min on main at a26d8b6b and ran past 3 min on 62927742 as controls were added, so it gets 5 min.
+    test.setTimeout(route === '#/turn-sim' ? 300_000 : 180_000);
     // Each click starts from a fresh page, so nothing remembered from the last
     // one (a collapsed panel, say) moves the controls around.
     await page.addInitScript(() => {
