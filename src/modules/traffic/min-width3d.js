@@ -1,4 +1,4 @@
-// Keeps thin flat things readable at range (TR-143, TR-144): the runway and taxiway paint, and the roads. A screen resolves about a
+// Keeps thin flat things readable at range (TR-146, TR-147): the runway and taxiway paint, and the roads. A screen resolves about a
 // third of what the eye does, so far off a 3 ft stripe or a 26 ft road covers a fraction of a pixel and vanishes. Each strip is pushed
 // out across its narrow side just enough to stay `minPx` wide on screen, up to `maxGrow` times its real width; up close it is never
 // touched. Past that cap it fades (alpha down to `floor`) rather than flicker (TR-137). The geometry carries, per vertex, the strip's

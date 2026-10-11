@@ -300,7 +300,9 @@ function closureOf(ph, L, W, aim, blockFt, farFromFt = HAND_OVER_FT, pclMaxActiv
     const inAnticipation = Boolean(ph.isFw || ph.toFw) && rNow <= 1000;
     const lineTargetKias = inAnticipation
       ? Math.max(L.kias, L.kias + (rNow - 500) * (20 / 500))
-      : (aim.along <= (ph.easeFromFt ?? TURNING_REJOIN.rideEaseFromFt)
+      : ph.far && aim.along > ph.far.fromFt
+        ? ph.far.kias // the element far down the line (four-rejoin.js ELEMENT_FAR)
+        : (aim.along <= (ph.easeFromFt ?? TURNING_REJOIN.rideEaseFromFt)
           ? (ph.easeKias ?? TURNING_REJOIN.rideEaseKias)
           : (ph.rideKias ?? TURNING_REJOIN.rideKias));
     const kiasCmd = (pclMaxActive || ph.rejoin || aim.established || Math.abs(aim.cross) <= (ph.speedUpFt ?? TURNING_REJOIN.rideSpeedUpFt))
@@ -493,6 +495,13 @@ function zoomRoomFtps(L, W) {
   return Math.min(FW_BUBBLE.diveFtps, Math.sqrt(2 * FW_BUBBLE.pullFtps2 * up));
 }
 
+/** The rejoin line's height at `rangeFt` from Lead: Lead held TURNING_REJOIN.lineElevDeg above #2's horizon (heightOf, TS-181). */
+function lineAltOf(ph, L, rangeFt) {
+  const TR = TURNING_REJOIN;
+  const depthFt = Math.min(ph.slopedMaxFt ?? Infinity, Math.max(-TR.lineUpFt, rangeFt * Math.tan(TR.lineElevDeg * DEG)));
+  return (L.altAboveFt ?? 0) - depthFt;
+}
+
 /**
  * Speed loop: acceleration follows the speed error; the one pilot model (pilot.js, TS-141) holds it to what the T-6 gives
  * at the G he pulls (full power up, power back down: slow-down.js, TS-61) and builds it up at the one jerk limit.
@@ -500,6 +509,24 @@ function zoomRoomFtps(L, W) {
  */
 function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowOwn, cone, energyIntent, heightState = null, t = 0, aCmdOwn = null }) {
   const T = TRACKER;
+  // High on a rejoin line (Patrick 11 Oct 2026 09:10Z: from 2,000 ft high "use the speed brake/earlier power reduction"): the
+  // height he still has to come down to the line is speed to come (standard energy, V^2 + 2 g dh), so his power comes off
+  // for it now, and the boards with it once that is more than TURNING_REJOIN.highBoardsKt (an estimate). Until V2.291 he
+  // flew the line's 210 KIAS on the speed alone, came off a 2,000 ft dive at 229 KIAS, could not lose it with the turn's
+  // power floor and ran 13 kt fast through the decision point, close in on Lead.
+  let highStage = null;
+  if (ph.slopedAlt && ph.rejoin && L && W && kiasCmd != null && !cone && !ph.isFw) {
+    const dh = W.altAboveFt - lineAltOf(ph, L, Math.hypot(W.xFt - L.xFt, W.yFt - L.yFt));
+    if (dh > 0 && W.tasFtps > 0) {
+      const extraKt = ((Math.sqrt(W.tasFtps * W.tasFtps + 2 * G_FTPS2 * dh) - W.tasFtps) * W.kias) / W.tasFtps;
+      const over = W.kias + extraKt - kiasCmd;
+      if (over > 0) {
+        kiasCmd -= Math.min(extraKt, over);
+        if (over > TURNING_REJOIN.highBoardsKt) highStage = 'boards';
+      }
+    }
+  }
+  if (highStage && stageOwn == null) stageOwn = highStage;
   const GAIN = T.gain;
   // A phase may slow with more than power back (slowStage, slow-down.js; the turning rejoin's run-in: power back and the
   // speed brake, card 03:33Z rule 4: "torque and speed brake first").
@@ -580,8 +607,7 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     // The angle is held from the end of the capture's own height leg, not only once the ride is established: until V2.234
     // the floor ruled in between, so far out he sat 50 ft low, not the 70-140 ft the 4° gives (Fable's V2.232 audit).
     // A phase may cap the depth (slopedMaxFt): the turning rejoin's reversal, so the 4° only ever brings him up (TS-182).
-    const depthFt = Math.min(ph.slopedMaxFt ?? Infinity, Math.max(-TR.lineUpFt, rangeFt * Math.tan(TR.lineElevDeg * DEG)));
-    const targetAlt = ph.slopedAlt ? (L.altAboveFt ?? 0) - depthFt : slotAltOf(ph, L, W);
+    const targetAlt = ph.slopedAlt ? lineAltOf(ph, L, rangeFt) : slotAltOf(ph, L, W);
     const D = FW_BUBBLE;
     // One smooth change, stopping on the target as he gets there: on the line within heightG of level flight (TS-140), onto
     // the wing plane within planeEaseG (TS-126). Until V2.232 the line's was FW_BUBBLE's 1.9 g pull to a fixed 50 ft.

@@ -15,9 +15,9 @@ import { ktToFtps, G_FTPS2 } from '../../core/units.js';
 import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
 import { bankDegFromTurnRate, easeRoll, easeValue, gFromBankDeg } from '../../core/flight-math.js';
 import { windTriangle } from '../../core/wind.js';
-import { attitudeDegFromClimb, glideDragPerWeight, glideRatio } from '../../core/t6-performance.js';
+import { attitudeDegFromClimb, glideDragPerWeight, glideRatio, T6A_LIMITS } from '../../core/t6-performance.js';
 import { gateRoll } from './envelope.js';
-import { THRESHOLD_DATA_ELEV_FT } from './airfield.js';
+import { THRESHOLD_DATA_ELEV_FT, THRESHOLD_29L, DEPARTURE_END_29L, NUMBER_BASE_PAST_THRESHOLD_FT, TOUCHDOWN_PAST_NUMBERS_FT } from './airfield.js';
 import { iasToTasKt } from './weather.js';
 import { posOnRoute, routePath, DEFAULT_ROUTE_OPTIONS } from './route.js';
 import { ROLL } from './circuit.js';
@@ -32,6 +32,49 @@ const ON_WHEELS_FT = 0.5; // under the flare's last few feet (TR-96)
  */
 const ATTITUDE_HALF_SEC = 1;
 const PITCH_EASE = Object.freeze({ maxRateDps: 10, maxAccelDps2: 20 });
+
+/**
+ * Crosswind on final, the wing-down method (SMM 4.12 paras 25-28; NFM p.2-26; Patrick, 11 Oct 09:03Z): from halfway
+ * between the window and touchdown the crab goes and the upwind wing comes down, over `blendSec`; the nose stays on the
+ * centreline on the wheels, and the crab comes back over `blendSec` once airborne again. The window is 3/4 NM before the
+ * base of the numbers (Patrick). The bank is the one whose sideways pull matches the side force of the slip (standard
+ * aerodynamics, slipBankDeg); the side-force slope per radian of slip is borrowed from similar aircraft and the wing
+ * area is the T-6A's published figure, neither in our manuals (estimates). The blend time and how close to the
+ * centreline counts as on final are estimates. Drawn heading and bank only: the ground track, the glide path and the
+ * speeds don't change. The NFM's limit is 25 kt across (p.5-12), flagged elsewhere, never a wall here.
+ */
+export const WING_DOWN = Object.freeze({
+  sideForcePerRad: 0.6, wingAreaSqFt: 175.3, blendSec: 3, onLineFt: 300, onLineDeg: 20,
+  fromOutFt: (0.75 * 6076 - NUMBER_BASE_PAST_THRESHOLD_FT + -(NUMBER_BASE_PAST_THRESHOLD_FT + TOUCHDOWN_PAST_NUMBERS_FT)) / 2,
+  toOutFt: -(NUMBER_BASE_PAST_THRESHOLD_FT + TOUCHDOWN_PAST_NUMBERS_FT),
+  /** The window's speed, KIAS (Pattern 1's point 12), where the side-force balance sets the bank for each degree of crab. */
+  refKias: 110,
+  get bankPerCrab() { return slipBankDeg(10, this.refKias) / 10; },
+});
+
+/**
+ * The bank that holds the track in a slip of `slipDeg` at `kias`, degrees, the same sign as the slip: the slip's side
+ * force (dynamic pressure × wing area × side-force slope × slip) balanced against weight × sin(bank). Dynamic pressure
+ * comes straight from KIAS (sea-level density).
+ */
+export function slipBankDeg(slipDeg, kias, weightLb = T6A_LIMITS.weightLb) {
+  const q = 0.5 * 0.0023769 * (kias * 1.68781) ** 2;
+  const side = q * WING_DOWN.wingAreaSqFt * WING_DOWN.sideForcePerRad * (slipDeg * Math.PI / 180) / weightLb;
+  return Math.asin(Math.max(-1, Math.min(1, side))) * 180 / Math.PI;
+}
+const RWY_LEN_FT = Math.hypot(THRESHOLD_29L.x - DEPARTURE_END_29L.x, THRESHOLD_29L.y - DEPARTURE_END_29L.y);
+const RWY_OUT = Object.freeze({ x: (THRESHOLD_29L.x - DEPARTURE_END_29L.x) / RWY_LEN_FT, y: (THRESHOLD_29L.y - DEPARTURE_END_29L.y) / RWY_LEN_FT });
+const RWY_29L_TRACK_DEG = compassDegFromVector(-RWY_OUT.x, -RWY_OUT.y);
+
+/** 1 where the wing-down method is flown (on the 29L final from halfway in, to touchdown) or on the wheels, else 0. */
+function wingDownTarget(a, trackDeg, onWheels) {
+  if (onWheels) return 1;
+  const dx = a.x - THRESHOLD_29L.x, dy = a.y - THRESHOLD_29L.y;
+  const outFt = dx * RWY_OUT.x + dy * RWY_OUT.y;
+  const offFt = Math.abs(-dx * RWY_OUT.y + dy * RWY_OUT.x);
+  const lined = Math.abs(wrapDeg180(trackDeg - RWY_29L_TRACK_DEG)) <= WING_DOWN.onLineDeg;
+  return lined && offFt <= WING_DOWN.onLineFt && outFt <= WING_DOWN.fromOutFt && outFt >= WING_DOWN.toOutFt ? 1 : 0;
+}
 
 /**
  * Half the window the track is read across, in feet. Longer than the pieces a
@@ -296,9 +339,15 @@ export function followRoute(a, route, env, dt, options = DEFAULT_ROUTE_OPTIONS) 
   a.gsKt = joinGsKt ?? (wt.canHoldTrack ? Math.max(wt.groundSpeedKt, 10) : 10);
   a.groundSpeedKt = a.gsKt;
   a.tasKt = tasKt;
-  a.crabDeg = wt.crabDeg;
-  a.headingDeg = wt.headingDeg;
   a.trackDeg = trackDeg;
+  // The wing-down method on final (WING_DOWN): the crab blends out, the upwind wing comes down instead.
+  const onWheels = a.alt <= THRESHOLD_DATA_ELEV_FT + ON_WHEELS_FT;
+  const wdTarget = wingDownTarget(a, trackDeg, onWheels);
+  const wdRate = dt > 0 ? dt / WING_DOWN.blendSec : 1;
+  a.wingDown = Number.isFinite(a.wingDown) ? a.wingDown + Math.max(-wdRate, Math.min(wdRate, wdTarget - a.wingDown)) : wdTarget;
+  const wd = a.wingDown * a.wingDown * (3 - 2 * a.wingDown); // eased in and out
+  a.crabDeg = wt.crabDeg * (1 - wd);
+  a.headingDeg = (trackDeg + a.crabDeg + 360) % 360;
 
   // Bank: what this heading rate needs (right positive), reached by a smooth roll. The rate is read off the path a
   // second either side (TR-97), not the last step, which is near nothing along each straight piece of a drawn turn and
@@ -312,7 +361,9 @@ export function followRoute(a, route, env, dt, options = DEFAULT_ROUTE_OPTIONS) 
     const headingThere = (d) => windTriangle(trackAt(route, d, options), tasKt, windFromDeg, windKt).headingDeg;
     rateRadPerSec = (wrapDeg180(headingThere(a.distFt + aheadFt) - headingThere(a.distFt - aheadFt)) * Math.PI / 180) / (2 * ATTITUDE_HALF_SEC);
   }
-  a.targetBankDeg = bankDegFromTurnRate(tasFtps, rateRadPerSec);
+  // In the slip the upwind wing is down; on the wheels the wings are level (SMM 4.12 para 26: the upwind wheel first).
+  const slipBank = onWheels ? 0 : wd * WING_DOWN.bankPerCrab * wt.crabDeg;
+  a.targetBankDeg = bankDegFromTurnRate(tasFtps, rateRadPerSec) + slipBank;
   const roll = gateRoll(a.bankDeg ?? 0, a.rollRateDps ?? 0, a.targetBankDeg, dt, ROLL, tasFtps, a.iasKt);
   a.bankDeg = Math.abs(roll.bankDeg) < 1e-9 ? 0 : roll.bankDeg;
   a.rollRateDps = Math.abs(roll.rollRateDps) < 1e-9 ? 0 : roll.rollRateDps;
@@ -329,7 +380,6 @@ export function followRoute(a, route, env, dt, options = DEFAULT_ROUTE_OPTIONS) 
   const pathClimbFtps = joinRate
     ? climbFtps
     : ((posOnRoute(route, a.distFt + aheadFt, options).alt ?? a.alt) - (posOnRoute(route, a.distFt - aheadFt, options).alt ?? a.alt)) / (2 * ATTITUDE_HALF_SEC);
-  const onWheels = a.alt <= THRESHOLD_DATA_ELEV_FT + ON_WHEELS_FT;
   const targetPitch = onWheels ? GROUND_ATTITUDE_DEG : attitudeDegFromClimb(pathClimbFtps, tasFtps, a.iasKt, a.g, a.config);
   if (!Number.isFinite(a.pitchDeg) || !(dt > 0)) {
     a.pitchDeg = targetPitch;

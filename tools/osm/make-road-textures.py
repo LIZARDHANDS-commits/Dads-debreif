@@ -1,4 +1,4 @@
-# Road surfaces for Traffic's OpenStreetMap roads (TR-144). Each picture runs across the road (u, 0 at one edge, 1 at the other)
+# Road surfaces for Traffic's OpenStreetMap roads (TR-147). Each picture runs across the road (u, 0 at one edge, 1 at the other)
 # and along it (v, one tile ROAD_TILE_FT long, in osm3d.js), with soft see-through edges so the road meets the photo's verge.
 # Generated, no one's imagery. Sizes are estimates of common Saskatchewan practice, not a survey:
 #   road-highway.png  36 ft wide: two 12 ft lanes, 6 ft paved shoulders, white edge lines, a broken yellow centre line (10 ft

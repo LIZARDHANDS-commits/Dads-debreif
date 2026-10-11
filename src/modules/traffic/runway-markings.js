@@ -495,7 +495,7 @@ function rubberMesh(THREE) {
 }
 
 /**
- * Seeing the runway at range (TR-143; Patrick, 11 Oct: "the runways are harder to see than in IRL as well as the numbers"; "keep the
+ * Seeing the runway at range (TR-146; Patrick, 11 Oct: "the runways are harder to see than in IRL as well as the numbers"; "keep the
  * edge stripes, centreline and numbers solid past about 2 NM ... Up close nothing changes"). A screen resolves about a third of what
  * the eye does, so far off a 3 ft stripe covers a fraction of a pixel. Each white and yellow stripe is pushed out across its narrow
  * side just enough to stay PAINT_MIN_PX wide on screen, up to PAINT_GROW_MAX times its real width; up close it is never touched.
@@ -507,7 +507,7 @@ const PAINT_MIN_PX = 1.5;
 const PAINT_GROW_MAX = 6;
 
 /**
- * The pavement a little brighter far off (TR-143): from PAVE_BRIGHT.fromFt it brightens to PAVE_BRIGHT.gain more by PAVE_BRIGHT.toFt
+ * The pavement a little brighter far off (TR-146): from PAVE_BRIGHT.fromFt it brightens to PAVE_BRIGHT.gain more by PAVE_BRIGHT.toFt
  * (about 2 NM), so the runways stand out from the grass at range the way sunlit concrete does; up close nothing changes. Estimates.
  */
 const PAVE_BRIGHT = Object.freeze({ fromFt: 3000, toFt: 12000, gain: 0.15 });

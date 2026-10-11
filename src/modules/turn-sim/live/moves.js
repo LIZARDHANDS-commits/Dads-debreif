@@ -145,6 +145,7 @@ export const TURNING_REJOIN = Object.freeze({
   rideSettleSec: 2, // close to the line he takes out the last of it over about this long, so he settles on it without chasing it (estimate)
   rideEaseFromFt: 500, // from this far up the line he eases off... (Patrick 8 Oct 21:26 card: 'Hold 210 to about 500 ft, then ease to about 205')
   rideEaseKias: 205, // ...to this, so he enters the window at about 15 kt (same card)
+  highBoardsKt: 5, // high on the line, the boards come out once the height to lose is worth more than this much speed over the line's (Patrick 11 Oct 2026 09:10Z: "use the speed brake"; estimate)
   rideSpeedUpFt: 150, // within this of the line he sets 210 so he is at it when established, not still accelerating with MAX (estimate)
   rideHeadingTauSec: 2, // his heading comes onto the one asked over about this long (estimate)
   rideCrossShare: 0.7, // closing on the line from far off, at most this share of his speed goes across it in Lead's frame (estimate; Patrick 10 Oct 2026 20:15Z card "Faster smooth", TS-173)

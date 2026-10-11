@@ -1,4 +1,4 @@
-// Roads and power lines from OpenStreetMap (TR-144; Patrick, 11 Oct: yes to "Roads from OpenStreetMap", "Power lines"). The data is
+// Roads and power lines from OpenStreetMap (TR-147; Patrick, 11 Oct: yes to "Roads from OpenStreetMap", "Power lines"). The data is
 // osm-features.js (made once by tools/osm/build-osm.mjs; © OpenStreetMap contributors, ODbL), so nothing is fetched while it runs.
 //
 // Roads are crisp ribbons over the photo, one mesh per surface (highway with painted lines, plain asphalt, gravel, dirt track), laid

@@ -58,7 +58,7 @@ export function createLayout({ bar, listen, on = {}, available = {}, filterSplit
   const canvas = h('canvas', { class: 'traffic-map' });
   const hint = h('p', { class: 'traffic-hint', role: 'status', hidden: true });
   const credit = h('p', { class: 'traffic-credit', 'aria-live': 'polite', hidden: true }); // Esri's credit, or that the photo needs a connection
-  // The 3D view's roads and power lines are OpenStreetMap's, whose licence asks for this credit wherever they show (TR-144).
+  // The 3D view's roads and power lines are OpenStreetMap's, whose licence asks for this credit wherever they show (TR-147).
   const credit3d = h('p', { class: 'traffic-credit', hidden: true }, OSM_CREDIT);
   // The 3D view: a box the size of the map for its canvases (made when 3D opens), the three camera buttons over
   // it, and a line for "Loading 3D…" or why 3D can't start (that one shows in 2D too, where the person stays).

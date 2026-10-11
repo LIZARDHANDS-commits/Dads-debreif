@@ -74,5 +74,5 @@ blender -b -P tools/blender/build-showpieces.py -- showpieces.json <repo>/public
 # Roads and power lines (OpenStreetMap)
 
 `tools/osm/build-osm.mjs raw.json --fetch` downloads the pattern square's roads and power lines once from OpenStreetMap's Overpass
-API and writes `src/modules/traffic/osm-features.js`; `tools/osm/make-road-textures.py` makes the road pictures (TR-144).
+API and writes `src/modules/traffic/osm-features.js`; `tools/osm/make-road-textures.py` makes the road pictures (TR-147).
 © OpenStreetMap contributors, ODbL: the 3D view shows the credit.

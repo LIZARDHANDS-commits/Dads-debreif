@@ -271,7 +271,7 @@ function propBlurMap(THREE) {
 }
 
 /**
- * The satellite photo's colour grade (TR-143; Patrick, 11 Oct: "Colour-grade the photo ... so the grass gets greener, the fields
+ * The satellite photo's colour grade (TR-146; Patrick, 11 Oct: "Colour-grade the photo ... so the grass gets greener, the fields
  * richer and the concrete brighter"). Esri's photo comes out hazy and flat, so grass and concrete read as near the same grey. Applied
  * to every photo layer in the shader, on the photo's own colours before the slope shading. Values are estimates, set by eye on
  * CYMJ; all three at 1 gives the photo as it was.
@@ -808,7 +808,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   root.add(landmarks);
   const windsocks = createWindsocks(THREE, { floor: DEFAULT_FLOOR_FT });
   root.add(windsocks);
-  // Roads and power lines from OpenStreetMap (TR-144)
+  // Roads and power lines from OpenStreetMap (TR-147)
   const osmFeatures = createOsmFeatures(THREE, DEFAULT_FLOOR_FT);
   root.add(osmFeatures);
 

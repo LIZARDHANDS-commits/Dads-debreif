@@ -443,14 +443,14 @@ export const CYMJ_RUNWAYS = Object.freeze([
 ]);
 
 /**
- * The striped sphere mid-field (TR-145; Patrick, 11 Oct: "a giant striped sphere of red and white stripes from middle top to middle
+ * The striped sphere mid-field (TR-148; Patrick, 11 Oct: "a giant striped sphere of red and white stripes from middle top to middle
  * bottom"; it was drawn as the radar dome, TR-69): about 30 ft across on Esri's photo (11 Oct, ±3 ft), sitting low on a short base
  * (its shadow on the photo is short; the 6 ft base is an estimate) beside its equipment hut, in alternating red and white gores
  * running pole to pole (12 gores, an estimate).
  */
 export const CYMJ_SPHERE = Object.freeze({ id: 'striped-sphere', x: 545, y: -21, sphereFt: 30, baseFt: 6, gores: 12, hut: Object.freeze({ x: 14, y: -50, w: 18, d: 15, h: 10 }) });
 /**
- * The radar dome (TR-145; Patrick, 11 Oct: "the radar dome should be on the east between the runways", with a photo of it): a white
+ * The radar dome (TR-148; Patrick, 11 Oct: "the radar dome should be on the east between the runways", with a photo of it): a white
  * radome on a square red tower standing on open steel legs. Proportions read off Patrick's photo (the dome a little wider than the
  * tower, the tower about twice the dome's width tall); the 30 ft dome sets the scale, so every size is an estimate.
  * WHERE IS A BEST GUESS until Patrick pins it: Esri's photo shows no dome between the runways' east ends, only a mast with a shadow
