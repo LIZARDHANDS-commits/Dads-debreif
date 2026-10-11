@@ -180,3 +180,18 @@ test('PFL from the area, far too low and far out: ejects, the aircraft is gone a
   assert.ok(ac.ejectAt, 'a marker where it ejected');
   assert.ok(Math.hypot(ac.ejectAt.x - THRESHOLD_29L.x, ac.ejectAt.y - THRESHOLD_29L.y) > 20 * NM, 'it ejected far out, not near the runway');
 });
+
+test('PFL: gear and flap already down stay down (Patrick, 11 Oct 08:43Z: no hydraulic pressure to raise them)', () => {
+  const order = ['Clean', 'Gear', 'Gear + T/O flap', 'Gear + landing flap'];
+  for (const [name, start] of Object.entries(STARTS)) {
+    for (const cfgIndex of [1, 2, 3]) {
+      let most = cfgIndex;
+      for (const p of flyPfl({ ...start, cfgIndex }, WINDS[0]).points) {
+        if (!p.config) continue;
+        const i = order.indexOf(p.config);
+        assert.ok(i >= most, `${name}, starting ${order[cfgIndex]}: ${p.config} after ${order[most]}`);
+        most = i;
+      }
+    }
+  }
+});
