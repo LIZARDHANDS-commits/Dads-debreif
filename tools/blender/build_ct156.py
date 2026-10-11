@@ -35,7 +35,8 @@ STATIONS = [list(r) for r in S['STATIONS']]
 CANOPY = [list(r) for r in S['CANOPY']]
 FRAME_X = list(S['CT156_FRAME_X'])
 WING, STAB, FIN = S['WING'], S['STAB'], S['FIN']
-DIHEDRAL, TIP, WING_Z = S['DIHEDRAL'], S['TIP'], S['WING_Z']
+DIHEDRAL, TIP_S, WING_Z = S['DIHEDRAL'], S['TIP_S'], S['WING_Z']
+BOW_LEAN = S['CT156_BOW_LEAN']
 
 
 # ---------- the code model's helpers, in Python (same maths as ct156-model.js) ----------
@@ -275,11 +276,23 @@ for i in range(NC + 1):
     rings.append([(x, *canopy_point(c, math.pi * j / MC)) for j in range(MC + 1)])
 mesh_object('canopy', *loft(rings, closed=False, caps=False), M['glass'])
 
-# The canopy bows (forward, centre, rear) and sill rails.
+# The canopy bows (forward, centre, rear) and sill rails; the forward bow leans aft from its crest by BOW_LEAN
+# (ct156HoopPoints).
+def hoop_points(x, n=24, grow=0.0015, lean=0.0):
+    top = canopy_at(x, grow)[1]
+    pts = []
+    for j in range(n + 1):
+        xj = x
+        y, z = canopy_point(canopy_at(xj, grow), math.pi * j / n)
+        for _ in range(3 if lean else 0):
+            xj = x - (top - z) * math.tan(lean)
+            y, z = canopy_point(canopy_at(xj, grow), math.pi * j / n)
+        pts.append((xj, y, z))
+    return pts
+
+
 for k, fx in enumerate(FRAME_X):
-    c = canopy_at(fx, 0.0015)
-    pts = [(fx, *canopy_point(c, math.pi * j / 24)) for j in range(25)]
-    mesh_object(f'bow_{k}', *tube(pts, 0.0045), M['frame'])
+    mesh_object(f'bow_{k}', *tube(hoop_points(fx, lean=BOW_LEAN if k == 0 else 0.0), 0.0045), M['frame'])
 
 # The cheat line: a thin white strip just off each side, nose number to tail.
 for side in (1, -1):
@@ -295,14 +308,22 @@ for side in (1, -1):
         faces.append((p, p + 1, p + 3, p + 2))
     mesh_object(f'cheat_{side}', pts, faces, M['white'])
 
-# Wings (3° dihedral), tailplane, fin: smooth aerofoils with sharp trailing edges.
+# Wings (the code model's dihedral), tailplane, fin: smooth aerofoils with sharp trailing edges.
 for side, name in ((1, 'wing_left'), (-1, 'wing_right')):
     v, f = airfoil(WING, mirror=side < 0)
     mesh_object(name, rotate_x(v, side * DIHEDRAL), f, M['navy'], sharp_deg=35)
 mesh_object('tailplane', *airfoil(STAB), M['navy'], sharp_deg=35)
 mesh_object('fin', *airfoil(FIN, span='z'), M['ship'], sharp_deg=35)
-vf = [(-0.51, -0.13), (-0.54, -0.19), (-0.67, -0.19), (-0.69, -0.11)]
-mesh_object('ventral_fin', [(x, s * 0.005, z) for s in (1, -1) for x, z in vf], [(0, 1, 2, 3), (7, 6, 5, 4), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (3, 7, 4, 0)], M['navy'], smooth=False)
+# The ventral and dorsal fins: flat plates from the code model's [x, z] outlines (flatXZ).
+def flat_xz(name, outline, thickness, mat):
+    n = len(outline)
+    verts = [(x, s * thickness / 2, z) for s in (1, -1) for x, z in outline]
+    faces = [tuple(range(n)), tuple(range(2 * n - 1, n - 1, -1))] + [(i, n + i, n + (i + 1) % n, (i + 1) % n) for i in range(n)]
+    mesh_object(name, verts, faces, mat, smooth=False)
+
+
+flat_xz('ventral_fin', S['VENTRAL'], 0.01, M['navy'])
+flat_xz('dorsal_fin', S['DORSAL'], 0.012, M['navy'])
 
 # The spinner: an ogive lathe, chrome, on a dark ring.
 SPIN_R = S['CT156_SPINNER_R']
@@ -348,8 +369,8 @@ for s in (1, -1):
     mesh_object(f'exhaust_{s}', *loft(rings), M['exhaust'])
 
 # The position lights: red left tip, green right, white strobes and tail light.
-tip_y = TIP * math.cos(DIHEDRAL) - WING_Z * math.sin(DIHEDRAL)
-tip_z = TIP * math.sin(DIHEDRAL) + WING_Z * math.cos(DIHEDRAL)
+tip_y = TIP_S * math.cos(DIHEDRAL) - WING_Z * math.sin(DIHEDRAL)
+tip_z = TIP_S * math.sin(DIHEDRAL) + WING_Z * math.cos(DIHEDRAL)
 nav_x = WING[1]['le'] - 0.012
 strobe_x = WING[1]['le'] - WING[1]['chord'] + 0.01
 ellipsoid('light_left', (nav_x, tip_y + 0.002, tip_z), (0.014, 0.007, 0.006), M['red'])

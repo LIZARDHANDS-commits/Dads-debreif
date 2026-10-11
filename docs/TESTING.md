@@ -108,6 +108,7 @@ These are proposals for the Part B columns of the test register and for thread 7
 | The D411 banner in 201 test files | Replaced by the three-line header **(Q-T11, decided)** |
 | References to `archive/tests/golden/` in test headers and READMEs; the 42 golden files in `archive/tests/golden/` | Stay archived; the references are removed **(Q-T8, decided)** |
 | `archive/tests/crosscheck/traffic-expected.json` (run by no test; 57 of 91 rows no longer match) | Decided in the Traffic section |
+| `tests/unit/ui-kit/ct156-cockpit.test.js`, the cockpit's horizon test ("half sky, half ground" at 200 KIAS, AETCMAN 11-248 Fig 2.7; rewritten in V2.235 to 15-40 % up at 220 KIAS) | Retired, no horizon test replaces it (Patrick, 11 Oct 2026 01:27Z: "I don't think we need a test here"; ALL-31). The SMM 220 KIAS picture and a person's look in Cockpit are the check |
 | Tests that gate on a time, pin V6, or check the code against itself | Marked rewrite or retire per test in the register's Part B columns, module by module |
 
 

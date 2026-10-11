@@ -46,27 +46,29 @@ const rad = (d) => (d * Math.PI) / 180;
 // nose to tail is the T-6A's 33 ft 4 in (1.44 units; the photo's fin top then sits 10.6 ft above the wheels, against
 // the published 10.7 ft). Widths seen from above are estimates. x is along the nose, z up from the spinner's axis.
 
-// Fuselage stations, nose to tail: [x, half-width, top, bottom, squareness]. The spinner sits high: the top line runs
-// almost flat from the spinner back to the fin, and the belly hangs deep under it. Squareness 2 is an ellipse,
-// higher is boxier (flat sides at the cockpit). The nose's top line, spinner to windscreen foot, is the T-6A-1 side
-// drawing's (ALL-31): 0.85 ft above the spinner's axis 2 ft behind the tip, 1.1 ft at 5 ft, 1.45 ft at the windscreen's
-// foot (was 0.65 to 1.0 ft off the photo), so from the front seat the spinner hides under the cowl.
+// Fuselage stations, nose to tail: [x, half-width, top, bottom, squareness]. The top line runs almost flat from the
+// spinner back to the fin. Squareness 2 is an ellipse, higher is boxier (flat sides at the cockpit). The nose's top
+// line, spinner to windscreen foot, is the T-6A-1 side drawing's (ALL-31): 0.85 ft above the spinner's axis 2 ft behind
+// the tip, 1.1 ft at 5 ft, 1.45 ft at the windscreen's foot (was 0.65 to 1.0 ft off the photo), so from the front seat
+// the spinner hides under the cowl. The belly line is the same drawing's (Patrick, 11 Oct 2026: "analyze the pictures
+// ... and IMPROVE IT"): 2.9 ft under the axis at the wing, rising to 1.7 ft at the tail (the photo's was about 1 ft
+// deeper all along, the far wing and the low camera adding to it).
 const STATIONS = [
-  [0.578, 0.034, 0.0363, -0.032, 2.2],
-  [0.55, 0.048, 0.0387, -0.06, 2.3],
-  [0.518, 0.058, 0.0414, -0.088, 2.4],
-  [0.437, 0.068, 0.048, -0.118, 2.5],
-  [0.329, 0.075, 0.0563, -0.139, 2.6],
-  [0.268, 0.078, 0.0626, -0.149, 2.7],
-  [0.167, 0.08, 0.043, -0.162, 2.7],
-  [-0.009, 0.08, 0.04, -0.169, 2.7],
-  [-0.158, 0.077, 0.034, -0.169, 2.7],
-  [-0.32, 0.066, 0.026, -0.162, 2.6],
-  [-0.482, 0.05, 0.023, -0.149, 2.5],
-  [-0.59, 0.038, 0.022, -0.128, 2.4],
-  [-0.685, 0.026, 0.0, -0.118, 2.3],
-  [-0.75, 0.014, -0.04, -0.11, 2.2],
-  [-0.78, 0.004, -0.06, -0.1, 2.0],
+  [0.578, 0.034, 0.0363, -0.04, 2.2],
+  [0.55, 0.048, 0.0387, -0.07, 2.3],
+  [0.518, 0.058, 0.0414, -0.083, 2.4],
+  [0.437, 0.068, 0.048, -0.095, 2.5],
+  [0.329, 0.075, 0.0563, -0.107, 2.6],
+  [0.268, 0.078, 0.0626, -0.112, 2.7],
+  [0.167, 0.08, 0.043, -0.12, 2.7],
+  [-0.009, 0.08, 0.04, -0.128, 2.7],
+  [-0.158, 0.077, 0.034, -0.127, 2.7],
+  [-0.32, 0.066, 0.026, -0.119, 2.6],
+  [-0.482, 0.05, 0.023, -0.112, 2.5],
+  [-0.59, 0.038, 0.022, -0.094, 2.4],
+  [-0.685, 0.026, 0.0, -0.085, 2.3],
+  [-0.75, 0.014, -0.025, -0.078, 2.2],
+  [-0.78, 0.004, -0.045, -0.075, 2.0],
 ];
 // The canopy, windscreen foot to its fairing on the spine: [x, half-width, top]. Its top, windscreen foot to just aft of
 // the centre arch, is the T-6A-1 side drawing's (ALL-31): the forward bow's crest 2.75 ft above the spinner's axis
@@ -144,21 +146,35 @@ function sillZ(x, halfWidth) {
 // The cheat line's height along the fuselage: just below the canopy's sill at the nose, falling a little to the tail.
 const cheatZ = (x) => -0.045 + (x - 0.48) * 0.0202;
 
-// Wings: a low wing on the belly line, 3° dihedral. Root chord 0.33 units (7.6 ft, the photo's root with its fillet),
-// tip 0.16 (3.7 ft), 15 % thick at the root and 12 % at the tip (estimates); the tip at 0.722 units (Patrick, 5 Oct: the real span).
-const WING_Z = -0.135;
-const DIHEDRAL = rad(3);
+// Wings: a low wing, its root's underside on the belly line (2.9 ft under the axis) and 8° dihedral on its chord, as the
+// T-6A-1 drawings show it (the front view of Figure 1-1-2: about 7° along the upper surface, 9.7° along the lower; the
+// side drawing's tip about 0.5 ft under the axis; was 3°, an estimate). Root chord 0.33 units (7.6 ft, the photo's root
+// with its fillet), tip 0.16 (3.7 ft), 15 % thick at the root and 12 % at the tip (estimates); the tip 0.722 units out
+// (Patrick, 5 Oct: the real span, 33 ft 5 in), so its station along the tilted wing is TIP_S.
+const WING_Z = -0.112;
+const DIHEDRAL = rad(8);
 const TIP = 0.722;
-const WING = [{ le: 0.19, s: 0, chord: 0.33, t: 0.15, z: WING_Z }, { le: 0.13, s: TIP, chord: 0.16, t: 0.12, z: WING_Z }];
-// The tailplane low on the tail cone, its tips swept back past the tail (photo); the span an estimate.
+const TIP_S = (TIP + WING_Z * Math.sin(DIHEDRAL)) / Math.cos(DIHEDRAL);
+const WING = [{ le: 0.19, s: 0, chord: 0.33, t: 0.15, z: WING_Z }, { le: 0.13, s: TIP_S, chord: 0.16, t: 0.12, z: WING_Z }];
+// The tailplane across the tail cone 0.9 ft under the axis, 11 ft 4 in across (T-6A-1 Figure 1-1-2), its leading edge
+// swept 15° and its trailing edge straight across at the tail (the same figure's plan view and the side drawing; was
+// 13.9 ft across, 2.2 ft under the axis, its tips swept back past the tail, off the photo).
 const STAB = [
-  { le: -0.7, s: -0.3, chord: 0.15, t: 0.1, z: -0.095 },
-  { le: -0.52, s: -0.04, chord: 0.25, t: 0.1, z: -0.095 },
-  { le: -0.52, s: 0.04, chord: 0.25, t: 0.1, z: -0.095 },
-  { le: -0.7, s: 0.3, chord: 0.15, t: 0.1, z: -0.095 },
+  { le: -0.616, s: -0.245, chord: 0.174, t: 0.1, z: -0.04 },
+  { le: -0.55, s: -0.04, chord: 0.24, t: 0.1, z: -0.04 },
+  { le: -0.55, s: 0.04, chord: 0.24, t: 0.1, z: -0.04 },
+  { le: -0.616, s: 0.245, chord: 0.174, t: 0.1, z: -0.04 },
 ];
-// The fin: its root buried in the tail cone, its top 0.192 units (4.5 ft) above the spinner's axis (photo).
-const FIN = [{ le: -0.575, s: -0.03, chord: 0.21, t: 0.09, z: 0 }, { le: -0.644, s: 0.192, chord: 0.1, t: 0.09, z: 0 }];
+// The fin: its root buried in the tail cone, its top 0.232 units (5.4 ft) above the spinner's axis, its leading edge
+// swept back from 13.1 ft ahead of the tail at the root (T-6A-1 side drawing; was 4.5 ft and 0.7 ft further aft, off the
+// photo).
+const FIN = [{ le: -0.569, s: -0.03, chord: 0.168, t: 0.09, z: 0 }, { le: -0.6135, s: 0.232, chord: 0.086, t: 0.09, z: 0 }];
+// The dorsal fin, from the canopy's aft fairing into the fin's leading edge, 1.5 to 1.7 ft above the axis, and the
+// ventral fin under the tail, as [x, z] outlines (T-6A-1 side drawing; the ventral was 0.8 ft deeper, off the photo).
+const DORSAL = [[-0.28, 0.03], [-0.29, 0.066], [-0.6, 0.073], [-0.605, 0.0], [-0.3, 0.012]];
+const VENTRAL = [[-0.49, -0.09], [-0.535, -0.155], [-0.675, -0.15], [-0.715, -0.07]];
+// The forward bow leans aft from its crest 9° to the sill, as the T-6A-1 side drawing shows it (was upright).
+export const CT156_BOW_LEAN = rad(9);
 /** A symmetric NACA 4-digit section's half-thickness at xc (0 the leading edge, 1 the trailing edge), per chord. */
 const thick = (xc, t) => 5 * t * (0.2969 * Math.sqrt(xc) - 0.126 * xc - 0.3516 * xc ** 2 + 0.2843 * xc ** 3 - 0.1036 * xc ** 4);
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
@@ -189,8 +205,8 @@ function finSurf(x, z) {
 // The outside details other pilots use as formation references (TS-156; AETCMAN 11-248 Fig 9.17, Fig 9.24): the
 // position lights, the exhaust stacks and the stabiliser tips. Places are estimates off the model's own tables.
 const WINGTIP = Object.freeze({
-  y: TIP * Math.cos(DIHEDRAL) - WING_Z * Math.sin(DIHEDRAL), // the wing's tip after its dihedral
-  z: TIP * Math.sin(DIHEDRAL) + WING_Z * Math.cos(DIHEDRAL),
+  y: TIP_S * Math.cos(DIHEDRAL) - WING_Z * Math.sin(DIHEDRAL), // the wing's tip after its dihedral (TIP)
+  z: TIP_S * Math.sin(DIHEDRAL) + WING_Z * Math.cos(DIHEDRAL),
 });
 const NAV_LIGHT_X = WING[1].le - 0.012; // just behind the tip's leading edge
 const STROBE_X = WING[1].le - WING[1].chord + 0.01; // at the tip's trailing edge
@@ -385,9 +401,10 @@ function fuselageGeometry(THREE, { cut = false } = {}) {
   }
   return meshOf(THREE, pos, kept);
 }
-// The cockpit opening, model units along x: just aft of the rear canopy bow to the front panel's knee wells (estimate,
-// TS-155; its front end moved forward with the front cockpit, ALL-31).
-const COCKPIT_CUT_X = [-0.242, 0.195];
+// The cockpit opening, model units along x: just aft of the rear canopy bow to under the front coaming, ahead of the
+// front panel (estimate, TS-155; its front end moved forward with the front cockpit, ALL-31, and again with the panel,
+// V2.238, so no skin shows in front of the panel).
+const COCKPIT_CUT_X = [-0.242, 0.215];
 const FT = CT156_UNIT_LENGTH / CT156_LENGTH_FT; // model units per foot
 
 /**
@@ -398,12 +415,13 @@ const FT = CT156_UNIT_LENGTH / CT156_LENGTH_FT; // model units per foot
 export const CT156_TUB_FLOOR_FT = -1.2;
 /**
  * The cockpit tub under the canopy (TS-155): a floor CT156_TUB_FLOOR_FT below the spinner's axis from 5.6 ft aft of the
- * model origin to 4.47 ft ahead of it (3.9 ft until the front cockpit moved forward, ALL-31), side walls about 1.3 ft out (kept inside the canopy) up to the sill, and a
+ * model origin to 4.6 ft ahead of it (3.9 ft until the front cockpit moved forward, ALL-31; 4.47 ft until the panel moved
+ * forward, V2.238), side walls about 1.3 ft out (kept inside the canopy) up to the sill, and a
  * bulkhead at each end up to the fuselage's top line. Group 0 the floor, group 1 the walls. All estimates (judged by
  * eye off Dad's reference pictures, 9 Oct 2026).
  */
 function tubGeometry(THREE) {
-  const N = 14, x0 = 4.47 * FT, x1 = -5.6 * FT, floorZ = CT156_TUB_FLOOR_FT * FT;
+  const N = 14, x0 = 4.6 * FT, x1 = -5.6 * FT, floorZ = CT156_TUB_FLOOR_FT * FT;
   const rows = [];
   for (let i = 0; i <= N; i++) {
     const x = x0 + ((x1 - x0) * i) / N;
@@ -473,26 +491,27 @@ export function ct156FuselageSection(x) {
   return { halfWidth, top, bottom };
 }
 /**
- * The canopy's hoop at station x as n + 1 points from the left sill over the top to the right sill, model units
- * ({ y, z }; the canopy's own shape, canopyPoint), grown outward by `grow` (for ct156-cockpit.js's bows and mirrors).
+ * The canopy's hoop with its crest at station x as n + 1 points from the left sill over the top to the right sill,
+ * model units ({ x, y, z }; the canopy's own shape, canopyPoint), grown outward by `grow`, leaning aft from the crest
+ * by `lean` radians (CT156_BOW_LEAN for the forward bow) (for ct156-cockpit.js's bows and mirrors).
  */
-export function ct156HoopPoints(x, n = 16, grow = 0) {
-  const c = canopyAt(x, grow);
+export function ct156HoopPoints(x, n = 16, grow = 0, lean = 0) {
+  const top = canopyAt(x, grow).top;
   const pts = [];
   for (let j = 0; j <= n; j++) {
-    const [y, z] = canopyPoint(c, (Math.PI * j) / n);
-    pts.push({ y, z });
+    let xj = x;
+    let [y, z] = canopyPoint(canopyAt(xj, grow), (Math.PI * j) / n);
+    for (let k = 0; k < 3 && lean; k++) {
+      xj = x - (top - z) * Math.tan(lean);
+      [y, z] = canopyPoint(canopyAt(xj, grow), (Math.PI * j) / n);
+    }
+    pts.push({ x: xj, y, z });
   }
   return pts;
 }
-/** A frame hoop over the canopy at x. */
-function hoopGeometry(THREE, x, radius = 0.0045) {
-  const c = canopyAt(x, 0.0015);
-  const pts = [];
-  for (let j = 0; j <= 16; j++) {
-    const [y, z] = canopyPoint(c, (Math.PI * j) / 16);
-    pts.push(new THREE.Vector3(x, y, z));
-  }
+/** A frame hoop over the canopy with its crest at x, leaning aft by `lean`. */
+function hoopGeometry(THREE, x, lean = 0, radius = 0.0045) {
+  const pts = ct156HoopPoints(x, 16, 0.0015, lean).map(({ x: px, y, z }) => new THREE.Vector3(px, y, z));
   return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, radius, 6, false); // about 2.5 in across, so a close wingman sees the bows (TS-156)
 }
 /** A sill rail along one side of the canopy. */
@@ -710,7 +729,8 @@ function buildKit(THREE) {
     { geometry: wing(1), materials: [0, 1] },
     { geometry: wing(-1), materials: [0, 1] },
     { geometry: airfoilGeometry(THREE, STAB), materials: [0] },
-    { geometry: flatXZ(THREE, [[-0.51, -0.13], [-0.54, -0.19], [-0.67, -0.19], [-0.69, -0.11]], 0.01), materials: [0] },
+    { geometry: flatXZ(THREE, VENTRAL, 0.01), materials: [0] },
+    { geometry: flatXZ(THREE, DORSAL, 0.012), materials: [0] },
   ]);
   geo.fin = airfoilGeometry(THREE, FIN, { span: 'z' });
   geo.canopy = canopyGeometry(THREE);
@@ -724,7 +744,7 @@ function buildKit(THREE) {
     // The chin intake under the spinner.
     { geometry: ellipsoid(THREE, 0.545, 0, -0.058, 0.03, 0.032, 0.016), materials: [0] },
   ]);
-  geo.bowFront = hoopGeometry(THREE, CT156_FRAME_X[0]);
+  geo.bowFront = hoopGeometry(THREE, CT156_FRAME_X[0], CT156_BOW_LEAN);
   const floor = new THREE.CircleGeometry(1, 24);
   floor.scale(0.2, 0.05, 1);
   floor.translate(-0.035, 0, 0.046);
