@@ -87,19 +87,27 @@ const STATIONS = [
 // bow's crest 2.75 ft above the spinner's axis 11.3 ft behind the tip, the peak 3.45 ft over the centre arch (was
 // 3.0 ft over the front seat, off the photo). From the rear bow aft the top is the same drawing's line falling from
 // the canopy into the tail: 2.3 ft above the axis at the rear bow, 1.4 ft 2 ft behind it and 0.4 ft where it meets the
-// fuselage, 5.8 ft behind it (was 2.4 ft, then a point 2.7 ft behind it, off the photo). The half-widths to the rear bow are as
-// before (photo and estimates) but the rear bow's, 2.55 ft across, nearly the canopy's widest, so the glass ends square
-// as in the T-6A-1's top view (p.6, measured roughly; was 2.3 ft); the fairing's narrowing behind it is an estimate.
+// fuselage, 5.8 ft behind it (was 2.4 ft, then a point 2.7 ft behind it, off the photo). The half-widths from the windscreen
+// foot to the centre arch are the T-6A-1 top view's (Figure 1-1-2, measured 11 Oct 2026 against its 33 ft 5 in span):
+// the canopy 33.6 in across outside from just behind the forward bow all the way back, 32.8 in at the bow, the
+// windscreen narrowing over the 2.2 ft ahead of the bow to its point at the foot (was 30 in at the bow and narrowing
+// from there forward, off the photo; the model's one surface is both the outside and the inside, so the glass sits
+// about an inch outside the real inside). The rear bow's, 2.55 ft across, nearly the canopy's widest, so the glass
+// ends square as in the same top view (was 2.3 ft); the fairing's narrowing behind it is an estimate.
 const CANOPY = [
-  [0.268, 0.02, 0.0635],
-  [0.23, 0.042, 0.0851],
-  [0.194, 0.052, 0.106],
-  [0.172, 0.0544, 0.1188],
-  [0.14, 0.058, 0.1249],
-  [0.059, 0.06, 0.1413],
-  [-0.022, 0.06, 0.149],
-  [-0.076, 0.06, 0.1469],
-  [-0.185, 0.057, 0.124],
+  [0.268, 0.01, 0.0635],
+  [0.254, 0.034, 0.0715],
+  [0.245, 0.0425, 0.0766],
+  [0.236, 0.0495, 0.0817],
+  [0.2175, 0.054, 0.0924],
+  [0.208, 0.0554, 0.0979],
+  [0.19, 0.0572, 0.1083],
+  [0.172, 0.059, 0.1188],
+  [0.14, 0.0605, 0.1249],
+  [0.059, 0.0605, 0.1413],
+  [-0.022, 0.0605, 0.149],
+  [-0.076, 0.0605, 0.1469],
+  [-0.185, 0.06, 0.124],
   [-0.239, 0.055, 0.0978],
   [-0.274, 0.05, 0.0807],
   [-0.32, 0.042, 0.0588],
@@ -213,10 +221,10 @@ export const CT156_BOW_LEAN = rad(9);
 /**
  * Each frame hoop's lean from its crest to the sills (CT156_FRAME_X's order), radians: + the feet aft of the crest, -
  * ahead of it. The forward bow CT156_BOW_LEAN; the rear bow 22° with its top aft, as the T-6A-1 side drawing shows it
- * (Patrick, 11 Oct 2026: "the wrong angles in the canopy bow"; it was upright). The drawing leans the centre bow 21°
- * the same way; it stays upright here until the arch inside the cockpit (ct156-cockpit.js's ARCH_FT) leans with it.
+ * (Patrick, 11 Oct 2026: "the wrong angles in the canopy bow"; it was upright). The centre bow 21° the same way, the
+ * same drawing's, with the arch inside the cockpit (ct156-cockpit.js's ARCH_FT) leaning with it (was upright).
  */
-export const CT156_FRAME_LEAN = Object.freeze([CT156_BOW_LEAN, 0, rad(-22)]);
+export const CT156_FRAME_LEAN = Object.freeze([CT156_BOW_LEAN, rad(-21), rad(-22)]);
 /** A symmetric NACA 4-digit section's half-thickness at xc (0 the leading edge, 1 the trailing edge), per chord. */
 const thick = (xc, t) => 5 * t * (0.2969 * Math.sqrt(xc) - 0.126 * xc - 0.3516 * xc ** 2 + 0.2843 * xc ** 3 - 0.1036 * xc ** 4);
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
