@@ -26,8 +26,9 @@
 // side drawing's (NFTC 133-590008-3, the side view with both crew and its 33 ft 4 in scale bar; cited only, nothing
 // kept), and the front cockpit (seat, panel, coaming, rail) moved with the front eye, the rail no higher than the
 // windscreen's foot as seen from it: level at 220 KIAS the horizon sits about a quarter of the way up the windscreen
-// (SMM ch.3, the 220 KIAS pitch attitude figure). From V2.238 the front seat sits 1 in higher than the drawing's
-// (FRONT_SEAT_RAISE_FT, Patrick), which puts it about 37 % up, as that figure measures to the bow's inner edge. V2.208 (TS-156) to V2.234 had fitted the eye to AETCMAN 11-248
+// (SMM ch.3, the 220 KIAS pitch attitude figure). From V2.238 the front seat sits 2 in higher than the drawing's
+// (FRONT_SEAT_RAISE_FT, Patrick), which puts the dash and AOA indexer where that figure draws them against the horizon.
+// V2.208 (TS-156) to V2.234 had fitted the eye to AETCMAN 11-248
 // (13 Aug 2025, the USAF T-6 primary flying manual) Fig 2.7, p.42, half ground and half sky at 200 KIAS; the bow is
 // still that manual's wide light band with its ring of round holes (Fig 2.7, Fig 5.3). Page cites only: nothing from
 // either manual is copied here (docs/references/aetcman11-248-cockpit.md). The pictures are the T-6A's; the CT-156's
@@ -50,15 +51,18 @@ const F = CT156_FT_PER_UNIT;
 export const EYE_AHEAD_OF_HELMET_FT = 0.1;
 export const EYE_BELOW_HELMET_FT = 0.09;
 /**
- * How far the front seat is raised above the T-6A-1 side drawing's, feet: 1 in (Patrick, 11 Oct 2026: "we raise the
- * seat until the bottom of the surface just under the three buttons is just covering the top of the EADI"; he chose 1 in
- * over 2.5 in and none). Measured to the bow's inner edge, the SMM's 220 KIAS picture (Fig 3.5) puts the horizon about
- * 37 % up the windscreen; the drawing's eye showed 26 %, this one about 37 %.
+ * How far the front seat is raised above the T-6A-1 side drawing's, feet: 2 in (Patrick, 11 Oct 2026: "we raise the
+ * seat until the bottom of the surface just under the three buttons is just covering the top of the EADI"; he chose
+ * 1 in, then 1 in more, "yes, i'll fly it"). Fitted to the SMM's 220 KIAS picture (Fig 3.5): from the drawing's eye the
+ * glareshield, AOA indexer and EADI sat about 4.5° too high against the horizon, 1 in up about 2.5°, 2 in up within
+ * about half a degree. The drawing draws the aircraft with its propeller axis level (Fig 1-1-2's propeller disc is
+ * upright and both wheels touch its ground line), so the model's axis is the ADI's datum and stays unturned (the T-6
+ * sits 2.5° nose up on the ramp, Patrick). Fitted, not measured: Patrick checks it in flight.
  */
-export const FRONT_SEAT_RAISE_FT = 1 / 12;
+export const FRONT_SEAT_RAISE_FT = 2 / 12;
 /**
  * The student's eye in the front seat (the default front eye), feet: 2.06 ft ahead of the model's origin (13.2 ft behind
- * the spinner tip) and 1.98 ft above the spinner's axis, the T-6A-1 side drawing's raised FRONT_SEAT_RAISE_FT (ALL-31;
+ * the spinner tip) and 2.07 ft above the spinner's axis, the T-6A-1 side drawing's raised FRONT_SEAT_RAISE_FT (ALL-31;
  * was 1.4 ft and 2.14 ft, then 1.9 ft up until V2.238).
  */
 export const EYE_FT = Object.freeze({ x: CT156_SEAT_X[0] * F + EYE_AHEAD_OF_HELMET_FT, y: 0, z: CT156_HELMET_Z[0] * F - EYE_BELOW_HELMET_FT + FRONT_SEAT_RAISE_FT });
