@@ -22,7 +22,7 @@ import { createFormation } from '../../../src/modules/turn-sim/live/formation.js
 import { relativeTo } from '../../../src/modules/turn-sim/live/manoeuvres.js';
 import { ERROR_DEFAULTS, ERROR_ALLOWED, FIX_LIMITS, resolveErrors, describeErrors, errorCardLines } from '../../../src/modules/turn-sim/live/errors.js';
 import { ROLL, STEP_SEC } from '../../../src/modules/turn-sim/live/flight.js';
-import { gFromBankDeg, turnRateFromBankRadPerSec } from '../../../src/core/flight-math.js';
+import { turnRateFromBankRadPerSec } from '../../../src/core/flight-math.js';
 import { iasToTasKt } from '../../../src/core/t6-performance.js';
 import { KT_TO_FTPS } from '../../../src/core/units.js';
 
@@ -323,7 +323,9 @@ const SETS = [
   ['all, reference', { ...everyError, ...REFERENCE }], ['early, reference', { ...EARLY, ...REFERENCE }],
 ];
 
-test('a fix is flown inside what the aircraft can do: bank and G inside the fix limits, roll rate 90°/s, roll build-up 360°/s², speed constant', () => {
+// G (Patrick, 11 Oct 2026 19:32Z): "Cautions for over 5 g, fails for over 7"; the fix limits' G is a reference, not a gate.
+test('a fix is flown inside what the aircraft can do: bank inside the fix limits, G never past 7 (a caution past 5), roll rate 90°/s, roll build-up 360°/s², speed constant', (t) => {
+  let worst = { g: 0, what: '' };
   // Speed/power unticked: this checks the constant-speed fix (V2.8). Speed changes (Patrick, 4 Oct 11:42Z) are checked below, "Fix tools".
   const stepFt = TAS_FTPS * STEP_SEC;
   const [, bankMax] = FIX_LIMITS.bankDeg;
@@ -336,7 +338,8 @@ test('a fix is flown inside what the aircraft can do: bank and G inside the fix 
           const what = `${name}, ${key} ${dir}, ${a.name} at ${f.state.tSec.toFixed(2)} s`;
           // The roll eases onto the bank and can pass it by a fraction of a degree: 0.5° allowed (as live.test.js).
           assert.ok(Math.abs(a.bankDeg) <= bankMax + 0.5, `${what}: bank ${a.bankDeg.toFixed(1)}`);
-          assert.ok(a.g <= gFromBankDeg(bankMax + 0.5) + 1e-9, `${what}: ${a.g.toFixed(2)} G`);
+          assert.ok(a.g <= 7, `${what}: ${a.g.toFixed(2)} G`);
+          if (a.g > worst.g) worst = { g: a.g, what };
           assert.ok(Math.abs(a.rollRateDps) <= ROLL.maxRateDps + 1e-9, `${what}: roll rate ${a.rollRateDps.toFixed(1)}`);
           assert.ok(Math.abs(a.rollRateDps - before[i].rollRateDps) <= ROLL.maxAccelDps2 * STEP_SEC + 1e-9, `${what}: roll build-up`);
           const moved = Math.hypot(a.xFt - before[i].xFt, a.yFt - before[i].yFt);
@@ -345,6 +348,7 @@ test('a fix is flown inside what the aircraft can do: bank and G inside the fix 
       });
     }
   }
+  if (worst.g > 5) t.diagnostic(`caution: ${worst.what} pulls ${worst.g.toFixed(2)} G, past 5 G`);
 });
 
 test('every hand-over is still smooth with errors: no jump in position, track, bank or pitch, or in their rates', () => {

@@ -14,6 +14,7 @@
 // cites; they are not read back from the code. No time gates: 3 minutes is only a "the planner finished" catch.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { TOLERANCES } from '../../helpers/tolerances.js';
 import { createFormation } from '../../../src/modules/turn-sim/live/formation.js';
 import { relativeTo } from '../../../src/modules/turn-sim/live/manoeuvres.js';
 import { ROLL, STEP_SEC } from '../../../src/modules/turn-sim/live/flight.js';
@@ -84,7 +85,8 @@ test('every change ends in the target formation, at 200 KIAS (220 in line abreas
       assert.ok(f.state.tSec - t0 <= CATCH_SEC, `${what} finished`);
       assert.ok(inBand(to, lead, wing), `${what} ends in the ${to} band`);
       const kias = to === 'lab' ? 220 : 200;
-      assert.ok(Math.abs(lead.kias - kias) <= 0.5 && Math.abs(wing.kias - kias) <= 0.5, `${what}: ${lead.kias.toFixed(1)} / ${wing.kias.toFixed(1)} KIAS`);
+      // The shared ±10 kt margin (TESTING.md T4; Patrick's yes to the overhaul list, 11 Oct 2026 19:24Z).
+      assert.ok(Math.abs(lead.kias - kias) <= TOLERANCES.AIRSPEED_KT && Math.abs(wing.kias - kias) <= TOLERANCES.AIRSPEED_KT, `${what}: ${lead.kias.toFixed(1)} / ${wing.kias.toFixed(1)} KIAS`);
       const apart = Math.abs(Math.atan2(Math.sin(wing.headingRad - lead.headingRad), Math.cos(wing.headingRad - lead.headingRad))) / DEG;
       assert.ok(apart <= 1, `${what}: headings ${apart.toFixed(2)}° apart`); // the shared ±5° margin is generous; a formation flies parallel
       assert.equal(f.where().key, to, `${what}: the pair reads as ${to}`);

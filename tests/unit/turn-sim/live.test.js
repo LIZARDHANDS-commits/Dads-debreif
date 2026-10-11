@@ -146,7 +146,9 @@ for (const wingSide of SIDES) {
   });
 }
 
-test('bank never goes past the manoeuvre\'s bank, and G never past 3', () => {
+// G (Patrick, 11 Oct 2026 19:32Z): "Cautions for over 5 g, fails for over 7"; no tighter G gate.
+test('bank never goes past the manoeuvre\'s bank, and G never past 7 (a caution past 5)', (t) => {
+  let worst = { g: 0, what: '' };
   for (const [key, dir] of [['delayed90', 1], ['hook', -1], ['shackle', 0], ['crossTurn', 0], ['check', 1]]) {
     const f = createFormation();
     f.press(key, dir);
@@ -154,10 +156,12 @@ test('bank never goes past the manoeuvre\'s bank, and G never past 3', () => {
       for (const a of after) {
         // The roll eases onto the bank and can pass it by a fraction of a degree: 0.5° allowed.
         assert.ok(Math.abs(a.bankDeg) <= TURN_BANK_DEG + 0.5, `${key}: bank ${a.bankDeg.toFixed(1)}`);
-        assert.ok(a.g <= 3.05, `${key}: ${a.g.toFixed(2)} G`);
+        assert.ok(a.g <= 7, `${key}: ${a.g.toFixed(2)} G`);
+        if (a.g > worst.g) worst = { g: a.g, what: key };
       }
     });
   }
+  if (worst.g > 5) t.diagnostic(`caution: ${worst.what} pulls ${worst.g.toFixed(2)} G, past 5 G`);
 });
 
 // Patrick (4 Oct 2026, Traffic thread, carried to the Turn Sim): every manoeuvre's hand-overs
