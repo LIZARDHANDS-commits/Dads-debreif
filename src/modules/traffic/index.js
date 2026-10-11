@@ -87,7 +87,7 @@ function mount(root, app) {
     },
     filterSplits: true,
   });
-  const aircraftPanel = createAircraftPanel({ controls, timers: app.scheduler, settings, sim, setup, onChange: () => changed(), onSelectAircraft: (id) => { selectedAircraftId = id; redraw(); } }); // the camera stays put (Patrick, 4 Oct); the 3D bar's Follow still follows
+  const aircraftPanel = createAircraftPanel({ controls, timers: app.scheduler, settings, sim, setup, onChange: () => changed(), onSelectAircraft: (id) => { selectedAircraftId = id; redraw(); }, onCockpitCamera: (id) => cockpitCamera(id) }); // the camera stays put (Patrick, 4 Oct); the 3D bar's Follow still follows
   ui.slots.spawner.append(aircraftPanel.elements.spawner);
   ui.slots.aircraft.append(aircraftPanel.elements.aircraft);
   ui.slots.conflicts.append(aircraftPanel.elements.conflicts);
@@ -135,6 +135,13 @@ function mount(root, app) {
   let wantView = '2d';
   let switching = 0; // counts switches, so a late three.js load can't undo a later choice
   let keepNote = false;
+
+  /** A card's Camera button (Patrick, 11 Oct 01:51Z): the 3D view from that aircraft's front seat, switching to 3D if needed. */
+  function cockpitCamera(id) {
+    view3d.target(id);
+    view3d.setCamera({ mount: 'cockpit', aim: 'boresight', seat: 'front' });
+    if (settings.get().view !== '3d') settings.update({ view: '3d' });
+  }
 
   /** Layers only the 2D map draws are greyed out in 3D (labels and caution rings show in both). */
   const LAYERS_2D_ONLY = ['layerTrails', 'layerPoints', 'layerLegDistances', 'layerTurnData', 'layerBubbles'];
