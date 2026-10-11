@@ -591,8 +591,11 @@ function isFwConeSettled(L, W, relVel, side = null) {
   // (In a 30° turn at 200 KIAS, the rigid rotation omega x r is ~41 ft/s, so world relVel is not zero).
   const speedMatched = Math.abs(W.kias - L.kias) <= S.kt;
   const bankMatched = Math.abs((W.bankDeg ?? 0) - (L.bankDeg ?? 0)) <= S.bankDeg;
+  // Until V2.330 he could be called settled still climbing 35 ft/s (V2.327's onset-limited pull), and the level-off after
+  // the end (flight.js) carried him 15 ft above Lead (V2.328).
+  const climbMatched = Math.abs((W.climbFtps ?? 0) - (L.climbFtps ?? 0)) <= S.climbFtps;
 
-  return inRange && inSweep && inAlt && sideOk && speedMatched && bankMatched;
+  return inRange && inSweep && inAlt && sideOk && speedMatched && bankMatched && climbMatched;
 }
 
 /**
