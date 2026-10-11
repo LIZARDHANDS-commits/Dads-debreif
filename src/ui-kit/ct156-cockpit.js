@@ -26,7 +26,8 @@
 // side drawing's (NFTC 133-590008-3, the side view with both crew and its 33 ft 4 in scale bar; cited only, nothing
 // kept), and the front cockpit (seat, panel, coaming, rail) moved with the front eye, the rail no higher than the
 // windscreen's foot as seen from it: level at 220 KIAS the horizon sits about a quarter of the way up the windscreen
-// (SMM ch.3, the 220 KIAS pitch attitude figure). V2.208 (TS-156) to V2.234 had fitted the eye to AETCMAN 11-248
+// (SMM ch.3, the 220 KIAS pitch attitude figure). From V2.238 the front seat sits 1 in higher than the drawing's
+// (FRONT_SEAT_RAISE_FT, Patrick), which puts it about 37 % up, as that figure measures to the bow's inner edge. V2.208 (TS-156) to V2.234 had fitted the eye to AETCMAN 11-248
 // (13 Aug 2025, the USAF T-6 primary flying manual) Fig 2.7, p.42, half ground and half sky at 200 KIAS; the bow is
 // still that manual's wide light band with its ring of round holes (Fig 2.7, Fig 5.3). Page cites only: nothing from
 // either manual is copied here (docs/references/aetcman11-248-cockpit.md). The pictures are the T-6A's; the CT-156's
@@ -49,10 +50,18 @@ const F = CT156_FT_PER_UNIT;
 export const EYE_AHEAD_OF_HELMET_FT = 0.1;
 export const EYE_BELOW_HELMET_FT = 0.09;
 /**
- * The student's eye in the front seat (the default front eye), feet: 2.06 ft ahead of the model's origin (13.2 ft behind
- * the spinner tip) and 1.9 ft above the spinner's axis, the T-6A-1 side drawing's (ALL-31; was 1.4 ft and 2.14 ft).
+ * How far the front seat is raised above the T-6A-1 side drawing's, feet: 1 in (Patrick, 11 Oct 2026: "we raise the
+ * seat until the bottom of the surface just under the three buttons is just covering the top of the EADI"; he chose 1 in
+ * over 2.5 in and none). Measured to the bow's inner edge, the SMM's 220 KIAS picture (Fig 3.5) puts the horizon about
+ * 37 % up the windscreen; the drawing's eye showed 26 %, this one about 37 %.
  */
-export const EYE_FT = Object.freeze({ x: CT156_SEAT_X[0] * F + EYE_AHEAD_OF_HELMET_FT, y: 0, z: CT156_HELMET_Z[0] * F - EYE_BELOW_HELMET_FT });
+export const FRONT_SEAT_RAISE_FT = 1 / 12;
+/**
+ * The student's eye in the front seat (the default front eye), feet: 2.06 ft ahead of the model's origin (13.2 ft behind
+ * the spinner tip) and 1.98 ft above the spinner's axis, the T-6A-1 side drawing's raised FRONT_SEAT_RAISE_FT (ALL-31;
+ * was 1.4 ft and 2.14 ft, then 1.9 ft up until V2.238).
+ */
+export const EYE_FT = Object.freeze({ x: CT156_SEAT_X[0] * F + EYE_AHEAD_OF_HELMET_FT, y: 0, z: CT156_HELMET_Z[0] * F - EYE_BELOW_HELMET_FT + FRONT_SEAT_RAISE_FT });
 
 /**
  * Both eyes, feet (TS-155, TS-156, ALL-31). Front: EYE_FT. Rear: 3.3 ft aft of the origin (18.6 ft behind the spinner
@@ -146,17 +155,17 @@ export const GLARESHIELD_FT = Object.freeze({ aftX: COAMING_EDGE_X, foreX: 5.87,
 export const RIM_FT = Object.freeze({ aftOfGlareshield: 0.03, r: 0.045, sideOut: 0.05, lowV: 0.18 });
 
 /**
- * The AOA indexer on the front coaming's left, feet: a dark box 0.25 ft (3 in) tall, 0.09 ft wide and 0.15 ft deep, its
- * three lamp windows on its aft face 0.075 ft apart and its dimmer knob on its inboard side (Patrick's cockpit clip and
- * back-seat photos, 11 Oct 2026, scaled by the 3-inch airspeed indicator beside it; the T-6A-1 panel diagram draws it
- * about 2.3 in), 0.15 ft ahead of the coaming's aft edge and 0.74 ft left of the middle (0.62 ft on the rear hump;
- * places estimates). It stands on a pod, its foot 0.01 ft (clear)
- * over each seat's eye's sight line across the grab rail beside it, so all three lamps show above the rail, as the
- * diagram and the SMM's 220 KIAS picture (Fig 3.5) draw it. From the T-6A-1 side drawing's eye its top is then about
- * half its own height under the horizon at 220 KIAS level; Patrick flies it about a full height under (11 Oct 2026),
- * which this eye can't show with all three lamps clear of the rail (asked).
+ * The AOA indexer on the front coaming's left, feet: a dark box 0.23 ft (2.75 in) tall, 0.07 ft wide and 0.29 ft deep,
+ * its three lamp windows on its aft face 0.069 ft apart and its dimmer knob on its inboard side, forward and high
+ * (Patrick's cockpit clip, 11 Oct 2026: its height about 0.9 of the 3-inch airspeed indicator's case, nearer the eye by
+ * about 8 %; the case's 3.1 in checked by the KLN 900 GPS's 3.75 in face height beside it. The back-seat photos and his
+ * other pictures give its depth about 1.3 times its height. The T-6A-1 panel diagram draws it about 2.3 in; estimates
+ * read to about ±0.15 in), its middle 0.15 ft ahead of the coaming's aft edge and 0.74 ft left of the middle (0.62 ft on
+ * the rear hump; places estimates). It stands on a pod, its foot 0.01 ft (clear) over each seat's eye's sight line
+ * across the grab rail beside it, so all three lamps show above the rail (Patrick, 11 Oct 2026), as the diagram and the
+ * SMM's 220 KIAS picture (Fig 3.5) draw it.
  */
-export const AOA_INDEXER_FT = Object.freeze({ tall: 0.25, wide: 0.09, deep: 0.15, lampPitch: 0.075, aheadOfEdge: 0.15, y: 0.74, yRear: 0.62, clear: 0.01 });
+export const AOA_INDEXER_FT = Object.freeze({ tall: 0.23, wide: 0.07, deep: 0.29, lampPitch: 0.069, aheadOfEdge: 0.15, y: 0.74, yRear: 0.62, clear: 0.01 });
 /**
  * The standby compass on the coaming's right, feet, as the T-6A-1 panel diagram draws it (sized by its 3-inch gauges):
  * a dark bowl 0.12 ft across and 0.11 ft tall hanging under a square flange 0.18 ft across, its light housing under
@@ -315,6 +324,8 @@ function tombstone(p) {
 // panel's middle line and the face's top, then turned into fractions of the front face (2.3 ft by 1.26 ft); the lamps
 // on the coaming's lip are the diagram's master warning panel. Nothing is copied from the diagram but sizes and
 // places. (Until V2.236 placed by eye off Dad's reference pictures 17, 26 and 27, within about 0.05 ft of these.)
+// The KLN 900 GPS (Patrick, 11 Oct 2026; its face 5.75 by 3.75 in, the maker's listing) checks that scale: the diagram
+// draws its box 3.8 in tall (6.1 in wide, likely its tray), so the GPS takes the KLN's own size.
 // u 0 is the pilot's left edge of the main face and 1 its right; v 0
 // its bottom and 1 its top. Round dials give d (a fraction of the face's width); rectangles give w (of its width) and
 // h (of its height); square bezels give s (of its width), with the round dial d inside. Live ones read the HUD's
@@ -341,7 +352,7 @@ const PANEL_INSTRUMENTS = [
   { kind: 'smallPanel', u: 0.907, v: 0.519, w: 0.076, h: 0.092 },
   { kind: 'fire', u: 0.909, v: 0.418, s: 0.055 },
   { kind: 'smallPanel', u: 0.909, v: 0.288, w: 0.076, h: 0.067 },
-  { kind: 'gps', u: 0.181, v: 0.397, w: 0.221, h: 0.251, frame: true },
+  { kind: 'gps', u: 0.181, v: 0.397, w: 0.208, h: 0.248, frame: true }, // the KLN 900's face, 5.75 x 3.75 in (Patrick; maker's listing)
   { kind: 'switches', u: 0.24, v: 0.131, w: 0.233, h: 0.251 },
   { kind: 'asi', u: 0.408, v: 0.157, d: 0.08, live: 'asi' },
   { kind: 'stby', u: 0.502, v: 0.157, s: 0.092, d: 0.08, live: 'stby' },
@@ -975,12 +986,12 @@ function bandGeometries(THREE, b) {
 
 /**
  * The forward bow's two mirrors (Patrick, 11 Oct 2026, with a picture from the back seat: "they are the wrong shape and
- * in the wrong spot", on the front canopy bow; TS-157 had put flat ones on the side frames): curved strips hung on the
- * bow's aft face along its inner edge, about 10 and 2 o'clock, each spanning `spans` of the bow from the left sill
- * (0) to the right (1), `tall` feet from the band's inner edge inward, `aft` feet behind the band. Sizes estimates
- * judged off the picture.
+ * in the wrong spot", on the front canopy bow, and "the mirror should cover the canopy rail not hang down"; TS-157 had
+ * put flat ones on the side frames): curved strips on the bow's aft face, about 10 and 2 o'clock, each spanning `spans`
+ * of the bow from the left sill (0) to the right (1), covering the bow from the glass to the far side of its inner tube
+ * and no further, `aft` feet behind the band. Sizes estimates judged off the picture.
  */
-const BOW_MIRRORS = Object.freeze({ spans: Object.freeze([[0.22, 0.35], [0.65, 0.78]]), tall: 0.16, aft: 0.04 });
+const BOW_MIRRORS = Object.freeze({ spans: Object.freeze([[0.22, 0.35], [0.65, 0.78]]), aft: 0.04 });
 
 /** One of the forward bow's curved mirrors between bow fractions t0 and t1 (BOW_MIRRORS), as { frame, face } (feet). */
 function bowMirrorGeometries(THREE, b, t0, t1) {
@@ -991,9 +1002,9 @@ function bowMirrorGeometries(THREE, b, t0, t1) {
     const dy = -y * F, dz = base - z * F, l = Math.hypot(dy, dz) || 1;
     return [x * F - dx, y * F + (dy / l) * d, z * F + (dz / l) * d];
   };
-  const d0 = b.glassInset + b.bandDepth, { tall, aft } = BOW_MIRRORS;
-  const frame = loft(THREE, [pts.map((q) => at(q, d0 - 0.01, aft - 0.005)), pts.map((q) => at(q, d0 + tall + 0.015, aft - 0.005))], { closed: false });
-  const face = loft(THREE, [pts.map((q) => at(q, d0, aft)), pts.map((q) => at(q, d0 + tall, aft))], { closed: false });
+  const d0 = b.glassInset, d1 = b.glassInset + b.bandDepth + 2 * b.tubeR, { aft } = BOW_MIRRORS;
+  const frame = loft(THREE, [pts.map((q) => at(q, d0, aft - 0.005)), pts.map((q) => at(q, d1 + 0.012, aft - 0.005))], { closed: false });
+  const face = loft(THREE, [pts.map((q) => at(q, d0 + 0.012, aft)), pts.map((q) => at(q, d1, aft))], { closed: false });
   return { frame, face };
 }
 
