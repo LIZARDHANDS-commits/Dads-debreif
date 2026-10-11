@@ -290,10 +290,13 @@ const WINGTIP = Object.freeze({ y: WINGTIP_Y, z: WINGTIP_Z }); // the wing's tip
 const NAV_LIGHT_X = WING_TIP.le - 0.012; // just behind the tip's leading edge
 const STROBE_X = WING_TIP.le - WING_TIP.chord + 0.01; // at the tip's trailing edge
 const TAIL_LIGHT = Object.freeze([-0.787, 0, -0.035]); // the fin's trailing edge at its root, over the tail cone
-// The exhaust stacks off Patrick's photo of 156102 (11 Oct 2026, marked): 0.078 units (1.8 ft) long, 0.03 across at the
-// aft opening narrowing to 0.022, their middle level with the spinner's axis (were 0.06 long, 0.024 across, 0.012 lower).
-const STUB = Object.freeze({ x: 0.492, len: 0.078, rAft: 0.015, rFwd: 0.011, z: 0 });
-const STUB_Y = fuseSurf(STUB.x, STUB.z) - 0.003; // just inside the skin, so each stands out a little
+// The exhaust stacks off Patrick's photo of 156102 (11 Oct 2026, marked): 0.078 units (1.8 ft) long, their middle level
+// with the spinner's axis. Shaped as the T-6A-1 top view and his reference render draw them (Patrick, 11 Oct 2026 08:20Z:
+// "they jut out"): an oval stack rising out of the cowl at its front and sweeping aft, standing out of the skin most at
+// its open aft end, by 0.4 of its half-width plus that half-width (about 2.6 in); its opening oval, 0.026 tall and 0.016
+// across (were round pipes 0.03 across standing about 3.3 in proud along their whole length). Sizes estimates.
+const STUB = Object.freeze({ x: 0.492, len: 0.078, halfTall: 0.013, halfWide: 0.008, standOut: 0.4, z: 0 });
+const STUB_Y = fuseSurf(STUB.x, STUB.z) + STUB.halfWide * STUB.standOut; // the aft opening's middle
 /**
  * Points on the outside of the aircraft, model units (nose +X, left +Y, up +Z from the origin on the spinner's axis), each
  * [x, y, z]: the spinner's tip, the wingtip position lights (red left, green right), the tail light, the exhaust stacks'
@@ -505,6 +508,32 @@ function ventralGeometry(THREE) {
 }
 
 /** An indexed geometry from points and triangles, smooth-shaded. */
+/**
+ * One exhaust stack on side s (+1 left, -1 right): oval sections from the front, buried in the cowl, to the open aft end,
+ * growing and standing further out of the skin as they go aft (STUB), the front closed to a rounded nose.
+ */
+function stackGeometry(THREE, s) {
+  const N = 12, M = 18, pos = [], idx = [];
+  const x0 = STUB.x + STUB.len / 2, x1 = STUB.x - STUB.len / 2;
+  for (let i = 0; i <= N; i++) {
+    const t = i / N, x = x0 + (x1 - x0) * t;
+    const grow = i === 0 ? 0.05 : 0.55 + 0.45 * Math.sqrt(t);
+    const w = STUB.halfWide * grow, h = STUB.halfTall * grow;
+    const c = fuseSurf(x, STUB.z) + STUB.halfWide * (-1.1 + (1.1 + STUB.standOut) * Math.sqrt(t));
+    for (let k = 0; k < M; k++) {
+      const a = (2 * Math.PI * k) / M;
+      pos.push(i === 0 ? x + 0.006 : x, s * (c + w * Math.cos(a)), STUB.z + h * Math.sin(a));
+    }
+  }
+  for (let i = 0; i < N; i++) {
+    for (let k = 0; k < M; k++) {
+      const a = i * M + k, b = i * M + ((k + 1) % M), c = a + M, d = b + M;
+      if (s > 0) idx.push(a, c, b, b, c, d);
+      else idx.push(a, b, c, b, d, c);
+    }
+  }
+  return meshOf(THREE, pos, idx);
+}
 function meshOf(THREE, pos, idx, groups = null) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -1005,11 +1034,11 @@ function buildKit(THREE) {
   // ejection seats' headboxes behind them (the rear one lower, under the canopy's falling top).
   [geo.helmetFront, geo.helmetRear] = CT156_SEAT_X.map((x, i) => pilotGeometry(THREE, x, CT156_HELMET_Z[i]));
   geo.seats = joinGeometries(THREE, CT156_SEAT_X.map((x, i) => ({ geometry: headboxGeometry(THREE, x, CT156_HELMET_Z[i], [0.012, 0.008][i]), materials: [0] })));
-  // The exhaust stacks either side of the nose, just under the top line (photo).
-  // Round, each with its dark opening facing aft (AETCMAN 11-248 Fig 9.17: a fore-and-aft reference from #2; TS-156).
+  // The exhaust stacks either side of the nose (photo), each with its dark opening facing aft (AETCMAN 11-248 Fig 9.17:
+  // a fore-and-aft reference from #2; TS-156).
   geo.stubs = joinGeometries(THREE, [1, -1].flatMap((s) => [
-    { geometry: new THREE.CylinderGeometry(STUB.rAft, STUB.rFwd, STUB.len, 16, 1, true).rotateZ(Math.PI / 2).translate(STUB.x, s * STUB_Y, STUB.z), materials: [0] },
-    { geometry: new THREE.CircleGeometry(STUB.rAft - 0.0015, 16).rotateY(-Math.PI / 2).translate(STUB.x - STUB.len / 2 + 0.003, s * STUB_Y, STUB.z), materials: [1] },
+    { geometry: stackGeometry(THREE, s), materials: [0] },
+    { geometry: new THREE.CircleGeometry(1, 16).scale(STUB.halfWide * 0.85, STUB.halfTall * 0.85, 1).rotateY(-Math.PI / 2).translate(STUB.x - STUB.len / 2 + 0.003, s * STUB_Y, STUB.z), materials: [1] },
   ]));
   // The position lights (TS-156): red on the left wingtip and green on the right, just behind each tip's leading edge,
   // a white strobe at each tip's trailing edge and a white light on the tail. Small lit shapes, sizes estimates.
