@@ -14,7 +14,7 @@
 //    behind it, the same for every level. Bank itself is never capped here (Patrick 6 Oct 04:07Z: no bank cap in
 //    formation): only physics (stall, the 7 G limit) through the gate.
 // It changes no flight physics: the step is flight.js's, the drag and thrust are core's and slow-down.js's, unchanged.
-import { easeRoll, gFromBankDeg } from '../../../core/flight-math.js';
+import { easeRoll, gFromBankDeg, bankDegFromG } from '../../../core/flight-math.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, rollLimitAt } from './flight.js';
 import { fullPowerKtps, slowKtps } from './slow-down.js';
@@ -49,7 +49,7 @@ export function climbCostKtps(W, climbFtps) {
 }
 
 /** The one jerk limit, KIAS per second per second: the torque's travel (moves.js POWER) at the Rates profile's lever share. */
-export function pilotJerkKtps2() {
+function pilotJerkKtps2() {
   return POWER.jerkKtps2 * experienceNow().leverShare;
 }
 
@@ -80,7 +80,11 @@ export function pilotSpeed(p, W, aWant, { blockFt, top = 'power', floorThr = 0, 
   const want = Math.max(-aMin, Math.min(aMax, aWant));
   const jerk = pilotJerkKtps2() * dt;
   p.accel += Math.max(-jerk, Math.min(jerk, want - p.accel));
-  if (p.accel < -aMin && want <= -aMin) p.accel = -aMin;
+  // A torque floor that comes in (a rule of his, such as the turn's hold power) is moved to at the lever rate, as he moves the
+  // power: only what the aircraft can't do without it is taken at once. Until V2.322 the floor was taken in one step, so the
+  // speed rate jumped (35 kt/s² at the straight rejoin's vector point, as the bank passed 15°; the Formation unit tests).
+  const aMinBare = floorThr > 0 ? Math.min(7.95, slowKtps(top ?? 'power', W.kias, blockFt, g, 0) + climb + extraSlowKtps) : aMin;
+  if (p.accel < -aMinBare && want <= -aMin) p.accel = -aMinBare;
   if (p.accel > aMax && want >= aMax) p.accel = aMax;
   let kias = W.kias + p.accel * dt;
   if (snapKias != null && Math.abs(snapKias - kias) < snapTol) {
@@ -103,7 +107,7 @@ export function pilotFly(p, W, bankDeg, t, profile, accelKtps = p?.accel, roll =
   if (Math.abs(r.bankDeg) > Math.abs(p.bank) && Math.abs(r.bankDeg) < G_SHAPE_MAX_BANK_DEG && Math.sign(r.bankDeg) === (Math.sign(p.bank) || Math.sign(r.bankDeg))) {
     const gMax = gFromBankDeg(p.bank) + X.gOnsetGps * dt;
     if (gFromBankDeg(r.bankDeg) > gMax + 1e-9) {
-      const b = (Math.sign(r.bankDeg) * Math.acos(1 / gMax) * 180) / Math.PI;
+      const b = Math.sign(r.bankDeg) * bankDegFromG(gMax);
       r = { bankDeg: b, rollRateDps: (b - p.bank) / dt };
     }
   }
@@ -148,14 +152,4 @@ function note(p, power, t) {
     p.stageSince = t;
   }
   return power;
-}
-
-/**
- * The whole step for a planner with no height of its own to work out from the speed: speed, roll and power. Returns
- * { bank, kias, power }, the replay's point.
- */
-export function pilotStep(p, W, t, { bankDeg, aWant, profile, blockFt, top = 'power', floorThr = 0, climbKtps = null, extraSlowKtps = 0 }) {
-  const accel = pilotSpeed(p, W, aWant, { blockFt, top, floorThr, climbKtps, extraSlowKtps });
-  const bank = pilotFly(p, W, bankDeg, t, profile, accel);
-  return { bank, accel, kias: W.kias, power: pilotPower(p, W, blockFt, t) };
 }

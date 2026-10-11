@@ -689,6 +689,13 @@
   text-align: right;
 }
 
+/* Altitude check (DB-28): the ship's check line under its Altitude menu */
+[data-module='debrief'] .puck-alt-check {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
 [data-module='debrief'] .puck-ship {
   flex: 1 1 auto;
   min-width: 0;
@@ -739,6 +746,14 @@
   color: var(--text-muted);
   font-size: 0.6875rem;
   pointer-events: none;
+}
+
+/* The 3D terrain's credit lines (DB-27) sit at the top right, clear of the camera bar over the bottom of the picture. */
+[data-module='debrief'] .map-credit.debrief-credit-3d {
+  top: var(--space-1);
+  bottom: auto;
+  max-width: 60%;
+  text-align: right;
 }
 
 [data-module='debrief'] .debrief-menu-body > * {

@@ -30,6 +30,7 @@ import { trueAltFt } from './weather.js';
 import { FIELD_ELEV_FT, THRESHOLD_29L, PFL_CIRCLE_RADIUS_FT, PATTERN_ALT_FT, trueToMagnetic } from './airfield.js';
 import { TYPE_COLORS as FLEET_COLORS } from './types.js';
 import { CLOSE_UP_DRAW_FT } from './types.js';
+import { drawHeadingOf } from './path-follower.js';
 
 export const MAP_MIN_SPAN_FT = 300;
 export const MAP_MAX_SPAN_FT = 200_000;
@@ -762,7 +763,7 @@ export function drawScene(ctx, map, scene, settings, palette, layers = {}) {
     const [x, y] = at(ac);
     const colour = colours.get(ac.id);
     ctx.beginPath();
-    aircraftSymbol(ac.headingDeg, aircraftSymbolPx(pxPerFt, settings?.aircraftScale)).forEach(([dx, dy], i) => (i ? ctx.lineTo(x + dx, y + dy) : ctx.moveTo(x + dx, y + dy)));
+    aircraftSymbol(drawHeadingOf(ac), aircraftSymbolPx(pxPerFt, settings?.aircraftScale)).forEach(([dx, dy], i) => (i ? ctx.lineTo(x + dx, y + dy) : ctx.moveTo(x + dx, y + dy)));
     ctx.closePath();
     ctx.fillStyle = colour;
     ctx.fill();

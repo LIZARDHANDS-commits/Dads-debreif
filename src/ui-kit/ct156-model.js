@@ -735,12 +735,14 @@ function hoopGeometry(THREE, x, lean = 0, radius = 0.0045) {
   return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, radius, 6, false); // about 2.5 in across, so a close wingman sees the bows (TS-156)
 }
 /** A sill rail along one side of the canopy. */
+/** Where the canopy's sill rails start at the front, model units (under the front coaming's sides; ct156-cockpit.js). */
+export const CT156_RAIL_FORE_X = 0.25;
 function railGeometry(THREE, side) {
   const pts = [];
   for (let i = 0; i <= 12; i++) {
-    const x = 0.25 + ((glassEnd(2)[0] - 0.25) * i) / 12; // to the rear bow's foot
+    const x = CT156_RAIL_FORE_X + ((glassEnd(2)[0] - CT156_RAIL_FORE_X) * i) / 12; // to the rear bow's foot
     const c = canopyAt(x, 0.001);
-    pts.push(new THREE.Vector3(x, side * c.w, c.base));
+    pts.push(new THREE.Vector3(x, side * c.w, c.base - (i === 0 ? 0.005 : 0))); // its front end dips under the sill (no open end in sight)
   }
   return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.003, 5, false);
 }

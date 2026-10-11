@@ -45,7 +45,7 @@ export function throttleFor(ktps, kias, altFt = POWER_BLOCK_FT, g = 1, climbFtps
 }
 
 /** Torque in percent for a throttle at kias and altFt (the formula at the top of this file), capped at 100. */
-export function torquePct(throttle, kias, altFt = POWER_BLOCK_FT) {
+function torquePct(throttle, kias, altFt = POWER_BLOCK_FT) {
   const k = Math.max(kias, 1);
   const thrustLb = Math.max(0, throttle) * thrustPerWeight(k, altFt) * TORQUE.weightLb;
   const shp = (thrustLb * iasToTasKt(k, altFt) * KT_TO_FTPS) / FT_LB_PER_S_PER_HP;

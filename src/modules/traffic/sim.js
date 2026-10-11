@@ -1587,6 +1587,10 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           tag: a.tag ?? p.tag ?? route?.points?.[p.seg]?.tag,
           trackDeg: a.trackDeg ?? a.headingDeg ?? p.headingDeg,
           crabDeg: a.crabDeg ?? 0,
+          // The crosswind wing-down, drawn only (path-follower.js drawHeadingOf/drawBankOf; TR-143), while it is this step's.
+          ...(a.drawOf === a.headingDeg && Number.isFinite(a.drawHeadingDeg)
+            ? { drawHeadingDeg: a.drawHeadingDeg, drawBankDeg: a.drawBankDeg, drawOf: headingDeg }
+            : {}),
           groundSpeedKt: a.gsKt ?? iasKt,
           leg: p.seg !== undefined ? p.seg + 1 : 1, distFt: a.distFt,
           status: statusOf(a), startsAt: a.startsAt,

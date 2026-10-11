@@ -8,8 +8,8 @@
 // Sources: SMM 16.19 paras 52-64 and Figures 16.15-16.21 (the line abreast
 // turns, 70° bank and 3 G); Patrick's rulings of 4 Oct 2026: exact geometry for
 // the delayed turns, a real 300 ft vertical miss in the shackle and cross turn.
-import { bankDegFromG, turnRadiusFromBankFt } from '../../../core/flight-math.js';
-import { wrapPi } from '../../../core/angles.js';
+import { bankDegFromG } from '../../../core/flight-math.js';
+import { wrapPi, DEG } from '../../../core/angles.js';
 import { STEP_SEC, stepAircraft, copyAircraft, planDone } from './flight.js';
 
 /** Line abreast turns: about 70° of bank at 3 G (SMM 16.18 para 50; Figs 16.15-16.21 "70/3"). */
@@ -39,7 +39,6 @@ export const MANOEUVRES = Object.freeze({
 });
 
 /** A heading rounded to the whole degree, so a turn aims at 090, not at 089.8 left over from the last one. */
-export const DEG = Math.PI / 180;
 export const wholeDegree = (rad) => wrapPi(Math.round(rad / DEG) * DEG);
 export const unit = (h) => ({ x: Math.cos(h), y: Math.sin(h) });
 export const dot = (a, b) => a.x * b.x + a.y * b.y;
@@ -297,9 +296,4 @@ export function planManoeuvre(pair, key, dir, t0) {
   if (m.kind === 'shackle') return shackle(pair, t0);
   if (m.kind === 'break') return breakAway(pair, m, t0);
   return crossTurn(pair, t0);
-}
-
-/** Turn radius at the line abreast bank, for the readout and the circles. */
-export function turnRadiusAt(tasFtps) {
-  return turnRadiusFromBankFt(tasFtps, TURN_BANK_DEG);
 }

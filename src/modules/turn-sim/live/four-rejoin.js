@@ -17,18 +17,18 @@
 //
 // Every step goes through the one envelope gate (flight.js gateRoll, TS-93); the tracker legs fly the 2-ship's power profile
 // (four-legs.js onProfile). Until V2.98 these were four-ship-moves.js's, with a kinematic line in front of each long leg.
-import { DEG, relativeTo, turnSeg, wholeDegree } from './manoeuvres.js';
+import { relativeTo } from './manoeuvres.js';
 import { recordFlight } from './replay.js';
 import { STEP_SEC } from './flight.js';
 import { slide, closeThrough, rejoinTo, straightAhead, STRAIGHT_AHEAD } from './recipes.js';
-import { REJOIN, TURNING_REJOIN, STRAIGHT_REJOIN, WING_BANKS, KIAS_OUTSIDE_LAB } from './tuning.js';
+import { REJOIN, TURNING_REJOIN, STRAIGHT_REJOIN, WING_BANKS, KIAS_OUTSIDE_LAB, TRACKER, lineKiasNow } from './tuning.js';
 import { phase } from './tracker.js';
 import { RATE_SETS, G_RULE_BANK_DEG, CLOSE_SHAPING } from './rates.js';
 import { KT_TO_FTPS as KT_FTPS } from '../../../core/units.js';
 import { leadTurnInto } from './lead-turn-in.js';
 import { searchTurningRejoin, flyTurningRejoinWith } from './turning-rejoin.js';
 import { slotInWorld } from './kinematic.js';
-import { LENGTH_FT, slotsFor, pairSlot, FW_STEP_DOWN_FT, fixedLine } from './slots.js';
+import { LENGTH_FT, slotsFor, pairSlot, FW_STEP_DOWN_FT } from './slots.js';
 import { legsInTurn, place, hold, toSlot, inLeadFrame, ech, toSpeed, inCone, GENTLE_ALT_FTPS, FOUR_CHANGE_LIMIT_SEC } from './four-legs.js';
 
 /** The overtake the rear wingmen use to close from far out (estimate: the straight-ahead rejoin's 20 to 30 KIAS, EFIG p.371). */
@@ -76,7 +76,7 @@ const FAR_SIDE_FT = 3000;
  * 10 Oct 2026 22:30Z, "500 ft, 50 ft below"): a reference, not a wall. The planner aims for it and a closer cross is
  * flagged on screen.
  */
-export const AWAY_CROSS = Object.freeze({ behindFt: 500, belowFt: 50 });
+const AWAY_CROSS = Object.freeze({ behindFt: 500, belowFt: 50 });
 
 /**
  * A rejoining wingman comes off its stack first (Patrick 4 Oct 19:11Z, "come off first"; SMM 12.27 para 65): one at or above
@@ -116,8 +116,9 @@ function placeRec(rec, body) {
 /**
  * #3's or #4's part of a turning rejoin (TS-188 draft): #2's ride (twoTurning) on the place of the aircraft he joins on,
  * `slots[id].ref`, to echelon on that one's side of it. He takes #2's line on the inside of Lead's turn (side s), crossing
- * behind Lead first when he starts on the outside (the Away's cross, crossIn); a place on the outside he reaches under the
- * one ahead at the decision point, as #2 reaches the far echelon. The tracker legs (w.phases) fly it when no ride plans.
+ * behind Lead first when he starts on the outside (the Away's cross, crossIn); to a place on the outside he crosses behind
+ * Lead from the decision point once the one ahead is in (crossAt, gateId), as #2 crosses to the far echelon. The tracker
+ * legs (w.phases) fly it when no ride plans.
  */
 // Far down the line the element closes at full power (Patrick 5 Oct 05:34Z: "3 and 4 immediately go full power and towards
 // number 1's turn circle"), at the offset box line's 260 KIAS, easing to the ride's 210 from this far up it (as BOX_LINE_EASE_FT;
@@ -129,7 +130,12 @@ function elementTurning(c, into, s, slots, w) {
   const { ref } = slots[w.id];
   const body = ref === 1 ? null : (({ fwd, left, alt }) => ({ fwd, left, up: alt }))(inLeadFrame(slots, ref));
   const crossIn = relativeTo(c.start[0], c.by.get(w.id)).left * s < 0;
-  return { ...w, fly: twoTurning(c, into, s, 'echelon', Math.sign(slots[w.id].left), false, crossIn, true, body, ELEMENT) };
+  // To a place on the outside of the turn he crosses about two lengths behind Lead and slightly lower (SMM 16.34 para 96),
+  // #4 a little lower than #3: that point in the frame of the place he joins on. Until V2.299 he passed under that place
+  // itself, from #4 level with Lead and up to 172 ft behind him.
+  const lead = body ?? { fwd: 0, left: 0, up: 0 };
+  const crossAt = { fwd: -lead.fwd - TRJ.passBehindLengths * LENGTH_FT, left: -lead.left, up: -lead.up - CROSS_LOW_FT - (w.id === 4 ? FOUR_LOWER_FT : 0) };
+  return { ...w, fly: twoTurning(c, into, s, 'echelon', Math.sign(slots[w.id].left), false, crossIn, true, body, { ...ELEMENT, crossAt, gateId: w.id - 1 }) };
 }
 
 /**
@@ -141,20 +147,22 @@ function elementTurning(c, into, s, slots, w) {
  */
 function twoTurning(c, into, s, to, sTo, hot, crossIn = false, xLaw = hot, body = null, element = null) {
   let pick;
-  return ({ wing, recs, t0 }) => {
+  return ({ wing, recs, done, t0 }) => {
     const args = { lead: c.start[0], wing, s, to, sTo, spacingFt: c.spacingFt, blockFt: c.blockFt, t0 };
+    // The element crosses behind Lead once the one ahead (element.gateId) is in (tailPath's notBeforeStep).
+    const flyEl = element?.gateId != null && done?.[element.gateId] ? { ...element, notBefore: inAt(done, element.gateId) } : element;
     // The element (body given) flies it on the place of the aircraft he joins on, in Lead's banked frame (placeRec).
     const on = body ? { longRec: placeRec(into.longRec, body), planTo: (n, roll) => { const lp = into.planTo(n, roll); return { ...lp, rec: placeRec(lp.rec, body) }; } } : into;
     // The vertical too (TS-82; Patrick 6 Oct 01:14Z: "they can use the vertical if they need to"), but from his +300 ft
     // stack the climb and the dive through Lead's height pushed to -0.5 G in the dry runs: none below VERTICAL_MIN_G.
     // He flies the 2-ship's X to the 250-100 ft window (TS-106, Lead fixed on the canopy): on the line law from line abreast
     // he ran 170 ft ahead of Lead's 3/9 line close in (V2.223 test), and from fighting wing to finger he ran up abeam route,
-    // dropped back 110 ft and passed 30 ft from #3 waiting behind Lead (V2.228). From Fluid 4 he keeps the line law to
-    // route (xLaw false): the X from there put him 20 ft behind Lead's tail.
+    // dropped back 110 ft and passed 30 ft from #3 waiting behind Lead (V2.228). From Fluid 4 he kept the line law to
+    // route until V2.299, which ran him 130 ft ahead of Lead's 3/9 line (Fable's v2294 flight); now the X from there too.
     pick ??= searchTurningRejoin({ ...args, into: on, hot, verticalMinG: VERTICAL_MIN_G, xLaw, crossIn, element }) ?? false;
     if (!pick) return null;
     const rec = placeRec(recs[1], body);
-    const flown = flyTurningRejoinWith({ ...args, into: { longRec: rec, planTo: () => ({ rec, segments: [], turned: 0 }) }, aimFt: pick.aimFt, bankCapDeg: pick.bankCapDeg, overtakeKt: pick.overtakeKt, lowFloor: pick.lowFloor, upFt: pick.upFt, minG: VERTICAL_MIN_G, xLaw, holdSec: FOUR_CHANGE_LIMIT_SEC, crossIn, point: pick.point, element });
+    const flown = flyTurningRejoinWith({ ...args, into: { longRec: rec, planTo: () => ({ rec, segments: [], turned: 0 }) }, aimFt: pick.aimFt, bankCapDeg: pick.bankCapDeg, overtakeKt: pick.overtakeKt, lowFloor: pick.lowFloor, upFt: pick.upFt, minG: VERTICAL_MIN_G, xLaw, holdSec: FOUR_CHANGE_LIMIT_SEC, crossIn, point: pick.point, element: flyEl });
     if (!flown) return null;
     const segments = flown.wingSegments
       ? flown.wingSegments.map((s) => ({ ...s, points: s.points ? [...s.points] : undefined, poses: s.poses ? [...s.poses] : undefined }))
@@ -312,7 +320,7 @@ export function turningToFinger(start, t0, opts, s, from, sTo = s) {
     const route = slotsFor('route', sTo, { ships: 4 });
     const hot = abreast(from);
     const into = leadInto(c, s, 'finger', from === 'offsetBox' ? BOX_PAUSE_SEC : 0);
-    const two = { id: 2, fly: twoTurning(c, into, s, 'echelon', sTo, hot, false, from !== 'fluid4'), phases: () => [...comeOffFirst(c, 2, 1), toSlot(c, rejoinTo, fin[2], { advanceTol: 10 })] };
+    const two = { id: 2, fly: twoTurning(c, into, s, 'echelon', sTo, hot, false, true), phases: () => [...comeOffFirst(c, 2, 1), toSlot(c, rejoinTo, fin[2], { advanceTol: 10 })] };
     const far = (id) => (Math.abs(relativeTo(c.start[0], c.by.get(id)).left) > 3000 ? FAR_OVERTAKE_KIAS : REJOIN.overtakeKias);
     // Outside the turn: wait behind the place, then in through route (recipes.js closeThrough: close level or slightly low, then up).
     const outside = (id, gateId) => ({
@@ -378,7 +386,7 @@ export function turningToEchelon(start, t0, opts, s, from, sTo = s) {
     const ech4 = slotsFor('echelon', sTo, { ships: 4 });
     const into = leadInto(c, s, 'echelon', from === 'offsetBox' ? BOX_PAUSE_SEC : 0);
     const hot = abreast(from);
-    const two = { id: 2, fly: twoTurning(c, into, s, 'echelon', sTo, hot, false, from !== 'fluid4'), phases: () => [...comeOffFirst(c, 2, 1), toSlot(c, rejoinTo, ech4[2], { advanceTol: 10 })] };
+    const two = { id: 2, fly: twoTurning(c, into, s, 'echelon', sTo, hot, false, true), phases: () => [...comeOffFirst(c, 2, 1), toSlot(c, rejoinTo, ech4[2], { advanceTol: 10 })] };
     const far = (id) => (Math.abs(relativeTo(c.start[0], c.by.get(id)).left) > 3000 ? FAR_OVERTAKE_KIAS : REJOIN.overtakeKias);
     const line = pairSlot('route', sTo);
     const wing = (id, gateId) => ({
@@ -413,6 +421,9 @@ export function turningToEchelon(start, t0, opts, s, from, sTo = s) {
  *    element does (TS-177).
  * s: #2's side now. Returns legsInTurn's result and, when #2 crossed closer than AWAY_CROSS, a flag for the screen.
  */
+// Lead's six as a line in his frame, from his tail straight back (the straight-ahead rejoin's, straight-rejoin.js).
+const SIX_LINE = Object.freeze({ u: { fwd: -1, left: 0 }, nrm: { fwd: 0, left: 1 }, at: (rel) => ({ along: -rel.fwd, cross: rel.left }) });
+
 export function turningAway(start, t0, opts, s, from, to) {
   const sIn = -s;
   const far = (c, id) => (Math.abs(relativeTo(c.start[0], c.by.get(id)).left) > 3000 ? FAR_OVERTAKE_KIAS : REJOIN.overtakeKias);
@@ -472,17 +483,27 @@ export function turningAway(start, t0, opts, s, from, to) {
   });
   const thenLegs = (c, done) => {
     const p = inLeadFrame(slots, 2);
+    const midKt = (TURNING_REJOIN.stableKt[0] + TURNING_REJOIN.stableKt[1]) / 2;
     const gate = inAt(done, 4);
     if (to === 'echelon') {
       return [
         // on Lead's six at the straight-ahead rejoin's 1,000 ft, below the wake
         rejoinTo(place(c, A.sixFt, 0, -AWAY_CROSS.belowFt), { track: 1, advanceTol: 60, holdUntil: gate }),
-        // up the six (the straight-ahead rejoin's closing leg), then from about 500 ft out into the gap
-        rejoinTo(place(c, A.closeTowardFt, 0, -AWAY_CROSS.belowFt), { track: 1, overtakeKias: 30, advanceTol: A.vectorAtFt + A.closeTowardFt }),
+        // up the six to about 500 ft out, ridden in Lead's turning frame as the straight-ahead rejoin's (refactor step 5): at the
+        // Rates choice's line speed (TS-133), easing to the window's middle closure (TS-110) over the last 500 ft. Until V2.325
+        // he chased a point on the six, which in Lead's turn drew him 270 ft inside it; from there the gap leg took him across
+        // #3's place, 21 ft under him (the Formation unit tests).
+        phase(place(c, -A.vectorAtFt, 0, -AWAY_CROSS.belowFt), {
+          kind: 'ride', track: 1, line: SIX_LINE, captureAt: -A.sixFt, captureFt: STRAIGHT_REJOIN.captureFt,
+          windowFt: A.vectorAtFt, carrotWindowFt: A.vectorAtFt, bankCapDeg: TURNING_REJOIN.bankCapDeg, floorKias: KIAS_OUTSIDE_LAB,
+          rideKias: lineKiasNow(), easeFromFt: A.vectorAtFt + TURNING_REJOIN.rideEaseFromFt, easeKias: KIAS_OUTSIDE_LAB + midKt, rejoin: true,
+        }),
         // out into the gap behind his place (as far back as route is behind echelon), then up into it
         // his bank capped on what he adds to Lead's, not on the whole of it: at 25° all told he could not stay with Lead's
         // 30° turn and fell out of it (from V2.248, where the gap is 59 ft behind echelon, not 71)
-        closeThrough(place(c, p.fwd + out.fwd - step.fwd, p.left, p.alt - 25), { track: 1, advanceTol: 6, targetBankDeg: CLOSE_SHAPING.targetBankDeg }),
+        // From the six the gap is mostly ahead: it is closed at the window's middle closure (TS-110), built up and taken off at
+        // the tracker's usual rate, so the power can take it off; at closeThrough's 40 ft/s he went 90 ft past Lead's 3/9 line.
+        closeThrough(place(c, p.fwd + out.fwd - step.fwd, p.left, p.alt - 25), { track: 1, advanceTol: 6, targetBankDeg: CLOSE_SHAPING.targetBankDeg, fwdRate: midKt * KT_FTPS, refAccelShare: TRACKER.refAccelShare }),
         slide(place(c, p.fwd, p.left, p.alt), { track: 1, targetBankDeg: CLOSE_SHAPING.targetBankDeg }),
       ];
     }

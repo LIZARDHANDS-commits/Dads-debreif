@@ -12,7 +12,7 @@
 // Units: feet, seconds, x east, y north. Headings are math radians (0 east,
 // counter-clockwise). Bank is signed, left wing down positive, so a positive
 // bank turns the heading the positive (left) way.
-import { easeRoll, turnRateFromBankRadPerSec, gFromBankDeg } from '../../../core/flight-math.js';
+import { easeRoll, turnRateFromBankRadPerSec, gFromBankDeg, bankDegFromG } from '../../../core/flight-math.js';
 import { attitudeDegFromClimb, rollWithinT6A, stallLimitG, T6A_G_ONSET } from '../../../core/t6-performance.js';
 import { wrapPi, wrapDeg180 } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
@@ -56,7 +56,7 @@ export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, roll, tasFtps, kia
   let target = targetDeg;
   const gStall = stallLimitG(kias);
   if (Math.abs(target) < GATE_G_MAX_BANK_DEG && gStall > 1) {
-    const stallBank = (Math.acos(1 / gStall) * 180) / Math.PI;
+    const stallBank = bankDegFromG(gStall);
     if (Math.abs(target) > stallBank && Math.abs(bankDeg) <= stallBank + 1e-6) target = Math.sign(target) * stallBank;
   }
   const steeper = Math.abs(target) > Math.abs(bankDeg) && Math.sign(target) === (Math.sign(bankDeg) || Math.sign(target));
@@ -72,7 +72,7 @@ export function gateRoll(bankDeg, rollRateDps, targetDeg, dt, roll, tasFtps, kia
   if (Math.abs(r.bankDeg) > Math.abs(bankDeg) && Math.abs(r.bankDeg) < GATE_G_MAX_BANK_DEG) {
     const gMax = gFromBankDeg(bankDeg) + G_ONSET_CEILING * dt;
     if (gFromBankDeg(r.bankDeg) > gMax + 1e-9) {
-      const bank = Math.sign(r.bankDeg) * (Math.acos(1 / gMax) * 180) / Math.PI;
+      const bank = Math.sign(r.bankDeg) * bankDegFromG(gMax);
       return { bankDeg: bank, rollRateDps: (bank - bankDeg) / dt };
     }
   }
@@ -101,6 +101,28 @@ export function holdToEnvelope(a, seg, p, bank0, rate0) {
 
 /** The step the whole Turn Sim flies in (TS-R9), the same 0.05 s as before. */
 export const STEP_SEC = 0.05;
+
+/** The time the last of a climb-rate change is closed over (seconds; an estimate, two steps), so the pull settles without flickering. */
+const CLIMB_CATCH_SEC = 0.1;
+/** A level-off closes its climb rate over this long (seconds; an estimate), and uses at most this pull or push (G either side of 1; an estimate). */
+const LEVEL_OFF_SEC = 1;
+const LEVEL_OFF_PULL_G = 1;
+
+/**
+ * One step of a vertical pull toward a wanted climb rate: the pull builds and eases no faster than the T-6A's G onset (core
+ * T6A_G_ONSET, 4 G/s), and eases off as the climb rate nears the one wanted, as fast as the onset lets it, so it comes off on
+ * time. v0: climb rate now (ft/s); nz0: the vertical share of the G now; pullDown, pullUp: the most vertical acceleration
+ * either way (ft/s²); catchSec: the time the climb-rate error is closed over. Returns { v1, nz }. Until V2.328 the tracker aimed from the climb rate its pull would leave once eased
+ * and closed the rest in one step, and the pull flickered ±0.1 G every step on the way up the line (V2.327, lab to echelon).
+ */
+export function pullToClimb(v0, nz0, wantV, pullDown, pullUp, dt, catchSec = CLIMB_CATCH_SEC) {
+  const jerk = T6A_G_ONSET.maxRateDps * G_FTPS2;
+  const acc0 = (nz0 - 1) * G_FTPS2;
+  const dv = wantV - v0;
+  const want = Math.max(-pullDown, Math.min(pullUp, Math.sign(dv) * Math.min(Math.abs(dv) / Math.max(dt, catchSec), Math.sqrt(2 * jerk * Math.abs(dv)))));
+  const acc = acc0 + Math.max(-jerk * dt, Math.min(jerk * dt, want - acc0));
+  return { v1: v0 + acc * dt, nz: 1 + acc / G_FTPS2 };
+}
 
 /**
  * A new aircraft, straight and level.
@@ -216,7 +238,7 @@ export function headingChangeRollingOut(bankDeg, rollRateDps, tasFtps, roll = RO
 export const smoother = (u) => u * u * u * (10 - 15 * u + 6 * u * u);
 export const smootherSlope = (u) => 30 * u * u * (1 - u) * (1 - u);
 /** The smootherstep's curvature (the slope's own slope): a height leg's vertical acceleration is rise x this / span². */
-export const smootherCurve = (u) => 60 * u * (1 - u) * (1 - 2 * u);
+const smootherCurve = (u) => 60 * u * (1 - u) * (1 - 2 * u);
 /** The smootherstep's steepest slope is this many times its average one (at the middle). */
 export const SMOOTHER_PEAK = 1.875;
 /** The smootherstep's greatest curvature (at u = 1/2 - 1/sqrt(12)): a height leg's greatest vertical acceleration is rise x this / span². */
@@ -460,12 +482,26 @@ export function stepAircraft(a, plan, t) {
   const climbBefore = a.climbFtps ?? 0;
   const tasBefore = a.tasFtps;
   const kiasBefore = a.kias;
+  const nzBefore = a.nz ?? 1;
   const height = heightAt(plan.profile, t + dt);
   a.nz = height?.nz ?? 1;
   a.invertDive = Boolean(height?.invert); // a big dive's pull down is flown inverted (TS-129, flyAttitude)
+  let levelling = null;
   if (height) {
     a.altAboveFt = height.altAboveFt;
     a.climbFtps = height.climbFtps ?? 0;
+  } else if (Math.abs(climbBefore) > 1e-3 || Math.abs(nzBefore - 1) > 1e-3) {
+    // A climb or descent left over where the plan has no height (a rejoin that ends in the cone still climbing) levels off
+    // gently, closing the climb rate over LEVEL_OFF_SEC at the onset and up to LEVEL_OFF_PULL_G. Until V2.328 it stopped in
+    // one step (V2.327, 2-ship turning rejoin to fighting wing: 35 ft/s to level in 0.05 s at its end).
+    const pull = LEVEL_OFF_PULL_G * G_FTPS2;
+    const { v1, nz } = pullToClimb(climbBefore, nzBefore, 0, pull, pull, dt, LEVEL_OFF_SEC);
+    // Once the climb and the pull are within one step's onset of level, he is level.
+    const level = Math.abs(v1) < 0.05 && Math.abs(nz - 1) <= T6A_G_ONSET.maxRateDps * dt;
+    a.climbFtps = level ? 0 : v1;
+    a.nz = level ? 1 : nz;
+    if (!level) levelling = { nz };
+    a.altAboveFt += ((climbBefore + a.climbFtps) / 2) * dt;
   } else {
     a.climbFtps = 0;
   }
@@ -494,11 +530,12 @@ export function stepAircraft(a, plan, t) {
   a.g = gFromBankDeg(a.bankDeg);
   a.turning = a.bankDeg !== 0 || plan.segments.length > 0;
 
-  if (height?.nz !== undefined) {
+  const nzFlown = height?.nz ?? levelling?.nz;
+  if (nzFlown !== undefined) {
     const side = Math.max(0, a.g * a.g - 1);
     const b = (Math.abs(a.bankDeg) * Math.PI) / 180;
-    const lift = height.nz * Math.cos(b) + Math.sqrt(side) * Math.sin(b);
-    a.g = Math.sign(lift || 1) * Math.sqrt(side + height.nz * height.nz);
+    const lift = nzFlown * Math.cos(b) + Math.sqrt(side) * Math.sin(b);
+    a.g = Math.sign(lift || 1) * Math.sqrt(side + nzFlown * nzFlown);
   }
   flyAttitude(a, attitudeBefore, dt, seg?.roll ?? ROLL); // the wings follow the lift as a roll, and set the G's sign
   // The path is flown at the aircraft's true airspeed (constant, Patrick card 09:54Z, except in a speed

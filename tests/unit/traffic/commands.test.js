@@ -90,7 +90,8 @@ test('sim.command breakout turns away from circuit, climbs to 4,500 ft, and acce
   sim.stepTo(35);
   const acAfter = sim.state().aircraft.find((a) => a.id === 'A1');
   assert.equal(acAfter.command, 'breakout');
-  assert.ok(acAfter.kt >= 140 && acAfter.kt <= 220, `speed accelerating towards 220 kt, got ${acAfter.kt}`);
+  // It climbs at the 140 KIAS sporty climb first (Patrick, 6 Oct; breakout.js AVOID_CLIMB_KIAS), within the shared ±10 kt.
+  assert.ok(acAfter.kt >= 130 && acAfter.kt <= 220, `speed at the 140 climb or accelerating towards 220 kt, got ${acAfter.kt}`);
   assert.ok(acAfter.alt >= acBefore.alt);
 });
 

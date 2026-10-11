@@ -9,6 +9,7 @@ import { fillAt, fillSampleAt } from '../../flight-data/gap-fill.js';
 import { formatZuluSeconds } from '../../core/time.js';
 import { puckSummary, puckLine } from './puck.js';
 import { timingSummary, timingLines } from './gps-timing.js';
+import { altitudeSummary, altitudeStatusLine } from './altitude.js';
 
 /**
  * Ship colours as in V6 (line 2104), except #4, which V6 drew near-black on a
@@ -164,6 +165,8 @@ export function flightSummary(flight, fill = null) {
   if (timing) parts.push(timing);
   const puck = puckSummary(flight); // DB-23
   if (puck) parts.push(puck);
+  const altitude = altitudeSummary(flight); // DB-28
+  if (altitude) parts.push(altitude);
   return parts.join(', ');
 }
 
@@ -197,6 +200,8 @@ export function trackStatus(flight, fill = null) {
       lines.push(...timingLines(tr)); // DB-25
       const puck = puckLine(tr); // DB-23
       if (puck) lines.push(puck);
+      const altitude = altitudeStatusLine(tr); // DB-28
+      if (altitude) lines.push(altitude);
       const cut = flight.cutTracks?.find((c) => c.slot === tr.slot);
       if (cut) {
         const s = Math.round(cut.beforeS + cut.afterS);

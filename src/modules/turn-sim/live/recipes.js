@@ -1,6 +1,6 @@
 // The tracker's recipes for each 2-ship move (clean-up step 3, from transitions.js): the legs (phases) a change of formation
 // is flown as, each a tracker phase (tracker.js phase) with the move's own settings, and legsFor, the legs from one
-// formation to another by the manuals' routes. The planners (transitions.js planGoTo, line-moves.js, the rejoins,
+// formation to another by the manuals' routes. The planners (transitions.js planGoTo, the rejoins,
 // replan.js) and the 4-ship's (four-close.js, four-rejoin.js, four-open.js, four-legs.js) build their legs from these.
 //
 // Sources (page references only): SMM 12.4 paras 11-12 (echelon), 12.5 para 13 (line astern),
@@ -20,12 +20,12 @@ import { KT_TO_FTPS } from '../../../core/units.js';
 import { fwGoal } from './formation-turns.js';
 import { fwSwitch } from './fw-switch.js';
 import { classify, judge } from './judge.js';
-import { onClosure } from './hand-over.js';
+import { onClosure } from './closures.js';
 import { recordFlight, speedSeg } from './replay.js';
 import { describe, CHANGE_LIMIT_SEC } from './transitions.js';
-import { relativeTo, turnSeg, DEG } from './manoeuvres.js';
+import { relativeTo, turnSeg } from './manoeuvres.js';
 import { STEP_SEC, stepAircraft, copyAircraft } from './flight.js';
-import { wrapPi } from '../../../core/angles.js';
+import { wrapPi, DEG } from '../../../core/angles.js';
 import { bankDegFromTurnRate } from '../../../core/flight-math.js';
 
 // ---- the legs (phases): the tracker's recipes for each move --------------------------------------
@@ -253,7 +253,7 @@ export function outFt(L, W, s) {
 }
 
 /** How far out #2 ends if he turns back parallel to Lead now at bankDeg (flight.js's own turn and roll-out, speed held). */
-export function outAfterTurnBack(W, L, s, bankDeg, t) {
+function outAfterTurnBack(W, L, s, bankDeg, t) {
   const c = copyAircraft(W);
   const plan = { segments: [turnSeg(L.headingRad, -s, bankDeg)] };
   for (let i = 0; i < 400 && plan.segments.length; i++) stepAircraft(c, plan, t + i * STEP_SEC);

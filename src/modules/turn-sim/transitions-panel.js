@@ -13,7 +13,8 @@ import { FORMATIONS, FOUR_FORMATIONS, fourWords, FW_BAND } from './live/slots.js
 import { IN_POSITION } from './live/bands.js';
 import { SWEEP_MAX_DEG } from './live/judge.js';
 import { fourRefusal } from './live/four-plan.js';
-import { DEG, BREAK, BREAK_DELAY_CHOICES, setBreakDelaySec } from './live/manoeuvres.js';
+import { BREAK, BREAK_DELAY_CHOICES, setBreakDelaySec } from './live/manoeuvres.js';
+import { DEG } from '../../core/angles.js';
 import { MOVE_IN_BAND_KEY, MOVE_IN_BAND_FORMATIONS, PLACE_BOX_FORMATIONS, PLACE_HEIGHT, placeNow, nearestInBox, placeBoxOutline } from './live/move-in-band.js';
 
 /** The main buttons, in screen order. Fluid manoeuvring starts from fighting wing only (spec section 10.3, TS-57). */

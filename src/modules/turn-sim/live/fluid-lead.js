@@ -47,14 +47,13 @@
 import { stepPointMass, gAndBankForLift } from '../../../core/point-mass.js';
 import { easeValue, dampedClimbG, turnRateFromBankRadPerSec } from '../../../core/flight-math.js';
 import { t6aExcessFn, tasToIasKt, shakerG, dragPerWeight, thrustPerWeight, T6A_G_ONSET } from '../../../core/t6-performance.js';
-import { wrapPi } from '../../../core/angles.js';
+import { wrapPi, DEG } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, headingChangeRollingOut, rollLimitAt } from './flight.js';
 import { ROLL, WING } from './tuning.js';
 import { excessPerWeight } from './slow-down.js';
 import { add3, sub3, scale3, len3, cross3, unit3, perp3, dot3 } from './attitude.js';
 
-const DEG = Math.PI / 180;
 const Z = Object.freeze({ x: 0, y: 0, z: 1 });
 
 /** The numbers Lead flies. Every one has its source; "estimate" where no manual or ruling gives it. */
@@ -487,7 +486,7 @@ export function loop() {
       // The exit speed is read as the nose comes back to the horizon (SMM 7.5 para 12; Fig 7.2 "Exit 230 KIAS").
       if (mem.stage === 'exit' && mem.exitKias === undefined && alpha >= 2 * Math.PI - 0.5 * DEG) mem.exitKias = st.kias;
       const done = mem.stage === 'exit' && level(st);
-      // The loop's frame for #2 (fluid-wing.js framePoint): the entry heading and the angle round so far.
+      // The loop's frame for #2 (fluid-wing.js frameOf): the entry heading and the angle round so far.
       return { g, bank: 0, phase, cue: { mode: loopMode(alpha), latDeg: 15, loop: { n0: mem.n0, alpha } }, done, entryKias: mem.entryKias, exitKias: mem.exitKias };
     },
   };

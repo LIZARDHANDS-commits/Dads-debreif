@@ -2,8 +2,8 @@
 // "a more medium bank/power setting for a LONGER period"; card "Review, then build" 08:18Z; 08:20Z: "Keep with my overtake
 // numbers"; 08:29Z: "realistic aircraft behaviour"; review turn-sim-review/rejoin-review-fable.md). One rule for every
 // turning rejoin of the 2-ship, from line abreast (hot: #2 gets colder to reach the line) and from fighting wing (cold: he
-// turns hotter to reach it). The straight-ahead rejoin (SARJ, straight-rejoin.js, TS-72) is the one that drops onto Lead's
-// six and still flies the older line law (straight-rejoin.js); this one rides the line in Lead's frame (tracker.js rideAim).
+// turns hotter to reach it). The straight-ahead rejoin (SARJ, straight-rejoin.js, TS-72) drops onto Lead's six and rides
+// that line with Lead not turning (refactor step 5); this one rides the 30° line in Lead's turning frame (ride.js rideAim).
 //
 //  1. Lead turns into #2 at the press, at 30° of bank, slowing to 200 KIAS, and holds it until #2 is in (SMM 16.20 para
 //     65b; Patrick 05:29Z, 06:16Z item 3; lead-turn-in.js leadTurnInto).
@@ -12,8 +12,8 @@
 //     (to fighting wing, its place's own speed inside Lead's turn), reaching the line at 200-210 (Patrick 17:29Z). Only when
 //     no rejoin at that keeps him behind Lead's 3/9 line (close in and hot) does he dip below, then MAX again as he meets
 //     the line (Patrick 17:53Z).
-//  3. He gets onto the rejoin line, 35° off Lead's tail (Lead at about his 11 or 1 o'clock, the fin two-thirds out along
-//     Lead's upper wing, the tail and wing making an X; SMM 12.24 paras 56-57, Fig 12.14; TS-181) and
+//  3. He gets onto the rejoin line, 30° off Lead's tail (moves.js TURNING_REJOIN.lineDeg; Patrick 11 Oct 06:30Z; 35° from
+//     V2.232, the fin two-thirds out along Lead's upper wing, SMM 12.24 paras 56-57, Fig 12.14, TS-181) and
 //     comes down it: in Lead's turning frame he heads across toward the line, more directly the further off it he is, and
 //     down it once on it. Most of the closure is Lead's turn's, so on the line his bank stays close to Lead's own.
 //  4. He holds the line's speed to the point where a stop with the torque floor and the boards just fits (idle only when the room left needs it),
@@ -24,43 +24,36 @@
 //     says work well (08:28Z). He goes behind Lead only with too much closure (SMM 12.27 para 65): the tracker's own law. To
 //     fighting wing, the whole cone is his place: he settles where he arrives in it (Patrick 08:58Z; TS-75).
 // To a close formation (TS-106, V2.113; Patrick 6 Oct 02:30Z-03:58Z) steps 3-5 are now the X: Lead held fixed on #2's canopy
-// 35° off Lead's tail (TS-181; 45° until V2.232) (flyOnTheX; a hot start first flies onto the line as above, the X from 750 ft in), at 10-20 KIAS over
+// 30° off Lead's tail (35° from V2.232, 45° before) (flyOnTheX; a hot start first flies onto the line as above, the X from 750 ft in), at 10-20 KIAS over
 // Lead; anywhere 250-100 ft from Lead, stable, he moves over and the decision point re-plans him up into the slot. The
 // overshoot (overshootLegs) only when no rejoin plans that way.
 // Chosen, the most efficient first (Patrick 08:20Z: "find a way to make the most efficient"): how sharply he captures the line
 // (TURNING_REJOIN.aimsFt, the quickest that keeps him behind Lead's 3/9 line); a medium bank (60°) before the G rule; the
 // line's 220 KIAS before a smaller overtake; and his least speed before the dip. #2 is flown through the same flight.js step as Lead, so the bank, roll rate and speed
 // changes are the aircraft's own. Numbers are tuning.js TURNING_REJOIN's.
-import { relativeTo, DEG } from './manoeuvres.js';
+import { relativeTo } from './manoeuvres.js';
 import { recordFlight, speedSeg, dryRunT } from './replay.js';
 import { closeThrough, rejoinTo, slide, stopAt, legsFor, cornerBehind } from './recipes.js';
-import { CHANGE_LIMIT_SEC } from './transitions.js';
 import { classify, judge } from './judge.js';
 import { FORMATIONS, FW_BAND, fwShapeNow, pairSlot, LENGTH_FT, sideFor, LANE, LINE_BACK_PER_OUT } from './slots.js';
 import { KIAS_OUTSIDE_LAB, REJOIN, REJOIN_CLOSURE_KT, TURNING_REJOIN, FW_FOLLOW, WING_BANKS, KINEMATIC, closureNow, closeInFtps, lineKiasNow } from './tuning.js';
-import { onClosure, fromStep } from './hand-over.js';
+import { onClosure, fromStep } from './closures.js';
 import { leadTurnInto } from './lead-turn-in.js';
 import { STEP_SEC, copyAircraft, SMOOTHER_CURVE_PEAK, smoother, smoothLegSec } from './flight.js';
 import { RATE_SETS, CLOSE_SHAPING, G_RULE_BANK_DEG } from './rates.js';
 import { laggedBank, centredBank } from './kinematic.js';
-import { trackTwice, runTracker, phase } from './tracker.js';
+import { trackPhases, runTracker, phase } from './tracker.js';
 import { holdInPlane, heldPoses } from './formation-turns.js';
 import { acrossSixLegs } from './replan.js';
 import { stallBankDeg } from './slow-down.js';
-import { turnRadiusFromBankFt } from '../../../core/flight-math.js';
-import { wrapPi } from '../../../core/angles.js';
+import { turnRadiusFromBankFt, bankDegFromG } from '../../../core/flight-math.js';
+import { wrapPi, DEG } from '../../../core/angles.js';
 import { G_FTPS2, KT_TO_FTPS } from '../../../core/units.js';
-import { iasToTasKt } from '../../../core/t6-performance.js';
+import { iasToTasKt, excessThrustPerWeight } from '../../../core/t6-performance.js';
 
 const dt = STEP_SEC;
 /** A search try replaces the best so far only when quicker by more than this (the chooser's half-second tie, chooser.js TIE_SEC). */
 const BETTER_BY_SEC = 0.5;
-
-
-/** The closure the window's middle overtake gives on the X: along a 45° line about 1.4 times the overtake (estimate). */
-const xArriveFtps = () => ((TURNING_REJOIN.stableKt[0] + TURNING_REJOIN.stableKt[1]) / 2) * KT_TO_FTPS * Math.SQRT2;
-
-
 
 /**
  * The tracker's legs from the decision point (#2 on side s) to `to` on side sTo. To fighting wing, into its slot. To a close
@@ -126,7 +119,7 @@ function overshootLegs(s, to, sTo, spacingFt) {
  */
 function pointingPhases(altFt, depthFt) {
   const TR = TURNING_REJOIN;
-  const capDeg = Math.acos(1 / TR.pointMaxG) / DEG;
+  const capDeg = bankDegFromG(TR.pointMaxG);
   const toLead = (L, W) => wrapPi(Math.atan2(L.yFt - W.yFt, L.xFt - W.xFt) - W.headingRad);
   // Lead's line of sight rate across #2's nose, rad/s: (r x v) / r^2 with r and v Lead's place and velocity from #2.
   const losRate = (L, W) => {
@@ -137,6 +130,10 @@ function pointingPhases(altFt, depthFt) {
     return (rx * vy - ry * vx) / Math.max(1, rx * rx + ry * ry);
   };
   const clamp = (v, cap) => Math.max(-cap, Math.min(cap, v));
+  // Within pointMaxG all told: when his height leg is pulling (coming out of a descent off a stack or a high start), the bank
+  // that leaves room for it (G = vertical load / cos bank). Until V2.299 the cap was the level turn's, and from #2's +300 ft
+  // stack the pointing turn and the reversal pulled 4.64 G.
+  const capNow = (W) => Math.min(capDeg, Math.acos(Math.min(1, Math.max(1, (W.g ?? 1) * Math.cos((W.bankDeg ?? 0) * DEG)) / TR.pointMaxG)) / DEG);
   const common = { rejoin: true, pursuitEnds: true, roll: TR.pointRoll, kiasCmd: TR.pointKias };
   let side0 = 0; // the side Lead starts on, off #2's nose
   let lookFrom = null;
@@ -154,7 +151,7 @@ function pointingPhases(altFt, depthFt) {
         const rollSec = Math.abs(W.bankDeg) / TR.pointRoll.maxRateDps + TR.pointRoll.maxRateDps / TR.pointRoll.maxAccelDps2;
         const turnDps = (G_FTPS2 * Math.tan(Math.abs(W.bankDeg) * DEG)) / Math.max(1, W.tasFtps) / DEG;
         const comeOff = (turnDps / 2 - side0 * (losRate(L, W) / DEG)) * rollSec;
-        return { bankDeg: clamp(TR.pointGain * err, capDeg), psiCmd: W.headingRad, kiasCmd: TR.pointKias, done: side0 * err <= TR.pointAheadDeg + Math.max(0, comeOff) };
+        return { bankDeg: clamp(TR.pointGain * err, capNow(W)), psiCmd: W.headingRad, kiasCmd: TR.pointKias, done: side0 * err <= TR.pointAheadDeg + Math.max(0, comeOff) };
       },
     }),
     phase({ fwd: 0, left: 0, alt: altFt }, {
@@ -187,7 +184,7 @@ function pointingPhases(altFt, depthFt) {
         // Full power through the reversal and the roll-out, to reach the line at 200-210 KIAS (Patrick 04:59Z: "Keep full power
         // on the reversal to hit the line at 200-210"); then the ride's overtake.
         const kiasCmd = lineKiasNow();
-        return { bankDeg: clamp(bankDeg, capDeg), psiCmd: W.headingRad, kiasCmd, done: Math.abs(err) / DEG <= TR.reverseDoneDeg || t - reverseFrom >= TR.reverseMaxSec - 1e-9 };
+        return { bankDeg: clamp(bankDeg, capNow(W)), psiCmd: W.headingRad, kiasCmd, done: Math.abs(err) / DEG <= TR.reverseDoneDeg || t - reverseFrom >= TR.reverseMaxSec - 1e-9 };
       },
     }),
   ];
@@ -198,7 +195,7 @@ function pointingPhases(altFt, depthFt) {
  * the windshield, an intercept course has been established"; Patrick 11 Oct 2026 04:11Z-04:16Z: "we do what we have to with
  * pitch and power and bank to keep that aspect frozen in the screen"; Fable 04:19Z): a control law, not a line. Bank holds
  * Lead's bearing off #2's nose, from where the reversal left it onto frozenBearingDeg over frozenSettleFt, then frozen there;
- * pitch holds him lineElevDeg above #2's horizon (the line's depth law, slopedAlt); power holds frozenKias to the decision point. It ends where #2 is out at route's lateral spacing (decisionFt down the 35° line).
+ * pitch holds him lineElevDeg above #2's horizon (the line's depth law, slopedAlt); power holds frozenKias to the decision point. It ends where #2 is out at route's lateral spacing (decisionFt down the 30° line).
  */
 function frozenPhase(altFt, s, decisionFt, bankCapDeg, trail = false, toFw = false) {
   const TR = TURNING_REJOIN;
@@ -294,13 +291,17 @@ function bodyIn(L, W) {
  * legs flew it: he came off the line still converging, slid 30-50 ft inside route and went past echelon's fore and aft place.
  * from, vel: #2's place in Lead's plane at the decision point and how it is moving. Returns { bodyAt(i), steps }.
  */
-function tailPath(from, vel, s, to, spacingFt, sTo = s) {
+function tailPath(from, vel, s, to, spacingFt, sTo = s, crossAt = null, notBeforeStep = null) {
   const legs = [];
   if (sTo !== s) {
     // To the other side: under Lead's tail, as low as the crossover's corner (below his wake), then up into the new place.
+    // crossAt: the 4-ship element's crossing behind Lead, in the frame of the place he joins on (four-rejoin.js).
     const end = pairSlot(to, sTo, spacingFt);
     const corner = cornerBehind(end, spacingFt);
-    legs.push({ fwd: corner.fwd, left: 0, up: corner.alt - TURNING_REJOIN.underExtraFt }, { fwd: end.fwd, left: end.left, up: end.alt });
+    // The element crosses behind Lead first, then goes on under the one he joins on (so he does not pass close behind him
+    // on the way up into his place) and up into it.
+    const under = { fwd: corner.fwd, left: 0, up: corner.alt - TURNING_REJOIN.underExtraFt };
+    legs.push(...(crossAt ? [crossAt, under] : [under]), { fwd: end.fwd, left: end.left, up: end.alt });
   } else {
     const route = pairSlot('route', s, spacingFt);
     legs.push({ fwd: route.fwd, left: route.left, up: route.alt });
@@ -325,13 +326,28 @@ function tailPath(from, vel, s, to, spacingFt, sTo = s) {
   // tailUpFtps) to none in the plane (Patrick 05:31Z: "smaller, smoother movements").
   const dUp = legs[0].up - from.up;
   const upSec = Math.max(TURNING_REJOIN.tailMinSec, (2 * Math.abs(dUp)) / Math.max(TURNING_REJOIN.tailUpFtps, Math.sign(dUp) * vel.up));
-  const t = Math.max(TURNING_REJOIN.tailMinSec, (2 * total) / v0, upAlong ? 0 : upSec);
+  const t1 = Math.max(TURNING_REJOIN.tailMinSec, (2 * total) / v0, upAlong ? 0 : upSec);
+  // The 4-ship element crosses behind Lead only once the one ahead is in (SMM 16.34 para 96: "#3 should not cross behind
+  // lead until #2 is stabilized"). When the one way would have him behind Lead before that (notBeforeStep, steps after the
+  // decision point), he closes to that point with his closure coming off to none, holds it in Lead's frame until then, and
+  // goes on with the closure building up and coming off again (half what he brought at most; estimate).
+  const crossSec = crossAt ? t1 * (1 - Math.sqrt(Math.max(0, 1 - lens[0] / total))) : Infinity;
+  const split = notBeforeStep != null && crossSec < notBeforeStep * dt;
+  const tA = Math.max(TURNING_REJOIN.tailMinSec, (2 * lens[0]) / v0);
+  const holdSec = split ? Math.max(0, notBeforeStep * dt - tA) : 0;
+  const tB = Math.max(TURNING_REJOIN.tailMinSec, (3 * (total - lens[0])) / v0);
+  const t = split ? tA + holdSec + tB : t1;
+  const distAt = (ts) => {
+    if (!split) return total * (1 - (1 - Math.min(1, ts / t)) ** 2);
+    if (ts < tA) return lens[0] * (1 - (1 - ts / tA) ** 2);
+    const x = Math.min(1, Math.max(0, (ts - tA - holdSec) / tB));
+    return lens[0] + (total - lens[0]) * x * x * (3 - 2 * x);
+  };
   const steps = Math.ceil(t / dt);
   const rawAt = (i) => {
     // Before the decision point, where he was coming from (so the first corner is rounded too).
     if (i < 0) return { fwd: from.fwd + vel.fwd * i * dt, left: from.left + vel.left * i * dt, up: from.up + vel.up * i * dt };
-    const tau = Math.min(1, (i * dt) / t);
-    let d = total * (1 - (1 - tau) * (1 - tau)); // how far along: closure v0 at the start, off evenly to none at the end
+    let d = distAt(i * dt); // how far along: closure v0 at the start, off evenly to none at the end
     let k = 0;
     while (k < lens.length - 1 && d > lens[k]) d -= lens[k++];
     const f = lens[k] > 0 ? Math.min(1, d / lens[k]) : 1;
@@ -410,10 +426,140 @@ function arrivedStep(longRec, n0, wing, tail, slot) {
 }
 
 /**
+ * A hard pull to start (hardSec, the search's last resort from line abreast): #2 banks away from Lead at the bank cap, idle and
+ * boards, for hardSec or until he is inside 1,000 ft of Lead's 45° line.
+ */
+function hardPullPhase({ s, t0, lineFt, bankCapDeg, floorKias, hardSec }) {
+  return phase({ fwd: 0, left: 0, alt: lineFt }, {
+    pursuit: (L, W, t) => {
+      const cap = Math.min(bankCapDeg, stallBankDeg(W.kias));
+      return {
+        bankDeg: -s * cap,
+        slowStage: 'idleBoards',
+        kiasCmd: floorKias,
+        psiCmd: W.headingRad,
+        done: t >= t0 + hardSec - 1e-9 || (relativeTo(L, W).fwd * Math.cos(45 * Math.PI/180) + relativeTo(L, W).left * s * Math.sin(45 * Math.PI/180)) < 1000,
+      };
+    },
+    pursuitEnds: true,
+    rejoin: true,
+  });
+}
+
+/** The tail legs (tracker legs from the decision point into the place) in Lead's height, and the first leg's flow closure. */
+const onLeadAlt = (leadAlt, list) => list.map((p) => ({ ...p, slot: { ...p.slot, alt: p.slot.alt + leadAlt } }));
+
+/**
+ * The ways a turning rejoin goes, by destination (refactor step 4: one builder, the destination as data). Each says whether
+ * it starts with the hard pull, when the SMM's start (pointing turn, then Lead frozen in the windscreen) is flown, the frozen
+ * phase and the approach (the ride) that take him to the decision point, and the tail from there.
+ *  - fw: to fighting wing, the ride into the cone, then cone tracking (from trail, the frozen bearing to the cone instead);
+ *  - x: to a close formation on the ride (the 2-ship and the 4-ship's element), then the tail legs (or none on the tail path);
+ * (Until refactor step 5 a third way, line, flew the 4-ship's #2 to route on the older line law; no caller has asked it since
+ * V2.299.)
+ */
+const REJOIN_WAYS = Object.freeze({
+  fw: Object.freeze({
+    hardPull: true,
+    // From trail after a break (point 'frozen'): Lead eased out onto the frozen bearing with a small, early, gentle bank to
+    // trailFwHandFt, where the ride takes him into the cone (Patrick 11 Oct 2026 07:57Z).
+    pointed: ({ point, hardSec, initialRange }) => point === 'frozen' && hardSec === 0 && initialRange > TURNING_REJOIN.pointFromFt,
+    frozen: ({ lineFt, s, bankCapDeg }) => frozenPhase(lineFt, s, TURNING_REJOIN.trailFwHandFt, bankCapDeg, true, true),
+    // Ride tracking into the fighting wing cone (from trail the frozen bearing carries him to the cone instead)
+    approach: ({ lineFt, s, initialRange, bankCapDeg, hardSec }) => phase({ fwd: 0, left: 0, alt: lineFt }, {
+      kind: 'ride', slopedAlt: true,
+      lineDeg: TURNING_REJOIN.lineDeg,
+      side: s,
+      captureAlongFt: initialRange < 2000 ? initialRange : undefined,
+      ...TURNING_REJOIN.fwApproach, // window, close aim point, decision point, cone ease start and capture distance
+      coneEase: true,
+      bankCapDeg,
+      floorKias: KIAS_OUTSIDE_LAB,
+      initialPclMax: hardSec === 0,
+      isFw: true,
+      slowStage: 'power',
+      rejoin: true,
+    }),
+    // Followed by fighting wing cone tracking
+    tail: ({ lineFt, s, sTo, leastKias }, pointed) => [phase({ fwd: 0, left: 0, alt: lineFt }, {
+      ...FW_FOLLOW,
+      ...(pointed ? { roll: TURNING_REJOIN.formRoll } : {}), // from trail he settles at a formation roll rate, not snapping at 100°/s (Fable's v2272)
+      isFw: true,
+      side: sTo || s,
+      goal: () => coneMiddle(sTo || s),
+      coneAlt: true,
+      coneEnergy: true,
+      slowStage: 'power',
+      bankCapDeg: WING_BANKS.fwFollowBankCapDeg,
+      rejoin: true,
+      floorKias: leastKias,
+    })],
+  }),
+  x: Object.freeze({
+    hardPull: true,
+    // From line abreast, first the SMM's start (TS-182; SMM 16.20 para 65b(2)): a firm turn to point at Lead, then wings level
+    // watching him until his line of sight moves, then the reversal onto the line (the ride's capture). From trail after a
+    // break (point 'frozen') Lead is already near the nose: no pointing turn, he eases Lead out onto the frozen bearing over
+    // trailSettleFt with a small, early, gentle bank (Patrick 11 Oct 2026 07:57Z).
+    pointed: ({ point, hardSec, initialRange }) => Boolean(point && hardSec === 0 && initialRange > TURNING_REJOIN.pointFromFt),
+    // After the SMM's start, Lead held frozen in the windscreen to the decision point (TS-182 (3)); else the ride (Step 7):
+    // onto the 30° line along it and up it at 210 KIAS to the decision point, all in Lead's frame (the X, Lead fixed on the
+    // canopy, so there is no separate X phase).
+    frozen: ({ lineFt, s, xDecisionFt, bankCapDeg, point }) => frozenPhase(lineFt, s, xDecisionFt, bankCapDeg, point === 'frozen'),
+    approach: ({ lineFt, s, bankCapDeg, element, crossIn, xDecisionFt, floorKias, hardSec }) => phase({ fwd: 0, left: 0, alt: lineFt }, {
+      kind: 'ride', slopedAlt: true,
+      lineDeg: TURNING_REJOIN.lineDeg,
+      side: s,
+      captureFt: TURNING_REJOIN.captureFt,
+      bankCapDeg, // the search's: a medium bank first, 5 G a flag he stays inside (TS-182), the aircraft's own limits last (Patrick 6 Oct 04:07Z "there is NO LIMIT on bank angle in formation")
+      // The 4-ship element (four-rejoin.js elementTurning): far down the line at full power, his height gentler.
+      ...(element ? { far: element.far, heightG: element.heightG } : {}),
+      roll: crossIn ? TURNING_REJOIN.pointRoll : undefined, // Away, crossing Lead's six onto the line, quick but smooth (at the aircraft's own rate he never captured it); otherwise the aircraft's own roll, as before TS-182 (a formation rate here pulled 6 G from fighting wing)
+      windowFt: xDecisionFt,
+      carrotWindowFt: xDecisionFt,
+      legThrough: true, // his height leg to the line flies to its end, then the line's law (tracker.js heightOf)
+      floorKias,
+      initialPclMax: hardSec === 0,
+      rejoin: true,
+    }),
+    tail: ({ s, to, sTo, spacingFt, leadAlt, overshoot, pathTail }) => {
+      const flowFtps = closeInFtps(TURNING_REJOIN.decisionArriveRates);
+      if (overshoot) {
+        return onLeadAlt(leadAlt, onClosure(overshootLegs(s, to, sTo, spacingFt), { closeIn: true })).map((p, i) =>
+          i === 0 ? { ...p, bankCapDeg: TURNING_REJOIN.overshootBankDeg } : p
+        );
+      }
+      if (sTo !== s && sTo !== 0 && !pathTail) return onLeadAlt(leadAlt, onClosure(acrossSixLegs(null, s, to, sTo, spacingFt), { closeIn: true }));
+      if (!pathTail) {
+        return onLeadAlt(leadAlt, onClosure(tailLegs(s, to, sTo, spacingFt), { closeIn: true })).map((p, i) =>
+          (i === 0 ? { ...p, closureFtps: Math.min(p.closureFtps, flowFtps) } : p)
+        );
+      }
+      return [];
+    },
+  }),
+});
+
+/**
+ * The phase list for one turning rejoin (refactor step 4): the hard pull if asked, the SMM's start or the approach to the
+ * decision point, then the way's tail. Returns { phases, numApproachPhases (the phases before the tail), pointed }.
+ */
+function rejoinPhases(way, c) {
+  const phases = [];
+  if (way.hardPull && c.hardSec > 0) phases.push(hardPullPhase(c));
+  const pointed = way.pointed(c);
+  if (pointed && c.point !== 'frozen') phases.push(...pointingPhases(c.lineFt, c.leadAlt - c.lineFt));
+  phases.push(pointed ? way.frozen(c) : way.approach(c));
+  const numApproachPhases = phases.length;
+  phases.push(...way.tail(c, pointed));
+  return { phases, numApproachPhases, pointed };
+}
+
+/**
  * The whole rejoin as a single continuous tracker phase sequence: line intercept, canopy-X (or fighting wing
  * cone arrival with coneEase bank-matching), into close-in/cone phases with zero stitched handovers.
  */
-export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, upFt = 0, minG = null, overshoot = false, xLaw = true, hardSec = 0, allowAcross = false, crossIn = false, maxWhenLow = true, limitSec = Infinity, holdSec = null, point = false, element = null }) {
+export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, upFt = 0, minG = null, overshoot = false, xLaw = true, hardSec = 0, allowAcross = false, crossIn = false, limitSec = Infinity, holdSec = null, point = false, element = null, joinAtFt = null }) {
   const TR = TURNING_REJOIN;
   const onX = to !== 'fw' && xLaw;
   // From the decision point into route and echelon on his own side, the way is a place moving in Lead's banked wing plane
@@ -432,7 +578,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   const leadAlt = into.longRec.at(0).altAboveFt;
   // The capture's own height leg goes to the line's 4° depth where he joins it (TS-181), not the 50 ft floor: from there
   // the line's law (tracker.js heightOf) carries the 4° in (Fable's V2.232 audit: far out he sat 50 ft low).
-  const joinFt = Math.min(Math.hypot(into.longRec.at(0).xFt - wing.xFt, into.longRec.at(0).yFt - wing.yFt), TR.rideCaptureAlongFt);
+  const joinFt = joinAtFt ?? Math.min(Math.hypot(into.longRec.at(0).xFt - wing.xFt, into.longRec.at(0).yFt - wing.yFt), TR.rideCaptureAlongFt);
   // From trail (point 'frozen') there is no capture leg: the line's law flies his height from the start, gently (trailHeightG),
   // since a leg to a fixed depth ended off the 4° and gave a 2 G pull and a 0.6 G push at the hand-over.
   const lineFt = point === 'frozen' ? wing.altAboveFt : leadAlt - Math.max(-TR.lineUpFt, joinFt * Math.tan(TR.lineElevDeg * DEG));
@@ -444,7 +590,16 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   const upSec = upFt > 0 ? Math.max(TR.heightSec / 2, smoothLegSec(upFt, heightG)) : 0;
   const downSec = upFt > 0 ? Math.max(TR.heightSec / 2, smoothLegSec(wing.altAboveFt + upFt - lineFt, heightG)) : 0;
   const dropFt = wing.altAboveFt - lineFt;
-  const steadySec = upFt > 0 ? upSec + downSec : Math.max(TR.heightSec, smoothLegSec(dropFt, heightG));
+  // Up to the line from below, he climbs no faster on average than full power climbs at the line's speed in a gentle turn
+  // (excessThrustPerWeight, the shared T-6A model), so he climbs up the line with power and keeps his speed (Fable's v2295
+  // flight: from 2,000 ft low he zoomed up in 20 s, 212 to 124 KIAS, 0.3 G over the top, and fell 3,500 ft behind).
+  const climbSec = (riseFt) => {
+    if (riseFt <= 0) return 0;
+    const ps = excessThrustPerWeight(TR.frozenKias, wing.altAboveFt, TR.climbTurnG) * iasToTasKt(TR.frozenKias, wing.altAboveFt) * KT_TO_FTPS;
+    return ps > 0 ? (1.5 * riseFt) / ps : Infinity;
+  };
+  const climbing = upFt <= 0 && climbSec(-dropFt) > Math.max(TR.heightSec, smoothLegSec(dropFt, element?.heightG ?? TR.captureHeightG));
+  const steadySec = upFt > 0 ? upSec + downSec : Math.max(TR.heightSec, smoothLegSec(dropFt, element?.heightG ?? TR.captureHeightG), climbSec(-dropFt));
   const heightLeg = (sec) => {
     if (upFt > 0) {
       const tUp = t0 + (sec * upSec) / steadySec;
@@ -454,165 +609,20 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   };
 
   const initialRange = Math.hypot(into.longRec.at(0).xFt - wing.xFt, into.longRec.at(0).yFt - wing.yFt);
-  const startHigh = (wing.altAboveFt ?? 0) > (into.longRec.at(0).altAboveFt ?? 0) + 500;
-  const initialPclMax = !startHigh && hardSec === 0 && upFt <= 500;
 
-  // Single continuous tracker phase array
-  const phases = [];
-  let numApproachPhases = 0;
-  let pointed = false; // the SMM's start and Lead frozen in the windscreen, not the ride (TS-182)
-  if (to === 'fw') {
-    if (hardSec > 0) {
-      phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
-        pursuit: (L, W, t) => {
-          const cap = Math.min(bankCapDeg, stallBankDeg(W.kias));
-          return {
-            bankDeg: -s * cap,
-            slowStage: 'idleBoards',
-            kiasCmd: floorKias,
-            psiCmd: W.headingRad,
-            done: t >= t0 + hardSec - 1e-9 || (relativeTo(L, W).fwd * Math.cos(45 * Math.PI/180) + relativeTo(L, W).left * s * Math.sin(45 * Math.PI/180)) < 1000,
-          };
-        },
-        pursuitEnds: true,
-        rejoin: true,
-      }));
-      numApproachPhases++;
-    }
-    // From trail after a break (point 'frozen'): Lead eased out onto the frozen bearing with a small, early, gentle bank to
-    // trailFwHandFt, where the ride takes him into the cone (Patrick 11 Oct 2026 07:57Z).
-    pointed = point === 'frozen' && hardSec === 0 && initialRange > TR.pointFromFt;
-    if (pointed) {
-      phases.push(frozenPhase(lineFt, s, TR.trailFwHandFt, bankCapDeg, true, true));
-      numApproachPhases++;
-    }
-    // Followed by ride tracking into the fighting wing cone (from trail the frozen bearing carries him to the cone instead)
-    if (!pointed) phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
-      kind: 'ride', slopedAlt: true,
-      lineDeg: TR.lineDeg,
-      side: s,
-      captureAlongFt: initialRange < 2000 ? initialRange : undefined,
-      windowFt: 1200,
-      carrotWindowFt: 250,
-      coneEase: true,
-      decisionFt: 1000,
-      coneEaseFarFt: 1500,
-      captureFt: 250,
-      bankCapDeg,
-      floorKias: KIAS_OUTSIDE_LAB,
-      initialPclMax: hardSec === 0,
-      isFw: true,
-      slowStage: 'power',
-      rejoin: true,
-    }));
-    if (!pointed) numApproachPhases++;
-    // Followed by fighting wing cone tracking
-    phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
-      ...FW_FOLLOW,
-      ...(pointed ? { roll: TR.formRoll } : {}), // from trail he settles at a formation roll rate, not snapping at 100°/s (Fable's v2272)
-      isFw: true,
-      side: sTo || s,
-      goal: () => coneMiddle(sTo || s),
-      coneAlt: true,
-      coneEnergy: true,
-      slowStage: 'power',
-      bankCapDeg: WING_BANKS.fwFollowBankCapDeg ?? 45,
-      rejoin: true,
-      floorKias: leastKias,
-    }));
-  } else if (onX) {
-    if (hardSec > 0) {
-      phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
-        pursuit: (L, W, t) => {
-          const cap = Math.min(bankCapDeg, stallBankDeg(W.kias));
-          return {
-            bankDeg: -s * cap,
-            slowStage: 'idleBoards',
-            kiasCmd: floorKias,
-            psiCmd: W.headingRad,
-            done: t >= t0 + hardSec - 1e-9 || (relativeTo(L, W).fwd * Math.cos(45 * Math.PI/180) + relativeTo(L, W).left * s * Math.sin(45 * Math.PI/180)) < 1000,
-          };
-        },
-        pursuitEnds: true,
-        rejoin: true,
-      }));
-      numApproachPhases++;
-    }
-    // From line abreast, first the SMM's start (TS-182; SMM 16.20 para 65b(2)): a firm turn to point at Lead, then wings level
-    // watching him until his line of sight moves, then the reversal onto the line (the ride's capture).
-    pointed = point && hardSec === 0 && initialRange > TR.pointFromFt;
-    // From trail after a break (point 'frozen') Lead is already near the nose: no pointing turn, he eases Lead out onto
-    // the frozen bearing over trailSettleFt with a small, early, gentle bank (Patrick 11 Oct 2026 07:57Z).
-    if (pointed && point !== 'frozen') {
-      phases.push(...pointingPhases(lineFt, leadAlt - lineFt));
-      numApproachPhases += 3;
-    }
-    // After the SMM's start, Lead held frozen in the windscreen to the decision point (TS-182 (3)); else the ride (Step 7):
-    // onto the 35° line along it and up it at 210 KIAS to the decision point, all in Lead's frame (the X, Lead fixed on the
-    // canopy, so there is no separate X phase).
-    if (pointed) phases.push(frozenPhase(lineFt, s, xDecisionFt, bankCapDeg, point === 'frozen'));
-    else phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
-      kind: 'ride', slopedAlt: true,
-      lineDeg: TR.lineDeg,
-      side: s,
-      captureFt: TR.captureFt,
-      bankCapDeg, // the search's: a medium bank first, 5 G a flag he stays inside (TS-182), the aircraft's own limits last (Patrick 6 Oct 04:07Z "there is NO LIMIT on bank angle in formation")
-      // The 4-ship element (four-rejoin.js elementTurning): far down the line at full power, his height gentler.
-      ...(element ? { far: element.far, heightG: element.heightG } : {}),
-      roll: crossIn ? TR.pointRoll : undefined, // Away, crossing Lead's six onto the line, quick but smooth (at the aircraft's own rate he never captured it); otherwise the aircraft's own roll, as before TS-182 (a formation rate here pulled 6 G from fighting wing)
-      windowFt: xDecisionFt,
-      carrotWindowFt: xDecisionFt,
-      floorKias,
-      initialPclMax: hardSec === 0,
-      rejoin: true,
-    }));
-    numApproachPhases++;
-
-    const flowFtps = closeInFtps(TR.decisionArriveRates);
-    const onLead = (list) => list.map((p) => ({ ...p, slot: { ...p.slot, alt: p.slot.alt + leadAlt } }));
-    if (overshoot) {
-      phases.push(...onLead(onClosure(overshootLegs(s, to, sTo, spacingFt), { closeIn: true })).map((p, i) =>
-        i === 0 ? { ...p, bankCapDeg: TR.overshootBankDeg } : p
-      ));
-    } else if (sTo !== s && sTo !== 0 && !pathTail) {
-      phases.push(...onLead(onClosure(acrossSixLegs(null, s, to, sTo, spacingFt), { closeIn: true })));
-    } else if (!pathTail) {
-      phases.push(...onLead(onClosure(tailLegs(s, to, sTo, spacingFt), { closeIn: true })).map((p, i) =>
-        (i === 0 ? { ...p, closureFtps: Math.min(p.closureFtps, flowFtps) } : p)
-      ));
-    }
-  } else {
-    // 4-ship route fallback
-    numApproachPhases = 1;
-    phases.push(phase({ fwd: 0, left: 0, alt: lineFt }, {
-      kind: 'line',
-      lineDeg: TR.lineDeg,
-      side: s,
-      aimFt,
-      approachDeg: TR.approachDeg,
-      tauSec: TR.lineTauSec,
-      captureFt: TR.captureFt,
-      decisionFt,
-      bankCapDeg,
-      overtakeKt,
-      floorKias,
-      arriveFtps: Math.min(closureNow().ftps, closeInFtps(TR.decisionArriveRates)),
-      initialPclMax: true,
-      rejoin: true,
-    }));
-    const flowFtps = closeInFtps(TR.decisionArriveRates);
-    const onLead = (list) => list.map((p) => ({ ...p, slot: { ...p.slot, alt: p.slot.alt + leadAlt } }));
-    phases.push(...onLead(onClosure(tailLegs(s, to, sTo, spacingFt), { closeIn: true })).map((p, i) =>
-      i === 0 ? { ...p, closureFtps: Math.min(p.closureFtps, flowFtps) } : p
-    ));
-  }
+  // One list of phases for every destination (refactor step 4): the destination is data (REJOIN_WAYS below).
+  const way = to === 'fw' ? REJOIN_WAYS.fw : REJOIN_WAYS.x; // a close place off the X only: no caller asks one with xLaw false (the 4-ship's #2 flies the X since V2.299)
+  const { phases, numApproachPhases, pointed } = rejoinPhases(way, {
+    s, to, sTo, spacingFt, t0, lineFt, leadAlt, bankCapDeg, floorKias, leastKias, initialRange, hardSec, point, crossIn, element,
+    xDecisionFt, decisionFt, aimFt, overtakeKt, overshoot, pathTail,
+  });
 
   // Away (TS-174): #2 starts on the outside of Lead's turn and crosses behind him to side s, so the wrong-side check only
   // starts once he has reached side s.
   if (crossIn) phases.forEach((p, i) => { if (p.side != null) phases[i] = { ...p, crossIn: true }; });
   const profile0 = heightLeg(steadySec);
 
-  const first = trackTwice({
+  const first = trackPhases({
     refs: { [lead.id]: into.longRec },
     wing0: wing,
     t0,
@@ -630,6 +640,13 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   const close = to !== 'fw';
   const firstPlan = { segments: [{ kind: 'bankTrack', points: first.run.points }], profile: first.profile };
   const firstRec = recordFlight(wing, firstPlan, t0);
+  // A long climb ends further from Lead than where it was aimed; flown again to the line's depth where it ends, so the line's
+  // law takes over from it with no step: a step of 2 ft gave a 0.4 G blip at the hand-over in the probes.
+  if (climbing && joinAtFt == null && point !== 'frozen') {
+    const k = Math.min(totalSteps, Math.round(steadySec / dt));
+    const endFt = Math.hypot(into.longRec.at(k).xFt - firstRec.at(k).xFt, into.longRec.at(k).yFt - firstRec.at(k).yFt);
+    if (Math.abs(endFt - joinFt) > 1) return flyTurningRejoinWith({ ...arguments[0], joinAtFt: endFt });
+  }
   const wPart = firstRec.at(nPart);
   const relPart = relativeTo(into.longRec.at(nPart), wPart);
   const easeSec = close ? planeEaseSec(relPart, into.longRec.at(nPart)) : 0;
@@ -643,7 +660,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   if (close) {
     const bodyNow = (k) => bodyIn(into.longRec.at(k), firstRec.at(k));
     const [b0, b1] = [bodyNow(totalSteps - 1), bodyNow(totalSteps)];
-    const tail = pathTail ? tailPath(b1, { fwd: (b1.fwd - b0.fwd) / dt, left: (b1.left - b0.left) / dt, up: (b1.up - b0.up) / dt }, s, to, spacingFt, sTo) : null;
+    const tail = pathTail ? tailPath(b1, { fwd: (b1.fwd - b0.fwd) / dt, left: (b1.left - b0.left) / dt, up: (b1.up - b0.up) / dt }, s, to, spacingFt, sTo, element?.crossAt ?? null, element?.notBefore != null ? Math.round((element.notBefore - t0) / dt) - totalSteps : null) : null;
     tailSteps = tail?.steps ?? 0;
     // Lead holds his turn until #2 is in his place (tail.inSteps), then rolls out (Patrick 06:10Z); until V2.260 he held on
     // until the way had settled to the inch and planeEaseSec more, about 10 s in echelon.
@@ -755,10 +772,10 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
     stepDownOk: run.stepDownOk !== false,
     accelKtps: partPoints.length && partPoints[partPoints.length - 1][3] != null ? partPoints[partPoints.length - 1][3] : 0,
     rangeFt: Math.hypot(into.longRec.at(nSplit).xFt - firstRec.at(nSplit).xFt, into.longRec.at(nSplit).yFt - firstRec.at(nSplit).yFt),
-    overKt: lineKias - KIAS_OUTSIDE_LAB, lineKias: lineKias,
+    overKt: lineKias - KIAS_OUTSIDE_LAB,
     stable: true,
     establishedRange: first.run.establishedRange,
-    rideEstablished: (to === 'fw' || first.run.rideEstablished || pointed) && lineKias <= (TURNING_REJOIN.rideKias ?? 210) + 5.5 && (to !== 'fw' || partMinKias >= 195),
+    rideEstablished: (to === 'fw' || first.run.rideEstablished || pointed) && lineKias <= TURNING_REJOIN.rideKias + TURNING_REJOIN.windowEntryOverKt && (to !== 'fw' || partMinKias >= TURNING_REJOIN.fwLeastKias),
   };
 
   const remainderRun = {
@@ -836,8 +853,8 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
   // When even that can't keep him behind Lead's 3/9 line, the most overtake that can (the review's: fit the overtake to the
   // room; Student's 15 kt is the least): the note says which he flew.
   const slotFwdFt = Math.max(0, pairSlot(to, sTo || s, spacingFt)?.fwd ?? 0);
-  // The 4-ship's #2 (xLaw false, the line law to route) keeps the old 100 ft margin to a close place too (TS-176; built V2.223,
-  // Fable's V2.221 audit 2.4); the 2-ship's X to a close place, none.
+  // The X to a close place (xLaw) keeps no margin ahead of the slot; fighting wing, and any rejoin flown without the X,
+  // the old 100 ft margin (TS-176; built V2.223, Fable's V2.221 audit 2.4).
   const laneLimitFt = to === 'fw' || !xLaw ? slotFwdFt + (LANE.marginFt ?? 100) : 0;
   let best = null;
   let bestAny = null;
@@ -845,15 +862,33 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
   // to be 220 knots"), or a smaller Rates overtake only when that one would put him ahead of Lead's 3/9 line (TS-75).
   const asked = lineKiasNow() - KIAS_OUTSIDE_LAB;
   // The ride (xLaw, the 2-ship) reads neither the overtake nor the aim, so it flies each only once (review 10 Oct 2.4;
-  // Patrick 20:00Z (d)); the 4-ship's line law still searches them.
+  // Patrick 20:00Z (d)); without the X (the 4-ship's #2 to fighting wing) the search still tries them.
   const overtakes = xLaw ? [asked] : [asked, ...Object.values(REJOIN_CLOSURE_KT).filter((kt) => kt < asked).sort((a, b) => b - a)];
   // Every overtake and bank at his least speed first; slower only when none of them keeps him behind Lead's 3/9 line
   // (Patrick 17:29Z: "unless massively high on energy and tight"; TS-75).
   // To a close formation, the overshoot is the last resort (Patrick 03:35Z: "only overshoot if there is no other option
   // (instead of giving an error that a rejoin isnt possible)"): the same search with it, only when nothing else plans.
-  // Later passes only when the earlier find nothing: Lead's turn may carry #2 across his six well behind him (allowAcross),
-  // then without MAX while short of Lead's energy (maxWhenLow), so a rejoin is planned from anywhere it can be.
-  for (const { allowAcross, maxWhenLow } of [{ allowAcross: false, maxWhenLow: true }, { allowAcross: true, maxWhenLow: true }, { allowAcross: false, maxWhenLow: false }, { allowAcross: true, maxWhenLow: false }]) {
+  // A candidate replaces the best so far when it is established and the best is not, or when it is quicker by more than
+  // BETTER_BY_SEC; one that puts him ahead of the lane is kept apart (bestAny), used only when no candidate keeps behind it.
+  const better = (flown, than) => {
+    const est = flown.part?.rideEstablished !== false;
+    const thanEst = than?.part?.rideEstablished !== false;
+    return !than || (est && !thanEst) || (est === thanEst && flown.durationSec < than.durationSec - BETTER_BY_SEC);
+  };
+  const consider = (flown, labels) => {
+    if (!flown) return;
+    const laneOk = (flown.run?.laneFwdFt ?? -Infinity) <= laneLimitFt;
+    if (laneOk) {
+      if (better(flown, best)) best = { ...flown, ...labels };
+    } else if (!best && better(flown, bestAny)) {
+      bestAny = { ...flown, ...labels };
+    }
+  };
+  const done = () => best && best.part?.rideEstablished !== false;
+  // A later pass only when the earlier finds nothing: Lead's turn may carry #2 across his six well behind him (allowAcross),
+  // so a rejoin is planned from anywhere it can be. (Until refactor step 4 two more passes re-flew these same candidates
+  // with a maxWhenLow switch the rejoin no longer reads, so they could never change the pick.)
+  search: for (const allowAcross of [false, true]) {
     for (const overshoot of to !== 'fw' && xLaw ? [false, true] : [false]) {
       for (const lowFloor of [false, true]) {
         for (const overtakeKt of overtakes) {
@@ -861,80 +896,41 @@ export function searchTurningRejoin({ lead, wing, into, s, to, sTo, spacingFt, b
           // "Inside 5 G, any bank"; TS-181), and the aircraft's own limit only when nothing plans within it.
           // A medium bank first (TURNING_REJOIN.bankCapDeg, 60°), then up to the G rule's 5 G, a flag he stays inside, never the
           // target (TS-182; the 5 G first until V2.248, TS-181), and the aircraft's own limit only when nothing plans within it.
-          for (const caps of [[TURNING_REJOIN.bankCapDeg], [G_RULE_BANK_DEG], [REJOIN.bankCapDeg]]) {
+          for (const bankCapDeg of [TURNING_REJOIN.bankCapDeg, G_RULE_BANK_DEG, REJOIN.bankCapDeg]) {
             const aims = xLaw ? [TURNING_REJOIN.aimsFt[0]] : hot ? [...TURNING_REJOIN.aimsFt, TURNING_REJOIN.lagAimFt] : TURNING_REJOIN.aimsFt;
-            for (const bankCapDeg of caps) {
-              for (const aimFt of aims) {
-                const bestEst = best?.part?.rideEstablished !== false;
-                const limitSec = bestEst && best ? best.durationSec - BETTER_BY_SEC : Infinity;
-                // From line abreast the SMM's start first (pointing turn, wings level, reversal; TS-182), else the capture alone
-                // (V2.245's, Patrick 04:10Z: "If that doesn't work we can stick to what we had").
-                const fly = (point) => flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, overshoot, xLaw, hardSec: 0, allowAcross, crossIn, maxWhenLow, limitSec, point, element });
-                const pointing = hot && xLaw && (!crossIn || trail);
-                const flown = (pointing && fly(trail ? 'frozen' : true)) || fly(false);
-                if (flown) {
-                  const laneOk = (flown.run?.laneFwdFt ?? -Infinity) <= laneLimitFt;
-                  const est = flown.part?.rideEstablished !== false;
-                  
-                  if (laneOk) {
-                    const bestEst = best?.part?.rideEstablished !== false;
-                    if (!best || (est && !bestEst) || (est === bestEst && flown.durationSec < best.durationSec - BETTER_BY_SEC)) {
-                      best = { ...flown, overtakeKt, lowFloor, aimFt, bankCapDeg, hardSec: 0, upFt: 0, allowAcross, maxWhenLow };
-                    }
-                  } else if (!best) {
-                    const anyEst = bestAny?.part?.rideEstablished !== false;
-                    if (!bestAny || (est && !anyEst) || (est === anyEst && flown.durationSec < bestAny.durationSec - BETTER_BY_SEC)) {
-                      bestAny = { ...flown, overtakeKt, lowFloor, aimFt, bankCapDeg, hardSec: 0, upFt: 0, allowAcross, maxWhenLow };
-                    }
-                  }
-                }
-              }
-              if (!best && hot && xLaw) {
-                for (const hardSec of TURNING_REJOIN.hardPullsSec) {
-                  const aimFt = aims[0];
-                  const flown = flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt, bankCapDeg, overtakeKt, lowFloor, overshoot, xLaw, hardSec, allowAcross, crossIn, maxWhenLow, limitSec: Infinity, element });
-                  if (flown) {
-                    const laneOk = (flown.run?.laneFwdFt ?? -Infinity) <= laneLimitFt;
-                    const est = flown.part?.rideEstablished !== false;
-                    
-                    if (laneOk) {
-                      const bestEst = best?.part?.rideEstablished !== false;
-                      if (!best || (est && !bestEst) || (est === bestEst && flown.durationSec < best.durationSec - BETTER_BY_SEC)) {
-                        best = { ...flown, overtakeKt, lowFloor, aimFt, bankCapDeg, hardSec, upFt: 0, allowAcross, maxWhenLow };
-                      }
-                    } else if (!best) {
-                      const anyEst = bestAny?.part?.rideEstablished !== false;
-                      if (!bestAny || (est && !anyEst) || (est === anyEst && flown.durationSec < bestAny.durationSec - BETTER_BY_SEC)) {
-                        bestAny = { ...flown, overtakeKt, lowFloor, aimFt, bankCapDeg, hardSec, upFt: 0, allowAcross, maxWhenLow };
-                      }
-                    }
-                  }
-                }
-              }
-              if (best && best.part?.rideEstablished !== false) break;
+            const common = { lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, bankCapDeg, overtakeKt, lowFloor, overshoot, xLaw, allowAcross, crossIn, element };
+            for (const aimFt of aims) {
+              const limitSec = done() ? best.durationSec - BETTER_BY_SEC : Infinity;
+              // From line abreast the SMM's start first (pointing turn, wings level, reversal; TS-182), else the capture alone
+              // (V2.245's, Patrick 04:10Z: "If that doesn't work we can stick to what we had").
+              const fly = (point) => flyTurningRejoinWith({ ...common, aimFt, hardSec: 0, limitSec, point });
+              const pointing = hot && xLaw && (!crossIn || trail);
+              consider((pointing && fly(trail ? 'frozen' : true)) || fly(false), { overtakeKt, lowFloor, aimFt, bankCapDeg, hardSec: 0, upFt: 0, allowAcross });
             }
-            if (best && best.part?.rideEstablished !== false) break;
+            if (!best && hot && xLaw) {
+              for (const hardSec of TURNING_REJOIN.hardPullsSec) {
+                const aimFt = aims[0];
+                consider(flyTurningRejoinWith({ ...common, aimFt, hardSec, limitSec: Infinity }), { overtakeKt, lowFloor, aimFt, bankCapDeg, hardSec, upFt: 0, allowAcross });
+              }
+            }
+            if (done()) break search;
           }
-          if (best && best.part?.rideEstablished !== false) break;
         }
-        if (best && best.part?.rideEstablished !== false) break;
       }
-      if (best && best.part?.rideEstablished !== false) break;
     }
-    if (best && best.part?.rideEstablished !== false) break;
   }
   // The vertical as a candidate (TS-82): the same rejoin with #2 going high early and coming down onto the line, flown only
   // when it brings him in sooner, by more than the chooser's half-second tie, within the G rule with its pull charged.
   if (best && vertical) {
     for (const upFt of TURNING_REJOIN.verticalUpFt) {
       const limitSec = best.durationSec - (best.part?.rideEstablished === false ? 0 : BETTER_BY_SEC);
-      const flown = flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, upFt, minG: verticalMinG, overshoot: best.overshoot, xLaw, hardSec: best.hardSec, allowAcross: best.allowAcross, crossIn, maxWhenLow: best.maxWhenLow, limitSec, point: best.point, element });
+      const flown = flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, blockFt, t0, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, upFt, minG: verticalMinG, overshoot: best.overshoot, xLaw, hardSec: best.hardSec, allowAcross: best.allowAcross, crossIn, limitSec, point: best.point, element });
       const laneOk = flown ? (flown.run?.laneFwdFt ?? -Infinity) <= laneLimitFt : false;
       if (flown && laneOk && flown.part?.stepDownOk !== false && flown.run?.stepDownOk !== false) {
         const est = flown.part?.rideEstablished !== false;
         const bestEst = best.part?.rideEstablished !== false;
         if ((est && !bestEst) || (est === bestEst && flown.durationSec < best.durationSec - BETTER_BY_SEC)) {
-          best = { ...flown, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, hardSec: best.hardSec, upFt, allowAcross: best.allowAcross, maxWhenLow: best.maxWhenLow };
+          best = { ...flown, overtakeKt: best.overtakeKt, lowFloor: best.lowFloor, aimFt: best.aimFt, bankCapDeg: best.bankCapDeg, hardSec: best.hardSec, upFt, allowAcross: best.allowAcross };
         }
       }
     }

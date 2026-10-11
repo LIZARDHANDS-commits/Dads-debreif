@@ -190,7 +190,7 @@ function mount(root, app) {
    * 5 Oct), and wide enough each way to hold the aircraft furthest from it, grown by the fit's margin (feet).
    */
   // `s` is the state to frame: the sim's own (2D), or the 3D view's drawn one (drawState), so the 3D camera moves with the
-  // aircraft as they are drawn between steps instead of jumping a step at a time (TS-184; Patrick, 11 Oct: Chase then
+  // aircraft as they are drawn between steps instead of jumping a step at a time (TS-190; Patrick, 11 Oct: Chase then
   // Freelook "is really jittery").
   const fitBox = (s = state) => {
     const xs = s.aircraft.map((a) => a.xFt);
@@ -436,7 +436,7 @@ function mount(root, app) {
       instruments: instrumentsOf,
       focus: () => {
         if (freeCamera()) return null; // the 3D view keeps its own centre, moved by shift-drag or right-drag
-        const drawn = drawState(); // where the aircraft are drawn, between steps (TS-184)
+        const drawn = drawState(); // where the aircraft are drawn, between steps (TS-190)
         const b = fitBox(drawn);
         // and the formation's average height, so the camera stays on it through loops and wingovers (Patrick, 5 Oct)
         const alts = drawn.aircraft.map((a) => a.altAboveFt ?? 0);

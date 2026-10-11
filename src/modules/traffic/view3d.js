@@ -45,6 +45,8 @@ import {
 } from './camera-views.js';
 import { createCameraBar } from './camera-bar.js';
 import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
+import { drawHeadingOf, drawBankOf } from './path-follower.js';
+import { loadBatching } from './batch3d.js';
 
 /** The viewpoints worked out from an aircraft each frame, rather than framed once. */
 const POV_VIEWS = new Set(['cockpit', 'padlock']);
@@ -200,8 +202,9 @@ export function createAttitude() {
  * fallback for an aircraft whose state has no bank or pitch.
  */
 export function attitudeOf(ac, readOff) {
+  const bankDeg = drawBankOf(ac);
   return {
-    bankRad: Number.isFinite(ac?.bankDeg) ? -rad(ac.bankDeg) : readOff.bankRad,
+    bankRad: Number.isFinite(bankDeg) ? -rad(bankDeg) : readOff.bankRad,
     pitchRad: Number.isFinite(ac?.pitchDeg) ? rad(ac.pitchDeg) : readOff.pitchRad,
   };
 }
@@ -1050,7 +1053,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
       const mesh = planeFor(ac, kind, options.paint ?? PAINT_DEFAULT);
       mesh.visible = true;
       const { bankRad, pitchRad } = attitudeOf(ac, attitude.update(ac.id, { t: options.time ?? 0, headingDeg: ac.headingDeg, kt: ac.kt, altFt: ac.alt }));
-      applyPose(mesh, { x: ac.x, y: ac.y, altFt: ac.alt, headingDeg: ac.headingDeg, bankRad, pitchRad }, lengthFt);
+      applyPose(mesh, { x: ac.x, y: ac.y, altFt: ac.alt, headingDeg: drawHeadingOf(ac), bankRad, pitchRad }, lengthFt);
       const z = altToZ(ac.alt, ALT_SCALE);
       // Drawn at its true height, on its route line; raised only where its wheels would go under the runway (Patrick,
       // 5 Oct: the aircraft flew "above the line" when the wheel lift was added in the air too).
@@ -2817,6 +2820,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
           try {
             THREE = await loadThree();
             fatLines = await loadFatLines();
+            await loadBatching();
           } catch (err) {
             console.warn('three.js could not be loaded:', err);
             return { ok: false, reason: 'load' };

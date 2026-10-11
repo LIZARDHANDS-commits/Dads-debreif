@@ -1,25 +1,23 @@
-// Kinematic position tracks and pose extraction (tracker-only migration Slice 4; TS-55, TS-125).
-// Legacy line generators and follow-into routines have been pruned; this file retains the shared
-// position tracks (makeTrack, seedTrack, setTrackStep), coordinated pose calculation (posesFrom,
-// applyPose, poseOf, settleLast), slot world-positioning (slotInWorld), smoothed blends (smoothest),
-// and lagged bank smoothing (laggedBank) used by formation turns, fluid flight and rejoins.
+// Position tracks and poses, shared by formation turns, fluid flight and the rejoins (TS-55, TS-125): a track of places
+// step by step (makeTrack, seedTrack, setTrackStep), the coordinated pose that flies it (posesFrom, applyPose, settleLast),
+// a slot's place in the world (slotInWorld), the septic blend (smoothest) and centred or lagged banks (centredBank, laggedBank). The kinematic
+// lines that once flew whole moves from here are gone; the tracker (tracker.js) flies every move now.
 //
 // Units: feet, seconds; x east, y north; headings math radians (0 east, counter-clockwise); bank signed, left wing down
 // positive (flight.js). Every number with no manual or ruling beside it is an estimate and says so.
-import { bankDegFromTurnRate } from '../../../core/flight-math.js';
+import { bankDegFromTurnRate, turnRateFromBankRadPerSec } from '../../../core/flight-math.js';
 import { attitudeDegFromClimb } from '../../../core/t6-performance.js';
-import { wrapPi } from '../../../core/angles.js';
+import { wrapPi, DEG } from '../../../core/angles.js';
 import { G_FTPS2 } from '../../../core/units.js';
 import { STEP_SEC, flyAttitude } from './flight.js';
 import { powerFrom } from './power.js';
 
-const DEG = Math.PI / 180;
 const dt = STEP_SEC;
 
 /** The septic step: 0 to 1 with no rate, acceleration or jerk at either end, so a blend joins without a step in roll rate. */
 export const smoothest = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : u ** 4 * (35 - 84 * u + 70 * u * u - 20 * u ** 3));
 /** Its slope; the steepest point (the middle) is 2.1875 times the average. */
-export const smoothestSlope = (u) => (u <= 0 || u >= 1 ? 0 : 140 * u ** 3 * (1 - u) ** 3);
+const smoothestSlope = (u) => (u <= 0 || u >= 1 ? 0 : 140 * u ** 3 * (1 - u) ** 3);
 
 /** Extra rows of positions kept before and after a track, so the differences at its ends are central. */
 const PAD = 3;
@@ -53,11 +51,6 @@ export function applyPose(a, p) {
   a.power = p.power ?? powerFrom(null, p.pwr ?? null, p.kias);
 }
 
-/** An aircraft's state as a pose (the inverse of applyPose), for the parts of a track flight.js flies itself. */
-export function poseOf(a) {
-  return { x: a.xFt, y: a.yFt, alt: a.altAboveFt, h: a.headingRad, bank: a.bankDeg, roll: a.rollRateDps ?? 0, kias: a.kias, tas: a.tasFtps, climb: a.climbFtps ?? 0, pitch: a.pitchDeg ?? 0, g: a.g ?? 1, nz: a.nz ?? 1, stage: a.slowStage ?? null, power: a.power ?? null };
-}
-
 /**
  * A track of positions, one row per step from step -PAD to n + PAD (row r is step r - PAD): { x, y, z, n }. Step 0 is the
  * press (where the aircraft is now); steps 1..n are flown.
@@ -78,7 +71,7 @@ export function setTrackStep(track, k, x, y, z) {
 
 /** Fills steps -PAD..0 of a track from an aircraft as it is now, extrapolated backward on its present turn and climb. */
 export function seedTrack(track, a) {
-  const omega = (G_FTPS2 * Math.tan(a.bankDeg * DEG)) / Math.max(a.tasFtps, 1);
+  const omega = turnRateFromBankRadPerSec(Math.max(a.tasFtps, 1), a.bankDeg);
   let x = a.xFt;
   let y = a.yFt;
   let h = a.headingRad;

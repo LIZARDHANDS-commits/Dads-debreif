@@ -710,6 +710,7 @@ function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = nu
   let rolloutSec = null, ftTurned = 0;
   let stage = startStage, turned = 0, ftTotal = null, rollout = null, lastClimb = 0, ftDist = 0, finalTurnFt = null;
   const glideStart = { alt: null, dist: null };
+  let finalFrom = null;
   for (let n = 0; n < MAX_STEPS; n++) {
     const g = gFromBankDeg(s.bank);
     const hdgBefore = s.hdg;
@@ -768,6 +769,7 @@ function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = nu
         finalTurnFt = ftDist;
         stage = 'final';
         pilot.mark({ src: 12, phase: 'final', tag: 'window' });
+        finalFrom = pilot.points.length - 1;
         s.tag = 'final';
         s.src = 0;
         glideStart.alt = s.alt;
@@ -820,5 +822,41 @@ function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = nu
       ftTurned = Math.max(0, ftTurned + wrapDeg180(hdgBefore - s.hdg));
     }
   }
+  if (finalFrom !== null && pilot.points.at(-1)?.tag === 'touchdown') settleFinalOnCentre(pilot.points, finalFrom, th, points[1]);
   return { track: pilot.points, rollout: rollout ?? { x: s.x, y: s.y }, finalTurnFt, rolloutSec, endSec: s.k * DT };
+}
+
+/**
+ * The final's few feet left off the centreline, eased out by touchdown. The line-holding pilot rides a few feet to one
+ * side in a crosswind (the crab grows as it slows), but the threshold and touchdown points sit on the centreline and the
+ * climb-out starts there: a step of that much at each, which the track read as a flick of turn either way at the
+ * touch-and-go (smooth-transitions, 20 kt). The threshold and touchdown points go onto the flown line, then the whole
+ * final, window to touchdown, is moved across by a share of the touchdown's miss that grows smoothly from none at the
+ * window to all of it at touchdown (about 5 ft over 4,000 ft in 20 kt). An engineering choice.
+ */
+function settleFinalOnCentre(pts, from, th, dep) {
+  const cross = (p) => legOffsetsFt(th, dep, p);
+  const last = pts.length - 1;
+  // The threshold point onto the flown line between its neighbours; touchdown carried on from the last two flown points.
+  for (let i = from + 1; i <= last; i++) {
+    if (pts[i].tag !== 'threshold' && pts[i].tag !== 'touchdown') continue;
+    const a = pts[i - 1], b = pts[i].tag === 'touchdown' ? pts[i - 2] : pts[i + 1];
+    if (!a || !b) continue;
+    const ca = cross(a), cb = cross(b), ci = cross(pts[i]);
+    const f = Math.abs(cb.alongFt - ca.alongFt) > 1e-6 ? (ci.alongFt - ca.alongFt) / (cb.alongFt - ca.alongFt) : 0;
+    moveAcross(pts[i], th, dep, ca.crossFt + (cb.crossFt - ca.crossFt) * f - ci.crossFt);
+  }
+  const startAlong = cross(pts[from]).alongFt, { alongFt: endAlong, crossFt: miss } = cross(pts[last]);
+  if (!(endAlong > startAlong) || Math.abs(miss) < 1e-6) return;
+  for (let i = from; i <= last; i++) {
+    const u = clamp((cross(pts[i]).alongFt - startAlong) / (endAlong - startAlong), 0, 1);
+    moveAcross(pts[i], th, dep, -miss * u * u * (3 - 2 * u));
+  }
+}
+
+/** Moves a point `ft` to the right of the line th→dep (left if negative). */
+function moveAcross(p, th, dep, ft) {
+  const tau = Math.atan2(dep.x - th.x, dep.y - th.y);
+  p.x += ft * Math.cos(tau);
+  p.y -= ft * Math.sin(tau);
 }

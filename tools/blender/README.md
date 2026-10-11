@@ -9,7 +9,8 @@ A trial of building the CT-156 in Blender instead of in code. Nothing in the app
 | `build_ct156.py` | Blender script, run without Blender's window: builds the aircraft from those tables and exports `public/models/ct156.glb`. |
 | `ct156-params.json` | Moves the nose top line, the canopy peak and the forward canopy bow, in feet. `null` keeps the code tables. |
 | `ct156-cockpit-shape.mjs` | Prints the cockpit's numbers (eye, forward bow, canopy rails), worked out by the code cockpit's own helpers. |
-| `build_ct156_cockpit.py` | Builds the cockpit parts drawn as a model (ALL-32) and exports `public/models/ct156-cockpit.glb`. The app uses this one: each part replaces the code cockpit's part of the same name once the file loads (`src/ui-kit/ct156-cockpit-model.js`). |
+| `ct156-cockpit-pieces.mjs` | Prints the code cockpit's solid parts (body, seat, pcl, stick) piece by piece, with each part's fingerprint, and the pictured faces that shade them. |
+| `build_ct156_cockpit.py` | Builds the cockpit parts drawn as a model (ALL-32), rounds the code cockpit's pieces, bakes their soft shadows and exports `public/models/ct156-cockpit.glb` plus one `ct156-cockpit-ao-<part>.jpg` per part. The app uses these: each part replaces the code cockpit's part of the same name once the file loads (`src/ui-kit/ct156-cockpit-model.js`). |
 
 ## Rebuild the model
 
@@ -24,10 +25,16 @@ blender -b --factory-startup -P tools/blender/build_ct156.py -- ct156-shape.json
 
 ```
 node tools/blender/ct156-cockpit-shape.mjs > ct156-cockpit-shape.json
-blender -b --factory-startup -P tools/blender/build_ct156_cockpit.py -- ct156-cockpit-shape.json public/models/ct156-cockpit.glb
+node tools/blender/ct156-cockpit-pieces.mjs > ct156-cockpit-pieces.json
+blender -b --factory-startup -P tools/blender/build_ct156_cockpit.py -- ct156-cockpit-shape.json public/models/ct156-cockpit.glb ct156-cockpit-pieces.json public/models
 ```
 
-Rebuild it whenever the eye, the bow or the canopy changes in the code, so the parts still fit.
+The shadow bake (Cycles, on the processor) takes about a minute and a half. Without the last two arguments the file has
+only the bow and rails, and no shadows.
+
+Rebuild it after every change to the cockpit in the code. Each part carries the code's fingerprint of its shape; a part
+whose shape has changed since the file was built is skipped (the console says "out of date") and the code's own part
+shows instead, so a forgotten rebuild loses the rounding and shadows but never shows a stale shape.
 
 ## The parameters (feet, from the spinner's axis)
 

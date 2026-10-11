@@ -26,6 +26,15 @@ Tests check what a pilot would recognise: what must always be true (an aircraft 
 
 The last column is history. The test trim (#398, Patrick's yes 5 Oct 05:15Z) cut the unit tests from 3,125 to 1,608 and the browser tests from 383 to 123, keeping the flying and safety checks. Formation Sim's tests wait for its own clean-up.
 
+**Sorting the tests (overhaul, Oct 2026).** Every test file is sorted into one of three:
+- **Keep:** it checks something a pilot would recognise (T1), its expected values have a source (T3), and it can fail (T8). If it fails only because the app moved on under one of Patrick's rulings, its expected value is updated to the ruling.
+- **Rewrite:** what it checks is worth keeping, but it pins a tight time (T2), a V6 or code-output number (T3), or a screen's wording or layout detail.
+- **Delete:** nobody would miss what it checks, another test already covers it, or it can't fail.
+
+Nothing is deleted or rewritten without Patrick's yes on the list. A test is never moved to Delete to turn main green: a failure that shows a real fault goes to the module's owner. **(Patrick, 11 Oct 2026 18:20Z.)**
+
+**G and handling in flight tests (Patrick, 11 Oct 2026):** above 5 G is a caution, logged and shown, never a fail. Above 7 G fails. Snappy or unrealistic roll rates or attitude changes fail, at a limit the test states with its reason. Aircraft touching or colliding fails. No test pins any other G number. **(Wording approved 11 Oct 2026 19:37Z.)**
+
 
 ## 2. What runs when
 

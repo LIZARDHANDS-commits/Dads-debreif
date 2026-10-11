@@ -30,7 +30,7 @@
 //    ahead (SMM Fig 16.27, 12.5 para 13). Route: finger at route spacing (AFM7 brief p.18 item 2; SMM 12.6 para 15).
 //    The close positions in feet are the 2-ship's estimates (the links below).
 
-const DEG = Math.PI / 180;
+import { DEG } from '../../../core/angles.js';
 
 /** The 2-ship's formations and their words. */
 export const FORMATIONS = Object.freeze({
@@ -76,7 +76,7 @@ export const ROUTE_SPANS = Object.freeze({ slot: 3, min: 1, max: 3 });
 export const LINE_BACK_PER_OUT = 12.3 / 16.7;
 
 /** The place alongFt further out along the spinner-to-wingtip line from `from` (a place on it), on side s. */
-export function downTheLine(from, s, alongFt) {
+function downTheLine(from, s, alongFt) {
   const out = alongFt / Math.hypot(1, LINE_BACK_PER_OUT);
   return { fwd: from.fwd - out * LINE_BACK_PER_OUT, left: s * (Math.abs(from.left) + out), alt: from.alt };
 }
@@ -99,9 +99,11 @@ export const FW2 = Object.freeze({ rangeFt: 750, sweepDeg: 45 });
  * limits). seeMarginFt [near, far]/Deg: where the pair is still recognised as fighting wing, the band widened by this
  * (FW_REGION, judge.js classifier; estimates). The far edge is wider than the near one, as before V2.155 (450-1,250 and
  * 400-1,300 ft); step 1 had made both 50/100 ft by mistake (TS-142). bubbleFt: never inside this of Lead (SMM 16.17 para 44c, SMM 16.23, Gen Book p.11).
+ * easeFarFt: the cone's reach for the ride (tracker.js): inside it, on the line, #2 counts as at the cone, and from it the
+ * bank cap eases to the decision point (estimate; was a literal 1200 in tracker.js until refactor step 2).
  */
 export const FW_BAND = Object.freeze({
-  rangeFt: Object.freeze([500, 1000]), sweepDeg: Object.freeze([30, 60]),
+  rangeFt: Object.freeze([500, 1000]), sweepDeg: Object.freeze([30, 60]), easeFarFt: 1200,
   flyMarginFt: Object.freeze([50, 250]), flyMarginDeg: 5, seeMarginFt: Object.freeze([100, 300]), seeMarginDeg: 10, bubbleFt: 500,
 });
 const widen = (marginFt, marginDeg) => Object.freeze({
@@ -124,15 +126,11 @@ export const NEAREST = Object.freeze({
   route: Object.freeze({ extraSpans: 2, fwdFt: Object.freeze([-200, 60]) }), // out and back past the route band (Patrick 06:11Z; TS-103, TS-181)
 });
 
-/**
- * The overshoot lane, one rule (SMM 12.27 para 65; Fable review step 1). A plan passes if #2 never gets more than
- * marginFt ahead of his slot's fore and aft place while inside rangeFt of Lead (estimate); his height under Lead is
- * measured inside belowRangeFt.
- */
-export const LANE = Object.freeze({ marginFt: 100, rangeFt: 1000, belowRangeFt: 2000 });
+/** The overshoot lane, the step-down and canopy ranges: one copy, in core/canopy.js beside the gate that reads it. */
+export { LANE } from '../../../core/canopy.js';
 
 /** A fighting wing side swap (TS-86): how far outside the bubble #2 crosses Lead's six (estimate). */
-export const SWAP_CROSS_MARGIN_FT = 100;
+const SWAP_CROSS_MARGIN_FT = 100;
 
 /** Where a crossing behind Lead passes his six, fwd ft: outside the 500 ft bubble by SWAP_CROSS_MARGIN_FT (SMM 12.29 para 69; estimates). */
 export const crossBehindFwd = (rangeFt) => -(Math.max(FW_BAND.bubbleFt, rangeFt * 0.9) + SWAP_CROSS_MARGIN_FT);
@@ -194,10 +192,6 @@ export function setFw4Shape({ twoRangeFt = FW4.rangeFt, twoDeg = FW4.twoDeg, oth
   fw4 = { twoRangeFt, twoDeg, otherRangeFt, otherDeg };
 }
 
-/** The four-ship's desired fighting wing places now. */
-export function fw4ShapeNow() {
-  return { ...fw4 };
-}
 /** Fighting wing with no stack (entered from a close formation): each aircraft 60 ft below the one it flies off, the 2-ship's estimate. */
 export const FW_STEP_DOWN_FT = 60;
 /** The offset box's second element sits this far behind the first (TS-18; SMM 16.41 para 109 gives 6,000-8,000 ft). */

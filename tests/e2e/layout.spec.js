@@ -69,13 +69,16 @@ for (const size of SIZES) {
 
     for (const route of ROUTES) {
       test(`${route} has no overlapping or cut-off controls`, async ({ page }) => {
+        // Traffic takes 10 s or more to open on a runner without a graphics card.
+        if (route === '#/traffic') test.setTimeout(90_000);
         await openRoute(page, route);
         expect(await layoutProblems(page)).toEqual([]);
       });
     }
 
     test('the Settings dialog has no overlapping or cut-off controls', async ({ page }) => {
-      await openRoute(page, '#/');
+      // On the SOF page, where Settings holds the airfields and their "More" panels (SOF-62, V2.213).
+      await openRoute(page, '#/sof');
       await page.getByRole('button', { name: 'Settings', exact: true }).click();
       await expect(page.getByRole('dialog')).toBeVisible();
       const inDialog = await page.evaluate(() => {
@@ -86,7 +89,7 @@ for (const size of SIZES) {
       expect(await layoutProblems(page)).toEqual([]);
       // With every "More" panel in it open too, nothing sticks out past the
       // dialog's own padding, where it would be clipped.
-      for (const toggle of await page.locator('dialog[open] [aria-expanded="false"]').all()) await toggle.click();
+      for (const toggle of await page.locator('dialog[open] [aria-expanded="false"]:visible').all()) await toggle.click();
       expect(await layoutProblems(page)).toEqual([]);
       const clipped = await page.evaluate(() => {
         const d = document.querySelector('dialog[open]');

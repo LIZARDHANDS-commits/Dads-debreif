@@ -340,7 +340,7 @@
 [data-module='traffic'] .traffic-cam-group[hidden],
 [data-module='traffic'] .traffic-cam-follow[hidden],
 [data-module='traffic'] .traffic-3d-bar [hidden] {
-  display: none !important;
+  display: none;
 }
 
 [data-module='traffic'] .traffic-cam-pill {
