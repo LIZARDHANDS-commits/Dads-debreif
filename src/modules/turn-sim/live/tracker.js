@@ -207,7 +207,8 @@ function aimOf(ph, L, Lprev, ref, W, t) {
   // On Lead's wing plane (TS-181) the slot is in it, as holdInPlane holds it: its step down tilts with Lead's bank, so in
   // his turn the place sits a little further in, horizontally, as well as stepped down (slotAltOf).
   const slot = planeSlot(ph, L, ph.goal ? ph.goal(L, W, t) : ph.slot);
-  for (const [axis, v, target, rate] of [['f', 'vf', slot.fwd, ph.fwdRate], ['l', 'vl', slot.left, ph.latRate]]) {
+  const axes = [['f', 'vf', slot.fwd, ph.fwdRate], ['l', 'vl', slot.left, ph.latRate]].filter(([axis]) => !ph.alongFrom || axis === (ph.alongLead ?? 'f'));
+  for (const [axis, v, target, rate] of axes) {
     if (!Number.isFinite(rate)) {
       ref[axis] = target;
       ref[v] = 0;
@@ -215,7 +216,8 @@ function aimOf(ph, L, Lprev, ref, W, t) {
       const dist = target - ref[axis];
       const accelShare = ph.refAccelShare ?? (ph.targetBankDeg != null ? 0.6 : T.refAccelShare);
       const accel = rate * accelShare;
-      const maxV = Math.sqrt(Math.max(0, 2 * accel * Math.abs(dist)));
+      // Along the line he starts taking the rate off alongLagSec early, as a pilot leads the power (it answers late).
+      const maxV = Math.sqrt(Math.max(0, 2 * accel * (Math.abs(dist) - (ph.alongFrom ? (ph.alongLagSec ?? 0) * Math.abs(ref[v]) : 0))));
       const wantRaw = Math.sign(dist) * Math.min(rate, Math.abs(dist) * (ph.targetBankDeg != null ? 1.5 : GAIN.refRate));
       const want = Math.sign(dist) * Math.min(Math.abs(wantRaw), maxV);
       const step = accel * STEP_SEC;
@@ -227,6 +229,26 @@ function aimOf(ph, L, Lprev, ref, W, t) {
         ref[v] = 0;
       }
     }
+  }
+  // Up or down the spinner-wingtip line between two slots (alongFrom: the one he leaves; Patrick 11 Oct 2026 06:24Z: "crack
+  // off some power to set a rate, increase a bit to catch that rate, and bank away to maintain the line, then add power to
+  // stabilize in position"): power moves the place fore and aft at the phase's rate, and across it is wherever the line is
+  // at #2's own fore and aft place, so his bank keeps him on the line however his speed comes and goes. Until V2.261 the
+  // two went at their own rates, and the quicker bank took him out ahead of the line before the power caught up.
+  if (ph.alongFrom) {
+    const a = planeSlot(ph, L, ph.alongFrom);
+    const rel = relativeTo(L, W);
+    // The leading axis (alongLead: 'f', power, down the line; 'l', bank, up it) moves at the phase's rate; the other is
+    // wherever the line is at #2's own place on the leading one, and moves as he does, so he leads on the side behind the line.
+    const [lead, other] = ph.alongLead === 'l' ? [['left', 'l', 'vl'], ['fwd', 'f', 'vf']] : [['fwd', 'f', 'vf'], ['left', 'l', 'vl']];
+    const span = slot[lead[0]] - a[lead[0]];
+    const slope = Math.abs(span) > 1e-6 ? (slot[other[0]] - a[other[0]]) / span : 0;
+    // A little past the end he stays on the line's extension, so a small overrun comes back along it with no snap across.
+    const k = Math.abs(span) > 1e-6 ? Math.max(0, Math.min(1.2, (rel[lead[0]] - a[lead[0]]) / span)) : 1;
+    const dh = W.headingRad - L.headingRad;
+    const own = lead[0] === 'fwd' ? W.tasFtps * Math.cos(dh) - L.tasFtps : W.tasFtps * Math.sin(dh);
+    ref[other[1]] = a[other[0]] + k * (slot[other[0]] - a[other[0]]);
+    ref[other[2]] = k > 0 && k < 1.2 ? slope * own : 0;
   }
   const arrived = ph.goal
     ? Math.hypot(ref.f - slot.fwd, ref.l - slot.left) < (ph.goalTolFt ?? T.goalTolFt)
