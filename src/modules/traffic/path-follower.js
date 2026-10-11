@@ -46,7 +46,6 @@ const PITCH_EASE = Object.freeze({ maxRateDps: 10, maxAccelDps2: 20 });
 export const WING_DOWN = Object.freeze({
   sideForcePerRad: 0.6, wingAreaSqFt: 175.3, blendSec: 3, onLineFt: 300, onLineDeg: 20,
   fromOutFt: (0.75 * 6076 - NUMBER_BASE_PAST_THRESHOLD_FT + -(NUMBER_BASE_PAST_THRESHOLD_FT + TOUCHDOWN_PAST_NUMBERS_FT)) / 2,
-  toOutFt: -(NUMBER_BASE_PAST_THRESHOLD_FT + TOUCHDOWN_PAST_NUMBERS_FT),
   /** The window's speed, KIAS (Pattern 1's point 12), where the side-force balance sets the bank for each degree of crab. */
   refKias: 110,
   get bankPerCrab() { return slipBankDeg(10, this.refKias) / 10; },
@@ -66,14 +65,25 @@ const RWY_LEN_FT = Math.hypot(THRESHOLD_29L.x - DEPARTURE_END_29L.x, THRESHOLD_2
 const RWY_OUT = Object.freeze({ x: (THRESHOLD_29L.x - DEPARTURE_END_29L.x) / RWY_LEN_FT, y: (THRESHOLD_29L.y - DEPARTURE_END_29L.y) / RWY_LEN_FT });
 const RWY_29L_TRACK_DEG = compassDegFromVector(-RWY_OUT.x, -RWY_OUT.y);
 
-/** 1 where the wing-down method is flown (on the 29L final from halfway in, to touchdown) or on the wheels, else 0. */
-function wingDownTarget(a, trackDeg, onWheels) {
+/** True when the drawn heading and bank (the crosswind wing-down, TR-143) belong to this step's flown heading. */
+const drawnNow = (ac) => Number.isFinite(ac?.drawHeadingDeg) && Number.isFinite(ac?.drawBankDeg) && ac.drawOf === ac.headingDeg;
+/** The heading to draw the nose on, and the bank to draw: the wing-down's when current, else the flown ones. */
+export const drawHeadingOf = (ac) => (drawnNow(ac) ? ac.drawHeadingDeg : ac?.headingDeg);
+export const drawBankOf = (ac) => (drawnNow(ac) ? ac.drawBankDeg : ac?.bankDeg);
+
+/**
+ * 1 where the wing-down method is flown, else 0: on the wheels, or coming down the 29L final from halfway in (lined up,
+ * near the centreline, not climbing), however far down the runway it lands. Climbing away after a touch-and-go or a
+ * go-around is 0, so the crab comes back.
+ */
+function wingDownTarget(a, trackDeg, onWheels, climbing) {
   if (onWheels) return 1;
+  if (climbing) return 0;
   const dx = a.x - THRESHOLD_29L.x, dy = a.y - THRESHOLD_29L.y;
   const outFt = dx * RWY_OUT.x + dy * RWY_OUT.y;
   const offFt = Math.abs(-dx * RWY_OUT.y + dy * RWY_OUT.x);
   const lined = Math.abs(wrapDeg180(trackDeg - RWY_29L_TRACK_DEG)) <= WING_DOWN.onLineDeg;
-  return lined && offFt <= WING_DOWN.onLineFt && outFt <= WING_DOWN.fromOutFt && outFt >= WING_DOWN.toOutFt ? 1 : 0;
+  return lined && offFt <= WING_DOWN.onLineFt && outFt <= WING_DOWN.fromOutFt && outFt >= -RWY_LEN_FT ? 1 : 0;
 }
 
 /**
@@ -340,14 +350,19 @@ export function followRoute(a, route, env, dt, options = DEFAULT_ROUTE_OPTIONS) 
   a.groundSpeedKt = a.gsKt;
   a.tasKt = tasKt;
   a.trackDeg = trackDeg;
-  // The wing-down method on final (WING_DOWN): the crab blends out, the upwind wing comes down instead.
+  a.crabDeg = wt.crabDeg;
+  a.headingDeg = wt.headingDeg;
+  // The wing-down method on final (WING_DOWN): drawn only. The crab blends out of the drawn heading and the upwind wing
+  // comes down in the drawn bank (drawHeadingDeg, drawBankDeg, valid while drawOf is this step's heading); headingDeg,
+  // crabDeg and bankDeg stay the flown ones, which the joins, the PFL and the hand-overs read.
   const onWheels = a.alt <= THRESHOLD_DATA_ELEV_FT + ON_WHEELS_FT;
-  const wdTarget = wingDownTarget(a, trackDeg, onWheels);
+  const climbing = prevAlt !== null && dt > 0 && a.alt - prevAlt > 0;
+  const wdTarget = wingDownTarget(a, trackDeg, onWheels, climbing);
   const wdRate = dt > 0 ? dt / WING_DOWN.blendSec : 1;
   a.wingDown = Number.isFinite(a.wingDown) ? a.wingDown + Math.max(-wdRate, Math.min(wdRate, wdTarget - a.wingDown)) : wdTarget;
   const wd = a.wingDown * a.wingDown * (3 - 2 * a.wingDown); // eased in and out
-  a.crabDeg = wt.crabDeg * (1 - wd);
-  a.headingDeg = (trackDeg + a.crabDeg + 360) % 360;
+  a.drawHeadingDeg = (trackDeg + wt.crabDeg * (1 - wd) + 360) % 360;
+  a.drawOf = a.headingDeg;
 
   // Bank: what this heading rate needs (right positive), reached by a smooth roll. The rate is read off the path a
   // second either side (TR-97), not the last step, which is near nothing along each straight piece of a drawn turn and
@@ -361,13 +376,14 @@ export function followRoute(a, route, env, dt, options = DEFAULT_ROUTE_OPTIONS) 
     const headingThere = (d) => windTriangle(trackAt(route, d, options), tasKt, windFromDeg, windKt).headingDeg;
     rateRadPerSec = (wrapDeg180(headingThere(a.distFt + aheadFt) - headingThere(a.distFt - aheadFt)) * Math.PI / 180) / (2 * ATTITUDE_HALF_SEC);
   }
-  // In the slip the upwind wing is down; on the wheels the wings are level (SMM 4.12 para 26: the upwind wheel first).
-  const slipBank = onWheels ? 0 : wd * WING_DOWN.bankPerCrab * wt.crabDeg;
-  a.targetBankDeg = bankDegFromTurnRate(tasFtps, rateRadPerSec) + slipBank;
+  a.targetBankDeg = bankDegFromTurnRate(tasFtps, rateRadPerSec);
   const roll = gateRoll(a.bankDeg ?? 0, a.rollRateDps ?? 0, a.targetBankDeg, dt, ROLL, tasFtps, a.iasKt);
   a.bankDeg = Math.abs(roll.bankDeg) < 1e-9 ? 0 : roll.bankDeg;
   a.rollRateDps = Math.abs(roll.rollRateDps) < 1e-9 ? 0 : roll.rollRateDps;
   a.g = gFromBankDeg(a.bankDeg);
+  // In the slip the upwind wing is down (drawn); it eases with the blend, and is level on the wheels (SMM 4.12 para 26).
+  a.slipEase = Number.isFinite(a.slipEase) ? a.slipEase + Math.max(-wdRate, Math.min(wdRate, (onWheels ? 0 : 1) - a.slipEase)) : (onWheels ? 0 : 1);
+  a.drawBankDeg = a.bankDeg + wd * a.slipEase * WING_DOWN.bankPerCrab * wt.crabDeg;
 
   // Pitch: the attitude the pilot sees, the climb angle plus the angle of attack at this G less the fuselage datum;
   // on the wheels, the 2.5° nose up the gear holds it at (Patrick, 6 Oct 06:17Z).

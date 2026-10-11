@@ -2,7 +2,22 @@
 // went on to batching the buildings). A building made of dozens of boxes costs one draw call per box; merged by colour it costs one
 // per colour. Only plain-coloured pieces are merged: a piece with a picture on it (a badge, the glass, the crest), more than one
 // material, vertex colours or instancing is left as it is. Nothing moves: each merged piece keeps its place relative to the group.
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+// three's geometry merger (three/addons, part of the three package), loaded with the 3D view only (house rule: three is never
+// imported statically). Until it is in, nothing is merged: the scenery draws the same, with more draw calls.
+let mergeGeometries = null;
+let mergerPromise = null;
+/** Loads the merger; the 3D view awaits it before it builds the scenery. Resolves false when it can't load. */
+export function loadBatching() {
+  mergerPromise ??= import('three/addons/utils/BufferGeometryUtils.js')
+    .then((m) => { mergeGeometries = m.mergeGeometries; return true; })
+    .catch((err) => {
+      mergerPromise = null;
+      console.warn('Scenery batching could not be loaded; drawing the pieces one by one:', err);
+      return false;
+    });
+  return mergerPromise;
+}
 
 const keyOf = (m) => [
   m.type, m.color?.getHexString?.(), m.roughness, m.metalness, m.transparent, m.opacity, m.side, m.polygonOffset, m.fog,
@@ -10,6 +25,7 @@ const keyOf = (m) => [
 
 /** Merges `group`'s plain-coloured meshes (at any depth) into one mesh per material look, children of `group`. Returns how many it replaced. */
 export function batchByMaterial(THREE, group) {
+  if (!mergeGeometries) return 0;
   group.updateMatrixWorld(true);
   const toGroup = new THREE.Matrix4().copy(group.matrixWorld).invert();
   const buckets = new Map(); // key -> { material, geometries, meshes }

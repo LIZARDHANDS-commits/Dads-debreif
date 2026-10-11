@@ -618,20 +618,20 @@ a.card:hover {
   color: var(--text);
 }
 
-.dossier-role {
-  margin: 0 0 var(--space-2) !important;
-  font-size: var(--text-xs) !important;
-  color: var(--accent) !important;
+.about-section .dossier-role {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--accent);
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
   font-weight: 600;
 }
 
-.dossier-bio {
-  font-size: var(--text-sm) !important;
-  line-height: 1.55 !important;
-  color: var(--text-muted) !important;
-  margin: 0 !important;
+.about-section .dossier-bio {
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--text-muted);
+  margin: 0;
 }
 
 /* Partnership Feature (Split Layout with Exterior Formation Photo) */

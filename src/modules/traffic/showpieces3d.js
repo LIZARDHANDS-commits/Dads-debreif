@@ -4,7 +4,6 @@
 // replaces its code-built building (scenery3d.js, flightline-buildings3d.js), whose decals stay (the Snowbirds crest and stripes, the
 // "7", the Big 2 patch, the Glass Palace's glass and roof units, labels: marked userData.keep). If the file fails to load, the
 // code-built buildings stay, as before.
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { roofMaterial } from './roof-textures3d.js';
 
 const FILE = 'media/traffic-models/showpieces.glb';
@@ -30,7 +29,8 @@ function materials(THREE) {
 export function loadShowpieces(THREE, root, floor, onLoaded = () => {}) {
   if (typeof document === 'undefined') return;
   const base = (typeof import.meta !== 'undefined' && /** @type {any} */ (import.meta).env?.BASE_URL) || '/';
-  new GLTFLoader().load(`${base}${FILE}`, (gltf) => {
+  // three's model loader (three/examples, part of the three package), loaded on demand (house rule: no static three import).
+  import('three/examples/jsm/loaders/GLTFLoader.js').then(({ GLTFLoader }) => new GLTFLoader().load(`${base}${FILE}`, (gltf) => {
     const loaded = gltf.scene;
     loaded.updateMatrixWorld(true);
     const freeLoaded = () => loaded.traverse((o) => {
@@ -70,5 +70,7 @@ export function loadShowpieces(THREE, root, floor, onLoaded = () => {}) {
     onLoaded();
   }, undefined, () => {
     // The code-built buildings stay (data failure: nothing to show but what was there).
+  })).catch(() => {
+    // The loader itself failed to load: the code-built buildings stay, as above.
   });
 }
