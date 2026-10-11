@@ -17,6 +17,7 @@
 import { createFlightlineBuildings } from './flightline-buildings3d.js';
 import { batchByMaterial } from './batch3d.js';
 import { addFacade, faceToward, facadeMeshes } from './facade3d.js';
+import { roofMaterial, roofUv } from './roof-textures3d.js';
 import { RUNWAY_29L_HDG_DEG, THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_29R, DEPARTURE_END_29R, RUNWAY_03, RUNWAY_21, RUNWAY_WIDTH_FT, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
 
 export const DEFAULT_FLOOR_FT = THRESHOLD_DATA_ELEV_FT;
@@ -673,8 +674,8 @@ function createBoxBuilding(THREE, spec, floor) {
   group.rotation.z = spec.rotation ?? 0;
 
   const shape = new THREE.Shape(spec.footprint.map(([x, y]) => new THREE.Vector2(x, y)));
-  const bodyGeo = new THREE.ExtrudeGeometry(shape, { depth: spec.height, bevelEnabled: false });
-  const roofMat = new THREE.MeshStandardMaterial({ color: spec.roof, roughness: 0.7, metalness: 0.1 });
+  const bodyGeo = roofUv(THREE, new THREE.ExtrudeGeometry(shape, { depth: spec.height, bevelEnabled: false }), 'membrane');
+  const roofMat = roofMaterial(THREE, 'membrane', spec.roof, { roughness: 0.7, metalness: 0.1 }); // TR-140
   const wallMat = new THREE.MeshStandardMaterial({ color: spec.wall, roughness: 0.7, metalness: 0.05 });
   const body = new THREE.Mesh(bodyGeo, [roofMat, wallMat]); // extrude: caps first, then the sides
   body.name = `${spec.id}-body`;
@@ -711,12 +712,12 @@ function createGlassPalace(THREE, spec, floor, kit) {
   const h = spec.height ?? 32;
   const band = spec.glassBand;
 
-  const roofMat = new THREE.MeshStandardMaterial({ color: spec.roof, roughness: 0.75, metalness: 0.05 });
+  const roofMat = roofMaterial(THREE, 'membrane', spec.roof, { roughness: 0.75, metalness: 0.05 }); // TR-140
   const wallMat = new THREE.MeshStandardMaterial({ color: spec.wall, roughness: 0.7, metalness: 0.05, side: THREE.DoubleSide });
   const baseMat = new THREE.MeshStandardMaterial({ color: '#6b7075', roughness: 0.8 });
   const extrude = (pts, height, name, mats = [roofMat, wallMat]) => {
     const geo = new THREE.ExtrudeGeometry(new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y))), { depth: height, bevelEnabled: false });
-    const mesh = new THREE.Mesh(geo, mats);
+    const mesh = new THREE.Mesh(mats[0] === roofMat ? roofUv(THREE, geo, 'membrane') : geo, mats);
     mesh.name = name;
     group.add(mesh);
     return mesh;
@@ -836,7 +837,7 @@ function createBarracksU(THREE, spec, floor, kit) {
   const wallMat = new THREE.MeshStandardMaterial({
     color: kit.barracksWall ? '#ffffff' : spec.wall, map: kit.barracksWall ?? null, roughness: 0.65, metalness: 0.05,
   });
-  const roofMat = new THREE.MeshStandardMaterial({ color: spec.roof, roughness: 0.4, metalness: 0.35, side: THREE.DoubleSide });
+  const roofMat = roofMaterial(THREE, 'metal', spec.roof, { roughness: 0.4, metalness: 0.35, side: THREE.DoubleSide }); // ribbed (TR-140)
   const trimMat = new THREE.MeshStandardMaterial({ color: spec.accent, roughness: 0.4, metalness: 0.3 });
 
   /** One part: walls `across` x `along`, its centre (cx, cy), the ridge along local y when `ridgeAlongY`, else along x. */
@@ -852,7 +853,7 @@ function createBarracksU(THREE, spec, floor, kit) {
     roofGeo.translate(0, (along + 3) / 2, h);
     if (!ridgeAlongY) roofGeo.rotateZ(Math.PI / 2);
     roofGeo.translate(cx, cy, 0);
-    const roof = new THREE.Mesh(roofGeo, roofMat);
+    const roof = new THREE.Mesh(roofUv(THREE, roofGeo, 'metal'), roofMat);
     roof.name = `${spec.id}-${name}-roof`;
     group.add(roof);
     const fascia = new THREE.Mesh(new THREE.BoxGeometry(sx + 2, sy + 2, 1.5).translate(cx, cy, h - 0.75), trimMat);
