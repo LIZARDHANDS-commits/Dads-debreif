@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CT-156 model trial</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #0b1c2e; color: #e6edf3; font: 14px system-ui, sans-serif; }
+      #bar { position: fixed; top: 0; left: 0; right: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px; background: #020a10cc; z-index: 1; }
+      #bar button { background: #1f2a37; color: inherit; border: 1px solid #3a4a5c; border-radius: 4px; padding: 4px 10px; cursor: pointer; }
+      #bar button[aria-pressed="true"] { background: #2f6aa8; }
+      .label { position: fixed; top: 52px; width: 50%; text-align: center; font-weight: 600; pointer-events: none; }
+      .stats { position: fixed; bottom: 8px; width: 50%; text-align: center; font: 12px ui-monospace, monospace; white-space: pre; pointer-events: none; }
+      canvas { display: block; }
+    </style>
+  </head>
+  <body>
+    <div id="bar">
+      <strong>CT-156 trial: code model (left) and Blender model (right)</strong>
+      <span>View:</span>
+      <button data-view="quarter" aria-pressed="true">Front quarter</button>
+      <button data-view="side">Side</button>
+      <button data-view="top">Top</button>
+      <button data-view="chase">Chase</button>
+      <span>Ships:</span>
+      <button data-ships="1" aria-pressed="true">1</button>
+      <button data-ships="25">25</button>
+      <button id="spin" aria-pressed="true">Turn</button>
+      <span id="version"></span>
+    </div>
+    <div class="label" style="left:0">Code model (now)</div>
+    <div class="label" style="left:50%">Blender model (trial)</div>
+    <div class="stats" id="stats-code" style="left:0"></div>
+    <div class="stats" id="stats-blender" style="left:50%"></div>
+    <script type="module" src="./ct156-trial.js"></script>
+  </body>
+</html>
