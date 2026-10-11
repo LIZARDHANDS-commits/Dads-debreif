@@ -147,8 +147,12 @@ export const ARCH_FT = Object.freeze({
  * edge, under the coaming (Patrick, 11 Oct 2026: "the glare shield is more than an inch"; his cockpit clip, where the
  * lip shows well clear of the EADI from below the eye; 3 in an estimate). The panel's width matches
  * the T-6A-1 panel diagram scaled by its 3-inch gauges (about 2.4 ft). Its outline is a tombstone: straight sides up
- * to 60 % of its height, then shoulders in to a flat top 55 % as wide (TS-157, between the T-6A panel poster's and the
- * commercial render's, Dad's pictures 17 and 26). V2.264 tried 50 % and 84 % for a 23 in coaming read off Patrick's
+ * to 52 % of its height, then shoulders in to a flat top 38 % as wide, so the grab rail round it follows the T-6A-1's
+ * front panel figure (Fig 1-1-3, scaled by its 3-inch gauges, 38 px to the inch: the rail's sides straight to about
+ * 8 in up the face, then about 48° in to a flat top about 10 in across; Patrick, 11 Oct 2026, "make sure that the top
+ * of the glareshield and the diagonals are scaled/angled/sized correctly"). Until V2.289 60 % and 55 % (TS-157, between
+ * the T-6A panel poster's and the commercial render's, Dad's pictures 17 and 26), which put the shoulders about 2 in
+ * high and the top about 2.5 in too wide each side. V2.264 tried 50 % and 84 % for a 23 in coaming read off Patrick's
  * cockpit frames; from the seat that made the top of the panel far too wide and Patrick put it back (11 Oct 2026
  * 07:06Z: "you made the panel way too wide at the top. it looked more accurate and better in v 2.263"). Estimates.
  */
@@ -157,7 +161,7 @@ export const ARCH_FT = Object.freeze({
 // from the eye.
 const COAMING_EDGE_X = 5.14;
 const OVERHANG_FT = 0.25;
-export const PANEL_FT = Object.freeze({ x: COAMING_EDGE_X + OVERHANG_FT, top: 1.48, bottom: 0.22, width: 2.3, insetFromGlass: 0.06, shoulderV: 0.6, topFrac: 0.55 });
+export const PANEL_FT = Object.freeze({ x: COAMING_EDGE_X + OVERHANG_FT, top: 1.48, bottom: 0.22, width: 2.3, insetFromGlass: 0.06, shoulderV: 0.52, topFrac: 0.38 });
 
 /**
  * The front coaming (glareshield), feet (TS-157): a moulded near-black hood over the panel, its aft edge following the
@@ -169,8 +173,10 @@ export const PANEL_FT = Object.freeze({ x: COAMING_EDGE_X + OVERHANG_FT, top: 1.
  * hides under the cowl (was 1.85 ft up at 3.35 ft, to 0.95 ft at 5.3 ft, TS-156's fit to AETCMAN 11-248 Fig 2.7); a lip hangs at
  * its aft edge with the three lamps on it, just deep enough to cover the EADI's top from the eye (Patrick's seat rule,
  * 11 Oct 2026; about 0.15 ft, lipDrop's estimate before). Shape judged off Dad's pictures 17, 18, 20 and 26; sizes estimates.
+ * railOut: the grab rail's sides 0.05 ft inside the panel's edge, over its rim, where the T-6A-1 front panel figure
+ * (Fig 1-1-3) draws them, 1.1 ft out from the middle (RIM_FT.sideOut, 0.05 ft outside it, until V2.289).
  */
-export const GLARESHIELD_FT = Object.freeze({ aftX: COAMING_EDGE_X, foreX: 6.82, top: 1.634, foreTop: 1.33, lipDrop: 0.15, skirt: 0.12, topGrow: -0.1, sideGrow: 0, dropGrow: -0.1 });
+export const GLARESHIELD_FT = Object.freeze({ aftX: COAMING_EDGE_X, foreX: 6.82, top: 1.634, foreTop: 1.33, lipDrop: 0.15, skirt: 0.12, topGrow: -0.1, sideGrow: 0, dropGrow: -0.1, railOut: -0.05 });
 /**
  * The glareshield's rim, the thick dark grab rail along the coaming's aft edge and down the panel's sides to brackets
  * at 18 % of its height: its top run 0.03 ft behind the coaming at the coaming's own height, 0.045 ft in radius
@@ -185,12 +191,13 @@ export const RIM_FT = Object.freeze({ aftOfGlareshield: 0.03, r: 0.045, sideOut:
  * (Patrick's cockpit clip, 11 Oct 2026: its height about 0.9 of the 3-inch airspeed indicator's case, nearer the eye by
  * about 8 %; the case's 3.1 in checked by the KLN 900 GPS's 3.75 in face height beside it. The back-seat photos and his
  * other pictures give its depth about 1.3 times its height. The T-6A-1 panel diagram draws it about 2.3 in; estimates
- * read to about ±0.15 in), its middle 0.15 ft ahead of the coaming's aft edge and 0.74 ft left of the middle (0.62 ft on
- * the rear hump; places estimates). It stands on a pod, its foot 0.01 ft (clear) over each seat's eye's sight line
+ * read to about ±0.15 in), its middle 0.15 ft ahead of the coaming's aft edge and 0.52 ft left of the middle, over the
+ * glareshield's flat top where the T-6A-1 front panel figure draws it (Fig 1-1-3 item 36; 0.74 ft until V2.289, when the
+ * top narrowed to the figure's; 0.62 ft on the rear hump; places estimates). It stands on a pod, its foot 0.01 ft (clear) over each seat's eye's sight line
  * across the grab rail beside it, so all three lamps show above the rail (Patrick, 11 Oct 2026), as the diagram and the
  * SMM's 220 KIAS picture (Fig 3.5) draw it.
  */
-export const AOA_INDEXER_FT = Object.freeze({ tall: 0.23, wide: 0.07, deep: 0.29, lampPitch: 0.069, aheadOfEdge: 0.15, y: 0.74, yRear: 0.62, clear: 0.01 });
+export const AOA_INDEXER_FT = Object.freeze({ tall: 0.23, wide: 0.07, deep: 0.29, lampPitch: 0.069, aheadOfEdge: 0.15, y: 0.52, yRear: 0.62, clear: 0.01 });
 /**
  * The standby compass at the coaming's right corner, feet: a dark bowl 0.18 ft (2.2 in) across and 0.16 ft tall
  * hanging under a square flange 0.27 ft (3.2 in) across, its light housing under the bowl, the card 0.075 ft tall
@@ -640,17 +647,21 @@ function toggle(ctx, x, y, r) {
 }
 
 /**
- * The EADI (T-6A-1 Fig 1-1-3 item 2) filling its screen `s`: sky and ground to the screen's edges, turning with the bank
- * and moving with the pitch (5° marks, 10° bars with their numbers each side), the bank scale fixed across the top
- * (10, 20, 30, 45 and 60°) with the pointer turning with the bank, the fixed aircraft symbol in the middle. pitchDeg nose
- * up positive, bankDeg right wing down positive. About 50° of pitch shows top to bottom (estimate).
+ * The EADI (T-6A-1 Fig 1-1-3 item 2) on its square screen `s`: a round attitude ball, black round it to the screen's
+ * corners (Patrick, 11 Oct 2026: "the instrument is square but the attitude indicator is round and the outside of it is
+ * black"; V2.287 filled the whole screen), its sky and ground turning with the bank and moving with the pitch (5° marks,
+ * 10° bars with their numbers each side), the bank scale fixed on an arc just outside the ball's top (10, 20, 30, 45 and
+ * 60°) with the pointer turning with the bank, the fixed aircraft symbol in the middle. The ball 0.72 of the screen's
+ * width across, as the figure draws it (estimate). pitchDeg nose up positive, bankDeg right wing down positive. About 50°
+ * of pitch shows top to bottom of the screen (estimate).
  */
 function eadi(ctx, s, pitchDeg, bankDeg) {
   const cx = s.x + s.w / 2, cy = s.y + s.h * 0.52;
   const bank = rad(Number.isFinite(bankDeg) ? bankDeg : 0), pitch = Number.isFinite(pitchDeg) ? pitchDeg : 0;
-  const ppd = s.h / 50, big = Math.hypot(s.w, s.h);
+  const ppd = s.h / 50, big = Math.hypot(s.w, s.h), ball = Math.min(s.w, s.h) * 0.36;
+  ctx.fillStyle = '#000'; ctx.fillRect(s.x, s.y, s.w, s.h);
   ctx.save();
-  ctx.beginPath(); ctx.rect(s.x, s.y, s.w, s.h); ctx.clip();
+  ctx.beginPath(); ctx.arc(cx, cy, ball, 0, Math.PI * 2); ctx.clip();
   ctx.translate(cx, cy);
   ctx.rotate(-bank);
   const shift = pitch * ppd;
@@ -662,17 +673,19 @@ function eadi(ctx, s, pitchDeg, bankDeg) {
   for (let d = -90; d <= 90; d += 5) {
     if (d === 0) continue;
     const y = shift - d * ppd;
-    if (Math.abs(y) > s.h * 0.42) continue;
-    const half = s.w * (d % 10 === 0 ? 0.16 : 0.07);
+    if (Math.abs(y) > ball * 0.85) continue;
+    const half = ball * (d % 10 === 0 ? 0.4 : 0.18);
     ctx.beginPath(); ctx.moveTo(-half, y); ctx.lineTo(half, y); ctx.stroke();
     if (d % 10 === 0) {
-      label(ctx, String(Math.abs(d)), -half - s.w * 0.06, y, s.h * 0.04, '#ffffff');
-      label(ctx, String(Math.abs(d)), half + s.w * 0.06, y, s.h * 0.04, '#ffffff');
+      label(ctx, String(Math.abs(d)), -half - ball * 0.14, y, s.h * 0.04, '#ffffff');
+      label(ctx, String(Math.abs(d)), half + ball * 0.14, y, s.h * 0.04, '#ffffff');
     }
   }
   ctx.restore();
-  // The bank scale: fixed marks on an arc across the top, the pointer turning with the bank.
-  const R = s.h * 0.4;
+  ctx.strokeStyle = '#c9ced4'; ctx.lineWidth = Math.max(1, s.h * 0.004);
+  ctx.beginPath(); ctx.arc(cx, cy, ball, 0, Math.PI * 2); ctx.stroke();
+  // The bank scale: fixed marks on an arc just outside the ball's top, the pointer turning with the bank.
+  const R = ball + s.h * 0.01;
   ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1.5, s.h * 0.005);
   for (const m of [-60, -45, -30, -20, -10, 10, 20, 30, 45, 60]) {
     const a = rad(m - 90), len = [30, 60].includes(Math.abs(m)) ? s.h * 0.04 : s.h * 0.022;
@@ -690,7 +703,7 @@ function eadi(ctx, s, pitchDeg, bankDeg) {
   // The fixed aircraft symbol: two wing bars and a centre square, yellow outlined in black.
   const wing = (x0, x1) => { ctx.fillRect(Math.min(x0, x1), cy - s.h * 0.012, Math.abs(x1 - x0), s.h * 0.024); ctx.strokeRect(Math.min(x0, x1), cy - s.h * 0.012, Math.abs(x1 - x0), s.h * 0.024); };
   ctx.fillStyle = '#ffd23f'; ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
-  wing(cx - s.w * 0.36, cx - s.w * 0.14); wing(cx + s.w * 0.14, cx + s.w * 0.36);
+  wing(cx - ball * 0.72, cx - ball * 0.3); wing(cx + ball * 0.3, cx + ball * 0.72);
   ctx.fillRect(cx - s.h * 0.014, cy - s.h * 0.014, s.h * 0.028, s.h * 0.028); ctx.strokeRect(cx - s.h * 0.014, cy - s.h * 0.014, s.h * 0.028, s.h * 0.028);
 }
 
@@ -1073,8 +1086,9 @@ function tubeThrough(THREE, pts, radius, segments = 64, { smooth = false, radial
 function hoodHalf(h, ts, x) {
   const t = clamp01((x - h.aftX) / (h.foreX - h.aftX));
   const crown = crownZ(h, x);
-  const topY = ts.top + RIM_FT.sideOut * 0.4 + h.topGrow * t;
-  const sideY = ts.side + RIM_FT.sideOut + h.sideGrow * t;
+  const out = h.railOut ?? RIM_FT.sideOut;
+  const topY = ts.top + out * 0.4 + h.topGrow * t;
+  const sideY = ts.side + out + h.sideGrow * t;
   const drop = h.top - ts.shoulderZ + h.dropGrow * t;
   const pts = [[0, crown], [topY, crown]];
   for (let k = 1; k <= 6; k++) {
@@ -1323,10 +1337,14 @@ function seatParts(THREE, { dx, front, p, h, eye }) {
   put(loft(THREE, [hoodSection(h, ts, h.aftX), hoodSection(h, ts, h.aftX, -lipDrop)], { closed: false }), SLOT.black);
   // The three lamps on a light strip on the lip, under the rail (Dad's pictures 17, 18, 26; AETCMAN 11-248 Fig 2.7): the
   // T-6A-1 panel figure's master warning panel (Fig 1-1-3 item 1), MASTER WARN red on the left, MASTER CAUTION amber in the
-  // middle and FIRE red on the right (Patrick, 11 Oct 2026: "theres no fire on the right side"; was amber).
+  // middle and FIRE red on the right (Patrick, 11 Oct 2026: "theres no fire on the right side"; was amber). The strip
+  // and lamps where the figure draws them, the two masters left of the middle and FIRE right of it, the strip about
+  // 5.5 in across (was 10 in across, the lamps 1.9 in apart either side of the middle, until V2.289; front seat).
   const lx = h.aftX - 0.003, lz = h.top - lipDrop / 2 - 0.015;
-  put(box(THREE, lx - 0.006, lx, -0.42, 0.42, lz - 0.045, lz + 0.045), SLOT.knob);
-  [[0.16, SLOT.lampRed], [0, SLOT.lampAmber], [-0.16, SLOT.lampRed]].forEach(([y, slot]) => {
+  const strip = front ? [0.26, -0.21] : [0.42, -0.42];
+  const lamps = front ? [[0.17, SLOT.lampRed], [0.06, SLOT.lampAmber], [-0.1, SLOT.lampRed]] : [[0.16, SLOT.lampRed], [0, SLOT.lampAmber], [-0.16, SLOT.lampRed]];
+  put(box(THREE, lx - 0.006, lx, strip[1], strip[0], lz - 0.045, lz + 0.045), SLOT.knob);
+  lamps.forEach(([y, slot]) => {
     put(box(THREE, lx - 0.02, lx - 0.006, y - 0.055, y + 0.055, lz - 0.035, lz + 0.035), SLOT.black);
     put(box(THREE, lx - 0.024, lx - 0.02, y - 0.042, y + 0.042, lz - 0.025, lz + 0.025), slot);
   });
