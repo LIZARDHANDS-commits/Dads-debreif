@@ -133,14 +133,14 @@ export const ARCH_FT = Object.freeze({
  * edge, under the coaming (Patrick, 11 Oct 2026: "the glare shield is more than an inch"; his cockpit clip, where the
  * lip shows well clear of the EADI from below the eye; 3 in an estimate). The panel's width matches
  * the T-6A-1 panel diagram scaled by its 3-inch gauges (about 2.4 ft). Its outline is a tombstone: straight sides up
- * to 50 % of its height, then shoulders in to a flat top 84 % as wide, so the coaming over it is about 23 in across at
- * its aft edge and the sill's strip shows beside it, as Patrick's cockpit frames show (11 Oct 2026: the strip about
- * the 3-inch lamp box and a bit more each side; was 60 % and 55 %, TS-157's reading of the T-6A panel poster and the
- * commercial render, Dad's pictures 17 and 26, which ran the coaming glass to glass). Estimates.
+ * to 60 % of its height, then shoulders in to a flat top 55 % as wide (TS-157, between the T-6A panel poster's and the
+ * commercial render's, Dad's pictures 17 and 26). V2.264 tried 50 % and 84 % for a 23 in coaming read off Patrick's
+ * cockpit frames; from the seat that made the top of the panel far too wide and Patrick put it back (11 Oct 2026
+ * 07:06Z: "you made the panel way too wide at the top. it looked more accurate and better in v 2.263"). Estimates.
  */
 const COAMING_EDGE_X = 4.19;
 const OVERHANG_FT = 0.25;
-export const PANEL_FT = Object.freeze({ x: COAMING_EDGE_X + OVERHANG_FT, top: 1.48, bottom: 0.22, width: 2.3, insetFromGlass: 0.06, shoulderV: 0.5, topFrac: 0.84 });
+export const PANEL_FT = Object.freeze({ x: COAMING_EDGE_X + OVERHANG_FT, top: 1.48, bottom: 0.22, width: 2.3, insetFromGlass: 0.06, shoulderV: 0.6, topFrac: 0.55 });
 
 /**
  * The front coaming (glareshield), feet (TS-157): a moulded near-black hood over the panel, its aft edge following the
@@ -189,7 +189,7 @@ export const AOA_INDEXER_FT = Object.freeze({ tall: 0.23, wide: 0.07, deep: 0.29
 export const STANDBY_COMPASS_FT = Object.freeze({ r: 0.065, bowlTall: 0.12, flange: 0.17, light: 0.05, post: 0.03, cardTall: 0.055, windowDeg: 110, aheadOfEdge: 0.1, y: -0.84, yRear: -0.8, armWide: 0.02 });
 
 /** The rear cockpit's panel, feet: face 0.7 ft aft of the origin, 0.7 to 1.75 ft up, 2.2 ft across (estimates). */
-export const REAR_PANEL_FT = Object.freeze({ x: -0.7, top: 1.75, bottom: 0.7, width: 2.2, insetFromGlass: 0.06, shoulderV: 0.5, topFrac: 0.84 });
+export const REAR_PANEL_FT = Object.freeze({ x: -0.7, top: 1.75, bottom: 0.7, width: 2.2, insetFromGlass: 0.06, shoulderV: 0.6, topFrac: 0.55 });
 /**
  * The rear coaming, feet (TS-157): the big moulded hump over the front seat's back that the rear panel sits under
  * (Dad's pictures 27 and 29), its aft edge along the rear panel's outline at 1.9 ft with the grab rail on it, rising
