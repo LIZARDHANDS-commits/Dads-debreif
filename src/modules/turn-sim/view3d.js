@@ -13,7 +13,7 @@ import {
 } from '../../ui-kit/three-aircraft.js';
 import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
 import { drawTags, drawLeadArrows, T6_LENGTH_FT, trailSince, CLOCK_LINE_RED } from './view.js';
-import { FW_TURN } from './live/tuning.js';
+import { FW_TURN, TURNING_REJOIN } from './live/tuning.js';
 import { placeBoxOutline } from './live/move-in-band.js';
 import { drawHud } from '../../ui-kit/hud.js';
 import { liftBankDeg } from './live/flight.js';
@@ -187,6 +187,14 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
   const zoomKey = createCockpitZoomKey(win, () => requestDraw()); // hold Shift to zoom from the seat (COCKPIT_ZOOM)
   // The seat view's angle: a slider at the top of the camera bar (layout.js's .ts-cam-bar), above its buttons.
   const fovSlider = createCockpitFovSlider(canvas.ownerDocument ?? win.document, () => canvas.parentElement?.querySelector('.ts-cam-bar'), { onChange: () => requestDraw() });
+  // The bar's Boresight button looks ahead again, as the C key does (Patrick, 11 Oct 04:03Z: camera buttons in cockpit mode).
+  let camBar = null;
+  const onCamBarClick = (e) => { if (e.target?.closest?.('[data-aim="boresight"]')) handleCenterKey(); };
+  const hearCamBar = (on) => {
+    camBar?.removeEventListener('click', onCamBarClick);
+    camBar = on ? canvas.parentElement?.querySelector?.('.ts-cam-bar') ?? null : null;
+    camBar?.addEventListener('click', onCamBarClick);
+  };
   let povKey = '';
   let head = { yawDeg: 0, pitchDeg: 0 }; // the person's head turn (Cockpit, Padlock) or swing round the aircraft (Chase)
   let chaseFt = POV.chaseFt;
@@ -300,16 +308,20 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       if (layers.lead75 && layers[`l75_${a.id}`]) {
         for (const off of [Math.PI / 6, -Math.PI / 6]) seg([a.xFt, a.yFt, z], out(a.headingRad + Math.PI + off, lengthFt));
       }
-      // The 45° Turning Rejoin Line (the Canopy "X" line) in 3D during a rejoin
+      // The turning rejoin line (the canopy X line) in 3D during a rejoin: 35° off Lead's tail and 4° below his horizon, as
+      // #2 flies it (TURNING_REJOIN lineDeg, lineElevDeg; TS-181, TS-182; Patrick 11 Oct 03:53Z: "make the green dotted line
+      // match the proper turning rejoin line"). It was drawn at 45°, level.
       const rejoin = source.rejoin?.();
       if (rejoin && a.id === rejoin.leadId) {
         const wing = state.aircraft.find((w) => w.id === rejoin.wingId);
         if (wing) {
           const s = rejoin.side ?? (Math.sign((wing.xFt - a.xFt) * -Math.sin(a.headingRad) + (wing.yFt - a.yFt) * Math.cos(a.headingRad)) || -1);
           const isTurning = rejoin.rejoinKind !== 'straight';
-          const off = isTurning ? -s * (Math.PI / 4) : 0;
+          const off = isTurning ? -s * (90 - TURNING_REJOIN.lineDeg) * (Math.PI / 180) : 0;
           colour.set(isTurning ? '#00ff66' : '#ffcc66');
-          seg([a.xFt, a.yFt, z], out(a.headingRad + Math.PI + off, lengthFt));
+          const end = out(a.headingRad + Math.PI + off, lengthFt);
+          if (isTurning) end[2] = aircraftPose({ ...a, altAboveFt: (a.altAboveFt ?? 0) - lengthFt * Math.tan(TURNING_REJOIN.lineElevDeg * Math.PI / 180) }).z;
+          seg([a.xFt, a.yFt, z], end);
         }
       }
       // The circle each banked aircraft is flying now, as the 2D live view's (view.js drawBankCircles).
@@ -973,6 +985,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
         win.addEventListener('keydown', onWindowKeydown);
         zoomKey.start();
       }
+      hearCamBar(true);
       if (win.ResizeObserver && !resizer) {
         resizer = new win.ResizeObserver(() => requestDraw());
         resizer.observe(canvas);
@@ -987,6 +1000,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       win.removeEventListener?.('keydown', onWindowKeydown);
       zoomKey.stop();
       fovSlider.setShown(false);
+      hearCamBar(false);
       resizer?.disconnect();
       resizer = null;
     },
@@ -1007,6 +1021,7 @@ export function createView3d(canvas, { timers, source, overlay = null, onUserMov
       win.removeEventListener?.('keydown', onWindowKeydown);
       zoomKey.stop();
       fovSlider.setShown(false);
+      hearCamBar(false);
       resizer?.disconnect();
       resizer = null;
       for (const [type, fn] of hands) canvas.removeEventListener(type, fn);

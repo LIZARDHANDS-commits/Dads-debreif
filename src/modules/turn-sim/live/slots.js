@@ -68,10 +68,12 @@ export const LENGTH_FT = 33.4;
 export const ROUTE_SPANS = Object.freeze({ slot: 3, min: 1, max: 3 });
 
 /**
- * The spinner-to-wingtip line (SMM 12.4 paras 11-12, 12.6 para 15): from Lead's spinner, half a length ahead of his centre,
- * through his wingtip, half a span out, so it runs LENGTH_FT back for every WINGSPAN_FT out (about 45°). Echelon sits on it.
+ * The spinner-to-wingtip line (SMM 12.4 paras 11-12, 12.6 para 15): from Lead's spinner tip, 15.3 ft ahead of his centre,
+ * through his wingtip's leading edge, 3.0 ft ahead and 16.7 ft out (the CT-156 model's geometry, ct156-model.js; Fable's
+ * V2.234 flight report), so it runs 12.3 ft back for every 16.7 ft out (about 36° off his wing line). Echelon sits on it.
+ * Until V2.248 it ran a length back per span out (45°).
  */
-export const LINE_BACK_PER_OUT = LENGTH_FT / WINGSPAN_FT;
+export const LINE_BACK_PER_OUT = 12.3 / 16.7;
 
 /** The place alongFt further out along the spinner-to-wingtip line from `from` (a place on it), on side s. */
 export function downTheLine(from, s, alongFt) {
@@ -212,10 +214,13 @@ function link(key, s, spacingFt) {
     case 'lab': return { fwd: 0, left: s * spacingFt, alt: 0 };
     // the desired place setting (FW2's 750 ft at 45° by default, SMM 12.29 para 69); 60 ft below is an estimate
     case 'fw': return { fwd: -fwShape.rangeFt * Math.sin(fwShape.sweepDeg * DEG), left: s * fwShape.rangeFt * Math.cos(fwShape.sweepDeg * DEG), alt: -60 };
-    // about 45 ft out, 25 ft back, 5 ft down: estimates, the manual gives sight references (SMM 12.4 paras 11-12)
-    case 'echelon': return { fwd: -25, left: s * 45, alt: -5 };
+    // where the SMM's references put #2 (SMM 12.4 para 11, Figs 12.3-12.4): Lead's wingtip leading edge on his spinner, abeam
+    // the rudder hinge line, the wingtip on the spinner for height, worked through the CT-156 model's geometry: about 18 ft
+    // back, 43 ft out, 4 ft down, origin to origin (TS-182; Patrick 11 Oct 03:38Z "make the numbers work for that"). It was
+    // 25 back, 45 out, 5 down, an estimate that put Lead's wingtip ahead of the spinner.
+    case 'echelon': return { fwd: -18, left: s * 43, alt: -4 };
     // on the spinner-to-wingtip line, three wingspans further out along it than echelon (SMM 12.6 para 15, Fig 12.7;
-    // ROUTE_SPANS, TS-181; it was 5, TS-103): about 116 ft out and 96 ft back, level or slightly low
+    // ROUTE_SPANS, TS-181; it was 5, TS-103): about 124 ft out and 77 ft back, level or slightly low (TS-182)
     case 'route': return downTheLine(link('echelon', s, spacingFt), s, ROUTE_SPANS.slot * WINGSPAN_FT);
     // nose to tail about 10 ft (SMM 12.5 para 13): centre to centre is that plus a fuselage length; below the prop wash (estimate)
     case 'astern': return { fwd: -(LENGTH_FT + 10), left: 0, alt: -8 };

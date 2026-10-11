@@ -169,10 +169,20 @@ const STAB = [
 // swept back from 13.1 ft ahead of the tail at the root (T-6A-1 side drawing; was 4.5 ft and 0.7 ft further aft, off the
 // photo).
 const FIN = [{ le: -0.569, s: -0.03, chord: 0.168, t: 0.09, z: 0 }, { le: -0.6135, s: 0.232, chord: 0.086, t: 0.09, z: 0 }];
-// The dorsal fin, from the canopy's aft fairing into the fin's leading edge, 1.5 to 1.7 ft above the axis, and the
-// ventral fin under the tail, as [x, z] outlines (T-6A-1 side drawing; the ventral was 0.8 ft deeper, off the photo).
-const DORSAL = [[-0.28, 0.03], [-0.29, 0.066], [-0.6, 0.073], [-0.605, 0.0], [-0.3, 0.012]];
+// The ventral fin under the tail, as an [x, z] outline (T-6A-1 side drawing; was 0.8 ft deeper, off the photo).
 const VENTRAL = [[-0.49, -0.09], [-0.535, -0.155], [-0.675, -0.15], [-0.715, -0.07]];
+// The spine from inside the canopy's aft glass into the fin's leading edge, [x, half-width, top]: a rounded fairing on
+// the fuselage's top, its top line the T-6A-1 side drawing's (1.5 to 1.7 ft above the axis). It was a flat plate with
+// that outline, which read as a sheet standing on the fuselage (Patrick, 11 Oct 2026: "the paint is hanging off the
+// back"). The half-widths are estimates: the canopy's width where its glass ends, narrowing to the fin's thickness.
+const SPINE = [
+  [-0.265, 0.036, 0.068],
+  [-0.3, 0.035, 0.068],
+  [-0.38, 0.027, 0.069],
+  [-0.47, 0.018, 0.071],
+  [-0.55, 0.0095, 0.072],
+  [-0.6, 0.005, 0.073],
+];
 // The forward bow leans aft from its crest 9° to the sill, as the T-6A-1 side drawing shows it (was upright).
 export const CT156_BOW_LEAN = rad(9);
 /** A symmetric NACA 4-digit section's half-thickness at xc (0 the leading edge, 1 the trailing edge), per chord. */
@@ -321,16 +331,17 @@ function tailCanvas(number) {
     leaf(ctx, w * 0.36, h * 0.13, h * 0.085, '#d8202c');
     natoStar(ctx, w * 0.64, h * 0.13, h * 0.075);
     outlinedText(ctx, String(number), w / 2, h * 0.52, h * 0.66, 9);
-    // Canadian flag and the serial.
+    // Canadian flag and the serial, the two centred under the number.
     // Larger than before (TS-156), so a close wingman can read it: about 0.3 ft tall on the fin, an estimate.
     const fy = h * 0.9;
-    ctx.fillStyle = '#e4212d'; ctx.fillRect(w * 0.06, fy - 12, 40, 24);
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(w * 0.06 + 10, fy - 12, 20, 24);
-    leaf(ctx, w * 0.06 + 20, fy, 8, '#e4212d');
     ctx.font = '800 44px Arial, Helvetica, sans-serif';
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    const fx = (w - 48 - ctx.measureText(ct156Serial(number)).width) / 2;
+    ctx.fillStyle = '#e4212d'; ctx.fillRect(fx, fy - 12, 40, 24);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(fx + 10, fy - 12, 20, 24);
+    leaf(ctx, fx + 20, fy, 8, '#e4212d');
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(ct156Serial(number), w * 0.06 + 48, fy + 2);
+    ctx.fillText(ct156Serial(number), fx + 48, fy + 2);
   };
 }
 
@@ -344,6 +355,43 @@ function flatXZ(THREE, pts, thickness) {
   g.translate(0, 0, -thickness / 2);
   g.rotateX(Math.PI / 2); // (x, up) plate, thickness across y
   return g;
+}
+
+/**
+ * The spine (SPINE): rounded sections on the fuselage's top, flaring out at the foot into a fillet (by FLARE times the
+ * half-width, an estimate) that ends just under the skin, so it reads as one with the fuselage. Closed at each end.
+ */
+function spineGeometry(THREE) {
+  const N = 24, M = 16, n = 2.4, FLARE = 0.7; // n: a little boxier than an ellipse
+  const x0 = SPINE[0][0], x1 = SPINE[SPINE.length - 1][0];
+  const pos = [], idx = [];
+  const ring = (x) => {
+    const [, w, top] = rowAt(SPINE, x);
+    const foot = Math.min(w * (1 + FLARE), rowAt(STATIONS, x)[1] * 0.9);
+    const base = sillZ(x, foot) - 0.002;
+    const pts = [];
+    for (let k = 0; k <= M; k++) {
+      const c = Math.cos((k / M) * Math.PI), u = Math.sin((k / M) * Math.PI) ** (2 / n); // u: 0 at the foot, 1 on top
+      pts.push([x, Math.sign(c) * (w * Math.abs(c) ** (2 / n) + (foot - w) * (1 - u) ** 3), base + (top - base) * u]);
+    }
+    return { pts, base };
+  };
+  for (let i = 0; i <= N; i++) for (const p of ring(x0 + ((x1 - x0) * i) / N).pts) pos.push(...p);
+  for (let i = 0; i < N; i++) {
+    for (let k = 0; k < M; k++) {
+      const a = i * (M + 1) + k, b = a + 1, c = a + M + 1, d = c + 1;
+      idx.push(a, c, b, b, c, d);
+    }
+  }
+  // Each end its own flat face (its own corners, so the shading doesn't round over the edge).
+  for (const [x, front] of [[x0, true], [x1, false]]) {
+    const { pts, base } = ring(x);
+    const centre = pos.length / 3;
+    pos.push(x, 0, base);
+    for (const p of pts) pos.push(...p);
+    for (let k = 1; k <= M; k++) idx.push(...(front ? [centre, centre + k, centre + k + 1] : [centre, centre + k + 1, centre + k]));
+  }
+  return meshOf(THREE, pos, idx);
 }
 
 /** An indexed geometry from points and triangles, smooth-shaded. */
@@ -718,7 +766,7 @@ function buildKit(THREE) {
   // The camera's own ship only (setCockpitView): the fuselage open over the cockpit, and the tub under it (TS-155).
   geo.fuselageCut = fuselageGeometry(THREE, { cut: true });
   geo.tub = tubGeometry(THREE);
-  // Wings, tailplane and ventral fin in one geometry (the wings' leading edges a second slot), so the
+  // Wings, tailplane, ventral fin and spine in one geometry (the wings' leading edges a second slot), so the
   // airframe is one draw call; the dihedral is built in.
   const wing = (side) => {
     const g = airfoilGeometry(THREE, side > 0 ? WING : WING.map((s) => ({ ...s, s: -s.s })).reverse(), { leBand: 0.07 });
@@ -730,7 +778,7 @@ function buildKit(THREE) {
     { geometry: wing(-1), materials: [0, 1] },
     { geometry: airfoilGeometry(THREE, STAB), materials: [0] },
     { geometry: flatXZ(THREE, VENTRAL, 0.01), materials: [0] },
-    { geometry: flatXZ(THREE, DORSAL, 0.012), materials: [0] },
+    { geometry: spineGeometry(THREE), materials: [0] },
   ]);
   geo.fin = airfoilGeometry(THREE, FIN, { span: 'z' });
   geo.canopy = canopyGeometry(THREE);
@@ -813,7 +861,10 @@ function buildKit(THREE) {
     triB: both((side) => patch(THREE, -0.151, -0.016, 0.022, 0.022, side, fuseSurf)),
     triC: both((side) => patch(THREE, -0.033, -0.016, 0.015, 0.015, side, fuseSurf)),
     nose: both((side) => patch(THREE, 0.425, cheatZ(0.425), 0.036, 0.045, side, fuseSurf)),
-    tail: both((side) => patch(THREE, -0.687, 0.108, 0.105, 0.165, side, finSurf)),
+    // Centred on the fin's mid-chord (nearly upright, the leading edge swept back and the trailing edge forward) and on
+    // the fin above the tail cone (Patrick, 11 Oct 2026: "central on the vertical stab, not right on the edge"; was 0.03
+    // units aft, at the trailing edge).
+    tail: both((side) => patch(THREE, -0.655, 0.115, 0.105, 0.165, side, finSurf)),
     // Upper left wing: seen from above, nose up, right = -Y.
     roundelWing: wingPatch(THREE, 0.04, 0.42, 0.14, 0.14, [0, -1], [1, 0], 1, DIHEDRAL),
     // Under the right wing: seen from below with the nose up, it reads left to right.
@@ -851,6 +902,9 @@ function buildKit(THREE) {
     helmet: mat({ color: '#d4d8de', roughness: 0.35 }),
     blade: mat({ color: '#0a0c10', roughness: 0.6 }),
     tip: mat({ color: '#d2202c', roughness: 0.5 }),
+    // The turning prop's blades, half see-through so they read as a blur (PROP_TURN).
+    propBlade: mat({ color: '#0a0c10', roughness: 0.6, transparent: true, opacity: 0.45, depthWrite: false, side: two }),
+    propTip: mat({ color: '#d2202c', roughness: 0.5, transparent: true, opacity: 0.55, depthWrite: false, side: two }),
     disc: keep(new THREE.MeshBasicMaterial({ color: '#dcebff', transparent: true, opacity: 0.06, side: THREE.DoubleSide, depthWrite: false, fog: false })),
     // The position lights, lit whatever the sun (TS-156): red, green, white.
     lights: ['#ff2b2b', '#2bff6a', '#ffffff'].map((color) => keep(new THREE.MeshBasicMaterial({ color, fog: false }))),
@@ -869,14 +923,34 @@ function getKit(THREE) {
 
 // ---------- near and far ----------
 
-/** How long the aircraft looks on screen, in CSS pixels, from this camera. */
+/**
+ * How long the aircraft looks on screen, in CSS pixels, from this camera. Its length is the scaled group's (lengthFt), so
+ * a ship built at its real length shows its detail as close as one scaled from outside.
+ */
 function onScreenPx(THREE, obj, camera, renderer) {
   const size = renderer.getSize(new THREE.Vector2());
-  const lengthWorld = CT156_UNIT_LENGTH * obj.matrixWorld.getMaxScaleOnAxis();
+  const lengthWorld = CT156_UNIT_LENGTH * (obj.userData.ct156?.g ?? obj).matrixWorld.getMaxScaleOnAxis();
   if (camera.isOrthographicCamera) return (lengthWorld * camera.zoom * size.y) / Math.max(camera.top - camera.bottom, 1e-9);
   const eye = new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld);
   const d = eye.distanceTo(new THREE.Vector3().setFromMatrixPosition(obj.matrixWorld));
   return (lengthWorld * size.y * (camera.zoom ?? 1)) / (2 * Math.max(d, 1e-9) * Math.tan(rad(camera.fov ?? 50) / 2));
+}
+
+/**
+ * The prop turns whenever the ship is drawn (Patrick, 11 Oct 2026: "make sure the prop is spinning"), clockwise from the
+ * seat. Its real speed, about 2,000 RPM (33 turns a second; an estimate until a manual page backs it), can't be shown
+ * at 60 pictures a second (the four blades would seem to stand still or run backwards), so it turns at most stepDeg a
+ * picture, which reads as fast and forward, its blades half see-through over the faint disc.
+ */
+export const PROP_TURN = Object.freeze({ revPerSec: 2000 / 60, stepDeg: 30 });
+function turnProp(root) {
+  const d = root.userData.ct156;
+  const now = globalThis.performance?.now?.() ?? Date.now();
+  const dt = d.propAt === null ? 0 : Math.max(0, now - d.propAt) / 1000;
+  d.propAt = now;
+  d.propTurn = (d.propTurn + Math.min(dt * PROP_TURN.revPerSec * 2 * Math.PI, rad(PROP_TURN.stepDeg))) % (2 * Math.PI);
+  if (d.prop) d.prop.rotation.x = rad(22) + d.propTurn;
+  if (d.disc) d.disc.rotation.x = d.propTurn;
 }
 
 /** Shows or hides a ship's fine detail by its size on screen, with a gap between the two numbers so it doesn't flicker. */
@@ -901,7 +975,10 @@ function watchScene(THREE, scene) {
     before.call(this, renderer, s, camera, target);
     for (const ship of ships) {
       if (!ship.userData.ct156) ships.delete(ship);
-      else setDetail(THREE, ship, camera, renderer);
+      else {
+        setDetail(THREE, ship, camera, renderer);
+        turnProp(ship);
+      }
     }
   };
 }
@@ -934,7 +1011,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     return m;
   };
 
-  let fuselage, canopy, helmetFront = null, helmetRear = null, floor = null, prop = null, bowFront = null;
+  let fuselage, canopy, helmetFront = null, helmetRear = null, floor = null, prop = null, bowFront = null, disc = null;
   if (paint === 'ship') {
     const base = new THREE.Color(color);
     const m = (c, extra) => own(new THREE.MeshStandardMaterial({ color: c, roughness: 0.45, metalness: 0.1, envMap: mats.env, envMapIntensity: 0.4, side: THREE.DoubleSide, fog: false, ...extra }));
@@ -955,7 +1032,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     const serialTex = own(canvasTexture(THREE, 320, 512, serialCanvas(number)));
     const serialMat = own(new THREE.MeshBasicMaterial({ map: serialTex, transparent: true, side: THREE.DoubleSide, depthWrite: false, fog: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
     for (const s of ['1', '-1']) add(decalGeo.tail[s], serialMat, detail);
-    add(geo.disc, mats.disc);
+    disc = add(geo.disc, mats.disc);
   } else {
     const num = String(number ?? '');
     const wingTex = own(canvasTexture(THREE, 384, 128, (ctx, w, h) => outlinedText(ctx, `12${num}`, w / 2, h / 2, h * 0.86, 5)));
@@ -974,7 +1051,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     add(geo.cheat, mats.cheat);
     add(geo.spinner, mats.chrome);
     add(geo.spinnerRing, mats.blade);
-    add(geo.disc, mats.disc);
+    disc = add(geo.disc, mats.disc);
     // Up close only: the decals, the cockpit, the frames, the exhausts and the blades.
     add(decalGeo.roundelWing, mats.roundel, detail);
     add(decalGeo.wingNum, decal(wingTex), detail);
@@ -998,8 +1075,8 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     helmetRear = add(geo.helmetRear, mats.helmet, detail);
     prop = new THREE.Group();
     prop.rotation.x = rad(22);
-    add(geo.blade, mats.blade, prop);
-    add(geo.bladeTip, mats.tip, prop);
+    add(geo.blade, mats.propBlade, prop);
+    add(geo.bladeTip, mats.propTip, prop);
     detail.add(prop);
     // The glass last, so the cockpit shows through it.
     canopy = add(geo.canopy, mats.glass);
@@ -1009,8 +1086,9 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     watchScene(THREE, scene);
     scene?.userData?.ct156Ships?.add(root);
     setDetail(THREE, root, camera, renderer);
+    turnProp(root);
   };
-  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, helmetFront, helmetRear, floor, prop, bowFront, inside: null };
+  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, helmetFront, helmetRear, floor, prop, disc, bowFront, inside: null, propTurn: 0, propAt: null };
   return root;
 }
 

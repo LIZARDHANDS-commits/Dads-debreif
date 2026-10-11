@@ -557,7 +557,8 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     const rangeFt = Math.hypot(W.xFt - L.xFt, W.yFt - L.yFt);
     // The angle is held from the end of the capture's own height leg, not only once the ride is established: until V2.234
     // the floor ruled in between, so far out he sat 50 ft low, not the 70-140 ft the 4° gives (Fable's V2.232 audit).
-    const depthFt = Math.max(-TR.lineUpFt, rangeFt * Math.tan(TR.lineElevDeg * DEG));
+    // A phase may cap the depth (slopedMaxFt): the turning rejoin's reversal, so the 4° only ever brings him up (TS-182).
+    const depthFt = Math.min(ph.slopedMaxFt ?? Infinity, Math.max(-TR.lineUpFt, rangeFt * Math.tan(TR.lineElevDeg * DEG)));
     const targetAlt = ph.slopedAlt ? (L.altAboveFt ?? 0) - depthFt : slotAltOf(ph, L, W);
     const D = FW_BUBBLE;
     // One smooth change, stopping on the target as he gets there: on the line within heightG of level flight (TS-140), onto
@@ -948,7 +949,8 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
         k++;
         const next = phases[k];
         const R2 = recOf(next);
-        if (ph.kind === 'line' || ph.kind === 'ride') {
+        // handOverHere: a pursuit phase ending where the next slot leg takes over (turning-rejoin.js frozenPhase).
+        if (ph.kind === 'line' || ph.kind === 'ride' || ph.handOverHere) {
           const L2 = R2.at(m);
           const relNow = relativeTo(L2, W);
           Object.assign(ref, { f: relNow.fwd, l: relNow.left, vf: 0, vl: 0 });
@@ -1024,7 +1026,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     });
 
     const stepProfile = stepProfileOwn ?? height.stepProfile ?? (heightState.activeLeg ? [heightState.activeLeg] : profile);
-    const flown = pilotFly(pilot, W, bank, t, stepProfile, power.accel);
+    const flown = pilotFly(pilot, W, bank, t, stepProfile, power.accel, ph.roll);
     heightState.table.alt.push(W.altAboveFt);
     heightState.table.climb.push(W.climbFtps);
     heightState.table.nz.push(W.nz);

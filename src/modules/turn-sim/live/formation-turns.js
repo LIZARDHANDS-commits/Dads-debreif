@@ -334,7 +334,19 @@ export const CLOSE_TURN = Object.freeze({
   powerG: 0.1,
   onsetGps: 4,
   holdPerSec: 2.5,
+  /**
+   * His roll, rate and onset, is Lead's close-turn roll (closeTurnRoll) times this (estimate; Fable's V2.234 flight report,
+   * Patrick 11 Oct 03:40Z: "the target bank angle and roll rate should be proportional to the desired change ... it should
+   * be very smooth in close form"). Until V2.245 only the 4 G/s onset limited his path, a lift-vector swing of about
+   * 230°/s, so his roll snapped 13 to 31 to 13°/s each time Lead's roll started or stopped.
+   */
+  rollMargin: 1.5,
+  /** The most bank off Lead's he uses to slide across Lead's wing line (estimate), the slide in proportion to the gap below it. */
+  sideBankDeg: 15,
 });
+
+/** A close wingman's roll: Lead's close roll (rate and onset) times CLOSE_TURN.rollMargin. */
+export const closeWingRoll = (leadRoll) => ({ maxRateDps: leadRoll.maxRateDps * CLOSE_TURN.rollMargin, maxAccelDps2: leadRoll.maxAccelDps2 * CLOSE_TURN.rollMargin });
 
 /** The formations whose turns are flown in Lead's wing plane, 2-ship and 4-ship (spec section 10.2). */
 export const CLOSE_TURN_FORMATIONS = Object.freeze({ 2: ['echelon', 'route', 'astern'], 4: ['finger', 'echelon', 'box', 'trail', 'route'] });
@@ -346,9 +358,10 @@ export const TURN_FORMATIONS = Object.freeze({ 2: ['fw', ...CLOSE_TURN_FORMATION
  * place in Lead's wing plane { fwd, left, up }. His place moves as Lead turns and rolls; he follows it with his own G, at most
  * CLOSE_TURN.followG away from Lead's and building at CLOSE_TURN.onsetGps, and closes what is left at CLOSE_TURN.holdPerSec.
  * Flown from the press until Lead has finished (leadSteps) and the wingman is back on his place. Returns { rel: [{ x, y, z }] },
- * his offset from Lead in the world at steps 0..n.
+ * his offset from Lead in the world at steps 0..n. bodyAt(i), when given, is a place that moves step by step (the turning
+ * rejoin's way from the decision point through route into echelon, TS-182), body the last of it.
  */
-export function holdInPlane(leadRec, lead, wing, body, leadSteps) {
+export function holdInPlane(leadRec, lead, wing, body, leadSteps, bodyAt = null) {
   const dt = STEP_SEC;
   const upMost = CLOSE_TURN.followG * G_FTPS2;
   const powerMost = CLOSE_TURN.powerG * G_FTPS2;
@@ -356,7 +369,8 @@ export function holdInPlane(leadRec, lead, wing, body, leadSteps) {
   const k = CLOSE_TURN.holdPerSec;
   const placeAt = (i) => {
     const L = leadRec.at(Math.max(0, i));
-    const p = slotInWorld(L, body.fwd, body.left, body.up, 1);
+    const b = bodyAt ? bodyAt(Math.max(0, i)) : body;
+    const p = slotInWorld(L, b.fwd, b.left, b.up, 1);
     return [p.x - L.xFt, p.y - L.yFt, p.z - L.altAboveFt];
   };
   const vel = (a) => [Math.cos(a.headingRad) * a.tasFtps, Math.sin(a.headingRad) * a.tasFtps, a.climbFtps ?? 0];
@@ -394,7 +408,7 @@ export function holdInPlane(leadRec, lead, wing, body, leadSteps) {
     };
     const up = along(2, upMost);
     const lift = Math.max(0, G_FTPS2 / Math.cos(phi) + up); // his lift: Lead's (level turn) and the part he adds or takes off
-    const parts = [along(0, powerMost), along(1, Infinity, CLOSE_TURN.sidePerSec), up];
+    const parts = [along(0, powerMost), along(1, G_FTPS2 * Math.tan(CLOSE_TURN.sideBankDeg * DEG), CLOSE_TURN.sidePerSec), up];
     const cmd = [0, 1, 2].map((j) => axes[0][j] * parts[0] + axes[1][j] * parts[1] + axes[2][j] * parts[2]);
     const step = cmd.map((c, j) => c - acc[j]);
     const jump = Math.hypot(...step);
@@ -411,8 +425,11 @@ export function holdInPlane(leadRec, lead, wing, body, leadSteps) {
   return { rel };
 }
 
-/** A held wingman's poses for steps 1..n: his offsets from Lead (holdInPlane's rel) laid on Lead's flight, his bank his own. */
-export function heldPoses(leadRec, wing, rel, n) {
+/**
+ * A held wingman's poses for steps 1..n: his offsets from Lead (holdInPlane's rel) laid on Lead's flight, his bank his own,
+ * rolled at no more than roll (Lead's close roll times CLOSE_TURN.rollMargin).
+ */
+export function heldPoses(leadRec, wing, rel, n, roll = closeWingRoll(CLOSE_TURN.leadRoll)) {
   const track = makeTrack(n);
   seedTrack(track, wing);
   for (let k = 1; k <= n + TRACK_PAD; k++) {
@@ -422,7 +439,7 @@ export function heldPoses(leadRec, wing, rel, n) {
   }
   const line = posesFrom(track, wing.kias / wing.tasFtps);
   ownBank(line.poses);
-  rollFrom(line.poses, wing);
+  rollFrom(line.poses, wing, roll);
   settleLast(line.poses, leadRec.at(n));
   return line.poses;
 }
@@ -433,13 +450,13 @@ export function heldPoses(leadRec, wing, rel, n) {
  * (a press mid-turn, replan.js slideInPlane) has no step in the bank: the path's own bank (ownBank) is reached within a
  * fraction of a second and then followed, never faster than that roll. The positions are the path's.
  */
-function rollFrom(poses, wing) {
+function rollFrom(poses, wing, spec = ROLL) {
   let bank = wing.bankDeg ?? 0;
   let rate = wing.rollRateDps ?? 0;
   for (const p of poses) {
     const want = p.bank;
-    const roll = rollLimitAt(p.tas, ROLL);
-    ({ bankDeg: bank, rollRateDps: rate } = gateRoll(bank, rate, want, STEP_SEC, ROLL, p.tas, wing.kias));
+    const roll = rollLimitAt(p.tas, spec);
+    ({ bankDeg: bank, rollRateDps: rate } = gateRoll(bank, rate, want, STEP_SEC, spec, p.tas, wing.kias));
     if (Math.abs(bank - want) < 1e-6 && Math.abs(rate - p.roll) < roll.maxAccelDps2 * STEP_SEC) {
       bank = want;
       rate = p.roll;
@@ -532,7 +549,7 @@ export function planCloseTurn(aircraft, formation, key, dir, t0 = 0, side = unde
   const held = aircraft.slice(1).map((wing) => ({ wing, ...holdInPlane(leadRec, lead, wing, bodies.get(wing.id), leadSteps) }));
   const n = held.reduce((m, h) => Math.max(m, h.rel.length - 1), leadSteps);
   for (const { wing, rel } of held) {
-    const poses = heldPoses(leadRec, wing, rel, n);
+    const poses = heldPoses(leadRec, wing, rel, n, closeWingRoll(roll));
     plans[wing.id] = { segments: [{ kind: 'poseTrack', poses }] };
     for (const p of poses) maxBankDeg = Math.max(maxBankDeg, Math.abs(p.bank));
   }
@@ -596,7 +613,7 @@ export function closeTurnRoll(base, bodies) {
 
 /** The bank off Lead's that Lead's roll rate leaves his farthest wingman needing to hold his place across Lead's wing line (estimate). */
 const ROLL_WITH_DEG = 5;
-/** How far the 2-ship's #2 is from Lead in echelon, ft (slots.js: 25 ft back, 45 ft out, 5 ft down), the reference for closeTurnRoll. */
+/** How far the 2-ship's #2 is from Lead in echelon, ft (slots.js: 18 ft back, 43 ft out, 4 ft down), the reference for closeTurnRoll. */
 const ECHELON_REF_FT = (() => { const e = slotsFor('echelon', 1)[2]; return Math.hypot(e.fwd, e.left, e.alt); })();
 
 /**
