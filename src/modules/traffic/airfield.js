@@ -7,19 +7,12 @@
 // The coordinates are true feet (TR-67, Patrick 5 Oct 00:27Z: V6's hand-drawn,
 // 1.2 times stretched routes dropped and rebuilt from the manuals).
 
-/**
- * Runway 29L threshold bar, map feet (data/moose-jaw.json point 0), measured on
- * Esri's true-scale photo (about ±10 ft; TR-67).
- */
-export const THRESHOLD_29L = Object.freeze({ x: 2796, y: -2776 });
-
-/**
- * Runway 29L number base, map feet: where the 3° glide path ends, the aim point (Patrick, 6 Oct 06:33Z: "three degree
- * goes to the base of the numbers"). Patrick's point, 50.322977 N 105.547962 W (5 Oct 00:35Z), lies on the centreline
- * 207 ft past the threshold bar on Esri's true-scale photo.
- */
-export const NUMBER_BASE_29L = Object.freeze({ x: 2614, y: -2677 });
-export const NUMBER_BASE_PAST_THRESHOLD_FT = 207;
+// Patrick's measured runway points (the 29L, 29R and 03/21 ends, the 29L number base and the runway widths) live in the shared
+// src/airfields/cymj-runways.js, the one copy (Patrick, 11 Oct 2026 20:47Z); the SOF's and the Debrief's runway list reads the same file.
+export {
+  THRESHOLD_29L, NUMBER_BASE_29L, NUMBER_BASE_PAST_THRESHOLD_FT, DEPARTURE_END_29L, THRESHOLD_29R, DEPARTURE_END_29R, RUNWAY_03, RUNWAY_21,
+  RUNWAY_WIDTH_FT,
+} from '../../airfields/cymj-runways.js';
 
 /**
  * The flare: rounded out from this height above the runway, ft (an estimate, just before the threshold on the 3°
@@ -28,29 +21,6 @@ export const NUMBER_BASE_PAST_THRESHOLD_FT = 207;
  */
 export const FLARE_FROM_FT = 15;
 export const TOUCHDOWN_PAST_NUMBERS_FT = 400;
-
-/**
- * Runway 29L departure end (the 11R threshold bar), map feet (data/moose-jaw.json
- * point 1), measured the same way: 7,250 ft from the 29L threshold at 298.6° true.
- * The CAP aerodrome chart gives 7,280 ft (TR-67).
- */
-export const DEPARTURE_END_29L = Object.freeze({ x: -3572, y: 690 });
-
-/**
- * Runway 29R threshold bar and its departure end (the 11L threshold bar), map feet, measured on Esri's true-scale
- * photo (about ±15 ft; 5 Oct): 8,260 ft at 298.6° true, about 1,800 ft north-east of 29L. Drawn only (the 3D slab
- * and the painted ground); no route uses 29R.
- */
-export const THRESHOLD_29R = Object.freeze({ x: 3622, y: -1189 });
-export const DEPARTURE_END_29R = Object.freeze({ x: -3628, y: 2769 });
-
-/**
- * Crossing runway 03/21, map feet: the NE-SW strip between 29L and the taxiway north of 29R, measured on Esri's true-scale
- * photo (about ±15 ft; 5 Oct). The 03 end is on the 29L centreline; about 3,060 ft at 44° true (35°M). Patrick named it
- * runway 03/21 (5 Oct 03:11Z; the NNW-SSE strip west of it is taxiway Echo). Drawn only; no route uses it.
- */
-export const RUNWAY_03 = Object.freeze({ x: 55, y: -1284 });
-export const RUNWAY_21 = Object.freeze({ x: 2175, y: 929 });
 
 /**
  * The taxi-in after a full stop on 29L (Patrick, 10 Oct 20:38Z: to the end of the runway, off along the taxi lines,
@@ -68,9 +38,6 @@ export const TAXI_IN_29L = Object.freeze([
   Object.freeze({ x: 560, y: 1830, tag: 'ramp' }),
   Object.freeze({ x: 560, y: 1990, tag: 'bandit_hangar' }),
 ]);
-
-/** Runway widths, ft: 29L 150 (the painted ground's figure, which the photo matches), 29R about 150 (measured on Esri's photo, 6 Oct; was 200), 03/21 about 100 (photo). Estimates. */
-export const RUNWAY_WIDTH_FT = Object.freeze({ '29L': 150, '29R': 150, '03': 100 });
 
 /**
  * Runway 29L heading, degrees true: Patrick's CYMJ ground truth (D373, D378; TR-24), the same as the CAP chart's

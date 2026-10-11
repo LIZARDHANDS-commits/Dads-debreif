@@ -49,6 +49,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   followLead: false,
   // GPS gaps drawn as a best guess in a shaded zone (DB-19, DB-20; on at load, DB-Q21). Off: the broken line as before.
   fillGaps: true,
+  smoothG: false, // "Smooth G (3-point median)": off at first, verdicts stay on the raw G (Patrick, 11 Oct 2026 20:47Z, DB-Q4)
   // Airspace and airfields round the flight, in 2D and 3D (DB-24): the SOF's airspace off at first (a clean picture; it
   // covers the screen in the overview), the airfields on (flat on the ground, little clutter). airspaceHidden: the kinds
   // hidden, as the shared filter's keys joined with commas ("moa,mtr").
