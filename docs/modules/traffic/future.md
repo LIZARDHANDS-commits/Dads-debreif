@@ -28,6 +28,7 @@ Ideas for the Traffic Sim that are not being built. An idea moves into `plan.md`
 
 ## Asked for by Patrick and built straight away (4 Oct 2026)
 
+- A camera button (🎥) on each aircraft card that puts the 3D view in its cockpit (11 Oct 01:51Z; V2.237).
 - High Key from anywhere: a flown climb onto the run-in (09:14Z; merged in #259).
 - An Aircraft size slider under settings, starting at "Realistic" (10:06Z; #259).
 - The sim's name in the top left: "Pat's CYMJ Traffic & Pattern Simulator" (10:09Z; #259).

@@ -630,9 +630,10 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
         // A PFL in yellow (Patrick, 4 Oct); a crash short stays red.
         const badgeClass = pflBadge === '[CRASH SHORT]' ? 'pfl-badge badge-crash' : (row.engineFailed || pflBadge.startsWith('[PFL')) ? 'pfl-badge badge-pfl' : 'pfl-badge';
         const nameChildren = [swatch, h('strong', {}, row.id), ' ', h('span', { class: badgeClass }, pflBadge)];
-        // Camera: the 3D view from this aircraft's cockpit (Patrick, 11 Oct 01:51Z), on every flying card.
+        // Camera: the 3D view from this aircraft's cockpit (Patrick, 11 Oct 01:51Z), on every flying card, as a little
+        // video camera picture (02:11Z).
         if (row.status === 'flying' && onCockpitCamera) {
-          const cameraBtn = makeActionButton('Camera', `Camera: the 3D view from ${row.id}'s cockpit`, () => onCockpitCamera(row.id), false, 'aircraft-camera');
+          const cameraBtn = makeActionButton('🎥', `Camera: the 3D view from ${row.id}'s cockpit`, () => onCockpitCamera(row.id), false, 'aircraft-camera');
           cameraBtn.setAttribute('aria-label', `Camera in ${row.id}'s cockpit`);
           nameChildren.push(cameraBtn);
         }

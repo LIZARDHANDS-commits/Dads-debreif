@@ -1138,6 +1138,10 @@
 [data-module='traffic'] .aircraft-name > .aircraft-camera {
   flex: none;
   margin-left: auto;
+  border: 0;
+  background: transparent;
+  font-size: 0.9rem;
+  padding: 0 var(--space-1);
 }
 
 [data-module='traffic'] .aircraft-camera + .aircraft-remove {
