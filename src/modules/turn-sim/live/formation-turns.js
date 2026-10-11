@@ -345,6 +345,12 @@ export const CLOSE_TURN = Object.freeze({
   sideBankDeg: 15,
 });
 
+/**
+ * A close wingman's catch-up roll (estimates): his roll limit (rate and onset) grows smoothly with how far he is behind Lead's
+ * bank, to mult times the smooth roll at fullDeg behind (rollFrom).
+ */
+const CATCH_UP = Object.freeze({ fullDeg: 15, mult: 3 });
+
 /** A close wingman's roll: Lead's close roll (rate and onset) times CLOSE_TURN.rollMargin. */
 const closeWingRoll = (leadRoll) => ({ maxRateDps: leadRoll.maxRateDps * CLOSE_TURN.rollMargin, maxAccelDps2: leadRoll.maxAccelDps2 * CLOSE_TURN.rollMargin });
 
@@ -440,7 +446,7 @@ export function heldPoses(leadRec, wing, rel, n, roll = closeWingRoll(CLOSE_TURN
   }
   const line = posesFrom(track, wing.kias / wing.tasFtps);
   ownBank(line.poses);
-  rollFrom(line.poses, wing, roll);
+  rollFrom(line.poses, wing, roll, { roll: ROLL, leadBank: (k) => leadRec.at(k).bankDeg ?? 0 });
   settleLast(line.poses, leadRec.at(n));
   return line.poses;
 }
@@ -451,13 +457,22 @@ export function heldPoses(leadRec, wing, rel, n, roll = closeWingRoll(CLOSE_TURN
  * (a press mid-turn, replan.js slideInPlane) has no step in the bank: the path's own bank (ownBank) is reached within a
  * fraction of a second and then followed, never faster than that roll. The positions are the path's.
  */
-function rollFrom(poses, wing, spec = ROLL) {
+function rollFrom(poses, wing, spec = ROLL, catchUp = null) {
   let bank = wing.bankDeg ?? 0;
   let rate = wing.rollRateDps ?? 0;
-  for (const p of poses) {
+  for (const [i, p] of poses.entries()) {
+    const k = i + 1;
     const want = p.bank;
-    const roll = rollLimitAt(p.tas, spec);
-    ({ bankDeg: bank, rollRateDps: rate } = gateRoll(bank, rate, want, STEP_SEC, spec, p.tas, wing.kias));
+    // Patrick 11 Oct 2026 20:26Z: "wingmen do what they NEED TO DO to stay in position", 20:34Z "he SHOULD do it smoothly
+    // though", 20:35Z "a smaller change, earlier, is almost always better": the smooth roll is a target. As he falls behind
+    // Lead's bank his roll limit grows with it, smoothly from the first degree, to CATCH_UP.mult times the smooth roll at
+    // CATCH_UP.fullDeg (never past catchUp.roll, the aircraft's own), and eases back as he catches up. Until V2.333 the smooth
+    // roll was a wall: pressed the moment a change ended, #4 in a 4-ship echelon hook fell 19° behind Lead's roll-in.
+    const u = catchUp ? Math.min(1, Math.abs(catchUp.leadBank(k) - bank) / CATCH_UP.fullDeg) : 0;
+    const mult = 1 + u * u * (3 - 2 * u) * (CATCH_UP.mult - 1);
+    const stepSpec = mult > 1 ? { ...spec, maxRateDps: Math.min(catchUp.roll.maxRateDps, spec.maxRateDps * mult), maxAccelDps2: Math.min(catchUp.roll.maxAccelDps2, spec.maxAccelDps2 * mult) } : spec;
+    const roll = rollLimitAt(p.tas, stepSpec);
+    ({ bankDeg: bank, rollRateDps: rate } = gateRoll(bank, rate, want, STEP_SEC, stepSpec, p.tas, wing.kias));
     if (Math.abs(bank - want) < 1e-6 && Math.abs(rate - p.roll) < roll.maxAccelDps2 * STEP_SEC) {
       bank = want;
       rate = p.roll;
