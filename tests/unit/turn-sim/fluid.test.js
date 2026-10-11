@@ -393,3 +393,29 @@ test('at a long distance setting #2 lets the range open in the wingovers and the
     assert.deepEqual(failures.slice(0, 5), [], key);
   }
 });
+
+test('Live #2 (TS-194): in a steady level turn he holds about 15° off Lead\'s tail at the distance set, nothing jumps, and Terminate brings him back to fighting wing', () => {
+  // The brief's first check of the live wingman (spec section 9): a steady level turn at MAX, 15° off the tail (Patrick
+  // 22:28Z, shared ±5°) at the distance set (600 ft, Patrick 19:20Z row 3, shared ±100 ft), with what is always true in
+  // fluid (positive G, no jumps, roll within 90°/s, outside the bubble, behind the 3/9 line); then Terminate ends in the
+  // fighting wing band. 30 s for the entry, 30 s for the turn to steady and 2 minutes for Terminate are generous limits.
+  const f = inFightingWing();
+  f.setFluid({ wing: 'live' });
+  assert.equal(f.change('fluid'), 'started');
+  const failures = [];
+  const watch = alwaysTrue(failures);
+  fly(f, 30, watch);
+  assert.equal(f.pressFluid('levelTurn', 1), 'started');
+  fly(f, 30, watch);
+  assert.ok(f.state.aircraft[0].bankDeg > 45, `Lead in a left turn, bank ${Math.round(f.state.aircraft[0].bankDeg)}`);
+  assertBackInTheCone(f, 'Live, in the steady turn');
+  // #2's checks only: Lead's roll into a left level turn reaches about 113°/s with either wingman, Planned or Live (seen
+  // on V2.338 and later, Lead's flying, not this test's subject); it is on the turn-sim future.md list.
+  assert.deepEqual(failures.filter((x) => !x.startsWith('Lead')).slice(0, 5), []);
+  assert.equal(f.pressFluid('terminate'), 'started');
+  fly(f, 120);
+  assert.equal(f.state.fluid, null);
+  assert.equal(f.where().key, 'fw');
+  const [lead, wing] = f.state.aircraft;
+  assert.ok(judgeFormation('fw', lead, wing).inBand);
+});
