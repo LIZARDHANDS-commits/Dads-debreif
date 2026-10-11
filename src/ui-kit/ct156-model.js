@@ -902,6 +902,9 @@ function buildKit(THREE) {
     helmet: mat({ color: '#d4d8de', roughness: 0.35 }),
     blade: mat({ color: '#0a0c10', roughness: 0.6 }),
     tip: mat({ color: '#d2202c', roughness: 0.5 }),
+    // The turning prop's blades, half see-through so they read as a blur (PROP_TURN).
+    propBlade: mat({ color: '#0a0c10', roughness: 0.6, transparent: true, opacity: 0.45, depthWrite: false, side: two }),
+    propTip: mat({ color: '#d2202c', roughness: 0.5, transparent: true, opacity: 0.55, depthWrite: false, side: two }),
     disc: keep(new THREE.MeshBasicMaterial({ color: '#dcebff', transparent: true, opacity: 0.06, side: THREE.DoubleSide, depthWrite: false, fog: false })),
     // The position lights, lit whatever the sun (TS-156): red, green, white.
     lights: ['#ff2b2b', '#2bff6a', '#ffffff'].map((color) => keep(new THREE.MeshBasicMaterial({ color, fog: false }))),
@@ -930,6 +933,23 @@ function onScreenPx(THREE, obj, camera, renderer) {
   return (lengthWorld * size.y * (camera.zoom ?? 1)) / (2 * Math.max(d, 1e-9) * Math.tan(rad(camera.fov ?? 50) / 2));
 }
 
+/**
+ * The prop turns whenever the ship is drawn (Patrick, 11 Oct 2026: "make sure the prop is spinning"), clockwise from the
+ * seat. Its real speed, about 2,000 RPM (33 turns a second; an estimate until a manual page backs it), can't be shown
+ * at 60 pictures a second (the four blades would seem to stand still or run backwards), so it turns at most stepDeg a
+ * picture, which reads as fast and forward, its blades half see-through over the faint disc.
+ */
+export const PROP_TURN = Object.freeze({ revPerSec: 2000 / 60, stepDeg: 30 });
+function turnProp(root) {
+  const d = root.userData.ct156;
+  const now = globalThis.performance?.now?.() ?? Date.now();
+  const dt = d.propAt === null ? 0 : Math.max(0, now - d.propAt) / 1000;
+  d.propAt = now;
+  d.propTurn = (d.propTurn + Math.min(dt * PROP_TURN.revPerSec * 2 * Math.PI, rad(PROP_TURN.stepDeg))) % (2 * Math.PI);
+  if (d.prop) d.prop.rotation.x = rad(22) + d.propTurn;
+  if (d.disc) d.disc.rotation.x = d.propTurn;
+}
+
 /** Shows or hides a ship's fine detail by its size on screen, with a gap between the two numbers so it doesn't flicker. */
 function setDetail(THREE, root, camera, renderer) {
   const d = root.userData.ct156;
@@ -952,7 +972,10 @@ function watchScene(THREE, scene) {
     before.call(this, renderer, s, camera, target);
     for (const ship of ships) {
       if (!ship.userData.ct156) ships.delete(ship);
-      else setDetail(THREE, ship, camera, renderer);
+      else {
+        setDetail(THREE, ship, camera, renderer);
+        turnProp(ship);
+      }
     }
   };
 }
@@ -985,7 +1008,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     return m;
   };
 
-  let fuselage, canopy, helmetFront = null, helmetRear = null, floor = null, prop = null, bowFront = null;
+  let fuselage, canopy, helmetFront = null, helmetRear = null, floor = null, prop = null, bowFront = null, disc = null;
   if (paint === 'ship') {
     const base = new THREE.Color(color);
     const m = (c, extra) => own(new THREE.MeshStandardMaterial({ color: c, roughness: 0.45, metalness: 0.1, envMap: mats.env, envMapIntensity: 0.4, side: THREE.DoubleSide, fog: false, ...extra }));
@@ -1006,7 +1029,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     const serialTex = own(canvasTexture(THREE, 320, 512, serialCanvas(number)));
     const serialMat = own(new THREE.MeshBasicMaterial({ map: serialTex, transparent: true, side: THREE.DoubleSide, depthWrite: false, fog: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
     for (const s of ['1', '-1']) add(decalGeo.tail[s], serialMat, detail);
-    add(geo.disc, mats.disc);
+    disc = add(geo.disc, mats.disc);
   } else {
     const num = String(number ?? '');
     const wingTex = own(canvasTexture(THREE, 384, 128, (ctx, w, h) => outlinedText(ctx, `12${num}`, w / 2, h / 2, h * 0.86, 5)));
@@ -1025,7 +1048,7 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     add(geo.cheat, mats.cheat);
     add(geo.spinner, mats.chrome);
     add(geo.spinnerRing, mats.blade);
-    add(geo.disc, mats.disc);
+    disc = add(geo.disc, mats.disc);
     // Up close only: the decals, the cockpit, the frames, the exhausts and the blades.
     add(decalGeo.roundelWing, mats.roundel, detail);
     add(decalGeo.wingNum, decal(wingTex), detail);
@@ -1049,8 +1072,8 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     helmetRear = add(geo.helmetRear, mats.helmet, detail);
     prop = new THREE.Group();
     prop.rotation.x = rad(22);
-    add(geo.blade, mats.blade, prop);
-    add(geo.bladeTip, mats.tip, prop);
+    add(geo.blade, mats.propBlade, prop);
+    add(geo.bladeTip, mats.propTip, prop);
     detail.add(prop);
     // The glass last, so the cockpit shows through it.
     canopy = add(geo.canopy, mats.glass);
@@ -1060,8 +1083,9 @@ export function createCt156Model(THREE, { color, number, paint = 'harvard', leng
     watchScene(THREE, scene);
     scene?.userData?.ct156Ships?.add(root);
     setDetail(THREE, root, camera, renderer);
+    turnProp(root);
   };
-  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, helmetFront, helmetRear, floor, prop, bowFront, inside: null };
+  root.userData.ct156 = { kit, mine, paint, detail, g, fuselage, canopy, helmetFront, helmetRear, floor, prop, disc, bowFront, inside: null, propTurn: 0, propAt: null };
   return root;
 }
 
