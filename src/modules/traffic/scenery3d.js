@@ -18,6 +18,7 @@ import { createFlightlineBuildings } from './flightline-buildings3d.js';
 import { batchByMaterial } from './batch3d.js';
 import { addFacade, faceToward, facadeMeshes } from './facade3d.js';
 import { roofMaterial, roofUv } from './roof-textures3d.js';
+import { loadShowpieces } from './showpieces3d.js';
 import { RUNWAY_29L_HDG_DEG, THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_29R, DEPARTURE_END_29R, RUNWAY_03, RUNWAY_21, RUNWAY_WIDTH_FT, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
 
 export const DEFAULT_FLOOR_FT = THRESHOLD_DATA_ELEV_FT;
@@ -360,6 +361,7 @@ function makeLabel(THREE, text, accent, widthFt = 460) {
   if (!texture) return null;
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false, fog: false });
   const sprite = new THREE.Sprite(material);
+  sprite.userData.keep = true; // labels stay over the Blender models too (TR-142)
   sprite.scale.set(widthFt, widthFt / 4, 1);
   sprite.renderOrder = 20;
   sprite.name = `label-${text}`;
@@ -766,6 +768,7 @@ function createGlassPalace(THREE, spec, floor, kit) {
   });
   const glass = new THREE.Mesh(glassGeo, glassMat);
   glass.name = `${spec.id}-glass-wall`;
+  glass.userData.keep = true; // the Blender model (TR-142) keeps the code's curved glass
   group.add(glass);
   const capPos = [];
   for (const i of [0, n - 1]) {
@@ -778,6 +781,7 @@ function createGlassPalace(THREE, spec, floor, kit) {
   capGeo.computeVertexNormals();
   const caps = new THREE.Mesh(capGeo, wallMat);
   caps.name = `${spec.id}-glass-ends`;
+  caps.userData.keep = true;
   group.add(caps);
 
   // Plant boxes on the two-storey roof, scattered as the photo shows them (a repeatable scatter, positions an estimate).
@@ -805,6 +809,7 @@ function createGlassPalace(THREE, spec, floor, kit) {
   }
   const units = new THREE.InstancedMesh(unitGeo, unitMat, spots.length);
   units.name = `${spec.id}-roof-units`;
+  units.userData.keep = true;
   const m = new THREE.Matrix4();
   spots.forEach(([x, y], k) => {
     m.makeTranslation(x, y, 0);
@@ -814,6 +819,7 @@ function createGlassPalace(THREE, spec, floor, kit) {
 
   const big2 = createBig2Badge(THREE, 120);
   if (big2) {
+    big2.userData.keep = true;
     big2.position.set(spec.badge[0], spec.badge[1], h + 0.5);
     group.add(big2);
   }
@@ -893,7 +899,7 @@ function createBarracksU(THREE, spec, floor, kit) {
  * @param {{ floor?: number, anchor?: any }} [options] Configuration options.
  * @returns {any} Group named 'airfield-scenery' with all landmarks attached.
  */
-export function createAirfieldScenery(THREE, { floor = DEFAULT_FLOOR_FT, anchor = null } = {}) {
+export function createAirfieldScenery(THREE, { floor = DEFAULT_FLOOR_FT, anchor = null, onChange = () => {} } = {}) {
   const root = new THREE.Group();
   root.name = 'airfield-scenery';
   root.userData = { floor, buildingCoords: CYMJ_BUILDING_COORDS };
@@ -947,6 +953,9 @@ export function createAirfieldScenery(THREE, { floor = DEFAULT_FLOOR_FT, anchor 
   // Fewer draw calls (TR-127): each building's plain-coloured pieces merged by colour, in place.
   for (const b of [...flightline.group.children, ...hangars.filter((h) => h.parent === root), ...buildings]) batchByMaterial(THREE, b);
 
+  // The Blender-built showpieces replace their code-built buildings once they load (TR-142).
+  loadShowpieces(THREE, root, floor, onChange);
+
   root.userData.tower = tower;
   root.userData.hangars = hangars;
   root.userData.buildings = buildings;
@@ -970,6 +979,7 @@ export function createAirfieldScenery(THREE, { floor = DEFAULT_FLOOR_FT, anchor 
  */
 export function disposeAirfieldScenery(group) {
   if (!group) return;
+  group.userData.disposed = true; // a showpiece load still under way frees itself
 
   const geometries = new Set();
   const materials = new Set();

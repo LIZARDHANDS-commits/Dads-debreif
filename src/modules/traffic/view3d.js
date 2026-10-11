@@ -766,7 +766,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   root.add(groundShadows);
 
   // 3D Airfield Scenery: Control Tower, 4 Arch Hangars, South Apron
-  const scenery = createAirfieldScenery(THREE);
+  const scenery = createAirfieldScenery(THREE, { onChange: () => requestDraw() });
   root.add(scenery);
   // Lights, PAPIs, signs, the parked Harvards and the ramp vehicles (TR-141)
   const furniture = createAirfieldFurniture(THREE, DEFAULT_FLOOR_FT);

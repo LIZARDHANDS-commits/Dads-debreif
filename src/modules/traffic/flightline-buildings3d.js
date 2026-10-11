@@ -217,7 +217,7 @@ function medical(THREE, mat) {
  * black roofs with light parapet caps, and a brick chimney. Traced off Esri's photo (10 Oct, about ±10 ft), turned 0.30 rad.
  */
 const MESS_ROT = 0.30;
-const MESS_WALL = '#5b4636';
+export const MESS_WALL = '#5b4636';
 export const MESS = Object.freeze({
   id: 'mess', name: '15 Wing Mess',
   blocks: Object.freeze([
@@ -239,8 +239,8 @@ export const EAST_HANGARS = Object.freeze([
   Object.freeze({ id: 'hangar-5', name: 'Hangar 5', upper: '#1e3f8a', main: blk(1897, 2554, 252, 200, -0.70, 48, '#26292c') }),
   Object.freeze({ id: 'hangar-6', name: '431 Squadron Snowbirds', upper: '#c0262d', roundel: '7', crest: true, main: blk(2104, 2772, 264, 166, -0.79, 48, '#26292c') }),
 ]);
-const EAST_ANNEX = Object.freeze({ depth: 22, height: 16 }); // estimates, from the street views
-const EAST_UPPER_FROM_FT = 18; // the coloured cladding starts above the annexes (street view)
+export const EAST_ANNEX = Object.freeze({ depth: 22, height: 16 }); // estimates, from the street views
+export const EAST_UPPER_FROM_FT = 18; // the coloured cladding starts above the annexes (street view)
 
 /** The fuel tanks east of the Snowbirds hangar, in their red-walled berms (Patrick, 10 Oct: "3d sprites for the fuel towers (red bumpers around them)"). */
 export const FUEL_FARM = Object.freeze({
@@ -440,6 +440,7 @@ function eastHangar(THREE, mat, spec) {
   wall.rotation.z = m.rot;
   g.add(wall);
   const onSE = (mesh, along, z) => {
+    mesh.userData.keep = true; // stays when the Blender model replaces the walls (TR-142)
     mesh.position.set(m.w / 2 + 0.3, along, z); // along local +y: toward the north-east end
     mesh.rotation.set(Math.PI / 2, Math.PI / 2, 0); // the plane faces out of the south-east wall
     wall.add(mesh);
@@ -523,7 +524,7 @@ function eastAnnexes(m) {
   };
 }
 
-/** Windows and doors on this file's buildings (TR-132), two draw calls in all. */
+/** Windows and doors on this file's buildings (TR-132): the showpieces' (the hangars, which the Blender models replace, TR-142) and the rest, two draw calls each. */
 function facades(THREE) {
   const out = { glass: [], doors: [] };
   for (const h of FLAT_HANGARS) {
@@ -537,6 +538,9 @@ function facades(THREE) {
     annexFacade(out, se, h.main, 0.6, -0.8); // the apron side
     addFacade(out, ne, { kind: 'office', skipFaces: abutting(ne, h.main) });
   }
+  const showpieces = facadeMeshes(THREE, out, 'showpiece-facades');
+  out.glass = [];
+  out.doors = [];
   const H = CANEX_HALL;
   addFacade(out, H.hall, { kind: 'office', doorFace: faceToward(H.hall, 0, -1) });
   for (const w of [...H.blueWings, H.wing]) addFacade(out, w, { kind: 'office', skipFaces: abutting(w, H.hall) });
@@ -544,7 +548,9 @@ function facades(THREE) {
   const M = MEDICAL_BLOCKS;
   addFacade(out, M.shipping, { kind: 'office', doorFace: faceToward(M.shipping, 0, -1) });
   for (const b of M.medical) addFacade(out, b, { kind: 'office', doorFace: faceToward(b, 0, -1) });
-  return facadeMeshes(THREE, out, 'flightline-facades');
+  const g = new THREE.Group();
+  g.add(showpieces, facadeMeshes(THREE, out, 'flightline-facades'));
+  return g;
 }
 
 /** Every building in this file, standing at z = floor. Returns { group, hangars }. */

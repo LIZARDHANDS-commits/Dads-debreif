@@ -14,7 +14,7 @@ export function batchByMaterial(THREE, group) {
   const toGroup = new THREE.Matrix4().copy(group.matrixWorld).invert();
   const buckets = new Map(); // key -> { material, geometries, meshes }
   group.traverse((o) => {
-    if (!o.isMesh || o.isInstancedMesh || Array.isArray(o.material)) return;
+    if (!o.isMesh || o.isInstancedMesh || Array.isArray(o.material) || o.userData.keep) return; // keep: a decal the showpieces leave showing (TR-142)
     const m = o.material;
     if (!m || m.map || m.vertexColors || !o.geometry?.attributes?.position) return;
     const key = keyOf(m);
