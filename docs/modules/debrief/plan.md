@@ -32,7 +32,7 @@ How to read this plan: steps are in the order to do them. Only what is in a step
 Each has a working answer built in. Patrick answers these one at a time when this module's work resumes (`pf/reset/1-requirements/questions.md:17`). Each line below is one question in `questions.md`.
 
 - [ ] DB-Q3: is one model wind point for the whole sortie good enough? (`pf/reset/1-requirements/questions.md:42`)
-- [ ] DB-Q4: Patrick decides between two old decisions: no smoothing of the estimated G (D219) or a 3-point median filter (D383); neither is built. This is an ASK conflict (`pf/reset/1-requirements/questions.md:43`).
+- [x] DB-Q4 (settled 11 Oct 2026: DB-29, a 5-point Smooth G setting, off by default): Patrick decides between two old decisions: no smoothing of the estimated G (D219) or a 3-point median filter (D383); neither is built. This is an ASK conflict (`pf/reset/1-requirements/questions.md:43`).
 - [ ] DB-Q6: keep the Debrief's own cut-offs? (`pf/reset/1-requirements/questions.md:45`)
 - [ ] DB-Q7: show each wingman's interval on the card as well as in More detail? (`pf/reset/1-requirements/questions.md:46`)
 - [ ] DB-Q8: add a switch for the iPad's own recorded G, off by default? (`pf/reset/1-requirements/questions.md:47`)
