@@ -137,6 +137,10 @@ function pointingPhases(altFt, depthFt) {
     return (rx * vy - ry * vx) / Math.max(1, rx * rx + ry * ry);
   };
   const clamp = (v, cap) => Math.max(-cap, Math.min(cap, v));
+  // Within pointMaxG all told: when his height leg is pulling (coming out of a descent off a stack or a high start), the bank
+  // that leaves room for it (G = vertical load / cos bank). Until V2.299 the cap was the level turn's, and from #2's +300 ft
+  // stack the pointing turn and the reversal pulled 4.64 G.
+  const capNow = (W) => Math.min(capDeg, Math.acos(Math.min(1, Math.max(1, (W.g ?? 1) * Math.cos((W.bankDeg ?? 0) * DEG)) / TR.pointMaxG)) / DEG);
   const common = { rejoin: true, pursuitEnds: true, roll: TR.pointRoll, kiasCmd: TR.pointKias };
   let side0 = 0; // the side Lead starts on, off #2's nose
   let lookFrom = null;
@@ -154,7 +158,7 @@ function pointingPhases(altFt, depthFt) {
         const rollSec = Math.abs(W.bankDeg) / TR.pointRoll.maxRateDps + TR.pointRoll.maxRateDps / TR.pointRoll.maxAccelDps2;
         const turnDps = (G_FTPS2 * Math.tan(Math.abs(W.bankDeg) * DEG)) / Math.max(1, W.tasFtps) / DEG;
         const comeOff = (turnDps / 2 - side0 * (losRate(L, W) / DEG)) * rollSec;
-        return { bankDeg: clamp(TR.pointGain * err, capDeg), psiCmd: W.headingRad, kiasCmd: TR.pointKias, done: side0 * err <= TR.pointAheadDeg + Math.max(0, comeOff) };
+        return { bankDeg: clamp(TR.pointGain * err, capNow(W)), psiCmd: W.headingRad, kiasCmd: TR.pointKias, done: side0 * err <= TR.pointAheadDeg + Math.max(0, comeOff) };
       },
     }),
     phase({ fwd: 0, left: 0, alt: altFt }, {
@@ -187,7 +191,7 @@ function pointingPhases(altFt, depthFt) {
         // Full power through the reversal and the roll-out, to reach the line at 200-210 KIAS (Patrick 04:59Z: "Keep full power
         // on the reversal to hit the line at 200-210"); then the ride's overtake.
         const kiasCmd = lineKiasNow();
-        return { bankDeg: clamp(bankDeg, capDeg), psiCmd: W.headingRad, kiasCmd, done: Math.abs(err) / DEG <= TR.reverseDoneDeg || t - reverseFrom >= TR.reverseMaxSec - 1e-9 };
+        return { bankDeg: clamp(bankDeg, capNow(W)), psiCmd: W.headingRad, kiasCmd, done: Math.abs(err) / DEG <= TR.reverseDoneDeg || t - reverseFrom >= TR.reverseMaxSec - 1e-9 };
       },
     }),
   ];
@@ -294,13 +298,17 @@ function bodyIn(L, W) {
  * legs flew it: he came off the line still converging, slid 30-50 ft inside route and went past echelon's fore and aft place.
  * from, vel: #2's place in Lead's plane at the decision point and how it is moving. Returns { bodyAt(i), steps }.
  */
-function tailPath(from, vel, s, to, spacingFt, sTo = s) {
+function tailPath(from, vel, s, to, spacingFt, sTo = s, crossAt = null) {
   const legs = [];
   if (sTo !== s) {
     // To the other side: under Lead's tail, as low as the crossover's corner (below his wake), then up into the new place.
+    // crossAt: the 4-ship element's crossing behind Lead, in the frame of the place he joins on (four-rejoin.js).
     const end = pairSlot(to, sTo, spacingFt);
     const corner = cornerBehind(end, spacingFt);
-    legs.push({ fwd: corner.fwd, left: 0, up: corner.alt - TURNING_REJOIN.underExtraFt }, { fwd: end.fwd, left: end.left, up: end.alt });
+    // The element crosses behind Lead first, then goes on under the one he joins on (so he does not pass close behind him
+    // on the way up into his place) and up into it.
+    const under = { fwd: corner.fwd, left: 0, up: corner.alt - TURNING_REJOIN.underExtraFt };
+    legs.push(...(crossAt ? [crossAt, under] : [under]), { fwd: end.fwd, left: end.left, up: end.alt });
   } else {
     const route = pairSlot('route', s, spacingFt);
     legs.push({ fwd: route.fwd, left: route.left, up: route.alt });
@@ -643,7 +651,7 @@ export function flyTurningRejoinWith({ lead, wing, into, s, to, sTo, spacingFt, 
   if (close) {
     const bodyNow = (k) => bodyIn(into.longRec.at(k), firstRec.at(k));
     const [b0, b1] = [bodyNow(totalSteps - 1), bodyNow(totalSteps)];
-    const tail = pathTail ? tailPath(b1, { fwd: (b1.fwd - b0.fwd) / dt, left: (b1.left - b0.left) / dt, up: (b1.up - b0.up) / dt }, s, to, spacingFt, sTo) : null;
+    const tail = pathTail ? tailPath(b1, { fwd: (b1.fwd - b0.fwd) / dt, left: (b1.left - b0.left) / dt, up: (b1.up - b0.up) / dt }, s, to, spacingFt, sTo, element?.crossAt ?? null) : null;
     tailSteps = tail?.steps ?? 0;
     // Lead holds his turn until #2 is in his place (tail.inSteps), then rolls out (Patrick 06:10Z); until V2.260 he held on
     // until the way had settled to the inch and planeEaseSec more, about 10 s in echelon.
