@@ -13,6 +13,7 @@
  * `wall` defaults to white cladding.
  */
 import { addFacade, faceToward, facadeMeshes } from './facade3d.js';
+import { roofMaterial, roofUv } from './roof-textures3d.js';
 
 const blk = (cx, cy, w, d, rot, h, roof, extra = {}) => Object.freeze({ cx, cy, w, d, rot, h, roof, ...extra });
 
@@ -63,18 +64,23 @@ export const MEDICAL_BLOCKS = Object.freeze({
 const WALL = '#eceeef';
 const BASE_BAND = '#6b7075';
 
+/** Materials by colour, shared; `opts.roof` names a roof texture (TR-140). */
 function materials(THREE) {
   const cache = new Map();
   return (color, opts = {}) => {
-    const key = `${color}|${opts.metal ?? 0}|${opts.rough ?? 0.7}`;
-    if (!cache.has(key)) cache.set(key, new THREE.MeshStandardMaterial({ color, roughness: opts.rough ?? 0.7, metalness: opts.metal ?? 0.05 }));
+    const key = `${color}|${opts.metal ?? 0}|${opts.rough ?? 0.7}|${opts.roof ?? ''}`;
+    if (!cache.has(key)) {
+      const o = { roughness: opts.rough ?? 0.7, metalness: opts.metal ?? 0.05 };
+      cache.set(key, opts.roof ? roofMaterial(THREE, opts.roof, color, o) : new THREE.MeshStandardMaterial({ color, ...o }));
+    }
     return cache.get(key);
   };
 }
 
-/** A box of size w x d x h standing on z0 at the block's local (lx, ly), turned with the block. */
+/** A box of size w x d x h standing on z0 at the block's local (lx, ly), turned with the block; a roof material lays its texture in feet. */
 function boxAt(THREE, mat, b, lx, ly, w, d, h, z0 = 0) {
-  const geo = new THREE.BoxGeometry(w, d, h);
+  let geo = new THREE.BoxGeometry(w, d, h);
+  if (mat.userData?.roof) geo = roofUv(THREE, geo, mat.userData.roof);
   geo.translate(lx, ly, z0 + h / 2);
   geo.rotateZ(b.rot);
   geo.translate(b.cx, b.cy, 0);
@@ -92,7 +98,7 @@ function flatBlock(THREE, mat, b, name) {
   band.name = `${name}-base`;
   g.add(band);
   if (b.cap) g.add(boxAt(THREE, mat(b.cap), b, 0, 0, b.w + 0.8, b.d + 0.8, 0.8, b.h - 0.4)); // a light parapet cap
-  const roof = boxAt(THREE, mat(b.roof), b, 0, 0, b.w - 4, b.d - 4, 0.6, b.h + (b.cap ? 0.2 : 0)); // on top, inside a 2 ft rim
+  const roof = boxAt(THREE, mat(b.roof, { roof: b.roofKind ?? 'membrane' }), b, 0, 0, b.w - 4, b.d - 4, 0.6, b.h + (b.cap ? 0.2 : 0)); // on top, inside a 2 ft rim
   roof.name = `${name}-roof`;
   g.add(roof);
   return g;
@@ -104,7 +110,7 @@ function flatHangar(THREE, mat, spec) {
   g.name = spec.id;
   g.userData = { type: 'hangar', id: spec.id, name: spec.name, x: spec.main.cx, y: spec.main.cy };
   const m = spec.main;
-  g.add(flatBlock(THREE, mat, m, `${spec.id}-main`));
+  g.add(flatBlock(THREE, mat, { ...m, roofKind: 'metal' }, `${spec.id}-main`)); // the hangar's own roof is ribbed metal
   const doorW = m.d * 0.85;
   const doorH = 28;
   const door = boxAt(THREE, mat('#5b6470', { metal: 0.4, rough: 0.5 }), m, m.w / 2 + 0.6, 0, 1.2, doorW, doorH);
@@ -135,9 +141,10 @@ function canexHall(THREE, mat) {
   const roofGeo = new THREE.CylinderGeometry(radius, radius, b.w + 2, 32, 1, true, -theta, 2 * theta);
   roofGeo.rotateZ(Math.PI / 2); // its axis along local x; the crown stays up (+z)
   roofGeo.translate(0, 0, b.h - (radius - rise));
-  roofGeo.rotateZ(b.rot);
-  roofGeo.translate(b.cx, b.cy, 0);
-  const roof = new THREE.Mesh(roofGeo, new THREE.MeshStandardMaterial({ color: b.roof, roughness: 0.45, metalness: 0.45, side: THREE.DoubleSide }));
+  const arch = roofUv(THREE, roofGeo, 'metal'); // ribs over the arch
+  arch.rotateZ(b.rot);
+  arch.translate(b.cx, b.cy, 0);
+  const roof = new THREE.Mesh(arch, roofMaterial(THREE, 'metal', b.roof, { roughness: 0.45, metalness: 0.45, side: THREE.DoubleSide }));
   roof.name = `${s.id}-roof`;
   g.add(roof);
   // The arched ends: walls up under the curve, with a blue trim on their edge.
@@ -183,7 +190,7 @@ function canexStore(THREE, mat) {
   const fascia = boxAt(THREE, mat('#1f5fbf', { rough: 0.45, metal: 0.3 }), b, 0, 0, b.w + 2, b.d + 2, s.fasciaFt, b.h - 1);
   fascia.name = `${s.id}-fascia`;
   g.add(fascia);
-  g.add(boxAt(THREE, mat(b.roof), b, 0, 0, b.w - 2, b.d - 2, 0.6, b.h + s.fasciaFt - 1.2));
+  g.add(boxAt(THREE, mat(b.roof, { roof: 'membrane' }), b, 0, 0, b.w - 2, b.d - 2, 0.6, b.h + s.fasciaFt - 1.2));
   for (const t of s.towers) {
     const tower = boxAt(THREE, mat('#2b3540', { metal: 0.6, rough: 0.15 }), b, -b.w / 2 + t * b.w, -b.d / 2 - 4, 14, 10, b.h + s.fasciaFt + 3);
     tower.name = `${s.id}-entrance`;
@@ -210,7 +217,7 @@ function medical(THREE, mat) {
  * black roofs with light parapet caps, and a brick chimney. Traced off Esri's photo (10 Oct, about ±10 ft), turned 0.30 rad.
  */
 const MESS_ROT = 0.30;
-const MESS_WALL = '#5b4636';
+export const MESS_WALL = '#5b4636';
 export const MESS = Object.freeze({
   id: 'mess', name: '15 Wing Mess',
   blocks: Object.freeze([
@@ -232,8 +239,8 @@ export const EAST_HANGARS = Object.freeze([
   Object.freeze({ id: 'hangar-5', name: 'Hangar 5', upper: '#1e3f8a', main: blk(1897, 2554, 252, 200, -0.70, 48, '#26292c') }),
   Object.freeze({ id: 'hangar-6', name: '431 Squadron Snowbirds', upper: '#c0262d', roundel: '7', crest: true, main: blk(2104, 2772, 264, 166, -0.79, 48, '#26292c') }),
 ]);
-const EAST_ANNEX = Object.freeze({ depth: 22, height: 16 }); // estimates, from the street views
-const EAST_UPPER_FROM_FT = 18; // the coloured cladding starts above the annexes (street view)
+export const EAST_ANNEX = Object.freeze({ depth: 22, height: 16 }); // estimates, from the street views
+export const EAST_UPPER_FROM_FT = 18; // the coloured cladding starts above the annexes (street view)
 
 /** The fuel tanks east of the Snowbirds hangar, in their red-walled berms (Patrick, 10 Oct: "3d sprites for the fuel towers (red bumpers around them)"). */
 export const FUEL_FARM = Object.freeze({
@@ -395,11 +402,12 @@ function mess(THREE, mat) {
 
 /** A low hip over a w x d roof, `rise` ft high at its peak, as a flattened four-sided pyramid. */
 function hipRoof(THREE, material, b, rise) {
-  const geo = new THREE.ConeGeometry(Math.SQRT1_2, 1, 4, 1);
+  let geo = new THREE.ConeGeometry(Math.SQRT1_2, 1, 4, 1);
   geo.rotateY(Math.PI / 4); // its corners onto the box's corners
   geo.rotateX(Math.PI / 2); // its point up (+z)
   geo.scale(b.w, b.d, rise);
   geo.translate(0, 0, b.h + rise / 2);
+  if (material.userData?.roof) geo = roofUv(THREE, geo, material.userData.roof); // ribs down each face
   geo.rotateZ(b.rot);
   geo.translate(b.cx, b.cy, 0);
   return new THREE.Mesh(geo, material);
@@ -412,7 +420,7 @@ function eastHangar(THREE, mat, spec) {
   g.userData = { type: 'hangar', id: spec.id, name: spec.name, x: m.cx, y: m.cy };
   g.add(boxAt(THREE, mat(WALL), m, 0, 0, m.w, m.d, EAST_UPPER_FROM_FT));
   g.add(boxAt(THREE, mat(spec.upper, { rough: 0.5, metal: 0.25 }), m, 0, 0, m.w, m.d, m.h - EAST_UPPER_FROM_FT, EAST_UPPER_FROM_FT));
-  const roof = hipRoof(THREE, mat(m.roof), m, 6);
+  const roof = hipRoof(THREE, mat(m.roof, { roof: 'metal' }), m, 6);
   roof.name = `${spec.id}-roof`;
   g.add(roof);
   // Doors across the south-west face (local -y), under a white band.
@@ -422,9 +430,9 @@ function eastHangar(THREE, mat, spec) {
   // White single-storey annexes along the north-east (+y) and south-east (+x) sides.
   const A = EAST_ANNEX;
   g.add(boxAt(THREE, mat(WALL), m, 0, m.d / 2 + A.depth / 2 + 0.5, m.w, A.depth, A.height));
-  g.add(boxAt(THREE, mat('#d9d7d0'), m, 0, m.d / 2 + A.depth / 2 + 0.5, m.w - 2, A.depth - 2, 0.6, A.height));
+  g.add(boxAt(THREE, mat('#d9d7d0', { roof: 'membrane' }), m, 0, m.d / 2 + A.depth / 2 + 0.5, m.w - 2, A.depth - 2, 0.6, A.height));
   g.add(boxAt(THREE, mat(WALL), m, m.w / 2 + A.depth / 2 + 0.5, 0, A.depth, m.d, A.height));
-  g.add(boxAt(THREE, mat(spec.upper), m, m.w / 2 + A.depth / 2 + 0.5, 0, A.depth - 2, m.d - 2, 0.6, A.height));
+  g.add(boxAt(THREE, mat(spec.upper, { roof: 'membrane' }), m, m.w / 2 + A.depth / 2 + 0.5, 0, A.depth - 2, m.d - 2, 0.6, A.height));
   // The south-east wall's red band (local +x face, above the annex): the Snowbirds crest in the middle with three white speed
   // stripes running out either side, and the "7" roundel toward the north-east end, as in Patrick's street views.
   const wall = new THREE.Group();
@@ -432,6 +440,7 @@ function eastHangar(THREE, mat, spec) {
   wall.rotation.z = m.rot;
   g.add(wall);
   const onSE = (mesh, along, z) => {
+    mesh.userData.keep = true; // stays when the Blender model replaces the walls (TR-142)
     mesh.position.set(m.w / 2 + 0.3, along, z); // along local +y: toward the north-east end
     mesh.rotation.set(Math.PI / 2, Math.PI / 2, 0); // the plane faces out of the south-east wall
     wall.add(mesh);
@@ -515,7 +524,7 @@ function eastAnnexes(m) {
   };
 }
 
-/** Windows and doors on this file's buildings (TR-132), two draw calls in all. */
+/** Windows and doors on this file's buildings (TR-132): the showpieces' (the hangars, which the Blender models replace, TR-142) and the rest, two draw calls each. */
 function facades(THREE) {
   const out = { glass: [], doors: [] };
   for (const h of FLAT_HANGARS) {
@@ -529,6 +538,9 @@ function facades(THREE) {
     annexFacade(out, se, h.main, 0.6, -0.8); // the apron side
     addFacade(out, ne, { kind: 'office', skipFaces: abutting(ne, h.main) });
   }
+  const showpieces = facadeMeshes(THREE, out, 'showpiece-facades');
+  out.glass = [];
+  out.doors = [];
   const H = CANEX_HALL;
   addFacade(out, H.hall, { kind: 'office', doorFace: faceToward(H.hall, 0, -1) });
   for (const w of [...H.blueWings, H.wing]) addFacade(out, w, { kind: 'office', skipFaces: abutting(w, H.hall) });
@@ -536,7 +548,9 @@ function facades(THREE) {
   const M = MEDICAL_BLOCKS;
   addFacade(out, M.shipping, { kind: 'office', doorFace: faceToward(M.shipping, 0, -1) });
   for (const b of M.medical) addFacade(out, b, { kind: 'office', doorFace: faceToward(b, 0, -1) });
-  return facadeMeshes(THREE, out, 'flightline-facades');
+  const g = new THREE.Group();
+  g.add(showpieces, facadeMeshes(THREE, out, 'flightline-facades'));
+  return g;
 }
 
 /** Every building in this file, standing at z = floor. Returns { group, hangars }. */

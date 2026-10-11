@@ -19,6 +19,7 @@
 
 import { THRESHOLD_DATA_ELEV_FT } from './airfield.js';
 import { addFacade, faceToward, facadeMeshes } from './facade3d.js';
+import { roofMaterial, instancedRoofUv } from './roof-textures3d.js';
 
 /** The box the traced buildings sit in (ft from the ARP): the housing north, the flight line south, the farm fields outside it. */
 export const BASE_BOX_FT = Object.freeze({ minX: -1000, maxX: 2700, minY: 1700, maxY: 5000 });
@@ -210,13 +211,19 @@ function unitGable(THREE) {
   ];
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(v.flat()), 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(v.length * 2), 2)); // set in the shader (instancedRoofUv)
   geo.computeVertexNormals();
   return geo;
 }
 
-/** One InstancedMesh from `items`, each placed by `place(item)` = [x, y, z, rotation, sx, sy, sz] and coloured by `colorOf`. */
-function instanced(THREE, geo, items, place, colorOf, name) {
-  const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85, metalness: 0.02 });
+/**
+ * One InstancedMesh from `items`, each placed by `place(item)` = [x, y, z, rotation, sx, sy, sz] and coloured by `colorOf`;
+ * `roof` names a roof texture (TR-140), laid in feet across each roof whatever its size.
+ */
+function instanced(THREE, geo, items, place, colorOf, name, roof = null) {
+  const mat = roof
+    ? instancedRoofUv(roofMaterial(THREE, roof, '#ffffff', { roughness: 0.85, metalness: 0.02 }), roof)
+    : new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85, metalness: 0.02 });
   const mesh = new THREE.InstancedMesh(geo, mat, items.length);
   mesh.name = name;
   const m = new THREE.Matrix4();
@@ -259,12 +266,12 @@ export function createBaseBuildings(THREE, { floor = THRESHOLD_DATA_ELEV_FT } = 
   root.add(instanced(
     THREE, unitBox(THREE), flats,
     (e) => [e.x, e.y, e.height - SLAB_FT, e.rotation, e.w + 2 * OVERHANG_FT, e.d + 2 * OVERHANG_FT, SLAB_FT],
-    (e) => e.roof, 'base-buildings-flat-roofs',
+    (e) => e.roof, 'base-buildings-flat-roofs', 'membrane',
   ));
   root.add(instanced(
     THREE, unitGable(THREE), houses,
     (e) => [e.x, e.y, e.height, e.rotation, e.w + 2 * OVERHANG_FT, e.d + 2 * OVERHANG_FT, riseFt(e.d)],
-    (e) => e.roof, 'base-buildings-gable-roofs',
+    (e) => e.roof, 'base-buildings-gable-roofs', 'shingles',
   ));
   // Windows on every wall and a door on the south-facing side (TR-132; sizes estimates): two more draw calls.
   const out = { glass: [], doors: [] };
@@ -288,7 +295,10 @@ export function disposeBaseBuildings(group) {
     if (o.isInstancedMesh) o.dispose?.();
   });
   for (const g of geos) g.dispose();
-  for (const m of mats) m.dispose();
+  for (const m of mats) {
+    m.map?.dispose(); // the roof textures (TR-140): three.js loads them again if the view is built again
+    m.dispose();
+  }
   group.clear();
   group.removeFromParent?.();
 }

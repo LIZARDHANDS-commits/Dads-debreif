@@ -221,7 +221,63 @@ function createFiatFarm(THREE, mats) {
 
 
 /**
- * Tree rows as one InstancedMesh. Each row is [x0, y0, x1, y1] in feet relative to the group; trees every ~25 ft.
+ * One shelterbelt tree, about 38 ft tall (estimate): a trunk and a lumpy crown of three overlapping blobs, coloured per vertex
+ * (bark brown, the crown's greens darker underneath), flat-shaded so the facets catch the sun. Replaces the old cones (TR-141;
+ * Patrick, 10 Oct: "proper trees instead of cones").
+ */
+function treeGeometry(THREE, leaf) {
+  const parts = [];
+  const trunk = new THREE.CylinderGeometry(0.9, 1.4, 14, 6);
+  trunk.rotateX(Math.PI / 2);
+  trunk.translate(0, 0, 7);
+  parts.push([trunk, new THREE.Color('#5a4632')]);
+  let seed = 7;
+  const roll = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (const [x, y, z, r] of [[0, 0, 22, 11], [3.5, 2, 29, 8.5], [-3, -2.5, 27, 8]]) {
+    const blob = new THREE.IcosahedronGeometry(r, 1);
+    const p = blob.attributes.position;
+    for (let k = 0; k < p.count; k++) {
+      const f = 0.82 + 0.3 * roll(); // a lumpy outline, not a ball
+      p.setXYZ(k, p.getX(k) * f, p.getY(k) * f, p.getZ(k) * f * 0.9);
+    }
+    blob.translate(x, y, z);
+    parts.push([blob, null]);
+  }
+  const geos = parts.map(([g, color]) => {
+    const n = g.index ? g.toNonIndexed() : g;
+    const p = n.attributes.position;
+    const col = new Float32Array(p.count * 3);
+    const c = new THREE.Color();
+    for (let k = 0; k < p.count; k++) {
+      if (color) c.copy(color);
+      else c.copy(leaf).multiplyScalar(0.7 + 0.5 * Math.min(1, Math.max(0, (p.getZ(k) - 12) / 26))); // darker underneath
+      col.set([c.r, c.g, c.b], k * 3);
+    }
+    n.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    n.deleteAttribute('uv');
+    n.deleteAttribute('normal');
+    return n;
+  });
+  // Joined by hand (three's own joiner lives in an add-on this file does not load).
+  const count = geos.reduce((a, g) => a + g.attributes.position.count, 0);
+  const pos = new Float32Array(count * 3), col = new Float32Array(count * 3);
+  let at = 0;
+  for (const g of geos) {
+    pos.set(g.attributes.position.array, at * 3);
+    col.set(g.attributes.color.array, at * 3);
+    at += g.attributes.position.count;
+    g.dispose();
+  }
+  const tree = new THREE.BufferGeometry();
+  tree.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  tree.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  tree.computeVertexNormals();
+  return tree;
+}
+
+/**
+ * Tree rows as one InstancedMesh. Each row is [x0, y0, x1, y1] in feet relative to the group; trees every ~25 ft, each turned,
+ * sized and shaded a little differently.
  * @returns {any} InstancedMesh
  */
 function treeRows(THREE, mat, rows, name, spacing = 25) {
@@ -230,18 +286,22 @@ function treeRows(THREE, mat, rows, name, spacing = 25) {
     const n = Math.max(1, Math.round(Math.hypot(x1 - x0, y1 - y0) / spacing));
     for (let i = 0; i <= n; i++) pts.push([x0 + ((x1 - x0) * i) / n, y0 + ((y1 - y0) * i) / n]);
   }
-  const geo = new THREE.ConeGeometry(11, 38, 5);
-  geo.rotateX(Math.PI / 2);
-  geo.translate(0, 0, 19);
-  const mesh = new THREE.InstancedMesh(geo, mat, pts.length);
+  const material = new THREE.MeshLambertMaterial({ color: '#ffffff', vertexColors: true, flatShading: true });
+  const mesh = new THREE.InstancedMesh(treeGeometry(THREE, mat?.color ?? new THREE.Color('#1f4d2b')), material, pts.length); // the landmark's leaf colour
   mesh.name = name;
   const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const z = new THREE.Vector3(0, 0, 1);
+  const c = new THREE.Color();
   pts.forEach(([x, y], i) => {
-    const s = 0.85 + ((i * 37) % 30) / 100;
-    m.makeScale(s, s, s);
-    m.setPosition(x, y, 0);
+    const r = ((i * 7919) % 1000) / 1000;
+    const s = 0.75 + 0.45 * (((i * 37) % 30) / 30);
+    m.compose(new THREE.Vector3(x, y, 0), q.setFromAxisAngle(z, r * Math.PI * 2), new THREE.Vector3(s, s, s * (0.9 + 0.2 * r)));
     mesh.setMatrixAt(i, m);
+    mesh.setColorAt(i, c.setScalar(0.85 + 0.3 * (((i * 53) % 17) / 17)));
   });
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   return mesh;
 }
 
