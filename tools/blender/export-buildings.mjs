@@ -55,7 +55,7 @@ writeFileSync(out, lines.join('\n') + '\n');
 // Patches: the base, then each landmark and anything of the airfield's scenery standing outside the base area.
 const patches = [BASE];
 const inBase = (b) => b.min.x >= BASE.x0 && b.max.x <= BASE.x1 && b.min.y >= BASE.y0 && b.max.y <= BASE.y1;
-const outside = [...landmarks.children, ...scenery.children.filter((g) => g.name === 'radar-dome')];
+const outside = [...landmarks.children, ...scenery.children.filter((g) => g.name === 'radar-dome' || g.name === 'striped-sphere')];
 for (const g of outside) {
   const b = new THREE.Box3().setFromObject(g);
   if (b.isEmpty() || inBase(b)) continue;

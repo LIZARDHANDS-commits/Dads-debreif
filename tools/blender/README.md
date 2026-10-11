@@ -70,3 +70,9 @@ Re-run when a showpiece's footprint changes (Blender 5.2 LTS, absolute paths):
 node tools/blender/export-showpieces.mjs showpieces.json
 blender -b -P tools/blender/build-showpieces.py -- showpieces.json <repo>/public/media/traffic-models/showpieces.glb
 ```
+
+# Roads and power lines (OpenStreetMap)
+
+`tools/osm/build-osm.mjs raw.json --fetch` downloads the pattern square's roads and power lines once from OpenStreetMap's Overpass
+API and writes `src/modules/traffic/osm-features.js`; `tools/osm/make-road-textures.py` makes the road pictures (TR-147).
+© OpenStreetMap contributors, ODbL: the 3D view shows the credit.

@@ -443,35 +443,90 @@ export const CYMJ_RUNWAYS = Object.freeze([
 ]);
 
 /**
- * The airfield radar mid-field: a white radome on a lattice-grey mast with its equipment hut, placed off Esri's
- * true-scale photo (5 Oct, about ±10 ft; Patrick 5 Oct 02:38Z). The dome is about 34 ft across on the photo; the mast
- * height is an estimate.
+ * The striped sphere mid-field (TR-148; Patrick, 11 Oct: "a giant striped sphere of red and white stripes from middle top to middle
+ * bottom"; it was drawn as the radar dome, TR-69): about 30 ft across on Esri's photo (11 Oct, ±3 ft), sitting low on a short base
+ * (its shadow on the photo is short; the 6 ft base is an estimate) beside its equipment hut, in alternating red and white gores
+ * running pole to pole (12 gores, an estimate).
  */
-export const CYMJ_RADAR = Object.freeze({ id: 'radar-dome', x: 545, y: -21, domeFt: 34, mastFt: 40, hut: Object.freeze({ x: 14, y: -50, w: 18, d: 15, h: 10 }) });
+export const CYMJ_SPHERE = Object.freeze({ id: 'striped-sphere', x: 545, y: -21, sphereFt: 30, baseFt: 6, gores: 12, hut: Object.freeze({ x: 14, y: -50, w: 18, d: 15, h: 10 }) });
+/**
+ * The radar dome (TR-148; Patrick, 11 Oct: "the radar dome should be on the east between the runways", with a photo of it): a white
+ * radome on a square red tower standing on open steel legs. Proportions read off Patrick's photo (the dome a little wider than the
+ * tower, the tower about twice the dome's width tall); the 30 ft dome sets the scale, so every size is an estimate.
+ * WHERE IS A BEST GUESS until Patrick pins it: Esri's photo shows no dome between the runways' east ends, only a mast with a shadow
+ * at the end of the service road, here.
+ */
+export const CYMJ_RADAR = Object.freeze({ id: 'radar-dome', x: 2531, y: -1154, domeFt: 30, towerFt: 55, towerWideFt: 22, legsFt: 10 });
 
-function createRadarDome(THREE, floor) {
+function createStripedSphere(THREE, floor) {
+  const S = CYMJ_SPHERE;
   const group = new THREE.Group();
-  group.name = CYMJ_RADAR.id;
-  group.userData = { type: 'radar', ...CYMJ_RADAR };
-  group.position.set(CYMJ_RADAR.x, CYMJ_RADAR.y, floor);
-  const r = CYMJ_RADAR.domeFt / 2;
-  const mastGeo = new THREE.CylinderGeometry(5, 7, CYMJ_RADAR.mastFt, 8);
-  mastGeo.rotateX(Math.PI / 2);
-  mastGeo.translate(0, 0, CYMJ_RADAR.mastFt / 2);
-  const mast = new THREE.Mesh(mastGeo, new THREE.MeshStandardMaterial({ color: '#9aa1a8', roughness: 0.6, metalness: 0.4 }));
-  mast.name = 'radar-mast';
-  group.add(mast);
-  const domeGeo = new THREE.SphereGeometry(r, 20, 14);
-  domeGeo.translate(0, 0, CYMJ_RADAR.mastFt + r * 0.8);
-  const dome = new THREE.Mesh(domeGeo, new THREE.MeshStandardMaterial({ color: '#f4f5f6', roughness: 0.45, metalness: 0.05 }));
-  dome.name = 'radar-radome';
-  group.add(dome);
-  const { hut } = CYMJ_RADAR;
+  group.name = S.id;
+  group.userData = { type: 'sphere', ...S };
+  group.position.set(S.x, S.y, floor);
+  const r = S.sphereFt / 2;
+  const base = new THREE.CylinderGeometry(r * 0.35, r * 0.45, S.baseFt + r * 0.3, 12);
+  base.rotateX(Math.PI / 2);
+  base.translate(0, 0, (S.baseFt + r * 0.3) / 2);
+  const baseMesh = new THREE.Mesh(base, new THREE.MeshStandardMaterial({ color: '#c9ccd0', roughness: 0.7 }));
+  baseMesh.name = 'striped-sphere-base';
+  group.add(baseMesh);
+  // The gores: a texture one pixel per gore round the sphere, so each stripe runs from pole to pole.
+  const px = new Uint8Array(S.gores * 4);
+  for (let i = 0; i < S.gores; i++) px.set(i % 2 ? [242, 242, 238, 255] : [200, 30, 38, 255], i * 4);
+  const stripes = new THREE.DataTexture(px, S.gores, 1);
+  stripes.colorSpace = THREE.SRGBColorSpace;
+  stripes.magFilter = THREE.NearestFilter;
+  stripes.minFilter = THREE.NearestFilter;
+  stripes.generateMipmaps = false;
+  stripes.needsUpdate = true;
+  const sphereGeo = new THREE.SphereGeometry(r, 36, 20);
+  sphereGeo.rotateX(Math.PI / 2); // poles up and down
+  sphereGeo.translate(0, 0, S.baseFt + r);
+  const sphere = new THREE.Mesh(sphereGeo, new THREE.MeshStandardMaterial({ map: stripes, roughness: 0.5, metalness: 0.05 }));
+  sphere.name = 'striped-sphere-ball';
+  group.add(sphere);
+  const { hut } = S;
   const hutGeo = new THREE.BoxGeometry(hut.w, hut.d, hut.h);
   hutGeo.translate(hut.x, hut.y, hut.h / 2);
   const hutMesh = new THREE.Mesh(hutGeo, new THREE.MeshStandardMaterial({ color: '#e5e7ea', roughness: 0.7, metalness: 0.1 }));
-  hutMesh.name = 'radar-hut';
+  hutMesh.name = 'striped-sphere-hut';
   group.add(hutMesh);
+  return group;
+}
+
+function createRadarDome(THREE, floor) {
+  const R = CYMJ_RADAR;
+  const group = new THREE.Group();
+  group.name = R.id;
+  group.userData = { type: 'radar', ...R };
+  group.position.set(R.x, R.y, floor);
+  const box = (w, d, h, x, y, z, color, name) => {
+    const geo = new THREE.BoxGeometry(w, d, h);
+    geo.translate(x, y, z + h / 2);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, roughness: 0.65, metalness: 0.2 }));
+    mesh.name = name;
+    group.add(mesh);
+    return mesh;
+  };
+  // Open steel legs at the corners, braced, then the clad red tower, a white band at its top, and the dome.
+  const half = R.towerWideFt / 2 - 1;
+  for (const [x, y] of [[-half, -half], [half, -half], [half, half], [-half, half]]) box(1.5, 1.5, R.legsFt, x, y, 0, '#4a4f55', 'radar-leg');
+  for (const z of [R.legsFt * 0.45]) {
+    box(R.towerWideFt - 1, 0.8, 0.8, 0, -half, z, '#4a4f55', 'radar-brace');
+    box(R.towerWideFt - 1, 0.8, 0.8, 0, half, z, '#4a4f55', 'radar-brace');
+    box(0.8, R.towerWideFt - 1, 0.8, -half, 0, z, '#4a4f55', 'radar-brace');
+    box(0.8, R.towerWideFt - 1, 0.8, half, 0, z, '#4a4f55', 'radar-brace');
+  }
+  box(R.towerWideFt, R.towerWideFt, R.towerFt - R.legsFt - 4, 0, 0, R.legsFt, '#a1342f', 'radar-tower');
+  box(R.towerWideFt + 0.6, R.towerWideFt + 0.6, 4, 0, 0, R.towerFt - 4, '#eeeeea', 'radar-tower-top');
+  const r = R.domeFt / 2;
+  const domeGeo = new THREE.SphereGeometry(r, 24, 16);
+  domeGeo.rotateX(Math.PI / 2);
+  domeGeo.translate(0, 0, R.towerFt + r * 0.75); // the dome sits down into the tower top a little, as in the photo
+  const dome = new THREE.Mesh(domeGeo, new THREE.MeshStandardMaterial({ color: '#f4f5f6', roughness: 0.45, metalness: 0.05 }));
+  dome.name = 'radar-radome';
+  group.add(dome);
   return group;
 }
 
@@ -909,6 +964,7 @@ export function createAirfieldScenery(THREE, { floor = DEFAULT_FLOOR_FT, anchor 
   const apron = createSouthApron(THREE, floor);
   root.add(apron);
 
+  root.add(createStripedSphere(THREE, floor));
   root.add(createRadarDome(THREE, floor));
 
   const tower = createControlTower(THREE, floor, kit);

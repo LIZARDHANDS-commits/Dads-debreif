@@ -9,6 +9,7 @@
 
 import { THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_29R, DEPARTURE_END_29R, RUNWAY_03, RUNWAY_21 } from './airfield.js';
 import { AIRFIELD_SURFACE, SURFACE_FRAMES } from './airfield-surface.js';
+import { holdScreenWidth, trackScreen } from './min-width3d.js';
 
 /** How far the painted centreline sits left of the drawn one (looking down 29L), ft: 3 at the 29L end, 0 at 11R (photo). */
 const SHIFT_AT_29L_FT = 3;
@@ -455,7 +456,7 @@ function surfaceMeshes(THREE) {
     geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     // Marked see-through (fully opaque) so it sorts with the see-through photos and draws after them.
-    const material = new THREE.MeshBasicMaterial({ color: FLAT[mat], vertexColors: true, transparent: true, side: THREE.DoubleSide, depthWrite: false, fog: false });
+    const material = brighterFarOff(new THREE.MeshBasicMaterial({ color: FLAT[mat], vertexColors: true, transparent: true, side: THREE.DoubleSide, depthWrite: false, fog: false }));
     loadTexture(THREE, TEXTURES[mat], material, (m) => m.color.set('#ffffff'));
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = `airfield-${mat}`;
@@ -494,21 +495,37 @@ function rubberMesh(THREE) {
 }
 
 /**
- * Fades a paint stripe as it gets thinner than about 1.5 pixels on screen, so thin lines (the edge stripes, the outlines, the
- * centreline, the taxi lines) blend into the pavement far off instead of flickering (Patrick, 10 Oct: "from far back the pixelated
- * lines along the sides of the runway are rather distracting"; TR-137). Each stripe carries its narrow width (stripeW, ft); the
- * screen size of a foot comes from how fast the ground position changes from pixel to pixel.
+ * Seeing the runway at range (TR-146; Patrick, 11 Oct: "the runways are harder to see than in IRL as well as the numbers"; "keep the
+ * edge stripes, centreline and numbers solid past about 2 NM ... Up close nothing changes"). A screen resolves about a third of what
+ * the eye does, so far off a 3 ft stripe covers a fraction of a pixel. Each white and yellow stripe is pushed out across its narrow
+ * side just enough to stay PAINT_MIN_PX wide on screen, up to PAINT_GROW_MAX times its real width; up close it is never touched.
+ * Past that cap it fades as before (TR-137: Patrick, 10 Oct: "from far back the pixelated lines along the sides of the runway are rather
+ * distracting"), so it still never flickers. Each stripe carries its narrow width (stripeW, ft) and, per corner, the way out across it
+ * (growDir). PAINT_MIN_PX 0 gives the old look. Both numbers are estimates, set by eye. The shader is min-width3d.js's.
  */
-function fadeWhenThin(material, floor = 0.15) {
+const PAINT_MIN_PX = 1.5;
+const PAINT_GROW_MAX = 6;
+
+/**
+ * The pavement a little brighter far off (TR-146): from PAVE_BRIGHT.fromFt it brightens to PAVE_BRIGHT.gain more by PAVE_BRIGHT.toFt
+ * (about 2 NM), so the runways stand out from the grass at range the way sunlit concrete does; up close nothing changes. Estimates.
+ */
+const PAVE_BRIGHT = Object.freeze({ fromFt: 3000, toFt: 12000, gain: 0.15 });
+function brighterFarOff(material) {
   material.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float stripeW;\nvarying float vStripeW;\nvarying vec2 vGroundXY;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvStripeW = stripeW;\nvGroundXY = (modelMatrix * vec4(transformed, 1.0)).xy;');
+      .replace('#include <common>', `#include <common>
+varying float vCamDist;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+vCamDist = distance((modelMatrix * vec4(transformed, 1.0)).xyz, cameraPosition);`);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vStripeW;\nvarying vec2 vGroundXY;')
-      .replace('#include <opaque_fragment>', '#include <opaque_fragment>\nfloat ftPerPx = max(length(fwidth(vGroundXY)), 1e-4);\ngl_FragColor.a *= clamp(vStripeW / ftPerPx / 1.5, ' + floor.toFixed(2) + ', 1.0);');
+      .replace('#include <common>', `#include <common>
+varying float vCamDist;`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+diffuseColor.rgb *= 1.0 + ${PAVE_BRIGHT.gain.toFixed(3)} * smoothstep(${PAVE_BRIGHT.fromFt.toFixed(1)}, ${PAVE_BRIGHT.toFt.toFixed(1)}, vCamDist);`);
   };
-  material.customProgramCacheKey = () => `paint-fade-when-thin-${floor}`;
+  material.customProgramCacheKey = () => 'pavement-brighter-far-off';
+  return material;
 }
 
 /**
@@ -525,22 +542,37 @@ export function createRunwayMarkings(THREE) {
     const mine = shapes.filter((s) => s.color === color);
     const pos = new Float32Array(mine.length * 6 * 3);
     const widths = new Float32Array(mine.length * 6);
-    let i = 0, j = 0;
+    const grow = new Float32Array(mine.length * 6 * 2);
+    let i = 0, j = 0, g = 0;
     for (const { pts, w } of mine) {
+      // Each corner's way out across the stripe's narrow side: away from the corner across from it.
+      const len = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
+      const pair = len(pts[1], pts[2]) <= len(pts[0], pts[1]) ? [3, 2, 1, 0] : [1, 0, 3, 2];
+      const dir = pts.map((p, k) => {
+        const q = pts[pair[k]];
+        const l = len(q, p) || 1;
+        return [(p.x - q.x) / l, (p.y - q.y) / l];
+      });
       for (const k of [0, 1, 2, 0, 2, 3]) {
         pos[i++] = pts[k].x;
         pos[i++] = pts[k].y;
         pos[i++] = 0;
         widths[j++] = w ?? 10;
+        grow[g++] = dir[k][0];
+        grow[g++] = dir[k][1];
       }
     }
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geometry.setAttribute('stripeW', new THREE.BufferAttribute(widths, 1));
+    geometry.setAttribute('growDir', new THREE.BufferAttribute(grow, 2));
     // Marked see-through (fully opaque) so it sorts with the see-through photos and draws after them.
     const material = new THREE.MeshBasicMaterial({ color: PAINT[color], transparent: true, side: THREE.DoubleSide, depthWrite: false, fog: false });
-    fadeWhenThin(material, color === 'yellow' ? 0.8 : 0.15); // the yellow lines stay bright at range (Patrick: "brighten the yellow lines")
+    // The yellow lines stay bright at range (Patrick: "brighten the yellow lines"); white and yellow hold their width far off; the black
+    // outlines don't (they would only smudge).
+    holdScreenWidth(material, { floor: color === 'yellow' ? 0.8 : 0.15, minPx: color === 'black' ? 0 : PAINT_MIN_PX, maxGrow: PAINT_GROW_MAX });
     const mesh = new THREE.Mesh(geometry, material);
+    mesh.onBeforeRender = trackScreen(THREE);
     mesh.renderOrder = ORDER[color];
     group.add(mesh);
   }
