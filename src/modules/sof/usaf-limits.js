@@ -20,7 +20,7 @@ import { MINUTE_MS } from '../../wx/dates.js';
 import { formatSm } from '../../airfields/format.js';
 import { homeCall, alternateCall } from './waves.js';
 import { crosswindCheck, runwayEnds } from './crosswind.js';
-import { AIRPORTS } from './airports-data.js';
+import { AIRPORTS } from '../../airfields/airports-data.js';
 import { USAF_STANDARDS, USAF_SOURCE } from './sites/usaf-standards.js';
 
 export { USAF_SOURCE };

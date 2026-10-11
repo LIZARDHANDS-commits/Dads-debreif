@@ -11,7 +11,7 @@ import { WING_BANKS, closureNow, rejoinClosureNow } from './tuning.js';
 const dt = STEP_SEC;
 
 /** A leg whose slot is further than this from the aircraft flown off is a long move's (fighting wing, line abreast). */
-const LONG_SLOT_FT = 300; // the close formations all sit inside about 230 ft (route, 5 wingspans out); fighting wing starts at 500 ft
+const LONG_SLOT_FT = 300; // the close formations all sit inside about 150 ft (route, 3 wingspans out); fighting wing starts at 500 ft
 // A move to a place more than this far from the aircraft he flies off has no closure cap: full power, then a smooth stop
 // with power and the boards (Patrick 6 Oct 15:18Z: "Get rid of the closure rate when moving anywhere further than 100 feet
 // from the aircraft ... as long as it's realistic and smooth"; TS-128). A rejoin's legs keep their own rules (TS-75).

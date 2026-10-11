@@ -9,11 +9,11 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { drawnAirspace, hiddenFor, withHidden } from '../../../src/modules/sof/airspace-filter.js';
+import { drawnAirspace, hiddenFor, withHidden } from '../../../src/airfields/airspace/filter.js';
 import { cleanView3d } from '../../../src/modules/sof/settings-model.js';
 import { dragAction } from '../../../src/modules/sof/scene3d-model.js';
-import { AIRSPACE as KDLF_FAA } from '../../../src/modules/sof/sites/faa-airspace/kdlf.js';
-import { AIRSPACE as CYMJ_FIXED } from '../../../src/modules/sof/airspace-data.js';
+import { AIRSPACE as KDLF_FAA } from '../../../src/airfields/airspace/faa/kdlf.js';
+import { AIRSPACE as CYMJ_FIXED } from '../../../src/airfields/airspace/data.js';
 
 test('hiding MOAs or one airspace changes only the picture at that base, and the mouse choice maps left and right drags', () => {
   // The list the airspace log reads: every entry, hidden or not. A copy is kept to show the filter never changes it.

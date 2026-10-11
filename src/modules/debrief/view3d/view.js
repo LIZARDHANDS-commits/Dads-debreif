@@ -13,12 +13,18 @@
 // altitude ×1 and the ground at the home field; its labels are placed through
 // that camera. Filled GPS gaps (DB-20) are a translucent ribbon with a dashed
 // centre line, the ship in one a ghosted model labelled "est.".
+//
+// Airspace and airfields round the flight (DB-24) are the SOF's own drawing, shared in ui-kit (airspace3d.js,
+// airfield3d.js): built once at true height for the flight's area and kept in the scene, stretched up by the
+// altitude scale (×1 in the cockpit and chase), so a floor, a ceiling and a runway sit at their true heights.
 import { createCanvasSurface } from '../../../ui-kit/canvas-view.js';
 import {
   loadThree as loadThreeModule, matchProjection, altToZ, addLights, addSky, disposeAircraftMesh, webglSupported, worldToScreen,
 } from '../../../ui-kit/three-aircraft.js';
 import { createCt156Model, CT156_UNIT_LENGTH, CT156_LENGTH_FT, PAINT_DEFAULT } from '../../../ui-kit/ct156-model.js';
 import { createCockpitMount, aimCockpitCamera, PANEL_REDRAW_MS } from '../../../ui-kit/ct156-cockpit.js';
+import { buildAirspace } from '../../../ui-kit/airspace3d.js';
+import { buildAirports } from '../../../ui-kit/airfield3d.js';
 import { SHIP_COLORS } from '../state.js';
 import { sampleAt } from '../../../flight-data/flight.js';
 import { createRide, COCKPIT_CAPTION } from './cockpit.js';
@@ -44,6 +50,13 @@ const GHOST_OPACITY = 0.45;
 const COCKPIT_SKY = '#2f6aa8';
 const COCKPIT_LAND = '#3d5a2e';
 const COCKPIT_GROUND_FT = 800_000;
+/**
+ * A runway is drawn this far above its field's elevation (scene feet before the altitude scale), just clear of the ground, and each layer of its
+ * paint this much above the one under it: thin, so a parked or taxiing aircraft (its belly about 2 ft above its wheels on the model) sits on the
+ * paint, not in it, in Chase's true scale. Estimates (DB-24, DB-26).
+ */
+const RUNWAY_LIFT_FT = 0.5;
+const RUNWAY_LAYER_FT = 0.5;
 
 /**
  * canvas: the 3D <canvas> (the overlay; the WebGL canvas goes right after
@@ -51,18 +64,22 @@ const COCKPIT_GROUND_FT = 800_000;
  * null. time(): the playback time. settings(): the layout values (view,
  * cam3d, yaw3d, pitch3d, zoom3d, altScale3d, model3d, paint3d, planeSize3d,
  * attLabels3d, trailSec3d, landscape3d, groundRef3d, datum3d, grid3d,
- * sticks3d, altMarks3d). fieldFt(): the home field's elevation.
+ * sticks3d, altMarks3d). fieldFt(): the home field's elevation. ground(): the ground
+ * the tracks recorded (ground.js groundLevel, DB-26), or null: Chase and Cockpit stand
+ * on it, and it is the "From the tracks" ground setting.
  * setCamera(patch): keeps a camera change (yaw3d, pitch3d, zoom3d, or the
  * cockpit's headYaw3d, headPitch3d). fills(): the filled GPS gaps to draw
  * (gap-fill.js fillGaps's `fills`), or null while the fill is off. wind(t,
  * altFt): the model wind { dirDeg, kt } or null, and windKey(): which wind it
- * is ('' for none), for the cockpit's crab and airspeed.
+ * is ('' for none), for the cockpit's crab and airspeed. space(): the airspace and
+ * airfields to draw (DB-24), { key, toXY, fieldFt, airspace: volumes or null when
+ * off, airfields: list or null when off }, or null for none.
  * onUnavailable(message): three.js or WebGL couldn't start; the screen
  * says so and goes back to 2D. loadThree: for tests.
  */
 export function createView3d(canvas, {
-  timers, flight, time, settings, fieldFt, setCamera, tennis = () => null,
-  fills = () => null, wind = /** @type {(t: number, altFt: number) => any} */ (() => null), windKey = () => '',
+  timers, flight, time, settings, fieldFt, setCamera, tennis = () => null, ground = () => null,
+  fills = () => null, wind = /** @type {(t: number, altFt: number) => any} */ (() => null), windKey = () => '', space = () => null,
   onUnavailable = /** @type {(message: string) => void} */ (() => {}), loadThree = loadThreeModule,
 }) {
   const glCanvas = document.createElement('canvas');
@@ -151,8 +168,11 @@ export function createView3d(canvas, {
     }
     const ctr = cockpit ? { x: riding.x, y: riding.y, z: riding.altFt } : shown ? formationCenter(live, on.cam3d) : { x: 0, y: 0, z: 0 };
     const view = cockpit ? { ...camera, altScale: 1 } : camera; // true scale in the cockpit
-    const datum = shown ? (cockpit ? groundFieldFt : groundDatumFt(ships, on.datum3d, groundFieldFt)) : 0;
+    // Chase and Cockpit stand on the ground the tracks recorded (DB-26; the home field's elevation without one), whatever the Ground setting.
+    const tracksGround = shown ? ground()?.groundFt ?? groundFieldFt : groundFieldFt;
+    const datum = shown ? (cockpit ? tracksGround : groundDatumFt(ships, on.datum3d, groundFieldFt, tracksGround)) : 0;
 
+    placeSpace(gl, THREE, shown ? space() : null, { scale: view.altScale, ftPerPx: cockpit ? 0 : 1000 / view.zoom });
     const modelled = renderPicture(gl, THREE, { size, flight: shown, t, on, camera: view, ctr, ships, datum, filled, cockpit });
     if (cockpit?.again && !panelRetry) {
       panelRetry = timers.after(cockpit.again, () => {
@@ -190,7 +210,7 @@ export function createView3d(canvas, {
     }
     if (ball?.points) drawTennis3d(ctx, P, ball);
     if (on.groundRef3d) drawCompass(ctx, size, camera);
-    drawCaption(ctx, camera, on, datum);
+    drawCaption(ctx, camera, on, datum, ground()?.source ?? 'field');
   }
 
   return {
@@ -276,7 +296,45 @@ function disposeGhost({ mesh, copies }) {
   for (const c of copies) c.dispose();
 }
 
+// The airspace volumes and airfields (DB-24): built again only when what is wanted changes (`want.key`, which names the
+// flight, the files, the hidden kinds and the two switches), at scale 1, then stretched up by the altitude scale each draw.
+// In the cockpit (ftPerPx 0) the airfields are their true size; outside it a far field is drawn at least a few pixels long.
+function placeSpace(gl, THREE, want, { scale, ftPerPx }) {
+  const key = want ? want.key : '';
+  if ((gl.space?.key ?? '') !== key) {
+    gl.space?.dispose();
+    gl.space = null;
+    if (want && (want.airspace?.length || want.airfields?.length)) {
+      const root = new THREE.Group();
+      root.name = 'debrief-space';
+      const parts = [];
+      if (want.airspace?.length) parts.push(buildAirspace(THREE, { volumes: want.airspace, routes: [], toXY: want.toXY, scale: 1, groundFt: want.fieldFt }));
+      const airports = want.airfields?.length
+        ? buildAirports(THREE, {
+          toXY: want.toXY, scale: 1, groundFt: want.fieldFt, doc: gl.doc, airports: want.airfields, liftFt: RUNWAY_LIFT_FT, layerFt: RUNWAY_LAYER_FT,
+          aboveGround: false, elevationShiftFt: want.shiftFt ?? 0,
+        })
+        : null;
+      if (airports) parts.push(airports);
+      for (const part of parts) root.add(part.root);
+      gl.scene.add(root);
+      gl.space = {
+        key, root, airports,
+        dispose() {
+          for (const part of parts) part.dispose();
+          root.removeFromParent();
+        },
+      };
+    } else if (want) gl.space = { key, root: null, airports: null, dispose() {} };
+  }
+  if (!gl.space?.root) return;
+  gl.space.root.scale.set(1, 1, scale);
+  gl.space.airports?.fit(ftPerPx > 0 ? ftPerPx : 1e-6);
+}
+
 function disposePicture(gl) {
+  gl.space?.dispose();
+  gl.space = null;
   clearGroup(gl.world);
   gl.cockpit?.dispose();
   gl.cockpit = null;

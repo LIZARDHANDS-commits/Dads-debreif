@@ -1,13 +1,13 @@
 // Which airspace the SOF's 3D view draws, from the choices in its Airspace tab (Dad, 8 Oct 2026: "I should also be able to hide certain airspace if needed in
-// a tab somewhere"; SOF plan "3D mouse controls and an airspace filter"; SOF-47). Pure: entries and choices go in, plain data comes out; view3d.js draws the tab.
+// a tab somewhere"; SOF plan "3D mouse controls and an airspace filter"; SOF-47; shared with the Debrief's Layers since 10 Oct 2026, DB-24). Pure: entries and choices go in, plain data comes out; the SOF's view3d.js draws the tab.
 //
 // The choices are kept per base in the SOF's "view3d" settings document (settings-model.js `airspaceHidden3d`): { KDLF: { kinds: ['moa'], ids: ['R-6312'] } }, a
 // kind by its key below and an airspace by its id. Hiding only changes the picture: the airspace log and the watched areas read the base's airspace themselves
 // (map.js), never this filter's output, and `drawnAirspace` never changes the list it is given.
-import { limitWords, heightsNotGiven } from './airspace-model.js';
+import { limitWords, heightsNotGiven } from './model.js';
 
 /**
- * The kinds the tab offers a switch for, in its order, each in plain words. They are finer than airspace-model.js's kinds, which keep the drawing colours: a
+ * The kinds the tab offers a switch for, in its order, each in plain words. They are finer than model.js's kinds, which keep the drawing colours: a
  * terminal entry is sorted by its class letter and name (Class B, Class C, or a transition area or control area extension), and every control zone (Canadian
  * zones of any class and US Class D) goes together. Only the kinds the square holds get a switch.
  */
@@ -31,7 +31,7 @@ const WORDS = new Map(FILTER_KINDS.map((k) => [k.key, k.words]));
 /** A kind key in words: 'moa' reads "MOAs". */
 export const kindWords = (key) => WORDS.get(key) ?? 'Other airspace';
 
-/** The tab's kind for an entry (airspace-model.js entry shape). */
+/** The tab's kind for an entry (model.js entry shape). */
 export function filterKindOf(entry) {
   const kind = entry?.kind;
   if (kind === 'terminal') {
@@ -42,7 +42,7 @@ export function filterKindOf(entry) {
   return KIND_KEYS.includes(kind) ? kind : 'other';
 }
 
-/** An entry's own id: a training route cut at the square's edge keeps its id with " (part 2)" and so on (airspace-model.js `airspaceInSquare`), and is hidden with it. */
+/** An entry's own id: a training route cut at the square's edge keeps its id with " (part 2)" and so on (the SOF's airspace-square.js `airspaceInSquare`), and is hidden with it. */
 export const baseId = (id) => String(id ?? '').replace(/ \(part \d+\)$/, '');
 
 /** No airspace hidden. */

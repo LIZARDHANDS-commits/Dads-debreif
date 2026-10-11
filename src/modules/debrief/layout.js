@@ -21,8 +21,11 @@ import { ARROW_HEIGHT, clampArrowFt } from './weather/wind-arrows.js';
 import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import { createCameraBar } from './view3d/camera-bar.js';
 import { ridesShip } from './view3d/camera-modes.js';
+import { hiddenKinds, withKind } from './airspace.js';
 
 const SAVE_WX_LABEL = 'Save radar and lightning with this debrief';
+// DB-24: the ground drawn at the lowest ship less 500 ft hides the airspace and runways under it.
+const GROUND_HIDES_WORDS = 'Airspace and airfields under the ground drawn (lowest ship − 500 ft) are hidden by it. Ground: From the tracks or Home field elevation shows them all.';
 // What the button does, said once for a screen reader and as the button's tooltip, so the menu's own line can stay one line (F1).
 const SAVE_WX_EXPLAIN = 'This fetches every picture from the flight and keeps them in the debrief file.';
 
@@ -122,6 +125,52 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   }
 
   const resetLayout = () => h('button', { type: 'button', class: 'button', onclick: () => handlers.reset?.() }, 'Reset layout');
+  // Airspace and airfields round the flight (DB-24): the two switches, and under Airspace a closed "Airspace kinds" list
+  // (each kind near the flight with its count, ticked when shown; the shared filter's kinds) and a line saying what is
+  // drawn, loading, missing or why there is none. In both the Layers menu (2D) and 3D settings, as Fill GPS gaps is.
+  const spaceBoxes = [];
+  let spaceState = null;
+  let spaceIds = 0; // each kind's tick gets its own id, for its label
+  function spaceBox({ in3d = false } = {}) {
+    const status = h('p', { class: 'debrief-menu-note', role: 'status', hidden: true });
+    // In 3D, with the ground at the lowest ship less 500 ft, whatever is under that ground is hidden by it: said, with the way round it.
+    const ground = in3d ? h('p', { class: 'debrief-menu-note', hidden: true }, GROUND_HIDES_WORDS) : null;
+    const list = h('div', { class: 'debrief-menu-group debrief-space-kinds' });
+    const kinds = h('details', { class: 'debrief-menu-wide', hidden: true }, h('summary', {}, 'Airspace kinds'), list);
+    const box = h('div', { class: 'debrief-menu-wide debrief-menu-cell' },
+      controls.checkbox('airspace', { label: 'Airspace' }),
+      controls.checkbox('airfields', { label: 'Airfields' }),
+      status,
+      ...(ground ? [ground] : []),
+      kinds);
+    spaceBoxes.push({ status, list, kinds, ground });
+    return box;
+  }
+  function renderSpace() {
+    const on = layout.get();
+    const st = spaceState;
+    const hidden = new Set(hiddenKinds(on.airspaceHidden));
+    const words = !st || !on.airspace ? '' : st.words;
+    for (const box of spaceBoxes) {
+      if (box.ground) box.ground.hidden = !st || st.status === 'none' || (!on.airspace && !on.airfields) || on.datum3d !== 'min' || ridesShip(on);
+      if (box.status.textContent !== words) box.status.textContent = words;
+      box.status.hidden = !words;
+      const rows = on.airspace && st ? st.kinds : [];
+      box.kinds.hidden = !rows.length;
+      const key = rows.map((k) => `${k.key}:${k.count}:${hidden.has(k.key)}`).join();
+      if (box.list.dataset.key === key) continue;
+      box.list.dataset.key = key;
+      clear(box.list);
+      for (const k of rows) {
+        spaceIds += 1;
+        const id = `debrief-space-kind-${spaceIds}`;
+        const input = h('input', { type: 'checkbox', id });
+        input.checked = !hidden.has(k.key);
+        input.addEventListener('change', () => layout.update({ airspaceHidden: withKind(layout.get().airspaceHidden, k.key, !input.checked) }));
+        box.list.append(h('div', { class: 'control control-checkbox' }, input, h('label', { for: id }, `${k.words} (${k.count})`)));
+      }
+    }
+  }
   const { nudgeNm: NUDGE, scalePct: SCALE } = VNC_ALIGN_LIMITS;
   const layersMenu = menu('Layers', 'debrief-layers', [
     controls.checkbox('satellite', { label: 'Satellite imagery' }),
@@ -140,6 +189,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     controls.number('bubbleFt', { label: 'Bubble radius', unit: 'ft', min: BUBBLE_MIN_FT, max: BUBBLE_MAX_FT, step: 50 }),
     controls.checkbox('followLead', { label: 'Follow Lead' }),
     controls.checkbox('fillGaps', { label: 'Fill GPS gaps (estimate)' }),
+    spaceBox(),
     resetLayout(),
   ]);
   // Routes and VNC charts under the tracks, in a menu of their own so each stays short.
@@ -241,6 +291,9 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   const cameraBar = createCameraBar({ layout, listen });
   // In a ship's view (Cockpit or Chase) the picture is true scale (DB-21, DB-22): these settings do nothing there, so they hide.
   const notInCockpit = [];
+  // Where the ground is (DB-26): from the tracks' ground fixes, or the home field's elevation without them. Shown in Chase and Cockpit too,
+  // which always stand on it.
+  const groundNote = h('p', { class: 'debrief-menu-note debrief-menu-wide', role: 'status', hidden: true });
   const outside = (el) => (notInCockpit.push(el), el);
   const view3dMenu = menu('3D settings', 'debrief-3d-settings', [
     controls.select('model3d', { label: 'Aircraft', options: [{ value: 't6', label: 'Harvard (CT-156)' }, { value: 'flat', label: 'Flat marker' }] }),
@@ -252,10 +305,12 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     outside(controls.number('planeSize3d', { label: 'Aircraft size', unit: 'ft', min: 60, max: 2000, step: 20 })),
     controls.number('trailSec3d', { label: 'Trail length', unit: 's', min: 0, max: 600, step: 10 }),
     outside(controls.select('datum3d', { label: 'Ground', options: [
+      { value: 'tracks', label: 'From the tracks' },
       { value: 'min', label: 'Lowest ship − 500 ft' },
       { value: 'field', label: 'Home field elevation' },
       { value: 'zero', label: 'Sea level' },
     ] })),
+    groundNote,
     controls.checkbox('attLabels3d', { label: 'Bank and pitch' }),
     outside(controls.checkbox('sticks3d', { label: 'Altitude sticks' })),
     outside(controls.checkbox('altMarks3d', { label: 'Altitude scale' })),
@@ -263,6 +318,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     controls.checkbox('grid3d', { label: 'Ground grid' }),
     controls.checkbox('landscape3d', { label: 'Landscape' }),
     controls.checkbox('fillGaps', { label: 'Fill GPS gaps (estimate)' }),
+    spaceBox({ in3d: true }),
     h('button', { type: 'button', class: 'button', onclick: () => layout.update({ yaw3d: V6_CAMERA.yawDeg, pitch3d: V6_CAMERA.pitchDeg, zoom3d: V6_CAMERA.zoom, headYaw3d: 0, headPitch3d: 0 }) }, 'Reset view'),
     resetLayout(),
   ]);
@@ -417,6 +473,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
       placeOpenMenus();
     }
     for (const el of notInCockpit) el.hidden = ridesShip(values);
+    renderSpace();
     // The camera bar sits over the 3D picture once a flight is loaded.
     cameraBar.element.hidden = !is3d || !flight;
     if (flight) cameraBar.sync(values, Object.keys(flight.tracks).map(Number));
@@ -511,6 +568,16 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
       showNotes();
       if (windArrowStatus.textContent !== status) windArrowStatus.textContent = status;
       windArrowStatus.hidden = !status;
+    },
+    /** The airspace and airfields' state for the menus (debrief/airspace.js createFlightSpace's), or null with no flight (DB-24). */
+    setSpace(state) {
+      spaceState = state;
+      renderSpace();
+    },
+    /** The 3D settings' line saying where the ground is drawn and why (DB-26), or '' for none. */
+    setGround(text) {
+      if (groundNote.textContent !== text) groundNote.textContent = text;
+      groundNote.hidden = !text;
     },
     /** Shows the readouts for the current time (at most 10 times a second while playing). */
     renderReadouts: (r, extra) => readouts.render(r, flight, extra),

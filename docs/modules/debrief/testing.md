@@ -76,6 +76,7 @@ Anyone can run it, in the real app, from the module's default start, on a laptop
 - [ ] A gap is drawn as a dotted best guess in a shaded zone, the ship marked "est.", and the readouts still say "GPS gap"; Layers → Fill GPS gaps off brings back the broken line (DB-R27)
 - [ ] Ride #1's front seat, then #2's rear seat, through a turn and through a filled gap (DB-R28)
 - [ ] GPS puck: set #2 to Rear cockpit in the GPS puck box; in close formation #2's marker moves about 2 ft on the zoomed-in map, the status says "#2 moved from its rear-cockpit GPS puck", the cockpit from #2's rear seat still looks right; back to Not set gives today's numbers exactly (DB-23; no automatic test, this PR's one test is DB-R27's)
+- [ ] Airspace and airfields: load the Example flight, tick Airspace in 3D settings; the Moose Jaw airspace stands round the formation with its floors and ceilings, the runways sit under the aircraft on take-off and landing in Chase and Cockpit, and the 2D map shows the outlines and runways; untick a kind in Airspace kinds and it goes (DB-24)
 
 > The old checklist below was written before the reset. It is refreshed against the requirements above when the module's work resumes: lines that test V6 numbers or exact times are rewritten or dropped.
 

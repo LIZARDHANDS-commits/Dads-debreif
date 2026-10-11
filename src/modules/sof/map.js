@@ -37,7 +37,7 @@ import { drawGeoImage, drawRings, drawAirfields, drawTraffic, drawTrails, drawAp
 import { fieldApproaches, finalCourse2d, publishedLine } from './approaches-model.js';
 import { approachesOf, loadApproachesFor } from './sites/approaches-load.js';
 import { runwayInUse, fieldsForRunways, shownSignature } from './runway-in-use.js';
-import { AIRPORTS } from './airports-data.js';
+import { AIRPORTS } from '../../airfields/airports-data.js';
 import { createTrails, glideLatLon, canGlide, GLIDE_2D_MS } from './traffic-motion.js';
 import { createMapControls } from './map-controls.js';
 import { createAdsbFrame, adsbExchangeUrl, zoomForScale } from './adsbx.js';
@@ -47,7 +47,7 @@ import { alerts3dView } from './alerts.js';
 import { sceneAirfields, sceneTraffic, stationAnchors, AREA_FT, AREA_NM, DEFAULT_AREA_NM, setAreaNm } from './scene3d-model.js';
 import { fetchReports } from '../../wx/sources.js';
 import { createFrontsFeed, frontsUrl, frontsView } from './fronts.js';
-import { tacnavRoutes, checkedAirspace } from './airspace-model.js';
+import { tacnavRoutes, checkedAirspace } from '../../airfields/airspace/model.js';
 import { createAirspaceLog } from './airspace-log.js';
 import { createModelFeed, gridPoints } from './model-clouds.js';
 import { siteFor, noSourceWords } from './sites/index.js';

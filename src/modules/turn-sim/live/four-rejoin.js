@@ -21,7 +21,7 @@ import { STEP_SEC } from './flight.js';
 import { slide, closeThrough, rejoinTo, straightAhead, STRAIGHT_AHEAD } from './recipes.js';
 import { REJOIN, TURNING_REJOIN, STRAIGHT_REJOIN, WING_BANKS, KIAS_OUTSIDE_LAB } from './tuning.js';
 import { phase } from './tracker.js';
-import { RATE_SETS } from './rates.js';
+import { RATE_SETS, G_RULE_BANK_DEG } from './rates.js';
 import { KT_TO_FTPS as KT_FTPS } from '../../../core/units.js';
 import { leadTurnInto } from './lead-turn-in.js';
 import { searchTurningRejoin, flyTurningRejoinWith } from './turning-rejoin.js';
@@ -213,7 +213,12 @@ const BOX_LINE_FT = 1500;
 const BOX_LINE_FW4_FT = 2500;
 const BOX_PAUSE_SEC = 7; // Lead flies straight on this long after the call before he turns in (Fable's 5-10 s; estimate)
 const BOX_LINE_LOW_FT = { 3: 150, 4: 250 }; // how far below Lead each rides it, #2 riding it 50 ft below (estimates)
-const onBoxLine = (c, id, s, alongFt = BOX_LINE_FT) => phase(place(c, 0, 0, -BOX_LINE_LOW_FT[id]), { kind: 'ride', track: 1, lineDeg: TURNING_REJOIN.lineDeg, side: s, captureAlongFt: alongFt + 500, windowFt: alongFt, carrotWindowFt: alongFt, bankCapDeg: REJOIN.bankCapDeg, floorKias: KIAS_OUTSIDE_LAB, rejoin: true });
+// His capture onto the line stays within 5 G (G_RULE_BANK_DEG, a level 5 G turn; TS-181). Far down the line the element closes at full power (Patrick 5 Oct 05:34Z: "3 and 4 immediately go full power and towards
+// number 1's turn circle"), setting the line's 210 KIAS this far beyond his point on it: on the 35° line (TS-181) #4, 9,600 ft
+// out, could not gain on Lead's turn at 210 (estimates).
+const BOX_LINE_FAR_KIAS = 260;
+const BOX_LINE_EASE_FT = 4500; // from 1,500 (V2.232): #3 and #4 arrived 15-25 kt hot and swung wide (Fable's V2.232 audit; estimate)
+const onBoxLine = (c, id, s, alongFt = BOX_LINE_FT) => phase(place(c, 0, 0, -BOX_LINE_LOW_FT[id]), { kind: 'ride', track: 1, lineDeg: TURNING_REJOIN.lineDeg, side: s, captureAlongFt: alongFt + 500, windowFt: alongFt, carrotWindowFt: alongFt, bankCapDeg: G_RULE_BANK_DEG, floorKias: KIAS_OUTSIDE_LAB, rideKias: BOX_LINE_FAR_KIAS, easeFromFt: alongFt + BOX_LINE_EASE_FT, easeKias: TURNING_REJOIN.rideKias, rejoin: true });
 
 /** A wingman's legs with the offset box's rejoin line in front (onBoxLine). */
 const onLineFirst = (c, w, s, alongFt) => ({ ...w, phases: (done) => [onBoxLine(c, w.id, s, alongFt), ...w.phases(done)] });

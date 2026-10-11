@@ -5,7 +5,7 @@
 // The 3D view is a picture for situational awareness. It never decides anything: no limit is checked here
 // and nothing in it raises or clears a caution.
 import { FT_PER_NM } from './map-view.js';
-import { AIRPORTS } from './airports-data.js';
+import { AIRPORTS } from '../../airfields/airports-data.js';
 import { velocityFt } from './traffic-motion.js';
 import { T6_TYPE, showsName } from './aircraft-kind.js';
 import { staleness } from '../../wx/sources.js';

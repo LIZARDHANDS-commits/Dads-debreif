@@ -6,6 +6,7 @@ import { headingAt, sampleAt } from '../../flight-data/flight.js';
 import { headingRadToCompassDeg } from '../../core/angles.js';
 import { readoutsAt } from './readouts.js';
 import { puckHeaderNote } from './puck.js';
+import { timingHeaderNote } from './gps-timing.js';
 
 /**
  * Each ship's columns, in order: the header after "#n " and how the value is written.
@@ -63,7 +64,8 @@ export function csvRows(flight, { recordedG = false, leadWindAt = null } = {}) {
   const tracks = Object.values(flight.tracks).sort((a, b) => a.slot - b.slot);
   // A ship moved from its GPS puck (DB-23) says so on its position headers; the positions are the moved ones, as on screen.
   const named = (tr, name) => `#${tr.slot} ${name}${POSITION_COLUMNS.has(name) ? puckHeaderNote(tr) : ''}`;
-  const header = ['time (Zulu)', ...tracks.flatMap((tr) => SHIP_COLUMNS.map(([name]) => named(tr, name)))];
+  // Ships whose timestamps were snapped or shifted (DB-25) are named on the time column.
+  const header = [`time (Zulu)${timingHeaderNote(flight)}`, ...tracks.flatMap((tr) => SHIP_COLUMNS.map(([name]) => named(tr, name)))];
   const rows = [header];
   for (let t = Math.ceil(flight.startT); t <= flight.endT; t++) {
     const leadSample = leadWindAt && flight.tracks[1] ? sampleAt(flight.tracks[1], t) : null;

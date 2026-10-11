@@ -14,8 +14,8 @@ import { virtualClock, fakeFetch, json } from './map-testkit.js';
 import { CATALOG } from '../../../src/airfields/catalog.js';
 import { siteFor } from '../../../src/modules/sof/sites/index.js';
 import { createModelFeed, gridPoints, callCost } from '../../../src/modules/sof/model-clouds.js';
-import { airportsFor } from '../../../src/modules/sof/airports-data.js';
-import { runwayGeometry } from '../../../src/modules/sof/airports3d.js';
+import { airportsFor } from '../../../src/airfields/airports-data.js';
+import { runwayGeometry } from '../../../src/ui-kit/airfield3d.js';
 import { createProjection } from '../../../src/modules/sof/map-view.js';
 import { AREA_FT } from '../../../src/modules/sof/scene3d-model.js';
 
