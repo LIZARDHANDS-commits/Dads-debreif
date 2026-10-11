@@ -60,13 +60,12 @@ export const WINGSPAN_FT = 33.4;
 export const LENGTH_FT = 33.4;
 
 /**
- * Route spacing in wingspans: the slot 5 wingspans further out than echelon along the spinner-to-wingtip line, judged in
- * route out to max (Patrick 5 Oct 06:11Z: "Lets use a 5 plane spacing route, yours is too tight right now"; 6 Oct 02:11Z:
- * "Route IS on the line. Just moved down from eschalon 5 wingspans"; TS-103). It is wider than SMM 12.6 para 15's 1 to 3
- * wingspans (2 until step 2): the manual is the reference, Patrick's practice the default. Until V2.107 route was 5
- * wingspans out but only echelon's 25 ft back, nearly abreast, off the line.
+ * Route spacing in wingspans: the slot 3 wingspans further out than echelon along the spinner-to-wingtip line, judged in
+ * route from 1 to 3 (SMM 12.6 para 15, Fig 12.7: one to three wingspans; Patrick 11 Oct 2026 00:03Z "i want route to be the
+ * same reference I just gave you", 00:15Z "let's make it 3 wingspans"; TS-181). It was Patrick's 5 (TS-103); at the 35°
+ * rejoin line that put the decision point (where the line reaches route's spacing) outside the 250 ft window.
  */
-export const ROUTE_SPANS = Object.freeze({ slot: 5, min: 4, max: 6 });
+export const ROUTE_SPANS = Object.freeze({ slot: 3, min: 1, max: 3 });
 
 /**
  * The spinner-to-wingtip line (SMM 12.4 paras 11-12, 12.6 para 15): from Lead's spinner, half a length ahead of his centre,
@@ -117,10 +116,10 @@ export const FW_REGION = widen(FW_BAND.seeMarginFt, FW_BAND.seeMarginDeg);
  */
 export const NEAREST = Object.freeze({
   lab: Object.freeze({ minAcrossFt: 1500, sweepDeg: Object.freeze([-15, 25]) }),
-  closeRangeFt: 300, // inside about 300 ft: the close formations (route reaches about 230 ft out)
+  closeRangeFt: 300, // inside about 300 ft: the close formations (route reaches about 150 ft out)
   astern: Object.freeze({ maxAcrossFt: 22 }),
   echelon: Object.freeze({ maxAcrossFt: 56, fwdFt: Object.freeze([-90, 40]) }),
-  route: Object.freeze({ extraSpans: 2, fwdFt: Object.freeze([-200, 60]) }), // out and back past the route band (Patrick 06:11Z; TS-103)
+  route: Object.freeze({ extraSpans: 2, fwdFt: Object.freeze([-200, 60]) }), // out and back past the route band (Patrick 06:11Z; TS-103, TS-181)
 });
 
 /**
@@ -215,8 +214,8 @@ function link(key, s, spacingFt) {
     case 'fw': return { fwd: -fwShape.rangeFt * Math.sin(fwShape.sweepDeg * DEG), left: s * fwShape.rangeFt * Math.cos(fwShape.sweepDeg * DEG), alt: -60 };
     // about 45 ft out, 25 ft back, 5 ft down: estimates, the manual gives sight references (SMM 12.4 paras 11-12)
     case 'echelon': return { fwd: -25, left: s * 45, alt: -5 };
-    // on the spinner-to-wingtip line, five wingspans further out along it than echelon (Patrick 6 Oct 02:11Z, ROUTE_SPANS,
-    // TS-103; SMM 12.6 para 15 gives 1 to 3): about 163 ft out and 143 ft back, level or slightly low
+    // on the spinner-to-wingtip line, three wingspans further out along it than echelon (SMM 12.6 para 15, Fig 12.7;
+    // ROUTE_SPANS, TS-181; it was 5, TS-103): about 116 ft out and 96 ft back, level or slightly low
     case 'route': return downTheLine(link('echelon', s, spacingFt), s, ROUTE_SPANS.slot * WINGSPAN_FT);
     // nose to tail about 10 ft (SMM 12.5 para 13): centre to centre is that plus a fuselage length; below the prop wash (estimate)
     case 'astern': return { fwd: -(LENGTH_FT + 10), left: 0, alt: -8 };

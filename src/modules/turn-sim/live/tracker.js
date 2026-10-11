@@ -16,6 +16,7 @@ import { throttleAtTorque, throttleFor } from './power.js';
 import { TRACKER, CLOSURE, HAND_OVER_FT, FW_ENERGY, FW_BUBBLE, REJOIN, TURNING_REJOIN, KIAS_OUTSIDE_LAB, lineKiasNow } from './tuning.js';
 import { fixedLine, FW_LIMITS } from './slots.js';
 import { setKias, stepCommanded, climbCostKtps, createPilot, pilotSpeed, pilotFly, pilotPower, coneUpFtNow } from './pilot.js';
+import { G_RULE } from './rates.js';
 import { isLeadInCanopy } from '../../../core/canopy.js';
 import { liftTowardAim, gAndBankForLift } from '../../../core/point-mass.js';
 
@@ -203,7 +204,9 @@ function aimOf(ph, L, Lprev, ref, W, t) {
 
   // The reference slot moves toward the phase's slot at the phase's rates. A phase with a `goal` (a goal-seeking phase,
   // the fighting wing turns of TS-55) works out its slot afresh every step from where Lead and #2 are.
-  const slot = ph.goal ? ph.goal(L, W, t) : ph.slot;
+  // On Lead's wing plane (TS-181) the slot is in it, as holdInPlane holds it: its step down tilts with Lead's bank, so in
+  // his turn the place sits a little further in, horizontally, as well as stepped down (slotAltOf).
+  const slot = planeSlot(ph, L, ph.goal ? ph.goal(L, W, t) : ph.slot);
   for (const [axis, v, target, rate] of [['f', 'vf', slot.fwd, ph.fwdRate], ['l', 'vl', slot.left, ph.latRate]]) {
     if (!Number.isFinite(rate)) {
       ref[axis] = target;
@@ -227,7 +230,7 @@ function aimOf(ph, L, Lprev, ref, W, t) {
   }
   const arrived = ph.goal
     ? Math.hypot(ref.f - slot.fwd, ref.l - slot.left) < (ph.goalTolFt ?? T.goalTolFt)
-    : Math.hypot(ref.f - ph.slot.fwd, ref.l - ph.slot.left) < Math.max(T.snapFt, (ph.advanceTol ?? 6) * 0.25);
+    : Math.hypot(ref.f - slot.fwd, ref.l - slot.left) < Math.max(T.snapFt, (ph.advanceTol ?? 6) * 0.25);
 
   // The reference point and its velocity: attached to the aircraft it flies off, so it turns with it (v = vRef + ω × r + the reference's own motion).
   // A phase with `refTurn: false` (the fighting wing turn exit) leaves out the ω × r: the place goes with the aircraft flown
@@ -382,7 +385,11 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
   // On a rejoin, near his least speed too, he banks what the line needs: MAX is set and any speed bleed accepted; only stall
   // and G limit the bank (Patrick 10 Oct 20:01Z; TS-139's sustained-bank cut retired).
   if (isRejoinKind) cap = Math.min(cap, stallBankDeg(W.kias));
-  if (ph.coneEase && L && aim?.along != null) {
+  // The cone ease is for arriving along the line, once on it: in the capture before that (the ride not yet established) he
+  // banks what the capture needs. Until V2.232 it eased him from 1,500 ft down the line on, on it or not; at the 35° line
+  // (TS-181) the capture from line abreast crosses that range and he flew through the line and across Lead's six.
+  const easing = ph.coneEase && L && aim?.along != null && aim.established !== false;
+  if (easing) {
     const leadBank = L.bankDeg ?? 0;
     const targetCap = Math.max(Math.abs(leadBank) + 5, 25);
     const dFar = ph.coneEaseFarFt ?? 1200;
@@ -414,7 +421,7 @@ function headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L = null, a
   } else {
     bank = Math.max(-cap, Math.min(cap, rawBank));
   }
-  if (ph.coneEase && L && aim?.along != null) {
+  if (easing) {
     const leadBank = L.bankDeg ?? 0;
     const dFar = ph.coneEaseFarFt ?? 1200;
     const dNear = ph.decisionFt ?? 750;
@@ -510,6 +517,26 @@ function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowO
 }
 
 /**
+ * planeSlot: a phase's slot ({ fwd, left, alt }, alt with Lead's height) in Lead's frame now. slotAltOf: the height it asks of
+ * #2 now (ph.slot.alt). On Lead's wing plane (ph.wingPlane: the turning rejoin from its
+ * decision point, TS-181) it is the slot's step down from the plane Lead's bank tilts under #2, so in Lead's turn he sits
+ * stepped down as he will hold it (formation-turns.js holdInPlane).
+ */
+function planeSlot(ph, L, slot) {
+  if (!ph.wingPlane || !slot || slot.alt == null || !L) return slot;
+  const phi = (L.bankDeg ?? 0) * DEG;
+  return { ...slot, left: slot.left * Math.cos(phi) + (slot.alt - (L.altAboveFt ?? 0)) * Math.sin(phi) };
+}
+
+function slotAltOf(ph, L, W) {
+  const alt = ph.slot?.alt;
+  if (!ph.wingPlane || alt == null || !L || !W) return alt;
+  const phi = (L.bankDeg ?? 0) * DEG;
+  const leadAlt = L.altAboveFt ?? 0;
+  return leadAlt - relativeTo(L, W).left * Math.tan(phi) + (alt - leadAlt) / Math.cos(phi);
+}
+
+/**
  * Vertical evolution: flies aircraft #2's height in the same pass as bank and speed.
  * Precedence:
  * 1. Cone energy in fighting wing (or bubble dive toward belowOwn)
@@ -518,24 +545,38 @@ function powerOf(ph, pilot, W, L, kiasCmd, { blockFt, aligning, stageOwn, belowO
  * Returns { stepProfile }.
  */
 export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, zoomFtps, heightState }) {
-  if (ph.slopedAlt && L && W) {
-    // The rejoin line's depth (SMM 12.24 para 58: "maintain the horizontal plane just slightly below lead"; Patrick 10 Oct
-    // 19:57Z: 50 ft): a fixed step below Lead, held level all the way up the line, not a slope with Lead's bank (TS-166;
-    // TS-159 retired). From route spacing in, the tail legs ease him into Lead's wing plane stepped down (the echelon law).
+  const explicitNow = Boolean(profile && (!Array.isArray(profile) || profile.some((leg) => t >= (leg.t0 ?? -Infinity) && t < (leg.t1 ?? Infinity) + 1e-9)));
+  // In the capture, before he is on the line, the caller's own smooth leg to the line's height (or the vertical's) flies.
+  const capturing = ph.slopedAlt && !heightState.onLine && explicitNow;
+  if (!capturing && (ph.slopedAlt || (ph.wingPlane && ph.slot?.alt != null)) && L && W) {
+    // The rejoin line's depth (SMM 12.24 para 58: "maintain the horizontal plane just slightly below lead"; EFIG p.374):
+    // Lead held lineElevDeg above #2's horizon, never shallower than lineUpFt's 50 ft below him (Patrick 10 Oct 19:57Z,
+    // 23:58Z; TS-181), level, not a slope with Lead's bank (TS-159 retired). From the decision point the tail legs
+    // (wingPlane) take him onto Lead's wing plane stepped down, by the same law: a target that moves as he does.
     const TR = TURNING_REJOIN;
-    const targetAlt = (L.altAboveFt ?? 0) + TR.lineUpFt;
+    const rangeFt = Math.hypot(W.xFt - L.xFt, W.yFt - L.yFt);
+    // The angle is held once he is on the line (the ride established); in the capture before it, the 50 ft floor.
+    const depthFt = Math.max(-TR.lineUpFt, heightState.onLine ? rangeFt * Math.tan(TR.lineElevDeg * DEG) : 0);
+    const targetAlt = ph.slopedAlt ? (L.altAboveFt ?? 0) - depthFt : slotAltOf(ph, L, W);
     const D = FW_BUBBLE;
-    const toward = (ft) => Math.max(-D.diveFtps, Math.min(D.diveFtps, (ft - W.altAboveFt) * D.altGain));
+    // One smooth change, stopping on the target as he gets there: on the line within heightG of level flight (TS-140), onto
+    // the wing plane within planeEaseG (TS-126). Until V2.232 the line's was FW_BUBBLE's 1.9 g pull to a fixed 50 ft.
+    const pull = (ph.slopedAlt ? TR.heightG : TR.planeEaseG) * G_FTPS2;
+    const toward = (ft) => {
+      const err = ft - W.altAboveFt;
+      const v = Math.sign(err) * Math.min(Math.abs(err) * D.altGain, Math.sqrt(2 * pull * Math.abs(err)));
+      return Math.max(-D.diveFtps, Math.min(D.diveFtps, v));
+    };
     let wantV = toward(targetAlt);
     const isRejoin = Boolean(ph.rejoin || ph.rejoinKind === 'into' || ph.rejoinKind === 'straight');
     // A guard only: with the line at Lead less 50 ft (TS-166) this never binds (Fable's V2.216 audit 2.4); refactor step 3 may drop it.
-    if (isRejoin && W.altAboveFt >= (L.altAboveFt ?? 0) - 10) wantV = Math.min(wantV, toward((L.altAboveFt ?? 0) - 10));
+    if (ph.slopedAlt && isRejoin && W.altAboveFt >= (L.altAboveFt ?? 0) - 10) wantV = Math.min(wantV, toward((L.altAboveFt ?? 0) - 10));
     const v0 = W.climbFtps ?? 0;
-    const pull = D.pullFtps2;
     const v1 = v0 + Math.max(-pull * dt, Math.min(pull * dt, wantV - v0));
     const nz = 1 + (v1 - v0) / dt / G_FTPS2;
     const a1 = W.altAboveFt + ((v0 + v1) / 2) * dt;
     heightState.hasHeightChange = true;
+    heightState.sloped = true;
     return { stepProfile: [{ t0: t, t1: t + dt, table: { dt, alt: [W.altAboveFt, a1], climb: [v0, v1], nz: [nz, nz] } }] };
   }
   // 1. Fighting wing energy with the cone (TS-96): the climb that gives the slowing the speed loop flies (or the descent that
@@ -574,7 +615,11 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
     // stop in the room left, he keeps the bubble's pull until he can (a zoom from 50 ft low went 7 ft above Lead, 10 Oct).
     const overRun = v0 > Math.sqrt(2 * E.pullFtps2 * up) || -v0 > Math.sqrt(2 * E.pullFtps2 * down);
     const pull = quick || zoom || overRun ? D.pullFtps2 : E.pullFtps2;
-    const v1 = v0 + Math.max(-pull * dt, Math.min(pull * dt, wantV - v0));
+    // On a rejoin the pull up stays inside the G rule's 5 G with the bank he has (Patrick 10 Oct 2026 23:59Z, "Inside 5 G";
+    // TS-181): from the 35° line's capture he zoomed into the cone at 78° of bank and 5.7 G.
+    const tanB = Math.tan(Math.min(89, Math.abs(W.bankDeg ?? 0)) * DEG);
+    const pullUp = ph.rejoin ? Math.min(pull, Math.max(0, Math.sqrt(Math.max(0, G_RULE.normalG ** 2 - tanB * tanB)) - 1) * G_FTPS2) : pull;
+    const v1 = v0 + Math.max(-pull * dt, Math.min(pullUp * dt, wantV - v0));
     const nz = 1 + (v1 - v0) / dt / G_FTPS2;
     const a1 = W.altAboveFt + ((v0 + v1) / 2) * dt;
     heightState.cone.alt.push(a1);
@@ -597,7 +642,7 @@ export function heightOf(ph, L, W, dt, profile, { blockFt, belowOwn, t, accel, z
   if (ph.coneAlt) {
     return { stepProfile: undefined };
   }
-  let target = ph.slot?.alt;
+  let target = slotAltOf(ph, L, W);
   if (target != null && Number.isFinite(target)) {
     const isRejoin = Boolean(ph.rejoin || ph.rejoinKind === 'into' || ph.rejoinKind === 'straight');
     const range3DFt = Math.hypot(W.xFt - L.xFt, W.yFt - L.yFt, (W.altAboveFt ?? 0) - (L.altAboveFt ?? 0));
@@ -879,7 +924,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       kiasCmd = L.kias;
     } else {
       const last = k === phases.length - 1;
-      const targetAlt = !ph.coneAlt && ph.slot?.alt != null && Number.isFinite(ph.slot.alt) ? ph.slot.alt : null;
+      const targetAlt = !ph.coneAlt && ph.slot?.alt != null && Number.isFinite(ph.slot.alt) ? slotAltOf(ph, L, W) : null;
       const heightDone = !heightState.activeLeg && (targetAlt == null || Math.abs(targetAlt - W.altAboveFt) <= TRACKER.height.minChangeFt);
 
       // 5. In position, settled/steady, and phase completion
@@ -956,6 +1001,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
 
     // 3. Heading and bank: the heading error loop with feed-forward
     const bank = headingBank(ph, psiCmd, W, aligning, bankOwn, headingState, L, aim, blockFt);
+    heightState.onLine = Boolean(aim?.established);
 
     // 4. Power: speed loop, jerk limit, energy intent
     const power = powerOf(ph, pilot, W, L, kiasCmd, {
@@ -1024,14 +1070,16 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     toFt: heightState.cone.alt[heightState.cone.alt.length - 1],
     table: { dt: STEP_SEC, alt: heightState.cone.alt, climb: heightState.cone.climb, nz: heightState.cone.nz },
   };
-  const tableLeg = !hasExplicit && heightState.hasHeightChange && heightState.table && heightState.table.alt.length > 1 && {
+  // The rejoin line's depth law (slopedAlt) is flown ahead of any explicit profile, so the run's own heights are what the
+  // plan records then; until V2.232 the explicit profile was recorded and the flight held 50 ft below Lead to the hold.
+  const tableLeg = (!hasExplicit || heightState.sloped) && heightState.hasHeightChange && heightState.table && heightState.table.alt.length > 1 && {
     t0: heightState.table.t0,
     t1: heightState.table.t0 + (heightState.table.alt.length - 1) * STEP_SEC,
     fromFt: heightState.table.alt[0],
     toFt: heightState.table.alt[heightState.table.alt.length - 1],
     table: { dt: STEP_SEC, alt: heightState.table.alt, climb: heightState.table.climb, nz: heightState.table.nz },
   };
-  const heightLeg = hasExplicit ? coneLeg : (tableLeg || coneLeg || null);
+  const heightLeg = hasExplicit && !heightState.sloped ? coneLeg : (tableLeg || coneLeg || null);
   return {
     points,
     end: { lead: { ...R.at(m) }, wing: W },
