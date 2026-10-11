@@ -468,6 +468,11 @@ function mount(root, app) {
         clock.reset();
         changed();
       },
+      /** Picks an aircraft as its card does (its aim line and caution ring show): for the home-page clip's recorder. */
+      select: (id) => {
+        selectedAircraftId = id;
+        changed();
+      },
       seek: (t) => {
         clock.pause();
         clock.seek(t);

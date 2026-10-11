@@ -40,7 +40,8 @@ The shared parts are the flight core (`src/core/`), the app frame and home scree
 - [x] The speed brake on the model opens with the boards, and the SPEED BRAKE light comes on in the cockpit (Patrick, 11 Oct 2026 20:22Z): `setSpeedBrake(ship, out)` and `hud.speedBrake` in the shared 3D files.
 - [x] CT-156 surface texture and shading (Patrick, 11 Oct 2026 21:07Z card "Surface texture"): rivets and panel-line grooves bump-mapped, exhaust soot, belly oil and grime; the canopy bows flush with the glass (Patrick 21:07Z). Built in the same pull request as this line.
 - [ ] Real-time shadows in every 3D view (Patrick, 11 Oct 2026 21:10Z card "Every 3D view"): the shared helper `src/ui-kit/aircraft-shadows.js` is built; each module's thread switches it on in its own view (Formation, Traffic, Turn Fight, SOF, Debrief).
-- [ ] Research the airframe from photos to add detail, texture and shading inside and outside the cockpit (Patrick, 11 Oct 2026 21:18Z).
+- [x] Research the airframe from photos to add detail, texture and shading inside and outside the cockpit (Patrick, 11 Oct 2026 21:18Z). Findings in the project files (`cockpit-review/ct156-photo-research.md`).
+- [x] Cockpit dark charcoal, as US Navy T-6A cockpit photos show (Patrick, 11 Oct 2026 22:06Z: "Yes use that"); fin static wicks and the yellow fuselage stencils from the photo research. Built in the same pull request as this line. TS-157's colour wording still to be updated, with Patrick's yes to the words.
 - [ ] Formation's 3D view to call `setSpeedBrake` for each ship and pass `speedBrake` to the cockpit when the boards are out (Formation's file, `src/modules/turn-sim/view3d.js`; asked of the Formation thread).
 
 ## Step 4. Sign-off, with the combined sign-off of the whole tool

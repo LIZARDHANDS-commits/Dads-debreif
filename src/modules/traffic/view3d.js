@@ -47,6 +47,7 @@ import { createCameraBar } from './camera-bar.js';
 import { addSkyAndClouds, SKY_COLOURS } from '../../ui-kit/sky-clouds.js';
 import { drawHeadingOf, drawBankOf } from './path-follower.js';
 import { loadBatching } from './batch3d.js';
+import { createAircraftShadows } from '../../ui-kit/aircraft-shadows.js';
 
 /** The viewpoints worked out from an aircraft each frame, rather than framed once. */
 const POV_VIEWS = new Set(['cockpit', 'padlock']);
@@ -1477,7 +1478,7 @@ export const SUN_ELEVATION_DEG = 30;
 
 /**
  * Traffic's lighting: one warm DirectionalLight (sun) and one HemisphereLight (sky blue above, prairie brown below).
- * No shadow maps. MeshBasicMaterial (the satellite ground) ignores lights. World frame: X east, Y north, Z up.
+ * The sun casts the aircraft's real-time shadows (aircraft-shadows.js). MeshBasicMaterial (the satellite ground) ignores lights. World frame: X east, Y north, Z up.
  * Returns { hemisphere, sun, dispose() }; dispose() removes both from the scene and frees them.
  */
 export function addTrafficLights(THREE, scene) {
@@ -1864,6 +1865,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 2);
     const perspective = new THREE.PerspectiveCamera(50, 1, PERSPECTIVE.nearFt, PERSPECTIVE.farFt); // Cockpit and Chase
     const lights = addTrafficLights(THREE, scene);
+    // Real-time sun shadows on the aircraft being looked at (Patrick, 11 Oct 2026 21:10Z card "Every 3D view"; ui-kit).
+    const aircraftShadows = createAircraftShadows(THREE, renderer, lights.sun);
     const sky = addSky(THREE, scene);
     // A light blue sky with clouds above the pattern (Patrick, 6 Oct: "there's no sky in traffic sim"; ui-kit/sky-clouds.js).
     const skyClouds = addSkyAndClouds(THREE, scene);
@@ -1873,7 +1876,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     scene.add(kit.root);
     const style = win.getComputedStyle?.(canvas);
     const palette = paletteFrom((name) => style?.getPropertyValue(name).trim() ?? '');
-    gl = { canvas, labels, ctx: labels.getContext('2d'), renderer, scene, camera, perspective, flatHaze, shownCamera: camera, sky, skyClouds, lights, kit, palette, cockpit: null };
+    gl = { canvas, labels, ctx: labels.getContext('2d'), renderer, scene, camera, perspective, flatHaze, shownCamera: camera, sky, skyClouds, lights, aircraftShadows, kit, palette, cockpit: null };
     if (win.__traffic3dLeakCheck) probeMemory(renderer, camera);
     for (const [type, fn] of hands) canvas.addEventListener(type, fn, type === 'wheel' ? { passive: false } : undefined);
     canvas.addEventListener('webglcontextlost', contextLost);
@@ -1980,6 +1983,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
     kit.dispose();
     sky.dispose();
     skyClouds.dispose();
+    aircraftShadows.dispose();
     lights.dispose();
     outerTier.dispose();
     farTier.dispose();
@@ -2218,6 +2222,10 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       ? { yawDeg: Math.round(finite(freeCam.yawDeg)), tiltDeg: Math.round(90 + finite(freeCam.elevDeg)) }
       : { yawDeg: Math.round(finite(shown.yawDeg)), tiltDeg: Math.round(finite(shown.pitchDeg)) };
     if (facing.yawDeg !== lastFacing?.yawDeg || facing.tiltDeg !== lastFacing?.tiltDeg) { lastFacing = facing; onFacing(facing.yawDeg, facing.tiltDeg); }
+    // The sun's shadow box goes round one aircraft: the one the camera rides or follows, else the one nearest the middle.
+    const shadowed = povTarget ?? (follow ? data.aircraft.find((a) => a.id === follow.id && isFlying(a)) : null)
+      ?? data.aircraft.filter(isFlying).reduce((best, a) => (!best || Math.hypot(a.x - focus.x, a.y - focus.y) < Math.hypot(best.x - focus.x, best.y - focus.y) ? a : best), null);
+    gl.aircraftShadows.follow(shadowed ? kit.aircraftMesh(shadowed.id) : null);
     renderer.render(threeScene, gl.shownCamera);
     if (pov?.hidden) pov.hidden.visible = true;
     drawLabels(ctx, labels, size, ratio, data, options, palette, { zoom: pov ? pov.labelZoom : shown.zoom, floor, skipId: pov?.hidden ? povTarget.id : null, noLocator: Boolean(pov) && PERSPECTIVE_VIEWS.has(viewMode) });
