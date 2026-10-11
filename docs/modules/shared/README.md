@@ -21,6 +21,7 @@ The plan's steps, in order: Step 1: Refresh spec.md against the new requirements
 | `plan.md` | The ordered steps and checkboxes; the last step is the sign-off |
 | `future.md` | Ideas not being built until Patrick moves them up |
 | `flight-math.md` | Every shared flight formula, where it lives and its source: read it before writing flight math |
+| `REFACTOR_HANDOVER_CORE_V2.350.md` | Fable's audit of `src/core/` and the step-by-step refactor plan, waiting on Patrick's yes |
 
 ## Open questions
 
