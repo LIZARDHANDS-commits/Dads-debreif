@@ -105,8 +105,24 @@ export function createFluidUi({ onPress, onSettings, settings }) {
   });
   const methodSelect = h('select', {
     'aria-label': 'How #2 is flown',
-    onchange: () => onSettings({ wing: methodSelect.value }),
+    onchange: () => setMethod(methodSelect.value),
   }, WINGMAN_METHODS.map((m) => h('option', { value: m.value, selected: m.value === (settings.wing ?? 'planned') }, m.label)));
+  // The same choice as a button next to Fluid in the Formation box (Patrick 11 Oct 2026 23:00Z: "a button next to fluid
+  // that sets which mode we use"); each press swaps Planned and Live, and the Settings choice follows it.
+  const methodWords = (m) => `#2: ${WINGMAN_METHODS.find((x) => x.value === m)?.label ?? 'Planned'}`;
+  const modeButton = h('button', {
+    type: 'button',
+    class: 'button ts-change-button ts-fluid-mode',
+    'aria-pressed': String(methodSelect.value === 'live'),
+    title: 'How #2 is flown in fluid manoeuvring: Planned (scripted) or Live (his own aircraft). Taken at the next start.',
+    onclick: () => setMethod(methodSelect.value === 'live' ? 'planned' : 'live'),
+  }, methodWords(methodSelect.value));
+  function setMethod(m) {
+    methodSelect.value = m;
+    modeButton.textContent = methodWords(m);
+    modeButton.setAttribute('aria-pressed', String(m === 'live'));
+    onSettings({ wing: m });
+  }
 
   const hint = h('p', { class: 'ts-hint' }, 'Lead\'s buttons work once fluid manoeuvring has started from fighting wing. #2 stays in the cone behind Lead; Terminate brings him back to fighting wing.');
   const more = h('details', { class: 'ts-more' },
@@ -143,6 +159,8 @@ export function createFluidUi({ onPress, onSettings, settings }) {
     lagElement,
     /** Fluid settings: Lead's bank, the distance, how #2 is flown. They sit in the left column's Settings box (Patrick, 5 Oct). */
     settingsElement: more,
+    /** The Planned or Live button that sits next to Fluid (transitions-panel.js shows and greys it with Fluid). */
+    modeElement: modeButton,
     cardElement,
     /** Lead's buttons work only while fluid manoeuvring runs; Terminate and the rest grey once Terminate is flown. */
     update(state, where = null) {
