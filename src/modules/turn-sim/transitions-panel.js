@@ -541,6 +541,8 @@ export function createChangeUi({ onChange, fluidUi = null }) {
         return;
       }
       fluidUi?.update(state, where);
+      // Lead's fighting wing moves and the fluid buttons show in fighting wing and fluid manoeuvring (lost in the 10 Oct handover).
+      if (fluidUi) fluidUi.element.hidden = where.key !== 'fluid' && where.key !== 'fw';
       // Position: only in a formation it works in, with nothing else flying (or a move in the band, so a new spot can be picked).
       stateNow = state;
       const moving = state.current?.key === `change:${MOVE_IN_BAND_KEY}`;
@@ -556,7 +558,8 @@ export function createChangeUi({ onChange, fluidUi = null }) {
       // Only what the formation the pair is in can use shows (Patrick, 5 Oct, fly-through item 6): the fluid manoeuvring
       // buttons while it runs; in fighting wing Lead's level turns, climbs and descents (TS-70); the lag roll in its own "#2"
       // group in fighting wing and echelon (TS-78, fluid-panel.js). A button that is only busy for a moment is greyed.
-      rejoinRow.hidden = where.key !== 'lab' && where.key !== 'fw';
+      // ...and in trail after a break and rejoin, TRJ or SARJ (TS-175; Patrick 11 Oct 2026 07:57Z).
+      rejoinRow.hidden = where.key !== 'lab' && where.key !== 'fw' && !(where.key === 'other' && state.trailSide);
       const closeBankVisible = ['echelon', 'route', 'astern', 'trail'].includes(where.key);
       bankRow.hidden = !closeBankVisible;
       if (bankSelect.value !== String(closeBankNow())) {
