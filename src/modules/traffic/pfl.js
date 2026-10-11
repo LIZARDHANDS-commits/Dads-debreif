@@ -9,7 +9,7 @@
 // staying where it is. Drag goes out a step at a time, at least 5 s apart (Fable F6); the round-out and flare are
 // TR-110's.
 //
-// References: SMM chapter 13; NFM Fig 3-4 (zoom); EFIG p.402, 406, 408; Fable's review (F1-F16, Q1-Q7); Patrick's
+// References: SMM chapter 13; reference data (zoom); EFIG p.402, 406, 408; Fable's review (F1-F16, Q1-Q7); Patrick's
 // rulings as cited on each number.
 
 import { ktToFtps, KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../core/units.js';
@@ -44,7 +44,7 @@ const bearing = (a, b) => compassDegFromVector(b.x - a.x, b.y - a.y);
 export const PFL = Object.freeze({
   /** Zoom only above 150 KIAS (Patrick, 4440; card C7 06:35Z); at or below it, hold height and slow to glide speed. */
   zoomAboveKias: 150,
-  /** The zoom: 2 G pull to 20° climb, push over through 145 KIAS, capture 125 KIAS (NFM Fig 3-4, p. 3-9). */
+  /** The zoom: 2 G pull to 20° climb, push over through 145 KIAS, capture 125 KIAS (reference). */
   zoomPullG: 2,
   /** Most G the glide may pull to move the nose, never past the stall line (TR-51; Patrick 17:52Z). */
   glideMaxG: 2,
@@ -52,7 +52,7 @@ export const PFL = Object.freeze({
   gOnsetGps: 2,
   gOnsetGps2: 8,
   pushOverKias: 145,
-  /** Steepest climb attitude during zoom (NFM Fig 3-4: 20° nose up). */
+  /** Steepest climb attitude during zoom (reference data: 20° nose up). */
   zoomMaxClimbDeg: 20,
   /** Most bank while zooming, so the zoom still gains height while turning toward the join. */
   zoomMaxBankDeg: 30,

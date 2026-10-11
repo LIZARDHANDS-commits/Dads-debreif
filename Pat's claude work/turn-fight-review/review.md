@@ -1,6 +1,6 @@
 # Fight Sim architecture review (Turn Fight)
 
-Read-only review of the Turn Fight code on main `1020583` (4 Oct 2026), for Patrick, modelled on the Traffic review (`../archive/2026-10-reset/traffic-architecture/review.md`). Nothing in the repo was changed. Appendices in this folder: `architecture.md` (flow chart, every file, every control, clean-up list), `inventory.md`, `flight-math-duplicates.md`, `traces.md` (19 fights flown in Node), `trace.mjs`.
+Read-only review of the Turn Fight code on main `1020583` (4 Oct 2026), for Patrick, modelled on the Traffic review (`../archive/2026-10-reset/traffic-architecture/review.md`). Nothing in the repo was changed. Appendices in this folder: `architecture.md` (flow data, every file, every control, clean-up list), `inventory.md`, `flight-math-duplicates.md`, `traces.md` (19 fights flown in Node), `trace.mjs`.
 
 Method: two Sonnet readers (file inventory, duplicated maths) and my own reading of `energy-sim.js`, `sim.js`, `state.js`, `playback.js` and core. I flew the engine through 19 setups in Node, with no browser. Inferences are marked.
 

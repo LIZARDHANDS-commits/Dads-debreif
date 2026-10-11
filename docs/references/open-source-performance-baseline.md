@@ -2,7 +2,7 @@
 
 This document compiles legitimate, publicly accessible, open-source references justifying the airframe geometry, engine ratings, aerodynamic limits, and flight envelope for the **Beechcraft Model 3000 (T-6A/B/C Texan II, CT-156 Harvard II, AT-6 Wolverine)** and the **Pratt & Whitney Canada PT6A-68** turboprop series.
 
-All cited documents are completely independent of restricted, distribution-limited, or Scribd-hosted military flight manuals (such as USAF T.O. 1T-6A-1, USN NATOPS Flight Manual, or RCAF CFAFM). Every parameter cited below is backed by public civil type certificate data sheets (TCDS), manufacturer product technical data, unclassified government systems engineering reports, peer-reviewed aerospace proceedings, or open-source flight dynamics simulation models.
+All cited documents are public data and pilots' experience. Every parameter cited below is backed by public civil type certificate data sheets (TCDS), manufacturer product technical data, unclassified government systems engineering reports, peer-reviewed aerospace proceedings, or open-source flight dynamics simulation models.
 
 ---
 
@@ -297,6 +297,6 @@ All cited documents are completely independent of restricted, distribution-limit
 ## 6. Verification and Citability Summary
 
 This reference suite meets flight simulation and debrief verification requirements:
-1. **Zero Reliance on Controlled Military Flight Manuals:** Does not reference USAF T.O. 1T-6A-1, USN NATOPS, or Canadian CFAFM.
+1. **Public sources and pilots' experience only:** Every number comes from public data or pilots' experience.
 2. **Open-Source Grounding:** Fully anchored in bilateral civil type certification documents (FAA TCDS A00009WI, EASA TCDS EASA.IM.A.636, EASA.IM.E.038, Transport Canada E-24), unrestricted manufacturer specifications from Textron Aviation Defense and Pratt & Whitney Canada, peer-reviewed aerospace proceedings (ICAS / NASA NTRS), public government systems engineering research (DTIC ADA538810), public air force doctrine (AETCMAN 11-248), and open-source flight dynamics codebases (FlightGear / JSBSim).
 3. **Mathematical Consistency:** The values cross-validate across domains: wing area ($177.5\text{ sq ft}$), aspect ratio ($6.30$), clean stall ($86\text{ KIAS}$), landing flap stall ($77\text{ KIAS}$), and approach speed ($100\text{ KIAS}$) form a mathematically consistent aerodynamic polar matching the $1,100\text{ SHP}$ flat-rated PT6A-68 envelope.

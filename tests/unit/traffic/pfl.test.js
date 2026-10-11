@@ -4,7 +4,7 @@
 //   and flies a touch-and-go, and one far too low and far out that ejects; the inner downwind in a westerly makes the runway.
 // Serves: TR-R14, TR-R30, TR-R35.
 // Expected values: end results only (on the runway, ejected, back in the circuit); clean glide 2 NM per 1,000 ft
-//   (T-6A max glide chart; SMM 13.5 para 7); start points are the circuit's own points and spec 4.5's keys; the
+//   (T-6A max glide data; SMM 13.5 para 7); start points are the circuit's own points and spec 4.5's keys; the
 //   step limit and the 10 minute safety stop have their reasons beside them; touchdown in the first third of the
 //   runway (Patrick 4 Oct 09:49Z), or within 2,600 ft on the true-length runway for now (Patrick 5 Oct 02:01Z).
 

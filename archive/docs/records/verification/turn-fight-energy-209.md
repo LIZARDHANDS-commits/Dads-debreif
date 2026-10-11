@@ -73,7 +73,7 @@ Also seen, not worth an ID: a start at 164 KIAS ("MPT straight away", within 5) 
 - Question: in a mirror fight, should the head-on re-pass ever start a pursuit? Recommendation: keep it off (D152, D205); the screen says why (F4).
 
 ## Spec / decision mismatches
-- S1 (Low, wording): spec "How the model flies" step 3 says the level MPT bank is "about 75 deg". Patrick's 09:27Z answer (a) chose the chart bank; the engine flies 68.5 deg at 6,000 ft, 68.1 at 8,000 (energy-model-check.md a). Recommendation: change the spec line to "about 69 deg (SMM ~75)". Missing test: none (a doc line), or add to the existing level-MPT test a 68 to 70 deg bound.
+- S1 (Low, wording): spec "How the model flies" step 3 says the level MPT bank is "about 75 deg". Patrick's 09:27Z answer (a) chose the data bank; the engine flies 68.5 deg at 6,000 ft, 68.1 at 8,000 (energy-model-check.md a). Recommendation: change the spec line to "about 69 deg (SMM ~75)". Missing test: none (a doc line), or add to the existing level-MPT test a 68 to 70 deg bound.
 - D154/D168: level MPT 146.4 KIAS at a 6,000 ft deck (rule 144, +2.4), 145.3 at 8,000 (rule 142, +3.3): inside the spec's 5 kt. Consistent with D168.
 - No logged Turn Fight or Energy call contradicts the SMM or the spec otherwise (D152, D153, D165, D175, D177, D178, D179, D234 to D243 checked in the numbers below).
 
@@ -84,7 +84,7 @@ Also seen, not worth an ID: a start at 164 KIAS ("MPT straight away", within 5) 
 - Level MPT at the deck: 146.4 KIAS at 6,000 ft, bank 68.5, 2.7 G, height 6,000.0 (never under), from 100 to 250 KIAS starts, 6,000 and 8,000 ft decks. Settles in 20 to 230 s (the 10,000 ft descent takes 230 s).
 - CSMPT: 160 KIAS, 72.2 deg, 3.26 G at 10,000 ft, 18.5 deg/s, sink 1,442 ft/min; energy height falls at exactly the Ps the readout gives (25.18 vs 25.18 ft/s).
 - Energy accounting: over 60 runs of 100 s (6 moves x 5 speeds x 2 altitudes), change in energy height against the integral of Ps: worst error 10.5 ft (140 KIAS Immelmann, in a near stall at the top).
-- Turn rate against the NFM chart (core's points): level MPT at 6,000 ft 16.7 deg/s against about 17.3 read; at 10,000 ft deck 16.3 against about 15.9; both within 1 deg/s.
+- Turn rate against the reference data (core's points): level MPT at 6,000 ft 16.7 deg/s against about 17.3 read; at 10,000 ft deck 16.3 against about 15.9; both within 1 deg/s.
 - Split S: identical to core's splitST6A at 90 to 200 KIAS and 7,000 to 15,000 ft (loss from entry 1,689 and from the top 1,976 at 110 KIAS/10,000 ft; peak 5.00 G).
 - Immelmann/pitch back/slice: 250 KIAS Immelmann gains 2,483 ft, tops at 125 KIAS; 220 KIAS pitch back gains 809 ft, MPT after 140 deg, bank 30 deg at 220 rising to 60 at 160; slice bank 98/105/113/120/128/135 deg for 150/140/130/120/110/100 KIAS (spec 90 to 135 line).
 - Throttle: forced MPT from 220 KIAS at mid-range and 4 G, MAX when the shaker comes on (thr 0.5 then 1 at +8 s); other moves at 1.

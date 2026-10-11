@@ -33,7 +33,7 @@ Whole tool
 Flight math and time
 
 | ID | Requirement | Source | How we check it |
-| R9 | For example tracks, flight math produces valid spacing, fore/aft, aspect, HCA, closure, G, turn rate and turn radius baselined on aerodynamics and 15 Wing Moose Jaw flight manuals within pilot domain tolerances (D369, D371). V6 in original/ is an archival UX/layout reference only (D368, D372); any differences against V6 reflect manual compliance and are logged in Decisions. | Plan (updated Patrick D368, D371, D372) | Automated regression tests comparing against aerodynamic ground truth and flight manual standards within pilot domain tolerances. |
+| R9 | For example tracks, flight math produces valid spacing, fore/aft, aspect, HCA, closure, G, turn rate and turn radius baselined on aerodynamics and 15 Wing Moose Jaw manuals within pilot domain tolerances (D369, D371). V6 in original/ is an archival UX/layout reference only (D368, D372); any differences against V6 reflect manual compliance and are logged in Decisions. | Plan (updated Patrick D368, D371, D372) | Automated regression tests comparing against aerodynamic ground truth and 15 Wing manual standards within pilot domain tolerances. |
 | R10 | Times show Zulu first with local beside it, and one switch changes every module. Conversions are consistent everywhere. Moose Jaw local is CST (UTC-6) all year, and other home airfields use their own zone. | Patrick | Time conversion tests, including dates either side of clock changes. |
 
 Modules

@@ -181,7 +181,7 @@ Point 10 (Break Exit) position is dynamically computed by `computeBreakRollout()
 
 ## 3. Aerodynamic Baseline
 
-All numbers from 15 Wing SMM (Aug 2024), EFIG (24 Jun 2026), and T-6A NFM. Traceability citations only — agents read this spec directly.
+All numbers from 15 Wing SMM (Aug 2024), EFIG (24 Jun 2026), and T-6A reference data. Traceability citations only — agents read this spec directly.
 
 ### 3.1 Speed Schedule (CT-156 Harvard II)
 | Phase | Speed (KIAS) | Source |
@@ -194,7 +194,7 @@ All numbers from 15 Wing SMM (Aug 2024), EFIG (24 Jun 2026), and T-6A NFM. Trace
 | Touchdown | 80–90 | SMM 4.9 ¶15 |
 | Closed pattern climb | 140 | SMM 4.2, EFIG p.134 |
 | Go-around climb | 140 → 220 | SMM 4.22 ¶53 |
-| PFL glide (clean) | 125 | T-6A Max Glide Chart |
+| PFL glide (clean) | 125 | T-6A Max Glide Data |
 | PFL glide (gear down) | 120 | SMM 13.5 |
 
 ### 3.2 Bank Angles and G
@@ -222,10 +222,10 @@ All numbers from 15 Wing SMM (Aug 2024), EFIG (24 Jun 2026), and T-6A NFM. Trace
 |---|---|---|
 | Clean stall speed ($V_{s0}$) | 86 KIAS | D158, D387 |
 | Accelerated stall: $n_{\text{stall}} = (V_{\text{ias}}/86)^2$ | At 140 kt: 2.65 G, at 120 kt: 1.94 G | Standard aero |
-| Stick shaker margin | +7 kt above stall (93 KIAS clean) | NFM p.1-52 |
+| Stick shaker margin | +7 kt above stall (93 KIAS clean) | reference data |
 | $V_{fe} / V_{le}$ (gear/flap limit) | 147 KIAS | SMM 4.6 ¶9 |
-| $V_{mo}$ | 316 KIAS | NFM p.5-9 |
-| Max G (clean) | +7.0 / -3.5 | NFM V-n diagram |
+| $V_{mo}$ | 316 KIAS | reference data |
+| Max G (clean) | +7.0 / -3.5 | reference flight envelope |
 | Roll rate (normal) | 30–50 °/s | SMM 16.18 |
 | Roll rate (tactical max) | 90 °/s | T6A_MANOEUVRE |
 

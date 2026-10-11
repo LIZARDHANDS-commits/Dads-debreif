@@ -11,7 +11,7 @@ Checked on 6b0ed65 (#237, live build same commit). Scope: flight numbers against
 - Missing test: tests/unit/debrief/readouts.test.js, a Lead line at 24 kt wind (headwind and tailwind) where the verdict follows TAS, or the caveat text is present.
 
 **F2 (Medium, safety): GPS spikes show as real over-G, overspeed or a high G at a speed the aircraft cannot fly.**
-- Expected: G at most 7 (V-n, formation-and-turn-numbers.md "T-6A performance charts", +7/-3.5, VMO 316 KIAS), and G below the stall line, about (KIAS/86)^2, so 0.5 G at 62 KIAS. A glitch should read "--".
+- Expected: G at most 7 (G limit, formation-and-turn-numbers.md "T-6A performance data", +7/-3.5, VMO 316 KIAS), and G below the stall line, about (KIAS/86)^2, so 0.5 G at 62 KIAS. A glitch should read "--".
 - Actual (default settings, est. G): (a) start+1779 to +1783 (18:48:43Z), Lead, fixes at start+1779 and +1784 are exactly 5 s apart, so it is not a "gap" (GAP_S is "more than 5 s", clean.js:22): GS 427 kt, est. IAS 352 kt, G 6.55 to 7.0, Lead line reads "352 kt est. IAS, 7.0 G, FAST, HIGH G". (b) #2 at start+2187 to +2191 (18:55:31Z): 5.62 G at 62 kt est. IAS, 5.36 G at 120 kt, 3.24 G at 109 kt (stall-line limit 0.5, 1.9, 1.6 G). (c) 298 airborne ship-seconds have GS over 300 kt, 66 over 350 kt, maximum 583 kt (#4 at start+2352, 554 kt). Only about 10 ship-seconds of 16,778 are affected, so most of the flight is right; the wrong ones are the ones a debrief would stop on.
 - Missing tests: tests/unit/debrief/readouts.test.js, over the Example flight no ship row with est. G above the stall-line G for its est. IAS, and no Lead FAST/HIGH G verdict with GS over 350 kt. tests/unit/flight-data/clean.test.js, a hole of exactly GAP_S seconds (5 s) is a gap, or at least not a turn.
 

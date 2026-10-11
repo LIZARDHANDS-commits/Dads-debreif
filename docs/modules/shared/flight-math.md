@@ -44,21 +44,21 @@ Sources: "aero" means standard aerodynamics, worked out in the test. A manual pa
 | Idle prop and speed brake drag (not in core) | Formation Sim (planned) | Extra drag at idle, full-fine prop: about 0.16 of the weight at 200 KIAS, growing with dynamic pressure; speed brake as a perforated flat plate. Used by the Formation Sim only; the core curves do not change | Patrick's break and "about 5 kt/s" (TS-61, `docs/modules/turn-sim/decisions.md`); brake size pending his number |
 | `pitchDegFromClimb(climb, tas, kias, g)`, `T6A_PITCH` | t6-performance.js | Nose attitude: climb angle plus angle of attack, which grows with G and falls with speed squared (about 11° in a 180 KIAS climb) | climb angle aero; angle of attack an estimate matched to SMM 3.14 para 35 and EFIG p.126 |
 | `attitudeDegFromClimb(climb, tas, kias, g)`, `T6A_PITCH.datumDeg` | t6-performance.js | The attitude the pilot sees: pitchDegFromClimb less the 2.6° fuselage datum (about −0.7° level at 220 KIAS, 8.5° in the 180 KIAS climb) | datum an estimate fitted to Patrick's 220 KIAS attitude, 6 Oct 06:17Z (TR-91) |
-| `thrustPerWeight`, `dragPerWeight`, `excessThrustPerWeight` | t6-performance.js | Full-power thrust, drag and what is left to climb or speed up with. Climb rate = excess × TAS. Pass the turn's real G | fitted to the T-6A sustained turn chart (`T6A_FIT`) |
-| `T6A_LIMITS`, `stallLimitG`, `availableG` | t6-performance.js | V-n limits, stall line, G available now | NFM; stall 86 KIAS (Patrick, 30 Sep) |
+| `thrustPerWeight`, `dragPerWeight`, `excessThrustPerWeight` | t6-performance.js | Full-power thrust, drag and what is left to climb or speed up with. Climb rate = excess × TAS. Pass the turn's real G | fitted to the T-6A sustained-turn data (`T6A_FIT`) |
+| `T6A_LIMITS`, `stallLimitG`, `availableG` | t6-performance.js | G and speed limits, stall line, G available now | reference data; stall 86 KIAS (Patrick, 30 Sep) |
 | `T6A_ROLL`, `rollLimitsT6A`, `rollLimitsAtKtasT6A`, `rollWithinT6A`, `T6A_G_ONSET` | t6-performance.js | The aircraft's roll limit at a speed (0.45°/s per knot of true airspeed, capped at 120°/s, full rate in 0.3 s) and G onset (4 G/s, 16 G/s²); every module's roll and G onset stays under them | ESTIMATES, standard aerodynamics (Fable's audit 5 Oct); Patrick 5 Oct 22:01Z agreed one core limit |
-| `maxKiasT6A`, `modelMaxIasT6A` | t6-performance.js | Top speed at a height (VMO 316 or Mmo 0.67) | NFM Fig 5-3, p.5-9 |
+| `maxKiasT6A`, `modelMaxIasT6A` | t6-performance.js | Top speed at a height (VMO 316 or Mmo 0.67) | reference data |
 | `shakerG`, `T6A_MANOEUVRE`, `splitST6A` | t6-performance.js | Pulls in the stick shaker; the split S | SMM 14.16 |
 
 ## Engine out
 
 | Function | File | What it gives | Source |
 |---|---|---|---|
-| `T6A_GLIDE` | t6-performance.js | Glide speed and ratio per configuration: clean 2.0, gear down 1.5, T/O flap 1.3, landing flap 1.1 NM per 1,000 ft | T-6A max glide chart; SMM 13.5 para 7. T/O flap row is an estimate |
-| `glideRatio(config)` | t6-performance.js | Feet flown per foot of height lost (clean about 12.2) | same chart |
-| `glideSinkFpm(config, kias, alt)` | t6-performance.js | Sink rate at any height (the chart's ft/min fit only at about 16,000 ft) | same chart |
-| `glideDragPerWeight(config, kias, alt, g)` | t6-performance.js | Drag over weight power off, for the configuration down, at any speed and G: the clean drag fit scaled by the square of the glide ratio (best glide comes out at about 108 KIAS gear down, 93 landing flap; chart 105 and 95) | same chart; the clean fit in `T6A_FIT` |
-| `zoomT6A`, `flyZoomT6A`, `NFM_ZOOM` | t6-performance.js | Height gained by the zoom after an engine failure | NFM Fig 3-4, p.3-12 |
+| `T6A_GLIDE` | t6-performance.js | Glide speed and ratio per configuration: clean 2.0, gear down 1.5, T/O flap 1.3, landing flap 1.1 NM per 1,000 ft | T-6A max glide data; SMM 13.5 para 7. T/O flap row is an estimate |
+| `glideRatio(config)` | t6-performance.js | Feet flown per foot of height lost (clean about 12.2) | same data |
+| `glideSinkFpm(config, kias, alt)` | t6-performance.js | Sink rate at any height (the data's ft/min fit only at about 16,000 ft) | same data |
+| `glideDragPerWeight(config, kias, alt, g)` | t6-performance.js | Drag over weight power off, for the configuration down, at any speed and G: the clean drag fit scaled by the square of the glide ratio (best glide comes out at about 108 KIAS gear down, 93 landing flap; data 105 and 95) | same data; the clean fit in `T6A_FIT` |
+| `zoomT6A`, `flyZoomT6A`, `NFM_ZOOM` | t6-performance.js | Height gained by the zoom after an engine failure | reference data |
 
 ## Wind and navigation
 

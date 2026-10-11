@@ -3,7 +3,7 @@
 Spec approved by Patrick on 2026-09-30. See [`plan.md`](plan.md), [`SPEC-turn-fight.md`](../../specs/SPEC-turn-fight.md), and master plan [`turn_fight_completion_plan.md`](file:///C:/Users/patri/.gemini/antigravity/brain/38b8f170-9ed5-4022-a9fb-683e79d5cd7e/turn_fight_completion_plan.md).
 
 **Streamlined build & Governance Rules:**
-- V6 Decoupling (D368/D372): Baseline is standard aerodynamics and 15 Wing Moose Jaw flight manuals (`../manuals/`). Zero runtime `eval()` or bit-exact float matching.
+- V6 Decoupling (D368/D372): Baseline is standard aerodynamics and 15 Wing Moose Jaw manuals (`../manuals/`). Zero runtime `eval()` or bit-exact float matching.
 - Pilot Domain Tolerances (D369/D371): Airspeed $\pm10$ kt, Alt $\pm100$ ft, Angles $\pm5^\circ$, G $\pm0.5$ G, Turn Rate $\pm2.5^\circ$/s.
 - Milestone 2 Scope: Normal unit and Playwright tests only; no mutation runs. Gate 2 sign-off pauses for Patrick upon full verification.
 
@@ -30,7 +30,7 @@ Spec approved by Patrick on 2026-09-30. See [`plan.md`](plan.md), [`SPEC-turn-fi
 
 ## Tasks 8–9: Energy Mode Engine (Merged on main)
 
-- [x] **8-9. T-6A performance model and point-mass step.** (#209, #227, #235) `energy-sim.js` (1,360 lines): point-mass 3D aero model, full torque, thrust minus drag from turn charts, MPT capture at 160 KIAS, `evenFight`.
+- [x] **8-9. T-6A performance model and point-mass step.** (#209, #227, #235) `energy-sim.js` (1,360 lines): point-mass 3D aero model, full torque, thrust minus drag from turn data, MPT capture at 160 KIAS, `evenFight`.
 
 ---
 
@@ -43,7 +43,7 @@ Spec approved by Patrick on 2026-09-30. See [`plan.md`](plan.md), [`SPEC-turn-fi
 
 - [x] **10.2 Aero limits, MPT range calibration & test repair (Traps 4, 5, 7, D393).**
   - Point `topKiasAt(altFt)` in `src/modules/turn-fight/state.js` directly to `energyTopKias(altFt)` from `energy-sim.js:55` (Mach 0.67 corner, 269 kt at 25k ft).
-  - Align refusal note: `"(269 KIAS in the model, Mach 0.67; the NFM's 279 is the same Mach on the gauge)"`.
+  - Align refusal note: `"(269 KIAS in the model, Mach 0.67; the reference 279 is the same Mach on the gauge)"`.
   - Enforce MPT range 125–175 KIAS in `state.js` (D349).
   - Enforce D381 in `energy-sim.js:110, 113` and `state.js`: update `immelmannMinTopKias` and `splitSBelowKias` to 140 kt (prohibit Immelmann $\le 140$ KIAS).
   - Enforce D393 in `energy-sim.js:832` (`controlImmelmann`): pull 5.0 G until at stick shaker, then ride the shaker (`Math.min(5.0, ctx.shaker)`).

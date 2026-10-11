@@ -2,7 +2,7 @@
 
 **Wording for Fable briefs and notes:** use [rendezvous-glossary.md](rendezvous-glossary.md) (Patrick 6 Oct 03:14Z).
 
-Read this first. It replaces reading the whole folder. Detail lives in the files it points to; the repo wins where they differ (`AGENTS.md`, then `docs/modules/turn-sim/`). Every number here is an estimate unless a manual page or Patrick's ruling is beside it. Manual text and the flight manual never go in the repo or these files; cite pages only.
+Read this first. It replaces reading the whole folder. Detail lives in the files it points to; the repo wins where they differ (`AGENTS.md`, then `docs/modules/turn-sim/`). Every number here is an estimate unless a manual page or Patrick's ruling is beside it. Manual text and images never go in the repo or these files; use only the manuals in the project files and cite pages only.
 
 ## 1. Where it stands (main at V2.84, 5 Oct 21:56Z)
 
@@ -44,7 +44,7 @@ Being built now (Formation thread, Opus): the core roll-rate curve and G onset, 
 
 ## 4. Open items
 
-Waiting on Patrick: climb-model fit to the NFM charts (only if he asks); the rulings list.
+Waiting on Patrick: climb-model fit to the reference data (only if he asks); the rulings list.
 
 Parked until Patrick asks (Formation `future.md`): planned overshoot when too hot (SMM 12.27 paras 64-66); refuse a rejoin past about 360° of Lead's turn; lag roll in a turn (Lead's turning frame); 4-ship turning rejoin and mid-move presses; route, line astern and 4-ship turns at the slow roll; a turn pressed during a change into line abreast; moving #2 inside a band with the controls; the fluid 1,000 ft loop place; the errors panel's old lines (hot-rejoin.js) until the chooser covers them.
 

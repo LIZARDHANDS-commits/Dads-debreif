@@ -2,9 +2,9 @@
 
 **Date:** 5 Oct 2026. **Code reviewed:** `main` at DADS v2.10.86 (working tree, merge `42be070`). **Reviewer:** Fable 5.1, high thinking, read-only. **Brief:** `fable-pfl-review-brief.md` in this folder, approved by Patrick.
 
-**Method.** I read `AGENTS.md`, `docs/PLAN.md`, the Traffic folder (spec 4.5, TR-39 to TR-84, testing, future), `docs/modules/shared/flight-math.md`, `src/core/`, all of `src/modules/traffic/pfl.js` and the rest of the flying code, and SMM chapter 13, EFIG p.402 and p.408 and NFM Fig 3-4 (pages cited only). I then ran about 40 single-flight traces of `flyPfl` with Node from the scratchpad (no test suites, no sweeps; scripts stayed outside the repo and this folder). Where a trace is quoted, the numbers come from the code as it stands. Nothing in the repo was changed.
+**Method.** I read `AGENTS.md`, `docs/PLAN.md`, the Traffic folder (spec 4.5, TR-39 to TR-84, testing, future), `docs/modules/shared/flight-math.md`, `src/core/`, all of `src/modules/traffic/pfl.js` and the rest of the flying code, and SMM chapter 13, EFIG p.402 and p.408 and reference data (pages cited only). I then ran about 40 single-flight traces of `flyPfl` with Node from the scratchpad (no test suites, no sweeps; scripts stayed outside the repo and this folder). Where a trace is quoted, the numbers come from the code as it stands. Nothing in the repo was changed.
 
-**How numbers are marked.** *(SMM p.N)*, *(EFIG p.N)*, *(NFM p.N)* or *(Patrick, time)* means sourced. *(est.)* means an estimate of mine or of the code's author with no source. Speeds are named: KIAS (what the pilot reads), KTAS (true), GS (ground speed). Heights are altimeter feet MSL unless they say "true".
+**How numbers are marked.** *(SMM p.N)*, *(EFIG p.N)*, *(reference data p.N)* or *(Patrick, time)* means sourced. *(est.)* means an estimate of mine or of the code's author with no source. Speeds are named: KIAS (what the pilot reads), KTAS (true), GS (ground speed). Heights are altimeter feet MSL unless they say "true".
 
 ---
 
@@ -22,7 +22,7 @@ The trouble starts when the aircraft is **high** or **inside Final Key**, and al
 
 4. **Gear-down drag is about 30% lighter than the SMM's orbit figures**, so the T/O flap comes out right after High Key to make Low Key, and anything above profile lands long because the drag runs out.
 
-5. Smaller: two different zooms (plan by the NFM table, flight by the code's own pull, 20% more height), no round-out (touchdown at 120 KIAS on the glide), a widen sized to zero spare that is abandoned on the next tick, the join search run only at 45° bank when the pilot may use 60°, three copies of the break-speed curve and three of the stall-bank formula, and a handful of constants with no source.
+5. Smaller: two different zooms (plan by the reference data table, flight by the code's own pull, 20% more height), no round-out (touchdown at 120 KIAS on the glide), a widen sized to zero spare that is abandoned on the next tick, the join search run only at 45° bank when the pilot may use 60°, three copies of the break-speed curve and three of the stall-bank formula, and a handful of constants with no source.
 
 **Against Patrick's rule** ("get on the circle first; gear can come early; drag first only if the alternative is an unrealistic manoeuvre"): the code gets the first half wrong in the high cases (it picks the unrealistic manoeuvre) and never uses the second half (drag is forbidden until the aircraft is on the circle, `dragOk`). The fix is mostly re-ordering what exists: try the join at up to 60° bank; if every join is high, take the nearest join and gear now; widen with a buffer; only then more drag; never an orbit or an S except the SMM's own orbit above the High Key window.
 
@@ -104,9 +104,9 @@ For FT1 the aircraft is 2,770 ft from the threshold with 420 ft of height; finis
 
 **Evidence.** A 360° orbit at 120 KIAS, 0.5 NM radius, 4,500 ft, from the core model: clean 1,652 ft; gear 2,013 ft; gear + T/O flap 2,368 ft; gear + landing flap 2,932 ft (my computation with the repo's functions). The SMM gives about 1,700 ft clean and about 2,600 ft gear down for the orbit (SMM 13.5 para 11, p.45–46). Clean agrees; gear down is 23% light, so the planned half-orbit from High Key at 5,000 to Low Key at 3,700 (1,300 ft, which matches the SMM's 2,600 per orbit) cannot be flown gear-only in the model: the trace from High Key at exactly 5,000 ft (practice) takes gear at 4,960 and **T/O flap at 4,776 ft**, 160° before its planned point at Low Key, and still arrives at Low Key 3,696. From 5,500 ft the same, plus a 2,280 ft false-High-Key extension. Once every configuration is out there is nothing left but widening, so every foot of excess height lands about 7 ft long (landing-flap glide 6.7:1).
 
-**Cause.** The gear-down chart speed in `T6A_GLIDE` is 105 KIAS but the PFL flies 120 KIAS; the drag fit is anchored to the best-glide point, and at 120 KIAS with the gear down the model's drag rise is gentler than the SMM's orbit figure implies. Whether the chart (max glide, feathered) or the SMM (practice, idle, 120 KIAS) is the right anchor for a practice PFL is Patrick's call (question Q1).
+**Cause.** The gear-down data speed in `T6A_GLIDE` is 105 KIAS but the PFL flies 120 KIAS; the drag fit is anchored to the best-glide point, and at 120 KIAS with the gear down the model's drag rise is gentler than the SMM's orbit figure implies. Whether the data (max glide, feathered) or the SMM (practice, idle, 120 KIAS) is the right anchor for a practice PFL is Patrick's call (question Q1).
 
-**Fix.** Either scale the gear-down and flap drag so that the model's orbit losses at 120 KIAS match the SMM's 1,700 / 2,600 ft *(SMM p.45–46)*, keeping the clean fit as it is, or keep the chart ratios and accept that the sim needs T/O flap early. I recommend the first: the SMM numbers are the ones Patrick's PFL is built on, and the plan's drag points (gear at High Key, T/O flap at Low Key, landing flap at Final Key, TR-39) only work with them. The spec's settings table should then carry both numbers with their pages. **One test:** from High Key at 5,000 ft the aircraft arrives at Low Key within ±100 ft of 3,700 ft with gear only.
+**Fix.** Either scale the gear-down and flap drag so that the model's orbit losses at 120 KIAS match the SMM's 1,700 / 2,600 ft *(SMM p.45–46)*, keeping the clean fit as it is, or keep the data ratios and accept that the sim needs T/O flap early. I recommend the first: the SMM numbers are the ones Patrick's PFL is built on, and the plan's drag points (gear at High Key, T/O flap at Low Key, landing flap at Final Key, TR-39) only work with them. The spec's settings table should then carry both numbers with their pages. **One test:** from High Key at 5,000 ft the aircraft arrives at Low Key within ±100 ft of 3,700 ft with gear only.
 
 ### F5. The widen uses every foot of spare height, so the next deviation flips it to "direct"
 
@@ -126,15 +126,15 @@ For FT1 the aircraft is 2,770 ft from the threshold with 420 ft of height; finis
 
 **Fix.** Take the gear as soon as the join is known to be high (on the way to it), hold the T/O flap for the planned point unless still high there, and keep the landing flap rule as it is. One configuration change per 5 s *(est.)* as a sanity bound. The G5 case then arrives at Final Key nearer 3,000 ft and the "high starts land long" tuning item in `future.md` mostly goes away with F4.
 
-### F7. Two zooms: the plan uses the NFM table, the flight uses its own pull, and the flight gains about 20% more
+### F7. Two zooms: the plan uses the reference data table, the flight uses its own pull, and the flight gains about 20% more
 
-**Where.** Plan: `avail = start.alt + zoomT6A(...)` (pfl.js ~655–665) from `src/core/t6-performance.js` 228–335 (NFM Fig 3-4, p.3-12: 2 s delay, 2 G pull to 20° nose up held to 145 KIAS, 0 to +0.5 G push to capture 125, NFM p.3-9). Flight: pfl.js 760–780, 2 G pull (`zoomPullG` 2 *(EFIG p.408)*) until 140 KIAS (`pushOverKias` 140 *(EFIG p.408)*) or 30° climb (`zoomMaxClimbDeg` 30 *(est.)*), bank up to 30° (`zoomMaxBankDeg` *(est.)*).
+**Where.** Plan: `avail = start.alt + zoomT6A(...)` (pfl.js ~655–665) from `src/core/t6-performance.js` 228–335 (reference data: 2 s delay, 2 G pull to 20° nose up held to 145 KIAS, 0 to +0.5 G push to capture 125, reference data). Flight: pfl.js 760–780, 2 G pull (`zoomPullG` 2 *(EFIG p.408)*) until 140 KIAS (`pushOverKias` 140 *(EFIG p.408)*) or 30° climb (`zoomMaxClimbDeg` 30 *(est.)*), bank up to 30° (`zoomMaxBankDeg` *(est.)*).
 
 **Evidence.** E (initial, 220 KIAS, 3,500 ft): planned gain 959 ft, flown 1,167 ft. E2 (break, 190 KIAS): planned 600, flown 720. The apex re-check (880–897) only re-plans when short, so the extra height is handled by earlier drag; the join choice itself was made with 200 ft less than the aircraft arrives with.
 
 **Cause.** Duplicated flight maths with different numbers (AGENTS.md: never write a second copy). The 30° climb cap is an estimate that contradicts the core's cited 20°.
 
-**Fix.** Fly the zoom with `flyZoomT6A` from core (20° nose up, 145 KIAS, NFM) and plan with the same function, so plan and flight agree; keep the EFIG's 140 KIAS push-over only if Patrick prefers the EFIG wording (question Q4). Remove `zoomMaxClimbDeg`.
+**Fix.** Fly the zoom with `flyZoomT6A` from core (20° nose up, 145 KIAS, reference data) and plan with the same function, so plan and flight agree; keep the EFIG's 140 KIAS push-over only if Patrick prefers the EFIG wording (question Q4). Remove `zoomMaxClimbDeg`.
 
 ### F8. No round-out: the wheels touch at 120 KIAS on the glide path
 
@@ -176,7 +176,7 @@ For FT1 the aircraft is 2,770 ft from the threshold with 420 ft of height; finis
 
 ### F13. Constants without a source and mismatched twins
 
-In `PFL` (pfl.js 35–115), marked `(est.)` in the code or unsourced: `gOnsetGps` 2 and `gOnsetGps2` 8; `zoomMaxClimbDeg` 30 (contradicts NFM 20°); `zoomMaxBankDeg` 30; `stallMarginKt` 5; `atHighKeyFt` 1,500; `dragBufferFt` 100; `onProfileFt` 50; `stopMarginFt` 2,000; `joinLeadFt` 1,500; `highKeyRunInFt` 3,000; `directFinalFt` 2,000; `lookaheadFt` 1,000; `cutFtPerFtLow` 8; `maxLookaheadFt` 6,000; `widenAboveFt` 100; `maxWidenFt` 6,000; `holdBankSec` 1; `maxAccelG` 0.1; `obviousShortRingFactor` 1.5; `ejectDecideSec` 5. `PFL.stallKias` `[86, 86, 86, 76]` repeats the core's 86 and adds 76 for landing flap with no page. Twins that disagree: `sim.js` line 715 starts the practice PFL "at High Key" from 4,750 ft, `pfl.js` from 5,000 (`highKeyMinFt`); `high-key.js` run-in 760 ft (1/8 NM, "ratified") against `pfl.js` 3,000 ft; the core's zoom (20°, 145 KIAS) against pfl.js's (30° cap, 140 KIAS). Spec 4.5's settings table should carry each with its page or "estimate".
+In `PFL` (pfl.js 35–115), marked `(est.)` in the code or unsourced: `gOnsetGps` 2 and `gOnsetGps2` 8; `zoomMaxClimbDeg` 30 (contradicts reference data 20°); `zoomMaxBankDeg` 30; `stallMarginKt` 5; `atHighKeyFt` 1,500; `dragBufferFt` 100; `onProfileFt` 50; `stopMarginFt` 2,000; `joinLeadFt` 1,500; `highKeyRunInFt` 3,000; `directFinalFt` 2,000; `lookaheadFt` 1,000; `cutFtPerFtLow` 8; `maxLookaheadFt` 6,000; `widenAboveFt` 100; `maxWidenFt` 6,000; `holdBankSec` 1; `maxAccelG` 0.1; `obviousShortRingFactor` 1.5; `ejectDecideSec` 5. `PFL.stallKias` `[86, 86, 86, 76]` repeats the core's 86 and adds 76 for landing flap with no page. Twins that disagree: `sim.js` line 715 starts the practice PFL "at High Key" from 4,750 ft, `pfl.js` from 5,000 (`highKeyMinFt`); `high-key.js` run-in 760 ft (1/8 NM, "ratified") against `pfl.js` 3,000 ft; the core's zoom (20°, 145 KIAS) against pfl.js's (30° cap, 140 KIAS). Spec 4.5's settings table should carry each with its page or "estimate".
 
 ### F14. Dead code and duplicated flight maths
 
@@ -209,10 +209,10 @@ Planner plus carrot follower is the right *split* (a glide is a plan; the pilot 
 
 Each one line, with options and my recommendation. The working answer (what the tool should do until he replies) is the recommendation.
 
-- **Q1. Gear-down drag: which figure does the sim trust?** Options: (a) keep the T-6A glide chart ratios as fitted in core (gear-down orbit 2,013 ft, T/O flap early is then normal); (b) scale gear and flap drag so the orbit loses 1,700 ft clean and 2,600 ft gear down at 120 KIAS as SMM 13.5 para 11 (p.45–46) says; (c) ask Dad what the aircraft actually loses per orbit gear down at 120 KIAS. Recommend (b), and put (c) on the questions-for-Dad list.
+- **Q1. Gear-down drag: which figure does the sim trust?** Options: (a) keep the T-6A glide data ratios as fitted in core (gear-down orbit 2,013 ft, T/O flap early is then normal); (b) scale gear and flap drag so the orbit loses 1,700 ft clean and 2,600 ft gear down at 120 KIAS as SMM 13.5 para 11 (p.45–46) says; (c) ask Dad what the aircraft actually loses per orbit gear down at 120 KIAS. Recommend (b), and put (c) on the questions-for-Dad list.
 - **Q2. Inside Final Key, runway reachable but not the aim point: land ahead or eject?** Options: (a) land on whatever part of the runway the turn reaches, gear down, as a pilot would (first-third rule waived inside Final Key); (b) eject as the code does now, in the spirit of SMM 13.17 para 40 (p.53); (c) land but flag "outside the first third" on screen. Recommend (c).
 - **Q3. May a direct take gear and flap like a normal approach once the runway is assured?** Spec 4.5 item 10 lets it land gear up. Options: (a) gear by 2,400 ft or when lined up, flaps if the margin allows (same rules as the circle); (b) keep "gear only if it fits, else gear up". Recommend (a); the gear-up landing stays only when the sum says the gear would put it short.
-- **Q4. Zoom: whose numbers?** Options: (a) NFM Fig 3-4 / p.3-9 (20° nose up, 145 KIAS, then push to 125), used for plan and flight; (b) EFIG p.408 (2 G pull, push through 140, capture 125) for both; (c) keep the two as they are. Recommend (a) for the gain and the attitude, with the EFIG's 140 KIAS push-over noted in the spec as the Moose Jaw technique; never (c).
+- **Q4. Zoom: whose numbers?** Options: (a) reference data / p.3-9 (20° nose up, 145 KIAS, then push to 125), used for plan and flight; (b) EFIG p.408 (2 G pull, push through 140, capture 125) for both; (c) keep the two as they are. Recommend (a) for the gain and the attitude, with the EFIG's 140 KIAS push-over noted in the spec as the Moose Jaw technique; never (c).
 - **Q5. Does "no orbit only to lose height" exempt the SMM's orbit above the High Key window (13.7 para 16)?** Options: (a) yes, the High Key orbit and false High Key stay as built; (b) no, above the window the aircraft extends only. Recommend (a).
 - **Q6. Round-out and touchdown speed: add them?** Options: (a) two-stage round-out to 80–90 KIAS per SMM 13.10 para 19, touchdown mark where the wheels touch, and the "first 1,000 ft" test re-read against the wheels; (b) keep touchdown on the glide at 120 KIAS and treat the mark as the aim point. Recommend (a), small change, visible on screen.
 - **Q7. Structure: which shape for the next PFL work?** Options: (a) the middle road in F16 (held-bank arcs for joins and the direct, carrot for straights, re-plan at keys, grace period); (b) a full re-write as a segment planner; (c) keep pure pursuit and fix F1–F6 inside it. Recommend (a).
@@ -221,11 +221,11 @@ Each one line, with options and my recommendation. The working answer (what the 
 
 ## 4. What I did not look at, and what I am unsure of
 
-**Not looked at.** The screens, the 3D view, `scene.js` beyond its use of `generatePflTrack`, `ejection.js` (picture only), `nav-plans.js` beyond `makePflFromArea` and `onProfileAltFt`, `closed-pattern.js` beyond the duplicated radius scaling, the relay and weather fetch, the test files' bodies (names only), and anything on screen: every statement above is from reading and Node traces, not from the running app. I did not run the test suites or any sweep. I did not use the flight manual.
+**Not looked at.** The screens, the 3D view, `scene.js` beyond its use of `generatePflTrack`, `ejection.js` (picture only), `nav-plans.js` beyond `makePflFromArea` and `onProfileAltFt`, `closed-pattern.js` beyond the duplicated radius scaling, the relay and weather fetch, the test files' bodies (names only), and anything on screen: every statement above is from reading and Node traces, not from the running app. I did not run the test suites or any sweep.
 
 **Unsure of.**
 - The 144 ft disagreement in F9: I have the symptom and two candidate terms, not the proof.
-- Whether the T-6A glide chart's gear-down speed (105 KIAS in `T6A_GLIDE`) or the SMM's 120 KIAS practice technique is the right anchor for the drag fit (Q1): this is a flying-knowledge question.
+- Whether the T-6A glide data's gear-down speed (105 KIAS in `T6A_GLIDE`) or the SMM's 120 KIAS practice technique is the right anchor for the drag fit (Q1): this is a flying-knowledge question.
 - My time labels in the traces were index-based and inflated; I quoted heights and positions instead, which are exact.
 - The hot-day figure in F2 (+193 ft at High Key) is smaller than the frame error alone predicts (about +400 ft); the difference is probably the wind-triangle effect of the higher TAS on a 15 kt crosswind and I did not separate the two.
 - The one test suggested per fix is written in pilot terms; the margins I used are the shared table's (±100 ft, ±10 kt) unless I said why.

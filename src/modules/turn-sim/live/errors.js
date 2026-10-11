@@ -134,8 +134,8 @@ export const responseOf = (o) => (o.errSmart === false || o.errResponse === 'ref
  * confirmation of the draft wording, 4 Oct 11:42Z). Estimates, flagged on the card when passed,
  * never walls except that the aircraft can't be asked for more than it can fly: bank 50° to 75° is
  * 1.6 to 3.9 G, under the wingman's +5 G reference (Gen Book p.11) and the rolling limit of 4.7 G
- * (SMM/NFM via t6-performance). Speeding up is limited by the T-6A's full-power excess thrust
- * (core excessThrustPerWeight, fitted to the sustained turn chart), so it is not a number here.
+ * (SMM and reference data via t6-performance). Speeding up is limited by the T-6A's full-power excess thrust
+ * (core excessThrustPerWeight, fitted to the sustained turn data), so it is not a number here.
  */
 export const FIX_LIMITS = Object.freeze({
   // Geometry

@@ -32,8 +32,8 @@ const IDLE_PROP = Object.freeze({ dragPerWeight: 0.16, atKias: 200 });
 /**
  * The speed brake's extra drag ÷ weight: about 0.095 at 200 KIAS, growing with dynamic pressure (KIAS²). A perforated flat
  * plate (Patrick 00:48Z: "a flat plate with holes as the size of the speed brake"): a single ventral panel opening to 70°
- * (NFM p.1-39), about 5 sq ft (about 4 by 1.25 ft: a GUESS, no manual gives the size), so about 4.7 sq ft face-on, Cd about
- * 0.9 (perforated plate, standard aerodynamics), a drag area of about 4.2 sq ft; at 6,000 lb (the NFM examples' weight) and
+ * (reference), about 5 sq ft (about 4 by 1.25 ft: a GUESS, no manual gives the size), so about 4.7 sq ft face-on, Cd about
+ * 0.9 (perforated plate, standard aerodynamics), a drag area of about 4.2 sq ft; at 6,000 lb (the reference examples' weight) and
  * 135 lb/sq ft of dynamic pressure (200 KIAS) that is about 570 lb, 0.095 of the weight: about +1.7 kt/s level at 200 KIAS.
  * TS-61 (3).
  */

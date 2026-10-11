@@ -18,7 +18,7 @@ They check code that is being deleted. What they were meant to protect is checke
 
 - `tests/unit/traffic/high-key.test.js`, all 14 tests (old rail, the 660 ft run-in and its timing). The register says "Rewrite". That rewrite already exists: `high-key-climb.test.js` (arrives at High Key at its height, on the run-in, from every start) and `commands.test.js` ("climb_high_key … cuts engine at High Key, lands and flies a touch-and-go").
 - `tests/unit/traffic/pfl-rail.test.js`, all 8 tests (old scripted PFL circle). The register says "Keep, with changes … The PFL gets its own review later". That review was PR 3: `pfl.test.js` now checks the PFL lands from each failure point, configuration timing per SMM 13.6 para 15 and 13.17 para 39, and the eject case.
-- `tests/unit/traffic/pfl-solver.test.js`, all 15 tests (old PFL solver). Same as above. Its one manual citation (NFM p.3-9, glide) is for the old solver's own numbers; the live glide uses the shared glide ratio in `src/core`.
+- `tests/unit/traffic/pfl-solver.test.js`, all 15 tests (old PFL solver). Same as above. Its one manual citation (reference data, glide) is for the old solver's own numbers; the live glide uses the shared glide ratio in `src/core`.
 - `tests/unit/traffic/tick-aircraft.test.js`, four tests about the slide itself:
   - 2.5 "shouldEnterPhysics returns false during BLENDING when no command is active"
   - 5.1 "BLENDING mode interpolates smoothly over 1.0 second and finishes in RAIL mode"

@@ -1,6 +1,6 @@
 // Checks: the flight model: recorded bank read the short way round, gaps over 5 s, end-of-track speed, heading unknown when still, no G where heading is unknown.
 // Serves: DB-R5, DB-R6, DB-R7.
-// Expected values: synthetic tracks worked out in the test; the 7 G ceiling on the example flight is the T-6 V-n limit; 3 kt "still" and 5 s gap are design choices (C4, C7);
+// Expected values: synthetic tracks worked out in the test; the 7 G ceiling on the example flight is the T-6 G limit; 3 kt "still" and 5 s gap are design choices (C4, C7);
 //   the bank minimum on a real track is the code's own output (register, T3).
 
 // What the flight model means: recorded bank, gaps, ends of the track and so on.

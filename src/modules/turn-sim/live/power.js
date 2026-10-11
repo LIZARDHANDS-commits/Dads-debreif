@@ -9,8 +9,8 @@
 // thrust - drag (core excessFnFor; standard aerodynamics, dV/dt = g (T - D) / W - g sin(climb angle)).
 //
 // Torque (TQ %) from it (02:05Z): TQ% = thrust x TAS / (eta x 1,100 shp) x 100, capped at 100.
-//  - thrust: throttle x thrustPerWeight x weight, at 6,000 lb (the NFM examples' weight; an ESTIMATE of the weight flown);
-//  - 1,100 shp: the PT6A-68 is flat rated to 1,100 shp, "100% torque available" (NFM ch 1);
+//  - thrust: throttle x thrustPerWeight x weight, at 6,000 lb (the reference examples' weight; an ESTIMATE of the weight flown);
+//  - 1,100 shp: the PT6A-68 is flat rated to 1,100 shp, "100% torque available" (reference);
 //  - eta 0.81 (an ESTIMATE): the model's own full-power thrust power at 200 KIAS divided by 1,100 shp (0.80 at sea level,
 //    0.81 at about 3,000 ft, 0.82 at 8,000 ft), so full power at 200 KIAS reads 100%.
 // Checked against SMM Table 8.1's instrument torque settings (approximate checks, not pins): level 180 KIAS clean about
@@ -24,7 +24,7 @@ import { extraDragPerWeight, excessPerWeight } from './slow-down.js';
 
 /** The block height a power is worked out at when the caller doesn't know it: the formation's default (formation.js, an estimate). */
 export const POWER_BLOCK_FT = 8000;
-/** The torque reading's numbers (Patrick 02:05Z): 1,100 shp flat rating (NFM ch 1); eta and the weight are estimates. */
+/** The torque reading's numbers (Patrick 02:05Z): 1,100 shp flat rating (reference); eta and the weight are estimates. */
 export const TORQUE = Object.freeze({ ratedShp: 1100, eta: 0.81, weightLb: 6000 });
 /** From this share of full-power thrust up the tag says MAX (so it does not flick between MAX and 99% at full power; an estimate). */
 const MAX_FROM = 0.985;

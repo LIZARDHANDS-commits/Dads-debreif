@@ -232,7 +232,7 @@ Navigation plans are pure data structures defined in [`src/modules/traffic/nav-p
 6. **0.75 NM Final Approach Speed Gate (SPEC-traffic §3.2, D110):**
    Straight-in aircraft maintain 120 KIAS down final approach to the Window located at 4,558 ft (0.75 NM) from the threshold. Deceleration to 100 KIAS threshold speed occurs strictly between 0.75 NM and the threshold.
 7. **PFL Energy Descent Performance (`calcEnergyStep`):**
-   In engine-out PFL mode, sink rate is calculated directly from aerodynamic glide polar charts in `src/core/t6-performance.js`:
+   In engine-out PFL mode, sink rate is calculated directly from aerodynamic glide polar data in `src/core/t6-performance.js`:
    - Clean glide (125 KIAS): 1,350 fpm (2.0 NM / 1,000 ft).
    - Gear Down (120 KIAS): 1,500 fpm (1.5 NM / 1,000 ft).
    - Flaps Landing (100 KIAS): 1,850 fpm (1.1 NM / 1,000 ft).

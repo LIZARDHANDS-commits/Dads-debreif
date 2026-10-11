@@ -7,7 +7,7 @@ Waiting on Patrick's yes. Nothing is deleted yet. Counts are approximate (from t
 
 Formation Sim's tests are not in this pull request: the Formation thread is rewriting its planner files in its clean-up, so its cut (below) goes to that thread to fold in.
 
-What stays checks flying right and nothing breaking: no snaps or NaN, G within the stall line, limits flagged not walled, lands on the runway, ends in the formation, numbers where the NFM/SMM put them, weather limits and stale reports, and hostile files or replies refused.
+What stays checks flying right and nothing breaking: no snaps or NaN, G within the stall line, limits flagged not walled, lands on the runway, ends in the formation, numbers where the reference data/SMM put them, weather limits and stale reports, and hostile files or replies refused.
 
 ## Browser tests (the heavy ones)
 
