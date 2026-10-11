@@ -30,6 +30,7 @@ import { createLandmarks, disposeLandmarks, createWindsocks, updateWindsocks, di
 import { createRunwayMarkings, disposeRunwayMarkings } from './runway-markings.js';
 import { createBaseBuildings, disposeBaseBuildings, BASE_BOX_FT } from './base-buildings3d.js';
 import { createGroundHeights } from './ground-heights3d.js';
+import { SHADOW_PATCHES } from './ground-shadows-data.js';
 import { ejectionAt, EJECTION } from './ejection.js';
 import { trueAltFt } from './weather.js';
 import { createEjectionModel, poseEjectionModel, disposeEjectionModel } from './ejection3d.js';
@@ -561,28 +562,37 @@ const GRID_CELLS = 100;
 
 const numberOf = (id) => String(id).replace(/\D+/g, '') || String(id);
 
-/** Where the baked ground shadows lie, ft from the ARP, and how dark their darkest part is (tools/blender/bake-shadows.py, TR-133). */
-export const GROUND_SHADOWS = Object.freeze({ x0: -1200, x1: 2900, y0: 1300, y1: 5100, file: 'media/traffic-ground-shadows.png', strength: 0.6 });
+/** How dark the baked shadows' darkest part is drawn (an estimate). */
+const SHADOW_STRENGTH = 0.6;
 
-/** The baked shadows as one flat sheet (its picture is the darkness, white darkest), drawn just after the paint. */
+/**
+ * The baked ground shadows (tools/blender/bake-shadows.py; TR-133, TR-135): one see-through dark sheet per patch (the flight line and
+ * base, each landmark, the radar), drawn just after the paint and under the buildings. Each sheet is a grid so it can lie on the real
+ * ground (applyGround); its picture loads once, and until then the sheet is clear.
+ */
 function createGroundShadows(THREE) {
-  const G = GROUND_SHADOWS;
-  const geometry = new THREE.PlaneGeometry(G.x1 - G.x0, G.y1 - G.y0);
-  const material = new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0, depthWrite: false, fog: false }); // clear until the picture comes
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.name = 'ground-shadows';
-  mesh.position.set((G.x0 + G.x1) / 2, (G.y0 + G.y1) / 2, 0);
-  mesh.renderOrder = -0.45;
-  mesh.visible = false;
-  if (typeof globalThis.Image !== 'undefined') {
-    const base = (typeof import.meta !== 'undefined' && /** @type {any} */ (import.meta).env?.BASE_URL) || '/';
-    new THREE.TextureLoader().load(`${base}${G.file}`, (texture) => {
-      material.alphaMap = texture;
-      material.opacity = G.strength;
-      material.needsUpdate = true;
-    });
+  const group = new THREE.Group();
+  group.name = 'ground-shadows';
+  group.visible = false;
+  const base = (typeof import.meta !== 'undefined' && /** @type {any} */ (import.meta).env?.BASE_URL) || '/';
+  for (const P of SHADOW_PATCHES) {
+    const w = P.x1 - P.x0, h = P.y1 - P.y0;
+    const geometry = new THREE.PlaneGeometry(w, h, Math.max(1, Math.min(32, Math.ceil(w / 150))), Math.max(1, Math.min(32, Math.ceil(h / 150))));
+    const material = new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0, depthWrite: false, fog: false });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = `ground-shadows-${P.name}`;
+    mesh.position.set((P.x0 + P.x1) / 2, (P.y0 + P.y1) / 2, 0);
+    mesh.renderOrder = -0.45;
+    group.add(mesh);
+    if (typeof globalThis.Image !== 'undefined') {
+      new THREE.TextureLoader().load(`${base}media/traffic-shadows/${P.name}.png`, (texture) => {
+        material.alphaMap = texture;
+        material.opacity = SHADOW_STRENGTH;
+        material.needsUpdate = true;
+      });
+    }
   }
-  return mesh;
+  return group;
 }
 
 /**
@@ -714,6 +724,13 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     for (const g of landmarks.children) {
       g.position.z = DEFAULT_FLOOR_FT + (heights ? heights.offsetAt(g.position.x, g.position.y) : 0);
     }
+    // The shadow sheets lie on the same ground, a hair above it.
+    for (const sheet of groundShadows.children) {
+      const pos = sheet.geometry.attributes.position;
+      for (let k = 0; k < pos.count; k++) pos.setZ(k, heights ? heights.offsetAt(sheet.position.x + pos.getX(k), sheet.position.y + pos.getY(k)) : 0);
+      pos.needsUpdate = true;
+      sheet.geometry.computeBoundingSphere();
+    }
   }
 
   // Sharpest tier: zoom-18 imagery over the runways and flight line (transparent until tiles arrive)
@@ -742,8 +759,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
   const runwayPaint = createRunwayMarkings(THREE);
   runwayPaint.visible = false;
   root.add(runwayPaint);
-  // The buildings' shadows on the ground, baked in Blender from the same sun (tools/blender/bake-shadows.py, TR-133): a dark,
-  // see-through sheet over the photo and the paint, under the buildings. Its picture loads once; until then nothing shows.
+  // The buildings' and landmarks' shadows on the ground, baked in Blender from the same sun (TR-133, TR-135).
   const groundShadows = createGroundShadows(THREE);
   root.add(groundShadows);
 
@@ -1288,9 +1304,11 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
       coreGeometry.dispose();
       coreMaterial.dispose();
       disposeRunwayMarkings(runwayPaint);
-      groundShadows.geometry.dispose();
-      groundShadows.material.alphaMap?.dispose();
-      groundShadows.material.dispose();
+      for (const sheet of groundShadows.children) {
+        sheet.geometry.dispose();
+        sheet.material.alphaMap?.dispose();
+        sheet.material.dispose();
+      }
       if (scenery) {
         disposeAirfieldScenery(scenery);
         scenery.removeFromParent();
