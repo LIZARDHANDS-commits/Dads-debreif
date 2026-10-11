@@ -114,7 +114,7 @@ export const TURNING_REJOIN = Object.freeze({
   tailEaseSec: 3, // ...and he eases into the slot over the last of it, slowing evenly to a stop (estimate)
   tailBlendSec: 2.5, // ...its corners rounded over this either side, twice (estimate; 1.5 s once until V2.255, Patrick 05:31Z "still too jerky")
   tailUpFtps: 5, // ...and the drop into Lead's wing plane at no more than this, over about 8-10 s (estimate)
-  tailHold: Object.freeze({ sideBankDeg: 5 }), // ...flown with his G off Lead's changing at no more than this and his bank within this of Lead's, not the close turns' 4 G/s and 15° (Patrick 05:31Z: "smaller, smoother movements"; estimates)
+  tailHold: Object.freeze({ sideBankDeg: 5, followG: 0.15, onsetGps: 1, holdPerSec: 1.5 }), // ...flown with his bank within this of Lead's, his G within followG of Lead's, changing at no more than onsetGps, settling at holdPerSec: not the close turns' 15°, 0.5 G, 4 G/s and 2.5/s (Patrick 05:31Z: "smaller, smoother movements"; Fable's V2.255 flight: as Lead rolled out after the rejoin #2 climbed out of the step-down at 14 ft/s and bunted to 0.71 G; estimates)
   stableKt: Object.freeze([10, 20]), // his closure, range rate in knots, is stable in this window (Patrick 03:34Z: "10-20 knots at 100 feet"); the slowing aims at its middle, and slower is cold, not unstable
   stableShare: 1.5, // ...and closing at no more than this times the closure that middle overtake gives on the X, about 32 kt, so he is holding the X, not sweeping through it (card 03:15Z "Closure or bearing"; the figure is an estimate)
   xWindowDeg: 10, // Lead is on the X picture within this many degrees of it, 25-45° off his tail (card 03:15Z "Closure or bearing"; the figure is an estimate)
